@@ -1,10 +1,10 @@
-import type { MarketStreamConfig } from "./config.js";
-import { normalizeOandaPrice, type OandaStreamPrice } from "./normalize.js";
+import type { MarketStreamConfig } from "./market-stream-config.js";
+import { normalizeOandaPrice, type OandaStreamPrice } from "./market-stream-normalize.js";
 import type {
   MarketPriceTick,
   MarketStreamHeartbeat,
   MarketStreamStatus,
-} from "./types.js";
+} from "./market-stream-types.js";
 
 interface StreamHandlers {
   onPrice: (tick: MarketPriceTick) => void;
@@ -213,3 +213,5 @@ export class OandaPricingStream {
     }
   }
 }
+
+

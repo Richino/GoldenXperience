@@ -5,14 +5,14 @@ import path from "node:path";
 import { config as loadDotenv } from "dotenv";
 import { WebSocket, WebSocketServer } from "ws";
 
-import { OandaPricingStream } from "../../backend/src/oanda-stream.js";
-import { createMockTick, getDefaultMockInstruments } from "../../backend/src/mock-stream.js";
+import { OandaPricingStream } from "./oanda-stream.js";
+import { createMockTick, getDefaultMockInstruments } from "./mock-stream.js";
 import type {
   MajorInstrument,
   MarketPriceTick,
   MarketStreamMessage,
   MarketStreamStatus,
-} from "../../backend/src/types.js";
+} from "./market-stream-types.js";
 import { getEconomicCalendar } from "../../frontend/src/lib/calendar/forex-factory.js";
 import { isKnownInstrument } from "../../frontend/src/lib/instruments/catalog.js";
 import {

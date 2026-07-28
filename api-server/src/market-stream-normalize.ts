@@ -1,4 +1,4 @@
-import type { MajorInstrument, MarketPriceTick } from "./types.js";
+import type { MajorInstrument, MarketPriceTick } from "./market-stream-types.js";
 
 const displayNames: Record<MajorInstrument, string> = {
   EUR_USD: "EUR/USD",
@@ -51,3 +51,5 @@ export function normalizeOandaPrice(
     sequence,
   };
 }
+
+

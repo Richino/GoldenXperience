@@ -7,7 +7,8 @@
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",
-    "api:test": "tsx scripts/check-api.ts"
+    "api:test": "tsx scripts/check-api.ts",
+    "stream:test": "tsx scripts/check-ws.ts"
   },
   "dependencies": {
     "dotenv": "^17.2.3",

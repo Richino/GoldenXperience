@@ -49,3 +49,5 @@ export type MarketStreamMessage =
   | MarketPriceTick
   | MarketStreamStatus
   | MarketStreamHeartbeat;
+
+

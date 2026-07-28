@@ -2,8 +2,8 @@ import {
   STREAM_INSTRUMENTS,
   type MajorInstrument,
   type MarketPriceTick,
-} from "./types.js";
-import { formatInstrument } from "./normalize.js";
+} from "./market-stream-types.js";
+import { formatInstrument } from "./market-stream-normalize.js";
 
 const precision: Record<MajorInstrument, number> = {
   EUR_USD: 5,
@@ -51,3 +51,5 @@ export function createMockTick(
 export function getDefaultMockInstruments() {
   return [...STREAM_INSTRUMENTS];
 }
+
+

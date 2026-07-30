@@ -1,0 +1,37 @@
+import { randomBytes, createHash } from "node:crypto";
+import argon2 from "argon2";
+import { query } from "./database.js";
+
+const SESSION_DAYS = 14;
+const hashToken = (value: string) => createHash("sha256").update(value).digest("hex");
+export const cookieName = "gx_session";
+
+export async function createOwner(email: string, password: string) {
+  const normalized = email.trim().toLowerCase();
+  if (!/^\S+@\S+\.\S+$/.test(normalized) || password.length < 14) throw new Error("Use a valid email and a password of at least 14 characters.");
+  const existing = await query("SELECT id FROM users LIMIT 1");
+  if (existing.rowCount) throw new Error("An owner account already exists.");
+  const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
+  await query("INSERT INTO users (email, password_hash, role) VALUES ($1, $2, 'owner')", [normalized, passwordHash]);
+}
+
+export async function login(email: string, password: string) {
+  const result = await query<{ id: string; password_hash: string }>("SELECT id, password_hash FROM users WHERE email = $1", [email.trim().toLowerCase()]);
+  const user = result.rows[0];
+  if (!user || !(await argon2.verify(user.password_hash, password))) return null;
+  const token = randomBytes(32).toString("base64url");
+  const expiresAt = new Date(Date.now() + SESSION_DAYS * 86_400_000);
+  await query("INSERT INTO sessions (user_id, token_hash, expires_at) VALUES ($1, $2, $3)", [user.id, hashToken(token), expiresAt]);
+  await query("UPDATE users SET last_login_at = now() WHERE id = $1", [user.id]);
+  return { token, expiresAt, userId: user.id };
+}
+
+export async function sessionUser(token: string | undefined) {
+  if (!token) return null;
+  const result = await query<{ id: string; email: string }>("SELECT u.id, u.email FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at > now()", [hashToken(token)]);
+  return result.rows[0] ?? null;
+}
+
+export async function logout(token: string | undefined) {
+  if (token) await query("UPDATE sessions SET revoked_at=now() WHERE token_hash=$1", [hashToken(token)]);
+}

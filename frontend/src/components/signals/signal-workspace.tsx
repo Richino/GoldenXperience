@@ -40,6 +40,7 @@ import {
   precisionFor,
 } from "@/lib/instruments/catalog";
 import { useMarketStream } from "@/lib/market-stream/use-market-stream";
+import type { StrategySetup } from "@/lib/strategy/types";
 import type { MarketPriceTick } from "@/types/market-stream";
 import type {
   Candle,
@@ -206,6 +207,33 @@ function buildSearchIndex(signals: TradeSignal[]): SearchResult[] {
       ),
     };
   });
+}
+
+function toDisplaySignal(setup: StrategySetup): TradeSignal[] {
+  if (
+    !setup.direction ||
+    setup.entry === null ||
+    setup.stop === null ||
+    setup.target === null ||
+    setup.riskReward === null
+  ) {
+    return [];
+  }
+
+  return [{
+    instrument: setup.instrument,
+    pair: setup.pair,
+    timeframe: setup.timeframe,
+    direction: setup.direction,
+    bias: setup.direction === "long" ? "Bullish" : "Bearish",
+    entry: setup.entry,
+    stop: setup.stop,
+    target: setup.target,
+    riskReward: setup.riskReward,
+    strategy: setup.status === "valid" ? "Verified strategy setup" : "Blocked strategy candidate",
+    note: setup.summary,
+    freshness: `Evaluated ${new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(setup.evaluatedAt))}`,
+  }];
 }
 
 function SegmentControl<T extends string>({
@@ -599,15 +627,56 @@ function EntryChecklist() {
   );
 }
 
+function StrategyStatus({ setup }: { setup: StrategySetup }) {
+  const actionable = setup.status === "valid";
+
+  return (
+    <div className="border-t border-[color:var(--border)] pt-4">
+      <SectionLabel
+        title={actionable ? "Strategy status" : "Why this is blocked"}
+        variant="minimal"
+      />
+      <p
+        className={
+          actionable
+            ? "mt-2 text-sm text-[color:var(--success)]"
+            : "mt-2 text-sm font-medium text-[color:var(--danger)]"
+        }
+      >
+        {actionable
+          ? "Verified setup. Confirm the live quote before any paper entry."
+          : setup.summary}
+      </p>
+      {!actionable && setup.failedConditions.length ? (
+        <ul className="mt-3 space-y-2 text-xs leading-5 text-[color:var(--muted)]">
+          {setup.failedConditions.map((condition) => (
+            <li key={condition.name}>
+              <span className="font-medium text-[color:var(--foreground)]">
+                {condition.name}:
+              </span>{" "}
+              {condition.reason}{" "}
+              <span className="text-[color:var(--danger)]">
+                ({condition.currentValue})
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 function SignalSidebar({
   active,
+  setup,
   riskDistance,
 }: {
   active: TradeSignal;
+  setup: StrategySetup;
   riskDistance: number;
 }) {
   return (
-    <section className="app-card flex h-full flex-col gap-5 p-5 md:p-6">
+    <section className="app-card signals-sidebar flex h-full flex-col gap-5 p-5 md:p-6">
       <div>
         <SectionLabel title="Setup" variant="minimal" />
         <p className="mt-2 text-sm font-medium tracking-[-0.02em]">
@@ -632,6 +701,8 @@ function SignalSidebar({
       <SetupNote active={active} />
       <SetupMeta active={active} riskDistance={riskDistance} />
 
+      <StrategyStatus setup={setup} />
+
       <div>
         <SectionLabel title="Before entry" variant="minimal" />
         <div className="mt-3">
@@ -647,16 +718,22 @@ function SignalSidebar({
 }
 
 export function SignalWorkspace({
-  signals,
+  strategySetups,
+  initialInstrument,
   primarySeries,
   initialStatus,
 }: {
-  signals: TradeSignal[];
+  strategySetups: StrategySetup[];
+  initialInstrument: MajorInstrument;
   primarySeries: CandleSeries;
   initialStatus: ConnectionStatus;
 }) {
+  const signals = useMemo(
+    () => strategySetups.flatMap(toDisplaySignal),
+    [strategySetups],
+  );
   const [selectedInstrument, setSelectedInstrument] = useState(
-    primarySeries.instrument,
+    initialInstrument,
   );
   const instrument = selectedInstrument;
   const initialSignal =
@@ -736,6 +813,9 @@ export function SignalWorkspace({
 
   const active =
     signals.find((signal) => signal.instrument === instrument) ?? signals[0];
+  const activeSetup =
+    strategySetups.find((setup) => setup.instrument === active.instrument) ??
+    strategySetups[0];
   const riskDistance = Math.abs(active.entry - active.stop);
   const setupLevels = useMemo(
     () => ({
@@ -920,7 +1000,8 @@ export function SignalWorkspace({
 
   return (
     <div className="signals-view grid w-full gap-5 xl:grid-cols-[minmax(0,1fr)_272px]">
-      <section className="app-card signals-chart-card min-w-0 w-full">
+      <div className="signals-chart-slot min-w-0">
+        <section className="app-card signals-chart-card min-w-0 w-full">
         <div className="signals-chart-mobile lg:hidden">
           <div className="signals-mobile-content px-4 pb-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
             <div className="signals-mobile-actions flex items-center justify-between">
@@ -1051,6 +1132,7 @@ export function SignalWorkspace({
                 <SetupRangeBar active={active} />
                 <SetupNote active={active} />
                 <SetupMeta active={active} riskDistance={riskDistance} />
+                <StrategyStatus setup={activeSetup} />
               </>
             ) : (
               <>
@@ -1155,10 +1237,15 @@ export function SignalWorkspace({
             <ChartLoadingOverlay visible={loading} />
           </div>
         </div>
-      </section>
+        </section>
+      </div>
 
       <aside className="hidden xl:block">
-        <SignalSidebar active={active} riskDistance={riskDistance} />
+        <SignalSidebar
+          active={active}
+          setup={activeSetup}
+          riskDistance={riskDistance}
+        />
       </aside>
     </div>
   );

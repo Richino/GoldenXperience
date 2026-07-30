@@ -6,7 +6,7 @@ import {
   BarChart3,
   BookOpen,
   LayoutDashboard,
-  Settings,
+  Settings, FlaskConical,
   ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
@@ -25,6 +25,7 @@ const navItems: NavItem[] = [
   { label: "Home", href: "/", icon: LayoutDashboard },
   { label: "Signals", href: "/signals", icon: BarChart3 },
   { label: "Journal", href: "/journal", icon: BookOpen },
+  { label: "Research", href: "/research", icon: FlaskConical },
   { label: "Risk", href: "/risk", icon: ShieldCheck },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
@@ -33,8 +34,8 @@ function isActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
 }
 
-const primaryNavItems = navItems.slice(0, 4);
-const settingsNavItem = navItems[4]!;
+const primaryNavItems = navItems.slice(0, 5);
+const settingsNavItem = navItems[5]!;
 
 function SidebarNavLink({
   item,

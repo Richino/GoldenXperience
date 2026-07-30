@@ -11,6 +11,7 @@ import {
 } from "@/lib/journal/storage";
 import { calculateTradeResultR } from "@/lib/risk/engine";
 import type { JournalTrade } from "@/types/forex";
+import { apiUrl } from "@/lib/api/url";
 
 const filters = ["All", "EUR/USD", "GBP/USD", "USD/JPY"] as const;
 
@@ -299,18 +300,21 @@ export function JournalView({ trades }: { trades: JournalTrade[] }) {
   useEffect(() => {
     let cancelled = false;
 
-    window.queueMicrotask(() => {
+    void (async () => {
       try {
         const stored = parseStoredJournal(
           window.localStorage.getItem(PAPER_JOURNAL_STORAGE_KEY),
         );
-        if (!cancelled && stored?.length) setRecords(stored);
+        if (stored?.length) await fetch(apiUrl("/api/journal/import"), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ trades: stored }) });
+        const response = await fetch(apiUrl("/api/journal/trades"), { credentials: "include", cache: "no-store" });
+        const payload = await response.json() as { trades?: JournalTrade[] };
+        if (!cancelled && response.ok) setRecords(payload.trades ?? []);
       } catch {
-        // Keep the typed seed records if browser storage is unavailable or corrupt.
+        // The existing seed remains visible when the private API is temporarily unavailable.
       } finally {
         if (!cancelled) setStorageReady(true);
       }
-    });
+    })();
 
     return () => {
       cancelled = true;
@@ -351,7 +355,7 @@ export function JournalView({ trades }: { trades: JournalTrade[] }) {
       <header>
         <h1 className="text-display tracking-[-0.05em]">Journal</h1>
         <p className="mt-1.5 max-w-xl text-sm text-[color:var(--muted)]">
-          Track paper trades in R. Records stay on this device.
+          Track paper trades in R. Records are private and synced to your research database.
         </p>
       </header>
 
@@ -392,9 +396,7 @@ export function JournalView({ trades }: { trades: JournalTrade[] }) {
         </div>
       </section>
 
-      <PaperTradeForm
-        onSave={(trade) => setRecords((current) => [trade, ...current])}
-      />
+      <PaperTradeForm onSave={(trade) => { void fetch(apiUrl("/api/journal/trades"), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(trade) }).then(async (response) => { if (!response.ok) return; const created = await response.json() as { id: string }; setRecords((current) => [{ ...trade, id: created.id }, ...current]); }); }} />
 
       <section className="app-card overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-5 md:px-6">

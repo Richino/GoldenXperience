@@ -1,0 +1,7 @@
+"use client";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { apiUrl } from "@/lib/api/url";
+export default function LoginPage() { const router = useRouter(); const [error, setError] = useState<string | null>(null); const [busy, setBusy] = useState(false);
+  async function submit(event: React.FormEvent<HTMLFormElement>) { event.preventDefault(); setBusy(true); setError(null); const form = new FormData(event.currentTarget); const response = await fetch(apiUrl("/api/auth/login"), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: form.get("email"), password: form.get("password") }) }); setBusy(false); if (!response.ok) return setError("Invalid email or password."); router.replace("/"); }
+  return <main className="mx-auto grid min-h-dvh max-w-md place-items-center p-6"><form onSubmit={submit} className="app-card w-full space-y-4 p-6"><div><h1 className="text-display">GoldenXperience</h1><p className="mt-1 text-sm text-[color:var(--muted)]">Private owner access</p></div><label className="block text-sm">Email<input required name="email" type="email" className="minimal-field mt-1" /></label><label className="block text-sm">Password<input required name="password" type="password" className="minimal-field mt-1" /></label>{error ? <p className="text-sm text-[color:var(--danger)]">{error}</p> : null}<button disabled={busy} className="minimal-submit w-full justify-center" type="submit">{busy ? "Signing in…" : "Sign in"}</button></form></main>; }

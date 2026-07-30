@@ -1,0 +1,16 @@
+import { createInterface } from "node:readline/promises";
+import { stdin as input, stdout as output } from "node:process";
+import { createOwner } from "../src/auth.js";
+const rl = createInterface({ input, output });
+const email = await rl.question("Owner email: ");
+function hiddenQuestion(prompt: string) {
+  return new Promise<string>((resolve) => {
+    let value = ""; output.write(prompt); input.setRawMode?.(true); input.resume();
+    const onData = (chunk: Buffer) => { const key = chunk.toString(); if (key === "\r" || key === "\n") { input.off("data", onData); input.setRawMode?.(false); output.write("\n"); resolve(value); return; } if (key === "\u0003") process.exit(130); if (key === "\b" || key === "\x7f") { value = value.slice(0, -1); return; } value += key; };
+    input.on("data", onData);
+  });
+}
+const password = await hiddenQuestion("Password (14+ chars): ");
+rl.close();
+await createOwner(email, password);
+console.log("Owner created.");

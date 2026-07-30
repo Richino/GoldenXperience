@@ -2541,6 +2541,21 @@ a:focus-visible {
   min-width: 0;
 }
 
+@media (min-width: 1280px) {
+  .signals-view .signals-chart-slot {
+    display: flex;
+    min-height: 100%;
+    align-items: center;
+  }
+
+  .signals-view .signals-sidebar {
+    height: 670px;
+    max-height: calc(100dvh - 3rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+
 .dark .signals-view section.app-card:has(.signals-chart-desktop) {
   background: var(--surface);
   border-color: var(--border-strong);

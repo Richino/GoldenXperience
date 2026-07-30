@@ -1,0 +1,11 @@
+{
+  "name": "goldenxperience-workspace",
+  "private": true,
+  "workspaces": ["api-server", "frontend"],
+  "scripts": {
+    "start": "npm --workspace api-server run start",
+    "build": "npm --workspace api-server run typecheck",
+    "db:migrate": "npm --workspace api-server run db:migrate",
+    "auth:create-owner": "npm --workspace api-server run auth:create-owner"
+  }
+}

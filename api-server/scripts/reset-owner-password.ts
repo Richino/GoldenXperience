@@ -1,8 +1,6 @@
-import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { createOwner } from "../src/auth.js";
-const rl = createInterface({ input, output });
-const email = await rl.question("Owner email: ");
+import { resetOwnerPassword } from "../src/auth.js";
+
 function hiddenQuestion(prompt: string) {
   return new Promise<string>((resolve) => {
     let value = ""; output.write(prompt); input.setRawMode?.(true); input.resume();
@@ -10,7 +8,7 @@ function hiddenQuestion(prompt: string) {
     input.on("data", onData);
   });
 }
-const password = await hiddenQuestion("Password (12+ chars): ");
-rl.close();
-await createOwner(email, password);
-console.log("Owner created.");
+
+const password = await hiddenQuestion("New password (12+ chars): ");
+await resetOwnerPassword(password);
+console.log("Owner password reset. All existing sessions were signed out.");

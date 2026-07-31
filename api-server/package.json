@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "db:migrate": "tsx scripts/migrate.ts",
     "auth:create-owner": "tsx scripts/create-owner.ts",
+    "auth:reset-owner-password": "tsx scripts/reset-owner-password.ts",
     "api:test": "tsx scripts/check-api.ts",
     "stream:test": "tsx scripts/check-ws.ts"
   },

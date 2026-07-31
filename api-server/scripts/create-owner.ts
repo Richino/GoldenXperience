@@ -10,7 +10,7 @@ function hiddenQuestion(prompt: string) {
     input.on("data", onData);
   });
 }
-const password = await hiddenQuestion("Password (12+ chars): ");
+const password = await hiddenQuestion("Password (8+ chars): ");
 rl.close();
 await createOwner(email, password);
 console.log("Owner created.");

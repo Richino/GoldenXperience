@@ -9,6 +9,6 @@ function hiddenQuestion(prompt: string) {
   });
 }
 
-const password = await hiddenQuestion("New password (12+ chars): ");
+const password = await hiddenQuestion("New password (8+ chars): ");
 await resetOwnerPassword(password);
 console.log("Owner password reset. All existing sessions were signed out.");

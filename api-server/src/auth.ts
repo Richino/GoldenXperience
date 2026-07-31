@@ -8,7 +8,7 @@ export const cookieName = "gx_session";
 
 export async function createOwner(email: string, password: string) {
   const normalized = email.trim().toLowerCase();
-  if (!/^\S+@\S+\.\S+$/.test(normalized) || password.length < 12) throw new Error("Use a valid email and a password of at least 12 characters.");
+  if (!/^\S+@\S+\.\S+$/.test(normalized) || password.length < 8) throw new Error("Use a valid email and a password of at least 8 characters.");
   const existing = await query("SELECT id FROM users LIMIT 1");
   if (existing.rowCount) throw new Error("An owner account already exists.");
   const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
@@ -37,7 +37,7 @@ export async function logout(token: string | undefined) {
 }
 
 export async function resetOwnerPassword(password: string) {
-  if (password.length < 12) throw new Error("Use a password of at least 12 characters.");
+  if (password.length < 8) throw new Error("Use a password of at least 8 characters.");
   const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
   const owner = await query<{ id: string }>("UPDATE users SET password_hash=$1 WHERE role='owner' RETURNING id", [passwordHash]);
   const user = owner.rows[0];

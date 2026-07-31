@@ -6,7 +6,9 @@ function baseUrl() {
 
 /** Builds a browser-safe URL for the separately deployed API service. */
 export function apiUrl(path: string) {
-  return `${baseUrl()}${path.startsWith("/") ? path : `/${path}`}`;
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  if (typeof window !== "undefined") return normalized;
+  return `${baseUrl()}${normalized}`;
 }
 
 /** Uses Railway's private service URL on the server when it is configured. */

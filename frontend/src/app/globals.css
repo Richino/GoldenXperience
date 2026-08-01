@@ -2505,6 +2505,13 @@ a:focus-visible {
   border-color: var(--border-strong);
 }
 
+:is(.signals-view, .research-view) .signals-search input[type="search"]::-webkit-search-cancel-button,
+:is(.signals-view, .research-view) .signals-search input[type="search"]::-webkit-search-decoration {
+  appearance: none;
+  -webkit-appearance: none;
+  display: none;
+}
+
 :is(.signals-view, .research-view) .signals-search-result {
   border-radius: 0.75rem;
   font-size: 0.875rem;

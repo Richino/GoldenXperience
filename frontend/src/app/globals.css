@@ -2580,11 +2580,22 @@ a:focus-visible {
   font-weight: 600;
   color: #042b1f;
   background: var(--accent);
-  transition: background-color 140ms ease, opacity 140ms ease;
+  transition:
+    transform 160ms ease,
+    background-color 140ms ease,
+    opacity 140ms ease,
+    box-shadow 160ms ease;
 }
 
 .research-view .research-primary-btn:hover:not(:disabled) {
   background: var(--accent-bright);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 32%, transparent);
+}
+
+.research-view .research-primary-btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.975);
+  box-shadow: none;
 }
 
 .research-view .research-primary-btn:disabled {
@@ -2600,11 +2611,19 @@ a:focus-visible {
   font-size: 0.8125rem;
   font-weight: 500;
   color: var(--foreground);
-  transition: background-color 140ms ease, opacity 140ms ease;
+  transition:
+    transform 160ms ease,
+    background-color 140ms ease,
+    opacity 140ms ease;
 }
 
 .research-view .research-secondary-btn:hover:not(:disabled) {
   background: var(--minimal-hover);
+  transform: translateY(-1px);
+}
+
+.research-view .research-secondary-btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.975);
 }
 
 .research-view .research-secondary-btn:disabled {

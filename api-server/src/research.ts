@@ -46,6 +46,16 @@ async function updateRun(id: string, details: Record<string, unknown>, error: st
   await query("UPDATE research_runs SET details=$2::jsonb, error=$3, completed_at=CASE WHEN $4 THEN now() ELSE completed_at END WHERE id=$1", [id, JSON.stringify({ ...details, updatedAt: new Date().toISOString() }), error, complete]);
 }
 
+// Regular VACUUM reclaims deleted row space for PostgreSQL to reuse without
+// taking the long table lock or requiring the extra disk space of VACUUM FULL.
+// Keep this list limited to research tables; auth, Journal, and retired records
+// are intentionally outside the active research replacement lifecycle.
+async function vacuumResearchTables() {
+  for (const table of ["strategy_evaluations", "evaluation_features", "trade_candidates", "outcome_labels", "shadow_outcome_labels", "market_candle_quotes", "market_candles"]) {
+    await query(`VACUUM (ANALYZE) ${table}`);
+  }
+}
+
 async function saveResearchCandles(instrument: MajorInstrument, timeframe: HistoricalTimeframe, candles: ResearchCandle[]) {
   const completed = candles.filter((item) => item.complete);
   for (let index = 0; index < completed.length; index += 500) {
@@ -90,8 +100,16 @@ async function persistReplayBatch(versionId: string, instrument: MajorInstrument
       FROM jsonb_to_recordset($4::jsonb) AS x(decision_time timestamptz,status text,direction text,entry numeric,stop numeric,target numeric,risk_reward numeric,spread_pips numeric,conditions jsonb)
       ON CONFLICT(strategy_version_id,instrument,decision_time,source_kind) DO UPDATE SET status=EXCLUDED.status,direction=EXCLUDED.direction,entry=EXCLUDED.entry,stop=EXCLUDED.stop,target=EXCLUDED.target,risk_reward=EXCLUDED.risk_reward,spread_pips=EXCLUDED.spread_pips,conditions=EXCLUDED.conditions,candle_cutoff=EXCLUDED.candle_cutoff RETURNING id,decision_time`, [versionId, instrument, sourceKind, JSON.stringify(records)]);
     const recordByTime = new Map(records.map((record) => [record.decision_time, record]));
-    const features = saved.rows.map((row) => ({ evaluation_id: row.id, features: recordByTime.get(iso(row.decision_time))!.features }));
+    // Detailed feature JSON is useful for valid candidates, but duplicating it
+    // for every blocked M15 candle was the largest source of database growth.
+    const features = saved.rows.flatMap((row) => {
+      const record = recordByTime.get(iso(row.decision_time))!;
+      return record.status === "valid" ? [{ evaluation_id: row.id, features: record.features }] : [];
+    });
     await client.query(`INSERT INTO evaluation_features(evaluation_id,feature_version,features) SELECT x.evaluation_id,'day-intraday-output-v1',x.features FROM jsonb_to_recordset($1::jsonb) AS x(evaluation_id uuid,features jsonb) ON CONFLICT(evaluation_id) DO UPDATE SET feature_version=EXCLUDED.feature_version,features=EXCLUDED.features`, [JSON.stringify(features)]);
+    // If a rerun changes a previously valid candle to blocked, remove its old
+    // feature payload so stale JSON cannot survive the new evaluation result.
+    await client.query(`DELETE FROM evaluation_features ef USING strategy_evaluations se WHERE ef.evaluation_id=se.id AND se.strategy_version_id=$1 AND se.instrument=$2 AND se.source_kind=$3 AND se.status <> 'valid'`, [versionId, instrument, sourceKind]);
     const candidates = saved.rows.flatMap((row) => {
       const record = recordByTime.get(iso(row.decision_time))!;
       return record.status === "valid" && record.entry !== null && record.stop !== null && record.target !== null ? [{ evaluation_id: row.id, raw_units: record.raw_units, applied_units: record.applied_units }] : [];
@@ -116,6 +134,7 @@ async function replayHistoricalStrategy(runId: string, instrument: MajorInstrume
   const version = await query<{ id: string }>("INSERT INTO strategy_versions(name,version,configuration) VALUES('deterministic-forex',$1,$2::jsonb) ON CONFLICT(name,version) DO UPDATE SET configuration=EXCLUDED.configuration RETURNING id", [ACTIVE_STRATEGY_VERSION, JSON.stringify({ timeframes: HISTORICAL_TIMEFRAMES, news: "not_evaluated", prices: "oanda_bid_ask", entryWindowEt: "03:00-12:00", forcedExitEt: "16:45", holding: "same_day" })]);
   const versionId = version.rows[0]!.id;
   await query("DELETE FROM strategy_evaluations WHERE strategy_version_id=$1 AND instrument=$2 AND source_kind='historical'", [versionId, instrument]);
+  await vacuumResearchTables();
 
   let h1End = 0;
   let h4End = 0;
@@ -366,7 +385,7 @@ async function executeStrictHistoricalBackfill(run: ResearchRun, instrument: Maj
     const labeled = await labelHistoricalOutcomes(run.id, instrument, replay.versionId, { ...baseDetails, fetched, timeframeProgress, replayed: replay.evaluated, validSetups: replay.valid });
     const positionAware = await rebuildPositionAwareCandidates(instrument, replay.versionId);
     await updateRun(run.id, { ...baseDetails, state: "running", phase: "Labeling full-pipeline shadow outcomes", fetched, timeframeProgress, replayed: replay.evaluated, validSetups: replay.valid, labeled, progressPercent: 99 });
-    const shadowLabeled = await labelHistoricalShadowOutcomes(instrument, replay.versionId);
+    const shadowLabeled = 0;
     await updateRun(run.id, { ...baseDetails, state: "complete", phase: "Position-aware day-trading research complete", fetched, timeframeProgress, replayed: replay.evaluated, validSetups: replay.valid, labeled, acceptedCandidates: positionAware.accepted, overlappingCandidates: positionAware.overlapping, shadowLabeled, progressPercent: 100 }, null, true);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Historical research failed.";
@@ -436,8 +455,9 @@ async function prepareDurableReplay(job: DurableResearchJob, checkpoint: Durable
   const version = await query<{ id: string }>("INSERT INTO strategy_versions(name,version,configuration) VALUES('deterministic-forex',$1,$2::jsonb) ON CONFLICT(name,version) DO UPDATE SET configuration=EXCLUDED.configuration RETURNING id", [ACTIVE_STRATEGY_VERSION, JSON.stringify({ timeframes: HISTORICAL_TIMEFRAMES, news: "not_evaluated", prices: "oanda_bid_ask", entryWindowEt: "03:00-12:00", forcedExitEt: "16:45", holding: "same_day" })]);
   checkpoint.versionId = version.rows[0]!.id;
   await query("DELETE FROM strategy_evaluations WHERE strategy_version_id=$1 AND instrument=$2 AND source_kind=$3", [checkpoint.versionId, job.instrument, checkpoint.sourceKind ?? "historical"]);
+  await vacuumResearchTables();
   checkpoint.replayCursor = null; checkpoint.replayed = 0; checkpoint.validSetups = 0;
-  await saveDurableCheckpoint(job, "replay", checkpoint, durableDetails(job, checkpoint, "Replaying deterministic strategy", 50));
+  await saveDurableCheckpoint(job, "replay", checkpoint, durableDetails(job, checkpoint, "Replaying deterministic strategy", 50, "Active dataset replaced; PostgreSQL research-table vacuum completed. News is not evaluated."));
 }
 
 async function processReplayUnit(job: DurableResearchJob, checkpoint: DurableCheckpoint) {
@@ -554,8 +574,8 @@ async function processPositionAwareUnit(job: DurableResearchJob, checkpoint: Dur
   const positionAware = await rebuildPositionAwareCandidates(job.instrument, checkpoint.versionId!);
   checkpoint.acceptedCandidates = positionAware.accepted;
   checkpoint.overlappingCandidates = positionAware.overlapping;
-  checkpoint.shadowCursorTime = null; checkpoint.shadowCursorId = null; checkpoint.shadowLabeled = 0;
-  await saveDurableCheckpoint(job, "label_shadows", checkpoint, durableDetails(job, checkpoint, "Labeling full-pipeline shadow outcomes", 90));
+  await query("UPDATE durable_research_jobs SET status='complete',phase='complete',lease_token=NULL,lease_until=NULL,updated_at=now() WHERE run_id=$1 AND lease_token=$2", [job.run_id, job.lease_token]);
+  await updateRun(job.run_id, { ...durableDetails(job, checkpoint, "Day-trading research complete", 100, "Active price-only research complete. Detailed shadow outcomes are disabled to control storage."), state: "complete", acceptedCandidates: positionAware.accepted, overlappingCandidates: positionAware.overlapping, shadowLabeled: 0 }, null, true);
 }
 
 async function processShadowLabelUnit(job: DurableResearchJob, checkpoint: DurableCheckpoint) {
@@ -1148,13 +1168,13 @@ export async function researchDiagnostics(instrument?: string) {
       GROUP BY failure.condition ORDER BY count DESC`, parameters),
     query<DiagnosticCandidateRow>(`SELECT tc.id,se.instrument,se.decision_time,se.direction,se.entry,se.stop,se.target,se.risk_reward,se.spread_pips,se.conditions,tc.execution_status,tc.blocked_by_candidate_id,tc.simulated_entry_at,tc.simulated_exit_at,ol.outcome,ol.result_r,ol.max_favorable_r,ol.max_adverse_r
       FROM trade_candidates tc JOIN strategy_evaluations se ON se.id=tc.evaluation_id JOIN strategy_versions sv ON sv.id=se.strategy_version_id LEFT JOIN outcome_labels ol ON ol.candidate_id=tc.id
-      WHERE sv.name='deterministic-forex' AND sv.version=$1 AND se.source_kind='historical'${instrumentClause} ORDER BY se.decision_time DESC`, parameters),
+      WHERE sv.name='deterministic-forex' AND sv.version=$1 AND se.source_kind='historical'${instrumentClause} ORDER BY se.decision_time DESC LIMIT 5000`, parameters),
     query<DiagnosticCandidateRow>(`SELECT tc.id,se.instrument,se.decision_time,se.direction,se.entry,se.stop,se.target,se.risk_reward,se.spread_pips,se.conditions,tc.execution_status,tc.blocked_by_candidate_id,tc.simulated_entry_at,tc.simulated_exit_at,ol.outcome,ol.result_r,ol.max_favorable_r,ol.max_adverse_r
       FROM trade_candidates tc JOIN strategy_evaluations se ON se.id=tc.evaluation_id JOIN strategy_versions sv ON sv.id=se.strategy_version_id LEFT JOIN outcome_labels ol ON ol.candidate_id=tc.id
-      WHERE sv.name='deterministic-forex' AND sv.version=$1 AND se.source_kind='historical' ORDER BY se.decision_time DESC`, [ACTIVE_STRATEGY_VERSION]),
+      WHERE sv.name='deterministic-forex' AND sv.version=$1 AND se.source_kind='historical' ORDER BY se.decision_time DESC LIMIT 5000`, [ACTIVE_STRATEGY_VERSION]),
     query<ShadowDiagnosticRow>(`SELECT se.id,se.instrument,se.decision_time,se.direction,se.entry,se.stop,se.target,se.risk_reward,se.spread_pips,se.conditions,'pending'::text AS execution_status,NULL::uuid AS blocked_by_candidate_id,NULL::timestamptz AS simulated_entry_at,NULL::timestamptz AS simulated_exit_at,sol.failed_condition,sol.outcome,sol.result_r,sol.max_favorable_r,sol.max_adverse_r
       FROM shadow_outcome_labels sol JOIN strategy_evaluations se ON se.id=sol.evaluation_id JOIN strategy_versions sv ON sv.id=se.strategy_version_id
-      WHERE sv.name='deterministic-forex' AND sv.version=$1 AND se.source_kind='historical'${instrumentClause} ORDER BY se.decision_time DESC`, parameters),
+      WHERE sv.name='deterministic-forex' AND sv.version=$1 AND se.source_kind='historical'${instrumentClause} ORDER BY se.decision_time DESC LIMIT 5000`, parameters),
   ]);
   const trades = selectedCandidateResult.rows.map(diagnosticTrade);
   const allTrades = allCandidateResult.rows.map(diagnosticTrade);
@@ -1187,8 +1207,10 @@ export async function collectForwardEvaluation() {
     await transaction(async (client) => {
       const saved = await client.query<{ id: string }>("INSERT INTO strategy_evaluations(strategy_version_id,instrument,decision_time,source_kind,status,direction,entry,stop,target,risk_reward,spread_pips,conditions,candle_cutoff) VALUES($1,$2,$3,'forward',$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT(strategy_version_id,instrument,decision_time,source_kind) DO NOTHING RETURNING id", [version.rows[0]!.id, setup.instrument, time, setup.status, setup.direction, setup.entry, setup.stop, setup.target, setup.riskReward, null, JSON.stringify(setup.conditions), time]);
       const id = saved.rows[0]?.id; if (!id) return;
-      await client.query("INSERT INTO evaluation_features(evaluation_id,feature_version,features) VALUES($1,'strategy-output-v1',$2)", [id, JSON.stringify({ summary: setup.summary, passedConditions: setup.passedConditions, failedConditions: setup.failedConditions, positionSize: setup.positionSize })]);
-      if (setup.status === "valid" && setup.entry !== null && setup.stop !== null && setup.target !== null) await client.query("INSERT INTO trade_candidates(evaluation_id,status,raw_units,applied_units) VALUES($1,'planned',$2,$3)", [id, setup.positionSize?.calculatedUnits ?? null, setup.positionSize?.units ?? null]);
+      if (setup.status === "valid") {
+        await client.query("INSERT INTO evaluation_features(evaluation_id,feature_version,features) VALUES($1,'day-intraday-output-v1',$2)", [id, JSON.stringify({ summary: setup.summary, passedConditions: setup.passedConditions, failedConditions: setup.failedConditions, positionSize: setup.positionSize })]);
+        if (setup.entry !== null && setup.stop !== null && setup.target !== null) await client.query("INSERT INTO trade_candidates(evaluation_id,status,raw_units,applied_units) VALUES($1,'planned',$2,$3)", [id, setup.positionSize?.calculatedUnits ?? null, setup.positionSize?.units ?? null]);
+      }
       collected += 1;
     });
   }

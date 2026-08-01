@@ -6,6 +6,7 @@
     "start": "npm --workspace api-server run start",
     "build": "npm --workspace api-server run typecheck",
     "db:migrate": "npm --workspace api-server run db:migrate",
+    "db:vacuum-research": "npm --workspace api-server run db:vacuum-research",
     "auth:create-owner": "npm --workspace api-server run auth:create-owner",
     "auth:reset-owner-password": "npm --workspace api-server run auth:reset-owner-password"
   }

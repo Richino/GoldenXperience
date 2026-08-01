@@ -15,7 +15,8 @@
     "research:test": "tsx scripts/test-research.ts",
     "research:label-shadows": "tsx scripts/label-shadows.ts",
     "research:rebuild-position-aware": "tsx scripts/rebuild-position-aware.ts",
-    "research:run-experiment": "tsx scripts/run-research-experiment.ts"
+    "research:run-experiment": "tsx scripts/run-research-experiment.ts",
+    "db:vacuum-research": "tsx scripts/vacuum-research.ts"
   },
   "dependencies": {
     "argon2": "^0.45.1",

@@ -24,6 +24,20 @@ export interface StrategyPositionSize {
   capped: boolean;
 }
 
+export interface StrategyResearchFeatures {
+  trend15m: "bullish" | "bearish" | "mixed";
+  trend1h: "bullish" | "bearish" | "mixed" | null;
+  trend4h: "bullish" | "bearish" | "mixed" | null;
+  ema21: number | null;
+  ema50: number | null;
+  ema200: number | null;
+  rsi14: number | null;
+  atr14: number | null;
+  atrPips: number | null;
+  structureHighs: number;
+  structureLows: number;
+}
+
 export interface StrategySetup {
   status: SetupStatus;
   instrument: MajorInstrument;
@@ -35,6 +49,7 @@ export interface StrategySetup {
   target: number | null;
   riskReward: number | null;
   positionSize: StrategyPositionSize | null;
+  features: StrategyResearchFeatures;
   summary: string;
   passedConditions: StrategyCondition[];
   failedConditions: StrategyCondition[];

@@ -13,6 +13,7 @@ import type {
   OpenPosition,
   PriceQuote,
 } from "@/types/forex";
+import { precisionFor } from "@/lib/instruments/catalog";
 
 const PRACTICE_URL = "https://api-fxpractice.oanda.com";
 const LIVE_URL = "https://api-fxtrade.oanda.com";
@@ -60,6 +61,11 @@ interface OandaOpenTradesResponse {
     unrealizedPL: string;
   }>;
 }
+
+type OandaOrderResponse = {
+  orderCreateTransaction?: { id?: string };
+  orderFillTransaction?: { id?: string; tradeOpened?: { tradeID?: string } };
+};
 
 interface OandaCandlesResponse {
   instrument: MajorInstrument;
@@ -111,7 +117,7 @@ function getConfig(): OandaConfig | null {
   };
 }
 
-async function requestOanda<T>(path: string): Promise<T> {
+async function requestOanda<T>(path: string, options: { method?: "GET" | "POST" | "PUT"; body?: unknown } = {}): Promise<T> {
   const config = getConfig();
 
   if (!config) {
@@ -123,10 +129,12 @@ async function requestOanda<T>(path: string): Promise<T> {
 
   try {
     const response = await fetch(`${config.baseUrl}${path}`, {
+      method: options.method ?? "GET",
       headers: {
         Authorization: `Bearer ${config.token}`,
         "Content-Type": "application/json",
       },
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
       cache: "no-store",
       signal: controller.signal,
     });
@@ -153,6 +161,55 @@ async function requestOanda<T>(path: string): Promise<T> {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+export type PracticeMarketOrder = {
+  instrument: MajorInstrument;
+  direction: "long" | "short";
+  units: number;
+  stop: number;
+  target: number;
+  clientRequestId: string;
+};
+
+export async function submitPracticeMarketOrder(order: PracticeMarketOrder) {
+  const config = getConfig();
+  if (!config) throw new OandaRequestError("OANDA credentials are not configured.");
+  if (config.environment !== "practice") throw new OandaRequestError("Automatic execution is locked to OANDA practice accounts.");
+  const units = Math.floor(Math.abs(order.units));
+  if (!Number.isFinite(units) || units < 1) throw new OandaRequestError("Calculated practice order size is invalid.");
+  const precision = precisionFor(order.instrument);
+  const response = await requestOanda<OandaOrderResponse>(`/v3/accounts/${encodeURIComponent(config.accountId)}/orders`, {
+    method: "POST",
+    body: {
+      order: {
+        type: "MARKET",
+        instrument: order.instrument,
+        units: String(order.direction === "long" ? units : -units),
+        timeInForce: "FOK",
+        positionFill: "DEFAULT",
+        stopLossOnFill: { price: order.stop.toFixed(precision), timeInForce: "GTC" },
+        takeProfitOnFill: { price: order.target.toFixed(precision), timeInForce: "GTC" },
+        clientExtensions: { id: `gx-${order.clientRequestId}`, tag: "goldenxperience-practice" },
+      },
+    },
+  });
+  return {
+    orderId: response.orderCreateTransaction?.id ?? response.orderFillTransaction?.id ?? null,
+    tradeId: response.orderFillTransaction?.tradeOpened?.tradeID ?? null,
+  };
+}
+
+export async function closePracticeTrade(brokerTradeId: string) {
+  const config = getConfig();
+  if (!config) throw new OandaRequestError("OANDA credentials are not configured.");
+  if (config.environment !== "practice") throw new OandaRequestError("Automatic execution is locked to OANDA practice accounts.");
+  if (!brokerTradeId) throw new OandaRequestError("Broker trade identifier is unavailable.");
+  const response = await requestOanda<{ orderFillTransaction?: { id?: string }; orderCreateTransaction?: { id?: string } }>(`/v3/accounts/${encodeURIComponent(config.accountId)}/trades/${encodeURIComponent(brokerTradeId)}/close`, {
+    method: "PUT",
+    body: { units: "ALL" },
+  });
+  return response.orderFillTransaction?.id ?? response.orderCreateTransaction?.id ?? null;
 }
 
 function buildStatus(

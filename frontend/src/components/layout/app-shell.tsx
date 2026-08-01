@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Settings, FlaskConical,
   ShieldCheck,
+  Radar,
   type LucideIcon,
 } from "lucide-react";
 import { BrandMark } from "@/components/ui/brand-mark";
@@ -15,6 +16,8 @@ import { MobileTopBar } from "@/components/ui/mobile-top-bar";
 import { NavigationProgress } from "@/components/ui/navigation-progress";
 import { PwaPullToRefresh } from "@/components/ui/pwa-pull-to-refresh";
 import { SignOutButton } from "@/components/ui/sign-out-button";
+import { NotificationProvider } from "@/components/notifications/notification-provider";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 
 interface NavItem {
   label: string;
@@ -25,6 +28,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: "Home", href: "/", icon: LayoutDashboard },
   { label: "Signals", href: "/signals", icon: BarChart3 },
+  { label: "Watchlist", href: "/watchlist", icon: Radar },
   { label: "Journal", href: "/journal", icon: BookOpen },
   { label: "Research", href: "/research", icon: FlaskConical },
   { label: "Risk", href: "/risk", icon: ShieldCheck },
@@ -35,8 +39,8 @@ function isActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
 }
 
-const primaryNavItems = navItems.slice(0, 5);
-const settingsNavItem = navItems[5]!;
+const primaryNavItems = navItems.filter((item) => item.href !== "/settings");
+const settingsNavItem = navItems.find((item) => item.href === "/settings")!;
 
 function SidebarNavLink({
   item,
@@ -69,8 +73,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isDashboard = pathname === "/";
 
   return (
+    <NotificationProvider>
     <PwaPullToRefresh>
       <NavigationProgress />
+      <div className="fixed right-8 top-6 z-50 hidden lg:block">
+        <NotificationBell />
+      </div>
       <div
         className={`min-h-dvh ${
         isSignals
@@ -163,5 +171,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </nav>
       </div>
     </PwaPullToRefresh>
+    </NotificationProvider>
   );
 }

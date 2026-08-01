@@ -17,6 +17,7 @@ export function SelectMenu<T extends string | number>({
   className = "",
   align = "left",
   fullWidth = false,
+  size = "default",
 }: {
   value: T;
   onChange: (value: T) => void;
@@ -25,6 +26,7 @@ export function SelectMenu<T extends string | number>({
   className?: string;
   align?: "left" | "right";
   fullWidth?: boolean;
+  size?: "default" | "control";
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -63,12 +65,18 @@ export function SelectMenu<T extends string | number>({
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
-        className={`pressable inline-flex h-9 min-w-[7.25rem] items-center gap-2 rounded-[10px] border px-3 text-sm transition-colors ${
+        className={`pressable inline-flex items-center gap-2 transition-colors ${
           fullWidth ? "w-full" : ""
+        } ${
+          size === "control"
+            ? "control-track h-11 rounded-xl px-3 text-sm text-[color:var(--foreground)]"
+            : "h-9 min-w-[7.25rem] rounded-[10px] border px-3 text-sm"
         } ${
           open
             ? "control-active"
-            : "border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--foreground)] hover:border-[color:var(--border-strong)]"
+            : size === "control"
+              ? "hover:border-[color:var(--border-strong)]"
+              : "border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--foreground)] hover:border-[color:var(--border-strong)]"
         }`}
       >
         <span className="min-w-0 flex-1 truncate text-left">{active.label}</span>

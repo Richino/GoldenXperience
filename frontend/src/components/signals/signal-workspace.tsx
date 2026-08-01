@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Bell,
   ChevronLeft,
   Clock3,
   Search,
@@ -19,6 +19,7 @@ import { SetupChart } from "@/components/charts/setup-chart";
 import { PairAvatar } from "@/components/ui/pair-avatar";
 import { apiUrl } from "@/lib/api/url";
 import { SectionLabel } from "@/components/ui/section-label";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import {
   CHART_RANGES,
   CHART_TIMEFRAMES,
@@ -41,7 +42,9 @@ import {
 } from "@/lib/instruments/catalog";
 import { useMarketStream } from "@/lib/market-stream/use-market-stream";
 import type { StrategySetup } from "@/lib/strategy/types";
+import { getPaperTradingAvailability, type PaperTradingAvailability } from "@/lib/strategy/strategy-engine";
 import type { MarketPriceTick } from "@/types/market-stream";
+import { MAJOR_INSTRUMENTS } from "@/types/forex";
 import type {
   Candle,
   CandleSeries,
@@ -57,7 +60,7 @@ type MobileTab = (typeof MOBILE_TABS)[number];
 const ENTRY_CHECKLIST = [
   "Structure confirms the directional bias",
   "Entry is inside the planned zone",
-  "Risk is 1% or less",
+  "Position size follows the active paper risk policy",
   "No high-impact news inside 30 minutes",
 ] as const;
 
@@ -181,7 +184,7 @@ function buildSearchIndex(signals: TradeSignal[]): SearchResult[] {
     signals.map((signal) => [signal.instrument, signal]),
   );
 
-  return INSTRUMENT_CATALOG.map((info) => {
+  return INSTRUMENT_CATALOG.filter((info) => MAJOR_INSTRUMENTS.includes(info.name as (typeof MAJOR_INSTRUMENTS)[number])).map((info) => {
     const signal = signalByInstrument.get(info.name);
     const { base, quote } = currenciesOf(info.name);
 
@@ -627,27 +630,32 @@ function EntryChecklist() {
   );
 }
 
-function StrategyStatus({ setup }: { setup: StrategySetup }) {
+function StrategyStatus({ setup, availability }: { setup: StrategySetup; availability: PaperTradingAvailability }) {
   const actionable = setup.status === "valid";
+  const waiting = !actionable && availability.state !== "entry_window_open";
 
   return (
     <div className="border-t border-[color:var(--border)] pt-4">
       <SectionLabel
-        title={actionable ? "Strategy status" : "Why this is blocked"}
+        title={actionable ? "Strategy status" : waiting ? "Trading schedule" : "Why there is no setup"}
         variant="minimal"
       />
       <p
         className={
           actionable
             ? "mt-2 text-sm text-[color:var(--success)]"
-            : "mt-2 text-sm font-medium text-[color:var(--danger)]"
+            : waiting
+              ? "mt-2 text-sm font-medium text-[color:var(--foreground)]"
+              : "mt-2 text-sm font-medium text-[color:var(--danger)]"
         }
       >
         {actionable
           ? "Verified setup. Confirm the live quote before any paper entry."
-          : setup.summary}
+          : waiting
+            ? availability.detail
+            : setup.summary}
       </p>
-      {!actionable && setup.failedConditions.length ? (
+      {!actionable && !waiting && setup.failedConditions.length ? (
         <ul className="mt-3 space-y-2 text-xs leading-5 text-[color:var(--muted)]">
           {setup.failedConditions.map((condition) => (
             <li key={condition.name}>
@@ -670,11 +678,28 @@ function SignalSidebar({
   active,
   setup,
   riskDistance,
+  openPaperTrade,
+  availability,
 }: {
-  active: TradeSignal;
+  active: TradeSignal | null;
   setup: StrategySetup;
-  riskDistance: number;
+  riskDistance: number | null;
+  openPaperTrade: boolean;
+  availability: PaperTradingAvailability;
 }) {
+  if (!active || riskDistance === null) {
+    return (
+      <section className="app-card signals-sidebar flex h-full flex-col gap-5 p-5 md:p-6">
+        <div>
+          <SectionLabel title="Setup" variant="minimal" />
+          <p className="mt-2 text-sm font-medium tracking-[-0.02em]">{setup.pair}</p>
+          <p className="mt-1 text-xs text-[color:var(--muted)]">{availability.label} · 15m</p>
+        </div>
+        <StrategyStatus setup={setup} availability={availability} />
+        <p className="mt-auto text-xs leading-relaxed text-[color:var(--muted)]">Entry, target, and stop appear only during an eligible entry window after every required strategy condition passes.</p>
+      </section>
+    );
+  }
   return (
     <section className="app-card signals-sidebar flex h-full flex-col gap-5 p-5 md:p-6">
       <div>
@@ -701,7 +726,12 @@ function SignalSidebar({
       <SetupNote active={active} />
       <SetupMeta active={active} riskDistance={riskDistance} />
 
-      <StrategyStatus setup={setup} />
+      {openPaperTrade ? (
+        <div className="border-t border-[color:var(--border)] pt-4">
+          <SectionLabel title="Paper position" variant="minimal" />
+          <p className="mt-2 text-sm text-[color:var(--accent)]">This plan was accepted on its completed M15 decision candle. Current filters do not rewrite an open paper trade.</p>
+        </div>
+      ) : <StrategyStatus setup={setup} availability={availability} />}
 
       <div>
         <SectionLabel title="Before entry" variant="minimal" />
@@ -722,12 +752,15 @@ export function SignalWorkspace({
   initialInstrument,
   primarySeries,
   initialStatus,
+  paperPlans,
 }: {
   strategySetups: StrategySetup[];
   initialInstrument: MajorInstrument;
   primarySeries: CandleSeries;
   initialStatus: ConnectionStatus;
+  paperPlans: Array<{ instrument: string; openTradeId: string | null; direction: "long" | "short" | null; entry: number | null; stop: number | null; target: number | null; tradeSequence: string | null; batchNumber: number | null }>;
 }) {
+  const router = useRouter();
   const signals = useMemo(
     () => strategySetups.flatMap(toDisplaySignal),
     [strategySetups],
@@ -736,11 +769,10 @@ export function SignalWorkspace({
     initialInstrument,
   );
   const instrument = selectedInstrument;
-  const initialSignal =
-    signals.find((signal) => signal.instrument === instrument) ?? signals[0];
+  const initialSignal = signals.find((signal) => signal.instrument === instrument);
 
   const [timeframe, setTimeframe] = useState(
-    mapSignalTimeframe(initialSignal.timeframe),
+    mapSignalTimeframe(initialSignal?.timeframe ?? "15m"),
   );
   const [range, setRange] = useState<ChartRange>("6M");
   const [chartVariant, setChartVariant] = useState<ChartVariant>("candle");
@@ -811,19 +843,37 @@ export function SignalWorkspace({
     trackPrice: false,
   });
 
-  const active =
-    signals.find((signal) => signal.instrument === instrument) ?? signals[0];
   const activeSetup =
-    strategySetups.find((setup) => setup.instrument === active.instrument) ??
+    strategySetups.find((setup) => setup.instrument === instrument) ??
     strategySetups[0];
-  const riskDistance = Math.abs(active.entry - active.stop);
+  const activeCandidate = toDisplaySignal(activeSetup)[0] ?? null;
+  const paperPlan = paperPlans.find((plan) => plan.instrument === instrument && plan.openTradeId);
+  const openSignal: TradeSignal | null = paperPlan?.direction && paperPlan.entry !== null && paperPlan.stop !== null && paperPlan.target !== null ? {
+    instrument,
+    pair: activeSetup.pair,
+    timeframe: "15m",
+    direction: paperPlan.direction,
+    bias: paperPlan.direction === "long" ? "Bullish" : "Bearish",
+    entry: paperPlan.entry,
+    stop: paperPlan.stop,
+    target: paperPlan.target,
+    riskReward: Math.abs(paperPlan.target - paperPlan.entry) / Math.abs(paperPlan.entry - paperPlan.stop),
+    strategy: `Open paper trade · Batch ${paperPlan.batchNumber ?? "—"}`,
+    note: `Automatic paper trade #${paperPlan.tradeSequence ?? "—"}`,
+    freshness: "Open position",
+  } : null;
+  const active = openSignal ?? (activeSetup.status === "valid" ? activeCandidate : null);
+  const planIsOpen = Boolean(openSignal);
+  const tradingAvailability = getPaperTradingAvailability();
+  const inactiveLabel = tradingAvailability.state === "entry_window_open" ? "No valid setup" : tradingAvailability.label;
+  const riskDistance = active ? Math.abs(active.entry - active.stop) : null;
   const setupLevels = useMemo(
-    () => ({
+    () => active ? ({
       entry: active.entry,
       stop: active.stop,
       target: active.target,
-    }),
-    [active.entry, active.stop, active.target],
+    }) : null,
+    [active],
   );
 
   useEffect(() => {
@@ -971,7 +1021,7 @@ export function SignalWorkspace({
   ]);
 
   const priceStats = useMemo(() => {
-    const lastClose = series.candles.at(-1)?.close ?? active.entry;
+    const lastClose = series.candles.at(-1)?.close ?? active?.entry ?? 0;
     const prevClose = series.candles.at(-2)?.close ?? lastClose;
     const change = lastClose - prevClose;
     const changePercent = prevClose ? (change / prevClose) * 100 : 0;
@@ -983,7 +1033,7 @@ export function SignalWorkspace({
       changePercent,
       positive: change >= 0,
     };
-  }, [active.entry, quote, series.candles]);
+  }, [active?.entry, quote, series.candles]);
 
   const spreadPips = useMemo(() => {
     if (!quote || quote.instrument !== instrument) return null;
@@ -993,6 +1043,7 @@ export function SignalWorkspace({
   function selectSearchResult(result: SearchResult) {
     setLiveCandle(null);
     setSelectedInstrument(result.instrument);
+    router.replace(`/signals?instrument=${encodeURIComponent(result.instrument)}`, { scroll: false });
     // Pairs without a setup keep the timeframe the user is already on.
     if (result.signal) {
       setTimeframe(mapSignalTimeframe(result.signal.timeframe));
@@ -1014,14 +1065,7 @@ export function SignalWorkspace({
               >
                 <ChevronLeft className="size-5" strokeWidth={2} />
               </Link>
-              <button
-                type="button"
-                aria-label="Notifications"
-                className="signals-icon-btn pressable relative"
-              >
-                <Bell className="size-[18px]" strokeWidth={1.9} />
-                <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-[color:var(--danger)]" />
-              </button>
+              <NotificationBell compact className="signals-icon-btn" />
             </div>
 
             <div className="mt-3 flex items-end justify-between gap-3">
@@ -1029,10 +1073,10 @@ export function SignalWorkspace({
                 <PairAvatar instrument={instrument} size={36} />
                 <div className="min-w-0">
                   <div className="text-sm font-semibold tracking-[-0.03em]">
-                    {active.pair}
+                    {activeSetup.pair}
                   </div>
                   <div className="text-xs text-[color:var(--muted)]">
-                    {active.strategy}
+                    {active ? active.strategy : inactiveLabel}
                   </div>
                 </div>
               </div>
@@ -1130,11 +1174,13 @@ export function SignalWorkspace({
           <div className="space-y-5 px-4 py-5 pb-8">
             {mobileTab === "Overview" ? (
               <>
-                <SetupStats active={active} />
-                <SetupRangeBar active={active} />
-                <SetupNote active={active} />
-                <SetupMeta active={active} riskDistance={riskDistance} />
-                <StrategyStatus setup={activeSetup} />
+                {active && riskDistance !== null ? <>
+                  <SetupStats active={active} />
+                  <SetupRangeBar active={active} />
+                  <SetupNote active={active} />
+                  <SetupMeta active={active} riskDistance={riskDistance} />
+                </> : <p className="text-sm text-[color:var(--muted)]">{tradingAvailability.state === "entry_window_open" ? "No entry, target, or stop is shown because this pair does not have a valid setup." : tradingAvailability.detail}</p>}
+                {planIsOpen ? <p className="text-sm text-[color:var(--accent)]">Open automatic paper trade. Its original entry, target, and stop remain fixed.</p> : <StrategyStatus setup={activeSetup} availability={tradingAvailability} />}
               </>
             ) : (
               <>
@@ -1152,8 +1198,8 @@ export function SignalWorkspace({
             <div className="signals-chart-head-main">
               <PairAvatar instrument={instrument} size={38} />
               <div className="min-w-0">
-                <div className="signals-chart-pair">{active.pair}</div>
-                <div className="signals-chart-strategy">{active.strategy}</div>
+                <div className="signals-chart-pair">{activeSetup.pair}</div>
+                <div className="signals-chart-strategy">{active ? active.strategy : inactiveLabel}</div>
               </div>
               <div className="signals-chart-quote">
                 <span className="signals-chart-price metric-number">
@@ -1247,6 +1293,8 @@ export function SignalWorkspace({
           active={active}
           setup={activeSetup}
           riskDistance={riskDistance}
+          openPaperTrade={planIsOpen}
+          availability={tradingAvailability}
         />
       </aside>
     </div>

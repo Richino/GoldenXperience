@@ -49,6 +49,28 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { data = {}; }
+  event.waitUntil(self.registration.showNotification(data.title || 'GoldenXperience', {
+    body: data.body || 'You have a new notification.',
+    tag: data.tag || 'goldenxperience-notification',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    data: { url: data.url || '/' },
+  }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = new URL(event.notification.data?.url || '/', self.location.origin).href;
+  event.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+    const existing = windows.find((client) => 'focus' in client);
+    if (existing) return existing.focus().then(() => existing.navigate(targetUrl));
+    return clients.openWindow(targetUrl);
+  }));
+});
+
 async function networkFirst(request) {
   try {
     const response = await fetch(request);

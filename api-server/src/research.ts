@@ -879,6 +879,76 @@ export async function latestDayTradingValidation(userId: string, instrument: str
   return result.rows[0] ?? null;
 }
 
+const GBP_CANDIDATE_VERSION = "day-intraday-v2-candidate";
+
+export async function runGbpRiskRewardCandidate() {
+  const instrument: MajorInstrument = "GBP_USD";
+  const coverage = await query<{ first_close: string | Date | null; last_close: string | Date | null }>("SELECT min(close_time) AS first_close,max(close_time) AS last_close FROM market_candles WHERE instrument=$1 AND timeframe='M15' AND source='oanda'", [instrument]);
+  if (!coverage.rows[0]?.first_close || !coverage.rows[0]?.last_close) throw new Error("Five years of stored GBP/USD OANDA history are required.");
+  const testEnd = new Date(coverage.rows[0].last_close);
+  const testStart = new Date(testEnd); testStart.setUTCMonth(testStart.getUTCMonth() - 12);
+  const developmentStart = new Date(testStart); developmentStart.setUTCMonth(developmentStart.getUTCMonth() - 48);
+  if (developmentStart < new Date(coverage.rows[0].first_close)) throw new Error("Five complete years are required for the GBP/USD candidate test.");
+  const dataStart = new Date(developmentStart.getTime() - WARMUP_DAYS * 24 * 60 * 60_000);
+  const [m15Result, h1Result, h4Result, quoteResult] = await Promise.all([
+    query<CandleRow>("SELECT close_time,open,high,low,close,volume FROM market_candles WHERE instrument=$1 AND timeframe='M15' AND source='oanda' AND close_time BETWEEN $2 AND $3 ORDER BY close_time", [instrument, dataStart, testEnd]),
+    query<CandleRow>("SELECT close_time,open,high,low,close,volume FROM market_candles WHERE instrument=$1 AND timeframe='H1' AND source='oanda' AND close_time BETWEEN $2 AND $3 ORDER BY close_time", [instrument, dataStart, testEnd]),
+    query<CandleRow>("SELECT close_time,open,high,low,close,volume FROM market_candles WHERE instrument=$1 AND timeframe='H4' AND source='oanda' AND close_time BETWEEN $2 AND $3 ORDER BY close_time", [instrument, dataStart, testEnd]),
+    query<QuoteRow>("SELECT close_time,bid_open,bid_high,bid_low,bid_close,ask_open,ask_high,ask_low,ask_close FROM market_candle_quotes WHERE instrument=$1 AND timeframe='M15' AND source='oanda' AND close_time BETWEEN $2 AND $3 ORDER BY close_time", [instrument, dataStart, testEnd]),
+  ]);
+  const m15 = m15Result.rows.map((row) => ({ closeTime: iso(row.close_time), candle: rowToCandle(row, "M15") }));
+  const h1 = h1Result.rows.map((row) => ({ closeTime: iso(row.close_time), candle: rowToCandle(row, "H1") }));
+  const h4 = h4Result.rows.map((row) => ({ closeTime: iso(row.close_time), candle: rowToCandle(row, "H4") }));
+  const quotes = quoteResult.rows.map(normalizeQuote);
+  const quoteByTime = new Map(quotes.map((quote) => [quote.closeTime, quote]));
+  const candidates: Array<{ id: string; decisionTime: string; direction: "long" | "short"; entry: number; stop: number; target: number; plannedR: number; spreadPips: number; outcome: OutcomeResult; samplePeriod: "development" | "holdout" }> = [];
+  let h1End = 0; let h4End = 0;
+  for (let index = 0; index < m15.length; index += 1) {
+    const decisionTime = m15[index]!.closeTime;
+    if (new Date(decisionTime) < developmentStart) continue;
+    while (h1End < h1.length && h1[h1End]!.closeTime <= decisionTime) h1End += 1;
+    while (h4End < h4.length && h4[h4End]!.closeTime <= decisionTime) h4End += 1;
+    const quote = quoteByTime.get(decisionTime);
+    const candles15m = m15.slice(Math.max(0, index - REPLAY_WINDOW + 1), index + 1).map((item) => item.candle);
+    const candles1h = h1.slice(Math.max(0, h1End - REPLAY_WINDOW), h1End).map((item) => item.candle);
+    const candles4h = h4.slice(Math.max(0, h4End - REPLAY_WINDOW), h4End).map((item) => item.candle);
+    if (!quote || candles15m.length < MINIMUM_CANDLES || candles1h.length < MINIMUM_CANDLES || candles4h.length < MINIMUM_CANDLES) continue;
+    const spreadPips = (quote.askClose - quote.bidClose) / pipSizeFor(instrument);
+    const setup = evaluateStrategy({ instrument, accountBalance: 10_000, accountCurrency: "USD", dataSource: "oanda", candles15m, candles1h, candles4h, bid: quote.bidClose, ask: quote.askClose, spreadPips, marketOpen: forexMarketOpen(new Date(decisionTime)), calendarConnected: false, highImpactNewsWithinMinutes: null, newsRequired: false, evaluatedAt: decisionTime }, { minimumRiskReward: 1.5 });
+    if (setup.status !== "valid" || !setup.direction || setup.entry === null || setup.stop === null || setup.target === null || setup.riskReward === null) continue;
+    const outcome = labelOutcome(setup.direction, setup.entry, setup.stop, setup.target, decisionTime, quotes.slice(lowerBoundQuotes(quotes, decisionTime)));
+    candidates.push({ id: decisionTime, decisionTime, direction: setup.direction, entry: setup.entry, stop: setup.stop, target: setup.target, plannedR: setup.riskReward, spreadPips, outcome, samplePeriod: new Date(decisionTime) < testStart ? "development" : "holdout" });
+  }
+  const acceptedIds = new Set(selectPositionAwareCandidates(candidates.map((item) => ({ id: item.id, decisionTime: item.decisionTime, resolvedAt: item.outcome.resolvedAt, horizonEndsAt: item.outcome.horizonEndsAt }))).filter((item) => item.executionStatus === "accepted").map((item) => item.id));
+  const accepted = candidates.filter((item) => acceptedIds.has(item.id));
+  const candidateDevelopment = accepted.filter((item) => item.samplePeriod === "development");
+  const candidateHoldout = accepted.filter((item) => item.samplePeriod === "holdout");
+  const candidateResults = (rows: typeof candidateHoldout) => rows.filter((item) => RESOLVED_OUTCOMES.has(item.outcome.outcome) && item.outcome.resultR !== null).map((item) => item.outcome.resultR!);
+  const candidateDevelopmentMetrics = resultMetrics(candidateResults(candidateDevelopment));
+  const candidateHoldoutMetrics = resultMetrics(candidateResults(candidateHoldout));
+  const candidateStress = resultMetrics(candidateHoldout.filter((item) => RESOLVED_OUTCOMES.has(item.outcome.outcome) && item.outcome.resultR !== null).map((item) => item.outcome.resultR! - 0.5 / (Math.abs(item.entry - item.stop) / pipSizeFor(instrument))));
+  const positiveResults = candidateResults(candidateHoldout).filter((value) => value > 0);
+  const grossPositive = positiveResults.reduce((sum, value) => sum + value, 0);
+  const largestProfitShare = grossPositive > 0 ? Math.max(...positiveResults, 0) / grossPositive : null;
+  const activeVersion = await query<{ id: string }>("SELECT id FROM strategy_versions WHERE name='deterministic-forex' AND version=$1", [ACTIVE_STRATEGY_VERSION]);
+  if (!activeVersion.rows[0]) throw new Error("The active v1 strategy record is missing.");
+  const baselineRows = await query<WalkForwardCandidate>(`SELECT tc.id,se.decision_time,se.direction,se.conditions,se.entry,se.stop,ol.outcome,ol.result_r,ol.resolved_at,ol.horizon_ends_at FROM trade_candidates tc JOIN strategy_evaluations se ON se.id=tc.evaluation_id JOIN outcome_labels ol ON ol.candidate_id=tc.id WHERE se.strategy_version_id=$1 AND se.instrument=$2 AND se.source_kind='historical' AND se.decision_time BETWEEN $3 AND $4 ORDER BY se.decision_time,tc.id`, [activeVersion.rows[0].id, instrument, developmentStart, testEnd]);
+  const baselineDevelopment = positionAwareResults(baselineRows.rows.filter((row) => new Date(row.decision_time) < testStart));
+  const baselineHoldout = positionAwareResults(baselineRows.rows.filter((row) => new Date(row.decision_time) >= testStart));
+  const baselineStress = stressMetrics(baselineHoldout.accepted, instrument, 0.5);
+  const decisionStatus = candidateHoldoutMetrics.sample_size < 50 ? "insufficient_sample" : (candidateHoldoutMetrics.average_r ?? -Infinity) > 0 && (candidateHoldoutMetrics.profit_factor ?? 0) >= 1.15 && (candidateStress.average_r ?? -Infinity) > 0 && candidateHoldoutMetrics.drawdown_r <= 10 && (largestProfitShare ?? 1) < 0.5 ? "eligible" : "rejected";
+  const configuration = { version: GBP_CANDIDATE_VERSION, active: false, researchOnly: true, instrument, minimumRiskReward: 1.5, baselineMinimumRiskReward: 2, developmentStart: developmentStart.toISOString(), holdoutStart: testStart.toISOString(), holdoutEnd: testEnd.toISOString(), news: "not_evaluated" };
+  const baselineSummary = { development: baselineDevelopment.metrics, holdout: baselineHoldout.metrics, stress05Pips: baselineStress };
+  const candidateSummary = { rawCandidates: candidates.length, acceptedCandidates: accepted.length, overlappingCandidates: candidates.length - accepted.length, development: candidateDevelopmentMetrics, holdout: candidateHoldoutMetrics, stress05Pips: candidateStress, largestProfitShare, forcedSessionExits: candidateHoldout.filter((item) => item.outcome.outcome === "forced_close").length };
+  return transaction(async (client) => {
+    const version = await client.query<{ id: string }>("INSERT INTO strategy_versions(name,version,configuration) VALUES('deterministic-forex',$1,$2::jsonb) ON CONFLICT(name,version) DO UPDATE SET configuration=EXCLUDED.configuration RETURNING id", [GBP_CANDIDATE_VERSION, JSON.stringify(configuration)]);
+    await client.query("DELETE FROM research_strategy_candidate_runs WHERE strategy_version_id=$1 AND instrument=$2", [version.rows[0]!.id, instrument]);
+    const run = await client.query<{ id: string }>("INSERT INTO research_strategy_candidate_runs(strategy_version_id,instrument,configuration,baseline_summary,candidate_summary,decision_status) VALUES($1,$2,$3::jsonb,$4::jsonb,$5::jsonb,$6) RETURNING id", [version.rows[0]!.id, instrument, JSON.stringify(configuration), JSON.stringify(baselineSummary), JSON.stringify(candidateSummary), decisionStatus]);
+    if (candidates.length) await client.query(`INSERT INTO research_strategy_candidate_trades(run_id,decision_time,sample_period,direction,entry,stop,target,planned_r,spread_pips,outcome,result_r,resolved_at,execution_status) SELECT $1,x.decision_time,x.sample_period,x.direction,x.entry,x.stop,x.target,x.planned_r,x.spread_pips,x.outcome,x.result_r,x.resolved_at,x.execution_status FROM jsonb_to_recordset($2::jsonb) AS x(decision_time timestamptz,sample_period text,direction text,entry numeric,stop numeric,target numeric,planned_r numeric,spread_pips numeric,outcome text,result_r numeric,resolved_at timestamptz,execution_status text)`, [run.rows[0]!.id, JSON.stringify(candidates.map((item) => ({ decision_time: item.decisionTime, sample_period: item.samplePeriod, direction: item.direction, entry: item.entry, stop: item.stop, target: item.target, planned_r: item.plannedR, spread_pips: item.spreadPips, outcome: item.outcome.outcome, result_r: item.outcome.resultR, resolved_at: item.outcome.resolvedAt, execution_status: acceptedIds.has(item.id) ? "accepted" : "overlapping" })))]);
+    return { runId: run.rows[0]!.id, decisionStatus, baseline: baselineSummary, candidate: candidateSummary };
+  });
+}
+
 type ExperimentDirection = "all" | "long" | "short";
 type ResearchSession = (typeof RESEARCH_SESSIONS)[number];
 type ExperimentCandidateRow = {
@@ -1038,6 +1108,19 @@ export async function researchSummary(instrument?: string) {
     raw_baseline: resultMetrics(outcomeResults(rawOutcomes.rows, "resolved_only")),
     conservative_baseline: resultMetrics(outcomeResults(outcomes.rows, "conservative")),
   };
+}
+
+export async function forwardResearchSummary(instrument: string) {
+  if (!isKnownInstrument(instrument)) throw new Error("Choose a supported currency pair.");
+  const rows = await query<{ outcome: string; result_r: string | null }>(`SELECT ol.outcome,ol.result_r FROM outcome_labels ol JOIN trade_candidates tc ON tc.id=ol.candidate_id JOIN strategy_evaluations se ON se.id=tc.evaluation_id JOIN strategy_versions sv ON sv.id=se.strategy_version_id WHERE sv.name='deterministic-forex' AND sv.version=$1 AND se.source_kind='forward' AND se.instrument=$2 ORDER BY se.decision_time`, [ACTIVE_STRATEGY_VERSION, instrument]);
+  const resolved = rows.rows.filter((row) => row.outcome === "target_first" || row.outcome === "stop_first" || row.outcome === "forced_close").map((row) => Number(row.result_r)).filter(Number.isFinite);
+  const wins = rows.rows.filter((row) => row.outcome === "target_first").length;
+  const losses = rows.rows.filter((row) => row.outcome === "stop_first").length;
+  const grossWins = resolved.filter((value) => value > 0).reduce((sum, value) => sum + value, 0);
+  const grossLosses = Math.abs(resolved.filter((value) => value < 0).reduce((sum, value) => sum + value, 0));
+  let equity = 0; let peak = 0; let drawdown = 0;
+  for (const value of resolved) { equity += value; peak = Math.max(peak, equity); drawdown = Math.max(drawdown, peak - equity); }
+  return { candidates: rows.rows.length, resolved: resolved.length, wins, losses, forcedClose: rows.rows.filter((row) => row.outcome === "forced_close").length, unresolved: rows.rows.filter((row) => row.outcome === "unresolved").length, ambiguous: rows.rows.filter((row) => row.outcome === "ambiguous").length, winRate: resolved.length ? wins / resolved.length : null, averageR: resolved.length ? resolved.reduce((sum, value) => sum + value, 0) / resolved.length : null, profitFactor: grossLosses ? grossWins / grossLosses : null, drawdownR: drawdown };
 }
 
 const RESEARCH_FUNNEL_STAGES = ["Market data", "EMA alignment", "Higher timeframe alignment", "Pullback", "Market structure", "Confirmation candle", "Momentum", "Volatility", "Session", "Spread", "Risk reward"] as const;
@@ -1213,7 +1296,13 @@ function decisionTime(value: string) { const date = new Date(value); date.setUTC
 export async function collectForwardEvaluation() {
   const snapshot = await getStrategySnapshot();
   if (snapshot.accountStatus.source !== "oanda" || snapshot.accountStatus.state !== "connected") return { collected: 0, reason: "OANDA is not connected" };
-  for (const instrument of INSTRUMENTS) await query("INSERT INTO instruments(code,display_name,price_precision) VALUES($1,$2,$3) ON CONFLICT(code) DO NOTHING", [instrument.code, instrument.display, instrument.precision]);
+  for (const instrument of INSTRUMENTS) {
+    await query("INSERT INTO instruments(code,display_name,price_precision) VALUES($1,$2,$3) ON CONFLICT(code) DO NOTHING", [instrument.code, instrument.display, instrument.precision]);
+    // Keep a small rolling bid/ask candle window so forward candidates can be
+    // labeled after their same-day exit or target/stop is reached.
+    const recent = (await getResearchCandles(instrument.code as MajorInstrument, "M15", 500)).filter((candle) => candle.complete);
+    await saveResearchCandles(instrument.code as MajorInstrument, "M15", recent);
+  }
   const version = await query<{ id: string }>("INSERT INTO strategy_versions(name,version,configuration) VALUES('deterministic-forex',$1,$2::jsonb) ON CONFLICT(name,version) DO UPDATE SET configuration=EXCLUDED.configuration RETURNING id", [ACTIVE_STRATEGY_VERSION, JSON.stringify({ timeframes: HISTORICAL_TIMEFRAMES, entryWindowEt: "03:00-12:00", forcedExitEt: "16:45", holding: "same_day", news: "not_evaluated" })]);
   let collected = 0;
   for (const setup of snapshot.strategy.setups) {
@@ -1229,5 +1318,26 @@ export async function collectForwardEvaluation() {
       collected += 1;
     });
   }
+  await labelForwardOutcomes();
   return { collected };
+}
+
+async function labelForwardOutcomes() {
+  const candidates = await query<CandidateForLabel & { instrument: MajorInstrument }>(`SELECT tc.id,se.instrument,se.decision_time,se.direction,se.entry,se.stop,se.target
+    FROM trade_candidates tc JOIN strategy_evaluations se ON se.id=tc.evaluation_id
+    LEFT JOIN outcome_labels ol ON ol.candidate_id=tc.id
+    WHERE se.strategy_version_id=(SELECT id FROM strategy_versions WHERE name='deterministic-forex' AND version=$1)
+      AND se.source_kind='forward' AND se.status='valid' AND ol.candidate_id IS NULL
+      AND se.decision_time < now() - interval '15 minutes'`, [ACTIVE_STRATEGY_VERSION]);
+  for (const candidate of candidates.rows) {
+    const end = new Date(new Date(candidate.decision_time).getTime() + OUTCOME_HOURS * 60 * 60_000);
+    const quotes = (await query<QuoteRow>("SELECT close_time,bid_open,bid_high,bid_low,bid_close,ask_open,ask_high,ask_low,ask_close FROM market_candle_quotes WHERE instrument=$1 AND timeframe='M15' AND source='oanda' AND close_time>$2 AND close_time<=$3 ORDER BY close_time", [candidate.instrument, candidate.decision_time, end])).rows.map(normalizeQuote);
+    if (!quotes.length) continue;
+    const result = labelOutcome(candidate.direction, Number(candidate.entry), Number(candidate.stop), Number(candidate.target), iso(candidate.decision_time), quotes);
+    // Do not freeze an unresolved label while the trade's outcome window is
+    // still open; the next polling cycle must be allowed to see later candles.
+    if (result.outcome === "unresolved" && new Date(quotes.at(-1)!.closeTime).getTime() < end.getTime()) continue;
+    await query(`INSERT INTO outcome_labels(candidate_id,outcome,horizon_ends_at,resolved_at,result_r,max_favorable_r,max_adverse_r)
+      VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(candidate_id) DO UPDATE SET outcome=EXCLUDED.outcome,horizon_ends_at=EXCLUDED.horizon_ends_at,resolved_at=EXCLUDED.resolved_at,result_r=EXCLUDED.result_r,max_favorable_r=EXCLUDED.max_favorable_r,max_adverse_r=EXCLUDED.max_adverse_r,labeled_at=now()`, [candidate.id, result.outcome, result.horizonEndsAt, result.resolvedAt, result.resultR, result.maxFavorableR, result.maxAdverseR]);
+  }
 }

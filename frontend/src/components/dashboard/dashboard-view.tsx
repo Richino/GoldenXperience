@@ -1,447 +1,245 @@
 "use client";
 
 import Link from "next/link";
-import {
-  Activity,
-  AlertTriangle,
-  CheckCircle2,
-  ChevronRight,
-  Radio,
-  ShieldCheck,
-} from "lucide-react";
+import { Activity, ArrowUpRight, BarChart3, Clock3, Radar, RefreshCw, ShieldCheck, WalletCards } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { SectionLabel } from "@/components/ui/section-label";
-import { formatChartPrice, spreadInPips } from "@/lib/chart-utils";
-import { usePaperJournalDay } from "@/lib/journal/use-paper-journal-day";
-import { useJournalTrades } from "@/lib/journal/use-journal-trades";
-import { useMarketStream } from "@/lib/market-stream/use-market-stream";
-import { useEconomicCalendar } from "@/lib/oanda/use-economic-calendar";
-import { DEFAULT_RISK_POLICY, deriveTradePermission } from "@/lib/risk/engine";
-import type { StrategySetup } from "@/lib/strategy/types";
-import type { AccountSummary, ConnectionStatus, JournalTrade } from "@/types/forex";
+import { apiUrl } from "@/lib/api/url";
+import { formatChartPrice } from "@/lib/chart-utils";
+import { displayNameFor } from "@/lib/instruments/catalog";
+import { getPaperTradingAvailability, type PaperTradingAvailability } from "@/lib/strategy/strategy-engine";
+import type { AccountSummary, ConnectionStatus } from "@/types/forex";
 
-const DASHBOARD_INSTRUMENT = "EUR_USD";
+export type DashboardWatchRow = {
+  instrument: string;
+  evaluatedAt: string | null;
+  dataStatus: "connected" | "unavailable" | "stale";
+  setupStatus: "valid" | "developing" | "invalid" | "no_setup";
+  direction: "long" | "short" | null;
+  bid: number | null;
+  ask: number | null;
+  spreadPips: number | null;
+  openTradeId: string | null;
+  batchNumber: number | null;
+  tradeSequence: string | null;
+};
 
-function formatMoney(value: number, currency: string) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 2,
-  }).format(value);
+type Metrics = {
+  assigned: number;
+  open: number;
+  resolved: number;
+  winRate: number | null;
+  averageR: number | null;
+  profitFactor: number | null;
+  netR: number;
+  maxDrawdownR: number;
+};
+
+type Batch = {
+  id: string;
+  batchNumber: number;
+  status: "collecting" | "resolving" | "complete";
+  assignedCount: number;
+  liveSummary?: Metrics;
+  remaining?: number;
+};
+
+type Trade = {
+  id: string;
+  tradeSequence: string;
+  instrument: string;
+  direction: "long" | "short";
+  status: string;
+  outcome: string;
+  resultR: number | null;
+  openedAt: string;
+};
+
+export type DashboardOverview = {
+  strategyVersion: string;
+  batchSize: number;
+  lifetimeSummary: Metrics;
+  current: Batch | null;
+  batches: Batch[];
+  trades: Trade[];
+};
+
+export type DashboardExposure = {
+  openTrades: number;
+  totalNominalRiskPercent: number;
+  totalNominalRiskAmount: number;
+  currencyExposure: Array<{ code: string; nominalRiskPercent: number }>;
+};
+
+function money(value: number, currency = "USD") {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 2 }).format(value);
 }
 
-function formatDateTime(value: string | null) {
-  if (!value) return "Waiting for an update";
-
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-  }).format(new Date(value));
+function time(value: string | null) {
+  if (!value) return "Waiting";
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value));
 }
 
-function isForexMarketOpen(now = new Date()) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    weekday: "short",
-    hour: "numeric",
-    hourCycle: "h23",
-  }).formatToParts(now);
-  const weekday = parts.find((part) => part.type === "weekday")?.value;
-  const hour = Number(parts.find((part) => part.type === "hour")?.value);
-
-  if (!weekday || !Number.isFinite(hour)) return false;
-  if (weekday === "Sat") return false;
-  if (weekday === "Sun") return hour >= 17;
-  if (weekday === "Fri") return hour < 17;
-  return true;
+function percent(value: number | null) {
+  return value === null ? "—" : `${(value * 100).toFixed(1)}%`;
 }
 
-function connectionLabel(status: ConnectionStatus) {
-  if (status.state === "connected") {
-    return `OANDA ${status.environment === "practice" ? "Practice" : "Live"}`;
-  }
-
-  return status.label;
+function metric(value: number | null, suffix = "") {
+  return value === null ? "—" : `${value.toFixed(2)}${suffix}`;
 }
 
-function streamLabel(state: ReturnType<typeof useMarketStream>["state"]) {
-  if (state === "connected") return "Live";
-  if (state === "mock") return "Mock";
-  if (state === "connecting" || state === "idle") return "Connecting";
-  return "Offline";
-}
-
-function statusTone(connected: boolean) {
-  return connected
-    ? "bg-[color:var(--success-soft)] text-[color:var(--success)]"
-    : "bg-[color:var(--danger-soft)] text-[color:var(--danger)]";
-}
-
-function recentPaperTrades(trades: JournalTrade[]) {
-  return [...trades]
-    .filter((trade) => trade.origin === "manual")
-    .sort(
-      (left, right) =>
-        Date.parse(right.closedAt ?? right.openedAt) -
-        Date.parse(left.closedAt ?? left.openedAt),
-    )
-    .slice(0, 5);
+function pairState(row: DashboardWatchRow, availability: PaperTradingAvailability) {
+  if (row.openTradeId) return { label: "Open paper trade", tone: "text-[color:var(--accent)]" };
+  if (availability.state === "market_closed") return { label: "Market closed", tone: "text-[color:var(--muted)]" };
+  if (availability.state === "waiting_for_entry_window") return { label: "Waiting", tone: "text-[color:var(--muted)]" };
+  if (row.dataStatus !== "connected") return { label: "Data unavailable", tone: "text-[color:var(--danger)]" };
+  if (row.setupStatus === "valid") return { label: "Entry ready", tone: "text-[color:var(--success)]" };
+  if (row.setupStatus === "developing") return { label: "Developing", tone: "text-[color:var(--foreground)]" };
+  return { label: "No setup", tone: "text-[color:var(--muted)]" };
 }
 
 export function DashboardView({
-  status,
-  account,
-  strategy,
+  initialAccount,
+  initialStatus,
+  initialWatchlist,
+  initialOverview,
+  initialExposure,
 }: {
-  status: ConnectionStatus;
-  account: AccountSummary;
-  strategy: StrategySetup;
+  initialAccount: AccountSummary;
+  initialStatus: ConnectionStatus;
+  initialWatchlist: DashboardWatchRow[];
+  initialOverview: DashboardOverview;
+  initialExposure: DashboardExposure;
 }) {
-  const journalDay = usePaperJournalDay();
-  const trades = useJournalTrades();
-  const { snapshot: calendar, loading: calendarLoading } = useEconomicCalendar();
-  const marketStream = useMarketStream(DASHBOARD_INSTRUMENT, undefined, {
-    trackPrice: true,
-  });
-  const livePrice = marketStream.price;
-  const liveSpreadPips = livePrice
-    ? Number(
-        spreadInPips(DASHBOARD_INSTRUMENT, livePrice.bid, livePrice.ask),
-      )
-    : null;
-  const usedRiskPercent = journalDay.losingR * DEFAULT_RISK_POLICY.riskPercent;
-  const remainingRiskPercent = Math.max(
-    0,
-    DEFAULT_RISK_POLICY.maxDailyLossPercent - usedRiskPercent,
-  );
-  const remainingTrades = Math.max(
-    0,
-    DEFAULT_RISK_POLICY.maxTradesPerDay - journalDay.tradesTaken,
-  );
-  const marketOpen = isForexMarketOpen();
-  const permission = deriveTradePermission({
-    restConnected: status.state === "connected",
-    streamState: marketStream.state,
-    marketOpen,
-    calendarConnected: !calendarLoading && calendar.connected,
-    dailyLossPercent: usedRiskPercent,
-    tradesTaken: journalDay.tradesTaken,
-    consecutiveLosses: journalDay.consecutiveLosses,
-    setupValid: strategy.status === "valid",
-    highImpactNewsWithinMinutes: calendar.highImpactNewsWithinMinutes,
-    spreadPips: liveSpreadPips,
-  });
-  const paperTrades = recentPaperTrades(trades);
-  const riskUsedWidth = Math.min(
-    100,
-    (usedRiskPercent / DEFAULT_RISK_POLICY.maxDailyLossPercent) * 100,
-  );
-  const restConnected = status.state === "connected";
-  const streamConnected = marketStream.state === "connected";
+  const [account, setAccount] = useState(initialAccount);
+  const [status, setStatus] = useState(initialStatus);
+  const [watchlist, setWatchlist] = useState(initialWatchlist);
+  const [overview, setOverview] = useState(initialOverview);
+  const [exposure, setExposure] = useState(initialExposure);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const availability = getPaperTradingAvailability();
+
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const [accountResponse, watchlistResponse, cycleResponse, riskResponse] = await Promise.all([
+        fetch(apiUrl("/api/oanda/account-summary"), { credentials: "include", cache: "no-store" }),
+        fetch(apiUrl("/api/watchlist"), { credentials: "include", cache: "no-store" }),
+        fetch(apiUrl("/api/paper-cycle"), { credentials: "include", cache: "no-store" }),
+        fetch(apiUrl("/api/paper-risk"), { credentials: "include", cache: "no-store" }),
+      ]);
+      if (![accountResponse, watchlistResponse, cycleResponse, riskResponse].every((response) => response.ok)) throw new Error("Dashboard data is temporarily unavailable.");
+      const [accountPayload, watchlistPayload, cyclePayload, riskPayload] = await Promise.all([
+        accountResponse.json() as Promise<{ data: AccountSummary; status: ConnectionStatus }>,
+        watchlistResponse.json() as Promise<{ watchlist: DashboardWatchRow[] }>,
+        cycleResponse.json() as Promise<DashboardOverview>,
+        riskResponse.json() as Promise<{ exposure: DashboardExposure }>,
+      ]);
+      setAccount(accountPayload.data);
+      setStatus(accountPayload.status);
+      setWatchlist(watchlistPayload.watchlist);
+      setOverview(cyclePayload);
+      setExposure(riskPayload.exposure);
+      setError(null);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Dashboard data is temporarily unavailable.");
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => void refresh(), 60_000);
+    return () => window.clearInterval(timer);
+  }, [refresh]);
+
+  const openPairs = watchlist.filter((row) => row.openTradeId).length;
+  const readyPairs = availability.entryWindowOpen ? watchlist.filter((row) => !row.openTradeId && row.dataStatus === "connected" && row.setupStatus === "valid").length : 0;
+  const unavailablePairs = availability.marketOpen ? watchlist.filter((row) => row.dataStatus !== "connected").length : 0;
+  const current = overview.current;
+  const summary = current?.liveSummary ?? { assigned: 0, open: 0, resolved: 0, winRate: null, averageR: null, profitFactor: null, netR: 0, maxDrawdownR: 0 };
+  const assigned = current?.assignedCount ?? 0;
+  const remaining = current?.remaining ?? overview.batchSize;
+  const nextBatchNumber = current?.batchNumber ?? Math.max(0, ...overview.batches.map((batch) => batch.batchNumber)) + 1;
+  const progress = Math.min(100, assigned);
+  const latestEvaluation = useMemo(() => watchlist.map((row) => row.evaluatedAt).filter(Boolean).sort().at(-1) ?? null, [watchlist]);
+
+  const collectorLabel = openPairs
+    ? `Managing ${openPairs} open paper ${openPairs === 1 ? "trade" : "trades"}`
+    : availability.state === "market_closed"
+      ? "Collector waiting — market closed"
+      : availability.state === "waiting_for_entry_window"
+        ? "Collector waiting for entry window"
+        : readyPairs
+          ? `${readyPairs} setup${readyPairs === 1 ? "" : "s"} ready`
+          : "Scanning ten pairs";
 
   return (
     <div className="dashboard-view space-y-5">
       <section className="app-card-hero p-5 md:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-medium uppercase tracking-[0.12em] text-[color:var(--muted)]">
-              GoldenXperience · personal forex cockpit
-            </p>
-            <h1 className="text-display mt-2">Today&apos;s trade readout</h1>
-            <p className="mt-1 text-sm text-[color:var(--muted)]">
-              Connection, live market conditions, risk limits, and paper-trade history.
-            </p>
+            <p className="text-xs font-medium uppercase tracking-[0.12em] text-[color:var(--accent)]">Automatic paper collection</p>
+            <h1 className="text-display mt-2">Strategy command center</h1>
+            <p className="mt-1 max-w-2xl text-sm text-[color:var(--muted)]">One bundled strategy monitors ten fixed forex pairs and records accepted setups in immutable 100-trade batches.</p>
           </div>
-          <div
-            className={`permission-pill ${
-              permission.permission === "allowed"
-                ? "bg-[color:var(--success-soft)] text-[color:var(--success)]"
-                : "bg-[color:var(--danger-soft)] text-[color:var(--danger)]"
-            }`}
-            role="status"
-          >
-            <ShieldCheck className="size-3.5" strokeWidth={2.25} />
-            {permission.label}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="permission-pill bg-[color:var(--accent-soft)] text-[color:var(--accent)]" role="status"><Activity className="size-3.5" />{collectorLabel}</span>
+            <button type="button" onClick={() => void refresh()} disabled={refreshing} className="secondary-button pressable inline-flex items-center gap-2"><RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />Refresh</button>
           </div>
         </div>
+        {error ? <p className="research-error mt-4">{error} Existing values remain visible.</p> : null}
       </section>
+
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+        <section className="app-card p-5 md:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div><SectionLabel title={`Batch ${nextBatchNumber}`} variant="minimal" /><p className="mt-1 text-sm text-[color:var(--muted)]">{current ? `${current.status} · ${overview.strategyVersion} · fixed 1.5R target` : "Starts automatically when the next valid setup is accepted."}</p></div>
+            <div className="metric-number text-right text-2xl font-semibold">{assigned}/{overview.batchSize}</div>
+          </div>
+          <div className="mt-4 h-2 overflow-hidden rounded-full bg-[color:var(--surface-raised)]"><div className="h-full rounded-full bg-[color:var(--accent)]" style={{ width: `${progress}%` }} /></div>
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[["Open", summary.open], ["Resolved", summary.resolved], ["Remaining", remaining], ["Average R", metric(summary.averageR, "R")]].map(([label, value]) => <div key={label} className="inset-panel rounded-2xl px-3.5 py-3"><p className="text-xs text-[color:var(--muted)]">{label}</p><p className="metric-number mt-1 text-lg font-semibold">{value}</p></div>)}
+          </div>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--border)] pt-4 text-xs text-[color:var(--muted)]"><span>Win rate {percent(summary.winRate)} · PF {metric(summary.profitFactor)} · Net {metric(summary.netR, "R")}</span><Link href="/research" className="link-quiet pressable inline-flex items-center gap-1">Open full batch analysis<ArrowUpRight className="size-3.5" /></Link></div>
+        </section>
+
+        <section className="app-card p-5 md:p-6">
+          <div className="flex items-start gap-3"><div className="icon-tile-accent grid size-11 shrink-0 place-items-center rounded-2xl"><ShieldCheck className="size-5" /></div><div><SectionLabel title="Paper exposure" variant="minimal" /><p className="mt-1 text-sm text-[color:var(--muted)]">Research exposure, not realistic live portfolio risk.</p></div></div>
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            {[["Open trades", exposure.openTrades], ["Nominal risk", `${exposure.totalNominalRiskPercent.toFixed(2)}%`], ["Nominal amount", money(exposure.totalNominalRiskAmount, account.currency)], ["Largest currency tilt", exposure.currencyExposure[0] ? `${exposure.currencyExposure[0].code} ${Math.abs(exposure.currencyExposure[0].nominalRiskPercent).toFixed(1)}%` : "None"]].map(([label, value]) => <div key={label} className="inset-panel rounded-2xl px-3.5 py-3"><p className="text-xs text-[color:var(--muted)]">{label}</p><p className="metric-number mt-1 text-sm font-semibold">{value}</p></div>)}
+          </div>
+          <p className="mt-4 text-xs leading-5 text-[color:var(--danger)]">Cross-pair collection intentionally ignores realistic portfolio correlation and daily-loss limits. No OANDA orders are submitted.</p>
+          <div className="mt-3 text-right"><Link href="/risk" className="link-quiet pressable inline-flex items-center gap-1 text-xs">Review exposure<ArrowUpRight className="size-3.5" /></Link></div>
+        </section>
+      </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
         <section className="app-card p-5 md:p-6">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <SectionLabel title="Connection status" variant="minimal" />
-              <p className="mt-1 text-sm text-[color:var(--muted)]">
-                Broker credentials stay on the server.
-              </p>
-            </div>
-            <span
-              className={`permission-pill shrink-0 ${statusTone(restConnected)}`}
-            >
-              <Radio className="size-3.5" />
-              {connectionLabel(status)}
-            </span>
-          </div>
-
+          <div className="flex items-start justify-between gap-3"><div><SectionLabel title="Collection status" variant="minimal" /><p className="mt-1 text-sm text-[color:var(--muted)]">The schedule and broker state that control new paper entries.</p></div><span className="permission-pill bg-[color:var(--minimal-track)] text-[color:var(--foreground)]"><Clock3 className="size-3.5" />{availability.label}</span></div>
+          <p className="mt-4 border-t border-[color:var(--border)] pt-4 text-sm leading-6">{availability.detail}</p>
           <div className="mt-4 grid grid-cols-2 gap-4 border-t border-[color:var(--border)] pt-4">
-            {[
-              ["Account reachable", restConnected ? "Yes" : "No"],
-              ["Pricing stream", streamLabel(marketStream.state)],
-              ["Environment", status.environment],
-              ["Account checked", formatDateTime(status.checkedAt)],
-            ].map(([label, value]) => (
-              <div key={label}>
-                <div className="text-xs text-[color:var(--muted)]">{label}</div>
-                <div className="mt-0.5 text-sm font-medium">{value}</div>
-              </div>
-            ))}
+            {[["OANDA account", status.state === "connected" ? "Connected" : status.label], ["Environment", status.environment], ["Account balance", money(account.balance, account.currency)], ["Last M15 evaluation", time(latestEvaluation)]].map(([label, value]) => <div key={label}><p className="text-xs text-[color:var(--muted)]">{label}</p><p className="mt-1 text-sm font-medium">{value}</p></div>)}
           </div>
-
-          {!restConnected || !streamConnected ? (
-            <p className="mt-3 flex items-start gap-2 border-t border-[color:var(--border)] pt-3 text-xs leading-5 text-[color:var(--danger)]">
-              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-              {streamConnected ? status.message : marketStream.message}
-            </p>
-          ) : null}
         </section>
 
         <section className="app-card p-5 md:p-6">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <SectionLabel title="Live market status" variant="minimal" />
-              <p className="mt-1 text-sm text-[color:var(--muted)]">
-                {livePrice?.displayName ?? "EUR/USD"} ·{" "}
-                {marketStream.source === "mock" ? "Mock quote" : "OANDA stream"}
-              </p>
-            </div>
-            <span
-              className={`permission-pill shrink-0 ${statusTone(streamConnected)}`}
-            >
-              <Activity className="size-3.5" />
-              {streamLabel(marketStream.state)}
-            </span>
+          <div className="flex items-start justify-between gap-3"><div><SectionLabel title="Ten-pair monitor" variant="minimal" /><p className="mt-1 text-sm text-[color:var(--muted)]">Shared strategy snapshots—no separate scanner.</p></div><Radar className="size-5 text-[color:var(--accent)]" /></div>
+          <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-3 border-t border-[color:var(--border)] pt-4">
+            {watchlist.map((row) => { const state = pairState(row, availability); return <Link key={row.instrument} href={`/signals?instrument=${row.instrument}`} className="pressable flex min-w-0 items-center justify-between gap-3 rounded-xl px-1 py-1.5"><div className="min-w-0"><p className="text-sm font-medium">{displayNameFor(row.instrument)}</p><p className={`mt-0.5 truncate text-xs ${state.tone}`}>{state.label}</p></div><p className="metric-number shrink-0 text-xs text-[color:var(--muted)]">{row.bid === null ? "—" : formatChartPrice(row.bid, row.instrument)}</p></Link>; })}
           </div>
-
-          <div className="mt-4 grid grid-cols-3 gap-4 border-t border-[color:var(--border)] pt-4">
-            {[
-              ["Bid", livePrice ? formatChartPrice(livePrice.bid, DASHBOARD_INSTRUMENT) : "—"],
-              ["Ask", livePrice ? formatChartPrice(livePrice.ask, DASHBOARD_INSTRUMENT) : "—"],
-              ["Spread", liveSpreadPips === null ? "—" : `${liveSpreadPips.toFixed(1)} pips`],
-            ].map(([label, value]) => (
-              <div key={label}>
-                <div className="text-xs text-[color:var(--muted)]">{label}</div>
-                <div className="metric-number mt-0.5 text-sm font-semibold tracking-[-0.03em]">
-                  {value}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <p className="mt-3 border-t border-[color:var(--border)] pt-3 text-xs text-[color:var(--muted)]">
-            Last update {formatDateTime(marketStream.lastPriceAt)}
-          </p>
+          <div className="mt-4 flex flex-wrap justify-between gap-3 border-t border-[color:var(--border)] pt-4 text-xs text-[color:var(--muted)]"><span>{openPairs} open · {readyPairs} ready · {unavailablePairs} unavailable</span><Link href="/watchlist" className="link-quiet pressable inline-flex items-center gap-1">Open watchlist<ArrowUpRight className="size-3.5" /></Link></div>
         </section>
       </div>
-
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-        <section className="app-card p-5 md:p-6">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <SectionLabel title="Trade permission" variant="minimal" />
-              <p className="mt-1 text-sm text-[color:var(--muted)]">
-                Advisory only — no order placement is enabled in this app.
-              </p>
-            </div>
-            <span
-              className={`permission-pill shrink-0 ${
-                permission.permission === "allowed"
-                  ? "bg-[color:var(--success-soft)] text-[color:var(--success)]"
-                  : "bg-[color:var(--danger-soft)] text-[color:var(--danger)]"
-              }`}
-              role="status"
-            >
-              {permission.permission === "allowed" ? (
-                <CheckCircle2 className="size-3.5" />
-              ) : (
-                <AlertTriangle className="size-3.5" />
-              )}
-              {permission.label}
-            </span>
-          </div>
-
-          <p className="mt-4 border-t border-[color:var(--border)] pt-4 text-sm font-medium leading-snug">
-            {permission.reason}
-          </p>
-
-          <div className="mt-4 grid grid-cols-2 gap-4 border-t border-[color:var(--border)] pt-4">
-            {[
-              ["Market", marketOpen ? "Open" : "Closed"],
-              [
-                "News filter",
-                calendarLoading
-                  ? "Checking"
-                  : calendar.connected
-                    ? "ForexFactory connected"
-                    : "Unavailable",
-              ],
-              [
-                "Spread limit",
-                liveSpreadPips === null
-                  ? "Waiting for quote"
-                  : `${liveSpreadPips.toFixed(1)} / 1.5 pips`,
-              ],
-              ["Strategy setup", strategy.status === "valid" ? "Verified" : strategy.status.replace("_", " ")],
-            ].map(([label, value]) => (
-              <div key={label}>
-                <div className="text-xs text-[color:var(--muted)]">{label}</div>
-                <div className="mt-0.5 text-sm font-medium">{value}</div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="app-card p-5 md:p-6">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <SectionLabel title="Best current setup" variant="minimal" />
-              <p className="mt-1 text-sm text-[color:var(--muted)]">
-                Server-evaluated M15 confluence with 1H and 4H confirmation.
-              </p>
-            </div>
-            <span className={`permission-pill shrink-0 ${strategy.status === "valid" ? "bg-[color:var(--success-soft)] text-[color:var(--success)]" : "bg-[color:var(--minimal-track)] text-[color:var(--muted)]"}`}>
-              {strategy.status.replace("_", " ")}
-            </span>
-          </div>
-
-          <div className="mt-4 border-t border-[color:var(--border)] pt-4">
-            <p className="text-sm font-medium">{strategy.pair}{strategy.direction ? ` · ${strategy.direction}` : ""}</p>
-            <p className="mt-1.5 text-sm leading-relaxed text-[color:var(--muted)]">
-              {strategy.summary}
-            </p>
-            {strategy.entry !== null && strategy.stop !== null && strategy.target !== null ? (
-              <div className="mt-4 grid grid-cols-3 gap-3 text-xs">
-                {[["Entry", strategy.entry], ["Stop", strategy.stop], ["Target", strategy.target]].map(([label, value]) => (
-                  <div key={String(label)}><div className="text-[color:var(--muted)]">{label}</div><div className="mt-1 font-medium">{formatChartPrice(value as number, strategy.instrument)}</div></div>
-                ))}
-              </div>
-            ) : null}
-            {strategy.failedConditions.length ? <p className="mt-3 text-xs leading-5 text-[color:var(--muted)]">Blocked by: {strategy.failedConditions.map((item) => item.name).join(", ")}</p> : null}
-            {strategy.positionSize ? (
-              <p className="mt-3 text-xs text-[color:var(--muted)]">
-                1% risk · {strategy.positionSize.stopDistancePips.toFixed(1)} pip stop · {strategy.positionSize.standardLots.toFixed(2)} paper lots
-                {strategy.positionSize.capped ? ` (calculated ${strategy.positionSize.calculatedStandardLots.toFixed(2)}, capped at ${strategy.positionSize.capStandardLots.toFixed(2)})` : ""}
-              </p>
-            ) : null}
-          </div>
-
-          <div className="mt-3 flex justify-end border-t border-[color:var(--border)] pt-3">
-            <Link
-              href="/signals"
-              className="link-quiet pressable inline-flex items-center gap-1 text-xs"
-            >
-              Review signals
-              <ChevronRight className="size-3.5" />
-            </Link>
-          </div>
-        </section>
-      </div>
-
-      <section className="app-card p-5 md:p-6">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SectionLabel title="Daily risk status" variant="minimal" />
-            <p className="mt-1 text-sm text-[color:var(--muted)]">
-              Based on manually logged paper trades on this device.
-            </p>
-          </div>
-          <span className="permission-pill shrink-0 bg-[color:var(--accent-soft)] text-[color:var(--accent)]">
-            {DEFAULT_RISK_POLICY.riskPercent}% per trade
-          </span>
-        </div>
-
-        <div className="mt-4">
-          <div className="dashboard-stat-label">Daily loss</div>
-          <div className="metric-number mt-0.5 text-2xl font-semibold tracking-[-0.04em]">
-            {usedRiskPercent.toFixed(2)}%
-          </div>
-          <div className="risk-bar mt-3">
-            <div
-              className="risk-bar-fill"
-              style={{ width: `${riskUsedWidth}%` }}
-            />
-          </div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-2 gap-4 border-t border-[color:var(--border)] pt-4 sm:grid-cols-3">
-          {[
-            ["Account balance", formatMoney(account.balance, account.currency)],
-            ["Remaining risk", `${remainingRiskPercent.toFixed(2)}%`],
-            ["Trades today", String(journalDay.tradesTaken)],
-            ["Consecutive losses", String(journalDay.consecutiveLosses)],
-            ["Remaining trades", String(remainingTrades)],
-          ].map(([label, value]) => (
-            <div key={label}>
-              <div className="text-xs text-[color:var(--muted)]">{label}</div>
-              <div className="metric-number mt-0.5 text-sm font-semibold tracking-[-0.03em]">
-                {value}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <p className="mt-3 border-t border-[color:var(--border)] pt-3 text-xs text-[color:var(--muted)]">
-          Max {DEFAULT_RISK_POLICY.maxDailyLossPercent}% daily ·{" "}
-          {journalDay.tradesTaken}/{DEFAULT_RISK_POLICY.maxTradesPerDay} trades
-        </p>
-      </section>
 
       <section className="app-card overflow-hidden">
-        <div className="flex items-center justify-between gap-3 px-5 py-5 md:px-6">
-          <div>
-            <SectionLabel title="Recent paper trades" variant="minimal" />
-            <p className="mt-1 text-sm text-[color:var(--muted)]">
-              Manual records only. Demo trades are excluded.
-            </p>
-          </div>
-          <Link href="/journal" className="link-quiet pressable text-sm">
-            Open journal
-          </Link>
-        </div>
-        {paperTrades.length ? (
-          <div>
-            {paperTrades.map((trade) => {
-              const positive = (trade.resultR ?? 0) >= 0;
-              return (
-                <div key={trade.id} className="dashboard-row flex items-center justify-between gap-3 px-5 py-3.5 md:px-6">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">{trade.pair}</span>
-                      <span className={trade.direction === "long" ? "text-xs text-[color:var(--success)]" : "text-xs text-[color:var(--danger)]"}>
-                        {trade.direction}
-                      </span>
-                    </div>
-                    <p className="mt-0.5 text-xs text-[color:var(--muted)]">{trade.reason}</p>
-                  </div>
-                  <div className="text-right">
-                    <div className={trade.resultR === null ? "text-sm text-[color:var(--muted)]" : positive ? "metric-number text-sm font-medium text-[color:var(--success)]" : "metric-number text-sm font-medium text-[color:var(--danger)]"}>
-                      {trade.resultR === null ? "Open" : `${positive ? "+" : ""}${trade.resultR.toFixed(2)}R`}
-                    </div>
-                    <div className="mt-0.5 text-xs text-[color:var(--muted)]">{formatDateTime(trade.closedAt ?? trade.openedAt)}</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="border-t border-[color:var(--border)] px-5 py-7 md:px-6">
-            <p className="empty-state">
-              <span className="empty-state-dot" />
-              No paper trades logged on this device yet.
-            </p>
-          </div>
-        )}
+        <div className="flex items-start justify-between gap-3 px-5 py-5 md:px-6"><div><SectionLabel title="Latest automatic paper trades" variant="minimal" /><p className="mt-1 text-sm text-[color:var(--muted)]">Accepted trades from the current 100-trade batch—not manual Journal entries.</p></div><BarChart3 className="size-5 text-[color:var(--accent)]" /></div>
+        {overview.trades.length ? <div>{overview.trades.slice(0, 6).map((trade) => <Link key={trade.id} href={`/signals?instrument=${trade.instrument}`} className="dashboard-row pressable flex items-center justify-between gap-3 px-5 py-3.5 md:px-6"><div><p className="text-sm font-medium">#{trade.tradeSequence} · {displayNameFor(trade.instrument)} <span className={trade.direction === "long" ? "text-[color:var(--success)]" : "text-[color:var(--danger)]"}>{trade.direction}</span></p><p className="mt-0.5 text-xs text-[color:var(--muted)]">{time(trade.openedAt)} · {trade.status}</p></div><p className="metric-number text-sm font-semibold">{trade.resultR === null ? "Open" : `${trade.resultR.toFixed(2)}R`}</p></Link>)}</div> : <div className="border-t border-[color:var(--border)] px-5 py-7 md:px-6"><p className="empty-state"><span className="empty-state-dot" />No automatic paper trades yet. The first valid completed-M15 setup will start Batch 1.</p></div>}
+      </section>
+
+      <section className="grid gap-3 sm:grid-cols-3">
+        {[["Watch the market", "Ten fixed pairs and their current setup state.", "/watchlist", Radar], ["Analyze the batch", "Progress, metrics, trades, and evidence-based review.", "/research", BarChart3], ["Review research risk", "Nominal exposure and cross-pair currency concentration.", "/risk", WalletCards]].map(([title, body, href, Icon]) => <Link key={String(title)} href={String(href)} className="app-card pressable p-4"><Icon className="size-5 text-[color:var(--accent)]" /><p className="mt-3 text-sm font-semibold">{String(title)}</p><p className="mt-1 text-xs leading-5 text-[color:var(--muted)]">{String(body)}</p></Link>)}
       </section>
     </div>
   );

@@ -1,4 +1,3 @@
-import { Bell } from "lucide-react";
 
 export function PageHeader({
   eyebrow,
@@ -33,14 +32,6 @@ export function PageHeader({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {action}
-          <button
-            aria-label="Notifications"
-            className="pressable relative hidden size-10 place-items-center rounded-full bg-[color:var(--surface)] text-[color:var(--muted-strong)] hover:text-[color:var(--foreground)] lg:grid"
-            type="button"
-          >
-            <Bell className="size-[18px]" />
-            <span className="absolute right-2 top-2 size-2 rounded-full bg-[color:var(--danger)]" />
-          </button>
         </div>
       </div>
     </header>

@@ -9,20 +9,35 @@ const precision: Record<MajorInstrument, number> = {
   EUR_USD: 5,
   GBP_USD: 5,
   USD_JPY: 3,
+  AUD_USD: 5,
+  NZD_USD: 5,
+  USD_CAD: 5,
+  USD_CHF: 5,
+  EUR_GBP: 5,
+  EUR_JPY: 3,
+  GBP_JPY: 3,
 };
 
 const prices: Record<MajorInstrument, number> = {
   EUR_USD: 1.08972,
   GBP_USD: 1.27345,
   USD_JPY: 156.782,
+  AUD_USD: 0.65123,
+  NZD_USD: 0.60234,
+  USD_CAD: 1.37234,
+  USD_CHF: 0.89234,
+  EUR_GBP: 0.85234,
+  EUR_JPY: 168.234,
+  GBP_JPY: 197.456,
 };
 
 export function createMockTick(
   instrument: MajorInstrument,
   sequence: number,
 ): MarketPriceTick {
-  const scale = instrument === "USD_JPY" ? 0.012 : 0.00008;
-  const spread = instrument === "USD_JPY" ? 0.014 : 0.00008;
+  const jpyQuoted = instrument.endsWith("_JPY");
+  const scale = jpyQuoted ? 0.012 : 0.00008;
+  const spread = jpyQuoted ? 0.014 : 0.00008;
   const wave = Math.sin(sequence * 0.55 + instrument.length) * scale;
   const drift = (Math.random() - 0.5) * scale * 0.55;
   const next = prices[instrument] + wave + drift;
@@ -51,5 +66,4 @@ export function createMockTick(
 export function getDefaultMockInstruments() {
   return [...STREAM_INSTRUMENTS];
 }
-
 

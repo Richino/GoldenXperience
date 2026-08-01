@@ -1,6 +1,6 @@
-export const STREAM_INSTRUMENTS = ["EUR_USD", "GBP_USD", "USD_JPY"] as const;
+export const STREAM_INSTRUMENTS = ["EUR_USD", "GBP_USD", "USD_JPY", "AUD_USD", "NZD_USD", "USD_CAD", "USD_CHF", "EUR_GBP", "EUR_JPY", "GBP_JPY"] as const;
 
-export type MajorInstrument = (typeof STREAM_INSTRUMENTS)[number];
+export type MajorInstrument = string;
 export type MarketDataSource = "oanda" | "mock";
 export type MarketStreamState =
   | "connecting"
@@ -49,5 +49,3 @@ export type MarketStreamMessage =
   | MarketPriceTick
   | MarketStreamStatus
   | MarketStreamHeartbeat;
-
-

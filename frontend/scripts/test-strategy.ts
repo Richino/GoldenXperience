@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { evaluateStructure } from "../src/lib/strategy/market-structure";
-import { dayTradingSession, evaluateStrategy, rankStrategySetups } from "../src/lib/strategy/strategy-engine";
+import { dayTradingSession, evaluateStrategy, getPaperTradingAvailability, rankStrategySetups } from "../src/lib/strategy/strategy-engine";
 import { calculatePositionSize, deriveTradePermission } from "../src/lib/risk/engine";
 import type { Candle } from "../src/types/forex";
 
@@ -32,6 +32,9 @@ assert.equal(dayTradingSession(new Date("2026-03-09T07:00:00.000Z")).open, true,
 assert.equal(dayTradingSession(new Date("2026-03-09T16:00:00.000Z")).open, false, "12:00 ET after DST starts must reject entries");
 assert.equal(dayTradingSession(new Date("2026-11-02T08:00:00.000Z")).open, true, "03:00 ET after DST ends must be eligible");
 assert.equal(dayTradingSession(new Date("2026-11-02T17:00:00.000Z")).open, false, "12:00 ET after DST ends must reject entries");
+assert.equal(getPaperTradingAvailability(new Date("2026-08-01T16:00:00.000Z")).state, "market_closed", "Saturday must be presented as a closed-market waiting state");
+assert.equal(getPaperTradingAvailability(new Date("2026-08-02T22:00:00.000Z")).state, "waiting_for_entry_window", "Sunday evening must wait for the day entry window");
+assert.equal(getPaperTradingAvailability(new Date("2026-08-03T11:00:00.000Z")).state, "entry_window_open", "Monday 07:00 ET must open the entry window");
 
 assert.equal(evaluateStrategy({
   instrument: "EUR_USD", accountBalance: 10_000, accountCurrency: "USD", dataSource: "oanda",
@@ -75,7 +78,15 @@ const limitedTarget = evaluateStrategy({
   candles15m: limitedTargetCandles, candles1h: bullish, candles4h: bullish, bid: 1.107, ask: 1.1071,
   spreadPips: 0.9, marketOpen: true, calendarConnected: true, highImpactNewsWithinMinutes: null,
 });
-assert.equal(limitedTarget.conditions.find((item) => item.name === "Risk reward")?.passed, false, "a nearby opposing swing must reject sub-2R room");
+const explorationReward = limitedTarget.conditions.find((item) => item.name === "Risk reward");
+assert.equal(explorationReward?.required, false, "the active exploration strategy must not use reward-to-risk as a rejection gate");
+assert.ok(limitedTarget.entry !== null && limitedTarget.stop !== null && limitedTarget.target !== null && Math.abs(limitedTarget.riskReward! - 1.5) < 0.001, "the exploration target must be fixed at 1.5R");
+const legacyLimitedTarget = evaluateStrategy({
+  instrument: "EUR_USD", accountBalance: 10_000, accountCurrency: "USD", dataSource: "oanda",
+  candles15m: limitedTargetCandles, candles1h: bullish, candles4h: bullish, bid: 1.107, ask: 1.1071,
+  spreadPips: 0.9, marketOpen: true, calendarConnected: true, highImpactNewsWithinMinutes: null,
+}, { minimumRiskReward: 2 });
+assert.equal(legacyLimitedTarget.conditions.find((item) => item.name === "Risk reward")?.passed, false, "retired explicit minimum-R experiments must remain reproducible");
 
 const unavailable = evaluateStrategy({
   instrument: "EUR_USD", accountBalance: 10_000, accountCurrency: "USD", dataSource: "mock",
@@ -102,8 +113,10 @@ assert.equal(downStructure.passed, true, "lower highs/lower lows should pass bea
 
 const eurSize = calculatePositionSize({ instrument: "EUR_USD", accountBalance: 10_000, riskPercent: 1, entry: 1.1, stop: 1.09 });
 const jpySize = calculatePositionSize({ instrument: "USD_JPY", accountBalance: 10_000, riskPercent: 1, entry: 150, stop: 149 });
+const uncappedSize = calculatePositionSize({ instrument: "EUR_USD", accountBalance: 10_000, riskPercent: 1, entry: 1.1, stop: 1.0999, applyPaperCap: false });
 assert.ok(eurSize && eurSize.units > 0 && Math.abs(eurSize.stopDistancePips - 100) < 0.001, "EUR position size should use a 0.0001 pip");
 assert.ok(jpySize && jpySize.units > 0 && Math.abs(jpySize.stopDistancePips - 100) < 0.001, "JPY position size should use a 0.01 pip");
+assert.ok(uncappedSize && uncappedSize.calculatedStandardLots > 2 && uncappedSize.standardLots === uncappedSize.calculatedStandardLots && !uncappedSize.capped, "automatic research sizing must retain the uncapped nominal 1% calculation");
 
 const blockedByRisk = deriveTradePermission({ restConnected: true, streamState: "connected", marketOpen: true, calendarConnected: true, dailyLossPercent: 2, tradesTaken: 0, consecutiveLosses: 0, setupValid: true, highImpactNewsWithinMinutes: null, spreadPips: 0.5 });
 const blockedByLosses = deriveTradePermission({ restConnected: true, streamState: "connected", marketOpen: true, calendarConnected: true, dailyLossPercent: 0, tradesTaken: 0, consecutiveLosses: 2, setupValid: true, highImpactNewsWithinMinutes: null, spreadPips: 0.5 });

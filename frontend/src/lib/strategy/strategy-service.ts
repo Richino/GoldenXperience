@@ -1,10 +1,8 @@
-import { getEconomicCalendar } from "@/lib/calendar/forex-factory";
 import { pipSizeFor } from "@/lib/instruments/catalog";
 import { getAccountSummary, getCandles, getPricing } from "@/lib/oanda/client";
-import { getForexSessionStatus } from "@/lib/strategy/session";
-import { evaluateStrategy, rankStrategySetups } from "@/lib/strategy/strategy-engine";
+import { evaluateStrategy, getPaperTradingAvailability, rankStrategySetups } from "@/lib/strategy/strategy-engine";
 import type { StrategyEvaluationBundle } from "@/lib/strategy/types";
-import { MAJOR_INSTRUMENTS, type AccountSummary, type ConnectionStatus, type MajorInstrument } from "@/types/forex";
+import { MAJOR_INSTRUMENTS, type AccountSummary, type ConnectionStatus, type MajorInstrument, type PriceQuote } from "@/types/forex";
 
 const CANDLE_COUNT = 260;
 const CACHE_MS = 30_000;
@@ -15,6 +13,7 @@ export interface StrategySnapshot {
   accountStatus: ConnectionStatus;
   pricingStatus: ConnectionStatus;
   calendarStatus: ConnectionStatus;
+  quotes: PriceQuote[];
 }
 
 let cached: { expiresAt: number; snapshot: StrategySnapshot } | null = null;
@@ -24,26 +23,45 @@ function statusIsLive(status: ConnectionStatus) {
   return status.state === "connected" && status.source === "oanda";
 }
 
+async function mapWithConcurrency<T, R>(items: T[], limit: number, work: (item: T) => Promise<R>) {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < items.length) {
+      const index = cursor++;
+      results[index] = await work(items[index]!);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()));
+  return results;
+}
+
 async function evaluateAll(): Promise<StrategySnapshot> {
-  const [accountResult, pricingResult, calendarResult, ...candleResults] = await Promise.all([
+  const [accountResult, pricingResult] = await Promise.all([
     getAccountSummary(),
     getPricing([...MAJOR_INSTRUMENTS]),
-    getEconomicCalendar(),
-    ...MAJOR_INSTRUMENTS.flatMap((instrument) => [
-      getCandles(instrument, "M15", CANDLE_COUNT),
-      getCandles(instrument, "H1", CANDLE_COUNT),
-      getCandles(instrument, "H4", CANDLE_COUNT),
-    ]),
   ]);
+  const candleRequests = MAJOR_INSTRUMENTS.flatMap((instrument) => [
+    { instrument, timeframe: "M15" },
+    { instrument, timeframe: "H1" },
+    { instrument, timeframe: "H4" },
+  ]);
+  const candleResults = await mapWithConcurrency(candleRequests, 5, (request) => getCandles(request.instrument, request.timeframe, CANDLE_COUNT));
   const quoteByInstrument = new Map(pricingResult.data.map((quote) => [quote.instrument, quote]));
-  const session = getForexSessionStatus();
-  const candlesLive = candleResults.every((result) => statusIsLive(result.status));
-  const liveData = statusIsLive(accountResult.status) && statusIsLive(pricingResult.status) && candlesLive;
+  const availability = getPaperTradingAvailability();
+  const accountAndPricingLive = statusIsLive(accountResult.status) && statusIsLive(pricingResult.status);
 
   const setups = MAJOR_INSTRUMENTS.map((instrument, index) => {
     const quote = quoteByInstrument.get(instrument);
     const [m15, h1, h4] = candleResults.slice(index * 3, index * 3 + 3);
+    const pairCandlesLive = [m15, h1, h4].every((result) => result && statusIsLive(result.status));
+    const quoteFresh = Boolean(quote && Date.now() - new Date(quote.time).getTime() <= 2 * 60_000);
+    const liveData = accountAndPricingLive && pairCandlesLive && quoteFresh;
     const spreadPips = quote ? (quote.ask - quote.bid) / pipSizeFor(instrument) : null;
+    const lastCompleted = m15?.data.candles.filter((candle) => candle.complete).at(-1);
+    const evaluatedAt = lastCompleted
+      ? new Date(new Date(lastCompleted.time).getTime() + 15 * 60_000).toISOString()
+      : new Date().toISOString();
     return evaluateStrategy({
       instrument,
       accountBalance: accountResult.data.balance,
@@ -55,9 +73,11 @@ async function evaluateAll(): Promise<StrategySnapshot> {
       bid: quote?.bid ?? null,
       ask: quote?.ask ?? null,
       spreadPips,
-      marketOpen: session.marketOpen && session.entrySessionOpen,
-      calendarConnected: calendarResult.data.connected,
-      highImpactNewsWithinMinutes: calendarResult.data.highImpactNewsWithinMinutes,
+      marketOpen: availability.entryWindowOpen,
+      calendarConnected: false,
+      highImpactNewsWithinMinutes: null,
+      newsRequired: false,
+      evaluatedAt,
     });
   });
 
@@ -66,7 +86,15 @@ async function evaluateAll(): Promise<StrategySnapshot> {
     account: accountResult.data,
     accountStatus: accountResult.status,
     pricingStatus: pricingResult.status,
-    calendarStatus: calendarResult.status,
+    calendarStatus: {
+      state: "not_configured",
+      source: "forex_factory",
+      environment: "practice",
+      label: "News not evaluated",
+      message: "The automatic paper strategy does not evaluate news.",
+      checkedAt: new Date().toISOString(),
+    },
+    quotes: pricingResult.data,
   };
 }
 

@@ -1,5 +1,16 @@
 /** The pairs featured by default — signals, watchlist and the tick stream. */
-export const MAJOR_INSTRUMENTS = ["EUR_USD", "GBP_USD", "USD_JPY"] as const;
+export const MAJOR_INSTRUMENTS = [
+  "EUR_USD",
+  "GBP_USD",
+  "USD_JPY",
+  "AUD_USD",
+  "NZD_USD",
+  "USD_CAD",
+  "USD_CHF",
+  "EUR_GBP",
+  "EUR_JPY",
+  "GBP_JPY",
+] as const;
 
 export type FeaturedInstrument = (typeof MAJOR_INSTRUMENTS)[number];
 

@@ -45,6 +45,8 @@ export interface PositionSizeInput {
   riskPercent: number;
   entry: number;
   stop: number;
+  /** Research collection can retain the full nominal 1% calculation. */
+  applyPaperCap?: boolean;
 }
 
 export interface PositionSizeResult {
@@ -118,7 +120,7 @@ export function calculatePositionSize(
   );
   const calculatedStandardLots = calculatedUnits / 100_000;
   const capStandardLots = PAPER_TRADING_MAX_STANDARD_LOTS;
-  const capped = calculatedStandardLots > capStandardLots;
+  const capped = input.applyPaperCap !== false && calculatedStandardLots > capStandardLots;
   const standardLots = capped ? capStandardLots : calculatedStandardLots;
   const units = Math.floor(standardLots * 100_000);
   const calculatedEstimatedRisk = Number(

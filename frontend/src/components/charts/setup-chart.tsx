@@ -301,7 +301,7 @@ export function SetupChart({
   scrollToLatestRevision,
 }: {
   series: CandleSeries;
-  levels: SetupLevels;
+  levels: SetupLevels | null;
   enabledIndicators: ChartIndicator[];
   liveCandle?: Candle | null;
   variant?: ChartVariant;
@@ -485,7 +485,7 @@ export function SetupChart({
       }
     }
 
-    addSetupLevels(mainSeries, levels, isDark, !embedded);
+    if (levels) addSetupLevels(mainSeries, levels, isDark, !embedded);
 
     const closes = series.candles.map((candle) => candle.close);
 

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ButtonHTMLAttri
 import { apiUrl } from "@/lib/api/url";
 import { INSTRUMENT_CATALOG } from "@/lib/instruments/catalog";
 import { ExperimentEquityChart } from "@/components/research/experiment-equity-chart";
+import { ForwardView } from "@/components/research/forward-view";
 import { PairAvatar } from "@/components/ui/pair-avatar";
 import { SelectMenu } from "@/components/ui/select-menu";
 import type { MajorInstrument } from "@/types/forex";
@@ -566,6 +567,7 @@ export function ResearchView() {
 
   return (
     <div className="research-view space-y-5">
+      <ForwardView />
       <section className="app-card p-5 md:p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <ResearchSectionHead

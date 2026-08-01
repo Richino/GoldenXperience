@@ -1,13 +1,14 @@
 import { displayNameFor, pipSizeFor } from "@/lib/instruments/catalog";
 import { evaluateStructure } from "@/lib/strategy/market-structure";
 import { calculateAtrValues, calculateEmaValues, calculateRsiValues } from "@/lib/strategy/indicators";
-import type { StrategyCondition, StrategyEvaluationBundle, StrategyEvaluationInput, StrategySetup } from "@/lib/strategy/types";
+import type { StrategyCondition, StrategyEvaluationBundle, StrategyEvaluationInput, StrategyResearchFeatures, StrategySetup } from "@/lib/strategy/types";
 import { calculatePositionSize, DEFAULT_RISK_POLICY } from "@/lib/risk/engine";
+import { getForexSessionStatus } from "@/lib/strategy/session";
 
 const MINIMUM_CANDLES = 210;
-const MINIMUM_RISK_REWARD = 2;
+const EXPLORATION_TARGET_R = 1.5;
 /** The only strategy permitted to create new Signals and research evaluations. */
-export const ACTIVE_STRATEGY_VERSION = "day-intraday-v1";
+export const ACTIVE_STRATEGY_VERSION = "day-exploration-v1";
 export const DAY_TRADING_TIME_ZONE = "America/New_York";
 export const DAY_ENTRY_START_MINUTES = 3 * 60;
 export const DAY_ENTRY_END_MINUTES = 12 * 60;
@@ -16,6 +17,13 @@ const MAX_SPREAD_PIPS: Record<string, number> = {
   EUR_USD: 1.5,
   GBP_USD: 2,
   USD_JPY: 1.5,
+  AUD_USD: 2,
+  NZD_USD: 2,
+  USD_CAD: 2,
+  USD_CHF: 2,
+  EUR_GBP: 2,
+  EUR_JPY: 2,
+  GBP_JPY: 2.5,
 };
 
 type Trend = "bullish" | "bearish" | "mixed";
@@ -53,6 +61,47 @@ export function dayTradingSession(now = new Date()) {
   return { open: true, label: totalMinutes >= 8 * 60 ? "London/New York overlap" : "London" };
 }
 
+export type PaperTradingAvailability = {
+  state: "market_closed" | "waiting_for_entry_window" | "entry_window_open";
+  marketOpen: boolean;
+  entryWindowOpen: boolean;
+  label: string;
+  detail: string;
+};
+
+/** A closed market is an expected waiting state, not a market-data outage. */
+export function getPaperTradingAvailability(now = new Date()): PaperTradingAvailability {
+  const market = getForexSessionStatus(now);
+  if (!market.marketOpen) {
+    return {
+      state: "market_closed",
+      marketOpen: false,
+      entryWindowOpen: false,
+      label: "Market closed",
+      detail: "Forex reopens Sunday at 5:00 PM ET. New entries are considered Monday from 3:00 AM ET.",
+    };
+  }
+
+  const entrySession = dayTradingSession(now);
+  if (!entrySession.open) {
+    return {
+      state: "waiting_for_entry_window",
+      marketOpen: true,
+      entryWindowOpen: false,
+      label: "Waiting for entry window",
+      detail: "The market is open, but new entries are considered only from 3:00 AM to 12:00 PM ET.",
+    };
+  }
+
+  return {
+    state: "entry_window_open",
+    marketOpen: true,
+    entryWindowOpen: true,
+    label: entrySession.label,
+    detail: "The day-trading entry window is open. A trade still requires every strategy condition to pass.",
+  };
+}
+
 function confirmationCandle(candles: StrategyEvaluationInput["candles15m"], direction: "long" | "short", atr: number, ema21: number, ema50: number, swingPrice: number | null) {
   const current = candles.at(-1);
   const previous = candles.at(-2);
@@ -84,7 +133,12 @@ function chooseStatus(conditions: StrategyCondition[], trend: Trend): StrategySe
   return "developing";
 }
 
-export function evaluateStrategy(input: StrategyEvaluationInput): StrategySetup {
+export interface StrategyEvaluationOptions {
+  minimumRiskReward?: number;
+}
+
+export function evaluateStrategy(input: StrategyEvaluationInput, options: StrategyEvaluationOptions = {}): StrategySetup {
+  const legacyMinimumRiskReward = options.minimumRiskReward;
   const candles15m = completed(input.candles15m);
   const candles1h = completed(input.candles1h);
   const candles4h = completed(input.candles4h);
@@ -152,25 +206,54 @@ export function evaluateStrategy(input: StrategyEvaluationInput): StrategySetup 
   const stopDistance = entry === null ? null : Math.abs(entry - rawStop);
   const minimumStop = Math.max((atr ?? 0) * 0.8, pipSizeFor(input.instrument) * 4);
   const stop = entry === null ? null : direction === "long" ? entry - Math.max(stopDistance ?? 0, minimumStop) : entry + Math.max(stopDistance ?? 0, minimumStop);
-  const minimumTarget = entry === null || stop === null ? null : direction === "long" ? entry + Math.abs(entry - stop) * MINIMUM_RISK_REWARD : entry - Math.abs(entry - stop) * MINIMUM_RISK_REWARD;
-  // A nearby opposing swing is a real obstacle, not a decorative chart mark.
-  // If one exists before the 2R target, the setup must fail rather than pretend
-  // that price has unobstructed room to the fixed target.
-  const structuralTarget = entry === null ? null : direction === "long"
+  const fixedTarget = entry === null || stop === null ? null : direction === "long" ? entry + Math.abs(entry - stop) * EXPLORATION_TARGET_R : entry - Math.abs(entry - stop) * EXPLORATION_TARGET_R;
+  // Explicit minimumRiskReward is retained only for immutable historical
+  // experiment code. The active exploration strategy never rejects a setup for
+  // reward-to-risk or substitutes a nearby structural target.
+  const structuralTarget = legacyMinimumRiskReward === undefined || entry === null ? null : direction === "long"
     ? structure.swings.highs.find((swing) => swing.price > entry)?.price ?? null
     : structure.swings.lows.find((swing) => swing.price < entry)?.price ?? null;
-  const target = structuralTarget ?? minimumTarget;
-  const position = entry !== null && stop !== null ? calculatePositionSize({ instrument: input.instrument, accountBalance: input.accountBalance, riskPercent: DEFAULT_RISK_POLICY.riskPercent, entry, stop }) : null;
+  const legacyTarget = legacyMinimumRiskReward === undefined || entry === null || stop === null ? null : direction === "long"
+    ? entry + Math.abs(entry - stop) * legacyMinimumRiskReward
+    : entry - Math.abs(entry - stop) * legacyMinimumRiskReward;
+  const target = legacyMinimumRiskReward === undefined ? fixedTarget : structuralTarget ?? legacyTarget;
+  const position = entry !== null && stop !== null ? calculatePositionSize({ instrument: input.instrument, accountBalance: input.accountBalance, riskPercent: DEFAULT_RISK_POLICY.riskPercent, entry, stop, applyPaperCap: false }) : null;
   const riskReward = entry !== null && stop !== null && target !== null ? Math.abs(target - entry) / Math.abs(entry - stop) : null;
-  const rewardPassed = riskReward !== null && riskReward >= MINIMUM_RISK_REWARD;
-  conditions.push(condition("Risk reward", rewardPassed, rewardPassed ? `Target meets the ${MINIMUM_RISK_REWARD.toFixed(1)}R minimum.` : structuralTarget !== null ? "The nearest opposing swing does not leave enough room for the minimum reward-to-risk ratio." : "The calculated target does not meet the minimum reward-to-risk ratio.", riskReward === null ? "unavailable" : `${riskReward.toFixed(2)}R`));
+  const rewardPassed = riskReward !== null && (legacyMinimumRiskReward === undefined || riskReward >= legacyMinimumRiskReward);
+  conditions.push(condition(
+    "Risk reward",
+    rewardPassed,
+    legacyMinimumRiskReward === undefined
+      ? `A fixed ${EXPLORATION_TARGET_R.toFixed(1)}R research target is used without a minimum-R rejection gate.`
+      : rewardPassed
+        ? `Target meets the ${legacyMinimumRiskReward.toFixed(1)}R minimum.`
+        : structuralTarget !== null
+          ? "The nearest opposing swing does not leave enough room for the minimum reward-to-risk ratio."
+          : "The calculated target does not meet the minimum reward-to-risk ratio.",
+    riskReward === null ? "unavailable" : `${riskReward.toFixed(2)}R`,
+    legacyMinimumRiskReward !== undefined,
+  ));
 
   const status = chooseStatus(conditions, primary.trend);
   const summary = status === "valid" ? `${displayNameFor(input.instrument)} ${direction} EMA pullback is valid.` : status === "developing" ? `${displayNameFor(input.instrument)} ${direction} trend is developing but confluence is incomplete.` : status === "no_setup" ? `${displayNameFor(input.instrument)} has no aligned 15m trend.` : `${displayNameFor(input.instrument)} is blocked by required filters.`;
-  return finalize(input, { direction, entry, stop, target, riskReward, position }, conditions, status, summary);
+  return finalize(input, { direction, entry, stop, target, riskReward, position }, conditions, status, summary, {
+    trend15m: primary.trend,
+    trend1h: oneHour.trend,
+    trend4h: fourHour.trend,
+    ema21,
+    ema50,
+    ema200,
+    rsi14: rsi,
+    atr14: atr,
+    atrPips,
+    structureHighs: structure.swings.highs.length,
+    structureLows: structure.swings.lows.length,
+  });
 }
 
-function finalize(input: StrategyEvaluationInput, trade: { direction: "long" | "short"; entry: number | null; stop: number | null; target: number | null; riskReward: number | null; position: ReturnType<typeof calculatePositionSize> } | null, conditions: StrategyCondition[], status: StrategySetup["status"], summary: string): StrategySetup {
+const EMPTY_FEATURES: StrategyResearchFeatures = { trend15m: "mixed", trend1h: null, trend4h: null, ema21: null, ema50: null, ema200: null, rsi14: null, atr14: null, atrPips: null, structureHighs: 0, structureLows: 0 };
+
+function finalize(input: StrategyEvaluationInput, trade: { direction: "long" | "short"; entry: number | null; stop: number | null; target: number | null; riskReward: number | null; position: ReturnType<typeof calculatePositionSize> } | null, conditions: StrategyCondition[], status: StrategySetup["status"], summary: string, features: StrategyResearchFeatures = EMPTY_FEATURES): StrategySetup {
   return {
     status,
     instrument: input.instrument,
@@ -193,6 +276,7 @@ function finalize(input: StrategyEvaluationInput, trade: { direction: "long" | "
       capStandardLots: trade.position.capStandardLots,
       capped: trade.position.capped,
     } : null,
+    features,
     summary,
     conditions,
     passedConditions: conditions.filter((item) => item.passed),

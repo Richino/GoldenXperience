@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { RiskWorkspace } from "@/components/risk/risk-workspace";
+import { RiskWorkspace, type PaperExposure, type PaperRiskPolicy } from "@/components/risk/risk-workspace";
 import { PageHeader } from "@/components/ui/page-header";
 import { getApiData } from "@/lib/api/server";
 import type { AccountSummary, ConnectionStatus } from "@/types/forex";
@@ -9,18 +9,23 @@ export const metadata: Metadata = {
 };
 
 export default async function RiskPage() {
-  const accountResult = await getApiData<{ data: AccountSummary; status: ConnectionStatus }>("/api/oanda/account-summary");
+  const [accountResult, riskResult] = await Promise.all([
+    getApiData<{ data: AccountSummary; status: ConnectionStatus }>("/api/oanda/account-summary"),
+    getApiData<{ exposure: PaperExposure; policy: PaperRiskPolicy }>("/api/paper-risk"),
+  ]);
 
   return (
     <>
       <PageHeader
-        eyebrow="Capital protection"
-        title="Risk plan"
-        description="Size every setup from its stop, then let the daily limits decide whether another trade is allowed."
+        eyebrow="Research exposure"
+        title="Paper risk"
+        description="Measure the exposure actually created by automatic ten-pair collection, without pretending it is a live portfolio risk model."
       />
       <RiskWorkspace
-        account={accountResult.data}
-        status={accountResult.status}
+        initialAccount={accountResult.data}
+        initialStatus={accountResult.status}
+        initialExposure={riskResult.exposure}
+        initialPolicy={riskResult.policy}
       />
     </>
   );

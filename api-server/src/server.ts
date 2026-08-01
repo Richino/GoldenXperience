@@ -13,6 +13,7 @@ import type {
   MarketStreamMessage,
   MarketStreamStatus,
 } from "./market-stream-types.js";
+import { MAJOR_INSTRUMENTS } from "../../frontend/src/types/forex.js";
 import { getEconomicCalendar } from "../../frontend/src/lib/calendar/forex-factory.js";
 import { isKnownInstrument } from "../../frontend/src/lib/instruments/catalog.js";
 import {
@@ -25,9 +26,12 @@ import {
 import { getStrategySnapshot } from "../../frontend/src/lib/strategy/strategy-service.js";
 import { databaseConfigured, query } from "./database.js";
 import { cookieName, login, logout, sessionUser } from "./auth.js";
-import { collectForwardEvaluation, decideResearchExperiment, latestDayTradingValidation, latestResearchExperiment, latestResearchHoldout, latestResearchRun, latestWalkForwardResearch, processNextResearchJob, researchDiagnostics, researchExperimentDiagnostics, researchSummary, runDayTradingValidation, runResearchExperiment, runWalkForwardResearch, startLockedResearchHoldout, startStrictHistoricalBackfill, stopResearchRun } from "./research.js";
+import { decideResearchExperiment, forwardResearchSummary, latestDayTradingValidation, latestResearchExperiment, latestResearchHoldout, latestResearchRun, latestWalkForwardResearch, processNextResearchJob, researchDiagnostics, researchExperimentDiagnostics, researchSummary, runDayTradingValidation, runResearchExperiment, runWalkForwardResearch, startLockedResearchHoldout, startStrictHistoricalBackfill, stopResearchRun } from "./research.js";
+import { collectPaperCycle, decidePaperBatch, paperCycleOverview, paperRiskExposure, paperRiskPolicy, parsePaperRiskConfiguration, reviewPaperTrade, updatePaperRiskPolicy, watchlistSnapshot } from "./paper-cycle.js";
+import { markNotificationsRead, notificationsForUser, pushPublicKey, queueNotification, removePushSubscription, savePushSubscription } from "./notifications.js";
+import { practiceExecutionOverview, setPracticeExecutionEnabled } from "./practice-execution.js";
 
-const STREAM_INSTRUMENTS: MajorInstrument[] = ["EUR_USD", "GBP_USD", "USD_JPY"];
+const STREAM_INSTRUMENTS: MajorInstrument[] = [...MAJOR_INSTRUMENTS];
 
 for (const file of [".env", ".env.local"]) {
   const envPath = path.join(process.cwd(), file);
@@ -52,11 +56,19 @@ const config = {
 };
 const PORT = Number(process.env.PORT) || config.port;
 const GRANULARITIES = new Set(["M1", "M5", "M15", "M30", "H1", "H4", "D"]);
+function normalizeOrigin(value: string) {
+  try {
+    return new URL(value.trim()).origin;
+  } catch {
+    return null;
+  }
+}
+
 const allowedOrigins = new Set(
   (process.env.FRONTEND_ORIGIN || "http://localhost:3000")
     .split(",")
-    .map((origin) => origin.trim())
-    .filter(Boolean),
+    .map(normalizeOrigin)
+    .filter((origin): origin is string => Boolean(origin)),
 );
 
 const subscriptions = new WeakMap<WebSocket, Set<MajorInstrument>>();
@@ -66,12 +78,11 @@ let currentStatus: MarketStreamStatus;
 const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 
 function cors(request: IncomingMessage, response: ServerResponse) {
-  const origin = request.headers.origin;
+  const origin = request.headers.origin ? normalizeOrigin(request.headers.origin) : null;
   if (origin && allowedOrigins.has(origin)) {
     response.setHeader("Access-Control-Allow-Origin", origin);
     response.setHeader("Vary", "Origin");
   }
-  response.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
   response.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS");
   response.setHeader("Access-Control-Allow-Headers", "Content-Type");
   response.setHeader("Access-Control-Allow-Credentials", "true");
@@ -149,6 +160,82 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
   }
   if (url.pathname.startsWith("/api/")) {
     const user = await requireOwner(request, response); if (!user) return;
+    if (url.pathname === "/api/watchlist" && request.method === "GET") {
+      return json(request, response, { watchlist: await watchlistSnapshot() });
+    }
+    if (url.pathname === "/api/notifications" && request.method === "GET") {
+      return json(request, response, await notificationsForUser(user.id, url.searchParams.get("after")));
+    }
+    if (url.pathname === "/api/notifications/read" && request.method === "PATCH") {
+      const payload = await body(request);
+      const ids = Array.isArray(payload?.ids) ? payload.ids.filter((id): id is string => typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id)).slice(0, 50) : undefined;
+      await markNotificationsRead(user.id, ids);
+      return json(request, response, { ok: true });
+    }
+    if (url.pathname === "/api/push/vapid-key" && request.method === "GET") {
+      const publicKey = pushPublicKey();
+      return publicKey ? json(request, response, { publicKey }) : json(request, response, { error: "Push notifications are not configured on the server." }, 503);
+    }
+    if (url.pathname === "/api/push/subscribe" && request.method === "POST") {
+      const payload = await body(request);
+      const subscription = payload?.subscription;
+      if (!subscription || typeof subscription !== "object" || Array.isArray(subscription)) return json(request, response, { error: "A push subscription is required." }, 400);
+      const value = subscription as Record<string, unknown>;
+      const keys = value.keys as Record<string, unknown> | undefined;
+      if (typeof value.endpoint !== "string" || !keys || typeof keys.p256dh !== "string" || typeof keys.auth !== "string") return json(request, response, { error: "The push subscription is invalid." }, 400);
+      await savePushSubscription(user.id, { endpoint: value.endpoint, keys: { p256dh: keys.p256dh, auth: keys.auth } });
+      return json(request, response, { ok: true });
+    }
+    if (url.pathname === "/api/push/subscribe" && request.method === "DELETE") {
+      const payload = await body(request);
+      if (typeof payload?.endpoint !== "string") return json(request, response, { error: "The subscription endpoint is required." }, 400);
+      await removePushSubscription(user.id, payload.endpoint);
+      return json(request, response, { ok: true });
+    }
+    if (url.pathname === "/api/practice-execution" && request.method === "GET") {
+      return json(request, response, await practiceExecutionOverview(user.id));
+    }
+    if (url.pathname === "/api/practice-execution" && request.method === "PATCH") {
+      const payload = await body(request);
+      if (typeof payload?.enabled !== "boolean") return json(request, response, { error: "Choose whether practice auto-trading is enabled." }, 400);
+      return json(request, response, { policy: await setPracticeExecutionEnabled(user.id, payload.enabled) });
+    }
+    if (url.pathname === "/api/strategy/setup" && request.method === "GET") {
+      const instrument = url.searchParams.get("instrument")?.toUpperCase();
+      if (!instrument || !MAJOR_INSTRUMENTS.includes(instrument as (typeof MAJOR_INSTRUMENTS)[number])) return json(request, response, { error: "Choose a monitored currency pair." }, 400);
+      const snapshot = await getStrategySnapshot();
+      const setup = snapshot.strategy.setups.find((item) => item.instrument === instrument);
+      return setup ? json(request, response, { setup }) : json(request, response, { error: "Strategy setup unavailable." }, 503);
+    }
+    if (url.pathname === "/api/paper-cycle" && request.method === "GET") {
+      return json(request, response, await paperCycleOverview());
+    }
+    if (url.pathname === "/api/paper-risk" && request.method === "GET") {
+      return json(request, response, { exposure: await paperRiskExposure(user.id), policy: await paperRiskPolicy(user.id) });
+    }
+    if (url.pathname === "/api/paper-risk/settings" && request.method === "PATCH") {
+      const payload = await body(request);
+      try {
+        const configuration = parsePaperRiskConfiguration(payload?.configuration);
+        if (typeof payload?.collectionPaused !== "boolean") return json(request, response, { error: "Choose whether new paper entries are paused." }, 400);
+        return json(request, response, { policy: await updatePaperRiskPolicy(user.id, configuration, payload.collectionPaused) });
+      } catch (error) {
+        return json(request, response, { error: error instanceof Error ? error.message : "Risk settings are invalid." }, 400);
+      }
+    }
+    if (url.pathname === "/api/paper-cycle/trades/review" && request.method === "PATCH") {
+      const payload = await body(request);
+      if (typeof payload?.tradeId !== "string" || !/^[0-9a-f-]{36}$/i.test(payload.tradeId)) return json(request, response, { error: "Choose a valid paper trade." }, 400);
+      const review = payload.review && typeof payload.review === "object" && !Array.isArray(payload.review) ? payload.review as Record<string, unknown> : {};
+      const saved = await reviewPaperTrade(user.id, payload.tradeId, review);
+      return saved ? json(request, response, { trade: saved }) : json(request, response, { error: "Paper trade not found." }, 404);
+    }
+    if (url.pathname === "/api/paper-cycle/batches/decision" && request.method === "POST") {
+      const payload = await body(request);
+      if (typeof payload?.batchId !== "string" || !/^[0-9a-f-]{36}$/i.test(payload.batchId) || !["approved", "rejected"].includes(String(payload.decision))) return json(request, response, { error: "Choose a completed batch and a valid decision." }, 400);
+      const saved = await decidePaperBatch(payload.batchId, payload.decision as "approved" | "rejected", typeof payload.note === "string" ? payload.note.trim() : "");
+      return saved ? json(request, response, { batch: saved }) : json(request, response, { error: "The batch recommendation is unavailable or already decided." }, 409);
+    }
     if (url.pathname === "/api/journal/trades" && request.method === "GET") {
       const trades = await query("SELECT id, origin, pair, direction, status, result, opened_at AS \"openedAt\", closed_at AS \"closedAt\", entry::float, stop::float, target::float, exit::float, result_r::float AS \"resultR\", reason, notes FROM paper_trades WHERE user_id=$1 ORDER BY opened_at DESC", [user.id]);
       return json(request, response, { trades: trades.rows });
@@ -173,6 +260,11 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     if (url.pathname === "/api/research/summary" && request.method === "GET") {
       const instrument = url.searchParams.get("instrument")?.toUpperCase();
       return json(request, response, { summary: await researchSummary(instrument) });
+    }
+    if (url.pathname === "/api/research/forward" && request.method === "GET") {
+      const instrument = url.searchParams.get("instrument")?.toUpperCase();
+      if (!instrument) return json(request, response, { error: "Choose a currency pair." }, 400);
+      return json(request, response, { summary: await forwardResearchSummary(instrument) });
     }
     if (url.pathname === "/api/research/diagnostics" && request.method === "GET") {
       const instrument = url.searchParams.get("instrument")?.toUpperCase();
@@ -380,23 +472,36 @@ if (config.isConfigured) {
 server.listen(PORT, () => console.log(`[api] HTTP and WebSocket server listening on :${PORT}`));
 
 let researchWorker: NodeJS.Timeout | null = null;
+let paperCollector: NodeJS.Timeout | null = null;
 if (databaseConfigured()) {
   let collectionBusy = false;
   const collect = async () => {
     if (collectionBusy) return;
     collectionBusy = true;
     try {
-      const result = await collectForwardEvaluation();
-      if (result.reason) console.warn(`[research] forward collection skipped: ${result.reason}`);
-      else if (result.collected) console.log(`[research] forward evaluations collected: ${result.collected}`);
+      const result = await collectPaperCycle();
+      if (result.reason) console.warn(`[paper-cycle] collection skipped: ${result.reason}`);
+      else if (result.opened || result.resolved) console.log(`[paper-cycle] opened ${result.opened}, resolved ${result.resolved}`);
     } catch (error) {
-      console.error("[research] collection failed", error);
+      console.error("[paper-cycle] collection failed", error);
+      const owner = await query<{ id: string }>("SELECT id FROM users WHERE role='owner' ORDER BY created_at LIMIT 1");
+      if (owner.rows[0]) {
+        await queueNotification({
+          userId: owner.rows[0].id,
+          kind: "system_issue",
+          title: "Paper collector needs attention",
+          message: error instanceof Error ? error.message.slice(0, 180) : "The collector stopped before completing its latest check.",
+          instrument: null,
+          paperTradeId: null,
+          dedupeKey: `paper_collector_failure:${new Date().toISOString().slice(0, 10)}`,
+        }).catch(() => undefined);
+      }
     } finally {
       collectionBusy = false;
     }
   };
   void collect();
-  setInterval(() => void collect(), 60_000);
+  paperCollector = setInterval(() => void collect(), 60_000);
   let workerBusy = false;
   const work = async () => {
     if (workerBusy) return;
@@ -412,6 +517,7 @@ if (databaseConfigured()) {
 function shutdown() {
   clearInterval(heartbeat);
   if (researchWorker) clearInterval(researchWorker);
+  if (paperCollector) clearInterval(paperCollector);
   wss.clients.forEach((socket) => socket.close(1001, "Server shutting down"));
   server.close(() => process.exit(0));
 }

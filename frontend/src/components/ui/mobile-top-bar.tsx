@@ -1,18 +1,10 @@
 import Link from "next/link";
-import { Bell, ChevronLeft } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 import { SignOutButton } from "@/components/ui/sign-out-button";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 
 export function MobileTopBar({ showBack = true }: { showBack?: boolean }) {
-  const notificationButton = (
-    <button
-      type="button"
-      aria-label="Notifications"
-      className="mobile-icon-btn pressable relative text-[color:var(--muted-strong)] hover:text-[color:var(--foreground)]"
-    >
-      <Bell className="size-[18px]" strokeWidth={1.9} />
-      <span className="absolute right-2 top-2 size-2 rounded-full bg-[color:var(--danger)]" />
-    </button>
-  );
+  const notificationButton = <NotificationBell compact />;
 
   if (!showBack) {
     return (

@@ -1,7 +1,7 @@
 "use client";
 
-import { Download, Search, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Download, Loader2, Search, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { apiUrl } from "@/lib/api/url";
 import { INSTRUMENT_CATALOG } from "@/lib/instruments/catalog";
 import { ExperimentEquityChart } from "@/components/research/experiment-equity-chart";
@@ -82,6 +82,131 @@ function ResearchInlineStat({
     <div className="research-inline-stat">
       <span>{label}</span>
       <span className="metric-number text-[color:var(--foreground)]">{value}</span>
+    </div>
+  );
+}
+
+function ResearchPrimaryButton({
+  loading = false,
+  children,
+  className = "",
+  disabled,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }) {
+  return (
+    <button
+      type="button"
+      {...props}
+      disabled={disabled}
+      aria-busy={loading || undefined}
+      className={`research-primary-btn ${loading ? "is-loading" : ""} ${className}`.trim()}
+    >
+      {loading ? <Loader2 className="research-primary-btn-spinner size-3.5 animate-spin" strokeWidth={2.5} aria-hidden="true" /> : null}
+      {children}
+    </button>
+  );
+}
+
+type ResearchRunState = "queued" | "running" | "complete" | "failed" | "stopped";
+
+function researchRunState(value: string | undefined): ResearchRunState {
+  switch (value) {
+    case "queued":
+    case "running":
+    case "complete":
+    case "failed":
+    case "stopped":
+      return value;
+    default:
+      return "queued";
+  }
+}
+
+function ResearchRunNotice({
+  pair,
+  run,
+  onStop,
+}: {
+  pair: MajorInstrument;
+  run: ResearchRun;
+  onStop: () => void;
+}) {
+  const state = researchRunState(run.details.state);
+  const progress = run.details.progressPercent ?? 0;
+  const message = run.error ?? run.details.note;
+  const isActive = state === "running" || state === "queued";
+  const showProgress = isActive || progress > 0;
+  const timeframeStats = [
+    { label: "M15", progress: run.details.timeframeProgress?.M15 ?? 0, candles: run.details.fetched?.M15 ?? 0 },
+    { label: "H1", progress: run.details.timeframeProgress?.H1 ?? 0, candles: run.details.fetched?.H1 ?? 0 },
+    { label: "H4", progress: run.details.timeframeProgress?.H4 ?? 0, candles: run.details.fetched?.H4 ?? 0 },
+  ];
+  const replayStats = [
+    run.details.replayed !== undefined ? { label: "Replayed", value: run.details.replayed } : null,
+    run.details.labeled !== undefined ? { label: "Candidates labeled", value: run.details.labeled } : null,
+    run.details.acceptedCandidates !== undefined ? { label: "Accepted", value: run.details.acceptedCandidates } : null,
+    run.details.overlappingCandidates !== undefined ? { label: "Overlapping", value: run.details.overlappingCandidates } : null,
+    run.details.shadowLabeled !== undefined ? { label: "Shadows labeled", value: run.details.shadowLabeled } : null,
+  ].filter((item): item is { label: string; value: number } => item !== null);
+
+  return (
+    <div className={`research-notice research-notice-${state}`}>
+      <div className="research-notice-head">
+        <div className="min-w-0">
+          <p className="research-notice-title">{pair.replace("_", "/")}</p>
+          <p className="research-notice-phase">{run.details.phase ?? "Research"}</p>
+        </div>
+        <span className={`research-notice-status research-notice-status-${state}`}>{state}</span>
+      </div>
+
+      {message ? (
+        <p className={`research-notice-message ${state === "failed" ? "research-notice-message-error" : ""}`}>{message}</p>
+      ) : null}
+
+      {showProgress ? (
+        <div className="research-notice-progress">
+          <div
+            className="research-notice-progress-track"
+            role="progressbar"
+            aria-label="Research progress"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={progress}
+          >
+            <div className="research-notice-progress-fill" style={{ width: `${progress}%` }} />
+          </div>
+          <div className="research-notice-progress-meta">
+            <span>Overall progress</span>
+            <span className="metric-number text-[color:var(--foreground)]">{progress}%</span>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="research-notice-stats">
+        {timeframeStats.map((item) => (
+          <div key={item.label} className="research-notice-stat">
+            <span className="research-notice-stat-label">{item.label}</span>
+            <span className="research-notice-stat-value metric-number">{item.progress}%</span>
+            <span className="research-notice-stat-meta">{item.candles.toLocaleString()} candles</span>
+          </div>
+        ))}
+      </div>
+
+      {replayStats.length ? (
+        <div className="research-notice-meta">
+          {replayStats.map((item) => (
+            <span key={item.label}>
+              {item.label} <b className="text-[color:var(--foreground)]">{item.value.toLocaleString()}</b>
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      {isActive ? (
+        <button type="button" onClick={onStop} className="research-notice-stop pressable">
+          Stop research
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -323,6 +448,16 @@ export function ResearchView() {
     finally { setStarting(false); }
   }
 
+  async function stop() {
+    setError(null);
+    try {
+      const response = await fetch(apiUrl("/api/research/runs/stop"), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ instrument: pair }) });
+      const payload = await response.json() as { run?: ResearchRun; error?: string };
+      if (!response.ok || !payload.run) throw new Error(payload.error ?? "Research is no longer running.");
+      setRun(payload.run);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not stop research."); }
+  }
+
   function toggleExperimentSession(session: string) {
     setExperimentSessions((current) => current.includes(session) ? current.filter((value) => value !== session) : [...current, session]);
   }
@@ -456,17 +591,16 @@ export function ResearchView() {
                 setSearch(displayName);
               }}
             />
-            <button
-              type="button"
+            <ResearchPrimaryButton
               onClick={start}
               disabled={starting || working || !selectionIsValid}
-              className="research-primary-btn"
+              loading={starting || working}
             >
               {starting ? "Starting…" : working ? "Research running" : selectionIsValid ? `Start ${lookbackMonths / 12}-year research` : "Select a pair"}
-            </button>
+            </ResearchPrimaryButton>
           </div>
         </div>
-        {run && <div className="research-notice"><div className="flex justify-between gap-3"><b>{pair.replace("_", "/")} · {run.details.phase ?? "Research"}</b><span className="text-[color:var(--accent)]">{run.details.state}</span></div><p className="mt-2">{run.error ?? run.details.note}</p><div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[color:var(--border)]" role="progressbar" aria-label="Research progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={run.details.progressPercent ?? 0}><div className="h-full rounded-full bg-[color:var(--accent)] transition-[width] duration-500" style={{ width: `${run.details.progressPercent ?? 0}%` }} /></div><div className="mt-2 flex justify-between text-xs"><span>M15: {run.details.timeframeProgress?.M15 ?? 0}% · H1: {run.details.timeframeProgress?.H1 ?? 0}% · H4: {run.details.timeframeProgress?.H4 ?? 0}%</span><b>{run.details.progressPercent ?? 0}%</b></div><p className="mt-1 text-xs">Candles — M15: {run.details.fetched?.M15 ?? 0} · H1: {run.details.fetched?.H1 ?? 0} · H4: {run.details.fetched?.H4 ?? 0}{run.details.replayed !== undefined ? ` · Replayed: ${run.details.replayed}` : ""}{run.details.labeled !== undefined ? ` · Candidates labeled: ${run.details.labeled}` : ""}{run.details.acceptedCandidates !== undefined ? ` · Accepted: ${run.details.acceptedCandidates}` : ""}{run.details.overlappingCandidates !== undefined ? ` · Overlapping: ${run.details.overlappingCandidates}` : ""}{run.details.shadowLabeled !== undefined ? ` · Shadows labeled: ${run.details.shadowLabeled}` : ""}</p></div>}
+        {run ? <ResearchRunNotice pair={pair} run={run} onStop={stop} /> : null}
       </section>
       {error && <p className="research-error">{error}</p>}
       <section className="app-card p-5 md:p-6">
@@ -491,7 +625,9 @@ export function ResearchView() {
           <ResearchSectionHead title="Retired strategy experiment controls" description="Retired / rejected evidence is retained in the database, but cannot create new active research." />
           <div className="research-toolbar">
             {experiment && <button type="button" onClick={downloadExperimentJson} disabled={!experimentDiagnostics} title={experimentDiagnostics ? "Download the complete saved experiment as JSON" : "Experiment diagnostics are still loading"} className="research-secondary-btn"><Download className="size-4" />Download JSON</button>}
-            <button type="button" onClick={runExperiment} disabled={runningExperiment || working || !experimentSessions.length} className="research-primary-btn">{runningExperiment ? "Running experiment…" : "Run experiment"}</button>
+            <ResearchPrimaryButton onClick={runExperiment} disabled={runningExperiment || working || !experimentSessions.length} loading={runningExperiment}>
+              {runningExperiment ? "Running experiment…" : "Run experiment"}
+            </ResearchPrimaryButton>
           </div>
         </div>
         <div className="research-form-grid">
@@ -506,7 +642,9 @@ export function ResearchView() {
       {experiment && <section className="app-card p-5 md:p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <ResearchSectionHead title="Locked earlier holdout" description="Downloads the equally long period immediately before this experiment and replays its saved pair, direction, sessions, and one-position rule without allowing edits." />
-          <button type="button" onClick={startLockedHoldout} disabled={startingHoldout || holdoutWorking || holdout?.status === "complete"} className="research-primary-btn">{startingHoldout ? "Locking holdout…" : holdoutWorking ? "Holdout running" : holdout?.status === "complete" ? "Holdout complete" : holdout?.status === "failed" ? "Retry locked holdout" : "Start locked holdout"}</button>
+          <ResearchPrimaryButton onClick={startLockedHoldout} disabled={startingHoldout || holdoutWorking || holdout?.status === "complete"} loading={startingHoldout || holdoutWorking}>
+            {startingHoldout ? "Locking holdout…" : holdoutWorking ? "Holdout running" : holdout?.status === "complete" ? "Holdout complete" : holdout?.status === "failed" ? "Retry locked holdout" : "Start locked holdout"}
+          </ResearchPrimaryButton>
         </div>
         {holdout ? <div className="research-panel mt-5"><p className="research-panel-title">{holdout.instrument.replace("_", "/")} · {holdout.direction === "all" ? "All directions" : `${holdout.direction} only`} · locked before development data</p><p className="research-panel-copy">{new Date(holdout.range_start).toISOString().slice(0, 10)} to {new Date(holdout.range_end).toISOString().slice(0, 10)} · {holdout.sessions.join(" + ")} · News not evaluated</p>{holdoutWorking && <><div className="mt-4 h-2 overflow-hidden rounded-full bg-[color:var(--border)]"><div className="h-full rounded-full bg-[color:var(--accent)] transition-[width] duration-500" style={{ width: `${holdoutRun?.details.progressPercent ?? 0}%` }} /></div><p className="mt-2 text-xs text-[color:var(--muted)]">{holdoutRun?.details.phase ?? "Starting locked holdout"} · {holdoutRun?.details.progressPercent ?? 0}%</p></>}{holdout.status === "failed" && <p className="mt-4 text-sm text-[color:var(--danger)]">{holdout.error ?? holdoutRun?.error ?? "The locked holdout failed."}</p>}{holdout.summary && <><div className="research-compare-grid mt-5">{[["Resolved sample", holdout.summary.executable.sample_size, optionalSample(holdoutConservative)], ["Win rate", percent(holdout.summary.executable.win_rate), optionalPercent(holdoutConservative)], ["Average R", rValue(holdout.summary.executable.average_r), optionalR(holdoutConservative, "average_r")], ["Profit factor", holdout.summary.executable.profit_factor === null ? "—" : holdout.summary.executable.profit_factor.toFixed(2), optionalProfitFactor(holdoutConservative)], ["Drawdown", rValue(holdout.summary.executable.drawdown_r), optionalR(holdoutConservative, "drawdown_r")]].map(([label, metric, conservative]) => <div key={String(label)} className="research-compare-item"><p className="research-compare-label">{label}</p><ResearchInlineStat label="Resolved only" value={metric} /><ResearchInlineStat label="Conservative" value={conservative} /></div>)}</div>{!holdoutConservative && <p className="mt-4 text-xs text-[color:var(--muted)]">Conservative outcomes were not recorded when this older holdout was saved.</p>}<p className="research-footnote !px-0">Eligible raw setups: {holdout.summary.raw_candidates} · Executable: {holdout.summary.executable_candidates} · Overlapping: {holdout.summary.overlapping_candidates} · Target first: {holdout.summary.target_first} · Stop first: {holdout.summary.stop_first} · Unresolved: {holdout.summary.unresolved} · Ambiguous: {holdout.summary.ambiguous}</p></>}</div> : <p className="mt-4 text-sm text-[color:var(--muted)]">This is the honest next test: it uses older OANDA history that was not part of the experiment you selected.</p>}
       </section>}
@@ -516,9 +654,9 @@ export function ResearchView() {
             title="Locked day-trading validation"
             description="Uses the active day strategy exactly as written: four years of development history, followed by one final locked out-of-sample year. No filters are selected from the data."
           />
-          <button type="button" onClick={runWalkForward} disabled={runningWalkForward || working} className="research-primary-btn">
+          <ResearchPrimaryButton onClick={runWalkForward} disabled={runningWalkForward || working} loading={runningWalkForward}>
             {runningWalkForward ? "Running validation…" : "Run 4-year / 1-year validation"}
-          </button>
+          </ResearchPrimaryButton>
         </div>
         {walkForward ? <div className="research-panel mt-5">
           <p className="research-panel-title">Latest locked validation · {walkForward.instrument.replace("_", "/")}</p>

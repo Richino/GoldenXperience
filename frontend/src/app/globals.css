@@ -2574,6 +2574,10 @@ a:focus-visible {
 }
 
 .research-view .research-primary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
   border-radius: 10px;
   padding: 0.5rem 0.875rem;
   font-size: 0.8125rem;
@@ -2585,6 +2589,19 @@ a:focus-visible {
     background-color 140ms ease,
     opacity 140ms ease,
     box-shadow 160ms ease;
+}
+
+.research-view .research-primary-btn-spinner {
+  flex-shrink: 0;
+}
+
+.research-view .research-primary-btn.is-loading {
+  cursor: wait;
+}
+
+.research-view .research-primary-btn.is-loading:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
 }
 
 .research-view .research-primary-btn:hover:not(:disabled) {
@@ -2633,16 +2650,178 @@ a:focus-visible {
 
 .research-view .research-notice {
   margin-top: 1.25rem;
-  border-radius: 10px;
-  padding: 0.75rem 0.875rem;
-  font-size: 0.8125rem;
-  line-height: 1.45;
-  color: var(--muted);
-  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem;
+  background: var(--surface);
 }
 
-.dark .research-view .research-notice {
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+.research-view .research-notice-running,
+.research-view .research-notice-queued {
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+}
+
+.research-view .research-notice-failed {
+  border-color: color-mix(in srgb, var(--danger) 28%, var(--border));
+  background: color-mix(in srgb, var(--danger) 6%, var(--surface));
+}
+
+.research-view .research-notice-complete {
+  border-color: color-mix(in srgb, var(--accent) 20%, var(--border));
+  background: color-mix(in srgb, var(--accent) 4%, var(--surface));
+}
+
+.research-view .research-notice-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.research-view .research-notice-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+}
+
+.research-view .research-notice-phase {
+  margin-top: 0.125rem;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.research-view .research-notice-status {
+  flex-shrink: 0;
+  border-radius: 999px;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: capitalize;
+}
+
+.research-view .research-notice-status-running,
+.research-view .research-notice-status-queued,
+.research-view .research-notice-status-complete {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.research-view .research-notice-status-failed {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.research-view .research-notice-status-stopped {
+  color: var(--muted-strong);
+  background: var(--minimal-hover);
+}
+
+.research-view .research-notice-message {
+  margin-top: 0.75rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.research-view .research-notice-message-error {
+  color: var(--danger);
+}
+
+.research-view .research-notice-progress {
+  margin-top: 0.875rem;
+}
+
+.research-view .research-notice-progress-track {
+  height: 0.375rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 8%, var(--border));
+}
+
+.research-view .research-notice-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 500ms ease;
+}
+
+.research-view .research-notice-failed .research-notice-progress-fill {
+  background: var(--danger);
+}
+
+.research-view .research-notice-progress-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.research-view .research-notice-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.875rem;
+  padding-top: 0.875rem;
+  border-top: 1px solid var(--border);
+}
+
+.research-view .research-notice-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+  border-radius: 10px;
+  padding: 0.5rem 0.625rem;
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+}
+
+.research-view .research-notice-stat-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.research-view .research-notice-stat-value {
+  font-size: 0.875rem;
+  color: var(--foreground);
+}
+
+.research-view .research-notice-stat-meta {
+  font-size: 0.6875rem;
+  color: var(--muted);
+}
+
+.research-view .research-notice-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.875rem;
+  margin-top: 0.75rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.research-view .research-notice-stop {
+  margin-top: 0.875rem;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
+  border-radius: 10px;
+  padding: 0.4375rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--danger);
+  transition: background-color 140ms ease;
+}
+
+.research-view .research-notice-stop:hover {
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
 }
 
 .research-view .research-error {

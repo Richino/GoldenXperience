@@ -25,7 +25,7 @@ import {
 import { getStrategySnapshot } from "../../frontend/src/lib/strategy/strategy-service.js";
 import { databaseConfigured, query } from "./database.js";
 import { cookieName, login, logout, sessionUser } from "./auth.js";
-import { collectForwardEvaluation, decideResearchExperiment, latestDayTradingValidation, latestResearchExperiment, latestResearchHoldout, latestResearchRun, latestWalkForwardResearch, processNextResearchJob, researchDiagnostics, researchExperimentDiagnostics, researchSummary, runDayTradingValidation, runResearchExperiment, runWalkForwardResearch, startLockedResearchHoldout, startStrictHistoricalBackfill } from "./research.js";
+import { collectForwardEvaluation, decideResearchExperiment, latestDayTradingValidation, latestResearchExperiment, latestResearchHoldout, latestResearchRun, latestWalkForwardResearch, processNextResearchJob, researchDiagnostics, researchExperimentDiagnostics, researchSummary, runDayTradingValidation, runResearchExperiment, runWalkForwardResearch, startLockedResearchHoldout, startStrictHistoricalBackfill, stopResearchRun } from "./research.js";
 
 const STREAM_INSTRUMENTS: MajorInstrument[] = ["EUR_USD", "GBP_USD", "USD_JPY"];
 
@@ -235,6 +235,12 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       const run = await startStrictHistoricalBackfill(payload.instrument.toUpperCase(), months);
       return json(request, response, { run }, 202);
     }
+    if (url.pathname === "/api/research/runs/stop" && request.method === "POST") {
+      const payload = await body(request);
+      if (typeof payload?.instrument !== "string") return json(request, response, { error: "Choose a currency pair." }, 400);
+      const run = await stopResearchRun(payload.instrument.toUpperCase());
+      return json(request, response, { run }, run ? 200 : 404);
+    }
   }
   if (request.method !== "GET") return json(request, response, { error: "Method not allowed." }, 405);
 
@@ -375,9 +381,22 @@ server.listen(PORT, () => console.log(`[api] HTTP and WebSocket server listening
 
 let researchWorker: NodeJS.Timeout | null = null;
 if (databaseConfigured()) {
-  const collect = () => void collectForwardEvaluation().catch((error) => console.error("[research] collection failed", error));
-  collect();
-  setInterval(collect, 60_000);
+  let collectionBusy = false;
+  const collect = async () => {
+    if (collectionBusy) return;
+    collectionBusy = true;
+    try {
+      const result = await collectForwardEvaluation();
+      if (result.reason) console.warn(`[research] forward collection skipped: ${result.reason}`);
+      else if (result.collected) console.log(`[research] forward evaluations collected: ${result.collected}`);
+    } catch (error) {
+      console.error("[research] collection failed", error);
+    } finally {
+      collectionBusy = false;
+    }
+  };
+  void collect();
+  setInterval(() => void collect(), 60_000);
   let workerBusy = false;
   const work = async () => {
     if (workerBusy) return;

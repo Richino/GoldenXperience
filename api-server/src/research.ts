@@ -409,7 +409,7 @@ function durableDetails(job: DurableResearchJob, checkpoint: DurableCheckpoint, 
 }
 
 async function saveDurableCheckpoint(job: DurableResearchJob, phase: string, checkpoint: DurableCheckpoint, details: Record<string, unknown>) {
-  const saved = await query("UPDATE durable_research_jobs SET status='queued',phase=$3,checkpoint=$4::jsonb,lease_token=NULL,lease_until=NULL,attempts=0,last_error=NULL,available_at=now()+interval '750 milliseconds',updated_at=now() WHERE run_id=$1 AND lease_token=$2 RETURNING run_id", [job.run_id, job.lease_token, phase, JSON.stringify(checkpoint)]);
+  const saved = await query("UPDATE durable_research_jobs SET status='queued',phase=$3,checkpoint=$4::jsonb,lease_token=NULL,lease_until=NULL,attempts=0,last_error=NULL,available_at=now()+interval '750 milliseconds',updated_at=now() WHERE run_id=$1 AND lease_token=$2 AND status='running' RETURNING run_id", [job.run_id, job.lease_token, phase, JSON.stringify(checkpoint)]);
   if (!saved.rowCount) throw new Error("Research job lease expired before its checkpoint was saved.");
   await updateRun(job.run_id, details);
 }
@@ -646,6 +646,21 @@ export async function startStrictHistoricalBackfill(instrument: string, months =
   const checkpoint: DurableCheckpoint = { rangeStart: rangeStart.toISOString(), dataStart: dataStart.toISOString(), rangeEnd: rangeEnd.toISOString(), timeframeIndex: 0, cursor: rangeEnd.toISOString(), fetched: {}, timeframeProgress: { M15: 0, H1: 0, H4: 0 } };
   await query("INSERT INTO durable_research_jobs(run_id,instrument,months,checkpoint) VALUES($1,$2,$3,$4::jsonb)", [run.id, instrument, safeMonths, JSON.stringify(checkpoint)]);
   return run;
+}
+
+export async function stopResearchRun(instrument: string) {
+  if (!isKnownInstrument(instrument)) throw new Error("Choose a supported currency pair.");
+  return transaction(async (client) => {
+    const job = await client.query<{ run_id: string }>("SELECT run_id FROM durable_research_jobs WHERE instrument=$1 AND status IN ('queued','running') ORDER BY created_at DESC LIMIT 1 FOR UPDATE", [instrument]);
+    if (!job.rows[0]) return null;
+    await client.query("UPDATE durable_research_jobs SET status='cancelled',phase='cancelled',lease_token=NULL,lease_until=NULL,updated_at=now() WHERE run_id=$1", [job.rows[0].run_id]);
+    const result = await client.query<ResearchRun>(`UPDATE research_runs
+      SET details=jsonb_set(jsonb_set(details,'{state}','"stopped"'::jsonb),'{phase}','"Research stopped by owner"'::jsonb),
+          error='Research stopped by owner.', completed_at=now()
+      WHERE id=$1
+      RETURNING id,kind,started_at,completed_at,details,error`, [job.rows[0].run_id]);
+    return result.rows[0] ?? null;
+  });
 }
 
 export type ResearchHoldout = {

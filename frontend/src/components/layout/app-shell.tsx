@@ -14,6 +14,7 @@ import { BrandMark } from "@/components/ui/brand-mark";
 import { MobileTopBar } from "@/components/ui/mobile-top-bar";
 import { NavigationProgress } from "@/components/ui/navigation-progress";
 import { PwaPullToRefresh } from "@/components/ui/pwa-pull-to-refresh";
+import { SignOutButton } from "@/components/ui/sign-out-button";
 
 interface NavItem {
   label: string;
@@ -114,6 +115,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <p className="text-caption mt-2 leading-5 text-[color:var(--muted)]">
             Broker credentials stay on the server.
           </p>
+          <SignOutButton />
         </div>
       </aside>
 

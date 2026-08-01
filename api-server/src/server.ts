@@ -25,7 +25,7 @@ import {
 import { getStrategySnapshot } from "../../frontend/src/lib/strategy/strategy-service.js";
 import { databaseConfigured, query } from "./database.js";
 import { cookieName, login, logout, sessionUser } from "./auth.js";
-import { collectForwardEvaluation } from "./research.js";
+import { collectForwardEvaluation, decideResearchExperiment, latestDayTradingValidation, latestResearchExperiment, latestResearchHoldout, latestResearchRun, latestWalkForwardResearch, processNextResearchJob, researchDiagnostics, researchExperimentDiagnostics, researchSummary, runDayTradingValidation, runResearchExperiment, runWalkForwardResearch, startLockedResearchHoldout, startStrictHistoricalBackfill } from "./research.js";
 
 const STREAM_INSTRUMENTS: MajorInstrument[] = ["EUR_USD", "GBP_USD", "USD_JPY"];
 
@@ -171,8 +171,69 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       return json(request, response, { id: created.rows[0]?.id }, 201);
     }
     if (url.pathname === "/api/research/summary" && request.method === "GET") {
-      const summary = await query("SELECT count(*)::int AS evaluations, count(*) FILTER (WHERE status='valid')::int AS valid_evaluations, count(*) FILTER (WHERE status<>'valid')::int AS blocked_evaluations, count(ol.*) FILTER (WHERE ol.outcome='target_first')::int AS target_first, count(ol.*) FILTER (WHERE ol.outcome='stop_first')::int AS stop_first, count(ol.*) FILTER (WHERE ol.outcome='unresolved')::int AS unresolved, avg(ol.result_r)::float AS average_r FROM strategy_evaluations se LEFT JOIN trade_candidates tc ON tc.evaluation_id=se.id LEFT JOIN outcome_labels ol ON ol.candidate_id=tc.id");
-      return json(request, response, { summary: summary.rows[0] });
+      const instrument = url.searchParams.get("instrument")?.toUpperCase();
+      return json(request, response, { summary: await researchSummary(instrument) });
+    }
+    if (url.pathname === "/api/research/diagnostics" && request.method === "GET") {
+      const instrument = url.searchParams.get("instrument")?.toUpperCase();
+      return json(request, response, { diagnostics: await researchDiagnostics(instrument) });
+    }
+    if (url.pathname === "/api/research/experiments" && request.method === "GET") {
+      const instrument = url.searchParams.get("instrument")?.toUpperCase();
+      return json(request, response, { experiment: await latestResearchExperiment(user.id, instrument) });
+    }
+    if (url.pathname === "/api/research/experiments/diagnostics" && request.method === "GET") {
+      const experimentId = url.searchParams.get("experimentId");
+      if (!experimentId || !/^[0-9a-f-]{36}$/i.test(experimentId)) return json(request, response, { error: "Choose a valid research experiment." }, 400);
+      const diagnostics = await researchExperimentDiagnostics(user.id, experimentId);
+      return diagnostics ? json(request, response, { diagnostics }) : json(request, response, { error: "Research experiment not found." }, 404);
+    }
+    if (url.pathname === "/api/research/experiments" && request.method === "POST") {
+      return json(request, response, { error: "Retired strategy experiments are read-only. Run the active day-trading validation instead." }, 410);
+    }
+    if (url.pathname === "/api/research/experiments/decision" && request.method === "POST") {
+      return json(request, response, { error: "Retired strategy experiments are immutable historical evidence." }, 410);
+    }
+    if (url.pathname === "/api/research/holdouts" && request.method === "GET") {
+      const experimentId = url.searchParams.get("experimentId");
+      if (!experimentId || !/^[0-9a-f-]{36}$/i.test(experimentId)) return json(request, response, { error: "Choose a valid research experiment." }, 400);
+      return json(request, response, await latestResearchHoldout(user.id, experimentId));
+    }
+    if (url.pathname === "/api/research/holdouts" && request.method === "POST") {
+      return json(request, response, { error: "Retired strategy holdouts are immutable historical evidence." }, 410);
+    }
+    if (url.pathname === "/api/research/walk-forward" && request.method === "GET") {
+      const instrument = url.searchParams.get("instrument")?.toUpperCase();
+      if (!instrument || !isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported OANDA currency pair." }, 400);
+      return json(request, response, { run: await latestWalkForwardResearch(user.id, instrument) });
+    }
+    if (url.pathname === "/api/research/walk-forward" && request.method === "POST") {
+      return json(request, response, { error: "The retired walk-forward filter search is inactive. Run the fixed day-trading validation instead." }, 410);
+    }
+    if (url.pathname === "/api/research/day-validation" && request.method === "GET") {
+      const instrument = url.searchParams.get("instrument")?.toUpperCase();
+      if (!instrument || !isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported OANDA currency pair." }, 400);
+      return json(request, response, { run: await latestDayTradingValidation(user.id, instrument) });
+    }
+    if (url.pathname === "/api/research/day-validation" && request.method === "POST") {
+      const payload = await body(request);
+      if (typeof payload?.instrument !== "string") return json(request, response, { error: "Choose a currency pair." }, 400);
+      try {
+        return json(request, response, { run: await runDayTradingValidation(user.id, payload.instrument) }, 201);
+      } catch (error) {
+        return json(request, response, { error: error instanceof Error ? error.message : "Could not run day-trading validation." }, 400);
+      }
+    }
+    if (url.pathname === "/api/research/runs" && request.method === "GET") {
+      const instrument = url.searchParams.get("instrument")?.toUpperCase();
+      return json(request, response, { run: await latestResearchRun(instrument) });
+    }
+    if (url.pathname === "/api/research/runs" && request.method === "POST") {
+      const payload = await body(request);
+      if (typeof payload?.instrument !== "string") return json(request, response, { error: "Choose a currency pair." }, 400);
+      const months = typeof payload.months === "number" ? payload.months : 12;
+      const run = await startStrictHistoricalBackfill(payload.instrument.toUpperCase(), months);
+      return json(request, response, { run }, 202);
     }
   }
   if (request.method !== "GET") return json(request, response, { error: "Method not allowed." }, 405);
@@ -312,14 +373,26 @@ if (config.isConfigured) {
 
 server.listen(PORT, () => console.log(`[api] HTTP and WebSocket server listening on :${PORT}`));
 
+let researchWorker: NodeJS.Timeout | null = null;
 if (databaseConfigured()) {
   const collect = () => void collectForwardEvaluation().catch((error) => console.error("[research] collection failed", error));
   collect();
   setInterval(collect, 60_000);
+  let workerBusy = false;
+  const work = async () => {
+    if (workerBusy) return;
+    workerBusy = true;
+    try { await processNextResearchJob(); }
+    catch (error) { console.error("[research] durable worker failed", error); }
+    finally { workerBusy = false; }
+  };
+  void work();
+  researchWorker = setInterval(() => void work(), 1_000);
 }
 
 function shutdown() {
   clearInterval(heartbeat);
+  if (researchWorker) clearInterval(researchWorker);
   wss.clients.forEach((socket) => socket.close(1001, "Server shutting down"));
   server.close(() => process.exit(0));
 }

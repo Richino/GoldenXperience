@@ -69,8 +69,12 @@ interface OandaCandlesResponse {
     volume: number;
     complete: boolean;
     mid?: { o: string; h: string; l: string; c: string };
+    bid?: { o: string; h: string; l: string; c: string };
+    ask?: { o: string; h: string; l: string; c: string };
   }>;
 }
+
+export type ResearchCandle = { time: string; volume: number; complete: boolean; mid: { open: number; high: number; low: number; close: number }; bid: { open: number; high: number; low: number; close: number }; ask: { open: number; high: number; low: number; close: number } };
 
 export class OandaRequestError extends Error {
   constructor(
@@ -340,6 +344,13 @@ export async function getCandles(
       status: buildStatus("error", errorMessage(error)),
     };
   }
+}
+
+export async function getResearchCandles(instrument: MajorInstrument, granularity: string, count: number, options: { to?: string } = {}): Promise<ResearchCandle[]> {
+  if (!getConfig()) throw new OandaRequestError("OANDA credentials are not configured.");
+  const params = new URLSearchParams({ price: "MBA", granularity, count: String(count) }); if (options.to) params.set("to", options.to);
+  const response = await requestOanda<OandaCandlesResponse>(`/v3/instruments/${instrument}/candles?${params}`);
+  return response.candles.flatMap((c) => c.mid && c.bid && c.ask ? [{ time: c.time, volume: c.volume, complete: c.complete, mid: { open: Number(c.mid.o), high: Number(c.mid.h), low: Number(c.mid.l), close: Number(c.mid.c) }, bid: { open: Number(c.bid.o), high: Number(c.bid.h), low: Number(c.bid.l), close: Number(c.bid.c) }, ask: { open: Number(c.ask.o), high: Number(c.ask.h), low: Number(c.ask.l), close: Number(c.ask.c) } }] : []);
 }
 
 export async function getOpenPositions(): Promise<{

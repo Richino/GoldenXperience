@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { evaluateStructure } from "../src/lib/strategy/market-structure";
-import { evaluateStrategy, rankStrategySetups } from "../src/lib/strategy/strategy-engine";
+import { dayTradingSession, evaluateStrategy, rankStrategySetups } from "../src/lib/strategy/strategy-engine";
 import { calculatePositionSize, deriveTradePermission } from "../src/lib/risk/engine";
 import type { Candle } from "../src/types/forex";
 
@@ -25,6 +25,13 @@ function candles(direction: "bull" | "bear" | "flat", count = 260): Candle[] {
 const bullish = candles("bull");
 const bearish = candles("bear");
 const flat = candles("flat").map((candle) => ({ ...candle, open: 1.05, high: 1.0501, low: 1.0499, close: 1.05 }));
+
+// ET conversion must respect the daylight-saving offset, while the local
+// boundary itself stays 03:00 inclusive and 12:00 exclusive.
+assert.equal(dayTradingSession(new Date("2026-03-09T07:00:00.000Z")).open, true, "03:00 ET after DST starts must be eligible");
+assert.equal(dayTradingSession(new Date("2026-03-09T16:00:00.000Z")).open, false, "12:00 ET after DST starts must reject entries");
+assert.equal(dayTradingSession(new Date("2026-11-02T08:00:00.000Z")).open, true, "03:00 ET after DST ends must be eligible");
+assert.equal(dayTradingSession(new Date("2026-11-02T17:00:00.000Z")).open, false, "12:00 ET after DST ends must reject entries");
 
 assert.equal(evaluateStrategy({
   instrument: "EUR_USD", accountBalance: 10_000, accountCurrency: "USD", dataSource: "oanda",

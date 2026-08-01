@@ -6,6 +6,12 @@ import { calculatePositionSize, DEFAULT_RISK_POLICY } from "@/lib/risk/engine";
 
 const MINIMUM_CANDLES = 210;
 const MINIMUM_RISK_REWARD = 2;
+/** The only strategy permitted to create new Signals and research evaluations. */
+export const ACTIVE_STRATEGY_VERSION = "day-intraday-v1";
+export const DAY_TRADING_TIME_ZONE = "America/New_York";
+export const DAY_ENTRY_START_MINUTES = 3 * 60;
+export const DAY_ENTRY_END_MINUTES = 12 * 60;
+export const DAY_FORCED_EXIT_MINUTES = 16 * 60 + 45;
 const MAX_SPREAD_PIPS: Record<string, number> = {
   EUR_USD: 1.5,
   GBP_USD: 2,
@@ -37,10 +43,14 @@ function formatNumber(value: number | null, digits = 5) {
   return value === null ? "unavailable" : value.toFixed(digits);
 }
 
-function sessionOpen(now = new Date()) {
-  const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", hourCycle: "h23" }).format(now));
+export function dayTradingSession(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: DAY_TRADING_TIME_ZONE, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(now);
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? "0");
+  const totalMinutes = hour * 60 + minute;
   // London 03:00–12:00, New York 08:00–17:00 Eastern.
-  return (hour >= 3 && hour < 17) ? { open: true, label: hour >= 8 && hour < 12 ? "London/New York overlap" : hour < 8 ? "London" : "New York" } : { open: false, label: "Outside London/New York sessions" };
+  if (totalMinutes < DAY_ENTRY_START_MINUTES || totalMinutes >= DAY_ENTRY_END_MINUTES) return { open: false, label: "Outside day-trading entry window" };
+  return { open: true, label: totalMinutes >= 8 * 60 ? "London/New York overlap" : "London" };
 }
 
 function confirmationCandle(candles: StrategyEvaluationInput["candles15m"], direction: "long" | "short", atr: number, ema21: number, ema50: number, swingPrice: number | null) {
@@ -68,7 +78,7 @@ function confirmationCandle(candles: StrategyEvaluationInput["candles15m"], dire
 function chooseStatus(conditions: StrategyCondition[], trend: Trend): StrategySetup["status"] {
   if (conditions.some((item) => item.name === "Market data" && !item.passed)) return "invalid";
   if (trend === "mixed") return "no_setup";
-  const hardRejected = conditions.some((item) => !item.passed && ["Higher timeframe alignment", "Spread", "Session", "News", "Momentum", "Volatility"].includes(item.name));
+  const hardRejected = conditions.some((item) => item.required && !item.passed && ["Higher timeframe alignment", "Spread", "Session", "News", "Momentum", "Volatility"].includes(item.name));
   if (hardRejected) return "invalid";
   if (conditions.every((item) => !item.required || item.passed)) return "valid";
   return "developing";
@@ -126,13 +136,14 @@ export function evaluateStrategy(input: StrategyEvaluationInput): StrategySetup 
   const volatilityPassed = atr !== null && atrPips >= 2;
   conditions.push(condition("Volatility", volatilityPassed, volatilityPassed ? "ATR is sufficient for a reasonable stop." : "ATR is too compressed for this 15m setup.", `ATR14 ${atrPips.toFixed(1)} pips`));
 
-  const session = sessionOpen();
-  conditions.push(condition("Session", session.open && input.marketOpen, session.open && input.marketOpen ? `${session.label} session is active.` : "Entries are limited to London and New York sessions while the forex market is open.", session.label));
+  const session = dayTradingSession(input.evaluatedAt ? new Date(input.evaluatedAt) : new Date());
+  conditions.push(condition("Session", session.open && input.marketOpen, session.open && input.marketOpen ? `${session.label} entry window is active.` : "Entries are limited to 03:00 ET inclusive until 12:00 ET exclusive while the forex market is open.", session.label));
   const maxSpread = MAX_SPREAD_PIPS[input.instrument] ?? 1.5;
   const spreadPassed = input.spreadPips !== null && input.spreadPips <= maxSpread;
   conditions.push(condition("Spread", spreadPassed, spreadPassed ? "Live spread is within the pair limit." : input.spreadPips === null ? "A live spread is unavailable." : "Spread Too High", input.spreadPips === null ? "unavailable" : `${input.spreadPips.toFixed(1)} / ${maxSpread.toFixed(1)} pips`));
+  const newsRequired = input.newsRequired ?? true;
   const newsPassed = input.calendarConnected && (input.highImpactNewsWithinMinutes === null || input.highImpactNewsWithinMinutes > 30);
-  conditions.push(condition("News", newsPassed, !input.calendarConnected ? "Unavailable — the news provider cannot clear a trade." : newsPassed ? "No high-impact event is inside the 30-minute buffer." : "High-impact news is inside the 30-minute buffer.", input.highImpactNewsWithinMinutes === null ? "No upcoming high-impact event" : `${input.highImpactNewsWithinMinutes} minutes`));
+  conditions.push(condition("News", newsPassed, !newsRequired ? "Not evaluated in price-only historical research." : !input.calendarConnected ? "Unavailable — the news provider cannot clear a trade." : newsPassed ? "No high-impact event is inside the 30-minute buffer." : "High-impact news is inside the 30-minute buffer.", !newsRequired ? "not evaluated" : input.highImpactNewsWithinMinutes === null ? "No upcoming high-impact event" : `${input.highImpactNewsWithinMinutes} minutes`, newsRequired));
 
   const stopBuffer = Math.max(atr ?? 0, pipSizeFor(input.instrument) * 4) * 0.2;
   const swingStop = direction === "long" ? structure.swings.lows.at(-1)?.price ?? last.low : structure.swings.highs.at(-1)?.price ?? last.high;
@@ -186,7 +197,7 @@ function finalize(input: StrategyEvaluationInput, trade: { direction: "long" | "
     conditions,
     passedConditions: conditions.filter((item) => item.passed),
     failedConditions: conditions.filter((item) => !item.passed),
-    evaluatedAt: new Date().toISOString(),
+    evaluatedAt: input.evaluatedAt ?? new Date().toISOString(),
     dataSource: input.dataSource,
   };
 }

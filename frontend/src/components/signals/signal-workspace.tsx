@@ -850,9 +850,10 @@ export function SignalWorkspace({
         const [candlesResponse, pricingResponse] = await Promise.all([
           fetch(
             apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=${TIMEFRAME_TO_GRANULARITY[timeframe]}&count=${candleCountForRange(timeframe, range)}`),
-            { signal: controller.signal },
+            { credentials: "include", signal: controller.signal },
           ),
           fetch(apiUrl(`/api/oanda/pricing?instruments=${instrument}`), {
+            credentials: "include",
             signal: controller.signal,
           }),
         ]);
@@ -926,6 +927,7 @@ export function SignalWorkspace({
       const firstCandle = currentSeries.candles[0]!;
       const response = await fetch(
         apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=${TIMEFRAME_TO_GRANULARITY[timeframe]}&count=500&to=${encodeURIComponent(firstCandle.time)}`),
+        { credentials: "include" },
       );
 
       if (!response.ok) return;

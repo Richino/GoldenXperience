@@ -57,6 +57,10 @@ export interface StrategyEvaluationInput {
   marketOpen: boolean;
   calendarConnected: boolean;
   highImpactNewsWithinMinutes: number | null;
+  /** Decision timestamp used for historical session evaluation. Defaults to now for live evaluations. */
+  evaluatedAt?: string;
+  /** Historical price-only research deliberately does not evaluate news. Live strategy evaluation keeps this true. */
+  newsRequired?: boolean;
 }
 
 export interface StrategyEvaluationBundle {

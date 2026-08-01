@@ -1,8 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { config as loadDotenv } from "dotenv";
 import { db } from "../src/database.js";
 
-const directory = path.resolve(process.cwd(), "migrations");
+const serviceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+for (const name of [".env", ".env.local"]) loadDotenv({ path: path.join(serviceRoot, name), override: false });
+const directory = path.join(serviceRoot, "migrations");
 const files = (await fs.readdir(directory)).filter((file) => file.endsWith(".sql")).sort();
 await db().query("CREATE TABLE IF NOT EXISTS schema_migrations (id text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())");
 for (const file of files) {

@@ -27,7 +27,7 @@ import { getStrategySnapshot } from "../../frontend/src/lib/strategy/strategy-se
 import { databaseConfigured, query } from "./database.js";
 import { cookieName, login, logout, sessionUser } from "./auth.js";
 import { decideResearchExperiment, forwardResearchSummary, latestDayTradingValidation, latestResearchExperiment, latestResearchHoldout, latestResearchRun, latestWalkForwardResearch, processNextResearchJob, researchDiagnostics, researchExperimentDiagnostics, researchSummary, runDayTradingValidation, runResearchExperiment, runWalkForwardResearch, startLockedResearchHoldout, startStrictHistoricalBackfill, stopResearchRun } from "./research.js";
-import { collectPaperCycle, decidePaperBatch, paperCycleOverview, paperRiskExposure, paperRiskPolicy, parsePaperRiskConfiguration, reviewPaperTrade, updatePaperRiskPolicy, watchlistSnapshot } from "./paper-cycle.js";
+import { collectPaperCycle, decidePaperBatch, paperCycleOverview, paperRiskExposure, paperRiskPolicy, paperTradesForInstrument, parsePaperRiskConfiguration, reviewPaperTrade, updatePaperRiskPolicy, watchlistSnapshot } from "./paper-cycle.js";
 import { markNotificationsRead, notificationsForUser, pushPublicKey, queueNotification, removePushSubscription, savePushSubscription } from "./notifications.js";
 import { practiceExecutionOverview, setPracticeExecutionEnabled } from "./practice-execution.js";
 
@@ -222,6 +222,11 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       } catch (error) {
         return json(request, response, { error: error instanceof Error ? error.message : "Risk settings are invalid." }, 400);
       }
+    }
+    if (url.pathname === "/api/paper-cycle/trades" && request.method === "GET") {
+      const instrument = url.searchParams.get("instrument")?.toUpperCase();
+      if (!instrument || !MAJOR_INSTRUMENTS.includes(instrument as (typeof MAJOR_INSTRUMENTS)[number])) return json(request, response, { error: "Choose a monitored currency pair." }, 400);
+      return json(request, response, { trades: await paperTradesForInstrument(user.id, instrument) });
     }
     if (url.pathname === "/api/paper-cycle/trades/review" && request.method === "PATCH") {
       const payload = await body(request);

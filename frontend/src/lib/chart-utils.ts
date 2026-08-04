@@ -1,10 +1,11 @@
 import type {
   CandlestickData,
   LineData,
+  SeriesMarker,
   UTCTimestamp,
 } from "lightweight-charts";
 import { pipSizeFor, precisionFor } from "@/lib/instruments/catalog";
-import type { Candle, MajorInstrument } from "@/types/forex";
+import type { Candle, MajorInstrument, PaperChartTrade } from "@/types/forex";
 
 export const CHART_TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h"] as const;
 
@@ -396,6 +397,139 @@ export function candleCountForRange(
   const minutesPerCandle = TIMEFRAME_MINUTES[timeframe];
   const count = Math.ceil(rangeMs / (minutesPerCandle * 60 * 1000));
   return Math.min(5_000, Math.max(40, count));
+}
+
+export interface TradeMarkerPalette {
+  long: string;
+  short: string;
+  win: string;
+  loss: string;
+  muted: string;
+}
+
+export function chartTimesOf(candles: CandlestickData<UTCTimestamp>[]) {
+  return candles.map((candle) => Number(candle.time));
+}
+
+/**
+ * Markers only render on times the series actually holds, so a decision or exit
+ * timestamp is pulled back to the candle that contains it. Returns null when the
+ * moment sits before the loaded history.
+ */
+export function snapToCandleTime(candleTimes: number[], target: number) {
+  if (!candleTimes.length || !Number.isFinite(target)) return null;
+
+  let low = 0;
+  let high = candleTimes.length - 1;
+  let match: number | null = null;
+
+  while (low <= high) {
+    const middle = (low + high) >> 1;
+    const value = candleTimes[middle]!;
+
+    if (value <= target) {
+      match = value;
+      low = middle + 1;
+    } else {
+      high = middle - 1;
+    }
+  }
+
+  return match;
+}
+
+function unixSeconds(value: string | null) {
+  if (!value) return null;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? Math.floor(parsed / 1000) : null;
+}
+
+function tradeEntryTime(candleTimes: number[], trade: PaperChartTrade) {
+  const opened = unixSeconds(trade.openedAt);
+  return opened === null ? null : snapToCandleTime(candleTimes, opened);
+}
+
+function tradeExitTime(candleTimes: number[], trade: PaperChartTrade) {
+  const closed = unixSeconds(trade.closedAt);
+  return closed === null || trade.exit === null
+    ? null
+    : snapToCandleTime(candleTimes, closed);
+}
+
+export function formatResultR(resultR: number | null) {
+  return resultR === null
+    ? "—"
+    : `${resultR >= 0 ? "+" : ""}${resultR.toFixed(2)}R`;
+}
+
+/**
+ * Entry and exit arrows for every paper trade on the pair. The focused trade —
+ * the one the user opened from the dashboard — is drawn full size and labelled;
+ * the rest stay small and grey so they read as history.
+ */
+export function buildTradeMarkers(
+  candleTimes: number[],
+  trades: PaperChartTrade[],
+  focusTradeId: string | null,
+  palette: TradeMarkerPalette,
+): SeriesMarker<UTCTimestamp>[] {
+  const markers = trades.flatMap<SeriesMarker<UTCTimestamp>>((trade) => {
+    const focused = trade.id === focusTradeId;
+    const long = trade.direction === "long";
+    const entryTime = tradeEntryTime(candleTimes, trade);
+    const exitTime = tradeExitTime(candleTimes, trade);
+    const built: SeriesMarker<UTCTimestamp>[] = [];
+
+    if (entryTime !== null) {
+      built.push({
+        id: `entry:${trade.id}`,
+        time: entryTime as UTCTimestamp,
+        position: long ? "belowBar" : "aboveBar",
+        shape: long ? "arrowUp" : "arrowDown",
+        color: focused ? (long ? palette.long : palette.short) : palette.muted,
+        size: focused ? 2 : 1,
+        text: focused
+          ? `#${trade.tradeSequence} ${long ? "BUY" : "SELL"} ${formatChartPrice(trade.entry, trade.instrument)}`
+          : undefined,
+      });
+    }
+
+    if (exitTime !== null && trade.exit !== null) {
+      const won = (trade.resultR ?? 0) >= 0;
+      built.push({
+        id: `exit:${trade.id}`,
+        time: exitTime as UTCTimestamp,
+        position: long ? "aboveBar" : "belowBar",
+        shape: long ? "arrowDown" : "arrowUp",
+        color: focused ? (won ? palette.win : palette.loss) : palette.muted,
+        size: focused ? 2 : 1,
+        text: focused
+          ? `EXIT ${formatChartPrice(trade.exit, trade.instrument)} · ${formatResultR(trade.resultR)}`
+          : undefined,
+      });
+    }
+
+    return built;
+  });
+
+  return markers.sort((left, right) => Number(left.time) - Number(right.time));
+}
+
+/** The entry-to-exit segment drawn across the focused trade. */
+export function buildTradePath(
+  candleTimes: number[],
+  trade: PaperChartTrade | null,
+): LineData<UTCTimestamp>[] {
+  if (!trade || trade.exit === null) return [];
+
+  const entryTime = tradeEntryTime(candleTimes, trade);
+  const exitTime = tradeExitTime(candleTimes, trade);
+  if (entryTime === null || exitTime === null || exitTime <= entryTime) return [];
+
+  return [
+    { time: entryTime as UTCTimestamp, value: trade.entry },
+    { time: exitTime as UTCTimestamp, value: trade.exit },
+  ];
 }
 
 export function getVisibleRangeFromCandles(

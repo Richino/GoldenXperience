@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "next-themes";
 import {
   AreaSeries,
@@ -12,17 +12,24 @@ import {
   LineSeries,
   LineStyle,
   createChart,
+  createSeriesMarkers,
   type IChartApi,
   type ISeriesApi,
+  type ISeriesMarkersPluginApi,
   type LogicalRange,
   type SeriesType,
   type DeepPartial,
+  type Time,
   type TimeChartOptions,
+  type UTCTimestamp,
 } from "lightweight-charts";
 import {
+  buildTradeMarkers,
+  buildTradePath,
   calculateAtr,
   calculateEma,
   calculateRsi,
+  chartTimesOf,
   compactAxisPricePrecision,
   countPrependedCandles,
   getVisibleRangeFromCandles,
@@ -37,15 +44,29 @@ import {
   type ChartIndicator,
   type ChartRange,
   type ChartVariant,
+  type TradeMarkerPalette,
 } from "@/lib/chart-utils";
 import { ChartHistoryLoader } from "@/components/charts/chart-loading-overlay";
 import { precisionFor } from "@/lib/instruments/catalog";
-import type { Candle, CandleSeries } from "@/types/forex";
+import type { Candle, CandleSeries, PaperChartTrade } from "@/types/forex";
+
+/**
+ * How many pages of older candles the chart will pull in on its own to bring a
+ * focused trade into view before it stops chasing it.
+ */
+const MAX_FOCUS_HISTORY_PAGES = 8;
 
 interface SetupLevels {
   entry: number;
   stop: number;
   target: number;
+  exit?: number | null;
+}
+
+/** The time window a focused paper trade occupies, in chart seconds. */
+export interface ChartFocusRange {
+  from: number;
+  to: number;
 }
 
 // Lightweight Charts reserves space for the desktop time scale via minimumHeight.
@@ -141,6 +162,44 @@ function scrollChartToLatest(
   chart.timeScale().scrollToRealTime();
 }
 
+/**
+ * A focused trade wins over the "jump to the latest candle" behaviour: opening
+ * one from the dashboard is a request to look at where it was taken.
+ *
+ * Returns false when the trade starts before the loaded history. The view then
+ * sits on the oldest bars, which is what makes the chart page more history in.
+ */
+function scrollChartToFocus(
+  chart: IChartApi,
+  series: CandleSeries,
+  range: ChartRange,
+  focusRange: ChartFocusRange | null,
+) {
+  const candleTimes = chartTimesOf(toChartCandles(series.candles));
+  const first = candleTimes[0];
+  const last = candleTimes.at(-1);
+
+  if (!focusRange || first === undefined || last === undefined) {
+    scrollChartToLatest(chart, series, range);
+    return true;
+  }
+
+  const width = Math.max(focusRange.to - focusRange.from, 60);
+  const from = Math.max(first, Math.min(focusRange.from, last - width));
+  const to = Math.min(last, from + width);
+
+  if (to <= from) {
+    scrollChartToLatest(chart, series, range);
+    return true;
+  }
+
+  chart
+    .timeScale()
+    .setVisibleRange({ from: from as UTCTimestamp, to: to as UTCTimestamp });
+
+  return first <= focusRange.from;
+}
+
 function addSetupLevels(
   mainSeries: ISeriesApi<SeriesType>,
   levels: SetupLevels,
@@ -171,6 +230,17 @@ function addSetupLevels(
     axisLabelVisible: showAxisLabels,
     title: "Target",
   });
+
+  if (levels.exit !== null && levels.exit !== undefined) {
+    mainSeries.createPriceLine({
+      price: levels.exit,
+      color: isDark ? "rgba(100,210,255,0.8)" : "rgba(0,122,255,0.8)",
+      lineWidth: 1,
+      lineStyle: LineStyle.Dashed,
+      axisLabelVisible: showAxisLabels,
+      title: "Exit",
+    });
+  }
 }
 
 function addOverlayLine(
@@ -299,6 +369,9 @@ export function SetupChart({
   loadingOlder = false,
   onLoadOlder,
   scrollToLatestRevision,
+  trades,
+  focusTradeId = null,
+  focusRange = null,
 }: {
   series: CandleSeries;
   levels: SetupLevels | null;
@@ -312,10 +385,19 @@ export function SetupChart({
   loadingOlder?: boolean;
   onLoadOlder?: () => void;
   scrollToLatestRevision: number;
+  trades?: PaperChartTrade[];
+  focusTradeId?: string | null;
+  focusRange?: ChartFocusRange | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const mainSeriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
+  const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+  const tradePathRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const focusCoveredRef = useRef(true);
+  const focusPagesRef = useRef(0);
+  const hadFocusRef = useRef(false);
+  const [chartEpoch, setChartEpoch] = useState(0);
   const latestChartTimeRef = useRef<number | null>(
     latestCandleChartTime(series.candles),
   );
@@ -487,6 +569,29 @@ export function SetupChart({
 
     if (levels) addSetupLevels(mainSeries, levels, isDark, !embedded);
 
+    // The entry-to-exit segment is created with the chart, even when there is no
+    // focused trade to draw yet. Adding a series later — after the candles have
+    // been laid out — leaves the candlestick pane view resolving bar indices
+    // that no longer exist, which throws "Value is null" on the next paint.
+    // Only its data changes afterwards.
+    const tradePath = chart.addSeries(LineSeries, {
+      color: upColor,
+      lineWidth: 2,
+      lineStyle: LineStyle.Dashed,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      crosshairMarkerVisible: false,
+      pointMarkersVisible: true,
+      priceFormat,
+    });
+    tradePath.setData(
+      buildTradePath(
+        chartTimesOf(chartData),
+        trades?.find((trade) => trade.id === focusTradeId) ?? null,
+      ),
+    );
+    tradePathRef.current = tradePath;
+
     const closes = series.candles.map((candle) => candle.close);
 
     if (isChartIndicatorEnabled(enabledIndicators, "ema21")) {
@@ -545,7 +650,8 @@ export function SetupChart({
       );
     }
 
-    scrollChartToLatest(chart, series, range);
+    focusCoveredRef.current = scrollChartToFocus(chart, series, range, focusRange);
+    setChartEpoch((value) => value + 1);
 
     const handleVisibleRangeChange = (logicalRange: LogicalRange | null) => {
       if (
@@ -575,6 +681,9 @@ export function SetupChart({
       chart.remove();
       chartRef.current = null;
       mainSeriesRef.current = null;
+      // Both are owned by the removed chart, so they only need to be forgotten.
+      markersRef.current = null;
+      tradePathRef.current = null;
       latestChartTimeRef.current = null;
     };
   // The chart instance is intentionally not recreated for every candle update.
@@ -619,7 +728,23 @@ export function SetupChart({
       }
     }
 
-    if (prependedCount > 0 && logicalRange && chart) {
+    if (
+      prependedCount > 0 &&
+      chart &&
+      focusRange &&
+      !focusCoveredRef.current &&
+      focusPagesRef.current < MAX_FOCUS_HISTORY_PAGES
+    ) {
+      // The focused trade is still older than the first loaded candle, so keep
+      // walking the viewport back through each new page until it comes into view.
+      focusPagesRef.current += 1;
+      focusCoveredRef.current = scrollChartToFocus(
+        chart,
+        series,
+        range,
+        focusRange,
+      );
+    } else if (prependedCount > 0 && logicalRange && chart) {
       // Preserve the exact candles currently under the user's pointer. Older
       // data is requested well before the edge, so this anchor does not make
       // panning feel blocked while a history page is appended.
@@ -634,13 +759,77 @@ export function SetupChart({
     ) {
       lastScrollRevisionRef.current = scrollToLatestRevision;
       requestAnimationFrame(() => {
-        scrollChartToLatest(chart, series, range);
+        focusCoveredRef.current = scrollChartToFocus(
+          chart,
+          series,
+          range,
+          focusRange,
+        );
       });
     }
 
     prevFirstCandleTimeRef.current = nextFirstTime;
     latestChartTimeRef.current = nextLatestTime;
-  }, [range, scrollToLatestRevision, series, variant]);
+  }, [focusRange, range, scrollToLatestRevision, series, variant]);
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !series.candles.length) return;
+
+    if (!focusRange) {
+      // Clearing the focused trade hands the chart back to the live view.
+      if (hadFocusRef.current) {
+        hadFocusRef.current = false;
+        scrollChartToLatest(chart, series, range);
+      }
+      return;
+    }
+
+    hadFocusRef.current = true;
+    focusPagesRef.current = 0;
+    focusCoveredRef.current = scrollChartToFocus(chart, series, range, focusRange);
+  // Candles are deliberately excluded: re-running this on every new bar would
+  // drag the viewport back while the user is panning.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chartEpoch, focusRange]);
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    const mainSeries = mainSeriesRef.current;
+    if (!chart || !mainSeries) return;
+
+    const candleTimes = chartTimesOf(toChartCandles(series.candles));
+    const palette: TradeMarkerPalette = {
+      long: upColor,
+      short: downColor,
+      win: upColor,
+      loss: downColor,
+      muted: isDark ? "rgba(161,161,170,0.5)" : "rgba(113,113,122,0.4)",
+    };
+    const markers = buildTradeMarkers(
+      candleTimes,
+      trades ?? [],
+      focusTradeId,
+      palette,
+    );
+
+    if (markersRef.current) {
+      markersRef.current.setMarkers(markers);
+    } else {
+      markersRef.current = createSeriesMarkers(mainSeries, markers);
+    }
+
+    const tradePath = tradePathRef.current;
+    if (!tradePath) return;
+
+    const focusTrade =
+      trades?.find((trade) => trade.id === focusTradeId) ?? null;
+
+    tradePath.applyOptions({
+      color: (focusTrade?.resultR ?? 0) >= 0 ? upColor : downColor,
+    });
+    tradePath.setData(buildTradePath(candleTimes, focusTrade));
+  }, [chartEpoch, downColor, focusTradeId, isDark, series.candles, trades, upColor]);
 
   useEffect(() => {
     const mainSeries = mainSeriesRef.current;

@@ -1054,7 +1054,7 @@ export async function decideResearchExperiment(userId: string, input: { experime
 type ExperimentDiagnosticRow = {
   candidate_id: string; decision_time: string | Date; direction: "long" | "short"; entry: string; stop: string; target: string; risk_reward: string; spread_pips: string;
   conditions: Array<{ name?: string; currentValue?: string }>; execution_status: "accepted" | "overlapping"; blocked_by_candidate_id: string | null;
-  simulated_entry_at: string | Date | null; simulated_exit_at: string | Date | null; outcome: "target_first" | "stop_first" | "unresolved" | "ambiguous";
+  simulated_entry_at: string | Date | null; simulated_exit_at: string | Date | null; outcome: "target_first" | "stop_first" | "forced_close" | "unresolved" | "ambiguous";
   result_r: string | null; max_favorable_r: string | null; max_adverse_r: string | null; resolved_at: string | Date | null;
 };
 
@@ -1137,7 +1137,7 @@ type DiagnosticCandidateRow = {
   risk_reward: string;
   spread_pips: string;
   conditions: DiagnosticCondition[];
-  outcome: "target_first" | "stop_first" | "unresolved" | "ambiguous" | null;
+  outcome: "target_first" | "stop_first" | "forced_close" | "unresolved" | "ambiguous" | null;
   result_r: string | null;
   max_favorable_r: string | null;
   max_adverse_r: string | null;

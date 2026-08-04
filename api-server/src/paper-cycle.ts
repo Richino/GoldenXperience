@@ -490,6 +490,17 @@ export async function paperCycleOverview() {
   return { strategyVersion: ACTIVE_STRATEGY_VERSION, batchSize: BATCH_SIZE, lifetimeSummary: paperBatchMetrics(lifetimeRows.rows), current: current ? { ...current, liveSummary, remaining: BATCH_SIZE - Number((current as any).assignedCount) } : null, batches: batches.rows, trades: currentTrades.rows };
 }
 
+/** Entry and exit points for one pair, used to draw trade markers on the chart. */
+export async function paperTradesForInstrument(userId: string, instrument: string, limit = 40) {
+  const rows = await query(
+    `SELECT trade.id,trade.trade_sequence::text AS "tradeSequence",trade.instrument,trade.direction,trade.status,trade.outcome,trade.entry::float,trade.stop::float,trade.target::float,trade.exit::float,trade.result_r::float AS "resultR",trade.opened_at AS "openedAt",trade.closed_at AS "closedAt",trade.exit_reason AS "exitReason",batch.batch_number AS "batchNumber"
+     FROM paper_strategy_trades trade JOIN paper_strategy_batches batch ON batch.id=trade.batch_id
+     WHERE trade.user_id=$1 AND trade.instrument=$2 ORDER BY trade.opened_at DESC LIMIT $3`,
+    [userId, instrument, limit],
+  );
+  return rows.rows;
+}
+
 export async function paperRiskExposure(userId: string) {
   const rows = await query<{ instrument: string; direction: "long" | "short"; nominal_risk_percent: string; nominal_risk_amount: string; calculated_standard_lots: string }>("SELECT instrument,direction,nominal_risk_percent,nominal_risk_amount,calculated_standard_lots FROM paper_strategy_trades WHERE user_id=$1 AND status='open'", [userId]);
   const currency = new Map<string, number>();

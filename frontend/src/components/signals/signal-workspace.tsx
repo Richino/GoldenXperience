@@ -28,6 +28,7 @@ import {
   TIMEFRAME_TO_GRANULARITY,
   candleCountForRange,
   formatChartPrice,
+  formatResultR,
   mapSignalTimeframe,
   spreadInPips,
   type ChartIndicator,
@@ -50,6 +51,7 @@ import type {
   CandleSeries,
   ConnectionStatus,
   MajorInstrument,
+  PaperChartTrade,
   PriceQuote,
   TradeSignal,
 } from "@/types/forex";
@@ -63,6 +65,9 @@ const ENTRY_CHECKLIST = [
   "Position size follows the active paper risk policy",
   "No high-impact news inside 30 minutes",
 ] as const;
+
+/** Bars of breathing room kept on each side of a focused trade. */
+const FOCUS_PADDING_BARS = 30;
 
 const GRANULARITY_MS: Record<string, number> = {
   M1: 60 * 1000,
@@ -674,6 +679,80 @@ function StrategyStatus({ setup, availability }: { setup: StrategySetup; availab
   );
 }
 
+function tradeMoment(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function TradeFocusBar({
+  trade,
+  onClear,
+}: {
+  trade: PaperChartTrade;
+  onClear: () => void;
+}) {
+  const long = trade.direction === "long";
+  const closed = trade.closedAt !== null && trade.exit !== null;
+  const won = (trade.resultR ?? 0) >= 0;
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-[color:var(--border)] px-4 py-2.5 lg:px-5">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
+        <span
+          className={`permission-pill ${
+            long
+              ? "bg-[color:var(--success-soft)] text-[color:var(--success)]"
+              : "bg-[color:var(--danger-soft)] text-[color:var(--danger)]"
+          }`}
+        >
+          {long ? "Buy" : "Sell"} #{trade.tradeSequence}
+        </span>
+        <span className="metric-number text-[color:var(--muted-strong)]">
+          Entry {formatChartPrice(trade.entry, trade.instrument)}
+          <span className="text-[color:var(--muted)]">
+            {" "}
+            · {tradeMoment(trade.openedAt)}
+          </span>
+        </span>
+        {closed ? (
+          <span className="metric-number text-[color:var(--muted-strong)]">
+            Exit {formatChartPrice(trade.exit!, trade.instrument)}
+            <span className="text-[color:var(--muted)]">
+              {" "}
+              · {tradeMoment(trade.closedAt!)}
+            </span>
+          </span>
+        ) : (
+          <span className="text-[color:var(--accent)]">Still open</span>
+        )}
+        {trade.resultR !== null ? (
+          <span
+            className={`metric-number font-semibold ${
+              won
+                ? "text-[color:var(--success)]"
+                : "text-[color:var(--danger)]"
+            }`}
+          >
+            {formatResultR(trade.resultR)}
+          </span>
+        ) : null}
+      </div>
+      <button
+        type="button"
+        onClick={onClear}
+        className="link-quiet pressable inline-flex items-center gap-1 text-xs"
+      >
+        <X className="size-3.5" strokeWidth={2} />
+        Clear trade
+      </button>
+    </div>
+  );
+}
+
 function SignalSidebar({
   active,
   setup,
@@ -753,12 +832,16 @@ export function SignalWorkspace({
   primarySeries,
   initialStatus,
   paperPlans,
+  initialPaperTrades = [],
+  initialFocusTradeId = null,
 }: {
   strategySetups: StrategySetup[];
   initialInstrument: MajorInstrument;
   primarySeries: CandleSeries;
   initialStatus: ConnectionStatus;
   paperPlans: Array<{ instrument: string; openTradeId: string | null; direction: "long" | "short" | null; entry: number | null; stop: number | null; target: number | null; tradeSequence: string | null; batchNumber: number | null }>;
+  initialPaperTrades?: PaperChartTrade[];
+  initialFocusTradeId?: string | null;
 }) {
   const router = useRouter();
   const signals = useMemo(
@@ -771,8 +854,10 @@ export function SignalWorkspace({
   const instrument = selectedInstrument;
   const initialSignal = signals.find((signal) => signal.instrument === instrument);
 
+  // Paper decisions are taken on completed M15 candles, so a trade opened from
+  // the dashboard always lands on the timeframe it was actually decided on.
   const [timeframe, setTimeframe] = useState(
-    mapSignalTimeframe(initialSignal?.timeframe ?? "15m"),
+    initialFocusTradeId ? "15m" as const : mapSignalTimeframe(initialSignal?.timeframe ?? "15m"),
   );
   const [range, setRange] = useState<ChartRange>("6M");
   const [chartVariant, setChartVariant] = useState<ChartVariant>("candle");
@@ -792,6 +877,10 @@ export function SignalWorkspace({
   const [historyExhausted, setHistoryExhausted] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [scrollToLatestRevision, setScrollToLatestRevision] = useState(0);
+  const [paperTrades, setPaperTrades] = useState<PaperChartTrade[]>(initialPaperTrades);
+  const [focusTradeId, setFocusTradeId] = useState<string | null>(initialFocusTradeId);
+  // The first pair is already rendered with server-fetched trades.
+  const skipInitialTradeFetchRef = useRef(true);
   const olderRequestInFlightRef = useRef(false);
   const pendingTickRef = useRef<MarketPriceTick | null>(null);
   const marketFrameRef = useRef<number | null>(null);
@@ -867,14 +956,47 @@ export function SignalWorkspace({
   const tradingAvailability = getPaperTradingAvailability();
   const inactiveLabel = tradingAvailability.state === "entry_window_open" ? "No valid setup" : tradingAvailability.label;
   const riskDistance = active ? Math.abs(active.entry - active.stop) : null;
+  const focusTrade = useMemo(
+    () =>
+      paperTrades.find(
+        (trade) => trade.id === focusTradeId && trade.instrument === instrument,
+      ) ?? null,
+    [focusTradeId, instrument, paperTrades],
+  );
+  const activeFocusId = focusTrade?.id ?? null;
+  // A focused trade replaces the live plan on the chart: its own entry, stop,
+  // target and exit are what the markers have to line up with.
   const setupLevels = useMemo(
-    () => active ? ({
+    () => focusTrade ? ({
+      entry: focusTrade.entry,
+      stop: focusTrade.stop,
+      target: focusTrade.target,
+      exit: focusTrade.exit,
+    }) : active ? ({
       entry: active.entry,
       stop: active.stop,
       target: active.target,
     }) : null,
-    [active],
+    [active, focusTrade],
   );
+  const focusRange = useMemo(() => {
+    if (!focusTrade) return null;
+
+    const interval =
+      GRANULARITY_MS[TIMEFRAME_TO_GRANULARITY[timeframe]] ?? GRANULARITY_MS.M15;
+    const padding = (FOCUS_PADDING_BARS * interval) / 1_000;
+    const opened = Date.parse(focusTrade.openedAt) / 1_000;
+    const closed = focusTrade.closedAt
+      ? Date.parse(focusTrade.closedAt) / 1_000
+      : opened;
+
+    if (!Number.isFinite(opened) || !Number.isFinite(closed)) return null;
+
+    return {
+      from: Math.floor(opened - padding),
+      to: Math.ceil(Math.max(opened, closed) + padding),
+    };
+  }, [focusTrade, timeframe]);
 
   useEffect(() => {
     return () => {
@@ -1020,6 +1142,41 @@ export function SignalWorkspace({
     timeframe,
   ]);
 
+  useEffect(() => {
+    if (skipInitialTradeFetchRef.current) {
+      skipInitialTradeFetchRef.current = false;
+      return;
+    }
+
+    const controller = new AbortController();
+
+    async function loadPaperTrades() {
+      try {
+        const response = await fetch(
+          apiUrl(`/api/paper-cycle/trades?instrument=${instrument}`),
+          { credentials: "include", cache: "no-store", signal: controller.signal },
+        );
+        if (!response.ok) return;
+
+        const payload = (await response.json()) as { trades: PaperChartTrade[] };
+        setPaperTrades(payload.trades);
+      } catch {
+        // Markers are supplementary — the chart stays usable without them.
+      }
+    }
+
+    loadPaperTrades();
+
+    return () => controller.abort();
+  }, [instrument]);
+
+  const clearFocusTrade = useCallback(() => {
+    setFocusTradeId(null);
+    router.replace(`/signals?instrument=${encodeURIComponent(instrument)}`, {
+      scroll: false,
+    });
+  }, [instrument, router]);
+
   const priceStats = useMemo(() => {
     const lastClose = series.candles.at(-1)?.close ?? active?.entry ?? 0;
     const prevClose = series.candles.at(-2)?.close ?? lastClose;
@@ -1042,6 +1199,7 @@ export function SignalWorkspace({
 
   function selectSearchResult(result: SearchResult) {
     setLiveCandle(null);
+    setFocusTradeId(null);
     setSelectedInstrument(result.instrument);
     router.replace(`/signals?instrument=${encodeURIComponent(result.instrument)}`, { scroll: false });
     // Pairs without a setup keep the timeframe the user is already on.
@@ -1116,6 +1274,10 @@ export function SignalWorkspace({
             ) : null}
           </div>
 
+          {focusTrade ? (
+            <TradeFocusBar trade={focusTrade} onClear={clearFocusTrade} />
+          ) : null}
+
           <div
             className={`relative overflow-hidden chart-data-shell${loading ? " chart-data-shell-loading" : ""}`}
           >
@@ -1131,6 +1293,9 @@ export function SignalWorkspace({
               scrollToLatestRevision={scrollToLatestRevision}
               loadingOlder={loadingOlder}
               onLoadOlder={loadOlderCandles}
+              trades={paperTrades}
+              focusTradeId={activeFocusId}
+              focusRange={focusRange}
             />
             <ChartLoadingOverlay visible={loading} />
           </div>
@@ -1266,6 +1431,10 @@ export function SignalWorkspace({
             </p>
           ) : null}
 
+          {focusTrade ? (
+            <TradeFocusBar trade={focusTrade} onClear={clearFocusTrade} />
+          ) : null}
+
           <div
             className={`signals-chart-canvas chart-data-shell${loading ? " chart-data-shell-loading" : ""}`}
           >
@@ -1281,6 +1450,9 @@ export function SignalWorkspace({
               scrollToLatestRevision={scrollToLatestRevision}
               loadingOlder={loadingOlder}
               onLoadOlder={loadOlderCandles}
+              trades={paperTrades}
+              focusTradeId={activeFocusId}
+              focusRange={focusRange}
             />
             <ChartLoadingOverlay visible={loading} />
           </div>

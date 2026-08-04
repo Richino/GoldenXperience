@@ -3,10 +3,14 @@ import {
   HISTORY_MAX_PREFETCH_BARS,
   HISTORY_LOAD_THRESHOLD,
   anchorRangeAfterPrepend,
+  buildTradeMarkers,
+  buildTradePath,
   countPrependedCandles,
   historyPrefetchThreshold,
   shouldLoadOlderHistory,
+  snapToCandleTime,
 } from "../src/lib/chart-utils";
+import type { PaperChartTrade } from "../src/types/forex";
 
 function bars(...isoTimes: string[]) {
   return isoTimes.map((time) => ({ time }));
@@ -126,5 +130,112 @@ assert.equal(
   ),
   2,
 );
+
+// --- paper trade markers ---------------------------------------------------
+
+const seconds = (index: number) => Math.floor(Date.parse(M15(index)) / 1_000);
+const candleTimes = [0, 1, 2, 3, 4, 5, 6].map(seconds);
+
+// A decision or exit lands mid-candle, so it snaps back to the bar holding it.
+assert.equal(snapToCandleTime(candleTimes, seconds(2) + 400), seconds(2));
+assert.equal(snapToCandleTime(candleTimes, seconds(2)), seconds(2));
+assert.equal(snapToCandleTime(candleTimes, seconds(6) + 900), seconds(6));
+// Before the loaded history there is no bar to mark.
+assert.equal(snapToCandleTime(candleTimes, seconds(0) - 1), null);
+assert.equal(snapToCandleTime([], seconds(2)), null);
+
+const palette = {
+  long: "long",
+  short: "short",
+  win: "win",
+  loss: "loss",
+  muted: "muted",
+};
+
+function trade(overrides: Partial<PaperChartTrade> = {}): PaperChartTrade {
+  return {
+    id: "trade-1",
+    tradeSequence: "12",
+    instrument: "EUR_USD",
+    direction: "long",
+    status: "closed",
+    outcome: "target_first",
+    entry: 1.085,
+    stop: 1.083,
+    target: 1.088,
+    exit: 1.088,
+    resultR: 1.5,
+    openedAt: M15(2),
+    closedAt: M15(5),
+    exitReason: "target_first",
+    batchNumber: 1,
+    ...overrides,
+  };
+}
+
+const focused = buildTradeMarkers(candleTimes, [trade()], "trade-1", palette);
+assert.equal(focused.length, 2);
+assert.equal(focused[0]!.time, seconds(2));
+assert.equal(focused[0]!.position, "belowBar");
+assert.equal(focused[0]!.shape, "arrowUp");
+assert.equal(focused[0]!.color, "long");
+assert.ok(focused[0]!.text?.includes("BUY"));
+assert.equal(focused[1]!.time, seconds(5));
+assert.equal(focused[1]!.position, "aboveBar");
+assert.equal(focused[1]!.color, "win");
+assert.ok(focused[1]!.text?.includes("+1.50R"));
+
+// A short is mirrored, and a losing exit is coloured by its result, not its side.
+const shortLoss = buildTradeMarkers(
+  candleTimes,
+  [trade({ direction: "short", outcome: "stop_first", exit: 1.087, resultR: -1 })],
+  "trade-1",
+  palette,
+);
+assert.equal(shortLoss[0]!.position, "aboveBar");
+assert.equal(shortLoss[0]!.shape, "arrowDown");
+assert.equal(shortLoss[0]!.color, "short");
+assert.equal(shortLoss[1]!.position, "belowBar");
+assert.equal(shortLoss[1]!.color, "loss");
+
+// Other trades on the pair stay unlabelled background context.
+const background = buildTradeMarkers(candleTimes, [trade()], "other-trade", palette);
+assert.equal(background.every((marker) => marker.color === "muted"), true);
+assert.equal(background.every((marker) => marker.text === undefined), true);
+
+// An open trade has no exit to mark yet.
+assert.equal(
+  buildTradeMarkers(
+    candleTimes,
+    [trade({ status: "open", outcome: "open", exit: null, resultR: null, closedAt: null })],
+    "trade-1",
+    palette,
+  ).length,
+  1,
+);
+
+// Markers must reach the chart in ascending time order.
+const ordered = buildTradeMarkers(
+  candleTimes,
+  [
+    trade({ id: "late", openedAt: M15(4), closedAt: M15(6) }),
+    trade({ id: "early", openedAt: M15(0), closedAt: M15(1) }),
+  ],
+  "early",
+  palette,
+);
+assert.deepEqual(
+  ordered.map((marker) => Number(marker.time)),
+  [...ordered.map((marker) => Number(marker.time))].sort((left, right) => left - right),
+);
+
+// The entry-to-exit segment needs both ends on loaded bars, in that order.
+assert.deepEqual(buildTradePath(candleTimes, trade()), [
+  { time: seconds(2), value: 1.085 },
+  { time: seconds(5), value: 1.088 },
+]);
+assert.deepEqual(buildTradePath(candleTimes, trade({ exit: null })), []);
+assert.deepEqual(buildTradePath(candleTimes, trade({ closedAt: M15(2) })), []);
+assert.deepEqual(buildTradePath(candleTimes, null), []);
 
 console.log("chart history checks passed");

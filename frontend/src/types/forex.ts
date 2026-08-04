@@ -88,6 +88,25 @@ export interface TradeSignal {
   freshness: string;
 }
 
+/** An automatic paper trade, reduced to what the chart needs to mark it up. */
+export interface PaperChartTrade {
+  id: string;
+  tradeSequence: string;
+  instrument: MajorInstrument;
+  direction: "long" | "short";
+  status: string;
+  outcome: string;
+  entry: number;
+  stop: number;
+  target: number;
+  exit: number | null;
+  resultR: number | null;
+  openedAt: string;
+  closedAt: string | null;
+  exitReason: string | null;
+  batchNumber: number | null;
+}
+
 export interface OpenPosition {
   id: string;
   instrument: MajorInstrument;

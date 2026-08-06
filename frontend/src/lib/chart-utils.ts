@@ -404,7 +404,6 @@ export interface TradeMarkerPalette {
   short: string;
   win: string;
   loss: string;
-  muted: string;
 }
 
 export function chartTimesOf(candles: CandlestickData<UTCTimestamp>[]) {
@@ -463,9 +462,10 @@ export function formatResultR(resultR: number | null) {
 }
 
 /**
- * Entry and exit arrows for every paper trade on the pair. The focused trade —
- * the one the user opened from the dashboard — is drawn full size and labelled;
- * the rest stay small and grey so they read as history.
+ * Entry and exit arrows for every paper trade on the pair. Every marker keeps
+ * its direction colour so buy and sell stay legible against the candles; the
+ * focused trade — the one the user opened from the dashboard — is drawn larger
+ * and labelled, which is what separates it from the surrounding history.
  */
 export function buildTradeMarkers(
   candleTimes: number[],
@@ -486,11 +486,13 @@ export function buildTradeMarkers(
         time: entryTime as UTCTimestamp,
         position: long ? "belowBar" : "aboveBar",
         shape: long ? "arrowUp" : "arrowDown",
-        color: focused ? (long ? palette.long : palette.short) : palette.muted,
-        size: focused ? 2 : 1,
+        color: long ? palette.long : palette.short,
+        size: focused ? 3 : 2,
         text: focused
           ? `#${trade.tradeSequence} ${long ? "BUY" : "SELL"} ${formatChartPrice(trade.entry, trade.instrument)}`
-          : undefined,
+          : long
+            ? "BUY"
+            : "SELL",
       });
     }
 
@@ -501,11 +503,11 @@ export function buildTradeMarkers(
         time: exitTime as UTCTimestamp,
         position: long ? "aboveBar" : "belowBar",
         shape: long ? "arrowDown" : "arrowUp",
-        color: focused ? (won ? palette.win : palette.loss) : palette.muted,
-        size: focused ? 2 : 1,
+        color: won ? palette.win : palette.loss,
+        size: focused ? 3 : 2,
         text: focused
           ? `EXIT ${formatChartPrice(trade.exit, trade.instrument)} · ${formatResultR(trade.resultR)}`
-          : undefined,
+          : formatResultR(trade.resultR),
       });
     }
 

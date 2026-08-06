@@ -1845,6 +1845,21 @@ input[type="number"] {
   filter: saturate(0.82);
 }
 
+/* Entry / SL / TP / Exit names, pinned beside the price scale. */
+.setup-chart-level-tag {
+  position: absolute;
+  z-index: 3;
+  transform: translateY(-50%);
+  border-radius: 0.25rem;
+  padding: 0.0625rem 0.3125rem;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 .chart-history-loader {
   position: absolute;
   inset: 0;
@@ -3798,6 +3813,52 @@ input[type="number"] {
   }
 }
 
+/*
+ * Fullscreen is done in CSS rather than through the Fullscreen API: iOS Safari
+ * still refuses requestFullscreen on anything that is not a <video>.
+ */
+.signals-view-fullscreen .signals-chart-card {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: var(--surface);
+}
+
+.dark .signals-view-fullscreen .signals-chart-card {
+  background: #09090b;
+}
+
+.signals-view-fullscreen .signals-chart-desktop,
+.signals-view-fullscreen .signals-chart-mobile {
+  height: 100%;
+}
+
+.signals-view-fullscreen .signals-chart-canvas {
+  border-radius: 0;
+}
+
+@media (max-width: 1023px) {
+  .signals-view-fullscreen .signals-chart-mobile {
+    height: 100dvh;
+  }
+
+  /* Only the row holding the exit control survives; the chart takes the rest. */
+  .signals-view-fullscreen .signals-mobile-content > :not(.signals-mobile-actions) {
+    display: none;
+  }
+
+  .signals-view-fullscreen .signals-mobile-content {
+    padding-bottom: 0;
+  }
+
+  .signals-view-fullscreen .signals-mobile-chart-footer {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
 .dark .signals-view section.app-card:has(.signals-chart-desktop) {
   background: var(--surface);
   border-color: var(--border-strong);
@@ -3844,13 +3905,28 @@ input[type="number"] {
     box-shadow: none;
   }
 
+  /*
+   * The mobile workspace is one non-scrolling screen: a fixed header, a footer
+   * that clears the nav dock, and the chart taking whatever is left. The chart
+   * measures that remaining box itself rather than guessing from the viewport.
+   */
+  .signals-view .signals-chart-mobile {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+  }
+
+  .signals-view .signals-chart-mobile > .chart-data-shell {
+    flex: 1;
+    min-height: 0;
+  }
+
   .signals-view .signals-mobile-content {
     padding-top: 0;
   }
 
   .signals-view .signals-mobile-chart-footer {
-    position: sticky;
-    bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(4.25rem + env(safe-area-inset-bottom, 0px));
     z-index: 30;
     border-top: 1px solid var(--border);
     background: color-mix(in srgb, var(--signals-mobile-page-bg) 94%, transparent);

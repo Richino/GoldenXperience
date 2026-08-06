@@ -6,6 +6,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronLeft,
   Clock3,
+  Maximize2,
+  Minimize2,
   Search,
   X,
 } from "lucide-react";
@@ -66,6 +68,9 @@ type MobileTab = "Overview" | "Setup";
 
 /** Bars of breathing room kept on each side of a focused trade. */
 const FOCUS_PADDING_BARS = 30;
+
+/** Height of the desktop chart canvas before it is measured. */
+const DESKTOP_CHART_HEIGHT = 568;
 
 const GRANULARITY_MS: Record<string, number> = {
   M1: 60 * 1000,
@@ -529,6 +534,30 @@ function SignalSearch({
   );
 }
 
+function FullscreenToggle({
+  fullscreen,
+  onToggle,
+  className = "signals-tool-btn",
+}: {
+  fullscreen: boolean;
+  onToggle: () => void;
+  className?: string;
+}) {
+  const Icon = fullscreen ? Minimize2 : Maximize2;
+
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={fullscreen}
+      aria-label={fullscreen ? "Exit fullscreen chart" : "Fullscreen chart"}
+      className={`${className} pressable ${fullscreen ? "is-active" : ""}`}
+    >
+      <Icon className="size-4" strokeWidth={2} />
+    </button>
+  );
+}
+
 function SetupStats({ active }: { active: TradeSignal }) {
   return (
     <p className="signals-setup-prices metric-number">
@@ -931,7 +960,15 @@ export function SignalWorkspace({
   const [historyExhausted, setHistoryExhausted] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [scrollToLatestRevision, setScrollToLatestRevision] = useState(0);
+  // Both charts are sized from the box they are given rather than from the
+  // viewport: the mobile layout is a single non-scrolling column and the
+  // desktop card grows to the screen in fullscreen, so only a measurement
+  // knows how tall the canvas actually is.
   const [mobileChartHeight, setMobileChartHeight] = useState(320);
+  const [desktopChartHeight, setDesktopChartHeight] = useState(DESKTOP_CHART_HEIGHT);
+  const [fullscreen, setFullscreen] = useState(false);
+  const mobileChartShellRef = useRef<HTMLDivElement>(null);
+  const desktopChartShellRef = useRef<HTMLDivElement>(null);
   const [paperTrades, setPaperTrades] = useState<PaperChartTrade[]>(initialPaperTrades);
   const [focusTradeId, setFocusTradeId] = useState<string | null>(initialFocusTradeId);
   // The first pair is already rendered with server-fetched trades.
@@ -941,19 +978,45 @@ export function SignalWorkspace({
   const marketFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
-    function updateMobileChartHeight() {
-      const viewport = window.visualViewport?.height ?? window.innerHeight;
-      setMobileChartHeight(Math.max(240, Math.round(viewport * 0.6)));
+    const mobileShell = mobileChartShellRef.current;
+    const desktopShell = desktopChartShellRef.current;
+
+    // The hidden breakpoint's shell reports a zero box, which is why an empty
+    // measurement is dropped rather than pushed into the chart.
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const measured = Math.round(entry.contentRect.height);
+        if (measured <= 0) continue;
+
+        if (entry.target === mobileShell) {
+          setMobileChartHeight(measured);
+        } else {
+          setDesktopChartHeight(measured);
+        }
+      }
+    });
+
+    if (mobileShell) observer.observe(mobileShell);
+    if (desktopShell) observer.observe(desktopShell);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!fullscreen) return;
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setFullscreen(false);
     }
 
-    updateMobileChartHeight();
-    window.addEventListener("resize", updateMobileChartHeight);
-    window.visualViewport?.addEventListener("resize", updateMobileChartHeight);
+    const { overflow } = document.body.style;
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", handleEscape);
+
     return () => {
-      window.removeEventListener("resize", updateMobileChartHeight);
-      window.visualViewport?.removeEventListener("resize", updateMobileChartHeight);
+      document.body.style.overflow = overflow;
+      document.removeEventListener("keydown", handleEscape);
     };
-  }, []);
+  }, [fullscreen]);
 
   const replaceSeries = useCallback((nextSeries: CandleSeries) => {
     seriesRef.current = nextSeries;
@@ -1281,7 +1344,11 @@ export function SignalWorkspace({
   }
 
   return (
-    <div className="signals-view signals-minimal grid w-full gap-5 xl:grid-cols-[minmax(0,1fr)_272px]">
+    <div
+      className={`signals-view signals-minimal grid w-full gap-5 xl:grid-cols-[minmax(0,1fr)_272px]${
+        fullscreen ? " signals-view-fullscreen" : ""
+      }`}
+    >
       <div className="signals-chart-slot min-w-0">
         <section className="app-card signals-chart-card min-w-0 w-full">
         <div className="signals-chart-mobile lg:hidden">
@@ -1294,7 +1361,14 @@ export function SignalWorkspace({
               >
                 <ChevronLeft className="size-5" strokeWidth={2} />
               </Link>
-              <NotificationBell compact className="signals-icon-btn" />
+              <div className="flex items-center gap-2">
+                <FullscreenToggle
+                  className="signals-icon-btn"
+                  fullscreen={fullscreen}
+                  onToggle={() => setFullscreen((open) => !open)}
+                />
+                <NotificationBell compact className="signals-icon-btn" />
+              </div>
             </div>
 
             <div className="mt-3 flex items-end justify-between gap-3">
@@ -1350,6 +1424,7 @@ export function SignalWorkspace({
           ) : null}
 
           <div
+            ref={mobileChartShellRef}
             className={`relative overflow-hidden chart-data-shell${loading ? " chart-data-shell-loading" : ""}`}
           >
             <SetupChart
@@ -1431,6 +1506,10 @@ export function SignalWorkspace({
                 enabled={enabledIndicators}
                 onChange={setEnabledIndicators}
               />
+              <FullscreenToggle
+                fullscreen={fullscreen}
+                onToggle={() => setFullscreen((open) => !open)}
+              />
             </div>
           </div>
 
@@ -1470,6 +1549,7 @@ export function SignalWorkspace({
           ) : null}
 
           <div
+            ref={desktopChartShellRef}
             className={`signals-chart-canvas chart-data-shell${loading ? " chart-data-shell-loading" : ""}`}
           >
             <SetupChart
@@ -1479,7 +1559,7 @@ export function SignalWorkspace({
               liveCandle={liveCandle}
               variant={chartVariant}
               range={range}
-              height={568}
+              height={fullscreen ? desktopChartHeight : DESKTOP_CHART_HEIGHT}
               spreadPips={spreadPips}
               scrollToLatestRevision={scrollToLatestRevision}
               loadingOlder={loadingOlder}

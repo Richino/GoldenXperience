@@ -125,7 +125,8 @@ function chartTheme(
         top: embedded ? 0.14 : 0.1,
         bottom: embedded ? 0.1 : 0.06,
       },
-      minimumWidth: embedded ? 40 : 68,
+      // Wide enough on mobile to be a comfortable drag target for scaling.
+      minimumWidth: embedded ? 56 : 68,
       alignLabels: true,
       tickMarkDensity: embedded ? 5.5 : 3.5,
       entireTextOnly: embedded,
@@ -200,45 +201,84 @@ function scrollChartToFocus(
   return first <= focusRange.from;
 }
 
-function addSetupLevels(
-  mainSeries: ISeriesApi<SeriesType>,
-  levels: SetupLevels,
-  isDark: boolean,
-  showAxisLabels: boolean,
-) {
-  mainSeries.createPriceLine({
-    price: levels.entry,
-    color: isDark ? "rgba(255,255,255,0.42)" : "rgba(28,28,30,0.5)",
-    lineWidth: 1,
-    lineStyle: LineStyle.Dotted,
-    axisLabelVisible: showAxisLabels,
-    title: "Entry",
-  });
-  mainSeries.createPriceLine({
-    price: levels.stop,
-    color: isDark ? "rgba(248,113,113,0.72)" : "rgba(231,76,60,0.72)",
-    lineWidth: 1,
-    lineStyle: LineStyle.Dotted,
-    axisLabelVisible: showAxisLabels,
-    title: "Stop",
-  });
-  mainSeries.createPriceLine({
-    price: levels.target,
-    color: isDark ? "rgba(0,229,155,0.72)" : "rgba(0,179,119,0.72)",
-    lineWidth: 1,
-    lineStyle: LineStyle.Dotted,
-    axisLabelVisible: showAxisLabels,
-    title: "Target",
-  });
+interface LevelTag {
+  key: string;
+  /** Short name shown in the tag next to the price scale. */
+  label: string;
+  price: number;
+  color: string;
+  /** Text drawn on the coloured pill, picked for contrast against `color`. */
+  textColor: string;
+  dashed: boolean;
+}
+
+/**
+ * Entry, stop, target and exit, in the order they are drawn and tagged. Every
+ * level keeps one colour across the price line, its axis label and its tag so
+ * the three always read as the same thing.
+ */
+function setupLevelTags(levels: SetupLevels, isDark: boolean): LevelTag[] {
+  const tags: LevelTag[] = [
+    {
+      key: "entry",
+      label: "Entry",
+      price: levels.entry,
+      color: isDark ? "#e4e4e7" : "#1c1c1e",
+      textColor: isDark ? "#09090b" : "#ffffff",
+      dashed: false,
+    },
+    {
+      key: "stop",
+      label: "SL",
+      price: levels.stop,
+      color: isDark ? "#f87171" : "#e74c3c",
+      textColor: "#ffffff",
+      dashed: false,
+    },
+    {
+      key: "target",
+      label: "TP",
+      price: levels.target,
+      color: isDark ? "#00e59b" : "#00b377",
+      textColor: isDark ? "#09090b" : "#ffffff",
+      dashed: false,
+    },
+  ];
 
   if (levels.exit !== null && levels.exit !== undefined) {
-    mainSeries.createPriceLine({
+    tags.push({
+      key: "exit",
+      label: "Exit",
       price: levels.exit,
-      color: isDark ? "rgba(100,210,255,0.8)" : "rgba(0,122,255,0.8)",
+      color: isDark ? "#64d2ff" : "#007aff",
+      textColor: isDark ? "#09090b" : "#ffffff",
+      dashed: true,
+    });
+  }
+
+  return tags;
+}
+
+/** A level tag resolved to a pixel row, ready to be positioned. */
+interface PlacedLevelTag extends LevelTag {
+  y: number;
+  /** Width of the price scale the tag has to clear. */
+  axisWidth: number;
+}
+
+function addSetupLevels(mainSeries: ISeriesApi<SeriesType>, tags: LevelTag[]) {
+  for (const tag of tags) {
+    mainSeries.createPriceLine({
+      price: tag.price,
+      color: tag.color,
       lineWidth: 1,
-      lineStyle: LineStyle.Dashed,
-      axisLabelVisible: showAxisLabels,
-      title: "Exit",
+      lineStyle: tag.dashed ? LineStyle.Dashed : LineStyle.Dotted,
+      // The price always shows on the scale — mobile included. The named tag
+      // that sits beside it is drawn as an overlay, see `LevelTagOverlay`.
+      axisLabelVisible: true,
+      axisLabelColor: tag.color,
+      axisLabelTextColor: tag.textColor,
+      title: tag.label,
     });
   }
 }
@@ -398,6 +438,7 @@ export function SetupChart({
   const focusPagesRef = useRef(0);
   const hadFocusRef = useRef(false);
   const [chartEpoch, setChartEpoch] = useState(0);
+  const [placedTags, setPlacedTags] = useState<PlacedLevelTag[]>([]);
   const latestChartTimeRef = useRef<number | null>(
     latestCandleChartTime(series.candles),
   );
@@ -441,6 +482,14 @@ export function SetupChart({
 
   const chartHeight = height;
   const shellHeight = height;
+  // Height is applied to the live chart rather than being a creation dependency:
+  // rebuilding on a height change would reset the visible range.
+  const chartHeightRef = useRef(chartHeight);
+
+  useEffect(() => {
+    chartHeightRef.current = chartHeight;
+    chartRef.current?.applyOptions({ height: chartHeight });
+  }, [chartHeight]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -449,15 +498,18 @@ export function SetupChart({
     const chart = createChart(container, {
       ...chartTheme(isDark, embedded),
       width: container.clientWidth,
-      height: chartHeight,
+      height: chartHeightRef.current,
       handleScroll: {
         mouseWheel: true,
         pressedMouseMove: true,
         horzTouchDrag: true,
+        // Flipped on per gesture for drags that start on the price axis, so the
+        // page still scrolls when a finger drags across the candles themselves.
         vertTouchDrag: false,
       },
       handleScale: {
-        axisPressedMouseMove: true,
+        axisPressedMouseMove: { time: true, price: true },
+        axisDoubleClickReset: { time: true, price: true },
         mouseWheel: true,
         pinch: true,
       },
@@ -567,7 +619,7 @@ export function SetupChart({
       }
     }
 
-    if (levels) addSetupLevels(mainSeries, levels, isDark, !embedded);
+    if (levels) addSetupLevels(mainSeries, setupLevelTags(levels, isDark));
 
     // The entry-to-exit segment is created with the chart, even when there is no
     // focused trade to draw yet. Adding a series later — after the candles have
@@ -663,12 +715,41 @@ export function SetupChart({
     };
     chart.timeScale().subscribeVisibleLogicalRangeChange(handleVisibleRangeChange);
 
+    // Lightweight Charts gates price-axis touch scaling on the same
+    // `vertTouchDrag` flag that decides whether a vertical drag anywhere on the
+    // chart swallows the page scroll. The page has to keep scrolling, so the
+    // flag is turned on only while a gesture that began on the axis is running.
+    // The flag is read during touchmove, so setting it on touchstart is in time.
+    const enableAxisDragIfOnAxis = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      if (!touch) return;
+
+      const onAxis =
+        touch.clientX >=
+        container.getBoundingClientRect().right -
+          chart.priceScale("right").width();
+
+      chart.applyOptions({ handleScroll: { vertTouchDrag: onAxis } });
+    };
+    const disableAxisDrag = () => {
+      chart.applyOptions({ handleScroll: { vertTouchDrag: false } });
+    };
+
+    container.addEventListener("touchstart", enableAxisDragIfOnAxis, {
+      capture: true,
+      passive: true,
+    });
+    container.addEventListener("touchend", disableAxisDrag, { capture: true });
+    container.addEventListener("touchcancel", disableAxisDrag, {
+      capture: true,
+    });
+
     const resizeObserver = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (!entry) return;
       chart.applyOptions({
         width: entry.contentRect.width,
-        height: chartHeight,
+        height: chartHeightRef.current,
       });
     });
     resizeObserver.observe(container);
@@ -677,6 +758,15 @@ export function SetupChart({
       chart
         .timeScale()
         .unsubscribeVisibleLogicalRangeChange(handleVisibleRangeChange);
+      container.removeEventListener("touchstart", enableAxisDragIfOnAxis, {
+        capture: true,
+      });
+      container.removeEventListener("touchend", disableAxisDrag, {
+        capture: true,
+      });
+      container.removeEventListener("touchcancel", disableAxisDrag, {
+        capture: true,
+      });
       resizeObserver.disconnect();
       chart.remove();
       chartRef.current = null;
@@ -689,7 +779,7 @@ export function SetupChart({
   // The chart instance is intentionally not recreated for every candle update.
   // Candle data is pushed through the data effect below so live ticks stay cheap.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [series.instrument, levels, enabledIndicators, variant, isDark, chartHeight, priceFormat, upColor, downColor, wickUpColor, wickDownColor, surfaceColor, embedded]);
+  }, [series.instrument, levels, enabledIndicators, variant, isDark, priceFormat, upColor, downColor, wickUpColor, wickDownColor, surfaceColor, embedded]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -804,7 +894,6 @@ export function SetupChart({
       short: downColor,
       win: upColor,
       loss: downColor,
-      muted: isDark ? "rgba(161,161,170,0.5)" : "rgba(113,113,122,0.4)",
     };
     const markers = buildTradeMarkers(
       candleTimes,
@@ -914,6 +1003,40 @@ export function SetupChart({
     chartRef.current?.applyOptions(chartTheme(isDark, embedded));
   }, [embedded, isDark]);
 
+  // The named level tags ride along with the price scale, which the user can
+  // now drag and pinch. The library exposes no "price scale changed" event, so
+  // their positions are re-read each frame and only written back to React when
+  // something actually moved.
+  useEffect(() => {
+    const tags = levels ? setupLevelTags(levels, isDark) : [];
+    let frame = 0;
+    let previous = "";
+
+    const readPositions = () => {
+      frame = requestAnimationFrame(readPositions);
+
+      const chart = chartRef.current;
+      const mainSeries = mainSeriesRef.current;
+      if (!chart || !mainSeries) return;
+
+      const axisWidth = chart.priceScale("right").width();
+      const placed = tags.flatMap<PlacedLevelTag>((tag) => {
+        const y = mainSeries.priceToCoordinate(tag.price);
+        // A level scrolled out of the visible price range has no coordinate.
+        if (y === null || y < 0 || y > chartHeightRef.current) return [];
+        return [{ ...tag, y, axisWidth }];
+      });
+
+      const signature = JSON.stringify(placed);
+      if (signature === previous) return;
+      previous = signature;
+      setPlacedTags(placed);
+    };
+
+    frame = requestAnimationFrame(readPositions);
+    return () => cancelAnimationFrame(frame);
+  }, [chartEpoch, isDark, levels]);
+
   if (!series.candles.length) {
     return (
       <div
@@ -967,6 +1090,20 @@ export function SetupChart({
           liveCandle?.close ?? series.candles.at(-1)?.close
         }
       />
+      {placedTags.map((tag) => (
+        <span
+          key={tag.key}
+          className="setup-chart-level-tag"
+          style={{
+            top: tag.y,
+            right: tag.axisWidth + 4,
+            background: tag.color,
+            color: tag.textColor,
+          }}
+        >
+          {tag.label}
+        </span>
+      ))}
       {activeFilters.length > 0 ? (
         <div className="pointer-events-none absolute left-3 top-3 flex flex-wrap gap-1.5">
           {activeFilters.map((filter) => (

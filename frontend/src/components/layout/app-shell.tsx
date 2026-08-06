@@ -153,7 +153,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <main
           className={`mx-auto w-full min-w-0 max-w-[1320px] ${
             isSignals
-              ? "pb-32 pt-0 lg:flex lg:min-h-dvh lg:flex-col lg:justify-center lg:px-8 lg:py-6"
+              ? "pt-0 lg:flex lg:min-h-dvh lg:flex-col lg:justify-center lg:px-8 lg:py-6"
               : "px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-6 lg:px-8 lg:pb-10"
           }`}
         >

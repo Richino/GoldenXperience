@@ -18,6 +18,10 @@ function isStandalonePwa() {
   );
 }
 
+function isPullToRefreshIgnored(target: EventTarget | null) {
+  return target instanceof Element && Boolean(target.closest("[data-pull-to-refresh-ignore]"));
+}
+
 export function PwaPullToRefresh({ children }: { children: ReactNode }) {
   const startYRef = useRef<number | null>(null);
   const pullDistanceRef = useRef(0);
@@ -34,6 +38,7 @@ export function PwaPullToRefresh({ children }: { children: ReactNode }) {
     if (
       refreshing ||
       !isStandalonePwa() ||
+      isPullToRefreshIgnored(event.target) ||
       window.scrollY > 0 ||
       event.touches.length !== 1
     ) {
@@ -46,7 +51,12 @@ export function PwaPullToRefresh({ children }: { children: ReactNode }) {
   function handleTouchMove(event: TouchEvent<HTMLDivElement>) {
     const startY = startYRef.current;
     const touch = event.touches[0];
-    if (startY === null || !touch || window.scrollY > 0) return;
+    if (
+      startY === null ||
+      !touch ||
+      isPullToRefreshIgnored(event.target) ||
+      window.scrollY > 0
+    ) return;
 
     const downwardDistance = touch.clientY - startY;
     if (downwardDistance <= 0) {

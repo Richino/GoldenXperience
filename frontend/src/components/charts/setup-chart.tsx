@@ -94,8 +94,8 @@ function chartTheme(
       background: { type: ColorType.Solid, color: background },
       textColor: scaleText,
       fontFamily:
-        '"Geist Mono", "Geist Mono Fallback", ui-monospace, monospace',
-      fontSize: 9,
+        '"Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif',
+      fontSize: 10,
       attributionLogo: false,
     },
     grid: {

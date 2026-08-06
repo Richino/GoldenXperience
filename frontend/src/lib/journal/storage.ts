@@ -22,7 +22,9 @@ export function isJournalTrade(value: unknown): value is JournalTrade {
   const trade = value as Partial<JournalTrade>;
   return (
     typeof trade.id === "string" &&
-    (trade.origin === "demo" || trade.origin === "manual") &&
+    (trade.origin === "demo" ||
+      trade.origin === "manual" ||
+      trade.origin === "strategy") &&
     typeof trade.pair === "string" &&
     (trade.direction === "long" || trade.direction === "short") &&
     typeof trade.entry === "number" &&

@@ -122,7 +122,7 @@ export interface OpenPosition {
 
 export interface JournalTrade {
   id: string;
-  origin: "demo" | "manual";
+  origin: "demo" | "manual" | "strategy";
   pair: string;
   direction: "long" | "short";
   status: "open" | "closed";
@@ -134,6 +134,11 @@ export interface JournalTrade {
   target: number;
   exit: number | null;
   resultR: number | null;
+  paperPl?: number | null;
   reason: string;
   notes: string;
+  /** Set on strategy-executed trades: the research batch trade number. */
+  sequence?: string | null;
+  /** Set on strategy-executed trades: how the trade resolved at the broker. */
+  outcome?: string | null;
 }

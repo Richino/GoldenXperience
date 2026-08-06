@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
-import { SignOutButton } from "@/components/ui/sign-out-button";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 
 export function MobileTopBar({ showBack = true }: { showBack?: boolean }) {
@@ -10,7 +9,6 @@ export function MobileTopBar({ showBack = true }: { showBack?: boolean }) {
     return (
       <div className="mb-4 flex justify-end gap-1 lg:hidden">
         {notificationButton}
-        <SignOutButton compact />
       </div>
     );
   }
@@ -26,7 +24,6 @@ export function MobileTopBar({ showBack = true }: { showBack?: boolean }) {
       </Link>
       <div className="flex gap-1">
         {notificationButton}
-        <SignOutButton compact />
       </div>
     </div>
   );

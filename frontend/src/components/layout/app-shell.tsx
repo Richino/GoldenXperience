@@ -2,13 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   BarChart3,
   BookOpen,
   LayoutDashboard,
-  Settings, FlaskConical,
+  Settings,
+  FlaskConical,
   ShieldCheck,
   Radar,
+  MoreHorizontal,
   type LucideIcon,
 } from "lucide-react";
 import { BrandMark } from "@/components/ui/brand-mark";
@@ -35,12 +38,21 @@ const navItems: NavItem[] = [
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
+const mobilePrimaryHrefs = ["/", "/signals", "/watchlist", "/journal"] as const;
+const mobileMoreHrefs = ["/research", "/risk", "/settings"] as const;
+
 function isActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
 }
 
 const primaryNavItems = navItems.filter((item) => item.href !== "/settings");
 const settingsNavItem = navItems.find((item) => item.href === "/settings")!;
+const mobileNavItems = navItems.filter((item) =>
+  (mobilePrimaryHrefs as readonly string[]).includes(item.href),
+);
+const mobileMoreItems = navItems.filter((item) =>
+  (mobileMoreHrefs as readonly string[]).includes(item.href),
+);
 
 function SidebarNavLink({
   item,
@@ -69,8 +81,14 @@ function SidebarNavLink({
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const isSignals = pathname.startsWith("/signals");
   const isDashboard = pathname === "/";
+  const moreActive = mobileMoreHrefs.some((href) => isActive(pathname, href));
+
+  useEffect(() => {
+    setMobileMoreOpen(false);
+  }, [pathname]);
 
   return (
     <NotificationProvider>
@@ -139,17 +157,41 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               : "px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-6 lg:px-8 lg:pb-10"
           }`}
         >
-          {!isSignals ? <MobileTopBar showBack={!isDashboard} /> : null}
+          {!isSignals && !isDashboard ? <MobileTopBar showBack /> : null}
           {children}
         </main>
       </div>
 
       <nav
-        className="fixed inset-x-0 bottom-0 z-40 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:hidden"
+        className="mobile-dock fixed inset-x-0 bottom-0 z-40 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:hidden"
         aria-label="Mobile navigation"
       >
-        <div className="nav-pill mx-auto flex max-w-md items-center justify-around px-2 py-2">
-          {navItems.map((item) => {
+        {mobileMoreOpen ? (
+          <div className="nav-more-sheet mx-auto mb-2 w-full max-w-[22rem]">
+            {mobileMoreItems.map((item) => {
+              const active = isActive(pathname, item.href);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMobileMoreOpen(false)}
+                  className={`nav-more-link pressable ${active ? "is-active" : ""}`}
+                  aria-current={active ? "page" : undefined}
+                >
+                  <span className="nav-more-icon">
+                    <Icon className="size-4" strokeWidth={active ? 2.25 : 1.9} />
+                  </span>
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+            <SignOutButton menu />
+          </div>
+        ) : null}
+
+        <div className="nav-pill mx-auto flex w-full max-w-[22rem] items-center justify-between gap-1 px-2 py-1.5">
+          {mobileNavItems.map((item) => {
             const active = isActive(pathname, item.href);
             const Icon = item.icon;
 
@@ -163,10 +205,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 aria-current={active ? "page" : undefined}
                 aria-label={item.label}
               >
-                <Icon className="size-5" strokeWidth={active ? 2.25 : 1.8} />
+                <Icon className="size-[1.2rem]" strokeWidth={active ? 2.3 : 1.85} />
               </Link>
             );
           })}
+          <button
+            type="button"
+            className={`nav-mobile-link pressable ${
+              mobileMoreOpen || moreActive ? "nav-mobile-link-active" : ""
+            }`}
+            aria-label="More"
+            aria-expanded={mobileMoreOpen}
+            onClick={() => setMobileMoreOpen((open) => !open)}
+          >
+            <MoreHorizontal
+              className="size-[1.2rem]"
+              strokeWidth={mobileMoreOpen || moreActive ? 2.3 : 1.85}
+            />
+          </button>
         </div>
       </nav>
       </div>

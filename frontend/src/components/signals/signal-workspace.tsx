@@ -18,7 +18,6 @@ import { IndicatorSelect } from "@/components/charts/indicator-select";
 import { SetupChart } from "@/components/charts/setup-chart";
 import { PairAvatar } from "@/components/ui/pair-avatar";
 import { apiUrl } from "@/lib/api/url";
-import { SectionLabel } from "@/components/ui/section-label";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import {
   CHART_RANGES,
@@ -60,10 +59,10 @@ const MOBILE_TABS = ["Overview", "Setup"] as const;
 type MobileTab = (typeof MOBILE_TABS)[number];
 
 const ENTRY_CHECKLIST = [
-  "Structure confirms the directional bias",
-  "Entry is inside the planned zone",
-  "Position size follows the active paper risk policy",
-  "No high-impact news inside 30 minutes",
+  "Structure confirms bias",
+  "Entry inside zone",
+  "Size matches risk policy",
+  "No news within 30m",
 ] as const;
 
 /** Bars of breathing room kept on each side of a focused trade. */
@@ -238,7 +237,7 @@ function toDisplaySignal(setup: StrategySetup): TradeSignal[] {
     stop: setup.stop,
     target: setup.target,
     riskReward: setup.riskReward,
-    strategy: setup.status === "valid" ? "Verified strategy setup" : "Blocked strategy candidate",
+    strategy: setup.status === "valid" ? "Setup ready" : "Blocked",
     note: setup.summary,
     freshness: `Evaluated ${new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(setup.evaluatedAt))}`,
   }];
@@ -560,7 +559,7 @@ function SetupRangeBar({ active }: { active: TradeSignal }) {
   const rewardWidth = Math.abs(targetPct - entryPct);
 
   return (
-    <div className="mt-5">
+    <div className="mt-3">
       <div className="setup-range-track relative h-1 overflow-hidden rounded-full">
         <div
           className="setup-range-risk absolute inset-y-0 rounded-full"
@@ -615,8 +614,9 @@ function SetupMeta({
 }
 
 function SetupNote({ active }: { active: TradeSignal }) {
+  if (!active.note) return null;
   return (
-    <p className="text-sm leading-relaxed text-[color:var(--muted)]">
+    <p className="text-sm leading-snug text-[color:var(--muted)]">
       {active.note}
     </p>
   );
@@ -635,42 +635,41 @@ function EntryChecklist() {
   );
 }
 
-function StrategyStatus({ setup, availability }: { setup: StrategySetup; availability: PaperTradingAvailability }) {
+function StrategyStatus({
+  setup,
+  availability,
+}: {
+  setup: StrategySetup;
+  availability: PaperTradingAvailability;
+}) {
   const actionable = setup.status === "valid";
   const waiting = !actionable && availability.state !== "entry_window_open";
+  const title = actionable ? "Status" : waiting ? "Schedule" : "Blocked";
+  const tone = actionable
+    ? "text-[color:var(--success)]"
+    : waiting
+      ? "text-[color:var(--muted)]"
+      : "text-[color:var(--danger)]";
+  const label = actionable
+    ? "Ready"
+    : waiting
+      ? availability.label
+      : "No setup";
 
   return (
-    <div className="border-t border-[color:var(--border)] pt-4">
-      <SectionLabel
-        title={actionable ? "Strategy status" : waiting ? "Trading schedule" : "Why there is no setup"}
-        variant="minimal"
-      />
-      <p
-        className={
-          actionable
-            ? "mt-2 text-sm text-[color:var(--success)]"
-            : waiting
-              ? "mt-2 text-sm font-medium text-[color:var(--foreground)]"
-              : "mt-2 text-sm font-medium text-[color:var(--danger)]"
-        }
-      >
-        {actionable
-          ? "Verified setup. Confirm the live quote before any paper entry."
-          : waiting
-            ? availability.detail
-            : setup.summary}
-      </p>
+    <div className="space-y-2">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-sm font-semibold tracking-[-0.01em]">{title}</h2>
+        <span className={`text-xs font-medium ${tone}`}>{label}</span>
+      </div>
       {!actionable && !waiting && setup.failedConditions.length ? (
-        <ul className="mt-3 space-y-2 text-xs leading-5 text-[color:var(--muted)]">
+        <ul className="space-y-1.5 text-xs leading-5 text-[color:var(--muted)]">
           {setup.failedConditions.map((condition) => (
             <li key={condition.name}>
               <span className="font-medium text-[color:var(--foreground)]">
-                {condition.name}:
-              </span>{" "}
-              {condition.reason}{" "}
-              <span className="text-[color:var(--danger)]">
-                ({condition.currentValue})
+                {condition.name}
               </span>
+              {condition.reason ? ` · ${condition.reason}` : ""}
             </li>
           ))}
         </ul>
@@ -768,21 +767,23 @@ function SignalSidebar({
 }) {
   if (!active || riskDistance === null) {
     return (
-      <section className="app-card signals-sidebar flex h-full flex-col gap-5 p-5 md:p-6">
+      <aside className="dashboard-minimal-section signals-sidebar flex h-full flex-col gap-5" aria-label="Setup">
         <div>
-          <SectionLabel title="Setup" variant="minimal" />
+          <h2 className="text-sm font-semibold tracking-[-0.01em]">Setup</h2>
           <p className="mt-2 text-sm font-medium tracking-[-0.02em]">{setup.pair}</p>
-          <p className="mt-1 text-xs text-[color:var(--muted)]">{availability.label} · 15m</p>
+          <p className="mt-0.5 text-xs text-[color:var(--muted)]">
+            {availability.label} · 15m
+          </p>
         </div>
         <StrategyStatus setup={setup} availability={availability} />
-        <p className="mt-auto text-xs leading-relaxed text-[color:var(--muted)]">Entry, target, and stop appear only during an eligible entry window after every required strategy condition passes.</p>
-      </section>
+      </aside>
     );
   }
+
   return (
-    <section className="app-card signals-sidebar flex h-full flex-col gap-5 p-5 md:p-6">
+    <aside className="dashboard-minimal-section signals-sidebar flex h-full flex-col gap-5" aria-label="Setup">
       <div>
-        <SectionLabel title="Setup" variant="minimal" />
+        <h2 className="text-sm font-semibold tracking-[-0.01em]">Setup</h2>
         <p className="mt-2 text-sm font-medium tracking-[-0.02em]">
           {active.pair}{" "}
           <span
@@ -796,7 +797,7 @@ function SignalSidebar({
           </span>
         </p>
         <p className="mt-0.5 text-xs text-[color:var(--muted)]">
-          {active.strategy} · {active.timeframe} · {active.bias}
+          {active.timeframe} · {active.bias}
         </p>
       </div>
 
@@ -807,23 +808,78 @@ function SignalSidebar({
 
       {openPaperTrade ? (
         <div className="border-t border-[color:var(--border)] pt-4">
-          <SectionLabel title="Paper position" variant="minimal" />
-          <p className="mt-2 text-sm text-[color:var(--accent)]">This plan was accepted on its completed M15 decision candle. Current filters do not rewrite an open paper trade.</p>
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="text-sm font-semibold tracking-[-0.01em]">Paper</h2>
+            <span className="text-xs font-medium text-[color:var(--accent)]">Open</span>
+          </div>
         </div>
-      ) : <StrategyStatus setup={setup} availability={availability} />}
+      ) : (
+        <div className="border-t border-[color:var(--border)] pt-4">
+          <StrategyStatus setup={setup} availability={availability} />
+        </div>
+      )}
 
-      <div>
-        <SectionLabel title="Before entry" variant="minimal" />
+      <div className="border-t border-[color:var(--border)] pt-4">
+        <h2 className="text-sm font-semibold tracking-[-0.01em]">Checklist</h2>
         <div className="mt-3">
           <EntryChecklist />
         </div>
       </div>
-
-      <p className="mt-auto text-xs leading-relaxed text-[color:var(--muted)]">
-        Decision support only — confirm price and spread before execution.
-      </p>
-    </section>
+    </aside>
   );
+}
+
+function MobileSignalDetails({
+  tab,
+  active,
+  setup,
+  riskDistance,
+  openPaperTrade,
+  availability,
+}: {
+  tab: MobileTab;
+  active: TradeSignal | null;
+  setup: StrategySetup;
+  riskDistance: number | null;
+  openPaperTrade: boolean;
+  availability: PaperTradingAvailability;
+}) {
+  switch (tab) {
+    case "Setup":
+      return (
+        <div className="space-y-4">
+          <EntryChecklist />
+        </div>
+      );
+    case "Overview":
+      return (
+        <div className="space-y-4">
+          {active && riskDistance !== null ? (
+            <>
+              <SetupStats active={active} />
+              <SetupRangeBar active={active} />
+              <SetupNote active={active} />
+              <SetupMeta active={active} riskDistance={riskDistance} />
+            </>
+          ) : (
+            <p className="text-sm text-[color:var(--muted)]">
+              {availability.state === "entry_window_open"
+                ? "No valid setup."
+                : availability.detail}
+            </p>
+          )}
+          {openPaperTrade ? (
+            <p className="text-sm text-[color:var(--accent)]">Open paper trade</p>
+          ) : (
+            <StrategyStatus setup={setup} availability={availability} />
+          )}
+        </div>
+      );
+    default: {
+      const _exhaustive: never = tab;
+      return _exhaustive;
+    }
+  }
 }
 
 export function SignalWorkspace({
@@ -877,6 +933,7 @@ export function SignalWorkspace({
   const [historyExhausted, setHistoryExhausted] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [scrollToLatestRevision, setScrollToLatestRevision] = useState(0);
+  const [mobileChartHeight, setMobileChartHeight] = useState(320);
   const [paperTrades, setPaperTrades] = useState<PaperChartTrade[]>(initialPaperTrades);
   const [focusTradeId, setFocusTradeId] = useState<string | null>(initialFocusTradeId);
   // The first pair is already rendered with server-fetched trades.
@@ -884,6 +941,22 @@ export function SignalWorkspace({
   const olderRequestInFlightRef = useRef(false);
   const pendingTickRef = useRef<MarketPriceTick | null>(null);
   const marketFrameRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    function updateMobileChartHeight() {
+      const viewport = window.visualViewport?.height ?? window.innerHeight;
+      setMobileChartHeight(Math.max(240, Math.round(viewport * 0.6)));
+    }
+
+    updateMobileChartHeight();
+    window.addEventListener("resize", updateMobileChartHeight);
+    window.visualViewport?.addEventListener("resize", updateMobileChartHeight);
+    return () => {
+      window.removeEventListener("resize", updateMobileChartHeight);
+      window.visualViewport?.removeEventListener("resize", updateMobileChartHeight);
+    };
+  }, []);
+
   const replaceSeries = useCallback((nextSeries: CandleSeries) => {
     seriesRef.current = nextSeries;
     setSeries(nextSeries);
@@ -947,9 +1020,9 @@ export function SignalWorkspace({
     stop: paperPlan.stop,
     target: paperPlan.target,
     riskReward: Math.abs(paperPlan.target - paperPlan.entry) / Math.abs(paperPlan.entry - paperPlan.stop),
-    strategy: `Open paper trade · Batch ${paperPlan.batchNumber ?? "—"}`,
-    note: `Automatic paper trade #${paperPlan.tradeSequence ?? "—"}`,
-    freshness: "Open position",
+    strategy: `Paper · Batch ${paperPlan.batchNumber ?? "—"}`,
+    note: `Trade #${paperPlan.tradeSequence ?? "—"}`,
+    freshness: "Open",
   } : null;
   const active = openSignal ?? (activeSetup.status === "valid" ? activeCandidate : null);
   const planIsOpen = Boolean(openSignal);
@@ -1210,7 +1283,7 @@ export function SignalWorkspace({
   }
 
   return (
-    <div className="signals-view grid w-full gap-5 xl:grid-cols-[minmax(0,1fr)_272px]">
+    <div className="signals-view signals-minimal grid w-full gap-5 xl:grid-cols-[minmax(0,1fr)_272px]">
       <div className="signals-chart-slot min-w-0">
         <section className="app-card signals-chart-card min-w-0 w-full">
         <div className="signals-chart-mobile lg:hidden">
@@ -1230,15 +1303,15 @@ export function SignalWorkspace({
               <div className="flex min-w-0 items-center gap-2.5">
                 <PairAvatar instrument={instrument} size={36} />
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold tracking-[-0.03em]">
+                  <div className="text-[1.05rem] font-medium tracking-[-0.02em]">
                     {activeSetup.pair}
                   </div>
-                  <div className="text-xs text-[color:var(--muted)]">
+                  <div className="text-xs font-medium text-[color:var(--muted)]">
                     {active ? active.strategy : inactiveLabel}
                   </div>
                 </div>
               </div>
-              <div className="metric-number text-right text-lg font-semibold tracking-[-0.04em]">
+              <div className="metric-number text-right text-xl font-semibold tracking-[-0.04em]">
                 {formatChartPrice(priceStats.displayPrice, instrument)}
               </div>
             </div>
@@ -1288,7 +1361,7 @@ export function SignalWorkspace({
               liveCandle={liveCandle}
               variant={chartVariant}
               range={range}
-              height={320}
+              height={mobileChartHeight}
               embedded
               scrollToLatestRevision={scrollToLatestRevision}
               loadingOlder={loadingOlder}
@@ -1300,61 +1373,53 @@ export function SignalWorkspace({
             <ChartLoadingOverlay visible={loading} />
           </div>
 
-          <div className="flex items-center justify-between gap-3 px-4 py-2.5">
-            <SegmentControl
-              ariaLabel="Chart range"
-              options={MOBILE_CHART_RANGES}
-              value={range}
-              onChange={(option) => {
-                setLiveCandle(null);
-                setRange(option);
-              }}
-            />
-            <ChartTypeSelect
-              compact
-              value={chartVariant}
-              onChange={setChartVariant}
-            />
+          <div className="signals-mobile-chart-footer">
+            <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+              <SegmentControl
+                ariaLabel="Chart range"
+                options={MOBILE_CHART_RANGES}
+                value={range}
+                onChange={(option) => {
+                  setLiveCandle(null);
+                  setRange(option);
+                }}
+              />
+              <ChartTypeSelect
+                compact
+                value={chartVariant}
+                onChange={setChartVariant}
+              />
+            </div>
+
+            <div className="flex gap-4 px-4 pb-2.5">
+              {MOBILE_TABS.map((tab) => {
+                const isActive = mobileTab === tab;
+
+                return (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setMobileTab(tab)}
+                    className={`signals-mobile-tab pressable ${
+                      isActive ? "is-active" : ""
+                    }`}
+                  >
+                    {tab}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          <div className="flex gap-4 px-4">
-            {MOBILE_TABS.map((tab) => {
-              const isActive = mobileTab === tab;
-
-              return (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setMobileTab(tab)}
-                  className={`signals-mobile-tab pressable ${
-                    isActive ? "is-active" : ""
-                  }`}
-                >
-                  {tab}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="space-y-5 px-4 py-5 pb-8">
-            {mobileTab === "Overview" ? (
-              <>
-                {active && riskDistance !== null ? <>
-                  <SetupStats active={active} />
-                  <SetupRangeBar active={active} />
-                  <SetupNote active={active} />
-                  <SetupMeta active={active} riskDistance={riskDistance} />
-                </> : <p className="text-sm text-[color:var(--muted)]">{tradingAvailability.state === "entry_window_open" ? "No entry, target, or stop is shown because this pair does not have a valid setup." : tradingAvailability.detail}</p>}
-                {planIsOpen ? <p className="text-sm text-[color:var(--accent)]">Open automatic paper trade. Its original entry, target, and stop remain fixed.</p> : <StrategyStatus setup={activeSetup} availability={tradingAvailability} />}
-              </>
-            ) : (
-              <>
-                <EntryChecklist />
-                <p className="text-xs leading-relaxed text-[color:var(--muted)]">
-                  Decision support only — confirm price and spread before execution.
-                </p>
-              </>
-            )}
+          <div className="px-4 py-5 pb-8">
+            <MobileSignalDetails
+              tab={mobileTab}
+              active={active}
+              setup={activeSetup}
+              riskDistance={riskDistance}
+              openPaperTrade={planIsOpen}
+              availability={tradingAvailability}
+            />
           </div>
         </div>
 
@@ -1460,7 +1525,7 @@ export function SignalWorkspace({
         </section>
       </div>
 
-      <aside className="hidden xl:block">
+      <div className="hidden xl:block">
         <SignalSidebar
           active={active}
           setup={activeSetup}
@@ -1468,7 +1533,7 @@ export function SignalWorkspace({
           openPaperTrade={planIsOpen}
           availability={tradingAvailability}
         />
-      </aside>
+      </div>
     </div>
   );
 }

@@ -27,7 +27,7 @@ import { getStrategySnapshot } from "../../frontend/src/lib/strategy/strategy-se
 import { databaseConfigured, query } from "./database.js";
 import { cookieName, login, logout, sessionUser } from "./auth.js";
 import { decideResearchExperiment, forwardResearchSummary, latestDayTradingValidation, latestResearchExperiment, latestResearchHoldout, latestResearchRun, latestWalkForwardResearch, processNextResearchJob, researchDiagnostics, researchExperimentDiagnostics, researchSummary, runDayTradingValidation, runResearchExperiment, runWalkForwardResearch, startLockedResearchHoldout, startStrictHistoricalBackfill, stopResearchRun } from "./research.js";
-import { collectPaperCycle, decidePaperBatch, paperCycleOverview, paperRiskExposure, paperRiskPolicy, paperTradesForInstrument, parsePaperRiskConfiguration, reviewPaperTrade, updatePaperRiskPolicy, watchlistSnapshot } from "./paper-cycle.js";
+import { collectPaperCycle, decidePaperBatch, journalTradeLog, paperCycleOverview, paperRiskExposure, paperRiskPolicy, paperTradesForInstrument, parsePaperRiskConfiguration, reviewPaperTrade, updatePaperRiskPolicy, watchlistSnapshot } from "./paper-cycle.js";
 import { markNotificationsRead, notificationsForUser, pushPublicKey, queueNotification, removePushSubscription, savePushSubscription } from "./notifications.js";
 import { practiceExecutionOverview, setPracticeExecutionEnabled } from "./practice-execution.js";
 
@@ -242,8 +242,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       return saved ? json(request, response, { batch: saved }) : json(request, response, { error: "The batch recommendation is unavailable or already decided." }, 409);
     }
     if (url.pathname === "/api/journal/trades" && request.method === "GET") {
-      const trades = await query("SELECT id, origin, pair, direction, status, result, opened_at AS \"openedAt\", closed_at AS \"closedAt\", entry::float, stop::float, target::float, exit::float, result_r::float AS \"resultR\", reason, notes FROM paper_trades WHERE user_id=$1 ORDER BY opened_at DESC", [user.id]);
-      return json(request, response, { trades: trades.rows });
+      return json(request, response, { trades: await journalTradeLog(user.id) });
     }
     if (url.pathname === "/api/journal/import" && request.method === "POST") {
       const payload = await body(request); const trades = Array.isArray(payload?.trades) ? payload.trades : [];

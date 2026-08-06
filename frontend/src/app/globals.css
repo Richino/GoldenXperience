@@ -681,43 +681,43 @@ input[type="number"] {
 
 .notification-popover-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
   border-bottom: 1px solid var(--border);
-  padding: 1rem 1rem 0.875rem;
+  padding: 0.85rem 1rem;
 }
 
 .notification-popover-title {
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
   font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--foreground);
 }
 
 .notification-popover-copy {
-  margin-top: 0.125rem;
-  font-size: 0.75rem;
-  line-height: 1.45;
-  color: var(--muted);
+  display: none;
 }
 
 .notification-popover-read-all {
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
-  gap: 0.375rem;
+  gap: 0.35rem;
   border-radius: 999px;
-  padding: 0.375rem 0.625rem;
-  font-size: 0.75rem;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.7rem;
   font-weight: 600;
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-  transition: background-color 140ms ease;
+  color: var(--muted-strong);
+  background: transparent;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
 }
 
 .notification-popover-read-all:hover {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .notification-popover-list {
@@ -726,17 +726,103 @@ input[type="number"] {
   overscroll-behavior: contain;
 }
 
+.notification-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 58;
+  background: color-mix(in srgb, var(--background) 55%, transparent);
+  animation: notification-sheet-fade 180ms ease-out both;
+}
+
+.notification-sheet {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 59;
+  max-height: min(78vh, 40rem);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  border-radius: 1.35rem 1.35rem 0 0;
+  background: var(--surface);
+  box-shadow: 0 -16px 40px color-mix(in srgb, var(--background) 24%, transparent);
+  animation: notification-sheet-up 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  touch-action: none;
+  transition: transform 160ms ease-out;
+}
+
+.notification-sheet .notification-popover-list {
+  max-height: calc(min(78vh, 40rem) - 4.25rem);
+}
+
+.notification-sheet-handle {
+  width: 2.35rem;
+  height: 0.22rem;
+  margin: 0.55rem auto 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 16%, transparent);
+}
+
+@keyframes notification-sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes notification-sheet-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (min-width: 1024px) {
+  .notification-sheet,
+  .notification-sheet-backdrop {
+    display: none;
+  }
+}
+
 .notification-popover-empty {
-  padding: 2rem 1rem;
+  padding: 2.25rem 1rem;
   text-align: center;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   color: var(--muted);
+}
+
+@media (max-width: 1023px) {
+  .account-chart .account-chart-x-axis {
+    display: none;
+  }
+
+  .dashboard-view .account-chart-canvas {
+    margin-inline: -1rem;
+    width: calc(100% + 2rem);
+  }
+
+  .dashboard-view .account-overview-hero {
+    background: transparent;
+  }
+
+  .dashboard-view .account-overview-hero::after {
+    content: none;
+  }
+
+  .dashboard-view .dashboard-minimal-section > div:first-child h2 {
+    letter-spacing: -0.025em;
+  }
+
+  .dashboard-view .dashboard-minimal-action {
+    background: linear-gradient(100deg, color-mix(in srgb, var(--accent) 7%, transparent), transparent 70%);
+    transition: background 160ms ease, transform 160ms ease;
+  }
+
+  .dashboard-view .dashboard-minimal-action:active {
+    transform: scale(0.985);
+  }
 }
 
 .notification-popover-item {
   display: block;
   border-bottom: 1px solid var(--border);
-  padding: 0.875rem 1rem;
+  padding: 0.95rem 1rem;
   transition: background-color 140ms ease;
 }
 
@@ -745,43 +831,79 @@ input[type="number"] {
 }
 
 .notification-popover-item:hover {
-  background: color-mix(in srgb, var(--foreground) 5%, var(--surface));
+  background: color-mix(in srgb, var(--foreground) 3.5%, transparent);
 }
 
 .notification-popover-item.is-unread {
-  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+  background: transparent;
 }
 
 .notification-popover-item.is-unread:hover {
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  background: color-mix(in srgb, var(--foreground) 3.5%, transparent);
 }
 
 .notification-popover-item.is-issue.is-unread {
-  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+  background: transparent;
 }
 
 .notification-popover-item.is-issue.is-unread:hover {
-  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  background: color-mix(in srgb, var(--danger) 6%, transparent);
+}
+
+.notification-popover-item-top {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.notification-unread-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  flex-shrink: 0;
+  margin-top: 0.35rem;
+  border-radius: 999px;
+  background: var(--accent);
 }
 
 .notification-popover-item-title {
-  font-size: 0.8125rem;
+  min-width: 0;
+  flex: 1;
+  font-size: 0.875rem;
   font-weight: 600;
-  line-height: 1.35;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
   color: var(--foreground);
 }
 
 .notification-popover-item-time {
   flex-shrink: 0;
   font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
 
 .notification-popover-item-message {
-  margin-top: 0.375rem;
+  margin-top: 0.3rem;
+  padding-left: 0;
   font-size: 0.75rem;
-  line-height: 1.5;
+  line-height: 1.4;
   color: var(--muted);
+}
+
+.notification-popover-item.is-unread .notification-popover-item-message {
+  padding-left: 0.875rem;
+}
+
+.notification-popover-item-message.is-positive {
+  color: var(--success);
+}
+
+.notification-popover-item-message.is-negative {
+  color: var(--danger);
+}
+
+.notification-popover-item-message.is-issue {
+  color: var(--danger);
 }
 
 /* Typography scale — use these semantic classes instead of arbitrary px sizes */
@@ -1186,6 +1308,8 @@ input[type="number"] {
 
 .dark .setup-range-track {
   background: var(--border-strong);
+  touch-action: none;
+  cursor: grab;
 }
 
 .dark .setup-range-risk {
@@ -1294,44 +1418,143 @@ input[type="number"] {
 }
 
 .nav-pill {
-  background: color-mix(in srgb, var(--surface) 90%, transparent);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--foreground) 5%, transparent);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  backdrop-filter: blur(22px) saturate(160%);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  border-radius: 999px;
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--foreground) 4%, transparent),
+    0 10px 28px color-mix(in srgb, var(--foreground) 6%, transparent);
 }
 
 .dark .nav-pill {
-  background: color-mix(in srgb, var(--surface) 84%, transparent);
-  border-color: var(--border-strong);
-  box-shadow: 0 10px 28px color-mix(in srgb, var(--background) 80%, transparent);
+  background: color-mix(in srgb, var(--surface) 88%, #000 12%);
+  border-color: color-mix(in srgb, var(--border-strong) 75%, transparent);
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--foreground) 5%, transparent),
+    0 12px 30px color-mix(in srgb, var(--background) 75%, transparent);
 }
 
 .nav-mobile-link {
   display: grid;
   place-items: center;
-  min-width: 2.75rem;
-  min-height: 2.75rem;
+  flex: 1 1 0;
+  min-width: 2.6rem;
+  min-height: 2.6rem;
+  max-width: 3rem;
+  margin-inline: auto;
   border-radius: 999px;
   color: var(--muted);
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
   transition:
     background-color 140ms ease,
     color 140ms ease;
 }
 
 .nav-mobile-link:hover {
-  background: color-mix(in srgb, var(--foreground) 5%, var(--surface));
   color: var(--foreground);
 }
 
+.nav-mobile-link:focus-visible {
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
 .nav-mobile-link-active {
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
   color: var(--accent);
 }
 
 .dark .nav-mobile-link-active {
-  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+@media (max-width: 1023px) {
+  .nav-pill {
+    background: linear-gradient(115deg, color-mix(in srgb, var(--accent) 9%, var(--surface)), var(--surface) 58%, color-mix(in srgb, var(--accent) 5%, var(--surface)));
+    box-shadow: 0 10px 28px color-mix(in srgb, var(--foreground) 10%, transparent), 0 0 8px color-mix(in srgb, var(--accent) 6%, transparent);
+  }
+
+  .nav-mobile-link-active {
+    background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 20%, var(--surface)), color-mix(in srgb, var(--accent) 7%, var(--surface)));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent), 0 3px 7px color-mix(in srgb, var(--accent) 7%, transparent);
+  }
+
+  .dark .nav-pill {
+    background: linear-gradient(115deg, color-mix(in srgb, var(--accent) 12%, var(--surface)), var(--surface) 58%, color-mix(in srgb, var(--accent) 6%, var(--surface)));
+    box-shadow: 0 12px 32px color-mix(in srgb, var(--background) 72%, transparent), 0 0 9px color-mix(in srgb, var(--accent) 7%, transparent);
+  }
+}
+
+.nav-more-sheet {
+  display: grid;
+  gap: 0.25rem;
+  border-radius: 1.15rem;
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  backdrop-filter: blur(22px) saturate(160%);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  padding: 0.4rem;
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+
+.dark .nav-more-sheet {
+  background: color-mix(in srgb, var(--surface) 90%, #000 10%);
+  border-color: color-mix(in srgb, var(--border-strong) 75%, transparent);
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--background) 70%, transparent);
+}
+
+.nav-more-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2.7rem;
+  border-radius: 0.85rem;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+}
+
+.nav-more-link:hover,
+.nav-more-link.is-active {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.nav-more-link.is-active {
+  color: var(--accent);
+}
+
+.nav-more-icon {
+  display: grid;
+  place-items: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+  color: inherit;
+}
+
+.nav-more-link.is-active .nav-more-icon {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.sign-out-menu-link {
+  margin-top: 0.15rem;
+  color: var(--muted-strong);
+}
+
+.sign-out-menu-link:hover,
+.sign-out-menu-link:focus-visible {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 9%, transparent);
+}
+
+.sign-out-menu-link:hover .sign-out-menu-icon,
+.sign-out-menu-link:focus-visible .sign-out-menu-icon {
+  background: color-mix(in srgb, var(--danger) 13%, transparent);
 }
 
 .app-sidebar {
@@ -1748,7 +1971,8 @@ input[type="number"] {
 .journal-view,
 .settings-view,
 .signals-view,
-.research-view {
+.research-view,
+.risk-view {
   --minimal-card-radius: 18px;
   --minimal-hover: color-mix(in srgb, var(--foreground) 5%, var(--surface));
   --minimal-hover-strong: color-mix(in srgb, var(--foreground) 8%, var(--surface));
@@ -1762,7 +1986,8 @@ input[type="number"] {
 .dark .journal-view,
 .dark .settings-view,
 .dark .signals-view,
-.dark .research-view {
+.dark .research-view,
+.dark .risk-view {
   --minimal-hover: color-mix(in srgb, var(--foreground) 5%, var(--surface));
   --minimal-hover-strong: color-mix(in srgb, var(--foreground) 8%, var(--surface-raised));
   --minimal-inset: var(--surface-raised);
@@ -1851,22 +2076,12 @@ input[type="number"] {
   border: 1px solid var(--border);
 }
 
-.journal-view .journal-entry-wrap {
-  border-bottom: 1px solid var(--border);
-}
-
-.journal-view .journal-entry-wrap:last-child {
-  border-bottom: none;
+.journal-view .journal-entry-wrap + .journal-entry-wrap {
+  border-top: 1px solid var(--border);
 }
 
 .journal-view .journal-entry {
-  padding: 0.875rem 1.25rem;
-}
-
-@media (min-width: 768px) {
-  .journal-view .journal-entry {
-    padding: 0.875rem 1.5rem;
-  }
+  padding: 0.75rem 0;
 }
 
 .journal-view .journal-entry-grid {
@@ -1912,6 +2127,20 @@ input[type="number"] {
   gap: 0.75rem;
 }
 
+.journal-view .journal-entry-money {
+  margin-left: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.journal-view .journal-entry-money.is-win {
+  color: var(--success);
+}
+
+.journal-view .journal-entry-money.is-loss {
+  color: var(--danger);
+}
+
 .journal-view .journal-entry-title {
   display: flex;
   min-width: 0;
@@ -1941,21 +2170,6 @@ input[type="number"] {
 
 .journal-view .journal-entry-dir.is-short {
   color: var(--danger);
-}
-
-.journal-view .journal-entry-reason::before {
-  content: "·";
-  margin: 0 0.375rem;
-  color: var(--border-strong);
-}
-
-.journal-view .journal-entry-reason {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 400;
-  color: var(--muted);
 }
 
 .journal-view .journal-entry-date {
@@ -1988,6 +2202,25 @@ input[type="number"] {
 .journal-view .journal-entry-levels-sep {
   margin: 0 0.2rem;
   opacity: 0.5;
+}
+
+.journal-view .journal-entry-auto {
+  flex-shrink: 0;
+  margin-left: 0.375rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 7%, var(--surface));
+  padding: 0.05rem 0.375rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+
+.journal-view .journal-entry-outcome {
+  margin-left: 0.25rem;
+  font-size: 0.6875rem;
+  text-transform: capitalize;
+  color: var(--muted);
 }
 
 .journal-view .journal-entry-note {
@@ -2322,121 +2555,10 @@ input[type="number"] {
   color: var(--accent);
 }
 
-.journal-view .minimal-field {
-  display: block;
-  width: 100%;
-  height: 2.5rem;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: transparent;
-  padding: 0 0.75rem;
-  font-size: 0.875rem;
-  color: var(--foreground);
-  outline: none;
-  transition:
-    border-color 140ms ease,
-    background-color 140ms ease;
-}
-
-.journal-view .minimal-field:hover {
-  border-color: color-mix(in srgb, var(--foreground) 14%, var(--border));
-}
-
-.journal-view .minimal-field:focus {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
-  background: color-mix(in srgb, var(--foreground) 2%, var(--surface));
-}
-
-.dark .journal-view .minimal-field {
-  background: color-mix(in srgb, var(--background) 35%, var(--surface));
-  border-color: var(--border-strong);
-}
-
-.dark .journal-view .minimal-field:hover {
-  border-color: color-mix(in srgb, var(--foreground) 18%, var(--border));
-  background: color-mix(in srgb, var(--background) 28%, var(--surface));
-}
-
-.dark .journal-view .minimal-field:focus {
-  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
-  background: color-mix(in srgb, var(--background) 22%, var(--surface));
-}
-
-.journal-view .minimal-field-mono {
-  font-family: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
-  font-variant-numeric: tabular-nums;
-}
-
-.journal-view textarea.minimal-field {
-  height: auto;
-  min-height: 5rem;
-  resize: none;
-  padding: 0.625rem 0.75rem;
-}
-
-.journal-view .minimal-field-label {
-  display: block;
-  margin-bottom: 0.375rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--muted);
-  letter-spacing: -0.01em;
-}
-
-.journal-view .form-toggle {
-  transition:
-    background-color 140ms ease,
-    color 140ms ease;
-}
-
-.journal-view .form-toggle:hover {
-  background: var(--minimal-hover-strong);
-  color: var(--foreground);
-}
-
-.journal-view .minimal-submit {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  min-height: 2.5rem;
-  border-radius: var(--radius-pill);
-  padding: 0 1.25rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--foreground);
-  background: var(--minimal-hover-strong);
-  transition: background-color 140ms ease;
-}
-
-.journal-view .minimal-submit:hover {
-  background: color-mix(in srgb, var(--foreground) 12%, var(--surface));
-}
-
-.dark .journal-view .minimal-submit {
-  background: var(--minimal-chip-active-bg);
-  border: 1px solid var(--minimal-chip-active-border);
-}
-
-.dark .journal-view .minimal-submit:hover {
-  background: var(--minimal-hover-strong);
-  border-color: color-mix(in srgb, var(--foreground) 18%, var(--border));
-}
-
-/* Settings — minimal layout */
-.settings-view .app-card {
-  border-radius: var(--minimal-card-radius);
-  border-color: var(--border);
-  box-shadow: none;
-}
-
-.dark .settings-view .app-card {
-  background: var(--surface);
-  border-color: var(--border-strong);
-}
-
-.settings-view .card-enter {
-  animation: none;
+/* Settings — minimal layout (same family as dashboard-minimal) */
+.settings-minimal-section {
+  border-top: 1px solid var(--border);
+  padding-top: 1.25rem;
 }
 
 .settings-view .settings-row {
@@ -2503,8 +2625,9 @@ input[type="number"] {
   border-bottom: 1px solid var(--border);
 }
 
-.settings-view .settings-status:last-of-type {
+.settings-view .settings-status:last-child {
   border-bottom: none;
+  padding-bottom: 0;
 }
 
 .settings-view .settings-status-title {
@@ -2555,6 +2678,7 @@ input[type="number"] {
 
 .settings-view .settings-env:last-child {
   border-bottom: none;
+  padding-bottom: 0;
 }
 
 .settings-view .settings-env-name {
@@ -2568,99 +2692,23 @@ input[type="number"] {
   color: var(--muted);
 }
 
-.settings-view .settings-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
+@media (min-width: 1024px) {
+  .settings-view > .settings-minimal-section {
+    border: 1px solid var(--border);
+    border-radius: 1.25rem;
+    padding: 1.25rem 1.5rem;
+    background: color-mix(in srgb, var(--surface) 86%, var(--background));
+  }
 
-.settings-view .settings-stat-label {
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--muted);
-  letter-spacing: -0.01em;
-}
+  .dark .settings-view > .settings-minimal-section {
+    border-color: var(--border-strong);
+    background: color-mix(in srgb, var(--surface) 94%, var(--background));
+  }
 
-.settings-view .settings-stat-value {
-  font-size: 0.875rem;
-  font-weight: 500;
-  letter-spacing: -0.02em;
-  color: var(--foreground);
-}
-
-.settings-view .settings-stat-meta {
-  font-size: 0.75rem;
-  color: var(--muted);
-}
-
-.settings-view .settings-stat-meta.is-success {
-  color: var(--success);
-}
-
-.settings-view .settings-stat-meta.is-accent {
-  color: var(--accent);
-}
-
-.settings-view .minimal-submit {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  width: 100%;
-  min-height: 2.5rem;
-  border-radius: var(--radius-pill);
-  padding: 0 1.25rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--foreground);
-  background: var(--minimal-hover-strong);
-  transition: background-color 140ms ease;
-}
-
-.settings-view .minimal-submit:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--foreground) 12%, var(--surface));
-}
-
-.settings-view .minimal-submit:disabled {
-  cursor: wait;
-  opacity: 0.65;
-}
-
-.dark .settings-view .minimal-submit {
-  background: var(--minimal-chip-active-bg);
-  border: 1px solid var(--minimal-chip-active-border);
-}
-
-.dark .settings-view .minimal-submit:hover:not(:disabled) {
-  background: var(--minimal-hover-strong);
-  border-color: color-mix(in srgb, var(--foreground) 18%, var(--border));
-}
-
-.settings-view .settings-accent-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 10px;
-  padding: 0 1rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: #042b1f;
-  background: var(--accent);
-  transition:
-    transform 160ms ease,
-    background-color 140ms ease,
-    box-shadow 160ms ease;
-}
-
-.settings-view .settings-accent-btn:hover:not(:disabled) {
-  background: var(--accent-bright);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 32%, transparent);
-}
-
-.settings-view .settings-accent-btn:active:not(:disabled) {
-  transform: translateY(0) scale(0.975);
-  box-shadow: none;
+  .settings-minimal-section {
+    border-top: none;
+    padding-top: 0;
+  }
 }
 
 /* Signals — minimal layout */
@@ -3332,6 +3380,83 @@ input[type="number"] {
   background: var(--accent);
 }
 
+/* Research minimal — dashboard-aligned flat sections */
+.research-minimal-section {
+  border-top: 1px solid var(--border);
+  padding-top: 1.25rem;
+}
+
+.research-view.research-minimal > header + .research-minimal-section,
+.research-view.research-minimal > header + .research-error + .research-minimal-section {
+  border-top: none;
+  padding-top: 0;
+}
+
+.research-view.research-minimal .research-section-head {
+  gap: 0.25rem;
+}
+
+.research-view.research-minimal .research-metric-grid {
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+}
+
+.research-view.research-minimal .research-metric-cell {
+  padding: 0.875rem 0.75rem;
+}
+
+.research-view.research-minimal .research-footnote {
+  padding-inline: 0;
+}
+
+.research-view.research-minimal .research-notice {
+  border-radius: 12px;
+}
+
+.research-view.research-minimal .link-quiet {
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 140ms ease;
+}
+
+.research-view.research-minimal .link-quiet:hover {
+  color: var(--foreground);
+}
+
+@media (min-width: 1024px) {
+  .research-view.research-minimal > .research-minimal-section {
+    border: 1px solid var(--border);
+    border-radius: 1.25rem;
+    padding: 1.25rem 1.5rem;
+    background: color-mix(in srgb, var(--surface) 86%, var(--background));
+  }
+
+  .dark .research-view.research-minimal > .research-minimal-section {
+    border-color: var(--border-strong);
+    background: color-mix(in srgb, var(--surface) 94%, var(--background));
+  }
+
+  .research-view.research-minimal > header + .research-minimal-section,
+  .research-view.research-minimal > header + .research-error + .research-minimal-section {
+    border-top: 1px solid var(--border);
+    padding-top: 1.25rem;
+  }
+
+  .research-view.research-minimal .grid > .research-minimal-section {
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    padding-top: 1.25rem;
+    background: transparent;
+    border-top: 1px solid var(--border);
+  }
+
+  .dark .research-view.research-minimal .grid > .research-minimal-section {
+    border-color: var(--border);
+    background: transparent;
+  }
+}
+
 .signals-view .signals-notice {
   border-radius: 10px;
   padding: 0.5rem 0.75rem;
@@ -3408,6 +3533,10 @@ input[type="number"] {
   bottom: 0;
   height: 1px;
   background: var(--foreground);
+}
+
+.signals-view .signals-mobile-content {
+  font-family: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
 }
 
 .signals-view .signals-icon-btn {
@@ -3719,6 +3848,20 @@ input[type="number"] {
     padding-top: 0;
   }
 
+  .signals-view .signals-mobile-chart-footer {
+    position: sticky;
+    bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
+    z-index: 30;
+    border-top: 1px solid var(--border);
+    background: color-mix(in srgb, var(--signals-mobile-page-bg) 94%, transparent);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+  }
+
+  .dark .signals-view .signals-mobile-chart-footer {
+    background: color-mix(in srgb, #09090b 94%, transparent);
+  }
+
   .signals-view .signals-mobile-actions {
     position: sticky;
     z-index: 45;
@@ -3764,7 +3907,8 @@ input[type="number"] {
   .signals-view .signals-chart-mobile .workspace-segment-btn {
     border: none;
     border-radius: 0;
-    padding: 0.375rem 0.625rem;
+    min-height: 2.75rem;
+    padding: 0.625rem 0.7rem;
   }
 
   .signals-view .signals-chart-mobile .workspace-segment-btn-active {
@@ -3796,11 +3940,11 @@ input[type="number"] {
   }
 
   .signals-view .signals-chart-mobile .relative > button.pressable {
-    min-height: auto;
+    min-height: 2.75rem;
     border: none;
     border-radius: 0;
     background: transparent;
-    padding-inline: 0.625rem;
+    padding-inline: 0.7rem;
   }
 
   .signals-view .signals-chart-mobile .signals-notice {
@@ -3808,4 +3952,553 @@ input[type="number"] {
     background: transparent;
     padding-inline: 0;
   }
+}
+
+/* Mobile / shared account home — reference-style hero + amount chart */
+.account-overview-hero,
+.mobile-account-hero {
+  padding-bottom: 0.25rem;
+}
+
+.mobile-account-avatar {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface-raised));
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.account-chart-canvas {
+  position: relative;
+  height: 15.5rem;
+  width: 100%;
+  outline: none;
+  border: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.account-chart .account-chart-x-axis {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .account-chart-canvas {
+    height: 18rem;
+  }
+}
+
+@media (max-width: 1023px) {
+  .account-chart-canvas {
+    margin-inline: -1rem;
+    width: calc(100% + 2rem);
+  }
+}
+
+.account-chart-canvas :is(.recharts-wrapper, .recharts-surface, svg):focus,
+.account-chart-canvas :is(.recharts-wrapper, .recharts-surface, svg):focus-visible,
+.account-chart-canvas :is(.recharts-wrapper, .recharts-surface, svg):focus-within,
+.account-chart-canvas *:focus,
+.account-chart-canvas *:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.account-chart .recharts-tooltip-cursor,
+.account-chart .recharts-rectangle.recharts-tooltip-cursor {
+  display: none !important;
+  fill: transparent !important;
+  stroke: none !important;
+  opacity: 0 !important;
+}
+
+.account-chart .recharts-xAxis .recharts-cartesian-axis-tick:first-child text {
+  text-anchor: start;
+}
+
+.account-chart .recharts-xAxis .recharts-cartesian-axis-tick:last-child text {
+  text-anchor: end;
+}
+
+.account-chart-active-label {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 2;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: var(--foreground);
+  color: var(--background);
+  padding: 0.35rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  pointer-events: none;
+}
+
+.dark .account-chart-active-label {
+  background: #f4f4f5;
+  color: #09090b;
+}
+
+.account-range-row {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.account-range-btn {
+  min-height: 1.85rem;
+  border-radius: 999px;
+  padding: 0.2rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--muted);
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.account-range-btn.is-active {
+  background: var(--surface-raised);
+  color: var(--foreground);
+}
+
+.account-style-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.account-style-btn {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.55rem;
+  border: 1px solid transparent;
+  color: var(--muted);
+  background: transparent;
+  transition: color 140ms ease, border-color 140ms ease, background-color 140ms ease;
+}
+
+.account-style-btn.is-active {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.account-chart .recharts-tooltip-wrapper {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+.mobile-batch-strip,
+.mobile-pair-strip,
+.mobile-minimal-section,
+.mobile-minimal-actions,
+.dashboard-minimal-section,
+.dashboard-minimal-actions {
+  border-top: 1px solid var(--border);
+  padding-top: 1.25rem;
+}
+
+.mobile-pair-strip {
+  padding-bottom: 0.25rem;
+}
+
+.mobile-minimal-row + .mobile-minimal-row,
+.dashboard-minimal-row + .dashboard-minimal-row {
+  border-top: 1px solid var(--border);
+}
+
+.dashboard-watchlist-grid .dashboard-minimal-row {
+  position: relative;
+  border: 0;
+  padding-inline: 1.25rem 0;
+  transition: color 160ms ease;
+}
+
+.dashboard-watchlist-grid .dashboard-minimal-row::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--muted);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--muted) 10%, transparent);
+  transform: translateY(-50%);
+}
+
+.dashboard-watchlist-grid .dashboard-minimal-row:hover {
+  color: var(--accent);
+}
+
+.dashboard-watchlist-grid .dashboard-minimal-row:hover::before {
+  background: var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 13%, transparent), 0 0 12px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.dashboard-watchlist-grid .dashboard-minimal-row p:first-child {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.dashboard-watchlist-grid .dashboard-minimal-row p:last-child {
+  color: var(--muted-strong);
+}
+
+/* Watchlist minimal — flat rows aligned with dashboard/risk */
+.watchlist-view.watchlist-minimal {
+  max-width: 56rem;
+}
+
+.watchlist-view.watchlist-minimal .dashboard-minimal-row {
+  position: relative;
+  padding-inline: 0.75rem;
+  border-radius: 0;
+  transition: background 160ms ease, transform 160ms ease;
+}
+
+.watchlist-view.watchlist-minimal .dashboard-minimal-row:hover {
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+  transform: translateX(2px);
+}
+
+.watchlist-view.watchlist-minimal .dashboard-minimal-row > div:first-child::before {
+  content: "";
+  display: inline-block;
+  width: 0.35rem;
+  height: 0.35rem;
+  margin-right: 0.45rem;
+  border-radius: 50%;
+  background: var(--accent);
+  vertical-align: 0.08em;
+  opacity: 0.8;
+}
+
+@media (max-width: 1023px) {
+  .watchlist-status-label {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.45;
+  }
+}
+
+.dashboard-minimal-section[aria-label="Recent paper trades"] .dashboard-minimal-row {
+  position: relative;
+  padding-inline: 0.75rem;
+  border-radius: 0;
+  transition: background 160ms ease, transform 160ms ease;
+}
+
+.dashboard-minimal-section[aria-label="Recent paper trades"] .dashboard-minimal-row:hover {
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+  transform: translateX(2px);
+}
+
+.dashboard-minimal-section[aria-label="Recent paper trades"] .dashboard-minimal-row > div:first-child::before {
+  content: "";
+  display: inline-block;
+  width: 0.35rem;
+  height: 0.35rem;
+  margin-right: 0.45rem;
+  border-radius: 50%;
+  background: var(--accent);
+  vertical-align: 0.08em;
+  opacity: 0.8;
+}
+
+.mobile-minimal-actions,
+.dashboard-minimal-actions {
+  display: grid;
+  gap: 0.35rem;
+  padding-bottom: 0.25rem;
+}
+
+.mobile-minimal-action,
+.dashboard-minimal-action {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+  border-radius: 0.9rem;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 3.5%, transparent);
+}
+
+.dark .mobile-minimal-action,
+.dark .dashboard-minimal-action {
+  background: color-mix(in srgb, var(--foreground) 4.5%, transparent);
+}
+
+.mobile-minimal-action:active,
+.dashboard-minimal-action:active {
+  background: color-mix(in srgb, var(--foreground) 7%, transparent);
+}
+
+@media (min-width: 1024px) {
+  .watchlist-view.watchlist-minimal > .dashboard-minimal-section {
+    border: 1px solid var(--border);
+    border-radius: 1.25rem;
+    padding: 1.25rem 1.5rem;
+    background: color-mix(in srgb, var(--surface) 86%, var(--background));
+  }
+
+  .dark .watchlist-view.watchlist-minimal > .dashboard-minimal-section {
+    border-color: var(--border-strong);
+    background: color-mix(in srgb, var(--surface) 94%, var(--background));
+  }
+
+  .watchlist-view.watchlist-minimal > .dashboard-minimal-section {
+    border-top: none;
+  }
+
+  .dashboard-view .account-overview-hero {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border));
+    border-radius: 1.5rem;
+    padding: 1.75rem 2rem 1.5rem;
+    background:
+      radial-gradient(circle at 88% 18%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 28%),
+      linear-gradient(135deg, color-mix(in srgb, var(--surface) 94%, var(--accent)), var(--surface));
+    box-shadow: 0 18px 50px color-mix(in srgb, var(--accent) 7%, transparent);
+  }
+
+  .dashboard-view .account-overview-hero::after {
+    content: "";
+    position: absolute;
+    right: -5rem;
+    bottom: -7rem;
+    width: 22rem;
+    height: 14rem;
+    border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
+    border-radius: 50%;
+    transform: rotate(-12deg);
+    pointer-events: none;
+  }
+
+  .dark .dashboard-view .account-overview-hero {
+    border-color: color-mix(in srgb, var(--accent) 25%, var(--border-strong));
+    background:
+      radial-gradient(circle at 88% 18%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 28%),
+      linear-gradient(135deg, color-mix(in srgb, var(--surface) 92%, var(--accent)), var(--surface));
+    box-shadow: 0 18px 50px color-mix(in srgb, var(--background) 45%, transparent);
+  }
+
+  .dashboard-view > .dashboard-minimal-section,
+  .dashboard-view .dashboard-minimal-grid > .dashboard-minimal-section,
+  .dashboard-view .dashboard-minimal-grid > .dashboard-minimal-actions {
+    border: 1px solid var(--border);
+    border-radius: 1.25rem;
+    padding: 1.25rem 1.5rem;
+    background: color-mix(in srgb, var(--surface) 86%, var(--background));
+  }
+
+  .dashboard-view .dashboard-minimal-grid > .dashboard-minimal-actions {
+    align-self: stretch;
+  }
+
+  .dark .dashboard-view > .dashboard-minimal-section,
+  .dark .dashboard-view .dashboard-minimal-grid > .dashboard-minimal-section,
+  .dark .dashboard-view .dashboard-minimal-grid > .dashboard-minimal-actions {
+    border-color: var(--border-strong);
+    background: color-mix(in srgb, var(--surface) 94%, var(--background));
+  }
+
+  .dashboard-minimal-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(16rem, 0.75fr);
+    gap: 2.5rem;
+    align-items: start;
+  }
+
+  .dashboard-minimal-section,
+  .dashboard-minimal-actions {
+    border-top: none;
+    padding-top: 0;
+  }
+
+  .dashboard-minimal-actions {
+    gap: 0.5rem;
+  }
+
+  .dashboard-watchlist-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 2rem;
+  }
+
+  .dashboard-watchlist-grid .dashboard-minimal-row {
+    border-top: 1px solid var(--border);
+  }
+
+  .dashboard-watchlist-grid .dashboard-minimal-row:nth-child(-n + 2) {
+    border-top: none;
+    padding-top: 0.15rem;
+  }
+}
+
+@media (max-width: 1023px) {
+  .watchlist-view.watchlist-minimal > header {
+    align-items: flex-start;
+  }
+}
+
+/* Journal minimal — dashboard/risk-aligned layout */
+.journal-view.journal-minimal {
+  max-width: 56rem;
+}
+
+.journal-stats-card {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 1.5rem;
+  padding: 1.15rem 1.1rem;
+  background: color-mix(in srgb, var(--surface) 92%, var(--background));
+}
+
+.dark .journal-stats-card {
+  border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--surface) 96%, var(--background));
+}
+
+.journal-stat {
+  min-width: 0;
+}
+
+.journal-stat:not(:first-child) {
+  border-left: 1px solid var(--border);
+  padding-left: 1rem;
+}
+
+.journal-view.journal-minimal .journal-entry {
+  transition: background 160ms ease;
+}
+
+.journal-view.journal-minimal .journal-entry:hover {
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+
+.journal-view.journal-minimal .journal-entry-note {
+  margin-left: 4.125rem;
+}
+
+@media (min-width: 1024px) {
+  .journal-view.journal-minimal > .dashboard-minimal-section {
+    border: 1px solid var(--border);
+    border-radius: 1.25rem;
+    padding: 1.25rem 1.5rem;
+    background: color-mix(in srgb, var(--surface) 86%, var(--background));
+  }
+
+  .dark .journal-view.journal-minimal > .dashboard-minimal-section {
+    border-color: var(--border-strong);
+    background: color-mix(in srgb, var(--surface) 94%, var(--background));
+  }
+
+  .journal-view.journal-minimal > .dashboard-minimal-section {
+    border-top: none;
+  }
+}
+
+/* Risk minimal — dashboard-aligned layout */
+.risk-view.risk-minimal {
+  max-width: 56rem;
+}
+
+.risk-stats-card {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 1.5rem;
+  padding: 1.15rem 1.1rem;
+  background: color-mix(in srgb, var(--surface) 92%, var(--background));
+}
+
+.dark .risk-stats-card {
+  border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--surface) 96%, var(--background));
+}
+
+@media (min-width: 640px) {
+  .risk-stats-card {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .risk-stat:not(:first-child) {
+    border-left: 1px solid var(--border);
+    padding-left: 1.1rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .risk-view > .dashboard-minimal-section,
+  .risk-view .dashboard-minimal-grid > .dashboard-minimal-section,
+  .risk-view .dashboard-minimal-actions {
+    border: 1px solid var(--border);
+    border-radius: 1.25rem;
+    padding: 1.25rem 1.5rem;
+    background: color-mix(in srgb, var(--surface) 86%, var(--background));
+  }
+
+  .dark .risk-view > .dashboard-minimal-section,
+  .dark .risk-view .dashboard-minimal-grid > .dashboard-minimal-section,
+  .dark .risk-view .dashboard-minimal-actions {
+    border-color: var(--border-strong);
+    background: color-mix(in srgb, var(--surface) 94%, var(--background));
+  }
+
+  .risk-view .dashboard-minimal-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(14rem, 0.75fr);
+    gap: 2.5rem;
+    align-items: start;
+  }
+
+  .risk-view .dashboard-minimal-section,
+  .risk-view .dashboard-minimal-actions {
+    border-top: none;
+    padding-top: 1.25rem;
+  }
+}
+
+/* Signals minimal — flat setup rail aligned with dashboard sections */
+@media (min-width: 1280px) {
+  .signals-view.signals-minimal > .dashboard-minimal-section.signals-sidebar,
+  .signals-view.signals-minimal > div > .dashboard-minimal-section.signals-sidebar {
+    border: 1px solid var(--border);
+    border-radius: 1.25rem;
+    padding: 1.25rem 1.5rem;
+    background: color-mix(in srgb, var(--surface) 86%, var(--background));
+  }
+
+  .dark .signals-view.signals-minimal > .dashboard-minimal-section.signals-sidebar,
+  .dark .signals-view.signals-minimal > div > .dashboard-minimal-section.signals-sidebar {
+    border-color: var(--border-strong);
+    background: color-mix(in srgb, var(--surface) 94%, var(--background));
+  }
+}
+
+.signals-view.signals-minimal .signals-checklist li {
+  font-size: 0.8125rem;
+  color: var(--muted-strong);
+}
+
+.signals-view.signals-minimal .signals-notice {
+  background: transparent;
+  padding-inline: 0;
 }

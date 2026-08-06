@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { RiskWorkspace, type PaperExposure, type PaperRiskPolicy } from "@/components/risk/risk-workspace";
-import { PageHeader } from "@/components/ui/page-header";
 import { getApiData } from "@/lib/api/server";
 import type { AccountSummary, ConnectionStatus } from "@/types/forex";
 
@@ -15,18 +14,11 @@ export default async function RiskPage() {
   ]);
 
   return (
-    <>
-      <PageHeader
-        eyebrow="Research exposure"
-        title="Paper risk"
-        description="Measure the exposure actually created by automatic ten-pair collection, without pretending it is a live portfolio risk model."
-      />
-      <RiskWorkspace
-        initialAccount={accountResult.data}
-        initialStatus={accountResult.status}
-        initialExposure={riskResult.exposure}
-        initialPolicy={riskResult.policy}
-      />
-    </>
+    <RiskWorkspace
+      initialAccount={accountResult.data}
+      initialStatus={accountResult.status}
+      initialExposure={riskResult.exposure}
+      initialPolicy={riskResult.policy}
+    />
   );
 }

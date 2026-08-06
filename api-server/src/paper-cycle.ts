@@ -490,6 +490,41 @@ export async function paperCycleOverview() {
   return { strategyVersion: ACTIVE_STRATEGY_VERSION, batchSize: BATCH_SIZE, lifetimeSummary: paperBatchMetrics(lifetimeRows.rows), current: current ? { ...current, liveSummary, remaining: BATCH_SIZE - Number((current as any).assignedCount) } : null, batches: batches.rows, trades: currentTrades.rows };
 }
 
+/**
+ * The journal log: manually written entries plus every strategy trade the cycle
+ * placed, so a trade lands in the journal as soon as it resolves. Ambiguous
+ * strategy trades are left out until the resolver settles them.
+ */
+export async function journalTradeLog(userId: string) {
+  const rows = await query(
+    `SELECT id, origin, pair, direction, status, result, opened_at AS "openedAt", closed_at AS "closedAt",
+            entry, stop, target, exit, result_r AS "resultR", paper_pl AS "paperPl", reason, notes, sequence, outcome
+     FROM (
+       SELECT id::text, origin, pair, direction, status, result, opened_at, closed_at,
+              entry::float, stop::float, target::float, exit::float, result_r::float,
+              NULL::float AS paper_pl, reason, notes, NULL::text AS sequence, NULL::text AS outcome
+       FROM paper_trades WHERE user_id=$1
+       UNION ALL
+       SELECT trade.id::text, 'strategy', instrument.display_name, trade.direction,
+              trade.status, CASE WHEN trade.status <> 'closed' OR trade.result_r IS NULL THEN 'open'
+                                 WHEN trade.result_r > 0.01 THEN 'win'
+                                 WHEN trade.result_r < -0.01 THEN 'loss' ELSE 'breakeven' END,
+              trade.opened_at, trade.closed_at,
+              trade.entry::float, trade.stop::float, trade.target::float, trade.exit::float, trade.result_r::float, trade.paper_pl::float,
+              trade.setup_name || ' · ' || trade.session,
+              CASE WHEN trade.exit_reason IS NULL THEN ''
+                   ELSE 'Broker outcome: ' || replace(trade.exit_reason, '_', ' ') END,
+              trade.trade_sequence::text, trade.outcome
+       FROM paper_strategy_trades trade
+       JOIN instruments instrument ON instrument.code = trade.instrument
+       WHERE trade.user_id=$1 AND trade.status IN ('open', 'closed')
+     ) log
+     ORDER BY "openedAt" DESC`,
+    [userId],
+  );
+  return rows.rows;
+}
+
 /** Entry and exit points for one pair, used to draw trade markers on the chart. */
 export async function paperTradesForInstrument(userId: string, instrument: string, limit = 40) {
   const rows = await query(

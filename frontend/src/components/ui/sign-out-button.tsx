@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { apiUrl } from "@/lib/api/url";
 
-export function SignOutButton({ compact = false }: { compact?: boolean }) {
+export function SignOutButton({ compact = false, menu = false }: { compact?: boolean; menu?: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
 
@@ -34,6 +34,22 @@ export function SignOutButton({ compact = false }: { compact?: boolean }) {
         aria-label="Sign out"
       >
         <LogOut className="size-[18px]" strokeWidth={1.9} />
+      </button>
+    );
+  }
+
+  if (menu) {
+    return (
+      <button
+        type="button"
+        onClick={signOut}
+        disabled={busy}
+        className="sign-out-menu-link nav-more-link pressable disabled:cursor-wait disabled:opacity-50"
+      >
+        <span className="nav-more-icon sign-out-menu-icon">
+          <LogOut className="size-4" strokeWidth={1.9} />
+        </span>
+        {busy ? "Signing out…" : "Sign out"}
       </button>
     );
   }

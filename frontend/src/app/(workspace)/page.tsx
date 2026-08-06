@@ -17,6 +17,7 @@ export default async function DashboardPage() {
       initialWatchlist={watchlist.watchlist}
       initialOverview={overview}
       initialExposure={risk.exposure}
+      userLabel="Richie"
     />
   );
 }

@@ -7,7 +7,6 @@ import {
   type AccountChartRange,
 } from "@/components/dashboard/account-amount-chart";
 import { NotificationBell } from "@/components/notifications/notification-bell";
-import { SignOutButton } from "@/components/ui/sign-out-button";
 import type { AccountSummary } from "@/types/forex";
 
 type PaperTradePoint = {
@@ -77,7 +76,6 @@ export function AccountOverviewHero({
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           <NotificationBell compact />
-          <SignOutButton compact />
         </div>
       </header>
 

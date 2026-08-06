@@ -55,15 +55,14 @@ import type {
   TradeSignal,
 } from "@/types/forex";
 
-const MOBILE_TABS = ["Overview", "Setup"] as const;
-type MobileTab = (typeof MOBILE_TABS)[number];
-
 const ENTRY_CHECKLIST = [
   "Structure confirms bias",
   "Entry inside zone",
   "Size matches risk policy",
   "No news within 30m",
 ] as const;
+
+type MobileTab = "Overview" | "Setup";
 
 /** Bars of breathing room kept on each side of a focused trade. */
 const FOCUS_PADDING_BARS = 30;
@@ -920,7 +919,6 @@ export function SignalWorkspace({
   const [enabledIndicators, setEnabledIndicators] = useState<ChartIndicator[]>(
     DEFAULT_CHART_INDICATORS,
   );
-  const [mobileTab, setMobileTab] = useState<MobileTab>("Overview");
   const [series, setSeries] = useState(primarySeries);
   const seriesRef = useRef(primarySeries);
   const [liveCandle, setLiveCandle] = useState<Candle | null>(null);
@@ -1391,35 +1389,6 @@ export function SignalWorkspace({
               />
             </div>
 
-            <div className="flex gap-4 px-4 pb-2.5">
-              {MOBILE_TABS.map((tab) => {
-                const isActive = mobileTab === tab;
-
-                return (
-                  <button
-                    key={tab}
-                    type="button"
-                    onClick={() => setMobileTab(tab)}
-                    className={`signals-mobile-tab pressable ${
-                      isActive ? "is-active" : ""
-                    }`}
-                  >
-                    {tab}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="px-4 py-5 pb-8">
-            <MobileSignalDetails
-              tab={mobileTab}
-              active={active}
-              setup={activeSetup}
-              riskDistance={riskDistance}
-              openPaperTrade={planIsOpen}
-              availability={tradingAvailability}
-            />
           </div>
         </div>
 

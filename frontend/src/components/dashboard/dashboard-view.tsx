@@ -8,6 +8,9 @@ import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { displayNameFor } from "@/lib/instruments/catalog";
 import { formatDayAndTime } from "@/lib/format/datetime";
+import { openTradeProgress } from "@/lib/open-trade-progress";
+import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
+import { useOpenPositionFills } from "@/lib/market-stream/use-open-positions";
 import { getPaperTradingAvailability, type PaperTradingAvailability } from "@/lib/strategy/strategy-engine";
 import type { AccountSummary, ConnectionStatus } from "@/types/forex";
 
@@ -60,6 +63,12 @@ type Trade = {
   paperPl?: number | null;
   openedAt: string;
   closedAt?: string | null;
+  // Already returned by the overview endpoint; declared here so an open trade
+  // can be marked to the live quote instead of just reading "Open".
+  entry?: number | null;
+  stop?: number | null;
+  target?: number | null;
+  nominalRiskAmount?: number | null;
 };
 
 export type DashboardOverview = {
@@ -115,7 +124,7 @@ function setupProgress(row: DashboardWatchRow) {
 function pairState(row: DashboardWatchRow, availability: PaperTradingAvailability) {
   const windowOpen = availability.state === "entry_window_open";
 
-  if (row.openTradeId) return { label: "Open paper trade", tone: "text-[color:var(--accent)]", state: "open" };
+  if (row.openTradeId) return { label: "Open", tone: "text-[color:var(--accent)]", state: "open" };
   if (row.dataStatus !== "connected") {
     return { label: "Data unavailable", tone: "text-[color:var(--danger)]", state: "unavailable" };
   }
@@ -173,6 +182,11 @@ export function DashboardView({
   const [watchlist, setWatchlist] = useState(initialWatchlist);
   const [overview, setOverview] = useState(initialOverview);
   const [error, setError] = useState<string | null>(null);
+  // Ticks rather than the 60s refresh below, so an open trade's value moves
+  // with the market instead of jumping once a minute.
+  const quotes = useLiveQuotes();
+  // Real fills, so an open row reports the same money as the account hero.
+  const fills = useOpenPositionFills();
   const availability = getPaperTradingAvailability();
 
   const refresh = useCallback(async () => {
@@ -199,7 +213,39 @@ export function DashboardView({
     }
   }, []);
 
+  /**
+   * The account moves with every tick on an open position, so it is polled on
+   * its own short cycle. The watchlist and cycle payloads are heavier and only
+   * change when a candle closes, so they keep the slow one.
+   *
+   * Both run once immediately: the effect previously installed the interval and
+   * nothing else, which left the page showing its server-rendered snapshot —
+   * including a day figure of +$0.00 — for a full minute after load.
+   */
+  const refreshAccount = useCallback(async () => {
+    try {
+      const response = await fetch(apiUrl("/api/oanda/account-summary"), { credentials: "include", cache: "no-store" });
+      if (!response.ok) return;
+      const payload = await response.json() as { data: AccountSummary };
+      setAccount(payload.data);
+    } catch {
+      // The slow refresh below reports the outage.
+    }
+  }, []);
+
   useEffect(() => {
+    // Both fetches resolve before they set state, so the update lands in a
+    // promise continuation rather than synchronously during the effect. The
+    // rule cannot see through the async call.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void refreshAccount();
+    const timer = window.setInterval(() => void refreshAccount(), 5_000);
+    return () => window.clearInterval(timer);
+  }, [refreshAccount]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void refresh();
     const timer = window.setInterval(() => void refresh(), 60_000);
     return () => window.clearInterval(timer);
   }, [refresh]);
@@ -294,7 +340,14 @@ export function DashboardView({
                   ) : null}
                 </div>
                 <p className="metric-number shrink-0 text-sm text-[color:var(--muted)]">
-                  {row.bid === null ? "—" : formatChartPrice(row.bid, row.instrument)}
+                  {/* Streamed price when the pair has ticked, otherwise the
+                      polled snapshot. */}
+                  {(() => {
+                    const shownBid = quotes[row.instrument]?.bid ?? row.bid;
+                    return shownBid === null
+                      ? "—"
+                      : formatChartPrice(shownBid, row.instrument);
+                  })()}
                 </p>
               </Link>
             );
@@ -313,12 +366,31 @@ export function DashboardView({
           {overview.trades.length ? (
             <div className="dash-trade-list mt-3">
               {overview.trades.slice(0, 6).map((trade) => {
+                const settled = trade.paperPl !== null && trade.paperPl !== undefined;
+                // An open trade is marked against the live quote for its pair,
+                // so the row reports what it is worth now rather than "Open".
+                const streamed = quotes[trade.instrument];
+                const quote =
+                  streamed ?? watchlist.find((row) => row.instrument === trade.instrument);
+                const live =
+                  settled ||
+                  trade.entry == null ||
+                  trade.stop == null ||
+                  trade.target == null
+                    ? null
+                    : openTradeProgress({
+                        direction: trade.direction,
+                        entry: trade.entry,
+                        stop: trade.stop,
+                        target: trade.target,
+                        bid: quote?.bid,
+                        ask: quote?.ask,
+                        riskAmount: trade.nominalRiskAmount,
+                        fill: fills[trade.instrument],
+                      });
+                const shown = settled ? trade.paperPl! : live?.money ?? null;
                 const plTone =
-                  trade.paperPl === null || trade.paperPl === undefined
-                    ? "is-open"
-                    : trade.paperPl >= 0
-                      ? "is-win"
-                      : "is-loss";
+                  shown === null ? "is-open" : shown >= 0 ? "is-win" : "is-loss";
                 return (
                   <Link
                     key={trade.id}
@@ -339,14 +411,17 @@ export function DashboardView({
                     </div>
                     <div className="dash-trade-aside">
                       <p className={`dash-trade-pl metric-number ${plTone}`}>
-                        {trade.paperPl === null || trade.paperPl === undefined
-                          ? "Open"
-                          : money(trade.paperPl, account.currency)}
+                        {shown === null ? "Open" : money(shown, account.currency)}
                       </p>
                       {trade.resultR !== null ? (
                         <p className="dash-trade-r metric-number">
                           {trade.resultR >= 0 ? "+" : ""}
                           {trade.resultR.toFixed(2)}R
+                        </p>
+                      ) : live ? (
+                        <p className="dash-trade-r metric-number">
+                          {Math.round(live.percent)}%{" "}
+                          {live.towards === "stop" ? "to SL" : "to TP"}
                         </p>
                       ) : null}
                     </div>

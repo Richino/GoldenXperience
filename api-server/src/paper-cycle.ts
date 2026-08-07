@@ -498,11 +498,13 @@ export async function paperCycleOverview() {
 export async function journalTradeLog(userId: string) {
   const rows = await query(
     `SELECT id, origin, pair, direction, status, result, opened_at AS "openedAt", closed_at AS "closedAt",
-            entry, stop, target, exit, result_r AS "resultR", paper_pl AS "paperPl", reason, notes, sequence, outcome
+            entry, stop, target, exit, result_r AS "resultR", paper_pl AS "paperPl", reason, notes, sequence, outcome,
+            instrument_code AS "instrument", nominal_risk_amount AS "nominalRiskAmount"
      FROM (
        SELECT id::text, origin, pair, direction, status, result, opened_at, closed_at,
               entry::float, stop::float, target::float, exit::float, result_r::float,
-              NULL::float AS paper_pl, reason, notes, NULL::text AS sequence, NULL::text AS outcome
+              NULL::float AS paper_pl, reason, notes, NULL::text AS sequence, NULL::text AS outcome,
+              NULL::text AS instrument_code, NULL::float AS nominal_risk_amount
        FROM paper_trades WHERE user_id=$1
        UNION ALL
        SELECT trade.id::text, 'strategy', instrument.display_name, trade.direction,
@@ -514,7 +516,10 @@ export async function journalTradeLog(userId: string) {
               trade.setup_name || ' · ' || trade.session,
               CASE WHEN trade.exit_reason IS NULL THEN ''
                    ELSE 'Broker outcome: ' || replace(trade.exit_reason, '_', ' ') END,
-              trade.trade_sequence::text, trade.outcome
+              trade.trade_sequence::text, trade.outcome,
+              -- Carried so an open row can be marked to the live quote: the code
+              -- matches the watchlist snapshot, the risk amount sets the scale.
+              trade.instrument, trade.nominal_risk_amount::float
        FROM paper_strategy_trades trade
        JOIN instruments instrument ON instrument.code = trade.instrument
        WHERE trade.user_id=$1 AND trade.status IN ('open', 'closed')

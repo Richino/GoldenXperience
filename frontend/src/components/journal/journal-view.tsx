@@ -9,6 +9,10 @@ import {
 import type { JournalTrade } from "@/types/forex";
 import { apiUrl } from "@/lib/api/url";
 import { formatShortDay } from "@/lib/format/datetime";
+import { openTradeProgress } from "@/lib/open-trade-progress";
+import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
+import { useOpenPositionFills } from "@/lib/market-stream/use-open-positions";
+import Link from "next/link";
 
 const BASE_FILTERS = ["All", "Wins", "Losses", "EUR/USD", "GBP/USD", "USD/JPY"];
 
@@ -39,21 +43,61 @@ function formatShortDate(value: string | null) {
   return formatShortDay(value);
 }
 
-function JournalTradeRow({ trade }: { trade: JournalTrade }) {
-  const positive = (trade.resultR ?? 0) >= 0;
-  const resultTone =
-    trade.resultR === null ? "is-open" : positive ? "is-win" : "is-loss";
-  const resultLabel =
+function JournalTradeRow({
+  trade,
+  quote,
+  fill,
+}: {
+  trade: JournalTrade;
+  quote?: { bid: number | null; ask: number | null };
+  fill?: { price: number; units: number };
+}) {
+  // An unresolved trade reports what it is worth right now and how far it has
+  // come towards its target, rather than only that it is open. Without a live
+  // quote — a manual trade, or the snapshot not loaded — it falls back to
+  // "Open" rather than inventing a value.
+  const live =
     trade.resultR === null
-      ? "Open"
-      : `${positive ? "+" : ""}${trade.resultR.toFixed(2)}`;
-  const money = formatMoney(trade.paperPl);
+      ? openTradeProgress({
+          direction: trade.direction,
+          entry: trade.entry,
+          stop: trade.stop,
+          target: trade.target,
+          bid: quote?.bid,
+          ask: quote?.ask,
+          riskAmount: trade.nominalRiskAmount,
+          fill,
+        })
+      : null;
+
+  const positive = (trade.resultR ?? live?.unrealizedR ?? 0) >= 0;
+  const resultTone =
+    trade.resultR === null && !live
+      ? "is-open"
+      : positive
+        ? "is-win"
+        : "is-loss";
+  const resultLabel =
+    trade.resultR !== null
+      ? `${positive ? "+" : ""}${trade.resultR.toFixed(2)}`
+      : live
+        ? `${Math.round(live.percent)}% ${live.towards === "stop" ? "to SL" : "to TP"}`
+        : "Open";
+  const moneyValue = trade.paperPl ?? live?.money ?? null;
+  const money = formatMoney(moneyValue);
   const moneyTone =
-    trade.paperPl == null ? null : trade.paperPl >= 0 ? "is-win" : "is-loss";
+    moneyValue == null ? null : moneyValue >= 0 ? "is-win" : "is-loss";
   const outcome = outcomeLabel(trade.outcome);
 
-  return (
-    <article className="journal-entry">
+  // Strategy trades open on the chart they were taken from. A manually entered
+  // trade has no instrument code to route with, so it stays unlinked rather
+  // than pointing at a pair the chart cannot resolve.
+  const href = trade.instrument
+    ? `/signals?instrument=${trade.instrument}&trade=${trade.id}`
+    : null;
+
+  const body = (
+    <>
       <header className="journal-entry-top">
         <p className="journal-entry-title">
           <span className="journal-entry-pair">{trade.pair}</span>
@@ -120,6 +164,20 @@ function JournalTradeRow({ trade }: { trade: JournalTrade }) {
           </dd>
         </div>
       </dl>
+    </>
+  );
+
+  return (
+    <article className="journal-entry">
+      {/* The note stays outside the link: it is a `details` toggle, and a tap
+          on it has to open the note rather than navigate away. */}
+      {href ? (
+        <Link href={href} className="journal-entry-open pressable">
+          {body}
+        </Link>
+      ) : (
+        body
+      )}
 
       {trade.notes ? (
         <details className="journal-entry-note">
@@ -137,6 +195,12 @@ export function JournalView() {
   const [loadingRecords, setLoadingRecords] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [storageReady, setStorageReady] = useState(false);
+  // Live bid/ask per pair, so an unresolved row is marked to market on every
+  // tick. A dropped socket leaves the last known figure rather than a wrong
+  // one, and rows without a quote fall back to "Open".
+  const quotes = useLiveQuotes();
+  // Real fills, so an open row reports the same money as the account hero.
+  const fills = useOpenPositionFills();
   const reducedMotion = useReducedMotion();
 
   useEffect(() => {
@@ -278,7 +342,11 @@ export function JournalView() {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                 >
-                  <JournalTradeRow trade={trade} />
+                  <JournalTradeRow
+                    trade={trade}
+                    quote={trade.instrument ? quotes[trade.instrument] : undefined}
+                    fill={trade.instrument ? fills[trade.instrument] : undefined}
+                  />
                 </motion.div>
               ))}
             </div>

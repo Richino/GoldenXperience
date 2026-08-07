@@ -141,4 +141,9 @@ export interface JournalTrade {
   sequence?: string | null;
   /** Set on strategy-executed trades: how the trade resolved at the broker. */
   outcome?: string | null;
+  /** OANDA code, so an open row can be matched to a live quote. `pair` is a
+   *  display name and does not join to the watchlist snapshot. */
+  instrument?: string | null;
+  /** Cash risked between entry and stop, used to value an open trade. */
+  nominalRiskAmount?: number | null;
 }

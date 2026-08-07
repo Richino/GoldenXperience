@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatChartPrice } from "@/lib/chart-utils";
-import { displayNameFor } from "@/lib/instruments/catalog";
+import { displayNameFor, pipSizeFor } from "@/lib/instruments/catalog";
 import { apiUrl } from "@/lib/api/url";
+import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import { formatClockTime } from "@/lib/format/datetime";
 import { getPaperTradingAvailability, type PaperTradingAvailability } from "@/lib/strategy/strategy-engine";
 
@@ -37,7 +38,7 @@ type RowStatus = { label: string | null; tone: string };
  * every row shares that phrase, the section note shows it once instead.
  */
 function statusFor(row: WatchRow, availability: PaperTradingAvailability): RowStatus {
-  if (row.openTradeId) return { label: "Open paper trade", tone: "text-[color:var(--accent)]" };
+  if (row.openTradeId) return { label: "Open trade", tone: "text-[color:var(--accent)]" };
   if (availability.state !== "entry_window_open") {
     return { label: row.session || null, tone: "text-[color:var(--muted)]" };
   }
@@ -121,9 +122,32 @@ function levelsContent(row: WatchRow, availability: PaperTradingAvailability) {
 }
 
 export function WatchlistView() {
-  const [rows, setRows] = useState<WatchRow[]>([]);
+  const [snapshot, setSnapshot] = useState<WatchRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const quotes = useLiveQuotes();
+  /**
+   * Prices come off the stream, everything else off the snapshot below.
+   *
+   * The poll carries the strategy's verdict — conditions, levels, session —
+   * which only changes when a candle closes, so a minute is the right cadence
+   * for it. Quotes move constantly and were sitting up to a minute stale
+   * beside it. A pair the stream has not reported keeps its polled price.
+   */
+  const rows = useMemo(
+    () =>
+      snapshot.map((row) => {
+        const quote = quotes[row.instrument];
+        if (!quote) return row;
+        return {
+          ...row,
+          bid: quote.bid,
+          ask: quote.ask,
+          spreadPips: (quote.ask - quote.bid) / pipSizeFor(row.instrument),
+        };
+      }),
+    [snapshot, quotes],
+  );
   const availability = getPaperTradingAvailability();
   const sharedStatus = sharedStatusLabel(rows, availability);
   const layout = rows.some((row) => {
@@ -138,7 +162,7 @@ export function WatchlistView() {
       const response = await fetch(apiUrl("/api/watchlist"), { credentials: "include", cache: "no-store" });
       const payload = await response.json() as { watchlist?: WatchRow[]; error?: string };
       if (!response.ok || !payload.watchlist) throw new Error(payload.error ?? "Watchlist is unavailable.");
-      setRows(payload.watchlist);
+      setSnapshot(payload.watchlist);
       setError(null);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Watchlist is unavailable.");

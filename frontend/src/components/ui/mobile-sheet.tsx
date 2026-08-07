@@ -21,11 +21,14 @@ export function MobileSheet({
   open,
   onClose,
   title,
+  headerAction,
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
+  /** Optional control shown in the head, to the left of the close button. */
+  headerAction?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const [dragY, setDragY] = useState(0);
@@ -217,14 +220,17 @@ export function MobileSheet({
           <div className="mobile-sheet-handle" aria-hidden />
           <div className="mobile-sheet-head">
             <p className="mobile-sheet-title">{title}</p>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label={`Close ${title.toLowerCase()}`}
-              className="mobile-sheet-close pressable"
-            >
-              <X className="size-4" strokeWidth={2} />
-            </button>
+            <div className="mobile-sheet-actions">
+              {headerAction}
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label={`Close ${title.toLowerCase()}`}
+                className="mobile-sheet-close pressable"
+              >
+                <X className="size-4" strokeWidth={2} />
+              </button>
+            </div>
           </div>
         </div>
 

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Bell, CheckCheck } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { MobileSheet } from "@/components/ui/mobile-sheet";
 import { useNotificationContext } from "./notification-provider";
 import type { AppNotification } from "./notification-provider";
 
@@ -43,15 +44,15 @@ function detailTone(item: AppNotification) {
 export function NotificationBell({ compact = false, className = "" }: { compact?: boolean; className?: string }) {
   const { notifications, unreadCount, markRead } = useNotificationContext();
   const [open, setOpen] = useState(false);
-  const [dragY, setDragY] = useState(0);
-  const dragStartY = useRef<number | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonClass = compact
     ? `mobile-icon-btn pressable relative text-[color:var(--muted-strong)] hover:text-[color:var(--foreground)] ${open ? "control-active" : ""} ${className}`
     : `notification-bell-btn pressable relative hidden size-10 place-items-center rounded-full bg-[color:var(--surface)] text-[color:var(--muted-strong)] hover:text-[color:var(--foreground)] lg:grid ${open ? "control-active" : ""} ${className}`;
 
+  // The sheet portals out of this subtree and closes itself on a backdrop tap
+  // or Escape, so the popover's dismissal wiring only applies on desktop.
   useEffect(() => {
-    if (!open) return;
+    if (!open || compact) return;
 
     function handlePointerDown(event: MouseEvent) {
       if (!rootRef.current?.contains(event.target as Node)) {
@@ -72,23 +73,50 @@ export function NotificationBell({ compact = false, className = "" }: { compact?
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [open]);
+  }, [compact, open]);
 
-  function handleSheetPointerDown(event: React.PointerEvent<HTMLDivElement>) {
-    dragStartY.current = event.clientY;
-    event.currentTarget.setPointerCapture(event.pointerId);
-  }
+  const readAllButton = unreadCount ? (
+    <button
+      type="button"
+      onClick={() => void markRead()}
+      className="notification-popover-read-all pressable"
+      aria-label="Mark all as read"
+    >
+      <CheckCheck className="size-3.5" />
+      <span>Read all</span>
+    </button>
+  ) : null;
 
-  function handleSheetPointerMove(event: React.PointerEvent<HTMLDivElement>) {
-    if (dragStartY.current === null) return;
-    setDragY(Math.max(0, event.clientY - dragStartY.current));
-  }
-
-  function handleSheetPointerUp() {
-    if (dragY > 80) setOpen(false);
-    setDragY(0);
-    dragStartY.current = null;
-  }
+  const list = (
+    <div className="notification-popover-list">
+      {!notifications.length ? (
+        <p className="notification-popover-empty">No notifications yet.</p>
+      ) : (
+        notifications.map((item) => {
+          const detail = displayDetail(item);
+          const tone = detailTone(item);
+          return (
+            <Link
+              key={item.id}
+              href={notificationHref(item)}
+              onClick={() => {
+                void markRead([item.id]);
+                setOpen(false);
+              }}
+              className={`notification-popover-item pressable ${item.readAt ? "" : "is-unread"} ${item.kind === "system_issue" ? "is-issue" : ""}`}
+            >
+              <div className="notification-popover-item-top">
+                {!item.readAt ? <span className="notification-unread-dot" aria-hidden /> : null}
+                <p className="notification-popover-item-title">{displayTitle(item)}</p>
+                <span className="notification-popover-item-time">{timeLabel(item.createdAt)}</span>
+              </div>
+              {detail ? <p className={`notification-popover-item-message ${tone}`}>{detail}</p> : null}
+            </Link>
+          );
+        })
+      )}
+    </div>
+  );
 
   return (
     <div ref={rootRef} className="relative">
@@ -107,69 +135,22 @@ export function NotificationBell({ compact = false, className = "" }: { compact?
         ) : null}
       </button>
 
-      {open && compact ? <div className="notification-sheet-backdrop" onClick={() => setOpen(false)} /> : null}
-      {open ? (
-        <div
-          className={compact ? "notification-sheet" : "notification-popover menu-popover absolute right-0 top-[calc(100%+0.5rem)] z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl"}
-          data-pull-to-refresh-ignore={compact ? "true" : undefined}
-          style={compact ? { transform: `translateY(${dragY}px)` } : undefined}
-          onPointerDown={compact ? handleSheetPointerDown : undefined}
-          onPointerMove={compact ? handleSheetPointerMove : undefined}
-          onPointerUp={compact ? handleSheetPointerUp : undefined}
-          onPointerCancel={compact ? handleSheetPointerUp : undefined}
+      {compact ? (
+        <MobileSheet
+          open={open}
+          onClose={() => setOpen(false)}
+          title="Notifications"
+          headerAction={readAllButton}
         >
-          {compact ? (
-            <div
-              className="notification-sheet-handle"
-              aria-hidden
-              onPointerDown={handleSheetPointerDown}
-            />
-          ) : null}
+          {list}
+        </MobileSheet>
+      ) : open ? (
+        <div className="notification-popover menu-popover absolute right-0 top-[calc(100%+0.5rem)] z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl">
           <div className="notification-popover-head">
             <p className="notification-popover-title">Notifications</p>
-            {unreadCount ? (
-              <button
-                type="button"
-                onClick={() => void markRead()}
-                className="notification-popover-read-all pressable"
-                aria-label="Mark all as read"
-              >
-                <CheckCheck className="size-3.5" />
-                <span>Read all</span>
-              </button>
-            ) : null}
+            {readAllButton}
           </div>
-
-          <div className="notification-popover-list">
-            {!notifications.length ? (
-              <p className="notification-popover-empty">No notifications yet.</p>
-            ) : (
-              notifications.map((item) => {
-                const detail = displayDetail(item);
-                const tone = detailTone(item);
-                return (
-                  <Link
-                    key={item.id}
-                    href={notificationHref(item)}
-                    onClick={() => {
-                      void markRead([item.id]);
-                      setOpen(false);
-                    }}
-                    className={`notification-popover-item pressable ${item.readAt ? "" : "is-unread"} ${item.kind === "system_issue" ? "is-issue" : ""}`}
-                  >
-                    <div className="notification-popover-item-top">
-                      {!item.readAt ? <span className="notification-unread-dot" aria-hidden /> : null}
-                      <p className="notification-popover-item-title">{displayTitle(item)}</p>
-                      <span className="notification-popover-item-time">{timeLabel(item.createdAt)}</span>
-                    </div>
-                    {detail ? (
-                      <p className={`notification-popover-item-message ${tone}`}>{detail}</p>
-                    ) : null}
-                  </Link>
-                );
-              })
-            )}
-          </div>
+          {list}
         </div>
       ) : null}
     </div>

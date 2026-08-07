@@ -8,6 +8,7 @@ import {
 } from "@/components/dashboard/account-amount-chart";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { tradingDayKey } from "@/lib/format/datetime";
+import { useScrolledPast } from "@/lib/use-scrolled-past";
 import type { AccountSummary } from "@/types/forex";
 
 type PaperTradePoint = {
@@ -56,6 +57,10 @@ export function AccountOverviewHero({
 }) {
   const [range, setRange] = useState<AccountChartRange>("1w");
   const name = greetingName(userLabel);
+  // The bell is fixed to the viewport, so the greeting row it was lifted out of
+  // is what decides when it stops reading as part of the header.
+  const { ref: greetingRef, scrolledPast: greetingScrolledPast } =
+    useScrolledPast<HTMLElement>();
   const series = useMemo(
     () =>
       buildAccountAmountSeries({
@@ -95,7 +100,10 @@ export function AccountOverviewHero({
       data-tone={positive ? "positive" : "negative"}
       aria-label="Account overview"
     >
-      <header className="flex items-center justify-between gap-3 lg:hidden">
+      <header
+        ref={greetingRef}
+        className="flex items-center justify-between gap-3 lg:hidden"
+      >
         <div className="flex min-w-0 items-center gap-3">
           <div className="mobile-account-avatar" aria-hidden>
             {initials(userLabel)}
@@ -105,7 +113,12 @@ export function AccountOverviewHero({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
-          <NotificationBell compact />
+          <NotificationBell
+            compact
+            className={`mobile-floating-icon mobile-floating-icon-end${
+              greetingScrolledPast ? " is-lifted" : ""
+            }`}
+          />
         </div>
       </header>
 

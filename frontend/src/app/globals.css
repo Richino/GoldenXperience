@@ -21,6 +21,9 @@
   --success-soft: rgba(0, 179, 119, 0.1);
   --danger: #e74c3c;
   --danger-soft: rgba(231, 76, 60, 0.1);
+  /* A setup part-way to valid — between "nothing here" and "ready". */
+  --pending: #d98324;
+  --pending-soft: rgba(217, 131, 36, 0.12);
   --shadow: none;
   --radius-card: 24px;
   --radius-pill: 999px;
@@ -59,6 +62,8 @@
   --success-soft: rgba(0, 229, 155, 0.14);
   --danger: #ff6370;
   --danger-soft: rgba(255, 99, 112, 0.14);
+  --pending: #f5a524;
+  --pending-soft: rgba(245, 165, 36, 0.16);
   --shadow: none;
   --scrollbar-thumb: color-mix(in srgb, var(--foreground) 22%, transparent);
   --scrollbar-thumb-hover: color-mix(in srgb, var(--foreground) 34%, transparent);
@@ -785,6 +790,226 @@ input[type="number"] {
   text-align: center;
   font-size: 0.8125rem;
   color: var(--muted);
+}
+
+/*
+ * Mobile bottom sheet. Sits above the CSS fullscreen chart (z-index 60), since
+ * the chart tools stay reachable while the chart is expanded.
+ */
+.mobile-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 68;
+  background: color-mix(in srgb, var(--background) 55%, transparent);
+  animation: notification-sheet-fade 180ms ease-out both;
+  /* Nothing behind the sheet reacts to a finger. */
+  touch-action: none;
+  overscroll-behavior: contain;
+}
+
+.mobile-sheet {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 69;
+  display: flex;
+  flex-direction: column;
+  max-height: min(78vh, 34rem);
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  border-radius: 1.35rem 1.35rem 0 0;
+  background: var(--surface);
+  box-shadow: 0 -16px 40px color-mix(in srgb, var(--background) 24%, transparent);
+  /* `backwards`, not `both`: a forwards fill keeps the final keyframe applied
+     after the animation ends, and an animated transform outranks the inline
+     one, so the sheet could never follow a drag. */
+  animation: notification-sheet-up 220ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  transition: transform 160ms ease-out;
+  outline: none;
+  /* Only .mobile-sheet-body opts back into scrolling. */
+  touch-action: none;
+  overscroll-behavior: contain;
+}
+
+.mobile-sheet-grip {
+  flex-shrink: 0;
+  touch-action: none;
+  cursor: grab;
+}
+
+.mobile-sheet-handle {
+  width: 2.35rem;
+  height: 0.22rem;
+  margin: 0.55rem auto 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 16%, transparent);
+}
+
+.mobile-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.mobile-sheet-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.mobile-sheet-close {
+  display: grid;
+  place-items: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 6%, var(--surface));
+  color: var(--muted-strong);
+}
+
+/*
+ * `pan-y` lets the list scroll itself, and `contain` stops a scroll that runs
+ * out of room from continuing into the page behind. The swipe-to-dismiss
+ * handover happens in JS once this is at scrollTop 0.
+ */
+.mobile-sheet-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  padding: 0.5rem 0.75rem calc(1rem + env(safe-area-inset-bottom, 0px));
+}
+
+.sheet-option-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.sheet-option-group + .sheet-option-group {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.sheet-option-group-title {
+  padding: 0.5rem 0.75rem 0.35rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
+.sheet-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  /* Comfortably past the 44px touch target minimum. */
+  min-height: 2.875rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.85rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--muted-strong);
+}
+
+.sheet-option.is-selected {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.sheet-option-check {
+  display: grid;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  flex-shrink: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.4rem;
+  background: var(--surface);
+}
+
+.sheet-option-check.is-on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--background);
+}
+
+.sheet-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+}
+
+.sheet-trigger.is-open {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.sheet-trigger.has-active {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border-strong));
+  color: var(--accent);
+}
+
+.sheet-trigger-badge {
+  display: grid;
+  place-items: center;
+  min-width: 1.05rem;
+  height: 1.05rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: var(--accent);
+  font-size: 0.625rem;
+  font-weight: 700;
+  color: var(--background);
+}
+
+.sheet-trigger-caret {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.sheet-trigger.is-open .sheet-trigger-caret {
+  color: var(--accent);
+  transform: rotate(180deg);
+}
+
+.signals-mobile-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-sheet,
+  .mobile-sheet-backdrop {
+    animation: none;
+  }
+}
+
+@media (min-width: 1024px) {
+  .mobile-sheet,
+  .mobile-sheet-backdrop {
+    display: none;
+  }
 }
 
 @media (max-width: 1023px) {
@@ -2091,77 +2316,43 @@ input[type="number"] {
   border: 1px solid var(--border);
 }
 
-.journal-view .journal-entry-wrap + .journal-entry-wrap {
-  border-top: 1px solid var(--border);
+.journal-view .journal-entry-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .journal-view .journal-entry {
-  padding: 0.75rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  background: color-mix(in srgb, var(--surface-raised) 35%, var(--surface));
 }
 
-.journal-view .journal-entry-grid {
-  display: grid;
-  grid-template-columns: 3.25rem minmax(0, 1fr);
-  gap: 0.875rem;
-  align-items: start;
-}
-
-.journal-view .journal-entry-r {
-  font-size: 0.9375rem;
-  font-weight: 600;
-  letter-spacing: -0.04em;
-  line-height: 1.2;
-  padding-top: 0.1rem;
-}
-
-.journal-view .journal-entry-r-unit {
-  margin-left: 0.05rem;
-  font-size: 0.6875rem;
-  font-weight: 500;
-  opacity: 0.7;
-}
-
-.journal-view .journal-entry-r.is-win {
-  color: var(--success);
-}
-
-.journal-view .journal-entry-r.is-loss {
-  color: var(--danger);
-}
-
-.journal-view .journal-entry-r.is-open {
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--muted);
+.dark .journal-view .journal-entry {
+  border-color: color-mix(in srgb, var(--border-strong) 85%, transparent);
+  background: color-mix(in srgb, var(--surface-raised) 45%, var(--surface));
 }
 
 .journal-view .journal-entry-top {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.journal-view .journal-entry-money {
-  margin-left: 0.35rem;
-  font-size: 0.78rem;
-  font-weight: 650;
-}
-
-.journal-view .journal-entry-money.is-win {
-  color: var(--success);
-}
-
-.journal-view .journal-entry-money.is-loss {
-  color: var(--danger);
+  gap: 0.4rem 0.65rem;
 }
 
 .journal-view .journal-entry-title {
   display: flex;
+  flex-wrap: wrap;
   min-width: 0;
-  align-items: baseline;
-  font-size: 0.875rem;
-  line-height: 1.35;
+  align-items: center;
+  gap: 0.25rem 0.35rem;
+  margin: 0;
+  font-size: 0.78125rem;
+  line-height: 1.25;
   letter-spacing: -0.02em;
 }
 
@@ -2173,8 +2364,7 @@ input[type="number"] {
 
 .journal-view .journal-entry-dir {
   flex-shrink: 0;
-  margin-left: 0.375rem;
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   font-weight: 500;
   text-transform: capitalize;
 }
@@ -2187,68 +2377,139 @@ input[type="number"] {
   color: var(--danger);
 }
 
+.journal-view .journal-entry-auto {
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  padding: 0.02rem 0.3rem;
+  font-size: 0.5625rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--muted);
+}
+
 .journal-view .journal-entry-date {
   flex-shrink: 0;
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
+  line-height: 1.2;
   color: var(--muted);
   white-space: nowrap;
 }
 
-.journal-view .journal-entry-prices {
+.journal-view .journal-entry-result {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem;
-  margin-top: 0.25rem;
-  font-size: 0.75rem;
-  color: var(--foreground);
+  align-items: baseline;
+  gap: 0.15rem 0.5rem;
 }
 
-.journal-view .journal-entry-arrow {
-  color: var(--muted);
-  font-family: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+.journal-view .journal-entry-r {
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
 }
 
-.journal-view .journal-entry-levels {
-  margin-left: 0.25rem;
-  color: var(--muted);
-}
-
-.journal-view .journal-entry-levels-sep {
-  margin: 0 0.2rem;
-  opacity: 0.5;
-}
-
-.journal-view .journal-entry-auto {
-  flex-shrink: 0;
-  margin-left: 0.375rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--foreground) 7%, var(--surface));
-  padding: 0.05rem 0.375rem;
+.journal-view .journal-entry-r-unit {
+  margin-left: 0.04rem;
   font-size: 0.625rem;
-  font-weight: 600;
-  letter-spacing: 0;
+  font-weight: 500;
+  opacity: 0.6;
+}
+
+.journal-view .journal-entry-r.is-win {
+  color: var(--success);
+}
+
+.journal-view .journal-entry-r.is-loss {
+  color: var(--danger);
+}
+
+.journal-view .journal-entry-r.is-open {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
   color: var(--muted);
+}
+
+.journal-view .journal-entry-money {
+  font-size: 0.78125rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.journal-view .journal-entry-money.is-win {
+  color: color-mix(in srgb, var(--success) 78%, var(--foreground));
+}
+
+.journal-view .journal-entry-money.is-loss {
+  color: color-mix(in srgb, var(--danger) 78%, var(--foreground));
 }
 
 .journal-view .journal-entry-outcome {
-  margin-left: 0.25rem;
-  font-size: 0.6875rem;
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
   text-transform: capitalize;
   color: var(--muted);
 }
 
+.journal-view .journal-entry-levels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 0.65rem;
+  row-gap: 0.2rem;
+  margin: 0;
+  padding-top: 0.15rem;
+  border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+}
+
+.journal-view .journal-entry-level {
+  display: grid;
+  grid-template-columns: 2.55rem minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 0.3rem;
+  min-width: 0;
+}
+
+.journal-view .journal-entry-level dt {
+  margin: 0;
+  font-size: 0.5625rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.journal-view .journal-entry-level dd {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.71875rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--foreground);
+  white-space: nowrap;
+}
+
 .journal-view .journal-entry-note {
-  margin-top: 0.5rem;
-  margin-left: 4.125rem;
+  margin: 0;
+  padding-top: 0.05rem;
 }
 
 .journal-view .journal-entry-note summary {
   cursor: pointer;
   list-style: none;
-  font-size: 0.6875rem;
+  font-size: 0.625rem;
   font-weight: 500;
   color: var(--muted);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--muted) 40%, transparent);
+  text-underline-offset: 0.12em;
   user-select: none;
 }
 
@@ -2258,12 +2519,13 @@ input[type="number"] {
 
 .journal-view .journal-entry-note summary:hover {
   color: var(--muted-strong);
+  text-decoration-color: color-mix(in srgb, var(--muted-strong) 50%, transparent);
 }
 
 .journal-view .journal-entry-note p {
-  margin-top: 0.25rem;
-  font-size: 0.75rem;
-  line-height: 1.45;
+  margin-top: 0.2rem;
+  font-size: 0.71875rem;
+  line-height: 1.4;
   color: var(--muted);
 }
 
@@ -3846,16 +4108,16 @@ input[type="number"] {
   }
 
   /* Only the row holding the exit control survives; the chart takes the rest. */
-  .signals-view-fullscreen .signals-mobile-content > :not(.signals-mobile-actions) {
+  /* Fullscreen keeps the nav row and the chart tools; everything else folds
+     away so the canvas gets the screen. */
+  .signals-view-fullscreen
+    .signals-mobile-content
+    > :not(.signals-mobile-actions):not(.signals-mobile-tools) {
     display: none;
   }
 
   .signals-view-fullscreen .signals-mobile-content {
     padding-bottom: 0;
-  }
-
-  .signals-view-fullscreen .signals-mobile-chart-footer {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 }
 
@@ -3919,23 +4181,22 @@ input[type="number"] {
   .signals-view .signals-chart-mobile > .chart-data-shell {
     flex: 1;
     min-height: 0;
+    /* Measured: the nav pill's top edge sits 4.25rem above the bottom, so that
+       much is the nav itself and everything past it is the visible gap. At
+       5.25rem the gap was 16px, which still read as touching; 6.25rem leaves
+       32px between the time axis and the pill.
+       Padding rather than margin: the canvas is sized from contentRect, so the
+       measurement excludes this strip on its own. */
+    padding-bottom: calc(6.25rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Fullscreen covers the nav, so the canvas reclaims that strip. */
+  .signals-view-fullscreen .signals-chart-mobile > .chart-data-shell {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   .signals-view .signals-mobile-content {
     padding-top: 0;
-  }
-
-  .signals-view .signals-mobile-chart-footer {
-    padding-bottom: calc(4.25rem + env(safe-area-inset-bottom, 0px));
-    z-index: 30;
-    border-top: 1px solid var(--border);
-    background: color-mix(in srgb, var(--signals-mobile-page-bg) 94%, transparent);
-    backdrop-filter: blur(14px) saturate(140%);
-    -webkit-backdrop-filter: blur(14px) saturate(140%);
-  }
-
-  .dark .signals-view .signals-mobile-chart-footer {
-    background: color-mix(in srgb, #09090b 94%, transparent);
   }
 
   .signals-view .signals-mobile-actions {
@@ -4056,6 +4317,38 @@ input[type="number"] {
   outline: none;
   border: none;
   -webkit-tap-highlight-color: transparent;
+  /* Horizontal drags scrub the chart, vertical ones still scroll the page. */
+  touch-action: pan-y;
+}
+
+.account-chart-tooltip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  background: var(--surface);
+  padding: 0.4rem 0.6rem;
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--foreground) 10%, transparent);
+  pointer-events: none;
+}
+
+.dark .account-chart-tooltip {
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--background) 70%, transparent);
+}
+
+.account-chart-tooltip-value {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+  white-space: nowrap;
+}
+
+.account-chart-tooltip-time {
+  font-size: 0.6875rem;
+  color: var(--muted);
+  white-space: nowrap;
 }
 
 .account-chart .account-chart-x-axis {
@@ -4182,6 +4475,11 @@ input[type="number"] {
   padding-top: 1.25rem;
 }
 
+/* Dashboard Shortcuts: no divider above the action list (risk keeps the shared border). */
+.dashboard-view .dashboard-minimal-actions {
+  border-top: none;
+}
+
 .mobile-pair-strip {
   padding-bottom: 0.25rem;
 }
@@ -4211,6 +4509,51 @@ input[type="number"] {
   transform: translateY(-50%);
 }
 
+/*
+ * The dot carries how close the pair is to a setup, so the list reads by colour
+ * before any label does: grey nothing forming, amber filling in, green ready.
+ * The two live states pulse; the settled ones hold still, which is what makes a
+ * pulse mean something.
+ */
+.dashboard-watchlist-grid .dashboard-minimal-row[data-state="ready"]::before {
+  background: var(--success);
+  animation: watch-dot-pulse 1.8s ease-in-out infinite;
+  --dot-pulse: var(--success);
+}
+
+.dashboard-watchlist-grid .dashboard-minimal-row[data-state="open"]::before {
+  background: var(--accent);
+  animation: watch-dot-pulse 1.8s ease-in-out infinite;
+  --dot-pulse: var(--accent);
+}
+
+.dashboard-watchlist-grid .dashboard-minimal-row[data-state="developing"]::before {
+  background: var(--pending);
+  animation: watch-dot-pulse 2.6s ease-in-out infinite;
+  --dot-pulse: var(--pending);
+}
+
+.dashboard-watchlist-grid .dashboard-minimal-row[data-state="unavailable"]::before {
+  background: var(--danger);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger) 13%, transparent);
+}
+
+@keyframes watch-dot-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--dot-pulse) 42%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--dot-pulse) 0%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-watchlist-grid .dashboard-minimal-row::before {
+    animation: none;
+  }
+}
+
 .dashboard-watchlist-grid .dashboard-minimal-row:hover {
   color: var(--accent);
 }
@@ -4218,6 +4561,53 @@ input[type="number"] {
 .dashboard-watchlist-grid .dashboard-minimal-row:hover::before {
   background: var(--accent);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 13%, transparent), 0 0 12px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+/*
+ * Touch has no hover, so a :hover rule there only sticks after a tap and
+ * repaints the dot the wrong colour. The press-scale goes too: on a list row it
+ * reads as the page flinching rather than as feedback.
+ */
+@media (max-width: 1023px) {
+  .dashboard-watchlist-grid .dashboard-minimal-row {
+    transition: none;
+  }
+
+  .dashboard-watchlist-grid .dashboard-minimal-row:hover,
+  .dashboard-watchlist-grid .dashboard-minimal-row:active {
+    color: inherit;
+  }
+
+  .dashboard-watchlist-grid .dashboard-minimal-row.pressable:active {
+    transform: none;
+  }
+
+  .dashboard-watchlist-grid .dashboard-minimal-row:hover::before,
+  .dashboard-watchlist-grid .dashboard-minimal-row:active::before {
+    background: var(--muted);
+    box-shadow: none;
+  }
+
+  /* The state colours must still win over that neutral fallback. */
+  .dashboard-watchlist-grid .dashboard-minimal-row[data-state="ready"]:hover::before,
+  .dashboard-watchlist-grid .dashboard-minimal-row[data-state="ready"]:active::before {
+    background: var(--success);
+  }
+
+  .dashboard-watchlist-grid .dashboard-minimal-row[data-state="open"]:hover::before,
+  .dashboard-watchlist-grid .dashboard-minimal-row[data-state="open"]:active::before {
+    background: var(--accent);
+  }
+
+  .dashboard-watchlist-grid .dashboard-minimal-row[data-state="developing"]:hover::before,
+  .dashboard-watchlist-grid .dashboard-minimal-row[data-state="developing"]:active::before {
+    background: var(--pending);
+  }
+
+  .dashboard-watchlist-grid .dashboard-minimal-row[data-state="unavailable"]:hover::before,
+  .dashboard-watchlist-grid .dashboard-minimal-row[data-state="unavailable"]:active::before {
+    background: var(--danger);
+  }
 }
 
 .dashboard-watchlist-grid .dashboard-minimal-row p:first-child {
@@ -4234,60 +4624,405 @@ input[type="number"] {
   max-width: 56rem;
 }
 
-.watchlist-view.watchlist-minimal .dashboard-minimal-row {
-  position: relative;
-  padding-inline: 0.75rem;
-  border-radius: 0;
-  transition: background 160ms ease, transform 160ms ease;
+.watchlist-view.watchlist-minimal .wl-section-note {
+  max-width: 40rem;
 }
 
-.watchlist-view.watchlist-minimal .dashboard-minimal-row:hover {
-  background: color-mix(in srgb, var(--accent) 5%, transparent);
-  transform: translateX(2px);
+.watchlist-view.watchlist-minimal .wl-pairs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.watchlist-view.watchlist-minimal .dashboard-minimal-row > div:first-child::before {
-  content: "";
-  display: inline-block;
-  width: 0.35rem;
-  height: 0.35rem;
-  margin-right: 0.45rem;
-  border-radius: 50%;
-  background: var(--accent);
-  vertical-align: 0.08em;
-  opacity: 0.8;
+.watchlist-view.watchlist-minimal .wl-pair-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  background: color-mix(in srgb, var(--surface-raised) 35%, var(--surface));
+  transition: background 160ms ease, border-color 160ms ease;
 }
 
-@media (max-width: 1023px) {
-  .watchlist-status-label {
-    white-space: normal;
-    overflow-wrap: anywhere;
-    line-height: 1.45;
+.dark .watchlist-view.watchlist-minimal .wl-pair-card {
+  border-color: color-mix(in srgb, var(--border-strong) 85%, transparent);
+  background: color-mix(in srgb, var(--surface-raised) 45%, var(--surface));
+}
+
+.watchlist-view.watchlist-minimal .wl-pair-card:hover {
+  border-color: color-mix(in srgb, var(--foreground) 12%, var(--border));
+  background: color-mix(in srgb, var(--foreground) 4%, var(--surface));
+}
+
+.dark .watchlist-view.watchlist-minimal .wl-pair-card:hover {
+  border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--foreground) 5%, var(--surface));
+}
+
+.watchlist-view.watchlist-minimal .wl-main {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.watchlist-view.watchlist-minimal .wl-aside {
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.watchlist-view.watchlist-minimal .wl-pair {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.35rem;
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--foreground);
+}
+
+.watchlist-view.watchlist-minimal .wl-pair-name {
+  flex-shrink: 0;
+}
+
+.watchlist-view.watchlist-minimal .wl-dir {
+  flex-shrink: 0;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.watchlist-view.watchlist-minimal .wl-dir.is-long {
+  color: var(--success);
+}
+
+.watchlist-view.watchlist-minimal .wl-dir.is-short {
+  color: var(--danger);
+}
+
+.watchlist-view.watchlist-minimal .wl-detail {
+  margin-top: 0.25rem;
+  min-width: 0;
+}
+
+.watchlist-view.watchlist-minimal .wl-status {
+  margin: 0;
+  font-size: 0.6875rem;
+  line-height: 1.35;
+}
+
+/* Full status/session phrases — wrap, never ellipsis. */
+.watchlist-view.watchlist-minimal .watchlist-status-label {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  overflow-wrap: break-word;
+  opacity: 0.92;
+}
+
+.watchlist-view.watchlist-minimal .wl-levels {
+  font-size: 0.6875rem;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.watchlist-view.watchlist-minimal .wl-levels.has-status {
+  margin-top: 0.2rem;
+}
+
+.watchlist-view.watchlist-minimal .wl-levels-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.65rem;
+  margin: 0;
+}
+
+.watchlist-view.watchlist-minimal .wl-level {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: baseline;
+  column-gap: 0.28rem;
+}
+
+.watchlist-view.watchlist-minimal .wl-level dt {
+  margin: 0;
+  font-size: 0.5625rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.watchlist-view.watchlist-minimal .wl-level dd {
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+}
+
+.watchlist-view.watchlist-minimal .wl-level dd.is-target {
+  color: var(--success);
+}
+
+.watchlist-view.watchlist-minimal .wl-level dd.is-stop {
+  color: var(--danger);
+}
+
+.watchlist-view.watchlist-minimal .wl-quote {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--foreground);
+}
+
+.watchlist-view.watchlist-minimal .wl-quote-sep {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.watchlist-view.watchlist-minimal .wl-meta {
+  margin: 0.15rem 0 0;
+  font-size: 0.625rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  color: var(--muted);
+}
+
+/*
+ * Desktop: wrappers go `display: contents` so pair / detail / quote / meta
+ * become grid cells. Columns use fr tracks so the row spans the full card
+ * width — pair left, quote toward center, spread/time on the far right.
+ * layout="quotes" is 3 tracks; layout="detail" keeps a middle status/levels column.
+ */
+@media (min-width: 1024px) {
+  .watchlist-view.watchlist-minimal {
+    max-width: none;
+  }
+
+  .watchlist-view.watchlist-minimal .wl-pairs {
+    gap: 0.625rem;
+  }
+
+  .watchlist-view.watchlist-minimal .wl-pair-card {
+    display: grid;
+    width: 100%;
+    align-items: center;
+    column-gap: 1.5rem;
+    padding: 0.75rem 0.9rem;
+    border-radius: 0.8125rem;
+  }
+
+  .watchlist-view.watchlist-minimal .wl-pairs[data-wl-layout="quotes"] .wl-pair-card {
+    grid-template-columns: minmax(9rem, 1fr) minmax(10rem, 1fr) minmax(7.5rem, 1fr);
+  }
+
+  .watchlist-view.watchlist-minimal .wl-pairs[data-wl-layout="detail"] .wl-pair-card {
+    grid-template-columns:
+      minmax(8rem, 1fr)
+      minmax(0, 1.35fr)
+      minmax(10rem, 1fr)
+      minmax(7.5rem, 1fr);
+  }
+
+  .watchlist-view.watchlist-minimal .wl-pair-card > .wl-main,
+  .watchlist-view.watchlist-minimal .wl-pair-card > .wl-aside {
+    display: contents;
+  }
+
+  .watchlist-view.watchlist-minimal .wl-pair {
+    grid-column: 1;
+    justify-self: start;
+  }
+
+  .watchlist-view.watchlist-minimal .wl-pairs[data-wl-layout="detail"] .wl-detail {
+    grid-column: 2;
+    margin-top: 0;
+    justify-self: stretch;
+  }
+
+  .watchlist-view.watchlist-minimal .wl-pairs[data-wl-layout="quotes"] .wl-quote {
+    grid-column: 2;
+    justify-self: center;
+    text-align: center;
+  }
+
+  .watchlist-view.watchlist-minimal .wl-pairs[data-wl-layout="detail"] .wl-quote {
+    grid-column: 3;
+    justify-self: center;
+    text-align: center;
+  }
+
+  .watchlist-view.watchlist-minimal .wl-pairs[data-wl-layout="quotes"] .wl-meta {
+    grid-column: 3;
+    margin-top: 0;
+    justify-self: end;
+    text-align: right;
+  }
+
+  .watchlist-view.watchlist-minimal .wl-pairs[data-wl-layout="detail"] .wl-meta {
+    grid-column: 4;
+    margin-top: 0;
+    justify-self: end;
+    text-align: right;
+  }
+
+  .watchlist-view.watchlist-minimal .wl-quote,
+  .watchlist-view.watchlist-minimal .wl-meta {
+    align-self: center;
+  }
+
+  /* Pairs section: no outer chrome — cards carry their own borders */
+  .watchlist-view.watchlist-minimal
+    > .dashboard-minimal-section[aria-label="Monitored pairs"] {
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    background: transparent;
   }
 }
 
-.dashboard-minimal-section[aria-label="Recent paper trades"] .dashboard-minimal-row {
-  position: relative;
-  padding-inline: 0.75rem;
-  border-radius: 0;
-  transition: background 160ms ease, transform 160ms ease;
+.dash-trade-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.dashboard-minimal-section[aria-label="Recent paper trades"] .dashboard-minimal-row:hover {
-  background: color-mix(in srgb, var(--accent) 5%, transparent);
-  transform: translateX(2px);
+.dash-trade-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  background: color-mix(in srgb, var(--surface-raised) 35%, var(--surface));
+  transition: background 160ms ease, border-color 160ms ease;
 }
 
-.dashboard-minimal-section[aria-label="Recent paper trades"] .dashboard-minimal-row > div:first-child::before {
-  content: "";
-  display: inline-block;
-  width: 0.35rem;
-  height: 0.35rem;
-  margin-right: 0.45rem;
-  border-radius: 50%;
-  background: var(--accent);
-  vertical-align: 0.08em;
-  opacity: 0.8;
+.dark .dash-trade-card {
+  border-color: color-mix(in srgb, var(--border-strong) 85%, transparent);
+  background: color-mix(in srgb, var(--surface-raised) 45%, var(--surface));
+}
+
+.dash-trade-card:hover {
+  border-color: color-mix(in srgb, var(--foreground) 12%, var(--border));
+  background: color-mix(in srgb, var(--foreground) 4%, var(--surface));
+}
+
+.dark .dash-trade-card:hover {
+  border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--foreground) 5%, var(--surface));
+}
+
+.dash-trade-main {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.dash-trade-aside {
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.dash-trade-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.35rem;
+  margin: 0;
+  font-size: 0.8125rem;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.dash-trade-pair {
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.dash-trade-dir {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  text-transform: capitalize;
+  color: var(--muted);
+}
+
+.dash-trade-time {
+  margin: 0.15rem 0 0;
+  font-size: 0.6875rem;
+  line-height: 1.25;
+  color: var(--muted);
+}
+
+.dash-trade-pl {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.dash-trade-pl.is-win {
+  color: var(--success);
+}
+
+.dash-trade-pl.is-loss {
+  color: var(--danger);
+}
+
+.dash-trade-pl.is-open {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.dash-trade-r {
+  margin: 0.1rem 0 0;
+  font-size: 0.625rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  color: var(--muted);
+}
+
+/*
+ * Keep P/L beside the pair instead of pinned to the far edge: at 1280px
+ * space-between put 503px of nothing between them. The fixed first column keeps
+ * every amount aligned in its own column, so the list still reads down.
+ */
+@media (min-width: 1024px) {
+  .dash-trade-list {
+    gap: 0.625rem;
+  }
+
+  .dash-trade-card {
+    justify-content: flex-start;
+    padding: 0.7rem 0.85rem;
+    border-radius: 0.8125rem;
+  }
+
+  .dash-trade-main {
+    flex: 0 1 14rem;
+  }
+
+  .dash-trade-aside {
+    min-width: 7.5rem;
+  }
+
+  .dash-trade-pl {
+    font-size: 0.875rem;
+  }
 }
 
 .mobile-minimal-actions,
@@ -4323,52 +5058,34 @@ input[type="number"] {
 }
 
 @media (min-width: 1024px) {
-  .watchlist-view.watchlist-minimal > .dashboard-minimal-section {
-    border: 1px solid var(--border);
-    border-radius: 1.25rem;
-    padding: 1.25rem 1.5rem;
-    background: color-mix(in srgb, var(--surface) 86%, var(--background));
-  }
-
-  .dark .watchlist-view.watchlist-minimal > .dashboard-minimal-section {
-    border-color: var(--border-strong);
-    background: color-mix(in srgb, var(--surface) 94%, var(--background));
-  }
-
-  .watchlist-view.watchlist-minimal > .dashboard-minimal-section {
-    border-top: none;
-  }
-
+  /*
+   * The card takes its tint from the day, not from the brand. It was a fixed
+   * mint wash inside a green border with a green glow, which fought the red
+   * line on any losing day — five green cues around a red chart.
+   */
   .dashboard-view .account-overview-hero {
+    --hero-tone: var(--success);
     position: relative;
     overflow: hidden;
-    border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border));
+    border: 1px solid color-mix(in srgb, var(--hero-tone) 18%, var(--border));
     border-radius: 1.5rem;
     padding: 1.75rem 2rem 1.5rem;
     background:
-      radial-gradient(circle at 88% 18%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 28%),
-      linear-gradient(135deg, color-mix(in srgb, var(--surface) 94%, var(--accent)), var(--surface));
-    box-shadow: 0 18px 50px color-mix(in srgb, var(--accent) 7%, transparent);
+      radial-gradient(circle at 88% 18%, color-mix(in srgb, var(--hero-tone) 10%, transparent), transparent 30%),
+      linear-gradient(135deg, color-mix(in srgb, var(--surface) 96%, var(--hero-tone)), var(--surface));
+    box-shadow: 0 18px 50px color-mix(in srgb, var(--hero-tone) 6%, transparent);
+    transition: border-color 220ms ease, background 220ms ease;
   }
 
-  .dashboard-view .account-overview-hero::after {
-    content: "";
-    position: absolute;
-    right: -5rem;
-    bottom: -7rem;
-    width: 22rem;
-    height: 14rem;
-    border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
-    border-radius: 50%;
-    transform: rotate(-12deg);
-    pointer-events: none;
+  .dashboard-view .account-overview-hero[data-tone="negative"] {
+    --hero-tone: var(--danger);
   }
 
   .dark .dashboard-view .account-overview-hero {
-    border-color: color-mix(in srgb, var(--accent) 25%, var(--border-strong));
+    border-color: color-mix(in srgb, var(--hero-tone) 22%, var(--border-strong));
     background:
-      radial-gradient(circle at 88% 18%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 28%),
-      linear-gradient(135deg, color-mix(in srgb, var(--surface) 92%, var(--accent)), var(--surface));
+      radial-gradient(circle at 88% 18%, color-mix(in srgb, var(--hero-tone) 10%, transparent), transparent 30%),
+      linear-gradient(135deg, color-mix(in srgb, var(--surface) 94%, var(--hero-tone)), var(--surface));
     box-shadow: 0 18px 50px color-mix(in srgb, var(--background) 45%, transparent);
   }
 
@@ -4381,8 +5098,10 @@ input[type="number"] {
     background: color-mix(in srgb, var(--surface) 86%, var(--background));
   }
 
+  /* Shortcuts keep their own height. Stretching them to the trade list's
+     height inflated three one-line links into tall, mostly empty cards. */
   .dashboard-view .dashboard-minimal-grid > .dashboard-minimal-actions {
-    align-self: stretch;
+    align-self: start;
   }
 
   .dark .dashboard-view > .dashboard-minimal-section,
@@ -4390,6 +5109,16 @@ input[type="number"] {
   .dark .dashboard-view .dashboard-minimal-grid > .dashboard-minimal-actions {
     border-color: var(--border-strong);
     background: color-mix(in srgb, var(--surface) 94%, var(--background));
+  }
+
+  /* Recent trades: no outer chrome — cards carry their own borders */
+  .dashboard-view
+    .dashboard-minimal-grid
+    > .dashboard-minimal-section[aria-label="Recent paper trades"] {
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    background: transparent;
   }
 
   .dashboard-minimal-grid {
@@ -4425,6 +5154,28 @@ input[type="number"] {
   }
 }
 
+/*
+ * Add a third column instead of stretching two: at 1280px a two-up row is
+ * 562px wide and leaves a 425px void between the pair and its price. The
+ * border reset has to move with the column count, which is why this is an
+ * explicit breakpoint rather than auto-fit.
+ */
+@media (min-width: 1280px) {
+  .dashboard-watchlist-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .dashboard-watchlist-grid .dashboard-minimal-row:nth-child(-n + 2) {
+    border-top: 1px solid var(--border);
+    padding-top: 0.75rem;
+  }
+
+  .dashboard-watchlist-grid .dashboard-minimal-row:nth-child(-n + 3) {
+    border-top: none;
+    padding-top: 0.15rem;
+  }
+}
+
 @media (max-width: 1023px) {
   .watchlist-view.watchlist-minimal > header {
     align-items: flex-start;
@@ -4434,6 +5185,12 @@ input[type="number"] {
 /* Journal minimal — dashboard/risk-aligned layout */
 .journal-view.journal-minimal {
   max-width: 56rem;
+}
+
+@media (min-width: 1024px) {
+  .journal-view.journal-minimal {
+    max-width: none;
+  }
 }
 
 .journal-stats-card {
@@ -4461,32 +5218,55 @@ input[type="number"] {
 }
 
 .journal-view.journal-minimal .journal-entry {
-  transition: background 160ms ease;
+  transition: background 160ms ease, border-color 160ms ease;
 }
 
 .journal-view.journal-minimal .journal-entry:hover {
-  background: color-mix(in srgb, var(--accent) 5%, transparent);
+  border-color: color-mix(in srgb, var(--foreground) 12%, var(--border));
+  background: color-mix(in srgb, var(--foreground) 4%, var(--surface));
 }
 
-.journal-view.journal-minimal .journal-entry-note {
-  margin-left: 4.125rem;
+.dark .journal-view.journal-minimal .journal-entry:hover {
+  border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--foreground) 5%, var(--surface));
 }
 
+@media (min-width: 640px) {
+  .journal-view .journal-entry-list {
+    gap: 0.625rem;
+  }
+
+  .journal-view .journal-entry {
+    gap: 0.45rem;
+    padding: 0.75rem 0.9rem;
+    border-radius: 0.8125rem;
+  }
+
+  .journal-view .journal-entry-r {
+    font-size: 1.0625rem;
+  }
+
+  .journal-view .journal-entry-levels {
+    column-gap: 1.25rem;
+  }
+
+  .journal-view .journal-entry-level {
+    grid-template-columns: 2.75rem minmax(0, 1fr);
+  }
+
+  .journal-view .journal-entry-level dd {
+    font-size: 0.75rem;
+  }
+}
+
+/* Trade log: no outer section chrome — cards carry their own borders */
 @media (min-width: 1024px) {
-  .journal-view.journal-minimal > .dashboard-minimal-section {
-    border: 1px solid var(--border);
-    border-radius: 1.25rem;
-    padding: 1.25rem 1.5rem;
-    background: color-mix(in srgb, var(--surface) 86%, var(--background));
-  }
-
-  .dark .journal-view.journal-minimal > .dashboard-minimal-section {
-    border-color: var(--border-strong);
-    background: color-mix(in srgb, var(--surface) 94%, var(--background));
-  }
-
-  .journal-view.journal-minimal > .dashboard-minimal-section {
-    border-top: none;
+  .journal-view.journal-minimal
+    > .dashboard-minimal-section[aria-label="Trade log"] {
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    background: transparent;
   }
 }
 

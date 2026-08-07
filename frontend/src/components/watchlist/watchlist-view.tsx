@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { displayNameFor } from "@/lib/instruments/catalog";
 import { apiUrl } from "@/lib/api/url";
+import { formatClockTime } from "@/lib/format/datetime";
 import { getPaperTradingAvailability, type PaperTradingAvailability } from "@/lib/strategy/strategy-engine";
 
 type WatchRow = {
@@ -27,14 +28,41 @@ type WatchRow = {
   tradeSequence: string | null;
 };
 
-function statusFor(row: WatchRow, availability: PaperTradingAvailability) {
+type RowStatus = { label: string | null; tone: string };
+
+/**
+ * Per-pair status line. Setup-specific labels win when the entry window is
+ * open; otherwise the pair's session string (e.g. "Outside day-trading entry
+ * window") stays available — never jammed into a truncated pair line. When
+ * every row shares that phrase, the section note shows it once instead.
+ */
+function statusFor(row: WatchRow, availability: PaperTradingAvailability): RowStatus {
   if (row.openTradeId) return { label: "Open paper trade", tone: "text-[color:var(--accent)]" };
-  if (availability.state === "market_closed") return { label: "Market closed", tone: "text-[color:var(--muted)]" };
-  if (availability.state === "waiting_for_entry_window") return { label: "Waiting", tone: "text-[color:var(--muted)]" };
+  if (availability.state !== "entry_window_open") {
+    return { label: row.session || null, tone: "text-[color:var(--muted)]" };
+  }
   if (row.dataStatus !== "connected") return { label: "Data unavailable", tone: "text-[color:var(--danger)]" };
   if (row.setupStatus === "valid") return { label: "Entry ready", tone: "text-[color:var(--success)]" };
-  if (row.setupStatus === "developing") return { label: "Developing", tone: "text-[color:var(--foreground)]" };
-  return { label: "No setup", tone: "text-[color:var(--muted)]" };
+  if (row.setupStatus === "developing") return { label: "Developing", tone: "text-[color:var(--muted-strong)]" };
+  return { label: row.session || null, tone: "text-[color:var(--muted)]" };
+}
+
+function statusLine(row: WatchRow, status: RowStatus) {
+  if (!status.label) return null;
+  const batch =
+    row.batchNumber
+      ? ` · Batch ${row.batchNumber}${row.tradeSequence ? ` · #${row.tradeSequence}` : ""}`
+      : "";
+  return `${status.label}${batch}`;
+}
+
+/** When every monitored pair reports the same status, lift it to the section. */
+function sharedStatusLabel(rows: WatchRow[], availability: PaperTradingAvailability) {
+  if (rows.length < 2) return null;
+  const labels = rows.map((row) => statusLine(row, statusFor(row, availability)));
+  if (labels.some((label) => !label)) return null;
+  const first = labels[0];
+  return labels.every((label) => label === first) ? first : null;
 }
 
 function price(value: number | null, instrument: string) {
@@ -43,34 +71,53 @@ function price(value: number | null, instrument: string) {
 
 function evaluatedLabel(value: string | null) {
   if (!value) return "Waiting";
-  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(value));
+  return formatClockTime(value);
 }
 
-function Levels({ row, availability }: { row: WatchRow; availability: PaperTradingAvailability }) {
-  const visible = row.openTradeId || row.setupStatus === "valid";
-  if (!visible || row.entry === null || row.stop === null || row.target === null) {
-    if (!row.openTradeId && availability.state !== "entry_window_open") {
-      return <span className="text-xs text-[color:var(--muted)]">{availability.detail}</span>;
-    }
-    const failed = row.conditions.filter((item) => item.required && !item.passed).map((item) => item.name).slice(0, 2);
-    return <span className="text-xs text-[color:var(--muted)]">{failed.length ? `No setup: ${failed.join(", ")}` : "No valid trade levels"}</span>;
-  }
+function hasTradeLevels(row: WatchRow) {
   return (
-    <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
-      <span>
-        <span className="text-[color:var(--muted)]">Entry </span>
-        <b className="metric-number font-medium">{price(row.entry, row.instrument)}</b>
-      </span>
-      <span>
-        <span className="text-[color:var(--muted)]">Target </span>
-        <b className="metric-number font-medium text-[color:var(--success)]">{price(row.target, row.instrument)}</b>
-      </span>
-      <span>
-        <span className="text-[color:var(--muted)]">Stop </span>
-        <b className="metric-number font-medium text-[color:var(--danger)]">{price(row.stop, row.instrument)}</b>
-      </span>
-    </div>
+    (Boolean(row.openTradeId) || row.setupStatus === "valid") &&
+    row.entry !== null &&
+    row.stop !== null &&
+    row.target !== null
   );
+}
+
+function hasLevels(row: WatchRow, availability: PaperTradingAvailability) {
+  if (hasTradeLevels(row)) return true;
+  if (!row.openTradeId && availability.state !== "entry_window_open") return false;
+  return true;
+}
+
+function levelsContent(row: WatchRow, availability: PaperTradingAvailability) {
+  const { entry, stop, target } = row;
+  if (hasTradeLevels(row) && entry !== null && stop !== null && target !== null) {
+    return (
+      <dl className="wl-levels-grid">
+        <div className="wl-level">
+          <dt>Entry</dt>
+          <dd className="metric-number">{price(entry, row.instrument)}</dd>
+        </div>
+        <div className="wl-level">
+          <dt>Target</dt>
+          <dd className="metric-number is-target">
+            {price(target, row.instrument)}
+          </dd>
+        </div>
+        <div className="wl-level">
+          <dt>Stop</dt>
+          <dd className="metric-number is-stop">
+            {price(stop, row.instrument)}
+          </dd>
+        </div>
+      </dl>
+    );
+  }
+  // The window message is in the header / section note; repeating the long
+  // availability.detail under every pair said nothing about this pair.
+  if (!row.openTradeId && availability.state !== "entry_window_open") return null;
+  const failed = row.conditions.filter((item) => item.required && !item.passed).map((item) => item.name).slice(0, 2);
+  return failed.length ? `No setup: ${failed.join(", ")}` : "No valid trade levels";
 }
 
 export function WatchlistView() {
@@ -78,6 +125,13 @@ export function WatchlistView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const availability = getPaperTradingAvailability();
+  const sharedStatus = sharedStatusLabel(rows, availability);
+  const layout = rows.some((row) => {
+    if (!sharedStatus && statusFor(row, availability).label) return true;
+    return hasLevels(row, availability);
+  })
+    ? "detail"
+    : "quotes";
 
   const load = useCallback(async () => {
     try {
@@ -102,9 +156,13 @@ export function WatchlistView() {
   return (
     <div className="watchlist-view watchlist-minimal space-y-8 lg:space-y-10">
       <header className="flex items-end justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-display">Watchlist</h1>
-          <p className="mt-1 text-sm text-[color:var(--muted)]">Ten-pair paper monitor</p>
+          <p className="mt-1 text-sm text-[color:var(--muted)]">
+            {availability.state === "entry_window_open"
+              ? "Ten-pair paper monitor"
+              : availability.detail}
+          </p>
         </div>
         <button
           type="button"
@@ -125,44 +183,74 @@ export function WatchlistView() {
           <p className="metric-number text-xs text-[color:var(--muted)]">{rows.length || "—"}</p>
         </div>
 
+        {sharedStatus ? (
+          <p className="wl-section-note mt-2 text-xs leading-snug text-[color:var(--muted)]">
+            {sharedStatus}
+          </p>
+        ) : null}
+
         {rows.length ? (
-          <div className="mt-3">
+          <div className="wl-pairs mt-3" data-wl-layout={layout}>
             {rows.map((row) => {
               const status = statusFor(row, availability);
+              const rowStatus = sharedStatus ? null : statusLine(row, status);
+              const levels = levelsContent(row, availability);
               const direction = row.direction;
+              const hasDetail = Boolean(rowStatus || levels);
               return (
                 <Link
                   key={row.instrument}
                   href={`/signals?instrument=${encodeURIComponent(row.instrument)}`}
-                  className="dashboard-minimal-row pressable flex items-start justify-between gap-3 py-3"
+                  className="wl-pair-card pressable"
                 >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">
-                      {displayNameFor(row.instrument)}{" "}
+                  {/* Two stacked blocks on mobile. On desktop the wrappers go
+                      `display: contents` so these cells become grid items. */}
+                  <div className="wl-main min-w-0">
+                    <p className="wl-pair">
+                      <span className="wl-pair-name">
+                        {displayNameFor(row.instrument)}
+                      </span>
                       {direction ? (
-                        <span className={direction === "long" ? "text-[color:var(--success)]" : "text-[color:var(--danger)]"}>
+                        <span
+                          className={
+                            direction === "long"
+                              ? "wl-dir is-long"
+                              : "wl-dir is-short"
+                          }
+                        >
                           {direction}
                         </span>
-                      ) : (
-                        <span className="text-[color:var(--muted)]">{row.session}</span>
-                      )}
+                      ) : null}
                     </p>
-                    <p className={`watchlist-status-label mt-0.5 text-xs ${status.tone}`}>
-                      {status.label}
-                      {row.batchNumber
-                        ? ` · Batch ${row.batchNumber}${row.tradeSequence ? ` · #${row.tradeSequence}` : ""}`
-                        : ""}
-                    </p>
-                    <div className="mt-1.5">
-                      <Levels row={row} availability={availability} />
-                    </div>
+                    {hasDetail ? (
+                      <div className="wl-detail">
+                        {rowStatus ? (
+                          <p
+                            className={`wl-status watchlist-status-label ${status.tone}`}
+                          >
+                            {rowStatus}
+                          </p>
+                        ) : null}
+                        {levels ? (
+                          <div
+                            className={`wl-levels ${rowStatus ? "has-status" : ""}`}
+                          >
+                            {levels}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
-                  <div className="shrink-0 text-right">
-                    <p className="metric-number text-sm">
-                      {price(row.bid, row.instrument)} / {price(row.ask, row.instrument)}
+                  <div className="wl-aside">
+                    <p className="wl-quote metric-number">
+                      {price(row.bid, row.instrument)}
+                      <span className="wl-quote-sep"> / </span>
+                      {price(row.ask, row.instrument)}
                     </p>
-                    <p className="metric-number mt-0.5 text-[0.68rem] text-[color:var(--muted)]">
-                      {row.spreadPips === null ? "—" : `${row.spreadPips.toFixed(1)} pips`}
+                    <p className="wl-meta metric-number">
+                      {row.spreadPips === null
+                        ? "—"
+                        : `${row.spreadPips.toFixed(1)} pips`}
                       {" · "}
                       {evaluatedLabel(row.evaluatedAt)}
                     </p>

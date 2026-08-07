@@ -1,16 +1,45 @@
+export type EntrySession = "London" | "London/New York overlap" | "New York";
+
 export interface ForexSessionStatus {
   marketOpen: boolean;
-  entrySessionOpen: boolean;
+  entrySession: EntrySession | null;
   label: string;
 }
 
+export const LONDON_TIME_ZONE = "Europe/London";
+export const NEW_YORK_TIME_ZONE = "America/New_York";
+
+/** Both centres keep 08:00–17:00 on their own wall clock. */
+const SESSION_OPEN_MINUTES = 8 * 60;
+const SESSION_CLOSE_MINUTES = 17 * 60;
+
+/** Minutes past local midnight in the given zone. */
+export function localMinutes(at: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(at);
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? "0");
+  return hour * 60 + minute;
+}
+
+function centreOpen(at: Date, timeZone: string) {
+  const minutes = localMinutes(at, timeZone);
+  return minutes >= SESSION_OPEN_MINUTES && minutes < SESSION_CLOSE_MINUTES;
+}
+
 /**
- * Forex has a Sunday 17:00 ET open and Friday 17:00 ET close. Entries are
- * deliberately narrower than market hours: London or New York only.
+ * Forex has a Sunday 17:00 ET open and Friday 17:00 ET close. Inside that,
+ * London and New York are each resolved against their own zone rather than a
+ * fixed Eastern offset: the UK and US change daylight saving on different
+ * dates, so for a few weeks every spring and autumn an ET-anchored boundary
+ * sits an hour away from the London open it is meant to track.
+ *
+ * This reports which centre is trading. It does not decide entries — the
+ * day-trading entry window is `dayTradingSession` in the strategy engine,
+ * which also stops entries at the forced exit.
  */
 export function getForexSessionStatus(now = new Date()): ForexSessionStatus {
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
+    timeZone: NEW_YORK_TIME_ZONE,
     weekday: "short",
     hour: "numeric",
     hourCycle: "h23",
@@ -26,16 +55,18 @@ export function getForexSessionStatus(now = new Date()): ForexSessionStatus {
   );
 
   if (!marketOpen) {
-    return { marketOpen: false, entrySessionOpen: false, label: "Forex market closed" };
+    return { marketOpen: false, entrySession: null, label: "Forex market closed" };
   }
-  if (hour >= 8 && hour < 12) {
-    return { marketOpen: true, entrySessionOpen: true, label: "London/New York overlap" };
-  }
-  if (hour >= 3 && hour < 8) {
-    return { marketOpen: true, entrySessionOpen: true, label: "London" };
-  }
-  if (hour >= 12 && hour < 17) {
-    return { marketOpen: true, entrySessionOpen: true, label: "New York" };
-  }
-  return { marketOpen: true, entrySessionOpen: false, label: "Outside London/New York sessions" };
+
+  const london = centreOpen(now, LONDON_TIME_ZONE);
+  const newYork = centreOpen(now, NEW_YORK_TIME_ZONE);
+  const entrySession: EntrySession | null = london && newYork
+    ? "London/New York overlap"
+    : london
+      ? "London"
+      : newYork
+        ? "New York"
+        : null;
+
+  return { marketOpen: true, entrySession, label: entrySession ?? "Outside London/New York sessions" };
 }

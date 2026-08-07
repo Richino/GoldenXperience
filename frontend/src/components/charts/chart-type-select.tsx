@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { CHART_VARIANTS, type ChartVariant } from "@/lib/chart-utils";
 
-const VARIANT_ICONS: Record<ChartVariant, LucideIcon> = {
+export const VARIANT_ICONS: Record<ChartVariant, LucideIcon> = {
   candle: CandlestickChart,
   hollow: Circle,
   heikin: Layers,

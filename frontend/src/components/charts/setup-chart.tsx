@@ -213,6 +213,14 @@ interface LevelTag {
 }
 
 /**
+ * Two levels are the same line on screen well before they are the same float:
+ * an exit copied from a stop can still differ in the last bits.
+ */
+function samePrice(left: number, right: number) {
+  return Math.abs(left - right) < 1e-7;
+}
+
+/**
  * Entry, stop, target and exit, in the order they are drawn and tagged. Every
  * level keeps one colour across the price line, its axis label and its tag so
  * the three always read as the same thing.
@@ -245,11 +253,20 @@ function setupLevelTags(levels: SetupLevels, isDark: boolean): LevelTag[] {
     },
   ];
 
-  if (levels.exit !== null && levels.exit !== undefined) {
+  // A stop_first or target_first trade exits *at* its stop or target, so an Exit
+  // line there would stack a second line and tag on a price already marked.
+  // Only a close somewhere else — a session forced-close — earns its own level.
+  const exitIsOwnPrice =
+    levels.exit !== null &&
+    levels.exit !== undefined &&
+    !samePrice(levels.exit, levels.stop) &&
+    !samePrice(levels.exit, levels.target);
+
+  if (exitIsOwnPrice) {
     tags.push({
       key: "exit",
       label: "Exit",
-      price: levels.exit,
+      price: levels.exit!,
       color: isDark ? "#64d2ff" : "#007aff",
       textColor: isDark ? "#09090b" : "#ffffff",
       dashed: true,
@@ -894,6 +911,9 @@ export function SetupChart({
       short: downColor,
       win: upColor,
       loss: downColor,
+      // Translucent so the candles read through the arrow rather than the
+      // arrow competing with them.
+      muted: isDark ? "rgba(161,161,170,0.45)" : "rgba(142,142,147,0.5)",
     };
     const markers = buildTradeMarkers(
       candleTimes,
@@ -1072,6 +1092,12 @@ export function SetupChart({
     <div
       className="setup-chart-root relative w-full overflow-visible"
       style={{ height: shellHeight }}
+      /*
+       * The chart owns vertical drags: that gesture rescales the price axis.
+       * Without this the installed PWA read the same swipe as a pull-to-refresh
+       * and reloaded the page mid-adjustment.
+       */
+      data-pull-to-refresh-ignore="true"
     >
       <div
         ref={containerRef}

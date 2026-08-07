@@ -404,6 +404,8 @@ export interface TradeMarkerPalette {
   short: string;
   win: string;
   loss: string;
+  /** Surrounding history while one trade is focused. */
+  muted: string;
 }
 
 export function chartTimesOf(candles: CandlestickData<UTCTimestamp>[]) {
@@ -462,10 +464,21 @@ export function formatResultR(resultR: number | null) {
 }
 
 /**
- * Entry and exit arrows for every paper trade on the pair. Every marker keeps
- * its direction colour so buy and sell stay legible against the candles; the
- * focused trade — the one the user opened from the dashboard — is drawn larger
- * and labelled, which is what separates it from the surrounding history.
+ * Entry and exit arrows for every paper trade on the pair.
+ *
+ * The labelling adapts to what the user is doing, because a label on every
+ * marker is what makes a busy pair unreadable:
+ *
+ * - Focusing a trade makes it the subject. It keeps direction and result colour,
+ *   is drawn larger, and is the only trade that carries text. Everything else
+ *   drops to a single quiet colour with no text, so it reads as context.
+ * - With nothing focused, every trade keeps its colour and only exits are
+ *   labelled — with the result alone. An entry arrow already states its
+ *   direction through shape and colour, so "BUY" beside it is noise.
+ *
+ * Prices are never drawn on markers: entry, stop and target are already price
+ * lines with axis labels, and a focused trade repeats them in the bar above the
+ * chart. The result in R is the one thing no other element shows.
  */
 export function buildTradeMarkers(
   candleTimes: number[],
@@ -473,8 +486,11 @@ export function buildTradeMarkers(
   focusTradeId: string | null,
   palette: TradeMarkerPalette,
 ): SeriesMarker<UTCTimestamp>[] {
+  const focusing = focusTradeId !== null;
+
   const markers = trades.flatMap<SeriesMarker<UTCTimestamp>>((trade) => {
     const focused = trade.id === focusTradeId;
+    const dimmed = focusing && !focused;
     const long = trade.direction === "long";
     const entryTime = tradeEntryTime(candleTimes, trade);
     const exitTime = tradeExitTime(candleTimes, trade);
@@ -486,13 +502,9 @@ export function buildTradeMarkers(
         time: entryTime as UTCTimestamp,
         position: long ? "belowBar" : "aboveBar",
         shape: long ? "arrowUp" : "arrowDown",
-        color: long ? palette.long : palette.short,
-        size: focused ? 3 : 2,
-        text: focused
-          ? `#${trade.tradeSequence} ${long ? "BUY" : "SELL"} ${formatChartPrice(trade.entry, trade.instrument)}`
-          : long
-            ? "BUY"
-            : "SELL",
+        color: dimmed ? palette.muted : long ? palette.long : palette.short,
+        size: focused ? 2 : 1,
+        text: focused ? (long ? "BUY" : "SELL") : undefined,
       });
     }
 
@@ -503,11 +515,9 @@ export function buildTradeMarkers(
         time: exitTime as UTCTimestamp,
         position: long ? "aboveBar" : "belowBar",
         shape: long ? "arrowDown" : "arrowUp",
-        color: won ? palette.win : palette.loss,
-        size: focused ? 3 : 2,
-        text: focused
-          ? `EXIT ${formatChartPrice(trade.exit, trade.instrument)} · ${formatResultR(trade.resultR)}`
-          : formatResultR(trade.resultR),
+        color: dimmed ? palette.muted : won ? palette.win : palette.loss,
+        size: focused ? 2 : 1,
+        text: dimmed ? undefined : formatResultR(trade.resultR),
       });
     }
 

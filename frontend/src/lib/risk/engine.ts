@@ -17,6 +17,19 @@ function configuredPaperLotCap() {
 /** A simulation guard only. It does not place, modify, or constrain OANDA orders. */
 export const PAPER_TRADING_MAX_STANDARD_LOTS = configuredPaperLotCap();
 
+/**
+ * Spread is derived as `(ask - bid) / pipSize`, so a spread that is exactly at
+ * the limit lands a few ulps above it — EUR_USD at 1.5 pips evaluates to
+ * 1.5000000000009452 and a bare `<=` rejects an otherwise valid setup. The
+ * tolerance is far below the 0.1-pip precision the limits are written in, so it
+ * only absorbs that representation error.
+ */
+const SPREAD_EPSILON_PIPS = 1e-6;
+
+export function spreadWithinLimit(spreadPips: number | null, maxSpreadPips: number) {
+  return spreadPips !== null && Number.isFinite(spreadPips) && spreadPips <= maxSpreadPips + SPREAD_EPSILON_PIPS;
+}
+
 export type TradePermission = "allowed" | "blocked";
 
 export interface TradePermissionInput {
@@ -196,11 +209,7 @@ export function deriveTradePermission(
   }
 
   const maxSpreadPips = input.maxSpreadPips ?? 1.5;
-  if (
-    input.spreadPips === null ||
-    !Number.isFinite(input.spreadPips) ||
-    input.spreadPips > maxSpreadPips
-  ) {
+  if (!spreadWithinLimit(input.spreadPips, maxSpreadPips)) {
     return blocked(
       input.spreadPips === null
         ? "A live spread is required before trading."

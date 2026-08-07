@@ -2,7 +2,7 @@ import { displayNameFor, pipSizeFor } from "@/lib/instruments/catalog";
 import { evaluateStructure } from "@/lib/strategy/market-structure";
 import { calculateAtrValues, calculateEmaValues, calculateRsiValues } from "@/lib/strategy/indicators";
 import type { StrategyCondition, StrategyEvaluationBundle, StrategyEvaluationInput, StrategyResearchFeatures, StrategySetup } from "@/lib/strategy/types";
-import { calculatePositionSize, DEFAULT_RISK_POLICY } from "@/lib/risk/engine";
+import { calculatePositionSize, DEFAULT_RISK_POLICY, spreadWithinLimit } from "@/lib/risk/engine";
 import { getForexSessionStatus, localMinutes, NEW_YORK_TIME_ZONE } from "@/lib/strategy/session";
 
 const MINIMUM_CANDLES = 210;
@@ -197,7 +197,7 @@ export function evaluateStrategy(input: StrategyEvaluationInput, options: Strate
   const session = dayTradingSession(input.evaluatedAt ? new Date(input.evaluatedAt) : new Date());
   conditions.push(condition("Session", session.open && input.marketOpen, session.open && input.marketOpen ? `${session.label} entry window is active.` : "Entries are limited to the London and New York sessions and close at 16:45 ET.", session.label));
   const maxSpread = MAX_SPREAD_PIPS[input.instrument] ?? 1.5;
-  const spreadPassed = input.spreadPips !== null && input.spreadPips <= maxSpread;
+  const spreadPassed = spreadWithinLimit(input.spreadPips, maxSpread);
   conditions.push(condition("Spread", spreadPassed, spreadPassed ? "Live spread is within the pair limit." : input.spreadPips === null ? "A live spread is unavailable." : "Spread Too High", input.spreadPips === null ? "unavailable" : `${input.spreadPips.toFixed(1)} / ${maxSpread.toFixed(1)} pips`));
   const newsRequired = input.newsRequired ?? true;
   const newsPassed = input.calendarConnected && (input.highImpactNewsWithinMinutes === null || input.highImpactNewsWithinMinutes > 30);

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { evaluateStructure } from "../src/lib/strategy/market-structure";
 import { dayTradingSession, evaluateStrategy, getPaperTradingAvailability, rankStrategySetups } from "../src/lib/strategy/strategy-engine";
-import { calculatePositionSize, deriveTradePermission } from "../src/lib/risk/engine";
+import { calculatePositionSize, deriveTradePermission, spreadWithinLimit } from "../src/lib/risk/engine";
+import { pipSizeFor } from "../src/lib/instruments/catalog";
 import type { Candle } from "../src/types/forex";
 
 function candles(direction: "bull" | "bear" | "flat", count = 260): Candle[] {
@@ -73,6 +74,19 @@ const spreadRejected = evaluateStrategy({
   spreadPips: 5, marketOpen: true, calendarConnected: true, highImpactNewsWithinMinutes: null,
 });
 assert.equal(spreadRejected.conditions.find((item) => item.name === "Spread")?.passed, false, "wide live spreads must reject the setup");
+
+// A spread derived from the quote lands a few ulps above an exact limit, so a
+// bare `<=` rejected EUR_USD at precisely 1.5 pips.
+const derivedSpread = (1.15612 - 1.15597) / pipSizeFor("EUR_USD");
+assert.ok(derivedSpread > 1.5, "the derived EUR_USD spread must still carry the representation error this guards");
+const spreadAtLimit = evaluateStrategy({
+  instrument: "EUR_USD", accountBalance: 10_000, accountCurrency: "USD", dataSource: "oanda",
+  candles15m: bullish, candles1h: bullish, candles4h: bullish, bid: 1.15597, ask: 1.15612,
+  spreadPips: derivedSpread, marketOpen: true, calendarConnected: true, highImpactNewsWithinMinutes: null,
+});
+assert.equal(spreadAtLimit.conditions.find((item) => item.name === "Spread")?.passed, true, "a spread exactly at the pair limit must not be rejected by float representation error");
+assert.equal(spreadWithinLimit(1.55, 1.5), false, "the tolerance must not widen the limit to the displayed 0.1-pip precision");
+assert.equal(deriveTradePermission({ restConnected: true, streamState: "connected", marketOpen: true, calendarConnected: true, dailyLossPercent: 0, tradesTaken: 0, consecutiveLosses: 0, setupValid: true, highImpactNewsWithinMinutes: null, spreadPips: derivedSpread }).permission, "allowed", "the risk-engine spread gate must share the strategy tolerance");
 
 const mixed = evaluateStrategy({
   instrument: "EUR_USD", accountBalance: 10_000, accountCurrency: "USD", dataSource: "oanda",

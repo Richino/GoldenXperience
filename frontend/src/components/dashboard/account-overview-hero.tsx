@@ -7,6 +7,7 @@ import {
   type AccountChartRange,
 } from "@/components/dashboard/account-amount-chart";
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { tradingDayKey } from "@/lib/format/datetime";
 import type { AccountSummary } from "@/types/forex";
 
 type PaperTradePoint = {
@@ -41,10 +42,17 @@ export function AccountOverviewHero({
   account,
   userLabel,
   trades,
+  todayKey,
 }: {
   account: AccountSummary;
   userLabel: string;
   trades: PaperTradePoint[];
+  /**
+   * The current ET day, resolved on the server. Reading the clock during render
+   * would make the server and the browser disagree across a midnight boundary
+   * and break hydration.
+   */
+  todayKey: string;
 }) {
   const [range, setRange] = useState<AccountChartRange>("1w");
   const name = greetingName(userLabel);
@@ -59,9 +67,27 @@ export function AccountOverviewHero({
     [account.nav, account.unrealizedPL, trades, range],
   );
 
-  const baseline = account.nav - account.unrealizedPL;
-  const changePercent = baseline !== 0 ? (account.unrealizedPL / baseline) * 100 : 0;
-  const positive = changePercent >= 0;
+  // "Today" is everything the account actually moved this session: paper trades
+  // banked since the ET day opened, plus whatever is still floating on open
+  // positions. Unrealized alone is why this read +0.00% on any day that closed
+  // its trades — the realized part was missing.
+  const dayPL = useMemo(() => {
+    const realized = trades.reduce(
+      (sum, trade) =>
+        trade.closedAt &&
+        trade.paperPl !== null &&
+        tradingDayKey(trade.closedAt) === todayKey
+          ? sum + trade.paperPl
+          : sum,
+      0,
+    );
+
+    return realized + account.unrealizedPL;
+  }, [account.unrealizedPL, todayKey, trades]);
+
+  const baseline = account.nav - dayPL;
+  const changePercent = baseline !== 0 ? (dayPL / baseline) * 100 : 0;
+  const positive = dayPL >= 0;
 
   return (
     <section className="account-overview-hero" aria-label="Account overview">
@@ -91,8 +117,11 @@ export function AccountOverviewHero({
               : "bg-[color:var(--danger-soft)] text-[color:var(--danger)]"
           }`}
         >
-          {positive ? "+" : ""}
-          {changePercent.toFixed(2)}% today
+          {positive ? "+" : "−"}
+          {money(Math.abs(dayPL), account.currency)}
+          <span className="mx-1.5 opacity-45">·</span>
+          {positive ? "+" : "−"}
+          {Math.abs(changePercent).toFixed(2)}% today
         </span>
       </div>
 
@@ -102,6 +131,7 @@ export function AccountOverviewHero({
           currency={account.currency}
           range={range}
           onRangeChange={setRange}
+          positive={positive}
         />
       </div>
     </section>

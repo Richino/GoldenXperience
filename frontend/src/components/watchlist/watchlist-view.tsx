@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { displayNameFor } from "@/lib/instruments/catalog";
 import { apiUrl } from "@/lib/api/url";
+import { formatClockTime } from "@/lib/format/datetime";
 import { getPaperTradingAvailability, type PaperTradingAvailability } from "@/lib/strategy/strategy-engine";
 
 type WatchRow = {
@@ -43,7 +44,7 @@ function price(value: number | null, instrument: string) {
 
 function evaluatedLabel(value: string | null) {
   if (!value) return "Waiting";
-  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(value));
+  return formatClockTime(value);
 }
 
 function Levels({ row, availability }: { row: WatchRow; availability: PaperTradingAvailability }) {

@@ -11,10 +11,8 @@ const EXPLORATION_TARGET_R = 1.5;
 export const ACTIVE_STRATEGY_VERSION = "day-exploration-v1";
 export const DAY_TRADING_TIME_ZONE = "America/New_York";
 export const DAY_ENTRY_START_MINUTES = 3 * 60;
+export const DAY_ENTRY_END_MINUTES = 12 * 60;
 export const DAY_FORCED_EXIT_MINUTES = 16 * 60 + 45;
-// Entries close at the forced exit: a later entry would be flattened by the
-// 16:45 ET session close before it could resolve.
-export const DAY_ENTRY_END_MINUTES = DAY_FORCED_EXIT_MINUTES;
 const MAX_SPREAD_PIPS: Record<string, number> = {
   EUR_USD: 1.5,
   GBP_USD: 2,
@@ -60,7 +58,6 @@ export function dayTradingSession(now = new Date()) {
   const totalMinutes = hour * 60 + minute;
   // London 03:00–12:00, New York 08:00–17:00 Eastern.
   if (totalMinutes < DAY_ENTRY_START_MINUTES || totalMinutes >= DAY_ENTRY_END_MINUTES) return { open: false, label: "Outside day-trading entry window" };
-  if (totalMinutes >= 12 * 60) return { open: true, label: "New York" };
   return { open: true, label: totalMinutes >= 8 * 60 ? "London/New York overlap" : "London" };
 }
 
@@ -92,7 +89,7 @@ export function getPaperTradingAvailability(now = new Date()): PaperTradingAvail
       marketOpen: true,
       entryWindowOpen: false,
       label: "Waiting for entry window",
-      detail: "The market is open, but new entries are considered only from 3:00 AM to 4:45 PM ET.",
+      detail: "The market is open, but new entries are considered only from 3:00 AM to 12:00 PM ET.",
     };
   }
 
@@ -194,7 +191,7 @@ export function evaluateStrategy(input: StrategyEvaluationInput, options: Strate
   conditions.push(condition("Volatility", volatilityPassed, volatilityPassed ? "ATR is sufficient for a reasonable stop." : "ATR is too compressed for this 15m setup.", `ATR14 ${atrPips.toFixed(1)} pips`));
 
   const session = dayTradingSession(input.evaluatedAt ? new Date(input.evaluatedAt) : new Date());
-  conditions.push(condition("Session", session.open && input.marketOpen, session.open && input.marketOpen ? `${session.label} entry window is active.` : "Entries are limited to 03:00 ET inclusive until 16:45 ET exclusive while the forex market is open.", session.label));
+  conditions.push(condition("Session", session.open && input.marketOpen, session.open && input.marketOpen ? `${session.label} entry window is active.` : "Entries are limited to 03:00 ET inclusive until 12:00 ET exclusive while the forex market is open.", session.label));
   const maxSpread = MAX_SPREAD_PIPS[input.instrument] ?? 1.5;
   const spreadPassed = input.spreadPips !== null && input.spreadPips <= maxSpread;
   conditions.push(condition("Spread", spreadPassed, spreadPassed ? "Live spread is within the pair limit." : input.spreadPips === null ? "A live spread is unavailable." : "Spread Too High", input.spreadPips === null ? "unavailable" : `${input.spreadPips.toFixed(1)} / ${maxSpread.toFixed(1)} pips`));

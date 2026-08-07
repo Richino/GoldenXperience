@@ -13,6 +13,11 @@ import {
 } from "lucide-react";
 import { ChartTypeSelect } from "@/components/charts/chart-type-select";
 import {
+  ChartOptionSheet,
+  ChartTypeSheet,
+  IndicatorSheet,
+} from "@/components/charts/chart-sheet-controls";
+import {
   ChartLoadingOverlay,
   settleChartLoad,
 } from "@/components/charts/chart-loading-overlay";
@@ -20,6 +25,7 @@ import { IndicatorSelect } from "@/components/charts/indicator-select";
 import { SetupChart } from "@/components/charts/setup-chart";
 import { PairAvatar } from "@/components/ui/pair-avatar";
 import { apiUrl } from "@/lib/api/url";
+import { formatClockTime, formatDayAndTime } from "@/lib/format/datetime";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import {
   CHART_RANGES,
@@ -243,7 +249,7 @@ function toDisplaySignal(setup: StrategySetup): TradeSignal[] {
     riskReward: setup.riskReward,
     strategy: setup.status === "valid" ? "Setup ready" : "Blocked",
     note: setup.summary,
-    freshness: `Evaluated ${new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(setup.evaluatedAt))}`,
+    freshness: `Evaluated ${formatClockTime(setup.evaluatedAt)}`,
   }];
 }
 
@@ -707,12 +713,7 @@ function StrategyStatus({
 }
 
 function tradeMoment(value: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(value));
+  return formatDayAndTime(value);
 }
 
 function TradeFocusBar({
@@ -1396,9 +1397,9 @@ export function SignalWorkspace({
               onSelect={selectSearchResult}
               className="mt-3"
             />
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <SegmentControl
-                ariaLabel="Chart timeframe"
+            <div className="signals-mobile-tools mt-3">
+              <ChartOptionSheet
+                title="Timeframe"
                 options={CHART_TIMEFRAMES}
                 value={timeframe}
                 onChange={(option) => {
@@ -1406,7 +1407,17 @@ export function SignalWorkspace({
                   setTimeframe(option);
                 }}
               />
-              <IndicatorSelect
+              <ChartOptionSheet
+                title="Range"
+                options={MOBILE_CHART_RANGES}
+                value={range}
+                onChange={(option) => {
+                  setLiveCandle(null);
+                  setRange(option);
+                }}
+              />
+              <ChartTypeSheet value={chartVariant} onChange={setChartVariant} />
+              <IndicatorSheet
                 enabled={enabledIndicators}
                 onChange={setEnabledIndicators}
               />
@@ -1444,26 +1455,6 @@ export function SignalWorkspace({
               focusRange={focusRange}
             />
             <ChartLoadingOverlay visible={loading} />
-          </div>
-
-          <div className="signals-mobile-chart-footer">
-            <div className="flex items-center justify-between gap-3 px-4 py-2.5">
-              <SegmentControl
-                ariaLabel="Chart range"
-                options={MOBILE_CHART_RANGES}
-                value={range}
-                onChange={(option) => {
-                  setLiveCandle(null);
-                  setRange(option);
-                }}
-              />
-              <ChartTypeSelect
-                compact
-                value={chartVariant}
-                onChange={setChartVariant}
-              />
-            </div>
-
           </div>
         </div>
 

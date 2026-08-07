@@ -10,6 +10,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import {
+  formatClockTime,
+  formatHour,
+  formatShortDay,
+  formatWeekday,
+} from "@/lib/format/datetime";
 
 export type AccountChartPoint = {
   label: string;
@@ -57,13 +63,13 @@ function rangeMs(range: AccountChartRange) {
 function labelFor(date: Date, range: AccountChartRange) {
   switch (range) {
     case "1h":
-      return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(date);
+      return formatClockTime(date);
     case "24h":
-      return new Intl.DateTimeFormat("en-US", { hour: "numeric" }).format(date);
+      return formatHour(date);
     case "1w":
-      return new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(date);
+      return formatWeekday(date);
     case "1m":
-      return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date);
+      return formatShortDay(date);
     default: {
       const _exhaustive: never = range;
       return _exhaustive;
@@ -163,12 +169,42 @@ function ActiveValueLabel({
   );
 }
 
+type TooltipPayloadItem = { payload?: AccountChartPoint };
+
+/**
+ * The point under the pointer, shown beside it. The pill at the top of the
+ * canvas carries the same amount because on touch the finger covers this.
+ */
+function AccountChartTooltip({
+  active,
+  payload,
+  currency,
+}: {
+  active?: boolean;
+  payload?: readonly TooltipPayloadItem[];
+  currency: string;
+}): ReactNode {
+  const point = payload?.[0]?.payload;
+  if (!active || !point) return null;
+
+  return (
+    <div className="account-chart-tooltip">
+      <span className="account-chart-tooltip-value metric-number">
+        {moneyExact(point.value, currency)}
+      </span>
+      <span className="account-chart-tooltip-time">{point.label}</span>
+    </div>
+  );
+}
+
 function ChartActiveDot({
   cx,
   cy,
+  color,
 }: {
   cx?: number;
   cy?: number;
+  color: string;
 }): ReactNode {
   if (cx === undefined || cy === undefined) return null;
 
@@ -177,7 +213,7 @@ function ChartActiveDot({
       cx={cx}
       cy={cy}
       r={5}
-      fill="var(--accent)"
+      fill={color}
       stroke="var(--background)"
       strokeWidth={2}
       pointerEvents="none"
@@ -190,11 +226,14 @@ export function AccountAmountChart({
   currency,
   range,
   onRangeChange,
+  positive = true,
 }: {
   series: AccountChartPoint[];
   currency: string;
   range: AccountChartRange;
   onRangeChange: (range: AccountChartRange) => void;
+  /** Tints the line and its fill to the day's direction. */
+  positive?: boolean;
 }) {
   const gradientId = useId().replace(/:/g, "");
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
@@ -202,7 +241,7 @@ export function AccountAmountChart({
   const min = Math.min(...values);
   const max = Math.max(...values);
   const padding = Math.max((max - min) * 0.18, Math.abs(max) * 0.002, 1);
-  const stroke = "var(--accent)";
+  const stroke = positive ? "var(--success)" : "var(--danger)";
   const activePoint = activeIndex === null ? null : (series[activeIndex] ?? null);
 
   function handleChartFocus(event: { activeTooltipIndex?: number | string | null }) {
@@ -250,6 +289,9 @@ export function AccountAmountChart({
             margin={{ top: 28, right: 0, left: 0, bottom: 4 }}
             onMouseMove={handleChartFocus}
             onMouseLeave={() => setActiveIndex(null)}
+            onTouchStart={handleChartFocus}
+            onTouchMove={handleChartFocus}
+            onTouchEnd={() => setActiveIndex(null)}
           >
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -260,7 +302,25 @@ export function AccountAmountChart({
             <CartesianGrid vertical={false} stroke="transparent" />
 
             <YAxis hide domain={[min - padding, max + padding]} />
-            <Tooltip cursor={false} content={() => null} />
+            <Tooltip
+              isAnimationActive={false}
+              cursor={{
+                stroke,
+                strokeWidth: 1,
+                strokeDasharray: "4 4",
+                strokeOpacity: 0.55,
+              }}
+              content={(props: {
+                active?: boolean;
+                payload?: readonly TooltipPayloadItem[];
+              }) => (
+                <AccountChartTooltip
+                  active={props.active}
+                  payload={props.payload}
+                  currency={currency}
+                />
+              )}
+            />
             <Area
               type="monotone"
               dataKey="value"
@@ -268,7 +328,9 @@ export function AccountAmountChart({
               strokeWidth={2.4}
               fill={`url(#${gradientId})`}
               isAnimationActive={false}
-              activeDot={ChartActiveDot}
+              activeDot={(props: { cx?: number; cy?: number }) => (
+                <ChartActiveDot cx={props.cx} cy={props.cy} color={stroke} />
+              )}
               dot={false}
             />
           </AreaChart>

@@ -8,6 +8,7 @@ import {
 } from "@/lib/journal/storage";
 import type { JournalTrade } from "@/types/forex";
 import { apiUrl } from "@/lib/api/url";
+import { formatShortDay } from "@/lib/format/datetime";
 
 const BASE_FILTERS = ["All", "Wins", "Losses", "EUR/USD", "GBP/USD", "USD/JPY"];
 
@@ -35,10 +36,7 @@ function formatMoney(value: number | null | undefined) {
 
 function formatShortDate(value: string | null) {
   if (!value) return "Open";
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-  }).format(new Date(value));
+  return formatShortDay(value);
 }
 
 function JournalTradeRow({ trade }: { trade: JournalTrade }) {

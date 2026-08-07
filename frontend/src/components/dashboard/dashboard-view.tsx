@@ -7,6 +7,7 @@ import { AccountOverviewHero } from "@/components/dashboard/account-overview-her
 import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { displayNameFor } from "@/lib/instruments/catalog";
+import { formatDayAndTime } from "@/lib/format/datetime";
 import { getPaperTradingAvailability, type PaperTradingAvailability } from "@/lib/strategy/strategy-engine";
 import type { AccountSummary, ConnectionStatus } from "@/types/forex";
 
@@ -79,7 +80,7 @@ function money(value: number, currency = "USD") {
 
 function time(value: string | null) {
   if (!value) return "Waiting";
-  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value));
+  return formatDayAndTime(value);
 }
 
 function pairState(row: DashboardWatchRow, availability: PaperTradingAvailability) {
@@ -97,6 +98,7 @@ export function DashboardView({
   initialWatchlist,
   initialOverview,
   userLabel,
+  todayKey,
 }: {
   initialAccount: AccountSummary;
   initialStatus: ConnectionStatus;
@@ -104,6 +106,7 @@ export function DashboardView({
   initialOverview: DashboardOverview;
   initialExposure: DashboardExposure;
   userLabel: string;
+  todayKey: string;
 }) {
   const [account, setAccount] = useState(initialAccount);
   const [watchlist, setWatchlist] = useState(initialWatchlist);
@@ -150,7 +153,12 @@ export function DashboardView({
 
   return (
     <div className="dashboard-view dashboard-minimal space-y-8 lg:space-y-10">
-      <AccountOverviewHero account={account} userLabel={userLabel} trades={paperTrades} />
+      <AccountOverviewHero
+        account={account}
+        userLabel={userLabel}
+        trades={paperTrades}
+        todayKey={todayKey}
+      />
 
       {error ? <p className="research-error">{error}</p> : null}
 

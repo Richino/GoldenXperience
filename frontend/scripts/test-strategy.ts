@@ -27,18 +27,13 @@ const bearish = candles("bear");
 const flat = candles("flat").map((candle) => ({ ...candle, open: 1.05, high: 1.0501, low: 1.0499, close: 1.05 }));
 
 // ET conversion must respect the daylight-saving offset, while the local
-// boundary itself stays 03:00 inclusive and 16:45 exclusive.
+// boundary itself stays 03:00 inclusive and 12:00 exclusive.
 assert.equal(dayTradingSession(new Date("2026-03-09T07:00:00.000Z")).open, true, "03:00 ET after DST starts must be eligible");
-assert.equal(dayTradingSession(new Date("2026-03-09T20:45:00.000Z")).open, false, "16:45 ET after DST starts must reject entries");
+assert.equal(dayTradingSession(new Date("2026-03-09T16:00:00.000Z")).open, false, "12:00 ET after DST starts must reject entries");
 assert.equal(dayTradingSession(new Date("2026-11-02T08:00:00.000Z")).open, true, "03:00 ET after DST ends must be eligible");
-assert.equal(dayTradingSession(new Date("2026-11-02T21:45:00.000Z")).open, false, "16:45 ET after DST ends must reject entries");
-
-// The New York afternoon is an entry session, labelled apart from the morning
-// so session analytics can separate it.
-assert.equal(dayTradingSession(new Date("2026-03-09T16:00:00.000Z")).open, true, "12:00 ET must open the New York afternoon");
-assert.equal(dayTradingSession(new Date("2026-03-09T16:00:00.000Z")).label, "New York", "the afternoon must not be labelled as the overlap");
+assert.equal(dayTradingSession(new Date("2026-11-02T17:00:00.000Z")).open, false, "12:00 ET after DST ends must reject entries");
 assert.equal(dayTradingSession(new Date("2026-03-09T15:45:00.000Z")).label, "London/New York overlap", "11:45 ET must still be the overlap");
-assert.equal(dayTradingSession(new Date("2026-03-09T20:44:00.000Z")).open, true, "16:44 ET must be the last eligible minute");
+assert.equal(dayTradingSession(new Date("2026-03-09T15:59:00.000Z")).open, true, "11:59 ET must be the last eligible minute");
 assert.equal(getPaperTradingAvailability(new Date("2026-08-01T16:00:00.000Z")).state, "market_closed", "Saturday must be presented as a closed-market waiting state");
 assert.equal(getPaperTradingAvailability(new Date("2026-08-02T22:00:00.000Z")).state, "waiting_for_entry_window", "Sunday evening must wait for the day entry window");
 assert.equal(getPaperTradingAvailability(new Date("2026-08-03T11:00:00.000Z")).state, "entry_window_open", "Monday 07:00 ET must open the entry window");

@@ -1,5 +1,6 @@
 import { DashboardView, type DashboardExposure, type DashboardOverview, type DashboardWatchRow } from "@/components/dashboard/dashboard-view";
 import { getApiData } from "@/lib/api/server";
+import { currentTradingDayKey } from "@/lib/format/datetime";
 import type { AccountSummary, ConnectionStatus } from "@/types/forex";
 
 export default async function DashboardPage() {
@@ -18,6 +19,7 @@ export default async function DashboardPage() {
       initialOverview={overview}
       initialExposure={risk.exposure}
       userLabel="Richie"
+      todayKey={currentTradingDayKey()}
     />
   );
 }

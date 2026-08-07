@@ -67,9 +67,10 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="GoldenXperience" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-        <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
-        <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
+        {/* Icons are not declared here. src/app/{favicon.ico,icon.svg,apple-icon.png}
+            are file conventions Next emits the link tags for, and the Android
+            launcher icons are declared in manifest.json. Adding them again here
+            only produces duplicate tags that can win over the generated ones. */}
       </head>
       <body>
         <Script

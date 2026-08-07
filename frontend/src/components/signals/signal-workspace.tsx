@@ -8,6 +8,7 @@ import {
   Clock3,
   Maximize2,
   Minimize2,
+  RotateCcw,
   Search,
   X,
 } from "lucide-react";
@@ -537,6 +538,31 @@ function SignalSearch({
         </div>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Restores the default view by bumping the same revision the chart already
+ * uses after a timeframe change, so reset lands wherever that would: the
+ * focused trade when one is open, otherwise the latest candles.
+ */
+function ResetViewButton({
+  onReset,
+  className = "signals-tool-btn",
+}: {
+  onReset: () => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onReset}
+      aria-label="Reset chart view"
+      title="Reset chart view"
+      className={`${className} pressable`}
+    >
+      <RotateCcw className="size-4" strokeWidth={2} />
+    </button>
   );
 }
 
@@ -1072,20 +1098,26 @@ export function SignalWorkspace({
     strategySetups[0];
   const activeCandidate = toDisplaySignal(activeSetup)[0] ?? null;
   const paperPlan = paperPlans.find((plan) => plan.instrument === instrument && plan.openTradeId);
-  const openSignal: TradeSignal | null = paperPlan?.direction && paperPlan.entry !== null && paperPlan.stop !== null && paperPlan.target !== null ? {
-    instrument,
-    pair: activeSetup.pair,
-    timeframe: "15m",
-    direction: paperPlan.direction,
-    bias: paperPlan.direction === "long" ? "Bullish" : "Bearish",
-    entry: paperPlan.entry,
-    stop: paperPlan.stop,
-    target: paperPlan.target,
-    riskReward: Math.abs(paperPlan.target - paperPlan.entry) / Math.abs(paperPlan.entry - paperPlan.stop),
-    strategy: `Paper · Batch ${paperPlan.batchNumber ?? "—"}`,
-    note: `Trade #${paperPlan.tradeSequence ?? "—"}`,
-    freshness: "Open",
-  } : null;
+  // Memoised because this feeds the chart's `levels` prop through `active`.
+  // A fresh object here on every render reached SetupChart as a changed
+  // dependency and tore the chart down mid-gesture on each live tick.
+  const openSignal: TradeSignal | null = useMemo(
+    () => paperPlan?.direction && paperPlan.entry !== null && paperPlan.stop !== null && paperPlan.target !== null ? {
+      instrument,
+      pair: activeSetup.pair,
+      timeframe: "15m",
+      direction: paperPlan.direction,
+      bias: paperPlan.direction === "long" ? "Bullish" : "Bearish",
+      entry: paperPlan.entry,
+      stop: paperPlan.stop,
+      target: paperPlan.target,
+      riskReward: Math.abs(paperPlan.target - paperPlan.entry) / Math.abs(paperPlan.entry - paperPlan.stop),
+      strategy: `Paper · Batch ${paperPlan.batchNumber ?? "—"}`,
+      note: `Trade #${paperPlan.tradeSequence ?? "—"}`,
+      freshness: "Open",
+    } : null,
+    [paperPlan, instrument, activeSetup.pair],
+  );
   const active = openSignal ?? (activeSetup.status === "valid" ? activeCandidate : null);
   const planIsOpen = Boolean(openSignal);
   const tradingAvailability = getPaperTradingAvailability();
@@ -1421,6 +1453,11 @@ export function SignalWorkspace({
                 enabled={enabledIndicators}
                 onChange={setEnabledIndicators}
               />
+              <ResetViewButton
+                onReset={() =>
+                  setScrollToLatestRevision((revision) => revision + 1)
+                }
+              />
             </div>
             {dataNotice ? (
               <p className="signals-notice mt-2">
@@ -1496,6 +1533,11 @@ export function SignalWorkspace({
                 compact
                 enabled={enabledIndicators}
                 onChange={setEnabledIndicators}
+              />
+              <ResetViewButton
+                onReset={() =>
+                  setScrollToLatestRevision((revision) => revision + 1)
+                }
               />
               <FullscreenToggle
                 fullscreen={fullscreen}

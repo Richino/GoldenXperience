@@ -47,7 +47,6 @@ import {
   type TradeMarkerPalette,
 } from "@/lib/chart-utils";
 import { ChartHistoryLoader } from "@/components/charts/chart-loading-overlay";
-import { precisionFor } from "@/lib/instruments/catalog";
 import type { Candle, CandleSeries, PaperChartTrade } from "@/types/forex";
 
 /**
@@ -292,10 +291,13 @@ function addSetupLevels(mainSeries: ISeriesApi<SeriesType>, tags: LevelTag[]) {
       lineStyle: tag.dashed ? LineStyle.Dashed : LineStyle.Dotted,
       // The price always shows on the scale — mobile included. The named tag
       // that sits beside it is drawn as an overlay, see `LevelTagOverlay`.
+      //
+      // No `title`: the library would paint the same word onto the pane, which
+      // read as two tags on the wider labels. The short ones only looked
+      // correct because the pair landed on top of each other.
       axisLabelVisible: true,
       axisLabelColor: tag.color,
       axisLabelTextColor: tag.textColor,
-      title: tag.label,
     });
   }
 }
@@ -455,12 +457,16 @@ export function SetupChart({
   const focusPagesRef = useRef(0);
   const hadFocusRef = useRef(false);
   const [chartEpoch, setChartEpoch] = useState(0);
+  const [visibleBearish, setVisibleBearish] = useState<boolean | null>(null);
   const [placedTags, setPlacedTags] = useState<PlacedLevelTag[]>([]);
   const latestChartTimeRef = useRef<number | null>(
     latestCandleChartTime(series.candles),
   );
   const loadingOlderRef = useRef(loadingOlder);
   const onLoadOlderRef = useRef(onLoadOlder);
+  // The visible-range callback is registered once per chart, so it cannot read
+  // candles through the closure without going stale as live data streams in.
+  const candlesRef = useRef(series.candles);
   const prevFirstCandleTimeRef = useRef(series.candles[0]?.time ?? null);
   const lastScrollRevisionRef = useRef(0);
   const { resolvedTheme } = useTheme();
@@ -469,6 +475,31 @@ export function SetupChart({
   const downColor = isDark ? "#f87171" : "#e74c3c";
   const wickUpColor = isDark ? "#00c488" : "#009966";
   const wickDownColor = isDark ? "#e85d6a" : "#d64545";
+  /**
+   * The area series carries no per-candle colour, so it was always painted
+   * green regardless of direction.
+   *
+   * The comparison runs over the candles actually on screen, not the whole
+   * loaded range. Those differ: the loaded range is the selected period while
+   * the view opens on the most recent slice of it, so a pair down over six
+   * months but up over the visible fortnight would render a climbing chart in
+   * red. `visibleBearish` is null until the first range callback, when the
+   * loaded series is the best available answer.
+   */
+  const isBearish =
+    visibleBearish ??
+    (series.candles.length > 1 &&
+      series.candles.at(-1)!.close < series.candles[0]!.close);
+  const trendColor = isBearish ? downColor : upColor;
+  const areaFill = isBearish
+    ? {
+        top: isDark ? "rgba(248,113,113,0.28)" : "rgba(231,76,60,0.24)",
+        bottom: isDark ? "rgba(248,113,113,0)" : "rgba(231,76,60,0)",
+      }
+    : {
+        top: isDark ? "rgba(0,214,143,0.28)" : "rgba(0,179,119,0.24)",
+        bottom: isDark ? "rgba(0,214,143,0)" : "rgba(0,179,119,0)",
+      };
   const surfaceColor = embedded
     ? isDark
       ? "#09090b"
@@ -480,13 +511,17 @@ export function SetupChart({
   const axisPrecision = embedded
     ? compactAxisPricePrecision(series.instrument)
     : precision;
+  // minMove tracks the precision actually in use, not the instrument's full
+  // precision. The compact mobile axis drops a digit, and the mismatched pair
+  // made the formatter emit prices like "1.0002" and "1.43.7" on the level and
+  // crosshair labels while the axis ticks stayed correct.
   const priceFormat = useMemo(
     () => ({
       type: "price" as const,
       precision: axisPrecision,
-      minMove: 10 ** -precisionFor(series.instrument),
+      minMove: 10 ** -axisPrecision,
     }),
-    [axisPrecision, series.instrument],
+    [axisPrecision],
   );
 
   useEffect(() => {
@@ -496,6 +531,10 @@ export function SetupChart({
   useEffect(() => {
     onLoadOlderRef.current = onLoadOlder;
   }, [onLoadOlder]);
+
+  useEffect(() => {
+    candlesRef.current = series.candles;
+  }, [series.candles]);
 
   const chartHeight = height;
   const shellHeight = height;
@@ -604,9 +643,9 @@ export function SetupChart({
       }
       case "area": {
         mainSeries = chart.addSeries(AreaSeries, {
-          lineColor: upColor,
-          topColor: isDark ? "rgba(0,214,143,0.28)" : "rgba(0,179,119,0.24)",
-          bottomColor: isDark ? "rgba(0,214,143,0)" : "rgba(0,179,119,0)",
+          lineColor: trendColor,
+          topColor: areaFill.top,
+          bottomColor: areaFill.bottom,
           lineWidth: 2,
           ...displayOptions,
         });
@@ -729,6 +768,18 @@ export function SetupChart({
       ) {
         onLoadOlderRef.current?.();
       }
+
+      // Colour the area by what is on screen. Logical indices run past both
+      // ends once the view is scrolled beyond the data, so they are clamped
+      // before use, and the state is only set on an actual flip to keep a pan
+      // gesture from rendering on every frame.
+      const candles = candlesRef.current;
+      if (!logicalRange || candles.length < 2) return;
+      const from = Math.max(0, Math.ceil(logicalRange.from));
+      const to = Math.min(candles.length - 1, Math.floor(logicalRange.to));
+      if (to <= from) return;
+      const bearish = candles[to]!.close < candles[from]!.close;
+      setVisibleBearish((current) => (current === bearish ? current : bearish));
     };
     chart.timeScale().subscribeVisibleLogicalRangeChange(handleVisibleRangeChange);
 
@@ -795,8 +846,13 @@ export function SetupChart({
     };
   // The chart instance is intentionally not recreated for every candle update.
   // Candle data is pushed through the data effect below so live ticks stay cheap.
+  //
+  // `levels` is depended on by value rather than by identity. Callers rebuild
+  // that object whenever polled data arrives, and an identity dependency tore
+  // the whole chart down on every tick for any instrument holding an open
+  // trade, throwing away the user's zoom and scroll position mid-gesture.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [series.instrument, levels, enabledIndicators, variant, isDark, priceFormat, upColor, downColor, wickUpColor, wickDownColor, surfaceColor, embedded]);
+  }, [series.instrument, levels?.entry, levels?.stop, levels?.target, levels?.exit, enabledIndicators, variant, isDark, priceFormat, upColor, downColor, wickUpColor, wickDownColor, surfaceColor, embedded]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -1022,6 +1078,21 @@ export function SetupChart({
   useEffect(() => {
     chartRef.current?.applyOptions(chartTheme(isDark, embedded));
   }, [embedded, isDark]);
+
+  /**
+   * The area colour tracks the last close, so it can flip on any live tick.
+   * Applying it to the existing series keeps that off the creation effect
+   * above, which builds the chart and would reset the user's zoom and scroll
+   * every time the symbol crossed its opening price.
+   */
+  useEffect(() => {
+    if (variant !== "area") return;
+    mainSeriesRef.current?.applyOptions({
+      lineColor: trendColor,
+      topColor: areaFill.top,
+      bottomColor: areaFill.bottom,
+    });
+  }, [variant, trendColor, areaFill.top, areaFill.bottom]);
 
   // The named level tags ride along with the price scale, which the user can
   // now drag and pinch. The library exposes no "price scale changed" event, so

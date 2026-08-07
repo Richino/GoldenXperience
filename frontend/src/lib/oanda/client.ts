@@ -212,6 +212,57 @@ export async function closePracticeTrade(brokerTradeId: string) {
   return response.orderFillTransaction?.id ?? response.orderCreateTransaction?.id ?? null;
 }
 
+export interface PracticeTradeState {
+  /** OANDA reports OPEN, CLOSED or CLOSE_WHEN_TRADEABLE. */
+  state: string;
+  closed: boolean;
+  /** Price the position actually closed at, averaged over its closing fills. */
+  averageClosePrice: number | null;
+  /** Cash the broker actually booked, in the account currency. */
+  realizedPL: number | null;
+  closeTime: string | null;
+}
+
+/**
+ * The broker's own record of a trade it executed.
+ *
+ * This is the authority on whether a position is still open and what it earned.
+ * Reading it beats inferring an outcome from candles: the broker knows the
+ * moment its own stop or take-profit fills, and it reports the price it filled
+ * at rather than the level the order was resting on — which differ by whatever
+ * the market gapped or slipped.
+ */
+export async function getPracticeTradeState(brokerTradeId: string): Promise<PracticeTradeState | null> {
+  const config = getConfig();
+  if (!config || !brokerTradeId) return null;
+
+  const response = await requestOanda<{
+    trade?: {
+      state?: string;
+      averageClosePrice?: string;
+      realizedPL?: string;
+      closeTime?: string;
+    };
+  }>(`/v3/accounts/${encodeURIComponent(config.accountId)}/trades/${encodeURIComponent(brokerTradeId)}`);
+
+  const trade = response.trade;
+  if (!trade?.state) return null;
+
+  const numberOrNull = (value: string | undefined) => {
+    if (value === undefined) return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  return {
+    state: trade.state,
+    closed: trade.state === "CLOSED",
+    averageClosePrice: numberOrNull(trade.averageClosePrice),
+    realizedPL: numberOrNull(trade.realizedPL),
+    closeTime: trade.closeTime ?? null,
+  };
+}
+
 function buildStatus(
   state: ConnectionStatus["state"],
   message: string,

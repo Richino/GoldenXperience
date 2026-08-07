@@ -6,7 +6,7 @@ import { displayPair, queueNotification, sendPushNotification } from "./notifica
 import { closePracticeTradeForPaperTrade, processPendingPracticeOrders, queuePracticeOrderIntent } from "./practice-execution.js";
 import { pipSizeFor } from "../../frontend/src/lib/instruments/catalog.js";
 import { calculatePositionSize } from "../../frontend/src/lib/risk/engine.js";
-import { getResearchCandles } from "../../frontend/src/lib/oanda/client.js";
+import { getPracticeTradeState, getResearchCandles } from "../../frontend/src/lib/oanda/client.js";
 import { ACTIVE_STRATEGY_VERSION, DAY_TRADING_TIME_ZONE, dayTradingSession } from "../../frontend/src/lib/strategy/strategy-engine.js";
 import { getStrategySnapshot } from "../../frontend/src/lib/strategy/strategy-service.js";
 import type { StrategySetup } from "../../frontend/src/lib/strategy/types.js";
@@ -349,6 +349,67 @@ async function openPaperTrade(setup: StrategySetup, userId: string, versionId: s
   });
 }
 
+type BrokerClose = {
+  outcome: "target_first" | "stop_first" | "forced_close";
+  exit: number;
+  resultR: number | null;
+  paperPl: number | null;
+  closedAt: string | null;
+};
+
+/**
+ * What the broker actually did with a trade it executed, if it is finished.
+ *
+ * Preferred over reading candles for two reasons. The broker knows the instant
+ * its own stop or take-profit fills, where a candle scan has to wait for the
+ * M15 to complete and can sit up to fifteen minutes behind a position that no
+ * longer exists. And it reports the price it filled at and the cash it booked,
+ * rather than the level the order rested on: a stop that slips fills worse than
+ * its trigger, and recording the trigger understates the loss.
+ *
+ * Returns null when the trade has no broker order or is still open, and the
+ * caller falls back to the candle scan.
+ */
+async function brokerCloseFor(trade: OpenTradeRow): Promise<BrokerClose | null> {
+  const intent = await query<{ broker_trade_id: string | null }>(
+    "SELECT broker_trade_id FROM practice_order_intents WHERE paper_trade_id=$1 AND status='submitted'",
+    [trade.id],
+  );
+  const brokerTradeId = intent.rows[0]?.broker_trade_id;
+  if (!brokerTradeId) return null;
+
+  let state: Awaited<ReturnType<typeof getPracticeTradeState>>;
+  try {
+    state = await getPracticeTradeState(brokerTradeId);
+  } catch {
+    // An unreachable broker must not strand the trade; the scan still runs.
+    return null;
+  }
+  if (!state?.closed || state.averageClosePrice === null) return null;
+
+  const entry = Number(trade.entry);
+  const stop = Number(trade.stop);
+  const target = Number(trade.target);
+  const exit = state.averageClosePrice;
+  // A fill slips past its trigger rather than short of it, so the comparison is
+  // one-sided. The tolerance only covers a target filled marginally worse.
+  const slack = Math.abs(entry - stop) * 0.05;
+  const outcome: BrokerClose["outcome"] = trade.direction === "long"
+    ? exit >= target - slack ? "target_first" : exit <= stop + slack ? "stop_first" : "forced_close"
+    : exit <= target + slack ? "target_first" : exit >= stop - slack ? "stop_first" : "forced_close";
+
+  const risk = Number(trade.nominal_risk_amount);
+  return {
+    outcome,
+    exit,
+    // R is derived from the cash the broker booked, so it carries the slippage
+    // the modelled ±1R never showed.
+    resultR: state.realizedPL !== null && Number.isFinite(risk) && risk !== 0 ? state.realizedPL / risk : null,
+    paperPl: state.realizedPL,
+    closedAt: state.closeTime,
+  };
+}
+
 async function resolveOpenTrades() {
   const open = await query<OpenTradeRow>("SELECT id,user_id,instrument,decision_time,direction,entry,stop,target,nominal_risk_amount FROM paper_strategy_trades WHERE status='open' ORDER BY opened_at");
   let resolved = 0;
@@ -357,6 +418,33 @@ async function resolveOpenTrades() {
     const quotes = candles.map(toQuote).filter((quote) => new Date(quote.closeTime) > new Date(trade.decision_time));
     if (!quotes.length) continue;
     const result = labelOutcome(trade.direction, Number(trade.entry), Number(trade.stop), Number(trade.target), iso(trade.decision_time), quotes);
+
+    // The broker is asked first and wins when it has already finished the
+    // trade. The scan above still runs, because the excursion figures it
+    // produces are not something the broker reports.
+    const broker = await brokerCloseFor(trade);
+    if (broker) {
+      const closed = await query<{ id: string }>(
+        `UPDATE paper_strategy_trades SET status='closed',outcome=$2,exit=$3,result_r=$4,paper_pl=$5,max_favorable_r=$6,max_adverse_r=$7,closed_at=COALESCE($8,now()),exit_reason=$2,updated_at=now() WHERE id=$1 AND status='open'`,
+        [trade.id, broker.outcome, broker.exit, broker.resultR, broker.paperPl, result.maxFavorableR, result.maxAdverseR, broker.closedAt],
+      );
+      if (closed.rowCount) {
+        const label = broker.outcome === "target_first" ? "target reached" : broker.outcome === "stop_first" ? "stop reached" : "session exit";
+        const resultText = broker.resultR === null ? "Result unavailable" : `${broker.resultR >= 0 ? "+" : ""}${broker.resultR.toFixed(2)}R`;
+        await queueNotification({
+          userId: trade.user_id,
+          kind: "paper_closed",
+          title: `${displayPair(trade.instrument)} paper trade closed`,
+          message: `${label} · ${resultText}`,
+          instrument: trade.instrument,
+          paperTradeId: trade.id,
+          dedupeKey: `paper_closed:${trade.id}`,
+        });
+      }
+      resolved += 1;
+      continue;
+    }
+
     if (result.outcome === "unresolved" && Date.now() < new Date(result.horizonEndsAt).getTime()) continue;
     if (result.outcome === "unresolved") continue;
     const resolvedQuote = result.resolvedAt ? quotes.find((quote) => quote.closeTime === result.resolvedAt) : undefined;

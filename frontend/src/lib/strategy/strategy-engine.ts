@@ -3,15 +3,13 @@ import { evaluateStructure } from "@/lib/strategy/market-structure";
 import { calculateAtrValues, calculateEmaValues, calculateRsiValues } from "@/lib/strategy/indicators";
 import type { StrategyCondition, StrategyEvaluationBundle, StrategyEvaluationInput, StrategyResearchFeatures, StrategySetup } from "@/lib/strategy/types";
 import { calculatePositionSize, DEFAULT_RISK_POLICY } from "@/lib/risk/engine";
-import { getForexSessionStatus } from "@/lib/strategy/session";
+import { getForexSessionStatus, localMinutes, NEW_YORK_TIME_ZONE } from "@/lib/strategy/session";
 
 const MINIMUM_CANDLES = 210;
 const EXPLORATION_TARGET_R = 1.5;
 /** The only strategy permitted to create new Signals and research evaluations. */
 export const ACTIVE_STRATEGY_VERSION = "day-exploration-v1";
-export const DAY_TRADING_TIME_ZONE = "America/New_York";
-export const DAY_ENTRY_START_MINUTES = 3 * 60;
-export const DAY_ENTRY_END_MINUTES = 12 * 60;
+export const DAY_TRADING_TIME_ZONE = NEW_YORK_TIME_ZONE;
 export const DAY_FORCED_EXIT_MINUTES = 16 * 60 + 45;
 const MAX_SPREAD_PIPS: Record<string, number> = {
   EUR_USD: 1.5,
@@ -51,14 +49,20 @@ function formatNumber(value: number | null, digits = 5) {
   return value === null ? "unavailable" : value.toFixed(digits);
 }
 
+/**
+ * The entry window: the London and New York sessions, closing at the forced
+ * exit. A position opened after 16:45 ET is flattened by the session close
+ * before it can resolve, so the last 15 minutes of New York are not tradeable
+ * even though the centre is still open.
+ *
+ * The label doubles as the research and paper-batch session key, so it stays
+ * one of the three names in RESEARCH_SESSIONS whenever the window is open.
+ */
 export function dayTradingSession(now = new Date()) {
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone: DAY_TRADING_TIME_ZONE, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(now);
-  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
-  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? "0");
-  const totalMinutes = hour * 60 + minute;
-  // London 03:00–12:00, New York 08:00–17:00 Eastern.
-  if (totalMinutes < DAY_ENTRY_START_MINUTES || totalMinutes >= DAY_ENTRY_END_MINUTES) return { open: false, label: "Outside day-trading entry window" };
-  return { open: true, label: totalMinutes >= 8 * 60 ? "London/New York overlap" : "London" };
+  const status = getForexSessionStatus(now);
+  if (!status.marketOpen || !status.entrySession) return { open: false, label: status.label };
+  if (localMinutes(now, DAY_TRADING_TIME_ZONE) >= DAY_FORCED_EXIT_MINUTES) return { open: false, label: "Past the day-trading exit" };
+  return { open: true, label: status.entrySession };
 }
 
 export type PaperTradingAvailability = {
@@ -78,7 +82,7 @@ export function getPaperTradingAvailability(now = new Date()): PaperTradingAvail
       marketOpen: false,
       entryWindowOpen: false,
       label: "Market closed",
-      detail: "Forex reopens Sunday at 5:00 PM ET. New entries are considered Monday from 3:00 AM ET.",
+      detail: "Forex reopens Sunday at 5:00 PM ET. New entries are considered from the Monday London open.",
     };
   }
 
@@ -89,7 +93,7 @@ export function getPaperTradingAvailability(now = new Date()): PaperTradingAvail
       marketOpen: true,
       entryWindowOpen: false,
       label: "Waiting for entry window",
-      detail: "The market is open, but new entries are considered only from 3:00 AM to 12:00 PM ET.",
+      detail: "The market is open, but new entries are considered only while London or New York is trading, and never after 4:45 PM ET.",
     };
   }
 
@@ -191,7 +195,7 @@ export function evaluateStrategy(input: StrategyEvaluationInput, options: Strate
   conditions.push(condition("Volatility", volatilityPassed, volatilityPassed ? "ATR is sufficient for a reasonable stop." : "ATR is too compressed for this 15m setup.", `ATR14 ${atrPips.toFixed(1)} pips`));
 
   const session = dayTradingSession(input.evaluatedAt ? new Date(input.evaluatedAt) : new Date());
-  conditions.push(condition("Session", session.open && input.marketOpen, session.open && input.marketOpen ? `${session.label} entry window is active.` : "Entries are limited to 03:00 ET inclusive until 12:00 ET exclusive while the forex market is open.", session.label));
+  conditions.push(condition("Session", session.open && input.marketOpen, session.open && input.marketOpen ? `${session.label} entry window is active.` : "Entries are limited to the London and New York sessions and close at 16:45 ET.", session.label));
   const maxSpread = MAX_SPREAD_PIPS[input.instrument] ?? 1.5;
   const spreadPassed = input.spreadPips !== null && input.spreadPips <= maxSpread;
   conditions.push(condition("Spread", spreadPassed, spreadPassed ? "Live spread is within the pair limit." : input.spreadPips === null ? "A live spread is unavailable." : "Spread Too High", input.spreadPips === null ? "unavailable" : `${input.spreadPips.toFixed(1)} / ${maxSpread.toFixed(1)} pips`));

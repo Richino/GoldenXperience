@@ -26,14 +26,31 @@ const bullish = candles("bull");
 const bearish = candles("bear");
 const flat = candles("flat").map((candle) => ({ ...candle, open: 1.05, high: 1.0501, low: 1.0499, close: 1.05 }));
 
-// ET conversion must respect the daylight-saving offset, while the local
-// boundary itself stays 03:00 inclusive and 12:00 exclusive.
-assert.equal(dayTradingSession(new Date("2026-03-09T07:00:00.000Z")).open, true, "03:00 ET after DST starts must be eligible");
-assert.equal(dayTradingSession(new Date("2026-03-09T16:00:00.000Z")).open, false, "12:00 ET after DST starts must reject entries");
-assert.equal(dayTradingSession(new Date("2026-11-02T08:00:00.000Z")).open, true, "03:00 ET after DST ends must be eligible");
-assert.equal(dayTradingSession(new Date("2026-11-02T17:00:00.000Z")).open, false, "12:00 ET after DST ends must reject entries");
-assert.equal(dayTradingSession(new Date("2026-03-09T15:45:00.000Z")).label, "London/New York overlap", "11:45 ET must still be the overlap");
-assert.equal(dayTradingSession(new Date("2026-03-09T15:59:00.000Z")).open, true, "11:59 ET must be the last eligible minute");
+// Both centres trade 08:00–17:00 on their own clock. Through a week where the
+// UK and US are both on summer time that is 03:00–12:00 ET for London and
+// 08:00–17:00 ET for New York.
+assert.equal(dayTradingSession(new Date("2026-04-06T06:59:00.000Z")).open, false, "a minute before the London open must reject entries");
+assert.equal(dayTradingSession(new Date("2026-04-06T07:00:00.000Z")).label, "London", "London alone must not be labelled as the overlap");
+assert.equal(dayTradingSession(new Date("2026-04-06T12:00:00.000Z")).label, "London/New York overlap", "the New York open must start the overlap");
+assert.equal(dayTradingSession(new Date("2026-04-06T15:59:00.000Z")).label, "London/New York overlap", "11:59 ET must still be the overlap");
+
+// The New York session is tradeable once London closes, labelled apart from the
+// morning so session analytics can separate the two. Entries stop at the forced
+// exit: a later one is flattened at 16:45 ET before it can resolve.
+assert.equal(dayTradingSession(new Date("2026-04-06T16:00:00.000Z")).label, "New York", "the afternoon must not be labelled as the overlap");
+assert.equal(dayTradingSession(new Date("2026-04-06T20:44:00.000Z")).open, true, "16:44 ET must be the last eligible minute");
+assert.equal(dayTradingSession(new Date("2026-04-06T20:45:00.000Z")).open, false, "the 16:45 ET forced exit must reject entries");
+assert.equal(dayTradingSession(new Date("2026-11-02T21:45:00.000Z")).open, false, "16:45 ET after DST ends must reject entries");
+assert.equal(dayTradingSession(new Date("2026-11-02T08:00:00.000Z")).label, "London", "03:00 ET after both zones leave DST must be the London open");
+
+// The UK and US change daylight saving on different dates — in 2026 the US on
+// 8 March and 1 November, the UK on 29 March and 25 October. Through the gap
+// weeks an Eastern-anchored boundary sits an hour off the London session, so
+// each centre is resolved against its own zone.
+assert.equal(dayTradingSession(new Date("2026-03-16T07:00:00.000Z")).open, false, "03:00 ET is an hour before London opens while only the US is on DST");
+assert.equal(dayTradingSession(new Date("2026-03-16T08:00:00.000Z")).label, "London", "the spring gap must open with London at 08:00 UK time");
+assert.equal(dayTradingSession(new Date("2026-10-27T12:00:00.000Z")).label, "London/New York overlap", "08:00 ET in the autumn gap still overlaps a trading London");
+assert.equal(dayTradingSession(new Date("2026-10-27T17:00:00.000Z")).label, "New York", "London must close on its own 17:00 rather than an ET offset");
 assert.equal(getPaperTradingAvailability(new Date("2026-08-01T16:00:00.000Z")).state, "market_closed", "Saturday must be presented as a closed-market waiting state");
 assert.equal(getPaperTradingAvailability(new Date("2026-08-02T22:00:00.000Z")).state, "waiting_for_entry_window", "Sunday evening must wait for the day entry window");
 assert.equal(getPaperTradingAvailability(new Date("2026-08-03T11:00:00.000Z")).state, "entry_window_open", "Monday 07:00 ET must open the entry window");

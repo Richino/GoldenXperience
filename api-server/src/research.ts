@@ -131,7 +131,7 @@ async function replayHistoricalStrategy(runId: string, instrument: MajorInstrume
   const quoteByTime = new Map(quoteResult.rows.map((row) => { const quote = normalizeQuote(row); return [quote.closeTime, quote]; }));
   if (m15.length < MINIMUM_CANDLES || h1.length < MINIMUM_CANDLES || h4.length < MINIMUM_CANDLES) throw new Error("The full M15/H1/H4 history is not available for replay.");
 
-  const version = await query<{ id: string }>("INSERT INTO strategy_versions(name,version,configuration) VALUES('deterministic-forex',$1,$2::jsonb) ON CONFLICT(name,version) DO UPDATE SET configuration=EXCLUDED.configuration RETURNING id", [ACTIVE_STRATEGY_VERSION, JSON.stringify({ timeframes: HISTORICAL_TIMEFRAMES, news: "not_evaluated", prices: "oanda_bid_ask", entryWindowEt: "03:00-12:00", forcedExitEt: "16:45", holding: "same_day" })]);
+  const version = await query<{ id: string }>("INSERT INTO strategy_versions(name,version,configuration) VALUES('deterministic-forex',$1,$2::jsonb) ON CONFLICT(name,version) DO UPDATE SET configuration=EXCLUDED.configuration RETURNING id", [ACTIVE_STRATEGY_VERSION, JSON.stringify({ timeframes: HISTORICAL_TIMEFRAMES, news: "not_evaluated", prices: "oanda_bid_ask", entrySessions: "London 08:00-17:00 Europe/London and New York 08:00-17:00 America/New_York", forcedExitEt: "16:45", holding: "same_day" })]);
   const versionId = version.rows[0]!.id;
   await query("DELETE FROM strategy_evaluations WHERE strategy_version_id=$1 AND instrument=$2 AND source_kind='historical'", [versionId, instrument]);
   await vacuumResearchTables();
@@ -452,7 +452,7 @@ async function processCollectionUnit(job: DurableResearchJob, checkpoint: Durabl
 }
 
 async function prepareDurableReplay(job: DurableResearchJob, checkpoint: DurableCheckpoint) {
-  const version = await query<{ id: string }>("INSERT INTO strategy_versions(name,version,configuration) VALUES('deterministic-forex',$1,$2::jsonb) ON CONFLICT(name,version) DO UPDATE SET configuration=EXCLUDED.configuration RETURNING id", [ACTIVE_STRATEGY_VERSION, JSON.stringify({ timeframes: HISTORICAL_TIMEFRAMES, news: "not_evaluated", prices: "oanda_bid_ask", entryWindowEt: "03:00-12:00", forcedExitEt: "16:45", holding: "same_day" })]);
+  const version = await query<{ id: string }>("INSERT INTO strategy_versions(name,version,configuration) VALUES('deterministic-forex',$1,$2::jsonb) ON CONFLICT(name,version) DO UPDATE SET configuration=EXCLUDED.configuration RETURNING id", [ACTIVE_STRATEGY_VERSION, JSON.stringify({ timeframes: HISTORICAL_TIMEFRAMES, news: "not_evaluated", prices: "oanda_bid_ask", entrySessions: "London 08:00-17:00 Europe/London and New York 08:00-17:00 America/New_York", forcedExitEt: "16:45", holding: "same_day" })]);
   checkpoint.versionId = version.rows[0]!.id;
   await query("DELETE FROM strategy_evaluations WHERE strategy_version_id=$1 AND instrument=$2 AND source_kind=$3", [checkpoint.versionId, job.instrument, checkpoint.sourceKind ?? "historical"]);
   await vacuumResearchTables();

@@ -6,7 +6,7 @@ const serviceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 for (const name of [".env", ".env.local"]) loadDotenv({ path: path.join(serviceRoot, name), override: false });
 
 const { getResearchCandles } = await import("../../frontend/src/lib/oanda/client.js");
-const { evaluateStrategy, ACTIVE_STRATEGY_VERSION, DAY_ENTRY_START_MINUTES, DAY_ENTRY_END_MINUTES } = await import("../../frontend/src/lib/strategy/strategy-engine.js");
+const { evaluateStrategy, ACTIVE_STRATEGY_VERSION, dayTradingSession } = await import("../../frontend/src/lib/strategy/strategy-engine.js");
 const { labelOutcome } = await import("../src/research.js");
 const { pipSizeFor } = await import("../../frontend/src/lib/instruments/catalog.js");
 const { MAJOR_INSTRUMENTS } = await import("../../frontend/src/types/forex.js");
@@ -24,11 +24,6 @@ function marketOpen(at: Date) {
   const day = at.getUTCDay();
   const hour = at.getUTCHours();
   return !((day === 5 && hour >= 22) || day === 6 || (day === 0 && hour < 22));
-}
-
-function etMinutes(at: Date) {
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(at);
-  return Number(parts.find((p) => p.type === "hour")?.value ?? "0") * 60 + Number(parts.find((p) => p.type === "minute")?.value ?? "0");
 }
 
 function etDay(at: Date) {
@@ -125,7 +120,7 @@ for (const instrument of PAIRS) {
     evaluated += 1;
 
     const failed = setup.conditions.filter((item) => item.required && !item.passed);
-    const inWindow = etMinutes(decisionTime) >= DAY_ENTRY_START_MINUTES && etMinutes(decisionTime) < DAY_ENTRY_END_MINUTES;
+    const inWindow = dayTradingSession(decisionTime).open;
     if (failed.length === 1 && failed[0]!.name === "Session" && !inWindow) {
       sessionOnly += 1;
       sessionOnlyByHour[Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "2-digit", hourCycle: "h23" }).format(decisionTime))] += 1;

@@ -57,7 +57,10 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
-        <meta name="theme-color" content="#09090b" />
+        {/* Both schemes are covered below, so an unconditional dark value only
+            adds a candidate that matches in light mode too. iOS has shipped
+            versions that take the first match rather than the last, which
+            paints the home-indicator strip dark on a light page. */}
         <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
         <meta name="theme-color" content="#09090b" media="(prefers-color-scheme: dark)" />
         <meta name="mobile-web-app-capable" content="yes" />

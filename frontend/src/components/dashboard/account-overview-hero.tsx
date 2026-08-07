@@ -90,7 +90,11 @@ export function AccountOverviewHero({
   const positive = dayPL >= 0;
 
   return (
-    <section className="account-overview-hero" aria-label="Account overview">
+    <section
+      className="account-overview-hero"
+      data-tone={positive ? "positive" : "negative"}
+      aria-label="Account overview"
+    >
       <header className="flex items-center justify-between gap-3 lg:hidden">
         <div className="flex min-w-0 items-center gap-3">
           <div className="mobile-account-avatar" aria-hidden>
@@ -125,7 +129,7 @@ export function AccountOverviewHero({
         </span>
       </div>
 
-      <div className="mt-8 lg:mt-10">
+      <div className="mt-5 lg:mt-7">
         <AccountAmountChart
           series={series}
           currency={account.currency}

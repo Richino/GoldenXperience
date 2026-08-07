@@ -41,75 +41,85 @@ function formatShortDate(value: string | null) {
 
 function JournalTradeRow({ trade }: { trade: JournalTrade }) {
   const positive = (trade.resultR ?? 0) >= 0;
+  const resultTone =
+    trade.resultR === null ? "is-open" : positive ? "is-win" : "is-loss";
   const resultLabel =
     trade.resultR === null
       ? "Open"
       : `${positive ? "+" : ""}${trade.resultR.toFixed(2)}`;
+  const money = formatMoney(trade.paperPl);
+  const moneyTone =
+    trade.paperPl == null ? null : trade.paperPl >= 0 ? "is-win" : "is-loss";
+  const outcome = outcomeLabel(trade.outcome);
 
   return (
     <article className="journal-entry">
-      <div className="journal-entry-grid">
-        <div
-          className={`journal-entry-r metric-number ${
-            trade.resultR === null
-              ? "is-open"
-              : positive
-                ? "is-win"
-                : "is-loss"
-          }`}
-        >
+      <header className="journal-entry-top">
+        <p className="journal-entry-title">
+          <span className="journal-entry-pair">{trade.pair}</span>
+          <span
+            className={
+              trade.direction === "long"
+                ? "journal-entry-dir is-long"
+                : "journal-entry-dir is-short"
+            }
+          >
+            {trade.direction}
+          </span>
+          {trade.origin === "strategy" ? (
+            <span className="journal-entry-auto">
+              Auto{trade.sequence ? ` #${trade.sequence}` : ""}
+            </span>
+          ) : null}
+        </p>
+        <time className="journal-entry-date">
+          {formatShortDate(trade.closedAt)}
+        </time>
+      </header>
+
+      <div className="journal-entry-result">
+        <span className={`journal-entry-r metric-number ${resultTone}`}>
           {resultLabel}
           {trade.resultR !== null ? (
             <span className="journal-entry-r-unit">R</span>
           ) : null}
-        </div>
-
-      <div className="journal-entry-body min-w-0">
-        <div className="journal-entry-top">
-            <p className="journal-entry-title">
-              <span className="journal-entry-pair">{trade.pair}</span>
-              <span
-                className={
-                  trade.direction === "long"
-                    ? "journal-entry-dir is-long"
-                    : "journal-entry-dir is-short"
-                }
-              >
-                {trade.direction}
-              </span>
-              {trade.origin === "strategy" ? (
-                <span className="journal-entry-auto">
-                  Auto{trade.sequence ? ` #${trade.sequence}` : ""}
-                </span>
-              ) : null}
-              {formatMoney(trade.paperPl) ? (
-                <span className={`journal-entry-money metric-number ${trade.paperPl! >= 0 ? "is-win" : "is-loss"}`}>
-                  {formatMoney(trade.paperPl)}
-                </span>
-              ) : null}
-            </p>
-            <time className="journal-entry-date">
-              {formatShortDate(trade.closedAt)}
-            </time>
-          </div>
-
-          <p className="journal-entry-prices metric-number">
-            <span>{formatPrice(trade.entry, trade.pair)}</span>
-            <span className="journal-entry-arrow">→</span>
-            <span>{formatPrice(trade.exit, trade.pair)}</span>
-            <span className="journal-entry-levels">
-              {formatPrice(trade.stop, trade.pair)}
-              <span className="journal-entry-levels-sep">/</span>
-              {formatPrice(trade.target, trade.pair)}
-            </span>
-            {outcomeLabel(trade.outcome) ? (
-              <span className="journal-entry-outcome">
-                {outcomeLabel(trade.outcome)}
-              </span>
-            ) : null}
-          </p>
-        </div>
+        </span>
+        {money && moneyTone ? (
+          <span className={`journal-entry-money metric-number ${moneyTone}`}>
+            {money}
+          </span>
+        ) : null}
+        {outcome ? (
+          <span className="journal-entry-outcome">{outcome}</span>
+        ) : null}
       </div>
+
+      <dl className="journal-entry-levels">
+        <div className="journal-entry-level">
+          <dt>Entry</dt>
+          <dd className="metric-number">
+            {formatPrice(trade.entry, trade.pair)}
+          </dd>
+        </div>
+        <div className="journal-entry-level">
+          <dt>Exit</dt>
+          <dd className="metric-number">
+            {formatPrice(trade.exit, trade.pair)}
+          </dd>
+        </div>
+        <div className="journal-entry-level">
+          <dt>Stop</dt>
+          <dd className="metric-number">
+            {formatPrice(trade.stop, trade.pair)}
+          </dd>
+        </div>
+        <div className="journal-entry-level">
+          <dt>Target</dt>
+          <dd className="metric-number">
+            {formatPrice(trade.target, trade.pair)}
+          </dd>
+        </div>
+      </dl>
 
       {trade.notes ? (
         <details className="journal-entry-note">
@@ -258,7 +268,7 @@ export function JournalView() {
           {loadingRecords ? (
             <p className="mt-6 text-sm text-[color:var(--muted)]">Loading records…</p>
           ) : filtered.length ? (
-            <div className="mt-3">
+            <div className="journal-entry-list mt-3">
               {filtered.map((trade) => (
                 <motion.div
                   layout

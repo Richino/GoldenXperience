@@ -240,7 +240,10 @@ export function AccountAmountChart({
   const values = useMemo(() => series.map((point) => point.value), [series]);
   const min = Math.min(...values);
   const max = Math.max(...values);
-  const padding = Math.max((max - min) * 0.18, Math.abs(max) * 0.002, 1);
+  // Headroom above the peak, kept tighter than the room below so the curve sits
+  // in the canvas rather than floating in the lower half of it.
+  const headroom = Math.max((max - min) * 0.08, Math.abs(max) * 0.001, 0.5);
+  const footroom = Math.max((max - min) * 0.16, Math.abs(max) * 0.002, 1);
   const stroke = positive ? "var(--success)" : "var(--danger)";
   const activePoint = activeIndex === null ? null : (series[activeIndex] ?? null);
 
@@ -286,7 +289,7 @@ export function AccountAmountChart({
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
             data={series}
-            margin={{ top: 28, right: 0, left: 0, bottom: 4 }}
+            margin={{ top: 14, right: 0, left: 0, bottom: 4 }}
             onMouseMove={handleChartFocus}
             onMouseLeave={() => setActiveIndex(null)}
             onTouchStart={handleChartFocus}
@@ -301,7 +304,7 @@ export function AccountAmountChart({
             </defs>
             <CartesianGrid vertical={false} stroke="transparent" />
 
-            <YAxis hide domain={[min - padding, max + padding]} />
+            <YAxis hide domain={[min - footroom, max + headroom]} />
             <Tooltip
               isAnimationActive={false}
               cursor={{

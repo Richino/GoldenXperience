@@ -73,7 +73,7 @@ async function evaluateAll(): Promise<StrategySnapshot> {
       bid: quote?.bid ?? null,
       ask: quote?.ask ?? null,
       spreadPips,
-      marketOpen: availability.entryWindowOpen,
+      marketOpen: availability.marketOpen,
       calendarConnected: false,
       highImpactNewsWithinMinutes: null,
       newsRequired: false,

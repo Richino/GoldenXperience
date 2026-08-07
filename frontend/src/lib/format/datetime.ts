@@ -8,7 +8,8 @@ import { DAY_TRADING_TIME_ZONE } from "@/lib/strategy/strategy-engine";
  * - `timeZone` — without it the server formats in the host's zone and the
  *   browser in the device's, so any travelling phone renders a different string
  *   than the HTML it is hydrating. Pinning to the trading zone also matches the
- *   session labels ("London", "London/New York overlap"), which are already ET.
+ *   session labels ("London", "London/New York overlap", "New York"), whose
+ *   boundaries are read off each centre's own clock rather than this one.
  * - `hourCycle` — iOS Safari honours the system "24-Hour Time" switch even for
  *   an explicit en-US locale. With that switch on, the phone renders "13:00"
  *   where the server rendered "1:00 PM": a mismatch that shows up on iPhone

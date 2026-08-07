@@ -1092,6 +1092,12 @@ export function SetupChart({
     <div
       className="setup-chart-root relative w-full overflow-visible"
       style={{ height: shellHeight }}
+      /*
+       * The chart owns vertical drags: that gesture rescales the price axis.
+       * Without this the installed PWA read the same swipe as a pull-to-refresh
+       * and reloaded the page mid-adjustment.
+       */
+      data-pull-to-refresh-ignore="true"
     >
       <div
         ref={containerRef}

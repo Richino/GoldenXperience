@@ -47,6 +47,7 @@ import {
   type TradeMarkerPalette,
 } from "@/lib/chart-utils";
 import { ChartHistoryLoader } from "@/components/charts/chart-loading-overlay";
+import { pipSizeFor } from "@/lib/instruments/catalog";
 import type { Candle, CandleSeries, PaperChartTrade } from "@/types/forex";
 
 /**
@@ -224,12 +225,39 @@ function samePrice(left: number, right: number) {
  * level keeps one colour across the price line, its axis label and its tag so
  * the three always read as the same thing.
  */
-function setupLevelTags(levels: SetupLevels, isDark: boolean): LevelTag[] {
+/**
+ * Moves a level from the price it executes at onto the price this chart draws.
+ *
+ * The candles are mid (`price: "M"` on the OANDA request) but nothing executes
+ * at the mid. A long is entered on the ask and closed on the bid; a short is
+ * the reverse. Drawn raw, a short's target sits half a spread above where the
+ * ask can actually reach it, so the wick crosses the line while the order is
+ * still short of triggering — which is exactly how a USD/CHF short looked
+ * filled while the broker still held it 0.3 pips away.
+ *
+ * Positive `side` for levels that execute on the bid, negative on the ask.
+ */
+function toChartPrice(price: number, side: 1 | -1, halfSpread: number) {
+  return price + side * halfSpread;
+}
+
+function setupLevelTags(
+  levels: SetupLevels,
+  isDark: boolean,
+  halfSpread: number,
+): LevelTag[] {
+  // Long when the target sits above entry. The levels carry no direction of
+  // their own, and this cannot be ambiguous: a stop and a target always
+  // straddle the entry.
+  const isLong = levels.target > levels.entry;
+  // Entry executes on the opposite side to the exits.
+  const entrySide: 1 | -1 = isLong ? -1 : 1;
+  const exitSide: 1 | -1 = isLong ? 1 : -1;
   const tags: LevelTag[] = [
     {
       key: "entry",
       label: "Entry",
-      price: levels.entry,
+      price: toChartPrice(levels.entry, entrySide, halfSpread),
       color: isDark ? "#e4e4e7" : "#1c1c1e",
       textColor: isDark ? "#09090b" : "#ffffff",
       dashed: false,
@@ -237,7 +265,7 @@ function setupLevelTags(levels: SetupLevels, isDark: boolean): LevelTag[] {
     {
       key: "stop",
       label: "SL",
-      price: levels.stop,
+      price: toChartPrice(levels.stop, exitSide, halfSpread),
       color: isDark ? "#f87171" : "#e74c3c",
       textColor: "#ffffff",
       dashed: false,
@@ -245,7 +273,7 @@ function setupLevelTags(levels: SetupLevels, isDark: boolean): LevelTag[] {
     {
       key: "target",
       label: "TP",
-      price: levels.target,
+      price: toChartPrice(levels.target, exitSide, halfSpread),
       color: isDark ? "#00e59b" : "#00b377",
       textColor: isDark ? "#09090b" : "#ffffff",
       dashed: false,
@@ -265,7 +293,7 @@ function setupLevelTags(levels: SetupLevels, isDark: boolean): LevelTag[] {
     tags.push({
       key: "exit",
       label: "Exit",
-      price: levels.exit!,
+      price: toChartPrice(levels.exit!, exitSide, halfSpread),
       color: isDark ? "#64d2ff" : "#007aff",
       textColor: isDark ? "#09090b" : "#ffffff",
       dashed: true,
@@ -462,6 +490,18 @@ export function SetupChart({
   const latestChartTimeRef = useRef<number | null>(
     latestCandleChartTime(series.candles),
   );
+  /**
+   * Half the live spread, in price. Held in a ref because the spread changes on
+   * every tick and the level lines are built inside the chart-creation effect —
+   * depending on it there would tear the chart down continuously. The lines are
+   * placed with the spread current when they are drawn, which is close enough
+   * for a sub-pip offset, and they are redrawn whenever the levels change.
+   */
+  const halfSpread =
+    spreadPips === null || spreadPips === undefined || !Number.isFinite(spreadPips)
+      ? 0
+      : (spreadPips * pipSizeFor(series.instrument)) / 2;
+  const halfSpreadRef = useRef(halfSpread);
   const loadingOlderRef = useRef(loadingOlder);
   const onLoadOlderRef = useRef(onLoadOlder);
   // The visible-range callback is registered once per chart, so it cannot read
@@ -523,6 +563,10 @@ export function SetupChart({
     }),
     [axisPrecision],
   );
+
+  useEffect(() => {
+    halfSpreadRef.current = halfSpread;
+  }, [halfSpread]);
 
   useEffect(() => {
     loadingOlderRef.current = loadingOlder;
@@ -675,7 +719,7 @@ export function SetupChart({
       }
     }
 
-    if (levels) addSetupLevels(mainSeries, setupLevelTags(levels, isDark));
+    if (levels) addSetupLevels(mainSeries, setupLevelTags(levels, isDark, halfSpreadRef.current));
 
     // The entry-to-exit segment is created with the chart, even when there is no
     // focused trade to draw yet. Adding a series later — after the candles have
@@ -1099,7 +1143,7 @@ export function SetupChart({
   // their positions are re-read each frame and only written back to React when
   // something actually moved.
   useEffect(() => {
-    const tags = levels ? setupLevelTags(levels, isDark) : [];
+    const tags = levels ? setupLevelTags(levels, isDark, halfSpreadRef.current) : [];
     let frame = 0;
     let previous = "";
 

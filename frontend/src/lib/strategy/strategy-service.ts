@@ -1,6 +1,9 @@
 import { pipSizeFor } from "@/lib/instruments/catalog";
 import { getAccountSummary, getCandles, getPricing } from "@/lib/oanda/client";
-import { evaluateStrategy, getPaperTradingAvailability, rankStrategySetups } from "@/lib/strategy/strategy-engine";
+import { getPaperTradingAvailability, rankStrategySetups } from "@/lib/strategy/strategy-engine";
+import { evaluateLiquiditySetup } from "@/lib/strategy/liquidity-strategy";
+import { highImpactMinutesFor, macroBiasFor } from "@/lib/macro/rates";
+import { getEconomicCalendar } from "@/lib/calendar/forex-factory";
 import type { StrategyEvaluationBundle } from "@/lib/strategy/types";
 import { MAJOR_INSTRUMENTS, type AccountSummary, type ConnectionStatus, type MajorInstrument, type PriceQuote } from "@/types/forex";
 
@@ -49,9 +52,29 @@ async function evaluateAll(): Promise<StrategySnapshot> {
   const candleResults = await mapWithConcurrency(candleRequests, 5, (request) => getCandles(request.instrument, request.timeframe, CANDLE_COUNT));
   const quoteByInstrument = new Map(pricingResult.data.map((quote) => [quote.instrument, quote]));
   const availability = getPaperTradingAvailability();
+  // One macro read per pair per snapshot. The module caches across calls, so
+  // ten pairs cost one FRED fetch rather than ten.
+  const macroReads = new Map(
+    await Promise.all(MAJOR_INSTRUMENTS.map(async (instrument) => [instrument, await macroBiasFor(instrument)] as const)),
+  );
+  // Fetched once and filtered per pair below. A failure here leaves the feed
+  // disconnected, which the strategy reads as "news not filtered" rather than
+  // "no news" — it must not silently look like an all-clear.
+  const calendar = await getEconomicCalendar();
+  // A feed whose coverage stops before the buffer window cannot clear a trade:
+  // finding no event there means the data ran out, not that the diary is empty.
+  // The weekly ForexFactory file does exactly that every Friday. Treated as
+  // unusable it reports "not filtered", which is honest; treated as connected
+  // it would report an all-clear the data does not support.
+  const NEWS_BUFFER_MINUTES = 30;
+  const coverageMs = calendar.data.coverageUntil ? Date.parse(calendar.data.coverageUntil) : Number.NaN;
+  const newsUsable = calendar.data.connected
+    && Number.isFinite(coverageMs)
+    && coverageMs - Date.now() >= NEWS_BUFFER_MINUTES * 60_000;
   const accountAndPricingLive = statusIsLive(accountResult.status) && statusIsLive(pricingResult.status);
 
   const setups = MAJOR_INSTRUMENTS.map((instrument, index) => {
+    const macro = macroReads.get(instrument);
     const quote = quoteByInstrument.get(instrument);
     const [m15, h1, h4] = candleResults.slice(index * 3, index * 3 + 3);
     const pairCandlesLive = [m15, h1, h4].every((result) => result && statusIsLive(result.status));
@@ -62,7 +85,7 @@ async function evaluateAll(): Promise<StrategySnapshot> {
     const evaluatedAt = lastCompleted
       ? new Date(new Date(lastCompleted.time).getTime() + 15 * 60_000).toISOString()
       : new Date().toISOString();
-    return evaluateStrategy({
+    return evaluateLiquiditySetup({
       instrument,
       accountBalance: accountResult.data.balance,
       accountCurrency: accountResult.data.currency,
@@ -74,10 +97,12 @@ async function evaluateAll(): Promise<StrategySnapshot> {
       ask: quote?.ask ?? null,
       spreadPips,
       marketOpen: availability.marketOpen,
-      calendarConnected: false,
-      highImpactNewsWithinMinutes: null,
-      newsRequired: false,
+      calendarConnected: newsUsable,
+      highImpactNewsWithinMinutes: newsUsable ? highImpactMinutesFor(instrument, calendar.data.events) : null,
+      newsRequired: newsUsable,
       evaluatedAt,
+      macroBias: macro?.bias ?? "neutral",
+      macroDetail: macro?.detail,
     });
   });
 
@@ -86,14 +111,7 @@ async function evaluateAll(): Promise<StrategySnapshot> {
     account: accountResult.data,
     accountStatus: accountResult.status,
     pricingStatus: pricingResult.status,
-    calendarStatus: {
-      state: "not_configured",
-      source: "forex_factory",
-      environment: "practice",
-      label: "News not evaluated",
-      message: "The automatic paper strategy does not evaluate news.",
-      checkedAt: new Date().toISOString(),
-    },
+    calendarStatus: calendar.status,
     quotes: pricingResult.data,
   };
 }

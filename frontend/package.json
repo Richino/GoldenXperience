@@ -13,8 +13,9 @@
     "risk:test": "tsx scripts/test-risk.ts",
     "calendar:test": "tsx scripts/test-calendar.ts",
     "instruments:test": "tsx scripts/test-instruments.ts",
-    "chart:test": "tsx scripts/test-chart-history.ts"
-    ,"strategy:test": "tsx scripts/test-strategy.ts"
+    "chart:test": "tsx scripts/test-chart-history.ts",
+    "strategy:test": "tsx scripts/test-strategy.ts",
+    "liquidity:test": "tsx scripts/test-liquidity.ts"
   },
   "dependencies": {
     "lightweight-charts": "^5.2.0",

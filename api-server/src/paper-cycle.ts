@@ -7,7 +7,11 @@ import { closePracticeTradeForPaperTrade, processPendingPracticeOrders, queuePra
 import { pipSizeFor } from "../../frontend/src/lib/instruments/catalog.js";
 import { calculatePositionSize } from "../../frontend/src/lib/risk/engine.js";
 import { getPracticeTradeState, getResearchCandles } from "../../frontend/src/lib/oanda/client.js";
-import { ACTIVE_STRATEGY_VERSION, DAY_TRADING_TIME_ZONE, dayTradingSession } from "../../frontend/src/lib/strategy/strategy-engine.js";
+import { DAY_TRADING_TIME_ZONE, dayTradingSession } from "../../frontend/src/lib/strategy/strategy-engine.js";
+// The strategy that is allowed to create trades. Changing this starts a new
+// batch on its own: batches are scoped to the version that produced them.
+import { LIQUIDITY_STRATEGY_VERSION as ACTIVE_STRATEGY_VERSION, RISK as LIQUIDITY_RISK } from "../../frontend/src/lib/strategy/liquidity-strategy.js";
+const MAX_TRADES_PER_DAY = LIQUIDITY_RISK.maxTradesPerDay;
 import { getStrategySnapshot } from "../../frontend/src/lib/strategy/strategy-service.js";
 import type { StrategySetup } from "../../frontend/src/lib/strategy/types.js";
 import { MAJOR_INSTRUMENTS, type MajorInstrument } from "../../frontend/src/types/forex.js";
@@ -259,7 +263,11 @@ async function strategyVersionId(client?: PoolClient) {
 
 async function ensureCollectingBatch(client: PoolClient, versionId: string, userId: string) {
   const existing = await client.query<{ id: string; batch_number: number; configuration: BatchConfiguration }>(
-    "SELECT id,batch_number,configuration FROM paper_strategy_batches WHERE status='collecting' AND assigned_count<100 ORDER BY batch_number DESC LIMIT 1 FOR UPDATE",
+    // Scoped to the strategy version. Without this a strategy change appends
+    // its trades to whatever batch happens to be collecting, and the hundred
+    // that get analysed together describe two different systems mixed.
+    "SELECT id,batch_number,configuration FROM paper_strategy_batches WHERE status='collecting' AND assigned_count<100 AND strategy_version_id=$1 ORDER BY batch_number DESC LIMIT 1 FOR UPDATE",
+    [versionId],
   );
   if (existing.rows[0]) return existing.rows[0];
 
@@ -324,6 +332,16 @@ async function openPaperTrade(setup: StrategySetup, userId: string, versionId: s
     const openCount = Number(portfolio.rows[0]!.open_count);
     const nominalRisk = Number(portfolio.rows[0]!.nominal_risk);
     if (!paperRiskAllowsEntry(risk, openCount, nominalRisk)) return null;
+
+    // "Take the best opportunities": a cap on how many the day is allowed to
+    // produce, so a busy morning cannot spend the batch. Counted on the ET day
+    // the strategy trades in, not UTC.
+    const takenToday = await client.query<{ count: string }>(
+      `SELECT count(*)::text FROM paper_strategy_trades
+       WHERE strategy_version_id=$1 AND (opened_at AT TIME ZONE 'America/New_York')::date = (now() AT TIME ZONE 'America/New_York')::date`,
+      [versionId],
+    );
+    if (Number(takenToday.rows[0]!.count) >= MAX_TRADES_PER_DAY) return null;
     const positionSize = calculatePositionSize({ instrument: setup.instrument, accountBalance, riskPercent: risk.riskPercent, entry, stop, applyPaperCap: false });
     if (!positionSize) return null;
     const nextSequence = await client.query<{ value: string }>("SELECT (COALESCE(max(trade_sequence),0)+1)::text AS value FROM paper_strategy_trades");
@@ -486,25 +504,55 @@ async function resolveOpenTrades() {
   return resolved;
 }
 
+/** Scores a batch and files it. Shared so a batch retired early is summarised
+ *  exactly the way a batch that ran its full hundred is. */
+async function completeBatch(batchId: string) {
+  const rows = await query<StoredTrade>("SELECT id,trade_sequence::text,instrument,direction,status,outcome,result_r::text,session,weekday,spread_pips::text,opened_at,closed_at,features,conditions FROM paper_strategy_trades WHERE batch_id=$1 ORDER BY trade_sequence", [batchId]);
+  const summary = {
+    ...paperBatchMetrics(rows.rows),
+    breakdowns: {
+      pair: paperBreakdown(rows.rows, "instrument"),
+      direction: paperBreakdown(rows.rows, "direction"),
+      session: paperBreakdown(rows.rows, "session"),
+      weekday: paperBreakdown(rows.rows, "weekday"),
+      volatility: customBreakdown(rows.rows, volatilityGroup),
+      spread: customBreakdown(rows.rows, spreadGroup),
+      confirmation: customBreakdown(rows.rows, confirmationGroup),
+    },
+  };
+  const recommendation = buildPaperRecommendation(rows.rows);
+  await query("UPDATE paper_strategy_batches SET status='complete',summary=$2::jsonb,recommendation=$3::jsonb,decision=$4,completed_at=now() WHERE id=$1", [batchId, JSON.stringify(summary), JSON.stringify(recommendation), recommendation ? "pending" : "not_applicable"]);
+  return { trades: rows.rows.length, recommendation };
+}
+
 async function completeReadyBatches() {
   const ready = await query<{ id: string }>(`SELECT batch.id FROM paper_strategy_batches batch WHERE batch.status='resolving' AND batch.assigned_count=100 AND NOT EXISTS(SELECT 1 FROM paper_strategy_trades trade WHERE trade.batch_id=batch.id AND trade.status='open')`);
-  for (const batch of ready.rows) {
-    const rows = await query<StoredTrade>("SELECT id,trade_sequence::text,instrument,direction,status,outcome,result_r::text,session,weekday,spread_pips::text,opened_at,closed_at,features,conditions FROM paper_strategy_trades WHERE batch_id=$1 ORDER BY trade_sequence", [batch.id]);
-    const summary = {
-      ...paperBatchMetrics(rows.rows),
-      breakdowns: {
-        pair: paperBreakdown(rows.rows, "instrument"),
-        direction: paperBreakdown(rows.rows, "direction"),
-        session: paperBreakdown(rows.rows, "session"),
-        weekday: paperBreakdown(rows.rows, "weekday"),
-        volatility: customBreakdown(rows.rows, volatilityGroup),
-        spread: customBreakdown(rows.rows, spreadGroup),
-        confirmation: customBreakdown(rows.rows, confirmationGroup),
-      },
-    };
-    const recommendation = buildPaperRecommendation(rows.rows);
-    await query("UPDATE paper_strategy_batches SET status='complete',summary=$2::jsonb,recommendation=$3::jsonb,decision=$4,completed_at=now() WHERE id=$1", [batch.id, JSON.stringify(summary), JSON.stringify(recommendation), recommendation ? "pending" : "not_applicable"]);
-  }
+  for (const batch of ready.rows) await completeBatch(batch.id);
+}
+
+/**
+ * Files the collecting batch before it reaches a hundred trades.
+ *
+ * Retiring the strategy is the reason this exists: a batch is the unit the
+ * results are read in, and one holding trades from two different strategies
+ * describes a system nobody ran. `assigned_count` keeps the honest record of
+ * how far it actually got.
+ *
+ * Refuses while a trade is still open, because a batch summarised with an
+ * unresolved trade in it understates or overstates that trade as zero.
+ */
+export async function retireCollectingBatch() {
+  const batch = await query<{ id: string; batch_number: number; assigned_count: number }>(
+    "SELECT id,batch_number,assigned_count FROM paper_strategy_batches WHERE status='collecting' ORDER BY batch_number DESC LIMIT 1",
+  );
+  const row = batch.rows[0];
+  if (!row) return null;
+
+  const open = await query("SELECT 1 FROM paper_strategy_trades WHERE batch_id=$1 AND status='open' LIMIT 1", [row.id]);
+  if (open.rowCount) throw new Error(`Batch ${row.batch_number} still has an open trade. Let it resolve before retiring the batch.`);
+
+  const result = await completeBatch(row.id);
+  return { batchNumber: row.batch_number, assignedCount: row.assigned_count, ...result };
 }
 
 export async function collectPaperCycle() {

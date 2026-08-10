@@ -530,15 +530,29 @@ export function SetupChart({
     visibleBearish ??
     (series.candles.length > 1 &&
       series.candles.at(-1)!.close < series.candles[0]!.close);
-  const trendColor = isBearish ? downColor : upColor;
+
+  /**
+   * Rising draws red and falling draws green, on the area and line variants
+   * only.
+   *
+   * This is inverted on purpose and is not a flipped boolean — it is the East
+   * Asian convention, requested deliberately. Anyone reading this as a bug and
+   * "fixing" it will silently invert what the chart says, so the mapping is
+   * named rather than left as a bare ternary.
+   *
+   * Scoped here: candles, the baseline series and trade markers all read
+   * upColor/downColor directly and keep the Western mapping, as does the
+   * account chart on the dashboard.
+   */
+  const trendColor = isBearish ? upColor : downColor;
   const areaFill = isBearish
     ? {
-        top: isDark ? "rgba(248,113,113,0.28)" : "rgba(231,76,60,0.24)",
-        bottom: isDark ? "rgba(248,113,113,0)" : "rgba(231,76,60,0)",
-      }
-    : {
         top: isDark ? "rgba(0,214,143,0.28)" : "rgba(0,179,119,0.24)",
         bottom: isDark ? "rgba(0,214,143,0)" : "rgba(0,179,119,0)",
+      }
+    : {
+        top: isDark ? "rgba(248,113,113,0.28)" : "rgba(231,76,60,0.24)",
+        bottom: isDark ? "rgba(248,113,113,0)" : "rgba(231,76,60,0)",
       };
   const surfaceColor = embedded
     ? isDark

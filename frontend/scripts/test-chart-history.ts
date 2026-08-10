@@ -199,10 +199,31 @@ assert.equal(shortLoss[0]!.color, "short");
 assert.equal(shortLoss[1]!.position, "belowBar");
 assert.equal(shortLoss[1]!.color, "loss");
 
-// Other trades on the pair stay unlabelled background context.
-const background = buildTradeMarkers(candleTimes, [trade()], "other-trade", palette);
-assert.equal(background.every((marker) => marker.color === "muted"), true);
-assert.equal(background.every((marker) => marker.text === undefined), true);
+// Nothing is drawn until a trade is picked. Marking every trade on the pair put
+// a permanent thicket over the price and, worse, mixed retired strategies in
+// with the live one.
+assert.deepEqual(
+  buildTradeMarkers(candleTimes, [trade(), trade({ id: "trade-2" })], null, palette),
+  [],
+  "with no trade selected the chart carries no markers at all",
+);
+
+// Picking one trade draws that trade and no other.
+const onlyOne = buildTradeMarkers(
+  candleTimes,
+  [trade(), trade({ id: "trade-2", openedAt: M15(3), closedAt: M15(6) })],
+  "trade-2",
+  palette,
+);
+assert.equal(onlyOne.length, 2, "only the picked trade is marked");
+assert.ok(
+  onlyOne.every((marker) => String(marker.id).endsWith("trade-2")),
+  "and the markers belong to it",
+);
+assert.ok(
+  onlyOne.every((marker) => marker.color !== "muted"),
+  "there is no background tier left to dim",
+);
 
 // An open trade has no exit to mark yet.
 assert.equal(
@@ -215,7 +236,8 @@ assert.equal(
   1,
 );
 
-// Markers must reach the chart in ascending time order.
+// Markers must reach the chart in ascending time order — entry before exit,
+// whatever order the trade list arrived in.
 const ordered = buildTradeMarkers(
   candleTimes,
   [
@@ -225,10 +247,12 @@ const ordered = buildTradeMarkers(
   "early",
   palette,
 );
+assert.equal(ordered.length, 2, "the picked trade contributes its entry and its exit");
 assert.deepEqual(
   ordered.map((marker) => Number(marker.time)),
   [...ordered.map((marker) => Number(marker.time))].sort((left, right) => left - right),
 );
+assert.ok(String(ordered[0]!.id).startsWith("entry:"), "the entry is the earlier of the two");
 
 // The entry-to-exit segment needs both ends on loaded bars, in that order.
 assert.deepEqual(buildTradePath(candleTimes, trade()), [

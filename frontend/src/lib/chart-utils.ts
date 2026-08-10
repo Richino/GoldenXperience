@@ -464,21 +464,19 @@ export function formatResultR(resultR: number | null) {
 }
 
 /**
- * Entry and exit arrows for every paper trade on the pair.
+ * Entry and exit arrows for the one trade being looked at.
  *
- * The labelling adapts to what the user is doing, because a label on every
- * marker is what makes a busy pair unreadable:
+ * Nothing is drawn until a trade is picked. Every trade on the pair used to be
+ * marked at once, which put a permanent thicket of arrows and results over the
+ * price — and worse, mixed retired strategies in with the live one, so a `+1.50R`
+ * from a system that was abandoned sat beside a live fill with nothing to tell
+ * them apart. Read as evidence about the current strategy, that misleads.
  *
- * - Focusing a trade makes it the subject. It keeps direction and result colour,
- *   is drawn larger, and is the only trade that carries text. Everything else
- *   drops to a single quiet colour with no text, so it reads as context.
- * - With nothing focused, every trade keeps its colour and only exits are
- *   labelled — with the result alone. An entry arrow already states its
- *   direction through shape and colour, so "BUY" beside it is noise.
+ * An open trade needs no marker to stay visible: its entry, stop and target are
+ * already drawn as price lines with axis labels.
  *
- * Prices are never drawn on markers: entry, stop and target are already price
- * lines with axis labels, and a focused trade repeats them in the bar above the
- * chart. The result in R is the one thing no other element shows.
+ * Prices are never drawn on markers either, for the same reason. The result in
+ * R is the one thing no other element shows.
  */
 export function buildTradeMarkers(
   candleTimes: number[],
@@ -486,11 +484,10 @@ export function buildTradeMarkers(
   focusTradeId: string | null,
   palette: TradeMarkerPalette,
 ): SeriesMarker<UTCTimestamp>[] {
-  const focusing = focusTradeId !== null;
+  if (focusTradeId === null) return [];
 
   const markers = trades.flatMap<SeriesMarker<UTCTimestamp>>((trade) => {
-    const focused = trade.id === focusTradeId;
-    const dimmed = focusing && !focused;
+    if (trade.id !== focusTradeId) return [];
     const long = trade.direction === "long";
     const entryTime = tradeEntryTime(candleTimes, trade);
     const exitTime = tradeExitTime(candleTimes, trade);
@@ -502,9 +499,9 @@ export function buildTradeMarkers(
         time: entryTime as UTCTimestamp,
         position: long ? "belowBar" : "aboveBar",
         shape: long ? "arrowUp" : "arrowDown",
-        color: dimmed ? palette.muted : long ? palette.long : palette.short,
-        size: focused ? 2 : 1,
-        text: focused ? (long ? "BUY" : "SELL") : undefined,
+        color: long ? palette.long : palette.short,
+        size: 2,
+        text: long ? "BUY" : "SELL",
       });
     }
 
@@ -515,9 +512,9 @@ export function buildTradeMarkers(
         time: exitTime as UTCTimestamp,
         position: long ? "aboveBar" : "belowBar",
         shape: long ? "arrowDown" : "arrowUp",
-        color: dimmed ? palette.muted : won ? palette.win : palette.loss,
-        size: focused ? 2 : 1,
-        text: dimmed ? undefined : formatResultR(trade.resultR),
+        color: won ? palette.win : palette.loss,
+        size: 2,
+        text: formatResultR(trade.resultR),
       });
     }
 

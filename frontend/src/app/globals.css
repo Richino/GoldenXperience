@@ -29,6 +29,13 @@
   --success-soft: rgba(0, 179, 119, 0.1);
   --danger: #e74c3c;
   --danger-soft: rgba(231, 76, 60, 0.1);
+  /* Chart strokes, kept separate from the text tokens above. A 2px line has far
+     less ink than a word, so it needs more contrast to read at the same weight:
+     --success measures 2.72:1 on the light card, under the 3:1 floor, while
+     --danger already clears it at 3.82:1. One step darker puts the up-line at
+     3.37:1 on white and 3.21:1 on the hero's tint without changing the hue. */
+  --chart-up: #00a06a;
+  --chart-down: var(--danger);
   /* A setup part-way to valid — between "nothing here" and "ready". */
   --pending: #d98324;
   --pending-soft: rgba(217, 131, 36, 0.12);
@@ -70,6 +77,10 @@
   --success-soft: rgba(0, 229, 155, 0.14);
   --danger: #ff6370;
   --danger-soft: rgba(255, 99, 112, 0.14);
+  /* Dark needs no darker step: both already clear the floor against #131315
+     (11.21:1 and 6.42:1), so the chart rides the status tokens here. */
+  --chart-up: var(--success);
+  --chart-down: var(--danger);
   --pending: #f5a524;
   --pending-soft: rgba(245, 165, 36, 0.16);
   --shadow: none;
@@ -4403,6 +4414,10 @@ input[type="number"] {
 }
 
 .account-chart-canvas {
+  /* What the dot rings are punched out of. The hero is transparent on mobile,
+     so the chart sits straight on the page; the desktop rule below swaps this
+     for the card's own surface. */
+  --hero-surface: var(--background);
   position: relative;
   height: 15.5rem;
   width: 100%;
@@ -4525,6 +4540,14 @@ input[type="number"] {
 .account-range-btn.is-active {
   background: var(--surface-raised);
   color: var(--foreground);
+}
+
+/* Names the unit once, so the buttons stay short numbers rather than each
+   repeating "trades". */
+.account-range-unit {
+  margin-left: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--muted);
 }
 
 .account-style-row {
@@ -5156,7 +5179,9 @@ input[type="number"] {
    * line on any losing day — five green cues around a red chart.
    */
   .dashboard-view .account-overview-hero {
-    --hero-tone: var(--success);
+    /* The same tokens the chart line uses, so the card and the line inside it
+       are literally the same hue rather than two shades of "green". */
+    --hero-tone: var(--chart-up);
     position: relative;
     overflow: hidden;
     border: 1px solid color-mix(in srgb, var(--hero-tone) 18%, var(--border));
@@ -5170,7 +5195,11 @@ input[type="number"] {
   }
 
   .dashboard-view .account-overview-hero[data-tone="negative"] {
-    --hero-tone: var(--danger);
+    --hero-tone: var(--chart-down);
+  }
+
+  .dashboard-view .account-overview-hero .account-chart-canvas {
+    --hero-surface: var(--surface);
   }
 
   .dark .dashboard-view .account-overview-hero {

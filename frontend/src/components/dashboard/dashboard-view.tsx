@@ -78,6 +78,8 @@ export type DashboardOverview = {
   current: Batch | null;
   batches: Batch[];
   trades: Trade[];
+  /** Closed trades across every batch, for the account chart. */
+  accountTrades?: Array<{ paperPl: number | null; closedAt: string | null; openedAt: string; status: string }>;
 };
 
 export type DashboardExposure = {
@@ -252,7 +254,9 @@ export function DashboardView({
 
   const assigned = overview.current?.assignedCount ?? 0;
   const lifetime = overview.lifetimeSummary;
-  const paperTrades = overview.trades.map((trade) => ({
+  // Account history spans batches; the recent-trades list below stays scoped to
+  // the batch that is collecting.
+  const paperTrades = (overview.accountTrades ?? overview.trades).map((trade) => ({
     paperPl: trade.paperPl ?? null,
     closedAt: trade.closedAt ?? null,
     openedAt: trade.openedAt,

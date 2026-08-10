@@ -5,27 +5,53 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import {
-  formatClockTime,
-  formatHour,
-  formatShortDay,
-  formatWeekday,
-} from "@/lib/format/datetime";
+import { formatDayAndTime } from "@/lib/format/datetime";
 
 export type AccountChartPoint = {
   label: string;
   value: number;
   at: string;
+  /** Position on the axis: 0 is the balance before the window's first trade,
+   *  then one step per closed trade, ending at now. */
+  index: number;
 };
 
-export type AccountChartRange = "1h" | "24h" | "1w" | "1m";
+/**
+ * How much of the record to draw, counted in trades rather than in hours.
+ *
+ * Wall-clock windows do not suit this account. It trades in bursts of a few a
+ * day and then sits still — so an hour and a day both drew flat lines with
+ * nothing in them, a week and a month drew the identical fourteen trades, and
+ * every view carried a dead flat tail from the last close to now. Three of the
+ * four buttons showed nothing.
+ *
+ * Counting trades is also how an equity curve is normally read: the question is
+ * "how did the last twenty-five go", not "how did Tuesday go".
+ */
+export type AccountChartRange = "10" | "25" | "50" | "all";
 
-const RANGES: AccountChartRange[] = ["1h", "24h", "1w", "1m"];
+const RANGES: AccountChartRange[] = ["10", "25", "50", "all"];
+
+const RANGE_TRADES: Record<AccountChartRange, number | null> = {
+  "10": 10,
+  "25": 25,
+  "50": 50,
+  all: null,
+};
+
+/** How the range reads in a sentence, article included so it composes. */
+const RANGE_LABEL: Record<AccountChartRange, string> = {
+  "10": "the last 10 trades",
+  "25": "the last 25 trades",
+  "50": "the last 50 trades",
+  all: "all trades",
+};
 
 function moneyCompact(value: number, currency: string) {
   return new Intl.NumberFormat("en-US", {
@@ -43,41 +69,14 @@ function moneyExact(value: number, currency: string) {
   }).format(value);
 }
 
-function rangeMs(range: AccountChartRange) {
-  switch (range) {
-    case "1h":
-      return 60 * 60 * 1000;
-    case "24h":
-      return 24 * 60 * 60 * 1000;
-    case "1w":
-      return 7 * 24 * 60 * 60 * 1000;
-    case "1m":
-      return 30 * 24 * 60 * 60 * 1000;
-    default: {
-      const _exhaustive: never = range;
-      return _exhaustive;
-    }
-  }
-}
-
-function labelFor(date: Date, range: AccountChartRange) {
-  switch (range) {
-    case "1h":
-      return formatClockTime(date);
-    case "24h":
-      return formatHour(date);
-    case "1w":
-      return formatWeekday(date);
-    case "1m":
-      return formatShortDay(date);
-    default: {
-      const _exhaustive: never = range;
-      return _exhaustive;
-    }
-  }
-}
-
-/** Build an account-amount series ending at current NAV from closed paper P/L. */
+/**
+ * Build an account-amount series ending at current NAV from closed paper P/L.
+ *
+ * One point per closed trade, plus the balance it started from and what the
+ * account is worth right now. The steps are evenly spaced because the axis
+ * counts trades, not hours — which removes the dead flat stretches that a real
+ * time axis draws over the days and weekends when nothing traded.
+ */
 export function buildAccountAmountSeries({
   nav,
   unrealizedPL,
@@ -90,67 +89,71 @@ export function buildAccountAmountSeries({
   range: AccountChartRange;
 }): AccountChartPoint[] {
   const now = Date.now();
-  const start = now - rangeMs(range);
   const closed = trades
     .filter((trade) => trade.status !== "open" && trade.paperPl !== null && trade.closedAt)
     .map((trade) => ({
       at: new Date(trade.closedAt as string).getTime(),
       pl: trade.paperPl as number,
     }))
-    .filter((trade) => trade.at >= start && trade.at <= now)
     .sort((a, b) => a.at - b.at);
 
+  const limit = RANGE_TRADES[range];
+  const window = limit === null ? closed : closed.slice(-limit);
+
+  // Walked backwards from the reported NAV so the line lands on the real
+  // balance: the opening point is whatever the account must have held before
+  // the window's trades to arrive where it is now.
   const settledNav = nav - unrealizedPL;
-  const periodPl = closed.reduce((sum, trade) => sum + trade.pl, 0);
+  const periodPl = window.reduce((sum, trade) => sum + trade.pl, 0);
   let running = settledNav - periodPl;
 
+  const openedAt = window[0] ? new Date(window[0].at) : new Date(now);
   const points: AccountChartPoint[] = [
     {
-      label: labelFor(new Date(start), range),
+      label: window.length ? `Before ${formatDayAndTime(openedAt)}` : "Opening balance",
       value: Number(running.toFixed(2)),
-      at: new Date(start).toISOString(),
+      at: openedAt.toISOString(),
+      index: 0,
     },
   ];
 
-  for (const trade of closed) {
+  window.forEach((trade, position) => {
     running += trade.pl;
     points.push({
-      label: labelFor(new Date(trade.at), range),
+      label: formatDayAndTime(new Date(trade.at)),
       value: Number(running.toFixed(2)),
       at: new Date(trade.at).toISOString(),
+      index: position + 1,
     });
-  }
-
-  points.push({
-    label: labelFor(new Date(now), range),
-    value: Number(nav.toFixed(2)),
-    at: new Date(now).toISOString(),
   });
 
-  // Keep the chart readable when history is sparse.
-  if (points.length < 3) {
-    const steps = range === "1h" ? 6 : range === "24h" ? 7 : range === "1w" ? 7 : 8;
-    const baseline = settledNav - periodPl;
-    const synthetic: AccountChartPoint[] = [];
-    for (let index = 0; index < steps; index += 1) {
-      const t = start + ((now - start) * index) / (steps - 1);
-      const progress = index / (steps - 1);
-      const value = baseline + periodPl * progress + unrealizedPL * Math.max(0, (progress - 0.85) / 0.15);
-      synthetic.push({
-        label: labelFor(new Date(t), range),
-        value: Number(value.toFixed(2)),
-        at: new Date(t).toISOString(),
-      });
-    }
-    synthetic[synthetic.length - 1] = {
-      label: labelFor(new Date(now), range),
-      value: Number(nav.toFixed(2)),
-      at: new Date(now).toISOString(),
-    };
-    return synthetic;
-  }
+  // Now, carrying any open trade's unrealised P/L. Always present, so the line
+  // ends on the number the hero reports above it.
+  points.push({
+    label: "Now",
+    value: Number(nav.toFixed(2)),
+    at: new Date(now).toISOString(),
+    index: window.length + 1,
+  });
 
+  // With no closed trades at all this is two points — what the account settled
+  // at and what it is worth now — drawn as the straight line that is the truth.
+  //
+  // It used to interpolate a six-point curve here to "keep the chart readable
+  // when history is sparse". That drew a shape no trade produced, on the chart
+  // reporting the account balance.
   return points;
+}
+
+/**
+ * Whether the plotted window ends above where it opened.
+ *
+ * Exported so the card around the chart can be tinted from the same signal the
+ * line is coloured from. Reading it twice from two different measures is how
+ * the hero ended up green around a red chart.
+ */
+export function accountSeriesRose(series: AccountChartPoint[]) {
+  return (series.at(-1)?.value ?? 0) >= (series[0]?.value ?? 0);
 }
 
 function ActiveValueLabel({
@@ -197,14 +200,22 @@ function AccountChartTooltip({
   );
 }
 
-function ChartActiveDot({
+/**
+ * A dot under the pointer, and a permanent one on the last point.
+ *
+ * Both carry a 2px ring in the surface colour so they stay legible where they
+ * sit on the line rather than merging into it.
+ */
+function ChartDot({
   cx,
   cy,
   color,
+  radius = 4,
 }: {
   cx?: number;
   cy?: number;
   color: string;
+  radius?: number;
 }): ReactNode {
   if (cx === undefined || cy === undefined) return null;
 
@@ -212,9 +223,9 @@ function ChartActiveDot({
     <circle
       cx={cx}
       cy={cy}
-      r={5}
+      r={radius}
       fill={color}
-      stroke="var(--background)"
+      stroke="var(--hero-surface)"
       strokeWidth={2}
       pointerEvents="none"
     />
@@ -226,14 +237,11 @@ export function AccountAmountChart({
   currency,
   range,
   onRangeChange,
-  positive = true,
 }: {
   series: AccountChartPoint[];
   currency: string;
   range: AccountChartRange;
   onRangeChange: (range: AccountChartRange) => void;
-  /** Tints the line and its fill to the day's direction. */
-  positive?: boolean;
 }) {
   const gradientId = useId().replace(/:/g, "");
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
@@ -244,8 +252,19 @@ export function AccountAmountChart({
   // in the canvas rather than floating in the lower half of it.
   const headroom = Math.max((max - min) * 0.08, Math.abs(max) * 0.001, 0.5);
   const footroom = Math.max((max - min) * 0.16, Math.abs(max) * 0.002, 1);
-  const stroke = positive ? "var(--success)" : "var(--danger)";
+  // The opening value of the window on screen, and the direction against it.
+  //
+  // This used to be the caller's `positive`, which is the day's P/L — so a flat
+  // day painted a losing month green. The colour has to describe the period the
+  // chart actually draws, or it contradicts the shape underneath it.
+  const opening = series[0]?.value ?? 0;
+  const latest = series.at(-1)?.value ?? 0;
+  const stroke = accountSeriesRose(series) ? "var(--chart-up)" : "var(--chart-down)";
   const activePoint = activeIndex === null ? null : (series[activeIndex] ?? null);
+  const lastIndex = series.length - 1;
+  // The builder numbers its own points, opening at 0 and ending at now.
+  const axisStart = series[0]?.index ?? 0;
+  const axisEnd = series.at(-1)?.index ?? 1;
 
   function handleChartFocus(event: { activeTooltipIndex?: number | string | null }) {
     if (typeof event.activeTooltipIndex === "number") {
@@ -262,7 +281,7 @@ export function AccountAmountChart({
 
   return (
     <div className="account-chart">
-      <div className="account-range-row" role="tablist" aria-label="Account chart range">
+      <div className="account-range-row" role="tablist" aria-label="How many trades to chart">
         {RANGES.map((option) => {
           const active = option === range;
           return (
@@ -271,25 +290,29 @@ export function AccountAmountChart({
               type="button"
               role="tab"
               aria-selected={active}
+              aria-label={`Chart ${RANGE_LABEL[option]}`}
               onClick={() => onRangeChange(option)}
               className={`account-range-btn pressable ${active ? "is-active" : ""}`}
             >
-              {option}
+              {option === "all" ? "All" : option}
             </button>
           );
         })}
+        <span className="account-range-unit">trades</span>
       </div>
 
       <div
         className="account-chart-canvas mt-4"
         role="img"
-        aria-label={`Account amount over ${range}`}
+        aria-label={`Account amount over ${RANGE_LABEL[range]}`}
       >
         <ActiveValueLabel point={activePoint} currency={currency} />
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
             data={series}
-            margin={{ top: 14, right: 0, left: 0, bottom: 4 }}
+            // Right margin is the end dot's radius plus its ring: at 0 the dot
+            // sits on the last pixel of the surface and gets sliced in half.
+            margin={{ top: 14, right: 6, left: 0, bottom: 4 }}
             onMouseMove={handleChartFocus}
             onMouseLeave={() => setActiveIndex(null)}
             onTouchStart={handleChartFocus}
@@ -297,13 +320,25 @@ export function AccountAmountChart({
             onTouchEnd={() => setActiveIndex(null)}
           >
             <defs>
+              {/* A wash, not a block. The middle stop bends the falloff so the
+                  fill fades out under the line instead of banding across it. */}
               <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={stroke} stopOpacity={0.28} />
+                <stop offset="0%" stopColor={stroke} stopOpacity={0.18} />
+                <stop offset="55%" stopColor={stroke} stopOpacity={0.05} />
                 <stop offset="100%" stopColor={stroke} stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid vertical={false} stroke="transparent" />
 
+            {/* One step per trade. An explicit numeric domain rather than the
+                default category spacing, so a range holding fewer trades than
+                its name still spans the full width. */}
+            <XAxis
+              hide
+              type="number"
+              dataKey="index"
+              domain={[axisStart, axisEnd]}
+            />
             <YAxis hide domain={[min - footroom, max + headroom]} />
             <Tooltip
               isAnimationActive={false}
@@ -324,24 +359,52 @@ export function AccountAmountChart({
                 />
               )}
             />
+            {/* Where the window opened. Without it the curve floats: you can
+                see the shape but not whether it ends up or down on the period.
+                Solid hairline in the border token — a rule, not a series. */}
+            <ReferenceLine
+              y={opening}
+              stroke="var(--border-strong, var(--border))"
+              strokeWidth={1}
+              ifOverflow="extendDomain"
+            />
+            {/* Monotone rather than a plain spline: it eases through each close
+                without overshooting, so the line never bulges to a balance the
+                account did not hold. Safe to curve now that the axis counts
+                trades — the evenly spaced points leave no near-vertical runs
+                for a curve to flare into. */}
             <Area
               type="monotone"
               dataKey="value"
               stroke={stroke}
-              strokeWidth={2.4}
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
               fill={`url(#${gradientId})`}
               isAnimationActive={false}
               activeDot={(props: { cx?: number; cy?: number }) => (
-                <ChartActiveDot cx={props.cx} cy={props.cy} color={stroke} />
+                <ChartDot cx={props.cx} cy={props.cy} color={stroke} radius={5} />
               )}
-              dot={false}
+              // Only the last point is marked, so the eye lands on "now"
+              // without a dot on every trade turning the line into beads.
+              dot={(props: { cx?: number; cy?: number; index?: number }) =>
+                props.index === lastIndex ? (
+                  <ChartDot cx={props.cx} cy={props.cy} color={stroke} />
+                ) : (
+                  <g />
+                )
+              }
             />
           </AreaChart>
         </ResponsiveContainer>
       </div>
 
+      {/* The direction in words. The line carries it in colour, and colour is
+          never allowed to be the only channel. */}
       <p className="sr-only">
-        Latest account amount {moneyCompact(series.at(-1)?.value ?? 0, currency)}.
+        Account amount {moneyCompact(latest, currency)}, {latest >= opening ? "up" : "down"}{" "}
+        {moneyCompact(Math.abs(latest - opening), currency)} over {RANGE_LABEL[range]}, from{" "}
+        {moneyCompact(opening, currency)}.
       </p>
     </div>
   );

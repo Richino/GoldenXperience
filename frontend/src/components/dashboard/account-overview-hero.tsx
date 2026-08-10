@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import {
   AccountAmountChart,
+  accountSeriesRose,
   buildAccountAmountSeries,
   type AccountChartRange,
 } from "@/components/dashboard/account-amount-chart";
@@ -55,7 +56,7 @@ export function AccountOverviewHero({
    */
   todayKey: string;
 }) {
-  const [range, setRange] = useState<AccountChartRange>("1w");
+  const [range, setRange] = useState<AccountChartRange>("25");
   const name = greetingName(userLabel);
   // The bell is fixed to the viewport, so the greeting row it was lifted out of
   // is what decides when it stops reading as part of the header.
@@ -93,11 +94,15 @@ export function AccountOverviewHero({
   const baseline = account.nav - dayPL;
   const changePercent = baseline !== 0 ? (dayPL / baseline) * 100 : 0;
   const positive = dayPL >= 0;
+  // The card's tint follows the chart it wraps, not the day's P/L. Those are
+  // different questions and they disagree often — a flat day around a losing
+  // month painted the card green while the line inside it was red.
+  const chartRose = accountSeriesRose(series);
 
   return (
     <section
       className="account-overview-hero"
-      data-tone={positive ? "positive" : "negative"}
+      data-tone={chartRose ? "positive" : "negative"}
       aria-label="Account overview"
     >
       <header
@@ -143,12 +148,14 @@ export function AccountOverviewHero({
       </div>
 
       <div className="mt-5 lg:mt-7">
+        {/* No direction passed in: `positive` here is today's P/L, which is the
+            right tone for the pill above and the wrong one for a chart showing
+            a week or a month. The chart reads its own window. */}
         <AccountAmountChart
           series={series}
           currency={account.currency}
           range={range}
           onRangeChange={setRange}
-          positive={positive}
         />
       </div>
     </section>

@@ -115,6 +115,7 @@ export function evaluateLiquiditySetup(input: LiquidityEvaluationInput): Strateg
     ema21: primary.ema21, ema50: primary.ema50, ema200: primary.ema200,
     rsi14: rsi, atr14: atr || null, atrPips: atr ? atr / pip : null,
     structureHighs: structure.highs.length, structureLows: structure.lows.length,
+    liquidity: null,
   };
 
   // ---- Hard requirements: no trade while any of these fail ----
@@ -176,6 +177,28 @@ export function evaluateLiquiditySetup(input: LiquidityEvaluationInput): Strateg
     + (macroAgrees ? SCORE.macroAgrees : 0)
     + (overlap ? SCORE.overlapSession : 0);
 
+  // Everything the scorecard just read, kept on the setup so it reaches the
+  // trade row. Recorded whether or not this one trades, so the batch can be
+  // compared against the setups that were passed over.
+  features.liquidity = {
+    sweptLevelKind: sweep.level.kind,
+    sweptLevelSide: sweep.level.side,
+    sweptLevelPrice: sweep.level.price,
+    sweepDepthAtr: atr > 0 ? Math.abs(sweep.extreme - sweep.level.price) / atr : null,
+    sweepBarsAgo: sweep.barsAgo,
+    atLevelKind: location?.level.kind ?? null,
+    rejection,
+    displacement,
+    structureBreak,
+    retest,
+    macroBias,
+    macroAgrees,
+    overlapSession: overlap,
+    session: session.label,
+    score,
+    scoreOutOf: SCORE.atLevel + SCORE.rejectionOrDisplacement + SCORE.structureBreak + SCORE.macroAgrees + SCORE.overlapSession,
+  };
+
   // ---- Levels and size ----
   const entry = direction === "long" ? input.ask : input.bid;
   const stopBehind = direction === "long"
@@ -196,7 +219,7 @@ export function evaluateLiquiditySetup(input: LiquidityEvaluationInput): Strateg
   const scoreReached = score >= SCORE.minimumToTrade;
   conditions.push(condition("Setup score", scoreReached,
     scoreReached ? `Scored ${score}, at or above the ${SCORE.minimumToTrade} required.` : `Scored ${score}, below the ${SCORE.minimumToTrade} required.`,
-    `${score}/8`, true));
+    `${score}/${features.liquidity.scoreOutOf}`, true));
 
   const hardFailed = conditions.some((item) => item.required && !item.passed);
   const status: StrategySetup["status"] = entry === null || stop === null || target === null ? "invalid"
@@ -204,17 +227,17 @@ export function evaluateLiquiditySetup(input: LiquidityEvaluationInput): Strateg
       : "valid";
 
   const summary = status === "valid"
-    ? `${displayNameFor(input.instrument)} ${direction} off ${sweep.level.label}, scored ${score}/8.`
+    ? `${displayNameFor(input.instrument)} ${direction} off ${sweep.level.label}, scored ${score}/${features.liquidity.scoreOutOf}.`
     : scoreReached
-      ? `${displayNameFor(input.instrument)} ${direction} scored ${score}/8 but a hard requirement failed.`
-      : `${displayNameFor(input.instrument)} ${direction} scored ${score}/8, below ${SCORE.minimumToTrade}.`;
+      ? `${displayNameFor(input.instrument)} ${direction} scored ${score}/${features.liquidity.scoreOutOf} but a hard requirement failed.`
+      : `${displayNameFor(input.instrument)} ${direction} scored ${score}/${features.liquidity.scoreOutOf}, below ${SCORE.minimumToTrade}.`;
 
   return finalize(input, evaluatedAt, { direction, entry, stop, target, riskReward, position }, conditions, status, summary, features);
 }
 
 const EMPTY_FEATURES: StrategyResearchFeatures = {
   trend15m: "mixed", trend1h: null, trend4h: null, ema21: null, ema50: null, ema200: null,
-  rsi14: null, atr14: null, atrPips: null, structureHighs: 0, structureLows: 0,
+  rsi14: null, atr14: null, atrPips: null, structureHighs: 0, structureLows: 0, liquidity: null,
 };
 
 function finalize(

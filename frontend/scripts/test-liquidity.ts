@@ -3,7 +3,7 @@ import {
   findSweep, hasDisplacement, hasRejection, hasRetest, nearestLevel, RULES,
 } from "../src/lib/strategy/liquidity-confirmation";
 import { mapLiquidityLevels, swingPoints } from "../src/lib/strategy/liquidity-levels";
-import { evaluateLiquiditySetup, SCORE } from "../src/lib/strategy/liquidity-strategy";
+import { evaluateLiquiditySetup, RISK, SCORE } from "../src/lib/strategy/liquidity-strategy";
 import type { Candle } from "../src/types/forex";
 import type { LiquidityLevel } from "../src/lib/strategy/liquidity-levels";
 
@@ -133,5 +133,83 @@ assert.equal(distant.conditions.find((c) => c.name === "News")?.passed, true, "a
 assert.equal(SCORE.atLevel + SCORE.rejectionOrDisplacement + SCORE.structureBreak + SCORE.macroAgrees + SCORE.overlapSession, 8, "the scorecard totals eight");
 assert.ok(!("levelSwept" in SCORE), "the sweep is a gate, not a scored factor");
 assert.ok(SCORE.minimumToTrade > 0 && SCORE.minimumToTrade <= 8, "the trade threshold sits inside the scorecard");
+
+// The batch is only worth collecting if the decision is recorded with it. These
+// fields cannot be reconstructed later — the level that was swept exists only in
+// the candles at decision time — so a setup that finds a sweep must carry them.
+const sweptSeries = [
+  ...Array.from({ length: 256 }, (_, i) => bar({ time: day(260 - i) })),
+  bar({ time: day(4), high: 1.1010, low: 1.1002, close: 1.1008 }),
+  bar({ time: day(3), high: 1.1005, low: 1.0990, close: 1.0999 }),
+  bar({ time: day(2), high: 1.1008, low: 1.0998, close: 1.1004 }),
+  bar({ time: day(1), high: 1.1012, low: 1.1001, close: 1.1010 }),
+];
+const recorded = evaluateLiquiditySetup({
+  ...base,
+  calendarConnected: false, highImpactNewsWithinMinutes: null, newsRequired: false,
+  candles15m: sweptSeries,
+  bid: 1.1010, ask: 1.10115,
+  macroBias: "long", macroDetail: "test",
+});
+assert.equal(recorded.conditions.find((c) => c.name === "Liquidity sweep")?.passed, true, "the fixture must actually sweep, or it tests nothing");
+
+const decision = recorded.features.liquidity;
+assert.ok(decision, "a setup with a sweep records what it decided on");
+assert.equal(decision!.sweptLevelKind, "asian-low", "the swept level's kind is recorded, so a batch can be sliced by it");
+assert.equal(decision!.sweptLevelSide, "low", "and which side of price it sat on");
+assert.ok(decision!.sweepDepthAtr! > 0, "how far beyond the level price traded is recorded in ATR");
+assert.equal(typeof decision!.sweepBarsAgo, "number", "and how long ago");
+for (const flag of ["rejection", "displacement", "structureBreak", "retest", "macroAgrees", "overlapSession"] as const) {
+  assert.equal(typeof decision![flag], "boolean", `${flag} is recorded, not inferred later`);
+}
+assert.equal(decision!.macroBias, "long", "the macro read the scorecard saw is kept");
+assert.equal(decision!.scoreOutOf, 8, "the scorecard maximum travels with the score");
+assert.equal(
+  decision!.score,
+  (decision!.atLevelKind ? SCORE.atLevel : 0)
+  + (decision!.rejection || decision!.displacement ? SCORE.rejectionOrDisplacement : 0)
+  + (decision!.structureBreak ? SCORE.structureBreak : 0)
+  + (decision!.macroAgrees ? SCORE.macroAgrees : 0)
+  + (decision!.overlapSession ? SCORE.overlapSession : 0),
+  "the recorded score is the one the recorded factors add up to",
+);
+
+// The short side is the mirror, and it was previously only asserted at the
+// findSweep level. Everything downstream of direction — which side the wick is
+// measured on, which way the stop goes, which price fills — has to flip too, so
+// the whole path is exercised rather than just the sweep.
+const shortSeries = [
+  ...Array.from({ length: 256 }, (_, i) => bar({ time: day(260 - i) })),
+  bar({ time: day(4), high: 1.1003, low: 1.0996, close: 1.0998 }),
+  bar({ time: day(3), high: 1.1020, low: 1.1000, close: 1.1002 }),
+  bar({ time: day(2), high: 1.1004, low: 1.0994, close: 1.0999 }),
+  bar({ time: day(1), open: 1.0999, high: 1.1001, low: 1.0988, close: 1.0990 }),
+];
+const shortSetup = evaluateLiquiditySetup({
+  ...base,
+  calendarConnected: false, highImpactNewsWithinMinutes: null, newsRequired: false,
+  candles15m: shortSeries,
+  bid: 1.0990, ask: 1.09915,
+  macroBias: "short", macroDetail: "test",
+});
+assert.equal(shortSetup.direction, "short", "sweeping a high sets up a short");
+assert.equal(shortSetup.features.liquidity?.sweptLevelSide, "high", "and records the high as the level taken");
+assert.ok(shortSetup.entry !== null && shortSetup.stop !== null && shortSetup.target !== null, "a short setup prices all three levels");
+// A short sells at the bid; buying back at the ask is the cost, not the fill.
+assert.equal(shortSetup.entry, 1.0990, "a short enters at the bid, not the ask");
+assert.ok(shortSetup.stop! > shortSetup.entry!, "a short's stop sits above its entry");
+assert.ok(shortSetup.target! < shortSetup.entry!, "a short's target sits below its entry");
+assert.equal(
+  Number(((shortSetup.entry! - shortSetup.target!) / (shortSetup.stop! - shortSetup.entry!)).toFixed(2)),
+  RISK.targetR,
+  "a short is paid the same multiple of its risk as a long",
+);
+
+// No sweep, nothing to describe: the field is null rather than stale or invented.
+assert.equal(
+  evaluateLiquiditySetup({ ...base, calendarConnected: false, highImpactNewsWithinMinutes: null, newsRequired: false }).features.liquidity ?? null,
+  null,
+  "a setup with no sweep records no decision features",
+);
 
 console.log("Liquidity strategy checks passed.");

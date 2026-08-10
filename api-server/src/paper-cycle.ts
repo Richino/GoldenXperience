@@ -10,7 +10,8 @@ import { getPracticeTradeState, getResearchCandles } from "../../frontend/src/li
 import { DAY_TRADING_TIME_ZONE, dayTradingSession } from "../../frontend/src/lib/strategy/strategy-engine.js";
 // The strategy that is allowed to create trades. Changing this starts a new
 // batch on its own: batches are scoped to the version that produced them.
-import { LIQUIDITY_STRATEGY_VERSION as ACTIVE_STRATEGY_VERSION, RISK as LIQUIDITY_RISK } from "../../frontend/src/lib/strategy/liquidity-strategy.js";
+import { LIQUIDITY_STRATEGY_VERSION as ACTIVE_STRATEGY_VERSION, RISK as LIQUIDITY_RISK, SCORE as LIQUIDITY_SCORE } from "../../frontend/src/lib/strategy/liquidity-strategy.js";
+import { RULES as LIQUIDITY_RULES } from "../../frontend/src/lib/strategy/liquidity-confirmation.js";
 const MAX_TRADES_PER_DAY = LIQUIDITY_RISK.maxTradesPerDay;
 import { getStrategySnapshot } from "../../frontend/src/lib/strategy/strategy-service.js";
 import type { StrategySetup } from "../../frontend/src/lib/strategy/types.js";
@@ -154,9 +155,39 @@ function weekdayAt(value: string) {
   return new Intl.DateTimeFormat("en-US", { timeZone: DAY_TRADING_TIME_ZONE, weekday: "long" }).format(new Date(value));
 }
 
+/**
+ * The share of the scorecard the setup earned, as a fraction.
+ *
+ * It used to be the share of *required* conditions passed, which cannot vary:
+ * a trade only opens once every required condition passes, so the column held
+ * 1.0 on every row and told the batch nothing. The scorecard is the number that
+ * actually separates one admitted setup from another.
+ *
+ * Falls back to the old measure for any strategy that scores nothing, so the
+ * column keeps a defined meaning rather than going null.
+ */
 function checklistScore(setup: StrategySetup) {
+  const liquidity = setup.features.liquidity;
+  if (liquidity && liquidity.scoreOutOf > 0) return liquidity.score / liquidity.scoreOutOf;
   const required = setup.conditions.filter((item) => item.required);
   return required.length ? required.filter((item) => item.passed).length / required.length : 0;
+}
+
+/**
+ * What the trade was taken on, in words — the level swept and how it confirmed.
+ *
+ * This was a hardcoded "Bundled EMA pullback day strategy" left behind by the
+ * retired strategy, which would have stamped every macro-liquidity-v1 trade
+ * with the name of the system it replaced.
+ */
+function setupNameFor(setup: StrategySetup) {
+  const liquidity = setup.features.liquidity;
+  if (!liquidity) return ACTIVE_STRATEGY_VERSION;
+  const confirmation = liquidity.rejection && liquidity.displacement ? "rejection + displacement"
+    : liquidity.rejection ? "rejection"
+      : liquidity.displacement ? "displacement"
+        : "no confirmation";
+  return `${liquidity.sweptLevelKind} sweep, ${confirmation}`;
 }
 
 export function paperBatchMetrics(rows: StoredTrade[]) {
@@ -252,13 +283,34 @@ export function buildPaperRecommendation(rows: StoredTrade[]) {
   };
 }
 
+/**
+ * The strategy's row, created on first use.
+ *
+ * Changing ACTIVE_STRATEGY_VERSION used to require someone to remember to
+ * insert a row by hand, and the failure said "the migration has not been
+ * applied" — which sent you looking at migrations that were fine. Registering
+ * it here means switching strategies is a code change and nothing else.
+ *
+ * The stored configuration is the numbers the strategy actually ran with, so a
+ * batch can always be traced back to the thresholds that produced it. Those
+ * numbers are what the next batch is meant to change: a version that quietly
+ * ran two different scorecards would make its hundred trades unreadable.
+ */
 async function strategyVersionId(client?: PoolClient) {
-  const result = client ? await client.query<{ id: string }>(
-    "SELECT id FROM strategy_versions WHERE name=$1 AND version=$2",
-    [STRATEGY_NAME, ACTIVE_STRATEGY_VERSION],
-  ) : await query<{ id: string }>("SELECT id FROM strategy_versions WHERE name=$1 AND version=$2", [STRATEGY_NAME, ACTIVE_STRATEGY_VERSION]);
-  if (!result.rows[0]) throw new Error("The active paper strategy migration has not been applied.");
-  return result.rows[0].id;
+  const configuration = JSON.stringify({
+    score: LIQUIDITY_SCORE,
+    risk: LIQUIDITY_RISK,
+    rules: LIQUIDITY_RULES,
+    sessions: "London and New York, flat at 16:45 ET",
+    macro: "FRED long-term rate differential, monthly",
+  });
+  const upsert = `INSERT INTO strategy_versions(name,version,configuration) VALUES($1,$2,$3::jsonb)
+     ON CONFLICT(name,version) DO UPDATE SET configuration=EXCLUDED.configuration RETURNING id`;
+  const values = [STRATEGY_NAME, ACTIVE_STRATEGY_VERSION, configuration];
+  const result = client
+    ? await client.query<{ id: string }>(upsert, values)
+    : await query<{ id: string }>(upsert, values);
+  return result.rows[0]!.id;
 }
 
 async function ensureCollectingBatch(client: PoolClient, versionId: string, userId: string) {
@@ -349,7 +401,7 @@ async function openPaperTrade(setup: StrategySetup, userId: string, versionId: s
       `INSERT INTO paper_strategy_trades(trade_sequence,user_id,batch_id,strategy_version_id,instrument,decision_time,direction,entry,stop,target,planned_r,nominal_risk_percent,nominal_risk_amount,calculated_units,calculated_standard_lots,spread_pips,session,weekday,setup_name,checklist_score,conditions,features,opened_at)
        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb,$22::jsonb,$23)
        RETURNING id`,
-      [nextSequence.rows[0]!.value, userId, batch.id, versionId, setup.instrument, setup.evaluatedAt, setup.direction, setup.entry, setup.stop, setup.target, setup.riskReward, risk.riskPercent, positionSize.calculatedEstimatedRisk, positionSize.calculatedUnits, positionSize.calculatedStandardLots, spreadPips, session, weekdayAt(setup.evaluatedAt), "Bundled EMA pullback day strategy", checklistScore(setup), JSON.stringify(setup.conditions), JSON.stringify(setup.features), setup.evaluatedAt],
+      [nextSequence.rows[0]!.value, userId, batch.id, versionId, setup.instrument, setup.evaluatedAt, setup.direction, setup.entry, setup.stop, setup.target, setup.riskReward, risk.riskPercent, positionSize.calculatedEstimatedRisk, positionSize.calculatedUnits, positionSize.calculatedStandardLots, spreadPips, session, weekdayAt(setup.evaluatedAt), setupNameFor(setup), checklistScore(setup), JSON.stringify(setup.conditions), JSON.stringify(setup.features), setup.evaluatedAt],
     );
     const tradeId = inserted.rows[0]!.id;
     await queueNotificationInTransaction(client, {
@@ -623,7 +675,14 @@ export async function paperCycleOverview() {
   const currentTrades = current ? await query(`SELECT id,trade_sequence::text AS "tradeSequence",instrument,direction,status,outcome,entry::float,stop::float,target::float,exit::float,result_r::float AS "resultR",nominal_risk_percent::float AS "nominalRiskPercent",nominal_risk_amount::float AS "nominalRiskAmount",paper_pl::float AS "paperPl",spread_pips::float AS "spreadPips",session,weekday,planned_r::float AS "plannedR",checklist_score::float AS "checklistScore",news_status AS "newsStatus",max_favorable_r::float AS "maxFavorableR",max_adverse_r::float AS "maxAdverseR",opened_at AS "openedAt",closed_at AS "closedAt",exit_reason AS "exitReason",review FROM paper_strategy_trades WHERE batch_id=$1 ORDER BY trade_sequence DESC`, [(current as any).id]) : { rows: [] };
   const liveSummary = paperBatchMetrics((currentTrades.rows as any[]).map((row) => ({ ...row, trade_sequence: row.tradeSequence, result_r: row.resultR, spread_pips: row.spreadPips, opened_at: row.openedAt, closed_at: row.closedAt })) as StoredTrade[]);
   const lifetimeRows = await query<StoredTrade>("SELECT id,trade_sequence::text,instrument,direction,status,outcome,result_r::text,session,weekday,spread_pips::text,opened_at,closed_at FROM paper_strategy_trades ORDER BY trade_sequence");
-  return { strategyVersion: ACTIVE_STRATEGY_VERSION, batchSize: BATCH_SIZE, lifetimeSummary: paperBatchMetrics(lifetimeRows.rows), current: current ? { ...current, liveSummary, remaining: BATCH_SIZE - Number((current as any).assignedCount) } : null, batches: batches.rows, trades: currentTrades.rows };
+  // The account chart plots balance over time, which does not belong to any one
+  // batch: sourced from the collecting batch it emptied the moment a batch was
+  // filed, and every completed batch would erase the account's history.
+  const accountTrades = await query(
+    `SELECT paper_pl::float AS "paperPl", closed_at AS "closedAt", opened_at AS "openedAt", status
+     FROM paper_strategy_trades WHERE opened_at > now() - interval '90 days' ORDER BY opened_at`,
+  );
+  return { strategyVersion: ACTIVE_STRATEGY_VERSION, batchSize: BATCH_SIZE, lifetimeSummary: paperBatchMetrics(lifetimeRows.rows), current: current ? { ...current, liveSummary, remaining: BATCH_SIZE - Number((current as any).assignedCount) } : null, batches: batches.rows, trades: currentTrades.rows, accountTrades: accountTrades.rows };
 }
 
 /**

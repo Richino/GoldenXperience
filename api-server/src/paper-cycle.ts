@@ -385,15 +385,18 @@ async function openPaperTrade(setup: StrategySetup, userId: string, versionId: s
     const nominalRisk = Number(portfolio.rows[0]!.nominal_risk);
     if (!paperRiskAllowsEntry(risk, openCount, nominalRisk)) return null;
 
-    // "Take the best opportunities": a cap on how many the day is allowed to
-    // produce, so a busy morning cannot spend the batch. Counted on the ET day
-    // the strategy trades in, not UTC.
-    const takenToday = await client.query<{ count: string }>(
-      `SELECT count(*)::text FROM paper_strategy_trades
-       WHERE strategy_version_id=$1 AND (opened_at AT TIME ZONE 'America/New_York')::date = (now() AT TIME ZONE 'America/New_York')::date`,
-      [versionId],
-    );
-    if (Number(takenToday.rows[0]!.count) >= MAX_TRADES_PER_DAY) return null;
+    // A cap on how many the day is allowed to produce, so a busy morning cannot
+    // spend the batch. Counted on the ET day the strategy trades in, not UTC.
+    // Null lifts it entirely and skips the count, which otherwise runs on every
+    // qualifying setup — see `RISK.maxTradesPerDay` for why it is off.
+    if (MAX_TRADES_PER_DAY !== null) {
+      const takenToday = await client.query<{ count: string }>(
+        `SELECT count(*)::text FROM paper_strategy_trades
+         WHERE strategy_version_id=$1 AND (opened_at AT TIME ZONE 'America/New_York')::date = (now() AT TIME ZONE 'America/New_York')::date`,
+        [versionId],
+      );
+      if (Number(takenToday.rows[0]!.count) >= MAX_TRADES_PER_DAY) return null;
+    }
     const positionSize = calculatePositionSize({ instrument: setup.instrument, accountBalance, riskPercent: risk.riskPercent, entry, stop, applyPaperCap: false });
     if (!positionSize) return null;
     const nextSequence = await client.query<{ value: string }>("SELECT (COALESCE(max(trade_sequence),0)+1)::text AS value FROM paper_strategy_trades");

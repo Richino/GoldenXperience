@@ -36,8 +36,8 @@ export const LIQUIDITY_STRATEGY_VERSION = "macro-liquidity-v1";
  *
  * `minimumToTrade` is calibrated rather than chosen. Replayed over stored
  * candles it puts roughly 3.6 setups a day in front of the collector across ten
- * pairs — just above the three-a-day cap, so the cap stays a safety net instead
- * of an arbitrary filter taking the first three of thirty. It is the first
+ * pairs. With the daily cap lifted every one of those is taken, so this
+ * threshold is now the only thing setting the sample rate. It is the first
  * number to revisit once a batch is in.
  */
 export const SCORE = {
@@ -55,7 +55,14 @@ export const RISK = {
   /** A stop tighter than this is inside the market's own noise. */
   minimumStopAtr: 1.0,
   targetR: 2.0,
-  maxTradesPerDay: 3,
+  /**
+   * Unlimited. The batch is a sample before it is an account, and a daily cap
+   * does not take the best three setups — it takes the first three, which are
+   * whichever fired earliest in the session. That is a time-of-day bias baked
+   * into the very data the threshold is calibrated against. Set a number here
+   * to restore the cap once the sample is large enough to spend.
+   */
+  maxTradesPerDay: null as number | null,
 } as const;
 
 const MAX_SPREAD_PIPS: Record<string, number> = {

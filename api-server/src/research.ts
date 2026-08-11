@@ -1,6 +1,7 @@
 import { query, transaction } from "./database.js";
 import { getStrategySnapshot } from "../../frontend/src/lib/strategy/strategy-service.js";
-import { ACTIVE_STRATEGY_VERSION, DAY_FORCED_EXIT_MINUTES, DAY_TRADING_TIME_ZONE, evaluateStrategy } from "../../frontend/src/lib/strategy/strategy-engine.js";
+import { ACTIVE_STRATEGY_VERSION as LEGACY_STRATEGY_VERSION, DAY_FORCED_EXIT_MINUTES, DAY_TRADING_TIME_ZONE, evaluateStrategy } from "../../frontend/src/lib/strategy/strategy-engine.js";
+import { LIQUIDITY_STRATEGY_VERSION as ACTIVE_STRATEGY_VERSION, evaluateLiquiditySetup } from "../../frontend/src/lib/strategy/liquidity-strategy.js";
 import { getResearchCandles, type ResearchCandle } from "../../frontend/src/lib/oanda/client.js";
 import type { Candle, MajorInstrument } from "../../frontend/src/types/forex.js";
 import type { StrategySetup } from "../../frontend/src/lib/strategy/types.js";
@@ -88,7 +89,10 @@ type ReplayRecord = { decision_time: string; status: string; direction: string |
 
 function evaluateReplayRecord(instrument: MajorInstrument, decisionTime: string, candles15m: Candle[], candles1h: Candle[], candles4h: Candle[], quote: NormalizedQuote): ReplayRecord {
   const spreadPips = (quote.askClose - quote.bidClose) / pipSizeFor(instrument);
-  const setup = evaluateStrategy({ instrument, accountBalance: 10_000, accountCurrency: "USD", dataSource: "oanda", candles15m, candles1h, candles4h, bid: quote.bidClose, ask: quote.askClose, spreadPips, marketOpen: forexMarketOpen(new Date(decisionTime)), calendarConnected: false, highImpactNewsWithinMinutes: null, newsRequired: false, evaluatedAt: decisionTime });
+  // Rate snapshots were not retained historically. Treating today's monthly
+  // FRED read as a historical input would manufacture evidence, so replays
+  // record an unavailable macro tilt as neutral instead.
+  const setup = evaluateLiquiditySetup({ instrument, accountBalance: 10_000, accountCurrency: "USD", dataSource: "oanda", candles15m, candles1h, candles4h, bid: quote.bidClose, ask: quote.askClose, spreadPips, marketOpen: forexMarketOpen(new Date(decisionTime)), calendarConnected: false, highImpactNewsWithinMinutes: null, newsRequired: false, evaluatedAt: decisionTime, macroBias: "neutral", macroDetail: "Historical FRED snapshots were not retained; macro tilt is neutral in replay." });
   return { decision_time: decisionTime, status: setup.status, direction: setup.direction, entry: setup.entry, stop: setup.stop, target: setup.target, risk_reward: setup.riskReward, spread_pips: spreadPips, conditions: setup.conditions, features: { summary: setup.summary, passedConditions: setup.passedConditions, failedConditions: setup.failedConditions, positionSize: setup.positionSize, newsEvaluated: false, candleCounts: { M15: candles15m.length, H1: candles1h.length, H4: candles4h.length } }, raw_units: setup.positionSize?.calculatedUnits ?? null, applied_units: setup.positionSize?.units ?? null };
 }
 
@@ -131,7 +135,7 @@ async function replayHistoricalStrategy(runId: string, instrument: MajorInstrume
   const quoteByTime = new Map(quoteResult.rows.map((row) => { const quote = normalizeQuote(row); return [quote.closeTime, quote]; }));
   if (m15.length < MINIMUM_CANDLES || h1.length < MINIMUM_CANDLES || h4.length < MINIMUM_CANDLES) throw new Error("The full M15/H1/H4 history is not available for replay.");
 
-  const version = await query<{ id: string }>("INSERT INTO strategy_versions(name,version,configuration) VALUES('deterministic-forex',$1,$2::jsonb) ON CONFLICT(name,version) DO UPDATE SET configuration=EXCLUDED.configuration RETURNING id", [ACTIVE_STRATEGY_VERSION, JSON.stringify({ timeframes: HISTORICAL_TIMEFRAMES, news: "not_evaluated", prices: "oanda_bid_ask", entrySessions: "London 08:00-17:00 Europe/London and New York 08:00-17:00 America/New_York", forcedExitEt: "16:45", holding: "same_day" })]);
+  const version = await query<{ id: string }>("INSERT INTO strategy_versions(name,version,configuration) VALUES('deterministic-forex',$1,$2::jsonb) ON CONFLICT(name,version) DO UPDATE SET configuration=strategy_versions.configuration || EXCLUDED.configuration RETURNING id", [ACTIVE_STRATEGY_VERSION, JSON.stringify({ timeframes: HISTORICAL_TIMEFRAMES, news: "not_evaluated", prices: "oanda_bid_ask", entrySessions: "London 08:00-17:00 Europe/London and New York 08:00-17:00 America/New_York", forcedExitEt: "16:45", holding: "same_day", macroReplay: "neutral_when_historical_rate_snapshot_unavailable" })]);
   const versionId = version.rows[0]!.id;
   await query("DELETE FROM strategy_evaluations WHERE strategy_version_id=$1 AND instrument=$2 AND source_kind='historical'", [versionId, instrument]);
   await vacuumResearchTables();
@@ -452,7 +456,7 @@ async function processCollectionUnit(job: DurableResearchJob, checkpoint: Durabl
 }
 
 async function prepareDurableReplay(job: DurableResearchJob, checkpoint: DurableCheckpoint) {
-  const version = await query<{ id: string }>("INSERT INTO strategy_versions(name,version,configuration) VALUES('deterministic-forex',$1,$2::jsonb) ON CONFLICT(name,version) DO UPDATE SET configuration=EXCLUDED.configuration RETURNING id", [ACTIVE_STRATEGY_VERSION, JSON.stringify({ timeframes: HISTORICAL_TIMEFRAMES, news: "not_evaluated", prices: "oanda_bid_ask", entrySessions: "London 08:00-17:00 Europe/London and New York 08:00-17:00 America/New_York", forcedExitEt: "16:45", holding: "same_day" })]);
+  const version = await query<{ id: string }>("INSERT INTO strategy_versions(name,version,configuration) VALUES('deterministic-forex',$1,$2::jsonb) ON CONFLICT(name,version) DO UPDATE SET configuration=strategy_versions.configuration || EXCLUDED.configuration RETURNING id", [ACTIVE_STRATEGY_VERSION, JSON.stringify({ timeframes: HISTORICAL_TIMEFRAMES, news: "not_evaluated", prices: "oanda_bid_ask", entrySessions: "London 08:00-17:00 Europe/London and New York 08:00-17:00 America/New_York", forcedExitEt: "16:45", holding: "same_day", macroReplay: "neutral_when_historical_rate_snapshot_unavailable" })]);
   checkpoint.versionId = version.rows[0]!.id;
   await query("DELETE FROM strategy_evaluations WHERE strategy_version_id=$1 AND instrument=$2 AND source_kind=$3", [checkpoint.versionId, job.instrument, checkpoint.sourceKind ?? "historical"]);
   await vacuumResearchTables();
@@ -930,8 +934,8 @@ export async function runGbpRiskRewardCandidate() {
   const positiveResults = candidateResults(candidateHoldout).filter((value) => value > 0);
   const grossPositive = positiveResults.reduce((sum, value) => sum + value, 0);
   const largestProfitShare = grossPositive > 0 ? Math.max(...positiveResults, 0) / grossPositive : null;
-  const activeVersion = await query<{ id: string }>("SELECT id FROM strategy_versions WHERE name='deterministic-forex' AND version=$1", [ACTIVE_STRATEGY_VERSION]);
-  if (!activeVersion.rows[0]) throw new Error("The active v1 strategy record is missing.");
+  const activeVersion = await query<{ id: string }>("SELECT id FROM strategy_versions WHERE name='deterministic-forex' AND version=$1", [LEGACY_STRATEGY_VERSION]);
+  if (!activeVersion.rows[0]) throw new Error("The legacy baseline strategy record is missing.");
   const baselineRows = await query<WalkForwardCandidate>(`SELECT tc.id,se.decision_time,se.direction,se.conditions,se.entry,se.stop,ol.outcome,ol.result_r,ol.resolved_at,ol.horizon_ends_at FROM trade_candidates tc JOIN strategy_evaluations se ON se.id=tc.evaluation_id JOIN outcome_labels ol ON ol.candidate_id=tc.id WHERE se.strategy_version_id=$1 AND se.instrument=$2 AND se.source_kind='historical' AND se.decision_time BETWEEN $3 AND $4 ORDER BY se.decision_time,tc.id`, [activeVersion.rows[0].id, instrument, developmentStart, testEnd]);
   const baselineDevelopment = positionAwareResults(baselineRows.rows.filter((row) => new Date(row.decision_time) < testStart));
   const baselineHoldout = positionAwareResults(baselineRows.rows.filter((row) => new Date(row.decision_time) >= testStart));
@@ -1303,7 +1307,7 @@ export async function collectForwardEvaluation() {
     const recent = (await getResearchCandles(instrument.code as MajorInstrument, "M15", 500)).filter((candle) => candle.complete);
     await saveResearchCandles(instrument.code as MajorInstrument, "M15", recent);
   }
-  const version = await query<{ id: string }>("INSERT INTO strategy_versions(name,version,configuration) VALUES('deterministic-forex',$1,$2::jsonb) ON CONFLICT(name,version) DO UPDATE SET configuration=EXCLUDED.configuration RETURNING id", [ACTIVE_STRATEGY_VERSION, JSON.stringify({ timeframes: HISTORICAL_TIMEFRAMES, entryWindowEt: "03:00-12:00", forcedExitEt: "16:45", holding: "same_day", news: "not_evaluated" })]);
+  const version = await query<{ id: string }>("INSERT INTO strategy_versions(name,version,configuration) VALUES('deterministic-forex',$1,$2::jsonb) ON CONFLICT(name,version) DO UPDATE SET configuration=strategy_versions.configuration || EXCLUDED.configuration RETURNING id", [ACTIVE_STRATEGY_VERSION, JSON.stringify({ timeframes: HISTORICAL_TIMEFRAMES, entryWindowEt: "03:00-12:00", forcedExitEt: "16:45", holding: "same_day", news: "not_evaluated", macroReplay: "neutral_when_historical_rate_snapshot_unavailable" })]);
   let collected = 0;
   for (const setup of snapshot.strategy.setups) {
     if (setup.dataSource !== "oanda") continue;

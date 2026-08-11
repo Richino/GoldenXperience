@@ -3,11 +3,13 @@ import {
   findSweep, hasDisplacement, hasRejection, hasRetest, nearestLevel, RULES,
 } from "../src/lib/strategy/liquidity-confirmation";
 import { mapLiquidityLevels, swingPoints } from "../src/lib/strategy/liquidity-levels";
-import { evaluateLiquiditySetup, RISK, SCORE } from "../src/lib/strategy/liquidity-strategy";
+import { evaluateLiquiditySetup, LIQUIDITY_STRATEGY_VERSION, RISK, SCORE } from "../src/lib/strategy/liquidity-strategy";
 import type { Candle } from "../src/types/forex";
 import type { LiquidityLevel } from "../src/lib/strategy/liquidity-levels";
 
 const ATR = 0.0010; // 10 pips on a 5-decimal pair
+
+assert.equal(LIQUIDITY_STRATEGY_VERSION, "trend-pullback-liquidity-v1");
 
 function bar(overrides: Partial<Candle> & { time?: string } = {}): Candle {
   return {

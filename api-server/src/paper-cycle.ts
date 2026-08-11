@@ -305,7 +305,9 @@ async function strategyVersionId(client?: PoolClient) {
     macro: "FRED long-term rate differential, monthly",
   });
   const upsert = `INSERT INTO strategy_versions(name,version,configuration) VALUES($1,$2,$3::jsonb)
-     ON CONFLICT(name,version) DO UPDATE SET configuration=EXCLUDED.configuration RETURNING id`;
+     ON CONFLICT(name,version) DO UPDATE
+       SET configuration=strategy_versions.configuration || EXCLUDED.configuration
+     RETURNING id`;
   const values = [STRATEGY_NAME, ACTIVE_STRATEGY_VERSION, configuration];
   const result = client
     ? await client.query<{ id: string }>(upsert, values)

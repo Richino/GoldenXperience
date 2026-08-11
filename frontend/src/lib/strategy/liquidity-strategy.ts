@@ -25,7 +25,12 @@ import type {
  * number that decides how often this trades at all, which makes it the one to
  * revisit after a batch.
  */
-export const LIQUIDITY_STRATEGY_VERSION = "macro-liquidity-v1";
+/**
+ * The one version used by the live snapshot, paper cycle, and active research.
+ * Historical strategy rows remain immutable records; changing this begins a
+ * new, separately attributable batch rather than rewriting prior evidence.
+ */
+export const LIQUIDITY_STRATEGY_VERSION = "trend-pullback-liquidity-v1";
 
 /**
  * The scorecard, out of eight.

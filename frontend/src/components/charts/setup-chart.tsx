@@ -61,6 +61,13 @@ interface SetupLevels {
   stop: number;
   target: number;
   exit?: number | null;
+  /**
+   * How the trade closed, as the paper cycle recorded it: `stop_first`,
+   * `target_first` or `forced_close`. This is what decides whether the exit is
+   * a level already on the chart — never a comparison of the two prices, which
+   * a broker fill misses by a tenth of a pip often enough to matter.
+   */
+  outcome?: string | null;
 }
 
 /** The time window a focused paper trade occupies, in chart seconds. */
@@ -241,6 +248,22 @@ function toChartPrice(price: number, side: 1 | -1, halfSpread: number) {
   return price + side * halfSpread;
 }
 
+/**
+ * Which planned level the trade closed on, or null for a trade still open or
+ * closed away from both. The recorded outcome answers this; the prices only
+ * stand in for trades stored before it was kept, where an exit was copied from
+ * the level itself and does compare equal.
+ */
+function closingLevel(levels: SetupLevels): "stop" | "target" | null {
+  if (levels.exit == null) return null;
+  if (levels.outcome === "stop_first") return "stop";
+  if (levels.outcome === "target_first") return "target";
+  if (levels.outcome) return null;
+  if (samePrice(levels.exit, levels.stop)) return "stop";
+  if (samePrice(levels.exit, levels.target)) return "target";
+  return null;
+}
+
 function setupLevelTags(
   levels: SetupLevels,
   isDark: boolean,
@@ -280,20 +303,25 @@ function setupLevelTags(
     },
   ];
 
-  // A stop_first or target_first trade exits *at* its stop or target, so an Exit
-  // line there would stack a second line and tag on a price already marked.
-  // Only a close somewhere else — a session forced-close — earns its own level.
-  const exitIsOwnPrice =
-    levels.exit !== null &&
-    levels.exit !== undefined &&
-    !samePrice(levels.exit, levels.stop) &&
-    !samePrice(levels.exit, levels.target);
+  // A stop_first or target_first trade left *on* one of those levels, and a fill
+  // a tenth of a pip off the requested price is still that level being hit — an
+  // Exit line of its own there is a second line the eye cannot separate from the
+  // first. The level it left on is renamed instead and moved onto the fill, so
+  // the tag reads what the header reads. The colour it already carries says how
+  // it went: red on the stop, green on the target.
+  const closedOn = closingLevel(levels);
+  if (closedOn) {
+    const hit = tags.find((tag) => tag.key === closedOn)!;
+    hit.label = "Exit";
+    if (levels.exit != null) hit.price = toChartPrice(levels.exit, exitSide, halfSpread);
+  }
 
-  if (exitIsOwnPrice) {
+  // Only a close somewhere else — a session forced-close — earns its own level.
+  if (levels.exit != null && !closedOn) {
     tags.push({
       key: "exit",
       label: "Exit",
-      price: toChartPrice(levels.exit!, exitSide, halfSpread),
+      price: toChartPrice(levels.exit, exitSide, halfSpread),
       color: isDark ? "#64d2ff" : "#007aff",
       textColor: isDark ? "#09090b" : "#ffffff",
       dashed: true,
@@ -910,7 +938,7 @@ export function SetupChart({
   // the whole chart down on every tick for any instrument holding an open
   // trade, throwing away the user's zoom and scroll position mid-gesture.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [series.instrument, levels?.entry, levels?.stop, levels?.target, levels?.exit, enabledIndicators, variant, isDark, priceFormat, upColor, downColor, wickUpColor, wickDownColor, surfaceColor, embedded]);
+  }, [series.instrument, levels?.entry, levels?.stop, levels?.target, levels?.exit, levels?.outcome, enabledIndicators, variant, isDark, priceFormat, upColor, downColor, wickUpColor, wickDownColor, surfaceColor, embedded]);
 
   useEffect(() => {
     const chart = chartRef.current;

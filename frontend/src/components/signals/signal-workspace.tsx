@@ -1139,6 +1139,7 @@ export function SignalWorkspace({
       stop: focusTrade.stop,
       target: focusTrade.target,
       exit: focusTrade.exit,
+      outcome: focusTrade.outcome,
     }) : active ? ({
       entry: active.entry,
       stop: active.stop,

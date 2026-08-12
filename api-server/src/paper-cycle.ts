@@ -10,7 +10,7 @@ import { getPracticeTradeState, getResearchCandles } from "../../frontend/src/li
 import { DAY_TRADING_TIME_ZONE, dayTradingSession } from "../../frontend/src/lib/strategy/strategy-engine.js";
 // The strategy that is allowed to create trades. Changing this starts a new
 // batch on its own: batches are scoped to the version that produced them.
-import { LIQUIDITY_STRATEGY_VERSION as ACTIVE_STRATEGY_VERSION, RISK as LIQUIDITY_RISK, SCORE as LIQUIDITY_SCORE } from "../../frontend/src/lib/strategy/liquidity-strategy.js";
+import { LIQUIDITY_STRATEGY_VERSION as ACTIVE_STRATEGY_VERSION, RISK as LIQUIDITY_RISK } from "../../frontend/src/lib/strategy/liquidity-strategy.js";
 import { RULES as LIQUIDITY_RULES } from "../../frontend/src/lib/strategy/liquidity-confirmation.js";
 const MAX_TRADES_PER_DAY = LIQUIDITY_RISK.maxTradesPerDay;
 import { getStrategySnapshot } from "../../frontend/src/lib/strategy/strategy-service.js";
@@ -34,7 +34,7 @@ const DEFAULT_PAPER_RISK: PaperRiskConfiguration = {
 };
 
 type BatchConfiguration = {
-  targetR: 1.5;
+  targetR: 2;
   excludedPairs: string[];
   excludedSessions: string[];
   sourceRecommendationBatch: number | null;
@@ -155,17 +155,7 @@ function weekdayAt(value: string) {
   return new Intl.DateTimeFormat("en-US", { timeZone: DAY_TRADING_TIME_ZONE, weekday: "long" }).format(new Date(value));
 }
 
-/**
- * The share of the scorecard the setup earned, as a fraction.
- *
- * It used to be the share of *required* conditions passed, which cannot vary:
- * a trade only opens once every required condition passes, so the column held
- * 1.0 on every row and told the batch nothing. The scorecard is the number that
- * actually separates one admitted setup from another.
- *
- * Falls back to the old measure for any strategy that scores nothing, so the
- * column keeps a defined meaning rather than going null.
- */
+/** Legacy column: v2 has no weighted score, so store required-gate completion. */
 function checklistScore(setup: StrategySetup) {
   const liquidity = setup.features.liquidity;
   if (liquidity && liquidity.scoreOutOf > 0) return liquidity.score / liquidity.scoreOutOf;
@@ -294,11 +284,13 @@ export function buildPaperRecommendation(rows: StoredTrade[]) {
  * The stored configuration is the numbers the strategy actually ran with, so a
  * batch can always be traced back to the thresholds that produced it. Those
  * numbers are what the next batch is meant to change: a version that quietly
- * ran two different scorecards would make its hundred trades unreadable.
+ * ran two different rule sets would make its hundred trades unreadable.
  */
 async function strategyVersionId(client?: PoolClient) {
   const configuration = JSON.stringify({
-    score: LIQUIDITY_SCORE,
+    direction: "confirmed H1 market structure",
+    pullback: "ATR-normalized counter-trend move with H1 structure intact",
+    admission: "explicit technical and safety gates; no weighted score",
     risk: LIQUIDITY_RISK,
     rules: LIQUIDITY_RULES,
     sessions: "London and New York, flat at 16:45 ET",
@@ -337,7 +329,7 @@ async function ensureCollectingBatch(client: PoolClient, versionId: string, user
     await client.query("UPDATE paper_risk_policies SET active_configuration=$2::jsonb,pending_configuration=NULL,updated_at=now() WHERE user_id=$1", [userId, JSON.stringify(risk)]);
   }
   const configuration: BatchConfiguration = {
-    targetR: 1.5,
+    targetR: 2,
     excludedPairs: source?.recommendation.type === "exclude_pair" ? [source.recommendation.value] : [],
     excludedSessions: source?.recommendation.type === "exclude_session" ? [source.recommendation.value] : [],
     sourceRecommendationBatch: source?.batch_number ?? null,
@@ -366,6 +358,19 @@ async function persistWatchSnapshot(setup: StrategySetup, quote: { bid: number; 
   );
 }
 
+function setupRejectionReason(setup: StrategySetup) {
+  return setup.conditions.find((item) => item.required && !item.passed)?.reason ?? null;
+}
+
+async function persistPaperEvaluation(setup: StrategySetup, versionId: string, spreadPips: number | null) {
+  await query(
+    `INSERT INTO paper_strategy_evaluations(strategy_version_id,instrument,decision_time,setup_status,direction,entry,stop,target,risk_reward,rejection_reason,trade_created,spread_pips,conditions,features)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,false,$11,$12::jsonb,$13::jsonb)
+     ON CONFLICT(strategy_version_id,instrument,decision_time) DO UPDATE SET setup_status=EXCLUDED.setup_status,direction=EXCLUDED.direction,entry=EXCLUDED.entry,stop=EXCLUDED.stop,target=EXCLUDED.target,risk_reward=EXCLUDED.risk_reward,rejection_reason=EXCLUDED.rejection_reason,spread_pips=EXCLUDED.spread_pips,conditions=EXCLUDED.conditions,features=EXCLUDED.features,updated_at=now()`,
+    [versionId, setup.instrument, setup.evaluatedAt, setup.status, setup.direction, setup.entry, setup.stop, setup.target, setup.riskReward, setupRejectionReason(setup), spreadPips, JSON.stringify(setup.conditions), JSON.stringify(setup.features)],
+  );
+}
+
 async function openPaperTrade(setup: StrategySetup, userId: string, versionId: string, spreadPips: number, accountBalance: number): Promise<string | null> {
   if (setup.status !== "valid" || !setup.direction || setup.entry === null || setup.stop === null || setup.target === null || setup.riskReward === null) return null;
   const entry = setup.entry;
@@ -373,19 +378,23 @@ async function openPaperTrade(setup: StrategySetup, userId: string, versionId: s
   const session = dayTradingSession(new Date(setup.evaluatedAt)).label;
   return transaction(async (client) => {
     await client.query("SELECT pg_advisory_xact_lock($1)", [COLLECTOR_LOCK]);
+    const reject = async (reason: string) => {
+      await client.query("UPDATE paper_strategy_evaluations SET rejection_reason=$1,updated_at=now() WHERE strategy_version_id=$2 AND instrument=$3 AND decision_time=$4 AND trade_created=false", [reason, versionId, setup.instrument, setup.evaluatedAt]);
+      return null;
+    };
     const policy = await policyRow(client, userId, true);
-    if (policy.collectionPaused) return null;
+    if (policy.collectionPaused) return reject("Risk blocked: paper collection is paused.");
     const open = await client.query("SELECT 1 FROM paper_strategy_trades WHERE instrument=$1 AND status='open'", [setup.instrument]);
-    if (open.rowCount) return null;
+    if (open.rowCount) return reject("Risk blocked: this instrument already has an open position.");
     const duplicate = await client.query("SELECT 1 FROM paper_strategy_trades WHERE strategy_version_id=$1 AND instrument=$2 AND decision_time=$3", [versionId, setup.instrument, setup.evaluatedAt]);
-    if (duplicate.rowCount) return null;
+    if (duplicate.rowCount) return reject("Duplicate evaluation: this decision was already collected.");
     const batch = await ensureCollectingBatch(client, versionId, userId);
-    if (batch.configuration.excludedPairs.includes(setup.instrument) || batch.configuration.excludedSessions.includes(session)) return null;
+    if (batch.configuration.excludedPairs.includes(setup.instrument) || batch.configuration.excludedSessions.includes(session)) return reject("Risk blocked: the active batch excludes this pair or session.");
     const risk = storedRiskConfiguration(batch.configuration);
     const portfolio = await client.query<{ open_count: string; nominal_risk: string }>("SELECT count(*)::text AS open_count,COALESCE(sum(nominal_risk_percent),0)::text AS nominal_risk FROM paper_strategy_trades WHERE status='open'");
     const openCount = Number(portfolio.rows[0]!.open_count);
     const nominalRisk = Number(portfolio.rows[0]!.nominal_risk);
-    if (!paperRiskAllowsEntry(risk, openCount, nominalRisk)) return null;
+    if (!paperRiskAllowsEntry(risk, openCount, nominalRisk)) return reject("Risk blocked: the portfolio position or nominal-risk limit was reached.");
 
     // A cap on how many the day is allowed to produce, so a busy morning cannot
     // spend the batch. Counted on the ET day the strategy trades in, not UTC.
@@ -397,18 +406,19 @@ async function openPaperTrade(setup: StrategySetup, userId: string, versionId: s
          WHERE strategy_version_id=$1 AND (opened_at AT TIME ZONE 'America/New_York')::date = (now() AT TIME ZONE 'America/New_York')::date`,
         [versionId],
       );
-      if (Number(takenToday.rows[0]!.count) >= MAX_TRADES_PER_DAY) return null;
+      if (Number(takenToday.rows[0]!.count) >= MAX_TRADES_PER_DAY) return reject("Risk blocked: the daily trade limit was reached.");
     }
     const positionSize = calculatePositionSize({ instrument: setup.instrument, accountBalance, riskPercent: risk.riskPercent, entry, stop, applyPaperCap: false });
-    if (!positionSize) return null;
+    if (!positionSize) return reject("Risk blocked: no valid position size could be calculated.");
     const nextSequence = await client.query<{ value: string }>("SELECT (COALESCE(max(trade_sequence),0)+1)::text AS value FROM paper_strategy_trades");
     const inserted = await client.query<{ id: string }>(
-      `INSERT INTO paper_strategy_trades(trade_sequence,user_id,batch_id,strategy_version_id,instrument,decision_time,direction,entry,stop,target,planned_r,nominal_risk_percent,nominal_risk_amount,calculated_units,calculated_standard_lots,spread_pips,session,weekday,setup_name,checklist_score,conditions,features,opened_at)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb,$22::jsonb,$23)
+      `INSERT INTO paper_strategy_trades(trade_sequence,user_id,batch_id,strategy_version_id,instrument,decision_time,direction,entry,stop,target,planned_r,nominal_risk_percent,nominal_risk_amount,calculated_units,calculated_standard_lots,spread_pips,session,weekday,setup_name,checklist_score,conditions,features,news_status,opened_at)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb,$22::jsonb,$23,$24)
        RETURNING id`,
-      [nextSequence.rows[0]!.value, userId, batch.id, versionId, setup.instrument, setup.evaluatedAt, setup.direction, setup.entry, setup.stop, setup.target, setup.riskReward, risk.riskPercent, positionSize.calculatedEstimatedRisk, positionSize.calculatedUnits, positionSize.calculatedStandardLots, spreadPips, session, weekdayAt(setup.evaluatedAt), setupNameFor(setup), checklistScore(setup), JSON.stringify(setup.conditions), JSON.stringify(setup.features), setup.evaluatedAt],
+      [nextSequence.rows[0]!.value, userId, batch.id, versionId, setup.instrument, setup.evaluatedAt, setup.direction, setup.entry, setup.stop, setup.target, setup.riskReward, risk.riskPercent, positionSize.calculatedEstimatedRisk, positionSize.calculatedUnits, positionSize.calculatedStandardLots, spreadPips, session, weekdayAt(setup.evaluatedAt), setupNameFor(setup), checklistScore(setup), JSON.stringify(setup.conditions), JSON.stringify(setup.features), setup.features.newsStatus ?? "not_evaluated", setup.evaluatedAt],
     );
     const tradeId = inserted.rows[0]!.id;
+    await client.query("UPDATE paper_strategy_evaluations SET trade_created=true,paper_trade_id=$1,rejection_reason=NULL,updated_at=now() WHERE strategy_version_id=$2 AND instrument=$3 AND decision_time=$4", [tradeId, versionId, setup.instrument, setup.evaluatedAt]);
     await queueNotificationInTransaction(client, {
       userId,
       kind: "paper_opened",
@@ -630,6 +640,7 @@ export async function collectPaperCycle() {
   for (const setup of snapshot.strategy.setups) {
     const quote = quoteByInstrument.get(setup.instrument);
     await persistWatchSnapshot(setup, quote, versionId);
+    await persistPaperEvaluation(setup, versionId, quote ? (quote.ask - quote.bid) / pipSizeFor(setup.instrument) : null);
     if (setup.dataSource !== "oanda" || !quote) {
       if (!reportedDataIssue) {
         await queueNotification({

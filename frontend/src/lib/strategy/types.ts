@@ -3,6 +3,7 @@ import type { DataSource, MajorInstrument } from "@/types/forex";
 
 export type SetupStatus = "valid" | "developing" | "invalid" | "no_setup";
 export type StrategyDirection = "long" | "short" | null;
+export type StrategyEvaluationMode = "live" | "practice" | "historical_replay";
 
 export interface StrategyCondition {
   name: string;
@@ -41,15 +42,25 @@ export interface LiquidityDecisionFeatures {
   sweptLevelKind: LiquidityKind;
   sweptLevelSide: "high" | "low";
   sweptLevelPrice: number;
+  sweepDirection: "long" | "short";
   /** How far beyond the level price traded, in ATR — the sweep's conviction. */
   sweepDepthAtr: number | null;
   /** How long ago the sweep happened, in 15m bars. */
   sweepBarsAgo: number;
+  pullbackDetected: boolean;
+  pullbackDepthAtr: number | null;
+  pullbackDurationBars: number;
+  h1StructureIntact: boolean;
+  sweptLevelDistanceAtr: number | null;
+  atSweptLevel: boolean;
   /** The level price sits at now, if any — the scored `atLevel` factor. */
   atLevelKind: LiquidityKind | null;
+  atOtherLiquidityLevel: boolean;
+  liquidityConfluenceCount: number;
   rejection: boolean;
   displacement: boolean;
   structureBreak: boolean;
+  confirmationType: "rejection" | "displacement" | "rejection_and_displacement" | "none";
   retest: boolean;
   macroBias: "long" | "short" | "neutral";
   macroAgrees: boolean;
@@ -73,6 +84,10 @@ export interface StrategyResearchFeatures {
   atrPips: number | null;
   structureHighs: number;
   structureLows: number;
+  h1Direction?: "bullish" | "bearish" | "mixed";
+  h1DirectionState?: string;
+  evaluationMode?: StrategyEvaluationMode;
+  newsStatus?: "clear" | "high_impact" | "calendar_unavailable" | "not_evaluated";
   /**
    * Null until a sweep is found, and on any strategy that does not read levels.
    * The fields above describe the market; this one describes the decision.
@@ -118,6 +133,7 @@ export interface StrategyEvaluationInput {
   evaluatedAt?: string;
   /** Historical price-only research deliberately does not evaluate news. Live strategy evaluation keeps this true. */
   newsRequired?: boolean;
+  evaluationMode?: StrategyEvaluationMode;
 }
 
 export interface StrategyEvaluationBundle {

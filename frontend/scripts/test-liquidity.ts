@@ -1,15 +1,17 @@
 import assert from "node:assert/strict";
 import {
-  findSweep, hasDisplacement, hasRejection, hasRetest, nearestLevel, RULES,
+  analyzePullback, findSweep, hasDisplacement, hasRejection, hasRetest, nearestLevel, RULES,
 } from "../src/lib/strategy/liquidity-confirmation";
+import { classifyH1Structure } from "../src/lib/strategy/market-structure";
 import { mapLiquidityLevels, swingPoints } from "../src/lib/strategy/liquidity-levels";
-import { evaluateLiquiditySetup, LIQUIDITY_STRATEGY_VERSION, RISK, SCORE } from "../src/lib/strategy/liquidity-strategy";
+import { evaluateLiquiditySetup, LIQUIDITY_STRATEGY_VERSION, RISK } from "../src/lib/strategy/liquidity-strategy";
 import type { Candle } from "../src/types/forex";
 import type { LiquidityLevel } from "../src/lib/strategy/liquidity-levels";
+import { signedPracticeUnits } from "../src/lib/oanda/client";
 
 const ATR = 0.0010; // 10 pips on a 5-decimal pair
 
-assert.equal(LIQUIDITY_STRATEGY_VERSION, "trend-pullback-liquidity-v1");
+assert.equal(LIQUIDITY_STRATEGY_VERSION, "trend-pullback-liquidity-v2");
 
 function bar(overrides: Partial<Candle> & { time?: string } = {}): Candle {
   return {
@@ -79,11 +81,24 @@ const day = (hoursBack: number) => new Date(Date.UTC(2026, 3, 6, 12) - hoursBack
 // 260 bars so the evaluator clears its 210-candle data gate and the assertions
 // below test what they claim to rather than failing early on missing history.
 const m15 = Array.from({ length: 260 }, (_, i) => bar({ time: day(260 - i) }));
-const h1 = Array.from({ length: 260 }, (_, i) => bar({ time: day((260 - i) * 4) }));
+function structuredH1(direction: "bullish" | "bearish" | "mixed") {
+  return Array.from({ length: 260 }, (_, i) => {
+    const drift = direction === "bullish" ? i * 0.00004 : direction === "bearish" ? -i * 0.00004 : 0;
+    const wave = direction === "mixed" ? (i % 2 ? 0.00005 : -0.00005) : Math.sin(i * Math.PI / 3) * 0.0008;
+    const close = 1.1 + drift + wave;
+    return bar({ time: day((260 - i) * 4), open: close - (direction === "bearish" ? -0.00005 : 0.00005), high: close + 0.0002, low: close - 0.0002, close });
+  });
+}
+const h1 = structuredH1("bullish");
+const bearishH1 = structuredH1("bearish");
+const mixedH1 = structuredH1("mixed");
 const h4 = Array.from({ length: 260 }, (_, i) => bar({ time: day((260 - i) * 12) }));
 const levels = mapLiquidityLevels(m15, h1, h4);
 assert.ok(levels.length > 0, "levels are mapped from the available history");
 assert.ok(levels.every((item) => Number.isFinite(item.price)), "every mapped level carries a real price");
+assert.equal(classifyH1Structure(h1).direction, "bullish", "confirmed H1 higher highs and lows establish bullish direction");
+assert.equal(classifyH1Structure(bearishH1).direction, "bearish", "confirmed H1 lower highs and lows establish bearish direction");
+assert.equal(classifyH1Structure(mixedH1).direction, "mixed", "unclear H1 structure stays mixed");
 
 // The evaluator refuses to trade without enough history rather than guessing.
 const thin = evaluateLiquiditySetup({
@@ -131,12 +146,6 @@ assert.notEqual(imminent.status, "valid", "no setup trades into an imminent high
 const distant = evaluateLiquiditySetup({ ...base, calendarConnected: true, highImpactNewsWithinMinutes: 240, newsRequired: true });
 assert.equal(distant.conditions.find((c) => c.name === "News")?.passed, true, "a release well beyond the buffer does not block");
 
-// The sweep is a prerequisite, not a scored factor: scoring only runs once one
-// exists, so scoring it would add the same points to every setup.
-assert.equal(SCORE.atLevel + SCORE.rejectionOrDisplacement + SCORE.structureBreak + SCORE.macroAgrees + SCORE.overlapSession, 8, "the scorecard totals eight");
-assert.ok(!("levelSwept" in SCORE), "the sweep is a gate, not a scored factor");
-assert.ok(SCORE.minimumToTrade > 0 && SCORE.minimumToTrade <= 8, "the trade threshold sits inside the scorecard");
-
 // The batch is only worth collecting if the decision is recorded with it. These
 // fields cannot be reconstructed later — the level that was swept exists only in
 // the candles at decision time — so a setup that finds a sweep must carry them.
@@ -145,14 +154,14 @@ const sweptSeries = [
   bar({ time: day(4), high: 1.1010, low: 1.1002, close: 1.1008 }),
   bar({ time: day(3), high: 1.1005, low: 1.0990, close: 1.0999 }),
   bar({ time: day(2), high: 1.1008, low: 1.0998, close: 1.1004 }),
-  bar({ time: day(1), high: 1.1012, low: 1.1001, close: 1.1010 }),
+  bar({ time: day(1), open: 1.0997, high: 1.1016, low: 1.0996, close: 1.1014 }),
 ];
 const recorded = evaluateLiquiditySetup({
   ...base,
   calendarConnected: false, highImpactNewsWithinMinutes: null, newsRequired: false,
   candles15m: sweptSeries,
-  bid: 1.1010, ask: 1.10115,
-  macroBias: "long", macroDetail: "test",
+  bid: 1.1014, ask: 1.10155,
+  macroBias: "long", macroDetail: "test", evaluationMode: "historical_replay",
 });
 assert.equal(recorded.conditions.find((c) => c.name === "Liquidity sweep")?.passed, true, "the fixture must actually sweep, or it tests nothing");
 
@@ -166,16 +175,15 @@ for (const flag of ["rejection", "displacement", "structureBreak", "retest", "ma
   assert.equal(typeof decision![flag], "boolean", `${flag} is recorded, not inferred later`);
 }
 assert.equal(decision!.macroBias, "long", "the macro read the scorecard saw is kept");
-assert.equal(decision!.scoreOutOf, 8, "the scorecard maximum travels with the score");
-assert.equal(
-  decision!.score,
-  (decision!.atLevelKind ? SCORE.atLevel : 0)
-  + (decision!.rejection || decision!.displacement ? SCORE.rejectionOrDisplacement : 0)
-  + (decision!.structureBreak ? SCORE.structureBreak : 0)
-  + (decision!.macroAgrees ? SCORE.macroAgrees : 0)
-  + (decision!.overlapSession ? SCORE.overlapSession : 0),
-  "the recorded score is the one the recorded factors add up to",
-);
+assert.equal(decision!.scoreOutOf, 0, "v2 does not use a weighted admission score");
+assert.equal(typeof decision!.atSweptLevel, "boolean", "actual swept-level location is recorded independently");
+assert.equal(typeof decision!.atOtherLiquidityLevel, "boolean", "unrelated nearby liquidity is recorded separately");
+assert.ok(decision!.liquidityConfluenceCount >= 1, "liquidity confluence is observable without substituting for the swept level");
+assert.equal(recorded.features.h1Direction, "bullish", "H1 direction is stored with the evaluation");
+assert.equal(recorded.features.newsStatus, "not_evaluated", "price-only replay records news as not evaluated");
+assert.equal(recorded.conditions.find((c) => c.name === "News")?.required, false, "historical replay can evaluate technical rules without a fictional news pass");
+assert.equal(recorded.conditions.find((c) => c.name === "Pullback")?.passed, true, "a downward counter-trend leg is an explicit bullish pullback");
+assert.equal(recorded.status, "valid", "historical replay can produce a technically valid setup without historical news data");
 
 // The short side is the mirror, and it was previously only asserted at the
 // findSweep level. Everything downstream of direction — which side the wick is
@@ -186,20 +194,20 @@ const shortSeries = [
   bar({ time: day(4), high: 1.1003, low: 1.0996, close: 1.0998 }),
   bar({ time: day(3), high: 1.1020, low: 1.1000, close: 1.1002 }),
   bar({ time: day(2), high: 1.1004, low: 1.0994, close: 1.0999 }),
-  bar({ time: day(1), open: 1.0999, high: 1.1001, low: 1.0988, close: 1.0990 }),
+  bar({ time: day(1), open: 1.1003, high: 1.1004, low: 1.0982, close: 1.0984 }),
 ];
 const shortSetup = evaluateLiquiditySetup({
   ...base,
   calendarConnected: false, highImpactNewsWithinMinutes: null, newsRequired: false,
-  candles15m: shortSeries,
-  bid: 1.0990, ask: 1.09915,
-  macroBias: "short", macroDetail: "test",
+  candles15m: shortSeries, candles1h: bearishH1,
+  bid: 1.0984, ask: 1.09855,
+  macroBias: "short", macroDetail: "test", evaluationMode: "historical_replay",
 });
 assert.equal(shortSetup.direction, "short", "sweeping a high sets up a short");
 assert.equal(shortSetup.features.liquidity?.sweptLevelSide, "high", "and records the high as the level taken");
 assert.ok(shortSetup.entry !== null && shortSetup.stop !== null && shortSetup.target !== null, "a short setup prices all three levels");
 // A short sells at the bid; buying back at the ask is the cost, not the fill.
-assert.equal(shortSetup.entry, 1.0990, "a short enters at the bid, not the ask");
+assert.equal(shortSetup.entry, 1.0984, "a short enters at the bid, not the ask");
 assert.ok(shortSetup.stop! > shortSetup.entry!, "a short's stop sits above its entry");
 assert.ok(shortSetup.target! < shortSetup.entry!, "a short's target sits below its entry");
 assert.equal(
@@ -207,6 +215,43 @@ assert.equal(
   RISK.targetR,
   "a short is paid the same multiple of its risk as a long",
 );
+assert.equal(shortSetup.conditions.find((c) => c.name === "Pullback")?.passed, true, "an upward counter-trend leg is an explicit bearish pullback");
+assert.equal(shortSetup.status, "valid", "bearish H1 with an upward pullback and high reclaim can qualify");
+
+const monotonicUp = Array.from({ length: 260 }, (_, i) => bar({ time: day(260 - i), open: 1 + i * 0.001, high: 1.0004 + i * 0.001, low: 0.9999 + i * 0.001, close: 1.0003 + i * 0.001 }));
+const monotonicDown = Array.from({ length: 260 }, (_, i) => bar({ time: day(260 - i), open: 1.3 - i * 0.001, high: 1.3001 - i * 0.001, low: 1.2996 - i * 0.001, close: 1.2997 - i * 0.001 }));
+assert.equal(analyzePullback(monotonicUp, "long", ATR, 0).detected, false, "bullish H1 without a downward pullback does not qualify");
+assert.equal(analyzePullback(monotonicDown, "short", ATR, 0).detected, false, "bearish H1 without an upward pullback does not qualify");
+
+const bullishWrongSweep = evaluateLiquiditySetup({
+  ...base, candles15m: shortSeries, calendarConnected: true, highImpactNewsWithinMinutes: 240,
+  macroBias: "short", macroDetail: "test",
+});
+assert.equal(bullishWrongSweep.direction, null, "bullish H1 never turns a swept high into a short");
+assert.match(bullishWrongSweep.conditions.find((c) => c.name === "Liquidity sweep")?.reason ?? "", /wrong-direction/i);
+
+const bearishWrongSweep = evaluateLiquiditySetup({
+  ...base, candles15m: sweptSeries, candles1h: bearishH1, calendarConnected: true, highImpactNewsWithinMinutes: 240,
+  macroBias: "long", macroDetail: "test",
+});
+assert.equal(bearishWrongSweep.direction, null, "bearish H1 never turns a swept low into a long");
+
+const mixedDirection = evaluateLiquiditySetup({ ...base, candles1h: mixedH1, calendarConnected: true, highImpactNewsWithinMinutes: 240 });
+assert.equal(mixedDirection.direction, null, "mixed H1 structure produces no trade direction");
+
+const brokenBullishH1 = h1.map((candle, index) => index === h1.length - 1 ? { ...candle, close: 0.5, low: 0.49 } : candle);
+const brokenStructure = evaluateLiquiditySetup({ ...base, candles15m: sweptSeries, candles1h: brokenBullishH1, calendarConnected: true, highImpactNewsWithinMinutes: 240 });
+assert.equal(brokenStructure.direction, null, "a broken H1 swing invalidates the pullback thesis");
+
+const incompleteBearishTail = [...h1, { ...h1.at(-1)!, close: 0.5, low: 0.49, complete: false }];
+assert.equal(classifyH1Structure(incompleteBearishTail).direction, "bullish", "incomplete H1 candles cannot alter direction");
+
+const liveNoCalendar = evaluateLiquiditySetup({ ...base, candles15m: sweptSeries, calendarConnected: false, highImpactNewsWithinMinutes: null, evaluationMode: "live", macroBias: "long" });
+assert.equal(liveNoCalendar.conditions.find((c) => c.name === "News")?.passed, false, "live evaluation remains fail-closed without a calendar");
+assert.notEqual(liveNoCalendar.status, "valid", "historical replay mode cannot weaken live news safety");
+
+assert.equal(signedPracticeUnits("long", 1234.9), 1234, "LONG still maps to positive OANDA units");
+assert.equal(signedPracticeUnits("short", 1234.9), -1234, "SHORT still maps to negative OANDA units");
 
 // No sweep, nothing to describe: the field is null rather than stale or invented.
 assert.equal(

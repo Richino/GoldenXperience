@@ -107,10 +107,19 @@ function pairState(row: DashboardWatchRow) {
   return watchlistCardStatus(row);
 }
 
-/** A continuous cool-to-ready ramp: blue → cyan → green as conditions pass. */
+/**
+ * A deliberately stretched cool-to-ready ramp. The middle readiness band gets
+ * more hue distance so nearby 50–70% values remain visibly distinguishable.
+ */
 function checklistProgressColor(progress: number) {
   const clamped = Math.max(0, Math.min(100, progress));
-  const hue = Math.round(218 - clamped * 0.72);
+  const hue = Math.round(
+    clamped <= 50
+      ? 220 - clamped * 0.5 // blue → cyan
+      : clamped <= 75
+        ? 195 - (clamped - 50) * 2 // cyan → green
+        : 145 - (clamped - 75) * 0.8, // green → ready green
+  );
   const lightness = Math.round(55 - clamped * 0.04);
   return `hsl(${hue} 90% ${lightness}%)`;
 }

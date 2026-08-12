@@ -17,6 +17,8 @@ export type AccountChartPoint = {
   label: string;
   value: number;
   at: string;
+  tradeNumber: number | null;
+  tradePnl: number | null;
   /** Position on the axis: 0 is the balance before the window's first trade,
    *  then one step per closed trade, ending at now. */
   index: number;
@@ -85,7 +87,7 @@ export function buildAccountAmountSeries({
 }: {
   nav: number;
   unrealizedPL: number;
-  trades: Array<{ paperPl: number | null; closedAt: string | null; openedAt: string; status: string }>;
+  trades: Array<{ tradeSequence?: number; paperPl: number | null; closedAt: string | null; openedAt: string; status: string }>;
   range: AccountChartRange;
 }): AccountChartPoint[] {
   const now = Date.now();
@@ -94,6 +96,7 @@ export function buildAccountAmountSeries({
     .map((trade) => ({
       at: new Date(trade.closedAt as string).getTime(),
       pl: trade.paperPl as number,
+      tradeNumber: trade.tradeSequence ?? null,
     }))
     .sort((a, b) => a.at - b.at);
 
@@ -113,6 +116,8 @@ export function buildAccountAmountSeries({
       label: window.length ? `Before ${formatDayAndTime(openedAt)}` : "Opening balance",
       value: Number(running.toFixed(2)),
       at: openedAt.toISOString(),
+      tradeNumber: window[0]?.tradeNumber === null || window[0]?.tradeNumber === undefined ? null : window[0].tradeNumber - 1,
+      tradePnl: null,
       index: 0,
     },
   ];
@@ -123,6 +128,8 @@ export function buildAccountAmountSeries({
       label: formatDayAndTime(new Date(trade.at)),
       value: Number(running.toFixed(2)),
       at: new Date(trade.at).toISOString(),
+      tradeNumber: trade.tradeNumber,
+      tradePnl: trade.pl,
       index: position + 1,
     });
   });
@@ -131,9 +138,11 @@ export function buildAccountAmountSeries({
   // ends on the number the hero reports above it.
   points.push({
     label: "Now",
-    value: Number(nav.toFixed(2)),
-    at: new Date(now).toISOString(),
-    index: window.length + 1,
+      value: Number(nav.toFixed(2)),
+      at: new Date(now).toISOString(),
+      tradeNumber: null,
+      tradePnl: null,
+      index: window.length + 1,
   });
 
   // With no closed trades at all this is two points — what the account settled
@@ -195,7 +204,11 @@ function AccountChartTooltip({
       <span className="account-chart-tooltip-value metric-number">
         {moneyExact(point.value, currency)}
       </span>
-      <span className="account-chart-tooltip-time">{point.label}</span>
+      <span className="account-chart-tooltip-time">
+        {point.tradeNumber === null
+          ? point.label
+          : `Trade #${point.tradeNumber} · ${point.tradePnl !== null && point.tradePnl >= 0 ? "+" : ""}${point.tradePnl === null ? "" : moneyExact(point.tradePnl, currency)} P/L`}
+      </span>
     </div>
   );
 }
@@ -265,6 +278,11 @@ export function AccountAmountChart({
   // The builder numbers its own points, opening at 0 and ending at now.
   const axisStart = series[0]?.index ?? 0;
   const axisEnd = series.at(-1)?.index ?? 1;
+  const tradePoints = series.filter((point) => point.tradeNumber !== null && point.tradePnl !== null);
+  const tradeStart = tradePoints[0]?.tradeNumber ?? null;
+  const tradeEnd = tradePoints.at(-1)?.tradeNumber ?? null;
+  const netChange = latest - opening;
+  const ticks = Array.from(new Set([axisStart, Math.round((axisStart + axisEnd) / 2), axisEnd]));
 
   function handleChartFocus(event: { activeTooltipIndex?: number | string | null }) {
     if (typeof event.activeTooltipIndex === "number") {
@@ -328,16 +346,24 @@ export function AccountAmountChart({
                 <stop offset="100%" stopColor={stroke} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid vertical={false} stroke="transparent" />
+            <CartesianGrid vertical={false} stroke="var(--border)" strokeOpacity={0.45} />
 
             {/* One step per trade. An explicit numeric domain rather than the
                 default category spacing, so a range holding fewer trades than
                 its name still spans the full width. */}
             <XAxis
-              hide
               type="number"
               dataKey="index"
               domain={[axisStart, axisEnd]}
+              ticks={ticks}
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: "var(--muted)", fontSize: 10 }}
+              tickFormatter={(index: number) => {
+                const point = series.find((item) => item.index === index);
+                if (!point || point.tradeNumber === null) return point?.label === "Now" ? "Now" : "Start";
+                return `T${point.tradeNumber}`;
+              }}
             />
             <YAxis hide domain={[min - footroom, max + headroom]} />
             <Tooltip
@@ -374,7 +400,7 @@ export function AccountAmountChart({
                 trades — the evenly spaced points leave no near-vertical runs
                 for a curve to flare into. */}
             <Area
-              type="monotone"
+              type="stepAfter"
               dataKey="value"
               stroke={stroke}
               strokeWidth={2}
@@ -387,16 +413,22 @@ export function AccountAmountChart({
               )}
               // Only the last point is marked, so the eye lands on "now"
               // without a dot on every trade turning the line into beads.
-              dot={(props: { cx?: number; cy?: number; index?: number }) =>
-                props.index === lastIndex ? (
-                  <ChartDot cx={props.cx} cy={props.cy} color={stroke} />
-                ) : (
-                  <g />
-                )
-              }
+              dot={(props: { cx?: number; cy?: number; index?: number; payload?: AccountChartPoint }) => {
+                const point = props.payload;
+                if (props.index === lastIndex) return <ChartDot cx={props.cx} cy={props.cy} color={stroke} />;
+                if (point?.tradePnl === null || point?.tradePnl === undefined) return <g />;
+                return <ChartDot cx={props.cx} cy={props.cy} color={point.tradePnl >= 0 ? "var(--success)" : "var(--danger)"} radius={3.5} />;
+              }}
             />
           </AreaChart>
         </ResponsiveContainer>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between gap-3 text-xs text-[color:var(--muted)]">
+        <span>{tradeStart === null || tradeEnd === null ? "No closed trades" : `Trades #${tradeStart}–#${tradeEnd}`}</span>
+        <span className={netChange >= 0 ? "text-[color:var(--success)]" : "text-[color:var(--danger)]"}>
+          {netChange >= 0 ? "+" : "−"}{moneyExact(Math.abs(netChange), currency)} over {tradePoints.length} closes
+        </span>
       </div>
 
       {/* The direction in words. The line carries it in colour, and colour is

@@ -79,7 +79,7 @@ export type DashboardOverview = {
   batches: Batch[];
   trades: Trade[];
   /** Closed trades across every batch, for the account chart. */
-  accountTrades?: Array<{ paperPl: number | null; closedAt: string | null; openedAt: string; status: string }>;
+  accountTrades?: Array<{ tradeSequence?: number; paperPl: number | null; closedAt: string | null; openedAt: string; status: string }>;
 };
 
 export type DashboardExposure = {
@@ -137,6 +137,26 @@ function pairState(row: DashboardWatchRow, availability: PaperTradingAvailabilit
     return { label: windowOpen ? "Developing" : null, tone: "text-[color:var(--pending)]", state: "developing" };
   }
   return { label: null, tone: "", state: "idle" };
+}
+
+function checklistDetail(row: DashboardWatchRow, state: ReturnType<typeof pairState>) {
+  if (state.state === "open") return row.tradeSequence ? `Trade #${row.tradeSequence} is open` : "Paper trade is open";
+  if (state.state === "unavailable") return "Live market data unavailable";
+  const required = (row.conditions ?? []).filter((condition) => condition.required);
+  const missing = required.filter((condition) => !condition.passed);
+  const activeBlocker = missing.find((condition) => condition.name !== "Session");
+  if (!activeBlocker) {
+    return row.setupStatus === "valid"
+      ? "Setup ready for the next entry window"
+      : "Monitoring liquidity levels for a valid sweep";
+  }
+  const activity: Record<string, string> = {
+    "Market data": "Refreshing market data across M15, H1 and H4",
+    Spread: "Monitoring spread before entry",
+    News: "Checking the high-impact news window",
+    "Setup score": "Waiting for the setup score to improve",
+  };
+  return activity[activeBlocker.name] ?? `Monitoring ${activeBlocker.name.toLowerCase()}`;
 }
 
 function DashboardStat({
@@ -257,6 +277,7 @@ export function DashboardView({
   // Account history spans batches; the recent-trades list below stays scoped to
   // the batch that is collecting.
   const paperTrades = (overview.accountTrades ?? overview.trades).map((trade) => ({
+    tradeSequence: "tradeSequence" in trade ? Number(trade.tradeSequence) : undefined,
     paperPl: trade.paperPl ?? null,
     closedAt: trade.closedAt ?? null,
     openedAt: trade.openedAt,
@@ -335,24 +356,44 @@ export function DashboardView({
                 key={row.instrument}
                 href={`/signals?instrument=${row.instrument}`}
                 data-state={state.state}
-                className="dashboard-minimal-row pressable flex items-center justify-between gap-3 py-3"
+                className="dashboard-minimal-row pressable block py-3"
               >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{displayNameFor(row.instrument)}</p>
-                  {state.label ? (
-                    <p className={`mt-0.5 truncate text-xs ${state.tone}`}>{state.label}</p>
-                  ) : null}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{displayNameFor(row.instrument)}</p>
+                    <p className={`mt-0.5 truncate text-xs ${state.tone}`}>{checklistDetail(row, state)}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="metric-number text-sm text-[color:var(--muted)]">
+                      {/* Streamed price when the pair has ticked, otherwise the
+                          polled snapshot. */}
+                      {(() => {
+                        const shownBid = quotes[row.instrument]?.bid ?? row.bid;
+                        return shownBid === null ? "—" : formatChartPrice(shownBid, row.instrument);
+                      })()}
+                    </p>
+                    {state.state !== "open" && state.state !== "unavailable" ? (
+                      <p className="watchlist-checklist-value mt-0.5 text-xs font-medium">
+                        {Math.round((state.state === "ready" ? 1 : setupProgress(row)) * 100)}% checklist
+                      </p>
+                    ) : null}
+                  </div>
                 </div>
-                <p className="metric-number shrink-0 text-sm text-[color:var(--muted)]">
-                  {/* Streamed price when the pair has ticked, otherwise the
-                      polled snapshot. */}
-                  {(() => {
-                    const shownBid = quotes[row.instrument]?.bid ?? row.bid;
-                    return shownBid === null
-                      ? "—"
-                      : formatChartPrice(shownBid, row.instrument);
-                  })()}
-                </p>
+                {state.state !== "open" && state.state !== "unavailable" ? (
+                  <div
+                    className="mt-2 h-1 overflow-hidden rounded-full bg-[color:var(--border)]"
+                    role="progressbar"
+                    aria-label={`${displayNameFor(row.instrument)} checklist completion`}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round((state.state === "ready" ? 1 : setupProgress(row)) * 100)}
+                  >
+                    <span
+                      className={`block h-full rounded-full ${state.state === "ready" ? "bg-[color:var(--success)]" : state.state === "developing" ? "bg-[color:var(--pending)]" : "bg-[color:var(--muted)]"}`}
+                      style={{ width: `${Math.round((state.state === "ready" ? 1 : setupProgress(row)) * 100)}%` }}
+                    />
+                  </div>
+                ) : null}
               </Link>
             );
           })}

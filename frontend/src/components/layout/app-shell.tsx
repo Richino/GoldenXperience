@@ -158,7 +158,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           }`}
         >
           {!isSignals && !isDashboard ? <MobileTopBar showBack /> : null}
-          {children}
+          <div key={pathname} className="mobile-page-transition">
+            {children}
+          </div>
         </main>
       </div>
 

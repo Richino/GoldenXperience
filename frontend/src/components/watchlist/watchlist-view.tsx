@@ -29,7 +29,17 @@ type WatchRow = {
   tradeSequence: string | null;
 };
 
-type RowStatus = { label: string | null; tone: string };
+type RowStatus = {
+  label: string | null;
+  tone: string;
+  state: "open" | "unavailable" | "ready" | "developing" | "idle";
+};
+
+function setupProgress(row: WatchRow) {
+  const required = row.conditions.filter((condition) => condition.required);
+  if (!required.length) return 0;
+  return required.filter((condition) => condition.passed).length / required.length;
+}
 
 /**
  * Per-pair status line. Setup-specific labels win when the entry window is
@@ -38,29 +48,40 @@ type RowStatus = { label: string | null; tone: string };
  * every row shares that phrase, the section note shows it once instead.
  */
 function statusFor(row: WatchRow, availability: PaperTradingAvailability): RowStatus {
-  if (row.openTradeId) return { label: "Open trade", tone: "text-[color:var(--accent)]" };
-  if (availability.state !== "entry_window_open") {
-    return { label: row.session || null, tone: "text-[color:var(--muted)]" };
+  if (row.openTradeId) return { label: "Open trade", tone: "text-[color:var(--accent)]", state: "open" };
+  if (row.dataStatus !== "connected") return { label: "Data unavailable", tone: "text-[color:var(--danger)]", state: "unavailable" };
+  if (row.setupStatus === "valid") {
+    return { label: availability.state === "entry_window_open" ? "Entry ready" : null, tone: "text-[color:var(--success)]", state: "ready" };
   }
-  if (row.dataStatus !== "connected") return { label: "Data unavailable", tone: "text-[color:var(--danger)]" };
-  if (row.setupStatus === "valid") return { label: "Entry ready", tone: "text-[color:var(--success)]" };
-  if (row.setupStatus === "developing") return { label: "Developing", tone: "text-[color:var(--muted-strong)]" };
-  return { label: row.session || null, tone: "text-[color:var(--muted)]" };
+  if (row.setupStatus === "developing" || setupProgress(row) >= 0.6) {
+    return { label: availability.state === "entry_window_open" ? "Developing" : null, tone: "text-[color:var(--pending)]", state: "developing" };
+  }
+  return { label: null, tone: "", state: "idle" };
 }
 
-function statusLine(row: WatchRow, status: RowStatus) {
-  if (!status.label) return null;
-  const batch =
-    row.batchNumber
-      ? ` · Batch ${row.batchNumber}${row.tradeSequence ? ` · #${row.tradeSequence}` : ""}`
-      : "";
-  return `${status.label}${batch}`;
+function checklistDetail(row: WatchRow, status: RowStatus) {
+  if (status.state === "open") return row.tradeSequence ? `Trade #${row.tradeSequence} is open` : "Paper trade is open";
+  if (status.state === "unavailable") return "Live market data unavailable";
+  const missing = row.conditions.filter((condition) => condition.required && !condition.passed);
+  const activeBlocker = missing.find((condition) => condition.name !== "Session");
+  if (!activeBlocker) {
+    return row.setupStatus === "valid"
+      ? "Setup ready for the next entry window"
+      : "Monitoring liquidity levels for a valid sweep";
+  }
+  const activity: Record<string, string> = {
+    "Market data": "Refreshing market data across M15, H1 and H4",
+    Spread: "Monitoring spread before entry",
+    News: "Checking the high-impact news window",
+    "Setup score": "Waiting for the setup score to improve",
+  };
+  return activity[activeBlocker.name] ?? `Monitoring ${activeBlocker.name.toLowerCase()}`;
 }
 
 /** When every monitored pair reports the same status, lift it to the section. */
 function sharedStatusLabel(rows: WatchRow[], availability: PaperTradingAvailability) {
   if (rows.length < 2) return null;
-  const labels = rows.map((row) => statusLine(row, statusFor(row, availability)));
+  const labels = rows.map((row) => checklistDetail(row, statusFor(row, availability)));
   if (labels.some((label) => !label)) return null;
   const first = labels[0];
   return labels.every((label) => label === first) ? first : null;
@@ -150,12 +171,7 @@ export function WatchlistView() {
   );
   const availability = getPaperTradingAvailability();
   const sharedStatus = sharedStatusLabel(rows, availability);
-  const layout = rows.some((row) => {
-    if (!sharedStatus && statusFor(row, availability).label) return true;
-    return hasLevels(row, availability);
-  })
-    ? "detail"
-    : "quotes";
+  const layout = "detail";
 
   const load = useCallback(async () => {
     try {
@@ -217,15 +233,20 @@ export function WatchlistView() {
           <div className="wl-pairs mt-3" data-wl-layout={layout}>
             {rows.map((row) => {
               const status = statusFor(row, availability);
-              const rowStatus = sharedStatus ? null : statusLine(row, status);
+              const rowStatus = checklistDetail(row, status);
               const levels = levelsContent(row, availability);
               const direction = row.direction;
               const hasDetail = Boolean(rowStatus || levels);
+              const progress = Math.round(
+                (status.state === "ready" ? 1 : setupProgress(row)) * 100,
+              );
+              const showProgress = status.state !== "open" && status.state !== "unavailable";
               return (
                 <Link
                   key={row.instrument}
                   href={`/signals?instrument=${encodeURIComponent(row.instrument)}`}
                   className="wl-pair-card pressable"
+                  data-state={status.state}
                 >
                   {/* Two stacked blocks on mobile. On desktop the wrappers go
                       `display: contents` so these cells become grid items. */}
@@ -279,6 +300,18 @@ export function WatchlistView() {
                       {evaluatedLabel(row.evaluatedAt)}
                     </p>
                   </div>
+                  {showProgress ? (
+                    <div
+                      className="wl-checklist-progress"
+                      role="progressbar"
+                      aria-label={`${displayNameFor(row.instrument)} checklist completion`}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={progress}
+                    >
+                      <span style={{ width: `${progress}%` }} />
+                    </div>
+                  ) : null}
                 </Link>
               );
             })}

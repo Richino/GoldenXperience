@@ -686,7 +686,7 @@ export async function paperCycleOverview() {
   // batch: sourced from the collecting batch it emptied the moment a batch was
   // filed, and every completed batch would erase the account's history.
   const accountTrades = await query(
-    `SELECT paper_pl::float AS "paperPl", closed_at AS "closedAt", opened_at AS "openedAt", status
+    `SELECT trade_sequence::int AS "tradeSequence", paper_pl::float AS "paperPl", closed_at AS "closedAt", opened_at AS "openedAt", status
      FROM paper_strategy_trades WHERE opened_at > now() - interval '90 days' ORDER BY opened_at`,
   );
   return { strategyVersion: ACTIVE_STRATEGY_VERSION, batchSize: BATCH_SIZE, lifetimeSummary: paperBatchMetrics(lifetimeRows.rows), current: current ? { ...current, liveSummary, remaining: BATCH_SIZE - Number((current as any).assignedCount) } : null, batches: batches.rows, trades: currentTrades.rows, accountTrades: accountTrades.rows };

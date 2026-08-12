@@ -13,6 +13,7 @@ import { useScrolledPast } from "@/lib/use-scrolled-past";
 import type { AccountSummary } from "@/types/forex";
 
 type PaperTradePoint = {
+  tradeSequence?: number;
   paperPl: number | null;
   closedAt: string | null;
   openedAt: string;

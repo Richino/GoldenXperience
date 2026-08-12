@@ -165,7 +165,7 @@ export function DashboardLoadingSkeleton() {
 export function SignalsLoadingSkeleton() {
   return (
     <div
-      className="signals-view signals-minimal grid w-full animate-pulse gap-5 xl:grid-cols-[minmax(0,1fr)_272px]"
+      className="signals-view signals-minimal grid w-full animate-pulse gap-5"
       aria-busy
       aria-label="Loading signals"
     >

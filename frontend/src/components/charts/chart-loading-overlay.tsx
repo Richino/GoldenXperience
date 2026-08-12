@@ -41,9 +41,7 @@ export function ChartLoadingOverlay({ visible }: { visible: boolean }) {
     >
       <div className="chart-loading-overlay-content">
         <span aria-hidden className="chart-loading-overlay-spinner" />
-        <span className="text-xs font-medium text-[color:var(--muted-strong)]">
-          Updating…
-        </span>
+        <span>Refreshing chart</span>
       </div>
     </div>
   );

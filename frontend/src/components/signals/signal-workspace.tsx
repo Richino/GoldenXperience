@@ -41,6 +41,7 @@ import {
   spreadInPips,
   type ChartIndicator,
   type ChartRange,
+  type ChartTimeframe,
   type ChartVariant,
 } from "@/lib/chart-utils";
 import {
@@ -77,7 +78,7 @@ type MobileTab = "Overview" | "Setup";
 const FOCUS_PADDING_BARS = 30;
 
 /** Height of the desktop chart canvas before it is measured. */
-const DESKTOP_CHART_HEIGHT = 568;
+const DESKTOP_CHART_HEIGHT = 680;
 
 const GRANULARITY_MS: Record<string, number> = {
   M1: 60 * 1000,
@@ -807,83 +808,6 @@ function TradeFocusBar({
   );
 }
 
-function SignalSidebar({
-  active,
-  setup,
-  riskDistance,
-  openPaperTrade,
-  availability,
-}: {
-  active: TradeSignal | null;
-  setup: StrategySetup;
-  riskDistance: number | null;
-  openPaperTrade: boolean;
-  availability: PaperTradingAvailability;
-}) {
-  if (!active || riskDistance === null) {
-    return (
-      <aside className="dashboard-minimal-section signals-sidebar flex h-full flex-col gap-5" aria-label="Setup">
-        <div>
-          <h2 className="text-sm font-semibold tracking-[-0.01em]">Setup</h2>
-          <p className="mt-2 text-sm font-medium tracking-[-0.02em]">{setup.pair}</p>
-          <p className="mt-0.5 text-xs text-[color:var(--muted)]">
-            {availability.label} · 15m
-          </p>
-        </div>
-        <StrategyStatus setup={setup} availability={availability} />
-      </aside>
-    );
-  }
-
-  return (
-    <aside className="dashboard-minimal-section signals-sidebar flex h-full flex-col gap-5" aria-label="Setup">
-      <div>
-        <h2 className="text-sm font-semibold tracking-[-0.01em]">Setup</h2>
-        <p className="mt-2 text-sm font-medium tracking-[-0.02em]">
-          {active.pair}{" "}
-          <span
-            className={
-              active.direction === "long"
-                ? "text-[color:var(--success)]"
-                : "text-[color:var(--danger)]"
-            }
-          >
-            {active.direction}
-          </span>
-        </p>
-        <p className="mt-0.5 text-xs text-[color:var(--muted)]">
-          {active.timeframe} · {active.bias}
-        </p>
-      </div>
-
-      <SetupStats active={active} />
-      <SetupRangeBar active={active} />
-      <SetupNote active={active} />
-      <SetupMeta active={active} riskDistance={riskDistance} />
-
-      {openPaperTrade ? (
-        <div className="border-t border-[color:var(--border)] pt-4">
-          <div className="flex items-baseline justify-between gap-3">
-            <h2 className="text-sm font-semibold tracking-[-0.01em]">Paper</h2>
-            <span className="text-xs font-medium text-[color:var(--accent)]">Open</span>
-          </div>
-        </div>
-      ) : (
-        <div className="border-t border-[color:var(--border)] pt-4">
-          <StrategyStatus setup={setup} availability={availability} />
-        </div>
-      )}
-
-      <div className="border-t border-[color:var(--border)] pt-4">
-        <h2 className="text-sm font-semibold tracking-[-0.01em]">Checklist</h2>
-        <div className="mt-3">
-          <EntryChecklist />
-        </div>
-      </div>
-    </aside>
-  );
-}
-
 function MobileSignalDetails({
   tab,
   active,
@@ -1345,6 +1269,20 @@ export function SignalWorkspace({
     });
   }, [instrument, router]);
 
+  const selectTimeframe = useCallback((nextTimeframe: ChartTimeframe) => {
+    if (nextTimeframe === timeframe) return;
+    setLiveCandle(null);
+    setScrollToLatestRevision((revision) => revision + 1);
+    setTimeframe(nextTimeframe);
+  }, [timeframe]);
+
+  const selectRange = useCallback((nextRange: ChartRange) => {
+    if (nextRange === range) return;
+    setLiveCandle(null);
+    setScrollToLatestRevision((revision) => revision + 1);
+    setRange(nextRange);
+  }, [range]);
+
   const priceStats = useMemo(() => {
     const lastClose = series.candles.at(-1)?.close ?? active?.entry ?? 0;
     const prevClose = series.candles.at(-2)?.close ?? lastClose;
@@ -1379,7 +1317,7 @@ export function SignalWorkspace({
 
   return (
     <div
-      className={`signals-view signals-minimal grid w-full gap-5 xl:grid-cols-[minmax(0,1fr)_272px]${
+      className={`signals-view signals-minimal grid w-full gap-5${
         fullscreen ? " signals-view-fullscreen" : ""
       }`}
     >
@@ -1435,19 +1373,13 @@ export function SignalWorkspace({
                 title="Timeframe"
                 options={CHART_TIMEFRAMES}
                 value={timeframe}
-                onChange={(option) => {
-                  setLiveCandle(null);
-                  setTimeframe(option);
-                }}
+                onChange={selectTimeframe}
               />
               <ChartOptionSheet
                 title="Range"
                 options={MOBILE_CHART_RANGES}
                 value={range}
-                onChange={(option) => {
-                  setLiveCandle(null);
-                  setRange(option);
-                }}
+                onChange={selectRange}
               />
               <ChartTypeSheet value={chartVariant} onChange={setChartVariant} />
               <IndicatorSheet
@@ -1553,10 +1485,7 @@ export function SignalWorkspace({
               ariaLabel="Chart timeframe"
               options={CHART_TIMEFRAMES}
               value={timeframe}
-              onChange={(option) => {
-                setLiveCandle(null);
-                setTimeframe(option);
-              }}
+              onChange={selectTimeframe}
             />
             <span className="signals-chart-strip-divider" aria-hidden />
             <SegmentControl
@@ -1564,10 +1493,7 @@ export function SignalWorkspace({
               ariaLabel="Chart range"
               options={CHART_RANGES}
               value={range}
-              onChange={(option) => {
-                setLiveCandle(null);
-                setRange(option);
-              }}
+              onChange={selectRange}
             />
           </div>
 
@@ -1608,15 +1534,6 @@ export function SignalWorkspace({
         </section>
       </div>
 
-      <div className="hidden xl:block">
-        <SignalSidebar
-          active={active}
-          setup={activeSetup}
-          riskDistance={riskDistance}
-          openPaperTrade={planIsOpen}
-          availability={tradingAvailability}
-        />
-      </div>
     </div>
   );
 }

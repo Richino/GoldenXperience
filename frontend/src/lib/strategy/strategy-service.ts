@@ -99,6 +99,7 @@ async function evaluateAll(): Promise<StrategySnapshot> {
       calendarConnected: newsUsable,
       highImpactNewsWithinMinutes: newsUsable ? highImpactMinutesFor(instrument, calendar.data.events) : null,
       newsRequired: true,
+      evaluationMode: "live",
       evaluatedAt,
       macroBias: macro?.bias ?? "neutral",
       macroDetail: macro?.detail,

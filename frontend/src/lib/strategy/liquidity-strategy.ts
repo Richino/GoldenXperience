@@ -2,9 +2,10 @@ import { displayNameFor, pipSizeFor } from "@/lib/instruments/catalog";
 import { calculateAtrValues, calculateEmaValues, calculateRsiValues } from "@/lib/strategy/indicators";
 import { calculatePositionSize, DEFAULT_RISK_POLICY, spreadWithinLimit } from "@/lib/risk/engine";
 import { dayTradingSession } from "@/lib/strategy/strategy-engine";
+import { classifyH1Structure } from "@/lib/strategy/market-structure";
 import { mapLiquidityLevels, swingPoints } from "@/lib/strategy/liquidity-levels";
 import {
-  findSweep, hasDisplacement, hasRejection, hasRetest, hasStructureBreak, nearestLevel, RULES,
+  analyzePullback, findSweep, hasDisplacement, hasRejection, hasRetest, hasStructureBreak, nearestLevel, RULES,
 } from "@/lib/strategy/liquidity-confirmation";
 import type { MacroBias } from "@/lib/macro/rates";
 import type {
@@ -30,29 +31,7 @@ import type {
  * Historical strategy rows remain immutable records; changing this begins a
  * new, separately attributable batch rather than rewriting prior evidence.
  */
-export const LIQUIDITY_STRATEGY_VERSION = "trend-pullback-liquidity-v1";
-
-/**
- * The scorecard, out of eight.
- *
- * The sweep is deliberately not scored. Scoring only runs once one has been
- * found, so awarding points for it would add the same two to every setup and
- * make every threshold read higher than it really is.
- *
- * `minimumToTrade` is calibrated rather than chosen. Replayed over stored
- * candles it puts roughly 3.6 setups a day in front of the collector across ten
- * pairs. With the daily cap lifted every one of those is taken, so this
- * threshold is now the only thing setting the sample rate. It is the first
- * number to revisit once a batch is in.
- */
-export const SCORE = {
-  atLevel: 2,
-  rejectionOrDisplacement: 2,
-  structureBreak: 2,
-  macroAgrees: 1,
-  overlapSession: 1,
-  minimumToTrade: 7,
-} as const;
+export const LIQUIDITY_STRATEGY_VERSION = "trend-pullback-liquidity-v2";
 
 export const RISK = {
   /** Beyond the sweep's extreme, so noise around the level does not stop it out. */
@@ -119,6 +98,12 @@ export function evaluateLiquiditySetup(input: LiquidityEvaluationInput): Strateg
   const pip = pipSizeFor(input.instrument);
   const primary = trendOf(candles15m);
   const structure = swingPoints(candles15m.slice(-120), RULES.swingReach);
+  const h1Structure = classifyH1Structure(candles1h);
+  const direction = h1Structure.direction === "bullish" ? "long" : h1Structure.direction === "bearish" ? "short" : null;
+  const evaluationMode = input.evaluationMode ?? "live";
+  const newsStatus = evaluationMode === "historical_replay" ? "not_evaluated" as const
+    : !input.calendarConnected ? "calendar_unavailable" as const
+      : input.highImpactNewsWithinMinutes !== null && input.highImpactNewsWithinMinutes <= 30 ? "high_impact" as const : "clear" as const;
 
   const features: StrategyResearchFeatures = {
     trend15m: primary.trend,
@@ -127,8 +112,16 @@ export function evaluateLiquiditySetup(input: LiquidityEvaluationInput): Strateg
     ema21: primary.ema21, ema50: primary.ema50, ema200: primary.ema200,
     rsi14: rsi, atr14: atr || null, atrPips: atr ? atr / pip : null,
     structureHighs: structure.highs.length, structureLows: structure.lows.length,
+    h1Direction: h1Structure.direction,
+    h1DirectionState: h1Structure.reason,
+    evaluationMode,
+    newsStatus,
     liquidity: null,
   };
+
+  conditions.push(condition("H1 direction", direction !== null && h1Structure.intact,
+    h1Structure.reason, h1Structure.direction, true));
+  if (!direction) return finalize(input, evaluatedAt, null, conditions, "no_setup", h1Structure.reason, features);
 
   // ---- Hard requirements: no trade while any of these fail ----
   const session = dayTradingSession(new Date(evaluatedAt));
@@ -142,30 +135,37 @@ export function evaluateLiquiditySetup(input: LiquidityEvaluationInput): Strateg
     spreadOk ? "Spread is inside the pair limit." : input.spreadPips === null ? "No live spread available." : "Spread too wide.",
     input.spreadPips === null ? "unavailable" : `${input.spreadPips.toFixed(1)} / ${maxSpread.toFixed(1)} pips`, true));
 
-  // News is non-negotiable for this version. Keep the input shape compatible
-  // with historic snapshots, but do not allow a caller to downgrade the gate.
-  const newsRequired = true;
-  // The strategy cannot establish a 30-minute safety buffer from a missing or
-  // stale calendar. An unavailable feed must pause entries, never look like an
-  // all-clear.
-  const newsClear = input.calendarConnected
-    && (input.highImpactNewsWithinMinutes === null || input.highImpactNewsWithinMinutes > 30);
-  conditions.push(condition("News", newsClear,
-    !input.calendarConnected ? "Economic calendar is unavailable or stale; entries pause until the 30-minute news buffer can be verified." : newsClear ? "No high-impact release inside the 30-minute buffer." : "High-impact release inside the buffer.",
-    !input.calendarConnected ? "unavailable" : input.highImpactNewsWithinMinutes === null ? "none upcoming" : `${input.highImpactNewsWithinMinutes} minutes`, newsRequired));
+  // Live and practice fail closed. Price-only replay records that news was not
+  // evaluated and applies no fictional historical-calendar pass.
+  const newsRequired = evaluationMode !== "historical_replay";
+  const newsClear = !newsRequired || (input.calendarConnected
+    && (input.highImpactNewsWithinMinutes === null || input.highImpactNewsWithinMinutes > 30));
+  conditions.push(condition("News", newsRequired ? newsClear : false,
+    evaluationMode === "historical_replay" ? "Historical news was not retained; this is a price-only technical evaluation." : !input.calendarConnected ? "Economic calendar is unavailable or stale; entries pause until the 30-minute news buffer can be verified." : newsClear ? "No high-impact release inside the 30-minute buffer." : "High-impact release inside the buffer.",
+    newsStatus.replaceAll("_", " "), newsRequired));
 
   // ---- The setup ----
   const levels = mapLiquidityLevels(candles15m, candles1h, candles4h);
-  const sweep = findSweep(candles15m, levels, atr);
+  const expectedSide = direction === "long" ? "low" : "high";
+  const oppositeSide = direction === "long" ? "high" : "low";
+  const sweep = findSweep(candles15m, levels.filter((level) => level.side === expectedSide), atr);
+  const oppositeSweep = findSweep(candles15m, levels.filter((level) => level.side === oppositeSide), atr);
+  const wrongDirectionSweep = sweep === null && oppositeSweep !== null;
+  const pullback = analyzePullback(candles15m, direction, atr, sweep?.barsAgo ?? 0);
+  conditions.push(condition("Pullback", pullback.detected && h1Structure.intact,
+    pullback.detected ? "Price made an ATR-normalized counter-trend move while H1 structure remained intact." : "No pullback against the H1 direction.",
+    `${pullback.depthAtr?.toFixed(2) ?? "0.00"} ATR over ${pullback.durationBars} bars`, true));
   conditions.push(condition("Liquidity sweep", sweep !== null,
-    sweep ? `${sweep.level.label} was taken and reclaimed ${sweep.barsAgo} bars ago.` : "No level has been taken and given back.",
-    sweep ? sweep.level.label : `${levels.length} levels mapped`));
+    sweep ? `${sweep.level.label} was taken and reclaimed ${sweep.barsAgo} bars ago in the H1 direction.` : wrongDirectionSweep ? "Wrong-direction sweep: liquidity cannot override H1 structure." : "No direction-consistent level has been taken and reclaimed.",
+    sweep ? sweep.level.label : wrongDirectionSweep ? `${oppositeSweep.level.label} implies ${oppositeSweep.direction}` : `${levels.length} levels mapped`, true));
 
   if (!sweep) return finalize(input, evaluatedAt, null, conditions, "no_setup", `${displayNameFor(input.instrument)} has no liquidity sweep.`, features);
 
-  const direction = sweep.direction;
   const last = candles15m.at(-1)!;
   const location = nearestLevel(last.close, levels, atr);
+  const sweptLevelDistanceAtr = atr > 0 ? Math.abs(last.close - sweep.level.price) / atr : null;
+  const atSweptLevel = sweptLevelDistanceAtr !== null && sweptLevelDistanceAtr <= RULES.sweptLocationWithinAtr;
+  const otherNearby = levels.filter((level) => level !== sweep.level && Math.abs(last.close - level.price) <= atr * RULES.locationWithinAtr);
   const rejection = hasRejection(last, direction);
   const displacement = hasDisplacement(candles15m, direction, atr);
   const structureBreak = hasStructureBreak(candles15m, direction);
@@ -174,9 +174,9 @@ export function evaluateLiquiditySetup(input: LiquidityEvaluationInput): Strateg
   const macroAgrees = macroBias === direction;
   const overlap = session.label === "London/New York overlap";
 
-  conditions.push(condition("Location", location !== null,
-    location ? `Price is at ${location.level.label}.` : "Price is not at a mapped level.",
-    location ? location.level.label : "none"));
+  conditions.push(condition("Swept level location", atSweptLevel,
+    atSweptLevel ? `Price remains attributable to the reclaimed ${sweep.level.label}.` : "Price moved too far from the actual swept level.",
+    sweptLevelDistanceAtr === null ? "unavailable" : `${sweptLevelDistanceAtr.toFixed(2)} ATR`, true));
   conditions.push(condition("Rejection or displacement", rejection || displacement,
     rejection ? "Rejection candle off the level." : displacement ? "Displacement away from the level." : "No rejection or displacement.",
     `${rejection ? "rejection" : ""}${rejection && displacement ? " + " : ""}${displacement ? "displacement" : ""}` || "neither"));
@@ -188,33 +188,35 @@ export function evaluateLiquiditySetup(input: LiquidityEvaluationInput): Strateg
     macroBias));
   conditions.push(condition("Retest", retest, retest ? "Price retested the level and held." : "No retest yet.", retest ? "retested" : "none"));
 
-  const score =
-    (location ? SCORE.atLevel : 0)
-    + (rejection || displacement ? SCORE.rejectionOrDisplacement : 0)
-    + (structureBreak ? SCORE.structureBreak : 0)
-    + (macroAgrees ? SCORE.macroAgrees : 0)
-    + (overlap ? SCORE.overlapSession : 0);
-
-  // Everything the scorecard just read, kept on the setup so it reaches the
-  // trade row. Recorded whether or not this one trades, so the batch can be
-  // compared against the setups that were passed over.
+  // Keep every decision input on the setup so it reaches the trade/evaluation
+  // row and can be compared with rejected setups later.
   features.liquidity = {
     sweptLevelKind: sweep.level.kind,
     sweptLevelSide: sweep.level.side,
     sweptLevelPrice: sweep.level.price,
+    sweepDirection: sweep.direction,
     sweepDepthAtr: atr > 0 ? Math.abs(sweep.extreme - sweep.level.price) / atr : null,
     sweepBarsAgo: sweep.barsAgo,
+    pullbackDetected: pullback.detected,
+    pullbackDepthAtr: pullback.depthAtr,
+    pullbackDurationBars: pullback.durationBars,
+    h1StructureIntact: h1Structure.intact,
+    sweptLevelDistanceAtr,
+    atSweptLevel,
     atLevelKind: location?.level.kind ?? null,
+    atOtherLiquidityLevel: otherNearby.length > 0,
+    liquidityConfluenceCount: 1 + otherNearby.length,
     rejection,
     displacement,
     structureBreak,
+    confirmationType: rejection && displacement ? "rejection_and_displacement" : rejection ? "rejection" : displacement ? "displacement" : "none",
     retest,
     macroBias,
     macroAgrees,
     overlapSession: overlap,
     session: session.label,
-    score,
-    scoreOutOf: SCORE.atLevel + SCORE.rejectionOrDisplacement + SCORE.structureBreak + SCORE.macroAgrees + SCORE.overlapSession,
+    score: 0,
+    scoreOutOf: 0,
   };
 
   // ---- Levels and size ----
@@ -234,21 +236,19 @@ export function evaluateLiquiditySetup(input: LiquidityEvaluationInput): Strateg
     ? calculatePositionSize({ instrument: input.instrument, accountBalance: input.accountBalance, riskPercent: DEFAULT_RISK_POLICY.riskPercent, entry, stop, applyPaperCap: false })
     : null;
 
-  const scoreReached = score >= SCORE.minimumToTrade;
-  conditions.push(condition("Setup score", scoreReached,
-    scoreReached ? `Scored ${score}, at or above the ${SCORE.minimumToTrade} required.` : `Scored ${score}, below the ${SCORE.minimumToTrade} required.`,
-    `${score}/${features.liquidity.scoreOutOf}`, true));
+  const confirmationPassed = rejection || displacement;
+  conditions.push(condition("Confirmation", confirmationPassed,
+    confirmationPassed ? "Buyers or sellers regained control in the H1 direction." : "No rejection or displacement confirmation after the reclaim.",
+    features.liquidity.confirmationType, true));
 
   const hardFailed = conditions.some((item) => item.required && !item.passed);
   const status: StrategySetup["status"] = entry === null || stop === null || target === null ? "invalid"
-    : hardFailed ? (scoreReached ? "invalid" : "no_setup")
+    : hardFailed ? "no_setup"
       : "valid";
 
   const summary = status === "valid"
-    ? `${displayNameFor(input.instrument)} ${direction} off ${sweep.level.label}, scored ${score}/${features.liquidity.scoreOutOf}.`
-    : scoreReached
-      ? `${displayNameFor(input.instrument)} ${direction} scored ${score}/${features.liquidity.scoreOutOf} but a hard requirement failed.`
-      : `${displayNameFor(input.instrument)} ${direction} scored ${score}/${features.liquidity.scoreOutOf}, below ${SCORE.minimumToTrade}.`;
+    ? `${displayNameFor(input.instrument)} ${direction} with H1 structure, pullback, ${sweep.level.label} reclaim, and confirmation.`
+    : `${displayNameFor(input.instrument)} ${direction} has incomplete technical or safety gates.`;
 
   return finalize(input, evaluatedAt, { direction, entry, stop, target, riskReward, position }, conditions, status, summary, features);
 }

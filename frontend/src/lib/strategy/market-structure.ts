@@ -48,3 +48,34 @@ export function evaluateStructure(candles: Candle[], direction: Exclude<Strategy
     swings,
   };
 }
+
+export interface H1StructureRead {
+  direction: "bullish" | "bearish" | "mixed";
+  intact: boolean;
+  reason: string;
+  swings: ReturnType<typeof findSwingPoints>;
+}
+
+/** Classify completed H1 structure from pivots confirmed by right-side bars. */
+export function classifyH1Structure(candles: Candle[], radius = 2): H1StructureRead {
+  const completed = candles.filter((candle) => candle.complete);
+  const swings = findSwingPoints(completed, radius);
+  const highs = swings.highs.slice(-2);
+  const lows = swings.lows.slice(-2);
+  const close = completed.at(-1)?.close;
+  if (highs.length < 2 || lows.length < 2 || close === undefined) {
+    return { direction: "mixed", intact: false, reason: "No clear H1 direction: two confirmed swing highs and lows are required.", swings };
+  }
+
+  const bullish = highs[1]!.price > highs[0]!.price && lows[1]!.price > lows[0]!.price;
+  const bearish = highs[1]!.price < highs[0]!.price && lows[1]!.price < lows[0]!.price;
+  if (bullish) {
+    const intact = close > lows[1]!.price;
+    return { direction: intact ? "bullish" : "mixed", intact, reason: intact ? "Confirmed H1 higher highs and higher lows." : "H1 bullish structure became invalid below its latest confirmed swing low.", swings };
+  }
+  if (bearish) {
+    const intact = close < highs[1]!.price;
+    return { direction: intact ? "bearish" : "mixed", intact, reason: intact ? "Confirmed H1 lower highs and lower lows." : "H1 bearish structure became invalid above its latest confirmed swing high.", swings };
+  }
+  return { direction: "mixed", intact: false, reason: "No clear H1 direction: confirmed swings are mixed.", swings };
+}

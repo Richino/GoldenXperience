@@ -33,6 +33,11 @@ export const RULES = {
   retestBars: 8,
   /** How close to a level a setup has to be to claim that location. */
   locationWithinAtr: 0.5,
+  /** Reclaim may displace away from the swept level; keep it attributable. */
+  sweptLocationWithinAtr: 2,
+  /** Minimum counter-trend movement required before a sweep is a pullback. */
+  pullbackMinimumAtr: 0.5,
+  pullbackLookbackBars: 12,
 } as const;
 
 export interface SweepRead {
@@ -131,4 +136,33 @@ export function nearestLevel(price: number, levels: LiquidityLevel[], atr: numbe
     if (distance <= within && (!best || distance < best.distance)) best = { level, distance };
   }
   return best;
+}
+
+export interface PullbackRead {
+  detected: boolean;
+  depthAtr: number | null;
+  durationBars: number;
+}
+
+/** Measure the counter-trend leg ending at the sweep candle. */
+export function analyzePullback(candles: Candle[], direction: "long" | "short", atr: number, sweepBarsAgo: number): PullbackRead {
+  if (atr <= 0) return { detected: false, depthAtr: null, durationBars: 0 };
+  const sweepIndex = candles.length - 1 - sweepBarsAgo;
+  const start = Math.max(0, sweepIndex - RULES.pullbackLookbackBars + 1);
+  const window = candles.slice(start, sweepIndex + 1);
+  if (window.length < 2) return { detected: false, depthAtr: 0, durationBars: 0 };
+
+  if (direction === "long") {
+    let peakIndex = 0;
+    for (let index = 1; index < window.length; index += 1) if (window[index]!.high > window[peakIndex]!.high) peakIndex = index;
+    const depth = window[peakIndex]!.high - Math.min(...window.slice(peakIndex).map((candle) => candle.low));
+    const durationBars = window.length - 1 - peakIndex;
+    return { detected: durationBars > 0 && depth / atr >= RULES.pullbackMinimumAtr, depthAtr: depth / atr, durationBars };
+  }
+
+  let troughIndex = 0;
+  for (let index = 1; index < window.length; index += 1) if (window[index]!.low < window[troughIndex]!.low) troughIndex = index;
+  const depth = Math.max(...window.slice(troughIndex).map((candle) => candle.high)) - window[troughIndex]!.low;
+  const durationBars = window.length - 1 - troughIndex;
+  return { detected: durationBars > 0 && depth / atr >= RULES.pullbackMinimumAtr, depthAtr: depth / atr, durationBars };
 }

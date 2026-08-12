@@ -172,6 +172,11 @@ export type PracticeMarketOrder = {
   clientRequestId: string;
 };
 
+export function signedPracticeUnits(direction: "long" | "short", units: number) {
+  const absoluteUnits = Math.floor(Math.abs(units));
+  return direction === "long" ? absoluteUnits : -absoluteUnits;
+}
+
 export async function submitPracticeMarketOrder(order: PracticeMarketOrder) {
   const config = getConfig();
   if (!config) throw new OandaRequestError("OANDA credentials are not configured.");
@@ -185,7 +190,7 @@ export async function submitPracticeMarketOrder(order: PracticeMarketOrder) {
       order: {
         type: "MARKET",
         instrument: order.instrument,
-        units: String(order.direction === "long" ? units : -units),
+        units: String(signedPracticeUnits(order.direction, units)),
         timeInForce: "FOK",
         positionFill: "DEFAULT",
         stopLossOnFill: { price: order.stop.toFixed(precision), timeInForce: "GTC" },

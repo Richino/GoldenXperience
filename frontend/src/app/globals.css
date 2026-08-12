@@ -224,18 +224,16 @@ a {
 
 @media (max-width: 1023px) {
   .mobile-page-transition {
-    animation: mobile-page-enter 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
-    will-change: opacity, transform;
+    animation: mobile-page-enter 180ms ease-out both;
+    will-change: opacity;
   }
 
   @keyframes mobile-page-enter {
     from {
       opacity: 0;
-      transform: translateX(0.75rem);
     }
     to {
       opacity: 1;
-      transform: translateX(0);
     }
   }
 }
@@ -4707,6 +4705,10 @@ input[type="number"] {
   color: var(--muted);
 }
 
+.dashboard-checklist-fill {
+  transition: width 260ms ease, background-color 260ms ease, box-shadow 260ms ease;
+}
+
 .dashboard-watchlist-grid .dashboard-minimal-row[data-state="ready"] .watchlist-checklist-value {
   color: var(--success);
 }
@@ -4737,6 +4739,15 @@ input[type="number"] {
   background: var(--pending);
   animation: watch-dot-pulse 2.6s ease-in-out infinite;
   --dot-pulse: var(--pending);
+}
+
+/* The dot is the third reading of progress (after the label and bar), so it
+   uses the same per-row blue → cyan → green value rather than one amber bucket. */
+.dashboard-watchlist-grid .dashboard-minimal-row[data-state="idle"]::before,
+.dashboard-watchlist-grid .dashboard-minimal-row[data-state="developing"]::before,
+.dashboard-watchlist-grid .dashboard-minimal-row[data-state="ready"]::before {
+  background: var(--watch-progress-color);
+  --dot-pulse: var(--watch-progress-color);
 }
 
 .dashboard-watchlist-grid .dashboard-minimal-row[data-state="unavailable"]::before {
@@ -4797,7 +4808,7 @@ input[type="number"] {
   /* The state colours must still win over that neutral fallback. */
   .dashboard-watchlist-grid .dashboard-minimal-row[data-state="ready"]:hover::before,
   .dashboard-watchlist-grid .dashboard-minimal-row[data-state="ready"]:active::before {
-    background: var(--success);
+    background: var(--watch-progress-color);
   }
 
   .dashboard-watchlist-grid .dashboard-minimal-row[data-state="open"]:hover::before,
@@ -4807,7 +4818,7 @@ input[type="number"] {
 
   .dashboard-watchlist-grid .dashboard-minimal-row[data-state="developing"]:hover::before,
   .dashboard-watchlist-grid .dashboard-minimal-row[data-state="developing"]:active::before {
-    background: var(--pending);
+    background: var(--watch-progress-color);
   }
 
   .dashboard-watchlist-grid .dashboard-minimal-row[data-state="unavailable"]:hover::before,

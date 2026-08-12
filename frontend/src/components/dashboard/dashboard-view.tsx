@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowUpRight, BarChart3, Radar, WalletCards } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { AccountOverviewHero } from "@/components/dashboard/account-overview-hero";
 import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
@@ -105,6 +105,14 @@ function time(value: string | null) {
 /** One shared state drives the row text, dot, percentage and progress colour. */
 function pairState(row: DashboardWatchRow) {
   return watchlistCardStatus(row);
+}
+
+/** A continuous cool-to-ready ramp: blue → cyan → green as conditions pass. */
+function checklistProgressColor(progress: number) {
+  const clamped = Math.max(0, Math.min(100, progress));
+  const hue = Math.round(218 - clamped * 0.72);
+  const lightness = Math.round(55 - clamped * 0.04);
+  return `hsl(${hue} 90% ${lightness}%)`;
 }
 
 function DashboardStat({
@@ -299,17 +307,32 @@ export function DashboardView({
         <div className="dashboard-watchlist-grid mt-3">
           {watchlist.map((row) => {
             const state = pairState(row);
+            const progressColor = checklistProgressColor(state.progress);
             return (
               <Link
                 key={row.instrument}
                 href={`/signals?instrument=${row.instrument}`}
                 data-state={state.state}
                 className="dashboard-minimal-row pressable block py-3"
+                style={
+                  state.state === "open" || state.state === "unavailable"
+                    ? undefined
+                    : { "--watch-progress-color": progressColor } as CSSProperties
+                }
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{displayNameFor(row.instrument)}</p>
-                    <p className={`watchlist-status-label mt-0.5 text-xs ${state.tone}`}>{state.label}</p>
+                    <p
+                      className={`watchlist-status-label mt-0.5 text-xs ${state.tone}`}
+                      style={
+                        state.state === "open" || state.state === "unavailable"
+                          ? undefined
+                          : { color: progressColor }
+                      }
+                    >
+                      {state.label}
+                    </p>
                   </div>
                   <div className="shrink-0 text-right">
                     <p className="metric-number text-sm text-[color:var(--muted)]">
@@ -321,7 +344,10 @@ export function DashboardView({
                       })()}
                     </p>
                     {state.state !== "open" && state.state !== "unavailable" ? (
-                      <p className="watchlist-checklist-value mt-0.5 text-xs font-medium">
+                      <p
+                        className="watchlist-checklist-value mt-0.5 text-xs font-medium"
+                        style={{ color: progressColor }}
+                      >
                         {state.progress}% checklist
                       </p>
                     ) : null}
@@ -337,8 +363,12 @@ export function DashboardView({
                     aria-valuenow={state.progress}
                   >
                     <span
-                      className={`block h-full rounded-full ${state.state === "ready" ? "bg-[color:var(--success)]" : state.state === "developing" ? "bg-[color:var(--pending)]" : "bg-[color:var(--muted)]"}`}
-                      style={{ width: `${state.progress}%` }}
+                      className="dashboard-checklist-fill block h-full rounded-full"
+                      style={{
+                        width: `${state.progress}%`,
+                        backgroundColor: progressColor,
+                        boxShadow: `0 0 0.5rem ${progressColor}`,
+                      }}
                     />
                   </div>
                 ) : null}

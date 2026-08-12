@@ -11,7 +11,8 @@ import { formatDayAndTime } from "@/lib/format/datetime";
 import { openTradeProgress } from "@/lib/open-trade-progress";
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import { useOpenPositionFills } from "@/lib/market-stream/use-open-positions";
-import { getPaperTradingAvailability, type PaperTradingAvailability } from "@/lib/strategy/strategy-engine";
+import { getPaperTradingAvailability } from "@/lib/strategy/strategy-engine";
+import { watchlistCardStatus } from "@/lib/watchlist-status";
 import type { AccountSummary, ConnectionStatus } from "@/types/forex";
 
 export type DashboardWatchRow = {
@@ -24,6 +25,9 @@ export type DashboardWatchRow = {
   bid: number | null;
   ask: number | null;
   spreadPips: number | null;
+  entry: number | null;
+  stop: number | null;
+  target: number | null;
   openTradeId: string | null;
   batchNumber: number | null;
   tradeSequence: string | null;
@@ -98,65 +102,9 @@ function time(value: string | null) {
   return formatDayAndTime(value);
 }
 
-/**
- * Per-pair state only.
- *
- * A closed entry window is the same for every pair, so it is reported once in
- * the section header instead of under all ten rows — a `label` of null means
- * this pair has nothing of its own to say, and the row stays a single line.
- * `state` also drives the row's status dot, so the colour beside a pair and the
- * words under it can never disagree.
- */
-/** How much of the required checklist a pair currently passes, 0 to 1. */
-function setupProgress(row: DashboardWatchRow) {
-  const required = (row.conditions ?? []).filter((condition) => condition.required);
-  if (!required.length) return 0;
-  return required.filter((condition) => condition.passed).length / required.length;
-}
-
-/**
- * The dot tracks how close a pair is to a tradable setup, and keeps doing so
- * while the entry window is shut — that is exactly when a watchlist is worth
- * glancing at. Grey means nothing is forming, amber means the checklist is
- * filling in, green means every required condition passes.
- *
- * The label is separate and per-pair only: a closed window is the same fact for
- * all ten pairs, so it is stated once in the section header.
- */
-function pairState(row: DashboardWatchRow, availability: PaperTradingAvailability) {
-  const windowOpen = availability.state === "entry_window_open";
-
-  if (row.openTradeId) return { label: "Open", tone: "text-[color:var(--accent)]", state: "open" };
-  if (row.dataStatus !== "connected") {
-    return { label: "Data unavailable", tone: "text-[color:var(--danger)]", state: "unavailable" };
-  }
-  if (row.setupStatus === "valid") {
-    return { label: windowOpen ? "Entry ready" : null, tone: "text-[color:var(--success)]", state: "ready" };
-  }
-  if (row.setupStatus === "developing" || setupProgress(row) >= 0.6) {
-    return { label: windowOpen ? "Developing" : null, tone: "text-[color:var(--pending)]", state: "developing" };
-  }
-  return { label: null, tone: "", state: "idle" };
-}
-
-function checklistDetail(row: DashboardWatchRow, state: ReturnType<typeof pairState>) {
-  if (state.state === "open") return row.tradeSequence ? `Trade #${row.tradeSequence} is open` : "Paper trade is open";
-  if (state.state === "unavailable") return "Live market data unavailable";
-  const required = (row.conditions ?? []).filter((condition) => condition.required);
-  const missing = required.filter((condition) => !condition.passed);
-  const activeBlocker = missing.find((condition) => condition.name !== "Session");
-  if (!activeBlocker) {
-    return row.setupStatus === "valid"
-      ? "Setup ready for the next entry window"
-      : "Monitoring liquidity levels for a valid sweep";
-  }
-  const activity: Record<string, string> = {
-    "Market data": "Refreshing market data across M15, H1 and H4",
-    Spread: "Monitoring spread before entry",
-    News: "Checking the high-impact news window",
-    "Setup score": "Waiting for the setup score to improve",
-  };
-  return activity[activeBlocker.name] ?? `Monitoring ${activeBlocker.name.toLowerCase()}`;
+/** One shared state drives the row text, dot, percentage and progress colour. */
+function pairState(row: DashboardWatchRow) {
+  return watchlistCardStatus(row);
 }
 
 function DashboardStat({
@@ -350,7 +298,7 @@ export function DashboardView({
         </div>
         <div className="dashboard-watchlist-grid mt-3">
           {watchlist.map((row) => {
-            const state = pairState(row, availability);
+            const state = pairState(row);
             return (
               <Link
                 key={row.instrument}
@@ -361,7 +309,7 @@ export function DashboardView({
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{displayNameFor(row.instrument)}</p>
-                    <p className={`mt-0.5 truncate text-xs ${state.tone}`}>{checklistDetail(row, state)}</p>
+                    <p className={`watchlist-status-label mt-0.5 text-xs ${state.tone}`}>{state.label}</p>
                   </div>
                   <div className="shrink-0 text-right">
                     <p className="metric-number text-sm text-[color:var(--muted)]">
@@ -374,7 +322,7 @@ export function DashboardView({
                     </p>
                     {state.state !== "open" && state.state !== "unavailable" ? (
                       <p className="watchlist-checklist-value mt-0.5 text-xs font-medium">
-                        {Math.round((state.state === "ready" ? 1 : setupProgress(row)) * 100)}% checklist
+                        {state.progress}% checklist
                       </p>
                     ) : null}
                   </div>
@@ -386,11 +334,11 @@ export function DashboardView({
                     aria-label={`${displayNameFor(row.instrument)} checklist completion`}
                     aria-valuemin={0}
                     aria-valuemax={100}
-                    aria-valuenow={Math.round((state.state === "ready" ? 1 : setupProgress(row)) * 100)}
+                    aria-valuenow={state.progress}
                   >
                     <span
                       className={`block h-full rounded-full ${state.state === "ready" ? "bg-[color:var(--success)]" : state.state === "developing" ? "bg-[color:var(--pending)]" : "bg-[color:var(--muted)]"}`}
-                      style={{ width: `${Math.round((state.state === "ready" ? 1 : setupProgress(row)) * 100)}%` }}
+                      style={{ width: `${state.progress}%` }}
                     />
                   </div>
                 ) : null}

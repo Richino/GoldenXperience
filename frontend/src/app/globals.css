@@ -4317,6 +4317,8 @@ input[type="number"] {
     background-color: var(--signals-mobile-page-bg) !important;
     min-height: 100%;
     min-height: 100dvh;
+    height: 100dvh;
+    overflow: hidden;
   }
 
   .signals-route,
@@ -4326,6 +4328,7 @@ input[type="number"] {
   .signals-view .signals-chart-mobile,
   .signals-view .chart-data-shell {
     background-color: var(--signals-mobile-page-bg);
+    overflow: hidden;
   }
 
   .dark .signals-route,
@@ -4335,6 +4338,7 @@ input[type="number"] {
   .dark .signals-view .signals-chart-mobile,
   .dark .signals-view .chart-data-shell {
     background-color: #09090b;
+    overflow: hidden;
   }
 
   .signals-view .signals-chart-card {
@@ -4353,6 +4357,7 @@ input[type="number"] {
     display: flex;
     flex-direction: column;
     height: 100dvh;
+    overflow: hidden;
   }
 
   .signals-view .signals-chart-mobile > .chart-data-shell {
@@ -4820,6 +4825,22 @@ input[type="number"] {
   color: var(--muted-strong);
 }
 
+.dashboard-watchlist-grid .dashboard-minimal-row[data-state="ready"] .watchlist-status-label {
+  color: var(--success);
+}
+
+.dashboard-watchlist-grid .dashboard-minimal-row[data-state="developing"] .watchlist-status-label {
+  color: var(--pending);
+}
+
+.dashboard-watchlist-grid .dashboard-minimal-row[data-state="open"] .watchlist-status-label {
+  color: var(--accent);
+}
+
+.dashboard-watchlist-grid .dashboard-minimal-row[data-state="unavailable"] .watchlist-status-label {
+  color: var(--danger);
+}
+
 /* Watchlist minimal — flat rows aligned with dashboard/risk */
 .watchlist-view.watchlist-minimal {
   max-width: 56rem;
@@ -4836,7 +4857,8 @@ input[type="number"] {
 }
 
 .watchlist-view.watchlist-minimal .wl-pair-card {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.65rem 0.85rem;
@@ -4863,17 +4885,18 @@ input[type="number"] {
 }
 
 .watchlist-view.watchlist-minimal .wl-main {
-  min-width: 0;
-  flex: 1 1 auto;
+  display: contents;
 }
 
 .watchlist-view.watchlist-minimal .wl-aside {
+  grid-column: 2;
+  grid-row: 1;
   flex-shrink: 0;
   text-align: right;
 }
 
 .watchlist-view.watchlist-minimal .wl-checklist-progress {
-  flex-basis: 100%;
+  grid-column: 1 / -1;
   height: 0.25rem;
   margin-top: -0.1rem;
   overflow: hidden;
@@ -4898,6 +4921,8 @@ input[type="number"] {
 }
 
 .watchlist-view.watchlist-minimal .wl-pair {
+  grid-column: 1;
+  grid-row: 1;
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -4930,6 +4955,8 @@ input[type="number"] {
 }
 
 .watchlist-view.watchlist-minimal .wl-detail {
+  grid-column: 1 / -1;
+  grid-row: 2;
   margin-top: 0.25rem;
   min-width: 0;
 }
@@ -4946,7 +4973,15 @@ input[type="number"] {
   overflow: visible;
   text-overflow: unset;
   overflow-wrap: break-word;
+  width: 100%;
   opacity: 0.92;
+}
+
+.dashboard-watchlist-grid .dashboard-minimal-row .watchlist-status-label {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  overflow-wrap: anywhere;
 }
 
 .watchlist-view.watchlist-minimal .wl-levels {

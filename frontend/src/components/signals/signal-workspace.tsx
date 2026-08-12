@@ -1042,7 +1042,10 @@ export function SignalWorkspace({
     } : null,
     [paperPlan, instrument, activeSetup.pair],
   );
-  const active = openSignal ?? (activeSetup.status === "valid" ? activeCandidate : null);
+  // Blocked setups can still have a concrete draft entry, stop and target.
+  // Show those levels when a Watchlist card is opened; execution remains gated
+  // by setup.status === "valid" in the paper-cycle backend.
+  const active = openSignal ?? activeCandidate;
   const planIsOpen = Boolean(openSignal);
   const tradingAvailability = getPaperTradingAvailability();
   const inactiveLabel = tradingAvailability.state === "entry_window_open" ? "No valid setup" : tradingAvailability.label;

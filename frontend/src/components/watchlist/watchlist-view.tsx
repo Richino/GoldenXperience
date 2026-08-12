@@ -9,6 +9,7 @@ import { apiUrl } from "@/lib/api/url";
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import { formatClockTime } from "@/lib/format/datetime";
 import { getPaperTradingAvailability, type PaperTradingAvailability } from "@/lib/strategy/strategy-engine";
+import { watchlistCardStatus, type WatchlistCardStatus } from "@/lib/watchlist-status";
 
 type WatchRow = {
   instrument: string;
@@ -29,59 +30,10 @@ type WatchRow = {
   tradeSequence: string | null;
 };
 
-type RowStatus = {
-  label: string | null;
-  tone: string;
-  state: "open" | "unavailable" | "ready" | "developing" | "idle";
-};
-
-function setupProgress(row: WatchRow) {
-  const required = row.conditions.filter((condition) => condition.required);
-  if (!required.length) return 0;
-  return required.filter((condition) => condition.passed).length / required.length;
-}
-
-/**
- * Per-pair status line. Setup-specific labels win when the entry window is
- * open; otherwise the pair's session string (e.g. "Outside day-trading entry
- * window") stays available — never jammed into a truncated pair line. When
- * every row shares that phrase, the section note shows it once instead.
- */
-function statusFor(row: WatchRow, availability: PaperTradingAvailability): RowStatus {
-  if (row.openTradeId) return { label: "Open trade", tone: "text-[color:var(--accent)]", state: "open" };
-  if (row.dataStatus !== "connected") return { label: "Data unavailable", tone: "text-[color:var(--danger)]", state: "unavailable" };
-  if (row.setupStatus === "valid") {
-    return { label: availability.state === "entry_window_open" ? "Entry ready" : null, tone: "text-[color:var(--success)]", state: "ready" };
-  }
-  if (row.setupStatus === "developing" || setupProgress(row) >= 0.6) {
-    return { label: availability.state === "entry_window_open" ? "Developing" : null, tone: "text-[color:var(--pending)]", state: "developing" };
-  }
-  return { label: null, tone: "", state: "idle" };
-}
-
-function checklistDetail(row: WatchRow, status: RowStatus) {
-  if (status.state === "open") return row.tradeSequence ? `Trade #${row.tradeSequence} is open` : "Paper trade is open";
-  if (status.state === "unavailable") return "Live market data unavailable";
-  const missing = row.conditions.filter((condition) => condition.required && !condition.passed);
-  const activeBlocker = missing.find((condition) => condition.name !== "Session");
-  if (!activeBlocker) {
-    return row.setupStatus === "valid"
-      ? "Setup ready for the next entry window"
-      : "Monitoring liquidity levels for a valid sweep";
-  }
-  const activity: Record<string, string> = {
-    "Market data": "Refreshing market data across M15, H1 and H4",
-    Spread: "Monitoring spread before entry",
-    News: "Checking the high-impact news window",
-    "Setup score": "Waiting for the setup score to improve",
-  };
-  return activity[activeBlocker.name] ?? `Monitoring ${activeBlocker.name.toLowerCase()}`;
-}
-
 /** When every monitored pair reports the same status, lift it to the section. */
-function sharedStatusLabel(rows: WatchRow[], availability: PaperTradingAvailability) {
+function sharedStatusLabel(rows: WatchRow[]) {
   if (rows.length < 2) return null;
-  const labels = rows.map((row) => checklistDetail(row, statusFor(row, availability)));
+  const labels = rows.map((row) => watchlistCardStatus(row).label);
   if (labels.some((label) => !label)) return null;
   const first = labels[0];
   return labels.every((label) => label === first) ? first : null;
@@ -98,17 +50,11 @@ function evaluatedLabel(value: string | null) {
 
 function hasTradeLevels(row: WatchRow) {
   return (
-    (Boolean(row.openTradeId) || row.setupStatus === "valid") &&
+    Boolean(row.direction) &&
     row.entry !== null &&
     row.stop !== null &&
     row.target !== null
   );
-}
-
-function hasLevels(row: WatchRow, availability: PaperTradingAvailability) {
-  if (hasTradeLevels(row)) return true;
-  if (!row.openTradeId && availability.state !== "entry_window_open") return false;
-  return true;
 }
 
 function levelsContent(row: WatchRow, availability: PaperTradingAvailability) {
@@ -170,7 +116,7 @@ export function WatchlistView() {
     [snapshot, quotes],
   );
   const availability = getPaperTradingAvailability();
-  const sharedStatus = sharedStatusLabel(rows, availability);
+  const sharedStatus = sharedStatusLabel(rows);
   const layout = "detail";
 
   const load = useCallback(async () => {
@@ -232,14 +178,12 @@ export function WatchlistView() {
         {rows.length ? (
           <div className="wl-pairs mt-3" data-wl-layout={layout}>
             {rows.map((row) => {
-              const status = statusFor(row, availability);
-              const rowStatus = checklistDetail(row, status);
+              const status: WatchlistCardStatus = watchlistCardStatus(row);
+              const rowStatus = status.label;
               const levels = levelsContent(row, availability);
               const direction = row.direction;
               const hasDetail = Boolean(rowStatus || levels);
-              const progress = Math.round(
-                (status.state === "ready" ? 1 : setupProgress(row)) * 100,
-              );
+              const progress = status.progress;
               const showProgress = status.state !== "open" && status.state !== "unavailable";
               return (
                 <Link

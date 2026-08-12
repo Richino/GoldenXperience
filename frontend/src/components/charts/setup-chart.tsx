@@ -14,6 +14,7 @@ import {
   createChart,
   createSeriesMarkers,
   type IChartApi,
+  type AutoscaleInfo,
   type ISeriesApi,
   type ISeriesMarkersPluginApi,
   type LogicalRange,
@@ -427,7 +428,13 @@ function mainSeriesDisplayOptions(
     precision: number;
     minMove: number;
   },
+  levels: SetupLevels | null,
 ) {
+  const plannedPrices = levels
+    ? [levels.entry, levels.stop, levels.target, levels.exit]
+        .filter((value): value is number => value !== null && value !== undefined)
+    : [];
+
   return {
     priceFormat,
     lastValueVisible: true,
@@ -435,6 +442,19 @@ function mainSeriesDisplayOptions(
     priceLineColor: "",
     priceLineWidth: 1 as const,
     priceLineStyle: LineStyle.Dotted,
+    autoscaleInfoProvider: plannedPrices.length
+      ? (original: () => AutoscaleInfo | null) => {
+          const info = original();
+          if (!info?.priceRange) return info;
+          return {
+            ...info,
+            priceRange: {
+              minValue: Math.min(info.priceRange.minValue, ...plannedPrices),
+              maxValue: Math.max(info.priceRange.maxValue, ...plannedPrices),
+            },
+          };
+        }
+      : undefined,
   };
 }
 
@@ -640,7 +660,7 @@ export function SetupChart({
     const chartData = toChartCandles(series.candles);
     latestChartTimeRef.current = chartTimeValue(chartData.at(-1));
     prevFirstCandleTimeRef.current = series.candles[0]?.time ?? null;
-    const displayOptions = mainSeriesDisplayOptions(priceFormat);
+    const displayOptions = mainSeriesDisplayOptions(priceFormat, levels);
 
     let mainSeries: ISeriesApi<SeriesType>;
 

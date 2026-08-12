@@ -583,7 +583,9 @@ async function completeBatch(batchId: string) {
 }
 
 async function completeReadyBatches() {
-  const ready = await query<{ id: string }>(`SELECT batch.id FROM paper_strategy_batches batch WHERE batch.status='resolving' AND batch.assigned_count=100 AND NOT EXISTS(SELECT 1 FROM paper_strategy_trades trade WHERE trade.batch_id=batch.id AND trade.status='open')`);
+  // A batch reaches resolving either at its 100-trade cap or when its strategy
+  // is retired. In both cases, it is ready once every assigned trade is closed.
+  const ready = await query<{ id: string }>(`SELECT batch.id FROM paper_strategy_batches batch WHERE batch.status='resolving' AND NOT EXISTS(SELECT 1 FROM paper_strategy_trades trade WHERE trade.batch_id=batch.id AND trade.status='open')`);
   for (const batch of ready.rows) await completeBatch(batch.id);
 }
 

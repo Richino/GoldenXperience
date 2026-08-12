@@ -57,15 +57,14 @@ async function evaluateAll(): Promise<StrategySnapshot> {
   const macroReads = new Map(
     await Promise.all(MAJOR_INSTRUMENTS.map(async (instrument) => [instrument, await macroBiasFor(instrument)] as const)),
   );
-  // Fetched once and filtered per pair below. A failure here leaves the feed
-  // disconnected, which the strategy reads as "news not filtered" rather than
-  // "no news" — it must not silently look like an all-clear.
+  // Fetched once and filtered per pair below. A failed or stale feed blocks
+  // entries: it cannot prove the 30-minute high-impact-news buffer is clear.
   const calendar = await getEconomicCalendar();
   // A feed whose coverage stops before the buffer window cannot clear a trade:
   // finding no event there means the data ran out, not that the diary is empty.
   // The weekly ForexFactory file does exactly that every Friday. Treated as
-  // unusable it reports "not filtered", which is honest; treated as connected
-  // it would report an all-clear the data does not support.
+  // unusable it pauses entries; treated as connected it would report an
+  // all-clear the data does not support.
   const NEWS_BUFFER_MINUTES = 30;
   const coverageMs = calendar.data.coverageUntil ? Date.parse(calendar.data.coverageUntil) : Number.NaN;
   const newsUsable = calendar.data.connected
@@ -99,7 +98,7 @@ async function evaluateAll(): Promise<StrategySnapshot> {
       marketOpen: availability.marketOpen,
       calendarConnected: newsUsable,
       highImpactNewsWithinMinutes: newsUsable ? highImpactMinutesFor(instrument, calendar.data.events) : null,
-      newsRequired: newsUsable,
+      newsRequired: true,
       evaluatedAt,
       macroBias: macro?.bias ?? "neutral",
       macroDetail: macro?.detail,

@@ -116,10 +116,11 @@ const base = {
   evaluatedAt: "2026-04-06T14:00:00.000Z", // 10:00 ET, inside the overlap
 };
 
-const noFeed = evaluateLiquiditySetup({ ...base, calendarConnected: false, highImpactNewsWithinMinutes: null, newsRequired: false });
+const noFeed = evaluateLiquiditySetup({ ...base, calendarConnected: false, highImpactNewsWithinMinutes: null, newsRequired: true });
 const noFeedNews = noFeed.conditions.find((c) => c.name === "News");
-assert.equal(noFeedNews?.required, false, "an unusable feed must not hard-block trading");
-assert.match(noFeedNews?.reason ?? "", /not filtered/, "an unusable feed reports that news is unfiltered, never that it is clear");
+assert.equal(noFeedNews?.passed, false, "an unusable feed cannot clear the news gate");
+assert.equal(noFeedNews?.required, true, "an unusable feed hard-blocks trading");
+assert.match(noFeedNews?.reason ?? "", /entries pause/i, "an unusable feed reports the safety pause instead of an all-clear");
 
 const imminent = evaluateLiquiditySetup({ ...base, calendarConnected: true, highImpactNewsWithinMinutes: 10, newsRequired: true });
 const imminentNews = imminent.conditions.find((c) => c.name === "News");

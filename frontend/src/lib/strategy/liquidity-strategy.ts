@@ -142,11 +142,17 @@ export function evaluateLiquiditySetup(input: LiquidityEvaluationInput): Strateg
     spreadOk ? "Spread is inside the pair limit." : input.spreadPips === null ? "No live spread available." : "Spread too wide.",
     input.spreadPips === null ? "unavailable" : `${input.spreadPips.toFixed(1)} / ${maxSpread.toFixed(1)} pips`, true));
 
-  const newsRequired = input.newsRequired ?? true;
-  const newsClear = !input.calendarConnected || input.highImpactNewsWithinMinutes === null || input.highImpactNewsWithinMinutes > 30;
+  // News is non-negotiable for this version. Keep the input shape compatible
+  // with historic snapshots, but do not allow a caller to downgrade the gate.
+  const newsRequired = true;
+  // The strategy cannot establish a 30-minute safety buffer from a missing or
+  // stale calendar. An unavailable feed must pause entries, never look like an
+  // all-clear.
+  const newsClear = input.calendarConnected
+    && (input.highImpactNewsWithinMinutes === null || input.highImpactNewsWithinMinutes > 30);
   conditions.push(condition("News", newsClear,
-    !input.calendarConnected ? "No calendar connected; news is not filtered." : newsClear ? "No high-impact release inside the 30-minute buffer." : "High-impact release inside the buffer.",
-    input.highImpactNewsWithinMinutes === null ? "none upcoming" : `${input.highImpactNewsWithinMinutes} minutes`, newsRequired));
+    !input.calendarConnected ? "Economic calendar is unavailable or stale; entries pause until the 30-minute news buffer can be verified." : newsClear ? "No high-impact release inside the 30-minute buffer." : "High-impact release inside the buffer.",
+    !input.calendarConnected ? "unavailable" : input.highImpactNewsWithinMinutes === null ? "none upcoming" : `${input.highImpactNewsWithinMinutes} minutes`, newsRequired));
 
   // ---- The setup ----
   const levels = mapLiquidityLevels(candles15m, candles1h, candles4h);

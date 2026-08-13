@@ -4407,8 +4407,8 @@ input[type="number"] {
     right: 0;
     bottom: 0;
     left: 0;
-    height: 2px;
-    background: color-mix(in srgb, var(--foreground) 34%, transparent);
+    height: 1px;
+    background: var(--border-strong);
     pointer-events: none;
   }
 

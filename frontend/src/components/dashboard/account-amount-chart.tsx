@@ -242,9 +242,6 @@ export function AccountAmountChart({
   const movementCount = series.reduce((sum, point) => sum + point.movementCount, 0);
   const netChange = series.reduce((sum, point) => sum + point.value, 0);
   const stroke = netChange >= 0 ? "var(--chart-up)" : "var(--chart-down)";
-  // The curve is above zero for a net gain and below zero for a net loss.
-  // Keep the tint against that curve and fade it inward toward the zero line.
-  const curveIsAboveZero = netChange >= 0;
   const tickInterval = range === "1w" ? 0 : range === "1m" ? 1 : 2;
 
   function handleChartFocus(event: { activeTooltipIndex?: number | string | null }) {
@@ -291,7 +288,9 @@ export function AccountAmountChart({
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
             data={series}
-            baseValue={0}
+            // Match Signals: fill continues beneath the line to the chart's
+            // lower edge, then fades out. Zero remains only a reference rule.
+            baseValue={min - room}
             margin={{ top: 14, right: 4, left: 4, bottom: 4 }}
             onMouseMove={handleChartFocus}
             onMouseLeave={() => setActiveIndex(null)}
@@ -301,8 +300,8 @@ export function AccountAmountChart({
           >
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={stroke} stopOpacity={curveIsAboveZero ? 0.28 : 0} />
-                <stop offset="100%" stopColor={stroke} stopOpacity={curveIsAboveZero ? 0 : 0.28} />
+                <stop offset="0%" stopColor={stroke} stopOpacity={0.28} />
+                <stop offset="100%" stopColor={stroke} stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid vertical={false} stroke="var(--border)" strokeOpacity={0.45} />

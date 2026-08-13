@@ -12,6 +12,7 @@ import { formatShortDay } from "@/lib/format/datetime";
 import { openTradeProgress } from "@/lib/open-trade-progress";
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import { useOpenPositionFills } from "@/lib/market-stream/use-open-positions";
+import { JournalEntriesSkeleton } from "@/components/ui/page-skeletons";
 import Link from "next/link";
 
 const BASE_FILTERS = ["All", "Wins", "Losses", "EUR/USD", "GBP/USD", "USD/JPY"];
@@ -330,7 +331,7 @@ export function JournalView() {
 
         <AnimatePresence mode="popLayout" initial={false}>
           {loadingRecords ? (
-            <p className="mt-6 text-sm text-[color:var(--muted)]">Loading records…</p>
+            <JournalEntriesSkeleton />
           ) : filtered.length ? (
             <div className="journal-entry-list mt-3">
               {filtered.map((trade) => (

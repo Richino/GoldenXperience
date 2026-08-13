@@ -10,6 +10,7 @@ import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import { formatClockTime } from "@/lib/format/datetime";
 import { getPaperTradingAvailability, type PaperTradingAvailability } from "@/lib/strategy/strategy-engine";
 import { watchlistCardStatus, type WatchlistCardStatus } from "@/lib/watchlist-status";
+import { WatchlistPairsSkeleton } from "@/components/ui/page-skeletons";
 
 type WatchRow = {
   instrument: string;
@@ -288,7 +289,7 @@ export function WatchlistView() {
             })}
           </div>
         ) : loading ? (
-          <p className="mt-4 text-sm text-[color:var(--muted)]">Loading pairs…</p>
+          <WatchlistPairsSkeleton />
         ) : (
           <p className="mt-4 text-sm text-[color:var(--muted)]">No monitored pairs.</p>
         )}

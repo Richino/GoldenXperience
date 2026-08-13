@@ -252,7 +252,11 @@ function spreadGroup(row: StoredTrade) {
 }
 
 function confirmationGroup(row: StoredTrade) {
-  return row.conditions?.find((condition) => condition.name === "Confirmation candle")?.reason ?? "Unavailable";
+  // The live strategy records how the reclaim confirmed (rejection, displacement,
+  // or both) on the setup's features; the retired "Confirmation candle" gate it
+  // used to read no longer exists, so every trade grouped as "Unavailable".
+  const liquidity = row.features?.liquidity as { confirmationType?: string } | undefined;
+  return liquidity?.confirmationType ? liquidity.confirmationType.replaceAll("_", " ") : "Unavailable";
 }
 
 export function buildPaperRecommendation(rows: StoredTrade[]) {

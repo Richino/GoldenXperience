@@ -315,7 +315,7 @@ async function shadowEvaluations(instrument?: MajorInstrument, versionId?: strin
       WHERE condition->>'required'='true' AND condition->>'passed'='false'
     ) failure
     WHERE sv.name='deterministic-forex' AND sv.version=$1 AND se.source_kind='historical'
-      AND se.conditions @> '[{"name":"Risk reward"}]'::jsonb
+      AND se.conditions @> '[{"name":"Confirmation"}]'::jsonb
       AND se.direction IN ('long','short') AND se.entry IS NOT NULL AND se.stop IS NOT NULL AND se.target IS NOT NULL AND se.risk_reward IS NOT NULL
       AND (SELECT count(*) FROM jsonb_array_elements(se.conditions) item WHERE item->>'required'='true' AND item->>'passed'='false')=1${filters}
     ORDER BY se.instrument,se.decision_time`, values);
@@ -583,7 +583,7 @@ async function processPositionAwareUnit(job: DurableResearchJob, checkpoint: Dur
 }
 
 async function processShadowLabelUnit(job: DurableResearchJob, checkpoint: DurableCheckpoint) {
-  const shadows = await query<ShadowForLabel>(`SELECT se.id,se.instrument,se.decision_time,se.direction,se.entry,se.stop,se.target,se.risk_reward,failure.failed_condition FROM strategy_evaluations se CROSS JOIN LATERAL (SELECT condition->>'name' AS failed_condition FROM jsonb_array_elements(se.conditions) condition WHERE condition->>'required'='true' AND condition->>'passed'='false') failure WHERE se.strategy_version_id=$1 AND se.instrument=$2 AND se.source_kind='historical' AND se.conditions @> '[{"name":"Risk reward"}]'::jsonb AND se.direction IN('long','short') AND se.entry IS NOT NULL AND se.stop IS NOT NULL AND se.target IS NOT NULL AND se.risk_reward IS NOT NULL AND (SELECT count(*) FROM jsonb_array_elements(se.conditions) item WHERE item->>'required'='true' AND item->>'passed'='false')=1 AND ($3::timestamptz IS NULL OR (se.decision_time,se.id) > ($3,$4::uuid)) ORDER BY se.decision_time,se.id LIMIT 500`, [checkpoint.versionId, job.instrument, checkpoint.shadowCursorTime ?? null, checkpoint.shadowCursorId ?? null]);
+  const shadows = await query<ShadowForLabel>(`SELECT se.id,se.instrument,se.decision_time,se.direction,se.entry,se.stop,se.target,se.risk_reward,failure.failed_condition FROM strategy_evaluations se CROSS JOIN LATERAL (SELECT condition->>'name' AS failed_condition FROM jsonb_array_elements(se.conditions) condition WHERE condition->>'required'='true' AND condition->>'passed'='false') failure WHERE se.strategy_version_id=$1 AND se.instrument=$2 AND se.source_kind='historical' AND se.conditions @> '[{"name":"Confirmation"}]'::jsonb AND se.direction IN('long','short') AND se.entry IS NOT NULL AND se.stop IS NOT NULL AND se.target IS NOT NULL AND se.risk_reward IS NOT NULL AND (SELECT count(*) FROM jsonb_array_elements(se.conditions) item WHERE item->>'required'='true' AND item->>'passed'='false')=1 AND ($3::timestamptz IS NULL OR (se.decision_time,se.id) > ($3,$4::uuid)) ORDER BY se.decision_time,se.id LIMIT 500`, [checkpoint.versionId, job.instrument, checkpoint.shadowCursorTime ?? null, checkpoint.shadowCursorId ?? null]);
   if (!shadows.rows.length) {
     await query("UPDATE durable_research_jobs SET status='complete',phase='complete',lease_token=NULL,lease_until=NULL,updated_at=now() WHERE run_id=$1 AND lease_token=$2", [job.run_id, job.lease_token]);
     await updateRun(job.run_id, { ...durableDetails(job, checkpoint, "Multi-year day-trading research complete", 100), state: "complete" }, null, true);
@@ -1127,7 +1127,12 @@ export async function forwardResearchSummary(instrument: string) {
   return { candidates: rows.rows.length, resolved: resolved.length, wins, losses, forcedClose: rows.rows.filter((row) => row.outcome === "forced_close").length, unresolved: rows.rows.filter((row) => row.outcome === "unresolved").length, ambiguous: rows.rows.filter((row) => row.outcome === "ambiguous").length, winRate: resolved.length ? wins / resolved.length : null, averageR: resolved.length ? resolved.reduce((sum, value) => sum + value, 0) / resolved.length : null, profitFactor: grossLosses ? grossWins / grossLosses : null, drawdownR: drawdown };
 }
 
-const RESEARCH_FUNNEL_STAGES = ["Market data", "EMA alignment", "Higher timeframe alignment", "Pullback", "Market structure", "Confirmation candle", "Momentum", "Volatility", "Session", "Spread", "Risk reward"] as const;
+// The live trend-pullback-liquidity strategy's required gates, in evaluation
+// order — the funnel counts how many replayed evaluations survive each one.
+// "News" is intentionally absent: historical_replay does not evaluate the news
+// buffer (its condition is a non-required, always-failed placeholder), so
+// including it would collapse the funnel to zero at that stage.
+const RESEARCH_FUNNEL_STAGES = ["Market data", "H1 direction", "Session", "Spread", "Pullback", "Liquidity sweep", "Swept level location", "Confirmation"] as const;
 
 type DiagnosticCondition = { name?: string; passed?: boolean; required?: boolean; currentValue?: string };
 type DiagnosticCandidateRow = {
@@ -1265,7 +1270,7 @@ export async function researchDiagnostics(instrument?: string) {
         SELECT conditions,condition->>'name' AS condition FROM evaluations CROSS JOIN LATERAL jsonb_array_elements(conditions) condition
         WHERE condition->>'required'='true' AND condition->>'passed'='false'
       ) SELECT failure.condition,count(*)::int AS count FROM failures failure
-      WHERE failure.conditions @> '[{"name":"Risk reward"}]'::jsonb
+      WHERE failure.conditions @> '[{"name":"Confirmation"}]'::jsonb
         AND (SELECT count(*) FROM jsonb_array_elements(failure.conditions) item WHERE item->>'required'='true' AND item->>'passed'='false')=1
       GROUP BY failure.condition ORDER BY count DESC`, parameters),
     query<DiagnosticCandidateRow>(`SELECT tc.id,se.instrument,se.decision_time,se.direction,se.entry,se.stop,se.target,se.risk_reward,se.spread_pips,se.conditions,tc.execution_status,tc.blocked_by_candidate_id,tc.simulated_entry_at,tc.simulated_exit_at,ol.outcome,ol.result_r,ol.max_favorable_r,ol.max_adverse_r

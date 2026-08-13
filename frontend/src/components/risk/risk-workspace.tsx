@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { SelectMenu } from "@/components/ui/select-menu";
 import { apiUrl } from "@/lib/api/url";
 import { displayNameFor } from "@/lib/instruments/catalog";
+import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import type { AccountSummary, ConnectionStatus } from "@/types/forex";
 
 type PaperPosition = {
@@ -124,6 +125,8 @@ export function RiskWorkspace({
     const timer = window.setInterval(() => void refresh(), 60_000);
     return () => window.clearInterval(timer);
   }, [refresh]);
+
+  useForegroundRefresh(refresh);
 
   function setFormFromPolicy(nextPolicy: PaperRiskPolicy) {
     const configuration = nextPolicy.pending ?? nextPolicy.active;

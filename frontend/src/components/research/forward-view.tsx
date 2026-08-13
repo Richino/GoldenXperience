@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiUrl } from "@/lib/api/url";
 import { displayNameFor } from "@/lib/instruments/catalog";
 import { ResearchPaperCycleSkeleton } from "@/components/ui/page-skeletons";
+import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 
 type Metrics = { assigned: number; open: number; ambiguous: number; resolved: number; winRate: number | null; averageR: number | null; profitFactor: number | null; netR: number; maxDrawdownR: number };
 type Breakdown = Metrics & { group: string; evidenceEligible: boolean };
@@ -67,6 +68,8 @@ export function ForwardView() {
     const timer = window.setInterval(() => void load().catch(() => undefined), 60_000);
     return () => window.clearInterval(timer);
   }, [load]);
+
+  useForegroundRefresh(useCallback(() => void load().catch(() => undefined), [load]));
 
   async function decide(batch: Batch, decision: "approved" | "rejected") {
     setSaving(true); setError(null);

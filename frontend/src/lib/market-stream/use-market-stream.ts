@@ -232,10 +232,35 @@ export function useMarketStream(
       }
     }, 5_000);
 
+    // Backgrounding the app freezes the socket, and the stale check above is
+    // itself throttled while hidden — so on reopen the stream can sit dead for
+    // seconds before a tick notices. Force it back to a good connection the
+    // moment the app returns to the foreground.
+    function onForeground() {
+      if (document.visibilityState !== "visible") return;
+      const socket = socketRef.current;
+      const stale =
+        lastMessageAtRef.current > 0 &&
+        Date.now() - lastMessageAtRef.current > STALE_STREAM_AFTER_MS;
+
+      if (!socket || socket.readyState === WebSocket.CLOSED) {
+        // A reconnect may be scheduled far out by the backoff; pull it forward.
+        reconnectAttemptRef.current = 0;
+        connect();
+      } else if (socket.readyState === WebSocket.OPEN && stale) {
+        socket.close(4000, "stale stream");
+      }
+    }
+
+    document.addEventListener("visibilitychange", onForeground);
+    window.addEventListener("focus", onForeground);
+
     return () => {
       closedByUnmountRef.current = true;
       clearReconnectTimer();
       window.clearInterval(staleCheckTimer);
+      document.removeEventListener("visibilitychange", onForeground);
+      window.removeEventListener("focus", onForeground);
       socketRef.current?.close();
       socketRef.current = null;
     };

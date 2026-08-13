@@ -9,6 +9,7 @@ import { formatChartPrice } from "@/lib/chart-utils";
 import { displayNameFor } from "@/lib/instruments/catalog";
 import { formatDayAndTime } from "@/lib/format/datetime";
 import { openTradeProgress } from "@/lib/open-trade-progress";
+import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import { useOpenPositionFills } from "@/lib/market-stream/use-open-positions";
 import { getPaperTradingAvailability } from "@/lib/strategy/strategy-engine";
@@ -242,6 +243,14 @@ export function DashboardView({
     const timer = window.setInterval(() => void refresh(), 60_000);
     return () => window.clearInterval(timer);
   }, [refresh]);
+
+  // Reopening the app after it was backgrounded lands on the last snapshot until
+  // the next interval tick — up to a minute away. Pull everything fresh the
+  // moment it returns to the foreground so it never opens on stale numbers.
+  useForegroundRefresh(useCallback(() => {
+    void refreshAccount();
+    void refresh();
+  }, [refreshAccount, refresh]));
 
   const assigned = overview.current?.assignedCount ?? 0;
   const lifetime = overview.lifetimeSummary;

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "r
 import { formatChartPrice } from "@/lib/chart-utils";
 import { displayNameFor, pipSizeFor } from "@/lib/instruments/catalog";
 import { apiUrl } from "@/lib/api/url";
+import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import { formatClockTime } from "@/lib/format/datetime";
 import { getPaperTradingAvailability, type PaperTradingAvailability } from "@/lib/strategy/strategy-engine";
@@ -153,6 +154,8 @@ export function WatchlistView() {
     const timer = window.setInterval(() => void load(), 60_000);
     return () => window.clearInterval(timer);
   }, [load]);
+
+  useForegroundRefresh(load);
 
   return (
     <div className="watchlist-view watchlist-minimal space-y-8 lg:space-y-10">

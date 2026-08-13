@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { apiUrl } from "@/lib/api/url";
 import { displayNameFor } from "@/lib/instruments/catalog";
+import { ResearchPaperCycleSkeleton } from "@/components/ui/page-skeletons";
 
 type Metrics = { assigned: number; open: number; ambiguous: number; resolved: number; winRate: number | null; averageR: number | null; profitFactor: number | null; netR: number; maxDrawdownR: number };
 type Breakdown = Metrics & { group: string; evidenceEligible: boolean };
@@ -110,7 +111,7 @@ export function ForwardView() {
 
       {error ? <p className="research-error mt-4">{error}</p> : null}
       {!overview ? (
-        <p className="mt-4 text-sm text-[color:var(--muted)]">Loading…</p>
+        <ResearchPaperCycleSkeleton />
       ) : !current ? (
         <p className="mt-4 text-sm text-[color:var(--muted)]">Waiting for first setup.</p>
       ) : (

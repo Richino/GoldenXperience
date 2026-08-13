@@ -16,147 +16,235 @@ function Line({ className = "" }: { className?: string }) {
   );
 }
 
-function CardShell({
-  children,
-  className = "",
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={`app-card overflow-hidden ${className}`}>{children}</div>
-  );
-}
-
-function SectionHeaderSkeleton({ lines = 2 }: { lines?: number }) {
-  return (
-    <div className="space-y-2">
-      <Line className="h-3 w-24" />
-      {lines > 1 ? <Line className="h-4 w-40" /> : null}
-    </div>
-  );
-}
-
-function StatGridSkeleton({ count = 3 }: { count?: number }) {
-  return (
-    <div className={`grid gap-6 ${count === 3 ? "sm:grid-cols-3" : "grid-cols-2 sm:grid-cols-4"}`}>
-      {Array.from({ length: count }, (_, index) => (
-        <div key={index} className="space-y-2">
-          <Line className="h-3 w-16" />
-          <Line className="h-7 w-20" />
-          <Line className="h-3 w-24" />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ListRowsSkeleton({ rows = 4 }: { rows?: number }) {
-  return (
-    <div className="divide-y divide-[color:var(--border)] border-t border-[color:var(--border)]">
-      {Array.from({ length: rows }, (_, index) => (
-        <div
-          key={index}
-          className="flex items-center justify-between gap-3 px-5 py-3.5 md:px-6"
-        >
-          <div className="min-w-0 flex-1 space-y-2">
-            <Line className="h-4 w-28" />
-            <Line className="h-3 w-36" />
-          </div>
-          <Line className="h-4 w-14 shrink-0" />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function PageIntroSkeleton({
-  titleWidth = "w-48",
-  subtitleWidth = "w-72",
+function PageTitleSkeleton({
+  titleWidth = "w-36",
+  subtitleWidth = "w-48",
 }: {
   titleWidth?: string;
   subtitleWidth?: string;
 }) {
   return (
-    <header>
-      <Line className={`h-8 ${titleWidth}`} />
-      <Line className={`mt-2 h-4 ${subtitleWidth}`} />
-    </header>
+    <div className="min-w-0">
+      <Line className={`h-8 ${titleWidth} lg:h-9`} />
+      <Line className={`mt-1 h-4 ${subtitleWidth}`} />
+    </div>
   );
 }
 
-function PanelCardSkeleton({ statCols = 2 }: { statCols?: number }) {
+function WatchlistRowSkeleton() {
   return (
-    <CardShell className="p-5 md:p-6">
+    <div className="dashboard-minimal-row block py-3">
       <div className="flex items-start justify-between gap-3">
-        <SectionHeaderSkeleton />
-        <Bone className="h-7 w-24 shrink-0 rounded-full" />
+        <div className="min-w-0 space-y-2">
+          <Line className="h-4 w-24" />
+          <Line className="h-3 w-20" />
+        </div>
+        <div className="shrink-0 space-y-2">
+          <Line className="ml-auto h-4 w-16" />
+          <Line className="ml-auto h-3 w-20" />
+        </div>
       </div>
-      <div
-        className={`mt-4 grid gap-4 border-t border-[color:var(--border)] pt-4 ${
-          statCols === 3 ? "grid-cols-3" : "grid-cols-2"
-        }`}
-      >
-        {Array.from({ length: statCols * 2 }, (_, index) => (
-          <div key={index} className="space-y-2">
-            <Line className="h-3 w-20" />
-            <Line className="h-4 w-24" />
+      <Bone className="mt-2 h-1 w-full rounded-full" />
+    </div>
+  );
+}
+
+export function WatchlistPairsSkeleton({ rows = 10 }: { rows?: number }) {
+  return (
+    <div className="wl-pairs mt-3" data-wl-layout="detail">
+      {Array.from({ length: rows }, (_, index) => (
+        <div key={index} className="wl-pair-card">
+          <div className="wl-main min-w-0">
+            <div className="wl-pair">
+              <Line className="h-4 w-28" />
+              <Bone className="h-4 w-10 rounded-full" />
+            </div>
+            <div className="wl-detail">
+              <Line className="h-3 w-32" />
+              <div className="wl-levels-grid mt-2">
+                {Array.from({ length: 3 }, (_, level) => (
+                  <div key={level} className="wl-level space-y-1.5">
+                    <Line className="h-2.5 w-10" />
+                    <Line className="h-4 w-16" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="wl-aside">
+            <Line className="ml-auto h-4 w-32" />
+            <Line className="ml-auto mt-1.5 h-3 w-24" />
+          </div>
+          <div className="wl-checklist-progress">
+            <span className="animate-pulse bg-[color:var(--surface-raised)]" style={{ width: "40%" }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function JournalEntriesSkeleton({ rows = 5 }: { rows?: number }) {
+  return (
+    <div className="journal-entry-list mt-3">
+      {Array.from({ length: rows }, (_, index) => (
+        <article key={index} className="journal-entry">
+          <header className="journal-entry-top">
+            <div className="flex items-center gap-2">
+              <Line className="h-4 w-20" />
+              <Line className="h-3 w-10" />
+              <Bone className="h-4 w-14 rounded-full" />
+            </div>
+            <Line className="h-3 w-16" />
+          </header>
+          <div className="journal-entry-result">
+            <Line className="h-5 w-16" />
+            <Line className="h-4 w-20" />
+          </div>
+          <div className="journal-entry-levels">
+            {Array.from({ length: 4 }, (_, level) => (
+              <div key={level} className="journal-entry-level">
+                <Line className="h-2.5 w-8" />
+                <Line className="h-3.5 w-16" />
+              </div>
+            ))}
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+export function ResearchPaperCycleSkeleton() {
+  return (
+    <>
+      <div className="mt-4 flex items-end justify-between gap-4">
+        <div className="space-y-2">
+          <Line className="h-4 w-24" />
+          <Line className="h-3 w-48" />
+          <Line className="h-3 w-56" />
+        </div>
+        <Line className="h-8 w-16" />
+      </div>
+      <Bone className="mt-3 h-1.5 w-full rounded-full" />
+      <div className="research-metric-grid mt-4">
+        {Array.from({ length: 8 }, (_, index) => (
+          <div key={index} className="research-metric-cell space-y-2">
+            <Line className="h-3 w-16" />
+            <Line className="h-6 w-12" />
           </div>
         ))}
       </div>
-    </CardShell>
+    </>
+  );
+}
+
+function ResearchMetricGridSkeleton({ count = 8 }: { count?: number }) {
+  return (
+    <div className="research-metric-grid mt-4">
+      {Array.from({ length: count }, (_, index) => (
+        <div key={index} className="research-metric-cell space-y-2">
+          <Line className="h-3 w-16" />
+          <Line className="h-6 w-14" />
+        </div>
+      ))}
+    </div>
   );
 }
 
 export function DashboardLoadingSkeleton() {
   return (
-    <div className="dashboard-view dashboard-minimal space-y-8 animate-pulse lg:space-y-10" aria-busy aria-label="Loading dashboard">
-      <div>
-        <div className="flex items-center justify-between gap-3 lg:hidden">
+    <div className="dashboard-view dashboard-minimal space-y-8 lg:space-y-10" aria-busy aria-label="Loading dashboard">
+      <section className="account-overview-hero" aria-hidden>
+        <header className="flex items-center justify-between gap-3 lg:hidden">
           <div className="flex items-center gap-3">
             <Bone className="size-9 shrink-0 rounded-full" />
             <Line className="h-5 w-28" />
           </div>
           <Bone className="size-9 shrink-0 rounded-full" />
-        </div>
-        <Line className="mt-7 h-4 w-24 lg:mt-0" />
-        <Line className="mt-3 h-10 w-52 lg:h-12 lg:w-64" />
-        <Bone className="mt-3 h-6 w-24 rounded-full" />
-        <div className="mt-8 flex items-center justify-between lg:mt-10">
-          <div className="flex gap-2">
-            {Array.from({ length: 4 }, (_, index) => (
-              <Bone key={index} className="h-7 w-10 rounded-full" />
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <Bone className="size-8 rounded-lg" />
-            <Bone className="size-8 rounded-lg" />
-          </div>
-        </div>
-        <Bone className="mt-4 h-60 w-full rounded-2xl lg:h-72" />
-      </div>
+        </header>
 
-      <div className="dashboard-minimal-grid">
-        <div className="space-y-3 border-t border-[color:var(--border)] pt-5 lg:border-t-0 lg:pt-0">
-          <div className="flex justify-between">
-            <Line className="h-4 w-28" />
-            <Line className="h-4 w-12" />
+        <div className="mt-7 lg:mt-0">
+          <Line className="hidden h-4 w-24 lg:block" />
+          <Line className="mt-0 h-10 w-52 lg:mt-3 lg:h-12 lg:w-64" />
+          <Bone className="mt-3 h-6 w-48 rounded-full" />
+        </div>
+
+        <div className="mt-5 lg:mt-7">
+          <div className="account-chart">
+            <div className="account-range-row">
+              {Array.from({ length: 4 }, (_, index) => (
+                <Bone key={index} className="h-7 w-10 rounded-full" />
+              ))}
+              <Line className="ml-1 h-3 w-8" />
+            </div>
+            <Bone className="account-chart-canvas mt-4 rounded-none" />
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <Line className="h-3 w-40" />
+              <Line className="h-3 w-36" />
+            </div>
           </div>
-          {Array.from({ length: 4 }, (_, index) => (
-            <div key={index} className="flex items-center justify-between py-2">
-              <div className="space-y-2">
-                <Line className="h-4 w-28" />
-                <Line className="h-3 w-20" />
-              </div>
-              <Line className="h-4 w-16" />
+        </div>
+      </section>
+
+      <section className="dashboard-minimal-section">
+        <div className="grid grid-cols-3 divide-x divide-[color:var(--border)]">
+          {Array.from({ length: 3 }, (_, index) => (
+            <div key={index} className="dashboard-stat min-w-0 space-y-2 px-3 first:pl-0 last:pr-0">
+              <Line className="h-3 w-12" />
+              <Line className="h-6 w-16 sm:h-7" />
+              <Line className="h-3 w-20" />
             </div>
           ))}
         </div>
-        <div className="space-y-2 border-t border-[color:var(--border)] pt-5 lg:border-t-0 lg:pt-0">
-          {Array.from({ length: 3 }, (_, index) => (
-            <Bone key={index} className="h-11 w-full rounded-xl" />
+      </section>
+
+      <section className="dashboard-minimal-section">
+        <div className="flex items-baseline justify-between gap-3">
+          <Line className="h-4 w-20" />
+          <Line className="h-3 w-14" />
+        </div>
+        <div className="dashboard-watchlist-grid mt-3">
+          {Array.from({ length: 9 }, (_, index) => (
+            <WatchlistRowSkeleton key={index} />
           ))}
         </div>
+      </section>
+
+      <div className="dashboard-minimal-grid">
+        <section className="dashboard-minimal-section">
+          <div className="flex items-baseline justify-between gap-3">
+            <Line className="h-4 w-28" />
+            <Line className="h-3 w-14" />
+          </div>
+          <div className="dash-trade-list mt-3">
+            {Array.from({ length: 6 }, (_, index) => (
+              <div key={index} className="dash-trade-card">
+                <div className="dash-trade-main min-w-0 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Line className="h-4 w-24" />
+                    <Line className="h-3 w-10" />
+                  </div>
+                  <Line className="h-3 w-28" />
+                </div>
+                <div className="dash-trade-aside space-y-1.5">
+                  <Line className="ml-auto h-4 w-16" />
+                  <Line className="ml-auto h-3 w-12" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="dashboard-minimal-actions">
+          {Array.from({ length: 3 }, (_, index) => (
+            <div key={index} className="dashboard-minimal-action">
+              <Bone className="size-4 shrink-0 rounded-md" />
+              <Line className="h-4 w-32" />
+              <Bone className="ml-auto size-3.5 rounded-sm" />
+            </div>
+          ))}
+        </section>
       </div>
     </div>
   );
@@ -165,109 +253,89 @@ export function DashboardLoadingSkeleton() {
 export function SignalsLoadingSkeleton() {
   return (
     <div
-      className="signals-view signals-minimal grid w-full animate-pulse gap-5"
+      className="signals-view signals-minimal grid w-full gap-5"
       aria-busy
       aria-label="Loading signals"
     >
-      <CardShell className="signals-chart-card">
-        <div className="hidden lg:block">
-          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[color:var(--border)] px-5 py-4">
-            <div className="flex items-center gap-3">
-              <Bone className="size-10 shrink-0 rounded-full" />
-              <div className="space-y-2">
-                <Line className="h-4 w-20" />
-                <Line className="h-3 w-16" />
+      <div className="signals-chart-slot min-w-0">
+        <section className="app-card signals-chart-card min-w-0 w-full">
+          <div className="signals-chart-mobile lg:hidden">
+            <div className="signals-mobile-content px-4 pb-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
+              <div className="signals-mobile-actions flex items-center justify-between">
+                <Bone className="size-10 rounded-full" />
+                <div className="flex items-center gap-2">
+                  <Bone className="size-10 rounded-full" />
+                  <Bone className="size-10 rounded-full" />
+                </div>
               </div>
-              <div className="ml-4 space-y-2">
-                <Line className="h-5 w-24" />
-                <Line className="h-3 w-16" />
+              <div className="mt-3 flex items-end justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <Bone className="size-9 shrink-0 rounded-full" />
+                  <div className="space-y-2">
+                    <Line className="h-4 w-20" />
+                    <Line className="h-3 w-16" />
+                  </div>
+                </div>
+                <Line className="h-6 w-24" />
+              </div>
+              <Bone className="mt-3 h-11 w-full rounded-full" />
+              <div className="signals-mobile-tools mt-3">
+                <Bone className="h-9 w-[4.75rem] rounded-full" />
+                <Bone className="h-9 w-14 rounded-full" />
+                <Bone className="h-9 w-11 rounded-full" />
+                <Bone className="h-9 w-11 rounded-full" />
+                <Bone className="h-9 w-11 rounded-full" />
               </div>
             </div>
-            <div className="flex gap-2">
-              <Bone className="h-9 w-9 rounded-full" />
-              <Bone className="h-9 w-9 rounded-full" />
-              <Bone className="h-9 w-9 rounded-full" />
+            <div className="relative min-h-[14rem] flex-1 overflow-hidden chart-data-shell">
+              <Bone className="h-full w-full rounded-none" />
             </div>
           </div>
-          <div className="flex gap-2 border-b border-[color:var(--border)] px-5 py-3">
-            {Array.from({ length: 6 }, (_, index) => (
-              <Bone key={index} className="h-8 w-12 rounded-full" />
-            ))}
-          </div>
-          <Bone className="mx-5 mt-4 mb-5 h-[420px] rounded-[20px]" />
-        </div>
 
-        <div className="lg:hidden">
-          <div className="px-4 pb-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
-            <div className="flex items-center justify-between">
-              <Bone className="size-9 rounded-full" />
-              <Bone className="size-9 rounded-full" />
-            </div>
-            <div className="mt-3 flex items-end justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <Bone className="size-9 rounded-full" />
+          <div className="signals-chart-desktop hidden lg:flex">
+            <div className="signals-chart-head">
+              <div className="signals-chart-head-main">
+                <Bone className="size-[38px] shrink-0 rounded-full" />
                 <div className="space-y-2">
                   <Line className="h-4 w-20" />
                   <Line className="h-3 w-16" />
                 </div>
+                <div className="signals-chart-quote space-y-1.5">
+                  <Line className="h-5 w-24" />
+                  <Line className="h-3 w-20" />
+                </div>
               </div>
-              <Line className="h-5 w-24" />
+              <div className="signals-chart-head-tools">
+                <Bone className="h-9 w-36 rounded-xl" />
+                <Bone className="size-9 rounded-[10px]" />
+                <Bone className="size-9 rounded-[10px]" />
+                <Bone className="size-9 rounded-[10px]" />
+                <Bone className="size-9 rounded-[10px]" />
+              </div>
             </div>
-            <Bone className="mt-3 h-10 w-full rounded-full" />
-            <div className="mt-3 flex gap-2">
-              {Array.from({ length: 4 }, (_, index) => (
-                <Bone key={index} className="h-8 w-12 rounded-full" />
+            <div className="signals-chart-strip">
+              {Array.from({ length: 5 }, (_, index) => (
+                <Bone key={`tf-${index}`} className="h-8 w-10 rounded-md" />
+              ))}
+              <span className="signals-chart-strip-divider" />
+              {Array.from({ length: 7 }, (_, index) => (
+                <Bone key={`range-${index}`} className="h-8 w-10 rounded-md" />
               ))}
             </div>
+            <Bone className="signals-chart-canvas h-[680px] rounded-none" />
           </div>
-          <Bone className="h-[60vh] w-full rounded-none" />
-          <div className="border-t border-[color:var(--border)] px-4 py-2.5">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex gap-2">
-                {Array.from({ length: 5 }, (_, index) => (
-                  <Bone key={index} className="h-8 w-10 rounded-full" />
-                ))}
-              </div>
-              <Bone className="h-8 w-8 rounded-full" />
-            </div>
-            <div className="mt-2 flex gap-4">
-              <Line className="h-4 w-16" />
-              <Line className="h-4 w-12" />
-            </div>
-          </div>
-          <div className="space-y-3 px-4 py-5">
-            <Line className="h-3 w-40" />
-            <Bone className="h-1 w-full rounded-full" />
-            <Line className="h-3 w-28" />
-          </div>
-        </div>
-      </CardShell>
-
-      <aside className="dashboard-minimal-section hidden space-y-4 xl:block">
-        <div className="flex items-baseline justify-between gap-3">
-          <Line className="h-4 w-16" />
-          <Line className="h-3 w-12" />
-        </div>
-        <Line className="h-4 w-28" />
-        <Line className="h-3 w-24" />
-        <Bone className="h-1 w-full rounded-full" />
-        <div className="space-y-2 border-t border-[color:var(--border)] pt-4">
-          <Line className="h-4 w-20" />
-          <Line className="h-3 w-full" />
-          <Line className="h-3 w-40" />
-        </div>
-      </aside>
+        </section>
+      </div>
     </div>
   );
 }
 
 export function JournalLoadingSkeleton() {
   return (
-    <div className="journal-view journal-minimal space-y-8 animate-pulse lg:space-y-10" aria-busy aria-label="Loading journal">
-      <div className="space-y-2">
-        <Line className="h-8 w-28" />
-        <Line className="h-4 w-32" />
-      </div>
+    <div className="journal-view journal-minimal space-y-8 lg:space-y-10" aria-busy aria-label="Loading journal">
+      <header>
+        <PageTitleSkeleton titleWidth="w-28" subtitleWidth="w-32" />
+      </header>
 
       <section className="journal-stats-card grid grid-cols-3">
         {Array.from({ length: 3 }, (_, index) => (
@@ -279,38 +347,15 @@ export function JournalLoadingSkeleton() {
       </section>
 
       <section className="dashboard-minimal-section">
-        <div className="flex items-center justify-between gap-3">
-          <div className="space-y-1.5">
-            <Line className="h-4 w-24" />
-            <Line className="h-3 w-28" />
-          </div>
-          <Bone className="size-8 shrink-0 rounded-full" />
-        </div>
-      </section>
-
-      <section className="dashboard-minimal-section">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
           <Line className="h-4 w-20" />
-          <div className="flex gap-1.5">
-            {Array.from({ length: 4 }, (_, index) => (
-              <Bone key={index} className="h-7 w-14 rounded-full" />
+          <div className="flex flex-wrap gap-1.5">
+            {["w-10", "w-12", "w-14", "w-[4.25rem]", "w-[4.25rem]", "w-[4.5rem]"].map((width, index) => (
+              <Bone key={index} className={`h-7 ${width} rounded-full`} />
             ))}
           </div>
         </div>
-        <div className="mt-3">
-          {Array.from({ length: 5 }, (_, index) => (
-            <div key={index} className="dashboard-minimal-row flex items-center justify-between gap-3 py-3">
-              <div className="flex min-w-0 flex-1 items-center gap-3">
-                <Line className="h-5 w-12 shrink-0" />
-                <div className="min-w-0 flex-1 space-y-2">
-                  <Line className="h-4 w-36" />
-                  <Line className="h-3 w-48" />
-                </div>
-              </div>
-              <Line className="h-3 w-10 shrink-0" />
-            </div>
-          ))}
-        </div>
+        <JournalEntriesSkeleton />
       </section>
     </div>
   );
@@ -318,35 +363,18 @@ export function JournalLoadingSkeleton() {
 
 export function WatchlistLoadingSkeleton() {
   return (
-    <div className="watchlist-view watchlist-minimal space-y-8 animate-pulse lg:space-y-10" aria-busy aria-label="Loading watchlist">
-      <div className="flex items-end justify-between gap-4">
-        <div className="space-y-2">
-          <Line className="h-8 w-36" />
-          <Line className="h-4 w-40" />
-        </div>
-        <Bone className="size-9 shrink-0 rounded-full" />
-      </div>
+    <div className="watchlist-view watchlist-minimal space-y-8 lg:space-y-10" aria-busy aria-label="Loading watchlist">
+      <header className="flex items-end justify-between gap-4">
+        <PageTitleSkeleton titleWidth="w-36" subtitleWidth="w-44" />
+        <Bone className="size-10 shrink-0 rounded-full" />
+      </header>
 
       <section className="dashboard-minimal-section">
-        <div className="flex items-center justify-between gap-3">
-          <Line className="h-4 w-16" />
-          <Line className="h-3 w-8" />
+        <div className="flex items-baseline justify-between gap-3">
+          <Line className="h-4 w-12" />
+          <Line className="h-3 w-6" />
         </div>
-        <div className="mt-3">
-          {Array.from({ length: 8 }, (_, index) => (
-            <div key={index} className="dashboard-minimal-row flex items-start justify-between gap-3 py-3">
-              <div className="min-w-0 flex-1 space-y-2">
-                <Line className="h-4 w-28" />
-                <Line className="h-3 w-36" />
-                <Line className="h-3 w-48" />
-              </div>
-              <div className="shrink-0 space-y-2 text-right">
-                <Line className="ml-auto h-4 w-24" />
-                <Line className="ml-auto h-3 w-20" />
-              </div>
-            </div>
-          ))}
-        </div>
+        <WatchlistPairsSkeleton />
       </section>
     </div>
   );
@@ -354,15 +382,15 @@ export function WatchlistLoadingSkeleton() {
 
 export function RiskLoadingSkeleton() {
   return (
-    <div className="risk-view risk-minimal space-y-8 animate-pulse lg:space-y-10" aria-busy aria-label="Loading risk">
-      <div className="space-y-2">
-        <Line className="h-8 w-24" />
-        <Line className="h-4 w-28" />
-      </div>
+    <div className="risk-view risk-minimal space-y-8 lg:space-y-10" aria-busy aria-label="Loading risk">
+      <header className="flex items-end justify-between gap-4">
+        <PageTitleSkeleton titleWidth="w-20" subtitleWidth="w-28" />
+        <Bone className="size-10 shrink-0 rounded-full" />
+      </header>
 
       <section className="risk-stats-card">
         {Array.from({ length: 4 }, (_, index) => (
-          <div key={index} className="space-y-2">
+          <div key={index} className="risk-stat space-y-2">
             <Line className="h-3 w-12" />
             <Line className="h-6 w-16" />
           </div>
@@ -370,11 +398,11 @@ export function RiskLoadingSkeleton() {
       </section>
 
       <section className="dashboard-minimal-section space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-baseline justify-between gap-3">
           <Line className="h-4 w-20" />
           <Line className="h-3 w-16" />
         </div>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
           {Array.from({ length: 3 }, (_, index) => (
             <div key={index} className="space-y-2">
               <Line className="h-3 w-20" />
@@ -382,19 +410,32 @@ export function RiskLoadingSkeleton() {
             </div>
           ))}
         </div>
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <Bone className="size-4 rounded-sm" />
+            <Line className="h-4 w-32" />
+          </div>
+          <Bone className="h-10 w-20 rounded-xl" />
+        </div>
       </section>
 
-      <div className="dashboard-minimal-grid space-y-8 lg:space-y-0">
+      <div className="dashboard-minimal-grid">
         <section className="dashboard-minimal-section">
-          <Line className="h-4 w-28" />
-          <div className="mt-3 space-y-0">
+          <div className="flex items-baseline justify-between gap-3">
+            <Line className="h-4 w-28" />
+            <Line className="h-3 w-6" />
+          </div>
+          <div className="mt-3">
             {Array.from({ length: 3 }, (_, index) => (
               <div key={index} className="dashboard-minimal-row flex items-center justify-between gap-3 py-3">
                 <div className="space-y-2">
                   <Line className="h-4 w-28" />
                   <Line className="h-3 w-16" />
                 </div>
-                <Line className="h-4 w-12" />
+                <div className="space-y-1.5 text-right">
+                  <Line className="ml-auto h-4 w-12" />
+                  <Line className="ml-auto h-3 w-16" />
+                </div>
               </div>
             ))}
           </div>
@@ -412,83 +453,167 @@ export function RiskLoadingSkeleton() {
           ))}
         </section>
       </div>
+
+      <section className="dashboard-minimal-actions">
+        {Array.from({ length: 2 }, (_, index) => (
+          <div key={index} className="dashboard-minimal-action">
+            <Line className="h-4 w-24" />
+            <Bone className="ml-auto size-3.5 rounded-sm" />
+          </div>
+        ))}
+      </section>
     </div>
   );
 }
 
 export function SettingsLoadingSkeleton() {
   return (
-    <div className="settings-view settings-minimal space-y-8 animate-pulse lg:space-y-10" aria-busy aria-label="Loading settings">
-      <div>
-        <Line className="h-9 w-36 lg:h-10 lg:w-40" />
-        <Line className="mt-2 h-4 w-56" />
-      </div>
+    <div className="settings-view settings-minimal space-y-8 lg:space-y-10" aria-busy aria-label="Loading settings">
+      <header>
+        <PageTitleSkeleton titleWidth="w-36" subtitleWidth="w-64" />
+      </header>
 
-      {Array.from({ length: 4 }, (_, section) => (
-        <div key={section} className="settings-minimal-section space-y-4">
-          <Line className="h-4 w-24" />
-          {Array.from({ length: section === 0 ? 2 : 3 }, (_, index) => (
-            <div key={index} className="flex items-center justify-between gap-3 py-1">
-              <div className="space-y-2">
+      <section className="settings-minimal-section">
+        <Line className="h-4 w-24" />
+        <div className="mt-4 space-y-4">
+          <div className="settings-row">
+            <Line className="h-4 w-14" />
+            <div className="settings-segment">
+              <Bone className="h-8 w-14 rounded-lg" />
+              <Bone className="h-8 w-14 rounded-lg" />
+            </div>
+          </div>
+          <div className="settings-row">
+            <Line className="h-4 w-16" />
+            <div className="settings-segment">
+              <Bone className="h-8 w-9 rounded-lg" />
+              <Bone className="h-8 w-9 rounded-lg" />
+              <Bone className="h-8 w-9 rounded-lg" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="settings-minimal-section">
+        <Line className="h-4 w-28" />
+        <div className="mt-4 space-y-4">
+          <div className="settings-row items-end">
+            <Line className="h-4 w-14" />
+            <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+              <Bone className="h-11 w-full rounded-xl sm:w-56" />
+              <Bone className="h-11 w-24 rounded-xl" />
+            </div>
+          </div>
+          <div className="settings-row items-center">
+            <Line className="h-4 w-16" />
+            <div className="flex w-full items-center gap-3 sm:w-80">
+              <Bone className="size-5 shrink-0 rounded-md" />
+              <Bone className="h-2 flex-1 rounded-full" />
+              <Line className="h-4 w-10" />
+            </div>
+          </div>
+          {Array.from({ length: 2 }, (_, index) => (
+            <div key={index} className="settings-row">
+              <div className="space-y-1.5">
                 <Line className="h-4 w-28" />
-                <Line className="h-3 w-36" />
+                <Line className="h-3 w-24" />
               </div>
-              <Bone className="h-9 w-28 rounded-xl" />
+              <Bone className="h-10 w-20 rounded-xl" />
             </div>
           ))}
         </div>
-      ))}
+      </section>
+
+      <section className="settings-minimal-section">
+        <div className="flex items-baseline justify-between gap-3">
+          <Line className="h-4 w-16" />
+          <Line className="h-3 w-12" />
+        </div>
+        <div className="mt-3">
+          {Array.from({ length: 2 }, (_, index) => (
+            <div key={index} className="settings-status">
+              <div className="min-w-0 space-y-1.5">
+                <Line className="h-4 w-32" />
+                <Line className="h-3 w-48" />
+              </div>
+              <Line className="h-3 w-16 shrink-0" />
+            </div>
+          ))}
+          {Array.from({ length: 2 }, (_, index) => (
+            <div key={index} className="settings-env">
+              <Line className="h-3 w-36" />
+              <Line className="h-3 w-16" />
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="settings-minimal-section">
+        <div className="flex items-baseline justify-between gap-3">
+          <Line className="h-4 w-36" />
+          <Line className="h-3 w-10" />
+        </div>
+        <div className="mt-4 settings-row">
+          <div className="space-y-1.5">
+            <Line className="h-4 w-36" />
+            <Line className="h-3 w-40" />
+          </div>
+          <Bone className="h-10 w-20 rounded-xl" />
+        </div>
+      </section>
+
+      <section className="settings-minimal-section">
+        <Line className="h-4 w-12" />
+        <div className="mt-3">
+          {Array.from({ length: 3 }, (_, index) => (
+            <div key={index} className="settings-status">
+              <div className="min-w-0 space-y-1.5">
+                <Line className="h-4 w-28" />
+                <Line className="h-3 w-32" />
+              </div>
+              <Line className="h-3 w-20 shrink-0" />
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
 
 export function ResearchLoadingSkeleton() {
   return (
-    <div className="research-view research-minimal space-y-8 animate-pulse lg:space-y-10" aria-busy aria-label="Loading research">
-      <div className="space-y-2">
-        <Line className="h-8 w-36" />
-        <Line className="h-4 w-44" />
-      </div>
+    <div className="research-view research-minimal space-y-8 lg:space-y-10" aria-busy aria-label="Loading research">
+      <header>
+        <PageTitleSkeleton titleWidth="w-36" subtitleWidth="w-44" />
+      </header>
 
-      <section className="research-minimal-section space-y-4">
-        <div className="flex items-center justify-between">
-          <Line className="h-4 w-24" />
-          <Line className="h-3 w-20" />
-        </div>
-        <div className="flex justify-between">
-          <div className="space-y-2">
-            <Line className="h-4 w-20" />
+      <section className="research-minimal-section">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <div className="space-y-1.5">
+            <Line className="h-4 w-24" />
             <Line className="h-3 w-40" />
           </div>
-          <Line className="h-8 w-16" />
+          <Line className="h-3 w-16" />
         </div>
-        <Bone className="h-1.5 w-full rounded-full" />
-        <StatGridSkeleton count={4} />
+        <ResearchPaperCycleSkeleton />
       </section>
 
-      <section className="research-minimal-section space-y-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
+      <section className="research-minimal-section">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <Line className="h-4 w-28" />
-          <div className="flex gap-2">
-            <Bone className="h-9 w-24 rounded-xl" />
-            <Bone className="h-9 w-36 rounded-xl" />
-            <Bone className="h-9 w-32 rounded-xl" />
+          <div className="research-toolbar">
+            <Bone className="h-9 w-24 rounded-[10px]" />
+            <Bone className="h-9 w-36 rounded-[10px]" />
+            <Bone className="h-9 w-44 rounded-[10px]" />
           </div>
         </div>
       </section>
 
-      <section className="research-minimal-section space-y-3">
+      <section className="research-minimal-section">
         <Line className="h-4 w-40" />
-        <StatGridSkeleton count={4} />
-        <Line className="h-3 w-full" />
+        <ResearchMetricGridSkeleton />
+        <Line className="mt-3 h-3 w-full" />
       </section>
-
-      {Array.from({ length: 2 }, (_, section) => (
-        <section key={section} className="research-minimal-section space-y-4">
-          <Line className="h-4 w-36" />
-          <ListRowsSkeleton rows={3} />
-        </section>
-      ))}
     </div>
   );
 }

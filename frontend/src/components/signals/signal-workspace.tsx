@@ -961,10 +961,12 @@ export function SignalWorkspace({
 
     const { overflow } = document.body.style;
     document.body.style.overflow = "hidden";
+    document.body.classList.add("signals-fullscreen-active");
     document.addEventListener("keydown", handleEscape);
 
     return () => {
       document.body.style.overflow = overflow;
+      document.body.classList.remove("signals-fullscreen-active");
       document.removeEventListener("keydown", handleEscape);
     };
   }, [fullscreen]);
@@ -1331,7 +1333,7 @@ export function SignalWorkspace({
             <div className="signals-mobile-actions flex items-center justify-between">
               <Link
                 href="/"
-                className="signals-icon-btn pressable text-[color:var(--foreground)]"
+                className="signals-icon-btn signals-fullscreen-hidden pressable text-[color:var(--foreground)]"
                 aria-label="Back to home"
               >
                 <ChevronLeft className="size-5" strokeWidth={2} />
@@ -1342,7 +1344,7 @@ export function SignalWorkspace({
                   fullscreen={fullscreen}
                   onToggle={() => setFullscreen((open) => !open)}
                 />
-                <NotificationBell compact className="signals-icon-btn" />
+                <NotificationBell compact className="signals-icon-btn signals-fullscreen-hidden" />
               </div>
             </div>
 

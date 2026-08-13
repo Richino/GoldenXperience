@@ -4277,6 +4277,14 @@ input[type="number"] {
   border-radius: 0;
 }
 
+.signals-fullscreen-active .mobile-dock {
+  display: none;
+}
+
+.signals-view-fullscreen .signals-fullscreen-hidden {
+  display: none;
+}
+
 @media (max-width: 1023px) {
   .signals-view-fullscreen .signals-chart-mobile {
     height: 100dvh;
@@ -4294,6 +4302,7 @@ input[type="number"] {
   .signals-view-fullscreen .signals-mobile-content {
     padding-bottom: 0;
   }
+
 }
 
 .dark .signals-view section.app-card:has(.signals-chart-desktop) {
@@ -5130,6 +5139,12 @@ input[type="number"] {
     font-weight: 600;
     letter-spacing: 0.01em;
     color: var(--muted);
+  }
+
+  .watchlist-view.watchlist-minimal .wl-pair-card[data-state="idle"] .wl-checklist-progress::before,
+  .watchlist-view.watchlist-minimal .wl-pair-card[data-state="developing"] .wl-checklist-progress::before,
+  .watchlist-view.watchlist-minimal .wl-pair-card[data-state="ready"] .wl-checklist-progress::before {
+    color: var(--watch-progress-color);
   }
 
   .watchlist-view.watchlist-minimal .wl-checklist-progress > span {

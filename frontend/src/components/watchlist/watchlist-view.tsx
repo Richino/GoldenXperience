@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { displayNameFor, pipSizeFor } from "@/lib/instruments/catalog";
 import { apiUrl } from "@/lib/api/url";
@@ -46,6 +46,20 @@ function price(value: number | null, instrument: string) {
 function evaluatedLabel(value: string | null) {
   if (!value) return "Waiting";
   return formatClockTime(value);
+}
+
+// Keep the Watchlist reading the same readiness language as Dashboard: blue at
+// early checklist progress, cyan through confirmation, then clear green.
+function checklistProgressColor(progress: number) {
+  const clamped = Math.max(0, Math.min(100, progress));
+  const hue = Math.round(
+    clamped <= 50
+      ? 220 - clamped * 0.5
+      : clamped <= 75
+        ? 195 - (clamped - 50) * 2
+        : 145 - (clamped - 75) * 0.8,
+  );
+  return `hsl(${hue} 90% ${Math.round(55 - clamped * 0.04)}%)`;
 }
 
 function hasTradeLevels(row: WatchRow) {
@@ -185,12 +199,18 @@ export function WatchlistView() {
               const hasDetail = Boolean(rowStatus || levels);
               const progress = status.progress;
               const showProgress = status.state !== "open" && status.state !== "unavailable";
+              const progressColor = checklistProgressColor(progress);
               return (
                 <Link
                   key={row.instrument}
                   href={`/signals?instrument=${encodeURIComponent(row.instrument)}`}
                   className="wl-pair-card pressable"
                   data-state={status.state}
+                  style={
+                    showProgress
+                      ? { "--watch-progress-color": progressColor } as CSSProperties
+                      : undefined
+                  }
                 >
                   {/* Two stacked blocks on mobile. On desktop the wrappers go
                       `display: contents` so these cells become grid items. */}
@@ -216,6 +236,7 @@ export function WatchlistView() {
                         {rowStatus ? (
                           <p
                             className={`wl-status watchlist-status-label ${status.tone}`}
+                            style={showProgress ? { color: progressColor } : undefined}
                           >
                             {rowStatus}
                           </p>
@@ -253,7 +274,13 @@ export function WatchlistView() {
                       aria-valuemax={100}
                       aria-valuenow={progress}
                     >
-                      <span style={{ width: `${progress}%` }} />
+                      <span
+                        style={{
+                          width: `${progress}%`,
+                          backgroundColor: progressColor,
+                          boxShadow: `0 0 0.4rem ${progressColor}`,
+                        }}
+                      />
                     </div>
                   ) : null}
                 </Link>

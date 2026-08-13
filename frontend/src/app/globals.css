@@ -4310,6 +4310,12 @@ input[type="number"] {
     padding-bottom: 0;
   }
 
+  /* Once Back is hidden there is only one visible action group; anchor that
+     group to the same right edge it has in the normal header. */
+  .signals-view-fullscreen .signals-mobile-actions {
+    justify-content: flex-end;
+  }
+
 }
 
 .dark .signals-view section.app-card:has(.signals-chart-desktop) {
@@ -4377,6 +4383,8 @@ input[type="number"] {
   .signals-view .signals-chart-mobile > .chart-data-shell {
     flex: 1;
     min-height: 0;
+    border-top: 1px solid var(--border-strong);
+    border-bottom: 1px solid var(--border-strong);
     /* Measured: the nav pill's top edge sits 4.25rem above the bottom, so that
        much is the nav itself and everything past it is the visible gap. At
        5.25rem the gap was 16px, which still read as touching; 6.25rem leaves
@@ -4388,7 +4396,10 @@ input[type="number"] {
 
   /* Fullscreen covers the nav, so the canvas reclaims that strip. */
   .signals-view-fullscreen .signals-chart-mobile > .chart-data-shell {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    flex: 0 0 auto;
+    height: calc(100dvh - 15.5rem - env(safe-area-inset-bottom, 0px));
+    margin-bottom: calc(2.5rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: 0;
   }
 
   .signals-view .signals-mobile-content {

@@ -333,7 +333,7 @@ export function AccountAmountChart({
               ifOverflow="extendDomain"
             />
             <Area
-              type="linear"
+              type="monotone"
               dataKey="value"
               stroke={stroke}
               strokeWidth={2.25}

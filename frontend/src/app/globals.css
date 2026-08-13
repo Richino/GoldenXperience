@@ -4307,7 +4307,8 @@ input[type="number"] {
   }
 
   .signals-view-fullscreen .signals-mobile-content {
-    padding-bottom: 0;
+    /* Keep the same breathing room below the tool row as the normal view. */
+    padding-bottom: 1rem;
   }
 
   /* Once Back is hidden there is only one visible action group; anchor that
@@ -4385,6 +4386,9 @@ input[type="number"] {
     min-height: 0;
     border-top: 1px solid var(--border-strong);
     border-bottom: 1px solid var(--border-strong);
+    /* The embedded chart paints to its full box; inset rules stay visible even
+       when that canvas has the same surface colour as its parent. */
+    box-shadow: inset 0 1px 0 var(--border-strong), inset 0 -1px 0 var(--border-strong);
     /* Measured: the nav pill's top edge sits 4.25rem above the bottom, so that
        much is the nav itself and everything past it is the visible gap. At
        5.25rem the gap was 16px, which still read as touching; 6.25rem leaves
@@ -4399,6 +4403,7 @@ input[type="number"] {
     flex: 0 0 auto;
     height: calc(100dvh - 15.5rem - env(safe-area-inset-bottom, 0px));
     margin-bottom: calc(2.5rem + env(safe-area-inset-bottom, 0px));
+    margin-top: 1rem;
     padding-bottom: 0;
   }
 

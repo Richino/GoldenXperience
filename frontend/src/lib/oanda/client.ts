@@ -7,6 +7,7 @@ import {
 } from "@/lib/mock-data";
 import type {
   AccountSummary,
+  AccountBalanceHistoryPoint,
   CandleSeries,
   ConnectionStatus,
   MajorInstrument,
@@ -37,6 +38,16 @@ interface OandaAccountResponse {
     marginAvailable: string;
     openTradeCount: number;
   };
+}
+
+interface OandaTransactionsResponse {
+  pages?: string[];
+  transactions?: Array<{
+    id: string;
+    time: string;
+    type: string;
+    accountBalance?: string;
+  }>;
 }
 
 interface OandaPricingResponse {
@@ -337,6 +348,69 @@ export async function getAccountSummary(): Promise<{
   } catch (error) {
     return {
       data: mockAccount,
+      status: buildStatus("error", errorMessage(error)),
+    };
+  }
+}
+
+/**
+ * Returns real balance movements from OANDA's transaction ledger.
+ *
+ * The dashboard used to add internal `paper_pl` estimates backwards from the
+ * broker's current NAV. That made the plotted amounts look authoritative even
+ * when broker fills, financing, or manual transactions did not equal those
+ * estimates. Each point below is an actual OANDA-reported account balance.
+ */
+export async function getAccountBalanceHistory(): Promise<{
+  data: AccountBalanceHistoryPoint[];
+  status: ConnectionStatus;
+}> {
+  const config = getConfig();
+  if (!config) {
+    return {
+      data: [],
+      status: buildStatus("not_configured", "Add server-side practice credentials to load broker account history."),
+    };
+  }
+
+  try {
+    const accountPath = `/v3/accounts/${encodeURIComponent(config.accountId)}`;
+    const index = await requestOanda<OandaTransactionsResponse>(`${accountPath}/transactions?pageSize=1000`);
+    const pagePaths = (index.pages ?? []).slice(-5).map((page) => {
+      const url = new URL(page, config.baseUrl);
+      if (url.origin !== config.baseUrl) throw new OandaRequestError("OANDA returned an unexpected transaction page.");
+      return `${url.pathname}${url.search}`;
+    });
+    const pages = pagePaths.length
+      ? await Promise.all(pagePaths.map((page) => requestOanda<OandaTransactionsResponse>(page)))
+      : [index];
+    const transactions = pages
+      .flatMap((page) => page.transactions ?? [])
+      .map((transaction) => ({ ...transaction, balance: Number(transaction.accountBalance) }))
+      .filter((transaction) => Number.isFinite(transaction.balance) && Number.isFinite(new Date(transaction.time).getTime()))
+      .sort((left, right) => new Date(left.time).getTime() - new Date(right.time).getTime() || Number(left.id) - Number(right.id));
+
+    let precedingBalance: number | null = null;
+    const data: AccountBalanceHistoryPoint[] = [];
+    for (const transaction of transactions) {
+      const change = precedingBalance === null ? 0 : transaction.balance - precedingBalance;
+      precedingBalance = transaction.balance;
+      // Account configuration and order creation events commonly repeat the
+      // same balance; drawing them would fabricate flat "trades" in the chart.
+      if (Math.abs(change) < 0.000_001) continue;
+      data.push({
+        id: transaction.id,
+        time: transaction.time,
+        balance: transaction.balance,
+        change,
+        type: transaction.type,
+      });
+    }
+
+    return { data, status: buildStatus("connected", "Practice account history is live.") };
+  } catch (error) {
+    return {
+      data: [],
       status: buildStatus("error", errorMessage(error)),
     };
   }

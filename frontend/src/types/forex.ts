@@ -44,6 +44,17 @@ export interface AccountSummary {
   source: DataSource;
 }
 
+/** A balance-changing transaction reported by the connected OANDA account. */
+export interface AccountBalanceHistoryPoint {
+  id: string;
+  time: string;
+  /** Account balance immediately after this transaction. */
+  balance: number;
+  /** Exact balance movement from the preceding reported transaction. */
+  change: number;
+  type: string;
+}
+
 export interface PriceQuote {
   instrument: MajorInstrument;
   displayName: string;

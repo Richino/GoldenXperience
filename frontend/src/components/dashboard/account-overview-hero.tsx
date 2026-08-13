@@ -10,15 +10,7 @@ import {
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { tradingDayKey } from "@/lib/format/datetime";
 import { useScrolledPast } from "@/lib/use-scrolled-past";
-import type { AccountSummary } from "@/types/forex";
-
-type PaperTradePoint = {
-  tradeSequence?: number;
-  paperPl: number | null;
-  closedAt: string | null;
-  openedAt: string;
-  status: string;
-};
+import type { AccountBalanceHistoryPoint, AccountSummary } from "@/types/forex";
 
 function money(value: number, currency: string) {
   return new Intl.NumberFormat("en-US", {
@@ -44,12 +36,12 @@ function initials(value: string) {
 export function AccountOverviewHero({
   account,
   userLabel,
-  trades,
+  history,
   todayKey,
 }: {
   account: AccountSummary;
   userLabel: string;
-  trades: PaperTradePoint[];
+  history: AccountBalanceHistoryPoint[];
   /**
    * The current ET day, resolved on the server. Reading the clock during render
    * would make the server and the browser disagree across a midnight boundary
@@ -68,29 +60,26 @@ export function AccountOverviewHero({
       buildAccountAmountSeries({
         nav: account.nav,
         unrealizedPL: account.unrealizedPL,
-        trades,
+        history,
         range,
       }),
-    [account.nav, account.unrealizedPL, trades, range],
+    [account.nav, account.unrealizedPL, history, range],
   );
 
-  // "Today" is everything the account actually moved this session: paper trades
-  // banked since the ET day opened, plus whatever is still floating on open
-  // positions. Unrealized alone is why this read +0.00% on any day that closed
-  // its trades — the realized part was missing.
+  // "Today" is every broker-reported balance movement this session plus the
+  // still-floating value on open positions. Strategy estimates are deliberately
+  // excluded because they can differ from the executed practice-account fill.
   const dayPL = useMemo(() => {
-    const realized = trades.reduce(
-      (sum, trade) =>
-        trade.closedAt &&
-        trade.paperPl !== null &&
-        tradingDayKey(trade.closedAt) === todayKey
-          ? sum + trade.paperPl
+    const realized = history.reduce(
+      (sum, point) =>
+        tradingDayKey(point.time) === todayKey
+          ? sum + point.change
           : sum,
       0,
     );
 
     return realized + account.unrealizedPL;
-  }, [account.unrealizedPL, todayKey, trades]);
+  }, [account.unrealizedPL, todayKey, history]);
 
   const baseline = account.nav - dayPL;
   const changePercent = baseline !== 0 ? (dayPL / baseline) * 100 : 0;

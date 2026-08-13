@@ -12,6 +12,7 @@ import {
   YAxis,
 } from "recharts";
 import { formatDayAndTime } from "@/lib/format/datetime";
+import type { AccountBalanceHistoryPoint } from "@/types/forex";
 
 export type AccountChartPoint = {
   label: string;
@@ -82,39 +83,34 @@ function moneyExact(value: number, currency: string) {
 export function buildAccountAmountSeries({
   nav,
   unrealizedPL,
-  trades,
+  history,
   range,
 }: {
   nav: number;
   unrealizedPL: number;
-  trades: Array<{ tradeSequence?: number; paperPl: number | null; closedAt: string | null; openedAt: string; status: string }>;
+  history: AccountBalanceHistoryPoint[];
   range: AccountChartRange;
 }): AccountChartPoint[] {
   const now = Date.now();
-  const closed = trades
-    .filter((trade) => trade.status !== "open" && trade.paperPl !== null && trade.closedAt)
-    .map((trade) => ({
-      at: new Date(trade.closedAt as string).getTime(),
-      pl: trade.paperPl as number,
-      tradeNumber: trade.tradeSequence ?? null,
+  const closed = history
+    .map((movement, index) => ({
+      at: new Date(movement.time).getTime(),
+      pl: movement.change,
+      balance: movement.balance,
+      tradeNumber: index + 1,
     }))
-    .sort((a, b) => a.at - b.at);
+    .filter((movement) => Number.isFinite(movement.at) && Number.isFinite(movement.balance) && Number.isFinite(movement.pl))
+    .sort((a, b) => a.at - b.at || a.tradeNumber - b.tradeNumber);
 
   const limit = RANGE_TRADES[range];
   const window = limit === null ? closed : closed.slice(-limit);
 
-  // Walked backwards from the reported NAV so the line lands on the real
-  // balance: the opening point is whatever the account must have held before
-  // the window's trades to arrive where it is now.
-  const settledNav = nav - unrealizedPL;
-  const periodPl = window.reduce((sum, trade) => sum + trade.pl, 0);
-  let running = settledNav - periodPl;
-
   const openedAt = window[0] ? new Date(window[0].at) : new Date(now);
+  const openingBalance = window[0] ? window[0].balance - window[0].pl : nav - unrealizedPL;
   const points: AccountChartPoint[] = [
     {
       label: window.length ? `Before ${formatDayAndTime(openedAt)}` : "Opening balance",
-      value: Number(running.toFixed(2)),
+      value: Number(openingBalance.toFixed(2)),
       at: openedAt.toISOString(),
       tradeNumber: window[0]?.tradeNumber === null || window[0]?.tradeNumber === undefined ? null : window[0].tradeNumber - 1,
       tradePnl: null,
@@ -123,10 +119,9 @@ export function buildAccountAmountSeries({
   ];
 
   window.forEach((trade, position) => {
-    running += trade.pl;
     points.push({
       label: formatDayAndTime(new Date(trade.at)),
-      value: Number(running.toFixed(2)),
+      value: Number(trade.balance.toFixed(2)),
       at: new Date(trade.at).toISOString(),
       tradeNumber: trade.tradeNumber,
       tradePnl: trade.pl,
@@ -207,7 +202,7 @@ function AccountChartTooltip({
       <span className="account-chart-tooltip-time">
         {point.tradeNumber === null
           ? point.label
-          : `Trade #${point.tradeNumber} · ${point.tradePnl !== null && point.tradePnl >= 0 ? "+" : ""}${point.tradePnl === null ? "" : moneyExact(point.tradePnl, currency)} P/L`}
+          : `Broker movement · ${point.tradePnl !== null && point.tradePnl >= 0 ? "+" : ""}${point.tradePnl === null ? "" : moneyExact(point.tradePnl, currency)}`}
       </span>
     </div>
   );
@@ -299,7 +294,7 @@ export function AccountAmountChart({
 
   return (
     <div className="account-chart">
-      <div className="account-range-row" role="tablist" aria-label="How many trades to chart">
+        <div className="account-range-row" role="tablist" aria-label="How many broker movements to chart">
         {RANGES.map((option) => {
           const active = option === range;
           return (
@@ -316,7 +311,7 @@ export function AccountAmountChart({
             </button>
           );
         })}
-        <span className="account-range-unit">trades</span>
+        <span className="account-range-unit">movements</span>
       </div>
 
       <div
@@ -362,7 +357,7 @@ export function AccountAmountChart({
               tickFormatter={(index: number) => {
                 const point = series.find((item) => item.index === index);
                 if (!point || point.tradeNumber === null) return point?.label === "Now" ? "Now" : "Start";
-                return `T${point.tradeNumber}`;
+                return `A${point.tradeNumber}`;
               }}
             />
             <YAxis hide domain={[min - footroom, max + headroom]} />
@@ -425,9 +420,9 @@ export function AccountAmountChart({
       </div>
 
       <div className="mt-3 flex items-center justify-between gap-3 text-xs text-[color:var(--muted)]">
-        <span>{tradeStart === null || tradeEnd === null ? "No closed trades" : `Trades #${tradeStart}–#${tradeEnd}`}</span>
+        <span>{tradePoints.length ? `${tradePoints.length} broker movements` : "No broker movements"}</span>
         <span className={netChange >= 0 ? "text-[color:var(--success)]" : "text-[color:var(--danger)]"}>
-          {netChange >= 0 ? "+" : "−"}{moneyExact(Math.abs(netChange), currency)} over {tradePoints.length} closes
+          {netChange >= 0 ? "+" : "−"}{moneyExact(Math.abs(netChange), currency)} over {tradePoints.length} movements
         </span>
       </div>
 

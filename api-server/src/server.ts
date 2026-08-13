@@ -18,6 +18,7 @@ import { getEconomicCalendar } from "../../frontend/src/lib/calendar/forex-facto
 import { isKnownInstrument } from "../../frontend/src/lib/instruments/catalog.js";
 import {
   getAccountSummary,
+  getAccountBalanceHistory,
   getCandles,
   getOpenPositions,
   getPricing,
@@ -345,6 +346,8 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       return json(request, response, { ok: true, service: "goldenxperience-api", checkedAt: new Date().toISOString() });
     case "/api/oanda/account-summary":
       return json(request, response, await getAccountSummary());
+    case "/api/oanda/account-history":
+      return json(request, response, await getAccountBalanceHistory());
     case "/api/oanda/open-positions":
       return json(request, response, await getOpenPositions());
     case "/api/oanda/calendar":

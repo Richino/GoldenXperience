@@ -13,7 +13,7 @@ import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import { useOpenPositionFills } from "@/lib/market-stream/use-open-positions";
 import { getPaperTradingAvailability } from "@/lib/strategy/strategy-engine";
 import { watchlistCardStatus } from "@/lib/watchlist-status";
-import type { AccountSummary, ConnectionStatus } from "@/types/forex";
+import type { AccountBalanceHistoryPoint, AccountSummary, ConnectionStatus } from "@/types/forex";
 
 export type DashboardWatchRow = {
   instrument: string;
@@ -152,12 +152,14 @@ function DashboardStat({
 
 export function DashboardView({
   initialAccount,
+  initialAccountHistory,
   initialWatchlist,
   initialOverview,
   userLabel,
   todayKey,
 }: {
   initialAccount: AccountSummary;
+  initialAccountHistory: AccountBalanceHistoryPoint[];
   initialStatus: ConnectionStatus;
   initialWatchlist: DashboardWatchRow[];
   initialOverview: DashboardOverview;
@@ -166,6 +168,7 @@ export function DashboardView({
   todayKey: string;
 }) {
   const [account, setAccount] = useState(initialAccount);
+  const [accountHistory, setAccountHistory] = useState(initialAccountHistory);
   const [watchlist, setWatchlist] = useState(initialWatchlist);
   const [overview, setOverview] = useState(initialOverview);
   const [error, setError] = useState<string | null>(null);
@@ -178,20 +181,23 @@ export function DashboardView({
 
   const refresh = useCallback(async () => {
     try {
-      const [accountResponse, watchlistResponse, cycleResponse] = await Promise.all([
+      const [accountResponse, historyResponse, watchlistResponse, cycleResponse] = await Promise.all([
         fetch(apiUrl("/api/oanda/account-summary"), { credentials: "include", cache: "no-store" }),
+        fetch(apiUrl("/api/oanda/account-history"), { credentials: "include", cache: "no-store" }),
         fetch(apiUrl("/api/watchlist"), { credentials: "include", cache: "no-store" }),
         fetch(apiUrl("/api/paper-cycle"), { credentials: "include", cache: "no-store" }),
       ]);
-      if (![accountResponse, watchlistResponse, cycleResponse].every((response) => response.ok)) {
+      if (![accountResponse, historyResponse, watchlistResponse, cycleResponse].every((response) => response.ok)) {
         throw new Error("Dashboard data is temporarily unavailable.");
       }
-      const [accountPayload, watchlistPayload, cyclePayload] = await Promise.all([
+      const [accountPayload, historyPayload, watchlistPayload, cyclePayload] = await Promise.all([
         accountResponse.json() as Promise<{ data: AccountSummary; status: ConnectionStatus }>,
+        historyResponse.json() as Promise<{ data: AccountBalanceHistoryPoint[] }>,
         watchlistResponse.json() as Promise<{ watchlist: DashboardWatchRow[] }>,
         cycleResponse.json() as Promise<DashboardOverview>,
       ]);
       setAccount(accountPayload.data);
+      setAccountHistory(historyPayload.data);
       setWatchlist(watchlistPayload.watchlist);
       setOverview(cyclePayload);
       setError(null);
@@ -241,20 +247,12 @@ export function DashboardView({
   const lifetime = overview.lifetimeSummary;
   // Account history spans batches; the recent-trades list below stays scoped to
   // the batch that is collecting.
-  const paperTrades = (overview.accountTrades ?? overview.trades).map((trade) => ({
-    tradeSequence: "tradeSequence" in trade ? Number(trade.tradeSequence) : undefined,
-    paperPl: trade.paperPl ?? null,
-    closedAt: trade.closedAt ?? null,
-    openedAt: trade.openedAt,
-    status: trade.status,
-  }));
-
   return (
     <div className="dashboard-view dashboard-minimal space-y-8 lg:space-y-10">
       <AccountOverviewHero
         account={account}
         userLabel={userLabel}
-        trades={paperTrades}
+        history={accountHistory}
         todayKey={todayKey}
       />
 

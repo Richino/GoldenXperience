@@ -4398,6 +4398,20 @@ input[type="number"] {
     padding-bottom: calc(6.25rem + env(safe-area-inset-bottom, 0px));
   }
 
+  /* A real foreground layer, not a container border: the chart's own surface
+     can otherwise visually swallow the lower edge on mobile. */
+  .signals-view .signals-chart-mobile > .chart-data-shell::after {
+    content: "";
+    position: absolute;
+    z-index: 20;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 1px;
+    background: var(--border-strong);
+    pointer-events: none;
+  }
+
   /* Fullscreen covers the nav, so the canvas reclaims that strip. */
   .signals-view-fullscreen .signals-chart-mobile > .chart-data-shell {
     flex: 0 0 auto;

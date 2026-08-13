@@ -4285,6 +4285,13 @@ input[type="number"] {
   display: none;
 }
 
+/* Hide notifications in fullscreen without collapsing their slot: that keeps
+   the exit/fullscreen control anchored at its normal x-position. */
+.signals-view-fullscreen .signals-fullscreen-reserve {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 @media (max-width: 1023px) {
   .signals-view-fullscreen .signals-chart-mobile {
     height: 100dvh;

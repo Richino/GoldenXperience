@@ -1344,7 +1344,7 @@ export function SignalWorkspace({
                   fullscreen={fullscreen}
                   onToggle={() => setFullscreen((open) => !open)}
                 />
-                <NotificationBell compact className="signals-icon-btn signals-fullscreen-hidden" />
+                <NotificationBell compact className="signals-icon-btn signals-fullscreen-reserve" />
               </div>
             </div>
 

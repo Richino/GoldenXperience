@@ -58,11 +58,12 @@ export function AccountOverviewHero({
   const series = useMemo(
     () =>
       buildAccountAmountSeries({
+        nav: account.nav,
         unrealizedPL: account.unrealizedPL,
         history,
         range,
       }),
-    [account.unrealizedPL, history, range],
+    [account.nav, account.unrealizedPL, history, range],
   );
 
   // "Today" is every broker-reported balance movement this session plus the

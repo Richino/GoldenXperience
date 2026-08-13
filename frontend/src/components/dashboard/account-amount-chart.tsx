@@ -5,7 +5,6 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
-  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -16,7 +15,10 @@ import type { AccountBalanceHistoryPoint } from "@/types/forex";
 export type AccountChartPoint = {
   label: string;
   axisLabel: string;
+  /** Broker account value after this bucket's closed and open P/L. */
   value: number;
+  /** Net P/L that changed the account during this bucket. */
+  change: number;
   at: string;
   movementCount: number;
   includesOpenPL: boolean;
@@ -77,17 +79,20 @@ function formatBucketLabel(start: number, end: number, range: AccountChartRange)
 }
 
 /**
- * Build fixed time buckets from broker-reported P/L.
+ * Build an account-value curve from broker-reported P/L.
  *
- * Each bar is the net result inside that slice of time. The final bar also
- * includes current unrealised P/L so the sum agrees with the live period total.
+ * The first point is the inferred balance at the start of the selected period.
+ * Every bucket then applies its exact ledger changes; the last includes current
+ * unrealised P/L and is pinned to the live NAV displayed above the chart.
  */
 export function buildAccountAmountSeries({
+  nav,
   unrealizedPL,
   history,
   range,
   now = Date.now(),
 }: {
+  nav: number;
   unrealizedPL: number;
   history: AccountBalanceHistoryPoint[];
   range: AccountChartRange;
@@ -96,13 +101,14 @@ export function buildAccountAmountSeries({
   const config = RANGE_CONFIG[range];
   const cutoff = now - config.durationMs;
   const bucketCount = Math.ceil(config.durationMs / config.bucketMs);
-  const points: AccountChartPoint[] = Array.from({ length: bucketCount }, (_, index) => {
+  const buckets = Array.from({ length: bucketCount }, (_, index) => {
     const start = cutoff + index * config.bucketMs;
     const end = Math.min(start + config.bucketMs, now);
     return {
       label: formatBucketLabel(start, end, range),
       axisLabel: formatAxisTick(start + (end - start) / 2, range),
       value: 0,
+      change: 0,
       at: new Date(start).toISOString(),
       movementCount: 0,
       includesOpenPL: index === bucketCount - 1 && unrealizedPL !== 0,
@@ -120,15 +126,39 @@ export function buildAccountAmountSeries({
 
   for (const movement of movements) {
     const bucketIndex = Math.min(Math.floor((movement.at - cutoff) / config.bucketMs), bucketCount - 1);
-    const point = points[bucketIndex];
+    const point = buckets[bucketIndex];
     if (!point) continue;
-    point.value += movement.pl;
+    point.change += movement.pl;
     point.movementCount += 1;
   }
 
-  const finalPoint = points.at(-1);
-  if (finalPoint) finalPoint.value += unrealizedPL;
-  for (const point of points) point.value = Number(point.value.toFixed(2));
+  const realizedPeriodPL = buckets.reduce((sum, point) => sum + point.change, 0);
+  const openingValue = nav - realizedPeriodPL - unrealizedPL;
+  let runningValue = openingValue;
+  const points: AccountChartPoint[] = [
+    {
+      label: `Start of ${config.label}`,
+      axisLabel: formatAxisTick(cutoff, range),
+      value: Number(openingValue.toFixed(2)),
+      change: 0,
+      at: new Date(cutoff).toISOString(),
+      movementCount: 0,
+      includesOpenPL: false,
+      index: 0,
+    },
+  ];
+
+  buckets.forEach((bucket, index) => {
+    const isLast = index === buckets.length - 1;
+    const change = bucket.change + (isLast ? unrealizedPL : 0);
+    runningValue += change;
+    points.push({
+      ...bucket,
+      change: Number(change.toFixed(2)),
+      value: Number((isLast ? nav : runningValue).toFixed(2)),
+      index: index + 1,
+    });
+  });
 
   return points;
 }
@@ -141,7 +171,7 @@ export function buildAccountAmountSeries({
  * the hero ended up green around a red chart.
  */
 export function accountSeriesRose(series: AccountChartPoint[]) {
-  return series.reduce((sum, point) => sum + point.value, 0) >= 0;
+  return (series.at(-1)?.value ?? 0) >= (series[0]?.value ?? 0);
 }
 
 function ActiveValueLabel({
@@ -187,6 +217,10 @@ function AccountChartTooltip({
         {point.label} · {point.movementCount} closed {point.movementCount === 1 ? "change" : "changes"}
         {point.includesOpenPL ? " + open P/L" : ""}
       </span>
+      <span className="account-chart-tooltip-time">
+        {point.change >= 0 ? "+" : "-"}
+        {moneyExact(Math.abs(point.change), currency)} P/L
+      </span>
     </div>
   );
 }
@@ -203,9 +237,9 @@ function PnLDot({
   radius?: number;
 }) {
   if (cx === undefined || cy === undefined || !payload) return null;
-  const fill = payload.value > 0
+  const fill = payload.change > 0
     ? "var(--success)"
-    : payload.value < 0
+    : payload.change < 0
       ? "var(--danger)"
       : "var(--muted)";
   return (
@@ -235,12 +269,14 @@ export function AccountAmountChart({
   const gradientId = useId().replace(/:/g, "");
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const values = useMemo(() => series.map((point) => point.value), [series]);
-  const min = Math.min(0, ...values);
-  const max = Math.max(0, ...values);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
   const room = Math.max((max - min) * 0.12, 1);
   const activePoint = activeIndex === null ? null : (series[activeIndex] ?? null);
   const movementCount = series.reduce((sum, point) => sum + point.movementCount, 0);
-  const netChange = series.reduce((sum, point) => sum + point.value, 0);
+  const opening = series[0]?.value ?? 0;
+  const latest = series.at(-1)?.value ?? opening;
+  const netChange = latest - opening;
   const stroke = netChange >= 0 ? "var(--chart-up)" : "var(--chart-down)";
   const tickInterval = range === "1w" ? 0 : range === "1m" ? 1 : 2;
 
@@ -282,14 +318,14 @@ export function AccountAmountChart({
       <div
         className="account-chart-canvas mt-4"
         role="img"
-        aria-label={`Account profit and loss over ${RANGE_CONFIG[range].label}`}
+        aria-label={`Account balance over ${RANGE_CONFIG[range].label}`}
       >
         <ActiveValueLabel point={activePoint} currency={currency} />
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
             data={series}
             // Match Signals: fill continues beneath the line to the chart's
-            // lower edge, then fades out. Zero remains only a reference rule.
+            // lower edge, then fades out.
             baseValue={min - room}
             margin={{ top: 14, right: 4, left: 4, bottom: 4 }}
             onMouseMove={handleChartFocus}
@@ -327,12 +363,6 @@ export function AccountAmountChart({
                 />
               )}
             />
-            <ReferenceLine
-              y={0}
-              stroke="var(--border-strong, var(--border))"
-              strokeWidth={1}
-              ifOverflow="extendDomain"
-            />
             <Area
               type="monotone"
               dataKey="value"
@@ -364,8 +394,8 @@ export function AccountAmountChart({
 
       {/* Colour is not the only channel: the total and direction remain spoken. */}
       <p className="sr-only">
-        Account P/L {netChange >= 0 ? "up" : "down"}{" "}
-        {moneyCompact(Math.abs(netChange), currency)} over {RANGE_CONFIG[range].label}.
+        Account balance {moneyCompact(latest, currency)}, {netChange >= 0 ? "up" : "down"}{" "}
+        {moneyCompact(Math.abs(netChange), currency)} over {RANGE_CONFIG[range].label}, from {moneyCompact(opening, currency)}.
       </p>
     </div>
   );

@@ -291,42 +291,45 @@ const history = brokerHistory([
   { hoursAgo: 0.5, change: 25 },
 ]);
 
-const hour = buildAccountAmountSeries({ unrealizedPL: 0, history, range: "1h", now: NOW });
-const day = buildAccountAmountSeries({ unrealizedPL: 0, history, range: "1d", now: NOW });
-const week = buildAccountAmountSeries({ unrealizedPL: 0, history, range: "1w", now: NOW });
-const month = buildAccountAmountSeries({ unrealizedPL: 0, history, range: "1m", now: NOW });
+const hour = buildAccountAmountSeries({ nav: 10_225, unrealizedPL: 0, history, range: "1h", now: NOW });
+const day = buildAccountAmountSeries({ nav: 10_225, unrealizedPL: 0, history, range: "1d", now: NOW });
+const week = buildAccountAmountSeries({ nav: 10_225, unrealizedPL: 0, history, range: "1w", now: NOW });
+const month = buildAccountAmountSeries({ nav: 10_225, unrealizedPL: 0, history, range: "1m", now: NOW });
 
-const total = (series: Array<{ value: number }>) => series.reduce((sum, point) => sum + point.value, 0);
+const periodChange = (series: Array<{ value: number }>) => (series.at(-1)?.value ?? 0) - (series[0]?.value ?? 0);
 
-assert.equal(total(hour), 25, "one hour includes only the recent $25 win");
-assert.equal(total(day), -25, "one day includes the $50 loss and $25 win");
-assert.equal(total(week), 275, "one week includes its three broker P/L changes");
-assert.equal(total(month), 75, "one month excludes movements older than 30 days");
-assert.deepEqual([hour.length, day.length, week.length, month.length], [12, 12, 7, 10]);
+assert.equal(periodChange(hour), 25, "one hour includes only the recent $25 win");
+assert.equal(periodChange(day), -25, "one day includes the $50 loss and $25 win");
+assert.equal(periodChange(week), 275, "one week includes its three broker P/L changes");
+assert.equal(periodChange(month), 75, "one month excludes movements older than 30 days");
+assert.ok([hour, day, week, month].every((series) => series.at(-1)!.value === 10_225), "every range ends at the live NAV");
+assert.deepEqual([hour.length, day.length, week.length, month.length], [13, 13, 8, 11]);
 
 for (const [name, series] of [["hour", hour], ["day", day], ["week", week], ["month", month]] as const) {
   series.forEach((point, index) => assert.equal(point.index, index, `${name} keeps ordered time buckets`));
 }
 
 // An account with no closed trades keeps empty time buckets, not invented P/L.
-const empty = buildAccountAmountSeries({ unrealizedPL: 0, history: [], range: "1d", now: NOW });
-assert.equal(empty.length, 12, "a day is divided into twelve readable two-hour bars");
-assert.ok(empty.every((point) => point.value === 0), "and empty buckets remain zero");
+const empty = buildAccountAmountSeries({ nav: 10_000, unrealizedPL: 0, history: [], range: "1d", now: NOW });
+assert.equal(empty.length, 13, "a day includes its opening balance plus twelve readable two-hour buckets");
+assert.ok(empty.every((point) => point.value === 10_000), "and an unchanged account remains at its reported balance");
 
 // Current unrealised P/L belongs only in the final, live bucket.
 const withOpen = buildAccountAmountSeries({
+  nav: 10_250,
   unrealizedPL: 250,
   history: brokerHistory([{ hoursAgo: 2, change: 100 }], 9_900),
   range: "1d",
   now: NOW,
 });
-assert.equal(withOpen.at(-1)!.value, 350, "the last point includes closed and current open P/L");
+assert.equal(withOpen.at(-1)!.value, 10_250, "the last point equals the live NAV including open P/L");
 assert.equal(withOpen.at(-1)!.movementCount, 1, "the final bucket records its broker movement");
 assert.equal(withOpen.at(-1)!.includesOpenPL, true, "the tooltip discloses that open P/L is included");
 
 // The card tint follows the sum of all bars, not the final bucket alone.
 assert.equal(accountSeriesRose(week), true, "a profitable week is a series that rose");
 const fell = buildAccountAmountSeries({
+  nav: 9_800,
   unrealizedPL: 0,
   history: brokerHistory([{ hoursAgo: 2, change: -200 }]),
   range: "1d",
@@ -334,7 +337,7 @@ const fell = buildAccountAmountSeries({
 });
 assert.equal(accountSeriesRose(fell), false, "a losing day is a series that fell");
 assert.equal(
-  accountSeriesRose(buildAccountAmountSeries({ unrealizedPL: 0, history: [], range: "1m", now: NOW })),
+  accountSeriesRose(buildAccountAmountSeries({ nav: 10_000, unrealizedPL: 0, history: [], range: "1m", now: NOW })),
   true,
   "a flat series is not a loss",
 );

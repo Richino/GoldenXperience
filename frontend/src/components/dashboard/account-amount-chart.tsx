@@ -298,9 +298,9 @@ export function AccountAmountChart({
           >
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={stroke} stopOpacity={0.3} />
+                <stop offset="0%" stopColor={stroke} stopOpacity={0.02} />
                 <stop offset="55%" stopColor={stroke} stopOpacity={0.1} />
-                <stop offset="100%" stopColor={stroke} stopOpacity={0.02} />
+                <stop offset="100%" stopColor={stroke} stopOpacity={0.3} />
               </linearGradient>
             </defs>
             <CartesianGrid vertical={false} stroke="var(--border)" strokeOpacity={0.45} />

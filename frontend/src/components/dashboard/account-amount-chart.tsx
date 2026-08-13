@@ -242,9 +242,6 @@ export function AccountAmountChart({
   const movementCount = series.reduce((sum, point) => sum + point.movementCount, 0);
   const netChange = series.reduce((sum, point) => sum + point.value, 0);
   const stroke = netChange >= 0 ? "var(--chart-up)" : "var(--chart-down)";
-  // Fade from the plotted curve inward toward the zero baseline. Positive P/L
-  // lives above zero; negative P/L lives below it, so the SVG direction flips.
-  const curveIsAboveBaseline = netChange >= 0;
   const tickInterval = range === "1w" ? 0 : range === "1m" ? 1 : 2;
 
   function handleChartFocus(event: { activeTooltipIndex?: number | string | null }) {
@@ -301,9 +298,8 @@ export function AccountAmountChart({
           >
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={stroke} stopOpacity={curveIsAboveBaseline ? 0.28 : 0} />
-                <stop offset="55%" stopColor={stroke} stopOpacity={0.08} />
-                <stop offset="100%" stopColor={stroke} stopOpacity={curveIsAboveBaseline ? 0 : 0.28} />
+                <stop offset="0%" stopColor={stroke} stopOpacity={0.28} />
+                <stop offset="100%" stopColor={stroke} stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid vertical={false} stroke="var(--border)" strokeOpacity={0.45} />

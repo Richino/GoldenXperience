@@ -49,7 +49,7 @@ export function AccountOverviewHero({
    */
   todayKey: string;
 }) {
-  const [range, setRange] = useState<AccountChartRange>("25");
+  const [range, setRange] = useState<AccountChartRange>("1d");
   const name = greetingName(userLabel);
   // The bell is fixed to the viewport, so the greeting row it was lifted out of
   // is what decides when it stops reading as part of the header.
@@ -58,12 +58,11 @@ export function AccountOverviewHero({
   const series = useMemo(
     () =>
       buildAccountAmountSeries({
-        nav: account.nav,
         unrealizedPL: account.unrealizedPL,
         history,
         range,
       }),
-    [account.nav, account.unrealizedPL, history, range],
+    [account.unrealizedPL, history, range],
   );
 
   // "Today" is every broker-reported balance movement this session plus the
@@ -138,9 +137,7 @@ export function AccountOverviewHero({
       </div>
 
       <div className="mt-5 lg:mt-7">
-        {/* No direction passed in: `positive` here is today's P/L, which is the
-            right tone for the pill above and the wrong one for a chart showing
-            a week or a month. The chart reads its own window. */}
+        {/* The pill is today's result; the chart colours its selected period. */}
         <AccountAmountChart
           series={series}
           currency={account.currency}

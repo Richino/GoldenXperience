@@ -20,40 +20,20 @@ export type AccountChartPoint = {
   at: string;
   tradeNumber: number | null;
   tradePnl: number | null;
-  /** Position on the axis: 0 is the balance before the window's first trade,
-   *  then one step per closed trade, ending at now. */
+  /** Millisecond timestamp used by the real time axis. */
   index: number;
 };
 
-/**
- * How much of the record to draw, counted in trades rather than in hours.
- *
- * Wall-clock windows do not suit this account. It trades in bursts of a few a
- * day and then sits still — so an hour and a day both drew flat lines with
- * nothing in them, a week and a month drew the identical fourteen trades, and
- * every view carried a dead flat tail from the last close to now. Three of the
- * four buttons showed nothing.
- *
- * Counting trades is also how an equity curve is normally read: the question is
- * "how did the last twenty-five go", not "how did Tuesday go".
- */
-export type AccountChartRange = "10" | "25" | "50" | "all";
+/** Real wall-clock periods for account profit and loss. */
+export type AccountChartRange = "1h" | "1d" | "1w" | "1m";
 
-const RANGES: AccountChartRange[] = ["10", "25", "50", "all"];
+const RANGES: AccountChartRange[] = ["1h", "1d", "1w", "1m"];
 
-const RANGE_TRADES: Record<AccountChartRange, number | null> = {
-  "10": 10,
-  "25": 25,
-  "50": 50,
-  all: null,
-};
-
-/** How the range reads in a sentence, article included so it composes. */
-const RANGE_LABEL: Record<AccountChartRange, string> = {
-  "10": "the last 10 trades",
-  "25": "the last 25 trades",
-  "50": "the last 50 trades",
-  all: "all trades",
+const RANGE_CONFIG: Record<AccountChartRange, { tab: string; label: string; durationMs: number }> = {
+  "1h": { tab: "1H", label: "the last hour", durationMs: 60 * 60_000 },
+  "1d": { tab: "1D", label: "the last day", durationMs: 24 * 60 * 60_000 },
+  "1w": { tab: "1W", label: "the last week", durationMs: 7 * 24 * 60 * 60_000 },
+  "1m": { tab: "1M", label: "the last 30 days", durationMs: 30 * 24 * 60 * 60_000 },
 };
 
 function moneyCompact(value: number, currency: string) {
@@ -72,80 +52,84 @@ function moneyExact(value: number, currency: string) {
   }).format(value);
 }
 
+function formatAxisTick(value: number, range: AccountChartRange) {
+  const date = new Date(value);
+  if (range === "1h" || range === "1d") {
+    return new Intl.DateTimeFormat("en-US", {
+      hour: "numeric",
+      minute: range === "1h" ? "2-digit" : undefined,
+    }).format(date);
+  }
+  if (range === "1w") {
+    return new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(date);
+  }
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date);
+}
+
 /**
- * Build an account-amount series ending at current NAV from closed paper P/L.
+ * Build broker-reported P/L over a real wall-clock period.
  *
- * One point per closed trade, plus the balance it started from and what the
- * account is worth right now. The steps are evenly spaced because the axis
- * counts trades, not hours — which removes the dead flat stretches that a real
- * time axis draws over the days and weekends when nothing traded.
+ * The range starts at zero, accumulates exact OANDA balance changes, and ends
+ * with current unrealised P/L. A small win or loss is therefore visible instead
+ * of being flattened against the account's much larger total balance.
  */
 export function buildAccountAmountSeries({
-  nav,
   unrealizedPL,
   history,
   range,
+  now = Date.now(),
 }: {
-  nav: number;
   unrealizedPL: number;
   history: AccountBalanceHistoryPoint[];
   range: AccountChartRange;
+  now?: number;
 }): AccountChartPoint[] {
-  const now = Date.now();
-  const closed = history
+  const cutoff = now - RANGE_CONFIG[range].durationMs;
+  const movements = history
     .map((movement, index) => ({
       at: new Date(movement.time).getTime(),
       pl: movement.change,
-      balance: movement.balance,
       tradeNumber: index + 1,
     }))
-    .filter((movement) => Number.isFinite(movement.at) && Number.isFinite(movement.balance) && Number.isFinite(movement.pl))
+    .filter((movement) => Number.isFinite(movement.at) && movement.at >= cutoff && movement.at <= now && Number.isFinite(movement.pl))
     .sort((a, b) => a.at - b.at || a.tradeNumber - b.tradeNumber);
 
-  const limit = RANGE_TRADES[range];
-  const window = limit === null ? closed : closed.slice(-limit);
-
-  const openedAt = window[0] ? new Date(window[0].at) : new Date(now);
-  const openingBalance = window[0] ? window[0].balance - window[0].pl : nav - unrealizedPL;
+  const openedAt = new Date(cutoff);
   const points: AccountChartPoint[] = [
     {
-      label: window.length ? `Before ${formatDayAndTime(openedAt)}` : "Opening balance",
-      value: Number(openingBalance.toFixed(2)),
+      label: `Start of ${RANGE_CONFIG[range].label}`,
+      value: 0,
       at: openedAt.toISOString(),
-      tradeNumber: window[0]?.tradeNumber === null || window[0]?.tradeNumber === undefined ? null : window[0].tradeNumber - 1,
+      tradeNumber: null,
       tradePnl: null,
-      index: 0,
+      index: cutoff,
     },
   ];
 
-  window.forEach((trade, position) => {
+  let runningPL = 0;
+  movements.forEach((movement) => {
+    runningPL += movement.pl;
     points.push({
-      label: formatDayAndTime(new Date(trade.at)),
-      value: Number(trade.balance.toFixed(2)),
-      at: new Date(trade.at).toISOString(),
-      tradeNumber: trade.tradeNumber,
-      tradePnl: trade.pl,
-      index: position + 1,
+      label: formatDayAndTime(new Date(movement.at)),
+      value: Number(runningPL.toFixed(2)),
+      at: new Date(movement.at).toISOString(),
+      tradeNumber: movement.tradeNumber,
+      tradePnl: movement.pl,
+      index: movement.at,
     });
   });
 
-  // Now, carrying any open trade's unrealised P/L. Always present, so the line
-  // ends on the number the hero reports above it.
+  // Carry current open P/L at the endpoint; broker history provides the closed
+  // result and the account summary provides what is still floating now.
   points.push({
     label: "Now",
-      value: Number(nav.toFixed(2)),
-      at: new Date(now).toISOString(),
-      tradeNumber: null,
-      tradePnl: null,
-      index: window.length + 1,
+    value: Number((runningPL + unrealizedPL).toFixed(2)),
+    at: new Date(now).toISOString(),
+    tradeNumber: null,
+    tradePnl: null,
+    index: now,
   });
 
-  // With no closed trades at all this is two points — what the account settled
-  // at and what it is worth now — drawn as the straight line that is the truth.
-  //
-  // It used to interpolate a six-point curve here to "keep the chart readable
-  // when history is sparse". That drew a shape no trade produced, on the chart
-  // reporting the account balance.
   return points;
 }
 
@@ -171,7 +155,7 @@ function ActiveValueLabel({
 
   return (
     <div className="account-chart-active-label metric-number" aria-live="polite">
-      {moneyExact(point.value, currency).replace(/^\$/, "")}
+      {moneyExact(point.value, currency)}
     </div>
   );
 }
@@ -202,7 +186,7 @@ function AccountChartTooltip({
       <span className="account-chart-tooltip-time">
         {point.tradeNumber === null
           ? point.label
-          : `Broker movement · ${point.tradePnl !== null && point.tradePnl >= 0 ? "+" : ""}${point.tradePnl === null ? "" : moneyExact(point.tradePnl, currency)}`}
+          : `Broker P/L · ${point.tradePnl !== null && point.tradePnl >= 0 ? "+" : ""}${point.tradePnl === null ? "" : moneyExact(point.tradePnl, currency)}`}
       </span>
     </div>
   );
@@ -274,8 +258,6 @@ export function AccountAmountChart({
   const axisStart = series[0]?.index ?? 0;
   const axisEnd = series.at(-1)?.index ?? 1;
   const tradePoints = series.filter((point) => point.tradeNumber !== null && point.tradePnl !== null);
-  const tradeStart = tradePoints[0]?.tradeNumber ?? null;
-  const tradeEnd = tradePoints.at(-1)?.tradeNumber ?? null;
   const netChange = latest - opening;
   const ticks = Array.from(new Set([axisStart, Math.round((axisStart + axisEnd) / 2), axisEnd]));
 
@@ -294,7 +276,7 @@ export function AccountAmountChart({
 
   return (
     <div className="account-chart">
-        <div className="account-range-row" role="tablist" aria-label="How many broker movements to chart">
+      <div className="account-range-row" role="tablist" aria-label="Account profit and loss period">
         {RANGES.map((option) => {
           const active = option === range;
           return (
@@ -303,21 +285,21 @@ export function AccountAmountChart({
               type="button"
               role="tab"
               aria-selected={active}
-              aria-label={`Chart ${RANGE_LABEL[option]}`}
+              aria-label={`Chart ${RANGE_CONFIG[option].label}`}
               onClick={() => onRangeChange(option)}
               className={`account-range-btn pressable ${active ? "is-active" : ""}`}
             >
-              {option === "all" ? "All" : option}
+              {RANGE_CONFIG[option].tab}
             </button>
           );
         })}
-        <span className="account-range-unit">movements</span>
+        <span className="account-range-unit">P/L</span>
       </div>
 
       <div
         className="account-chart-canvas mt-4"
         role="img"
-        aria-label={`Account amount over ${RANGE_LABEL[range]}`}
+        aria-label={`Account profit and loss over ${RANGE_CONFIG[range].label}`}
       >
         <ActiveValueLabel point={activePoint} currency={currency} />
         <ResponsiveContainer width="100%" height="100%">
@@ -343,9 +325,8 @@ export function AccountAmountChart({
             </defs>
             <CartesianGrid vertical={false} stroke="var(--border)" strokeOpacity={0.45} />
 
-            {/* One step per trade. An explicit numeric domain rather than the
-                default category spacing, so a range holding fewer trades than
-                its name still spans the full width. */}
+            {/* A numeric timestamp domain keeps quiet periods and transaction
+                timing honest instead of spacing every result equally. */}
             <XAxis
               type="number"
               dataKey="index"
@@ -354,11 +335,7 @@ export function AccountAmountChart({
               axisLine={false}
               tickLine={false}
               tick={{ fill: "var(--muted)", fontSize: 10 }}
-              tickFormatter={(index: number) => {
-                const point = series.find((item) => item.index === index);
-                if (!point || point.tradeNumber === null) return point?.label === "Now" ? "Now" : "Start";
-                return `A${point.tradeNumber}`;
-              }}
+              tickFormatter={(index: number) => formatAxisTick(index, range)}
             />
             <YAxis hide domain={[min - footroom, max + headroom]} />
             <Tooltip
@@ -389,11 +366,7 @@ export function AccountAmountChart({
               strokeWidth={1}
               ifOverflow="extendDomain"
             />
-            {/* Monotone rather than a plain spline: it eases through each close
-                without overshooting, so the line never bulges to a balance the
-                account did not hold. Safe to curve now that the axis counts
-                trades — the evenly spaced points leave no near-vertical runs
-                for a curve to flare into. */}
+            {/* A step changes only when OANDA reports a balance movement. */}
             <Area
               type="stepAfter"
               dataKey="value"
@@ -420,18 +393,21 @@ export function AccountAmountChart({
       </div>
 
       <div className="mt-3 flex items-center justify-between gap-3 text-xs text-[color:var(--muted)]">
-        <span>{tradePoints.length ? `${tradePoints.length} broker movements` : "No broker movements"}</span>
+        <span>
+          {tradePoints.length
+            ? `${tradePoints.length} broker P/L ${tradePoints.length === 1 ? "change" : "changes"}`
+            : "No closed P/L changes"}
+        </span>
         <span className={netChange >= 0 ? "text-[color:var(--success)]" : "text-[color:var(--danger)]"}>
-          {netChange >= 0 ? "+" : "−"}{moneyExact(Math.abs(netChange), currency)} over {tradePoints.length} movements
+          {netChange >= 0 ? "+" : "−"}{moneyExact(Math.abs(netChange), currency)} over {RANGE_CONFIG[range].label}
         </span>
       </div>
 
       {/* The direction in words. The line carries it in colour, and colour is
           never allowed to be the only channel. */}
       <p className="sr-only">
-        Account amount {moneyCompact(latest, currency)}, {latest >= opening ? "up" : "down"}{" "}
-        {moneyCompact(Math.abs(latest - opening), currency)} over {RANGE_LABEL[range]}, from{" "}
-        {moneyCompact(opening, currency)}.
+        Account P/L {latest >= opening ? "up" : "down"}{" "}
+        {moneyCompact(Math.abs(latest - opening), currency)} over {RANGE_CONFIG[range].label}.
       </p>
     </div>
   );

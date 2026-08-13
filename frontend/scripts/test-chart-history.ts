@@ -267,13 +267,15 @@ assert.deepEqual(buildTradePath(candleTimes, null), []);
 // The hero chart reports the account balance, so the two things that must never
 // drift are the endpoints and the values themselves.
 
-const brokerHistory = (changes: number[], openingBalance = 10_000) => {
+const NOW = Date.parse("2026-08-12T16:00:00.000Z");
+
+const brokerHistory = (movements: Array<{ hoursAgo: number; change: number }>, openingBalance = 10_000) => {
   let balance = openingBalance;
-  return changes.map((change, index) => {
+  return movements.map(({ hoursAgo, change }, index) => {
     balance += change;
     return {
       id: String(index + 1),
-      time: new Date(Date.now() - (changes.length - index) * 60_000).toISOString(),
+      time: new Date(NOW - hoursAgo * 60 * 60_000).toISOString(),
       balance,
       change,
       type: "ORDER_FILL",
@@ -281,64 +283,58 @@ const brokerHistory = (changes: number[], openingBalance = 10_000) => {
   });
 };
 
-// Thirty trades of +100 each, so the window a range selects is visible in both
-// the point count and the opening balance it is walked back to.
-const thirty = brokerHistory(Array.from({ length: 30 }, () => 100));
+const history = brokerHistory([
+  { hoursAgo: 40 * 24, change: 100 },
+  { hoursAgo: 8 * 24, change: -200 },
+  { hoursAgo: 6 * 24, change: 300 },
+  { hoursAgo: 20, change: -50 },
+  { hoursAgo: 0.5, change: 25 },
+]);
 
-const lastTen = buildAccountAmountSeries({ nav: 13_000, unrealizedPL: 0, history: thirty, range: "10" });
-const lastTwentyFive = buildAccountAmountSeries({ nav: 13_000, unrealizedPL: 0, history: thirty, range: "25" });
-const everything = buildAccountAmountSeries({ nav: 13_000, unrealizedPL: 0, history: thirty, range: "all" });
+const hour = buildAccountAmountSeries({ unrealizedPL: 0, history, range: "1h", now: NOW });
+const day = buildAccountAmountSeries({ unrealizedPL: 0, history, range: "1d", now: NOW });
+const week = buildAccountAmountSeries({ unrealizedPL: 0, history, range: "1w", now: NOW });
+const month = buildAccountAmountSeries({ unrealizedPL: 0, history, range: "1m", now: NOW });
 
-// Opening point, one per trade in the window, then now.
-assert.equal(lastTen.length, 12, "ten trades draw an opening point, ten steps and now");
-assert.equal(lastTwentyFive.length, 27, "twenty-five trades draw twenty-seven points");
-assert.equal(everything.length, 32, "all thirty trades draw thirty-two points");
+assert.equal(hour.at(-1)!.value, 25, "one hour includes only the recent $25 win");
+assert.equal(day.at(-1)!.value, -25, "one day includes the $50 loss and $25 win");
+assert.equal(week.at(-1)!.value, 275, "one week includes its three broker P/L changes");
+assert.equal(month.at(-1)!.value, 75, "one month excludes movements older than 30 days");
+assert.deepEqual([hour.length, day.length, week.length, month.length], [3, 4, 5, 6]);
 
-// The failure that started this: every range drawing the same thing.
-assert.ok(
-  new Set([lastTen.length, lastTwentyFive.length, everything.length]).size === 3,
-  "the ranges must differ from each other, or the buttons do nothing",
-);
-
-for (const [name, series] of [["10", lastTen], ["25", lastTwentyFive], ["all", everything]] as const) {
-  assert.equal(series.at(-1)!.value, 13_000, `${name} ends on the reported NAV`);
-  // Walked back from NAV: ten winners of 100 means the window opened 1,000 lower.
-  const expectedOpening = 13_000 - (series.length - 2) * 100;
-  assert.equal(series[0]!.value, expectedOpening, `${name} opens where its own trades say it must have`);
-  // The axis counts trades, so the steps are consecutive with no gaps.
-  series.forEach((point, position) => {
-    assert.equal(point.index, position, `${name} numbers its points one per step`);
-  });
+for (const [name, series] of [["hour", hour], ["day", day], ["week", week], ["month", month]] as const) {
+  assert.equal(series[0]!.value, 0, `${name} starts at zero so small P/L remains visible`);
+  assert.equal(series[0]!.index < series.at(-1)!.index, true, `${name} uses a real time axis`);
 }
 
 // An account with no closed trades is two honest points, not an invented curve.
-const empty = buildAccountAmountSeries({ nav: 10_000, unrealizedPL: 0, history: [], range: "25" });
-assert.equal(empty.length, 2, "no closed trades draws an opening point and now, nothing more");
-assert.equal(empty[0]!.value, empty[1]!.value, "and with no trades in it, it is flat");
+const empty = buildAccountAmountSeries({ unrealizedPL: 0, history: [], range: "1d", now: NOW });
+assert.equal(empty.length, 2, "no closed P/L draws a period start and now, nothing more");
+assert.equal(empty[0]!.value, empty[1]!.value, "and with no P/L in it, it is flat");
 
 // An open trade's unrealised P/L belongs at the end, not folded into a step.
 const withOpen = buildAccountAmountSeries({
-  nav: 10_250,
   unrealizedPL: 250,
-  history: brokerHistory([100], 9_900),
-  range: "all",
+  history: brokerHistory([{ hoursAgo: 2, change: 100 }], 9_900),
+  range: "1d",
+  now: NOW,
 });
-assert.equal(withOpen.at(-1)!.value, 10_250, "the last point carries the live NAV including open P/L");
-assert.equal(withOpen[1]!.value, 10_000, "the closed trade settles at the balance without the open one");
-assert.equal(withOpen[0]!.value, 9_900, "and the opening point sits one trade behind that");
+assert.equal(withOpen.at(-1)!.value, 350, "the last point includes closed and current open P/L");
+assert.equal(withOpen[1]!.value, 100, "the broker change remains its exact settled P/L");
+assert.equal(withOpen[0]!.value, 0, "the selected period starts at zero");
 
 // The line's colour and the card's tint both read this, so a disagreement here
 // is the hero going green around a red chart.
-assert.equal(accountSeriesRose(everything), true, "thirty winners is a series that rose");
+assert.equal(accountSeriesRose(week), true, "a profitable week is a series that rose");
 const fell = buildAccountAmountSeries({
-  nav: 9_000,
   unrealizedPL: 0,
-  history: brokerHistory(Array.from({ length: 5 }, () => -200)),
-  range: "all",
+  history: brokerHistory([{ hoursAgo: 2, change: -200 }]),
+  range: "1d",
+  now: NOW,
 });
-assert.equal(accountSeriesRose(fell), false, "five losers is a series that fell");
+assert.equal(accountSeriesRose(fell), false, "a losing day is a series that fell");
 assert.equal(
-  accountSeriesRose(buildAccountAmountSeries({ nav: 10_000, unrealizedPL: 0, history: [], range: "all" })),
+  accountSeriesRose(buildAccountAmountSeries({ unrealizedPL: 0, history: [], range: "1m", now: NOW })),
   true,
   "a flat series is not a loss",
 );

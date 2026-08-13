@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { SignalWorkspace } from "@/components/signals/signal-workspace";
+import { SignalWorkspace, type SignalPaperPlan } from "@/components/signals/signal-workspace";
 import { getApiData } from "@/lib/api/server";
 import type { StrategySnapshot } from "@/lib/strategy/strategy-service";
 import { isStrategyInstrument } from "@/lib/strategy/strategy-service";
@@ -17,7 +17,7 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
   const [snapshot, candleResult, watchlist, paperTrades] = await Promise.all([
     getApiData<StrategySnapshot>("/api/strategy"),
     getApiData<{ data: CandleSeries; status: ConnectionStatus }>(`/api/oanda/candles?instrument=${instrument}&granularity=M15&count=120`),
-    getApiData<{ watchlist: Array<{ instrument: string; openTradeId: string | null; direction: "long" | "short" | null; entry: number | null; stop: number | null; target: number | null; tradeSequence: string | null; batchNumber: number | null }> }>("/api/watchlist"),
+    getApiData<{ watchlist: SignalPaperPlan[] }>("/api/watchlist"),
     getApiData<{ trades: PaperChartTrade[] }>(`/api/paper-cycle/trades?instrument=${instrument}`),
   ]);
 

@@ -53,6 +53,7 @@ import {
 import { useMarketStream } from "@/lib/market-stream/use-market-stream";
 import type { StrategySetup } from "@/lib/strategy/types";
 import { getPaperTradingAvailability, type PaperTradingAvailability } from "@/lib/strategy/strategy-engine";
+import { watchlistCardStatus, type WatchlistStatusInput } from "@/lib/watchlist-status";
 import type { MarketPriceTick } from "@/types/market-stream";
 import { MAJOR_INSTRUMENTS } from "@/types/forex";
 import type {
@@ -79,6 +80,11 @@ const FOCUS_PADDING_BARS = 30;
 
 /** Height of the desktop chart canvas before it is measured. */
 const DESKTOP_CHART_HEIGHT = 680;
+
+export type SignalPaperPlan = WatchlistStatusInput & {
+  instrument: string;
+  batchNumber: number | null;
+};
 
 const GRANULARITY_MS: Record<string, number> = {
   M1: 60 * 1000,
@@ -874,7 +880,7 @@ export function SignalWorkspace({
   initialInstrument: MajorInstrument;
   primarySeries: CandleSeries;
   initialStatus: ConnectionStatus;
-  paperPlans: Array<{ instrument: string; openTradeId: string | null; direction: "long" | "short" | null; entry: number | null; stop: number | null; target: number | null; tradeSequence: string | null; batchNumber: number | null }>;
+  paperPlans: SignalPaperPlan[];
   initialPaperTrades?: PaperChartTrade[];
   initialFocusTradeId?: string | null;
 }) {
@@ -921,12 +927,32 @@ export function SignalWorkspace({
   const mobileChartShellRef = useRef<HTMLDivElement>(null);
   const desktopChartShellRef = useRef<HTMLDivElement>(null);
   const [paperTrades, setPaperTrades] = useState<PaperChartTrade[]>(initialPaperTrades);
+  const [livePaperPlans, setLivePaperPlans] = useState<SignalPaperPlan[]>(paperPlans);
   const [focusTradeId, setFocusTradeId] = useState<string | null>(initialFocusTradeId);
   // The first pair is already rendered with server-fetched trades.
   const skipInitialTradeFetchRef = useRef(true);
   const olderRequestInFlightRef = useRef(false);
   const pendingTickRef = useRef<MarketPriceTick | null>(null);
   const marketFrameRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    async function refreshPaperPlans() {
+      try {
+        const response = await fetch(apiUrl("/api/watchlist"), {
+          credentials: "include",
+          cache: "no-store",
+        });
+        const payload = await response.json() as { watchlist?: SignalPaperPlan[] };
+        if (response.ok && payload.watchlist) setLivePaperPlans(payload.watchlist);
+      } catch {
+        // Retain the last known strategy verdict while a refresh is unavailable.
+      }
+    }
+
+    void refreshPaperPlans();
+    const timer = window.setInterval(() => void refreshPaperPlans(), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const mobileShell = mobileChartShellRef.current;
@@ -1023,7 +1049,8 @@ export function SignalWorkspace({
     strategySetups.find((setup) => setup.instrument === instrument) ??
     strategySetups[0];
   const activeCandidate = toDisplaySignal(activeSetup)[0] ?? null;
-  const paperPlan = paperPlans.find((plan) => plan.instrument === instrument && plan.openTradeId);
+  const selectedPlan = livePaperPlans.find((plan) => plan.instrument === instrument) ?? null;
+  const paperPlan = selectedPlan?.openTradeId ? selectedPlan : null;
   // Memoised because this feeds the chart's `levels` prop through `active`.
   // A fresh object here on every render reached SetupChart as a changed
   // dependency and tore the chart down mid-gesture on each live tick.
@@ -1051,6 +1078,12 @@ export function SignalWorkspace({
   const planIsOpen = Boolean(openSignal);
   const tradingAvailability = getPaperTradingAvailability();
   const inactiveLabel = tradingAvailability.state === "entry_window_open" ? "No valid setup" : tradingAvailability.label;
+  const signalStatus = selectedPlan ? watchlistCardStatus(selectedPlan) : null;
+  const signalStatusLabel = signalStatus
+    ? signalStatus.label
+    : active
+      ? active.strategy
+      : inactiveLabel;
   const riskDistance = active ? Math.abs(active.entry - active.stop) : null;
   const focusTrade = useMemo(
     () =>
@@ -1355,8 +1388,8 @@ export function SignalWorkspace({
                   <div className="text-[1.05rem] font-medium tracking-[-0.02em]">
                     {activeSetup.pair}
                   </div>
-                  <div className="text-xs font-medium text-[color:var(--muted)]">
-                    {active ? active.strategy : inactiveLabel}
+                  <div className={`text-xs font-medium ${signalStatus?.tone ?? "text-[color:var(--muted)]"}`}>
+                    {signalStatusLabel}
                   </div>
                 </div>
               </div>
@@ -1439,7 +1472,7 @@ export function SignalWorkspace({
               <PairAvatar instrument={instrument} size={38} />
               <div className="min-w-0">
                 <div className="signals-chart-pair">{activeSetup.pair}</div>
-                <div className="signals-chart-strategy">{active ? active.strategy : inactiveLabel}</div>
+                <div className={`signals-chart-strategy ${signalStatus?.tone ?? ""}`}>{signalStatusLabel}</div>
               </div>
               <div className="signals-chart-quote">
                 <span className="signals-chart-price metric-number">

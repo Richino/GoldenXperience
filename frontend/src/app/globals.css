@@ -4398,17 +4398,17 @@ input[type="number"] {
     padding-bottom: calc(6.25rem + env(safe-area-inset-bottom, 0px));
   }
 
-  /* A real foreground layer, not a container border: the chart's own surface
-     can otherwise visually swallow the lower edge on mobile. */
-  .signals-view .signals-chart-mobile > .chart-data-shell::after {
+  /* The shell extends beneath the visible chart to clear the mobile dock, so
+     its bottom edge is off-screen. Draw the divider on the chart root itself. */
+  .signals-view .signals-chart-mobile > .chart-data-shell > .setup-chart-root::after {
     content: "";
     position: absolute;
     z-index: 20;
     right: 0;
     bottom: 0;
     left: 0;
-    height: 1px;
-    background: var(--border-strong);
+    height: 2px;
+    background: color-mix(in srgb, var(--foreground) 34%, transparent);
     pointer-events: none;
   }
 

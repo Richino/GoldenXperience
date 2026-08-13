@@ -539,31 +539,49 @@ async function resolveOpenTrades() {
       continue;
     }
 
+    // Still open and still inside the 48h horizon: nothing to record yet.
     if (result.outcome === "unresolved" && Date.now() < new Date(result.horizonEndsAt).getTime()) continue;
-    if (result.outcome === "unresolved") continue;
+
+    // A trade that reaches the horizon without hitting a level means the same-day
+    // 16:45 exit was never seen — almost always an M15 gap around the close.
+    // Leaving it open freezes the instrument (no new entry runs while one is
+    // open) and its whole batch (a batch files only once every trade closes), so
+    // close it to market at the horizon rather than dropping it, as before.
+    const timedOut = result.outcome === "unresolved";
+    // forced_close and a timed-out close both exit a live position mid-flight,
+    // so both must square the broker order before the internal trade closes.
+    const needsBrokerClose = result.outcome === "forced_close" || timedOut;
+
+    const entryPrice = Number(trade.entry);
+    const riskDistance = Math.abs(entryPrice - Number(trade.stop));
     const resolvedQuote = result.resolvedAt ? quotes.find((quote) => quote.closeTime === result.resolvedAt) : undefined;
     const exit = result.outcome === "target_first" ? Number(trade.target)
       : result.outcome === "stop_first" ? Number(trade.stop)
         : result.outcome === "forced_close" && resolvedQuote ? (trade.direction === "long" ? resolvedQuote.bidClose : resolvedQuote.askClose)
-          : null;
+          // Reconstruct the horizon mark from the R labelOutcome timed out on, so
+          // the recorded exit and result_r can never disagree.
+          : timedOut && result.resultR !== null ? (trade.direction === "long" ? entryPrice + result.resultR * riskDistance : entryPrice - result.resultR * riskDistance)
+            : null;
     const status = result.outcome === "ambiguous" ? "ambiguous" : "closed";
-    if (result.outcome === "forced_close") {
+    const closedAt = timedOut ? result.horizonEndsAt : result.resolvedAt;
+    if (needsBrokerClose) {
+      const closeContext = timedOut ? "horizon timeout" : "forced 16:45 ET";
       try {
         if (!(await closePracticeTradeForPaperTrade(trade.id))) {
-          await queueNotification({ userId: trade.user_id, kind: "system_issue", title: `${displayPair(trade.instrument)} practice close needs attention`, message: "The forced 16:45 ET exit was not sent because the broker order is not confirmed. The internal trade remains open.", instrument: trade.instrument, paperTradeId: trade.id, dedupeKey: `practice_close_unconfirmed:${trade.id}` });
+          await queueNotification({ userId: trade.user_id, kind: "system_issue", title: `${displayPair(trade.instrument)} practice close needs attention`, message: `The ${closeContext} exit was not sent because the broker order is not confirmed. The internal trade remains open.`, instrument: trade.instrument, paperTradeId: trade.id, dedupeKey: `practice_close_unconfirmed:${trade.id}` });
           continue;
         }
       } catch (error) {
-        await queueNotification({ userId: trade.user_id, kind: "system_issue", title: `${displayPair(trade.instrument)} practice close needs attention`, message: error instanceof Error ? error.message.slice(0, 180) : "The forced 16:45 ET broker close failed. The internal trade remains open.", instrument: trade.instrument, paperTradeId: trade.id, dedupeKey: `practice_close_failed:${trade.id}` });
+        await queueNotification({ userId: trade.user_id, kind: "system_issue", title: `${displayPair(trade.instrument)} practice close needs attention`, message: error instanceof Error ? error.message.slice(0, 180) : `The ${closeContext} broker close failed. The internal trade remains open.`, instrument: trade.instrument, paperTradeId: trade.id, dedupeKey: `practice_close_failed:${trade.id}` });
         continue;
       }
     }
     const updated = await query<{ id: string }>(
       `UPDATE paper_strategy_trades SET status=$2,outcome=$3,exit=$4,result_r=$5,paper_pl=$6,max_favorable_r=$7,max_adverse_r=$8,closed_at=$9,exit_reason=$10,updated_at=now() WHERE id=$1 AND status='open'`,
-      [trade.id, status, result.outcome, exit, status === "ambiguous" ? null : result.resultR, status === "ambiguous" || result.resultR === null ? null : Number(trade.nominal_risk_amount) * result.resultR, result.maxFavorableR, result.maxAdverseR, result.resolvedAt, result.outcome],
+      [trade.id, status, result.outcome, exit, status === "ambiguous" ? null : result.resultR, status === "ambiguous" || result.resultR === null ? null : Number(trade.nominal_risk_amount) * result.resultR, result.maxFavorableR, result.maxAdverseR, closedAt, result.outcome],
     );
     if (updated.rowCount) {
-      const outcomeLabel = result.outcome === "target_first" ? "target reached" : result.outcome === "stop_first" ? "stop reached" : result.outcome === "forced_close" ? "session exit" : "ambiguous outcome";
+      const outcomeLabel = result.outcome === "target_first" ? "target reached" : result.outcome === "stop_first" ? "stop reached" : result.outcome === "forced_close" ? "session exit" : timedOut ? "closed at horizon" : "ambiguous outcome";
       const resultText = result.resultR === null ? "Result unavailable" : `${result.resultR >= 0 ? "+" : ""}${result.resultR.toFixed(2)}R`;
       await queueNotification({
         userId: trade.user_id,

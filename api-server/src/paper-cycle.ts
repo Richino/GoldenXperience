@@ -4,8 +4,8 @@ import { query, transaction } from "./database.js";
 import { labelOutcome, type NormalizedQuote } from "./research.js";
 import { displayPair, queueNotification, sendPushNotification } from "./notifications.js";
 import { closePracticeTradeForPaperTrade, processPendingPracticeOrders, queuePracticeOrderIntent } from "./practice-execution.js";
-import { pipSizeFor } from "../../frontend/src/lib/instruments/catalog.js";
-import { calculatePositionSize } from "../../frontend/src/lib/risk/engine.js";
+import { currenciesOf, pipSizeFor } from "../../frontend/src/lib/instruments/catalog.js";
+import { calculatePositionSize, usdPerUnitOfCurrency } from "../../frontend/src/lib/risk/engine.js";
 import { getPracticeTradeState, getResearchCandles } from "../../frontend/src/lib/oanda/client.js";
 import { DAY_TRADING_TIME_ZONE, dayTradingSession } from "../../frontend/src/lib/strategy/strategy-engine.js";
 // The strategy that is allowed to create trades. Changing this starts a new
@@ -371,7 +371,7 @@ async function persistPaperEvaluation(setup: StrategySetup, versionId: string, s
   );
 }
 
-async function openPaperTrade(setup: StrategySetup, userId: string, versionId: string, spreadPips: number, accountBalance: number): Promise<string | null> {
+async function openPaperTrade(setup: StrategySetup, userId: string, versionId: string, spreadPips: number, accountBalance: number, quoteToUsdRate: number | null): Promise<string | null> {
   if (setup.status !== "valid" || !setup.direction || setup.entry === null || setup.stop === null || setup.target === null || setup.riskReward === null) return null;
   const entry = setup.entry;
   const stop = setup.stop;
@@ -408,7 +408,16 @@ async function openPaperTrade(setup: StrategySetup, userId: string, versionId: s
       );
       if (Number(takenToday.rows[0]!.count) >= MAX_TRADES_PER_DAY) return reject("Risk blocked: the daily trade limit was reached.");
     }
-    const positionSize = calculatePositionSize({ instrument: setup.instrument, accountBalance, riskPercent: risk.riskPercent, entry, stop, applyPaperCap: false });
+    // A true cross (EUR_GBP, EUR_JPY, GBP_JPY) is quoted in a non-USD currency
+    // whose USD value cannot be read from its own price, so without the cross
+    // rate its size — and every R and lot figure derived from it — is wrong.
+    // Fail the entry closed rather than record a mis-sized trade into the data.
+    const { base, quote } = currenciesOf(setup.instrument);
+    const isTrueCross = base !== "USD" && quote !== "USD";
+    if (isTrueCross && (quoteToUsdRate === null || !Number.isFinite(quoteToUsdRate) || quoteToUsdRate <= 0)) {
+      return reject("Risk blocked: no USD conversion rate for the quote currency, so position size cannot be trusted.");
+    }
+    const positionSize = calculatePositionSize({ instrument: setup.instrument, accountBalance, riskPercent: risk.riskPercent, entry, stop, applyPaperCap: false, quoteToUsdRate: quoteToUsdRate ?? undefined });
     if (!positionSize) return reject("Risk blocked: no valid position size could be calculated.");
     const nextSequence = await client.query<{ value: string }>("SELECT (COALESCE(max(trade_sequence),0)+1)::text AS value FROM paper_strategy_trades");
     const inserted = await client.query<{ id: string }>(
@@ -635,6 +644,12 @@ export async function collectPaperCycle() {
 
   const snapshot = await getStrategySnapshot();
   const quoteByInstrument = new Map(snapshot.quotes.map((quote) => [quote.instrument, quote]));
+  // Mid price of any streamed major, so pip value on a cross can be converted to
+  // USD through a second pair (e.g. EUR_JPY sized via USD_JPY).
+  const midByInstrument = (instrument: string) => {
+    const quote = quoteByInstrument.get(instrument);
+    return quote ? (quote.bid + quote.ask) / 2 : null;
+  };
   let opened = 0;
   let reportedDataIssue = false;
   for (const setup of snapshot.strategy.setups) {
@@ -657,7 +672,8 @@ export async function collectPaperCycle() {
       continue;
     }
     const spreadPips = (quote.ask - quote.bid) / pipSizeFor(setup.instrument);
-    const openedTradeId = await openPaperTrade(setup, owner.rows[0].id, versionId, spreadPips, snapshot.account.balance);
+    const quoteToUsdRate = usdPerUnitOfCurrency(currenciesOf(setup.instrument).quote, midByInstrument);
+    const openedTradeId = await openPaperTrade(setup, owner.rows[0].id, versionId, spreadPips, snapshot.account.balance, quoteToUsdRate);
     if (openedTradeId) {
       opened += 1;
       await queuePracticeOrderIntent(owner.rows[0].id, openedTradeId);

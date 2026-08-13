@@ -11,6 +11,7 @@ import { flagCodeForCurrency, flagImageUrl } from "../src/lib/pair-flags";
 import {
   calculatePositionSize,
   getPipValuePerStandardLot,
+  usdPerUnitOfCurrency,
 } from "../src/lib/risk/engine";
 
 // The catalog is the full CURRENCY set from GET /v3/accounts/{id}/instruments.
@@ -73,26 +74,41 @@ assert.equal(findInstrument("GBP_JPY")?.displayPrecision, 3);
 
 // USD-quoted pairs stay at the flat $10/pip for a standard lot.
 assert.equal(getPipValuePerStandardLot("EUR_USD", 1.1), 10);
-// The generalized formula must still reproduce the old USD/JPY special case.
+// USD as the base (USD/JPY): 1/price is the correct quote->USD rate, so the
+// no-rate call is already right.
 assert.ok(
   Math.abs(getPipValuePerStandardLot("USD_JPY", 156.78) - 1_000 / 156.78) < 1e-9,
 );
-// And now yields a sane value for a cross the old code mispriced entirely.
+// A true cross needs the quote currency's USD value from a second pair. With
+// USD/JPY at 150, one JPY is 1/150 USD, so a GBP/JPY pip on a standard lot is
+// 1000 JPY * (1/150) = $6.67 — not the 1000/218.32 the pair's own price implies.
 assert.ok(
-  Math.abs(getPipValuePerStandardLot("GBP_JPY", 218.32) - 1_000 / 218.32) < 1e-9,
+  Math.abs(getPipValuePerStandardLot("GBP_JPY", 218.32, 1 / 150) - 1_000 / 150) < 1e-9,
 );
+// usdPerUnitOfCurrency resolves that rate from whichever major carries the
+// currency: inverse for a USD-base pair, direct for a quote-side pair.
+const jpyToUsd = usdPerUnitOfCurrency("JPY", (instrument) => (instrument === "USD_JPY" ? 150 : null));
+assert.ok(jpyToUsd !== null && Math.abs(jpyToUsd - 1 / 150) < 1e-12);
+assert.equal(usdPerUnitOfCurrency("USD", () => null), 1);
+const gbpToUsd = usdPerUnitOfCurrency("GBP", (instrument) => (instrument === "GBP_USD" ? 1.27 : null));
+assert.ok(gbpToUsd !== null && Math.abs(gbpToUsd - 1.27) < 1e-12);
+assert.equal(usdPerUnitOfCurrency("JPY", () => null), null, "no USD pair means no rate");
 
-// Position sizing works end to end on a JPY cross.
+// Position sizing works end to end on a JPY cross when the cross rate is given.
 const gbpJpy = calculatePositionSize({
   instrument: "GBP_JPY",
   accountBalance: 10_000,
   riskPercent: 1,
   entry: 218.32,
   stop: 217.82,
+  quoteToUsdRate: 1 / 150,
 });
 assert.ok(gbpJpy, "GBP_JPY should size");
 assert.ok(Math.abs(gbpJpy.stopDistancePips - 50) < 0.0001);
 assert.ok(gbpJpy.units > 0);
 assert.ok(gbpJpy.estimatedRisk <= 100);
+// The estimated risk lands on the intended 1% regardless of the pip value, so
+// the win here is a correctly sized position, not a different risk figure.
+assert.ok(Math.abs(gbpJpy.estimatedRisk - 100) < 5, "risk stays ~1% of balance");
 
 console.log("instrument catalog checks passed");

@@ -60,6 +60,12 @@ export interface PositionSizeInput {
   stop: number;
   /** Research collection can retain the full nominal 1% calculation. */
   applyPaperCap?: boolean;
+  /**
+   * USD value of one unit of the pair's quote currency, from
+   * {@link usdPerUnitOfCurrency}. Required for a correct pip value on true
+   * crosses (EUR_GBP, EUR_JPY, GBP_JPY); omit for USD-base/quote pairs.
+   */
+  quoteToUsdRate?: number;
 }
 
 export interface PositionSizeResult {
@@ -84,19 +90,54 @@ export function getPipSize(instrument: MajorInstrument) {
   return pipSizeFor(instrument);
 }
 
+/**
+ * How many USD one unit of `currency` is worth, read from whichever major
+ * carries it against USD. A true cross such as EUR_GBP, EUR_JPY or GBP_JPY is
+ * quoted in a currency whose USD value cannot be read from the pair's own price
+ * — EUR_JPY tells you nothing about JPY against USD — so pip value on those
+ * pairs needs this rate from a second instrument (USD_JPY, GBP_USD, ...).
+ *
+ * `midByInstrument` returns an instrument's mid price, or null when it is not
+ * available. Returns null when no USD pair for the currency is known.
+ */
+export function usdPerUnitOfCurrency(
+  currency: string,
+  midByInstrument: (instrument: string) => number | null,
+): number | null {
+  if (currency === "USD") return 1;
+  const direct = midByInstrument(`${currency}_USD`);
+  if (direct !== null && Number.isFinite(direct) && direct > 0) return direct;
+  const inverse = midByInstrument(`USD_${currency}`);
+  if (inverse !== null && Number.isFinite(inverse) && inverse > 0) return 1 / inverse;
+  return null;
+}
+
 export function getPipValuePerStandardLot(
   instrument: MajorInstrument,
   price: number,
+  quoteToUsdRate?: number,
 ) {
   if (!Number.isFinite(price) || price <= 0) return 0;
 
-  // For a USD-denominated account, a standard lot of a USD-quoted pair is
-  // always $10/pip. When the quote currency is not USD the pip value has to be
-  // converted through the pair's own price.
+  // A standard lot moves the quote currency by pipSize * 100_000 per pip. For a
+  // USD-denominated account that is exactly $10 when the quote is USD, and
+  // otherwise the quote-currency amount converted into USD.
   const { quote } = currenciesOf(instrument);
   if (quote === "USD") return 10;
 
-  return (pipSizeFor(instrument) * 100_000) / price;
+  const quoteMovePerPip = pipSizeFor(instrument) * 100_000;
+
+  // Preferred: the caller resolved the quote currency's USD value from live
+  // majors. This is the only correct source for a true cross (EUR_GBP, EUR_JPY,
+  // GBP_JPY), whose own price says nothing about its quote currency versus USD.
+  if (quoteToUsdRate !== undefined && Number.isFinite(quoteToUsdRate) && quoteToUsdRate > 0) {
+    return quoteMovePerPip * quoteToUsdRate;
+  }
+
+  // Fallback when no rate is supplied: 1/price is the quote->USD rate only when
+  // USD is the base (USD_JPY, USD_CAD, USD_CHF). For a true cross this is an
+  // approximation; the data-collection path always supplies a rate instead.
+  return quoteMovePerPip / price;
 }
 
 export function calculatePositionSize(
@@ -120,6 +161,7 @@ export function calculatePositionSize(
   const pipValuePerStandardLot = getPipValuePerStandardLot(
     input.instrument,
     input.entry,
+    input.quoteToUsdRate,
   );
 
   if (!hasPositiveFiniteValues([riskAmount, stopDistancePips, pipValuePerStandardLot])) {

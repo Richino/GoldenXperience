@@ -25,6 +25,7 @@ import {
   testOandaConnection,
 } from "../../frontend/src/lib/oanda/client.js";
 import { getStrategySnapshot } from "../../frontend/src/lib/strategy/strategy-service.js";
+import { getForexSessionStatus } from "../../frontend/src/lib/strategy/session.js";
 import { databaseConfigured, query } from "./database.js";
 import { cookieName, login, logout, sessionUser } from "./auth.js";
 import { decideResearchExperiment, forwardResearchSummary, latestDayTradingValidation, latestResearchExperiment, latestResearchHoldout, latestResearchRun, latestWalkForwardResearch, processNextResearchJob, researchDiagnostics, researchExperimentDiagnostics, researchSummary, runDayTradingValidation, runResearchExperiment, runWalkForwardResearch, startLockedResearchHoldout, startStrictHistoricalBackfill, stopResearchRun } from "./research.js";
@@ -482,8 +483,23 @@ let researchWorker: NodeJS.Timeout | null = null;
 let paperCollector: NodeJS.Timeout | null = null;
 if (databaseConfigured()) {
   let collectionBusy = false;
+  // Forex is shut Friday 17:00 ET to Sunday 17:00 ET. The loop keeps ticking so
+  // the process stays warm on Railway, but while the market is closed it skips
+  // the OANDA fetch and evaluation and just checks the clock. Nothing is held
+  // over a weekend — day-trades force-exit at 16:45 ET — so there is nothing to
+  // resolve. It resumes on its own the first cycle after the Sunday reopen; the
+  // strategy fetches candle history fresh each run, so it is ready immediately.
+  let marketWasOpen: boolean | null = null;
   const collect = async () => {
     if (collectionBusy) return;
+    const marketOpen = getForexSessionStatus(new Date()).marketOpen;
+    if (marketOpen !== marketWasOpen) {
+      console.log(marketOpen
+        ? "[paper-cycle] forex open — collector active"
+        : "[paper-cycle] forex closed for the weekend — collector idle until the Sunday 17:00 ET reopen");
+      marketWasOpen = marketOpen;
+    }
+    if (!marketOpen) return;
     collectionBusy = true;
     try {
       const result = await collectPaperCycle();

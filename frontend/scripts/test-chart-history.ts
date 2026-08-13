@@ -296,23 +296,24 @@ const day = buildAccountAmountSeries({ unrealizedPL: 0, history, range: "1d", no
 const week = buildAccountAmountSeries({ unrealizedPL: 0, history, range: "1w", now: NOW });
 const month = buildAccountAmountSeries({ unrealizedPL: 0, history, range: "1m", now: NOW });
 
-assert.equal(hour.at(-1)!.value, 25, "one hour includes only the recent $25 win");
-assert.equal(day.at(-1)!.value, -25, "one day includes the $50 loss and $25 win");
-assert.equal(week.at(-1)!.value, 275, "one week includes its three broker P/L changes");
-assert.equal(month.at(-1)!.value, 75, "one month excludes movements older than 30 days");
-assert.deepEqual([hour.length, day.length, week.length, month.length], [3, 4, 5, 6]);
+const total = (series: Array<{ value: number }>) => series.reduce((sum, point) => sum + point.value, 0);
+
+assert.equal(total(hour), 25, "one hour includes only the recent $25 win");
+assert.equal(total(day), -25, "one day includes the $50 loss and $25 win");
+assert.equal(total(week), 275, "one week includes its three broker P/L changes");
+assert.equal(total(month), 75, "one month excludes movements older than 30 days");
+assert.deepEqual([hour.length, day.length, week.length, month.length], [12, 12, 7, 10]);
 
 for (const [name, series] of [["hour", hour], ["day", day], ["week", week], ["month", month]] as const) {
-  assert.equal(series[0]!.value, 0, `${name} starts at zero so small P/L remains visible`);
-  assert.equal(series[0]!.index < series.at(-1)!.index, true, `${name} uses a real time axis`);
+  series.forEach((point, index) => assert.equal(point.index, index, `${name} keeps ordered time buckets`));
 }
 
-// An account with no closed trades is two honest points, not an invented curve.
+// An account with no closed trades keeps empty time buckets, not invented P/L.
 const empty = buildAccountAmountSeries({ unrealizedPL: 0, history: [], range: "1d", now: NOW });
-assert.equal(empty.length, 2, "no closed P/L draws a period start and now, nothing more");
-assert.equal(empty[0]!.value, empty[1]!.value, "and with no P/L in it, it is flat");
+assert.equal(empty.length, 12, "a day is divided into twelve readable two-hour bars");
+assert.ok(empty.every((point) => point.value === 0), "and empty buckets remain zero");
 
-// An open trade's unrealised P/L belongs at the end, not folded into a step.
+// Current unrealised P/L belongs only in the final, live bucket.
 const withOpen = buildAccountAmountSeries({
   unrealizedPL: 250,
   history: brokerHistory([{ hoursAgo: 2, change: 100 }], 9_900),
@@ -320,11 +321,10 @@ const withOpen = buildAccountAmountSeries({
   now: NOW,
 });
 assert.equal(withOpen.at(-1)!.value, 350, "the last point includes closed and current open P/L");
-assert.equal(withOpen[1]!.value, 100, "the broker change remains its exact settled P/L");
-assert.equal(withOpen[0]!.value, 0, "the selected period starts at zero");
+assert.equal(withOpen.at(-1)!.movementCount, 1, "the final bucket records its broker movement");
+assert.equal(withOpen.at(-1)!.includesOpenPL, true, "the tooltip discloses that open P/L is included");
 
-// The line's colour and the card's tint both read this, so a disagreement here
-// is the hero going green around a red chart.
+// The card tint follows the sum of all bars, not the final bucket alone.
 assert.equal(accountSeriesRose(week), true, "a profitable week is a series that rose");
 const fell = buildAccountAmountSeries({
   unrealizedPL: 0,

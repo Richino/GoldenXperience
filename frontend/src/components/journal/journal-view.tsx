@@ -190,7 +190,7 @@ function JournalTradeRow({
   );
 }
 
-export function JournalView() {
+export function JournalView({ embedded = false }: { embedded?: boolean } = {}) {
   const [activeFilter, setActiveFilter] = useState("All");
   const [records, setRecords] = useState<JournalTrade[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(true);
@@ -273,11 +273,15 @@ export function JournalView() {
 
   return (
     <div className="journal-view journal-minimal space-y-8 lg:space-y-10">
-      <header>
-        <h1 className="text-display">Journal</h1>
-        <p className="mt-1 text-sm text-[color:var(--muted)]">Paper trades in R</p>
-        {loadError ? <p className="mt-2 text-xs text-[color:var(--danger)]">{loadError}</p> : null}
-      </header>
+      {embedded ? (
+        loadError ? <p className="text-xs text-[color:var(--danger)]">{loadError}</p> : null
+      ) : (
+        <header>
+          <h1 className="text-display">Journal</h1>
+          <p className="mt-1 text-sm text-[color:var(--muted)]">Paper trades in R</p>
+          {loadError ? <p className="mt-2 text-xs text-[color:var(--danger)]">{loadError}</p> : null}
+        </header>
+      )}
 
       <section
         className="journal-stats-card grid grid-cols-3"

@@ -32,6 +32,7 @@ import { decideResearchExperiment, forwardResearchSummary, latestDayTradingValid
 import { collectPaperCycle, decidePaperBatch, fastResolveFilledTrades, journalTradeLog, paperCycleOverview, paperRiskExposure, paperRiskPolicy, paperTradesForInstrument, parsePaperRiskConfiguration, reviewPaperTrade, updatePaperRiskPolicy, watchlistSnapshot } from "./paper-cycle.js";
 import { markNotificationsRead, notificationsForUser, pushPublicKey, queueNotification, removePushSubscription, savePushSubscription } from "./notifications.js";
 import { practiceExecutionOverview, setPracticeExecutionEnabled } from "./practice-execution.js";
+import { binaryJournal, binaryPerformance, binaryPredictionDetail, binaryWatchlistSnapshot, collectBinaryCycle, recentBinaryPredictions } from "./binary-engine.js";
 
 const STREAM_INSTRUMENTS: MajorInstrument[] = [...MAJOR_INSTRUMENTS];
 
@@ -245,6 +246,26 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     }
     if (url.pathname === "/api/journal/trades" && request.method === "GET") {
       return json(request, response, { trades: await journalTradeLog(user.id) });
+    }
+    // Binary Prediction system. Read-only from the API: predictions are created
+    // and resolved by the durable server-side loop below, never by a request.
+    if (url.pathname === "/api/binary/predictions" && request.method === "GET") {
+      return json(request, response, { predictions: await recentBinaryPredictions(Number(url.searchParams.get("limit")) || 8) });
+    }
+    if (url.pathname === "/api/binary/watchlist" && request.method === "GET") {
+      return json(request, response, { watchlist: await binaryWatchlistSnapshot() });
+    }
+    if (url.pathname === "/api/binary/journal" && request.method === "GET") {
+      return json(request, response, { predictions: await binaryJournal(user.id) });
+    }
+    if (url.pathname === "/api/binary/stats" && request.method === "GET") {
+      return json(request, response, await binaryPerformance(user.id));
+    }
+    if (url.pathname === "/api/binary/prediction" && request.method === "GET") {
+      const id = url.searchParams.get("id");
+      if (!id || !/^[0-9a-f-]{36}$/i.test(id)) return json(request, response, { error: "Choose a valid prediction." }, 400);
+      const prediction = await binaryPredictionDetail(user.id, id);
+      return prediction ? json(request, response, { prediction }) : json(request, response, { error: "Prediction not found." }, 404);
     }
     if (url.pathname === "/api/journal/import" && request.method === "POST") {
       const payload = await body(request); const trades = Array.isArray(payload?.trades) ? payload.trades : [];
@@ -482,6 +503,7 @@ server.listen(PORT, () => console.log(`[api] HTTP and WebSocket server listening
 let researchWorker: NodeJS.Timeout | null = null;
 let paperCollector: NodeJS.Timeout | null = null;
 let fastResolver: NodeJS.Timeout | null = null;
+let binaryCollector: NodeJS.Timeout | null = null;
 if (databaseConfigured()) {
   let collectionBusy = false;
   // Forex is shut Friday 17:00 ET to Sunday 17:00 ET. The loop keeps ticking so
@@ -558,6 +580,30 @@ if (databaseConfigured()) {
   };
   void work();
   researchWorker = setInterval(() => void work(), 1_000);
+
+  // The Binary Prediction engine. Independent of the forex collector: it opens
+  // 10-minute directional predictions and resolves them server-side, and it
+  // NEVER places an OANDA order or a paper trade. It runs every 60s regardless
+  // of session — evaluation/opening no-ops while the market is closed, but
+  // resolution keeps working so a prediction that expired around the Friday
+  // close is settled from the first candle at or after its intended expiration.
+  // Being durable, it also picks up predictions that expired during any downtime
+  // the moment the process comes back.
+  let binaryBusy = false;
+  const binary = async () => {
+    if (binaryBusy) return;
+    binaryBusy = true;
+    try {
+      const result = await collectBinaryCycle();
+      if (result.opened || result.resolved) console.log(`[binary] opened ${result.opened}, resolved ${result.resolved}`);
+    } catch (error) {
+      console.error("[binary] cycle failed", error);
+    } finally {
+      binaryBusy = false;
+    }
+  };
+  void binary();
+  binaryCollector = setInterval(() => void binary(), 60_000);
 }
 
 function shutdown() {
@@ -565,6 +611,7 @@ function shutdown() {
   if (researchWorker) clearInterval(researchWorker);
   if (paperCollector) clearInterval(paperCollector);
   if (fastResolver) clearInterval(fastResolver);
+  if (binaryCollector) clearInterval(binaryCollector);
   wss.clients.forEach((socket) => socket.close(1001, "Server shutting down"));
   server.close(() => process.exit(0));
 }

@@ -1,0 +1,177 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import {
+  BINARY_HORIZON_SECONDS,
+  binaryStats,
+  classifyBinaryResult,
+  computeBinaryFeatures,
+  computeSecondaryMarks,
+  createBaselineModel,
+  isBinaryTie,
+  resolutionPriceAtOrAfter,
+  type BinaryCandle,
+  type BinaryStatRow,
+} from "../src/binary-engine.js";
+
+// ---------------------------------------------------------------------------
+// Resolution truth table. UP wins above entry, DOWN wins below; ties are never
+// folded into a win or a loss.
+// ---------------------------------------------------------------------------
+const precision = 5; // EUR/USD-style
+assert.equal(classifyBinaryResult("up", 1.16420, 1.16470, precision), "won", "UP + higher expiration price → WON");
+assert.equal(classifyBinaryResult("up", 1.16420, 1.16370, precision), "lost", "UP + lower expiration price → LOST");
+assert.equal(classifyBinaryResult("down", 1.16420, 1.16370, precision), "won", "DOWN + lower expiration price → WON");
+assert.equal(classifyBinaryResult("down", 1.16420, 1.16470, precision), "lost", "DOWN + higher expiration price → LOST");
+
+// Tie: equal at the instrument's display precision, for either direction.
+assert.equal(classifyBinaryResult("up", 1.164200, 1.1642004, precision), "tie", "equal at precision → TIE (up)");
+assert.equal(classifyBinaryResult("down", 1.164200, 1.1642004, precision), "tie", "equal at precision → TIE (down)");
+assert.equal(isBinaryTie(1.16420, 1.16420, precision), true, "identical prices tie");
+assert.equal(isBinaryTie(1.16420, 1.16421, precision), false, "a one-tick move is not a tie at ticks=0");
+// A JPY pair (precision 3): a sub-tick difference still ties.
+assert.equal(classifyBinaryResult("up", 162.420, 162.4203, 3), "tie", "JPY sub-tick difference → TIE");
+assert.equal(classifyBinaryResult("up", 162.420, 162.430, 3), "won", "JPY clear move resolves");
+
+// A configurable, wider tie band (2 ticks) folds small moves into a tie.
+assert.equal(classifyBinaryResult("up", 1.16420, 1.16421, precision, 2), "tie", "widened tolerance ties a one-tick move");
+assert.equal(classifyBinaryResult("up", 1.16420, 1.16423, precision, 2), "won", "beyond the widened band still resolves");
+
+// ---------------------------------------------------------------------------
+// Durability: the resolution price is the first completed candle AT OR AFTER the
+// intended expiration — even across a gap left by downtime — and its real
+// timestamp is returned rather than the intended one.
+// ---------------------------------------------------------------------------
+function candle(minute: number, close: number): BinaryCandle {
+  const time = new Date(Date.UTC(2026, 0, 5, 12, minute, 0)).toISOString();
+  return { time, open: close, high: close + 0.0001, low: close - 0.0001, close, volume: 10, complete: true };
+}
+// Candle open times 0,1,2,5 → close times 1,2,3,6 (open + 60s), leaving a gap
+// where minutes 3→6 have no completed candle, standing in for downtime.
+const series = [candle(0, 1.10000), candle(1, 1.10010), candle(2, 1.10020), candle(5, 1.10050)];
+const expiration = new Date(Date.UTC(2026, 0, 5, 12, 4, 0)); // 12:04 sits inside the 12:03→12:06 gap
+const mark = resolutionPriceAtOrAfter(series, expiration);
+assert.ok(mark, "a price at or after expiration is found despite the gap");
+assert.equal(mark!.price, 1.10050, "uses the first candle whose close is at or after the intended expiration");
+assert.equal(mark!.time, new Date(Date.UTC(2026, 0, 5, 12, 6, 0)).toISOString(), "records the actual candle close time, not the intended expiration");
+assert.equal(
+  resolutionPriceAtOrAfter(series, new Date(Date.UTC(2026, 0, 5, 13, 0, 0))),
+  null,
+  "no reliable price yet → null, so the prediction stays active and retries",
+);
+
+// Secondary research horizons are priced without changing the official result.
+// horizon 120s from 12:00 → target 12:02, first close ≥ 12:02 is candle(1) at 12:02.
+const secondary = computeSecondaryMarks("up", 1.10000, precision, new Date(Date.UTC(2026, 0, 5, 12, 0, 0)), series, [120, 240]);
+assert.equal(secondary["120s"]?.price, 1.10010, "secondary mark priced from the same candles");
+assert.equal(secondary["120s"]?.result, "won", "secondary result is computed independently");
+
+// ---------------------------------------------------------------------------
+// Idempotency: resolving the same prediction twice cannot change the result or
+// duplicate the outcome. This mirrors the `WHERE status='active'` guard the
+// engine's UPDATE uses.
+// ---------------------------------------------------------------------------
+function makeActiveRow() {
+  return { status: "active" as string, result: null as string | null, resolutionPrice: null as number | null };
+}
+function idempotentResolve(row: ReturnType<typeof makeActiveRow>, price: number, result: string) {
+  if (row.status !== "active") return false; // the guard
+  row.status = "resolved";
+  row.result = result;
+  row.resolutionPrice = price;
+  return true;
+}
+const row = makeActiveRow();
+assert.equal(idempotentResolve(row, 1.10050, "won"), true, "first resolution applies");
+assert.equal(row.result, "won");
+assert.equal(idempotentResolve(row, 1.09000, "lost"), false, "second resolution is a no-op");
+assert.equal(row.result, "won", "the recorded result is never rewritten");
+assert.equal(row.resolutionPrice, 1.10050, "the recorded price is never rewritten");
+
+// ---------------------------------------------------------------------------
+// Immutability: the schema guards the audit record. Assert the migration ships
+// the trigger that blocks edits to the frozen columns and to a decided result.
+// ---------------------------------------------------------------------------
+const migrationPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "migrations", "024_binary_predictions.sql");
+const migration = fs.readFileSync(migrationPath, "utf8");
+assert.match(migration, /binary_predictions_guard/, "the immutability trigger function is defined");
+assert.match(migration, /immutable fields cannot be modified/, "frozen fields are protected");
+assert.match(migration, /result is immutable once decided/, "a decided result cannot be overwritten");
+for (const column of ["direction", "entry_price", "start_at", "intended_expiration", "duration_seconds"]) {
+  assert.ok(migration.includes(`NEW.${column} <> OLD.${column}`), `the trigger guards ${column}`);
+}
+assert.match(migration, /binary_predictions_one_active_idx[\s\S]*WHERE status = 'active'/, "one active prediction per symbol is enforced by a partial unique index");
+
+// ---------------------------------------------------------------------------
+// Separation: the binary engine must not import any trade-execution surface, so
+// a prediction can never create an OANDA order or a paper trade.
+// ---------------------------------------------------------------------------
+const enginePath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "binary-engine.ts");
+const engineSource = fs.readFileSync(enginePath, "utf8");
+for (const forbidden of ["practice-execution", "paper-cycle", "submitPracticeMarketOrder", "queuePracticeOrderIntent", "closePracticeTrade"]) {
+  assert.ok(!engineSource.includes(forbidden), `binary engine must not reference ${forbidden}`);
+}
+
+// ---------------------------------------------------------------------------
+// Model + features. A clean uptrend produces UP with a score above threshold and
+// leaks no future data; a flat market produces WAIT.
+// ---------------------------------------------------------------------------
+const pip = 0.0001;
+function trendedCandles(step: number): BinaryCandle[] {
+  const candles: BinaryCandle[] = [];
+  let close = 1.10000;
+  for (let minute = 0; minute < 40; minute += 1) {
+    close = Number((close + step).toFixed(5));
+    const time = new Date(Date.UTC(2026, 0, 6, 10, minute, 0)).toISOString();
+    candles.push({ time, open: close - step, high: close + pip * 0.5, low: close - step - pip * 0.5, close, volume: 20, complete: true });
+  }
+  return candles;
+}
+const model = createBaselineModel();
+const now = new Date(Date.UTC(2026, 0, 6, 10, 40, 0));
+
+const upFeatures = computeBinaryFeatures("EUR_USD", trendedCandles(0.0002), { bid: 1.10790, ask: 1.10800, mid: 1.10795 }, now);
+assert.ok(upFeatures, "features compute from a full candle history");
+assert.equal(upFeatures!.trend, "up", "rising EMAs read as an up trend");
+assert.ok((upFeatures!.momentumPips.m5 ?? 0) > 0, "positive 5m momentum on an uptrend");
+const upDecision = model.evaluate(upFeatures!);
+assert.equal(upDecision.direction, "up", "the baseline predicts UP on a clean uptrend");
+assert.ok(upDecision.score >= model.threshold, "a strong signal clears the threshold");
+
+const flatCandles: BinaryCandle[] = Array.from({ length: 40 }, (_, minute) => {
+  const time = new Date(Date.UTC(2026, 0, 6, 10, minute, 0)).toISOString();
+  const wiggle = minute % 2 === 0 ? pip * 0.2 : -pip * 0.2;
+  return { time, open: 1.10000, high: 1.10000 + Math.abs(wiggle), low: 1.10000 - Math.abs(wiggle), close: 1.10000, volume: 5, complete: true };
+});
+const flatDecision = model.evaluate(computeBinaryFeatures("EUR_USD", flatCandles, { bid: 1.09995, ask: 1.10005, mid: 1.10000 }, now)!);
+assert.equal(flatDecision.direction, "wait", "a flat market returns WAIT rather than forcing a prediction");
+
+// Too little history yields no features (and therefore no prediction).
+assert.equal(computeBinaryFeatures("EUR_USD", trendedCandles(0.0002).slice(0, 10), null, now), null, "insufficient candles → null features");
+
+// ---------------------------------------------------------------------------
+// Statistics. Ties are excluded from win rate; win rate is null with no decided
+// predictions; nothing is presented as significant.
+// ---------------------------------------------------------------------------
+const statRows: BinaryStatRow[] = [
+  { instrument: "EUR_USD", direction: "up", status: "resolved", result: "won", confidence: 0.7, session: "London", model_version: "1.0.0", start_at: now.toISOString() },
+  { instrument: "EUR_USD", direction: "up", status: "resolved", result: "lost", confidence: 0.6, session: "London", model_version: "1.0.0", start_at: now.toISOString() },
+  { instrument: "EUR_USD", direction: "down", status: "resolved", result: "tie", confidence: 0.6, session: "London", model_version: "1.0.0", start_at: now.toISOString() },
+  { instrument: "EUR_USD", direction: "up", status: "active", result: null, confidence: 0.8, session: "London", model_version: "1.0.0", start_at: now.toISOString() },
+];
+const stats = binaryStats(statRows);
+assert.equal(stats.total, 4);
+assert.equal(stats.active, 1);
+assert.equal(stats.resolved, 3);
+assert.equal(stats.won, 1);
+assert.equal(stats.lost, 1);
+assert.equal(stats.tie, 1);
+assert.equal(stats.winRate, 0.5, "win rate excludes ties from the denominator (1 win / 2 decided)");
+assert.equal(binaryStats([]).winRate, null, "no decided predictions → null win rate, not a fabricated 0%");
+assert.equal(stats.evidenceEligible, false, "3 resolved is not presented as evidence");
+
+assert.equal(BINARY_HORIZON_SECONDS, 600, "V1 horizon is 10 minutes");
+
+console.log("Binary-engine checks passed.");

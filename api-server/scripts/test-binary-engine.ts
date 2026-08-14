@@ -5,15 +5,18 @@ import { fileURLToPath } from "node:url";
 
 import {
   BINARY_HORIZON_SECONDS,
+  binaryHorizonBreakdown,
   binaryStats,
   classifyBinaryResult,
   computeBinaryFeatures,
   computeSecondaryMarks,
   createBaselineModel,
   isBinaryTie,
+  mergeSecondaryMarks,
   resolutionPriceAtOrAfter,
   type BinaryCandle,
   type BinaryStatRow,
+  type HorizonResultRow,
 } from "../src/binary-engine.js";
 
 // ---------------------------------------------------------------------------
@@ -67,6 +70,22 @@ assert.equal(
 const secondary = computeSecondaryMarks("up", 1.10000, precision, new Date(Date.UTC(2026, 0, 5, 12, 0, 0)), series, [120, 240]);
 assert.equal(secondary["120s"]?.price, 1.10010, "secondary mark priced from the same candles");
 assert.equal(secondary["120s"]?.result, "won", "secondary result is computed independently");
+
+// A horizon longer than what the candles cover yet is simply absent — this is
+// why the 15m mark can't be captured when a 10m prediction resolves, and why the
+// deferred back-fill exists.
+const notYet = computeSecondaryMarks("up", 1.10000, precision, new Date(Date.UTC(2026, 0, 5, 12, 0, 0)), series, [900]);
+assert.equal(notYet["900s"], undefined, "a horizon with no candle yet is omitted, not guessed");
+
+// Back-fill merge: an existing (resolution-time) mark always wins; only missing
+// horizons are added, so the official record and earlier marks are never rewritten.
+const mergedMarks = mergeSecondaryMarks(
+  { "300s": { price: 1.10010, priceTime: "t", result: "won" } },
+  { "300s": { price: 9.99999, priceTime: "x", result: "lost" }, "900s": { price: 1.10050, priceTime: "y", result: "won" } },
+);
+assert.equal((mergedMarks["300s"] as { price: number }).price, 1.10010, "an existing 5m mark is never overwritten by back-fill");
+assert.equal((mergedMarks["900s"] as { result: string }).result, "won", "the missing 15m mark is added by back-fill");
+assert.equal(Object.keys(mergedMarks).length, 2, "merge adds exactly the missing horizon");
 
 // ---------------------------------------------------------------------------
 // Idempotency: resolving the same prediction twice cannot change the result or
@@ -173,5 +192,32 @@ assert.equal(binaryStats([]).winRate, null, "no decided predictions → null win
 assert.equal(stats.evidenceEligible, false, "3 resolved is not presented as evidence");
 
 assert.equal(BINARY_HORIZON_SECONDS, 600, "V1 horizon is 10 minutes");
+
+// ---------------------------------------------------------------------------
+// Horizon breakdown. The same resolved predictions are scored at 5m / 10m / 15m:
+// the official result counts at the prediction's own horizon, the others come
+// from the secondary marks, and predictions missing a horizon's mark are counted
+// separately rather than silently shrinking that horizon's sample.
+// ---------------------------------------------------------------------------
+const horizonRows: HorizonResultRow[] = [
+  { status: "resolved", durationSeconds: 600, result: "won", secondaryMarks: { "300s": { result: "lost" }, "900s": { result: "won" } } },
+  { status: "resolved", durationSeconds: 600, result: "lost", secondaryMarks: { "300s": { result: "won" }, "900s": { result: "won" } } },
+  { status: "resolved", durationSeconds: 600, result: "tie", secondaryMarks: { "900s": { result: "won" } } }, // no 5m mark → missing at 5m
+  { status: "active", durationSeconds: 600, result: null, secondaryMarks: null }, // ignored
+];
+const horizons = binaryHorizonBreakdown(horizonRows);
+const at = (seconds: number) => horizons.find((h) => h.horizonSeconds === seconds)!;
+
+assert.deepEqual(horizons.map((h) => h.label), ["5m", "10m", "15m"], "horizons reported as 5m / 10m / 15m");
+// 10m uses the official result: won, lost, tie → 1 win of 2 decided.
+assert.equal(at(600).won, 1); assert.equal(at(600).lost, 1); assert.equal(at(600).tie, 1);
+assert.equal(at(600).winRate, 0.5, "10m win rate excludes the tie");
+// 5m from secondary marks: lost, won, (missing) → 1 win of 2 decided; one missing.
+assert.equal(at(300).won, 1); assert.equal(at(300).lost, 1); assert.equal(at(300).missing, 1);
+assert.equal(at(300).winRate, 0.5);
+// 15m from secondary marks: won, won, won → 3 wins, perfect on this tiny sample.
+assert.equal(at(900).won, 3); assert.equal(at(900).winRate, 1);
+assert.equal(at(900).evidenceEligible, false, "3 resolved is never presented as evidence");
+assert.equal(binaryHorizonBreakdown([])[0]!.winRate, null, "no data → null win rate per horizon");
 
 console.log("Binary-engine checks passed.");

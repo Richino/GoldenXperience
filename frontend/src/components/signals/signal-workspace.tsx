@@ -55,6 +55,7 @@ import type { StrategySetup } from "@/lib/strategy/types";
 import { getPaperTradingAvailability, type PaperTradingAvailability } from "@/lib/strategy/strategy-engine";
 import { watchlistCardStatus, type WatchlistStatusInput } from "@/lib/watchlist-status";
 import type { MarketPriceTick } from "@/types/market-stream";
+import type { BinaryPrediction } from "@/types/binary";
 import { MAJOR_INSTRUMENTS } from "@/types/forex";
 import type {
   Candle,
@@ -814,6 +815,76 @@ function TradeFocusBar({
   );
 }
 
+function PredictionFocusBar({
+  prediction,
+  currentPrice,
+  now,
+}: {
+  prediction: BinaryPrediction;
+  currentPrice: number | null;
+  now: number;
+}) {
+  const expiresAt = Date.parse(prediction.intendedExpiration);
+  const expired = prediction.status === "active" && Number.isFinite(expiresAt) && now >= expiresAt;
+  const secondsRemaining = Number.isFinite(expiresAt)
+    ? Math.max(0, Math.ceil((expiresAt - now) / 1_000))
+    : null;
+  const countdown = secondsRemaining === null
+    ? null
+    : `${Math.floor(secondsRemaining / 60)}:${String(secondsRemaining % 60).padStart(2, "0")}`;
+  const movement = currentPrice === null
+    ? null
+    : (currentPrice - prediction.entryPrice) * (prediction.direction === "up" ? 1 : -1);
+  const winning = movement !== null && movement > 0;
+  const losing = movement !== null && movement < 0;
+  const movementPips = movement === null ? null : movement / pipSizeFor(prediction.instrument);
+  const outcome = prediction.status === "active" && !expired
+    ? winning
+      ? "Winning now"
+      : losing
+        ? "Losing now"
+        : "At entry"
+    : prediction.status === "active"
+      ? "Resolving outcome"
+    : prediction.result === "won"
+      ? "Won"
+      : prediction.result === "lost"
+        ? "Lost"
+        : prediction.result === "tie"
+          ? "Tie"
+          : "Awaiting result";
+  const outcomeColor = prediction.result === "won" || (!expired && winning)
+    ? "var(--success)"
+    : prediction.result === "lost" || (!expired && losing)
+      ? "var(--danger)"
+      : "var(--muted-strong)";
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-[color:var(--border)] px-4 py-2.5 text-xs lg:px-5">
+      <span className={`permission-pill ${prediction.direction === "up" ? "bg-[color:var(--success-soft)] text-[color:var(--success)]" : "bg-[color:var(--danger-soft)] text-[color:var(--danger)]"}`}>
+        Binary · {prediction.direction === "up" ? "UP" : "DOWN"}
+      </span>
+      <span className="metric-number text-[color:var(--muted-strong)]">
+        Entry {formatChartPrice(prediction.entryPrice, prediction.instrument)}
+      </span>
+      <span className="metric-number text-[color:var(--muted-strong)]">
+        Expires {formatClockTime(prediction.intendedExpiration)}
+      </span>
+      {prediction.status === "active" ? (
+        <span className="metric-number text-[color:var(--muted-strong)]">
+          {expired ? "Expired · resolving" : `Closes in ${countdown ?? "—"}`}
+        </span>
+      ) : null}
+      <span className="metric-number font-semibold" style={{ color: outcomeColor }}>
+        {outcome}
+        {prediction.status === "active" && !expired && movementPips !== null
+          ? ` · ${movementPips >= 0 ? "+" : ""}${movementPips.toFixed(1)} pips`
+          : ""}
+      </span>
+    </div>
+  );
+}
+
 function MobileSignalDetails({
   tab,
   active,
@@ -875,6 +946,7 @@ export function SignalWorkspace({
   paperPlans,
   initialPaperTrades = [],
   initialFocusTradeId = null,
+  initialPredictionFocus = null,
 }: {
   strategySetups: StrategySetup[];
   initialInstrument: MajorInstrument;
@@ -883,6 +955,7 @@ export function SignalWorkspace({
   paperPlans: SignalPaperPlan[];
   initialPaperTrades?: PaperChartTrade[];
   initialFocusTradeId?: string | null;
+  initialPredictionFocus?: BinaryPrediction | null;
 }) {
   const router = useRouter();
   const signals = useMemo(
@@ -898,9 +971,9 @@ export function SignalWorkspace({
   // Paper decisions are taken on completed M15 candles, so a trade opened from
   // the dashboard always lands on the timeframe it was actually decided on.
   const [timeframe, setTimeframe] = useState(
-    initialFocusTradeId ? "15m" as const : mapSignalTimeframe(initialSignal?.timeframe ?? "15m"),
+    initialPredictionFocus ? "1m" as const : initialFocusTradeId ? "15m" as const : mapSignalTimeframe(initialSignal?.timeframe ?? "15m"),
   );
-  const [range, setRange] = useState<ChartRange>("6M");
+  const [range, setRange] = useState<ChartRange>(initialPredictionFocus ? "1D" : "6M");
   const [chartVariant, setChartVariant] = useState<ChartVariant>("candle");
   const [enabledIndicators, setEnabledIndicators] = useState<ChartIndicator[]>(
     DEFAULT_CHART_INDICATORS,
@@ -929,6 +1002,8 @@ export function SignalWorkspace({
   const [paperTrades, setPaperTrades] = useState<PaperChartTrade[]>(initialPaperTrades);
   const [livePaperPlans, setLivePaperPlans] = useState<SignalPaperPlan[]>(paperPlans);
   const [focusTradeId, setFocusTradeId] = useState<string | null>(initialFocusTradeId);
+  const [predictionFocus, setPredictionFocus] = useState<BinaryPrediction | null>(initialPredictionFocus);
+  const [predictionClock, setPredictionClock] = useState(() => Date.now());
   // The first pair is already rendered with server-fetched trades.
   const skipInitialTradeFetchRef = useRef(true);
   const olderRequestInFlightRef = useRef(false);
@@ -953,6 +1028,43 @@ export function SignalWorkspace({
     const timer = window.setInterval(() => void refreshPaperPlans(), 60_000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    setPredictionFocus(initialPredictionFocus);
+  }, [initialPredictionFocus]);
+
+  useEffect(() => {
+    if (!predictionFocus || predictionFocus.status !== "active") return;
+
+    const controller = new AbortController();
+    const refreshPrediction = async () => {
+      try {
+        const response = await fetch(apiUrl(`/api/binary/prediction?id=${predictionFocus.id}`), {
+          credentials: "include",
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const payload = (await response.json()) as { prediction?: BinaryPrediction };
+        if (response.ok && payload.prediction) setPredictionFocus(payload.prediction);
+      } catch {
+        // The countdown can continue while the next server resolution check retries.
+      }
+    };
+    const expirationDelay = Math.max(0, Date.parse(predictionFocus.intendedExpiration) - Date.now()) + 1_000;
+    const interval = window.setInterval(() => void refreshPrediction(), 15_000);
+    const timeout = window.setTimeout(() => void refreshPrediction(), expirationDelay);
+    return () => {
+      controller.abort();
+      window.clearInterval(interval);
+      window.clearTimeout(timeout);
+    };
+  }, [predictionFocus?.id, predictionFocus?.intendedExpiration, predictionFocus?.status]);
+
+  useEffect(() => {
+    if (!predictionFocus || predictionFocus.status !== "active") return;
+    const interval = window.setInterval(() => setPredictionClock(Date.now()), 1_000);
+    return () => window.clearInterval(interval);
+  }, [predictionFocus?.id, predictionFocus?.status]);
 
   useEffect(() => {
     const mobileShell = mobileChartShellRef.current;
@@ -1336,6 +1448,23 @@ export function SignalWorkspace({
     };
   }, [active?.entry, quote, series.candles]);
 
+  const focusedPrediction = predictionFocus?.instrument === instrument
+    ? predictionFocus
+    : null;
+  const predictionCurrentPrice = focusedPrediction
+    ? quote?.mid ?? series.candles.at(-1)?.close ?? null
+    : null;
+  const predictionReferenceLine = focusedPrediction
+    ? {
+        price: focusedPrediction.entryPrice,
+        label: "Prediction entry",
+        // This marker must not change with every tick. A live winning/losing
+        // color here recreated Lightweight Charts whenever price crossed entry.
+        color: "#5856d6",
+        textColor: "#ffffff",
+      }
+    : null;
+
   const spreadPips = useMemo(() => {
     if (!quote || quote.instrument !== instrument) return null;
     return Number(spreadInPips(instrument, quote.bid, quote.ask));
@@ -1441,6 +1570,9 @@ export function SignalWorkspace({
           {focusTrade ? (
             <TradeFocusBar trade={focusTrade} onClear={clearFocusTrade} />
           ) : null}
+          {focusedPrediction ? (
+            <PredictionFocusBar prediction={focusedPrediction} currentPrice={predictionCurrentPrice} now={predictionClock} />
+          ) : null}
 
           <div
             ref={mobileChartShellRef}
@@ -1461,6 +1593,7 @@ export function SignalWorkspace({
               trades={paperTrades}
               focusTradeId={activeFocusId}
               focusRange={focusRange}
+              referenceLine={predictionReferenceLine}
             />
             <ChartLoadingOverlay visible={loading} />
           </div>
@@ -1545,6 +1678,9 @@ export function SignalWorkspace({
           {focusTrade ? (
             <TradeFocusBar trade={focusTrade} onClear={clearFocusTrade} />
           ) : null}
+          {focusedPrediction ? (
+            <PredictionFocusBar prediction={focusedPrediction} currentPrice={predictionCurrentPrice} now={predictionClock} />
+          ) : null}
 
           <div
             ref={desktopChartShellRef}
@@ -1565,6 +1701,7 @@ export function SignalWorkspace({
               trades={paperTrades}
               focusTradeId={activeFocusId}
               focusRange={focusRange}
+              referenceLine={predictionReferenceLine}
             />
             <ChartLoadingOverlay visible={loading} />
           </div>

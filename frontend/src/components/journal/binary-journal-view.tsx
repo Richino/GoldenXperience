@@ -189,6 +189,35 @@ export function BinaryJournalView() {
         </p>
       ) : null}
 
+      {stats && stats.horizons.some((horizon) => horizon.resolved > 0) ? (
+        <section className="dashboard-minimal-section" aria-label="Horizon comparison">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="text-sm font-semibold tracking-[-0.01em]">Horizon comparison</h2>
+            <span className="text-xs text-[color:var(--muted)]">same predictions, priced at 5m / 10m / 15m</span>
+          </div>
+          <div className="binary-horizon-grid mt-3">
+            {stats.horizons.map((horizon) => (
+              <div key={horizon.horizonSeconds} className="binary-horizon-cell">
+                <p className="binary-horizon-label">{horizon.label}</p>
+                <p className="metric-number binary-horizon-rate">
+                  {horizon.winRate === null ? "—" : `${(horizon.winRate * 100).toFixed(0)}%`}
+                </p>
+                <p className="binary-horizon-detail metric-number">
+                  {horizon.won}W · {horizon.lost}L · {horizon.tie}T
+                </p>
+                <p className="binary-horizon-sample">
+                  {horizon.resolved} resolved{horizon.missing ? ` · ${horizon.missing} no data` : ""}
+                </p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-[0.6875rem] leading-snug text-[color:var(--muted)]">
+            Win rate excludes ties. Prices are mid-to-mid, so real trading would be lower after spread. Compare only once each
+            horizon has a few hundred resolved.
+          </p>
+        </section>
+      ) : null}
+
       <section className="dashboard-minimal-section" aria-label="Prediction log">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h2 className="text-sm font-semibold tracking-[-0.01em]">Prediction log</h2>

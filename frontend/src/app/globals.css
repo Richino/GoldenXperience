@@ -5990,3 +5990,41 @@ input[type="number"] {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* Journal → Binary Predictions: the 5m / 10m / 15m horizon comparison. */
+.binary-horizon-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.binary-horizon-cell {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 0.7rem);
+  padding: 0.75rem;
+  text-align: center;
+  background: var(--surface);
+}
+.binary-horizon-label {
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.binary-horizon-rate {
+  margin: 0.2rem 0 0;
+  font-size: 1.35rem;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+}
+.binary-horizon-detail {
+  margin: 0.15rem 0 0;
+  font-size: 0.75rem;
+  color: var(--muted-strong);
+}
+.binary-horizon-sample {
+  margin: 0.1rem 0 0;
+  font-size: 0.625rem;
+  color: var(--muted);
+}

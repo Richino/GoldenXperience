@@ -29,7 +29,7 @@ import { getForexSessionStatus } from "../../frontend/src/lib/strategy/session.j
 import { databaseConfigured, query } from "./database.js";
 import { cookieName, login, logout, sessionUser } from "./auth.js";
 import { decideResearchExperiment, forwardResearchSummary, latestDayTradingValidation, latestResearchExperiment, latestResearchHoldout, latestResearchRun, latestWalkForwardResearch, processNextResearchJob, researchDiagnostics, researchExperimentDiagnostics, researchSummary, runDayTradingValidation, runResearchExperiment, runWalkForwardResearch, startLockedResearchHoldout, startStrictHistoricalBackfill, stopResearchRun } from "./research.js";
-import { collectPaperCycle, decidePaperBatch, journalTradeLog, paperCycleOverview, paperRiskExposure, paperRiskPolicy, paperTradesForInstrument, parsePaperRiskConfiguration, reviewPaperTrade, updatePaperRiskPolicy, watchlistSnapshot } from "./paper-cycle.js";
+import { collectPaperCycle, decidePaperBatch, fastResolveFilledTrades, journalTradeLog, paperCycleOverview, paperRiskExposure, paperRiskPolicy, paperTradesForInstrument, parsePaperRiskConfiguration, reviewPaperTrade, updatePaperRiskPolicy, watchlistSnapshot } from "./paper-cycle.js";
 import { markNotificationsRead, notificationsForUser, pushPublicKey, queueNotification, removePushSubscription, savePushSubscription } from "./notifications.js";
 import { practiceExecutionOverview, setPracticeExecutionEnabled } from "./practice-execution.js";
 
@@ -481,6 +481,7 @@ server.listen(PORT, () => console.log(`[api] HTTP and WebSocket server listening
 
 let researchWorker: NodeJS.Timeout | null = null;
 let paperCollector: NodeJS.Timeout | null = null;
+let fastResolver: NodeJS.Timeout | null = null;
 if (databaseConfigured()) {
   let collectionBusy = false;
   // Forex is shut Friday 17:00 ET to Sunday 17:00 ET. The loop keeps ticking so
@@ -525,6 +526,28 @@ if (databaseConfigured()) {
   };
   void collect();
   paperCollector = setInterval(() => void collect(), 60_000);
+
+  // Between the 60s scans, catch broker fills the instant they happen. When a
+  // trade's live price nears its target or stop, this asks the broker whether
+  // its real order filled and books the close in seconds instead of waiting for
+  // the next scan and the M15 candle to complete.
+  let fastResolveBusy = false;
+  const fastResolve = async () => {
+    if (fastResolveBusy || !getForexSessionStatus(new Date()).marketOpen) return;
+    fastResolveBusy = true;
+    try {
+      const closed = await fastResolveFilledTrades((instrument) => {
+        const tick = latestPrices.get(instrument);
+        return tick ? { bid: tick.bid, ask: tick.ask } : null;
+      });
+      if (closed) console.log(`[paper-cycle] fast broker close booked ${closed}`);
+    } catch (error) {
+      console.error("[paper-cycle] fast resolver failed", error);
+    } finally {
+      fastResolveBusy = false;
+    }
+  };
+  fastResolver = setInterval(() => void fastResolve(), 5_000);
   let workerBusy = false;
   const work = async () => {
     if (workerBusy) return;
@@ -541,6 +564,7 @@ function shutdown() {
   clearInterval(heartbeat);
   if (researchWorker) clearInterval(researchWorker);
   if (paperCollector) clearInterval(paperCollector);
+  if (fastResolver) clearInterval(fastResolver);
   wss.clients.forEach((socket) => socket.close(1001, "Server shutting down"));
   server.close(() => process.exit(0));
 }

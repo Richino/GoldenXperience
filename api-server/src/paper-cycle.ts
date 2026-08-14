@@ -508,6 +508,94 @@ async function brokerCloseFor(trade: OpenTradeRow): Promise<BrokerClose | null> 
   };
 }
 
+/** Writes a broker-reported close onto the paper trade and notifies once. The
+ *  status='open' guard makes it idempotent, so the 60s scan and the fast
+ *  near-level check below can both call it without double-closing. */
+async function bookBrokerClose(
+  trade: OpenTradeRow,
+  broker: BrokerClose,
+  excursion: { maxFavorableR: number | null; maxAdverseR: number | null },
+): Promise<boolean> {
+  const closed = await query<{ id: string }>(
+    `UPDATE paper_strategy_trades SET status='closed',outcome=$2,exit=$3,result_r=$4,paper_pl=$5,max_favorable_r=$6,max_adverse_r=$7,closed_at=COALESCE($8,now()),exit_reason=$2,updated_at=now() WHERE id=$1 AND status='open'`,
+    [trade.id, broker.outcome, broker.exit, broker.resultR, broker.paperPl, excursion.maxFavorableR, excursion.maxAdverseR, broker.closedAt],
+  );
+  if (!closed.rowCount) return false;
+  const label = broker.outcome === "target_first" ? "target reached" : broker.outcome === "stop_first" ? "stop reached" : "session exit";
+  const resultText = broker.resultR === null ? "Result unavailable" : `${broker.resultR >= 0 ? "+" : ""}${broker.resultR.toFixed(2)}R`;
+  await queueNotification({
+    userId: trade.user_id,
+    kind: "paper_closed",
+    title: `${displayPair(trade.instrument)} paper trade closed`,
+    message: `${label} · ${resultText}`,
+    instrument: trade.instrument,
+    paperTradeId: trade.id,
+    dedupeKey: `paper_closed:${trade.id}`,
+  });
+  return true;
+}
+
+/** Max-favorable/adverse excursion from the M15 scan. The broker does not report
+ *  it, so the fast path reads it once, only after a fill is confirmed. */
+async function excursionForTrade(trade: OpenTradeRow): Promise<{ maxFavorableR: number | null; maxAdverseR: number | null }> {
+  try {
+    const candles = (await getResearchCandles(trade.instrument, "M15", 500)).filter((item) => item.complete);
+    const quotes = candles.map(toQuote).filter((quote) => new Date(quote.closeTime) > new Date(trade.decision_time));
+    if (!quotes.length) return { maxFavorableR: null, maxAdverseR: null };
+    const result = labelOutcome(trade.direction, Number(trade.entry), Number(trade.stop), Number(trade.target), iso(trade.decision_time), quotes);
+    return { maxFavorableR: result.maxFavorableR, maxAdverseR: result.maxAdverseR };
+  } catch {
+    return { maxFavorableR: null, maxAdverseR: null };
+  }
+}
+
+/** How close, as a fraction of the stop distance, price must come to the target
+ *  or stop before the fast check starts polling the broker for a fill. */
+const FAST_CHECK_PROXIMITY_FRACTION = 0.2;
+
+function nearBrokerLevel(trade: OpenTradeRow, price: { bid: number; ask: number }): boolean {
+  const entry = Number(trade.entry);
+  const stop = Number(trade.stop);
+  const target = Number(trade.target);
+  const risk = Math.abs(entry - stop);
+  if (!(risk > 0)) return false;
+  const band = risk * FAST_CHECK_PROXIMITY_FRACTION;
+  // Exit side of the book: a long is closed on the bid, a short on the ask —
+  // the same side labelOutcome and the broker fill against.
+  const mark = trade.direction === "long" ? price.bid : price.ask;
+  return trade.direction === "long"
+    ? mark >= target - band || mark <= stop + band
+    : mark <= target + band || mark >= stop - band;
+}
+
+/**
+ * The impatient close. Practice execution places a real take-profit/stop at the
+ * broker, so a position is already gone the instant price touches its level —
+ * but the 60s scan only notices on its next tick, and only once the M15 candle
+ * completes. This runs far more often: for a trade whose live price is within a
+ * fraction of its stop distance from a level, it asks the broker whether the
+ * order filled and books it immediately, cutting the close from up to a minute
+ * (or a candle) down to seconds. Untouched trades cost one indexed query.
+ */
+export async function fastResolveFilledTrades(priceOf: (instrument: MajorInstrument) => { bid: number; ask: number } | null) {
+  const open = await query<OpenTradeRow>(
+    `SELECT trade.id,trade.user_id,trade.instrument,trade.decision_time,trade.direction,trade.entry,trade.stop,trade.target,trade.nominal_risk_amount
+     FROM paper_strategy_trades trade
+     JOIN practice_order_intents intent ON intent.paper_trade_id=trade.id
+     WHERE trade.status='open' AND intent.status='submitted' AND intent.broker_trade_id IS NOT NULL`,
+  );
+  let closed = 0;
+  for (const trade of open.rows) {
+    const price = priceOf(trade.instrument);
+    if (!price || !nearBrokerLevel(trade, price)) continue;
+    const broker = await brokerCloseFor(trade);
+    if (!broker) continue;
+    const excursion = await excursionForTrade(trade);
+    if (await bookBrokerClose(trade, broker, excursion)) closed += 1;
+  }
+  return closed;
+}
+
 async function resolveOpenTrades() {
   const open = await query<OpenTradeRow>("SELECT id,user_id,instrument,decision_time,direction,entry,stop,target,nominal_risk_amount FROM paper_strategy_trades WHERE status='open' ORDER BY opened_at");
   let resolved = 0;
@@ -522,23 +610,7 @@ async function resolveOpenTrades() {
     // produces are not something the broker reports.
     const broker = await brokerCloseFor(trade);
     if (broker) {
-      const closed = await query<{ id: string }>(
-        `UPDATE paper_strategy_trades SET status='closed',outcome=$2,exit=$3,result_r=$4,paper_pl=$5,max_favorable_r=$6,max_adverse_r=$7,closed_at=COALESCE($8,now()),exit_reason=$2,updated_at=now() WHERE id=$1 AND status='open'`,
-        [trade.id, broker.outcome, broker.exit, broker.resultR, broker.paperPl, result.maxFavorableR, result.maxAdverseR, broker.closedAt],
-      );
-      if (closed.rowCount) {
-        const label = broker.outcome === "target_first" ? "target reached" : broker.outcome === "stop_first" ? "stop reached" : "session exit";
-        const resultText = broker.resultR === null ? "Result unavailable" : `${broker.resultR >= 0 ? "+" : ""}${broker.resultR.toFixed(2)}R`;
-        await queueNotification({
-          userId: trade.user_id,
-          kind: "paper_closed",
-          title: `${displayPair(trade.instrument)} paper trade closed`,
-          message: `${label} · ${resultText}`,
-          instrument: trade.instrument,
-          paperTradeId: trade.id,
-          dedupeKey: `paper_closed:${trade.id}`,
-        });
-      }
+      await bookBrokerClose(trade, broker, { maxFavorableR: result.maxFavorableR, maxAdverseR: result.maxAdverseR });
       resolved += 1;
       continue;
     }

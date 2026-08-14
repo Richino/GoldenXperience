@@ -11,6 +11,7 @@ import {
   computeBinaryFeatures,
   computeSecondaryMarks,
   createBaselineModel,
+  isBinaryOpeningSession,
   isBinaryTie,
   mergeSecondaryMarks,
   resolutionPriceAtOrAfter,
@@ -192,6 +193,15 @@ assert.equal(binaryStats([]).winRate, null, "no decided predictions → null win
 assert.equal(stats.evidenceEligible, false, "3 resolved is not presented as evidence");
 
 assert.equal(BINARY_HORIZON_SECONDS, 600, "V1 horizon is 10 minutes");
+
+// ---------------------------------------------------------------------------
+// Session gating: predictions are OPENED only during the London / New York
+// sessions (incl. their overlap), never in the Asian/off-hours between them,
+// and never at the weekend. (August dates, so both centres are on summer time.)
+// ---------------------------------------------------------------------------
+assert.equal(isBinaryOpeningSession(new Date("2026-08-14T14:00:00Z")), true, "London/New York overlap is an opening session");
+assert.equal(isBinaryOpeningSession(new Date("2026-08-14T03:00:00Z")), false, "market open but between sessions (Asian hours) does not open predictions");
+assert.equal(isBinaryOpeningSession(new Date("2026-08-15T12:00:00Z")), false, "the weekend is not an opening session");
 
 // ---------------------------------------------------------------------------
 // Horizon breakdown. The same resolved predictions are scored at 5m / 10m / 15m:

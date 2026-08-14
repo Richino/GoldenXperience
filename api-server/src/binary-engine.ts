@@ -758,9 +758,23 @@ export async function backfillBinarySecondaryMarks(limit = 50): Promise<number> 
 }
 
 /**
- * One evaluation pass: resolve anything due, then (while the market is open) take
- * a fresh market read for each symbol, refresh its watchlist bias, and open a new
- * 10-minute prediction where the model has a signal and the symbol has none active.
+ * Whether the engine may OPEN new predictions right now: only while a major
+ * session — London or New York, including their overlap — is trading. This
+ * deliberately excludes the Asian/off-hours between the New York close and the
+ * London open, when these pairs are thin and directional. Resolution and
+ * back-fill are NOT gated by this — a prediction opened near the New York close
+ * still settles normally.
+ */
+export function isBinaryOpeningSession(now = new Date()): boolean {
+  const status = getForexSessionStatus(now);
+  return status.marketOpen && status.entrySession !== null;
+}
+
+/**
+ * One evaluation pass: resolve anything due, then (while a major session is
+ * trading) take a fresh market read for each symbol, refresh its watchlist bias,
+ * and open a new 10-minute prediction where the model has a signal and the symbol
+ * has none active.
  */
 export async function collectBinaryCycle(): Promise<{ opened: number; resolved: number; evaluated: number; reason?: string }> {
   let resolved = 0;
@@ -784,8 +798,12 @@ export async function collectBinaryCycle(): Promise<{ opened: number; resolved: 
   const model = await ensureBinaryModel();
   const engine = createBaselineModel();
   const now = new Date();
-  const marketOpen = getForexSessionStatus(now).marketOpen;
-  if (!marketOpen) return { opened: 0, resolved, evaluated: 0, reason: "Forex market closed" };
+  const session = getForexSessionStatus(now);
+  if (!session.marketOpen) return { opened: 0, resolved, evaluated: 0, reason: "Forex market closed" };
+  // Evaluate and open only during the London and New York sessions. Outside them
+  // the engine opens nothing new; the durable resolver and the back-fill above
+  // keep settling and completing predictions that are already live.
+  if (session.entrySession === null) return { opened: 0, resolved, evaluated: 0, reason: "Outside London/New York sessions" };
 
   const pricing = await getPricing([...MAJOR_INSTRUMENTS]);
   const quoteByInstrument = new Map(pricing.data.map((quote) => [quote.instrument, quote]));

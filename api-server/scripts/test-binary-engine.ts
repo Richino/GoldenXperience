@@ -10,6 +10,8 @@ import {
   classifyBinaryResult,
   computeBinaryFeatures,
   computeSecondaryMarks,
+  binaryExpiredWhileClosed,
+  canOpenBinaryPrediction,
   createBaselineModel,
   isBinaryOpeningSession,
   isBinaryTie,
@@ -202,6 +204,21 @@ assert.equal(BINARY_HORIZON_SECONDS, 600, "V1 horizon is 10 minutes");
 assert.equal(isBinaryOpeningSession(new Date("2026-08-14T14:00:00Z")), true, "London/New York overlap is an opening session");
 assert.equal(isBinaryOpeningSession(new Date("2026-08-14T03:00:00Z")), false, "market open but between sessions (Asian hours) does not open predictions");
 assert.equal(isBinaryOpeningSession(new Date("2026-08-15T12:00:00Z")), false, "the weekend is not an opening session");
+
+// A prediction must be able to expire before the market closes. Near the Friday
+// 17:00 ET weekly close the 10-minute horizon runs past it, so opening stops.
+// 2026-08-14 is a Friday; 20:55Z = 16:55 ET, whose +10m lands at 17:05 ET (closed).
+assert.equal(canOpenBinaryPrediction(new Date("2026-08-14T20:55:00Z")), false, "a Friday prediction expiring after the 17:00 ET weekly close is not opened");
+assert.equal(canOpenBinaryPrediction(new Date("2026-08-14T14:00:00Z")), true, "mid-session Friday opens normally");
+// The same clock time on a weekday still opens — it resolves after the New York
+// close from the candles that keep printing into the Asian hours.
+assert.equal(canOpenBinaryPrediction(new Date("2026-08-13T20:55:00Z")), true, "late New York on a weekday still opens (the market stays open past it)");
+
+// A prediction that expired while the market was closed is voided, not settled
+// on a weekend-gap price. 21:09Z Friday = 17:09 ET, just after the weekly close.
+assert.equal(binaryExpiredWhileClosed(new Date("2026-08-14T21:09:00Z")), true, "expiring just after the Friday 17:00 ET close is voided");
+assert.equal(binaryExpiredWhileClosed(new Date("2026-08-14T14:09:00Z")), false, "expiring mid-session resolves normally");
+assert.equal(binaryExpiredWhileClosed(new Date("2026-08-13T21:05:00Z")), false, "expiring after the NY close on a weekday is still resolvable");
 
 // ---------------------------------------------------------------------------
 // Horizon breakdown. The same resolved predictions are scored at 5m / 10m / 15m:

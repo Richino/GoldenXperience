@@ -645,6 +645,24 @@ export async function resolveDueBinaryPredictions(): Promise<number> {
   for (const prediction of due.rows) {
     const startAt = new Date(prediction.start_at);
     const intended = new Date(prediction.intended_expiration);
+
+    // A prediction whose intended expiration fell while the market was closed
+    // (the Friday 17:00 ET weekly close is the only such gap) has no
+    // contemporaneous settlement price. Void it — status 'error', no result —
+    // rather than record a meaningless weekend-gap win or loss. The status guard
+    // keeps this idempotent, and the immutability trigger permits it because no
+    // result is ever set.
+    if (binaryExpiredWhileClosed(intended)) {
+      const voided = await query<{ id: string }>(
+        `UPDATE binary_predictions
+         SET status='error',error_reason=$2,resolved_at=now(),updated_at=now()
+         WHERE id=$1 AND status='active' RETURNING id`,
+        [prediction.id, "Market was closed at the intended expiration (weekly close/gap); no valid settlement price, so the prediction was voided."],
+      );
+      if (voided.rowCount) resolved += 1;
+      continue;
+    }
+
     const liveMark = livePrices.get(prediction.instrument);
     const liveMarkTime = liveMark ? new Date(liveMark.time) : null;
     const canUseLiveMark = Boolean(
@@ -771,6 +789,28 @@ export function isBinaryOpeningSession(now = new Date()): boolean {
 }
 
 /**
+ * Whether a prediction opened now can both start in a session AND expire while
+ * the market is still open, so it can actually resolve. This is what stops a
+ * prediction being opened in the last ~10 minutes before the Friday 17:00 ET
+ * weekly close, where it would otherwise sit unresolved — showing ACTIVE — until
+ * the Sunday reopen and then settle at a meaningless weekend-gap price.
+ */
+export function canOpenBinaryPrediction(now = new Date(), durationSeconds = BINARY_HORIZON_SECONDS): boolean {
+  if (!isBinaryOpeningSession(now)) return false;
+  const expiresAt = new Date(now.getTime() + durationSeconds * 1000);
+  return getForexSessionStatus(expiresAt).marketOpen;
+}
+
+/**
+ * True when a prediction's intended expiration fell while the forex market was
+ * closed (the weekend). Such a prediction has no contemporaneous settlement
+ * price, so the resolver voids it instead of settling it on a weekend-gap price.
+ */
+export function binaryExpiredWhileClosed(intendedExpiration: string | Date): boolean {
+  return !getForexSessionStatus(new Date(intendedExpiration)).marketOpen;
+}
+
+/**
  * One evaluation pass: resolve anything due, then (while a major session is
  * trading) take a fresh market read for each symbol, refresh its watchlist bias,
  * and open a new 10-minute prediction where the model has a signal and the symbol
@@ -804,6 +844,11 @@ export async function collectBinaryCycle(): Promise<{ opened: number; resolved: 
   // the engine opens nothing new; the durable resolver and the back-fill above
   // keep settling and completing predictions that are already live.
   if (session.entrySession === null) return { opened: 0, resolved, evaluated: 0, reason: "Outside London/New York sessions" };
+  // A prediction must be able to finish before the market closes. Near the Friday
+  // 17:00 ET weekly close, the 10-minute horizon would run past it and strand the
+  // prediction as ACTIVE until Sunday, so stop opening once the horizon no longer
+  // clears the close.
+  const horizonClearsMarket = getForexSessionStatus(new Date(now.getTime() + BINARY_HORIZON_SECONDS * 1000)).marketOpen;
 
   const pricing = await getPricing([...MAJOR_INSTRUMENTS]);
   const quoteByInstrument = new Map(pricing.data.map((quote) => [quote.instrument, quote]));
@@ -831,8 +876,9 @@ export async function collectBinaryCycle(): Promise<{ opened: number; resolved: 
     await persistBinaryWatchSnapshot(instrument, model, now, dataStatus, decision, quote, features);
     evaluated += 1;
 
-    // Fail closed: only a live, fresh read with computable features may open one.
-    if (dataStatus !== "connected" || !decision || !features || !quote || decision.direction === "wait") continue;
+    // Fail closed: only a live, fresh read with computable features may open one,
+    // and only when the 10-minute horizon still clears the market close.
+    if (dataStatus !== "connected" || !decision || !features || !quote || decision.direction === "wait" || !horizonClearsMarket) continue;
     const id = await openBinaryPrediction(userId, model, instrument, quote, features, decision, now);
     if (id) opened += 1;
   }

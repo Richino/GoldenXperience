@@ -3,7 +3,9 @@ import type { BinaryPrediction, BinaryResult, BinaryStatus } from "@/types/binar
 /** Short human label for a prediction's outcome or its live state. */
 export function predictionStatusLabel(prediction: Pick<BinaryPrediction, "status" | "result">) {
   if (prediction.status === "active") return "ACTIVE";
-  if (prediction.status === "error") return "ERROR";
+  // 'error' is only used to void a prediction that expired while the market was
+  // closed and so has no valid settlement price.
+  if (prediction.status === "error") return "VOID";
   return (prediction.result ?? "resolved").toUpperCase();
 }
 

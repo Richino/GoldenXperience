@@ -18,6 +18,7 @@
     "research:run-experiment": "tsx scripts/run-research-experiment.ts",
     "research:test-gbp-candidate": "tsx scripts/test-gbp-candidate.ts",
     "paper-cycle:test": "tsx scripts/test-paper-cycle.ts",
+    "binary:test": "tsx scripts/test-binary-engine.ts",
     "paper-cycle:collect": "tsx scripts/collect-paper-cycle.ts",
     "db:vacuum-research": "tsx scripts/vacuum-research.ts"
   },

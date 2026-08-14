@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { JournalView } from "@/components/journal/journal-view";
+import { JournalTabs } from "@/components/journal/journal-tabs";
 
 export const metadata: Metadata = {
   title: "Journal",
 };
 
 export default function JournalPage() {
-  return <JournalView />;
+  return <JournalTabs />;
 }

@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, BarChart3, Radar, WalletCards } from "lucide-react";
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { AccountOverviewHero } from "@/components/dashboard/account-overview-hero";
+import { RecentPredictions } from "@/components/dashboard/recent-predictions";
+import { BinaryWatchlistCard } from "@/components/dashboard/binary-watchlist-card";
 import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { displayNameFor } from "@/lib/instruments/catalog";
@@ -340,18 +341,17 @@ export function DashboardView({
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{displayNameFor(row.instrument)}</p>
                     <p
-                      className={`watchlist-status-label mt-0.5 text-xs ${state.tone}`}
-                      style={
+                      className={`watchlist-status-label mt-0.5 text-xs ${
                         state.state === "open" || state.state === "unavailable"
-                          ? undefined
-                          : { color: progressColor }
-                      }
+                          ? state.tone
+                          : "watchlist-progress-text"
+                      }`}
                     >
                       {state.label}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
-                    <p className="metric-number text-sm text-[color:var(--muted)]">
+                    <p className="dashboard-watchlist-price metric-number text-sm">
                       {/* Streamed price when the pair has ticked, otherwise the
                           polled snapshot. */}
                       {(() => {
@@ -361,8 +361,7 @@ export function DashboardView({
                     </p>
                     {state.state !== "open" && state.state !== "unavailable" ? (
                       <p
-                        className="watchlist-checklist-value mt-0.5 text-xs font-medium"
-                        style={{ color: progressColor }}
+                        className="watchlist-checklist-value watchlist-progress-text mt-0.5 text-xs font-medium"
                       >
                         {state.progress}% checklist
                       </p>
@@ -394,7 +393,9 @@ export function DashboardView({
         </div>
       </section>
 
-      <div className="dashboard-minimal-grid">
+      <BinaryWatchlistCard />
+
+      <div className="dashboard-minimal-grid dashboard-trades-grid">
         <section className="dashboard-minimal-section" aria-label="Recent paper trades">
           <div className="flex items-baseline justify-between gap-3">
             <h2 className="text-sm font-semibold tracking-[-0.01em]">Recent trades</h2>
@@ -404,6 +405,11 @@ export function DashboardView({
           </div>
           {overview.trades.length ? (
             <div className="dash-trade-list mt-3">
+              <div className="dash-trade-table-head" aria-hidden="true">
+                <span>Trade</span>
+                <span>Opened</span>
+                <span>Result</span>
+              </div>
               {overview.trades.slice(0, 6).map((trade) => {
                 const settled = trade.paperPl !== null && trade.paperPl !== undefined;
                 // An open trade is marked against the live quote for its pair,
@@ -446,8 +452,8 @@ export function DashboardView({
                         </span>
                         <span className="dash-trade-dir">{trade.direction}</span>
                       </p>
-                      <p className="dash-trade-time">{time(trade.openedAt)}</p>
                     </div>
+                    <p className="dash-trade-time">{time(trade.openedAt)}</p>
                     <div className="dash-trade-aside">
                       <p className={`dash-trade-pl metric-number ${plTone}`}>
                         {shown === null ? "Open" : money(shown, account.currency)}
@@ -472,23 +478,9 @@ export function DashboardView({
             <p className="mt-4 text-sm text-[color:var(--muted)]">No paper trades yet.</p>
           )}
         </section>
-
-        <section className="dashboard-minimal-actions" aria-label="Shortcuts">
-          {(
-            [
-              ["Watch the market", "/watchlist", Radar],
-              ["Analyze the batch", "/research", BarChart3],
-              ["Review research risk", "/risk", WalletCards],
-            ] as const
-          ).map(([title, href, Icon]) => (
-            <Link key={title} href={href} className="dashboard-minimal-action pressable">
-              <Icon className="size-4 text-[color:var(--accent)]" strokeWidth={2} />
-              <span>{title}</span>
-              <ArrowUpRight className="ml-auto size-3.5 text-[color:var(--muted)]" />
-            </Link>
-          ))}
-        </section>
       </div>
+
+      <RecentPredictions />
     </div>
   );
 }

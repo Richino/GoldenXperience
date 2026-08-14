@@ -4751,6 +4751,21 @@ input[type="number"] {
   color: var(--muted);
 }
 
+/* Bright status hues work for fills and dark surfaces, but on the light cards
+   their thin text falls below a comfortable contrast level. Keep the same hue
+   family while adding enough depth for the labels and percentage to scan. */
+.watchlist-progress-text {
+  color: color-mix(in srgb, var(--watch-progress-color) 54%, #005d46);
+}
+
+.dark .watchlist-progress-text {
+  color: var(--watch-progress-color);
+}
+
+.dashboard-watchlist-price {
+  color: var(--muted-strong);
+}
+
 .dashboard-checklist-fill {
   transition: width 260ms ease, background-color 260ms ease, box-shadow 260ms ease;
 }
@@ -4896,6 +4911,17 @@ input[type="number"] {
 
 .dashboard-watchlist-grid .dashboard-minimal-row[data-state="unavailable"] .watchlist-status-label {
   color: var(--danger);
+}
+
+/* This intentionally follows the state fallbacks above. Ready/developing rows
+   use the continuous checklist ramp, while open and unavailable retain their
+   accent and danger colors. */
+.dashboard-watchlist-grid .dashboard-minimal-row .watchlist-status-label.watchlist-progress-text {
+  color: color-mix(in srgb, var(--watch-progress-color) 54%, #005d46);
+}
+
+.dark .dashboard-watchlist-grid .dashboard-minimal-row .watchlist-status-label.watchlist-progress-text {
+  color: var(--watch-progress-color);
 }
 
 /* Watchlist minimal — flat rows aligned with dashboard/risk */
@@ -5044,7 +5070,7 @@ input[type="number"] {
 .watchlist-view.watchlist-minimal .wl-levels {
   font-size: 0.6875rem;
   line-height: 1.35;
-  color: var(--muted);
+  color: var(--muted-strong);
 }
 
 .watchlist-view.watchlist-minimal .wl-levels.has-status {
@@ -5071,7 +5097,7 @@ input[type="number"] {
   font-weight: 600;
   letter-spacing: 0.03em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--muted-strong);
 }
 
 .watchlist-view.watchlist-minimal .wl-level dd {
@@ -5112,7 +5138,7 @@ input[type="number"] {
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
   line-height: 1.25;
-  color: var(--muted);
+  color: var(--muted-strong);
 }
 
 /*
@@ -5146,10 +5172,9 @@ input[type="number"] {
 
   .watchlist-view.watchlist-minimal .wl-pairs[data-wl-layout="detail"] .wl-pair-card {
     grid-template-columns:
-      minmax(9rem, 0.8fr)
-      minmax(15rem, 1.5fr)
-      minmax(11rem, 0.85fr)
-      minmax(8rem, 0.55fr);
+      minmax(14rem, 1.25fr)
+      minmax(11rem, 0.9fr)
+      minmax(8rem, 0.65fr);
   }
 
   .watchlist-view.watchlist-minimal .wl-pair-card > .wl-main,
@@ -5161,36 +5186,45 @@ input[type="number"] {
     grid-column: 1 / -1;
     width: 100%;
     position: relative;
-    height: 1rem;
-    margin-top: 0.15rem;
-    padding-top: 0.68rem;
-    background: linear-gradient(var(--border), var(--border)) left bottom / 100% 0.25rem no-repeat;
+    height: 1.65rem;
+    margin-top: 0.25rem;
+    padding-top: 1.1rem;
+    background: linear-gradient(
+      color-mix(in srgb, var(--surface-muted) 78%, var(--border)),
+      color-mix(in srgb, var(--surface-muted) 78%, var(--border))
+    ) left bottom / 100% 0.42rem no-repeat;
   }
 
   .watchlist-view.watchlist-minimal .wl-checklist-progress::before {
-    content: attr(aria-valuenow) "% checklist complete";
+    content: attr(aria-valuenow) "% complete";
     position: absolute;
-    top: 0;
+    top: 0.02rem;
     right: 0;
-    font-size: 0.625rem;
+    padding: 0.13rem 0.4rem;
+    border: 1px solid color-mix(in srgb, var(--watch-progress-color) 22%, var(--border));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--surface) 88%, var(--watch-progress-color));
+    font-size: 0.6rem;
     font-weight: 600;
-    letter-spacing: 0.01em;
-    color: var(--muted);
+    letter-spacing: 0.015em;
+    line-height: 1.15;
+    color: var(--muted-strong);
   }
 
   .watchlist-view.watchlist-minimal .wl-pair-card[data-state="idle"] .wl-checklist-progress::before,
   .watchlist-view.watchlist-minimal .wl-pair-card[data-state="developing"] .wl-checklist-progress::before,
   .watchlist-view.watchlist-minimal .wl-pair-card[data-state="ready"] .wl-checklist-progress::before {
-    color: var(--watch-progress-color);
+    color: color-mix(in srgb, var(--watch-progress-color) 54%, #005d46);
   }
 
   .watchlist-view.watchlist-minimal .wl-checklist-progress > span {
     position: absolute;
-    top: 0.68rem;
+    top: 1.1rem;
     left: 0;
-    height: 0.25rem;
+    height: 0.42rem;
     color: var(--muted-strong);
-    box-shadow: 0 0 0.4rem color-mix(in srgb, currentColor 22%, transparent);
+    background-image: linear-gradient(90deg, rgb(255 255 255 / 0.2%), rgb(255 255 255 / 34%));
+    box-shadow: 0 1px 3px color-mix(in srgb, var(--watch-progress-color) 32%, transparent), inset 0 1px rgb(255 255 255 / 28%);
   }
 
   .watchlist-view.watchlist-minimal .wl-pair-card[data-state="developing"] .wl-checklist-progress > span {
@@ -5203,12 +5237,14 @@ input[type="number"] {
 
   .watchlist-view.watchlist-minimal .wl-pair {
     grid-column: 1;
+    grid-row: 1;
     justify-self: start;
   }
 
   .watchlist-view.watchlist-minimal .wl-pairs[data-wl-layout="detail"] .wl-detail {
-    grid-column: 2;
-    margin-top: 0;
+    grid-column: 1;
+    grid-row: 2;
+    margin-top: -0.05rem;
     justify-self: stretch;
     display: flex;
     align-items: center;
@@ -5244,7 +5280,8 @@ input[type="number"] {
   }
 
   .watchlist-view.watchlist-minimal .wl-pairs[data-wl-layout="detail"] .wl-quote {
-    grid-column: 3;
+    grid-column: 2;
+    grid-row: 1 / span 2;
     justify-self: center;
     text-align: center;
     font-size: 0.9rem;
@@ -5259,7 +5296,7 @@ input[type="number"] {
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--muted);
+    color: var(--muted-strong);
   }
 
   .watchlist-view.watchlist-minimal .wl-pairs[data-wl-layout="quotes"] .wl-meta {
@@ -5270,7 +5307,8 @@ input[type="number"] {
   }
 
   .watchlist-view.watchlist-minimal .wl-pairs[data-wl-layout="detail"] .wl-meta {
-    grid-column: 4;
+    grid-column: 3;
+    grid-row: 1 / span 2;
     margin-top: 0;
     justify-self: end;
     text-align: right;
@@ -5286,7 +5324,7 @@ input[type="number"] {
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--muted);
+    color: var(--muted-strong);
   }
 
   .watchlist-view.watchlist-minimal .wl-quote,
@@ -5310,10 +5348,14 @@ input[type="number"] {
   gap: 0.5rem;
 }
 
+.dash-trade-table-head {
+  display: none;
+}
+
 .dash-trade-card {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 0.65rem 0.85rem;
   border: 1px solid var(--border);
   border-radius: 0.75rem;
@@ -5371,7 +5413,8 @@ input[type="number"] {
 }
 
 .dash-trade-time {
-  margin: 0.15rem 0 0;
+  margin: 0;
+  grid-column: 1;
   font-size: 0.6875rem;
   line-height: 1.25;
   color: var(--muted);
@@ -5411,27 +5454,53 @@ input[type="number"] {
 }
 
 /*
- * Keep P/L beside the pair instead of pinned to the far edge: at 1280px
- * space-between put 503px of nothing between them. The fixed first column keeps
- * every amount aligned in its own column, so the list still reads down.
+ * A desktop ledger needs a third, useful column rather than a large gap between
+ * the pair and its result. Mobile keeps the timestamp below the pair.
  */
 @media (min-width: 1024px) {
   .dash-trade-list {
     gap: 0.625rem;
   }
 
+  .dash-trade-table-head,
   .dash-trade-card {
-    justify-content: flex-start;
+    grid-template-columns: minmax(8rem, 1fr) minmax(9rem, 1fr) minmax(6.75rem, auto);
+  }
+
+  .dash-trade-table-head {
+    display: grid;
+    align-items: end;
+    gap: 0.85rem;
+    padding: 0 0.85rem 0.15rem;
+    color: var(--muted);
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    line-height: 1.2;
+    text-transform: uppercase;
+  }
+
+  .dash-trade-table-head span:last-child {
+    text-align: right;
+  }
+
+  .dash-trade-card {
     padding: 0.7rem 0.85rem;
     border-radius: 0.8125rem;
   }
 
   .dash-trade-main {
-    flex: 0 1 14rem;
+    grid-column: 1;
+  }
+
+  .dash-trade-time {
+    grid-column: 2;
+    color: color-mix(in srgb, var(--muted) 88%, var(--foreground));
   }
 
   .dash-trade-aside {
-    min-width: 7.5rem;
+    grid-column: 3;
+    min-width: 6.75rem;
   }
 
   .dash-trade-pl {
@@ -5546,6 +5615,10 @@ input[type="number"] {
     grid-template-columns: minmax(0, 1.35fr) minmax(16rem, 0.75fr);
     gap: 2.5rem;
     align-items: start;
+  }
+
+  .dashboard-view .dashboard-trades-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .dashboard-minimal-section,
@@ -5777,4 +5850,143 @@ input[type="number"] {
 .signals-view.signals-minimal .signals-notice {
   background: transparent;
   padding-inline: 0;
+}
+
+/* -------------------------------------------------------------------------
+   Binary Prediction system. Directional UP/DOWN labels, the Trading|Binary and
+   Trades|Binary segmented controls, and the journal prediction-detail panel.
+   Reuses the app's existing card/quote/chip primitives and colour tokens.
+   ------------------------------------------------------------------------- */
+
+.binary-dir {
+  margin-left: 0.4rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+.binary-dir.is-up {
+  color: var(--success);
+}
+.binary-dir.is-down {
+  color: var(--danger);
+}
+
+/* Neutral tone for ties / errors, alongside the existing is-win / is-loss / is-open. */
+.dash-trade-pl.is-neutral,
+.journal-entry-r.is-neutral {
+  color: var(--muted-strong);
+}
+
+/* The Trading|Binary and Trades|Binary switches, styled to match .check-chip
+   but independent of the .dashboard-view / .journal-view scoping. */
+.binary-seg .check-chip {
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted);
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+}
+.binary-seg .check-chip:hover:not(.check-chip-active) {
+  background: var(--minimal-hover);
+  border-color: color-mix(in srgb, var(--foreground) 12%, var(--border));
+  color: var(--muted-strong);
+}
+.binary-seg .check-chip-active {
+  border-color: var(--minimal-chip-active-border);
+  background: var(--minimal-chip-active-bg);
+  color: var(--foreground);
+}
+
+/* Journal → Binary Predictions: the expandable prediction row and its snapshot. */
+.binary-entry-head {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  text-align: left;
+}
+.binary-entry-sub {
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.binary-entry-aside {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.15rem;
+  flex-shrink: 0;
+}
+.binary-entry-score {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.binary-detail {
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+.binary-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem 1rem;
+  margin: 0;
+}
+.binary-detail-grid dt {
+  font-size: 0.6875rem;
+  color: var(--muted);
+}
+.binary-detail-grid dd {
+  margin: 0.1rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--foreground);
+}
+.binary-detail-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.binary-detail-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--muted-strong);
+  cursor: pointer;
+}
+.binary-detail-json {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-md, 0.6rem);
+  background: var(--minimal-hover);
+  border: 1px solid var(--border);
+  font-size: 0.6875rem;
+  line-height: 1.5;
+  color: var(--muted-strong);
+  overflow-x: auto;
+  white-space: pre;
+  font-variant-numeric: tabular-nums;
+}
+.binary-detail-loading {
+  margin-top: 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+@media (min-width: 640px) {
+  .binary-detail-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }

@@ -71,6 +71,19 @@ export interface BinaryStatsGroup {
   evidenceEligible: boolean;
 }
 
+export interface BinaryHorizonBreakdown {
+  horizonSeconds: number;
+  label: string;
+  resolved: number;
+  won: number;
+  lost: number;
+  tie: number;
+  /** Predictions whose price at this horizon was never captured (e.g. an M1 gap). */
+  missing: number;
+  winRate: number | null;
+  evidenceEligible: boolean;
+}
+
 export interface BinaryPerformance {
   model: { name: string; version: string; scoreKind: string };
   summary: Omit<BinaryStatsGroup, "group">;
@@ -82,4 +95,6 @@ export interface BinaryPerformance {
     score: BinaryStatsGroup[];
     model: BinaryStatsGroup[];
   };
+  /** Win rate at 5m / 10m / 15m over the same resolved predictions. */
+  horizons: BinaryHorizonBreakdown[];
 }

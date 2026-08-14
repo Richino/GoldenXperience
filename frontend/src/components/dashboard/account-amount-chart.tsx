@@ -78,6 +78,34 @@ function formatBucketLabel(start: number, end: number, range: AccountChartRange)
   return `${formatter.format(startDate)}–${formatter.format(endDate)}`;
 }
 
+/** Keep endpoint labels inside the SVG without moving the plotted values inward. */
+function AccountChartAxisTick({
+  x = 0,
+  y = 0,
+  width = 0,
+  payload,
+}: {
+  x?: number;
+  y?: number;
+  width?: number;
+  payload?: { value?: string | number };
+}) {
+  const textAnchor = x <= 12 ? "start" : x >= width - 12 ? "end" : "middle";
+  return (
+    <text
+      className="recharts-text recharts-cartesian-axis-tick-value"
+      x={x}
+      y={y}
+      dy={12}
+      fill="var(--muted)"
+      fontSize={10}
+      textAnchor={textAnchor}
+    >
+      {payload?.value}
+    </text>
+  );
+}
+
 /**
  * Build an account-value curve from broker-reported P/L.
  *
@@ -345,7 +373,7 @@ export function AccountAmountChart({
               dataKey="axisLabel"
               axisLine={false}
               tickLine={false}
-              tick={{ fill: "var(--muted)", fontSize: 10 }}
+              tick={<AccountChartAxisTick />}
               interval={tickInterval}
             />
             <YAxis hide domain={[min - room, max + room]} />

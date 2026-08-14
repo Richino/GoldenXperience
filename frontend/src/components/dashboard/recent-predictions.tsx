@@ -62,7 +62,7 @@ export function RecentPredictions() {
             return (
               <Link
                 key={prediction.id}
-                href={`/journal?tab=binary&prediction=${prediction.id}`}
+                href={`/signals?instrument=${encodeURIComponent(prediction.instrument)}&prediction=${prediction.id}`}
                 className="dash-trade-card pressable"
               >
                 <div className="dash-trade-main min-w-0">

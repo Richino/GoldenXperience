@@ -239,8 +239,9 @@ export function WatchlistView() {
                       <div className="wl-detail">
                         {rowStatus ? (
                           <p
-                            className={`wl-status watchlist-status-label ${status.tone}`}
-                            style={showProgress ? { color: progressColor } : undefined}
+                            className={`wl-status watchlist-status-label ${
+                              showProgress ? "watchlist-progress-text" : status.tone
+                            }`}
                           >
                             {rowStatus}
                           </p>
@@ -282,7 +283,6 @@ export function WatchlistView() {
                         style={{
                           width: `${progress}%`,
                           backgroundColor: progressColor,
-                          boxShadow: `0 0 0.4rem ${progressColor}`,
                         }}
                       />
                     </div>

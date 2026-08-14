@@ -77,6 +77,14 @@ export interface ChartFocusRange {
   to: number;
 }
 
+/** A single externally focused price, such as an active binary prediction entry. */
+export interface ChartReferenceLine {
+  price: number;
+  label: string;
+  color: string;
+  textColor: string;
+}
+
 // Lightweight Charts reserves space for the desktop time scale via minimumHeight.
 function chartTheme(
   isDark: boolean,
@@ -507,6 +515,7 @@ export function SetupChart({
   trades,
   focusTradeId = null,
   focusRange = null,
+  referenceLine = null,
 }: {
   series: CandleSeries;
   levels: SetupLevels | null;
@@ -523,6 +532,7 @@ export function SetupChart({
   trades?: PaperChartTrade[];
   focusTradeId?: string | null;
   focusRange?: ChartFocusRange | null;
+  referenceLine?: ChartReferenceLine | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -760,6 +770,18 @@ export function SetupChart({
     }
 
     if (levels) addSetupLevels(mainSeries, setupLevelTags(levels, isDark, halfSpreadRef.current));
+    if (referenceLine) {
+      mainSeries.createPriceLine({
+        price: referenceLine.price,
+        color: referenceLine.color,
+        lineWidth: 2,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        axisLabelColor: referenceLine.color,
+        axisLabelTextColor: referenceLine.textColor,
+        title: referenceLine.label,
+      });
+    }
 
     // The entry-to-exit segment is created with the chart, even when there is no
     // focused trade to draw yet. Adding a series later — after the candles have
@@ -925,7 +947,7 @@ export function SetupChart({
   // the whole chart down on every tick for any instrument holding an open
   // trade, throwing away the user's zoom and scroll position mid-gesture.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [series.instrument, levels?.entry, levels?.stop, levels?.target, levels?.exit, levels?.outcome, enabledIndicators, variant, isDark, priceFormat, upColor, downColor, wickUpColor, wickDownColor, surfaceColor, embedded]);
+  }, [series.instrument, levels?.entry, levels?.stop, levels?.target, levels?.exit, levels?.outcome, referenceLine?.price, referenceLine?.label, referenceLine?.color, referenceLine?.textColor, enabledIndicators, variant, isDark, priceFormat, upColor, downColor, wickUpColor, wickDownColor, surfaceColor, embedded]);
 
   useEffect(() => {
     const chart = chartRef.current;

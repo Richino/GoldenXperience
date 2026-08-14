@@ -32,7 +32,7 @@ import { decideResearchExperiment, forwardResearchSummary, latestDayTradingValid
 import { collectPaperCycle, decidePaperBatch, fastResolveFilledTrades, journalTradeLog, paperCycleOverview, paperRiskExposure, paperRiskPolicy, paperTradesForInstrument, parsePaperRiskConfiguration, reviewPaperTrade, updatePaperRiskPolicy, watchlistSnapshot } from "./paper-cycle.js";
 import { markNotificationsRead, notificationsForUser, pushPublicKey, queueNotification, removePushSubscription, savePushSubscription } from "./notifications.js";
 import { practiceExecutionOverview, setPracticeExecutionEnabled } from "./practice-execution.js";
-import { binaryJournal, binaryPerformance, binaryPredictionDetail, binaryWatchlistSnapshot, collectBinaryCycle, recentBinaryPredictions } from "./binary-engine.js";
+import { binaryJournal, binaryPerformance, binaryPredictionDetail, binaryWatchlistSnapshot, collectBinaryCycle, recentBinaryPredictions, resolveDueBinaryPredictions } from "./binary-engine.js";
 
 const STREAM_INSTRUMENTS: MajorInstrument[] = [...MAJOR_INSTRUMENTS];
 
@@ -504,6 +504,7 @@ let researchWorker: NodeJS.Timeout | null = null;
 let paperCollector: NodeJS.Timeout | null = null;
 let fastResolver: NodeJS.Timeout | null = null;
 let binaryCollector: NodeJS.Timeout | null = null;
+let binaryResolver: NodeJS.Timeout | null = null;
 if (databaseConfigured()) {
   let collectionBusy = false;
   // Forex is shut Friday 17:00 ET to Sunday 17:00 ET. The loop keeps ticking so
@@ -583,13 +584,25 @@ if (databaseConfigured()) {
 
   // The Binary Prediction engine. Independent of the forex collector: it opens
   // 10-minute directional predictions and resolves them server-side, and it
-  // NEVER places an OANDA order or a paper trade. It runs every 60s regardless
-  // of session — evaluation/opening no-ops while the market is closed, but
-  // resolution keeps working so a prediction that expired around the Friday
-  // close is settled from the first candle at or after its intended expiration.
-  // Being durable, it also picks up predictions that expired during any downtime
-  // the moment the process comes back.
+  // NEVER places an OANDA order or a paper trade. Evaluation stays on a 60s
+  // cadence; settlement runs every five seconds so the outcome appears just
+  // after expiration from a verified live OANDA tick.
   let binaryBusy = false;
+  let binaryResolveBusy = false;
+  const resolveBinary = async () => {
+    if (binaryResolveBusy) return;
+    binaryResolveBusy = true;
+    try {
+      const resolved = await resolveDueBinaryPredictions();
+      if (resolved) console.log(`[binary] resolved ${resolved}`);
+    } catch (error) {
+      console.error("[binary] resolver failed", error);
+    } finally {
+      binaryResolveBusy = false;
+    }
+  };
+  void resolveBinary();
+  binaryResolver = setInterval(() => void resolveBinary(), 5_000);
   const binary = async () => {
     if (binaryBusy) return;
     binaryBusy = true;
@@ -612,6 +625,7 @@ function shutdown() {
   if (paperCollector) clearInterval(paperCollector);
   if (fastResolver) clearInterval(fastResolver);
   if (binaryCollector) clearInterval(binaryCollector);
+  if (binaryResolver) clearInterval(binaryResolver);
   wss.clients.forEach((socket) => socket.close(1001, "Server shutting down"));
   server.close(() => process.exit(0));
 }

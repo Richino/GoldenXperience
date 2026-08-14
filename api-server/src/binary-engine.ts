@@ -38,6 +38,13 @@ export const BINARY_TIE_TOLERANCE_TICKS = 0;
 const MIN_FEATURE_CANDLES = 25;
 /** Distinct from the paper collector's advisory lock so the two never contend. */
 const BINARY_LOCK = 24_100_002;
+/**
+ * A live OANDA tick is a better settlement mark than waiting for a completed M1
+ * candle, but only when it was observed immediately after expiration. Older
+ * overdue predictions must use historical candles so a restart never settles
+ * yesterday's prediction at today's price.
+ */
+const LIVE_RESOLUTION_GRACE_MS = 2 * 60_000;
 
 // ---------------------------------------------------------------------------
 // Pure, deterministic core (feature calc, model, classification, statistics).
@@ -315,6 +322,21 @@ export function computeSecondaryMarks(
   return marks;
 }
 
+export type SecondaryMark = { price: number; priceTime: string; result: "won" | "lost" | "tie" };
+
+/**
+ * Combines already-recorded secondary marks with freshly computed ones, with the
+ * EXISTING marks winning. A mark written at resolution (the 5m) is therefore
+ * never altered by a later back-fill; the back-fill only adds horizons that had
+ * not elapsed yet when the prediction resolved (the 15m).
+ */
+export function mergeSecondaryMarks(
+  existing: Record<string, unknown> | null | undefined,
+  fresh: Record<string, SecondaryMark>,
+): Record<string, unknown> {
+  return { ...fresh, ...(existing ?? {}) };
+}
+
 // ---------------------------------------------------------------------------
 // Statistics (pure; computed from stored rows, never claiming significance).
 // ---------------------------------------------------------------------------
@@ -378,6 +400,56 @@ export function binaryPerformanceBreakdowns(rows: BinaryStatRow[]) {
     score: binaryBreakdown(rows, (row) => scoreBucket(Number(row.confidence))),
     model: binaryBreakdown(rows, (row) => row.model_version),
   };
+}
+
+/** The three horizons compared side by side, labelled for the UI. */
+export const BINARY_HORIZON_LABELS: Record<number, string> = { 300: "5m", 600: "10m", 900: "15m" };
+const BINARY_REPORTED_HORIZONS = [300, 600, 900] as const;
+
+export type HorizonResultRow = {
+  status: string;
+  /** Official result at the prediction's own horizon (duration_seconds). */
+  result: "won" | "lost" | "tie" | null;
+  durationSeconds: number;
+  /** Prices/results captured at the other horizons, keyed like "300s"/"900s". */
+  secondaryMarks: Record<string, { result?: "won" | "lost" | "tie" }> | null;
+};
+
+/**
+ * Win rate at 5m / 10m / 15m over the SAME resolved predictions, so the horizons
+ * can be compared like-for-like. Each prediction's official result counts at its
+ * own horizon; the other horizons come from the secondary marks recorded at
+ * resolution. `missing` counts predictions whose data at a horizon was never
+ * captured (e.g. an M1 gap), so a horizon's win rate is never silently inflated
+ * by a smaller, different sample. Win rate excludes ties from the denominator.
+ */
+export function binaryHorizonBreakdown(rows: HorizonResultRow[]) {
+  return BINARY_REPORTED_HORIZONS.map((seconds) => {
+    let won = 0;
+    let lost = 0;
+    let tie = 0;
+    let missing = 0;
+    for (const row of rows) {
+      if (row.status !== "resolved") continue;
+      const result = seconds === row.durationSeconds ? row.result : row.secondaryMarks?.[`${seconds}s`]?.result ?? null;
+      if (result === "won") won += 1;
+      else if (result === "lost") lost += 1;
+      else if (result === "tie") tie += 1;
+      else missing += 1;
+    }
+    const decided = won + lost;
+    return {
+      horizonSeconds: seconds,
+      label: BINARY_HORIZON_LABELS[seconds] ?? `${seconds}s`,
+      resolved: won + lost + tie,
+      won,
+      lost,
+      tie,
+      missing,
+      winRate: decided > 0 ? won / decided : null,
+      evidenceEligible: won + lost + tie >= 30,
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -535,8 +607,10 @@ type DuePredictionRow = {
  *  - Idempotent: the UPDATE is guarded by `status='active'`, so a second run (or
  *    two overlapping runs) can never re-resolve a row or record it twice.
  *
- * The price used is the first completed M1 candle at or after the intended
- * expiration, and its real timestamp is stored in resolution_price_time.
+ * The preferred price is a verified live OANDA tick observed just after the
+ * intended expiration. If that short window is missed (for example after a
+ * restart), the first completed M1 candle at or after expiration is used.
+ * The actual source and timestamp are both stored for auditability.
  */
 export async function resolveDueBinaryPredictions(): Promise<number> {
   const due = await query<DuePredictionRow>(
@@ -544,21 +618,60 @@ export async function resolveDueBinaryPredictions(): Promise<number> {
      FROM binary_predictions WHERE status='active' AND intended_expiration <= now()
      ORDER BY intended_expiration`,
   );
+  if (!due.rows.length) return 0;
+
+  // Fetch all due instruments together. Only a connected OANDA response can
+  // settle a prediction; getPricing deliberately falls back to mock quotes on
+  // errors, which must never decide a real recorded outcome.
+  const dueInstruments = [...new Set(due.rows.map((prediction) => prediction.instrument as MajorInstrument))];
+  const livePrices = new Map<string, { price: number; time: string }>();
+  try {
+    const pricing = await getPricing(dueInstruments);
+    if (pricing.status.state === "connected" && pricing.status.source === "oanda") {
+      for (const quote of pricing.data) {
+        const observedAt = new Date(quote.time);
+        if (Number.isFinite(quote.mid) && !Number.isNaN(observedAt.getTime())) {
+          livePrices.set(quote.instrument, { price: quote.mid, time: observedAt.toISOString() });
+        }
+      }
+    }
+  } catch (error) {
+    // Historical candles below remain the durable fallback. Do not let one
+    // transient quote request block resolution for every overdue prediction.
+    console.warn("[binary] live resolution quote unavailable", error);
+  }
+
   let resolved = 0;
   for (const prediction of due.rows) {
     const startAt = new Date(prediction.start_at);
     const intended = new Date(prediction.intended_expiration);
+    const liveMark = livePrices.get(prediction.instrument);
+    const liveMarkTime = liveMark ? new Date(liveMark.time) : null;
+    const canUseLiveMark = Boolean(
+      liveMarkTime
+      && liveMarkTime.getTime() >= intended.getTime()
+      && liveMarkTime.getTime() - intended.getTime() <= LIVE_RESOLUTION_GRACE_MS,
+    );
+
     // Enough M1 candles to cover start → now even after a long downtime.
     const minutesSinceStart = Math.floor((Date.now() - startAt.getTime()) / 60_000);
     const count = Math.min(1500, Math.max(60, minutesSinceStart + 30));
-    let completed: BinaryCandle[];
+    let completed: BinaryCandle[] = [];
     try {
       completed = toBinaryCandles(await getResearchCandles(prediction.instrument, "M1", count)).filter((candle) => candle.complete);
     } catch (error) {
       if (!(error instanceof OandaRequestError)) throw error;
-      continue; // Data unavailable this cycle; the row stays active and retries.
+      // A fresh, verified live mark is enough to settle. Candle history only
+      // enriches secondary research marks in that case; it must not turn a
+      // decisive live outcome back into an indefinite "resolving" state.
+      if (!canUseLiveMark) continue;
     }
-    const mark = resolutionPriceAtOrAfter(completed, intended);
+    const candleMark = resolutionPriceAtOrAfter(completed, intended);
+    const mark = canUseLiveMark && liveMark && liveMarkTime
+      ? { price: liveMark.price, time: liveMarkTime.toISOString(), source: "live_tick" as const }
+      : candleMark
+        ? { ...candleMark, source: "m1_candle" as const }
+        : null;
     if (!mark) continue; // No candle at/after expiration yet — try again next cycle.
 
     const entry = Number(prediction.entry_price);
@@ -569,14 +682,79 @@ export async function resolveDueBinaryPredictions(): Promise<number> {
 
     const updated = await query<{ id: string }>(
       `UPDATE binary_predictions
-       SET status='resolved',resolution_price=$2,resolution_price_time=$3,resolution_source='m1_candle',resolved_at=now(),result=$4,secondary_marks=$5::jsonb,updated_at=now()
+       SET status='resolved',resolution_price=$2,resolution_price_time=$3,resolution_source=$4,resolved_at=now(),result=$5,secondary_marks=$6::jsonb,updated_at=now()
        WHERE id=$1 AND status='active'
        RETURNING id`,
-      [prediction.id, mark.price, mark.time, result, JSON.stringify(secondary)],
+      [prediction.id, mark.price, mark.time, mark.source, result, JSON.stringify(secondary)],
     );
     if (updated.rowCount) resolved += 1;
   }
   return resolved;
+}
+
+type BackfillRow = {
+  id: string;
+  instrument: string;
+  direction: "up" | "down";
+  entry_price: string;
+  start_at: string;
+  price_precision: number;
+  secondary_marks: Record<string, unknown> | null;
+};
+
+/**
+ * Fills in secondary research horizons that could not be priced at resolution
+ * because they had not elapsed yet. The 15m mark on a 10m prediction is the
+ * motivating case: the prediction settles at 10m, so its 15m price only exists
+ * five minutes later. Once that time has passed, this back-fills the missing mark
+ * from historical candles.
+ *
+ * It writes ONLY secondary_marks, and existing marks are preserved (the earlier
+ * 5m mark is never touched). The immutability trigger forbids changing direction,
+ * entry, start, expiration or the decided result — so the official outcome is
+ * untouched and this only completes the research picture. Bounded to recent rows
+ * so a permanently un-gettable horizon (e.g. a weekend gap) is not retried
+ * forever.
+ */
+export async function backfillBinarySecondaryMarks(limit = 50): Promise<number> {
+  const horizons = [...BINARY_SECONDARY_HORIZONS];
+  const maxHorizon = Math.max(...horizons); // internal constant; safe to inline in SQL
+  const due = await query<BackfillRow>(
+    `SELECT id,instrument,direction,entry_price,start_at,price_precision,secondary_marks
+     FROM binary_predictions
+     WHERE status='resolved'
+       AND start_at <= now() - make_interval(secs => ${maxHorizon})
+       AND start_at >= now() - interval '3 days'
+       AND NOT jsonb_exists(secondary_marks, '${maxHorizon}s')
+     ORDER BY resolved_at DESC NULLS LAST
+     LIMIT $1`,
+    [Math.min(200, Math.max(1, limit))],
+  );
+  let filled = 0;
+  for (const row of due.rows) {
+    const startAt = new Date(row.start_at);
+    // A tight M1 window ending just past the last horizon, so the prediction's
+    // age never inflates the candle count.
+    const to = new Date(startAt.getTime() + (maxHorizon + 300) * 1000).toISOString();
+    let completed: BinaryCandle[];
+    try {
+      completed = toBinaryCandles(await getResearchCandles(row.instrument, "M1", 60, { to })).filter((candle) => candle.complete);
+    } catch (error) {
+      if (!(error instanceof OandaRequestError)) throw error;
+      continue;
+    }
+    const precision = Number(row.price_precision);
+    const fresh = computeSecondaryMarks(row.direction, Number(row.entry_price), precision, startAt, completed, horizons);
+    const existing = row.secondary_marks ?? {};
+    const merged = mergeSecondaryMarks(existing, fresh);
+    if (Object.keys(merged).length <= Object.keys(existing).length) continue; // nothing new to add yet
+    await query(
+      "UPDATE binary_predictions SET secondary_marks=$2::jsonb,updated_at=now() WHERE id=$1 AND status='resolved'",
+      [row.id, JSON.stringify(merged)],
+    );
+    filled += 1;
+  }
+  return filled;
 }
 
 /**
@@ -590,6 +768,15 @@ export async function collectBinaryCycle(): Promise<{ opened: number; resolved: 
     resolved = await resolveDueBinaryPredictions();
   } catch (error) {
     console.error("[binary] resolution failed", error);
+  }
+  // Late research horizons (e.g. the 15m mark on a 10m prediction) are captured
+  // once they have elapsed. Runs regardless of session — it depends on time
+  // passing, not the market being open.
+  try {
+    const filled = await backfillBinarySecondaryMarks();
+    if (filled) console.log(`[binary] back-filled ${filled} late secondary marks`);
+  } catch (error) {
+    console.error("[binary] secondary back-fill failed", error);
   }
 
   const userId = await ownerUserId();
@@ -711,8 +898,9 @@ export async function binaryWatchlistSnapshot() {
 
 /** Performance analytics for the resolved prediction record. */
 export async function binaryPerformance(userId?: string) {
-  const rows = await query<BinaryStatRow>(
-    `SELECT instrument, direction, status, result, confidence, market_context->>'session' AS session, model_version, start_at
+  const rows = await query<BinaryStatRow & HorizonResultRow>(
+    `SELECT instrument, direction, status, result, confidence, market_context->>'session' AS session, model_version, start_at,
+            duration_seconds AS "durationSeconds", secondary_marks AS "secondaryMarks"
      FROM binary_predictions${userId ? " WHERE user_id=$1" : ""}`,
     userId ? [userId] : [],
   );
@@ -720,6 +908,8 @@ export async function binaryPerformance(userId?: string) {
     model: { name: BINARY_MODEL_NAME, version: BINARY_MODEL_VERSION, scoreKind: "heuristic_score" as const },
     summary: binaryStats(rows.rows),
     breakdowns: binaryPerformanceBreakdowns(rows.rows),
+    // Same predictions scored at 5m / 10m / 15m, so the horizons compare like-for-like.
+    horizons: binaryHorizonBreakdown(rows.rows),
   };
 }
 

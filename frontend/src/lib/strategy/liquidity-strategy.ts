@@ -52,6 +52,7 @@ export const RISK = {
 const MAX_SPREAD_PIPS: Record<string, number> = {
   EUR_USD: 1.5, GBP_USD: 2, USD_JPY: 1.5, AUD_USD: 2, NZD_USD: 2,
   USD_CAD: 2, USD_CHF: 2, EUR_GBP: 2, EUR_JPY: 2, GBP_JPY: 2.5,
+  AUD_JPY: 2.5, EUR_AUD: 2.5,
 };
 
 const MINIMUM_CANDLES = 210;

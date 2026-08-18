@@ -22,6 +22,8 @@ const MAX_SPREAD_PIPS: Record<string, number> = {
   EUR_GBP: 2,
   EUR_JPY: 2,
   GBP_JPY: 2.5,
+  AUD_JPY: 2.5,
+  EUR_AUD: 2.5,
 };
 
 type Trend = "bullish" | "bearish" | "mixed";

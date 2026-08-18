@@ -16,6 +16,8 @@ const precision: Record<MajorInstrument, number> = {
   EUR_GBP: 5,
   EUR_JPY: 3,
   GBP_JPY: 3,
+  AUD_JPY: 3,
+  EUR_AUD: 5,
 };
 
 const prices: Record<MajorInstrument, number> = {
@@ -29,6 +31,8 @@ const prices: Record<MajorInstrument, number> = {
   EUR_GBP: 0.85234,
   EUR_JPY: 168.234,
   GBP_JPY: 197.456,
+  AUD_JPY: 99.850,
+  EUR_AUD: 1.62340,
 };
 
 export function createMockTick(

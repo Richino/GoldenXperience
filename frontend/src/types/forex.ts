@@ -10,6 +10,8 @@ export const MAJOR_INSTRUMENTS = [
   "EUR_GBP",
   "EUR_JPY",
   "GBP_JPY",
+  "AUD_JPY",
+  "EUR_AUD",
 ] as const;
 
 export type FeaturedInstrument = (typeof MAJOR_INSTRUMENTS)[number];

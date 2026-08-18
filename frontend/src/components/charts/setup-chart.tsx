@@ -33,7 +33,7 @@ import {
   chartTimesOf,
   compactAxisPricePrecision,
   countPrependedCandles,
-  getVisibleRangeFromCandles,
+  getLatestVisibleLogicalRange,
   isChartIndicatorEnabled,
   pricePrecision,
   anchorRangeAfterPrepend,
@@ -169,14 +169,22 @@ function scrollChartToLatest(
 ) {
   if (!series.candles.length) return;
 
-  const visibleRange = getVisibleRangeFromCandles(series.candles, range);
-  if (visibleRange) {
-    chart.timeScale().setVisibleRange(visibleRange);
+  // Bar-index range rather than a time window: it always frames a readable
+  // number of the most recent candles and pins the newest one near the right,
+  // whatever timeframe just loaded. A time window sized to the range selector
+  // dropped the whole (capped) history onto the screen, compressed edge to
+  // edge, and any leftover width threw the candles against the far-left side.
+  const rightOffset = chart.timeScale().options().rightOffset ?? 6;
+  const logicalRange = getLatestVisibleLogicalRange(
+    series.candles,
+    range,
+    rightOffset,
+  );
+  if (logicalRange) {
+    chart.timeScale().setVisibleLogicalRange(logicalRange);
   } else {
     chart.timeScale().fitContent();
   }
-
-  chart.timeScale().scrollToRealTime();
 }
 
 /**
@@ -565,6 +573,10 @@ export function SetupChart({
   // candles through the closure without going stale as live data streams in.
   const candlesRef = useRef(series.candles);
   const prevFirstCandleTimeRef = useRef(series.candles[0]?.time ?? null);
+  // Tracks the loaded granularity so a timeframe swap can be told apart from an
+  // older-history prepend: they both change the first candle, but only a
+  // prepend keeps the granularity, and only a prepend should anchor the view.
+  const prevGranularityRef = useRef(series.granularity);
   const lastScrollRevisionRef = useRef(0);
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme !== "light";
@@ -884,6 +896,15 @@ export function SetupChart({
     // flag is turned on only while a gesture that began on the axis is running.
     // The flag is read during touchmove, so setting it on touchstart is in time.
     const enableAxisDragIfOnAxis = (event: TouchEvent) => {
+      // Two fingers is a pinch/scale gesture the chart handles natively. Arming
+      // the price-axis vertical drag underneath it makes the pinch fight a
+      // simultaneous price rescale, so the axis drag is only ever armed for a
+      // single finger and is released the moment a second one lands.
+      if (event.touches.length !== 1) {
+        chart.applyOptions({ handleScroll: { vertTouchDrag: false } });
+        return;
+      }
+
       const touch = event.touches[0];
       if (!touch) return;
 
@@ -956,10 +977,22 @@ export function SetupChart({
 
     const prevFirstTime = prevFirstCandleTimeRef.current;
     const nextFirstTime = series.candles[0]?.time ?? null;
-    const prependedCount =
-      nextFirstTime !== prevFirstTime
-        ? countPrependedCandles(series.candles, prevFirstTime)
-        : 0;
+    const granularityChanged = series.granularity !== prevGranularityRef.current;
+    const scrolledToLatest =
+      scrollToLatestRevision > lastScrollRevisionRef.current;
+    // Only a same-timeframe older-history page is a real prepend. A timeframe or
+    // range switch replaces the whole dataset (new granularity, and the parent
+    // bumps the scroll revision), and counting its unfamiliar bars as
+    // "prepended" is what anchored the viewport off the end and threw the
+    // candles to the far left. Those swaps fall through to the scroll-to-latest
+    // branch below instead.
+    const isHistoryPrepend =
+      !granularityChanged &&
+      !scrolledToLatest &&
+      nextFirstTime !== prevFirstTime;
+    const prependedCount = isHistoryPrepend
+      ? countPrependedCandles(series.candles, prevFirstTime)
+      : 0;
     const logicalRange =
       prependedCount > 0
         ? chart?.timeScale().getVisibleLogicalRange()
@@ -1011,10 +1044,7 @@ export function SetupChart({
         .setVisibleLogicalRange(
           anchorRangeAfterPrepend(logicalRange, prependedCount),
         );
-    } else if (
-      scrollToLatestRevision > lastScrollRevisionRef.current &&
-      chart
-    ) {
+    } else if (scrolledToLatest && chart) {
       lastScrollRevisionRef.current = scrollToLatestRevision;
       requestAnimationFrame(() => {
         focusCoveredRef.current = scrollChartToFocus(
@@ -1027,6 +1057,7 @@ export function SetupChart({
     }
 
     prevFirstCandleTimeRef.current = nextFirstTime;
+    prevGranularityRef.current = series.granularity;
     latestChartTimeRef.current = nextLatestTime;
   }, [focusRange, range, scrollToLatestRevision, series, variant]);
 

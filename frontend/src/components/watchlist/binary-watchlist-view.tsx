@@ -18,13 +18,23 @@ function price(value: number | null, instrument: string) {
 function statusLine(row: BinaryWatchRow) {
   if (row.activePredictionId && row.activeDirection) {
     const window = row.activeStartAt && row.activeExpiration
-      ? ` · ${formatClockTime(row.activeStartAt)} → ${formatClockTime(row.activeExpiration)}`
-      : "";
-    return `Active prediction · ${row.activeDirection === "up" ? "UP" : "DOWN"}${window}`;
+      ? `${formatClockTime(row.activeStartAt)} → ${formatClockTime(row.activeExpiration)}`
+      : "prediction open";
+    return window;
   }
   if (row.dataStatus !== "connected") return "Waiting for market data";
   if (!row.bias || row.bias === "wait") return "No signal — waiting for an edge";
-  return row.bias === "up" ? "Model bias: UP" : "Model bias: DOWN";
+  return row.bias === "up" ? "Model bias favours UP" : "Model bias favours DOWN";
+}
+
+/**
+ * The model's raw score runs 0.5 (no edge) → ~0.95 (max conviction); anything
+ * below the engine threshold reads as WAIT. Rescale to a 0–1 conviction so the
+ * meter fills proportionally to how far past a coin-flip the read sits.
+ */
+function conviction(score: number | null) {
+  if (score === null) return 0;
+  return Math.max(0, Math.min(1, (score - 0.5) / 0.45));
 }
 
 /**
@@ -95,41 +105,68 @@ export function BinaryWatchlistView() {
 
       <section className="dashboard-minimal-section" aria-label="Binary pairs">
         {merged.length ? (
-          <div className="wl-pairs mt-1" data-wl-layout="detail">
-            {merged.map((row) => (
-              <Link
-                key={row.instrument}
-                href={row.activePredictionId ? `/journal?tab=binary&prediction=${row.activePredictionId}` : "/watchlist?tab=binary"}
-                className="wl-pair-card pressable"
-                data-state={row.activePredictionId ? "open" : undefined}
-              >
-                <div className="wl-main min-w-0">
-                  <p className="wl-pair">
-                    <span className="wl-pair-name">{displayNameFor(row.instrument)}</span>
-                    {row.bias && row.bias !== "wait" ? (
-                      <span className={row.bias === "up" ? "binary-dir is-up" : "binary-dir is-down"}>
-                        {row.bias === "up" ? "UP" : "DOWN"}
+          <div className="binary-wl-list">
+            {merged.map((row) => {
+              const isOpen = Boolean(row.activePredictionId);
+              const direction = row.activeDirection ?? (row.bias && row.bias !== "wait" ? row.bias : null);
+              const bias = direction ?? "wait";
+              const fill = conviction(row.score);
+              return (
+                <Link
+                  key={row.instrument}
+                  href={isOpen ? `/journal?tab=binary&prediction=${row.activePredictionId}` : "/watchlist?tab=binary"}
+                  className="binary-wl-card pressable"
+                  data-bias={bias}
+                  data-state={isOpen ? "open" : undefined}
+                >
+                  <div className="binary-wl-top">
+                    <span className="binary-wl-id">
+                      <span className="binary-wl-name">{displayNameFor(row.instrument)}</span>
+                      {isOpen ? <span className="binary-wl-live">Live</span> : null}
+                      <span
+                        className={
+                          bias === "up"
+                            ? "binary-wl-pill is-up"
+                            : bias === "down"
+                              ? "binary-wl-pill is-down"
+                              : "binary-wl-pill is-wait"
+                        }
+                      >
+                        {bias === "up" ? "UP" : bias === "down" ? "DOWN" : "WAIT"}
                       </span>
-                    ) : null}
-                  </p>
-                  <div className="wl-detail">
-                    <p className="wl-status">{statusLine(row)}</p>
+                    </span>
+                    <span className="binary-wl-quote">
+                      <span className="binary-wl-quote-val metric-number">
+                        {price(row.bid, row.instrument)}
+                        <span className="binary-wl-quote-sep"> / </span>
+                        {price(row.ask, row.instrument)}
+                      </span>
+                      <span className="binary-wl-quote-label">bid / ask</span>
+                    </span>
                   </div>
-                </div>
-                <div className="wl-aside">
-                  <p className="wl-quote metric-number">
-                    {price(row.bid, row.instrument)}
-                    <span className="wl-quote-sep"> / </span>
-                    {price(row.ask, row.instrument)}
-                  </p>
-                  <p className="wl-meta metric-number">
-                    {row.score === null ? "—" : `score ${row.score.toFixed(2)}`}
-                    {" · "}
-                    {row.evaluatedAt ? formatClockTime(row.evaluatedAt) : "waiting"}
-                  </p>
-                </div>
-              </Link>
-            ))}
+
+                  <div
+                    className="binary-wl-meter"
+                    role="progressbar"
+                    aria-label={`${displayNameFor(row.instrument)} model conviction`}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(fill * 100)}
+                  >
+                    <span style={{ width: `${Math.round(fill * 100)}%` }} />
+                  </div>
+
+                  <div className="binary-wl-foot">
+                    <span className="binary-wl-status">{statusLine(row)}</span>
+                    <span className="binary-wl-metrics metric-number">
+                      {row.score === null ? "—" : `score ${row.score.toFixed(2)}`}
+                      {" · "}
+                      {row.evaluatedAt ? formatClockTime(row.evaluatedAt) : "waiting"}
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         ) : loading ? (
           <p className="mt-4 text-sm text-[color:var(--muted)]">Loading…</p>

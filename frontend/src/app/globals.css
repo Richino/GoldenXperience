@@ -4385,31 +4385,16 @@ input[type="number"] {
     flex: 1;
     min-height: 0;
     border-top: 1px solid var(--border-strong);
-    border-bottom: 1px solid var(--border-strong);
-    /* The embedded chart paints to its full box; inset rules stay visible even
-       when that canvas has the same surface colour as its parent. */
-    box-shadow: inset 0 1px 0 var(--border-strong), inset 0 -1px 0 var(--border-strong);
-    /* Measured: the nav pill's top edge sits 4.25rem above the bottom, so that
-       much is the nav itself and everything past it is the visible gap. At
-       5.25rem the gap was 16px, which still read as touching; 6.25rem leaves
-       32px between the time axis and the pill.
+    /* Top rule only. A bottom border/inset sat at the shell's off-screen bottom
+       edge and read as a stray line under the floating nav — removed. */
+    box-shadow: inset 0 1px 0 var(--border-strong);
+    /* Reserve exactly the floating dock's measured height (which already carries
+       the home-indicator safe area) plus a small gap, so the time axis clears
+       the nav pill without the large empty band a fixed guess left behind. The
+       fallback covers the first frame before the measurement lands.
        Padding rather than margin: the canvas is sized from contentRect, so the
        measurement excludes this strip on its own. */
-    padding-bottom: calc(6.25rem + env(safe-area-inset-bottom, 0px));
-  }
-
-  /* The shell extends beneath the visible chart to clear the mobile dock, so
-     its bottom edge is off-screen. Draw the divider on the chart root itself. */
-  .signals-view .signals-chart-mobile > .chart-data-shell > .setup-chart-root::after {
-    content: "";
-    position: absolute;
-    z-index: 20;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    height: 1px;
-    background: var(--border-strong);
-    pointer-events: none;
+    padding-bottom: calc(var(--app-dock-height, 4.75rem) + 0.5rem);
   }
 
   /* Fullscreen covers the nav, so the canvas reclaims that strip. */
@@ -5871,6 +5856,263 @@ input[type="number"] {
 }
 .binary-dir.is-down {
   color: var(--danger);
+}
+
+/* -------------------------------------------------------------------------
+   Binary watchlist cards. A dedicated layout — the forex watchlist styling is
+   scoped to .watchlist-minimal (and carries forex-only "Bid / Ask" / "Spread"
+   labels), so the Binary tab gets its own directional-accent card with a
+   model-conviction meter instead of reusing it.
+   ------------------------------------------------------------------------- */
+.binary-wl-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.binary-wl-card {
+  position: relative;
+  display: block;
+  padding: 0.7rem 0.85rem 0.75rem 1rem;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, var(--surface-raised) 35%, var(--surface));
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.dark .binary-wl-card {
+  border-color: color-mix(in srgb, var(--border-strong) 85%, transparent);
+  background: color-mix(in srgb, var(--surface-raised) 45%, var(--surface));
+}
+
+/* Directional accent along the leading edge. */
+.binary-wl-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--muted);
+  opacity: 0.45;
+}
+.binary-wl-card[data-bias="up"]::before {
+  background: var(--success);
+  opacity: 1;
+}
+.binary-wl-card[data-bias="down"]::before {
+  background: var(--danger);
+  opacity: 1;
+}
+
+.binary-wl-card:hover {
+  border-color: color-mix(in srgb, var(--foreground) 12%, var(--border));
+  background: color-mix(in srgb, var(--foreground) 4%, var(--surface));
+}
+.dark .binary-wl-card:hover {
+  border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--foreground) 5%, var(--surface));
+}
+
+/* An open prediction reads as the live, foregrounded card. */
+.binary-wl-card[data-state="open"] {
+  border-color: color-mix(in srgb, var(--foreground) 16%, var(--border));
+  background: color-mix(in srgb, var(--foreground) 3.5%, var(--surface));
+}
+.binary-wl-card[data-state="open"]::before {
+  width: 4px;
+}
+
+.binary-wl-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.binary-wl-id {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.4rem;
+  min-width: 0;
+}
+
+.binary-wl-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+}
+
+.binary-wl-pill {
+  flex-shrink: 0;
+  padding: 0.05rem 0.36rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+}
+.binary-wl-pill.is-up {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  border-color: color-mix(in srgb, var(--success) 26%, transparent);
+}
+.binary-wl-pill.is-down {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 26%, transparent);
+}
+.binary-wl-pill.is-wait {
+  color: var(--muted-strong);
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+  border-color: var(--border);
+}
+
+.binary-wl-live {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.05rem 0.36rem;
+  border-radius: 999px;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 9%, transparent);
+}
+.binary-wl-live::before {
+  content: "";
+  width: 0.32rem;
+  height: 0.32rem;
+  border-radius: 999px;
+  background: currentColor;
+  animation: binary-wl-pulse 1.8s ease-in-out infinite;
+}
+@keyframes binary-wl-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .binary-wl-live::before {
+    animation: none;
+  }
+}
+
+.binary-wl-quote {
+  flex-shrink: 0;
+  text-align: right;
+}
+.binary-wl-quote-val {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+}
+.binary-wl-quote-sep {
+  color: var(--muted);
+  font-weight: 500;
+}
+.binary-wl-quote-label {
+  display: block;
+  margin-top: 0.05rem;
+  font-size: 0.5625rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-strong);
+}
+
+.binary-wl-meter {
+  margin-top: 0.6rem;
+  height: 0.28rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 22%, transparent);
+  overflow: hidden;
+}
+.binary-wl-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--muted);
+  transition: width 240ms ease;
+}
+.binary-wl-card[data-bias="up"] .binary-wl-meter > span {
+  background: var(--success);
+}
+.binary-wl-card[data-bias="down"] .binary-wl-meter > span {
+  background: var(--danger);
+}
+
+.binary-wl-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+.binary-wl-status {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  font-size: 0.6875rem;
+  line-height: 1.3;
+  color: var(--muted-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.binary-wl-status::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 0.36rem;
+  height: 0.36rem;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 0 0.18rem color-mix(in srgb, currentColor 10%, transparent);
+}
+.binary-wl-card[data-bias="up"] .binary-wl-status {
+  color: color-mix(in srgb, var(--success) 78%, var(--foreground));
+}
+.binary-wl-card[data-bias="down"] .binary-wl-status {
+  color: color-mix(in srgb, var(--danger) 78%, var(--foreground));
+}
+.binary-wl-card[data-state="open"] .binary-wl-status {
+  font-weight: 500;
+}
+.binary-wl-metrics {
+  flex-shrink: 0;
+  font-size: 0.625rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  color: var(--muted);
+  text-align: right;
+}
+
+@media (min-width: 1024px) {
+  .binary-wl-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.625rem;
+  }
 }
 
 /* Neutral tone for ties / errors, alongside the existing is-win / is-loss / is-open. */

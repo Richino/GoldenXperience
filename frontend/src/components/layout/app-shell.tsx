@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   BarChart3,
   BookOpen,
@@ -82,6 +82,7 @@ function SidebarNavLink({
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+  const dockRef = useRef<HTMLElement>(null);
   const isSignals = pathname.startsWith("/signals");
   const isDashboard = pathname === "/";
   const moreActive = mobileMoreHrefs.some((href) => isActive(pathname, href));
@@ -89,6 +90,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setMobileMoreOpen(false);
   }, [pathname]);
+
+  // Publish the floating dock's real height so pages can reserve exactly that
+  // much space beneath their content. The measured value already includes the
+  // pill and its home-indicator safe-area padding, so consumers add nothing
+  // extra — no double-counted inset, no hardcoded guess drifting per device.
+  useEffect(() => {
+    const dock = dockRef.current;
+    if (!dock) return;
+
+    const root = document.documentElement;
+    const apply = () =>
+      root.style.setProperty("--app-dock-height", `${dock.offsetHeight}px`);
+    apply();
+
+    const observer = new ResizeObserver(apply);
+    observer.observe(dock);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty("--app-dock-height");
+    };
+  }, []);
 
   return (
     <NotificationProvider>
@@ -165,6 +187,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       <nav
+        ref={dockRef}
         className="mobile-dock fixed inset-x-0 bottom-0 z-40 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:hidden"
         aria-label="Mobile navigation"
       >

@@ -564,3 +564,47 @@ export function getVisibleRangeFromCandles(
     to: end as UTCTimestamp,
   };
 }
+
+/** A readable default zoom: never the whole dataset, never a lonely handful. */
+export const MIN_VISIBLE_BARS = 40;
+export const MAX_VISIBLE_BARS = 180;
+
+/**
+ * The logical range that frames the most recent candles for the selected range.
+ *
+ * Anchored to the latest bar and expressed in bar indices rather than a time
+ * window, so every timeframe opens on a comfortable number of recent candles
+ * instead of the entire loaded history squeezed edge to edge. The count is
+ * bounded on both sides: a coarse range cannot compress months onto the screen,
+ * and a sparse one still fills the pane. `rightOffset` keeps the newest candle
+ * off the hard right edge. Older bars stay loaded and pannable.
+ */
+export function getLatestVisibleLogicalRange(
+  candles: Candle[],
+  range: ChartRange,
+  rightOffset: number,
+) {
+  const count = candles.length;
+  if (!count) return null;
+
+  let spanBars = count;
+  const rangeMs = range === "All" ? null : rangeToMs(range);
+  if (rangeMs) {
+    const end = candleTime(candles.at(-1)!.time);
+    const start = end - rangeMs / 1000;
+    const firstIndex = candles.findIndex(
+      (candle) => candleTime(candle.time) >= start,
+    );
+    spanBars = firstIndex <= 0 ? count : count - firstIndex;
+  }
+
+  const visible = Math.min(
+    count,
+    Math.max(MIN_VISIBLE_BARS, Math.min(spanBars, MAX_VISIBLE_BARS)),
+  );
+
+  return {
+    from: Math.max(0, count - visible),
+    to: count - 1 + Math.max(0, rightOffset),
+  };
+}

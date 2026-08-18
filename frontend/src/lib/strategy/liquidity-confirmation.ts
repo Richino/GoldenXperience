@@ -18,13 +18,13 @@ export const RULES = {
   /** Bars allowed for price to reclaim the level after taking it. */
   sweepReclaimBars: 3,
   /** Wick as a share of the candle's range. */
-  rejectionWickRatio: 0.55,
+  rejectionWickRatio: 0.45,
   /** Where the candle must close within its own range, from the far end. */
-  rejectionClosePosition: 0.35,
+  rejectionClosePosition: 0.45,
   /** A single decisive body, in ATR. */
-  displacementBodyAtr: 1.2,
+  displacementBodyAtr: 1.0,
   /** Or the same move accumulated over three bars. */
-  displacementRunAtr: 1.8,
+  displacementRunAtr: 1.5,
   displacementRunBars: 3,
   /** Candles either side of a pivot for it to count as a swing. */
   swingReach: 5,

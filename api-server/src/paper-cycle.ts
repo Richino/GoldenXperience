@@ -596,6 +596,95 @@ export async function fastResolveFilledTrades(priceOf: (instrument: MajorInstrum
   return closed;
 }
 
+/** Outcome of a paper-only trade under a single live tick: the target or stop
+ *  the tick has already crossed, or null while price is still between them. A
+ *  long exits on the bid and a short on the ask — the same side the M15 scan and
+ *  the broker fill against. Target and stop sit on opposite sides of entry, so a
+ *  single tick can touch at most one, and none of the within-bar ambiguity the
+ *  candle scan has to reason about arises here. */
+function tickOutcome(trade: OpenTradeRow, price: { bid: number; ask: number }): "target_first" | "stop_first" | null {
+  const stop = Number(trade.stop);
+  const target = Number(trade.target);
+  const mark = trade.direction === "long" ? price.bid : price.ask;
+  if (trade.direction === "long") {
+    if (mark >= target) return "target_first";
+    if (mark <= stop) return "stop_first";
+  } else {
+    if (mark <= target) return "target_first";
+    if (mark >= stop) return "stop_first";
+  }
+  return null;
+}
+
+/**
+ * The live-tick close for paper-only trades — the ones with no broker order
+ * behind them. They have no fast path of their own: resolveOpenTrades is their
+ * only resolver, and it reads completed M15 candles, so a target or stop touch
+ * goes unrecorded until the fifteen-minute bar closes, up to fifteen minutes
+ * after the level was hit. This runs on the same 5s cadence as the broker fast
+ * resolver, checks the live bid/ask against every open paper trade's levels, and
+ * books the close at the level the instant a tick crosses it. The exit and
+ * result_r are exactly what the candle scan would have written once the bar
+ * completed — only sooner. Timeouts and the 16:45 forced exit stay with the M15
+ * scan, which still owns everything that is not a clean level touch.
+ */
+export async function liveResolvePaperTrades(priceOf: (instrument: MajorInstrument) => { bid: number; ask: number } | null) {
+  const open = await query<OpenTradeRow>(
+    `SELECT trade.id,trade.user_id,trade.instrument,trade.decision_time,trade.direction,trade.entry,trade.stop,trade.target,trade.nominal_risk_amount
+     FROM paper_strategy_trades trade
+     WHERE trade.status='open'
+       AND NOT EXISTS(
+         SELECT 1 FROM practice_order_intents intent
+         WHERE intent.paper_trade_id=trade.id AND intent.status IN('pending','sending','submitted','unknown')
+       )`,
+  );
+  let closed = 0;
+  for (const trade of open.rows) {
+    const price = priceOf(trade.instrument);
+    if (!price) continue;
+    const outcome = tickOutcome(trade, price);
+    if (!outcome) continue;
+
+    const entry = Number(trade.entry);
+    const stop = Number(trade.stop);
+    const target = Number(trade.target);
+    const risk = Math.abs(entry - stop);
+    if (!(risk > 0)) continue;
+    // Booked at the level, not the tick, so a tick-closed trade is scored
+    // identically to one the candle scan closes: a stop is exactly -1R and a
+    // target is its reward multiple, matching labelOutcome.
+    const exit = outcome === "target_first" ? target : stop;
+    const resultR = outcome === "target_first" ? Math.abs(target - entry) / risk : -1;
+    const riskAmount = Number(trade.nominal_risk_amount);
+    const paperPl = Number.isFinite(riskAmount) ? riskAmount * resultR : null;
+    // Excursion comes from the M15 scan, which may not yet include the bar that
+    // just touched the level, so floor it at the outcome we are booking — the
+    // recorded excursion can never contradict the close.
+    const excursion = await excursionForTrade(trade);
+    const maxFavorableR = outcome === "target_first" ? Math.max(excursion.maxFavorableR ?? resultR, resultR) : excursion.maxFavorableR;
+    const maxAdverseR = outcome === "stop_first" ? Math.max(excursion.maxAdverseR ?? 1, 1) : excursion.maxAdverseR;
+
+    // status='open' guard makes this idempotent against the 60s candle scan, so
+    // the two can never double-close the same trade.
+    const updated = await query<{ id: string }>(
+      `UPDATE paper_strategy_trades SET status='closed',outcome=$2,exit=$3,result_r=$4,paper_pl=$5,max_favorable_r=$6,max_adverse_r=$7,closed_at=now(),exit_reason=$2,updated_at=now() WHERE id=$1 AND status='open'`,
+      [trade.id, outcome, exit, resultR, paperPl, maxFavorableR, maxAdverseR],
+    );
+    if (!updated.rowCount) continue;
+    await queueNotification({
+      userId: trade.user_id,
+      kind: "paper_closed",
+      title: `${displayPair(trade.instrument)} paper trade closed`,
+      message: `${outcome === "target_first" ? "target reached" : "stop reached"} · ${resultR >= 0 ? "+" : ""}${resultR.toFixed(2)}R`,
+      instrument: trade.instrument,
+      paperTradeId: trade.id,
+      dedupeKey: `paper_closed:${trade.id}`,
+    });
+    closed += 1;
+  }
+  return closed;
+}
+
 async function resolveOpenTrades() {
   const open = await query<OpenTradeRow>("SELECT id,user_id,instrument,decision_time,direction,entry,stop,target,nominal_risk_amount FROM paper_strategy_trades WHERE status='open' ORDER BY opened_at");
   let resolved = 0;

@@ -29,7 +29,7 @@ import { getForexSessionStatus } from "../../frontend/src/lib/strategy/session.j
 import { databaseConfigured, query } from "./database.js";
 import { cookieName, login, logout, sessionUser } from "./auth.js";
 import { decideResearchExperiment, forwardResearchSummary, latestDayTradingValidation, latestResearchExperiment, latestResearchHoldout, latestResearchRun, latestWalkForwardResearch, processNextResearchJob, researchDiagnostics, researchExperimentDiagnostics, researchSummary, runDayTradingValidation, runResearchExperiment, runWalkForwardResearch, startLockedResearchHoldout, startStrictHistoricalBackfill, stopResearchRun } from "./research.js";
-import { collectPaperCycle, decidePaperBatch, fastResolveFilledTrades, journalTradeLog, paperCycleOverview, paperRiskExposure, paperRiskPolicy, paperTradesForInstrument, parsePaperRiskConfiguration, reviewPaperTrade, updatePaperRiskPolicy, watchlistSnapshot } from "./paper-cycle.js";
+import { collectPaperCycle, decidePaperBatch, fastResolveFilledTrades, liveResolvePaperTrades, journalTradeLog, paperCycleOverview, paperRiskExposure, paperRiskPolicy, paperTradesForInstrument, parsePaperRiskConfiguration, reviewPaperTrade, updatePaperRiskPolicy, watchlistSnapshot } from "./paper-cycle.js";
 import { markNotificationsRead, notificationsForUser, pushPublicKey, queueNotification, removePushSubscription, savePushSubscription } from "./notifications.js";
 import { practiceExecutionOverview, setPracticeExecutionEnabled } from "./practice-execution.js";
 import { binaryJournal, binaryPerformance, binaryPredictionDetail, binaryWatchlistSnapshot, collectBinaryCycle, recentBinaryPredictions, resolveDueBinaryPredictions } from "./binary-engine.js";
@@ -550,20 +550,24 @@ if (databaseConfigured()) {
   void collect();
   paperCollector = setInterval(() => void collect(), 60_000);
 
-  // Between the 60s scans, catch broker fills the instant they happen. When a
-  // trade's live price nears its target or stop, this asks the broker whether
-  // its real order filled and books the close in seconds instead of waiting for
-  // the next scan and the M15 candle to complete.
+  // Between the 60s scans, catch closes the instant they happen. For a
+  // broker-backed trade whose live price nears its target or stop, this asks the
+  // broker whether its real order filled; for a paper-only trade, it closes at
+  // the level the moment a live tick crosses it. Both book in seconds instead of
+  // waiting for the next scan and the M15 candle to complete.
+  const liveTick = (instrument: MajorInstrument) => {
+    const tick = latestPrices.get(instrument);
+    return tick ? { bid: tick.bid, ask: tick.ask } : null;
+  };
   let fastResolveBusy = false;
   const fastResolve = async () => {
     if (fastResolveBusy || !getForexSessionStatus(new Date()).marketOpen) return;
     fastResolveBusy = true;
     try {
-      const closed = await fastResolveFilledTrades((instrument) => {
-        const tick = latestPrices.get(instrument);
-        return tick ? { bid: tick.bid, ask: tick.ask } : null;
-      });
-      if (closed) console.log(`[paper-cycle] fast broker close booked ${closed}`);
+      const brokerClosed = await fastResolveFilledTrades(liveTick);
+      if (brokerClosed) console.log(`[paper-cycle] fast broker close booked ${brokerClosed}`);
+      const paperClosed = await liveResolvePaperTrades(liveTick);
+      if (paperClosed) console.log(`[paper-cycle] live paper close booked ${paperClosed}`);
     } catch (error) {
       console.error("[paper-cycle] fast resolver failed", error);
     } finally {

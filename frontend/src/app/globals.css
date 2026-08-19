@@ -359,12 +359,22 @@ a:focus-visible {
   content: none;
 }
 
-/* Login â€” a focused entry point that shares the workspace's quiet, technical feel. */
+html:has(.login-page),
+body:has(.login-page) {
+  height: 100dvh;
+  max-height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Login — a focused entry point that shares the workspace's quiet, technical feel. */
 .login-page {
   --login-field-fill: color-mix(in srgb, var(--background) 36%, var(--surface));
   position: relative;
   display: grid;
   place-items: center;
+  height: 100dvh;
+  max-height: 100dvh;
   overflow: hidden;
   background:
     linear-gradient(color-mix(in srgb, var(--foreground) 3%, transparent) 1px, transparent 1px),
@@ -372,6 +382,12 @@ a:focus-visible {
     radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 34rem),
     var(--background);
   background-size: 4rem 4rem, 4rem 4rem, auto, auto;
+}
+
+@media (max-height: 520px) {
+  .login-page {
+    overflow-y: auto;
+  }
 }
 
 .login-shell {
@@ -399,27 +415,6 @@ a:focus-visible {
   justify-content: space-between;
   margin: 0 0 1.25rem;
   padding: 0 0.25rem;
-}
-
-.login-status-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
-  padding: 0.375rem 0.625rem;
-  color: var(--muted-strong);
-  font-size: 0.6875rem;
-  font-weight: 600;
-}
-
-.login-status-dot {
-  width: 0.4rem;
-  height: 0.4rem;
-  border-radius: 999px;
-  background: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .login-card {
@@ -576,15 +571,6 @@ a:focus-visible {
   opacity: 0.65;
 }
 
-.login-footnote {
-  margin: 1.25rem auto 0;
-  max-width: 22rem;
-  color: var(--muted);
-  font-size: 0.6875rem;
-  line-height: 1.5;
-  text-align: center;
-}
-
 .login-orb {
   position: absolute;
   border-radius: 999px;
@@ -627,10 +613,6 @@ a:focus-visible {
 @media (max-width: 420px) {
   .login-brand {
     align-items: flex-start;
-  }
-
-  .login-status-pill {
-    margin-top: 0.125rem;
   }
 }
 
@@ -792,9 +774,13 @@ input[type="number"] {
 }
 
 .notification-popover-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
   max-height: min(24rem, 60vh);
   overflow-y: auto;
   overscroll-behavior: contain;
+  padding: 0.35rem 0.4rem 0.5rem;
 }
 
 @keyframes sheet-up {
@@ -915,14 +901,14 @@ input[type="number"] {
 }
 
 /*
- * Notification rows are full-bleed with their own dividers, and the sheet body
- * is already the scroll container — so the list cancels the body padding and
- * gives up the nested scrolling it needs inside the desktop popover.
+ * The sheet body is already the scroll container, so the list gives up the
+ * nested scrolling it needs inside the desktop popover. Keep the body padding:
+ * rows sit on the same inset as .sheet-option, not full-bleed.
  */
 .mobile-sheet-body > .notification-popover-list {
   max-height: none;
   overflow: visible;
-  margin: -0.5rem -0.75rem 0;
+  padding: 0;
 }
 
 .sheet-option-list {
@@ -1085,58 +1071,80 @@ input[type="number"] {
 }
 
 .notification-popover-item {
-  display: block;
-  border-bottom: 1px solid var(--border);
-  padding: 0.95rem 1rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  min-height: 2.875rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.85rem;
   transition: background-color 140ms ease;
 }
 
-.notification-popover-item:last-child {
-  border-bottom: 0;
-}
-
 .notification-popover-item:hover {
-  background: color-mix(in srgb, var(--foreground) 3.5%, transparent);
+  background: color-mix(in srgb, var(--foreground) 4.5%, transparent);
 }
 
 .notification-popover-item.is-unread {
-  background: transparent;
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
 }
 
 .notification-popover-item.is-unread:hover {
-  background: color-mix(in srgb, var(--foreground) 3.5%, transparent);
+  background: color-mix(in srgb, var(--foreground) 5.5%, transparent);
 }
 
 .notification-popover-item.is-issue.is-unread {
-  background: transparent;
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
 }
 
 .notification-popover-item.is-issue.is-unread:hover {
-  background: color-mix(in srgb, var(--danger) 6%, transparent);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
 }
 
-.notification-popover-item-top {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
+.notification-unread-slot {
+  display: grid;
+  place-items: start center;
+  width: 0.375rem;
+  flex-shrink: 0;
+  padding-top: 0.42rem;
 }
 
 .notification-unread-dot {
   width: 0.375rem;
   height: 0.375rem;
-  flex-shrink: 0;
-  margin-top: 0.35rem;
   border-radius: 999px;
   background: var(--accent);
+}
+
+.notification-popover-item.is-issue .notification-unread-dot {
+  background: var(--danger);
+}
+
+.notification-popover-item-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.notification-popover-item-top {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
 }
 
 .notification-popover-item-title {
   min-width: 0;
   flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.3;
   letter-spacing: -0.015em;
+  color: var(--muted-strong);
+}
+
+.notification-popover-item.is-unread .notification-popover-item-title {
+  font-weight: 600;
   color: var(--foreground);
 }
 
@@ -1148,15 +1156,13 @@ input[type="number"] {
 }
 
 .notification-popover-item-message {
-  margin-top: 0.3rem;
-  padding-left: 0;
+  margin-top: 0.12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 0.75rem;
-  line-height: 1.4;
+  line-height: 1.35;
   color: var(--muted);
-}
-
-.notification-popover-item.is-unread .notification-popover-item-message {
-  padding-left: 0.875rem;
 }
 
 .notification-popover-item-message.is-positive {
@@ -1168,7 +1174,196 @@ input[type="number"] {
 }
 
 .notification-popover-item-message.is-issue {
+  color: var(--muted);
+}
+
+.gx-toast-viewport {
+  position: fixed;
+  /* Above chrome (30–50), fullscreen chart (60), and sheets (68/69). */
+  z-index: 80;
+  top: max(3.75rem, calc(env(safe-area-inset-top, 0px) + 3.15rem));
+  left: 1rem;
+  right: 1rem;
+  width: auto;
+  max-width: calc(100% - 2rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  pointer-events: none;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  outline: none;
+}
+
+@media (min-width: 640px) {
+  .gx-toast-viewport {
+    left: 1.5rem;
+    right: 1.5rem;
+    max-width: calc(100% - 3rem);
+  }
+}
+
+@media (min-width: 1024px) {
+  .gx-toast-viewport {
+    top: 5.5rem;
+    left: auto;
+    right: 2rem;
+    width: min(22rem, calc(100% - 4rem));
+    max-width: min(22rem, calc(100% - 4rem));
+  }
+}
+
+.gx-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.15rem;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 1rem;
+  pointer-events: auto;
+  opacity: 1;
+  border: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent);
+  background: var(--surface);
+  color: var(--foreground);
+  box-shadow:
+    0 4px 16px color-mix(in srgb, var(--foreground) 8%, transparent),
+    0 1px 2px color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+
+.dark .gx-toast {
+  border-color: var(--border-strong);
+  background: var(--surface);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--background) 70%, transparent);
+}
+
+.gx-toast-issue {
+  border-color: color-mix(in srgb, var(--danger) 28%, var(--border-strong));
+}
+
+.gx-toast[data-swipe="move"] {
+  transform: translateX(var(--radix-toast-swipe-move-x));
+  transition: none;
+}
+
+.gx-toast[data-swipe="cancel"] {
+  transform: translateX(0);
+}
+
+.gx-toast[data-swipe="end"] {
+  transform: translateX(var(--radix-toast-swipe-end-x));
+}
+
+.gx-toast[data-state="open"] {
+  animation: gx-toast-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.gx-toast[data-state="closed"] {
+  animation: gx-toast-out 0.16s ease-in forwards;
+}
+
+@keyframes gx-toast-in {
+  from {
+    transform: translateY(-8px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes gx-toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gx-toast[data-state="open"],
+  .gx-toast[data-state="closed"] {
+    animation: none;
+  }
+}
+
+.gx-toast-body {
+  min-width: 0;
+  flex: 1;
+  padding: 0.85rem 0.35rem 0.85rem 1rem;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  text-decoration: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.gx-toast-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+  color: var(--foreground);
+}
+
+.gx-toast-description {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.gx-toast-description.is-positive {
+  color: var(--success);
+}
+
+.gx-toast-description.is-negative,
+.gx-toast-description.is-issue {
   color: var(--danger);
+}
+
+.gx-toast-close {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  margin: 0.45rem 0.45rem 0 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.gx-toast-close:hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
+.gx-toast-close:focus-visible {
+  color: var(--foreground);
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.gx-toast-action {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  height: 2rem;
+  margin-top: 0.45rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.gx-toast-action:hover {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
 }
 
 /* Typography scale — use these semantic classes instead of arbitrary px sizes */
@@ -1683,51 +1878,54 @@ input[type="number"] {
 }
 
 .nav-pill {
-  background: color-mix(in srgb, var(--surface) 94%, transparent);
-  backdrop-filter: blur(22px) saturate(160%);
-  -webkit-backdrop-filter: blur(22px) saturate(160%);
-  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  background: var(--surface-raised);
+  border: 0;
   border-radius: 999px;
-  box-shadow:
-    0 1px 0 color-mix(in srgb, var(--foreground) 4%, transparent),
-    0 10px 28px color-mix(in srgb, var(--foreground) 6%, transparent);
-  transition:
-    transform 160ms cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 160ms ease;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
 }
 
 .dark .nav-pill {
-  background: color-mix(in srgb, var(--surface) 88%, #000 12%);
-  border-color: color-mix(in srgb, var(--border-strong) 75%, transparent);
-  box-shadow:
-    0 1px 0 color-mix(in srgb, var(--foreground) 5%, transparent),
-    0 12px 30px color-mix(in srgb, var(--background) 75%, transparent);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
 }
 
 .nav-mobile-link {
+  position: relative;
   display: grid;
   place-items: center;
   flex: 1 1 0;
-  min-width: 2.6rem;
-  min-height: 2.6rem;
-  max-width: 3rem;
+  min-width: 3rem;
+  min-height: 3rem;
+  max-width: 3.4rem;
   margin-inline: auto;
   border-radius: 999px;
   color: var(--muted);
   outline: none;
+  cursor: pointer;
+  touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
-  transition:
-    background-color 140ms ease,
-    color 140ms ease,
-    transform 140ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: color 140ms ease;
 }
 
-.nav-mobile-link:active {
-  transform: scale(0.88);
+.nav-mobile-link.pressable:active,
+.nav-mobile-link-click {
+  animation: nav-mobile-click 280ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.nav-pill:has(.nav-mobile-link:active) {
-  transform: scale(0.985);
+.nav-mobile-link-active.pressable:active::before,
+.nav-mobile-link-active.nav-mobile-link-click::before {
+  animation: nav-mobile-click-chip 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes nav-mobile-click {
+  0% { transform: scale(1); }
+  38% { transform: scale(0.78); }
+  100% { transform: scale(1); }
+}
+
+@keyframes nav-mobile-click-chip {
+  0% { transform: scale(1); }
+  38% { transform: scale(1.16); background: color-mix(in srgb, var(--accent) 38%, var(--surface-raised)); }
+  100% { transform: scale(1); }
 }
 
 .nav-mobile-link:hover {
@@ -1739,58 +1937,35 @@ input[type="number"] {
 }
 
 .nav-mobile-link-active {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--accent);
-  animation: nav-mobile-link-select 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  background: transparent;
+  color: var(--accent-bright);
 }
 
-.nav-mobile-link-active svg {
-  animation: nav-mobile-icon-select 280ms cubic-bezier(0.22, 1, 0.36, 1);
+.nav-mobile-link-active::before {
+  content: "";
+  position: absolute;
+  inset: 0.32rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface-raised));
+  pointer-events: none;
 }
 
-@keyframes nav-mobile-link-select {
-  0% { transform: scale(0.82); }
-  65% { transform: scale(1.07); }
-  100% { transform: scale(1); }
-}
-
-@keyframes nav-mobile-icon-select {
-  0% { transform: scale(0.78) rotate(-8deg); }
-  65% { transform: scale(1.12) rotate(2deg); }
-  100% { transform: scale(1) rotate(0); }
-}
-
-.dark .nav-mobile-link-active {
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
-}
-
-@media (max-width: 1023px) {
-  .nav-pill {
-    background: linear-gradient(115deg, color-mix(in srgb, var(--accent) 9%, var(--surface)), var(--surface) 58%, color-mix(in srgb, var(--accent) 5%, var(--surface)));
-    box-shadow: 0 10px 28px color-mix(in srgb, var(--foreground) 10%, transparent), 0 0 8px color-mix(in srgb, var(--accent) 6%, transparent);
-  }
-
-  .nav-mobile-link-active {
-    background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 20%, var(--surface)), color-mix(in srgb, var(--accent) 7%, var(--surface)));
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent), 0 3px 7px color-mix(in srgb, var(--accent) 7%, transparent);
-  }
-
-  .dark .nav-pill {
-    background: linear-gradient(115deg, color-mix(in srgb, var(--accent) 12%, var(--surface)), var(--surface) 58%, color-mix(in srgb, var(--accent) 6%, var(--surface)));
-    box-shadow: 0 12px 32px color-mix(in srgb, var(--background) 72%, transparent), 0 0 9px color-mix(in srgb, var(--accent) 7%, transparent);
-  }
+.nav-mobile-link svg {
+  position: relative;
+  z-index: 1;
 }
 
 .nav-more-sheet {
   display: grid;
   gap: 0.25rem;
   border-radius: 1.15rem;
-  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
-  background: color-mix(in srgb, var(--surface) 96%, transparent);
-  backdrop-filter: blur(22px) saturate(160%);
-  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  border: 0;
+  background: var(--surface-raised);
   padding: 0.4rem;
-  box-shadow: 0 12px 32px color-mix(in srgb, var(--foreground) 8%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 4px 10px rgba(15, 18, 17, 0.08),
+    0 18px 40px rgba(15, 18, 17, 0.16);
   transform-origin: bottom center;
   animation: nav-more-sheet-enter 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -1827,9 +2002,10 @@ input[type="number"] {
 }
 
 .dark .nav-more-sheet {
-  background: color-mix(in srgb, var(--surface) 90%, #000 10%);
-  border-color: color-mix(in srgb, var(--border-strong) 75%, transparent);
-  box-shadow: 0 14px 34px color-mix(in srgb, var(--background) 70%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 6px 16px rgba(0, 0, 0, 0.38),
+    0 14px 32px rgba(0, 0, 0, 0.32);
 }
 
 .nav-more-link {
@@ -2669,25 +2845,11 @@ input[type="number"] {
   padding-top: 0.05rem;
 }
 
-.journal-view .journal-entry-note summary {
-  cursor: pointer;
-  list-style: none;
+.journal-view .journal-entry-note-label {
+  margin: 0;
   font-size: 0.625rem;
   font-weight: 500;
   color: var(--muted);
-  text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, var(--muted) 40%, transparent);
-  text-underline-offset: 0.12em;
-  user-select: none;
-}
-
-.journal-view .journal-entry-note summary::-webkit-details-marker {
-  display: none;
-}
-
-.journal-view .journal-entry-note summary:hover {
-  color: var(--muted-strong);
-  text-decoration-color: color-mix(in srgb, var(--muted-strong) 50%, transparent);
 }
 
 .journal-view .journal-entry-note p {
@@ -4355,36 +4517,71 @@ input[type="number"] {
   display: none;
 }
 
-/* Hide notifications in fullscreen without collapsing their slot: that keeps
-   the exit/fullscreen control anchored at its normal x-position. */
+/* Desktop fullscreen still reserves the bell slot so collapse stays put.
+   Mobile fullscreen hides it (display:none) and parks collapse on the tool row. */
 .signals-view-fullscreen .signals-fullscreen-reserve {
   visibility: hidden;
   pointer-events: none;
 }
 
 @media (max-width: 1023px) {
-  .signals-view-fullscreen .signals-chart-mobile {
+  .signals-view.signals-view-fullscreen .signals-chart-mobile {
     height: 100dvh;
   }
 
-  /* Only the row holding the exit control survives; the chart takes the rest. */
-  /* Fullscreen keeps the nav row and the chart tools; everything else folds
-     away so the canvas gets the screen. */
-  .signals-view-fullscreen
+  /* Fullscreen keeps the tool row and collapse; pair, quote and search fold
+     away so the canvas gets the screen. Triple-class so later windowed
+     padding/sticky rules cannot reopen the chrome. */
+  .signals-view.signals-view-fullscreen
     .signals-mobile-content
     > :not(.signals-mobile-actions):not(.signals-mobile-tools) {
     display: none;
   }
 
-  .signals-view-fullscreen .signals-mobile-content {
-    /* Keep the same breathing room below the tool row as the normal view. */
-    padding-bottom: 1rem;
+  /* One compact toolbar: timeframe / range / type / indicators / reset, with
+     collapse on the right. */
+  .signals-view.signals-view-fullscreen .signals-mobile-content {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.15rem;
+    padding-top: max(0.35rem, env(safe-area-inset-top));
+    padding-bottom: 0.25rem;
+    padding-inline: 0.75rem;
   }
 
-  /* Once Back is hidden there is only one visible action group; anchor that
-     group to the same right edge it has in the normal header. */
-  .signals-view-fullscreen .signals-mobile-actions {
+  .signals-view.signals-view-fullscreen .signals-mobile-actions {
     justify-content: flex-end;
+    position: static;
+    order: 2;
+    flex-shrink: 0;
+    margin: 0;
+    padding: 0;
+  }
+
+  .signals-view.signals-view-fullscreen .signals-mobile-tools {
+    flex: 1;
+    min-width: 0;
+    margin-top: 0;
+    gap: 0.2rem;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .signals-view.signals-view-fullscreen .signals-mobile-tools::-webkit-scrollbar {
+    display: none;
+  }
+
+  .signals-view.signals-view-fullscreen .signals-fullscreen-reserve {
+    display: none;
+  }
+
+  .signals-view.signals-view-fullscreen .signals-chart-mobile .sheet-trigger,
+  .signals-view.signals-view-fullscreen .signals-chart-mobile .signals-icon-btn,
+  .signals-view.signals-view-fullscreen .signals-chart-mobile .relative > button.pressable {
+    min-height: 2.25rem;
   }
 
 }
@@ -4454,26 +4651,25 @@ input[type="number"] {
   .signals-view .signals-chart-mobile > .chart-data-shell {
     flex: 1;
     min-height: 0;
-    border-top: 1px solid var(--border-strong);
-    /* Top rule only. A bottom border/inset sat at the shell's off-screen bottom
-       edge and read as a stray line under the floating nav — removed. */
-    box-shadow: inset 0 1px 0 var(--border-strong);
+    /* Top hairline only — a bottom rule sat off-screen and read as a stray
+       line under the nav. --border, not --border-strong plus an inset twin,
+       so the 15m / range / type / indicator divider stays a hairline. */
+    border-top: 1px solid var(--border);
     /* Reserve exactly the floating dock's measured height (which already carries
        the home-indicator safe area) plus a small gap, so the time axis clears
        the nav pill without the large empty band a fixed guess left behind. The
        fallback covers the first frame before the measurement lands.
        Padding rather than margin: the canvas is sized from contentRect, so the
        measurement excludes this strip on its own. */
-    padding-bottom: calc(var(--app-dock-height, 4.75rem) + 0.5rem);
+    padding-bottom: calc(var(--app-dock-height, 5.5rem) + 0.5rem);
   }
 
-  /* Fullscreen covers the nav, so the canvas reclaims that strip. */
-  .signals-view-fullscreen .signals-chart-mobile > .chart-data-shell {
-    flex: 0 0 auto;
-    height: calc(100dvh - 15.5rem - env(safe-area-inset-bottom, 0px));
-    margin-bottom: calc(2.5rem + env(safe-area-inset-bottom, 0px));
-    margin-top: 1rem;
-    padding-bottom: 0;
+  /* Fullscreen covers the nav: the canvas takes every remaining pixel. */
+  .signals-view.signals-view-fullscreen .signals-chart-mobile > .chart-data-shell {
+    flex: 1 1 auto;
+    height: auto;
+    margin: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   .signals-view .signals-mobile-content {
@@ -5756,6 +5952,12 @@ input[type="number"] {
   background: color-mix(in srgb, var(--surface) 96%, var(--background));
 }
 
+.journal-stats-card.grid-cols-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.45rem 0.35rem;
+  padding: 1rem 0.7rem;
+}
+
 .journal-stat {
   min-width: 0;
 }
@@ -5763,6 +5965,42 @@ input[type="number"] {
 .journal-stat:not(:first-child) {
   border-left: 1px solid var(--border);
   padding-left: 1rem;
+}
+
+.journal-stats-card.grid-cols-4 .journal-stat:not(:first-child) {
+  padding-left: 0.45rem;
+}
+
+.journal-stats-card.grid-cols-4 .journal-stat > p:first-child {
+  font-size: 0.625rem;
+  letter-spacing: 0.01em;
+}
+
+.journal-stats-card.grid-cols-4 .journal-stat .metric-number {
+  margin-top: 0.2rem;
+  font-size: 0.8125rem;
+  line-height: 1.2;
+  overflow-wrap: break-word;
+}
+
+@media (min-width: 640px) {
+  .journal-stats-card.grid-cols-4 {
+    gap: 0.75rem 1rem;
+    padding: 1.15rem 1.1rem;
+  }
+
+  .journal-stats-card.grid-cols-4 .journal-stat:not(:first-child) {
+    padding-left: 1rem;
+  }
+
+  .journal-stats-card.grid-cols-4 .journal-stat > p:first-child {
+    font-size: 0.75rem;
+  }
+
+  .journal-stats-card.grid-cols-4 .journal-stat .metric-number {
+    margin-top: 0.25rem;
+    font-size: 1.25rem;
+  }
 }
 
 .journal-view.journal-minimal .journal-entry {
@@ -6307,36 +6545,82 @@ input[type="number"] {
 .binary-horizon-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
+  gap: 0;
+  border-top: 1px solid var(--border);
 }
+
 .binary-horizon-cell {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md, 0.7rem);
-  padding: 0.75rem;
-  text-align: center;
-  background: var(--surface);
+  min-width: 0;
+  padding: 0.85rem 0.65rem 0.2rem;
+  text-align: left;
+  background: transparent;
 }
+
+.binary-horizon-cell:not(:first-child) {
+  border-left: 1px solid var(--border);
+  padding-left: 0.75rem;
+}
+
 .binary-horizon-label {
   margin: 0;
-  font-size: 0.6875rem;
+  font-size: 0.625rem;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
 }
+
 .binary-horizon-rate {
   margin: 0.2rem 0 0;
-  font-size: 1.35rem;
+  font-size: 1.5rem;
   font-weight: 650;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+  color: var(--foreground);
 }
-.binary-horizon-detail {
-  margin: 0.15rem 0 0;
+
+.binary-horizon-split {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0.7rem 0 0;
+}
+
+.binary-horizon-split > div {
+  min-width: 0;
+}
+
+.binary-horizon-split > div:not(:first-child) {
+  border-left: 1px solid var(--border);
+  padding-left: 0.35rem;
+}
+
+.binary-horizon-split dt {
+  margin: 0;
+  font-size: 0.5625rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.binary-horizon-split dt.is-win {
+  color: var(--success);
+}
+
+.binary-horizon-split dt.is-loss {
+  color: var(--danger);
+}
+
+.binary-horizon-split dd {
+  margin: 0.12rem 0 0;
+  margin-inline-start: 0;
   font-size: 0.75rem;
-  color: var(--muted-strong);
+  font-weight: 550;
+  color: var(--foreground);
 }
+
 .binary-horizon-sample {
-  margin: 0.1rem 0 0;
+  margin: 0.55rem 0 0;
   font-size: 0.625rem;
   color: var(--muted);
 }

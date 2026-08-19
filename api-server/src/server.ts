@@ -552,7 +552,7 @@ if (databaseConfigured()) {
           userId: owner.rows[0].id,
           kind: "system_issue",
           title: "Paper collector needs attention",
-          message: error instanceof Error ? error.message.slice(0, 180) : "The collector stopped before completing its latest check.",
+          message: "The paper collector hit a data error.",
           instrument: null,
           paperTradeId: null,
           dedupeKey: `paper_collector_failure:${new Date().toISOString().slice(0, 10)}`,

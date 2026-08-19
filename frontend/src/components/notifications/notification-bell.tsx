@@ -4,8 +4,8 @@ import Link from "next/link";
 import { Bell, CheckCheck } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { MobileSheet } from "@/components/ui/mobile-sheet";
+import { detailTone, displayDetail, displayTitle, notificationHref } from "@/lib/notifications/display";
 import { useNotificationContext } from "./notification-provider";
-import type { AppNotification } from "./notification-provider";
 
 function timeLabel(value: string) {
   const elapsed = Date.now() - new Date(value).getTime();
@@ -13,32 +13,6 @@ function timeLabel(value: string) {
   if (elapsed < 3_600_000) return `${Math.floor(elapsed / 60_000)}m`;
   if (elapsed < 86_400_000) return `${Math.floor(elapsed / 3_600_000)}h`;
   return `${Math.floor(elapsed / 86_400_000)}d`;
-}
-
-function notificationHref(item: AppNotification) {
-  return item.instrument ? `/signals?instrument=${item.instrument}` : "/watchlist";
-}
-
-function displayTitle(item: AppNotification) {
-  return item.title
-    .replace(/\spaper trade\s/gi, " ")
-    .replace(/\spractice\s/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function displayDetail(item: AppNotification) {
-  return item.message
-    .replace(/\s*Entry, target, and stop are available on Signals\.?/gi, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function detailTone(item: AppNotification) {
-  if (item.kind === "system_issue") return "is-issue";
-  if (/[+][\d.]+R/.test(item.message)) return "is-positive";
-  if (/[-−][\d.]+R/.test(item.message)) return "is-negative";
-  return "";
 }
 
 export function NotificationBell({ compact = false, className = "" }: { compact?: boolean; className?: string }) {
@@ -105,12 +79,16 @@ export function NotificationBell({ compact = false, className = "" }: { compact?
               }}
               className={`notification-popover-item pressable ${item.readAt ? "" : "is-unread"} ${item.kind === "system_issue" ? "is-issue" : ""}`}
             >
-              <div className="notification-popover-item-top">
-                {!item.readAt ? <span className="notification-unread-dot" aria-hidden /> : null}
-                <p className="notification-popover-item-title">{displayTitle(item)}</p>
-                <span className="notification-popover-item-time">{timeLabel(item.createdAt)}</span>
+              <span className="notification-unread-slot" aria-hidden>
+                {!item.readAt ? <span className="notification-unread-dot" /> : null}
+              </span>
+              <div className="notification-popover-item-body">
+                <div className="notification-popover-item-top">
+                  <p className="notification-popover-item-title">{displayTitle(item)}</p>
+                  <span className="notification-popover-item-time">{timeLabel(item.createdAt)}</span>
+                </div>
+                {detail ? <p className={`notification-popover-item-message ${tone}`}>{detail}</p> : null}
               </div>
-              {detail ? <p className={`notification-popover-item-message ${tone}`}>{detail}</p> : null}
             </Link>
           );
         })

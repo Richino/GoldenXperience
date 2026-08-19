@@ -523,59 +523,6 @@ export function SettingsLoadingSkeleton() {
           ))}
         </div>
       </section>
-
-      <section className="settings-minimal-section">
-        <div className="flex items-baseline justify-between gap-3">
-          <Line className="h-4 w-16" />
-          <Line className="h-3 w-12" />
-        </div>
-        <div className="mt-3">
-          {Array.from({ length: 2 }, (_, index) => (
-            <div key={index} className="settings-status">
-              <div className="min-w-0 space-y-1.5">
-                <Line className="h-4 w-32" />
-                <Line className="h-3 w-48" />
-              </div>
-              <Line className="h-3 w-16 shrink-0" />
-            </div>
-          ))}
-          {Array.from({ length: 2 }, (_, index) => (
-            <div key={index} className="settings-env">
-              <Line className="h-3 w-36" />
-              <Line className="h-3 w-16" />
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="settings-minimal-section">
-        <div className="flex items-baseline justify-between gap-3">
-          <Line className="h-4 w-36" />
-          <Line className="h-3 w-10" />
-        </div>
-        <div className="mt-4 settings-row">
-          <div className="space-y-1.5">
-            <Line className="h-4 w-36" />
-            <Line className="h-3 w-40" />
-          </div>
-          <Bone className="h-10 w-20 rounded-xl" />
-        </div>
-      </section>
-
-      <section className="settings-minimal-section">
-        <Line className="h-4 w-12" />
-        <div className="mt-3">
-          {Array.from({ length: 3 }, (_, index) => (
-            <div key={index} className="settings-status">
-              <div className="min-w-0 space-y-1.5">
-                <Line className="h-4 w-28" />
-                <Line className="h-3 w-32" />
-              </div>
-              <Line className="h-3 w-20 shrink-0" />
-            </div>
-          ))}
-        </div>
-      </section>
     </div>
   );
 }

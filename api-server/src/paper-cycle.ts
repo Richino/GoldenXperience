@@ -77,7 +77,9 @@ export function parsePaperRiskConfiguration(value: unknown): PaperRiskConfigurat
 
   const maxPositions = input.maxSimultaneousPositions === null ? null : finiteNumber(input.maxSimultaneousPositions);
   if (input.maxSimultaneousPositions !== null && maxPositions === null) throw new Error("Choose a maximum position count or unlimited.");
-  if (maxPositions !== null && (!Number.isInteger(maxPositions) || maxPositions < 1 || maxPositions > MAJOR_INSTRUMENTS.length)) throw new Error("Maximum simultaneous positions must be unlimited or between 1 and 10.");
+  if (maxPositions !== null && (!Number.isInteger(maxPositions) || maxPositions < 1 || maxPositions > MAJOR_INSTRUMENTS.length)) {
+    throw new Error(`Maximum simultaneous positions must be unlimited or between 1 and ${MAJOR_INSTRUMENTS.length}.`);
+  }
 
   const maxExposure = input.maxTotalNominalRiskPercent === null ? null : finiteNumber(input.maxTotalNominalRiskPercent);
   if (input.maxTotalNominalRiskPercent !== null && maxExposure === null) throw new Error("Choose a total nominal exposure cap or unlimited.");
@@ -759,7 +761,8 @@ async function resolveOpenTrades() {
           continue;
         }
       } catch (error) {
-        await queueNotification({ userId: trade.user_id, kind: "system_issue", title: `${displayPair(trade.instrument)} practice close needs attention`, message: error instanceof Error ? error.message.slice(0, 180) : `The ${closeContext} broker close failed. The internal trade remains open.`, instrument: trade.instrument, paperTradeId: trade.id, dedupeKey: `practice_close_failed:${trade.id}` });
+        console.error("[paper-cycle] practice close failed", error);
+        await queueNotification({ userId: trade.user_id, kind: "system_issue", title: `${displayPair(trade.instrument)} practice close needs attention`, message: `The ${closeContext} broker close failed. The internal trade remains open.`, instrument: trade.instrument, paperTradeId: trade.id, dedupeKey: `practice_close_failed:${trade.id}` });
         continue;
       }
     }
@@ -902,10 +905,61 @@ export async function collectPaperCycle() {
   return { opened, resolved, execution };
 }
 
+const EMPTY_WATCH_ROW = {
+  evaluatedAt: null,
+  dataStatus: "unavailable" as const,
+  setupStatus: "invalid" as const,
+  direction: null,
+  bid: null,
+  ask: null,
+  spreadPips: null,
+  entry: null,
+  stop: null,
+  target: null,
+  session: "Unavailable",
+  conditions: [],
+  features: {},
+  openTradeId: null,
+  batchNumber: null,
+  tradeSequence: null,
+  updatedAt: null,
+};
+
 export async function watchlistSnapshot() {
-  const rows = await query(`SELECT watch.instrument,watch.evaluated_at AS "evaluatedAt",watch.data_status AS "dataStatus",watch.setup_status AS "setupStatus",COALESCE(trade.direction,watch.direction) AS direction,watch.bid::float,watch.ask::float,watch.spread_pips::float AS "spreadPips",COALESCE(trade.entry,watch.entry)::float AS entry,COALESCE(trade.stop,watch.stop)::float AS stop,COALESCE(trade.target,watch.target)::float AS target,watch.session,watch.conditions,watch.features,watch.open_trade_id AS "openTradeId",watch.batch_number AS "batchNumber",watch.updated_at AS "updatedAt",trade.trade_sequence::text AS "tradeSequence" FROM paper_watch_snapshots watch LEFT JOIN paper_strategy_trades trade ON trade.id=watch.open_trade_id ORDER BY array_position($1::text[],watch.instrument)`, [MAJOR_INSTRUMENTS]);
-  const byInstrument = new Map(rows.rows.map((row: any) => [row.instrument, row]));
-  return MAJOR_INSTRUMENTS.map((instrument) => byInstrument.get(instrument) ?? { instrument, evaluatedAt: null, dataStatus: "unavailable", setupStatus: "invalid", direction: null, bid: null, ask: null, spreadPips: null, entry: null, stop: null, target: null, session: "Unavailable", conditions: [], features: {}, openTradeId: null, batchNumber: null, tradeSequence: null, updatedAt: null });
+  const paper = await query(`SELECT watch.instrument,watch.evaluated_at AS "evaluatedAt",watch.data_status AS "dataStatus",watch.setup_status AS "setupStatus",COALESCE(trade.direction,watch.direction) AS direction,watch.bid::float,watch.ask::float,watch.spread_pips::float AS "spreadPips",COALESCE(trade.entry,watch.entry)::float AS entry,COALESCE(trade.stop,watch.stop)::float AS stop,COALESCE(trade.target,watch.target)::float AS target,watch.session,watch.conditions,watch.features,watch.open_trade_id AS "openTradeId",watch.batch_number AS "batchNumber",watch.updated_at AS "updatedAt",trade.trade_sequence::text AS "tradeSequence" FROM paper_watch_snapshots watch LEFT JOIN paper_strategy_trades trade ON trade.id=watch.open_trade_id ORDER BY array_position($1::text[],watch.instrument)`, [MAJOR_INSTRUMENTS]);
+  // The live collector writes here. Prefer it so pairs added after the last
+  // liquidity-cycle snapshot still appear as connected once they have been evaluated.
+  const multi = await query(
+    `SELECT DISTINCT ON (watch.instrument)
+            watch.instrument,
+            watch.evaluated_at AS "evaluatedAt",
+            watch.data_status AS "dataStatus",
+            watch.setup_status AS "setupStatus",
+            COALESCE(trade.direction, watch.direction) AS direction,
+            watch.bid::float,
+            watch.ask::float,
+            watch.spread_pips::float AS "spreadPips",
+            COALESCE(trade.entry, watch.entry)::float AS entry,
+            COALESCE(trade.stop, watch.stop)::float AS stop,
+            COALESCE(trade.target, watch.target)::float AS target,
+            watch.session,
+            watch.conditions,
+            watch.features,
+            watch.open_trade_id AS "openTradeId",
+            NULL::int AS "batchNumber",
+            watch.updated_at AS "updatedAt",
+            trade.trade_sequence::text AS "tradeSequence"
+       FROM multistrategy_watch_snapshots watch
+       LEFT JOIN paper_strategy_trades trade ON trade.id = watch.open_trade_id
+      ORDER BY watch.instrument, watch.selected DESC, watch.updated_at DESC`,
+  );
+  const paperByInstrument = new Map(paper.rows.map((row: any) => [row.instrument, row]));
+  const multiByInstrument = new Map(multi.rows.map((row: any) => [row.instrument, row]));
+  return MAJOR_INSTRUMENTS.map((instrument) =>
+    multiByInstrument.get(instrument)
+    ?? paperByInstrument.get(instrument)
+    ?? { instrument, ...EMPTY_WATCH_ROW },
+  );
 }
 
 export async function paperCycleOverview() {
@@ -1262,6 +1316,17 @@ export async function collectMultiStrategyCycle() {
       const execStatus = executionStatusFor(candidate);
       await persistPaperEvaluation(candidate, attribution.versionId, spreadPips, attribution, execStatus);
       await persistMultiWatchSnapshot(candidate, quote, attribution, execStatus === "selected" && openedTradeId !== null, decision.reason, session, isSelected(candidate) ? openedTradeId : null);
+    }
+
+    // Dashboard /api/watchlist still reads paper_watch_snapshots. Mirror the
+    // selected (or best) candidate there so newly added majors are not left as
+    // "unavailable" just because the live collector writes a different table.
+    const representative =
+      candidates.find(isSelected)
+      ?? candidates.find((candidate) => candidate.status === "valid")
+      ?? candidates[0];
+    if (representative) {
+      await persistWatchSnapshot(representative, quote, attributionFor(representative, versionIds, experimentId).versionId);
     }
 
     if (!liveData && !reportedDataIssue) {

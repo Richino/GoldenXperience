@@ -1,4 +1,4 @@
-const CACHE_NAME = 'goldenxperience-v2';
+const CACHE_NAME = 'goldenxperience-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -39,7 +39,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (url.pathname.startsWith('/api/')) {
-    event.respondWith(networkFirst(request));
+    return;
   } else if (
     url.pathname.match(/\.(js|css|woff2?|png|jpg|jpeg|svg|ico)$/i) ||
     url.pathname === '/' ||
@@ -64,11 +64,16 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const targetUrl = new URL(event.notification.data?.url || '/', self.location.origin).href;
-  event.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
-    const existing = windows.find((client) => 'focus' in client);
-    if (existing) return existing.focus().then(() => existing.navigate(targetUrl));
-    return clients.openWindow(targetUrl);
-  }));
+  event.waitUntil((async () => {
+    const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of windows) {
+      if (!client.url.startsWith(self.location.origin) || !('focus' in client)) continue;
+      await client.focus();
+      if ('navigate' in client) await client.navigate(targetUrl);
+      return;
+    }
+    await clients.openWindow(targetUrl);
+  })());
 });
 
 async function networkFirst(request) {

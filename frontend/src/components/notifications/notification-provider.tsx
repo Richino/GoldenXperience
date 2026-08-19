@@ -1,24 +1,19 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "@/hooks/use-toast";
 import { apiUrl } from "@/lib/api/url";
+import { detailTone, displayDetail, displayTitle, notificationHref, sampleToastNotification } from "@/lib/notifications/display";
 import { NOTIFICATION_SOUND_KEY, NOTIFICATION_VOLUME_KEY, notificationSoundPath, notificationVolume } from "@/lib/notifications/sounds";
+import type { AppNotification, NotificationToast } from "@/lib/notifications/types";
 
-export type AppNotification = {
-  id: string;
-  kind: "setup_ready" | "paper_opened" | "paper_closed" | "system_issue";
-  title: string;
-  message: string;
-  instrument: string | null;
-  paperTradeId: string | null;
-  readAt: string | null;
-  createdAt: string;
-};
+export type { AppNotification, NotificationToast };
 
 type NotificationContextValue = {
   notifications: AppNotification[];
   unreadCount: number;
   markRead: (ids?: string[]) => Promise<void>;
+  previewToast: () => void;
 };
 
 const NotificationContext = createContext<NotificationContextValue | null>(null);
@@ -29,6 +24,14 @@ function useNotificationContext() {
   return value;
 }
 
+function playSelectedSound(audio: HTMLAudioElement | null) {
+  if (!audio) return;
+  audio.src = notificationSoundPath(window.localStorage.getItem(NOTIFICATION_SOUND_KEY));
+  audio.volume = notificationVolume(window.localStorage.getItem(NOTIFICATION_VOLUME_KEY));
+  audio.currentTime = 0;
+  void audio.play().catch(() => undefined);
+}
+
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -36,21 +39,41 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const initialized = useRef(false);
   const seenIds = useRef(new Set<string>());
   const audio = useRef<HTMLAudioElement | null>(null);
+  const markReadRef = useRef<(ids?: string[]) => Promise<void>>(async () => undefined);
 
-  const announce = useCallback((events: AppNotification[]) => {
+  const present = useCallback((events: NotificationToast[]) => {
     if (!events.length) return;
-    const selectedSound = window.localStorage.getItem(NOTIFICATION_SOUND_KEY);
-    if (audio.current) {
-      audio.current.src = notificationSoundPath(selectedSound);
-      audio.current.volume = notificationVolume(window.localStorage.getItem(NOTIFICATION_VOLUME_KEY));
-      audio.current.currentTime = 0;
-      void audio.current.play().catch(() => undefined);
+    playSelectedSound(audio.current);
+    for (const item of [...events].reverse()) {
+      const detail = displayDetail(item);
+      toast({
+        title: displayTitle(item),
+        description: detail || undefined,
+        href: item.preview ? undefined : notificationHref(item),
+        preview: item.preview,
+        tone: detailTone(item),
+        variant: item.kind === "system_issue" ? "destructive" : "default",
+        onNavigate: item.preview
+          ? undefined
+          : () => {
+              void markReadRef.current([item.id]);
+            },
+      });
     }
-    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-      const latest = events[0]!;
+    const hidden = document.visibilityState !== "visible";
+    const latest = events[0]!;
+    if (hidden && !latest.preview && typeof Notification !== "undefined" && Notification.permission === "granted") {
       new Notification(latest.title, { body: latest.message, tag: latest.id });
     }
   }, []);
+
+  const previewToast = useCallback(() => {
+    present([{ ...sampleToastNotification(), preview: true }]);
+  }, [present]);
+
+  const announce = useCallback((events: AppNotification[]) => {
+    present(events);
+  }, [present]);
 
   const refresh = useCallback(async () => {
     const url = cursor ? apiUrl(`/api/notifications?after=${encodeURIComponent(cursor)}`) : apiUrl("/api/notifications");
@@ -86,8 +109,20 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     setUnreadCount((count) => ids?.length ? Math.max(0, count - ids.filter((id) => notifications.some((item) => item.id === id && !item.readAt)).length) : 0);
   }, [notifications]);
 
-  const value = useMemo(() => ({ notifications, unreadCount, markRead }), [markRead, notifications, unreadCount]);
-  return <NotificationContext.Provider value={value}><audio ref={audio} preload="auto" aria-hidden="true" />{children}</NotificationContext.Provider>;
+  useEffect(() => {
+    markReadRef.current = markRead;
+  }, [markRead]);
+
+  const value = useMemo(
+    () => ({ notifications, unreadCount, markRead, previewToast }),
+    [markRead, notifications, previewToast, unreadCount],
+  );
+  return (
+    <NotificationContext.Provider value={value}>
+      <audio ref={audio} preload="auto" aria-hidden="true" />
+      {children}
+    </NotificationContext.Provider>
+  );
 }
 
 export { useNotificationContext };

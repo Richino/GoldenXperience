@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { buildPaperRecommendation, paperBatchMetrics, paperBreakdown, paperRiskAllowsEntry, parsePaperRiskConfiguration, type StoredTrade } from "../src/paper-cycle.js";
 import { MAJOR_INSTRUMENTS } from "../../frontend/src/types/forex.js";
 
-assert.deepEqual(MAJOR_INSTRUMENTS, ["EUR_USD", "GBP_USD", "USD_JPY", "AUD_USD", "NZD_USD", "USD_CAD", "USD_CHF", "EUR_GBP", "EUR_JPY", "GBP_JPY"], "the monitored universe must remain the fixed ten-pair contract");
+assert.deepEqual(MAJOR_INSTRUMENTS, ["EUR_USD", "GBP_USD", "USD_JPY", "AUD_USD", "NZD_USD", "USD_CAD", "USD_CHF", "EUR_GBP", "EUR_JPY", "GBP_JPY", "AUD_JPY", "EUR_AUD"], "the monitored universe is the featured pair set");
 assert.deepEqual(parsePaperRiskConfiguration({ riskPercent: 0.5, maxSimultaneousPositions: 3, maxTotalNominalRiskPercent: 2 }), { riskPercent: 0.5, maxSimultaneousPositions: 3, maxTotalNominalRiskPercent: 2 });
 assert.deepEqual(parsePaperRiskConfiguration({ riskPercent: 1, maxSimultaneousPositions: null, maxTotalNominalRiskPercent: null }), { riskPercent: 1, maxSimultaneousPositions: null, maxTotalNominalRiskPercent: null }, "position and total exposure limits may be unlimited");
 assert.throws(() => parsePaperRiskConfiguration({ riskPercent: 10, maxSimultaneousPositions: null, maxTotalNominalRiskPercent: null }), /between 0.1% and 5%/);
-assert.throws(() => parsePaperRiskConfiguration({ riskPercent: 1, maxSimultaneousPositions: 11, maxTotalNominalRiskPercent: null }), /between 1 and 10/);
+assert.throws(() => parsePaperRiskConfiguration({ riskPercent: 1, maxSimultaneousPositions: MAJOR_INSTRUMENTS.length + 1, maxTotalNominalRiskPercent: null }), new RegExp(`between 1 and ${MAJOR_INSTRUMENTS.length}`));
 assert.equal(paperRiskAllowsEntry({ riskPercent: 1, maxSimultaneousPositions: null, maxTotalNominalRiskPercent: null }, 10, 10), true, "unlimited collection accepts cross-pair exposure");
 assert.equal(paperRiskAllowsEntry({ riskPercent: 1, maxSimultaneousPositions: 3, maxTotalNominalRiskPercent: null }, 3, 3), false, "position cap blocks a new entry");
 assert.equal(paperRiskAllowsEntry({ riskPercent: 1, maxSimultaneousPositions: null, maxTotalNominalRiskPercent: 3 }, 2, 2.5), false, "total nominal exposure cap blocks a new entry");

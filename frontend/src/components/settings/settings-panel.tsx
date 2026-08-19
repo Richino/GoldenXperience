@@ -2,15 +2,13 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useTheme } from "next-themes";
-import { RefreshCw, Volume1, Volume2, VolumeX } from "lucide-react";
+import { Volume1, Volume2, VolumeX } from "lucide-react";
 import { SelectMenu } from "@/components/ui/select-menu";
 import { useTextSize } from "@/components/providers/text-size-provider";
-import { useMarketStream } from "@/lib/market-stream/use-market-stream";
-import { apiUrl } from "@/lib/api/url";
 import { DEFAULT_NOTIFICATION_VOLUME, NOTIFICATION_SOUND_KEY, NOTIFICATION_VOLUME_KEY, notificationSounds, notificationVolume, type NotificationSound } from "@/lib/notifications/sounds";
+import { currentPushStatus, subscribeThisDeviceToPush, type PushUiStatus } from "@/lib/notifications/push";
+import { useNotificationContext } from "@/components/notifications/notification-provider";
 import type { TextSize } from "@/lib/text-size";
-import type { ConnectionStatus } from "@/types/forex";
-import type { MarketStreamState } from "@/types/market-stream";
 
 const textSizeOptions: { value: TextSize; label: string }[] = [
   { value: "small", label: "S" },
@@ -50,30 +48,6 @@ function SegmentControl<T extends string>({
   );
 }
 
-function statusBadgeClass(state: ConnectionStatus["state"]) {
-  switch (state) {
-    case "connected":
-      return "is-success";
-    case "error":
-      return "is-danger";
-    default:
-      return "is-accent";
-  }
-}
-
-function streamBadgeClass(state: MarketStreamState) {
-  switch (state) {
-    case "connected":
-      return "is-success";
-    case "error":
-      return "is-danger";
-    case "mock":
-      return "is-accent";
-    default:
-      return "is-muted";
-  }
-}
-
 function browserAlertDetail(permission: NotificationPermission | "unsupported") {
   switch (permission) {
     case "granted":
@@ -91,7 +65,7 @@ function browserAlertDetail(permission: NotificationPermission | "unsupported") 
   }
 }
 
-function pushDetail(status: "checking" | "available" | "enabled" | "unsupported" | "unavailable" | "error") {
+function pushDetail(status: PushUiStatus, errorMessage: string | null) {
   switch (status) {
     case "enabled":
       return "Enabled on this device";
@@ -99,8 +73,12 @@ function pushDetail(status: "checking" | "available" | "enabled" | "unsupported"
       return "Server not configured";
     case "unsupported":
       return "Not supported here";
+    case "insecure":
+      return "Needs HTTPS";
+    case "install_required":
+      return "Add to Home Screen, then open the app";
     case "error":
-      return "Could not enable";
+      return errorMessage ?? "Could not enable";
     case "checking":
       return "Checking…";
     case "available":
@@ -112,25 +90,7 @@ function pushDetail(status: "checking" | "available" | "enabled" | "unsupported"
   }
 }
 
-const unavailableStatus: ConnectionStatus = {
-  state: "error",
-  source: "mock",
-  environment: "practice",
-  label: "OANDA unavailable",
-  message: "The connection status is temporarily unavailable.",
-  checkedAt: new Date(0).toISOString(),
-};
-
-type PracticeExecution = {
-  policy: { enabled: boolean; updatedAt: string };
-  intents: { pending: number; sending: number; submitted: number; failed: number; unknown: number };
-};
-
-export function SettingsPanel({
-  initialStatus,
-}: {
-  initialStatus?: ConnectionStatus;
-}) {
+export function SettingsPanel() {
   const { resolvedTheme, setTheme } = useTheme();
   const { textSize, setTextSize, mounted: textSizeMounted } = useTextSize();
   const mounted = useSyncExternalStore(
@@ -138,15 +98,13 @@ export function SettingsPanel({
     () => true,
     () => false,
   );
-  const [status, setStatus] = useState(initialStatus ?? unavailableStatus);
-  const [testing, setTesting] = useState(false);
   const [notificationSound, setNotificationSound] = useState<NotificationSound>("soft-whistle");
   const [notificationVolumePercent, setNotificationVolumePercent] = useState(Math.round(DEFAULT_NOTIFICATION_VOLUME * 100));
   const [browserNotificationPermission, setBrowserNotificationPermission] = useState<NotificationPermission | "unsupported">("unsupported");
-  const [pushStatus, setPushStatus] = useState<"checking" | "available" | "enabled" | "unsupported" | "unavailable" | "error">("checking");
+  const [pushStatus, setPushStatus] = useState<PushUiStatus>("checking");
   const [pushBusy, setPushBusy] = useState(false);
-  const [practiceExecution, setPracticeExecution] = useState<PracticeExecution | null>(null);
-  const [savingPracticeExecution, setSavingPracticeExecution] = useState(false);
+  const [pushError, setPushError] = useState<string | null>(null);
+  const { previewToast } = useNotificationContext();
   const notificationAudio = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -156,21 +114,7 @@ export function SettingsPanel({
     const parsedVolume = Number(storedVolume);
     if (Number.isFinite(parsedVolume)) setNotificationVolumePercent(Math.min(100, Math.max(0, parsedVolume)));
     setBrowserNotificationPermission(typeof Notification === "undefined" ? "unsupported" : Notification.permission);
-    void (async () => {
-      if (!("serviceWorker" in navigator) || !("PushManager" in window) || typeof Notification === "undefined") return setPushStatus("unsupported");
-      try {
-        const registration = await navigator.serviceWorker.getRegistration();
-        const subscription = await registration?.pushManager.getSubscription();
-        const response = await fetch(apiUrl("/api/push/vapid-key"), { credentials: "include", cache: "no-store" });
-        setPushStatus(response.ok && subscription ? "enabled" : response.ok ? "available" : "unavailable");
-      } catch { setPushStatus("error"); }
-    })();
-  }, []);
-
-  useEffect(() => {
-    void fetch(apiUrl("/api/practice-execution"), { credentials: "include", cache: "no-store" })
-      .then((response) => response.ok ? response.json() as Promise<PracticeExecution> : null)
-      .then((value) => setPracticeExecution(value));
+    void currentPushStatus().then(setPushStatus);
   }, []);
 
   function selectNotificationSound(value: NotificationSound) {
@@ -192,130 +136,31 @@ export function SettingsPanel({
     setBrowserNotificationPermission(await Notification.requestPermission());
   }
 
-  function decodeBase64Url(value: string) {
-    const padding = "=".repeat((4 - value.length % 4) % 4);
-    const binary = window.atob((value + padding).replace(/-/g, "+").replace(/_/g, "/"));
-    return Uint8Array.from(binary, (character) => character.charCodeAt(0));
-  }
-
   async function enablePushNotifications() {
     setPushBusy(true);
+    setPushError(null);
     try {
-      if (typeof Notification === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) return setPushStatus("unsupported");
-      const permission = await Notification.requestPermission();
-      setBrowserNotificationPermission(permission);
-      if (permission !== "granted") return setPushStatus("error");
-      const keyResponse = await fetch(apiUrl("/api/push/vapid-key"), { credentials: "include", cache: "no-store" });
-      if (!keyResponse.ok) return setPushStatus("unavailable");
-      const { publicKey } = await keyResponse.json() as { publicKey: string };
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: decodeBase64Url(publicKey) });
-      const response = await fetch(apiUrl("/api/push/subscribe"), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subscription }) });
-      setPushStatus(response.ok ? "enabled" : "error");
-    } catch { setPushStatus("error"); }
-    finally { setPushBusy(false); }
-  }
-
-  async function togglePracticeExecution() {
-    if (status.state !== "connected" || status.environment !== "practice") return;
-    setSavingPracticeExecution(true);
-    try {
-      const response = await fetch(apiUrl("/api/practice-execution"), {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: !practiceExecution?.policy.enabled }),
-      });
-      const payload = await response.json() as { policy?: PracticeExecution["policy"] };
-      if (response.ok && payload.policy) setPracticeExecution((current) => ({ policy: payload.policy!, intents: current?.intents ?? { pending: 0, sending: 0, submitted: 0, failed: 0, unknown: 0 } }));
+      const result = await subscribeThisDeviceToPush();
+      setPushStatus(result.status);
+      if ("permission" in result && result.permission) setBrowserNotificationPermission(result.permission);
+      if (result.status === "error") setPushError(result.message ?? "Could not enable");
+    } catch (reason) {
+      setPushStatus("error");
+      setPushError(reason instanceof Error ? reason.message : "Could not enable");
     } finally {
-      setSavingPracticeExecution(false);
-    }
-  }
-
-  useEffect(() => {
-    setStatus(initialStatus ?? unavailableStatus);
-  }, [initialStatus]);
-
-  const marketStream = useMarketStream("EUR_USD", undefined, {
-    trackPrice: false,
-  });
-  const streamLabel =
-    marketStream.state === "connected"
-      ? "Live"
-      : marketStream.state === "mock"
-        ? "Mock"
-        : marketStream.state === "connecting" || marketStream.state === "idle"
-          ? "Connecting"
-          : "Offline";
-  const foundationItems = [
-    {
-      label: "Market data",
-      value:
-        status.state === "connected" && marketStream.state === "connected"
-          ? "OANDA practice"
-          : marketStream.state === "mock"
-            ? "Mock stream"
-            : "Not connected",
-      meta:
-        status.state === "connected" && marketStream.state === "connected"
-          ? "REST + stream"
-          : "Check connection",
-      tone:
-        status.state === "connected" && marketStream.state === "connected"
-          ? ("success" as const)
-          : ("accent" as const),
-    },
-    {
-      label: "Paper journal",
-      value: "API-backed",
-      meta: "Railway Postgres",
-      tone: "success" as const,
-    },
-    {
-      label: "Research data",
-      value: "OANDA candles",
-      meta: "Price-only evidence",
-      tone: "success" as const,
-    },
-  ];
-
-  async function testConnection() {
-    setTesting(true);
-    try {
-      const response = await fetch(apiUrl("/api/oanda/test"), { credentials: "include", cache: "no-store" });
-      const payload = (await response.json()) as {
-        status?: ConnectionStatus;
-        data?: { status?: ConnectionStatus };
-      };
-      const nextStatus = payload.status ?? payload.data?.status;
-      if (!nextStatus) throw new Error("The connection endpoint returned no status.");
-      setStatus(nextStatus);
-    } catch (error) {
-      setStatus({
-        state: "error",
-        source: "mock",
-        environment: "practice",
-        label: "OANDA unavailable",
-        message: error instanceof Error ? error.message : "The connection test could not be completed.",
-        checkedAt: new Date().toISOString(),
-      });
-    } finally {
-      setTesting(false);
+      setPushBusy(false);
     }
   }
 
   const themeValue =
     mounted && resolvedTheme === "dark" ? "dark" : "light";
-  const practiceCanArm = status.state === "connected" && status.environment === "practice";
-  const practiceArmed = Boolean(practiceExecution?.policy.enabled);
 
   return (
     <div className="settings-view settings-minimal space-y-8 lg:space-y-10">
       <header>
         <h1 className="text-display">Settings</h1>
         <p className="mt-1 text-sm text-[color:var(--muted)]">
-          Theme, alerts, and broker connection
+          Theme and alerts
         </p>
       </header>
 
@@ -401,6 +246,16 @@ export function SettingsPanel({
 
           <div className="settings-row">
             <div className="min-w-0">
+              <p className="text-sm font-medium">Toast</p>
+              <p className="mt-0.5 text-xs text-[color:var(--muted)]">Sample alert with the selected sound</p>
+            </div>
+            <button type="button" className="secondary-button pressable" onClick={previewToast}>
+              Test
+            </button>
+          </div>
+
+          <div className="settings-row">
+            <div className="min-w-0">
               <p className="text-sm font-medium">Browser alerts</p>
               <p className="mt-0.5 text-xs text-[color:var(--muted)]">{browserAlertDetail(browserNotificationPermission)}</p>
             </div>
@@ -414,9 +269,9 @@ export function SettingsPanel({
           <div className="settings-row">
             <div className="min-w-0">
               <p className="text-sm font-medium">Push</p>
-              <p className="mt-0.5 text-xs text-[color:var(--muted)]">{pushDetail(pushStatus)}</p>
+              <p className="mt-0.5 text-xs text-[color:var(--muted)]">{pushDetail(pushStatus, pushError)}</p>
             </div>
-            {pushStatus !== "enabled" && pushStatus !== "unsupported" && pushStatus !== "checking" ? (
+            {pushStatus === "available" || pushStatus === "unavailable" || pushStatus === "error" ? (
               <button type="button" className="secondary-button pressable" disabled={pushBusy} onClick={() => void enablePushNotifications()}>
                 {pushBusy ? "Enabling…" : "Enable"}
               </button>
@@ -424,107 +279,6 @@ export function SettingsPanel({
           </div>
         </div>
         <audio ref={notificationAudio} preload="none" aria-hidden="true" />
-      </section>
-
-      <section className="settings-minimal-section" aria-label="OANDA">
-        <div className="flex items-baseline justify-between gap-3">
-          <h2 className="text-sm font-semibold tracking-[-0.01em]">OANDA</h2>
-          <button
-            type="button"
-            onClick={() => void testConnection()}
-            disabled={testing}
-            className="link-quiet pressable inline-flex items-center gap-1.5 text-xs"
-          >
-            <RefreshCw className={`size-3.5 ${testing ? "animate-spin" : ""}`} />
-            {testing ? "Testing…" : "Test"}
-          </button>
-        </div>
-
-        <div className="mt-3">
-          <div className="settings-status">
-            <div className="min-w-0">
-              <div className="settings-status-title">{status.label}</div>
-              <p className="settings-status-detail">{status.message}</p>
-            </div>
-            <span className={`settings-status-badge ${statusBadgeClass(status.state)}`}>
-              {status.state === "connected" ? "Connected" : status.state}
-            </span>
-          </div>
-
-          <div className="settings-status">
-            <div className="min-w-0">
-              <div className="settings-status-title">Pricing stream</div>
-              <p className="settings-status-detail">{marketStream.message}</p>
-            </div>
-            <span className={`settings-status-badge ${streamBadgeClass(marketStream.state)}`}>
-              {streamLabel}
-            </span>
-          </div>
-
-          {["OANDA_API_KEY", "OANDA_ACCOUNT_ID"].map((name) => (
-            <div key={name} className="settings-env">
-              <span className="settings-env-name">{name}</span>
-              <span className="settings-env-hint">Server only</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="settings-minimal-section" aria-label="Demo auto-trading">
-        <div className="flex items-baseline justify-between gap-3">
-          <h2 className="text-sm font-semibold tracking-[-0.01em]">Demo auto-trading</h2>
-          <span className={`text-xs font-medium ${practiceArmed ? "text-[color:var(--success)]" : "text-[color:var(--muted)]"}`}>
-            {practiceArmed ? "Armed" : "Off"}
-          </span>
-        </div>
-
-        <div className="mt-4 settings-row">
-          <div className="min-w-0">
-            <p className="text-sm font-medium">
-              {practiceArmed ? "Practice orders on" : "Practice orders off"}
-            </p>
-            <p className="mt-0.5 text-xs text-[color:var(--muted)]">
-              {practiceCanArm
-                ? "OANDA Practice only"
-                : "Connect a practice account to arm"}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => void togglePracticeExecution()}
-            disabled={savingPracticeExecution || !practiceCanArm}
-            className={practiceArmed ? "secondary-button pressable" : "primary-button pressable"}
-          >
-            {savingPracticeExecution ? "Saving…" : practiceArmed ? "Turn off" : "Arm"}
-          </button>
-        </div>
-
-        {practiceExecution ? (
-          <p className="mt-3 text-xs text-[color:var(--muted)]">
-            Intents: {practiceExecution.intents.pending} pending · {practiceExecution.intents.submitted} submitted · {practiceExecution.intents.failed} failed · {practiceExecution.intents.unknown} review
-          </p>
-        ) : null}
-      </section>
-
-      <section className="settings-minimal-section" aria-label="Data">
-        <h2 className="text-sm font-semibold tracking-[-0.01em]">Data</h2>
-        <div className="mt-3">
-          {foundationItems.map((item) => (
-            <div key={item.label} className="settings-status">
-              <div className="min-w-0">
-                <div className="settings-status-title">{item.label}</div>
-                <p className="settings-status-detail">{item.value}</p>
-              </div>
-              <span
-                className={`settings-status-badge ${
-                  item.tone === "success" ? "is-success" : "is-accent"
-                }`}
-              >
-                {item.meta}
-              </span>
-            </div>
-          ))}
-        </div>
       </section>
     </div>
   );

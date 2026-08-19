@@ -15,7 +15,8 @@ import { useOpenPositionFills } from "@/lib/market-stream/use-open-positions";
 import { JournalEntriesSkeleton } from "@/components/ui/page-skeletons";
 import Link from "next/link";
 
-const BASE_FILTERS = ["All", "Wins", "Losses", "EUR/USD", "GBP/USD", "USD/JPY"];
+const FILTERS = ["All", "Wins", "Losses"] as const;
+type JournalFilter = (typeof FILTERS)[number];
 
 function decimalsForPair(pair: string) {
   return pair.endsWith("/JPY") ? 3 : 5;
@@ -170,8 +171,6 @@ function JournalTradeRow({
 
   return (
     <article className="journal-entry">
-      {/* The note stays outside the link: it is a `details` toggle, and a tap
-          on it has to open the note rather than navigate away. */}
       {href ? (
         <Link href={href} className="journal-entry-open pressable">
           {body}
@@ -181,17 +180,17 @@ function JournalTradeRow({
       )}
 
       {trade.notes ? (
-        <details className="journal-entry-note">
-          <summary>Note</summary>
+        <div className="journal-entry-note">
+          <p className="journal-entry-note-label">Note</p>
           <p>{trade.notes}</p>
-        </details>
+        </div>
       ) : null}
     </article>
   );
 }
 
 export function JournalView({ embedded = false }: { embedded?: boolean } = {}) {
-  const [activeFilter, setActiveFilter] = useState("All");
+  const [activeFilter, setActiveFilter] = useState<JournalFilter>("All");
   const [records, setRecords] = useState<JournalTrade[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -240,24 +239,21 @@ export function JournalView({ embedded = false }: { embedded?: boolean } = {}) {
     window.dispatchEvent(new Event(PAPER_JOURNAL_UPDATED_EVENT));
   }, [records, storageReady]);
 
-  const filters = useMemo(
-    () => [
-      ...BASE_FILTERS,
-      ...[...new Set(records.map((trade) => trade.pair))]
-        .filter((pair) => !BASE_FILTERS.includes(pair))
-        .sort(),
-    ],
-    [records],
-  );
-  const filtered = useMemo(
-    () => {
-      if (activeFilter === "All") return records;
-      if (activeFilter === "Wins") return records.filter((trade) => (trade.resultR ?? 0) > 0);
-      if (activeFilter === "Losses") return records.filter((trade) => (trade.resultR ?? 0) < 0);
-      return records.filter((trade) => trade.pair === activeFilter);
-    },
-    [activeFilter, records],
-  );
+  const filtered = useMemo(() => {
+    switch (activeFilter) {
+      case "All":
+        return records;
+      case "Wins":
+        return records.filter((trade) => (trade.resultR ?? 0) > 0);
+      case "Losses":
+        return records.filter((trade) => (trade.resultR ?? 0) < 0);
+      default: {
+        const _exhaustive: never = activeFilter;
+        void _exhaustive;
+        return records;
+      }
+    }
+  }, [activeFilter, records]);
   const closedTrades = records.filter(
     (trade): trade is JournalTrade & { resultR: number } =>
       trade.status === "closed" && trade.resultR !== null,
@@ -318,7 +314,7 @@ export function JournalView({ embedded = false }: { embedded?: boolean } = {}) {
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h2 className="text-sm font-semibold tracking-[-0.01em]">Trade log</h2>
           <div className="flex flex-wrap gap-1.5">
-            {filters.map((filter) => (
+            {FILTERS.map((filter) => (
               <button
                 key={filter}
                 type="button"

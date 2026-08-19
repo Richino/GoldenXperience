@@ -21,11 +21,26 @@ import { PwaPullToRefresh } from "@/components/ui/pwa-pull-to-refresh";
 import { SignOutButton } from "@/components/ui/sign-out-button";
 import { NotificationProvider } from "@/components/notifications/notification-provider";
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { Toaster } from "@/components/ui/toaster";
 
 interface NavItem {
   label: string;
   href: string;
   icon: LucideIcon;
+}
+
+function replayNavClick(event: React.PointerEvent<HTMLElement>) {
+  const target = event.currentTarget;
+  target.classList.remove("nav-mobile-link-click");
+  void target.offsetWidth;
+  target.classList.add("nav-mobile-link-click");
+}
+
+function clearNavClick(event: React.AnimationEvent<HTMLElement>) {
+  if (event.animationName !== "nav-mobile-click") {
+    return;
+  }
+  event.currentTarget.classList.remove("nav-mobile-link-click");
 }
 
 const navItems: NavItem[] = [
@@ -114,6 +129,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <NotificationProvider>
+    <Toaster />
     <PwaPullToRefresh>
       <NavigationProgress />
       <div className="fixed right-8 top-6 z-50 hidden lg:block">
@@ -192,7 +208,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         aria-label="Mobile navigation"
       >
         {mobileMoreOpen ? (
-          <div className="nav-more-sheet mx-auto mb-2 w-full max-w-[22rem]">
+          <div className="nav-more-sheet mx-auto mb-2 w-full max-w-[24rem]">
             {mobileMoreItems.map((item) => {
               const active = isActive(pathname, item.href);
               const Icon = item.icon;
@@ -215,7 +231,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         ) : null}
 
-        <div className="nav-pill mx-auto flex w-full max-w-[22rem] items-center justify-between gap-1 px-2 py-1.5">
+        <div className="nav-pill mx-auto flex w-full max-w-[24rem] items-center justify-between gap-1 px-3 py-2.5">
           {mobileNavItems.map((item) => {
             const active = isActive(pathname, item.href);
             const Icon = item.icon;
@@ -229,6 +245,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 }`}
                 aria-current={active ? "page" : undefined}
                 aria-label={item.label}
+                onPointerDown={replayNavClick}
+                onAnimationEnd={clearNavClick}
               >
                 <Icon className="size-[1.2rem]" strokeWidth={active ? 2.3 : 1.85} />
               </Link>
@@ -241,6 +259,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             }`}
             aria-label="More"
             aria-expanded={mobileMoreOpen}
+            onPointerDown={replayNavClick}
+            onAnimationEnd={clearNavClick}
             onClick={() => setMobileMoreOpen((open) => !open)}
           >
             <MoreHorizontal

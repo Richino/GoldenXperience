@@ -108,11 +108,9 @@ function chartTheme(
       : "#ffffff";
   const scaleText = isDark ? "#71717a" : "#8e8e93";
   const accent = isDark ? "#00e59b" : "#00b377";
-  const gridLine = embedded
-    ? "transparent"
-    : isDark
-      ? "rgba(255,255,255,0.04)"
-      : "rgba(0,0,0,0.04)";
+  // Hairline grid at the time/price ticks. Kept just under `--border` so it
+  // reads as a terminal lattice without competing with the series.
+  const gridLine = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)";
 
   return {
     layout: {
@@ -124,8 +122,8 @@ function chartTheme(
       attributionLogo: false,
     },
     grid: {
-      vertLines: { color: "transparent" },
-      horzLines: { color: gridLine },
+      vertLines: { color: gridLine, style: LineStyle.Solid, visible: true },
+      horzLines: { color: gridLine, style: LineStyle.Solid, visible: true },
     },
     crosshair: {
       mode: CrosshairMode.Normal,
@@ -151,8 +149,8 @@ function chartTheme(
       borderColor: "transparent",
       textColor: scaleText,
       scaleMargins: {
-        top: embedded ? 0.14 : 0.1,
-        bottom: embedded ? 0.1 : 0.06,
+        top: embedded ? 0.08 : 0.1,
+        bottom: embedded ? 0.08 : 0.06,
       },
       // Wide enough on mobile to be a comfortable drag target for scaling.
       minimumWidth: embedded ? 56 : 68,

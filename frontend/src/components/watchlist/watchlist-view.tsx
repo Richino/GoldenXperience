@@ -97,8 +97,7 @@ function levelsContent(row: WatchRow, availability: PaperTradingAvailability) {
       </dl>
     );
   }
-  // The window message is in the header / section note; repeating the long
-  // availability.detail under every pair said nothing about this pair.
+  // Repeating the long availability.detail under every pair said nothing about this pair.
   if (!row.openTradeId && availability.state !== "entry_window_open") return null;
   const failed = row.conditions.filter((item) => item.required && !item.passed).map((item) => item.name).slice(0, 2);
   return failed.length ? `No setup: ${failed.join(", ")}` : "No valid trade levels";
@@ -162,11 +161,6 @@ export function WatchlistView() {
       <header className="flex items-end justify-between gap-4">
         <div className="min-w-0">
           <h1 className="text-display">Watchlist</h1>
-          <p className="mt-1 text-sm text-[color:var(--muted)]">
-            {availability.state === "entry_window_open"
-              ? "Ten-pair paper monitor"
-              : availability.detail}
-          </p>
         </div>
         <button
           type="button"

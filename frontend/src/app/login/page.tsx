@@ -43,17 +43,13 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="login-page min-h-dvh px-4 py-6 sm:px-6">
+    <main className="login-page px-4 sm:px-6">
       <div className="login-orb login-orb-primary" aria-hidden="true" />
       <div className="login-orb login-orb-secondary" aria-hidden="true" />
 
       <section className="login-shell">
         <div className="login-brand">
           <BrandMark />
-          <div className="login-status-pill">
-            <span className="login-status-dot" />
-            Private workspace
-          </div>
         </div>
 
         <form onSubmit={submit} className="login-card" autoComplete="off" noValidate>
@@ -118,8 +114,6 @@ export default function LoginPage() {
             {busy ? "Signing in…" : "Sign in to workspace"}
           </button>
         </form>
-
-        <p className="login-footnote">Your broker credentials and research data remain server-side.</p>
       </section>
     </main>
   );

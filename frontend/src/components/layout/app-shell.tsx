@@ -192,7 +192,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         aria-label="Mobile navigation"
       >
         {mobileMoreOpen ? (
-          <div className="nav-more-sheet mx-auto mb-2 w-full max-w-[24rem]">
+          <div className="nav-more-sheet mx-auto mb-2 w-full max-w-[26rem]">
             {mobileMoreItems.map((item) => {
               const active = isActive(pathname, item.href);
               const Icon = item.icon;

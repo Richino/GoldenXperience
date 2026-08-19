@@ -192,7 +192,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         aria-label="Mobile navigation"
       >
         {mobileMoreOpen ? (
-          <div className="nav-more-sheet mx-auto mb-2 w-full max-w-[22rem]">
+          <div className="nav-more-sheet mx-auto mb-2 w-full max-w-[24rem]">
             {mobileMoreItems.map((item) => {
               const active = isActive(pathname, item.href);
               const Icon = item.icon;
@@ -215,7 +215,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         ) : null}
 
-        <div className="nav-pill mx-auto flex w-full max-w-[22rem] items-center justify-between gap-1 px-2 py-1.5">
+        <div className="nav-pill mx-auto flex w-full max-w-[24rem] items-center justify-between gap-1.5 px-2.5 py-2">
           {mobileNavItems.map((item) => {
             const active = isActive(pathname, item.href);
             const Icon = item.icon;
@@ -230,7 +230,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 aria-current={active ? "page" : undefined}
                 aria-label={item.label}
               >
-                <Icon className="size-[1.2rem]" strokeWidth={active ? 2.3 : 1.85} />
+                <Icon className="size-6" strokeWidth={active ? 2.3 : 1.85} />
               </Link>
             );
           })}
@@ -244,7 +244,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             onClick={() => setMobileMoreOpen((open) => !open)}
           >
             <MoreHorizontal
-              className="size-[1.2rem]"
+              className="size-6"
               strokeWidth={mobileMoreOpen || moreActive ? 2.3 : 1.85}
             />
           </button>

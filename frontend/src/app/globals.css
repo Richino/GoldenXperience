@@ -1683,34 +1683,37 @@ input[type="number"] {
 }
 
 .nav-pill {
-  background: color-mix(in srgb, var(--surface) 94%, transparent);
-  backdrop-filter: blur(22px) saturate(160%);
-  -webkit-backdrop-filter: blur(22px) saturate(160%);
-  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  isolation: isolate;
+  background: color-mix(in srgb, var(--surface) 52%, transparent);
+  backdrop-filter: blur(32px) saturate(180%);
+  -webkit-backdrop-filter: blur(32px) saturate(180%);
+  border: 1px solid color-mix(in srgb, var(--foreground) 14%, transparent);
   border-radius: 999px;
   box-shadow:
-    0 1px 0 color-mix(in srgb, var(--foreground) 4%, transparent),
-    0 10px 28px color-mix(in srgb, var(--foreground) 6%, transparent);
+    inset 0 1px 0 color-mix(in srgb, var(--foreground) 22%, transparent),
+    inset 0 -0.5px 0 color-mix(in srgb, var(--background) 18%, transparent),
+    0 12px 36px color-mix(in srgb, var(--foreground) 10%, transparent);
   transition:
     transform 160ms cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 160ms ease;
 }
 
 .dark .nav-pill {
-  background: color-mix(in srgb, var(--surface) 88%, #000 12%);
-  border-color: color-mix(in srgb, var(--border-strong) 75%, transparent);
+  background: color-mix(in srgb, var(--surface) 38%, transparent);
+  border-color: color-mix(in srgb, var(--foreground) 16%, transparent);
   box-shadow:
-    0 1px 0 color-mix(in srgb, var(--foreground) 5%, transparent),
-    0 12px 30px color-mix(in srgb, var(--background) 75%, transparent);
+    inset 0 1px 0 color-mix(in srgb, var(--foreground) 20%, transparent),
+    inset 0 -0.5px 0 color-mix(in srgb, var(--background) 40%, transparent),
+    0 16px 40px color-mix(in srgb, var(--background) 55%, transparent);
 }
 
 .nav-mobile-link {
   display: grid;
   place-items: center;
   flex: 1 1 0;
-  min-width: 2.6rem;
-  min-height: 2.6rem;
-  max-width: 3rem;
+  min-width: 3rem;
+  min-height: 3rem;
+  max-width: 3.5rem;
   margin-inline: auto;
   border-radius: 999px;
   color: var(--muted);
@@ -1766,31 +1769,51 @@ input[type="number"] {
 
 @media (max-width: 1023px) {
   .nav-pill {
-    background: linear-gradient(115deg, color-mix(in srgb, var(--accent) 9%, var(--surface)), var(--surface) 58%, color-mix(in srgb, var(--accent) 5%, var(--surface)));
-    box-shadow: 0 10px 28px color-mix(in srgb, var(--foreground) 10%, transparent), 0 0 8px color-mix(in srgb, var(--accent) 6%, transparent);
+    background:
+      linear-gradient(
+        165deg,
+        color-mix(in srgb, var(--foreground) 10%, transparent),
+        transparent 42%
+      ),
+      color-mix(in srgb, var(--surface) 46%, transparent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--foreground) 24%, transparent),
+      inset 0 -0.5px 0 color-mix(in srgb, var(--background) 16%, transparent),
+      0 14px 40px color-mix(in srgb, var(--foreground) 12%, transparent);
   }
 
   .nav-mobile-link-active {
-    background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 20%, var(--surface)), color-mix(in srgb, var(--accent) 7%, var(--surface)));
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent), 0 3px 7px color-mix(in srgb, var(--accent) 7%, transparent);
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
   }
 
   .dark .nav-pill {
-    background: linear-gradient(115deg, color-mix(in srgb, var(--accent) 12%, var(--surface)), var(--surface) 58%, color-mix(in srgb, var(--accent) 6%, var(--surface)));
-    box-shadow: 0 12px 32px color-mix(in srgb, var(--background) 72%, transparent), 0 0 9px color-mix(in srgb, var(--accent) 7%, transparent);
+    background:
+      linear-gradient(
+        165deg,
+        color-mix(in srgb, var(--foreground) 12%, transparent),
+        transparent 46%
+      ),
+      color-mix(in srgb, var(--surface) 34%, transparent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--foreground) 18%, transparent),
+      inset 0 -0.5px 0 color-mix(in srgb, var(--background) 45%, transparent),
+      0 18px 44px color-mix(in srgb, var(--background) 58%, transparent);
   }
 }
 
 .nav-more-sheet {
   display: grid;
   gap: 0.25rem;
-  border-radius: 1.15rem;
-  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
-  background: color-mix(in srgb, var(--surface) 96%, transparent);
-  backdrop-filter: blur(22px) saturate(160%);
-  -webkit-backdrop-filter: blur(22px) saturate(160%);
-  padding: 0.4rem;
-  box-shadow: 0 12px 32px color-mix(in srgb, var(--foreground) 8%, transparent);
+  border-radius: 1.35rem;
+  border: 1px solid color-mix(in srgb, var(--foreground) 14%, transparent);
+  background: color-mix(in srgb, var(--surface) 52%, transparent);
+  backdrop-filter: blur(32px) saturate(180%);
+  -webkit-backdrop-filter: blur(32px) saturate(180%);
+  padding: 0.45rem;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--foreground) 18%, transparent),
+    0 16px 40px color-mix(in srgb, var(--foreground) 10%, transparent);
   transform-origin: bottom center;
   animation: nav-more-sheet-enter 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -1827,16 +1850,18 @@ input[type="number"] {
 }
 
 .dark .nav-more-sheet {
-  background: color-mix(in srgb, var(--surface) 90%, #000 10%);
-  border-color: color-mix(in srgb, var(--border-strong) 75%, transparent);
-  box-shadow: 0 14px 34px color-mix(in srgb, var(--background) 70%, transparent);
+  background: color-mix(in srgb, var(--surface) 36%, transparent);
+  border-color: color-mix(in srgb, var(--foreground) 16%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--foreground) 16%, transparent),
+    0 18px 44px color-mix(in srgb, var(--background) 58%, transparent);
 }
 
 .nav-more-link {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  min-height: 2.7rem;
+  min-height: 3rem;
   border-radius: 0.85rem;
   padding: 0.55rem 0.7rem;
   font-size: 0.875rem;
@@ -4394,7 +4419,7 @@ input[type="number"] {
        fallback covers the first frame before the measurement lands.
        Padding rather than margin: the canvas is sized from contentRect, so the
        measurement excludes this strip on its own. */
-    padding-bottom: calc(var(--app-dock-height, 4.75rem) + 0.5rem);
+    padding-bottom: calc(var(--app-dock-height, 5.25rem) + 0.5rem);
   }
 
   /* Fullscreen covers the nav, so the canvas reclaims that strip. */

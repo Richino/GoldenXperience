@@ -2160,6 +2160,14 @@ input[type="number"] {
 
 .chart-data-shell-loading > .setup-chart-root { opacity: 1; }
 
+/* The mobile chart owns all touch gestures (see useChartTouchGestures), so the
+   browser must not also pan, zoom, pull-to-refresh or back-navigate from a
+   touch that starts on it. Scoped to the chart surface only. */
+.setup-chart-touch {
+  touch-action: none;
+  overscroll-behavior: contain;
+}
+
 /* Entry / SL / TP / Exit names, pinned beside the price scale. */
 .setup-chart-level-tag {
   position: absolute;
@@ -2173,6 +2181,68 @@ input[type="number"] {
   letter-spacing: 0.02em;
   white-space: nowrap;
   pointer-events: none;
+}
+
+/* Live-price beacon at the end of the line/area series: a solid dot with an
+   expanding ring pulsing out of it. */
+.setup-chart-beacon {
+  position: absolute;
+  z-index: 3;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--beacon-color, var(--accent));
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  box-shadow: 0 0 6px 0 color-mix(in srgb, var(--beacon-color, var(--accent)) 70%, transparent);
+}
+
+.setup-chart-beacon::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--beacon-color, var(--accent));
+  animation: setup-chart-beacon-pulse 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Current-price pill floating beside the beacon. Position (including the flip
+   above/below the dot) is set inline so it can be kept inside the chart. */
+.setup-chart-beacon-price {
+  position: absolute;
+  z-index: 4;
+  border-radius: 0.3125rem;
+  padding: 0.125rem 0.4375rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  pointer-events: none;
+  background: var(--beacon-color, var(--accent));
+  color: var(--beacon-price-text, #09090b);
+  box-shadow: 0 1px 7px 0 color-mix(in srgb, var(--beacon-color, var(--accent)) 48%, transparent);
+}
+
+@keyframes setup-chart-beacon-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  70% {
+    opacity: 0;
+  }
+  100% {
+    transform: scale(3.4);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .setup-chart-beacon::before {
+    animation: none;
+  }
 }
 
 .chart-history-loader {

@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { useTheme } from "next-themes";
 import {
   AreaSeries,
@@ -17,6 +24,7 @@ import {
   type AutoscaleInfo,
   type ISeriesApi,
   type ISeriesMarkersPluginApi,
+  type Logical,
   type LogicalRange,
   type SeriesType,
   type DeepPartial,
@@ -48,6 +56,7 @@ import {
   type TradeMarkerPalette,
 } from "@/lib/chart-utils";
 import { ChartHistoryLoader } from "@/components/charts/chart-loading-overlay";
+import { useChartTouchGestures } from "@/components/charts/use-chart-touch-gestures";
 import { pipSizeFor } from "@/lib/instruments/catalog";
 import type { Candle, CandleSeries, PaperChartTrade } from "@/types/forex";
 
@@ -134,6 +143,10 @@ function chartTheme(
       },
     },
     rightPriceScale: {
+      // Mobile hides the price axis entirely: the numbers on the right eat into
+      // a narrow screen, and the level tags (Entry/SL/TP) already carry the
+      // prices that matter. The candles get the full width instead.
+      visible: !embedded,
       borderVisible: false,
       borderColor: "transparent",
       textColor: scaleText,
@@ -445,6 +458,7 @@ function mainSeriesDisplayOptions(
     minMove: number;
   },
   levels: SetupLevels | null,
+  embedded: boolean,
 ) {
   const plannedPrices = levels
     ? [levels.entry, levels.stop, levels.target, levels.exit]
@@ -453,8 +467,11 @@ function mainSeriesDisplayOptions(
 
   return {
     priceFormat,
-    lastValueVisible: true,
-    priceLineVisible: true,
+    // The mobile chart drops the last-price dot and the horizontal price line
+    // that trailed it: with the right axis gone the line points at nothing, and
+    // for line/area charts a pulsing beacon marks the latest price instead.
+    lastValueVisible: !embedded,
+    priceLineVisible: !embedded,
     priceLineColor: "",
     priceLineWidth: 1 as const,
     priceLineStyle: LineStyle.Dotted,
@@ -552,9 +569,25 @@ export function SetupChart({
   const hadFocusRef = useRef(false);
   const [chartEpoch, setChartEpoch] = useState(0);
   const [placedTags, setPlacedTags] = useState<PlacedLevelTag[]>([]);
+  const [beacon, setBeacon] = useState<
+    { x: number; y: number; price: number; w: number } | null
+  >(null);
   const latestChartTimeRef = useRef<number | null>(
     latestCandleChartTime(series.candles),
   );
+  // The price the beacon rides on. Tracked in a ref so the per-frame position
+  // read never copies the whole series, and kept current by the live-tick and
+  // data effects that already advance `latestChartTimeRef`.
+  const latestCloseRef = useRef<number | null>(
+    series.candles.at(-1)?.close ?? null,
+  );
+  // Chart width in pixels, kept current by the resize observer so the beacon
+  // pill can be clamped inside the visible area each frame.
+  const containerWidthRef = useRef(0);
+  // True once a mobile gesture has taken manual control of the price scale
+  // (auto-scaling off). Cleared when the view is reset to the latest candles,
+  // which restores automatic price framing.
+  const manualPriceRef = useRef(false);
   /**
    * Half the live spread, in price. Held in a ref because the spread changes on
    * every tick and the level lines are built inside the chart-creation effect —
@@ -661,28 +694,42 @@ export function SetupChart({
       ...chartTheme(isDark, embedded),
       width: container.clientWidth,
       height: chartHeightRef.current,
-      handleScroll: {
-        mouseWheel: true,
-        pressedMouseMove: true,
-        horzTouchDrag: true,
-        // Flipped on per gesture for drags that start on the price axis, so the
-        // page still scrolls when a finger drags across the candles themselves.
-        vertTouchDrag: false,
-      },
+      handleScroll: embedded
+        ? {
+            // The mobile chart runs its own touch gesture layer
+            // (`useChartTouchGestures`), so the library's touch panning is off;
+            // mouse scrolling stays on for touch-laptop edge cases.
+            mouseWheel: true,
+            pressedMouseMove: true,
+            horzTouchDrag: false,
+            vertTouchDrag: false,
+          }
+        : {
+            mouseWheel: true,
+            pressedMouseMove: true,
+            horzTouchDrag: true,
+            // Flipped on per gesture for drags that start on the price axis, so
+            // the page still scrolls when a finger drags across the candles.
+            vertTouchDrag: false,
+          },
       handleScale: {
         axisPressedMouseMove: { time: true, price: true },
         axisDoubleClickReset: { time: true, price: true },
         mouseWheel: true,
-        pinch: true,
+        // Native pinch only scales time and would fight the custom two-finger
+        // price scaling, so it is disabled on mobile and handled by the hook.
+        pinch: !embedded,
       },
     });
 
     chartRef.current = chart;
     mainSeriesRef.current = null;
+    containerWidthRef.current = container.clientWidth;
     const chartData = toChartCandles(series.candles);
     latestChartTimeRef.current = chartTimeValue(chartData.at(-1));
+    latestCloseRef.current = series.candles.at(-1)?.close ?? null;
     prevFirstCandleTimeRef.current = series.candles[0]?.time ?? null;
-    const displayOptions = mainSeriesDisplayOptions(priceFormat, levels);
+    const displayOptions = mainSeriesDisplayOptions(priceFormat, levels, embedded);
 
     let mainSeries: ISeriesApi<SeriesType>;
 
@@ -919,18 +966,23 @@ export function SetupChart({
       chart.applyOptions({ handleScroll: { vertTouchDrag: false } });
     };
 
-    container.addEventListener("touchstart", enableAxisDragIfOnAxis, {
-      capture: true,
-      passive: true,
-    });
-    container.addEventListener("touchend", disableAxisDrag, { capture: true });
-    container.addEventListener("touchcancel", disableAxisDrag, {
-      capture: true,
-    });
+    // Desktop / touch-laptop only: on mobile the gesture hook handles price
+    // scaling, so this axis-drag arming is skipped there.
+    if (!embedded) {
+      container.addEventListener("touchstart", enableAxisDragIfOnAxis, {
+        capture: true,
+        passive: true,
+      });
+      container.addEventListener("touchend", disableAxisDrag, { capture: true });
+      container.addEventListener("touchcancel", disableAxisDrag, {
+        capture: true,
+      });
+    }
 
     const resizeObserver = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (!entry) return;
+      containerWidthRef.current = entry.contentRect.width;
       chart.applyOptions({
         width: entry.contentRect.width,
         height: chartHeightRef.current,
@@ -1046,6 +1098,12 @@ export function SetupChart({
         );
     } else if (scrolledToLatest && chart) {
       lastScrollRevisionRef.current = scrollToLatestRevision;
+      // Resetting the view (or changing timeframe/range) hands the price scale
+      // back to auto framing after a mobile gesture took manual control of it.
+      if (manualPriceRef.current) {
+        mainSeries.priceScale().setAutoScale(true);
+        manualPriceRef.current = false;
+      }
       requestAnimationFrame(() => {
         focusCoveredRef.current = scrollChartToFocus(
           chart,
@@ -1059,6 +1117,7 @@ export function SetupChart({
     prevFirstCandleTimeRef.current = nextFirstTime;
     prevGranularityRef.current = series.granularity;
     latestChartTimeRef.current = nextLatestTime;
+    latestCloseRef.current = series.candles.at(-1)?.close ?? null;
   }, [focusRange, range, scrollToLatestRevision, series, variant]);
 
   useEffect(() => {
@@ -1140,6 +1199,7 @@ export function SetupChart({
         update();
         latestChartTimeRef.current =
           latestTime === null ? pointTime : Math.max(latestTime, pointTime);
+        latestCloseRef.current = liveCandle.close;
       } catch (error) {
         if (
           error instanceof Error &&
@@ -1252,6 +1312,97 @@ export function SetupChart({
     return () => cancelAnimationFrame(frame);
   }, [chartEpoch, isDark, levels]);
 
+  // A pulsing dot that rides the line/area series at the *right edge of the
+  // visible window*, standing in for the price line those mobile charts no
+  // longer draw. At rest it sits on the latest candle; drag back through
+  // history and it hugs the right edge, its pill reading the price of whichever
+  // candle is now the rightmost on screen. The spot is re-read each frame — a
+  // pan, a scale drag or a live tick all move it — and written to React only
+  // when it actually shifts.
+  const showBeacon =
+    embedded &&
+    (variant === "line" || variant === "area" || variant === "baseline");
+  useEffect(() => {
+    if (!showBeacon) {
+      // Cleared on the next frame rather than synchronously, to avoid a
+      // cascading render inside the effect body.
+      const clear = requestAnimationFrame(() => setBeacon(null));
+      return () => cancelAnimationFrame(clear);
+    }
+
+    let frame = 0;
+    let previous = "";
+
+    const readBeacon = () => {
+      frame = requestAnimationFrame(readBeacon);
+
+      const chart = chartRef.current;
+      const mainSeries = mainSeriesRef.current;
+      const candles = candlesRef.current;
+      if (!chart || !mainSeries || !candles.length) return;
+
+      const logicalRange = chart.timeScale().getVisibleLogicalRange();
+      if (!logicalRange) return;
+
+      // The rightmost candle still on screen. `to` runs past the last bar into
+      // the right-hand whitespace when scrolled to the latest, so it is clamped
+      // back onto real data.
+      const lastIndex = candles.length - 1;
+      const edgeIndex = Math.min(
+        Math.max(Math.floor(logicalRange.to), 0),
+        lastIndex,
+      );
+      const edgeCandle = candles[edgeIndex];
+      if (!edgeCandle) return;
+
+      // The last candle carries the in-progress live close; older ones are
+      // settled, so their stored close is what the line was drawn from.
+      const close =
+        edgeIndex === lastIndex
+          ? latestCloseRef.current ?? edgeCandle.close
+          : edgeCandle.close;
+
+      const rawX = chart.timeScale().logicalToCoordinate(edgeIndex as Logical);
+      const rawY = mainSeries.priceToCoordinate(close);
+      if (rawX === null || rawY === null) return;
+
+      // Keep the dot on the visible edge even when the price is scaled out of
+      // range or the edge bar is partly clipped, so the pill always reads.
+      const width = containerWidthRef.current;
+      const height = chartHeightRef.current;
+      const next = {
+        x: width > 0 ? Math.max(0, Math.min(rawX, width)) : rawX,
+        y: Math.max(0, Math.min(rawY, height)),
+        price: close,
+        w: width,
+      };
+
+      const signature = `${next.x},${next.y},${next.price},${next.w}`;
+      if (signature === previous) return;
+      previous = signature;
+      setBeacon(next);
+    };
+
+    frame = requestAnimationFrame(readBeacon);
+    return () => cancelAnimationFrame(frame);
+  }, [chartEpoch, showBeacon]);
+
+  const markManualPrice = useCallback(() => {
+    manualPriceRef.current = true;
+  }, []);
+
+  // The mobile chart's native-feeling touch gestures: free 2D pan, plus
+  // intent-locked two-finger candle-spacing / price scaling. Desktop input is
+  // untouched. Re-binds to the freshly built chart via `chartEpoch`.
+  useChartTouchGestures({
+    containerRef,
+    chartRef,
+    mainSeriesRef,
+    enabled: embedded,
+    epoch: chartEpoch,
+    onManualPrice: markManualPrice,
+  });
+
   if (!series.candles.length) {
     return (
       <div
@@ -1283,6 +1434,44 @@ export function SetupChart({
     },
   ].filter(Boolean) as Array<{ label: string; tone: "neutral" | "accent" | "danger" }>;
 
+  // The pill sits on the beacon and reads the price of the rightmost visible
+  // candle. It is placed so it never leaves the chart: it flips below the dot
+  // when there is not enough room above, and its centre is pulled inward near
+  // the left and right edges. Dimensions are estimated from the text — good
+  // enough to keep a small pill clear without measuring it every frame.
+  const beaconView = beacon
+    ? (() => {
+        const priceText = beacon.price.toFixed(precision);
+        const pillHalfWidth = (priceText.length * 7 + 16) / 2;
+        const width = beacon.w;
+        const pad = 6;
+        const left =
+          width > 0
+            ? Math.min(
+                Math.max(beacon.x, pad + pillHalfWidth),
+                width - pad - pillHalfWidth,
+              )
+            : beacon.x;
+        // 26px clears the pill height plus its gap from the dot.
+        const below = beacon.y < 26;
+        const textColor = isBearish
+          ? "#ffffff"
+          : isDark
+            ? "#09090b"
+            : "#ffffff";
+        return {
+          priceText,
+          pillStyle: {
+            left,
+            top: below ? beacon.y + 13 : beacon.y - 13,
+            transform: `translate(-50%, ${below ? "0" : "-100%"})`,
+            "--beacon-color": trendColor,
+            "--beacon-price-text": textColor,
+          } as CSSProperties,
+        };
+      })()
+    : null;
+
   return (
     <div
       className="setup-chart-root relative w-full overflow-visible"
@@ -1298,7 +1487,7 @@ export function SetupChart({
         ref={containerRef}
         className={`w-full overflow-visible ${
           embedded
-            ? "bg-[color:var(--signals-mobile-page-bg)] dark:bg-[#09090b] lg:bg-[color:var(--background)]"
+            ? "setup-chart-touch bg-[color:var(--signals-mobile-page-bg)] dark:bg-[#09090b] lg:bg-[color:var(--background)]"
             : "bg-transparent"
         }`}
         style={{ height: chartHeight }}
@@ -1311,6 +1500,23 @@ export function SetupChart({
           liveCandle?.close ?? series.candles.at(-1)?.close
         }
       />
+      {beacon ? (
+        <span
+          className="setup-chart-beacon"
+          style={
+            {
+              left: beacon.x,
+              top: beacon.y,
+              "--beacon-color": trendColor,
+            } as CSSProperties
+          }
+        />
+      ) : null}
+      {beaconView ? (
+        <span className="setup-chart-beacon-price" style={beaconView.pillStyle}>
+          {beaconView.priceText}
+        </span>
+      ) : null}
       {placedTags.map((tag) => (
         <span
           key={tag.key}

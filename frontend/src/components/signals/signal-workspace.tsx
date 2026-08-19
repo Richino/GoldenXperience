@@ -975,6 +975,18 @@ export function SignalWorkspace({
   );
   const [range, setRange] = useState<ChartRange>(initialPredictionFocus ? "1D" : "6M");
   const [chartVariant, setChartVariant] = useState<ChartVariant>("candle");
+  // Mobile opens on the area chart (with its live beacon) rather than candles.
+  // The default can't be decided during SSR — the server has no viewport — so
+  // it is applied once on mount below the `lg` breakpoint, while the initial
+  // market-data fetch's loading overlay hides the swap. Desktop stays on candles.
+  const appliedMobileDefaultRef = useRef(false);
+  useEffect(() => {
+    if (appliedMobileDefaultRef.current) return;
+    appliedMobileDefaultRef.current = true;
+    if (window.matchMedia("(max-width: 1023.98px)").matches) {
+      setChartVariant("area");
+    }
+  }, []);
   const [enabledIndicators, setEnabledIndicators] = useState<ChartIndicator[]>(
     DEFAULT_CHART_INDICATORS,
   );

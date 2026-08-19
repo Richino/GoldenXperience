@@ -516,7 +516,18 @@ let paperCollector: NodeJS.Timeout | null = null;
 let fastResolver: NodeJS.Timeout | null = null;
 let binaryCollector: NodeJS.Timeout | null = null;
 let binaryResolver: NodeJS.Timeout | null = null;
-if (databaseConfigured()) {
+// The background loops below (paper collector, live/fast resolver, research
+// worker, binary engine) all WRITE to the database — opening, closing and
+// resolving trades. Point a second instance at the same database (e.g. local
+// dev against the production proxy) and two schedulers double-process it. Set
+// ENABLE_SCHEDULERS=false to run the API read-only: it still serves data, live
+// prices and candles, but starts none of the mutating loops. Unset — or any
+// value other than "false" — keeps them on, so the deployed server is unchanged.
+const schedulersEnabled = process.env.ENABLE_SCHEDULERS !== "false";
+if (databaseConfigured() && !schedulersEnabled) {
+  console.log("[schedulers] ENABLE_SCHEDULERS=false — background trade, research and binary loops are OFF (read-only database mode)");
+}
+if (databaseConfigured() && schedulersEnabled) {
   let collectionBusy = false;
   // Forex is shut Friday 17:00 ET to Sunday 17:00 ET. The loop keeps ticking so
   // the process stays warm on Railway, but while the market is closed it skips

@@ -17,9 +17,18 @@ export type NotificationEvent = {
 type QueueNotification = Omit<NotificationEvent, "id" | "readAt" | "createdAt"> & { userId: string; dedupeKey: string };
 
 function pushConfig() {
-  const subject = process.env.VAPID_SUBJECT?.trim();
+  const rawSubject = process.env.VAPID_SUBJECT?.trim();
   const publicKey = process.env.VAPID_PUBLIC_KEY?.trim();
   const privateKey = process.env.VAPID_PRIVATE_KEY?.trim();
+  // web-push requires the subject to be a mailto: or https: URL. A bare email
+  // (VAPID_SUBJECT=someone@example.com) throws "Vapid subject is not a valid
+  // URL" on every send, so normalise it to a mailto: link rather than letting
+  // the misconfiguration break notification delivery.
+  const subject = rawSubject
+    ? /^(mailto:|https?:\/\/)/i.test(rawSubject)
+      ? rawSubject
+      : `mailto:${rawSubject}`
+    : undefined;
   if (subject && publicKey && privateKey) {
     webpush.setVapidDetails(subject, publicKey, privateKey);
     return { publicKey, privateKey };

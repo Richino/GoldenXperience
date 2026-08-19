@@ -230,7 +230,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 aria-current={active ? "page" : undefined}
                 aria-label={item.label}
               >
-                <Icon className="size-6" strokeWidth={active ? 2.3 : 1.85} />
+                <Icon className="size-8" strokeWidth={active ? 2.25 : 1.8} />
               </Link>
             );
           })}
@@ -244,7 +244,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             onClick={() => setMobileMoreOpen((open) => !open)}
           >
             <MoreHorizontal
-              className="size-6"
+              className="size-8"
               strokeWidth={mobileMoreOpen || moreActive ? 2.3 : 1.85}
             />
           </button>

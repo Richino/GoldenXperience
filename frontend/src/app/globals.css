@@ -1711,9 +1711,9 @@ input[type="number"] {
   display: grid;
   place-items: center;
   flex: 1 1 0;
-  min-width: 3rem;
-  min-height: 3rem;
-  max-width: 3.5rem;
+  min-width: 3.25rem;
+  min-height: 3.25rem;
+  max-width: 3.75rem;
   margin-inline: auto;
   border-radius: 999px;
   color: var(--muted);

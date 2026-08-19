@@ -13,13 +13,34 @@ import { DAY_TRADING_TIME_ZONE, dayTradingSession } from "../../frontend/src/lib
 import { LIQUIDITY_STRATEGY_VERSION as ACTIVE_STRATEGY_VERSION, RISK as LIQUIDITY_RISK } from "../../frontend/src/lib/strategy/liquidity-strategy.js";
 import { RULES as LIQUIDITY_RULES } from "../../frontend/src/lib/strategy/liquidity-confirmation.js";
 const MAX_TRADES_PER_DAY = LIQUIDITY_RISK.maxTradesPerDay;
-import { getStrategySnapshot } from "../../frontend/src/lib/strategy/strategy-service.js";
+import { getMultiStrategySnapshot, getStrategySnapshot } from "../../frontend/src/lib/strategy/strategy-service.js";
 import type { StrategySetup } from "../../frontend/src/lib/strategy/types.js";
+import type { StrategyCandidate } from "../../frontend/src/lib/strategy/strategy.js";
+import { MULTISTRATEGY_EXPERIMENT_LABEL, MULTISTRATEGY_NAME, SEED_STRATEGY_CONFIGS, STRATEGY_FAMILIES } from "../../frontend/src/lib/strategy/strategies/index.js";
+import { decideInstrument, loadAdaptiveEvidence, toAdaptiveCandidate } from "./adaptive-engine.js";
+import { resolveShadowOutcome } from "./shadow-outcomes.js";
 import { MAJOR_INSTRUMENTS, type MajorInstrument } from "../../frontend/src/types/forex.js";
 
 const STRATEGY_NAME = "deterministic-forex";
 const BATCH_SIZE = 100;
 const COLLECTOR_LOCK = 24_100_001;
+
+/**
+ * Explicit strategy attribution written onto a multi-strategy trade/evaluation.
+ * When absent, a call is the legacy single-strategy (liquidity) path and the
+ * new columns stay null.
+ */
+export type StrategyAttribution = {
+  versionId: string;
+  family: string;
+  version: string;
+  configVersion: string;
+  experimentId: string;
+  regime: string | null;
+  trendStrength: number | null;
+  volatilityBucket: string | null;
+  atrPips: number | null;
+};
 
 export type PaperRiskConfiguration = {
   riskPercent: number;
@@ -311,7 +332,7 @@ async function strategyVersionId(client?: PoolClient) {
   return result.rows[0]!.id;
 }
 
-async function ensureCollectingBatch(client: PoolClient, versionId: string, userId: string) {
+async function ensureCollectingBatch(client: PoolClient, versionId: string, userId: string, attribution?: StrategyAttribution) {
   const existing = await client.query<{ id: string; batch_number: number; configuration: BatchConfiguration }>(
     // Scoped to the strategy version. Without this a strategy change appends
     // its trades to whatever batch happens to be collecting, and the hundred
@@ -340,8 +361,8 @@ async function ensureCollectingBatch(client: PoolClient, versionId: string, user
     ...risk,
   };
   const created = await client.query<{ id: string; batch_number: number; configuration: BatchConfiguration }>(
-    "INSERT INTO paper_strategy_batches(batch_number,strategy_version_id,universe,configuration) VALUES($1,$2,$3::jsonb,$4::jsonb) RETURNING id,batch_number,configuration",
-    [batchNumber, versionId, JSON.stringify(MAJOR_INSTRUMENTS), JSON.stringify(configuration)],
+    "INSERT INTO paper_strategy_batches(batch_number,strategy_version_id,universe,configuration,experiment_id,strategy_family) VALUES($1,$2,$3::jsonb,$4::jsonb,$5,$6) RETURNING id,batch_number,configuration",
+    [batchNumber, versionId, JSON.stringify(MAJOR_INSTRUMENTS), JSON.stringify(configuration), attribution?.experimentId ?? null, attribution?.family ?? null],
   );
   if (source) await client.query("UPDATE paper_strategy_batches SET applied_to_batch_id=$2 WHERE id=$1", [source.id, created.rows[0]!.id]);
   return created.rows[0]!;
@@ -366,16 +387,16 @@ function setupRejectionReason(setup: StrategySetup) {
   return setup.conditions.find((item) => item.required && !item.passed)?.reason ?? null;
 }
 
-async function persistPaperEvaluation(setup: StrategySetup, versionId: string, spreadPips: number | null) {
+async function persistPaperEvaluation(setup: StrategySetup, versionId: string, spreadPips: number | null, attribution?: StrategyAttribution, executionStatus?: string) {
   await query(
-    `INSERT INTO paper_strategy_evaluations(strategy_version_id,instrument,decision_time,setup_status,direction,entry,stop,target,risk_reward,rejection_reason,trade_created,spread_pips,conditions,features)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,false,$11,$12::jsonb,$13::jsonb)
-     ON CONFLICT(strategy_version_id,instrument,decision_time) DO UPDATE SET setup_status=EXCLUDED.setup_status,direction=EXCLUDED.direction,entry=EXCLUDED.entry,stop=EXCLUDED.stop,target=EXCLUDED.target,risk_reward=EXCLUDED.risk_reward,rejection_reason=EXCLUDED.rejection_reason,spread_pips=EXCLUDED.spread_pips,conditions=EXCLUDED.conditions,features=EXCLUDED.features,updated_at=now()`,
-    [versionId, setup.instrument, setup.evaluatedAt, setup.status, setup.direction, setup.entry, setup.stop, setup.target, setup.riskReward, setupRejectionReason(setup), spreadPips, JSON.stringify(setup.conditions), JSON.stringify(setup.features)],
+    `INSERT INTO paper_strategy_evaluations(strategy_version_id,instrument,decision_time,setup_status,direction,entry,stop,target,risk_reward,rejection_reason,trade_created,spread_pips,conditions,features,strategy_family,config_version,regime,trend_strength,volatility_bucket,atr_pips,experiment_id,execution_status)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,false,$11,$12::jsonb,$13::jsonb,$14,$15,$16,$17,$18,$19,$20,$21)
+     ON CONFLICT(strategy_version_id,instrument,decision_time) DO UPDATE SET setup_status=EXCLUDED.setup_status,direction=EXCLUDED.direction,entry=EXCLUDED.entry,stop=EXCLUDED.stop,target=EXCLUDED.target,risk_reward=EXCLUDED.risk_reward,rejection_reason=EXCLUDED.rejection_reason,spread_pips=EXCLUDED.spread_pips,conditions=EXCLUDED.conditions,features=EXCLUDED.features,strategy_family=EXCLUDED.strategy_family,config_version=EXCLUDED.config_version,regime=EXCLUDED.regime,trend_strength=EXCLUDED.trend_strength,volatility_bucket=EXCLUDED.volatility_bucket,atr_pips=EXCLUDED.atr_pips,experiment_id=EXCLUDED.experiment_id,execution_status=EXCLUDED.execution_status,updated_at=now()`,
+    [versionId, setup.instrument, setup.evaluatedAt, setup.status, setup.direction, setup.entry, setup.stop, setup.target, setup.riskReward, setupRejectionReason(setup), spreadPips, JSON.stringify(setup.conditions), JSON.stringify(setup.features), attribution?.family ?? null, attribution?.configVersion ?? null, attribution?.regime ?? null, attribution?.trendStrength ?? null, attribution?.volatilityBucket ?? null, attribution?.atrPips ?? null, attribution?.experimentId ?? null, executionStatus ?? null],
   );
 }
 
-async function openPaperTrade(setup: StrategySetup, userId: string, versionId: string, spreadPips: number, accountBalance: number, quoteToUsdRate: number | null): Promise<string | null> {
+async function openPaperTrade(setup: StrategySetup, userId: string, versionId: string, spreadPips: number, accountBalance: number, quoteToUsdRate: number | null, attribution?: StrategyAttribution): Promise<string | null> {
   if (setup.status !== "valid" || !setup.direction || setup.entry === null || setup.stop === null || setup.target === null || setup.riskReward === null) return null;
   const entry = setup.entry;
   const stop = setup.stop;
@@ -392,7 +413,7 @@ async function openPaperTrade(setup: StrategySetup, userId: string, versionId: s
     if (open.rowCount) return reject("Risk blocked: this instrument already has an open position.");
     const duplicate = await client.query("SELECT 1 FROM paper_strategy_trades WHERE strategy_version_id=$1 AND instrument=$2 AND decision_time=$3", [versionId, setup.instrument, setup.evaluatedAt]);
     if (duplicate.rowCount) return reject("Duplicate evaluation: this decision was already collected.");
-    const batch = await ensureCollectingBatch(client, versionId, userId);
+    const batch = await ensureCollectingBatch(client, versionId, userId, attribution);
     if (batch.configuration.excludedPairs.includes(setup.instrument) || batch.configuration.excludedSessions.includes(session)) return reject("Risk blocked: the active batch excludes this pair or session.");
     const risk = storedRiskConfiguration(batch.configuration);
     const portfolio = await client.query<{ open_count: string; nominal_risk: string }>("SELECT count(*)::text AS open_count,COALESCE(sum(nominal_risk_percent),0)::text AS nominal_risk FROM paper_strategy_trades WHERE status='open'");
@@ -424,11 +445,12 @@ async function openPaperTrade(setup: StrategySetup, userId: string, versionId: s
     const positionSize = calculatePositionSize({ instrument: setup.instrument, accountBalance, riskPercent: risk.riskPercent, entry, stop, applyPaperCap: false, quoteToUsdRate: quoteToUsdRate ?? undefined });
     if (!positionSize) return reject("Risk blocked: no valid position size could be calculated.");
     const nextSequence = await client.query<{ value: string }>("SELECT (COALESCE(max(trade_sequence),0)+1)::text AS value FROM paper_strategy_trades");
+    const setupName = attribution ? `${attribution.family} ${setup.direction}` : setupNameFor(setup);
     const inserted = await client.query<{ id: string }>(
-      `INSERT INTO paper_strategy_trades(trade_sequence,user_id,batch_id,strategy_version_id,instrument,decision_time,direction,entry,stop,target,planned_r,nominal_risk_percent,nominal_risk_amount,calculated_units,calculated_standard_lots,spread_pips,session,weekday,setup_name,checklist_score,conditions,features,news_status,opened_at)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb,$22::jsonb,$23,$24)
+      `INSERT INTO paper_strategy_trades(trade_sequence,user_id,batch_id,strategy_version_id,instrument,decision_time,direction,entry,stop,target,planned_r,nominal_risk_percent,nominal_risk_amount,calculated_units,calculated_standard_lots,spread_pips,session,weekday,setup_name,checklist_score,conditions,features,news_status,opened_at,strategy_family,config_version,regime,trend_strength,volatility_bucket,atr_pips,experiment_id)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb,$22::jsonb,$23,$24,$25,$26,$27,$28,$29,$30,$31)
        RETURNING id`,
-      [nextSequence.rows[0]!.value, userId, batch.id, versionId, setup.instrument, setup.evaluatedAt, setup.direction, setup.entry, setup.stop, setup.target, setup.riskReward, risk.riskPercent, positionSize.calculatedEstimatedRisk, positionSize.calculatedUnits, positionSize.calculatedStandardLots, spreadPips, session, weekdayAt(setup.evaluatedAt), setupNameFor(setup), checklistScore(setup), JSON.stringify(setup.conditions), JSON.stringify(setup.features), setup.features.newsStatus ?? "not_evaluated", setup.evaluatedAt],
+      [nextSequence.rows[0]!.value, userId, batch.id, versionId, setup.instrument, setup.evaluatedAt, setup.direction, setup.entry, setup.stop, setup.target, setup.riskReward, risk.riskPercent, positionSize.calculatedEstimatedRisk, positionSize.calculatedUnits, positionSize.calculatedStandardLots, spreadPips, session, weekdayAt(setup.evaluatedAt), setupName, checklistScore(setup), JSON.stringify(setup.conditions), JSON.stringify(setup.features), setup.features.newsStatus ?? "not_evaluated", setup.evaluatedAt, attribution?.family ?? null, attribution?.configVersion ?? null, attribution?.regime ?? null, attribution?.trendStrength ?? null, attribution?.volatilityBucket ?? null, attribution?.atrPips ?? null, attribution?.experimentId ?? null],
     );
     const tradeId = inserted.rows[0]!.id;
     await client.query("UPDATE paper_strategy_evaluations SET trade_created=true,paper_trade_id=$1,rejection_reason=NULL,updated_at=now() WHERE strategy_version_id=$2 AND instrument=$3 AND decision_time=$4", [tradeId, versionId, setup.instrument, setup.evaluatedAt]);
@@ -1023,4 +1045,307 @@ export async function reviewPaperTrade(userId: string, tradeId: string, review: 
 export async function decidePaperBatch(batchId: string, decision: "approved" | "rejected", note: string) {
   const saved = await query(`UPDATE paper_strategy_batches SET decision=$2,decision_note=$3,decided_at=now() WHERE id=$1 AND status='complete' AND recommendation IS NOT NULL AND decision='pending' RETURNING id,batch_number AS "batchNumber",decision,recommendation`, [batchId, decision, note]);
   return saved.rows[0] ?? null;
+}
+
+// ===========================================================================
+// Multi-strategy + adaptive engine collector (Phase 2).
+//
+// A parallel collector to `collectPaperCycle`. It runs the four independent
+// strategies, records every candidate, asks the adaptive engine which single
+// candidate an instrument should attempt, and opens it through the exact same
+// risk/execution path (`openPaperTrade` → `queuePracticeOrderIntent`). The one-
+// open-position-per-instrument rule is unchanged and still enforced by the
+// existing open-trade check and the unique index. The legacy liquidity path is
+// left completely intact; a runtime flag in server.ts chooses which runs.
+// ===========================================================================
+
+type MultiVersion = { versionId: string; version: string; configVersion: string };
+let multiVersionCache: Map<string, MultiVersion> | null = null;
+let experimentIdCache: string | null = null;
+let configsSeeded = false;
+
+/** Register (once per process) a strategy_versions row per family. */
+async function multiStrategyVersionIds(): Promise<Map<string, MultiVersion>> {
+  if (multiVersionCache) return multiVersionCache;
+  const map = new Map<string, MultiVersion>();
+  for (const seed of SEED_STRATEGY_CONFIGS) {
+    const configuration = JSON.stringify({ status: "active", family: seed.family, configVersion: seed.configVersion, experiment: MULTISTRATEGY_EXPERIMENT_LABEL, configuration: seed.configuration });
+    const result = await query<{ id: string }>(
+      `INSERT INTO strategy_versions(name,version,configuration) VALUES($1,$2,$3::jsonb)
+       ON CONFLICT(name,version) DO UPDATE SET configuration=strategy_versions.configuration || EXCLUDED.configuration
+       RETURNING id`,
+      [MULTISTRATEGY_NAME, seed.version, configuration],
+    );
+    map.set(seed.family, { versionId: result.rows[0]!.id, version: seed.version, configVersion: seed.configVersion });
+  }
+  multiVersionCache = map;
+  return map;
+}
+
+async function ensureExperiment(): Promise<string> {
+  if (experimentIdCache) return experimentIdCache;
+  const result = await query<{ id: string }>(
+    `INSERT INTO strategy_experiments(label,description) VALUES($1,$2)
+     ON CONFLICT(label) DO UPDATE SET label=EXCLUDED.label RETURNING id`,
+    [MULTISTRATEGY_EXPERIMENT_LABEL, "Four independent V1 strategies (EMA, Breakout, Momentum, Mean Reversion) feeding the cold-start adaptive engine."],
+  );
+  experimentIdCache = result.rows[0]!.id;
+  return experimentIdCache;
+}
+
+/** Seed the immutable V1 configs. ON CONFLICT DO NOTHING preserves history. */
+async function ensureStrategyConfigsSeeded(): Promise<void> {
+  if (configsSeeded) return;
+  for (const seed of SEED_STRATEGY_CONFIGS) {
+    await query(
+      `INSERT INTO strategy_configs(family,strategy_version,config_version,configuration) VALUES($1,$2,$3,$4::jsonb)
+       ON CONFLICT(family,config_version) DO NOTHING`,
+      [seed.family, seed.version, seed.configVersion, JSON.stringify(seed.configuration)],
+    );
+  }
+  configsSeeded = true;
+}
+
+function attributionFor(candidate: StrategyCandidate, versionIds: Map<string, MultiVersion>, experimentId: string): StrategyAttribution {
+  const version = versionIds.get(candidate.family)!;
+  return {
+    versionId: version.versionId, family: candidate.family, version: candidate.version, configVersion: candidate.configVersion,
+    experimentId, regime: candidate.regime.regime, trendStrength: candidate.regime.trendStrength,
+    volatilityBucket: candidate.regime.volatility, atrPips: candidate.regime.atrPips,
+  };
+}
+
+async function persistMultiWatchSnapshot(candidate: StrategyCandidate, quote: { bid: number; ask: number; time: string } | undefined, attribution: StrategyAttribution, selected: boolean, selectionReason: string, session: string, openTradeId: string | null) {
+  const spreadPips = quote ? (quote.ask - quote.bid) / pipSizeFor(candidate.instrument) : null;
+  const fresh = quote && Date.now() - new Date(quote.time).getTime() <= 2 * 60_000;
+  await query(
+    `INSERT INTO multistrategy_watch_snapshots(instrument,strategy_family,strategy_version,config_version,evaluated_at,data_status,setup_status,direction,entry,stop,target,risk_reward,regime,trend_strength,volatility_bucket,atr_pips,session,selected,selection_reason,bid,ask,spread_pips,conditions,features,open_trade_id)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23::jsonb,$24::jsonb,$25)
+     ON CONFLICT(instrument,strategy_family) DO UPDATE SET strategy_version=EXCLUDED.strategy_version,config_version=EXCLUDED.config_version,evaluated_at=EXCLUDED.evaluated_at,data_status=EXCLUDED.data_status,setup_status=EXCLUDED.setup_status,direction=EXCLUDED.direction,entry=EXCLUDED.entry,stop=EXCLUDED.stop,target=EXCLUDED.target,risk_reward=EXCLUDED.risk_reward,regime=EXCLUDED.regime,trend_strength=EXCLUDED.trend_strength,volatility_bucket=EXCLUDED.volatility_bucket,atr_pips=EXCLUDED.atr_pips,session=EXCLUDED.session,selected=EXCLUDED.selected,selection_reason=EXCLUDED.selection_reason,bid=EXCLUDED.bid,ask=EXCLUDED.ask,spread_pips=EXCLUDED.spread_pips,conditions=EXCLUDED.conditions,features=EXCLUDED.features,open_trade_id=EXCLUDED.open_trade_id,updated_at=now()`,
+    [candidate.instrument, attribution.family, attribution.version, attribution.configVersion, candidate.evaluatedAt, candidate.dataSource === "oanda" && fresh ? "connected" : "unavailable", candidate.status, candidate.direction, candidate.entry, candidate.stop, candidate.target, candidate.riskReward, attribution.regime, attribution.trendStrength, attribution.volatilityBucket, attribution.atrPips, session, selected, selectionReason, quote?.bid ?? null, quote?.ask ?? null, spreadPips, JSON.stringify(candidate.conditions), JSON.stringify(candidate.features), openTradeId],
+  );
+}
+
+async function logAdaptiveDecision(experimentId: string, instrument: string, decisionTime: string, decision: ReturnType<typeof decideInstrument>, regime: unknown, candidates: StrategyCandidate[], selectedTradeId: string | null, statusByKey: (candidate: StrategyCandidate) => string) {
+  const candidateViews = candidates.map((candidate) => ({
+    family: candidate.family, version: candidate.version, configVersion: candidate.configVersion,
+    direction: candidate.direction, status: candidate.status, executionStatus: statusByKey(candidate),
+    entry: candidate.entry, stop: candidate.stop, target: candidate.target, riskReward: candidate.riskReward,
+  }));
+  await query(
+    `INSERT INTO adaptive_decisions(experiment_id,instrument,decision_time,adaptive_state,regime,candidates,selected,suppressed,evidence,reason,selected_trade_id)
+     VALUES($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7::jsonb,$8::jsonb,$9::jsonb,$10,$11)
+     ON CONFLICT(instrument,decision_time) DO UPDATE SET adaptive_state=EXCLUDED.adaptive_state,regime=EXCLUDED.regime,candidates=EXCLUDED.candidates,selected=EXCLUDED.selected,suppressed=EXCLUDED.suppressed,evidence=EXCLUDED.evidence,reason=EXCLUDED.reason,selected_trade_id=COALESCE(EXCLUDED.selected_trade_id,adaptive_decisions.selected_trade_id)`,
+    [experimentId, instrument, decisionTime, decision.state, JSON.stringify(regime), JSON.stringify(candidateViews), decision.selected ? JSON.stringify(decision.selected) : null, JSON.stringify(decision.suppressed), JSON.stringify(decision.evidenceUsed), decision.reason, selectedTradeId],
+  );
+}
+
+/**
+ * Resolve hypothetical outcomes for suppressed/blocked valid candidates.
+ *
+ * Only candidates that were valid but not executed are considered, and only ones
+ * without an outcome yet. Candles are fetched once per instrument (the same
+ * source and completed-candle filter the live resolver uses) and each candidate
+ * is labelled with the pure `resolveShadowOutcome`, which returns null while the
+ * outcome is not yet known. Nothing here places an order, opens a position, or
+ * reads/writes risk — it only writes shadow_candidate_outcomes.
+ */
+async function resolveShadowCandidates(): Promise<number> {
+  const pending = await query<{ id: string; instrument: MajorInstrument; direction: "long" | "short"; entry: string; stop: string; target: string; decision_time: string | Date }>(
+    `SELECT evaluation.id, evaluation.instrument, evaluation.direction, evaluation.entry::text, evaluation.stop::text, evaluation.target::text, evaluation.decision_time
+       FROM paper_strategy_evaluations evaluation
+       LEFT JOIN shadow_candidate_outcomes shadow ON shadow.evaluation_id = evaluation.id
+      WHERE evaluation.strategy_family IS NOT NULL
+        AND evaluation.execution_status IN ('suppressed','blocked')
+        AND evaluation.setup_status = 'valid'
+        AND evaluation.direction IS NOT NULL
+        AND evaluation.entry IS NOT NULL AND evaluation.stop IS NOT NULL AND evaluation.target IS NOT NULL
+        AND shadow.evaluation_id IS NULL
+      ORDER BY evaluation.instrument
+      LIMIT 300`,
+  );
+  if (!pending.rows.length) return 0;
+
+  const byInstrument = new Map<MajorInstrument, typeof pending.rows>();
+  for (const row of pending.rows) byInstrument.set(row.instrument, [...(byInstrument.get(row.instrument) ?? []), row]);
+
+  const now = new Date();
+  let resolved = 0;
+  for (const [instrument, rows] of byInstrument) {
+    let quotes: NormalizedQuote[];
+    try {
+      const candles = (await getResearchCandles(instrument, "M15", 500)).filter((candle) => candle.complete);
+      quotes = candles.map(toQuote);
+    } catch { continue; }
+    for (const row of rows) {
+      const decisionTime = iso(row.decision_time);
+      const future = quotes.filter((quote) => new Date(quote.closeTime) > new Date(decisionTime));
+      if (!future.length) continue;
+      const outcome = resolveShadowOutcome(row.direction, Number(row.entry), Number(row.stop), Number(row.target), decisionTime, future, now);
+      if (!outcome) continue; // still pending — its outcome is not known yet
+      await query(
+        `INSERT INTO shadow_candidate_outcomes(evaluation_id,outcome,result_r,max_favorable_r,max_adverse_r,exit,resolved_at,horizon_ends_at,exit_reason)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(evaluation_id) DO NOTHING`,
+        [row.id, outcome.outcome, outcome.resultR, outcome.maxFavorableR, outcome.maxAdverseR, outcome.exit, outcome.resolvedAt, outcome.horizonEndsAt, outcome.exitReason],
+      );
+      resolved += 1;
+    }
+  }
+  return resolved;
+}
+
+export async function collectMultiStrategyCycle() {
+  const owner = await query<{ id: string }>("SELECT id FROM users WHERE role='owner' ORDER BY created_at LIMIT 1");
+  if (!owner.rows[0]) return { opened: 0, resolved: 0, reason: "Owner account is unavailable" };
+  const userId = owner.rows[0].id;
+
+  let resolved = 0;
+  try { resolved = await resolveOpenTrades(); }
+  catch (error) { console.error("[multi-strategy] outcome refresh failed", error); }
+  // Resolve hypothetical outcomes for suppressed/blocked valid candidates. Pure
+  // research: reads candles, writes shadow_candidate_outcomes, never OANDA/risk.
+  try { const shadow = await resolveShadowCandidates(); if (shadow) console.log(`[multi-strategy] resolved ${shadow} shadow candidates`); }
+  catch (error) { console.error("[multi-strategy] shadow resolution failed", error); }
+  await completeReadyBatches();
+
+  const experimentId = await ensureExperiment();
+  await ensureStrategyConfigsSeeded();
+  const versionIds = await multiStrategyVersionIds();
+  const evidence = await loadAdaptiveEvidence(experimentId);
+
+  const snapshot = await getMultiStrategySnapshot();
+  const quoteByInstrument = new Map(snapshot.quotes.map((quote) => [quote.instrument, quote]));
+  const midByInstrument = (instrument: string) => {
+    const quote = quoteByInstrument.get(instrument);
+    return quote ? (quote.bid + quote.ask) / 2 : null;
+  };
+
+  let opened = 0;
+  let reportedDataIssue = false;
+  for (const item of snapshot.instruments) {
+    const { instrument, quote, regime, candidates } = item;
+    if (!candidates.length) continue;
+    const evaluatedAt = candidates[0]!.evaluatedAt;
+    const session = dayTradingSession(new Date(evaluatedAt)).label;
+    const spreadPips = quote ? (quote.ask - quote.bid) / pipSizeFor(instrument) : null;
+    const liveData = candidates[0]!.dataSource === "oanda" && Boolean(quote);
+
+    const decision = decideInstrument({ instrument, session, regime, candidates: candidates.map(toAdaptiveCandidate), evidence });
+    const isSelected = (candidate: StrategyCandidate) => decision.selected !== null && candidate.family === decision.selected.family && candidate.direction === decision.selected.direction && candidate.status === "valid";
+
+    // One position per instrument, across every family and the legacy strategy.
+    const openRow = await query("SELECT 1 FROM paper_strategy_trades WHERE instrument=$1 AND status='open'", [instrument]);
+    const instrumentBusy = (openRow.rowCount ?? 0) > 0;
+    const executionStatusFor = (candidate: StrategyCandidate): string => {
+      if (isSelected(candidate)) return instrumentBusy || !liveData ? "blocked" : "selected";
+      if (candidate.status !== "valid") return "no_setup";
+      return "suppressed";
+    };
+
+    let openedTradeId: string | null = null;
+    // Open the selected candidate first (so its watch snapshot can carry the id).
+    if (decision.selected && !instrumentBusy && liveData && quote) {
+      const chosen = candidates.find(isSelected);
+      if (chosen && chosen.entry !== null) {
+        const attribution = attributionFor(chosen, versionIds, experimentId);
+        const quoteToUsdRate = usdPerUnitOfCurrency(currenciesOf(instrument).quote, midByInstrument);
+        openedTradeId = await openPaperTrade(chosen, userId, attribution.versionId, spreadPips ?? 0, snapshot.account.balance, quoteToUsdRate, attribution);
+        if (openedTradeId) { opened += 1; await queuePracticeOrderIntent(userId, openedTradeId); }
+      }
+    }
+
+    // Record every candidate: the executed one, the suppressed ones, the blocked
+    // ones. Suppressed candidates are preserved in the evaluations table so their
+    // hypothetical outcome can be labelled later (shadow research).
+    for (const candidate of candidates) {
+      const attribution = attributionFor(candidate, versionIds, experimentId);
+      const execStatus = executionStatusFor(candidate);
+      await persistPaperEvaluation(candidate, attribution.versionId, spreadPips, attribution, execStatus);
+      await persistMultiWatchSnapshot(candidate, quote, attribution, execStatus === "selected" && openedTradeId !== null, decision.reason, session, isSelected(candidate) ? openedTradeId : null);
+    }
+
+    if (!liveData && !reportedDataIssue) {
+      await queueNotification({ userId, kind: "system_issue", title: "Market data unavailable", message: "OANDA data is unavailable or stale. Multi-strategy candidates and trades are fail-closed until it recovers.", instrument: null, paperTradeId: null, dedupeKey: "market_data_unavailable" });
+      reportedDataIssue = true;
+    }
+
+    await logAdaptiveDecision(experimentId, instrument, evaluatedAt, decision, regime, candidates, openedTradeId, executionStatusFor);
+  }
+
+  const execution = await processPendingPracticeOrders();
+  return { opened, resolved, execution };
+}
+
+/** Per-(instrument, family) live view for the multi-strategy watchlist UI. */
+export async function multiStrategyWatchlist() {
+  const snaps = await query(`SELECT instrument,strategy_family AS "family",strategy_version AS "version",config_version AS "configVersion",setup_status AS "setupStatus",direction,entry::float,stop::float,target::float,risk_reward::float AS "riskReward",regime,trend_strength::float AS "trendStrength",volatility_bucket AS "volatilityBucket",atr_pips::float AS "atrPips",session,selected,data_status AS "dataStatus",spread_pips::float AS "spreadPips",open_trade_id AS "openTradeId",evaluated_at AS "evaluatedAt",updated_at AS "updatedAt" FROM multistrategy_watch_snapshots ORDER BY array_position($1::text[],instrument),strategy_family`, [MAJOR_INSTRUMENTS]);
+  const decisions = await query(`SELECT DISTINCT ON (instrument) instrument,adaptive_state AS "adaptiveState",reason,selected,decision_time AS "decisionTime" FROM adaptive_decisions ORDER BY instrument,decision_time DESC`);
+  const decisionByInstrument = new Map(decisions.rows.map((row: any) => [row.instrument, row]));
+  const byInstrument = new Map<string, any[]>();
+  for (const row of snaps.rows as any[]) byInstrument.set(row.instrument, [...(byInstrument.get(row.instrument) ?? []), row]);
+  return MAJOR_INSTRUMENTS.map((instrument) => {
+    const strategies = byInstrument.get(instrument) ?? [];
+    const decision = decisionByInstrument.get(instrument) ?? null;
+    const first = strategies[0];
+    return {
+      instrument,
+      session: first?.session ?? "Unavailable",
+      dataStatus: first?.dataStatus ?? "unavailable",
+      regime: first?.regime ?? null,
+      trendStrength: first?.trendStrength ?? null,
+      volatilityBucket: first?.volatilityBucket ?? null,
+      atrPips: first?.atrPips ?? null,
+      updatedAt: first?.updatedAt ?? null,
+      strategies,
+      adaptive: decision,
+    };
+  });
+}
+
+/** Per-family cohort statistics for the fresh experiment. */
+export async function multiStrategyOverview() {
+  const experiment = await query<{ id: string; label: string; status: string; created_at: string }>("SELECT id,label,status,created_at AS \"createdAt\" FROM strategy_experiments WHERE label=$1", [MULTISTRATEGY_EXPERIMENT_LABEL]);
+  if (!experiment.rows[0]) return { experiment: null, families: [] };
+  const experimentId = experiment.rows[0].id;
+  const trades = await query<StoredTrade & { strategy_family: string }>("SELECT id,trade_sequence::text,instrument,direction,status,outcome,result_r::text,session,weekday,spread_pips::text,opened_at,closed_at,features,strategy_family FROM paper_strategy_trades WHERE experiment_id=$1 ORDER BY trade_sequence", [experimentId]);
+  const evals = await query<{ strategy_family: string; execution_status: string | null; count: string }>("SELECT strategy_family,execution_status,count(*)::text FROM paper_strategy_evaluations WHERE experiment_id=$1 GROUP BY strategy_family,execution_status", [experimentId]);
+  const batches = await query<{ strategy_family: string; batch_number: number; status: string; assigned_count: number }>("SELECT strategy_family,batch_number AS \"batchNumber\",status,assigned_count AS \"assignedCount\" FROM paper_strategy_batches WHERE experiment_id=$1 ORDER BY strategy_family,batch_number", [experimentId]);
+  // Shadow (hypothetical) outcomes of suppressed/blocked valid candidates, kept
+  // separate from executed results so the two can be compared per family.
+  const shadow = await query<{ strategy_family: string; resolved: string; wins: string; net_r: string }>(
+    `SELECT evaluation.strategy_family,
+            count(*)::text AS resolved,
+            count(*) FILTER (WHERE shadow.result_r > 0)::text AS wins,
+            COALESCE(sum(shadow.result_r),0)::text AS net_r
+       FROM shadow_candidate_outcomes shadow
+       JOIN paper_strategy_evaluations evaluation ON evaluation.id = shadow.evaluation_id
+      WHERE evaluation.experiment_id=$1 AND shadow.result_r IS NOT NULL
+        AND shadow.outcome IN ('target_first','stop_first','forced_close','timeout')
+      GROUP BY evaluation.strategy_family`,
+    [experimentId],
+  );
+  const families = STRATEGY_FAMILIES.map((family) => {
+    const rows = trades.rows.filter((row) => row.strategy_family === family);
+    const familyEvals = evals.rows.filter((row) => row.strategy_family === family);
+    const totalCandidates = familyEvals.reduce((sum, row) => sum + Number(row.count), 0);
+    const countFor = (status: string) => familyEvals.filter((row) => row.execution_status === status).reduce((sum, row) => sum + Number(row.count), 0);
+    const shadowRow = shadow.rows.find((row) => row.strategy_family === family);
+    const shadowResolved = shadowRow ? Number(shadowRow.resolved) : 0;
+    const shadowNetR = shadowRow ? Number(shadowRow.net_r) : 0;
+    const shadowWins = shadowRow ? Number(shadowRow.wins) : 0;
+    return {
+      family,
+      ...paperBatchMetrics(rows),
+      candidates: totalCandidates,
+      selectedCandidates: countFor("selected"),
+      suppressedCandidates: countFor("suppressed"),
+      blockedCandidates: countFor("blocked"),
+      shadowResolved,
+      shadowWins,
+      shadowWinRate: shadowResolved ? shadowWins / shadowResolved : null,
+      shadowExpectancyR: shadowResolved ? shadowNetR / shadowResolved : null,
+      batches: batches.rows.filter((row) => row.strategy_family === family),
+    };
+  });
+  return { experiment: experiment.rows[0], families };
 }

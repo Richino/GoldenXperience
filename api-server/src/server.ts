@@ -29,10 +29,15 @@ import { getForexSessionStatus } from "../../frontend/src/lib/strategy/session.j
 import { databaseConfigured, query } from "./database.js";
 import { cookieName, login, logout, sessionUser } from "./auth.js";
 import { decideResearchExperiment, forwardResearchSummary, latestDayTradingValidation, latestResearchExperiment, latestResearchHoldout, latestResearchRun, latestWalkForwardResearch, processNextResearchJob, researchDiagnostics, researchExperimentDiagnostics, researchSummary, runDayTradingValidation, runResearchExperiment, runWalkForwardResearch, startLockedResearchHoldout, startStrictHistoricalBackfill, stopResearchRun } from "./research.js";
-import { collectPaperCycle, decidePaperBatch, fastResolveFilledTrades, liveResolvePaperTrades, journalTradeLog, paperCycleOverview, paperRiskExposure, paperRiskPolicy, paperTradesForInstrument, parsePaperRiskConfiguration, reviewPaperTrade, updatePaperRiskPolicy, watchlistSnapshot } from "./paper-cycle.js";
+import { collectMultiStrategyCycle, collectPaperCycle, decidePaperBatch, fastResolveFilledTrades, liveResolvePaperTrades, journalTradeLog, multiStrategyOverview, multiStrategyWatchlist, paperCycleOverview, paperRiskExposure, paperRiskPolicy, paperTradesForInstrument, parsePaperRiskConfiguration, reviewPaperTrade, updatePaperRiskPolicy, watchlistSnapshot } from "./paper-cycle.js";
 import { markNotificationsRead, notificationsForUser, pushPublicKey, queueNotification, removePushSubscription, savePushSubscription } from "./notifications.js";
 import { practiceExecutionOverview, setPracticeExecutionEnabled } from "./practice-execution.js";
 import { binaryJournal, binaryPerformance, binaryPredictionDetail, binaryWatchlistSnapshot, collectBinaryCycle, recentBinaryPredictions, resolveDueBinaryPredictions } from "./binary-engine.js";
+
+// The multi-strategy + adaptive engine replaces the single liquidity strategy as
+// the active forex collector. Default on; set MULTISTRATEGY_ENABLED=false to roll
+// back to the preserved liquidity strategy.
+const MULTISTRATEGY_ENABLED = (process.env.MULTISTRATEGY_ENABLED ?? "true").toLowerCase() !== "false";
 
 const STREAM_INSTRUMENTS: MajorInstrument[] = [...MAJOR_INSTRUMENTS];
 
@@ -212,6 +217,12 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     }
     if (url.pathname === "/api/paper-cycle" && request.method === "GET") {
       return json(request, response, await paperCycleOverview());
+    }
+    if (url.pathname === "/api/multistrategy/watchlist" && request.method === "GET") {
+      return json(request, response, { instruments: await multiStrategyWatchlist() });
+    }
+    if (url.pathname === "/api/multistrategy/experiment" && request.method === "GET") {
+      return json(request, response, await multiStrategyOverview());
     }
     if (url.pathname === "/api/paper-risk" && request.method === "GET") {
       return json(request, response, { exposure: await paperRiskExposure(user.id), policy: await paperRiskPolicy(user.id) });
@@ -526,9 +537,13 @@ if (databaseConfigured()) {
     if (!marketOpen) return;
     collectionBusy = true;
     try {
-      const result = await collectPaperCycle();
-      if (result.reason) console.warn(`[paper-cycle] collection skipped: ${result.reason}`);
-      else if (result.opened || result.resolved) console.log(`[paper-cycle] opened ${result.opened}, resolved ${result.resolved}`);
+      // The multi-strategy + adaptive engine is the active collector. Set
+      // MULTISTRATEGY_ENABLED=false to fall back to the retired-but-preserved
+      // liquidity strategy (rollback), which leaves it generating trades again.
+      const result = MULTISTRATEGY_ENABLED ? await collectMultiStrategyCycle() : await collectPaperCycle();
+      const label = MULTISTRATEGY_ENABLED ? "multi-strategy" : "paper-cycle";
+      if ("reason" in result && result.reason) console.warn(`[${label}] collection skipped: ${result.reason}`);
+      else if (result.opened || result.resolved) console.log(`[${label}] opened ${result.opened}, resolved ${result.resolved}`);
     } catch (error) {
       console.error("[paper-cycle] collection failed", error);
       const owner = await query<{ id: string }>("SELECT id FROM users WHERE role='owner' ORDER BY created_at LIMIT 1");

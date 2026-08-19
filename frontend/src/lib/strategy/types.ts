@@ -5,6 +5,92 @@ export type SetupStatus = "valid" | "developing" | "invalid" | "no_setup";
 export type StrategyDirection = "long" | "short" | null;
 export type StrategyEvaluationMode = "live" | "practice" | "historical_replay";
 
+// ---------------------------------------------------------------------------
+// Multi-strategy + adaptive engine (Phase 2). Defined here, in the base types
+// module that imports no strategy file, so the strategy contract and the
+// per-family research features can be referenced without a circular import.
+// Every field below is deterministic and computed only from completed candles
+// available at decision time.
+// ---------------------------------------------------------------------------
+
+export type StrategyFamily = "ema" | "breakout" | "momentum" | "meanrev";
+export type RegimeClass = "trending" | "ranging" | "mixed";
+export type TrendDirection = "up" | "down" | "none";
+export type VolatilityBucket = "low" | "normal" | "high";
+export type MomentumState = "accelerating_up" | "accelerating_down" | "steady" | "stalling";
+
+/** The shared market environment all four strategies evaluate against. */
+export interface MarketRegime {
+  regime: RegimeClass;
+  trendDirection: TrendDirection;
+  /** Regression R² of closes over the lookback: 0 (chop) → 1 (clean trend). */
+  trendStrength: number;
+  volatility: VolatilityBucket;
+  atr: number | null;
+  atrPips: number | null;
+  momentumState: MomentumState;
+  emaFast: number | null;
+  emaMid: number | null;
+  emaSlow: number | null;
+  /** Slope of the mid EMA per bar, normalized by ATR. Signed. */
+  slopeAtrPerBar: number | null;
+  rangeHigh: number | null;
+  rangeLow: number | null;
+  rangeWidthAtr: number | null;
+  /** How many of the last lookback bars price stayed inside the range band. */
+  rangeAgeBars: number | null;
+  lookbackBars: number;
+  evaluatedAt: string;
+}
+
+export interface EmaFeatures {
+  emaFast: number | null;
+  emaMid: number | null;
+  emaSlow: number | null;
+  aligned: boolean;
+  slopeAtrPerBar: number | null;
+  pullbackDepthAtr: number | null;
+  distanceFromFastAtr: number | null;
+  extensionAtr: number | null;
+  confirmation: boolean;
+}
+
+export interface BreakoutFeatures {
+  level: number | null;
+  side: "high" | "low" | null;
+  lookbackBars: number;
+  breakoutDistance: number | null;
+  breakoutDistanceAtr: number | null;
+  candleClose: boolean;
+  rangeHigh: number | null;
+  rangeLow: number | null;
+  rangeWidthAtr: number | null;
+  retest: boolean;
+  extensionAtr: number | null;
+}
+
+export interface MomentumFeatures {
+  momentumAtr: number | null;
+  returnPct: number | null;
+  accelerationAtr: number | null;
+  bodyRatio: number | null;
+  consecutiveBars: number;
+  extensionAtr: number | null;
+  rsi14: number | null;
+}
+
+export interface MeanReversionFeatures {
+  mean: number | null;
+  distanceFromMean: number | null;
+  stretchAtr: number | null;
+  rangeHigh: number | null;
+  rangeLow: number | null;
+  rangeWidthAtr: number | null;
+  rangeAgeBars: number | null;
+  trendStrength: number | null;
+  reversalConfirmation: boolean;
+}
+
 export interface StrategyCondition {
   name: string;
   passed: boolean;
@@ -93,6 +179,14 @@ export interface StrategyResearchFeatures {
    * The fields above describe the market; this one describes the decision.
    */
   liquidity?: LiquidityDecisionFeatures | null;
+  // Multi-strategy (Phase 2). The shared regime plus whichever family produced
+  // the candidate; the others stay null. Additive and optional so the retired
+  // liquidity strategy and every existing consumer are unaffected.
+  regime?: MarketRegime | null;
+  ema?: EmaFeatures | null;
+  breakout?: BreakoutFeatures | null;
+  momentum?: MomentumFeatures | null;
+  meanReversion?: MeanReversionFeatures | null;
 }
 
 export interface StrategySetup {

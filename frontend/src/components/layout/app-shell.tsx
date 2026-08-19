@@ -215,7 +215,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         ) : null}
 
-        <div className="nav-pill mx-auto flex w-full max-w-[24rem] items-center justify-between gap-1.5 px-2.5 py-2">
+        <div className="nav-pill mx-auto flex w-full max-w-[26rem] items-end justify-between gap-0.5 px-2 py-1.5">
           {mobileNavItems.map((item) => {
             const active = isActive(pathname, item.href);
             const Icon = item.icon;
@@ -228,9 +228,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   active ? "nav-mobile-link-active" : ""
                 }`}
                 aria-current={active ? "page" : undefined}
-                aria-label={item.label}
               >
-                <Icon className="size-8" strokeWidth={active ? 2.25 : 1.8} />
+                <Icon className="size-7" strokeWidth={active ? 2.25 : 1.8} />
+                <span className="nav-mobile-label">{item.label}</span>
               </Link>
             );
           })}
@@ -239,14 +239,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             className={`nav-mobile-link pressable ${
               mobileMoreOpen || moreActive ? "nav-mobile-link-active" : ""
             }`}
-            aria-label="More"
             aria-expanded={mobileMoreOpen}
             onClick={() => setMobileMoreOpen((open) => !open)}
           >
             <MoreHorizontal
-              className="size-8"
-              strokeWidth={mobileMoreOpen || moreActive ? 2.3 : 1.85}
+              className="size-7"
+              strokeWidth={mobileMoreOpen || moreActive ? 2.25 : 1.8}
             />
+            <span className="nav-mobile-label">More</span>
           </button>
         </div>
       </nav>

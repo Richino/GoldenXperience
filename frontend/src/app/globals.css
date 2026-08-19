@@ -1708,14 +1708,16 @@ input[type="number"] {
 }
 
 .nav-mobile-link {
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
   flex: 1 1 0;
-  min-width: 3.25rem;
-  min-height: 3.25rem;
-  max-width: 3.75rem;
-  margin-inline: auto;
-  border-radius: 999px;
+  min-width: 0;
+  min-height: 3.75rem;
+  padding: 0.35rem 0.15rem 0.3rem;
+  border-radius: 1.15rem;
   color: var(--muted);
   outline: none;
   -webkit-tap-highlight-color: transparent;
@@ -1723,6 +1725,17 @@ input[type="number"] {
     background-color 140ms ease,
     color 140ms ease,
     transform 140ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.nav-mobile-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1;
 }
 
 .nav-mobile-link:active {
@@ -4419,7 +4432,7 @@ input[type="number"] {
        fallback covers the first frame before the measurement lands.
        Padding rather than margin: the canvas is sized from contentRect, so the
        measurement excludes this strip on its own. */
-    padding-bottom: calc(var(--app-dock-height, 5.25rem) + 0.5rem);
+    padding-bottom: calc(var(--app-dock-height, 6.25rem) + 0.5rem);
   }
 
   /* Fullscreen covers the nav, so the canvas reclaims that strip. */

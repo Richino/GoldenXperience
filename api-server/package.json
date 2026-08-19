@@ -20,7 +20,12 @@
     "paper-cycle:test": "tsx scripts/test-paper-cycle.ts",
     "binary:test": "tsx scripts/test-binary-engine.ts",
     "paper-cycle:collect": "tsx scripts/collect-paper-cycle.ts",
-    "db:vacuum-research": "tsx scripts/vacuum-research.ts"
+    "db:vacuum-research": "tsx scripts/vacuum-research.ts",
+    "verify:math": "tsx scripts/verify-math.ts",
+    "check:desync": "tsx scripts/fix-trade-desync.ts",
+    "resolve:ambiguous": "tsx scripts/resolve-ambiguous-trade.ts",
+    "fix:pl": "tsx scripts/fix-ambiguous-pl.ts",
+    "today:trades": "tsx scripts/verify-today-trades.ts"
   },
   "dependencies": {
     "argon2": "^0.45.1",

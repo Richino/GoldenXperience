@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AccountOverviewHero } from "@/components/dashboard/account-overview-hero";
 import { RecentPredictions } from "@/components/dashboard/recent-predictions";
 import { BinaryWatchlistCard } from "@/components/dashboard/binary-watchlist-card";
@@ -14,7 +14,6 @@ import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import { useOpenPositionFills } from "@/lib/market-stream/use-open-positions";
 import { getPaperTradingAvailability } from "@/lib/strategy/strategy-engine";
-import { watchlistCardStatus } from "@/lib/watchlist-status";
 import type { AccountBalanceHistoryPoint, AccountSummary, ConnectionStatus } from "@/types/forex";
 
 export type DashboardWatchRow = {
@@ -34,6 +33,66 @@ export type DashboardWatchRow = {
   batchNumber: number | null;
   tradeSequence: string | null;
 };
+
+/**
+ * One instrument as the multi-strategy + adaptive engine sees it: the market
+ * regime, each strategy family's candidate, and the adaptive engine's pick.
+ * Mirrors the /api/multistrategy/watchlist row shape (multiStrategyWatchlist).
+ */
+export type DashboardStrategyRow = {
+  instrument: string;
+  session: string;
+  dataStatus: string;
+  regime: string | null;
+  trendStrength: number | null;
+  volatilityBucket: string | null;
+  atrPips: number | null;
+  updatedAt: string | null;
+  strategies: Array<{
+    family: "ema" | "breakout" | "momentum" | "meanrev";
+    version: string;
+    setupStatus: "valid" | "developing" | "invalid" | "no_setup";
+    direction: "long" | "short" | null;
+    riskReward: number | null;
+    selected: boolean;
+    openTradeId: string | null;
+  }>;
+  adaptive: {
+    adaptiveState: string;
+    reason: string;
+    selected: { family: string; direction: string } | null;
+  } | null;
+};
+
+const STRATEGY_FAMILY_LABEL: Record<string, string> = {
+  ema: "EMA",
+  breakout: "Breakout",
+  momentum: "Momentum",
+  meanrev: "Mean reversion",
+};
+
+/** The one line shown under each pair: the adaptive pick, else the regime. */
+function strategyRowState(row: DashboardStrategyRow) {
+  const pick = row.adaptive?.selected ?? null;
+  if (pick) {
+    const family = STRATEGY_FAMILY_LABEL[pick.family] ?? pick.family;
+    return {
+      active: true as const,
+      label: `${family} · ${pick.direction.toUpperCase()}`,
+      tone:
+        pick.direction === "long"
+          ? "text-[color:var(--success)]"
+          : "text-[color:var(--danger)]",
+    };
+  }
+  if (row.dataStatus !== "connected") {
+    return { active: false as const, label: "Waiting for data", tone: "text-[color:var(--muted)]" };
+  }
+  const regime = row.regime
+    ? row.regime.charAt(0).toUpperCase() + row.regime.slice(1)
+    : "No signal";
+  return { active: false as const, label: regime, tone: "text-[color:var(--muted)]" };
+}
 
 type Metrics = {
   assigned: number;
@@ -104,28 +163,6 @@ function time(value: string | null) {
   return formatDayAndTime(value);
 }
 
-/** One shared state drives the row text, dot, percentage and progress colour. */
-function pairState(row: DashboardWatchRow) {
-  return watchlistCardStatus(row);
-}
-
-/**
- * A deliberately stretched cool-to-ready ramp. The middle readiness band gets
- * more hue distance so nearby 50–70% values remain visibly distinguishable.
- */
-function checklistProgressColor(progress: number) {
-  const clamped = Math.max(0, Math.min(100, progress));
-  const hue = Math.round(
-    clamped <= 50
-      ? 220 - clamped * 0.5 // blue → cyan
-      : clamped <= 75
-        ? 195 - (clamped - 50) * 2 // cyan → green
-        : 145 - (clamped - 75) * 0.8, // green → ready green
-  );
-  const lightness = Math.round(55 - clamped * 0.04);
-  return `hsl(${hue} 90% ${lightness}%)`;
-}
-
 function DashboardStat({
   label,
   value,
@@ -156,6 +193,7 @@ export function DashboardView({
   initialAccount,
   initialAccountHistory,
   initialWatchlist,
+  initialStrategyWatchlist,
   initialOverview,
   userLabel,
   todayKey,
@@ -164,6 +202,7 @@ export function DashboardView({
   initialAccountHistory: AccountBalanceHistoryPoint[];
   initialStatus: ConnectionStatus;
   initialWatchlist: DashboardWatchRow[];
+  initialStrategyWatchlist: DashboardStrategyRow[];
   initialOverview: DashboardOverview;
   initialExposure: DashboardExposure;
   userLabel: string;
@@ -171,7 +210,10 @@ export function DashboardView({
 }) {
   const [account, setAccount] = useState(initialAccount);
   const [accountHistory, setAccountHistory] = useState(initialAccountHistory);
+  // Kept for the Recent-trades quote fallback below; the Watchlist section now
+  // renders from the multi-strategy engine instead.
   const [watchlist, setWatchlist] = useState(initialWatchlist);
+  const [strategyRows, setStrategyRows] = useState(initialStrategyWatchlist);
   const [overview, setOverview] = useState(initialOverview);
   const [error, setError] = useState<string | null>(null);
   // Ticks rather than the 60s refresh below, so an open trade's value moves
@@ -183,10 +225,11 @@ export function DashboardView({
 
   const refresh = useCallback(async () => {
     try {
-      const [accountResponse, historyResponse, watchlistResponse, cycleResponse] = await Promise.all([
+      const [accountResponse, historyResponse, watchlistResponse, strategyResponse, cycleResponse] = await Promise.all([
         fetch(apiUrl("/api/oanda/account-summary"), { credentials: "include", cache: "no-store" }),
         fetch(apiUrl("/api/oanda/account-history"), { credentials: "include", cache: "no-store" }),
         fetch(apiUrl("/api/watchlist"), { credentials: "include", cache: "no-store" }),
+        fetch(apiUrl("/api/multistrategy/watchlist"), { credentials: "include", cache: "no-store" }),
         fetch(apiUrl("/api/paper-cycle"), { credentials: "include", cache: "no-store" }),
       ]);
       if (![accountResponse, historyResponse, watchlistResponse, cycleResponse].every((response) => response.ok)) {
@@ -202,6 +245,12 @@ export function DashboardView({
       setAccountHistory(historyPayload.data);
       setWatchlist(watchlistPayload.watchlist);
       setOverview(cyclePayload);
+      // The strategy watchlist is non-blocking: a hiccup there leaves the last
+      // rows in place rather than tearing down the whole dashboard.
+      if (strategyResponse.ok) {
+        const strategyPayload = (await strategyResponse.json()) as { instruments?: DashboardStrategyRow[] };
+        if (strategyPayload.instruments) setStrategyRows(strategyPayload.instruments);
+      }
       setError(null);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Dashboard data is temporarily unavailable.");
@@ -317,76 +366,42 @@ export function DashboardView({
               </span>
             ) : null}
           </div>
-          <Link href="/watchlist" className="link-quiet pressable text-xs">
+          <Link href="/watchlist?tab=strategies" className="link-quiet pressable text-xs">
             View all
           </Link>
         </div>
         <div className="dashboard-watchlist-grid mt-3">
-          {watchlist.map((row) => {
-            const state = pairState(row);
-            const progressColor = checklistProgressColor(state.progress);
+          {strategyRows.map((row) => {
+            const state = strategyRowState(row);
+            const validCount = row.strategies.filter((strategy) => strategy.setupStatus === "valid").length;
+            const shownBid = quotes[row.instrument]?.bid ?? null;
             return (
               <Link
                 key={row.instrument}
-                href={`/signals?instrument=${row.instrument}`}
-                data-state={state.state}
+                href={`/watchlist?tab=strategies&instrument=${row.instrument}`}
+                data-state={state.active ? "open" : undefined}
                 className="dashboard-minimal-row pressable block py-3"
-                style={
-                  state.state === "open" || state.state === "unavailable"
-                    ? undefined
-                    : { "--watch-progress-color": progressColor } as CSSProperties
-                }
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{displayNameFor(row.instrument)}</p>
-                    <p
-                      className={`watchlist-status-label mt-0.5 text-xs ${
-                        state.state === "open" || state.state === "unavailable"
-                          ? state.tone
-                          : "watchlist-progress-text"
-                      }`}
-                    >
+                    <p className={`watchlist-status-label mt-0.5 text-xs ${state.tone}`}>
                       {state.label}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
                     <p className="dashboard-watchlist-price metric-number text-sm">
-                      {/* Streamed price when the pair has ticked, otherwise the
-                          polled snapshot. */}
-                      {(() => {
-                        const shownBid = quotes[row.instrument]?.bid ?? row.bid;
-                        return shownBid === null ? "—" : formatChartPrice(shownBid, row.instrument);
-                      })()}
+                      {shownBid === null ? "—" : formatChartPrice(shownBid, row.instrument)}
                     </p>
-                    {state.state !== "open" && state.state !== "unavailable" ? (
-                      <p
-                        className="watchlist-checklist-value watchlist-progress-text mt-0.5 text-xs font-medium"
-                      >
-                        {state.progress}% checklist
+                    {/* Not the adaptive pick, but a hint of activity: how many of
+                        the four families currently see a valid setup. */}
+                    {!state.active && validCount > 0 ? (
+                      <p className="mt-0.5 text-xs font-medium text-[color:var(--muted-strong)]">
+                        {validCount}/4 valid
                       </p>
                     ) : null}
                   </div>
                 </div>
-                {state.state !== "open" && state.state !== "unavailable" ? (
-                  <div
-                    className="mt-2 h-1 overflow-hidden rounded-full bg-[color:var(--border)]"
-                    role="progressbar"
-                    aria-label={`${displayNameFor(row.instrument)} checklist completion`}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={state.progress}
-                  >
-                    <span
-                      className="dashboard-checklist-fill block h-full rounded-full"
-                      style={{
-                        width: `${state.progress}%`,
-                        backgroundColor: progressColor,
-                        boxShadow: `0 0 0.5rem ${progressColor}`,
-                      }}
-                    />
-                  </div>
-                ) : null}
               </Link>
             );
           })}

@@ -319,6 +319,9 @@ export function DashboardView({
 
       <section className="dashboard-minimal-section" aria-label="Strategy performance">
         <div className="grid grid-cols-3 divide-x divide-[color:var(--border)]">
+          {/* The strategy's edge in R (sum of per-trade risk-multiples), not a
+              money figure — the real-money truth lives in the account hero's
+              all-time pill. Kept position-size-agnostic on purpose. */}
           <DashboardStat
             label="Net"
             value={`${lifetime.netR >= 0 ? "+" : ""}${lifetime.netR.toFixed(2)}R`}

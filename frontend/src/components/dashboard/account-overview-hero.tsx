@@ -20,6 +20,13 @@ function money(value: number, currency: string) {
   }).format(value);
 }
 
+/**
+ * The account's starting deposit. All-time P&L is the current NAV minus this,
+ * and the broker API does not report the opening balance, so it is set here.
+ * Change it if the practice account is reset or re-funded.
+ */
+const ACCOUNT_STARTING_BALANCE = 100_000;
+
 function greetingName(value: string) {
   const cleaned = value.trim();
   if (!cleaned) return "trader";
@@ -84,6 +91,12 @@ export function AccountOverviewHero({
   const baseline = account.nav - dayPL;
   const changePercent = baseline !== 0 ? (dayPL / baseline) * 100 : 0;
   const positive = dayPL >= 0;
+  // All-time result: where the account sits now versus the opening deposit,
+  // floating P&L included (NAV already carries it). This is the "am I up
+  // overall?" figure, which the day pill above never answers.
+  const allTimePL = account.nav - ACCOUNT_STARTING_BALANCE;
+  const allTimePositive = allTimePL >= 0;
+  const allTimePercent = (allTimePL / ACCOUNT_STARTING_BALANCE) * 100;
   // The card's tint follows the chart it wraps, not the day's P/L. Those are
   // different questions and they disagree often — a flat day around a losing
   // month painted the card green while the line inside it was red.
@@ -122,19 +135,34 @@ export function AccountOverviewHero({
         <p className="metric-number mt-0 text-[2.65rem] font-semibold leading-none tracking-[-0.05em] lg:mt-3 lg:text-[3.25rem]">
           {money(account.nav, account.currency)}
         </p>
-        <span
-          className={`mt-3 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-            positive
-              ? "bg-[color:var(--success-soft)] text-[color:var(--success)]"
-              : "bg-[color:var(--danger-soft)] text-[color:var(--danger)]"
-          }`}
-        >
-          {positive ? "+" : "−"}
-          {money(Math.abs(dayPL), account.currency)}
-          <span className="mx-1.5 opacity-45">·</span>
-          {positive ? "+" : "−"}
-          {Math.abs(changePercent).toFixed(2)}% today
-        </span>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span
+            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+              positive
+                ? "bg-[color:var(--success-soft)] text-[color:var(--success)]"
+                : "bg-[color:var(--danger-soft)] text-[color:var(--danger)]"
+            }`}
+          >
+            {positive ? "+" : "−"}
+            {money(Math.abs(dayPL), account.currency)}
+            <span className="mx-1.5 opacity-45">·</span>
+            {positive ? "+" : "−"}
+            {Math.abs(changePercent).toFixed(2)}% today
+          </span>
+          <span
+            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+              allTimePositive
+                ? "bg-[color:var(--success-soft)] text-[color:var(--success)]"
+                : "bg-[color:var(--danger-soft)] text-[color:var(--danger)]"
+            }`}
+          >
+            {allTimePositive ? "+" : "−"}
+            {money(Math.abs(allTimePL), account.currency)}
+            <span className="mx-1.5 opacity-45">·</span>
+            {allTimePositive ? "+" : "−"}
+            {Math.abs(allTimePercent).toFixed(2)}% all-time
+          </span>
+        </div>
       </div>
 
       <div className="mt-5 lg:mt-7">

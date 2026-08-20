@@ -31,10 +31,10 @@ export type AccountChartRange = "1h" | "1d" | "1w" | "1m";
 const RANGES: AccountChartRange[] = ["1h", "1d", "1w", "1m"];
 
 const RANGE_CONFIG: Record<AccountChartRange, { tab: string; label: string; durationMs: number; bucketMs: number }> = {
-  "1h": { tab: "1H", label: "the last hour", durationMs: 60 * 60_000, bucketMs: 5 * 60_000 },
-  "1d": { tab: "1D", label: "the last day", durationMs: 24 * 60 * 60_000, bucketMs: 2 * 60 * 60_000 },
-  "1w": { tab: "1W", label: "the last week", durationMs: 7 * 24 * 60 * 60_000, bucketMs: 24 * 60 * 60_000 },
-  "1m": { tab: "1M", label: "the last 30 days", durationMs: 30 * 24 * 60 * 60_000, bucketMs: 3 * 24 * 60 * 60_000 },
+  "1h": { tab: "1H", label: "the last hour", durationMs: 60 * 60_000, bucketMs: 2 * 60_000 },
+  "1d": { tab: "1D", label: "the last day", durationMs: 24 * 60 * 60_000, bucketMs: 60 * 60_000 },
+  "1w": { tab: "1W", label: "the last week", durationMs: 7 * 24 * 60 * 60_000, bucketMs: 6 * 60 * 60_000 },
+  "1m": { tab: "1M", label: "the last 30 days", durationMs: 30 * 24 * 60 * 60_000, bucketMs: 24 * 60 * 60_000 },
 };
 
 function moneyCompact(value: number, currency: string) {
@@ -72,6 +72,12 @@ function formatBucketLabel(start: number, end: number, range: AccountChartRange)
   const endDate = new Date(end);
   if (range === "1h" || range === "1d") {
     const formatter = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
+    return `${formatter.format(startDate)}–${formatter.format(endDate)}`;
+  }
+  if (range === "1w") {
+    // 6-hour buckets sit inside a day, so the label carries the day and hour;
+    // month/day alone repeated the same string across a day's four buckets.
+    const formatter = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric" });
     return `${formatter.format(startDate)}–${formatter.format(endDate)}`;
   }
   const formatter = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
@@ -301,12 +307,15 @@ export function AccountAmountChart({
   const max = Math.max(...values);
   const room = Math.max((max - min) * 0.12, 1);
   const activePoint = activeIndex === null ? null : (series[activeIndex] ?? null);
-  const movementCount = series.reduce((sum, point) => sum + point.movementCount, 0);
   const opening = series[0]?.value ?? 0;
   const latest = series.at(-1)?.value ?? opening;
   const netChange = latest - opening;
   const stroke = netChange >= 0 ? "var(--chart-up)" : "var(--chart-down)";
-  const tickInterval = range === "1w" ? 0 : range === "1m" ? 1 : 2;
+  // Finer buckets (1H: 2-min ×30, 1D: hourly ×24, 1W: 6-hour ×28, 1M: daily ×30)
+  // mean more points, so each range skips enough labels to keep the axis
+  // uncrowded: ~6 for 1H, ~7 for 1D, one-per-day for 1W, ~6 for 1M.
+  const tickInterval =
+    range === "1w" ? 3 : range === "1m" ? 4 : range === "1d" ? 3 : range === "1h" ? 4 : 2;
 
   function handleChartFocus(event: { activeTooltipIndex?: number | string | null }) {
     if (typeof event.activeTooltipIndex === "number") {
@@ -407,17 +416,6 @@ export function AccountAmountChart({
             />
           </AreaChart>
         </ResponsiveContainer>
-      </div>
-
-      <div className="mt-3 flex items-center justify-between gap-3 text-xs text-[color:var(--muted)]">
-        <span>
-          {movementCount
-            ? `${movementCount} broker P/L ${movementCount === 1 ? "change" : "changes"}`
-            : "No closed P/L changes"}
-        </span>
-        <span className={netChange >= 0 ? "text-[color:var(--success)]" : "text-[color:var(--danger)]"}>
-          {netChange >= 0 ? "+" : "−"}{moneyExact(Math.abs(netChange), currency)} over {RANGE_CONFIG[range].label}
-        </span>
       </div>
 
       {/* Colour is not the only channel: the total and direction remain spoken. */}

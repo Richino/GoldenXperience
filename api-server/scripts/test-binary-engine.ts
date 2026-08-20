@@ -126,6 +126,12 @@ for (const column of ["direction", "entry_price", "start_at", "intended_expirati
 }
 assert.match(migration, /binary_predictions_one_active_idx[\s\S]*WHERE status = 'active'/, "one active prediction per symbol is enforced by a partial unique index");
 
+const shadowMigrationPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "migrations", "029_binary_shadow_predictions.sql");
+const shadowMigration = fs.readFileSync(shadowMigrationPath, "utf8");
+assert.match(shadowMigration, /opportunity_id uuid/, "shadow migration adds opportunity_id");
+assert.match(shadowMigration, /is_shadow boolean/, "shadow migration adds is_shadow flag");
+assert.match(shadowMigration, /model_name\)[\s\S]*WHERE status = 'active'/, "one active prediction per model is enforced");
+
 // ---------------------------------------------------------------------------
 // Separation: the binary engine must not import any trade-execution surface, so
 // a prediction can never create an OANDA order or a paper trade.

@@ -1,22 +1,36 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { apiUrl } from "@/lib/api/url";
 import { displayNameFor } from "@/lib/instruments/catalog";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { formatClockTime, formatShortDay } from "@/lib/format/datetime";
 import { predictionResultTone, predictionStatusLabel } from "@/lib/binary-format";
+import { useInfiniteScroll } from "@/lib/use-infinite-scroll";
 import type { BinaryPerformance, BinaryPrediction, BinaryPredictionDetail } from "@/types/binary";
 
 const FILTERS = ["All", "Won", "Lost", "Tie", "Active"] as const;
 type Filter = (typeof FILTERS)[number];
 
-function matchesFilter(prediction: BinaryPrediction, filter: Filter) {
-  if (filter === "All") return true;
-  if (filter === "Active") return prediction.status === "active";
-  if (filter === "Won") return prediction.result === "won";
-  if (filter === "Lost") return prediction.result === "lost";
-  return prediction.result === "tie";
+const PAGE_SIZE = 20;
+
+function filterParamFor(filter: Filter): "all" | "won" | "lost" | "tie" | "active" {
+  return filter === "Won"
+    ? "won"
+    : filter === "Lost"
+      ? "lost"
+      : filter === "Tie"
+        ? "tie"
+        : filter === "Active"
+          ? "active"
+          : "all";
+}
+
+function dedupeById(items: BinaryPrediction[]): BinaryPrediction[] {
+  const seen = new Set<string>();
+  return items.filter((item) =>
+    seen.has(item.id) ? false : (seen.add(item.id), true),
+  );
 }
 
 function price(value: number | null, prediction: BinaryPrediction) {
@@ -131,38 +145,110 @@ export function BinaryJournalView() {
   const [stats, setStats] = useState<BinaryPerformance | null>(null);
   const [filter, setFilter] = useState<Filter>("All");
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
+  const offsetRef = useRef(0);
+  const requestSeqRef = useRef(0);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
-  const load = useCallback(async () => {
+  const filterParam = filterParamFor(filter);
+
+  const loadStats = useCallback(async () => {
     try {
-      const [journalResponse, statsResponse] = await Promise.all([
-        fetch(apiUrl("/api/binary/journal"), { credentials: "include", cache: "no-store" }),
-        fetch(apiUrl("/api/binary/stats"), { credentials: "include", cache: "no-store" }),
-      ]);
-      const journalPayload = (await journalResponse.json()) as { predictions?: BinaryPrediction[]; error?: string };
-      if (!journalResponse.ok || !journalPayload.predictions) throw new Error(journalPayload.error ?? "Prediction history is unavailable.");
-      setPredictions(journalPayload.predictions);
-      if (statsResponse.ok) setStats((await statsResponse.json()) as BinaryPerformance);
-      setError(null);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Prediction history is unavailable.");
-    } finally {
-      setLoading(false);
+      const response = await fetch(apiUrl("/api/binary/stats"), { credentials: "include", cache: "no-store" });
+      if (response.ok) setStats((await response.json()) as BinaryPerformance);
+    } catch {
+      // Stats are supplementary; the list stays usable without them.
     }
   }, []);
 
-  useEffect(() => {
-    // load resolves its fetch before setting state, so the update lands in a
-    // promise continuation rather than synchronously during the effect.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void load();
-    setFocusId(new URLSearchParams(window.location.search).get("prediction"));
-    const timer = window.setInterval(() => void load(), 60_000);
-    return () => window.clearInterval(timer);
-  }, [load]);
+  // Loads one page. `reset` restarts at the first page for a filter change;
+  // otherwise it appends the next page. A per-call sequence drops a slower
+  // earlier request that resolves after a newer one.
+  const loadPage = useCallback(
+    async (reset: boolean) => {
+      const seq = ++requestSeqRef.current;
+      const offset = reset ? 0 : offsetRef.current;
+      if (!reset) setLoadingMore(true);
+      try {
+        const response = await fetch(
+          apiUrl(`/api/binary/journal?limit=${PAGE_SIZE}&offset=${offset}&filter=${filterParam}`),
+          { credentials: "include", cache: "no-store" },
+        );
+        const payload = (await response.json()) as { predictions?: BinaryPrediction[]; hasMore?: boolean; error?: string };
+        if (!response.ok || !payload.predictions) throw new Error(payload.error ?? "Prediction history is unavailable.");
+        if (seq !== requestSeqRef.current) return;
+        const batch = payload.predictions;
+        offsetRef.current = offset + batch.length;
+        setPredictions((prev) => (reset ? batch : dedupeById([...prev, ...batch])));
+        setHasMore(Boolean(payload.hasMore));
+        setError(null);
+      } catch (reason) {
+        if (seq === requestSeqRef.current) {
+          setError(reason instanceof Error ? reason.message : "Prediction history is unavailable.");
+        }
+      } finally {
+        if (seq === requestSeqRef.current) {
+          setLoading(false);
+          setLoadingMore(false);
+        }
+      }
+    },
+    [filterParam],
+  );
 
-  const filtered = useMemo(() => predictions.filter((prediction) => matchesFilter(prediction, filter)), [predictions, filter]);
+  // Refresh page one of the current filter and merge by id, so active
+  // predictions flip to resolved (and brand-new ones appear at the top) without
+  // resetting the loaded list or the user's scroll position.
+  const refreshActive = useCallback(async () => {
+    try {
+      const response = await fetch(
+        apiUrl(`/api/binary/journal?limit=${PAGE_SIZE}&offset=0&filter=${filterParam}`),
+        { credentials: "include", cache: "no-store" },
+      );
+      const payload = (await response.json()) as { predictions?: BinaryPrediction[] };
+      if (response.ok && payload.predictions) {
+        const page = payload.predictions;
+        setPredictions((prev) => {
+          const known = new Set(prev.map((prediction) => prediction.id));
+          const fresh = page.filter((prediction) => !known.has(prediction.id));
+          const updated = prev.map((prediction) => page.find((next) => next.id === prediction.id) ?? prediction);
+          return [...fresh, ...updated];
+        });
+      }
+    } catch {
+      // Left as-is until the next tick.
+    }
+    void loadStats();
+  }, [filterParam, loadStats]);
+
+  // One-time deep link: open a specific prediction if it is in the loaded set.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFocusId(new URLSearchParams(window.location.search).get("prediction"));
+  }, []);
+
+  // Filter change (and first mount) resets to page one and reloads stats.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoading(true);
+    void loadPage(true);
+    void loadStats();
+  }, [loadPage, loadStats]);
+
+  // Periodic refresh keeps active predictions current without a full reload.
+  useEffect(() => {
+    const timer = window.setInterval(() => void refreshActive(), 60_000);
+    return () => window.clearInterval(timer);
+  }, [refreshActive]);
+
+  const loadMore = useCallback(() => {
+    void loadPage(false);
+  }, [loadPage]);
+  useInfiniteScroll({ sentinelRef, hasMore, loading: loading || loadingMore, onLoadMore: loadMore });
+
   const summary = stats?.summary;
 
   return (
@@ -243,12 +329,18 @@ export function BinaryJournalView() {
 
         {loading ? (
           <p className="mt-4 text-sm text-[color:var(--muted)]">Loading…</p>
-        ) : filtered.length ? (
-          <div className="journal-entry-list mt-3">
-            {filtered.map((prediction) => (
-              <PredictionRow key={prediction.id} prediction={prediction} initiallyOpen={prediction.id === focusId} />
-            ))}
-          </div>
+        ) : predictions.length ? (
+          <>
+            <div className="journal-entry-list mt-3">
+              {predictions.map((prediction) => (
+                <PredictionRow key={prediction.id} prediction={prediction} initiallyOpen={prediction.id === focusId} />
+              ))}
+            </div>
+            <div ref={sentinelRef} aria-hidden className="h-px" />
+            {loadingMore ? (
+              <p className="mt-4 text-center text-sm text-[color:var(--muted)]">Loading more…</p>
+            ) : null}
+          </>
         ) : (
           <p className="mt-4 text-sm text-[color:var(--muted)]">No predictions in this view.</p>
         )}

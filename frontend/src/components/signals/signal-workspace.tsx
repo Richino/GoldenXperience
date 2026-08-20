@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronLeft,
+  ChevronUp,
+  ChevronDown,
   Clock3,
   Maximize2,
   Minimize2,
@@ -52,10 +54,10 @@ import {
 } from "@/lib/instruments/catalog";
 import { useMarketStream } from "@/lib/market-stream/use-market-stream";
 import type { StrategySetup } from "@/lib/strategy/types";
-import { getPaperTradingAvailability, type PaperTradingAvailability } from "@/lib/strategy/strategy-engine";
-import { watchlistCardStatus, type WatchlistStatusInput } from "@/lib/watchlist-status";
+import type { PaperTradingAvailability } from "@/lib/strategy/strategy-engine";
+import type { WatchlistStatusInput } from "@/lib/watchlist-status";
 import type { MarketPriceTick } from "@/types/market-stream";
-import type { BinaryPrediction } from "@/types/binary";
+import type { BinaryPrediction, BinaryWatchRow } from "@/types/binary";
 import { MAJOR_INSTRUMENTS } from "@/types/forex";
 import type {
   Candle,
@@ -260,6 +262,89 @@ function toDisplaySignal(setup: StrategySetup): TradeSignal[] {
     note: setup.summary,
     freshness: `Evaluated ${formatClockTime(setup.evaluatedAt)}`,
   }];
+}
+
+/** Status pill / dot colour. */
+type StatusKind = "ready" | "blocked" | "waiting";
+
+/**
+ * The live status shown on the signals page, read from the Binary Prediction
+ * engine (the "new engine") for the selected pair rather than the paper-cycle
+ * entry-window schedule. `row` is null when the engine does not monitor the pair.
+ */
+function binaryEngineStatus(row: BinaryWatchRow | null): {
+  label: string;
+  kind: StatusKind;
+} {
+  if (!row) return { label: "Not on the binary monitor", kind: "waiting" };
+  if (row.activePredictionId && row.activeDirection) {
+    return {
+      label: `Prediction live · ${row.activeDirection === "up" ? "UP" : "DOWN"}`,
+      kind: "ready",
+    };
+  }
+  if (row.dataStatus !== "connected") return { label: "Waiting for market data", kind: "blocked" };
+  if (!row.bias || row.bias === "wait") return { label: "Waiting for a signal", kind: "waiting" };
+  return {
+    label: row.bias === "up" ? "Model favours UP" : "Model favours DOWN",
+    kind: "ready",
+  };
+}
+
+/** Text tone class for the desktop status line, from a status kind. */
+function toneClassForKind(kind: StatusKind): string {
+  if (kind === "ready") return "text-[color:var(--success)]";
+  if (kind === "blocked") return "text-[color:var(--danger)]";
+  return "text-[color:var(--pending)]";
+}
+
+/**
+ * Splits a formatted FX quote into its leading figure and the trailing two
+ * "pipette" digits, so the price can be typeset the way a trader reads it —
+ * the big move large, the last two digits quiet.
+ */
+function splitQuote(value: number, instrument: MajorInstrument) {
+  const text = formatChartPrice(value, instrument);
+  return { lead: text.slice(0, -2), pip: text.slice(-2) };
+}
+
+/** The pair and hero quote that open the mobile chart. */
+function MobileSignalHero({
+  instrument,
+  pair,
+  price,
+  changePercent,
+  positive,
+}: {
+  instrument: MajorInstrument;
+  pair: string;
+  price: number;
+  changePercent: number;
+  positive: boolean;
+}) {
+  const { lead, pip } = splitQuote(price, instrument);
+  const ChangeIcon = positive ? ChevronUp : ChevronDown;
+
+  return (
+    <div className="signals-mobile-hero mt-3">
+      <div className="signals-mobile-hero-id">
+        <PairAvatar instrument={instrument} size={38} />
+        <div className="min-w-0">
+          <div className="signals-mobile-pair">{pair}</div>
+        </div>
+      </div>
+      <div className="signals-mobile-quote">
+        <div className="signals-mobile-price metric-number">
+          <span className="signals-price-lead">{lead}</span>
+          <span className="signals-price-pip">{pip}</span>
+        </div>
+        <div className={`signals-change-chip ${positive ? "is-up" : "is-down"}`}>
+          <ChangeIcon className="size-3" strokeWidth={2.75} />
+          {Math.abs(changePercent).toFixed(2)}%
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function SegmentControl<T extends string>({
@@ -762,55 +847,60 @@ function TradeFocusBar({
   const won = (trade.resultR ?? 0) >= 0;
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-[color:var(--border)] px-4 py-2.5 lg:px-5">
-      <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
-        <span
-          className={`permission-pill ${
-            long
-              ? "bg-[color:var(--success-soft)] text-[color:var(--success)]"
-              : "bg-[color:var(--danger-soft)] text-[color:var(--danger)]"
-          }`}
-        >
-          {long ? "Buy" : "Sell"} #{trade.tradeSequence}
-        </span>
-        <span className="metric-number text-[color:var(--muted-strong)]">
-          Entry {formatChartPrice(trade.entry, trade.instrument)}
-          <span className="text-[color:var(--muted)]">
-            {" "}
-            · {tradeMoment(trade.openedAt)}
-          </span>
-        </span>
-        {closed ? (
-          <span className="metric-number text-[color:var(--muted-strong)]">
-            Exit {formatChartPrice(trade.exit!, trade.instrument)}
-            <span className="text-[color:var(--muted)]">
-              {" "}
-              · {tradeMoment(trade.closedAt!)}
-            </span>
-          </span>
-        ) : (
-          <span className="text-[color:var(--accent)]">Still open</span>
-        )}
+    <div
+      className="trade-focus-bar"
+      data-side={long ? "buy" : "sell"}
+      aria-label={`Focused ${long ? "buy" : "sell"} trade ${trade.tradeSequence}`}
+    >
+      <div className="trade-focus-bar-id">
+        <span className="trade-focus-bar-side">{long ? "Buy" : "Sell"}</span>
+        <span className="trade-focus-bar-seq">#{trade.tradeSequence}</span>
+      </div>
+
+      <div className="trade-focus-bar-end">
         {trade.resultR !== null ? (
           <span
-            className={`metric-number font-semibold ${
-              won
-                ? "text-[color:var(--success)]"
-                : "text-[color:var(--danger)]"
-            }`}
+            className={`trade-focus-bar-r metric-number ${won ? "is-won" : "is-lost"}`}
           >
             {formatResultR(trade.resultR)}
           </span>
         ) : null}
+        <button
+          type="button"
+          onClick={onClear}
+          className="trade-focus-bar-clear pressable"
+          aria-label="Clear trade"
+        >
+          <X className="size-3.5" strokeWidth={2} />
+          Clear
+        </button>
       </div>
-      <button
-        type="button"
-        onClick={onClear}
-        className="link-quiet pressable inline-flex items-center gap-1 text-xs"
-      >
-        <X className="size-3.5" strokeWidth={2} />
-        Clear trade
-      </button>
+
+      <div className="trade-focus-bar-legs">
+        <div className="trade-focus-bar-leg">
+          <span className="trade-focus-bar-label">Entry</span>
+          <span className="trade-focus-bar-price metric-number">
+            {formatChartPrice(trade.entry, trade.instrument)}
+          </span>
+          <span className="trade-focus-bar-time">{tradeMoment(trade.openedAt)}</span>
+        </div>
+        <div className="trade-focus-bar-leg">
+          <span className="trade-focus-bar-label">Exit</span>
+          {closed ? (
+            <>
+              <span className="trade-focus-bar-price metric-number">
+                {formatChartPrice(trade.exit!, trade.instrument)}
+              </span>
+              <span className="trade-focus-bar-time">{tradeMoment(trade.closedAt!)}</span>
+            </>
+          ) : (
+            <>
+              <span className="trade-focus-bar-price is-open">Open</span>
+              <span className="trade-focus-bar-time">Still open</span>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1013,6 +1103,7 @@ export function SignalWorkspace({
   const desktopChartShellRef = useRef<HTMLDivElement>(null);
   const [paperTrades, setPaperTrades] = useState<PaperChartTrade[]>(initialPaperTrades);
   const [livePaperPlans, setLivePaperPlans] = useState<SignalPaperPlan[]>(paperPlans);
+  const [binaryWatch, setBinaryWatch] = useState<BinaryWatchRow[]>([]);
   const [focusTradeId, setFocusTradeId] = useState<string | null>(initialFocusTradeId);
   const [predictionFocus, setPredictionFocus] = useState<BinaryPrediction | null>(initialPredictionFocus);
   const [predictionClock, setPredictionClock] = useState(() => Date.now());
@@ -1038,6 +1129,25 @@ export function SignalWorkspace({
 
     void refreshPaperPlans();
     const timer = window.setInterval(() => void refreshPaperPlans(), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    async function refreshBinaryWatch() {
+      try {
+        const response = await fetch(apiUrl("/api/binary/watchlist"), {
+          credentials: "include",
+          cache: "no-store",
+        });
+        const payload = await response.json() as { watchlist?: BinaryWatchRow[] };
+        if (response.ok && payload.watchlist) setBinaryWatch(payload.watchlist);
+      } catch {
+        // Keep the last known engine read while a refresh is unavailable.
+      }
+    }
+
+    void refreshBinaryWatch();
+    const timer = window.setInterval(() => void refreshBinaryWatch(), 60_000);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -1200,14 +1310,10 @@ export function SignalWorkspace({
   // by setup.status === "valid" in the paper-cycle backend.
   const active = openSignal ?? activeCandidate;
   const planIsOpen = Boolean(openSignal);
-  const tradingAvailability = getPaperTradingAvailability();
-  const inactiveLabel = tradingAvailability.state === "entry_window_open" ? "No valid setup" : tradingAvailability.label;
-  const signalStatus = selectedPlan ? watchlistCardStatus(selectedPlan) : null;
-  const signalStatusLabel = signalStatus
-    ? signalStatus.label
-    : active
-      ? active.strategy
-      : inactiveLabel;
+  // The status line reflects the Binary Prediction engine (the "new engine") for
+  // the selected pair, not the paper-cycle entry window.
+  const binaryRow = binaryWatch.find((row) => row.instrument === instrument) ?? null;
+  const engineStatus = binaryEngineStatus(binaryRow);
   const riskDistance = active ? Math.abs(active.entry - active.stop) : null;
   const focusTrade = useMemo(
     () =>
@@ -1522,22 +1628,13 @@ export function SignalWorkspace({
               </div>
             </div>
 
-            <div className="mt-3 flex items-end justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-2.5">
-                <PairAvatar instrument={instrument} size={36} />
-                <div className="min-w-0">
-                  <div className="text-[1.05rem] font-medium tracking-[-0.02em]">
-                    {activeSetup.pair}
-                  </div>
-                  <div className={`text-xs font-medium ${signalStatus?.tone ?? "text-[color:var(--muted)]"}`}>
-                    {signalStatusLabel}
-                  </div>
-                </div>
-              </div>
-              <div className="metric-number text-right text-xl font-semibold tracking-[-0.04em]">
-                {formatChartPrice(priceStats.displayPrice, instrument)}
-              </div>
-            </div>
+            <MobileSignalHero
+              instrument={instrument}
+              pair={activeSetup.pair}
+              price={priceStats.displayPrice}
+              changePercent={priceStats.changePercent}
+              positive={priceStats.positive}
+            />
 
             <SignalSearch
               signals={signals}
@@ -1590,6 +1687,23 @@ export function SignalWorkspace({
             ref={mobileChartShellRef}
             className={`relative overflow-hidden chart-data-shell${loading ? " chart-data-shell-loading" : ""}`}
           >
+            <div className="signals-fs-overlay" aria-hidden={!fullscreen}>
+              <PairAvatar instrument={instrument} size={22} />
+              <span className="signals-fs-pair">{activeSetup.pair}</span>
+              <span
+                className={`signals-fs-dot is-${engineStatus.kind}`}
+                title={engineStatus.label}
+              />
+              <span className="signals-fs-price metric-number">
+                {formatChartPrice(priceStats.displayPrice, instrument)}
+              </span>
+              <span
+                className={`signals-fs-change ${priceStats.positive ? "is-up" : "is-down"}`}
+              >
+                {priceStats.positive ? "+" : "−"}
+                {Math.abs(priceStats.changePercent).toFixed(2)}%
+              </span>
+            </div>
             <SetupChart
               series={series}
               levels={setupLevels}
@@ -1617,7 +1731,7 @@ export function SignalWorkspace({
               <PairAvatar instrument={instrument} size={38} />
               <div className="min-w-0">
                 <div className="signals-chart-pair">{activeSetup.pair}</div>
-                <div className={`signals-chart-strategy ${signalStatus?.tone ?? ""}`}>{signalStatusLabel}</div>
+                <div className={`signals-chart-strategy ${toneClassForKind(engineStatus.kind)}`}>{engineStatus.label}</div>
               </div>
               <div className="signals-chart-quote">
                 <span className="signals-chart-price metric-number">

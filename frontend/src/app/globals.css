@@ -2344,73 +2344,78 @@ input[type="number"] {
   overscroll-behavior: contain;
 }
 
-/* Entry / SL / TP / Exit names, pinned beside the price scale. */
+/* Entry / SL / TP / Exit names: notched flags on the plot's right edge. */
 .setup-chart-level-tag {
   position: absolute;
-  z-index: 3;
+  z-index: 4;
   transform: translateY(-50%);
-  border-radius: 0.25rem;
-  padding: 0.0625rem 0.3125rem;
-  font-size: 0.5625rem;
-  font-weight: 700;
-  line-height: 1.4;
+  padding: 3px 8px 3px 10px;
+  border-radius: 2px 0 0 2px;
+  clip-path: polygon(5px 0, 100% 0, 100% 100%, 5px 100%, 0 50%);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
   letter-spacing: 0.02em;
   white-space: nowrap;
   pointer-events: none;
 }
 
-/* Live-price beacon at the end of the line/area series: a solid dot with an
-   expanding ring pulsing out of it. */
+/* Last-bar overlay: ringed endpoint glued to the latest candle. */
+.setup-chart-last-price {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 .setup-chart-beacon {
   position: absolute;
-  z-index: 3;
-  width: 8px;
-  height: 8px;
-  border-radius: 9999px;
-  background: var(--beacon-color, var(--accent));
-  transform: translate(-50%, -50%);
+  left: 0;
+  top: 0;
+  z-index: 2;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--beacon-ring, #09090b);
+  box-shadow: inset 0 0 0 1.5px var(--beacon-color, var(--accent));
   pointer-events: none;
-  box-shadow: 0 0 6px 0 color-mix(in srgb, var(--beacon-color, var(--accent)) 70%, transparent);
+}
+
+.setup-chart-beacon::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--beacon-color, var(--accent));
 }
 
 .setup-chart-beacon::before {
   content: "";
   position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--beacon-color, var(--accent));
-  animation: setup-chart-beacon-pulse 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1px solid var(--beacon-color, var(--accent));
+  background: transparent;
+  animation: setup-chart-beacon-pulse 1.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
 }
 
-/* Current-price pill floating beside the beacon. Position (including the flip
-   above/below the dot) is set inline so it can be kept inside the chart. */
-.setup-chart-beacon-price {
-  position: absolute;
-  z-index: 4;
-  border-radius: 0.3125rem;
-  padding: 0.125rem 0.4375rem;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  line-height: 1.3;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  pointer-events: none;
-  background: var(--beacon-color, var(--accent));
-  color: var(--beacon-price-text, #09090b);
-  box-shadow: 0 1px 7px 0 color-mix(in srgb, var(--beacon-color, var(--accent)) 48%, transparent);
+.setup-chart-root #tv-attr-logo {
+  display: none;
 }
 
 @keyframes setup-chart-beacon-pulse {
   0% {
     transform: scale(1);
-    opacity: 0.55;
+    opacity: 0.45;
   }
   70% {
     opacity: 0;
   }
   100% {
-    transform: scale(3.4);
+    transform: scale(2.1);
     opacity: 0;
   }
 }
@@ -2418,6 +2423,7 @@ input[type="number"] {
 @media (prefers-reduced-motion: reduce) {
   .setup-chart-beacon::before {
     animation: none;
+    opacity: 0;
   }
 }
 
@@ -2658,13 +2664,19 @@ input[type="number"] {
   gap: 0.5rem;
 }
 
+@media (max-width: 1023px) {
+  .journal-view .journal-entry-list {
+    padding-bottom: 1rem;
+  }
+}
+
 .journal-view .journal-entry {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.55rem;
   border: 1px solid var(--border);
-  border-radius: 0.75rem;
-  padding: 0.65rem 0.75rem;
+  border-radius: 0.85rem;
+  padding: 0.75rem 0.8rem;
   background: color-mix(in srgb, var(--surface-raised) 35%, var(--surface));
 }
 
@@ -2673,11 +2685,16 @@ input[type="number"] {
   background: color-mix(in srgb, var(--surface-raised) 45%, var(--surface));
 }
 
-.journal-view .journal-entry-top {
+.journal-view .journal-entry-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 0.4rem 0.65rem;
+  gap: 0.75rem;
+}
+
+.journal-view .journal-entry-main {
+  min-width: 0;
+  padding-bottom: 0.35rem;
 }
 
 .journal-view .journal-entry-title {
@@ -2687,7 +2704,7 @@ input[type="number"] {
   align-items: center;
   gap: 0.25rem 0.35rem;
   margin: 0;
-  font-size: 0.78125rem;
+  font-size: 0.8125rem;
   line-height: 1.25;
   letter-spacing: -0.02em;
 }
@@ -2717,95 +2734,108 @@ input[type="number"] {
   flex-shrink: 0;
   border-radius: 999px;
   background: color-mix(in srgb, var(--foreground) 6%, transparent);
-  padding: 0.02rem 0.3rem;
+  padding: 0.05rem 0.35rem;
   font-size: 0.5625rem;
   font-weight: 600;
   letter-spacing: 0.01em;
   color: var(--muted);
 }
 
-.journal-view .journal-entry-date {
-  flex-shrink: 0;
-  font-size: 0.6875rem;
-  line-height: 1.2;
+.journal-view .journal-entry-window {
+  margin: 0.28rem 0 0;
+  font-size: 0.71875rem;
+  line-height: 1.35;
   color: var(--muted);
-  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.journal-view .journal-entry-aside {
+  flex-shrink: 0;
+  padding-top: 0.05rem;
+  text-align: right;
 }
 
 .journal-view .journal-entry-result {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.15rem 0.5rem;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.12rem;
+  margin: 0;
+  line-height: 1.15;
 }
 
 .journal-view .journal-entry-r {
-  font-size: 1rem;
-  font-weight: 650;
-  letter-spacing: -0.04em;
-  line-height: 1.05;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.035em;
 }
 
 .journal-view .journal-entry-r-unit {
-  margin-left: 0.04rem;
+  margin-left: 0.05rem;
   font-size: 0.625rem;
   font-weight: 500;
-  opacity: 0.6;
+  opacity: 0.55;
 }
 
+.journal-view .journal-entry-result.is-win .journal-entry-r,
 .journal-view .journal-entry-r.is-win {
   color: var(--success);
 }
 
+.journal-view .journal-entry-result.is-loss .journal-entry-r,
 .journal-view .journal-entry-r.is-loss {
   color: var(--danger);
 }
 
-.journal-view .journal-entry-r.is-open {
-  font-size: 0.8125rem;
-  font-weight: 500;
-  letter-spacing: -0.02em;
-  color: var(--muted);
-}
-
-.journal-view .journal-entry-money {
+.journal-view .journal-entry-result.is-open .journal-entry-r {
   font-size: 0.78125rem;
   font-weight: 600;
   letter-spacing: -0.02em;
+  color: var(--muted-strong);
+}
+
+.journal-view .journal-entry-r.is-open {
+  color: var(--muted-strong);
+}
+
+.journal-view .journal-entry-money {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-strong);
 }
 
 .journal-view .journal-entry-money.is-win {
-  color: color-mix(in srgb, var(--success) 78%, var(--foreground));
+  color: color-mix(in srgb, var(--success) 85%, var(--foreground));
 }
 
 .journal-view .journal-entry-money.is-loss {
-  color: color-mix(in srgb, var(--danger) 78%, var(--foreground));
+  color: color-mix(in srgb, var(--danger) 85%, var(--foreground));
 }
 
 .journal-view .journal-entry-outcome {
-  font-size: 0.625rem;
+  font-size: inherit;
   font-weight: 500;
-  letter-spacing: 0.01em;
-  line-height: 1.2;
+  letter-spacing: 0;
+  line-height: inherit;
   text-transform: capitalize;
   color: var(--muted);
 }
 
 .journal-view .journal-entry-levels {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  column-gap: 0.65rem;
-  row-gap: 0.2rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.35rem;
   margin: 0;
-  padding-top: 0.15rem;
+  padding-top: 0.55rem;
   border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
 }
 
 .journal-view .journal-entry-level {
-  display: grid;
-  grid-template-columns: 2.55rem minmax(0, 1fr);
-  align-items: baseline;
-  column-gap: 0.3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
   min-width: 0;
 }
 
@@ -2813,7 +2843,7 @@ input[type="number"] {
   margin: 0;
   font-size: 0.5625rem;
   font-weight: 600;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted);
 }
@@ -2838,25 +2868,6 @@ input[type="number"] {
   display: block;
   color: inherit;
   text-decoration: none;
-}
-
-.journal-entry-note {
-  margin: 0;
-  padding-top: 0.05rem;
-}
-
-.journal-view .journal-entry-note-label {
-  margin: 0;
-  font-size: 0.625rem;
-  font-weight: 500;
-  color: var(--muted);
-}
-
-.journal-view .journal-entry-note p {
-  margin-top: 0.2rem;
-  font-size: 0.71875rem;
-  line-height: 1.4;
-  color: var(--muted);
 }
 
 .dashboard-view .permission-pill,
@@ -4442,6 +4453,201 @@ input[type="number"] {
   margin: 0.5rem 1rem 0;
 }
 
+/* Focused paper trade — blotter strip above the chart, not a wrapped sentence. */
+.trade-focus-bar {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "id end"
+    "legs legs";
+  column-gap: 0.5rem;
+  row-gap: 0.45rem;
+  padding: 0.55rem 1rem 0.6rem 1.05rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--foreground) 2.5%, var(--surface));
+}
+
+.trade-focus-bar::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--muted);
+}
+
+.trade-focus-bar[data-side="buy"]::before {
+  background: var(--success);
+}
+
+.trade-focus-bar[data-side="sell"]::before {
+  background: var(--danger);
+}
+
+.dark .trade-focus-bar {
+  background: color-mix(in srgb, var(--foreground) 3.5%, var(--surface));
+}
+
+.trade-focus-bar-id {
+  grid-area: id;
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.trade-focus-bar-side {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--foreground);
+}
+
+.trade-focus-bar[data-side="buy"] .trade-focus-bar-side {
+  color: var(--success);
+}
+
+.trade-focus-bar[data-side="sell"] .trade-focus-bar-side {
+  color: var(--danger);
+}
+
+.trade-focus-bar-seq {
+  font-family: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  color: var(--muted);
+}
+
+.trade-focus-bar-end {
+  grid-area: end;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.trade-focus-bar-r {
+  flex-shrink: 0;
+  padding: 0.12rem 0.4rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.trade-focus-bar-r.is-won {
+  color: var(--success);
+  background: var(--success-soft);
+  border-color: color-mix(in srgb, var(--success) 28%, transparent);
+}
+
+.trade-focus-bar-r.is-lost {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-color: color-mix(in srgb, var(--danger) 28%, transparent);
+}
+
+.trade-focus-bar-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0.2rem 0.15rem 0.2rem 0.25rem;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.trade-focus-bar-clear:hover {
+  color: var(--foreground);
+}
+
+.trade-focus-bar-clear:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.trade-focus-bar-legs {
+  grid-area: legs;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  min-width: 0;
+}
+
+.trade-focus-bar-leg {
+  min-width: 0;
+  padding-right: 0.65rem;
+}
+
+.trade-focus-bar-leg + .trade-focus-bar-leg {
+  padding-right: 0;
+  padding-left: 0.7rem;
+  border-left: 1px solid var(--border);
+}
+
+.trade-focus-bar-label {
+  display: block;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.trade-focus-bar-price {
+  display: block;
+  margin-top: 0.22rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--foreground);
+}
+
+.trade-focus-bar-price.is-open {
+  font-family: inherit;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+}
+
+.trade-focus-bar-time {
+  display: block;
+  margin-top: 0.12rem;
+  font-size: 0.6875rem;
+  line-height: 1.25;
+  color: var(--muted);
+}
+
+@media (min-width: 1024px) {
+  .trade-focus-bar {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: "id legs end";
+    align-items: center;
+    column-gap: 1.15rem;
+    padding: 0.5rem 1.25rem 0.5rem 1.3rem;
+  }
+
+  .trade-focus-bar-side {
+    font-size: 0.875rem;
+  }
+
+  .trade-focus-bar-legs {
+    max-width: 28rem;
+  }
+
+  .trade-focus-bar-price {
+    font-size: 0.875rem;
+  }
+}
+
 .signals-view .signals-chart-canvas {
   position: relative;
   flex: 1;
@@ -4489,11 +4695,20 @@ input[type="number"] {
 .signals-view-fullscreen .signals-chart-card {
   position: fixed;
   inset: 0;
+  /* Explicit viewport size + own compositing layer. iOS Safari and iOS PWAs
+     leave a fixed inset:0 overlay unpainted (a blank screen) when the page body
+     is overflow:hidden, unless the overlay has a definite size and is promoted
+     to its own layer. The vh values are the fallback for the dvh line above. */
+  width: 100vw;
+  width: 100dvw;
+  height: 100vh;
+  height: 100dvh;
   z-index: 60;
   margin: 0;
   border: none;
   border-radius: 0;
   background: var(--surface);
+  transform: translateZ(0);
 }
 
 .dark .signals-view-fullscreen .signals-chart-card {
@@ -4525,8 +4740,11 @@ input[type="number"] {
 }
 
 @media (max-width: 1023px) {
+  /* Fill the fixed fullscreen card exactly (which is sized to the viewport),
+     rather than a second 100dvh that iOS resolves against a different viewport
+     than the fixed parent — the mismatch left the canvas measuring zero. */
   .signals-view.signals-view-fullscreen .signals-chart-mobile {
-    height: 100dvh;
+    height: 100%;
   }
 
   /* Fullscreen keeps the tool row and collapse; pair, quote and search fold
@@ -4546,9 +4764,9 @@ input[type="number"] {
     flex-wrap: nowrap;
     align-items: center;
     gap: 0.15rem;
-    padding-top: max(0.35rem, env(safe-area-inset-top));
-    padding-bottom: 0.25rem;
-    padding-inline: 0.75rem;
+    padding-top: max(0.85rem, calc(env(safe-area-inset-top, 0px) + 0.65rem));
+    padding-bottom: 0.55rem;
+    padding-inline: 1rem;
   }
 
   .signals-view.signals-view-fullscreen .signals-mobile-actions {
@@ -4582,6 +4800,26 @@ input[type="number"] {
   .signals-view.signals-view-fullscreen .signals-chart-mobile .signals-icon-btn,
   .signals-view.signals-view-fullscreen .signals-chart-mobile .relative > button.pressable {
     min-height: 2.25rem;
+  }
+
+  .signals-view.signals-view-fullscreen .signals-chart-mobile .signals-fs-overlay {
+    display: flex;
+    align-items: center;
+    gap: 0.4375rem;
+    position: absolute;
+    top: 0.625rem;
+    left: 0.75rem;
+    z-index: 20;
+    padding: 0.4375rem 0.6875rem 0.4375rem 0.4375rem;
+    border-radius: 13px;
+    background: color-mix(in srgb, var(--surface) 58%, transparent);
+    backdrop-filter: blur(14px) saturate(150%);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+    border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+    box-shadow:
+      0 1px 0 color-mix(in srgb, var(--foreground) 8%, transparent),
+      0 4px 10px rgba(0, 0, 0, 0.14);
+    pointer-events: none;
   }
 
 }
@@ -4629,6 +4867,18 @@ input[type="number"] {
     overflow: hidden;
   }
 
+  /* While fullscreen, drop the overflow:hidden on the ancestors of the fixed
+     chart card. iOS Safari and iOS PWAs clip a position:fixed descendant of an
+     overflow:hidden box, which painted the fullscreen overlay as a blank screen.
+     The fixed card covers the viewport and body stays overflow:hidden, so
+     nothing underneath becomes scrollable. */
+  body.signals-fullscreen-active .signals-route,
+  body.signals-fullscreen-active .signals-route > div,
+  body.signals-fullscreen-active .signals-route main,
+  body.signals-fullscreen-active .signals-view {
+    overflow: visible;
+  }
+
   .signals-view .signals-chart-card {
     background: transparent;
     border: none;
@@ -4661,7 +4911,7 @@ input[type="number"] {
        fallback covers the first frame before the measurement lands.
        Padding rather than margin: the canvas is sized from contentRect, so the
        measurement excludes this strip on its own. */
-    padding-bottom: calc(var(--app-dock-height, 5.5rem) + 0.5rem);
+    padding-bottom: calc(var(--app-dock-height, 5.5rem) + 0.875rem);
   }
 
   /* Fullscreen covers the nav: the canvas takes every remaining pixel. */
@@ -4695,19 +4945,25 @@ input[type="number"] {
   }
 
   .signals-view .signals-chart-mobile .signals-search {
-    border: none;
-    border-radius: 0;
-    background: transparent;
+    height: 2.5rem;
+    padding: 0 0.875rem;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+    font-size: 0.875rem;
   }
 
-  .signals-view .signals-chart-mobile .signals-search:hover,
+  .signals-view .signals-chart-mobile .signals-search:hover {
+    border-color: color-mix(in srgb, var(--foreground) 14%, var(--border));
+  }
+
   .signals-view .signals-chart-mobile .signals-search:focus-within {
-    border-color: transparent;
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
   }
 
   .dark .signals-view .signals-chart-mobile .signals-search {
-    background: transparent;
-    border: none;
+    background: var(--surface);
+    border-color: var(--border);
   }
 
   .signals-view .signals-chart-mobile .workspace-segment {
@@ -4765,6 +5021,234 @@ input[type="number"] {
     border-radius: 0;
     background: transparent;
     padding-inline: 0;
+  }
+
+  /* Toolbar chips: squared corners to match the hero, with reset parked at the
+     far right so the option chips read as one group. */
+  .signals-view .signals-chart-mobile .sheet-trigger {
+    border-radius: 11px;
+  }
+
+  .signals-view .signals-mobile-tools .signals-tool-btn {
+    margin-left: auto;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 11px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted-strong);
+  }
+
+  .signals-view .signals-mobile-tools .signals-tool-btn:hover {
+    background: var(--surface-raised);
+    color: var(--foreground);
+  }
+}
+
+/* Mobile signals hero — pair identity left, split-figure quote right */
+.signals-view .signals-mobile-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.signals-view .signals-mobile-hero-id {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 0.6875rem;
+}
+
+.signals-view .signals-mobile-hero-id > .min-w-0 {
+  text-align: left;
+}
+
+.signals-view .signals-mobile-pair {
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.signals-view .signals-status-pill {
+  margin-top: 0.4375rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  max-width: 100%;
+  padding: 0.25rem 0.625rem 0.25rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.71875rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+
+.signals-view .signals-status-pill.is-waiting {
+  color: var(--pending);
+  background: var(--pending-soft);
+}
+
+.signals-view .signals-status-pill.is-ready {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.signals-view .signals-status-pill.is-blocked {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.signals-view .signals-status-dot {
+  position: relative;
+  flex-shrink: 0;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.signals-view .signals-status-dot.is-waiting {
+  color: var(--pending);
+}
+
+.signals-view .signals-status-dot.is-ready {
+  color: var(--success);
+}
+
+.signals-view .signals-status-dot.is-blocked {
+  color: var(--danger);
+}
+
+.signals-view .signals-status-dot::after {
+  content: "";
+  position: absolute;
+  inset: -0.25rem;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.3;
+  animation: signals-dot-pulse 1.8s ease-out infinite;
+}
+
+@keyframes signals-dot-pulse {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.45;
+  }
+  100% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+}
+
+.signals-view .signals-mobile-quote {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: right;
+}
+
+.signals-view .signals-mobile-price {
+  display: inline-flex;
+  align-items: baseline;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.signals-view .signals-price-lead {
+  font-size: 1.8125rem;
+  color: var(--foreground);
+}
+
+.signals-view .signals-price-pip {
+  margin-left: 1px;
+  font-size: 1.125rem;
+  color: var(--muted);
+}
+
+.signals-view .signals-change-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1875rem;
+  padding: 0.1875rem 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.signals-view .signals-change-chip.is-up {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.signals-view .signals-change-chip.is-down {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+/* Floating chart legend shown over the chart while the mobile view is fullscreen. */
+.signals-view .signals-fs-overlay {
+  display: none;
+}
+
+.signals-view .signals-fs-pair {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--muted-strong);
+}
+
+.signals-view .signals-fs-dot {
+  flex-shrink: 0;
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.signals-view .signals-fs-dot.is-waiting {
+  color: var(--pending);
+}
+
+.signals-view .signals-fs-dot.is-ready {
+  color: var(--success);
+}
+
+.signals-view .signals-fs-dot.is-blocked {
+  color: var(--danger);
+}
+
+.signals-view .signals-fs-price {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.signals-view .signals-fs-change {
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.signals-view .signals-fs-change.is-up {
+  color: var(--success);
+}
+
+.signals-view .signals-fs-change.is-down {
+  color: var(--danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signals-view .signals-status-dot::after {
+    animation: none;
   }
 }
 
@@ -5674,7 +6158,7 @@ input[type="number"] {
 .dash-trade-pl {
   margin: 0;
   font-size: 0.8125rem;
-  font-weight: 650;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
   line-height: 1.2;
@@ -6023,25 +6507,17 @@ input[type="number"] {
   }
 
   .journal-view .journal-entry {
-    gap: 0.45rem;
-    padding: 0.75rem 0.9rem;
-    border-radius: 0.8125rem;
+    gap: 0.6rem;
+    padding: 0.85rem 0.95rem;
+    border-radius: 0.9rem;
   }
 
   .journal-view .journal-entry-r {
-    font-size: 1.0625rem;
+    font-size: 0.9375rem;
   }
 
-  .journal-view .journal-entry-levels {
-    column-gap: 1.25rem;
-  }
-
-  .journal-view .journal-entry-level {
-    grid-template-columns: 2.75rem minmax(0, 1fr);
-  }
-
-  .journal-view .journal-entry-level dd {
-    font-size: 0.75rem;
+  .journal-view .journal-entry-money {
+    font-size: 0.71875rem;
   }
 }
 
@@ -6182,37 +6658,37 @@ input[type="number"] {
 .binary-wl-card {
   position: relative;
   display: block;
-  padding: 0.7rem 0.85rem 0.75rem 1rem;
+  padding: 0.8rem 0.9rem 0.8rem 1rem;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 0.85rem;
-  background: color-mix(in srgb, var(--surface-raised) 35%, var(--surface));
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--surface-raised) 28%, var(--surface));
   transition:
-    background 160ms ease,
-    border-color 160ms ease,
-    box-shadow 160ms ease;
+    background 140ms ease,
+    border-color 140ms ease;
 }
 
 .dark .binary-wl-card {
-  border-color: color-mix(in srgb, var(--border-strong) 85%, transparent);
-  background: color-mix(in srgb, var(--surface-raised) 45%, var(--surface));
+  background: color-mix(in srgb, var(--surface-raised) 40%, var(--surface));
 }
 
-/* Directional accent along the leading edge. */
 .binary-wl-card::before {
   content: "";
   position: absolute;
   left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
+  top: 0.7rem;
+  bottom: 0.7rem;
+  width: 2px;
+  border-radius: 1px;
   background: var(--muted);
-  opacity: 0.45;
+  opacity: 0.55;
 }
+
 .binary-wl-card[data-bias="up"]::before {
   background: var(--success);
   opacity: 1;
 }
+
 .binary-wl-card[data-bias="down"]::before {
   background: var(--danger);
   opacity: 1;
@@ -6221,19 +6697,6 @@ input[type="number"] {
 .binary-wl-card:hover {
   border-color: color-mix(in srgb, var(--foreground) 12%, var(--border));
   background: color-mix(in srgb, var(--foreground) 4%, var(--surface));
-}
-.dark .binary-wl-card:hover {
-  border-color: var(--border-strong);
-  background: color-mix(in srgb, var(--foreground) 5%, var(--surface));
-}
-
-/* An open prediction reads as the live, foregrounded card. */
-.binary-wl-card[data-state="open"] {
-  border-color: color-mix(in srgb, var(--foreground) 16%, var(--border));
-  background: color-mix(in srgb, var(--foreground) 3.5%, var(--surface));
-}
-.binary-wl-card[data-state="open"]::before {
-  width: 4px;
 }
 
 .binary-wl-top {
@@ -6247,76 +6710,63 @@ input[type="number"] {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.3rem 0.4rem;
+  gap: 0.35rem 0.5rem;
   min-width: 0;
 }
 
 .binary-wl-name {
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
   font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--foreground);
 }
 
-.binary-wl-pill {
-  flex-shrink: 0;
-  padding: 0.05rem 0.36rem;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  font-size: 0.5625rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+.binary-wl-dir {
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.4;
-}
-.binary-wl-pill.is-up {
-  color: var(--success);
-  background: color-mix(in srgb, var(--success) 12%, transparent);
-  border-color: color-mix(in srgb, var(--success) 26%, transparent);
-}
-.binary-wl-pill.is-down {
-  color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
-  border-color: color-mix(in srgb, var(--danger) 26%, transparent);
-}
-.binary-wl-pill.is-wait {
   color: var(--muted-strong);
-  background: color-mix(in srgb, var(--muted) 12%, transparent);
-  border-color: var(--border);
+}
+
+.binary-wl-dir.is-up {
+  color: var(--success);
+}
+
+.binary-wl-dir.is-down {
+  color: var(--danger);
 }
 
 .binary-wl-live {
-  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
-  gap: 0.28rem;
-  padding: 0.05rem 0.36rem;
-  border-radius: 999px;
-  font-size: 0.5625rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  gap: 0.3rem;
+  font-size: 0.625rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--foreground);
-  background: color-mix(in srgb, var(--foreground) 9%, transparent);
+  color: var(--muted-strong);
 }
+
 .binary-wl-live::before {
   content: "";
-  width: 0.32rem;
-  height: 0.32rem;
-  border-radius: 999px;
-  background: currentColor;
+  width: 0.36rem;
+  height: 0.36rem;
+  border-radius: 50%;
+  background: var(--success);
   animation: binary-wl-pulse 1.8s ease-in-out infinite;
 }
+
 @keyframes binary-wl-pulse {
   0%,
   100% {
     opacity: 1;
   }
   50% {
-    opacity: 0.3;
+    opacity: 0.28;
   }
 }
+
 @media (prefers-reduced-motion: reduce) {
   .binary-wl-live::before {
     animation: none;
@@ -6327,92 +6777,78 @@ input[type="number"] {
   flex-shrink: 0;
   text-align: right;
 }
+
 .binary-wl-quote-val {
-  font-size: 0.8125rem;
+  display: block;
+  font-size: 0.875rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
   color: var(--foreground);
 }
+
 .binary-wl-quote-sep {
+  margin: 0 0.28rem;
   color: var(--muted);
-  font-weight: 500;
+  font-weight: 400;
 }
+
 .binary-wl-quote-label {
   display: block;
-  margin-top: 0.05rem;
+  margin-top: 0.1rem;
   font-size: 0.5625rem;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--muted-strong);
+  color: var(--muted);
 }
 
 .binary-wl-meter {
-  margin-top: 0.6rem;
-  height: 0.28rem;
-  border-radius: 999px;
+  margin-top: 0.7rem;
+  height: 2px;
   background: color-mix(in srgb, var(--muted) 22%, transparent);
   overflow: hidden;
 }
+
 .binary-wl-meter > span {
   display: block;
   height: 100%;
-  border-radius: inherit;
-  background: var(--muted);
+  background: var(--muted-strong);
   transition: width 240ms ease;
 }
+
 .binary-wl-card[data-bias="up"] .binary-wl-meter > span {
   background: var(--success);
 }
+
 .binary-wl-card[data-bias="down"] .binary-wl-meter > span {
   background: var(--danger);
 }
 
 .binary-wl-foot {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 0.75rem;
-  margin-top: 0.5rem;
+  margin-top: 0.45rem;
 }
+
 .binary-wl-status {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
   min-width: 0;
-  font-size: 0.6875rem;
-  line-height: 1.3;
-  color: var(--muted-strong);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 0.75rem;
+  line-height: 1.3;
+  color: var(--muted-strong);
 }
-.binary-wl-status::before {
-  content: "";
-  flex: 0 0 auto;
-  width: 0.36rem;
-  height: 0.36rem;
-  border-radius: 999px;
-  background: currentColor;
-  box-shadow: 0 0 0 0.18rem color-mix(in srgb, currentColor 10%, transparent);
-}
-.binary-wl-card[data-bias="up"] .binary-wl-status {
-  color: color-mix(in srgb, var(--success) 78%, var(--foreground));
-}
-.binary-wl-card[data-bias="down"] .binary-wl-status {
-  color: color-mix(in srgb, var(--danger) 78%, var(--foreground));
-}
-.binary-wl-card[data-state="open"] .binary-wl-status {
-  font-weight: 500;
-}
+
 .binary-wl-metrics {
   flex-shrink: 0;
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
-  color: var(--muted);
-  text-align: right;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
 }
 
 @media (min-width: 1024px) {
@@ -6573,7 +7009,7 @@ input[type="number"] {
 .binary-horizon-rate {
   margin: 0.2rem 0 0;
   font-size: 1.5rem;
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: -0.04em;
   line-height: 1.05;
   color: var(--foreground);
@@ -6623,4 +7059,220 @@ input[type="number"] {
   margin: 0.55rem 0 0;
   font-size: 0.625rem;
   color: var(--muted);
+}
+
+/* Watchlist → Strategies: cohort + per-pair setups. */
+.ms-family-list,
+.ms-pair-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.ms-family-card,
+.ms-pair-card {
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+  padding: 0.8rem 0.85rem;
+  background: color-mix(in srgb, var(--surface-raised) 35%, var(--surface));
+}
+
+.dark .ms-family-card,
+.dark .ms-pair-card {
+  border-color: color-mix(in srgb, var(--border-strong) 85%, transparent);
+  background: color-mix(in srgb, var(--surface-raised) 45%, var(--surface));
+}
+
+.ms-family-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.ms-family-name {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+}
+
+.ms-family-record {
+  margin: 0.28rem 0 0;
+  font-size: 0.71875rem;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.ms-family-sep {
+  color: color-mix(in srgb, var(--muted) 70%, transparent);
+}
+
+.ms-family-hero {
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.ms-family-rate {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--foreground);
+}
+
+.ms-family-rate.is-win,
+.ms-family-expectancy.is-win {
+  color: var(--success);
+}
+
+.ms-family-rate.is-loss,
+.ms-family-expectancy.is-loss {
+  color: var(--danger);
+}
+
+.ms-family-expectancy {
+  margin: 0.28rem 0 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--muted-strong);
+}
+
+.ms-family-shadow {
+  margin: 0.7rem 0 0;
+  padding-top: 0.55rem;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  font-size: 0.6875rem;
+  color: var(--muted);
+}
+
+.ms-pair-head {
+  min-width: 0;
+}
+
+.ms-pair-name {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: var(--foreground);
+}
+
+.ms-pair-meta {
+  margin: 0.2rem 0 0;
+  font-size: 0.6875rem;
+  color: var(--muted);
+}
+
+.ms-setup-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.ms-setup {
+  min-width: 0;
+  padding: 0.55rem 0.6rem 0.5rem;
+  border-radius: 0.65rem;
+  background: color-mix(in srgb, var(--foreground) 3.5%, transparent);
+}
+
+.ms-setup.is-selected {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.ms-setup-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem;
+}
+
+.ms-setup-family {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+}
+
+.ms-setup-pick {
+  font-size: 0.5625rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.ms-setup-status {
+  margin: 0.22rem 0 0;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.ms-setup.is-valid .ms-setup-status {
+  color: var(--success);
+}
+
+.ms-setup.is-developing .ms-setup-status {
+  color: var(--pending);
+}
+
+.ms-setup-plan {
+  margin: 0.18rem 0 0;
+  font-size: 0.6875rem;
+  font-weight: 550;
+  color: var(--muted-strong);
+}
+
+.ms-adaptive {
+  margin: 0.7rem 0 0;
+  padding-top: 0.55rem;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.ms-adaptive-state {
+  font-weight: 600;
+  text-transform: capitalize;
+  color: var(--muted-strong);
+}
+
+.ms-adaptive-reason {
+  color: var(--muted);
+}
+
+@media (min-width: 640px) {
+  .ms-family-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.65rem;
+  }
+
+  .ms-family-rate {
+    font-size: 1.375rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .ms-family-list {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .ms-setup-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ms-family-card,
+  .ms-pair-card {
+    transition: none;
+  }
 }

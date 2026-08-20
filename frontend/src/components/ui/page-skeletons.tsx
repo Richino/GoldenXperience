@@ -84,22 +84,108 @@ export function WatchlistPairsSkeleton({ rows = 10 }: { rows?: number }) {
   );
 }
 
+export function WatchlistTabChipsSkeleton() {
+  return (
+    <div className="binary-seg flex gap-1.5" aria-hidden>
+      <Bone className="h-8 w-[5.25rem] rounded-full" />
+      <Bone className="h-8 w-[3.9rem] rounded-full" />
+    </div>
+  );
+}
+
+export function StrategiesWatchlistSkeleton() {
+  return (
+    <div className="ms-view space-y-8" aria-busy aria-label="Loading strategies">
+      <section className="dashboard-minimal-section">
+        <Line className="h-4 w-16" />
+        <div className="ms-family-list mt-3">
+          {Array.from({ length: 4 }, (_, index) => (
+            <article key={index} className="ms-family-card">
+              <div className="ms-family-head">
+                <div className="min-w-0 space-y-2">
+                  <Line className="h-4 w-24" />
+                  <Line className="h-3 w-36" />
+                </div>
+                <div className="space-y-2">
+                  <Line className="ml-auto h-6 w-12" />
+                  <Line className="ml-auto h-3 w-14" />
+                </div>
+              </div>
+              <Line className="mt-4 h-3 w-28" />
+            </article>
+          ))}
+        </div>
+      </section>
+      <section className="dashboard-minimal-section">
+        <div className="flex items-baseline justify-between gap-3">
+          <Line className="h-4 w-12" />
+          <Line className="h-3 w-6" />
+        </div>
+        <div className="ms-pair-list mt-3">
+          {Array.from({ length: 4 }, (_, index) => (
+            <article key={index} className="ms-pair-card">
+              <Line className="h-4 w-24" />
+              <Line className="mt-2 h-3 w-40" />
+              <div className="ms-setup-grid">
+                {Array.from({ length: 4 }, (_, cell) => (
+                  <div key={cell} className="ms-setup space-y-2">
+                    <Line className="h-3 w-16" />
+                    <Line className="h-3 w-20" />
+                  </div>
+                ))}
+              </div>
+              <Line className="mt-4 h-3 w-48" />
+            </article>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+export function BinaryWatchlistSkeleton({ rows = 6 }: { rows?: number }) {
+  return (
+    <div className="binary-wl-list" aria-busy aria-label="Loading binary monitor">
+      {Array.from({ length: rows }, (_, index) => (
+        <div key={index} className="binary-wl-card">
+          <div className="binary-wl-top">
+            <div className="flex items-center gap-2">
+              <Line className="h-4 w-20" />
+              <Line className="h-3 w-8" />
+            </div>
+            <Line className="h-4 w-32" />
+          </div>
+          <Bone className="binary-wl-meter mt-2" />
+          <div className="binary-wl-foot">
+            <Line className="h-3 w-36" />
+            <Line className="h-3 w-8" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function JournalEntriesSkeleton({ rows = 5 }: { rows?: number }) {
   return (
     <div className="journal-entry-list mt-3">
       {Array.from({ length: rows }, (_, index) => (
         <article key={index} className="journal-entry">
-          <header className="journal-entry-top">
-            <div className="flex items-center gap-2">
-              <Line className="h-4 w-20" />
-              <Line className="h-3 w-10" />
-              <Bone className="h-4 w-14 rounded-full" />
+          <div className="journal-entry-head">
+            <div className="journal-entry-main min-w-0">
+              <div className="flex items-center gap-2">
+                <Line className="h-4 w-20" />
+                <Line className="h-3 w-10" />
+                <Bone className="h-4 w-14 rounded-full" />
+              </div>
+              <Line className="mt-2 h-3 w-44" />
             </div>
-            <Line className="h-3 w-16" />
-          </header>
-          <div className="journal-entry-result">
-            <Line className="h-5 w-16" />
-            <Line className="h-4 w-20" />
+            <div className="journal-entry-aside">
+              <div className="journal-entry-result">
+                <Line className="h-4 w-14" />
+                <Line className="h-3 w-16" />
+              </div>
+            </div>
           </div>
           <div className="journal-entry-levels">
             {Array.from({ length: 4 }, (_, level) => (
@@ -363,19 +449,22 @@ export function JournalLoadingSkeleton() {
 
 export function WatchlistLoadingSkeleton() {
   return (
-    <div className="watchlist-view watchlist-minimal space-y-8 lg:space-y-10" aria-busy aria-label="Loading watchlist">
-      <header className="flex items-end justify-between gap-4">
-        <PageTitleSkeleton titleWidth="w-36" subtitleWidth="w-44" />
-        <Bone className="size-10 shrink-0 rounded-full" />
-      </header>
+    <div className="space-y-6" aria-busy aria-label="Loading watchlist">
+      <WatchlistTabChipsSkeleton />
+      <div className="watchlist-view watchlist-minimal space-y-8 lg:space-y-10">
+        <header className="flex items-end justify-between gap-4">
+          <PageTitleSkeleton titleWidth="w-36" subtitleWidth="w-44" />
+          <Bone className="size-10 shrink-0 rounded-full" />
+        </header>
 
-      <section className="dashboard-minimal-section">
-        <div className="flex items-baseline justify-between gap-3">
-          <Line className="h-4 w-12" />
-          <Line className="h-3 w-6" />
-        </div>
-        <WatchlistPairsSkeleton />
-      </section>
+        <section className="dashboard-minimal-section">
+          <div className="flex items-baseline justify-between gap-3">
+            <Line className="h-4 w-12" />
+            <Line className="h-3 w-6" />
+          </div>
+          <WatchlistPairsSkeleton />
+        </section>
+      </div>
     </div>
   );
 }

@@ -983,7 +983,15 @@ export async function paperCycleOverview() {
  * placed, so a trade lands in the journal as soon as it resolves. Ambiguous
  * strategy trades are left out until the resolver settles them.
  */
-export async function journalTradeLog(userId: string) {
+export type JournalTradeFilter = "all" | "wins" | "losses";
+
+export async function journalTradeLog(
+  userId: string,
+  { limit = 20, offset = 0, filter = "all" }: { limit?: number; offset?: number; filter?: JournalTradeFilter } = {},
+) {
+  // The filter runs on the merged log's raw result_r (open trades are NULL and
+  // so fall out of both wins and losses), matching the client's old behaviour.
+  const where = filter === "wins" ? "WHERE result_r > 0" : filter === "losses" ? "WHERE result_r < 0" : "";
   const rows = await query(
     `SELECT id, origin, pair, direction, status, result, opened_at AS "openedAt", closed_at AS "closedAt",
             entry, stop, target, exit, result_r AS "resultR", paper_pl AS "paperPl", reason, notes, sequence, outcome,
@@ -1012,10 +1020,38 @@ export async function journalTradeLog(userId: string) {
        JOIN instruments instrument ON instrument.code = trade.instrument
        WHERE trade.user_id=$1 AND trade.status IN ('open', 'closed')
      ) log
-     ORDER BY "openedAt" DESC`,
-    [userId],
+     ${where}
+     ORDER BY "openedAt" DESC
+     LIMIT $2 OFFSET $3`,
+    [userId, limit, offset],
   );
   return rows.rows;
+}
+
+/**
+ * Whole-journal totals for the stats card, computed over every trade regardless
+ * of the current page or filter so the header stays accurate as the list is
+ * paged in. Mirrors the set `journalTradeLog` draws from.
+ */
+export async function journalTradeSummary(userId: string) {
+  const rows = await query<{ total: string; closed: string; wins: string; sumR: string | null }>(
+    `SELECT count(*)::text AS total,
+            count(*) FILTER (WHERE status='closed' AND result_r IS NOT NULL)::text AS closed,
+            count(*) FILTER (WHERE result_r > 0)::text AS wins,
+            sum(result_r) FILTER (WHERE status='closed' AND result_r IS NOT NULL)::text AS "sumR"
+     FROM (
+       SELECT status, result_r::float AS result_r FROM paper_trades WHERE user_id=$1
+       UNION ALL
+       SELECT status, trade.result_r::float FROM paper_strategy_trades trade WHERE trade.user_id=$1 AND trade.status IN ('open', 'closed')
+     ) log`,
+    [userId],
+  );
+  const row = rows.rows[0];
+  const total = Number(row?.total ?? 0);
+  const closed = Number(row?.closed ?? 0);
+  const wins = Number(row?.wins ?? 0);
+  const sumR = Number(row?.sumR ?? 0);
+  return { total, winRate: closed ? wins / closed : null, avgR: closed ? sumR / closed : 0 };
 }
 
 /** Entry and exit points for one pair, used to draw trade markers on the chart. */

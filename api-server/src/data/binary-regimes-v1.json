@@ -1,0 +1,123 @@
+{
+  "version": "1.0.0",
+  "generatedAt": "2026-08-20T03:01:48.744Z",
+  "sampleSize": 2513,
+  "method": "tertile_quantiles_from_resolved_predictions",
+  "sessions": {
+    "known": [
+      "London",
+      "New York",
+      "London/New York overlap"
+    ],
+    "fallback": "OTHER"
+  },
+  "atrPips": {
+    "labels": [
+      "LOW",
+      "NORMAL",
+      "HIGH"
+    ],
+    "lowUpper": 0.8656984489068767,
+    "highLower": 1.4211364156366766
+  },
+  "volatilityPips": {
+    "labels": [
+      "LOW",
+      "NORMAL",
+      "HIGH"
+    ],
+    "lowUpper": 0.584465567847956,
+    "highLower": 0.9357112565076345
+  },
+  "trend": {
+    "labels": [
+      "DOWN",
+      "FLAT",
+      "UP"
+    ],
+    "downUpper": -0.00002343191628811287,
+    "upLower": 0.000027529391546105306,
+    "note": "Derived from emaGapPct = (emaFast - emaSlow) / referenceClose"
+  },
+  "confidenceBuckets": {
+    "heuristic_score": [
+      {
+        "label": "0.58-0.65",
+        "min": 0.58,
+        "max": 0.65,
+        "maxInclusive": false
+      },
+      {
+        "label": "0.65-0.70",
+        "min": 0.65,
+        "max": 0.7,
+        "maxInclusive": false
+      },
+      {
+        "label": "0.70-0.80",
+        "min": 0.7,
+        "max": 0.8,
+        "maxInclusive": false
+      },
+      {
+        "label": "0.80+",
+        "min": 0.8,
+        "max": null,
+        "maxInclusive": true
+      }
+    ],
+    "probability": [
+      {
+        "label": "0.50-0.55",
+        "min": 0.5,
+        "max": 0.55,
+        "maxInclusive": false
+      },
+      {
+        "label": "0.55-0.60",
+        "min": 0.55,
+        "max": 0.6,
+        "maxInclusive": false
+      },
+      {
+        "label": "0.60-0.70",
+        "min": 0.6,
+        "max": 0.7,
+        "maxInclusive": false
+      },
+      {
+        "label": "0.70+",
+        "min": 0.7,
+        "max": null,
+        "maxInclusive": true
+      }
+    ]
+  },
+  "distributionSummary": {
+    "atrPips": {
+      "count": 2513,
+      "min": 0.19209387692412067,
+      "max": 11.224152679069192
+    },
+    "volatilityPips": {
+      "count": 2513,
+      "min": 0.08793937305524074,
+      "max": 13.441339218991645
+    },
+    "emaGapPct": {
+      "count": 2513,
+      "min": -0.0008658743610150166,
+      "max": 0.0007666189189719898
+    },
+    "baselineConfidence": {
+      "count": 2513,
+      "min": 0.5802318396066117,
+      "max": 0.95
+    },
+    "logisticConfidence": {
+      "count": 0,
+      "min": null,
+      "max": null
+    }
+  }
+}

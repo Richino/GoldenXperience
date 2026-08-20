@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type RefObject } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 import type {
   IChartApi,
   ISeriesApi,
@@ -61,10 +61,11 @@ const PRICE_ENGAGE = 4;
 // +1 keeps the price under the finger as the finger drags (grab-and-move).
 const PRICE_PAN_SIGN = 1;
 // Restrained inertia: per-frame velocity decay, the speed it stops at, and a
-// cap so a hard flick can't launch the view across the whole history.
-const INERTIA_DECAY = 0.9;
-const INERTIA_STOP = 0.02; // px/ms
-const MAX_VELOCITY = 3; // px/ms
+// cap so a hard flick can't launch the view across the whole history. Tuned
+// gentle — a short, slow glide that settles quickly rather than a long fling.
+const INERTIA_DECAY = 0.86;
+const INERTIA_STOP = 0.04; // px/ms
+const MAX_VELOCITY = 1.8; // px/ms
 const FRAME_MS = 16;
 
 function clamp(value: number, min: number, max: number) {
@@ -78,6 +79,7 @@ export function useChartTouchGestures({
   enabled,
   epoch,
   onManualPrice,
+  onViewChange,
 }: {
   containerRef: RefObject<HTMLDivElement | null>;
   chartRef: RefObject<IChartApi | null>;
@@ -85,7 +87,12 @@ export function useChartTouchGestures({
   enabled: boolean;
   epoch: number;
   onManualPrice: () => void;
+  /** Fires after each applied pan/pinch/inertia frame so overlays can glue on. */
+  onViewChange?: () => void;
 }) {
+  const onViewChangeRef = useRef(onViewChange);
+  onViewChangeRef.current = onViewChange;
+
   useEffect(() => {
     if (!enabled) return;
     const containerEl = containerRef.current;
@@ -312,6 +319,7 @@ export function useChartTouchGestures({
       frame = 0;
       if (pointers.size >= 2) {
         applyTwoFinger();
+        onViewChangeRef.current?.();
         return;
       }
       if (mode === "pan" && pointers.size === 1) {
@@ -327,6 +335,7 @@ export function useChartTouchGestures({
         }
         if (priceEngaged && dy) shiftPriceByPixels(dy, true);
       }
+      onViewChangeRef.current?.();
     }
 
     function scheduleFrame() {
@@ -349,6 +358,7 @@ export function useChartTouchGestures({
       const step = () => {
         shiftTimeByPixels(vx * FRAME_MS);
         if (inertiaPriceEngaged) shiftPriceByPixels(vy * FRAME_MS, false);
+        onViewChangeRef.current?.();
         vx *= INERTIA_DECAY;
         vy *= INERTIA_DECAY;
         if (Math.hypot(vx, vy) < INERTIA_STOP) {

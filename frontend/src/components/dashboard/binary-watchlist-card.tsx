@@ -52,10 +52,7 @@ export function BinaryWatchlistCard() {
   return (
     <section className="dashboard-minimal-section" aria-label="Binary watchlist">
       <div className="flex items-baseline justify-between gap-3">
-        <div className="flex min-w-0 items-baseline gap-2">
-          <h2 className="text-sm font-semibold tracking-[-0.01em]">Binary watchlist</h2>
-          <span className="truncate text-xs text-[color:var(--muted)]">10-minute model bias</span>
-        </div>
+        <h2 className="text-sm font-semibold tracking-[-0.01em]">Binary watchlist</h2>
         <Link href="/watchlist?tab=binary" className="link-quiet pressable text-xs">
           View all
         </Link>
@@ -86,9 +83,6 @@ export function BinaryWatchlistCard() {
           );
         })}
       </div>
-      <p className="mt-3 text-[0.6875rem] leading-snug text-[color:var(--muted)]">
-        Score is a bounded model heuristic, not a calibrated probability.
-      </p>
     </section>
   );
 }

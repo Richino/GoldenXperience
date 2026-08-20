@@ -29,10 +29,12 @@ import { getForexSessionStatus } from "../../frontend/src/lib/strategy/session.j
 import { databaseConfigured, query } from "./database.js";
 import { cookieName, login, logout, sessionUser } from "./auth.js";
 import { decideResearchExperiment, forwardResearchSummary, latestDayTradingValidation, latestResearchExperiment, latestResearchHoldout, latestResearchRun, latestWalkForwardResearch, processNextResearchJob, researchDiagnostics, researchExperimentDiagnostics, researchSummary, runDayTradingValidation, runResearchExperiment, runWalkForwardResearch, startLockedResearchHoldout, startStrictHistoricalBackfill, stopResearchRun } from "./research.js";
-import { collectMultiStrategyCycle, collectPaperCycle, decidePaperBatch, fastResolveFilledTrades, liveResolvePaperTrades, journalTradeLog, multiStrategyOverview, multiStrategyWatchlist, paperCycleOverview, paperRiskExposure, paperRiskPolicy, paperTradesForInstrument, parsePaperRiskConfiguration, reviewPaperTrade, updatePaperRiskPolicy, watchlistSnapshot } from "./paper-cycle.js";
+import { collectMultiStrategyCycle, collectPaperCycle, decidePaperBatch, fastResolveFilledTrades, liveResolvePaperTrades, journalTradeLog, journalTradeSummary, multiStrategyOverview, multiStrategyWatchlist, paperCycleOverview, paperRiskExposure, paperRiskPolicy, paperTradesForInstrument, parsePaperRiskConfiguration, reviewPaperTrade, updatePaperRiskPolicy, watchlistSnapshot } from "./paper-cycle.js";
 import { markNotificationsRead, notificationsForUser, pushPublicKey, queueNotification, removePushSubscription, savePushSubscription } from "./notifications.js";
 import { practiceExecutionOverview, setPracticeExecutionEnabled } from "./practice-execution.js";
 import { binaryJournal, binaryPerformance, binaryPredictionDetail, binaryWatchlistSnapshot, collectBinaryCycle, recentBinaryPredictions, resolveDueBinaryPredictions } from "./binary-engine.js";
+import { binaryAdaptiveStats } from "./binary-adaptive-stats.js";
+import { binaryAdaptiveSelectorStatus } from "./binary-adaptive-selector.js";
 
 // The multi-strategy + adaptive engine replaces the single liquidity strategy as
 // the active forex collector. Default on; set MULTISTRATEGY_ENABLED=false to roll
@@ -256,7 +258,15 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       return saved ? json(request, response, { batch: saved }) : json(request, response, { error: "The batch recommendation is unavailable or already decided." }, 409);
     }
     if (url.pathname === "/api/journal/trades" && request.method === "GET") {
-      return json(request, response, { trades: await journalTradeLog(user.id) });
+      const limit = Math.min(50, Math.max(1, Number(url.searchParams.get("limit")) || 20));
+      const offset = Math.max(0, Number(url.searchParams.get("offset")) || 0);
+      const filterParam = url.searchParams.get("filter");
+      const filter = filterParam === "wins" || filterParam === "losses" ? filterParam : "all";
+      const trades = await journalTradeLog(user.id, { limit, offset, filter });
+      // The stats card is filter- and page-independent, so it only rides the
+      // first page and is computed over the whole journal.
+      const summary = offset === 0 ? await journalTradeSummary(user.id) : undefined;
+      return json(request, response, { trades, hasMore: trades.length === limit, summary });
     }
     // Binary Prediction system. Read-only from the API: predictions are created
     // and resolved by the durable server-side loop below, never by a request.
@@ -267,10 +277,21 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       return json(request, response, { watchlist: await binaryWatchlistSnapshot() });
     }
     if (url.pathname === "/api/binary/journal" && request.method === "GET") {
-      return json(request, response, { predictions: await binaryJournal(user.id) });
+      const limit = Math.min(50, Math.max(1, Number(url.searchParams.get("limit")) || 20));
+      const offset = Math.max(0, Number(url.searchParams.get("offset")) || 0);
+      const f = url.searchParams.get("filter");
+      const filter = f === "won" || f === "lost" || f === "tie" || f === "active" ? f : "all";
+      const predictions = await binaryJournal(user.id, { limit, offset, filter });
+      return json(request, response, { predictions, hasMore: predictions.length === limit });
     }
     if (url.pathname === "/api/binary/stats" && request.method === "GET") {
       return json(request, response, await binaryPerformance(user.id));
+    }
+    if (url.pathname === "/api/binary/adaptive/stats" && request.method === "GET") {
+      return json(request, response, await binaryAdaptiveStats());
+    }
+    if (url.pathname === "/api/binary/adaptive/selector" && request.method === "GET") {
+      return json(request, response, await binaryAdaptiveSelectorStatus());
     }
     if (url.pathname === "/api/binary/prediction" && request.method === "GET") {
       const id = url.searchParams.get("id");

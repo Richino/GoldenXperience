@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiUrl } from "@/lib/api/url";
 import { displayNameFor, pipSizeFor } from "@/lib/instruments/catalog";
@@ -10,6 +9,7 @@ import { formatClockTime } from "@/lib/format/datetime";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import type { BinaryWatchRow } from "@/types/binary";
+import { BinaryWatchlistSkeleton } from "@/components/ui/page-skeletons";
 
 function price(value: number | null, instrument: string) {
   return value === null ? "—" : formatChartPrice(value, instrument);
@@ -85,25 +85,9 @@ export function BinaryWatchlistView() {
 
   return (
     <div className="watchlist-view space-y-6">
-      <header className="flex items-end justify-between gap-4">
-        <div className="min-w-0">
-          <h2 className="text-sm font-semibold tracking-[-0.01em]">Binary monitor</h2>
-          <p className="mt-1 text-xs text-[color:var(--muted)]">10-minute directional model · {merged[0]?.modelName ?? "binary-baseline-v1"}</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => void load()}
-          disabled={loading}
-          className="mobile-icon-btn pressable text-[color:var(--muted-strong)] hover:text-[color:var(--foreground)]"
-          aria-label="Refresh"
-        >
-          <RefreshCw className={`size-[18px] ${loading ? "animate-spin" : ""}`} strokeWidth={1.9} />
-        </button>
-      </header>
-
       {error ? <p className="research-error">{error}</p> : null}
 
-      <section className="dashboard-minimal-section" aria-label="Binary pairs">
+      <section aria-label="Binary pairs">
         {merged.length ? (
           <div className="binary-wl-list">
             {merged.map((row) => {
@@ -126,22 +110,22 @@ export function BinaryWatchlistView() {
                       <span
                         className={
                           bias === "up"
-                            ? "binary-wl-pill is-up"
+                            ? "binary-wl-dir is-up"
                             : bias === "down"
-                              ? "binary-wl-pill is-down"
-                              : "binary-wl-pill is-wait"
+                              ? "binary-wl-dir is-down"
+                              : "binary-wl-dir is-wait"
                         }
                       >
-                        {bias === "up" ? "UP" : bias === "down" ? "DOWN" : "WAIT"}
+                        {bias === "up" ? "Up" : bias === "down" ? "Down" : "Wait"}
                       </span>
                     </span>
                     <span className="binary-wl-quote">
                       <span className="binary-wl-quote-val metric-number">
                         {price(row.bid, row.instrument)}
-                        <span className="binary-wl-quote-sep"> / </span>
+                        <span className="binary-wl-quote-sep">/</span>
                         {price(row.ask, row.instrument)}
                       </span>
-                      <span className="binary-wl-quote-label">bid / ask</span>
+                      <span className="binary-wl-quote-label">Bid / ask</span>
                     </span>
                   </div>
 
@@ -159,9 +143,7 @@ export function BinaryWatchlistView() {
                   <div className="binary-wl-foot">
                     <span className="binary-wl-status">{statusLine(row)}</span>
                     <span className="binary-wl-metrics metric-number">
-                      {row.score === null ? "—" : `score ${row.score.toFixed(2)}`}
-                      {" · "}
-                      {row.evaluatedAt ? formatClockTime(row.evaluatedAt) : "waiting"}
+                      {row.score === null ? "—" : `Score ${row.score.toFixed(2)}`}
                     </span>
                   </div>
                 </Link>
@@ -169,13 +151,12 @@ export function BinaryWatchlistView() {
             })}
           </div>
         ) : loading ? (
-          <p className="mt-4 text-sm text-[color:var(--muted)]">Loading…</p>
+          <div className="mt-3">
+            <BinaryWatchlistSkeleton />
+          </div>
         ) : (
           <p className="mt-4 text-sm text-[color:var(--muted)]">No monitored pairs.</p>
         )}
-        <p className="mt-4 text-[0.6875rem] leading-snug text-[color:var(--muted)]">
-          Score is a bounded model heuristic, not a calibrated probability. A bias is not a prediction until the engine opens one.
-        </p>
       </section>
     </div>
   );

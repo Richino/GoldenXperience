@@ -1,17 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import {
-  PAPER_JOURNAL_STORAGE_KEY,
-  PAPER_JOURNAL_UPDATED_EVENT,
-} from "@/lib/journal/storage";
 import type { JournalTrade } from "@/types/forex";
 import { apiUrl } from "@/lib/api/url";
-import { formatShortDay } from "@/lib/format/datetime";
+import { formatClockTime, formatDayAndTime, formatShortDay } from "@/lib/format/datetime";
 import { openTradeProgress } from "@/lib/open-trade-progress";
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import { useOpenPositionFills } from "@/lib/market-stream/use-open-positions";
+import { useInfiniteScroll } from "@/lib/use-infinite-scroll";
 import { JournalEntriesSkeleton } from "@/components/ui/page-skeletons";
 import Link from "next/link";
 
@@ -40,9 +37,14 @@ function formatMoney(value: number | null | undefined) {
   }).format(value);
 }
 
-function formatShortDate(value: string | null) {
-  if (!value) return "Open";
-  return formatShortDay(value);
+function formatTradeWindow(openedAt: string, closedAt: string | null) {
+  if (!closedAt) {
+    return `${formatDayAndTime(openedAt)} → Open`;
+  }
+  if (formatShortDay(openedAt) === formatShortDay(closedAt)) {
+    return `${formatShortDay(openedAt)}, ${formatClockTime(openedAt)} → ${formatClockTime(closedAt)}`;
+  }
+  return `${formatDayAndTime(openedAt)} → ${formatDayAndTime(closedAt)}`;
 }
 
 function JournalTradeRow({
@@ -100,44 +102,45 @@ function JournalTradeRow({
 
   const body = (
     <>
-      <header className="journal-entry-top">
-        <p className="journal-entry-title">
-          <span className="journal-entry-pair">{trade.pair}</span>
-          <span
-            className={
-              trade.direction === "long"
-                ? "journal-entry-dir is-long"
-                : "journal-entry-dir is-short"
-            }
-          >
-            {trade.direction}
-          </span>
-          {trade.origin === "strategy" ? (
-            <span className="journal-entry-auto">
-              Auto{trade.sequence ? ` #${trade.sequence}` : ""}
+      <div className="journal-entry-head">
+        <div className="journal-entry-main min-w-0">
+          <p className="journal-entry-title">
+            <span className="journal-entry-pair">{trade.pair}</span>
+            <span
+              className={
+                trade.direction === "long"
+                  ? "journal-entry-dir is-long"
+                  : "journal-entry-dir is-short"
+              }
+            >
+              {trade.direction}
             </span>
-          ) : null}
-        </p>
-        <time className="journal-entry-date">
-          {formatShortDate(trade.closedAt)}
-        </time>
-      </header>
-
-      <div className="journal-entry-result">
-        <span className={`journal-entry-r metric-number ${resultTone}`}>
-          {resultLabel}
-          {trade.resultR !== null ? (
-            <span className="journal-entry-r-unit">R</span>
-          ) : null}
-        </span>
-        {money && moneyTone ? (
-          <span className={`journal-entry-money metric-number ${moneyTone}`}>
-            {money}
-          </span>
-        ) : null}
-        {outcome ? (
-          <span className="journal-entry-outcome">{outcome}</span>
-        ) : null}
+            {trade.origin === "strategy" ? (
+              <span className="journal-entry-auto">
+                Auto{trade.sequence ? ` #${trade.sequence}` : ""}
+              </span>
+            ) : null}
+          </p>
+          <p className="journal-entry-window metric-number">
+            <time dateTime={trade.openedAt}>{formatTradeWindow(trade.openedAt, trade.closedAt)}</time>
+            {outcome ? (
+              <span className="journal-entry-outcome"> · {outcome}</span>
+            ) : null}
+          </p>
+        </div>
+        <div className="journal-entry-aside">
+          <p className={`journal-entry-result metric-number ${resultTone}`}>
+            <span className="journal-entry-r">
+              {resultLabel}
+              {trade.resultR !== null ? (
+                <span className="journal-entry-r-unit">R</span>
+              ) : null}
+            </span>
+            {money ? (
+              <span className={`journal-entry-money ${moneyTone ?? ""}`}>{money}</span>
+            ) : null}
+          </p>
+        </div>
       </div>
 
       <dl className="journal-entry-levels">
@@ -178,23 +181,36 @@ function JournalTradeRow({
       ) : (
         body
       )}
-
-      {trade.notes ? (
-        <div className="journal-entry-note">
-          <p className="journal-entry-note-label">Note</p>
-          <p>{trade.notes}</p>
-        </div>
-      ) : null}
     </article>
+  );
+}
+
+const PAGE_SIZE = 20;
+
+type TradeSummary = { total: number; winRate: number | null; avgR: number };
+
+function filterParamFor(filter: JournalFilter): "all" | "wins" | "losses" {
+  return filter === "Wins" ? "wins" : filter === "Losses" ? "losses" : "all";
+}
+
+function dedupeById(trades: JournalTrade[]): JournalTrade[] {
+  const seen = new Set<string>();
+  return trades.filter((trade) =>
+    seen.has(trade.id) ? false : (seen.add(trade.id), true),
   );
 }
 
 export function JournalView({ embedded = false }: { embedded?: boolean } = {}) {
   const [activeFilter, setActiveFilter] = useState<JournalFilter>("All");
   const [records, setRecords] = useState<JournalTrade[]>([]);
-  const [loadingRecords, setLoadingRecords] = useState(true);
+  const [summary, setSummary] = useState<TradeSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [storageReady, setStorageReady] = useState(false);
+  const offsetRef = useRef(0);
+  const requestSeqRef = useRef(0);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
   // Live bid/ask per pair, so an unresolved row is marked to market on every
   // tick. A dropped socket leaves the last known figure rather than a wrong
   // one, and rows without a quote fall back to "Open".
@@ -203,69 +219,74 @@ export function JournalView({ embedded = false }: { embedded?: boolean } = {}) {
   const fills = useOpenPositionFills();
   const reducedMotion = useReducedMotion();
 
-  useEffect(() => {
-    let cancelled = false;
+  const filterParam = filterParamFor(activeFilter);
 
-    void (async () => {
+  // Loads one page. `reset` restarts at the first page for a filter change (the
+  // server also returns the whole-journal summary then); otherwise it appends
+  // the next page. A per-call sequence guards against a slower earlier request
+  // landing after a newer one on a rapid filter switch.
+  const loadPage = useCallback(
+    async (reset: boolean) => {
+      const seq = ++requestSeqRef.current;
+      const offset = reset ? 0 : offsetRef.current;
+      if (!reset) setLoadingMore(true);
       try {
-        const response = await fetch(apiUrl("/api/journal/trades"), { credentials: "include", cache: "no-store" });
-        const payload = await response.json() as { trades?: JournalTrade[] };
+        const response = await fetch(
+          apiUrl(`/api/journal/trades?limit=${PAGE_SIZE}&offset=${offset}&filter=${filterParam}`),
+          { credentials: "include", cache: "no-store" },
+        );
+        const payload = (await response.json()) as {
+          trades?: JournalTrade[];
+          hasMore?: boolean;
+          summary?: TradeSummary;
+        };
         if (!response.ok) throw new Error("Journal records are unavailable.");
-        if (!cancelled) {
-          setRecords(payload.trades ?? []);
-          setLoadError(null);
-        }
+        if (seq !== requestSeqRef.current) return;
+        const batch = payload.trades ?? [];
+        offsetRef.current = offset + batch.length;
+        setRecords((prev) => (reset ? batch : dedupeById([...prev, ...batch])));
+        setHasMore(Boolean(payload.hasMore));
+        if (reset && payload.summary) setSummary(payload.summary);
+        setLoadError(null);
       } catch {
-        if (!cancelled) setLoadError("Could not load your journal records.");
+        if (seq === requestSeqRef.current) {
+          setLoadError("Could not load your journal records.");
+        }
       } finally {
-        if (!cancelled) {
-          setLoadingRecords(false);
-          setStorageReady(true);
+        if (seq === requestSeqRef.current) {
+          setLoading(false);
+          setLoadingMore(false);
         }
       }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!storageReady) return;
-    window.localStorage.setItem(
-      PAPER_JOURNAL_STORAGE_KEY,
-      JSON.stringify(records),
-    );
-    window.dispatchEvent(new Event(PAPER_JOURNAL_UPDATED_EVENT));
-  }, [records, storageReady]);
-
-  const filtered = useMemo(() => {
-    switch (activeFilter) {
-      case "All":
-        return records;
-      case "Wins":
-        return records.filter((trade) => (trade.resultR ?? 0) > 0);
-      case "Losses":
-        return records.filter((trade) => (trade.resultR ?? 0) < 0);
-      default: {
-        const _exhaustive: never = activeFilter;
-        void _exhaustive;
-        return records;
-      }
-    }
-  }, [activeFilter, records]);
-  const closedTrades = records.filter(
-    (trade): trade is JournalTrade & { resultR: number } =>
-      trade.status === "closed" && trade.resultR !== null,
+    },
+    [filterParam],
   );
-  const wins = closedTrades.filter((trade) => trade.resultR > 0);
-  const winRate = closedTrades.length
-    ? (wins.length / closedTrades.length) * 100
-    : 0;
-  const averageR = closedTrades.length
-    ? closedTrades.reduce((sum, trade) => sum + trade.resultR, 0) /
-      closedTrades.length
-    : 0;
+
+  // A filter change (and the first mount) resets to page one.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoading(true);
+    void loadPage(true);
+  }, [loadPage]);
+
+  const loadMore = useCallback(() => {
+    void loadPage(false);
+  }, [loadPage]);
+  useInfiniteScroll({
+    sentinelRef,
+    hasMore,
+    loading: loading || loadingMore,
+    onLoadMore: loadMore,
+  });
+
+  const totalTrades = summary?.total ?? records.length;
+  const hasClosed = summary ? summary.winRate !== null : false;
+  const winRateLabel = summary
+    ? summary.winRate === null
+      ? "0%"
+      : `${(summary.winRate * 100).toFixed(0)}%`
+    : "—";
+  const avgR = summary?.avgR ?? 0;
 
   return (
     <div className="journal-view journal-minimal space-y-8 lg:space-y-10">
@@ -285,20 +306,17 @@ export function JournalView({ embedded = false }: { embedded?: boolean } = {}) {
       >
         {(
           [
-            ["Trades", records.length.toString()],
-            ["Win rate", `${winRate.toFixed(0)}%`],
-            [
-              "Avg R",
-              `${averageR >= 0 ? "+" : ""}${averageR.toFixed(2)}R`,
-            ],
+            ["Trades", totalTrades.toString()],
+            ["Win rate", winRateLabel],
+            ["Avg R", `${avgR >= 0 ? "+" : ""}${avgR.toFixed(2)}R`],
           ] as const
         ).map(([label, value], index) => (
           <div key={label} className="journal-stat min-w-0">
             <p className="text-xs text-[color:var(--muted)]">{label}</p>
             <p
               className={`metric-number mt-1 text-xl font-semibold tracking-[-0.03em] ${
-                index === 2 && closedTrades.length
-                  ? averageR >= 0
+                index === 2 && hasClosed
+                  ? avgR >= 0
                     ? "text-[color:var(--success)]"
                     : "text-[color:var(--danger)]"
                   : ""
@@ -329,38 +347,40 @@ export function JournalView({ embedded = false }: { embedded?: boolean } = {}) {
           </div>
         </div>
 
-        <AnimatePresence mode="popLayout" initial={false}>
-          {loadingRecords ? (
-            <JournalEntriesSkeleton />
-          ) : filtered.length ? (
+        {loading ? (
+          <JournalEntriesSkeleton />
+        ) : records.length ? (
+          <>
             <div className="journal-entry-list mt-3">
-              {filtered.map((trade) => (
-                <motion.div
-                  layout
-                  key={trade.id}
-                  className="journal-entry-wrap"
-                  initial={reducedMotion ? false : { opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                >
-                  <JournalTradeRow
-                    trade={trade}
-                    quote={trade.instrument ? quotes[trade.instrument] : undefined}
-                    fill={trade.instrument ? fills[trade.instrument] : undefined}
-                  />
-                </motion.div>
-              ))}
+              <AnimatePresence mode="popLayout" initial={false}>
+                {records.map((trade) => (
+                  <motion.div
+                    layout
+                    key={trade.id}
+                    className="journal-entry-wrap"
+                    initial={reducedMotion ? false : { opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                  >
+                    <JournalTradeRow
+                      trade={trade}
+                      quote={trade.instrument ? quotes[trade.instrument] : undefined}
+                      fill={trade.instrument ? fills[trade.instrument] : undefined}
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </div>
-          ) : (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="mt-6"
-            >
-              <p className="text-sm text-[color:var(--muted)]">No trades in this view.</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            <div ref={sentinelRef} aria-hidden className="h-px" />
+            {loadingMore ? (
+              <p className="mt-4 text-center text-sm text-[color:var(--muted)]">
+                Loading more…
+              </p>
+            ) : null}
+          </>
+        ) : (
+          <p className="mt-6 text-sm text-[color:var(--muted)]">No trades in this view.</p>
+        )}
       </section>
     </div>
   );

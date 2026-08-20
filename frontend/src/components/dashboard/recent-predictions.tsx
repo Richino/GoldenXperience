@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { apiUrl } from "@/lib/api/url";
 import { displayNameFor } from "@/lib/instruments/catalog";
-import { formatChartPrice } from "@/lib/chart-utils";
 import { formatClockTime } from "@/lib/format/datetime";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { predictionResultTone, predictionStatusLabel } from "@/lib/binary-format";
@@ -57,6 +56,11 @@ export function RecentPredictions() {
       {error ? <p className="mt-3 text-xs text-[color:var(--danger)]">{error}</p> : null}
       {predictions.length ? (
         <div className="dash-trade-list mt-3">
+          <div className="dash-trade-table-head" aria-hidden="true">
+            <span>Prediction</span>
+            <span>Window</span>
+            <span>Result</span>
+          </div>
           {predictions.map((prediction) => {
             const tone = predictionResultTone(prediction.status, prediction.result);
             return (
@@ -68,16 +72,16 @@ export function RecentPredictions() {
                 <div className="dash-trade-main min-w-0">
                   <p className="dash-trade-title">
                     <span className="dash-trade-pair">{displayNameFor(prediction.instrument)}</span>
-                    <span className={prediction.direction === "up" ? "binary-dir is-up" : "binary-dir is-down"}>
-                      {prediction.direction === "up" ? "UP" : "DOWN"}
-                    </span>
-                  </p>
-                  <p className="dash-trade-time">
-                    {formatChartPrice(prediction.entryPrice, prediction.instrument)} · {clock(prediction.startAt)} → {clock(prediction.intendedExpiration)}
+                    <span className="dash-trade-dir">{prediction.direction}</span>
                   </p>
                 </div>
+                <p className="dash-trade-time">
+                  {clock(prediction.startAt)} → {clock(prediction.intendedExpiration)}
+                </p>
                 <div className="dash-trade-aside">
-                  <p className={`dash-trade-pl metric-number ${tone}`}>{predictionStatusLabel(prediction)}</p>
+                  <p className={`dash-trade-pl metric-number ${tone}`}>
+                    {predictionStatusLabel(prediction)}
+                  </p>
                   <p className="dash-trade-r metric-number">{prediction.confidence.toFixed(2)}</p>
                 </div>
               </Link>

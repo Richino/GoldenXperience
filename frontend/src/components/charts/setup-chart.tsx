@@ -122,8 +122,10 @@ function chartTheme(
       attributionLogo: false,
     },
     grid: {
-      vertLines: { color: gridLine, style: LineStyle.Solid, visible: true },
-      horzLines: { color: gridLine, style: LineStyle.Solid, visible: true },
+      vertLines: { color: gridLine, style: LineStyle.Solid, visible: false },
+      // Horizontal (price/y-axis) grid lines are off: the area fill and beacon
+      // carry the level read, and the lattice competed with them.
+      horzLines: { color: gridLine, style: LineStyle.Solid, visible: false },
     },
     crosshair: {
       mode: CrosshairMode.Normal,
@@ -245,6 +247,7 @@ interface LevelTag {
   /** Text drawn on the coloured pill, picked for contrast against `color`. */
   textColor: string;
   dashed: boolean;
+  lineWidth?: 1 | 2;
 }
 
 /**
@@ -359,27 +362,114 @@ function setupLevelTags(
   return tags;
 }
 
+/**
+ * Named overlays drawn on the pane: planned levels plus an optional binary
+ * entry marker. Kept as one list so they share the same right-edge stacking.
+ */
+function overlayLevelTags(
+  levels: SetupLevels | null,
+  referenceLine: ChartReferenceLine | null,
+  isDark: boolean,
+  halfSpread: number,
+): LevelTag[] {
+  const tags = levels ? setupLevelTags(levels, isDark, halfSpread) : [];
+  if (referenceLine) {
+    tags.push({
+      key: "reference",
+      label: referenceLine.label,
+      price: referenceLine.price,
+      color: referenceLine.color,
+      textColor: referenceLine.textColor,
+      dashed: true,
+      lineWidth: 2,
+    });
+  }
+  return tags;
+}
+
 /** A level tag resolved to a pixel row, ready to be positioned. */
 interface PlacedLevelTag extends LevelTag {
   y: number;
-  /** Width of the price scale the tag has to clear. */
-  axisWidth: number;
+  /** Distance from the chart's right edge, clearing the price axis and corner. */
+  right: number;
 }
 
-function addSetupLevels(mainSeries: ISeriesApi<SeriesType>, tags: LevelTag[]) {
+/** Bottom-right keepout so level flags do not sit on a corner badge. */
+const CHART_CORNER_KEEPOUT = 84;
+const CHART_CORNER_BAND = 40;
+/** Flag chip height including padding — used to unstack overlapping levels. */
+const LEVEL_TAG_HEIGHT = 18;
+const LEVEL_TAG_STACK_GAP = 2;
+
+function plotCornerGutter(y: number, paneHeight: number, timeScaleHeight: number) {
+  const floor = paneHeight - Math.max(timeScaleHeight, 0);
+  return y > floor - CHART_CORNER_BAND ? CHART_CORNER_KEEPOUT : 0;
+}
+
+/**
+ * Nudge overlapping right-edge flags apart so Entry / SL / TP stay readable
+ * when their prices sit on the same pixel row.
+ */
+function stackLevelTagYs(tags: PlacedLevelTag[], paneHeight: number): PlacedLevelTag[] {
+  if (tags.length < 2) return tags;
+
+  const sorted = [...tags].sort(
+    (left, right) => left.y - right.y || left.key.localeCompare(right.key),
+  );
+  const minGap = LEVEL_TAG_HEIGHT + LEVEL_TAG_STACK_GAP;
+  const half = LEVEL_TAG_HEIGHT / 2;
+  const minY = half;
+  const maxY = Math.max(minY, paneHeight - half);
+
+  for (let i = 1; i < sorted.length; i++) {
+    const floor = sorted[i - 1]!.y + minGap;
+    if (sorted[i]!.y < floor) {
+      sorted[i] = { ...sorted[i]!, y: floor };
+    }
+  }
+
+  if (sorted[sorted.length - 1]!.y > maxY) {
+    sorted[sorted.length - 1] = { ...sorted[sorted.length - 1]!, y: maxY };
+    for (let i = sorted.length - 2; i >= 0; i--) {
+      const ceiling = sorted[i + 1]!.y - minGap;
+      if (sorted[i]!.y > ceiling) {
+        sorted[i] = { ...sorted[i]!, y: ceiling };
+      }
+    }
+  }
+
+  if (sorted[0]!.y < minY) {
+    sorted[0] = { ...sorted[0]!, y: minY };
+    for (let i = 1; i < sorted.length; i++) {
+      const floor = sorted[i - 1]!.y + minGap;
+      if (sorted[i]!.y < floor) {
+        sorted[i] = { ...sorted[i]!, y: floor };
+      }
+    }
+  }
+
+  return sorted;
+}
+
+function addSetupLevels(
+  mainSeries: ISeriesApi<SeriesType>,
+  tags: LevelTag[],
+  axisLabels: boolean,
+) {
   for (const tag of tags) {
     mainSeries.createPriceLine({
       price: tag.price,
       color: tag.color,
-      lineWidth: 1,
+      lineWidth: tag.lineWidth ?? 1,
       lineStyle: tag.dashed ? LineStyle.Dashed : LineStyle.Dotted,
-      // The price always shows on the scale — mobile included. The named tag
-      // that sits beside it is drawn as an overlay, see `LevelTagOverlay`.
+      // Desktop: the price sits on the scale and the named flag sits on the
+      // plot's right edge. Mobile hides the scale, so library axis chips would
+      // float on the pane; the overlay flag is the name instead.
       //
       // No `title`: the library would paint the same word onto the pane, which
       // read as two tags on the wider labels. The short ones only looked
       // correct because the pair landed on top of each other.
-      axisLabelVisible: true,
+      axisLabelVisible: axisLabels,
       axisLabelColor: tag.color,
       axisLabelTextColor: tag.textColor,
     });
@@ -522,6 +612,40 @@ function latestCandleChartTime(candles: Candle[]) {
   return chartTimeValue(toChartCandles(candles).at(-1));
 }
 
+/** Glue the last-bar endpoint dot to the latest candle in the same turn as a chart move. */
+function paintLastPriceOverlay(args: {
+  chart: IChartApi;
+  mainSeries: ISeriesApi<SeriesType>;
+  candles: Candle[];
+  latestClose: number | null;
+  width: number;
+  height: number;
+  host: HTMLElement;
+  dot: HTMLElement;
+}) {
+  const { chart, mainSeries, candles, latestClose, width, height, host, dot } =
+    args;
+
+  if (!candles.length || width <= 0 || height <= 0) {
+    host.hidden = true;
+    return;
+  }
+
+  const lastIndex = candles.length - 1;
+  const close = latestClose ?? candles[lastIndex]!.close;
+  const rawX = chart.timeScale().logicalToCoordinate(lastIndex as Logical);
+  const rawY = mainSeries.priceToCoordinate(close);
+  const onScreen =
+    rawX !== null && rawY !== null && rawX >= 0 && rawX <= width && rawY >= 0 && rawY <= height;
+  if (!onScreen) {
+    host.hidden = true;
+    return;
+  }
+
+  host.hidden = false;
+  dot.style.transform = `translate3d(${rawX}px, ${rawY}px, 0) translate(-50%, -50%)`;
+}
+
 export function SetupChart({
   series,
   levels,
@@ -567,9 +691,9 @@ export function SetupChart({
   const hadFocusRef = useRef(false);
   const [chartEpoch, setChartEpoch] = useState(0);
   const [placedTags, setPlacedTags] = useState<PlacedLevelTag[]>([]);
-  const [beacon, setBeacon] = useState<
-    { x: number; y: number; price: number; w: number } | null
-  >(null);
+  const lastPriceHostRef = useRef<HTMLDivElement>(null);
+  const lastPriceDotRef = useRef<HTMLSpanElement>(null);
+  const paintLastPriceRef = useRef<() => void>(() => {});
   const latestChartTimeRef = useRef<number | null>(
     latestCandleChartTime(series.candles),
   );
@@ -579,8 +703,8 @@ export function SetupChart({
   const latestCloseRef = useRef<number | null>(
     series.candles.at(-1)?.close ?? null,
   );
-  // Chart width in pixels, kept current by the resize observer so the beacon
-  // pill can be clamped inside the visible area each frame.
+  // Chart width in pixels, kept current by the resize observer so the last-bar
+  // beacon stays glued to the latest candle.
   const containerWidthRef = useRef(0);
   // True once a mobile gesture has taken manual control of the price scale
   // (auto-scaling off). Cleared when the view is reset to the latest candles,
@@ -826,18 +950,14 @@ export function SetupChart({
       }
     }
 
-    if (levels) addSetupLevels(mainSeries, setupLevelTags(levels, isDark, halfSpreadRef.current));
-    if (referenceLine) {
-      mainSeries.createPriceLine({
-        price: referenceLine.price,
-        color: referenceLine.color,
-        lineWidth: 2,
-        lineStyle: LineStyle.Dashed,
-        axisLabelVisible: true,
-        axisLabelColor: referenceLine.color,
-        axisLabelTextColor: referenceLine.textColor,
-        title: referenceLine.label,
-      });
+    const levelTags = overlayLevelTags(
+      levels,
+      referenceLine,
+      isDark,
+      halfSpreadRef.current,
+    );
+    if (levelTags.length) {
+      addSetupLevels(mainSeries, levelTags, !embedded);
     }
 
     // The entry-to-exit segment is created with the chart, even when there is no
@@ -1276,12 +1396,39 @@ export function SetupChart({
     }
   }, [variant, trendColor, areaFill.top, areaFill.bottom]);
 
+  // Last-bar marker for mobile line/area charts: a ringed endpoint on the
+  // latest candle. The numeric right-edge price flag is gone; SL / Entry / TP
+  // flags own that edge.
+  const showBeacon =
+    embedded &&
+    (variant === "line" || variant === "area" || variant === "baseline");
+
+  // Fingerprint only — never spread levels or optional referenceLine fields into
+  // the effect deps. Optional slots change the array length (5 vs 8) and React
+  // throws. The loop still reads `levels` / `referenceLine` from this render.
+  const overlayTagFingerprint = [
+    levels?.entry ?? "",
+    levels?.stop ?? "",
+    levels?.target ?? "",
+    levels?.exit ?? "",
+    levels?.outcome ?? "",
+    referenceLine?.price ?? "",
+    referenceLine?.label ?? "",
+    referenceLine?.color ?? "",
+    referenceLine?.textColor ?? "",
+  ].join("\0");
+
   // The named level tags ride along with the price scale, which the user can
   // now drag and pinch. The library exposes no "price scale changed" event, so
   // their positions are re-read each frame and only written back to React when
   // something actually moved.
   useEffect(() => {
-    const tags = levels ? setupLevelTags(levels, isDark, halfSpreadRef.current) : [];
+    const tags = overlayLevelTags(
+      levels,
+      referenceLine,
+      isDark,
+      halfSpreadRef.current,
+    );
     let frame = 0;
     let previous = "";
 
@@ -1293,96 +1440,92 @@ export function SetupChart({
       if (!chart || !mainSeries) return;
 
       const axisWidth = chart.priceScale("right").width();
+      const timeScaleHeight = chart.timeScale().height();
       const placed = tags.flatMap<PlacedLevelTag>((tag) => {
         const y = mainSeries.priceToCoordinate(tag.price);
         // A level scrolled out of the visible price range has no coordinate.
         if (y === null || y < 0 || y > chartHeightRef.current) return [];
-        return [{ ...tag, y, axisWidth }];
+        const corner = plotCornerGutter(
+          y,
+          chartHeightRef.current,
+          timeScaleHeight,
+        );
+        // Hug the plot's right edge (price-axis side). When the scale is hidden
+        // on mobile, axisWidth is 0 and the flags sit on the pane edge.
+        return [{ ...tag, y, right: axisWidth + corner }];
       });
 
-      const signature = JSON.stringify(placed);
+      const stacked = stackLevelTagYs(placed, chartHeightRef.current);
+      const signature = JSON.stringify(stacked);
       if (signature === previous) return;
       previous = signature;
-      setPlacedTags(placed);
+      setPlacedTags(stacked);
     };
 
     frame = requestAnimationFrame(readPositions);
     return () => cancelAnimationFrame(frame);
-  }, [chartEpoch, isDark, levels]);
+    // overlayTagFingerprint stands in for levels + referenceLine field values.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chartEpoch, isDark, overlayTagFingerprint]);
 
-  // A pulsing dot that rides the line/area series at the *right edge of the
-  // visible window*, standing in for the price line those mobile charts no
-  // longer draw. At rest it sits on the latest candle; drag back through
-  // history and it hugs the right edge, its pill reading the price of whichever
-  // candle is now the rightmost on screen. The spot is re-read each frame — a
-  // pan, a scale drag or a live tick all move it — and written to React only
-  // when it actually shifts.
-  const showBeacon =
-    embedded &&
-    (variant === "line" || variant === "area" || variant === "baseline");
+  // Positions are written straight to the DOM — React setState lagged a frame
+  // behind the canvas whenever the user panned.
   useEffect(() => {
-    if (!showBeacon) {
-      // Cleared on the next frame rather than synchronously, to avoid a
-      // cascading render inside the effect body.
-      const clear = requestAnimationFrame(() => setBeacon(null));
-      return () => cancelAnimationFrame(clear);
-    }
-
-    let frame = 0;
-    let previous = "";
-
-    const readBeacon = () => {
-      frame = requestAnimationFrame(readBeacon);
-
+    const paint = () => {
       const chart = chartRef.current;
       const mainSeries = mainSeriesRef.current;
-      const candles = candlesRef.current;
-      if (!chart || !mainSeries || !candles.length) return;
+      const host = lastPriceHostRef.current;
+      const dot = lastPriceDotRef.current;
+      if (!showBeacon || !chart || !mainSeries || !host || !dot) {
+        if (host) host.hidden = true;
+        return;
+      }
 
-      const logicalRange = chart.timeScale().getVisibleLogicalRange();
-      if (!logicalRange) return;
-
-      // The rightmost candle still on screen. `to` runs past the last bar into
-      // the right-hand whitespace when scrolled to the latest, so it is clamped
-      // back onto real data.
-      const lastIndex = candles.length - 1;
-      const edgeIndex = Math.min(
-        Math.max(Math.floor(logicalRange.to), 0),
-        lastIndex,
-      );
-      const edgeCandle = candles[edgeIndex];
-      if (!edgeCandle) return;
-
-      // The last candle carries the in-progress live close; older ones are
-      // settled, so their stored close is what the line was drawn from.
-      const close =
-        edgeIndex === lastIndex
-          ? latestCloseRef.current ?? edgeCandle.close
-          : edgeCandle.close;
-
-      const rawX = chart.timeScale().logicalToCoordinate(edgeIndex as Logical);
-      const rawY = mainSeries.priceToCoordinate(close);
-      if (rawX === null || rawY === null) return;
-
-      // Keep the dot on the visible edge even when the price is scaled out of
-      // range or the edge bar is partly clipped, so the pill always reads.
-      const width = containerWidthRef.current;
-      const height = chartHeightRef.current;
-      const next = {
-        x: width > 0 ? Math.max(0, Math.min(rawX, width)) : rawX,
-        y: Math.max(0, Math.min(rawY, height)),
-        price: close,
-        w: width,
-      };
-
-      const signature = `${next.x},${next.y},${next.price},${next.w}`;
-      if (signature === previous) return;
-      previous = signature;
-      setBeacon(next);
+      paintLastPriceOverlay({
+        chart,
+        mainSeries,
+        candles: candlesRef.current,
+        latestClose: latestCloseRef.current,
+        width: containerWidthRef.current,
+        height: chartHeightRef.current,
+        host,
+        dot,
+      });
     };
 
-    frame = requestAnimationFrame(readBeacon);
-    return () => cancelAnimationFrame(frame);
+    paintLastPriceRef.current = paint;
+    if (!showBeacon) {
+      paint();
+      return;
+    }
+
+    paint();
+
+    let frame = 0;
+    const loop = () => {
+      frame = requestAnimationFrame(loop);
+      paint();
+    };
+    frame = requestAnimationFrame(loop);
+
+    const timeScale = chartRef.current?.timeScale();
+    timeScale?.subscribeVisibleLogicalRangeChange(paint);
+
+    const container = containerRef.current;
+    const resizeObserver =
+      container &&
+      new ResizeObserver((entries) => {
+        const entry = entries[0];
+        if (entry) containerWidthRef.current = entry.contentRect.width;
+        paint();
+      });
+    if (container && resizeObserver) resizeObserver.observe(container);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      timeScale?.unsubscribeVisibleLogicalRangeChange(paint);
+      resizeObserver?.disconnect();
+    };
   }, [chartEpoch, showBeacon]);
 
   const markManualPrice = useCallback(() => {
@@ -1399,6 +1542,7 @@ export function SetupChart({
     enabled: embedded,
     epoch: chartEpoch,
     onManualPrice: markManualPrice,
+    onViewChange: () => paintLastPriceRef.current(),
   });
 
   if (!series.candles.length) {
@@ -1432,43 +1576,7 @@ export function SetupChart({
     },
   ].filter(Boolean) as Array<{ label: string; tone: "neutral" | "accent" | "danger" }>;
 
-  // The pill sits on the beacon and reads the price of the rightmost visible
-  // candle. It is placed so it never leaves the chart: it flips below the dot
-  // when there is not enough room above, and its centre is pulled inward near
-  // the left and right edges. Dimensions are estimated from the text — good
-  // enough to keep a small pill clear without measuring it every frame.
-  const beaconView = beacon
-    ? (() => {
-        const priceText = beacon.price.toFixed(precision);
-        const pillHalfWidth = (priceText.length * 7 + 16) / 2;
-        const width = beacon.w;
-        const pad = 6;
-        const left =
-          width > 0
-            ? Math.min(
-                Math.max(beacon.x, pad + pillHalfWidth),
-                width - pad - pillHalfWidth,
-              )
-            : beacon.x;
-        // 26px clears the pill height plus its gap from the dot.
-        const below = beacon.y < 26;
-        const textColor = isBearish
-          ? "#ffffff"
-          : isDark
-            ? "#09090b"
-            : "#ffffff";
-        return {
-          priceText,
-          pillStyle: {
-            left,
-            top: below ? beacon.y + 13 : beacon.y - 13,
-            transform: `translate(-50%, ${below ? "0" : "-100%"})`,
-            "--beacon-color": trendColor,
-            "--beacon-price-text": textColor,
-          } as CSSProperties,
-        };
-      })()
-    : null;
+  const lastPriceRing = isDark ? "#09090b" : "#ffffff";
 
   return (
     <div
@@ -1498,22 +1606,20 @@ export function SetupChart({
           liveCandle?.close ?? series.candles.at(-1)?.close
         }
       />
-      {beacon ? (
-        <span
-          className="setup-chart-beacon"
+      {showBeacon ? (
+        <div
+          ref={lastPriceHostRef}
+          className="setup-chart-last-price"
+          hidden
           style={
             {
-              left: beacon.x,
-              top: beacon.y,
               "--beacon-color": trendColor,
+              "--beacon-ring": lastPriceRing,
             } as CSSProperties
           }
-        />
-      ) : null}
-      {beaconView ? (
-        <span className="setup-chart-beacon-price" style={beaconView.pillStyle}>
-          {beaconView.priceText}
-        </span>
+        >
+          <span ref={lastPriceDotRef} className="setup-chart-beacon" />
+        </div>
       ) : null}
       {placedTags.map((tag) => (
         <span
@@ -1521,7 +1627,7 @@ export function SetupChart({
           className="setup-chart-level-tag"
           style={{
             top: tag.y,
-            right: tag.axisWidth + 4,
+            right: tag.right,
             background: tag.color,
             color: tag.textColor,
           }}

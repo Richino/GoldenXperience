@@ -4,13 +4,16 @@ import { useCallback, useEffect, useState } from "react";
 import { displayNameFor } from "@/lib/instruments/catalog";
 import { apiUrl } from "@/lib/api/url";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
+import { StrategiesWatchlistSkeleton } from "@/components/ui/page-skeletons";
+
+type SetupStatus = "valid" | "developing" | "invalid" | "no_setup";
 
 type StrategyRow = {
   instrument: string;
   family: "ema" | "breakout" | "momentum" | "meanrev";
   version: string;
   configVersion: string;
-  setupStatus: "valid" | "developing" | "invalid" | "no_setup";
+  setupStatus: SetupStatus;
   direction: "long" | "short" | null;
   entry: number | null;
   stop: number | null;
@@ -51,16 +54,72 @@ type FamilyStat = {
 const FAMILY_LABEL: Record<string, string> = { ema: "EMA", breakout: "Breakout", momentum: "Momentum", meanrev: "Mean Reversion" };
 const FAMILY_ORDER = ["ema", "breakout", "momentum", "meanrev"] as const;
 
-function statusTone(status: string) {
-  if (status === "valid") return "#16a34a";
-  if (status === "developing") return "#2563eb";
-  return "var(--muted-foreground, #71717a)";
+function setupLabel(status: SetupStatus, direction: "long" | "short" | null) {
+  switch (status) {
+    case "valid":
+      return direction === "short" ? "Valid short" : "Valid long";
+    case "developing":
+      return "Developing";
+    case "invalid":
+      return "Invalid";
+    case "no_setup":
+      return "No setup";
+    default: {
+      const _exhaustive: never = status;
+      return _exhaustive;
+    }
+  }
+}
+
+function setupTone(status: SetupStatus) {
+  switch (status) {
+    case "valid":
+      return "is-valid";
+    case "developing":
+      return "is-developing";
+    case "invalid":
+      return "is-muted";
+    case "no_setup":
+      return "is-muted";
+    default: {
+      const _exhaustive: never = status;
+      return _exhaustive;
+    }
+  }
+}
+
+function signedR(value: number | null) {
+  if (value == null) return "—";
+  const prefix = value > 0 ? "+" : "";
+  return `${prefix}${value.toFixed(2)}R`;
+}
+
+function rTone(value: number | null) {
+  if (value == null) return "";
+  if (value > 0) return "is-win";
+  if (value < 0) return "is-loss";
+  return "";
+}
+
+function rateTone(value: number | null) {
+  if (value == null) return "";
+  if (value > 0.5) return "is-win";
+  if (value < 0.5) return "is-loss";
+  return "";
+}
+
+function percent(value: number | null) {
+  if (value == null) return "—";
+  return `${(value * 100).toFixed(0)}%`;
+}
+
+function adaptiveStateLabel(value: string) {
+  return value.replaceAll("_", " ");
 }
 
 export function MultiStrategyView() {
   const [instruments, setInstruments] = useState<InstrumentRow[] | null>(null);
   const [families, setFamilies] = useState<FamilyStat[]>([]);
-  const [experimentLabel, setExperimentLabel] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -74,7 +133,6 @@ export function MultiStrategyView() {
       setInstruments(watchPayload.instruments);
       const expPayload = await experiment.json() as { experiment?: { label: string } | null; families?: FamilyStat[] };
       setFamilies(expPayload.families ?? []);
-      setExperimentLabel(expPayload.experiment?.label ?? null);
       setError(null);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Multi-strategy view is unavailable.");
@@ -88,85 +146,107 @@ export function MultiStrategyView() {
   }, [load]);
   useForegroundRefresh(load);
 
-  if (error) return <p className="text-sm" style={{ color: "#dc2626" }}>{error}</p>;
-  if (!instruments) return <p className="text-sm opacity-70">Loading strategies…</p>;
-
   return (
-    <div className="space-y-6">
-      {/* Per-family experiment cohort statistics. */}
-      <section className="rounded-xl border p-4" style={{ borderColor: "var(--border, #e4e4e7)" }}>
-        <div className="flex items-baseline justify-between">
-          <h2 className="text-sm font-semibold">Experiment{experimentLabel ? ` · ${experimentLabel}` : ""}</h2>
-          <span className="text-xs opacity-60">resolved counts are per strategy</span>
-        </div>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="ms-view space-y-8 lg:space-y-10">
+      <header>
+        <h1 className="text-display">Strategies</h1>
+      </header>
+
+      {error ? <p className="research-error">{error}</p> : null}
+
+      {!instruments && !error ? (
+        <StrategiesWatchlistSkeleton />
+      ) : instruments ? (
+        <>
+      <section className="dashboard-minimal-section" aria-label="Strategy cohort">
+        <h2 className="text-sm font-semibold tracking-[-0.01em]">Cohort</h2>
+        <div className="ms-family-list mt-3">
           {FAMILY_ORDER.map((family) => {
             const stat = families.find((item) => item.family === family);
+            const winRate = stat?.winRate ?? null;
+            const expectancy = stat?.expectancyR ?? null;
             return (
-              <div key={family} className="rounded-lg border p-3" style={{ borderColor: "var(--border, #e4e4e7)" }}>
-                <div className="text-sm font-medium">{FAMILY_LABEL[family]}</div>
-                <dl className="mt-1 space-y-0.5 text-xs opacity-80">
-                  <div className="flex justify-between"><dt>Candidates</dt><dd>{stat?.candidates ?? 0}</dd></div>
-                  <div className="flex justify-between"><dt>Executed</dt><dd>{stat?.assigned ?? 0}</dd></div>
-                  <div className="flex justify-between"><dt>Suppressed</dt><dd>{stat?.suppressedCandidates ?? 0}</dd></div>
-                  <div className="flex justify-between"><dt>Resolved</dt><dd>{stat?.resolved ?? 0}</dd></div>
-                  <div className="flex justify-between"><dt>Win rate</dt><dd>{stat?.winRate != null ? `${(stat.winRate * 100).toFixed(0)}%` : "—"}</dd></div>
-                  <div className="flex justify-between"><dt>Expectancy</dt><dd>{stat?.expectancyR != null ? `${stat.expectancyR.toFixed(2)}R` : "—"}</dd></div>
-                  <div className="flex justify-between opacity-70" style={{ borderTop: "1px dashed var(--border, #e4e4e7)", marginTop: 2, paddingTop: 2 }}><dt>Shadow ({stat?.shadowResolved ?? 0})</dt><dd>{stat?.shadowExpectancyR != null ? `${stat.shadowExpectancyR.toFixed(2)}R` : "—"}</dd></div>
-                </dl>
-              </div>
+              <article key={family} className="ms-family-card">
+                <div className="ms-family-head">
+                  <div className="min-w-0">
+                    <p className="ms-family-name">{FAMILY_LABEL[family]}</p>
+                    <p className="ms-family-record metric-number">
+                      {stat?.wins ?? 0}W · {stat?.losses ?? 0}L
+                      <span className="ms-family-sep"> · </span>
+                      {stat?.assigned ?? 0} executed
+                    </p>
+                  </div>
+                  <div className="ms-family-hero">
+                    <p className={`ms-family-rate metric-number ${rateTone(winRate)}`}>{percent(winRate)}</p>
+                    <p className={`ms-family-expectancy metric-number ${rTone(expectancy)}`}>{signedR(expectancy)}</p>
+                  </div>
+                </div>
+                <p className="ms-family-shadow metric-number">
+                  Shadow {signedR(stat?.shadowExpectancyR ?? null)}
+                  {stat?.shadowResolved ? ` · ${stat.shadowResolved}` : ""}
+                </p>
+              </article>
             );
           })}
         </div>
       </section>
 
-      {/* Per-instrument: which strategies see a setup, and the adaptive pick. */}
-      <div className="space-y-3">
-        {instruments.map((row) => (
-          <section key={row.instrument} className="rounded-xl border p-4" style={{ borderColor: "var(--border, #e4e4e7)" }}>
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h3 className="text-base font-semibold">{displayNameFor(row.instrument)}</h3>
-              <span className="text-xs opacity-70">
-                {row.regime ? `${row.regime}` : "regime —"}
-                {row.trendStrength != null ? ` · R² ${row.trendStrength.toFixed(2)}` : ""}
-                {row.volatilityBucket ? ` · ${row.volatilityBucket} vol` : ""}
-                {row.atrPips != null ? ` · ${row.atrPips.toFixed(1)} ATR pips` : ""}
-              </span>
-            </div>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              {FAMILY_ORDER.map((family) => {
-                const strat = row.strategies.find((item) => item.family === family);
-                const status = strat?.setupStatus ?? "no_setup";
-                return (
-                  <div key={family} className="rounded-lg border p-2.5 text-sm" style={{ borderColor: strat?.selected ? "#16a34a" : "var(--border, #e4e4e7)", borderWidth: strat?.selected ? 2 : 1 }}>
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">{FAMILY_LABEL[family]}</span>
-                      {strat?.selected ? <span className="text-xs font-semibold" style={{ color: "#16a34a" }}>SELECTED</span> : null}
-                    </div>
-                    <div className="mt-1 text-xs" style={{ color: statusTone(status) }}>
-                      {status === "valid" ? `VALID ${strat?.direction === "long" ? "LONG" : "SHORT"}` : status === "no_setup" ? "No setup" : status.toUpperCase()}
-                    </div>
-                    {strat?.setupStatus === "valid" && strat.riskReward != null ? (
-                      <div className="mt-0.5 text-xs opacity-60">{strat.riskReward.toFixed(1)}R · {strat.version}</div>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-            <div className="mt-3 text-xs">
-              <span className="font-medium">Adaptive Engine: </span>
-              {row.adaptive ? (
-                <span className="opacity-80">
-                  <span style={{ textTransform: "uppercase" }}>{row.adaptive.adaptiveState.replace("_", " ")}</span>
-                  {" — "}
-                  {row.adaptive.selected ? `SELECTED → ${FAMILY_LABEL[row.adaptive.selected.family] ?? row.adaptive.selected.family} ${row.adaptive.selected.direction}` : "NONE"}
-                  <span className="block opacity-60">{row.adaptive.reason}</span>
-                </span>
-              ) : <span className="opacity-60">No decision yet.</span>}
-            </div>
-          </section>
-        ))}
-      </div>
+      <section className="dashboard-minimal-section" aria-label="Pairs">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 className="text-sm font-semibold tracking-[-0.01em]">Pairs</h2>
+          <p className="metric-number text-xs text-[color:var(--muted)]">{instruments.length || "—"}</p>
+        </div>
+          <div className="ms-pair-list mt-3">
+            {instruments.map((row) => (
+              <article key={row.instrument} className="ms-pair-card">
+                <div className="ms-pair-head">
+                  <h3 className="ms-pair-name">{displayNameFor(row.instrument)}</h3>
+                  <p className="ms-pair-meta">
+                    {row.regime ?? "No regime"}
+                    {row.volatilityBucket ? ` · ${row.volatilityBucket} vol` : ""}
+                    {row.atrPips != null ? ` · ${row.atrPips.toFixed(1)} ATR` : ""}
+                  </p>
+                </div>
+                <div className="ms-setup-grid">
+                  {FAMILY_ORDER.map((family) => {
+                    const strat = row.strategies.find((item) => item.family === family);
+                    const status = strat?.setupStatus ?? "no_setup";
+                    return (
+                      <div
+                        key={family}
+                        className={`ms-setup ${setupTone(status)} ${strat?.selected ? "is-selected" : ""}`}
+                      >
+                        <div className="ms-setup-top">
+                          <span className="ms-setup-family">{FAMILY_LABEL[family]}</span>
+                          {strat?.selected ? <span className="ms-setup-pick">Pick</span> : null}
+                        </div>
+                        <p className="ms-setup-status">{setupLabel(status, strat?.direction ?? null)}</p>
+                        {status === "valid" && strat?.riskReward != null ? (
+                          <p className="ms-setup-plan metric-number">{strat.riskReward.toFixed(1)}R</p>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="ms-adaptive">
+                  {row.adaptive ? (
+                    <>
+                      <span className="ms-adaptive-state">{adaptiveStateLabel(row.adaptive.adaptiveState)}</span>
+                      {row.adaptive.selected
+                        ? ` · ${FAMILY_LABEL[row.adaptive.selected.family] ?? row.adaptive.selected.family} ${row.adaptive.selected.direction}`
+                        : " · none"}
+                      {row.adaptive.reason ? <span className="ms-adaptive-reason"> · {row.adaptive.reason}</span> : null}
+                    </>
+                  ) : (
+                    "No adaptive decision yet"
+                  )}
+                </p>
+              </article>
+            ))}
+          </div>
+      </section>
+        </>
+      ) : null}
     </div>
   );
 }

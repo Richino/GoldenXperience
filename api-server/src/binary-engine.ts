@@ -1,4 +1,23 @@
+import { randomUUID } from "node:crypto";
+
 import { query, transaction } from "./database.js";
+import {
+  isBinaryAdaptiveLiveSelectionEnabled,
+  isBinaryAdaptiveSelectorEnabled,
+  logBinarySelector,
+  persistSelectorDecision,
+  resolveSelectorDecisions,
+  selectBinaryModelForFeatures,
+} from "./binary-adaptive-selector.js";
+import { loadAdaptivePredictionRows } from "./binary-adaptive-stats.js";
+import {
+  BINARY_LOGISTIC_MODEL_NAME,
+  BINARY_LOGISTIC_MODEL_VERSION,
+  binaryLogisticDecision,
+  createBinaryLogisticModel,
+  isBinaryLogisticShadowEnabled,
+  type BinaryLogisticResult,
+} from "./binary-logistic-v1.js";
 import { getPricing, getResearchCandles, OandaRequestError } from "../../frontend/src/lib/oanda/client.js";
 import { pipSizeFor, precisionFor, displayNameFor } from "../../frontend/src/lib/instruments/catalog.js";
 import { calculateAtrValues, calculateEmaValues } from "../../frontend/src/lib/strategy/indicators.js";
@@ -473,6 +492,24 @@ async function ownerUserId(): Promise<string | null> {
   return owner.rows[0]?.id ?? null;
 }
 
+/** Shadow logistic model row; registered alongside baseline when shadow collection is enabled. */
+async function ensureLogisticModel(): Promise<{ id: string; name: string; version: string }> {
+  const configuration = JSON.stringify({
+    kind: "logistic_regression",
+    horizonSeconds: BINARY_HORIZON_SECONDS,
+    scoreKind: "probability",
+    artifact: "src/data/binary-logistic-v1.json",
+    note: "Shadow-only L2 logistic regression. Not used for trading or model selection in Phase 1.",
+  });
+  const result = await query<{ id: string; name: string; version: string }>(
+    `INSERT INTO binary_models(name,version,score_kind,configuration) VALUES($1,$2,'probability',$3::jsonb)
+     ON CONFLICT(name,version) DO UPDATE SET configuration=EXCLUDED.configuration
+     RETURNING id,name,version`,
+    [BINARY_LOGISTIC_MODEL_NAME, BINARY_LOGISTIC_MODEL_VERSION, configuration],
+  );
+  return result.rows[0]!;
+}
+
 /** The baseline model's row, created on first use so a version bump is code-only. */
 async function ensureBinaryModel(): Promise<{ id: string; name: string; version: string }> {
   const configuration = JSON.stringify({
@@ -501,7 +538,7 @@ async function persistBinaryWatchSnapshot(
   features: BinaryFeatures | null,
 ) {
   const active = await query<{ id: string }>(
-    "SELECT id FROM binary_predictions WHERE instrument=$1 AND status='active' ORDER BY created_at DESC LIMIT 1",
+    "SELECT id FROM binary_predictions WHERE instrument=$1 AND status='active' AND is_authoritative=true ORDER BY created_at DESC LIMIT 1",
     [instrument],
   );
   const spreadPips = quote ? (quote.ask - quote.bid) / pipSizeFor(instrument) : null;
@@ -527,6 +564,14 @@ async function persistBinaryWatchSnapshot(
   );
 }
 
+type OpenBinaryPredictionOptions = {
+  opportunityId?: string;
+  isShadow?: boolean;
+  isAuthoritative?: boolean;
+  scoreKind?: "heuristic_score" | "probability";
+  inferenceContext?: Record<string, unknown>;
+};
+
 async function openBinaryPrediction(
   userId: string,
   model: { id: string; name: string; version: string },
@@ -536,10 +581,15 @@ async function openBinaryPrediction(
   decision: BinaryDecision,
   now: Date,
   durationSeconds = BINARY_HORIZON_SECONDS,
-): Promise<string | null> {
+  options: OpenBinaryPredictionOptions = {},
+): Promise<{ id: string; opportunityId: string } | null> {
   if (decision.direction === "wait") return null;
   const precision = precisionFor(instrument);
   const intendedExpiration = new Date(now.getTime() + durationSeconds * 1000);
+  const opportunityId = options.opportunityId ?? randomUUID();
+  const isShadow = options.isShadow ?? false;
+  const isAuthoritative = options.isAuthoritative ?? !isShadow;
+  const scoreKind = options.scoreKind ?? "heuristic_score";
   const marketContext = {
     bid: quote.bid,
     ask: quote.ask,
@@ -552,17 +602,17 @@ async function openBinaryPrediction(
     referenceClose: features.referenceClose,
   };
   return transaction(async (client) => {
-    // Serialises openers so the "one active per (instrument, duration)" check and
+    // Serialises openers so the "one active per (instrument, duration, model)" check and
     // the insert are atomic; the partial unique index is the backstop.
     await client.query("SELECT pg_advisory_xact_lock($1)", [BINARY_LOCK]);
     const existing = await client.query(
-      "SELECT 1 FROM binary_predictions WHERE instrument=$1 AND duration_seconds=$2 AND status='active'",
-      [instrument, durationSeconds],
+      "SELECT 1 FROM binary_predictions WHERE instrument=$1 AND duration_seconds=$2 AND model_name=$3 AND status='active'",
+      [instrument, durationSeconds, model.name],
     );
     if (existing.rowCount) return null;
     const inserted = await client.query<{ id: string }>(
-      `INSERT INTO binary_predictions(user_id,model_id,model_name,model_version,instrument,direction,start_at,entry_price,duration_seconds,intended_expiration,price_precision,tie_tolerance,confidence,score_kind,features,market_context)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'heuristic_score',$14::jsonb,$15::jsonb)
+      `INSERT INTO binary_predictions(user_id,model_id,model_name,model_version,instrument,direction,start_at,entry_price,duration_seconds,intended_expiration,price_precision,tie_tolerance,confidence,score_kind,features,market_context,opportunity_id,is_shadow,is_authoritative,inference_context)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16::jsonb,$17,$18,$19,$20::jsonb)
        RETURNING id`,
       [
         userId,
@@ -578,12 +628,69 @@ async function openBinaryPrediction(
         precision,
         BINARY_TIE_TOLERANCE_TICKS * 10 ** -precision,
         decision.score,
+        scoreKind,
         JSON.stringify(features),
         JSON.stringify(marketContext),
+        opportunityId,
+        isShadow,
+        isAuthoritative,
+        JSON.stringify(options.inferenceContext ?? {}),
       ],
     );
-    return inserted.rows[0]?.id ?? null;
+    const id = inserted.rows[0]?.id;
+    return id ? { id, opportunityId } : null;
   });
+}
+
+function logBinaryShadow(event: "generated" | "skipped" | "resolved" | "error", fields: Record<string, unknown>) {
+  console.log(JSON.stringify({ event: `binary.shadow.${event}`, model: BINARY_LOGISTIC_MODEL_NAME, ...fields }));
+}
+
+async function openShadowLogisticPrediction(
+  userId: string,
+  opportunityId: string,
+  model: { id: string; name: string; version: string },
+  instrument: string,
+  quote: BinaryQuote,
+  features: BinaryFeatures,
+  now: Date,
+  options: { isAuthoritative?: boolean; isShadow?: boolean } = {},
+  durationSeconds = BINARY_HORIZON_SECONDS,
+): Promise<string | null> {
+  const logistic = createBinaryLogisticModel();
+  const inference: BinaryLogisticResult = logistic.evaluate(features);
+  if ("skipReason" in inference) {
+    logBinaryShadow("skipped", { symbol: instrument, opportunityId, reason: inference.skipReason });
+    return null;
+  }
+  const decision = binaryLogisticDecision(inference);
+  const isAuthoritative = options.isAuthoritative ?? false;
+  const isShadow = options.isShadow ?? !isAuthoritative;
+  const opened = await openBinaryPrediction(userId, model, instrument, quote, features, decision, now, durationSeconds, {
+    opportunityId,
+    isShadow,
+    isAuthoritative,
+    scoreKind: "probability",
+    inferenceContext: {
+      rawProbabilityUp: inference.rawProbabilityUp,
+      modelArtifactVersion: logistic.artifact.version,
+      coefficientVersion: logistic.artifact.version,
+    },
+  });
+  if (!opened) {
+    logBinaryShadow("skipped", { symbol: instrument, opportunityId, reason: "An active shadow prediction already exists for this symbol and horizon." });
+    return null;
+  }
+  logBinaryShadow("generated", {
+    symbol: instrument,
+    opportunityId,
+    direction: decision.direction,
+    probability: inference.rawProbabilityUp,
+    confidence: decision.score,
+    predictionId: opened.id,
+    isAuthoritative,
+  });
+  return opened.id;
 }
 
 type DuePredictionRow = {
@@ -596,6 +703,7 @@ type DuePredictionRow = {
   duration_seconds: number;
   price_precision: number;
   tie_tolerance: string;
+  model_name: string;
 };
 
 /**
@@ -614,7 +722,7 @@ type DuePredictionRow = {
  */
 export async function resolveDueBinaryPredictions(): Promise<number> {
   const due = await query<DuePredictionRow>(
-    `SELECT id,instrument,direction,entry_price,start_at,intended_expiration,duration_seconds,price_precision,tie_tolerance
+    `SELECT id,instrument,direction,entry_price,start_at,intended_expiration,duration_seconds,price_precision,tie_tolerance,model_name
      FROM binary_predictions WHERE status='active' AND intended_expiration <= now()
      ORDER BY intended_expiration`,
   );
@@ -705,7 +813,18 @@ export async function resolveDueBinaryPredictions(): Promise<number> {
        RETURNING id`,
       [prediction.id, mark.price, mark.time, mark.source, result, JSON.stringify(secondary)],
     );
-    if (updated.rowCount) resolved += 1;
+    if (updated.rowCount) {
+      resolved += 1;
+      if (prediction.model_name === BINARY_LOGISTIC_MODEL_NAME) {
+        logBinaryShadow("resolved", {
+          symbol: prediction.instrument,
+          predictionId: prediction.id,
+          direction: prediction.direction,
+          result,
+          resolutionPrice: mark.price,
+        });
+      }
+    }
   }
   return resolved;
 }
@@ -832,6 +951,12 @@ export async function collectBinaryCycle(): Promise<{ opened: number; resolved: 
   } catch (error) {
     console.error("[binary] secondary back-fill failed", error);
   }
+  try {
+    const selectorResolved = await resolveSelectorDecisions();
+    if (selectorResolved) console.log(`[binary] resolved ${selectorResolved} selector decisions`);
+  } catch (error) {
+    console.error("[binary] selector resolution failed", error);
+  }
 
   const userId = await ownerUserId();
   if (!userId) return { opened: 0, resolved, evaluated: 0, reason: "Owner account is unavailable" };
@@ -856,6 +981,28 @@ export async function collectBinaryCycle(): Promise<{ opened: number; resolved: 
 
   let opened = 0;
   let evaluated = 0;
+  const shadowEnabled = isBinaryLogisticShadowEnabled();
+  const selectorEnabled = isBinaryAdaptiveSelectorEnabled();
+  const liveSelectionEnabled = isBinaryAdaptiveLiveSelectionEnabled();
+  let logisticModel: { id: string; name: string; version: string } | null = null;
+  let pairedRows = null as Awaited<ReturnType<typeof loadAdaptivePredictionRows>> | null;
+  if (shadowEnabled) {
+    try {
+      logisticModel = await ensureLogisticModel();
+    } catch (error) {
+      console.error("[binary] shadow model registration failed", error);
+      logBinaryShadow("error", { reason: "model_registration_failed", error: String(error) });
+    }
+  }
+  if (selectorEnabled && shadowEnabled) {
+    try {
+      pairedRows = await loadAdaptivePredictionRows();
+    } catch (error) {
+      console.error("[binary] adaptive stats load failed", error);
+      logBinarySelector("error", { reason: "stats_load_failed", error: String(error) });
+    }
+  }
+
   for (const instrument of MAJOR_INSTRUMENTS) {
     const priceQuote = quoteByInstrument.get(instrument);
     const quote: BinaryQuote | null = priceQuote ? { bid: priceQuote.bid, ask: priceQuote.ask, mid: priceQuote.mid } : null;
@@ -879,8 +1026,97 @@ export async function collectBinaryCycle(): Promise<{ opened: number; resolved: 
     // Fail closed: only a live, fresh read with computable features may open one,
     // and only when the 10-minute horizon still clears the market close.
     if (dataStatus !== "connected" || !decision || !features || !quote || decision.direction === "wait" || !horizonClearsMarket) continue;
-    const id = await openBinaryPrediction(userId, model, instrument, quote, features, decision, now);
-    if (id) opened += 1;
+
+    const opportunityId = randomUUID();
+    let selectorDecision = null;
+    if (selectorEnabled && pairedRows) {
+      try {
+        selectorDecision = selectBinaryModelForFeatures(
+          features,
+          instrument,
+          decision.score,
+          "heuristic_score",
+          pairedRows,
+          { liveSelectionEnabled: selectorEnabled && liveSelectionEnabled },
+        );
+        if (selectorDecision.state === "COLLECTING") {
+          logBinarySelector("collecting", { symbol: instrument, opportunityId, pairedSamples: selectorDecision.pairedSamples, reason: selectorDecision.reason });
+        } else if (selectorDecision.recommendationOnly) {
+          logBinarySelector("recommendation", {
+            symbol: instrument,
+            opportunityId,
+            state: selectorDecision.state,
+            recommendedModel: selectorDecision.recommendedModel,
+            authoritativeModel: selectorDecision.authoritativeModel,
+            scope: selectorDecision.evidence.scope,
+            sampleSize: selectorDecision.evidence.sampleSize,
+            reason: selectorDecision.reason,
+          });
+        } else {
+          logBinarySelector("active", {
+            symbol: instrument,
+            opportunityId,
+            recommendedModel: selectorDecision.recommendedModel,
+            authoritativeModel: selectorDecision.authoritativeModel,
+            scope: selectorDecision.evidence.scope,
+            sampleSize: selectorDecision.evidence.sampleSize,
+          });
+        }
+        if (selectorDecision.fallbackUsed) {
+          logBinarySelector("fallback", { symbol: instrument, opportunityId, reason: selectorDecision.reason });
+        }
+      } catch (error) {
+        console.error("[binary] selector failed", error);
+        logBinarySelector("error", { symbol: instrument, opportunityId, error: String(error) });
+      }
+    }
+
+    const baselineAuthoritative = selectorDecision
+      ? selectorDecision.authoritativeModel === BINARY_MODEL_NAME
+      : true;
+    const openedPrediction = await openBinaryPrediction(userId, model, instrument, quote, features, decision, now, BINARY_HORIZON_SECONDS, {
+      opportunityId,
+      isAuthoritative: baselineAuthoritative,
+      isShadow: false,
+    });
+    if (!openedPrediction) continue;
+    opened += 1;
+
+    let logisticPredictionId: string | null = null;
+    if (shadowEnabled && logisticModel) {
+      try {
+        const logisticAuthoritative = selectorDecision
+          ? selectorDecision.authoritativeModel === BINARY_LOGISTIC_MODEL_NAME
+          : false;
+        logisticPredictionId = await openShadowLogisticPrediction(
+          userId,
+          openedPrediction.opportunityId,
+          logisticModel,
+          instrument,
+          quote,
+          features,
+          now,
+          { isAuthoritative: logisticAuthoritative, isShadow: !logisticAuthoritative },
+        );
+      } catch (error) {
+        console.error("[binary] shadow prediction failed", error);
+        logBinaryShadow("error", { symbol: instrument, opportunityId: openedPrediction.opportunityId, error: String(error) });
+      }
+    }
+
+    if (selectorDecision && selectorEnabled) {
+      try {
+        await persistSelectorDecision(
+          selectorDecision,
+          openedPrediction.opportunityId,
+          openedPrediction.id,
+          logisticPredictionId,
+        );
+      } catch (error) {
+        console.error("[binary] selector decision persist failed", error);
+        logBinarySelector("error", { symbol: instrument, opportunityId: openedPrediction.opportunityId, error: String(error) });
+      }
+    }
   }
 
   return { opened, resolved, evaluated };
@@ -899,20 +1135,31 @@ const PREDICTION_SELECT = `
   resolution_source AS "resolutionSource", resolved_at AS "resolvedAt", result,
   confidence::float AS confidence, score_kind AS "scoreKind", price_precision AS "pricePrecision"`;
 
-/** Recent predictions for the dashboard "Recent Predictions" section. */
+/** Recent predictions for the dashboard "Recent Predictions" section. Authoritative rows only. */
 export async function recentBinaryPredictions(limit = 8) {
   const rows = await query(
-    `SELECT ${PREDICTION_SELECT} FROM binary_predictions ORDER BY created_at DESC LIMIT $1`,
+    `SELECT ${PREDICTION_SELECT} FROM binary_predictions WHERE is_authoritative=true ORDER BY created_at DESC LIMIT $1`,
     [Math.min(50, Math.max(1, limit))],
   );
   return rows.rows;
 }
 
 /** Full prediction history for the Journal "Binary Predictions" tab. */
-export async function binaryJournal(userId: string, limit = 500) {
+export type BinaryJournalFilter = "all" | "won" | "lost" | "tie" | "active";
+
+export async function binaryJournal(
+  userId: string,
+  { limit = 20, offset = 0, filter = "all" }: { limit?: number; offset?: number; filter?: BinaryJournalFilter } = {},
+) {
+  const where =
+    filter === "active" ? "AND status='active'"
+    : filter === "won" ? "AND result='won'"
+    : filter === "lost" ? "AND result='lost'"
+    : filter === "tie" ? "AND result='tie'"
+    : "";
   const rows = await query(
-    `SELECT ${PREDICTION_SELECT} FROM binary_predictions WHERE user_id=$1 ORDER BY created_at DESC LIMIT $2`,
-    [userId, Math.min(2000, Math.max(1, limit))],
+    `SELECT ${PREDICTION_SELECT} FROM binary_predictions WHERE user_id=$1 AND is_authoritative=true ${where} ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+    [userId, Math.min(50, Math.max(1, limit)), Math.max(0, offset)],
   );
   return rows.rows;
 }
@@ -960,12 +1207,12 @@ export async function binaryWatchlistSnapshot() {
   });
 }
 
-/** Performance analytics for the resolved prediction record. */
+/** Performance analytics for the resolved prediction record. Authoritative rows only. */
 export async function binaryPerformance(userId?: string) {
   const rows = await query<BinaryStatRow & HorizonResultRow>(
     `SELECT instrument, direction, status, result, confidence, market_context->>'session' AS session, model_version, start_at,
             duration_seconds AS "durationSeconds", secondary_marks AS "secondaryMarks"
-     FROM binary_predictions${userId ? " WHERE user_id=$1" : ""}`,
+     FROM binary_predictions WHERE is_authoritative=true${userId ? " AND user_id=$1" : ""}`,
     userId ? [userId] : [],
   );
   return {

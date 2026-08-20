@@ -5,7 +5,10 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import type { JournalTrade } from "@/types/forex";
 import { apiUrl } from "@/lib/api/url";
 import { formatClockTime, formatDayAndTime, formatShortDay } from "@/lib/format/datetime";
-import { openTradeProgress } from "@/lib/open-trade-progress";
+import {
+  openTradeProgress,
+  quoteToUsdRateFromQuotes,
+} from "@/lib/open-trade-progress";
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import { useOpenPositionFills } from "@/lib/market-stream/use-open-positions";
 import { useInfiniteScroll } from "@/lib/use-infinite-scroll";
@@ -50,10 +53,12 @@ function formatTradeWindow(openedAt: string, closedAt: string | null) {
 function JournalTradeRow({
   trade,
   quote,
+  quotes,
   fill,
 }: {
   trade: JournalTrade;
   quote?: { bid: number | null; ask: number | null };
+  quotes: Record<string, { bid: number; ask: number } | undefined>;
   fill?: { price: number; units: number };
 }) {
   // An unresolved trade reports what it is worth right now and how far it has
@@ -64,6 +69,7 @@ function JournalTradeRow({
     trade.resultR === null
       ? openTradeProgress({
           direction: trade.direction,
+          instrument: trade.instrument ?? undefined,
           entry: trade.entry,
           stop: trade.stop,
           target: trade.target,
@@ -71,6 +77,9 @@ function JournalTradeRow({
           ask: quote?.ask,
           riskAmount: trade.nominalRiskAmount,
           fill,
+          quoteToUsdRate: trade.instrument
+            ? quoteToUsdRateFromQuotes(trade.instrument, quotes)
+            : null,
         })
       : null;
 
@@ -365,6 +374,7 @@ export function JournalView({ embedded = false }: { embedded?: boolean } = {}) {
                     <JournalTradeRow
                       trade={trade}
                       quote={trade.instrument ? quotes[trade.instrument] : undefined}
+                      quotes={quotes}
                       fill={trade.instrument ? fills[trade.instrument] : undefined}
                     />
                   </motion.div>

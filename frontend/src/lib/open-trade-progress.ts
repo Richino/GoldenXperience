@@ -1,3 +1,6 @@
+import { currenciesOf } from "@/lib/instruments/catalog";
+import { usdPerUnitOfCurrency } from "@/lib/risk/engine";
+
 /**
  * Live figures for a paper trade that has not resolved yet: what it is worth
  * right now, and how far it has travelled from entry towards its target.
@@ -32,8 +35,21 @@ export interface OpenTradeInput extends OpenTradeQuote {
    * thousand units that gap is tens of dollars, which is enough to put the
    * paper model and the account on opposite sides of zero. When a fill is
    * known it wins, so a row agrees with the account balance above it.
+   *
+   * Fill money is quote-currency P&L (`move × units`). Pass `instrument` and
+   * `quoteToUsdRate` so that figure is converted into USD before display —
+   * without the rate, AUD/JPY yen would be labelled as dollars.
    */
   fill?: { price: number; units: number } | null;
+  /** OANDA instrument code, e.g. `AUD_JPY`. Used with a fill to find the quote. */
+  instrument?: string;
+  /**
+   * USD per one unit of the instrument's quote currency. Required for correct
+   * fill-based money when the quote is not USD. When missing on a non-USD
+   * quote, money falls back to `unrealizedR × riskAmount` rather than showing
+   * raw quote currency as account cash.
+   */
+  quoteToUsdRate?: number | null;
 }
 
 export interface OpenTradeProgress {
@@ -53,6 +69,57 @@ export interface OpenTradeProgress {
    */
   towards: "target" | "stop";
   percent: number;
+}
+
+/**
+ * Resolve USD-per-quote-unit from a live bid/ask map (keyed by OANDA code).
+ * Returns 1 for USD-quoted pairs; null when no convertible major is present.
+ */
+export function quoteToUsdRateFromQuotes(
+  instrument: string,
+  quotes: Record<string, OpenTradeQuote | undefined>,
+): number | null {
+  return usdPerUnitOfCurrency(currenciesOf(instrument).quote, (name) => {
+    const quote = quotes[name];
+    if (!quote) return null;
+    const { bid, ask } = quote;
+    if (
+      bid === null ||
+      bid === undefined ||
+      ask === null ||
+      ask === undefined ||
+      !Number.isFinite(bid) ||
+      !Number.isFinite(ask)
+    ) {
+      return null;
+    }
+    const mid = (bid + ask) / 2;
+    return mid > 0 ? mid : null;
+  });
+}
+
+function paperMoney(unrealizedR: number, riskAmount: number | null | undefined): number | null {
+  if (riskAmount === null || riskAmount === undefined) return null;
+  return unrealizedR * riskAmount;
+}
+
+function fillMoneyUsd(
+  move: number,
+  units: number,
+  unrealizedR: number,
+  input: OpenTradeInput,
+): number | null {
+  const quotePl = move * units;
+  const quote = input.instrument ? currenciesOf(input.instrument).quote : "";
+  if (quote === "USD") return quotePl;
+
+  const rate = input.quoteToUsdRate;
+  if (rate !== null && rate !== undefined && Number.isFinite(rate) && rate > 0) {
+    return quotePl * rate;
+  }
+
+  // Prefer a risk-scaled figure over raw yen/CAD labelled as dollars.
+  return paperMoney(unrealizedR, input.riskAmount);
 }
 
 export function openTradeProgress(input: OpenTradeInput): OpenTradeProgress | null {
@@ -78,10 +145,8 @@ export function openTradeProgress(input: OpenTradeInput): OpenTradeProgress | nu
     price,
     unrealizedR,
     money: input.fill
-      ? move * input.fill.units
-      : input.riskAmount === null || input.riskAmount === undefined
-        ? null
-        : unrealizedR * input.riskAmount,
+      ? fillMoneyUsd(move, input.fill.units, unrealizedR, input)
+      : paperMoney(unrealizedR, input.riskAmount),
     towards,
     percent: Math.max(0, Math.min(100, reach * 100)),
   };

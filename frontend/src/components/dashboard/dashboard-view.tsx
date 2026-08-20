@@ -9,7 +9,10 @@ import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { displayNameFor } from "@/lib/instruments/catalog";
 import { formatDayAndTime } from "@/lib/format/datetime";
-import { openTradeProgress } from "@/lib/open-trade-progress";
+import {
+  openTradeProgress,
+  quoteToUsdRateFromQuotes,
+} from "@/lib/open-trade-progress";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import { useOpenPositionFills } from "@/lib/market-stream/use-open-positions";
@@ -443,6 +446,7 @@ export function DashboardView({
                     ? null
                     : openTradeProgress({
                         direction: trade.direction,
+                        instrument: trade.instrument,
                         entry: trade.entry,
                         stop: trade.stop,
                         target: trade.target,
@@ -450,6 +454,10 @@ export function DashboardView({
                         ask: quote?.ask,
                         riskAmount: trade.nominalRiskAmount,
                         fill: fills[trade.instrument],
+                        quoteToUsdRate: quoteToUsdRateFromQuotes(
+                          trade.instrument,
+                          quotes,
+                        ),
                       });
                 const shown = settled ? trade.paperPl! : live?.money ?? null;
                 const plTone =

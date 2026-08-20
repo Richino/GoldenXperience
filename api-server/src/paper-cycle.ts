@@ -983,15 +983,32 @@ export async function paperCycleOverview() {
  * placed, so a trade lands in the journal as soon as it resolves. Ambiguous
  * strategy trades are left out until the resolver settles them.
  */
-export type JournalTradeFilter = "all" | "wins" | "losses";
+export type JournalTradeFilter = "all" | "wins" | "losses" | "active";
+
+function journalTradeWhere(filter: JournalTradeFilter): string {
+  // Wins/losses use raw result_r (open trades are NULL and fall out of both).
+  // Active is status-based so closed-but-null-R edge cases stay out.
+  switch (filter) {
+    case "wins":
+      return "WHERE result_r > 0";
+    case "losses":
+      return "WHERE result_r < 0";
+    case "active":
+      return "WHERE status = 'open'";
+    case "all":
+      return "";
+    default: {
+      const _exhaustive: never = filter;
+      return _exhaustive;
+    }
+  }
+}
 
 export async function journalTradeLog(
   userId: string,
   { limit = 20, offset = 0, filter = "all" }: { limit?: number; offset?: number; filter?: JournalTradeFilter } = {},
 ) {
-  // The filter runs on the merged log's raw result_r (open trades are NULL and
-  // so fall out of both wins and losses), matching the client's old behaviour.
-  const where = filter === "wins" ? "WHERE result_r > 0" : filter === "losses" ? "WHERE result_r < 0" : "";
+  const where = journalTradeWhere(filter);
   const rows = await query(
     `SELECT id, origin, pair, direction, status, result, opened_at AS "openedAt", closed_at AS "closedAt",
             entry, stop, target, exit, result_r AS "resultR", paper_pl AS "paperPl", reason, notes, sequence, outcome,

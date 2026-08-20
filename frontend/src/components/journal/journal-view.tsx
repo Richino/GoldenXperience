@@ -15,7 +15,7 @@ import { useInfiniteScroll } from "@/lib/use-infinite-scroll";
 import { JournalEntriesSkeleton } from "@/components/ui/page-skeletons";
 import Link from "next/link";
 
-const FILTERS = ["All", "Wins", "Losses"] as const;
+const FILTERS = ["All", "Wins", "Losses", "Active"] as const;
 type JournalFilter = (typeof FILTERS)[number];
 
 function decimalsForPair(pair: string) {
@@ -198,8 +198,21 @@ const PAGE_SIZE = 20;
 
 type TradeSummary = { total: number; winRate: number | null; avgR: number };
 
-function filterParamFor(filter: JournalFilter): "all" | "wins" | "losses" {
-  return filter === "Wins" ? "wins" : filter === "Losses" ? "losses" : "all";
+function filterParamFor(filter: JournalFilter): "all" | "wins" | "losses" | "active" {
+  switch (filter) {
+    case "Wins":
+      return "wins";
+    case "Losses":
+      return "losses";
+    case "Active":
+      return "active";
+    case "All":
+      return "all";
+    default: {
+      const _exhaustive: never = filter;
+      return _exhaustive;
+    }
+  }
 }
 
 function dedupeById(trades: JournalTrade[]): JournalTrade[] {
@@ -271,12 +284,46 @@ export function JournalView({ embedded = false }: { embedded?: boolean } = {}) {
     [filterParam],
   );
 
+  // Refresh page one of the current filter and merge by id, so open trades
+  // flip to closed (and brand-new ones appear at the top) without resetting
+  // the loaded list or the user's scroll position.
+  const refreshOpen = useCallback(async () => {
+    try {
+      const response = await fetch(
+        apiUrl(`/api/journal/trades?limit=${PAGE_SIZE}&offset=0&filter=${filterParam}`),
+        { credentials: "include", cache: "no-store" },
+      );
+      const payload = (await response.json()) as {
+        trades?: JournalTrade[];
+        summary?: TradeSummary;
+      };
+      if (response.ok && payload.trades) {
+        const page = payload.trades;
+        setRecords((prev) => {
+          const known = new Set(prev.map((trade) => trade.id));
+          const fresh = page.filter((trade) => !known.has(trade.id));
+          const updated = prev.map((trade) => page.find((next) => next.id === trade.id) ?? trade);
+          return [...fresh, ...updated];
+        });
+        if (payload.summary) setSummary(payload.summary);
+      }
+    } catch {
+      // Left as-is until the next tick.
+    }
+  }, [filterParam]);
+
   // A filter change (and the first mount) resets to page one.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     void loadPage(true);
   }, [loadPage]);
+
+  // Periodic refresh keeps open trades current without a full reload.
+  useEffect(() => {
+    const timer = window.setInterval(() => void refreshOpen(), 60_000);
+    return () => window.clearInterval(timer);
+  }, [refreshOpen]);
 
   const loadMore = useCallback(() => {
     void loadPage(false);

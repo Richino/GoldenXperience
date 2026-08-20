@@ -261,7 +261,10 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       const limit = Math.min(50, Math.max(1, Number(url.searchParams.get("limit")) || 20));
       const offset = Math.max(0, Number(url.searchParams.get("offset")) || 0);
       const filterParam = url.searchParams.get("filter");
-      const filter = filterParam === "wins" || filterParam === "losses" ? filterParam : "all";
+      const filter =
+        filterParam === "wins" || filterParam === "losses" || filterParam === "active"
+          ? filterParam
+          : "all";
       const trades = await journalTradeLog(user.id, { limit, offset, filter });
       // The stats card is filter- and page-independent, so it only rides the
       // first page and is computed over the whole journal.

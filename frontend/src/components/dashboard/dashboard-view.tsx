@@ -12,6 +12,7 @@ import { formatDayAndTime } from "@/lib/format/datetime";
 import {
   openTradeProgress,
   quoteToUsdRateFromQuotes,
+  resolveOpenTradeQuote,
 } from "@/lib/open-trade-progress";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
@@ -436,8 +437,13 @@ export function DashboardView({
                 // An open trade is marked against the live quote for its pair,
                 // so the row reports what it is worth now rather than "Open".
                 const streamed = quotes[trade.instrument];
+                const fill = fills[trade.instrument];
                 const quote =
-                  streamed ?? watchlist.find((row) => row.instrument === trade.instrument);
+                  resolveOpenTradeQuote(
+                    streamed ??
+                      watchlist.find((row) => row.instrument === trade.instrument),
+                    fill?.currentPrice,
+                  );
                 const live =
                   settled ||
                   trade.entry == null ||
@@ -453,13 +459,17 @@ export function DashboardView({
                         bid: quote?.bid,
                         ask: quote?.ask,
                         riskAmount: trade.nominalRiskAmount,
-                        fill: fills[trade.instrument],
+                        fill: fill
+                          ? { price: fill.price, units: fill.units }
+                          : null,
                         quoteToUsdRate: quoteToUsdRateFromQuotes(
                           trade.instrument,
                           quotes,
                         ),
                       });
-                const shown = settled ? trade.paperPl! : live?.money ?? null;
+                const shown = settled
+                  ? trade.paperPl!
+                  : (fill?.unrealizedPL ?? live?.money ?? null);
                 const plTone =
                   shown === null ? "is-open" : shown >= 0 ? "is-win" : "is-loss";
                 return (

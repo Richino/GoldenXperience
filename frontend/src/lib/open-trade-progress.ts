@@ -71,6 +71,25 @@ export interface OpenTradeProgress {
   percent: number;
 }
 
+function finitePrice(value: number | null | undefined): value is number {
+  return value !== null && value !== undefined && Number.isFinite(value) && value > 0;
+}
+
+/**
+ * Prefer a live stream bid/ask; when that pair has not ticked yet, fall back to
+ * the broker mid so an open row can still show progress instead of "Open".
+ */
+export function resolveOpenTradeQuote(
+  streamed: OpenTradeQuote | undefined,
+  brokerMid?: number | null,
+): OpenTradeQuote | undefined {
+  if (finitePrice(streamed?.bid) && finitePrice(streamed?.ask)) {
+    return streamed;
+  }
+  if (!finitePrice(brokerMid)) return undefined;
+  return { bid: brokerMid, ask: brokerMid };
+}
+
 /**
  * Resolve USD-per-quote-unit from a live bid/ask map (keyed by OANDA code).
  * Returns 1 for USD-quoted pairs; null when no convertible major is present.
@@ -83,16 +102,7 @@ export function quoteToUsdRateFromQuotes(
     const quote = quotes[name];
     if (!quote) return null;
     const { bid, ask } = quote;
-    if (
-      bid === null ||
-      bid === undefined ||
-      ask === null ||
-      ask === undefined ||
-      !Number.isFinite(bid) ||
-      !Number.isFinite(ask)
-    ) {
-      return null;
-    }
+    if (!finitePrice(bid) || !finitePrice(ask)) return null;
     const mid = (bid + ask) / 2;
     return mid > 0 ? mid : null;
   });

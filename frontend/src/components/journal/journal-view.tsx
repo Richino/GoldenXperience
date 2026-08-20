@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import type { JournalTrade } from "@/types/forex";
 import { apiUrl } from "@/lib/api/url";
@@ -8,9 +8,14 @@ import { formatClockTime, formatDayAndTime, formatShortDay } from "@/lib/format/
 import {
   openTradeProgress,
   quoteToUsdRateFromQuotes,
+  resolveOpenTradeQuote,
 } from "@/lib/open-trade-progress";
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
-import { useOpenPositionFills } from "@/lib/market-stream/use-open-positions";
+import {
+  useOpenPositionFills,
+  type OpenPositionFill,
+} from "@/lib/market-stream/use-open-positions";
+import { useSupplementalQuotes } from "@/lib/market-stream/use-supplemental-quotes";
 import { useInfiniteScroll } from "@/lib/use-infinite-scroll";
 import { JournalEntriesSkeleton } from "@/components/ui/page-skeletons";
 import Link from "next/link";
@@ -59,12 +64,13 @@ function JournalTradeRow({
   trade: JournalTrade;
   quote?: { bid: number | null; ask: number | null };
   quotes: Record<string, { bid: number; ask: number } | undefined>;
-  fill?: { price: number; units: number };
+  fill?: OpenPositionFill;
 }) {
   // An unresolved trade reports what it is worth right now and how far it has
-  // come towards its target, rather than only that it is open. Without a live
-  // quote — a manual trade, or the snapshot not loaded — it falls back to
-  // "Open" rather than inventing a value.
+  // come towards its target, rather than only that it is open. Stream ticks
+  // win; when a pair has not ticked yet the broker mid (or a REST price) still
+  // marks the row so it does not sit on "Open" with no figure.
+  const mark = resolveOpenTradeQuote(quote, fill?.currentPrice);
   const live =
     trade.resultR === null
       ? openTradeProgress({
@@ -73,19 +79,30 @@ function JournalTradeRow({
           entry: trade.entry,
           stop: trade.stop,
           target: trade.target,
-          bid: quote?.bid,
-          ask: quote?.ask,
+          bid: mark?.bid,
+          ask: mark?.ask,
           riskAmount: trade.nominalRiskAmount,
-          fill,
+          fill: fill
+            ? { price: fill.price, units: fill.units }
+            : null,
           quoteToUsdRate: trade.instrument
             ? quoteToUsdRateFromQuotes(trade.instrument, quotes)
             : null,
         })
       : null;
 
-  const positive = (trade.resultR ?? live?.unrealizedR ?? 0) >= 0;
+  // Broker unrealised P&L is already account currency — prefer it over a
+  // recomputed fill figure so JPY/CAD pairs never lose the dollar amount.
+  const moneyValue =
+    trade.paperPl ?? fill?.unrealizedPL ?? live?.money ?? null;
+  const positive =
+    trade.resultR !== null
+      ? trade.resultR >= 0
+      : moneyValue != null
+        ? moneyValue >= 0
+        : (live?.unrealizedR ?? 0) >= 0;
   const resultTone =
-    trade.resultR === null && !live
+    trade.resultR === null && !live && moneyValue == null
       ? "is-open"
       : positive
         ? "is-win"
@@ -96,7 +113,6 @@ function JournalTradeRow({
       : live
         ? `${Math.round(live.percent)}% ${live.towards === "stop" ? "to SL" : "to TP"}`
         : "Open";
-  const moneyValue = trade.paperPl ?? live?.money ?? null;
   const money = formatMoney(moneyValue);
   const moneyTone =
     moneyValue == null ? null : moneyValue >= 0 ? "is-win" : "is-loss";
@@ -235,8 +251,20 @@ export function JournalView({ embedded = false }: { embedded?: boolean } = {}) {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   // Live bid/ask per pair, so an unresolved row is marked to market on every
   // tick. A dropped socket leaves the last known figure rather than a wrong
-  // one, and rows without a quote fall back to "Open".
-  const quotes = useLiveQuotes();
+  // one; REST pricing covers pairs the stream has not delivered yet.
+  const liveQuotes = useLiveQuotes();
+  const openInstruments = useMemo(
+    () =>
+      [
+        ...new Set(
+          records
+            .filter((trade) => trade.resultR === null && trade.instrument)
+            .map((trade) => trade.instrument as string),
+        ),
+      ],
+    [records],
+  );
+  const quotes = useSupplementalQuotes(openInstruments, liveQuotes);
   // Real fills, so an open row reports the same money as the account hero.
   const fills = useOpenPositionFills();
   const reducedMotion = useReducedMotion();

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   openTradeProgress,
   quoteToUsdRateFromQuotes,
+  resolveOpenTradeQuote,
 } from "../src/lib/open-trade-progress";
 
 // USD-quoted fill money is already account cash: move × units.
@@ -72,5 +73,33 @@ const cadRate = quoteToUsdRateFromQuotes("USD_CAD", {
 });
 assert.ok(cadRate);
 assert.ok(Math.abs(cadRate! - 1 / 1.35) < 1e-9, `CAD rate ${cadRate}`);
+
+// Without a stream tick, the broker mid still marks the row so it is not stuck
+// on "Open". A live bid/ask wins when both are present.
+assert.deepEqual(resolveOpenTradeQuote(undefined, 112.9), {
+  bid: 112.9,
+  ask: 112.9,
+});
+assert.equal(resolveOpenTradeQuote(undefined, null), undefined);
+assert.deepEqual(
+  resolveOpenTradeQuote({ bid: 1.1, ask: 1.1002 }, 1.05),
+  { bid: 1.1, ask: 1.1002 },
+);
+
+// Mid-only mark is enough to produce progress + money via the paper path.
+const cadMark = resolveOpenTradeQuote(undefined, 1.377);
+assert.ok(cadMark);
+const midOnly = openTradeProgress({
+  direction: "short",
+  instrument: "USD_CAD",
+  entry: 1.37825,
+  stop: 1.37999,
+  target: 1.37477,
+  bid: cadMark.bid,
+  ask: cadMark.ask,
+  riskAmount: 100,
+});
+assert.ok(midOnly, "broker mid must unlock progress when the stream is quiet");
+assert.ok(midOnly.money !== null, "paper money should land from risk × R");
 
 console.log("Open trade progress checks passed.");

@@ -18,6 +18,7 @@
     "research:run-experiment": "tsx scripts/run-research-experiment.ts",
     "research:test-gbp-candidate": "tsx scripts/test-gbp-candidate.ts",
     "paper-cycle:test": "tsx scripts/test-paper-cycle.ts",
+    "evaluations:test": "tsx scripts/test-evaluation-upsert.ts",
     "binary:test": "tsx scripts/test-binary-engine.ts",
     "binary:test-logistic": "tsx scripts/test-binary-logistic-v1.ts",
     "binary:test-adaptive": "tsx scripts/test-binary-adaptive-stats.ts",
@@ -31,8 +32,8 @@
     "today:trades": "tsx scripts/verify-today-trades.ts"
   },
   "dependencies": {
-    "argon2": "^0.45.1",
     "dotenv": "^17.2.3",
+    "hash-wasm": "^4.12.0",
     "pg": "^8.22.0",
     "tsx": "^4.23.1",
     "web-push": "^3.6.7",

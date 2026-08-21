@@ -243,7 +243,20 @@ function rangeStretch(direction: "long" | "short"): Candle[] {
 
   // Not stretched enough → no setup.
   const tight = series(Array.from({ length: N }, (_, i) => 1.10 + Math.sin(i / 2.5) * 0.0004), 0.0004);
-  assert.equal(evaluateMeanReversion(input(tight), regimeFor(tight), DEFAULT_MEANREV_CONFIG).status, "no_setup", "mean reversion abstains without a stretch");
+  const tightCand = evaluateMeanReversion(input(tight), regimeFor(tight), DEFAULT_MEANREV_CONFIG);
+  assert.equal(tightCand.status, "no_setup", "mean reversion abstains without a stretch");
+
+  // ...but it must still RECORD what it saw. A rejected evaluation that stores
+  // no features leaves the research data able to report only stretches already
+  // above the threshold, so it can never answer what a different
+  // stretchThresholdAtr would have admitted. The sub-threshold reading is the
+  // whole point: it is the measurement, not the decision.
+  const near = tightCand.features.meanReversion;
+  assert.ok(near, "a rejected evaluation still records its mean-reversion features");
+  assert.ok(Number.isFinite(near!.stretchAtr!), "the near-miss stretch is measured, not dropped");
+  assert.ok(near!.stretchAtr! < DEFAULT_MEANREV_CONFIG.stretchThresholdAtr, "a near miss records a stretch below the threshold");
+  assert.ok(Number.isFinite(near!.trendStrength!), "trend strength is recorded alongside it, so the gates can be studied jointly");
+  assert.ok(Number.isFinite(near!.rangeAgeBars!), "range age is recorded on the near-miss path");
   console.log("meanrev: OK");
 }
 

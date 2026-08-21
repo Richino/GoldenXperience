@@ -93,27 +93,45 @@ export function evaluateMeanReversion(input: StrategyEvaluationInput, regime: Ma
   const distanceFromMean = last.close - mean;
   const stretchAtr = Math.abs(distanceFromMean) / atr;
   const direction = distanceFromMean > 0 ? "short" as const : distanceFromMean < 0 ? "long" as const : null;
+
+  // Measured before the stretch gate decides, so a near miss is recorded with
+  // the same shape as a qualifying setup. These are reads of the current bar,
+  // not a commitment to trade it: nothing below changes what the strategy takes.
+  //
+  // The stretch gate used to return early with no features at all, so every
+  // rejected evaluation stored an empty feature block and the only stretchAtr
+  // values on record were — by construction — ones already above the threshold.
+  // That makes the stored data unable to answer the one question worth asking of
+  // it: what a different stretchThresholdAtr would have admitted, and whether
+  // those admissions would also have been non-trending and confirmed.
+  const rangeAgeBars = regime.rangeAgeBars ?? 0;
+  const window = candles15m.slice(-config.rangeLookbackBars);
+  const rangeHigh = Math.max(...window.map((candle) => candle.high));
+  const rangeLow = Math.min(...window.map((candle) => candle.low));
+  const rangeWidthAtr = (rangeHigh - rangeLow) / atr;
+  // With no direction there is no stretch to fade, so there is nothing for an
+  // exhaustion candle to turn against; false is the honest reading, not a fail.
+  const reversal = direction !== null && (!config.requireReversalConfirmation || reversalConfirmed(last, direction));
+  const features: MeanReversionFeatures = {
+    mean, distanceFromMean, stretchAtr, rangeHigh, rangeLow, rangeWidthAtr, rangeAgeBars,
+    trendStrength: regime.trendStrength, reversalConfirmation: reversal,
+  };
+
   const stretched = direction !== null && stretchAtr >= config.stretchThresholdAtr;
   conditions.push(condition("Stretched from mean", stretched,
     stretched ? `Price is ${stretchAtr.toFixed(2)} ATR from the mean.` : "Price is not stretched far enough from the mean.",
     `${stretchAtr.toFixed(2)} ATR`, true));
-  if (!direction || !stretched) return finalize("no_setup", `${displayNameFor(input.instrument)} is not stretched.`, "Price is not stretched from the mean.", direction, null);
+  if (!direction || !stretched) return finalize("no_setup", `${displayNameFor(input.instrument)} is not stretched.`, "Price is not stretched from the mean.", direction, null, features);
 
-  const rangeAgeBars = regime.rangeAgeBars ?? 0;
   const rangeAgeOk = rangeAgeBars >= config.minRangeAgeBars;
   conditions.push(condition("Established range", rangeAgeOk,
     rangeAgeOk ? `Price held its range for ${rangeAgeBars} bars.` : "The range is too young to fade.",
     `${rangeAgeBars} bars`, true));
 
-  const reversal = !config.requireReversalConfirmation || reversalConfirmed(last, direction);
   conditions.push(condition("Reversal confirmation", reversal,
     reversal ? "A completed exhaustion candle turned against the stretch." : "No exhaustion/reversal candle yet.",
     reversal ? "confirmed" : "none", config.requireReversalConfirmation));
 
-  const window = candles15m.slice(-config.rangeLookbackBars);
-  const rangeHigh = Math.max(...window.map((candle) => candle.high));
-  const rangeLow = Math.min(...window.map((candle) => candle.low));
-  const rangeWidthAtr = (rangeHigh - rangeLow) / atr;
   const rawStop = direction === "short" ? rangeHigh + atr * config.stopBeyondExtremeAtr : rangeLow - atr * config.stopBeyondExtremeAtr;
   const plan = buildTradePlan(input, direction, rawStop, atr, { targetR: 0, minStopAtr: config.minStopAtr, targetPrice: mean });
 
@@ -121,11 +139,6 @@ export function evaluateMeanReversion(input: StrategyEvaluationInput, regime: Ma
   conditions.push(condition("Reward to risk", rrOk,
     rrOk ? "The move back to the mean clears the minimum reward-to-risk." : "The mean is too close to justify the stop.",
     plan.riskReward === null ? "unavailable" : `${plan.riskReward.toFixed(2)}R`, true));
-
-  const features: MeanReversionFeatures = {
-    mean, distanceFromMean, stretchAtr, rangeHigh, rangeLow, rangeWidthAtr, rangeAgeBars,
-    trendStrength: regime.trendStrength, reversalConfirmation: reversal,
-  };
 
   const hardFailed = conditions.some((item) => item.required && !item.passed);
   const planValid = plan.entry !== null && plan.stop !== null && plan.target !== null;

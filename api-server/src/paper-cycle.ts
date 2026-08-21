@@ -389,11 +389,28 @@ function setupRejectionReason(setup: StrategySetup) {
   return setup.conditions.find((item) => item.required && !item.passed)?.reason ?? null;
 }
 
+/**
+ * How `execution_status` may change when the same decision is written again.
+ *
+ * `decision_time` is the completed M15 bar, but the collector runs far more
+ * often than every fifteen minutes, so every later tick inside the same bar
+ * rewrites this very row. By then the trade this decision opened is itself open,
+ * the instrument reads as busy, and the candidate re-evaluates as 'blocked' —
+ * which used to overwrite the 'selected' the executing tick had written moments
+ * earlier. Every executed multi-strategy trade ended up filed as blocked.
+ *
+ * An execution that already happened is settled history; only a row that has not
+ * executed may be restated by a later look at the same bar. Exported so the
+ * regression test exercises this exact clause rather than a copy of it.
+ */
+export const EXECUTION_STATUS_CONFLICT_RULE =
+  "execution_status=CASE WHEN paper_strategy_evaluations.execution_status='selected' THEN paper_strategy_evaluations.execution_status ELSE EXCLUDED.execution_status END";
+
 async function persistPaperEvaluation(setup: StrategySetup, versionId: string, spreadPips: number | null, attribution?: StrategyAttribution, executionStatus?: string) {
   await query(
     `INSERT INTO paper_strategy_evaluations(strategy_version_id,instrument,decision_time,setup_status,direction,entry,stop,target,risk_reward,rejection_reason,trade_created,spread_pips,conditions,features,strategy_family,config_version,regime,trend_strength,volatility_bucket,atr_pips,experiment_id,execution_status)
      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,false,$11,$12::jsonb,$13::jsonb,$14,$15,$16,$17,$18,$19,$20,$21)
-     ON CONFLICT(strategy_version_id,instrument,decision_time) DO UPDATE SET setup_status=EXCLUDED.setup_status,direction=EXCLUDED.direction,entry=EXCLUDED.entry,stop=EXCLUDED.stop,target=EXCLUDED.target,risk_reward=EXCLUDED.risk_reward,rejection_reason=EXCLUDED.rejection_reason,spread_pips=EXCLUDED.spread_pips,conditions=EXCLUDED.conditions,features=EXCLUDED.features,strategy_family=EXCLUDED.strategy_family,config_version=EXCLUDED.config_version,regime=EXCLUDED.regime,trend_strength=EXCLUDED.trend_strength,volatility_bucket=EXCLUDED.volatility_bucket,atr_pips=EXCLUDED.atr_pips,experiment_id=EXCLUDED.experiment_id,execution_status=EXCLUDED.execution_status,updated_at=now()`,
+     ON CONFLICT(strategy_version_id,instrument,decision_time) DO UPDATE SET setup_status=EXCLUDED.setup_status,direction=EXCLUDED.direction,entry=EXCLUDED.entry,stop=EXCLUDED.stop,target=EXCLUDED.target,risk_reward=EXCLUDED.risk_reward,rejection_reason=EXCLUDED.rejection_reason,spread_pips=EXCLUDED.spread_pips,conditions=EXCLUDED.conditions,features=EXCLUDED.features,strategy_family=EXCLUDED.strategy_family,config_version=EXCLUDED.config_version,regime=EXCLUDED.regime,trend_strength=EXCLUDED.trend_strength,volatility_bucket=EXCLUDED.volatility_bucket,atr_pips=EXCLUDED.atr_pips,experiment_id=EXCLUDED.experiment_id,${EXECUTION_STATUS_CONFLICT_RULE},updated_at=now()`,
     [versionId, setup.instrument, setup.evaluatedAt, setup.status, setup.direction, setup.entry, setup.stop, setup.target, setup.riskReward, setupRejectionReason(setup), spreadPips, JSON.stringify(setup.conditions), JSON.stringify(setup.features), attribution?.family ?? null, attribution?.configVersion ?? null, attribution?.regime ?? null, attribution?.trendStrength ?? null, attribution?.volatilityBucket ?? null, attribution?.atrPips ?? null, attribution?.experimentId ?? null, executionStatus ?? null],
   );
 }
@@ -455,7 +472,12 @@ async function openPaperTrade(setup: StrategySetup, userId: string, versionId: s
       [nextSequence.rows[0]!.value, userId, batch.id, versionId, setup.instrument, setup.evaluatedAt, setup.direction, setup.entry, setup.stop, setup.target, setup.riskReward, risk.riskPercent, positionSize.calculatedEstimatedRisk, positionSize.calculatedUnits, positionSize.calculatedStandardLots, spreadPips, session, weekdayAt(setup.evaluatedAt), setupName, checklistScore(setup), JSON.stringify(setup.conditions), JSON.stringify(setup.features), setup.features.newsStatus ?? "not_evaluated", setup.evaluatedAt, attribution?.family ?? null, attribution?.configVersion ?? null, attribution?.regime ?? null, attribution?.trendStrength ?? null, attribution?.volatilityBucket ?? null, attribution?.atrPips ?? null, attribution?.experimentId ?? null],
     );
     const tradeId = inserted.rows[0]!.id;
-    await client.query("UPDATE paper_strategy_evaluations SET trade_created=true,paper_trade_id=$1,rejection_reason=NULL,updated_at=now() WHERE strategy_version_id=$2 AND instrument=$3 AND decision_time=$4", [tradeId, versionId, setup.instrument, setup.evaluatedAt]);
+    // The row this updates is written before execution is attempted, so it is
+    // here — on a confirmed insert — that a decision becomes 'selected'. Keying
+    // on the family's own strategy_version_id keeps it to the one candidate that
+    // traded; the other families evaluated at this same instrument and
+    // decision_time have their own version ids and are left alone.
+    await client.query("UPDATE paper_strategy_evaluations SET trade_created=true,paper_trade_id=$1,execution_status='selected',rejection_reason=NULL,updated_at=now() WHERE strategy_version_id=$2 AND instrument=$3 AND decision_time=$4", [tradeId, versionId, setup.instrument, setup.evaluatedAt]);
     await queueNotificationInTransaction(client, {
       userId,
       kind: "paper_opened",
@@ -1343,14 +1365,36 @@ export async function collectMultiStrategyCycle() {
     // One position per instrument, across every family and the legacy strategy.
     const openRow = await query("SELECT 1 FROM paper_strategy_trades WHERE instrument=$1 AND status='open'", [instrument]);
     const instrumentBusy = (openRow.rowCount ?? 0) > 0;
+    // The state as it stands BEFORE execution is attempted, which is when the row
+    // is now written. A candidate the engine chose is recorded as not-executed;
+    // openPaperTrade promotes it to 'selected' if — and only if — a trade is
+    // actually created. So 'selected' means "this traded" rather than "we meant
+    // to trade this", and a selection the risk gates turn away stays honestly
+    // blocked with its reason attached, instead of being frozen as selected.
     const executionStatusFor = (candidate: StrategyCandidate): string => {
-      if (isSelected(candidate)) return instrumentBusy || !liveData ? "blocked" : "selected";
+      if (isSelected(candidate)) return "blocked";
       if (candidate.status !== "valid") return "no_setup";
       return "suppressed";
     };
 
+    // Record every candidate: the executed one, the suppressed ones, the blocked
+    // ones. Suppressed candidates are preserved in the evaluations table so their
+    // hypothetical outcome can be labelled later (shadow research).
+    //
+    // This runs BEFORE execution, and the order is load-bearing. openPaperTrade
+    // stamps trade_created, paper_trade_id and any risk rejection onto this row
+    // with an UPDATE, so the row has to exist by the time it runs. Opening the
+    // trade first meant those updates matched zero rows and were lost in silence:
+    // every executed multi-strategy trade was filed as never having been created,
+    // and the reason a risk-blocked selection failed was never recorded at all.
+    // The legacy single-strategy cycle above persists in this order for the same
+    // reason, which is why its trade_created was the only one that worked.
+    for (const candidate of candidates) {
+      const attribution = attributionFor(candidate, versionIds, experimentId);
+      await persistPaperEvaluation(candidate, attribution.versionId, spreadPips, attribution, executionStatusFor(candidate));
+    }
+
     let openedTradeId: string | null = null;
-    // Open the selected candidate first (so its watch snapshot can carry the id).
     if (decision.selected && !instrumentBusy && liveData && quote) {
       const chosen = candidates.find(isSelected);
       if (chosen && chosen.entry !== null) {
@@ -1361,14 +1405,13 @@ export async function collectMultiStrategyCycle() {
       }
     }
 
-    // Record every candidate: the executed one, the suppressed ones, the blocked
-    // ones. Suppressed candidates are preserved in the evaluations table so their
-    // hypothetical outcome can be labelled later (shadow research).
+    // Written after execution, because the watch snapshot carries the opened
+    // trade's id. `selected` here means the candidate the engine chose AND that
+    // a trade actually exists for it — the same pair of facts the previous
+    // single-loop form expressed as execStatus === "selected" && openedTradeId.
     for (const candidate of candidates) {
       const attribution = attributionFor(candidate, versionIds, experimentId);
-      const execStatus = executionStatusFor(candidate);
-      await persistPaperEvaluation(candidate, attribution.versionId, spreadPips, attribution, execStatus);
-      await persistMultiWatchSnapshot(candidate, quote, attribution, execStatus === "selected" && openedTradeId !== null, decision.reason, session, isSelected(candidate) ? openedTradeId : null);
+      await persistMultiWatchSnapshot(candidate, quote, attribution, isSelected(candidate) && openedTradeId !== null, decision.reason, session, isSelected(candidate) ? openedTradeId : null);
     }
 
     // Dashboard /api/watchlist still reads paper_watch_snapshots. Mirror the

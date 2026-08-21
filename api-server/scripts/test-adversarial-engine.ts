@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {
-  type AdaptiveCandidate, type BucketStat, contextKey, decideInstrument,
+  ANY, type AdaptiveCandidate, type BucketStat, contextKey, decideInstrument,
   type EvidenceStore, expectancy, stdErr, winRate,
 } from "../src/adaptive-engine.js";
 import { resolveShadowOutcome } from "../src/shadow-outcomes.js";
@@ -24,7 +24,9 @@ function evidence(entries: Array<[StrategyFamily, "long" | "short", string, stri
 }
 
 // ===========================================================================
-// 1. CONTEXT LEAKAGE — mature evidence in one context must not affect another.
+// 1. CONTEXT LEAKAGE — a bucket recorded at ONE specific context must not, on
+//    its own, reach any other context. Generalisation is allowed only through
+//    an explicitly aggregated bucket, which section 1b covers.
 // ===========================================================================
 {
   // 120 resolved, strongly negative, for EUR_USD ema long trending overlap.
@@ -51,6 +53,54 @@ function evidence(entries: Array<[StrategyFamily, "long" | "short", string, stri
     assert.equal(d.selected?.family, "ema", `and stays a taken cold-start candidate for ${change.label}`);
   }
   console.log("1 context leakage: OK");
+}
+
+// ===========================================================================
+// 1b. THE EVIDENCE LADDER — an aggregated bucket is allowed to answer for a
+//     context the engine has never traded, and a specific bucket outranks it.
+//
+//     This is the property that makes the engine able to act at all. Keyed only
+//     on the fully specific context, ~216 buckets per family each needed 100
+//     resolved observations before anything could be suppressed, so every
+//     decision ever recorded sat in COLLECTING while a losing strategy kept
+//     trading. These assertions pin the generalisation that fixes it, and the
+//     limits on it.
+// ===========================================================================
+{
+  // What loadAdaptiveEvidence now writes: the same observations recorded at the
+  // exact context AND at each coarser level. Here only the aggregate exists,
+  // standing in for many pairs' worth of momentum trades in a trending regime.
+  const aggregate = new Map<string, BucketStat>();
+  aggregate.set(contextKey("momentum", ANY, ANY, "trending", "long"), stat(140, 28, -70, 35));
+  const ev: EvidenceStore = { totalResolved: 140, context: aggregate };
+
+  // A pair the engine has never traded now inherits the regime+direction record.
+  const unseen = decideInstrument({ instrument: "GBP_JPY", session: "London", regime: regime("trending", "up"), candidates: [cand("momentum", "long")], evidence: ev });
+  assert.equal(unseen.state, "active_selection", "an aggregated bucket can mature a decision");
+  assert.equal(unseen.selected, null, "a confidently negative strategy is finally switchable off");
+  assert.equal(unseen.evidenceUsed["momentum:long"]!.scope, "regime+direction", "and the audit log names the scope that answered");
+
+  // Regime is NOT aggregated away: only pair and session are.
+  const otherRegime = decideInstrument({ instrument: "GBP_JPY", session: "London", regime: regime("ranging", "none"), candidates: [cand("momentum", "long")], evidence: ev });
+  assert.equal(otherRegime.state, "collecting", "a different regime does not inherit the aggregate");
+  assert.equal(otherRegime.selected?.family, "momentum", "and its candidate is still taken in cold start");
+
+  // A specific bucket that has its own samples overrides a contradicting
+  // aggregate, so one bad average cannot condemn a context that disproves it.
+  const both = new Map(aggregate);
+  both.set(contextKey("momentum", "EUR_USD", "London", "trending", "long"), stat(120, 80, 60, 60));
+  const specific = decideInstrument({ instrument: "EUR_USD", session: "London", regime: regime("trending", "up"), candidates: [cand("momentum", "long")], evidence: { totalResolved: 260, context: both } });
+  assert.equal(specific.evidenceUsed["momentum:long"]!.scope, "pair+session+regime+direction", "specific beats general when it has the samples");
+  assert.equal(specific.selected?.family, "momentum", "a locally positive context survives a negative family average");
+
+  // A thin aggregate still suppresses nothing: the thresholds apply at whatever
+  // level answers, so aggregation buys reach, never permission.
+  const thin = new Map<string, BucketStat>();
+  thin.set(contextKey("momentum", ANY, ANY, "trending", "long"), stat(40, 8, -20, 10));
+  const tooThin = decideInstrument({ instrument: "GBP_JPY", session: "London", regime: regime("trending", "up"), candidates: [cand("momentum", "long")], evidence: { totalResolved: 40, context: thin } });
+  assert.equal(tooThin.state, "collecting", "40 resolved is below the learning threshold at any scope");
+  assert.equal(tooThin.selected?.family, "momentum", "and nothing is suppressed on it");
+  console.log("1b evidence ladder: OK");
 }
 
 // ===========================================================================

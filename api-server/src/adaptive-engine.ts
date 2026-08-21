@@ -104,13 +104,51 @@ export interface AdaptiveCandidate {
 
 export interface EvidenceStore {
   totalResolved: number;
-  /** key = contextKey(family, pair, session, regime, direction). */
+  /** key = contextKey(...); holds every level of {@link contextKeysFor}. */
   context: Map<string, BucketStat>;
 }
 
 export function contextKey(family: string, pair: string, session: string, regime: string, direction: string): string {
   return [family, pair, session, regime, direction].join("|");
 }
+
+/** Marks a dimension that a bucket has aggregated over. */
+export const ANY = "*";
+
+/**
+ * The evidence ladder for one candidate, most specific first.
+ *
+ * The engine used to read one bucket only — the fully specific
+ * (family, pair, session, regime, direction). With twelve pairs, three sessions,
+ * three regimes and two directions that is ~216 buckets per family, each needing
+ * 100 resolved observations before the engine may suppress anything: roughly
+ * 21,600 trades per family. At the collector's real rate those thresholds are
+ * unreachable, so every decision ever made stayed in COLLECTING and a
+ * demonstrably losing strategy could never be switched off. The gate was not
+ * conservative, it was inert.
+ *
+ * Pair and session are dropped first because they are the high-cardinality,
+ * low-mechanism dimensions — they multiply the bucket count 36-fold while a
+ * strategy's edge usually lives in how it interacts with the regime and its
+ * direction. Dropping them recovers that factor of 36 immediately.
+ *
+ * This deliberately allows evidence to generalise across pairs and sessions,
+ * which the fully specific key was designed to prevent. The trade is explicit:
+ * a specific bucket still wins whenever it has the samples to speak for itself,
+ * and generalisation only ever happens through a coarser bucket that has met the
+ * same sample threshold on its own.
+ */
+export function contextKeysFor(family: string, pair: string, session: string, regime: string, direction: string): string[] {
+  return [
+    contextKey(family, pair, session, regime, direction),
+    contextKey(family, ANY, ANY, regime, direction),
+    contextKey(family, ANY, ANY, regime, ANY),
+    contextKey(family, ANY, ANY, ANY, ANY),
+  ];
+}
+
+/** Human-readable name for each ladder level, for the audit log. */
+export const EVIDENCE_SCOPES = ["pair+session+regime+direction", "regime+direction", "regime", "family"] as const;
 
 export interface AdaptiveInput {
   instrument: string;
@@ -127,7 +165,7 @@ export interface AdaptiveDecision {
   suppressed: AdaptiveCandidate[];
   reason: string;
   /** The per-candidate evidence the decision considered, for the audit log. */
-  evidenceUsed: Record<string, { resolved: number; expectancyR: number | null; winRate: number | null }>;
+  evidenceUsed: Record<string, { resolved: number; expectancyR: number | null; winRate: number | null; scope: string | null }>;
 }
 
 export function toAdaptiveCandidate(candidate: StrategyCandidate): AdaptiveCandidate {
@@ -152,25 +190,40 @@ export function decideInstrument(input: AdaptiveInput): AdaptiveDecision {
   const config = input.config ?? DEFAULT_ADAPTIVE_CONFIG;
   const executable = input.candidates.filter((candidate) => candidate.executable && candidate.direction);
 
-  const statOf = (candidate: AdaptiveCandidate): BucketStat | null =>
-    input.evidence.context.get(contextKey(candidate.family, input.instrument, input.session, input.regime.regime, candidate.direction!)) ?? null;
+  // The most specific bucket carrying at least `minimum` resolved observations.
+  // Specific beats general, but only when it can speak for itself: a coarser
+  // bucket is consulted only because every more specific one is too thin, and it
+  // must clear the same threshold on its own before it is read.
+  const resolveStat = (candidate: AdaptiveCandidate, minimum: number): { stat: BucketStat; scope: string } | null => {
+    const keys = contextKeysFor(candidate.family, input.instrument, input.session, input.regime.regime, candidate.direction!);
+    for (const [level, key] of keys.entries()) {
+      const stat = input.evidence.context.get(key);
+      if (stat && stat.resolved >= minimum) return { stat, scope: EVIDENCE_SCOPES[level]! };
+    }
+    return null;
+  };
+  // Ranking may read a bucket once it is out of cold start; suppression demands
+  // the full active-selection sample in whichever bucket answers.
+  const rankingStat = (candidate: AdaptiveCandidate) => resolveStat(candidate, config.minLearningSample);
+  const suppressionStat = (candidate: AdaptiveCandidate) => resolveStat(candidate, config.minActiveSample);
 
   const evidenceUsed: AdaptiveDecision["evidenceUsed"] = {};
   for (const candidate of executable) {
-    const stat = statOf(candidate);
+    const found = rankingStat(candidate);
     evidenceUsed[`${candidate.family}:${candidate.direction}`] = {
-      resolved: stat?.resolved ?? 0,
-      expectancyR: stat ? expectancy(stat) : null,
-      winRate: stat ? winRate(stat) : null,
+      resolved: found?.stat.resolved ?? 0,
+      expectancyR: found ? expectancy(found.stat) : null,
+      winRate: found ? winRate(found.stat) : null,
+      scope: found?.scope ?? null,
     };
   }
 
-  // Engine maturity for THIS instrument context: the most-evidenced relevant
-  // bucket decides the state, so an unproven context stays in cold start.
-  const relevantResolved = executable.map((candidate) => statOf(candidate)?.resolved ?? 0);
-  const maxResolved = relevantResolved.length ? Math.max(...relevantResolved) : 0;
-  const state: AdaptiveState = maxResolved >= config.minActiveSample ? "active_selection"
-    : maxResolved >= config.minLearningSample ? "learning" : "collecting";
+  // Engine maturity for THIS decision, expressed as what the evidence actually
+  // permits rather than a raw count: ACTIVE_SELECTION only once some candidate
+  // has a bucket big enough to suppress from, LEARNING once one is big enough to
+  // rank by. An unproven context still stays in cold start.
+  const state: AdaptiveState = executable.some((candidate) => suppressionStat(candidate)) ? "active_selection"
+    : executable.some((candidate) => rankingStat(candidate)) ? "learning" : "collecting";
 
   const familyIndex = (candidate: AdaptiveCandidate) => {
     const index = config.familyPriority.indexOf(candidate.family);
@@ -189,14 +242,14 @@ export function decideInstrument(input: AdaptiveInput): AdaptiveDecision {
     return eb - ea || coldRank(a, b);
   };
   const evidenceExpectancy = (candidate: AdaptiveCandidate) => {
-    const stat = statOf(candidate);
-    if (!stat || stat.resolved < config.minLearningSample) return 0;
-    return expectancy(stat) ?? 0;
+    const found = rankingStat(candidate);
+    return found ? expectancy(found.stat) ?? 0 : 0;
   };
 
   const demonstrablyNegative = (candidate: AdaptiveCandidate): boolean => {
-    const stat = statOf(candidate);
-    if (!stat || stat.resolved < config.minActiveSample) return false;
+    const found = suppressionStat(candidate);
+    if (!found) return false;
+    const stat = found.stat;
     const mean = expectancy(stat); const se = stdErr(stat);
     if (mean === null || se === null) return false;
     // Even the optimistic bound is below zero → the edge is confidently negative.
@@ -272,10 +325,25 @@ const RESOLVED_SHADOW_OUTCOMES = "('target_first','stop_first','forced_close','t
 export async function loadAdaptiveEvidence(experimentId: string, asOf: Date = new Date()): Promise<EvidenceStore> {
   const context = new Map<string, BucketStat>();
   const asOfIso = asOf.toISOString();
-  const merge = (key: string, resolved: number, wins: number, netR: number, sumSqR: number) => {
+  let totalResolved = 0;
+  const add = (key: string, resolved: number, wins: number, netR: number, sumSqR: number) => {
     const current = context.get(key) ?? { resolved: 0, wins: 0, netR: 0, sumSqR: 0, mfe: null, mae: null };
     current.resolved += resolved; current.wins += wins; current.netR += netR; current.sumSqR += sumSqR;
     context.set(key, current);
+  };
+  /**
+   * Feed one observation (or one pre-grouped batch of them) into every level of
+   * the ladder it belongs to. Sums, counts and sums-of-squares are all additive,
+   * so an aggregate bucket built this way is identical to one computed directly
+   * over the same rows — the coarser levels are a re-grouping of the same
+   * observations, never a re-weighting of them.
+   *
+   * `totalResolved` counts each observation once, at the exact level only, so it
+   * stays a true population count rather than a multiple of the ladder depth.
+   */
+  const merge = (family: string, pair: string, session: string, regime: string, direction: string, resolved: number, wins: number, netR: number, sumSqR: number) => {
+    for (const key of contextKeysFor(family, pair, session, regime, direction)) add(key, resolved, wins, netR, sumSqR);
+    totalResolved += resolved;
   };
 
   const executed = await query<{ strategy_family: string; instrument: string; session: string; regime: string | null; direction: string; resolved: string; wins: string; net_r: string; sumsq_r: string }>(
@@ -292,7 +360,7 @@ export async function loadAdaptiveEvidence(experimentId: string, asOf: Date = ne
     [experimentId, asOfIso],
   );
   for (const row of executed.rows) {
-    merge(contextKey(row.strategy_family, row.instrument, row.session, row.regime ?? "mixed", row.direction), Number(row.resolved), Number(row.wins), Number(row.net_r), Number(row.sumsq_r));
+    merge(row.strategy_family, row.instrument, row.session, row.regime ?? "mixed", row.direction, Number(row.resolved), Number(row.wins), Number(row.net_r), Number(row.sumsq_r));
   }
 
   // Shadow outcomes carry no session column, so the session is derived in JS from
@@ -311,10 +379,8 @@ export async function loadAdaptiveEvidence(experimentId: string, asOf: Date = ne
     const session = dayTradingSession(new Date(row.decision_time)).label;
     const resultR = Number(row.result_r);
     if (!Number.isFinite(resultR)) continue;
-    merge(contextKey(row.strategy_family, row.instrument, session, row.regime ?? "mixed", row.direction), 1, resultR > 0 ? 1 : 0, resultR, resultR * resultR);
+    merge(row.strategy_family, row.instrument, session, row.regime ?? "mixed", row.direction, 1, resultR > 0 ? 1 : 0, resultR, resultR * resultR);
   }
 
-  let totalResolved = 0;
-  for (const stat of context.values()) totalResolved += stat.resolved;
   return { totalResolved, context };
 }

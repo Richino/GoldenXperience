@@ -30,6 +30,7 @@ import { databaseConfigured, query } from "./database.js";
 import { cookieName, login, logout, sessionUser } from "./auth.js";
 import { decideResearchExperiment, forwardResearchSummary, latestDayTradingValidation, latestResearchExperiment, latestResearchHoldout, latestResearchRun, latestWalkForwardResearch, processNextResearchJob, researchDiagnostics, researchExperimentDiagnostics, researchSummary, runDayTradingValidation, runResearchExperiment, runWalkForwardResearch, startLockedResearchHoldout, startStrictHistoricalBackfill, stopResearchRun } from "./research.js";
 import { collectMultiStrategyCycle, collectPaperCycle, decidePaperBatch, fastResolveFilledTrades, liveResolvePaperTrades, journalTradeLog, journalTradeSummary, multiStrategyOverview, multiStrategyWatchlist, paperCycleOverview, paperRiskExposure, paperRiskPolicy, paperTradesForInstrument, parsePaperRiskConfiguration, reviewPaperTrade, updatePaperRiskPolicy, watchlistSnapshot } from "./paper-cycle.js";
+import { momentumShortInversionStatus } from "./momentum-short-inversion.js";
 import { markNotificationsRead, notificationsForUser, pushPublicKey, queueNotification, removePushSubscription, savePushSubscription } from "./notifications.js";
 import { practiceExecutionOverview, setPracticeExecutionEnabled } from "./practice-execution.js";
 import { binaryJournal, binaryPerformance, binaryPredictionDetail, binaryWatchlistSnapshot, collectBinaryCycle, recentBinaryPredictions, resolveDueBinaryPredictions } from "./binary-engine.js";
@@ -318,6 +319,11 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       const fields = [value.origin === "demo" ? "demo" : "manual", value.pair, value.direction, value.status === "closed" ? "closed" : "open", value.result || "open", value.openedAt || new Date().toISOString(), value.closedAt || null, value.entry, value.stop, value.target, value.exit || null, value.resultR ?? null, String(value.reason || ""), String(value.notes || "")];
       const created = await query("INSERT INTO paper_trades (user_id,origin,pair,direction,status,result,opened_at,closed_at,entry,stop,target,exit,result_r,reason,notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id", [user.id, ...fields]);
       return json(request, response, { id: created.rows[0]?.id }, 201);
+    }
+    // Research-only status for the frozen Momentum SHORT inversion forward test.
+    // Read-only; exposes no control that could change trading behaviour.
+    if (url.pathname === "/api/research/momentum-short-inversion" && request.method === "GET") {
+      return json(request, response, await momentumShortInversionStatus());
     }
     if (url.pathname === "/api/research/summary" && request.method === "GET") {
       const instrument = url.searchParams.get("instrument")?.toUpperCase();

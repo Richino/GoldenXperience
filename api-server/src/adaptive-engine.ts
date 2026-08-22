@@ -1,5 +1,6 @@
 import { query } from "./database.js";
 import { dayTradingSession } from "../../frontend/src/lib/strategy/strategy-engine.js";
+import { LIVE_EXECUTABLE_FAMILIES } from "../../frontend/src/lib/strategy/strategies/index.js";
 import type { StrategyCandidate } from "../../frontend/src/lib/strategy/strategy.js";
 import type { MarketRegime, StrategyFamily } from "../../frontend/src/lib/strategy/types.js";
 
@@ -169,12 +170,14 @@ export interface AdaptiveDecision {
 }
 
 export function toAdaptiveCandidate(candidate: StrategyCandidate): AdaptiveCandidate {
+  const liveAllowed = LIVE_EXECUTABLE_FAMILIES.includes(candidate.family);
   return {
     family: candidate.family,
     version: candidate.version,
     configVersion: candidate.configVersion,
     direction: candidate.direction,
-    executable: candidate.status === "valid" && candidate.direction !== null
+    executable: liveAllowed
+      && candidate.status === "valid" && candidate.direction !== null
       && candidate.entry !== null && candidate.stop !== null && candidate.target !== null,
     riskReward: candidate.riskReward,
     quality: candidate.passedConditions.length,
@@ -347,7 +350,16 @@ export async function loadAdaptiveEvidence(experimentId: string, asOf: Date = ne
   };
 
   const executed = await query<{ strategy_family: string; instrument: string; session: string; regime: string | null; direction: string; resolved: string; wins: string; net_r: string; sumsq_r: string }>(
-    `SELECT strategy_family, instrument, session, COALESCE(regime,'mixed') AS regime, direction,
+    `SELECT strategy_family, instrument, session, COALESCE(regime,'mixed') AS regime,
+            -- Evidence must be keyed by what the STRATEGY predicted, not by what
+            -- an execution policy traded. The engine looks a candidate up by its
+            -- own direction, so an inverted momentum trade has to land in the
+            -- bucket the strategy will consult next time; otherwise selection and
+            -- evidence key on opposite directions and the engine learns nothing
+            -- it can use. The OUTCOME attached is the realised executed result,
+            -- which is correct: under a fixed policy the engine is learning
+            -- "when momentum says X here, what the policy produces is Y".
+            COALESCE(original_direction, direction) AS direction,
             count(*)::text AS resolved,
             count(*) FILTER (WHERE result_r > 0)::text AS wins,
             COALESCE(sum(result_r),0)::text AS net_r,
@@ -356,7 +368,7 @@ export async function loadAdaptiveEvidence(experimentId: string, asOf: Date = ne
       WHERE experiment_id = $1 AND strategy_family IS NOT NULL
         AND status = 'closed' AND result_r IS NOT NULL
         AND closed_at IS NOT NULL AND closed_at <= $2
-      GROUP BY strategy_family, instrument, session, COALESCE(regime,'mixed'), direction`,
+      GROUP BY strategy_family, instrument, session, COALESCE(regime,'mixed'), COALESCE(original_direction, direction)`,
     [experimentId, asOfIso],
   );
   for (const row of executed.rows) {
@@ -367,7 +379,8 @@ export async function loadAdaptiveEvidence(experimentId: string, asOf: Date = ne
   // the decision time with the same function that stamped the executed trades —
   // keeping the two sources in identical context buckets.
   const shadow = await query<{ strategy_family: string; instrument: string; decision_time: string | Date; regime: string | null; direction: string; result_r: string }>(
-    `SELECT e.strategy_family, e.instrument, e.decision_time, COALESCE(e.regime,'mixed') AS regime, e.direction, s.result_r::text
+    `SELECT e.strategy_family, e.instrument, e.decision_time, COALESCE(e.regime,'mixed') AS regime,
+            COALESCE(e.original_direction, e.direction) AS direction, s.result_r::text
        FROM shadow_candidate_outcomes s
        JOIN paper_strategy_evaluations e ON e.id = s.evaluation_id
       WHERE e.experiment_id = $1 AND e.strategy_family IS NOT NULL AND e.direction IS NOT NULL

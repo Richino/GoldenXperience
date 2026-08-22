@@ -19,6 +19,8 @@ import type { StrategyCandidate } from "../../frontend/src/lib/strategy/strategy
 import { MULTISTRATEGY_EXPERIMENT_LABEL, MULTISTRATEGY_NAME, SEED_STRATEGY_CONFIGS, STRATEGY_FAMILIES } from "../../frontend/src/lib/strategy/strategies/index.js";
 import { decideInstrument, loadAdaptiveEvidence, toAdaptiveCandidate } from "./adaptive-engine.js";
 import { resolveShadowOutcome } from "./shadow-outcomes.js";
+import { recordMomentumShortPair, resolveMomentumShortInversion } from "./momentum-short-inversion.js";
+import { applyMomentumInversion, ensureMomentumInversionActivation, MOMENTUM_INVERSION_EXPERIMENT } from "./momentum-inversion.js";
 import { MAJOR_INSTRUMENTS, type MajorInstrument } from "../../frontend/src/types/forex.js";
 
 const STRATEGY_NAME = "deterministic-forex";
@@ -40,6 +42,10 @@ export type StrategyAttribution = {
   trendStrength: number | null;
   volatilityBucket: string | null;
   atrPips: number | null;
+  /** What the strategy predicted, when an execution policy changed it. */
+  originalDirection?: "long" | "short" | null;
+  inverted?: boolean;
+  inversionExperimentId?: string | null;
 };
 
 export type PaperRiskConfiguration = {
@@ -466,10 +472,11 @@ async function openPaperTrade(setup: StrategySetup, userId: string, versionId: s
     const nextSequence = await client.query<{ value: string }>("SELECT (COALESCE(max(trade_sequence),0)+1)::text AS value FROM paper_strategy_trades");
     const setupName = attribution ? `${attribution.family} ${setup.direction}` : setupNameFor(setup);
     const inserted = await client.query<{ id: string }>(
-      `INSERT INTO paper_strategy_trades(trade_sequence,user_id,batch_id,strategy_version_id,instrument,decision_time,direction,entry,stop,target,planned_r,nominal_risk_percent,nominal_risk_amount,calculated_units,calculated_standard_lots,spread_pips,session,weekday,setup_name,checklist_score,conditions,features,news_status,opened_at,strategy_family,config_version,regime,trend_strength,volatility_bucket,atr_pips,experiment_id)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb,$22::jsonb,$23,$24,$25,$26,$27,$28,$29,$30,$31)
+      `INSERT INTO paper_strategy_trades(trade_sequence,user_id,batch_id,strategy_version_id,instrument,decision_time,direction,entry,stop,target,planned_r,nominal_risk_percent,nominal_risk_amount,calculated_units,calculated_standard_lots,spread_pips,session,weekday,setup_name,checklist_score,conditions,features,news_status,opened_at,strategy_family,config_version,regime,trend_strength,volatility_bucket,atr_pips,experiment_id,original_direction,inverted,inversion_experiment_id)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb,$22::jsonb,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34)
        RETURNING id`,
-      [nextSequence.rows[0]!.value, userId, batch.id, versionId, setup.instrument, setup.evaluatedAt, setup.direction, setup.entry, setup.stop, setup.target, setup.riskReward, risk.riskPercent, positionSize.calculatedEstimatedRisk, positionSize.calculatedUnits, positionSize.calculatedStandardLots, spreadPips, session, weekdayAt(setup.evaluatedAt), setupName, checklistScore(setup), JSON.stringify(setup.conditions), JSON.stringify(setup.features), setup.features.newsStatus ?? "not_evaluated", setup.evaluatedAt, attribution?.family ?? null, attribution?.configVersion ?? null, attribution?.regime ?? null, attribution?.trendStrength ?? null, attribution?.volatilityBucket ?? null, attribution?.atrPips ?? null, attribution?.experimentId ?? null],
+      [nextSequence.rows[0]!.value, userId, batch.id, versionId, setup.instrument, setup.evaluatedAt, setup.direction, setup.entry, setup.stop, setup.target, setup.riskReward, risk.riskPercent, positionSize.calculatedEstimatedRisk, positionSize.calculatedUnits, positionSize.calculatedStandardLots, spreadPips, session, weekdayAt(setup.evaluatedAt), setupName, checklistScore(setup), JSON.stringify(setup.conditions), JSON.stringify(setup.features), setup.features.newsStatus ?? "not_evaluated", setup.evaluatedAt, attribution?.family ?? null, attribution?.configVersion ?? null, attribution?.regime ?? null, attribution?.trendStrength ?? null, attribution?.volatilityBucket ?? null, attribution?.atrPips ?? null, attribution?.experimentId ?? null,
+       attribution?.originalDirection ?? null, attribution?.inverted ?? false, attribution?.inversionExperimentId ?? null],
     );
     const tradeId = inserted.rows[0]!.id;
     // The row this updates is written before execution is attempted, so it is
@@ -1335,6 +1342,15 @@ export async function collectMultiStrategyCycle() {
   // research: reads candles, writes shadow_candidate_outcomes, never OANDA/risk.
   try { const shadow = await resolveShadowCandidates(); if (shadow) console.log(`[multi-strategy] resolved ${shadow} shadow candidates`); }
   catch (error) { console.error("[multi-strategy] shadow resolution failed", error); }
+  // Same contract for the Momentum SHORT inversion forward test: both arms are
+  // replayed independently against real bid/ask, written to their own research
+  // table, and never surfaced to risk or the adaptive engine.
+  try { const inv = await resolveMomentumShortInversion(); if (inv) console.log(`[momentum-short-inversion] resolved ${inv} pairs`); }
+  catch (error) { console.error("[momentum-short-inversion] resolution failed", error); }
+  // Stamp the inversion activation boundary once, so "Momentum trades before
+  // inversion" and "after" is a database fact rather than a remembered date.
+  try { await ensureMomentumInversionActivation(); }
+  catch (error) { console.error("[momentum-inversion] activation stamp failed", error); }
   await completeReadyBatches();
 
   const experimentId = await ensureExperiment();
@@ -1392,13 +1408,32 @@ export async function collectMultiStrategyCycle() {
     for (const candidate of candidates) {
       const attribution = attributionFor(candidate, versionIds, experimentId);
       await persistPaperEvaluation(candidate, attribution.versionId, spreadPips, attribution, executionStatusFor(candidate));
+      // Forward shadow A/B on the Momentum SHORT inversion hypothesis. Records
+      // only; it opens nothing, sizes nothing, and its table is read by neither
+      // the risk engine nor the adaptive engine's evidence loader, so it cannot
+      // influence what this cycle decides. Wrapped so a research failure can
+      // never interrupt trading.
+      try { await recordMomentumShortPair({ candidate, quote, spreadPips, session }); }
+      catch (error) { console.error("[momentum-short-inversion] record failed", error); }
     }
 
     let openedTradeId: string | null = null;
     if (decision.selected && !instrumentBusy && liveData && quote) {
-      const chosen = candidates.find(isSelected);
+      const selectedCandidate = candidates.find(isSelected);
+      // The single point where an execution policy may change direction. The
+      // adaptive engine has already chosen using the strategy's OWN verdict, so
+      // selection is unaffected; only the trade that gets built changes. The
+      // policy rebuilds geometry on the opposite side of the book rather than
+      // negating anything, so the inverted trade pays its own real spread.
+      const policy = selectedCandidate ? applyMomentumInversion(selectedCandidate, quote) : null;
+      const chosen = policy?.candidate ?? selectedCandidate;
       if (chosen && chosen.entry !== null) {
-        const attribution = attributionFor(chosen, versionIds, experimentId);
+        const attribution = {
+          ...attributionFor(chosen, versionIds, experimentId),
+          originalDirection: policy?.originalDirection ?? null,
+          inverted: policy?.inverted ?? false,
+          inversionExperimentId: policy?.inverted ? MOMENTUM_INVERSION_EXPERIMENT : null,
+        };
         const quoteToUsdRate = usdPerUnitOfCurrency(currenciesOf(instrument).quote, midByInstrument);
         openedTradeId = await openPaperTrade(chosen, userId, attribution.versionId, spreadPips ?? 0, snapshot.account.balance, quoteToUsdRate, attribution);
         if (openedTradeId) { opened += 1; await queuePracticeOrderIntent(userId, openedTradeId); }

@@ -19,6 +19,9 @@
     "research:test-gbp-candidate": "tsx scripts/test-gbp-candidate.ts",
     "paper-cycle:test": "tsx scripts/test-paper-cycle.ts",
     "evaluations:test": "tsx scripts/test-evaluation-upsert.ts",
+    "momentum-inversion:test": "tsx scripts/test-momentum-short-inversion.ts",
+    "momentum-flip:test": "tsx scripts/test-momentum-inversion.ts",
+    "four-family:test": "tsx scripts/test-four-family-execution.ts",
     "binary:test": "tsx scripts/test-binary-engine.ts",
     "binary:test-logistic": "tsx scripts/test-binary-logistic-v1.ts",
     "binary:test-adaptive": "tsx scripts/test-binary-adaptive-stats.ts",
@@ -29,7 +32,17 @@
     "check:desync": "tsx scripts/fix-trade-desync.ts",
     "resolve:ambiguous": "tsx scripts/resolve-ambiguous-trade.ts",
     "fix:pl": "tsx scripts/fix-ambiguous-pl.ts",
-    "today:trades": "tsx scripts/verify-today-trades.ts"
+    "today:trades": "tsx scripts/verify-today-trades.ts",
+    "v2:inventory": "tsx research-v2/bin/inventory.ts",
+    "v2:hunt": "tsx research-v2/bin/hunt.ts",
+    "v2:report": "tsx research-v2/bin/report.ts",
+    "v2:audit-candidate": "tsx research-v2/bin/audit-candidate.ts",
+    "v2:check-macro": "tsx research-v2/bin/check-macro-data.ts",
+    "cm:hunt": "tsx research-v2/carry-momentum/bin/hunt.ts",
+    "cm:report": "tsx research-v2/carry-momentum/bin/report.ts",
+    "cm:ingest-yields": "tsx research-v2/carry-momentum/bin/ingest-yields.ts",
+    "rf:hunt": "tsx research-v2/reversal-fade/bin/hunt.ts",
+    "rf:report": "tsx research-v2/reversal-fade/bin/report.ts"
   },
   "dependencies": {
     "dotenv": "^17.2.3",

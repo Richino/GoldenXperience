@@ -19,6 +19,27 @@ export const MULTISTRATEGY_EXPERIMENT_LABEL = "multi-strategy-1";
 export const STRATEGY_FAMILIES: StrategyFamily[] = ["ema", "breakout", "momentum", "meanrev"];
 
 /**
+ * Families allowed to open paper trades. THE single authoritative allowlist —
+ * `toAdaptiveCandidate` reads this and nothing else decides executability.
+ *
+ * All four are enabled. Momentum's DIRECTION is inverted at execution time by
+ * `momentum-inversion-v1`, which is a separate policy applied after a signal
+ * exists; this list governs only whether a family may trade at all, never which
+ * way. Nothing here alters any strategy's signal generation.
+ *
+ * The prior value was `[]`, which suppressed every family after walk-forward
+ * research found no sealed-holdout winner. That gate is deliberately lifted so
+ * the four-family engine can trade on the practice account and produce the
+ * forward evidence the inversion experiment needs.
+ */
+export const LIVE_EXECUTABLE_FAMILIES: readonly StrategyFamily[] = [
+  "ema",
+  "breakout",
+  "momentum",
+  "meanrev",
+];
+
+/**
  * The immutable V1 configurations, seeded into `strategy_configs`. The code
  * default IS the V1 config; the database row is the reproducible record. A
  * future parameter change is a new configVersion (EMA V2), never an edit here.

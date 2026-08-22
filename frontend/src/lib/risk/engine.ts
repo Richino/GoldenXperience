@@ -17,6 +17,90 @@ function configuredPaperLotCap() {
 /** A simulation guard only. It does not place, modify, or constrain OANDA orders. */
 export const PAPER_TRADING_MAX_STANDARD_LOTS = configuredPaperLotCap();
 
+function configuredNotionalMultiple() {
+  const value = Number(process.env.NEXT_PUBLIC_MAX_NOTIONAL_MULTIPLE);
+  return Number.isFinite(value) && value > 0 ? value : 3;
+}
+
+/**
+ * The ceiling on a BROKER order's notional, as a multiple of account equity.
+ *
+ * Risk-per-stop sizing is unbounded in notional: risk is fixed at a percentage
+ * of the balance and divided by the stop distance, so as the stop tightens the
+ * position grows without limit. With ATR stops of 3-9 pips this produced
+ * 500k-1.5M unit orders on a ~$90k account — 5x to 32x leverage — and OANDA
+ * cancelled them with INSUFFICIENT_MARGIN. 34 of 84 paper trades never reached
+ * the broker, so the practice account stopped mirroring the paper system.
+ *
+ * Deliberately NOT applied inside {@link calculatePositionSize}. Research
+ * collection passes `applyPaperCap: false` precisely so the recorded position
+ * keeps the full nominal 1% calculation, and that contract is left intact: no
+ * stored trade figure changes, and no R-based statistic moves. This bounds only
+ * what the practice broker is asked to fill.
+ */
+export const MAX_NOTIONAL_MULTIPLE = configuredNotionalMultiple();
+
+/**
+ * A position's notional converted into the USD account currency.
+ *
+ * `units` are denominated in the base currency, so `units * price` is an amount
+ * of the QUOTE currency, and the quote->USD rate carries it the rest of the
+ * way. That identity holds for every pair shape: EUR_USD multiplies by 1,
+ * USD_JPY's 1/price cancels the price back to units of USD, and a true cross
+ * such as AUD_JPY needs the externally supplied rate exactly as pip value does.
+ */
+export function notionalUsd(
+  instrument: MajorInstrument,
+  units: number,
+  price: number,
+  quoteToUsdRate?: number,
+): number | null {
+  if (!Number.isFinite(units) || !Number.isFinite(price) || price <= 0) return null;
+  const { quote } = currenciesOf(instrument);
+  const rate = quote === "USD" ? 1
+    : quoteToUsdRate !== undefined && Number.isFinite(quoteToUsdRate) && quoteToUsdRate > 0 ? quoteToUsdRate
+      // Same fallback rule as pip value: 1/price is the quote->USD rate only
+      // when USD is the base. A true cross must supply the rate.
+      : 1 / price;
+  const value = Math.abs(units) * price * rate;
+  return Number.isFinite(value) ? value : null;
+}
+
+export interface BrokerUnitsResult {
+  /** Units to actually send. Never larger than `requestedUnits`. */
+  units: number;
+  requestedUnits: number;
+  notionalUsd: number | null;
+  capUsd: number;
+  capped: boolean;
+}
+
+/**
+ * Bound a practice order's size to what the account can carry on margin.
+ *
+ * Scales the risk-sized position down proportionally rather than rejecting it,
+ * so the trade still reaches the broker — a smaller real fill mirrors the paper
+ * trade far better than an INSUFFICIENT_MARGIN cancellation, which mirrors
+ * nothing. Returns the request unchanged when the notional cannot be valued,
+ * because guessing a size is worse than sending the one that was calculated.
+ */
+export function brokerUnitsForOrder(input: {
+  instrument: MajorInstrument;
+  requestedUnits: number;
+  price: number;
+  accountBalance: number;
+  quoteToUsdRate?: number;
+}): BrokerUnitsResult {
+  const requestedUnits = Math.floor(Math.abs(input.requestedUnits));
+  const capUsd = input.accountBalance * MAX_NOTIONAL_MULTIPLE;
+  const value = notionalUsd(input.instrument, requestedUnits, input.price, input.quoteToUsdRate);
+  const unchanged: BrokerUnitsResult = { units: requestedUnits, requestedUnits, notionalUsd: value, capUsd, capped: false };
+  if (value === null || !(capUsd > 0) || value <= capUsd) return unchanged;
+  // At least one unit: a scaled-down order is still a truer mirror than none.
+  const units = Math.max(1, Math.floor(requestedUnits * (capUsd / value)));
+  return { units, requestedUnits, notionalUsd: notionalUsd(input.instrument, units, input.price, input.quoteToUsdRate), capUsd, capped: true };
+}
+
 /**
  * Spread is derived as `(ask - bid) / pipSize`, so a spread that is exactly at
  * the limit lands a few ulps above it — EUR_USD at 1.5 pips evaluates to

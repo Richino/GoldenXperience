@@ -76,6 +76,11 @@ interface OandaOpenTradesResponse {
 type OandaOrderResponse = {
   orderCreateTransaction?: { id?: string };
   orderFillTransaction?: { id?: string; tradeOpened?: { tradeID?: string } };
+  // OANDA answers 201 for an order it accepted AND immediately cancelled — an
+  // INSUFFICIENT_MARGIN rejection arrives as a success status carrying this
+  // transaction. Reading only the create/fill transactions made a rejected
+  // order indistinguishable from a filled one.
+  orderCancelTransaction?: { id?: string; reason?: string };
 };
 
 interface OandaCandlesResponse {
@@ -213,6 +218,8 @@ export async function submitPracticeMarketOrder(order: PracticeMarketOrder) {
   return {
     orderId: response.orderCreateTransaction?.id ?? response.orderFillTransaction?.id ?? null,
     tradeId: response.orderFillTransaction?.tradeOpened?.tradeID ?? null,
+    /** Set when the broker refused the order. A live order never carries one. */
+    cancelReason: response.orderCancelTransaction?.reason ?? null,
   };
 }
 

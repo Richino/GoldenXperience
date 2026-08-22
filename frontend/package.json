@@ -16,7 +16,8 @@
     "open-trade:test": "tsx scripts/test-open-trade-progress.ts",
     "chart:test": "tsx scripts/test-chart-history.ts",
     "strategy:test": "tsx scripts/test-strategy.ts",
-    "liquidity:test": "tsx scripts/test-liquidity.ts"
+    "liquidity:test": "tsx scripts/test-liquidity.ts",
+    "notional:test": "tsx scripts/test-notional-cap.ts"
   },
   "dependencies": {
     "@radix-ui/react-toast": "^1.2.23",

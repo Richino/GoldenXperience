@@ -1,0 +1,305 @@
+GOLDENXPERIENCE
+PATTERN V1 SEALED HOLDOUT TEST
+Generated: 2026-08-23T04:18:56.901Z
+OpenedAt: 2026-08-23T04:18:49.430Z
+
+================================
+FREEZE
+================================
+
+Pattern: PATTERN_V1 = UP AND ((extreme AND adxBucket=gt30) OR (medium AND adxBucket=b20_25))
+Direction: UP ONLY
+Expiry: 10 minutes (primary)
+BB: period=20 k=2 population stdev
+RSI: Wilder RSI14; OS=30 OB=70
+Severity: beyond=up?(30-rsi):(rsi-70); mild<=5 medium<=10 else extreme
+ADX: Wilder ADX14; le20<=20; b20_25<=25; b25_30<=30; gt30
+Symbols: EUR_USD, GBP_USD, USD_JPY, AUD_USD, NZD_USD, USD_CAD, USD_CHF, EUR_GBP, EUR_JPY, GBP_JPY, AUD_JPY, EUR_AUD
+Config hash: 0e3cba650a3b62fda62db80d4b4af4bc37536851f233cadd4d995aca990f05cd
+
+Frozen before HOLDOUT?
+YES
+
+================================
+HOLDOUT INTEGRITY
+================================
+
+Previously untouched?
+YES
+
+Integrity checks:
+PASS: freeze SHA256 matches (LF-normalized)
+PASS: holdoutOpenedAtWriteTime === false
+PASS: HOLDOUT_OPENED.json absent before open
+PASS: decisions.jsonl zones TRAIN/DEV only (n=11185)
+PASS: pattern_signals.jsonl has no HOLDOUT (n=478)
+PASS: follow-pocket FINAL_REPORT HOLDOUT sealed / OPENED: NO
+PASS: TRAIN+DEV outside-42 V1 reproduce n=434 WR=61.75%
+
+Leakage audit:
+PASS
+[x] Pattern frozen before HOLDOUT read
+[x] Original 42 excluded from validation evidence
+[x] n=434 validation excluded HOLDOUT
+[x] No HOLDOUT-derived thresholds
+[x] No HOLDOUT-derived symbol filters
+[x] No HOLDOUT-derived session filters
+[x] No HOLDOUT-derived expiry selection
+[x] Features available before prediction
+[x] Correct closed-candle convention
+[x] Correct entry timestamp
+[x] Correct 10m expiration
+[x] No future feature leakage
+[x] Full frozen symbol universe retained
+[x] Primary result calculated before subgroup analysis
+
+================================
+PRE-HOLDOUT REFERENCE
+================================
+
+n: 434
+WR: 61.75%
+CI: [57.09%, 66.20%]
+EV80: +0.112
+
+Reproduced TRAIN+DEV outside-42:
+n=434 W=268 L=166 T=3 WR=61.75% Wilson95=[57.09%, 66.20%] EV80=0.1115
+
+================================
+SEALED HOLDOUT
+================================
+
+eligible signals: 112
+decided signals: 109
+n: 109
+wins: 61
+losses: 48
+ties: 3
+
+WR: 55.96%
+95% CI: [46.60%, 64.92%]
+
+EV70: -0.0486
+EV75: -0.0206
+EV80: 0.0073
+EV85: 0.0353
+EV90: 0.0633
+
+================================
+BREAK-EVEN TEST
+================================
+
+80% payout BE:
+55.56%
+
+Point estimate > BE?
+YES
+
+CI low >50%?
+NO
+
+CI low >55.56%?
+NO
+
+================================
+DEGRADATION
+================================
+
+PRE-HOLDOUT:
+61.75%
+
+HOLDOUT:
+55.96%
+
+Difference:
+-5.79 pp (EV80 delta=-0.1047)
+
+================================
+VS BASELINE
+================================
+
+PATTERN_V1:
+n: 109
+WR: 55.96%
+EV80: 0.0073
+
+Ordinary BB+RSI (all HOLDOUT):
+n: 2730
+WR: 54.29%
+EV80: -0.0229
+
+Ordinary UP BB+RSI (HOLDOUT):
+n: 1339
+WR: 54.22%
+EV80: -0.0240
+
+WR lift vs all: 1.68 pp
+WR lift vs UP: 1.74 pp
+
+================================
+MATCHED RANDOM
+================================
+
+primary pool: HOLDOUT UP non-V1, strata=symbol|monthUtc|dir
+shuffles=1000 available=YES
+Random mean: 53.92%
+Random 95%: [45.05%, 62.26%]
+Pattern percentile: 68.50%
+
+================================
+BY BRANCH
+================================
+
+V1a extreme + ADX>30:
+n=91 W=47 L=44 T=3 WR=51.65% Wilson95=[41.52%, 61.64%] EV80=-0.0703
+
+V1b medium + ADX20–25:
+n=18 W=14 L=4 T=0 WR=77.78% Wilson95=[54.78%, 91.00%] EV80=0.4000
+
+(Diagnostic only — primary remains combined PATTERN_V1.)
+
+================================
+BY SYMBOL
+================================
+
+AUD_JPY: n=8 W=4 L=4 T=0 WR=50.00% Wilson95=[21.52%, 78.48%] EV80=-0.1000
+AUD_USD: n=8 W=6 L=2 T=0 WR=75.00% Wilson95=[40.93%, 92.85%] EV80=0.3500
+EUR_AUD: n=7 W=5 L=2 T=0 WR=71.43% Wilson95=[35.89%, 91.78%] EV80=0.2857
+EUR_GBP: n=6 W=5 L=1 T=1 WR=83.33% Wilson95=[43.65%, 96.99%] EV80=0.5000
+EUR_JPY: n=10 W=7 L=3 T=0 WR=70.00% Wilson95=[39.68%, 89.22%] EV80=0.2600
+EUR_USD: n=10 W=9 L=1 T=0 WR=90.00% Wilson95=[59.58%, 98.21%] EV80=0.6200
+GBP_JPY: n=7 W=1 L=6 T=0 WR=14.29% Wilson95=[2.57%, 51.31%] EV80=-0.7429
+GBP_USD: n=8 W=5 L=3 T=1 WR=62.50% Wilson95=[30.57%, 86.32%] EV80=0.1250
+NZD_USD: n=7 W=4 L=3 T=1 WR=57.14% Wilson95=[25.05%, 84.18%] EV80=0.0286
+USD_CAD: n=13 W=7 L=6 T=0 WR=53.85% Wilson95=[29.14%, 76.79%] EV80=-0.0308
+USD_CHF: n=9 W=2 L=7 T=0 WR=22.22% Wilson95=[6.32%, 54.74%] EV80=-0.6000
+USD_JPY: n=16 W=6 L=10 T=0 WR=37.50% Wilson95=[18.48%, 61.36%] EV80=-0.3250
+
+================================
+BY WEEK/MONTH
+================================
+
+By monthUtc:
+2026-04: n=11 W=7 L=4 T=1 WR=63.64% Wilson95=[35.38%, 84.83%] EV80=0.1455
+2026-05: n=20 W=10 L=10 T=0 WR=50.00% Wilson95=[29.93%, 70.07%] EV80=-0.1000
+2026-06: n=25 W=18 L=7 T=1 WR=72.00% Wilson95=[52.42%, 85.72%] EV80=0.2960
+2026-07: n=34 W=20 L=14 T=1 WR=58.82% Wilson95=[42.22%, 73.63%] EV80=0.0588
+2026-08: n=19 W=6 L=13 T=0 WR=31.58% Wilson95=[15.36%, 53.99%] EV80=-0.4316
+
+By weekUtc:
+2026-W17: n=5 W=4 L=1 T=0 WR=80.00% Wilson95=[37.55%, 96.38%] EV80=0.4400
+2026-W18: n=7 W=4 L=3 T=1 WR=57.14% Wilson95=[25.05%, 84.18%] EV80=0.0286
+2026-W19: n=8 W=3 L=5 T=0 WR=37.50% Wilson95=[13.68%, 69.43%] EV80=-0.3250
+2026-W20: n=4 W=2 L=2 T=0 WR=50.00% Wilson95=[15.00%, 85.00%] EV80=-0.1000
+2026-W21: n=3 W=2 L=1 T=0 WR=66.67% Wilson95=[20.77%, 93.85%] EV80=0.2000
+2026-W22: n=4 W=2 L=2 T=0 WR=50.00% Wilson95=[15.00%, 85.00%] EV80=-0.1000
+2026-W23: n=5 W=4 L=1 T=0 WR=80.00% Wilson95=[37.55%, 96.38%] EV80=0.4400
+2026-W24: n=4 W=1 L=3 T=0 WR=25.00% Wilson95=[4.56%, 69.94%] EV80=-0.5500
+2026-W25: n=6 W=4 L=2 T=0 WR=66.67% Wilson95=[30.00%, 90.32%] EV80=0.2000
+2026-W26: n=5 W=5 L=0 T=1 WR=100.00% Wilson95=[56.55%, 100.00%] EV80=0.8000
+2026-W27: n=10 W=6 L=4 T=0 WR=60.00% Wilson95=[31.27%, 83.18%] EV80=0.0800
+2026-W28: n=6 W=5 L=1 T=0 WR=83.33% Wilson95=[43.65%, 96.99%] EV80=0.5000
+2026-W29: n=8 W=5 L=3 T=1 WR=62.50% Wilson95=[30.57%, 86.32%] EV80=0.1250
+2026-W30: n=7 W=5 L=2 T=0 WR=71.43% Wilson95=[35.89%, 91.78%] EV80=0.2857
+2026-W31: n=9 W=3 L=6 T=0 WR=33.33% Wilson95=[12.06%, 64.58%] EV80=-0.4000
+2026-W32: n=8 W=1 L=7 T=0 WR=12.50% Wilson95=[2.24%, 47.09%] EV80=-0.7750
+2026-W33: n=5 W=3 L=2 T=0 WR=60.00% Wilson95=[23.07%, 88.24%] EV80=0.0800
+2026-W34: n=5 W=2 L=3 T=0 WR=40.00% Wilson95=[11.76%, 76.93%] EV80=-0.2800
+
+================================
+EXPIRY DIAGNOSTICS (not primary)
+================================
+
+1m: n=104 W=54 L=50 T=8 WR=51.92% Wilson95=[42.42%, 61.28%] EV80=-0.0654
+5m: n=106 W=55 L=51 T=6 WR=51.89% Wilson95=[42.48%, 61.17%] EV80=-0.0660
+10m: n=109 W=61 L=48 T=3 WR=55.96% Wilson95=[46.60%, 64.92%] EV80=0.0073
+15m: n=110 W=61 L=49 T=2 WR=55.45% Wilson95=[46.14%, 64.40%] EV80=-0.0018
+
+================================
+SUCCESS LEVEL
+================================
+
+LEVEL2 POSITIVE BUT UNCERTAIN
+distributed=YES symbols=12 months=5 maxSymbolShare=14.29% maxMonthShare=31.25%
+
+================================
+FINAL QUESTIONS
+================================
+
+1. Did the ~61.75% result replicate on completely untouched data?
+PARTIAL (profitable but below 60%)
+
+2. What was the exact HOLDOUT win rate?
+55.96%
+
+3. How many independent HOLDOUT signals occurred?
+109 decided (112 eligible; ties=3)
+
+4. Is it profitable at an 80% payout?
+YES (EV80=0.0073)
+
+5. Did it remain >=60%?
+NO
+
+6. Does its CI exclude 50%?
+NO
+
+7. Does its CI lower bound exceed 55.56%?
+NO
+
+8. Did it beat ordinary BB+RSI?
+YES (vs UP baseline lift 1.74 pp)
+
+9. Did it beat matched random signals?
+NO/WEAK (percentile=68.50%)
+
+10. Did both V1 branches contribute?
+YES (V1a n=91, V1b n=18)
+
+11. Is performance distributed across symbols?
+YES (symbols=12, maxShare=14.29%)
+
+12. Is performance distributed through time?
+YES (months=5, maxShare=31.25%)
+
+13. How much degradation occurred from 61.75%?
+-5.79 pp
+
+14. Does the evidence now support a forward paper test?
+MAYBE — positive but uncertain; forward paper only with extreme caution / small size.
+
+================================
+STATISTICAL INTERPRETATION
+================================
+
+A. Is HOLDOUT WR > 50%? YES
+B. Is HOLDOUT point estimate >55.56%? YES
+C. Is HOLDOUT EV80 >0? YES
+D. Does HOLDOUT 95% CI exclude 50%? NO
+E. Does HOLDOUT CI lower bound exceed 55.56%? NO
+
+================================
+PRODUCTION SAFETY
+================================
+
+Production binary strategy changed? NO
+Production adaptive engine changed? NO
+Existing binary predictions changed? NO
+Deployment performed? NO
+Orders placed? 0
+Research only.
+
+================================
+VERDICT
+================================
+
+MARGINAL_HOLDOUT_RESULT
+
+================================
+FINAL RULE
+================================
+
+THIS IS A ONE-SHOT TEST.
+Once HOLDOUT is opened, it is consumed forever.
+Do not retune PATTERN_V1 using the result.
+Do not rescue a failed result by selecting the best symbol/branch/month/session/expiry/RSI/ADX.

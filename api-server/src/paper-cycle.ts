@@ -1002,6 +1002,23 @@ export async function paperCycleOverview() {
   const current = batches.rows.find((batch: any) => batch.status !== "complete") ?? null;
   const currentTrades = current ? await query(`SELECT id,trade_sequence::text AS "tradeSequence",instrument,direction,status,outcome,entry::float,stop::float,target::float,exit::float,result_r::float AS "resultR",nominal_risk_percent::float AS "nominalRiskPercent",nominal_risk_amount::float AS "nominalRiskAmount",paper_pl::float AS "paperPl",spread_pips::float AS "spreadPips",session,weekday,planned_r::float AS "plannedR",checklist_score::float AS "checklistScore",news_status AS "newsStatus",max_favorable_r::float AS "maxFavorableR",max_adverse_r::float AS "maxAdverseR",opened_at AS "openedAt",closed_at AS "closedAt",exit_reason AS "exitReason",review FROM paper_strategy_trades WHERE batch_id=$1 ORDER BY trade_sequence DESC`, [(current as any).id]) : { rows: [] };
   const liveSummary = paperBatchMetrics((currentTrades.rows as any[]).map((row) => ({ ...row, trade_sequence: row.tradeSequence, result_r: row.resultR, spread_pips: row.spreadPips, opened_at: row.openedAt, closed_at: row.closedAt })) as StoredTrade[]);
+  // Dashboard "Open trades" lists every still-open position (any batch), with
+  // family + batch so the row can show EMA / Breakout / Mean rev / Momentum.
+  const openTrades = await query(
+    `SELECT trade.id,trade.trade_sequence::text AS "tradeSequence",trade.instrument,trade.direction,trade.status,trade.outcome,
+            trade.entry::float,trade.stop::float,trade.target::float,trade.exit::float,trade.result_r::float AS "resultR",
+            trade.nominal_risk_percent::float AS "nominalRiskPercent",trade.nominal_risk_amount::float AS "nominalRiskAmount",
+            trade.paper_pl::float AS "paperPl",trade.spread_pips::float AS "spreadPips",trade.session,trade.weekday,
+            trade.planned_r::float AS "plannedR",trade.checklist_score::float AS "checklistScore",trade.news_status AS "newsStatus",
+            trade.max_favorable_r::float AS "maxFavorableR",trade.max_adverse_r::float AS "maxAdverseR",
+            trade.opened_at AS "openedAt",trade.closed_at AS "closedAt",trade.exit_reason AS "exitReason",trade.review,
+            trade.strategy_family AS "strategyFamily",batch.batch_number AS "batchNumber"
+     FROM paper_strategy_trades trade
+     JOIN paper_strategy_batches batch ON batch.id = trade.batch_id
+     WHERE trade.status = 'open'
+     ORDER BY trade.opened_at DESC
+     LIMIT 20`,
+  );
   const lifetimeRows = await query<StoredTrade>("SELECT id,trade_sequence::text,instrument,direction,status,outcome,result_r::text,session,weekday,spread_pips::text,opened_at,closed_at FROM paper_strategy_trades ORDER BY trade_sequence");
   // The account chart plots balance over time, which does not belong to any one
   // batch: sourced from the collecting batch it emptied the moment a batch was
@@ -1010,7 +1027,7 @@ export async function paperCycleOverview() {
     `SELECT trade_sequence::int AS "tradeSequence", paper_pl::float AS "paperPl", closed_at AS "closedAt", opened_at AS "openedAt", status
      FROM paper_strategy_trades WHERE opened_at > now() - interval '90 days' ORDER BY opened_at`,
   );
-  return { strategyVersion: ACTIVE_STRATEGY_VERSION, batchSize: BATCH_SIZE, lifetimeSummary: paperBatchMetrics(lifetimeRows.rows), current: current ? { ...current, liveSummary, remaining: BATCH_SIZE - Number((current as any).assignedCount) } : null, batches: batches.rows, trades: currentTrades.rows, accountTrades: accountTrades.rows };
+  return { strategyVersion: ACTIVE_STRATEGY_VERSION, batchSize: BATCH_SIZE, lifetimeSummary: paperBatchMetrics(lifetimeRows.rows), current: current ? { ...current, liveSummary, remaining: BATCH_SIZE - Number((current as any).assignedCount) } : null, batches: batches.rows, trades: currentTrades.rows, openTrades: openTrades.rows, accountTrades: accountTrades.rows };
 }
 
 /**
@@ -1047,12 +1064,14 @@ export async function journalTradeLog(
   const rows = await query(
     `SELECT id, origin, pair, direction, status, result, opened_at AS "openedAt", closed_at AS "closedAt",
             entry, stop, target, exit, result_r AS "resultR", paper_pl AS "paperPl", reason, notes, sequence, outcome,
-            instrument_code AS "instrument", nominal_risk_amount AS "nominalRiskAmount"
+            instrument_code AS "instrument", nominal_risk_amount AS "nominalRiskAmount",
+            strategy_family AS "strategyFamily", batch_number AS "batchNumber"
      FROM (
        SELECT id::text, origin, pair, direction, status, result, opened_at, closed_at,
               entry::float, stop::float, target::float, exit::float, result_r::float,
               NULL::float AS paper_pl, reason, notes, NULL::text AS sequence, NULL::text AS outcome,
-              NULL::text AS instrument_code, NULL::float AS nominal_risk_amount
+              NULL::text AS instrument_code, NULL::float AS nominal_risk_amount,
+              NULL::text AS strategy_family, NULL::int AS batch_number
        FROM paper_trades WHERE user_id=$1
        UNION ALL
        SELECT trade.id::text, 'strategy', instrument.display_name, trade.direction,
@@ -1067,9 +1086,11 @@ export async function journalTradeLog(
               trade.trade_sequence::text, trade.outcome,
               -- Carried so an open row can be marked to the live quote: the code
               -- matches the watchlist snapshot, the risk amount sets the scale.
-              trade.instrument, trade.nominal_risk_amount::float
+              trade.instrument, trade.nominal_risk_amount::float,
+              trade.strategy_family, batch.batch_number
        FROM paper_strategy_trades trade
        JOIN instruments instrument ON instrument.code = trade.instrument
+       JOIN paper_strategy_batches batch ON batch.id = trade.batch_id
        WHERE trade.user_id=$1 AND trade.status IN ('open', 'closed')
      ) log
      ${where}

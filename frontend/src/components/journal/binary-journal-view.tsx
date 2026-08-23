@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiUrl } from "@/lib/api/url";
 import { displayNameFor } from "@/lib/instruments/catalog";
@@ -7,10 +8,30 @@ import { formatChartPrice } from "@/lib/chart-utils";
 import { formatClockTime, formatShortDay } from "@/lib/format/datetime";
 import { predictionResultTone, predictionStatusLabel } from "@/lib/binary-format";
 import { useInfiniteScroll } from "@/lib/use-infinite-scroll";
-import type { BinaryPerformance, BinaryPrediction, BinaryPredictionDetail } from "@/types/binary";
+import type { BinaryPerformance, BinaryPrediction, BinaryPredictionDetail, PatternV1Forward } from "@/types/binary";
 
 const FILTERS = ["All", "Won", "Lost", "Tie", "Active"] as const;
 type Filter = (typeof FILTERS)[number];
+
+/**
+ * Which strategy's predictions to show. Baseline and Pattern V1 are separate
+ * experiments and their statistics are never combined into one win rate.
+ */
+const STRATEGIES = ["All", "Baseline", "Pattern V1"] as const;
+type Strategy = (typeof STRATEGIES)[number];
+
+function strategyParamFor(strategy: Strategy): "all" | "baseline" | "pattern-v1" {
+  return strategy === "Baseline" ? "baseline" : strategy === "Pattern V1" ? "pattern-v1" : "all";
+}
+
+/**
+ * The reader-facing name for a prediction's strategy. Internal identifiers
+ * (binary-pattern-v1, pattern-v1-forward, the config hash) stay in the details
+ * view; the log shows a clean label.
+ */
+function strategyLabelFor(prediction: BinaryPrediction): string | null {
+  return prediction.strategySource === "pattern-v1-forward" ? "Pattern V1" : null;
+}
 
 const PAGE_SIZE = 20;
 
@@ -102,26 +123,47 @@ function PredictionRow({ prediction, initiallyOpen }: { prediction: BinaryPredic
     };
   }, [open, detail, failed, prediction.id]);
 
+  // Primary click opens the setup on Signals (same deep-link as dashboard
+  // RecentPredictions). Snapshot expand stays on a separate control so the
+  // audit detail is still reachable without fighting navigation.
+  const href = `/signals?instrument=${encodeURIComponent(prediction.instrument)}&prediction=${prediction.id}`;
+
   return (
     <article className="journal-entry" data-open={open || undefined}>
-      <button type="button" className="binary-entry-head pressable" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
-        <div className="binary-entry-main min-w-0">
-          <p className="journal-entry-title">
-            <span className="journal-entry-pair">{displayNameFor(prediction.instrument)}</span>
-            <span className={prediction.direction === "up" ? "binary-dir is-up" : "binary-dir is-down"}>
-              {prediction.direction === "up" ? "UP" : "DOWN"}
-            </span>
-            <span className="journal-entry-auto">#{prediction.sequence}</span>
-          </p>
-          <p className="binary-entry-sub metric-number">
-            {price(prediction.entryPrice, prediction)} · {formatClockTime(prediction.startAt)} → {formatClockTime(prediction.intendedExpiration)} · {formatShortDay(prediction.createdAt)}
-          </p>
-        </div>
-        <div className="binary-entry-aside">
-          <span className={`journal-entry-r metric-number ${tone}`}>{predictionStatusLabel(prediction)}</span>
-          <span className="binary-entry-score metric-number">{prediction.confidence.toFixed(2)}</span>
-        </div>
-      </button>
+      <div className="binary-entry-row">
+        <Link href={href} className="binary-entry-head pressable journal-entry-open">
+          <div className="binary-entry-main min-w-0">
+            <p className="journal-entry-title">
+              <span className="journal-entry-pair">{displayNameFor(prediction.instrument)}</span>
+              <span className={prediction.direction === "up" ? "binary-dir is-up" : "binary-dir is-down"}>
+                {prediction.direction === "up" ? "UP" : "DOWN"}
+              </span>
+              <span className="journal-entry-auto">#{prediction.sequence}</span>
+              {/* Reader-facing strategy name only; the internal id, source and
+                  config hash stay in the expandable details view. */}
+              {strategyLabelFor(prediction) ? (
+                <span className="binary-strategy-tag">{strategyLabelFor(prediction)}</span>
+              ) : null}
+            </p>
+            <p className="binary-entry-sub metric-number">
+              {price(prediction.entryPrice, prediction)} · {formatClockTime(prediction.startAt)} → {formatClockTime(prediction.intendedExpiration)} · {formatShortDay(prediction.createdAt)}
+            </p>
+          </div>
+          <div className="binary-entry-aside">
+            <span className={`journal-entry-r metric-number ${tone}`}>{predictionStatusLabel(prediction)}</span>
+            <span className="binary-entry-score metric-number">{prediction.confidence.toFixed(2)}</span>
+          </div>
+        </Link>
+        <button
+          type="button"
+          className="binary-entry-expand pressable"
+          onClick={() => setOpen((value) => !value)}
+          aria-expanded={open}
+          aria-label={open ? "Hide prediction snapshot" : "Show prediction snapshot"}
+        >
+          <span aria-hidden="true">{open ? "▾" : "▸"}</span>
+        </button>
+      </div>
       {open ? (
         detail ? (
           <FeatureSnapshot detail={detail} />
@@ -144,6 +186,8 @@ export function BinaryJournalView() {
   const [predictions, setPredictions] = useState<BinaryPrediction[]>([]);
   const [stats, setStats] = useState<BinaryPerformance | null>(null);
   const [filter, setFilter] = useState<Filter>("All");
+  const [strategy, setStrategy] = useState<Strategy>("All");
+  const [patternForward, setPatternForward] = useState<PatternV1Forward | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
@@ -154,6 +198,7 @@ export function BinaryJournalView() {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const filterParam = filterParamFor(filter);
+  const strategyParam = strategyParamFor(strategy);
 
   const loadStats = useCallback(async () => {
     try {
@@ -174,7 +219,7 @@ export function BinaryJournalView() {
       if (!reset) setLoadingMore(true);
       try {
         const response = await fetch(
-          apiUrl(`/api/binary/journal?limit=${PAGE_SIZE}&offset=${offset}&filter=${filterParam}`),
+          apiUrl(`/api/binary/journal?limit=${PAGE_SIZE}&offset=${offset}&filter=${filterParam}&strategy=${strategyParam}`),
           { credentials: "include", cache: "no-store" },
         );
         const payload = (await response.json()) as { predictions?: BinaryPrediction[]; hasMore?: boolean; error?: string };
@@ -196,7 +241,7 @@ export function BinaryJournalView() {
         }
       }
     },
-    [filterParam],
+    [filterParam, strategyParam],
   );
 
   // Refresh page one of the current filter and merge by id, so active
@@ -205,7 +250,7 @@ export function BinaryJournalView() {
   const refreshActive = useCallback(async () => {
     try {
       const response = await fetch(
-        apiUrl(`/api/binary/journal?limit=${PAGE_SIZE}&offset=0&filter=${filterParam}`),
+        apiUrl(`/api/binary/journal?limit=${PAGE_SIZE}&offset=0&filter=${filterParam}&strategy=${strategyParam}`),
         { credentials: "include", cache: "no-store" },
       );
       const payload = (await response.json()) as { predictions?: BinaryPrediction[] };
@@ -249,18 +294,42 @@ export function BinaryJournalView() {
   }, [loadPage]);
   useInfiniteScroll({ sentinelRef, hasMore, loading: loading || loadingMore, onLoadMore: loadMore });
 
+  // Pattern V1's own forward numbers, fetched only when it is selected. Counts
+  // ONLY predictions produced since activation — the historical research win
+  // rates are not forward performance and are never shown here.
+  useEffect(() => {
+    if (strategy !== "Pattern V1") { setPatternForward(null); return; }
+    let cancelled = false;
+    void fetch(apiUrl("/api/research/pattern-v1-forward"), { credentials: "include", cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body: { status: PatternV1Forward } | null) => {
+        if (!cancelled && body?.status) setPatternForward(body.status);
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [strategy]);
+
   const summary = stats?.summary;
+  const showPattern = strategy === "Pattern V1";
 
   return (
     <div className="journal-view space-y-6">
       <section className="journal-stats-card grid grid-cols-4" aria-label="Prediction summary">
         {(
-          [
-            ["Predictions", summary ? String(summary.total) : "—"],
-            ["Win rate", summary && summary.winRate !== null ? `${(summary.winRate * 100).toFixed(0)}%` : "—"],
-            ["Resolved", summary ? `${summary.won}W · ${summary.lost}L` : "—"],
-            ["Ties", summary ? String(summary.tie) : "—"],
-          ] as const
+          showPattern
+            ? ([
+                ["Predictions", patternForward ? String(patternForward.total) : "—"],
+                ["Win rate", patternForward && patternForward.winRate !== null ? `${(patternForward.winRate * 100).toFixed(1)}%` : "—"],
+                ["Resolved", patternForward ? `${patternForward.wins}W · ${patternForward.losses}L` : "—"],
+                ["EV @80%", patternForward && patternForward.ev80 !== null
+                  ? `${patternForward.ev80 >= 0 ? "+" : ""}${patternForward.ev80.toFixed(3)}` : "—"],
+              ] as const)
+            : ([
+                ["Predictions", summary ? String(summary.total) : "—"],
+                ["Win rate", summary && summary.winRate !== null ? `${(summary.winRate * 100).toFixed(0)}%` : "—"],
+                ["Resolved", summary ? `${summary.won}W · ${summary.lost}L` : "—"],
+                ["Ties", summary ? String(summary.tie) : "—"],
+              ] as const)
         ).map(([label, value]) => (
           <div key={label} className="journal-stat min-w-0">
             <p className="text-xs text-[color:var(--muted)]">{label}</p>
@@ -268,6 +337,44 @@ export function BinaryJournalView() {
           </div>
         ))}
       </section>
+
+      {showPattern && patternForward ? (
+        <section className="dashboard-minimal-section" aria-label="Pattern V1 forward">
+          <div className="flex flex-wrap items-baseline justify-between gap-3">
+            <h2 className="text-sm font-semibold tracking-[-0.01em]">Pattern V1 forward</h2>
+            <span className="text-xs text-[color:var(--muted)]">
+              {patternForward.pending} pending · {patternForward.ties} ties
+              {patternForward.nextCheckpoint !== null
+                ? ` · next checkpoint ${patternForward.resolved}/${patternForward.nextCheckpoint}`
+                : ""}
+            </span>
+          </div>
+          {patternForward.resolved === 0 ? (
+            <p className="mt-3 text-sm text-[color:var(--muted)]">
+              No Pattern V1 predictions have resolved yet. This counter starts at zero on activation
+              and reports forward results only.
+            </p>
+          ) : (
+            <p className="mt-3 text-xs text-[color:var(--muted)]">
+              {patternForward.resolved} resolved
+              {patternForward.resolved < 30 ? " — too few to read as an edge yet." : "."}
+            </p>
+          )}
+          {patternForward.branches.length ? (
+            <div className="mt-3 space-y-1">
+              {patternForward.branches.map((branch) => (
+                <p key={branch.branch} className="text-xs text-[color:var(--muted)]">
+                  <span className="metric-number">
+                    {branch.branch === "V1A_EXTREME_ADX_GT30" ? "Extreme + ADX>30" : "Medium + ADX 20–25"}
+                  </span>
+                  {" — "}{branch.n} predictions, {branch.wins}W · {branch.losses}L
+                  {branch.winRate !== null ? `, ${(branch.winRate * 100).toFixed(1)}%` : ""}
+                </p>
+              ))}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       {summary && summary.resolved > 0 && summary.resolved < 30 ? (
         <p className="text-xs text-[color:var(--muted)]">
@@ -312,6 +419,17 @@ export function BinaryJournalView() {
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h2 className="text-sm font-semibold tracking-[-0.01em]">Prediction log</h2>
           <div className="flex flex-wrap gap-1.5">
+            {STRATEGIES.map((value) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setStrategy(value)}
+                className={`check-chip pressable ${strategy === value ? "check-chip-active" : ""}`}
+              >
+                {value}
+              </button>
+            ))}
+            <span aria-hidden="true" className="mx-1 self-center text-[color:var(--muted)]">|</span>
             {FILTERS.map((value) => (
               <button
                 key={value}

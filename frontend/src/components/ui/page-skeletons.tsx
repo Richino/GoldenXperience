@@ -346,7 +346,7 @@ export function SignalsLoadingSkeleton() {
       <div className="signals-chart-slot min-w-0">
         <section className="app-card signals-chart-card min-w-0 w-full">
           <div className="signals-chart-mobile lg:hidden">
-            <div className="signals-mobile-content px-4 pb-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
+            <div className="signals-mobile-content px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))]">
               <div className="signals-mobile-actions flex items-center justify-between">
                 <Bone className="size-10 rounded-full" />
                 <div className="flex items-center gap-2">

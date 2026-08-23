@@ -44,7 +44,10 @@
     "rf:hunt": "tsx research-v2/reversal-fade/bin/hunt.ts",
     "rf:report": "tsx research-v2/reversal-fade/bin/report.ts",
     "research:tag-forex-news": "tsx scripts/tag-forex-news.ts",
-    "research:news-report": "tsx scripts/news-report.ts"
+    "research:news-report": "tsx scripts/news-report.ts",
+    "pattern-v1:fixture": "tsx scripts/test-pattern-v1-fixture.ts",
+    "pattern-v1:test": "tsx scripts/test-pattern-v1.ts",
+    "pattern-v1:db": "tsx scripts/test-pattern-v1-db.ts"
   },
   "dependencies": {
     "dotenv": "^17.2.3",

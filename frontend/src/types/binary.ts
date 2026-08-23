@@ -29,6 +29,30 @@ export interface BinaryPrediction {
   confidence: number;
   scoreKind: string;
   pricePrecision: number;
+  /** Experiment that produced the row; null for the baseline engine. */
+  strategySource: string | null;
+  /** Pattern V1 branch, when this row came from Pattern V1. */
+  patternBranch: string | null;
+}
+
+/** Forward status for the frozen Pattern V1 experiment. */
+export interface PatternV1Forward {
+  strategy: string;
+  version: string;
+  source: string;
+  configHash: string;
+  configVerified: boolean | null;
+  startedAt: string | null;
+  total: number;
+  pending: number;
+  resolved: number;
+  wins: number;
+  losses: number;
+  ties: number;
+  winRate: number | null;
+  ev80: number | null;
+  nextCheckpoint: number | null;
+  branches: Array<{ branch: string; n: number; wins: number; losses: number; ties: number; winRate: number | null }>;
 }
 
 export interface BinaryPredictionDetail extends BinaryPrediction {

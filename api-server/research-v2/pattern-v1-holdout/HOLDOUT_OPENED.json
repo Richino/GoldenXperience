@@ -1,0 +1,6 @@
+{
+  "openedAtUtc": "2026-08-23T04:18:49.430Z",
+  "experimentId": "pattern-v1-sealed-holdout-v1",
+  "freezeSha256": "0e3cba650a3b62fda62db80d4b4af4bc37536851f233cadd4d995aca990f05cd",
+  "note": "HOLDOUT scoring begins after this marker; freeze file left immutable."
+}

@@ -684,6 +684,7 @@ export function SetupChart({
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const mainSeriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
+  const markerOutlinesRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const tradePathRef = useRef<ISeriesApi<"Line"> | null>(null);
   const focusCoveredRef = useRef(true);
@@ -737,6 +738,8 @@ export function SetupChart({
   const isDark = resolvedTheme !== "light";
   const upColor = isDark ? "#00e59b" : "#00b377";
   const downColor = isDark ? "#f87171" : "#e74c3c";
+  const winPathColor = isDark ? "#a7f3d0" : "#047857";
+  const lossPathColor = isDark ? "#ff3b5c" : "#a61b3d";
   const wickUpColor = isDark ? "#00c488" : "#009966";
   const wickDownColor = isDark ? "#e85d6a" : "#d64545";
   /**
@@ -967,8 +970,8 @@ export function SetupChart({
     // Only its data changes afterwards.
     const tradePath = chart.addSeries(LineSeries, {
       color: upColor,
-      lineWidth: 2,
-      lineStyle: LineStyle.Dashed,
+      lineWidth: 3,
+      lineStyle: LineStyle.LargeDashed,
       priceLineVisible: false,
       lastValueVisible: false,
       crosshairMarkerVisible: false,
@@ -1126,6 +1129,7 @@ export function SetupChart({
       chartRef.current = null;
       mainSeriesRef.current = null;
       // Both are owned by the removed chart, so they only need to be forgotten.
+      markerOutlinesRef.current = null;
       markersRef.current = null;
       tradePathRef.current = null;
       latestChartTimeRef.current = null;
@@ -1262,7 +1266,8 @@ export function SetupChart({
   useEffect(() => {
     const chart = chartRef.current;
     const mainSeries = mainSeriesRef.current;
-    if (!chart || !mainSeries) return;
+    const tradePath = tradePathRef.current;
+    if (!chart || !mainSeries || !tradePath) return;
 
     const candleTimes = chartTimesOf(toChartCandles(series.candles));
     const palette: TradeMarkerPalette = {
@@ -1280,24 +1285,39 @@ export function SetupChart({
       focusTradeId,
       palette,
     );
+    const markerOutlines = markers.map((marker) => ({
+      ...marker,
+      id: marker.id ? `outline:${marker.id}` : undefined,
+      color: surfaceColor,
+      size: (marker.size ?? 1) + 0.5,
+      text: undefined,
+    }));
+
+    if (markerOutlinesRef.current) {
+      markerOutlinesRef.current.setMarkers(markerOutlines);
+    } else {
+      // Lightweight Charts has no marker stroke option. A slightly larger
+      // surface-coloured marker under the fill creates a crisp, thin outline.
+      markerOutlinesRef.current = createSeriesMarkers(tradePath, markerOutlines);
+    }
 
     if (markersRef.current) {
       markersRef.current.setMarkers(markers);
     } else {
-      markersRef.current = createSeriesMarkers(mainSeries, markers);
+      // Anchor the arrows to the trade's exact entry/exit prices. Attaching
+      // them to the candle series makes aboveBar/belowBar use candle extremes,
+      // so price-scale zoom can leave an arrow floating far from the fill.
+      markersRef.current = createSeriesMarkers(tradePath, markers);
     }
-
-    const tradePath = tradePathRef.current;
-    if (!tradePath) return;
 
     const focusTrade =
       trades?.find((trade) => trade.id === focusTradeId) ?? null;
 
     tradePath.applyOptions({
-      color: (focusTrade?.resultR ?? 0) >= 0 ? upColor : downColor,
+      color: (focusTrade?.resultR ?? 0) >= 0 ? winPathColor : lossPathColor,
     });
     tradePath.setData(buildTradePath(candleTimes, focusTrade));
-  }, [chartEpoch, downColor, focusTradeId, isDark, series.candles, trades, upColor]);
+  }, [chartEpoch, downColor, focusTradeId, isDark, lossPathColor, series.candles, surfaceColor, trades, upColor, winPathColor]);
 
   useEffect(() => {
     const mainSeries = mainSeriesRef.current;

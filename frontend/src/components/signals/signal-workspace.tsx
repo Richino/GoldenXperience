@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -8,8 +7,8 @@ import {
   ChevronUp,
   ChevronDown,
   Clock3,
-  Maximize2,
-  Minimize2,
+  Maximize,
+  Minimize,
   RotateCcw,
   Search,
   X,
@@ -31,8 +30,10 @@ import { apiUrl } from "@/lib/api/url";
 import { formatClockTime, formatDayAndTime } from "@/lib/format/datetime";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import {
+  CHART_INDICATORS,
   CHART_RANGES,
   CHART_TIMEFRAMES,
+  CHART_VARIANTS,
   DEFAULT_CHART_INDICATORS,
   MOBILE_CHART_RANGES,
   TIMEFRAME_TO_GRANULARITY,
@@ -83,6 +84,43 @@ const FOCUS_PADDING_BARS = 30;
 
 /** Height of the desktop chart canvas before it is measured. */
 const DESKTOP_CHART_HEIGHT = 680;
+
+const CHART_PREFERENCES_STORAGE_KEY =
+  "goldenxperience:signals-chart-preferences:v1";
+
+type StoredChartPreferences = {
+  version: 1;
+  timeframe: ChartTimeframe;
+  range: ChartRange;
+  chartVariant: ChartVariant;
+  enabledIndicators: ChartIndicator[];
+};
+
+function readStoredChartPreferences(): StoredChartPreferences | null {
+  try {
+    const parsed = JSON.parse(
+      window.localStorage.getItem(CHART_PREFERENCES_STORAGE_KEY) ?? "null",
+    ) as Partial<StoredChartPreferences> | null;
+
+    if (
+      !parsed ||
+      parsed.version !== 1 ||
+      !CHART_TIMEFRAMES.includes(parsed.timeframe as ChartTimeframe) ||
+      !CHART_RANGES.includes(parsed.range as ChartRange) ||
+      !CHART_VARIANTS.some((variant) => variant.value === parsed.chartVariant) ||
+      !Array.isArray(parsed.enabledIndicators) ||
+      !parsed.enabledIndicators.every((indicator) =>
+        CHART_INDICATORS.some((option) => option.value === indicator),
+      )
+    ) {
+      return null;
+    }
+
+    return parsed as StoredChartPreferences;
+  } catch {
+    return null;
+  }
+}
 
 export type SignalPaperPlan = WatchlistStatusInput & {
   instrument: string;
@@ -668,7 +706,7 @@ function FullscreenToggle({
   onToggle: () => void;
   className?: string;
 }) {
-  const Icon = fullscreen ? Minimize2 : Maximize2;
+  const Icon = fullscreen ? Minimize : Maximize;
 
   return (
     <button
@@ -855,9 +893,6 @@ function TradeFocusBar({
       <div className="trade-focus-bar-id">
         <span className="trade-focus-bar-side">{long ? "Buy" : "Sell"}</span>
         <span className="trade-focus-bar-seq">#{trade.tradeSequence}</span>
-      </div>
-
-      <div className="trade-focus-bar-end">
         {trade.resultR !== null ? (
           <span
             className={`trade-focus-bar-r metric-number ${won ? "is-won" : "is-lost"}`}
@@ -865,6 +900,9 @@ function TradeFocusBar({
             {formatResultR(trade.resultR)}
           </span>
         ) : null}
+      </div>
+
+      <div className="trade-focus-bar-end">
         <button
           type="button"
           onClick={onClear}
@@ -872,7 +910,7 @@ function TradeFocusBar({
           aria-label="Clear trade"
         >
           <X className="size-3.5" strokeWidth={2} />
-          Clear
+          <span className="trade-focus-bar-clear-label">Clear</span>
         </button>
       </div>
 
@@ -909,13 +947,20 @@ function PredictionFocusBar({
   prediction,
   currentPrice,
   now,
+  onClear,
 }: {
   prediction: BinaryPrediction;
   currentPrice: number | null;
   now: number;
+  onClear: () => void;
 }) {
+  const up = prediction.direction === "up";
   const expiresAt = Date.parse(prediction.intendedExpiration);
   const expired = prediction.status === "active" && Number.isFinite(expiresAt) && now >= expiresAt;
+  const resolved =
+    prediction.status !== "active" &&
+    prediction.resolutionPrice !== null &&
+    prediction.resolvedAt !== null;
   const secondsRemaining = Number.isFinite(expiresAt)
     ? Math.max(0, Math.ceil((expiresAt - now) / 1_000))
     : null;
@@ -924,53 +969,102 @@ function PredictionFocusBar({
     : `${Math.floor(secondsRemaining / 60)}:${String(secondsRemaining % 60).padStart(2, "0")}`;
   const movement = currentPrice === null
     ? null
-    : (currentPrice - prediction.entryPrice) * (prediction.direction === "up" ? 1 : -1);
+    : (currentPrice - prediction.entryPrice) * (up ? 1 : -1);
   const winning = movement !== null && movement > 0;
   const losing = movement !== null && movement < 0;
   const movementPips = movement === null ? null : movement / pipSizeFor(prediction.instrument);
-  const outcome = prediction.status === "active" && !expired
-    ? winning
-      ? "Winning now"
-      : losing
-        ? "Losing now"
-        : "At entry"
-    : prediction.status === "active"
-      ? "Resolving outcome"
-    : prediction.result === "won"
-      ? "Won"
-      : prediction.result === "lost"
-        ? "Lost"
-        : prediction.result === "tie"
-          ? "Tie"
-          : "Awaiting result";
-  const outcomeColor = prediction.result === "won" || (!expired && winning)
-    ? "var(--success)"
-    : prediction.result === "lost" || (!expired && losing)
-      ? "var(--danger)"
-      : "var(--muted-strong)";
+  const liveStatus = prediction.status === "active" && !expired;
+  const won =
+    prediction.result === "won" || (liveStatus && winning);
+  const lost =
+    prediction.result === "lost" || (liveStatus && losing);
+
+  let statusLabel: string;
+  if (liveStatus) {
+    if (movementPips !== null && (winning || losing)) {
+      statusLabel = `${movementPips >= 0 ? "+" : ""}${movementPips.toFixed(1)} pips`;
+    } else {
+      statusLabel = "At entry";
+    }
+  } else if (prediction.status === "active") {
+    statusLabel = "Resolving";
+  } else if (prediction.result === "won") {
+    statusLabel = "Won";
+  } else if (prediction.result === "lost") {
+    statusLabel = "Lost";
+  } else if (prediction.result === "tie") {
+    statusLabel = "Tie";
+  } else {
+    statusLabel = "Pending";
+  }
 
   return (
-    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-[color:var(--border)] px-4 py-2.5 text-xs lg:px-5">
-      <span className={`permission-pill ${prediction.direction === "up" ? "bg-[color:var(--success-soft)] text-[color:var(--success)]" : "bg-[color:var(--danger-soft)] text-[color:var(--danger)]"}`}>
-        Binary · {prediction.direction === "up" ? "UP" : "DOWN"}
-      </span>
-      <span className="metric-number text-[color:var(--muted-strong)]">
-        Entry {formatChartPrice(prediction.entryPrice, prediction.instrument)}
-      </span>
-      <span className="metric-number text-[color:var(--muted-strong)]">
-        Expires {formatClockTime(prediction.intendedExpiration)}
-      </span>
-      {prediction.status === "active" ? (
-        <span className="metric-number text-[color:var(--muted-strong)]">
-          {expired ? "Expired · resolving" : `Closes in ${countdown ?? "—"}`}
+    <div
+      className="trade-focus-bar trade-focus-bar--prediction"
+      data-side={up ? "buy" : "sell"}
+      aria-label={`Focused ${up ? "up" : "down"} binary prediction ${prediction.sequence}`}
+    >
+      <div className="trade-focus-bar-id">
+        <span className="trade-focus-bar-side">{up ? "Up" : "Down"}</span>
+        <span className="trade-focus-bar-seq">#{prediction.sequence}</span>
+        <span className="trade-focus-bar-seq metric-number">
+          {prediction.confidence.toFixed(2)}
         </span>
-      ) : null}
-      <span className="metric-number font-semibold" style={{ color: outcomeColor }}>
-        {outcome}
-        {prediction.status === "active" && !expired && movementPips !== null
-          ? ` · ${movementPips >= 0 ? "+" : ""}${movementPips.toFixed(1)} pips`
-          : ""}
-      </span>
+        <span
+          className={`trade-focus-bar-r metric-number ${won ? "is-won" : lost ? "is-lost" : ""}`}
+        >
+          {statusLabel}
+        </span>
+      </div>
+
+      <div className="trade-focus-bar-end">
+        <button
+          type="button"
+          onClick={onClear}
+          className="trade-focus-bar-clear pressable"
+          aria-label="Clear prediction"
+        >
+          <X className="size-3.5" strokeWidth={2} />
+          <span className="trade-focus-bar-clear-label">Clear</span>
+        </button>
+      </div>
+
+      <div className="trade-focus-bar-legs">
+        <div className="trade-focus-bar-leg trade-focus-bar-leg--entry">
+          <span className="trade-focus-bar-label">Entry</span>
+          <span className="trade-focus-bar-price metric-number">
+            {formatChartPrice(prediction.entryPrice, prediction.instrument)}
+          </span>
+          <span className="trade-focus-bar-time">{tradeMoment(prediction.startAt)}</span>
+        </div>
+        <div className="trade-focus-bar-leg">
+          <span className="trade-focus-bar-label">{resolved ? "Exit" : "Expires"}</span>
+          {resolved ? (
+            <>
+              <span className="trade-focus-bar-price metric-number">
+                {formatChartPrice(prediction.resolutionPrice!, prediction.instrument)}
+              </span>
+              <span className="trade-focus-bar-time">{tradeMoment(prediction.resolvedAt!)}</span>
+            </>
+          ) : expired ? (
+            <>
+              <span className="trade-focus-bar-price is-open">Resolving</span>
+              <span className="trade-focus-bar-time">
+                Expired {formatClockTime(prediction.intendedExpiration)}
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="trade-focus-bar-price is-open metric-number">
+                {countdown ?? "Open"}
+              </span>
+              <span className="trade-focus-bar-time">
+                {formatClockTime(prediction.intendedExpiration)}
+              </span>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1060,26 +1154,50 @@ export function SignalWorkspace({
 
   // Paper decisions are taken on completed M15 candles, so a trade opened from
   // the dashboard always lands on the timeframe it was actually decided on.
-  const [timeframe, setTimeframe] = useState(
+  const [timeframe, setTimeframe] = useState<ChartTimeframe>(
     initialPredictionFocus ? "1m" as const : initialFocusTradeId ? "15m" as const : mapSignalTimeframe(initialSignal?.timeframe ?? "15m"),
   );
   const [range, setRange] = useState<ChartRange>(initialPredictionFocus ? "1D" : "6M");
   const [chartVariant, setChartVariant] = useState<ChartVariant>("candle");
-  // Mobile opens on the area chart (with its live beacon) rather than candles.
-  // The default can't be decided during SSR — the server has no viewport — so
-  // it is applied once on mount below the `lg` breakpoint, while the initial
-  // market-data fetch's loading overlay hides the swap. Desktop stays on candles.
-  const appliedMobileDefaultRef = useRef(false);
-  useEffect(() => {
-    if (appliedMobileDefaultRef.current) return;
-    appliedMobileDefaultRef.current = true;
-    if (window.matchMedia("(max-width: 1023.98px)").matches) {
-      setChartVariant("area");
-    }
-  }, []);
   const [enabledIndicators, setEnabledIndicators] = useState<ChartIndicator[]>(
     DEFAULT_CHART_INDICATORS,
   );
+  const [chartPreferencesReady, setChartPreferencesReady] = useState(false);
+
+  useEffect(() => {
+    const saved = readStoredChartPreferences();
+    if (saved) {
+      setTimeframe(saved.timeframe);
+      setRange(saved.range);
+      setChartVariant(saved.chartVariant);
+      setEnabledIndicators(saved.enabledIndicators);
+    } else if (window.matchMedia("(max-width: 1023.98px)").matches) {
+      // First visit only: mobile starts on the area chart. Once the user makes
+      // a choice, the stored preference wins on every later visit.
+      setChartVariant("area");
+    }
+    setChartPreferencesReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!chartPreferencesReady) return;
+    const preferences: StoredChartPreferences = {
+      version: 1,
+      timeframe,
+      range,
+      chartVariant,
+      enabledIndicators,
+    };
+    try {
+      window.localStorage.setItem(
+        CHART_PREFERENCES_STORAGE_KEY,
+        JSON.stringify(preferences),
+      );
+    } catch {
+      // Storage can be unavailable in private/restricted browsing. The chart
+      // remains usable for the current session even when persistence is denied.
+    }
+  }, [chartPreferencesReady, chartVariant, enabledIndicators, range, timeframe]);
   const [series, setSeries] = useState(primarySeries);
   const seriesRef = useRef(primarySeries);
   const [liveCandle, setLiveCandle] = useState<Candle | null>(null);
@@ -1537,6 +1655,13 @@ export function SignalWorkspace({
     });
   }, [instrument, router]);
 
+  const clearFocusPrediction = useCallback(() => {
+    setPredictionFocus(null);
+    router.replace(`/signals?instrument=${encodeURIComponent(instrument)}`, {
+      scroll: false,
+    });
+  }, [instrument, router]);
+
   const selectTimeframe = useCallback((nextTimeframe: ChartTimeframe) => {
     if (nextTimeframe === timeframe) return;
     setLiveCandle(null);
@@ -1593,10 +1718,6 @@ export function SignalWorkspace({
     setFocusTradeId(null);
     setSelectedInstrument(result.instrument);
     router.replace(`/signals?instrument=${encodeURIComponent(result.instrument)}`, { scroll: false });
-    // Pairs without a setup keep the timeframe the user is already on.
-    if (result.signal) {
-      setTimeframe(mapSignalTimeframe(result.signal.timeframe));
-    }
     setSearchQuery("");
   }
 
@@ -1609,15 +1730,22 @@ export function SignalWorkspace({
       <div className="signals-chart-slot min-w-0">
         <section className="app-card signals-chart-card min-w-0 w-full">
         <div className="signals-chart-mobile lg:hidden">
-          <div className="signals-mobile-content px-4 pb-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
+          <div className="signals-mobile-content px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))]">
             <div className="signals-mobile-actions flex items-center justify-between">
-              <Link
-                href="/"
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.history.length > 1) {
+                    router.back();
+                  } else {
+                    router.push("/");
+                  }
+                }}
                 className="signals-icon-btn signals-fullscreen-hidden pressable text-[color:var(--foreground)]"
-                aria-label="Back to home"
+                aria-label="Back to previous page"
               >
                 <ChevronLeft className="size-5" strokeWidth={2} />
-              </Link>
+              </button>
               <div className="flex items-center gap-2">
                 <FullscreenToggle
                   className="signals-icon-btn"
@@ -1680,7 +1808,12 @@ export function SignalWorkspace({
             <TradeFocusBar trade={focusTrade} onClear={clearFocusTrade} />
           ) : null}
           {focusedPrediction ? (
-            <PredictionFocusBar prediction={focusedPrediction} currentPrice={predictionCurrentPrice} now={predictionClock} />
+            <PredictionFocusBar
+              prediction={focusedPrediction}
+              currentPrice={predictionCurrentPrice}
+              now={predictionClock}
+              onClear={clearFocusPrediction}
+            />
           ) : null}
 
           <div
@@ -1805,7 +1938,12 @@ export function SignalWorkspace({
             <TradeFocusBar trade={focusTrade} onClear={clearFocusTrade} />
           ) : null}
           {focusedPrediction ? (
-            <PredictionFocusBar prediction={focusedPrediction} currentPrice={predictionCurrentPrice} now={predictionClock} />
+            <PredictionFocusBar
+              prediction={focusedPrediction}
+              currentPrice={predictionCurrentPrice}
+              now={predictionClock}
+              onClear={clearFocusPrediction}
+            />
           ) : null}
 
           <div

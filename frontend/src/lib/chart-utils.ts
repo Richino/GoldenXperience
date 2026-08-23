@@ -500,7 +500,7 @@ export function buildTradeMarkers(
         position: long ? "belowBar" : "aboveBar",
         shape: long ? "arrowUp" : "arrowDown",
         color: long ? palette.long : palette.short,
-        size: 2,
+        size: 1.5,
         text: long ? "BUY" : "SELL",
       });
     }
@@ -513,7 +513,7 @@ export function buildTradeMarkers(
         position: long ? "aboveBar" : "belowBar",
         shape: long ? "arrowDown" : "arrowUp",
         color: won ? palette.win : palette.loss,
-        size: 2,
+        size: 1.5,
         text: formatResultR(trade.resultR),
       });
     }

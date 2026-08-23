@@ -1133,12 +1133,36 @@ const PREDICTION_SELECT = `
   duration_seconds AS "durationSeconds", intended_expiration AS "intendedExpiration",
   resolution_price::float AS "resolutionPrice", resolution_price_time AS "resolutionPriceTime",
   resolution_source AS "resolutionSource", resolved_at AS "resolvedAt", result,
-  confidence::float AS confidence, score_kind AS "scoreKind", price_precision AS "pricePrecision"`;
+  confidence::float AS confidence, score_kind AS "scoreKind", price_precision AS "pricePrecision",
+  strategy_source AS "strategySource", inference_context->>'branch' AS "patternBranch"`;
 
-/** Recent predictions for the dashboard "Recent Predictions" section. Authoritative rows only. */
+/**
+ * The strategies a journal reader can ask for.
+ *
+ * Deliberately explicit rather than "everything authoritative": Pattern V1 is a
+ * separate frozen experiment, and its rows must never be folded into a baseline
+ * statistic by default.
+ */
+export type BinaryStrategyFilter = "all" | "baseline" | "pattern-v1";
+
+export const BINARY_BASELINE_MODEL = "binary-baseline-v1";
+export const BINARY_PATTERN_V1_MODEL = "binary-pattern-v1";
+
+/** SQL scope for a strategy filter, as a model_name predicate. */
+function strategyScope(strategy: BinaryStrategyFilter): string {
+  if (strategy === "baseline") return `AND model_name='${BINARY_BASELINE_MODEL}'`;
+  if (strategy === "pattern-v1") return `AND model_name='${BINARY_PATTERN_V1_MODEL}'`;
+  // "all" spans the two real strategies but still excludes the logistic shadow,
+  // which is a shadow OF baseline rather than a strategy in its own right.
+  return `AND model_name IN ('${BINARY_BASELINE_MODEL}','${BINARY_PATTERN_V1_MODEL}')`;
+}
+
+/** Active predictions for the dashboard "Open binary position" section. Authoritative rows only. */
 export async function recentBinaryPredictions(limit = 8) {
   const rows = await query(
-    `SELECT ${PREDICTION_SELECT} FROM binary_predictions WHERE is_authoritative=true ORDER BY created_at DESC LIMIT $1`,
+    `SELECT ${PREDICTION_SELECT} FROM binary_predictions
+     WHERE is_authoritative=true AND status='active'
+     ORDER BY created_at DESC LIMIT $1`,
     [Math.min(50, Math.max(1, limit))],
   );
   return rows.rows;
@@ -1149,7 +1173,8 @@ export type BinaryJournalFilter = "all" | "won" | "lost" | "tie" | "active";
 
 export async function binaryJournal(
   userId: string,
-  { limit = 20, offset = 0, filter = "all" }: { limit?: number; offset?: number; filter?: BinaryJournalFilter } = {},
+  { limit = 20, offset = 0, filter = "all", strategy = "all" }:
+    { limit?: number; offset?: number; filter?: BinaryJournalFilter; strategy?: BinaryStrategyFilter } = {},
 ) {
   const where =
     filter === "active" ? "AND status='active'"
@@ -1158,7 +1183,10 @@ export async function binaryJournal(
     : filter === "tie" ? "AND result='tie'"
     : "";
   const rows = await query(
-    `SELECT ${PREDICTION_SELECT} FROM binary_predictions WHERE user_id=$1 AND is_authoritative=true ${where} ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+    // Scoped by model_name rather than is_authoritative so Pattern V1 — an
+    // independent strategy that is deliberately NOT the authoritative baseline
+    // signal — is visible here without being pulled into baseline statistics.
+    `SELECT ${PREDICTION_SELECT} FROM binary_predictions WHERE user_id=$1 ${strategyScope(strategy)} ${where} ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
     [userId, Math.min(50, Math.max(1, limit)), Math.max(0, offset)],
   );
   return rows.rows;
@@ -1212,7 +1240,10 @@ export async function binaryPerformance(userId?: string) {
   const rows = await query<BinaryStatRow & HorizonResultRow>(
     `SELECT instrument, direction, status, result, confidence, market_context->>'session' AS session, model_version, start_at,
             duration_seconds AS "durationSeconds", secondary_marks AS "secondaryMarks"
-     FROM binary_predictions WHERE is_authoritative=true${userId ? " AND user_id=$1" : ""}`,
+     -- Baseline ONLY. Adding this scope is a no-op against today's data (every
+     -- authoritative row is baseline) and is what keeps Pattern V1 rows from
+     -- ever being folded into the baseline win rate.
+     FROM binary_predictions WHERE is_authoritative=true AND model_name='${BINARY_BASELINE_MODEL}'${userId ? " AND user_id=$1" : ""}`,
     userId ? [userId] : [],
   );
   return {

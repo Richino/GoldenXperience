@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import Link from "next/link";
 import type { JournalTrade } from "@/types/forex";
 import { apiUrl } from "@/lib/api/url";
 import { formatClockTime, formatDayAndTime, formatShortDay } from "@/lib/format/datetime";
@@ -16,9 +17,9 @@ import {
   type OpenPositionFill,
 } from "@/lib/market-stream/use-open-positions";
 import { useSupplementalQuotes } from "@/lib/market-stream/use-supplemental-quotes";
+import { strategyTypeLabel } from "@/lib/strategy/family-label";
 import { useInfiniteScroll } from "@/lib/use-infinite-scroll";
 import { JournalEntriesSkeleton } from "@/components/ui/page-skeletons";
-import Link from "next/link";
 
 const FILTERS = ["All", "Wins", "Losses", "Active"] as const;
 type JournalFilter = (typeof FILTERS)[number];
@@ -117,6 +118,8 @@ function JournalTradeRow({
   const moneyTone =
     moneyValue == null ? null : moneyValue >= 0 ? "is-win" : "is-loss";
   const outcome = outcomeLabel(trade.outcome);
+  const typeLabel =
+    trade.origin === "strategy" ? strategyTypeLabel(trade) : null;
 
   // Strategy trades open on the chart they were taken from. A manually entered
   // trade has no instrument code to route with, so it stays unlinked rather
@@ -140,10 +143,8 @@ function JournalTradeRow({
             >
               {trade.direction}
             </span>
-            {trade.origin === "strategy" ? (
-              <span className="journal-entry-auto">
-                Auto{trade.sequence ? ` #${trade.sequence}` : ""}
-              </span>
+            {typeLabel ? (
+              <span className="journal-entry-auto">{typeLabel}</span>
             ) : null}
           </p>
           <p className="journal-entry-window metric-number">

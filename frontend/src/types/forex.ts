@@ -159,4 +159,8 @@ export interface JournalTrade {
   instrument?: string | null;
   /** Cash risked between entry and stop, used to value an open trade. */
   nominalRiskAmount?: number | null;
+  /** Multi-strategy family (`ema`, `breakout`, `momentum`, `meanrev`). */
+  strategyFamily?: string | null;
+  /** Paper batch that collected this trade. */
+  batchNumber?: number | null;
 }

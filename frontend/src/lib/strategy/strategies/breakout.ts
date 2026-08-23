@@ -12,7 +12,11 @@ import type { BreakoutFeatures, MarketRegime, StrategyCondition, StrategyEvaluat
  * threshold of ATR, while avoiding a break that has already run too far. The
  * range is measured from the bars preceding the breakout candle, so the level
  * is never drawn using the candle that breaks it. Symmetric long and short.
- * Independent of the other strategies.
+ *
+ * Research note: an H1 “compressed range ≤2.2 ATR” variant looked positive on
+ * EUR/GBP/JPY alone (~+0.18R holdout, n=38) but collapsed to negative/flat when
+ * the universe was expanded with freshly backfilled majors. That candidate is
+ * not shipped. Live entries stay gated via LIVE_EXECUTABLE_FAMILIES.
  */
 export interface BreakoutConfig {
   /** Bars used to measure the range, ending just before the breakout candle. */
@@ -104,8 +108,6 @@ export function evaluateBreakout(input: StrategyEvaluationInput, regime: MarketR
     notExtended ? "The break has not already run too far." : "Price already ran too far beyond the level (chasing).",
     `${(breakoutDistanceAtr ?? 0).toFixed(2)} ATR`, true));
 
-  // Retest is off by default in V1; when required, look for a prior touch of the
-  // level within the window before the breakout bar.
   const retest = window.some((candle) => direction === "long" ? candle.low <= rangeHigh + atr * 0.1 && candle.high >= rangeHigh - atr * 0.35 : candle.high >= rangeLow - atr * 0.1 && candle.low <= rangeLow + atr * 0.35);
   if (config.requireRetest) {
     conditions.push(condition("Retest", retest, retest ? "Level was retested before the break." : "No retest of the level.", retest ? "retested" : "none", true));

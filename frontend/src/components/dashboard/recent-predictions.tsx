@@ -14,9 +14,9 @@ function clock(value: string | null) {
 }
 
 /**
- * The dashboard's "Recent Predictions" — the Binary Prediction counterpart to
- * Recent Trades, shown directly beneath it and kept entirely separate. These are
- * directional 10-minute predictions, never trades: no money, no R, no position.
+ * Dashboard list of still-active Binary Predictions (open windows only).
+ * Kept separate from paper Open trades: these are directional predictions,
+ * never trades — no money, no R, no position.
  */
 export function RecentPredictions() {
   const [predictions, setPredictions] = useState<BinaryPrediction[]>([]);
@@ -46,9 +46,9 @@ export function RecentPredictions() {
   useForegroundRefresh(load);
 
   return (
-    <section className="dashboard-minimal-section" aria-label="Recent predictions">
+    <section className="dashboard-minimal-section" aria-label="Open binary position">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-sm font-semibold tracking-[-0.01em]">Recent predictions</h2>
+        <h2 className="text-sm font-semibold tracking-[-0.01em]">Open binary position</h2>
         <Link href="/journal?tab=binary" className="link-quiet pressable text-xs">
           View all
         </Link>
@@ -89,7 +89,7 @@ export function RecentPredictions() {
           })}
         </div>
       ) : !error ? (
-        <p className="mt-4 text-sm text-[color:var(--muted)]">No predictions yet.</p>
+        <p className="mt-4 text-sm text-[color:var(--muted)]">No open binary positions.</p>
       ) : null}
     </section>
   );

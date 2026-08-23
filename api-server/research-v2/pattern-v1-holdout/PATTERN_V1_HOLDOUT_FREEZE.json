@@ -1,0 +1,134 @@
+{
+  "adx": {
+    "bucketsAuthoritative": {
+      "b20_25": "20 < adx <= 25",
+      "b25_30": "25 < adx <= 30",
+      "gt30": "adx > 30",
+      "le20": "adx <= 20"
+    },
+    "note": "Bucket boundaries from prior implementation; ADX==20 is le20, NOT medium branch.",
+    "period": 14
+  },
+  "authoritativeSources": {
+    "decisionsTrainDevOnly": "api-server/research-v2/adaptive-direction-policy-v2/decisions.jsonl",
+    "m1Cache": "api-server/research-v2/binary-adaptive-bollinger-rsi-10k/cache",
+    "patternDefinition": "api-server/scripts/_binary-follow-pocket-42-audit.ts matchesPattern()",
+    "priorAdaptiveReport": "api-server/research-v2/adaptive-direction-policy-v2/FINAL_REPORT.txt",
+    "priorAuditReport": "api-server/research-v2/follow-pocket-42-audit/FINAL_REPORT.txt"
+  },
+  "bb": {
+    "k": 2.0,
+    "period": 20,
+    "stdev": "population (mean(x^2)-mean(x)^2)"
+  },
+  "experimentId": "pattern-v1-sealed-holdout-v1",
+  "frozenAtUtc": "2026-08-23T04:13:50.812064+00:00",
+  "holdoutOpenedAtWriteTime": false,
+  "note": "This freeze file is written BEFORE any HOLDOUT outcome is classified or summarized.",
+  "patternV1": {
+    "branches": {
+      "V1a": "up && rsiSeverity==extreme && adxBucket==gt30",
+      "V1b": "up && rsiSeverity==medium && adxBucket==b20_25"
+    },
+    "direction": "up",
+    "expiryMinutes": 10,
+    "logic": "UP AND ((rsiSeverity==extreme AND adxBucket==gt30) OR (rsiSeverity==medium AND adxBucket==b20_25))"
+  },
+  "payout": {
+    "alsoReport": [
+      0.7,
+      0.75,
+      0.8,
+      0.85,
+      0.9
+    ],
+    "breakEvenWr": 0.5555555556,
+    "primary": 0.8
+  },
+  "preHoldoutReference": {
+    "discovery42": {
+      "n": 42,
+      "note": "discovery only; not used as proof",
+      "wr": 0.7381
+    },
+    "outside42_trainDev": {
+      "ci95": [
+        0.5709,
+        0.662
+      ],
+      "ev80": 0.112,
+      "n": 434,
+      "wr": 0.6175
+    }
+  },
+  "rsi": {
+    "method": "Wilder",
+    "ob": 70,
+    "os": 30,
+    "period": 14,
+    "severity": {
+      "beyond": "dir==up ? (30-rsi) : (rsi-70)",
+      "extreme": "beyond > 10",
+      "medium": "beyond <= 10",
+      "mild": "beyond <= 5"
+    }
+  },
+  "rules": {
+    "noBranchPromotionAfterHoldout": true,
+    "noRetuneAfterHoldout": true,
+    "noSymbolFilterAfterHoldout": true,
+    "oneShot": true,
+    "productionUntouched": true
+  },
+  "signal": {
+    "dedup": "episode until mid return + new outside",
+    "down": "upper excursion then close reenters band AND rsi>=70",
+    "entry": "confirmation candle close",
+    "timestampConvention": "candle closeMs = openTime + 60s",
+    "type": "BB reentry + RSI threshold",
+    "up": "lower excursion then close reenters band AND rsi<=30"
+  },
+  "split": {
+    "fractions": {
+      "DEV": 0.2,
+      "HOLDOUT": 0.2,
+      "TRAIN": 0.6
+    },
+    "method": "chronological_by_signal_count",
+    "reportedCounts": {
+      "DEV": 2796,
+      "HOLDOUT": 2797,
+      "TOTAL": 13982,
+      "TRAIN": 8389,
+      "TRAIN_DEV": 11185
+    },
+    "reportedRangesUtc": {
+      "DEV": [
+        "2025-12-16T14:20:00.000Z",
+        "2026-04-21T14:52:00.000Z"
+      ],
+      "HOLDOUT": [
+        "2026-04-21T15:30:00.000Z",
+        "2026-08-21T20:36:00.000Z"
+      ],
+      "TRAIN": [
+        "2024-12-23T23:20:00.000Z",
+        "2025-12-16T14:19:00.000Z"
+      ]
+    }
+  },
+  "symbolUniverse": [
+    "EUR_USD",
+    "GBP_USD",
+    "USD_JPY",
+    "AUD_USD",
+    "NZD_USD",
+    "USD_CAD",
+    "USD_CHF",
+    "EUR_GBP",
+    "EUR_JPY",
+    "GBP_JPY",
+    "AUD_JPY",
+    "EUR_AUD"
+  ]
+}

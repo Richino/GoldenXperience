@@ -383,61 +383,6 @@ export function DashboardView({
         </div>
       </section>
 
-      <section className="dashboard-minimal-section" aria-label="Watchlist">
-        <div className="flex items-baseline justify-between gap-3">
-          <div className="flex min-w-0 items-baseline gap-2">
-            <h2 className="text-sm font-semibold tracking-[-0.01em]">Watchlist</h2>
-            {/* Said once here rather than under every pair. */}
-            {availability.state !== "entry_window_open" ? (
-              <span className="truncate text-xs text-[color:var(--muted)]">
-                {availability.label}
-              </span>
-            ) : null}
-          </div>
-          <Link href="/watchlist?tab=strategies" className="link-quiet pressable text-xs">
-            View all
-          </Link>
-        </div>
-        <div className="dashboard-watchlist-grid mt-3">
-          {strategyRows.map((row) => {
-            const state = strategyRowState(row);
-            const validCount = row.strategies.filter((strategy) => strategy.setupStatus === "valid").length;
-            const shownBid = quotes[row.instrument]?.bid ?? null;
-            return (
-              <Link
-                key={row.instrument}
-                href={`/watchlist?tab=strategies&instrument=${row.instrument}`}
-                data-state={state.active ? "open" : undefined}
-                className="dashboard-minimal-row pressable block py-3"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{displayNameFor(row.instrument)}</p>
-                    <p className={`watchlist-status-label mt-0.5 text-xs ${state.tone}`}>
-                      {state.label}
-                    </p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="dashboard-watchlist-price metric-number text-sm">
-                      {shownBid === null ? "—" : formatChartPrice(shownBid, row.instrument)}
-                    </p>
-                    {/* Not the adaptive pick, but a hint of activity: how many of
-                        the four families currently see a valid setup. */}
-                    {!state.active && validCount > 0 ? (
-                      <p className="mt-0.5 text-xs font-medium text-[color:var(--muted-strong)]">
-                        {validCount}/4 valid
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      </section>
-
-      <BinaryWatchlistCard />
-
       <div className="dashboard-minimal-grid dashboard-trades-grid">
         <section className="dashboard-minimal-section" aria-label="Open forex trades">
           <div className="flex items-baseline justify-between gap-3">
@@ -551,6 +496,61 @@ export function DashboardView({
       </div>
 
       <RecentPredictions />
+
+      <section className="dashboard-minimal-section" aria-label="Watchlist">
+        <div className="flex items-baseline justify-between gap-3">
+          <div className="flex min-w-0 items-baseline gap-2">
+            <h2 className="text-sm font-semibold tracking-[-0.01em]">Watchlist</h2>
+            {/* Said once here rather than under every pair. */}
+            {availability.state !== "entry_window_open" ? (
+              <span className="truncate text-xs text-[color:var(--muted)]">
+                {availability.label}
+              </span>
+            ) : null}
+          </div>
+          <Link href="/watchlist?tab=strategies" className="link-quiet pressable text-xs">
+            View all
+          </Link>
+        </div>
+        <div className="dashboard-watchlist-grid mt-3">
+          {strategyRows.map((row) => {
+            const state = strategyRowState(row);
+            const validCount = row.strategies.filter((strategy) => strategy.setupStatus === "valid").length;
+            const shownBid = quotes[row.instrument]?.bid ?? null;
+            return (
+              <Link
+                key={row.instrument}
+                href={`/watchlist?tab=strategies&instrument=${row.instrument}`}
+                data-state={state.active ? "open" : undefined}
+                className="dashboard-minimal-row pressable block py-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{displayNameFor(row.instrument)}</p>
+                    <p className={`watchlist-status-label mt-0.5 text-xs ${state.tone}`}>
+                      {state.label}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="dashboard-watchlist-price metric-number text-sm">
+                      {shownBid === null ? "—" : formatChartPrice(shownBid, row.instrument)}
+                    </p>
+                    {/* Not the adaptive pick, but a hint of activity: how many of
+                        the four families currently see a valid setup. */}
+                    {!state.active && validCount > 0 ? (
+                      <p className="mt-0.5 text-xs font-medium text-[color:var(--muted-strong)]">
+                        {validCount}/4 valid
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
+
+      <BinaryWatchlistCard />
     </div>
   );
 }

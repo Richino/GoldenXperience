@@ -37,6 +37,7 @@ import { practiceExecutionOverview, setPracticeExecutionEnabled } from "./practi
 import { binaryJournal, binaryPerformance, binaryPredictionDetail, binaryWatchlistSnapshot, collectBinaryCycle, recentBinaryPredictions, resolveDueBinaryPredictions } from "./binary-engine.js";
 import { binaryAdaptiveStats } from "./binary-adaptive-stats.js";
 import { binaryAdaptiveSelectorStatus } from "./binary-adaptive-selector.js";
+import { collectPatternV1Cycle, patternV1Disagreement, patternV1Status } from "./pattern-v1-engine.js";
 
 // The multi-strategy + adaptive engine replaces the single liquidity strategy as
 // the active forex collector. Default on; set MULTISTRATEGY_ENABLED=false to roll
@@ -286,7 +287,11 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       const offset = Math.max(0, Number(url.searchParams.get("offset")) || 0);
       const f = url.searchParams.get("filter");
       const filter = f === "won" || f === "lost" || f === "tie" || f === "active" ? f : "all";
-      const predictions = await binaryJournal(user.id, { limit, offset, filter });
+      // Which strategy's rows to return. Defaults to "all", which spans the
+      // baseline and Pattern V1 but never merges their statistics.
+      const s = url.searchParams.get("strategy");
+      const strategy = s === "baseline" || s === "pattern-v1" ? s : "all";
+      const predictions = await binaryJournal(user.id, { limit, offset, filter, strategy });
       return json(request, response, { predictions, hasMore: predictions.length === limit });
     }
     if (url.pathname === "/api/binary/stats" && request.method === "GET") {
@@ -323,6 +328,15 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     }
     // Research-only status for the frozen Momentum SHORT inversion forward test.
     // Read-only; exposes no control that could change trading behaviour.
+    // Read-only Pattern V1 forward status. Reports ONLY predictions this engine
+    // has produced since activation; the historical TRAIN+DEV and SEALED
+    // HOLDOUT figures are research results and are deliberately absent.
+    if (url.pathname === "/api/research/pattern-v1-forward" && request.method === "GET") {
+      return json(request, response, {
+        status: await patternV1Status(user.id),
+        disagreement: await patternV1Disagreement(user.id),
+      });
+    }
     if (url.pathname === "/api/research/momentum-short-inversion" && request.method === "GET") {
       return json(request, response, await momentumShortInversionStatus());
     }
@@ -548,6 +562,7 @@ let fastResolver: NodeJS.Timeout | null = null;
 let binaryCollector: NodeJS.Timeout | null = null;
 let binaryResolver: NodeJS.Timeout | null = null;
 let newsRetagger: NodeJS.Timeout | null = null;
+let patternV1Collector: NodeJS.Timeout | null = null;
 // The background loops below (paper collector, live/fast resolver, research
 // worker, binary engine) all WRITE to the database — opening, closing and
 // resolving trades. Point a second instance at the same database (e.g. local
@@ -696,6 +711,39 @@ if (databaseConfigured() && schedulersEnabled) {
   void binary();
   binaryCollector = setInterval(() => void binary(), 60_000);
 
+  // Pattern V1 forward paper engine — an INDEPENDENT strategy on its own timer.
+  //
+  // Deliberately not chained to the binary collector above. It evaluates every
+  // newly closed M1 candle for every supported symbol and opens its own 10-
+  // minute UP prediction whenever the frozen rule fires, whether or not the
+  // baseline produced anything at that instant. The two may disagree on the
+  // same symbol and minute; both rows are kept, because the disagreement is
+  // itself the evidence.
+  //
+  // FROZEN: no adaptive selector, logistic model, inversion or suppression may
+  // influence whether it fires. Resolution is the EXISTING binary resolver,
+  // which settles every active row regardless of model, so Pattern V1 gets the
+  // same price source, the same 10-minute mark and the same tie convention as
+  // the baseline. Paper only: it writes a prediction row and places no order.
+  let patternBusy = false;
+  const patternV1 = async () => {
+    if (patternBusy) return;
+    patternBusy = true;
+    try {
+      const result = await collectPatternV1Cycle();
+      if (result.opened || result.duplicates) {
+        console.log(`[pattern-v1] evaluated ${result.evaluated}, fired ${result.fired}, `
+          + `opened ${result.opened}, duplicates ${result.duplicates}`);
+      }
+    } catch (error) {
+      console.error("[pattern-v1] cycle failed", error);
+    } finally {
+      patternBusy = false;
+    }
+  };
+  void patternV1();
+  patternV1Collector = setInterval(() => void patternV1(), 60_000);
+
   // Nightly news re-tag. The calendar feed carries the current week only and
   // its rollover is not synchronised with the Sunday 17:00 ET reopen, so a
   // trade opened before the new week is published gets tagged NO_NEWS for lack
@@ -731,6 +779,7 @@ function shutdown() {
   if (binaryCollector) clearInterval(binaryCollector);
   if (binaryResolver) clearInterval(binaryResolver);
   if (newsRetagger) clearInterval(newsRetagger);
+  if (patternV1Collector) clearInterval(patternV1Collector);
   wss.clients.forEach((socket) => socket.close(1001, "Server shutting down"));
   server.close(() => process.exit(0));
 }

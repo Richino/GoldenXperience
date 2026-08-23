@@ -257,10 +257,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </filter>
           </defs>
         </svg>
-        <div
-          className="nav-pill mx-auto grid w-full max-w-[24rem] grid-cols-5 items-center p-2"
-          style={{ backdropFilter: 'blur(8px) url("#nav-liquid-glass-lens") saturate(1.45)' }}
-        >
+        <div className="nav-pill mx-auto grid w-full max-w-[24rem] grid-cols-5 items-center p-2">
           <span
             key={`${previousMobileIndex}-${activeMobileIndex}-${pathname}`}
             className="nav-liquid-lens-track"

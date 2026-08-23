@@ -1999,6 +1999,37 @@ input[type="number"] {
   opacity: 1;
 }
 
+/* SVG displacement is progressive enhancement. Keeping it out of the inline
+   style lets Safari retain the valid frosted-glass fallback instead of dropping
+   the complete backdrop-filter declaration. */
+@supports (backdrop-filter: url("#nav-liquid-glass-lens")) {
+  .nav-pill {
+    backdrop-filter: blur(8px) url("#nav-liquid-glass-lens") saturate(145%);
+  }
+}
+
+/* iPhone Safari does not render SVG displacement in backdrop-filter reliably.
+   Use the app's raised-surface colors there so the dock never becomes clear. */
+@supports (-webkit-touch-callout: none) {
+  .nav-pill {
+    background: rgba(245, 245, 247, 0.82);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+  }
+
+  .dark .nav-pill {
+    background: rgba(28, 28, 31, 0.86);
+  }
+
+  .nav-pill .nav-liquid-lens {
+    background: rgba(245, 245, 247, 0.92);
+  }
+
+  .dark .nav-pill .nav-liquid-lens {
+    background: rgba(28, 28, 31, 0.94);
+  }
+}
+
 .nav-liquid-lens-track {
   position: absolute;
   z-index: 1;
@@ -2095,7 +2126,11 @@ input[type="number"] {
   box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 50%, transparent);
 }
 
-.nav-mobile-link-active {
+.nav-mobile-link.nav-mobile-link-active,
+.nav-mobile-link.nav-mobile-link-active:hover,
+.nav-mobile-link.nav-mobile-link-active:focus,
+.nav-mobile-link.nav-mobile-link-active:focus-visible,
+.nav-mobile-link.nav-mobile-link-active:active {
   background: transparent;
   color: var(--accent);
 }
@@ -2105,6 +2140,7 @@ input[type="number"] {
   place-items: center;
   position: relative;
   z-index: 1;
+  color: inherit;
 }
 
 @media (prefers-reduced-motion: reduce) {

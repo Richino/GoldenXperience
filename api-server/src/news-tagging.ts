@@ -3,6 +3,7 @@ import {
   classifyNewsImpact, currenciesForPair, DEFAULT_NEWS_WINDOWS,
   type NewsEventInput, type NewsTagResult, type NewsWindowConfig,
 } from "../../frontend/src/lib/news/impact-tagging.js";
+import { getAllCalendarEvents } from "../../frontend/src/lib/calendar/forex-factory.js";
 
 /**
  * News impact tagging — database glue around the pure classifier.
@@ -138,6 +139,8 @@ export interface BackfillOptions {
   force?: boolean;
   /** Restrict to one instrument. */
   instrument?: string;
+  /** Restrict to trades opened within this many days. Omit for all history. */
+  sinceDays?: number;
 }
 
 /**
@@ -156,8 +159,10 @@ export async function backfillNewsTags(options: BackfillOptions = {}) {
      WHERE ($1::boolean OR news_impact_tag IS NULL)
        AND ($2::text IS NULL OR instrument=$2)
        AND COALESCE(opened_at,decision_time) IS NOT NULL
+       AND ($3::int IS NULL
+            OR COALESCE(opened_at,decision_time) >= now() - make_interval(days => $3::int))
      ORDER BY COALESCE(opened_at,decision_time)`,
-    [options.force ?? false, options.instrument ?? null],
+    [options.force ?? false, options.instrument ?? null, options.sinceDays ?? null],
   );
 
   const counts: Record<string, number> = { NO_NEWS: 0, NEAR_NEWS: 0, HIGH_IMPACT_NEWS: 0 };
@@ -198,4 +203,84 @@ export async function calendarCoverage() {
     ...trades.rows[0]!,
     tradesWithCalendarNearby: covered.rows[0]!.covered,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Nightly re-tag
+
+/** research_runs.kind for the nightly pass, and its durable "already ran" marker. */
+export const NEWS_RETAG_RUN_KIND = "news_retag";
+
+/**
+ * How far back a nightly pass re-tags. The feed only ever carries the current
+ * week, so a week is all that can be corrected; going further would re-read
+ * trades whose calendar can never improve.
+ */
+export const NEWS_RETAG_WINDOW_DAYS = 7;
+
+/** UTC hour the pass may run at or after. Late enough that the day's feed has settled. */
+export const NEWS_RETAG_UTC_HOUR = Number(process.env.NEWS_RETAG_UTC_HOUR ?? 2);
+
+/**
+ * Re-tag recent trades once a day, correcting tags that were computed before
+ * the calendar caught up.
+ *
+ * The problem it solves: ForexFactory publishes the CURRENT WEEK only, and the
+ * rollover to a new week is not synchronised with the Sunday 17:00 ET market
+ * reopen. A trade opened before the new week is published is tagged NO_NEWS for
+ * lack of data rather than lack of news, and would keep that tag forever. This
+ * re-ingests the calendar and recomputes the window, so the record converges on
+ * the truth without anyone remembering to run the script.
+ *
+ * Safe by construction: the classifier is pure and deterministic, so a pass
+ * over trades whose calendar has not changed rewrites identical values. Nothing
+ * outside the news_* columns is touched.
+ *
+ * RESEARCH ONLY — it reads and annotates completed trades and takes no part in
+ * any decision.
+ */
+export async function nightlyNewsRetagIfDue(now = new Date()): Promise<{ tagged: number; counts: Record<string, number> } | null> {
+  if (now.getUTCHours() < NEWS_RETAG_UTC_HOUR) return null;
+
+  // Durable de-duplication: a 20-hour guard means at most one pass a day
+  // without any timezone reasoning, and it survives a process restart, which an
+  // in-memory flag would not.
+  const recent = await query<{ id: string }>(
+    `SELECT id FROM research_runs
+     WHERE kind=$1 AND started_at > now() - interval '20 hours'
+     LIMIT 1`,
+    [NEWS_RETAG_RUN_KIND],
+  );
+  if (recent.rowCount) return null;
+
+  const run = await query<{ id: string }>(
+    `INSERT INTO research_runs(kind, details) VALUES($1, $2::jsonb) RETURNING id`,
+    [NEWS_RETAG_RUN_KIND, JSON.stringify({ windowDays: NEWS_RETAG_WINDOW_DAYS })],
+  );
+  const runId = run.rows[0]!.id;
+
+  try {
+    // Refresh the calendar first: re-tagging against a stale week would just
+    // rewrite the same wrong answer.
+    let ingested = 0;
+    try {
+      const events = await getAllCalendarEvents();
+      if (events.length) ingested = (await ingestCalendarEvents(events)).stored;
+    } catch (error) {
+      console.error("[news-retag] calendar refresh failed, re-tagging against stored events", error);
+    }
+
+    const result = await backfillNewsTags({ force: true, sinceDays: NEWS_RETAG_WINDOW_DAYS });
+    await query(
+      `UPDATE research_runs SET completed_at=now(), details=$2::jsonb WHERE id=$1`,
+      [runId, JSON.stringify({ windowDays: NEWS_RETAG_WINDOW_DAYS, ingested, ...result })],
+    );
+    console.log(`[news-retag] re-tagged ${result.tagged} trades from the last ${NEWS_RETAG_WINDOW_DAYS} days `
+      + `(${ingested} calendar events refreshed)`);
+    return { tagged: result.tagged, counts: result.counts };
+  } catch (error) {
+    await query(`UPDATE research_runs SET completed_at=now(), error=$2 WHERE id=$1`,
+      [runId, error instanceof Error ? error.message.slice(0, 500) : "Unknown news re-tag failure"]).catch(() => undefined);
+    throw error;
+  }
 }

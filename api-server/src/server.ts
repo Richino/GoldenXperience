@@ -15,7 +15,7 @@ import type {
 } from "./market-stream-types.js";
 import { MAJOR_INSTRUMENTS } from "../../frontend/src/types/forex.js";
 import { getAllCalendarEvents, getEconomicCalendar } from "../../frontend/src/lib/calendar/forex-factory.js";
-import { ingestCalendarEvents } from "./news-tagging.js";
+import { ingestCalendarEvents, nightlyNewsRetagIfDue } from "./news-tagging.js";
 import { isKnownInstrument } from "../../frontend/src/lib/instruments/catalog.js";
 import {
   getAccountSummary,
@@ -547,6 +547,7 @@ let paperCollector: NodeJS.Timeout | null = null;
 let fastResolver: NodeJS.Timeout | null = null;
 let binaryCollector: NodeJS.Timeout | null = null;
 let binaryResolver: NodeJS.Timeout | null = null;
+let newsRetagger: NodeJS.Timeout | null = null;
 // The background loops below (paper collector, live/fast resolver, research
 // worker, binary engine) all WRITE to the database — opening, closing and
 // resolving trades. Point a second instance at the same database (e.g. local
@@ -694,6 +695,32 @@ if (databaseConfigured() && schedulersEnabled) {
   };
   void binary();
   binaryCollector = setInterval(() => void binary(), 60_000);
+
+  // Nightly news re-tag. The calendar feed carries the current week only and
+  // its rollover is not synchronised with the Sunday 17:00 ET reopen, so a
+  // trade opened before the new week is published gets tagged NO_NEWS for lack
+  // of data and would keep that tag forever. This refreshes the calendar and
+  // recomputes the last week of tags once a day so the record self-corrects.
+  //
+  // RESEARCH ONLY: it annotates completed trades and takes no part in any
+  // decision. The 15-minute tick is only a cheap "is it due yet" check — the
+  // function itself enforces once-a-day through a durable research_runs marker,
+  // so a restart cannot make it run repeatedly. It also runs while the market
+  // is closed, which is exactly when a weekend rollover needs correcting.
+  let retagBusy = false;
+  const retag = async () => {
+    if (retagBusy) return;
+    retagBusy = true;
+    try {
+      await nightlyNewsRetagIfDue();
+    } catch (error) {
+      console.error("[news-retag] failed", error);
+    } finally {
+      retagBusy = false;
+    }
+  };
+  void retag();
+  newsRetagger = setInterval(() => void retag(), 15 * 60_000);
 }
 
 function shutdown() {
@@ -703,6 +730,7 @@ function shutdown() {
   if (fastResolver) clearInterval(fastResolver);
   if (binaryCollector) clearInterval(binaryCollector);
   if (binaryResolver) clearInterval(binaryResolver);
+  if (newsRetagger) clearInterval(newsRetagger);
   wss.clients.forEach((socket) => socket.close(1001, "Server shutting down"));
   server.close(() => process.exit(0));
 }

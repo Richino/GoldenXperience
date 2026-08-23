@@ -62,6 +62,19 @@ async function fetchFeed(url: string): Promise<EconomicCalendarEvent[]> {
   }
 }
 
+/**
+ * Every event the current-week feed carries, past ones included.
+ *
+ * `getEconomicCalendar` returns a snapshot built for the trading UI, and
+ * `buildCalendarSnapshot` filters that to UPCOMING events — correct for a
+ * pre-trade news gate, useless for tagging a trade that already happened. News
+ * impact tagging needs the whole week, so it reads the normalized list directly
+ * and shares the same rate-limit cache.
+ */
+export async function getAllCalendarEvents(): Promise<EconomicCalendarEvent[]> {
+  return loadEvents();
+}
+
 async function loadEvents(): Promise<EconomicCalendarEvent[]> {
   const fresh = cache && Date.now() - cache.fetchedAt < CACHE_TTL_MS;
   if (cache && fresh) {

@@ -14,7 +14,8 @@ import type {
   MarketStreamStatus,
 } from "./market-stream-types.js";
 import { MAJOR_INSTRUMENTS } from "../../frontend/src/types/forex.js";
-import { getEconomicCalendar } from "../../frontend/src/lib/calendar/forex-factory.js";
+import { getAllCalendarEvents, getEconomicCalendar } from "../../frontend/src/lib/calendar/forex-factory.js";
+import { ingestCalendarEvents } from "./news-tagging.js";
 import { isKnownInstrument } from "../../frontend/src/lib/instruments/catalog.js";
 import {
   getAccountSummary,
@@ -577,6 +578,22 @@ if (databaseConfigured() && schedulersEnabled) {
     }
     if (!marketOpen) return;
     collectionBusy = true;
+    // Persist the economic calendar before evaluating. The feed publishes the
+    // CURRENT WEEK only and was previously held in a 15-minute memory cache and
+    // discarded, so no historical calendar existed to tag past trades against.
+    // Writing it on every cycle is what accumulates that history. Research
+    // only: it neither gates nor influences the collection that follows, so it
+    // is wrapped to make certain a calendar outage cannot stop trading.
+    try {
+      // The full week, not getEconomicCalendar's snapshot: that one is filtered
+      // to UPCOMING events for the pre-trade news gate, so it would never store
+      // a release that has already happened — precisely the ones a trade needs
+      // to be tagged against.
+      const events = await getAllCalendarEvents();
+      if (events.length) await ingestCalendarEvents(events);
+    } catch (error) {
+      console.error("[calendar-ingest] skipped", error);
+    }
     try {
       // The multi-strategy + adaptive engine is the active collector. Set
       // MULTISTRATEGY_ENABLED=false to fall back to the retired-but-preserved

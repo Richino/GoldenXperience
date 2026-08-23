@@ -1,7 +1,15 @@
 import type { EconomicCalendarEvent } from "@/lib/oanda/calendar";
 
-/** Currencies that can move the three instruments this workspace trades. */
-export const TRACKED_CURRENCIES = new Set(["EUR", "USD", "GBP", "JPY"]);
+/**
+ * Currencies that can move a traded instrument.
+ *
+ * Covers every currency in the traded catalog, not the original three pairs.
+ * AUD, CAD, CHF and NZD were previously dropped here, which meant an RBA or
+ * SNB release never reached the app at all — and would have made AUD_USD,
+ * USD_CAD, USD_CHF and NZD_USD trades look permanently news-free to the news
+ * impact tagger.
+ */
+export const TRACKED_CURRENCIES = new Set(["AUD", "CAD", "CHF", "EUR", "GBP", "JPY", "NZD", "USD"]);
 
 /** buildCalendarSnapshot treats >= 3 as high impact. */
 const IMPACT_SCORE: Record<string, number> = {
@@ -13,9 +21,13 @@ const IMPACT_SCORE: Record<string, number> = {
 
 const CURRENCY_REGION: Record<string, string> = {
   USD: "americas",
+  CAD: "americas",
   EUR: "europe",
   GBP: "europe",
+  CHF: "europe",
   JPY: "asia",
+  AUD: "asia",
+  NZD: "asia",
 };
 
 export interface ForexFactoryEvent {

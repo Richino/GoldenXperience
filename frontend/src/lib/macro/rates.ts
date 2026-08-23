@@ -97,6 +97,22 @@ export function currenciesOf(instrument: MajorInstrument) {
 }
 
 /**
+ * The currencies this PRE-TRADE GATE has ever been able to see.
+ *
+ * Deliberately narrower than the calendar now carries. The feed normalizer was
+ * widened to every traded currency so that news impact TAGGING — a research
+ * annotation applied after a trade exists — can see AUD, CAD, CHF and NZD
+ * releases. Letting that widening reach this gate would be a different change
+ * entirely: it would start blocking AUD_USD, USD_CAD, USD_CHF and NZD_USD
+ * entries that are taken today, altering which trades happen.
+ *
+ * The news-impact work is explicitly research-only and must not change
+ * execution, so the gate's scope is pinned here. Widening it is a deliberate
+ * trading decision to be made on its own evidence, not a side effect.
+ */
+const NEWS_GATE_CURRENCIES = new Set(["EUR", "USD", "GBP", "JPY"]);
+
+/**
  * Minutes until the next high-impact release that could move this pair, or null
  * when none is scheduled.
  *
@@ -111,6 +127,7 @@ export function highImpactMinutesFor(
 ) {
   const { base, quote } = currenciesOf(instrument);
   const relevant = events
+    .filter((event) => NEWS_GATE_CURRENCIES.has(event.currency))
     .filter((event) => event.currency === base || event.currency === quote)
     .filter((event) => event.impact >= HIGH_IMPACT_IMPACT)
     .map((event) => Math.round((Date.parse(event.timestamp) - now.getTime()) / 60_000))

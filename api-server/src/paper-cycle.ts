@@ -21,6 +21,7 @@ import { decideInstrument, loadAdaptiveEvidence, toAdaptiveCandidate } from "./a
 import { resolveShadowOutcome } from "./shadow-outcomes.js";
 import { recordMomentumShortPair, resolveMomentumShortInversion } from "./momentum-short-inversion.js";
 import { applyMomentumInversion, ensureMomentumInversionActivation, MOMENTUM_INVERSION_EXPERIMENT } from "./momentum-inversion.js";
+import { tagNewTradeSafely } from "./news-tagging.js";
 import { MAJOR_INSTRUMENTS, type MajorInstrument } from "../../frontend/src/types/forex.js";
 
 const STRATEGY_NAME = "deterministic-forex";
@@ -914,6 +915,11 @@ export async function collectPaperCycle() {
     if (openedTradeId) {
       opened += 1;
       await queuePracticeOrderIntent(owner.rows[0].id, openedTradeId);
+      // Research annotation only, and deliberately after the trade exists: it
+      // records what the calendar looked like around the entry and can neither
+      // change nor prevent the trade. Runs outside openPaperTrade's transaction
+      // so a calendar failure cannot roll a trade back.
+      await tagNewTradeSafely({ id: openedTradeId, instrument: setup.instrument, openedAt: setup.evaluatedAt });
     }
     else if (setup.status === "valid") {
       await queueNotification({
@@ -1436,7 +1442,14 @@ export async function collectMultiStrategyCycle() {
         };
         const quoteToUsdRate = usdPerUnitOfCurrency(currenciesOf(instrument).quote, midByInstrument);
         openedTradeId = await openPaperTrade(chosen, userId, attribution.versionId, spreadPips ?? 0, snapshot.account.balance, quoteToUsdRate, attribution);
-        if (openedTradeId) { opened += 1; await queuePracticeOrderIntent(userId, openedTradeId); }
+        if (openedTradeId) {
+          opened += 1;
+          await queuePracticeOrderIntent(userId, openedTradeId);
+          // Research annotation only. Tagged with the direction-agnostic entry
+          // time, so an inverted Momentum trade carries the same news context
+          // its original signal did — which is what makes the two comparable.
+          await tagNewTradeSafely({ id: openedTradeId, instrument: chosen.instrument, openedAt: chosen.evaluatedAt });
+        }
       }
     }
 

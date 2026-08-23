@@ -65,12 +65,21 @@ const sample = [
 
 const events = normalizeForexFactoryEvents(sample);
 
-// NZD/CNY/CAD are dropped; EUR, GBP, JPY and USD are kept.
-assert.equal(events.length, 4);
+// Every currency in the traded catalog is kept, so an RBNZ or BoC release
+// reaches the app and the news impact tagger. Only currencies nothing is
+// traded against — CNY here — are dropped.
+assert.equal(events.length, 6);
 assert.deepEqual(
   [...new Set(events.map((event) => event.currency))].sort(),
-  ["EUR", "GBP", "JPY", "USD"],
+  ["CAD", "EUR", "GBP", "JPY", "NZD", "USD"],
 );
+assert.equal(
+  events.some((event) => event.currency === "CNY"), false,
+  "a currency with no traded instrument stays out",
+);
+// Region is populated for the widened set too, not left as the global fallback.
+assert.equal(events.find((event) => event.currency === "CAD")?.region, "americas");
+assert.equal(events.find((event) => event.currency === "NZD")?.region, "asia");
 
 // Impact words map onto the numeric scale buildCalendarSnapshot expects.
 const byTitle = new Map(events.map((event) => [event.title, event]));

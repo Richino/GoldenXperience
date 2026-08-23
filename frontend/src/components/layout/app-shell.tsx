@@ -226,7 +226,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <nav
         ref={dockRef}
-        className="mobile-dock fixed inset-x-0 bottom-0 z-40 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:hidden"
+        className="mobile-dock fixed inset-x-0 bottom-0 z-40 px-4 pb-[max(0.25rem,env(safe-area-inset-bottom))] lg:hidden"
         aria-label="Mobile navigation"
       >
         <svg className="liquid-glass-filter-defs" aria-hidden="true" focusable="false">

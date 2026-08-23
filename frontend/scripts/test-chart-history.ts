@@ -3,6 +3,8 @@ import {
   HISTORY_MAX_PREFETCH_BARS,
   HISTORY_LOAD_THRESHOLD,
   anchorRangeAfterPrepend,
+  buildPredictionMarkers,
+  buildPredictionPath,
   buildTradeMarkers,
   buildTradePath,
   countPrependedCandles,
@@ -11,6 +13,7 @@ import {
   snapToCandleTime,
 } from "../src/lib/chart-utils";
 import { accountSeriesRose, buildAccountAmountSeries } from "../src/components/dashboard/account-amount-chart";
+import type { BinaryPrediction } from "../src/types/binary";
 import type { PaperChartTrade } from "../src/types/forex";
 
 function bars(...isoTimes: string[]) {
@@ -262,6 +265,116 @@ assert.deepEqual(buildTradePath(candleTimes, trade()), [
 assert.deepEqual(buildTradePath(candleTimes, trade({ exit: null })), []);
 assert.deepEqual(buildTradePath(candleTimes, trade({ closedAt: M15(2) })), []);
 assert.deepEqual(buildTradePath(candleTimes, null), []);
+
+// --- Binary prediction markers ----------------------------------------------
+// Same rules as paper trades: nothing until a prediction is focused, entry for
+// an active call, entry + exit once it resolves.
+
+function prediction(
+  overrides: Partial<BinaryPrediction> = {},
+): BinaryPrediction {
+  return {
+    id: "pred-1",
+    sequence: "6169",
+    instrument: "USD_JPY",
+    direction: "up",
+    status: "resolved",
+    modelName: "test",
+    modelVersion: "1",
+    createdAt: M15(2),
+    startAt: M15(2),
+    entryPrice: 158.842,
+    durationSeconds: 600,
+    intendedExpiration: M15(5),
+    resolutionPrice: 158.712,
+    resolutionPriceTime: M15(5),
+    resolutionSource: "m1_candle",
+    resolvedAt: M15(5),
+    result: "lost",
+    confidence: 1,
+    scoreKind: "test",
+    pricePrecision: 3,
+    strategySource: null,
+    patternBranch: null,
+    ...overrides,
+  };
+}
+
+const predictionMarkers = buildPredictionMarkers(
+  candleTimes,
+  prediction(),
+  palette,
+);
+assert.equal(predictionMarkers.length, 2);
+assert.equal(predictionMarkers[0]!.time, seconds(2));
+assert.equal(predictionMarkers[0]!.position, "belowBar");
+assert.equal(predictionMarkers[0]!.shape, "arrowUp");
+assert.equal(predictionMarkers[0]!.color, "long");
+assert.equal(predictionMarkers[0]!.text, "UP");
+assert.equal(predictionMarkers[1]!.time, seconds(5));
+assert.equal(predictionMarkers[1]!.position, "aboveBar");
+assert.equal(predictionMarkers[1]!.shape, "arrowDown");
+assert.equal(predictionMarkers[1]!.color, "loss");
+assert.equal(predictionMarkers[1]!.text, "Lost");
+
+const downWon = buildPredictionMarkers(
+  candleTimes,
+  prediction({
+    direction: "down",
+    result: "won",
+    resolutionPrice: 158.5,
+  }),
+  palette,
+);
+assert.equal(downWon[0]!.position, "aboveBar");
+assert.equal(downWon[0]!.shape, "arrowDown");
+assert.equal(downWon[0]!.text, "DOWN");
+assert.equal(downWon[1]!.position, "belowBar");
+assert.equal(downWon[1]!.shape, "arrowUp");
+assert.equal(downWon[1]!.color, "win");
+assert.equal(downWon[1]!.text, "Won");
+
+assert.deepEqual(
+  buildPredictionMarkers(candleTimes, null, palette),
+  [],
+  "with no prediction focused the chart carries no prediction markers",
+);
+
+assert.equal(
+  buildPredictionMarkers(
+    candleTimes,
+    prediction({
+      status: "active",
+      resolutionPrice: null,
+      resolutionPriceTime: null,
+      resolvedAt: null,
+      result: null,
+    }),
+    palette,
+  ).length,
+  1,
+  "an active prediction only marks entry",
+);
+
+assert.deepEqual(buildPredictionPath(candleTimes, prediction()), [
+  { time: seconds(2), value: 158.842 },
+  { time: seconds(5), value: 158.712 },
+]);
+assert.deepEqual(
+  buildPredictionPath(
+    candleTimes,
+    prediction({
+      status: "active",
+      resolutionPrice: null,
+      resolutionPriceTime: null,
+      resolvedAt: null,
+      result: null,
+    }),
+  ),
+  [{ time: seconds(2), value: 158.842 }],
+  "an active prediction keeps an entry point so the arrow can attach",
+);
+assert.deepEqual(buildPredictionPath(candleTimes, null), []);
 
 // --- Account amount series ---------------------------------------------------
 // The hero chart reports the account balance, so the two things that must never

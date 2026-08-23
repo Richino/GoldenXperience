@@ -5,6 +5,7 @@ import type {
   UTCTimestamp,
 } from "lightweight-charts";
 import { pipSizeFor, precisionFor } from "@/lib/instruments/catalog";
+import type { BinaryPrediction } from "@/types/binary";
 import type { Candle, MajorInstrument, PaperChartTrade } from "@/types/forex";
 
 export const CHART_TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h"] as const;
@@ -538,6 +539,135 @@ export function buildTradePath(
   return [
     { time: entryTime as UTCTimestamp, value: trade.entry },
     { time: exitTime as UTCTimestamp, value: trade.exit },
+  ];
+}
+
+function predictionEntryTime(
+  candleTimes: number[],
+  prediction: BinaryPrediction,
+) {
+  const started = unixSeconds(prediction.startAt);
+  return started === null ? null : snapToCandleTime(candleTimes, started);
+}
+
+function predictionExitTime(
+  candleTimes: number[],
+  prediction: BinaryPrediction,
+) {
+  if (prediction.resolutionPrice === null) return null;
+  // Prefer the moment the exit price was sampled; fall back to resolve time.
+  const exited =
+    unixSeconds(prediction.resolutionPriceTime) ??
+    unixSeconds(prediction.resolvedAt);
+  return exited === null ? null : snapToCandleTime(candleTimes, exited);
+}
+
+function predictionResultLabel(result: BinaryPrediction["result"]) {
+  switch (result) {
+    case "won":
+      return "Won";
+    case "lost":
+      return "Lost";
+    case "tie":
+      return "Tie";
+    case null:
+      return null;
+    default: {
+      const unhandled: never = result;
+      return unhandled;
+    }
+  }
+}
+
+/**
+ * Entry and exit arrows for the one binary prediction being looked at.
+ *
+ * Mirrors {@link buildTradeMarkers}: nothing until a prediction is focused, and
+ * an active (unresolved) prediction only marks entry — the purple entry price
+ * line already keeps the level visible.
+ */
+export function buildPredictionMarkers(
+  candleTimes: number[],
+  prediction: BinaryPrediction | null,
+  palette: TradeMarkerPalette,
+): SeriesMarker<UTCTimestamp>[] {
+  if (!prediction) return [];
+
+  const up = prediction.direction === "up";
+  const entryTime = predictionEntryTime(candleTimes, prediction);
+  const exitTime = predictionExitTime(candleTimes, prediction);
+  const built: SeriesMarker<UTCTimestamp>[] = [];
+
+  if (entryTime !== null) {
+    built.push({
+      id: `prediction-entry:${prediction.id}`,
+      time: entryTime as UTCTimestamp,
+      position: up ? "belowBar" : "aboveBar",
+      shape: up ? "arrowUp" : "arrowDown",
+      color: up ? palette.long : palette.short,
+      size: 1.5,
+      text: up ? "UP" : "DOWN",
+    });
+  }
+
+  if (exitTime !== null && prediction.resolutionPrice !== null) {
+    const result = prediction.result;
+    const exitColor =
+      result === "won"
+        ? palette.win
+        : result === "lost"
+          ? palette.loss
+          : palette.muted;
+    built.push({
+      id: `prediction-exit:${prediction.id}`,
+      time: exitTime as UTCTimestamp,
+      position: up ? "aboveBar" : "belowBar",
+      shape: up ? "arrowDown" : "arrowUp",
+      color: exitColor,
+      size: 1.5,
+      text: predictionResultLabel(result) ?? "Exit",
+    });
+  }
+
+  return built.sort((left, right) => Number(left.time) - Number(right.time));
+}
+
+/** The entry-to-exit segment drawn across the focused binary prediction. */
+export function buildPredictionPath(
+  candleTimes: number[],
+  prediction: BinaryPrediction | null,
+): LineData<UTCTimestamp>[] {
+  if (!prediction) return [];
+
+  const entryTime = predictionEntryTime(candleTimes, prediction);
+  if (entryTime === null) return [];
+
+  const entryPoint = {
+    time: entryTime as UTCTimestamp,
+    value: prediction.entryPrice,
+  };
+
+  // An active prediction still needs the entry point on this series so the
+  // entry arrow has a time to attach to (markers only render on series times).
+  if (prediction.resolutionPrice === null) {
+    return [entryPoint];
+  }
+
+  const exitTime = predictionExitTime(candleTimes, prediction);
+  if (exitTime === null || exitTime < entryTime) {
+    return [entryPoint];
+  }
+
+  if (exitTime === entryTime) {
+    return [entryPoint];
+  }
+
+  return [
+    entryPoint,
+    {
+      time: exitTime as UTCTimestamp,
+      value: prediction.resolutionPrice,
+    },
   ];
 }
 

@@ -32,6 +32,8 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import {
+  buildPredictionMarkers,
+  buildPredictionPath,
   buildTradeMarkers,
   buildTradePath,
   calculateAtr,
@@ -57,6 +59,7 @@ import {
 import { ChartHistoryLoader } from "@/components/charts/chart-loading-overlay";
 import { useChartTouchGestures } from "@/components/charts/use-chart-touch-gestures";
 import { pipSizeFor } from "@/lib/instruments/catalog";
+import type { BinaryPrediction } from "@/types/binary";
 import type { Candle, CandleSeries, PaperChartTrade } from "@/types/forex";
 
 /**
@@ -660,6 +663,7 @@ export function SetupChart({
   scrollToLatestRevision,
   trades,
   focusTradeId = null,
+  focusPrediction = null,
   focusRange = null,
   referenceLine = null,
 }: {
@@ -677,6 +681,7 @@ export function SetupChart({
   scrollToLatestRevision: number;
   trades?: PaperChartTrade[];
   focusTradeId?: string | null;
+  focusPrediction?: BinaryPrediction | null;
   focusRange?: ChartFocusRange | null;
   referenceLine?: ChartReferenceLine | null;
 }) {
@@ -976,11 +981,13 @@ export function SetupChart({
       pointMarkersVisible: true,
       priceFormat,
     });
+    const initialCandleTimes = chartTimesOf(chartData);
+    const initialFocusTrade =
+      trades?.find((trade) => trade.id === focusTradeId) ?? null;
     tradePath.setData(
-      buildTradePath(
-        chartTimesOf(chartData),
-        trades?.find((trade) => trade.id === focusTradeId) ?? null,
-      ),
+      focusPrediction
+        ? buildPredictionPath(initialCandleTimes, focusPrediction)
+        : buildTradePath(initialCandleTimes, initialFocusTrade),
     );
     tradePathRef.current = tradePath;
 
@@ -1271,12 +1278,17 @@ export function SetupChart({
       // arrow competing with them.
       muted: isDark ? "rgba(161,161,170,0.45)" : "rgba(142,142,147,0.5)",
     };
-    const markers = buildTradeMarkers(
-      candleTimes,
-      trades ?? [],
-      focusTradeId,
-      palette,
-    );
+    // Prediction focus owns the markers when present; otherwise the focused
+    // paper trade. Both reuse the same path series so arrows sit on exact
+    // entry/exit prices rather than candle highs/lows.
+    const markers = focusPrediction
+      ? buildPredictionMarkers(candleTimes, focusPrediction, palette)
+      : buildTradeMarkers(
+          candleTimes,
+          trades ?? [],
+          focusTradeId,
+          palette,
+        );
     const markerOutlines = markers.map((marker) => ({
       ...marker,
       id: marker.id ? `outline:${marker.id}` : undefined,
@@ -1304,12 +1316,19 @@ export function SetupChart({
 
     const focusTrade =
       trades?.find((trade) => trade.id === focusTradeId) ?? null;
+    const pathWon = focusPrediction
+      ? focusPrediction.result !== "lost"
+      : (focusTrade?.resultR ?? 0) >= 0;
 
     tradePath.applyOptions({
-      color: (focusTrade?.resultR ?? 0) >= 0 ? winPathColor : lossPathColor,
+      color: pathWon ? winPathColor : lossPathColor,
     });
-    tradePath.setData(buildTradePath(candleTimes, focusTrade));
-  }, [chartEpoch, downColor, focusTradeId, isDark, lossPathColor, series.candles, surfaceColor, trades, upColor, winPathColor]);
+    tradePath.setData(
+      focusPrediction
+        ? buildPredictionPath(candleTimes, focusPrediction)
+        : buildTradePath(candleTimes, focusTrade),
+    );
+  }, [chartEpoch, downColor, focusPrediction, focusTradeId, isDark, lossPathColor, series.candles, surfaceColor, trades, upColor, winPathColor]);
 
   useEffect(() => {
     const mainSeries = mainSeriesRef.current;

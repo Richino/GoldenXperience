@@ -1981,11 +1981,9 @@ input[type="number"] {
     0 10px 24px rgba(0, 0, 0, 0.36);
 }
 
-/* Keep the dock close to the iPhone home indicator without sitting on top of it. */
-@supports (-webkit-touch-callout: none) {
-  .mobile-dock {
-    padding-bottom: 20px;
-  }
+/* Lift the dock above the home indicator / gesture bar on iOS and Android. */
+.mobile-dock {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
 }
 
 .nav-liquid-lens-track {

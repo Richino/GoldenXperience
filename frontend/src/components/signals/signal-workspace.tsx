@@ -1488,6 +1488,9 @@ export function SignalWorkspace({
       ) ?? null,
     [focusTradeId, instrument, paperTrades],
   );
+  const focusedPrediction = predictionFocus?.instrument === instrument
+    ? predictionFocus
+    : null;
   const activeFocusId = focusTrade?.id ?? null;
   // A focused trade replaces the live plan on the chart: its own entry, stop,
   // target and exit are what the markers have to line up with.
@@ -1506,11 +1509,28 @@ export function SignalWorkspace({
     [active, focusTrade],
   );
   const focusRange = useMemo(() => {
-    if (!focusTrade) return null;
-
     const interval =
       GRANULARITY_MS[TIMEFRAME_TO_GRANULARITY[timeframe]] ?? GRANULARITY_MS.M15;
     const padding = (FOCUS_PADDING_BARS * interval) / 1_000;
+
+    if (focusedPrediction) {
+      const opened = Date.parse(focusedPrediction.startAt) / 1_000;
+      const closed = focusedPrediction.resolvedAt
+        ? Date.parse(focusedPrediction.resolvedAt) / 1_000
+        : focusedPrediction.intendedExpiration
+          ? Date.parse(focusedPrediction.intendedExpiration) / 1_000
+          : opened;
+
+      if (!Number.isFinite(opened) || !Number.isFinite(closed)) return null;
+
+      return {
+        from: Math.floor(opened - padding),
+        to: Math.ceil(Math.max(opened, closed) + padding),
+      };
+    }
+
+    if (!focusTrade) return null;
+
     const opened = Date.parse(focusTrade.openedAt) / 1_000;
     const closed = focusTrade.closedAt
       ? Date.parse(focusTrade.closedAt) / 1_000
@@ -1522,7 +1542,7 @@ export function SignalWorkspace({
       from: Math.floor(opened - padding),
       to: Math.ceil(Math.max(opened, closed) + padding),
     };
-  }, [focusTrade, timeframe]);
+  }, [focusTrade, focusedPrediction, timeframe]);
 
   useEffect(() => {
     return () => {
@@ -1739,9 +1759,6 @@ export function SignalWorkspace({
     };
   }, [active?.entry, quote, series.candles]);
 
-  const focusedPrediction = predictionFocus?.instrument === instrument
-    ? predictionFocus
-    : null;
   const predictionCurrentPrice = focusedPrediction
     ? quote?.mid ?? series.candles.at(-1)?.close ?? null
     : null;
@@ -1899,6 +1916,7 @@ export function SignalWorkspace({
               onLoadOlder={loadOlderCandles}
               trades={paperTrades}
               focusTradeId={activeFocusId}
+              focusPrediction={focusedPrediction}
               focusRange={focusRange}
               referenceLine={predictionReferenceLine}
             />
@@ -2012,6 +2030,7 @@ export function SignalWorkspace({
               onLoadOlder={loadOlderCandles}
               trades={paperTrades}
               focusTradeId={activeFocusId}
+              focusPrediction={focusedPrediction}
               focusRange={focusRange}
               referenceLine={predictionReferenceLine}
             />

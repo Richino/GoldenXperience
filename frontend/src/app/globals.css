@@ -1986,10 +1986,10 @@ input[type="number"] {
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
 }
 
-/* iPhone: safe-area alone is enough; the extra 1rem sat the pill too high. */
+/* iPhone: sit just above the home indicator without the full safe-area gap. */
 @supports (-webkit-touch-callout: none) {
   .mobile-dock {
-    padding-bottom: max(0.25rem, env(safe-area-inset-bottom, 0px));
+    padding-bottom: 20px;
   }
 }
 

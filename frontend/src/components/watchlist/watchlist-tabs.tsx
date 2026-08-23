@@ -52,8 +52,18 @@ export function WatchlistTabs() {
     if (isTab(requested)) setTab(requested);
   }, []);
 
+  function selectTab(nextTab: Tab) {
+    setTab(nextTab);
+
+    // Keep the selected mode in the address bar without a route transition.
+    // A reload (or a copied link) will therefore reopen the same Watchlist.
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", nextTab);
+    window.history.replaceState(window.history.state, "", url);
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="watchlist-tabs space-y-6">
       <div role="tablist" aria-label="Watchlist mode" className="binary-seg flex gap-1.5">
         {VISIBLE_TABS.map((value) => (
           <button
@@ -61,7 +71,7 @@ export function WatchlistTabs() {
             role="tab"
             type="button"
             aria-selected={tab === value}
-            onClick={() => setTab(value)}
+            onClick={() => selectTab(value)}
             className={`check-chip pressable ${tab === value ? "check-chip-active" : ""}`}
           >
             {TAB_LABEL[value]}

@@ -19,6 +19,7 @@ import {
 import { useSupplementalQuotes } from "@/lib/market-stream/use-supplemental-quotes";
 import { strategyTypeLabel } from "@/lib/strategy/family-label";
 import { useInfiniteScroll } from "@/lib/use-infinite-scroll";
+import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { JournalEntriesSkeleton } from "@/components/ui/page-skeletons";
 
 const FILTERS = ["All", "Wins", "Losses", "Active"] as const;
@@ -125,7 +126,7 @@ function JournalTradeRow({
   // trade has no instrument code to route with, so it stays unlinked rather
   // than pointing at a pair the chart cannot resolve.
   const href = trade.instrument
-    ? `/signals?instrument=${trade.instrument}&trade=${trade.id}`
+    ? `/chart?instrument=${trade.instrument}&trade=${trade.id}`
     : null;
 
   const body = (
@@ -199,7 +200,7 @@ function JournalTradeRow({
   );
 
   return (
-    <article className="journal-entry">
+    <article className="journal-entry" data-result={resultTone.replace("is-", "")}>
       {href ? (
         <Link href={href} className="journal-entry-open pressable">
           {body}
@@ -353,6 +354,8 @@ export function JournalView({ embedded = false }: { embedded?: boolean } = {}) {
     const timer = window.setInterval(() => void refreshOpen(), 60_000);
     return () => window.clearInterval(timer);
   }, [refreshOpen]);
+
+  useForegroundRefresh(useCallback(() => loadPage(true), [loadPage]));
 
   const loadMore = useCallback(() => {
     void loadPage(false);

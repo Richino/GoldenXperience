@@ -8,6 +8,7 @@ import { formatChartPrice } from "@/lib/chart-utils";
 import { formatClockTime, formatShortDay } from "@/lib/format/datetime";
 import { predictionResultTone, predictionStatusLabel } from "@/lib/binary-format";
 import { useInfiniteScroll } from "@/lib/use-infinite-scroll";
+import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import type { BinaryPerformance, BinaryPrediction, BinaryPredictionDetail, PatternV1Forward } from "@/types/binary";
 
 const FILTERS = ["All", "Won", "Lost", "Tie", "Active"] as const;
@@ -88,11 +89,11 @@ function FeatureSnapshot({ detail }: { detail: BinaryPredictionDetail }) {
 
       <details className="binary-detail-block">
         <summary className="binary-detail-label">Feature snapshot (as seen at prediction time)</summary>
-        <pre className="binary-detail-json">{JSON.stringify(detail.features, null, 2)}</pre>
+        <pre className="binary-detail-json binary-detail-json--features" tabIndex={0}>{JSON.stringify(detail.features, null, 2)}</pre>
       </details>
       <details className="binary-detail-block">
         <summary className="binary-detail-label">Market context</summary>
-        <pre className="binary-detail-json">{JSON.stringify(detail.marketContext, null, 2)}</pre>
+        <pre className="binary-detail-json" tabIndex={0}>{JSON.stringify(detail.marketContext, null, 2)}</pre>
       </details>
     </div>
   );
@@ -123,13 +124,13 @@ function PredictionRow({ prediction, initiallyOpen }: { prediction: BinaryPredic
     };
   }, [open, detail, failed, prediction.id]);
 
-  // Primary click opens the setup on Signals (same deep-link as dashboard
+  // Primary click opens the setup on Charts (same deep-link as dashboard
   // RecentPredictions). Snapshot expand stays on a separate control so the
   // audit detail is still reachable without fighting navigation.
-  const href = `/signals?instrument=${encodeURIComponent(prediction.instrument)}&prediction=${prediction.id}`;
+  const href = `/chart?instrument=${encodeURIComponent(prediction.instrument)}&prediction=${prediction.id}`;
 
   return (
-    <article className="journal-entry" data-open={open || undefined}>
+    <article className="journal-entry binary-journal-entry" data-open={open || undefined}>
       <div className="binary-entry-row">
         <Link href={href} className="binary-entry-head pressable journal-entry-open">
           <div className="binary-entry-main min-w-0">
@@ -288,6 +289,10 @@ export function BinaryJournalView() {
     const timer = window.setInterval(() => void refreshActive(), 60_000);
     return () => window.clearInterval(timer);
   }, [refreshActive]);
+
+  useForegroundRefresh(useCallback(async () => {
+    await Promise.all([loadPage(true), loadStats()]);
+  }, [loadPage, loadStats]));
 
   const loadMore = useCallback(() => {
     void loadPage(false);

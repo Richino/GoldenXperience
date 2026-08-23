@@ -61,10 +61,10 @@
       ]
     },
     {
-      "name": "Signals",
-      "short_name": "Signals",
-      "description": "View trading signals",
-      "url": "/signals",
+      "name": "Charts",
+      "short_name": "Charts",
+      "description": "View trading charts",
+      "url": "/chart",
       "icons": [
         {
           "src": "/icon-192.png",

@@ -322,9 +322,8 @@ export function DashboardView({
   // Reopening the app after it was backgrounded lands on the last snapshot until
   // the next interval tick — up to a minute away. Pull everything fresh the
   // moment it returns to the foreground so it never opens on stale numbers.
-  useForegroundRefresh(useCallback(() => {
-    void refreshAccount();
-    void refresh();
+  useForegroundRefresh(useCallback(async () => {
+    await Promise.all([refreshAccount(), refresh()]);
   }, [refreshAccount, refresh]));
 
   const assigned = overview.current?.assignedCount ?? 0;
@@ -348,9 +347,9 @@ export function DashboardView({
               money figure — the real-money truth lives in the account hero's
               all-time pill. Kept position-size-agnostic on purpose. */}
           <DashboardStat
-            label="Net"
-            value={`${lifetime.netR >= 0 ? "+" : ""}${lifetime.netR.toFixed(2)}R`}
-            detail={`${lifetime.resolved} closed`}
+            label="Risked units"
+            value={`${lifetime.netR >= 0 ? "+" : ""}${lifetime.netR.toFixed(2)}`}
+            detail={`${lifetime.resolved} closed trades`}
             tone={
               lifetime.resolved === 0
                 ? ""
@@ -446,7 +445,7 @@ export function DashboardView({
                 return (
                   <Link
                     key={trade.id}
-                    href={`/signals?instrument=${trade.instrument}&trade=${trade.id}`}
+                    href={`/chart?instrument=${trade.instrument}&trade=${trade.id}`}
                     className="dash-trade-card pressable"
                   >
                     <div className="dash-trade-main min-w-0">

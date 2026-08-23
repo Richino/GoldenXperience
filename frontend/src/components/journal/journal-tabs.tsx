@@ -20,6 +20,16 @@ export function JournalTabs() {
     if (new URLSearchParams(window.location.search).get("tab") === "binary") setTab("binary");
   }, []);
 
+  function selectTab(nextTab: Tab) {
+    setTab(nextTab);
+
+    // Keep the selected journal in the URL without reloading its data. A page
+    // refresh (or copied link) will then restore the same view.
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", nextTab);
+    window.history.replaceState(window.history.state, "", url);
+  }
+
   return (
     <div className="journal-view journal-minimal space-y-6">
       <header>
@@ -31,7 +41,7 @@ export function JournalTabs() {
               role="tab"
               type="button"
               aria-selected={tab === value}
-              onClick={() => setTab(value)}
+              onClick={() => selectTab(value)}
               className={`check-chip pressable ${tab === value ? "check-chip-active" : ""}`}
             >
               {value === "trades" ? "Trades" : "Binary Predictions"}

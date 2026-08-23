@@ -22,8 +22,25 @@ import { useEffect, useRef } from "react";
  * within a short window to run `refresh` once per foregrounding.
  */
 const COALESCE_WINDOW_MS = 1_000;
+const APP_REFRESH_EVENT = "goldenxperience:refresh";
 
-export function useForegroundRefresh(refresh: () => void, enabled = true) {
+type RefreshRequestDetail = {
+  waitUntil(task: void | Promise<void>): void;
+};
+
+/** Ask every mounted data view to refresh and resolve when they have settled. */
+export async function requestAppRefresh() {
+  const tasks: Promise<void>[] = [];
+  const detail: RefreshRequestDetail = {
+    waitUntil(task) {
+      tasks.push(Promise.resolve(task));
+    },
+  };
+  window.dispatchEvent(new CustomEvent<RefreshRequestDetail>(APP_REFRESH_EVENT, { detail }));
+  await Promise.allSettled(tasks);
+}
+
+export function useForegroundRefresh(refresh: () => void | Promise<void>, enabled = true) {
   const refreshRef = useRef(refresh);
   const lastRunRef = useRef(0);
 
@@ -49,14 +66,22 @@ export function useForegroundRefresh(refresh: () => void, enabled = true) {
       if (event.persisted) run();
     }
 
+    function onAppRefresh(event: Event) {
+      const request = event as CustomEvent<RefreshRequestDetail>;
+      lastRunRef.current = Date.now();
+      request.detail?.waitUntil(Promise.resolve().then(() => refreshRef.current()));
+    }
+
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("focus", run);
     window.addEventListener("pageshow", onPageShow);
+    window.addEventListener(APP_REFRESH_EVENT, onAppRefresh);
 
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("focus", run);
       window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener(APP_REFRESH_EVENT, onAppRefresh);
     };
   }, [enabled]);
 }

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ChevronLeft,
   ChevronUp,
@@ -472,10 +473,11 @@ function SignalSearch({
         return Number(!!right.signal) - Number(!!left.signal);
       });
   }, [index, normalizedQuery]);
+  const visibleMatches = compact ? matches : matches.slice(0, 5);
   const showResults = open;
 
   useEffect(() => {
-    if (!open || !compact) return;
+    if (!open) return;
 
     function handlePointerDown(event: MouseEvent) {
       if (!rootRef.current?.contains(event.target as Node)) {
@@ -489,12 +491,26 @@ function SignalSearch({
       }
     }
 
-    document.addEventListener("mousedown", handlePointerDown);
     document.addEventListener("keydown", handleEscape);
+
+    if (compact) {
+      document.addEventListener("mousedown", handlePointerDown);
+    }
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousRootOverflow = document.documentElement.style.overflow;
+    if (!compact) {
+      document.body.style.overflow = "hidden";
+      document.documentElement.style.overflow = "hidden";
+    }
 
     return () => {
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("keydown", handleEscape);
+      if (!compact) {
+        document.body.style.overflow = previousBodyOverflow;
+        document.documentElement.style.overflow = previousRootOverflow;
+      }
     };
   }, [compact, open]);
 
@@ -552,7 +568,7 @@ function SignalSearch({
             </div>
             <div className="mt-1 max-h-[min(16rem,50vh)] overflow-y-auto overscroll-contain">
               {matches.length ? (
-                matches.map((result) => {
+                visibleMatches.map((result) => {
                   const active = result.instrument === activeInstrument;
 
                   return (
@@ -587,87 +603,119 @@ function SignalSearch({
   }
 
   return (
-    <div className={`relative ${className}`}>
-      <div className="signals-search">
+    <div ref={rootRef} className={`relative ${className}`}>
+      <button
+        type="button"
+        aria-label="Search all forex pairs"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        className="signals-search signals-search-trigger"
+        onClick={() => setOpen(true)}
+      >
         <Search className="size-3.5 shrink-0 text-[color:var(--muted)]" strokeWidth={2} />
-        <input
-          aria-label="Search all forex pairs"
-          className="min-w-0 flex-1 bg-transparent text-[color:var(--foreground)] outline-none placeholder:text-[color:var(--muted)]"
-          placeholder="Search pairs"
-          type="search"
-          value={query}
-          onChange={(event) => {
-            onQueryChange(event.target.value);
-            setOpen(true);
-          }}
-          onFocus={() => setOpen(true)}
-          onBlur={() => window.setTimeout(() => setOpen(false), 120)}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              setOpen(false);
-              event.currentTarget.blur();
-            }
+        <span className="min-w-0 flex-1 text-left text-[color:var(--muted)]">Search pairs</span>
+      </button>
 
-            if (event.key === "Enter" && matches[0]) {
-              event.preventDefault();
-              onSelect(matches[0]);
-              setOpen(false);
-            }
-          }}
-        />
-        {query ? (
-          <button
-            aria-label="Clear search"
-            className="signals-icon-btn pressable !size-6 shrink-0"
-            type="button"
-            onPointerDown={(event) => event.preventDefault()}
-            onClick={() => {
-              onQueryChange("");
-              setOpen(true);
-            }}
-          >
-            <X className="size-3" strokeWidth={2} />
-          </button>
-        ) : null}
-      </div>
+      {showResults && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              className="signals-search-overlay"
+              role="presentation"
+              onPointerDown={(event) => {
+                if (event.currentTarget === event.target) setOpen(false);
+              }}
+            >
+              <section
+                className="signals-view signals-minimal signals-search-dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Search forex pairs"
+              >
+                <header className="signals-search-dialog-head">
+                  <div>
+                    <h2>Search pairs</h2>
+                    <p>Select a market to open its chart</p>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Close pair search"
+                    className="signals-icon-btn pressable"
+                    onClick={() => setOpen(false)}
+                  >
+                    <X className="size-4" strokeWidth={2} />
+                  </button>
+                </header>
 
-      {showResults ? (
-        <div className="menu-popover absolute left-0 right-0 top-[calc(100%+0.375rem)] z-50 max-h-[min(20rem,55vh)] overflow-y-auto overscroll-contain rounded-xl py-1">
-          {matches.length ? (
-            matches.map((result) => {
-              const active = result.instrument === activeInstrument;
+                <div className="signals-search-dialog-field signals-search">
+                  <Search className="size-4 shrink-0 text-[color:var(--muted)]" strokeWidth={2} />
+                  <input
+                    autoFocus
+                    aria-label="Search all forex pairs"
+                    className="min-w-0 flex-1 bg-transparent text-[color:var(--foreground)] outline-none placeholder:text-[color:var(--muted)]"
+                    placeholder="EUR/USD, yen, GBP…"
+                    type="search"
+                    value={query}
+                    onChange={(event) => onQueryChange(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") {
+                        setOpen(false);
+                      }
 
-              return (
-                <button
-                  key={result.instrument}
-                  type="button"
-                  onPointerDown={(event) => {
-                    event.preventDefault();
-                    onSelect(result);
-                    setOpen(false);
-                  }}
-                  onClick={() => {
-                    onSelect(result);
-                    setOpen(false);
-                  }}
-                  className={`signals-search-result pressable flex w-full items-center gap-2.5 px-3 py-2 text-left ${
-                    active ? "is-active" : ""
-                  }`}
-                >
-                  <PairAvatar instrument={result.instrument} size={26} />
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium tracking-[-0.02em]">
-                    {result.displayName}
-                  </span>
-                </button>
-              );
-            })
-          ) : (
-            <div className="px-3 py-3 text-center text-xs text-[color:var(--muted)]">
-              No matching pair
-            </div>
-          )}
-        </div>
-      ) : null}
+                      if (event.key === "Enter" && matches[0]) {
+                        event.preventDefault();
+                        onSelect(matches[0]);
+                        setOpen(false);
+                      }
+                    }}
+                  />
+                  {query ? (
+                    <button
+                      aria-label="Clear search"
+                      className="signals-icon-btn pressable !size-7 shrink-0"
+                      type="button"
+                      onClick={() => onQueryChange("")}
+                    >
+                      <X className="size-3.5" strokeWidth={2} />
+                    </button>
+                  ) : null}
+                </div>
+
+                <div className="signals-search-dialog-results">
+                  {matches.length ? (
+                    visibleMatches.map((result) => {
+                      const active = result.instrument === activeInstrument;
+
+                      return (
+                        <button
+                          key={result.instrument}
+                          type="button"
+                          onClick={() => {
+                            onSelect(result);
+                            setOpen(false);
+                          }}
+                          className={`signals-search-result pressable flex w-full items-center gap-3 px-3 py-2.5 text-left ${
+                            active ? "is-active" : ""
+                          }`}
+                        >
+                          <PairAvatar instrument={result.instrument} size={30} />
+                          <span className="min-w-0 flex-1 truncate text-sm font-semibold tracking-[-0.02em]">
+                            {result.displayName}
+                          </span>
+                          {active ? <span className="signals-search-current">Current</span> : null}
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <div className="px-3 py-8 text-center text-sm text-[color:var(--muted)]">
+                      No matching pair
+                    </div>
+                  )}
+                </div>
+              </section>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
@@ -1650,14 +1698,14 @@ export function SignalWorkspace({
 
   const clearFocusTrade = useCallback(() => {
     setFocusTradeId(null);
-    router.replace(`/signals?instrument=${encodeURIComponent(instrument)}`, {
+    router.replace(`/chart?instrument=${encodeURIComponent(instrument)}`, {
       scroll: false,
     });
   }, [instrument, router]);
 
   const clearFocusPrediction = useCallback(() => {
     setPredictionFocus(null);
-    router.replace(`/signals?instrument=${encodeURIComponent(instrument)}`, {
+    router.replace(`/chart?instrument=${encodeURIComponent(instrument)}`, {
       scroll: false,
     });
   }, [instrument, router]);
@@ -1717,7 +1765,7 @@ export function SignalWorkspace({
     setLiveCandle(null);
     setFocusTradeId(null);
     setSelectedInstrument(result.instrument);
-    router.replace(`/signals?instrument=${encodeURIComponent(result.instrument)}`, { scroll: false });
+    router.replace(`/chart?instrument=${encodeURIComponent(result.instrument)}`, { scroll: false });
     setSearchQuery("");
   }
 

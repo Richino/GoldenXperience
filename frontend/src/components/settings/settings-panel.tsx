@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useTheme } from "next-themes";
 import { Volume1, Volume2, VolumeX } from "lucide-react";
+import { RiskWorkspace, type PaperRiskPolicy } from "@/components/risk/risk-workspace";
 import { SelectMenu } from "@/components/ui/select-menu";
+import { SignOutButton } from "@/components/ui/sign-out-button";
 import { useTextSize } from "@/components/providers/text-size-provider";
 import { DEFAULT_NOTIFICATION_VOLUME, NOTIFICATION_SOUND_KEY, NOTIFICATION_VOLUME_KEY, notificationSounds, notificationVolume, type NotificationSound } from "@/lib/notifications/sounds";
 import { currentPushStatus, subscribeThisDeviceToPush, type PushUiStatus } from "@/lib/notifications/push";
@@ -90,7 +92,11 @@ function pushDetail(status: PushUiStatus, errorMessage: string | null) {
   }
 }
 
-export function SettingsPanel() {
+export function SettingsPanel({
+  initialPolicy,
+}: {
+  initialPolicy: PaperRiskPolicy;
+}) {
   const { resolvedTheme, setTheme } = useTheme();
   const { textSize, setTextSize, mounted: textSizeMounted } = useTextSize();
   const mounted = useSyncExternalStore(
@@ -160,7 +166,7 @@ export function SettingsPanel() {
       <header>
         <h1 className="text-display">Settings</h1>
         <p className="mt-1 text-sm text-[color:var(--muted)]">
-          Theme and alerts
+          Appearance, alerts, and account
         </p>
       </header>
 
@@ -279,6 +285,14 @@ export function SettingsPanel() {
           </div>
         </div>
         <audio ref={notificationAudio} preload="none" aria-hidden="true" />
+      </section>
+
+      <section id="risk" className="settings-minimal-section scroll-mt-6" aria-label="Risk">
+        <RiskWorkspace initialPolicy={initialPolicy} />
+      </section>
+
+      <section className="settings-minimal-section" aria-label="Account actions">
+        <SignOutButton />
       </section>
     </div>
   );

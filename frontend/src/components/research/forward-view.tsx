@@ -178,7 +178,7 @@ export function ForwardView() {
                     <tr key={trade.id}>
                       <td className="metric-number">{trade.tradeSequence}</td>
                       <td>
-                        <Link className="font-medium text-[color:var(--accent)]" href={`/signals?instrument=${trade.instrument}`}>
+                        <Link className="font-medium text-[color:var(--accent)]" href={`/chart?instrument=${trade.instrument}`}>
                           {displayNameFor(trade.instrument)}
                         </Link>
                       </td>

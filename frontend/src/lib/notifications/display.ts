@@ -4,7 +4,7 @@ const TECHNICAL_NOISE =
   /insert or update on table|violates\s+(?:foreign key |unique |check |exclusion )?constraint|duplicate key value|relation "[^"]+" does not exist|column "[^"]+" (?:of relation|does not exist)|null value in column|invalid input syntax|permission denied for (?:table|relation|schema)|deadlock detected|could not serialize|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|password authentication failed/i;
 
 export function notificationHref(item: AppNotification) {
-  return item.instrument ? `/signals?instrument=${item.instrument}` : "/watchlist";
+  return item.instrument ? `/chart?instrument=${item.instrument}` : "/watchlist";
 }
 
 export function displayTitle(item: AppNotification) {
@@ -17,7 +17,7 @@ export function displayTitle(item: AppNotification) {
 
 export function displayDetail(item: AppNotification) {
   const cleaned = item.message
-    .replace(/\s*Entry, target, and stop are available on Signals\.?/gi, "")
+    .replace(/\s*Entry, target, and stop are available on (?:Signals|Charts)\.?/gi, "")
     .replace(/\s+/g, " ")
     .trim();
 
@@ -37,7 +37,7 @@ export function sampleToastNotification(): AppNotification {
     id: `preview-${Date.now()}`,
     kind: "setup_ready",
     title: "EUR/USD setup ready",
-    message: "Long plan is valid. Entry, target, and stop are available on Signals.",
+    message: "Long plan is valid. Entry, target, and stop are available on Charts.",
     instrument: "EUR_USD",
     paperTradeId: null,
     readAt: null,

@@ -201,7 +201,7 @@ export function WatchlistView() {
               return (
                 <Link
                   key={row.instrument}
-                  href={`/signals?instrument=${encodeURIComponent(row.instrument)}`}
+                  href={`/chart?instrument=${encodeURIComponent(row.instrument)}`}
                   className="wl-pair-card pressable"
                   data-state={status.state}
                   style={

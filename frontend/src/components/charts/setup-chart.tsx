@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -710,7 +709,6 @@ export function SetupChart({
   // True once a mobile gesture has taken manual control of the price scale
   // (auto-scaling off). Cleared when the view is reset to the latest candles,
   // which restores automatic price framing.
-  const manualPriceRef = useRef(false);
   /**
    * Half the live spread, in price. Held in a ref because the spread changes on
    * every tick and the level lines are built inside the chart-creation effect —
@@ -1220,12 +1218,6 @@ export function SetupChart({
         );
     } else if (scrolledToLatest && chart) {
       lastScrollRevisionRef.current = scrollToLatestRevision;
-      // Resetting the view (or changing timeframe/range) hands the price scale
-      // back to auto framing after a mobile gesture took manual control of it.
-      if (manualPriceRef.current) {
-        mainSeries.priceScale().setAutoScale(true);
-        manualPriceRef.current = false;
-      }
       requestAnimationFrame(() => {
         focusCoveredRef.current = scrollChartToFocus(
           chart,
@@ -1548,20 +1540,13 @@ export function SetupChart({
     };
   }, [chartEpoch, showBeacon]);
 
-  const markManualPrice = useCallback(() => {
-    manualPriceRef.current = true;
-  }, []);
-
-  // The mobile chart's native-feeling touch gestures: free 2D pan, plus
-  // intent-locked two-finger candle-spacing / price scaling. Desktop input is
+  // Mobile supports only history panning and pinch-to-zoom. Desktop input is
   // untouched. Re-binds to the freshly built chart via `chartEpoch`.
   useChartTouchGestures({
     containerRef,
     chartRef,
-    mainSeriesRef,
     enabled: embedded,
     epoch: chartEpoch,
-    onManualPrice: markManualPrice,
     onViewChange: () => paintLastPriceRef.current(),
   });
 
@@ -1603,9 +1588,8 @@ export function SetupChart({
       className="setup-chart-root relative w-full overflow-visible"
       style={{ height: shellHeight }}
       /*
-       * The chart owns vertical drags: that gesture rescales the price axis.
-       * Without this the installed PWA read the same swipe as a pull-to-refresh
-       * and reloaded the page mid-adjustment.
+       * The chart owns direct touch input so horizontal panning and pinch zoom
+       * cannot trigger pull-to-refresh or browser navigation mid-gesture.
        */
       data-pull-to-refresh-ignore="true"
     >

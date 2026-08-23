@@ -4,14 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
-  BarChart3,
   BookOpen,
-  LayoutDashboard,
   Settings,
-  FlaskConical,
-  ShieldCheck,
-  Radar,
-  MoreHorizontal,
   type LucideIcon,
 } from "lucide-react";
 import { BrandMark } from "@/components/ui/brand-mark";
@@ -26,7 +20,39 @@ import { Toaster } from "@/components/ui/toaster";
 interface NavItem {
   label: string;
   href: string;
-  icon: LucideIcon;
+  icon: LucideIcon | ((props: { className?: string; strokeWidth?: number }) => React.ReactNode);
+}
+
+function DashboardNavIcon({ className, strokeWidth = 2 }: { className?: string; strokeWidth?: number }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="3" y="3" width="18" height="18" rx="4.5" stroke="currentColor" strokeWidth={strokeWidth} />
+      <path d="M7 17v-3.5M10.5 17V10M14 17v-5M17.5 17V8" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" />
+      <circle cx="17.5" cy="8" r="1.2" fill="currentColor" />
+    </svg>
+  );
+}
+
+function ChartsNavIcon({ className, strokeWidth = 2 }: { className?: string; strokeWidth?: number }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4 18h16M7 16v-4M11 16V8M15 16v-3M19 16V6" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" />
+      <path d="M5 10l5-3 3 2 6-5M16 4h3v3" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="19" cy="4" r="1.1" fill="currentColor" />
+    </svg>
+  );
+}
+
+function WatchlistNavIcon({ className, strokeWidth = 2 }: { className?: string; strokeWidth?: number }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="8.25" stroke="currentColor" strokeWidth={strokeWidth} />
+      <circle cx="12" cy="12" r="4.75" stroke="currentColor" strokeWidth={strokeWidth} />
+      <circle cx="12" cy="12" r="1.75" fill="currentColor" />
+      <path d="M12 2v2.5M22 12h-2.5M12 22v-2.5M2 12h2.5M16 8l2.5-2.5" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" />
+      <circle cx="19.5" cy="4.5" r="1.25" fill="currentColor" />
+    </svg>
+  );
 }
 
 function replayNavClick(event: React.PointerEvent<HTMLElement>) {
@@ -44,19 +70,19 @@ function clearNavClick(event: React.AnimationEvent<HTMLElement>) {
 }
 
 const navItems: NavItem[] = [
-  { label: "Home", href: "/", icon: LayoutDashboard },
-  { label: "Signals", href: "/signals", icon: BarChart3 },
-  { label: "Watchlist", href: "/watchlist", icon: Radar },
+  { label: "Home", href: "/", icon: DashboardNavIcon },
+  { label: "Charts", href: "/chart", icon: ChartsNavIcon },
+  { label: "Watchlist", href: "/watchlist", icon: WatchlistNavIcon },
   { label: "Journal", href: "/journal", icon: BookOpen },
-  { label: "Research", href: "/research", icon: FlaskConical },
-  { label: "Risk", href: "/risk", icon: ShieldCheck },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
-const mobilePrimaryHrefs = ["/", "/signals", "/watchlist", "/journal"] as const;
-const mobileMoreHrefs = ["/research", "/risk", "/settings"] as const;
+const mobilePrimaryHrefs = ["/", "/chart", "/watchlist", "/journal", "/settings"] as const;
 
 function isActive(pathname: string, href: string) {
+  if (href === "/settings") {
+    return pathname.startsWith("/settings") || pathname.startsWith("/risk");
+  }
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
 }
 
@@ -64,9 +90,6 @@ const primaryNavItems = navItems.filter((item) => item.href !== "/settings");
 const settingsNavItem = navItems.find((item) => item.href === "/settings")!;
 const mobileNavItems = navItems.filter((item) =>
   (mobilePrimaryHrefs as readonly string[]).includes(item.href),
-);
-const mobileMoreItems = navItems.filter((item) =>
-  (mobileMoreHrefs as readonly string[]).includes(item.href),
 );
 
 function SidebarNavLink({
@@ -96,15 +119,14 @@ function SidebarNavLink({
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const dockRef = useRef<HTMLElement>(null);
-  const isSignals = pathname.startsWith("/signals");
+  const isChart = pathname.startsWith("/chart");
   const isDashboard = pathname === "/";
-  const moreActive = mobileMoreHrefs.some((href) => isActive(pathname, href));
-
-  useEffect(() => {
-    setMobileMoreOpen(false);
-  }, [pathname]);
+  const activeMobileIndex = Math.max(
+    0,
+    mobileNavItems.findIndex((item) => isActive(pathname, item.href)),
+  );
+  const [previousMobileIndex, setPreviousMobileIndex] = useState(activeMobileIndex);
 
   // Publish the floating dock's real height so pages can reserve exactly that
   // much space beneath their content. The measured value already includes the
@@ -137,7 +159,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
       <div
         className={`min-h-dvh ${
-        isSignals
+        isChart
           ? "signals-route"
           : "bg-[color:var(--background)]"
       }`}
@@ -185,17 +207,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <div
         className={`min-w-0 w-full lg:pl-[260px] ${
-          isSignals ? "lg:min-h-dvh" : ""
+          isChart ? "lg:min-h-dvh" : ""
         }`}
       >
         <main
           className={`mx-auto w-full min-w-0 max-w-[1320px] ${
-            isSignals
+            isChart
               ? "pt-0 lg:flex lg:min-h-dvh lg:flex-col lg:justify-center lg:px-8 lg:py-6"
               : "px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-6 lg:px-8 lg:pb-10"
           }`}
         >
-          {!isSignals && !isDashboard ? <MobileTopBar showBack /> : null}
+          {!isChart && !isDashboard ? <MobileTopBar showBack /> : null}
           <div key={pathname} className="mobile-page-transition">
             {children}
           </div>
@@ -207,31 +229,53 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         className="mobile-dock fixed inset-x-0 bottom-0 z-40 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:hidden"
         aria-label="Mobile navigation"
       >
-        {mobileMoreOpen ? (
-          <div className="nav-more-sheet mx-auto mb-2 w-full max-w-[24rem]">
-            {mobileMoreItems.map((item) => {
-              const active = isActive(pathname, item.href);
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setMobileMoreOpen(false)}
-                  className={`nav-more-link pressable ${active ? "is-active" : ""}`}
-                  aria-current={active ? "page" : undefined}
-                >
-                  <span className="nav-more-icon">
-                    <Icon className="size-4" strokeWidth={active ? 2.25 : 1.9} />
-                  </span>
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
-            <SignOutButton menu />
-          </div>
-        ) : null}
-
-        <div className="nav-pill mx-auto flex w-full max-w-[24rem] items-center justify-between gap-1 px-3 py-2.5">
+        <svg className="liquid-glass-filter-defs" aria-hidden="true" focusable="false">
+          <defs>
+            <filter
+              id="nav-liquid-glass-lens"
+              x="-8%"
+              y="-35%"
+              width="116%"
+              height="170%"
+              colorInterpolationFilters="sRGB"
+            >
+              <feTurbulence
+                type="fractalNoise"
+                baseFrequency="0.009 0.075"
+                numOctaves="1"
+                seed="8"
+                result="lensNoise"
+              />
+              <feGaussianBlur in="lensNoise" stdDeviation="0.35" result="softLensNoise" />
+              <feDisplacementMap
+                in="SourceGraphic"
+                in2="softLensNoise"
+                scale="3.2"
+                xChannelSelector="R"
+                yChannelSelector="G"
+              />
+            </filter>
+          </defs>
+        </svg>
+        <div
+          className="nav-pill mx-auto grid w-full max-w-[24rem] grid-cols-5 items-center p-2"
+          style={{ backdropFilter: 'blur(8px) url("#nav-liquid-glass-lens") saturate(1.45)' }}
+        >
+          <span
+            key={`${previousMobileIndex}-${activeMobileIndex}-${pathname}`}
+            className="nav-liquid-lens-track"
+            data-direction={activeMobileIndex >= previousMobileIndex ? "forward" : "backward"}
+            data-moved={activeMobileIndex !== previousMobileIndex}
+            style={
+              {
+                "--nav-active-offset": `${activeMobileIndex * 100}%`,
+                "--nav-previous-offset": `${previousMobileIndex * 100}%`,
+              } as React.CSSProperties
+            }
+            aria-hidden="true"
+          >
+            <span className="nav-liquid-lens" />
+          </span>
           {mobileNavItems.map((item) => {
             const active = isActive(pathname, item.href);
             const Icon = item.icon;
@@ -245,29 +289,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 }`}
                 aria-current={active ? "page" : undefined}
                 aria-label={item.label}
+                onClick={() => setPreviousMobileIndex(activeMobileIndex)}
                 onPointerDown={replayNavClick}
                 onAnimationEnd={clearNavClick}
               >
-                <Icon className="size-[1.2rem]" strokeWidth={active ? 2.3 : 1.85} />
+                <span className="nav-mobile-icon">
+                  <Icon className="size-[1.55rem]" strokeWidth={active ? 2.4 : 1.85} />
+                </span>
               </Link>
             );
           })}
-          <button
-            type="button"
-            className={`nav-mobile-link pressable ${
-              mobileMoreOpen || moreActive ? "nav-mobile-link-active" : ""
-            }`}
-            aria-label="More"
-            aria-expanded={mobileMoreOpen}
-            onPointerDown={replayNavClick}
-            onAnimationEnd={clearNavClick}
-            onClick={() => setMobileMoreOpen((open) => !open)}
-          >
-            <MoreHorizontal
-              className="size-[1.2rem]"
-              strokeWidth={mobileMoreOpen || moreActive ? 2.3 : 1.85}
-            />
-          </button>
         </div>
       </nav>
       </div>

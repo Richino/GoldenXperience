@@ -1,15 +1,28 @@
 "use client";
 
 import {
+  useEffect,
   useRef,
   useState,
   type CSSProperties,
   type ReactNode,
   type TouchEvent,
 } from "react";
+import { ArrowDown, Check, LoaderCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { requestAppRefresh } from "@/lib/use-foreground-refresh";
 
-const MAX_PULL_DISTANCE = 88;
-const REFRESH_THRESHOLD = 66;
+const MAX_PULL_DISTANCE = 92;
+const REFRESH_THRESHOLD = 62;
+const MIN_REFRESH_TIME_MS = 550;
+const MAX_REFRESH_TIME_MS = 7_000;
+const COMPLETE_HOLD_MS = 420;
+
+type RefreshPhase = "idle" | "pulling" | "ready" | "refreshing" | "complete";
+
+function delay(ms: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+}
 
 function isStandalonePwa() {
   return (
@@ -23,20 +36,44 @@ function isPullToRefreshIgnored(target: EventTarget | null) {
 }
 
 export function PwaPullToRefresh({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const startYRef = useRef<number | null>(null);
   const pullDistanceRef = useRef(0);
+  const frameRef = useRef<number | null>(null);
+  const mountedRef = useRef(true);
   const [pullDistance, setPullDistance] = useState(0);
-  const [refreshing, setRefreshing] = useState(false);
+  const [phase, setPhase] = useState<RefreshPhase>("idle");
+  const refreshing = phase === "refreshing" || phase === "complete";
+
+  useEffect(() => () => {
+    mountedRef.current = false;
+    if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current);
+  }, []);
+
+  function publishPull(nextDistance: number) {
+    pullDistanceRef.current = nextDistance;
+    if (frameRef.current !== null) return;
+    frameRef.current = window.requestAnimationFrame(() => {
+      frameRef.current = null;
+      setPullDistance(pullDistanceRef.current);
+      setPhase(pullDistanceRef.current >= REFRESH_THRESHOLD ? "ready" : "pulling");
+    });
+  }
 
   function resetPull() {
     startYRef.current = null;
     pullDistanceRef.current = 0;
+    if (frameRef.current !== null) {
+      window.cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+    }
     setPullDistance(0);
+    setPhase("idle");
   }
 
   function handleTouchStart(event: TouchEvent<HTMLDivElement>) {
     if (
-      refreshing ||
+      phase !== "idle" ||
       !isStandalonePwa() ||
       isPullToRefreshIgnored(event.target) ||
       window.scrollY > 0 ||
@@ -56,7 +93,10 @@ export function PwaPullToRefresh({ children }: { children: ReactNode }) {
       !touch ||
       isPullToRefreshIgnored(event.target) ||
       window.scrollY > 0
-    ) return;
+    ) {
+      resetPull();
+      return;
+    }
 
     const downwardDistance = touch.clientY - startY;
     if (downwardDistance <= 0) {
@@ -65,9 +105,28 @@ export function PwaPullToRefresh({ children }: { children: ReactNode }) {
     }
 
     event.preventDefault();
-    const nextDistance = Math.min(MAX_PULL_DISTANCE, downwardDistance * 0.55);
-    pullDistanceRef.current = nextDistance;
-    setPullDistance(nextDistance);
+    const nextDistance = Math.min(MAX_PULL_DISTANCE, downwardDistance * 0.52);
+    publishPull(nextDistance);
+  }
+
+  async function refreshInPlace() {
+    const startedAt = performance.now();
+    startYRef.current = null;
+    pullDistanceRef.current = REFRESH_THRESHOLD;
+    setPullDistance(REFRESH_THRESHOLD);
+    setPhase("refreshing");
+
+    try {
+      router.refresh();
+      await Promise.race([requestAppRefresh(), delay(MAX_REFRESH_TIME_MS)]);
+      await delay(Math.max(0, MIN_REFRESH_TIME_MS - (performance.now() - startedAt)));
+      if (!mountedRef.current) return;
+
+      setPhase("complete");
+      await delay(COMPLETE_HOLD_MS);
+    } finally {
+      if (mountedRef.current) resetPull();
+    }
   }
 
   function handleTouchEnd() {
@@ -76,12 +135,20 @@ export function PwaPullToRefresh({ children }: { children: ReactNode }) {
       return;
     }
 
-    startYRef.current = null;
-    setRefreshing(true);
-    window.setTimeout(() => window.location.reload(), 180);
+    void refreshInPlace();
   }
 
-  const indicatorVisible = pullDistance > 0 || refreshing;
+  function handleTouchCancel() {
+    if (!refreshing) resetPull();
+  }
+
+  const indicatorVisible = phase !== "idle";
+  const progress = Math.min(1, pullDistance / REFRESH_THRESHOLD);
+  const label =
+    phase === "refreshing" ? "Refreshing"
+      : phase === "complete" ? "Updated"
+        : phase === "ready" ? "Release to refresh"
+          : "Pull to refresh";
 
   return (
     <div
@@ -89,16 +156,30 @@ export function PwaPullToRefresh({ children }: { children: ReactNode }) {
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
-      onTouchCancel={resetPull}
+      onTouchCancel={handleTouchCancel}
     >
       <div
-        aria-hidden="true"
+        role="status"
+        aria-live="polite"
         className={`pwa-pull-refresh-indicator${indicatorVisible ? " is-visible" : ""}${
-          refreshing ? " is-refreshing" : ""
+          phase !== "idle" ? ` is-${phase}` : ""
         }`}
-        style={{ "--pull-distance": `${pullDistance}px` } as CSSProperties}
+        style={{
+          "--pull-distance": `${pullDistance}px`,
+          "--pull-progress": progress,
+          "--pull-rotation": `${progress * 180}deg`,
+        } as CSSProperties}
       >
-        <span className="pwa-pull-refresh-spinner" />
+        <span className="pwa-pull-refresh-icon" aria-hidden="true">
+          {phase === "refreshing" ? (
+            <LoaderCircle className="size-4 pwa-pull-refresh-loader" strokeWidth={2} />
+          ) : phase === "complete" ? (
+            <Check className="size-4" strokeWidth={2.25} />
+          ) : (
+            <ArrowDown className="size-4 pwa-pull-refresh-arrow" strokeWidth={2} />
+          )}
+        </span>
+        <span className="pwa-pull-refresh-label">{label}</span>
       </div>
       {children}
     </div>

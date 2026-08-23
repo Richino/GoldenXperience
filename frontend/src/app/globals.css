@@ -6147,12 +6147,52 @@ input[type="number"] {
   color: var(--muted);
 }
 
+.dash-trade-type {
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  padding: 0.05rem 0.35rem;
+  font-size: 0.5625rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--muted);
+}
+
 .dash-trade-time {
   margin: 0;
   grid-column: 1;
   font-size: 0.6875rem;
   line-height: 1.25;
   color: var(--muted);
+}
+
+/* When an open trade is next due to be resolved. Describes existing resolver
+   behaviour — the 16:45 ET session exit, the 48-hour horizon, and the fact that
+   nothing resolves while forex is shut. Purely informational. */
+.dash-trade-close {
+  display: inline-block;
+  margin-left: 0.5ch;
+  padding: 0 0.4em;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 0.625rem;
+  line-height: 1.5;
+  white-space: nowrap;
+  vertical-align: baseline;
+  opacity: 0.9;
+}
+
+.dash-trade-close.is-waiting {
+  color: var(--muted);
+}
+
+.dash-trade-close.is-due {
+  color: var(--accent);
+}
+
+/* Past its horizon: worth noticing, but not an error — it still closes. */
+.dash-trade-close.is-overdue {
+  color: var(--danger);
 }
 
 .dash-trade-pl {

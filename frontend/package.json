@@ -18,7 +18,8 @@
     "strategy:test": "tsx scripts/test-strategy.ts",
     "liquidity:test": "tsx scripts/test-liquidity.ts",
     "notional:test": "tsx scripts/test-notional-cap.ts",
-    "news:test": "tsx scripts/test-news-impact.ts"
+    "news:test": "tsx scripts/test-news-impact.ts",
+    "close-outlook:test": "tsx scripts/test-close-outlook.ts"
   },
   "dependencies": {
     "@radix-ui/react-toast": "^1.2.23",

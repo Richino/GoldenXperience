@@ -18,6 +18,8 @@ import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import { useOpenPositionFills } from "@/lib/market-stream/use-open-positions";
 import { getPaperTradingAvailability } from "@/lib/strategy/strategy-engine";
+import { openTradeCloseOutlook } from "@/lib/strategy/close-outlook";
+import { strategyTypeLabel } from "@/lib/strategy/family-label";
 import type { AccountBalanceHistoryPoint, AccountSummary, ConnectionStatus } from "@/types/forex";
 
 export type DashboardWatchRow = {
@@ -138,6 +140,8 @@ type Trade = {
   stop?: number | null;
   target?: number | null;
   nominalRiskAmount?: number | null;
+  strategyFamily?: string | null;
+  batchNumber?: number | null;
 };
 
 export type DashboardOverview = {
@@ -146,7 +150,10 @@ export type DashboardOverview = {
   lifetimeSummary: Metrics;
   current: Batch | null;
   batches: Batch[];
+  /** Current collecting/resolving batch trades (research forward view). */
   trades: Trade[];
+  /** Still-open positions across batches (dashboard Open trades list). */
+  openTrades?: Trade[];
   /** Closed trades across every batch, for the account chart. */
   accountTrades?: Array<{ tradeSequence?: number; paperPl: number | null; closedAt: string | null; openedAt: string; status: string }>;
 };
@@ -214,18 +221,20 @@ export function DashboardView({
 }) {
   const [account, setAccount] = useState(initialAccount);
   const [accountHistory, setAccountHistory] = useState(initialAccountHistory);
-  // Kept for the Recent-trades quote fallback below; the Watchlist section now
+  // Kept for the Open-trades quote fallback below; the Watchlist section now
   // renders from the multi-strategy engine instead.
   const [watchlist, setWatchlist] = useState(initialWatchlist);
   const [strategyRows, setStrategyRows] = useState(initialStrategyWatchlist);
   const [overview, setOverview] = useState(initialOverview);
   const [error, setError] = useState<string | null>(null);
+  const [clockNow, setClockNow] = useState<Date | null>(null);
   // Ticks rather than the 60s refresh below, so an open trade's value moves
   // with the market instead of jumping once a minute.
   const quotes = useLiveQuotes();
   // Real fills, so an open row reports the same money as the account hero.
   const fills = useOpenPositionFills();
   const availability = getPaperTradingAvailability();
+  const openTrades = overview.openTrades ?? overview.trades.filter((trade) => trade.status === "open");
 
   const refresh = useCallback(async () => {
     try {
@@ -297,6 +306,18 @@ export function DashboardView({
     const timer = window.setInterval(() => void refresh(), 60_000);
     return () => window.clearInterval(timer);
   }, [refresh]);
+
+  // Clock for the "when does this close" labels. Client-only and deliberately
+  // null on the first render, so the server-rendered markup and the first
+  // client render match; a time-dependent label produced during SSR would
+  // hydrate against a different minute. Ticks once a minute, which is the
+  // resolution the labels are written at.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setClockNow(new Date());
+    const timer = window.setInterval(() => setClockNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   // Reopening the app after it was backgrounded lands on the last snapshot until
   // the next interval tick — up to a minute away. Pull everything fresh the
@@ -418,21 +439,21 @@ export function DashboardView({
       <BinaryWatchlistCard />
 
       <div className="dashboard-minimal-grid dashboard-trades-grid">
-        <section className="dashboard-minimal-section" aria-label="Recent paper trades">
+        <section className="dashboard-minimal-section" aria-label="Open forex trades">
           <div className="flex items-baseline justify-between gap-3">
-            <h2 className="text-sm font-semibold tracking-[-0.01em]">Recent trades</h2>
+            <h2 className="text-sm font-semibold tracking-[-0.01em]">Open forex trades</h2>
             <Link href="/journal" className="link-quiet pressable text-xs">
               View all
             </Link>
           </div>
-          {overview.trades.length ? (
+          {openTrades.length ? (
             <div className="dash-trade-list mt-3">
               <div className="dash-trade-table-head" aria-hidden="true">
                 <span>Trade</span>
                 <span>Opened</span>
                 <span>Result</span>
               </div>
-              {overview.trades.slice(0, 6).map((trade) => {
+              {openTrades.slice(0, 6).map((trade) => {
                 const settled = trade.paperPl !== null && trade.paperPl !== undefined;
                 // An open trade is marked against the live quote for its pair,
                 // so the row reports what it is worth now rather than "Open".
@@ -472,6 +493,11 @@ export function DashboardView({
                   : (fill?.unrealizedPL ?? live?.money ?? null);
                 const plTone =
                   shown === null ? "is-open" : shown >= 0 ? "is-win" : "is-loss";
+                const typeLabel = strategyTypeLabel(trade);
+                // Null until the client clock starts, so the server and the
+                // first client render agree. A time-dependent label rendered
+                // during SSR would hydrate against a different minute.
+                const outlook = clockNow ? openTradeCloseOutlook(trade, clockNow) : null;
                 return (
                   <Link
                     key={trade.id}
@@ -487,9 +513,17 @@ export function DashboardView({
                           {displayNameFor(trade.instrument)}
                         </span>
                         <span className="dash-trade-dir">{trade.direction}</span>
+                        <span className="dash-trade-type">{typeLabel}</span>
                       </p>
                     </div>
-                    <p className="dash-trade-time">{time(trade.openedAt)}</p>
+                    <p className="dash-trade-time">
+                      {time(trade.openedAt)}
+                      {outlook ? (
+                        <span className={`dash-trade-close is-${outlook.tone}`} title={outlook.detail}>
+                          {outlook.label}
+                        </span>
+                      ) : null}
+                    </p>
                     <div className="dash-trade-aside">
                       <p className={`dash-trade-pl metric-number ${plTone}`}>
                         {shown === null ? "Open" : money(shown, account.currency)}
@@ -511,7 +545,7 @@ export function DashboardView({
               })}
             </div>
           ) : (
-            <p className="mt-4 text-sm text-[color:var(--muted)]">No paper trades yet.</p>
+            <p className="mt-4 text-sm text-[color:var(--muted)]">No open forex trades.</p>
           )}
         </section>
       </div>

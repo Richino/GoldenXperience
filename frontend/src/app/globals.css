@@ -1981,9 +1981,16 @@ input[type="number"] {
     0 10px 24px rgba(0, 0, 0, 0.36);
 }
 
-/* Lift the dock above the home indicator / gesture bar on iOS and Android. */
+/* Android: lift above the gesture bar when safe-area isn't reported. */
 .mobile-dock {
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
+}
+
+/* iPhone: safe-area alone is enough; the extra 1rem sat the pill too high. */
+@supports (-webkit-touch-callout: none) {
+  .mobile-dock {
+    padding-bottom: max(0.25rem, env(safe-area-inset-bottom, 0px));
+  }
 }
 
 .nav-liquid-lens-track {

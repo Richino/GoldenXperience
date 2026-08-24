@@ -34,8 +34,3 @@ api-server/research-v2/**/*.jsonl
 api-server/research-v2/**/*.csv
 research-baseline-pre-ny.json
 momentum-excursion-audit.csv
-
-# Broader research artifact globs (git's ** matching is path-depth sensitive)
-api-server/research-v2/**/cache/**
-*.jsonl
-!frontend/**/*.jsonl

@@ -43,11 +43,24 @@ export function volatilityBucketFor(atrPips: number | null) {
   return atrPips < 5 ? "low" as const : atrPips < 10 ? "normal" as const : "high" as const;
 }
 
+/**
+ * The decision-time news verdict, as a structured value rather than a sentence.
+ *
+ * The gate always ran; only its verdict was being lost. It survived inside the
+ * `conditions` array as a display string while the `news_status` column on every
+ * multi-strategy trade read 'not_evaluated', so the database contradicted the
+ * evidence sitting beside it. This type is what makes the column truthful, and
+ * it uses exactly the values `paper_strategy_trades.news_status` already allows.
+ */
+export type NewsGateStatus = "clear" | "high_impact" | "calendar_unavailable" | "not_evaluated";
+
 export interface HardGateResult {
   conditions: StrategyCondition[];
   passed: boolean;
   session: string;
   spreadPips: number | null;
+  /** The structured verdict behind the "News" condition. */
+  newsStatus: NewsGateStatus;
 }
 
 /**
@@ -86,18 +99,52 @@ export function evaluateHardGates(
   const newsRequired = evaluationMode !== "historical_replay";
   const newsClear = !newsRequired || (input.calendarConnected
     && (input.highImpactNewsWithinMinutes === null || input.highImpactNewsWithinMinutes > 30));
+  // Four distinct states, not three. An unusable calendar used to be recorded as
+  // "high impact" because `newsClear` collapses to false either way — so a trade
+  // paused for a MISSING calendar was indistinguishable from one paused for an
+  // actual release. The gate's PASS/FAIL is deliberately unchanged (it still
+  // fails closed on an unusable calendar); only what gets written down improves.
+  const newsStatus: NewsGateStatus = !newsRequired ? "not_evaluated"
+    : !input.calendarConnected ? "calendar_unavailable"
+      : newsClear ? "clear" : "high_impact";
   conditions.push(condition("News", newsRequired ? newsClear : false,
     evaluationMode === "historical_replay" ? "Historical news was not retained; this is a price-only technical evaluation."
       : !input.calendarConnected ? "Economic calendar is unavailable or stale; entries pause until the 30-minute news buffer can be verified."
         : newsClear ? "No high-impact release inside the 30-minute buffer." : "High-impact release inside the buffer.",
-    newsRequired ? (newsClear ? "clear" : "high impact") : "not evaluated", newsRequired));
+    newsStatus, newsRequired));
 
   return {
     conditions,
     passed: conditions.every((item) => !item.required || item.passed),
     session: session.label,
     spreadPips: input.spreadPips,
+    newsStatus,
   };
+}
+
+/**
+ * Recover the structured news verdict from a condition list.
+ *
+ * The condition array is the single source of truth for what the gate decided,
+ * so deriving the persisted column FROM it makes the two incapable of
+ * disagreeing — which is precisely the defect being repaired. Kept tolerant of
+ * the older display spellings ("high impact", "not evaluated") so historical
+ * rows can be re-read by the repair command without a translation table.
+ */
+export function newsStatusFromConditions(conditions: readonly StrategyCondition[]): NewsGateStatus | null {
+  const news = conditions.find((item) => item.name === "News");
+  if (!news) return null;
+  const value = String(news.currentValue ?? "").trim().toLowerCase();
+  if (value === "clear") return "clear";
+  if (value === "calendar_unavailable") return "calendar_unavailable";
+  if (value === "not_evaluated" || value === "not evaluated") return "not_evaluated";
+  if (value === "high_impact" || value === "high impact") {
+    // Pre-repair rows spelled BOTH "calendar unusable" and "release inside the
+    // buffer" as "high impact". The reason text is the only thing that still
+    // separates them, so it decides rather than a guess.
+    return /calendar is unavailable|calendar is stale/i.test(news.reason ?? "") ? "calendar_unavailable" : "high_impact";
+  }
+  return null;
 }
 
 export interface TradePlan {
@@ -185,11 +232,26 @@ export interface FinalizeInput {
   summary: string;
   qualifyReason: string;
   features?: StrategyResearchFeatures;
+  /** Overrides the verdict derived from `conditions`. Rarely needed. */
+  newsStatus?: NewsGateStatus;
 }
 
-/** Assemble the common {@link StrategyCandidate} shape for a family evaluator. */
+/**
+ * Assemble the common {@link StrategyCandidate} shape for a family evaluator.
+ *
+ * `newsStatus` and `evaluationMode` are stamped onto the features here rather
+ * than in each strategy. Every one of the four families builds its features
+ * literal inline and none of them set these two, so `openPaperTrade` — which
+ * reads `setup.features.newsStatus` — wrote 'not_evaluated' onto all 55
+ * multi-strategy trades even though the news gate had run and passed on all 55.
+ * Deriving it from the condition list at this single point means the column and
+ * the conditions array come from the same fact and cannot drift apart, and no
+ * strategy has to remember to do it.
+ */
 export function finalizeCandidate(args: FinalizeInput): StrategyCandidate {
   const { plan } = args;
+  const features = args.features ?? EMPTY_FEATURES;
+  const newsStatus = args.newsStatus ?? newsStatusFromConditions(args.conditions) ?? undefined;
   return {
     family: args.family,
     version: args.version,
@@ -206,7 +268,7 @@ export function finalizeCandidate(args: FinalizeInput): StrategyCandidate {
     target: plan?.target ?? null,
     riskReward: plan?.riskReward ?? null,
     positionSize: plan?.position ?? null,
-    features: args.features ?? EMPTY_FEATURES,
+    features: { ...features, newsStatus, evaluationMode: args.input.evaluationMode ?? "live" },
     summary: args.summary,
     conditions: args.conditions,
     passedConditions: args.conditions.filter((item) => item.passed),

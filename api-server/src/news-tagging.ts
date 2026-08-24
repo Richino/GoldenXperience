@@ -4,6 +4,7 @@ import {
   type NewsEventInput, type NewsTagResult, type NewsWindowConfig,
 } from "../../frontend/src/lib/news/impact-tagging.js";
 import { getAllCalendarEvents } from "../../frontend/src/lib/calendar/forex-factory.js";
+import { classifyNewsPersistence } from "./evidence-integrity.js";
 
 /**
  * News impact tagging — database glue around the pure classifier.
@@ -92,30 +93,74 @@ export async function loadCandidateEvents(
 }
 
 /**
+ * How much the stored calendar can say about ONE instant.
+ *
+ * Deliberately not filtered by currency. The question is not "was there news for
+ * this pair" — the classifier answers that — but "did the calendar have anything
+ * at all to say about this moment". A day with zero stored events for any
+ * currency is a day the feed never covered, and a NO_NEWS verdict computed
+ * against it is an absence of DATA, not an absence of NEWS.
+ *
+ * ±1 day matches `calendarCoverage()`, so the per-trade test and the aggregate
+ * report can never disagree about which trades are covered.
+ */
+export async function calendarEventsNear(instant: string | Date): Promise<number> {
+  const at = new Date(instant);
+  if (Number.isNaN(at.getTime())) return 0;
+  const rows = await query<{ nearby: number }>(
+    `SELECT count(*)::int AS nearby FROM economic_calendar_events
+      WHERE event_time BETWEEN $1::timestamptz - interval '1 day' AND $1::timestamptz + interval '1 day'`,
+    [at.toISOString()],
+  );
+  return rows.rows[0]?.nearby ?? 0;
+}
+
+/**
  * Compute and store the news context for one trade.
  *
  * Idempotent: the classifier is pure and the write is a plain UPDATE of the
  * news columns only, so running it again over the same trade and the same
  * calendar rewrites identical values. No other column is touched, and no row
  * is inserted or deleted.
+ *
+ * THE COVERAGE DOWNGRADE. The pure classifier can only report what the events it
+ * was handed imply, and an empty list always implies NO_NEWS. That is correct
+ * for the classifier and wrong for the database: 22 legacy trades were stamped
+ * NO_NEWS from a calendar that did not exist yet, and nothing on the row said
+ * so. Here — where the calendar IS visible — a NO_NEWS verdict with no coverage
+ * is stored as INSUFFICIENT_CALENDAR_DATA instead. A positive match is never
+ * downgraded: finding an event proves coverage by itself.
  */
+export interface StoredNewsTag extends NewsTagResult {
+  /** What was actually written, after the coverage downgrade. */
+  persistedTag: string;
+  evaluationState: string;
+  calendarEventsNearby: number;
+}
+
 export async function tagTradeWithNews(
   trade: { id: string; instrument: string; openedAt: string | Date },
   config: NewsWindowConfig = DEFAULT_NEWS_WINDOWS,
-): Promise<NewsTagResult | null> {
+): Promise<StoredNewsTag | null> {
   const events = await loadCandidateEvents(trade.instrument, trade.openedAt, config);
   const result = classifyNewsImpact({ pair: trade.instrument, entryTime: trade.openedAt }, events, config);
+  const nearby = await calendarEventsNear(trade.openedAt);
+  const persisted = classifyNewsPersistence({ classifiedTag: result.tag, calendarEventsNearby: nearby });
   await query(
     `UPDATE paper_strategy_trades SET
        news_impact_tag=$2, news_currency=$3, news_event_name=$4, news_event_time=$5,
        news_minutes_from_news=$6, news_impact_level=$7, news_matched_event_ids=$8::text[],
-       news_tagged_at=now(), news_window_config=$9::jsonb, updated_at=now()
+       news_tagged_at=now(), news_window_config=$9::jsonb,
+       news_evaluation_state=$10, news_calendar_events_nearby=$11, updated_at=now()
      WHERE id=$1`,
-    [trade.id, result.tag, result.currency, result.eventName, result.eventTime,
+    [trade.id, persisted.tag, result.currency, result.eventName, result.eventTime,
      result.minutesFromNews, result.impactLevel, result.matchedEventIds,
-     JSON.stringify(config)],
+     JSON.stringify(config), persisted.state, nearby],
   );
-  return result;
+  // The caller sees BOTH: the classifier's own verdict, and what was actually
+  // stored. Returning only the classifier verdict would let a report count a
+  // downgraded row as NO_NEWS, which is the very confusion being repaired.
+  return { ...result, persistedTag: persisted.tag, evaluationState: persisted.state, calendarEventsNearby: nearby };
 }
 
 /**
@@ -146,17 +191,20 @@ export interface BackfillOptions {
 /**
  * Backfill news tags across existing trades.
  *
- * Safe to run repeatedly. Without `force` it only fills trades that have no tag
- * yet, so a re-run is a no-op; with `force` it recomputes every trade, which is
- * the correct move after the windows change. Either way the classifier is
- * deterministic, so the same trades and calendar yield the same tags.
+ * Safe to run repeatedly. Without `force` it fills trades that have no tag yet
+ * AND retries the ones parked as INSUFFICIENT_CALENDAR_DATA — those are the
+ * rows whose answer can still change once the calendar catches up, and leaving
+ * them out would freeze a "no data" verdict forever. With `force` it recomputes
+ * every trade, which is the correct move after the windows change. Either way
+ * the classifier is deterministic, so the same trades and calendar yield the
+ * same tags.
  */
 export async function backfillNewsTags(options: BackfillOptions = {}) {
   const config = options.config ?? DEFAULT_NEWS_WINDOWS;
   const rows = await query<{ id: string; instrument: string; opened_at: string }>(
     `SELECT id,instrument,COALESCE(opened_at,decision_time)::text AS opened_at
      FROM paper_strategy_trades
-     WHERE ($1::boolean OR news_impact_tag IS NULL)
+     WHERE ($1::boolean OR news_impact_tag IS NULL OR news_impact_tag IN ('INSUFFICIENT_CALENDAR_DATA','NOT_EVALUATED'))
        AND ($2::text IS NULL OR instrument=$2)
        AND COALESCE(opened_at,decision_time) IS NOT NULL
        AND ($3::int IS NULL
@@ -165,11 +213,13 @@ export async function backfillNewsTags(options: BackfillOptions = {}) {
     [options.force ?? false, options.instrument ?? null, options.sinceDays ?? null],
   );
 
-  const counts: Record<string, number> = { NO_NEWS: 0, NEAR_NEWS: 0, HIGH_IMPACT_NEWS: 0 };
+  // Counts the tag that was actually STORED, not the classifier's raw verdict,
+  // so a downgraded row is never reported as confirmed quiet.
+  const counts: Record<string, number> = { NO_NEWS: 0, NEAR_NEWS: 0, HIGH_IMPACT_NEWS: 0, INSUFFICIENT_CALENDAR_DATA: 0, NOT_EVALUATED: 0 };
   let tagged = 0;
   for (const row of rows.rows) {
     const result = await tagTradeWithNews({ id: row.id, instrument: row.instrument, openedAt: row.opened_at }, config);
-    if (result) { counts[result.tag] = (counts[result.tag] ?? 0) + 1; tagged += 1; }
+    if (result) { counts[result.persistedTag] = (counts[result.persistedTag] ?? 0) + 1; tagged += 1; }
   }
   return { considered: rows.rows.length, tagged, counts };
 }

@@ -14,7 +14,7 @@ function cand(family: StrategyFamily, direction: "long" | "short", quality = 5, 
   return { family, version: `${family}-v1`, configVersion: `${family}-cfg-v1`, direction, executable, riskReward: rr, quality };
 }
 function stat(resolved: number, wins: number, netR: number, sumSqR: number): BucketStat {
-  return { resolved, wins, netR, sumSqR, mfe: null, mae: null };
+  return { resolved, wins, netR, sumSqR, grossR: netR, mfe: null, mae: null };
 }
 function evidence(entries: Array<[StrategyFamily, "long" | "short", string, string, string, BucketStat]>): EvidenceStore {
   const context = new Map<string, BucketStat>();

@@ -1,0 +1,971 @@
+================================================================================
+FOREX ADAPTIVE ENGINE - PREREQUISITE DATA AUDIT
+GoldenXperience / api-server
+Audit date: 2026-08-24 (data read live from DATABASE_URL, read-only)
+Scope: AUDIT ONLY. No schema, strategy, risk, execution or migration change was
+made. Nothing was repaired. Every number below is a real query result.
+================================================================================
+
+
+================================================================================
+1. OVERALL READINESS VERDICT
+================================================================================
+
+    PARTIALLY_READY  -  with one blocking data-integrity defect.
+
+The *schema* is in unusually good shape. This repository already does the thing
+most trading systems never do: it snapshots the strategy's own decision-time
+evidence, immutably, per trade AND per rejected candidate, versioned against a
+frozen configuration. Sections 2-7 below are largely a list of things that
+already exist.
+
+Three things stop this from being READY:
+
+  (a) A LINKAGE DEFECT that is actively corrupting the adaptive engine's
+      evidence today. 48 of the 55 executed multi-strategy trades are filed in
+      paper_strategy_evaluations as never having executed. As a direct
+      consequence, a *hypothetical* shadow outcome was computed for 48
+      opportunities that were in fact traded for real, and
+      loadAdaptiveEvidence() counts BOTH. ~24% of the observations the engine
+      would learn from are duplicates of the same real opportunity.
+      This is not a missing field. It is wrong data already in the tables.
+
+  (b) SAMPLE SIZE. 55 multi-strategy trades over 3 calendar days
+      (2026-08-19 -> 2026-08-21). The most populated exact evidence bucket
+      (family x pair x session x regime x direction) holds 3 resolved
+      observations. The engine's own thresholds are 50 (LEARNING) and 100
+      (ACTIVE_SELECTION). Nothing is learnable at that volume - and the engine
+      correctly refuses to act: 3,307 of 3,312 adaptive decisions are still
+      in 'collecting'.
+
+  (c) THE ORIGINAL-vs-INVERTED COMPARISON HAS ZERO ROWS. Both mechanisms exist
+      and are correctly designed; neither has collected a single observation.
+
+The correct move is to fix (a), keep collecting for (b), and stop treating (c)
+as answered. Building an adaptive selector on the current tables would train it
+on double-counted evidence over a 3-day sample.
+
+
+================================================================================
+2. EXISTING DATA ARCHITECTURE
+================================================================================
+
+The pipeline that exists today (traced in code, not inferred from the UI):
+
+  OANDA candles/quotes
+      |  getMultiStrategySnapshot()            frontend/src/lib/strategy/strategy-service.ts
+  computeRegime()  -> MarketRegime             frontend/src/lib/strategy/regime.ts
+      |
+  4 pure strategies, one candidate each        frontend/src/lib/strategy/strategies/
+      ema.ts . breakout.ts . momentum.ts . meanrev.ts
+      each returns StrategyCandidate = StrategySetup + family/version/
+      configVersion/regime/qualifyReason
+      |
+  decideInstrument()                           api-server/src/adaptive-engine.ts
+      pure, 3-state (collecting -> learning -> active_selection)
+      |
+  persistPaperEvaluation()   ---------------> paper_strategy_evaluations    (EVERY candidate)
+  logAdaptiveDecision()      ---------------> adaptive_decisions            (EVERY instrument/bar)
+  persistMultiWatchSnapshot()---------------> multistrategy_watch_snapshots (mutable live view)
+      |  (only the selected candidate)
+  applyMomentumInversion()                     api-server/src/momentum-inversion.ts
+  openPaperTrade()           ---------------> paper_strategy_trades
+  queuePracticeOrderIntent() ---------------> practice_order_intents -> OANDA practice
+  tagNewTradeSafely()        ---------------> paper_strategy_trades.news_*
+      |
+  resolveOpenTrades() / fastResolveFilledTrades() / liveResolvePaperTrades()
+      broker close preferred; labelOutcome() candle scan as fallback
+      |
+  resolveShadowCandidates()  ---------------> shadow_candidate_outcomes     (counterfactuals)
+      |
+  loadAdaptiveEvidence()  <- paper_strategy_trades + shadow_candidate_outcomes
+      |
+  decideInstrument()  (next bar)
+
+This is already almost exactly the architecture requested in section 12 of the
+brief. It should be reused, not replaced.
+
+Live table inventory (n_live_tup / total size):
+
+  strategy_evaluations              373,149 rows   571 MB   (legacy research corpus)
+  market_candles                  1,045,253 rows   231 MB
+  market_candle_quotes            1,033,702 rows   219 MB
+  paper_strategy_evaluations         17,073 rows    43 MB   <- candidate ledger
+  adaptive_decisions                  3,312 rows   6.8 MB   <- decision ledger
+  shadow_candidate_outcomes             146 rows            <- counterfactual outcomes
+  paper_strategy_trades                  84 rows   568 kB   <- trade ledger
+  economic_calendar_events              153 rows
+  momentum_short_inversion_pairs          0 rows            <- paired A/B, empty
+  evaluation_features / trade_candidates / outcome_labels - 0 live rows, last
+      written 2026-08-07; superseded by the columns above (dead scaffolding)
+
+
+================================================================================
+3. EXACT FIELDS CURRENTLY CAPTURED
+================================================================================
+
+TABLE: paper_strategy_trades  (57 columns; migrations 015, 025, 032, 034)
+
+  IDENTITY
+    id                        uuid            PK
+    trade_sequence            bigint          UNIQUE, global monotone
+    strategy_version_id       uuid -> strategy_versions  (name+version, e.g. momentum-v1)
+    strategy_family           text            'ema'|'breakout'|'momentum'|'meanrev' (NULL on legacy)
+    config_version            text            -> strategy_configs (IMMUTABLE, trigger-enforced)
+    experiment_id             uuid -> strategy_experiments
+    batch_id                  uuid -> paper_strategy_batches
+    instrument                text -> instruments
+    direction                 text            ALWAYS the EXECUTED direction
+    decision_time             timestamptz     the completed M15 bar
+    opened_at                 timestamptz     (== decision_time on all 84 rows)
+    closed_at                 timestamptz
+    session / weekday         text            'London'|'London/New York overlap'|'New York'
+    setup_name                text
+    user_id, created_at, updated_at
+
+  EXECUTION
+    entry                     numeric         INTENDED entry: bid for short / ask for long
+                                              at decision time (strategy-common.ts buildTradePlan)
+    stop, target              numeric
+    planned_r                 numeric         intended risk/reward
+    result_r                  numeric         realized R
+    paper_pl                  numeric         nominal_risk_amount * result_r, or broker realizedPL
+    exit                      numeric
+    exit_reason               text
+    spread_pips               numeric         NOT NULL - spread at decision time
+    nominal_risk_percent / nominal_risk_amount / calculated_units /
+      calculated_standard_lots                full sizing provenance
+    max_favorable_r / max_adverse_r           MFE/MAE from the M15 scan
+
+  OUTCOME
+    status                    'open'|'closed'|'ambiguous'
+    outcome                   'open'|'target_first'|'stop_first'|'forced_close'|'ambiguous'
+    duration                  derived (closed_at - opened_at)
+
+  DECISION EVIDENCE
+    conditions                jsonb NOT NULL  full ordered gate list, each with
+                                              {name, passed, required, reason, currentValue}
+    features                  jsonb NOT NULL  StrategyResearchFeatures incl. the
+                                              full MarketRegime object and the
+                                              family-specific feature block
+    checklist_score           numeric
+
+  REGIME (first-class columns, denormalised from features.regime)
+    regime                    'trending'|'ranging'|'mixed'
+    trend_strength            numeric (regression R-squared)
+    volatility_bucket         'low'|'normal'|'high'
+    atr_pips                  numeric
+
+  INVERSION
+    original_direction        text  (what the strategy concluded)
+    inverted                  boolean NOT NULL DEFAULT false
+    inversion_experiment_id   text
+
+  NEWS  (migration 034, research-only, never read by any decision)
+    news_impact_tag           'NO_NEWS'|'NEAR_NEWS'|'HIGH_IMPACT_NEWS'
+    news_currency, news_event_name, news_event_time
+    news_minutes_from_news, news_impact_level
+    news_matched_event_ids    text[]   (every matching event, not just the attributed one)
+    news_tagged_at, news_window_config  (provenance - the thresholds used)
+
+  UNUSED / LEGACY
+    news_status               text - see section 7. 'not_evaluated' on ALL 55
+                                     multi-strategy trades.
+    review, rule_compliance, screenshot_before_url, screenshot_after_url
+
+TABLE: paper_strategy_evaluations  (29 columns) - one row per (strategy_version,
+instrument, decision_time), i.e. EVERY candidate every family produced, executed
+or not. Carries entry/stop/target/risk_reward/spread_pips/conditions/features/
+regime/trend_strength/volatility_bucket/atr_pips/config_version/experiment_id/
+original_direction/inverted plus:
+    setup_status              'valid'|'developing'|'invalid'|'no_setup'
+    rejection_reason          text - the first failing required condition
+    execution_status          'selected'|'suppressed'|'blocked'|'no_setup'
+    trade_created             boolean
+    paper_trade_id            uuid -> paper_strategy_trades
+
+TABLE: adaptive_decisions - one row per (instrument, decision_time):
+adaptive_state, regime jsonb, candidates jsonb (all four with geometry +
+execution status), selected jsonb, suppressed jsonb, evidence jsonb, reason
+text, selected_trade_id.
+
+TABLE: shadow_candidate_outcomes - hypothetical outcome for a non-executed valid
+candidate: outcome, result_r, max_favorable_r, max_adverse_r, exit, resolved_at,
+horizon_ends_at, exit_reason. Resolved by the same labelOutcome() the real
+trades use.
+
+TABLE: strategy_configs - IMMUTABLE (BEFORE UPDATE trigger raises on any change
+to family/version/config_version/configuration). Holds the full parameter set,
+so every threshold a historical trade was judged against is recoverable:
+    momentum-cfg-v1: minReturnAtr 1.5, minBodyRatio 0.5, minConsecutive 2,
+      accelerationBars 3, maxExtensionAtr 4, rsiOverbought 80, rsiOversold 20,
+      stopLookbackBars 6, stopBufferAtr 0.5, targetR 2, minStopAtr 1,
+      returnLookbackBars 5, extensionLookbackBars 15, rsiPeriod 14
+    ema-cfg-v1: emaFast 21, emaMid 50, emaSlow 200, minTrendStrength 0.3,
+      minSlopeAtrPerBar 0.05, slopeLookbackBars 10, pullbackPadAtr 0.35,
+      maxExtensionAtr 2, requireConfirmation true, stopLookbackBars 10,
+      targetR 2, minStopAtr 1
+    breakout-cfg-v1: lookbackBars 20, breakoutAtrThreshold 0.5,
+      requireCandleClose true, requireRetest false, minRangeWidthAtr 1,
+      maxRangeWidthAtr 8, maxExtensionAtr 3, minimumVolatilityAtrPips 2,
+      stopBufferAtr 0.5, targetR 2, minStopAtr 1
+    meanrev-cfg-v1: meanPeriod 20, rangeLookbackBars 20, stretchThresholdAtr 2,
+      maxTrendStrength 0.4, minRangeAgeBars 10, requireReversalConfirmation true,
+      stopBeyondExtremeAtr 0.5, minRiskReward 1, minStopAtr 1
+
+TABLE: economic_calendar_events - 153 events, 2026-08-16 -> 2026-08-28,
+16 high-impact.
+TABLE: experiment_activations - durable "before/after" boundary per experiment.
+
+
+================================================================================
+4. EXACT FIELDS MISSING
+================================================================================
+
+  MISSING - ACTUAL FILL PRICE / SLIPPAGE
+      There is no actual_entry, fill_price, or slippage column. `entry` is the
+      INTENDED entry (the bid/ask read at decision time). When the trade reaches
+      the broker, brokerCloseFor() reads state.averageClosePrice and derives
+      result_r from the cash OANDA booked - so EXIT slippage is implicitly
+      inside result_r, but ENTRY slippage is invisible and cannot be separated.
+      50 of 84 trades have a submitted broker intent; 17 were rejected outright
+      and 17 are still pending, so the ledger silently mixes broker-filled
+      trades with paper-only ones and nothing distinguishes them on the row.
+
+  MISSING - BID/ASK AT DECISION TIME ON THE TRADE ROW
+      Only spread_pips is stored. The raw bid/ask exist on
+      multistrategy_watch_snapshots, but that table is upserted per
+      (instrument, family) and is overwritten every 60s - it is a live view, not
+      an immutable snapshot. The quote a trade was built on is not recoverable.
+
+  MISSING - ESTIMATED TRANSACTION COST IN R
+      spread_pips is stored but never converted to a cost. Given that the
+      documented 10,009-trade replay attributed the entire loss to the spread,
+      spread_in_R (= spread_pips * pipSize / |entry - stop|) is the single most
+      important derived field this ledger does not have.
+
+  MISSING - NEWS CONTEXT ON REJECTED / SHADOW CANDIDATES
+      All nine news_* columns live only on paper_strategy_trades. A shadow
+      candidate cannot be sliced by news without recomputing the classifier
+      against economic_calendar_events at query time. It IS derivable
+      (evaluation.decision_time + instrument -> economic_calendar_events), but
+      it is not stored, so shadow and executed rows are not directly comparable
+      on the news dimension.
+
+  MISSING - CALENDAR-COVERAGE FLAG ON THE TAG
+      news_impact_tag = 'NO_NEWS' means "no matching event in the stored
+      calendar", which for 22 of 84 trades means "no calendar data existed",
+      not "no news". calendarCoverage() computes this on demand and the code
+      comments call it out explicitly, but the row itself does not carry it.
+
+  MISSING - VOLUME / LIQUIDITY / TICK DATA
+      No volume is captured anywhere on the decision. Market structure is
+      captured only as structureHighs/structureLows counts and the range fields
+      inside MarketRegime (rangeHigh, rangeLow, rangeWidthAtr, rangeAgeBars).
+
+  MISSING - SPREAD AND VOLATILITY IN THE ADAPTIVE EVIDENCE KEY
+      loadAdaptiveEvidence() buckets on (family, pair, session, regime,
+      direction) only. volatility_bucket, atr_pips, trend_strength,
+      news_impact_tag and spread_pips are all STORED on the trade but are not
+      dimensions the engine can learn over. This is a selector limitation, not
+      a data gap - the columns are there.
+
+  MISSING - A PAIRED ORIGINAL/INVERTED RECORD FOR EXECUTED TRADES (see section 8)
+
+  MISSING - 'developing' / partial-setup progression
+      setup_status supports 'developing' but the four Phase-2 strategies only
+      ever emit valid / no_setup / invalid, so near-misses are indistinguishable
+      from complete non-events.
+
+
+================================================================================
+5. DECISION-TIME FEATURE COVERAGE
+================================================================================
+
+The generic feature snapshot the brief asks about ALREADY EXISTS. It is
+`features jsonb NOT NULL` on both paper_strategy_trades and
+paper_strategy_evaluations.
+
+  FORMAT       StrategyResearchFeatures  (frontend/src/lib/strategy/types.ts)
+  IMMUTABLE    On paper_strategy_trades: yes in practice - written once at
+               INSERT and never updated by any code path (verified: no UPDATE
+               statement in the tree touches `features` on that table).
+               On paper_strategy_evaluations: NO - the ON CONFLICT DO UPDATE in
+               persistPaperEvaluation() rewrites features on every collector
+               tick inside the same M15 bar. The last write of the bar wins.
+  VERSIONED    Yes. config_version is on the same row and points at the
+               trigger-protected strategy_configs row holding every threshold.
+  COMPUTED     Only from completed candles at or before decision_time. The
+               strategies are pure, take no clock beyond evaluatedAt, and see no
+               future candles.
+
+Measured coverage on the 84 trades:
+
+  family      trades  features.regime  own family block  conditions[]  atr_pips  config_version
+  momentum        25              25                25            25          25              25
+  breakout        18              18                18            18          18              18
+  ema             12              12                12            12          12              12
+  meanrev          0               -                 -             -           -               -
+  legacy(null)    29               0                 0            29           0               0
+
+  -> 55/55 multi-strategy trades: complete decision-time snapshot.
+  -> 29/29 legacy trades: pre-date the multi-strategy schema. They carry their
+     own liquidity-strategy feature block and conditions, but no regime,
+     atr_pips, volatility_bucket or config_version. They are a different
+     experiment and must not be pooled.
+
+Coverage on the 13,248 multi-strategy EVALUATION rows: features.regime present
+on 13,248/13,248 (100%), conditions non-empty on 13,248/13,248 (100%).
+Approximately 10.7 MB of decision-time evidence across the four families.
+
+
+================================================================================
+6. STRATEGY-BY-STRATEGY COVERAGE
+================================================================================
+
+Every strategy stores the exact inputs its own gates read. Verified against
+live rows, not against the type definition.
+
+MOMENTUM  (momentum-v1 / momentum-cfg-v1)  25 executed trades, 47 valid candidates
+  "Why did Momentum choose LONG/SHORT at this exact moment?" -> FULLY ANSWERABLE.
+  features.momentum, real row:
+      { momentumAtr: -2.5078, returnPct: -0.002147, accelerationAtr: -0.8687,
+        bodyRatio: 0.5714, consecutiveBars: 3, extensionAtr: 0.8032, rsi14: 42.28 }
+  Every one of the five setup gates has both its boolean verdict and its numeric
+  value in conditions[]: Directional run, Candle strength, Consecutive bars,
+  Accelerating, Not exhausted - plus the four hard gates (Market data, Session,
+  Spread, News). The thresholds those numbers were compared against are in
+  strategy_configs('momentum-cfg-v1'). Direction is reconstructible from the
+  sign of momentumAtr. Strategy score: none exists; checklist_score and the
+  passed-condition count are the proxies.
+    NOT STORED: original vs inverted direction - 0 rows (see section 8).
+
+EMA  (ema-v1 / ema-cfg-v1)  12 executed trades, 39 valid candidates
+  features.ema, real row:
+      { emaFast: 0.81103, emaMid: 0.81146, emaSlow: 0.81151, aligned: true,
+        slopeAtrPerBar: -0.08756, pullbackDepthAtr: 0.40742,
+        distanceFromFastAtr: 1.48346, extensionAtr: 1.48346, confirmation: true }
+  EMA values yes / relationship (aligned) yes / slope yes / distance from EMA yes
+  / confirmation state yes / trend determination yes (regime.trendDirection +
+  regime.trendStrength). Crossover EVENT is not stored as such - only the
+  resulting stack state. Adequate for this strategy, which trades the state.
+
+BREAKOUT  (breakout-v1 / breakout-cfg-v1)  18 executed trades, 55 valid candidates
+  features.breakout, real row:
+      { level: 0.80646, side: "low", lookbackBars: 20, breakoutDistance: 0.0013,
+        breakoutDistanceAtr: 1.74028, candleClose: true, rangeHigh: 0.8112,
+        rangeLow: 0.80646, rangeWidthAtr: 6.34533, retest: true,
+        extensionAtr: 1.74028 }
+  breakout level yes / range high-low yes / breakout distance (abs and ATR) yes
+  / confirmation (candleClose, retest) yes / volatility around the breakout yes
+  (regime.atr, atrPips, volatility, rangeWidthAtr).
+
+MEAN REVERSION  (meanrev-v1 / meanrev-cfg-v1)  0 executed trades, 5 valid candidates
+  features.meanReversion, real row:
+      { mean: 1.16887, distanceFromMean: -0.001673, stretchAtr: 2.68341,
+        rangeHigh: 1.17108, rangeLow: 1.16688, rangeWidthAtr: 6.73733,
+        rangeAgeBars: 37, trendStrength: 0.0585, reversalConfirmation: true }
+  Complete. But MeanRev has NEVER opened a trade - its only five resolved
+  observations are shadow. Nothing about it is learnable yet.
+
+SHARED REGIME BLOCK (all four, 100% coverage) - features.regime, real row:
+      { regime: "trending", trendDirection: "down", trendStrength: 0.60518,
+        volatility: "normal", atr: 0.000747, atrPips: 7.47006,
+        momentumState: "accelerating_down", emaFast/emaMid/emaSlow,
+        slopeAtrPerBar: -0.09213, rangeHigh, rangeLow, rangeWidthAtr: 10.45507,
+        rangeAgeBars: 42, lookbackBars: 50, evaluatedAt }
+
+
+================================================================================
+7. NEWS-CONTEXT COVERAGE
+================================================================================
+
+STATUS: implemented, working, joinable - but with three caveats that must be
+carried into any analysis.
+
+  Tag coverage: 84/84 trades tagged (100%).
+
+    family      n    NO_NEWS  NEAR_NEWS  HIGH_IMPACT_NEWS
+    legacy     29         28          0                 1
+    momentum   25         23          1                 1
+    breakout   18         16          2                 0
+    ema        12          9          2                 1
+    TOTAL      84         76          5                 3
+
+  Every requested field is present: tag, currency, event name, event timestamp,
+  impact level, minutes from event, plus news_matched_event_ids (ALL overlapping
+  events, not just the attributed one) and news_window_config (the thresholds
+  used: nearWindowMinutes 30, highImpactWindowMinutes 30,
+  highImpactNearWindowMinutes 90, highImpactMinLevel 3, minimumRelevantLevel 2).
+
+  Join reliability: the tag is computed once at trade open (tagNewTradeSafely)
+  and re-computed nightly for the trailing 7 days (nightlyNewsRetagIfDue), which
+  corrects tags written before the ForexFactory week rolled over. The classifier
+  is pure and the write touches only news_* columns. This is sound.
+
+  CAVEAT 1 - 22 OF 84 TRADES CARRY NO_NEWS WITH NO CALENDAR COVERAGE.
+    economic_calendar_events spans 2026-08-16 -> 2026-08-28 (153 events). The 29
+    legacy trades run 2026-08-03 -> 2026-08-18. 22 of them have no calendar
+    event within +/-1 day of the trade at all. Their NO_NEWS means "no data",
+    not "no news". All 55 multi-strategy trades ARE covered (0 uncovered). The
+    code documents this exactly (calendarCoverage(), news-tagging.ts) but the
+    row does not carry the distinction.
+
+  CAVEAT 2 - 8 tagged non-NO_NEWS trades across 84. Any performance-around-news
+    conclusion from 5 NEAR_NEWS + 3 HIGH_IMPACT trades is noise.
+
+  CAVEAT 3 - THE HARD NEWS GATE VERDICT IS NOT IN THE news_status COLUMN.
+    news_status = 'not_evaluated' on ALL 55 multi-strategy trades, because
+    openPaperTrade() reads setup.features.newsStatus and the four Phase-2
+    strategies never set it (strategy-common.ts EMPTY_FEATURES /
+    finalizeCandidate omit it). The gate DID run and DID fail closed - the
+    verdict is in conditions[] as {name: "News", currentValue: "clear"} on all
+    55/55. So the information is preserved, just in the wrong place. The column
+    is misleading as it stands.
+
+  Rejected/shadow candidates carry NO news columns at all. 13,248
+  multi-strategy evaluations fall inside the calendar's date span and could be
+  tagged.
+
+
+================================================================================
+8. ORIGINAL vs INVERTED MOMENTUM COVERAGE
+================================================================================
+
+STATUS: MISSING IN DATA. Two well-designed mechanisms, zero observations.
+
+  paper_strategy_trades:  inverted = true              0 of 84
+                          original_direction NOT NULL  0 of 84
+                          inversion_experiment_id      0 of 84
+  momentum_short_inversion_pairs:                      0 rows
+
+WHY. experiment_activations records momentum-inversion-v1 activated at
+2026-08-23T21:00:24Z. The last paper trade of ANY kind opened 2026-08-21. The
+collector has run since (evaluations exist through 2026-08-24) but produced 0
+valid candidates on 08-23 and 08-24 and 0 valid momentum SHORT candidates since
+activation. The experiment is armed and has simply never fired.
+
+CAN WE COMPARE original vs inverted TODAY?  NO - not for executed trades.
+
+  applyMomentumInversion() is a REPLACEMENT policy, not a paired shadow. It
+  rebuilds the trade on the opposite side of the book (correctly: it fills the
+  other side at the real quote and pays its own spread rather than negating
+  P&L, and it preserves stop/target DISTANCES so R:R is unchanged). But only one
+  arm is ever executed. The original arm's geometry survives in the
+  paper_strategy_evaluations row - written BEFORE inversion, so it holds the
+  original entry/stop/target - yet resolveShadowCandidates() only labels rows
+  with execution_status IN ('suppressed','blocked'), and the executing path
+  promotes the row to 'selected'. So the original arm of an inverted trade will
+  get no counterfactual outcome. Nothing else fills the gap.
+
+  momentum_short_inversion_pairs IS the correct paired design - one row per
+  opportunity holding both arms (orig SHORT at bid / inv LONG at ask, same
+  distances mirrored), both shadow, plus horizon_returns at 1/3/6/12/24 bars,
+  and an 'excluded' status with a reason so the denominator stays honest. It is
+  deliberately excluded from the adaptive evidence loader so it cannot
+  contaminate live selection. It is scoped to Momentum SHORT only and holds
+  0 rows.
+
+  The code's own frozen note is worth restating as an audit finding: the
+  23-trade momentum sample of 2026-08-19->21 inverted from -7.19R to +7.13R, but
+  an 11,977-signal historical replay put inverted momentum at -0.0600 vs
+  original -0.0595 - i.e. no inversion effect at all. The two bodies of evidence
+  disagree, and the sample that generated the hypothesis cannot confirm it.
+
+CONCLUSION: shadow-trade records ARE needed for a paired comparison of executed
+trades - and the right one already exists in table form. It needs (i) rows, and
+(ii) extension beyond Momentum SHORT if the question is to be answered for the
+Momentum family generally.
+
+
+================================================================================
+9. REJECTED-OPPORTUNITY COVERAGE
+================================================================================
+
+STATUS: STRONG. This is the best-covered area of the whole system, and it is
+what protects a future selector from selection bias.
+
+  paper_strategy_evaluations: 17,073 rows total; 13,248 multi-strategy
+  (3,312 per family x 4 - every family evaluated at every instrument/bar).
+  286 distinct decision bars across 12 instruments.
+
+  Per family (multi-strategy):
+    family     rows   valid   selected  suppressed  blocked  no_setup
+    breakout   3312      55          0          13       42      3257
+    momentum   3312      47          1           1       46      3264
+    ema        3312      39          0           0       39      3273
+    meanrev    3312       5          0           0        5      3307
+    legacy     3825      13    (predates execution_status - all NULL)
+
+  Every requested rejection category is recorded, with a text reason:
+
+    strategy fired but trade rejected    yes  execution_status='blocked'
+    risk engine rejection                yes  rejection_reason written by
+                                              openPaperTrade()'s reject() closure -
+                                              "Risk blocked: the portfolio position or
+                                              nominal-risk limit was reached",
+                                              "...paper collection is paused",
+                                              "...no USD conversion rate...",
+                                              "...the daily trade limit was reached"
+    duplicate/conflict rejection         yes  "Duplicate evaluation: this decision was
+                                              already collected", "...this instrument
+                                              already has an open position"
+    spread rejection                     yes  "Spread too wide."       3,406 occurrences
+    session rejection                    yes  "Entries are limited to the London and
+                                              New York sessions..."    6,605 occurrences
+    strategy candidate suppressed        yes  execution_status='suppressed'
+                                              (13 breakout, 1 momentum)
+    WAIT / no-trade decisions            yes  execution_status='no_setup' (13,101 rows)
+                                              AND adaptive_decisions.reason='No executable
+                                              candidate at this instrument' (3,180 of 3,312)
+
+  Top rejection reasons (all families, all time):
+      6,605  Entries are limited to the London and New York sessions...
+      3,406  Spread too wide.
+      1,456  No clear H1 direction: confirmed swings are mixed.
+        972  No completed close beyond the range.
+        804  No strong directional run.
+        420  No direction-consistent level has been taken and reclaimed.
+        363  Price is not in a valid pullback zone or lost the slow EMA.
+        342  The EMA stack is mixed.
+        303  Price is not stretched far enough from the mean.
+        175  The latest candle is weak or against the move.
+
+  Counterfactual outcomes: shadow_candidate_outcomes holds 146 rows against 146
+  eligible candidates - 100% of eligible non-executed valid candidates are
+  resolved, no backlog. Distribution: 30 target_first (avg +1.967R), 59
+  stop_first (-1.000R), 57 forced_close (avg +0.395R). Per family:
+  breakout 55 (avg +0.042R), momentum 47 (+0.119R), ema 39 (+0.286R),
+  meanrev 5 (+0.695R).
+
+  Adaptive decision audit trail: adaptive_decisions holds 3,312 rows - one per
+  instrument per bar, with the full candidate set, the regime, the evidence
+  used, what was selected, what was suppressed, and why:
+      3,180  No executable candidate at this instrument.
+        114  Cold start: the only valid candidate is taken, pending evidence.
+         11  Cold start: deterministic tie-break selected momentum long over breakout.
+          4  Learning: lone candidate taken; evidence not yet used to suppress it.
+          2  Cold start: deterministic tie-break selected momentum short over breakout.
+          1  Learning: ranked by historical expectancy, selected breakout long.
+  State: 3,307 'collecting', 5 'learning', 0 'active_selection'.
+
+
+================================================================================
+10. DATA-QUALITY FINDINGS
+================================================================================
+
+  -- BLOCKING -----------------------------------------------------------------
+
+  [Q1] TRADE->EVALUATION LINKAGE BROKEN ON 48 OF 55 MULTI-STRATEGY TRADES.
+
+       family      trades   linked (paper_trade_id)   trade_created   execution_status='selected'
+       momentum        25                        3               3                            1
+       breakout        18                        2               2                            0
+       ema             12                        2               2                            0
+       legacy          29                       11              11                            0
+
+       48 executed trades are filed in paper_strategy_evaluations as never
+       having been created. This is the exact defect the in-code comments at
+       api-server/src/paper-cycle.ts:1434 and :399 describe and claim to have
+       fixed by reordering the writes and adding EXECUTION_STATUS_CONFLICT_RULE.
+       The fix is in the source; the 48 damaged rows are historical and were
+       never corrected. (18 legacy trades additionally have no evaluation row at
+       all, which is expected - that strategy predates the evaluations table.)
+
+  [Q2] 48 REAL OPPORTUNITIES ARE DOUBLE-COUNTED IN THE ADAPTIVE EVIDENCE.
+       Direct consequence of Q1. Because those rows read as 'blocked' rather
+       than 'selected', resolveShadowCandidates() computed a HYPOTHETICAL
+       outcome for opportunities that were actually traded:
+
+         family     duplicated  executed avg_R   shadow avg_R   outcomes disagree
+         breakout           17          +0.049        -0.137                    5
+         momentum           21          -0.213        -0.233                    0
+         ema                10          +0.296        +0.260                    0
+
+       loadAdaptiveEvidence() reads paper_strategy_trades AND
+       shadow_candidate_outcomes and merges both into the same context buckets.
+       Total observations it would see today: 55 executed + 146 shadow = 201, of
+       which 48 (24%) are the same real opportunity counted twice - and in 5
+       breakout cases the two copies disagree on the outcome. 3 shadow rows even
+       sit on evaluations that carry a non-null paper_trade_id.
+
+  -- MATERIAL -----------------------------------------------------------------
+
+  [Q3] SAMPLE SIZE. 55 multi-strategy trades over 3 trading days. Largest exact
+       evidence bucket (family x pair x session x regime x direction) = 3
+       resolved observations, against thresholds of 50 (LEARNING) and 100
+       (ACTIVE_SELECTION). Combined executed+shadow per family: breakout 73,
+       momentum 72, ema 51, meanrev 5.
+
+  [Q4] MEANREV HAS NEVER TRADED. 0 executed, 5 shadow observations, 5 valid
+       candidates out of 3,312 evaluations (0.15% fire rate).
+
+  [Q5] news_status = 'not_evaluated' ON ALL 55 MULTI-STRATEGY TRADES despite the
+       news gate running and passing. See section 7 caveat 3. The column is
+       wrong; the conditions[] array is right.
+
+  [Q6] 22 OF 84 TRADES TAGGED NO_NEWS WITH NO CALENDAR COVERAGE (all legacy).
+       See section 7 caveat 1.
+
+  [Q7] BROKER EXECUTION IS NOT MARKED ON THE TRADE ROW. 50 submitted, 17
+       rejected, 17 pending across 84 trades. A trade whose broker order was
+       rejected is scored purely from candles; a submitted one is scored from
+       the broker's realizedPL (which carries exit slippage). Two different
+       measurement regimes are pooled in result_r with nothing on the row to
+       separate them.
+
+  [Q8] COLLECTOR GAP. Evaluations exist for 2026-08-19 (84 bars), 08-20 (96),
+       08-21 (85), then nothing until 2026-08-23 21:15Z (11 bars) and 08-24
+       (10 bars). 2026-08-22 is entirely absent. The 08-21 21:00Z -> 08-23
+       21:15Z gap is longer than the weekend market close. 08-23 and 08-24
+       produced 528 and 480 evaluations with 0 valid candidates and 0 trades.
+
+  -- CLEAN --------------------------------------------------------------------
+
+  Checked and found sound across all 84 trades:
+      impossible R values (result_r < -1.5)                        0
+      impossible R values (result_r > 5)                           0
+      closed_at earlier than opened_at                             0
+      status='closed' with NULL closed_at                          0
+      status='closed' with NULL exit                               0
+      planned_r <= 0                                               0
+      spread_pips = 0                                              0
+      NULL spread_pips                                             0
+      open/unresolved trades                                       0
+      ambiguous outcomes                                           0
+      decision_time != opened_at                                   0
+      empty features JSONB                                         0
+      missing config_version (multi-strategy only)                 0
+      missing regime / atr_pips (multi-strategy only)              0
+      missing max_favorable_r                                      1
+      missing exit_reason                                          1
+
+  Timestamps: all timestamptz, all comparisons in UTC, ET conversions done
+  explicitly with AT TIME ZONE 'America/New_York'. No timezone defect found.
+
+  Duplicates: prevented structurally by UNIQUE(strategy_version_id, instrument,
+  decision_time) on both trades and evaluations, UNIQUE(instrument,
+  decision_time) on adaptive_decisions, and a partial unique index allowing one
+  open trade per instrument. Zero duplicates found.
+
+  Strategy naming: consistent. 8 strategy_versions rows, 4 active
+  (adaptive-multistrategy/{ema,breakout,momentum,meanrev}-v1), 4 retired
+  (deterministic-forex/{day-exploration-v1, macro-liquidity-v1,
+  trend-pullback-liquidity-v1, trend-pullback-liquidity-v2}). Every retirement
+  used the same preserved-read-only pattern; no historical row was relabelled.
+
+  Historical schema changes: 35 migrations, all additive to the trade ledger.
+  Nullable columns were added rather than backfilled, which is what makes
+  "before" and "after" separable by query (original_direction NULL = pre-
+  inversion; strategy_family NULL = pre-multistrategy). This is correct and
+  should be preserved.
+
+  Dead scaffolding: evaluation_features (0 live rows), trade_candidates (0 live
+  rows, last write 2026-08-07), outcome_labels (0), paper_trades (0),
+  paper_trade_events (0). strategy_evaluations holds 373,149 rows / 571 MB of
+  legacy research and is not part of the paper pipeline.
+
+
+================================================================================
+11. WHAT THE CURRENT DATA CAN AND CANNOT TEACH US
+================================================================================
+
+CAN ANSWER (evidence is stored; sample size is a separate problem - see below)
+
+  - Per-family expectancy, win rate, MFE/MAE, and outcome mix, for executed
+    trades and for non-executed valid candidates separately.
+  - Performance by pair, by session, by weekday, by direction.
+  - Performance by regime, by volatility bucket, by trend_strength, by atr_pips
+    - these are first-class columns AND inside features.regime.
+  - Whether a specific numeric decision input predicts the outcome: for any
+    trade you can read momentumAtr, bodyRatio, consecutiveBars, accelerationAtr,
+    extensionAtr, rsi14 (momentum); slopeAtrPerBar, pullbackDepthAtr,
+    distanceFromFastAtr, aligned, confirmation (EMA); breakoutDistanceAtr,
+    candleClose, retest, rangeWidthAtr (breakout); stretchAtr, rangeAgeBars,
+    reversalConfirmation (meanrev) - and correlate it with result_r.
+  - Whether a specific confirmation CONDITION improves expectancy: conditions[]
+    stores each gate's boolean AND its numeric currentValue on every candidate,
+    executed or not, so a gate can be relaxed counterfactually in analysis.
+  - The full opportunity funnel: how many bars produced a candidate, how many
+    were valid, what specifically rejected the rest, and what a rejected valid
+    candidate would have returned.
+  - Whether the adaptive engine's own selections beat the alternatives it
+    suppressed (adaptive_decisions + shadow_candidate_outcomes).
+  - Whether a trade sat inside a news window, for the 62 calendar-covered trades.
+  - Exact reproduction of any historical decision: config_version ->
+    strategy_configs holds the immutable parameter set.
+
+CANNOT ANSWER
+
+  - ANYTHING WITH STATISTICAL CONFIDENCE. 55 multi-strategy trades over 3 days.
+    Every "CAN ANSWER" above is currently a query that returns a number, not a
+    result. The largest exact context bucket has 3 observations.
+  - Original vs inverted Momentum, in any form. Zero rows on both mechanisms.
+  - Anything about MeanRev. It has never traded.
+  - Whether high ATR caused Momentum failures - atr_pips and volatility_bucket
+    ARE stored, so the cut is computable, but momentum's high-volatility bucket
+    holds 2 trades.
+  - Performance around news. 5 NEAR_NEWS + 3 HIGH_IMPACT trades in total.
+  - How much of the loss is the spread. spread_pips is stored but never
+    converted to R, and there is no cost-adjusted result column.
+  - Entry slippage, and whether broker-filled trades differ from paper-only
+    ones. Not captured, and not separable on the row.
+  - Whether the adaptive engine helps. It has never left 'collecting' for any
+    context and has made 1 evidence-ranked selection in its lifetime.
+  - Anything pooled across the legacy and multi-strategy eras - different
+    strategies, different schema, no shared feature basis.
+
+
+================================================================================
+12. ADAPTIVE ENGINE READINESS SCORE
+================================================================================
+
+  Category                          Status     Basis
+  ----------------------------------------------------------------------------
+  Trade outcomes                    READY      84/84 resolved; outcome, result_r,
+                                               exit, exit_reason, MFE/MAE, duration
+                                               all present; 0 impossible values
+  Strategy identity/version         READY      family + version + config_version +
+                                               experiment_id on 55/55; configs
+                                               immutable by DB trigger
+  Decision reason                   READY      conditions[] with per-gate verdict
+                                               AND numeric value on 100% of trades
+                                               and 100% of 17,073 evaluations
+  Decision-time features            READY      features jsonb, 100% coverage on
+                                               multi-strategy, per-family blocks
+                                               populated, computed only from
+                                               completed candles
+  Market regime                     READY      MarketRegime snapshotted in full +
+                                               denormalised to 4 indexed columns;
+                                               100% coverage
+  Spread/cost                       PARTIAL    spread_pips NOT NULL everywhere;
+                                               no cost in R, no entry slippage,
+                                               no bid/ask on the trade row
+  Session/time                      READY      session, weekday, decision_time,
+                                               opened_at, closed_at; all timestamptz,
+                                               explicit ET conversion, 0 defects
+  News context                      PARTIAL    100% tagged with full event detail
+                                               and window provenance; but 22 tags
+                                               are "no data" not "no news",
+                                               news_status column is wrong, and
+                                               rejected candidates carry no tag
+  Original vs inverted comparison   MISSING    0 inverted trades, 0 original_direction,
+                                               0 paired A/B rows. Mechanisms exist,
+                                               data does not.
+  Rejected opportunities            READY      17,073 evaluations, 3,312 adaptive
+                                               decisions, 146/146 counterfactuals
+                                               resolved, every rejection reason
+                                               recorded as text
+  Data quality                      PARTIAL    schema-level integrity excellent
+                                               (0 duplicates, 0 impossible values,
+                                               0 timezone defects) - but 48 broken
+                                               trade/evaluation links producing
+                                               48 double-counted observations
+
+  ----------------------------------------------------------------------------
+  OVERALL VERDICT:  PARTIALLY_READY
+  ----------------------------------------------------------------------------
+
+  The instrumentation is ready. The data is not - one defect is corrupting the
+  evidence the engine reads, and the sample is 3 days long.
+
+
+================================================================================
+13. MINIMUM PREREQUISITE CHANGES
+================================================================================
+
+MUST HAVE - without these, adaptive learning would be unreliable
+---------------------------------------------------------------
+
+ M1. STOP DOUBLE-COUNTING EXECUTED OPPORTUNITIES IN THE EVIDENCE LOADER.
+     Reason: 48 of 201 observations (24%) are the same real opportunity counted
+     twice, once as an executed trade and once as a hypothetical. In 5 cases the
+     two copies disagree on the outcome. Any expectancy the engine computes
+     today is wrong by construction. Two parts: (a) exclude shadow rows whose
+     evaluation matches an executed trade on (instrument, decision_time,
+     family); (b) repair the 48 historical evaluation rows so paper_trade_id /
+     trade_created / execution_status reflect what actually happened. The source
+     fix for new rows is already in place - this is about the existing damage.
+
+ M2. A CANONICAL "THIS OPPORTUNITY WAS EXECUTED" LINK THAT CANNOT DRIFT.
+     Reason: M1 is only a repair. The link is currently maintained by an UPDATE
+     that matches on three columns and has already failed silently once, for 87%
+     of multi-strategy trades, for days, undetected. The trade row needs its own
+     evaluation_id (or the evaluation needs a NOT NULL-when-executed guarantee),
+     so "was this traded?" is a foreign key rather than an inference.
+
+ M3. TRANSACTION COST IN R, ON THE ROW.
+     Reason: spread_pips is stored but never expressed in the unit everything
+     else is measured in. A prior 10,009-trade replay attributed the ENTIRE loss
+     to the spread. A selector that ranks families by expectancy without cost
+     will systematically prefer whichever family has the tightest stops - i.e.
+     the highest cost per R. One derived column: spread_pips * pipSize /
+     |entry - stop|.
+
+ M4. MARK WHETHER A TRADE ACTUALLY REACHED THE BROKER.
+     Reason: 50 submitted / 17 rejected / 17 pending. Broker-filled trades are
+     scored from OANDA's realizedPL (carrying exit slippage); the rest from
+     candles at exact levels. Pooling two measurement regimes in one result_r
+     column means the engine learns a blend of a real cost structure and an
+     idealised one. A single execution_source column resolves it.
+
+ M5. ROWS FOR THE ORIGINAL-vs-INVERTED COMPARISON.
+     Reason: this is the one strategy question the system is explicitly built to
+     answer, the tables exist, and both hold zero rows. Not a schema change -
+     the momentum_short_inversion_pairs design is correct. It needs the
+     experiment to actually fire, and its scope widened past Momentum SHORT if
+     the question is about the Momentum family. Until then, treat "invert
+     momentum" as untested.
+
+
+SHOULD HAVE - would materially improve learning
+-----------------------------------------------
+
+ S1. CALENDAR-COVERAGE FLAG ALONGSIDE news_impact_tag.
+     Reason: 22 of 84 NO_NEWS tags mean "no calendar existed". Without a flag on
+     the row, any news cut silently mixes "no news" with "no data" and will
+     understate the news effect. calendarCoverage() already computes it.
+
+ S2. FIX OR RETIRE news_status.
+     Reason: it reads 'not_evaluated' on all 55 multi-strategy trades even
+     though the news gate ran and passed on all 55. A column that contradicts
+     the conditions[] array on the same row is worse than no column.
+
+ S3. NEWS CONTEXT ON EVALUATIONS/SHADOW CANDIDATES.
+     Reason: 146 shadow observations already outnumber the 55 executed ones and
+     will keep doing so. Excluding them from every news cut throws away the
+     majority of the evidence. 13,248 evaluations fall inside the calendar span.
+
+ S4. EXTEND THE EVIDENCE KEY BEYOND (family, pair, session, regime, direction).
+     Reason: volatility_bucket, atr_pips and trend_strength are stored on every
+     trade and are the most plausible explanations of why a family fails, but
+     the engine cannot express them. Note the tension: the ladder already needs
+     50-100 observations per bucket and the deepest bucket has 3, so extra
+     dimensions must be added as ADDITIONAL rungs, never as a finer exact key.
+
+ S5. BID/ASK AT DECISION TIME ON THE TRADE ROW.
+     Reason: only spread_pips survives. The quote itself lives on
+     multistrategy_watch_snapshots, which is overwritten every 60 seconds, so
+     the price a trade was built on is unrecoverable after the fact - which
+     blocks any later re-pricing or execution-quality analysis.
+
+
+NICE TO HAVE - useful later, not worth delaying the first adaptive version
+-------------------------------------------------------------------------
+
+ N1. Actual fill price / entry slippage from the broker fill transaction.
+     Reason: exit slippage is already implicit in broker-derived result_r; entry
+     slippage is the remaining unknown. Only meaningful once broker-filled
+     trades are separable (M4) and numerous.
+
+ N2. Candle volume on the decision snapshot.
+     Reason: the only requested context genuinely absent everywhere. Cheap to
+     add, but no current strategy reads it, so nothing would consume it yet.
+
+ N3. Emit 'developing' from the four Phase-2 strategies.
+     Reason: setup_status supports it; the strategies never use it, so a
+     one-gate near-miss is indistinguishable from a flat non-event among 13,101
+     no_setup rows. Would sharpen threshold-sensitivity analysis.
+
+ N4. Drop the dead scaffolding (evaluation_features, trade_candidates,
+     outcome_labels, paper_trades, paper_trade_events - all 0 live rows).
+     Reason: hygiene only. They invite a future reader to join the wrong table.
+
+DELIBERATELY NOT RECOMMENDED
+     No new indicators. Every field above is justified by a specific question
+     the current data cannot answer. Adding RSI/MACD/Bollinger/etc. "in case
+     they help" would grow the snapshot without growing what can be learned from
+     55 trades, and the four strategies already persist exactly the inputs their
+     own gates read.
+
+
+================================================================================
+14. RECOMMENDED ARCHITECTURE FOR THE FUTURE ADAPTIVE ENGINE
+================================================================================
+
+The architecture in the brief already exists in this repository. Do not rebuild
+it. The mapping is one-to-one:
+
+    Market opportunity      ->  getMultiStrategySnapshot() + computeRegime()
+    Strategy evaluation     ->  4 pure Strategy.evaluate() implementations
+    Decision-time snapshot  ->  features jsonb + conditions jsonb + regime columns
+                                + config_version -> immutable strategy_configs
+    Trade / rejection       ->  paper_strategy_trades / paper_strategy_evaluations
+                                (+ adaptive_decisions as the decision audit trail)
+    Outcome                 ->  resolveOpenTrades / fastResolve / liveResolve
+                                + shadow_candidate_outcomes for the counterfactuals
+    Statistical memory      ->  loadAdaptiveEvidence() -> EvidenceStore
+    Adaptive selector       ->  decideInstrument() - pure, 3-state, unit-tested
+    Future decision         ->  the next collector tick
+
+The design decisions already made here are the right ones and should be
+preserved rather than re-litigated:
+
+  - The selector is PURE and separated from I/O. decideInstrument() takes
+    candidates + evidence and returns a decision; only loading and logging touch
+    the database. This is what makes it testable and replayable.
+  - Configurations are IMMUTABLE AT THE DATABASE, enforced by a trigger, not by
+    convention. A parameter change is a new config_version. Every historical
+    trade is reproducible.
+  - Evidence is keyed PER CONTEXT with a ladder from exact to aggregate, and the
+    state machine's thresholds are counted per bucket, never globally. 100
+    trades spread across unrelated pairs cannot unlock active selection for one
+    context. Keep this.
+  - Suppression requires BOTH a sample-size threshold AND a one-sided
+    negative-expectancy confidence test. Sample count alone is never enough.
+  - Non-executed candidates are preserved and their counterfactual outcomes
+    resolved with the SAME labelOutcome() the real trades use. This is the
+    defence against selection bias and it is already working (146/146 resolved).
+  - Research tables are deliberately excluded from the evidence loader
+    (momentum_short_inversion_pairs) so a frozen hypothesis cannot leak into
+    live selection.
+  - Evidence is keyed on COALESCE(original_direction, direction) so an inverted
+    trade lands in the bucket the strategy will consult next time. Correct, and
+    it will matter the moment inversion produces its first row.
+
+The only architectural CHANGES worth making are the ones section 13 lists - and
+note that M1/M2 are corrections to how the existing pieces connect, not new
+pieces. The single structural weakness is that "was this candidate executed?" is
+maintained by a multi-column UPDATE rather than a foreign key, and that is
+exactly where the system has already failed silently once, at 87% failure rate,
+undetected for days.
+
+One sequencing observation: the engine cannot leave 'collecting' for any context
+until buckets reach 50 observations. At the current rate - 55 executed + 146
+shadow over 3 trading days, spread across 4 families x 12 pairs x 3 sessions x 3
+regimes x 2 directions - the exact buckets will not fill for a very long time.
+The ladder's coarser rungs will fill first, which is the intended behaviour, but
+it means the practical near-term value of this data is OFFLINE RESEARCH over
+paper_strategy_evaluations + shadow_candidate_outcomes, not online adaptation.
+
+
+================================================================================
+FINAL RECOMMENDATION
+================================================================================
+
+                        FIX DATA COLLECTION FIRST
+
+Specifically: fix the trade/evaluation linkage and the resulting double-count
+(M1, M2). That is a genuine defect writing wrong evidence into the only tables
+the adaptive engine reads - 24% of its observations are duplicates today, and in
+5 cases the duplicate disagrees with the truth. It is not a missing feature and
+it will not fix itself by collecting more data; it will scale.
+
+Then add the three cheap columns that make the existing data interpretable
+(M3 cost-in-R, M4 broker-vs-paper, S1 calendar coverage) and correct the one
+column that is actively misleading (S2 news_status).
+
+After that: CONTINUE COLLECTING WITHOUT ACTIVE ADAPTATION. The instrumentation
+is genuinely good - better than most systems ever get - but 55 trades over 3
+days, one family that has never traded, and a 3-observation deepest bucket
+cannot support a selector. The engine's own state machine already knows this and
+is refusing to act, which is the correct behaviour and should not be overridden.
+
+DO NOT BUILD THE ADAPTIVE ENGINE YET. Not because the plumbing is missing - it
+is almost entirely there - but because what it would learn from today's tables
+is 24% duplicated, 3 days long, and blind to the cost that a 10,009-trade replay
+already identified as the whole loss.
+
+================================================================================
+END OF REPORT
+================================================================================

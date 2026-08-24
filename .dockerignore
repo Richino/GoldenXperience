@@ -7,8 +7,8 @@ api-server/scripts/_*.ts
 api-server/scripts/_*.mjs
 api-server/scripts/_*.py
 
-# Frontend has its own Railway service / root directory.
-frontend/
+# Frontend source is required: api-server typechecks against shared modules
+# under frontend/src. Do not exclude the frontend tree from this build.
 
 # Local / generated noise
 **/node_modules

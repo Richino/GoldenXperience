@@ -17,6 +17,7 @@ import {
   CrosshairMode,
   LineSeries,
   LineStyle,
+  TickMarkType,
   createChart,
   createSeriesMarkers,
   type IChartApi,
@@ -67,6 +68,33 @@ import type { Candle, CandleSeries, PaperChartTrade } from "@/types/forex";
  * focused trade into view before it stops chasing it.
  */
 const MAX_FOCUS_HISTORY_PAGES = 8;
+
+const chartAxisTimeFormatter = new Intl.DateTimeFormat("en-US", {
+  hour: "numeric",
+  minute: "2-digit",
+  hour12: true,
+  timeZone: "UTC",
+});
+
+function formatChartAxisTime(time: Time, tickMarkType: TickMarkType): string | null {
+  // Leave day/month/year dividers to Lightweight Charts' default formatter;
+  // only intraday ticks need the requested 12-hour display.
+  if (tickMarkType !== TickMarkType.Time && tickMarkType !== TickMarkType.TimeWithSeconds) {
+    return null;
+  }
+
+  if (typeof time === "number") {
+    return chartAxisTimeFormatter.format(new Date(time * 1_000));
+  }
+
+  if (typeof time === "string") {
+    return chartAxisTimeFormatter.format(new Date(time));
+  }
+
+  return chartAxisTimeFormatter.format(
+    new Date(Date.UTC(time.year, time.month - 1, time.day)),
+  );
+}
 
 interface SetupLevels {
   entry: number;
@@ -253,6 +281,7 @@ function chartTheme(
       borderColor: "transparent",
       timeVisible: true,
       secondsVisible: false,
+      tickMarkFormatter: formatChartAxisTime,
       fixLeftEdge: true,
       rightOffset: embedded ? 4 : 6,
       ticksVisible: false,

@@ -358,51 +358,56 @@ export function DashboardLoadingSkeleton() {
 
       <section className="dashboard-minimal-section">
         <div className="flex items-baseline justify-between gap-3">
-          <Line className="h-4 w-20" />
+          <Line className="h-4 w-28" />
           <Line className="h-3 w-14" />
         </div>
-        <div className="dashboard-watchlist-grid mt-3">
-          {Array.from({ length: 9 }, (_, index) => (
-            <WatchlistRowSkeleton key={index} />
+        <div className="dash-trade-list mt-3">
+          {Array.from({ length: 4 }, (_, index) => (
+            <div key={index} className="dash-trade-card">
+              <div className="dash-trade-main min-w-0 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Line className="h-4 w-24" />
+                  <Line className="h-3 w-10" />
+                </div>
+              </div>
+              <div className="dash-trade-aside space-y-1.5">
+                <Line className="ml-auto h-4 w-16" />
+                <Line className="ml-auto h-3 w-12" />
+              </div>
+            </div>
           ))}
         </div>
       </section>
 
-      <div className="dashboard-minimal-grid">
-        <section className="dashboard-minimal-section">
-          <div className="flex items-baseline justify-between gap-3">
-            <Line className="h-4 w-28" />
-            <Line className="h-3 w-14" />
-          </div>
-          <div className="dash-trade-list mt-3">
-            {Array.from({ length: 6 }, (_, index) => (
-              <div key={index} className="dash-trade-card">
-                <div className="dash-trade-main min-w-0 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Line className="h-4 w-24" />
-                    <Line className="h-3 w-10" />
-                  </div>
-                  <Line className="h-3 w-28" />
-                </div>
-                <div className="dash-trade-aside space-y-1.5">
-                  <Line className="ml-auto h-4 w-16" />
-                  <Line className="ml-auto h-3 w-12" />
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="dashboard-minimal-actions">
+      <section className="dashboard-minimal-section space-y-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <Line className="h-4 w-32" />
+          <Line className="h-3 w-14" />
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
           {Array.from({ length: 3 }, (_, index) => (
-            <div key={index} className="dashboard-minimal-action">
-              <Bone className="size-4 shrink-0 rounded-md" />
-              <Line className="h-4 w-32" />
-              <Bone className="ml-auto size-3.5 rounded-sm" />
+            <div key={index} className="rounded-xl bg-[color:var(--surface-raised)] px-3 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <Line className="h-4 w-20" />
+                <Line className="h-4 w-12" />
+              </div>
+              <Line className="mt-2 h-3 w-32" />
             </div>
           ))}
-        </section>
-      </div>
+        </div>
+      </section>
+
+      <section className="dashboard-minimal-section">
+        <div className="flex items-baseline justify-between gap-3">
+          <Line className="h-4 w-20" />
+          <Line className="h-3 w-14" />
+        </div>
+        <div className="dashboard-watchlist-grid mt-3">
+          {Array.from({ length: 6 }, (_, index) => (
+            <WatchlistRowSkeleton key={index} />
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
@@ -444,8 +449,8 @@ export function SignalsLoadingSkeleton() {
                 <Bone className="h-9 w-11 rounded-full" />
               </div>
             </div>
-            <div className="relative min-h-[14rem] flex-1 overflow-hidden chart-data-shell">
-              <Bone className="h-full w-full rounded-none" />
+            <div className="relative min-h-[14rem] flex-1 overflow-hidden chart-data-shell chart-loading-static">
+              <ChartPlotSkeleton />
             </div>
           </div>
 
@@ -479,7 +484,9 @@ export function SignalsLoadingSkeleton() {
                 <Bone key={`range-${index}`} className="h-8 w-10 rounded-md" />
               ))}
             </div>
-            <Bone className="signals-chart-canvas h-[680px] rounded-none" />
+            <div className="signals-chart-canvas chart-loading-static h-[680px]">
+              <ChartPlotSkeleton />
+            </div>
           </div>
         </section>
       </div>
@@ -491,7 +498,11 @@ export function JournalLoadingSkeleton() {
   return (
     <div className="journal-view journal-minimal space-y-8 lg:space-y-10" aria-busy aria-label="Loading journal">
       <header>
-        <PageTitleSkeleton titleWidth="w-28" subtitleWidth="w-32" />
+        <Line className="h-8 w-28 lg:h-9" />
+        <div className="binary-seg mt-3 flex gap-1.5" aria-hidden>
+          <Bone className="h-8 w-16 rounded-full" />
+          <Bone className="h-8 w-32 rounded-full" />
+        </div>
       </header>
 
       <section className="journal-stats-card grid grid-cols-3">
@@ -507,7 +518,7 @@ export function JournalLoadingSkeleton() {
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <Line className="h-4 w-20" />
           <div className="flex flex-wrap gap-1.5">
-            {["w-10", "w-12", "w-14", "w-[4.25rem]", "w-[4.25rem]", "w-[4.5rem]"].map((width, index) => (
+            {["w-10", "w-12", "w-[4.25rem]", "w-[4.25rem]"].map((width, index) => (
               <Bone key={index} className={`h-7 ${width} rounded-full`} />
             ))}
           </div>
@@ -520,21 +531,13 @@ export function JournalLoadingSkeleton() {
 
 export function WatchlistLoadingSkeleton() {
   return (
-    <div className="space-y-6" aria-busy aria-label="Loading watchlist">
+    <div className="watchlist-tabs space-y-6" aria-busy aria-label="Loading watchlist">
       <WatchlistTabChipsSkeleton />
-      <div className="watchlist-view watchlist-minimal space-y-8 lg:space-y-10">
-        <header className="flex items-end justify-between gap-4">
-          <PageTitleSkeleton titleWidth="w-36" subtitleWidth="w-44" />
-          <Bone className="size-10 shrink-0 rounded-full" />
+      <div className="ms-view space-y-8 lg:space-y-10">
+        <header>
+          <Line className="h-8 w-32 lg:h-9" />
         </header>
-
-        <section className="dashboard-minimal-section">
-          <div className="flex items-baseline justify-between gap-3">
-            <Line className="h-4 w-12" />
-            <Line className="h-3 w-6" />
-          </div>
-          <WatchlistPairsSkeleton />
-        </section>
+        <StrategiesWatchlistSkeleton />
       </div>
     </div>
   );
@@ -672,7 +675,7 @@ export function SettingsLoadingSkeleton() {
               <Line className="h-4 w-10" />
             </div>
           </div>
-          {Array.from({ length: 2 }, (_, index) => (
+          {Array.from({ length: 3 }, (_, index) => (
             <div key={index} className="settings-row">
               <div className="space-y-1.5">
                 <Line className="h-4 w-28" />
@@ -681,6 +684,25 @@ export function SettingsLoadingSkeleton() {
               <Bone className="h-10 w-20 rounded-xl" />
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="settings-minimal-section">
+        <Line className="h-4 w-10" />
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          {Array.from({ length: 3 }, (_, index) => (
+            <div key={index} className="space-y-2">
+              <Line className="h-3 w-20" />
+              <Bone className="h-10 w-full rounded-xl" />
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="settings-minimal-section">
+        <div className="settings-row">
+          <Line className="h-4 w-28" />
+          <Bone className="h-10 w-20 rounded-xl" />
         </div>
       </section>
     </div>
@@ -724,3 +746,4 @@ export function ResearchLoadingSkeleton() {
     </div>
   );
 }
+import { ChartPlotSkeleton } from "@/components/charts/chart-loading-overlay";

@@ -2,6 +2,9 @@
 node_modules/
 */node_modules/
 
+# Local codebase graph and extraction cache — never ship or commit this data.
+graphify-out/
+
 # build output
 .next/
 */.next/

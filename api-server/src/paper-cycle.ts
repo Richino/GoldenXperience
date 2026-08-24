@@ -1166,7 +1166,48 @@ export async function journalTradeSummary(userId: string) {
   const closed = Number(row?.closed ?? 0);
   const wins = Number(row?.wins ?? 0);
   const sumR = Number(row?.sumR ?? 0);
-  return { total, winRate: closed ? wins / closed : null, avgR: closed ? sumR / closed : 0 };
+  // The journal is presented in the New York trading day everywhere else in
+  // the app. Keep the server aggregate in that same zone so the header does
+  // not roll over at UTC midnight for a New York session.
+  const todayRows = await query<{
+    wins: string;
+    losses: string;
+    realizedPL: string | null;
+  }>(
+    `SELECT count(*) FILTER (WHERE result_r > 0)::text AS wins,
+            count(*) FILTER (WHERE result_r < 0)::text AS losses,
+            sum(paper_pl)::text AS "realizedPL"
+     FROM (
+       SELECT result_r::float AS result_r, NULL::float AS paper_pl, closed_at
+       FROM paper_trades
+       WHERE user_id=$1 AND status='closed'
+       UNION ALL
+       SELECT result_r::float, paper_pl::float, closed_at
+       FROM paper_strategy_trades
+       WHERE user_id=$1 AND status='closed'
+     ) log
+     WHERE (closed_at AT TIME ZONE 'America/New_York')::date =
+           (now() AT TIME ZONE 'America/New_York')::date`,
+    [userId],
+  );
+  const today = todayRows.rows[0];
+  // Active trades may have fallen beyond the first journal page, but their
+  // live cash value still belongs in the exposure total at the top of Journal.
+  const openTrades = await journalTradeLog(userId, { limit: 500, filter: "active" });
+
+  return {
+    total,
+    winRate: closed ? wins / closed : null,
+    avgR: closed ? sumR / closed : 0,
+    today: {
+      wins: Number(today?.wins ?? 0),
+      losses: Number(today?.losses ?? 0),
+      realizedPL: today?.realizedPL === null || today?.realizedPL === undefined
+        ? null
+        : Number(today.realizedPL),
+    },
+    openTrades,
+  };
 }
 
 /** Entry and exit points for one pair, used to draw trade markers on the chart. */

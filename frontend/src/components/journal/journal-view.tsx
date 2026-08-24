@@ -5,7 +5,12 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import type { JournalTrade } from "@/types/forex";
 import { apiUrl } from "@/lib/api/url";
-import { formatClockTime, formatDayAndTime, formatShortDay } from "@/lib/format/datetime";
+import {
+  formatClockTime,
+  formatDayAndTime,
+  formatShortDay,
+  tradingDayKey,
+} from "@/lib/format/datetime";
 import {
   openTradeProgress,
   quoteToUsdRateFromQuotes,
@@ -57,6 +62,32 @@ function formatTradeWindow(openedAt: string, closedAt: string | null) {
   return `${formatDayAndTime(openedAt)} → ${formatDayAndTime(closedAt)}`;
 }
 
+function openTradeMoney(
+  trade: JournalTrade,
+  quote: { bid: number | null; ask: number | null } | undefined,
+  quotes: Record<string, { bid: number; ask: number } | undefined>,
+  fill: OpenPositionFill | undefined,
+) {
+  if (trade.resultR !== null) return null;
+  const mark = resolveOpenTradeQuote(quote, fill?.currentPrice);
+  const live = openTradeProgress({
+    direction: trade.direction,
+    instrument: trade.instrument ?? undefined,
+    entry: trade.entry,
+    stop: trade.stop,
+    target: trade.target,
+    bid: mark?.bid,
+    ask: mark?.ask,
+    riskAmount: trade.nominalRiskAmount,
+    fill: fill ? { price: fill.price, units: fill.units } : null,
+    quoteToUsdRate: trade.instrument
+      ? quoteToUsdRateFromQuotes(trade.instrument, quotes)
+      : null,
+  });
+
+  return trade.paperPl ?? fill?.unrealizedPL ?? live?.money ?? null;
+}
+
 function JournalTradeRow({
   trade,
   quote,
@@ -84,9 +115,7 @@ function JournalTradeRow({
           bid: mark?.bid,
           ask: mark?.ask,
           riskAmount: trade.nominalRiskAmount,
-          fill: fill
-            ? { price: fill.price, units: fill.units }
-            : null,
+          fill: fill ? { price: fill.price, units: fill.units } : null,
           quoteToUsdRate: trade.instrument
             ? quoteToUsdRateFromQuotes(trade.instrument, quotes)
             : null,
@@ -95,8 +124,7 @@ function JournalTradeRow({
 
   // Broker unrealised P&L is already account currency — prefer it over a
   // recomputed fill figure so JPY/CAD pairs never lose the dollar amount.
-  const moneyValue =
-    trade.paperPl ?? fill?.unrealizedPL ?? live?.money ?? null;
+  const moneyValue = openTradeMoney(trade, quote, quotes, fill) ?? trade.paperPl;
   const positive =
     trade.resultR !== null
       ? trade.resultR >= 0
@@ -214,7 +242,13 @@ function JournalTradeRow({
 
 const PAGE_SIZE = 20;
 
-type TradeSummary = { total: number; winRate: number | null; avgR: number };
+type TradeSummary = {
+  total: number;
+  winRate: number | null;
+  avgR: number;
+  today?: { wins: number; losses: number; realizedPL: number | null };
+  openTrades?: JournalTrade[];
+};
 
 function filterParamFor(filter: JournalFilter): "all" | "wins" | "losses" | "active" {
   switch (filter) {
@@ -367,14 +401,26 @@ export function JournalView({ embedded = false }: { embedded?: boolean } = {}) {
     onLoadMore: loadMore,
   });
 
-  const totalTrades = summary?.total ?? records.length;
-  const hasClosed = summary ? summary.winRate !== null : false;
-  const winRateLabel = summary
-    ? summary.winRate === null
-      ? "0%"
-      : `${(summary.winRate * 100).toFixed(0)}%`
-    : "—";
-  const avgR = summary?.avgR ?? 0;
+  const todayOpenPnl = useMemo(() => {
+    const today: number[] = [];
+    const currentDay = tradingDayKey(Date.now());
+
+    for (const trade of summary?.openTrades ?? []) {
+      const money = openTradeMoney(
+        trade,
+        trade.instrument ? quotes[trade.instrument] : undefined,
+        quotes,
+        trade.instrument ? fills[trade.instrument] : undefined,
+      );
+      if (money === null) continue;
+      if (tradingDayKey(trade.openedAt) === currentDay) today.push(money);
+    }
+
+    return today.length ? today.reduce((total, value) => total + value, 0) : null;
+  }, [fills, quotes, summary?.openTrades]);
+  const today = summary?.today;
+  const winLossLabel = `${today?.wins ?? 0}W / ${today?.losses ?? 0}L`;
+  const realizedToday = today?.realizedPL ?? null;
 
   return (
     <div className="journal-view journal-minimal space-y-8 lg:space-y-10">
@@ -390,23 +436,25 @@ export function JournalView({ embedded = false }: { embedded?: boolean } = {}) {
 
       <section
         className="journal-stats-card grid grid-cols-3"
-        aria-label="Journal summary"
+        aria-label="Today's trading summary"
       >
         {(
           [
-            ["Trades", totalTrades.toString()],
-            ["Win rate", winRateLabel],
-            ["Avg R", `${avgR >= 0 ? "+" : ""}${avgR.toFixed(2)}R`],
+            ["W / L today", winLossLabel, ""],
+            ["Realized today", formatMoney(realizedToday) ?? "—", realizedToday],
+            ["Unrealized today", formatMoney(todayOpenPnl) ?? "—", todayOpenPnl],
           ] as const
-        ).map(([label, value], index) => (
+        ).map(([label, value, toneValue]) => (
           <div key={label} className="journal-stat min-w-0">
             <p className="text-xs text-[color:var(--muted)]">{label}</p>
             <p
               className={`metric-number mt-1 text-xl font-semibold tracking-[-0.03em] ${
-                index === 2 && hasClosed
-                  ? avgR >= 0
+                typeof toneValue === "number"
+                  ? toneValue > 0
                     ? "text-[color:var(--success)]"
-                    : "text-[color:var(--danger)]"
+                    : toneValue < 0
+                      ? "text-[color:var(--danger)]"
+                      : ""
                   : ""
               }`}
             >

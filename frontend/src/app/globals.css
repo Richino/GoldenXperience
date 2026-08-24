@@ -2459,7 +2459,8 @@ input[type="number"] {
 }
 
 .chart-loading-static .chart-loading-skeleton {
-  inset: 1.25rem 0.75rem 1.75rem;
+  inset: 0;
+  border-radius: inherit;
   opacity: 1;
 }
 

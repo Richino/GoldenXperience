@@ -27,3 +27,15 @@ next-env.d.ts
 # OS/editor
 .DS_Store
 .vercel/
+
+# Research audit artifacts — regenerable locally, too large for deploys/clones.
+api-server/research-v2/**/cache/
+api-server/research-v2/**/*.jsonl
+api-server/research-v2/**/*.csv
+research-baseline-pre-ny.json
+momentum-excursion-audit.csv
+
+# Broader research artifact globs (git's ** matching is path-depth sensitive)
+api-server/research-v2/**/cache/**
+*.jsonl
+!frontend/**/*.jsonl

@@ -1,0 +1,428 @@
+GOLDENXPERIENCE
+LARGE-SCALE FOUR-STRATEGY ADAPTIVE EDGE TEST
+Experiment: four-family-adaptive-historical-v1
+Generated: 2026-08-23T02:14:58.239Z
+
+================================
+DATA
+================================
+
+Pairs: EUR_USD, GBP_USD, USD_JPY
+Date range: 2016-06-02T09:45:00.000Z → 2026-08-03T20:30:00.000Z
+M15/H1/H4 data used: yes (completed OANDA candles; M15 bid/ask quotes)
+Opportunities (resolved executable): 31449
+Resolved: 31449
+EMA n: 8577
+Breakout n: 8316
+Momentum n: 10601
+MeanRev n: 3955
+
+TRAIN: first 60.0% chronologically → n=18869 (2016-06-02T09:45:00.000Z → 2023-05-22T10:30:00.000Z)
+DEV: next 20.0% → n=6290 (→ 2024-10-18T16:00:00.000Z)
+HOLDOUT status: SEALED (DEV gate FAILED — not used for conclusions)
+
+Strategy versions (REAL production defaults, frozen):
+  EMA ema-v1/ema-cfg-v1
+  Breakout breakout-v1/breakout-cfg-v1
+  Momentum momentum-v1/momentum-cfg-v1 (ORIGINAL direction in main arm)
+  MeanRev meanrev-v1/meanrev-cfg-v1
+Adaptive: minLearning=50 minActive=100 z=1.64
+Family priority: ema > breakout > momentum > meanrev
+
+================================
+RAW FOUR-FAMILY PERFORMANCE
+================================ (PRE_HOLDOUT only)
+
+Family     n     Win%     Gross R     Cost R     Net R     PF     CI
+ema       6722  33.3%    -0.0362     0.1324     -0.1686  0.69   [-0.2075, -0.1289]
+breakout  6727  30.6%    -0.0501     0.1269     -0.1769  0.73   [-0.2154, -0.1395]
+momentum  8422  41.0%    -0.0091     0.0506     -0.0597  0.85   [-0.0852, -0.0323]
+meanrev   3288  32.6%    -0.0612     0.1179     -0.1791  0.72   [-0.2314, -0.1293]
+ALL       25159 35.1%    -0.0341     0.1016     -0.1357  0.75   [-0.1523, -0.1168]
+Effective n (day-blocks): 2163
+
+================================
+ADAPTIVE HEADLINE
+================================ (PRE_HOLDOUT)
+
+TAKE ALL:
+n: 25159
+net expectancy: -0.1357 R
+total R: -3415.22
+PF: 0.75
+CI: [-0.1523, -0.1168]
+
+ADAPTIVE TAKE:
+n: 10353
+coverage: 41.2%
+net expectancy: -0.1143 R
+total R: -1183.19
+PF: 0.78
+CI: [-0.1392, -0.0879]
+
+ADAPTIVE WAIT:
+n: 14806
+counterfactual expectancy: -0.1508 R
+CI: [-0.1716, -0.1265]
+
+Does TAKE > ALL > WAIT ? YES
+
+================================
+LEARNING CURVE
+================================
+
+Signals | ALL E | TAKE E | WAIT E | Coverage | TAKE n | WAIT n | Active ctx
+1000     -0.0788  -0.0460   -0.2150   80.6%      806      194      10
+2000     -0.0510  -0.0152   -0.1680   76.6%      1532     468      21
+5000     -0.0878  -0.0633   -0.1412   68.6%      3431     1569     52
+10000    -0.1225  -0.1042   -0.1504   60.4%      6038     3962     71
+15000    -0.1358  -0.1050   -0.1669   50.3%      7539     7461     76
+20000    -0.1305  -0.1052   -0.1502   43.7%      8733     11267    94
+30000    -0.1373  -0.1155   -0.1516   39.6%      11869    18131    132
+
+================================
+CONTEXT SAMPLE SIZE
+================================
+
+At 2000: total=94 median=46.0 p25=20.0 p75=85.0 | >=50:44 >=100:21 >=200:10 >=300:5 >=500:3 >=1000:0
+At 5000: total=94 median=114.0 p25=52.0 p75=229.0 | >=50:73 >=100:52 >=200:28 >=300:17 >=500:10 >=1000:4
+At 10000: total=94 median=213.0 p25=109.0 p75=439.0 | >=50:88 >=100:71 >=200:49 >=300:37 >=500:21 >=1000:11
+At 20000: total=214 median=87.0 p25=29.0 p75=274.0 | >=50:136 >=100:94 >=200:67 >=300:52 >=500:35 >=1000:21
+At 30000: total=214 median=143.0 p25=63.0 p75=341.0 | >=50:174 >=100:132 >=200:86 >=300:64 >=500:42 >=1000:28
+
+================================
+BY FAMILY
+================================ (PRE_HOLDOUT)
+
+ema:
+  ALL  n=6722 netE=-0.1686 grossE=-0.0362 costE=0.1324 WR=33.3% PF=0.69 CI=[-0.2075,-0.1289]
+  TAKE n=2183 netE=-0.1646 coverage=32.5% CI=[-0.2437,-0.0915]
+  WAIT n=4539 netE=-0.1706 CI=[-0.2186,-0.1226]
+  Rescue? PARTIAL (TAKE > ALL but not profitable)
+
+breakout:
+  ALL  n=6727 netE=-0.1769 grossE=-0.0501 costE=0.1269 WR=30.6% PF=0.73 CI=[-0.2154,-0.1395]
+  TAKE n=1799 netE=-0.2035 coverage=26.7% CI=[-0.2756,-0.1392]
+  WAIT n=4928 netE=-0.1672 CI=[-0.2079,-0.1239]
+  Rescue? NO
+
+momentum:
+  ALL  n=8422 netE=-0.0597 grossE=-0.0091 costE=0.0506 WR=41.0% PF=0.85 CI=[-0.0852,-0.0323]
+  TAKE n=5732 netE=-0.0592 coverage=68.1% CI=[-0.0869,-0.0320]
+  WAIT n=2690 netE=-0.0607 CI=[-0.0944,-0.0258]
+  Rescue? PARTIAL (TAKE > ALL but not profitable)
+
+meanrev:
+  ALL  n=3288 netE=-0.1791 grossE=-0.0612 costE=0.1179 WR=32.6% PF=0.72 CI=[-0.2314,-0.1293]
+  TAKE n=639 netE=-0.1858 coverage=19.4% CI=[-0.2792,-0.0748]
+  WAIT n=2649 netE=-0.1775 CI=[-0.2398,-0.1166]
+  Rescue? NO
+
+================================
+LONG vs SHORT
+================================
+
+ema long: ALL n=3488 E=-0.1574 | TAKE n=1487 E=-0.1363 | WAIT n=2001 E=-0.1730 cov=42.6%
+ema short: ALL n=3234 E=-0.1808 | TAKE n=696 E=-0.2249 | WAIT n=2538 E=-0.1687 cov=21.5%
+
+breakout long: ALL n=3354 E=-0.1737 | TAKE n=747 E=-0.1949 | WAIT n=2607 E=-0.1677 cov=22.3%
+breakout short: ALL n=3373 E=-0.1801 | TAKE n=1052 E=-0.2095 | WAIT n=2321 E=-0.1668 cov=31.2%
+
+momentum long: ALL n=4329 E=-0.0524 | TAKE n=2738 E=-0.0527 | WAIT n=1591 E=-0.0520 cov=63.2%
+momentum short: ALL n=4093 E=-0.0673 | TAKE n=2994 E=-0.0651 | WAIT n=1099 E=-0.0732 cov=73.1%
+
+meanrev long: ALL n=1740 E=-0.1720 | TAKE n=148 E=-0.1669 | WAIT n=1592 E=-0.1725 cov=8.5%
+meanrev short: ALL n=1548 E=-0.1871 | TAKE n=491 E=-0.1914 | WAIT n=1057 E=-0.1851 cov=31.7%
+
+================================
+MOMENTUM INVERSION (SEPARATE ARM)
+================================
+
+Original Momentum TAKE-ALL: n=8422 netE=-0.0597 CI=[-0.0852,-0.0323]
+Inverted Momentum TAKE-ALL: n=8422 netE=-0.0451 CI=[-0.0654,-0.0270]
+Adaptive + original Momentum: TAKE n=5732 E=-0.0592 | WAIT E=-0.0607
+Adaptive + inverted Momentum: TAKE n=6186 E=-0.0585 | WAIT E=-0.0078
+Four-family Adaptive TAKE (original Mom): -0.1143
+Four-family Adaptive TAKE (inverted Mom arm): -0.1145
+Inversion useful vs original (TAKE-ALL)? YES (Δ=0.0146)
+
+================================
+QUALITY RANKING
+================================
+
+Q1: n=5031 netE=-0.1558
+Q2: n=5031 netE=-0.1627
+Q3: n=5031 netE=-0.1603
+Q4: n=5031 netE=-0.0835
+Q5: n=5035 netE=-0.1163
+Does quality rank future net R? PARTIAL
+
+================================
+RANDOM CONTROL
+================================
+
+Adaptive coverage: 41.2%
+Adaptive expectancy: -0.1143
+Matched random: mean=-0.1356 95% interval=[-0.1527, -0.1193]
+Adaptive percentile vs random: 99.4%
+Beats random 95%? YES
+
+================================
+PAIR STABILITY
+================================
+
+EUR_USD: n=16321 ALL=-0.1297 TAKE=-0.1076 WAIT=-0.1534 cov=51.7%
+GBP_USD: n=6373 ALL=-0.1438 TAKE=-0.1348 WAIT=-0.1467 cov=24.3%
+USD_JPY: n=2465 ALL=-0.1547 TAKE=-0.1808 WAIT=-0.1500 cov=15.2%
+
+================================
+TIME STABILITY
+================================
+
+-- By month --
+2016-06: ALL=-0.1093 TAKE=-0.0955 WAIT=-0.2371 cov=90.3% totalR=-12.4 n=144
+2016-07: ALL=-0.0823 TAKE=-0.0552 WAIT=-0.2778 cov=87.8% totalR=-6.0 n=123
+2016-08: ALL=-0.1431 TAKE=-0.0873 WAIT=-0.6802 cov=90.6% totalR=-13.5 n=170
+2016-09: ALL=-0.1323 TAKE=-0.2047 WAIT=0.0479 cov=71.3% totalR=-26.0 n=178
+2016-10: ALL=-0.0250 TAKE=0.1332 WAIT=-0.5071 cov=75.3% totalR=17.0 n=170
+2016-11: ALL=0.0264 TAKE=0.0445 WAIT=-0.0302 cov=75.7% totalR=6.8 n=202
+2016-12: ALL=-0.2632 TAKE=-0.2670 WAIT=-0.2550 cov=68.5% totalR=-23.8 n=130
+2017-01: ALL=0.0342 TAKE=0.1426 WAIT=-0.1484 cov=62.7% totalR=14.4 n=161
+2017-02: ALL=-0.0927 TAKE=-0.0438 WAIT=-0.3558 cov=84.3% totalR=-6.1 n=166
+2017-03: ALL=-0.0432 TAKE=-0.0377 WAIT=-0.0653 cov=80.0% totalR=-5.7 n=190
+2017-04: ALL=-0.0496 TAKE=-0.0249 WAIT=-0.0949 cov=64.7% totalR=-2.5 n=156
+2017-05: ALL=0.1482 TAKE=0.2346 WAIT=-0.0643 cov=71.1% totalR=36.4 n=218
+2017-06: ALL=-0.2115 TAKE=-0.2383 WAIT=-0.1677 cov=62.1% totalR=-22.6 n=153
+2017-07: ALL=0.0491 TAKE=0.0977 WAIT=-0.0624 cov=69.6% totalR=11.4 n=168
+2017-08: ALL=0.0136 TAKE=0.0186 WAIT=0.0043 cov=64.7% totalR=2.3 n=190
+2017-09: ALL=-0.1791 TAKE=-0.1013 WAIT=-0.3445 cov=68.0% totalR=-10.3 n=150
+2017-10: ALL=-0.3554 TAKE=-0.3928 WAIT=-0.2525 cov=73.4% totalR=-57.3 n=199
+2017-11: ALL=-0.0181 TAKE=-0.0550 WAIT=0.0520 cov=65.5% totalR=-6.3 n=174
+2017-12: ALL=-0.2539 TAKE=-0.1339 WAIT=-0.4960 cov=66.9% totalR=-15.1 n=169
+2018-01: ALL=-0.0726 TAKE=-0.1261 WAIT=0.0346 cov=66.7% totalR=-16.9 n=201
+2018-02: ALL=0.0158 TAKE=0.0422 WAIT=-0.0217 cov=58.8% totalR=4.0 n=160
+2018-03: ALL=0.0470 TAKE=0.0611 WAIT=0.0321 cov=51.3% totalR=4.8 n=154
+2018-04: ALL=-0.0613 TAKE=-0.0854 WAIT=-0.0377 cov=49.4% totalR=-9.7 n=231
+2018-05: ALL=-0.1393 TAKE=-0.1265 WAIT=-0.1508 cov=47.5% totalR=-14.2 n=236
+2018-06: ALL=-0.4158 TAKE=-0.3636 WAIT=-0.4997 cov=61.7% totalR=-40.4 n=180
+2018-07: ALL=-0.1215 TAKE=-0.0366 WAIT=-0.2832 cov=65.6% totalR=-4.3 n=180
+2018-08: ALL=-0.0609 TAKE=-0.0984 WAIT=0.0445 cov=73.8% totalR=-13.3 n=183
+2018-09: ALL=0.0532 TAKE=0.0837 WAIT=-0.0187 cov=70.3% totalR=9.3 n=158
+2018-10: ALL=-0.1557 TAKE=-0.1517 WAIT=-0.1654 cov=70.9% totalR=-18.8 n=175
+2018-11: ALL=-0.1106 TAKE=-0.2062 WAIT=0.1078 cov=69.6% totalR=-23.1 n=161
+2018-12: ALL=-0.1725 TAKE=-0.1214 WAIT=-0.2660 cov=64.7% totalR=-13.1 n=167
+2019-01: ALL=-0.1254 TAKE=0.0061 WAIT=-0.3786 cov=65.8% totalR=0.6 n=158
+2019-02: ALL=-0.1062 TAKE=-0.1148 WAIT=-0.0871 cov=68.8% totalR=-13.9 n=176
+2019-03: ALL=-0.1755 TAKE=-0.2272 WAIT=-0.0992 cov=59.6% totalR=-27.5 n=203
+2019-04: ALL=-0.2412 TAKE=-0.2930 WAIT=-0.1703 cov=57.8% totalR=-29.3 n=173
+2019-05: ALL=-0.1614 TAKE=-0.1496 WAIT=-0.1813 cov=62.7% totalR=-18.1 n=193
+2019-06: ALL=-0.2584 TAKE=-0.3399 WAIT=-0.1631 cov=53.9% totalR=-30.6 n=167
+2019-07: ALL=-0.1822 TAKE=-0.2610 WAIT=-0.0846 cov=55.3% totalR=-28.5 n=197
+2019-08: ALL=-0.2319 TAKE=-0.1493 WAIT=-0.3527 cov=59.4% totalR=-15.1 n=170
+2019-09: ALL=-0.1114 TAKE=0.0394 WAIT=-0.2306 cov=44.1% totalR=3.1 n=179
+2019-10: ALL=-0.2718 TAKE=-0.4407 WAIT=-0.1165 cov=47.9% totalR=-40.1 n=190
+2019-11: ALL=-0.1838 TAKE=-0.3912 WAIT=-0.0183 cov=44.4% totalR=-30.9 n=178
+2019-12: ALL=-0.1414 TAKE=-0.1702 WAIT=-0.1176 cov=45.2% totalR=-15.3 n=199
+2020-01: ALL=-0.1434 TAKE=-0.0803 WAIT=-0.1852 cov=39.9% totalR=-6.7 n=208
+2020-02: ALL=-0.1138 TAKE=-0.0398 WAIT=-0.1690 cov=42.7% totalR=-3.1 n=185
+2020-03: ALL=0.1519 TAKE=0.0189 WAIT=0.2598 cov=44.8% totalR=0.8 n=96
+2020-04: ALL=-0.1970 TAKE=-0.1155 WAIT=-0.2731 cov=48.3% totalR=-9.7 n=174
+2020-05: ALL=-0.0045 TAKE=-0.0823 WAIT=0.0673 cov=48.0% totalR=-6.9 n=175
+2020-06: ALL=-0.1080 TAKE=-0.0014 WAIT=-0.2469 cov=56.6% totalR=-0.1 n=175
+2020-07: ALL=-0.0793 TAKE=-0.0823 WAIT=-0.0753 cov=56.3% totalR=-9.1 n=197
+2020-08: ALL=-0.2796 TAKE=-0.2723 WAIT=-0.2855 cov=44.4% totalR=-18.5 n=153
+2020-09: ALL=-0.2298 TAKE=-0.0172 WAIT=-0.4113 cov=46.1% totalR=-1.3 n=165
+2020-10: ALL=-0.1756 TAKE=-0.1797 WAIT=-0.1725 cov=44.0% totalR=-15.1 n=191
+2020-11: ALL=-0.2245 TAKE=-0.3322 WAIT=-0.1092 cov=51.7% totalR=-34.9 n=203
+2020-12: ALL=-0.2233 TAKE=-0.1808 WAIT=-0.2602 cov=46.4% totalR=-15.2 n=181
+2021-01: ALL=-0.1430 TAKE=0.0815 WAIT=-0.3435 cov=47.2% totalR=5.5 n=142
+2021-02: ALL=-0.0608 TAKE=-0.2044 WAIT=0.0176 cov=35.3% totalR=-14.5 n=201
+2021-03: ALL=0.0017 TAKE=-0.0032 WAIT=0.0054 cov=43.4% totalR=-0.3 n=226
+2021-04: ALL=-0.1857 TAKE=-0.1538 WAIT=-0.2093 cov=42.6% totalR=-12.3 n=188
+2021-05: ALL=-0.1897 TAKE=-0.1158 WAIT=-0.2384 cov=39.7% totalR=-8.0 n=174
+2021-06: ALL=-0.1902 TAKE=-0.0561 WAIT=-0.2998 cov=45.0% totalR=-4.5 n=180
+2021-07: ALL=-0.1375 TAKE=-0.2300 WAIT=-0.0847 cov=36.3% totalR=-16.8 n=201
+2021-08: ALL=-0.0905 TAKE=-0.0475 WAIT=-0.1085 cov=29.5% totalR=-6.9 n=495
+2021-09: ALL=-0.1982 TAKE=-0.0687 WAIT=-0.2482 cov=27.9% totalR=-11.0 n=574
+2021-10: ALL=-0.2816 TAKE=-0.3445 WAIT=-0.2609 cov=24.7% totalR=-47.2 n=554
+2021-11: ALL=-0.1068 TAKE=-0.0487 WAIT=-0.1297 cov=28.2% totalR=-5.8 n=425
+2021-12: ALL=-0.1943 TAKE=-0.1314 WAIT=-0.2240 cov=32.1% totalR=-24.6 n=583
+2022-01: ALL=-0.2253 TAKE=-0.1020 WAIT=-0.2603 cov=22.1% totalR=-11.5 n=511
+2022-02: ALL=-0.1807 TAKE=-0.2052 WAIT=-0.1722 cov=25.8% totalR=-22.8 n=431
+2022-03: ALL=-0.0199 TAKE=0.1024 WAIT=-0.0670 cov=27.8% totalR=11.9 n=417
+2022-04: ALL=-0.0414 TAKE=0.0185 WAIT=-0.0632 cov=26.7% totalR=1.3 n=270
+2022-05: ALL=-0.2439 TAKE=-0.2013 WAIT=-0.2576 cov=24.4% totalR=-9.5 n=193
+2022-06: ALL=-0.1630 TAKE=-0.2101 WAIT=-0.1467 cov=25.7% totalR=-13.2 n=245
+2022-07: ALL=-0.1392 TAKE=-0.1724 WAIT=-0.1265 cov=27.7% totalR=-13.4 n=282
+2022-08: ALL=-0.0932 TAKE=-0.1593 WAIT=-0.0714 cov=24.8% totalR=-13.9 n=351
+2022-09: ALL=-0.0743 TAKE=0.1007 WAIT=-0.1472 cov=29.4% totalR=9.1 n=306
+2022-10: ALL=-0.0354 TAKE=-0.1855 WAIT=0.0396 cov=33.3% totalR=-13.9 n=225
+2022-11: ALL=-0.1219 TAKE=-0.3313 WAIT=-0.0495 cov=25.7% totalR=-21.2 n=249
+2022-12: ALL=-0.2760 TAKE=-0.3236 WAIT=-0.2574 cov=28.1% totalR=-23.3 n=256
+2023-01: ALL=-0.1817 TAKE=-0.2521 WAIT=-0.1586 cov=24.7% totalR=-15.6 n=251
+2023-02: ALL=-0.1335 TAKE=0.1013 WAIT=-0.1714 cov=13.9% totalR=4.4 n=310
+2023-03: ALL=-0.1352 TAKE=-0.0049 WAIT=-0.1619 cov=17.0% totalR=-0.3 n=323
+2023-04: ALL=-0.0942 TAKE=0.0301 WAIT=-0.1280 cov=21.4% totalR=2.2 n=346
+2023-05: ALL=-0.1209 TAKE=-0.4066 WAIT=-0.0717 cov=14.7% totalR=-25.6 n=429
+2023-06: ALL=-0.0615 TAKE=0.1089 WAIT=-0.1085 cov=21.6% totalR=9.1 n=389
+2023-07: ALL=-0.0380 TAKE=0.0155 WAIT=-0.0567 cov=25.9% totalR=1.2 n=297
+2023-08: ALL=-0.0871 TAKE=-0.0913 WAIT=-0.0853 cov=29.6% totalR=-9.4 n=348
+2023-09: ALL=-0.1781 TAKE=-0.1588 WAIT=-0.1871 cov=31.9% totalR=-16.4 n=323
+2023-10: ALL=-0.0223 TAKE=-0.1197 WAIT=0.0113 cov=25.7% totalR=-12.8 n=417
+2023-11: ALL=-0.1595 TAKE=-0.2331 WAIT=-0.1340 cov=25.7% totalR=-23.8 n=397
+2023-12: ALL=-0.0640 TAKE=-0.0515 WAIT=-0.0697 cov=31.4% totalR=-5.0 n=309
+2024-01: ALL=-0.2182 TAKE=-0.1104 WAIT=-0.2719 cov=33.2% totalR=-14.1 n=385
+2024-02: ALL=-0.2484 TAKE=-0.2987 WAIT=-0.2257 cov=31.1% totalR=-37.9 n=408
+2024-03: ALL=-0.1643 TAKE=-0.1067 WAIT=-0.1861 cov=27.5% totalR=-11.4 n=389
+2024-04: ALL=-0.1480 TAKE=-0.1634 WAIT=-0.1401 cov=33.8% totalR=-25.5 n=462
+2024-05: ALL=-0.1690 TAKE=-0.1055 WAIT=-0.2094 cov=38.9% totalR=-18.9 n=460
+2024-06: ALL=-0.1734 TAKE=-0.3199 WAIT=-0.1101 cov=30.2% totalR=-36.5 n=378
+2024-07: ALL=-0.1377 TAKE=-0.1558 WAIT=-0.1294 cov=31.4% totalR=-20.4 n=417
+2024-08: ALL=-0.0586 TAKE=-0.0019 WAIT=-0.0859 cov=32.5% totalR=-0.2 n=280
+2024-09: ALL=-0.1941 TAKE=-0.2098 WAIT=-0.1853 cov=35.8% totalR=-23.7 n=316
+2024-10: ALL=-0.3407 TAKE=-0.2818 WAIT=-0.3699 cov=33.1% totalR=-15.2 n=163
+-- By quarter --
+2016-Q2: ALL=-0.1093 TAKE=-0.0955 WAIT=-0.2371 cov=90.3% totalR=-12.4 n=144
+2016-Q3: ALL=-0.1232 TAKE=-0.1167 WAIT=-0.1538 cov=82.6% totalR=-45.4 n=471
+2016-Q4: ALL=-0.0660 TAKE=0.0002 WAIT=-0.2518 cov=73.7% totalR=0.1 n=502
+2017-Q1: ALL=-0.0350 TAKE=0.0065 WAIT=-0.1664 cov=76.0% totalR=2.5 n=517
+2017-Q2: ALL=-0.0148 TAKE=0.0319 WAIT=-0.1079 cov=66.6% totalR=11.2 n=527
+2017-Q3: ALL=-0.0316 TAKE=0.0099 WAIT=-0.1170 cov=67.3% totalR=3.4 n=508
+2017-Q4: ALL=-0.2155 TAKE=-0.2111 WAIT=-0.2251 cov=68.8% totalR=-78.7 n=542
+2018-Q1: ALL=-0.0094 TAKE=-0.0264 WAIT=0.0158 cov=59.6% totalR=-8.1 n=515
+2018-Q2: ALL=-0.1883 TAKE=-0.1907 WAIT=-0.1858 cov=52.1% totalR=-64.3 n=647
+2018-Q3: ALL=-0.0472 TAKE=-0.0228 WAIT=-0.1038 cov=69.9% totalR=-8.3 n=521
+2018-Q4: ALL=-0.1468 TAKE=-0.1599 WAIT=-0.1186 cov=68.4% totalR=-55.0 n=503
+2019-Q1: ALL=-0.1380 TAKE=-0.1178 WAIT=-0.1747 cov=64.4% totalR=-40.7 n=537
+2019-Q2: ALL=-0.2177 TAKE=-0.2508 WAIT=-0.1714 cov=58.3% totalR=-78.0 n=533
+2019-Q3: ALL=-0.1745 TAKE=-0.1399 WAIT=-0.2134 cov=52.9% totalR=-40.4 n=546
+2019-Q4: ALL=-0.1984 TAKE=-0.3320 WAIT=-0.0852 cov=45.9% totalR=-86.3 n=567
+2020-Q1: ALL=-0.0742 TAKE=-0.0439 WAIT=-0.0961 cov=41.9% totalR=-9.0 n=489
+2020-Q2: ALL=-0.1030 TAKE=-0.0627 WAIT=-0.1448 cov=51.0% totalR=-16.8 n=524
+2020-Q3: ALL=-0.1870 TAKE=-0.1136 WAIT=-0.2590 cov=49.5% totalR=-29.0 n=515
+2020-Q4: ALL=-0.2079 TAKE=-0.2387 WAIT=-0.1801 cov=47.5% totalR=-65.2 n=575
+2021-Q1: ALL=-0.0565 TAKE=-0.0397 WAIT=-0.0684 cov=41.5% totalR=-9.4 n=569
+2021-Q2: ALL=-0.1885 TAKE=-0.1080 WAIT=-0.2478 cov=42.4% totalR=-24.8 n=542
+2021-Q3: ALL=-0.1466 TAKE=-0.0916 WAIT=-0.1700 cov=29.8% totalR=-34.7 n=1270
+2021-Q4: ALL=-0.2015 TAKE=-0.1748 WAIT=-0.2120 cov=28.4% totalR=-77.6 n=1562
+2022-Q1: ALL=-0.1481 TAKE=-0.0659 WAIT=-0.1755 cov=25.0% totalR=-22.4 n=1359
+2022-Q2: ALL=-0.1387 TAKE=-0.1174 WAIT=-0.1460 cov=25.7% totalR=-21.4 n=708
+2022-Q3: ALL=-0.1009 TAKE=-0.0716 WAIT=-0.1118 cov=27.2% totalR=-18.2 n=939
+2022-Q4: ALL=-0.1493 TAKE=-0.2768 WAIT=-0.0975 cov=28.9% totalR=-58.4 n=730
+2023-Q1: ALL=-0.1478 TAKE=-0.0721 WAIT=-0.1645 cov=18.1% totalR=-11.5 n=884
+2023-Q2: ALL=-0.0931 TAKE=-0.0644 WAIT=-0.0998 cov=19.0% totalR=-14.2 n=1164
+2023-Q3: ALL=-0.1024 TAKE=-0.0868 WAIT=-0.1088 cov=29.2% totalR=-24.6 n=968
+2023-Q4: ALL=-0.0823 TAKE=-0.1359 WAIT=-0.0622 cov=27.2% totalR=-41.6 n=1123
+2024-Q1: ALL=-0.2109 TAKE=-0.1754 WAIT=-0.2266 cov=30.6% totalR=-63.5 n=1182
+2024-Q2: ALL=-0.1628 TAKE=-0.1801 WAIT=-0.1537 cov=34.5% totalR=-80.9 n=1300
+2024-Q3: ALL=-0.1334 TAKE=-0.1322 WAIT=-0.1340 cov=33.1% totalR=-44.3 n=1013
+2024-Q4: ALL=-0.3407 TAKE=-0.2818 WAIT=-0.3699 cov=33.1% totalR=-15.2 n=163
+-- By year --
+2016: ALL=-0.0957 TAKE=-0.0649 WAIT=-0.2156 cov=79.6% totalR=-57.7 n=1117
+2017: ALL=-0.0758 TAKE=-0.0422 WAIT=-0.1529 cov=69.7% totalR=-61.6 n=2094
+2018: ALL=-0.1030 TAKE=-0.1004 WAIT=-0.1073 cov=61.8% totalR=-135.7 n=2186
+2019: ALL=-0.1823 TAKE=-0.2036 WAIT=-0.1560 cov=55.2% totalR=-245.5 n=2183
+2020: ALL=-0.1456 TAKE=-0.1199 WAIT=-0.1689 cov=47.6% totalR=-119.9 n=2103
+2021: ALL=-0.1611 TAKE=-0.1137 WAIT=-0.1841 cov=32.7% totalR=-146.5 n=3943
+2022: ALL=-0.1347 TAKE=-0.1219 WAIT=-0.1393 cov=26.4% totalR=-120.4 n=3736
+2023: ALL=-0.1040 TAKE=-0.0948 WAIT=-0.1068 cov=23.4% totalR=-91.9 n=4139
+2024: ALL=-0.1781 TAKE=-0.1699 WAIT=-0.1822 cov=32.8% totalR=-203.8 n=3658
+
+================================
+REGIME / SESSION (adaptive automatic — descriptive)
+================================
+
+regime=mixed: ALL=-0.1288 TAKE=-0.1146 WAIT=-0.1394 cov=43.0% n=5338
+regime=ranging: ALL=-0.1234 TAKE=-0.0941 WAIT=-0.1424 cov=39.4% n=7954
+regime=trending: ALL=-0.1472 TAKE=-0.1270 WAIT=-0.1615 cov=41.5% n=11867
+
+vol=high: ALL=-0.1140 TAKE=-0.0963 WAIT=-0.1221 cov=31.6% n=7204
+vol=low: ALL=-0.2374 TAKE=-0.2394 WAIT=-0.2356 cov=47.1% n=2848
+vol=normal: ALL=-0.1270 TAKE=-0.0955 WAIT=-0.1523 cov=44.6% n=15107
+
+session=London: ALL=-0.1394 TAKE=-0.1101 WAIT=-0.1681 cov=49.3% n=10565
+session=London/New York overlap: ALL=-0.1208 TAKE=-0.1093 WAIT=-0.1289 cov=41.4% n=8622
+session=New York: ALL=-0.1508 TAKE=-0.1397 WAIT=-0.1547 cov=26.3% n=5972
+
+================================
+SIMPLE CONTROLS
+================================
+
+TAKE ALL: -0.1357
+Family-only ema: -0.1686
+Family-only breakout: -0.1769
+Family-only momentum: -0.0597
+Family-only meanrev: -0.1791
+LONG-only: -0.1284
+SHORT-only: -0.1435
+Lowest-spread 30%: -0.1036
+Trend regime only: -0.1472
+Range regime only: -0.1234
+Adaptive TAKE: -0.1143
+
+================================
+COST DECOMPOSITION
+================================
+
+ALL  Gross=-0.0341 Cost=0.1016 Net=-0.1357
+TAKE Gross=-0.0296 Cost=0.0847 Net=-0.1143
+
+================================
+HOLDOUT
+================================
+
+Was holdout opened? NO
+Gate detail: {"positive":false,"ciSupports":false,"adequateN":true,"multiBlock":false,"notDominated":true,"takeGtWait":false,"beatsRandom":false,"takeNetE":-0.14351820336001067,"allNetE":-0.14240859047205798,"waitNetE":-0.14193051794935949,"coverage":0.30111287758346583,"randomHi":-0.10166755654901512,"takeN":1894,"effectiveN":361,"blockPos":[false,false,false,false]}
+HOLDOUT not read for promotion. DEV failure reported above.
+
+================================
+LEAKAGE AUDIT
+================================
+
+PASS: strategy uses only closed/available candles (completedCandles + windows ending at T)
+PASS: indicator values point-in-time safe (EMA/ATR/RSI on past closes only)
+PASS: no future ATR (regime.atr from candles <= T)
+PASS: no future regime
+PASS: no future spread (quote at decision bar only)
+PASS: no future MFE/MAE in adaptive decision (outcomes computed post-hoc; evidence gated by resolveMs)
+PASS: no future outcome in decideInstrument (evidence flushed only resolveMs <= T)
+PASS: current trade cannot teach itself (pending until resolveMs)
+PASS: only resolved trades become adaptive evidence
+PASS: WAIT outcome enters evidence only after resolveMs
+PASS: timestamp convention: market_candles close_time; OANDA start+duration stored as close
+PASS: TRAIN/DEV/HOLDOUT chronological masks
+PASS: no normalization fitted on future data
+PASS: no HOLDOUT used for configuration (configs frozen in CONFIG_SNAPSHOT before walk)
+PASS: production tables untouched (research files only)
+PASS: Momentum main arm = original direction (inversion not applied)
+
+================================
+DIRECT ANSWERS
+================================
+
+1. Did giving the adaptive engine 20k–50k opportunities improve it? NO / UNCLEAR
+2. At approximately what sample size did improvement appear, if any? 1000
+3. Did adaptive TAKE become net profitable after costs? NO (-0.1143 R)
+4. Which family benefited most? momentum (TAKE E=-0.0592)
+5. Did any individual family become profitable under adaptive selection? NO
+6. Did LONG and SHORT behave differently? MILD (LONG -0.1284 vs SHORT -0.1435)
+7. Did Momentum inversion remain useful on the much larger dataset? YES (orig -0.0597 vs inv -0.0451)
+8. Did TAKE outperform WAIT? YES
+9. Did adaptive selection beat random selection? YES
+10. Did adaptive quality rank future net expectancy? PARTIAL
+11. Was any apparent edge stable across pairs? (see PAIR STABILITY)
+12. Was it stable across months/years? (see TIME STABILITY)
+13. Did it survive untouched HOLDOUT? N/A — HOLDOUT not opened
+14. Was insufficient data actually the previous problem? NO — more data did not create a stable positive conditional edge
+15. Is there evidence that the adaptive engine has learned a genuine conditional Forex edge? NO clear genuine edge after costs
+
+================================
+FINAL VERDICT
+================================
+
+ADAPTIVE_IMPROVES_BUT_STILL_NEGATIVE
+
+Hypothesis A (insufficient prior data) vs B (no stable conditional edge):
+Evidence leans toward Hypothesis B — even at ~30k opportunities, no stable conditional edge after costs.
+
+Production unchanged: LIVE_EXECUTABLE_FAMILIES, Momentum inversion, paper account, adaptive evidence tables.

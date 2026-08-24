@@ -96,6 +96,91 @@ export interface ChartReferenceLine {
   textColor: string;
 }
 
+/**
+ * A narrow right-side touch rail for scaling the price range without moving
+ * the chart itself. Dragging down widens the range (shorter candles); dragging
+ * up narrows it (taller candles).
+ */
+function ChartPriceScaleRail({
+  chartRef,
+  onViewChange,
+}: {
+  chartRef: { current: IChartApi | null };
+  onViewChange: () => void;
+}) {
+  const startYRef = useRef<number | null>(null);
+  const baseRangeRef = useRef<{ from: number; to: number } | null>(null);
+
+  const begin = (y: number) => {
+    const range = chartRef.current?.priceScale("right").getVisibleRange();
+    if (!range || range.to <= range.from) return;
+    startYRef.current = y;
+    baseRangeRef.current = range;
+  };
+
+  const scaleAt = (y: number) => {
+    const startY = startYRef.current;
+    const base = baseRangeRef.current;
+    const chart = chartRef.current;
+    if (startY === null || !base || !chart) return;
+    const zoom = Math.min(Math.max(Math.exp(-(y - startY) / 160), 0.25), 4);
+    const span = (base.to - base.from) / zoom;
+    const midpoint = (base.to + base.from) / 2;
+    const priceScale = chart.priceScale("right");
+    priceScale.setAutoScale(false);
+    priceScale.setVisibleRange({
+      from: midpoint - span / 2,
+      to: midpoint + span / 2,
+    });
+    onViewChange();
+  };
+
+  const clear = () => {
+    startYRef.current = null;
+    baseRangeRef.current = null;
+  };
+
+  return (
+    <div
+      className="setup-chart-price-scale-rail"
+      role="presentation"
+      onPointerDown={(event) => {
+        begin(event.clientY);
+        try {
+          event.currentTarget.setPointerCapture(event.pointerId);
+        } catch {
+          // Touch capture is best-effort; touch handlers below provide backup.
+        }
+        event.stopPropagation();
+      }}
+      onPointerMove={(event) => {
+        scaleAt(event.clientY);
+        event.stopPropagation();
+      }}
+      onPointerUp={(event) => {
+        clear();
+        event.stopPropagation();
+      }}
+      onPointerCancel={clear}
+      onTouchStart={(event) => {
+        const touch = event.touches[0];
+        if (touch) begin(touch.clientY);
+        event.stopPropagation();
+      }}
+      onTouchMove={(event) => {
+        const touch = event.touches[0];
+        if (touch) scaleAt(touch.clientY);
+        event.stopPropagation();
+      }}
+      onTouchEnd={(event) => {
+        clear();
+        event.stopPropagation();
+      }}
+      onTouchCancel={clear}
+    />
+  );
+}
+
 // Lightweight Charts reserves space for the desktop time scale via minimumHeight.
 function chartTheme(
   isDark: boolean,
@@ -392,21 +477,13 @@ function overlayLevelTags(
 /** A level tag resolved to a pixel row, ready to be positioned. */
 interface PlacedLevelTag extends LevelTag {
   y: number;
-  /** Distance from the chart's right edge, clearing the price axis and corner. */
+  /** Distance from the chart's right edge, clearing the price axis. */
   right: number;
 }
 
-/** Bottom-right keepout so level flags do not sit on a corner badge. */
-const CHART_CORNER_KEEPOUT = 84;
-const CHART_CORNER_BAND = 40;
 /** Flag chip height including padding — used to unstack overlapping levels. */
-const LEVEL_TAG_HEIGHT = 18;
+const LEVEL_TAG_HEIGHT = 16;
 const LEVEL_TAG_STACK_GAP = 2;
-
-function plotCornerGutter(y: number, paneHeight: number, timeScaleHeight: number) {
-  const floor = paneHeight - Math.max(timeScaleHeight, 0);
-  return y > floor - CHART_CORNER_BAND ? CHART_CORNER_KEEPOUT : 0;
-}
 
 /**
  * Nudge overlapping right-edge flags apart so Entry / SL / TP stay readable
@@ -1471,22 +1548,29 @@ export function SetupChart({
       if (!chart || !mainSeries) return;
 
       const axisWidth = chart.priceScale("right").width();
-      const timeScaleHeight = chart.timeScale().height();
+      const paneHeight = chartHeightRef.current;
+      const priceRange = chart.priceScale("right").getVisibleRange();
+      const minTagY = LEVEL_TAG_HEIGHT / 2;
+      const maxTagY = Math.max(minTagY, paneHeight - minTagY);
       const placed = tags.flatMap<PlacedLevelTag>((tag) => {
-        const y = mainSeries.priceToCoordinate(tag.price);
-        // A level scrolled out of the visible price range has no coordinate.
-        if (y === null || y < 0 || y > chartHeightRef.current) return [];
-        const corner = plotCornerGutter(
-          y,
-          chartHeightRef.current,
-          timeScaleHeight,
-        );
-        // Hug the plot's right edge (price-axis side). When the scale is hidden
-        // on mobile, axisWidth is 0 and the flags sit on the pane edge.
-        return [{ ...tag, y, right: axisWidth + corner }];
+        let y: number | null = mainSeries.priceToCoordinate(tag.price);
+        if (y === null && priceRange && priceRange.to > priceRange.from) {
+          // Lightweight Charts only returns a coordinate for a visible price.
+          // Project an off-screen level onto the pane so its flag can remain at
+          // the right edge, clamped to the nearest vertical boundary below.
+          y = ((priceRange.to - tag.price) / (priceRange.to - priceRange.from)) * paneHeight;
+        }
+        if (y === null) return [];
+        // Keep an off-screen level visible at the top/bottom rather than
+        // dropping it or allowing a corner keepout to shift it inward.
+        return [{
+          ...tag,
+          y: Math.min(Math.max(y, minTagY), maxTagY),
+          right: axisWidth,
+        }];
       });
 
-      const stacked = stackLevelTagYs(placed, chartHeightRef.current);
+      const stacked = stackLevelTagYs(placed, paneHeight);
       const signature = JSON.stringify(stacked);
       if (signature === previous) return;
       previous = signature;
@@ -1658,6 +1742,10 @@ export function SetupChart({
           {tag.label}
         </span>
       ))}
+      <ChartPriceScaleRail
+        chartRef={chartRef}
+        onViewChange={() => paintLastPriceRef.current()}
+      />
       {activeFilters.length > 0 ? (
         <div className="pointer-events-none absolute left-3 top-3 flex flex-wrap gap-1.5">
           {activeFilters.map((filter) => (

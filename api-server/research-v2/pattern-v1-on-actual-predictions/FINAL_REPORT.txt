@@ -1,0 +1,148 @@
+GOLDENXPERIENCE
+PATTERN_V1 ON ACTUAL STORED PREDICTIONS
+Generated: 2026-08-23T04:41:17.792Z
+Research only. Production untouched.
+BE80=0.555556 (1/1.8)
+
+================================
+DATA
+================================
+
+Source: binary_predictions WHERE status='resolved' AND is_authoritative=true AND model_name='binary-baseline-v1'
+Total predictions: 4343
+Evaluable (M1 available): 4343
+Missing instrument cache: 0
+Missing/insufficient M1 bars: 0
+Duration != 600s (flagged, still reported): 0
+Date range (start_at): 2026-08-14T17:13:11.523Z → 2026-08-21T20:47:39.282Z
+UP: 2263  DOWN: 2080
+PATTERN_V1 UP signal bars in prediction window (any direction coincidence later): 6
+  by instrument: AUD_JPY=0, AUD_USD=1, EUR_AUD=0, EUR_GBP=1, EUR_JPY=0, EUR_USD=1, GBP_JPY=0, GBP_USD=0, NZD_USD=1, USD_CAD=0, USD_CHF=2, USD_JPY=0
+M1 cache: c:\Users\arche\Desktop\code\GoldenXperience\api-server\research-v2\binary-adaptive-bollinger-rsi-10k\cache
+Cache preferred; no OANDA fetch required for this window (cache covers through ~2026-08-21).
+
+Frozen PATTERN_V1:
+  BB20 k=2 population stdev; Wilder RSI14 (UP needs rsi<=30 on lower BB reentry);
+  Wilder ADX14; rsiSeverity beyond=up?(30-rsi):(rsi-70) mild<=5 medium<=10 else extreme;
+  adxBucket le20 / b20_25 / b25_30 / gt30;
+  Episode dedup BB reentry state machine (same as holdout / follow-pocket);
+  V1a: up && extreme && gt30; V1b: up && medium && b20_25; V1 = V1a || V1b;
+  Primary expiry: stored 10m result (duration_seconds==600 preferred).
+
+PIT match: last closed M1 bar with closeMs<=T fires Pattern V1 UP signal.
+
+================================
+COHORTS (10m stored result)
+================================
+
+A. ALL predictions:
+n=4240 W=2093 L=2147 T=103 WR=49.36% Wilson95=[47.86%, 50.87%] EV80=-0.1115
+EV70=-0.1608 EV75=-0.1361 EV80=-0.1115 EV85=-0.0868 EV90=-0.0621 EV95=-0.0374
+
+B. ALL UP:
+n=2208 W=1114 L=1094 T=55 WR=50.45% Wilson95=[48.37%, 52.54%] EV80=-0.0918
+EV70=-0.1423 EV75=-0.1171 EV80=-0.0918 EV85=-0.0666 EV90=-0.0414 EV95=-0.0162
+
+C. PATTERN_V1 matched UP (PRIMARY):
+n=0 W=0 L=0 T=0 WR=n/a Wilson95=[n/a, n/a] EV80=n/a
+EV70=n/a EV75=n/a EV80=n/a EV85=n/a EV90=n/a EV95=n/a
+
+D. UP non-matched:
+n=2208 W=1114 L=1094 T=55 WR=50.45% Wilson95=[48.37%, 52.54%] EV80=-0.0918
+EV70=-0.1423 EV75=-0.1171 EV80=-0.0918 EV85=-0.0666 EV90=-0.0414 EV95=-0.0162
+
+DOWN overall (completeness):
+n=2032 W=979 L=1053 T=48 WR=48.18% Wilson95=[46.01%, 50.35%] EV80=-0.1328
+EV70=-0.1810 EV75=-0.1569 EV80=-0.1328 EV85=-0.1087 EV90=-0.0846 EV95=-0.0605
+
+Lift (C vs B): n/a (no Pattern V1 UP matches)
+Coverage vs ALL UP: 0.00%
+Coverage vs evaluable ALL: 0.00%
+Match frequency vs raw pred count: 0.00%
+
+================================
+BY BRANCH (primary Pattern V1 UP)
+================================
+
+V1a extreme + ADX>30:
+n=0 W=0 L=0 T=0 WR=n/a Wilson95=[n/a, n/a] EV80=n/a
+
+V1b medium + ADX20–25:
+n=0 W=0 L=0 T=0 WR=n/a Wilson95=[n/a, n/a] EV80=n/a
+
+================================
+BY SYMBOL (Pattern V1 UP matches)
+================================
+
+(none)
+
+================================
+BY CALENDAR DAY UTC (Pattern V1 UP matches)
+================================
+
+Calendar convention: UTC (YYYY-MM-DD from start_at)
+(none)
+
+================================
+BASELINE CONFIDENCE (UP preds)
+================================
+
+Pattern V1 UP matches: n=0 mean=n/a median=n/a
+  deciles D1..D9: n/a
+
+UP non-matches: n=2263 mean=0.8085 median=0.8142
+  deciles D1..D9: 0.6165, 0.6632, 0.7073, 0.7635, 0.8142, 0.9047, 0.9500, 0.9500, 0.9500
+
+================================
+DISAGREEMENT DIAGNOSTIC
+================================
+
+PATTERN_V1_MATCH && direction=down (NOT mixed into primary):
+n=1
+Baseline DOWN (stored): n=1 W=1 L=0 T=0 WR=100.00% Wilson95=[20.65%, 100.00%] EV80=0.8000
+Counterfactual UP @ T+10m (candles): n=1 W=0 L=1 T=0 WR=0.00% Wilson95=[0.00%, 79.35%] EV80=-1.0000
+
+================================
+DIAGNOSTIC EXPIRIES (Pattern V1 UP; candle resolution; NOT primary)
+================================
+
+1m: n=0 W=0 L=0 T=0 WR=n/a Wilson95=[n/a, n/a] EV80=n/a
+5m: n=0 W=0 L=0 T=0 WR=n/a Wilson95=[n/a, n/a] EV80=n/a
+15m: n=0 W=0 L=0 T=0 WR=n/a Wilson95=[n/a, n/a] EV80=n/a
+Primary remains stored 10m result above.
+
+================================
+LEAKAGE CHECKLIST
+================================
+
+PASS
+[x] Only M1 bars with closeMs <= prediction start_at used for match
+[x] PATTERN_V1 definitions frozen (no retune)
+[x] Primary outcomes are stored prediction results (not regenerated stream)
+[x] Disagreement counterfactual not mixed into primary cohort
+[x] Diagnostic 1m/5m/15m not mixed into primary 10m stored result
+[x] Production binary strategy / adaptive engine / predictions untouched
+
+================================
+PRODUCTION SAFETY
+================================
+
+Production binary strategy changed? NO
+Production adaptive engine changed? NO
+Existing binary predictions changed? NO
+Deployment performed? NO
+Orders placed? 0
+Research only.
+
+================================
+ARTIFACTS
+================================
+
+matches.jsonl: c:\Users\arche\Desktop\code\GoldenXperience\api-server\research-v2\pattern-v1-on-actual-predictions\matches.jsonl
+registry: c:\Users\arche\Desktop\code\GoldenXperience\api-server\research-v2\pattern-v1-on-actual-predictions\experiments\registry.jsonl
+
+================================
+VERDICT
+================================
+
+PATTERN_V1_UNDERPOWERED_ON_ACTUAL_PREDICTIONS

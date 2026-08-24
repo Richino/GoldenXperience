@@ -1,0 +1,63 @@
+seq=1 EUR_USD down
+  prediction/start: 2026-08-14 17:13:11.523+00
+  entry_price:      1.15666
+  expiration_1m:    2026-08-14T17:15:00.000Z  price=1.15671  result=lost
+  expiration_ts > start_ts: true
+  stored_10m:       won @ 2026-08-14 17:24:00+00 (m1_candle)
+  computed_10m:     won @ 2026-08-14T17:24:00.000Z
+
+seq=7 EUR_GBP up
+  prediction/start: 2026-08-14 17:13:11.523+00
+  entry_price:      0.8547750000000001
+  expiration_1m:    2026-08-14T17:15:00.000Z  price=0.8548  result=won
+  expiration_ts > start_ts: true
+  stored_10m:       won @ 2026-08-14 17:24:00+00 (m1_candle)
+  computed_10m:     won @ 2026-08-14T17:24:00.000Z
+
+seq=6 USD_CHF up
+  prediction/start: 2026-08-14 17:13:11.523+00
+  entry_price:      0.81326
+  expiration_1m:    2026-08-14T17:15:00.000Z  price=0.81322  result=lost
+  expiration_ts > start_ts: true
+  stored_10m:       won @ 2026-08-14 17:24:00+00 (m1_candle)
+  computed_10m:     won @ 2026-08-14T17:24:00.000Z
+
+seq=4 NZD_USD down
+  prediction/start: 2026-08-14 17:13:11.523+00
+  entry_price:      0.588755
+  expiration_1m:    2026-08-14T17:15:00.000Z  price=0.58873  result=won
+  expiration_ts > start_ts: true
+  stored_10m:       won @ 2026-08-14 17:24:00+00 (m1_candle)
+  computed_10m:     won @ 2026-08-14T17:24:00.000Z
+
+seq=9 GBP_JPY down
+  prediction/start: 2026-08-14 17:13:11.523+00
+  entry_price:      215.672
+  expiration_1m:    2026-08-14T17:15:00.000Z  price=215.678  result=lost
+  expiration_ts > start_ts: true
+  stored_10m:       won @ 2026-08-14 17:24:00+00 (m1_candle)
+  computed_10m:     won @ 2026-08-14T17:24:00.000Z
+
+seq=2 GBP_USD down
+  prediction/start: 2026-08-14 17:13:11.523+00
+  entry_price:      1.3531900000000001
+  expiration_1m:    2026-08-14T17:15:00.000Z  price=1.35322  result=lost
+  expiration_ts > start_ts: true
+  stored_10m:       won @ 2026-08-14 17:24:00+00 (m1_candle)
+  computed_10m:     won @ 2026-08-14T17:24:00.000Z
+
+seq=5 USD_CAD up
+  prediction/start: 2026-08-14 17:13:11.523+00
+  entry_price:      1.3878249999999999
+  expiration_1m:    2026-08-14T17:15:00.000Z  price=1.38783  result=won
+  expiration_ts > start_ts: true
+  stored_10m:       lost @ 2026-08-14 17:24:00+00 (m1_candle)
+  computed_10m:     lost @ 2026-08-14T17:24:00.000Z
+
+seq=3 AUD_USD down
+  prediction/start: 2026-08-14 17:13:11.523+00
+  entry_price:      0.7081200000000001
+  expiration_1m:    2026-08-14T17:15:00.000Z  price=0.70812  result=tie
+  expiration_ts > start_ts: true
+  stored_10m:       lost @ 2026-08-14 17:25:00+00 (m1_candle)
+  computed_10m:     lost @ 2026-08-14T17:25:00.000Z

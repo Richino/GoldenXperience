@@ -1,0 +1,4 @@
+FULL_AUDIT gx-v2-003
+verdict: PROVISIONAL_PASS
+fails: SHORT side loses hard
+baseline: n=5882 net=+0.2566 CI=[+0.1612, +0.3519]

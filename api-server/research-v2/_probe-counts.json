@@ -1,0 +1,20 @@
+[
+  {
+    "model_name": "binary-baseline-v1",
+    "is_authoritative": true,
+    "status": "resolved",
+    "n": 4343
+  },
+  {
+    "model_name": "binary-logistic-v1",
+    "is_authoritative": false,
+    "status": "resolved",
+    "n": 1814
+  },
+  {
+    "model_name": "binary-baseline-v1",
+    "is_authoritative": true,
+    "status": "error",
+    "n": 10
+  }
+]

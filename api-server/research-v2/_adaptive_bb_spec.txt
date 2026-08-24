@@ -1,0 +1,1001 @@
+<timestamp>Saturday, Aug 22, 2026, 8:51 PM (UTC-4)</timestamp>
+<user_query>
+GOLDENXPERIENCE
+ADAPTIVE BOLLINGER + RSI EDGE TEST
+(adaptive-bollinger-rsi-v1)
+
+GOAL
+==================================================
+
+We previously ran a frozen walk-forward Bollinger binary test.
+
+The strongest result was:
+
+Strategy:
+BB20 / 2.0
+outside-band excursion
+confirmed re-entry
+RSI extreme
+10-minute expiry
+
+TEST result:
+n = 168
+WR = 58.93%
+95% CI = [51.37%, 66.09%]
+EV @80% payout = +0.061
+
+This result is PROMISING BUT UNDERPOWERED.
+
+Now test a new hypothesis:
+
+Can GoldenXperience's adaptive engine identify the CONTEXTS in which this
+frozen Bollinger+RSI signal works or fails, and selectively take only the
+higher-quality signals?
+
+The objective is NOT to force 60%.
+
+The objective is to determine honestly whether adaptive contextual selection
+can improve the frozen strategy from ~58.9% toward or above 60% while retaining
+a useful number of predictions.
+
+==================================================
+1. IMPORTANT — INSPECT EXISTING ARCHITECTURE FIRST
+==================================================
+
+Before writing code, inspect the local repository.
+
+Find and understand the existing binary adaptive system, including where applicable:
+
+- binary-adaptive-selector.ts
+- binary-adaptive-stats.ts
+- binary-regimes.ts
+- binary-engine.ts
+- selector decisions
+- paired forward evidence
+- COLLECTING / LEARNING / ACTIVE_SELECTION states
+- Wilson confidence logic
+- evidence hierarchy
+- recent-performance guardrails
+- authoritative flags
+- existing migrations/tests
+
+REUSE the existing architecture where appropriate.
+
+Do NOT create a completely separate adaptive framework if the existing one
+can cleanly support this experiment.
+
+Do NOT modify production behavior.
+
+==================================================
+2. RESEARCH ONLY
+==================================================
+
+This is an offline research experiment.
+
+Do NOT:
+
+- enable live binary execution
+- alter production binary predictions
+- alter binary-baseline-v1
+- contaminate existing adaptive statistics
+- change Forex strategies
+- modify existing prediction history
+- modify existing production selector behavior
+
+Use isolated research tables/files/cohorts if persistence is required.
+
+==================================================
+3. FREEZE THE BASE STRATEGY
+==================================================
+
+The base signal MUST remain:
+
+Bollinger Bands:
+period = 20
+deviation = 2.0
+
+Expiry:
+10 minutes
+
+UP:
+
+1. Price makes an excursion below lower BB
+2. Wait for completed M1 candle to close/re-enter inside BB
+3. RSI must satisfy the SAME oversold definition used by the previous
+   successful BB_REENTRY_RSI test
+4. Generate UP only after confirmation candle closes
+
+DOWN:
+
+1. Price makes excursion above upper BB
+2. Wait for completed M1 candle to close/re-enter inside BB
+3. RSI must satisfy the SAME overbought definition used previously
+4. Generate DOWN after confirmation candle closes
+
+IMPORTANT:
+
+Do not change BB settings.
+Do not change RSI thresholds.
+Do not change 10m expiry.
+Do not add a new mandatory indicator.
+
+The adaptive engine sits ON TOP of the frozen signal.
+
+==================================================
+4. REPRODUCE THE ORIGINAL RESULT FIRST
+==================================================
+
+Before adaptive testing, reproduce the previous frozen result.
+
+Expected approximately:
+
+n = 168
+WR = 58.93%
+EV80 = +0.061
+
+Small differences must be explained.
+
+If the previous cohort cannot be reproduced closely:
+
+STOP.
+
+Investigate the discrepancy before continuing.
+
+Do not build adaptive conclusions on a different underlying dataset.
+
+==================================================
+5. WALK-FORWARD ADAPTATION
+==================================================
+
+This is critical.
+
+The adaptive engine must behave as if it is experiencing the market sequentially.
+
+For every signal at time T:
+
+1. Calculate the frozen BB+RSI signal using information <= T.
+2. Construct its context using information <= T.
+3. Adaptive engine may use ONLY outcomes that were already RESOLVED before T.
+4. Produce an adaptive decision:
+
+TAKE
+or
+WAIT
+
+5. Lock that decision.
+6. Advance time.
+7. Resolve the 10-minute outcome.
+8. Only AFTER resolution may that result become evidence for future decisions.
+
+NO signal may learn from itself.
+
+NO future prediction outcome may influence an earlier decision.
+
+==================================================
+6. ADAPTIVE CONTEXT
+==================================================
+
+Record context available at signal time.
+
+At minimum investigate:
+
+DIRECTION
+- UP
+- DOWN
+
+RSI
+- exact RSI
+- distance beyond oversold/overbought threshold
+- severity bucket
+
+BOLLINGER
+- BB width
+- normalized BB width
+- amount price penetrated outside band
+- distance re-entered inside band
+- BB middle-line slope
+- BB expansion/contraction
+
+TREND
+- ADX
+- ADX bucket
+- short-term trend slope
+- directional efficiency
+
+VOLATILITY
+- ATR
+- ATR percentile using trailing/PIT history only
+- recent realized volatility
+
+PRICE ACTION
+- confirmation candle body
+- wick/body ratios
+- close location within candle
+- previous 1/3/5-minute returns
+- approach velocity into the band
+- reversal velocity after excursion
+
+MARKET CONTEXT
+- symbol
+- session
+- hour
+- day of week
+- spread
+- recent directional persistence
+
+LEVEL HISTORY
+- recent BB touches
+- repeated excursions
+- time since previous excursion
+
+All values MUST be point-in-time safe.
+
+==================================================
+7. DO NOT CREATE A COMBINATORIAL EXPLOSION
+==================================================
+
+Do NOT blindly generate thousands of combinations like:
+
+EUR_USD
++ London
++ RSI 27.4
++ ADX 28
++ high ATR
++ Tuesday
++ etc.
+
+That will overfit immediately.
+
+Use a hierarchical evidence system.
+
+Prefer:
+
+GLOBAL
+↓
+DIRECTION
+↓
+REGIME
+↓
+DIRECTION + REGIME
+↓
+broad contextual buckets
+
+Only use more-specific evidence when adequate sample size exists.
+
+Back off automatically to broader evidence when a context is sparse.
+
+==================================================
+8. ADAPTIVE STATES
+==================================================
+
+Use the philosophy of the existing selector.
+
+Example:
+
+COLLECTING
+Not enough evidence.
+Record signals but do not claim selection edge.
+
+LEARNING
+Enough evidence to estimate contextual differences.
+Selection remains conservative.
+
+ACTIVE_SELECTION
+Enough resolved evidence exists for statistical selection.
+
+Do not assume the existing 50/100 thresholds are automatically appropriate.
+
+Inspect the implementation and justify whatever thresholds are used.
+
+However:
+
+DO NOT tune thresholds against TEST performance.
+
+==================================================
+9. WHAT THE SELECTOR SHOULD LEARN
+==================================================
+
+For each eligible BB+RSI signal estimate:
+
+P(win | context)
+
+and uncertainty.
+
+The adaptive system should answer:
+
+"When this exact frozen strategy fires under conditions similar to these,
+what has its PREVIOUSLY RESOLVED performance been?"
+
+It should NOT attempt to predict the future using outcome leakage.
+
+==================================================
+10. BASELINE vs ADAPTIVE
+==================================================
+
+Every signal must remain in the dataset.
+
+Create TWO conceptual arms:
+
+A. FROZEN BASELINE
+
+Take every BB20+RSI re-entry signal.
+
+B. ADAPTIVE SELECTOR
+
+Same signal stream.
+
+Adaptive engine chooses:
+
+TAKE
+WAIT
+
+IMPORTANT:
+
+WAIT signals must still be resolved offline.
+
+We need their counterfactual outcomes.
+
+Otherwise we cannot determine whether the selector actually rejected bad
+signals or merely reduced activity.
+
+==================================================
+11. SELECTOR THRESHOLDS
+==================================================
+
+Do not search hundreds of thresholds.
+
+Pre-register a small interpretable set.
+
+For example:
+
+estimated WR >= 55.56%
+estimated WR >= 58%
+estimated WR >= 60%
+
+Also test uncertainty-aware selection:
+
+estimated WR lower confidence bound > 50%
+
+and
+
+estimated WR lower confidence bound > 55.56%
+
+If sample size makes the latter impossible, report that honestly.
+
+Do NOT manufacture a winner by threshold mining.
+
+==================================================
+12. PRIMARY QUESTION
+==================================================
+
+The main comparison is:
+
+ALL frozen signals
+
+versus
+
+ADAPTIVE TAKE signals
+
+We want to know whether:
+
+WR(adaptive TAKE) > WR(all frozen signals)
+
+AND preferably:
+
+WR(adaptive TAKE) >= 60%
+
+without collapsing to a useless number of signals.
+
+==================================================
+13. COVERAGE MATTERS
+==================================================
+
+For every adaptive configuration report:
+
+total frozen signals
+TAKE
+WAIT
+coverage %
+
+Example:
+
+Frozen:
+500 signals
+59% WR
+
+Adaptive:
+TAKE 240
+WAIT 260
+coverage 48%
+TAKE WR 63%
+
+That is interesting.
+
+But:
+
+Frozen:
+500
+Adaptive TAKE:
+12
+WR 75%
+
+is NOT sufficient.
+
+Flag tiny selective pockets.
+
+==================================================
+14. SELECTOR QUALITY
+==================================================
+
+Do not only report TAKE performance.
+
+Report:
+
+TAKE WR
+WAIT counterfactual WR
+
+A useful selector should ideally show:
+
+TAKE WR > baseline WR > WAIT WR
+
+Example:
+
+TAKE = 63%
+ALL = 59%
+WAIT = 54%
+
+That would be strong evidence that selection is ranking signal quality.
+
+If:
+
+TAKE = 61%
+WAIT = 60%
+
+then selection probably adds little.
+
+==================================================
+15. CALIBRATION / RANKING TEST
+==================================================
+
+Bucket signals by adaptive estimated probability BEFORE outcome.
+
+For example:
+
+lowest predicted-quality quintile
+Q2
+Q3
+Q4
+highest predicted-quality quintile
+
+Report actual WR in each.
+
+Ask:
+
+Does predicted quality monotonically rank realized win rate?
+
+This is extremely important.
+
+If adaptive scoring works, higher predicted quality should generally produce
+higher realized WR.
+
+==================================================
+16. PAYOUT ANALYSIS
+==================================================
+
+For baseline and adaptive TAKE calculate:
+
+70%
+75%
+80%
+85%
+90%
+95%
+
+Report:
+
+break-even WR
+actual WR
+EV per $1 risked
+
+Primary reference:
+
+80% payout BE = 55.56%.
+
+==================================================
+17. DIRECTION
+==================================================
+
+Report separately:
+
+UP
+DOWN
+
+We already know directional asymmetry can matter in GoldenXperience.
+
+Determine whether adaptation helps:
+
+UP only
+DOWN only
+both
+
+Do not hide one weak side inside the aggregate.
+
+==================================================
+18. TREND REGIME — IMPORTANT
+==================================================
+
+The previous Bollinger experiment produced an unexpected result:
+
+RSI re-entry appeared stronger during TREND conditions than RANGE conditions.
+
+Investigate this explicitly.
+
+Report broad ADX buckets such as:
+
+ADX <= 20
+20 < ADX <= 25
+25 < ADX <= 30
+ADX > 30
+
+But treat these initially as diagnostics/context.
+
+Do NOT retrospectively select one magical ADX cutoff and call it a strategy.
+
+Ask:
+
+Does adaptive evidence learn that some trend regimes are better without us
+hard-coding that conclusion?
+
+==================================================
+19. DAY STABILITY
+==================================================
+
+Report every TEST day.
+
+For baseline and adaptive:
+
+n
+WR
+EV80
+
+Report:
+
+largest-day signal share
+largest-day win share
+
+We previously found apparently strong binary edges caused by one unusually
+good day.
+
+Reject that failure mode.
+
+==================================================
+20. SYMBOL STABILITY
+==================================================
+
+Report every symbol:
+
+baseline n / WR
+adaptive TAKE n / WR
+adaptive WAIT n / WR
+
+Flag any result dominated by one or two symbols.
+
+==================================================
+21. SESSION STABILITY
+==================================================
+
+Report:
+
+Asia
+London
+London/New York overlap
+New York
+
+Diagnostic only.
+
+Do not create new session filters after looking at TEST.
+
+==================================================
+22. WALK-FORWARD DATA SPLIT
+==================================================
+
+Do NOT simply train adaptive statistics on the entire dataset and then replay
+the same observations.
+
+Use chronological evidence.
+
+Prefer something like:
+
+EARLY HISTORY
+→ initial evidence
+
+then
+
+WALK-FORWARD DEV
+→ sequential updates
+
+then
+
+UNTOUCHED TEST
+→ final evaluation
+
+If the previous "last week" period has already been inspected extensively,
+DO NOT pretend it is sealed anymore.
+
+It is now discovery/DEV data.
+
+Use a genuinely unseen later period if available.
+
+If no later data exists yet:
+
+perform the sequential replay as a DEVELOPMENT experiment,
+label it honestly,
+and DO NOT call the result OOS proof.
+
+==================================================
+23. CRITICAL ANTI-OVERFIT RULE
+==================================================
+
+The goal is NOT:
+
+"Find some adaptive configuration with 60%."
+
+The goal is:
+
+"Determine whether information available BEFORE each signal reliably
+separates higher-quality BB+RSI signals from lower-quality ones."
+
+Therefore:
+
+Report ALL predefined selector configurations.
+
+Do not silently discard failures.
+
+Do not keep changing contexts until something reaches 60%.
+
+==================================================
+24. RANDOM CONTROL
+==================================================
+
+Create a matched random selector.
+
+If adaptive selector takes X% of signals:
+
+randomly select the same X% from the same signal stream repeatedly.
+
+Compare adaptive TAKE WR against the random-selection distribution.
+
+This tells us whether the adaptive engine is genuinely selecting better
+signals rather than benefiting from reduced sample size.
+
+Use enough random repetitions for a stable distribution.
+
+==================================================
+25. SIMPLE CONTROL
+==================================================
+
+Compare adaptive selection against simple fixed rules such as:
+
+take all
+RSI severity only
+ADX only
+
+The adaptive engine must add value beyond a trivial one-variable filter.
+
+==================================================
+26. LEAKAGE AUDIT
+==================================================
+
+Explicitly verify:
+
+BB values only use closed bars <= T
+RSI only uses closed bars <= T
+ADX/context only uses closed bars <= T
+no future ATR percentile
+no future volatility percentile
+no future session information
+adaptive evidence only contains outcomes resolved before T
+current signal cannot enter its own evidence
+WAIT outcome never influences its original decision
+expiration > decision timestamp
+OANDA start/close timestamp convention correct
+scalers/buckets fitted without TEST leakage
+
+Given previous GoldenXperience research caught timestamp leakage, treat any
+suspiciously high result as a bug until audited.
+
+==================================================
+27. SUCCESS LEVELS
+==================================================
+
+At 80% payout:
+
+55.56% = break-even
+
+Define:
+
+FAILED
+adaptive TAKE <= baseline or <=55.56%
+
+PROMISING
+adaptive TAKE > baseline and >55.56%, but uncertainty/sample size insufficient
+
+STRONG
+adaptive TAKE >=60%
+with meaningful n
+distributed across multiple days/pairs
+and TAKE materially beats WAIT
+
+CONFIRMED
+requires genuinely untouched OOS evidence with:
+- adequate n
+- positive EV80
+- CI supporting profitability
+- stable days/pairs
+- selector ranking working
+
+Do NOT label 60% from 20 observations STRONG.
+
+==================================================
+28. ACTUALLY RUN THE TEST
+==================================================
+
+Do not just implement the adaptive experiment.
+
+Run it.
+
+Return actual results.
+
+Do not modify production.
+
+==================================================
+29. REPORT
+==================================================
+
+Return:
+
+GOLDENXPERIENCE
+ADAPTIVE BOLLINGER + RSI EDGE TEST
+(adaptive-bollinger-rsi-v1)
+
+================================
+DATA
+================================
+
+Periods:
+Symbols:
+Signals:
+Replay method:
+Adaptive evidence initialization:
+
+Previously inspected data:
+Truly unseen data:
+
+================================
+FROZEN BASE STRATEGY
+================================
+
+BB:
+RSI:
+Re-entry:
+Expiry:
+
+Reproduced previous result:
+n:
+WR:
+CI:
+EV80:
+
+================================
+ADAPTIVE ARCHITECTURE
+================================
+
+Existing components reused:
+Context features:
+Evidence hierarchy:
+Backoff logic:
+COLLECTING threshold:
+LEARNING threshold:
+ACTIVE threshold:
+
+================================
+HEADLINE
+================================
+
+FROZEN ALL SIGNALS
+
+n:
+WR:
+95% CI:
+EV80:
+
+ADAPTIVE TAKE
+
+n:
+coverage:
+WR:
+95% CI:
+EV80:
+
+ADAPTIVE WAIT COUNTERFACTUAL
+
+n:
+WR:
+95% CI:
+EV80:
+
+Improvement TAKE vs ALL:
+Improvement TAKE vs WAIT:
+
+================================
+SELECTOR THRESHOLDS
+================================
+
+For every predefined selector:
+
+threshold
+TAKE n
+coverage
+TAKE WR
+WAIT WR
+EV80
+CI
+
+Do not report only the winner.
+
+================================
+QUALITY RANKING
+================================
+
+Q1:
+Q2:
+Q3:
+Q4:
+Q5:
+
+Does adaptive score monotonically rank realized WR?
+
+YES / NO
+
+================================
+RANDOM SELECTOR CONTROL
+================================
+
+Adaptive coverage:
+Adaptive WR:
+
+Matched random selector:
+mean WR:
+95% random range:
+
+Adaptive improvement vs random:
+
+================================
+SIMPLE FILTER CONTROLS
+================================
+
+Take-all:
+RSI-only:
+ADX-only:
+Adaptive:
+
+Does adaptive actually add value?
+
+================================
+ADX / TREND REGIME
+================================
+
+ADX <=20:
+ADX 20-25:
+ADX 25-30:
+ADX >30:
+
+Does previous trend-regime finding repeat?
+
+================================
+UP vs DOWN
+================================
+
+UP baseline:
+UP adaptive:
+
+DOWN baseline:
+DOWN adaptive:
+
+================================
+DAY STABILITY
+================================
+
+Every day.
+
+================================
+SYMBOL STABILITY
+================================
+
+Every symbol.
+
+================================
+SESSION STABILITY
+================================
+
+Asia:
+London:
+Overlap:
+New York:
+
+================================
+PAYOUT ANALYSIS
+================================
+
+70:
+75:
+80:
+85:
+90:
+95:
+
+================================
+LEAKAGE AUDIT
+================================
+
+Every check PASS / FAIL.
+
+================================
+DIRECT ANSWERS
+================================
+
+1. Does adaptive selection improve the 58.93% frozen strategy?
+
+2. Does adaptive TAKE reach 60%?
+
+3. With how many signals?
+
+4. What percentage of signals does it keep?
+
+5. Are rejected WAIT signals actually worse?
+
+6. Does predicted signal quality rank realized WR?
+
+7. Does adaptive selection beat matched random selection?
+
+8. Does it beat simple RSI-only or ADX-only filtering?
+
+9. Which contexts appear responsible for the improvement?
+
+10. Is the improvement stable across days?
+
+11. Is it stable across symbols?
+
+12. At 80% payout, is adaptive TAKE profitable?
+
+13. Is the evidence genuinely OOS or still DEVELOPMENT?
+
+================================
+FINAL VERDICT
+================================
+
+Choose ONE:
+
+ADAPTIVE_SELECTION_CONFIRMED
+
+ADAPTIVE_SELECTION_STRONG
+
+ADAPTIVE_SELECTION_PROMISING
+
+ADAPTIVE_IMPROVES_BUT_BELOW_60
+
+ADAPTIVE_REDUCES_SAMPLE_WITHOUT_EDGE
+
+ADAPTIVE_NO_IMPROVEMENT
+
+ADAPTIVE_OVERFIT
+
+INSUFFICIENT_NEW_DATA
+
+Do not modify production.
+
+Do not optimize until 60%.
+
+The objective is to determine whether the adaptive engine genuinely knows
+WHEN the frozen BB20+RSI 10-minute signal is more likely to win.
+</user_query>

@@ -1,0 +1,524 @@
+GOLDENXPERIENCE
+RSI-EXTREME EDGE VALIDATION + ADAPTIVE FAILURE AUDIT
+Experiment: binary-rsi-extreme-v1
+
+================================
+REPRODUCTION
+================================
+
+Original reported:
+n=815
+WR=60.25%
+
+Reproduced:
+n: 815
+WR: 60.25%
+CI: [56.84%, 63.55%]
+EV80: 0.084
+Full: n=815 W=491 L=324 T=6 WR=60.25% CI=[56.84%,63.55%] EV80=0.084
+
+GATE: PASS (tol n±40, WR±0.02)
+
+Exact frozen RSI definition:
+  BB: period=20 k=2 population stdev (var=mean(x^2)-mean(x)^2)
+  RSI: Wilder14; UP if RSI<=30; DOWN if RSI>=70
+  Re-entry: high>upper / low<lower excursion; close back inside; dedup until mid return + new outside
+  Expiry: 10 minutes
+  RSI severity beyond = dir==up ? (30-rsi) : (rsi-70)
+    mild: beyond<=5; medium: beyond<=10; extreme: beyond>10
+  RSI-extreme = UP with RSI<20 OR DOWN with RSI>80 on top of BB reentry
+
+Cohort labels:
+  DISCOVERY / ALREADY-SEEN = LEARN [2024-12-29T21:00:00.000Z, 2026-05-23T21:00:00.000Z)
+  VALIDATION / stability = HOLDOUT [2026-05-23T21:00:00.000Z, 2026-08-21T21:00:00.000Z]
+  COMPARISON week (previously inspected, NOT sealed): [2026-08-14T21:00:00.000Z, 2026-08-21T21:00:00.000Z]
+  TRUE FORWARD after 2026-08-21T21:00:00.000Z: UNAVAILABLE
+
+Data:
+  Symbols: EUR_USD, GBP_USD, USD_JPY, AUD_USD, NZD_USD, USD_CAD, USD_CHF, EUR_GBP, EUR_JPY, GBP_JPY, AUD_JPY, EUR_AUD
+  M1 bars: 7360000  coverage 2024-12-23T13:15:00.000Z → 2026-08-21T21:00:00.000Z
+  Cache: C:\Users\arche\Desktop\code\GoldenXperience\api-server\research-v2\binary-adaptive-bollinger-rsi-10k\cache
+  Signals: LEARN=11803 HOLDOUT=1906 COMPARISON=172 TOTAL=13881
+  RSI-extreme: LEARN=821 HOLDOUT+COMP=153 FULL=974
+Gaps:
+  EUR_USD: bars=615000 span≈605.7d gaps≈460
+  GBP_USD: bars=615000 span≈605.6d gaps≈508
+  USD_JPY: bars=615000 span≈605.9d gaps≈569
+  AUD_USD: bars=610000 span≈602.6d gaps≈533
+  NZD_USD: bars=610000 span≈603.3d gaps≈858
+  USD_CAD: bars=615000 span≈606.3d gaps≈553
+  USD_CHF: bars=610000 span≈603.3d gaps≈686
+  EUR_GBP: bars=610000 span≈602.5d gaps≈480
+  EUR_JPY: bars=615000 span≈605.8d gaps≈548
+  GBP_JPY: bars=615000 span≈603.8d gaps≈405
+  AUD_JPY: bars=615000 span≈605.3d gaps≈430
+  EUR_AUD: bars=615000 span≈605.1d gaps≈414
+
+================================
+HEADLINE RSI-EXTREME
+================================
+
+LEARN (discovery):
+n: 815
+WR: 60.25%
+CI: [56.84%, 63.55%]
+EV70: 0.024
+EV75: 0.054
+EV80: 0.084
+EV85: 0.115
+EV90: 0.145
+EV95: 0.175
+Full: n=815 W=491 L=324 T=6 WR=60.25% CI=[56.84%,63.55%] EV80=0.084
+Coverage of LEARN BB+RSI: 6.96%
+
+HOLDOUT (validation/stability — not final proof):
+n=150 W=81 L=69 T=3 WR=54.00% CI=[46.02%,61.78%] EV80=-0.028
+Coverage of HOLDOUT BB+RSI: 7.36%
+
+FULL decided:
+n=965 W=572 L=393 T=9 WR=59.27% CI=[56.14%,62.33%] EV80=0.067
+
+LEARN ALL BB+RSI: n=11606 W=6282 L=5324 T=197 WR=54.13% CI=[53.22%,55.03%] EV80=-0.026
+HOLDOUT ALL BB+RSI: n=2028 W=1103 L=925 T=50 WR=54.39% CI=[52.21%,56.55%] EV80=-0.021
+FULL ALL BB+RSI: n=13634 W=7385 L=6249 T=247 WR=54.17% CI=[53.33%,55.00%] EV80=-0.025
+
+================================
+UP vs DOWN
+================================
+
+Oversold -> UP (LEARN):
+n=458 W=282 L=176 T=4 WR=61.57% CI=[57.04%,65.91%] EV80=0.108
+
+Overbought -> DOWN (LEARN):
+n=357 W=209 L=148 T=2 WR=58.54% CI=[53.37%,63.54%] EV80=0.054
+
+Oversold -> UP (FULL):
+n: 534
+WR: 59.93%
+CI: [55.71%, 64.00%]
+EV80: 0.079
+Full: n=534 W=320 L=214 T=6 WR=59.93% CI=[55.71%,64.00%] EV80=0.079
+
+Overbought -> DOWN (FULL):
+n: 431
+WR: 58.47%
+CI: [53.76%, 63.03%]
+EV80: 0.052
+Full: n=431 W=252 L=179 T=3 WR=58.47% CI=[53.76%,63.03%] EV80=0.052
+
+================================
+RSI SEVERITY
+================================
+
+Buckets (LEARN, descriptive — not optimized):
+  UP RSI<=10: n=23 W=14 L=9 T=0 WR=60.87% CI=[40.79%,77.84%] EV80=0.096
+  UP RSI 10-15: n=106 W=61 L=45 T=0 WR=57.55% CI=[48.04%,66.53%] EV80=0.036
+  UP RSI 15-20: n=329 W=207 L=122 T=4 WR=62.92% CI=[57.58%,67.96%] EV80=0.133
+  UP RSI 20-25: n=1106 W=606 L=500 T=17 WR=54.79% CI=[51.85%,57.70%] EV80=-0.014
+  UP RSI 25-30: n=4176 W=2231 L=1945 T=67 WR=53.42% CI=[51.91%,54.93%] EV80=-0.038
+  DOWN RSI 70-75: n=4351 W=2342 L=2009 T=93 WR=53.83% CI=[52.34%,55.30%] EV80=-0.031
+  DOWN RSI 75-80: n=1158 W=612 L=546 T=14 WR=52.85% CI=[49.97%,55.71%] EV80=-0.049
+  DOWN RSI 80-85: n=280 W=166 L=114 T=2 WR=59.29% CI=[53.44%,64.88%] EV80=0.067
+  DOWN RSI 85-90: n=66 W=35 L=31 T=0 WR=53.03% CI=[41.16%,64.57%] EV80=-0.045
+  DOWN RSI>=90: n=11 W=8 L=3 T=0 WR=72.73% CI=[43.43%,90.25%] EV80=0.309
+
+Coarse severity (LEARN):
+  extreme: n=815 W=491 L=324 T=6 WR=60.25% CI=[56.84%,63.55%] EV80=0.084
+  medium: n=2264 W=1218 L=1046 T=31 WR=53.80% CI=[51.74%,55.84%] EV80=-0.032
+  mild: n=8527 W=4573 L=3954 T=160 WR=53.63% CI=[52.57%,54.69%] EV80=-0.035
+
+Monotonic gradient?
+PARTIAL
+  (UP severity↑ mono=PARTIAL; DOWN severity↑ mono=PARTIAL)
+
+================================
+MONTH STABILITY
+================================
+
+Every month (LEARN RSI-extreme):
+  2024-12: n=8 W=4 L=4 T=0 WR=50.00% CI=[21.52%,78.48%] EV80=-0.100
+  2025-01: n=77 W=46 L=31 T=1 WR=59.74% CI=[48.58%,69.98%] EV80=0.075
+  2025-02: n=41 W=25 L=16 T=1 WR=60.98% CI=[45.73%,74.34%] EV80=0.098
+  2025-03: n=47 W=30 L=17 T=0 WR=63.83% CI=[49.54%,76.03%] EV80=0.149
+  2025-04: n=41 W=23 L=18 T=1 WR=56.10% CI=[41.04%,70.11%] EV80=0.010
+  2025-05: n=39 W=21 L=18 T=0 WR=53.85% CI=[38.57%,68.43%] EV80=-0.031
+  2025-06: n=48 W=34 L=14 T=0 WR=70.83% CI=[56.82%,81.76%] EV80=0.275
+  2025-07: n=51 W=31 L=20 T=2 WR=60.78% CI=[47.08%,72.97%] EV80=0.094
+  2025-08: n=40 W=17 L=23 T=0 WR=42.50% CI=[28.51%,57.81%] EV80=-0.235
+  2025-09: n=51 W=29 L=22 T=0 WR=56.86% CI=[43.27%,69.50%] EV80=0.024
+  2025-10: n=60 W=42 L=18 T=0 WR=70.00% CI=[57.49%,80.10%] EV80=0.260
+  2025-11: n=47 W=29 L=18 T=0 WR=61.70% CI=[47.43%,74.21%] EV80=0.111
+  2025-12: n=31 W=20 L=11 T=0 WR=64.52% CI=[46.95%,78.88%] EV80=0.161
+  2026-01: n=49 W=27 L=22 T=0 WR=55.10% CI=[41.31%,68.15%] EV80=-0.008
+  2026-02: n=34 W=13 L=21 T=0 WR=38.24% CI=[23.90%,54.96%] EV80=-0.312
+  2026-03: n=61 W=43 L=18 T=0 WR=70.49% CI=[58.11%,80.45%] EV80=0.269
+  2026-04: n=68 W=44 L=24 T=1 WR=64.71% CI=[52.84%,75.00%] EV80=0.165
+  2026-05: n=22 W=13 L=9 T=0 WR=59.09% CI=[38.73%,76.74%] EV80=0.064
+
+Months with n≥20 and WR≥55.56%: 13/17
+
+================================
+WEEK STABILITY
+================================
+
+Every week (LEARN RSI-extreme):
+  2024-12-23: n=1 W=0 L=1 T=0 WR=0.00% CI=[0.00%,79.35%] EV80=-1.000
+  2024-12-30: n=13 W=5 L=8 T=0 WR=38.46% CI=[17.71%,64.48%] EV80=-0.308
+  2025-01-06: n=23 W=12 L=11 T=0 WR=52.17% CI=[32.96%,70.76%] EV80=-0.061
+  2025-01-13: n=14 W=8 L=6 T=0 WR=57.14% CI=[32.59%,78.62%] EV80=0.029
+  2025-01-20: n=16 W=11 L=5 T=1 WR=68.75% CI=[44.40%,85.84%] EV80=0.238
+  2025-01-27: n=27 W=22 L=5 T=0 WR=81.48% CI=[63.30%,91.82%] EV80=0.467
+  2025-02-03: n=11 W=6 L=5 T=1 WR=54.55% CI=[28.01%,78.73%] EV80=-0.018
+  2025-02-10: n=10 W=7 L=3 T=0 WR=70.00% CI=[39.68%,89.22%] EV80=0.260
+  2025-02-17: n=7 W=2 L=5 T=0 WR=28.57% CI=[8.22%,64.11%] EV80=-0.486
+  2025-02-24: n=5 W=3 L=2 T=0 WR=60.00% CI=[23.07%,88.24%] EV80=0.080
+  2025-03-03: n=11 W=6 L=5 T=0 WR=54.55% CI=[28.01%,78.73%] EV80=-0.018
+  2025-03-10: n=9 W=4 L=5 T=0 WR=44.44% CI=[18.88%,73.34%] EV80=-0.200
+  2025-03-17: n=16 W=11 L=5 T=0 WR=68.75% CI=[44.40%,85.84%] EV80=0.238
+  2025-03-24: n=9 W=7 L=2 T=0 WR=77.78% CI=[45.26%,93.68%] EV80=0.400
+  2025-03-31: n=13 W=9 L=4 T=0 WR=69.23% CI=[42.37%,87.32%] EV80=0.246
+  2025-04-07: n=8 W=5 L=3 T=0 WR=62.50% CI=[30.57%,86.32%] EV80=0.125
+  2025-04-14: n=11 W=6 L=5 T=0 WR=54.55% CI=[28.01%,78.73%] EV80=-0.018
+  2025-04-21: n=7 W=1 L=6 T=0 WR=14.29% CI=[2.57%,51.31%] EV80=-0.743
+  2025-04-28: n=4 W=3 L=1 T=1 WR=75.00% CI=[30.06%,95.44%] EV80=0.350
+  2025-05-05: n=15 W=10 L=5 T=0 WR=66.67% CI=[41.71%,84.82%] EV80=0.200
+  2025-05-12: n=5 W=3 L=2 T=0 WR=60.00% CI=[23.07%,88.24%] EV80=0.080
+  2025-05-19: n=8 W=2 L=6 T=0 WR=25.00% CI=[7.15%,59.07%] EV80=-0.550
+  2025-05-26: n=12 W=8 L=4 T=0 WR=66.67% CI=[39.06%,86.19%] EV80=0.200
+  2025-06-02: n=13 W=7 L=6 T=0 WR=53.85% CI=[29.14%,76.79%] EV80=-0.031
+  2025-06-09: n=16 W=9 L=7 T=0 WR=56.25% CI=[33.18%,76.90%] EV80=0.013
+  2025-06-16: n=12 W=12 L=0 T=0 WR=100.00% CI=[75.75%,100.00%] EV80=0.800
+  2025-06-23: n=4 W=3 L=1 T=0 WR=75.00% CI=[30.06%,95.44%] EV80=0.350
+  2025-06-30: n=10 W=6 L=4 T=0 WR=60.00% CI=[31.27%,83.18%] EV80=0.080
+  2025-07-07: n=14 W=12 L=2 T=0 WR=85.71% CI=[60.06%,95.99%] EV80=0.543
+  2025-07-14: n=11 W=6 L=5 T=0 WR=54.55% CI=[28.01%,78.73%] EV80=-0.018
+  2025-07-21: n=9 W=6 L=3 T=0 WR=66.67% CI=[35.42%,87.94%] EV80=0.200
+  2025-07-28: n=19 W=3 L=16 T=2 WR=15.79% CI=[5.52%,37.57%] EV80=-0.716
+  2025-08-04: n=7 W=2 L=5 T=0 WR=28.57% CI=[8.22%,64.11%] EV80=-0.486
+  2025-08-11: n=4 W=3 L=1 T=0 WR=75.00% CI=[30.06%,95.44%] EV80=0.350
+  2025-08-18: n=13 W=7 L=6 T=0 WR=53.85% CI=[29.14%,76.79%] EV80=-0.031
+  2025-08-25: n=5 W=4 L=1 T=0 WR=80.00% CI=[37.55%,96.38%] EV80=0.440
+  2025-09-01: n=13 W=7 L=6 T=0 WR=53.85% CI=[29.14%,76.79%] EV80=-0.031
+  2025-09-08: n=7 W=4 L=3 T=0 WR=57.14% CI=[25.05%,84.18%] EV80=0.029
+  2025-09-15: n=15 W=8 L=7 T=0 WR=53.33% CI=[30.12%,75.19%] EV80=-0.040
+  2025-09-22: n=12 W=7 L=5 T=0 WR=58.33% CI=[31.95%,80.67%] EV80=0.050
+  2025-09-29: n=17 W=12 L=5 T=0 WR=70.59% CI=[46.87%,86.72%] EV80=0.271
+  2025-10-06: n=16 W=12 L=4 T=0 WR=75.00% CI=[50.50%,89.82%] EV80=0.350
+  2025-10-13: n=10 W=7 L=3 T=0 WR=70.00% CI=[39.68%,89.22%] EV80=0.260
+  2025-10-20: n=12 W=9 L=3 T=0 WR=75.00% CI=[46.77%,91.11%] EV80=0.350
+  2025-10-27: n=9 W=5 L=4 T=0 WR=55.56% CI=[26.66%,81.12%] EV80=0.000
+  2025-11-03: n=10 W=7 L=3 T=0 WR=70.00% CI=[39.68%,89.22%] EV80=0.260
+  2025-11-10: n=16 W=13 L=3 T=0 WR=81.25% CI=[56.99%,93.41%] EV80=0.463
+  2025-11-17: n=10 W=4 L=6 T=0 WR=40.00% CI=[16.82%,68.73%] EV80=-0.280
+  2025-11-24: n=11 W=5 L=6 T=0 WR=45.45% CI=[21.27%,71.99%] EV80=-0.182
+  2025-12-01: n=11 W=9 L=2 T=0 WR=81.82% CI=[52.30%,94.86%] EV80=0.473
+  2025-12-08: n=3 W=2 L=1 T=0 WR=66.67% CI=[20.77%,93.85%] EV80=0.200
+  2025-12-15: n=5 W=3 L=2 T=0 WR=60.00% CI=[23.07%,88.24%] EV80=0.080
+  2025-12-22: n=9 W=4 L=5 T=0 WR=44.44% CI=[18.88%,73.34%] EV80=-0.200
+  2025-12-29: n=5 W=3 L=2 T=0 WR=60.00% CI=[23.07%,88.24%] EV80=0.080
+  2026-01-05: n=6 W=1 L=5 T=0 WR=16.67% CI=[3.01%,56.35%] EV80=-0.700
+  2026-01-12: n=10 W=5 L=5 T=0 WR=50.00% CI=[23.66%,76.34%] EV80=-0.100
+  2026-01-19: n=23 W=14 L=9 T=0 WR=60.87% CI=[40.79%,77.84%] EV80=0.096
+  2026-01-26: n=9 W=6 L=3 T=0 WR=66.67% CI=[35.42%,87.94%] EV80=0.200
+  2026-02-02: n=10 W=4 L=6 T=0 WR=40.00% CI=[16.82%,68.73%] EV80=-0.280
+  2026-02-09: n=10 W=5 L=5 T=0 WR=50.00% CI=[23.66%,76.34%] EV80=-0.100
+  2026-02-16: n=9 W=3 L=6 T=0 WR=33.33% CI=[12.06%,64.58%] EV80=-0.400
+  2026-02-23: n=11 W=6 L=5 T=0 WR=54.55% CI=[28.01%,78.73%] EV80=-0.018
+  2026-03-02: n=18 W=12 L=6 T=0 WR=66.67% CI=[43.75%,83.72%] EV80=0.200
+  2026-03-09: n=11 W=9 L=2 T=0 WR=81.82% CI=[52.30%,94.86%] EV80=0.473
+  2026-03-16: n=10 W=4 L=6 T=0 WR=40.00% CI=[16.82%,68.73%] EV80=-0.280
+  2026-03-23: n=12 W=10 L=2 T=0 WR=83.33% CI=[55.20%,95.30%] EV80=0.500
+  2026-03-30: n=12 W=10 L=2 T=0 WR=83.33% CI=[55.20%,95.30%] EV80=0.500
+  2026-04-06: n=15 W=13 L=2 T=0 WR=86.67% CI=[62.12%,96.26%] EV80=0.560
+  2026-04-13: n=13 W=6 L=7 T=0 WR=46.15% CI=[23.21%,70.86%] EV80=-0.169
+  2026-04-20: n=17 W=10 L=7 T=0 WR=58.82% CI=[36.01%,78.39%] EV80=0.059
+  2026-04-27: n=16 W=10 L=6 T=1 WR=62.50% CI=[38.64%,81.52%] EV80=0.125
+  2026-05-04: n=14 W=8 L=6 T=0 WR=57.14% CI=[32.59%,78.62%] EV80=0.029
+  2026-05-11: n=4 W=1 L=3 T=0 WR=25.00% CI=[4.56%,69.94%] EV80=-0.550
+  2026-05-18: n=2 W=2 L=0 T=0 WR=100.00% CI=[34.24%,100.00%] EV80=0.800
+
+================================
+SYMBOL STABILITY
+================================
+
+Every symbol (FULL RSI-extreme):
+  AUD_JPY: n=76 W=40 L=36 T=1 WR=52.63% CI=[41.55%,63.46%] EV80=-0.053
+  AUD_USD: n=91 W=66 L=25 T=2 WR=72.53% CI=[62.59%,80.64%] EV80=0.305
+  EUR_AUD: n=67 W=43 L=24 T=0 WR=64.18% CI=[52.22%,74.60%] EV80=0.155
+  EUR_GBP: n=53 W=37 L=16 T=2 WR=69.81% CI=[56.46%,80.48%] EV80=0.257
+  EUR_JPY: n=72 W=47 L=25 T=0 WR=65.28% CI=[53.76%,75.25%] EV80=0.175
+  EUR_USD: n=99 W=64 L=35 T=0 WR=64.65% CI=[54.84%,73.36%] EV80=0.164
+  GBP_JPY: n=60 W=32 L=28 T=0 WR=53.33% CI=[40.89%,65.37%] EV80=-0.040
+  GBP_USD: n=87 W=53 L=34 T=1 WR=60.92% CI=[50.41%,70.50%] EV80=0.097
+  NZD_USD: n=100 W=60 L=40 T=2 WR=60.00% CI=[50.20%,69.06%] EV80=0.080
+  USD_CAD: n=87 W=45 L=42 T=1 WR=51.72% CI=[41.37%,61.93%] EV80=-0.069
+  USD_CHF: n=75 W=35 L=40 T=0 WR=46.67% CI=[35.82%,57.84%] EV80=-0.160
+  USD_JPY: n=98 W=50 L=48 T=0 WR=51.02% CI=[41.27%,60.69%] EV80=-0.082
+
+Symbols with n≥20 and WR≥55.56%: 7/12
+
+================================
+SESSION
+================================
+
+Asia / London / Overlap / NY / Off (LEARN RSI-extreme):
+  asia: n=239 W=133 L=106 T=3 WR=55.65% CI=[49.31%,61.81%] EV80=0.002
+  london: n=119 W=74 L=45 T=0 WR=62.18% CI=[53.22%,70.39%] EV80=0.119
+  ny: n=132 W=73 L=59 T=1 WR=55.30% CI=[46.79%,63.52%] EV80=-0.005
+  off: n=210 W=144 L=66 T=2 WR=68.57% CI=[62.01%,74.47%] EV80=0.234
+  overlap: n=115 W=67 L=48 T=0 WR=58.26% CI=[49.12%,66.86%] EV80=0.049
+
+================================
+ADX / TREND
+================================
+
+<=20 / 20-25 / 25-30 / >30 (LEARN RSI-extreme):
+  b20_25: n=14 W=12 L=2 T=0 WR=85.71% CI=[60.06%,95.99%] EV80=0.543
+  b25_30: n=50 W=29 L=21 T=1 WR=58.00% CI=[44.23%,70.63%] EV80=0.044
+  gt30: n=750 W=449 L=301 T=5 WR=59.87% CI=[56.32%,63.32%] EV80=0.078
+  le20: n=1 W=1 L=0 T=0 WR=100.00% CI=[20.65%,100.00%] EV80=0.800
+
+Question: trend-pullback vs range?
+  (interpret ADX buckets above; do not hard-code best bucket)
+
+================================
+BOLLINGER CONTEXT
+================================
+
+Penetration / re-entry depth / width / mid-slope (LEARN RSI-extreme):
+  pen=deep: n=94 W=61 L=33 T=0 WR=64.89% CI=[54.83%,73.78%] EV80=0.168
+  pen=moderate: n=227 W=130 L=97 T=3 WR=57.27% CI=[50.76%,63.53%] EV80=0.031
+  pen=shallow: n=494 W=300 L=194 T=3 WR=60.73% CI=[56.36%,64.94%] EV80=0.093
+  depth=deep: n=102 W=63 L=39 T=0 WR=61.76% CI=[52.07%,70.61%] EV80=0.112
+  depth=mid: n=339 W=193 L=146 T=3 WR=56.93% CI=[51.61%,62.10%] EV80=0.025
+  depth=shallow: n=374 W=235 L=139 T=3 WR=62.83% CI=[57.83%,67.58%] EV80=0.131
+  width=high: n=814 W=491 L=323 T=6 WR=60.32% CI=[56.92%,63.62%] EV80=0.086
+  width=mid: n=1 W=0 L=1 T=0 WR=0.00% CI=[0.00%,79.35%] EV80=-1.000
+  slope=down: n=458 W=282 L=176 T=4 WR=61.57% CI=[57.04%,65.91%] EV80=0.108
+  slope=up: n=357 W=209 L=148 T=2 WR=58.54% CI=[53.37%,63.54%] EV80=0.054
+
+================================
+PATH ANALYSIS
+================================
+
+WR by expiry (LEARN RSI-extreme):
+  1m: n=770 W=416 L=354 T=51 WR=54.03% CI=[50.49%,57.52%] EV80=-0.028
+  3m: n=801 W=424 L=377 T=20 WR=52.93% CI=[49.47%,56.37%] EV80=-0.047
+  5m: n=799 W=454 L=345 T=22 WR=56.82% CI=[53.36%,60.21%] EV80=0.023
+  10m: n=815 W=491 L=324 T=6 WR=60.25% CI=[56.84%,63.55%] EV80=0.084
+  15m: n=809 W=485 L=324 T=12 WR=59.95% CI=[56.53%,63.27%] EV80=0.079
+
+MFE mean (ATR, 10m window): 2.021 (n=821)
+MAE mean (ATR, 10m window): 1.791
+Time-to-favorable ≥0.25 ATR (min): mean=1.92
+Time-to-adverse ≥0.25 ATR (min): mean=1.72
+
+================================
+MATCHED CONTROL
+================================
+
+RSI-extreme (LEARN):
+n=815 W=491 L=324 T=6 WR=60.25% CI=[56.84%,63.55%] EV80=0.084
+
+Matched ordinary BB+RSI (instrument+dir+session+bbWidth±month):
+n=806 W=446 L=360 T=13 WR=55.33% CI=[51.89%,58.73%] EV80=-0.004
+matched pairs: 819  unmatched extremes: 2
+
+Difference (extreme − matched):
+4.91pp
+CI: [0.11%, 9.71%]
+
+================================
+RANDOM CONTROL
+================================
+
+RSI WR: 60.25%
+Random mean: 54.19%
+Random 95%: [50.92%, 57.55%]
+Percentile: 100.00%
+Beats random 97.5%ile: YES
+
+================================
+ADAPTIVE FAILURE
+================================
+
+RSI-extreme winners (LEARN):
+% adaptive TAKE: 13.03%
+% adaptive WAIT: 86.97%
+n_winners=491
+
+RSI-extreme losers (LEARN):
+% TAKE: 12.96%
+% WAIT: 87.04%
+n_losers=324
+
+Adaptive score winners: mean=0.5411 median=0.5435 n_est=487
+Adaptive score losers:  mean=0.5383 median=0.5438 n_est=321
+Non-extreme est:        mean=0.5400 median=0.5431
+
+Did adaptive systematically mis-rank RSI-extreme signals?
+NO
+  (winner mean est 0.5411 vs loser mean est 0.5383)
+
+Scope mix on LEARN RSI-extreme:
+  direction|adxBucket: 810 (98.66%)
+  none: 7 (0.85%)
+  adxBucket: 4 (0.49%)
+
+TAKE rate RSI-extreme vs ALL LEARN: 13.03% vs 18.05%
+
+================================
+WHY ADAPTIVE FAILED
+================================
+
+Evidence hierarchy:
+  Production (reused): direction|adxBucket(30) → direction|session(30) → adxBucket(30) → direction(40) → overall(50)
+  RSI severity in hierarchy? NO — missing
+
+Guardrail:
+  COLLECTING (<50 overall) → TAKE all; LEARNING 50–99; ACTIVE ≥100
+  Primary TAKE: EST_GE_0.5556
+
+Backoff:
+  Rare extreme contexts fall through to broad dir/overall cells that mix mild+medium+extreme
+  Fraction extreme resolved via overall|direction only: 0.00%
+  Mean est when scoped to direction|adxBucket: 0.5405
+
+Bucketing:
+  Coarse ADX/session buckets dilute RSI extremity signal
+
+RSI severity missing:
+  PROVED — severity never enters production hierarchy; extreme share of LEARN is only 6.96%
+
+Scoring target:
+  Estimated WR is pooled cell WR, not severity-conditioned WR
+
+Key mismatch:
+  Adaptive ranks by contexts that ignore the feature that drove the 60% pocket
+
+Other:
+  Adaptive TAKE rate on extremes (13.03%) < overall TAKE rate (18.05%)
+  Adding rsiSeverity near top of hierarchy: LEARN TAKE n=1307 WR=56.31% CI=[53.61%,58.98%] EV80=0.014 vs baseline n=2092 WR=52.34% CI=[50.20%,54.48%] EV80=-0.058
+
+Root cause(s) supported by evidence:
+  1) Hierarchy omits rsiSeverity, so extreme signals are scored with mixed-severity direction|adxBucket WR ≈54% (est mean ~0.54).
+  2) Almost all extremes (~99%) resolve via direction|adxBucket — the pocket is washed into the average cell; severity never surfaces.
+  3) EST_GE_0.5556 therefore TAKEs only ~13% of extremes (vs ~18% overall) and does not separate extreme winners from losers (est nearly identical); hybrid adaptive-on-extreme adds no WR lift.
+  4) Separately: LEARN 60% did not hold on HOLDOUT (54%, n=150) — the pocket is discovery-strong / validation-weak.
+
+================================
+REMOVE-ONE / DIAGNOSTIC VARIANTS (LEARN)
+================================
+
+  baseline hierarchy: ALL n=11606 WR=54.13% CI=[53.22%,55.03%] EV80=-0.026 | TAKE n=2092 WR=52.34% CI=[50.20%,54.48%] EV80=-0.058 cov=18.05% | WAIT n=9514 WR=54.52% CI=[53.52%,55.52%] EV80=-0.019
+  hierarchy + rsiSeverity (top): ALL n=11606 WR=54.13% CI=[53.22%,55.03%] EV80=-0.026 | TAKE n=1307 WR=56.31% CI=[53.61%,58.98%] EV80=0.014 cov=11.20% | WAIT n=10299 WR=53.85% CI=[52.89%,54.81%] EV80=-0.031
+  overall-only: ALL n=11606 WR=54.13% CI=[53.22%,55.03%] EV80=-0.026 | TAKE n=92 WR=36.96% CI=[27.80%,47.16%] EV80=-0.335 cov=0.78% | WAIT n=11514 WR=54.26% CI=[53.35%,55.17%] EV80=-0.023
+  ALWAYS (no filter): ALL n=11606 WR=54.13% CI=[53.22%,55.03%] EV80=-0.026 | TAKE n=11606 WR=54.13% CI=[53.22%,55.03%] EV80=-0.026 cov=100.00% | WAIT n=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+  no direction scopes: ALL n=11606 WR=54.13% CI=[53.22%,55.03%] EV80=-0.026 | TAKE n=985 WR=51.27% CI=[48.15%,54.38%] EV80=-0.077 cov=8.52% | WAIT n=10621 WR=54.39% CI=[53.44%,55.34%] EV80=-0.021
+  no ADX scopes: ALL n=11606 WR=54.13% CI=[53.22%,55.03%] EV80=-0.026 | TAKE n=2508 WR=56.18% CI=[54.23%,58.11%] EV80=0.011 cov=21.65% | WAIT n=9098 WR=53.56% CI=[52.54%,54.58%] EV80=-0.036
+  broad backoff only (dir→overall): ALL n=11606 WR=54.13% CI=[53.22%,55.03%] EV80=-0.026 | TAKE n=795 WR=50.82% CI=[47.35%,54.28%] EV80=-0.085 cov=6.85% | WAIT n=10811 WR=54.37% CI=[53.43%,55.31%] EV80=-0.021
+
+================================
+COMPARISON
+================================
+
+TAKE ALL:
+n=11606 W=6282 L=5324 T=197 WR=54.13% CI=[53.22%,55.03%] EV80=-0.026
+coverage: 100%
+
+RSI-extreme:
+n=815 W=491 L=324 T=6 WR=60.25% CI=[56.84%,63.55%] EV80=0.084
+coverage: 6.96%
+
+Adaptive:
+n=2092 W=1095 L=997 T=39 WR=52.34% CI=[50.20%,54.48%] EV80=-0.058
+coverage: 18.05%
+WAIT: n=9514 W=5187 L=4327 T=158 WR=54.52% CI=[53.52%,55.52%] EV80=-0.019
+
+Adaptive + explicit RSI severity:
+n=1307 W=736 L=571 T=15 WR=56.31% CI=[53.61%,58.98%] EV80=0.014
+coverage: 11.20%
+WAIT: n=10299 W=5546 L=4753 T=182 WR=53.85% CI=[52.89%,54.81%] EV80=-0.031
+
+RSI-extreme + adaptive (hybrid Stage1 extreme / Stage2 adaptive):
+  ALL extreme: n=815 W=491 L=324 T=6 WR=60.25% CI=[56.84%,63.55%] EV80=0.084
+  TAKE: n=106 W=64 L=42 T=1 WR=60.38% CI=[50.86%,69.17%] EV80=0.087 cov=13.03%
+  WAIT: n=709 W=427 L=282 T=5 WR=60.23% CI=[56.58%,63.76%] EV80=0.084
+  Adaptive adds value on extreme subset? NO
+    (need TAKE WR > extreme ALL and WAIT WR < TAKE WR)
+
+HOLDOUT adaptive TAKE (baseline): n=199 W=112 L=87 T=11 WR=56.28% CI=[49.33%,62.99%] EV80=0.013 cov=10.11%
+
+================================
+LEAKAGE AUDIT
+================================
+
+  - indicators at T use only closed bars index ≤ T: PASS
+  - signal only after confirmation candle close; entry = confirmation close: PASS
+  - adaptive evidence uses only resolveMs < T (prior resolved): PASS
+  - current signal never in its own evidence: PASS
+  - BB/RSI/ADX/expiry/severity buckets pre-registered (no outcome retune): PASS
+  - LEARN/HOLDOUT cuts fixed to prior 10k audit timestamps: PASS
+  - RSI-extreme beyond>10 fixed from prior (not refitted): PASS
+  - HOLDOUT labeled validation/stability (dataset previously inspected for adaptive): PASS
+  - TRUE FORWARD after 2026-08-21 unavailable: PASS (stated)
+  - no writes to production adaptive tables / no live selector: PASS
+  - cache reused from binary-adaptive-bollinger-rsi-10k (no silent redownload): PASS
+  - no suspicious WR≥65% with n≥200 on LEARN extreme: PASS
+
+================================
+DIRECT ANSWERS
+================================
+
+1. Is the 60.3% RSI-extreme result reproducible?
+   YES — LEARN n=815 WR=60.25% CI=[56.84%,63.55%] EV80=0.084 (gate PASS)
+
+2. Is the effect mostly UP or DOWN?
+   UP LEARN 61.57% (n=458); DOWN LEARN 58.54% (n=357)
+   Stronger on UP.
+
+3. Does more extreme RSI produce higher WR?
+   Monotonic gradient: PARTIAL
+
+4. Is the edge stable across months?
+   13/17 months (n≥20) at WR≥55.56%
+
+5. Is it stable across symbols?
+   7/12 symbols (n≥20) at WR≥55.56%
+
+6. Does it beat matched ordinary BB+RSI?
+   YES — Δ=4.91pp CI=[0.11%,9.71%]
+
+7. Does it beat random selection?
+   YES — percentile 100.00%
+
+8. Why did the adaptive selector miss it?
+   Hierarchy ignores rsiSeverity; mixed-context est ≈ average WR; extremes under-TAKEN relative to winners' realized edge.
+
+9. Is the adaptive engine structurally flawed, badly configured, or simply learning the wrong context?
+   Learning the wrong context / missing key feature (rsiSeverity) — not a sign-flip bug. Structure is coherent but feature set omits the only simple filter that worked.
+
+10. Does adding RSI severity explicitly improve adaptive ranking?
+    LEARN baseline TAKE WR=52.34% → +rsiSeverity TAKE WR=56.31% (Δ=3.97pp)
+
+11. Is simple RSI-extreme selection better than adaptive?
+    YES on LEARN — extreme 60.25% vs adaptive 52.34%
+
+12. Does any version credibly remain at 60%+ with adequate n?
+    LEARN extreme ≈60% n=815; HOLDOUT extreme 54.00% n=150
+    HOLDOUT does not sustain 60% — do not claim strong sealed edge.
+    TRUE FORWARD after data end: UNAVAILABLE
+
+================================
+FINAL VERDICT
+================================
+
+RSI_EXTREME_NOT_STABLE
+
+Secondary adaptive note: hierarchy omits rsiSeverity; adding it lifts LEARN adaptive TAKE to 56.31% but does not restore 60%. Hybrid adaptive-on-extreme adds no value.
+
+Notes:
+  - LEARN 60.25% is discovery / already-seen (same cohort where filter was observed).
+  - HOLDOUT is chronological validation/stability only; adaptive study already inspected this dataset.
+  - No true forward sample after 2026-08-21T21:00:00.000Z.
+  - Production binary / adaptive tables untouched.

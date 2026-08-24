@@ -5,6 +5,9 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   BookOpen,
+  ChartNoAxesCombined,
+  House,
+  ListChecks,
   Settings,
   type LucideIcon,
 } from "lucide-react";
@@ -23,38 +26,6 @@ interface NavItem {
   icon: LucideIcon | ((props: { className?: string; strokeWidth?: number }) => React.ReactNode);
 }
 
-function DashboardNavIcon({ className, strokeWidth = 2 }: { className?: string; strokeWidth?: number }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="3" y="3" width="18" height="18" rx="4.5" stroke="currentColor" strokeWidth={strokeWidth} />
-      <path d="M7 17v-3.5M10.5 17V10M14 17v-5M17.5 17V8" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" />
-      <circle cx="17.5" cy="8" r="1.2" fill="currentColor" />
-    </svg>
-  );
-}
-
-function ChartsNavIcon({ className, strokeWidth = 2 }: { className?: string; strokeWidth?: number }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M4 18h16M7 16v-4M11 16V8M15 16v-3M19 16V6" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" />
-      <path d="M5 10l5-3 3 2 6-5M16 4h3v3" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="19" cy="4" r="1.1" fill="currentColor" />
-    </svg>
-  );
-}
-
-function WatchlistNavIcon({ className, strokeWidth = 2 }: { className?: string; strokeWidth?: number }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="12" r="8.25" stroke="currentColor" strokeWidth={strokeWidth} />
-      <circle cx="12" cy="12" r="4.75" stroke="currentColor" strokeWidth={strokeWidth} />
-      <circle cx="12" cy="12" r="1.75" fill="currentColor" />
-      <path d="M12 2v2.5M22 12h-2.5M12 22v-2.5M2 12h2.5M16 8l2.5-2.5" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" />
-      <circle cx="19.5" cy="4.5" r="1.25" fill="currentColor" />
-    </svg>
-  );
-}
-
 function replayNavClick(event: React.PointerEvent<HTMLElement>) {
   const target = event.currentTarget;
   target.classList.remove("nav-mobile-link-click");
@@ -70,9 +41,9 @@ function clearNavClick(event: React.AnimationEvent<HTMLElement>) {
 }
 
 const navItems: NavItem[] = [
-  { label: "Home", href: "/", icon: DashboardNavIcon },
-  { label: "Charts", href: "/chart", icon: ChartsNavIcon },
-  { label: "Watchlist", href: "/watchlist", icon: WatchlistNavIcon },
+  { label: "Home", href: "/", icon: House },
+  { label: "Charts", href: "/chart", icon: ChartNoAxesCombined },
+  { label: "Watchlist", href: "/watchlist", icon: ListChecks },
   { label: "Journal", href: "/journal", icon: BookOpen },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
@@ -291,7 +262,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 onAnimationEnd={clearNavClick}
               >
                 <span className="nav-mobile-icon">
-                  <Icon className="size-[1.55rem]" strokeWidth={active ? 2.4 : 1.85} />
+                  <Icon className="size-[1.55rem]" strokeWidth={1.7} />
                 </span>
               </Link>
             );

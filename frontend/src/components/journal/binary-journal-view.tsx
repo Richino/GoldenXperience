@@ -9,6 +9,7 @@ import { formatClockTime, formatShortDay } from "@/lib/format/datetime";
 import { predictionResultTone, predictionStatusLabel } from "@/lib/binary-format";
 import { useInfiniteScroll } from "@/lib/use-infinite-scroll";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
+import { BinaryJournalLoadingSkeleton } from "@/components/ui/page-skeletons";
 import type { BinaryPerformance, BinaryPrediction, BinaryPredictionDetail, PatternV1Forward } from "@/types/binary";
 
 const FILTERS = ["All", "Won", "Lost", "Tie", "Active"] as const;
@@ -317,6 +318,10 @@ export function BinaryJournalView() {
   const summary = stats?.summary;
   const showPattern = strategy === "Pattern V1";
 
+  if (loading) {
+    return <BinaryJournalLoadingSkeleton />;
+  }
+
   return (
     <div className="journal-view space-y-6">
       <section className="journal-stats-card grid grid-cols-4" aria-label="Prediction summary">
@@ -423,36 +428,38 @@ export function BinaryJournalView() {
       <section className="dashboard-minimal-section" aria-label="Prediction log">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h2 className="text-sm font-semibold tracking-[-0.01em]">Prediction log</h2>
-          <div className="flex flex-wrap gap-1.5">
-            {STRATEGIES.map((value) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setStrategy(value)}
-                className={`check-chip pressable ${strategy === value ? "check-chip-active" : ""}`}
-              >
-                {value}
-              </button>
-            ))}
-            <span aria-hidden="true" className="mx-1 self-center text-[color:var(--muted)]">|</span>
-            {FILTERS.map((value) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setFilter(value)}
-                className={`check-chip pressable ${filter === value ? "check-chip-active" : ""}`}
-              >
-                {value}
-              </button>
-            ))}
+          <div className="binary-journal-filters">
+            <div className="binary-journal-filter-group" role="group" aria-label="Strategy filter">
+              {STRATEGIES.map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setStrategy(value)}
+                  className={`check-chip pressable ${strategy === value ? "check-chip-active" : ""}`}
+                >
+                  {value}
+                </button>
+              ))}
+            </div>
+            <span aria-hidden="true" className="binary-journal-filter-divider">|</span>
+            <div className="binary-journal-filter-group" role="group" aria-label="Prediction result filter">
+              {FILTERS.map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setFilter(value)}
+                  className={`check-chip pressable ${filter === value ? "check-chip-active" : ""}`}
+                >
+                  {value}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
         {error ? <p className="mt-3 text-xs text-[color:var(--danger)]">{error}</p> : null}
 
-        {loading ? (
-          <p className="mt-4 text-sm text-[color:var(--muted)]">Loading…</p>
-        ) : predictions.length ? (
+        {predictions.length ? (
           <>
             <div className="journal-entry-list mt-3">
               {predictions.map((prediction) => (

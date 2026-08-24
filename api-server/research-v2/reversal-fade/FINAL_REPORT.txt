@@ -1,0 +1,373 @@
+GOLDENXPERIENCE
+H1/H4 REVERSAL EDGE TEST
+strategy: reversal-fade-h1h4-v1
+
+========================================
+DATA
+========================================
+
+Pairs: EUR_USD, GBP_USD, USD_JPY
+H1 date coverage:
+  EUR_USD n=64298 2016-04-03T22:00:00.000Z → 2026-08-04T12:00:00.000Z
+  GBP_USD n=32197 2021-06-02T14:00:00.000Z → 2026-08-04T12:00:00.000Z
+  USD_JPY n=32196 2021-06-02T15:00:00.000Z → 2026-08-04T12:00:00.000Z
+H4 date coverage:
+  EUR_USD n=16080 2016-04-04T01:00:00.000Z → 2026-08-04T09:00:00.000Z
+  GBP_USD n=8051 2021-06-02T17:00:00.000Z → 2026-08-04T09:00:00.000Z
+  USD_JPY n=8051 2021-06-02T17:00:00.000Z → 2026-08-04T09:00:00.000Z
+M15 (baseline only):
+  EUR_USD n=257138 2016-04-03T21:15:00.000Z → 2026-08-04T12:00:00.000Z
+  GBP_USD n=128765 2021-06-02T14:00:00.000Z → 2026-08-04T12:00:00.000Z
+  USD_JPY n=128774 2021-06-02T14:15:00.000Z → 2026-08-04T12:00:00.000Z
+
+TRAIN: 2016-01-01T00:00:00.000Z → 2024-07-31T23:59:59.999Z
+DEV:   2024-08-01T00:00:00.000Z → 2025-07-31T23:59:59.999Z
+SEALED STATUS: NOT READ
+
+Prior M15 (preserved, not re-mined): break20 reversal gross≈0.128 ATR net≈-0.129 ATR
+
+M15 break20 DEV baseline h=4: fade n=8828 neff=5170 gross=0.0135 net=-0.2657 CI=[-0.3110,-0.2205] PF=0.637
+                              follow n=8828 neff=5170 gross=-0.0135 net=-0.2928 CI=[-0.3383,-0.2473] PF=0.613
+
+========================================
+COST COMPARISON (TRAIN+DEV, spread/ATR)
+========================================
+
+M15 spread/ATR: n=439648  p25=0.1541  p50=0.2174  p75=0.3183  p90=0.4442
+H1  spread/ATR: n=109929  p25=0.0807  p50=0.1055  p75=0.1373  p90=0.1796
+H4  spread/ATR: n=27490  p25=0.0399  p50=0.0508  p75=0.0641  p90=0.0834
+
+Per instrument:
+  EUR_USD|M15: n=232128  p25=0.1649  p50=0.2319  p75=0.3326  p90=0.4609
+  GBP_USD|M15: n=103756  p25=0.1683  p50=0.2353  p75=0.3412  p90=0.4600
+  USD_JPY|M15: n=103764  p25=0.1252  p50=0.1728  p75=0.2521  p90=0.3667
+  EUR_USD|H1: n=58044  p25=0.0872  p50=0.1105  p75=0.1425  p90=0.1852
+  EUR_USD|H4: n=14516  p25=0.0434  p50=0.0535  p75=0.0678  p90=0.0892
+  GBP_USD|H1: n=25943  p25=0.0896  p50=0.1119  p75=0.1402  p90=0.1816
+  GBP_USD|H4: n=6487  p25=0.0443  p50=0.0529  p75=0.0638  p90=0.0801
+  USD_JPY|H1: n=25942  p25=0.0614  p50=0.0821  p75=0.1167  p90=0.1598
+  USD_JPY|H4: n=6487  p25=0.0295  p50=0.0378  p75=0.0541  p90=0.0716
+
+========================================
+H1 RESULTS (DEV, delay=0, headline params, purged CI)
+========================================
+
+impulse_1bar th=0.75 fade@h4: n=3719 neff=2144 gross=-0.0092 net=-0.1332 CI=[-0.2018,-0.0646] PF=0.795
+    follow: n=3719 neff=2144 gross=0.0092 net=-0.1147 CI=[-0.1832,-0.0462] PF=0.821
+    h=1: n=3719 neff=3719 gross=0.0093 net=-0.1105 CI=[-0.1371,-0.0839] PF=0.687
+    h=2: n=3719 neff=2948 gross=-0.0083 net=-0.1296 CI=[-0.1710,-0.0881] PF=0.728
+    h=4: n=3719 neff=2144 gross=-0.0092 net=-0.1332 CI=[-0.2018,-0.0646] PF=0.795
+    h=8: n=3718 neff=1448 gross=-0.0630 net=-0.1916 CI=[-0.3038,-0.0793] PF=0.790
+    h=12: n=3710 neff=1106 gross=-0.0477 net=-0.1775 CI=[-0.3409,-0.0140] PF=0.841
+    h=24: n=3703 neff=670 gross=-0.0083 net=-0.1311 CI=[-0.4207,0.1585] PF=0.911
+impulse_multibar L=4,th=0.75 fade@h4: n=9537 neff=3416 gross=-0.0205 net=-0.1490 CI=[-0.1986,-0.0995] PF=0.755
+    follow: n=9537 neff=3416 gross=0.0205 net=-0.1080 CI=[-0.1575,-0.0585] PF=0.816
+    h=1: n=9539 neff=9539 gross=0.0005 net=-0.1249 CI=[-0.1398,-0.1099] PF=0.616
+    h=2: n=9539 neff=5709 gross=-0.0028 net=-0.1298 CI=[-0.1574,-0.1021] PF=0.705
+    h=4: n=9537 neff=3416 gross=-0.0205 net=-0.1490 CI=[-0.1986,-0.0995] PF=0.755
+    h=8: n=9531 neff=1980 gross=-0.0529 net=-0.1809 CI=[-0.2744,-0.0874] PF=0.793
+    h=12: n=9522 neff=1378 gross=-0.2119 net=-0.3419 CI=[-0.4805,-0.2032] PF=0.702
+    h=24: n=9501 neff=740 gross=-0.3116 net=-0.4353 CI=[-0.7034,-0.1672] PF=0.730
+break20 n=20 fade@h4: n=2047 neff=1215 gross=-0.0185 net=-0.1428 CI=[-0.2372,-0.0484] PF=0.791
+    follow: n=2047 neff=1215 gross=0.0185 net=-0.1057 CI=[-0.2001,-0.0113] PF=0.842
+    h=1: n=2048 neff=2048 gross=0.0078 net=-0.1121 CI=[-0.1475,-0.0768] PF=0.678
+    h=2: n=2048 neff=1538 gross=-0.0030 net=-0.1243 CI=[-0.1809,-0.0676] PF=0.737
+    h=4: n=2047 neff=1215 gross=-0.0185 net=-0.1428 CI=[-0.2372,-0.0484] PF=0.791
+    h=8: n=2046 neff=937 gross=-0.1132 net=-0.2464 CI=[-0.3932,-0.0997] PF=0.748
+    h=12: n=2043 neff=792 gross=-0.0885 net=-0.2141 CI=[-0.4114,-0.0168] PF=0.816
+    h=24: n=2042 neff=538 gross=-0.2807 net=-0.4011 CI=[-0.7383,-0.0639] PF=0.762
+structure: (no headline param)
+momentum run>=4,cum>=0.75 fade@h4: n=824 neff=627 gross=-0.0172 net=-0.1444 CI=[-0.2564,-0.0324] PF=0.757
+    follow: n=824 neff=627 gross=0.0172 net=-0.1101 CI=[-0.2224,0.0021] PF=0.810
+    h=1: n=824 neff=824 gross=-0.0186 net=-0.1415 CI=[-0.1949,-0.0882] PF=0.572
+    h=2: n=824 neff=701 gross=-0.0339 net=-0.1594 CI=[-0.2370,-0.0817] PF=0.641
+    h=4: n=824 neff=627 gross=-0.0172 net=-0.1444 CI=[-0.2564,-0.0324] PF=0.757
+    h=8: n=824 neff=556 gross=-0.0212 net=-0.1467 CI=[-0.3222,0.0287] PF=0.824
+    h=12: n=824 neff=496 gross=-0.1925 net=-0.3208 CI=[-0.5527,-0.0889] PF=0.719
+    h=24: n=822 neff=372 gross=0.0709 net=-0.0542 CI=[-0.4463,0.3380] PF=0.964
+
+TRAIN headline (context, not for promotion):
+impulse_1bar th=0.75 fade@h4: n=18188 neff=10215 gross=-0.0098 net=-0.1521 CI=[-0.1859,-0.1182] PF=0.779
+    follow: n=18188 neff=10215 gross=0.0098 net=-0.1325 CI=[-0.1664,-0.0986] PF=0.806
+    h=1: n=18189 neff=18189 gross=0.0083 net=-0.1278 CI=[-0.1413,-0.1143] PF=0.671
+    h=2: n=18189 neff=14109 gross=0.0174 net=-0.1208 CI=[-0.1418,-0.0999] PF=0.760
+    h=4: n=18188 neff=10215 gross=-0.0098 net=-0.1521 CI=[-0.1859,-0.1182] PF=0.779
+    h=8: n=18186 neff=6888 gross=0.0306 net=-0.1165 CI=[-0.1771,-0.0558] PF=0.877
+    h=12: n=18182 neff=5213 gross=0.0399 net=-0.1123 CI=[-0.1969,-0.0276] PF=0.904
+    h=24: n=18174 neff=3319 gross=-0.1311 net=-0.2690 CI=[-0.3991,-0.1390] PF=0.825
+impulse_multibar L=4,th=0.75 fade@h4: n=45125 neff=16304 gross=0.0120 net=-0.1361 CI=[-0.1613,-0.1109] PF=0.781
+    follow: n=45125 neff=16304 gross=-0.0120 net=-0.1600 CI=[-0.1852,-0.1348] PF=0.750
+    h=1: n=45133 neff=45133 gross=0.0048 net=-0.1374 CI=[-0.1449,-0.1299] PF=0.602
+    h=2: n=45130 neff=27203 gross=0.0086 net=-0.1361 CI=[-0.1499,-0.1224] PF=0.702
+    h=4: n=45125 neff=16304 gross=0.0120 net=-0.1361 CI=[-0.1613,-0.1109] PF=0.781
+    h=8: n=45120 neff=9461 gross=0.0172 net=-0.1311 CI=[-0.1782,-0.0840] PF=0.850
+    h=12: n=45112 neff=6681 gross=0.0882 net=-0.0619 CI=[-0.1312,0.0075] PF=0.941
+    h=24: n=45097 neff=3621 gross=-0.0184 net=-0.1581 CI=[-0.2815,-0.0348] PF=0.894
+break20 n=20 fade@h4: n=10197 neff=6044 gross=0.0037 net=-0.1364 CI=[-0.1818,-0.0910] PF=0.803
+    follow: n=10197 neff=6044 gross=-0.0037 net=-0.1438 CI=[-0.1892,-0.0984] PF=0.794
+    h=1: n=10197 neff=10197 gross=0.0059 net=-0.1299 CI=[-0.1472,-0.1126] PF=0.657
+    h=2: n=10197 neff=7643 gross=0.0088 net=-0.1288 CI=[-0.1566,-0.1010] PF=0.740
+    h=4: n=10197 neff=6044 gross=0.0037 net=-0.1364 CI=[-0.1818,-0.0910] PF=0.803
+    h=8: n=10196 neff=4592 gross=-0.0250 net=-0.1757 CI=[-0.2472,-0.1042] PF=0.816
+    h=12: n=10195 neff=3880 gross=-0.0180 net=-0.1671 CI=[-0.2614,-0.0728] PF=0.853
+    h=24: n=10192 neff=2692 gross=-0.1249 net=-0.2613 CI=[-0.4064,-0.1162] PF=0.831
+structure: (no headline param)
+momentum run>=4,cum>=0.75 fade@h4: n=4129 neff=3107 gross=0.0207 net=-0.1251 CI=[-0.1800,-0.0702] PF=0.788
+    follow: n=4129 neff=3107 gross=-0.0207 net=-0.1665 CI=[-0.2215,-0.1115] PF=0.730
+    h=1: n=4129 neff=4129 gross=0.0173 net=-0.1257 CI=[-0.1490,-0.1025] PF=0.618
+    h=2: n=4129 neff=3452 gross=0.0140 net=-0.1301 CI=[-0.1655,-0.0947] PF=0.695
+    h=4: n=4129 neff=3107 gross=0.0207 net=-0.1251 CI=[-0.1800,-0.0702] PF=0.788
+    h=8: n=4129 neff=2738 gross=0.0276 net=-0.1186 CI=[-0.2050,-0.0322] PF=0.861
+    h=12: n=4129 neff=2424 gross=0.0145 net=-0.1322 CI=[-0.2393,-0.0251] PF=0.872
+    h=24: n=4126 neff=1842 gross=-0.0010 net=-0.1441 CI=[-0.3112,0.0231] PF=0.901
+
+========================================
+H4 RESULTS (DEV, delay=0, headline params, purged CI)
+========================================
+
+impulse_1bar th=0.75 fade@h3: n=1014 neff=678 gross=0.0116 net=-0.0487 CI=[-0.1458,0.0485] PF=0.902
+    follow: n=1014 neff=678 gross=-0.0116 net=-0.0719 CI=[-0.1691,0.0253] PF=0.859
+    h=1: n=1017 neff=1017 gross=0.0254 net=-0.0353 CI=[-0.0812,0.0106] PF=0.879
+    h=2: n=1016 neff=813 gross=0.0277 net=-0.0318 CI=[-0.1043,0.0407] PF=0.921
+    h=3: n=1014 neff=678 gross=0.0116 net=-0.0487 CI=[-0.1458,0.0485] PF=0.902
+    h=6: n=1012 neff=486 gross=0.0304 net=-0.0264 CI=[-0.1911,0.1382] PF=0.962
+    h=12: n=1004 neff=306 gross=-0.1073 net=-0.1671 CI=[-0.4344,0.1001] PF=0.830
+impulse_multibar L=3,th=0.75 fade@h3: n=2218 neff=1043 gross=-0.0495 net=-0.1101 CI=[-0.1872,-0.0330] PF=0.791
+    follow: n=2218 neff=1043 gross=0.0495 net=-0.0111 CI=[-0.0882,0.0660] PF=0.977
+    h=1: n=2222 neff=2222 gross=-0.0075 net=-0.0684 CI=[-0.0978,-0.0390] PF=0.759
+    h=2: n=2220 neff=1415 gross=-0.0040 net=-0.0658 CI=[-0.1182,-0.0133] PF=0.835
+    h=3: n=2218 neff=1043 gross=-0.0495 net=-0.1101 CI=[-0.1872,-0.0330] PF=0.791
+    h=6: n=2213 neff=629 gross=-0.0446 net=-0.1043 CI=[-0.2437,0.0350] PF=0.856
+    h=12: n=2199 neff=345 gross=-0.0675 net=-0.1297 CI=[-0.3802,0.1209] PF=0.868
+break20 n=20 fade@h3: n=518 neff=343 gross=-0.0613 net=-0.1226 CI=[-0.2607,0.0155] PF=0.772
+    follow: n=518 neff=343 gross=0.0613 net=0.0000 CI=[-0.1376,0.1377] PF=1.000
+    h=1: n=521 neff=521 gross=-0.0283 net=-0.0873 CI=[-0.1474,-0.0273] PF=0.704
+    h=2: n=520 neff=389 gross=-0.0560 net=-0.1153 CI=[-0.2143,-0.0162] PF=0.732
+    h=3: n=518 neff=343 gross=-0.0613 net=-0.1226 CI=[-0.2607,0.0155] PF=0.772
+    h=6: n=517 neff=271 gross=-0.0527 net=-0.1121 CI=[-0.3209,0.0967] PF=0.841
+    h=12: n=510 neff=202 gross=-0.0492 net=-0.1101 CI=[-0.4263,0.2060] PF=0.879
+structure: (no headline param)
+momentum run>=3,cum>=0.75 fade@h3: n=471 neff=356 gross=-0.0175 net=-0.0750 CI=[-0.2097,0.0598] PF=0.856
+    follow: n=471 neff=356 gross=0.0175 net=-0.0400 CI=[-0.1746,0.0945] PF=0.920
+    h=1: n=472 neff=472 gross=-0.0135 net=-0.0723 CI=[-0.1302,-0.0145] PF=0.736
+    h=2: n=471 neff=394 gross=0.0036 net=-0.0555 CI=[-0.1516,0.0407] PF=0.859
+    h=3: n=471 neff=356 gross=-0.0175 net=-0.0750 CI=[-0.2097,0.0598] PF=0.856
+    h=6: n=471 neff=294 gross=0.0051 net=-0.0524 CI=[-0.2689,0.1640] PF=0.928
+    h=12: n=466 neff=212 gross=0.2645 net=0.2062 CI=[-0.1303,0.5427] PF=1.239
+
+TRAIN headline:
+impulse_1bar th=0.75 fade@h3: n=4635 neff=3165 gross=0.0114 net=-0.0629 CI=[-0.1073,-0.0184] PF=0.873
+    follow: n=4635 neff=3165 gross=-0.0114 net=-0.0858 CI=[-0.1301,-0.0414] PF=0.830
+    h=1: n=4638 neff=4638 gross=-0.0027 net=-0.0772 CI=[-0.1005,-0.0539] PF=0.759
+    h=2: n=4637 neff=3705 gross=-0.0074 net=-0.0809 CI=[-0.1163,-0.0456] PF=0.812
+    h=3: n=4635 neff=3165 gross=0.0114 net=-0.0629 CI=[-0.1073,-0.0184] PF=0.873
+    h=6: n=4634 neff=2408 gross=-0.0289 net=-0.0959 CI=[-0.1653,-0.0265] PF=0.865
+    h=12: n=4631 neff=1480 gross=0.0018 net=-0.0655 CI=[-0.1950,0.0641] PF=0.935
+impulse_multibar L=3,th=0.75 fade@h3: n=10745 neff=5033 gross=0.0077 net=-0.0667 CI=[-0.1004,-0.0330] PF=0.862
+    follow: n=10745 neff=5033 gross=-0.0077 net=-0.0822 CI=[-0.1159,-0.0485] PF=0.833
+    h=1: n=10749 neff=10749 gross=0.0062 net=-0.0701 CI=[-0.0835,-0.0568] PF=0.748
+    h=2: n=10747 neff=6828 gross=0.0181 net=-0.0571 CI=[-0.0814,-0.0329] PF=0.853
+    h=3: n=10745 neff=5033 gross=0.0077 net=-0.0667 CI=[-0.1004,-0.0330] PF=0.862
+    h=6: n=10741 neff=3070 gross=-0.0190 net=-0.0929 CI=[-0.1547,-0.0311] PF=0.869
+    h=12: n=10732 neff=1696 gross=0.0312 net=-0.0434 CI=[-0.1633,0.0766] PF=0.956
+break20 n=20 fade@h3: n=2725 neff=1779 gross=0.0600 net=-0.0153 CI=[-0.0767,0.0461] PF=0.968
+    follow: n=2725 neff=1779 gross=-0.0600 net=-0.1354 CI=[-0.1967,-0.0740] PF=0.752
+    h=1: n=2725 neff=2725 gross=0.0198 net=-0.0555 CI=[-0.0862,-0.0249] PF=0.820
+    h=2: n=2725 neff=2047 gross=0.0295 net=-0.0436 CI=[-0.0921,0.0049] PF=0.896
+    h=3: n=2725 neff=1779 gross=0.0600 net=-0.0153 CI=[-0.0767,0.0461] PF=0.968
+    h=6: n=2723 neff=1404 gross=0.0783 net=0.0098 CI=[-0.0845,0.1042] PF=1.015
+    h=12: n=2722 neff=1032 gross=0.1198 net=0.0483 CI=[-0.1124,0.2089] PF=1.049
+structure: (no headline param)
+momentum run>=3,cum>=0.75 fade@h3: n=2296 neff=1772 gross=0.0038 net=-0.0701 CI=[-0.1279,-0.0122] PF=0.855
+    follow: n=2296 neff=1772 gross=-0.0038 net=-0.0777 CI=[-0.1354,-0.0199] PF=0.841
+    h=1: n=2296 neff=2296 gross=-0.0008 net=-0.0756 CI=[-0.1049,-0.0463] PF=0.735
+    h=2: n=2296 neff=1910 gross=-0.0013 net=-0.0753 CI=[-0.1194,-0.0312] PF=0.807
+    h=3: n=2296 neff=1772 gross=0.0038 net=-0.0701 CI=[-0.1279,-0.0122] PF=0.855
+    h=6: n=2295 neff=1437 gross=-0.0983 net=-0.1707 CI=[-0.2591,-0.0823] PF=0.771
+    h=12: n=2294 neff=1051 gross=-0.0326 net=-0.1054 CI=[-0.2578,0.0469] PF=0.895
+
+========================================
+CONTINUATION VS REVERSAL (DEV)
+========================================
+
+H1:
+  impulse_1bar th=0.75: fade n=3719 neff=2144 gross=-0.0092 net=-0.1332 CI=[-0.2018,-0.0646] PF=0.795
+                 follow n=3719 neff=2144 gross=0.0092 net=-0.1147 CI=[-0.1832,-0.0462] PF=0.821
+  impulse_multibar L=4,th=0.75: fade n=9537 neff=3416 gross=-0.0205 net=-0.1490 CI=[-0.1986,-0.0995] PF=0.755
+                 follow n=9537 neff=3416 gross=0.0205 net=-0.1080 CI=[-0.1575,-0.0585] PF=0.816
+  break20 n=20: fade n=2047 neff=1215 gross=-0.0185 net=-0.1428 CI=[-0.2372,-0.0484] PF=0.791
+                 follow n=2047 neff=1215 gross=0.0185 net=-0.1057 CI=[-0.2001,-0.0113] PF=0.842
+  momentum run>=4,cum>=0.75: fade n=824 neff=627 gross=-0.0172 net=-0.1444 CI=[-0.2564,-0.0324] PF=0.757
+                 follow n=824 neff=627 gross=0.0172 net=-0.1101 CI=[-0.2224,0.0021] PF=0.810
+
+H4:
+  impulse_1bar th=0.75: fade n=1014 neff=678 gross=0.0116 net=-0.0487 CI=[-0.1458,0.0485] PF=0.902
+                 follow n=1014 neff=678 gross=-0.0116 net=-0.0719 CI=[-0.1691,0.0253] PF=0.859
+  impulse_multibar L=3,th=0.75: fade n=2218 neff=1043 gross=-0.0495 net=-0.1101 CI=[-0.1872,-0.0330] PF=0.791
+                 follow n=2218 neff=1043 gross=0.0495 net=-0.0111 CI=[-0.0882,0.0660] PF=0.977
+  break20 n=20: fade n=518 neff=343 gross=-0.0613 net=-0.1226 CI=[-0.2607,0.0155] PF=0.772
+                 follow n=518 neff=343 gross=0.0613 net=0.0000 CI=[-0.1376,0.1377] PF=1.000
+  momentum run>=3,cum>=0.75: fade n=471 neff=356 gross=-0.0175 net=-0.0750 CI=[-0.2097,0.0598] PF=0.856
+                 follow n=471 neff=356 gross=0.0175 net=-0.0400 CI=[-0.1746,0.0945] PF=0.920
+
+========================================
+EXTENSION EFFECT (DEV)
+========================================
+
+H1 fade pooled (impulse≥0.2 + break20) h=4:
+  <0.25: n=1966 neff=1441 gross=0.0052 net=-0.1279 CI=[-0.2073,-0.0485] PF=0.782 MFE=0.951 MAE=1.169
+  0.25-0.50: n=5398 neff=2841 gross=-0.0207 net=-0.1529 CI=[-0.2071,-0.0988] PF=0.743 MFE=0.972 MAE=1.198
+  0.50-0.75: n=3344 neff=2122 gross=-0.0155 net=-0.1452 CI=[-0.2107,-0.0798] PF=0.767 MFE=0.984 MAE=1.239
+  0.75-1.00: n=1868 neff=1382 gross=0.0232 net=-0.0998 CI=[-0.1855,-0.0140] PF=0.838 MFE=1.044 MAE=1.267
+  1.00-1.50: n=1569 neff=1139 gross=-0.0700 net=-0.1923 CI=[-0.2845,-0.1000] PF=0.718 MFE=1.035 MAE=1.377
+  1.50-2.00: n=468 neff=399 gross=0.0107 net=-0.1142 CI=[-0.2944,0.0660] PF=0.844 MFE=1.166 MAE=1.531
+  >2.00: n=281 neff=223 gross=0.0846 net=-0.0325 CI=[-0.2540,0.1891] PF=0.951 MFE=1.322 MAE=1.494
+  Larger extension → stronger reversal? PARTIALLY
+H4 fade pooled (impulse≥0.2 + break20) h=3:
+  <0.25: n=476 neff=384 gross=-0.0038 net=-0.0660 CI=[-0.1871,0.0551] PF=0.866 MFE=0.874 MAE=0.987
+  0.25-0.50: n=1359 neff=831 gross=-0.0104 net=-0.0742 CI=[-0.1584,0.0100] PF=0.851 MFE=0.837 MAE=0.976
+  0.50-0.75: n=836 neff=602 gross=-0.1166 net=-0.1758 CI=[-0.2734,-0.0782] PF=0.682 MFE=0.822 MAE=0.985
+  0.75-1.00: n=526 neff=426 gross=-0.0194 net=-0.0786 CI=[-0.1963,0.0392] PF=0.843 MFE=0.849 MAE=0.992
+  1.00-1.50: n=402 neff=327 gross=0.0232 net=-0.0364 CI=[-0.1659,0.0931] PF=0.921 MFE=0.843 MAE=0.938
+  1.50-2.00: n=133 neff=119 gross=-0.0163 net=-0.0740 CI=[-0.3317,0.1837] PF=0.861 MFE=0.828 MAE=1.064
+  >2.00: n=67 neff=60 gross=-0.0759 net=-0.1346 CI=[-0.5101,0.2410] PF=0.775 MFE=0.939 MAE=1.117
+  Larger extension → stronger reversal? NO
+
+========================================
+REVERSAL TIMING / RETRACEMENT (outcome, not features)
+========================================
+
+H1 break20 fade: within1=0.52 within2=0.11 within4=0.09 later=0.00 never=0.29 avgRetrace=7.74
+H4 break20 fade: within1=0.51 within2=0.11 within4=0.06 later=0.00 never=0.32 avgRetrace=6.24
+
+Retracement depth of impulse (break20 fade):
+H1:
+  <20%: n=261
+  20-33%: n=78
+  33-50%: n=107
+  50-67%: n=97
+  >67%: n=1504
+H4:
+  <20%: n=64
+  20-33%: n=26
+  33-50%: n=29
+  50-67%: n=32
+  >67%: n=367
+
+========================================
+VOLATILITY REGIMES (break20 fade DEV)
+========================================
+
+  H1 low: n=459 neff=300 gross=-0.1532 net=-0.2942 CI=[-0.5292,-0.0592] PF=0.681
+  H1 normal: n=897 neff=587 gross=-0.0161 net=-0.1418 CI=[-0.2789,-0.0047] PF=0.790
+  H1 high: n=404 neff=295 gross=0.0344 net=-0.0776 CI=[-0.2432,0.0879] PF=0.865
+  H1 extreme: n=287 neff=184 gross=-0.0550 net=-0.1526 CI=[-0.3411,0.0359] PF=0.734
+  H4 low: n=125 neff=89 gross=-0.1421 net=-0.2078 CI=[-0.4891,0.0736] PF=0.648
+  H4 normal: n=215 neff=156 gross=-0.0362 net=-0.0987 CI=[-0.2837,0.0863] PF=0.800
+  H4 high: n=106 neff=83 gross=0.1082 net=0.0492 CI=[-0.2646,0.3630] PF=1.108
+  H4 extreme: n=72 neff=53 gross=-0.1667 net=-0.2199 CI=[-0.5511,0.1112] PF=0.639
+
+========================================
+H1 SESSIONS (break20 fade h=4)
+========================================
+
+  asia: n=509 neff=325 gross=-0.1294 net=-0.2455 CI=[-0.4334,-0.0576] PF=0.672
+  london: n=487 neff=309 gross=-0.0591 net=-0.1819 CI=[-0.3889,0.0251] PF=0.763
+  overlap: n=566 neff=407 gross=0.0226 net=-0.0931 CI=[-0.2662,0.0800] PF=0.871
+  newyork: n=420 neff=261 gross=-0.0634 net=-0.1920 CI=[-0.3245,-0.0595] PF=0.603
+
+========================================
+LONG / SHORT (DEV fade)
+========================================
+
+H1:
+  break20 LONG fade: n=952 neff=586 gross=0.0271 net=-0.0960 CI=[-0.2306,0.0386] PF=0.852
+  break20 SHORT fade: n=1095 neff=644 gross=-0.0548 net=-0.1796 CI=[-0.3110,-0.0481] PF=0.746
+  impulse_1bar LONG fade: n=1820 neff=1318 gross=0.0003 net=-0.1217 CI=[-0.2072,-0.0363] PF=0.812
+  impulse_1bar SHORT fade: n=1899 neff=1382 gross=-0.0224 net=-0.1460 CI=[-0.2317,-0.0603] PF=0.774
+
+H4:
+  break20 LONG fade: n=215 neff=150 gross=0.0080 net=-0.0509 CI=[-0.2212,0.1194] PF=0.882
+  break20 SHORT fade: n=303 neff=193 gross=-0.1152 net=-0.1783 CI=[-0.3850,0.0284] PF=0.712
+  impulse_1bar LONG fade: n=499 neff=406 gross=0.0023 net=-0.0570 CI=[-0.1667,0.0527] PF=0.873
+  impulse_1bar SHORT fade: n=515 neff=413 gross=0.0032 net=-0.0572 CI=[-0.1931,0.0788] PF=0.894
+
+========================================
+PAIR RESULTS (DEV fade)
+========================================
+
+H1:
+  EUR_USD:
+    impulse_1bar: n=1212 neff=690 gross=0.0632 net=-0.0853 CI=[-0.2226,0.0520] PF=0.873
+    impulse_multibar: n=3079 neff=1120 gross=0.0162 net=-0.1332 CI=[-0.2207,-0.0458] PF=0.778
+    break20: n=607 neff=380 gross=0.0694 net=-0.0787 CI=[-0.2528,0.0953] PF=0.884
+    momentum: n=254 neff=201 gross=-0.0130 net=-0.1615 CI=[-0.3626,0.0396] PF=0.732
+  GBP_USD:
+    impulse_1bar: n=1247 neff=717 gross=-0.0041 net=-0.1475 CI=[-0.2581,-0.0370] PF=0.770
+    impulse_multibar: n=3155 neff=1131 gross=0.0121 net=-0.1413 CI=[-0.2293,-0.0534] PF=0.769
+    break20: n=678 neff=404 gross=0.0111 net=-0.1348 CI=[-0.3063,0.0368] PF=0.806
+    momentum: n=265 neff=205 gross=0.0086 net=-0.1374 CI=[-0.3273,0.0526] PF=0.761
+  USD_JPY:
+    impulse_1bar: n=1260 neff=737 gross=-0.0821 net=-0.1641 CI=[-0.2726,-0.0556] PF=0.743
+    impulse_multibar: n=3303 neff=1165 gross=-0.0875 net=-0.1716 CI=[-0.2538,-0.0895] PF=0.719
+    break20: n=762 neff=431 gross=-0.1239 net=-0.2069 CI=[-0.3536,-0.0601] PF=0.693
+    momentum: n=305 neff=221 gross=-0.0448 net=-0.1354 CI=[-0.3272,0.0563] PF=0.775
+
+H4:
+  EUR_USD:
+    impulse_1bar: n=335 neff=224 gross=0.0935 net=0.0231 CI=[-0.1523,0.1984] PF=1.050
+    impulse_multibar: n=723 neff=343 gross=0.0153 net=-0.0558 CI=[-0.1933,0.0817] PF=0.888
+    break20: n=155 neff=104 gross=-0.1001 net=-0.1727 CI=[-0.4291,0.0838] PF=0.692
+    momentum: n=147 neff=118 gross=0.1312 net=0.0634 CI=[-0.1835,0.3102] PF=1.142
+  GBP_USD:
+    impulse_1bar: n=345 neff=230 gross=0.0312 net=-0.0390 CI=[-0.1962,0.1182] PF=0.919
+    impulse_multibar: n=755 neff=352 gross=-0.0832 net=-0.1543 CI=[-0.2847,-0.0239] PF=0.720
+    break20: n=179 neff=121 gross=-0.0640 net=-0.1369 CI=[-0.3682,0.0944] PF=0.749
+    momentum: n=153 neff=108 gross=-0.1651 net=-0.2327 CI=[-0.4827,0.0172] PF=0.631
+  USD_JPY:
+    impulse_1bar: n=334 neff=224 gross=-0.0904 net=-0.1304 CI=[-0.3028,0.0421] PF=0.764
+    impulse_multibar: n=740 neff=348 gross=-0.0793 net=-0.1191 CI=[-0.2519,0.0138] PF=0.778
+    break20: n=184 neff=118 gross=-0.0244 net=-0.0638 CI=[-0.2972,0.1697] PF=0.874
+    momentum: n=171 neff=130 gross=-0.0297 net=-0.0694 CI=[-0.2758,0.1369] PF=0.861
+
+========================================
+BEST DEV CANDIDATE
+========================================
+
+None (no DEV cell with purged net CI entirely > 0)
+
+Optional exits (only if a CI>0 candidate existed):
+  skipped
+
+========================================
+ROBUSTNESS
+========================================
+
+NOT RUN (no DEV CI>0 candidate)
+
+========================================
+SEALED
+========================================
+
+NOT READ (no candidate qualified)
+
+========================================
+LEAKAGE AUDIT
+========================================
+
+H1/H4 candle completion: PASS (signals on closed bars)
+Bid/ask alignment: PASS (skip if quote missing)
+Breakout level lookahead: PASS (self-test: prior window excludes bar i)
+Swing confirmation: PASS (right-side k bars required)
+ATR: PASS (through completed signal bar)
+Execution prices: PASS (ask/bid by direction + 0.2 pip slip)
+Label overlap: PASS (CI uses purged stride = hold)
+Train/dev boundaries: PASS (horizon embargo at zone end; sealed locked)
+MFE/MAE not in features: PASS
+LIVE_EXECUTABLE_FAMILIES: untouched []
+
+========================================
+FINAL VERDICT
+========================================
+
+TIMEFRAME_DOES_NOT_FIX_COST_WALL

@@ -13,9 +13,9 @@ import type {
  * wheel, axis drag and crosshair are left to the library untouched.
  *
  * Gestures:
- *   1 finger  → horizontal pan through price history, with restrained release
- *               inertia.
- *   2 fingers → pinch to zoom the visible time range around the fingers.
+ *   1 finger  → free pan through both history and price, with restrained
+ *               release inertia.
+ *   2 fingers → pinch to zoom both visible ranges around the pinch midpoint.
  *
  * All per-frame state lives in closure variables (no React state), and visual
  * updates are coalesced into a single `requestAnimationFrame`.
@@ -35,6 +35,11 @@ const MIN_FINGER_SEPARATION = 24;
 // Candle width limits so the chart can never become unreadable.
 const MIN_BAR_SPACING = 2;
 const MAX_BAR_SPACING = 60;
+// A single pinch cannot make a 4× change in either direction. Repeat the
+// gesture to go further; this avoids an accidental two-finger jump leaving
+// the chart at an unusable scale.
+const MIN_PINCH_SCALE = 0.25;
+const MAX_PINCH_SCALE = 4;
 // Restrained inertia: per-frame velocity decay, the speed it stops at, and a
 // cap so a hard flick can't launch the view across the whole history. Tuned
 // gentle — a short, slow glide that settles quickly rather than a long fling.
@@ -88,10 +93,12 @@ export function useChartTouchGestures({
     let originY = 0;
 
     // --- pan state ---
-    let panLastX = 0;
+    let panLastPoint: Point = { x: 0, y: 0 };
     // Instantaneous pan velocity, for release inertia.
     let velocityX = 0;
+    let velocityY = 0;
     let lastMoveX = 0;
+    let lastMoveY = 0;
     let lastMoveT = 0;
 
     // --- two-finger baseline, captured when the second finger lands ---
@@ -100,6 +107,10 @@ export function useChartTouchGestures({
     let baseLogicalFrom = 0;
     let baseLogicalTo = 0;
     let baseWidth = 0;
+    let baseHeight = 0;
+    let basePriceFrom = 0;
+    let basePriceTo = 0;
+    let baseMidPrice = 0;
 
     const relativePoint = (event: PointerEvent): Point => ({
       x: event.clientX - originX,
@@ -107,6 +118,7 @@ export function useChartTouchGestures({
     });
 
     const width = () => container.clientWidth || 1;
+    const height = () => container.clientHeight || 1;
 
     // --- native-API primitives ---
     function shiftTimeByPixels(dxPx: number) {
@@ -123,12 +135,28 @@ export function useChartTouchGestures({
       });
     }
 
+    function shiftPriceByPixels(dyPx: number) {
+      const priceScale = chart.priceScale("right");
+      const range = priceScale.getVisibleRange();
+      if (!range) return;
+      const span = range.to - range.from;
+      if (span <= 0) return;
+      const delta = (dyPx / height()) * span;
+      priceScale.setAutoScale(false);
+      priceScale.setVisibleRange({
+        from: range.from + delta,
+        to: range.to + delta,
+      });
+    }
+
     // --- gesture starts ---
     function startPan(point: Point) {
       mode = "pan";
-      panLastX = point.x;
+      panLastPoint = point;
       velocityX = 0;
+      velocityY = 0;
       lastMoveX = point.x;
+      lastMoveY = point.y;
       lastMoveT = performance.now();
     }
 
@@ -149,16 +177,27 @@ export function useChartTouchGestures({
       baseMidLogical = timeScale.coordinateToLogical(midX) ?? baseLogicalTo;
 
       baseWidth = width();
+      baseHeight = height();
+      const priceRange = chart.priceScale("right").getVisibleRange();
+      basePriceFrom = priceRange?.from ?? 0;
+      basePriceTo = priceRange?.to ?? 0;
+      const midY = (a.y + b.y) / 2;
+      const priceFraction = clamp(midY / baseHeight, 0, 1);
+      baseMidPrice = basePriceTo - priceFraction * (basePriceTo - basePriceFrom);
     }
 
     // --- per-frame application ---
-    function applyPinch(curDistance: number, midX: number) {
+    function applyPinch(curDistance: number, midX: number, midY: number) {
       const baseBars = baseLogicalTo - baseLogicalFrom;
       if (baseBars <= 0) return;
       const baseBarSpacing = baseWidth / baseBars;
-      const scaleX = Math.max(curDistance, MIN_FINGER_SEPARATION) / baseDistance;
+      const scale = clamp(
+        Math.max(curDistance, MIN_FINGER_SEPARATION) / baseDistance,
+        MIN_PINCH_SCALE,
+        MAX_PINCH_SCALE,
+      );
       const newBarSpacing = clamp(
-        baseBarSpacing * scaleX,
+        baseBarSpacing * scale,
         MIN_BAR_SPACING,
         MAX_BAR_SPACING,
       );
@@ -170,6 +209,18 @@ export function useChartTouchGestures({
         from: from as Logical,
         to: to as Logical,
       });
+
+      const basePriceSpan = basePriceTo - basePriceFrom;
+      if (basePriceSpan <= 0) return;
+      const priceSpan = basePriceSpan / scale;
+      const priceFraction = clamp(midY / baseHeight, 0, 1);
+      const priceTo = baseMidPrice + priceFraction * priceSpan;
+      const priceScale = chart.priceScale("right");
+      priceScale.setAutoScale(false);
+      priceScale.setVisibleRange({
+        from: priceTo - priceSpan,
+        to: priceTo,
+      });
     }
 
     function applyTwoFinger() {
@@ -179,8 +230,9 @@ export function useChartTouchGestures({
       if (!a || !b) return;
       const curDistance = Math.hypot(b.x - a.x, b.y - a.y);
       const midX = (a.x + b.x) / 2;
+      const midY = (a.y + b.y) / 2;
       mode = "pinch";
-      applyPinch(curDistance, midX);
+      applyPinch(curDistance, midX, midY);
     }
 
     function applyFrame() {
@@ -193,9 +245,11 @@ export function useChartTouchGestures({
       if (mode === "pan" && pointers.size === 1) {
         const point = [...pointers.values()][0];
         if (!point) return;
-        const dx = point.x - panLastX;
-        panLastX = point.x;
+        const dx = point.x - panLastPoint.x;
+        const dy = point.y - panLastPoint.y;
+        panLastPoint = point;
         if (dx) shiftTimeByPixels(dx);
+        if (dy) shiftPriceByPixels(dy);
       }
       onViewChangeRef.current?.();
     }
@@ -214,12 +268,15 @@ export function useChartTouchGestures({
 
     function startInertia() {
       let vx = clamp(velocityX, -MAX_VELOCITY, MAX_VELOCITY);
-      if (Math.abs(vx) < INERTIA_STOP) return;
+      let vy = clamp(velocityY, -MAX_VELOCITY, MAX_VELOCITY);
+      if (Math.max(Math.abs(vx), Math.abs(vy)) < INERTIA_STOP) return;
       const step = () => {
         shiftTimeByPixels(vx * FRAME_MS);
+        shiftPriceByPixels(vy * FRAME_MS);
         onViewChangeRef.current?.();
         vx *= INERTIA_DECAY;
-        if (Math.abs(vx) < INERTIA_STOP) {
+        vy *= INERTIA_DECAY;
+        if (Math.max(Math.abs(vx), Math.abs(vy)) < INERTIA_STOP) {
           inertiaFrame = 0;
           return;
         }
@@ -261,7 +318,9 @@ export function useChartTouchGestures({
         const dt = now - lastMoveT;
         if (dt > 0) {
           velocityX = (point.x - lastMoveX) / dt;
+          velocityY = (point.y - lastMoveY) / dt;
           lastMoveX = point.x;
+          lastMoveY = point.y;
           lastMoveT = now;
         }
       }

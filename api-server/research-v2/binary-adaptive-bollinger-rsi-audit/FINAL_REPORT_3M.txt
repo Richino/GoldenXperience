@@ -1,0 +1,349 @@
+GOLDENXPERIENCE
+ADAPTIVE BOLLINGER + RSI EDGE TEST — 3 MONTH WALK-FORWARD
+(adaptive-bollinger-rsi-v1-3m)
+
+================================
+DATA
+================================
+
+Periods (pre-registered, not outcome-tuned):
+  studyStart / TRAIN start: 2026-05-23T21:00:00.000Z
+  midStart: 2026-07-18T11:38:24.000Z
+  gateStart: 2026-08-14T21:00:00.000Z
+  dataEnd: 2026-08-21T21:00:00.000Z
+  TRAIN: [2026-05-23T21:00:00.000Z, 2026-07-18T11:38:24.000Z)
+  MID (PRIMARY eval): [2026-07-18T11:38:24.000Z, 2026-08-14T21:00:00.000Z)
+  DEV/GATE week: [2026-08-14T21:00:00.000Z, 2026-08-21T21:00:00.000Z]
+  UNSEEN: entryMs > 2026-08-21T21:00:00.000Z
+Symbols: EUR_USD, GBP_USD, USD_JPY, AUD_USD, NZD_USD, USD_CAD, USD_CHF, EUR_GBP, EUR_JPY, GBP_JPY, AUD_JPY, EUR_AUD
+Signals: TRAIN=1253 MID=653 DEV=172 UNSEEN=0 TOTAL=2078
+Replay method: chronological walk by entryMs from studyStart; evidence flush when resolveMs < T; 10m expiry
+Adaptive evidence: empty at studyStart; only prior resolved outcomes
+M1 bars: 1140000
+M1 coverage: 2026-05-20T23:44:00.000Z → 2026-08-21T21:00:00.000Z
+Gaps / per-symbol:
+  EUR_USD: bars=95000 span≈92.4d intradayGaps≈65
+  GBP_USD: bars=95000 span≈92.3d intradayGaps≈74
+  USD_JPY: bars=95000 span≈92.5d intradayGaps≈92
+  AUD_USD: bars=95000 span≈92.8d intradayGaps≈91
+  NZD_USD: bars=95000 span≈92.8d intradayGaps≈135
+  USD_CAD: bars=95000 span≈92.5d intradayGaps≈81
+  USD_CHF: bars=95000 span≈92.9d intradayGaps≈122
+  EUR_GBP: bars=95000 span≈92.8d intradayGaps≈75
+  EUR_JPY: bars=95000 span≈92.3d intradayGaps≈70
+  GBP_JPY: bars=95000 span≈92.2d intradayGaps≈61
+  AUD_JPY: bars=95000 span≈92.3d intradayGaps≈72
+  EUR_AUD: bars=95000 span≈92.2d intradayGaps≈58
+Short OANDA history (<~85d of 90d requested):
+  (none)
+
+Previously inspected: DEV/GATE last week (bollinger-range audit TEST cohort)
+Truly unseen: NO — No true post-gate UNSEEN cohort (entryMs > 2026-08-21T21:00:00Z with n≥30) — cannot CONFIRM on a brand-new week after 8/21
+
+================================
+FROZEN BASE STRATEGY
+================================
+
+BB: period=20 k=2 population stdev (variance = mean(x^2)-mean(x)^2)
+RSI: Wilder14; UP if RSI<=30; DOWN if RSI>=70
+Re-entry: high>upper / low<lower excursion; close back inside; dedup until mid return + new outside
+Expiry: 10 minutes only
+Variant: BB_REENTRY_RSI | BB20
+Thresholds: NOT retuned against outcomes
+
+GATE reproduce (last 7d = dataEnd-7d → dataEnd):
+n: 168
+WR: 58.93%
+CI: [51.37%, 66.09%]
+EV80: 0.061
+(expected ≈ n=168 WR=58.93% EV80=+0.061) GATE PASS
+
+================================
+ADAPTIVE ARCHITECTURE
+================================
+
+Existing components reused:
+  - wilsonInterval, evidenceLabel from binary-regimes.ts
+  - determineSelectorState, BINARY_ADAPTIVE_SELECTOR_CONFIG from binary-adaptive-selector.ts
+  - NO live selectBinaryModel; NO production adaptive table writes
+Context features (coarse, pre-registered):
+  direction, adxBucket (<=20|20-25|25-30|>30), session (ET), rsiSeverity (mild|medium|extreme fixed), bbWidthPctile (trailing PIT /500)
+Evidence hierarchy (first with n≥scopeMin):
+  direction|adxBucket (30) → direction|session (30) → adxBucket (30) → direction (40) → overall (50)
+Backoff logic: walk hierarchy; if no scope meets min → TAKE (cannot filter)
+COLLECTING threshold: <50 overall prior decided
+LEARNING threshold: 50–99
+ACTIVE threshold: ≥100
+COLLECTING policy for selective rules: TAKE (no filtering) — cannot claim selection. Documented.
+
+MID state mix: COLLECTING=0 LEARNING=0 ACTIVE_SELECTION=653
+DEV state mix: COLLECTING=0 LEARNING=0 ACTIVE_SELECTION=172
+
+================================
+HEADLINE — MID (PRIMARY)
+================================
+
+FROZEN ALL SIGNALS
+n=644 W=335 L=309 T=9 WR=52.02% CI=[48.16%,55.85%] EV80=-0.064
+
+ADAPTIVE TAKE (best pre-registered selective by Δ vs ALL on MID: EST_GE_0.58)
+n: 57
+coverage: 9.04%
+WR: 50.88%
+95% CI: [38.26%, 63.38%]
+EV80: -0.084
+
+ADAPTIVE WAIT COUNTERFACTUAL
+n: 587
+WR: 52.13%
+95% CI: [48.09%, 56.14%]
+EV80: -0.062
+
+Improvement TAKE vs ALL: -1.14pp
+Improvement TAKE vs WAIT: -1.25pp
+
+================================
+HEADLINE — DEV/GATE week (previously-inspected)
+================================
+
+FROZEN ALL: n=168 W=99 L=69 T=4 WR=58.93% CI=[51.37%,66.09%] EV80=0.061
+ADAPTIVE TAKE (EST_GE_0.58): n=14 W=6 L=8 T=1 WR=42.86% CI=[21.38%,67.41%] EV80=-0.229 cov=8.72%
+ADAPTIVE WAIT: n=154 W=93 L=61 T=3 WR=60.39% CI=[52.50%,67.77%] EV80=0.087
+Δ(TAKE−ALL)=-16.07pp  Δ(TAKE−WAIT)=-17.53pp
+
+================================
+HEADLINE — FULL 3M SEQUENTIAL (studyStart→dataEnd)
+================================
+
+ALL n=2028 W=1101 L=927 T=50 WR=54.29% CI=[52.12%,56.45%] EV80=-0.023
+TAKE (EST_GE_0.58) n=420 W=224 L=196 T=13 WR=53.33% CI=[48.55%,58.05%] EV80=-0.040
+WAIT n=1608 W=877 L=731 T=37 WR=54.54% CI=[52.10%,56.96%] EV80=-0.018
+
+UNSEEN: No true post-gate UNSEEN cohort (entryMs > 2026-08-21T21:00:00Z with n≥30) — cannot CONFIRM on a brand-new week after 8/21
+
+================================
+ALL TAKE RULES ON MID
+================================
+
+  ALWAYS:
+    TAKE n=644 cov=100.00% WR=52.02% CI=[48.16%,55.85%] EV80=-0.064
+    WAIT n=0 WR=0.00%
+    Δ(TAKE−ALL)=0.00pp  Δ(TAKE−WAIT)=52.02pp
+  EST_GE_0.5556:
+    TAKE n=142 cov=22.21% WR=49.30% CI=[41.20%,57.43%] EV80=-0.113
+    WAIT n=502 WR=52.79%
+    Δ(TAKE−ALL)=-2.72pp  Δ(TAKE−WAIT)=-3.49pp
+  EST_GE_0.58:
+    TAKE n=57 cov=9.04% WR=50.88% CI=[38.26%,63.38%] EV80=-0.084
+    WAIT n=587 WR=52.13%
+    Δ(TAKE−ALL)=-1.14pp  Δ(TAKE−WAIT)=-1.25pp
+  EST_GE_0.60:
+    TAKE n=13 cov=2.14% WR=61.54% CI=[35.52%,82.29%] EV80=0.108
+    WAIT n=631 WR=51.82%
+    Δ(TAKE−ALL)=9.52pp  Δ(TAKE−WAIT)=9.72pp
+  CI_LOW_GT_0.50:
+    TAKE n=113 cov=17.46% WR=49.56% CI=[40.51%,58.64%] EV80=-0.108
+    WAIT n=531 WR=52.54%
+    Δ(TAKE−ALL)=-2.46pp  Δ(TAKE−WAIT)=-2.98pp
+  CI_LOW_GT_0.5556:
+    TAKE n=0 cov=0.00% WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+    WAIT n=644 WR=52.02%
+    Δ(TAKE−ALL)=-52.02pp  Δ(TAKE−WAIT)=-52.02pp
+
+================================
+QUALITY RANKING (MID)
+================================
+
+  Q1: n=128 WR=57.81%
+  Q2: n=130 WR=53.85%
+  Q3: n=128 WR=47.66%
+  Q4: n=128 WR=50.00%
+  Q5: n=130 WR=50.77%
+
+Does adaptive score monotonically rank realized WR?
+NO
+
+================================
+RANDOM SELECTOR CONTROL (MID)
+================================
+
+Adaptive coverage: 9.04%
+Adaptive WR: 50.88%
+
+Matched random selector (200 shuffles, same coverage on decided):
+mean WR: 52.46%
+95% random range: [41.38%, 63.79%]
+
+Adaptive improvement vs random: NO — adaptive 50.88% within random band [41.38%,63.79%] mean 52.46%
+Beats random (TAKE WR > random 97.5%ile): NO
+
+================================
+SIMPLE FILTER CONTROLS (MID)
+================================
+
+  take-all: TAKE n=644 W=335 L=309 T=9 WR=52.02% CI=[48.16%,55.85%] EV80=-0.064 cov=100.00% | WAIT n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+  RSI-severity-extreme-only: TAKE n=53 W=24 L=29 T=0 WR=45.28% CI=[32.66%,58.55%] EV80=-0.185 cov=8.12% | WAIT n=591 W=311 L=280 T=9 WR=52.62% CI=[48.59%,56.62%] EV80=-0.053
+  ADX>25-only: TAKE n=519 W=272 L=247 T=4 WR=52.41% CI=[48.11%,56.67%] EV80=-0.057 cov=80.09% | WAIT n=125 W=63 L=62 T=5 WR=50.40% CI=[41.75%,59.02%] EV80=-0.093
+  ADX<=20-only: TAKE n=21 W=14 L=7 T=2 WR=66.67% CI=[45.37%,82.81%] EV80=0.200 cov=3.52% | WAIT n=623 W=321 L=302 T=7 WR=51.52% CI=[47.60%,55.43%] EV80=-0.073
+  Adaptive (EST_GE_0.58): TAKE n=57 W=29 L=28 T=2 WR=50.88% CI=[38.26%,63.38%] EV80=-0.084 cov=9.04%
+
+Does adaptive actually add value?
+NO / mixed — adaptive 50.88% vs RSI-ext 45.28% ADX>25 52.41% ADX<=20 66.67%
+
+================================
+ADX / TREND REGIME (MID)
+================================
+
+  b20_25: ALL n=104 W=49 L=55 T=3 WR=47.12% CI=[37.80%,56.64%] EV80=-0.152 | TAKE n=1 W=0 L=1 T=0 WR=0.00% CI=[0.00%,79.35%] EV80=-1.000 cov=0.93% | WAIT n=103 W=49 L=54 T=3 WR=47.57% CI=[38.19%,57.13%] EV80=-0.144
+  b25_30: ALL n=160 W=85 L=75 T=1 WR=53.13% CI=[45.41%,60.69%] EV80=-0.044 | TAKE n=51 W=25 L=26 T=1 WR=49.02% CI=[35.86%,62.32%] EV80=-0.118 cov=32.30% | WAIT n=109 W=60 L=49 T=0 WR=55.05% CI=[45.69%,64.05%] EV80=-0.009
+  gt30: ALL n=359 W=187 L=172 T=3 WR=52.09% CI=[46.93%,57.21%] EV80=-0.062 | TAKE n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 cov=0.00% | WAIT n=359 W=187 L=172 T=3 WR=52.09% CI=[46.93%,57.21%] EV80=-0.062
+  le20: ALL n=21 W=14 L=7 T=2 WR=66.67% CI=[45.37%,82.81%] EV80=0.200 | TAKE n=5 W=4 L=1 T=1 WR=80.00% CI=[37.55%,96.38%] EV80=0.440 cov=26.09% | WAIT n=16 W=10 L=6 T=1 WR=62.50% CI=[38.64%,81.52%] EV80=0.125
+
+================================
+UP vs DOWN (MID)
+================================
+
+  down: ALL n=338 W=177 L=161 T=3 WR=52.37% CI=[47.05%,57.63%] EV80=-0.057 | TAKE n=55 W=28 L=27 T=2 WR=50.91% CI=[38.08%,63.62%] EV80=-0.084 cov=16.72% | WAIT n=283 W=149 L=134 T=1 WR=52.65% CI=[46.84%,58.39%] EV80=-0.052
+  up: ALL n=306 W=158 L=148 T=6 WR=51.63% CI=[46.05%,57.18%] EV80=-0.071 | TAKE n=2 W=1 L=1 T=0 WR=50.00% CI=[9.45%,90.55%] EV80=-0.100 cov=0.64% | WAIT n=304 W=157 L=147 T=6 WR=51.64% CI=[46.04%,57.21%] EV80=-0.070
+
+================================
+DAY STABILITY (MID)
+================================
+
+  2026-07-19: ALL n=12 W=8 L=4 T=0 WR=66.67% CI=[39.06%,86.19%] EV80=0.200 | TAKE n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 cov=0.00% | WAIT n=12 W=8 L=4 T=0 WR=66.67% CI=[39.06%,86.19%] EV80=0.200
+  2026-07-20: ALL n=31 W=21 L=10 T=0 WR=67.74% CI=[50.14%,81.43%] EV80=0.219 | TAKE n=6 W=5 L=1 T=0 WR=83.33% CI=[43.65%,96.99%] EV80=0.500 cov=19.35% | WAIT n=25 W=16 L=9 T=0 WR=64.00% CI=[44.52%,79.75%] EV80=0.152
+  2026-07-21: ALL n=41 W=18 L=23 T=1 WR=43.90% CI=[29.89%,58.96%] EV80=-0.210 | TAKE n=7 W=1 L=6 T=0 WR=14.29% CI=[2.57%,51.31%] EV80=-0.743 cov=16.67% | WAIT n=34 W=17 L=17 T=1 WR=50.00% CI=[34.07%,65.93%] EV80=-0.100
+  2026-07-22: ALL n=32 W=14 L=18 T=1 WR=43.75% CI=[28.17%,60.67%] EV80=-0.212 | TAKE n=5 W=2 L=3 T=0 WR=40.00% CI=[11.76%,76.93%] EV80=-0.280 cov=15.15% | WAIT n=27 W=12 L=15 T=1 WR=44.44% CI=[27.59%,62.69%] EV80=-0.200
+  2026-07-23: ALL n=28 W=17 L=11 T=0 WR=60.71% CI=[42.41%,76.43%] EV80=0.093 | TAKE n=4 W=2 L=2 T=0 WR=50.00% CI=[15.00%,85.00%] EV80=-0.100 cov=14.29% | WAIT n=24 W=15 L=9 T=0 WR=62.50% CI=[42.71%,78.84%] EV80=0.125
+  2026-07-24: ALL n=14 W=5 L=9 T=1 WR=35.71% CI=[16.34%,61.24%] EV80=-0.357 | TAKE n=2 W=0 L=2 T=0 WR=0.00% CI=[0.00%,65.76%] EV80=-1.000 cov=13.33% | WAIT n=12 W=5 L=7 T=1 WR=41.67% CI=[19.33%,68.05%] EV80=-0.250
+  2026-07-26: ALL n=10 W=6 L=4 T=0 WR=60.00% CI=[31.27%,83.18%] EV80=0.080 | TAKE n=2 W=1 L=1 T=0 WR=50.00% CI=[9.45%,90.55%] EV80=-0.100 cov=20.00% | WAIT n=8 W=5 L=3 T=0 WR=62.50% CI=[30.57%,86.32%] EV80=0.125
+  2026-07-27: ALL n=34 W=21 L=13 T=0 WR=61.76% CI=[45.04%,76.10%] EV80=0.112 | TAKE n=8 W=6 L=2 T=0 WR=75.00% CI=[40.93%,92.85%] EV80=0.350 cov=23.53% | WAIT n=26 W=15 L=11 T=0 WR=57.69% CI=[38.95%,74.46%] EV80=0.038
+  2026-07-28: ALL n=29 W=17 L=12 T=1 WR=58.62% CI=[40.74%,74.49%] EV80=0.055 | TAKE n=7 W=5 L=2 T=1 WR=71.43% CI=[35.89%,91.78%] EV80=0.286 cov=26.67% | WAIT n=22 W=12 L=10 T=0 WR=54.55% CI=[34.66%,73.08%] EV80=-0.018
+  2026-07-29: ALL n=42 W=24 L=18 T=0 WR=57.14% CI=[42.21%,70.88%] EV80=0.029 | TAKE n=6 W=2 L=4 T=0 WR=33.33% CI=[9.68%,70.00%] EV80=-0.400 cov=14.29% | WAIT n=36 W=22 L=14 T=0 WR=61.11% CI=[44.86%,75.22%] EV80=0.100
+  2026-07-30: ALL n=38 W=20 L=18 T=0 WR=52.63% CI=[37.26%,67.52%] EV80=-0.053 | TAKE n=6 W=1 L=5 T=0 WR=16.67% CI=[3.01%,56.35%] EV80=-0.700 cov=15.79% | WAIT n=32 W=19 L=13 T=0 WR=59.38% CI=[42.26%,74.48%] EV80=0.069
+  2026-07-31: ALL n=32 W=12 L=20 T=0 WR=37.50% CI=[22.93%,54.75%] EV80=-0.325 | TAKE n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 cov=0.00% | WAIT n=32 W=12 L=20 T=0 WR=37.50% CI=[22.93%,54.75%] EV80=-0.325
+  2026-08-02: ALL n=10 W=1 L=9 T=0 WR=10.00% CI=[1.79%,40.42%] EV80=-0.820 | TAKE n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 cov=0.00% | WAIT n=10 W=1 L=9 T=0 WR=10.00% CI=[1.79%,40.42%] EV80=-0.820
+  2026-08-03: ALL n=32 W=12 L=20 T=0 WR=37.50% CI=[22.93%,54.75%] EV80=-0.325 | TAKE n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 cov=0.00% | WAIT n=32 W=12 L=20 T=0 WR=37.50% CI=[22.93%,54.75%] EV80=-0.325
+  2026-08-04: ALL n=30 W=22 L=8 T=0 WR=73.33% CI=[55.55%,85.82%] EV80=0.320 | TAKE n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 cov=0.00% | WAIT n=30 W=22 L=8 T=0 WR=73.33% CI=[55.55%,85.82%] EV80=0.320
+  2026-08-05: ALL n=26 W=11 L=15 T=0 WR=42.31% CI=[25.54%,61.05%] EV80=-0.238 | TAKE n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 cov=0.00% | WAIT n=26 W=11 L=15 T=0 WR=42.31% CI=[25.54%,61.05%] EV80=-0.238
+  2026-08-06: ALL n=30 W=16 L=14 T=0 WR=53.33% CI=[36.14%,69.77%] EV80=-0.040 | TAKE n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 cov=0.00% | WAIT n=30 W=16 L=14 T=0 WR=53.33% CI=[36.14%,69.77%] EV80=-0.040
+  2026-08-07: ALL n=26 W=15 L=11 T=1 WR=57.69% CI=[38.95%,74.46%] EV80=0.038 | TAKE n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 cov=0.00% | WAIT n=26 W=15 L=11 T=1 WR=57.69% CI=[38.95%,74.46%] EV80=0.038
+  2026-08-09: ALL n=6 W=2 L=4 T=0 WR=33.33% CI=[9.68%,70.00%] EV80=-0.400 | TAKE n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 cov=0.00% | WAIT n=6 W=2 L=4 T=0 WR=33.33% CI=[9.68%,70.00%] EV80=-0.400
+  2026-08-10: ALL n=33 W=17 L=16 T=2 WR=51.52% CI=[35.22%,67.50%] EV80=-0.073 | TAKE n=1 W=1 L=0 T=0 WR=100.00% CI=[20.65%,100.00%] EV80=0.800 cov=2.86% | WAIT n=32 W=16 L=16 T=2 WR=50.00% CI=[33.63%,66.37%] EV80=-0.100
+  2026-08-11: ALL n=35 W=20 L=15 T=0 WR=57.14% CI=[40.86%,72.02%] EV80=0.029 | TAKE n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 cov=0.00% | WAIT n=35 W=20 L=15 T=0 WR=57.14% CI=[40.86%,72.02%] EV80=0.029
+  2026-08-12: ALL n=21 W=12 L=9 T=0 WR=57.14% CI=[36.55%,75.53%] EV80=0.029 | TAKE n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 cov=0.00% | WAIT n=21 W=12 L=9 T=0 WR=57.14% CI=[36.55%,75.53%] EV80=0.029
+  2026-08-13: ALL n=29 W=13 L=16 T=1 WR=44.83% CI=[28.41%,62.45%] EV80=-0.193 | TAKE n=2 W=2 L=0 T=0 WR=100.00% CI=[34.24%,100.00%] EV80=0.800 cov=6.67% | WAIT n=27 W=11 L=16 T=1 WR=40.74% CI=[24.51%,59.27%] EV80=-0.267
+  2026-08-14: ALL n=23 W=11 L=12 T=1 WR=47.83% CI=[29.24%,67.04%] EV80=-0.139 | TAKE n=1 W=1 L=0 T=1 WR=100.00% CI=[20.65%,100.00%] EV80=0.800 cov=8.33% | WAIT n=22 W=10 L=12 T=0 WR=45.45% CI=[26.92%,65.34%] EV80=-0.182
+
+================================
+SYMBOL STABILITY (MID)
+================================
+
+  AUD_JPY: ALL n=51 W=25 L=26 T=0 WR=49.02% CI=[35.86%,62.32%] EV80=-0.118 | TAKE n=5 W=2 L=3 T=0 WR=40.00% CI=[11.76%,76.93%] EV80=-0.280 cov=9.80% | WAIT n=46 W=23 L=23 T=0 WR=50.00% CI=[36.12%,63.88%] EV80=-0.100
+  AUD_USD: ALL n=52 W=29 L=23 T=1 WR=55.77% CI=[42.34%,68.41%] EV80=0.004 | TAKE n=4 W=2 L=2 T=0 WR=50.00% CI=[15.00%,85.00%] EV80=-0.100 cov=7.55% | WAIT n=48 W=27 L=21 T=1 WR=56.25% CI=[42.27%,69.30%] EV80=0.013
+  EUR_AUD: ALL n=61 W=32 L=29 T=0 WR=52.46% CI=[40.16%,64.47%] EV80=-0.056 | TAKE n=4 W=1 L=3 T=0 WR=25.00% CI=[4.56%,69.94%] EV80=-0.550 cov=6.56% | WAIT n=57 W=31 L=26 T=0 WR=54.39% CI=[41.59%,66.63%] EV80=-0.021
+  EUR_GBP: ALL n=42 W=23 L=19 T=1 WR=54.76% CI=[39.95%,68.78%] EV80=-0.014 | TAKE n=7 W=5 L=2 T=0 WR=71.43% CI=[35.89%,91.78%] EV80=0.286 cov=16.28% | WAIT n=35 W=18 L=17 T=1 WR=51.43% CI=[35.57%,67.01%] EV80=-0.074
+  EUR_JPY: ALL n=44 W=24 L=20 T=0 WR=54.55% CI=[40.07%,68.29%] EV80=-0.018 | TAKE n=5 W=3 L=2 T=0 WR=60.00% CI=[23.07%,88.24%] EV80=0.080 cov=11.36% | WAIT n=39 W=21 L=18 T=0 WR=53.85% CI=[38.57%,68.43%] EV80=-0.031
+  EUR_USD: ALL n=57 W=30 L=27 T=1 WR=52.63% CI=[39.92%,65.01%] EV80=-0.053 | TAKE n=3 W=2 L=1 T=1 WR=66.67% CI=[20.77%,93.85%] EV80=0.200 cov=6.90% | WAIT n=54 W=28 L=26 T=0 WR=51.85% CI=[38.85%,64.61%] EV80=-0.067
+  GBP_JPY: ALL n=44 W=21 L=23 T=0 WR=47.73% CI=[33.75%,62.06%] EV80=-0.141 | TAKE n=3 W=2 L=1 T=0 WR=66.67% CI=[20.77%,93.85%] EV80=0.200 cov=6.82% | WAIT n=41 W=19 L=22 T=0 WR=46.34% CI=[32.06%,61.25%] EV80=-0.166
+  GBP_USD: ALL n=47 W=22 L=25 T=0 WR=46.81% CI=[33.33%,60.77%] EV80=-0.157 | TAKE n=5 W=3 L=2 T=0 WR=60.00% CI=[23.07%,88.24%] EV80=0.080 cov=10.64% | WAIT n=42 W=19 L=23 T=0 WR=45.24% CI=[31.22%,60.05%] EV80=-0.186
+  NZD_USD: ALL n=67 W=40 L=27 T=1 WR=59.70% CI=[47.74%,70.61%] EV80=0.075 | TAKE n=5 W=2 L=3 T=0 WR=40.00% CI=[11.76%,76.93%] EV80=-0.280 cov=7.35% | WAIT n=62 W=38 L=24 T=1 WR=61.29% CI=[48.85%,72.42%] EV80=0.103
+  USD_CAD: ALL n=71 W=36 L=35 T=2 WR=50.70% CI=[39.34%,62.00%] EV80=-0.087 | TAKE n=7 W=4 L=3 T=0 WR=57.14% CI=[25.05%,84.18%] EV80=0.029 cov=9.59% | WAIT n=64 W=32 L=32 T=2 WR=50.00% CI=[38.10%,61.90%] EV80=-0.100
+  USD_CHF: ALL n=53 W=27 L=26 T=2 WR=50.94% CI=[37.88%,63.88%] EV80=-0.083 | TAKE n=5 W=1 L=4 T=1 WR=20.00% CI=[3.62%,62.45%] EV80=-0.640 cov=10.91% | WAIT n=48 W=26 L=22 T=1 WR=54.17% CI=[40.29%,67.42%] EV80=-0.025
+  USD_JPY: ALL n=55 W=26 L=29 T=1 WR=47.27% CI=[34.69%,60.21%] EV80=-0.149 | TAKE n=4 W=2 L=2 T=0 WR=50.00% CI=[15.00%,85.00%] EV80=-0.100 cov=7.14% | WAIT n=51 W=24 L=27 T=1 WR=47.06% CI=[34.05%,60.48%] EV80=-0.153
+
+================================
+SESSION STABILITY (MID)
+================================
+
+  asia: ALL n=197 W=106 L=91 T=4 WR=53.81% CI=[46.84%,60.63%] EV80=-0.031 | TAKE n=16 W=8 L=8 T=1 WR=50.00% CI=[28.00%,72.00%] EV80=-0.100 cov=8.46% | WAIT n=181 W=98 L=83 T=3 WR=54.14% CI=[46.87%,61.24%] EV80=-0.025
+  london: ALL n=113 W=61 L=52 T=0 WR=53.98% CI=[44.81%,62.89%] EV80=-0.028 | TAKE n=13 W=7 L=6 T=0 WR=53.85% CI=[29.14%,76.79%] EV80=-0.031 cov=11.50% | WAIT n=100 W=54 L=46 T=0 WR=54.00% CI=[44.26%,63.44%] EV80=-0.028
+  newyork: ALL n=143 W=73 L=70 T=4 WR=51.05% CI=[42.94%,59.11%] EV80=-0.081 | TAKE n=16 W=10 L=6 T=0 WR=62.50% CI=[38.64%,81.52%] EV80=0.125 cov=10.88% | WAIT n=127 W=63 L=64 T=4 WR=49.61% CI=[41.05%,58.19%] EV80=-0.107
+  off: ALL n=83 W=52 L=31 T=1 WR=62.65% CI=[51.90%,72.28%] EV80=0.128 | TAKE n=4 W=2 L=2 T=1 WR=50.00% CI=[15.00%,85.00%] EV80=-0.100 cov=5.95% | WAIT n=79 W=50 L=29 T=0 WR=63.29% CI=[52.28%,73.07%] EV80=0.139
+  overlap: ALL n=108 W=43 L=65 T=0 WR=39.81% CI=[31.09%,49.24%] EV80=-0.283 | TAKE n=8 W=2 L=6 T=0 WR=25.00% CI=[7.15%,59.07%] EV80=-0.550 cov=7.41% | WAIT n=100 W=41 L=59 T=0 WR=41.00% CI=[31.87%,50.80%] EV80=-0.262
+
+================================
+PAYOUT ANALYSIS (MID adaptive TAKE EST_GE_0.58)
+================================
+
+Break-even @80% payout: 55.56%
+Actual TAKE WR: 50.88%
+  70: EV=-0.135  75: EV=-0.110  80: EV=-0.084  85: EV=-0.059  90: EV=-0.033  95: EV=-0.008
+
+ALL frozen MID:
+  70: EV=-0.116  75: EV=-0.090  80: EV=-0.064  85: EV=-0.038  90: EV=-0.012  95: EV=0.014
+
+================================
+LEAKAGE AUDIT
+================================
+
+  - indicators at T use only closed bars index ≤ T: PASS
+  - signal only after confirmation candle close; entry = confirmation close: PASS
+  - adaptive evidence uses only resolveMs < T (prior resolved): PASS
+  - current signal never in its own evidence: PASS
+  - BB/RSI/ADX/expiry/thresholds pre-registered (no outcome retune): PASS
+  - rsiSeverity fixed beyond-threshold buckets (not outcome-fitted): PASS
+  - bbWidthPctile trailing PIT last-500 (no cutpoint freeze on MID/DEV): PASS
+  - COLLECTING/LEARNING/ACTIVE thresholds from selector config (50/100): PASS
+  - selective TAKE rules during COLLECTING treated as TAKE (no claimed selection): PASS
+  - no writes to production adaptive tables / no live selector calls: PASS
+  - MID is primary eval; DEV/GATE week labeled previously-inspected; CONFIRMED requires UNSEEN: PASS
+  - no suspicious WR≥65% with n≥200 on frozen base gate: PASS
+
+================================
+DIRECT ANSWERS
+================================
+
+1. Does adaptive selection improve the frozen strategy on MID?
+   NO clear improvement on MID — TAKE 50.88% vs ALL 52.02% (EST_GE_0.58)
+
+2. Does adaptive TAKE reach 60% on MID?
+   NO — MID TAKE WR 50.88% < 60%
+
+3. With how many signals?
+   TAKE n=57 (raw TAKE=59) of MID n=644
+
+4. What percentage of signals does it keep?
+   coverage 9.04%
+
+5. Are rejected WAIT signals actually worse?
+   NO clear — WAIT 52.13% vs TAKE 50.88%
+
+6. Does predicted signal quality rank realized WR?
+   NO — quintiles not monotonic
+
+7. Does adaptive selection beat matched random selection?
+   NO — adaptive 50.88% within random band [41.38%,63.79%] mean 52.46%
+
+8. Does it beat simple RSI-only or ADX-only filtering?
+   NO / mixed — adaptive 50.88% vs RSI-ext 45.28% ADX>25 52.41% ADX<=20 66.67%
+
+9. Which contexts appear responsible for the improvement?
+   dir down: TAKE 50.91% vs ALL 52.37% n=55
+
+10. Is the improvement stable across days?
+   NO — material day dependence
+
+11. Is it stable across symbols?
+   See SYMBOL STABILITY — many symbols underpowered; treat as descriptive only
+
+12. At 80% payout, is adaptive TAKE profitable on MID?
+   NO — EV80=-0.084
+
+13. Is the evidence genuinely OOS or still DEVELOPMENT?
+   MID is less previously mined than DEV/GATE week, but No true post-gate UNSEEN cohort (entryMs > 2026-08-21T21:00:00Z with n≥30) — cannot CONFIRM on a brand-new week after 8/21
+
+================================
+FINAL VERDICT
+================================
+
+ADAPTIVE_REDUCES_SAMPLE_WITHOUT_EDGE
+
+Honesty notes:
+- Primary adaptive metrics are on MID (middle third of pre-gate history) — less previously mined than DEV/GATE week.
+- DEV/GATE week remains previously inspected (bollinger TEST); used for gate reproduce + secondary headline.
+- Selector thresholds (50/100) and TAKE rules were pre-registered; not mined for 60%.
+- COLLECTING selective rules force TAKE (no claimed edge while collecting).
+- Best selective rule reported on MID: EST_GE_0.58.
+- Ranking monotonic: NO; beats random: NO.
+- No true post-gate UNSEEN cohort (entryMs > 2026-08-21T21:00:00Z with n≥30) — cannot CONFIRM on a brand-new week after 8/21

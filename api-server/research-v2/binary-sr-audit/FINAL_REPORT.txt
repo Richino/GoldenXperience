@@ -1,0 +1,260 @@
+GOLDENXPERIENCE
+BINARY SUPPORT/RESISTANCE EDGE AUDIT
+
+================================
+DATA
+================================
+
+Strategy: binary-baseline-v1@1.0.0 (authoritative only)
+Date range: 2026-08-14 17:13:11.523+00 → 2026-08-21 20:47:39.282+00
+Predictions: 4343 loaded, 4343 with S/R features (skipped 0)
+Symbols: AUD_JPY, AUD_USD, EUR_AUD, EUR_GBP, EUR_JPY, EUR_USD, GBP_JPY, GBP_USD, NZD_USD, USD_CAD, USD_CHF, USD_JPY
+Expiry horizons: 1m / 5m / 10m / 15m
+
+TRAIN:   n=2608  through 2026-08-20T08:18:45.974Z  (~60%)
+DEV:     n=873  through 2026-08-21T07:43:11.918Z  (~20%)
+HOLDOUT: n=862  after DEV  (~20%)
+
+M1 source: OANDA M1 via getResearchCandles (same as binary resolver)
+Leakage audit:
+  - lastKnownIdx uses candle CLOSE (open+60s) ≤ prediction start: PASS
+  - swing confirmation requires k=3 right bars before idx: PASS (self-test)
+  - levels/touches/rejections use bars ≤ idx only: PASS
+  - outcomes use resolutionPriceAtOrAfter after start: PASS
+  - ties separate: PASS
+  - zone boundaries fixed before candidate selection: PASS
+  - production binary untouched: PASS
+
+================================
+BASELINE (all samples, M1-computed)
+================================
+
+1m:  n=4105 W=2018 L=2087 T=238 WR=49.16% CI=[47.63%,50.69%] lift=-0.8pp cov=100.0%
+5m:  n=4203 W=2055 L=2148 T=140 WR=48.89% CI=[47.38%,50.41%] lift=-1.1pp cov=100.0%
+10m: n=4261 W=2105 L=2156 T=82 WR=49.40% CI=[47.90%,50.90%] lift=-0.6pp cov=100.0%
+15m: n=4278 W=2077 L=2201 T=64 WR=48.55% CI=[47.06%,50.05%] lift=-1.4pp cov=100.0%
+
+80% payout break-even: 55.56%
+
+================================
+SUPPORT EFFECT (TRAIN descriptive @10m)
+================================
+
+Near support + UP:
+  <0.10: n=148 W=72 L=76 T=2 WR=48.65% CI=[40.73%,56.63%] lift=-0.8pp cov=3.5%
+  0.10-0.20: n=99 W=57 L=42 T=1 WR=57.58% CI=[47.74%,66.85%] lift=8.2pp cov=2.3%
+  0.20-0.30: n=60 W=26 L=34 T=0 WR=43.33% CI=[31.57%,55.90%] lift=-6.1pp cov=1.4%
+  0.30-0.50: n=151 W=75 L=76 T=1 WR=49.67% CI=[41.80%,57.55%] lift=0.3pp cov=3.5%
+  >0.50: n=882 W=439 L=443 T=20 WR=49.77% CI=[46.48%,53.07%] lift=0.4pp cov=20.8%
+
+Near support + DOWN:
+  <0.10: n=266 W=116 L=150 T=5 WR=43.61% CI=[37.78%,49.62%] lift=-5.8pp cov=6.2%
+  0.10-0.20: n=142 W=77 L=65 T=3 WR=54.23% CI=[46.03%,62.20%] lift=4.8pp cov=3.3%
+  0.20-0.30: n=140 W=73 L=67 T=3 WR=52.14% CI=[43.92%,60.25%] lift=2.7pp cov=3.3%
+  0.30-0.50: n=162 W=81 L=81 T=7 WR=50.00% CI=[42.39%,57.61%] lift=0.6pp cov=3.9%
+  >0.50: n=511 W=244 L=267 T=5 WR=47.75% CI=[43.45%,52.08%] lift=-1.7pp cov=11.9%
+
+================================
+RESISTANCE EFFECT (TRAIN @10m)
+================================
+
+Near resistance + DOWN:
+  <0.10: n=163 W=73 L=90 T=3 WR=44.79% CI=[37.36%,52.45%] lift=-4.6pp cov=3.8%
+  0.10-0.20: n=91 W=56 L=35 T=3 WR=61.54% CI=[51.27%,70.87%] lift=12.1pp cov=2.2%
+  0.20-0.30: n=86 W=34 L=52 T=2 WR=39.53% CI=[29.86%,50.10%] lift=-9.9pp cov=2.0%
+  0.30-0.50: n=123 W=63 L=60 T=6 WR=51.22% CI=[42.48%,59.88%] lift=1.8pp cov=3.0%
+  >0.50: n=758 W=365 L=393 T=9 WR=48.15% CI=[44.61%,51.71%] lift=-1.2pp cov=17.7%
+
+Near resistance + UP:
+  <0.10: n=299 W=158 L=141 T=1 WR=52.84% CI=[47.18%,58.43%] lift=3.4pp cov=6.9%
+  0.10-0.20: n=177 W=81 L=96 T=3 WR=45.76% CI=[38.59%,53.11%] lift=-3.6pp cov=4.1%
+  0.20-0.30: n=137 W=63 L=74 T=1 WR=45.99% CI=[37.86%,54.33%] lift=-3.4pp cov=3.2%
+  0.30-0.50: n=190 W=101 L=89 T=6 WR=53.16% CI=[46.07%,60.12%] lift=3.8pp cov=4.5%
+  >0.50: n=537 W=266 L=271 T=13 WR=49.53% CI=[45.32%,53.75%] lift=0.1pp cov=12.7%
+
+================================
+REJECTION VS BREAKOUT (TRAIN, all expiries)
+================================
+
+Support rejection -> UP:
+  1m:  n=51 W=29 L=22 T=5 WR=56.86% CI=[43.27%,69.50%] lift=7.5pp cov=1.3%
+  5m:  n=54 W=21 L=33 T=2 WR=38.89% CI=[27.04%,52.21%] lift=-10.5pp cov=1.3%
+  10m: n=55 W=29 L=26 T=1 WR=52.73% CI=[39.79%,65.31%] lift=3.3pp cov=1.3%
+  15m: n=55 W=29 L=26 T=1 WR=52.73% CI=[39.79%,65.31%] lift=3.3pp cov=1.3%
+
+Resistance rejection -> DOWN:
+  1m:  n=53 W=27 L=26 T=5 WR=50.94% CI=[37.88%,63.88%] lift=1.5pp cov=1.3%
+  5m:  n=56 W=31 L=25 T=2 WR=55.36% CI=[42.41%,67.61%] lift=6.0pp cov=1.3%
+  10m: n=56 W=32 L=24 T=2 WR=57.14% CI=[44.14%,69.23%] lift=7.7pp cov=1.3%
+  15m: n=56 W=31 L=25 T=2 WR=55.36% CI=[42.41%,67.61%] lift=6.0pp cov=1.3%
+
+Support break -> DOWN:
+  10m: n=113 W=51 L=62 T=6 WR=45.13% CI=[36.27%,54.32%] lift=-4.3pp cov=2.7%
+
+Resistance break -> UP:
+  10m: n=126 W=61 L=65 T=0 WR=48.41% CI=[39.86%,57.06%] lift=-1.0pp cov=2.9%
+
+================================
+TOUCH COUNT (TRAIN, near level, 10m)
+================================
+
+Support + UP:
+  1: n=0
+  2: n=1 W=1 L=0 T=0 WR=100.00% CI=[20.65%,100.00%] lift=50.6pp cov=0.0%
+  3: n=0
+  4+: n=306 W=154 L=152 T=3 WR=50.33% CI=[44.76%,55.89%] lift=0.9pp cov=7.1%
+
+Resistance + DOWN:
+  1: n=0
+  2: n=0
+  3: n=4 W=2 L=2 T=0 WR=50.00% CI=[15.00%,85.00%] lift=0.6pp cov=0.1%
+  4+: n=336 W=161 L=175 T=8 WR=47.92% CI=[42.63%,53.25%] lift=-1.5pp cov=7.9%
+
+Does repeated testing help? See gradient above (TRAIN only — not proof).
+
+================================
+CONFLUENCE (TRAIN @10m)
+================================
+
+Support+UP confluence:
+  1: n=303 W=155 L=148 T=3 WR=51.16% CI=[45.55%,56.73%] lift=1.8pp cov=7.0%
+  2: n=4 W=0 L=4 T=0 WR=0.00% CI=[0.00%,48.99%] lift=-49.4pp cov=0.1%
+  3+: n=0
+
+Resistance+DOWN confluence:
+  1: n=328 W=161 L=167 T=6 WR=49.09% CI=[43.72%,54.47%] lift=-0.3pp cov=7.7%
+  2: n=12 W=2 L=10 T=2 WR=16.67% CI=[4.70%,44.80%] lift=-32.7pp cov=0.3%
+  3+: n=0
+
+================================
+APPROACH (TRAIN @10m)
+================================
+
+Resistance approach + DOWN:
+  fast: n=128 W=53 L=75 T=4 WR=41.41% CI=[33.25%,50.07%] lift=-8.0pp cov=3.0%
+  medium: n=30 W=18 L=12 T=0 WR=60.00% CI=[42.32%,75.41%] lift=10.6pp cov=0.7%
+  none: n=166 W=89 L=77 T=4 WR=53.61% CI=[46.03%,61.03%] lift=4.2pp cov=3.9%
+  slow: n=16 W=3 L=13 T=0 WR=18.75% CI=[6.59%,43.01%] lift=-30.7pp cov=0.4%
+
+Support approach + UP:
+  fast: n=113 W=54 L=59 T=0 WR=47.79% CI=[38.80%,56.92%] lift=-1.6pp cov=2.6%
+  medium: n=26 W=16 L=10 T=0 WR=61.54% CI=[42.53%,77.57%] lift=12.1pp cov=0.6%
+  none: n=150 W=74 L=76 T=3 WR=49.33% CI=[41.45%,57.25%] lift=-0.1pp cov=3.5%
+  slow: n=18 W=11 L=7 T=0 WR=61.11% CI=[38.62%,79.70%] lift=11.7pp cov=0.4%
+
+================================
+SESSION (TRAIN @10m, near resistance + DOWN)
+================================
+
+Near res + DOWN by session:
+  London: n=131 W=61 L=70 T=4 WR=46.56% CI=[38.24%,55.08%] lift=-2.8pp cov=3.1%
+  London/New York overlap: n=95 W=45 L=50 T=2 WR=47.37% CI=[37.63%,57.31%] lift=-2.0pp cov=2.2%
+  New York: n=114 W=57 L=57 T=2 WR=50.00% CI=[40.97%,59.03%] lift=0.6pp cov=2.7%
+
+================================
+TOP DEV CANDIDATES (by EV@80, decided n≥50)
+================================
+
+1. FADE near support (<0.30) + UP | 5m | up
+   n=103 W=56 L=47 T=3 WR=54.37% CI=[44.77%,63.66%] lift=5.0pp cov=2.4%
+   EV@80=-0.0214 EV@90=0.0330 coverage=2.4%
+   DEV clears BE80? NO  CI>BE80? NO
+
+2. FADE near support (<0.30) + UP | 10m | up
+   n=104 W=54 L=50 T=2 WR=51.92% CI=[42.42%,61.28%] lift=2.5pp cov=2.4%
+   EV@80=-0.0654 EV@90=-0.0135 coverage=2.4%
+   DEV clears BE80? NO  CI>BE80? NO
+
+3. FADE near resistance (<0.30) + DOWN | 15m | down
+   n=110 W=56 L=54 T=2 WR=50.91% CI=[41.69%,60.06%] lift=1.5pp cov=2.6%
+   EV@80=-0.0836 EV@90=-0.0327 coverage=2.6%
+   DEV clears BE80? NO  CI>BE80? NO
+
+4. near resistance <0.10 ATR + DOWN | 15m | down
+   n=52 W=24 L=28 T=2 WR=46.15% CI=[33.34%,59.50%] lift=-3.2pp cov=1.2%
+   EV@80=-0.1692 EV@90=-0.1231 coverage=1.2%
+   DEV clears BE80? NO  CI>BE80? NO
+
+5. FADE near resistance (<0.30) + DOWN | 10m | down
+   n=110 W=49 L=61 T=2 WR=44.55% CI=[35.60%,53.86%] lift=-4.9pp cov=2.6%
+   EV@80=-0.1982 EV@90=-0.1536 coverage=2.6%
+   DEV clears BE80? NO  CI>BE80? NO
+
+6. near resistance <0.10 ATR + DOWN | 10m | down
+   n=52 W=23 L=29 T=2 WR=44.23% CI=[31.59%,57.66%] lift=-5.2pp cov=1.2%
+   EV@80=-0.2038 EV@90=-0.1596 coverage=1.2%
+   DEV clears BE80? NO  CI>BE80? NO
+
+7. FADE near resistance (<0.30) + DOWN | 1m | down
+   n=106 W=46 L=60 T=6 WR=43.40% CI=[34.36%,52.90%] lift=-6.0pp cov=2.6%
+   EV@80=-0.2189 EV@90=-0.1755 coverage=2.6%
+   DEV clears BE80? NO  CI>BE80? NO
+
+8. FADE near support (<0.30) + UP | 1m | up
+   n=103 W=41 L=62 T=3 WR=39.81% CI=[30.88%,49.46%] lift=-9.6pp cov=2.4%
+   EV@80=-0.2835 EV@90=-0.2437 coverage=2.4%
+   DEV clears BE80? NO  CI>BE80? NO
+
+9. FADE near resistance (<0.30) + DOWN | 5m | down
+   n=111 W=44 L=67 T=1 WR=39.64% CI=[31.03%,48.94%] lift=-9.8pp cov=2.6%
+   EV@80=-0.2865 EV@90=-0.2468 coverage=2.6%
+   DEV clears BE80? NO  CI>BE80? NO
+
+10. FADE near support (<0.30) + UP | 15m | up
+   n=104 W=40 L=64 T=2 WR=38.46% CI=[29.68%,48.06%] lift=-10.9pp cov=2.4%
+   EV@80=-0.3077 EV@90=-0.2692 coverage=2.4%
+   DEV clears BE80? NO  CI>BE80? NO
+
+DEV survivors (n≥100 & WR>BE80): 0
+  (none)
+
+MULTIPLE_TESTING_RISK: 80 predefined hypotheses×expiries tested; only chronological DEV used for selection.
+
+================================
+HOLDOUT RESULTS
+================================
+
+NOT READ — no DEV survivor cleared n≥100 and WR>BE80.
+Holdout remains sealed for future predefined candidates only.
+
+================================
+BEST FINAL CANDIDATE
+================================
+
+None.
+No candidate simultaneously satisfied DEV gate and untouched holdout CI > 55.56%.
+
+================================
+MODEL (optional logistic, TRAIN→DEV)
+================================
+
+Model: L2 logistic on 18 PIT features → P(win @10m)
+DEV thresholds:
+  P>=0.55: n=857 W=410 L=447 T=14 WR=47.84% CI=[44.51%,51.19%] lift=-1.6pp cov=20.1%
+  P>=0.58: n=289 W=139 L=150 T=3 WR=48.10% CI=[42.40%,53.84%] lift=-1.3pp cov=6.7%
+  P>=0.6: n=97 W=51 L=46 T=0 WR=52.58% CI=[42.73%,62.23%] lift=3.2pp cov=2.2%
+HOLDOUT: NOT RUN (no DEV model survivor)
+
+Does model improve on simple rules? NO
+
+================================
+FAILURE ANALYSIS
+================================
+
+- Overall binary remains ~coin-flip across expiries.
+- Proximity to S/R alone does not produce stable WR > 55.56% with adequate DEV n.
+- Rejection/breakout labels visible at entry are rare or weak; many cells are underpowered.
+- Any TRAIN/DEV pockets that look elevated are subject to multiple-testing across 80 cells.
+- Dataset spans ~1 week of live binary history — HOLDOUT n≈862 limits strong claims.
+- Confidence still does not rescue level context (not used as primary filter).
+
+================================
+FINAL VERDICT
+================================
+
+LEVEL_CONTEXT_IMPROVES_WIN_RATE_BUT_BELOW_BREAK_EVEN
+
+Most important answer:
+Support/resistance context does NOT identify a sufficiently large, out-of-sample subset of the existing ~49% binary predictions that clears binary payout break-even under the pre-registered chronological protocol.
+
+NO PRODUCTION BINARY CHANGES WERE MADE.

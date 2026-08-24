@@ -1,0 +1,58 @@
+GOLDENXPERIENCE
+CARRY + MOMENTUM EDGE HUNT
+wave: carry_momentum_wave_1
+strategy: carry-momentum-v1 (RESEARCH_ONLY)
+generated: 2026-08-21
+
+Experiments run: 18
+DEV rejects: 15
+Sealed rejects: 3
+Robustness rejects: 0
+Robust passes: 0
+
+DATA
+Currencies: USD EUR GBP JPY CHF CAD AUD NZD
+Pairs (used): EUR_USD GBP_USD USD_JPY USD_CHF USD_CAD AUD_USD NZD_USD EUR_JPY GBP_JPY AUD_JPY EUR_GBP
+  (EUR_CHF skipped — 0 H1 bars)
+Date coverage: ~2020–2026 H1 (EUR_USD from 2016); zones TRAIN→2022 / DEV 2023–2024 / SEALED 2025+
+Yield sources:
+  - USD primary: FRED DGS2 (daily 2Y), PIT lag +1 calendar day
+  - EUR/GBP/JPY/CHF/CAD/AUD/NZD: FRED OECD IRLTLT01* monthly long-term
+    (documented substitute where liquid 2Y daily unavailable)
+  - Monthly PIT: available first day of following month
+Spread data coverage: OANDA market_candle_quotes H1 bid/ask where present
+Financing: estimated from PIT differentials (OANDA historical financing NOT in DB)
+H4 native cross-section: DATA limited — deep H4 only on few pairs; used H1 + daily decision stride
+
+COMPONENT DIAGNOSIS
+- H1 Momentum-only: NO_EDGE (negative expectancy TRAIN & DEV)
+- H2 Carry-only (level): DEV mean >0 but REJECTED (single_pair_dominates); not a portfolio edge
+- H2b Carry-only (changes): NO_EDGE on DEV
+- H3 Combination (full agreement): DEV CI>0 twice (20d & 15d) → BOTH SEALED FAIL (CI through 0, ~flat/neg)
+- H4 Yield-change + mom: DEV CI includes 0
+- H5/H6 Vol & risk-off filters: do not produce DEV CI>0 without concentration issues
+- H7 JPY-only (fresh): DEV CI>0 → SEALED FAIL (classic holdout collapse; not Apr-2025 tuned)
+- Sensitivity neighbors (hold 3/10, mom 15/25): no ROBUST_PASS
+
+SEALED FAILURES (DEV winners)
+1) CM-H3 full agreement 20d/5d: sealed n=135 E[netAtr]=-0.37 CI=[-1.42, 0.69]
+2) CM-H7 JPY-only: sealed n=73 E=-0.84 CI=[-3.90, 2.21]
+3) CM-H3-mom15: sealed n=138 E=-0.20 CI=[-1.38, 0.97]
+
+BEST CANDIDATE
+ID: none (no freeze)
+(Closest mirage: CM-H3 DEV pass that died on sealed)
+
+LEAKAGE AUDIT: PASS (design) — see LEAKAGE_AND_FINANCING.md
+
+LIVE: LIVE_EXECUTABLE_FAMILIES remains []
+
+FINAL VERDICT:
+NO_EDGE_FOUND
+
+Interpretation: Cross-sectional FX momentum alone has no after-cost edge in this setup.
+Static carry shows a fragile single-pair DEV pocket, not a robust portfolio effect.
+Combining momentum+carry overfits DEV and fails purged sealed holdout 2025–2026.
+Do not promote; do not enable live. Next economically sensible step (if any): backfill
+native H4/D1 for the full pair universe and/or true short-rate daily series for all 8
+CCYs — not parameter fishing on this wave.

@@ -1,0 +1,232 @@
+[
+  {
+    "seq": "35",
+    "pair": "EUR_GBP",
+    "actualDir": "long",
+    "actualR": -1,
+    "invDir": "short",
+    "invR": -1,
+    "invOutcome": "stop_first",
+    "ok": true
+  },
+  {
+    "seq": "37",
+    "pair": "EUR_USD",
+    "actualDir": "long",
+    "actualR": 2,
+    "invDir": "short",
+    "invR": -1,
+    "invOutcome": "stop_first",
+    "ok": true
+  },
+  {
+    "seq": "39",
+    "pair": "USD_CAD",
+    "actualDir": "long",
+    "actualR": -1,
+    "invDir": "short",
+    "invR": 2,
+    "invOutcome": "target_first",
+    "ok": true
+  },
+  {
+    "seq": "40",
+    "pair": "GBP_USD",
+    "actualDir": "short",
+    "actualR": -1,
+    "invDir": "long",
+    "invR": 2,
+    "invOutcome": "target_first",
+    "ok": true
+  },
+  {
+    "seq": "41",
+    "pair": "AUD_USD",
+    "actualDir": "short",
+    "actualR": -1,
+    "invDir": "long",
+    "invR": 2,
+    "invOutcome": "target_first",
+    "ok": true
+  },
+  {
+    "seq": "43",
+    "pair": "AUD_USD",
+    "actualDir": "long",
+    "actualR": 0.9976186413213721,
+    "invDir": "short",
+    "invR": -1,
+    "invOutcome": "stop_first",
+    "ok": true
+  },
+  {
+    "seq": "47",
+    "pair": "EUR_GBP",
+    "actualDir": "long",
+    "actualR": 1.241154377689528,
+    "invDir": "short",
+    "invR": -1,
+    "invOutcome": "stop_first",
+    "ok": true
+  },
+  {
+    "seq": "48",
+    "pair": "USD_JPY",
+    "actualDir": "long",
+    "actualR": -1,
+    "invDir": "short",
+    "invR": 1.2018403531358743,
+    "invOutcome": "forced_close",
+    "ok": true
+  },
+  {
+    "seq": "50",
+    "pair": "EUR_USD",
+    "actualDir": "long",
+    "actualR": -0.4801264256153004,
+    "invDir": "short",
+    "invR": -1,
+    "invOutcome": "stop_first",
+    "ok": true
+  },
+  {
+    "seq": "51",
+    "pair": "AUD_USD",
+    "actualDir": "long",
+    "actualR": -1,
+    "invDir": "short",
+    "invR": 0.6163462686068933,
+    "invOutcome": "forced_close",
+    "ok": true
+  },
+  {
+    "seq": "53",
+    "pair": "USD_JPY",
+    "actualDir": "short",
+    "actualR": -1,
+    "invDir": "long",
+    "invR": 1.7091383646685439,
+    "invOutcome": "forced_close",
+    "ok": true
+  },
+  {
+    "seq": "54",
+    "pair": "GBP_USD",
+    "actualDir": "long",
+    "actualR": 0.08058470811677616,
+    "invDir": "short",
+    "invR": -1,
+    "invOutcome": "stop_first",
+    "ok": true
+  },
+  {
+    "seq": "55",
+    "pair": "USD_CAD",
+    "actualDir": "short",
+    "actualR": -0.37310983120864816,
+    "invDir": "long",
+    "invR": -1,
+    "invOutcome": "stop_first",
+    "ok": true
+  },
+  {
+    "seq": "60",
+    "pair": "AUD_JPY",
+    "actualDir": "long",
+    "actualR": 0.8905258091844195,
+    "invDir": "short",
+    "invR": -1,
+    "invOutcome": "stop_first",
+    "ok": true
+  },
+  {
+    "seq": "62",
+    "pair": "USD_CHF",
+    "actualDir": "long",
+    "actualR": -0.051482942520639924,
+    "invDir": "short",
+    "invR": -0.010838514214857313,
+    "invOutcome": "forced_close",
+    "ok": true
+  },
+  {
+    "seq": "63",
+    "pair": "AUD_USD",
+    "actualDir": "short",
+    "actualR": -0.17302410391359901,
+    "invDir": "long",
+    "invR": 0.015266832698245442,
+    "invOutcome": "forced_close",
+    "ok": true
+  },
+  {
+    "seq": "69",
+    "pair": "USD_CAD",
+    "actualDir": "short",
+    "actualR": -1,
+    "invDir": "long",
+    "invR": 0.7050245605366544,
+    "invOutcome": "forced_close",
+    "ok": true
+  },
+  {
+    "seq": "70",
+    "pair": "EUR_USD",
+    "actualDir": "long",
+    "actualR": -1,
+    "invDir": "short",
+    "invR": 1.1736106567991513,
+    "invOutcome": "forced_close",
+    "ok": true
+  },
+  {
+    "seq": "72",
+    "pair": "USD_CHF",
+    "actualDir": "short",
+    "actualR": -1,
+    "invDir": "long",
+    "invR": 0.9999001362622953,
+    "invOutcome": "forced_close",
+    "ok": true
+  },
+  {
+    "seq": "73",
+    "pair": "AUD_JPY",
+    "actualDir": "short",
+    "actualR": -1,
+    "invDir": "long",
+    "invR": 2,
+    "invOutcome": "target_first",
+    "ok": true
+  },
+  {
+    "seq": "74",
+    "pair": "EUR_GBP",
+    "actualDir": "long",
+    "actualR": -1,
+    "invDir": "short",
+    "invR": 1.5901418780318026,
+    "invOutcome": "forced_close",
+    "ok": true
+  },
+  {
+    "seq": "76",
+    "pair": "AUD_JPY",
+    "actualDir": "long",
+    "actualR": 0.9604537789354898,
+    "invDir": "short",
+    "invR": -1,
+    "invOutcome": "stop_first",
+    "ok": true
+  },
+  {
+    "seq": "77",
+    "pair": "GBP_USD",
+    "actualDir": "short",
+    "actualR": -0.279224364466634,
+    "invDir": "long",
+    "invR": 0.1249161630508862,
+    "invOutcome": "forced_close",
+    "ok": true
+  }
+]

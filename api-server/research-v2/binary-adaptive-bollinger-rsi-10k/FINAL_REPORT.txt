@@ -1,0 +1,532 @@
+GOLDENXPERIENCE
+10,000-SIGNAL HISTORICAL ADAPTIVE BINARY TEST
+(adaptive-bollinger-rsi-v2-10k)
+
+================================
+DATA
+================================
+
+Periods:
+  studyFloor: 2024-12-29T21:00:00.000Z
+  holdoutStart (frozen): 2026-05-23T21:00:00.000Z
+  gateStart (COMPARISON week): 2026-08-14T21:00:00.000Z
+  dataEnd: 2026-08-21T21:00:00.000Z
+  LEARN (DEV): [2024-12-29T21:00:00.000Z, 2026-05-23T21:00:00.000Z)
+  HOLDOUT (sealed ~final 20% / ≤90d): [2026-05-23T21:00:00.000Z, 2026-08-21T21:00:00.000Z]
+  COMPARISON (recent week, previously inspected — NOT sealed): [2026-08-14T21:00:00.000Z, 2026-08-21T21:00:00.000Z]
+Symbols: EUR_USD, GBP_USD, USD_JPY, AUD_USD, NZD_USD, USD_CAD, USD_CHF, EUR_GBP, EUR_JPY, GBP_JPY, AUD_JPY, EUR_AUD
+Signals: LEARN=11803 HOLDOUT=1906 COMPARISON=172 TOTAL=13881
+Resolved decided: FULL=13634 LEARN=11606 HOLDOUT=1860
+Signal date span: 2024-12-29T22:32:00.000Z → 2026-08-21T20:36:00.000Z
+Lookback requested: 600d (target ≥10000 decided)
+Replay method: generate all signals → sort by entryMs → single forward pass; evidence flush when resolveMs < T; 10m expiry
+Adaptive evidence initialization: empty store; only prior resolved outcomes
+M1 bars: 7360000
+M1 coverage: 2024-12-23T13:15:00.000Z → 2026-08-21T21:00:00.000Z
+Gaps / per-symbol:
+  EUR_USD: bars=615000 span≈605.7d intradayGaps≈460
+  GBP_USD: bars=615000 span≈605.6d intradayGaps≈508
+  USD_JPY: bars=615000 span≈605.9d intradayGaps≈569
+  AUD_USD: bars=610000 span≈602.6d intradayGaps≈533
+  NZD_USD: bars=610000 span≈603.3d intradayGaps≈858
+  USD_CAD: bars=615000 span≈606.3d intradayGaps≈553
+  USD_CHF: bars=610000 span≈603.3d intradayGaps≈686
+  EUR_GBP: bars=610000 span≈602.5d intradayGaps≈480
+  EUR_JPY: bars=615000 span≈605.8d intradayGaps≈548
+  GBP_JPY: bars=615000 span≈603.8d intradayGaps≈405
+  AUD_JPY: bars=615000 span≈605.3d intradayGaps≈430
+  EUR_AUD: bars=615000 span≈605.1d intradayGaps≈414
+Short OANDA history:
+  (none)
+Reached ≥10000 decided: YES
+
+Previously inspected data: COMPARISON week (bollinger-range / adaptive gate cohort)
+Truly unseen / sealed: HOLDOUT final ~20% (config frozen before holdout interpretation)
+
+================================
+FROZEN BASE STRATEGY
+================================
+
+BB: period=20 k=2 population stdev (variance = mean(x^2)-mean(x)^2)
+RSI: Wilder14; UP if RSI<=30; DOWN if RSI>=70
+Re-entry: high>upper / low<lower excursion; close back inside; dedup until mid return + new outside
+Expiry: 10 minutes only
+Variant: BB_REENTRY_RSI | BB20
+Thresholds: NOT retuned against outcomes
+
+Reproduced previous result (TEST window dataEnd-7d):
+n: 168
+WR: 58.93%
+CI: [51.37%, 66.09%]
+EV80: 0.061
+(expected ≈ n=168 WR=58.93% EV80=+0.061) GATE PASS
+
+================================
+ADAPTIVE ARCHITECTURE
+================================
+
+Existing components reused:
+  - wilsonInterval, evidenceLabel from binary-regimes.ts
+  - determineSelectorState, BINARY_ADAPTIVE_SELECTOR_CONFIG from binary-adaptive-selector.ts
+  - classifyBinaryResult, getResearchCandles, MAJOR_INSTRUMENTS
+  - NO live selectBinaryModel; NO production adaptive table writes
+Context features (coarse, pre-registered):
+  direction, adxBucket (<=20|20-25|25-30|>30), session (ET asia/london/overlap/ny/off), rsiSeverity, bbWidthPctile
+Evidence hierarchy (first with n≥scopeMin):
+  direction|adxBucket (30) → direction|session (30) → adxBucket (30) → direction (40) → overall (50)
+Backoff logic: walk hierarchy; if no scope meets min → TAKE (cannot filter)
+COLLECTING threshold: <50 overall prior decided
+LEARNING threshold: 50–99
+ACTIVE threshold: ≥100
+COLLECTING policy for selective rules: TAKE (no filtering)
+Primary TAKE rule (pre-registered): EST_GE_0.5556
+
+LEARN state mix: COLLECTING=50 LEARNING=50 ACTIVE_SELECTION=11703
+HOLDOUT state mix: COLLECTING=0 LEARNING=0 ACTIVE_SELECTION=1906
+
+================================
+HEADLINE
+================================
+
+FROZEN ALL SIGNALS (LEARN)
+n=11606 W=6282 L=5324 T=197 WR=54.13% CI=[53.22%,55.03%] EV80=-0.026
+
+ADAPTIVE TAKE (primary EST_GE_0.5556 on LEARN)
+n: 2092
+coverage: 18.05%
+WR: 52.34%
+95% CI: [50.20%, 54.48%]
+EV80: -0.058
+
+ADAPTIVE WAIT COUNTERFACTUAL (LEARN)
+n: 9514
+WR: 54.52%
+95% CI: [53.52%, 55.52%]
+EV80: -0.019
+
+Improvement TAKE vs ALL (LEARN): -1.78pp
+Improvement TAKE vs WAIT (LEARN): -2.18pp
+
+MID/DEV TAKE vs ALL at ~10k decided (pre-holdout prefix):
+  ALL n=10000 W=5402 L=4598 T=0 WR=54.02% CI=[53.04%,55.00%] EV80=-0.028
+  TAKE n=1929 W=1002 L=927 T=0 WR=51.94% CI=[49.71%,54.17%] EV80=-0.065 cov=19.29%
+  WAIT n=8071 W=4400 L=3671 T=0 WR=54.52% CI=[53.43%,55.60%] EV80=-0.019
+
+FULL stream: ALL n=13634 W=7385 L=6249 T=247 WR=54.17% CI=[53.33%,55.00%] EV80=-0.025 | TAKE n=2291 W=1207 L=1084 T=50 WR=52.68% CI=[50.64%,54.72%] EV80=-0.052
+
+================================
+LEARNING CURVE
+================================
+
+resolvedN | ALL_n ALL_WR ALL_EV80 | TAKE_n TAKE_WR TAKE_EV80 cov | WAIT_WR | activeCtx | ctxMed | ≥100 | ≥300 | ≥500 | ≥1000
+1000 | 1003 54.64% -0.017 | 385 51.17% -0.079 38.36% | 56.80% | 23 | 93 | 11 | 4 | 2 | 0
+2000 | 2001 55.02% -0.010 | 925 53.08% -0.045 46.22% | 56.69% | 24 | 201 | 21 | 8 | 6 | 2
+3000 | 3001 54.58% -0.018 | 1312 52.21% -0.060 43.80% | 56.42% | 24 | 299 | 22 | 12 | 6 | 3
+5000 | 5005 52.97% -0.047 | 1632 51.84% -0.067 32.68% | 53.51% | 24 | 482 | 22 | 21 | 11 | 6
+7500 | 7502 53.77% -0.032 | 1678 51.67% -0.070 22.40% | 54.38% | 24 | 719 | 24 | 21 | 19 | 11
+10000 | 10003 54.01% -0.028 | 1929 51.94% -0.065 19.32% | 54.51% | 24 | 949 | 24 | 22 | 21 | 11
+
+================================
+CONTEXT SAMPLE-SIZE DIAGNOSTICS
+================================
+
+(at learning checkpoints — see LEARNING CURVE columns ctxMed / ≥100 / ≥300 / ≥500 / ≥1000)
+Final evidence cells (ex-overall): 24
+Final active contexts (n≥30): 24
+
+================================
+HOLDOUT ONE-SHOT (sealed)
+================================
+
+FROZEN ALL: n=1860 W=1004 L=856 T=46 WR=53.98% CI=[51.71%,56.23%] EV80=-0.028
+ADAPTIVE TAKE (EST_GE_0.5556): n=177 W=99 L=78 T=9 WR=55.93% CI=[48.57%,63.04%] EV80=0.007 cov=9.76%
+ADAPTIVE WAIT: n=1683 W=905 L=778 T=37 WR=53.77% CI=[51.39%,56.14%] EV80=-0.032
+Δ(TAKE−ALL)=1.95pp  Δ(TAKE−WAIT)=2.16pp
+
+================================
+COMPARISON WEEK (previously inspected — NOT sealed)
+================================
+
+ALL: n=168 W=99 L=69 T=4 WR=58.93% CI=[51.37%,66.09%] EV80=0.061
+TAKE (EST_GE_0.5556): n=22 W=13 L=9 T=2 WR=59.09% CI=[38.73%,76.74%] EV80=0.064 cov=13.95%
+WAIT: n=146 W=86 L=60 T=2 WR=58.90% CI=[50.79%,66.56%] EV80=0.060
+Δ(TAKE−ALL)=0.16pp
+
+================================
+SELECTOR THRESHOLDS
+================================
+
+LEARN (all pre-registered rules):
+  ALWAYS:
+    TAKE n=11606 cov=100.00% WR=54.13% CI=[53.22%,55.03%] EV80=-0.026
+    WAIT n=0 WR=0.00%
+    Δ(TAKE−ALL)=0.00pp  Δ(TAKE−WAIT)=54.13pp
+  EST_GE_0.5556:
+    TAKE n=2092 cov=18.05% WR=52.34% CI=[50.20%,54.48%] EV80=-0.058
+    WAIT n=9514 WR=54.52%
+    Δ(TAKE−ALL)=-1.78pp  Δ(TAKE−WAIT)=-2.18pp
+  EST_GE_0.58:
+    TAKE n=310 cov=2.63% WR=48.39% CI=[42.88%,53.94%] EV80=-0.129
+    WAIT n=11296 WR=54.28%
+    Δ(TAKE−ALL)=-5.74pp  Δ(TAKE−WAIT)=-5.90pp
+  EST_GE_0.60:
+    TAKE n=64 cov=0.54% WR=37.50% CI=[26.67%,49.75%] EV80=-0.325
+    WAIT n=11542 WR=54.22%
+    Δ(TAKE−ALL)=-16.63pp  Δ(TAKE−WAIT)=-16.72pp
+  CI_LOW_GT_0.50:
+    TAKE n=7804 cov=67.21% WR=53.60% CI=[52.49%,54.71%] EV80=-0.035
+    WAIT n=3802 WR=55.21%
+    Δ(TAKE−ALL)=-0.53pp  Δ(TAKE−WAIT)=-1.61pp
+  CI_LOW_GT_0.5556:
+    TAKE n=50 cov=0.42% WR=40.00% CI=[27.61%,53.82%] EV80=-0.280
+    WAIT n=11556 WR=54.19%
+    Δ(TAKE−ALL)=-14.13pp  Δ(TAKE−WAIT)=-14.19pp
+
+HOLDOUT (same rules, one-shot):
+  ALWAYS:
+    TAKE n=1860 cov=100.00% WR=53.98% CI=[51.71%,56.23%] EV80=-0.028
+    WAIT n=0 WR=0.00%
+    Δ(TAKE−ALL)=0.00pp  Δ(TAKE−WAIT)=53.98pp
+  EST_GE_0.5556:
+    TAKE n=177 cov=9.76% WR=55.93% CI=[48.57%,63.04%] EV80=0.007
+    WAIT n=1683 WR=53.77%
+    Δ(TAKE−ALL)=1.95pp  Δ(TAKE−WAIT)=2.16pp
+  EST_GE_0.58:
+    TAKE n=0 cov=0.00% WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+    WAIT n=1860 WR=53.98%
+    Δ(TAKE−ALL)=-53.98pp  Δ(TAKE−WAIT)=-53.98pp
+  EST_GE_0.60:
+    TAKE n=0 cov=0.00% WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+    WAIT n=1860 WR=53.98%
+    Δ(TAKE−ALL)=-53.98pp  Δ(TAKE−WAIT)=-53.98pp
+  CI_LOW_GT_0.50:
+    TAKE n=1830 cov=98.32% WR=53.72% CI=[51.43%,55.99%] EV80=-0.033
+    WAIT n=30 WR=70.00%
+    Δ(TAKE−ALL)=-0.26pp  Δ(TAKE−WAIT)=-16.28pp
+  CI_LOW_GT_0.5556:
+    TAKE n=0 cov=0.00% WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+    WAIT n=1860 WR=53.98%
+    Δ(TAKE−ALL)=-53.98pp  Δ(TAKE−WAIT)=-53.98pp
+
+================================
+QUALITY RANKING (LEARN, ACTIVE/LEARNING est)
+================================
+
+  Q1: n=2316 WR=55.74%
+  Q2: n=2308 WR=53.77%
+  Q3: n=2314 WR=54.88%
+  Q4: n=2308 WR=53.94%
+  Q5: n=2310 WR=52.60%
+
+Does adaptive score monotonically rank realized WR?
+NO
+
+================================
+RANDOM SELECTOR CONTROL (LEARN, 1000 shuffles)
+================================
+
+Adaptive coverage: 18.05%
+Adaptive WR: 52.34%
+
+Matched random selector (same coverage on decided):
+mean WR: 54.13%
+95% random range: [52.22%, 56.13%]
+Adaptive percentile vs random: 3.10%
+Beats random (TAKE WR > random 97.5%ile): NO
+
+================================
+SIMPLE FILTER CONTROLS (LEARN)
+================================
+
+  take-all: TAKE n=11606 W=6282 L=5324 T=197 WR=54.13% CI=[53.22%,55.03%] EV80=-0.026 cov=100.00% | WAIT n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+  RSI-extreme-only: TAKE n=815 W=491 L=324 T=6 WR=60.25% CI=[56.84%,63.55%] EV80=0.084 cov=6.96% | WAIT n=10791 W=5791 L=5000 T=191 WR=53.67% CI=[52.72%,54.60%] EV80=-0.034
+  ADX>25: TAKE n=9355 W=5045 L=4310 T=153 WR=53.93% CI=[52.92%,54.94%] EV80=-0.029 cov=80.56% | WAIT n=2251 W=1237 L=1014 T=44 WR=54.95% CI=[52.89%,57.00%] EV80=-0.011
+  ADX<=20: TAKE n=398 W=219 L=179 T=14 WR=55.03% CI=[50.11%,59.84%] EV80=-0.010 cov=3.49% | WAIT n=11208 W=6063 L=5145 T=183 WR=54.10% CI=[53.17%,55.02%] EV80=-0.026
+  direction-only-UP: TAKE n=5740 W=3119 L=2621 T=88 WR=54.34% CI=[53.05%,55.62%] EV80=-0.022 cov=49.38% | WAIT n=5866 W=3163 L=2703 T=109 WR=53.92% CI=[52.64%,55.19%] EV80=-0.029
+  Adaptive (EST_GE_0.5556): TAKE n=2092 W=1095 L=997 T=39 WR=52.34% CI=[50.20%,54.48%] EV80=-0.058 cov=18.05%
+
+================================
+THRESHOLD ATTAINMENT (LEARN TAKE EST_GE_0.5556)
+================================
+
+  55.56%: MISS n=2092 cov=18.05% WR=52.34% CI=[50.20%,54.48%] EV80=-0.058 days=345 symbols=12
+  58.00%: MISS n=2092 cov=18.05% WR=52.34% CI=[50.20%,54.48%] EV80=-0.058 days=345 symbols=12
+  60.00%: MISS n=2092 cov=18.05% WR=52.34% CI=[50.20%,54.48%] EV80=-0.058 days=345 symbols=12
+  62.00%: MISS n=2092 cov=18.05% WR=52.34% CI=[50.20%,54.48%] EV80=-0.058 days=345 symbols=12
+  65.00%: MISS n=2092 cov=18.05% WR=52.34% CI=[50.20%,54.48%] EV80=-0.058 days=345 symbols=12
+
+HOLDOUT TAKE attainment:
+  55.56%: HIT n=177 cov=9.76% WR=55.93% CI=[48.57%,63.04%] EV80=0.007 days=64 symbols=12
+  58.00%: MISS n=177 cov=9.76% WR=55.93% CI=[48.57%,63.04%] EV80=0.007 days=64 symbols=12
+  60.00%: MISS n=177 cov=9.76% WR=55.93% CI=[48.57%,63.04%] EV80=0.007 days=64 symbols=12
+  62.00%: MISS n=177 cov=9.76% WR=55.93% CI=[48.57%,63.04%] EV80=0.007 days=64 symbols=12
+  65.00%: MISS n=177 cov=9.76% WR=55.93% CI=[48.57%,63.04%] EV80=0.007 days=64 symbols=12
+
+================================
+ROLLING WINDOWS (LEARN, EST_GE_0.5556)
+================================
+
+window=250:
+  [1..250] ALL n=248 W=121 L=127 T=2 WR=48.79% CI=[42.64%,54.98%] EV80=-0.122 | TAKE n=67 W=25 L=42 T=0 WR=37.31% CI=[26.72%,49.28%] EV80=-0.328 cov=26.80%
+  [251..500] ALL n=249 W=143 L=106 T=1 WR=57.43% CI=[51.22%,63.41%] EV80=0.034 | TAKE n=65 W=35 L=30 T=0 WR=53.85% CI=[41.85%,65.41%] EV80=-0.031 cov=26.00%
+  [501..750] ALL n=246 W=137 L=109 T=4 WR=55.69% CI=[49.44%,61.76%] EV80=0.002 | TAKE n=100 W=53 L=47 T=1 WR=53.00% CI=[43.29%,62.49%] EV80=-0.046 cov=40.40%
+  [751..1000] ALL n=246 W=138 L=108 T=4 WR=56.10% CI=[49.85%,62.16%] EV80=0.010 | TAKE n=150 W=81 L=69 T=3 WR=54.00% CI=[46.02%,61.78%] EV80=-0.028 cov=61.20%
+  [1001..1250] ALL n=247 W=138 L=109 T=3 WR=55.87% CI=[49.64%,61.93%] EV80=0.006 | TAKE n=135 W=71 L=64 T=2 WR=52.59% CI=[44.21%,60.83%] EV80=-0.053 cov=54.80%
+  [1251..1500] ALL n=240 W=136 L=104 T=10 WR=56.67% CI=[50.34%,62.78%] EV80=0.020 | TAKE n=143 W=84 L=59 T=4 WR=58.74% CI=[50.55%,66.48%] EV80=0.057 cov=58.80%
+  [1501..1750] ALL n=246 W=128 L=118 T=4 WR=52.03% CI=[45.81%,58.20%] EV80=-0.063 | TAKE n=120 W=60 L=60 T=2 WR=50.00% CI=[41.19%,58.81%] EV80=-0.100 cov=48.80%
+  [1751..2000] ALL n=245 W=138 L=107 T=5 WR=56.33% CI=[50.07%,62.39%] EV80=0.014 | TAKE n=129 W=71 L=58 T=4 WR=55.04% CI=[46.43%,63.35%] EV80=-0.009 cov=53.20%
+  [2001..2250] ALL n=245 W=138 L=107 T=5 WR=56.33% CI=[50.07%,62.39%] EV80=0.014 | TAKE n=146 W=78 L=68 T=3 WR=53.42% CI=[45.35%,61.32%] EV80=-0.038 cov=59.60%
+  [2251..2500] ALL n=248 W=131 L=117 T=2 WR=52.82% CI=[46.61%,58.95%] EV80=-0.049 | TAKE n=122 W=59 L=63 T=2 WR=48.36% CI=[39.68%,57.14%] EV80=-0.130 cov=49.60%
+  [2501..2750] ALL n=247 W=131 L=116 T=3 WR=53.04% CI=[46.81%,59.17%] EV80=-0.045 | TAKE n=38 W=19 L=19 T=1 WR=50.00% CI=[34.85%,65.15%] EV80=-0.100 cov=15.60%
+  [2751..3000] ALL n=248 W=133 L=115 T=2 WR=53.63% CI=[47.41%,59.73%] EV80=-0.035 | TAKE n=75 W=38 L=37 T=0 WR=50.67% CI=[39.60%,61.67%] EV80=-0.088 cov=30.00%
+  [3001..3250] ALL n=245 W=144 L=101 T=5 WR=58.78% CI=[52.52%,64.76%] EV80=0.058 | TAKE n=92 W=53 L=39 T=1 WR=57.61% CI=[47.41%,67.20%] EV80=0.037 cov=37.20%
+  [3251..3500] ALL n=249 W=118 L=131 T=1 WR=47.39% CI=[41.27%,53.58%] EV80=-0.147 | TAKE n=70 W=31 L=39 T=0 WR=44.29% CI=[33.25%,55.92%] EV80=-0.203 cov=28.00%
+  [3501..3750] ALL n=249 W=133 L=116 T=1 WR=53.41% CI=[47.21%,59.51%] EV80=-0.039 | TAKE n=44 W=23 L=21 T=0 WR=52.27% CI=[37.94%,66.25%] EV80=-0.059 cov=17.60%
+  [3751..4000] ALL n=247 W=147 L=100 T=3 WR=59.51% CI=[53.29%,65.44%] EV80=0.071 | TAKE n=24 W=13 L=11 T=0 WR=54.17% CI=[35.07%,72.11%] EV80=-0.025 cov=9.60%
+  [4001..4250] ALL n=246 W=130 L=116 T=4 WR=52.85% CI=[46.61%,58.99%] EV80=-0.049 | TAKE n=46 W=24 L=22 T=1 WR=52.17% CI=[38.14%,65.88%] EV80=-0.061 cov=18.80%
+  [4251..4500] ALL n=247 W=122 L=125 T=3 WR=49.39% CI=[43.21%,55.59%] EV80=-0.111 | TAKE n=25 W=9 L=16 T=0 WR=36.00% CI=[20.25%,55.48%] EV80=-0.352 cov=10.00%
+  [4501..4750] ALL n=243 W=101 L=142 T=7 WR=41.56% CI=[35.55%,47.84%] EV80=-0.252 | TAKE n=22 W=10 L=12 T=3 WR=45.45% CI=[26.92%,65.34%] EV80=-0.182 cov=10.00%
+  [4751..5000] ALL n=246 W=111 L=135 T=4 WR=45.12% CI=[39.03%,51.37%] EV80=-0.188 | TAKE n=18 W=8 L=10 T=1 WR=44.44% CI=[24.56%,66.28%] EV80=-0.200 cov=7.60%
+  [5001..5250] ALL n=246 W=129 L=117 T=4 WR=52.44% CI=[46.21%,58.59%] EV80=-0.056 | TAKE n=8 W=3 L=5 T=0 WR=37.50% CI=[13.68%,69.43%] EV80=-0.325 cov=3.20%
+  [5251..5500] ALL n=245 W=137 L=108 T=5 WR=55.92% CI=[49.66%,62.00%] EV80=0.007 | TAKE n=1 W=1 L=0 T=0 WR=100.00% CI=[20.65%,100.00%] EV80=0.800 cov=0.40%
+  [5501..5750] ALL n=246 W=130 L=116 T=4 WR=52.85% CI=[46.61%,58.99%] EV80=-0.049 | TAKE n=7 W=4 L=3 T=0 WR=57.14% CI=[25.05%,84.18%] EV80=0.029 cov=2.80%
+  [5751..6000] ALL n=244 W=138 L=106 T=6 WR=56.56% CI=[50.28%,62.63%] EV80=0.018 | TAKE n=2 W=2 L=0 T=0 WR=100.00% CI=[34.24%,100.00%] EV80=0.800 cov=0.80%
+  [6001..6250] ALL n=250 W=143 L=107 T=0 WR=57.20% CI=[51.00%,63.18%] EV80=0.030 | TAKE n=4 W=2 L=2 T=0 WR=50.00% CI=[15.00%,85.00%] EV80=-0.100 cov=1.60%
+  [6251..6500] ALL n=245 W=126 L=119 T=5 WR=51.43% CI=[45.20%,57.62%] EV80=-0.074 | TAKE n=7 W=3 L=4 T=0 WR=42.86% CI=[15.82%,74.95%] EV80=-0.229 cov=2.80%
+  [6501..6750] ALL n=246 W=153 L=93 T=4 WR=62.20% CI=[55.99%,68.02%] EV80=0.120 | TAKE n=3 W=2 L=1 T=0 WR=66.67% CI=[20.77%,93.85%] EV80=0.200 cov=1.20%
+  [6751..7000] ALL n=243 W=130 L=113 T=7 WR=53.50% CI=[47.22%,59.67%] EV80=-0.037 | TAKE n=2 W=2 L=0 T=0 WR=100.00% CI=[34.24%,100.00%] EV80=0.800 cov=0.80%
+  [7001..7250] ALL n=247 W=141 L=106 T=3 WR=57.09% CI=[50.85%,63.10%] EV80=0.028 | TAKE n=5 W=2 L=3 T=0 WR=40.00% CI=[11.76%,76.93%] EV80=-0.280 cov=2.00%
+  [7251..7500] ALL n=246 W=128 L=118 T=4 WR=52.03% CI=[45.81%,58.20%] EV80=-0.063 | TAKE n=7 W=1 L=6 T=0 WR=14.29% CI=[2.57%,51.31%] EV80=-0.743 cov=2.80%
+  [7501..7750] ALL n=244 W=131 L=113 T=6 WR=53.69% CI=[47.42%,59.84%] EV80=-0.034 | TAKE n=2 W=0 L=2 T=2 WR=0.00% CI=[0.00%,65.76%] EV80=-1.000 cov=1.60%
+  [7751..8000] ALL n=245 W=135 L=110 T=5 WR=55.10% CI=[48.84%,61.20%] EV80=-0.008 | TAKE n=9 W=6 L=3 T=0 WR=66.67% CI=[35.42%,87.94%] EV80=0.200 cov=3.60%
+  [8001..8250] ALL n=239 W=133 L=106 T=11 WR=55.65% CI=[49.31%,61.81%] EV80=0.002 | TAKE n=28 W=8 L=20 T=1 WR=28.57% CI=[15.25%,47.06%] EV80=-0.486 cov=11.60%
+  [8251..8500] ALL n=242 W=140 L=102 T=8 WR=57.85% CI=[51.55%,63.90%] EV80=0.041 | TAKE n=39 W=20 L=19 T=1 WR=51.28% CI=[36.20%,66.14%] EV80=-0.077 cov=16.00%
+  [8501..8750] ALL n=247 W=132 L=115 T=3 WR=53.44% CI=[47.22%,59.56%] EV80=-0.038 | TAKE n=32 W=18 L=14 T=1 WR=56.25% CI=[39.33%,71.83%] EV80=0.013 cov=13.20%
+  [8751..9000] ALL n=246 W=136 L=110 T=4 WR=55.28% CI=[49.04%,61.37%] EV80=-0.005 | TAKE n=35 W=18 L=17 T=2 WR=51.43% CI=[35.57%,67.01%] EV80=-0.074 cov=14.80%
+  [9001..9250] ALL n=245 W=132 L=113 T=5 WR=53.88% CI=[47.62%,60.01%] EV80=-0.030 | TAKE n=23 W=14 L=9 T=0 WR=60.87% CI=[40.79%,77.84%] EV80=0.096 cov=9.20%
+  [9251..9500] ALL n=248 W=115 L=133 T=2 WR=46.37% CI=[40.27%,52.59%] EV80=-0.165 | TAKE n=20 W=11 L=9 T=0 WR=55.00% CI=[34.21%,74.18%] EV80=-0.010 cov=8.00%
+  [9501..9750] ALL n=250 W=141 L=109 T=0 WR=56.40% CI=[50.20%,62.40%] EV80=0.015 | TAKE n=22 W=16 L=6 T=0 WR=72.73% CI=[51.85%,86.85%] EV80=0.309 cov=8.80%
+  [9751..10000] ALL n=247 W=129 L=118 T=3 WR=52.23% CI=[46.01%,58.37%] EV80=-0.060 | TAKE n=31 W=14 L=17 T=0 WR=45.16% CI=[29.16%,62.23%] EV80=-0.187 cov=12.40%
+  [10001..10250] ALL n=247 W=145 L=102 T=3 WR=58.70% CI=[52.48%,64.67%] EV80=0.057 | TAKE n=23 W=16 L=7 T=0 WR=69.57% CI=[49.13%,84.40%] EV80=0.252 cov=9.20%
+  [10251..10500] ALL n=245 W=127 L=118 T=5 WR=51.84% CI=[45.60%,58.02%] EV80=-0.067 | TAKE n=24 W=10 L=14 T=1 WR=41.67% CI=[24.47%,61.17%] EV80=-0.250 cov=10.00%
+  [10501..10750] ALL n=247 W=152 L=95 T=3 WR=61.54% CI=[55.34%,67.38%] EV80=0.108 | TAKE n=27 W=17 L=10 T=1 WR=62.96% CI=[44.23%,78.47%] EV80=0.133 cov=11.20%
+  [10751..11000] ALL n=246 W=139 L=107 T=4 WR=56.50% CI=[50.26%,62.55%] EV80=0.017 | TAKE n=23 W=14 L=9 T=1 WR=60.87% CI=[40.79%,77.84%] EV80=0.096 cov=9.60%
+  [11001..11250] ALL n=242 W=134 L=108 T=8 WR=55.37% CI=[49.07%,61.50%] EV80=-0.003 | TAKE n=24 W=13 L=11 T=0 WR=54.17% CI=[35.07%,72.11%] EV80=-0.025 cov=9.60%
+  [11251..11500] ALL n=248 W=136 L=112 T=2 WR=54.84% CI=[48.62%,60.91%] EV80=-0.013 | TAKE n=25 W=17 L=8 T=0 WR=68.00% CI=[48.41%,82.80%] EV80=0.224 cov=10.00%
+  [11501..11750] ALL n=240 W=124 L=116 T=10 WR=51.67% CI=[45.37%,57.91%] EV80=-0.070 | TAKE n=20 W=13 L=7 T=1 WR=65.00% CI=[43.29%,81.88%] EV80=0.170 cov=8.40%
+  [11554..11803] ALL n=244 W=126 L=118 T=6 WR=51.64% CI=[45.39%,57.84%] EV80=-0.070 | TAKE n=27 W=15 L=12 T=0 WR=55.56% CI=[37.31%,72.41%] EV80=0.000 cov=10.80%
+
+window=500:
+  [1..500] ALL n=497 W=264 L=233 T=3 WR=53.12% CI=[48.72%,57.47%] EV80=-0.044 | TAKE n=132 W=60 L=72 T=0 WR=45.45% CI=[37.21%,53.96%] EV80=-0.182 cov=26.40%
+  [501..1000] ALL n=492 W=275 L=217 T=8 WR=55.89% CI=[51.48%,60.22%] EV80=0.006 | TAKE n=250 W=134 L=116 T=4 WR=53.60% CI=[47.41%,59.68%] EV80=-0.035 cov=50.80%
+  [1001..1500] ALL n=487 W=274 L=213 T=13 WR=56.26% CI=[51.82%,60.60%] EV80=0.013 | TAKE n=278 W=155 L=123 T=6 WR=55.76% CI=[49.88%,61.48%] EV80=0.004 cov=56.80%
+  [1501..2000] ALL n=491 W=266 L=225 T=9 WR=54.18% CI=[49.75%,58.53%] EV80=-0.025 | TAKE n=249 W=131 L=118 T=6 WR=52.61% CI=[46.42%,58.73%] EV80=-0.053 cov=51.00%
+  [2001..2500] ALL n=493 W=269 L=224 T=7 WR=54.56% CI=[50.15%,58.91%] EV80=-0.018 | TAKE n=268 W=137 L=131 T=5 WR=51.12% CI=[45.16%,57.05%] EV80=-0.080 cov=54.60%
+  [2501..3000] ALL n=495 W=264 L=231 T=5 WR=53.33% CI=[48.93%,57.69%] EV80=-0.040 | TAKE n=113 W=57 L=56 T=1 WR=50.44% CI=[41.36%,59.49%] EV80=-0.092 cov=22.80%
+  [3001..3500] ALL n=494 W=262 L=232 T=6 WR=53.04% CI=[48.63%,57.40%] EV80=-0.045 | TAKE n=162 W=84 L=78 T=1 WR=51.85% CI=[44.20%,59.41%] EV80=-0.067 cov=32.60%
+  [3501..4000] ALL n=496 W=280 L=216 T=4 WR=56.45% CI=[52.06%,60.75%] EV80=0.016 | TAKE n=68 W=36 L=32 T=0 WR=52.94% CI=[41.24%,64.33%] EV80=-0.047 cov=13.60%
+  [4001..4500] ALL n=493 W=252 L=241 T=7 WR=51.12% CI=[46.71%,55.50%] EV80=-0.080 | TAKE n=71 W=33 L=38 T=1 WR=46.48% CI=[35.36%,57.96%] EV80=-0.163 cov=14.40%
+  [4501..5000] ALL n=489 W=212 L=277 T=11 WR=43.35% CI=[39.03%,47.78%] EV80=-0.220 | TAKE n=40 W=18 L=22 T=4 WR=45.00% CI=[30.71%,60.17%] EV80=-0.190 cov=8.80%
+  [5001..5500] ALL n=491 W=266 L=225 T=9 WR=54.18% CI=[49.75%,58.53%] EV80=-0.025 | TAKE n=9 W=4 L=5 T=0 WR=44.44% CI=[18.88%,73.34%] EV80=-0.200 cov=1.80%
+  [5501..6000] ALL n=490 W=268 L=222 T=10 WR=54.69% CI=[50.27%,59.05%] EV80=-0.016 | TAKE n=9 W=6 L=3 T=0 WR=66.67% CI=[35.42%,87.94%] EV80=0.200 cov=1.80%
+  [6001..6500] ALL n=495 W=269 L=226 T=5 WR=54.34% CI=[49.94%,58.68%] EV80=-0.022 | TAKE n=11 W=5 L=6 T=0 WR=45.45% CI=[21.27%,71.99%] EV80=-0.182 cov=2.20%
+  [6501..7000] ALL n=489 W=283 L=206 T=11 WR=57.87% CI=[53.45%,62.17%] EV80=0.042 | TAKE n=5 W=4 L=1 T=0 WR=80.00% CI=[37.55%,96.38%] EV80=0.440 cov=1.00%
+  [7001..7500] ALL n=493 W=269 L=224 T=7 WR=54.56% CI=[50.15%,58.91%] EV80=-0.018 | TAKE n=12 W=3 L=9 T=0 WR=25.00% CI=[8.89%,53.23%] EV80=-0.550 cov=2.40%
+  [7501..8000] ALL n=489 W=266 L=223 T=11 WR=54.40% CI=[49.97%,58.76%] EV80=-0.021 | TAKE n=11 W=6 L=5 T=2 WR=54.55% CI=[28.01%,78.73%] EV80=-0.018 cov=2.60%
+  [8001..8500] ALL n=481 W=273 L=208 T=19 WR=56.76% CI=[52.29%,61.11%] EV80=0.022 | TAKE n=67 W=28 L=39 T=2 WR=41.79% CI=[30.74%,53.73%] EV80=-0.248 cov=13.80%
+  [8501..9000] ALL n=493 W=268 L=225 T=7 WR=54.36% CI=[49.95%,58.71%] EV80=-0.022 | TAKE n=67 W=36 L=31 T=3 WR=53.73% CI=[41.92%,65.14%] EV80=-0.033 cov=14.00%
+  [9001..9500] ALL n=493 W=247 L=246 T=7 WR=50.10% CI=[45.70%,54.50%] EV80=-0.098 | TAKE n=43 W=25 L=18 T=0 WR=58.14% CI=[43.33%,71.62%] EV80=0.047 cov=8.60%
+  [9501..10000] ALL n=497 W=270 L=227 T=3 WR=54.33% CI=[49.93%,58.66%] EV80=-0.022 | TAKE n=53 W=30 L=23 T=0 WR=56.60% CI=[43.27%,69.05%] EV80=0.019 cov=10.60%
+  [10001..10500] ALL n=492 W=272 L=220 T=8 WR=55.28% CI=[50.87%,59.62%] EV80=-0.005 | TAKE n=47 W=26 L=21 T=1 WR=55.32% CI=[41.25%,68.59%] EV80=-0.004 cov=9.60%
+  [10501..11000] ALL n=493 W=291 L=202 T=7 WR=59.03% CI=[54.63%,63.28%] EV80=0.062 | TAKE n=50 W=31 L=19 T=2 WR=62.00% CI=[48.15%,74.14%] EV80=0.116 cov=10.40%
+  [11001..11500] ALL n=490 W=270 L=220 T=10 WR=55.10% CI=[50.68%,59.45%] EV80=-0.008 | TAKE n=49 W=30 L=19 T=0 WR=61.22% CI=[47.25%,73.57%] EV80=0.102 cov=9.80%
+  [11304..11803] ALL n=489 W=260 L=229 T=11 WR=53.17% CI=[48.74%,57.55%] EV80=-0.043 | TAKE n=47 W=28 L=19 T=1 WR=59.57% CI=[45.34%,72.36%] EV80=0.072 cov=9.60%
+
+window=1000:
+  [1..1000] ALL n=989 W=539 L=450 T=11 WR=54.50% CI=[51.38%,57.58%] EV80=-0.019 | TAKE n=382 W=194 L=188 T=4 WR=50.79% CI=[45.79%,55.77%] EV80=-0.086 cov=38.60%
+  [1001..2000] ALL n=978 W=540 L=438 T=22 WR=55.21% CI=[52.08%,58.30%] EV80=-0.006 | TAKE n=527 W=286 L=241 T=12 WR=54.27% CI=[50.00%,58.48%] EV80=-0.023 cov=53.90%
+  [2001..3000] ALL n=988 W=533 L=455 T=12 WR=53.95% CI=[50.83%,57.03%] EV80=-0.029 | TAKE n=381 W=194 L=187 T=6 WR=50.92% CI=[45.91%,55.90%] EV80=-0.083 cov=38.70%
+  [3001..4000] ALL n=990 W=542 L=448 T=10 WR=54.75% CI=[51.63%,57.82%] EV80=-0.015 | TAKE n=230 W=120 L=110 T=1 WR=52.17% CI=[45.74%,58.54%] EV80=-0.061 cov=23.10%
+  [4001..5000] ALL n=982 W=464 L=518 T=18 WR=47.25% CI=[44.14%,50.38%] EV80=-0.149 | TAKE n=111 W=51 L=60 T=5 WR=45.95% CI=[36.97%,55.20%] EV80=-0.173 cov=11.60%
+  [5001..6000] ALL n=981 W=534 L=447 T=19 WR=54.43% CI=[51.31%,57.53%] EV80=-0.020 | TAKE n=18 W=10 L=8 T=0 WR=55.56% CI=[33.72%,75.44%] EV80=0.000 cov=1.80%
+  [6001..7000] ALL n=984 W=552 L=432 T=16 WR=56.10% CI=[52.98%,59.17%] EV80=0.010 | TAKE n=16 W=9 L=7 T=0 WR=56.25% CI=[33.18%,76.90%] EV80=0.013 cov=1.60%
+  [7001..8000] ALL n=982 W=535 L=447 T=18 WR=54.48% CI=[51.35%,57.57%] EV80=-0.019 | TAKE n=23 W=9 L=14 T=2 WR=39.13% CI=[22.16%,59.21%] EV80=-0.296 cov=2.50%
+  [8001..9000] ALL n=974 W=541 L=433 T=26 WR=55.54% CI=[52.41%,58.64%] EV80=-0.000 | TAKE n=134 W=64 L=70 T=5 WR=47.76% CI=[39.48%,56.16%] EV80=-0.140 cov=13.90%
+  [9001..10000] ALL n=990 W=517 L=473 T=10 WR=52.22% CI=[49.11%,55.32%] EV80=-0.060 | TAKE n=96 W=55 L=41 T=0 WR=57.29% CI=[47.30%,66.72%] EV80=0.031 cov=9.60%
+  [10001..11000] ALL n=985 W=563 L=422 T=15 WR=57.16% CI=[54.05%,60.21%] EV80=0.029 | TAKE n=97 W=57 L=40 T=3 WR=58.76% CI=[48.82%,68.04%] EV80=0.058 cov=10.00%
+  [10804..11803] ALL n=977 W=528 L=449 T=23 WR=54.04% CI=[50.91%,57.15%] EV80=-0.027 | TAKE n=95 W=55 L=40 T=2 WR=57.89% CI=[47.85%,67.33%] EV80=0.042 cov=9.70%
+
+================================
+BY MONTH (LEARN)
+================================
+
+  2024-12: ALL n=103 W=54 L=49 T=0 WR=52.43% CI=[42.87%,61.81%] EV80=-0.056 | TAKE n=50 W=20 L=30 T=0 WR=40.00% CI=[27.61%,53.82%] EV80=-0.280 cov=48.54% | WAIT n=53 W=34 L=19 T=0 WR=64.15% CI=[50.69%,75.70%] EV80=0.155
+  2025-01: ALL n=724 W=405 L=319 T=8 WR=55.94% CI=[52.30%,59.51%] EV80=0.007 | TAKE n=228 W=122 L=106 T=1 WR=53.51% CI=[47.03%,59.87%] EV80=-0.037 cov=31.28% | WAIT n=496 W=283 L=213 T=7 WR=57.06% CI=[52.66%,61.34%] EV80=0.027
+  2025-02: ALL n=640 W=349 L=291 T=16 WR=54.53% CI=[50.66%,58.35%] EV80=-0.018 | TAKE n=376 W=205 L=171 T=9 WR=54.52% CI=[49.47%,59.48%] EV80=-0.019 cov=58.69% | WAIT n=264 W=144 L=120 T=7 WR=54.55% CI=[48.52%,60.44%] EV80=-0.018
+  2025-03: ALL n=750 W=412 L=338 T=14 WR=54.93% CI=[51.36%,58.46%] EV80=-0.011 | TAKE n=405 W=213 L=192 T=9 WR=52.59% CI=[47.73%,57.41%] EV80=-0.053 cov=54.19% | WAIT n=345 W=199 L=146 T=5 WR=57.68% CI=[52.41%,62.78%] EV80=0.038
+  2025-04: ALL n=687 W=371 L=316 T=7 WR=54.00% CI=[50.26%,57.70%] EV80=-0.028 | TAKE n=205 W=100 L=105 T=3 WR=48.78% CI=[42.02%,55.58%] EV80=-0.122 cov=29.97% | WAIT n=482 W=271 L=211 T=4 WR=56.22% CI=[51.76%,60.59%] EV80=0.012
+  2025-05: ALL n=659 W=341 L=318 T=6 WR=51.75% CI=[47.93%,55.54%] EV80=-0.069 | TAKE n=205 W=111 L=94 T=1 WR=54.15% CI=[47.31%,60.83%] EV80=-0.025 cov=30.98% | WAIT n=454 W=230 L=224 T=5 WR=50.66% CI=[46.08%,55.23%] EV80=-0.088
+  2025-06: ALL n=645 W=362 L=283 T=9 WR=56.12% CI=[52.27%,59.91%] EV80=0.010 | TAKE n=100 W=48 L=52 T=1 WR=48.00% CI=[38.46%,57.68%] EV80=-0.136 cov=15.44% | WAIT n=545 W=314 L=231 T=8 WR=57.61% CI=[53.43%,61.70%] EV80=0.037
+  2025-07: ALL n=758 W=345 L=413 T=15 WR=45.51% CI=[42.00%,49.07%] EV80=-0.181 | TAKE n=62 W=26 L=36 T=4 WR=41.94% CI=[30.48%,54.33%] EV80=-0.245 cov=8.54% | WAIT n=696 W=319 L=377 T=11 WR=45.83% CI=[42.16%,49.55%] EV80=-0.175
+  2025-08: ALL n=705 W=379 L=326 T=11 WR=53.76% CI=[50.07%,57.41%] EV80=-0.032 | TAKE n=16 W=8 L=8 T=0 WR=50.00% CI=[28.00%,72.00%] EV80=-0.100 cov=2.23% | WAIT n=689 W=371 L=318 T=11 WR=53.85% CI=[50.11%,57.54%] EV80=-0.031
+  2025-09: ALL n=667 W=370 L=297 T=10 WR=55.47% CI=[51.68%,59.20%] EV80=-0.001 | TAKE n=10 W=7 L=3 T=0 WR=70.00% CI=[39.68%,89.22%] EV80=0.260 cov=1.48% | WAIT n=657 W=363 L=294 T=10 WR=55.25% CI=[51.43%,59.01%] EV80=-0.005
+  2025-10: ALL n=766 W=441 L=325 T=15 WR=57.57% CI=[54.04%,61.03%] EV80=0.036 | TAKE n=9 W=4 L=5 T=0 WR=44.44% CI=[18.88%,73.34%] EV80=-0.200 cov=1.15% | WAIT n=757 W=437 L=320 T=15 WR=57.73% CI=[54.18%,61.20%] EV80=0.039
+  2025-11: ALL n=693 W=364 L=329 T=14 WR=52.53% CI=[48.80%,56.22%] EV80=-0.055 | TAKE n=16 W=5 L=11 T=2 WR=31.25% CI=[14.16%,55.60%] EV80=-0.438 cov=2.55% | WAIT n=677 W=359 L=318 T=12 WR=53.03% CI=[49.26%,56.76%] EV80=-0.045
+  2025-12: ALL n=653 W=372 L=281 T=21 WR=56.97% CI=[53.14%,60.71%] EV80=0.025 | TAKE n=87 W=43 L=44 T=2 WR=49.43% CI=[39.17%,59.73%] EV80=-0.110 cov=13.20% | WAIT n=566 W=329 L=237 T=19 WR=58.13% CI=[54.02%,62.12%] EV80=0.046
+  2026-01: ALL n=715 W=382 L=333 T=11 WR=53.43% CI=[49.76%,57.05%] EV80=-0.038 | TAKE n=83 W=43 L=40 T=3 WR=51.81% CI=[41.22%,62.24%] EV80=-0.067 cov=11.85% | WAIT n=632 W=339 L=293 T=8 WR=53.64% CI=[49.74%,57.49%] EV80=-0.034
+  2026-02: ALL n=612 W=324 L=288 T=5 WR=52.94% CI=[48.98%,56.87%] EV80=-0.047 | TAKE n=60 W=34 L=26 T=0 WR=56.67% CI=[44.10%,68.43%] EV80=0.020 cov=9.72% | WAIT n=552 W=290 L=262 T=5 WR=52.54% CI=[48.37%,56.67%] EV80=-0.054
+  2026-03: ALL n=696 W=381 L=315 T=10 WR=54.74% CI=[51.03%,58.40%] EV80=-0.015 | TAKE n=69 W=39 L=30 T=1 WR=56.52% CI=[44.79%,67.57%] EV80=0.017 cov=9.92% | WAIT n=627 W=342 L=285 T=9 WR=54.55% CI=[50.63%,58.40%] EV80=-0.018
+  2026-04: ALL n=718 W=405 L=313 T=15 WR=56.41% CI=[52.75%,59.99%] EV80=0.015 | TAKE n=66 W=40 L=26 T=2 WR=60.61% CI=[48.55%,71.50%] EV80=0.091 cov=9.28% | WAIT n=652 W=365 L=287 T=13 WR=55.98% CI=[52.15%,59.75%] EV80=0.008
+  2026-05: ALL n=415 W=225 L=190 T=10 WR=54.22% CI=[49.41%,58.95%] EV80=-0.024 | TAKE n=45 W=27 L=18 T=1 WR=60.00% CI=[45.45%,72.98%] EV80=0.080 cov=10.82% | WAIT n=370 W=198 L=172 T=9 WR=53.51% CI=[48.42%,58.53%] EV80=-0.037
+
+================================
+ADX / TREND REGIME (LEARN)
+================================
+
+  b20_25: ALL n=1853 W=1018 L=835 T=30 WR=54.94% CI=[52.66%,57.19%] EV80=-0.011 | TAKE n=548 W=306 L=242 T=10 WR=55.84% CI=[51.66%,59.94%] EV80=0.005 cov=29.63% | WAIT n=1305 W=712 L=593 T=20 WR=54.56% CI=[51.85%,57.24%] EV80=-0.018
+  b25_30: ALL n=3117 W=1685 L=1432 T=52 WR=54.06% CI=[52.30%,55.80%] EV80=-0.027 | TAKE n=651 W=329 L=322 T=11 WR=50.54% CI=[46.71%,54.36%] EV80=-0.090 cov=20.89% | WAIT n=2466 W=1356 L=1110 T=41 WR=54.99% CI=[53.02%,56.94%] EV80=-0.010
+  gt30: ALL n=6238 W=3360 L=2878 T=101 WR=53.86% CI=[52.62%,55.10%] EV80=-0.030 | TAKE n=750 W=391 L=359 T=13 WR=52.13% CI=[48.56%,55.69%] EV80=-0.062 cov=12.04% | WAIT n=5488 W=2969 L=2519 T=88 WR=54.10% CI=[52.78%,55.41%] EV80=-0.026
+  le20: ALL n=398 W=219 L=179 T=14 WR=55.03% CI=[50.11%,59.84%] EV80=-0.010 | TAKE n=143 W=69 L=74 T=5 WR=48.25% CI=[40.22%,56.38%] EV80=-0.131 cov=35.92% | WAIT n=255 W=150 L=105 T=9 WR=58.82% CI=[52.70%,64.69%] EV80=0.059
+
+================================
+BB WIDTH REGIME (LEARN)
+================================
+
+  high: ALL n=10353 W=5621 L=4732 T=171 WR=54.29% CI=[53.33%,55.25%] EV80=-0.023 | TAKE n=1871 W=990 L=881 T=37 WR=52.91% CI=[50.65%,55.17%] EV80=-0.048 cov=18.13% | WAIT n=8482 W=4631 L=3851 T=134 WR=54.60% CI=[53.54%,55.66%] EV80=-0.017
+  low: ALL n=198 W=108 L=90 T=6 WR=54.55% CI=[47.59%,61.33%] EV80=-0.018 | TAKE n=31 W=16 L=15 T=0 WR=51.61% CI=[34.84%,68.03%] EV80=-0.071 cov=15.20% | WAIT n=167 W=92 L=75 T=6 WR=55.09% CI=[47.52%,62.44%] EV80=-0.008
+  mid: ALL n=1055 W=553 L=502 T=20 WR=52.42% CI=[49.40%,55.42%] EV80=-0.056 | TAKE n=190 W=89 L=101 T=2 WR=46.84% CI=[39.88%,53.93%] EV80=-0.157 cov=17.86% | WAIT n=865 W=464 L=401 T=18 WR=53.64% CI=[50.31%,56.94%] EV80=-0.034
+
+================================
+UP vs DOWN (LEARN)
+================================
+
+  down: ALL n=5866 W=3163 L=2703 T=109 WR=53.92% CI=[52.64%,55.19%] EV80=-0.029 | TAKE n=500 W=243 L=257 T=12 WR=48.60% CI=[44.25%,52.97%] EV80=-0.125 cov=8.57% | WAIT n=5366 W=2920 L=2446 T=97 WR=54.42% CI=[53.08%,55.75%] EV80=-0.020
+  up: ALL n=5740 W=3119 L=2621 T=88 WR=54.34% CI=[53.05%,55.62%] EV80=-0.022 | TAKE n=1592 W=852 L=740 T=27 WR=53.52% CI=[51.06%,55.96%] EV80=-0.037 cov=27.78% | WAIT n=4148 W=2267 L=1881 T=61 WR=54.65% CI=[53.13%,56.16%] EV80=-0.016
+
+================================
+SYMBOL STABILITY (LEARN)
+================================
+
+  AUD_JPY: ALL n=882 W=465 L=417 T=13 WR=52.72% CI=[49.42%,56.00%] EV80=-0.051 | TAKE n=178 W=97 L=81 T=2 WR=54.49% CI=[47.16%,61.64%] EV80=-0.019 cov=20.11% | WAIT n=704 W=368 L=336 T=11 WR=52.27% CI=[48.58%,55.94%] EV80=-0.059
+  AUD_USD: ALL n=999 W=545 L=454 T=21 WR=54.55% CI=[51.46%,57.62%] EV80=-0.018 | TAKE n=167 W=86 L=81 T=5 WR=51.50% CI=[43.97%,58.96%] EV80=-0.073 cov=16.86% | WAIT n=832 W=459 L=373 T=16 WR=55.17% CI=[51.77%,58.52%] EV80=-0.007
+  EUR_AUD: ALL n=823 W=458 L=365 T=7 WR=55.65% CI=[52.24%,59.01%] EV80=0.002 | TAKE n=143 W=71 L=72 T=2 WR=49.65% CI=[41.57%,57.75%] EV80=-0.106 cov=17.47% | WAIT n=680 W=387 L=293 T=5 WR=56.91% CI=[53.16%,60.58%] EV80=0.024
+  EUR_GBP: ALL n=768 W=434 L=334 T=31 WR=56.51% CI=[52.98%,59.98%] EV80=0.017 | TAKE n=144 W=80 L=64 T=8 WR=55.56% CI=[47.40%,63.42%] EV80=0.000 cov=19.02% | WAIT n=624 W=354 L=270 T=23 WR=56.73% CI=[52.81%,60.57%] EV80=0.021
+  EUR_JPY: ALL n=830 W=435 L=395 T=8 WR=52.41% CI=[49.01%,55.79%] EV80=-0.057 | TAKE n=152 W=75 L=77 T=1 WR=49.34% CI=[41.51%,57.21%] EV80=-0.112 cov=18.26% | WAIT n=678 W=360 L=318 T=7 WR=53.10% CI=[49.33%,56.83%] EV80=-0.044
+  EUR_USD: ALL n=1132 W=634 L=498 T=27 WR=56.01% CI=[53.10%,58.87%] EV80=0.008 | TAKE n=201 W=115 L=86 T=4 WR=57.21% CI=[50.30%,63.86%] EV80=0.030 cov=17.69% | WAIT n=931 W=519 L=412 T=23 WR=55.75% CI=[52.54%,58.91%] EV80=0.003
+  GBP_JPY: ALL n=819 W=437 L=382 T=6 WR=53.36% CI=[49.93%,56.75%] EV80=-0.040 | TAKE n=164 W=90 L=74 T=2 WR=54.88% CI=[47.24%,62.30%] EV80=-0.012 cov=20.12% | WAIT n=655 W=347 L=308 T=4 WR=52.98% CI=[49.15%,56.77%] EV80=-0.046
+  GBP_USD: ALL n=1070 W=574 L=496 T=9 WR=53.64% CI=[50.65%,56.61%] EV80=-0.034 | TAKE n=181 W=83 L=98 T=0 WR=45.86% CI=[38.76%,53.13%] EV80=-0.175 cov=16.77% | WAIT n=889 W=491 L=398 T=9 WR=55.23% CI=[51.95%,58.47%] EV80=-0.006
+  NZD_USD: ALL n=1159 W=630 L=529 T=26 WR=54.36% CI=[51.48%,57.21%] EV80=-0.022 | TAKE n=219 W=126 L=93 T=5 WR=57.53% CI=[50.91%,63.90%] EV80=0.036 cov=18.90% | WAIT n=940 W=504 L=436 T=21 WR=53.62% CI=[50.42%,56.78%] EV80=-0.035
+  USD_CAD: ALL n=1104 W=612 L=492 T=27 WR=55.43% CI=[52.49%,58.34%] EV80=-0.002 | TAKE n=171 W=90 L=81 T=6 WR=52.63% CI=[45.17%,59.98%] EV80=-0.053 cov=15.65% | WAIT n=933 W=522 L=411 T=21 WR=55.95% CI=[52.75%,59.10%] EV80=0.007
+  USD_CHF: ALL n=1013 W=544 L=469 T=14 WR=53.70% CI=[50.62%,56.75%] EV80=-0.033 | TAKE n=186 W=96 L=90 T=3 WR=51.61% CI=[44.47%,58.69%] EV80=-0.071 cov=18.40% | WAIT n=827 W=448 L=379 T=11 WR=54.17% CI=[50.76%,57.54%] EV80=-0.025
+  USD_JPY: ALL n=1007 W=514 L=493 T=8 WR=51.04% CI=[47.96%,54.12%] EV80=-0.081 | TAKE n=186 W=86 L=100 T=1 WR=46.24% CI=[39.22%,53.41%] EV80=-0.168 cov=18.42% | WAIT n=821 W=428 L=393 T=7 WR=52.13% CI=[48.71%,55.53%] EV80=-0.062
+
+================================
+SESSION STABILITY (LEARN)
+================================
+
+  asia: ALL n=3990 W=2047 L=1943 T=82 WR=51.30% CI=[49.75%,52.85%] EV80=-0.077 | TAKE n=713 W=369 L=344 T=13 WR=51.75% CI=[48.09%,55.40%] EV80=-0.068 cov=17.83% | WAIT n=3277 W=1678 L=1599 T=69 WR=51.21% CI=[49.49%,52.91%] EV80=-0.078
+  london: ALL n=2106 W=1122 L=984 T=33 WR=53.28% CI=[51.14%,55.40%] EV80=-0.041 | TAKE n=406 W=198 L=208 T=7 WR=48.77% CI=[43.94%,53.62%] EV80=-0.122 cov=19.31% | WAIT n=1700 W=924 L=776 T=26 WR=54.35% CI=[51.98%,56.71%] EV80=-0.022
+  ny: ALL n=2149 W=1178 L=971 T=30 WR=54.82% CI=[52.71%,56.91%] EV80=-0.013 | TAKE n=401 W=214 L=187 T=7 WR=53.37% CI=[48.47%,58.19%] EV80=-0.039 cov=18.72% | WAIT n=1748 W=964 L=784 T=23 WR=55.15% CI=[52.81%,57.47%] EV80=-0.007
+  off: ALL n=1459 W=896 L=563 T=30 WR=61.41% CI=[58.89%,63.88%] EV80=0.105 | TAKE n=253 W=147 L=106 T=5 WR=58.10% CI=[51.95%,64.02%] EV80=0.046 cov=17.33% | WAIT n=1206 W=749 L=457 T=25 WR=62.11% CI=[59.33%,64.80%] EV80=0.118
+  overlap: ALL n=1902 W=1039 L=863 T=22 WR=54.63% CI=[52.38%,56.85%] EV80=-0.017 | TAKE n=319 W=167 L=152 T=7 WR=52.35% CI=[46.87%,57.77%] EV80=-0.058 cov=16.94% | WAIT n=1583 W=872 L=711 T=15 WR=55.09% CI=[52.63%,57.52%] EV80=-0.008
+
+================================
+PAYOUT ANALYSIS
+================================
+
+Break-even @80% payout: 55.56%
+
+LEARN ALL:
+  70: EV=-0.080  75: EV=-0.053  80: EV=-0.026  85: EV=0.001  90: EV=0.028  95: EV=0.055
+
+LEARN TAKE (EST_GE_0.5556):
+  70: EV=-0.110  75: EV=-0.084  80: EV=-0.058  85: EV=-0.032  90: EV=-0.005  95: EV=0.021
+
+HOLDOUT ALL:
+  70: EV=-0.082  75: EV=-0.055  80: EV=-0.028  85: EV=-0.001  90: EV=0.026  95: EV=0.053
+
+HOLDOUT TAKE (EST_GE_0.5556):
+  70: EV=-0.049  75: EV=-0.021  80: EV=0.007  85: EV=0.035  90: EV=0.063  95: EV=0.091
+
+================================
+LEAKAGE AUDIT
+================================
+
+  - indicators at T use only closed bars index ≤ T: PASS
+  - signal only after confirmation candle close; entry = confirmation close: PASS
+  - adaptive evidence uses only resolveMs < T (prior resolved): PASS
+  - current signal never in its own evidence: PASS
+  - BB/RSI/ADX/expiry/thresholds pre-registered (no outcome retune): PASS
+  - HOLDOUT cut frozen before interpreting holdout outcomes; primary rule EST_GE_0.5556 pre-registered: PASS
+  - rsiSeverity fixed beyond-threshold buckets (not outcome-fitted): PASS
+  - bbWidthPctile trailing PIT last-500: PASS
+  - COLLECTING/LEARNING/ACTIVE thresholds from selector config (50/100): PASS
+  - selective TAKE rules during COLLECTING treated as TAKE (no claimed selection): PASS
+  - no writes to production adaptive tables / no live selector calls: PASS
+  - COMPARISON week labeled previously-inspected; HOLDOUT sealed for one-shot: PASS
+  - no suspicious WR≥65% with n≥200 on frozen base gate: PASS
+
+================================
+HYPOTHESIS A vs B
+================================
+
+A = more data helps (stable contextual edge emerges with sample)
+B = no stable pattern (selection noise / regime-specific)
+
+Conclusion: Hypothesis inconclusive: mixed LEARN vs HOLDOUT signals; neither clean support for A nor B.
+
+================================
+DIRECT ANSWERS
+================================
+
+1. Does adaptive selection improve the frozen strategy?
+   LEARN: Δ=-1.78pp; HOLDOUT: Δ=1.95pp
+
+2. Does adaptive TAKE reach 60%?
+   LEARN: 52.34% (n=2092); HOLDOUT: 55.93% (n=177)
+
+3. With how many signals?
+   LEARN TAKE n=2092; HOLDOUT TAKE n=177; FULL decided=13634
+
+4. What percentage of signals does it keep?
+   LEARN cov=18.05%; HOLDOUT cov=9.76%
+
+5. Are rejected WAIT signals actually worse?
+   LEARN WAIT 54.52% vs TAKE 52.34%; HOLDOUT WAIT 53.77% vs TAKE 55.93%
+
+6. Does predicted signal quality rank realized WR?
+   NO
+
+7. Does adaptive selection beat matched random selection?
+   NO (pctile 3.10%)
+
+8. Does it beat simple RSI-only or ADX-only filtering?
+   Adaptive 52.34% vs RSI-ext 60.25% ADX>25 53.93% ADX<=20 55.03%
+
+9. Which contexts appear responsible?
+   See ADX / session / month slices; hierarchy prefers direction|adxBucket when n≥30
+
+10. Is the improvement stable across months/days?
+    See BY MONTH and ROLLING WINDOWS
+
+11. Is it stable across symbols?
+    See SYMBOL STABILITY
+
+12. At 80% payout, is adaptive TAKE profitable?
+    LEARN EV80=-0.058; HOLDOUT EV80=0.007
+
+13. Is the evidence genuinely OOS or still DEVELOPMENT?
+    HOLDOUT is sealed one-shot; COMPARISON week is previously inspected; LEARN is development
+
+================================
+FINAL VERDICT
+================================
+
+ADAPTIVE_IMPROVES_BUT_BELOW_60
+
+Honesty notes:
+- Primary rule EST_GE_0.5556 was pre-registered from prior adaptive experiment; not retuned on HOLDOUT.
+- Gate week used only for reproduce + COMPARISON label.
+- Hypothesis: INCONCLUSIVE. Hypothesis inconclusive: mixed LEARN vs HOLDOUT signals; neither clean support for A nor B.
+- Total decided signals: 13634 over 2024-12-29T22:32:00.000Z → 2026-08-21T20:36:00.000Z
+- Cache dir: C:\Users\arche\Desktop\code\GoldenXperience\api-server\research-v2\binary-adaptive-bollinger-rsi-10k\cache

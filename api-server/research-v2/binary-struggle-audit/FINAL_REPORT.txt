@@ -1,0 +1,312 @@
+GOLDENXPERIENCE
+BINARY PRICE-STRUGGLE EDGE AUDIT
+Experiment: binary-struggle-v1
+
+================================
+DATA
+================================
+
+Predictions: 4343 authoritative binary-baseline-v1
+M1 bars: 180000 across 12 pairs
+Pairs: AUD_JPY, AUD_USD, EUR_AUD, EUR_GBP, EUR_JPY, EUR_USD, GBP_JPY, GBP_USD, NZD_USD, USD_CAD, USD_CHF, USD_JPY
+Date range: 2026-08-14 17:13:11.523+00 → 2026-08-21 20:47:39.282+00
+
+TRAIN:  ≤ 2026-08-20T08:18:45.974Z  (A n=2608, B episodes=12349)
+DEV:    ≤ 2026-08-21T07:43:11.918Z  (A n=873, B episodes=3202)
+HOLDOUT: after DEV               (A n=862, B episodes=1793)
+
+Leakage audit:
+  - OANDA M1 open time; close = open+60s; lastKnown closeMs ≤ decision: PASS
+  - swing confirmation requires k=2 right bars fully ≤ idx: PASS (self-test)
+  - zone/attempts/rejection/compression built from past only: PASS
+  - no future breakout labels / MFE-MAE: PASS
+  - chronological zones fixed before candidate selection: PASS
+  - overlapping episodes collapsed via episodeKey (effective n): PASS
+  - prior S/R HOLDOUT not read: PASS
+  - production binary untouched: PASS
+
+================================
+WHAT COUNTS AS A STRUGGLE
+================================
+
+Final pre-registered definitions:
+Zone: cluster of ≥2 confirmed local extremes within 0.2 ATR (also registered widths 0.1/0.2/0.3)
+Attempt: confirmed swing high (resistance) or swing low (support), k=2, lookback=90, deduped if <3 bars apart
+Progress: successive extreme extension in ATR; slope → DIMINISHING / FLAT / INCREASING
+Rejection: max adverse excursion after attempt / ATR; slope → WEAKENING / STABLE / STRENGTHENING
+Compression: rolling 20-bar range/ATR + % bars within 0.25 ATR of zone → NONE / MODERATE / STRONG
+Failed breakout: last ≤3 completed bars penetrate beyond zone then close back inside
+Breakout pressure: attempts≥3 + WEAKENING rejection + MODERATE/STRONG compression + timeNear≥35%
+Exhaustion: |prior 20-bar move| ≥ 1.2 ATR into zone + non-increasing progress
+Primary states: RESISTANCE/SUPPORT_REJECTION, *_BREAKOUT_PRESSURE, FAILED_*, BUYER/SELLER_EXHAUSTION; else WAIT
+
+================================
+HOW COMMON ARE STRUGGLES?
+================================
+
+Total Analysis B episodes: 17344
+% of M1 bars tagged struggle-active (pre-dedupe): 10.17%
+% of baseline predictions during active struggle: 25.12%
+% with non-WAIT primary state: 20.84%
+
+================================
+BASELINE COMPARISON
+================================
+
+All predictions (Analysis A, baseline direction):
+1m: raw=4343 eff=4343 W=2018 L=2087 T=238 WR=49.16% CI=[47.63%,50.69%] EV80=-0.115 EV90=-0.066
+5m: raw=4343 eff=4343 W=2055 L=2148 T=140 WR=48.89% CI=[47.38%,50.41%] EV80=-0.120 EV90=-0.071
+10m: raw=4343 eff=4343 W=2105 L=2156 T=82 WR=49.40% CI=[47.90%,50.90%] EV80=-0.111 EV90=-0.061
+15m: raw=4343 eff=4343 W=2077 L=2201 T=64 WR=48.55% CI=[47.06%,50.05%] EV80=-0.126 EV90=-0.078
+
+No struggle / WAIT:
+  1m: raw=3438 eff=3438 W=1615 L=1635 T=188 WR=49.69% CI=[47.97%,51.41%] EV80=-0.106 EV90=-0.056
+  5m: raw=3438 eff=3438 W=1622 L=1705 T=111 WR=48.75% CI=[47.06%,50.45%] EV80=-0.122 EV90=-0.074
+  10m: raw=3438 eff=3438 W=1683 L=1686 T=69 WR=49.96% CI=[48.27%,51.64%] EV80=-0.101 EV90=-0.051
+  15m: raw=3438 eff=3438 W=1658 L=1729 T=50 WR=48.95% CI=[47.27%,50.64%] EV80=-0.119 EV90=-0.070
+Struggle (any active):
+  1m: raw=1091 eff=1091 W=495 L=536 T=60 WR=48.01% CI=[44.98%,51.06%] EV80=-0.136 EV90=-0.088
+  5m: raw=1091 eff=1091 W=526 L=526 T=39 WR=50.00% CI=[46.98%,53.02%] EV80=-0.100 EV90=-0.050
+  10m: raw=1091 eff=1091 W=510 L=565 T=16 WR=47.44% CI=[44.47%,50.43%] EV80=-0.146 EV90=-0.099
+  15m: raw=1091 eff=1091 W=506 L=569 T=16 WR=47.07% CI=[44.10%,50.06%] EV80=-0.153 EV90=-0.106
+
+Does struggle context improve baseline accuracy? NO
+  (AGREE @10m WR=48.43% vs baseline 49.40%)
+
+================================
+REJECTION
+================================
+
+Support rejection → UP (implied)
+  1m TRAIN: raw=64 eff=64 W=27 L=33 T=4 WR=45.00% CI=[33.09%,57.51%] EV80=-0.190 EV90=-0.145
+  1m DEV:   raw=26 eff=26 W=15 L=9 T=2 WR=62.50% CI=[42.71%,78.84%] EV80=0.125 EV90=0.188
+  5m TRAIN: raw=64 eff=64 W=35 L=29 T=0 WR=54.69% CI=[42.57%,66.27%] EV80=-0.016 EV90=0.039
+  5m DEV:   raw=26 eff=26 W=12 L=13 T=1 WR=48.00% CI=[30.03%,66.50%] EV80=-0.136 EV90=-0.088
+  10m TRAIN: raw=64 eff=64 W=33 L=27 T=4 WR=55.00% CI=[42.49%,66.91%] EV80=-0.010 EV90=0.045
+  10m DEV:   raw=26 eff=26 W=15 L=10 T=1 WR=60.00% CI=[40.74%,76.60%] EV80=0.080 EV90=0.140
+  15m TRAIN: raw=64 eff=64 W=33 L=31 T=0 WR=51.56% CI=[39.58%,63.37%] EV80=-0.072 EV90=-0.020
+  15m DEV:   raw=26 eff=26 W=14 L=11 T=1 WR=56.00% CI=[37.07%,73.33%] EV80=0.008 EV90=0.064
+
+Resistance rejection → DOWN
+  1m TRAIN: raw=75 eff=75 W=39 L=29 T=7 WR=57.35% CI=[45.52%,68.40%] EV80=0.032 EV90=0.090
+  1m DEV:   raw=17 eff=17 W=4 L=13 T=0 WR=23.53% CI=[9.55%,47.26%] EV80=-0.576 EV90=-0.553
+  5m TRAIN: raw=75 eff=75 W=39 L=33 T=3 WR=54.17% CI=[42.74%,65.17%] EV80=-0.025 EV90=0.029
+  5m DEV:   raw=17 eff=17 W=6 L=11 T=0 WR=35.29% CI=[17.31%,58.70%] EV80=-0.365 EV90=-0.329
+  10m TRAIN: raw=75 eff=75 W=35 L=40 T=0 WR=46.67% CI=[35.82%,57.84%] EV80=-0.160 EV90=-0.113
+  10m DEV:   raw=17 eff=17 W=7 L=10 T=0 WR=41.18% CI=[21.61%,63.99%] EV80=-0.259 EV90=-0.218
+  15m TRAIN: raw=75 eff=75 W=36 L=38 T=1 WR=48.65% CI=[37.61%,59.82%] EV80=-0.124 EV90=-0.076
+  15m DEV:   raw=17 eff=17 W=8 L=9 T=0 WR=47.06% CI=[26.16%,69.04%] EV80=-0.153 EV90=-0.106
+
+================================
+BREAKOUT PRESSURE
+================================
+
+Resistance pressure → UP
+  1m DEV: raw=0 eff=0 n=0
+  5m DEV: raw=0 eff=0 n=0
+  10m DEV: raw=0 eff=0 n=0
+  15m DEV: raw=0 eff=0 n=0
+Support pressure → DOWN
+  1m DEV: raw=1 eff=1 W=0 L=1 T=0 WR=0.00% CI=[0.00%,79.35%] EV80=-1.000 EV90=-1.000
+  5m DEV: raw=1 eff=1 W=0 L=1 T=0 WR=0.00% CI=[0.00%,79.35%] EV80=-1.000 EV90=-1.000
+  10m DEV: raw=1 eff=1 W=0 L=1 T=0 WR=0.00% CI=[0.00%,79.35%] EV80=-1.000 EV90=-1.000
+  15m DEV: raw=1 eff=1 W=0 L=1 T=0 WR=0.00% CI=[0.00%,79.35%] EV80=-1.000 EV90=-1.000
+
+================================
+FAILED BREAKOUTS
+================================
+
+Resistance failed breakout → DOWN
+  1m DEV: raw=71 eff=71 W=38 L=30 T=3 WR=55.88% CI=[44.08%,67.05%] EV80=0.006 EV90=0.062
+  5m DEV: raw=71 eff=71 W=31 L=38 T=2 WR=44.93% CI=[33.77%,56.62%] EV80=-0.191 EV90=-0.146
+  10m DEV: raw=71 eff=71 W=31 L=38 T=2 WR=44.93% CI=[33.77%,56.62%] EV80=-0.191 EV90=-0.146
+  15m DEV: raw=71 eff=71 W=39 L=31 T=1 WR=55.71% CI=[44.08%,66.75%] EV80=0.003 EV90=0.059
+Support failed breakdown → UP
+  1m DEV: raw=48 eff=48 W=24 L=23 T=1 WR=51.06% CI=[37.24%,64.72%] EV80=-0.081 EV90=-0.030
+  5m DEV: raw=48 eff=48 W=25 L=22 T=1 WR=53.19% CI=[39.23%,66.67%] EV80=-0.043 EV90=0.011
+  10m DEV: raw=48 eff=48 W=27 L=21 T=0 WR=56.25% CI=[42.27%,69.30%] EV80=0.013 EV90=0.069
+  15m DEV: raw=48 eff=48 W=21 L=25 T=2 WR=45.65% CI=[32.15%,59.82%] EV80=-0.178 EV90=-0.133
+
+================================
+EXHAUSTION
+================================
+
+Seller exhaustion → UP
+  1m DEV: raw=11 eff=11 W=9 L=2 T=0 WR=81.82% CI=[52.30%,94.86%] EV80=0.473 EV90=0.555
+  5m DEV: raw=11 eff=11 W=7 L=3 T=1 WR=70.00% CI=[39.68%,89.22%] EV80=0.260 EV90=0.330
+  10m DEV: raw=11 eff=11 W=8 L=3 T=0 WR=72.73% CI=[43.43%,90.25%] EV80=0.309 EV90=0.382
+  15m DEV: raw=11 eff=11 W=6 L=5 T=0 WR=54.55% CI=[28.01%,78.73%] EV80=-0.018 EV90=0.036
+Buyer exhaustion → DOWN
+  1m DEV: raw=13 eff=13 W=6 L=7 T=0 WR=46.15% CI=[23.21%,70.86%] EV80=-0.169 EV90=-0.123
+  5m DEV: raw=13 eff=13 W=3 L=9 T=1 WR=25.00% CI=[8.89%,53.23%] EV80=-0.550 EV90=-0.525
+  10m DEV: raw=13 eff=13 W=7 L=6 T=0 WR=53.85% CI=[29.14%,76.79%] EV80=-0.031 EV90=0.023
+  15m DEV: raw=13 eff=13 W=7 L=6 T=0 WR=53.85% CI=[29.14%,76.79%] EV80=-0.031 EV90=0.023
+
+================================
+ATTEMPT COUNT (Analysis A DEV, implied dir, @10m)
+================================
+Resistance side:
+  2: raw=73 eff=73 W=32 L=39 T=2 WR=45.07% CI=[34.05%,56.60%] EV80=-0.189 EV90=-0.144
+  3: raw=22 eff=22 W=12 L=10 T=0 WR=54.55% CI=[34.66%,73.08%] EV80=-0.018 EV90=0.036
+  4+: raw=6 eff=6 W=1 L=5 T=0 WR=16.67% CI=[3.01%,56.35%] EV80=-0.700 EV90=-0.683
+Support side:
+  2: raw=57 eff=57 W=34 L=23 T=0 WR=59.65% CI=[46.70%,71.38%] EV80=0.074 EV90=0.133
+  3: raw=18 eff=18 W=10 L=7 T=1 WR=58.82% CI=[36.01%,78.39%] EV80=0.059 EV90=0.118
+  4+: raw=11 eff=11 W=6 L=5 T=0 WR=54.55% CI=[28.01%,78.73%] EV80=-0.018 EV90=0.036
+
+Does repeated testing favor rejection or breakout? See WR gradient above (descriptive).
+
+================================
+PROGRESS (@10m DEV, implied)
+================================
+  DIMINISHING: raw=22 eff=22 W=13 L=9 T=0 WR=59.09% CI=[38.73%,76.74%] EV80=0.064 EV90=0.123
+  FLAT: raw=147 eff=147 W=73 L=71 T=3 WR=50.69% CI=[42.62%,58.74%] EV80=-0.088 EV90=-0.037
+  INCREASING: raw=18 eff=18 W=9 L=9 T=0 WR=50.00% CI=[29.03%,70.97%] EV80=-0.100 EV90=-0.050
+
+================================
+REJECTION STRENGTH (@10m DEV, implied)
+================================
+  WEAKENING: raw=96 eff=96 W=48 L=46 T=2 WR=51.06% CI=[41.12%,60.93%] EV80=-0.081 EV90=-0.030
+  STABLE: raw=5 eff=5 W=0 L=4 T=1 WR=0.00% CI=[0.00%,48.99%] EV80=-1.000 EV90=-1.000
+  STRENGTHENING: raw=86 eff=86 W=47 L=39 T=0 WR=54.65% CI=[44.16%,64.75%] EV80=-0.016 EV90=0.038
+
+================================
+COMPRESSION (@10m DEV, implied)
+================================
+  NONE: raw=155 eff=155 W=82 L=71 T=2 WR=53.59% CI=[45.70%,61.31%] EV80=-0.035 EV90=0.018
+  MODERATE: raw=32 eff=32 W=13 L=18 T=1 WR=41.94% CI=[26.42%,59.23%] EV80=-0.245 EV90=-0.203
+  STRONG: raw=0 eff=0 n=0
+
+================================
+BASELINE AGREEMENT
+================================
+
+1m DEV:
+  AGREE: raw=57 eff=57 W=26 L=28 T=3 WR=48.15% CI=[35.39%,61.15%] EV80=-0.133 EV90=-0.085
+  DISAGREE: raw=130 eff=130 W=57 L=70 T=3 WR=44.88% CI=[36.51%,53.56%] EV80=-0.192 EV90=-0.147
+  NO_STRUGGLE: raw=686 eff=686 W=311 L=341 T=34 WR=47.70% CI=[43.89%,51.54%] EV80=-0.141 EV90=-0.094
+
+5m DEV:
+  AGREE: raw=57 eff=57 W=25 L=31 T=1 WR=44.64% CI=[32.39%,57.59%] EV80=-0.196 EV90=-0.152
+  DISAGREE: raw=130 eff=130 W=66 L=59 T=5 WR=52.80% CI=[44.10%,61.34%] EV80=-0.050 EV90=0.003
+  NO_STRUGGLE: raw=686 eff=686 W=318 L=355 T=13 WR=47.25% CI=[43.51%,51.03%] EV80=-0.149 EV90=-0.102
+
+10m DEV:
+  AGREE: raw=57 eff=57 W=24 L=31 T=2 WR=43.64% CI=[31.37%,56.73%] EV80=-0.215 EV90=-0.171
+  DISAGREE: raw=130 eff=130 W=58 L=71 T=1 WR=44.96% CI=[36.65%,53.57%] EV80=-0.191 EV90=-0.146
+  NO_STRUGGLE: raw=686 eff=686 W=329 L=345 T=12 WR=48.81% CI=[45.06%,52.58%] EV80=-0.121 EV90=-0.073
+
+15m DEV:
+  AGREE: raw=57 eff=57 W=26 L=29 T=2 WR=47.27% CI=[34.69%,60.21%] EV80=-0.149 EV90=-0.102
+  DISAGREE: raw=130 eff=130 W=59 L=69 T=2 WR=46.09% CI=[37.70%,54.72%] EV80=-0.170 EV90=-0.124
+  NO_STRUGGLE: raw=686 eff=686 W=326 L=346 T=14 WR=48.51% CI=[44.75%,52.29%] EV80=-0.127 EV90=-0.078
+
+
+================================
+ANALYSIS A — EXISTING PREDICTIONS
+================================
+
+Best DEV candidate: A|IMPLIED|FAILED_SUPPORT_BREAKDOWN|up|10m
+Effective n: 48
+WR: 56.25%
+95% CI: [42.27%, 69.30%]
+EV @80: 0.0125
+Coverage: 5.5% of DEV predictions
+Clears DEV gate? NO
+
+================================
+ANALYSIS B — ALL M1 EVENTS
+================================
+
+Best DEV candidate: B|SELLER_EXHAUSTION|up|5m
+Effective n: 248
+WR: 53.63%
+95% CI: [47.41%, 59.73%]
+EV @80: -0.0347
+Events/day (approx DEV window): 257.0
+Clears DEV gate? NO
+
+================================
+TOP DEV CANDIDATES
+================================
+
+Analysis A:
+1. IMPLIED_FAILED_SUPPORT_BREAKDOWN | up | 10m | effN=48 WR=56.25% CI=[42.27%,69.30%] EV80=0.013 EV90=0.069 gate=FAIL
+2. IMPLIED_FAILED_RESISTANCE_BREAKOUT | down | 1m | effN=68 WR=55.88% CI=[44.08%,67.05%] EV80=0.006 EV90=0.062 gate=FAIL
+3. IMPLIED_FAILED_RESISTANCE_BREAKOUT | down | 15m | effN=70 WR=55.71% CI=[44.08%,66.75%] EV80=0.003 EV90=0.059 gate=FAIL
+4. IMPLIED_FAILED_SUPPORT_BREAKDOWN | up | 5m | effN=47 WR=53.19% CI=[39.23%,66.67%] EV80=-0.043 EV90=0.011 gate=FAIL
+5. IMPLIED_FAILED_SUPPORT_BREAKDOWN | up | 1m | effN=47 WR=51.06% CI=[37.24%,64.72%] EV80=-0.081 EV90=-0.030 gate=FAIL
+6. IMPLIED_FAILED_SUPPORT_BREAKDOWN | up | 15m | effN=46 WR=45.65% CI=[32.15%,59.82%] EV80=-0.178 EV90=-0.133 gate=FAIL
+7. IMPLIED_FAILED_RESISTANCE_BREAKOUT | down | 5m | effN=69 WR=44.93% CI=[33.77%,56.62%] EV80=-0.191 EV90=-0.146 gate=FAIL
+8. IMPLIED_FAILED_RESISTANCE_BREAKOUT | down | 10m | effN=69 WR=44.93% CI=[33.77%,56.62%] EV80=-0.191 EV90=-0.146 gate=FAIL
+
+Analysis B:
+1. SELLER_EXHAUSTION | up | 5m | effN=248 WR=53.63% CI=[47.41%,59.73%] EV80=-0.035 EV90=0.019 gate=FAIL
+2. SELLER_EXHAUSTION | up | 10m | effN=246 WR=52.03% CI=[45.81%,58.20%] EV80=-0.063 EV90=-0.011 gate=FAIL
+3. FAILED_SUPPORT_BREAKDOWN | up | 10m | effN=859 WR=51.69% CI=[48.35%,55.01%] EV80=-0.070 EV90=-0.018 gate=FAIL
+4. BUYER_EXHAUSTION | down | 1m | effN=202 WR=51.49% CI=[44.63%,58.29%] EV80=-0.073 EV90=-0.022 gate=FAIL
+5. FAILED_SUPPORT_BREAKDOWN | up | 15m | effN=852 WR=50.59% CI=[47.23%,53.93%] EV80=-0.089 EV90=-0.039 gate=FAIL
+6. SELLER_EXHAUSTION | up | 1m | effN=222 WR=50.00% CI=[43.48%,56.52%] EV80=-0.100 EV90=-0.050 gate=FAIL
+7. FAILED_SUPPORT_BREAKDOWN | up | 5m | effN=846 WR=49.65% CI=[46.29%,53.01%] EV80=-0.106 EV90=-0.057 gate=FAIL
+8. RESISTANCE_REJECTION | down | 1m | effN=371 WR=49.60% CI=[44.54%,54.66%] EV80=-0.107 EV90=-0.058 gate=FAIL
+9. SUPPORT_REJECTION | up | 10m | effN=374 WR=49.20% CI=[44.17%,54.25%] EV80=-0.114 EV90=-0.065 gate=FAIL
+10. BUYER_EXHAUSTION | down | 15m | effN=223 WR=48.88% CI=[42.39%,55.40%] EV80=-0.120 EV90=-0.071 gate=FAIL
+
+Hypotheses/subsets registered & scored: 96
+
+================================
+HOLDOUT
+================================
+
+NOT READ — no DEV candidate cleared n≥100 AND WR>55.56% AND EV80>0 AND pair/day dominance ≤55%.
+
+================================
+MODEL
+================================
+
+Used? YES (L2 logistic, TRAIN→DEV, Analysis A active rows)
+Model: logistic regression, n_train=647
+DEV performance: P(win)>=0.55 @10m: n=10 WR=70.00% CI=[39.68%,89.22%] EV80=0.260
+Top features (|weight|):
+  agree: 0.0946
+  rejection: 0.0917
+  approach: 0.0744
+  exhaustion: -0.0659
+  prior_move: 0.0600
+  wick_pen: -0.0389
+  latest_progress: 0.0324
+  compression: 0.0228
+Did ML materially improve interpretable rules? NO
+
+================================
+ROBUSTNESS
+================================
+
+Top cells inspected for single-pair / single-day dominance on DEV (gate ≤55%).
+  A|IMPLIED|FAILED_SUPPORT_BREAKDOWN|up|10m: pairShare=16.7% dayShare=89.6% ok=false
+  A|IMPLIED|FAILED_RESISTANCE_BREAKOUT|down|1m: pairShare=16.2% dayShare=85.3% ok=false
+  A|IMPLIED|FAILED_RESISTANCE_BREAKOUT|down|15m: pairShare=17.1% dayShare=85.7% ok=false
+  B|SELLER_EXHAUSTION|up|5m: pairShare=15.7% dayShare=71.8% ok=false
+  B|SELLER_EXHAUSTION|up|10m: pairShare=16.3% dayShare=72.8% ok=false
+  B|FAILED_SUPPORT_BREAKDOWN|up|10m: pairShare=11.9% dayShare=70.9% ok=false
+Is result broadly distributed? N/A — no survivors
+
+================================
+FINAL VERDICT
+================================
+
+PROMISING_BUT_UNDERPOWERED
+
+================================
+MOST IMPORTANT ANSWERS
+================================
+
+1. More predictable than ~49% baseline? No clear improvement that survives DEV gates.
+2. Rejection vs breakout: compare REJECTION / BREAKOUT_PRESSURE / FAILED sections — neither cleared DEV gate at n≥100 & WR>55.56%.
+3. Best pre-entry discriminants (model weights / tables): progress slope, rejection slope, failed penetration, compression — none sufficient alone.
+4. Strongest expiry: see top DEV list (typically still ~coin-flip).
+5. DEV subset above payout BE with n≥100? NO
+6. Independent across pairs/days? No qualifying universal candidate; underpowered cells often concentrate.
+7. If nothing qualifies: struggle states are rare, ~50%, below 55.56% BE, underpowered (n<100), and/or unstable across pairs/days; holdout sealed.
+
+NO PRODUCTION BINARY CHANGES WERE MADE.

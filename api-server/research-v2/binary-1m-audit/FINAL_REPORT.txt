@@ -1,0 +1,205 @@
+GOLDENXPERIENCE
+1-MINUTE BINARY EXPIRY AUDIT
+
+DATA
+================================
+
+Strategy/version: binary-baseline-v1@1.0.0 (authoritative / production binary)
+  (logistic shadow reported separately — not mixed into headline)
+Date range: 2026-08-14 17:13:11.523+00 → 2026-08-21 20:47:39.282+00
+Symbols: AUD_JPY, AUD_USD, EUR_AUD, EUR_GBP, EUR_JPY, EUR_USD, GBP_JPY, GBP_USD, NZD_USD, USD_CAD, USD_CHF, USD_JPY
+Total predictions (baseline authoritative resolved): 4343
+Eligible (1m M1-resolved): 4343
+Excluded: no_M1_mark=0  timestamp_fail=0
+1-minute price source: OANDA M1 mid close via getResearchCandles
+  (same source/convention as binary-engine resolveDueBinaryPredictions)
+  Local DB market_candles has NO M1 — live resolver also fetches OANDA M1
+Timestamp audit: expiration_timestamp > prediction_timestamp for 100% of eligible (4343)
+Official horizon of predictions: 600s (10m)
+Secondary marks already stored: 300s (5m), 900s (15m)
+
+Manual examples (see also EXAMPLES.txt):
+seq=1 EUR_USD down
+  prediction/start: 2026-08-14 17:13:11.523+00
+  entry_price:      1.15666
+  expiration_1m:    2026-08-14T17:15:00.000Z  price=1.15671  result=lost
+  expiration_ts > start_ts: true
+  stored_10m:       won @ 2026-08-14 17:24:00+00 (m1_candle)
+  computed_10m:     won @ 2026-08-14T17:24:00.000Z
+
+seq=7 EUR_GBP up
+  prediction/start: 2026-08-14 17:13:11.523+00
+  entry_price:      0.8547750000000001
+  expiration_1m:    2026-08-14T17:15:00.000Z  price=0.8548  result=won
+  expiration_ts > start_ts: true
+  stored_10m:       won @ 2026-08-14 17:24:00+00 (m1_candle)
+  computed_10m:     won @ 2026-08-14T17:24:00.000Z
+
+seq=6 USD_CHF up
+  prediction/start: 2026-08-14 17:13:11.523+00
+  entry_price:      0.81326
+  expiration_1m:    2026-08-14T17:15:00.000Z  price=0.81322  result=lost
+  expiration_ts > start_ts: true
+  stored_10m:       won @ 2026-08-14 17:24:00+00 (m1_candle)
+  computed_10m:     won @ 2026-08-14T17:24:00.000Z
+
+OVERALL (1-MINUTE)
+================================
+
+Wins: 2018
+Losses: 2087
+Ties: 238
+Missing among eligible: 0
+Win rate (excl. ties): 49.16%
+95% CI (Wilson): [47.63%, 50.69%]
+Sample size (decided): 4105
+
+CI exceeds 50%? NO
+CI exceeds 55%? NO
+CI exceeds 80% payout BE (55.56%)? NO
+CI exceeds 90% payout BE (52.63%)? NO
+
+EXPIRY COMPARISON (same eligible cohort; M1-computed where available)
+================================
+
+1m:  n=4105 W=2018 L=2087 T=238 miss=0 WR=49.16% CI95=[47.63%,50.69%]
+5m:  n=4203 W=2055 L=2148 T=140 miss=0 WR=48.89% CI95=[47.38%,50.41%]
+10m: n=4261 W=2105 L=2156 T=82 miss=0 WR=49.40% CI95=[47.90%,50.90%]
+15m: n=4278 W=2077 L=2201 T=64 miss=1 WR=48.55% CI95=[47.06%,50.05%]
+
+Stored official 10m (same rows): n=4240 W=2093 L=2147 T=103 miss=0 WR=49.36% CI95=[47.86%,50.87%]
+
+BEST EXPIRY: 10m (WR=49.40%)
+
+UP vs DOWN (1m)
+================================
+
+UP:   n=2142 W=1039 L=1103 T=121 miss=0 WR=48.51% CI95=[46.39%,50.62%]
+DOWN: n=1963 W=979 L=984 T=117 miss=0 WR=49.87% CI95=[47.66%,52.08%]
+
+BY SYMBOL (1m)
+================================
+
+  AUD_JPY: n=161 W=80 L=81 T=7 miss=0 WR=49.69% CI95=[42.06%,57.33%]
+  AUD_USD: n=366 W=191 L=175 T=36 miss=0 WR=52.19% CI95=[47.07%,57.25%]
+  EUR_AUD: n=166 W=82 L=84 T=4 miss=0 WR=49.40% CI95=[41.89%,56.93%]
+  EUR_GBP: n=346 W=185 L=161 T=54 miss=0 WR=53.47% CI95=[48.20%,58.66%]
+  EUR_JPY: n=394 W=160 L=234 T=7 miss=0 WR=40.61% CI95=[35.87%,45.53%]
+  EUR_USD: n=379 W=184 L=195 T=20 miss=0 WR=48.55% CI95=[43.56%,53.57%]
+  GBP_JPY: n=391 W=191 L=200 T=10 miss=0 WR=48.85% CI95=[43.93%,53.79%]
+  GBP_USD: n=379 W=183 L=196 T=21 miss=0 WR=48.28% CI95=[43.30%,53.31%]
+  NZD_USD: n=368 W=175 L=193 T=28 miss=0 WR=47.55% CI95=[42.50%,52.66%]
+  USD_CAD: n=385 W=180 L=205 T=15 miss=0 WR=46.75% CI95=[41.83%,51.74%]
+  USD_CHF: n=386 W=212 L=174 T=19 miss=0 WR=54.92% CI95=[49.93%,59.81%]
+  USD_JPY: n=384 W=195 L=189 T=17 miss=0 WR=50.78% CI95=[45.80%,55.75%]
+
+CONFIDENCE (1m) — existing score buckets, no retuning
+================================
+
+  <50%: n=0 (missing=0)  [INSUFFICIENT_SAMPLE]
+  50–55%: n=0 (missing=0)  [INSUFFICIENT_SAMPLE]
+  55–60%: n=225 W=120 L=105 T=10 miss=0 WR=53.33% CI95=[46.81%,59.74%]
+  60–65%: n=508 W=250 L=258 T=39 miss=0 WR=49.21% CI95=[44.89%,53.55%]
+  65–70%: n=437 W=221 L=216 T=26 miss=0 WR=50.57% CI95=[45.90%,55.23%]
+  70–75%: n=370 W=176 L=194 T=17 miss=0 WR=47.57% CI95=[42.53%,52.66%]
+  75%+: n=2565 W=1251 L=1314 T=146 miss=0 WR=48.77% CI95=[46.84%,50.71%]
+
+Percentile buckets:
+  All: n=4105 W=2018 L=2087 T=238 miss=0 WR=49.16% CI95=[47.63%,50.69%]
+  Top 50%: n=2058 W=987 L=1071 T=113 miss=0 WR=47.96% CI95=[45.81%,50.12%]
+  Top 25%: n=1027 W=498 L=529 T=58 miss=0 WR=48.49% CI95=[45.45%,51.55%]
+  Top 10%: n=401 W=190 L=211 T=33 miss=0 WR=47.38% CI95=[42.54%,52.27%]
+  Top 5%:  n=206 W=93 L=113 T=11 miss=0 WR=45.15% CI95=[38.50%,51.97%]
+
+High-conf half WR=47.96% vs low-conf half WR=50.37%
+Does confidence rank win probability? NO
+
+SESSION / TIME (1m, descriptive only)
+================================
+
+By session:
+  London: n=1413 W=705 L=708 T=69 miss=0 WR=49.89% CI95=[47.29%,52.50%]
+  London/New York overlap: n=1141 W=566 L=575 T=38 miss=0 WR=49.61% CI95=[46.71%,52.50%]
+  New York: n=1551 W=747 L=804 T=131 miss=0 WR=48.16% CI95=[45.68%,50.65%]
+
+By hour ET:
+  03:00 n=310 W=156 L=154 T=13 miss=0 WR=50.32% CI95=[44.79%,55.85%]
+  04:00 n=263 W=148 L=115 T=15 miss=0 WR=56.27% CI95=[50.23%,62.14%]
+  05:00 n=288 W=136 L=152 T=13 miss=0 WR=47.22% CI95=[41.53%,52.99%]
+  06:00 n=266 W=128 L=138 T=20 miss=0 WR=48.12% CI95=[42.19%,54.11%]
+  07:00 n=286 W=137 L=149 T=8 miss=0 WR=47.90% CI95=[42.18%,53.68%]
+  08:00 n=278 W=152 L=126 T=14 miss=0 WR=54.68% CI95=[48.80%,60.42%]
+  09:00 n=292 W=145 L=147 T=6 miss=0 WR=49.66% CI95=[43.96%,55.36%]
+  10:00 n=282 W=124 L=158 T=9 miss=0 WR=43.97% CI95=[38.30%,49.81%]
+  11:00 n=289 W=145 L=144 T=9 miss=0 WR=50.17% CI95=[44.44%,55.90%]
+  12:00 n=282 W=123 L=159 T=11 miss=0 WR=43.62% CI95=[37.95%,49.45%]
+  13:00 n=328 W=158 L=170 T=15 miss=0 WR=48.17% CI95=[42.82%,53.57%]
+  14:00 n=325 W=182 L=143 T=34 miss=0 WR=56.00% CI95=[50.56%,61.30%]
+  15:00 n=331 W=159 L=172 T=27 miss=0 WR=48.04% CI95=[42.71%,53.41%]
+  16:00 n=285 W=125 L=160 T=44 miss=0 WR=43.86% CI95=[38.22%,49.66%]
+
+By weekday ET:
+  Fri: n=1055 W=487 L=568 T=62 miss=0 WR=46.16% CI95=[43.17%,49.18%]
+  Mon: n=700 W=343 L=357 T=58 miss=0 WR=49.00% CI95=[45.31%,52.70%]
+  Tue: n=710 W=383 L=327 T=47 miss=0 WR=53.94% CI95=[50.27%,57.58%]
+  Wed: n=768 W=389 L=379 T=31 miss=0 WR=50.65% CI95=[47.12%,54.17%]
+  Thu: n=872 W=416 L=456 T=40 miss=0 WR=47.71% CI95=[44.41%,51.02%]
+
+CONSECUTIVE OUTCOMES (exploratory, not predictive claim)
+================================
+
+Max consecutive wins: 14
+Max consecutive losses: 12
+
+After 1 loss: n=979 W=480 L=499 T=0 miss=0 WR=49.03% CI95=[45.91%,52.16%]
+After 2 losses: n=499 W=207 L=292 T=0 miss=0 WR=41.48% CI95=[37.24%,45.85%]
+After 3+ losses: n=609 W=292 L=317 T=0 miss=0 WR=47.95% CI95=[44.00%,51.92%]
+After 1 win: n=979 W=480 L=499 T=0 miss=0 WR=49.03% CI95=[45.91%,52.16%]
+After 2 wins: n=480 W=247 L=233 T=0 miss=0 WR=51.46% CI95=[46.99%,55.90%]
+After 3+ wins: n=558 W=312 L=246 T=0 miss=0 WR=55.91% CI95=[51.77%,59.98%]
+
+PAYOUT ANALYSIS (1m observed WR=49.16%)
+================================
+
+PAYOUT    BREAK-EVEN WR    ACTUAL WR    EV/$1
+   70%       58.82%          49.16%     -0.1643
+   75%       57.14%          49.16%     -0.1397
+   80%       55.56%          49.16%     -0.1151
+   85%       54.05%          49.16%     -0.0905
+   90%       52.63%          49.16%     -0.0660
+   95%       51.28%          49.16%     -0.0414
+
+Detail:
+  70%: BE=58.82%  actual=49.16%  EV/$-0.1643  below BE
+  75%: BE=57.14%  actual=49.16%  EV/$-0.1397  below BE
+  80%: BE=55.56%  actual=49.16%  EV/$-0.1151  below BE
+  85%: BE=54.05%  actual=49.16%  EV/$-0.0905  below BE
+  90%: BE=52.63%  actual=49.16%  EV/$-0.0660  below BE
+  95%: BE=51.28%  actual=49.16%  EV/$-0.0414  below BE
+
+At what payout is 1m profitable?
+NONE — observed WR does not clear break-even with CI support
+
+LOGISTIC SHADOW (separate; not mixed into headline)
+================================
+
+binary-logistic-v1@1.0.0 shadow predictions overlapping M1 fetch:
+n=1728 W=867 L=861 T=86 miss=0 WR=50.17% CI95=[47.82%,52.53%]
+
+STATISTICAL VERDICT
+================================
+
+Is 1-minute accuracy >50% (point)? NO
+Is it statistically supported (CI >50%)? NO
+Does it exceed binary break-even at 80% payout (CI)? NO
+Does it exceed binary break-even at 90% payout (CI)? NO
+Does it outperform 5m? YES (49.16% vs 48.89%)
+Does it outperform 10m? NO (49.16% vs 49.40%)
+Does it outperform 15m? YES (49.16% vs 48.55%)
+
+NO STRATEGY CHANGES WERE MADE.
+NO THRESHOLDS WERE OPTIMIZED.
+NO RETRAINING WAS PERFORMED.
+
+FINAL VERDICT:
+ONE_MINUTE_NO_EDGE

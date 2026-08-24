@@ -1,0 +1,4 @@
+FULL_AUDIT gx-v2-004
+verdict: ROBUST_PASS
+fails: none
+baseline: n=325 net=+0.5363 CI=[+0.2260, +0.8465]

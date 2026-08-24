@@ -1,0 +1,314 @@
+GOLDENXPERIENCE
+BOLLINGER RANGE-REJECTION WALK-FORWARD TEST
+Experiment: binary-bollinger-range-v1
+
+================================
+DATA
+================================
+
+Pairs: EUR_USD, GBP_USD, USD_JPY, AUD_USD, NZD_USD, USD_CAD, USD_CHF, EUR_GBP, EUR_JPY, GBP_JPY, AUD_JPY, EUR_AUD
+Baseline predictions (secondary): 4343 spanning 2026-08-14 17:13:11.523+00 → 2026-08-21 20:47:39.282+00
+M1 coverage: 2026-08-03T17:54:00.000Z → 2026-08-21T21:00:00.000Z
+M1 bars: 240000 across 12 pairs
+Gaps (intraday >3m, <48h):
+  EUR_USD: bars=20000 intradayGaps≈14
+  GBP_USD: bars=20000 intradayGaps≈13
+  USD_JPY: bars=20000 intradayGaps≈14
+  AUD_USD: bars=20000 intradayGaps≈19
+  NZD_USD: bars=20000 intradayGaps≈29
+  USD_CAD: bars=20000 intradayGaps≈14
+  USD_CHF: bars=20000 intradayGaps≈24
+  EUR_GBP: bars=20000 intradayGaps≈17
+  EUR_JPY: bars=20000 intradayGaps≈12
+  GBP_JPY: bars=20000 intradayGaps≈13
+  AUD_JPY: bars=20000 intradayGaps≈12
+  EUR_AUD: bars=20000 intradayGaps≈11
+
+TRAIN: 2026-08-03T17:54:00.000Z → 2026-08-14T20:59:59.999Z  (bars=154216)
+TEST:  2026-08-14T21:00:00.000Z → 2026-08-21T21:00:00.000Z  (bars=85784)
+Definition: TEST = [dataEnd - 7d, dataEnd]; TRAIN = all M1 strictly before TEST start.
+Parameters frozen BEFORE any TEST outcome selection.
+
+================================
+PRE-REGISTERED SETTINGS
+================================
+
+BB stdev mode: population (variance = mean(x^2) - mean(x)^2 over period)
+BB20: period=20, k=2.0
+BB50: period=50, k=1.5
+ATR14 / ADX14 / RSI14: Wilder
+Primary range filter: ADX <= 25 (sensitivity ADX <= 20)
+Trend: ADX > 25
+RSI: UP if RSI<=30, DOWN if RSI>=70
+Rejection (F): UP lowerWick/range>=0.4 & closeLoc>=0.6; DOWN upperWick/range>=0.4 & closeLoc<=0.4
+Keltner control: EMA20 ± 1.5*ATR14
+Excursion: high>upper (resistance) / low<lower (support)
+Reentry: close <= upper / close >= lower after outside
+Dedup: after signal suppress until price returns to mid, then NEW outside required
+Expiries: 1, 2, 3, 5, 10, 15 minutes
+BE80: 55.56%
+
+================================
+LEAKAGE AUDIT
+================================
+
+  - indicators at T use only closed bars with index ≤ T: PASS
+  - signal only after confirmation candle close; entry = confirmation close: PASS
+  - expiry resolve uses first closed candle at/after entryMs+N*60s: PASS
+  - TEST window fixed from M1 dataEnd before outcome-based selection: PASS
+  - BB period/dev, ADX, RSI, wick thresholds pre-registered (no TEST fitting): PASS
+  - population stdev documented and consistent: PASS
+  - episode dedup until mid return + new excursion: PASS
+  - ties via classifyBinaryResult; WR = wins/(wins+losses): PASS
+  - production binary / baseline / adaptive untouched: PASS
+  - no suspicious WR≥65% with n≥200: PASS
+
+
+================================
+EVENT FREQUENCY (TEST, deduped episodes)
+================================
+
+  BB_REENTRY_RANGE_REJECT|BB20: deduped=1100 rawFamily≈5576
+  BB_REENTRY_RANGE_REJECT|BB50: deduped=589 rawFamily≈3165
+  BB_REENTRY_RANGE_RSI|BB20: deduped=37 rawFamily≈5576
+  BB_REENTRY_RANGE_RSI|BB50: deduped=10 rawFamily≈3165
+  BB_REENTRY_RANGE|BB20: deduped=4111 rawFamily≈5576
+  BB_REENTRY_RANGE|BB50: deduped=2411 rawFamily≈3165
+  BB_REENTRY_RSI|BB20: deduped=172 rawFamily≈5576
+  BB_REENTRY_RSI|BB50: deduped=39 rawFamily≈3165
+  BB_REENTRY|BB20: deduped=5576 rawFamily≈5576
+  BB_REENTRY|BB50: deduped=3165 rawFamily≈3165
+  BB_TOUCH|BB20: deduped=5699 rawFamily≈21016
+  BB_TOUCH|BB50: deduped=3247 rawFamily≈36996
+  KELTNER_REENTRY_RANGE|KELTNER: deduped=4041 rawFamily≈5926
+
+Raw family counters (touch bars / reentry closes before episode suppress):
+  BB_REENTRY|BB20: 5576
+  BB_REENTRY|BB50: 3165
+  BB_TOUCH|BB20: 21016
+  BB_TOUCH|BB50: 36996
+  KELTNER_REENTRY_RANGE|KELTNER: 5926
+
+================================
+HEADLINE RESULTS (TEST)
+================================
+
+--- BB_TOUCH | BB20 ---
+  1m: n=5191 W=2616 L=2575 T=508 WR=50.39% CI=[49.03%,51.75%] EV80=-0.093 | RANGE n=4003 W=2040 L=1963 T=393 WR=50.96% CI=[49.41%,52.51%] EV80=-0.083 | TREND n=1188 W=576 L=612 T=115 WR=48.48% CI=[45.65%,51.33%] EV80=-0.127 | Above 50
+  2m: n=5366 W=2689 L=2677 T=330 WR=50.11% CI=[48.77%,51.45%] EV80=-0.098 | RANGE n=4137 W=2083 L=2054 T=256 WR=50.35% CI=[48.83%,51.87%] EV80=-0.094 | TREND n=1229 W=606 L=623 T=74 WR=49.31% CI=[46.52%,52.10%] EV80=-0.112 | Above 50
+  3m: n=5463 W=2780 L=2683 T=230 WR=50.89% CI=[49.56%,52.21%] EV80=-0.084 | RANGE n=4206 W=2172 L=2034 T=184 WR=51.64% CI=[50.13%,53.15%] EV80=-0.070 | TREND n=1257 W=608 L=649 T=46 WR=48.37% CI=[45.62%,51.13%] EV80=-0.129 | Above 50
+  5m: n=5494 W=2744 L=2750 T=196 WR=49.95% CI=[48.62%,51.27%] EV80=-0.101 | RANGE n=4235 W=2147 L=2088 T=152 WR=50.70% CI=[49.19%,52.20%] EV80=-0.087 | TREND n=1259 W=597 L=662 T=44 WR=47.42% CI=[44.67%,50.18%] EV80=-0.146 | No edge
+  10m: n=5547 W=2846 L=2701 T=139 WR=51.31% CI=[49.99%,52.62%] EV80=-0.076 | RANGE n=4282 W=2203 L=2079 T=101 WR=51.45% CI=[49.95%,52.94%] EV80=-0.074 | TREND n=1265 W=643 L=622 T=38 WR=50.83% CI=[48.08%,53.58%] EV80=-0.085 | Above 50
+  15m: n=5570 W=2892 L=2678 T=110 WR=51.92% CI=[50.61%,53.23%] EV80=-0.065 | RANGE n=4294 W=2212 L=2082 T=84 WR=51.51% CI=[50.02%,53.01%] EV80=-0.073 | TREND n=1276 W=680 L=596 T=26 WR=53.29% CI=[50.55%,56.02%] EV80=-0.041 | Above 50
+
+--- BB_TOUCH | BB50 ---
+  1m: n=2973 W=1507 L=1466 T=273 WR=50.69% CI=[48.89%,52.48%] EV80=-0.088 | RANGE n=2558 W=1289 L=1269 T=235 WR=50.39% CI=[48.45%,52.33%] EV80=-0.093 | TREND n=415 W=218 L=197 T=38 WR=52.53% CI=[47.72%,57.29%] EV80=-0.054 | Above 50
+  2m: n=3054 W=1515 L=1539 T=187 WR=49.61% CI=[47.84%,51.38%] EV80=-0.107 | RANGE n=2625 W=1298 L=1327 T=163 WR=49.45% CI=[47.54%,51.36%] EV80=-0.110 | TREND n=429 W=217 L=212 T=24 WR=50.58% CI=[45.87%,55.29%] EV80=-0.090 | No edge
+  3m: n=3091 W=1568 L=1523 T=149 WR=50.73% CI=[48.97%,52.49%] EV80=-0.087 | RANGE n=2660 W=1353 L=1307 T=127 WR=50.86% CI=[48.96%,52.76%] EV80=-0.084 | TREND n=431 W=215 L=216 T=22 WR=49.88% CI=[45.19%,54.58%] EV80=-0.102 | Above 50
+  5m: n=3110 W=1576 L=1534 T=129 WR=50.68% CI=[48.92%,52.43%] EV80=-0.088 | RANGE n=2671 W=1342 L=1329 T=115 WR=50.24% CI=[48.35%,52.14%] EV80=-0.096 | TREND n=439 W=234 L=205 T=14 WR=53.30% CI=[48.63%,57.92%] EV80=-0.041 | Above 50
+  10m: n=3142 W=1655 L=1487 T=96 WR=52.67% CI=[50.93%,54.41%] EV80=-0.052 | RANGE n=2705 W=1425 L=1280 T=80 WR=52.68% CI=[50.80%,54.56%] EV80=-0.052 | TREND n=437 W=230 L=207 T=16 WR=52.63% CI=[47.95%,57.27%] EV80=-0.053 | Above 50
+  15m: n=3159 W=1659 L=1500 T=74 WR=52.52% CI=[50.77%,54.25%] EV80=-0.055 | RANGE n=2718 W=1432 L=1286 T=62 WR=52.69% CI=[50.81%,54.56%] EV80=-0.052 | TREND n=441 W=227 L=214 T=12 WR=51.47% CI=[46.82%,56.11%] EV80=-0.073 | Above 50
+
+--- BB_REENTRY | BB20 ---
+  1m: n=5077 W=2526 L=2551 T=499 WR=49.75% CI=[48.38%,51.13%] EV80=-0.104 | RANGE n=3747 W=1881 L=1866 T=364 WR=50.20% CI=[48.60%,51.80%] EV80=-0.096 | TREND n=1330 W=645 L=685 T=135 WR=48.50% CI=[45.82%,51.18%] EV80=-0.127 | No edge
+  2m: n=5246 W=2562 L=2684 T=327 WR=48.84% CI=[47.49%,50.19%] EV80=-0.121 | RANGE n=3869 W=1902 L=1967 T=239 WR=49.16% CI=[47.59%,50.74%] EV80=-0.115 | TREND n=1377 W=660 L=717 T=88 WR=47.93% CI=[45.30%,50.57%] EV80=-0.137 | No edge
+  3m: n=5337 W=2623 L=2714 T=233 WR=49.15% CI=[47.81%,50.49%] EV80=-0.115 | RANGE n=3929 W=1949 L=1980 T=176 WR=49.61% CI=[48.04%,51.17%] EV80=-0.107 | TREND n=1408 W=674 L=734 T=57 WR=47.87% CI=[45.27%,50.48%] EV80=-0.138 | No edge
+  5m: n=5365 W=2633 L=2732 T=202 WR=49.08% CI=[47.74%,50.42%] EV80=-0.117 | RANGE n=3951 W=1963 L=1988 T=151 WR=49.68% CI=[48.13%,51.24%] EV80=-0.106 | TREND n=1414 W=670 L=744 T=51 WR=47.38% CI=[44.79%,49.99%] EV80=-0.147 | No edge
+  10m: n=5429 W=2769 L=2660 T=133 WR=51.00% CI=[49.67%,52.33%] EV80=-0.082 | RANGE n=4002 W=2039 L=1963 T=95 WR=50.95% CI=[49.40%,52.50%] EV80=-0.083 | TREND n=1427 W=730 L=697 T=38 WR=51.16% CI=[48.56%,53.74%] EV80=-0.079 | Above 50
+  15m: n=5434 W=2800 L=2634 T=122 WR=51.53% CI=[50.20%,52.85%] EV80=-0.073 | RANGE n=4006 W=2041 L=1965 T=86 WR=50.95% CI=[49.40%,52.50%] EV80=-0.083 | TREND n=1428 W=759 L=669 T=36 WR=53.15% CI=[50.56%,55.73%] EV80=-0.043 | Above 50
+
+--- BB_REENTRY | BB50 ---
+  1m: n=2868 W=1408 L=1460 T=296 WR=49.09% CI=[47.27%,50.92%] EV80=-0.116 | RANGE n=2188 W=1055 L=1133 T=222 WR=48.22% CI=[46.13%,50.31%] EV80=-0.132 | TREND n=680 W=353 L=327 T=74 WR=51.91% CI=[48.16%,55.65%] EV80=-0.066 | No edge
+  2m: n=2955 W=1463 L=1492 T=204 WR=49.51% CI=[47.71%,51.31%] EV80=-0.109 | RANGE n=2248 W=1099 L=1149 T=157 WR=48.89% CI=[46.83%,50.95%] EV80=-0.120 | TREND n=707 W=364 L=343 T=47 WR=51.49% CI=[47.80%,55.15%] EV80=-0.073 | No edge
+  3m: n=2990 W=1524 L=1466 T=167 WR=50.97% CI=[49.18%,52.76%] EV80=-0.083 | RANGE n=2281 W=1156 L=1125 T=123 WR=50.68% CI=[48.63%,52.73%] EV80=-0.088 | TREND n=709 W=368 L=341 T=44 WR=51.90% CI=[48.23%,55.56%] EV80=-0.066 | Above 50
+  5m: n=3024 W=1532 L=1492 T=132 WR=50.66% CI=[48.88%,52.44%] EV80=-0.088 | RANGE n=2305 W=1159 L=1146 T=98 WR=50.28% CI=[48.24%,52.32%] EV80=-0.095 | TREND n=719 W=373 L=346 T=34 WR=51.88% CI=[48.23%,55.51%] EV80=-0.066 | Above 50
+  10m: n=3069 W=1585 L=1484 T=85 WR=51.65% CI=[49.88%,53.41%] EV80=-0.070 | RANGE n=2342 W=1215 L=1127 T=59 WR=51.88% CI=[49.85%,53.90%] EV80=-0.066 | TREND n=727 W=370 L=357 T=26 WR=50.89% CI=[47.26%,54.51%] EV80=-0.084 | Above 50
+  15m: n=3086 W=1613 L=1473 T=63 WR=52.27% CI=[50.50%,54.03%] EV80=-0.059 | RANGE n=2351 W=1231 L=1120 T=46 WR=52.36% CI=[50.34%,54.37%] EV80=-0.058 | TREND n=735 W=382 L=353 T=17 WR=51.97% CI=[48.36%,55.57%] EV80=-0.064 | Above 50
+
+--- BB_REENTRY_RANGE | BB20 ---
+  1m: n=3747 W=1881 L=1866 T=364 WR=50.20% CI=[48.60%,51.80%] EV80=-0.096 | RANGE n=3747 W=1881 L=1866 T=364 WR=50.20% CI=[48.60%,51.80%] EV80=-0.096 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | Above 50
+  2m: n=3869 W=1902 L=1967 T=239 WR=49.16% CI=[47.59%,50.74%] EV80=-0.115 | RANGE n=3869 W=1902 L=1967 T=239 WR=49.16% CI=[47.59%,50.74%] EV80=-0.115 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | No edge
+  3m: n=3929 W=1949 L=1980 T=176 WR=49.61% CI=[48.04%,51.17%] EV80=-0.107 | RANGE n=3929 W=1949 L=1980 T=176 WR=49.61% CI=[48.04%,51.17%] EV80=-0.107 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | No edge
+  5m: n=3951 W=1963 L=1988 T=151 WR=49.68% CI=[48.13%,51.24%] EV80=-0.106 | RANGE n=3951 W=1963 L=1988 T=151 WR=49.68% CI=[48.13%,51.24%] EV80=-0.106 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | No edge
+  10m: n=4002 W=2039 L=1963 T=95 WR=50.95% CI=[49.40%,52.50%] EV80=-0.083 | RANGE n=4002 W=2039 L=1963 T=95 WR=50.95% CI=[49.40%,52.50%] EV80=-0.083 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | Above 50
+  15m: n=4006 W=2041 L=1965 T=86 WR=50.95% CI=[49.40%,52.50%] EV80=-0.083 | RANGE n=4006 W=2041 L=1965 T=86 WR=50.95% CI=[49.40%,52.50%] EV80=-0.083 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | Above 50
+
+--- BB_REENTRY_RANGE | BB50 ---
+  1m: n=2188 W=1055 L=1133 T=222 WR=48.22% CI=[46.13%,50.31%] EV80=-0.132 | RANGE n=2188 W=1055 L=1133 T=222 WR=48.22% CI=[46.13%,50.31%] EV80=-0.132 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | No edge
+  2m: n=2248 W=1099 L=1149 T=157 WR=48.89% CI=[46.83%,50.95%] EV80=-0.120 | RANGE n=2248 W=1099 L=1149 T=157 WR=48.89% CI=[46.83%,50.95%] EV80=-0.120 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | No edge
+  3m: n=2281 W=1156 L=1125 T=123 WR=50.68% CI=[48.63%,52.73%] EV80=-0.088 | RANGE n=2281 W=1156 L=1125 T=123 WR=50.68% CI=[48.63%,52.73%] EV80=-0.088 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | Above 50
+  5m: n=2305 W=1159 L=1146 T=98 WR=50.28% CI=[48.24%,52.32%] EV80=-0.095 | RANGE n=2305 W=1159 L=1146 T=98 WR=50.28% CI=[48.24%,52.32%] EV80=-0.095 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | Above 50
+  10m: n=2342 W=1215 L=1127 T=59 WR=51.88% CI=[49.85%,53.90%] EV80=-0.066 | RANGE n=2342 W=1215 L=1127 T=59 WR=51.88% CI=[49.85%,53.90%] EV80=-0.066 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | Above 50
+  15m: n=2351 W=1231 L=1120 T=46 WR=52.36% CI=[50.34%,54.37%] EV80=-0.058 | RANGE n=2351 W=1231 L=1120 T=46 WR=52.36% CI=[50.34%,54.37%] EV80=-0.058 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | Above 50
+
+--- BB_REENTRY_RSI | BB20 ---
+  1m: n=161 W=84 L=77 T=11 WR=52.17% CI=[44.50%,59.75%] EV80=-0.061 | RANGE n=35 W=18 L=17 T=2 WR=51.43% CI=[35.57%,67.01%] EV80=-0.074 | TREND n=126 W=66 L=60 T=9 WR=52.38% CI=[43.72%,60.90%] EV80=-0.057 | Above 50
+  2m: n=159 W=84 L=75 T=13 WR=52.83% CI=[45.10%,60.43%] EV80=-0.049 | RANGE n=33 W=18 L=15 T=4 WR=54.55% CI=[37.99%,70.16%] EV80=-0.018 | TREND n=126 W=66 L=60 T=9 WR=52.38% CI=[43.72%,60.90%] EV80=-0.057 | Above 50
+  3m: n=164 W=84 L=80 T=8 WR=51.22% CI=[43.63%,58.75%] EV80=-0.078 | RANGE n=35 W=17 L=18 T=2 WR=48.57% CI=[32.99%,64.43%] EV80=-0.126 | TREND n=129 W=67 L=62 T=6 WR=51.94% CI=[43.39%,60.38%] EV80=-0.065 | Above 50
+  5m: n=166 W=85 L=81 T=6 WR=51.20% CI=[43.66%,58.70%] EV80=-0.078 | RANGE n=36 W=17 L=19 T=1 WR=47.22% CI=[31.99%,62.99%] EV80=-0.150 | TREND n=130 W=68 L=62 T=5 WR=52.31% CI=[43.78%,60.70%] EV80=-0.058 | Above 50
+  10m: n=168 W=99 L=69 T=4 WR=58.93% CI=[51.37%,66.09%] EV80=0.061 | RANGE n=34 W=19 L=15 T=3 WR=55.88% CI=[39.45%,71.12%] EV80=0.006 | TREND n=134 W=80 L=54 T=1 WR=59.70% CI=[51.24%,67.62%] EV80=0.075 | Interesting
+  15m: n=163 W=94 L=69 T=9 WR=57.67% CI=[49.99%,64.99%] EV80=0.038 | RANGE n=36 W=21 L=15 T=1 WR=58.33% CI=[42.20%,72.86%] EV80=0.050 | TREND n=127 W=73 L=54 T=8 WR=57.48% CI=[48.79%,65.73%] EV80=0.035 | Above BE80
+
+--- BB_REENTRY_RSI | BB50 ---
+  1m: n=31 W=12 L=19 T=8 WR=38.71% CI=[23.73%,56.18%] EV80=-0.303 | RANGE n=9 W=2 L=7 T=1 WR=22.22% CI=[6.32%,54.74%] EV80=-0.600 | TREND n=22 W=10 L=12 T=7 WR=45.45% CI=[26.92%,65.34%] EV80=-0.182 | UNDERPOWERED
+  2m: n=34 W=18 L=16 T=5 WR=52.94% CI=[36.74%,68.55%] EV80=-0.047 | RANGE n=8 W=4 L=4 T=2 WR=50.00% CI=[21.52%,78.48%] EV80=-0.100 | TREND n=26 W=14 L=12 T=3 WR=53.85% CI=[35.46%,71.24%] EV80=-0.031 | UNDERPOWERED
+  3m: n=38 W=19 L=19 T=1 WR=50.00% CI=[34.85%,65.15%] EV80=-0.100 | RANGE n=10 W=4 L=6 T=0 WR=40.00% CI=[16.82%,68.73%] EV80=-0.280 | TREND n=28 W=15 L=13 T=1 WR=53.57% CI=[35.81%,70.47%] EV80=-0.036 | UNDERPOWERED
+  5m: n=36 W=14 L=22 T=3 WR=38.89% CI=[24.78%,55.14%] EV80=-0.300 | RANGE n=10 W=3 L=7 T=0 WR=30.00% CI=[10.78%,60.32%] EV80=-0.460 | TREND n=26 W=11 L=15 T=3 WR=42.31% CI=[25.54%,61.05%] EV80=-0.238 | UNDERPOWERED
+  10m: n=39 W=21 L=18 T=0 WR=53.85% CI=[38.57%,68.43%] EV80=-0.031 | RANGE n=10 W=6 L=4 T=0 WR=60.00% CI=[31.27%,83.18%] EV80=0.080 | TREND n=29 W=15 L=14 T=0 WR=51.72% CI=[34.43%,68.61%] EV80=-0.069 | UNDERPOWERED
+  15m: n=37 W=19 L=18 T=2 WR=51.35% CI=[35.89%,66.55%] EV80=-0.076 | RANGE n=9 W=4 L=5 T=1 WR=44.44% CI=[18.88%,73.34%] EV80=-0.200 | TREND n=28 W=15 L=13 T=1 WR=53.57% CI=[35.81%,70.47%] EV80=-0.036 | UNDERPOWERED
+
+--- BB_REENTRY_RANGE_RSI | BB20 ---
+  1m: n=35 W=18 L=17 T=2 WR=51.43% CI=[35.57%,67.01%] EV80=-0.074 | RANGE n=35 W=18 L=17 T=2 WR=51.43% CI=[35.57%,67.01%] EV80=-0.074 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | UNDERPOWERED
+  2m: n=33 W=18 L=15 T=4 WR=54.55% CI=[37.99%,70.16%] EV80=-0.018 | RANGE n=33 W=18 L=15 T=4 WR=54.55% CI=[37.99%,70.16%] EV80=-0.018 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | UNDERPOWERED
+  3m: n=35 W=17 L=18 T=2 WR=48.57% CI=[32.99%,64.43%] EV80=-0.126 | RANGE n=35 W=17 L=18 T=2 WR=48.57% CI=[32.99%,64.43%] EV80=-0.126 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | UNDERPOWERED
+  5m: n=36 W=17 L=19 T=1 WR=47.22% CI=[31.99%,62.99%] EV80=-0.150 | RANGE n=36 W=17 L=19 T=1 WR=47.22% CI=[31.99%,62.99%] EV80=-0.150 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | UNDERPOWERED
+  10m: n=34 W=19 L=15 T=3 WR=55.88% CI=[39.45%,71.12%] EV80=0.006 | RANGE n=34 W=19 L=15 T=3 WR=55.88% CI=[39.45%,71.12%] EV80=0.006 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | UNDERPOWERED
+  15m: n=36 W=21 L=15 T=1 WR=58.33% CI=[42.20%,72.86%] EV80=0.050 | RANGE n=36 W=21 L=15 T=1 WR=58.33% CI=[42.20%,72.86%] EV80=0.050 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | UNDERPOWERED
+
+--- BB_REENTRY_RANGE_RSI | BB50 ---
+  1m: n=9 W=2 L=7 T=1 WR=22.22% CI=[6.32%,54.74%] EV80=-0.600 | RANGE n=9 W=2 L=7 T=1 WR=22.22% CI=[6.32%,54.74%] EV80=-0.600 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | UNDERPOWERED
+  2m: n=8 W=4 L=4 T=2 WR=50.00% CI=[21.52%,78.48%] EV80=-0.100 | RANGE n=8 W=4 L=4 T=2 WR=50.00% CI=[21.52%,78.48%] EV80=-0.100 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | UNDERPOWERED
+  3m: n=10 W=4 L=6 T=0 WR=40.00% CI=[16.82%,68.73%] EV80=-0.280 | RANGE n=10 W=4 L=6 T=0 WR=40.00% CI=[16.82%,68.73%] EV80=-0.280 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | UNDERPOWERED
+  5m: n=10 W=3 L=7 T=0 WR=30.00% CI=[10.78%,60.32%] EV80=-0.460 | RANGE n=10 W=3 L=7 T=0 WR=30.00% CI=[10.78%,60.32%] EV80=-0.460 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | UNDERPOWERED
+  10m: n=10 W=6 L=4 T=0 WR=60.00% CI=[31.27%,83.18%] EV80=0.080 | RANGE n=10 W=6 L=4 T=0 WR=60.00% CI=[31.27%,83.18%] EV80=0.080 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | UNDERPOWERED
+  15m: n=9 W=4 L=5 T=1 WR=44.44% CI=[18.88%,73.34%] EV80=-0.200 | RANGE n=9 W=4 L=5 T=1 WR=44.44% CI=[18.88%,73.34%] EV80=-0.200 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | UNDERPOWERED
+
+--- BB_REENTRY_RANGE_REJECT | BB20 ---
+  1m: n=994 W=493 L=501 T=106 WR=49.60% CI=[46.50%,52.70%] EV80=-0.107 | RANGE n=994 W=493 L=501 T=106 WR=49.60% CI=[46.50%,52.70%] EV80=-0.107 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | No edge
+  2m: n=1028 W=489 L=539 T=71 WR=47.57% CI=[44.53%,50.62%] EV80=-0.144 | RANGE n=1028 W=489 L=539 T=71 WR=47.57% CI=[44.53%,50.62%] EV80=-0.144 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | No edge
+  3m: n=1051 W=517 L=534 T=48 WR=49.19% CI=[46.18%,52.21%] EV80=-0.115 | RANGE n=1051 W=517 L=534 T=48 WR=49.19% CI=[46.18%,52.21%] EV80=-0.115 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | No edge
+  5m: n=1064 W=514 L=550 T=35 WR=48.31% CI=[45.32%,51.31%] EV80=-0.130 | RANGE n=1064 W=514 L=550 T=35 WR=48.31% CI=[45.32%,51.31%] EV80=-0.130 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | No edge
+  10m: n=1078 W=538 L=540 T=19 WR=49.91% CI=[46.93%,52.89%] EV80=-0.102 | RANGE n=1078 W=538 L=540 T=19 WR=49.91% CI=[46.93%,52.89%] EV80=-0.102 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | No edge
+  15m: n=1076 W=552 L=524 T=21 WR=51.30% CI=[48.32%,54.28%] EV80=-0.077 | RANGE n=1076 W=552 L=524 T=21 WR=51.30% CI=[48.32%,54.28%] EV80=-0.077 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | Above 50
+
+--- BB_REENTRY_RANGE_REJECT | BB50 ---
+  1m: n=539 W=260 L=279 T=49 WR=48.24% CI=[44.05%,52.45%] EV80=-0.132 | RANGE n=539 W=260 L=279 T=49 WR=48.24% CI=[44.05%,52.45%] EV80=-0.132 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | No edge
+  2m: n=550 W=253 L=297 T=37 WR=46.00% CI=[41.88%,50.18%] EV80=-0.172 | RANGE n=550 W=253 L=297 T=37 WR=46.00% CI=[41.88%,50.18%] EV80=-0.172 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | No edge
+  3m: n=552 W=278 L=274 T=35 WR=50.36% CI=[46.20%,54.52%] EV80=-0.093 | RANGE n=552 W=278 L=274 T=35 WR=50.36% CI=[46.20%,54.52%] EV80=-0.093 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | Above 50
+  5m: n=569 W=275 L=294 T=18 WR=48.33% CI=[44.25%,52.43%] EV80=-0.130 | RANGE n=569 W=275 L=294 T=18 WR=48.33% CI=[44.25%,52.43%] EV80=-0.130 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | No edge
+  10m: n=573 W=295 L=278 T=14 WR=51.48% CI=[47.39%,55.55%] EV80=-0.073 | RANGE n=573 W=295 L=278 T=14 WR=51.48% CI=[47.39%,55.55%] EV80=-0.073 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | Above 50
+  15m: n=581 W=303 L=278 T=6 WR=52.15% CI=[48.09%,56.19%] EV80=-0.061 | RANGE n=581 W=303 L=278 T=6 WR=52.15% CI=[48.09%,56.19%] EV80=-0.061 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | Above 50
+
+--- KELTNER_REENTRY_RANGE ---
+  1m: n=3651 W=1791 L=1860 T=390 WR=49.06% CI=[47.44%,50.68%] EV80=-0.117 | RANGE n=3651 W=1791 L=1860 T=390 WR=49.06% CI=[47.44%,50.68%] EV80=-0.117 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | No edge
+  2m: n=3764 W=1886 L=1878 T=274 WR=50.11% CI=[48.51%,51.70%] EV80=-0.098 | RANGE n=3764 W=1886 L=1878 T=274 WR=50.11% CI=[48.51%,51.70%] EV80=-0.098 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | Above 50
+  3m: n=3826 W=1917 L=1909 T=208 WR=50.10% CI=[48.52%,51.69%] EV80=-0.098 | RANGE n=3826 W=1917 L=1909 T=208 WR=50.10% CI=[48.52%,51.69%] EV80=-0.098 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | Above 50
+  5m: n=3891 W=1950 L=1941 T=142 WR=50.12% CI=[48.55%,51.69%] EV80=-0.098 | RANGE n=3891 W=1950 L=1941 T=142 WR=50.12% CI=[48.55%,51.69%] EV80=-0.098 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | Above 50
+  10m: n=3919 W=1976 L=1943 T=110 WR=50.42% CI=[48.86%,51.99%] EV80=-0.092 | RANGE n=3919 W=1976 L=1943 T=110 WR=50.42% CI=[48.86%,51.99%] EV80=-0.092 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | Above 50
+  15m: n=3918 W=2023 L=1895 T=107 WR=51.63% CI=[50.07%,53.20%] EV80=-0.071 | RANGE n=3918 W=2023 L=1895 T=107 WR=51.63% CI=[50.07%,53.20%] EV80=-0.071 | TREND n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000 | Above 50
+
+================================
+RANGE FILTER SENSITIVITY (ADX<=20 vs <=25)
+================================
+
+BB20 BB_REENTRY @5m ALWAYS: n=5365 W=2633 L=2732 T=202 WR=49.08% CI=[47.74%,50.42%] EV80=-0.117
+BB20 ADX<=25: n=3951 W=1963 L=1988 T=151 WR=49.68% CI=[48.13%,51.24%] EV80=-0.106
+BB20 ADX<=20: n=2746 W=1346 L=1400 T=97 WR=49.02% CI=[47.15%,50.89%] EV80=-0.118
+BB50 BB_REENTRY @5m ALWAYS: n=3024 W=1532 L=1492 T=132 WR=50.66% CI=[48.88%,52.44%] EV80=-0.088
+BB50 ADX<=25: n=2305 W=1159 L=1146 T=98 WR=50.28% CI=[48.24%,52.32%] EV80=-0.095
+BB50 ADX<=20: n=1643 W=831 L=812 T=73 WR=50.58% CI=[48.16%,52.99%] EV80=-0.090
+
+================================
+UP vs DOWN / BY SYMBOL / SESSION / DAY
+================================
+
+Best cell for slices: BB_REENTRY_RSI|BB20|10m n=168 W=99 L=69 T=4 WR=58.93% CI=[51.37%,66.09%] EV80=0.061 dayShare=24.42% [Interesting]
+
+By direction @ best cell expiry:
+  down: n=88 W=51 L=37 T=2 WR=57.95% CI=[47.52%,67.72%] EV80=0.043
+  up: n=80 W=48 L=32 T=2 WR=60.00% CI=[49.05%,70.04%] EV80=0.080
+
+By symbol:
+  AUD_JPY: n=14 W=12 L=2 T=1 WR=85.71% CI=[60.06%,95.99%] EV80=0.543
+  AUD_USD: n=18 W=12 L=6 T=0 WR=66.67% CI=[43.75%,83.72%] EV80=0.200
+  EUR_AUD: n=11 W=8 L=3 T=0 WR=72.73% CI=[43.43%,90.25%] EV80=0.309
+  EUR_GBP: n=4 W=1 L=3 T=0 WR=25.00% CI=[4.56%,69.94%] EV80=-0.550
+  EUR_JPY: n=5 W=3 L=2 T=0 WR=60.00% CI=[23.07%,88.24%] EV80=0.080
+  EUR_USD: n=24 W=9 L=15 T=0 WR=37.50% CI=[21.16%,57.29%] EV80=-0.325
+  GBP_JPY: n=10 W=7 L=3 T=1 WR=70.00% CI=[39.68%,89.22%] EV80=0.260
+  GBP_USD: n=20 W=11 L=9 T=0 WR=55.00% CI=[34.21%,74.18%] EV80=-0.010
+  NZD_USD: n=15 W=13 L=2 T=1 WR=86.67% CI=[62.12%,96.26%] EV80=0.560
+  USD_CAD: n=13 W=8 L=5 T=0 WR=61.54% CI=[35.52%,82.29%] EV80=0.108
+  USD_CHF: n=19 W=8 L=11 T=0 WR=42.11% CI=[23.14%,63.72%] EV80=-0.242
+  USD_JPY: n=15 W=7 L=8 T=1 WR=46.67% CI=[24.81%,69.88%] EV80=-0.160
+
+By session:
+  asia: n=64 W=43 L=21 T=2 WR=67.19% CI=[55.00%,77.43%] EV80=0.209
+  london: n=30 W=14 L=16 T=0 WR=46.67% CI=[30.23%,63.86%] EV80=-0.160
+  newyork: n=34 W=18 L=16 T=2 WR=52.94% CI=[36.74%,68.55%] EV80=-0.047
+  off: n=23 W=13 L=10 T=0 WR=56.52% CI=[36.81%,74.37%] EV80=0.017
+  overlap: n=17 W=11 L=6 T=0 WR=64.71% CI=[41.30%,82.69%] EV80=0.165
+
+By calendar day (ET):
+  2026-08-16: n=19 W=9 L=10 T=0 WR=47.37% CI=[27.33%,68.29%] EV80=-0.147
+  2026-08-17: n=36 W=21 L=15 T=1 WR=58.33% CI=[42.20%,72.86%] EV80=0.050
+  2026-08-18: n=20 W=13 L=7 T=0 WR=65.00% CI=[43.29%,81.88%] EV80=0.170
+  2026-08-19: n=41 W=29 L=12 T=1 WR=70.73% CI=[55.52%,82.39%] EV80=0.273
+  2026-08-20: n=35 W=18 L=17 T=0 WR=51.43% CI=[35.57%,67.01%] EV80=-0.074
+  2026-08-21: n=17 W=9 L=8 T=2 WR=52.94% CI=[30.96%,73.84%] EV80=-0.047
+
+Day concentration (best cell): maxEventShare=24.42% maxWinShare=29.41%
+
+================================
+BASELINES (same TEST window)
+================================
+
+binary-baseline-v1: n=4048 W=2022 L=2026 T=96 WR=49.95% CI=[48.41%,51.49%] EV80=-0.101 (preds in TEST=4144)
+random 50/50 (theoretical): WR=50.00% EV80=-0.100
+BB_TOUCH BB20 @5m: n=5494 W=2744 L=2750 T=196 WR=49.95% CI=[48.62%,51.27%] EV80=-0.101
+BB_REENTRY BB20 @5m: n=5365 W=2633 L=2732 T=202 WR=49.08% CI=[47.74%,50.42%] EV80=-0.117
+Best range-rejection (BB_REENTRY_RANGE_REJECT): BB50|15m n=581 W=303 L=278 T=6 WR=52.15% CI=[48.09%,56.19%] EV80=-0.061
+
+Cells clearing BE80 with n≥100: 2
+  BB_REENTRY_RSI|BB20|10m: n=168 W=99 L=69 T=4 WR=58.93% CI=[51.37%,66.09%] EV80=0.061 dayShare=24.42%
+  BB_REENTRY_RSI|BB20|15m: n=163 W=94 L=69 T=9 WR=57.67% CI=[49.99%,64.99%] EV80=0.038 dayShare=24.42%
+
+================================
+BEST TEST STRATEGY (descriptive among pre-registered; NOT retuned)
+================================
+
+BB_REENTRY_RSI|BB20|10m n=168 W=99 L=69 T=4 WR=58.93% CI=[51.37%,66.09%] EV80=0.061 dayShare=24.42% [Interesting]
+EV@0.70..0.95: EV70=0.002 EV75=0.031 EV80=0.061 EV85=0.090 EV90=0.120 EV95=0.149
+
+================================
+FINAL VERDICT
+================================
+
+BOLLINGER_REENTRY_EDGE_FOUND
+
+================================
+DIRECT ANSWERS
+================================
+
+1. Does BB outside→reentry beat break-even (55.56%) on TEST with adequate n?
+   YES — 2 cells; top BB_REENTRY_RSI|BB20|10m WR=58.93% n=168
+
+2. Does the ADX range filter (≤25) help vs unfiltered reentry?
+   BB20 @5m REENTRY WR=49.08% vs RANGE WR=49.68% → YES (descriptive)
+
+3. Does RSI extreme filtering help?
+   BB20 @5m REENTRY 49.08% n=5365 vs RSI 51.20% n=166 → YES (descriptive)
+
+4. Does confirmation-candle rejection (wick/closeLoc) add edge on top of range reentry?
+   BB20 @5m RANGE 49.68% n=3951 vs REJECT 48.31% n=1064 → NO clear add
+
+5. BB20 vs BB50 — which is better on TEST (descriptive only)?
+   best BB20 (n≥30) BB_REENTRY_RSI|BB20|10m WR=58.93% n=168; best BB50 (n≥30) BB_REENTRY_RSI|BB50|10m WR=53.85% n=39
+
+6. Which expiry looks best among pre-registered cells with n≥30?
+   10m via BB_REENTRY_RSI|BB20|10m WR=58.93% n=168
+
+7. Does any Bollinger variant beat binary-baseline-v1 on the same TEST window?
+   Baseline WR=49.95% n=4048; best BB 58.93% n=168 → YES (descriptive)
+
+8. Is apparent edge day-concentrated?
+   Best cell max day event share=24.42% → No extreme single-day dominance
+
+9. Did anything clear 55.56% with n≥100?
+   YES — 2 cells
+
+10. Most importantly:
+Can Bollinger range-rejection (outside then close back inside, optionally with ADX/RSI/wick filters) provide a genuinely profitable short-horizon binary signal on a frozen walk-forward TEST week?
+   Verdict=BOLLINGER_REENTRY_EDGE_FOUND. Reentry (without needing the full rejection stack) cleared BE80 with adequate n — research-only.
+
+NO PRODUCTION BINARY CHANGES WERE MADE.

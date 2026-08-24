@@ -1,0 +1,7 @@
+{
+  "experiment": "four-family-raw-historical-momentum-inverted-v1",
+  "momentumMainArm": "INVERTED",
+  "reusedFrom": "four-family-adaptive-historical-v1",
+  "adaptive": false,
+  "generatedAt": "2026-08-23T02:49:11.832Z"
+}

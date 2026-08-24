@@ -1,0 +1,150 @@
+GOLDENXPERIENCE
+CROSS-SECTIONAL CARRY + MOMENTUM TEST
+strategy: carry-momentum-v1
+wave: carry_momentum_wave_2_d1
+
+========================================
+DATA
+========================================
+
+Currencies: USD EUR GBP JPY CHF CAD AUD NZD
+Pairs used (11): EUR_USD, GBP_USD, USD_JPY, USD_CHF, USD_CAD, AUD_USD, NZD_USD, EUR_GBP, EUR_JPY, GBP_JPY, AUD_JPY
+Missing (no reliable H1 history): EUR_CHF, EUR_CAD, EUR_AUD, EUR_NZD, GBP_CHF, GBP_CAD, GBP_AUD, GBP_NZD, AUD_NZD, AUD_CAD, AUD_CHF, NZD_JPY, NZD_CAD, NZD_CHF, CAD_JPY, CAD_CHF, CHF_JPY
+Date coverage: 2021-06-02 → 2026-08-04 (1614 shared D1 days)
+  EUR_USD from 2016; most crosses from ~2020; GBP/USD/JPY from 2021
+
+Rate sources: FRED IR3TIB01* (OECD 3-month interbank, monthly, PIT lag)
+  USD secondary: DFF (fed funds daily)
+Price sources: OANDA H1 → UTC D1 aggregate, bid/ask at D1 close
+Financing: ESTIMATED from rate differential (historical OANDA swaps NOT in DB)
+  PRICE-ONLY and CARRY-ADJUSTED reported separately in period returns
+
+TRAIN: 2016-04-01 → 2022-07-31
+DEV:   2022-08-01 → 2025-07-31
+SEALED STATUS: NOT READ
+
+LIVE_EXECUTABLE_FAMILIES: [] (unchanged)
+
+========================================
+CARRY SIGNAL
+========================================
+
+Does carry rank predict future returns? (DEV buckets)
+
+1-week:  {"lowest":{"n":2057,"avgRet":0.00008425875720978293},"low":{"n":2057,"avgRet":-0.000019335614389739737},"neutral":{"n":2057,"avgRet":0.00009901889362941539},"high":{"n":2057,"avgRet":-0.0004206898258003406},"highest":{"n":2057,"avgRet":0.00009755027069821516}}  Monotonic: PARTIAL
+1-month: {"lowest":{"n":2057,"avgRet":0.0015580996141189966},"low":{"n":2057,"avgRet":0.0008709588864532599},"neutral":{"n":2057,"avgRet":0.0016285970399155846},"high":{"n":2057,"avgRet":-0.00030422630032052897},"highest":{"n":2057,"avgRet":0.0016190783767174664}}  Monotonic: PARTIAL
+3-month: {"lowest":{"n":2057,"avgRet":0.0053794500584710215},"low":{"n":2057,"avgRet":0.004167258595026211},"neutral":{"n":2057,"avgRet":0.006644459162509918},"high":{"n":2057,"avgRet":-0.002638721116940238},"highest":{"n":2057,"avgRet":0.007084170764509013}}  Monotonic: PARTIAL
+
+========================================
+MOMENTUM SIGNAL
+========================================
+
+Horizons tested: 1m=21d 3m=63d 6m=126d 12m=252d
+Primary: 3m (63d)
+
+Top vs bottom momentum (DEV, 1m forward):
+  topRet=-0.288%  botRet=-0.058%
+  Gradient: NO
+
+========================================
+STRATEGY A — CARRY ONLY (top2/bottom2 weekly DEV)
+========================================
+
+annRet=-6.83% vol=8.09% Sharpe=-0.845 Sortino=-1.117 MaxDD=-29.27% Calmar=-0.233 bootCI=[-0.282%,-0.001%] n=195 neff=15
+Turnover: 0.030  Rebalances: 195
+
+========================================
+STRATEGY B — MOMENTUM ONLY
+========================================
+
+annRet=-9.43% vol=8.15% Sharpe=-1.156 Sortino=-1.603 MaxDD=-48.61% Calmar=-0.194 bootCI=[-0.386%,-0.037%] n=200 neff=15
+
+========================================
+STRATEGY C — CARRY + MOMENTUM (50/50)
+========================================
+
+annRet=-4.57% vol=7.96% Sharpe=-0.574 Sortino=-0.746 MaxDD=-27.99% Calmar=-0.163 bootCI=[-0.295%,0.047%] n=201 neff=15
+
+========================================
+PORTFOLIO CONSTRUCTION (weekly DEV, 50/50, predefined grid)
+========================================
+
+  50_50 k=1 weekly: annRet=-6.92% vol=9.84% Sharpe=-0.703 Sortino=-0.783 MaxDD=-26.76% Calmar=-0.258 bootCI=[-0.350%,0.047%] n=143 neff=13
+  50_50 k=1 monthly: annRet=1.00% vol=10.40% Sharpe=0.096 Sortino=0.105 MaxDD=-13.10% Calmar=0.076 bootCI=[-0.595%,0.540%] n=37 neff=7
+  50_50 k=2 weekly: annRet=-4.57% vol=7.96% Sharpe=-0.574 Sortino=-0.746 MaxDD=-27.99% Calmar=-0.163 bootCI=[-0.295%,0.047%] n=201 neff=15
+  50_50 k=2 monthly: annRet=0.50% vol=9.10% Sharpe=0.055 Sortino=0.060 MaxDD=-13.32% Calmar=0.038 bootCI=[-0.696%,0.600%] n=49 neff=7
+  50_50 k=3 weekly: annRet=-5.16% vol=7.30% Sharpe=-0.708 Sortino=-0.886 MaxDD=-31.54% Calmar=-0.164 bootCI=[-0.263%,-0.002%] n=210 neff=15
+  50_50 k=3 monthly: annRet=-1.16% vol=8.54% Sharpe=-0.136 Sortino=-0.144 MaxDD=-17.91% Calmar=-0.065 bootCI=[-0.753%,0.332%] n=50 neff=8
+
+========================================
+REBALANCING
+========================================
+
+  50_50 k=2 weekly: turnover=0.296 hold=5d
+  50_50 k=2 monthly: turnover=0.538 hold=21d
+
+========================================
+YEAR BY YEAR (best candidate)
+========================================
+
+  2022: ret=-1.18% n=7
+  2023: ret=9.18% n=7
+  2024: ret=-0.14% n=6
+  2025: ret=1.99% n=4
+
+========================================
+CURRENCY CONTRIBUTION (avg exposure, best)
+========================================
+
+{
+  "USD": 0.625,
+  "CHF": -0.25,
+  "JPY": -0.75,
+  "GBP": 0.375
+}
+
+========================================
+CARRY/MOMENTUM AGREEMENT (best)
+========================================
+
+Both agree: 1
+Conflict: 34
+
+========================================
+BEST DEV CANDIDATE
+========================================
+
+75_25 k=1 monthly
+annRet=4.93% vol=9.13% Sharpe=0.539 Sortino=0.839 MaxDD=-5.98% Calmar=0.823 bootCI=[-0.100%,1.049%] n=24 neff=6
+
+DEV passes gate: NO (0 candidates)
+
+========================================
+ROBUSTNESS
+========================================
+
+NOT RUN
+
+========================================
+SEALED
+========================================
+
+NOT READ (no DEV+robustness pass)
+
+========================================
+LEAKAGE AUDIT
+========================================
+
+D1 from completed H1 bars only: PASS
+Rate PIT (monthly +1 month lag, daily +1 day): PASS
+Ranking at rebalance close: PASS
+Execution bid/ask + slippage: PASS
+Carry as FEATURE separate from financing P&L: PASS
+Pair orientation unit test: PASS
+Sealed locked until DEV+robustness: NOT READ
+
+========================================
+FINAL VERDICT
+========================================
+
+POSITIVE_BUT_NOT_ROBUST

@@ -1,0 +1,309 @@
+{
+  "candidateId": "gx-v2-004",
+  "mode": "SHADOW_ONLY",
+  "grade": "strong_candidate",
+  "auditVerdict": "ROBUST_PASS",
+  "caveats": [
+    "INVALID: zoneOf ignored sealedEnd — sealed sample included 2025-2026 despite H18 claiming 2024-only OOS",
+    "Do not use. Re-run H18 after sealedEnd fix as a fresh experiment"
+  ],
+  "doNotRescue": false,
+  "hypothesis": "Independent 2024 sealed: JPY relative strength (no 2025 sealed exposure)",
+  "hypothesisId": "H18",
+  "modelKind": "logistic",
+  "horizon": "1d",
+  "directionMode": "both",
+  "featureFamilies": [
+    "price",
+    "cross_pair",
+    "regime",
+    "session"
+  ],
+  "featureNames": [
+    "atr_pct",
+    "base_str_1",
+    "base_str_12",
+    "body_ratio",
+    "breakout_dist_atr",
+    "dir_eff_12",
+    "dist_high_atr",
+    "dist_low_atr",
+    "eur_minus_jpy_12",
+    "eur_str_1",
+    "eur_str_12",
+    "gbp_str_1",
+    "gbp_str_12",
+    "jpy_cross_dispersion",
+    "jpy_cross_mean_12",
+    "jpy_involved",
+    "jpy_pair_vs_jpy_basket",
+    "jpy_str_1",
+    "jpy_str_12",
+    "jpy_str_accel",
+    "jpy_x_vol_exp",
+    "jpy_x_vol_high",
+    "mom_accel",
+    "pair_minus_basket_1",
+    "pair_minus_basket_12",
+    "quote_str_1",
+    "quote_str_12",
+    "range_compress",
+    "range_expand",
+    "reg_phase_comp",
+    "reg_phase_exp",
+    "reg_range_w_atr",
+    "reg_slope_atr",
+    "reg_trend_bear",
+    "reg_trend_bull",
+    "reg_trend_range",
+    "reg_trend_strength",
+    "reg_vol_high",
+    "reg_vol_low",
+    "rel_trend",
+    "ret_1",
+    "ret_12",
+    "ret_24",
+    "ret_3",
+    "ret_6",
+    "roll_range_atr",
+    "rvol_24",
+    "sess_asia",
+    "sess_london",
+    "sess_newyork",
+    "sess_off",
+    "sess_overlap",
+    "trend_r2",
+    "trend_slope_atr",
+    "usd_jpy_x_vol_exp",
+    "usd_minus_jpy_12",
+    "usd_str_1",
+    "usd_str_12",
+    "vol_of_vol",
+    "vol_pctl",
+    "wick_asym",
+    "xs_mom_rank"
+  ],
+  "thresholds": {
+    "minProbAdvantage": 0.1,
+    "minExpectedNet": 0,
+    "minConfidence": 0.53,
+    "minModelAgreement": 0.5
+  },
+  "zones": {
+    "trainStart": "2020-01-01T00:00:00.000Z",
+    "trainEnd": "2022-12-31T23:59:59.999Z",
+    "devStart": "2023-01-01T00:00:00.000Z",
+    "devEnd": "2023-12-31T23:59:59.999Z",
+    "sealedStart": "2024-01-01T00:00:00.000Z",
+    "sealedEnd": "2024-12-31T23:59:59.999Z"
+  },
+  "sealedMetrics": {
+    "n": 586,
+    "winRate": 0.60580204778157,
+    "grossExpectancy": 0.5891404079503642,
+    "netExpectancy": 0.5016100122316364,
+    "ci95Low": 0.2910097420184954,
+    "ci95High": 0.7122102824447774,
+    "profitFactor": 1.7045167209886405,
+    "maxDrawdown": -62.084280558092985,
+    "avgSpreadCost": 0.0895249295842082,
+    "byPair": {
+      "USD_JPY": {
+        "n": 122,
+        "netExpectancy": 0.44114047566199505
+      },
+      "EUR_JPY": {
+        "n": 155,
+        "netExpectancy": 0.37763079337741834
+      },
+      "GBP_JPY": {
+        "n": 126,
+        "netExpectancy": 0.10058797078196481
+      },
+      "AUD_JPY": {
+        "n": 183,
+        "netExpectancy": 0.9230462942346884
+      }
+    },
+    "byMonth": {
+      "2024-01": {
+        "n": 1,
+        "netExpectancy": 0.43133398885625357
+      },
+      "2024-04": {
+        "n": 11,
+        "netExpectancy": 0.18661036921601956
+      },
+      "2024-05": {
+        "n": 32,
+        "netExpectancy": -0.1974625504384405
+      },
+      "2024-06": {
+        "n": 1,
+        "netExpectancy": -1.447627573858569
+      },
+      "2024-07": {
+        "n": 52,
+        "netExpectancy": 0.6425454174029483
+      },
+      "2024-08": {
+        "n": 129,
+        "netExpectancy": 0.5892491741807365
+      },
+      "2024-09": {
+        "n": 25,
+        "netExpectancy": -1.576061606650998
+      },
+      "2024-10": {
+        "n": 48,
+        "netExpectancy": 1.7647039765403083
+      },
+      "2024-11": {
+        "n": 21,
+        "netExpectancy": 0.9939904795155341
+      },
+      "2024-12": {
+        "n": 5,
+        "netExpectancy": 0.793459440967418
+      },
+      "2025-01": {
+        "n": 2,
+        "netExpectancy": -2.71178052779979
+      },
+      "2025-02": {
+        "n": 10,
+        "netExpectancy": 0.21530574745706912
+      },
+      "2025-03": {
+        "n": 7,
+        "netExpectancy": -1.8635288238269339
+      },
+      "2025-04": {
+        "n": 149,
+        "netExpectancy": 0.4003523899137249
+      },
+      "2025-05": {
+        "n": 17,
+        "netExpectancy": 0.7159278113997983
+      },
+      "2025-06": {
+        "n": 3,
+        "netExpectancy": 2.0423299964151043
+      },
+      "2025-07": {
+        "n": 1,
+        "netExpectancy": 1.6134678137050216
+      },
+      "2025-08": {
+        "n": 23,
+        "netExpectancy": 0.714754812390444
+      },
+      "2025-10": {
+        "n": 1,
+        "netExpectancy": -4.369710467706072
+      },
+      "2025-11": {
+        "n": 1,
+        "netExpectancy": -5.291620929381509
+      },
+      "2026-01": {
+        "n": 4,
+        "netExpectancy": 0.9911044687371164
+      },
+      "2026-02": {
+        "n": 4,
+        "netExpectancy": 2.3085286207141484
+      },
+      "2026-03": {
+        "n": 1,
+        "netExpectancy": -0.9698479940194628
+      },
+      "2026-04": {
+        "n": 3,
+        "netExpectancy": 0.22761103685770892
+      },
+      "2026-05": {
+        "n": 7,
+        "netExpectancy": 1.8099814905915947
+      },
+      "2026-06": {
+        "n": 1,
+        "netExpectancy": 0.5967523680648822
+      },
+      "2026-07": {
+        "n": 14,
+        "netExpectancy": 0.4628691444143745
+      },
+      "2026-08": {
+        "n": 13,
+        "netExpectancy": 1.3053943243438875
+      }
+    }
+  },
+  "importance": [
+    {
+      "name": "jpy_cross_mean_12",
+      "weight": 0.5816388062777538
+    },
+    {
+      "name": "atr_pct",
+      "weight": 0.1239480523983053
+    },
+    {
+      "name": "pair_minus_basket_12",
+      "weight": 0.11756488640138796
+    },
+    {
+      "name": "quote_str_12",
+      "weight": 0.11756488640103224
+    },
+    {
+      "name": "jpy_str_12",
+      "weight": 0.11756488640102737
+    },
+    {
+      "name": "jpy_pair_vs_jpy_basket",
+      "weight": 0.11441675098368302
+    },
+    {
+      "name": "eur_str_12",
+      "weight": 0.10960513211583187
+    },
+    {
+      "name": "rvol_24",
+      "weight": 0.0912503883314022
+    },
+    {
+      "name": "usd_minus_jpy_12",
+      "weight": 0.07843888181744016
+    },
+    {
+      "name": "rel_trend",
+      "weight": 0.0768637586602283
+    },
+    {
+      "name": "jpy_x_vol_exp",
+      "weight": 0.06230261559284793
+    },
+    {
+      "name": "jpy_x_vol_high",
+      "weight": 0.0571770447443106
+    },
+    {
+      "name": "vol_pctl",
+      "weight": 0.052942168760603085
+    },
+    {
+      "name": "vol_of_vol",
+      "weight": 0.0519389981454537
+    },
+    {
+      "name": "mom_accel",
+      "weight": 0.04665707272774008
+    }
+  ],
+  "safetyMargin": 0.00005,
+  "frozenAt": "2026-08-21T21:58:24.506Z",
+  "note": "Survived sealed full robustness audit. Forward shadow only.",
+  "fullAuditReport": "gx-v2-004-full-audit.txt"
+}

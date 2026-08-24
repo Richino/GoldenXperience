@@ -1,0 +1,46 @@
+GOLDENXPERIENCE V2 CANDIDATE AUDIT
+
+Candidate: gx-v2-candidate-001 (from gx-v2-001 / exp-0064)
+Model: logistic
+Horizon: 4h (H1 bars)
+Pairs: EUR_USD / GBP_USD / USD_JPY / AUD_USD / USD_CAD / EUR_JPY
+Sealed period: 2025-01-01 → available data end (~2026-08)
+Filter: London/NY overlap only
+
+BASELINE
+n: 926
+Expectancy: +0.012605
+95% CI: -0.005913 → +0.031123
+Profit factor: 1.2275
+Win rate: 43.95%
+Max drawdown: -12.326260
+Total R: price total +11.672 (JPY-unit-dominated; ATR-sum not comparable across pairs)
+
+ROBUSTNESS
++25% spread: n=878 net=+0.010534 CI=[-0.008903, +0.029971] pf=1.178
++50% spread: n=829 net=+0.008506 CI=[-0.012059, +0.029070] pf=1.134
++100% spread: n=695 net=+0.006105 CI=[-0.018240, +0.030450] pf=1.081
+Slippage: 0.5pip n=846 net=+0.010256 CI=[-0.009918, +0.030430]
+Delayed entry: 1bar n=930 net=+0.001269 CI=[-0.016271, +0.018808]; 2bar n=921 net=-0.009445
+Remove best pair: remove USD_JPY → n=757 net=+0.004591; remove USD_JPY+EUR_JPY → n=576 net=-0.000451 (EDGE DEAD)
+Remove best month: remove 2025-04 → n=812 net=-0.004385 (EDGE DEAD)
+Remove top 5 winners: n=921 net=+0.001603; top 10 → n=916 net=-0.005100 (EDGE DEAD)
+
+STABILITY
+Pair stability: FAIL — USD_JPY+EUR_JPY ≈ 100%+ of total net; EUR_USD/GBP_USD/AUD_USD clearly NEGATIVE
+Time stability: FAIL — 2025 +19.0 total vs 2026 -7.3; best month 2025-04 alone +15.2 (>100% of net)
+LONG/SHORT stability: FAIL — LONG n=371 net=+0.0485 CI>0; SHORT n=555 net=-0.0114
+Regime stability: FAIL — profits in bear + high-vol + expansion only; bull/range/low-vol lose
+Parameter sensitivity: minConfidence brittle (−10% → net negative); other thresholds flat
+
+LEAKAGE AUDIT:
+PASS (with WARN: overlapping labels / no purged embargo)
+
+MULTIPLE-TESTING RISK:
+HIGH
+
+FINAL VERDICT:
+ROBUSTNESS_REJECT
+
+REASON:
+sealed CI crosses zero; removing 2025-04 kills edge; removing USD_JPY+EUR_JPY kills edge (non-JPY book is negative); top-10 winners flip expectancy negative; 2026 sealed year is net negative; SHORT side loses; edge is a JPY/high-vol/bear pocket selected after 65 experiments — not a broad repeatable edge.

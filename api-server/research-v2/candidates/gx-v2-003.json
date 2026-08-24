@@ -1,0 +1,281 @@
+{
+  "candidateId": "gx-v2-003",
+  "mode": "SHADOW_ONLY_HOLD",
+  "grade": "provisional_pass",
+  "auditVerdict": "PROVISIONAL_PASS",
+  "caveats": [
+    "SHORT side loses hard",
+    "1d labels heavily overlapping (n/days≈13) — not independent trades",
+    "Requires non-overlapping stride=24 retest as a NEW hypothesis before any promotion",
+    "Do not enable live"
+  ],
+  "doNotRescue": true,
+  "hypothesis": "JPY crosses: cross-sectional JPY strength predicts 4h returns after costs",
+  "hypothesisId": "H13",
+  "modelKind": "logistic",
+  "horizon": "1d",
+  "directionMode": "both",
+  "featureFamilies": [
+    "price",
+    "cross_pair",
+    "regime",
+    "session"
+  ],
+  "featureNames": [
+    "atr_pct",
+    "base_str_1",
+    "base_str_12",
+    "body_ratio",
+    "breakout_dist_atr",
+    "dir_eff_12",
+    "dist_high_atr",
+    "dist_low_atr",
+    "eur_minus_jpy_12",
+    "eur_str_1",
+    "eur_str_12",
+    "gbp_str_1",
+    "gbp_str_12",
+    "jpy_cross_dispersion",
+    "jpy_cross_mean_12",
+    "jpy_involved",
+    "jpy_pair_vs_jpy_basket",
+    "jpy_str_1",
+    "jpy_str_12",
+    "jpy_str_accel",
+    "jpy_x_vol_exp",
+    "jpy_x_vol_high",
+    "mom_accel",
+    "pair_minus_basket_1",
+    "pair_minus_basket_12",
+    "quote_str_1",
+    "quote_str_12",
+    "range_compress",
+    "range_expand",
+    "reg_phase_comp",
+    "reg_phase_exp",
+    "reg_range_w_atr",
+    "reg_slope_atr",
+    "reg_trend_bear",
+    "reg_trend_bull",
+    "reg_trend_range",
+    "reg_trend_strength",
+    "reg_vol_high",
+    "reg_vol_low",
+    "rel_trend",
+    "ret_1",
+    "ret_12",
+    "ret_24",
+    "ret_3",
+    "ret_6",
+    "roll_range_atr",
+    "rvol_24",
+    "sess_asia",
+    "sess_london",
+    "sess_newyork",
+    "sess_off",
+    "sess_overlap",
+    "trend_r2",
+    "trend_slope_atr",
+    "usd_jpy_x_vol_exp",
+    "usd_minus_jpy_12",
+    "usd_str_1",
+    "usd_str_12",
+    "vol_of_vol",
+    "vol_pctl",
+    "wick_asym",
+    "xs_mom_rank"
+  ],
+  "thresholds": {
+    "minProbAdvantage": 0.1,
+    "minExpectedNet": 0,
+    "minConfidence": 0.53,
+    "minModelAgreement": 0.5
+  },
+  "zones": {
+    "trainStart": "2023-01-01T00:00:00.000Z",
+    "trainEnd": "2024-06-30T23:59:59.999Z",
+    "devStart": "2024-07-01T00:00:00.000Z",
+    "devEnd": "2024-12-31T23:59:59.999Z",
+    "sealedStart": "2025-01-01T00:00:00.000Z",
+    "sealedEnd": "2099-01-01T00:00:00.000Z"
+  },
+  "sealedMetrics": {
+    "n": 5882,
+    "winRate": 0.5520231213872833,
+    "grossExpectancy": 0.40233633825270704,
+    "netExpectancy": 0.2565735964382958,
+    "ci95Low": 0.16123727085030187,
+    "ci95High": 0.35190992202628973,
+    "profitFactor": 1.2069588870881873,
+    "maxDrawdown": -533.7053580800912,
+    "avgSpreadCost": 0.14977469999385287,
+    "byPair": {
+      "EUR_JPY": {
+        "n": 1487,
+        "netExpectancy": 0.4029386711812984
+      },
+      "GBP_JPY": {
+        "n": 1462,
+        "netExpectancy": 0.3293734102536531
+      },
+      "AUD_JPY": {
+        "n": 1469,
+        "netExpectancy": 0.17604171751464975
+      },
+      "USD_JPY": {
+        "n": 1464,
+        "netExpectancy": 0.11601562936038504
+      }
+    },
+    "byMonth": {
+      "2025-01": {
+        "n": 393,
+        "netExpectancy": -0.05687649017723141
+      },
+      "2025-02": {
+        "n": 399,
+        "netExpectancy": 0.5467338650446342
+      },
+      "2025-03": {
+        "n": 318,
+        "netExpectancy": 0.6011493373456891
+      },
+      "2025-04": {
+        "n": 435,
+        "netExpectancy": -0.3142930340495849
+      },
+      "2025-05": {
+        "n": 310,
+        "netExpectancy": 0.10661189269633649
+      },
+      "2025-06": {
+        "n": 270,
+        "netExpectancy": 0.4978666598341046
+      },
+      "2025-07": {
+        "n": 292,
+        "netExpectancy": 0.8668932385258638
+      },
+      "2025-08": {
+        "n": 287,
+        "netExpectancy": 0.4686425082376176
+      },
+      "2025-09": {
+        "n": 241,
+        "netExpectancy": 0.5369145929270771
+      },
+      "2025-10": {
+        "n": 322,
+        "netExpectancy": -0.7749176713931444
+      },
+      "2025-11": {
+        "n": 246,
+        "netExpectancy": -0.2023871869285954
+      },
+      "2025-12": {
+        "n": 240,
+        "netExpectancy": 1.0566953320672496
+      },
+      "2026-01": {
+        "n": 276,
+        "netExpectancy": -0.1594638970837909
+      },
+      "2026-02": {
+        "n": 284,
+        "netExpectancy": 1.0192987293648719
+      },
+      "2026-03": {
+        "n": 346,
+        "netExpectancy": -0.20061664982225913
+      },
+      "2026-04": {
+        "n": 223,
+        "netExpectancy": -0.2464190761797114
+      },
+      "2026-05": {
+        "n": 321,
+        "netExpectancy": 0.12948686208838422
+      },
+      "2026-06": {
+        "n": 269,
+        "netExpectancy": -0.17606416597831506
+      },
+      "2026-07": {
+        "n": 263,
+        "netExpectancy": 0.7197793581804348
+      },
+      "2026-08": {
+        "n": 147,
+        "netExpectancy": 2.146354234337418
+      }
+    }
+  },
+  "importance": [
+    {
+      "name": "usd_jpy_x_vol_exp",
+      "weight": 0.3897744576438112
+    },
+    {
+      "name": "jpy_x_vol_exp",
+      "weight": 0.30909712486242524
+    },
+    {
+      "name": "jpy_x_vol_high",
+      "weight": 0.18859348030201234
+    },
+    {
+      "name": "vol_pctl",
+      "weight": 0.16558430520465037
+    },
+    {
+      "name": "reg_slope_atr",
+      "weight": 0.12086651940740988
+    },
+    {
+      "name": "trend_slope_atr",
+      "weight": 0.12086651940737277
+    },
+    {
+      "name": "usd_str_1",
+      "weight": 0.11679977228789619
+    },
+    {
+      "name": "gbp_str_12",
+      "weight": 0.11582500591007434
+    },
+    {
+      "name": "gbp_str_1",
+      "weight": 0.10298915762017578
+    },
+    {
+      "name": "reg_vol_high",
+      "weight": 0.0955938833069409
+    },
+    {
+      "name": "jpy_pair_vs_jpy_basket",
+      "weight": 0.07509131065292632
+    },
+    {
+      "name": "dist_high_atr",
+      "weight": 0.0750507968111234
+    },
+    {
+      "name": "breakout_dist_atr",
+      "weight": 0.07505079681111872
+    },
+    {
+      "name": "eur_str_12",
+      "weight": 0.06628206096295192
+    },
+    {
+      "name": "dist_low_atr",
+      "weight": 0.06567853032818208
+    }
+  ],
+  "safetyMargin": 0.00005,
+  "frozenAt": "2026-08-21T21:57:21.221Z",
+  "note": "Survived sealed full robustness audit. Forward shadow only.",
+  "auditVerdict": "PROVISIONAL_PASS",
+  "fullAuditReport": "gx-v2-003-full-audit.txt",
+  "doNotRescue": true
+}

@@ -1,0 +1,131 @@
+GOLDENXPERIENCE
+PAPER 84 TRADES — RAW SETUP WITH MOMENTUM INVERTED
+Experiment: paper-84-raw-momentum-inverted
+Generated: 2026-08-23T02:56:09.608Z
+
+================================
+DATA
+================================
+
+Total paper trades: 84
+Closed with result_r: 80
+Still open / unresolved: 4
+  open seqs: 61, 79, 83, 84
+
+By stored family:
+  ema: 12 total / 11 closed
+  breakout: 18 total / 17 closed
+  momentum: 25 total / 23 closed
+  legacy(null): 29 total / 29 closed
+MeanRev paper trades: 0
+
+THIS SETUP (main results below):
+  EMA actual
+  Breakout actual
+  Momentum = genuine INVERT counterfactual on the same signals you took
+  (opposite side of book, mirrored SL/TP, own spread — not -PnL)
+  Momentum invert resolved: 23 / 23 closed
+
+================================
+SETUP RESULTS (Momentum INVERTED)
+================================
+
+Family | Trades | Wins | Losses | Win Rate | Net E | Total R | PF
+ema | 11 | 4 | 7 | 36.4% | 0.0909 | 1.00 | 1.14
+breakout | 17 | 6 | 11 | 35.3% | -0.0605 | -1.03 | 0.91
+momentum | 23 | 13 | 10 | 56.5% | 0.3098 | 7.13 | 1.79
+ALL | 51 | 23 | 28 | 45.1% | 0.1392 | 7.10 | 1.26
+
+================================
+LONG vs SHORT — SETUP (executed/inverted direction)
+================================
+
+ema long: n=6 W=1 L=5 WR=16.7% netE=-0.5000 totalR=-3.00
+ema short: n=5 W=3 L=2 WR=60.0% netE=0.8000 totalR=4.00
+
+breakout long: n=9 W=4 L=5 WR=44.4% netE=0.1753 totalR=1.58
+breakout short: n=8 W=2 L=6 WR=25.0% netE=-0.3257 totalR=-2.61
+
+momentum long: n=9 W=8 L=1 WR=88.9% netE=0.9505 totalR=8.55
+momentum short: n=14 W=5 L=9 WR=35.7% netE=-0.1021 totalR=-1.43
+
+================================
+BY PAIR — SETUP
+================================
+
+AUD_JPY: n=4 WR=25.0% netE=-0.2500 totalR=-1.00
+AUD_USD: n=8 WR=50.0% netE=0.0790 totalR=0.63
+EUR_GBP: n=4 WR=25.0% netE=-0.3525 totalR=-1.41
+EUR_USD: n=8 WR=37.5% netE=0.0217 totalR=0.17
+GBP_USD: n=9 WR=44.4% netE=-0.0331 totalR=-0.30
+USD_CAD: n=8 WR=50.0% netE=0.2624 totalR=2.10
+USD_CHF: n=7 WR=42.9% netE=0.2842 totalR=1.99
+USD_JPY: n=3 WR=100.0% netE=1.6370 totalR=4.91
+
+================================
+ACTUAL AS-TRADED (Momentum ORIGINAL — for comparison)
+================================
+
+Family | Trades | Wins | Losses | Win Rate | Net E | Total R | PF
+ema | 11 | 4 | 7 | 36.4% | 0.0909 | 1.00 | 1.14
+breakout | 17 | 6 | 11 | 35.3% | -0.0605 | -1.03 | 0.91
+momentum | 23 | 6 | 17 | 26.1% | -0.3125 | -7.19 | 0.46
+ALL | 51 | 16 | 35 | 31.4% | -0.1415 | -7.21 | 0.77
+
+================================
+MOMENTUM TRADE-BY-TRADE: ACTUAL vs INVERT
+================================
+
+seq | pair | actualDir | actualR | invDir | invR | outcome
+35 | EUR_GBP | long | -1.0000 | short | -1.0000 | stop_first
+37 | EUR_USD | long | 2.0000 | short | -1.0000 | stop_first
+39 | USD_CAD | long | -1.0000 | short | 2.0000 | target_first
+40 | GBP_USD | short | -1.0000 | long | 2.0000 | target_first
+41 | AUD_USD | short | -1.0000 | long | 2.0000 | target_first
+43 | AUD_USD | long | 0.9976 | short | -1.0000 | stop_first
+47 | EUR_GBP | long | 1.2412 | short | -1.0000 | stop_first
+48 | USD_JPY | long | -1.0000 | short | 1.2018 | forced_close
+50 | EUR_USD | long | -0.4801 | short | -1.0000 | stop_first
+51 | AUD_USD | long | -1.0000 | short | 0.6163 | forced_close
+53 | USD_JPY | short | -1.0000 | long | 1.7091 | forced_close
+54 | GBP_USD | long | 0.0806 | short | -1.0000 | stop_first
+55 | USD_CAD | short | -0.3731 | long | -1.0000 | stop_first
+60 | AUD_JPY | long | 0.8905 | short | -1.0000 | stop_first
+62 | USD_CHF | long | -0.0515 | short | -0.0108 | forced_close
+63 | AUD_USD | short | -0.1730 | long | 0.0153 | forced_close
+69 | USD_CAD | short | -1.0000 | long | 0.7050 | forced_close
+70 | EUR_USD | long | -1.0000 | short | 1.1736 | forced_close
+72 | USD_CHF | short | -1.0000 | long | 0.9999 | forced_close
+73 | AUD_JPY | short | -1.0000 | long | 2.0000 | target_first
+74 | EUR_GBP | long | -1.0000 | short | 1.5901 | forced_close
+76 | AUD_JPY | long | 0.9605 | short | -1.0000 | stop_first
+77 | GBP_USD | short | -0.2792 | long | 0.1249 | forced_close
+
+Momentum actual (matched set n=23): WR=26.1% netE=-0.3125 totalR=-7.19
+Momentum inverted (same n): WR=56.5% netE=0.3098 totalR=7.13
+Δ net E: 0.6223   Δ total R: 14.31
+
+================================
+FULL ACCOUNT — ALL 80 CLOSED (as actually traded)
+================================
+
+ALL closed: n=80 W=25 L=55 WR=31.3% netE=-0.1582 totalR=-12.66 PF=0.74
+  ema: n=11 WR=36.4% netE=0.0909 totalR=1.00
+  breakout: n=17 WR=35.3% netE=-0.0605 totalR=-1.03
+  momentum: n=23 WR=26.1% netE=-0.3125 totalR=-7.19
+  ema_legacy: n=14 WR=42.9% netE=-0.0366 totalR=-0.51
+  liquidity_legacy: n=15 WR=20.0% netE=-0.3286 totalR=-4.93
+
+================================
+DIRECT ANSWERS
+================================
+
+1. On your paper Momentum trades, does inversion help? YES (actual -0.3125 → invert 0.3098)
+2. Is inverted Momentum profitable on these trades? YES
+3. Setup (EMA+BO+Mom invert) net E: 0.1392 (n=51, WR=45.1%)
+4. Actual four-family net E: -0.1415 (n=51, WR=31.4%)
+5. Full 80 closed account net E: -0.1582
+6. Momentum SHORT actual was especially bad — invert flips those to LONG counterfactuals (see trade table).
+
+Production unchanged. Research only.
+Open trades excluded from expectancy: #61 breakout/long USD_JPY; #79 momentum/short EUR_GBP; #83 ema/long AUD_USD; #84 momentum/long EUR_USD

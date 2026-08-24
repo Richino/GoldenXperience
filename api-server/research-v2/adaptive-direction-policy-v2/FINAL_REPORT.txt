@@ -1,0 +1,310 @@
+GOLDENXPERIENCE
+ADAPTIVE DIRECTION POLICY V2
+
+Architecture note:
+  Current prod adaptive = baseline vs logistic model select (TAKE/WAIT-ish via wait threshold)
+  Research prior = TAKE/WAIT on BB+RSI without inversion
+  V2 isolated research: FOLLOW/INVERT/WAIT on frozen BB+RSI stream
+  Where it lives: research-v2/adaptive-direction-policy-v2 only (NO production writes)
+
+Experiment: adaptive-direction-policy-v2
+BE80 = 1/(1+0.8) = 0.555556
+PAYOUT_PRIMARY = 0.8
+MIN_LEARNING = 50
+MIN_ACTIVE = 100
+COLLECTING policy V2: WAIT | OLD adaptive: TAKE (fidelity)
+Hierarchy minN: dir|rsi|adx=40, dir|rsi=30, dir|adx=30, dir|session=30, dir=40, overall=50
+
+================================
+DATA
+================================
+
+Date range: 2024-12-23T13:15:00.000Z → 2026-08-21T21:00:00.000Z
+Symbols: EUR_USD, GBP_USD, USD_JPY, AUD_USD, NZD_USD, USD_CAD, USD_CHF, EUR_GBP, EUR_JPY, GBP_JPY, AUD_JPY, EUR_AUD
+M1 bars: 7360000
+Cache: C:\Users\arche\Desktop\code\GoldenXperience\api-server\research-v2\binary-adaptive-bollinger-rsi-10k\cache
+Signals: 13982
+Decided (FOLLOW arm won+lost): 13734
+
+TRAIN: 8389 (2024-12-23T23:20:00.000Z → 2025-12-16T14:19:00.000Z)
+DEV: 2796 (2025-12-16T14:20:00.000Z → 2026-04-21T14:52:00.000Z)
+HOLDOUT: 2797 (2026-04-21T15:30:00.000Z → 2026-08-21T20:36:00.000Z)
+HOLDOUT status: NOT OPENED
+
+Split: chronological by signal count 60/20/20
+Frozen strategy: BB20/k=2 population stdev; Wilder RSI14; UP RSI<=30 lower reentry; DOWN RSI>=70 upper reentry; expiry 10m; episode dedup until mid return + new outside
+
+Paired counterfactual note:
+  At fixed expiry, FOLLOW and INVERT are nearly complementary (won↔lost except ties).
+  Tie rate (either arm tie): 1.77% (n=248)
+  Complementary rate: 100.00%
+  Resolve mismatch rate: 0.00% (n=0)
+  Research question: can V2 learn WHEN to invert vs wait vs follow with CI discipline?
+
+Gaps:
+  EUR_USD: bars=615000 span≈605.7d gaps≈460
+  GBP_USD: bars=615000 span≈605.6d gaps≈508
+  USD_JPY: bars=615000 span≈605.9d gaps≈569
+  AUD_USD: bars=610000 span≈602.6d gaps≈533
+  NZD_USD: bars=610000 span≈603.3d gaps≈858
+  USD_CAD: bars=615000 span≈606.3d gaps≈553
+  USD_CHF: bars=610000 span≈603.3d gaps≈686
+  EUR_GBP: bars=610000 span≈602.5d gaps≈480
+  EUR_JPY: bars=615000 span≈605.8d gaps≈548
+  GBP_JPY: bars=615000 span≈603.8d gaps≈405
+  AUD_JPY: bars=615000 span≈605.3d gaps≈430
+  EUR_AUD: bars=615000 span≈605.1d gaps≈414
+
+================================
+BASELINES (TRAIN+DEV)
+================================
+
+ALWAYS FOLLOW:
+n: 11004
+performance: n=11004 W=5954 L=5050 T=181 WR=54.11% CI=[53.18%,55.04%] EV80=-0.026
+EV70=-0.080 EV75=-0.053 EV80=-0.026 EV85=0.001 EV90=0.028 EV95=0.055
+
+ALWAYS INVERT:
+n: 11004
+performance: n=11004 W=5050 L=5954 T=181 WR=45.89% CI=[44.96%,46.82%] EV80=-0.174
+EV70=-0.220 EV75=-0.197 EV80=-0.174 EV85=-0.151 EV90=-0.128 EV95=-0.105
+
+OLD ADAPTIVE TAKE:
+n: 1966
+performance: n=1966 W=1101 L=865 T=30 WR=56.00% CI=[53.80%,58.18%] EV80=0.008
+coverage: 17.85% of TRAIN+DEV signals
+EV80: 0.008
+
+SIMPLE rule (WR<0.45 invert / >BE80 follow / else wait):
+n: 504
+performance: n=504 W=263 L=241 T=7 WR=52.18% CI=[47.82%,56.51%] EV80=-0.061
+EV80: -0.061
+
+================================
+V2 ACTIONS (TRAIN+DEV)
+================================
+
+FOLLOW:
+n: 42
+coverage: 0.38%
+performance: n=42 W=31 L=11 T=0 WR=73.81% CI=[58.93%,84.70%] EV80=0.329
+
+INVERT:
+n: 0
+coverage: 0.00%
+performance: n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+
+WAIT:
+n: 11143
+coverage: 99.62%
+counterfactual FOLLOW: n=10962 W=5923 L=5039 T=181 WR=54.03% CI=[53.10%,54.96%] EV80=-0.027
+counterfactual INVERT: n=10962 W=5039 L=5923 T=181 WR=45.97% CI=[45.04%,46.90%] EV80=-0.173
+
+COMBINED EXECUTED:
+n: 42
+coverage: 0.38%
+performance: n=42 W=31 L=11 T=0 WR=73.81% CI=[58.93%,84.70%] EV80=0.329
+EV70=0.255 EV75=0.292 EV80=0.329 EV85=0.365 EV90=0.402 EV95=0.439
+
+================================
+LEARNING CURVE
+================================
+
+Evidence | Follow% | Invert% | Wait% | Combined
+1000 | 0.00% | 0.00% | 100.00% | n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+2000 | 0.00% | 0.00% | 100.00% | n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+5000 | 0.00% | 0.00% | 100.00% | n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+10000 | 0.09% | 0.00% | 99.91% | n=9 W=6 L=3 T=0 WR=66.67% CI=[35.42%,87.94%] EV80=0.200
+
+CSV: C:\Users\arche\Desktop\code\GoldenXperience\api-server\research-v2\adaptive-direction-policy-v2\learning_curve.csv
+
+================================
+LOSING-PATTERN CLASSIFICATION
+================================
+(End of TRAIN contexts n>=50 at grain dir|rsiSeverity|adxBucket|session)
+
+ANTI-PREDICTIVE:
+contexts: 0
+n: 0
+FOLLOW: n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+INVERT: n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+
+NO INFORMATION:
+contexts: 26
+n: 4872
+FOLLOW: n=4872 W=2504 L=2368 T=0 WR=51.40% CI=[49.99%,52.80%] EV80=-0.075
+INVERT: n=4872 W=2368 L=2504 T=0 WR=48.60% CI=[47.20%,50.01%] EV80=-0.125
+
+FOLLOW EDGE:
+contexts: 18
+n: 1917
+FOLLOW: n=1917 W=1139 L=778 T=0 WR=59.42% CI=[57.20%,61.59%] EV80=0.069
+INVERT: n=1917 W=778 L=1139 T=0 WR=40.58% CI=[38.41%,42.80%] EV80=-0.269
+
+UNSTABLE:
+contexts: 2
+n: 570
+
+================================
+TOP INVERT CONTEXTS
+================================
+  (none)
+
+================================
+TOP FOLLOW CONTEXTS
+================================
+  up|extreme|gt30|off | fN=80 iN=80 | F=67.50% I=32.50% | FCI=[56.64%,76.76%] ICI=[23.24%,43.36%] | 2025-02:I=23.08%(n=13) 2025-04:I=61.54%(n=13)
+  down|mild|b25_30|off | fN=98 iN=98 | F=66.33% I=33.67% | FCI=[56.51%,74.91%] ICI=[25.09%,43.49%] | 2025-02:I=56.25%(n=16) 2025-04:I=41.67%(n=12) 2025-08:I=20.00%(n=10) 2025-09:I=9.09%(n=11)
+  up|mild|b20_25|off | fN=57 iN=57 | F=66.67% I=33.33% | FCI=[53.72%,77.51%] ICI=[22.49%,46.28%] | n/a
+  up|mild|gt30|off | fN=148 iN=148 | F=61.49% I=38.51% | FCI=[53.45%,68.94%] ICI=[31.06%,46.55%] | 2025-01:I=50.00%(n=16) 2025-02:I=53.85%(n=13) 2025-03:I=40.00%(n=10) 2025-04:I=46.15%(n=13) 2025-05:I=23.08%(n=13) 2025-06:I=35.71%(n=14) 2025-07:I=35.71%(n=14) 2025-08:I=27.27%(n=11)
+  down|extreme|gt30|asia | fN=72 iN=72 | F=63.89% I=36.11% | FCI=[52.35%,74.02%] ICI=[25.98%,47.65%] | 2025-01:I=33.33%(n=12)
+  down|mild|b25_30|overlap | fN=141 iN=141 | F=60.99% I=39.01% | FCI=[52.75%,68.65%] ICI=[31.35%,47.25%] | 2025-01:I=27.27%(n=11) 2025-03:I=25.00%(n=12) 2025-04:I=57.14%(n=14) 2025-05:I=40.00%(n=10) 2025-06:I=41.67%(n=12) 2025-07:I=35.71%(n=14) 2025-08:I=35.29%(n=17) 2025-10:I=41.18%(n=17)
+  down|mild|b20_25|off | fN=77 iN=77 | F=61.04% I=38.96% | FCI=[49.87%,71.16%] ICI=[28.84%,50.13%] | 2025-03:I=41.67%(n=12) 2025-05:I=40.00%(n=10) 2025-08:I=30.00%(n=10)
+  down|medium|gt30|ny | fN=122 iN=122 | F=59.84% I=40.16% | FCI=[50.97%,68.11%] ICI=[31.89%,49.03%] | 2025-03:I=43.75%(n=16) 2025-04:I=44.44%(n=18) 2025-05:I=27.27%(n=11) 2025-08:I=46.15%(n=13) 2025-10:I=70.00%(n=10) 2025-11:I=50.00%(n=10)
+  up|extreme|gt30|overlap | fN=54 iN=54 | F=59.26% I=40.74% | FCI=[45.97%,71.32%] ICI=[28.68%,54.03%] | n/a
+  up|medium|gt30|overlap | fN=98 iN=98 | F=58.16% I=41.84% | FCI=[48.27%,67.44%] ICI=[32.56%,51.73%] | 2025-01:I=20.00%(n=10) 2025-07:I=40.00%(n=10) 2025-09:I=30.00%(n=10) 2025-10:I=28.57%(n=14)
+  up|mild|b20_25|ny | fN=102 iN=102 | F=57.84% I=42.16% | FCI=[48.15%,66.97%] ICI=[33.03%,51.85%] | 2025-04:I=45.45%(n=11) 2025-05:I=36.36%(n=11) 2025-07:I=70.00%(n=10) 2025-08:I=30.00%(n=10) 2025-10:I=28.57%(n=14)
+  down|mild|b20_25|london | fN=106 iN=106 | F=57.55% I=42.45% | FCI=[48.04%,66.53%] ICI=[33.47%,51.96%] | 2025-01:I=20.00%(n=10) 2025-03:I=20.00%(n=10) 2025-04:I=40.00%(n=10) 2025-05:I=53.85%(n=13) 2025-07:I=64.29%(n=14) 2025-11:I=46.15%(n=13)
+  up|medium|gt30|london | fN=103 iN=103 | F=57.28% I=42.72% | FCI=[47.64%,66.40%] ICI=[33.60%,52.36%] | 2025-01:I=45.45%(n=11) 2025-09:I=36.36%(n=11) 2025-10:I=35.71%(n=14)
+  up|mild|gt30|ny | fN=266 iN=266 | F=56.39% I=43.61% | FCI=[50.38%,62.22%] ICI=[37.78%,49.62%] | 2025-01:I=36.36%(n=11) 2025-02:I=50.00%(n=18) 2025-03:I=46.67%(n=30) 2025-04:I=34.78%(n=23) 2025-05:I=69.57%(n=23) 2025-06:I=26.92%(n=26) 2025-07:I=39.29%(n=28) 2025-08:I=50.00%(n=24)
+  up|mild|b25_30|off | fN=74 iN=74 | F=56.76% I=43.24% | FCI=[45.41%,67.43%] ICI=[32.57%,54.59%] | 2025-01:I=40.00%(n=10) 2025-02:I=40.00%(n=10)
+
+================================
+ACTION STABILITY
+================================
+
+Stable FOLLOW: 18
+Stable INVERT: 0
+Oscillating/UNSTABLE: 2
+WAIT contexts: 28
+
+================================
+BY SYMBOL
+================================
+  EUR_USD: V2 n=5 W=5 L=0 T=0 WR=100.00% CI=[56.55%,100.00%] EV80=0.800 F=5 I=0 W=1085 | ALWAYS_F n=1065 W=592 L=473 T=25 WR=55.59% CI=[52.59%,58.55%] EV80=0.001
+  GBP_USD: V2 n=4 W=3 L=1 T=0 WR=75.00% CI=[30.06%,95.44%] EV80=0.350 F=4 I=0 W=1018 | ALWAYS_F n=1013 W=546 L=467 T=9 WR=53.90% CI=[50.82%,56.95%] EV80=-0.030
+  USD_JPY: V2 n=2 W=2 L=0 T=0 WR=100.00% CI=[34.24%,100.00%] EV80=0.800 F=2 I=0 W=962 | ALWAYS_F n=956 W=484 L=472 T=8 WR=50.63% CI=[47.46%,53.79%] EV80=-0.089
+  AUD_USD: V2 n=4 W=4 L=0 T=0 WR=100.00% CI=[51.01%,100.00%] EV80=0.800 F=4 I=0 W=954 | ALWAYS_F n=938 W=505 L=433 T=20 WR=53.84% CI=[50.64%,57.01%] EV80=-0.031
+  NZD_USD: V2 n=8 W=5 L=3 T=0 WR=62.50% CI=[30.57%,86.32%] EV80=0.125 F=8 I=0 W=1113 | ALWAYS_F n=1098 W=596 L=502 T=23 WR=54.28% CI=[51.32%,57.21%] EV80=-0.023
+  USD_CAD: V2 n=6 W=2 L=4 T=0 WR=33.33% CI=[9.68%,70.00%] EV80=-0.400 F=6 I=0 W=1086 | ALWAYS_F n=1067 W=597 L=470 T=25 WR=55.95% CI=[52.96%,58.90%] EV80=0.007
+  USD_CHF: V2 n=3 W=1 L=2 T=0 WR=33.33% CI=[6.15%,79.23%] EV80=-0.400 F=3 I=0 W=961 | ALWAYS_F n=951 W=515 L=436 T=13 WR=54.15% CI=[50.98%,57.30%] EV80=-0.025
+  EUR_GBP: V2 n=3 W=2 L=1 T=0 WR=66.67% CI=[20.77%,93.85%] EV80=0.200 F=3 I=0 W=753 | ALWAYS_F n=727 W=415 L=312 T=29 WR=57.08% CI=[53.46%,60.64%] EV80=0.028
+  EUR_JPY: V2 n=1 W=1 L=0 T=0 WR=100.00% CI=[20.65%,100.00%] EV80=0.800 F=1 I=0 W=792 | ALWAYS_F n=787 W=414 L=373 T=6 WR=52.60% CI=[49.11%,56.07%] EV80=-0.053
+  GBP_JPY: V2 n=2 W=2 L=0 T=0 WR=100.00% CI=[34.24%,100.00%] EV80=0.800 F=2 I=0 W=774 | ALWAYS_F n=772 W=414 L=358 T=4 WR=53.63% CI=[50.10%,57.12%] EV80=-0.035
+  AUD_JPY: V2 n=3 W=3 L=0 T=0 WR=100.00% CI=[43.85%,100.00%] EV80=0.800 F=3 I=0 W=855 | ALWAYS_F n=846 W=442 L=404 T=12 WR=52.25% CI=[48.88%,55.59%] EV80=-0.060
+  EUR_AUD: V2 n=1 W=1 L=0 T=0 WR=100.00% CI=[20.65%,100.00%] EV80=0.800 F=1 I=0 W=790 | ALWAYS_F n=784 W=434 L=350 T=7 WR=55.36% CI=[51.86%,58.80%] EV80=-0.004
+
+================================
+BY TIME
+================================
+  2024-12: n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+  2025-01: n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+  2025-02: n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+  2025-03: n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+  2025-04: n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+  2025-05: n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+  2025-06: n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+  2025-07: n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+  2025-08: n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+  2025-09: n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+  2025-10: n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+  2025-11: n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+  2025-12: n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+  2026-01: n=4 W=2 L=2 T=0 WR=50.00% CI=[15.00%,85.00%] EV80=-0.100
+  2026-02: n=5 W=4 L=1 T=0 WR=80.00% CI=[37.55%,96.38%] EV80=0.440
+  2026-03: n=8 W=8 L=0 T=0 WR=100.00% CI=[67.56%,100.00%] EV80=0.800
+  2026-04: n=25 W=17 L=8 T=0 WR=68.00% CI=[48.41%,82.80%] EV80=0.224
+
+================================
+RANDOM CONTROL
+================================
+
+TRAIN+DEV: V2 n=42 W=31 L=11 T=0 WR=73.81% CI=[58.93%,84.70%] EV80=0.329 | rand mean WR 54.28% 95% [39.02%, 70.73%] | pctile 99.20%
+DEV: V2 n=42 W=31 L=11 T=0 WR=73.81% CI=[58.93%,84.70%] EV80=0.329 | rand mean WR 54.73% 95% [38.10%, 69.05%] | pctile 99.40%
+Shuffles: 1000
+
+================================
+QUALITY RANKING
+================================
+Q1: n=8 W=8 L=0 T=0 WR=100.00% CI=[67.56%,100.00%] EV80=0.800
+Q2: n=8 W=6 L=2 T=0 WR=75.00% CI=[40.93%,92.85%] EV80=0.350
+Q3: n=8 W=4 L=4 T=0 WR=50.00% CI=[21.52%,78.48%] EV80=-0.100
+Q4: n=8 W=6 L=2 T=0 WR=75.00% CI=[40.93%,92.85%] EV80=0.350
+Q5: n=10 W=7 L=3 T=0 WR=70.00% CI=[39.68%,89.22%] EV80=0.260
+Monotonic? PARTIAL
+
+================================
+DEV PROMOTION GATE
+================================
+  Gate 1: PASS — V2 executed WR > BE80 (WR=73.81% vs BE=55.56%)
+  Gate 2: PASS — V2 EV80 > ALWAYS FOLLOW EV80 (V2=0.329 FOLLOW=-0.012)
+  Gate 3: PASS — V2 EV80 > ALWAYS INVERT EV80 (V2=0.329 INVERT=-0.188)
+  Gate 4: PASS — V2 EV80 > OLD adaptive TAKE EV80 (V2=0.329 OLD=0.042)
+  Gate 5: PASS — V2 beats matched random (p>97.5% or WR>97.5%ile) (pctile=99.4% WR=73.81% randHi=69.05%)
+  Gate 6: PASS — FOLLOW vs INVERT separation meaningful (FOLLOW n=42 INVERT n=0)
+  Gate 7: FAIL — not single-month dominated (<50% wins) (maxMonth=2026-04 share=54.84%)
+  Gate 8: PASS — not single-symbol dominated (<40% wins) (maxSymbol=NZD_USD share=16.13%)
+  Gate 9: FAIL — executed n >= 100 (n=42)
+Overall: FAILED
+Failed: 7:not single-month dominated (<50% wins); 9:executed n >= 100
+
+DEV detail:
+  ALWAYS FOLLOW: n=2754 W=1511 L=1243 T=42 WR=54.87% CI=[53.00%,56.72%] EV80=-0.012
+  ALWAYS INVERT: n=2754 W=1243 L=1511 T=42 WR=45.13% CI=[43.28%,47.00%] EV80=-0.188
+  OLD ADAPTIVE: n=413 W=239 L=174 T=4 WR=57.87% CI=[53.06%,62.54%] EV80=0.042
+  V2: n=42 W=31 L=11 T=0 WR=73.81% CI=[58.93%,84.70%] EV80=0.329 F=42 I=0 W=2754
+  V2 FOLLOW arm: n=42 W=31 L=11 T=0 WR=73.81% CI=[58.93%,84.70%] EV80=0.329
+  V2 INVERT arm: n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+
+================================
+HOLDOUT
+================================
+Opened? NO
+Failed gates:
+  - Gate 7: not single-month dominated (<50% wins) — maxMonth=2026-04 share=54.84%
+  - Gate 9: executed n >= 100 — n=42
+
+================================
+LEAKAGE CHECKLIST
+================================
+[x] signal uses only information available at T — PASS
+[x] context uses only information available at T — PASS
+[x] FOLLOW/INVERT decision made before outcome — PASS
+[x] current signal cannot teach itself — PASS
+[x] evidence contains only previously resolved signals — PASS
+[x] counterfactual outcome never enters context — PASS
+[x] future volatility unavailable — PASS
+[x] future regime unavailable — PASS
+[x] timestamps aligned correctly — PASS
+[x] bid/ask orientation correct (mid close M1 research) — PASS
+[x] inversion independently classified (not -P&L) — PASS
+[x] chronological split correct (60/20/20 by count) — PASS
+[x] HOLDOUT untouched during development — PASS
+
+================================
+DIRECT ANSWERS
+================================
+1. Anti-predictive contexts? NO at n>=50
+2. INVERT profitable there? N/A
+3. FOLLOW/INVERT/WAIT counts TRAIN+DEV: F=42 I=0 W=11143
+4. Beat ALWAYS INVERT? TRAIN+DEV YES; DEV YES
+5. Beat ALWAYS FOLLOW? TRAIN+DEV YES; DEV YES
+6. Beat old adaptive? TRAIN+DEV YES; DEV YES
+7. Beat matched random? DEV pctile=99.40% → YES
+8. Improves with evidence? first EV80=-1.000 last=0.200
+9. INVERT stable across months? UNSTABLE contexts=2
+10. Stable across symbols? maxSymbolShare DEV wins=16.13%
+11. Persistent FOLLOW contexts? FOLLOW_EDGE=18; stable FOLLOW=18
+12. WAIT isolates no-edge? WAIT CF F EV80=-0.027 I EV80=-0.173; NO_INFO=26
+13. Hypothesis supported? NOT at pre-registered thresholds
+14. Most losers no-info? MOSTLY NO_INFORMATION
+15. Replace prod adaptive? NO — DEV gate failed; research-only
+
+================================
+FINAL VERDICT
+================================
+
+INSUFFICIENT_DATA
+
+HOLDOUT opened: NO
+Production unchanged: YES (research-v2 only)

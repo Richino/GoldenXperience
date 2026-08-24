@@ -1,0 +1,248 @@
+GOLDENXPERIENCE
+RAW FOUR-STRATEGY FOREX HISTORICAL TEST
+NO ADAPTIVE ENGINE
+Experiment: four-family-raw-historical-v1
+Generated: 2026-08-23T02:41:34.381Z
+
+================================
+DATA
+================================
+
+Date range: 2016-06-02T09:45:00.000Z → 2026-08-03T20:30:00.000Z
+Pairs: EUR_USD, GBP_USD, USD_JPY
+Source: frozen opportunities from four-family-adaptive-historical-v1
+  (real ema-v1 / breakout-v1 / momentum-v1 / meanrev-v1 + bid/ask labelOutcome)
+Historical bars:
+  EUR_USD H1: 64298
+  EUR_USD H4: 16080
+  EUR_USD M15: 257138
+  GBP_USD H1: 32197
+  GBP_USD H4: 8051
+  GBP_USD M15: 128765
+  USD_JPY H1: 32196
+  USD_JPY H4: 8051
+  USD_JPY M15: 128774
+Total trades: 31449
+EMA: 8577
+Breakout: 8316
+Momentum: 10601
+MeanRev: 3955
+
+Configs (frozen from prior research snapshot):
+  ema: ema-v1 / ema-cfg-v1
+  breakout: breakout-v1 / breakout-cfg-v1
+  momentum: momentum-v1 / momentum-cfg-v1
+  meanrev: meanrev-v1 / meanrev-cfg-v1
+Adaptive engine: NOT USED
+Production Momentum inversion: NOT APPLIED to main arm
+
+================================
+HEADLINE WIN RATE
+================================
+
+Family      Trades    Wins     Losses   Win Rate
+ema         8577      2862     5691     33.4%
+breakout    8316      2534     5775     30.5%
+momentum    10601     4317     6266     40.7%
+meanrev     3955      1300     2650     32.9%
+ALL         31449     11013    20382    35.0%
+
+================================
+EXPECTANCY
+================================
+
+Family | Avg Win R | Avg Loss R | Gross E | Cost | Net E | Total R | PF | MaxDD
+ema | 1.1356 | -0.8242 | -0.0315 | 0.1365 | -0.1680 | -1440.7 | 0.69 | 1460.7
+breakout | 1.5767 | -0.9432 | -0.0453 | 0.1293 | -0.1746 | -1451.6 | 0.73 | 1463.2
+momentum | 0.8041 | -0.6618 | -0.0116 | 0.0522 | -0.0637 | -675.4 | 0.84 | 700.2
+meanrev | 1.3690 | -0.9382 | -0.0604 | 0.1182 | -0.1786 | -706.5 | 0.72 | 714.4
+ALL | 1.1347 | -0.8228 | -0.0321 | 0.1038 | -0.1359 | -4274.3 | 0.75 | 4288.0
+
+================================
+LONG vs SHORT
+================================
+
+EMA LONG: n=4445 W=1490 L=2937 WR=33.5% netE=-0.1554 totalR=-690.7
+EMA SHORT: n=4132 W=1372 L=2754 WR=33.2% netE=-0.1815 totalR=-750.0
+
+BREAKOUT LONG: n=4171 W=1295 L=2873 WR=31.0% netE=-0.1660 totalR=-692.4
+BREAKOUT SHORT: n=4145 W=1239 L=2902 WR=29.9% netE=-0.1832 totalR=-759.3
+
+MOMENTUM LONG: n=5468 W=2261 L=3196 WR=41.3% netE=-0.0544 totalR=-297.2
+MOMENTUM SHORT: n=5133 W=2056 L=3070 WR=40.1% netE=-0.0737 totalR=-378.2
+
+MEANREV LONG: n=2102 W=692 L=1408 WR=32.9% netE=-0.1813 totalR=-381.2
+MEANREV SHORT: n=1853 W=608 L=1242 WR=32.8% netE=-0.1756 totalR=-325.3
+
+================================
+BY PAIR
+================================
+
+ema:
+  EUR_USD: n=4702 WR=33.5% netE=-0.1606 totalR=-755.0
+  GBP_USD: n=2662 WR=33.1% netE=-0.1806 totalR=-480.8
+  USD_JPY: n=1213 WR=33.5% netE=-0.1690 totalR=-205.0
+
+breakout:
+  EUR_USD: n=4732 WR=30.5% netE=-0.1751 totalR=-828.4
+  GBP_USD: n=2648 WR=30.5% netE=-0.1701 totalR=-450.5
+  USD_JPY: n=936 WR=30.2% netE=-0.1846 totalR=-172.8
+
+momentum:
+  EUR_USD: n=5888 WR=41.4% netE=-0.0513 totalR=-302.2
+  GBP_USD: n=3488 WR=40.7% netE=-0.0651 totalR=-227.0
+  USD_JPY: n=1225 WR=37.6% netE=-0.1194 totalR=-146.2
+
+meanrev:
+  EUR_USD: n=2410 WR=31.7% netE=-0.2095 totalR=-504.9
+  GBP_USD: n=1158 WR=35.1% netE=-0.1136 totalR=-131.5
+  USD_JPY: n=387 WR=33.3% netE=-0.1809 totalR=-70.0
+
+ALL FOUR:
+  EUR_USD: n=17732 WR=35.1% netE=-0.1348
+  GBP_USD: n=9956 WR=35.3% netE=-0.1295
+  USD_JPY: n=3761 WR=34.0% netE=-0.1579
+
+================================
+BY YEAR
+================================
+
+ema:
+  2016: n=317 WR=38.2% netE=-0.0309 totalR=-9.8
+  2017: n=555 WR=37.7% netE=-0.1016 totalR=-56.4
+  2018: n=628 WR=36.0% netE=-0.0907 totalR=-57.0
+  2019: n=492 WR=29.1% netE=-0.2426 totalR=-119.4
+  2020: n=582 WR=31.1% netE=-0.1732 totalR=-100.8
+  2021: n=1057 WR=31.1% netE=-0.2255 totalR=-238.4
+  2022: n=1082 WR=33.5% netE=-0.1458 totalR=-157.7
+  2023: n=1058 WR=36.8% netE=-0.1408 totalR=-148.9
+  2024: n=1159 WR=29.8% netE=-0.2439 totalR=-282.7
+  2025: n=1061 WR=33.2% netE=-0.1670 totalR=-177.2
+  2026: n=586 WR=34.8% netE=-0.1576 totalR=-92.3
+
+breakout:
+  2016: n=286 WR=30.1% netE=-0.1793 totalR=-51.3
+  2017: n=567 WR=35.6% netE=-0.0280 totalR=-15.9
+  2018: n=552 WR=31.5% netE=-0.1619 totalR=-89.4
+  2019: n=637 WR=26.2% netE=-0.3048 totalR=-194.1
+  2020: n=578 WR=32.0% netE=-0.1359 totalR=-78.5
+  2021: n=1076 WR=29.9% netE=-0.1916 totalR=-206.2
+  2022: n=963 WR=30.4% netE=-0.2008 totalR=-193.4
+  2023: n=1083 WR=31.1% netE=-0.1514 totalR=-164.0
+  2024: n=1214 WR=28.2% netE=-0.2349 totalR=-285.1
+  2025: n=878 WR=31.3% netE=-0.1222 totalR=-107.3
+  2026: n=482 WR=31.3% netE=-0.1378 totalR=-66.4
+
+momentum:
+  2016: n=386 WR=43.0% netE=-0.0371 totalR=-14.3
+  2017: n=667 WR=44.1% netE=-0.0121 totalR=-8.1
+  2018: n=698 WR=42.8% netE=-0.0239 totalR=-16.7
+  2019: n=743 WR=39.8% netE=-0.0803 totalR=-59.6
+  2020: n=667 WR=42.3% netE=-0.0656 totalR=-43.7
+  2021: n=1353 WR=39.6% netE=-0.0653 totalR=-88.3
+  2022: n=1221 WR=39.6% netE=-0.1093 totalR=-133.5
+  2023: n=1435 WR=43.3% netE=-0.0322 totalR=-46.2
+  2024: n=1509 WR=38.2% netE=-0.0760 totalR=-114.7
+  2025: n=1268 WR=38.0% netE=-0.1023 totalR=-129.7
+  2026: n=654 WR=43.0% netE=-0.0313 totalR=-20.5
+
+meanrev:
+  2016: n=128 WR=30.5% netE=-0.2463 totalR=-31.5
+  2017: n=305 WR=29.2% netE=-0.2569 totalR=-78.4
+  2018: n=308 WR=32.8% netE=-0.2016 totalR=-62.1
+  2019: n=311 WR=36.7% netE=-0.0796 totalR=-24.7
+  2020: n=276 WR=26.4% netE=-0.3009 totalR=-83.0
+  2021: n=457 WR=30.6% netE=-0.2237 totalR=-102.2
+  2022: n=470 WR=37.7% netE=-0.0393 totalR=-18.5
+  2023: n=563 WR=33.7% netE=-0.1267 totalR=-71.4
+  2024: n=542 WR=32.1% netE=-0.2331 totalR=-126.3
+  2025: n=416 WR=32.2% netE=-0.2080 totalR=-86.5
+  2026: n=179 WR=38.5% netE=-0.1217 totalR=-21.8
+
+================================
+BY QUARTER SUMMARY
+================================
+
+ema: best=2016-Q4 (0.1626) worst=2019-Q3 (-0.3970) profitable_quarters=11.9% (nQ=42, min 20 trades/q)
+breakout: best=2017-Q3 (0.1386) worst=2019-Q2 (-0.4273) profitable_quarters=11.9% (nQ=42, min 20 trades/q)
+momentum: best=2016-Q2 (0.0827) worst=2022-Q2 (-0.2071) profitable_quarters=21.4% (nQ=42, min 20 trades/q)
+meanrev: best=2022-Q2 (0.2067) worst=2016-Q2 (-0.7798) profitable_quarters=14.3% (nQ=42, min 20 trades/q)
+ALL: best=2018-Q1 (-0.0094) worst=2024-Q4 (-0.2291) profitable_quarters=0.0% (nQ=42, min 20 trades/q)
+
+================================
+DIRECTIONAL ACCURACY
+================================
+
+(Fixed-horizon mid-price direction vs original strategy direction — NOT SL/TP win rate)
+
+Family | 1 bar | 3 bar | 6 bar | 12 bar | 24 bar
+ema | 48.4% | 48.5% | 47.7% | 48.0% | 47.9%
+breakout | 44.4% | 46.0% | 46.9% | 48.0% | 49.6%
+momentum | 45.0% | 47.0% | 48.0% | 48.2% | 48.9%
+meanrev | 50.1% | 50.0% | 49.0% | 47.8% | 48.8%
+
+================================
+MOMENTUM INVERSION DIAGNOSTIC
+================================
+
+NOT part of the main raw test. Genuine opposite-side reconstruction (not -PnL).
+
+Original Momentum:
+Trades: 10601
+Win rate: 40.7%
+Net E: -0.0637
+Gross E: -0.0116 Cost: 0.0522 PF: 0.84
+
+Inverted Momentum:
+Trades: 10591
+Win rate: 43.3%
+Net E: -0.0418
+Gross E: 0.0165 Cost: 0.0583 PF: 0.89
+Δ net E (inv - orig): 0.0219
+
+================================
+DIRECT ANSWERS
+================================
+
+1. Highest win rate: momentum (40.7%)
+2. Highest net expectancy: momentum (-0.0637 R)
+3. Overall four-family win rate: 35.0% (n=31449)
+4. LONG vs SHORT (all families): LONG WR=35.5% netE=-0.1274 | SHORT WR=34.6% netE=-0.1450 → LONG better on net E
+5. Family that loses most (lowest net E): meanrev (-0.1786 R; totalR=-706.5)
+6. Momentum SHORT vs LONG: LONG WR=41.3% netE=-0.0544 | SHORT WR=40.1% netE=-0.0737 → SHORT somewhat worse
+7. Momentum inversion improve win rate? YES (40.7% → 43.3%)
+8. Momentum inversion profitable? NO (-0.0418 R)
+9. Any strategy positive net E without adaptive? NO — all four negative after costs
+10. Wrong direction vs geometry/cost? 1-bar directional accuracy ~47.0%; Momentum 1-bar=45.0%. Gross ALL=-0.0321 vs cost=0.1038 → direction is weak even pre-cost; costs dominate / widen the loss
+
+================================
+LEAKAGE / PROCESS CHECK
+================================
+
+PASS: reused chronological frozen opportunity stream (no re-optimization)
+PASS: indicators/strategies evaluated on closed bars in original collection
+PASS: bid/ask labelOutcome resolution (net includes spread)
+PASS: no adaptive filtering (every executable opportunity taken)
+PASS: main arm = original Momentum direction
+PASS: production unchanged
+
+================================
+FINAL VERDICT
+================================
+
+Best historically (net E): momentum at -0.0637 R/trade, WR 40.7%
+Worst historically (net E): meanrev at -0.1786 R/trade
+
+Raw win rates:
+  ema: 33.4% (2862/8577)
+  breakout: 30.5% (2534/8316)
+  momentum: 40.7% (4317/10601)
+  meanrev: 32.9% (1300/3955)
+  ALL: 35.0% (11013/31449)
+
+None of the four current strategies is net-profitable after realistic spread on this universe/history.
+Momentum is the least bad; MeanRev/Breakout/EMA are worse.
+
+Production strategies unchanged: YES
+Adaptive engine used: NO
+OANDA orders: 0

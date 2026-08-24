@@ -1,0 +1,462 @@
+GOLDENXPERIENCE
+FOREX ADAPTIVE DIRECTION ENGINE V2
+Experiment: four-family-follow-invert-wait-v2
+Generated: 2026-08-23T02:30:36.033Z
+
+================================
+DATA
+================================
+
+Date range: 2016-06-02T09:45:00.000Z → 2026-08-03T20:30:00.000Z
+Pairs: EUR_USD, GBP_USD, USD_JPY
+Opportunities: 31376
+Paired FOLLOW/INVERT outcomes: 31376
+Effective n (day-blocks, ALWAYS FOLLOW): 2164
+
+EMA: 8555
+Breakout: 8288
+Momentum: 10591
+MeanRev: 3942
+
+TRAIN: first 60% → n=18825 (2016-06-02T09:45:00.000Z → 2023-05-19T19:45:00.000Z)
+DEV: next 20% → n=6275 (→ 2024-10-21T07:00:00.000Z)
+HOLDOUT status: SEALED (same boundary as v1; gate failed)
+
+Context hierarchy (frozen before results):
+  family|pair|session|regime|originalDirection → family|*|*|regime|originalDirection → family|*|*|regime|* → family|*|*|*|*
+  Extensions: NONE
+
+================================
+COUNTERFACTUAL CORRECTNESS
+================================
+
+FOLLOW + INVERT gross (mean): -0.0008
+FOLLOW + INVERT net (mean): -0.2171
+Exact negation share (net): 0.0%
+Exact negation share (gross): 20.7%
+Mean FOLLOW cost R: 0.1041
+Mean INVERT cost R: 0.1122
+Both arms independently resolved? YES
+Both pay spread? YES
+Fake -1*PnL symmetry rejected? YES
+
+================================
+BASELINES
+================================ (PRE_HOLDOUT)
+
+ALWAYS FOLLOW:
+n: 25100
+gross E: -0.0318
+cost: 0.1019
+net E: -0.1337
+total R: -3355.10
+PF: 0.75
+CI: [-0.1546, -0.1152]
+
+ALWAYS INVERT:
+n: 25100
+gross E: 0.0309
+cost: 0.1114
+net E: -0.0805
+total R: -2020.10
+PF: 0.84
+CI: [-0.0984, -0.0657]
+
+OLD ADAPTIVE:
+n: 10326
+coverage: 41.1%
+net E: -0.1120
+CI: [-0.1373, -0.0858]
+
+================================
+V2 HEADLINE
+================================ (PRE_HOLDOUT)
+
+FOLLOW selected:
+n: 57
+coverage: 0.2%
+gross E: 0.0721
+net E: -0.0091
+CI: [-0.6702, 0.6536]
+
+INVERT selected:
+n: 239
+coverage: 1.0%
+gross E: 0.0583
+net E: -0.1151
+CI: [-0.2953, 0.1088]
+
+WAIT:
+n: 24804
+coverage: 98.8%
+
+COMBINED V2:
+n: 296
+coverage: 1.2%
+gross E: 0.0610
+cost: 0.1557
+net E: -0.0947
+total R: -28.03
+PF: 0.84
+CI: [-0.2947, 0.1455]
+
+================================
+DOES V2 CREATE POSITIVE EDGE?
+================================
+
+NO
+
+================================
+LEARNING CURVE
+================================
+
+Signals | FOLLOW% | INVERT% | WAIT% | V2 Net E | AlwaysF | AlwaysI
+1000     0.0%      0.0%      100.0%   n/a        -0.0750   -0.0831
+2000     0.1%      0.0%      100.0%   -1.0000    -0.0466   -0.0985
+5000     1.1%      0.7%      98.1%    0.0284     -0.0835   -0.0880
+10000    0.6%      1.1%      98.4%    -0.0306    -0.1203   -0.0871
+15000    0.4%      0.7%      98.9%    -0.0306    -0.1337   -0.0816
+20000    0.3%      0.8%      99.0%    -0.0471    -0.1286   -0.0757
+25000    0.2%      1.0%      98.8%    -0.1018    -0.1328   -0.0807
+30000    0.2%      0.9%      99.0%    -0.1003    -0.1352   -0.0816
+
+================================
+BY FAMILY
+================================
+
+ema:
+  ALWAYS FOLLOW E=-0.1662 n=6702
+  ALWAYS INVERT E=-0.1162 n=6702
+  V2 FOLLOW n=57 E=-0.0091
+  V2 INVERT n=123 E=-0.1733
+  V2 WAIT n=6522
+  V2 combined n=180 cov=2.7% netE=-0.1213 totalR=-21.8 PF=0.81 CI=[-0.3758,0.1358]
+
+breakout:
+  ALWAYS FOLLOW E=-0.1741 n=6704
+  ALWAYS INVERT E=-0.0954 n=6704
+  V2 FOLLOW n=0 E=n/a
+  V2 INVERT n=4 E=-0.2500
+  V2 WAIT n=6700
+  V2 combined n=4 cov=0.1% netE=-0.2500 totalR=-1.0 PF=0.67 CI=[-1.0000,1.2500]
+
+momentum:
+  ALWAYS FOLLOW E=-0.0588 n=8416
+  ALWAYS INVERT E=-0.0441 n=8416
+  V2 FOLLOW n=0 E=n/a
+  V2 INVERT n=5 E=-0.1388
+  V2 WAIT n=8411
+  V2 combined n=5 cov=0.1% netE=-0.1388 totalR=-0.7 PF=0.42 CI=[-0.4781,0.1872]
+
+meanrev:
+  ALWAYS FOLLOW E=-0.1766 n=3278
+  ALWAYS INVERT E=-0.0705 n=3278
+  V2 FOLLOW n=0 E=n/a
+  V2 INVERT n=107 E=-0.0420
+  V2 WAIT n=3171
+  V2 combined n=107 cov=3.3% netE=-0.0420 totalR=-4.5 PF=0.92 CI=[-0.3208,0.2184]
+
+================================
+LONG vs SHORT
+================================
+
+ema long: ALWAYS_F=-0.1537 ALWAYS_I=-0.1005 V2 n=180 E=-0.1213 (F=57 I=123 W=3293)
+ema short: ALWAYS_F=-0.1796 ALWAYS_I=-0.1332 V2 n=0 E=n/a (F=0 I=0 W=3229)
+
+breakout long: ALWAYS_F=-0.1710 ALWAYS_I=-0.0920 V2 n=4 E=-0.2500 (F=0 I=4 W=3339)
+breakout short: ALWAYS_F=-0.1772 ALWAYS_I=-0.0987 V2 n=0 E=n/a (F=0 I=0 W=3361)
+
+momentum long: ALWAYS_F=-0.0513 ALWAYS_I=-0.0387 V2 n=5 E=-0.1388 (F=0 I=5 W=4320)
+momentum short: ALWAYS_F=-0.0668 ALWAYS_I=-0.0497 V2 n=0 E=n/a (F=0 I=0 W=4091)
+
+meanrev long: ALWAYS_F=-0.1697 ALWAYS_I=-0.0514 V2 n=107 E=-0.0420 (F=0 I=107 W=1628)
+meanrev short: ALWAYS_F=-0.1845 ALWAYS_I=-0.0919 V2 n=0 E=n/a (F=0 I=0 W=1543)
+
+================================
+ANTI-PREDICTIVE CONTEXTS
+================================
+
+Context | n | Follow E | Invert E | Δ | years | pairs
+(none with n>=100, FOLLOW<0, INVERT>0 at regime+direction level)
+
+================================
+FOLLOW EDGE CONTEXTS
+================================
+
+(none)
+
+================================
+BOTH-DIRECTIONS-LOSE CONTEXTS
+================================
+
+meanrev|*|*|mixed|short | n=465 F=-0.2364 I=-0.0404
+breakout|*|*|trending|short | n=1257 F=-0.1985 I=-0.0808
+breakout|*|*|trending|long | n=1295 F=-0.1885 I=-0.0692
+ema|*|*|mixed|short | n=437 F=-0.1882 I=-0.0567
+ema|*|*|trending|short | n=2792 F=-0.1782 I=-0.1452
+meanrev|*|*|ranging|long | n=1197 F=-0.1750 I=-0.0305
+breakout|*|*|ranging|long | n=1239 F=-0.1672 I=-0.0869
+breakout|*|*|ranging|short | n=1337 F=-0.1668 I=-0.1065
+meanrev|*|*|ranging|short | n=1078 F=-0.1621 I=-0.1142
+ema|*|*|trending|long | n=2972 F=-0.1615 I=-0.0979
+breakout|*|*|mixed|short | n=767 F=-0.1603 I=-0.1144
+meanrev|*|*|mixed|long | n=538 F=-0.1577 I=-0.0980
+breakout|*|*|mixed|long | n=809 F=-0.1488 I=-0.1363
+ema|*|*|mixed|long | n=501 F=-0.1073 I=-0.1157
+momentum|*|*|trending|short | n=1712 F=-0.0879 I=-0.0177
+Total both-bad contexts (n>=100): 20
+
+================================
+FAILURE CLASSIFICATION
+================================
+
+ANTI_PREDICTIVE:
+  contexts: 0
+  opportunities: 0
+  share: 0.0%
+
+NO_DIRECTIONAL_INFORMATION:
+  contexts: 20
+  opportunities: 25100
+  share: 100.0%
+
+COST_KILLED:
+  contexts: 20
+  opportunities: 2569
+  share: 10.2%
+
+UNSTABLE:
+  contexts: 0
+  opportunities: 0
+  share: 0.0%
+
+INSUFFICIENT_EVIDENCE:
+  contexts: 0
+  opportunities: 0
+  share: 0.0%
+
+FOLLOW_EDGE:
+  contexts: 0
+  opportunities: 0
+  share: 0.0%
+
+================================
+ACTION STABILITY
+================================
+
+Stable FOLLOW: 0
+Stable INVERT: 0
+Stable WAIT: 68
+Oscillating: 4
+Tracked contexts with milestone snapshots: 88
+
+================================
+TIME STABILITY
+================================
+
+-- By year --
+2016: ALWAYS_F=-0.0933 ALWAYS_I=-0.0746 V2 n=0 E=n/a cov=0.0%
+2017: ALWAYS_F=-0.0727 ALWAYS_I=-0.0720 V2 n=9 E=-0.0577 cov=0.4%
+2018: ALWAYS_F=-0.1005 ALWAYS_I=-0.1045 V2 n=111 E=0.0578 cov=5.1%
+2019: ALWAYS_F=-0.1796 ALWAYS_I=-0.0673 V2 n=44 E=-0.2480 cov=2.0%
+2020: ALWAYS_F=-0.1452 ALWAYS_I=-0.0997 V2 n=0 E=n/a cov=0.0%
+2021: ALWAYS_F=-0.1600 ALWAYS_I=-0.0813 V2 n=0 E=n/a cov=0.0%
+2022: ALWAYS_F=-0.1342 ALWAYS_I=-0.0339 V2 n=7 E=-0.3433 cov=0.2%
+2023: ALWAYS_F=-0.1012 ALWAYS_I=-0.0921 V2 n=53 E=-0.0197 cov=1.3%
+2024: ALWAYS_F=-0.1744 ALWAYS_I=-0.1033 V2 n=72 E=-0.2717 cov=2.0%
+-- By quarter --
+2016-Q2: ALWAYS_F=-0.1093 V2 E=n/a n=0/144
+2016-Q3: ALWAYS_F=-0.1194 V2 E=n/a n=0/469
+2016-Q4: ALWAYS_F=-0.0642 V2 E=n/a n=0/501
+2017-Q1: ALWAYS_F=-0.0312 V2 E=n/a n=0/515
+2017-Q2: ALWAYS_F=-0.0072 V2 E=-1.0000 n=1/523
+2017-Q3: ALWAYS_F=-0.0297 V2 E=-0.4000 n=5/507
+2017-Q4: ALWAYS_F=-0.2155 V2 E=0.8270 n=3/542
+2018-Q1: ALWAYS_F=-0.0094 V2 E=0.1538 n=39/515
+2018-Q2: ALWAYS_F=-0.1846 V2 E=0.0228 n=17/644
+2018-Q3: ALWAYS_F=-0.0454 V2 E=-0.0269 n=24/520
+2018-Q4: ALWAYS_F=-0.1434 V2 E=0.0216 n=31/501
+2019-Q1: ALWAYS_F=-0.1380 V2 E=-0.1516 n=39/537
+2019-Q2: ALWAYS_F=-0.2133 V2 E=-1.0000 n=5/530
+2019-Q3: ALWAYS_F=-0.1684 V2 E=n/a n=0/542
+2019-Q4: ALWAYS_F=-0.1984 V2 E=n/a n=0/567
+2020-Q1: ALWAYS_F=-0.0742 V2 E=n/a n=0/489
+2020-Q2: ALWAYS_F=-0.1013 V2 E=n/a n=0/523
+2020-Q3: ALWAYS_F=-0.1870 V2 E=n/a n=0/515
+2020-Q4: ALWAYS_F=-0.2079 V2 E=n/a n=0/575
+2021-Q1: ALWAYS_F=-0.0565 V2 E=n/a n=0/569
+2021-Q2: ALWAYS_F=-0.1885 V2 E=n/a n=0/542
+2021-Q3: ALWAYS_F=-0.1432 V2 E=n/a n=0/1265
+2021-Q4: ALWAYS_F=-0.2015 V2 E=n/a n=0/1562
+2022-Q1: ALWAYS_F=-0.1481 V2 E=n/a n=0/1359
+2022-Q2: ALWAYS_F=-0.1387 V2 E=n/a n=0/708
+2022-Q3: ALWAYS_F=-0.0989 V2 E=n/a n=0/937
+2022-Q4: ALWAYS_F=-0.1493 V2 E=-0.3433 n=7/730
+2023-Q1: ALWAYS_F=-0.1420 V2 E=-0.1927 n=22/878
+2023-Q2: ALWAYS_F=-0.0915 V2 E=-0.1687 n=7/1162
+2023-Q3: ALWAYS_F=-0.1005 V2 E=0.0304 n=16/966
+2023-Q4: ALWAYS_F=-0.0798 V2 E=0.4861 n=8/1120
+2024-Q1: ALWAYS_F=-0.2089 V2 E=0.1374 n=25/1179
+2024-Q2: ALWAYS_F=-0.1583 V2 E=-0.3684 n=19/1293
+2024-Q3: ALWAYS_F=-0.1283 V2 E=-0.6667 n=27/1007
+2024-Q4: ALWAYS_F=-0.3379 V2 E=2.0000 n=1/164
+
+================================
+PAIR STABILITY
+================================
+
+EUR_USD: ALWAYS_F=-0.1275 ALWAYS_I=-0.0847 V2_F n=57 V2_I n=112 V2 comb E=-0.0338 cov=1.0%
+GBP_USD: ALWAYS_F=-0.1414 ALWAYS_I=-0.0702 V2_F n=0 V2_I n=127 V2 comb E=-0.1757 cov=2.0%
+USD_JPY: ALWAYS_F=-0.1547 ALWAYS_I=-0.0792 V2_F n=0 V2_I n=0 V2 comb E=n/a cov=0.0%
+
+================================
+COST DECOMPOSITION
+================================
+
+ALWAYS FOLLOW: gross=-0.0318 cost=0.1019 net=-0.1337
+ALWAYS INVERT: gross=0.0309 cost=0.1114 net=-0.0805
+OLD ADAPTIVE:  gross=-0.0271 cost=0.0849 net=-0.1120
+V2 FOLLOW:     gross=0.0721 cost=0.0812 net=-0.0091
+V2 INVERT:     gross=0.0583 cost=0.1734 net=-0.1151
+V2 combined:   gross=0.0610 cost=0.1557 net=-0.0947
+
+================================
+RANDOM CONTROL
+================================
+
+V2 action mix: FOLLOW=0.2% INVERT=1.0% WAIT=98.8%
+V2 net E: -0.0947
+Random mean: -0.0913
+Random 95%: [-0.2186, 0.0384]
+Best random: 0.1044
+V2 percentile: 46.8%
+Beats random 95%? NO
+
+================================
+SIMPLE POLICY CONTROL
+================================
+
+Simple FOLLOW/INVERT/WAIT: n=6624 netE=-0.0696 CI=[-0.1032,-0.0307]
+V2: n=296 netE=-0.0947
+Winner: SIMPLE
+
+================================
+QUALITY RANKING
+================================
+
+Q1: n=59 netE=-0.1428
+Q2: n=59 netE=-0.2470
+Q3: n=59 netE=-0.0361
+Q4: n=59 netE=-0.0207
+Q5: n=60 netE=-0.0279
+Monotonic? PARTIAL
+
+================================
+ORACLE CEILING
+================================
+
+NON-TRADEABLE FUTURE-KNOWLEDGE DIAGNOSTIC
+Oracle net E: 0.6291
+Oracle total R: 15789.4
+How much theoretical directional opportunity exists? ~0.6291 R/trade if perfect FOLLOW vs INVERT choice (still after costs on the chosen arm).
+Gap vs ALWAYS FOLLOW: 0.7627 R
+
+================================
+DEV GATE
+================================
+
+Positive net expectancy? NO (-0.1472)
+CI supportive? NO
+Beats ALWAYS FOLLOW? NO
+Beats ALWAYS INVERT? NO
+Beats OLD ADAPTIVE? NO
+Beats random? NO
+FOLLOW selections sensible? YES (n/a)
+INVERT selections positive? NO (-0.1472)
+Stable over years? NO
+Stable across pairs? YES
+Adequate effective n? YES
+
+================================
+HOLDOUT
+================================
+
+SEALED
+Failed promotion gates:
+  - positiveNet
+  - ciSupports
+  - beatsAlwaysFollow
+  - beatsAlwaysInvert
+  - beatsOldAdaptive
+  - beatsRandom
+  - invertPositive
+  - multiYear
+
+================================
+LEAKAGE AUDIT
+================================
+
+PASS: Original signal computed without future data (frozen V1 stream)
+PASS: Context computed using information available at signal time
+PASS: FOLLOW/INVERT/WAIT decision made before outcome
+PASS: Current opportunity excluded from its own evidence (resolveMs gate)
+PASS: Only fully resolved earlier opportunities used as evidence
+PASS: FOLLOW and INVERT independently resolved
+PASS: Correct BID/ASK entries
+PASS: Both arms pay spread
+PASS: SL/TP distances correctly mirrored
+PASS: No P&L sign-negation shortcut
+PASS: No future regime
+PASS: No future ATR
+PASS: No future MFE/MAE in decision
+PASS: Correct candle timestamp convention
+PASS: No overlapping outcome leakage into decision
+PASS: Chronological boundaries unchanged vs v1
+PASS: HOLDOUT untouched until gate
+
+================================
+DIRECT ANSWERS
+================================
+
+1. Did old adaptive throw away contexts that should have been INVERTED? LITTLE EVIDENCE — few/no stable anti-predictive contexts with positive INVERT after costs
+2. Are there genuinely anti-predictive Forex contexts? NO / weak
+3. How many opportunities belong to those contexts? 0 (0.0%)
+4. What is their FOLLOW expectancy? (see ANTI-PREDICTIVE table; aggregate class share 0.0%)
+5. What is their INVERT expectancy after spread? (see table; V2 INVERT selected E=-0.1151)
+6. Are those inversion effects stable over years? NO — not stable enough for promotion
+7. Are they stable across pairs? not dominated on DEV
+8. Does V2 learn when to FOLLOW? YES n=57 E=-0.0091
+9. Does V2 learn when to INVERT? YES n=239 E=-0.1151
+10. Does V2 learn when both sides are bad and WAIT? YES — majority WAIT (WAIT=98.8%)
+11. Does V2 beat ALWAYS FOLLOW? YES
+12. Does V2 beat ALWAYS INVERT? NO
+13. Does V2 beat the old TAKE/WAIT adaptive engine? YES
+14. Does V2 beat random action assignment? NO
+15. Does V2 become better as evidence accumulates? NO / unclear
+16. Which family benefits most? meanrev (V2 E=-0.0420)
+17. Specifically, what happens to Momentum SHORT? ALWAYS_F=-0.0668 ALWAYS_I=-0.0497 V2 E=n/a n=0
+18. Are costs still the primary blocker? YES — costs dominate
+19. Are most losing contexts anti-predictive, or simply directionless? MOSTLY DIRECTIONLESS (dirless 100.0% vs anti 0.0%)
+20. Is there enough evidence to justify replacing TAKE/WAIT with FOLLOW/INVERT/WAIT? NO
+
+================================
+FINAL VERDICT
+================================
+
+MOST_LOSING_CONTEXTS_ARE_DIRECTIONLESS
+
+Hypothesis kill attempt:
+Hypothesis WEAKENED/KILLED for production use: most losses are directionless (both arms lose after costs),
+not systematically anti-predictive. FOLLOW/INVERT/WAIT does not produce positive net expectancy on PRE_HOLDOUT.
+
+================================
+PRODUCTION SAFETY
+================================
+
+Production strategies unchanged: YES
+Production adaptive engine unchanged: YES
+Momentum production inversion unchanged: YES
+LIVE_EXECUTABLE_FAMILIES unchanged: YES
+Paper trades unchanged: YES
+OANDA orders placed: 0
+Deployment performed: NO

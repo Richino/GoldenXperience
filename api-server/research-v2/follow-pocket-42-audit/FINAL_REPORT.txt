@@ -1,0 +1,221 @@
+GOLDENXPERIENCE — FOLLOW POCKET 42 AUDIT
+Generated: 2026-08-23T03:56:13.878Z
+HOLDOUT: SEALED. No HOLDOUT outcome was classified, read from decisions, summarized, or written.
+BE80=0.555556
+
+A. REPRODUCTION
+n=42 W=31 L=11 T=0 WR=73.81% Wilson95=[58.93%, 84.70%] EV80=0.3286
+EV70=0.2548 EV75=0.2917 EV80=0.3286 EV85=0.3655 EV90=0.4024
+Assertion: PASS (n=42, W=31, L=11, T=0, WR=73.8095%)
+Rebuilt 10m outcome mismatches: 0
+
+B. FROZEN 42
+Written: C:\Users\arche\Desktop\code\GoldenXperience\api-server\research-v2\follow-pocket-42-audit\frozen_42.jsonl
+Fields: entryMs, instrument, dir, scope, scopeKey, scopeN, followWR, outcome, iso
+
+C. SIGNAL REBUILD AND PRE-ENTRY FEATURES
+M1 cache: C:\Users\arche\Desktop\code\GoldenXperience\api-server\research-v2\binary-adaptive-bollinger-rsi-10k\cache
+Total signals used only for split count: 13982
+TRAIN=8389 DEV=2796 TRAIN+DEV=11185 HOLDOUT count=2797
+Frozen strategy: BB20/k=2 population stdev; Wilder RSI14; RSI threshold reentry; 10m primary expiry; episode dedup until mid return plus new outside.
+All 42 matched by (instrument, entryMs): PASS.
+Rich features were calculated at the closed entry bar only: RSI/ADX and buckets, sessions/time, BB/ATR/percentiles, penetration/reentry/slope, returns, candle geometry, range distances, and consecutive direction.
+
+D. WHY SELECTED
+Rule: first eligible adaptive scope had Wilson CI_low > BE80 at decision time.
+direction|rsiSeverity|adxBucket|up|extreme|gt30: decisions=23, scopeN=383-405, followWR=60.57%-61.48%, reconstructed CI_low range=55.60%-56.66%, all CI_low>BE=YES
+direction|rsiSeverity|adxBucket|up|medium|b20_25: decisions=18, scopeN=50-68, followWR=68.97%-72.31%, reconstructed CI_low range=55.97%-60.44%, all CI_low>BE=YES
+direction|rsiSeverity|up|extreme: decisions=1, scopeN=425-425, followWR=61.18%-61.18%, reconstructed CI_low range=56.46%-56.46%, all CI_low>BE=YES
+Single direction|rsiSeverity|up|extreme row: n=1; ADX=18.812 bucket=le20; matches V1a=NO.
+
+E. PROFILE 42 VS CONTROLS (TRAIN+DEV)
+Convention: numeric values are mean/median; buckets are shares.
+Selected 42: n=42 W=31 L=11 T=0 WR=73.81% Wilson95=[58.93%, 84.70%] EV80=0.3286
+  means/medians: rsi=19.034/19.681, beyond=10.966/10.319, adx=33.586/30.737, widthAtr=11.080/10.007, widthPctile=0.95714/0.98300, penetrationAtr=0.42682/0.32839, reentryDepthAtr=0.32040/0.25448, midSlope=-0.31317/-0.29341, atrPctile=0.50576/0.55800, ret1=0.000019038/0.0000, ret3=-0.00011852/-0.000077838, ret5=-0.0012434/-0.00037328, ret10=-0.0016128/-0.00074121, bodyAtr=0.31084/0.22886, upperWickAtr=0.24282/0.12564, lowerWickAtr=0.17709/0.12196, bodyRange=0.43649/0.37981, distHigh20Atr=8.3030/7.9672, distLow20Atr=0.58083/0.43983, distHigh60Atr=10.599/9.8574, distLow60Atr=0.66848/0.46801, consecutiveDir=-1.0714/0.0000
+  rsiSeverity: extreme:57.14% medium:42.86%
+  adxBucket: b20_25:42.86% gt30:54.76% le20:2.38%
+  session: asia:40.48% london:2.38% ny:7.14% off:42.86% overlap:7.14%
+
+A all BB+RSI TRAIN+DEV: n=11004 W=5954 L=5050 T=181 WR=54.11% Wilson95=[53.18%, 55.04%] EV80=-0.0261
+  means/medians: rsi=50.226/70.065, beyond=3.7371/2.5944, adx=31.848/30.692, widthAtr=7.7624/7.5327, widthPctile=0.86029/0.91600, penetrationAtr=0.45444/0.33978, reentryDepthAtr=0.30326/0.22951, midSlope=0.00084925/0.055752, atrPctile=0.57535/0.60800, ret1=-0.0000011428/0.0000, ret3=0.0000037258/0.0000071840, ret5=-0.000010946/0.000081179, ret10=-0.0000059157/0.00011321, bodyAtr=0.34907/0.25785, upperWickAtr=0.28099/0.21324, lowerWickAtr=0.28861/0.22155, bodyRange=0.36839/0.33333, distHigh20Atr=3.4883/2.2555, distLow20Atr=3.5352/3.6104, distHigh60Atr=5.0154/3.6313, distLow60Atr=5.2010/5.4862, consecutiveDir=0.055878/0.0000
+  rsiSeverity: extreme:6.95% medium:19.50% mild:73.55%
+  adxBucket: b20_25:15.99% b25_30:26.92% gt30:53.69% le20:3.41%
+  session: asia:34.12% london:18.17% ny:18.51% off:12.74% overlap:16.47%
+
+B V2 WAIT: n=10962 W=5923 L=5039 T=181 WR=54.03% Wilson95=[53.10%, 54.96%] EV80=-0.0274
+  means/medians: rsi=50.343/70.077, beyond=3.7099/2.5804, adx=31.841/30.692, widthAtr=7.7499/7.5270, widthPctile=0.85992/0.91600, penetrationAtr=0.45454/0.33982, reentryDepthAtr=0.30320/0.22930, midSlope=0.0020329/0.063584, atrPctile=0.57561/0.61000, ret1=-0.0000012189/0.0000, ret3=0.0000041866/0.0000073931, ret5=-0.0000063011/0.000088541, ret10=1.4076e-7/0.00012574, bodyAtr=0.34922/0.25803, upperWickAtr=0.28113/0.21340, lowerWickAtr=0.28903/0.22192, bodyRange=0.36813/0.33333, distHigh20Atr=3.4701/2.1787, distLow20Atr=3.5464/3.7125, distHigh60Atr=4.9944/3.3361, distLow60Atr=5.2181/5.5728, consecutiveDir=0.060127/0.0000
+  rsiSeverity: extreme:6.76% medium:19.41% mild:73.83%
+  adxBucket: b20_25:15.88% b25_30:27.02% gt30:53.68% le20:3.41%
+  session: asia:34.09% london:18.23% ny:18.55% off:12.63% overlap:16.50%
+
+C oldAdaptive TAKE: n=1966 W=1101 L=865 T=30 WR=56.00% Wilson95=[53.80%, 58.18%] EV80=0.0080
+  means/medians: rsi=46.275/29.165, beyond=7.1908/6.2532, adx=32.013/29.540, widthAtr=9.2748/8.8396, widthPctile=0.91828/0.96200, penetrationAtr=0.44749/0.33422, reentryDepthAtr=0.30863/0.22747, midSlope=-0.036080/-0.15236, atrPctile=0.61141/0.66200, ret1=0.0000054655/0.0000, ret3=-0.000026031/-0.000037116, ret5=-0.00018408/-0.00022871, ret10=-0.00023065/-0.00039362, bodyAtr=0.31246/0.24220, upperWickAtr=0.29488/0.21882, lowerWickAtr=0.28559/0.22103, bodyRange=0.35490/0.30769, distHigh20Atr=4.3982/5.3050, distLow20Atr=3.4960/1.2263, distHigh60Atr=5.6551/6.8150, distLow60Atr=4.6110/1.3279, consecutiveDir=-0.15581/0.0000
+  rsiSeverity: extreme:34.82% medium:26.25% mild:38.93%
+  adxBucket: b20_25:17.89% b25_30:29.76% gt30:47.34% le20:5.01%
+  session: asia:32.57% london:17.43% ny:17.64% off:17.64% overlap:14.73%
+
+D all BB+RSI winners: n=5954 W=5954 L=0 T=0 WR=100.00% Wilson95=[99.94%, 100.00%] EV80=0.8000
+  means/medians: rsi=50.044/70.048, beyond=3.8437/2.6353, adx=31.852/30.614, widthAtr=7.8381/7.5979, widthPctile=0.86252/0.91800, penetrationAtr=0.45193/0.34133, reentryDepthAtr=0.30581/0.22874, midSlope=-0.0014443/0.044556, atrPctile=0.57419/0.61000, ret1=2.4158e-7/0.0000, ret3=0.0000014767/0.0000074445, ret5=-0.000036142/0.000070656, ret10=-0.000044789/0.000086181, bodyAtr=0.34984/0.25816, upperWickAtr=0.28211/0.21402, lowerWickAtr=0.28543/0.22061, bodyRange=0.36892/0.33333, distHigh20Atr=3.5334/2.4976, distLow20Atr=3.5319/3.5215, distHigh60Atr=5.0170/4.0800, distLow60Atr=5.2049/5.3667, consecutiveDir=0.052066/0.0000
+  rsiSeverity: extreme:7.79% medium:19.48% mild:72.72%
+  adxBucket: b20_25:16.22% b25_30:26.87% gt30:53.54% le20:3.36%
+  session: asia:32.43% london:17.94% ny:18.81% off:14.28% overlap:16.54%
+
+D all BB+RSI losers: n=5050 W=0 L=5050 T=0 WR=0.00% Wilson95=[0.00%, 0.08%] EV80=-1.0000
+  means/medians: rsi=50.372/70.066, beyond=3.6348/2.5458, adx=31.881/30.803, widthAtr=7.6836/7.4600, widthPctile=0.85836/0.91200, penetrationAtr=0.45989/0.34126, reentryDepthAtr=0.30011/0.23015, midSlope=0.0026284/0.061843, atrPctile=0.58019/0.61000, ret1=-0.0000028340/0.0000, ret3=0.0000059434/0.0000, ret5=0.000019561/0.000089875, ret10=0.000040122/0.00013779, bodyAtr=0.34946/0.25670, upperWickAtr=0.27950/0.21244, lowerWickAtr=0.29400/0.22399, bodyRange=0.36764/0.33333, distHigh20Atr=3.4488/2.2490, distLow20Atr=3.5336/3.5967, distHigh60Atr=5.0276/3.3370, distLow60Atr=5.1829/5.4913, consecutiveDir=0.058614/0.0000
+  rsiSeverity: extreme:6.10% medium:19.60% mild:74.30%
+  adxBucket: b20_25:15.74% b25_30:26.97% gt30:53.94% le20:3.35%
+  session: asia:35.86% london:18.44% ny:18.28% off:10.85% overlap:16.57%
+
+F UP not in 42: n=5387 W=2918 L=2469 T=81 WR=54.17% Wilson95=[52.83%, 55.49%] EV80=-0.0250
+  means/medians: rsi=26.191/27.380, beyond=3.8087/2.6196, adx=31.971/30.765, widthAtr=7.8417/7.5988, widthPctile=0.86272/0.91800, penetrationAtr=0.46165/0.35071, reentryDepthAtr=0.30621/0.22837, midSlope=-0.22006/-0.21507, atrPctile=0.58862/0.62300, ret1=0.000021358/0.0000074450, ret3=-0.00020144/-0.00015501, ret5=-0.00062858/-0.00042610, ret10=-0.00094339/-0.00068327, bodyAtr=0.35462/0.26383, upperWickAtr=0.27921/0.21077, lowerWickAtr=0.29450/0.22755, bodyRange=0.36962/0.33333, distHigh20Atr=6.3607/6.2212, distLow20Atr=0.70390/0.59627, distHigh60Atr=9.3177/8.7530, distLow60Atr=0.83063/0.65195, consecutiveDir=-0.76792/1.0000
+  rsiSeverity: extreme:7.63% medium:19.15% mild:73.23%
+  adxBucket: b20_25:15.20% b25_30:27.16% gt30:54.41% le20:3.24%
+  session: asia:34.82% london:18.05% ny:18.05% off:12.95% overlap:16.13%
+
+Top distinguishing traits versus all non-42:
+1. beyond: 42 mean=10.966 vs control=3.7099 (standardized diff=2.00)
+2. distHigh20Atr: 42 mean=8.3030 vs control=3.4701 (standardized diff=1.59)
+3. rsiSeverity=mild: 42=0.00% vs control=73.83% (-73.8pp)
+
+F. WINNERS VS LOSERS INSIDE 42
+42 winners: n=31 W=31 L=0 T=0 WR=100.00% Wilson95=[88.97%, 100.00%] EV80=0.8000
+  means/medians: rsi=18.636/19.117, beyond=11.364/10.883, adx=33.773/30.426, widthAtr=11.345/10.054, widthPctile=0.96381/0.98600, penetrationAtr=0.44689/0.33584, reentryDepthAtr=0.30768/0.26660, midSlope=-0.31991/-0.29717, atrPctile=0.53503/0.63000, ret1=0.000021896/0.0000, ret3=-0.00012582/-0.000085612, ret5=-0.0015268/-0.00046398, ret10=-0.0019283/-0.00084274, bodyAtr=0.29721/0.18684, upperWickAtr=0.24205/0.14445, lowerWickAtr=0.19620/0.13202, bodyRange=0.41093/0.35714, distHigh20Atr=8.4249/7.9409, distLow20Atr=0.55527/0.42737, distHigh60Atr=10.978/9.8296, distLow60Atr=0.55527/0.42737, consecutiveDir=-1.0968/0.0000
+  rsiSeverity: extreme:58.06% medium:41.94%
+  adxBucket: b20_25:41.94% gt30:54.84% le20:3.23%
+  session: asia:35.48% london:3.23% ny:6.45% off:48.39% overlap:6.45%
+
+42 losers: n=11 W=0 L=11 T=0 WR=0.00% Wilson95=[0.00%, 25.88%] EV80=-1.0000
+  means/medians: rsi=20.155/19.948, beyond=9.8449/10.052, adx=33.059/31.566, widthAtr=10.333/8.8952, widthPctile=0.93836/0.92000, penetrationAtr=0.37028/0.18646, reentryDepthAtr=0.35626/0.15727, midSlope=-0.29418/-0.25741, atrPctile=0.42327/0.46800, ret1=0.000010982/0.0000, ret3=-0.000097937/-0.000070065, ret5=-0.00044465/-0.00027480, ret10=-0.00072341/-0.00058377, bodyAtr=0.34926/0.23932, upperWickAtr=0.24498/0.068174, lowerWickAtr=0.12323/0.077044, bodyRange=0.50854/0.50000, distHigh20Atr=7.9595/8.1367, distLow20Atr=0.65287/0.44450, distHigh60Atr=9.5310/9.8853, distLow60Atr=0.98754/0.58869, consecutiveDir=-1.0000/0.0000
+  rsiSeverity: extreme:54.55% medium:45.45%
+  adxBucket: b20_25:45.45% gt30:54.55%
+  session: asia:54.55% ny:9.09% off:27.27% overlap:9.09%
+These are descriptive post-outcome differences only. No rule is inferred or proposed from them.
+
+G. CONCENTRATION
+UTC month:
+2026-01: n=4 W=2 L=2 T=0 WR=50.00% Wilson95=[15.00%, 85.00%] EV80=-0.1000
+2026-02: n=5 W=4 L=1 T=0 WR=80.00% Wilson95=[37.55%, 96.38%] EV80=0.4400
+2026-03: n=7 W=7 L=0 T=0 WR=100.00% Wilson95=[64.57%, 100.00%] EV80=0.8000
+2026-04: n=26 W=18 L=8 T=0 WR=69.23% Wilson95=[50.01%, 83.50%] EV80=0.2462
+ET month:
+2026-01: n=4 W=2 L=2 T=0 WR=50.00% Wilson95=[15.00%, 85.00%] EV80=-0.1000
+2026-02: n=5 W=4 L=1 T=0 WR=80.00% Wilson95=[37.55%, 96.38%] EV80=0.4400
+2026-03: n=8 W=8 L=0 T=0 WR=100.00% Wilson95=[67.56%, 100.00%] EV80=0.8000
+2026-04: n=25 W=17 L=8 T=0 WR=68.00% Wilson95=[48.41%, 82.80%] EV80=0.2240
+April 2026 UTC alone: n=26 W=18 L=8 T=0 WR=69.23% Wilson95=[50.01%, 83.50%] EV80=0.2462
+Excluding April 2026 UTC: n=16 W=13 L=3 T=0 WR=81.25% Wilson95=[56.99%, 93.41%] EV80=0.4625
+Symbols (ranked below by wins for exclusion stress test):
+NZD_USD: n=8 W=5 L=3 T=0 WR=62.50% Wilson95=[30.57%, 86.32%] EV80=0.1250
+EUR_USD: n=5 W=5 L=0 T=0 WR=100.00% Wilson95=[56.55%, 100.00%] EV80=0.8000
+AUD_USD: n=4 W=4 L=0 T=0 WR=100.00% Wilson95=[51.01%, 100.00%] EV80=0.8000
+GBP_USD: n=4 W=3 L=1 T=0 WR=75.00% Wilson95=[30.06%, 95.44%] EV80=0.3500
+AUD_JPY: n=3 W=3 L=0 T=0 WR=100.00% Wilson95=[43.85%, 100.00%] EV80=0.8000
+USD_CAD: n=6 W=2 L=4 T=0 WR=33.33% Wilson95=[9.68%, 70.00%] EV80=-0.4000
+EUR_GBP: n=3 W=2 L=1 T=0 WR=66.67% Wilson95=[20.77%, 93.85%] EV80=0.2000
+USD_JPY: n=2 W=2 L=0 T=0 WR=100.00% Wilson95=[34.24%, 100.00%] EV80=0.8000
+GBP_JPY: n=2 W=2 L=0 T=0 WR=100.00% Wilson95=[34.24%, 100.00%] EV80=0.8000
+USD_CHF: n=3 W=1 L=2 T=0 WR=33.33% Wilson95=[6.15%, 79.23%] EV80=-0.4000
+EUR_AUD: n=1 W=1 L=0 T=0 WR=100.00% Wilson95=[20.65%, 100.00%] EV80=0.8000
+EUR_JPY: n=1 W=1 L=0 T=0 WR=100.00% Wilson95=[20.65%, 100.00%] EV80=0.8000
+Excluding top-contributing symbol NZD_USD: n=34 W=26 L=8 T=0 WR=76.47% Wilson95=[60.00%, 87.56%] EV80=0.3765
+Excluding top two NZD_USD, EUR_USD: n=29 W=21 L=8 T=0 WR=72.41% Wilson95=[54.28%, 85.30%] EV80=0.3034
+Direction:
+up: n=42 W=31 L=11 T=0 WR=73.81% Wilson95=[58.93%, 84.70%] EV80=0.3286
+
+H. FROZEN PATTERN (DEFINED BEFORE EXPANDED SCAN)
+PATTERN_V1: dir==="up" AND ((rsiSeverity==="extreme" AND adxBucket==="gt30") OR (rsiSeverity==="medium" AND adxBucket==="b20_25"))
+PATTERN_V1a: dir==="up" AND rsiSeverity==="extreme" AND adxBucket==="gt30"
+PATTERN_V1b: dir==="up" AND rsiSeverity==="medium" AND adxBucket==="b20_25"
+The single broader-scope extreme case matches V1 first branch: NO.
+
+I. OUTSIDE-42 VALIDATION — TRAIN+DEV ONLY
+EXCLUDING the 42:
+V1: n=434 W=268 L=166 T=3 WR=61.75% Wilson95=[57.09%, 66.20%] EV80=0.1115
+V1a: n=383 W=232 L=151 T=2 WR=60.57% Wilson95=[55.60%, 65.34%] EV80=0.0903
+V1b: n=51 W=36 L=15 T=1 WR=70.59% Wilson95=[57.00%, 81.29%] EV80=0.2706
+
+INCLUDING the 42 (discovery contaminated):
+V1: n=475 W=298 L=177 T=3 WR=62.74% Wilson95=[58.30%, 66.97%] EV80=0.1293
+V1a: n=406 W=249 L=157 T=2 WR=61.33% Wilson95=[56.51%, 65.94%] EV80=0.1039
+V1b: n=69 W=49 L=20 T=1 WR=71.01% Wilson95=[59.43%, 80.38%] EV80=0.2783
+
+Outside V1 by ET month:
+2024-12: n=10 W=4 L=6 T=0 WR=40.00% Wilson95=[16.82%, 68.73%] EV80=-0.2800
+2025-01: n=40 W=24 L=16 T=0 WR=60.00% Wilson95=[44.60%, 73.65%] EV80=0.0800
+2025-02: n=26 W=17 L=9 T=2 WR=65.38% Wilson95=[46.22%, 80.59%] EV80=0.1769
+2025-03: n=34 W=22 L=12 T=0 WR=64.71% Wilson95=[47.91%, 78.51%] EV80=0.1647
+2025-04: n=22 W=11 L=11 T=0 WR=50.00% Wilson95=[30.72%, 69.28%] EV80=-0.1000
+2025-05: n=23 W=12 L=11 T=0 WR=52.17% Wilson95=[32.96%, 70.76%] EV80=-0.0609
+2025-06: n=30 W=20 L=10 T=0 WR=66.67% Wilson95=[48.78%, 80.77%] EV80=0.2000
+2025-07: n=33 W=22 L=11 T=1 WR=66.67% Wilson95=[49.61%, 80.25%] EV80=0.2000
+2025-08: n=21 W=7 L=14 T=0 WR=33.33% Wilson95=[17.19%, 54.63%] EV80=-0.4000
+2025-09: n=25 W=13 L=12 T=0 WR=52.00% Wilson95=[33.50%, 69.97%] EV80=-0.0640
+2025-10: n=36 W=26 L=10 T=0 WR=72.22% Wilson95=[56.01%, 84.15%] EV80=0.3000
+2025-11: n=33 W=23 L=10 T=0 WR=69.70% Wilson95=[52.66%, 82.62%] EV80=0.2545
+2025-12: n=21 W=15 L=6 T=0 WR=71.43% Wilson95=[50.04%, 86.19%] EV80=0.2857
+2026-01: n=25 W=17 L=8 T=0 WR=68.00% Wilson95=[48.41%, 82.80%] EV80=0.2240
+2026-02: n=17 W=8 L=9 T=0 WR=47.06% Wilson95=[26.16%, 69.04%] EV80=-0.1529
+2026-03: n=38 W=27 L=11 T=0 WR=71.05% Wilson95=[55.24%, 83.00%] EV80=0.2789
+Outside V1 by symbol:
+AUD_JPY: n=41 W=24 L=17 T=1 WR=58.54% Wilson95=[43.37%, 72.24%] EV80=0.0537
+AUD_USD: n=39 W=30 L=9 T=0 WR=76.92% Wilson95=[61.66%, 87.35%] EV80=0.3846
+EUR_AUD: n=29 W=18 L=11 T=0 WR=62.07% Wilson95=[44.00%, 77.31%] EV80=0.1172
+EUR_GBP: n=23 W=14 L=9 T=1 WR=60.87% Wilson95=[40.79%, 77.84%] EV80=0.0957
+EUR_JPY: n=27 W=15 L=12 T=0 WR=55.56% Wilson95=[37.31%, 72.41%] EV80=0.0000
+EUR_USD: n=41 W=28 L=13 T=0 WR=68.29% Wilson95=[53.02%, 80.44%] EV80=0.2293
+GBP_JPY: n=34 W=19 L=15 T=0 WR=55.88% Wilson95=[39.45%, 71.12%] EV80=0.0059
+GBP_USD: n=40 W=25 L=15 T=0 WR=62.50% Wilson95=[47.03%, 75.78%] EV80=0.1250
+NZD_USD: n=46 W=33 L=13 T=1 WR=71.74% Wilson95=[57.45%, 82.68%] EV80=0.2913
+USD_CAD: n=34 W=21 L=13 T=0 WR=61.76% Wilson95=[45.04%, 76.10%] EV80=0.1118
+USD_CHF: n=37 W=19 L=18 T=0 WR=51.35% Wilson95=[35.89%, 66.55%] EV80=-0.0757
+USD_JPY: n=43 W=22 L=21 T=0 WR=51.16% Wilson95=[36.75%, 65.38%] EV80=-0.0791
+Outside V1 by direction:
+up: n=434 W=268 L=166 T=3 WR=61.75% Wilson95=[57.09%, 66.20%] EV80=0.1115
+
+J. MATCHED RANDOM
+Primary pool: UP BB+RSI, non-42, excluding all V1 matches. Exact match on symbol + ET month + direction; n=437; shuffles=1000.
+Available=YES meanWR=53.21% 95%=[48.72%, 57.51%] pattern percentile=100.00%.
+Alternative pool: all non-42 UP (includes V1 matches). Available=YES meanWR=54.11% 95%=[49.31%, 58.80%] pattern percentile=99.80%.
+
+K. EXPIRY DIAGNOSTICS — OUTSIDE-42 V1
+1m: n=409 W=226 L=183 T=28 WR=55.26% Wilson95=[50.41%, 60.00%] EV80=-0.0054
+5m: n=426 W=246 L=180 T=11 WR=57.75% Wilson95=[53.01%, 62.35%] EV80=0.0394
+10m: n=434 W=268 L=166 T=3 WR=61.75% Wilson95=[57.09%, 66.20%] EV80=0.1115
+15m: n=434 W=268 L=166 T=3 WR=61.75% Wilson95=[57.09%, 66.20%] EV80=0.1115
+10m is primary; other expiries are diagnostics only.
+
+L. HOLDOUT GATE — DO NOT OPEN
+PASS: n>=200
+PASS: WR>55.56%
+PASS: EV80>0
+PASS: CI low>BE80
+PASS: month share<40%
+PASS: symbol share<40%
+PASS: >=3 symbols
+PASS: multiple months
+PASS: positive excluding April 2026
+PASS: beats matched random
+max month share=9.15% max symbol share=10.76% symbols=12 months=16
+Outside V1 excluding April 2026 UTC: n=434 W=268 L=166 T=3 WR=61.75% Wilson95=[57.09%, 66.20%] EV80=0.1115
+QUALIFIES: YES
+HOLDOUT OPENED: NO
+
+M. FAILURE MODES
+SMALL_SAMPLE_LUCK_ON_42: NO
+APRIL_2026_CONCENTRATION: YES
+ADAPTIVE_SELECTION_ARTIFACT: NO
+SYMBOL_CONCENTRATION: NO
+DIRECTION_ASYMMETRY_ALL_UP: YES
+PATTERN_DOES_NOT_GENERALIZE: NO
+MULTIPLE_TESTING_CONTEXT_SHOPPING: LIKELY
+LOOKAHEAD_LEAKAGE: NO
+NON_STATIONARY_REGIME: NO
+HOLDOUT_NOT_OPENED_CORRECTLY: NO
+LOOKAHEAD basis: all rich features use barIdx or earlier. Outcome classification occurs only after the frozen signal and only for TRAIN+DEV.
+MULTIPLE_TESTING note: V1 was frozen from the already-selected 42, so this audit controls expanded-scan reuse but cannot erase the upstream context-selection search.
+
+N. FINAL VERDICT
+REPEATABLE_60_PLUS_EDGE_FOUND
+The 73.8% estimate was inflated by discovery selection, but the frozen state still shows a repeatable 60%+ edge outside the 42.
+Production unchanged: YES
+HOLDOUT remained sealed: YES

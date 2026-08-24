@@ -1,0 +1,302 @@
+GOLDENXPERIENCE
+ADAPTIVE BOLLINGER + RSI EDGE TEST
+(adaptive-bollinger-rsi-v1)
+
+================================
+DATA
+================================
+
+Periods:
+  TRAIN: 2026-08-03T17:54:00.000Z → 2026-08-14T20:59:59.999Z
+  DEV (TEST week, previously inspected): 2026-08-14T21:00:00.000Z → 2026-08-21T21:00:00.000Z
+  UNSEEN (after prior TEST end 2026-08-21T21:00:00.000Z): NONE — INSUFFICIENT_NEW_DATA for CONFIRMED
+Symbols: EUR_USD, GBP_USD, USD_JPY, AUD_USD, NZD_USD, USD_CAD, USD_CHF, EUR_GBP, EUR_JPY, GBP_JPY, AUD_JPY, EUR_AUD
+Signals: TRAIN=270 DEV=172 UNSEEN=0 TOTAL=442
+Replay method: chronological walk by entryMs; evidence flush when resolveMs < T; 10m expiry
+Adaptive evidence initialization: empty store; TRAIN outcomes populate evidence before DEV decisions
+M1 bars: 240000  coverage 2026-08-03T17:54:00.000Z → 2026-08-21T21:00:00.000Z
+Gaps:
+  EUR_USD: bars=20000 intradayGaps≈14
+  GBP_USD: bars=20000 intradayGaps≈13
+  USD_JPY: bars=20000 intradayGaps≈14
+  AUD_USD: bars=20000 intradayGaps≈19
+  NZD_USD: bars=20000 intradayGaps≈29
+  USD_CAD: bars=20000 intradayGaps≈14
+  USD_CHF: bars=20000 intradayGaps≈24
+  EUR_GBP: bars=20000 intradayGaps≈17
+  EUR_JPY: bars=20000 intradayGaps≈12
+  GBP_JPY: bars=20000 intradayGaps≈13
+  AUD_JPY: bars=20000 intradayGaps≈12
+  EUR_AUD: bars=20000 intradayGaps≈11
+
+Previously inspected data: DEV week signals (bollinger-range audit TEST)
+Truly unseen data: NO — INSUFFICIENT_NEW_DATA
+
+================================
+FROZEN BASE STRATEGY
+================================
+
+BB: period=20 k=2 population stdev (variance = mean(x^2)-mean(x)^2)
+RSI: Wilder14; UP if RSI<=30; DOWN if RSI>=70
+Re-entry: high>upper / low<lower excursion; close back inside; dedup until mid return + new outside
+Expiry: 10 minutes only
+Variant: BB_REENTRY_RSI | BB20
+
+Reproduced previous result (TEST window dataEnd-7d):
+n: 168
+WR: 58.93%
+CI: [51.37%, 66.09%]
+EV80: 0.061
+(expected ≈ n=168 WR=58.93% EV80=+0.061) GATE PASS
+
+================================
+ADAPTIVE ARCHITECTURE
+================================
+
+Existing components reused:
+  - wilsonInterval, evidenceLabel from binary-regimes.ts
+  - determineSelectorState, BINARY_ADAPTIVE_SELECTOR_CONFIG from binary-adaptive-selector.ts
+  - NO live selectBinaryModel; NO production adaptive table writes
+Context features (coarse, pre-registered):
+  direction, adxBucket (<=20|20-25|25-30|>30), session (ET), rsiSeverity (mild|medium|extreme fixed), bbWidthPctile (trailing PIT /500)
+Evidence hierarchy (first with n≥scopeMin):
+  direction|adxBucket (30) → direction|session (30) → adxBucket (30) → direction (40) → overall (50)
+Backoff logic: walk hierarchy; if no scope meets min → TAKE (cannot filter)
+COLLECTING threshold: <50 overall prior decided
+LEARNING threshold: 50–99
+ACTIVE threshold: ≥100
+COLLECTING policy for selective rules: TAKE (no filtering) — cannot claim selection. Documented.
+
+DEV state mix: COLLECTING=0 LEARNING=0 ACTIVE_SELECTION=172
+
+================================
+HEADLINE (DEV / previously-inspected week)
+================================
+
+FROZEN ALL SIGNALS
+n=168 W=99 L=69 T=4 WR=58.93% CI=[51.37%,66.09%] EV80=0.061
+
+ADAPTIVE TAKE (best selective by Δ vs ALL among pre-registered: EST_GE_0.5556)
+n: 98
+coverage: 58.72%
+WR: 59.18%
+95% CI: [49.29%, 68.39%]
+EV80: 0.065
+
+ADAPTIVE WAIT COUNTERFACTUAL
+n: 70
+WR: 58.57%
+95% CI: [46.88%, 69.37%]
+EV80: 0.054
+
+Improvement TAKE vs ALL: 0.26pp
+Improvement TAKE vs WAIT: 0.61pp
+
+Continuous TRAIN→TEST walk (same rule EST_GE_0.5556): ALL n=433 W=241 L=192 T=9 WR=55.66% CI=[50.95%,60.27%] EV80=0.002 | TAKE n=243 W=139 L=104 T=4 WR=57.20% CI=[50.92%,63.26%] EV80=0.030
+
+UNSEEN: INSUFFICIENT_NEW_DATA
+
+================================
+SELECTOR THRESHOLDS
+================================
+
+  ALWAYS:
+    TAKE n=168 cov=100.00% WR=58.93% CI=[51.37%,66.09%] EV80=0.061
+    WAIT n=0 WR=0.00%
+    Δ(TAKE−ALL)=0.00pp  Δ(TAKE−WAIT)=58.93pp
+  EST_GE_0.5556:
+    TAKE n=98 cov=58.72% WR=59.18% CI=[49.29%,68.39%] EV80=0.065
+    WAIT n=70 WR=58.57%
+    Δ(TAKE−ALL)=0.26pp  Δ(TAKE−WAIT)=0.61pp
+  EST_GE_0.58:
+    TAKE n=55 cov=32.56% WR=47.27% CI=[34.69%,60.21%] EV80=-0.149
+    WAIT n=113 WR=64.60%
+    Δ(TAKE−ALL)=-11.66pp  Δ(TAKE−WAIT)=-17.33pp
+  EST_GE_0.60:
+    TAKE n=29 cov=17.44% WR=55.17% CI=[37.55%,71.59%] EV80=-0.007
+    WAIT n=139 WR=59.71%
+    Δ(TAKE−ALL)=-3.76pp  Δ(TAKE−WAIT)=-4.54pp
+  CI_LOW_GT_0.50:
+    TAKE n=10 cov=6.40% WR=50.00% CI=[23.66%,76.34%] EV80=-0.100
+    WAIT n=158 WR=59.49%
+    Δ(TAKE−ALL)=-8.93pp  Δ(TAKE−WAIT)=-9.49pp
+  CI_LOW_GT_0.5556:
+    TAKE n=0 cov=0.00% WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+    WAIT n=168 WR=58.93%
+    Δ(TAKE−ALL)=-58.93pp  Δ(TAKE−WAIT)=-58.93pp
+
+================================
+QUALITY RANKING
+================================
+
+  Q1: n=34 WR=61.76%
+  Q2: n=33 WR=57.58%
+  Q3: n=32 WR=62.50%
+  Q4: n=34 WR=55.88%
+  Q5: n=35 WR=57.14%
+
+Does adaptive score monotonically rank realized WR?
+NO
+
+================================
+RANDOM SELECTOR CONTROL
+================================
+
+Adaptive coverage: 58.72%
+Adaptive WR: 59.18%
+
+Matched random selector (200 shuffles, same coverage on decided):
+mean WR: 59.08%
+95% random range: [53.51%, 65.66%]
+
+Adaptive improvement vs random: NO — adaptive 59.18% within random band [53.51%,65.66%] mean 59.08%
+
+================================
+SIMPLE FILTER CONTROLS
+================================
+
+  take-all: TAKE n=168 W=99 L=69 T=4 WR=58.93% CI=[51.37%,66.09%] EV80=0.061 cov=100.00% | WAIT n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+  RSI-severity-extreme-only: TAKE n=7 W=1 L=6 T=0 WR=14.29% CI=[2.57%,51.31%] EV80=-0.743 cov=4.07% | WAIT n=161 W=98 L=63 T=4 WR=60.87% CI=[53.16%,68.07%] EV80=0.096
+  ADX>25-only: TAKE n=134 W=80 L=54 T=1 WR=59.70% CI=[51.24%,67.62%] EV80=0.075 cov=78.49% | WAIT n=34 W=19 L=15 T=3 WR=55.88% CI=[39.45%,71.12%] EV80=0.006
+  ADX<=20-only: TAKE n=5 W=2 L=3 T=0 WR=40.00% CI=[11.76%,76.93%] EV80=-0.280 cov=2.91% | WAIT n=163 W=97 L=66 T=4 WR=59.51% CI=[51.84%,66.74%] EV80=0.071
+  Adaptive (EST_GE_0.5556): TAKE n=98 W=58 L=40 T=3 WR=59.18% CI=[49.29%,68.39%] EV80=0.065 cov=58.72%
+
+Does adaptive actually add value?
+NO / mixed — adaptive 59.18% vs RSI-ext 14.29% ADX>25 59.70% ADX<=20 40.00%
+
+================================
+ADX / TREND REGIME
+================================
+
+  b20_25: ALL n=29 W=17 L=12 T=3 WR=58.62% CI=[40.74%,74.49%] EV80=0.055 | TAKE n=12 W=6 L=6 T=2 WR=50.00% CI=[25.38%,74.62%] EV80=-0.100 cov=43.75% | WAIT n=17 W=11 L=6 T=1 WR=64.71% CI=[41.30%,82.69%] EV80=0.165
+  b25_30: ALL n=36 W=23 L=13 T=1 WR=63.89% CI=[47.57%,77.52%] EV80=0.150 | TAKE n=36 W=23 L=13 T=1 WR=63.89% CI=[47.57%,77.52%] EV80=0.150 cov=100.00% | WAIT n=0 W=0 L=0 T=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
+  gt30: ALL n=98 W=57 L=41 T=0 WR=58.16% CI=[48.27%,67.44%] EV80=0.047 | TAKE n=49 W=29 L=20 T=0 WR=59.18% CI=[45.25%,71.78%] EV80=0.065 cov=50.00% | WAIT n=49 W=28 L=21 T=0 WR=57.14% CI=[43.27%,69.98%] EV80=0.029
+  le20: ALL n=5 W=2 L=3 T=0 WR=40.00% CI=[11.76%,76.93%] EV80=-0.280 | TAKE n=1 W=0 L=1 T=0 WR=0.00% CI=[0.00%,79.35%] EV80=-1.000 cov=20.00% | WAIT n=4 W=2 L=2 T=0 WR=50.00% CI=[15.00%,85.00%] EV80=-0.100
+
+================================
+UP vs DOWN
+================================
+
+  down: ALL n=88 W=51 L=37 T=2 WR=57.95% CI=[47.52%,67.72%] EV80=0.043 | TAKE n=24 W=16 L=8 T=1 WR=66.67% CI=[46.71%,82.03%] EV80=0.200 cov=27.78% | WAIT n=64 W=35 L=29 T=1 WR=54.69% CI=[42.57%,66.27%] EV80=-0.016
+  up: ALL n=80 W=48 L=32 T=2 WR=60.00% CI=[49.05%,70.04%] EV80=0.080 | TAKE n=74 W=42 L=32 T=2 WR=56.76% CI=[45.41%,67.43%] EV80=0.022 cov=92.68% | WAIT n=6 W=6 L=0 T=0 WR=100.00% CI=[60.97%,100.00%] EV80=0.800
+
+================================
+DAY STABILITY
+================================
+
+  2026-08-16: ALL n=19 W=9 L=10 T=0 WR=47.37% CI=[27.33%,68.29%] EV80=-0.147 | TAKE n=10 W=6 L=4 T=0 WR=60.00% CI=[31.27%,83.18%] EV80=0.080 cov=52.63% | WAIT n=9 W=3 L=6 T=0 WR=33.33% CI=[12.06%,64.58%] EV80=-0.400
+  2026-08-17: ALL n=36 W=21 L=15 T=1 WR=58.33% CI=[42.20%,72.86%] EV80=0.050 | TAKE n=22 W=12 L=10 T=0 WR=54.55% CI=[34.66%,73.08%] EV80=-0.018 cov=59.46% | WAIT n=14 W=9 L=5 T=1 WR=64.29% CI=[38.76%,83.66%] EV80=0.157
+  2026-08-18: ALL n=20 W=13 L=7 T=0 WR=65.00% CI=[43.29%,81.88%] EV80=0.170 | TAKE n=12 W=10 L=2 T=0 WR=83.33% CI=[55.20%,95.30%] EV80=0.500 cov=60.00% | WAIT n=8 W=3 L=5 T=0 WR=37.50% CI=[13.68%,69.43%] EV80=-0.325
+  2026-08-19: ALL n=41 W=29 L=12 T=1 WR=70.73% CI=[55.52%,82.39%] EV80=0.273 | TAKE n=23 W=15 L=8 T=1 WR=65.22% CI=[44.89%,81.19%] EV80=0.174 cov=57.14% | WAIT n=18 W=14 L=4 T=0 WR=77.78% CI=[54.78%,91.00%] EV80=0.400
+  2026-08-20: ALL n=35 W=18 L=17 T=0 WR=51.43% CI=[35.57%,67.01%] EV80=-0.074 | TAKE n=18 W=9 L=9 T=0 WR=50.00% CI=[29.03%,70.97%] EV80=-0.100 cov=51.43% | WAIT n=17 W=9 L=8 T=0 WR=52.94% CI=[30.96%,73.84%] EV80=-0.047
+  2026-08-21: ALL n=17 W=9 L=8 T=2 WR=52.94% CI=[30.96%,73.84%] EV80=-0.047 | TAKE n=13 W=6 L=7 T=2 WR=46.15% CI=[23.21%,70.86%] EV80=-0.169 cov=78.95% | WAIT n=4 W=3 L=1 T=0 WR=75.00% CI=[30.06%,95.44%] EV80=0.350
+
+================================
+SYMBOL STABILITY
+================================
+
+  AUD_JPY: ALL n=14 W=12 L=2 T=1 WR=85.71% CI=[60.06%,95.99%] EV80=0.543 | TAKE n=9 W=8 L=1 T=1 WR=88.89% CI=[56.50%,98.01%] EV80=0.600 cov=66.67% | WAIT n=5 W=4 L=1 T=0 WR=80.00% CI=[37.55%,96.38%] EV80=0.440
+  AUD_USD: ALL n=18 W=12 L=6 T=0 WR=66.67% CI=[43.75%,83.72%] EV80=0.200 | TAKE n=11 W=9 L=2 T=0 WR=81.82% CI=[52.30%,94.86%] EV80=0.473 cov=61.11% | WAIT n=7 W=3 L=4 T=0 WR=42.86% CI=[15.82%,74.95%] EV80=-0.229
+  EUR_AUD: ALL n=11 W=8 L=3 T=0 WR=72.73% CI=[43.43%,90.25%] EV80=0.309 | TAKE n=6 W=4 L=2 T=0 WR=66.67% CI=[30.00%,90.32%] EV80=0.200 cov=54.55% | WAIT n=5 W=4 L=1 T=0 WR=80.00% CI=[37.55%,96.38%] EV80=0.440
+  EUR_GBP: ALL n=4 W=1 L=3 T=0 WR=25.00% CI=[4.56%,69.94%] EV80=-0.550 | TAKE n=3 W=1 L=2 T=0 WR=33.33% CI=[6.15%,79.23%] EV80=-0.400 cov=75.00% | WAIT n=1 W=0 L=1 T=0 WR=0.00% CI=[0.00%,79.35%] EV80=-1.000
+  EUR_JPY: ALL n=5 W=3 L=2 T=0 WR=60.00% CI=[23.07%,88.24%] EV80=0.080 | TAKE n=2 W=1 L=1 T=0 WR=50.00% CI=[9.45%,90.55%] EV80=-0.100 cov=40.00% | WAIT n=3 W=2 L=1 T=0 WR=66.67% CI=[20.77%,93.85%] EV80=0.200
+  EUR_USD: ALL n=24 W=9 L=15 T=0 WR=37.50% CI=[21.16%,57.29%] EV80=-0.325 | TAKE n=9 W=4 L=5 T=0 WR=44.44% CI=[18.88%,73.34%] EV80=-0.200 cov=37.50% | WAIT n=15 W=5 L=10 T=0 WR=33.33% CI=[15.18%,58.29%] EV80=-0.400
+  GBP_JPY: ALL n=10 W=7 L=3 T=1 WR=70.00% CI=[39.68%,89.22%] EV80=0.260 | TAKE n=5 W=3 L=2 T=1 WR=60.00% CI=[23.07%,88.24%] EV80=0.080 cov=54.55% | WAIT n=5 W=4 L=1 T=0 WR=80.00% CI=[37.55%,96.38%] EV80=0.440
+  GBP_USD: ALL n=20 W=11 L=9 T=0 WR=55.00% CI=[34.21%,74.18%] EV80=-0.010 | TAKE n=11 W=5 L=6 T=0 WR=45.45% CI=[21.27%,71.99%] EV80=-0.182 cov=55.00% | WAIT n=9 W=6 L=3 T=0 WR=66.67% CI=[35.42%,87.94%] EV80=0.200
+  NZD_USD: ALL n=15 W=13 L=2 T=1 WR=86.67% CI=[62.12%,96.26%] EV80=0.560 | TAKE n=9 W=8 L=1 T=0 WR=88.89% CI=[56.50%,98.01%] EV80=0.600 cov=56.25% | WAIT n=6 W=5 L=1 T=1 WR=83.33% CI=[43.65%,96.99%] EV80=0.500
+  USD_CAD: ALL n=13 W=8 L=5 T=0 WR=61.54% CI=[35.52%,82.29%] EV80=0.108 | TAKE n=8 W=4 L=4 T=0 WR=50.00% CI=[21.52%,78.48%] EV80=-0.100 cov=61.54% | WAIT n=5 W=4 L=1 T=0 WR=80.00% CI=[37.55%,96.38%] EV80=0.440
+  USD_CHF: ALL n=19 W=8 L=11 T=0 WR=42.11% CI=[23.14%,63.72%] EV80=-0.242 | TAKE n=15 W=6 L=9 T=0 WR=40.00% CI=[19.82%,64.25%] EV80=-0.280 cov=78.95% | WAIT n=4 W=2 L=2 T=0 WR=50.00% CI=[15.00%,85.00%] EV80=-0.100
+  USD_JPY: ALL n=15 W=7 L=8 T=1 WR=46.67% CI=[24.81%,69.88%] EV80=-0.160 | TAKE n=10 W=5 L=5 T=1 WR=50.00% CI=[23.66%,76.34%] EV80=-0.100 cov=68.75% | WAIT n=5 W=2 L=3 T=0 WR=40.00% CI=[11.76%,76.93%] EV80=-0.280
+
+================================
+SESSION STABILITY
+================================
+
+  asia: ALL n=64 W=43 L=21 T=2 WR=67.19% CI=[55.00%,77.43%] EV80=0.209 | TAKE n=40 W=28 L=12 T=1 WR=70.00% CI=[54.57%,81.93%] EV80=0.260 cov=62.12% | WAIT n=24 W=15 L=9 T=1 WR=62.50% CI=[42.71%,78.84%] EV80=0.125
+  london: ALL n=30 W=14 L=16 T=0 WR=46.67% CI=[30.23%,63.86%] EV80=-0.160 | TAKE n=17 W=7 L=10 T=0 WR=41.18% CI=[21.61%,63.99%] EV80=-0.259 cov=56.67% | WAIT n=13 W=7 L=6 T=0 WR=53.85% CI=[29.14%,76.79%] EV80=-0.031
+  newyork: ALL n=34 W=18 L=16 T=2 WR=52.94% CI=[36.74%,68.55%] EV80=-0.047 | TAKE n=22 W=11 L=11 T=2 WR=50.00% CI=[30.72%,69.28%] EV80=-0.100 cov=66.67% | WAIT n=12 W=7 L=5 T=0 WR=58.33% CI=[31.95%,80.67%] EV80=0.050
+  off: ALL n=23 W=13 L=10 T=0 WR=56.52% CI=[36.81%,74.37%] EV80=0.017 | TAKE n=9 W=7 L=2 T=0 WR=77.78% CI=[45.26%,93.68%] EV80=0.400 cov=39.13% | WAIT n=14 W=6 L=8 T=0 WR=42.86% CI=[21.38%,67.41%] EV80=-0.229
+  overlap: ALL n=17 W=11 L=6 T=0 WR=64.71% CI=[41.30%,82.69%] EV80=0.165 | TAKE n=10 W=5 L=5 T=0 WR=50.00% CI=[23.66%,76.34%] EV80=-0.100 cov=58.82% | WAIT n=7 W=6 L=1 T=0 WR=85.71% CI=[48.69%,97.43%] EV80=0.543
+
+================================
+PAYOUT ANALYSIS (DEV adaptive TAKE EST_GE_0.5556)
+================================
+
+Break-even @80% payout: 55.56%
+Actual TAKE WR: 59.18%
+  70: EV=0.006  75: EV=0.036  80: EV=0.065  85: EV=0.095  90: EV=0.124  95: EV=0.154
+
+ALL frozen:
+  70: EV=0.002  75: EV=0.031  80: EV=0.061  85: EV=0.090  90: EV=0.120  95: EV=0.149
+
+================================
+LEAKAGE AUDIT
+================================
+
+  - indicators at T use only closed bars index ≤ T: PASS
+  - signal only after confirmation candle close; entry = confirmation close: PASS
+  - adaptive evidence uses only resolveMs < T (prior resolved): PASS
+  - current signal never in its own evidence: PASS
+  - BB/RSI/ADX/expiry/thresholds pre-registered (no TEST retune): PASS
+  - rsiSeverity fixed beyond-threshold buckets (not TEST-fitted): PASS
+  - bbWidthPctile trailing PIT last-500 (no TEST cutpoint freeze): PASS
+  - COLLECTING/LEARNING/ACTIVE thresholds from selector config (50/100): PASS
+  - selective TAKE rules during COLLECTING treated as TAKE (no claimed selection): PASS
+  - no writes to production adaptive tables / no live selector calls: PASS
+  - DEV week labeled previously-inspected; CONFIRMED requires UNSEEN: PASS
+  - no suspicious WR≥65% with n≥200 on frozen base: PASS
+
+================================
+DIRECT ANSWERS
+================================
+
+1. Does adaptive selection improve the 58.93% frozen strategy?
+   NO clear improvement — TAKE 59.18% vs ALL 58.93% (EST_GE_0.5556)
+
+2. Does adaptive TAKE reach 60%?
+   NO — TAKE WR 59.18% < 60%
+
+3. With how many signals?
+   TAKE n=98 (raw TAKE=101) of DEV n=168
+
+4. What percentage of signals does it keep?
+   coverage 58.72%
+
+5. Are rejected WAIT signals actually worse?
+   NO clear — WAIT 58.57% vs TAKE 59.18%
+
+6. Does predicted signal quality rank realized WR?
+   NO — quintiles not monotonic
+
+7. Does adaptive selection beat matched random selection?
+   NO — adaptive 59.18% within random band [53.51%,65.66%] mean 59.08%
+
+8. Does it beat simple RSI-only or ADX-only filtering?
+   NO / mixed — adaptive 59.18% vs RSI-ext 14.29% ADX>25 59.70% ADX<=20 40.00%
+
+9. Which contexts appear responsible for the improvement?
+   dir up: TAKE 56.76% vs ALL 60.00% n=74; dir down: TAKE 66.67% vs ALL 57.95% n=24
+
+10. Is the improvement stable across days?
+   NO — material day dependence
+
+11. Is it stable across symbols?
+   See SYMBOL STABILITY — many symbols underpowered; treat as descriptive only
+
+12. At 80% payout, is adaptive TAKE profitable?
+   YES on DEV — EV80=0.065 (WR 59.18% > BE 55.56%)
+
+13. Is the evidence genuinely OOS or still DEVELOPMENT?
+   DEVELOPMENT / previously-inspected only — INSUFFICIENT_NEW_DATA for CONFIRMED
+
+================================
+FINAL VERDICT
+================================
+
+INSUFFICIENT_NEW_DATA
+
+Honesty notes:
+- Primary adaptive metrics are on the previously inspected TEST week (DEV).
+- Selector thresholds (50/100) and TAKE rules were pre-registered; not mined for 60%.
+- COLLECTING selective rules force TAKE (no claimed edge while collecting).
+- Best selective rule reported: EST_GE_0.5556.

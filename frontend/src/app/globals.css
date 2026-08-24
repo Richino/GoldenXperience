@@ -1996,10 +1996,10 @@ input[type="number"] {
 .nav-liquid-lens-track {
   position: absolute;
   z-index: 1;
-  top: 0.25rem;
+  top: 0.5rem;
   left: 0.5rem;
   width: calc((100% - 1rem) / 5);
-  height: calc(100% - 0.5rem);
+  height: calc(100% - 1rem);
   transform: translateX(var(--nav-active-offset));
   pointer-events: none;
 }
@@ -2013,23 +2013,19 @@ input[type="number"] {
   width: 100%;
   height: 100%;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--surface-raised) 58%, transparent);
+  background: var(--surface);
   box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.07),
-    inset 1.5px 1px 0 -1px rgba(255, 255, 255, 0.2),
-    inset -1px -1px 0 -1px rgba(255, 255, 255, 0.11),
-    inset -1px 2px 3px -1px rgba(0, 0, 0, 0.1),
-    0 3px 8px rgba(0, 0, 0, 0.1);
+    inset 0 0 0 1px color-mix(in srgb, var(--foreground) 9%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 2px 5px rgba(0, 0, 0, 0.07);
 }
 
 .dark .nav-liquid-lens {
-  background: color-mix(in srgb, var(--surface-raised) 62%, transparent);
+  background: color-mix(in srgb, var(--accent) 15%, var(--surface-raised));
   box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.07),
-    inset 1.5px 1px 0 -1px rgba(255, 255, 255, 0.14),
-    inset -1px -1px 0 -1px rgba(255, 255, 255, 0.065),
-    inset -1px 2px 3px -1px rgba(0, 0, 0, 0.22),
-    0 3px 8px rgba(0, 0, 0, 0.2);
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 42%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 2px 6px rgba(0, 0, 0, 0.24);
 }
 
 .nav-liquid-lens-track[data-moved="true"][data-direction="forward"] .nav-liquid-lens {
@@ -2502,20 +2498,29 @@ input[type="number"] {
   overscroll-behavior: contain;
 }
 
-/* Entry / SL / TP / Exit names: notched flags on the plot's right edge. */
+/* A transparent right-edge rail reserves vertical gestures for price scaling. */
+.setup-chart-price-scale-rail {
+  position: absolute;
+  z-index: 5;
+  inset-block: 0;
+  right: 0;
+  width: 44px;
+  touch-action: none;
+}
+
+/* Entry / SL / TP / Exit markers: compact labels pinned to the plot edge. */
 .setup-chart-level-tag {
   position: absolute;
   z-index: 4;
   transform: translateY(-50%);
-  padding: 3px 8px 3px 10px;
-  border-radius: 2px 0 0 2px;
-  clip-path: polygon(5px 0, 100% 0, 100% 100%, 5px 100%, 0 50%);
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.2;
+  padding: 2px 7px 2px 8px;
+  border-radius: 5px 0 0 5px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.15;
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
   white-space: nowrap;
   pointer-events: none;
 }
@@ -7431,6 +7436,19 @@ input[type="number"] {
   align-items: flex-start;
   gap: 0.35rem;
 }
+
+.binary-journal-filters,
+.binary-journal-filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.binary-journal-filter-divider {
+  margin-inline: 0.125rem;
+  color: var(--muted);
+}
 .binary-entry-head {
   display: flex;
   flex: 1;
@@ -7459,6 +7477,21 @@ input[type="number"] {
 
 /* Keep each prediction readable and comfortably tappable on phone-width cards. */
 @media (max-width: 639px) {
+  .journal-view .binary-journal-filters {
+    flex-basis: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .journal-view .binary-journal-filter-group {
+    flex-wrap: nowrap;
+  }
+
+  .journal-view .binary-journal-filter-divider {
+    display: none;
+  }
+
   .journal-view .binary-journal-entry {
     gap: 0.4rem;
     padding: 0.65rem 0.7rem;

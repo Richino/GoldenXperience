@@ -1279,6 +1279,7 @@ export function SignalWorkspace({
   const pendingTickRef = useRef<MarketPriceTick | null>(null);
   const marketFrameRef = useRef<number | null>(null);
 
+
   useEffect(() => {
     async function refreshPaperPlans() {
       try {

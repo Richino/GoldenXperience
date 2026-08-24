@@ -201,6 +201,77 @@ export function JournalEntriesSkeleton({ rows = 5 }: { rows?: number }) {
   );
 }
 
+export function BinaryJournalLoadingSkeleton() {
+  return (
+    <div className="journal-view space-y-6" aria-busy aria-label="Loading binary prediction journal">
+      <section className="journal-stats-card grid grid-cols-4" aria-hidden>
+        {Array.from({ length: 4 }, (_, index) => (
+          <div key={index} className="journal-stat min-w-0 space-y-2">
+            <Line className="h-3 w-12" />
+            <Line className="h-6 w-14" />
+          </div>
+        ))}
+      </section>
+
+      <section className="dashboard-minimal-section" aria-hidden>
+        <Line className="h-4 w-32" />
+        <div className="binary-horizon-grid mt-3">
+          {Array.from({ length: 3 }, (_, index) => (
+            <div key={index} className="binary-horizon-cell">
+              <Line className="h-2.5 w-7" />
+              <Line className="mt-2 h-7 w-12" />
+              <div className="binary-horizon-split">
+                {Array.from({ length: 3 }, (_, split) => (
+                  <div key={split} className="space-y-1.5">
+                    <Line className="h-2 w-4" />
+                    <Line className="h-3 w-7" />
+                  </div>
+                ))}
+              </div>
+              <Line className="mt-3 h-2.5 w-16" />
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="dashboard-minimal-section" aria-hidden>
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <Line className="h-4 w-24" />
+          <div className="flex flex-wrap gap-1.5">
+            {["w-10", "w-16", "w-16", "w-px", "w-10", "w-12", "w-12", "w-10", "w-[4.25rem]"].map((width, index) => (
+              <Bone key={index} className={`h-7 ${width} rounded-full`} />
+            ))}
+          </div>
+        </div>
+
+        <div className="journal-entry-list mt-3">
+          {Array.from({ length: 5 }, (_, index) => (
+            <article key={index} className="journal-entry binary-journal-entry">
+              <div className="binary-entry-row">
+                <div className="binary-entry-head">
+                  <div className="binary-entry-main min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Line className="h-4 w-20" />
+                      <Line className="h-3 w-7" />
+                      <Bone className="h-4 w-14 rounded-full" />
+                    </div>
+                    <Line className="mt-2 h-3 w-40" />
+                  </div>
+                  <div className="binary-entry-aside gap-1.5">
+                    <Line className="h-4 w-10" />
+                    <Line className="h-3 w-7" />
+                  </div>
+                </div>
+                <Bone className="binary-entry-expand h-3 w-3 rounded-full" />
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function ResearchPaperCycleSkeleton() {
   return (
     <>

@@ -59,6 +59,7 @@ import {
 } from "@/lib/chart-utils";
 import { ChartHistoryLoader } from "@/components/charts/chart-loading-overlay";
 import { useChartTouchGestures } from "@/components/charts/use-chart-touch-gestures";
+import { formatClockTime } from "@/lib/format/datetime";
 import { pipSizeFor } from "@/lib/instruments/catalog";
 import type { BinaryPrediction } from "@/types/binary";
 import type { Candle, CandleSeries, PaperChartTrade } from "@/types/forex";
@@ -69,31 +70,23 @@ import type { Candle, CandleSeries, PaperChartTrade } from "@/types/forex";
  */
 const MAX_FOCUS_HISTORY_PAGES = 8;
 
-const chartAxisTimeFormatter = new Intl.DateTimeFormat("en-US", {
-  hour: "numeric",
-  minute: "2-digit",
-  hour12: true,
-  timeZone: "UTC",
-});
-
 function formatChartAxisTime(time: Time, tickMarkType: TickMarkType): string | null {
   // Leave day/month/year dividers to Lightweight Charts' default formatter;
-  // only intraday ticks need the requested 12-hour display.
+  // only intraday ticks need the requested 12-hour display. Use the same
+  // trading-zone clock as entry/exit labels so axis ticks match real session time.
   if (tickMarkType !== TickMarkType.Time && tickMarkType !== TickMarkType.TimeWithSeconds) {
     return null;
   }
 
   if (typeof time === "number") {
-    return chartAxisTimeFormatter.format(new Date(time * 1_000));
+    return formatClockTime(time * 1_000);
   }
 
   if (typeof time === "string") {
-    return chartAxisTimeFormatter.format(new Date(time));
+    return formatClockTime(time);
   }
 
-  return chartAxisTimeFormatter.format(
-    new Date(Date.UTC(time.year, time.month - 1, time.day)),
-  );
+  return formatClockTime(Date.UTC(time.year, time.month - 1, time.day));
 }
 
 interface SetupLevels {

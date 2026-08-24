@@ -1,0 +1,10 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "exclude": [
+    "api-server/research-v2/**",
+    "frontend/**",
+    "graphify-out/**",
+    "momentum-excursion-audit.csv",
+    "research-baseline-pre-ny.json"
+  ]
+}

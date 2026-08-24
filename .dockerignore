@@ -1,0 +1,19 @@
+# Keep the API Railpack context lean. research-v2 holds multi‑hundred‑MB
+# audit caches and reports that are not needed to build or run production.
+api-server/research-v2/
+
+# Frontend has its own Railway service / root directory.
+frontend/
+
+# Local / generated noise
+**/node_modules
+**/.next
+**/dist
+**/build
+**/.git
+**/*.log
+**/.env
+**/.env.*
+graphify-out/
+momentum-excursion-audit.csv
+research-baseline-pre-ny.json

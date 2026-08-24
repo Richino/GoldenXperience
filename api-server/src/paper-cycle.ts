@@ -22,6 +22,8 @@ import { resolveShadowOutcome } from "./shadow-outcomes.js";
 import { recordMomentumShortPair, resolveMomentumShortInversion } from "./momentum-short-inversion.js";
 import { applyMomentumInversion, ensureMomentumInversionActivation, MOMENTUM_INVERSION_EXPERIMENT } from "./momentum-inversion.js";
 import { tagNewTradeSafely } from "./news-tagging.js";
+import { armForExecutedDirection, spreadCostR } from "./evidence-integrity.js";
+import { attachMomentumExecution, recordMomentumInversionArms, resolveMomentumInversionArms } from "./momentum-arms.js";
 import { MAJOR_INSTRUMENTS, type MajorInstrument } from "../../frontend/src/types/forex.js";
 
 const STRATEGY_NAME = "deterministic-forex";
@@ -422,6 +424,32 @@ async function persistPaperEvaluation(setup: StrategySetup, versionId: string, s
   );
 }
 
+/**
+ * The cost/net columns, written by every close path from what the row already
+ * holds.
+ *
+ * `net_result_r` is set EQUAL to `result_r`, which is not a shortcut. Entry is
+ * taken on the executable side (ask for a long, bid for a short) and
+ * `labelOutcome` resolves the exit against the opposite side of the book, so a
+ * full spread is already charged inside the stored figure. Subtracting a spread
+ * cost from it would charge the spread twice and invent a loss that was never
+ * paid; the reconstruction runs the other way, and `gross_result_r` is what the
+ * trade would have made mid-to-mid.
+ *
+ * `result_basis` records which resolver produced the number. A broker close
+ * derives R from the cash OANDA booked and therefore carries real exit slippage;
+ * a paper close derives it from the modelled level. Both are legitimate, but
+ * they are different measurements and evidence must be able to tell them apart.
+ */
+function costColumnsSql(resultParam: string, basis: "broker" | "model") {
+  const r = `${resultParam}::numeric`;
+  return `net_result_r=${r},`
+    + "total_cost_r=spread_cost_r,"
+    + `gross_result_r=CASE WHEN ${r} IS NULL OR spread_cost_r IS NULL THEN NULL ELSE ${r}+spread_cost_r END,`
+    + "cost_basis=CASE WHEN spread_cost_r IS NULL THEN 'unknown' ELSE 'spread_only' END,"
+    + `result_basis='${basis}'`;
+}
+
 async function openPaperTrade(setup: StrategySetup, userId: string, versionId: string, spreadPips: number, accountBalance: number, quoteToUsdRate: number | null, attribution?: StrategyAttribution): Promise<string | null> {
   if (setup.status !== "valid" || !setup.direction || setup.entry === null || setup.stop === null || setup.target === null || setup.riskReward === null) return null;
   const entry = setup.entry;
@@ -472,12 +500,26 @@ async function openPaperTrade(setup: StrategySetup, userId: string, versionId: s
     if (!positionSize) return reject("Risk blocked: no valid position size could be calculated.");
     const nextSequence = await client.query<{ value: string }>("SELECT (COALESCE(max(trade_sequence),0)+1)::text AS value FROM paper_strategy_trades");
     const setupName = attribution ? `${attribution.family} ${setup.direction}` : setupNameFor(setup);
+    // The canonical executed link, resolved BEFORE the insert so the trade
+    // carries it from birth. The UPDATE further down still stamps the evaluation
+    // side, but that UPDATE is exactly what silently matched zero rows for 48 of
+    // 55 multi-strategy trades; a column on the trade, backed by a unique index,
+    // cannot drift the same way. Null only when no evaluation row exists at all
+    // (the legacy pre-evaluations path), and that stays honestly null.
+    const evaluation = await client.query<{ id: string }>(
+      "SELECT id FROM paper_strategy_evaluations WHERE strategy_version_id=$1 AND instrument=$2 AND decision_time=$3",
+      [versionId, setup.instrument, setup.evaluatedAt],
+    );
+    const evaluationId = evaluation.rows[0]?.id ?? null;
+    // Computed at open, from the spread actually quoted at the decision. Waiting
+    // until close would mean reading a spread that no longer exists.
+    const spreadCost = spreadCostR({ instrument: setup.instrument, entry, stop, spreadPips });
     const inserted = await client.query<{ id: string }>(
-      `INSERT INTO paper_strategy_trades(trade_sequence,user_id,batch_id,strategy_version_id,instrument,decision_time,direction,entry,stop,target,planned_r,nominal_risk_percent,nominal_risk_amount,calculated_units,calculated_standard_lots,spread_pips,session,weekday,setup_name,checklist_score,conditions,features,news_status,opened_at,strategy_family,config_version,regime,trend_strength,volatility_bucket,atr_pips,experiment_id,original_direction,inverted,inversion_experiment_id)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb,$22::jsonb,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34)
+      `INSERT INTO paper_strategy_trades(trade_sequence,user_id,batch_id,strategy_version_id,instrument,decision_time,direction,entry,stop,target,planned_r,nominal_risk_percent,nominal_risk_amount,calculated_units,calculated_standard_lots,spread_pips,session,weekday,setup_name,checklist_score,conditions,features,news_status,opened_at,strategy_family,config_version,regime,trend_strength,volatility_bucket,atr_pips,experiment_id,original_direction,inverted,inversion_experiment_id,evaluation_id,spread_cost_r)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb,$22::jsonb,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36)
        RETURNING id`,
       [nextSequence.rows[0]!.value, userId, batch.id, versionId, setup.instrument, setup.evaluatedAt, setup.direction, setup.entry, setup.stop, setup.target, setup.riskReward, risk.riskPercent, positionSize.calculatedEstimatedRisk, positionSize.calculatedUnits, positionSize.calculatedStandardLots, spreadPips, session, weekdayAt(setup.evaluatedAt), setupName, checklistScore(setup), JSON.stringify(setup.conditions), JSON.stringify(setup.features), setup.features.newsStatus ?? "not_evaluated", setup.evaluatedAt, attribution?.family ?? null, attribution?.configVersion ?? null, attribution?.regime ?? null, attribution?.trendStrength ?? null, attribution?.volatilityBucket ?? null, attribution?.atrPips ?? null, attribution?.experimentId ?? null,
-       attribution?.originalDirection ?? null, attribution?.inverted ?? false, attribution?.inversionExperimentId ?? null],
+       attribution?.originalDirection ?? null, attribution?.inverted ?? false, attribution?.inversionExperimentId ?? null, evaluationId, spreadCost],
     );
     const tradeId = inserted.rows[0]!.id;
     // The row this updates is written before execution is attempted, so it is
@@ -571,7 +613,7 @@ async function bookBrokerClose(
   excursion: { maxFavorableR: number | null; maxAdverseR: number | null },
 ): Promise<boolean> {
   const closed = await query<{ id: string }>(
-    `UPDATE paper_strategy_trades SET status='closed',outcome=$2,exit=$3,result_r=$4,paper_pl=$5,max_favorable_r=$6,max_adverse_r=$7,closed_at=COALESCE($8,now()),exit_reason=$2,updated_at=now() WHERE id=$1 AND status='open'`,
+    `UPDATE paper_strategy_trades SET status='closed',outcome=$2,exit=$3,result_r=$4,paper_pl=$5,max_favorable_r=$6,max_adverse_r=$7,closed_at=COALESCE($8,now()),exit_reason=$2,${costColumnsSql("$4", "broker")},updated_at=now() WHERE id=$1 AND status='open'`,
     [trade.id, broker.outcome, broker.exit, broker.resultR, broker.paperPl, excursion.maxFavorableR, excursion.maxAdverseR, broker.closedAt],
   );
   if (!closed.rowCount) return false;
@@ -721,7 +763,7 @@ export async function liveResolvePaperTrades(priceOf: (instrument: MajorInstrume
     // status='open' guard makes this idempotent against the 60s candle scan, so
     // the two can never double-close the same trade.
     const updated = await query<{ id: string }>(
-      `UPDATE paper_strategy_trades SET status='closed',outcome=$2,exit=$3,result_r=$4,paper_pl=$5,max_favorable_r=$6,max_adverse_r=$7,closed_at=now(),exit_reason=$2,updated_at=now() WHERE id=$1 AND status='open'`,
+      `UPDATE paper_strategy_trades SET status='closed',outcome=$2,exit=$3,result_r=$4,paper_pl=$5,max_favorable_r=$6,max_adverse_r=$7,closed_at=now(),exit_reason=$2,${costColumnsSql("$4", "model")},updated_at=now() WHERE id=$1 AND status='open'`,
       [trade.id, outcome, exit, resultR, paperPl, maxFavorableR, maxAdverseR],
     );
     if (!updated.rowCount) continue;
@@ -797,7 +839,7 @@ async function resolveOpenTrades() {
       }
     }
     const updated = await query<{ id: string }>(
-      `UPDATE paper_strategy_trades SET status=$2,outcome=$3,exit=$4,result_r=$5,paper_pl=$6,max_favorable_r=$7,max_adverse_r=$8,closed_at=$9,exit_reason=$10,updated_at=now() WHERE id=$1 AND status='open'`,
+      `UPDATE paper_strategy_trades SET status=$2,outcome=$3,exit=$4,result_r=$5,paper_pl=$6,max_favorable_r=$7,max_adverse_r=$8,closed_at=$9,exit_reason=$10,${costColumnsSql("$5", "model")},updated_at=now() WHERE id=$1 AND status='open'`,
       [trade.id, status, result.outcome, exit, status === "ambiguous" ? null : result.resultR, status === "ambiguous" || result.resultR === null ? null : Number(trade.nominal_risk_amount) * result.resultR, result.maxFavorableR, result.maxAdverseR, closedAt, result.outcome],
     );
     if (updated.rowCount) {
@@ -1312,10 +1354,25 @@ async function logAdaptiveDecision(experimentId: string, instrument: string, dec
  * is labelled with the pure `resolveShadowOutcome`, which returns null while the
  * outcome is not yet known. Nothing here places an order, opens a position, or
  * reads/writes risk — it only writes shadow_candidate_outcomes.
+ *
+ * THE EXECUTED-ARM GUARD. `execution_status` alone was never a safe test for
+ * "this did not trade". The status is written BEFORE execution is attempted and
+ * promoted to 'selected' only on a confirmed insert — and when that promoting
+ * UPDATE silently matched zero rows, 48 real trades stayed filed as 'blocked'
+ * and were handed a hypothetical outcome on top of the real one they already
+ * had. The engine then counted the same opportunity twice, disagreeing with
+ * itself in five cases.
+ *
+ * So the guard below does not trust a status column. It asks the trade ledger
+ * directly, three independent ways: no evaluation that backs a trade
+ * (`evaluation_id`), no evaluation that names one (`paper_trade_id` /
+ * `trade_created`), and no trade sitting on the same (instrument, bar, family).
+ * Any one of those being true is enough to disqualify the row, so a future drift
+ * in any single marker cannot resurrect the defect.
  */
 async function resolveShadowCandidates(): Promise<number> {
-  const pending = await query<{ id: string; instrument: MajorInstrument; direction: "long" | "short"; entry: string; stop: string; target: string; decision_time: string | Date }>(
-    `SELECT evaluation.id, evaluation.instrument, evaluation.direction, evaluation.entry::text, evaluation.stop::text, evaluation.target::text, evaluation.decision_time
+  const pending = await query<{ id: string; instrument: MajorInstrument; direction: "long" | "short"; entry: string; stop: string; target: string; decision_time: string | Date; spread_pips: string | null }>(
+    `SELECT evaluation.id, evaluation.instrument, evaluation.direction, evaluation.entry::text, evaluation.stop::text, evaluation.target::text, evaluation.decision_time, evaluation.spread_pips::text
        FROM paper_strategy_evaluations evaluation
        LEFT JOIN shadow_candidate_outcomes shadow ON shadow.evaluation_id = evaluation.id
       WHERE evaluation.strategy_family IS NOT NULL
@@ -1324,6 +1381,14 @@ async function resolveShadowCandidates(): Promise<number> {
         AND evaluation.direction IS NOT NULL
         AND evaluation.entry IS NOT NULL AND evaluation.stop IS NOT NULL AND evaluation.target IS NOT NULL
         AND shadow.evaluation_id IS NULL
+        AND evaluation.paper_trade_id IS NULL
+        AND evaluation.trade_created = false
+        AND NOT EXISTS (SELECT 1 FROM paper_strategy_trades linked WHERE linked.evaluation_id = evaluation.id)
+        AND NOT EXISTS (
+          SELECT 1 FROM paper_strategy_trades traded
+           WHERE traded.instrument = evaluation.instrument
+             AND traded.decision_time = evaluation.decision_time
+             AND traded.strategy_family = evaluation.strategy_family)
       ORDER BY evaluation.instrument
       LIMIT 300`,
   );
@@ -1346,10 +1411,21 @@ async function resolveShadowCandidates(): Promise<number> {
       if (!future.length) continue;
       const outcome = resolveShadowOutcome(row.direction, Number(row.entry), Number(row.stop), Number(row.target), decisionTime, future, now);
       if (!outcome) continue; // still pending — its outcome is not known yet
+      // The shadow arm crosses the same spread a real fill would have: its entry
+      // is the executable side of the book at the decision and labelOutcome
+      // resolves it against the other side. Recording the decomposition here
+      // keeps a shadow observation comparable with an executed one on cost, not
+      // only on outcome.
+      const spreadCost = spreadCostR({
+        instrument: row.instrument, entry: Number(row.entry), stop: Number(row.stop),
+        spreadPips: row.spread_pips === null ? null : Number(row.spread_pips),
+      });
+      const grossR = outcome.resultR === null || spreadCost === null ? null : outcome.resultR + spreadCost;
       await query(
-        `INSERT INTO shadow_candidate_outcomes(evaluation_id,outcome,result_r,max_favorable_r,max_adverse_r,exit,resolved_at,horizon_ends_at,exit_reason)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(evaluation_id) DO NOTHING`,
-        [row.id, outcome.outcome, outcome.resultR, outcome.maxFavorableR, outcome.maxAdverseR, outcome.exit, outcome.resolvedAt, outcome.horizonEndsAt, outcome.exitReason],
+        `INSERT INTO shadow_candidate_outcomes(evaluation_id,outcome,result_r,max_favorable_r,max_adverse_r,exit,resolved_at,horizon_ends_at,exit_reason,spread_cost_r,total_cost_r,gross_result_r,net_result_r,cost_basis)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10,$11,$3,$12) ON CONFLICT(evaluation_id) DO NOTHING`,
+        [row.id, outcome.outcome, outcome.resultR, outcome.maxFavorableR, outcome.maxAdverseR, outcome.exit, outcome.resolvedAt, outcome.horizonEndsAt, outcome.exitReason,
+         spreadCost, grossR, spreadCost === null ? "unknown" : "spread_only"],
       );
       resolved += 1;
     }
@@ -1374,6 +1450,17 @@ export async function collectMultiStrategyCycle() {
   // table, and never surfaced to risk or the adaptive engine.
   try { const inv = await resolveMomentumShortInversion(); if (inv) console.log(`[momentum-short-inversion] resolved ${inv} pairs`); }
   catch (error) { console.error("[momentum-short-inversion] resolution failed", error); }
+  // Close out the paired original/inverted arms. The executed arm COPIES the
+  // real trade's outcome rather than being re-simulated — an actual result is
+  // better evidence than a modelled one, and silently swapping the two is the
+  // exact confusion this repair exists to remove. The other arm is labelled by
+  // the same pure shadow resolver, which stays null until its outcome would
+  // genuinely have been known.
+  try {
+    const arms = await resolveMomentumInversionArms(async (instrument) =>
+      (await getResearchCandles(instrument, "M15", 500)).filter((candle) => candle.complete).map(toQuote));
+    if (arms) console.log(`[momentum-arms] resolved ${arms} arms`);
+  } catch (error) { console.error("[momentum-arms] resolution failed", error); }
   // Stamp the inversion activation boundary once, so "Momentum trades before
   // inversion" and "after" is a database fact rather than a remembered date.
   try { await ensureMomentumInversionActivation(); }
@@ -1442,6 +1529,13 @@ export async function collectMultiStrategyCycle() {
       // never interrupt trading.
       try { await recordMomentumShortPair({ candidate, quote, spreadPips, session }); }
       catch (error) { console.error("[momentum-short-inversion] record failed", error); }
+      // Paired original/inverted arms for EVERY eligible Momentum opportunity,
+      // written before execution is attempted so the pair exists whether or not
+      // anything trades. At most one arm is later marked executed; the other is
+      // shadow-resolved. Research-only and outside the evidence loader, so it
+      // cannot influence this or any later decision.
+      try { await recordMomentumInversionArms({ candidate, quote, spreadPips, session }); }
+      catch (error) { console.error("[momentum-arms] record failed", error); }
     }
 
     let openedTradeId: string | null = null;
@@ -1465,6 +1559,21 @@ export async function collectMultiStrategyCycle() {
         openedTradeId = await openPaperTrade(chosen, userId, attribution.versionId, spreadPips ?? 0, snapshot.account.balance, quoteToUsdRate, attribution);
         if (openedTradeId) {
           opened += 1;
+          // Mark WHICH arm of the Momentum pair actually traded. The arm is
+          // decided by comparing the executed direction with what Momentum
+          // itself concluded, so an un-inverted trade lands on 'original' and an
+          // inverted one on 'inverted' — and a partial unique index guarantees
+          // the pair can never end up with two executed arms.
+          if (selectedCandidate?.family === "momentum" && selectedCandidate.direction && chosen.direction) {
+            try {
+              await attachMomentumExecution({
+                instrument: selectedCandidate.instrument,
+                decisionTime: selectedCandidate.evaluatedAt,
+                arm: armForExecutedDirection(selectedCandidate.direction, chosen.direction),
+                paperTradeId: openedTradeId,
+              });
+            } catch (error) { console.error("[momentum-arms] execution attach failed", error); }
+          }
           await queuePracticeOrderIntent(userId, openedTradeId);
           // Research annotation only. Tagged with the direction-agnostic entry
           // time, so an inverted Momentum trade carries the same news context

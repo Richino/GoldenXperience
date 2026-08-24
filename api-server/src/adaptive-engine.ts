@@ -30,18 +30,42 @@ import type { MarketRegime, StrategyFamily } from "../../frontend/src/lib/strate
 
 export type AdaptiveState = "collecting" | "learning" | "active_selection";
 
-/** Raw accumulators for one performance bucket; derived stats computed below. */
+/**
+ * Raw accumulators for one performance bucket; derived stats computed below.
+ *
+ * `netR` is the sum of NET R — after the spread the trade actually crossed. It
+ * is what {@link expectancy} divides, and therefore what every ranking and
+ * suppression decision reads. `grossR` is carried alongside purely so research
+ * can see how much of an edge is friction; nothing in `decideInstrument` reads
+ * it, and nothing should. Selection cares about what the account keeps.
+ */
 export interface BucketStat {
   resolved: number;
   wins: number;
   netR: number;
   sumSqR: number;
+  /** Sum of R before transaction costs. Reporting only — never ranked on. */
+  grossR: number;
   mfe: number | null;
   mae: number | null;
 }
 
+/** Mean NET R per observation. The number selection is based on. */
 export function expectancy(stat: BucketStat): number | null {
   return stat.resolved > 0 ? stat.netR / stat.resolved : null;
+}
+
+/**
+ * Mean GROSS R per observation — before costs.
+ *
+ * Exposed for research and the integrity report only. Reading this where
+ * {@link expectancy} belongs would rank strategies on setup quality rather than
+ * on what they actually earn, and would systematically favour whichever family
+ * runs the tightest stops, because a tight stop makes the same spread a larger
+ * fraction of R.
+ */
+export function grossExpectancy(stat: BucketStat): number | null {
+  return stat.resolved > 0 ? stat.grossR / stat.resolved : null;
 }
 
 export function winRate(stat: BucketStat): number | null {
@@ -329,9 +353,9 @@ export async function loadAdaptiveEvidence(experimentId: string, asOf: Date = ne
   const context = new Map<string, BucketStat>();
   const asOfIso = asOf.toISOString();
   let totalResolved = 0;
-  const add = (key: string, resolved: number, wins: number, netR: number, sumSqR: number) => {
-    const current = context.get(key) ?? { resolved: 0, wins: 0, netR: 0, sumSqR: 0, mfe: null, mae: null };
-    current.resolved += resolved; current.wins += wins; current.netR += netR; current.sumSqR += sumSqR;
+  const add = (key: string, resolved: number, wins: number, netR: number, sumSqR: number, grossR: number) => {
+    const current = context.get(key) ?? { resolved: 0, wins: 0, netR: 0, sumSqR: 0, grossR: 0, mfe: null, mae: null };
+    current.resolved += resolved; current.wins += wins; current.netR += netR; current.sumSqR += sumSqR; current.grossR += grossR;
     context.set(key, current);
   };
   /**
@@ -344,12 +368,12 @@ export async function loadAdaptiveEvidence(experimentId: string, asOf: Date = ne
    * `totalResolved` counts each observation once, at the exact level only, so it
    * stays a true population count rather than a multiple of the ladder depth.
    */
-  const merge = (family: string, pair: string, session: string, regime: string, direction: string, resolved: number, wins: number, netR: number, sumSqR: number) => {
-    for (const key of contextKeysFor(family, pair, session, regime, direction)) add(key, resolved, wins, netR, sumSqR);
+  const merge = (family: string, pair: string, session: string, regime: string, direction: string, resolved: number, wins: number, netR: number, sumSqR: number, grossR: number) => {
+    for (const key of contextKeysFor(family, pair, session, regime, direction)) add(key, resolved, wins, netR, sumSqR, grossR);
     totalResolved += resolved;
   };
 
-  const executed = await query<{ strategy_family: string; instrument: string; session: string; regime: string | null; direction: string; resolved: string; wins: string; net_r: string; sumsq_r: string }>(
+  const executed = await query<{ strategy_family: string; instrument: string; session: string; regime: string | null; direction: string; resolved: string; wins: string; net_r: string; sumsq_r: string; gross_r: string }>(
     `SELECT strategy_family, instrument, session, COALESCE(regime,'mixed') AS regime,
             -- Evidence must be keyed by what the STRATEGY predicted, not by what
             -- an execution policy traded. The engine looks a candidate up by its
@@ -361,9 +385,20 @@ export async function loadAdaptiveEvidence(experimentId: string, asOf: Date = ne
             -- "when momentum says X here, what the policy produces is Y".
             COALESCE(original_direction, direction) AS direction,
             count(*)::text AS resolved,
-            count(*) FILTER (WHERE result_r > 0)::text AS wins,
-            COALESCE(sum(result_r),0)::text AS net_r,
-            COALESCE(sum(result_r * result_r),0)::text AS sumsq_r
+            -- Every statistic below is NET of transaction costs. net_result_r is
+            -- the repaired column and result_r is its pre-repair equivalent (the
+            -- two are equal by construction — entry is taken on the executable
+            -- side and the exit is resolved against the other side of the book,
+            -- so a full spread is already inside the figure). The COALESCE only
+            -- covers rows the cost backfill has not reached; it can never
+            -- substitute a GROSS number for a net one.
+            count(*) FILTER (WHERE COALESCE(net_result_r, result_r) > 0)::text AS wins,
+            COALESCE(sum(COALESCE(net_result_r, result_r)),0)::text AS net_r,
+            COALESCE(sum(COALESCE(net_result_r, result_r) * COALESCE(net_result_r, result_r)),0)::text AS sumsq_r,
+            -- Reporting only. Falls back to the net figure rather than to zero,
+            -- so an un-backfilled row understates the cost gap instead of
+            -- inventing a free trade.
+            COALESCE(sum(COALESCE(gross_result_r, net_result_r, result_r)),0)::text AS gross_r
        FROM paper_strategy_trades
       WHERE experiment_id = $1 AND strategy_family IS NOT NULL
         AND status = 'closed' AND result_r IS NOT NULL
@@ -372,27 +407,52 @@ export async function loadAdaptiveEvidence(experimentId: string, asOf: Date = ne
     [experimentId, asOfIso],
   );
   for (const row of executed.rows) {
-    merge(row.strategy_family, row.instrument, row.session, row.regime ?? "mixed", row.direction, Number(row.resolved), Number(row.wins), Number(row.net_r), Number(row.sumsq_r));
+    merge(row.strategy_family, row.instrument, row.session, row.regime ?? "mixed", row.direction, Number(row.resolved), Number(row.wins), Number(row.net_r), Number(row.sumsq_r), Number(row.gross_r));
   }
 
   // Shadow outcomes carry no session column, so the session is derived in JS from
   // the decision time with the same function that stamped the executed trades —
   // keeping the two sources in identical context buckets.
-  const shadow = await query<{ strategy_family: string; instrument: string; decision_time: string | Date; regime: string | null; direction: string; result_r: string }>(
+  //
+  // THE NO-DOUBLE-COUNT GUARD. One adaptive observation is one strategy ARM at
+  // one OPPORTUNITY: (experiment, family, config_version, instrument,
+  // decision_time, strategy_direction). An opportunity contributes EITHER its
+  // executed result OR its hypothetical one — never both. Before the repair, 48
+  // of 55 executed trades were also present here as shadows (24% of all
+  // observations), because the UPDATE that marks an evaluation 'selected' had
+  // silently matched zero rows and left them filed as 'blocked'. In five cases
+  // the two copies of the same opportunity disagreed on the outcome.
+  //
+  // So the exclusions below do not rely on the evaluation's own status columns,
+  // which are exactly what drifted. They ask the trade ledger: is this
+  // evaluation superseded, does it back a trade, does it name one, or does a
+  // trade exist on the same (instrument, bar, family)? Any one disqualifies it.
+  const shadow = await query<{ strategy_family: string; instrument: string; decision_time: string | Date; regime: string | null; direction: string; result_r: string; gross_r: string | null }>(
     `SELECT e.strategy_family, e.instrument, e.decision_time, COALESCE(e.regime,'mixed') AS regime,
-            COALESCE(e.original_direction, e.direction) AS direction, s.result_r::text
+            COALESCE(e.original_direction, e.direction) AS direction,
+            COALESCE(s.net_result_r, s.result_r)::text AS result_r,
+            COALESCE(s.gross_result_r, s.net_result_r, s.result_r)::text AS gross_r
        FROM shadow_candidate_outcomes s
        JOIN paper_strategy_evaluations e ON e.id = s.evaluation_id
       WHERE e.experiment_id = $1 AND e.strategy_family IS NOT NULL AND e.direction IS NOT NULL
         AND s.result_r IS NOT NULL AND s.outcome IN ${RESOLVED_SHADOW_OUTCOMES}
-        AND s.resolved_at IS NOT NULL AND s.resolved_at <= $2`,
+        AND s.resolved_at IS NOT NULL AND s.resolved_at <= $2
+        AND s.superseded_by_trade_id IS NULL
+        AND e.paper_trade_id IS NULL
+        AND NOT EXISTS (SELECT 1 FROM paper_strategy_trades linked WHERE linked.evaluation_id = e.id)
+        AND NOT EXISTS (
+          SELECT 1 FROM paper_strategy_trades traded
+           WHERE traded.instrument = e.instrument
+             AND traded.decision_time = e.decision_time
+             AND traded.strategy_family = e.strategy_family)`,
     [experimentId, asOfIso],
   );
   for (const row of shadow.rows) {
     const session = dayTradingSession(new Date(row.decision_time)).label;
     const resultR = Number(row.result_r);
     if (!Number.isFinite(resultR)) continue;
-    merge(row.strategy_family, row.instrument, session, row.regime ?? "mixed", row.direction, 1, resultR > 0 ? 1 : 0, resultR, resultR * resultR);
+    const grossR = row.gross_r === null ? resultR : Number(row.gross_r);
+    merge(row.strategy_family, row.instrument, session, row.regime ?? "mixed", row.direction, 1, resultR > 0 ? 1 : 0, resultR, resultR * resultR, Number.isFinite(grossR) ? grossR : resultR);
   }
 
   return { totalResolved, context };

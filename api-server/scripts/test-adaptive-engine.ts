@@ -17,7 +17,7 @@ function cand(family: StrategyFamily, direction: "long" | "short", quality: numb
 }
 
 function stat(resolved: number, wins: number, netR: number, sumSqR: number): BucketStat {
-  return { resolved, wins, netR, sumSqR, mfe: null, mae: null };
+  return { resolved, wins, netR, sumSqR, grossR: netR, mfe: null, mae: null };
 }
 
 function evidence(entries: Array<[StrategyFamily, "long" | "short", BucketStat]>, pair = "EUR_USD", session = "London/New York overlap", regime = "trending"): EvidenceStore {

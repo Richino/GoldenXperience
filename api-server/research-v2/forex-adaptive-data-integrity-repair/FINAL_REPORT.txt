@@ -1,0 +1,693 @@
+================================================================================
+FOREX ADAPTIVE EVIDENCE — DATA INTEGRITY REPAIR
+GoldenXperience / api-server
+Repair executed: 2026-08-24 (live database, migration 036 + repair command)
+Scope: make the existing adaptive evidence trustworthy. The adaptive engine was
+NOT rebuilt, the strategy system was NOT redesigned, and no threshold was
+lowered. Live/paper strategy BEHAVIOUR is unchanged except where a change was
+required to stop evidence being recorded dishonestly.
+================================================================================
+
+
+================================================================================
+0. HEADLINE
+================================================================================
+
+    DATA_INTEGRITY_FIXED_CONTINUE_COLLECTING
+
+Six evidence invariants were violated before this work; zero are violated now.
+48 duplicated observations (24% of the engine's evidence) are gone, 22 false
+"no news" tags are gone, the news gate verdict is recorded on all 55
+multi-strategy trades, every trade carries its transaction cost in R, and 25
+Momentum opportunities now hold a genuine paired original-vs-inverted record.
+
+Two findings emerged from the repair that matter more than the repair itself.
+
+  (a) THE ENTIRE MULTI-STRATEGY BOOK IS GROSS-POSITIVE AND NET-NEGATIVE.
+      Now that cost is expressed in R for the first time:
+
+          gross  +0.93R      cost  7.58R      net  -6.65R
+
+      Across 55 trades the strategies picked directions that were very slightly
+      better than a coin flip, and the spread took eight times the edge. This is
+      the live-book confirmation of what the earlier 10,009-trade replay
+      indicated. Breakout is the sharpest case: +3.200R gross, -0.159R net.
+
+  (b) THE CORRUPTION WAS ALREADY CHANGING WHAT THE ENGINE DID.
+      EMA's evidence bucket held 51 observations before the repair and holds 41
+      after. The learning threshold is 50. EMA had been promoted out of
+      COLLECTING into LEARNING on evidence that was 20% duplicates of itself,
+      and the repair correctly puts it back. This was not a reporting problem.
+
+Sample size remains far too small for active adaptation — the deepest exact
+context bucket holds 3 observations against a requirement of 100 — so the
+correct next step is to keep collecting, now on clean evidence.
+
+
+================================================================================
+1. WHY THE OLD ROWS BECAME INCONSISTENT
+================================================================================
+
+Traced through the real execution path before anything was changed:
+
+  collectMultiStrategyCycle()          paper-cycle.ts
+    → persistPaperEvaluation()         writes the candidate row, execution_status
+                                       computed BEFORE execution is attempted:
+                                       the engine's own pick is written 'blocked'
+                                       on purpose, so a selection the risk gates
+                                       turn away stays honestly blocked
+    → applyMomentumInversion()
+    → openPaperTrade()                 INSERT INTO paper_strategy_trades
+        └─ UPDATE paper_strategy_evaluations
+             SET trade_created=true, paper_trade_id=…, execution_status='selected'
+             WHERE strategy_version_id=… AND instrument=… AND decision_time=…
+    → resolveShadowCandidates()        labels execution_status IN ('suppressed','blocked')
+    → loadAdaptiveEvidence()           reads trades UNION shadow outcomes
+
+THE DEFECT. The promotion to 'selected' is an UPDATE matched on three columns.
+In the original ordering the evaluation row was written AFTER openPaperTrade, so
+that UPDATE matched ZERO ROWS — and an UPDATE that matches nothing is not an
+error. The trade existed; the evaluation kept saying it never happened.
+
+Two consequences chained off it:
+
+  1. The candidate stayed filed as 'blocked', which is precisely the set
+     resolveShadowCandidates() labels. So it computed a HYPOTHETICAL outcome for
+     an opportunity that had really been traded.
+  2. loadAdaptiveEvidence() reads both tables and merges them into the same
+     context bucket. The same opportunity was therefore counted twice — once
+     with its actual result, once with a simulated one.
+
+Measured before the repair: 201 observations, of which 48 were duplicates (24%),
+and 5 of those duplicate pairs DISAGREED with each other about the outcome.
+
+WAS THE FORWARD FIX ALREADY WORKING? Partly, and it was verified rather than
+assumed. Two source-level fixes were already present:
+
+  · the write order had been corrected (persistPaperEvaluation now runs before
+    openPaperTrade), and
+  · EXECUTION_STATUS_CONFLICT_RULE stops a later tick inside the same M15 bar
+    overwriting a 'selected' back to 'blocked'.
+
+Both are real and both are covered by the existing scripts/test-evaluation-upsert.ts.
+But they were insufficient, for a reason the repair had to address:
+
+  · They protect NEW rows only. The 48 damaged rows were never corrected and
+    were still corrupting evidence on every single cycle.
+  · The correctness of "did this trade?" still rested on a three-column UPDATE
+    matching. Nothing structurally prevented it silently matching zero rows
+    again — which is exactly how the defect arose, undetected, for days, at an
+    87% failure rate.
+  · resolveShadowCandidates() and loadAdaptiveEvidence() both still trusted
+    execution_status as the test for "not executed". A status column that had
+    already proven capable of drifting was the sole guard.
+
+
+================================================================================
+2. WHAT WAS CHANGED
+================================================================================
+
+MIGRATION  migrations/036_adaptive_evidence_integrity.sql   (strictly additive)
+
+  paper_strategy_trades
+    evaluation_id                 uuid → paper_strategy_evaluations, UNIQUE index
+    spread_cost_r, commission_cost_r, slippage_cost_r, total_cost_r
+    gross_result_r, net_result_r, cost_basis, result_basis
+    news_evaluation_state, news_calendar_events_nearby
+    news_impact_tag CHECK widened with INSUFFICIENT_CALENDAR_DATA, NOT_EVALUATED
+  shadow_candidate_outcomes
+    superseded_by_trade_id, superseded_at, superseded_reason
+    spread_cost_r, total_cost_r, gross_result_r, net_result_r, cost_basis
+  momentum_inversion_arms       NEW TABLE — the paired original/inverted record
+
+  No column was dropped, no row rewritten by the migration, no CHECK narrowed.
+  Every previously valid value stays valid.
+
+SOURCE
+
+  src/evidence-integrity.ts             NEW — pure cost maths, news classification
+                                        rules, observation identity, arm geometry
+  src/evidence-integrity-checks.ts      NEW — the metrics and the invariants
+  src/momentum-arms.ts                  NEW — paired arm recording and resolution
+  src/adaptive-engine.ts                evidence loader: net-R accumulation,
+                                        gross carried separately, and the
+                                        no-double-count guard
+  src/paper-cycle.ts                    evaluation_id written at insert, cost
+                                        captured at open and on every close path,
+                                        shadow resolution guarded against
+                                        executed opportunities, Momentum arms
+                                        recorded and attached
+  src/news-tagging.ts                   coverage-aware persistence
+  frontend/.../strategy-common.ts       the news gate emits a structured verdict;
+                                        finalizeCandidate stamps it onto features
+
+  scripts/repair-forex-adaptive-evidence.ts   NEW — the idempotent repair
+  scripts/verify-forex-adaptive-evidence.ts   NEW — read-only verification
+  scripts/test-evidence-integrity.ts          NEW — 40 pure assertions
+  scripts/test-evidence-integrity-db.ts       NEW — 45 database assertions
+
+BEHAVIOUR THAT CHANGED, AND WHY IT HAD TO
+
+  Exactly one live-path behaviour changed, and it is a recording change, not a
+  decision change. `evaluateHardGates` used to collapse "the calendar is
+  unusable" and "a high-impact release is inside the buffer" into the same
+  recorded value, because `newsClear` is false either way. It now emits four
+  distinct states. The gate's PASS/FAIL is byte-for-byte identical — it still
+  fails closed on an unusable calendar — and that is asserted by test. What
+  changed is only what gets written down.
+
+  Everything else in the live path is additive: extra columns written at insert
+  and on close, extra research rows, extra exclusions in a read query.
+
+
+================================================================================
+3. THE FIVE REPAIRS
+================================================================================
+
+── 3.1  EXECUTED TRADES FILED AS BLOCKED SHADOW CANDIDATES ────────────────────
+
+FORWARD FIX (verified, not assumed)
+
+  A. `openPaperTrade` now resolves the evaluation id BEFORE the insert and
+     writes it onto the trade, backed by a UNIQUE index. "Was this opportunity
+     executed?" is now a foreign key, not the residue of an UPDATE.
+  B. `resolveShadowCandidates` no longer trusts execution_status. It disqualifies
+     a candidate four independent ways — the evaluation backs a trade
+     (evaluation_id), names one (paper_trade_id), is flagged (trade_created), or
+     a trade exists on the same (instrument, bar, family). Any one is enough, so
+     drift in a single marker cannot resurrect the defect.
+  C. `loadAdaptiveEvidence` applies the same four exclusions at read time.
+
+  Verified by test: `test-evidence-integrity-db.ts` §1 asserts zero evaluations
+  that produced a trade remain filed as blocked, and zero live shadow outcomes
+  belong to an executed opportunity.
+
+HISTORICAL REPAIR
+
+  Matching is on (strategy_version_id, instrument, decision_time). That triple
+  carries a UNIQUE constraint on BOTH tables, so at most one row on each side can
+  satisfy it — the association is a proven 1:1, not a heuristic. Anything that
+  could not be matched that way was counted and left untouched.
+
+    trades linked to their evaluation                 0  →  66
+    evaluations restamped trade_created               18 →  66
+    evaluations restamped execution_status='selected' 1  →  55
+    shadow outcomes superseded                        0  →  48
+    trades left unlinked (no evaluation row exists)   18   (all legacy)
+
+  The 48 stale shadow rows were MARKED, not deleted. Each carries
+  superseded_by_trade_id, superseded_at and a reason. Deleting them would have
+  destroyed the evidence that the defect existed and that it was repaired.
+
+DEDUPLICATION
+
+  ONE ADAPTIVE OBSERVATION = one strategy ARM at one OPPORTUNITY:
+
+      experiment · family · config_version · instrument · decision_time · strategy_direction
+
+  · strategy_direction is COALESCE(original_direction, direction) — what the
+    STRATEGY concluded, not what an execution policy traded, because that is the
+    key the engine looks a candidate up by on the next bar.
+  · config_version is part of the identity: a parameter change is a different
+    strategy and must not be averaged into one bucket.
+  · decision_time (the completed M15 bar), not opened_at: the collector runs far
+    more often than every fifteen minutes and every tick inside one bar is the
+    same opportunity.
+  · The rule that follows: an opportunity contributes EITHER its executed result
+    OR its hypothetical one. Never both.
+
+  Two independent measurements are reported, deliberately:
+
+    observations IN THE TABLES (no read-time reconstruction)  201 → 153
+      duplicate opportunities                                  48 → 0
+      conflicting outcomes                                       5 → 0
+    observations the LOADER counts                            201 → 153
+      duplicate opportunities                                  48 → 0
+      conflicting outcomes                                       5 → 0
+
+  Both are shown because a guard in the SELECT and a repair in the rows fix the
+  same defect from opposite ends. Reporting only the loader's view would let a
+  corrupt table look clean behind a careful query. The two agreeing at 153 is
+  the proof that the ROWS are clean.
+
+── 3.2  PAIRED ORIGINAL vs INVERTED MOMENTUM ──────────────────────────────────
+
+  The problem: `applyMomentumInversion` REPLACES the direction, so exactly one
+  arm is ever traded, and the arm that was not traded got no result at all —
+  shadow resolution only labels suppressed/blocked candidates, and the executing
+  path promotes the row to 'selected'. The counterfactual, which is the entire
+  point of the experiment, was never being recorded.
+
+  `momentum_inversion_arms` holds two rows per eligible opportunity under one
+  deterministic pair_id (md5 of cohort|instrument|decision_time, so re-recording
+  the same bar lands on the same pair and the write is idempotent):
+
+    · exactly one real execution at most — enforced by a partial UNIQUE index,
+      not by the caller remembering to check
+    · the selected arm takes its outcome from the real trade, verbatim, and is
+      never re-simulated
+    · the unselected arm is resolved by `resolveShadowOutcome`, the same pure
+      labeller the shadow candidates use, which returns null until the outcome
+      would genuinely have been known in real time
+    · outcome_source ('executed' | 'shadow') records which, so an actual result
+      and a hypothetical one can never be silently interchanged
+    · both arms share instrument, bar, config version, regime, ATR and SPREAD,
+      and carry identical stop/target DISTANCES — direction is the only
+      independent variable
+    · each arm fills its OWN side of the book (long at the ask, short at the
+      bid). Negating the original instead would hand the counterfactual a free
+      round trip and manufacture an edge that does not exist.
+    · the table is deliberately NOT read by loadAdaptiveEvidence, exactly like
+      momentum_short_inversion_pairs, so a research record cannot influence live
+      selection or double-count the executed arm
+
+  Result: 25 pairs, 25 fully resolved, 25 with exactly one real execution,
+  0 with more than one.
+
+    cohort momentum-inversion-backfill-v1     arms  resolved  executed   net R
+      original                                  25        25        25  -7.454
+      inverted                                  25        25         0  +6.973
+
+  ON THE COHORT NAME — this matters. Historical pairs are filed under
+  `momentum-inversion-backfill-v1`, NOT `momentum-inversion-v1`. The forward
+  experiment activated 2026-08-23T21:00:24Z and the last Momentum trade opened
+  2026-08-21, so every historical trade predates it. Pooling them would let the
+  sample that GENERATED the inversion hypothesis also appear to CONFIRM it —
+  the exact contamination momentum_short_inversion_pairs was built to avoid.
+
+  So the -7.454R vs +6.973R above is NOT evidence that inversion works. It is
+  the discovery sample, now properly paired and properly quarantined. Against it
+  stands an 11,977-signal historical replay that found no inversion effect at
+  all (-0.0600 inverted vs -0.0595 original). The question stays open, and the
+  forward cohort still holds zero rows because no valid Momentum SHORT candidate
+  has fired since activation.
+
+  Reconstructing the opposite side is arithmetic, not a guess: `entry` is by
+  construction the executable side of the book and `spread_pips` is the spread
+  at that same instant, so the other side is entry ∓ spread — exact, from two
+  stored values.
+
+── 3.3  NEWS CONTEXT PERSISTENCE ──────────────────────────────────────────────
+
+  Traced: the gate runs in `evaluateHardGates`; its verdict lands in the
+  `conditions` array; `openPaperTrade` reads `setup.features.newsStatus` for the
+  `news_status` column. But none of the four Phase-2 strategies ever set
+  `newsStatus` on their features literal, so the column read 'not_evaluated' on
+  all 55 multi-strategy trades while the conditions array beside it said 'clear'
+  on all 55.
+
+  Fixed at the single point where it cannot drift: `finalizeCandidate` derives
+  `newsStatus` FROM the condition list, so the column and the conditions come
+  from the same fact. No strategy has to remember to do it, and a future family
+  gets it for free.
+
+  Also fixed: the gate now distinguishes `calendar_unavailable` from
+  `high_impact`. Both used to be written as "high impact" because `newsClear`
+  collapses to false either way — so a trade paused for a MISSING calendar was
+  indistinguishable from one paused for an actual release.
+
+    news_status = 'not_evaluated'      73 → 18   (the 18 are genuinely so:
+                                                 14 legacy rows whose condition
+                                                 says not evaluated, 4 with no
+                                                 recoverable News condition)
+    multi-strategy trades recording a real verdict   0 → 55
+
+  Structured news context preserved per trade: news_status (gate verdict),
+  news_impact_tag, news_evaluation_state, news_currency, news_event_name,
+  news_event_time, news_minutes_from_news, news_impact_level,
+  news_matched_event_ids, news_calendar_events_nearby, news_window_config,
+  news_tagged_at. Every NEAR/HIGH_IMPACT tag is asserted by test to carry
+  currency, event name, event time, minutes-from-event and impact level.
+
+  Nothing was fabricated. Where no classification ran, the state stays
+  NOT_EVALUATED; no unknown row was converted to NO_NEWS.
+
+── 3.4  MISLEADING LEGACY NO_NEWS ─────────────────────────────────────────────
+
+  22 trades were tagged NO_NEWS while no stored calendar event existed within a
+  day of them. That is an absence of DATA, not an absence of NEWS.
+
+  Four states are now distinguished, using the existing tag vocabulary so every
+  historical value stays valid and every existing reader keeps working:
+
+    NO_NEWS                     confirmed quiet — REQUIRES calendar coverage
+    NEAR_NEWS / HIGH_IMPACT_NEWS   news present (the two existing severities)
+    INSUFFICIENT_CALENDAR_DATA  a verdict was computed, the calendar cannot support it
+    NOT_EVALUATED               no classification was ever run
+
+  The downgrade rule: a NO_NEWS verdict with zero calendar coverage becomes
+  INSUFFICIENT_CALENDAR_DATA. A positive match is NEVER downgraded — finding an
+  event proves coverage by itself. Unknown coverage fails towards
+  INSUFFICIENT_CALENDAR_DATA rather than towards confirmed quiet.
+
+    NO_NEWS without calendar coverage    22 → 0
+    tagged INSUFFICIENT_CALENDAR_DATA     0 → 22
+    news_evaluation_state recorded        0 → 84
+
+  Idempotent, and self-correcting: `backfillNewsTags` now also retries rows
+  parked as INSUFFICIENT_CALENDAR_DATA, so a trade whose calendar later fills in
+  is upgraded rather than frozen at "no data" forever.
+
+── 3.5  TRANSACTION COST IN R ─────────────────────────────────────────────────
+
+  WHAT THE CODE ACTUALLY DOES, established before assuming a bug. `buildTradePlan`
+  takes entry on the EXECUTABLE side (ask for a long, bid for a short), and
+  `labelOutcome` resolves a long against bidHigh/bidLow and a short against
+  askLow/askHigh — the exit is measured on the OPPOSITE side of the book from the
+  entry. Mid-to-mid that round trip costs exactly one full spread.
+
+  So the stored result_r was ALREADY net of spread. The obvious "fix" —
+  subtracting a spread cost from result_r — would have charged the spread twice
+  and invented a loss that was never paid. The decomposition therefore runs the
+  other way:
+
+      net_result_r    = result_r                  (already net; asserted equal)
+      spread_cost_r   = spread_pips · pipSize / |entry − stop|
+      total_cost_r    = spread_cost_r  (+ commission + slippage where known)
+      gross_result_r  = net_result_r + total_cost_r
+      identity        net_result_r = gross_result_r − total_cost_r   ✓ all rows
+
+  Coverage:
+    trades with spread_cost_r / net / gross          0 → 84  (100%)
+    shadow outcomes with a cost decomposition        0 → 146 (100%)
+    trades with cost_basis 'unknown'                       0
+    trades not calculable                                  0
+
+  NOT FABRICATED. `commission_cost_r` and `slippage_cost_r` are NULL on every
+  row and stay NULL. OANDA's trade endpoint reports neither, and no
+  modelled-versus-filled pair is stored anywhere, so any number would be
+  invented. NULL means unknown, never zero, and `cost_basis='spread_only'` says
+  exactly what the total contains. `result_basis` additionally records whether
+  result_r came from a broker close (carrying real exit slippage) or a modelled
+  one, so two different measurement regimes are no longer pooled unmarked.
+
+  WHAT THE NUMBERS SAY:
+
+    family      n   avg cost   max cost    gross R     net R
+    breakout   18    0.1866R    0.5012R      3.200    -0.159
+    ema        12    0.1699R    0.3673R      3.002     0.964
+    momentum   25    0.0873R    0.1599R     -5.272    -7.454
+    legacy     29    0.1605R    0.3602R     -0.786    -5.442
+
+    multi-strategy total:   gross +0.93R   cost 7.58R   net -6.65R
+
+  Breakout's entire apparent edge is the spread. EMA keeps 32% of its gross. The
+  book as a whole is gross-positive and net-negative by a factor of eight. A
+  selector ranking on gross would have preferred breakout — the family whose
+  tight stops make the same spread the largest fraction of R.
+
+
+================================================================================
+4. MAKING ADAPTIVE EVIDENCE NET-OF-COST
+================================================================================
+
+  `BucketStat` now carries `netR` AND `grossR`. `expectancy()` — the function
+  `decideInstrument` ranks and suppresses on — divides netR. `grossExpectancy()`
+  exists for research and is read by nothing in the decision path.
+
+  Both loader queries were changed to read the net column with an explicit
+  fallback chain that can never substitute a gross figure for a net one:
+
+    executed:  COALESCE(net_result_r, result_r)
+    shadow:    COALESCE(s.net_result_r, s.result_r)
+    gross:     COALESCE(gross_result_r, net_result_r, result_r)
+
+  The gross fallback ends at the NET value rather than at zero, so an
+  un-backfilled row understates the cost gap instead of inventing a free trade.
+
+  What the engine now sees, per family bucket:
+
+    family      resolved   net E[R]   gross E[R]   state
+    ema               41     0.2316       0.4114   collecting
+    breakout          56     0.0794       0.2502   learning
+    momentum          51     0.0596       0.1464   learning
+    meanrev            5     0.6955       0.8534   collecting
+
+  Gross expectancy is 2–3x net across the board. Ranking on gross would have
+  been ranking on setup quality; ranking on net is ranking on what the account
+  keeps.
+
+
+================================================================================
+5. INVARIANTS ADDED
+================================================================================
+
+  17 invariants, all in src/evidence-integrity-checks.ts, all expressed against
+  the TRADE LEDGER rather than against status columns — a check that trusted
+  execution_status would have reported everything fine throughout the defect.
+
+    executed_candidate              an evaluation that produced a trade is not filed blocked
+    executed_candidate_shadow       no live shadow belongs to an executed opportunity
+    unique_observation              no duplicated opportunity+arm in the loader's view
+    unique_observation_unguarded    …nor in the underlying rows
+    outcome_conflict                duplicates never disagree on the outcome
+    outcome_source_purity           executed arms use executed outcomes, shadows use shadow
+    momentum_pair_arms              exactly one original + one inverted per pair
+    momentum_single_execution       at most one executed arm per pair
+    momentum_pair_identity          both arms provably from the same opportunity
+    news_no_data_is_not_no_news     NO_NEWS requires real calendar coverage
+    news_gate_recorded              news_status never contradicts conditions[]
+    cost_identity                   net = gross − total
+    cost_net_matches_result         net_result_r never drifts from result_r
+    cost_coverage                   every calculable trade has a cost
+    cost_sign                       friction is never negative
+    evaluation_link_unique          no evaluation claimed by two trades
+    evaluation_link_consistent      the link points at the same opportunity
+    timestamp_order                 close ≥ open ≥ decision
+    resolved_stays_resolved         a closed trade keeps its result
+
+  BEFORE:  6 violated
+     ✗ executed_candidate (48)
+     ✗ executed_candidate_shadow (48)
+     ✗ unique_observation_unguarded (48)
+     ✗ news_no_data_is_not_no_news (22)
+     ✗ news_gate_recorded (55)
+     ✗ cost_coverage (84)
+
+  AFTER:   0 violated
+
+
+================================================================================
+6. THE REPAIR COMMAND
+================================================================================
+
+    npm run research:repair-forex-adaptive-evidence
+    npm run research:repair-forex-adaptive-evidence -- --dry-run
+    npm run research:repair-forex-adaptive-evidence -- --skip-momentum-backfill
+    npm run research:verify-forex-adaptive-evidence      (read-only)
+
+  Five phases: executed/shadow conflicts · news gate verdict · news
+  classification vs calendar coverage · cost in R · Momentum pairing. Then a
+  before/after report, a phase summary, the invariant list and an explicit
+  statement that no threshold moved. Exits non-zero if any invariant still fails.
+
+  IDEMPOTENT — proven, not asserted. Every phase counts what genuinely CHANGED
+  rather than what was rewritten (several phases re-derive identical values by
+  design), and `test-evidence-integrity-db.ts` §15 runs the entire command a
+  second time and asserts all 32 tracked metrics are unchanged.
+
+    third consecutive run:
+      executed-shadow conflict   repaired 0   unchanged 146   ambiguous 18
+      news gate verdict          repaired 0   unchanged  14   ambiguous  4
+      news classification        repaired 0   unchanged  84   ambiguous  0
+      cost in R                  repaired 0   unchanged 230   ambiguous  0
+      momentum pairing           repaired 0   unchanged  25   ambiguous  0
+
+
+================================================================================
+7. BEFORE / AFTER
+================================================================================
+
+  metric                                       before    after   change
+  ----------------------------------------------------------------------
+  observations IN THE TABLES (no read guard)      201      153      -48
+    duplicate opportunities                        48        0      -48
+    conflicting outcomes                            5        0       -5
+  observations the loader COUNTS                  201      153      -48
+    duplicate opportunities                        48        0      -48
+    conflicting outcomes                            5        0       -5
+  closed trades                                    84       84        -
+  live (countable) shadow outcomes                146       98      -48
+  superseded shadow outcomes                        0       48      +48
+  blocked/suppressed valid evaluations            146       98      -48
+  trades linked to their evaluation                 0       66      +66
+  evaluations flagged trade_created                18       66      +48
+  evaluations marked selected                       1       55      +54
+  news_status = not_evaluated                      73       18      -55
+  news evaluation state recorded                    0       84      +84
+  false NO_NEWS (no calendar coverage)             22        0      -22
+  tagged INSUFFICIENT_CALENDAR_DATA                 0       22      +22
+  trades with spread_cost_r                         0       84      +84
+  trades with net_result_r                          0       84      +84
+  trades with gross_result_r                        0       84      +84
+  shadow outcomes with spread_cost_r                0      146     +146
+  momentum pairs                                    0       25      +25
+  momentum pairs fully resolved                     0       25      +25
+  momentum pairs with a real execution              0       25      +25
+  momentum pairs with >1 execution                  0        0        -
+  invariants violated                               6        0       -6
+
+  Evidence available to the engine, per family (executed + countable shadow):
+
+    family      before   after
+    breakout        73      56
+    momentum        72      51
+    ema             51      41      ← crossed back below the learning threshold
+    meanrev          5       5
+
+ROWS REPAIRED
+    66   trades given their canonical evaluation_id
+    48   evaluations restamped as executed (trade_created / paper_trade_id /
+         execution_status / stale rejection_reason cleared)
+    48   shadow outcomes superseded (marked, not deleted)
+    55   trades given their real news gate verdict
+    22   trades reclassified NO_NEWS → INSUFFICIENT_CALENDAR_DATA
+    84   trades given news_evaluation_state and calendar coverage count
+    84   trades given a full cost decomposition
+   146   shadow outcomes given a cost decomposition
+    50   momentum arms written (25 pairs), all resolved
+
+ROWS INTENTIONALLY LEFT UNCHANGED
+    18   legacy trades with no evaluation row anywhere — no association could be
+         proven, so none was invented (the pre-evaluations liquidity strategy)
+    14   trades whose news_status is genuinely 'not_evaluated' (their News
+         condition says so)
+     4   trades with no recoverable News condition at all
+    98   shadow outcomes belonging to genuinely non-executed candidates
+    62   trades whose news classification was already correct
+     0   momentum pairs for the FORWARD cohort momentum-inversion-v1 — the
+         experiment has not fired, and inventing rows would contaminate it
+
+AMBIGUOUS ROWS
+    None required a judgement call. Every match was made on a key that is UNIQUE
+    on both sides; anything not matched that way was left alone and counted
+    above. Zero cost figures were uncalculable. Zero pairs had unreconstructible
+    geometry.
+
+AFTER-REPAIR TOTALS
+    duplicate observations              0
+    conflicting outcomes                0
+    news coverage                       84/84 tagged, 84/84 with a state,
+                                        0 dishonest NO_NEWS
+    cost-R coverage                     84/84 trades, 146/146 shadow outcomes
+    momentum pair coverage              25 pairs, 25 complete, 25 with exactly
+                                        one real execution, 0 with two
+
+
+================================================================================
+8. TESTS
+================================================================================
+
+  npm run evidence:test        40 pure assertions   (no DB, no network, no clock)
+  npm run evidence:test-db     45 assertions against the live database
+
+  Requested coverage, mapped:
+
+     1. executed trade cannot remain blocked            db §1
+     2. repaired row links to the correct paper_trade   db §2 (4 checks incl. symmetry)
+     3. repair is idempotent                            db §15 (re-runs the command)
+     4. executed + shadow duplicate not counted twice   pure + db §3
+     5. actual and shadow outcomes cannot conflict      db §4
+     6. momentum arms are paired correctly              pure + db §5
+     7. only one arm is actually executed               pure + db §6
+     8. news gate result persists correctly             pure + db §7
+     9. missing calendar data does not become NO_NEWS   pure + db §8
+    10. spread converts correctly into R                pure + db §9 (recomputed
+                                                        independently on 25 rows)
+    11. net result includes transaction costs           pure + db §9
+    12. adaptive evidence uses net R                    pure + db §10
+    13. timezone handling remains correct               pure + db §11
+    14. existing resolved trades remain resolved        db §12
+
+  Plus: db §13 asserts every invariant is empty, db §14 asserts the thresholds
+  were not lowered and that no decision has entered active_selection.
+
+  Regression check — every pre-existing suite still passes unchanged:
+    test-adaptive-engine · test-adversarial-engine · test-momentum-inversion ·
+    test-momentum-short-inversion · test-shadow-outcomes · test-evaluation-upsert ·
+    test-four-family-execution · test-research · test-paper-cycle ·
+    test-binary-engine · test-pattern-v1 · test-binary-adaptive-selector
+
+
+================================================================================
+9. ACTIVE ADAPTATION WAS NOT ENABLED
+================================================================================
+
+  Unchanged, and asserted by test:
+
+    minLearningSample   50
+    minActiveSample    100
+    confidenceZ       1.64
+    familyPriority    ema, breakout, momentum, meanrev
+
+  Suppression still requires BOTH a sample threshold AND the one-sided
+  negative-expectancy confidence bound. No decision has entered active_selection
+  and none was advanced by this work.
+
+  The repair moved evidence DOWNWARD, not upward — 201 observations to 153 — and
+  pushed EMA back from LEARNING to COLLECTING. That is the correct direction: the
+  engine had been given more confidence than the data supported.
+
+  Deepest EXACT context bucket (family × pair × session × regime × direction):
+  3 observations, against a requirement of 100. Nothing is learnable at that
+  depth and the engine correctly refuses to act.
+
+
+================================================================================
+10. WHAT IS STILL NOT KNOWN
+================================================================================
+
+  Stated plainly, because the point of this work was to stop the data implying
+  more than it knows.
+
+  · SAMPLE SIZE IS UNCHANGED. 55 multi-strategy trades over three days. The
+    repair made the evidence honest; it did not make it sufficient.
+  · commission_cost_r and slippage_cost_r are NULL on all 84 trades. Entry
+    slippage in particular is unmeasured — exit slippage is implicit inside
+    broker-derived result_r but cannot be separated from it.
+  · The forward inversion cohort momentum-inversion-v1 still holds ZERO rows.
+    The 25 backfilled pairs are the discovery sample and cannot confirm the
+    hypothesis they generated.
+  · MeanRev has still never traded: 5 shadow observations, 0 executions.
+  · 18 legacy trades remain unlinked to any evaluation, and 22 trades remain
+    honestly marked INSUFFICIENT_CALENDAR_DATA. Both are recorded facts now
+    rather than silent gaps, but neither is recoverable — the calendar for
+    2026-08-03 to 2026-08-15 does not exist and cannot be fetched.
+  · The gross-positive / net-negative result is measured over 55 trades. It is
+    consistent with the earlier 10,009-trade replay, which is why it is worth
+    stating, but it is not independently established by this sample.
+
+
+================================================================================
+FINAL VERDICT
+================================================================================
+
+                DATA_INTEGRITY_FIXED_CONTINUE_COLLECTING
+
+  The evidence pipeline is now trustworthy. Every observation the adaptive
+  engine reads is one strategy arm at one opportunity, counted once, with an
+  outcome that is either genuinely actual or genuinely hypothetical and never
+  the two confused. Costs are expressed in the same unit as the results and the
+  selector ranks on the net figure. News context distinguishes "quiet" from "no
+  data". Momentum's original and inverted arms are paired, controlled and
+  quarantined from the forward experiment.
+
+  It is NOT ready for active selection, and no threshold was touched to make it
+  look otherwise. 55 trades over three days, a deepest exact bucket of 3 against
+  a requirement of 100, one family that has never traded, and a forward
+  inversion cohort with zero rows.
+
+  The right next step is to keep collecting — now on evidence that will not have
+  to be repaired again. The forward guards (the evaluation_id foreign key, the
+  four-way shadow exclusion, the derived news verdict, cost captured at open) are
+  in place, and 85 assertions across two suites will fail loudly if any of them
+  regresses.
+
+  One thing deserves attention ahead of any adaptive work: the multi-strategy
+  book is gross-positive and net-negative by a factor of eight. If that holds up
+  as the sample grows, the problem to solve is not which strategy to select. It
+  is that none of them clears the spread.
+
+================================================================================
+END OF REPORT
+================================================================================

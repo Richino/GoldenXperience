@@ -2,6 +2,11 @@
 # audit caches and reports that are not needed to build or run production.
 api-server/research-v2/
 
+# Local research one-offs (underscore-prefixed) are not part of the API runtime.
+api-server/scripts/_*.ts
+api-server/scripts/_*.mjs
+api-server/scripts/_*.py
+
 # Frontend has its own Railway service / root directory.
 frontend/
 

@@ -2,6 +2,9 @@
   "$schema": "https://schema.railpack.com",
   "exclude": [
     "api-server/research-v2/**",
+    "api-server/scripts/_*.ts",
+    "api-server/scripts/_*.mjs",
+    "api-server/scripts/_*.py",
     "frontend/**",
     "graphify-out/**",
     "momentum-excursion-audit.csv",

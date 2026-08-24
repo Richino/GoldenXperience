@@ -8,6 +8,8 @@ export interface LiveQuote {
   ask: number;
 }
 
+const STALE_STREAM_AFTER_MS = 15_000;
+
 /**
  * Live bid/ask for every streamed pair, keyed by OANDA code.
  *
@@ -20,6 +22,9 @@ export interface LiveQuote {
  * There is no polling fallback on purpose: the views using this render a value
  * only when a quote exists, so a dropped socket shows the last known figure
  * until it reconnects rather than a wrong one.
+ *
+ * Backgrounding freezes the socket on iOS/Android PWAs; on return we reconnect
+ * if the socket is dead or has gone quiet, matching `useMarketStream`.
  */
 export function useLiveQuotes() {
   const [quotes, setQuotes] = useState<Record<string, LiveQuote>>({});
@@ -29,8 +34,17 @@ export function useLiveQuotes() {
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let attempt = 0;
     let closedByUnmount = false;
+    let lastMessageAt = 0;
+
+    const clearReconnectTimer = () => {
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+    };
 
     const connect = () => {
+      clearReconnectTimer();
       try {
         socket = new WebSocket(getWebSocketUrl());
       } catch {
@@ -42,6 +56,7 @@ export function useLiveQuotes() {
       };
 
       socket.onmessage = (event) => {
+        lastMessageAt = Date.now();
         try {
           const message = JSON.parse(String(event.data)) as {
             type?: string;
@@ -71,17 +86,38 @@ export function useLiveQuotes() {
       socket.onclose = () => {
         if (closedByUnmount) return;
         attempt += 1;
-        reconnectTimer = setTimeout(connect, Math.min(1000 * 2 ** Math.min(attempt, 4), 10_000));
+        reconnectTimer = setTimeout(
+          connect,
+          Math.min(1000 * 2 ** Math.min(attempt, 4), 10_000),
+        );
       };
 
       socket.onerror = () => socket?.close();
     };
 
+    const onForeground = () => {
+      if (document.visibilityState !== "visible") return;
+      const stale =
+        lastMessageAt > 0 && Date.now() - lastMessageAt > STALE_STREAM_AFTER_MS;
+
+      if (!socket || socket.readyState === WebSocket.CLOSED) {
+        attempt = 0;
+        connect();
+      } else if (socket.readyState === WebSocket.OPEN && stale) {
+        socket.close(4000, "stale stream");
+      }
+    };
+
     connect();
+
+    document.addEventListener("visibilitychange", onForeground);
+    window.addEventListener("focus", onForeground);
 
     return () => {
       closedByUnmount = true;
-      if (reconnectTimer) clearTimeout(reconnectTimer);
+      clearReconnectTimer();
+      document.removeEventListener("visibilitychange", onForeground);
+      window.removeEventListener("focus", onForeground);
       socket?.close();
     };
   }, []);

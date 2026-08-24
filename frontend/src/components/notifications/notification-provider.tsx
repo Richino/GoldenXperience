@@ -6,6 +6,7 @@ import { apiUrl } from "@/lib/api/url";
 import { detailTone, displayDetail, displayTitle, notificationHref, sampleToastNotification } from "@/lib/notifications/display";
 import { NOTIFICATION_SOUND_KEY, NOTIFICATION_VOLUME_KEY, notificationSoundPath, notificationVolume } from "@/lib/notifications/sounds";
 import type { AppNotification, NotificationToast } from "@/lib/notifications/types";
+import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 
 export type { AppNotification, NotificationToast };
 
@@ -95,6 +96,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     const interval = window.setInterval(() => void refresh(), 60_000);
     return () => window.clearInterval(interval);
   }, [refresh]);
+
+  useForegroundRefresh(refresh);
 
   const markRead = useCallback(async (ids?: string[]) => {
     const response = await fetch(apiUrl("/api/notifications/read"), {

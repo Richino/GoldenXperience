@@ -55,6 +55,7 @@ import {
   precisionFor,
 } from "@/lib/instruments/catalog";
 import { useMarketStream } from "@/lib/market-stream/use-market-stream";
+import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import type { StrategySetup } from "@/lib/strategy/types";
 import type { PaperTradingAvailability } from "@/lib/strategy/strategy-engine";
 import type { WatchlistStatusInput } from "@/lib/watchlist-status";
@@ -1279,44 +1280,71 @@ export function SignalWorkspace({
   const pendingTickRef = useRef<MarketPriceTick | null>(null);
   const marketFrameRef = useRef<number | null>(null);
 
+  const refreshPaperPlans = useCallback(async () => {
+    try {
+      const response = await fetch(apiUrl("/api/watchlist"), {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const payload = await response.json() as { watchlist?: SignalPaperPlan[] };
+      if (response.ok && payload.watchlist) setLivePaperPlans(payload.watchlist);
+    } catch {
+      // Retain the last known strategy verdict while a refresh is unavailable.
+    }
+  }, []);
+
+  const refreshBinaryWatch = useCallback(async () => {
+    try {
+      const response = await fetch(apiUrl("/api/binary/watchlist"), {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const payload = await response.json() as { watchlist?: BinaryWatchRow[] };
+      if (response.ok && payload.watchlist) setBinaryWatch(payload.watchlist);
+    } catch {
+      // Keep the last known engine read while a refresh is unavailable.
+    }
+  }, []);
+
+  const refreshPaperTrades = useCallback(async () => {
+    try {
+      const response = await fetch(
+        apiUrl(`/api/paper-cycle/trades?instrument=${instrument}`),
+        { credentials: "include", cache: "no-store" },
+      );
+      if (!response.ok) return;
+      const payload = (await response.json()) as { trades: PaperChartTrade[] };
+      setPaperTrades(payload.trades);
+    } catch {
+      // Markers are supplementary — the chart stays usable without them.
+    }
+  }, [instrument]);
+
+  const refreshActivePrediction = useCallback(async () => {
+    if (!predictionFocus || predictionFocus.status !== "active") return;
+    try {
+      const response = await fetch(apiUrl(`/api/binary/prediction?id=${predictionFocus.id}`), {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const payload = (await response.json()) as { prediction?: BinaryPrediction };
+      if (response.ok && payload.prediction) setPredictionFocus(payload.prediction);
+    } catch {
+      // The countdown can continue while the next server resolution check retries.
+    }
+  }, [predictionFocus]);
 
   useEffect(() => {
-    async function refreshPaperPlans() {
-      try {
-        const response = await fetch(apiUrl("/api/watchlist"), {
-          credentials: "include",
-          cache: "no-store",
-        });
-        const payload = await response.json() as { watchlist?: SignalPaperPlan[] };
-        if (response.ok && payload.watchlist) setLivePaperPlans(payload.watchlist);
-      } catch {
-        // Retain the last known strategy verdict while a refresh is unavailable.
-      }
-    }
-
     void refreshPaperPlans();
     const timer = window.setInterval(() => void refreshPaperPlans(), 60_000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [refreshPaperPlans]);
 
   useEffect(() => {
-    async function refreshBinaryWatch() {
-      try {
-        const response = await fetch(apiUrl("/api/binary/watchlist"), {
-          credentials: "include",
-          cache: "no-store",
-        });
-        const payload = await response.json() as { watchlist?: BinaryWatchRow[] };
-        if (response.ok && payload.watchlist) setBinaryWatch(payload.watchlist);
-      } catch {
-        // Keep the last known engine read while a refresh is unavailable.
-      }
-    }
-
     void refreshBinaryWatch();
     const timer = window.setInterval(() => void refreshBinaryWatch(), 60_000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [refreshBinaryWatch]);
 
   useEffect(() => {
     setPredictionFocus(initialPredictionFocus);
@@ -1402,6 +1430,78 @@ export function SignalWorkspace({
     seriesRef.current = nextSeries;
     setSeries(nextSeries);
   }, []);
+
+  /**
+   * Quiet refetch used when the PWA returns to the foreground. Keeps the last
+   * candles/quote on screen (no loading skeleton) while replacing them with
+   * fresh broker data — backgrounded mobile timers and sockets otherwise leave
+   * the chart sitting on a frozen snapshot.
+   */
+  const refreshMarketQuietly = useCallback(async () => {
+    try {
+      const [candlesResponse, pricingResponse] = await Promise.all([
+        fetch(
+          apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=${TIMEFRAME_TO_GRANULARITY[timeframe]}&count=${candleCountForRange(timeframe, range)}`),
+          { credentials: "include", cache: "no-store" },
+        ),
+        fetch(apiUrl(`/api/oanda/pricing?instruments=${instrument}`), {
+          credentials: "include",
+          cache: "no-store",
+        }),
+      ]);
+
+      if (!candlesResponse.ok || !pricingResponse.ok) return;
+
+      const candlesPayload = (await candlesResponse.json()) as {
+        data: CandleSeries;
+        status: ConnectionStatus;
+      };
+      const pricingPayload = (await pricingResponse.json()) as {
+        data: PriceQuote[];
+        status: ConnectionStatus;
+      };
+
+      if (candlesPayload.data.instrument !== instrument) return;
+
+      replaceSeries(candlesPayload.data);
+      setScrollToLatestRevision((revision) => revision + 1);
+      setHistoryExhausted(false);
+      setLiveCandle(null);
+      setQuote(
+        pricingPayload.data.find((price) => price.instrument === instrument) ??
+          null,
+      );
+
+      if (candlesPayload.status.state !== "connected") {
+        setDataNotice(candlesPayload.status.message);
+      } else if (pricingPayload.status.state !== "connected") {
+        setDataNotice(pricingPayload.status.message);
+      } else {
+        setDataNotice(null);
+      }
+    } catch {
+      // Keep the last loaded chart while the next resume refresh retries.
+    }
+  }, [instrument, range, replaceSeries, timeframe]);
+
+  useForegroundRefresh(
+    useCallback(async () => {
+      await Promise.all([
+        refreshMarketQuietly(),
+        refreshPaperPlans(),
+        refreshBinaryWatch(),
+        refreshPaperTrades(),
+        refreshActivePrediction(),
+      ]);
+    }, [
+      refreshActivePrediction,
+      refreshBinaryWatch,
+      refreshMarketQuietly,
+      refreshPaperPlans,
+      refreshPaperTrades,
+    ]),
+  );
+
   const handleMarketPrice = useCallback(
     (tick: MarketPriceTick) => {
       if (tick.instrument !== instrument) return;
@@ -1695,27 +1795,8 @@ export function SignalWorkspace({
       return;
     }
 
-    const controller = new AbortController();
-
-    async function loadPaperTrades() {
-      try {
-        const response = await fetch(
-          apiUrl(`/api/paper-cycle/trades?instrument=${instrument}`),
-          { credentials: "include", cache: "no-store", signal: controller.signal },
-        );
-        if (!response.ok) return;
-
-        const payload = (await response.json()) as { trades: PaperChartTrade[] };
-        setPaperTrades(payload.trades);
-      } catch {
-        // Markers are supplementary — the chart stays usable without them.
-      }
-    }
-
-    loadPaperTrades();
-
-    return () => controller.abort();
-  }, [instrument]);
+    void refreshPaperTrades();
+  }, [refreshPaperTrades]);
 
   const clearFocusTrade = useCallback(() => {
     setFocusTradeId(null);

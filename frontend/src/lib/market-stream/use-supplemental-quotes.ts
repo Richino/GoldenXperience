@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiUrl } from "@/lib/api/url";
 import { currenciesOf } from "@/lib/instruments/catalog";
 import type { LiveQuote } from "@/lib/market-stream/use-live-quotes";
+import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 
 function conversionMajorsFor(instrument: string): string[] {
   const { quote } = currenciesOf(instrument);
@@ -46,42 +47,40 @@ export function useSupplementalQuotes(
       .join(",");
   }, [wanted, liveQuotes]);
 
+  const load = useCallback(async () => {
+    if (!missingKey) return;
+    const instruments = missingKey.split(",");
+    try {
+      const response = await fetch(
+        apiUrl(`/api/oanda/pricing?instruments=${instruments.join(",")}`),
+        { credentials: "include", cache: "no-store" },
+      );
+      if (!response.ok) return;
+      const payload = (await response.json()) as {
+        data?: Array<{ instrument: string; bid: number; ask: number }>;
+      };
+      const next: Record<string, LiveQuote> = {};
+      for (const row of payload.data ?? []) {
+        if (Number.isFinite(row.bid) && Number.isFinite(row.ask)) {
+          next[row.instrument] = { bid: row.bid, ask: row.ask };
+        }
+      }
+      if (Object.keys(next).length) {
+        setRestQuotes((current) => ({ ...current, ...next }));
+      }
+    } catch {
+      // Stream or broker mid may still cover the row.
+    }
+  }, [missingKey]);
+
   useEffect(() => {
     if (!missingKey) return;
-    const missing = missingKey.split(",");
-    let cancelled = false;
-
-    const load = async () => {
-      try {
-        const response = await fetch(
-          apiUrl(`/api/oanda/pricing?instruments=${missing.join(",")}`),
-          { credentials: "include", cache: "no-store" },
-        );
-        if (!response.ok || cancelled) return;
-        const payload = (await response.json()) as {
-          data?: Array<{ instrument: string; bid: number; ask: number }>;
-        };
-        const next: Record<string, LiveQuote> = {};
-        for (const row of payload.data ?? []) {
-          if (Number.isFinite(row.bid) && Number.isFinite(row.ask)) {
-            next[row.instrument] = { bid: row.bid, ask: row.ask };
-          }
-        }
-        if (!cancelled && Object.keys(next).length) {
-          setRestQuotes((current) => ({ ...current, ...next }));
-        }
-      } catch {
-        // Stream or broker mid may still cover the row.
-      }
-    };
-
     void load();
     const timer = window.setInterval(() => void load(), 15_000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [missingKey]);
+    return () => window.clearInterval(timer);
+  }, [load, missingKey]);
+
+  useForegroundRefresh(load, Boolean(missingKey));
 
   return useMemo(() => {
     const merged: Record<string, LiveQuote | undefined> = { ...restQuotes };

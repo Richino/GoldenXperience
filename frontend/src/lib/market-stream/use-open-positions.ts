@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { apiUrl } from "@/lib/api/url";
+import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 
 export interface OpenPositionFill {
   price: number;
@@ -68,6 +69,8 @@ export function useOpenPositionFills() {
     const timer = window.setInterval(() => void load(), 15_000);
     return () => window.clearInterval(timer);
   }, [load]);
+
+  useForegroundRefresh(load);
 
   return fills;
 }

@@ -1,0 +1,392 @@
+{
+  "experiment": "momentum-burst-direction-recorded-47-v1",
+  "generatedAt": "2026-08-25T02:46:48.554Z",
+  "verdict": "POSITIVE_POINT_ESTIMATE_NOT_CONFIRMED",
+  "productionChanged": false,
+  "data": {
+    "opportunities": 47,
+    "snapshotCutoff": "2026-08-24T17:30:00.000Z",
+    "firstDecision": "2026-08-19T09:30:00.000Z",
+    "lastDecision": "2026-08-24T17:30:00.000Z",
+    "instruments": 8,
+    "oandaPracticeFallbacks": 8,
+    "effectiveUtcDays": 4,
+    "note": "This is the same retrospective 47-pair sample used to investigate inversion. It is development evidence, not untouched forward proof."
+  },
+  "frozenPolicy": {
+    "burstRangeBars": 6,
+    "maxConfirmationBars": 3,
+    "pullbackFraction": 0.2,
+    "breakoutBufferAtr": 0.05,
+    "attemptBufferAtr": 0.02,
+    "reverseMidpointFraction": 0.5
+  },
+  "integrity": {
+    "missingSetupCandle": 0,
+    "missingEntryQuote": 0,
+    "invalidGeometry": 0,
+    "unresolvedSelected": 0,
+    "ambiguousSelected": 0
+  },
+  "actionCounts": {
+    "follow": 4,
+    "reverse": 11,
+    "wait": 32
+  },
+  "baselines": {
+    "originalImmediate": {
+      "n": 47,
+      "wins": 11,
+      "winRate": 0.23404255319148937,
+      "netExpectancyR": -0.4070864874271168,
+      "opportunityExpectancyR": -0.4070864874271168,
+      "totalR": -19.133064909074488,
+      "profitFactor": 0.29729284366100445,
+      "ci95": [
+        -0.5246840368428518,
+        -0.17924123543413073
+      ],
+      "effectiveDays": 4
+    },
+    "invertedImmediate": {
+      "n": 47,
+      "wins": 27,
+      "winRate": 0.574468085106383,
+      "netExpectancyR": 0.2333734381874662,
+      "opportunityExpectancyR": 0.2333734381874662,
+      "totalR": 10.968551594810911,
+      "profitFactor": 1.8369908264200754,
+      "ci95": [
+        -0.06593810996075763,
+        0.5145708218968816
+      ],
+      "effectiveDays": 4
+    }
+  },
+  "delayedPolicy": {
+    "selectedConditional": {
+      "n": 15,
+      "wins": 7,
+      "winRate": 0.4666666666666667,
+      "netExpectancyR": 0.12346649239740212,
+      "opportunityExpectancyR": 0.039404199701298555,
+      "totalR": 1.851997385961032,
+      "profitFactor": 1.294451217843604,
+      "ci95": [
+        -0.5262788726777554,
+        1.23347361614153
+      ],
+      "effectiveDays": 4
+    },
+    "exactOppositeConditional": {
+      "n": 15,
+      "wins": 4,
+      "winRate": 0.26666666666666666,
+      "netExpectancyR": -0.38892228963223224,
+      "opportunityExpectancyR": -0.1241241349890103,
+      "totalR": -5.833834344483484,
+      "profitFactor": 0.36809713143338046,
+      "ci95": [
+        -0.922412045404704,
+        -0.1702123353090491
+      ],
+      "effectiveDays": 4
+    },
+    "selectedOpportunityAdjusted": {
+      "n": 47,
+      "wins": 7,
+      "winRate": 0.14893617021276595,
+      "netExpectancyR": 0.039404199701298555,
+      "opportunityExpectancyR": 0.039404199701298555,
+      "totalR": 1.851997385961032,
+      "profitFactor": 1.294451217843604,
+      "ci95": [
+        -0.15788366180332664,
+        0.387559249415343
+      ],
+      "effectiveDays": 4
+    },
+    "exactOppositeOpportunityAdjusted": {
+      "n": 47,
+      "wins": 4,
+      "winRate": 0.0851063829787234,
+      "netExpectancyR": -0.1241241349890103,
+      "opportunityExpectancyR": -0.1241241349890103,
+      "totalR": -5.833834344483484,
+      "profitFactor": 0.36809713143338046,
+      "ci95": [
+        -0.26720230591205624,
+        -0.05959423547385883
+      ],
+      "effectiveDays": 4
+    },
+    "selectedMinusOppositePaired": {
+      "n": 15,
+      "wins": 8,
+      "winRate": 0.5333333333333333,
+      "netExpectancyR": 0.5123887820296343,
+      "opportunityExpectancyR": 0.5123887820296343,
+      "totalR": 7.685831730444515,
+      "profitFactor": 2.171205624270469,
+      "ci95": [
+        -0.29460078442863585,
+        2.024667286897407
+      ],
+      "effectiveDays": 4
+    },
+    "averageConfidence": 77.44607603971495
+  },
+  "positionAwareMomentumOnly": {
+    "accepted": 12,
+    "overlapping": 3,
+    "selected": {
+      "n": 12,
+      "wins": 7,
+      "winRate": 0.5833333333333334,
+      "netExpectancyR": 0.40433311549675266,
+      "opportunityExpectancyR": 0.10323398693534111,
+      "totalR": 4.851997385961032,
+      "profitFactor": 2.474924671928469,
+      "ci95": [
+        -0.3909299791571141,
+        1.5177014480121662
+      ],
+      "effectiveDays": 4
+    },
+    "exactOppositeOnSelectedSchedule": {
+      "n": 12,
+      "wins": 2,
+      "winRate": 0.16666666666666666,
+      "netExpectancyR": -0.5138811279538872,
+      "opportunityExpectancyR": -0.13120369224354567,
+      "totalR": -6.166573535446647,
+      "profitFactor": 0.25091756315591807,
+      "ci95": [
+        -1,
+        -0.19481518945276335
+      ],
+      "effectiveDays": 4
+    },
+    "selectedMinusOppositePaired": {
+      "n": 12,
+      "wins": 8,
+      "winRate": 0.6666666666666666,
+      "netExpectancyR": 0.91821424345064,
+      "opportunityExpectancyR": 0.91821424345064,
+      "totalR": 11.01857092140768,
+      "profitFactor": 4.411759961654891,
+      "ci95": [
+        -0.15777265586876807,
+        2.4245959024978108
+      ],
+      "effectiveDays": 4
+    },
+    "limitation": "Models one open Momentum position per instrument, but not positions opened by other strategy families."
+  },
+  "byAction": {
+    "follow": {
+      "selected": {
+        "n": 4,
+        "wins": 2,
+        "winRate": 0.5,
+        "netExpectancyR": -0.1527104573054333,
+        "opportunityExpectancyR": -0.012996634664292196,
+        "totalR": -0.6108418292217332,
+        "profitFactor": 0.47521716636304884,
+        "ci95": [
+          -1,
+          0.12971939025942233
+        ],
+        "effectiveDays": 2
+      },
+      "opposite": {
+        "n": 4,
+        "wins": 1,
+        "winRate": 0.25,
+        "netExpectancyR": -0.6066156692136162,
+        "opportunityExpectancyR": -0.05162686546498861,
+        "totalR": -2.426462676854465,
+        "profitFactor": 0.02632197056192993,
+        "ci95": [
+          -1,
+          -0.47548755895148825
+        ],
+        "effectiveDays": 2
+      }
+    },
+    "reverse": {
+      "selected": {
+        "n": 11,
+        "wins": 5,
+        "winRate": 0.45454545454545453,
+        "netExpectancyR": 0.22389447410752406,
+        "opportunityExpectancyR": 0.05240083436559074,
+        "totalR": 2.4628392151827647,
+        "profitFactor": 1.4804913629265628,
+        "ci95": [
+          -0.8251336049756132,
+          1.4816373512683667
+        ],
+        "effectiveDays": 3
+      },
+      "opposite": {
+        "n": 11,
+        "wins": 3,
+        "winRate": 0.2727272727272727,
+        "netExpectancyR": -0.3097610606935471,
+        "opportunityExpectancyR": -0.07249726952402166,
+        "totalR": -3.407371667629018,
+        "profitFactor": 0.4944635571853602,
+        "ci95": [
+          -0.844824090809408,
+          0.06827197652247768
+        ],
+        "effectiveDays": 3
+      }
+    }
+  },
+  "byChosenDirection": {
+    "long": {
+      "n": 8,
+      "wins": 3,
+      "winRate": 0.375,
+      "netExpectancyR": 0.22950128365757527,
+      "opportunityExpectancyR": 0.039064048282140475,
+      "totalR": 1.8360102692606022,
+      "profitFactor": 1.4409257438141139,
+      "ci95": [
+        -0.7909974326848496,
+        2
+      ],
+      "effectiveDays": 3
+    },
+    "short": {
+      "n": 7,
+      "wins": 4,
+      "winRate": 0.5714285714285714,
+      "netExpectancyR": 0.0022838738143471132,
+      "opportunityExpectancyR": 0.0003401514191580807,
+      "totalR": 0.015987116700429793,
+      "profitFactor": 1.0075209847037836,
+      "ci95": [
+        -0.6387719865487249,
+        0.7942536200304153
+      ],
+      "effectiveDays": 4
+    }
+  },
+  "byInstrument": {
+    "AUD_JPY": {
+      "n": 2,
+      "wins": 2,
+      "winRate": 1,
+      "netExpectancyR": 1.1380776597105102,
+      "opportunityExpectancyR": 0.2529061466023356,
+      "totalR": 2.2761553194210205,
+      "profitFactor": null,
+      "ci95": [
+        0.2761553194210204,
+        2
+      ],
+      "effectiveDays": 2
+    },
+    "AUD_USD": {
+      "n": 3,
+      "wins": 2,
+      "winRate": 0.6666666666666666,
+      "netExpectancyR": 0.42566419403221484,
+      "opportunityExpectancyR": 0.18242751172809207,
+      "totalR": 1.2769925820966446,
+      "profitFactor": 2.2769925820966446,
+      "ci95": [
+        -0.3615037089516777,
+        2
+      ],
+      "effectiveDays": 2
+    },
+    "EUR_GBP": {
+      "n": 3,
+      "wins": 1,
+      "winRate": 0.3333333333333333,
+      "netExpectancyR": 0.005975720459221549,
+      "opportunityExpectancyR": 0.0025610230539520923,
+      "totalR": 0.017927161377664647,
+      "profitFactor": 1.0159257978209042,
+      "ci95": [
+        -0.12566802487806567,
+        0.07179759312786516
+      ],
+      "effectiveDays": 2
+    },
+    "EUR_USD": {
+      "n": 0,
+      "wins": 0,
+      "winRate": null,
+      "netExpectancyR": null,
+      "opportunityExpectancyR": 0,
+      "totalR": 0,
+      "profitFactor": null,
+      "ci95": [
+        null,
+        null
+      ],
+      "effectiveDays": 0
+    },
+    "GBP_USD": {
+      "n": 1,
+      "wins": 1,
+      "winRate": 1,
+      "netExpectancyR": 2,
+      "opportunityExpectancyR": 0.5,
+      "totalR": 2,
+      "profitFactor": null,
+      "ci95": [
+        2,
+        2
+      ],
+      "effectiveDays": 1
+    },
+    "USD_CAD": {
+      "n": 4,
+      "wins": 0,
+      "winRate": 0,
+      "netExpectancyR": -1,
+      "opportunityExpectancyR": -0.4444444444444444,
+      "totalR": -4,
+      "profitFactor": 0,
+      "ci95": [
+        -1,
+        -1
+      ],
+      "effectiveDays": 2
+    },
+    "USD_CHF": {
+      "n": 0,
+      "wins": 0,
+      "winRate": null,
+      "netExpectancyR": null,
+      "opportunityExpectancyR": 0,
+      "totalR": 0,
+      "profitFactor": null,
+      "ci95": [
+        null,
+        null
+      ],
+      "effectiveDays": 0
+    },
+    "USD_JPY": {
+      "n": 2,
+      "wins": 1,
+      "winRate": 0.5,
+      "netExpectancyR": 0.14046116153285101,
+      "opportunityExpectancyR": 0.07023058076642551,
+      "totalR": 0.28092232306570203,
+      "profitFactor": 2.713048261004377,
+      "ci95": [
+        -0.16398973073939815,
+        0.4449120538051002
+      ],
+      "effectiveDays": 2
+    }
+  }
+}

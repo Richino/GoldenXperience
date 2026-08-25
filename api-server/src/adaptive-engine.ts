@@ -115,6 +115,166 @@ export const DEFAULT_ADAPTIVE_CONFIG: AdaptiveConfig = {
   familyPriority: ["ema", "breakout", "momentum", "meanrev"],
 };
 
+// ---------------------------------------------------------------------------
+// Delayed-direction research extension
+// ---------------------------------------------------------------------------
+// The production selector above ranks simultaneous strategy candidates. The
+// directional experiment needs the same conservative evidence ladder for two
+// paired arms (follow/reverse) after confirmation. Keeping that pure extension
+// here makes Adaptive Engine the single statistical authority while leaving the
+// current four-family paper collector and executable allowlist untouched.
+
+export type DirectionalAction = "follow" | "reverse" | "skip";
+export interface DirectionalAdaptiveConfig {
+  minLearningSample: number;
+  minReverseSample: number;
+  confidenceZ: number;
+  minimumPositiveExpectancyR: number;
+  /** V1 preserves FOLLOW; strict confidence research uses SKIP/WAIT. */
+  coldStartAction?: "follow" | "skip";
+  /** Optional paired-arm accuracy lower-bound gate. */
+  minimumDirectionAccuracyLower?: number;
+}
+export const DEFAULT_DIRECTIONAL_ADAPTIVE_CONFIG: DirectionalAdaptiveConfig = {
+  minLearningSample: 50,
+  minReverseSample: 100,
+  confidenceZ: 1.64,
+  minimumPositiveExpectancyR: 0,
+};
+export const STRICT_DIRECTIONAL_CONFIDENCE_CONFIG: DirectionalAdaptiveConfig = {
+  minLearningSample: 100,
+  minReverseSample: 150,
+  confidenceZ: 1.64,
+  minimumPositiveExpectancyR: 0,
+  coldStartAction: "skip",
+  minimumDirectionAccuracyLower: 0.5,
+};
+interface DirectionalActionStat {
+  n: number;
+  sumR: number;
+  sumSqR: number;
+  /** Paired arm beat the opposite arm; ties contribute one half. */
+  directionWins: number;
+}
+export interface DirectionalEvidenceStore {
+  byKey: Map<string, { follow: DirectionalActionStat; reverse: DirectionalActionStat }>;
+}
+export interface DirectionalContext {
+  family: string;
+  instrument: string;
+  session: string;
+  regime: string;
+  confirmationType: string;
+  direction: string;
+}
+export interface DirectionalDecision {
+  action: DirectionalAction;
+  /** Best historical arm even when evidence is too weak and action is WAIT. */
+  preferredAction: Exclude<DirectionalAction, "skip"> | null;
+  evidence: number;
+  followExpectancy: number | null;
+  reverseExpectancy: number | null;
+  /** Evidence-adjusted 0-100 score, not a promise of profitability. */
+  confidenceScore: number;
+  directionAccuracy: number | null;
+  directionAccuracyLower: number | null;
+  evidenceQuality: "insufficient" | "weak" | "supported";
+  reason: string;
+}
+export function createDirectionalEvidenceStore(): DirectionalEvidenceStore { return { byKey: new Map() }; }
+function directionalKey(input: DirectionalContext): string {
+  return [input.family, input.instrument, input.session, input.regime, input.confirmationType, input.direction].join("|");
+}
+function directionalKeys(input: DirectionalContext): string[] {
+  return [
+    directionalKey(input),
+    directionalKey({ ...input, session: ANY }),
+    directionalKey({ ...input, instrument: ANY, session: ANY }),
+    directionalKey({ ...input, instrument: ANY, session: ANY, regime: ANY }),
+    directionalKey({ ...input, instrument: ANY, session: ANY, regime: ANY, confirmationType: ANY }),
+    directionalKey({ ...input, instrument: ANY, session: ANY, regime: ANY, confirmationType: ANY, direction: ANY }),
+  ];
+}
+function blankDirectionalStat(): DirectionalActionStat { return { n: 0, sumR: 0, sumSqR: 0, directionWins: 0 }; }
+function directionalSummary(stat: DirectionalActionStat, confidenceZ: number): { expectancy: number | null; lower: number | null; directionAccuracy: number | null; directionAccuracyLower: number | null } {
+  if (!stat.n) return { expectancy: null, lower: null, directionAccuracy: null, directionAccuracyLower: null };
+  const expectancy = stat.sumR / stat.n;
+  const directionAccuracy = (stat.directionWins + 1) / (stat.n + 2);
+  if (stat.n < 2) return { expectancy, lower: null, directionAccuracy, directionAccuracyLower: null };
+  const variance = Math.max(0, (stat.sumSqR - stat.n * expectancy * expectancy) / (stat.n - 1));
+  const observed = stat.directionWins / stat.n;
+  const z2 = confidenceZ * confidenceZ;
+  const denominator = 1 + z2 / stat.n;
+  const centre = observed + z2 / (2 * stat.n);
+  const margin = confidenceZ * Math.sqrt((observed * (1 - observed) + z2 / (4 * stat.n)) / stat.n);
+  return {
+    expectancy,
+    lower: expectancy - confidenceZ * Math.sqrt(variance / stat.n),
+    directionAccuracy,
+    directionAccuracyLower: (centre - margin) / denominator,
+  };
+}
+export function recordDirectionalEvidence(store: DirectionalEvidenceStore, context: DirectionalContext, followR: number, reverseR: number): void {
+  for (const key of directionalKeys(context)) {
+    const bucket = store.byKey.get(key) ?? { follow: blankDirectionalStat(), reverse: blankDirectionalStat() };
+    bucket.follow.n += 1; bucket.follow.sumR += followR; bucket.follow.sumSqR += followR * followR;
+    bucket.reverse.n += 1; bucket.reverse.sumR += reverseR; bucket.reverse.sumSqR += reverseR * reverseR;
+    if (followR > reverseR) bucket.follow.directionWins += 1;
+    else if (reverseR > followR) bucket.reverse.directionWins += 1;
+    else { bucket.follow.directionWins += 0.5; bucket.reverse.directionWins += 0.5; }
+    store.byKey.set(key, bucket);
+  }
+}
+export function decideDirectionalAction(store: DirectionalEvidenceStore, context: DirectionalContext, config: DirectionalAdaptiveConfig = DEFAULT_DIRECTIONAL_ADAPTIVE_CONFIG): DirectionalDecision {
+  const keys = directionalKeys(context);
+  const bucket = keys.map((key) => store.byKey.get(key)).find((candidate) => (candidate?.follow.n ?? 0) >= config.minLearningSample)
+    ?? store.byKey.get(keys.at(-1)!);
+  if (!bucket || bucket.follow.n < config.minLearningSample) {
+    const follow = bucket ? directionalSummary(bucket.follow, config.confidenceZ) : null;
+    const reversed = bucket ? directionalSummary(bucket.reverse, config.confidenceZ) : null;
+    const action = config.coldStartAction ?? "follow";
+    return {
+      action,
+      preferredAction: null,
+      evidence: bucket?.follow.n ?? 0,
+      followExpectancy: follow?.expectancy ?? null,
+      reverseExpectancy: reversed?.expectancy ?? null,
+      confidenceScore: 0,
+      directionAccuracy: null,
+      directionAccuracyLower: null,
+      evidenceQuality: "insufficient",
+      reason: action === "skip" ? "Cold start: WAIT until resolved paired evidence can support a direction." : "Cold start: follow confirmation while collecting resolved past-only evidence.",
+    };
+  }
+  const follow = directionalSummary(bucket.follow, config.confidenceZ);
+  const reversed = directionalSummary(bucket.reverse, config.confidenceZ);
+  const preferredAction: "follow" | "reverse" = (reversed.expectancy ?? -Infinity) > (follow.expectancy ?? -Infinity) ? "reverse" : "follow";
+  const preferred = preferredAction === "follow" ? follow : reversed;
+  const evidenceMaturity = Math.min(1, bucket.follow.n / Math.max(1, config.minLearningSample));
+  const confidenceScore = Math.round(1000 * (preferred.directionAccuracy ?? 0) * evidenceMaturity) / 10;
+  const accuracyFloor = config.minimumDirectionAccuracyLower;
+  const followAccuracySupported = accuracyFloor == null || (follow.directionAccuracyLower !== null && follow.directionAccuracyLower > accuracyFloor);
+  const reverseAccuracySupported = accuracyFloor == null || (reversed.directionAccuracyLower !== null && reversed.directionAccuracyLower > accuracyFloor);
+  const followSupported = follow.lower !== null && follow.lower > config.minimumPositiveExpectancyR && followAccuracySupported;
+  const reverseSupported = bucket.reverse.n >= config.minReverseSample && reversed.lower !== null && reversed.lower > config.minimumPositiveExpectancyR && reverseAccuracySupported;
+  const details = {
+    preferredAction,
+    evidence: bucket.follow.n,
+    followExpectancy: follow.expectancy,
+    reverseExpectancy: reversed.expectancy,
+    confidenceScore,
+    directionAccuracy: preferred.directionAccuracy,
+    directionAccuracyLower: preferred.directionAccuracyLower,
+  };
+  if (reverseSupported && (reversed.expectancy ?? -Infinity) > (follow.expectancy ?? -Infinity)) {
+    return { action: "reverse", ...details, evidenceQuality: "supported", reason: "REVERSE clears both the positive net-expectancy and paired-direction accuracy lower-bound gates." };
+  }
+  if (followSupported) {
+    return { action: "follow", ...details, evidenceQuality: "supported", reason: "FOLLOW clears both the positive net-expectancy and paired-direction accuracy lower-bound gates." };
+  }
+  return { action: "skip", ...details, evidenceQuality: "weak", reason: "WAIT: no direction clears both confidence gates on resolved past-only evidence." };
+}
+
 /** Minimal candidate view the engine reasons about. */
 export interface AdaptiveCandidate {
   family: StrategyFamily;

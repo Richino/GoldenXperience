@@ -1,0 +1,51 @@
+GOLDENXPERIENCE — MOMENTUM PULLBACK CONTINUATION RECORDED-47 V1
+Generated: 2026-08-25T03:48:53.983Z
+RESEARCH ONLY — production/practice execution unchanged
+
+VERDICT: INSUFFICIENT_PATTERN_TRADES
+
+DATA
+Opportunities: 47 across 4 UTC days and 8 instruments
+Window: 2026-08-19T09:30:00.000Z .. 2026-08-24T17:30:00.000Z
+The 47 windows were selected because a later Momentum signal existed. This is a retrospective pattern diagnostic, not a standalone false-positive study or untouched holdout.
+
+PATTERN FUNNEL
+TRADE 0 | WAIT 47 | late patterns counted WAIT 0
+Lead time avg=n/am min=n/am max=n/am
+Average ruleStrength=n/a/100 (rule evidence, not calibrated probability)
+
+MATCHED M5 IMMEDIATE CONTROLS — ALL 47
+Original n=47 WR=23.4% netE=-0.4243 totalR=-19.94 CI95=[-0.5345, -0.2077]
+Inverted n=47 WR=57.4% netE=0.2282 totalR=10.72 CI95=[-0.0573, 0.5083]
+
+PULLBACK CONTINUATION — STRUCTURAL STOP, 2R TARGET
+Selected       n=0 WR=n/a netE=n/a totalR=0.00 CI95=[n/a, n/a]
+Exact opposite n=0 WR=n/a netE=n/a totalR=0.00 CI95=[n/a, n/a]
+Paired direction improvement=n/aR CI95=[n/a, n/a]
+
+DIAGNOSTIC BREAKDOWNS — NOT FILTERS
+2-candle pullback n=0 netE=n/a | 3-candle n=0 netE=n/a
+Liquid-session n=0 netE=n/a | other-session n=0 netE=n/a
+OANDA tick activity is context only and was not used as a volume gate.
+
+OPPORTUNITY-ADJUSTED — WAIT = 0R ACROSS ALL 47
+Selected netE/opportunity=0.0000 totalR=0.00
+Opposite netE/opportunity=0.0000 totalR=0.00
+Selected minus immediate inverted=-0.2282R/opportunity CI95=[-0.5083, 0.0573]
+
+TOP WAIT REASONS
+20 — No non-extended M5 ignition broke a completed M15 compression before the original Momentum decision.
+11 — No timely countertrend pullback formed after the impulse.
+9 — The pullback ended before two countertrend M5 candles completed.
+5 — The first directional candle did not close beyond the pullback.
+2 — The pullback lasted longer than three countertrend M5 candles.
+
+POSITION-AWARE MOMENTUM-ONLY SCHEDULE
+Accepted 0 | overlapping 0
+Selected netE=n/a totalR=0.00 CI95=[n/a, n/a]
+Opposite netE=n/a totalR=0.00 CI95=[n/a, n/a]
+
+INTEGRITY
+{"missingImmediateQuote":0,"missingPatternQuote":0,"invalidRecordedGeometry":0,"invalidStructuralGeometry":0,"latePattern":0,"unresolvedImmediate":0,"unresolvedPattern":0,"ambiguousPattern":0}
+Selected and exact-opposite arms share the same M5 entry time and absolute stop/target distances, use executable book sides, and pay spread.
+No parameter sweep or post-result tuning was performed.

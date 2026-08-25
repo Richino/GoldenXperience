@@ -1,0 +1,48 @@
+GOLDENXPERIENCE — MOMENTUM EARLY IGNITION RECORDED-47 V1
+Generated: 2026-08-25T04:44:53.658Z
+RESEARCH ONLY — production/practice execution unchanged
+
+VERDICT: NO_EDGE_IN_RECORDED_47
+
+DATA
+Opportunities: 47 across 4 UTC days and 8 instruments
+Window: 2026-08-19T09:30:00.000Z .. 2026-08-24T17:30:00.000Z
+The windows were selected because a later Momentum signal existed. This diagnoses earlier timing on those 47 opportunities; it does not measure standalone false-positive frequency across all market time.
+
+EARLY SIGNAL FUNNEL
+IGNITE 27 | WAIT 20
+Same as old direction 15 | Opposite 12 | Wait 20
+Lead time avg=53.7m min=5m max=90m
+Average ruleStrength=86.2/100 (rule evidence, not calibrated probability)
+
+MATCHED M5 IMMEDIATE CONTROLS — ALL 47
+Original n=47 WR=23.4% netE=-0.4243 totalR=-19.94 CI95=[-0.5345, -0.2077]
+Inverted n=47 WR=57.4% netE=0.2282 totalR=10.72 CI95=[-0.0573, 0.5083]
+
+EARLY IGNITION — TRADED SIGNALS ONLY
+Selected       n=27 WR=33.3% netE=-0.2084 totalR=-5.63 CI95=[-0.6187, 0.5845]
+Exact opposite n=27 WR=51.9% netE=0.1040 totalR=2.81 CI95=[-0.2206, 0.4585]
+Paired direction improvement=-0.3124R CI95=[-0.9144, 0.5633]
+
+DIAGNOSTIC BREAKDOWNS — NOT PROMOTION FILTERS
+Direction same as old n=15 netE=-0.0697 | early direction opposite old n=12 netE=-0.3817
+Lead 05-30m n=9 selectedE=-0.1833 | oppositeE=0.0444
+Lead 35-60m n=6 selectedE=-0.1546 | oppositeE=-0.0717
+Lead 65-90m n=12 selectedE=-0.2540 | oppositeE=0.2365
+ruleStrength <85 n=8 selectedE=-0.1803 | 85-89 n=8 selectedE=0.3573 | 90+ n=11 selectedE=-0.6402
+These are post-result diagnostics only. They were not used to tune or exclude trades.
+
+OPPORTUNITY-ADJUSTED — WAIT = 0R ACROSS ALL 47
+Early selected netE/opportunity=-0.1197 totalR=-5.63
+Early opposite netE/opportunity=0.0597 totalR=2.81
+Early selected minus immediate inverted=-0.3479R/opportunity CI95=[-0.5428, 0.0298]
+
+POSITION-AWARE MOMENTUM-ONLY SCHEDULE
+Accepted 19 | overlapping 8
+Selected netE=-0.1846 totalR=-3.51 CI95=[-0.8185, 0.5882]
+Opposite netE=0.2274 totalR=4.32 CI95=[-0.1448, 0.6213]
+
+INTEGRITY
+{"missingImmediateQuote":0,"missingEarlyEntryQuote":0,"invalidGeometry":0,"earlyNotBeforeOriginal":0,"unresolvedImmediate":0,"unresolvedEarly":0,"ambiguousEarly":0}
+Every chosen direction and exact opposite enter at the same M5 open, use their executable side of the book, preserve identical absolute stop/target distances, and pay spread.
+No parameter sweep or post-result tuning was performed.

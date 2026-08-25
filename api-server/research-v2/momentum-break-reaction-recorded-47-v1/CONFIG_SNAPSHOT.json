@@ -1,0 +1,34 @@
+{
+  "experiment": "momentum-break-reaction-recorded-47-v1",
+  "frozenBeforeResults": true,
+  "dataset": {
+    "source": "momentum_inversion_arms",
+    "expectedOpportunities": 47,
+    "snapshotCutoff": "2026-08-24T17:30:00.000Z"
+  },
+  "marketData": "Read-only completed OANDA Practice M5 bid/ask candles; M15 setup bars deterministically aggregated from M5.",
+  "policies": {
+    "ignition": {
+      "searchLeadMinutes": 90,
+      "compressionBars": 4,
+      "maxCompressionRangeAtr": 2,
+      "microBreakBars": 6,
+      "atrPeriod": 14,
+      "breakoutBufferM15Atr": 0.03,
+      "minBodyRatio": 0.6,
+      "minBodyM5Atr": 0.5,
+      "maxCloseFromExtremeFraction": 0.25,
+      "maxEntryExtensionM15Atr": 0.5
+    },
+    "reaction": {
+      "maxReactionBars": 2,
+      "retestToleranceM15Atr": 0.15,
+      "holdBufferM15Atr": 0.02,
+      "rejectionBufferM15Atr": 0.03,
+      "maxEntryDistanceM15Atr": 0.5
+    }
+  },
+  "execution": "Next M5 open after the completed reaction; must remain earlier than the old Momentum decision; executable bid/ask and original absolute stop/target distances for matched arms.",
+  "outcome": "Production labelOutcome on M5 bid/ask bars; same-day 16:45 ET forced exit; same-bar stop and target is conservative ambiguous=-1R.",
+  "promotion": "NONE. Retrospective later-signal-conditioned diagnostic; production/practice execution unchanged."
+}

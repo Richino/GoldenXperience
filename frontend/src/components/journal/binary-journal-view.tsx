@@ -211,6 +211,24 @@ export function BinaryJournalView() {
     }
   }, []);
 
+  const loadPatternForward = useCallback(async () => {
+    if (strategy !== "Pattern V1") {
+      setPatternForward(null);
+      return;
+    }
+    try {
+      const response = await fetch(apiUrl("/api/research/pattern-v1-forward"), {
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (!response.ok) return;
+      const body = (await response.json()) as { status?: PatternV1Forward };
+      if (body.status) setPatternForward(body.status);
+    } catch {
+      // The prediction list remains usable; retry on the next refresh.
+    }
+  }, [strategy]);
+
   // Loads one page. `reset` restarts at the first page for a filter change;
   // otherwise it appends the next page. A per-call sequence drops a slower
   // earlier request that resolves after a newer one.
@@ -268,8 +286,8 @@ export function BinaryJournalView() {
     } catch {
       // Left as-is until the next tick.
     }
-    void loadStats();
-  }, [filterParam, loadStats]);
+    void Promise.all([loadStats(), loadPatternForward()]);
+  }, [filterParam, strategyParam, loadStats, loadPatternForward]);
 
   // One-time deep link: open a specific prediction if it is in the loaded set.
   useEffect(() => {
@@ -281,9 +299,8 @@ export function BinaryJournalView() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
-    void loadPage(true);
-    void loadStats();
-  }, [loadPage, loadStats]);
+    void Promise.all([loadPage(true), loadStats(), loadPatternForward()]);
+  }, [loadPage, loadStats, loadPatternForward]);
 
   // Periodic refresh keeps active predictions current without a full reload.
   useEffect(() => {
@@ -292,28 +309,13 @@ export function BinaryJournalView() {
   }, [refreshActive]);
 
   useForegroundRefresh(useCallback(async () => {
-    await Promise.all([loadPage(true), loadStats()]);
-  }, [loadPage, loadStats]));
+    await Promise.all([loadPage(true), loadStats(), loadPatternForward()]);
+  }, [loadPage, loadStats, loadPatternForward]));
 
   const loadMore = useCallback(() => {
     void loadPage(false);
   }, [loadPage]);
   useInfiniteScroll({ sentinelRef, hasMore, loading: loading || loadingMore, onLoadMore: loadMore });
-
-  // Pattern V1's own forward numbers, fetched only when it is selected. Counts
-  // ONLY predictions produced since activation — the historical research win
-  // rates are not forward performance and are never shown here.
-  useEffect(() => {
-    if (strategy !== "Pattern V1") { setPatternForward(null); return; }
-    let cancelled = false;
-    void fetch(apiUrl("/api/research/pattern-v1-forward"), { credentials: "include", cache: "no-store" })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((body: { status: PatternV1Forward } | null) => {
-        if (!cancelled && body?.status) setPatternForward(body.status);
-      })
-      .catch(() => undefined);
-    return () => { cancelled = true; };
-  }, [strategy]);
 
   const summary = stats?.summary;
   const showPattern = strategy === "Pattern V1";
@@ -386,13 +388,13 @@ export function BinaryJournalView() {
         </section>
       ) : null}
 
-      {summary && summary.resolved > 0 && summary.resolved < 30 ? (
+      {!showPattern && summary && summary.resolved > 0 && summary.resolved < 30 ? (
         <p className="text-xs text-[color:var(--muted)]">
           {summary.resolved} resolved so far — too few to claim an edge. This is forward-test collection.
         </p>
       ) : null}
 
-      {stats && stats.horizons.some((horizon) => horizon.resolved > 0) ? (
+      {!showPattern && stats && stats.horizons.some((horizon) => horizon.resolved > 0) ? (
         <section className="dashboard-minimal-section" aria-label="Horizon comparison">
           <h2 className="text-sm font-semibold tracking-[-0.01em]">Horizon comparison</h2>
           <div className="binary-horizon-grid mt-3">
@@ -434,7 +436,10 @@ export function BinaryJournalView() {
                 <button
                   key={value}
                   type="button"
-                  onClick={() => setStrategy(value)}
+                  onClick={() => {
+                    setStrategy(value);
+                    if (value !== strategy) setFilter("All");
+                  }}
                   className={`check-chip pressable ${strategy === value ? "check-chip-active" : ""}`}
                 >
                   {value}
@@ -472,7 +477,13 @@ export function BinaryJournalView() {
             ) : null}
           </>
         ) : (
-          <p className="mt-4 text-sm text-[color:var(--muted)]">No predictions in this view.</p>
+          <p className="mt-4 text-sm text-[color:var(--muted)]">
+            {showPattern && patternForward && patternForward.total > 0 && filter !== "All"
+              ? `Pattern V1 has no ${filter.toLowerCase()} predictions. ${patternForward.total} total prediction${patternForward.total === 1 ? "" : "s"} exist; select All to view them.`
+              : showPattern
+                ? "Pattern V1 has not produced a prediction matching this view yet. Its frozen rule fires only when every condition agrees."
+                : "No predictions in this view."}
+          </p>
         )}
       </section>
     </div>

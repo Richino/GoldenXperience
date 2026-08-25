@@ -1,0 +1,44 @@
+{
+  "experiment": "momentum-pullback-continuation-recorded-47-v1",
+  "frozenBeforeResults": true,
+  "dataset": {
+    "source": "momentum_inversion_arms",
+    "expectedOpportunities": 47,
+    "snapshotCutoff": "2026-08-24T17:30:00.000Z"
+  },
+  "marketData": "Read-only completed OANDA Practice M5 bid/ask candles with broker tick activity; M15 setup candles aggregated from M5.",
+  "policies": {
+    "ignition": {
+      "searchLeadMinutes": 90,
+      "compressionBars": 4,
+      "maxCompressionRangeAtr": 2,
+      "microBreakBars": 6,
+      "atrPeriod": 14,
+      "breakoutBufferM15Atr": 0.03,
+      "minBodyRatio": 0.6,
+      "minBodyM5Atr": 0.5,
+      "maxCloseFromExtremeFraction": 0.25,
+      "maxEntryExtensionM15Atr": 0.5
+    },
+    "pullbackContinuation": {
+      "impulseLookbackBars": 3,
+      "minImpulseM15Atr": 0.35,
+      "maxPrePullbackBars": 1,
+      "minPullbackBars": 2,
+      "maxPullbackBars": 3,
+      "minRetracementFraction": 0.1,
+      "maxRetracementFraction": 0.5,
+      "maxPullbackBarRangeImpulse": 0.75,
+      "resumeBufferM15Atr": 0.02,
+      "maxEntryExtensionM15Atr": 0.25,
+      "stopBufferM15Atr": 0.05,
+      "minStopM15Atr": 0.1,
+      "maxStopM15Atr": 0.75,
+      "targetR": 2,
+      "structureLookbackBars": 24
+    }
+  },
+  "execution": "Next M5 open after a 2/3-candle pullback resumption; structural stop beyond pullback; 2R target; exact opposite uses identical absolute risk/reward distances and entry time.",
+  "caveat": "OANDA volume is broker tick activity, not centralized stock volume, and affects ruleStrength only—not eligibility.",
+  "promotion": "NONE. Retrospective later-signal-conditioned diagnostic; production/practice execution unchanged."
+}

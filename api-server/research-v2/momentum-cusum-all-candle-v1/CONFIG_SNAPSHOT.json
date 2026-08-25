@@ -1,0 +1,60 @@
+{
+  "experiment": "momentum-cusum-all-candle-v1",
+  "frozenBeforeResults": true,
+  "generatedAt": "2026-08-25T04:12:55.805Z",
+  "productionChanged": false,
+  "databaseWrites": false,
+  "universe": [
+    "EUR_USD",
+    "GBP_USD",
+    "USD_JPY"
+  ],
+  "data": {
+    "source": "OANDA Practice completed M1 midpoint plus bid/ask candles",
+    "dataStart": "2025-12-20T00:00:00.000Z",
+    "decisionStart": "2026-01-01T00:00:00.000Z",
+    "calibrationEnd": "2026-06-01T00:00:00.000Z",
+    "replayEnd": "2026-08-01T00:00:00.000Z"
+  },
+  "detector": {
+    "volatilityLookbackBars": 60,
+    "cusumThreshold": 2.5,
+    "cusumDrift": 0.05,
+    "maxReturnZ": 6,
+    "refractoryBars": 15,
+    "impulseLookbackBars": 5,
+    "minImpulseM5Atr": 0.15,
+    "maxImpulseM5Atr": 0.9,
+    "maxPrePullbackBars": 1,
+    "minPullbackBars": 2,
+    "maxPullbackBars": 3,
+    "minRetracementFraction": 0.1,
+    "maxRetracementFraction": 0.55,
+    "maxPullbackBarRangeImpulse": 0.75,
+    "resumeBufferM5Atr": 0.01,
+    "maxEntryExtensionM5Atr": 0.15,
+    "stopBufferM5Atr": 0.02,
+    "minStopM5Atr": 0.05,
+    "maxStopM5Atr": 0.6,
+    "targetR": 2,
+    "structureLookbackBars": 30,
+    "calibrationMinimumSamples": 100
+  },
+  "execution": {
+    "entry": "next M1 open after known signal",
+    "immediateStopM5Atr": 0.35,
+    "pullbackStop": "beyond pullback using selected executable entry",
+    "targetR": 2,
+    "horizonBars": 720,
+    "ambiguous": "conservative -1R",
+    "inverse": "same entry time and absolute risk/target distances on executable opposite side"
+  },
+  "confidence": {
+    "fit": "one-dimensional L2 sigmoid on raw score",
+    "fitWindow": "2026-01-01T00:00:00.000Z..2026-06-01T00:00:00.000Z",
+    "evaluationWindow": "2026-06-01T00:00:00.000Z..2026-08-01T00:00:00.000Z",
+    "event": "2R target before stop",
+    "minimumSamples": 100
+  },
+  "promotion": "NONE. Research-only implementation and replay; production/practice execution remains untouched."
+}

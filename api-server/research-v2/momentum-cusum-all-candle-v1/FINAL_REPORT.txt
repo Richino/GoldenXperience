@@ -1,0 +1,61 @@
+GOLDENXPERIENCE — MOMENTUM CUSUM ALL-CANDLE V1
+Generated: 2026-08-25T04:13:41.111Z
+RESEARCH ONLY — production/practice execution unchanged; database unchanged
+
+VERDICT: INSUFFICIENT_HOLDOUT_TRADES
+
+DATA
+678,549 completed OANDA Practice M1 bid/ask candles across 3 instruments
+Decisions: 2026-01-01T00:00:00.000Z .. 2026-08-01T00:00:00.000Z
+Calibration/dev: 2026-01-01T00:00:00.000Z .. 2026-06-01T00:00:00.000Z
+Chronological holdout: 2026-06-01T00:00:00.000Z .. 2026-08-01T00:00:00.000Z
+Ignitions 8703 | immediate matched pairs 8703 | pullback matched pairs 51
+
+DEVELOPMENT — JANUARY THROUGH MAY
+Immediate selected n=6151 targetWR=4.4% E=-0.8669 total=-5332.00R CI95=[-0.8888, -0.8429]
+Immediate inverse  n=6151 targetWR=5.5% E=-0.8342 total=-5131.00R
+Pullback selected n=38 targetWR=15.8% E=-0.5263 total=-20.00R CI95=[-0.8462, -0.1429]
+Pullback inverse  n=38 targetWR=10.5% E=-0.6842 total=-26.00R
+
+CHRONOLOGICAL HOLDOUT — JUNE AND JULY
+Immediate selected n=2552 targetWR=1.9% E=-0.9436 total=-2408.00R CI95=[-0.9690, -0.9151]
+Immediate inverse  n=2552 targetWR=2.1% E=-0.9365 total=-2390.00R
+Immediate direction improvement=-0.0071R CI95=[-0.0348, 0.0203]
+Pullback selected n=13 targetWR=7.7% E=-0.7692 total=-10.00R CI95=[-1.0000, -0.2500]
+Pullback inverse  n=13 targetWR=0.0% E=-1.0000 total=-13.00R
+Pullback direction improvement=0.2308R CI95=[0.0000, 0.7500]
+
+POSITION-AWARE HOLDOUT — ONE MOMENTUM POSITION PER INSTRUMENT
+Accepted 13 | overlap-skipped 0
+Selected E=-0.7692 total=-10.00R targetWR=7.7% CI95=[-1.0000, -0.2500]
+Inverse  E=-1.0000 total=-13.00R targetWR=0.0%
+
+EXECUTION DIAGNOSTICS — WHY THE QUALIFIED PATTERN LOST
+Development risk=3.20 pips avg | spread=0.642R avg | MFE=0.299R | MAE=1.158R | entry-minute stops=12
+Holdout risk=2.32 pips avg | spread=0.778R avg | MFE=-0.069R | MAE=1.244R | entry-minute stops=4
+Holdout outcomes={"stop_first":12,"target_first":1}
+
+CONFIDENCE CALIBRATION
+Unavailable: 38 development signals; 100 required.
+
+TOP WAIT REASONS
+3361 — The M1 pullback ended before two countertrend candles completed.
+2213 — No timely countertrend M1 pullback formed after the CUSUM impulse.
+2070 — The first directional M1 candle did not close beyond the pullback.
+724 — The M1 pullback lasted longer than three countertrend candles.
+121 — The first candle after the M1 pullback did not resume the impulse direction.
+65 — The next M1 open was already extended beyond the resumption level.
+64 — The M1 retracement was outside the frozen 10% to 55% impulse range.
+14 — The M1 pattern crossed a market-data gap.
+
+INTEGRITY
+{"fetchedBars":678549,"duplicateCloseTimes":0,"nonFiniteQuotes":0,"ignitions":8703,"immediatePairs":8703,"pullbackPairs":51,"missingNextOpen":0}
+Every selected/inverse pair uses the same entry time and absolute risk/target distances on executable bid/ask sides.
+No database writes, production imports, parameter sweep, or post-result tuning.
+
+LIMITATIONS
+- This is the first chronological holdout for this frozen CUSUM detector, but the 2026 market period is not globally untouched by every prior GoldenXperience experiment.
+- OANDA candle volume counts broker price activity, not centralized buyer/seller transaction flow; activity affects raw ranking only and is not an eligibility gate.
+- The OANDA stream/candles cannot reproduce the EBS buyer- versus seller-initiated order-flow variable from the published studies.
+- One open Momentum position per instrument is modeled for the position-aware result; other strategy families are not included.
+- No parameter sweep or post-result tuning was performed.

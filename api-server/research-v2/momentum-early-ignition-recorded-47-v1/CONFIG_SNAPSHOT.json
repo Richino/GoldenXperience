@@ -1,0 +1,26 @@
+{
+  "experiment": "momentum-early-ignition-recorded-47-v1",
+  "frozenBeforeResults": true,
+  "dataset": {
+    "source": "momentum_inversion_arms",
+    "expectedOpportunities": 47,
+    "snapshotCutoff": "2026-08-24T17:30:00.000Z"
+  },
+  "marketData": "Read-only completed OANDA Practice M5 bid/ask candles; M15 setup candles deterministically aggregated from M5.",
+  "policy": {
+    "searchLeadMinutes": 90,
+    "compressionBars": 4,
+    "maxCompressionRangeAtr": 2,
+    "microBreakBars": 6,
+    "atrPeriod": 14,
+    "breakoutBufferM15Atr": 0.03,
+    "minBodyRatio": 0.6,
+    "minBodyM5Atr": 0.5,
+    "maxCloseFromExtremeFraction": 0.25,
+    "maxEntryExtensionM15Atr": 0.5
+  },
+  "execution": "Next M5 open after ignition; executable bid/ask; original absolute stop and target distances preserved for every matched arm.",
+  "controls": "Stored M15 original/inverted plus recomputed M5 original/inverted at the old decision time.",
+  "outcome": "Production labelOutcome on M5 bid/ask bars; same-day 16:45 ET forced exit; same-bar stop and target remains conservative ambiguous=-1R.",
+  "promotion": "NONE. Retrospective, later-signal-conditioned diagnostic only; production/practice execution remains untouched."
+}

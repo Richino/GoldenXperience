@@ -1,0 +1,47 @@
+GOLDENXPERIENCE — MOMENTUM M5 BREAK REACTION RECORDED-47 V1
+Generated: 2026-08-25T03:29:10.083Z
+RESEARCH ONLY — production/practice execution unchanged
+
+VERDICT: NO_EDGE_IN_RECORDED_47
+
+DATA
+Opportunities: 47 across 4 UTC days and 8 instruments
+Window: 2026-08-19T09:30:00.000Z .. 2026-08-24T17:30:00.000Z
+These windows were selected because a later Momentum signal existed. This is a timing/direction diagnostic on those 47 opportunities, not a standalone false-positive study or untouched holdout.
+
+REACTION FUNNEL
+FOLLOW 22 | REVERSE 2 | WAIT 23
+Late reactions counted as WAIT: 1
+Lead time avg=52.3m min=5m max=85m
+Average ruleStrength=95.0/100 (rule evidence, not calibrated probability)
+
+MATCHED M5 IMMEDIATE CONTROLS — ALL 47
+Original n=47 WR=23.4% netE=-0.4243 totalR=-19.94 CI95=[-0.5345, -0.2077]
+Inverted n=47 WR=57.4% netE=0.2282 totalR=10.72 CI95=[-0.0573, 0.5083]
+Raw early ignition opportunity netE=-0.1197 totalR=-5.63
+
+BREAK REACTION — TRADED SIGNALS ONLY
+Selected       n=24 WR=37.5% netE=-0.0753 totalR=-1.81 CI95=[-0.6293, 1.0483]
+Exact opposite n=24 WR=54.2% netE=-0.0277 totalR=-0.66 CI95=[-0.4208, 0.4696]
+Paired direction improvement=-0.0477R CI95=[-1.0990, 1.4920]
+
+BY REACTION ACTION — POST-RESULT DIAGNOSTIC ONLY
+FOLLOW n=22 selectedE=-0.1753 | oppositeE=0.0607
+REVERSE n=2 selectedE=1.0238 | oppositeE=-1.0000
+These breakdowns were not used to tune or exclude trades.
+
+OPPORTUNITY-ADJUSTED — WAIT = 0R ACROSS ALL 47
+Reaction selected netE/opportunity=-0.0385 totalR=-1.81
+Reaction opposite netE/opportunity=-0.0141 totalR=-0.66
+Reaction minus immediate inverted=-0.2666R/opportunity CI95=[-0.5079, 0.2008]
+Reaction minus raw ignition=0.0812R/opportunity CI95=[-0.0334, 0.2316]
+
+POSITION-AWARE MOMENTUM-ONLY SCHEDULE
+Accepted 18 | overlapping 6
+Selected netE=-0.0178 totalR=-0.32 CI95=[-0.7516, 1.0483]
+Opposite netE=0.0571 totalR=1.03 CI95=[-0.4208, 0.4696]
+
+INTEGRITY
+{"missingImmediateQuote":0,"missingIgnitionQuote":0,"missingReactionQuote":0,"invalidGeometry":0,"unresolvedImmediate":0,"unresolvedReaction":0,"ambiguousReaction":0,"lateReaction":1}
+Every selected direction and exact opposite enter at the same M5 open, use their executable book side, preserve identical absolute stop/target distances, and pay spread.
+No parameter sweep or post-result tuning was performed.

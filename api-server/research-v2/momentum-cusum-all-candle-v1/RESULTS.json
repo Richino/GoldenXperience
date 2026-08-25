@@ -1,0 +1,929 @@
+{
+  "experiment": "momentum-cusum-all-candle-v1",
+  "generatedAt": "2026-08-25T04:13:41.111Z",
+  "verdict": "INSUFFICIENT_HOLDOUT_TRADES",
+  "productionChanged": false,
+  "databaseWrites": false,
+  "frozenConfig": {
+    "volatilityLookbackBars": 60,
+    "cusumThreshold": 2.5,
+    "cusumDrift": 0.05,
+    "maxReturnZ": 6,
+    "refractoryBars": 15,
+    "impulseLookbackBars": 5,
+    "minImpulseM5Atr": 0.15,
+    "maxImpulseM5Atr": 0.9,
+    "maxPrePullbackBars": 1,
+    "minPullbackBars": 2,
+    "maxPullbackBars": 3,
+    "minRetracementFraction": 0.1,
+    "maxRetracementFraction": 0.55,
+    "maxPullbackBarRangeImpulse": 0.75,
+    "resumeBufferM5Atr": 0.01,
+    "maxEntryExtensionM5Atr": 0.15,
+    "stopBufferM5Atr": 0.02,
+    "minStopM5Atr": 0.05,
+    "maxStopM5Atr": 0.6,
+    "targetR": 2,
+    "structureLookbackBars": 30,
+    "calibrationMinimumSamples": 100
+  },
+  "data": {
+    "instruments": [
+      "EUR_USD",
+      "GBP_USD",
+      "USD_JPY"
+    ],
+    "dataStart": "2025-12-20T00:00:00.000Z",
+    "decisionStart": "2026-01-01T00:00:00.000Z",
+    "calibrationEnd": "2026-06-01T00:00:00.000Z",
+    "replayEnd": "2026-08-01T00:00:00.000Z",
+    "integrity": {
+      "fetchedBars": 678549,
+      "duplicateCloseTimes": 0,
+      "nonFiniteQuotes": 0,
+      "ignitions": 8703,
+      "immediatePairs": 8703,
+      "pullbackPairs": 51,
+      "missingNextOpen": 0
+    }
+  },
+  "calibration": {
+    "available": false,
+    "sampleCount": 38,
+    "minimumRequired": 100
+  },
+  "development": {
+    "opportunities": 6151,
+    "immediate": {
+      "n": 6151,
+      "wins": 273,
+      "targetWinRate": 0.0443830271500569,
+      "expectancyR": -0.8668509185498293,
+      "totalR": -5332,
+      "profitFactor": 0.09288873766587274,
+      "ci95": [
+        -0.8887846081651807,
+        -0.842908732764281
+      ],
+      "effectiveDays": 126
+    },
+    "immediateInverse": {
+      "n": 6151,
+      "wins": 340,
+      "targetWinRate": 0.05527556494878882,
+      "expectancyR": -0.8341733051536335,
+      "totalR": -5131,
+      "profitFactor": 0.11701944587850628,
+      "ci95": [
+        -0.8612409347300564,
+        -0.8061005770816159
+      ],
+      "effectiveDays": 126
+    },
+    "immediateMinusInverse": {
+      "n": 6151,
+      "wins": 273,
+      "targetWinRate": 0.0443830271500569,
+      "expectancyR": -0.03267761339619574,
+      "totalR": -201,
+      "profitFactor": 0.8029411764705883,
+      "ci95": [
+        -0.05691584238689801,
+        -0.008220585716732317
+      ],
+      "effectiveDays": 126
+    },
+    "pullbackSignals": 38,
+    "pullback": {
+      "n": 38,
+      "wins": 6,
+      "targetWinRate": 0.15789473684210525,
+      "expectancyR": -0.5263157894736842,
+      "totalR": -20,
+      "profitFactor": 0.375,
+      "ci95": [
+        -0.8461538461538461,
+        -0.14285714285714285
+      ],
+      "effectiveDays": 32
+    },
+    "pullbackInverse": {
+      "n": 38,
+      "wins": 4,
+      "targetWinRate": 0.10526315789473684,
+      "expectancyR": -0.6842105263157895,
+      "totalR": -26,
+      "profitFactor": 0.23529411764705882,
+      "ci95": [
+        -0.926829268292683,
+        -0.35135135135135137
+      ],
+      "effectiveDays": 32
+    },
+    "pullbackMinusInverse": {
+      "n": 38,
+      "wins": 6,
+      "targetWinRate": 0.15789473684210525,
+      "expectancyR": 0.15789473684210525,
+      "totalR": 6,
+      "profitFactor": 1.5,
+      "ci95": [
+        -0.32432432432432434,
+        0.6428571428571429
+      ],
+      "effectiveDays": 32
+    },
+    "positionAware": {
+      "accepted": 38,
+      "skippedOverlaps": 0,
+      "selected": {
+        "n": 38,
+        "wins": 6,
+        "targetWinRate": 0.15789473684210525,
+        "expectancyR": -0.5263157894736842,
+        "totalR": -20,
+        "profitFactor": 0.375,
+        "ci95": [
+          -0.8461538461538461,
+          -0.15384615384615385
+        ],
+        "effectiveDays": 32
+      },
+      "inverseOnSelectedSchedule": {
+        "n": 38,
+        "wins": 4,
+        "targetWinRate": 0.10526315789473684,
+        "expectancyR": -0.6842105263157895,
+        "totalR": -26,
+        "profitFactor": 0.23529411764705882,
+        "ci95": [
+          -0.926829268292683,
+          -0.35135135135135137
+        ],
+        "effectiveDays": 32
+      }
+    }
+  },
+  "holdout": {
+    "opportunities": 2552,
+    "immediate": {
+      "n": 2552,
+      "wins": 48,
+      "targetWinRate": 0.018808777429467086,
+      "expectancyR": -0.9435736677115988,
+      "totalR": -2408,
+      "profitFactor": 0.038338658146964855,
+      "ci95": [
+        -0.9689984101748808,
+        -0.9150812064965197
+      ],
+      "effectiveDays": 52
+    },
+    "immediateInverse": {
+      "n": 2552,
+      "wins": 54,
+      "targetWinRate": 0.02115987460815047,
+      "expectancyR": -0.9365203761755486,
+      "totalR": -2390,
+      "profitFactor": 0.04323458767013611,
+      "ci95": [
+        -0.9610951008645533,
+        -0.9070063694267516
+      ],
+      "effectiveDays": 52
+    },
+    "immediateMinusInverse": {
+      "n": 2552,
+      "wins": 48,
+      "targetWinRate": 0.018808777429467086,
+      "expectancyR": -0.007053291536050157,
+      "totalR": -18,
+      "profitFactor": 0.8888888888888888,
+      "ci95": [
+        -0.03482237073513894,
+        0.020294468762435337
+      ],
+      "effectiveDays": 52
+    },
+    "pullbackSignals": 13,
+    "pullback": {
+      "n": 13,
+      "wins": 1,
+      "targetWinRate": 0.07692307692307693,
+      "expectancyR": -0.7692307692307693,
+      "totalR": -10,
+      "profitFactor": 0.16666666666666666,
+      "ci95": [
+        -1,
+        -0.25
+      ],
+      "effectiveDays": 12
+    },
+    "pullbackInverse": {
+      "n": 13,
+      "wins": 0,
+      "targetWinRate": 0,
+      "expectancyR": -1,
+      "totalR": -13,
+      "profitFactor": 0,
+      "ci95": [
+        -1,
+        -1
+      ],
+      "effectiveDays": 12
+    },
+    "pullbackMinusInverse": {
+      "n": 13,
+      "wins": 1,
+      "targetWinRate": 0.07692307692307693,
+      "expectancyR": 0.23076923076923078,
+      "totalR": 3,
+      "profitFactor": null,
+      "ci95": [
+        0,
+        0.75
+      ],
+      "effectiveDays": 12
+    },
+    "positionAware": {
+      "accepted": 13,
+      "skippedOverlaps": 0,
+      "selected": {
+        "n": 13,
+        "wins": 1,
+        "targetWinRate": 0.07692307692307693,
+        "expectancyR": -0.7692307692307693,
+        "totalR": -10,
+        "profitFactor": 0.16666666666666666,
+        "ci95": [
+          -1,
+          -0.25
+        ],
+        "effectiveDays": 12
+      },
+      "inverseOnSelectedSchedule": {
+        "n": 13,
+        "wins": 0,
+        "targetWinRate": 0,
+        "expectancyR": -1,
+        "totalR": -13,
+        "profitFactor": 0,
+        "ci95": [
+          -1,
+          -1
+        ],
+        "effectiveDays": 12
+      }
+    }
+  },
+  "execution": {
+    "development": {
+      "n": 38,
+      "outcomes": {
+        "stop_first": 32,
+        "target_first": 6
+      },
+      "riskPips": {
+        "n": 38,
+        "average": 3.2043815789473755,
+        "minimum": 1.463428571428782,
+        "maximum": 9.166285714289302
+      },
+      "spreadCostR": {
+        "n": 38,
+        "average": 0.6416287461064596,
+        "minimum": 0.1527336200982369,
+        "maximum": 1.2916212362671236
+      },
+      "maxFavorableR": {
+        "n": 38,
+        "average": 0.2987582690677952,
+        "minimum": -1.1742011238784922,
+        "maximum": 2.3018653721928626
+      },
+      "maxAdverseR": {
+        "n": 38,
+        "average": 1.1583246435919705,
+        "minimum": 0.272738607318701,
+        "maximum": 2.043386182819358
+      },
+      "stoppedInEntryMinute": 12
+    },
+    "holdout": {
+      "n": 13,
+      "outcomes": {
+        "stop_first": 12,
+        "target_first": 1
+      },
+      "riskPips": {
+        "n": 13,
+        "average": 2.3233351648354477,
+        "minimum": 1.3995714285708338,
+        "maximum": 4.748000000001085
+      },
+      "spreadCostR": {
+        "n": 13,
+        "average": 0.778083850574093,
+        "minimum": 0.40016849199635435,
+        "maximum": 1.1432071042156189
+      },
+      "maxFavorableR": {
+        "n": 13,
+        "average": -0.06933885565393662,
+        "minimum": -0.9288557721752895,
+        "maximum": 2.236124051643624
+      },
+      "maxAdverseR": {
+        "n": 13,
+        "average": 1.2435091136109788,
+        "minimum": 0.7919606016237404,
+        "maximum": 1.659396927744252
+      },
+      "stoppedInEntryMinute": 4
+    }
+  },
+  "byInstrument": {
+    "EUR_USD": {
+      "opportunities": 875,
+      "immediate": {
+        "n": 875,
+        "wins": 9,
+        "targetWinRate": 0.010285714285714285,
+        "expectancyR": -0.9691428571428572,
+        "totalR": -848,
+        "profitFactor": 0.020785219399538105,
+        "ci95": [
+          -0.9929494712103408,
+          -0.9407665505226481
+        ],
+        "effectiveDays": 49
+      },
+      "immediateInverse": {
+        "n": 875,
+        "wins": 7,
+        "targetWinRate": 0.008,
+        "expectancyR": -0.976,
+        "totalR": -854,
+        "profitFactor": 0.016129032258064516,
+        "ci95": [
+          -0.9930555555555556,
+          -0.9556650246305419
+        ],
+        "effectiveDays": 49
+      },
+      "immediateMinusInverse": {
+        "n": 875,
+        "wins": 9,
+        "targetWinRate": 0.010285714285714285,
+        "expectancyR": 0.006857142857142857,
+        "totalR": 6,
+        "profitFactor": 1.2857142857142858,
+        "ci95": [
+          -0.02258064516129032,
+          0.040955631399317405
+        ],
+        "effectiveDays": 49
+      },
+      "pullbackSignals": 7,
+      "pullback": {
+        "n": 7,
+        "wins": 1,
+        "targetWinRate": 0.14285714285714285,
+        "expectancyR": -0.5714285714285714,
+        "totalR": -4,
+        "profitFactor": 0.3333333333333333,
+        "ci95": [
+          -1,
+          0.5
+        ],
+        "effectiveDays": 6
+      },
+      "pullbackInverse": {
+        "n": 7,
+        "wins": 0,
+        "targetWinRate": 0,
+        "expectancyR": -1,
+        "totalR": -7,
+        "profitFactor": 0,
+        "ci95": [
+          -1,
+          -1
+        ],
+        "effectiveDays": 6
+      },
+      "pullbackMinusInverse": {
+        "n": 7,
+        "wins": 1,
+        "targetWinRate": 0.14285714285714285,
+        "expectancyR": 0.42857142857142855,
+        "totalR": 3,
+        "profitFactor": null,
+        "ci95": [
+          0,
+          1.5
+        ],
+        "effectiveDays": 6
+      },
+      "positionAware": {
+        "accepted": 7,
+        "skippedOverlaps": 0,
+        "selected": {
+          "n": 7,
+          "wins": 1,
+          "targetWinRate": 0.14285714285714285,
+          "expectancyR": -0.5714285714285714,
+          "totalR": -4,
+          "profitFactor": 0.3333333333333333,
+          "ci95": [
+            -1,
+            0.5
+          ],
+          "effectiveDays": 6
+        },
+        "inverseOnSelectedSchedule": {
+          "n": 7,
+          "wins": 0,
+          "targetWinRate": 0,
+          "expectancyR": -1,
+          "totalR": -7,
+          "profitFactor": 0,
+          "ci95": [
+            -1,
+            -1
+          ],
+          "effectiveDays": 6
+        }
+      }
+    },
+    "GBP_USD": {
+      "opportunities": 875,
+      "immediate": {
+        "n": 875,
+        "wins": 21,
+        "targetWinRate": 0.024,
+        "expectancyR": -0.928,
+        "totalR": -812,
+        "profitFactor": 0.04918032786885246,
+        "ci95": [
+          -0.9621125143513203,
+          -0.8929845422116528
+        ],
+        "effectiveDays": 51
+      },
+      "immediateInverse": {
+        "n": 875,
+        "wins": 22,
+        "targetWinRate": 0.025142857142857144,
+        "expectancyR": -0.9245714285714286,
+        "totalR": -809,
+        "profitFactor": 0.05158264947245018,
+        "ci95": [
+          -0.9537444933920705,
+          -0.8928571428571429
+        ],
+        "effectiveDays": 51
+      },
+      "immediateMinusInverse": {
+        "n": 875,
+        "wins": 21,
+        "targetWinRate": 0.024,
+        "expectancyR": -0.0034285714285714284,
+        "totalR": -3,
+        "profitFactor": 0.9545454545454546,
+        "ci95": [
+          -0.0475609756097561,
+          0.03817603393425239
+        ],
+        "effectiveDays": 51
+      },
+      "pullbackSignals": 3,
+      "pullback": {
+        "n": 3,
+        "wins": 0,
+        "targetWinRate": 0,
+        "expectancyR": -1,
+        "totalR": -3,
+        "profitFactor": 0,
+        "ci95": [
+          -1,
+          -1
+        ],
+        "effectiveDays": 3
+      },
+      "pullbackInverse": {
+        "n": 3,
+        "wins": 0,
+        "targetWinRate": 0,
+        "expectancyR": -1,
+        "totalR": -3,
+        "profitFactor": 0,
+        "ci95": [
+          -1,
+          -1
+        ],
+        "effectiveDays": 3
+      },
+      "pullbackMinusInverse": {
+        "n": 3,
+        "wins": 0,
+        "targetWinRate": 0,
+        "expectancyR": 0,
+        "totalR": 0,
+        "profitFactor": null,
+        "ci95": [
+          0,
+          0
+        ],
+        "effectiveDays": 3
+      },
+      "positionAware": {
+        "accepted": 3,
+        "skippedOverlaps": 0,
+        "selected": {
+          "n": 3,
+          "wins": 0,
+          "targetWinRate": 0,
+          "expectancyR": -1,
+          "totalR": -3,
+          "profitFactor": 0,
+          "ci95": [
+            -1,
+            -1
+          ],
+          "effectiveDays": 3
+        },
+        "inverseOnSelectedSchedule": {
+          "n": 3,
+          "wins": 0,
+          "targetWinRate": 0,
+          "expectancyR": -1,
+          "totalR": -3,
+          "profitFactor": 0,
+          "ci95": [
+            -1,
+            -1
+          ],
+          "effectiveDays": 3
+        }
+      }
+    },
+    "USD_JPY": {
+      "opportunities": 802,
+      "immediate": {
+        "n": 802,
+        "wins": 18,
+        "targetWinRate": 0.022443890274314215,
+        "expectancyR": -0.9326683291770573,
+        "totalR": -748,
+        "profitFactor": 0.04591836734693878,
+        "ci95": [
+          -0.9702233250620348,
+          -0.8883553421368547
+        ],
+        "effectiveDays": 49
+      },
+      "immediateInverse": {
+        "n": 802,
+        "wins": 25,
+        "targetWinRate": 0.03117206982543641,
+        "expectancyR": -0.9064837905236908,
+        "totalR": -727,
+        "profitFactor": 0.06435006435006435,
+        "ci95": [
+          -0.9562575941676792,
+          -0.8447552447552448
+        ],
+        "effectiveDays": 49
+      },
+      "immediateMinusInverse": {
+        "n": 802,
+        "wins": 18,
+        "targetWinRate": 0.022443890274314215,
+        "expectancyR": -0.026184538653366583,
+        "totalR": -21,
+        "profitFactor": 0.72,
+        "ci95": [
+          -0.07151819322459223,
+          0.014906832298136646
+        ],
+        "effectiveDays": 49
+      },
+      "pullbackSignals": 3,
+      "pullback": {
+        "n": 3,
+        "wins": 0,
+        "targetWinRate": 0,
+        "expectancyR": -1,
+        "totalR": -3,
+        "profitFactor": 0,
+        "ci95": [
+          -1,
+          -1
+        ],
+        "effectiveDays": 3
+      },
+      "pullbackInverse": {
+        "n": 3,
+        "wins": 0,
+        "targetWinRate": 0,
+        "expectancyR": -1,
+        "totalR": -3,
+        "profitFactor": 0,
+        "ci95": [
+          -1,
+          -1
+        ],
+        "effectiveDays": 3
+      },
+      "pullbackMinusInverse": {
+        "n": 3,
+        "wins": 0,
+        "targetWinRate": 0,
+        "expectancyR": 0,
+        "totalR": 0,
+        "profitFactor": null,
+        "ci95": [
+          0,
+          0
+        ],
+        "effectiveDays": 3
+      },
+      "positionAware": {
+        "accepted": 3,
+        "skippedOverlaps": 0,
+        "selected": {
+          "n": 3,
+          "wins": 0,
+          "targetWinRate": 0,
+          "expectancyR": -1,
+          "totalR": -3,
+          "profitFactor": 0,
+          "ci95": [
+            -1,
+            -1
+          ],
+          "effectiveDays": 3
+        },
+        "inverseOnSelectedSchedule": {
+          "n": 3,
+          "wins": 0,
+          "targetWinRate": 0,
+          "expectancyR": -1,
+          "totalR": -3,
+          "profitFactor": 0,
+          "ci95": [
+            -1,
+            -1
+          ],
+          "effectiveDays": 3
+        }
+      }
+    }
+  },
+  "byMonth": {
+    "2026-06": {
+      "opportunities": 1250,
+      "immediate": {
+        "n": 1250,
+        "wins": 26,
+        "targetWinRate": 0.0208,
+        "expectancyR": -0.9376,
+        "totalR": -1172,
+        "profitFactor": 0.042483660130718956,
+        "ci95": [
+          -0.9688,
+          -0.9
+        ],
+        "effectiveDays": 26
+      },
+      "immediateInverse": {
+        "n": 1250,
+        "wins": 17,
+        "targetWinRate": 0.0136,
+        "expectancyR": -0.9592,
+        "totalR": -1199,
+        "profitFactor": 0.027575020275750203,
+        "ci95": [
+          -0.9746153846153847,
+          -0.9438040345821326
+        ],
+        "effectiveDays": 26
+      },
+      "immediateMinusInverse": {
+        "n": 1250,
+        "wins": 26,
+        "targetWinRate": 0.0208,
+        "expectancyR": 0.0216,
+        "totalR": 27,
+        "profitFactor": 1.5294117647058822,
+        "ci95": [
+          -0.01267962806424345,
+          0.06057945566286216
+        ],
+        "effectiveDays": 26
+      },
+      "pullbackSignals": 7,
+      "pullback": {
+        "n": 7,
+        "wins": 1,
+        "targetWinRate": 0.14285714285714285,
+        "expectancyR": -0.5714285714285714,
+        "totalR": -4,
+        "profitFactor": 0.3333333333333333,
+        "ci95": [
+          -1,
+          0.5
+        ],
+        "effectiveDays": 6
+      },
+      "pullbackInverse": {
+        "n": 7,
+        "wins": 0,
+        "targetWinRate": 0,
+        "expectancyR": -1,
+        "totalR": -7,
+        "profitFactor": 0,
+        "ci95": [
+          -1,
+          -1
+        ],
+        "effectiveDays": 6
+      },
+      "pullbackMinusInverse": {
+        "n": 7,
+        "wins": 1,
+        "targetWinRate": 0.14285714285714285,
+        "expectancyR": 0.42857142857142855,
+        "totalR": 3,
+        "profitFactor": null,
+        "ci95": [
+          0,
+          1.5
+        ],
+        "effectiveDays": 6
+      },
+      "positionAware": {
+        "accepted": 7,
+        "skippedOverlaps": 0,
+        "selected": {
+          "n": 7,
+          "wins": 1,
+          "targetWinRate": 0.14285714285714285,
+          "expectancyR": -0.5714285714285714,
+          "totalR": -4,
+          "profitFactor": 0.3333333333333333,
+          "ci95": [
+            -1,
+            0.5
+          ],
+          "effectiveDays": 6
+        },
+        "inverseOnSelectedSchedule": {
+          "n": 7,
+          "wins": 0,
+          "targetWinRate": 0,
+          "expectancyR": -1,
+          "totalR": -7,
+          "profitFactor": 0,
+          "ci95": [
+            -1,
+            -1
+          ],
+          "effectiveDays": 6
+        }
+      }
+    },
+    "2026-07": {
+      "opportunities": 1302,
+      "immediate": {
+        "n": 1302,
+        "wins": 22,
+        "targetWinRate": 0.016897081413210446,
+        "expectancyR": -0.9493087557603687,
+        "totalR": -1236,
+        "profitFactor": 0.034375,
+        "ci95": [
+          -0.9845626072041166,
+          -0.9051724137931034
+        ],
+        "effectiveDays": 26
+      },
+      "immediateInverse": {
+        "n": 1302,
+        "wins": 37,
+        "targetWinRate": 0.028417818740399385,
+        "expectancyR": -0.9147465437788018,
+        "totalR": -1191,
+        "profitFactor": 0.05849802371541502,
+        "ci95": [
+          -0.9586492074431426,
+          -0.8579591836734693
+        ],
+        "effectiveDays": 26
+      },
+      "immediateMinusInverse": {
+        "n": 1302,
+        "wins": 22,
+        "targetWinRate": 0.016897081413210446,
+        "expectancyR": -0.03456221198156682,
+        "totalR": -45,
+        "profitFactor": 0.5945945945945946,
+        "ci95": [
+          -0.07677165354330709,
+          0
+        ],
+        "effectiveDays": 26
+      },
+      "pullbackSignals": 6,
+      "pullback": {
+        "n": 6,
+        "wins": 0,
+        "targetWinRate": 0,
+        "expectancyR": -1,
+        "totalR": -6,
+        "profitFactor": 0,
+        "ci95": [
+          -1,
+          -1
+        ],
+        "effectiveDays": 6
+      },
+      "pullbackInverse": {
+        "n": 6,
+        "wins": 0,
+        "targetWinRate": 0,
+        "expectancyR": -1,
+        "totalR": -6,
+        "profitFactor": 0,
+        "ci95": [
+          -1,
+          -1
+        ],
+        "effectiveDays": 6
+      },
+      "pullbackMinusInverse": {
+        "n": 6,
+        "wins": 0,
+        "targetWinRate": 0,
+        "expectancyR": 0,
+        "totalR": 0,
+        "profitFactor": null,
+        "ci95": [
+          0,
+          0
+        ],
+        "effectiveDays": 6
+      },
+      "positionAware": {
+        "accepted": 6,
+        "skippedOverlaps": 0,
+        "selected": {
+          "n": 6,
+          "wins": 0,
+          "targetWinRate": 0,
+          "expectancyR": -1,
+          "totalR": -6,
+          "profitFactor": 0,
+          "ci95": [
+            -1,
+            -1
+          ],
+          "effectiveDays": 6
+        },
+        "inverseOnSelectedSchedule": {
+          "n": 6,
+          "wins": 0,
+          "targetWinRate": 0,
+          "expectancyR": -1,
+          "totalR": -6,
+          "profitFactor": 0,
+          "ci95": [
+            -1,
+            -1
+          ],
+          "effectiveDays": 6
+        }
+      }
+    }
+  },
+  "waitReasonCounts": {
+    "The M1 pullback ended before two countertrend candles completed.": 3361,
+    "No timely countertrend M1 pullback formed after the CUSUM impulse.": 2213,
+    "The first directional M1 candle did not close beyond the pullback.": 2070,
+    "The M1 pullback lasted longer than three countertrend candles.": 724,
+    "The first candle after the M1 pullback did not resume the impulse direction.": 121,
+    "The next M1 open was already extended beyond the resumption level.": 65,
+    "The M1 retracement was outside the frozen 10% to 55% impulse range.": 64,
+    "The M1 pattern crossed a market-data gap.": 14,
+    "At least one M1 pullback candle was too large relative to the impulse.": 14,
+    "The structural M1 stop was outside the frozen M5-ATR risk range.": 6
+  },
+  "limitations": [
+    "This is the first chronological holdout for this frozen CUSUM detector, but the 2026 market period is not globally untouched by every prior GoldenXperience experiment.",
+    "OANDA candle volume counts broker price activity, not centralized buyer/seller transaction flow; activity affects raw ranking only and is not an eligibility gate.",
+    "The OANDA stream/candles cannot reproduce the EBS buyer- versus seller-initiated order-flow variable from the published studies.",
+    "One open Momentum position per instrument is modeled for the position-aware result; other strategy families are not included.",
+    "No parameter sweep or post-result tuning was performed."
+  ]
+}

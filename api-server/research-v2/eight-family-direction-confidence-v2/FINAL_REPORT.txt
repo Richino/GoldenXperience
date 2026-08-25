@@ -1,0 +1,95 @@
+EIGHT-FAMILY STRICT DIRECTION-CONFIDENCE TEST
+
+VERDICT: ADAPTIVE_ADDS_NO_VALUE
+
+Range: 2022-08-01T00:00:00.000Z through 2025-08-01T00:00:00.000Z (exclusive)
+Sealed interval touched: NO
+Database writes: 0
+Setup events: 58,877
+
+CONTROL RESULTS (net of exact historical spread)
+original                     n= 58419 WR=  33.20% netE= -0.2298 grossE= -0.0630 totalR=-13422.61 maxDD= 13451.26 PF=  0.6415 spreadR=  0.1667 delay= 0.0000
+inverted                     n= 58426 WR=  35.81% netE= -0.1730 grossE= -0.0062 totalR=-10109.92 maxDD= 10113.47 PF=  0.7186 spreadR=  0.1669 delay= 0.0000
+confirmed_without_movement   n= 21071 WR=  30.82% netE= -0.2475 grossE= -0.0419 totalR= -5214.75 maxDD=  5214.75 PF=  0.6377 spreadR=  0.2056 delay= 3.2314
+confirmed                    n=  9430 WR=  32.83% netE= -0.2030 grossE= -0.0199 totalR= -1914.41 maxDD=  1924.89 PF=  0.6923 spreadR=  0.1831 delay= 3.0912
+adaptive                     n=     9 WR=  22.22% netE= -0.3678 grossE= -0.1028 totalR=    -3.31 maxDD=     5.31 PF=  0.4754 spreadR=  0.2651 delay= 3.2222
+random                       n=  9432 WR=  33.80% netE= -0.1806 grossE=  0.0033 totalR= -1703.38 maxDD=  1711.05 PF=  0.7211 spreadR=  0.1839 delay= 3.0901
+
+BY FAMILY AND CONTROL
+family=breakout|control=confirmed                          n= 1225 WR=  31.76% netE= -0.2250 totalR=  -275.66 DD=   278.27 PF=  0.6673
+family=breakout|control=confirmed_without_movement         n= 1308 WR=  31.80% netE= -0.2237 totalR=  -292.58 DD=   292.58 PF=  0.6692
+family=breakout|control=inverted                           n= 2946 WR=  33.81% netE= -0.0955 totalR=  -281.42 DD=   288.15 PF=  0.8479
+family=breakout|control=original                           n= 2952 WR=  29.71% netE= -0.1999 totalR=  -590.00 DD=   594.42 PF=  0.7041
+family=breakout|control=random                             n= 1231 WR=  33.23% netE= -0.1889 totalR=  -232.51 DD=   245.91 PF=  0.7133
+family=ema|control=adaptive                                n=    9 WR=  22.22% netE= -0.3678 totalR=    -3.31 DD=     5.31 PF=  0.4754
+family=ema|control=confirmed                               n=  276 WR=  38.41% netE= -0.0686 totalR=   -18.95 DD=    57.42 PF=  0.8852
+family=ema|control=confirmed_without_movement              n=  917 WR=  31.19% netE= -0.2446 totalR=  -224.27 DD=   240.77 PF=  0.6399
+family=ema|control=inverted                                n= 3069 WR=  34.96% netE= -0.1520 totalR=  -466.55 DD=   492.01 PF=  0.7451
+family=ema|control=original                                n= 3066 WR=  30.01% netE= -0.2538 totalR=  -778.23 DD=   785.25 PF=  0.6030
+family=ema|control=random                                  n=  275 WR=  34.55% netE= -0.1507 totalR=   -41.44 DD=    49.94 PF=  0.7610
+family=intraday_breakout|control=confirmed                 n= 1054 WR=  29.98% netE= -0.2642 totalR=  -278.43 DD=   288.43 PF=  0.6176
+family=intraday_breakout|control=confirmed_without_movement n= 1648 WR=  28.88% netE= -0.2916 totalR=  -480.56 DD=   483.37 PF=  0.5859
+family=intraday_breakout|control=inverted                  n= 3603 WR=  33.69% netE= -0.1777 totalR=  -640.38 DD=   640.88 PF=  0.7272
+family=intraday_breakout|control=original                  n= 3598 WR=  29.68% netE= -0.2744 totalR=  -987.27 DD=   990.77 PF=  0.6059
+family=intraday_breakout|control=random                    n= 1057 WR=  32.45% netE= -0.1997 totalR=  -211.10 DD=   214.60 PF=  0.6986
+family=intraday_trend_retracement|control=confirmed        n= 1034 WR=  35.49% netE= -0.1367 totalR=  -141.38 DD=   171.99 PF=  0.7821
+family=intraday_trend_retracement|control=confirmed_without_movement n= 4159 WR=  31.11% netE= -0.2382 totalR=  -990.57 DD=   995.20 PF=  0.6503
+family=intraday_trend_retracement|control=inverted         n=11812 WR=  31.92% netE= -0.2240 totalR= -2645.49 DD=  2653.71 PF=  0.6655
+family=intraday_trend_retracement|control=original         n=11806 WR=  31.11% netE= -0.2397 totalR= -2829.58 DD=  2844.26 PF=  0.6455
+family=intraday_trend_retracement|control=random           n= 1032 WR=  35.08% netE= -0.1491 totalR=  -153.85 DD=   161.58 PF=  0.7619
+family=meanrev|control=confirmed                           n=  372 WR=  34.68% netE= -0.1733 totalR=   -64.46 DD=    74.23 PF=  0.7305
+family=meanrev|control=confirmed_without_movement          n=  438 WR=  34.25% netE= -0.1804 totalR=   -79.00 DD=    94.77 PF=  0.7220
+family=meanrev|control=inverted                            n= 1452 WR=  34.71% netE= -0.1094 totalR=  -158.85 DD=   185.42 PF=  0.8245
+family=meanrev|control=original                            n= 1453 WR=  31.59% netE= -0.2054 totalR=  -298.49 DD=   304.63 PF=  0.6889
+family=meanrev|control=random                              n=  372 WR=  36.02% netE= -0.1330 totalR=   -49.47 DD=    58.01 PF=  0.7893
+family=momentum_exhaustion|control=confirmed               n=  617 WR=  34.68% netE= -0.1755 totalR=  -108.30 DD=   108.68 PF=  0.7255
+family=momentum_exhaustion|control=confirmed_without_movement n=  630 WR=  34.44% netE= -0.1806 totalR=  -113.80 DD=   114.18 PF=  0.7187
+family=momentum_exhaustion|control=inverted                n= 2052 WR=  38.45% netE= -0.1383 totalR=  -283.79 DD=   318.13 PF=  0.7730
+family=momentum_exhaustion|control=original                n= 2061 WR=  35.03% netE= -0.2150 totalR=  -443.13 DD=   443.32 PF=  0.6657
+family=momentum_exhaustion|control=random                  n=  616 WR=  31.66% netE= -0.2514 totalR=  -154.87 DD=   154.87 PF=  0.6256
+family=momentum|control=confirmed                          n= 1453 WR=  30.28% netE= -0.2647 totalR=  -384.67 DD=   384.67 PF=  0.6139
+family=momentum|control=confirmed_without_movement         n= 1791 WR=  29.82% netE= -0.2777 totalR=  -497.34 DD=   497.34 PF=  0.5988
+family=momentum|control=inverted                           n= 3922 WR=  43.68% netE= -0.0605 totalR=  -237.42 DD=   246.69 PF=  0.8375
+family=momentum|control=original                           n= 3927 WR=  42.58% netE= -0.0701 totalR=  -275.21 DD=   287.28 PF=  0.8154
+family=momentum|control=random                             n= 1452 WR=  32.09% netE= -0.2180 totalR=  -316.50 DD=   318.00 PF=  0.6729
+family=scalping_continuation|control=confirmed             n= 3399 WR=  33.39% netE= -0.1890 totalR=  -642.56 DD=   664.14 PF=  0.7108
+family=scalping_continuation|control=confirmed_without_movement n=10180 WR=  30.67% netE= -0.2492 totalR= -2536.62 DD=  2547.12 PF=  0.6358
+family=scalping_continuation|control=inverted              n=29570 WR=  36.73% netE= -0.1825 totalR= -5396.03 DD=  5400.34 PF=  0.7063
+family=scalping_continuation|control=original              n=29556 WR=  33.85% netE= -0.2443 totalR= -7220.71 DD=  7231.46 PF=  0.6243
+family=scalping_continuation|control=random                n= 3397 WR=  34.85% netE= -0.1600 totalR=  -543.65 DD=   549.96 PF=  0.7483
+
+OPPORTUNITY FUNNEL
+ema                            evaluated=122568 setup=  3083 movement=  1015 confirmed=   928 both=   276 adaptive=    9 skipped=  264
+breakout                       evaluated=122568 setup=  2958 movement=  2768 confirmed=  1323 both=  1240 adaptive=    0 skipped= 1219
+momentum                       evaluated=122568 setup=  3930 movement=  3176 confirmed=  1816 both=  1476 adaptive=    0 skipped= 1440
+meanrev                        evaluated=122568 setup=  1459 movement=  1249 confirmed=   441 both=   375 adaptive=    0 skipped=  371
+scalping_continuation          evaluated=122568 setup= 29806 movement=  9472 confirmed= 10345 both=  3443 adaptive=    0 skipped= 3368
+momentum_exhaustion            evaluated=122568 setup=  2080 movement=  2050 confirmed=   637 both=   624 adaptive=    0 skipped=  613
+intraday_breakout              evaluated=122568 setup=  3642 movement=  2314 confirmed=  1670 both=  1073 adaptive=    0 skipped= 1044
+intraday_trend_retracement     evaluated=122568 setup= 11919 movement=  2867 confirmed=  4231 both=  1044 adaptive=    0 skipped= 1025
+
+ADAPTIVE DECISIONS
+{"total":9353,"follow":9,"reverse":0,"skip":9344}
+
+ADAPTIVE LEARNING CURVE
+1-500        decisions=  500 follow=    0 reverse=    0 skip=  500 skipPct= 100.00% avgEvidence= 54.7900 avgConfidence= 11.2088 preferredAccuracy=  51.85% trades=    0 netE=     n/a totalR=     0.00
+501-1000     decisions=  500 follow=    0 reverse=    0 skip=  500 skipPct= 100.00% avgEvidence=105.2160 avgConfidence= 28.9988 preferredAccuracy=  49.07% trades=    0 netE=     n/a totalR=     0.00
+1001-2500    decisions= 1500 follow=    0 reverse=    0 skip= 1500 skipPct= 100.00% avgEvidence=166.4567 avgConfidence= 47.6871 preferredAccuracy=  50.26% trades=    0 netE=     n/a totalR=     0.00
+2501-5000    decisions= 2500 follow=    1 reverse=    0 skip= 2499 skipPct=  99.96% avgEvidence=173.2508 avgConfidence= 53.5536 preferredAccuracy=  51.56% trades=    1 netE= -1.0000 totalR=    -1.00
+5001-10000   decisions= 4353 follow=    8 reverse=    0 skip= 4345 skipPct=  99.82% avgEvidence=183.9426 avgConfidence= 53.5314 preferredAccuracy=  50.69% trades=    8 netE= -0.2888 totalR=    -2.31
+10001-plus   decisions=    0 follow=    0 reverse=    0 skip=    0 skipPct=     n/a avgEvidence=     n/a avgConfidence=     n/a preferredAccuracy=     n/a trades=    0 netE=     n/a totalR=     0.00
+
+CONFIDENCE CALIBRATION
+Brier score: 0.2505
+0-50      decisions=  492 executed=    0 skipped=  492 avgScore= 49.2439 realizedAccuracy=  45.14% preferredNetE= -0.2488 supported=    0
+50-60     decisions= 7945 executed=    1 skipped= 7944 avgScore= 53.7668 realizedAccuracy=  51.12% preferredNetE= -0.1668 supported=    1
+60-70     decisions=  116 executed=    8 skipped=  108 avgScore= 61.5103 realizedAccuracy=  54.95% preferredNetE= -0.0817 supported=    8
+70-80     decisions=    0 executed=    0 skipped=    0 avgScore=     n/a realizedAccuracy=     n/a preferredNetE=     n/a supported=    0
+80-90     decisions=    0 executed=    0 skipped=    0 avgScore=     n/a realizedAccuracy=     n/a preferredNetE=     n/a supported=    0
+90-100    decisions=    0 executed=    0 skipped=    0 avgScore=     n/a realizedAccuracy=     n/a preferredNetE=     n/a supported=    0
+
+CAVEATS
+- Stored data has M15/H1/H4 but no M1/M5; scalping_continuation is an M15 proxy, not a real scalping validation.
+- Commission and slippage are unavailable and excluded; spread is exact bid/ask and included.
+- This is development/pre-holdout evidence. No sealed result is claimed.
+- Full pair/session/month/volatility/confirmation tables are in RESULTS.json.

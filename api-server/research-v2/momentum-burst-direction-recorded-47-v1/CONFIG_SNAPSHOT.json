@@ -1,0 +1,21 @@
+{
+  "experiment": "momentum-burst-direction-recorded-47-v1",
+  "frozenBeforeResults": true,
+  "dataset": {
+    "source": "momentum_inversion_arms",
+    "expectedOpportunities": 47,
+    "snapshotCutoff": "2026-08-24T17:30:00.000Z"
+  },
+  "marketDataFallback": "Read-only OANDA Practice bid/ask candles when the rolling live snapshot is absent from local research tables.",
+  "policy": {
+    "burstRangeBars": 6,
+    "maxConfirmationBars": 3,
+    "pullbackFraction": 0.2,
+    "breakoutBufferAtr": 0.05,
+    "attemptBufferAtr": 0.02,
+    "reverseMidpointFraction": 0.5
+  },
+  "execution": "Next M15 bar open after confirmation, executable bid/ask, original absolute stop/target distances preserved for selected and exact-opposite arms.",
+  "outcome": "Production labelOutcome; same-day 16:45 ET forced exit; same-bar stop+target is conservative ambiguous=-1R.",
+  "promotion": "NONE. Retrospective development sample only; production remains untouched."
+}

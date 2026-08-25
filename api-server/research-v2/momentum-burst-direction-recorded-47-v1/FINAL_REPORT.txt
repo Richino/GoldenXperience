@@ -1,0 +1,43 @@
+GOLDENXPERIENCE — MOMENTUM BURST DIRECTION RECORDED-47 V1
+Generated: 2026-08-25T02:46:48.554Z
+RESEARCH ONLY — production/practice execution unchanged
+
+VERDICT: POSITIVE_POINT_ESTIMATE_NOT_CONFIRMED
+
+DATA
+Opportunities: 47 across 4 UTC days and 8 instruments
+Window: 2026-08-19T09:30:00.000Z .. 2026-08-24T17:30:00.000Z
+The 47 are retrospective development evidence, not an untouched forward holdout.
+
+ACTION FUNNEL
+FOLLOW 4 | REVERSE 11 | WAIT 32 | traded 15/47
+Average confirmation confidence on traded decisions: 77.4/100
+
+IMMEDIATE CONTROLS — ALL 47
+Original  n=47 WR=23.4% netE=-0.4071 totalR=-19.13 CI95=[-0.5247, -0.1792]
+Inverted  n=47 WR=57.4% netE=0.2334 totalR=10.97 CI95=[-0.0659, 0.5146]
+
+DELAYED POLICY — TRADED DECISIONS ONLY
+Selected       n=15 WR=46.7% netE=0.1235 totalR=1.85 CI95=[-0.5263, 1.2335]
+Exact opposite n=15 WR=26.7% netE=-0.3889 totalR=-5.83 CI95=[-0.9224, -0.1702]
+Paired selected-opposite improvement: 0.5124R CI95=[-0.2946, 2.0247]
+
+POSITION-AWARE MOMENTUM-ONLY SCHEDULE
+Accepted 12 | overlapping 3
+Selected       n=12 netE=0.4043 totalR=4.85 CI95=[-0.3909, 1.5177]
+Exact opposite n=12 netE=-0.5139 totalR=-6.17 CI95=[-1.0000, -0.1948]
+Paired improvement=0.9182R CI95=[-0.1578, 2.4246]
+Does not model positions opened by EMA, Breakout, MeanRev, or legacy strategies.
+
+OPPORTUNITY-ADJUSTED — WAIT = 0R ACROSS ALL 47
+Selected policy netE/opportunity=0.0394 totalR=1.85
+Exact opposite netE/opportunity=-0.1241 totalR=-5.83
+
+BY ACTION
+FOLLOW selected n=4 netE=-0.1527 | opposite netE=-0.6066
+REVERSE selected n=11 netE=0.2239 | opposite netE=-0.3098
+
+INTEGRITY
+{"missingSetupCandle":0,"missingEntryQuote":0,"invalidGeometry":0,"unresolvedSelected":0,"ambiguousSelected":0}
+Both delayed arms enter at the same time, use their own executable side of the book, preserve identical absolute stop/target distances, and pay spread.
+No parameter sweep was performed after viewing results.

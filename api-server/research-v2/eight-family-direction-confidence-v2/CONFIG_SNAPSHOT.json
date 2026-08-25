@@ -1,0 +1,24 @@
+{
+  "pairs": [
+    "EUR_USD",
+    "GBP_USD",
+    "USD_JPY"
+  ],
+  "warmupStart": "2021-01-01T00:00:00.000Z",
+  "replayStart": "2022-08-01T00:00:00.000Z",
+  "developmentStart": "2024-08-01T00:00:00.000Z",
+  "sealedStart": "2025-08-01T00:00:00.000Z",
+  "movementVersion": "movement-heuristic-v1",
+  "confirmationVersion": "range-close-hold-v1",
+  "randomSeed": 20260824,
+  "targetR": 1.5,
+  "maxBars": 24,
+  "adaptive": {
+    "minLearningSample": 100,
+    "minReverseSample": 150,
+    "confidenceZ": 1.64,
+    "minimumPositiveExpectancyR": 0,
+    "coldStartAction": "skip",
+    "minimumDirectionAccuracyLower": 0.5
+  }
+}

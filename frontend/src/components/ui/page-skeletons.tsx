@@ -204,7 +204,7 @@ export function JournalEntriesSkeleton({ rows = 5 }: { rows?: number }) {
 export function BinaryJournalLoadingSkeleton() {
   return (
     <div className="journal-view space-y-6" aria-busy aria-label="Loading binary prediction journal">
-      <section className="journal-stats-card grid grid-cols-4" aria-hidden>
+      <section className="journal-stats-card journal-stats-card--quad" aria-hidden>
         {Array.from({ length: 4 }, (_, index) => (
           <div key={index} className="journal-stat min-w-0 space-y-2">
             <Line className="h-3 w-12" />
@@ -499,13 +499,13 @@ export function JournalLoadingSkeleton() {
     <div className="journal-view journal-minimal space-y-8 lg:space-y-10" aria-busy aria-label="Loading journal">
       <header>
         <Line className="h-8 w-28 lg:h-9" />
-        <div className="binary-seg mt-3 flex gap-1.5" aria-hidden>
+        <div className="binary-seg journal-mode-tabs mt-3" aria-hidden>
           <Bone className="h-8 w-16 rounded-full" />
           <Bone className="h-8 w-32 rounded-full" />
         </div>
       </header>
 
-      <section className="journal-stats-card grid grid-cols-3">
+      <section className="journal-stats-card">
         {Array.from({ length: 3 }, (_, index) => (
           <div key={index} className="journal-stat min-w-0 space-y-2">
             <Line className="h-3 w-12" />
@@ -515,9 +515,9 @@ export function JournalLoadingSkeleton() {
       </section>
 
       <section className="dashboard-minimal-section">
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <div className="journal-log-header">
           <Line className="h-4 w-20" />
-          <div className="flex flex-wrap gap-1.5">
+          <div className="journal-log-filters">
             {["w-10", "w-12", "w-[4.25rem]", "w-[4.25rem]"].map((width, index) => (
               <Bone key={index} className={`h-7 ${width} rounded-full`} />
             ))}

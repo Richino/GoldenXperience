@@ -435,7 +435,7 @@ export function JournalView({ embedded = false }: { embedded?: boolean } = {}) {
       )}
 
       <section
-        className="journal-stats-card grid grid-cols-3"
+        className="journal-stats-card"
         aria-label="Today's trading summary"
       >
         {(
@@ -446,9 +446,9 @@ export function JournalView({ embedded = false }: { embedded?: boolean } = {}) {
           ] as const
         ).map(([label, value, toneValue]) => (
           <div key={label} className="journal-stat min-w-0">
-            <p className="text-xs text-[color:var(--muted)]">{label}</p>
+            <p className="journal-stat-label">{label}</p>
             <p
-              className={`metric-number mt-1 text-xl font-semibold tracking-[-0.03em] ${
+              className={`journal-stat-value metric-number ${
                 typeof toneValue === "number"
                   ? toneValue > 0
                     ? "text-[color:var(--success)]"
@@ -465,9 +465,9 @@ export function JournalView({ embedded = false }: { embedded?: boolean } = {}) {
       </section>
 
       <section className="dashboard-minimal-section" aria-label="Trade log">
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <div className="journal-log-header">
           <h2 className="text-sm font-semibold tracking-[-0.01em]">Trade log</h2>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="journal-log-filters" role="group" aria-label="Trade filters">
             {FILTERS.map((filter) => (
               <button
                 key={filter}

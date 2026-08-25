@@ -1982,8 +1982,17 @@ input[type="number"] {
     0 10px 24px rgba(0, 0, 0, 0.36);
 }
 
-/* Android: lift above the gesture bar when safe-area isn't reported. */
+/*
+ * Pin to the viewport bottom explicitly. Utilities alone were not enough when a
+ * shell ancestor became a containing block — the pill then scrolled mid-page
+ * over Trade log cards. Body-portaled markup + these props keep it glued.
+ */
 .mobile-dock {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 40;
+  /* Android: lift above the gesture bar when safe-area isn't reported. */
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
 }
 

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import {
   BookOpen,
   ChartNoAxesCombined,
@@ -19,6 +20,10 @@ import { SignOutButton } from "@/components/ui/sign-out-button";
 import { NotificationProvider } from "@/components/notifications/notification-provider";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { Toaster } from "@/components/ui/toaster";
+
+function subscribe() {
+  return () => undefined;
+}
 
 interface NavItem {
   label: string;
@@ -91,6 +96,7 @@ function SidebarNavLink({
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const dockRef = useRef<HTMLElement>(null);
+  const isClient = useSyncExternalStore(subscribe, () => true, () => false);
   const isChart = pathname.startsWith("/chart");
   const isDashboard = pathname === "/";
   const activeMobileIndex = Math.max(
@@ -118,7 +124,86 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       observer.disconnect();
       root.style.removeProperty("--app-dock-height");
     };
-  }, []);
+  }, [isClient]);
+
+  // Portaled to document.body so no shell ancestor (pull-to-refresh, page
+  // motion, overflow) can create a containing block and unpin fixed bottom.
+  const mobileDock = (
+    <nav
+      ref={dockRef}
+      className="mobile-dock fixed inset-x-0 bottom-0 z-40 px-4 lg:hidden"
+      aria-label="Mobile navigation"
+    >
+      <svg className="liquid-glass-filter-defs" aria-hidden="true" focusable="false">
+        <defs>
+          <filter
+            id="nav-liquid-glass-lens"
+            x="-8%"
+            y="-35%"
+            width="116%"
+            height="170%"
+            colorInterpolationFilters="sRGB"
+          >
+            <feTurbulence
+              type="fractalNoise"
+              baseFrequency="0.009 0.075"
+              numOctaves="1"
+              seed="8"
+              result="lensNoise"
+            />
+            <feGaussianBlur in="lensNoise" stdDeviation="0.35" result="softLensNoise" />
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="softLensNoise"
+              scale="3.2"
+              xChannelSelector="R"
+              yChannelSelector="G"
+            />
+          </filter>
+        </defs>
+      </svg>
+      <div className="nav-pill mx-auto grid w-full max-w-[24rem] grid-cols-5 items-center p-2">
+        <span
+          key={`${previousMobileIndex}-${activeMobileIndex}-${pathname}`}
+          className="nav-liquid-lens-track"
+          data-direction={activeMobileIndex >= previousMobileIndex ? "forward" : "backward"}
+          data-moved={activeMobileIndex !== previousMobileIndex}
+          style={
+            {
+              "--nav-active-offset": `${activeMobileIndex * 100}%`,
+              "--nav-previous-offset": `${previousMobileIndex * 100}%`,
+            } as React.CSSProperties
+          }
+          aria-hidden="true"
+        >
+          <span className="nav-liquid-lens" />
+        </span>
+        {mobileNavItems.map((item) => {
+          const active = isActive(pathname, item.href);
+          const Icon = item.icon;
+
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`nav-mobile-link pressable ${
+                active ? "nav-mobile-link-active" : ""
+              }`}
+              aria-current={active ? "page" : undefined}
+              aria-label={item.label}
+              onClick={() => setPreviousMobileIndex(activeMobileIndex)}
+              onPointerDown={replayNavClick}
+              onAnimationEnd={clearNavClick}
+            >
+              <span className="nav-mobile-icon">
+                <Icon className="size-[1.55rem]" strokeWidth={1.7} />
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
+  );
 
   return (
     <NotificationProvider>
@@ -194,83 +279,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </main>
       </div>
-
-      <nav
-        ref={dockRef}
-        className="mobile-dock fixed inset-x-0 bottom-0 z-40 px-4 lg:hidden"
-        aria-label="Mobile navigation"
-      >
-        <svg className="liquid-glass-filter-defs" aria-hidden="true" focusable="false">
-          <defs>
-            <filter
-              id="nav-liquid-glass-lens"
-              x="-8%"
-              y="-35%"
-              width="116%"
-              height="170%"
-              colorInterpolationFilters="sRGB"
-            >
-              <feTurbulence
-                type="fractalNoise"
-                baseFrequency="0.009 0.075"
-                numOctaves="1"
-                seed="8"
-                result="lensNoise"
-              />
-              <feGaussianBlur in="lensNoise" stdDeviation="0.35" result="softLensNoise" />
-              <feDisplacementMap
-                in="SourceGraphic"
-                in2="softLensNoise"
-                scale="3.2"
-                xChannelSelector="R"
-                yChannelSelector="G"
-              />
-            </filter>
-          </defs>
-        </svg>
-        <div className="nav-pill mx-auto grid w-full max-w-[24rem] grid-cols-5 items-center p-2">
-          <span
-            key={`${previousMobileIndex}-${activeMobileIndex}-${pathname}`}
-            className="nav-liquid-lens-track"
-            data-direction={activeMobileIndex >= previousMobileIndex ? "forward" : "backward"}
-            data-moved={activeMobileIndex !== previousMobileIndex}
-            style={
-              {
-                "--nav-active-offset": `${activeMobileIndex * 100}%`,
-                "--nav-previous-offset": `${previousMobileIndex * 100}%`,
-              } as React.CSSProperties
-            }
-            aria-hidden="true"
-          >
-            <span className="nav-liquid-lens" />
-          </span>
-          {mobileNavItems.map((item) => {
-            const active = isActive(pathname, item.href);
-            const Icon = item.icon;
-
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`nav-mobile-link pressable ${
-                  active ? "nav-mobile-link-active" : ""
-                }`}
-                aria-current={active ? "page" : undefined}
-                aria-label={item.label}
-                onClick={() => setPreviousMobileIndex(activeMobileIndex)}
-                onPointerDown={replayNavClick}
-                onAnimationEnd={clearNavClick}
-              >
-                <span className="nav-mobile-icon">
-                  <Icon className="size-[1.55rem]" strokeWidth={1.7} />
-                </span>
-              </Link>
-            );
-          })}
-        </div>
-      </nav>
       </div>
     </PwaPullToRefresh>
+    {isClient ? createPortal(mobileDock, document.body) : null}
     </NotificationProvider>
   );
 }

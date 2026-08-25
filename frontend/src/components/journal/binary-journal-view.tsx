@@ -326,7 +326,7 @@ export function BinaryJournalView() {
 
   return (
     <div className="journal-view space-y-6">
-      <section className="journal-stats-card grid grid-cols-4" aria-label="Prediction summary">
+      <section className="journal-stats-card journal-stats-card--quad" aria-label="Prediction summary">
         {(
           showPattern
             ? ([
@@ -344,8 +344,8 @@ export function BinaryJournalView() {
               ] as const)
         ).map(([label, value]) => (
           <div key={label} className="journal-stat min-w-0">
-            <p className="text-xs text-[color:var(--muted)]">{label}</p>
-            <p className="metric-number mt-1 text-xl font-semibold tracking-[-0.03em]">{value}</p>
+            <p className="journal-stat-label">{label}</p>
+            <p className="journal-stat-value metric-number">{value}</p>
           </div>
         ))}
       </section>

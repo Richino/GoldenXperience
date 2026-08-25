@@ -34,7 +34,7 @@ export function JournalTabs() {
     <div className="journal-view journal-minimal space-y-6">
       <header>
         <h1 className="text-display">Journal</h1>
-        <div role="tablist" aria-label="Journal mode" className="binary-seg mt-3 flex gap-1.5">
+        <div role="tablist" aria-label="Journal mode" className="binary-seg journal-mode-tabs mt-3">
           {(["trades", "binary"] as const).map((value) => (
             <button
               key={value}

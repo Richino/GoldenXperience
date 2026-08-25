@@ -184,7 +184,7 @@ function JournalTradeRow({
           </p>
         </div>
         <div className="journal-entry-aside">
-          <p className={`journal-entry-result metric-number ${resultTone}`}>
+          <div className={`journal-entry-result metric-number ${resultTone}`}>
             <span className="journal-entry-r">
               {resultLabel}
               {trade.resultR !== null ? (
@@ -194,7 +194,7 @@ function JournalTradeRow({
             {money ? (
               <span className={`journal-entry-money ${moneyTone ?? ""}`}>{money}</span>
             ) : null}
-          </p>
+          </div>
         </div>
       </div>
 
@@ -203,12 +203,6 @@ function JournalTradeRow({
           <dt>Entry</dt>
           <dd className="metric-number">
             {formatPrice(trade.entry, trade.pair)}
-          </dd>
-        </div>
-        <div className="journal-entry-level">
-          <dt>Exit</dt>
-          <dd className="metric-number">
-            {formatPrice(trade.exit, trade.pair)}
           </dd>
         </div>
         <div className="journal-entry-level">
@@ -221,6 +215,12 @@ function JournalTradeRow({
           <dt>Target</dt>
           <dd className="metric-number">
             {formatPrice(trade.target, trade.pair)}
+          </dd>
+        </div>
+        <div className="journal-entry-level">
+          <dt>Exit</dt>
+          <dd className="metric-number">
+            {formatPrice(trade.exit, trade.pair)}
           </dd>
         </div>
       </dl>

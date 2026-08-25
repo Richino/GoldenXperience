@@ -23,12 +23,18 @@ import {
 } from "@/lib/market-stream/use-open-positions";
 import { useSupplementalQuotes } from "@/lib/market-stream/use-supplemental-quotes";
 import { strategyTypeLabel } from "@/lib/strategy/family-label";
+import { getForexSessionStatus } from "@/lib/strategy/session";
 import { useInfiniteScroll } from "@/lib/use-infinite-scroll";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { JournalEntriesSkeleton } from "@/components/ui/page-skeletons";
 
 const FILTERS = ["All", "Wins", "Losses", "Active"] as const;
 type JournalFilter = (typeof FILTERS)[number];
+
+/** Active while the forex week is open; All over the weekend close. */
+function defaultJournalFilter(now = new Date()): JournalFilter {
+  return getForexSessionStatus(now).marketOpen ? "Active" : "All";
+}
 
 function decimalsForPair(pair: string) {
   return pair.endsWith("/JPY") ? 3 : 5;
@@ -275,7 +281,7 @@ function dedupeById(trades: JournalTrade[]): JournalTrade[] {
 }
 
 export function JournalView({ embedded = false }: { embedded?: boolean } = {}) {
-  const [activeFilter, setActiveFilter] = useState<JournalFilter>("All");
+  const [activeFilter, setActiveFilter] = useState<JournalFilter>(defaultJournalFilter);
   const [records, setRecords] = useState<JournalTrade[]>([]);
   const [summary, setSummary] = useState<TradeSummary | null>(null);
   const [loading, setLoading] = useState(true);

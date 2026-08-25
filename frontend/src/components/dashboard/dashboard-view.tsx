@@ -326,8 +326,11 @@ export function DashboardView({
     await Promise.all([refreshAccount(), refresh()]);
   }, [refreshAccount, refresh]));
 
-  const assigned = overview.current?.assignedCount ?? 0;
   const lifetime = overview.lifetimeSummary;
+  // Prefer the live row count when the overview includes it — the denormalised
+  // assignedCount can under-report after multi-strategy batch splits.
+  const assigned = overview.current?.liveSummary?.assigned ?? overview.current?.assignedCount ?? 0;
+  const batchOpen = overview.current?.liveSummary?.open ?? lifetime.open;
   // Account history spans batches; the recent-trades list below stays scoped to
   // the batch that is collecting.
   return (
@@ -375,7 +378,7 @@ export function DashboardView({
             value={`${assigned}/${overview.batchSize}`}
             detail={
               overview.current
-                ? `Batch ${overview.current.batchNumber} · ${lifetime.open} open`
+                ? `Batch ${overview.current.batchNumber} · ${batchOpen} open`
                 : `${lifetime.open} open`
             }
           />

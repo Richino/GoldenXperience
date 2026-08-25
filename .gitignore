@@ -37,3 +37,8 @@ api-server/research-v2/**/*.jsonl
 api-server/research-v2/**/*.csv
 research-baseline-pre-ny.json
 momentum-excursion-audit.csv
+# OANDA candle caches for local backtests — regenerable, hundreds of MB.
+backtest-legacy-batch1/candles/
+backtest-legacy-batch1-2R/candles/
+backtest-legacy-tp-sl-grid/candles/
+backtest-live109-tp-sl-grid/candles/

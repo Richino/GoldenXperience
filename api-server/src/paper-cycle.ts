@@ -1041,9 +1041,25 @@ export async function watchlistSnapshot() {
 
 export async function paperCycleOverview() {
   const batches = await query(`SELECT id,batch_number AS "batchNumber",status,assigned_count AS "assignedCount",configuration,summary,recommendation,decision,decision_note AS "decisionNote",started_at AS "startedAt",completed_at AS "completedAt" FROM paper_strategy_batches ORDER BY batch_number DESC LIMIT 20`);
-  const current = batches.rows.find((batch: any) => batch.status !== "complete") ?? null;
+  // Multi-strategy opens one collecting batch per family. Picking only the
+  // highest batch_number then showed a brand-new family batch as 1/100 while
+  // older collecting batches held the real trades (and the dashboard still
+  // labelled lifetime opens onto that empty batch). Prefer the fullest
+  // collecting batch; fall back to the fullest non-complete.
+  const incomplete = (batches.rows as Array<{ id: string; batchNumber: number; status: string; assignedCount: number | string }>).filter(
+    (batch) => batch.status !== "complete",
+  );
+  const byAssignedThenNumber = (
+    a: { assignedCount: number | string; batchNumber: number },
+    b: { assignedCount: number | string; batchNumber: number },
+  ) => Number(b.assignedCount) - Number(a.assignedCount) || Number(b.batchNumber) - Number(a.batchNumber);
+  const collecting = incomplete.filter((batch) => batch.status === "collecting");
+  const current = (collecting.length ? collecting : incomplete).slice().sort(byAssignedThenNumber)[0] ?? null;
   const currentTrades = current ? await query(`SELECT id,trade_sequence::text AS "tradeSequence",instrument,direction,status,outcome,entry::float,stop::float,target::float,exit::float,result_r::float AS "resultR",nominal_risk_percent::float AS "nominalRiskPercent",nominal_risk_amount::float AS "nominalRiskAmount",paper_pl::float AS "paperPl",spread_pips::float AS "spreadPips",session,weekday,planned_r::float AS "plannedR",checklist_score::float AS "checklistScore",news_status AS "newsStatus",max_favorable_r::float AS "maxFavorableR",max_adverse_r::float AS "maxAdverseR",opened_at AS "openedAt",closed_at AS "closedAt",exit_reason AS "exitReason",review FROM paper_strategy_trades WHERE batch_id=$1 ORDER BY trade_sequence DESC`, [(current as any).id]) : { rows: [] };
   const liveSummary = paperBatchMetrics((currentTrades.rows as any[]).map((row) => ({ ...row, trade_sequence: row.tradeSequence, result_r: row.resultR, spread_pips: row.spreadPips, opened_at: row.openedAt, closed_at: row.closedAt })) as StoredTrade[]);
+  // Trust the live trade rows over the denormalised counter for display. The
+  // counter can lag if a write path inserted without bumping assigned_count.
+  const assignedCount = liveSummary.assigned;
   // Dashboard "Open trades" lists every still-open position (any batch), with
   // family + batch so the row can show EMA / Breakout / Mean rev / Momentum.
   const openTrades = await query(
@@ -1069,7 +1085,23 @@ export async function paperCycleOverview() {
     `SELECT trade_sequence::int AS "tradeSequence", paper_pl::float AS "paperPl", closed_at AS "closedAt", opened_at AS "openedAt", status
      FROM paper_strategy_trades WHERE opened_at > now() - interval '90 days' ORDER BY opened_at`,
   );
-  return { strategyVersion: ACTIVE_STRATEGY_VERSION, batchSize: BATCH_SIZE, lifetimeSummary: paperBatchMetrics(lifetimeRows.rows), current: current ? { ...current, liveSummary, remaining: BATCH_SIZE - Number((current as any).assignedCount) } : null, batches: batches.rows, trades: currentTrades.rows, openTrades: openTrades.rows, accountTrades: accountTrades.rows };
+  return {
+    strategyVersion: ACTIVE_STRATEGY_VERSION,
+    batchSize: BATCH_SIZE,
+    lifetimeSummary: paperBatchMetrics(lifetimeRows.rows),
+    current: current
+      ? {
+          ...current,
+          assignedCount,
+          liveSummary,
+          remaining: Math.max(0, BATCH_SIZE - assignedCount),
+        }
+      : null,
+    batches: batches.rows,
+    trades: currentTrades.rows,
+    openTrades: openTrades.rows,
+    accountTrades: accountTrades.rows,
+  };
 }
 
 /**

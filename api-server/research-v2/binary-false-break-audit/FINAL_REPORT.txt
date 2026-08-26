@@ -7,17 +7,17 @@ DATA
 ================================
 
 Pairs: AUD_JPY, AUD_USD, EUR_AUD, EUR_GBP, EUR_JPY, EUR_USD, GBP_JPY, GBP_USD, NZD_USD, USD_CAD, USD_CHF, USD_JPY
-Date range (predictions): 2026-08-14 17:13:11.523+00 → 2026-08-21 20:47:39.282+00
-M1 coverage: 2026-08-07T06:42:00.000Z → 2026-08-21T21:00:00.000Z
-M1 bars: 180000 across 12 pairs (~15000/pair)
-Unique false-break + held episodes (deduped): 75270
-  FAILED: 19719  HELD: 55551
-Raw detections before episode dedup: 88292
-Baseline predictions (secondary): 4343
+Date range (predictions): 2026-08-14 17:13:11.523+00 → 2026-08-25 20:59:16.865+00
+M1 coverage: 2026-08-05T17:49:00.000Z → 2026-08-25T21:20:00.000Z
+M1 bars: 240000 across 12 pairs (~20000/pair)
+Unique false-break + held episodes (deduped): 104796
+  FAILED: 27729  HELD: 77067
+Raw detections before episode dedup: 122689
+Baseline predictions (secondary): 6161
 
-TRAIN:  ≤ 2026-08-19T19:25:00.000Z  (events=44909, failed=11961)
-DEV:    ≤ 2026-08-20T20:05:00.000Z  (events=15378, failed=4087)
-HOLDOUT: after DEV               (events=14983, failed=3671)
+TRAIN:  ≤ 2026-08-21T00:20:00.000Z  (events=62779, failed=16579)
+DEV:    ≤ 2026-08-24T10:38:00.000Z  (events=21002, failed=5329)
+HOLDOUT: after DEV               (events=21015, failed=5821)
 
 Leakage audit:
   - level existed before breakout (levels rebuilt at firstBeyondIdx): PASS
@@ -53,12 +53,12 @@ Directions (PRE-REGISTERED):
 EVENT FREQUENCY
 ================================
 
-Failed support breakdowns: 9668
-Failed resistance breakouts: 10051
-Held support breaks: 24217
-Held resistance breaks: 31334
+Failed support breakdowns: 13652
+Failed resistance breakouts: 14077
+Held support breaks: 34099
+Held resistance breaks: 42968
 
-Events/day (approx over 7 calendar days in window): 10752.9
+Events/day (approx over 10 calendar days in window): 10479.6
 
 ================================
 HEADLINE FALSE-BREAK RESULTS
@@ -68,44 +68,44 @@ Cells: effective_n / WR / CI / EV@80
 Expiries:                 1m | 2m | 3m | 5m | 10m | 15m
 
 TRAIN Failed support → UP
-  5877/49.4%/[48.1,50.8]/-0.110 | 5877/49.6%/[48.3,50.9]/-0.107 | 5877/49.7%/[48.4,51.0]/-0.105 | 5877/49.9%/[48.6,51.2]/-0.101 | 5877/49.2%/[47.9,50.5]/-0.115 | 5877/48.1%/[46.8,49.4]/-0.135
+  8136/49.5%/[48.4,50.6]/-0.109 | 8136/49.7%/[48.5,50.8]/-0.106 | 8136/49.7%/[48.5,50.8]/-0.106 | 8136/49.8%/[48.7,50.9]/-0.103 | 8136/49.2%/[48.1,50.3]/-0.115 | 8136/48.9%/[47.8,50.0]/-0.120
 TRAIN Failed resistance → DOWN
-  6084/49.7%/[48.3,51.0]/-0.106 | 6084/49.9%/[48.6,51.2]/-0.102 | 6084/50.2%/[49.0,51.5]/-0.096 | 6084/50.5%/[49.2,51.8]/-0.091 | 6084/49.9%/[48.6,51.2]/-0.102 | 6084/49.6%/[48.3,50.9]/-0.107
+  8443/49.9%/[48.8,51.1]/-0.101 | 8443/50.3%/[49.2,51.4]/-0.095 | 8443/50.1%/[49.0,51.2]/-0.098 | 8443/50.0%/[48.9,51.1]/-0.100 | 8443/49.0%/[47.9,50.0]/-0.119 | 8443/48.9%/[47.9,50.0]/-0.119
 
 DEV Failed support → UP
-  1957/50.3%/[48.0,52.6]/-0.095 | 1957/50.5%/[48.2,52.8]/-0.091 | 1957/50.7%/[48.4,52.9]/-0.088 | 1957/50.8%/[48.6,53.1]/-0.085 | 1957/50.6%/[48.4,52.8]/-0.089 | 1957/53.2%/[50.9,55.4]/-0.043
+  2621/49.8%/[47.8,51.8]/-0.104 | 2621/48.0%/[46.1,50.0]/-0.135 | 2621/48.9%/[46.9,50.8]/-0.121 | 2621/48.1%/[46.1,50.0]/-0.135 | 2621/48.9%/[47.0,50.9]/-0.119 | 2621/49.9%/[47.9,51.8]/-0.102
 DEV Failed resistance → DOWN
-  2130/51.0%/[48.8,53.2]/-0.082 | 2130/51.4%/[49.3,53.6]/-0.074 | 2130/50.1%/[48.0,52.3]/-0.098 | 2130/49.0%/[46.9,51.2]/-0.118 | 2130/46.1%/[44.0,48.3]/-0.170 | 2130/46.9%/[44.7,49.0]/-0.157
+  2708/46.8%/[44.8,48.7]/-0.158 | 2708/48.1%/[46.2,50.0]/-0.134 | 2708/48.4%/[46.4,50.3]/-0.130 | 2708/48.1%/[46.1,50.0]/-0.135 | 2708/48.4%/[46.5,50.3]/-0.129 | 2708/48.5%/[46.6,50.4]/-0.127
 
 ================================
 FALSE vs HELD BREAK
 ================================
 
-Failed support → UP @5m DEV: eff=1957 W=967 L=936 T=54 WR=50.81% CI=[48.57%,53.06%] EV80=-0.085
-Held support → DOWN @5m DEV: eff=4472 W=2015 L=2343 T=114 WR=46.24% CI=[44.76%,47.72%] EV80=-0.168
-Failed resistance → DOWN @5m DEV: eff=2130 W=1011 L=1052 T=67 WR=49.01% CI=[46.85%,51.16%] EV80=-0.118
-Held resistance → UP @5m DEV: eff=6819 W=3441 L=3164 T=214 WR=52.10% CI=[50.89%,53.30%] EV80=-0.062
+Failed support → UP @5m DEV: eff=2621 W=1226 L=1324 T=71 WR=48.08% CI=[46.14%,50.02%] EV80=-0.135
+Held support → DOWN @5m DEV: eff=6829 W=3224 L=3399 T=206 WR=48.68% CI=[47.48%,49.88%] EV80=-0.124
+Failed resistance → DOWN @5m DEV: eff=2708 W=1261 L=1363 T=84 WR=48.06% CI=[46.15%,49.97%] EV80=-0.135
+Held resistance → UP @5m DEV: eff=8844 W=4175 L=4331 T=338 WR=49.08% CI=[48.02%,50.15%] EV80=-0.117
 
 Does reclaim contain directional information?
-YES (modest separation; see numbers)
+NO (failed and held near each other / coin-flip)
 
 ================================
 PENETRATION DEPTH
 ================================
 (TRAIN failed @5m)
   <0.05: eff=0 n=0
-  0.05-0.10: eff=343 W=174 L=166 T=3 WR=51.18% CI=[45.88%,56.45%] EV80=-0.079
-  0.10-0.20: eff=1021 W=514 L=475 T=32 WR=51.97% CI=[48.86%,55.07%] EV80=-0.065
-  0.20-0.30: eff=848 W=410 L=407 T=31 WR=50.18% CI=[46.76%,53.60%] EV80=-0.097
-  >0.30: eff=9749 W=4708 L=4707 T=334 WR=50.01% CI=[49.00%,51.02%] EV80=-0.100
+  0.05-0.10: eff=492 W=260 L=225 T=7 WR=53.61% CI=[49.16%,58.00%] EV80=-0.035
+  0.10-0.20: eff=1408 W=719 L=646 T=43 WR=52.67% CI=[50.02%,55.31%] EV80=-0.052
+  0.20-0.30: eff=1199 W=587 L=569 T=43 WR=50.78% CI=[47.90%,53.65%] EV80=-0.086
+  >0.30: eff=13480 W=6435 L=6591 T=454 WR=49.40% CI=[48.54%,50.26%] EV80=-0.111
 
 ================================
 RECLAIM STRENGTH
 ================================
-(TRAIN failed @5m; tertiles fit TRAIN only: t1=0.205 t2=0.455)
-  WEAK: eff=3988 W=1977 L=1895 T=116 WR=51.06% CI=[49.48%,52.63%] EV80=-0.081
-  MEDIUM: eff=3987 W=1911 L=1935 T=141 WR=49.69% CI=[48.11%,51.27%] EV80=-0.106
-  STRONG: eff=3986 W=1918 L=1925 T=143 WR=49.91% CI=[48.33%,51.49%] EV80=-0.102
+(TRAIN failed @5m; tertiles fit TRAIN only: t1=0.206 t2=0.455)
+  WEAK: eff=5527 W=2715 L=2655 T=157 WR=50.56% CI=[49.22%,51.90%] EV80=-0.090
+  MEDIUM: eff=5526 W=2650 L=2673 T=203 WR=49.78% CI=[48.44%,51.13%] EV80=-0.104
+  STRONG: eff=5526 W=2636 L=2703 T=187 WR=49.37% CI=[48.03%,50.71%] EV80=-0.111
 
 Does stronger reclaim improve WR?
 Compare WEAK vs STRONG rows above (descriptive TRAIN).
@@ -113,18 +113,18 @@ Compare WEAK vs STRONG rows above (descriptive TRAIN).
 ================================
 WICK REJECTION
 ================================
-(TRAIN failed @5m; TRAIN wick tertiles t1=0.129 t2=0.409)
-  WEAK: eff=3988 W=1909 L=1935 T=144 WR=49.66% CI=[48.08%,51.24%] EV80=-0.106
-  MEDIUM: eff=3987 W=1915 L=1952 T=120 WR=49.52% CI=[47.95%,51.10%] EV80=-0.109
-  STRONG: eff=3986 W=1982 L=1868 T=136 WR=51.48% CI=[49.90%,53.06%] EV80=-0.073
+(TRAIN failed @5m; TRAIN wick tertiles t1=0.133 t2=0.412)
+  WEAK: eff=5529 W=2613 L=2726 T=190 WR=48.94% CI=[47.60%,50.28%] EV80=-0.119
+  MEDIUM: eff=5525 W=2623 L=2741 T=161 WR=48.90% CI=[47.56%,50.24%] EV80=-0.120
+  STRONG: eff=5525 W=2765 L=2564 T=196 WR=51.89% CI=[50.54%,53.23%] EV80=-0.066
 
 ================================
 PRIOR MOVE
 ================================
 (TRAIN failed @5m; |ret5|/ATR tertiles)
-  WEAK: eff=3988 W=1933 L=1920 T=135 WR=50.17% CI=[48.59%,51.75%] EV80=-0.097
-  MEDIUM: eff=3987 W=1909 L=1945 T=133 WR=49.53% CI=[47.96%,51.11%] EV80=-0.108
-  STRONG: eff=3986 W=1964 L=1890 T=132 WR=50.96% CI=[49.38%,52.54%] EV80=-0.083
+  WEAK: eff=5527 W=2664 L=2667 T=196 WR=49.97% CI=[48.63%,51.31%] EV80=-0.101
+  MEDIUM: eff=5526 W=2690 L=2661 T=175 WR=50.27% CI=[48.93%,51.61%] EV80=-0.095
+  STRONG: eff=5526 W=2647 L=2703 T=176 WR=49.48% CI=[48.14%,50.82%] EV80=-0.109
 
 Does exhaustion before false break matter?
 See gradient WEAK→STRONG prior-move rows.
@@ -132,65 +132,65 @@ See gradient WEAK→STRONG prior-move rows.
 ================================
 TOUCH COUNT
 ================================
-  1: eff=1709 W=833 L=820 T=56 WR=50.39% CI=[47.98%,52.80%] EV80=-0.093
-  2: eff=1545 W=750 L=741 T=54 WR=50.30% CI=[47.77%,52.84%] EV80=-0.095
-  3: eff=1295 W=638 L=614 T=43 WR=50.96% CI=[48.19%,53.72%] EV80=-0.083
-  4+: eff=7412 W=3585 L=3580 T=247 WR=50.03% CI=[48.88%,51.19%] EV80=-0.099
+  1: eff=2316 W=1158 L=1082 T=76 WR=51.70% CI=[49.63%,53.76%] EV80=-0.069
+  2: eff=2146 W=1051 L=1023 T=72 WR=50.68% CI=[48.52%,52.82%] EV80=-0.088
+  3: eff=1863 W=913 L=892 T=58 WR=50.58% CI=[48.28%,52.88%] EV80=-0.090
+  4+: eff=10254 W=4879 L=5034 T=341 WR=49.22% CI=[48.23%,50.20%] EV80=-0.114
 
 ================================
 TIME BEYOND LEVEL
 ================================
-  same-bar: eff=3455 W=1683 L=1653 T=119 WR=50.45% CI=[48.75%,52.14%] EV80=-0.092
-  1: eff=1309 W=638 L=632 T=39 WR=50.24% CI=[47.49%,52.98%] EV80=-0.096
-  2: eff=829 W=424 L=380 T=25 WR=52.74% CI=[49.28%,56.17%] EV80=-0.051
-  3+: eff=6368 W=3061 L=3090 T=217 WR=49.76% CI=[48.52%,51.01%] EV80=-0.104
+  same-bar: eff=4850 W=2386 L=2299 T=165 WR=50.93% CI=[49.50%,52.36%] EV80=-0.083
+  1: eff=1823 W=881 L=887 T=55 WR=49.83% CI=[47.50%,52.16%] EV80=-0.103
+  2: eff=1180 W=603 L=535 T=42 WR=52.99% CI=[50.08%,55.87%] EV80=-0.046
+  3+: eff=8726 W=4131 L=4310 T=285 WR=48.94% CI=[47.87%,50.01%] EV80=-0.119
 
 ================================
 CONFLUENCE
 ================================
-  1: eff=7159 W=3457 L=3441 T=261 WR=50.12% CI=[48.94%,51.30%] EV80=-0.098
-  2: eff=2476 W=1199 L=1204 T=73 WR=49.90% CI=[47.90%,51.89%] EV80=-0.102
-  3+: eff=2326 W=1150 L=1110 T=66 WR=50.88% CI=[48.82%,52.94%] EV80=-0.084
+  1: eff=9776 W=4676 L=4757 T=343 WR=49.57% CI=[48.56%,50.58%] EV80=-0.108
+  2: eff=3533 W=1687 L=1742 T=104 WR=49.20% CI=[47.53%,50.87%] EV80=-0.114
+  3+: eff=3270 W=1638 L=1532 T=100 WR=51.67% CI=[49.93%,53.41%] EV80=-0.070
 
 ================================
 MATCHED CONTROL
 ================================
 
-False-break WR (@5m DEV): eff=4087 W=1978 L=1988 T=121 WR=49.87% CI=[48.32%,51.43%] EV80=-0.102
-Matched ordinary-bar WR (same direction): eff=1955 W=948 L=953 T=54 WR=49.87% CI=[47.62%,52.11%] EV80=-0.102
-Difference (FB − CTRL WR): 0.01 pp
-CI note: matched n=1901; treat large gaps with suspicion and audit leakage first.
+False-break WR (@5m DEV): eff=5329 W=2487 L=2687 T=155 WR=48.07% CI=[46.71%,49.43%] EV80=-0.135
+Matched ordinary-bar WR (same direction): eff=2865 W=1409 L=1369 T=87 WR=50.72% CI=[48.86%,52.58%] EV80=-0.087
+Difference (FB − CTRL WR): -2.65 pp
+CI note: matched n=2778; treat large gaps with suspicion and audit leakage first.
 
 ================================
 EXPIRY
 ================================
 
-Best expiry (TRAIN failed aggregate): 5m
+Best expiry (TRAIN failed aggregate): 2m
 Why: highest TRAIN WR among expiries with n≥30
-Effective n: 11561
-WR: 50.22%
-CI: [49.31%, 51.13%]
-EV@80: -0.0960
+Effective n: 15689
+WR: 49.97%
+CI: [49.19%, 50.75%]
+EV@80: -0.1005
 
 ================================
 DEV CANDIDATES
 ================================
 
-1. FAILED_support|PEN_0.05_0.20|up|5m | effN=208 WR=60.58% CI=[53.80%,66.97%] EV80=0.090 pairs=12 dayShare=85.1% gate=FAIL
-2. FAILED_support|PEN_0.05_0.20|up|15m | effN=211 WR=59.24% CI=[52.50%,65.65%] EV80=0.066 pairs=12 dayShare=85.3% gate=FAIL
-3. FAILED_support|PEN_0.05_0.20|up|10m | effN=211 WR=57.35% CI=[50.60%,63.83%] EV80=0.032 pairs=12 dayShare=84.8% gate=FAIL
-4. FAILED_support|SAME_BAR|up|15m | effN=552 WR=54.17% CI=[50.00%,58.28%] EV80=-0.025 pairs=12 dayShare=84.8% gate=FAIL
-5. FAILED_support|STRONG_RECLAIM|up|15m | effN=673 WR=53.79% CI=[50.01%,57.52%] EV80=-0.032 pairs=12 dayShare=80.2% gate=FAIL
-6. FAILED_resistance|SAME_BAR|down|5m | effN=671 WR=53.20% CI=[49.42%,56.95%] EV80=-0.042 pairs=12 dayShare=89.0% gate=FAIL
-7. FAILED_SUPPORT|up|15m | effN=1920 WR=53.18% CI=[50.94%,55.40%] EV80=-0.043 pairs=12 dayShare=82.3% gate=FAIL
-8. HELD_RESISTANCE|up|15m | effN=6704 WR=52.91% CI=[51.71%,54.10%] EV80=-0.048 pairs=12 dayShare=85.4% gate=FAIL
-9. FAILED_resistance|STRONG_RECLAIM|down|1m | effN=613 WR=52.69% CI=[48.73%,56.62%] EV80=-0.052 pairs=12 dayShare=84.7% gate=FAIL
-10. HELD_RESISTANCE|up|10m | effN=6635 WR=52.49% CI=[51.29%,53.69%] EV80=-0.055 pairs=12 dayShare=85.6% gate=FAIL
-11. HELD_RESISTANCE|up|5m | effN=6605 WR=52.10% CI=[50.89%,53.30%] EV80=-0.062 pairs=12 dayShare=85.8% gate=FAIL
-12. FAILED_support|SAME_BAR|up|5m | effN=540 WR=52.04% CI=[47.82%,56.22%] EV80=-0.063 pairs=12 dayShare=84.4% gate=FAIL
-13. HELD_RESISTANCE|up|3m | effN=6537 WR=51.95% CI=[50.74%,53.16%] EV80=-0.065 pairs=12 dayShare=86.0% gate=FAIL
-14. FAILED_support|STRONG_RECLAIM|up|5m | effN=669 WR=51.87% CI=[48.08%,55.63%] EV80=-0.066 pairs=12 dayShare=80.4% gate=FAIL
-15. HELD_RESISTANCE|up|2m | effN=6466 WR=51.81% CI=[50.59%,53.03%] EV80=-0.067 pairs=12 dayShare=86.1% gate=FAIL
+1. FAILED_support|STRONG_RECLAIM|up|15m | effN=842 WR=53.09% CI=[49.71%,56.44%] EV80=-0.044 pairs=12 dayShare=60.0% gate=FAIL
+2. FAILED_support|SAME_BAR|up|1m | effN=724 WR=52.49% CI=[48.85%,56.10%] EV80=-0.055 pairs=12 dayShare=61.3% gate=FAIL
+3. FAILED_support|PEN_0.05_0.20|up|10m | effN=308 WR=52.27% CI=[46.70%,57.79%] EV80=-0.059 pairs=12 dayShare=60.1% gate=FAIL
+4. FAILED_support|STRONG_RECLAIM|up|10m | effN=840 WR=51.90% CI=[48.52%,55.27%] EV80=-0.066 pairs=12 dayShare=60.2% gate=FAIL
+5. FAILED_support|SAME_BAR|up|5m | effN=775 WR=51.61% CI=[48.10%,55.11%] EV80=-0.071 pairs=12 dayShare=61.8% gate=FAIL
+6. FAILED_support|PEN_0.05_0.20|up|5m | effN=309 WR=51.46% CI=[45.90%,56.98%] EV80=-0.074 pairs=12 dayShare=59.5% gate=FAIL
+7. FAILED_support|PEN_0.05_0.20|up|15m | effN=308 WR=50.97% CI=[45.41%,56.51%] EV80=-0.082 pairs=12 dayShare=59.1% gate=FAIL
+8. FAILED_support|PEN_0.05_0.20|up|1m | effN=288 WR=50.69% CI=[44.95%,56.42%] EV80=-0.088 pairs=12 dayShare=59.0% gate=FAIL
+9. FAILED_support|SAME_BAR|up|10m | effN=780 WR=50.13% CI=[46.63%,53.63%] EV80=-0.098 pairs=12 dayShare=61.8% gate=FAIL
+10. FAILED_support|STRONG_RECLAIM|up|1m | effN=800 WR=50.00% CI=[46.54%,53.46%] EV80=-0.100 pairs=12 dayShare=60.5% gate=FAIL
+11. FAILED_SUPPORT|up|15m | effN=2577 WR=49.86% CI=[47.94%,51.79%] EV80=-0.102 pairs=12 dayShare=59.4% gate=FAIL
+12. FAILED_SUPPORT|up|1m | effN=2415 WR=49.77% CI=[47.78%,51.77%] EV80=-0.104 pairs=12 dayShare=59.5% gate=FAIL
+13. HELD_RESISTANCE|up|10m | effN=8590 WR=49.28% CI=[48.22%,50.34%] EV80=-0.113 pairs=12 dayShare=61.2% gate=FAIL
+14. FAILED_support|SAME_BAR|up|15m | effN=785 WR=49.17% CI=[45.69%,52.66%] EV80=-0.115 pairs=12 dayShare=61.0% gate=FAIL
+15. HELD_RESISTANCE|up|1m | effN=8037 WR=49.15% CI=[48.06%,50.24%] EV80=-0.115 pairs=12 dayShare=61.7% gate=FAIL
 
 ================================
 DEV GATE
@@ -217,24 +217,24 @@ Frozen candidate: n/a
 EXISTING BASELINE INTERACTION
 ================================
 
-False-break + baseline AGREE (@5m DEV): eff=379 W=199 L=168 T=12 WR=54.22% CI=[49.11%,59.25%] EV80=-0.024
-False-break + baseline DISAGREE: eff=490 W=236 L=242 T=12 WR=49.37% CI=[44.91%,53.84%] EV80=-0.111
-False-break independent: eff=3218 W=1543 L=1578 T=97 WR=49.44% CI=[47.69%,51.19%] EV80=-0.110
+False-break + baseline AGREE (@5m DEV): eff=460 W=217 L=228 T=15 WR=48.76% CI=[44.15%,53.40%] EV80=-0.122
+False-break + baseline DISAGREE: eff=629 W=288 L=327 T=14 WR=46.83% CI=[42.92%,50.78%] EV80=-0.157
+False-break independent: eff=4240 W=1982 L=2132 T=126 WR=48.18% CI=[46.65%,49.70%] EV80=-0.133
 
 Does baseline add information?
-YES — AGREE slightly higher than independent (secondary only).
+NO clear additive signal from baseline agreement.
 
 ================================
 MODEL
 ================================
 
 Used: YES
-Model: L2 logistic, n_train=11666, expiry=10m
-DEV AUC: 0.518
+Model: L2 logistic, n_train=16185, expiry=10m
+DEV AUC: 0.503
 P>=0.55: n=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
 P>=0.60: n=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
 P>=0.65: n=0 WR=0.00% CI=[0.00%,0.00%] EV80=-1.000
-Top weights: reclaim=-0.038, beyond=-0.034, pen=0.021, bias=-0.013, prior5=0.013, sideRes=0.012
+Top weights: reclaim=-0.041, beyond=-0.024, wick=0.019, confl=0.014, closeLoc=0.013, bias=0.007
 Does ML improve the event rule? See P-threshold rows vs base FAILED @10m
 
 ================================
@@ -243,10 +243,10 @@ MULTIPLE TESTING
 
 Configurations (registry rows incl TRAIN+DEV+filters): 99
 DEV configs: 51
-Positive (WR>50%): 29
-Above BE80: 3
+Positive (WR>50%): 9
+Above BE80: 0
 Adequate n (≥100): 48
-CI lower >50: 11
+CI lower >50: 0
 CI lower >BE80: 0
 
 ================================
@@ -254,47 +254,47 @@ ROBUSTNESS
 ================================
 
 By pair (@5m DEV failed):
-  AUD_JPY: eff=331 W=163 L=153 T=15 WR=51.58% CI=[46.09%,57.04%] EV80=-0.072
-  AUD_USD: eff=271 W=140 L=125 T=6 WR=52.83% CI=[46.82%,58.76%] EV80=-0.049
-  EUR_AUD: eff=387 W=185 L=191 T=11 WR=49.20% CI=[44.18%,54.24%] EV80=-0.114
-  EUR_GBP: eff=286 W=104 L=165 T=17 WR=38.66% CI=[33.04%,44.60%] EV80=-0.304
-  EUR_JPY: eff=372 W=173 L=191 T=8 WR=47.53% CI=[42.45%,52.66%] EV80=-0.145
-  EUR_USD: eff=336 W=159 L=164 T=13 WR=49.23% CI=[43.82%,54.66%] EV80=-0.114
-  GBP_JPY: eff=337 W=174 L=158 T=5 WR=52.41% CI=[47.04%,57.72%] EV80=-0.057
-  GBP_USD: eff=390 W=197 L=185 T=8 WR=51.57% CI=[46.57%,56.54%] EV80=-0.072
-  NZD_USD: eff=375 W=199 L=163 T=13 WR=54.97% CI=[49.82%,60.02%] EV80=-0.010
-  USD_CAD: eff=365 W=176 L=174 T=15 WR=50.29% CI=[45.07%,55.49%] EV80=-0.095
-  USD_CHF: eff=327 W=151 L=170 T=6 WR=47.04% CI=[41.65%,52.50%] EV80=-0.153
-  USD_JPY: eff=310 W=157 L=149 T=4 WR=51.31% CI=[45.73%,56.86%] EV80=-0.076
+  AUD_JPY: eff=493 W=215 L=266 T=12 WR=44.70% CI=[40.31%,49.17%] EV80=-0.195
+  AUD_USD: eff=412 W=196 L=196 T=20 WR=50.00% CI=[45.07%,54.93%] EV80=-0.100
+  EUR_AUD: eff=483 W=224 L=244 T=15 WR=47.86% CI=[43.37%,52.39%] EV80=-0.138
+  EUR_GBP: eff=338 W=137 L=184 T=17 WR=42.68% CI=[37.39%,48.15%] EV80=-0.232
+  EUR_JPY: eff=522 W=256 L=256 T=10 WR=50.00% CI=[45.69%,54.31%] EV80=-0.100
+  EUR_USD: eff=497 W=227 L=244 T=26 WR=48.20% CI=[43.72%,52.70%] EV80=-0.132
+  GBP_JPY: eff=528 W=239 L=283 T=6 WR=45.79% CI=[41.56%,50.07%] EV80=-0.176
+  GBP_USD: eff=465 W=231 L=224 T=10 WR=50.77% CI=[46.19%,55.34%] EV80=-0.086
+  NZD_USD: eff=408 W=201 L=192 T=15 WR=51.15% CI=[46.22%,56.05%] EV80=-0.079
+  USD_CAD: eff=320 W=162 L=151 T=7 WR=51.76% CI=[46.23%,57.24%] EV80=-0.068
+  USD_CHF: eff=459 W=204 L=243 T=12 WR=45.64% CI=[41.08%,50.27%] EV80=-0.179
+  USD_JPY: eff=404 W=195 L=204 T=5 WR=48.87% CI=[44.00%,53.76%] EV80=-0.120
 
 By session:
-  asia: eff=1265 W=601 L=629 T=35 WR=48.86% CI=[46.08%,51.65%] EV80=-0.120
-  london: eff=788 W=405 L=360 T=23 WR=52.94% CI=[49.40%,56.45%] EV80=-0.047
-  overlap: eff=893 W=434 L=442 T=17 WR=49.54% CI=[46.24%,52.85%] EV80=-0.108
-  newyork: eff=817 W=402 L=383 T=32 WR=51.21% CI=[47.72%,54.69%] EV80=-0.078
-  off: eff=324 W=136 L=174 T=14 WR=43.87% CI=[38.46%,49.44%] EV80=-0.210
+  asia: eff=2247 W=1049 L=1126 T=72 WR=48.23% CI=[46.13%,50.33%] EV80=-0.132
+  london: eff=1589 W=746 L=799 T=44 WR=48.28% CI=[45.80%,50.78%] EV80=-0.131
+  overlap: eff=659 W=295 L=348 T=16 WR=45.88% CI=[42.06%,49.74%] EV80=-0.174
+  newyork: eff=651 W=303 L=328 T=20 WR=48.02% CI=[44.14%,51.92%] EV80=-0.136
+  off: eff=183 W=94 L=86 T=3 WR=52.22% CI=[44.96%,59.40%] EV80=-0.060
 
 Day stability (best candidate):
-  candidate=FAILED_support|PEN_0.05_0.20|up|5m profitDays=2 loseDays=0 maxDayEventShare=85.1% maxDayWinShare=83.3%
+  candidate=FAILED_support|STRONG_RECLAIM|up|15m profitDays=2 loseDays=1 maxDayEventShare=60.0% maxDayWinShare=61.7%
 
 ================================
 FINAL VERDICT
 ================================
 
-FALSE_BREAK_DAY_DEPENDENT
+FALSE_BREAK_IMPROVES_BUT_BELOW_BREAK_EVEN
 
 ================================
 DIRECT ANSWERS
 ================================
 
 1. After support breaks and is reclaimed, does UP beat 55.56%?
-   DEV best FAILED_SUPPORT|up|15m: WR=53.18% n=1920 gate=FAIL
+   DEV best FAILED_SUPPORT|up|15m: WR=49.86% n=2577 gate=FAIL
 
 2. After resistance breaks and is reclaimed, does DOWN beat 55.56%?
-   DEV best FAILED_RESISTANCE|down|2m: WR=51.45% n=2039 gate=FAIL
+   DEV best FAILED_RESISTANCE|down|15m: WR=48.51% n=2653 gate=FAIL
 
 3. Which expiry works best?
-   TRAIN aggregate best=5m WR=50.22%; see DEV candidate table for OOS.
+   TRAIN aggregate best=2m WR=49.97%; see DEV candidate table for OOS.
 
 4. Does deeper penetration help or hurt?
    See PENETRATION DEPTH TRAIN table — compare <0.05 through >0.30.
@@ -306,16 +306,16 @@ DIRECT ANSWERS
    See TIME BEYOND LEVEL same-bar vs 1/2/3+.
 
 7. Does the effect beat matched ordinary M1 bars?
-   FB WR=49.87% vs CTRL WR=49.87% (Δ=0.01 pp) @5m DEV.
+   FB WR=48.07% vs CTRL WR=50.72% (Δ=-2.65 pp) @5m DEV.
 
 8. Does it repeat across pairs and days?
-   Best candidate dayShare=85.1% nSymbols=12; concentrated / underpowered.
+   Best candidate dayShare=60.0% nSymbols=12; concentrated / underpowered.
 
 9. Is there any DEV candidate with enough observations to justify opening HOLDOUT?
    NO
 
 10. Most importantly:
 Can a CONFIRMED false breakout provide a genuinely profitable binary signal, rather than attempting to predict the breakout/reversal before the market reveals which one occurred?
-   Verdict=FALSE_BREAK_DAY_DEPENDENT. Apparent edge concentrates on one calendar day — not a robust signal.
+   Verdict=FALSE_BREAK_IMPROVES_BUT_BELOW_BREAK_EVEN. False breaks may sit above 50% but not above 80% payout break-even with adequate n.
 
 NO PRODUCTION BINARY CHANGES WERE MADE.

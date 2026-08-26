@@ -1,0 +1,35 @@
+GOLDENXPERIENCE — LIQUIDITY ENGINE PRICE-ONLY BINARY DIRECTION AUDIT
+Research only. No database rows, paper trades, predictions, or strategy configuration changed.
+
+Engine: trend-pullback-liquidity-v2; exact evaluateLiquiditySetup technical gates at every completed M15 close.
+Direction measurement: freeze strategy UP/DOWN/WAIT at M15 close; entry=OANDA M15 mid close; mark=the OANDA M1 mid close exactly +10 minutes later; ties excluded from win rate. Exact inverse means the same entry and mark with the direction reversed.
+Historical limitation: news was not evaluated and macro was neutral because historical calendar/FRED snapshots were not retained. This tests the technical core only, not the full live/practice policy.
+Data window: 2026-07-27T07:15:00.000Z → 2026-08-25T15:00:00.000Z; 162 valid UP/DOWN signals across 12 pairs.
+Chronological split: TRAIN through 2026-08-13T21:30:00.000Z | DEV through 2026-08-19T18:15:00.000Z | HOLDOUT after.
+
+Coverage:
+EUR_USD: M1=32000, M15=4000, H1=1100, H4=500; eligible M15 decisions=2132; valid strategy signals=7.
+GBP_USD: M1=32000, M15=4000, H1=1100, H4=500; eligible M15 decisions=2133; valid strategy signals=27.
+USD_JPY: M1=32000, M15=4000, H1=1100, H4=500; eligible M15 decisions=2131; valid strategy signals=9.
+AUD_USD: M1=32000, M15=4000, H1=1100, H4=500; eligible M15 decisions=2125; valid strategy signals=19.
+NZD_USD: M1=32000, M15=4000, H1=1100, H4=500; eligible M15 decisions=2141; valid strategy signals=13.
+USD_CAD: M1=32000, M15=4000, H1=1100, H4=500; eligible M15 decisions=2132; valid strategy signals=24.
+USD_CHF: M1=32000, M15=4000, H1=1100, H4=500; eligible M15 decisions=2125; valid strategy signals=14.
+EUR_GBP: M1=32000, M15=4000, H1=1100, H4=500; eligible M15 decisions=2133; valid strategy signals=27.
+EUR_JPY: M1=32000, M15=4000, H1=1100, H4=500; eligible M15 decisions=2133; valid strategy signals=0.
+GBP_JPY: M1=32000, M15=4000, H1=1100, H4=500; eligible M15 decisions=2133; valid strategy signals=2.
+AUD_JPY: M1=32000, M15=4000, H1=1100, H4=500; eligible M15 decisions=2135; valid strategy signals=20.
+EUR_AUD: M1=32000, M15=4000, H1=1100, H4=500; eligible M15 decisions=2133; valid strategy signals=0.
+
+TRAIN original: n=99 W/L/T=49/50/2 WR=49.49% CI95=[39.85%, 59.18%]
+TRAIN exact inverse: n=99 W/L/T=50/49/2 WR=50.51% CI95=[40.82%, 60.15%]
+DEV original: n=24 W/L/T=17/7/1 WR=70.83% CI95=[50.83%, 85.09%]
+DEV exact inverse: n=24 W/L/T=7/17/1 WR=29.17% CI95=[14.91%, 49.17%]
+Predeclared gate: at least 100 decided DEV signals, WR > 55.56%, Wilson lower bound >50%. Selected for holdout: NONE.
+HOLDOUT NOT READ — neither the original nor exact inverse passed the fixed DEV gate.
+
+Development diagnostics only — not selection criteria:
+UP original: n=15 W/L/T=11/4/0 WR=73.33% CI95=[48.05%, 89.10%]
+UP exact inverse: n=15 W/L/T=4/11/0 WR=26.67% CI95=[10.90%, 51.95%]
+DOWN original: n=9 W/L/T=6/3/1 WR=66.67% CI95=[35.42%, 87.94%]
+DOWN exact inverse: n=9 W/L/T=3/6/1 WR=33.33% CI95=[12.06%, 64.58%]

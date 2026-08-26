@@ -1,0 +1,19 @@
+GOLDENXPERIENCE — M1 COMPRESSION-EXPANSION DIRECTION STUDY
+Research only. No production strategy, trade, or prediction record changed.
+
+FROZEN RULE: preceding 12 completed M1 candles have width <=65% of the prior 24-minute width and <=2 ATR14; next completed candle closes outside the range with body >=0.25 ATR14; entry=that close; target=mid close 10 minutes later.
+Data: 741 events across 12 pairs, 2026-08-06T02:55:00.000Z → 2026-08-26T02:24:00.000Z.
+Chronological: TRAIN through 2026-08-18T02:36:24.000Z | DEV through 2026-08-22T02:30:12.000Z | HOLDOUT after.
+
+TRAIN continuation: n=418 W/L/T=206/212/10 WR=49.28% CI95=[44.52%,54.06%]
+TRAIN exact inverse: n=418 W/L/T=212/206/10 WR=50.72% CI95=[45.94%,55.48%]
+DEV continuation: n=188 W/L/T=92/96/6 WR=48.94% CI95=[41.88%,56.03%]
+DEV exact inverse: n=188 W/L/T=96/92/6 WR=51.06% CI95=[43.97%,58.12%]
+Gate: n>=100, WR>55.56%, Wilson lower >50%. Selected for holdout: NONE.
+HOLDOUT NOT READ — neither direction passed the frozen DEV gate.
+
+By direction (diagnostic):
+up DEV continuation: n=90 W/L/T=48/42/4 WR=53.33% CI95=[43.10%,63.29%]
+up DEV inverse: n=90 W/L/T=42/48/4 WR=46.67% CI95=[36.71%,56.90%]
+down DEV continuation: n=98 W/L/T=44/54/2 WR=44.90% CI95=[35.43%,54.75%]
+down DEV inverse: n=98 W/L/T=54/44/2 WR=55.10% CI95=[45.25%,64.57%]

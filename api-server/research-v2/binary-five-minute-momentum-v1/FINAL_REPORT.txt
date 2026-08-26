@@ -1,0 +1,28 @@
+GOLDENXPERIENCE — FORCED FIVE-MINUTE MOMENTUM BINARY AUDIT
+Research only. Read-only use of recorded binary predictions; no predictions, database records, paper trades, or production behavior changed.
+
+Frozen rule: for each recorded baseline entry, predict UP if the latest completed OANDA M1 midpoint close available at entry is at or above its close five minutes earlier; otherwise predict DOWN. There is no WAIT state.
+Outcome: the actual recorded binary entry and resolution marks are used, including the row's tie tolerance. Exact inverse is the same entry/mark with the direction reversed.
+Recorded sample: 6495 settled baseline predictions; 6445 M1-backed forced decisions across 12 pairs, 2026-08-14T17:13:11.523Z → 2026-08-26T12:01:00.659Z.
+Chronological split: TRAIN through 2026-08-21T18:53:53.004Z | DEV through 2026-08-24T03:27:26.831Z | HOLDOUT after.
+
+Coverage:
+GBP_JPY: 580 recorded settled predictions; 580 M1-backed forced UP/DOWN decisions.
+NZD_USD: 574 recorded settled predictions; 560 M1-backed forced UP/DOWN decisions.
+EUR_JPY: 582 recorded settled predictions; 582 M1-backed forced UP/DOWN decisions.
+EUR_USD: 578 recorded settled predictions; 577 M1-backed forced UP/DOWN decisions.
+EUR_GBP: 578 recorded settled predictions; 568 M1-backed forced UP/DOWN decisions.
+USD_CAD: 578 recorded settled predictions; 577 M1-backed forced UP/DOWN decisions.
+GBP_USD: 581 recorded settled predictions; 577 M1-backed forced UP/DOWN decisions.
+USD_CHF: 586 recorded settled predictions; 582 M1-backed forced UP/DOWN decisions.
+AUD_USD: 580 recorded settled predictions; 564 M1-backed forced UP/DOWN decisions.
+USD_JPY: 579 recorded settled predictions; 579 M1-backed forced UP/DOWN decisions.
+AUD_JPY: 349 recorded settled predictions; 349 M1-backed forced UP/DOWN decisions.
+EUR_AUD: 350 recorded settled predictions; 350 M1-backed forced UP/DOWN decisions.
+
+TRAIN original: n=4155 W/L/T=2068/2087/34 WR=49.77% CI95=[48.25%, 51.29%]
+TRAIN exact inverse: n=4155 W/L/T=2087/2068/34 WR=50.23% CI95=[48.71%, 51.75%]
+DEV original: n=116 W/L/T=58/58/2 WR=50.00% CI95=[41.05%, 58.95%]
+DEV exact inverse: n=116 W/L/T=58/58/2 WR=50.00% CI95=[41.05%, 58.95%]
+Predeclared gate: n>=100, WR>55.56%, Wilson lower bound >50%. Selected for holdout: NONE.
+HOLDOUT NOT READ — neither direction passed the fixed development gate.

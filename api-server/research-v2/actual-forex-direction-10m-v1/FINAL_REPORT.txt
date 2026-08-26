@@ -1,0 +1,32 @@
+GOLDENXPERIENCE — ACTUAL FOREX ENGINE 10-MINUTE DIRECTION AUDIT
+Research only. This read-only audit does not change trades, runtime strategy policy, paper risk, or production behavior.
+
+Question tested: for each actual four-family forex paper decision, did the strategy's original direction match the raw OANDA M1 midpoint move exactly ten minutes after the latest completed M1 close at or before its decision time?
+This is direction-only: no trade entry, bid/ask, spread, stop, target, resolver, or R result is used. A zero midpoint move is a tie. Exact inverse flips only the original direction while keeping the same two midpoint marks.
+Source: 99 actual paper_strategy_trades rows from the EMA, breakout, momentum and mean-reversion families; 99 had both required M1 marks. 20 stored rows had an execution-policy direction flip.
+Observation window: 2026-08-19T07:15:00.000Z → 2026-08-26T11:30:00.000Z. Horizon: 10 minutes.
+
+ALL-RECORDS EXPLORATORY FAMILY VIEW — descriptive only; do not use this pooled table to activate or invert a strategy:
+breakout   decisions= 30 | original n=30 W/L/T=15/15/0 WR=50.00% CI95=[33.15%, 66.85%] | inverse n=30 W/L/T=15/15/0 WR=50.00% CI95=[33.15%, 66.85%] | executed n=30 W/L/T=15/15/0 WR=50.00% CI95=[33.15%, 66.85%]
+ema        decisions= 23 | original n=23 W/L/T=14/9/0 WR=60.87% CI95=[40.79%, 77.84%] | inverse n=23 W/L/T=9/14/0 WR=39.13% CI95=[22.16%, 59.21%] | executed n=23 W/L/T=14/9/0 WR=60.87% CI95=[40.79%, 77.84%]
+meanrev    decisions=  1 | original n=1 W/L/T=0/1/0 WR=0.00% CI95=[0.00%, 79.35%] | inverse n=1 W/L/T=1/0/0 WR=100.00% CI95=[20.65%, 100.00%] | executed n=1 W/L/T=0/1/0 WR=0.00% CI95=[0.00%, 79.35%]
+momentum   decisions= 45 | original n=44 W/L/T=14/30/1 WR=31.82% CI95=[20.00%, 46.56%] | inverse n=44 W/L/T=30/14/1 WR=68.18% CI95=[53.44%, 80.00%] | executed n=44 W/L/T=24/20/1 WR=54.55% CI95=[40.07%, 68.29%]
+
+Chronological validation (the only activation decision):
+TRAIN original: n=54 W/L/T=27/27/1 WR=50.00% CI95=[37.11%, 62.89%]
+TRAIN exact inverse: n=54 W/L/T=27/27/1 WR=50.00% CI95=[37.11%, 62.89%]
+DEV original: n=19 W/L/T=4/15/0 WR=21.05% CI95=[8.51%, 43.33%]
+DEV exact inverse: n=19 W/L/T=15/4/0 WR=78.95% CI95=[56.67%, 91.49%]
+Predeclared gate: n>=100, WR>55.56%, Wilson lower bound >50%. Selected for holdout: NONE.
+HOLDOUT NOT READ — neither direction passed the fixed development gate.
+
+Coverage:
+AUD_USD: 15 actual decisions; 20000 fetched completed M1 candles.
+USD_JPY: 11 actual decisions; 20000 fetched completed M1 candles.
+EUR_USD: 15 actual decisions; 20000 fetched completed M1 candles.
+GBP_USD: 14 actual decisions; 20000 fetched completed M1 candles.
+USD_CHF: 14 actual decisions; 20000 fetched completed M1 candles.
+EUR_GBP: 8 actual decisions; 20000 fetched completed M1 candles.
+USD_CAD: 14 actual decisions; 20000 fetched completed M1 candles.
+AUD_JPY: 8 actual decisions; 20000 fetched completed M1 candles.
+Skipped because either M1 mark was unavailable: none.

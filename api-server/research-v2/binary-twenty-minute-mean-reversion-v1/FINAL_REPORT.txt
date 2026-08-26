@@ -1,0 +1,28 @@
+GOLDENXPERIENCE — FORCED TWENTY-MINUTE MEAN-REVERSION BINARY AUDIT
+Research only. Read-only use of recorded binary predictions; no production behavior changed.
+
+Frozen rule: at each recorded entry, use the latest completed M1 midpoint and its 20-minute simple average. Latest below average => UP; latest at/above average => DOWN. No WAIT.
+Outcome: actual recorded entry/resolution marks and stored tie tolerance. Exact inverse uses the identical marks.
+Recorded sample: 6501 settled rows; 6379 M1-backed forced decisions across 12 pairs, 2026-08-14T17:13:11.523Z → 2026-08-26T12:05:58.591Z.
+Chronological split: TRAIN through 2026-08-21T18:56:51.763Z | DEV through 2026-08-24T03:31:25.177Z | HOLDOUT after.
+
+Coverage:
+GBP_JPY: 581 recorded predictions; 581 forced UP/DOWN decisions.
+NZD_USD: 574 recorded predictions; 539 forced UP/DOWN decisions.
+EUR_JPY: 583 recorded predictions; 583 forced UP/DOWN decisions.
+EUR_USD: 578 recorded predictions; 573 forced UP/DOWN decisions.
+EUR_GBP: 579 recorded predictions; 553 forced UP/DOWN decisions.
+USD_CAD: 578 recorded predictions; 575 forced UP/DOWN decisions.
+GBP_USD: 581 recorded predictions; 574 forced UP/DOWN decisions.
+USD_CHF: 586 recorded predictions; 576 forced UP/DOWN decisions.
+AUD_USD: 581 recorded predictions; 545 forced UP/DOWN decisions.
+USD_JPY: 580 recorded predictions; 580 forced UP/DOWN decisions.
+AUD_JPY: 349 recorded predictions; 349 forced UP/DOWN decisions.
+EUR_AUD: 351 recorded predictions; 351 forced UP/DOWN decisions.
+
+TRAIN original: n=4116 W/L/T=2086/2030/33 WR=50.68% CI95=[49.15%, 52.21%]
+TRAIN exact inverse: n=4116 W/L/T=2030/2086/33 WR=49.32% CI95=[47.79%, 50.85%]
+DEV original: n=106 W/L/T=51/55/2 WR=48.11% CI95=[38.83%, 57.52%]
+DEV exact inverse: n=106 W/L/T=55/51/2 WR=51.89% CI95=[42.48%, 61.17%]
+Predeclared gate: n>=100, WR>55.56%, Wilson lower bound >50%. Selected for holdout: NONE.
+HOLDOUT NOT READ — neither direction passed the fixed development gate.

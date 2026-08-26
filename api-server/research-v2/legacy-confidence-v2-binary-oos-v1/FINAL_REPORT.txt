@@ -1,0 +1,28 @@
+GOLDENXPERIENCE — LEGACY-CONFIDENCE-V2 LOCKED BINARY DIRECTION AUDIT
+Research only. No database, binary prediction, configuration, or paper-trade rows changed.
+
+Decision: exact legacy 10-gate EMA-pullback setup; FX takes only a confident model disagreement (|pLong−0.5| >= 0.10), XAU takes the legacy direction; all other cases are WAIT.
+Training: model retrained from the preceding 12 months of legacy P&L records only. The binary outcome window begins after that training cutoff, so binary labels were not available to the model.
+Outcome: freeze UP/DOWN/WAIT at completed M15 close; entry=OANDA M15 midpoint; mark=OANDA M1 midpoint exactly +10 minutes later. Exact inverse is a control using identical marks.
+Training cutoff: 2026-07-27T03:38:00.000Z; training samples=181.
+Binary validation window: 2026-07-30T07:00:00.000Z → 2026-08-21T09:15:00.000Z.
+
+Coverage:
+USD_JPY: eligible M15=2132; legacy 10-gate setups=3; confidence-rule UP/DOWN=1.
+AUD_USD: eligible M15=2127; legacy 10-gate setups=0; confidence-rule UP/DOWN=0.
+EUR_USD: eligible M15=2132; legacy 10-gate setups=2; confidence-rule UP/DOWN=2.
+GBP_USD: eligible M15=2132; legacy 10-gate setups=1; confidence-rule UP/DOWN=0.
+USD_CAD: eligible M15=2133; legacy 10-gate setups=1; confidence-rule UP/DOWN=1.
+USD_CHF: eligible M15=2126; legacy 10-gate setups=1; confidence-rule UP/DOWN=1.
+EUR_JPY: eligible M15=2134; legacy 10-gate setups=3; confidence-rule UP/DOWN=1.
+GBP_JPY: eligible M15=2133; legacy 10-gate setups=1; confidence-rule UP/DOWN=0.
+AUD_JPY: eligible M15=2136; legacy 10-gate setups=3; confidence-rule UP/DOWN=1.
+EUR_GBP: eligible M15=2133; legacy 10-gate setups=0; confidence-rule UP/DOWN=0.
+NZD_USD: eligible M15=2142; legacy 10-gate setups=0; confidence-rule UP/DOWN=0.
+XAU_USD: eligible M15=2116; legacy 10-gate setups=2; confidence-rule UP/DOWN=2.
+
+Original confidence rule: n=9 W/L/T=4/5/0 WR=44.44% CI95=[18.88%, 73.34%]
+Exact inverse control: n=9 W/L/T=5/4/0 WR=55.56% CI95=[26.66%, 81.12%]
+Verdict: this is one locked, out-of-sample binary window. It is descriptive only unless at least 100 decided signals are available; do not tune the rule from this result.
+
+Implementation blocker found separately: the live collector fetches 500 M15 bars but its feature function requires 501, so it currently cannot produce a model-directed FX decision. This audit uses 501 bars to test the intended rule; it does not silently fix the collector.

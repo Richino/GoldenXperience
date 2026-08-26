@@ -1,0 +1,19 @@
+GOLDENXPERIENCE — CANONICAL M1 TREND-PULLBACK DIRECTION STUDY
+Research only. No production strategy, trade, or prediction row changed.
+
+FROZEN RULE: EMA20/EMA50 aligned and both sloping for 10 completed M1 bars; 6-bar impulse >=0.75 ATR14; 2-3 countertrend candles retrace 20-50% while holding EMA50; next completed candle closes through pullback; entry=that close; target=mid close 10 minutes later.
+Data: 322 events across 12 pairs, 2026-08-06T05:09:00.000Z → 2026-08-26T02:23:00.000Z.
+Chronological: TRAIN through 2026-08-18T03:29:24.000Z | DEV through 2026-08-22T02:56:12.000Z | HOLDOUT after.
+
+TRAIN continuation: n=178 W/L/T=82/96/5 WR=46.07% CI95=[38.91%,53.40%]
+TRAIN exact inverse: n=178 W/L/T=96/82/5 WR=53.93% CI95=[46.60%,61.09%]
+DEV continuation: n=85 W/L/T=44/41/4 WR=51.76% CI95=[41.30%,62.08%]
+DEV exact inverse: n=85 W/L/T=41/44/4 WR=48.24% CI95=[37.92%,58.70%]
+Gate: n>=100, WR>55.56%, Wilson lower >50%. Selected for holdout: NONE.
+HOLDOUT NOT READ — neither continuation nor exact inverse passed the fixed DEV gate.
+
+By direction (diagnostic):
+up DEV continuation: n=45 W/L/T=23/22/3 WR=51.11% CI95=[37.00%,65.04%]
+up DEV inverse: n=45 W/L/T=22/23/3 WR=48.89% CI95=[34.96%,63.00%]
+down DEV continuation: n=40 W/L/T=21/19/1 WR=52.50% CI95=[37.50%,67.06%]
+down DEV inverse: n=40 W/L/T=19/21/1 WR=47.50% CI95=[32.94%,62.50%]

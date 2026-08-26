@@ -1,0 +1,3533 @@
+{
+  "generated": "2026-08-25T23:51:08.254Z",
+  "featureNames": [
+    "atrPct",
+    "atrRatio",
+    "hourEt",
+    "dayOfWeek",
+    "rsiVelocity",
+    "rangePos",
+    "mom3"
+  ],
+  "mean": [
+    0.6354393770856516,
+    1.0934188904700328,
+    6.860956618464961,
+    2.0166852057842046,
+    0.34094366102122614,
+    0.5704282224043873,
+    0.0000902042381578841
+  ],
+  "std": [
+    0.22939600881666092,
+    0.13654488715955093,
+    2.5271868969535314,
+    1.3818905501787115,
+    3.1792604930821824,
+    0.45222489366905616,
+    0.0013473530788692069
+  ],
+  "weights": [
+    0.029302448494709095,
+    -0.056073147505985015,
+    0.15177526650156348,
+    -0.07523010637020054,
+    -0.2621151458354323,
+    -0.03963610196247694,
+    -0.06657999012679613
+  ],
+  "bias": -0.011353798369357295,
+  "is": {
+    "n": 899,
+    "from": "2020-08-31T07:00:00.000Z",
+    "to": "2024-10-17T10:15:00.000Z"
+  },
+  "oos": {
+    "n": 386,
+    "from": "2024-10-17T12:45:00.000Z",
+    "to": "2026-08-25T11:30:00.000Z"
+  },
+  "overall": {
+    "baselineTotalR": 11.52881992061423,
+    "baselineWinrate": 46.1139896373057,
+    "modelTotalR": -13.70908718032683,
+    "modelWinrate": 52.33160621761658,
+    "disagreementPct": 89.11917098445596
+  },
+  "oosRows": [
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2024-10-17T12:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 0.3265940902021791,
+      "pLong": 0.6875991801241756,
+      "picked": "long",
+      "impliedR": -0.3265940902021791
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2024-10-21T14:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.499999999999964,
+      "pLong": 0.550561497687478,
+      "picked": "long",
+      "impliedR": 1.499999999999964
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2024-10-22T07:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.3264760479403616,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2024-10-22T07:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.374705744747345,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2024-10-22T10:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.46561186996363507,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_CHF",
+      "decisionTime": "2024-10-23T11:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.44687398221367886,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2024-10-29T13:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.500000000000024,
+      "pLong": 0.4716048171157053,
+      "picked": "short",
+      "impliedR": -1.500000000000024
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2024-11-05T16:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.488612836438895,
+      "pLong": 0.488374557877905,
+      "picked": "short",
+      "impliedR": -0.488612836438895
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2024-11-06T08:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5,
+      "pLong": 0.3248782234064619,
+      "picked": "short",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2024-11-06T16:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.2313084112149635,
+      "pLong": 0.5010211193458911,
+      "picked": "long",
+      "impliedR": 0.2313084112149635
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2024-11-06T16:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.43149946062572775,
+      "pLong": 0.5146688367136283,
+      "picked": "long",
+      "impliedR": 0.43149946062572775
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2024-11-12T12:30:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.6211787647906595,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2024-11-14T09:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5,
+      "pLong": 0.587230006258156,
+      "picked": "long",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2024-11-14T13:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5484894758494897,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "NZD_USD",
+      "decisionTime": "2024-11-14T13:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5674699575142281,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2024-11-15T13:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.4999999999999813,
+      "pLong": 0.5854631495509098,
+      "picked": "long",
+      "impliedR": -1.4999999999999813
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2024-11-15T13:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5,
+      "pLong": 0.5914698874731318,
+      "picked": "long",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "EUR_GBP",
+      "decisionTime": "2024-11-19T13:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.49844317295492624,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2024-11-20T14:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5,
+      "pLong": 0.5797047139080207,
+      "picked": "long",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "USD_CHF",
+      "decisionTime": "2024-11-22T09:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5,
+      "pLong": 0.24231260583537068,
+      "picked": "short",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "EUR_GBP",
+      "decisionTime": "2024-11-22T15:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -0.09482758620689614,
+      "pLong": 0.6081099549990003,
+      "picked": "long",
+      "impliedR": 0.09482758620689614
+    },
+    {
+      "pair": "USD_CAD",
+      "decisionTime": "2024-11-26T14:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.4965895076745535,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2024-11-29T09:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5303457075518132,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "NZD_USD",
+      "decisionTime": "2024-11-29T15:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.516998862628558,
+      "picked": "long",
+      "impliedR": -1
+    },
+    {
+      "pair": "EUR_GBP",
+      "decisionTime": "2024-11-29T16:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 0.0401146131805267,
+      "pLong": 0.5789403400642011,
+      "picked": "long",
+      "impliedR": -0.0401146131805267
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2024-12-02T14:30:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -0.14112458654905846,
+      "pLong": 0.5912847323632882,
+      "picked": "long",
+      "impliedR": 0.14112458654905846
+    },
+    {
+      "pair": "EUR_GBP",
+      "decisionTime": "2024-12-04T16:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 0.2127659574467841,
+      "pLong": 0.6012290107197165,
+      "picked": "long",
+      "impliedR": -0.2127659574467841
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2024-12-11T13:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.499999999999977,
+      "pLong": 0.45129120257169325,
+      "picked": "short",
+      "impliedR": -1.499999999999977
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2024-12-12T13:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5843246001978931,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_CHF",
+      "decisionTime": "2024-12-13T14:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -0.46153846153844924,
+      "pLong": 0.3891414532711847,
+      "picked": "short",
+      "impliedR": 0.46153846153844924
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2024-12-16T09:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.499999999999958,
+      "pLong": 0.4449233724067467,
+      "picked": "short",
+      "impliedR": -1.499999999999958
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2024-12-16T15:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.6973947895791914,
+      "pLong": 0.5508495336060767,
+      "picked": "long",
+      "impliedR": 0.6973947895791914
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2024-12-17T15:30:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 0.030395136778112015,
+      "pLong": 0.6406398401425605,
+      "picked": "long",
+      "impliedR": -0.030395136778112015
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2024-12-19T15:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 0.9477756286266951,
+      "pLong": 0.5959341910845481,
+      "picked": "long",
+      "impliedR": -0.9477756286266951
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2024-12-23T10:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.130841121495333,
+      "pLong": 0.4699970901499745,
+      "picked": "short",
+      "impliedR": -1.130841121495333
+    },
+    {
+      "pair": "NZD_USD",
+      "decisionTime": "2024-12-23T15:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.6549707549963416,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2024-12-24T15:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -0.8883826879271478,
+      "pLong": 0.5525861705506663,
+      "picked": "long",
+      "impliedR": -0.8883826879271478
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2024-12-26T09:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.4999999999999476,
+      "pLong": 0.33528486273741176,
+      "picked": "short",
+      "impliedR": -1.4999999999999476
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2024-12-30T11:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.46267660584392667,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2024-12-31T16:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 0.12944983818768646,
+      "pLong": 0.6379891020068503,
+      "picked": "long",
+      "impliedR": -0.12944983818768646
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2025-01-08T09:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5,
+      "pLong": 0.5690220692637277,
+      "picked": "long",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "EUR_GBP",
+      "decisionTime": "2025-01-09T16:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.5123913466519873,
+      "picked": "long",
+      "impliedR": -1
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2025-01-10T14:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.30587618048268334,
+      "pLong": 0.4355627232506038,
+      "picked": "short",
+      "impliedR": -0.30587618048268334
+    },
+    {
+      "pair": "EUR_GBP",
+      "decisionTime": "2025-01-10T16:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.17391304347827252,
+      "pLong": 0.4327183322969785,
+      "picked": "short",
+      "impliedR": -0.17391304347827252
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2025-01-13T12:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.595987933446579,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2025-01-13T12:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5711675672132138,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "EUR_GBP",
+      "decisionTime": "2025-01-14T16:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -0.4357142857142642,
+      "pLong": 0.5327711386113855,
+      "picked": "long",
+      "impliedR": -0.4357142857142642
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2025-01-15T15:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 0.20304568527918068,
+      "pLong": 0.6639319697706595,
+      "picked": "long",
+      "impliedR": -0.20304568527918068
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2025-01-16T08:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.0475302889095888,
+      "pLong": 0.5173838501822642,
+      "picked": "long",
+      "impliedR": -1.0475302889095888
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2025-01-16T15:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 0.8773513920241083,
+      "pLong": 0.622101601289624,
+      "picked": "long",
+      "impliedR": -0.8773513920241083
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2025-01-16T15:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.0487804878048623,
+      "pLong": 0.6861311513424574,
+      "picked": "long",
+      "impliedR": -1.0487804878048623
+    },
+    {
+      "pair": "USD_CAD",
+      "decisionTime": "2025-01-17T12:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5000000000000575,
+      "pLong": 0.38550064982108073,
+      "picked": "short",
+      "impliedR": -1.5000000000000575
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2025-01-21T12:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5,
+      "pLong": 0.4525454169043653,
+      "picked": "short",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2025-01-23T16:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.3112244897959065,
+      "pLong": 0.4239289545905511,
+      "picked": "short",
+      "impliedR": -0.3112244897959065
+    },
+    {
+      "pair": "NZD_USD",
+      "decisionTime": "2025-01-23T16:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.18574514038873347,
+      "pLong": 0.4624113063583306,
+      "picked": "short",
+      "impliedR": -0.18574514038873347
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2025-01-29T08:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 0.0567612687812868,
+      "pLong": 0.5420801743382504,
+      "picked": "long",
+      "impliedR": -0.0567612687812868
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2025-02-03T09:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.6415001028952748,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2025-02-03T09:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.4999999999999785,
+      "pLong": 0.5805437333294784,
+      "picked": "long",
+      "impliedR": -1.4999999999999785
+    },
+    {
+      "pair": "USD_CHF",
+      "decisionTime": "2025-02-03T14:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.5016314785676057,
+      "picked": "long",
+      "impliedR": -1
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2025-02-05T08:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.4999999999999682,
+      "pLong": 0.5489580205711434,
+      "picked": "long",
+      "impliedR": -1.4999999999999682
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2025-02-05T08:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5761075167602512,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2025-02-05T08:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5759112029367643,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2025-02-13T10:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.3760139505248628,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2025-02-13T10:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.3822164153688905,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_CAD",
+      "decisionTime": "2025-02-14T13:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -0.22395833333330623,
+      "pLong": 0.6023124347680782,
+      "picked": "long",
+      "impliedR": 0.22395833333330623
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2025-02-17T09:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5000000000000708,
+      "pLong": 0.40226103036391353,
+      "picked": "short",
+      "impliedR": -1.5000000000000708
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2025-02-20T12:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5465192904932663,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2025-02-20T15:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.4247491638797325,
+      "pLong": 0.4894039478412293,
+      "picked": "short",
+      "impliedR": -1.4247491638797325
+    },
+    {
+      "pair": "USD_CHF",
+      "decisionTime": "2025-02-20T15:30:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.3441860465116646,
+      "pLong": 0.570002756719957,
+      "picked": "long",
+      "impliedR": -1.3441860465116646
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2025-02-28T12:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5,
+      "pLong": 0.6065882103733478,
+      "picked": "long",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2025-03-03T08:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5337185240469025,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2025-03-04T14:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.6625724216889843,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2025-03-04T16:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5,
+      "pLong": 0.5107860158416059,
+      "picked": "long",
+      "impliedR": 1.5
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2025-03-05T08:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.09645301804603,
+      "pLong": 0.3934539737006575,
+      "picked": "short",
+      "impliedR": -1.09645301804603
+    },
+    {
+      "pair": "NZD_USD",
+      "decisionTime": "2025-03-06T13:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5000000000000477,
+      "pLong": 0.4844828714400553,
+      "picked": "short",
+      "impliedR": -1.5000000000000477
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2025-03-06T15:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.38587695848494435,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_CHF",
+      "decisionTime": "2025-03-07T14:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -0.6104046242774634,
+      "pLong": 0.66011176920387,
+      "picked": "long",
+      "impliedR": 0.6104046242774634
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2025-03-10T08:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5,
+      "pLong": 0.5820812802354257,
+      "picked": "long",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2025-03-12T11:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.4999999999999492,
+      "pLong": 0.4741229645096568,
+      "picked": "short",
+      "impliedR": -1.4999999999999492
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2025-03-17T08:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.4280906048553873,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2025-03-17T14:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.9286135693215847,
+      "pLong": 0.4648239628495767,
+      "picked": "short",
+      "impliedR": -0.9286135693215847
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2025-03-18T12:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.45827126613083563,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_CHF",
+      "decisionTime": "2025-03-26T13:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -0.41055718475069836,
+      "pLong": 0.4279362972626596,
+      "picked": "short",
+      "impliedR": 0.41055718475069836
+    },
+    {
+      "pair": "USD_CAD",
+      "decisionTime": "2025-03-26T13:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.7006948554150916,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2025-03-27T10:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5000000000000213,
+      "pLong": 0.4162064116687319,
+      "picked": "short",
+      "impliedR": -1.5000000000000213
+    },
+    {
+      "pair": "EUR_GBP",
+      "decisionTime": "2025-03-27T15:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -0.6787003610108026,
+      "pLong": 0.5940382426271328,
+      "picked": "long",
+      "impliedR": 0.6787003610108026
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2025-03-28T14:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.3714149439653665,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2025-03-31T07:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.41537183483504536,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2025-03-31T07:30:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5000000000000415,
+      "pLong": 0.6062480323122356,
+      "picked": "long",
+      "impliedR": -1.5000000000000415
+    },
+    {
+      "pair": "USD_CAD",
+      "decisionTime": "2025-04-01T07:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.4827264682925796,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_CAD",
+      "decisionTime": "2025-04-01T11:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.4671604615839141,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2025-04-01T14:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.7177606021127234,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2025-04-02T07:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.570751045109234,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_CAD",
+      "decisionTime": "2025-04-03T11:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5,
+      "pLong": 0.5133160262597236,
+      "picked": "long",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "USD_CHF",
+      "decisionTime": "2025-04-04T10:30:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.6192963009975804,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "EUR_GBP",
+      "decisionTime": "2025-04-04T14:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.18404907975457865,
+      "pLong": 0.4424639075400676,
+      "picked": "short",
+      "impliedR": -0.18404907975457865
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2025-04-07T12:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5000000000000087,
+      "pLong": 0.6836738505648626,
+      "picked": "long",
+      "impliedR": -1.5000000000000087
+    },
+    {
+      "pair": "USD_CAD",
+      "decisionTime": "2025-04-08T11:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5,
+      "pLong": 0.6135335032252883,
+      "picked": "long",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2025-04-09T11:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5561239259360438,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2025-04-09T12:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.6179592240958923,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_CAD",
+      "decisionTime": "2025-04-10T10:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5,
+      "pLong": 0.5731736636413282,
+      "picked": "long",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2025-04-10T14:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.0794530672579488,
+      "pLong": 0.49049203820491977,
+      "picked": "short",
+      "impliedR": -1.0794530672579488
+    },
+    {
+      "pair": "NZD_USD",
+      "decisionTime": "2025-04-11T13:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.4589362978465864,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2025-04-15T11:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.48769048598168463,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2025-04-16T08:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.31788079470201597,
+      "pLong": 0.37981850610931184,
+      "picked": "short",
+      "impliedR": -0.31788079470201597
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2025-04-16T15:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.1534988713318262,
+      "pLong": 0.4647581876481374,
+      "picked": "short",
+      "impliedR": -0.1534988713318262
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2025-04-18T07:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.33214414915830914,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2025-04-22T11:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5351962765650947,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "NZD_USD",
+      "decisionTime": "2025-04-23T11:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.46614016985925133,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2025-04-23T13:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.4886121026348927,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2025-04-24T14:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.0152801358234542,
+      "pLong": 0.42634974800640457,
+      "picked": "short",
+      "impliedR": -1.0152801358234542
+    },
+    {
+      "pair": "EUR_GBP",
+      "decisionTime": "2025-04-25T11:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5190140358115969,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_CHF",
+      "decisionTime": "2025-05-01T09:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.500000000000035,
+      "pLong": 0.4362722045031385,
+      "picked": "short",
+      "impliedR": -1.500000000000035
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2025-05-02T12:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.4088118555910794,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "NZD_USD",
+      "decisionTime": "2025-05-06T12:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.9796954314720612,
+      "pLong": 0.5228341124571851,
+      "picked": "long",
+      "impliedR": 0.9796954314720612
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2025-05-08T14:30:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5000000000000406,
+      "pLong": 0.5767117089063322,
+      "picked": "long",
+      "impliedR": -1.5000000000000406
+    },
+    {
+      "pair": "EUR_GBP",
+      "decisionTime": "2025-05-12T13:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 0.446043165467592,
+      "pLong": 0.5902792730070342,
+      "picked": "long",
+      "impliedR": -0.446043165467592
+    },
+    {
+      "pair": "USD_CAD",
+      "decisionTime": "2025-05-13T11:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.4611102584758754,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2025-05-21T09:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -0.16587677725110953,
+      "pLong": 0.41416064596321295,
+      "picked": "short",
+      "impliedR": 0.16587677725110953
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2025-05-21T10:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.427274023144169,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2025-05-21T10:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.3563795125823211,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_CAD",
+      "decisionTime": "2025-05-21T13:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5,
+      "pLong": 0.6060248012793353,
+      "picked": "long",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2025-05-21T15:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -0.5816326530612398,
+      "pLong": 0.47502937794245104,
+      "picked": "short",
+      "impliedR": 0.5816326530612398
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2025-05-22T08:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.3193260277223074,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2025-05-22T08:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.30936219090386585,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2025-05-22T09:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5208725033654525,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2025-05-23T07:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5074600352043173,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2025-05-23T11:30:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.4999999999999487,
+      "pLong": 0.5551512716966011,
+      "picked": "long",
+      "impliedR": -1.4999999999999487
+    },
+    {
+      "pair": "USD_CHF",
+      "decisionTime": "2025-05-23T11:30:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5,
+      "pLong": 0.5363336976424699,
+      "picked": "long",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "EUR_GBP",
+      "decisionTime": "2025-05-23T11:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 0.12010443864227283,
+      "pLong": 0.5651320689057197,
+      "picked": "long",
+      "impliedR": -0.12010443864227283
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2025-05-23T14:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.7336814621409867,
+      "pLong": 0.3873953641972185,
+      "picked": "short",
+      "impliedR": -0.7336814621409867
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2025-06-05T07:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.500000000000058,
+      "pLong": 0.4062925552525628,
+      "picked": "short",
+      "impliedR": -1.500000000000058
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2025-06-05T12:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5,
+      "pLong": 0.43103957468792636,
+      "picked": "short",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2025-06-06T12:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.4999999999999434,
+      "pLong": 0.42820327671217545,
+      "picked": "short",
+      "impliedR": -1.4999999999999434
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2025-06-09T15:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.3031578947368391,
+      "pLong": 0.5520555548108494,
+      "picked": "long",
+      "impliedR": 0.3031578947368391
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2025-06-10T13:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -0.3305084745762528,
+      "pLong": 0.5124543635659984,
+      "picked": "long",
+      "impliedR": -0.3305084745762528
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2025-06-11T10:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5,
+      "pLong": 0.4407807393782992,
+      "picked": "short",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2025-06-11T10:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.4877405656136682,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_CHF",
+      "decisionTime": "2025-06-12T08:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.4999999999999793,
+      "pLong": 0.5994109080520941,
+      "picked": "long",
+      "impliedR": -1.4999999999999793
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2025-06-12T09:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5000000000000095,
+      "pLong": 0.4333232785072012,
+      "picked": "short",
+      "impliedR": -1.5000000000000095
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2025-06-12T11:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.48340248962658566,
+      "pLong": 0.44131038403852535,
+      "picked": "short",
+      "impliedR": -0.48340248962658566
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2025-06-13T08:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5,
+      "pLong": 0.3766581692946429,
+      "picked": "short",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2025-06-16T12:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5000000000000442,
+      "pLong": 0.47886260387590657,
+      "picked": "short",
+      "impliedR": -1.5000000000000442
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2025-06-17T12:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.43108634400977336,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2025-06-20T15:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.6145494028229955,
+      "pLong": 0.5519805991316792,
+      "picked": "long",
+      "impliedR": 0.6145494028229955
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2025-06-23T08:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5000000000000322,
+      "pLong": 0.5896718561347217,
+      "picked": "long",
+      "impliedR": -1.5000000000000322
+    },
+    {
+      "pair": "NZD_USD",
+      "decisionTime": "2025-06-23T08:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5,
+      "pLong": 0.5941659824411203,
+      "picked": "long",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2025-06-25T12:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5550999945099724,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_CHF",
+      "decisionTime": "2025-06-26T13:30:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -0.45494830132939407,
+      "pLong": 0.5527216104184499,
+      "picked": "long",
+      "impliedR": 0.45494830132939407
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2025-07-01T07:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5,
+      "pLong": 0.4516860319040786,
+      "picked": "short",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2025-07-01T08:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.4999999999999498,
+      "pLong": 0.4307194736153537,
+      "picked": "short",
+      "impliedR": -1.4999999999999498
+    },
+    {
+      "pair": "EUR_GBP",
+      "decisionTime": "2025-07-02T12:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5,
+      "pLong": 0.33231381265200877,
+      "picked": "short",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2025-07-03T11:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.4718267846526113,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2025-07-08T15:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -0.35256410256413295,
+      "pLong": 0.5011776155950138,
+      "picked": "long",
+      "impliedR": -0.35256410256413295
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2025-07-11T07:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.3654850921391315,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_CAD",
+      "decisionTime": "2025-07-11T08:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.37221372098869776,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2025-07-11T10:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.3644739802788521,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2025-07-11T10:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.41034262824028994,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2025-07-11T11:30:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 0.7776183644189444,
+      "pLong": 0.5702335774323488,
+      "picked": "long",
+      "impliedR": -0.7776183644189444
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2025-07-11T12:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5,
+      "pLong": 0.41601098488787147,
+      "picked": "short",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2025-07-11T13:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.3806104129263606,
+      "pLong": 0.424851964971447,
+      "picked": "short",
+      "impliedR": -0.3806104129263606
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2025-07-15T11:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5,
+      "pLong": 0.44768651938309506,
+      "picked": "short",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2025-07-16T08:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.37101504598013146,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2025-07-23T14:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -0.44470588235294983,
+      "pLong": 0.6414232726342776,
+      "picked": "long",
+      "impliedR": 0.44470588235294983
+    },
+    {
+      "pair": "NZD_USD",
+      "decisionTime": "2025-07-23T14:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.4992218140644847,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2025-07-24T07:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.14634146341463838,
+      "pLong": 0.38095351233024577,
+      "picked": "short",
+      "impliedR": -0.14634146341463838
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2025-07-25T07:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.9610678531702246,
+      "pLong": 0.2947895040315474,
+      "picked": "short",
+      "impliedR": -0.9610678531702246
+    },
+    {
+      "pair": "USD_CAD",
+      "decisionTime": "2025-07-29T15:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -0.40839160839162636,
+      "pLong": 0.43629035739154154,
+      "picked": "short",
+      "impliedR": 0.40839160839162636
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2025-08-01T12:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.6054302116912947,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2025-08-08T14:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.19465648854963385,
+      "pLong": 0.4639107752201799,
+      "picked": "short",
+      "impliedR": -0.19465648854963385
+    },
+    {
+      "pair": "USD_CAD",
+      "decisionTime": "2025-08-12T08:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.3365695641378209,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2025-08-12T08:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5,
+      "pLong": 0.40671055759833313,
+      "picked": "short",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2025-08-19T14:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 0.6776519052523071,
+      "pLong": 0.6526538375247608,
+      "picked": "long",
+      "impliedR": -0.6776519052523071
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2025-08-20T08:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -0.22751322751324243,
+      "pLong": 0.5899772049031222,
+      "picked": "long",
+      "impliedR": 0.22751322751324243
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2025-08-20T08:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5,
+      "pLong": 0.5110737224266948,
+      "picked": "long",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "NZD_USD",
+      "decisionTime": "2025-08-20T14:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -0.21904761904758632,
+      "pLong": 0.6681737798306263,
+      "picked": "long",
+      "impliedR": 0.21904761904758632
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2025-08-22T07:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.31543855979909924,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2025-08-22T07:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.3314954387566236,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2025-08-25T09:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.4368895782819353,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2025-08-27T10:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.44713166927588893,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2025-08-29T14:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.5006055556101684,
+      "picked": "long",
+      "impliedR": -1
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2025-09-03T07:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.36739626942658166,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2025-09-03T11:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5,
+      "pLong": 0.416037224459776,
+      "picked": "short",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2025-09-04T10:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.395131757460732,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2025-09-04T13:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -0.16245883644343304,
+      "pLong": 0.4720502698097341,
+      "picked": "short",
+      "impliedR": 0.16245883644343304
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2025-09-04T15:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -0.3596318211702687,
+      "pLong": 0.5097119914814322,
+      "picked": "long",
+      "impliedR": -0.3596318211702687
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2025-09-08T09:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.007168458781294459,
+      "pLong": 0.42117799292697666,
+      "picked": "short",
+      "impliedR": -0.007168458781294459
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2025-09-08T11:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.4999999999999043,
+      "pLong": 0.5029889837137482,
+      "picked": "long",
+      "impliedR": 1.4999999999999043
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2025-09-09T08:30:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.6758116492421412,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2025-09-12T07:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.500000000000056,
+      "pLong": 0.3160590980568487,
+      "picked": "short",
+      "impliedR": -1.500000000000056
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2025-09-16T08:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.4533094097144802,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2025-09-16T11:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5713162302419357,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2025-09-19T11:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -0.2996632996632694,
+      "pLong": 0.4440732515098605,
+      "picked": "short",
+      "impliedR": 0.2996632996632694
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2025-09-22T15:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5,
+      "pLong": 0.5228829685828559,
+      "picked": "long",
+      "impliedR": 1.5
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2025-09-25T11:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.4999999999999418,
+      "pLong": 0.5796354807932455,
+      "picked": "long",
+      "impliedR": -1.4999999999999418
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2025-09-26T10:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.44543261183031835,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2025-09-26T10:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.398154983558572,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2025-09-30T13:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -0.3861671469740457,
+      "pLong": 0.6648553950255155,
+      "picked": "long",
+      "impliedR": 0.3861671469740457
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2025-10-01T07:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.4999999999999836,
+      "pLong": 0.3993174255043665,
+      "picked": "short",
+      "impliedR": -1.4999999999999836
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2025-10-01T12:30:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -0.5554072096127953,
+      "pLong": 0.5534190857198634,
+      "picked": "long",
+      "impliedR": 0.5554072096127953
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2025-10-02T13:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -0.3264864864864637,
+      "pLong": 0.6640601300911998,
+      "picked": "long",
+      "impliedR": 0.3264864864864637
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2025-10-06T11:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.570138466152206,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2025-10-07T13:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5,
+      "pLong": 0.430577089820967,
+      "picked": "short",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2025-10-08T09:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5113513867194043,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_CHF",
+      "decisionTime": "2025-10-08T13:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5,
+      "pLong": 0.4480323676808133,
+      "picked": "short",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2025-10-08T15:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -0.30686647282487683,
+      "pLong": 0.5169948014093214,
+      "picked": "long",
+      "impliedR": -0.30686647282487683
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2025-10-09T11:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.42964935178466807,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2025-10-13T14:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -0.4536585365853896,
+      "pLong": 0.6622985727331269,
+      "picked": "long",
+      "impliedR": 0.4536585365853896
+    },
+    {
+      "pair": "USD_CHF",
+      "decisionTime": "2025-10-13T14:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -0.6280193236714772,
+      "pLong": 0.5506261388558593,
+      "picked": "long",
+      "impliedR": -0.6280193236714772
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2025-10-15T14:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.0543629343629411,
+      "pLong": 0.43824765898027934,
+      "picked": "short",
+      "impliedR": -0.0543629343629411
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2025-10-16T08:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.30760056946643627,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2025-10-16T14:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.3648630944582785,
+      "pLong": 0.4590596773718663,
+      "picked": "short",
+      "impliedR": -1.3648630944582785
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2025-10-17T07:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5,
+      "pLong": 0.4650549790715768,
+      "picked": "short",
+      "impliedR": 1.5
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2025-10-21T08:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.500000000000039,
+      "pLong": 0.40091225273165915,
+      "picked": "short",
+      "impliedR": -1.500000000000039
+    },
+    {
+      "pair": "EUR_GBP",
+      "decisionTime": "2025-10-24T14:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.3003003003002623,
+      "pLong": 0.39506447362912245,
+      "picked": "short",
+      "impliedR": -0.3003003003002623
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2025-10-27T08:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.687323943661991,
+      "pLong": 0.4065857777726995,
+      "picked": "short",
+      "impliedR": -0.687323943661991
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2025-10-30T10:30:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5,
+      "pLong": 0.5461644093488253,
+      "picked": "long",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2025-11-03T13:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.5462513780968147,
+      "picked": "long",
+      "impliedR": -1
+    },
+    {
+      "pair": "NZD_USD",
+      "decisionTime": "2025-11-04T08:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.4999999999999432,
+      "pLong": 0.5229322352580459,
+      "picked": "long",
+      "impliedR": -1.4999999999999432
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2025-11-04T12:30:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5,
+      "pLong": 0.5607647780247305,
+      "picked": "long",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2025-11-12T14:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.31325301204816636,
+      "pLong": 0.4801354253626921,
+      "picked": "short",
+      "impliedR": -0.31325301204816636
+    },
+    {
+      "pair": "USD_CAD",
+      "decisionTime": "2025-11-12T16:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -0.5019157088122306,
+      "pLong": 0.6745118575840778,
+      "picked": "long",
+      "impliedR": 0.5019157088122306
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2025-11-13T09:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.5917968749999941,
+      "pLong": 0.4325922201439187,
+      "picked": "short",
+      "impliedR": -0.5917968749999941
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2025-11-13T11:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.3851132686084166,
+      "pLong": 0.4067657337052149,
+      "picked": "short",
+      "impliedR": -0.3851132686084166
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2025-11-17T16:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.5112176672187515,
+      "picked": "long",
+      "impliedR": -1
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2025-11-19T09:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5,
+      "pLong": 0.33851123810424083,
+      "picked": "short",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2025-11-20T08:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.49677677262333164,
+      "picked": "short",
+      "impliedR": -1
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2025-11-20T11:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5,
+      "pLong": 0.4224896143108146,
+      "picked": "short",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2025-11-20T13:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.4651720785200697,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2025-11-21T14:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -0.21498371335500174,
+      "pLong": 0.5512152177267438,
+      "picked": "long",
+      "impliedR": 0.21498371335500174
+    },
+    {
+      "pair": "USD_CAD",
+      "decisionTime": "2025-11-21T14:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.4999999999999418,
+      "pLong": 0.41326583386528276,
+      "picked": "short",
+      "impliedR": -1.4999999999999418
+    },
+    {
+      "pair": "USD_CAD",
+      "decisionTime": "2025-11-24T16:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -0.6414141414141641,
+      "pLong": 0.5284189653272454,
+      "picked": "long",
+      "impliedR": -0.6414141414141641
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2025-11-26T16:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -0.11080777260317308,
+      "pLong": 0.5435525115229537,
+      "picked": "long",
+      "impliedR": -0.11080777260317308
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2025-11-27T09:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.223642172523928,
+      "pLong": 0.37716174591606616,
+      "picked": "short",
+      "impliedR": -0.223642172523928
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2025-12-03T08:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5,
+      "pLong": 0.3991084262801489,
+      "picked": "short",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2025-12-03T09:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5,
+      "pLong": 0.5544950439149533,
+      "picked": "long",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2025-12-03T14:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.4899528182994054,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2025-12-03T15:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.3247422680412569,
+      "pLong": 0.4763084012461014,
+      "picked": "short",
+      "impliedR": -0.3247422680412569
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2025-12-04T11:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.44309962438536604,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2025-12-08T14:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.20970266040690524,
+      "pLong": 0.5329975553743896,
+      "picked": "long",
+      "impliedR": 0.20970266040690524
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2025-12-08T14:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.5457178855473119,
+      "picked": "long",
+      "impliedR": -1
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2025-12-09T09:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.4212159528182007,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_CHF",
+      "decisionTime": "2025-12-09T15:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.46206463178174106,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2025-12-09T15:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -0.48501362397819353,
+      "pLong": 0.5465869137319375,
+      "picked": "long",
+      "impliedR": -0.48501362397819353
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2025-12-12T12:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.42980531487120893,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2025-12-12T12:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.458705793727411,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2025-12-12T15:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.5430947659710664,
+      "picked": "long",
+      "impliedR": -1
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2025-12-15T09:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5786830010568468,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2025-12-19T15:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -0.19415730337077344,
+      "pLong": 0.35373364664588086,
+      "picked": "short",
+      "impliedR": 0.19415730337077344
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2025-12-23T13:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.4999999999999338,
+      "pLong": 0.5301440062587635,
+      "picked": "long",
+      "impliedR": 1.4999999999999338
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2025-12-24T10:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.40028052334576364,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2025-12-26T09:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.8278805120911402,
+      "pLong": 0.37775616209604734,
+      "picked": "short",
+      "impliedR": -0.8278805120911402
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2025-12-26T11:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5000000000000477,
+      "pLong": 0.45657969448468255,
+      "picked": "short",
+      "impliedR": -1.5000000000000477
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2025-12-31T16:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 0.26635435837376537,
+      "pLong": 0.6667263464742688,
+      "picked": "long",
+      "impliedR": -0.26635435837376537
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2026-01-02T15:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -0.5388026607538771,
+      "pLong": 0.44991160409020836,
+      "picked": "short",
+      "impliedR": 0.5388026607538771
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2026-01-06T14:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.5937618866489043,
+      "pLong": 0.45459525470539913,
+      "picked": "short",
+      "impliedR": -0.5937618866489043
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2026-01-07T12:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5794305061468302,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2026-01-08T13:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -0.005089058524197687,
+      "pLong": 0.3961135238221403,
+      "picked": "short",
+      "impliedR": 0.005089058524197687
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2026-01-09T12:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.4384870195018925,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "NZD_USD",
+      "decisionTime": "2026-01-09T15:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -0.5678233438485869,
+      "pLong": 0.5790406284410374,
+      "picked": "long",
+      "impliedR": 0.5678233438485869
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2026-01-12T14:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.8446866485013257,
+      "pLong": 0.5288776062018159,
+      "picked": "long",
+      "impliedR": 0.8446866485013257
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2026-01-20T13:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.4778400501325286,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2026-01-20T15:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.22757697456490533,
+      "pLong": 0.41728718404391146,
+      "picked": "short",
+      "impliedR": -0.22757697456490533
+    },
+    {
+      "pair": "NZD_USD",
+      "decisionTime": "2026-01-20T15:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.486791927705305,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2026-01-21T12:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.499999999999951,
+      "pLong": 0.4610835298252362,
+      "picked": "short",
+      "impliedR": -1.499999999999951
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2026-01-21T13:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.4444425631082457,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_CAD",
+      "decisionTime": "2026-01-22T12:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5,
+      "pLong": 0.5434215524187592,
+      "picked": "long",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2026-01-23T15:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5,
+      "pLong": 0.49435634709544113,
+      "picked": "short",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "USD_CHF",
+      "decisionTime": "2026-01-23T16:30:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5000000000000204,
+      "pLong": 0.660753901199104,
+      "picked": "long",
+      "impliedR": -1.5000000000000204
+    },
+    {
+      "pair": "USD_CHF",
+      "decisionTime": "2026-01-26T09:30:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.6132654500380783,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_CAD",
+      "decisionTime": "2026-01-26T16:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.6688937537703343,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2026-01-27T14:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.6027421830137762,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2026-01-29T13:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.42299949193474906,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_CAD",
+      "decisionTime": "2026-01-29T16:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 0.5774907749077417,
+      "pLong": 0.6342394926402363,
+      "picked": "long",
+      "impliedR": -0.5774907749077417
+    },
+    {
+      "pair": "NZD_USD",
+      "decisionTime": "2026-01-30T14:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.40290024006025904,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2026-02-03T16:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.3258706467661689,
+      "pLong": 0.4375717086596302,
+      "picked": "short",
+      "impliedR": -0.3258706467661689
+    },
+    {
+      "pair": "NZD_USD",
+      "decisionTime": "2026-02-03T16:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.5964912280702043,
+      "pLong": 0.42864682070079135,
+      "picked": "short",
+      "impliedR": -0.5964912280702043
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2026-02-04T14:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 0.0492610837438429,
+      "pLong": 0.5586542262211521,
+      "picked": "long",
+      "impliedR": -0.0492610837438429
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2026-02-05T09:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5576344912842514,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2026-02-05T15:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 0.09443507588534854,
+      "pLong": 0.6310355936042398,
+      "picked": "long",
+      "impliedR": -0.09443507588534854
+    },
+    {
+      "pair": "USD_CAD",
+      "decisionTime": "2026-02-10T13:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.4999999999999458,
+      "pLong": 0.6908648190001229,
+      "picked": "long",
+      "impliedR": -1.4999999999999458
+    },
+    {
+      "pair": "USD_CHF",
+      "decisionTime": "2026-02-10T13:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5,
+      "pLong": 0.6345604438241114,
+      "picked": "long",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2026-02-11T10:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.45657781144971127,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2026-02-11T14:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.2002275312855482,
+      "pLong": 0.4617610706168763,
+      "picked": "short",
+      "impliedR": -0.2002275312855482
+    },
+    {
+      "pair": "NZD_USD",
+      "decisionTime": "2026-02-12T09:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.44703055069439906,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "NZD_USD",
+      "decisionTime": "2026-02-19T14:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.602087760919718,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2026-02-20T08:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.4134988371315685,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_CHF",
+      "decisionTime": "2026-02-20T10:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.3276651875523904,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_CHF",
+      "decisionTime": "2026-02-20T13:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.4319286691321386,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2026-02-25T15:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.4257425742573444,
+      "pLong": 0.46016814854341603,
+      "picked": "short",
+      "impliedR": -1.4257425742573444
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2026-02-25T16:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.2197530864196635,
+      "pLong": 0.5148557953682104,
+      "picked": "long",
+      "impliedR": 1.2197530864196635
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2026-02-27T16:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5559554214957263,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2026-03-02T09:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.6853281853281646,
+      "pLong": 0.2978172381110591,
+      "picked": "short",
+      "impliedR": -0.6853281853281646
+    },
+    {
+      "pair": "USD_CAD",
+      "decisionTime": "2026-03-03T14:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.5053991526131396,
+      "picked": "long",
+      "impliedR": -1
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2026-03-05T10:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -0.5596221959858299,
+      "pLong": 0.5355969180708892,
+      "picked": "long",
+      "impliedR": 0.5596221959858299
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2026-03-06T11:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5000000000000377,
+      "pLong": 0.36583478654426327,
+      "picked": "short",
+      "impliedR": -1.5000000000000377
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2026-03-06T14:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.6278922644838866,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2026-03-09T07:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5572624943687686,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2026-03-11T09:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.43250065870502385,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2026-03-11T11:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.43326253852938473,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2026-03-11T11:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5,
+      "pLong": 0.4710313548612537,
+      "picked": "short",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "USD_CHF",
+      "decisionTime": "2026-03-13T14:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.299781181619342,
+      "pLong": 0.38355770728724037,
+      "picked": "short",
+      "impliedR": -1.299781181619342
+    },
+    {
+      "pair": "NZD_USD",
+      "decisionTime": "2026-03-13T14:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5,
+      "pLong": 0.65572110817097,
+      "picked": "long",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "USD_CAD",
+      "decisionTime": "2026-03-17T11:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.48591252096217513,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2026-03-19T07:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5324330411184176,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "NZD_USD",
+      "decisionTime": "2026-03-19T07:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5528384820483606,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2026-03-19T13:30:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.6408675473887564,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2026-03-20T14:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5000000000000058,
+      "pLong": 0.7441380578350117,
+      "picked": "long",
+      "impliedR": -1.5000000000000058
+    },
+    {
+      "pair": "USD_CAD",
+      "decisionTime": "2026-03-24T12:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.4999999999999418,
+      "pLong": 0.4411122836100016,
+      "picked": "short",
+      "impliedR": -1.4999999999999418
+    },
+    {
+      "pair": "NZD_USD",
+      "decisionTime": "2026-03-24T13:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.6327197784428863,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2026-03-25T12:30:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 0.3935309973045759,
+      "pLong": 0.6562723655352733,
+      "picked": "long",
+      "impliedR": -0.3935309973045759
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2026-03-27T10:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.42030250456127466,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2026-03-27T10:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.4842305834322603,
+      "picked": "short",
+      "impliedR": -1
+    },
+    {
+      "pair": "USD_CHF",
+      "decisionTime": "2026-03-27T15:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.7152619589977213,
+      "pLong": 0.3933884769227981,
+      "picked": "short",
+      "impliedR": -0.7152619589977213
+    },
+    {
+      "pair": "NZD_USD",
+      "decisionTime": "2026-03-31T07:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.52589026835551,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2026-03-31T11:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5612468515392576,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_CHF",
+      "decisionTime": "2026-03-31T14:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5,
+      "pLong": 0.4382062152687394,
+      "picked": "short",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2026-04-02T09:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5501432442664197,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "NZD_USD",
+      "decisionTime": "2026-04-02T09:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5106185282338113,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_CHF",
+      "decisionTime": "2026-04-02T13:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.4229097784997983,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2026-04-03T14:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 0.21354166666668653,
+      "pLong": 0.5247215263342705,
+      "picked": "long",
+      "impliedR": -0.21354166666668653
+    },
+    {
+      "pair": "USD_CHF",
+      "decisionTime": "2026-04-07T13:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.46114649281917647,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2026-04-07T13:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.7800687285223585,
+      "pLong": 0.4783613191408699,
+      "picked": "short",
+      "impliedR": -0.7800687285223585
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2026-04-09T15:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -0.00941176470594431,
+      "pLong": 0.41031161304003383,
+      "picked": "short",
+      "impliedR": 0.00941176470594431
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2026-04-10T09:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5,
+      "pLong": 0.3312323022963263,
+      "picked": "short",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2026-04-14T14:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.6390595385118147,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2026-04-20T15:30:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -0.9192052980131976,
+      "pLong": 0.6266549836118158,
+      "picked": "long",
+      "impliedR": 0.9192052980131976
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2026-04-24T09:30:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5069552428373777,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2026-04-27T10:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.4683324010163666,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2026-04-29T08:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5,
+      "pLong": 0.3731475264886305,
+      "picked": "short",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2026-04-29T09:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5,
+      "pLong": 0.42296787569818783,
+      "picked": "short",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2026-04-29T12:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5,
+      "pLong": 0.5351409627732856,
+      "picked": "long",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2026-05-06T14:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.47490963603988595,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "NZD_USD",
+      "decisionTime": "2026-05-06T14:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.43932702573632765,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2026-05-07T07:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.6035808844290437,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2026-05-07T07:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.25690415110533993,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "NZD_USD",
+      "decisionTime": "2026-05-07T07:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.24853391516221152,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2026-05-07T12:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.46288410141553415,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2026-05-07T15:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.4864309402456383,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_CHF",
+      "decisionTime": "2026-05-07T15:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.6154734829284262,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2026-05-13T10:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5493298627547758,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2026-05-14T12:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5,
+      "pLong": 0.6130372347145543,
+      "picked": "long",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2026-05-15T09:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.3856919806565208,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2026-05-19T14:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -0.42105263157892914,
+      "pLong": 0.5900567755045668,
+      "picked": "long",
+      "impliedR": 0.42105263157892914
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2026-05-20T14:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.4723588632442652,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2026-05-21T10:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.4999999999999094,
+      "pLong": 0.3730915890957104,
+      "picked": "short",
+      "impliedR": -1.4999999999999094
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2026-05-22T07:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5000000000000773,
+      "pLong": 0.3398101478154795,
+      "picked": "short",
+      "impliedR": -1.5000000000000773
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2026-05-22T09:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5824758793151713,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2026-05-22T14:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -0.04266666666671881,
+      "pLong": 0.37598711411710023,
+      "picked": "short",
+      "impliedR": 0.04266666666671881
+    },
+    {
+      "pair": "AUD_USD",
+      "decisionTime": "2026-05-27T15:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -0.6710239651415922,
+      "pLong": 0.6403119565207351,
+      "picked": "long",
+      "impliedR": 0.6710239651415922
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2026-06-01T12:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.517418357557067,
+      "picked": "long",
+      "impliedR": -1
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2026-06-01T12:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.4904524460750398,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2026-06-02T10:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5,
+      "pLong": 0.4665496344137598,
+      "picked": "short",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2026-06-02T14:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.47117969027379375,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2026-06-11T14:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.6447343452289133,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_CAD",
+      "decisionTime": "2026-06-12T12:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.41879944346416803,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2026-06-16T14:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5,
+      "pLong": 0.5092228301078627,
+      "picked": "long",
+      "impliedR": 1.5
+    },
+    {
+      "pair": "USD_CAD",
+      "decisionTime": "2026-06-18T15:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.033613445378087754,
+      "pLong": 0.4734982404807767,
+      "picked": "short",
+      "impliedR": -0.033613445378087754
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2026-06-19T10:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.5346662240291264,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "USD_CHF",
+      "decisionTime": "2026-06-19T12:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -0.19933554817273835,
+      "pLong": 0.4635369413747519,
+      "picked": "short",
+      "impliedR": 0.19933554817273835
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2026-06-22T12:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5,
+      "pLong": 0.599080858678271,
+      "picked": "long",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2026-06-23T07:45:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.4999999999999538,
+      "pLong": 0.5041856994430992,
+      "picked": "long",
+      "impliedR": -1.4999999999999538
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2026-07-01T08:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.3639498205059334,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2026-07-06T15:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.5016611295681616,
+      "pLong": 0.5866895772009325,
+      "picked": "long",
+      "impliedR": 0.5016611295681616
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2026-07-08T07:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.3088889665329031,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2026-07-08T08:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.3791002748477995,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_JPY",
+      "decisionTime": "2026-07-08T10:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.4999999999999596,
+      "pLong": 0.4532170799655019,
+      "picked": "short",
+      "impliedR": -1.4999999999999596
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2026-07-08T15:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.6088253446933836,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2026-07-09T15:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -0.23566878980894027,
+      "pLong": 0.5419328788549729,
+      "picked": "long",
+      "impliedR": -0.23566878980894027
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2026-07-13T10:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5,
+      "pLong": 0.5900951615260143,
+      "picked": "long",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2026-07-15T12:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.4999999999999425,
+      "pLong": 0.46685910751958615,
+      "picked": "short",
+      "impliedR": -1.4999999999999425
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2026-07-24T14:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.5000000000000635,
+      "pLong": 0.47534112101866266,
+      "picked": "short",
+      "impliedR": -1.5000000000000635
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2026-07-30T07:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.3705141125081244,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2026-07-30T09:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 1.4999999999999534,
+      "pLong": 0.45111905419376774,
+      "picked": "short",
+      "impliedR": -1.4999999999999534
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2026-07-31T13:30:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5000000000000129,
+      "pLong": 0.6673090579359918,
+      "picked": "long",
+      "impliedR": -1.5000000000000129
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2026-08-03T11:00:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": 1.5,
+      "pLong": 0.6250967506600584,
+      "picked": "long",
+      "impliedR": -1.5
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2026-08-03T13:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -0.6901462663587428,
+      "pLong": 0.6741330632947622,
+      "picked": "long",
+      "impliedR": 0.6901462663587428
+    },
+    {
+      "pair": "USD_JPY",
+      "decisionTime": "2026-08-05T14:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -1,
+      "pLong": 0.6175916237500251,
+      "picked": "long",
+      "impliedR": 1
+    },
+    {
+      "pair": "GBP_USD",
+      "decisionTime": "2026-08-05T14:15:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.50924725182537,
+      "picked": "long",
+      "impliedR": -1
+    },
+    {
+      "pair": "USD_CAD",
+      "decisionTime": "2026-08-10T15:15:00.000Z",
+      "actualDirection": "short",
+      "actualResultR": -0.2727272727272177,
+      "pLong": 0.6402312643958044,
+      "picked": "long",
+      "impliedR": 0.2727272727272177
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2026-08-14T15:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.15104895104895605,
+      "pLong": 0.5099706937165601,
+      "picked": "long",
+      "impliedR": 0.15104895104895605
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2026-08-17T07:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.8766519823787686,
+      "pLong": 0.4045949156824073,
+      "picked": "short",
+      "impliedR": -0.8766519823787686
+    },
+    {
+      "pair": "XAU_USD",
+      "decisionTime": "2026-08-17T14:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.1985433818872559,
+      "pLong": 0.37543008270876244,
+      "picked": "short",
+      "impliedR": -0.1985433818872559
+    },
+    {
+      "pair": "EUR_JPY",
+      "decisionTime": "2026-08-18T11:00:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.47499461037992563,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "EUR_USD",
+      "decisionTime": "2026-08-20T07:45:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": -1,
+      "pLong": 0.44875450993977417,
+      "picked": "short",
+      "impliedR": 1
+    },
+    {
+      "pair": "AUD_JPY",
+      "decisionTime": "2026-08-25T11:30:00.000Z",
+      "actualDirection": "long",
+      "actualResultR": 0.6178861788618986,
+      "pLong": 0.4653477783375525,
+      "picked": "short",
+      "impliedR": -0.6178861788618986
+    }
+  ]
+}

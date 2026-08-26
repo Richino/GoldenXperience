@@ -1,0 +1,76 @@
+{
+  "modelName": "legacy-confidence-v2",
+  "version": "1.0.0",
+  "scoreKind": "probability",
+  "outputMeaning": "P(long_side_wins) on legacy EMA-pullback setups (FX only, excl XAU_USD)",
+  "featureNames": [
+    "atrPct",
+    "atrRatio",
+    "hourEt",
+    "dayOfWeek",
+    "rsiVelocity",
+    "rangePos",
+    "mom3"
+  ],
+  "intercept": 0.14441037408159993,
+  "coefficients": {
+    "atrPct": -0.19104748604455232,
+    "atrRatio": 0.31930418161598645,
+    "hourEt": -0.11212018566090835,
+    "dayOfWeek": -0.28509416127696674,
+    "rsiVelocity": 0.12067186991414319,
+    "rangePos": -0.5092725799882278,
+    "mom3": -0.005311758483192168
+  },
+  "normalization": {
+    "mean": {
+      "atrPct": 0.6405604395604395,
+      "atrRatio": 1.0965279143606261,
+      "hourEt": 7.368131868131868,
+      "dayOfWeek": 2.1923076923076925,
+      "rsiVelocity": 0.7762141936683068,
+      "rangePos": 0.6164886758671155,
+      "mom3": 0.00012431471278280293
+    },
+    "std": {
+      "atrPct": 0.2425619988170786,
+      "atrRatio": 0.1316847338451504,
+      "hourEt": 2.6336111138689993,
+      "dayOfWeek": 1.355228440192155,
+      "rsiVelocity": 3.1679187873401675,
+      "rangePos": 0.4315630927790428,
+      "mom3": 0.0011943809497036724
+    }
+  },
+  "metadata": {
+    "trainedAt": "2026-08-26T00:26:52.476Z",
+    "trainWindowStart": "2025-08-30T11:30:00.000Z",
+    "trainWindowEnd": "2026-08-25T11:30:00.000Z",
+    "trainMonths": 12,
+    "trainingSamples": 182,
+    "trainingPairs": [
+      "USD_JPY",
+      "AUD_USD",
+      "EUR_USD",
+      "GBP_USD",
+      "USD_CAD",
+      "USD_CHF",
+      "EUR_JPY",
+      "GBP_JPY",
+      "AUD_JPY",
+      "EUR_GBP",
+      "NZD_USD"
+    ],
+    "excludedFromTraining": [
+      "XAU_USD"
+    ],
+    "inSampleAccuracy": 0.6208791208791209,
+    "confidenceThreshold": 0.1,
+    "combinedRule": {
+      "fx": "take model pick when picked != legacy stack direction AND |pLong - 0.5| >= 0.1",
+      "XAU_USD": "always take legacy baseline (skip model)",
+      "other": "skip"
+    },
+    "sourceDataset": "backtest-legacy-expanded"
+  }
+}

@@ -38,6 +38,7 @@ import { binaryJournal, binaryPerformance, binaryPredictionDetail, binaryWatchli
 import { binaryAdaptiveStats } from "./binary-adaptive-stats.js";
 import { binaryAdaptiveSelectorStatus } from "./binary-adaptive-selector.js";
 import { collectPatternV1Cycle, patternV1Disagreement, patternV1Status } from "./pattern-v1-engine.js";
+import { collectLegacyConfidenceV2Cycle } from "./legacy-confidence-v2-collector.js";
 
 // The multi-strategy + adaptive engine replaces the single liquidity strategy as
 // the active forex collector. Default on; set MULTISTRATEGY_ENABLED=false to roll
@@ -563,6 +564,7 @@ let binaryCollector: NodeJS.Timeout | null = null;
 let binaryResolver: NodeJS.Timeout | null = null;
 let newsRetagger: NodeJS.Timeout | null = null;
 let patternV1Collector: NodeJS.Timeout | null = null;
+let legacyConfidenceV2Collector: NodeJS.Timeout | null = null;
 // The background loops below (paper collector, live/fast resolver, research
 // worker, binary engine) all WRITE to the database — opening, closing and
 // resolving trades. Point a second instance at the same database (e.g. local
@@ -744,6 +746,33 @@ if (databaseConfigured() && schedulersEnabled) {
   void patternV1();
   patternV1Collector = setInterval(() => void patternV1(), 60_000);
 
+  // Legacy-confidence-v2 forward paper engine — INDEPENDENT strategy running
+  // its own 15-minute cycle. Off by default; opt in with
+  // LEGACY_CONFIDENCE_V2_ENABLED=true and (once you're ready) drop
+  // LEGACY_CONFIDENCE_V2_DRY_RUN=false to actually open paper trades.
+  //
+  // Trades land in paper_strategy_trades tagged strategy_family="legacy-confidence-v2"
+  // in their own batch series; the existing resolver picks them up.
+  // See src/legacy-confidence-v2-collector.ts for the recipe and env contract.
+  let legacyV2Busy = false;
+  const legacyV2 = async () => {
+    if (legacyV2Busy) return;
+    legacyV2Busy = true;
+    try {
+      const result = await collectLegacyConfidenceV2Cycle();
+      if (!result.ran) return; // disabled or credentials missing — quiet
+      if (result.setupsFired || result.tradesOpened || result.errors) {
+        console.log(`[legacy-confidence-v2] pairs=${result.pairsChecked} setups=${result.setupsFired} opened=${result.tradesOpened} skipped=${result.skipped} errors=${result.errors}`);
+      }
+    } catch (error) {
+      console.error("[legacy-confidence-v2] cycle failed", error);
+    } finally {
+      legacyV2Busy = false;
+    }
+  };
+  void legacyV2();
+  legacyConfidenceV2Collector = setInterval(() => void legacyV2(), 15 * 60_000);
+
   // Nightly news re-tag. The calendar feed carries the current week only and
   // its rollover is not synchronised with the Sunday 17:00 ET reopen, so a
   // trade opened before the new week is published gets tagged NO_NEWS for lack
@@ -780,6 +809,7 @@ function shutdown() {
   if (binaryResolver) clearInterval(binaryResolver);
   if (newsRetagger) clearInterval(newsRetagger);
   if (patternV1Collector) clearInterval(patternV1Collector);
+  if (legacyConfidenceV2Collector) clearInterval(legacyConfidenceV2Collector);
   wss.clients.forEach((socket) => socket.close(1001, "Server shutting down"));
   server.close(() => process.exit(0));
 }

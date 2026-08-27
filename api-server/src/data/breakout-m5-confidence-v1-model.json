@@ -1,0 +1,84 @@
+{
+  "modelName": "breakout-m5-confidence-v1",
+  "version": "1.0.0",
+  "scoreKind": "probability",
+  "outputMeaning": "P(long_side_wins) on M5 breakout setups. Combined rule: flip when model disagrees (CONF_T=0.00).",
+  "featureNames": [
+    "session_london",
+    "session_overlap",
+    "session_ny",
+    "session_off",
+    "pair_EUR_USD",
+    "pair_GBP_USD",
+    "pair_USD_JPY",
+    "atrPips",
+    "rangeWidthAtr",
+    "spreadPips",
+    "hourEt",
+    "dayOfWeek"
+  ],
+  "intercept": -0.049510728558337214,
+  "coefficients": {
+    "session_london": 0.03805071302614204,
+    "session_overlap": -0.04947674938793964,
+    "session_ny": 0.010729830199935278,
+    "session_off": 0,
+    "pair_EUR_USD": 0.07084891821353245,
+    "pair_GBP_USD": -0.008657887729825502,
+    "pair_USD_JPY": -0.06467075443396678,
+    "atrPips": 0.15525199056449276,
+    "rangeWidthAtr": -0.04993828019523212,
+    "spreadPips": -0.04542534993486745,
+    "hourEt": -0.009030829484788597,
+    "dayOfWeek": -0.014502666040690153
+  },
+  "normalization": {
+    "mean": {
+      "session_london": 0.41450777202072536,
+      "session_overlap": 0.33678756476683935,
+      "session_ny": 0.24870466321243523,
+      "session_off": 0,
+      "pair_EUR_USD": 0.3701784686240645,
+      "pair_GBP_USD": 0.3080023028209557,
+      "pair_USD_JPY": 0.32181922855497985,
+      "atrPips": 4.8866588478017,
+      "rangeWidthAtr": 4.160383319231903,
+      "spreadPips": 1.678123200921098,
+      "hourEt": 8.625791594703513,
+      "dayOfWeek": 1.9441565918249857
+    },
+    "std": {
+      "session_london": 0.49263686317117467,
+      "session_overlap": 0.4726115751706232,
+      "session_ny": 0.4322622510800894,
+      "session_off": 1,
+      "pair_EUR_USD": 0.4828523273126153,
+      "pair_GBP_USD": 0.46166750403070556,
+      "pair_USD_JPY": 0.4671740710776396,
+      "atrPips": 2.270156866384618,
+      "rangeWidthAtr": 1.2328353117906041,
+      "spreadPips": 0.1845323979477333,
+      "hourEt": 3.860906654369898,
+      "dayOfWeek": 1.3894874635231023
+    }
+  },
+  "metadata": {
+    "trainedAt": "2026-08-27T03:34:19.932Z",
+    "trainWindowStart": "2025-08-31T16:55:00.000Z",
+    "trainWindowEnd": "2026-08-26T16:55:00.000Z",
+    "trainingSamples": 1737,
+    "trainingPairs": [
+      "EUR_USD",
+      "GBP_USD",
+      "USD_JPY"
+    ],
+    "inSampleAccuracy": 0.5428900402993667,
+    "confidenceThreshold": 0,
+    "combinedRule": {
+      "fx": "take model pick whenever model DISAGREES with breakout direction (no threshold — take all)",
+      "other": "skip untrained pairs"
+    },
+    "sourceDataset": "backtest-breakout-m5",
+    "walkForwardValidation": "72.6% winrate, +0.227R/trade, 2.68 trades/day OOS"
+  }
+}

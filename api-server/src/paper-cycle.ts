@@ -24,6 +24,7 @@ import { applyMomentumInversion, ensureMomentumInversionActivation, MOMENTUM_INV
 import { tagNewTradeSafely } from "./news-tagging.js";
 import { armForExecutedDirection, spreadCostR } from "./evidence-integrity.js";
 import { attachMomentumExecution, recordMomentumInversionArms, resolveMomentumInversionArms } from "./momentum-arms.js";
+import { recordMomentumDirection10m, resolveMomentumDirection10m } from "./momentum-direction-10m.js";
 import { MAJOR_INSTRUMENTS, type MajorInstrument } from "../../frontend/src/types/forex.js";
 
 const STRATEGY_NAME = "deterministic-forex";
@@ -1534,6 +1535,16 @@ export async function collectMultiStrategyCycle() {
       (await getResearchCandles(instrument, "M15", 500)).filter((candle) => candle.complete).map(toQuote));
     if (arms) console.log(`[momentum-arms] resolved ${arms} arms`);
   } catch (error) { console.error("[momentum-arms] resolution failed", error); }
+  // Fixed-horizon direction experiment. Unlike momentum-arms, this scores only
+  // the raw M1 midpoint move at +10 minutes; it has no entry, spread, stop,
+  // target, R, risk, or adaptive-evidence role.
+  try {
+    const direction = await resolveMomentumDirection10m(async (instrument) =>
+      (await getResearchCandles(instrument, "M1", 500)).filter((candle) => candle.complete).map((candle) => ({
+        closeTime: new Date(new Date(candle.time).getTime() + 60_000).toISOString(), midClose: candle.mid.close,
+      })));
+    if (direction) console.log(`[momentum-direction-10m] resolved ${direction} observations`);
+  } catch (error) { console.error("[momentum-direction-10m] resolution failed", error); }
   // Stamp the inversion activation boundary once, so "Momentum trades before
   // inversion" and "after" is a database fact rather than a remembered date.
   try { await ensureMomentumInversionActivation(); }
@@ -1609,6 +1620,11 @@ export async function collectMultiStrategyCycle() {
       // cannot influence this or any later decision.
       try { await recordMomentumInversionArms({ candidate, quote, spreadPips, session }); }
       catch (error) { console.error("[momentum-arms] record failed", error); }
+      // Separate fixed +10m direction cohort. Valid Momentum candidates are
+      // recorded before selection, so suppressed and risk-blocked signals are
+      // in the same honest denominator as signals that become paper trades.
+      try { await recordMomentumDirection10m({ candidate, session }); }
+      catch (error) { console.error("[momentum-direction-10m] record failed", error); }
     }
 
     let openedTradeId: string | null = null;

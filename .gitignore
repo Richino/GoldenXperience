@@ -44,4 +44,5 @@ backtest-legacy-tp-sl-grid/candles/
 backtest-live109-tp-sl-grid/candles/
 backtest-legacy-12pairs/candles/
 backtest-legacy-expanded/candles/
+backtest-breakout-m5/candles/
 api-server/research-v2/legacy-confidence-v2-live-log/

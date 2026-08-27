@@ -1,0 +1,42 @@
+GOLDENXPERIENCE — PREDECLARED FORCED BINARY DIRECTION SCREEN V1
+Research only. Each rule emits LONG or SHORT for every row with enough past-only candle history. It uses the recorded binary entry/resolution marks and tie tolerance. No database records or runtime behavior changed.
+Sample: 7071 settled binary-baseline rows across 12 pairs. Chronological TRAIN through 2026-08-22T00:16:15.587Z, DEV through 2026-08-24T10:37:16.942Z; HOLDOUT intentionally unread because no DEV candidate is selected by this screen.
+Gate: DEV n>=100, WR>55.56%, Wilson lower bound >50%. Exact inverse is reported on the same marks.
+
+Coverage:
+EUR_USD: 626 binary rows; M1/M15=20000/4000.
+EUR_GBP: 627 binary rows; M1/M15=20000/4000.
+USD_CAD: 625 binary rows; M1/M15=20000/4000.
+GBP_USD: 628 binary rows; M1/M15=20000/4000.
+NZD_USD: 622 binary rows; M1/M15=20000/4000.
+AUD_USD: 629 binary rows; M1/M15=20000/4000.
+GBP_JPY: 629 binary rows; M1/M15=20000/4000.
+USD_CHF: 634 binary rows; M1/M15=20000/4000.
+EUR_JPY: 630 binary rows; M1/M15=20000/4000.
+USD_JPY: 627 binary rows; M1/M15=20000/4000.
+AUD_JPY: 396 binary rows; M1/M15=20000/4000.
+EUR_AUD: 398 binary rows; M1/M15=20000/4000.
+
+M1 return-1 follow
+  Follow the last completed one-minute close-to-close move.
+  rows=7071/7071; TRAIN original 2118/2189/36 (49.18%), inverse 2189/2118/36 (50.82%); DEV original 115/121/3 (48.73%), inverse 121/115/3 (51.27%); verdict=REJECT.
+M1 return-5 follow
+  Follow the latest five-minute close-to-close move.
+  rows=7071/7071; TRAIN original 2142/2165/36 (49.73%), inverse 2165/2142/36 (50.27%); DEV original 107/129/3 (45.34%), inverse 129/107/3 (54.66%); verdict=REJECT.
+M1 RSI-2 reversal
+  Go opposite the two-period M1 RSI side: RSI<50 is LONG, otherwise SHORT.
+  rows=7071/7071; TRAIN original 2137/2170/36 (49.62%), inverse 2170/2137/36 (50.38%); DEV original 112/124/3 (47.46%), inverse 124/112/3 (52.54%); verdict=REJECT.
+M1 EMA 9/21 follow
+  Follow the M1 EMA-9 versus EMA-21 alignment.
+  rows=7071/7071; TRAIN original 2133/2174/36 (49.52%), inverse 2174/2133/36 (50.48%); DEV original 115/121/3 (48.73%), inverse 121/115/3 (51.27%); verdict=REJECT.
+M15 return-1 follow
+  Follow the last completed fifteen-minute candle direction.
+  rows=7071/7071; TRAIN original 2160/2147/36 (50.15%), inverse 2147/2160/36 (49.85%); DEV original 114/122/3 (48.31%), inverse 122/114/3 (51.69%); verdict=REJECT.
+M15 RSI-2 reversal
+  Go opposite the two-period M15 RSI side: RSI<50 is LONG, otherwise SHORT.
+  rows=7071/7071; TRAIN original 2116/2191/36 (49.13%), inverse 2191/2116/36 (50.87%); DEV original 124/112/3 (52.54%), inverse 112/124/3 (47.46%); verdict=REJECT.
+M15 EMA 9/21 follow
+  Follow the M15 EMA-9 versus EMA-21 alignment.
+  rows=7071/7071; TRAIN original 2157/2150/36 (50.08%), inverse 2150/2157/36 (49.92%); DEV original 127/109/3 (53.81%), inverse 109/127/3 (46.19%); verdict=REJECT.
+
+Dependence warning: binary rows can share M1/M15 bars, so results are a rejection screen, not proof of thousands of independent signals. Do not tune these rules using the sealed holdout.

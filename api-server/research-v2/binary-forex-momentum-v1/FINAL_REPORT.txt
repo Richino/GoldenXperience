@@ -1,0 +1,41 @@
+GOLDENXPERIENCE — FOREX MOMENTUM V1 ON THE RECORDED BINARY SAMPLE
+Research only. Read-only replay over settled authoritative binary-baseline rows. No binary records, paper trades, strategy policy, or production behavior changed.
+
+Binary outcome: each row keeps its actual recorded entry_price, resolution_price and tie_tolerance. Original and inverse use the same outcome marks.
+EXACT FOREX MOMENTUM V1: evaluates the current production Momentum V1 strategy only from completed M15/H1/H4 candles available at each binary entry. Its normal validity gates remain intact, so it can decline a row.
+FORCED NATIVE MOMENTUM DIRECTION: every usable binary row is LONG when the same current Momentum V1 five-M15-bar ATR run is non-negative, otherwise SHORT. It deliberately skips the production strategy's validity filters. This satisfies forced UP/DOWN coverage but is NOT the forex engine.
+Recorded binary sample: 7071 resolved baseline rows across 12 pairs.
+
+Coverage:
+EUR_USD: 626 binary rows; M15/H1/H4=3999/1199/399.
+EUR_GBP: 627 binary rows; M15/H1/H4=3999/1199/399.
+USD_CAD: 625 binary rows; M15/H1/H4=3999/1199/399.
+GBP_USD: 628 binary rows; M15/H1/H4=3999/1199/399.
+NZD_USD: 622 binary rows; M15/H1/H4=3999/1199/399.
+AUD_USD: 629 binary rows; M15/H1/H4=3999/1199/399.
+GBP_JPY: 629 binary rows; M15/H1/H4=3999/1199/399.
+USD_CHF: 634 binary rows; M15/H1/H4=3999/1199/399.
+EUR_JPY: 630 binary rows; M15/H1/H4=3999/1199/399.
+USD_JPY: 627 binary rows; M15/H1/H4=3999/1199/399.
+AUD_JPY: 396 binary rows; M15/H1/H4=3999/1199/399.
+EUR_AUD: 398 binary rows; M15/H1/H4=3999/1199/399.
+
+EXACT engine eligible: 345/7071 rows. Original: n=338 W/L/T=165/173/7 WR=48.82% CI95=[43.53%, 54.13%]. Exact inverse: n=338 W/L/T=173/165/7 WR=51.18% CI95=[45.87%, 56.47%].
+EXACT skipped/no-setup: EUR_GBP=603, USD_CAD=584, GBP_JPY=603, EUR_JPY=606, USD_JPY=604, GBP_USD=597, USD_CHF=604, EUR_USD=594, AUD_USD=593, NZD_USD=590, AUD_JPY=373, EUR_AUD=375.
+TRAIN original: n=188 W/L/T=92/96/2 WR=48.94% CI95=[41.88%, 56.03%]
+TRAIN inverse: n=188 W/L/T=96/92/2 WR=51.06% CI95=[43.97%, 58.12%]
+DEV original: n=10 W/L/T=5/5/1 WR=50.00% CI95=[23.66%, 76.34%]
+DEV inverse: n=10 W/L/T=5/5/1 WR=50.00% CI95=[23.66%, 76.34%]
+Predeclared gate: n>=100, WR>55.56%, Wilson lower bound >50%. Selected for holdout: NONE.
+HOLDOUT NOT READ — neither direction passed development.
+
+FORCED native direction eligible: 7071/7071 rows. Original: n=7002 W/L/T=3462/3540/69 WR=49.44% CI95=[48.27%, 50.61%]. Exact inverse: n=7002 W/L/T=3540/3462/69 WR=50.56% CI95=[49.39%, 51.73%].
+FORCED skipped only for unavailable candle history: none.
+TRAIN original: n=4307 W/L/T=2137/2170/36 WR=49.62% CI95=[48.12%, 51.11%]
+TRAIN inverse: n=4307 W/L/T=2170/2137/36 WR=50.38% CI95=[48.89%, 51.88%]
+DEV original: n=236 W/L/T=117/119/3 WR=49.58% CI95=[43.26%, 55.91%]
+DEV inverse: n=236 W/L/T=119/117/3 WR=50.42% CI95=[44.09%, 56.74%]
+Predeclared gate: n>=100, WR>55.56%, Wilson lower bound >50%. Selected for holdout: NONE.
+HOLDOUT NOT READ — neither direction passed development.
+
+DEPENDENCE WARNING: many binary rows share the same completed M15 decision bar. These are the requested per-row results, not thousands of independent forex signals. Do not activate or invert from this replay; use it only to reject a clearly bad forced direction or choose a forward hypothesis.

@@ -1,0 +1,100 @@
+GOLDENXPERIENCE — BINARY CONTEXT ENSEMBLE V1
+========================================================================
+
+DIRECT RESULT
+-------------
+NO SETUP PASSED THE DEV GATE. HOLDOUT OUTCOMES WERE NOT QUERIED OR READ.
+
+WHAT WAS DIFFERENT
+------------------
+This forced-direction search added information omitted by the old 25-feature model:
+entry quote vs last completed M1 close, pair/currency identity, synchronized
+cross-pair currency strength, time phase, price microstructure, and strictly
+past-resolved pair/currency outcome state. It also models FOLLOW versus INVERT
+directly from baseline direction/confidence and prior correctness. Every arm
+outputs UP or DOWN; no WAIT.
+
+COHORT AND INTEGRITY
+--------------------
+Cohort: authoritative binary-baseline-v1@1.0.0, resolved, 600 seconds, non-shadow
+Full cohort metadata count: 7071
+TRAIN boundary: 2026-08-21T19:14:38.537Z
+HOLDOUT boundary: 2026-08-25T13:10:13.383Z
+Boundary purge: 10 minutes
+Rows loaded in discovery query: 5646
+Rows excluded because reference M1 was not fully closed at entry: 33
+Official-vs-price target mismatches: 0
+Duplicate opportunity keys: 0
+Eligible TRAIN rows after safety/purge: 4198
+Eligible DEV rows after safety/purge: 1405
+Candidate orientations tested on the same DEV rows: 176
+Feature imputation, scaling, one-hot vocabularies, model parameters, and
+pair/time majority maps were fit on TRAIN only. Same-start clusters stay together.
+
+PREDECLARED DISCOVERY GATE
+--------------------------
+n >= 100; DEV WR > 55.56%; Wilson lower bound > 50%.
+The 55.56% threshold corresponds to break-even at an 80% binary payout.
+Because many candidates share one DEV set, any pass still requires untouched HOLDOUT confirmation.
+
+SELECTED DEV CANDIDATE
+----------------------
+Name: full_rbf_svc_C1::original
+TRAIN: 3076W/1025L/97T on 4198 forced predictions; WR=75.01%; Wilson95=[73.66%, 76.31%]
+DEV: 725W/643L/37T on 1405 forced predictions; WR=53.00%; Wilson95=[50.35%, 55.63%]
+Gate passed: NO
+
+TOP DEV LEADERBOARD
+-------------------
+rank | candidate | train WR | dev WR | dev Wilson low | dev n
+   1 | full_rbf_svc_C1::original | 75.01% | 53.00% | 50.35% | 1368
+   2 | sign_wick_imbalance::original | 50.60% | 52.63% | 49.98% | 1368
+   3 | full_histgb_leaves15_l210::original | 86.44% | 52.19% | 49.54% | 1368
+   4 | full_logistic_C0.1::original | 55.72% | 52.12% | 49.47% | 1368
+   5 | sign_mom_m5::inverse | 50.45% | 51.90% | 49.25% | 1368
+   6 | full_forest_depth3_leaf10::original | 58.67% | 51.90% | 49.25% | 1368
+   7 | follow_invert_pair_correct_rate_50::original | 49.48% | 51.90% | 49.25% | 1368
+   8 | sign_pair_up_rate_5::inverse | 50.87% | 51.83% | 49.18% | 1368
+   9 | full_logistic_C1::original | 55.60% | 51.75% | 49.11% | 1368
+  10 | follow_invert_pair_correct_rate_10::inverse | 50.82% | 51.61% | 48.96% | 1368
+  11 | correctness_logistic_C10::original | 56.23% | 51.61% | 48.96% | 1368
+  12 | sign_pair_up_rate_50::inverse | 49.87% | 51.54% | 48.89% | 1368
+  13 | full_forest_depth3_leaf30::original | 57.94% | 51.54% | 48.89% | 1368
+  14 | correctness_histgb_leaves31_l21::original | 98.34% | 51.54% | 48.89% | 1368
+  15 | correctness_extra_depth6_leaf10::original | 68.18% | 51.54% | 48.89% | 1368
+  16 | sign_pair_up_rate_25::inverse | 49.87% | 51.46% | 48.81% | 1368
+  17 | follow_invert_pair_correct_streak::original | 50.04% | 51.46% | 48.81% | 1368
+  18 | follow_invert_last_pair_correct::original | 50.04% | 51.46% | 48.81% | 1368
+  19 | sign_past_currency_diff_20::inverse | 49.94% | 51.39% | 48.74% | 1368
+  20 | sign_cross_strength_m5::inverse | 49.94% | 51.39% | 48.74% | 1368
+  21 | full_knn_31::original | 100.00% | 51.39% | 48.74% | 1368
+  22 | full_histgb_leaves7_l21::original | 76.08% | 51.39% | 48.74% | 1368
+  23 | correctness_logistic_C1::original | 56.13% | 51.39% | 48.74% | 1368
+  24 | full_logistic_C0.01::original | 55.23% | 51.32% | 48.67% | 1368
+  25 | full_forest_depth6_leaf30::original | 68.64% | 51.32% | 48.67% | 1368
+
+FIXED CONTROLS ON DEV
+---------------------
+recorded baseline: 687W/681L/37T on 1405 forced predictions; WR=50.22%; Wilson95=[47.57%, 52.86%]
+exact baseline inverse: 681W/687L/37T on 1405 forced predictions; WR=49.78%; Wilson95=[47.14%, 52.43%]
+always UP: 674W/694L/37T on 1405 forced predictions; WR=49.27%; Wilson95=[46.63%, 51.92%]
+always DOWN: 694W/674L/37T on 1405 forced predictions; WR=50.73%; Wilson95=[48.08%, 53.37%]
+seeded random: 677W/691L/37T on 1405 forced predictions; WR=49.49%; Wilson95=[46.84%, 52.14%]
+
+HOLDOUT STATUS
+--------------
+NOT QUERIED / NOT READ
+
+LIMITATIONS
+-----------
+- This is only the baseline-triggered opportunity cohort, not every market minute.
+- The dataset spans less than two weeks; day/regime independence is limited.
+- AUD_JPY and EUR_AUD entered the cohort later than the other ten pairs.
+- Wilson intervals treat rows as independent even though simultaneous FX pairs correlate.
+- features and market_context are internally decision-time-consistent but are not
+  protected as immutable columns by the current database trigger.
+- DEV is a model-selection set. Its best row is biased upward by candidate search.
+
+DECISION
+--------
+Do not activate or invert any tested setup. No materially good or bad forced-direction signal was found on DEV.

@@ -39,6 +39,7 @@ import { binaryAdaptiveStats } from "./binary-adaptive-stats.js";
 import { binaryAdaptiveSelectorStatus } from "./binary-adaptive-selector.js";
 import { collectPatternV1Cycle, patternV1Disagreement, patternV1Status } from "./pattern-v1-engine.js";
 import { collectLegacyConfidenceV2Cycle } from "./legacy-confidence-v2-collector.js";
+import { collectBreakoutConfidenceV1Cycle } from "./breakout-confidence-v1-collector.js";
 
 // The multi-strategy + adaptive engine replaces the single liquidity strategy as
 // the active forex collector. Default on; set MULTISTRATEGY_ENABLED=false to roll
@@ -565,6 +566,7 @@ let binaryResolver: NodeJS.Timeout | null = null;
 let newsRetagger: NodeJS.Timeout | null = null;
 let patternV1Collector: NodeJS.Timeout | null = null;
 let legacyConfidenceV2Collector: NodeJS.Timeout | null = null;
+let breakoutConfidenceV1Collector: NodeJS.Timeout | null = null;
 // The background loops below (paper collector, live/fast resolver, research
 // worker, binary engine) all WRITE to the database — opening, closing and
 // resolving trades. Point a second instance at the same database (e.g. local
@@ -773,6 +775,35 @@ if (databaseConfigured() && schedulersEnabled) {
   void legacyV2();
   legacyConfidenceV2Collector = setInterval(() => void legacyV2(), 15 * 60_000);
 
+  // Breakout-confidence-v1 forward paper engine.
+  // Trained on 8,316 breakout opportunities (EUR/GBP/USD_JPY, 2016-2025).
+  // Walk-forward: +0.141R/trade, 68% winrate, 36/37 windows beat baseline.
+  //
+  // Runs on a 60-second cadence like the multi-strategy collector — breakout
+  // fires on M15 bar closes and we want to catch them before paper-cycle's
+  // own breakout arm claims the one-trade-per-instrument lock.
+  //
+  // Off by default. Opt in with BREAKOUT_CONFIDENCE_V1_ENABLED=true; keep
+  // BREAKOUT_CONFIDENCE_V1_DRY_RUN=true for watch mode.
+  let breakoutV1Busy = false;
+  const breakoutV1 = async () => {
+    if (breakoutV1Busy) return;
+    breakoutV1Busy = true;
+    try {
+      const result = await collectBreakoutConfidenceV1Cycle();
+      if (!result.ran) return;
+      if (result.setupsFired || result.tradesOpened || result.errors) {
+        console.log(`[breakout-confidence-v1] pairs=${result.pairsChecked} setups=${result.setupsFired} opened=${result.tradesOpened} skipped=${result.skipped} errors=${result.errors}`);
+      }
+    } catch (error) {
+      console.error("[breakout-confidence-v1] cycle failed", error);
+    } finally {
+      breakoutV1Busy = false;
+    }
+  };
+  void breakoutV1();
+  breakoutConfidenceV1Collector = setInterval(() => void breakoutV1(), 60_000);
+
   // Nightly news re-tag. The calendar feed carries the current week only and
   // its rollover is not synchronised with the Sunday 17:00 ET reopen, so a
   // trade opened before the new week is published gets tagged NO_NEWS for lack
@@ -810,6 +841,7 @@ function shutdown() {
   if (newsRetagger) clearInterval(newsRetagger);
   if (patternV1Collector) clearInterval(patternV1Collector);
   if (legacyConfidenceV2Collector) clearInterval(legacyConfidenceV2Collector);
+  if (breakoutConfidenceV1Collector) clearInterval(breakoutConfidenceV1Collector);
   wss.clients.forEach((socket) => socket.close(1001, "Server shutting down"));
   server.close(() => process.exit(0));
 }

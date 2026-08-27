@@ -1,0 +1,237 @@
+{
+  "generatedAt": "2026-08-27T03:41:31.390Z",
+  "purpose": "fixed-price binary direction, not stop/target trade P&L",
+  "rules": {
+    "pairs": [
+      "EUR_USD",
+      "GBP_USD",
+      "USD_JPY"
+    ],
+    "horizonsMinutes": [
+      10,
+      15,
+      30,
+      60,
+      120
+    ],
+    "split": "chronological 60/20/20",
+    "purgeMinutes": 120,
+    "devGate": {
+      "minSignals": 100,
+      "minWinRatePercent": 55.559999999999995,
+      "wilsonLowerAbovePercent": 50
+    }
+  },
+  "counts": {
+    "all": 7525,
+    "train": 4540,
+    "dev": 1499,
+    "holdoutSealed": 1485
+  },
+  "candidates": [
+    {
+      "horizonMinutes": 10,
+      "side": "ORIGINAL",
+      "train": {
+        "n": 4517,
+        "wins": 2142,
+        "losses": 2375,
+        "ties": 23,
+        "winRate": 47.42,
+        "wilsonLower": 45.97
+      },
+      "dev": {
+        "n": 1492,
+        "wins": 729,
+        "losses": 763,
+        "ties": 7,
+        "winRate": 48.86,
+        "wilsonLower": 46.33
+      }
+    },
+    {
+      "horizonMinutes": 10,
+      "side": "INVERSE",
+      "train": {
+        "n": 4517,
+        "wins": 2375,
+        "losses": 2142,
+        "ties": 23,
+        "winRate": 52.58,
+        "wilsonLower": 51.12
+      },
+      "dev": {
+        "n": 1492,
+        "wins": 763,
+        "losses": 729,
+        "ties": 7,
+        "winRate": 51.14,
+        "wilsonLower": 48.6
+      }
+    },
+    {
+      "horizonMinutes": 15,
+      "side": "ORIGINAL",
+      "train": {
+        "n": 4520,
+        "wins": 2153,
+        "losses": 2367,
+        "ties": 20,
+        "winRate": 47.63,
+        "wilsonLower": 46.18
+      },
+      "dev": {
+        "n": 1492,
+        "wins": 726,
+        "losses": 766,
+        "ties": 7,
+        "winRate": 48.66,
+        "wilsonLower": 46.13
+      }
+    },
+    {
+      "horizonMinutes": 15,
+      "side": "INVERSE",
+      "train": {
+        "n": 4520,
+        "wins": 2367,
+        "losses": 2153,
+        "ties": 20,
+        "winRate": 52.37,
+        "wilsonLower": 50.91
+      },
+      "dev": {
+        "n": 1492,
+        "wins": 766,
+        "losses": 726,
+        "ties": 7,
+        "winRate": 51.34,
+        "wilsonLower": 48.8
+      }
+    },
+    {
+      "horizonMinutes": 30,
+      "side": "ORIGINAL",
+      "train": {
+        "n": 4522,
+        "wins": 2183,
+        "losses": 2339,
+        "ties": 18,
+        "winRate": 48.28,
+        "wilsonLower": 46.82
+      },
+      "dev": {
+        "n": 1499,
+        "wins": 737,
+        "losses": 762,
+        "ties": 0,
+        "winRate": 49.17,
+        "wilsonLower": 46.64
+      }
+    },
+    {
+      "horizonMinutes": 30,
+      "side": "INVERSE",
+      "train": {
+        "n": 4522,
+        "wins": 2339,
+        "losses": 2183,
+        "ties": 18,
+        "winRate": 51.72,
+        "wilsonLower": 50.27
+      },
+      "dev": {
+        "n": 1499,
+        "wins": 762,
+        "losses": 737,
+        "ties": 0,
+        "winRate": 50.83,
+        "wilsonLower": 48.3
+      }
+    },
+    {
+      "horizonMinutes": 60,
+      "side": "ORIGINAL",
+      "train": {
+        "n": 4536,
+        "wins": 2249,
+        "losses": 2287,
+        "ties": 4,
+        "winRate": 49.58,
+        "wilsonLower": 48.13
+      },
+      "dev": {
+        "n": 1497,
+        "wins": 720,
+        "losses": 777,
+        "ties": 2,
+        "winRate": 48.1,
+        "wilsonLower": 45.57
+      }
+    },
+    {
+      "horizonMinutes": 60,
+      "side": "INVERSE",
+      "train": {
+        "n": 4536,
+        "wins": 2287,
+        "losses": 2249,
+        "ties": 4,
+        "winRate": 50.42,
+        "wilsonLower": 48.96
+      },
+      "dev": {
+        "n": 1497,
+        "wins": 777,
+        "losses": 720,
+        "ties": 2,
+        "winRate": 51.9,
+        "wilsonLower": 49.37
+      }
+    },
+    {
+      "horizonMinutes": 120,
+      "side": "ORIGINAL",
+      "train": {
+        "n": 4536,
+        "wins": 2177,
+        "losses": 2359,
+        "ties": 4,
+        "winRate": 47.99,
+        "wilsonLower": 46.54
+      },
+      "dev": {
+        "n": 1495,
+        "wins": 721,
+        "losses": 774,
+        "ties": 4,
+        "winRate": 48.23,
+        "wilsonLower": 45.7
+      }
+    },
+    {
+      "horizonMinutes": 120,
+      "side": "INVERSE",
+      "train": {
+        "n": 4536,
+        "wins": 2359,
+        "losses": 2177,
+        "ties": 4,
+        "winRate": 52.01,
+        "wilsonLower": 50.55
+      },
+      "dev": {
+        "n": 1495,
+        "wins": 774,
+        "losses": 721,
+        "ties": 4,
+        "winRate": 51.77,
+        "wilsonLower": 49.24
+      }
+    }
+  ],
+  "gate": {
+    "passed": false,
+    "eligible": []
+  }
+}

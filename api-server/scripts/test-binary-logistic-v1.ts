@@ -29,6 +29,12 @@ function sampleFeatures(overrides: Partial<BinaryFeatures> = {}): BinaryFeatures
     session: "London/New York overlap",
     hourEt: 10,
     timeOfDayBucket: "08-12 ET",
+    rsi14: 55,
+    bollinger: {
+      middle: 1.10000, upper: 1.10050, lower: 1.09950,
+      pctB: 0.55, extAtr: 0, dir: 0, streak: 0,
+    },
+    instrument: "EUR_USD",
     referenceClose: 1.10005,
     referenceCloseTime: "2026-01-06T10:39:00.000Z",
     ...overrides,

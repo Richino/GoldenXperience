@@ -18,6 +18,7 @@ import {
   isBinaryLogisticShadowEnabled,
   type BinaryLogisticResult,
 } from "./binary-logistic-v1.js";
+import { BINARY_FADE_CONFIGURATION, createFadeModel } from "./binary-fade-v1.js";
 import { getPricing, getResearchCandles, OandaRequestError } from "../../frontend/src/lib/oanda/client.js";
 import { pipSizeFor, precisionFor, displayNameFor } from "../../frontend/src/lib/instruments/catalog.js";
 import { calculateAtrValues, calculateEmaValues } from "../../frontend/src/lib/strategy/indicators.js";
@@ -39,13 +40,30 @@ import { MAJOR_INSTRUMENTS, type Candle, type MajorInstrument } from "../../fron
  * result. Losses are kept; resolved predictions are never rewritten.
  */
 
-export const BINARY_MODEL_NAME = "binary-baseline-v1";
+/**
+ * Historical baseline that produced binary_predictions from launch through
+ * commit 99decde. Retained as a name so adaptive stats and research scripts can
+ * still address those rows explicitly; the LIVE authoritative model is now the
+ * fade engine (see BINARY_MODEL_NAME below).
+ */
+export const BINARY_LEGACY_BASELINE_NAME = "binary-baseline-v1";
+export const BINARY_LEGACY_BASELINE_VERSION = "1.0.0";
+/**
+ * The authoritative model that fires TODAY. Bollinger-band fade with an RSI
+ * confirmation, one pair excluded, extension threshold in ATR units — chosen
+ * from a 1,160-configuration stability sweep (holdout winrate 67.1% at
+ * qStd=1.3pp).
+ */
+export const BINARY_MODEL_NAME = "binary-fade-v1";
 export const BINARY_MODEL_VERSION = "1.0.0";
 /** V1 horizon. Durations are stored per prediction, so 5m/15m are just other values. */
 export const BINARY_HORIZON_SECONDS = 600;
 /** Extra horizons priced at resolution for research, never changing the official result. */
 export const BINARY_SECONDARY_HORIZONS = [300, 900] as const;
-/** Below this heuristic score the model returns WAIT rather than forcing a prediction. */
+/**
+ * Below this heuristic score the fade model returns WAIT rather than forcing a
+ * prediction. The floor a passing trade emits is 0.60, so this stays under it.
+ */
 export const BINARY_DEFAULT_THRESHOLD = 0.58;
 /**
  * Tie band, in ticks of the instrument's display precision. 0 means a tie only
@@ -53,8 +71,12 @@ export const BINARY_DEFAULT_THRESHOLD = 0.58;
  * outcome rather than one that swallows real fractional-pip moves.
  */
 export const BINARY_TIE_TOLERANCE_TICKS = 0;
-/** Minimum completed M1 candles before the model is allowed to form a view. */
-const MIN_FEATURE_CANDLES = 25;
+/**
+ * Minimum completed M1 candles before the model is allowed to form a view.
+ * The fade engine reads a 20-period Bollinger + 14-bar RSI + up to 25 bars of
+ * band-break streak history, so 45 buys enough headroom for the streak walk.
+ */
+const MIN_FEATURE_CANDLES = 45;
 /** Distinct from the paper collector's advisory lock so the two never contend. */
 const BINARY_LOCK = 24_100_002;
 /**
@@ -90,6 +112,19 @@ export type BinaryFeatures = {
   session: string;
   hourEt: number;
   timeOfDayBucket: string;
+  /** Wilder RSI over 14 completed 1-minute closes. */
+  rsi14: number | null;
+  /**
+   * 20-period 2-sigma Bollinger geometry at the reference close.
+   *   `dir`     +1 if the close is above the upper band, -1 if below the lower,
+   *             0 when price sits inside the envelope.
+   *   `extAtr`  how far outside the envelope, expressed in ATR14 units. 0 when inside.
+   *   `streak`  consecutive bars closed outside the band on the same side (>=1 when dir!=0).
+   *   `pctB`    (close - lower) / (upper - lower), unbounded — >1 is above, <0 is below.
+   */
+  bollinger: { middle: number; upper: number; lower: number; pctB: number; extAtr: number; dir: -1 | 0 | 1; streak: number } | null;
+  /** The instrument this snapshot was computed for, so models can pair-gate. */
+  instrument: MajorInstrument;
   /** Reference close the features were computed against, for reproducibility. */
   referenceClose: number;
   referenceCloseTime: string;
@@ -120,6 +155,84 @@ function standardDeviation(values: number[]): number | null {
   const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
   const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
   return Math.sqrt(variance);
+}
+
+function populationStdev(values: number[]): number {
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
+  return Math.sqrt(variance);
+}
+
+/**
+ * Wilder RSI on the last `period + 1` closes. Returns `null` if there aren't
+ * enough completed bars, or if the input contains a run of identical closes
+ * that would produce a divide-by-zero.
+ */
+function computeRsi14(closes: number[], period = 14): number | null {
+  if (closes.length <= period) return null;
+  const window = closes.slice(-period - 1);
+  let gain = 0;
+  let loss = 0;
+  for (let i = 1; i < window.length; i++) {
+    const diff = window[i]! - window[i - 1]!;
+    if (diff >= 0) gain += diff; else loss -= diff;
+  }
+  gain /= period;
+  loss /= period;
+  if (loss === 0) return gain === 0 ? null : 100;
+  const rs = gain / loss;
+  return 100 - 100 / (1 + rs);
+}
+
+/**
+ * 20-period 2-sigma Bollinger geometry plus the bank-break streak. Reports
+ * the extension in ATR units so it's directly comparable across pairs.
+ */
+function computeBollinger(
+  closes: number[],
+  atrValue: number | null,
+  period = 20,
+  numStdev = 2,
+): { middle: number; upper: number; lower: number; pctB: number; extAtr: number; dir: -1 | 0 | 1; streak: number } | null {
+  if (closes.length < period || atrValue === null || atrValue <= 0) return null;
+  // Streak lookback: the max useful streak is bounded by (closes.length - period).
+  const window = closes.slice(-period);
+  const middle = window.reduce((s, v) => s + v, 0) / window.length;
+  const sd = populationStdev(window);
+  const upper = middle + numStdev * sd;
+  const lower = middle - numStdev * sd;
+  const price = closes[closes.length - 1]!;
+  const range = upper - lower;
+  const pctB = range > 0 ? (price - lower) / range : 0.5;
+  let dir: -1 | 0 | 1 = 0;
+  let extAtr = 0;
+  if (price > upper) { dir = 1; extAtr = (price - upper) / atrValue; }
+  else if (price < lower) { dir = -1; extAtr = (lower - price) / atrValue; }
+  let streak = 0;
+  if (dir !== 0) {
+    // Walk backwards computing the rolling 20-period band at each historic bar.
+    // Sums of price and price^2 let us slide the window without recomputing.
+    let sum = window.reduce((s, v) => s + v, 0);
+    let sumSq = window.reduce((s, v) => s + v * v, 0);
+    for (let i = closes.length - 1; i >= period - 1; i--) {
+      const p = closes[i]!;
+      const mean = sum / period;
+      const varPop = Math.max(0, sumSq / period - mean * mean);
+      const s = Math.sqrt(varPop);
+      const up = mean + numStdev * s;
+      const lo = mean - numStdev * s;
+      const outsideOnDirSide = dir === 1 ? p > up : p < lo;
+      if (!outsideOnDirSide) break;
+      streak += 1;
+      // slide the window one bar earlier
+      const dropped = closes[i]!;
+      const added = closes[i - period];
+      if (added === undefined) break;
+      sum = sum - dropped + added;
+      sumSq = sumSq - dropped * dropped + added * added;
+    }
+  }
+  return { middle, upper, lower, pctB, extAtr, dir, streak };
 }
 
 function timeOfDayBucketFor(hourEt: number) {
@@ -182,6 +295,8 @@ export function computeBinaryFeatures(
   const mid = quote?.mid ?? last.close;
 
   const hourEt = hourInNewYork(now);
+  const rsi14 = computeRsi14(closes, 14);
+  const bollinger = computeBollinger(closes, atrValue, 20, 2);
   return {
     momentumPips: {
       m1: momentumOver(closes, 1, pip),
@@ -207,6 +322,9 @@ export function computeBinaryFeatures(
     session: getForexSessionStatus(now).label,
     hourEt,
     timeOfDayBucket: timeOfDayBucketFor(hourEt),
+    rsi14,
+    bollinger,
+    instrument,
     referenceClose: last.close,
     referenceCloseTime: last.time,
   };
@@ -223,19 +341,15 @@ export interface BinaryModel {
 }
 
 /**
- * binary-baseline-v1: a deterministic momentum-and-trend heuristic.
- *
- * This is NOT a trained model and its confidence is NOT a calibrated
- * probability — it is a bounded score used only to decide whether the edge is
- * worth recording. Its whole job in V1 is to generate clean, honestly-labelled
- * forward-test data that a real model (binary-lightgbm-v1 / binary-xgboost-v1)
- * can later be measured against.
+ * binary-baseline-v1: a deterministic momentum-and-trend heuristic. Retired
+ * from live production in favour of binary-fade-v1; kept exported so research
+ * scripts can reproduce the historical prediction stream. NOT authoritative.
  */
 export function createBaselineModel(threshold = BINARY_DEFAULT_THRESHOLD): BinaryModel {
   const SCALE = 1.5; // momentum, in ATRs over the window, that approaches full strength
   return {
-    name: BINARY_MODEL_NAME,
-    version: BINARY_MODEL_VERSION,
+    name: BINARY_LEGACY_BASELINE_NAME,
+    version: BINARY_LEGACY_BASELINE_VERSION,
     scoreKind: "heuristic_score",
     threshold,
     evaluate(features) {
@@ -510,14 +624,16 @@ async function ensureLogisticModel(): Promise<{ id: string; name: string; versio
   return result.rows[0]!;
 }
 
-/** The baseline model's row, created on first use so a version bump is code-only. */
+/**
+ * The current authoritative model's row, created on first use so a version
+ * bump is code-only. Registers binary-fade-v1 alongside a hard-coded copy of
+ * its configuration for provenance.
+ */
 async function ensureBinaryModel(): Promise<{ id: string; name: string; version: string }> {
   const configuration = JSON.stringify({
-    kind: "deterministic_baseline",
-    horizonSeconds: BINARY_HORIZON_SECONDS,
+    kind: "bollinger-band-fade",
     scoreKind: "heuristic_score",
-    threshold: BINARY_DEFAULT_THRESHOLD,
-    note: "Momentum and short-term trend heuristic. Confidence is a bounded score, not a calibrated probability.",
+    ...BINARY_FADE_CONFIGURATION,
   });
   const result = await query<{ id: string; name: string; version: string }>(
     `INSERT INTO binary_models(name,version,score_kind,configuration) VALUES($1,$2,'heuristic_score',$3::jsonb)
@@ -961,7 +1077,9 @@ export async function collectBinaryCycle(): Promise<{ opened: number; resolved: 
   const userId = await ownerUserId();
   if (!userId) return { opened: 0, resolved, evaluated: 0, reason: "Owner account is unavailable" };
   const model = await ensureBinaryModel();
-  const engine = createBaselineModel();
+  // binary-fade-v1 is now authoritative. createBaselineModel remains exported
+  // so research/replay scripts can reproduce the historical prediction stream.
+  const engine = createFadeModel();
   const now = new Date();
   const session = getForexSessionStatus(now);
   if (!session.marketOpen) return { opened: 0, resolved, evaluated: 0, reason: "Forex market closed" };

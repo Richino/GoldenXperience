@@ -1,0 +1,52 @@
+{
+  "generatedAt": "2026-08-28T16:59:51.623Z",
+  "hypothesis": "EUR/USD follows the opposite sign of one-hour external USD strength from GBP/USD and USD/JPY over its next hour",
+  "methodology": {
+    "source": "stored OANDA bid/ask M15 market quotes only",
+    "inputs": "GBP_USD and USD_JPY only; EUR_USD excluded from strength construction",
+    "limitation": "the stored archive has no long-history EUR cross, so this is external USD strength rather than a full EUR-minus-USD basket",
+    "synchronization": "all proxy closes must exist at decision time and exactly 60 minutes earlier",
+    "label": "EUR/USD midpoint direction exactly 60 minutes later",
+    "controls": "exact inverse and 100 seeded random directions",
+    "developmentPeriod": {
+      "start": "2021-06-03T00:00:00.000Z",
+      "end": "2024-01-01T00:00:00.000Z"
+    },
+    "sealedHoldoutPeriod": {
+      "start": "2024-01-01T00:00:00.000Z",
+      "end": "2025-08-01T00:00:00.000Z"
+    },
+    "passGate": "development n >= 500, 99% Wilson lower bound > 50%, and accuracy above the 95th percentile of 100 seeded random controls"
+  },
+  "developmentCoverage": {
+    "EUR_USD": {
+      "candles": 64265,
+      "first": "2021-06-03T00:00:00.000Z",
+      "last": "2023-12-29T22:00:00.000Z"
+    },
+    "GBP_USD": {
+      "candles": 64263,
+      "first": "2021-06-03T00:00:00.000Z",
+      "last": "2023-12-29T22:00:00.000Z"
+    },
+    "USD_JPY": {
+      "candles": 64270,
+      "first": "2021-06-03T00:00:00.000Z",
+      "last": "2023-12-29T22:00:00.000Z"
+    }
+  },
+  "development": {
+    "n": 62949,
+    "correct": 31225,
+    "accuracy": 0.4960364739709924,
+    "lower99": 0.4909037304370156,
+    "inverseAccuracy": 0.5039635260290076,
+    "randomControls": {
+      "count": 100,
+      "meanAccuracy": 0.4999912627682726,
+      "p95Accuracy": 0.503391634497768
+    }
+  },
+  "qualifiedForSealedHoldout": false,
+  "verdict": "DEVELOPMENT_DID_NOT_QUALIFY_SEALED_HOLDOUT_NOT_QUERIED"
+}

@@ -1,0 +1,72 @@
+{
+  "generatedAt": "2026-08-28T19:09:53.199Z",
+  "scope": {
+    "instrument": "EUR_USD",
+    "source": "stored OANDA M15 bid/ask market quotes only",
+    "decisionSchedule": "only completed M15 closes at 00:00, 04:00, 08:00, 12:00, 16:00, and 20:00 UTC; each outcome is a distinct four-hour window",
+    "pureMoveLabel": "within four hours, bid reaches ask-close +1.5 ATR or ask reaches bid-close -1.5 ATR; no stop and no direction",
+    "features": "frozen existing volatility expansion, compression release, velocity, body-strength score; only predeclared movement-strength thresholds are compared",
+    "excludes": "trade rows, shadow-table writes, paper-engine writes, direction selection, and post-result threshold changes"
+  },
+  "splits": {
+    "train": {
+      "start": "2021-06-03T00:00:00.000Z",
+      "end": "2023-01-01T00:00:00.000Z"
+    },
+    "validation": {
+      "start": "2023-01-01T00:00:00.000Z",
+      "end": "2024-01-01T00:00:00.000Z"
+    },
+    "sealedHoldout": {
+      "start": "2024-01-01T00:00:00.000Z",
+      "end": "2025-08-01T00:00:00.000Z"
+    }
+  },
+  "train": [
+    {
+      "threshold": 1,
+      "n": 699,
+      "hits": 512,
+      "hitRate": 0.7324749642346209,
+      "lower99": 0.6873057855727314,
+      "liftOverRandom": -0.04623748211731038,
+      "randomControls": {
+        "count": 100,
+        "meanHitRate": 0.7787124463519313,
+        "p95HitRate": 0.8011444921316166
+      }
+    },
+    {
+      "threshold": 1.25,
+      "n": 292,
+      "hits": 213,
+      "hitRate": 0.7294520547945206,
+      "lower99": 0.657936625084871,
+      "liftOverRandom": -0.05205479452054784,
+      "randomControls": {
+        "count": 100,
+        "meanHitRate": 0.7815068493150684,
+        "p95HitRate": 0.8184931506849316
+      }
+    },
+    {
+      "threshold": 1.5,
+      "n": 112,
+      "hits": 83,
+      "hitRate": 0.7410714285714286,
+      "lower99": 0.6231139108469925,
+      "liftOverRandom": -0.039196428571428354,
+      "randomControls": {
+        "count": 100,
+        "meanHitRate": 0.780267857142857,
+        "p95HitRate": 0.8392857142857143
+      }
+    }
+  ],
+  "nominationRule": "train n >= 250; hit rate >= 65%; 99% Wilson lower bound >=55%; at least +10 points over random mean and above random p95; highest hit-rate eligible lane wins",
+  "nominatedThreshold": null,
+  "validation": null,
+  "validationRule": "n >=125; hit rate >=65%; at least +10 points over random mean and above random p95; combined train+validation n >=500",
+  "qualifiedForSealedHoldout": false,
+  "verdict": "V2_DID_NOT_QUALIFY_SEALED_HOLDOUT_NOT_EVALUATED"
+}

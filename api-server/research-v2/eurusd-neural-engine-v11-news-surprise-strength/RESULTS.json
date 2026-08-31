@@ -1,0 +1,111 @@
+{
+  "generatedAt": "2026-08-29T13:13:39.381Z",
+  "verdict": "NO_DEVELOPMENT_WINNING_RATE_GATE_VALIDATION_SEALED",
+  "execution": {
+    "enabled": false,
+    "status": "DISABLED",
+    "reason": "research result never authorizes orders"
+  },
+  "method": {
+    "opportunity": "V7 Stage-1 score retained only as a logged diagnostic after V10 showed it did not select 72-hour news winners",
+    "direction": "magnitude-weighted non-inflation/rate ForexFactory actual-vs-forecast surprise vote",
+    "surpriseStrength": "sum of absolute actual-minus-forecast differences normalized by max(abs(forecast), 1)",
+    "decision": "15 minutes after release after three completed M5 candles",
+    "entry": "next M5 open using executable ask for long and bid for short",
+    "confirmation": "15-minute EUR/USD move must agree with news direction",
+    "volatilityGate": "pre-release ATR14 <= 5.53 pips",
+    "stop": "1.0 pre-release ATR14",
+    "target": "2.0 stop distances",
+    "payoff": "+1.5R / -0.75R",
+    "maximumHold": "72 wall-clock hours",
+    "ambiguousBar": "charged as stop",
+    "thresholdSelection": "outcome-blind top 100/75/50/33 percent surprise-strength tiers; 2024-25 selects only if n>=20, win>=40%, expectancy>0, PF>1"
+  },
+  "integrity": {
+    "storedTradesRead": false,
+    "priorResearchOutputsReadAtRuntime": false,
+    "targetPairExcludedFromDirection": true,
+    "development": "Aug 2024-Jul 2025",
+    "validation": "Aug 2025-Jul 2026; opened only after development gate",
+    "warning": "the baseline validation period has appeared in prior research, but this magnitude-weighted direction and strength threshold were not previously evaluated"
+  },
+  "data": {
+    "oandaM5Candles": 344780,
+    "trainingExamples2022_23": 149001,
+    "developmentCalendarRows": 462,
+    "developmentDirectionalGroups": 154,
+    "developmentNonOverlappingGroups": 124,
+    "developmentEligibleAfterCausalFilters": 52,
+    "validationCalendarRows": 339,
+    "validationDirectionalGroups": 114,
+    "validationNonOverlappingGroups": 95,
+    "validationEligibleAfterCausalFilters": 57
+  },
+  "results": {
+    "developmentFrontier": [
+      {
+        "keptFraction": 1,
+        "surpriseStrengthThreshold": 0.0040650406504065045,
+        "trades": 52,
+        "wins": 16,
+        "winRate": 0.3076923076923077,
+        "totalR": -3,
+        "expectancyR": -0.057692307692307696,
+        "profitFactor": 0.8888888888888888,
+        "maxDrawdownR": 11.25,
+        "targetHits": 16,
+        "stops": 36,
+        "timeExits": 0,
+        "medianSpreadPips": 1.500000000000945
+      },
+      {
+        "keptFraction": 0.75,
+        "surpriseStrengthThreshold": 0.04089219330855024,
+        "trades": 39,
+        "wins": 11,
+        "winRate": 0.28205128205128205,
+        "totalR": -4.5,
+        "expectancyR": -0.11538461538461539,
+        "profitFactor": 0.7857142857142857,
+        "maxDrawdownR": 8.25,
+        "targetHits": 11,
+        "stops": 28,
+        "timeExits": 0,
+        "medianSpreadPips": 1.5999999999993797
+      },
+      {
+        "keptFraction": 0.5,
+        "surpriseStrengthThreshold": 0.09252976513588826,
+        "trades": 26,
+        "wins": 8,
+        "winRate": 0.3076923076923077,
+        "totalR": -1.5,
+        "expectancyR": -0.057692307692307696,
+        "profitFactor": 0.8888888888888888,
+        "maxDrawdownR": 6.75,
+        "targetHits": 8,
+        "stops": 18,
+        "timeExits": 0,
+        "medianSpreadPips": 1.500000000000945
+      },
+      {
+        "keptFraction": 0.33,
+        "surpriseStrengthThreshold": 0.23414634146341468,
+        "trades": 18,
+        "wins": 5,
+        "winRate": 0.2777777777777778,
+        "totalR": -2.25,
+        "expectancyR": -0.125,
+        "profitFactor": 0.7692307692307693,
+        "maxDrawdownR": 4.5,
+        "targetHits": 5,
+        "stops": 13,
+        "timeExits": 0,
+        "medianSpreadPips": 1.500000000000945
+      }
+    ],
+    "selectedDevelopment": null,
+    "validation": "SEALED",
+    "validationSample": "SEALED"
+  }
+}

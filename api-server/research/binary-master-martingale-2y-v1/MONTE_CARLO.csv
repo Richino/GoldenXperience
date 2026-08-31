@@ -1,0 +1,14 @@
+metric,value
+runs,10000
+observedWr,48.73%
+sequenceCount,5
+pctProfitable,6.53%
+pctBelowStart,93.47%
+pctBlown,100.00%
+medianEnding,63.72
+meanEnding,69.93
+p5,54.92
+p25,57.63
+p75,74.11
+p95,105.88
+medianMaxDrawdownPct,45.33

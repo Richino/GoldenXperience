@@ -1,0 +1,70 @@
+{
+  "generatedAt": "2026-08-29T03:21:36.293Z",
+  "scope": {
+    "source": "raw OANDA Practice M15; H1/H4 aggregated from completed M15",
+    "newsPause": "30m before to 60m after supplied high-impact EUR/USD release",
+    "resolver": "bid/ask, 1.5R target/1R stop, 24h max; ambiguous bar charged stop"
+  },
+  "byFamily": {
+    "ema": {
+      "normal": {
+        "trades": 431,
+        "wins": 85,
+        "winRate": 0.19721577726218098,
+        "expectancyR": -0.47215777262180975
+      },
+      "newsPaused": {
+        "trades": 409,
+        "wins": 78,
+        "winRate": 0.19070904645476772,
+        "expectancyR": -0.49144254278728605
+      },
+      "excluded": 22
+    },
+    "breakout": {
+      "normal": {
+        "trades": 380,
+        "wins": 88,
+        "winRate": 0.23157894736842105,
+        "expectancyR": -0.4131578947368421
+      },
+      "newsPaused": {
+        "trades": 323,
+        "wins": 75,
+        "winRate": 0.23219814241486067,
+        "expectancyR": -0.413312693498452
+      },
+      "excluded": 57
+    },
+    "momentum": {
+      "normal": {
+        "trades": 508,
+        "wins": 88,
+        "winRate": 0.1732283464566929,
+        "expectancyR": -0.2952755905511811
+      },
+      "newsPaused": {
+        "trades": 441,
+        "wins": 76,
+        "winRate": 0.17233560090702948,
+        "expectancyR": -0.2947845804988662
+      },
+      "excluded": 67
+    },
+    "meanrev": {
+      "normal": {
+        "trades": 173,
+        "wins": 51,
+        "winRate": 0.2947976878612717,
+        "expectancyR": -0.24566473988439305
+      },
+      "newsPaused": {
+        "trades": 148,
+        "wins": 40,
+        "winRate": 0.2702702702702703,
+        "expectancyR": -0.30405405405405406
+      },
+      "excluded": 25
+    }
+  }
+}

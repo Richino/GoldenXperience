@@ -1,0 +1,134 @@
+{
+  "generatedAt": "2026-08-28T17:12:37.091Z",
+  "hypothesis": "EUR/USD follows the sign of one-hour EUR-minus-USD strength, built without EUR/USD from EUR/GBP, EUR/JPY, GBP/USD, and USD/JPY, over its next hour",
+  "methodology": {
+    "source": "raw OANDA bid/ask M15 candles fetched at runtime",
+    "inputs": [
+      "EUR_GBP",
+      "EUR_JPY",
+      "GBP_USD",
+      "USD_JPY"
+    ],
+    "targetExcludedFromInputs": true,
+    "synchronization": "all proxy closes must exist at decision time and exactly 60 minutes earlier",
+    "label": "EUR/USD midpoint direction exactly 60 minutes later",
+    "controls": "exact inverse and 100 seeded random directions; either predeclared arm may unlock the holdout only if it independently passes the fixed gate",
+    "developmentPeriod": {
+      "start": "2021-06-03T00:00:00.000Z",
+      "end": "2024-01-01T00:00:00.000Z"
+    },
+    "sealedHoldoutPeriod": {
+      "start": "2024-01-01T00:00:00.000Z",
+      "end": "2025-08-01T00:00:00.000Z"
+    },
+    "passGate": "development n >= 500, 99% Wilson lower bound > 50%, and accuracy above the 95th percentile of 100 seeded random controls"
+  },
+  "developmentCoverage": {
+    "EUR_USD": {
+      "candles": 64264,
+      "requests": 13,
+      "first": "2021-06-03T00:15:00.000Z",
+      "last": "2023-12-29T22:00:00.000Z"
+    },
+    "EUR_GBP": {
+      "candles": 64255,
+      "requests": 13,
+      "first": "2021-06-03T00:15:00.000Z",
+      "last": "2023-12-29T22:00:00.000Z"
+    },
+    "EUR_JPY": {
+      "candles": 64234,
+      "requests": 13,
+      "first": "2021-06-03T00:15:00.000Z",
+      "last": "2023-12-29T22:00:00.000Z"
+    },
+    "GBP_USD": {
+      "candles": 64262,
+      "requests": 13,
+      "first": "2021-06-03T00:15:00.000Z",
+      "last": "2023-12-29T22:00:00.000Z"
+    },
+    "USD_JPY": {
+      "candles": 64269,
+      "requests": 13,
+      "first": "2021-06-03T00:15:00.000Z",
+      "last": "2023-12-29T22:00:00.000Z"
+    }
+  },
+  "development": {
+    "n": 62659,
+    "correct": 30447,
+    "accuracy": 0.485915830128154,
+    "lower99": 0.4807741762576644,
+    "inverseCorrect": 32212,
+    "inverseAccuracy": 0.514084169871846,
+    "inverseLower99": 0.5089395332055942,
+    "randomControls": {
+      "count": 100,
+      "meanAccuracy": 0.4999976060901066,
+      "p95Accuracy": 0.5034232911473212
+    }
+  },
+  "developmentTriangulationAudit": {
+    "directTargetOneHourMeanReversionAccuracy": 0.5139086164796757,
+    "inverseCrossPairMatchesDirectTargetMeanReversion": 0.9857801752342041,
+    "interpretation": "Near-total agreement means the inverse basket is a triangular reconstruction of EUR/USD's own past return, not independent cross-pair information."
+  },
+  "developmentQualification": {
+    "originalQualified": false,
+    "inverseQualified": true,
+    "selectedArm": "INVERSE"
+  },
+  "sealedHoldoutCoverage": {
+    "EUR_USD": {
+      "candles": 39467,
+      "requests": 8,
+      "first": "2024-01-01T22:15:00.000Z",
+      "last": "2025-07-31T23:45:00.000Z"
+    },
+    "EUR_GBP": {
+      "candles": 39454,
+      "requests": 8,
+      "first": "2024-01-01T22:15:00.000Z",
+      "last": "2025-07-31T23:45:00.000Z"
+    },
+    "EUR_JPY": {
+      "candles": 39454,
+      "requests": 8,
+      "first": "2024-01-01T22:15:00.000Z",
+      "last": "2025-07-31T23:45:00.000Z"
+    },
+    "GBP_USD": {
+      "candles": 39454,
+      "requests": 8,
+      "first": "2024-01-01T22:15:00.000Z",
+      "last": "2025-07-31T23:45:00.000Z"
+    },
+    "USD_JPY": {
+      "candles": 39456,
+      "requests": 8,
+      "first": "2024-01-01T22:15:00.000Z",
+      "last": "2025-07-31T23:45:00.000Z"
+    }
+  },
+  "sealedHoldout": {
+    "n": 38508,
+    "correct": 18818,
+    "accuracy": 0.4886776773657422,
+    "lower99": 0.48211830225005264,
+    "inverseCorrect": 19690,
+    "inverseAccuracy": 0.5113223226342578,
+    "inverseLower99": 0.504759046020071,
+    "randomControls": {
+      "count": 100,
+      "meanAccuracy": 0.5000506388282955,
+      "p95Accuracy": 0.5045964474914304
+    }
+  },
+  "sealedHoldoutTriangulationAudit": {
+    "directTargetOneHourMeanReversionAccuracy": 0.5108289186662511,
+    "inverseCrossPairMatchesDirectTargetMeanReversion": 0.9856393476680171,
+    "interpretation": "Near-total agreement means the inverse basket is a triangular reconstruction of EUR/USD's own past return, not independent cross-pair information."
+  },
+  "verdict": "NUMERICALLY_QUALIFIED_BUT_REQUIRES_TRIANGULATION_INDEPENDENCE_REVIEW"
+}

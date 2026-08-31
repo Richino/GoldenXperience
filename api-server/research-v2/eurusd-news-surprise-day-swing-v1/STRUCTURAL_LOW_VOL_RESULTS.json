@@ -1,0 +1,10 @@
+{
+  "scope": "low K-means ATR regime; 15m confirmation agrees; structural wick stop; 1.5x target; bid/ask; 72h",
+  "result": {
+    "trades": 96,
+    "wins": 31,
+    "winRate": 0.3229166666666667,
+    "totalR": -18.5,
+    "expectancyR": -0.19270833333333334
+  }
+}

@@ -1,0 +1,110 @@
+{
+  "generatedAt": "2026-08-29T13:11:12.289Z",
+  "verdict": "NO_DEVELOPMENT_WINNING_RATE_GATE_VALIDATION_SEALED",
+  "execution": {
+    "enabled": false,
+    "status": "DISABLED",
+    "reason": "research result never authorizes orders"
+  },
+  "method": {
+    "opportunity": "frozen V7 26->16->1 Stage-1 model trained on 2022-2023 OANDA M5 only",
+    "direction": "non-inflation/rate ForexFactory actual-vs-forecast surprise vote",
+    "decision": "15 minutes after release after three completed M5 candles",
+    "entry": "next M5 open using executable ask for long and bid for short",
+    "confirmation": "15-minute EUR/USD move must agree with news direction",
+    "volatilityGate": "pre-release ATR14 <= 5.53 pips",
+    "stop": "1.0 pre-release ATR14",
+    "target": "2.0 stop distances",
+    "payoff": "+1.5R / -0.75R",
+    "maximumHold": "72 wall-clock hours",
+    "ambiguousBar": "charged as stop",
+    "thresholdSelection": "outcome-blind top 100/75/50/33 percent Stage-1 score tiers; 2024-25 selects only if n>=20, win>=40%, expectancy>0, PF>1"
+  },
+  "integrity": {
+    "storedTradesRead": false,
+    "priorResearchOutputsReadAtRuntime": false,
+    "targetPairExcludedFromDirection": true,
+    "development": "Aug 2024-Jul 2025",
+    "validation": "Aug 2025-Jul 2026; opened only after development gate",
+    "warning": "the baseline validation period has appeared in prior research, but this Stage-1/news combination and threshold were not previously evaluated"
+  },
+  "data": {
+    "oandaM5Candles": 344780,
+    "trainingExamples2022_23": 149001,
+    "developmentCalendarRows": 462,
+    "developmentDirectionalGroups": 121,
+    "developmentNonOverlappingGroups": 102,
+    "developmentEligibleAfterCausalFilters": 44,
+    "validationCalendarRows": 339,
+    "validationDirectionalGroups": 102,
+    "validationNonOverlappingGroups": 85,
+    "validationEligibleAfterCausalFilters": 52
+  },
+  "results": {
+    "developmentFrontier": [
+      {
+        "keptFraction": 1,
+        "opportunityThreshold": 0.20134774743413805,
+        "trades": 44,
+        "wins": 15,
+        "winRate": 0.3409090909090909,
+        "totalR": 0.75,
+        "expectancyR": 0.017045454545454544,
+        "profitFactor": 1.0344827586206897,
+        "maxDrawdownR": 8.25,
+        "targetHits": 15,
+        "stops": 29,
+        "timeExits": 0,
+        "medianSpreadPips": 1.500000000000945
+      },
+      {
+        "keptFraction": 0.75,
+        "opportunityThreshold": 0.3032109243601405,
+        "trades": 33,
+        "wins": 11,
+        "winRate": 0.3333333333333333,
+        "totalR": 0,
+        "expectancyR": 0,
+        "profitFactor": 1,
+        "maxDrawdownR": 8.25,
+        "targetHits": 11,
+        "stops": 22,
+        "timeExits": 0,
+        "medianSpreadPips": 1.500000000000945
+      },
+      {
+        "keptFraction": 0.5,
+        "opportunityThreshold": 0.3592889132704921,
+        "trades": 22,
+        "wins": 7,
+        "winRate": 0.3181818181818182,
+        "totalR": -0.75,
+        "expectancyR": -0.03409090909090909,
+        "profitFactor": 0.9333333333333333,
+        "maxDrawdownR": 5.25,
+        "targetHits": 7,
+        "stops": 15,
+        "timeExits": 0,
+        "medianSpreadPips": 1.5999999999993797
+      },
+      {
+        "keptFraction": 0.33,
+        "opportunityThreshold": 0.38310831077854973,
+        "trades": 15,
+        "wins": 5,
+        "winRate": 0.3333333333333333,
+        "totalR": 0,
+        "expectancyR": 0,
+        "profitFactor": 1,
+        "maxDrawdownR": 3.75,
+        "targetHits": 5,
+        "stops": 10,
+        "timeExits": 0,
+        "medianSpreadPips": 1.5999999999993797
+      }
+    ],
+    "selectedDevelopment": null,
+    "validation": "SEALED",
+    "validationSample": "SEALED"
+  }
+}

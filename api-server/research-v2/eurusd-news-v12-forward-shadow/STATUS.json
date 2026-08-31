@@ -1,0 +1,53 @@
+{
+  "generatedAt": "2026-08-29T23:40:27.045Z",
+  "execution": {
+    "status": "SHADOW_ONLY",
+    "ordersAllowed": false,
+    "orderCallsMade": 0
+  },
+  "policy": {
+    "version": "eurusd-news-v12-shadow-1",
+    "instrument": "EUR_USD",
+    "status": "SHADOW_ONLY",
+    "ordersAllowed": false,
+    "forwardSampleStartsAt": "2026-08-01T00:00:00.000Z",
+    "confirmationMinutes": 15,
+    "surpriseStrengthThreshold": 0.06766917293233082,
+    "lowVolatilityAtrCeilingPips": 5.53,
+    "stopAtr": 1,
+    "targetToStop": 2,
+    "winPayoffR": 1.5,
+    "lossPayoffR": -0.75,
+    "maximumHoldingHours": 72,
+    "minimumResolvedTrades": 60,
+    "minimumWinRate": 0.4,
+    "minimumProfitFactor": 1
+  },
+  "policyHash": "83df3e2f007ea25c82e5ae58a45953bcc390771b6117ac83e1a35518ee926067",
+  "source": {
+    "eventFile": "C:\\Users\\arche\\Desktop\\code\\GoldenXperience\\api-server\\research-v2\\eurusd-news-v12-forward-shadow\\events.json",
+    "totalCalendarRows": 15,
+    "rejectedPreFreezeRows": 0
+  },
+  "sample": {
+    "directionalNonOverlappingGroups": 2,
+    "ledgerRows": 2
+  },
+  "metrics": {
+    "resolvedTrades": 1,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -0.75,
+    "expectancyR": -0.75,
+    "profitFactor": 0,
+    "openTrades": 0,
+    "waitingRows": 0,
+    "skippedRows": 1
+  },
+  "gate": {
+    "status": "COLLECTING",
+    "passed": false,
+    "remainingResolvedTrades": 59,
+    "note": "Passing never authorizes orders; it only permits a separate review."
+  }
+}

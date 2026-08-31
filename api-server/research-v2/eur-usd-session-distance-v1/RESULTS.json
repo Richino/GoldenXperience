@@ -1,0 +1,120 @@
+{
+  "generatedAt": "2026-08-28T16:39:20.281Z",
+  "methodology": {
+    "source": "raw OANDA bid/ask midpoint M15 candles fetched at runtime",
+    "label": "midpoint direction 60 minutes after the completed decision candle",
+    "state": "outside-range distance / Asian-range width: near <0.25, moderate 0.25-0.75, far >=0.75",
+    "sessions": "London 08:00-11:00 Europe/London",
+    "split": {
+      "development": "2025-08-01 through 2026-03-31",
+      "sealedHoldout": "2026-04-01 through 2026-07-31"
+    },
+    "gate": "n >= 100, accuracy > 50%, 99% Wilson lower bound > 50%, and above random p95",
+    "excluded": "entries, stops, targets, execution, trade rows, and database writes"
+  },
+  "development": [
+    {
+      "name": "london_near_continuation",
+      "session": "london",
+      "band": "near",
+      "inverse": false,
+      "score": {
+        "n": 273,
+        "correct": 136,
+        "accuracy": 0.4981684981684982,
+        "lower99": 0.42118962990752945,
+        "randomControls": {
+          "count": 100,
+          "meanAccuracy": 0.5025641025641023,
+          "p95Accuracy": 0.5531135531135531
+        }
+      }
+    },
+    {
+      "name": "london_near_reversal",
+      "session": "london",
+      "band": "near",
+      "inverse": true,
+      "score": {
+        "n": 273,
+        "correct": 137,
+        "accuracy": 0.5018315018315018,
+        "lower99": 0.42476571024426,
+        "randomControls": {
+          "count": 100,
+          "meanAccuracy": 0.5025641025641023,
+          "p95Accuracy": 0.5531135531135531
+        }
+      }
+    },
+    {
+      "name": "london_moderate_continuation",
+      "session": "london",
+      "band": "moderate",
+      "inverse": false,
+      "score": {
+        "n": 240,
+        "correct": 106,
+        "accuracy": 0.44166666666666665,
+        "lower99": 0.3617671101841818,
+        "randomControls": {
+          "count": 100,
+          "meanAccuracy": 0.49825,
+          "p95Accuracy": 0.5416666666666666
+        }
+      }
+    },
+    {
+      "name": "london_moderate_reversal",
+      "session": "london",
+      "band": "moderate",
+      "inverse": true,
+      "score": {
+        "n": 240,
+        "correct": 134,
+        "accuracy": 0.5583333333333333,
+        "lower99": 0.4752948410515804,
+        "randomControls": {
+          "count": 100,
+          "meanAccuracy": 0.49825,
+          "p95Accuracy": 0.5416666666666666
+        }
+      }
+    },
+    {
+      "name": "london_far_continuation",
+      "session": "london",
+      "band": "far",
+      "inverse": false,
+      "score": {
+        "n": 110,
+        "correct": 55,
+        "accuracy": 0.5,
+        "lower99": 0.38073858125517124,
+        "randomControls": {
+          "count": 100,
+          "meanAccuracy": 0.5025454545454544,
+          "p95Accuracy": 0.5727272727272728
+        }
+      }
+    },
+    {
+      "name": "london_far_reversal",
+      "session": "london",
+      "band": "far",
+      "inverse": true,
+      "score": {
+        "n": 110,
+        "correct": 55,
+        "accuracy": 0.5,
+        "lower99": 0.38073858125517124,
+        "randomControls": {
+          "count": 100,
+          "meanAccuracy": 0.5025454545454544,
+          "p95Accuracy": 0.5727272727272728
+        }
+      }
+    }
+  ],
+  "verdict": "NO_SESSION_DIRECTION_QUALIFIED_HOLDOUT_REMAINS_UNREAD"
+}

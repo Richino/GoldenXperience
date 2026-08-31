@@ -23,7 +23,7 @@ async function ensureVersion(client: PoolClient): Promise<string> {
       BREAKOUT_M5_VERSION_NAME, BREAKOUT_M5_VERSION_VALUE,
       JSON.stringify({
         family: BREAKOUT_M5_FAMILY,
-        description: "M5 breakout scalper + confidence flip. Walk-forward 72.6% winrate.",
+        description: "M5 breakout direction-flip research collector; counterfactual validation required before use.",
         combinedRule: "flip whenever model DISAGREES with strategy direction (CONF_T=0.00)",
         trainedPairs: ["EUR_USD", "GBP_USD", "USD_JPY"],
       }),

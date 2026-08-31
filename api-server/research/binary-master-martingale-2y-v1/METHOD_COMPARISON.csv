@@ -1,0 +1,7 @@
+method,finalBalance,returnPct,maxDrawdownPct,sequenceSuccessRate,blown
+Fixed 1%,0.00,-100.00,100.00,N/A,YES
+Unlimited MG,56.69,-43.31,45.09,80.00%,YES
+Max MG1,0.01,-99.99,99.99,74.15%,YES
+Max MG2,0.00,-100.00,100.00,86.75%,YES
+Max MG3,0.10,-99.90,99.90,93.65%,YES
+Max MG4,0.13,-99.87,99.89,96.61%,YES

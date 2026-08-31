@@ -1,0 +1,284 @@
+{
+  "generatedAt": "2026-08-28T23:29:13.018Z",
+  "scope": {
+    "source": "all closed EUR_USD paper_strategy_trades at least 72 hours old, matched to raw OANDA M15 bid/ask candles",
+    "definition": "72-hour path direction is the sign of mid-price change from the final completed M15 close at or before the decision to the final completed M15 close at or before 72 hours later",
+    "materialMoveDefinition": "absolute 72-hour mid-price movement is at least the trade's original stop distance",
+    "excludes": "trade writes, execution simulation, stop/target changes, and any claim that endpoint direction made the original trade executable"
+  },
+  "coverage": {
+    "eligibleClosedEurUsdTrades": 19,
+    "analyzableWith72hQuotes": 11,
+    "unavailableQuoteCoverage": 8
+  },
+  "summary": {
+    "n": 11,
+    "matched": 7,
+    "matchRatePct": 63.6,
+    "materialNetMoveN": 9,
+    "materialNetMoveMatched": 6,
+    "materialNetMoveMatchRatePct": 66.7,
+    "long": {
+      "n": 5,
+      "matched": 1,
+      "matchRatePct": 20
+    },
+    "short": {
+      "n": 6,
+      "matched": 6,
+      "matchRatePct": 100
+    }
+  },
+  "byStrategyFamily": {
+    "unknown": {
+      "n": 2,
+      "matched": 1,
+      "matchRatePct": 50,
+      "materialNetMoveN": 1,
+      "materialNetMoveMatched": 1,
+      "materialNetMoveMatchRatePct": 100,
+      "long": {
+        "n": 2,
+        "matched": 1,
+        "matchRatePct": 50
+      },
+      "short": {
+        "n": 0,
+        "matched": 0,
+        "matchRatePct": null
+      }
+    },
+    "ema": {
+      "n": 3,
+      "matched": 2,
+      "matchRatePct": 66.7,
+      "materialNetMoveN": 3,
+      "materialNetMoveMatched": 2,
+      "materialNetMoveMatchRatePct": 66.7,
+      "long": {
+        "n": 1,
+        "matched": 0,
+        "matchRatePct": 0
+      },
+      "short": {
+        "n": 2,
+        "matched": 2,
+        "matchRatePct": 100
+      }
+    },
+    "momentum": {
+      "n": 3,
+      "matched": 1,
+      "matchRatePct": 33.3,
+      "materialNetMoveN": 3,
+      "materialNetMoveMatched": 1,
+      "materialNetMoveMatchRatePct": 33.3,
+      "long": {
+        "n": 2,
+        "matched": 0,
+        "matchRatePct": 0
+      },
+      "short": {
+        "n": 1,
+        "matched": 1,
+        "matchRatePct": 100
+      }
+    },
+    "breakout": {
+      "n": 3,
+      "matched": 3,
+      "matchRatePct": 100,
+      "materialNetMoveN": 2,
+      "materialNetMoveMatched": 2,
+      "materialNetMoveMatchRatePct": 100,
+      "long": {
+        "n": 0,
+        "matched": 0,
+        "matchRatePct": null
+      },
+      "short": {
+        "n": 3,
+        "matched": 3,
+        "matchRatePct": 100
+      }
+    }
+  },
+  "trades": [
+    {
+      "tradeSequence": "13",
+      "decisionTime": "2026-08-07T15:15:00.000Z",
+      "closedAt": "2026-08-07T20:45:00.000Z",
+      "family": null,
+      "botDirection": "long",
+      "pathDirection": "short",
+      "botFollows72hPath": false,
+      "startMid": 1.156075,
+      "endMid": 1.1551200000000001,
+      "netChangePips": -9.549999999998171,
+      "originalRiskPips": 36.5460404426865,
+      "netMoveInOriginalRisk": 0.2613142185669882,
+      "materialNetMove": false,
+      "actualResultR": -0.11492353067872126
+    },
+    {
+      "tradeSequence": "28",
+      "decisionTime": "2026-08-18T18:15:00.000Z",
+      "closedAt": "2026-08-18T20:15:00.000Z",
+      "family": null,
+      "botDirection": "long",
+      "pathDirection": "long",
+      "botFollows72hPath": true,
+      "startMid": 1.15775,
+      "endMid": 1.16812,
+      "netChangePips": 103.6999999999999,
+      "originalRiskPips": 5.721275276961979,
+      "netMoveInOriginalRisk": 18.12532957775544,
+      "materialNetMove": true,
+      "actualResultR": -1
+    },
+    {
+      "tradeSequence": "64",
+      "decisionTime": "2026-08-21T07:00:00.000Z",
+      "closedAt": "2026-08-21T07:45:00.000Z",
+      "family": "ema",
+      "botDirection": "long",
+      "pathDirection": "short",
+      "botFollows72hPath": false,
+      "startMid": 1.1698,
+      "endMid": 1.167765,
+      "netChangePips": -20.35000000000009,
+      "originalRiskPips": 8.60000000000083,
+      "netMoveInOriginalRisk": 2.366279069767224,
+      "materialNetMove": true,
+      "actualResultR": -1
+    },
+    {
+      "tradeSequence": "70",
+      "decisionTime": "2026-08-21T08:45:00.000Z",
+      "closedAt": "2026-08-21T13:15:00.000Z",
+      "family": "momentum",
+      "botDirection": "long",
+      "pathDirection": "short",
+      "botFollows72hPath": false,
+      "startMid": 1.17041,
+      "endMid": 1.166575,
+      "netChangePips": -38.35000000000033,
+      "originalRiskPips": 22.835511798344754,
+      "netMoveInOriginalRisk": 1.679401816725656,
+      "materialNetMove": true,
+      "actualResultR": -1
+    },
+    {
+      "tradeSequence": "80",
+      "decisionTime": "2026-08-21T14:30:00.000Z",
+      "closedAt": "2026-08-21T15:45:00.000Z",
+      "family": "breakout",
+      "botDirection": "short",
+      "pathDirection": "short",
+      "botFollows72hPath": true,
+      "startMid": 1.1672799999999999,
+      "endMid": 1.167125,
+      "netChangePips": -1.5499999999990521,
+      "originalRiskPips": 7.841345911285824,
+      "netMoveInOriginalRisk": 0.19767014713229034,
+      "materialNetMove": false,
+      "actualResultR": -1
+    },
+    {
+      "tradeSequence": "84",
+      "decisionTime": "2026-08-21T16:00:00.000Z",
+      "closedAt": "2026-08-21T20:45:00.000Z",
+      "family": "momentum",
+      "botDirection": "long",
+      "pathDirection": "short",
+      "botFollows72hPath": false,
+      "startMid": 1.16832,
+      "endMid": 1.166455,
+      "netChangePips": -18.650000000000055,
+      "originalRiskPips": 18.401880798819548,
+      "netMoveInOriginalRisk": 1.0134833609614744,
+      "materialNetMove": true,
+      "actualResultR": -0.5108173508330955
+    },
+    {
+      "tradeSequence": "89",
+      "decisionTime": "2026-08-24T07:45:00.000Z",
+      "closedAt": "2026-08-24T11:36:53.192Z",
+      "family": "breakout",
+      "botDirection": "short",
+      "pathDirection": "short",
+      "botFollows72hPath": true,
+      "startMid": 1.16661,
+      "endMid": 1.165515,
+      "netChangePips": -10.949999999998461,
+      "originalRiskPips": 8.446014112195588,
+      "netMoveInOriginalRisk": 1.2964695363446355,
+      "materialNetMove": true,
+      "actualResultR": -0.22375494465312634
+    },
+    {
+      "tradeSequence": "96",
+      "decisionTime": "2026-08-24T11:45:00.000Z",
+      "closedAt": "2026-08-24T12:29:16.296Z",
+      "family": "ema",
+      "botDirection": "short",
+      "pathDirection": "short",
+      "botFollows72hPath": true,
+      "startMid": 1.16659,
+      "endMid": 1.16395,
+      "netChangePips": -26.399999999999757,
+      "originalRiskPips": 8.500000000000174,
+      "netMoveInOriginalRisk": 3.105882352941084,
+      "materialNetMove": true,
+      "actualResultR": -0.2211706475851334
+    },
+    {
+      "tradeSequence": "103",
+      "decisionTime": "2026-08-24T17:30:00.000Z",
+      "closedAt": "2026-08-24T18:25:12.196Z",
+      "family": "breakout",
+      "botDirection": "short",
+      "pathDirection": "short",
+      "botFollows72hPath": true,
+      "startMid": 1.16586,
+      "endMid": 1.1650800000000001,
+      "netChangePips": -7.799999999997809,
+      "originalRiskPips": 5.226778296332224,
+      "netMoveInOriginalRisk": 1.4923150663327898,
+      "materialNetMove": true,
+      "actualResultR": -0.13379994147702975
+    },
+    {
+      "tradeSequence": "108",
+      "decisionTime": "2026-08-25T07:30:00.000Z",
+      "closedAt": "2026-08-25T08:23:49.461Z",
+      "family": "ema",
+      "botDirection": "short",
+      "pathDirection": "short",
+      "botFollows72hPath": true,
+      "startMid": 1.165875,
+      "endMid": 1.1642199999999998,
+      "netChangePips": -16.55000000000184,
+      "originalRiskPips": 4.999999999999449,
+      "netMoveInOriginalRisk": 3.310000000000733,
+      "materialNetMove": true,
+      "actualResultR": -0.12866577121110365
+    },
+    {
+      "tradeSequence": "112",
+      "decisionTime": "2026-08-25T08:45:00.000Z",
+      "closedAt": "2026-08-25T19:17:34.467Z",
+      "family": "momentum",
+      "botDirection": "short",
+      "pathDirection": "short",
+      "botFollows72hPath": true,
+      "startMid": 1.16655,
+      "endMid": 1.164385,
+      "netChangePips": -21.649999999999725,
+      "originalRiskPips": 13.130254447470957,
+      "netMoveInOriginalRisk": 1.6488637053160666,
+      "materialNetMove": true,
+      "actualResultR": -0.3394474907952665
+    }
+  ]
+}

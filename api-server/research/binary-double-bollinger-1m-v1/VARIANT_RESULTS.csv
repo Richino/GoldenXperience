@@ -1,0 +1,10 @@
+variant,desc,trades,wins,losses,ties,wr,ci,ev80
+A,BB2 rejection only,25700,11765,11505,2430,50.6,49.9-51.2,-0.0899
+B,BB3 rejection only,4147,1947,1823,377,51.6,50.0-53.2,-0.0704
+C,BB rejection + Heikin Ashi,1487,630,719,138,46.7,44.1-49.4,-0.1594
+D,BB rejection + Stochastic,6688,3048,2993,647,50.5,49.2-51.7,-0.0918
+E,BB rejection + CCI,12944,5953,5799,1192,50.7,49.8-51.6,-0.0882
+F,BB rejection + ADX,99,40,47,12,46.0,35.9-56.4,-0.1724
+G,BB + HA + Stochastic,783,318,387,78,45.1,41.5-48.8,-0.1881
+H,BB + HA + Stochastic + CCI,778,316,385,77,45.1,41.4-48.8,-0.1886
+I,FULL: BB + HA + Stochastic + CCI + ADX,28,8,17,3,32.0,17.2-51.6,-0.424

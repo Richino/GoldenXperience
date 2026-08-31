@@ -5,8 +5,9 @@
  * the last completed bar, applies the flip rule (take when model disagrees),
  * opens paper trades tagged strategy_family="breakout-m5-confidence-v1".
  *
- * DISCIPLINE (per validation report): 30 days DRY_RUN first, then micro-risk
- * (0.25%) for 100 trades, then scale to 1%. Env vars govern this.
+ * This collector is fail-closed. The former validation used an invalid inverse
+ * outcome shortcut, so even dry-run requires an explicit future validation
+ * acknowledgement after an unblocked-candidate replay passes.
  */
 import type { M5Candle } from "./breakout-m5-confidence-v1.js";
 import {
@@ -45,6 +46,8 @@ export type BreakoutM5CollectResult = {
 export async function collectBreakoutM5Cycle(): Promise<BreakoutM5CollectResult> {
   const enabled = (process.env.BREAKOUT_M5_ENABLED ?? "false").toLowerCase() === "true";
   if (!enabled) return { ran: false, reason: "BREAKOUT_M5_ENABLED is not true", pairsChecked: 0, setupsFired: 0, tradesOpened: 0, skipped: 0, errors: 0 };
+  const counterfactualValidated = (process.env.BREAKOUT_M5_COUNTERFACTUAL_VALIDATED ?? "false").toLowerCase() === "true";
+  if (!counterfactualValidated) return { ran: false, reason: "counterfactual validation has not passed", pairsChecked: 0, setupsFired: 0, tradesOpened: 0, skipped: 0, errors: 0 };
 
   const dryRun = (process.env.BREAKOUT_M5_DRY_RUN ?? "true").toLowerCase() !== "false";
   const token = env("OANDA_API_KEY") || env("OANDA_API_TOKEN");

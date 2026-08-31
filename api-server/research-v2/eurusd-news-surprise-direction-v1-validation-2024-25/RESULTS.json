@@ -1,0 +1,152 @@
+{
+  "generatedAt": "2026-08-29T02:21:34.882Z",
+  "verdict": "RESEARCH_ONLY_NO_PROMOTION",
+  "scope": {
+    "instrument": "EUR_USD",
+    "calendarFile": "research-v2\\eurusd-ff-high-impact-aug2024-jul2025\\events.json",
+    "source": "user-supplied ForexFactory high-impact EUR/USD calendar plus raw OANDA Practice M5 bid/ask midpoint candles",
+    "hypothesis": "economic surprise sign predicts the four-hour EUR/USD direction after release",
+    "directionMap": "stronger EUR data -> UP; stronger USD data -> DOWN; higher unemployment/claims -> weaker currency; higher inflation/rates provisionally treated as more hawkish/stronger",
+    "groupRule": "same-timestamp numeric releases are voted into one signal; tied votes are WAIT; overlapping four-hour labels are excluded",
+    "label": "midpoint close immediately before release to midpoint exactly four hours after release",
+    "controls": "exact inverse and 1,000 seeded random-direction arms",
+    "excludes": "speeches, nonnumeric releases, missing actual/forecast, event types absent from the original rule, P&L, stops, targets, spreads, execution, and production/paper orders"
+  },
+  "dataIntegrity": {
+    "calendarRows": 462,
+    "numericMappedRows": 290,
+    "directionalTimestampGroups": 147,
+    "nonOverlappingGroups": 126,
+    "scoredGroups": 118,
+    "skippedForOverlappingOutcome": 21,
+    "chronologicalSplitAt": "2025-02-01T12:30:00.000Z"
+  },
+  "results": {
+    "all": {
+      "observations": 118,
+      "accuracy": 0.5932203389830508,
+      "inverseAccuracy": 0.4067796610169492,
+      "randomMean": 0.4999067796610179,
+      "randomP95": 0.576271186440678
+    },
+    "chronologicalFirstHalf": {
+      "observations": 55,
+      "accuracy": 0.6181818181818182,
+      "inverseAccuracy": 0.38181818181818183,
+      "randomMean": 0.49832727272727034,
+      "randomP95": 0.6
+    },
+    "chronologicalSecondHalf": {
+      "observations": 63,
+      "accuracy": 0.5714285714285714,
+      "inverseAccuracy": 0.4285714285714286,
+      "randomMean": 0.5012857142857101,
+      "randomP95": 0.6031746031746031
+    },
+    "byAssumption": {
+      "withoutInflationOrRates": {
+        "observations": 94,
+        "accuracy": 0.6170212765957447,
+        "inverseAccuracy": 0.3829787234042553,
+        "randomMean": 0.49942553191489225,
+        "randomP95": 0.5851063829787234
+      },
+      "withInflationOrRates": {
+        "observations": 24,
+        "accuracy": 0.5,
+        "inverseAccuracy": 0.5,
+        "randomMean": 0.501791666666668,
+        "randomP95": 0.6666666666666666
+      }
+    },
+    "secondHalfSample": [
+      {
+        "time": "2025-02-03T15:00:00.000Z",
+        "expected": "DOWN",
+        "actual": "UP",
+        "events": [
+          "USD ISM Manufacturing PMI: 50.9 vs 49.3"
+        ]
+      },
+      {
+        "time": "2025-02-04T15:00:00.000Z",
+        "expected": "UP",
+        "actual": "UP",
+        "events": [
+          "USD JOLTS Job Openings: 7.60M vs 8.01M"
+        ]
+      },
+      {
+        "time": "2025-02-05T13:15:00.000Z",
+        "expected": "DOWN",
+        "actual": "DOWN",
+        "events": [
+          "USD ADP Non-Farm Employment Change: 183K vs 148K"
+        ]
+      },
+      {
+        "time": "2025-02-06T13:30:00.000Z",
+        "expected": "UP",
+        "actual": "UP",
+        "events": [
+          "USD Unemployment Claims: 219K vs 214K"
+        ]
+      },
+      {
+        "time": "2025-02-07T13:30:00.000Z",
+        "expected": "DOWN",
+        "actual": "DOWN",
+        "events": [
+          "USD Non-Farm Employment Change: 143K vs 169K",
+          "USD Unemployment Rate: 4.0% vs 4.1%",
+          "USD Average Hourly Earnings m/m: 0.5% vs 0.3%"
+        ]
+      },
+      {
+        "time": "2025-02-12T13:30:00.000Z",
+        "expected": "DOWN",
+        "actual": "UP",
+        "events": [
+          "USD CPI m/m: 0.5% vs 0.3%",
+          "USD CPI y/y: 3.0% vs 2.9%",
+          "USD Core CPI m/m: 0.4% vs 0.3%",
+          "USD Core CPI y/y: 3.3% vs 3.1%"
+        ]
+      },
+      {
+        "time": "2025-02-13T13:30:00.000Z",
+        "expected": "DOWN",
+        "actual": "UP",
+        "events": [
+          "USD Unemployment Claims: 213K vs 217K",
+          "USD PPI m/m: 0.4% vs 0.3%"
+        ]
+      },
+      {
+        "time": "2025-02-14T13:30:00.000Z",
+        "expected": "UP",
+        "actual": "UP",
+        "events": [
+          "USD Retail Sales m/m: -0.9% vs -0.2%",
+          "USD Core Retail Sales m/m: -0.4% vs 0.3%"
+        ]
+      },
+      {
+        "time": "2025-02-20T13:30:00.000Z",
+        "expected": "UP",
+        "actual": "UP",
+        "events": [
+          "USD Unemployment Claims: 219K vs 215K"
+        ]
+      },
+      {
+        "time": "2025-02-27T13:30:00.000Z",
+        "expected": "UP",
+        "actual": "DOWN",
+        "events": [
+          "USD Unemployment Claims: 242K vs 222K"
+        ]
+      }
+    ]
+  }
+}

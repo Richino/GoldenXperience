@@ -1,0 +1,120 @@
+{
+  "generatedAt": "2026-08-29T01:08:13.654Z",
+  "verdict": "RESEARCH_ONLY_NO_PROMOTION",
+  "scope": {
+    "instrument": "EUR_USD",
+    "source": "raw OANDA Practice H1 bid/ask midpoint candles",
+    "decisions": "non-overlapping UTC 4-hour closes",
+    "label": "next four-hour midpoint close UP or DOWN",
+    "model": "frozen L2 logistic regression, retrained only on data before each six-month test fold",
+    "features": [
+      "4h and 12h ATR-normalized returns",
+      "24h slope and range position",
+      "EMA8-21 and EMA21-50 spreads",
+      "ATR14/ATR48 volatility ratio"
+    ],
+    "abstention": "WAIT unless |p(UP)-0.5| >= 0.02",
+    "controls": "exact inverse and 100 seeded random directions",
+    "excludes": "trades, stop/target profitability, execution, calendar, and production/paper orders"
+  },
+  "folds": [
+    {
+      "trainEnd": "2023-08-01T00:00:00.000Z",
+      "testEnd": "2024-02-01T00:00:00.000Z",
+      "train": 1421,
+      "test": {
+        "total": 777,
+        "selected": 444,
+        "abstained": 333,
+        "accuracy": 0.481981981981982,
+        "inverseAccuracy": 0.5180180180180181,
+        "randomMean": 0.4971846846846848,
+        "randomP95": 0.5337837837837838
+      }
+    },
+    {
+      "trainEnd": "2024-02-01T00:00:00.000Z",
+      "testEnd": "2024-08-01T00:00:00.000Z",
+      "train": 2198,
+      "test": {
+        "total": 778,
+        "selected": 330,
+        "abstained": 448,
+        "accuracy": 0.49696969696969695,
+        "inverseAccuracy": 0.503030303030303,
+        "randomMean": 0.5009696969696968,
+        "randomP95": 0.5393939393939394
+      }
+    },
+    {
+      "trainEnd": "2024-08-01T00:00:00.000Z",
+      "testEnd": "2025-02-01T00:00:00.000Z",
+      "train": 2976,
+      "test": {
+        "total": 779,
+        "selected": 321,
+        "abstained": 458,
+        "accuracy": 0.5171339563862928,
+        "inverseAccuracy": 0.4828660436137072,
+        "randomMean": 0.49825545171339647,
+        "randomP95": 0.5420560747663551
+      }
+    },
+    {
+      "trainEnd": "2025-02-01T00:00:00.000Z",
+      "testEnd": "2025-08-01T00:00:00.000Z",
+      "train": 3755,
+      "test": {
+        "total": 774,
+        "selected": 211,
+        "abstained": 563,
+        "accuracy": 0.5260663507109005,
+        "inverseAccuracy": 0.47393364928909953,
+        "randomMean": 0.5004739336492888,
+        "randomP95": 0.5592417061611374
+      }
+    },
+    {
+      "trainEnd": "2025-08-01T00:00:00.000Z",
+      "testEnd": "2026-02-01T00:00:00.000Z",
+      "train": 4529,
+      "test": {
+        "total": 772,
+        "selected": 302,
+        "abstained": 470,
+        "accuracy": 0.5298013245033113,
+        "inverseAccuracy": 0.4701986754966887,
+        "randomMean": 0.5014569536423839,
+        "randomP95": 0.5529801324503312
+      }
+    },
+    {
+      "trainEnd": "2026-02-01T00:00:00.000Z",
+      "testEnd": "2026-08-01T00:00:00.000Z",
+      "train": 5301,
+      "test": {
+        "total": 775,
+        "selected": 350,
+        "abstained": 425,
+        "accuracy": 0.49714285714285716,
+        "inverseAccuracy": 0.5028571428571429,
+        "randomMean": 0.49734285714285725,
+        "randomP95": 0.5342857142857143
+      }
+    }
+  ],
+  "latestSealedFold": {
+    "trainEnd": "2026-02-01T00:00:00.000Z",
+    "testEnd": "2026-08-01T00:00:00.000Z",
+    "train": 5301,
+    "test": {
+      "total": 775,
+      "selected": 350,
+      "abstained": 425,
+      "accuracy": 0.49714285714285716,
+      "inverseAccuracy": 0.5028571428571429,
+      "randomMean": 0.49734285714285725,
+      "randomP95": 0.5342857142857143
+    }
+  }
+}

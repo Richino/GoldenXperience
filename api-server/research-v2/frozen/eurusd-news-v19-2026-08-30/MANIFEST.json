@@ -1,0 +1,27 @@
+{
+  "frozenAt": "2026-08-30",
+  "strategy": "EUR/USD News V19 loss rescue",
+  "status": "IMMUTABLE_RESEARCH_SNAPSHOT",
+  "archive": {
+    "path": "eurusd-news-v19-frozen.zip",
+    "sha256": "1CEDDC52667B38D70DE6D4DF4F6E6D7B406EF773FB9E2091D29E32EEDA2AC6B4"
+  },
+  "files": [
+    {
+      "path": "api-server/scripts/audit-eur-usd-news-v19-loss-rescue.ts",
+      "sha256": "F7166EE63B2A1C44F3DA4D54DE76F7365CF85607BBD9001F4AF8E4149C79C441"
+    },
+    {
+      "path": "api-server/research-v2/eurusd-news-v19-loss-rescue/RESULTS.json",
+      "sha256": "3A1AA91765C83E4ED699843219B48CE97B4ED203B577B89BEACF827A7F7B1D7B"
+    },
+    {
+      "path": "api-server/research-v2/eurusd-news-v19-loss-rescue/FINDINGS.md",
+      "sha256": "5B76F44A7B190AB3F21571448ED98DA30632C8E30C856DC75BD920FA0E599DAA"
+    },
+    {
+      "path": "api-server/research-v2/eurusd-news-v19-loss-rescue-run.log",
+      "sha256": "3CE92C4170BFFA421E335C1ACDF26207BD25730B55E5C677C5DCBC32F6967EC4"
+    }
+  ]
+}

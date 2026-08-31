@@ -1,0 +1,117 @@
+{
+  "generatedAt": "2026-08-28T19:17:58.254Z",
+  "scope": {
+    "instrument": "EUR_USD",
+    "source": "stored OANDA M15 bid/ask market quotes only",
+    "decisions": "non-overlapping completed M15 closes at six fixed UTC four-hour boundaries",
+    "labels": "either executable side reaches +2.5 ATR or +3.0 ATR within four hours, without a stop or direction",
+    "features": "frozen V1 movement-strength score; only predeclared score and target thresholds",
+    "excludes": "trade rows, shadow writes, paper execution, direction selection, and post-result parameter changes"
+  },
+  "splits": {
+    "train": {
+      "start": "2021-06-03T00:00:00.000Z",
+      "end": "2023-01-01T00:00:00.000Z"
+    },
+    "validation": {
+      "start": "2023-01-01T00:00:00.000Z",
+      "end": "2024-01-01T00:00:00.000Z"
+    },
+    "sealedHoldout": {
+      "start": "2024-01-01T00:00:00.000Z",
+      "end": "2025-08-01T00:00:00.000Z"
+    }
+  },
+  "train": [
+    {
+      "threshold": 1,
+      "targetAtr": 2.5,
+      "n": 699,
+      "hits": 350,
+      "hitRate": 0.5007153075822603,
+      "lower99": 0.45222160175068493,
+      "liftOverRandom": -0.060600858369098565,
+      "randomControls": {
+        "count": 100,
+        "meanHitRate": 0.5613161659513589,
+        "p95HitRate": 0.5894134477825465
+      }
+    },
+    {
+      "threshold": 1.25,
+      "targetAtr": 2.5,
+      "n": 292,
+      "hits": 143,
+      "hitRate": 0.4897260273972603,
+      "lower99": 0.415437332033005,
+      "liftOverRandom": -0.0734246575342456,
+      "randomControls": {
+        "count": 100,
+        "meanHitRate": 0.5631506849315059,
+        "p95HitRate": 0.6061643835616438
+      }
+    },
+    {
+      "threshold": 1.5,
+      "targetAtr": 2.5,
+      "n": 112,
+      "hits": 53,
+      "hitRate": 0.4732142857142857,
+      "lower99": 0.35662094909116226,
+      "liftOverRandom": -0.08660714285714277,
+      "randomControls": {
+        "count": 100,
+        "meanHitRate": 0.5598214285714285,
+        "p95HitRate": 0.6339285714285714
+      }
+    },
+    {
+      "threshold": 1,
+      "targetAtr": 3,
+      "n": 699,
+      "hits": 281,
+      "hitRate": 0.402002861230329,
+      "lower99": 0.3553688687571495,
+      "liftOverRandom": -0.057696709585121575,
+      "randomControls": {
+        "count": 100,
+        "meanHitRate": 0.4596995708154506,
+        "p95HitRate": 0.48497854077253216
+      }
+    },
+    {
+      "threshold": 1.25,
+      "targetAtr": 3,
+      "n": 292,
+      "hits": 112,
+      "hitRate": 0.3835616438356164,
+      "lower99": 0.3136195773826545,
+      "liftOverRandom": -0.07722602739726064,
+      "randomControls": {
+        "count": 100,
+        "meanHitRate": 0.46078767123287706,
+        "p95HitRate": 0.5136986301369864
+      }
+    },
+    {
+      "threshold": 1.5,
+      "targetAtr": 3,
+      "n": 112,
+      "hits": 40,
+      "hitRate": 0.35714285714285715,
+      "lower99": 0.25152954114354376,
+      "liftOverRandom": -0.09910714285714306,
+      "randomControls": {
+        "count": 100,
+        "meanHitRate": 0.4562500000000002,
+        "p95HitRate": 0.5357142857142857
+      }
+    }
+  ],
+  "nominationRule": "n >=250; lift >=10 points over random mean; 99% lower bound above random p95; largest lift wins",
+  "nominated": null,
+  "validation": null,
+  "validationRule": "n >=125; lift >=10 points; 99% lower bound above random p95; combined train+validation n >=500",
+  "qualifiedForSealedHoldout": false,
+  "verdict": "V3_DID_NOT_QUALIFY_SEALED_HOLDOUT_NOT_EVALUATED"
+}

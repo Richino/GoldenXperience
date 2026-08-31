@@ -1,0 +1,176 @@
+[
+  {
+    "pair": "AUD_JPY",
+    "total": 915,
+    "train": 604,
+    "holdout": 311,
+    "selected": 7,
+    "holdoutTestable": 5,
+    "passing": 1,
+    "passingPct": 20,
+    "compositeN": 70,
+    "compositeWinrate": 48.57142857142857,
+    "survivors": [
+      {
+        "name": "up/h11",
+        "act": "follow",
+        "trainN": 31,
+        "trainWr": 67.74193548387096,
+        "holdN": 18,
+        "holdWr": 83.33333333333333
+      }
+    ]
+  },
+  {
+    "pair": "EUR_USD",
+    "total": 1132,
+    "train": 565,
+    "holdout": 567,
+    "selected": 6,
+    "holdoutTestable": 6,
+    "passing": 1,
+    "passingPct": 16.666666666666668,
+    "compositeN": 176,
+    "compositeWinrate": 55.68181818181818,
+    "survivors": [
+      {
+        "name": "h08",
+        "act": "invert",
+        "trainN": 35,
+        "trainWr": 65.71428571428572,
+        "holdN": 44,
+        "holdWr": 65.9090909090909
+      }
+    ]
+  },
+  {
+    "pair": "GBP_USD",
+    "total": 1147,
+    "train": 574,
+    "holdout": 573,
+    "selected": 3,
+    "holdoutTestable": 3,
+    "passing": 0,
+    "passingPct": 0,
+    "compositeN": 110,
+    "compositeWinrate": 46.36363636363637,
+    "survivors": []
+  },
+  {
+    "pair": "USD_JPY",
+    "total": 1156,
+    "train": 595,
+    "holdout": 561,
+    "selected": 4,
+    "holdoutTestable": 3,
+    "passing": 0,
+    "passingPct": 0,
+    "compositeN": 178,
+    "compositeWinrate": 53.93258426966292,
+    "survivors": []
+  },
+  {
+    "pair": "USD_CHF",
+    "total": 1159,
+    "train": 551,
+    "holdout": 608,
+    "selected": 2,
+    "holdoutTestable": 1,
+    "passing": 0,
+    "passingPct": 0,
+    "compositeN": 18,
+    "compositeWinrate": 50,
+    "survivors": []
+  },
+  {
+    "pair": "AUD_USD",
+    "total": 1143,
+    "train": 536,
+    "holdout": 607,
+    "selected": 3,
+    "holdoutTestable": 3,
+    "passing": 0,
+    "passingPct": 0,
+    "compositeN": 125,
+    "compositeWinrate": 56,
+    "survivors": []
+  },
+  {
+    "pair": "USD_CAD",
+    "total": 1149,
+    "train": 547,
+    "holdout": 602,
+    "selected": 4,
+    "holdoutTestable": 2,
+    "passing": 0,
+    "passingPct": 0,
+    "compositeN": 57,
+    "compositeWinrate": 49.12280701754386,
+    "survivors": []
+  },
+  {
+    "pair": "NZD_USD",
+    "total": 1134,
+    "train": 569,
+    "holdout": 565,
+    "selected": 2,
+    "holdoutTestable": 2,
+    "passing": 0,
+    "passingPct": 0,
+    "compositeN": 75,
+    "compositeWinrate": 60,
+    "survivors": []
+  },
+  {
+    "pair": "EUR_GBP",
+    "total": 1117,
+    "train": 559,
+    "holdout": 558,
+    "selected": 0,
+    "holdoutTestable": 0,
+    "passing": 0,
+    "passingPct": 0,
+    "compositeN": 0,
+    "compositeWinrate": 0,
+    "survivors": []
+  },
+  {
+    "pair": "EUR_JPY",
+    "total": 1150,
+    "train": 583,
+    "holdout": 567,
+    "selected": 1,
+    "holdoutTestable": 1,
+    "passing": 0,
+    "passingPct": 0,
+    "compositeN": 33,
+    "compositeWinrate": 57.57575757575758,
+    "survivors": []
+  },
+  {
+    "pair": "EUR_AUD",
+    "total": 926,
+    "train": 590,
+    "holdout": 336,
+    "selected": 1,
+    "holdoutTestable": 0,
+    "passing": 0,
+    "passingPct": 0,
+    "compositeN": 0,
+    "compositeWinrate": 0,
+    "survivors": []
+  },
+  {
+    "pair": "GBP_JPY",
+    "total": 1163,
+    "train": 584,
+    "holdout": 579,
+    "selected": 9,
+    "holdoutTestable": 9,
+    "passing": 0,
+    "passingPct": 0,
+    "compositeN": 253,
+    "compositeWinrate": 51.383399209486164,
+    "survivors": []
+  }
+]

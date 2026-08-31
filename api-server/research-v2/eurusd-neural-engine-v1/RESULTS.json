@@ -1,0 +1,107 @@
+{
+  "generatedAt": "2026-08-29T06:21:51.017Z",
+  "verdict": "FAILED_2025_VALIDATION_FINAL_HOLDOUT_SEALED",
+  "independence": {
+    "uses": "fresh raw OANDA Practice EUR_USD M5 bid/ask only",
+    "refuses": [
+      "stored trades",
+      "existing strategy code",
+      "existing models",
+      "news data",
+      "previous research outputs"
+    ]
+  },
+  "neuralNetwork": {
+    "architecture": "20 inputs -> 12 tanh hidden units -> 1 sigmoid output",
+    "optimizer": "Adam",
+    "epochs": 3,
+    "batchSize": 256,
+    "learningRate": 0.002,
+    "deterministicSeed": "0x6d2b79f5",
+    "label": "EUR/USD executable midpoint direction 30 minutes after the next M5 open",
+    "features": [
+      "normalized returns 1/2/3/6/12 bars",
+      "candle body/range/wicks",
+      "EMA12 and EMA48 displacement",
+      "ATR14/ATR96",
+      "spread/ATR",
+      "12/48-bar efficiency",
+      "24-bar z-score",
+      "cyclic UTC time and weekday"
+    ]
+  },
+  "execution": {
+    "signalFrequency": "evaluated after every completed M5 candle",
+    "entry": "next M5 open, executable bid/ask",
+    "confidenceThreshold": 5.960464477539063e-8,
+    "thresholdSelection": "2024 calibration frequency only; binary search targeting 13 non-overlapping trades per OANDA market day; profitability not used",
+    "maximumEntriesPerUtcDay": 16,
+    "oneOpenTrade": true,
+    "stop": "1 ATR14",
+    "target": "2 ATR14",
+    "payoff": "+1.5 / -0.75",
+    "maximumHold": "30 minutes",
+    "ambiguousBar": "charged as stop"
+  },
+  "data": {
+    "source": "OANDA Practice",
+    "candles": 344780,
+    "from": "2021-12-20T00:00:00.000Z",
+    "toExclusive": "2026-08-01T00:00:00.000Z",
+    "trainExamples": 149001,
+    "developmentExamples": 74869
+  },
+  "gates": {
+    "calibration2024": "threshold selected using frequency only, targeting 13 trades/day",
+    "validation2025": "n>=2500, 10-16 trades/day, expectancy>0, PF>1, 30m direction accuracy>50.5%",
+    "finalHoldoutOpenedOnlyAfterValidationPasses": true
+  },
+  "results": {
+    "train2022_23": {
+      "trades": 8413,
+      "marketDays": 622,
+      "tradesPerMarketDay": 13.52572347266881,
+      "wins": 2237,
+      "winRate": 0.2658980149768216,
+      "directionAccuracy30m": 0.5140853441103055,
+      "totalR": -2240.2178761899654,
+      "expectancyR": -0.2662805035290581,
+      "profitFactor": 0.4870164697331822,
+      "maxDrawdownR": 2241.7178761899654,
+      "targetHits": 932,
+      "stops": 5637,
+      "timeExits": 1844
+    },
+    "calibration2024": {
+      "trades": 4031,
+      "marketDays": 314,
+      "tradesPerMarketDay": 12.837579617834395,
+      "wins": 1033,
+      "winRate": 0.25626395435375837,
+      "directionAccuracy30m": 0.5093029025055817,
+      "totalR": -1146.2971239722212,
+      "expectancyR": -0.28437041031312854,
+      "profitFactor": 0.45920971297405727,
+      "maxDrawdownR": 1148.6369576152501,
+      "targetHits": 412,
+      "stops": 2727,
+      "timeExits": 892
+    },
+    "validation2025": {
+      "trades": 4264,
+      "marketDays": 313,
+      "tradesPerMarketDay": 13.62300319488818,
+      "wins": 1125,
+      "winRate": 0.2638367729831144,
+      "directionAccuracy30m": 0.5199343339587242,
+      "totalR": -1145.6375675700342,
+      "expectancyR": -0.2686767278541356,
+      "profitFactor": 0.48177392823065274,
+      "maxDrawdownR": 1145.8741177840277,
+      "targetHits": 470,
+      "stops": 2845,
+      "timeExits": 949
+    },
+    "finalHoldout2026": "SEALED"
+  }
+}

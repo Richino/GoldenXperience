@@ -1,0 +1,688 @@
+{
+  "verdict": "NO_NEXT_CANDLE_EDGE",
+  "generatedAt": "2026-08-30T03:59:36.326Z",
+  "pairs": [
+    "EUR_USD",
+    "GBP_USD",
+    "USD_JPY",
+    "AUD_USD",
+    "NZD_USD",
+    "USD_CAD",
+    "USD_CHF",
+    "EUR_GBP",
+    "EUR_JPY",
+    "GBP_JPY",
+    "AUD_JPY",
+    "EUR_AUD"
+  ],
+  "period": {
+    "start": "2022-08-01T00:00:00.000Z",
+    "end": "2026-08-01T00:00:00.000Z"
+  },
+  "totalCandles": 298868,
+  "totalMissing": 121876,
+  "targetCandles": 295868,
+  "devTargets": 221300,
+  "sealedTargets": 74568,
+  "rawStats": {
+    "bull": 150415,
+    "bear": 144640,
+    "doji": 47842
+  },
+  "transitionsDev": {
+    "BEAR→BEAR": {
+      "n": 52192,
+      "up": 0,
+      "down": 52192
+    },
+    "BEAR→BULL": {
+      "n": 55845,
+      "up": 55845,
+      "down": 0
+    },
+    "BULL→BEAR": {
+      "n": 55824,
+      "up": 0,
+      "down": 55824
+    },
+    "BULL→BULL": {
+      "n": 56254,
+      "up": 56254,
+      "down": 0
+    },
+    "DOJI→BEAR": {
+      "n": 292,
+      "up": 0,
+      "down": 292
+    },
+    "DOJI→BULL": {
+      "n": 299,
+      "up": 299,
+      "down": 0
+    }
+  },
+  "baselines": [
+    {
+      "label": "Always UP",
+      "kind": "always_up",
+      "signals": 74568,
+      "n": 74568,
+      "wins": 38017,
+      "losses": 36332,
+      "ties": 219,
+      "decided": 74349,
+      "winRate": 0.5113316924235699,
+      "ciLower": 0.507738036483746,
+      "ciUpper": 0.5149241774107125,
+      "fiftyInCi": false
+    },
+    {
+      "label": "Always DOWN",
+      "kind": "always_down",
+      "signals": 74568,
+      "n": 74568,
+      "wins": 36332,
+      "losses": 38017,
+      "ties": 219,
+      "decided": 74349,
+      "winRate": 0.4886683075764301,
+      "ciLower": 0.48507582258928744,
+      "ciUpper": 0.4922619635162539,
+      "fiftyInCi": false
+    },
+    {
+      "label": "Previous continuation",
+      "kind": "continue",
+      "signals": 74349,
+      "n": 74349,
+      "wins": 36698,
+      "losses": 37433,
+      "ties": 218,
+      "decided": 74131,
+      "winRate": 0.4950425597927992,
+      "ciLower": 0.49144371971954637,
+      "ciUpper": 0.4986419136461288,
+      "fiftyInCi": false
+    },
+    {
+      "label": "Previous reversal",
+      "kind": "reverse",
+      "signals": 74349,
+      "n": 74349,
+      "wins": 37433,
+      "losses": 36698,
+      "ties": 218,
+      "decided": 74131,
+      "winRate": 0.5049574402072008,
+      "ciLower": 0.5013580863538712,
+      "ciUpper": 0.5085562802804537,
+      "fiftyInCi": false
+    },
+    {
+      "label": "2-candle continuation",
+      "kind": "continue2",
+      "signals": 36700,
+      "n": 36700,
+      "wins": 17953,
+      "losses": 18637,
+      "ties": 110,
+      "decided": 36590,
+      "winRate": 0.49065318393003554,
+      "ciLower": 0.4855320871738882,
+      "ciUpper": 0.4957762431327064,
+      "fiftyInCi": false
+    },
+    {
+      "label": "2-candle reversal",
+      "kind": "reverse2",
+      "signals": 36700,
+      "n": 36700,
+      "wins": 18637,
+      "losses": 17953,
+      "ties": 110,
+      "decided": 36590,
+      "winRate": 0.5093468160699645,
+      "ciLower": 0.5042237568672936,
+      "ciUpper": 0.5144679128261118,
+      "fiftyInCi": false
+    }
+  ],
+  "sealedModel": {
+    "signals": 141,
+    "waits": 74427,
+    "n": 141,
+    "wins": 73,
+    "losses": 68,
+    "ties": 0,
+    "decided": 141,
+    "winRate": 0.5177304964539007,
+    "ciLower": 0.4358810302486646,
+    "ciUpper": 0.5986394390087862,
+    "fiftyInCi": true,
+    "buy": {
+      "n": 65,
+      "wins": 30,
+      "losses": 35,
+      "ties": 0,
+      "decided": 65,
+      "winRate": 0.46153846153846156,
+      "ciLower": 0.34590137149936684,
+      "ciUpper": 0.5814681260137647,
+      "fiftyInCi": true
+    },
+    "sell": {
+      "n": 76,
+      "wins": 43,
+      "losses": 33,
+      "ties": 0,
+      "decided": 76,
+      "winRate": 0.5657894736842105,
+      "ciLower": 0.4538555158542199,
+      "ciUpper": 0.671392475168004,
+      "fiftyInCi": true
+    }
+  },
+  "selectivity": [
+    {
+      "threshold": 0.5,
+      "pctTraded": 0.023616028323141292,
+      "signals": 1753,
+      "n": 1761,
+      "wins": 850,
+      "losses": 903,
+      "ties": 8,
+      "decided": 1753,
+      "winRate": 0.48488305761551626,
+      "ciLower": 0.46154595639443907,
+      "ciUpper": 0.508286269800569,
+      "fiftyInCi": true
+    },
+    {
+      "threshold": 0.6,
+      "pctTraded": 0.0018908915352429997,
+      "signals": 141,
+      "n": 141,
+      "wins": 73,
+      "losses": 68,
+      "ties": 0,
+      "decided": 141,
+      "winRate": 0.5177304964539007,
+      "ciLower": 0.4358810302486646,
+      "ciUpper": 0.5986394390087862,
+      "fiftyInCi": true
+    },
+    {
+      "threshold": 0.7,
+      "pctTraded": 0.0000804634695848085,
+      "signals": 6,
+      "n": 6,
+      "wins": 1,
+      "losses": 5,
+      "ties": 0,
+      "decided": 6,
+      "winRate": 0.16666666666666666,
+      "ciLower": 0.030052585871730285,
+      "ciUpper": 0.563509436563646,
+      "fiftyInCi": true
+    },
+    {
+      "threshold": 0.8,
+      "pctTraded": 0,
+      "signals": 0,
+      "n": 0,
+      "wins": 0,
+      "losses": 0,
+      "ties": 0,
+      "decided": 0,
+      "winRate": 0,
+      "ciLower": 0,
+      "ciUpper": 0,
+      "fiftyInCi": false
+    },
+    {
+      "threshold": 0.9,
+      "pctTraded": 0,
+      "signals": 0,
+      "n": 0,
+      "wins": 0,
+      "losses": 0,
+      "ties": 0,
+      "decided": 0,
+      "winRate": 0,
+      "ciLower": 0,
+      "ciUpper": 0,
+      "fiftyInCi": false
+    }
+  ],
+  "confusion": {
+    "STRONG_BULL": {
+      "STRONG_BULL": 0,
+      "BULL": 12,
+      "DOJI": 0,
+      "BEAR": 17,
+      "STRONG_BEAR": 0
+    },
+    "BULL": {
+      "STRONG_BULL": 0,
+      "BULL": 16,
+      "DOJI": 0,
+      "BEAR": 14,
+      "STRONG_BEAR": 0
+    },
+    "DOJI": {
+      "STRONG_BULL": 0,
+      "BULL": 5,
+      "DOJI": 0,
+      "BEAR": 10,
+      "STRONG_BEAR": 0
+    },
+    "BEAR": {
+      "STRONG_BULL": 0,
+      "BULL": 14,
+      "DOJI": 0,
+      "BEAR": 17,
+      "STRONG_BEAR": 0
+    },
+    "STRONG_BEAR": {
+      "STRONG_BULL": 0,
+      "BULL": 18,
+      "DOJI": 0,
+      "BEAR": 18,
+      "STRONG_BEAR": 0
+    }
+  },
+  "exactClassAcc": 0.23404255319148937,
+  "dirAcc": 0.5177304964539007,
+  "strongCandles": {
+    "n": 65,
+    "wins": 30,
+    "losses": 35,
+    "ties": 0,
+    "decided": 65,
+    "winRate": 0.46153846153846156,
+    "ciLower": 0.34590137149936684,
+    "ciUpper": 0.5814681260137647,
+    "fiftyInCi": true
+  },
+  "patternRank": [
+    {
+      "pattern": "DOWN-DOWN-DOWN",
+      "n": 24904,
+      "expectedDirection": "UP",
+      "accuracy": 0.5233697398008352
+    },
+    {
+      "pattern": "DOWN-DOWN",
+      "n": 52082,
+      "expectedDirection": "UP",
+      "accuracy": 0.5208517338043854
+    },
+    {
+      "pattern": "UP-DOWN-DOWN",
+      "n": 27032,
+      "expectedDirection": "UP",
+      "accuracy": 0.5186445693992305
+    },
+    {
+      "pattern": "UP-UP-DOWN",
+      "n": 27898,
+      "expectedDirection": "UP",
+      "accuracy": 0.5172413793103449
+    },
+    {
+      "pattern": "UP-DOWN",
+      "n": 55664,
+      "expectedDirection": "UP",
+      "accuracy": 0.5133120149468238
+    },
+    {
+      "pattern": "DOWN-UP-DOWN",
+      "n": 27597,
+      "expectedDirection": "UP",
+      "accuracy": 0.5094394318222996
+    },
+    {
+      "pattern": "UP-DOWN-UP",
+      "n": 28496,
+      "expectedDirection": "UP",
+      "accuracy": 0.505298989331836
+    },
+    {
+      "pattern": "DOWN-UP",
+      "n": 55675,
+      "expectedDirection": "UP",
+      "accuracy": 0.5029546475078581
+    },
+    {
+      "pattern": "DOWN-UP-UP",
+      "n": 27920,
+      "expectedDirection": "UP",
+      "accuracy": 0.501432664756447
+    },
+    {
+      "pattern": "UP-UP",
+      "n": 56104,
+      "expectedDirection": "UP",
+      "accuracy": 0.5012833309567946
+    },
+    {
+      "pattern": "UP-UP-UP",
+      "n": 28056,
+      "expectedDirection": "UP",
+      "accuracy": 0.5008554319931565
+    },
+    {
+      "pattern": "DOWN-DOWN-UP",
+      "n": 27034,
+      "expectedDirection": "UP",
+      "accuracy": 0.5007767995857069
+    }
+  ],
+  "pairResults": [
+    {
+      "pair": "EUR_JPY",
+      "predictions": 16,
+      "n": 16,
+      "wins": 11,
+      "losses": 5,
+      "ties": 0,
+      "decided": 16,
+      "winRate": 0.6875,
+      "ciLower": 0.4440393186673406,
+      "ciUpper": 0.8583556494803894,
+      "fiftyInCi": true
+    },
+    {
+      "pair": "EUR_USD",
+      "predictions": 12,
+      "n": 12,
+      "wins": 8,
+      "losses": 4,
+      "ties": 0,
+      "decided": 12,
+      "winRate": 0.6666666666666666,
+      "ciLower": 0.3906175873976139,
+      "ciUpper": 0.8618821601026386,
+      "fiftyInCi": true
+    },
+    {
+      "pair": "USD_JPY",
+      "predictions": 15,
+      "n": 15,
+      "wins": 10,
+      "losses": 5,
+      "ties": 0,
+      "decided": 15,
+      "winRate": 0.6666666666666666,
+      "ciLower": 0.4171312515121298,
+      "ciUpper": 0.8482389930530875,
+      "fiftyInCi": true
+    },
+    {
+      "pair": "USD_CHF",
+      "predictions": 14,
+      "n": 14,
+      "wins": 8,
+      "losses": 6,
+      "ties": 0,
+      "decided": 14,
+      "winRate": 0.5714285714285714,
+      "ciLower": 0.3259026690286936,
+      "ciUpper": 0.7861949006959947,
+      "fiftyInCi": true
+    },
+    {
+      "pair": "GBP_JPY",
+      "predictions": 13,
+      "n": 13,
+      "wins": 7,
+      "losses": 6,
+      "ties": 0,
+      "decided": 13,
+      "winRate": 0.5384615384615384,
+      "ciLower": 0.29143432431832045,
+      "ciUpper": 0.7679424569851186,
+      "fiftyInCi": true
+    },
+    {
+      "pair": "USD_CAD",
+      "predictions": 8,
+      "n": 8,
+      "wins": 4,
+      "losses": 4,
+      "ties": 0,
+      "decided": 8,
+      "winRate": 0.5,
+      "ciLower": 0.2152125268244419,
+      "ciUpper": 0.7847874731755581,
+      "fiftyInCi": true
+    },
+    {
+      "pair": "GBP_USD",
+      "predictions": 13,
+      "n": 13,
+      "wins": 6,
+      "losses": 7,
+      "ties": 0,
+      "decided": 13,
+      "winRate": 0.46153846153846156,
+      "ciLower": 0.23205754301488138,
+      "ciUpper": 0.7085656756816795,
+      "fiftyInCi": true
+    },
+    {
+      "pair": "EUR_AUD",
+      "predictions": 13,
+      "n": 13,
+      "wins": 6,
+      "losses": 7,
+      "ties": 0,
+      "decided": 13,
+      "winRate": 0.46153846153846156,
+      "ciLower": 0.23205754301488138,
+      "ciUpper": 0.7085656756816795,
+      "fiftyInCi": true
+    },
+    {
+      "pair": "AUD_JPY",
+      "predictions": 9,
+      "n": 9,
+      "wins": 4,
+      "losses": 5,
+      "ties": 0,
+      "decided": 9,
+      "winRate": 0.4444444444444444,
+      "ciLower": 0.188775429471914,
+      "ciUpper": 0.7333526542559703,
+      "fiftyInCi": true
+    },
+    {
+      "pair": "EUR_GBP",
+      "predictions": 14,
+      "n": 14,
+      "wins": 6,
+      "losses": 8,
+      "ties": 0,
+      "decided": 14,
+      "winRate": 0.42857142857142855,
+      "ciLower": 0.21380509930400526,
+      "ciUpper": 0.6740973309713064,
+      "fiftyInCi": true
+    },
+    {
+      "pair": "NZD_USD",
+      "predictions": 9,
+      "n": 9,
+      "wins": 2,
+      "losses": 7,
+      "ties": 0,
+      "decided": 9,
+      "winRate": 0.2222222222222222,
+      "ciLower": 0.0632237623122272,
+      "ciUpper": 0.5474166563271946,
+      "fiftyInCi": true
+    },
+    {
+      "pair": "AUD_USD",
+      "predictions": 5,
+      "n": 5,
+      "wins": 1,
+      "losses": 4,
+      "ties": 0,
+      "decided": 5,
+      "winRate": 0.2,
+      "ciLower": 0.036223160969787456,
+      "ciUpper": 0.6244717358814612,
+      "fiftyInCi": true
+    }
+  ],
+  "sessionResults": [
+    {
+      "session": "London",
+      "n": 37,
+      "wins": 22,
+      "losses": 15,
+      "ties": 0,
+      "decided": 37,
+      "winRate": 0.5945945945945946,
+      "ciLower": 0.4348568313132931,
+      "ciUpper": 0.7365370416005986,
+      "fiftyInCi": true
+    },
+    {
+      "session": "London/NY overlap",
+      "n": 27,
+      "wins": 15,
+      "losses": 12,
+      "ties": 0,
+      "decided": 27,
+      "winRate": 0.5555555555555556,
+      "ciLower": 0.3731271947957688,
+      "ciUpper": 0.7241440232992717,
+      "fiftyInCi": true
+    },
+    {
+      "session": "New York",
+      "n": 39,
+      "wins": 21,
+      "losses": 18,
+      "ties": 0,
+      "decided": 39,
+      "winRate": 0.5384615384615384,
+      "ciLower": 0.38569186821738816,
+      "ciUpper": 0.6843335276595165,
+      "fiftyInCi": true
+    },
+    {
+      "session": "Asia",
+      "n": 38,
+      "wins": 15,
+      "losses": 23,
+      "ties": 0,
+      "decided": 38,
+      "winRate": 0.39473684210526316,
+      "ciLower": 0.2559785926361891,
+      "ciUpper": 0.5528241300130402,
+      "fiftyInCi": true
+    }
+  ],
+  "yearResults": [
+    {
+      "year": "2025",
+      "n": 68,
+      "wins": 31,
+      "losses": 37,
+      "ties": 0,
+      "decided": 68,
+      "winRate": 0.45588235294117646,
+      "ciLower": 0.34304690695364476,
+      "ciUpper": 0.5734360221570655,
+      "fiftyInCi": true
+    },
+    {
+      "year": "2026",
+      "n": 73,
+      "wins": 42,
+      "losses": 31,
+      "ties": 0,
+      "decided": 73,
+      "winRate": 0.5753424657534246,
+      "ciLower": 0.46099174047029373,
+      "ciUpper": 0.6821598857321799,
+      "fiftyInCi": true
+    }
+  ],
+  "shapeTransitions": [
+    {
+      "shape": "longLowerWick",
+      "n": 48183,
+      "nextUpPct": 0.5041197102712575,
+      "nextDownPct": 0.4958802897287425
+    },
+    {
+      "shape": "longUpperWick",
+      "n": 45079,
+      "nextUpPct": 0.5172918653918676,
+      "nextDownPct": 0.4827081346081324
+    },
+    {
+      "shape": "strongBullBody",
+      "n": 39869,
+      "nextUpPct": 0.4943941408111565,
+      "nextDownPct": 0.5056058591888435
+    },
+    {
+      "shape": "strongBearBody",
+      "n": 38389,
+      "nextUpPct": 0.521842194378598,
+      "nextDownPct": 0.478157805621402
+    },
+    {
+      "shape": "doji",
+      "n": 35846,
+      "nextUpPct": 0.508982871171121,
+      "nextDownPct": 0.4910171288288791
+    },
+    {
+      "shape": "insideBar",
+      "n": 33661,
+      "nextUpPct": 0.5127001574522444,
+      "nextDownPct": 0.48729984254775555
+    },
+    {
+      "shape": "outsideBar",
+      "n": 26378,
+      "nextUpPct": 0.5018196982333762,
+      "nextDownPct": 0.4981803017666237
+    },
+    {
+      "shape": "bullishEngulfing",
+      "n": 14296,
+      "nextUpPct": 0.5042669278119754,
+      "nextDownPct": 0.49573307218802465
+    },
+    {
+      "shape": "bearishEngulfing",
+      "n": 13735,
+      "nextUpPct": 0.5084819803421915,
+      "nextDownPct": 0.4915180196578085
+    },
+    {
+      "shape": "narrowRange",
+      "n": 28687,
+      "nextUpPct": 0.5058737407187924,
+      "nextDownPct": 0.4941262592812075
+    },
+    {
+      "shape": "wideRange",
+      "n": 56067,
+      "nextUpPct": 0.509551072823586,
+      "nextDownPct": 0.4904489271764139
+    }
+  ],
+  "lookaheadAudit": {
+    "rule": "Features for target index T use only bars with index < T. Target open known at decision time; target close used only for scoring.",
+    "targetFeatureIndices": "T-1, T-2, ... only",
+    "verified": true
+  }
+}

@@ -1,0 +1,39 @@
+[
+  {
+    "releaseTimeUtc": "2026-08-03T14:00:00.000Z",
+    "policyHash": "83df3e2f007ea25c82e5ae58a45953bcc390771b6117ac83e1a35518ee926067",
+    "direction": "DOWN",
+    "surpriseStrength": 0.029629629629629655,
+    "eventNames": [
+      "USD ISM Manufacturing PMI"
+    ],
+    "observedAt": "2026-08-29T23:40:26.962Z",
+    "state": "SKIPPED",
+    "reason": "SURPRISE_STRENGTH_BELOW_FROZEN_THRESHOLD"
+  },
+  {
+    "releaseTimeUtc": "2026-08-07T12:30:00.000Z",
+    "policyHash": "83df3e2f007ea25c82e5ae58a45953bcc390771b6117ac83e1a35518ee926067",
+    "direction": "UP",
+    "surpriseStrength": 1.4943977591036415,
+    "eventNames": [
+      "USD Average Hourly Earnings m/m",
+      "USD Non-Farm Employment Change",
+      "USD Unemployment Rate"
+    ],
+    "observedAt": "2026-08-29T17:27:42.452Z",
+    "preReleaseAtrPips": 2.635714285715217,
+    "confirmationCloseMid": 1.1573600000000002,
+    "entryTimeUtc": "2026-08-07T12:45:00.000Z",
+    "executableEntry": 1.15744,
+    "spreadPips": 1.40000000000029,
+    "stop": 1.1571764285714286,
+    "target": 1.157967142857143,
+    "state": "RESOLVED",
+    "outcome": "AMBIGUOUS_STOP",
+    "resultR": -0.75,
+    "exitTimeUtc": "2026-08-07T12:45:00.000Z",
+    "m1FirstTouch": "STOP_FIRST",
+    "m1FirstTouchTimeUtc": "2026-08-07T12:45:00.000Z"
+  }
+]

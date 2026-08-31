@@ -1,0 +1,76 @@
+{
+  "generatedAt": "2026-08-28T10:24:13.879Z",
+  "scope": {
+    "period": "2025-08-01 through 2026-07-31",
+    "pairs": [
+      "EUR_USD",
+      "GBP_USD",
+      "USD_JPY"
+    ],
+    "source": "raw OANDA bid/ask candles fetched at runtime",
+    "frozenDetector": "trend-direction-v1; no thresholds changed after August 2026"
+  },
+  "execution": {
+    "targetR": 1.5,
+    "sameCandidates": 1400,
+    "eachArm": "own bid/ask fills, preserved stop/target distance, forced session exit, one open position per pair"
+  },
+  "arms": {
+    "original": {
+      "n": 535,
+      "wins": 203,
+      "totalR": -73.09140172522649,
+      "expectancyR": -0.13661944247705887,
+      "winRate": 0.3794392523364486,
+      "byPair": {
+        "EUR_USD": {
+          "n": 162,
+          "totalR": -14.20683145505879,
+          "expectancyR": -0.08769649046332587
+        },
+        "GBP_USD": {
+          "n": 172,
+          "totalR": -16.5450774148848,
+          "expectancyR": -0.09619231055165582
+        },
+        "USD_JPY": {
+          "n": 201,
+          "totalR": -42.33949285528294,
+          "expectancyR": -0.21064424306110915
+        }
+      }
+    },
+    "inverse": {
+      "n": 573,
+      "wins": 206,
+      "totalR": -72.94952242579232,
+      "expectancyR": -0.12731155746211575,
+      "winRate": 0.35951134380453753,
+      "byPair": {
+        "EUR_USD": {
+          "n": 182,
+          "totalR": -29.579622952603614,
+          "expectancyR": -0.1625254008384814
+        },
+        "GBP_USD": {
+          "n": 178,
+          "totalR": -24.335631019243554,
+          "expectancyR": -0.1367170281979975
+        },
+        "USD_JPY": {
+          "n": 213,
+          "totalR": -19.03426845394516,
+          "expectancyR": -0.08936276269457821
+        }
+      }
+    },
+    "randomControls": {
+      "count": 100,
+      "meanExpectancyR": -0.1383793853963949,
+      "medianExpectancyR": -0.13514282105300365,
+      "p05ExpectancyR": -0.1962246298907674,
+      "p95ExpectancyR": -0.08504903700896133,
+      "controlsBeatenByInverse": 63
+    }
+  }
+}

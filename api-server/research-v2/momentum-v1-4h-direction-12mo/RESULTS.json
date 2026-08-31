@@ -1,0 +1,75 @@
+{
+  "generatedAt": "2026-08-28T23:51:11.694Z",
+  "scope": {
+    "period": "2025-08-01 through 2026-07-31",
+    "pairs": [
+      "AUD_JPY",
+      "AUD_USD",
+      "EUR_GBP",
+      "EUR_USD",
+      "GBP_USD",
+      "USD_CAD",
+      "USD_CHF",
+      "USD_JPY"
+    ],
+    "detector": "unchanged Momentum V1 with DEFAULT_MOMENTUM_CONFIG",
+    "horizon": "four hours, midpoint direction from completed raw OANDA bid/ask M15 bars",
+    "execution": "one signal per pair per four-hour window; no stops, targets, P&L, trade rows, or parameter changes"
+  },
+  "splits": {
+    "train": {
+      "start": "2025-08-01",
+      "endExclusive": "2026-03-08"
+    },
+    "development": {
+      "start": "2026-03-08",
+      "endExclusive": "2026-05-20",
+      "nominationGate": "n >=100; accuracy >=55.56%; 90% Wilson lower bound >50%"
+    },
+    "sealedHoldout": {
+      "start": "2026-05-20",
+      "endExclusive": "2026-08-01",
+      "opened": false
+    }
+  },
+  "signals": {
+    "total": 2839,
+    "train": 1684,
+    "development": 570,
+    "holdout": 585,
+    "byPair": {
+      "AUD_JPY": 383,
+      "AUD_USD": 414,
+      "EUR_GBP": 385,
+      "EUR_USD": 176,
+      "GBP_USD": 396,
+      "USD_CAD": 447,
+      "USD_CHF": 432,
+      "USD_JPY": 206
+    }
+  },
+  "development": {
+    "original": {
+      "n": 570,
+      "hits": 285,
+      "accuracy": 0.5,
+      "wilsonLower90": 0.46573472637915936
+    },
+    "inverse": {
+      "n": 570,
+      "hits": 285,
+      "accuracy": 0.5,
+      "wilsonLower90": 0.46573472637915936
+    },
+    "randomControls": {
+      "count": 100,
+      "meanAccuracy": 0.49850877192982473,
+      "p05Accuracy": 0.45789473684210524,
+      "p95Accuracy": 0.5350877192982456
+    },
+    "nominatedArm": null
+  },
+  "holdout": {
+    "status": "NOT_OPENED_NO_ARM_QUALIFIED"
+  }
+}

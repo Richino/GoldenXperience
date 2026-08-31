@@ -1,0 +1,112 @@
+{
+  "generatedAt": "2026-08-29T04:00:35.378Z",
+  "verdict": "RESEARCH_ONLY_NO_PROMOTION",
+  "scope": {
+    "signal": "frozen 2024-26 non-inflation/rate EUR/USD economic-surprise direction rule",
+    "entry": "completed M5 candle at the stated delay after release; long enters ask, short enters bid",
+    "riskUnit": "1.0 = ATR14 of completed pre-release M5 midpoint candles, fixed before the release",
+    "exit": "long exits/levels use bid; short exits/levels use ask",
+    "target": 1.5,
+    "stop": -0.75,
+    "day": "exit no later than 5pm New York time",
+    "swing": "exit no later than 72 hours",
+    "ambiguous": "if both stop and target fall inside one M5 candle, charged as stop",
+    "excludes": "live/paper orders and any post-result tuning"
+  },
+  "signals": {
+    "rawNumericSignals": 389,
+    "nonOverlappingFourHourSignals": 187
+  },
+  "results": {
+    "delay5m": {
+      "day": {
+        "trades": 187,
+        "wins": 18,
+        "winRate": 0.0962566844919786,
+        "totalR": -99.75,
+        "expectancyR": -0.5334224598930482,
+        "targetHits": 18,
+        "stops": 169,
+        "timeExits": 0,
+        "ambiguousConservativeStops": 37,
+        "medianPreNewsAtrPips": 4.678571428571469,
+        "medianEntrySpreadPips": 1.5999999999993797,
+        "spreadsAtLeastStopDistance": 2
+      },
+      "swing": {
+        "trades": 187,
+        "wins": 18,
+        "winRate": 0.0962566844919786,
+        "totalR": -99.75,
+        "expectancyR": -0.5334224598930482,
+        "targetHits": 18,
+        "stops": 169,
+        "timeExits": 0,
+        "ambiguousConservativeStops": 37,
+        "medianPreNewsAtrPips": 4.678571428571469,
+        "medianEntrySpreadPips": 1.5999999999993797,
+        "spreadsAtLeastStopDistance": 2
+      }
+    },
+    "delay15m": {
+      "day": {
+        "trades": 187,
+        "wins": 29,
+        "winRate": 0.15508021390374332,
+        "totalR": -75,
+        "expectancyR": -0.40106951871657753,
+        "targetHits": 29,
+        "stops": 158,
+        "timeExits": 0,
+        "ambiguousConservativeStops": 10,
+        "medianPreNewsAtrPips": 4.678571428571469,
+        "medianEntrySpreadPips": 1.5999999999993797,
+        "spreadsAtLeastStopDistance": 6
+      },
+      "swing": {
+        "trades": 187,
+        "wins": 29,
+        "winRate": 0.15508021390374332,
+        "totalR": -75,
+        "expectancyR": -0.40106951871657753,
+        "targetHits": 29,
+        "stops": 158,
+        "timeExits": 0,
+        "ambiguousConservativeStops": 10,
+        "medianPreNewsAtrPips": 4.678571428571469,
+        "medianEntrySpreadPips": 1.5999999999993797,
+        "spreadsAtLeastStopDistance": 6
+      }
+    },
+    "delay30m": {
+      "day": {
+        "trades": 187,
+        "wins": 21,
+        "winRate": 0.11229946524064172,
+        "totalR": -93,
+        "expectancyR": -0.49732620320855614,
+        "targetHits": 21,
+        "stops": 166,
+        "timeExits": 0,
+        "ambiguousConservativeStops": 7,
+        "medianPreNewsAtrPips": 4.678571428571469,
+        "medianEntrySpreadPips": 1.5999999999993797,
+        "spreadsAtLeastStopDistance": 1
+      },
+      "swing": {
+        "trades": 187,
+        "wins": 21,
+        "winRate": 0.11229946524064172,
+        "totalR": -93,
+        "expectancyR": -0.49732620320855614,
+        "targetHits": 21,
+        "stops": 166,
+        "timeExits": 0,
+        "ambiguousConservativeStops": 7,
+        "medianPreNewsAtrPips": 4.678571428571469,
+        "medianEntrySpreadPips": 1.5999999999993797,
+        "spreadsAtLeastStopDistance": 1
+      }
+    }
+  }
+}

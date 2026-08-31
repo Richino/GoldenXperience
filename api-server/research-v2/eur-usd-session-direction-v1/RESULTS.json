@@ -1,0 +1,82 @@
+{
+  "generatedAt": "2026-08-28T16:37:17.929Z",
+  "methodology": {
+    "source": "raw OANDA bid/ask midpoint M15 candles fetched at runtime",
+    "label": "midpoint direction 60 minutes after the completed decision candle",
+    "state": "current midpoint above or below the completed 00:00-07:00 Europe/London Asian range",
+    "sessions": "London 08:00-11:00 Europe/London; New York 08:00-11:00 America/New_York",
+    "split": {
+      "development": "2025-08-01 through 2026-03-31",
+      "sealedHoldout": "2026-04-01 through 2026-07-31"
+    },
+    "gate": "n >= 100, accuracy > 50%, 99% Wilson lower bound > 50%, and above random p95",
+    "excluded": "entries, stops, targets, execution, trade rows, and database writes"
+  },
+  "development": [
+    {
+      "name": "london_continuation",
+      "session": "london",
+      "inverse": false,
+      "score": {
+        "n": 623,
+        "correct": 297,
+        "accuracy": 0.4767255216693419,
+        "lower99": 0.42569587929847036,
+        "randomControls": {
+          "count": 100,
+          "meanAccuracy": 0.5008988764044943,
+          "p95Accuracy": 0.5313001605136437
+        }
+      }
+    },
+    {
+      "name": "london_reversal",
+      "session": "london",
+      "inverse": true,
+      "score": {
+        "n": 623,
+        "correct": 326,
+        "accuracy": 0.5232744783306581,
+        "lower99": 0.4717542532114546,
+        "randomControls": {
+          "count": 100,
+          "meanAccuracy": 0.5008988764044943,
+          "p95Accuracy": 0.5313001605136437
+        }
+      }
+    },
+    {
+      "name": "new_york_continuation",
+      "session": "new_york",
+      "inverse": false,
+      "score": {
+        "n": 0,
+        "correct": 0,
+        "accuracy": 0,
+        "lower99": 0,
+        "randomControls": {
+          "count": 100,
+          "meanAccuracy": 0,
+          "p95Accuracy": 0
+        }
+      }
+    },
+    {
+      "name": "new_york_reversal",
+      "session": "new_york",
+      "inverse": true,
+      "score": {
+        "n": 0,
+        "correct": 0,
+        "accuracy": 0,
+        "lower99": 0,
+        "randomControls": {
+          "count": 100,
+          "meanAccuracy": 0,
+          "p95Accuracy": 0
+        }
+      }
+    }
+  ],
+  "verdict": "NO_SESSION_DIRECTION_QUALIFIED_HOLDOUT_REMAINS_UNREAD"
+}

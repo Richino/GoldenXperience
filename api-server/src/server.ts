@@ -806,12 +806,10 @@ if (databaseConfigured() && schedulersEnabled) {
   void breakoutV1();
   breakoutConfidenceV1Collector = setInterval(() => void breakoutV1(), 60_000);
 
-  // Breakout M5 confidence scalper.
-  // Walk-forward: 72.6% winrate, +0.227R/trade, 2.68 trades/day OOS across 3
-  // pairs (EUR/GBP/USD_JPY) and 3 years. 87% winning months. Slippage-sensitive:
-  // edge holds up to ~1 pip added cost, dies at ~2 pips. Discipline: run
-  // DRY_RUN for 30 days first, then micro-risk (0.25%) for 100 trades, then
-  // scale to 1%.
+  // Breakout M5 direction-flip research collector. The former 72.6% claim was
+  // invalidated because it negated original outcomes instead of resolving an
+  // opposite-side bid/ask trade. It remains fail-closed pending a fully
+  // unblocked-candidate replay that passes counterfactual validation.
   //
   // Runs every 5 minutes — one cycle per M5 bar close.
   let m5Busy = false;

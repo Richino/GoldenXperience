@@ -1,0 +1,2056 @@
+{
+  "generatedAt": "2026-08-29T12:31:30.544Z",
+  "verdict": "NO_2024_CALIBRATION_EDGE_TRADING_DISABLED_FINAL_HOLDOUT_SEALED",
+  "independence": {
+    "uses": "fresh raw OANDA Practice EUR_USD M5 bid/ask only",
+    "refuses": [
+      "stored trades",
+      "existing strategy code",
+      "existing models",
+      "news data",
+      "previous research outputs"
+    ]
+  },
+  "neuralNetwork": {
+    "version": "v6-expected-return-abstention",
+    "architecture": "two independent 20 input -> 12 tanh hidden -> 1 sigmoid expected-return models",
+    "optimizer": "Adam",
+    "epochs": 3,
+    "batchSize": 256,
+    "learningRate": 0.002,
+    "deterministicSeed": "0x6d2b79f5",
+    "label": "continuous executable R outcome scaled from [-0.75,+1.5] to [0,1], so target hits, stops, and time exits all affect training",
+    "selectedScoreMode": "maximumProbability",
+    "scoreModeSelection": "trained on 2022-2023; maximum predicted expected return; no time-pocket selection",
+    "features": [
+      "normalized returns 1/2/3/6/12 bars",
+      "candle body/range/wicks",
+      "EMA12 and EMA48 displacement",
+      "ATR14/ATR96",
+      "spread/ATR",
+      "12/48-bar efficiency",
+      "24-bar z-score",
+      "cyclic UTC time and weekday"
+    ]
+  },
+  "execution": {
+    "enabled": false,
+    "disabledReason": "no adequately sampled 2024 confidence tier had win rate >=40%, expectancy >0, and PF >1",
+    "signalFrequency": "evaluated after every completed M5 candle; WAIT unless a past-only calibrated tier has positive expectancy",
+    "selectedUtcEntryHours": [],
+    "entry": "next M5 open, executable bid/ask",
+    "confidenceThreshold": null,
+    "predictedBreakEvenThreshold": 0.3333333333333333,
+    "frequencyThreshold": null,
+    "thresholdSelection": "2024-only calibration frontier; highest-frequency qualifying tier locked before 2025",
+    "targetTradesPerMarketDay": 2.5,
+    "maximumEntriesPerUtcDay": 4,
+    "maximumConcurrentTrades": 2,
+    "stop": "1.25 ATR14",
+    "target": "2.5 ATR14",
+    "payoff": "+1.5 / -0.75",
+    "maximumHold": "60 minutes",
+    "ambiguousBar": "charged as stop"
+  },
+  "data": {
+    "source": "OANDA Practice",
+    "candles": 344780,
+    "from": "2021-12-20T00:00:00.000Z",
+    "toExclusive": "2026-08-01T00:00:00.000Z",
+    "trainExamples2022_23": 149001,
+    "calibrationExamples2024": 74869,
+    "developmentExamples2025": 74584
+  },
+  "gates": {
+    "development2025": "n>=600, 2-3 trades/day, win rate>=40%, expectancy>0, PF>1, better-path accuracy>50.5%",
+    "finalHoldoutOpenedOnlyAfterDevelopmentPasses": true
+  },
+  "diagnostics": {
+    "failureAudit2025": {
+      "riskAtr": 1.25,
+      "maximumHoldMinutes": 60,
+      "candidates": 2555,
+      "selectedTargetRate": 0.15459882583170254,
+      "selectedWinRate": 0.3420743639921722,
+      "selectedExpectancyR": -0.12204513270734817,
+      "inverseExpectancyR": -0.09126536139610211,
+      "oracleExpectancyR": 0.513341606882782,
+      "eitherDirectionCanHitTarget": 0.32524461839530333,
+      "neitherDirectionCanHitTarget": 0.6747553816046967,
+      "bothDirectionsLose": 0.30919765166340507,
+      "wrongSideWhenOppositeHitsTarget": 0.1706457925636008,
+      "confidenceQuintiles": [
+        {
+          "bucket": 1,
+          "quality": "highest",
+          "trades": 511,
+          "averageScore": 0.39128593824492286,
+          "targetRate": 0.18786692759295498,
+          "winRate": 0.4090019569471624,
+          "expectancyR": -0.006414251226653417
+        },
+        {
+          "bucket": 2,
+          "quality": "middle",
+          "trades": 511,
+          "averageScore": 0.36370928581089357,
+          "targetRate": 0.16829745596868884,
+          "winRate": 0.3385518590998043,
+          "expectancyR": -0.11473351969163881
+        },
+        {
+          "bucket": 3,
+          "quality": "middle",
+          "trades": 511,
+          "averageScore": 0.35147192869265853,
+          "targetRate": 0.136986301369863,
+          "winRate": 0.31898238747553814,
+          "expectancyR": -0.15817874190200826
+        },
+        {
+          "bucket": 4,
+          "quality": "middle",
+          "trades": 511,
+          "averageScore": 0.34265448426614553,
+          "targetRate": 0.16046966731898238,
+          "winRate": 0.33072407045009783,
+          "expectancyR": -0.1189901218951811
+        },
+        {
+          "bucket": 5,
+          "quality": "lowest",
+          "trades": 511,
+          "averageScore": 0.3362456767038787,
+          "targetRate": 0.11937377690802348,
+          "winRate": 0.3131115459882583,
+          "expectancyR": -0.21190902882125884
+        }
+      ]
+    },
+    "geometryAudit": [
+      {
+        "training2022_23": {
+          "riskAtr": 0.75,
+          "maximumHoldMinutes": 60,
+          "candidates": 6810,
+          "selectedTargetRate": 0.26226138032305435,
+          "selectedWinRate": 0.3058737151248164,
+          "selectedExpectancyR": -0.09364463150068895,
+          "inverseExpectancyR": -0.1970207300914027,
+          "oracleExpectancyR": 0.4578112274161676,
+          "eitherDirectionCanHitTarget": 0.4819383259911894,
+          "neitherDirectionCanHitTarget": 0.5180616740088105,
+          "bothDirectionsLose": 0.43597650513950076,
+          "wrongSideWhenOppositeHitsTarget": 0.2196769456681351,
+          "confidenceQuintiles": [
+            {
+              "bucket": 1,
+              "quality": "highest",
+              "trades": 1362,
+              "averageScore": 0.3820563988343305,
+              "targetRate": 0.29955947136563876,
+              "winRate": 0.3443465491923642,
+              "expectancyR": -0.004765724920264854
+            },
+            {
+              "bucket": 2,
+              "quality": "middle",
+              "trades": 1362,
+              "averageScore": 0.3578136733452082,
+              "targetRate": 0.26945668135095446,
+              "winRate": 0.30616740088105726,
+              "expectancyR": -0.08490185565118921
+            },
+            {
+              "bucket": 3,
+              "quality": "middle",
+              "trades": 1362,
+              "averageScore": 0.3479634268742062,
+              "targetRate": 0.223935389133627,
+              "winRate": 0.276798825256975,
+              "expectancyR": -0.17086692227296427
+            },
+            {
+              "bucket": 4,
+              "quality": "middle",
+              "trades": 1362,
+              "averageScore": 0.34127873231717193,
+              "targetRate": 0.2599118942731278,
+              "winRate": 0.30176211453744495,
+              "expectancyR": -0.10123355765189597
+            },
+            {
+              "bucket": 5,
+              "quality": "lowest",
+              "trades": 1362,
+              "averageScore": 0.3357881716723494,
+              "targetRate": 0.25844346549192365,
+              "winRate": 0.3002936857562408,
+              "expectancyR": -0.10645509700713048
+            }
+          ]
+        },
+        "calibration2024": {
+          "riskAtr": 0.75,
+          "maximumHoldMinutes": 60,
+          "candidates": 543,
+          "selectedTargetRate": 0.23388581952117865,
+          "selectedWinRate": 0.281767955801105,
+          "selectedExpectancyR": -0.15854999724165159,
+          "inverseExpectancyR": -0.13751260844313423,
+          "oracleExpectancyR": 0.45250643392064166,
+          "eitherDirectionCanHitTarget": 0.48250460405156537,
+          "neitherDirectionCanHitTarget": 0.5174953959484346,
+          "bothDirectionsLose": 0.43278084714548803,
+          "wrongSideWhenOppositeHitsTarget": 0.24861878453038674,
+          "confidenceQuintiles": [
+            {
+              "bucket": 1,
+              "quality": "highest",
+              "trades": 108,
+              "averageScore": 0.39639558750174114,
+              "targetRate": 0.28703703703703703,
+              "winRate": 0.3055555555555556,
+              "expectancyR": -0.07920721526052833
+            },
+            {
+              "bucket": 2,
+              "quality": "middle",
+              "trades": 109,
+              "averageScore": 0.3634208448373411,
+              "targetRate": 0.1559633027522936,
+              "winRate": 0.1926605504587156,
+              "expectancyR": -0.349458003109154
+            },
+            {
+              "bucket": 3,
+              "quality": "middle",
+              "trades": 108,
+              "averageScore": 0.35177508961525233,
+              "targetRate": 0.2037037037037037,
+              "winRate": 0.25925925925925924,
+              "expectancyR": -0.2045742009216913
+            },
+            {
+              "bucket": 4,
+              "quality": "middle",
+              "trades": 109,
+              "averageScore": 0.34312809697568347,
+              "targetRate": 0.25688073394495414,
+              "winRate": 0.3119266055045872,
+              "expectancyR": -0.11235260119123522
+            },
+            {
+              "bucket": 5,
+              "quality": "lowest",
+              "trades": 109,
+              "averageScore": 0.33671734145484694,
+              "targetRate": 0.26605504587155965,
+              "winRate": 0.3394495412844037,
+              "expectancyR": -0.04685229069536379
+            }
+          ]
+        },
+        "development2025": {
+          "riskAtr": 0.75,
+          "maximumHoldMinutes": 60,
+          "candidates": 2555,
+          "selectedTargetRate": 0.22348336594911938,
+          "selectedWinRate": 0.2622309197651663,
+          "selectedExpectancyR": -0.19211176296216312,
+          "inverseExpectancyR": -0.143676754246366,
+          "oracleExpectancyR": 0.4137272020716258,
+          "eitherDirectionCanHitTarget": 0.47084148727984343,
+          "neitherDirectionCanHitTarget": 0.5291585127201566,
+          "bothDirectionsLose": 0.4598825831702544,
+          "wrongSideWhenOppositeHitsTarget": 0.24735812133072407,
+          "confidenceQuintiles": [
+            {
+              "bucket": 1,
+              "quality": "highest",
+              "trades": 511,
+              "averageScore": 0.39128593824492286,
+              "targetRate": 0.2583170254403131,
+              "winRate": 0.31898238747553814,
+              "expectancyR": -0.07675839877406321
+            },
+            {
+              "bucket": 2,
+              "quality": "middle",
+              "trades": 511,
+              "averageScore": 0.36370928581089357,
+              "targetRate": 0.22309197651663404,
+              "winRate": 0.2602739726027397,
+              "expectancyR": -0.19838892712642278
+            },
+            {
+              "bucket": 3,
+              "quality": "middle",
+              "trades": 511,
+              "averageScore": 0.35147192869265853,
+              "targetRate": 0.2309197651663405,
+              "winRate": 0.2700587084148728,
+              "expectancyR": -0.17963460189426747
+            },
+            {
+              "bucket": 4,
+              "quality": "middle",
+              "trades": 511,
+              "averageScore": 0.34265448426614553,
+              "targetRate": 0.22113502935420742,
+              "winRate": 0.2602739726027397,
+              "expectancyR": -0.1906427271210291
+            },
+            {
+              "bucket": 5,
+              "quality": "lowest",
+              "trades": 511,
+              "averageScore": 0.3362456767038787,
+              "targetRate": 0.18395303326810175,
+              "winRate": 0.20156555772994128,
+              "expectancyR": -0.3151341598950329
+            }
+          ]
+        }
+      },
+      {
+        "training2022_23": {
+          "riskAtr": 1,
+          "maximumHoldMinutes": 60,
+          "candidates": 6810,
+          "selectedTargetRate": 0.22819383259911893,
+          "selectedWinRate": 0.34772393538913365,
+          "selectedExpectancyR": -0.057124129359182735,
+          "inverseExpectancyR": -0.15789035700890566,
+          "oracleExpectancyR": 0.5280956335500231,
+          "eitherDirectionCanHitTarget": 0.41659324522760643,
+          "neitherDirectionCanHitTarget": 0.5834067547723936,
+          "bothDirectionsLose": 0.35286343612334803,
+          "wrongSideWhenOppositeHitsTarget": 0.18839941262848753,
+          "confidenceQuintiles": [
+            {
+              "bucket": 1,
+              "quality": "highest",
+              "trades": 1362,
+              "averageScore": 0.3820563988343305,
+              "targetRate": 0.2665198237885463,
+              "winRate": 0.40602055800293685,
+              "expectancyR": 0.0584167007921692
+            },
+            {
+              "bucket": 2,
+              "quality": "middle",
+              "trades": 1362,
+              "averageScore": 0.3578136733452082,
+              "targetRate": 0.23201174743024963,
+              "winRate": 0.33847283406754775,
+              "expectancyR": -0.056432501030035935
+            },
+            {
+              "bucket": 3,
+              "quality": "middle",
+              "trades": 1362,
+              "averageScore": 0.3479634268742062,
+              "targetRate": 0.20851688693098386,
+              "winRate": 0.3274596182085169,
+              "expectancyR": -0.10627943387673285
+            },
+            {
+              "bucket": 4,
+              "quality": "middle",
+              "trades": 1362,
+              "averageScore": 0.34127873231717193,
+              "targetRate": 0.21659324522760645,
+              "winRate": 0.32819383259911894,
+              "expectancyR": -0.09194810446793317
+            },
+            {
+              "bucket": 5,
+              "quality": "lowest",
+              "trades": 1362,
+              "averageScore": 0.3357881716723494,
+              "targetRate": 0.2173274596182085,
+              "winRate": 0.33847283406754775,
+              "expectancyR": -0.08937730821338061
+            }
+          ]
+        },
+        "calibration2024": {
+          "riskAtr": 1,
+          "maximumHoldMinutes": 60,
+          "candidates": 543,
+          "selectedTargetRate": 0.19521178637200737,
+          "selectedWinRate": 0.3149171270718232,
+          "selectedExpectancyR": -0.1425069732858643,
+          "inverseExpectancyR": -0.11910511761991976,
+          "oracleExpectancyR": 0.4826675273854849,
+          "eitherDirectionCanHitTarget": 0.3996316758747698,
+          "neitherDirectionCanHitTarget": 0.6003683241252302,
+          "bothDirectionsLose": 0.3683241252302026,
+          "wrongSideWhenOppositeHitsTarget": 0.20441988950276244,
+          "confidenceQuintiles": [
+            {
+              "bucket": 1,
+              "quality": "highest",
+              "trades": 108,
+              "averageScore": 0.39639558750174114,
+              "targetRate": 0.21296296296296297,
+              "winRate": 0.3055555555555556,
+              "expectancyR": -0.13274880826754729
+            },
+            {
+              "bucket": 2,
+              "quality": "middle",
+              "trades": 109,
+              "averageScore": 0.3634208448373411,
+              "targetRate": 0.13761467889908258,
+              "winRate": 0.24770642201834864,
+              "expectancyR": -0.2730334849864696
+            },
+            {
+              "bucket": 3,
+              "quality": "middle",
+              "trades": 108,
+              "averageScore": 0.35177508961525233,
+              "targetRate": 0.18518518518518517,
+              "winRate": 0.2777777777777778,
+              "expectancyR": -0.19971041154917255
+            },
+            {
+              "bucket": 4,
+              "quality": "middle",
+              "trades": 109,
+              "averageScore": 0.34312809697568347,
+              "targetRate": 0.1834862385321101,
+              "winRate": 0.3486238532110092,
+              "expectancyR": -0.1267490153307999
+            },
+            {
+              "bucket": 5,
+              "quality": "lowest",
+              "trades": 109,
+              "averageScore": 0.33671734145484694,
+              "targetRate": 0.25688073394495414,
+              "winRate": 0.3944954128440367,
+              "expectancyR": 0.01927157596847547
+            }
+          ]
+        },
+        "development2025": {
+          "riskAtr": 1,
+          "maximumHoldMinutes": 60,
+          "candidates": 2555,
+          "selectedTargetRate": 0.20234833659491194,
+          "selectedWinRate": 0.30528375733855184,
+          "selectedExpectancyR": -0.14226151333896922,
+          "inverseExpectancyR": -0.10392848270349812,
+          "oracleExpectancyR": 0.49721178806102956,
+          "eitherDirectionCanHitTarget": 0.41643835616438357,
+          "neitherDirectionCanHitTarget": 0.5835616438356165,
+          "bothDirectionsLose": 0.3741682974559687,
+          "wrongSideWhenOppositeHitsTarget": 0.21409001956947163,
+          "confidenceQuintiles": [
+            {
+              "bucket": 1,
+              "quality": "highest",
+              "trades": 511,
+              "averageScore": 0.39128593824492286,
+              "targetRate": 0.2328767123287671,
+              "winRate": 0.35812133072407043,
+              "expectancyR": -0.04277658176668692
+            },
+            {
+              "bucket": 2,
+              "quality": "middle",
+              "trades": 511,
+              "averageScore": 0.36370928581089357,
+              "targetRate": 0.2054794520547945,
+              "winRate": 0.299412915851272,
+              "expectancyR": -0.1442123221102363
+            },
+            {
+              "bucket": 3,
+              "quality": "middle",
+              "trades": 511,
+              "averageScore": 0.35147192869265853,
+              "targetRate": 0.1917808219178082,
+              "winRate": 0.2974559686888454,
+              "expectancyR": -0.16156444798102648
+            },
+            {
+              "bucket": 4,
+              "quality": "middle",
+              "trades": 511,
+              "averageScore": 0.34265448426614553,
+              "targetRate": 0.21135029354207435,
+              "winRate": 0.30724070450097846,
+              "expectancyR": -0.12243444082573264
+            },
+            {
+              "bucket": 5,
+              "quality": "lowest",
+              "trades": 511,
+              "averageScore": 0.3362456767038787,
+              "targetRate": 0.17025440313111545,
+              "winRate": 0.26418786692759294,
+              "expectancyR": -0.2403197740111639
+            }
+          ]
+        }
+      },
+      {
+        "training2022_23": {
+          "riskAtr": 1.25,
+          "maximumHoldMinutes": 60,
+          "candidates": 6810,
+          "selectedTargetRate": 0.17679882525697505,
+          "selectedWinRate": 0.38340675477239355,
+          "selectedExpectancyR": -0.042003345288097516,
+          "inverseExpectancyR": -0.1302280380706934,
+          "oracleExpectancyR": 0.5529488908410577,
+          "eitherDirectionCanHitTarget": 0.3224669603524229,
+          "neitherDirectionCanHitTarget": 0.677533039647577,
+          "bothDirectionsLose": 0.2740088105726872,
+          "wrongSideWhenOppositeHitsTarget": 0.14566813509544788,
+          "confidenceQuintiles": [
+            {
+              "bucket": 1,
+              "quality": "highest",
+              "trades": 1362,
+              "averageScore": 0.3820563988343305,
+              "targetRate": 0.21292217327459617,
+              "winRate": 0.4434654919236417,
+              "expectancyR": 0.0726005978692042
+            },
+            {
+              "bucket": 2,
+              "quality": "middle",
+              "trades": 1362,
+              "averageScore": 0.3578136733452082,
+              "targetRate": 0.17841409691629956,
+              "winRate": 0.37591776798825255,
+              "expectancyR": -0.04341550630782397
+            },
+            {
+              "bucket": 3,
+              "quality": "middle",
+              "trades": 1362,
+              "averageScore": 0.3479634268742062,
+              "targetRate": 0.16299559471365638,
+              "winRate": 0.3619676945668135,
+              "expectancyR": -0.08550284595073514
+            },
+            {
+              "bucket": 4,
+              "quality": "middle",
+              "trades": 1362,
+              "averageScore": 0.34127873231717193,
+              "targetRate": 0.16152716593245228,
+              "winRate": 0.3590308370044053,
+              "expectancyR": -0.08812616515196006
+            },
+            {
+              "bucket": 5,
+              "quality": "lowest",
+              "trades": 1362,
+              "averageScore": 0.3357881716723494,
+              "targetRate": 0.16813509544787078,
+              "winRate": 0.3766519823788546,
+              "expectancyR": -0.06557280689917269
+            }
+          ]
+        },
+        "calibration2024": {
+          "riskAtr": 1.25,
+          "maximumHoldMinutes": 60,
+          "candidates": 543,
+          "selectedTargetRate": 0.16758747697974216,
+          "selectedWinRate": 0.36095764272559855,
+          "selectedExpectancyR": -0.09222834440156821,
+          "inverseExpectancyR": -0.1049856219281348,
+          "oracleExpectancyR": 0.5252979119279559,
+          "eitherDirectionCanHitTarget": 0.31860036832412525,
+          "neitherDirectionCanHitTarget": 0.6813996316758748,
+          "bothDirectionsLose": 0.29097605893186,
+          "wrongSideWhenOppositeHitsTarget": 0.15101289134438306,
+          "confidenceQuintiles": [
+            {
+              "bucket": 1,
+              "quality": "highest",
+              "trades": 108,
+              "averageScore": 0.39639558750174114,
+              "targetRate": 0.2222222222222222,
+              "winRate": 0.37037037037037035,
+              "expectancyR": -0.03473665692804163
+            },
+            {
+              "bucket": 2,
+              "quality": "middle",
+              "trades": 109,
+              "averageScore": 0.3634208448373411,
+              "targetRate": 0.11926605504587157,
+              "winRate": 0.30275229357798167,
+              "expectancyR": -0.19744187189417772
+            },
+            {
+              "bucket": 3,
+              "quality": "middle",
+              "trades": 108,
+              "averageScore": 0.35177508961525233,
+              "targetRate": 0.16666666666666666,
+              "winRate": 0.35185185185185186,
+              "expectancyR": -0.08703825376620038
+            },
+            {
+              "bucket": 4,
+              "quality": "middle",
+              "trades": 109,
+              "averageScore": 0.34312809697568347,
+              "targetRate": 0.14678899082568808,
+              "winRate": 0.3577981651376147,
+              "expectancyR": -0.14177840797568578
+            },
+            {
+              "bucket": 5,
+              "quality": "lowest",
+              "trades": 109,
+              "averageScore": 0.33671734145484694,
+              "targetRate": 0.1834862385321101,
+              "winRate": 0.42201834862385323,
+              "expectancyR": 0.00042853074074980486
+            }
+          ]
+        },
+        "development2025": {
+          "riskAtr": 1.25,
+          "maximumHoldMinutes": 60,
+          "candidates": 2555,
+          "selectedTargetRate": 0.15459882583170254,
+          "selectedWinRate": 0.3420743639921722,
+          "selectedExpectancyR": -0.12204513270734817,
+          "inverseExpectancyR": -0.09126536139610211,
+          "oracleExpectancyR": 0.513341606882782,
+          "eitherDirectionCanHitTarget": 0.32524461839530333,
+          "neitherDirectionCanHitTarget": 0.6747553816046967,
+          "bothDirectionsLose": 0.30919765166340507,
+          "wrongSideWhenOppositeHitsTarget": 0.1706457925636008,
+          "confidenceQuintiles": [
+            {
+              "bucket": 1,
+              "quality": "highest",
+              "trades": 511,
+              "averageScore": 0.39128593824492286,
+              "targetRate": 0.18786692759295498,
+              "winRate": 0.4090019569471624,
+              "expectancyR": -0.006414251226653417
+            },
+            {
+              "bucket": 2,
+              "quality": "middle",
+              "trades": 511,
+              "averageScore": 0.36370928581089357,
+              "targetRate": 0.16829745596868884,
+              "winRate": 0.3385518590998043,
+              "expectancyR": -0.11473351969163881
+            },
+            {
+              "bucket": 3,
+              "quality": "middle",
+              "trades": 511,
+              "averageScore": 0.35147192869265853,
+              "targetRate": 0.136986301369863,
+              "winRate": 0.31898238747553814,
+              "expectancyR": -0.15817874190200826
+            },
+            {
+              "bucket": 4,
+              "quality": "middle",
+              "trades": 511,
+              "averageScore": 0.34265448426614553,
+              "targetRate": 0.16046966731898238,
+              "winRate": 0.33072407045009783,
+              "expectancyR": -0.1189901218951811
+            },
+            {
+              "bucket": 5,
+              "quality": "lowest",
+              "trades": 511,
+              "averageScore": 0.3362456767038787,
+              "targetRate": 0.11937377690802348,
+              "winRate": 0.3131115459882583,
+              "expectancyR": -0.21190902882125884
+            }
+          ]
+        }
+      },
+      {
+        "training2022_23": {
+          "riskAtr": 0.75,
+          "maximumHoldMinutes": 120,
+          "candidates": 6810,
+          "selectedTargetRate": 0.28149779735682817,
+          "selectedWinRate": 0.2944199706314244,
+          "selectedExpectancyR": -0.09781023827385417,
+          "inverseExpectancyR": -0.20035298066320842,
+          "oracleExpectancyR": 0.4514040856329394,
+          "eitherDirectionCanHitTarget": 0.5179148311306901,
+          "neitherDirectionCanHitTarget": 0.48208516886930985,
+          "bothDirectionsLose": 0.45741556534508077,
+          "wrongSideWhenOppositeHitsTarget": 0.23641703377386197,
+          "confidenceQuintiles": [
+            {
+              "bucket": 1,
+              "quality": "highest",
+              "trades": 1362,
+              "averageScore": 0.3820563988343305,
+              "targetRate": 0.31938325991189426,
+              "winRate": 0.33259911894273125,
+              "expectancyR": -0.010280831999530535
+            },
+            {
+              "bucket": 2,
+              "quality": "middle",
+              "trades": 1362,
+              "averageScore": 0.3578136733452082,
+              "targetRate": 0.28487518355359764,
+              "winRate": 0.29955947136563876,
+              "expectancyR": -0.0908103341296113
+            },
+            {
+              "bucket": 3,
+              "quality": "middle",
+              "trades": 1362,
+              "averageScore": 0.3479634268742062,
+              "targetRate": 0.2474302496328928,
+              "winRate": 0.2577092511013216,
+              "expectancyR": -0.17639038833206488
+            },
+            {
+              "bucket": 4,
+              "quality": "middle",
+              "trades": 1362,
+              "averageScore": 0.34127873231717193,
+              "targetRate": 0.27606461086637296,
+              "winRate": 0.2907488986784141,
+              "expectancyR": -0.10728699332472548
+            },
+            {
+              "bucket": 5,
+              "quality": "lowest",
+              "trades": 1362,
+              "averageScore": 0.3357881716723494,
+              "targetRate": 0.27973568281938327,
+              "winRate": 0.29148311306901614,
+              "expectancyR": -0.1042826435833387
+            }
+          ]
+        },
+        "calibration2024": {
+          "riskAtr": 0.75,
+          "maximumHoldMinutes": 120,
+          "candidates": 543,
+          "selectedTargetRate": 0.24861878453038674,
+          "selectedWinRate": 0.27071823204419887,
+          "selectedExpectancyR": -0.15708214227218126,
+          "inverseExpectancyR": -0.12625419498634935,
+          "oracleExpectancyR": 0.46583517245385025,
+          "eitherDirectionCanHitTarget": 0.5156537753222836,
+          "neitherDirectionCanHitTarget": 0.4843462246777164,
+          "bothDirectionsLose": 0.44567219152854515,
+          "wrongSideWhenOppositeHitsTarget": 0.26703499079189685,
+          "confidenceQuintiles": [
+            {
+              "bucket": 1,
+              "quality": "highest",
+              "trades": 108,
+              "averageScore": 0.39639558750174114,
+              "targetRate": 0.2962962962962963,
+              "winRate": 0.3148148148148148,
+              "expectancyR": -0.06195774670879635
+            },
+            {
+              "bucket": 2,
+              "quality": "middle",
+              "trades": 109,
+              "averageScore": 0.3634208448373411,
+              "targetRate": 0.1651376146788991,
+              "winRate": 0.1926605504587156,
+              "expectancyR": -0.3391988716843825
+            },
+            {
+              "bucket": 3,
+              "quality": "middle",
+              "trades": 108,
+              "averageScore": 0.35177508961525233,
+              "targetRate": 0.21296296296296297,
+              "winRate": 0.24074074074074073,
+              "expectancyR": -0.21798919092694463
+            },
+            {
+              "bucket": 4,
+              "quality": "middle",
+              "trades": 109,
+              "averageScore": 0.34312809697568347,
+              "targetRate": 0.26605504587155965,
+              "winRate": 0.26605504587155965,
+              "expectancyR": -0.144374359066134
+            },
+            {
+              "bucket": 5,
+              "quality": "lowest",
+              "trades": 109,
+              "averageScore": 0.33671734145484694,
+              "targetRate": 0.30275229357798167,
+              "winRate": 0.3394495412844037,
+              "expectancyR": -0.0215766223608082
+            }
+          ]
+        },
+        "development2025": {
+          "riskAtr": 0.75,
+          "maximumHoldMinutes": 120,
+          "candidates": 2555,
+          "selectedTargetRate": 0.2391389432485323,
+          "selectedWinRate": 0.25009784735812135,
+          "selectedExpectancyR": -0.19518862150288216,
+          "inverseExpectancyR": -0.14241680442453314,
+          "oracleExpectancyR": 0.4123703384009138,
+          "eitherDirectionCanHitTarget": 0.5045009784735812,
+          "neitherDirectionCanHitTarget": 0.4954990215264188,
+          "bothDirectionsLose": 0.47906066536203523,
+          "wrongSideWhenOppositeHitsTarget": 0.2653620352250489,
+          "confidenceQuintiles": [
+            {
+              "bucket": 1,
+              "quality": "highest",
+              "trades": 511,
+              "averageScore": 0.39128593824492286,
+              "targetRate": 0.2857142857142857,
+              "winRate": 0.2974559686888454,
+              "expectancyR": -0.08772814559248131
+            },
+            {
+              "bucket": 2,
+              "quality": "middle",
+              "trades": 511,
+              "averageScore": 0.36370928581089357,
+              "targetRate": 0.2328767123287671,
+              "winRate": 0.2446183953033268,
+              "expectancyR": -0.2077224674410266
+            },
+            {
+              "bucket": 3,
+              "quality": "middle",
+              "trades": 511,
+              "averageScore": 0.35147192869265853,
+              "targetRate": 0.2465753424657534,
+              "winRate": 0.2602739726027397,
+              "expectancyR": -0.1740801018065339
+            },
+            {
+              "bucket": 4,
+              "quality": "middle",
+              "trades": 511,
+              "averageScore": 0.34265448426614553,
+              "targetRate": 0.23874755381604695,
+              "winRate": 0.25244618395303325,
+              "expectancyR": -0.19385061942124865
+            },
+            {
+              "bucket": 5,
+              "quality": "lowest",
+              "trades": 511,
+              "averageScore": 0.3362456767038787,
+              "targetRate": 0.1917808219178082,
+              "winRate": 0.19569471624266144,
+              "expectancyR": -0.31256177325312035
+            }
+          ]
+        }
+      },
+      {
+        "training2022_23": {
+          "riskAtr": 1,
+          "maximumHoldMinutes": 120,
+          "candidates": 6810,
+          "selectedTargetRate": 0.27547723935389135,
+          "selectedWinRate": 0.3224669603524229,
+          "selectedExpectancyR": -0.06104794226446255,
+          "inverseExpectancyR": -0.1540906426821072,
+          "oracleExpectancyR": 0.5327234505012776,
+          "eitherDirectionCanHitTarget": 0.5088105726872246,
+          "neitherDirectionCanHitTarget": 0.4911894273127753,
+          "bothDirectionsLose": 0.3970631424375918,
+          "wrongSideWhenOppositeHitsTarget": 0.23333333333333334,
+          "confidenceQuintiles": [
+            {
+              "bucket": 1,
+              "quality": "highest",
+              "trades": 1362,
+              "averageScore": 0.3820563988343305,
+              "targetRate": 0.31718061674008813,
+              "winRate": 0.3803230543318649,
+              "expectancyR": 0.0560874755616308
+            },
+            {
+              "bucket": 2,
+              "quality": "middle",
+              "trades": 1362,
+              "averageScore": 0.3578136733452082,
+              "targetRate": 0.2856093979441997,
+              "winRate": 0.3267254038179148,
+              "expectancyR": -0.04757775670096262
+            },
+            {
+              "bucket": 3,
+              "quality": "middle",
+              "trades": 1362,
+              "averageScore": 0.3479634268742062,
+              "targetRate": 0.25183553597650515,
+              "winRate": 0.2944199706314244,
+              "expectancyR": -0.11712434696576862
+            },
+            {
+              "bucket": 4,
+              "quality": "middle",
+              "trades": 1362,
+              "averageScore": 0.34127873231717193,
+              "targetRate": 0.2621145374449339,
+              "winRate": 0.30176211453744495,
+              "expectancyR": -0.10120194447591613
+            },
+            {
+              "bucket": 5,
+              "quality": "lowest",
+              "trades": 1362,
+              "averageScore": 0.3357881716723494,
+              "targetRate": 0.26064610866372984,
+              "winRate": 0.3091042584434655,
+              "expectancyR": -0.09542313874129624
+            }
+          ]
+        },
+        "calibration2024": {
+          "riskAtr": 1,
+          "maximumHoldMinutes": 120,
+          "candidates": 543,
+          "selectedTargetRate": 0.23941068139963168,
+          "selectedWinRate": 0.287292817679558,
+          "selectedExpectancyR": -0.13484906355561094,
+          "inverseExpectancyR": -0.10519450846796374,
+          "oracleExpectancyR": 0.5071694264073611,
+          "eitherDirectionCanHitTarget": 0.49171270718232046,
+          "neitherDirectionCanHitTarget": 0.5082872928176796,
+          "bothDirectionsLose": 0.4106813996316759,
+          "wrongSideWhenOppositeHitsTarget": 0.2523020257826888,
+          "confidenceQuintiles": [
+            {
+              "bucket": 1,
+              "quality": "highest",
+              "trades": 108,
+              "averageScore": 0.39639558750174114,
+              "targetRate": 0.24074074074074073,
+              "winRate": 0.3055555555555556,
+              "expectancyR": -0.13057199532151856
+            },
+            {
+              "bucket": 2,
+              "quality": "middle",
+              "trades": 109,
+              "averageScore": 0.3634208448373411,
+              "targetRate": 0.2018348623853211,
+              "winRate": 0.23853211009174313,
+              "expectancyR": -0.22432234371701956
+            },
+            {
+              "bucket": 3,
+              "quality": "middle",
+              "trades": 108,
+              "averageScore": 0.35177508961525233,
+              "targetRate": 0.21296296296296297,
+              "winRate": 0.24074074074074073,
+              "expectancyR": -0.20411145413226753
+            },
+            {
+              "bucket": 4,
+              "quality": "middle",
+              "trades": 109,
+              "averageScore": 0.34312809697568347,
+              "targetRate": 0.22935779816513763,
+              "winRate": 0.26605504587155965,
+              "expectancyR": -0.16383622690240474
+            },
+            {
+              "bucket": 5,
+              "quality": "lowest",
+              "trades": 109,
+              "averageScore": 0.33671734145484694,
+              "targetRate": 0.3119266055045872,
+              "winRate": 0.3853211009174312,
+              "expectancyR": 0.048000506677333986
+            }
+          ]
+        },
+        "development2025": {
+          "riskAtr": 1,
+          "maximumHoldMinutes": 120,
+          "candidates": 2555,
+          "selectedTargetRate": 0.24227005870841486,
+          "selectedWinRate": 0.27945205479452057,
+          "selectedExpectancyR": -0.14777298584735146,
+          "inverseExpectancyR": -0.09678033023238895,
+          "oracleExpectancyR": 0.5042786939764436,
+          "eitherDirectionCanHitTarget": 0.5064579256360078,
+          "neitherDirectionCanHitTarget": 0.49354207436399217,
+          "bothDirectionsLose": 0.4183953033268102,
+          "wrongSideWhenOppositeHitsTarget": 0.26418786692759294,
+          "confidenceQuintiles": [
+            {
+              "bucket": 1,
+              "quality": "highest",
+              "trades": 511,
+              "averageScore": 0.39128593824492286,
+              "targetRate": 0.29354207436399216,
+              "winRate": 0.3268101761252446,
+              "expectancyR": -0.034283343774022354
+            },
+            {
+              "bucket": 2,
+              "quality": "middle",
+              "trades": 511,
+              "averageScore": 0.36370928581089357,
+              "targetRate": 0.24266144814090018,
+              "winRate": 0.2759295499021526,
+              "expectancyR": -0.1558393745368499
+            },
+            {
+              "bucket": 3,
+              "quality": "middle",
+              "trades": 511,
+              "averageScore": 0.35147192869265853,
+              "targetRate": 0.2328767123287671,
+              "winRate": 0.2759295499021526,
+              "expectancyR": -0.1572013511035277
+            },
+            {
+              "bucket": 4,
+              "quality": "middle",
+              "trades": 511,
+              "averageScore": 0.34265448426614553,
+              "targetRate": 0.2446183953033268,
+              "winRate": 0.2837573385518591,
+              "expectancyR": -0.1418744445269308
+            },
+            {
+              "bucket": 5,
+              "quality": "lowest",
+              "trades": 511,
+              "averageScore": 0.3362456767038787,
+              "targetRate": 0.19765166340508805,
+              "winRate": 0.23483365949119372,
+              "expectancyR": -0.24966641529542685
+            }
+          ]
+        }
+      },
+      {
+        "training2022_23": {
+          "riskAtr": 1.25,
+          "maximumHoldMinutes": 120,
+          "candidates": 6810,
+          "selectedTargetRate": 0.2475770925110132,
+          "selectedWinRate": 0.3469897209985316,
+          "selectedExpectancyR": -0.04286041520861565,
+          "inverseExpectancyR": -0.12756826235327504,
+          "oracleExpectancyR": 0.570131731100312,
+          "eitherDirectionCanHitTarget": 0.4594713656387665,
+          "neitherDirectionCanHitTarget": 0.5405286343612334,
+          "bothDirectionsLose": 0.3436123348017621,
+          "wrongSideWhenOppositeHitsTarget": 0.2118942731277533,
+          "confidenceQuintiles": [
+            {
+              "bucket": 1,
+              "quality": "highest",
+              "trades": 1362,
+              "averageScore": 0.3820563988343305,
+              "targetRate": 0.28487518355359764,
+              "winRate": 0.40381791483113066,
+              "expectancyR": 0.07263000742804894
+            },
+            {
+              "bucket": 2,
+              "quality": "middle",
+              "trades": 1362,
+              "averageScore": 0.3578136733452082,
+              "targetRate": 0.2577092511013216,
+              "winRate": 0.3568281938325991,
+              "expectancyR": -0.02046251042957889
+            },
+            {
+              "bucket": 3,
+              "quality": "middle",
+              "trades": 1362,
+              "averageScore": 0.3479634268742062,
+              "targetRate": 0.22320117474302498,
+              "winRate": 0.31644640234948607,
+              "expectancyR": -0.10511954218180909
+            },
+            {
+              "bucket": 4,
+              "quality": "middle",
+              "trades": 1362,
+              "averageScore": 0.34127873231717193,
+              "targetRate": 0.23201174743024963,
+              "winRate": 0.31938325991189426,
+              "expectancyR": -0.09582470156947162
+            },
+            {
+              "bucket": 5,
+              "quality": "lowest",
+              "trades": 1362,
+              "averageScore": 0.3357881716723494,
+              "targetRate": 0.24008810572687225,
+              "winRate": 0.33847283406754775,
+              "expectancyR": -0.06552532929026723
+            }
+          ]
+        },
+        "calibration2024": {
+          "riskAtr": 1.25,
+          "maximumHoldMinutes": 120,
+          "candidates": 543,
+          "selectedTargetRate": 0.2283609576427256,
+          "selectedWinRate": 0.3296500920810313,
+          "selectedExpectancyR": -0.07626482454493777,
+          "inverseExpectancyR": -0.0927773098999703,
+          "oracleExpectancyR": 0.5673333668112778,
+          "eitherDirectionCanHitTarget": 0.4567219152854512,
+          "neitherDirectionCanHitTarget": 0.5432780847145487,
+          "bothDirectionsLose": 0.3462246777163904,
+          "wrongSideWhenOppositeHitsTarget": 0.2283609576427256,
+          "confidenceQuintiles": [
+            {
+              "bucket": 1,
+              "quality": "highest",
+              "trades": 108,
+              "averageScore": 0.39639558750174114,
+              "targetRate": 0.25,
+              "winRate": 0.3611111111111111,
+              "expectancyR": -0.042412840380580435
+            },
+            {
+              "bucket": 2,
+              "quality": "middle",
+              "trades": 109,
+              "averageScore": 0.3634208448373411,
+              "targetRate": 0.1926605504587156,
+              "winRate": 0.29357798165137616,
+              "expectancyR": -0.13537177827103955
+            },
+            {
+              "bucket": 3,
+              "quality": "middle",
+              "trades": 108,
+              "averageScore": 0.35177508961525233,
+              "targetRate": 0.23148148148148148,
+              "winRate": 0.2962962962962963,
+              "expectancyR": -0.0979777331825052
+            },
+            {
+              "bucket": 4,
+              "quality": "middle",
+              "trades": 109,
+              "averageScore": 0.34312809697568347,
+              "targetRate": 0.1926605504587156,
+              "winRate": 0.29357798165137616,
+              "expectancyR": -0.153686109390825
+            },
+            {
+              "bucket": 5,
+              "quality": "lowest",
+              "trades": 109,
+              "averageScore": 0.33671734145484694,
+              "targetRate": 0.27522935779816515,
+              "winRate": 0.4036697247706422,
+              "expectancyR": 0.04823570616564469
+            }
+          ]
+        },
+        "development2025": {
+          "riskAtr": 1.25,
+          "maximumHoldMinutes": 120,
+          "candidates": 2555,
+          "selectedTargetRate": 0.22426614481409002,
+          "selectedWinRate": 0.30724070450097846,
+          "selectedExpectancyR": -0.11863754174077555,
+          "inverseExpectancyR": -0.08704829613169907,
+          "oracleExpectancyR": 0.5382158696803122,
+          "eitherDirectionCanHitTarget": 0.46105675146771036,
+          "neitherDirectionCanHitTarget": 0.5389432485322896,
+          "bothDirectionsLose": 0.3694716242661448,
+          "wrongSideWhenOppositeHitsTarget": 0.23679060665362034,
+          "confidenceQuintiles": [
+            {
+              "bucket": 1,
+              "quality": "highest",
+              "trades": 511,
+              "averageScore": 0.39128593824492286,
+              "targetRate": 0.273972602739726,
+              "winRate": 0.3659491193737769,
+              "expectancyR": 0.007465427308311286
+            },
+            {
+              "bucket": 2,
+              "quality": "middle",
+              "trades": 511,
+              "averageScore": 0.36370928581089357,
+              "targetRate": 0.2328767123287671,
+              "winRate": 0.30724070450097846,
+              "expectancyR": -0.11711433361051748
+            },
+            {
+              "bucket": 3,
+              "quality": "middle",
+              "trades": 511,
+              "averageScore": 0.35147192869265853,
+              "targetRate": 0.20743639921722112,
+              "winRate": 0.2876712328767123,
+              "expectancyR": -0.1538521703042119
+            },
+            {
+              "bucket": 4,
+              "quality": "middle",
+              "trades": 511,
+              "averageScore": 0.34265448426614553,
+              "targetRate": 0.22113502935420742,
+              "winRate": 0.30332681017612523,
+              "expectancyR": -0.1271999188065727
+            },
+            {
+              "bucket": 5,
+              "quality": "lowest",
+              "trades": 511,
+              "averageScore": 0.3362456767038787,
+              "targetRate": 0.18590998043052837,
+              "winRate": 0.2720156555772994,
+              "expectancyR": -0.20248671329088713
+            }
+          ]
+        }
+      },
+      {
+        "training2022_23": {
+          "riskAtr": 0.75,
+          "maximumHoldMinutes": 240,
+          "candidates": 6810,
+          "selectedTargetRate": 0.28913362701908957,
+          "selectedWinRate": 0.29265785609397943,
+          "selectedExpectancyR": -0.09405890081155102,
+          "inverseExpectancyR": -0.20233844884191712,
+          "oracleExpectancyR": 0.45360265034653174,
+          "eitherDirectionCanHitTarget": 0.5302496328928047,
+          "neitherDirectionCanHitTarget": 0.4697503671071953,
+          "bothDirectionsLose": 0.46240822320117475,
+          "wrongSideWhenOppositeHitsTarget": 0.24111600587371512,
+          "confidenceQuintiles": [
+            {
+              "bucket": 1,
+              "quality": "highest",
+              "trades": 1362,
+              "averageScore": 0.3820563988343305,
+              "targetRate": 0.3267254038179148,
+              "winRate": 0.3340675477239354,
+              "expectancyR": -0.005392484020981437
+            },
+            {
+              "bucket": 2,
+              "quality": "middle",
+              "trades": 1362,
+              "averageScore": 0.3578136733452082,
+              "targetRate": 0.290014684287812,
+              "winRate": 0.29515418502202645,
+              "expectancyR": -0.08920228473880025
+            },
+            {
+              "bucket": 3,
+              "quality": "middle",
+              "trades": 1362,
+              "averageScore": 0.3479634268742062,
+              "targetRate": 0.25624082232011747,
+              "winRate": 0.25624082232011747,
+              "expectancyR": -0.17243725372443117
+            },
+            {
+              "bucket": 4,
+              "quality": "middle",
+              "trades": 1362,
+              "averageScore": 0.34127873231717193,
+              "targetRate": 0.28487518355359764,
+              "winRate": 0.28707782672540383,
+              "expectancyR": -0.10530582079038464
+            },
+            {
+              "bucket": 5,
+              "quality": "lowest",
+              "trades": 1362,
+              "averageScore": 0.3357881716723494,
+              "targetRate": 0.2878120411160059,
+              "winRate": 0.2907488986784141,
+              "expectancyR": -0.09795666078315778
+            }
+          ]
+        },
+        "calibration2024": {
+          "riskAtr": 0.75,
+          "maximumHoldMinutes": 240,
+          "candidates": 543,
+          "selectedTargetRate": 0.2578268876611418,
+          "selectedWinRate": 0.26151012891344383,
+          "selectedExpectancyR": -0.16534213482363558,
+          "inverseExpectancyR": -0.1304045094265843,
+          "oracleExpectancyR": 0.45425335574978015,
+          "eitherDirectionCanHitTarget": 0.5285451197053407,
+          "neitherDirectionCanHitTarget": 0.4714548802946593,
+          "bothDirectionsLose": 0.4622467771639042,
+          "wrongSideWhenOppositeHitsTarget": 0.27071823204419887,
+          "confidenceQuintiles": [
+            {
+              "bucket": 1,
+              "quality": "highest",
+              "trades": 108,
+              "averageScore": 0.39639558750174114,
+              "targetRate": 0.2962962962962963,
+              "winRate": 0.3055555555555556,
+              "expectancyR": -0.07628059345895774
+            },
+            {
+              "bucket": 2,
+              "quality": "middle",
+              "trades": 109,
+              "averageScore": 0.3634208448373411,
+              "targetRate": 0.1743119266055046,
+              "winRate": 0.1743119266055046,
+              "expectancyR": -0.35450703096830916
+            },
+            {
+              "bucket": 3,
+              "quality": "middle",
+              "trades": 108,
+              "averageScore": 0.35177508961525233,
+              "targetRate": 0.24074074074074073,
+              "winRate": 0.24074074074074073,
+              "expectancyR": -0.20833333333333334
+            },
+            {
+              "bucket": 4,
+              "quality": "middle",
+              "trades": 109,
+              "averageScore": 0.34312809697568347,
+              "targetRate": 0.26605504587155965,
+              "winRate": 0.26605504587155965,
+              "expectancyR": -0.15137614678899083
+            },
+            {
+              "bucket": 5,
+              "quality": "lowest",
+              "trades": 109,
+              "averageScore": 0.33671734145484694,
+              "targetRate": 0.3119266055045872,
+              "winRate": 0.3211009174311927,
+              "expectancyR": -0.03579090587266939
+            }
+          ]
+        },
+        "development2025": {
+          "riskAtr": 0.75,
+          "maximumHoldMinutes": 240,
+          "candidates": 2555,
+          "selectedTargetRate": 0.24148727984344423,
+          "selectedWinRate": 0.24579256360078278,
+          "selectedExpectancyR": -0.20090746550386973,
+          "inverseExpectancyR": -0.1425409639779647,
+          "oracleExpectancyR": 0.40649000524612133,
+          "eitherDirectionCanHitTarget": 0.5099804305283757,
+          "neitherDirectionCanHitTarget": 0.4900195694716243,
+          "bothDirectionsLose": 0.48297455968688846,
+          "wrongSideWhenOppositeHitsTarget": 0.2684931506849315,
+          "confidenceQuintiles": [
+            {
+              "bucket": 1,
+              "quality": "highest",
+              "trades": 511,
+              "averageScore": 0.39128593824492286,
+              "targetRate": 0.29158512720156554,
+              "winRate": 0.29158512720156554,
+              "expectancyR": -0.09393346379647749
+            },
+            {
+              "bucket": 2,
+              "quality": "middle",
+              "trades": 511,
+              "averageScore": 0.36370928581089357,
+              "targetRate": 0.23483365949119372,
+              "winRate": 0.23874755381604695,
+              "expectancyR": -0.21508542230302483
+            },
+            {
+              "bucket": 3,
+              "quality": "middle",
+              "trades": 511,
+              "averageScore": 0.35147192869265853,
+              "targetRate": 0.24853228962818003,
+              "winRate": 0.2563600782778865,
+              "expectancyR": -0.1817455942732302
+            },
+            {
+              "bucket": 4,
+              "quality": "middle",
+              "trades": 511,
+              "averageScore": 0.34265448426614553,
+              "targetRate": 0.24070450097847357,
+              "winRate": 0.24853228962818003,
+              "expectancyR": -0.19860352291535832
+            },
+            {
+              "bucket": 5,
+              "quality": "lowest",
+              "trades": 511,
+              "averageScore": 0.3362456767038787,
+              "targetRate": 0.1917808219178082,
+              "winRate": 0.19373776908023482,
+              "expectancyR": -0.3151693242312579
+            }
+          ]
+        }
+      },
+      {
+        "training2022_23": {
+          "riskAtr": 1,
+          "maximumHoldMinutes": 240,
+          "candidates": 6810,
+          "selectedTargetRate": 0.2966226138032305,
+          "selectedWinRate": 0.31718061674008813,
+          "selectedExpectancyR": -0.05211119372041883,
+          "inverseExpectancyR": -0.1561946448844704,
+          "oracleExpectancyR": 0.5416072236738316,
+          "eitherDirectionCanHitTarget": 0.5474302496328928,
+          "neitherDirectionCanHitTarget": 0.45256975036710717,
+          "bothDirectionsLose": 0.4111600587371512,
+          "wrongSideWhenOppositeHitsTarget": 0.25080763582966226,
+          "confidenceQuintiles": [
+            {
+              "bucket": 1,
+              "quality": "highest",
+              "trades": 1362,
+              "averageScore": 0.3820563988343305,
+              "targetRate": 0.3399412628487518,
+              "winRate": 0.3656387665198238,
+              "expectancyR": 0.05570396791727498
+            },
+            {
+              "bucket": 2,
+              "quality": "middle",
+              "trades": 1362,
+              "averageScore": 0.3578136733452082,
+              "targetRate": 0.30323054331864907,
+              "winRate": 0.32305433186490456,
+              "expectancyR": -0.03927091676187122
+            },
+            {
+              "bucket": 3,
+              "quality": "middle",
+              "trades": 1362,
+              "averageScore": 0.3479634268742062,
+              "targetRate": 0.27606461086637296,
+              "winRate": 0.2944199706314244,
+              "expectancyR": -0.10083385121619051
+            },
+            {
+              "bucket": 4,
+              "quality": "middle",
+              "trades": 1362,
+              "averageScore": 0.34127873231717193,
+              "targetRate": 0.2812041116005874,
+              "winRate": 0.2966226138032305,
+              "expectancyR": -0.09611907742329041
+            },
+            {
+              "bucket": 5,
+              "quality": "lowest",
+              "trades": 1362,
+              "averageScore": 0.3357881716723494,
+              "targetRate": 0.28267254038179146,
+              "winRate": 0.30616740088105726,
+              "expectancyR": -0.08003609111801704
+            }
+          ]
+        },
+        "calibration2024": {
+          "riskAtr": 1,
+          "maximumHoldMinutes": 240,
+          "candidates": 543,
+          "selectedTargetRate": 0.2578268876611418,
+          "selectedWinRate": 0.27808471454880296,
+          "selectedExpectancyR": -0.136955726854831,
+          "inverseExpectancyR": -0.1116418546065777,
+          "oracleExpectancyR": 0.5002170898167453,
+          "eitherDirectionCanHitTarget": 0.5285451197053407,
+          "neitherDirectionCanHitTarget": 0.4714548802946593,
+          "bothDirectionsLose": 0.43646408839779005,
+          "wrongSideWhenOppositeHitsTarget": 0.27071823204419887,
+          "confidenceQuintiles": [
+            {
+              "bucket": 1,
+              "quality": "highest",
+              "trades": 108,
+              "averageScore": 0.39639558750174114,
+              "targetRate": 0.25,
+              "winRate": 0.2777777777777778,
+              "expectancyR": -0.1544097943723395
+            },
+            {
+              "bucket": 2,
+              "quality": "middle",
+              "trades": 109,
+              "averageScore": 0.3634208448373411,
+              "targetRate": 0.22018348623853212,
+              "winRate": 0.22935779816513763,
+              "expectancyR": -0.23461356108795153
+            },
+            {
+              "bucket": 3,
+              "quality": "middle",
+              "trades": 108,
+              "averageScore": 0.35177508961525233,
+              "targetRate": 0.21296296296296297,
+              "winRate": 0.25,
+              "expectancyR": -0.19992375427403444
+            },
+            {
+              "bucket": 4,
+              "quality": "middle",
+              "trades": 109,
+              "averageScore": 0.34312809697568347,
+              "targetRate": 0.26605504587155965,
+              "winRate": 0.27522935779816515,
+              "expectancyR": -0.1370343760362545
+            },
+            {
+              "bucket": 5,
+              "quality": "lowest",
+              "trades": 109,
+              "averageScore": 0.33671734145484694,
+              "targetRate": 0.3394495412844037,
+              "winRate": 0.3577981651376147,
+              "expectancyR": 0.040465034111684395
+            }
+          ]
+        },
+        "development2025": {
+          "riskAtr": 1,
+          "maximumHoldMinutes": 240,
+          "candidates": 2555,
+          "selectedTargetRate": 0.2563600782778865,
+          "selectedWinRate": 0.2696673189823875,
+          "selectedExpectancyR": -0.1561043288394971,
+          "inverseExpectancyR": -0.09009011454967977,
+          "oracleExpectancyR": 0.5035240320875627,
+          "eitherDirectionCanHitTarget": 0.5428571428571428,
+          "neitherDirectionCanHitTarget": 0.45714285714285713,
+          "bothDirectionsLose": 0.4328767123287671,
+          "wrongSideWhenOppositeHitsTarget": 0.28649706457925633,
+          "confidenceQuintiles": [
+            {
+              "bucket": 1,
+              "quality": "highest",
+              "trades": 511,
+              "averageScore": 0.39128593824492286,
+              "targetRate": 0.31702544031311153,
+              "winRate": 0.32289628180039137,
+              "expectancyR": -0.030801082025142618
+            },
+            {
+              "bucket": 2,
+              "quality": "middle",
+              "trades": 511,
+              "averageScore": 0.36370928581089357,
+              "targetRate": 0.25244618395303325,
+              "winRate": 0.26614481409001955,
+              "expectancyR": -0.16100467714477132
+            },
+            {
+              "bucket": 3,
+              "quality": "middle",
+              "trades": 511,
+              "averageScore": 0.35147192869265853,
+              "targetRate": 0.25244618395303325,
+              "winRate": 0.2700587084148728,
+              "expectancyR": -0.15979368733114757
+            },
+            {
+              "bucket": 4,
+              "quality": "middle",
+              "trades": 511,
+              "averageScore": 0.34265448426614553,
+              "targetRate": 0.25440313111545987,
+              "winRate": 0.2700587084148728,
+              "expectancyR": -0.1584877599662811
+            },
+            {
+              "bucket": 5,
+              "quality": "lowest",
+              "trades": 511,
+              "averageScore": 0.3362456767038787,
+              "targetRate": 0.2054794520547945,
+              "winRate": 0.2191780821917808,
+              "expectancyR": -0.2704344377301426
+            }
+          ]
+        }
+      },
+      {
+        "training2022_23": {
+          "riskAtr": 1.25,
+          "maximumHoldMinutes": 240,
+          "candidates": 6810,
+          "selectedTargetRate": 0.28604992657856093,
+          "selectedWinRate": 0.3328928046989721,
+          "selectedExpectancyR": -0.03563452865864281,
+          "inverseExpectancyR": -0.13212532028638152,
+          "oracleExpectancyR": 0.580022601964684,
+          "eitherDirectionCanHitTarget": 0.5309838472834068,
+          "neitherDirectionCanHitTarget": 0.46901615271659325,
+          "bothDirectionsLose": 0.37591776798825255,
+          "wrongSideWhenOppositeHitsTarget": 0.24493392070484582,
+          "confidenceQuintiles": [
+            {
+              "bucket": 1,
+              "quality": "highest",
+              "trades": 1362,
+              "averageScore": 0.3820563988343305,
+              "targetRate": 0.3303964757709251,
+              "winRate": 0.3876651982378855,
+              "expectancyR": 0.083129148978419
+            },
+            {
+              "bucket": 2,
+              "quality": "middle",
+              "trades": 1362,
+              "averageScore": 0.3578136733452082,
+              "targetRate": 0.2973568281938326,
+              "winRate": 0.34140969162995594,
+              "expectancyR": -0.015541464064718168
+            },
+            {
+              "bucket": 3,
+              "quality": "middle",
+              "trades": 1362,
+              "averageScore": 0.3479634268742062,
+              "targetRate": 0.26064610866372984,
+              "winRate": 0.31130690161527164,
+              "expectancyR": -0.08576070856955553
+            },
+            {
+              "bucket": 4,
+              "quality": "middle",
+              "trades": 1362,
+              "averageScore": 0.34127873231717193,
+              "targetRate": 0.263582966226138,
+              "winRate": 0.30176211453744495,
+              "expectancyR": -0.10321412151833012
+            },
+            {
+              "bucket": 5,
+              "quality": "lowest",
+              "trades": 1362,
+              "averageScore": 0.3357881716723494,
+              "targetRate": 0.27826725403817915,
+              "winRate": 0.3223201174743025,
+              "expectancyR": -0.05678549811902908
+            }
+          ]
+        },
+        "calibration2024": {
+          "riskAtr": 1.25,
+          "maximumHoldMinutes": 240,
+          "candidates": 543,
+          "selectedTargetRate": 0.26519337016574585,
+          "selectedWinRate": 0.31123388581952116,
+          "selectedExpectancyR": -0.0809815969233943,
+          "inverseExpectancyR": -0.08585886906367216,
+          "oracleExpectancyR": 0.5792456189021439,
+          "eitherDirectionCanHitTarget": 0.5303867403314917,
+          "neitherDirectionCanHitTarget": 0.4696132596685083,
+          "bothDirectionsLose": 0.3830570902394107,
+          "wrongSideWhenOppositeHitsTarget": 0.26519337016574585,
+          "confidenceQuintiles": [
+            {
+              "bucket": 1,
+              "quality": "highest",
+              "trades": 108,
+              "averageScore": 0.39639558750174114,
+              "targetRate": 0.26851851851851855,
+              "winRate": 0.32407407407407407,
+              "expectancyR": -0.07291377811051115
+            },
+            {
+              "bucket": 2,
+              "quality": "middle",
+              "trades": 109,
+              "averageScore": 0.3634208448373411,
+              "targetRate": 0.24770642201834864,
+              "winRate": 0.26605504587155965,
+              "expectancyR": -0.15356837192452596
+            },
+            {
+              "bucket": 3,
+              "quality": "middle",
+              "trades": 108,
+              "averageScore": 0.35177508961525233,
+              "targetRate": 0.25925925925925924,
+              "winRate": 0.3148148148148148,
+              "expectancyR": -0.08098444870018454
+            },
+            {
+              "bucket": 4,
+              "quality": "middle",
+              "trades": 109,
+              "averageScore": 0.34312809697568347,
+              "targetRate": 0.24770642201834864,
+              "winRate": 0.27522935779816515,
+              "expectancyR": -0.14697465297015824
+            },
+            {
+              "bucket": 5,
+              "quality": "lowest",
+              "trades": 109,
+              "averageScore": 0.33671734145484694,
+              "targetRate": 0.30275229357798167,
+              "winRate": 0.3761467889908257,
+              "expectancyR": 0.0496072576116752
+            }
+          ]
+        },
+        "development2025": {
+          "riskAtr": 1.25,
+          "maximumHoldMinutes": 240,
+          "candidates": 2555,
+          "selectedTargetRate": 0.2559686888454012,
+          "selectedWinRate": 0.29119373776908025,
+          "selectedExpectancyR": -0.12509091687384682,
+          "inverseExpectancyR": -0.08473856856566292,
+          "oracleExpectancyR": 0.5380448331144331,
+          "eitherDirectionCanHitTarget": 0.5322896281800391,
+          "neitherDirectionCanHitTarget": 0.46771037181996084,
+          "bothDirectionsLose": 0.40273972602739727,
+          "wrongSideWhenOppositeHitsTarget": 0.27632093933463797,
+          "confidenceQuintiles": [
+            {
+              "bucket": 1,
+              "quality": "highest",
+              "trades": 511,
+              "averageScore": 0.39128593824492286,
+              "targetRate": 0.3111545988258317,
+              "winRate": 0.3424657534246575,
+              "expectancyR": -0.005443820924202556
+            },
+            {
+              "bucket": 2,
+              "quality": "middle",
+              "trades": 511,
+              "averageScore": 0.36370928581089357,
+              "targetRate": 0.26418786692759294,
+              "winRate": 0.2974559686888454,
+              "expectancyR": -0.10686374260152402
+            },
+            {
+              "bucket": 3,
+              "quality": "middle",
+              "trades": 511,
+              "averageScore": 0.35147192869265853,
+              "targetRate": 0.2328767123287671,
+              "winRate": 0.273972602739726,
+              "expectancyR": -0.1690210301173549
+            },
+            {
+              "bucket": 4,
+              "quality": "middle",
+              "trades": 511,
+              "averageScore": 0.34265448426614553,
+              "targetRate": 0.24853228962818003,
+              "winRate": 0.29354207436399216,
+              "expectancyR": -0.130435925702763
+            },
+            {
+              "bucket": 5,
+              "quality": "lowest",
+              "trades": 511,
+              "averageScore": 0.3362456767038787,
+              "targetRate": 0.22309197651663404,
+              "winRate": 0.24853228962818003,
+              "expectancyR": -0.21369006502338947
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "results": {
+    "trainingHourComparison2022_23": [],
+    "train2022_23": {
+      "trades": 0,
+      "marketDays": 622,
+      "tradesPerMarketDay": 0,
+      "wins": 0,
+      "winRate": null,
+      "betterPathAccuracy": null,
+      "totalR": 0,
+      "expectancyR": null,
+      "profitFactor": null,
+      "maxDrawdownR": 0,
+      "targetHits": 0,
+      "stops": 0,
+      "timeExits": 0
+    },
+    "calibrationFrontier2024": [
+      {
+        "targetTradesPerDay": 3,
+        "confidenceThreshold": 0.3333333333333333,
+        "trades": 251,
+        "marketDays": 314,
+        "tradesPerMarketDay": 0.7993630573248408,
+        "wins": 81,
+        "winRate": 0.32270916334661354,
+        "betterPathAccuracy": 0.4900398406374502,
+        "totalR": -33.822958873632,
+        "expectancyR": -0.13475282419773704,
+        "profitFactor": 0.7103459582306736,
+        "maxDrawdownR": 42.04017553717975,
+        "targetHits": 44,
+        "stops": 148,
+        "timeExits": 59
+      },
+      {
+        "targetTradesPerDay": 2.5,
+        "confidenceThreshold": 0.3333333333333333,
+        "trades": 251,
+        "marketDays": 314,
+        "tradesPerMarketDay": 0.7993630573248408,
+        "wins": 81,
+        "winRate": 0.32270916334661354,
+        "betterPathAccuracy": 0.4900398406374502,
+        "totalR": -33.822958873632,
+        "expectancyR": -0.13475282419773704,
+        "profitFactor": 0.7103459582306736,
+        "maxDrawdownR": 42.04017553717975,
+        "targetHits": 44,
+        "stops": 148,
+        "timeExits": 59
+      },
+      {
+        "targetTradesPerDay": 2,
+        "confidenceThreshold": 0.3333333333333333,
+        "trades": 251,
+        "marketDays": 314,
+        "tradesPerMarketDay": 0.7993630573248408,
+        "wins": 81,
+        "winRate": 0.32270916334661354,
+        "betterPathAccuracy": 0.4900398406374502,
+        "totalR": -33.822958873632,
+        "expectancyR": -0.13475282419773704,
+        "profitFactor": 0.7103459582306736,
+        "maxDrawdownR": 42.04017553717975,
+        "targetHits": 44,
+        "stops": 148,
+        "timeExits": 59
+      },
+      {
+        "targetTradesPerDay": 1.5,
+        "confidenceThreshold": 0.3333333333333333,
+        "trades": 251,
+        "marketDays": 314,
+        "tradesPerMarketDay": 0.7993630573248408,
+        "wins": 81,
+        "winRate": 0.32270916334661354,
+        "betterPathAccuracy": 0.4900398406374502,
+        "totalR": -33.822958873632,
+        "expectancyR": -0.13475282419773704,
+        "profitFactor": 0.7103459582306736,
+        "maxDrawdownR": 42.04017553717975,
+        "targetHits": 44,
+        "stops": 148,
+        "timeExits": 59
+      },
+      {
+        "targetTradesPerDay": 1,
+        "confidenceThreshold": 0.3333333333333333,
+        "trades": 251,
+        "marketDays": 314,
+        "tradesPerMarketDay": 0.7993630573248408,
+        "wins": 81,
+        "winRate": 0.32270916334661354,
+        "betterPathAccuracy": 0.4900398406374502,
+        "totalR": -33.822958873632,
+        "expectancyR": -0.13475282419773704,
+        "profitFactor": 0.7103459582306736,
+        "maxDrawdownR": 42.04017553717975,
+        "targetHits": 44,
+        "stops": 148,
+        "timeExits": 59
+      },
+      {
+        "targetTradesPerDay": 0.5,
+        "confidenceThreshold": 0.3509402275085449,
+        "trades": 158,
+        "marketDays": 314,
+        "tradesPerMarketDay": 0.5031847133757962,
+        "wins": 50,
+        "winRate": 0.31645569620253167,
+        "betterPathAccuracy": 0.44936708860759494,
+        "totalR": -27.47148588483103,
+        "expectancyR": -0.1738701638280445,
+        "profitFactor": 0.633019731378505,
+        "maxDrawdownR": 35.29650031137038,
+        "targetHits": 24,
+        "stops": 95,
+        "timeExits": 39
+      },
+      {
+        "targetTradesPerDay": 0.25,
+        "confidenceThreshold": 0.3702816963195801,
+        "trades": 78,
+        "marketDays": 314,
+        "tradesPerMarketDay": 0.2484076433121019,
+        "wins": 25,
+        "winRate": 0.32051282051282054,
+        "betterPathAccuracy": 0.47435897435897434,
+        "totalR": -12.086955291795576,
+        "expectancyR": -0.15496096527943046,
+        "profitFactor": 0.6568540986857445,
+        "maxDrawdownR": 15.836955291795576,
+        "targetHits": 13,
+        "stops": 44,
+        "timeExits": 21
+      }
+    ],
+    "selectedCalibration2024": null,
+    "calibration2024": {
+      "trades": 0,
+      "marketDays": 314,
+      "tradesPerMarketDay": 0,
+      "wins": 0,
+      "winRate": null,
+      "betterPathAccuracy": null,
+      "totalR": 0,
+      "expectancyR": null,
+      "profitFactor": null,
+      "maxDrawdownR": 0,
+      "targetHits": 0,
+      "stops": 0,
+      "timeExits": 0
+    },
+    "development2025": {
+      "trades": 0,
+      "marketDays": 313,
+      "tradesPerMarketDay": 0,
+      "wins": 0,
+      "winRate": null,
+      "betterPathAccuracy": null,
+      "totalR": 0,
+      "expectancyR": null,
+      "profitFactor": null,
+      "maxDrawdownR": 0,
+      "targetHits": 0,
+      "stops": 0,
+      "timeExits": 0
+    },
+    "diagnosticFrequencyFrontier2025": [
+      {
+        "targetTradesPerDay": 3,
+        "confidenceThreshold": 0.3333333333333333,
+        "trades": 526,
+        "marketDays": 313,
+        "tradesPerMarketDay": 1.6805111821086263,
+        "wins": 154,
+        "winRate": 0.29277566539923955,
+        "betterPathAccuracy": 0.49809885931558934,
+        "totalR": -122.56510321904734,
+        "expectancyR": -0.2330135042187212,
+        "profitFactor": 0.5331620521663136,
+        "maxDrawdownR": 127.67870202142254,
+        "targetHits": 61,
+        "stops": 337,
+        "timeExits": 128
+      },
+      {
+        "targetTradesPerDay": 2.5,
+        "confidenceThreshold": 0.3333333333333333,
+        "trades": 526,
+        "marketDays": 313,
+        "tradesPerMarketDay": 1.6805111821086263,
+        "wins": 154,
+        "winRate": 0.29277566539923955,
+        "betterPathAccuracy": 0.49809885931558934,
+        "totalR": -122.56510321904734,
+        "expectancyR": -0.2330135042187212,
+        "profitFactor": 0.5331620521663136,
+        "maxDrawdownR": 127.67870202142254,
+        "targetHits": 61,
+        "stops": 337,
+        "timeExits": 128
+      },
+      {
+        "targetTradesPerDay": 2,
+        "confidenceThreshold": 0.3333333333333333,
+        "trades": 526,
+        "marketDays": 313,
+        "tradesPerMarketDay": 1.6805111821086263,
+        "wins": 154,
+        "winRate": 0.29277566539923955,
+        "betterPathAccuracy": 0.49809885931558934,
+        "totalR": -122.56510321904734,
+        "expectancyR": -0.2330135042187212,
+        "profitFactor": 0.5331620521663136,
+        "maxDrawdownR": 127.67870202142254,
+        "targetHits": 61,
+        "stops": 337,
+        "timeExits": 128
+      },
+      {
+        "targetTradesPerDay": 1,
+        "confidenceThreshold": 0.3533291816711426,
+        "trades": 314,
+        "marketDays": 313,
+        "tradesPerMarketDay": 1.0031948881789137,
+        "wins": 86,
+        "winRate": 0.27388535031847133,
+        "betterPathAccuracy": 0.4585987261146497,
+        "totalR": -83.62516776001699,
+        "expectancyR": -0.26632219031852544,
+        "profitFactor": 0.4692460905019082,
+        "maxDrawdownR": 87.24459243592712,
+        "targetHits": 33,
+        "stops": 201,
+        "timeExits": 80
+      },
+      {
+        "targetTradesPerDay": 0.5,
+        "confidenceThreshold": 0.3753190040588379,
+        "trades": 157,
+        "marketDays": 313,
+        "tradesPerMarketDay": 0.5015974440894568,
+        "wins": 61,
+        "winRate": 0.3885350318471338,
+        "betterPathAccuracy": 0.5732484076433121,
+        "totalR": -17.21043833384125,
+        "expectancyR": -0.10962062633019905,
+        "profitFactor": 0.7428106820764051,
+        "maxDrawdownR": 24.087346478003482,
+        "targetHits": 22,
+        "stops": 85,
+        "timeExits": 50
+      }
+    ],
+    "finalHoldout2026": "SEALED"
+  }
+}

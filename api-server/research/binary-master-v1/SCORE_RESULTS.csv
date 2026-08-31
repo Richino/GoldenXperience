@@ -1,0 +1,2 @@
+threshold,pctTraded,signals,winRate,note
+N/A,N/A,N/A,N/A,Binary Master rule has no continuous score; signal requires PinBar + SMA alignment on same closed bar

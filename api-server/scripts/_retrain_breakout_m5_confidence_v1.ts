@@ -103,7 +103,7 @@ writeFileSync(OUT, JSON.stringify({
   modelName: "breakout-m5-confidence-v1",
   version: "1.0.0",
   scoreKind: "probability",
-  outputMeaning: "P(long_side_wins) on M5 breakout setups. Combined rule: flip when model disagrees (CONF_T=0.00).",
+    outputMeaning: "Research-only P(long_side_wins) score. The direction-flip rule requires counterfactual validation before execution.",
   featureNames: [...FEATURE_NAMES],
   intercept: b,
   coefficients,
@@ -121,7 +121,7 @@ writeFileSync(OUT, JSON.stringify({
       other: "skip untrained pairs",
     },
     sourceDataset: "backtest-breakout-m5",
-    walkForwardValidation: "72.6% winrate, +0.227R/trade, 2.68 trades/day OOS",
+    walkForwardValidation: "Pending a bid/ask counterfactual audit from an unblocked candidate universe.",
   },
 }, null, 2));
 console.log(`\nwrote ${OUT}`);

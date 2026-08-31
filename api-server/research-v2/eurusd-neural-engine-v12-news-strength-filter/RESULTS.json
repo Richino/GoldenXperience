@@ -1,0 +1,258 @@
+{
+  "generatedAt": "2026-08-29T13:15:07.993Z",
+  "verdict": "VALIDATION_GATE_FAILED",
+  "execution": {
+    "enabled": false,
+    "status": "DISABLED",
+    "reason": "research result never authorizes orders"
+  },
+  "method": {
+    "opportunity": "V7 Stage-1 score retained only as a logged diagnostic after V10 showed it did not select 72-hour news winners",
+    "direction": "original non-inflation/rate ForexFactory majority-vote direction",
+    "surpriseStrength": "sum of absolute actual-minus-forecast differences normalized by max(abs(forecast), 1); used only as a filter, never to change direction",
+    "decision": "15 minutes after release after three completed M5 candles",
+    "entry": "next M5 open using executable ask for long and bid for short",
+    "confirmation": "15-minute EUR/USD move must agree with news direction",
+    "volatilityGate": "pre-release ATR14 <= 5.53 pips",
+    "stop": "1.0 pre-release ATR14",
+    "target": "2.0 stop distances",
+    "payoff": "+1.5R / -0.75R",
+    "maximumHold": "72 wall-clock hours",
+    "ambiguousBar": "charged as stop",
+    "thresholdSelection": "outcome-blind top 100/75/50/33 percent surprise-strength tiers; 2024-25 selects only if n>=20, win>=40%, expectancy>0, PF>1"
+  },
+  "integrity": {
+    "storedTradesRead": false,
+    "priorResearchOutputsReadAtRuntime": false,
+    "targetPairExcludedFromDirection": true,
+    "development": "Aug 2024-Jul 2025",
+    "validation": "Aug 2025-Jul 2026; opened only after development gate",
+    "warning": "the baseline validation period has appeared in prior research, but this surprise-strength threshold was not previously evaluated"
+  },
+  "data": {
+    "oandaM5Candles": 344780,
+    "trainingExamples2022_23": 149001,
+    "developmentCalendarRows": 462,
+    "developmentDirectionalGroups": 121,
+    "developmentNonOverlappingGroups": 102,
+    "developmentEligibleAfterCausalFilters": 44,
+    "validationCalendarRows": 339,
+    "validationDirectionalGroups": 102,
+    "validationNonOverlappingGroups": 85,
+    "validationEligibleAfterCausalFilters": 52
+  },
+  "results": {
+    "developmentFrontier": [
+      {
+        "keptFraction": 1,
+        "surpriseStrengthThreshold": 0.0040650406504065045,
+        "trades": 44,
+        "wins": 15,
+        "winRate": 0.3409090909090909,
+        "totalR": 0.75,
+        "expectancyR": 0.017045454545454544,
+        "profitFactor": 1.0344827586206897,
+        "maxDrawdownR": 8.25,
+        "targetHits": 15,
+        "stops": 29,
+        "timeExits": 0,
+        "medianSpreadPips": 1.500000000000945
+      },
+      {
+        "keptFraction": 0.75,
+        "surpriseStrengthThreshold": 0.038135593220338986,
+        "trades": 33,
+        "wins": 10,
+        "winRate": 0.30303030303030304,
+        "totalR": -2.25,
+        "expectancyR": -0.06818181818181818,
+        "profitFactor": 0.8695652173913043,
+        "maxDrawdownR": 6.75,
+        "targetHits": 10,
+        "stops": 23,
+        "timeExits": 0,
+        "medianSpreadPips": 1.5999999999993797
+      },
+      {
+        "keptFraction": 0.5,
+        "surpriseStrengthThreshold": 0.06766917293233082,
+        "trades": 22,
+        "wins": 9,
+        "winRate": 0.4090909090909091,
+        "totalR": 3.75,
+        "expectancyR": 0.17045454545454544,
+        "profitFactor": 1.3846153846153846,
+        "maxDrawdownR": 3,
+        "targetHits": 9,
+        "stops": 13,
+        "timeExits": 0,
+        "medianSpreadPips": 1.500000000000945
+      },
+      {
+        "keptFraction": 0.33,
+        "surpriseStrengthThreshold": 0.23648648648648649,
+        "trades": 15,
+        "wins": 5,
+        "winRate": 0.3333333333333333,
+        "totalR": 0,
+        "expectancyR": 0,
+        "profitFactor": 1,
+        "maxDrawdownR": 2.25,
+        "targetHits": 5,
+        "stops": 10,
+        "timeExits": 0,
+        "medianSpreadPips": 1.500000000000945
+      }
+    ],
+    "selectedDevelopment": {
+      "keptFraction": 0.5,
+      "surpriseStrengthThreshold": 0.06766917293233082,
+      "trades": 22,
+      "wins": 9,
+      "winRate": 0.4090909090909091,
+      "totalR": 3.75,
+      "expectancyR": 0.17045454545454544,
+      "profitFactor": 1.3846153846153846,
+      "maxDrawdownR": 3,
+      "targetHits": 9,
+      "stops": 13,
+      "timeExits": 0,
+      "medianSpreadPips": 1.500000000000945
+    },
+    "validation": {
+      "trades": 28,
+      "wins": 9,
+      "winRate": 0.32142857142857145,
+      "totalR": -0.75,
+      "expectancyR": -0.026785714285714284,
+      "profitFactor": 0.9473684210526315,
+      "maxDrawdownR": 3.75,
+      "targetHits": 9,
+      "stops": 19,
+      "timeExits": 0,
+      "medianSpreadPips": 1.5999999999993797
+    },
+    "validationSample": [
+      {
+        "releaseTime": "2025-08-01T12:30:00.000Z",
+        "entryTime": "2025-08-01T12:45:00.000000000Z",
+        "direction": 1,
+        "opportunityProbability": 0.34229696812425875,
+        "surpriseStrength": 0.3113207547169811,
+        "resultR": -0.75,
+        "outcome": "AMBIGUOUS_STOP",
+        "spreadPips": 1.7999999999984695
+      },
+      {
+        "releaseTime": "2025-08-15T12:30:00.000Z",
+        "entryTime": "2025-08-15T12:45:00.000000000Z",
+        "direction": 1,
+        "opportunityProbability": 0.4565027862941314,
+        "surpriseStrength": 0.09999999999999998,
+        "resultR": -0.75,
+        "outcome": "STOP",
+        "spreadPips": 1.7000000000000348
+      },
+      {
+        "releaseTime": "2025-09-05T12:30:00.000Z",
+        "entryTime": "2025-09-05T12:45:00.000000000Z",
+        "direction": 1,
+        "opportunityProbability": 0.3519310491544594,
+        "surpriseStrength": 0.7066666666666667,
+        "resultR": -0.75,
+        "outcome": "STOP",
+        "spreadPips": 1.80000000000069
+      },
+      {
+        "releaseTime": "2025-09-16T12:30:00.000Z",
+        "entryTime": "2025-09-16T12:45:00.000000000Z",
+        "direction": -1,
+        "opportunityProbability": 0.3688365181542368,
+        "surpriseStrength": 0.7,
+        "resultR": -0.75,
+        "outcome": "STOP",
+        "spreadPips": 1.5999999999993797
+      },
+      {
+        "releaseTime": "2025-09-25T12:30:00.000Z",
+        "entryTime": "2025-09-25T12:45:00.000000000Z",
+        "direction": -1,
+        "opportunityProbability": 0.41341750429559215,
+        "surpriseStrength": 0.215892833918585,
+        "resultR": -0.75,
+        "outcome": "STOP",
+        "spreadPips": 1.40000000000029
+      },
+      {
+        "releaseTime": "2025-10-01T12:15:00.000Z",
+        "entryTime": "2025-10-01T12:30:00.000000000Z",
+        "direction": 1,
+        "opportunityProbability": 0.47498833987881106,
+        "surpriseStrength": 1.6153846153846154,
+        "resultR": 1.5,
+        "outcome": "TARGET",
+        "spreadPips": 1.40000000000029
+      },
+      {
+        "releaseTime": "2025-10-24T07:30:00.000Z",
+        "entryTime": "2025-10-24T07:45:00.000000000Z",
+        "direction": 1,
+        "opportunityProbability": 0.3014574869105504,
+        "surpriseStrength": 0.06855640554270691,
+        "resultR": -0.75,
+        "outcome": "STOP",
+        "spreadPips": 1.40000000000029
+      },
+      {
+        "releaseTime": "2025-11-05T13:15:00.000Z",
+        "entryTime": "2025-11-05T13:30:00.000000000Z",
+        "direction": -1,
+        "opportunityProbability": 0.2823422250705114,
+        "surpriseStrength": 0.3125,
+        "resultR": 1.5,
+        "outcome": "TARGET",
+        "spreadPips": 1.500000000000945
+      },
+      {
+        "releaseTime": "2025-12-03T13:15:00.000Z",
+        "entryTime": "2025-12-03T13:30:00.000000000Z",
+        "direction": 1,
+        "opportunityProbability": 0.2801577681673264,
+        "surpriseStrength": 7.4,
+        "resultR": -0.75,
+        "outcome": "STOP",
+        "spreadPips": 1.6000000000016001
+      },
+      {
+        "releaseTime": "2025-12-04T13:30:00.000Z",
+        "entryTime": "2025-12-04T13:45:00.000000000Z",
+        "direction": -1,
+        "opportunityProbability": 0.4155052648043284,
+        "surpriseStrength": 0.1278538812785388,
+        "resultR": -0.75,
+        "outcome": "STOP",
+        "spreadPips": 1.6000000000016001
+      },
+      {
+        "releaseTime": "2025-12-09T15:00:00.000Z",
+        "entryTime": "2025-12-09T15:15:00.000000000Z",
+        "direction": -1,
+        "opportunityProbability": 0.22121837458889385,
+        "surpriseStrength": 0.07422969187675074,
+        "resultR": -0.75,
+        "outcome": "STOP",
+        "spreadPips": 1.4999999999987246
+      },
+      {
+        "releaseTime": "2025-12-10T13:30:00.000Z",
+        "entryTime": "2025-12-10T13:45:00.000000000Z",
+        "direction": 1,
+        "opportunityProbability": 0.25385269240641983,
+        "surpriseStrength": 0.09999999999999998,
+        "resultR": 1.5,
+        "outcome": "TARGET",
+        "spreadPips": 1.7000000000000348
+      }
+    ]
+  }
+}

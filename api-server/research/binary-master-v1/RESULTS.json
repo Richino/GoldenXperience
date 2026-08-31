@@ -1,0 +1,925 @@
+{
+  "verdict": "NO_BINARY_MASTER_EDGE",
+  "claim3m": "70_PERCENT_NOT_SUPPORTED",
+  "claim5m": "70_PERCENT_NOT_SUPPORTED",
+  "data": {
+    "source": "oanda",
+    "fetchedAt": "2026-08-30T04:15:49.182Z",
+    "period": {
+      "start": "2026-07-16T04:15:00.000Z",
+      "end": "2026-08-28T21:00:00.000Z"
+    },
+    "totalCandles": 543370,
+    "totalMissing": 211731,
+    "coverage": [
+      {
+        "pair": "EUR_USD",
+        "candles": 45325,
+        "start": "2026-07-16T04:15:00.000Z",
+        "end": "2026-08-28T21:00:00.000Z",
+        "gaps": 191,
+        "missing": 17601
+      },
+      {
+        "pair": "GBP_USD",
+        "candles": 45381,
+        "start": "2026-07-16T04:15:00.000Z",
+        "end": "2026-08-28T21:00:00.000Z",
+        "gaps": 128,
+        "missing": 17545
+      },
+      {
+        "pair": "USD_JPY",
+        "candles": 45385,
+        "start": "2026-07-16T04:16:00.000Z",
+        "end": "2026-08-28T21:00:00.000Z",
+        "gaps": 131,
+        "missing": 17540
+      },
+      {
+        "pair": "AUD_USD",
+        "candles": 45059,
+        "start": "2026-07-16T04:16:00.000Z",
+        "end": "2026-08-28T21:00:00.000Z",
+        "gaps": 395,
+        "missing": 17866
+      },
+      {
+        "pair": "NZD_USD",
+        "candles": 45097,
+        "start": "2026-07-16T04:16:00.000Z",
+        "end": "2026-08-28T20:59:00.000Z",
+        "gaps": 300,
+        "missing": 17827
+      },
+      {
+        "pair": "USD_CAD",
+        "candles": 45343,
+        "start": "2026-07-16T04:16:00.000Z",
+        "end": "2026-08-28T21:00:00.000Z",
+        "gaps": 160,
+        "missing": 17582
+      },
+      {
+        "pair": "USD_CHF",
+        "candles": 45048,
+        "start": "2026-07-16T04:16:00.000Z",
+        "end": "2026-08-28T21:00:00.000Z",
+        "gaps": 347,
+        "missing": 17877
+      },
+      {
+        "pair": "EUR_GBP",
+        "candles": 44990,
+        "start": "2026-07-16T04:16:00.000Z",
+        "end": "2026-08-28T21:00:00.000Z",
+        "gaps": 481,
+        "missing": 17935
+      },
+      {
+        "pair": "EUR_JPY",
+        "candles": 45421,
+        "start": "2026-07-16T04:16:00.000Z",
+        "end": "2026-08-28T21:00:00.000Z",
+        "gaps": 93,
+        "missing": 17504
+      },
+      {
+        "pair": "GBP_JPY",
+        "candles": 45436,
+        "start": "2026-07-16T04:16:00.000Z",
+        "end": "2026-08-28T21:00:00.000Z",
+        "gaps": 90,
+        "missing": 17489
+      },
+      {
+        "pair": "AUD_JPY",
+        "candles": 45401,
+        "start": "2026-07-16T04:16:00.000Z",
+        "end": "2026-08-28T21:00:00.000Z",
+        "gaps": 104,
+        "missing": 17524
+      },
+      {
+        "pair": "EUR_AUD",
+        "candles": 45484,
+        "start": "2026-07-16T04:16:00.000Z",
+        "end": "2026-08-28T21:00:00.000Z",
+        "gaps": 63,
+        "missing": 17441
+      }
+    ]
+  },
+  "split": {
+    "devFraction": 0.75,
+    "cutoff": "2026-08-18T22:59:00.000Z"
+  },
+  "sealedModel": {
+    "exp3": {
+      "signals": 565,
+      "wins": 266,
+      "losses": 262,
+      "ties": 37,
+      "decided": 528,
+      "winRate": 0.5037878787878788,
+      "ciLower": 0.46126701355033045,
+      "ciUpper": 0.5462540227883087,
+      "sampleFlag": "MODERATE_SAMPLE"
+    },
+    "exp5": {
+      "signals": 565,
+      "wins": 269,
+      "losses": 269,
+      "ties": 27,
+      "decided": 538,
+      "winRate": 0.5,
+      "ciLower": 0.45789924315835967,
+      "ciUpper": 0.5421007568416404,
+      "sampleFlag": "MODERATE_SAMPLE"
+    },
+    "dev3": {
+      "signals": 1775,
+      "wins": 838,
+      "losses": 829,
+      "ties": 108,
+      "decided": 1667,
+      "winRate": 0.5026994601079784,
+      "ciLower": 0.4787186120573666,
+      "ciUpper": 0.52666789495802,
+      "sampleFlag": "MODERATE_SAMPLE"
+    }
+  },
+  "expiryResults": [
+    {
+      "expiry": 1,
+      "signals": 565,
+      "wins": 252,
+      "losses": 254,
+      "ties": 59,
+      "decided": 506,
+      "winRate": 0.4980237154150198,
+      "ciLower": 0.45463707300672435,
+      "ciUpper": 0.5414401399943333,
+      "sampleFlag": "MODERATE_SAMPLE"
+    },
+    {
+      "expiry": 2,
+      "signals": 565,
+      "wins": 265,
+      "losses": 254,
+      "ties": 46,
+      "decided": 519,
+      "winRate": 0.5105973025048169,
+      "ciLower": 0.46767009628472256,
+      "ciUpper": 0.5533687804993741,
+      "sampleFlag": "MODERATE_SAMPLE"
+    },
+    {
+      "expiry": 3,
+      "signals": 565,
+      "wins": 266,
+      "losses": 262,
+      "ties": 37,
+      "decided": 528,
+      "winRate": 0.5037878787878788,
+      "ciLower": 0.46126701355033045,
+      "ciUpper": 0.5462540227883087,
+      "sampleFlag": "MODERATE_SAMPLE"
+    },
+    {
+      "expiry": 5,
+      "signals": 565,
+      "wins": 269,
+      "losses": 269,
+      "ties": 27,
+      "decided": 538,
+      "winRate": 0.5,
+      "ciLower": 0.45789924315835967,
+      "ciUpper": 0.5421007568416404,
+      "sampleFlag": "MODERATE_SAMPLE"
+    },
+    {
+      "expiry": 10,
+      "signals": 565,
+      "wins": 271,
+      "losses": 275,
+      "ties": 19,
+      "decided": 546,
+      "winRate": 0.49633699633699635,
+      "ciLower": 0.4545703434182073,
+      "ciUpper": 0.5381548341602079,
+      "sampleFlag": "MODERATE_SAMPLE"
+    }
+  ],
+  "variantResults": [
+    {
+      "variant": "pin_only",
+      "exp3": {
+        "signals": 25990,
+        "wins": 12296,
+        "losses": 12272,
+        "ties": 1422,
+        "decided": 24568,
+        "winRate": 0.5004884402474764,
+        "ciLower": 0.49423653597364203,
+        "ciUpper": 0.5067401917942922,
+        "sampleFlag": "LARGE_SAMPLE"
+      },
+      "exp5": {
+        "signals": 25990,
+        "wins": 12426,
+        "losses": 12525,
+        "ties": 1039,
+        "decided": 24951,
+        "winRate": 0.49801611157869424,
+        "ciLower": 0.49181279610585166,
+        "ciUpper": 0.5042200378593219,
+        "sampleFlag": "LARGE_SAMPLE"
+      }
+    },
+    {
+      "variant": "sma_only",
+      "exp3": {
+        "signals": 5912,
+        "wins": 2803,
+        "losses": 2810,
+        "ties": 299,
+        "decided": 5613,
+        "winRate": 0.4993764475325138,
+        "ciLower": 0.4863007313511018,
+        "ciUpper": 0.5124530166627287,
+        "sampleFlag": "LARGE_SAMPLE"
+      },
+      "exp5": {
+        "signals": 5912,
+        "wins": 2839,
+        "losses": 2859,
+        "ties": 214,
+        "decided": 5698,
+        "winRate": 0.49824499824499824,
+        "ciLower": 0.4852679398656841,
+        "ciUpper": 0.5112244214794645,
+        "sampleFlag": "LARGE_SAMPLE"
+      }
+    },
+    {
+      "variant": "binary_master",
+      "exp3": {
+        "signals": 565,
+        "wins": 266,
+        "losses": 262,
+        "ties": 37,
+        "decided": 528,
+        "winRate": 0.5037878787878788,
+        "ciLower": 0.46126701355033045,
+        "ciUpper": 0.5462540227883087,
+        "sampleFlag": "MODERATE_SAMPLE"
+      },
+      "exp5": {
+        "signals": 565,
+        "wins": 269,
+        "losses": 269,
+        "ties": 27,
+        "decided": 538,
+        "winRate": 0.5,
+        "ciLower": 0.45789924315835967,
+        "ciUpper": 0.5421007568416404,
+        "sampleFlag": "MODERATE_SAMPLE"
+      }
+    },
+    {
+      "variant": "pin_inv_sma",
+      "exp3": {
+        "signals": 525,
+        "wins": 246,
+        "losses": 258,
+        "ties": 21,
+        "decided": 504,
+        "winRate": 0.4880952380952381,
+        "ciLower": 0.4447102778257545,
+        "ciUpper": 0.5316603070180235,
+        "sampleFlag": "MODERATE_SAMPLE"
+      },
+      "exp5": {
+        "signals": 525,
+        "wins": 244,
+        "losses": 260,
+        "ties": 21,
+        "decided": 504,
+        "winRate": 0.48412698412698413,
+        "ciLower": 0.4407815602995718,
+        "ciUpper": 0.5277125528254656,
+        "sampleFlag": "MODERATE_SAMPLE"
+      }
+    },
+    {
+      "variant": "inv_pin_sma",
+      "exp3": {
+        "signals": 525,
+        "wins": 258,
+        "losses": 246,
+        "ties": 21,
+        "decided": 504,
+        "winRate": 0.5119047619047619,
+        "ciLower": 0.4683396929819764,
+        "ciUpper": 0.5552897221742454,
+        "sampleFlag": "MODERATE_SAMPLE"
+      },
+      "exp5": {
+        "signals": 525,
+        "wins": 260,
+        "losses": 244,
+        "ties": 21,
+        "decided": 504,
+        "winRate": 0.5158730158730159,
+        "ciLower": 0.4722874471745344,
+        "ciUpper": 0.5592184397004283,
+        "sampleFlag": "MODERATE_SAMPLE"
+      }
+    },
+    {
+      "variant": "inverted_master",
+      "exp3": {
+        "signals": 565,
+        "wins": 262,
+        "losses": 266,
+        "ties": 37,
+        "decided": 528,
+        "winRate": 0.4962121212121212,
+        "ciLower": 0.45374597721169124,
+        "ciUpper": 0.5387329864496696,
+        "sampleFlag": "MODERATE_SAMPLE"
+      },
+      "exp5": {
+        "signals": 565,
+        "wins": 269,
+        "losses": 269,
+        "ties": 27,
+        "decided": 538,
+        "winRate": 0.5,
+        "ciLower": 0.45789924315835967,
+        "ciUpper": 0.5421007568416404,
+        "sampleFlag": "MODERATE_SAMPLE"
+      }
+    }
+  ],
+  "pairResults3": [
+    {
+      "pair": "EUR_USD",
+      "signals": 50,
+      "wins": 23,
+      "losses": 21,
+      "ties": 6,
+      "decided": 44,
+      "winRate": 0.5227272727272727,
+      "ciLower": 0.37935220136171693,
+      "ciUpper": 0.6624524205572824,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "pair": "GBP_USD",
+      "signals": 59,
+      "wins": 35,
+      "losses": 17,
+      "ties": 7,
+      "decided": 52,
+      "winRate": 0.6730769230769231,
+      "ciLower": 0.5375593513988891,
+      "ciUpper": 0.7847809826889593,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "pair": "USD_JPY",
+      "signals": 53,
+      "wins": 28,
+      "losses": 24,
+      "ties": 1,
+      "decided": 52,
+      "winRate": 0.5384615384615384,
+      "ciLower": 0.405033783976834,
+      "ciUpper": 0.6665974013760211,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "pair": "AUD_USD",
+      "signals": 43,
+      "wins": 23,
+      "losses": 19,
+      "ties": 1,
+      "decided": 42,
+      "winRate": 0.5476190476190477,
+      "ciLower": 0.399488627471227,
+      "ciUpper": 0.6877683618136149,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "pair": "NZD_USD",
+      "signals": 36,
+      "wins": 15,
+      "losses": 21,
+      "ties": 0,
+      "decided": 36,
+      "winRate": 0.4166666666666667,
+      "ciLower": 0.27140333505087283,
+      "ciUpper": 0.5780003033572232,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "pair": "USD_CAD",
+      "signals": 41,
+      "wins": 25,
+      "losses": 15,
+      "ties": 1,
+      "decided": 40,
+      "winRate": 0.625,
+      "ciLower": 0.4703216005453191,
+      "ciUpper": 0.7577722646420829,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "pair": "USD_CHF",
+      "signals": 42,
+      "wins": 17,
+      "losses": 24,
+      "ties": 1,
+      "decided": 41,
+      "winRate": 0.4146341463414634,
+      "ciLower": 0.2775633082533015,
+      "ciUpper": 0.566331646431634,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "pair": "EUR_GBP",
+      "signals": 57,
+      "wins": 20,
+      "losses": 28,
+      "ties": 9,
+      "decided": 48,
+      "winRate": 0.4166666666666667,
+      "ciLower": 0.28849459734577015,
+      "ciUpper": 0.5571891778463535,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "pair": "EUR_JPY",
+      "signals": 49,
+      "wins": 22,
+      "losses": 26,
+      "ties": 1,
+      "decided": 48,
+      "winRate": 0.4583333333333333,
+      "ciLower": 0.3257502185455351,
+      "ciUpper": 0.5970916690505266,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "pair": "GBP_JPY",
+      "signals": 48,
+      "wins": 17,
+      "losses": 30,
+      "ties": 1,
+      "decided": 47,
+      "winRate": 0.3617021276595745,
+      "ciLower": 0.2396602228576844,
+      "ciUpper": 0.5046436542822955,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "pair": "AUD_JPY",
+      "signals": 38,
+      "wins": 20,
+      "losses": 15,
+      "ties": 3,
+      "decided": 35,
+      "winRate": 0.5714285714285714,
+      "ciLower": 0.4085712925897337,
+      "ciUpper": 0.7201566691832108,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "pair": "EUR_AUD",
+      "signals": 49,
+      "wins": 21,
+      "losses": 22,
+      "ties": 6,
+      "decided": 43,
+      "winRate": 0.4883720930232558,
+      "ciLower": 0.34617209277756006,
+      "ciUpper": 0.6324793623392592,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    }
+  ],
+  "pairResults5": [
+    {
+      "pair": "EUR_USD",
+      "signals": 50,
+      "wins": 23,
+      "losses": 26,
+      "ties": 1,
+      "decided": 49,
+      "winRate": 0.46938775510204084,
+      "ciLower": 0.33703281897894777,
+      "ciUpper": 0.6061937298008014,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "pair": "GBP_USD",
+      "signals": 59,
+      "wins": 33,
+      "losses": 24,
+      "ties": 2,
+      "decided": 57,
+      "winRate": 0.5789473684210527,
+      "ciLower": 0.44979910140681373,
+      "ciUpper": 0.6981260024694814,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "pair": "USD_JPY",
+      "signals": 53,
+      "wins": 24,
+      "losses": 27,
+      "ties": 2,
+      "decided": 51,
+      "winRate": 0.47058823529411764,
+      "ciLower": 0.34052771426416406,
+      "ciUpper": 0.6047692865527341,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "pair": "AUD_USD",
+      "signals": 43,
+      "wins": 24,
+      "losses": 18,
+      "ties": 1,
+      "decided": 42,
+      "winRate": 0.5714285714285714,
+      "ciLower": 0.4220597791187447,
+      "ciUpper": 0.7088257048085178,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "pair": "NZD_USD",
+      "signals": 36,
+      "wins": 15,
+      "losses": 21,
+      "ties": 0,
+      "decided": 36,
+      "winRate": 0.4166666666666667,
+      "ciLower": 0.27140333505087283,
+      "ciUpper": 0.5780003033572232,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "pair": "USD_CAD",
+      "signals": 41,
+      "wins": 26,
+      "losses": 15,
+      "ties": 0,
+      "decided": 41,
+      "winRate": 0.6341463414634146,
+      "ciLower": 0.4812042325216125,
+      "ciUpper": 0.7641036958306319,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "pair": "USD_CHF",
+      "signals": 42,
+      "wins": 15,
+      "losses": 23,
+      "ties": 4,
+      "decided": 38,
+      "winRate": 0.39473684210526316,
+      "ciLower": 0.2559785926361891,
+      "ciUpper": 0.5528241300130402,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "pair": "EUR_GBP",
+      "signals": 57,
+      "wins": 23,
+      "losses": 26,
+      "ties": 8,
+      "decided": 49,
+      "winRate": 0.46938775510204084,
+      "ciLower": 0.33703281897894777,
+      "ciUpper": 0.6061937298008014,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "pair": "EUR_JPY",
+      "signals": 49,
+      "wins": 21,
+      "losses": 26,
+      "ties": 2,
+      "decided": 47,
+      "winRate": 0.44680851063829785,
+      "ciLower": 0.3141074747491131,
+      "ciUpper": 0.5875478626124176,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "pair": "GBP_JPY",
+      "signals": 48,
+      "wins": 23,
+      "losses": 21,
+      "ties": 4,
+      "decided": 44,
+      "winRate": 0.5227272727272727,
+      "ciLower": 0.37935220136171693,
+      "ciUpper": 0.6624524205572824,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "pair": "AUD_JPY",
+      "signals": 38,
+      "wins": 20,
+      "losses": 17,
+      "ties": 1,
+      "decided": 37,
+      "winRate": 0.5405405405405406,
+      "ciLower": 0.3838377952476737,
+      "ciUpper": 0.6896167217154228,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "pair": "EUR_AUD",
+      "signals": 49,
+      "wins": 22,
+      "losses": 25,
+      "ties": 2,
+      "decided": 47,
+      "winRate": 0.46808510638297873,
+      "ciLower": 0.3333146216846264,
+      "ciUpper": 0.6076785807322921,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    }
+  ],
+  "callPut3": {
+    "call": {
+      "signals": 279,
+      "wins": 133,
+      "losses": 124,
+      "ties": 22,
+      "decided": 257,
+      "winRate": 0.5175097276264592,
+      "ciLower": 0.45660962681643774,
+      "ciUpper": 0.5778940719800734,
+      "sampleFlag": "LOW_SAMPLE"
+    },
+    "put": {
+      "signals": 286,
+      "wins": 133,
+      "losses": 138,
+      "ties": 15,
+      "decided": 271,
+      "winRate": 0.4907749077490775,
+      "ciLower": 0.4318005224723084,
+      "ciUpper": 0.5500071805828334,
+      "sampleFlag": "LOW_SAMPLE"
+    }
+  },
+  "callPut5": {
+    "call": {
+      "signals": 279,
+      "wins": 140,
+      "losses": 124,
+      "ties": 15,
+      "decided": 264,
+      "winRate": 0.5303030303030303,
+      "ciLower": 0.4700961681261801,
+      "ciUpper": 0.5896406315345148,
+      "sampleFlag": "LOW_SAMPLE"
+    },
+    "put": {
+      "signals": 286,
+      "wins": 129,
+      "losses": 145,
+      "ties": 12,
+      "decided": 274,
+      "winRate": 0.4708029197080292,
+      "ciLower": 0.41251230552886614,
+      "ciUpper": 0.5299009256071481,
+      "sampleFlag": "LOW_SAMPLE"
+    }
+  },
+  "dailyResults": [
+    {
+      "day": "2026-08-18",
+      "signals": 2,
+      "wins": 2,
+      "losses": 0,
+      "ties": 0,
+      "decided": 2,
+      "winRate": 1,
+      "ciLower": 0.3423719528896193,
+      "ciUpper": 1,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "day": "2026-08-19",
+      "signals": 71,
+      "wins": 32,
+      "losses": 36,
+      "ties": 3,
+      "decided": 68,
+      "winRate": 0.47058823529411764,
+      "ciLower": 0.3567291108779441,
+      "ciUpper": 0.5875928418625294,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "day": "2026-08-20",
+      "signals": 72,
+      "wins": 40,
+      "losses": 31,
+      "ties": 1,
+      "decided": 71,
+      "winRate": 0.5633802816901409,
+      "ciLower": 0.4477133560291708,
+      "ciUpper": 0.6725406203689822,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "day": "2026-08-21",
+      "signals": 70,
+      "wins": 34,
+      "losses": 33,
+      "ties": 3,
+      "decided": 67,
+      "winRate": 0.5074626865671642,
+      "ciLower": 0.3906357091102442,
+      "ciUpper": 0.6234802905283863,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "day": "2026-08-23",
+      "signals": 6,
+      "wins": 1,
+      "losses": 5,
+      "ties": 0,
+      "decided": 6,
+      "winRate": 0.16666666666666666,
+      "ciLower": 0.030052585871730285,
+      "ciUpper": 0.563509436563646,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "day": "2026-08-24",
+      "signals": 59,
+      "wins": 32,
+      "losses": 26,
+      "ties": 1,
+      "decided": 58,
+      "winRate": 0.5517241379310345,
+      "ciLower": 0.4245185822161052,
+      "ciUpper": 0.6725034870705885,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "day": "2026-08-25",
+      "signals": 69,
+      "wins": 30,
+      "losses": 34,
+      "ties": 5,
+      "decided": 64,
+      "winRate": 0.46875,
+      "ciLower": 0.3517578764404486,
+      "ciUpper": 0.5892812499952488,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "day": "2026-08-26",
+      "signals": 64,
+      "wins": 30,
+      "losses": 30,
+      "ties": 4,
+      "decided": 60,
+      "winRate": 0.5,
+      "ciLower": 0.37734812427246284,
+      "ciUpper": 0.6226518757275372,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "day": "2026-08-27",
+      "signals": 77,
+      "wins": 39,
+      "losses": 35,
+      "ties": 3,
+      "decided": 74,
+      "winRate": 0.527027027027027,
+      "ciLower": 0.4147715831154743,
+      "ciUpper": 0.6366148220971626,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    },
+    {
+      "day": "2026-08-28",
+      "signals": 75,
+      "wins": 29,
+      "losses": 39,
+      "ties": 7,
+      "decided": 68,
+      "winRate": 0.4264705882352941,
+      "ciLower": 0.31597057562082875,
+      "ciUpper": 0.5448343062303549,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    }
+  ],
+  "sessionResults": [
+    {
+      "session": "Asia",
+      "signals": 232,
+      "wins": 111,
+      "losses": 104,
+      "ties": 17,
+      "decided": 215,
+      "winRate": 0.5162790697674419,
+      "ciLower": 0.44978158216545366,
+      "ciUpper": 0.5822050236718277,
+      "sampleFlag": "LOW_SAMPLE"
+    },
+    {
+      "session": "London",
+      "signals": 114,
+      "wins": 48,
+      "losses": 65,
+      "ties": 1,
+      "decided": 113,
+      "winRate": 0.4247787610619469,
+      "ciLower": 0.3375872490845012,
+      "ciUpper": 0.5169166262475723,
+      "sampleFlag": "LOW_SAMPLE"
+    },
+    {
+      "session": "New York",
+      "signals": 129,
+      "wins": 63,
+      "losses": 59,
+      "ties": 7,
+      "decided": 122,
+      "winRate": 0.5163934426229508,
+      "ciLower": 0.42857826089106577,
+      "ciUpper": 0.6032077303868583,
+      "sampleFlag": "LOW_SAMPLE"
+    },
+    {
+      "session": "London/NY overlap",
+      "signals": 90,
+      "wins": 47,
+      "losses": 41,
+      "ties": 2,
+      "decided": 88,
+      "winRate": 0.5340909090909091,
+      "ciLower": 0.43063280602477044,
+      "ciUpper": 0.6346970662771058,
+      "sampleFlag": "VERY_LOW_SAMPLE"
+    }
+  ],
+  "payoutEcon": [
+    {
+      "payout": 0.7,
+      "breakEven": 0.5882352941176471,
+      "ev3m": -0.1435606060606061,
+      "ev5m": -0.15000000000000002
+    },
+    {
+      "payout": 0.75,
+      "breakEven": 0.5714285714285714,
+      "ev3m": -0.11837121212121215,
+      "ev5m": -0.125
+    },
+    {
+      "payout": 0.8,
+      "breakEven": 0.5555555555555556,
+      "ev3m": -0.09318181818181814,
+      "ev5m": -0.09999999999999998
+    },
+    {
+      "payout": 0.85,
+      "breakEven": 0.5405405405405405,
+      "ev3m": -0.06799242424242424,
+      "ev5m": -0.07500000000000001
+    },
+    {
+      "payout": 0.9,
+      "breakEven": 0.5263157894736842,
+      "ev3m": -0.04280303030303029,
+      "ev5m": -0.04999999999999999
+    }
+  ],
+  "martingale": {
+    "sequences": 285,
+    "sequenceSuccess": 269,
+    "fullFailure": 16,
+    "sequenceSuccessRate": 0.9438596491228071,
+    "simpleDoublingPL": -91.60000000000018,
+    "recoverySizingPL": -108.50000000000021,
+    "maxDrawdown": 123.3000000000002,
+    "worstSequenceLoss": -21.78125,
+    "largestStake": 12.65625,
+    "individualWR": 0.5,
+    "fixedStakePL80": -53.80000000000018
+  },
+  "ruleConfidence": "AMBIGUOUS — original .ex4 sources unavailable; STRICT_NON_REPAINTING 12/26 SMA + standard pin bar",
+  "repaintingConcerns": "Commercial Justin/PinBar builds may repaint; this test uses causal bar-close signals only"
+}

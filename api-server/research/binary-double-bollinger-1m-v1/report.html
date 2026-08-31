@@ -1,0 +1,372 @@
+<title>Anatomy of a Coin Flip</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,650&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --ground: #eef1f3;
+    --paper: #f7f8f9;
+    --ink: #16202b;
+    --muted: #56616d;
+    --faint: #838f9b;
+    --line: #d8dde2;
+    --line-soft: #e4e8eb;
+    --gold: #8a6410;
+    --gold-bright: #b0851f;
+    --loss: #a53c3c;
+    --loss-soft: #f0e0df;
+    --win: #2b6e52;
+    --win-soft: #dfece6;
+    --flip: #7b8794;
+    --shadow: 0 1px 2px rgba(22,32,43,.06), 0 8px 28px rgba(22,32,43,.06);
+  }
+  :root:not([data-theme="light"]) {
+    @media (prefers-color-scheme: dark) {
+      --ground: #0d1219;
+      --paper: #141c25;
+      --ink: #e7ecf0;
+      --muted: #97a3af;
+      --faint: #6b7783;
+      --line: #26313d;
+      --line-soft: #1d262f;
+      --gold: #e0a93b;
+      --gold-bright: #f0bd57;
+      --loss: #e07575;
+      --loss-soft: #2a1c1e;
+      --win: #56bd92;
+      --win-soft: #142622;
+      --flip: #6b7783;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 34px rgba(0,0,0,.34);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0d1219;
+    --paper: #141c25;
+    --ink: #e7ecf0;
+    --muted: #97a3af;
+    --faint: #6b7783;
+    --line: #26313d;
+    --line-soft: #1d262f;
+    --gold: #e0a93b;
+    --gold-bright: #f0bd57;
+    --loss: #e07575;
+    --loss-soft: #2a1c1e;
+    --win: #56bd92;
+    --win-soft: #142622;
+    --flip: #6b7783;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 34px rgba(0,0,0,.34);
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    font-size: 17px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 24px; }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+  /* ---- masthead ---- */
+  header { padding: 64px 0 40px; border-bottom: 1px solid var(--line); }
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--gold); font-weight: 500; margin: 0 0 22px;
+  }
+  h1 {
+    font-family: "Fraunces", Georgia, serif;
+    font-weight: 600; font-size: clamp(2.9rem, 8vw, 4.6rem); line-height: .98;
+    letter-spacing: -.02em; margin: 0 0 20px; text-wrap: balance;
+    font-optical-sizing: auto;
+  }
+  h1 em { font-style: italic; font-weight: 500; color: var(--gold); }
+  .standfirst {
+    font-size: 1.24rem; line-height: 1.5; color: var(--muted);
+    max-width: 60ch; margin: 0; font-weight: 400;
+  }
+  .byline {
+    display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 30px;
+    font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: var(--faint);
+    letter-spacing: .01em;
+  }
+  .byline span { white-space: nowrap; }
+  .byline b { color: var(--muted); font-weight: 500; }
+
+  /* ---- verdict banner ---- */
+  .verdict {
+    margin: 44px 0; padding: 30px 32px; border-radius: 4px;
+    background: var(--paper); border: 1px solid var(--line);
+    border-left: 3px solid var(--loss); box-shadow: var(--shadow);
+    display: grid; grid-template-columns: auto 1fr; gap: 28px; align-items: center;
+  }
+  .verdict .big {
+    font-family: "IBM Plex Mono", monospace; font-weight: 600;
+    font-size: clamp(2.6rem, 7vw, 3.6rem); line-height: 1; color: var(--loss);
+    letter-spacing: -.01em;
+  }
+  .verdict .sub { font-size: 1.02rem; color: var(--muted); margin: 0; }
+  .verdict .sub b { color: var(--ink); font-weight: 600; }
+
+  /* ---- sections ---- */
+  section { padding: 46px 0; border-bottom: 1px solid var(--line-soft); }
+  h2 {
+    font-family: "Fraunces", Georgia, serif; font-weight: 600;
+    font-size: 1.72rem; letter-spacing: -.01em; margin: 0 0 6px; text-wrap: balance;
+  }
+  .kicker {
+    font-family: "IBM Plex Mono", monospace; font-size: 11.5px;
+    letter-spacing: .16em; text-transform: uppercase; color: var(--gold);
+    margin: 0 0 20px; font-weight: 500;
+  }
+  p { margin: 0 0 18px; max-width: 65ch; }
+  p:last-child { margin-bottom: 0; }
+  strong { font-weight: 600; }
+  a { color: var(--gold); }
+
+  /* ---- big stat row ---- */
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; margin: 8px 0 4px; }
+  .stat { background: var(--paper); padding: 22px 20px; }
+  .stat .n { font-family: "IBM Plex Mono", monospace; font-weight: 600; font-size: 1.9rem; letter-spacing: -.01em; line-height: 1; }
+  .stat .l { font-size: 12.5px; color: var(--muted); margin-top: 8px; line-height: 1.35; }
+  @media (max-width: 560px) { .stats { grid-template-columns: 1fr; } }
+
+  /* ---- win-rate meter ---- */
+  .meter-head { display: flex; justify-content: space-between; align-items: baseline; font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .04em; color: var(--faint); text-transform: uppercase; margin-bottom: 4px; }
+  .meters { display: flex; flex-direction: column; gap: 18px; margin: 26px 0 8px; }
+  .meter .row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 7px; gap: 12px; }
+  .meter .name { font-size: 14.5px; font-weight: 500; }
+  .meter .name small { display: block; color: var(--faint); font-weight: 400; font-size: 12px; font-family: "IBM Plex Mono", monospace; margin-top: 1px; }
+  .meter .val { font-family: "IBM Plex Mono", monospace; font-weight: 600; font-size: 15px; white-space: nowrap; }
+  .track {
+    position: relative; height: 12px; border-radius: 7px;
+    background: linear-gradient(90deg, var(--loss-soft), var(--line-soft) 40%, var(--win-soft));
+    border: 1px solid var(--line);
+  }
+  /* ticks: scale spans 40%..75% -> pos = (v-40)/35*100 */
+  .tick { position: absolute; top: -5px; bottom: -5px; width: 2px; }
+  .tick.flip { left: 28.57%; background: var(--flip); }
+  .tick.be { left: 34.51%; background: var(--gold); }
+  .bar { position: absolute; top: 1px; bottom: 1px; left: 1px; border-radius: 6px 0 0 6px; }
+  .bar.lose { background: var(--loss); }
+  .bar.win { background: var(--win); }
+  .dot { position: absolute; top: 50%; width: 13px; height: 13px; border-radius: 50%; transform: translate(-50%, -50%); border: 2.5px solid var(--paper); box-shadow: 0 0 0 1px var(--line); }
+  .dot.lose { background: var(--loss); }
+  .dot.win { background: var(--win); }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 22px; font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--muted); }
+  .legend i { display: inline-block; width: 20px; height: 2px; vertical-align: middle; margin-right: 7px; }
+
+  /* ---- tables ---- */
+  .tw { overflow-x: auto; margin: 6px -4px 0; padding: 0 4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14.5px; min-width: 440px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line-soft); }
+  th { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); font-weight: 500; }
+  td.num, th.num { text-align: right; font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
+  tbody tr:last-child td { border-bottom: none; }
+  .tag { font-family: "IBM Plex Mono", monospace; font-size: 11px; padding: 2px 7px; border-radius: 3px; font-weight: 500; white-space: nowrap; }
+  .tag.lose { background: var(--loss-soft); color: var(--loss); }
+  .tag.win { background: var(--win-soft); color: var(--win); }
+
+  /* ---- two-toll cards ---- */
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 6px; }
+  .card { background: var(--paper); border: 1px solid var(--line); border-radius: 4px; padding: 22px 22px 24px; box-shadow: var(--shadow); }
+  .card h3 { font-family: "Fraunces", serif; font-weight: 600; font-size: 1.15rem; margin: 0 0 4px; }
+  .card .where { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); margin: 0 0 14px; }
+  .card p { font-size: 14.5px; margin: 0; color: var(--muted); }
+  .card .figure { font-family: "IBM Plex Mono", monospace; font-weight: 600; font-size: 1.5rem; color: var(--ink); margin: 0 0 10px; }
+  @media (max-width: 560px) { .cards { grid-template-columns: 1fr; } }
+
+  /* ---- recommendation ---- */
+  ol.rec { list-style: none; counter-reset: r; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 20px; }
+  ol.rec li { counter-increment: r; display: grid; grid-template-columns: auto 1fr; gap: 18px; }
+  ol.rec li::before {
+    content: counter(r); font-family: "IBM Plex Mono", monospace; font-weight: 600;
+    font-size: 14px; color: var(--gold); background: var(--paper); border: 1px solid var(--line);
+    width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+  }
+  ol.rec b { font-weight: 600; }
+  ol.rec .body { font-size: 15px; color: var(--muted); }
+  ol.rec .body b { color: var(--ink); }
+
+  /* ---- pull quote / closing ---- */
+  .closing { padding: 52px 0 60px; }
+  blockquote {
+    margin: 0; font-family: "Fraunces", Georgia, serif; font-weight: 400;
+    font-size: 1.5rem; line-height: 1.42; letter-spacing: -.01em; color: var(--ink);
+    text-wrap: pretty;
+  }
+  blockquote .lead { font-style: italic; color: var(--gold); }
+
+  footer { border-top: 1px solid var(--line); padding: 28px 0 60px; color: var(--faint); font-family: "IBM Plex Mono", monospace; font-size: 12px; line-height: 1.7; }
+  footer b { color: var(--muted); font-weight: 500; }
+
+  ::selection { background: var(--gold); color: var(--ground); }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">GoldenXperience · Research · binary-double-bollinger-1m-v1</p>
+    <h1>Anatomy of a <em>Coin Flip</em></h1>
+    <p class="standfirst">A two-year forensic test of a 1-minute binary FX strategy — five indicators, twelve pairs, 208,000 trades — and the plain reason it never beats chance.</p>
+    <div class="byline">
+      <span><b>Method</b> BB(20,2/3) · Heikin-Ashi · Stoch(6,3,3) · CCI(21) · ADX</span>
+      <span><b>Window</b> Aug 2024 → Aug 2026</span>
+      <span><b>Settlement</b> real OANDA M1 mids</span>
+    </div>
+  </header>
+
+  <div class="verdict" role="figure" aria-label="Verdict: no edge">
+    <div class="big">NO&nbsp;EDGE</div>
+    <p class="sub">1-minute binary direction is a coin flip: <b>50.1% win rate</b>, steady across two years and 208k trades. No configuration holds above the win rate a real payout requires. <b>The method loses by design, not by tuning.</b></p>
+  </div>
+
+  <section>
+    <p class="kicker">The one number</p>
+    <h2>50.08%, and it does not move</h2>
+    <p>The broad signal — a Bollinger-band rejection, taken on every one of the twelve pairs — was settled the way a binary platform settles: is the price higher or lower sixty seconds later. Pooled over nine independent quarters:</p>
+    <div class="stats">
+      <div class="stat"><div class="n">50.08<span style="font-size:1.1rem">%</span></div><div class="l">pooled win rate</div></div>
+      <div class="stat"><div class="n">208,110</div><div class="l">decided trades</div></div>
+      <div class="stat"><div class="n">±0.2<span style="font-size:1.1rem">%</span></div><div class="l">95% confidence interval</div></div>
+    </div>
+    <p style="margin-top:24px">That is as close to a literal coin as real market data produces. Per-window, it never strays past the 49–51% band. Direction, at this horizon, carries no information you can act on.</p>
+  </section>
+
+  <section>
+    <p class="kicker">Every configuration, one scale</p>
+    <h2>Where the contenders actually land</h2>
+    <p>Each bar is a strategy variant's win rate. Two reference lines matter: the <strong style="color:var(--flip)">coin flip at 50%</strong>, and the <strong style="color:var(--gold-bright)">break-even at 52.08%</strong> — the win rate a 92% binary payout demands before a dollar of profit is possible.</p>
+
+    <div class="meter-head"><span>40%</span><span>win rate →</span><span>75%</span></div>
+    <div class="meters">
+      <div class="meter">
+        <div class="row"><span class="name">Broad base · 23k trades <small>the honest core signal</small></span><span class="val" style="color:var(--loss)">50.6%</span></div>
+        <div class="track"><div class="bar lose" style="width:30.3%"></div><div class="tick flip"></div><div class="tick be"></div><div class="dot lose" style="left:30.3%"></div></div>
+      </div>
+      <div class="meter">
+        <div class="row"><span class="name">Clueless random bot <small>zero knowledge, 11.5k trades</small></span><span class="val" style="color:var(--loss)">49.3%</span></div>
+        <div class="track"><div class="bar lose" style="width:26.6%"></div><div class="tick flip"></div><div class="tick be"></div><div class="dot lose" style="left:26.6%"></div></div>
+      </div>
+      <div class="meter">
+        <div class="row"><span class="name">“63% winner” slice <small>in-sample → out-of-sample</small></span><span class="val" style="color:var(--loss)">49.4%</span></div>
+        <div class="track"><div class="bar lose" style="width:26.9%"></div><div class="tick flip"></div><div class="tick be"></div><div class="dot lose" style="left:26.9%"></div></div>
+      </div>
+      <div class="meter">
+        <div class="row"><span class="name">Walk-forward best <small>57.5% train, unseen test</small></span><span class="val" style="color:var(--win)">53.1%</span></div>
+        <div class="track"><div class="bar win" style="width:37.4%"></div><div class="tick flip"></div><div class="tick be"></div><div class="dot win" style="left:37.4%"></div></div>
+      </div>
+      <div class="meter">
+        <div class="row"><span class="name">Best 2-year persistent lean <small>HA+CCI London — fragile</small></span><span class="val" style="color:var(--win)">55.0%</span></div>
+        <div class="track"><div class="bar win" style="width:42.9%"></div><div class="tick flip"></div><div class="tick be"></div><div class="dot win" style="left:42.9%"></div></div>
+      </div>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--flip)"></i>50% coin flip</span>
+      <span><i style="background:var(--gold-bright)"></i>52.08% break-even</span>
+      <span><i style="background:var(--loss)"></i>loses money</span>
+      <span><i style="background:var(--win)"></i>clears break-even</span>
+    </div>
+    <p style="margin-top:24px">Only two bars cross the gold line — and both are fragile: the walk-forward "winner" had a 2026 quarter at 45.6%, and the London lean survives on a single narrow slice. Everything with real volume sits on the coin-flip mark.</p>
+  </section>
+
+  <section>
+    <p class="kicker">Out-of-sample</p>
+    <h2>The good numbers were always noise</h2>
+    <p>Any win rate far from 50% came from a small sample. Re-run on data the configuration never saw — the same dates two years earlier — and it reverts to chance without exception.</p>
+    <div class="tw">
+      <table>
+        <thead><tr><th>Configuration</th><th class="num">In-sample</th><th class="num">Out-of-sample</th></tr></thead>
+        <tbody>
+          <tr><td>Broad BB2 base</td><td class="num">50.6%</td><td class="num">49.8%</td></tr>
+          <tr><td>“63% win” slice — USD/CHF Asia</td><td class="num">63.0%</td><td class="num" style="color:var(--loss)">49.4%</td></tr>
+          <tr><td>“70% loss” slice — ADX Asia DOWN</td><td class="num">70.4%<span style="color:var(--faint)"> loss</span></td><td class="num" style="color:var(--loss)">50.0%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <p class="kicker">Why a coin flip still loses</p>
+    <h2>The house keeps its cut in two places</h2>
+    <p>Direction being 50/50 is not the same as breaking even. A cost is extracted on every trade — it just sits in a different place depending on how you trade.</p>
+    <div class="cards">
+      <div class="card">
+        <h3>Forex / CFD</h3>
+        <p class="where">the toll is the spread</p>
+        <div class="figure">~70%<span style="font-size:.9rem;color:var(--faint);font-weight:400"> loss</span></div>
+        <p>Every trade must overcome the bid-ask spread. On a 60-second move that is tiny, a modest spread makes the frequent bot lose ~70% — and ~95% at the real ~2.3-pip spread. Flipping the side doesn't help: both directions pay the toll.</p>
+      </div>
+      <div class="card">
+        <h3>Fixed-payout binary</h3>
+        <p class="where">the toll is the payout</p>
+        <div class="figure">−$0.038<span style="font-size:.9rem;color:var(--faint);font-weight:400"> / trade</span></div>
+        <p>No spread to cross — but a win pays $0.92 while a loss costs $1.00. At a 50% win rate that gap bleeds the account: a $1,000 balance fell to <strong style="color:var(--ink)">$392</strong> over one window of random guessing, while still winning half the trades.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="kicker">Loss analysis</p>
+    <h2>The losers look exactly like the winners</h2>
+    <p>The 208k trades were split by every feature recorded, searching for the condition that separates a win from a loss. There isn't one — every dimension lands inside a two-point band around the coin flip.</p>
+    <div class="tw">
+      <table>
+        <thead><tr><th>Split by…</th><th class="num">Win-rate range</th></tr></thead>
+        <tbody>
+          <tr><td>Session</td><td class="num">49.8 – 50.3%</td></tr>
+          <tr><td>Currency pair</td><td class="num">50.1 – 50.6%</td></tr>
+          <tr><td>Direction (up / down)</td><td class="num">49.9 – 50.2%</td></tr>
+          <tr><td>Bollinger event / extension</td><td class="num">48.7 – 50.2%</td></tr>
+          <tr><td>Hour of day</td><td class="num">50.5 – 51.5%</td></tr>
+          <tr><td>Stochastic / CCI / ADX bucket</td><td class="num">48.6 – 51.1%</td></tr>
+          <tr><td><b>Every positive signal stacked</b></td><td class="num"><b>51.0%</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:22px">When no condition tells winners from losers, the losses are not a fixable flaw. There are no bad conditions to remove — only a coin flip wearing five indicators.</p>
+  </section>
+
+  <section>
+    <p class="kicker">Walk-forward · the overfitting proof</p>
+    <h2>Any number, in-sample. None of it survives.</h2>
+    <p>The disciplined test: search 3,216 frequent configurations on 2024–2025, take the best, then evaluate it <em>unchanged</em> on 2026 quarters it never saw. In-sample win rates of 56–57% are easy to find. They collapse on contact with new data.</p>
+    <div class="tw">
+      <table>
+        <thead><tr><th>Best-on-training config</th><th class="num">Train</th><th class="num">Test</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>EUR/JPY · overlap · DOWN · K-extreme</td><td class="num">57.5%</td><td class="num">53.1%</td><td><span class="tag lose">−4.4</span></td></tr>
+          <tr><td>EUR/JPY · overlap · DOWN · ADX · K-ext</td><td class="num">57.2%</td><td class="num">52.6%</td><td><span class="tag lose">−4.6</span></td></tr>
+          <tr><td>EUR/JPY · London · UP · ADX · K-ext</td><td class="num">57.1%</td><td class="num">49.8%</td><td><span class="tag lose">−7.3</span></td></tr>
+          <tr><td>USD/JPY · London · UP · ADX · K-ext</td><td class="num">56.8%</td><td class="num">51.0%</td><td><span class="tag lose">−5.8</span></td></tr>
+          <tr><td>AUD/JPY · New York · UP · ADX</td><td class="num">56.5%</td><td class="num">48.5%</td><td><span class="tag lose">−8.0</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:22px">That consistent train-to-test drop is the fingerprint of overfitting. You can mine this data for any headline you like; the market honors none of them.</p>
+  </section>
+
+  <section>
+    <p class="kicker">What to do with this</p>
+    <h2>Recommendation</h2>
+    <ol class="rec">
+      <li><div><b>Don't deploy a binary bot on this.</b><div class="body">It is structurally negative-EV — a coin flip meeting a payout that requires 52%+. A bot loses faster and more reliably than clicking by hand, not less.</div></div></li>
+      <li><div><b>Drop the fixed-payout format.</b><div class="body">The 92% payout is a fixed house edge a ~50% signal cannot out-trade. A setup where you set your own risk-to-reward is at least a fair-ish game.</div></div></li>
+      <li><div><b>Stop mining indicators on 1-minute candles.</b><div class="body">Everything price-derived at 60 seconds is ~50% — proven exhaustively here. Higher signal-to-noise lives at longer horizons or in non-price information.</div></div></li>
+      <li><div><b>Pressure-test the one live corner.</b><div class="body">The ~55% HA+CCI London reversal lean is the only thing that held across two years. Stress it — execution timing, live feed, sizing — with honest odds it still washes out.</div></div></li>
+    </ol>
+  </section>
+
+  <div class="closing">
+    <blockquote><span class="lead">The most valuable output of this study is the negative result itself.</span> This method is a coin flip, and the payout turns a coin flip into a slow loss. Knowing that costs a few hours of research — instead of a funded account.</blockquote>
+  </div>
+
+  <footer>
+    <p><b>Reproducibility.</b> Frozen indicator parameters, no tuning. Real OANDA M1 mids, nine 12-day windows, Aug 2024 → Aug 2026. Full audit and data in the research directory: <b>FINAL_REPORT.md</b>, <b>STUDY_SUMMARY.md</b>, <b>ROBUSTNESS_2Y.md</b>, <b>TRADES.csv</b>, and scripts <b>fetch · run · robustness_2y · spread_settle · walkforward</b>.</p>
+    <p style="margin-top:12px">Research artifact only — not integrated into any live, adaptive, or binary engine. Not financial advice.</p>
+  </footer>
+</div>

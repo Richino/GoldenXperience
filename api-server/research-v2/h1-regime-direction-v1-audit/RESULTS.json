@@ -1,0 +1,45 @@
+{
+  "generatedAt": "2026-08-28T15:57:49.648Z",
+  "scope": {
+    "period": "2025-08-01 through 2026-07-31",
+    "horizon": "next completed H1 midpoint close",
+    "source": "raw OANDA bid/ask candles fetched at runtime",
+    "excludes": "M15 trigger, trade rows, stops, targets, spreads, execution, and position locks"
+  },
+  "coverage": {
+    "eligibleH1Bars": 18422,
+    "directionalCalls": 5999,
+    "abstained": 12423
+  },
+  "direction": {
+    "accuracy": 0.4894149024837473,
+    "inverseAccuracy": 0.5105850975162527,
+    "randomControls": {
+      "count": 100,
+      "meanAccuracy": 0.5003467244540758,
+      "p05Accuracy": 0.4885814302383731,
+      "p95Accuracy": 0.5115852642107018
+    },
+    "byPair": {
+      "EUR_USD": {
+        "n": 1857,
+        "accuracy": 0.49865374259558426,
+        "inverseAccuracy": 0.5013462574044157
+      },
+      "GBP_USD": {
+        "n": 1946,
+        "accuracy": 0.4784172661870504,
+        "inverseAccuracy": 0.5215827338129496
+      },
+      "USD_JPY": {
+        "n": 2196,
+        "accuracy": 0.4913479052823315,
+        "inverseAccuracy": 0.5086520947176685
+      }
+    }
+  },
+  "baseRate": {
+    "up": 0.5064596677885137,
+    "down": 0.49354033221148624
+  }
+}

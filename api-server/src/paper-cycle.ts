@@ -25,6 +25,7 @@ import { tagNewTradeSafely } from "./news-tagging.js";
 import { armForExecutedDirection, spreadCostR } from "./evidence-integrity.js";
 import { attachMomentumExecution, recordMomentumInversionArms, resolveMomentumInversionArms } from "./momentum-arms.js";
 import { recordMomentumDirection10m, resolveMomentumDirection10m } from "./momentum-direction-10m.js";
+import { runEurUsdMoveGateV1Shadow } from "./eur-usd-move-gate-v1-shadow.js";
 import { MAJOR_INSTRUMENTS, type MajorInstrument } from "../../frontend/src/types/forex.js";
 
 const STRATEGY_NAME = "deterministic-forex";
@@ -1513,6 +1514,12 @@ export async function collectMultiStrategyCycle() {
   const userId = owner.rows[0].id;
 
   let resolved = 0;
+  // EUR/USD Stage 1 only: record a frozen MOVE/WAIT decision, then label it
+  // after four hours. This has no direction and never reaches risk/execution.
+  try {
+    const moveGate = await runEurUsdMoveGateV1Shadow(await getResearchCandles("EUR_USD", "M15", 500));
+    if (moveGate.recorded || moveGate.resolved) console.log(`[eur-usd-move-gate-v1] recorded ${moveGate.recorded}, resolved ${moveGate.resolved}`);
+  } catch (error) { console.error("[eur-usd-move-gate-v1] shadow cycle failed", error); }
   try { resolved = await resolveOpenTrades(); }
   catch (error) { console.error("[multi-strategy] outcome refresh failed", error); }
   // Resolve hypothetical outcomes for suppressed/blocked valid candidates. Pure

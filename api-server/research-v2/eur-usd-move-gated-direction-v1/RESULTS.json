@@ -1,0 +1,45 @@
+{
+  "generatedAt": "2026-08-28T18:22:38.069Z",
+  "scope": {
+    "instrument": "EUR_USD",
+    "source": "stored OANDA M15 bid/ask market quotes only",
+    "moveGate": "existing movement-heuristic-v1, independently audited before this direction test",
+    "candidates": "predeclared one-hour EUR/USD mean reversion and its exact momentum inverse",
+    "outcome": "after bid/ask fill at the completed M15 close, +1.5 M15 ATR target before -0.75 M15 ATR stop within four hours; same-bar collision and no target are losses",
+    "excludes": "trade rows, paper-engine writes, execution changes, and post-result direction flipping"
+  },
+  "developmentPeriod": {
+    "start": "2021-06-03T00:00:00.000Z",
+    "end": "2024-01-01T00:00:00.000Z"
+  },
+  "sealedHoldoutPeriod": {
+    "start": "2024-01-01T00:00:00.000Z",
+    "end": "2025-08-01T00:00:00.000Z"
+  },
+  "development": {
+    "meanReversion": {
+      "n": 17439,
+      "wins": 3895,
+      "winRate": 0.2233499627272206,
+      "lower99": 0.21533166673628829,
+      "expectancyR": -0.3299501118183382
+    },
+    "momentum": {
+      "n": 17439,
+      "wins": 3706,
+      "winRate": 0.21251218533172775,
+      "lower99": 0.20464237835211127,
+      "expectancyR": -0.3624634440048168
+    },
+    "randomControls": {
+      "count": 100,
+      "meanWinRate": 0.21747003841963428,
+      "p95WinRate": 0.2215149951258673
+    }
+  },
+  "developmentQualification": {
+    "passRule": "n >= 1,000; win rate >= 40%; 99% Wilson lower bound above 33.33% break-even; beats random p95",
+    "selectedArm": null
+  },
+  "verdict": "NO_DIRECTION_ARM_QUALIFIED_SEALED_HOLDOUT_NOT_EVALUATED"
+}

@@ -1,0 +1,26 @@
+/** Research-only, past-only filter sweep for the 60–65% binary-fade pairs. */
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { config as dotenv } from "dotenv";
+import { classifyBinaryResult, type BinaryCandle } from "../src/binary-engine.js";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+for (const n of [".env", ".env.local"]) dotenv({ path: path.join(root, n), override: false });
+const PAIRS = ["EUR_SGD","EUR_GBP","TRY_JPY","SGD_CHF","GBP_CHF","CAD_SGD","GBP_PLN","EUR_TRY","EUR_NZD","USD_TRY","GBP_AUD","NZD_SGD","GBP_NZD","NZD_CHF","CHF_ZAR","EUR_CHF","SGD_JPY","EUR_ZAR","NZD_CAD"];
+const START = "2022-01-01T00:00:00.000Z", TRAIN_END = "2024-01-01T00:00:00.000Z", END = new Date(Date.now() - 120_000).toISOString();
+const token = process.env.OANDA_API_KEY ?? process.env.OANDA_API_TOKEN ?? "";
+const host = process.env.OANDA_ENVIRONMENT === "live" ? "https://api-fxtrade.oanda.com" : "https://api-fxpractice.oanda.com";
+const dir = path.join(root, "research-v2", "binary-fade-v1-70-sweep"); fs.mkdirSync(dir, { recursive: true });
+const variants = [1.25,1.5,1.75,2].flatMap(ext => [65,70,75].flatMap(rsi => ["all","london","overlap","newyork"].map(session => ({ ext,rsi,session,key:`e${ext}|r${rsi}|${session}` }))));
+type Bar=BinaryCandle; type Trade={won:boolean;at:string}; type V=typeof variants[number] & {active:null|{entry:number;side:"up"|"down";target:number;at:string};train:Trade[];hold:Trade[]};
+const ny = new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",hour:"2-digit",hourCycle:"h23"});
+const sleep=(n:number)=>new Promise<void>(r=>setTimeout(r,n));
+function score(a:Trade[]){const n=a.length,w=a.filter(x=>x.won).length,p=n?w/n:0,z=1.96,d=1+z*z/n; const lo=n?(p+z*z/(2*n)-z*Math.sqrt((p*(1-p)+z*z/(4*n))/n))/d:0; return {n,w,wr:n?w/n:null,lo,ev:n?(.8*w-(n-w))/n:null};}
+function feature(b:readonly Bar[]){if(b.length<80)return null;let pa:number|null=null,a:number|null=null;for(let i=0;i<b.length;i++){const x=b[i]!,p=b[i-1]?.close??x.close,tr=Math.max(x.high-x.low,Math.abs(x.high-p),Math.abs(x.low-p));if(i<13)continue;if(pa===null){let s=0;for(let j=i-13;j<=i;j++){const q=b[j]!,q0=b[j-1]?.close??q.close;s+=Math.max(q.high-q.low,Math.abs(q.high-q0),Math.abs(q.low-q0));}pa=s/14;}else pa=(pa*13+tr)/14;a=pa;}if(!a)return null;const x=b.slice(-20),m=x.reduce((s,q)=>s+q.close,0)/20,sd=Math.sqrt(x.reduce((s,q)=>s+(q.close-m)**2,0)/20),last=b.at(-1)!.close,w=b.slice(-15);let g=0,l=0;for(let i=1;i<w.length;i++){const d=w[i]!.close-w[i-1]!.close;if(d>=0)g+=d;else l-=d;}const r=l===0?(g===0?null:100):100-100/(1+g/l);if(r===null)return null;return {last,ext:last>m+2*sd?(last-(m+2*sd))/a:last<m-2*sd?((m-2*sd)-last)/a:0,side:last>m+2*sd?"down" as const:last<m-2*sd?"up" as const:null,rsi:r};}
+function sess(ms:number){const h=Number(ny.format(new Date(ms)));return h>=3&&h<8?"london":h>=8&&h<12?"overlap":h>=12&&h<17?"newyork":"other";}
+async function bars(pair:string){const out:Bar[]=[];let cur=START;for(let p=0;p<700;p++){const q=new URLSearchParams({price:"M",granularity:"M1",from:cur,count:"5000"});const r=await fetch(`${host}/v3/instruments/${pair}/candles?${q}`,{headers:{Authorization:`Bearer ${token}`}});if(!r.ok)throw Error(`${r.status} ${r.statusText}`);const j=await r.json() as {candles?:any[]};const a=(j.candles??[]).filter(x=>x.complete&&x.mid).map(x=>({time:x.time,open:+x.mid.o,high:+x.mid.h,low:+x.mid.l,close:+x.mid.c,volume:x.volume,complete:true}));if(!a.length)break;out.push(...a);const last=Date.parse(a.at(-1)!.time);if(a.length<5000||last>=Date.parse(END)-60000)break;cur=new Date(last+60000).toISOString();await sleep(120);}return out;}
+const report:any[]=[];
+for(const pair of PAIRS){console.log(`START ${pair}`);const vs:V[]=variants.map(v=>({...v,active:null,train:[],hold:[]}));const win:Bar[]=[];for(const c of await bars(pair)){const close=Date.parse(c.time)+60000;for(const v of vs)if(v.active&&close>=v.active.target){const t={won:classifyBinaryResult(v.active.side,v.active.entry,c.close,pair.includes("JPY")?3:5)==="won",at:v.active.at};(t.at<TRAIN_END?v.train:v.hold).push(t);v.active=null;}win.push(c);if(win.length>80)win.shift();const f=feature(win);if(!f?.side||f.ext<1.25||(f.side==="down"?f.rsi<=65:f.rsi>=35))continue;const s=sess(close);for(const v of vs)if(!v.active&&f.ext>=v.ext&&(f.side==="down"?f.rsi>v.rsi:f.rsi<100-v.rsi)&&(v.session==="all"||v.session===s))v.active={entry:f.last,side:f.side,target:close+600000,at:new Date(close).toISOString()};}
+ const eligible=vs.filter(v=>score(v.train).n>=150); eligible.sort((a,b)=>score(b.train).lo-score(a.train).lo); const best=eligible[0]; report.push({pair,selected:best?{config:best.key,train:score(best.train),hold:score(best.hold),achieves70:(score(best.hold).lo>=.65)}:null});fs.writeFileSync(path.join(dir,"RESULTS.json"),JSON.stringify(report,null,2));console.log(`DONE ${pair} ${best?.key??"no eligible config"}`);}
+fs.writeFileSync(path.join(dir,"FINAL_REPORT.txt"),report.map(r=>r.selected?`${r.pair}\t${r.selected.config}\ttrain=${(100*r.selected.train.wr).toFixed(2)}% n=${r.selected.train.n}\thold=${(100*r.selected.hold.wr).toFixed(2)}% n=${r.selected.hold.n}\t70lb=${r.selected.achieves70}`:`${r.pair}\tNO_ELIGIBLE_CONFIG`).join("\n")+"\n");

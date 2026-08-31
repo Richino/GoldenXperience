@@ -1,0 +1,207 @@
+{
+  "generated": "2026-08-28T16:29:12.676Z",
+  "trainN": 673,
+  "holdoutN": 459,
+  "cutoff": "2026-08-25T02:51:45.046Z",
+  "selectedPockets": 16,
+  "composite": {
+    "n": 298,
+    "wins": 145,
+    "winrate": 48.65771812080537,
+    "holdoutSpanDays": 3.2945986689814815
+  },
+  "survivors": [
+    {
+      "ruleName": "h08",
+      "action": "invert",
+      "trainN": 45,
+      "trainWr": 68.88888888888889,
+      "holdoutN": 34,
+      "holdoutW": 21,
+      "holdoutWr": 61.76470588235294,
+      "delta": -7.124183006535944
+    },
+    {
+      "ruleName": "h04",
+      "action": "follow",
+      "trainN": 45,
+      "trainWr": 68.88888888888889,
+      "holdoutN": 34,
+      "holdoutW": 20,
+      "holdoutWr": 58.8235294117647,
+      "delta": -10.065359477124183
+    },
+    {
+      "ruleName": "up / h08",
+      "action": "invert",
+      "trainN": 29,
+      "trainWr": 75.86206896551724,
+      "holdoutN": 19,
+      "holdoutW": 11,
+      "holdoutWr": 57.89473684210526,
+      "delta": -17.96733212341198
+    }
+  ],
+  "holdoutResults": [
+    {
+      "ruleName": "up / Fri / overlap",
+      "action": "invert",
+      "trainN": 28,
+      "trainWr": 64.28571428571428,
+      "holdoutN": 2,
+      "holdoutW": 2,
+      "holdoutWr": 100,
+      "delta": 35.71428571428572
+    },
+    {
+      "ruleName": "h08",
+      "action": "invert",
+      "trainN": 45,
+      "trainWr": 68.88888888888889,
+      "holdoutN": 34,
+      "holdoutW": 21,
+      "holdoutWr": 61.76470588235294,
+      "delta": -7.124183006535944
+    },
+    {
+      "ruleName": "h04",
+      "action": "follow",
+      "trainN": 45,
+      "trainWr": 68.88888888888889,
+      "holdoutN": 34,
+      "holdoutW": 20,
+      "holdoutWr": 58.8235294117647,
+      "delta": -10.065359477124183
+    },
+    {
+      "ruleName": "up / h08",
+      "action": "invert",
+      "trainN": 29,
+      "trainWr": 75.86206896551724,
+      "holdoutN": 19,
+      "holdoutW": 11,
+      "holdoutWr": 57.89473684210526,
+      "delta": -17.96733212341198
+    },
+    {
+      "ruleName": "up / h04",
+      "action": "follow",
+      "trainN": 33,
+      "trainWr": 72.72727272727273,
+      "holdoutN": 24,
+      "holdoutW": 13,
+      "holdoutWr": 54.166666666666664,
+      "delta": -18.56060606060607
+    },
+    {
+      "ruleName": "Thu / conf 0.5-0.55",
+      "action": "follow",
+      "trainN": 43,
+      "trainWr": 67.44186046511628,
+      "holdoutN": 56,
+      "holdoutW": 29,
+      "holdoutWr": 51.785714285714285,
+      "delta": -15.656146179401993
+    },
+    {
+      "ruleName": "up / h15",
+      "action": "follow",
+      "trainN": 35,
+      "trainWr": 68.57142857142857,
+      "holdoutN": 16,
+      "holdoutW": 8,
+      "holdoutWr": 50,
+      "delta": -18.57142857142857
+    },
+    {
+      "ruleName": "up / Wed",
+      "action": "follow",
+      "trainN": 52,
+      "trainWr": 61.53846153846154,
+      "holdoutN": 83,
+      "holdoutW": 40,
+      "holdoutWr": 48.19277108433735,
+      "delta": -13.345690454124188
+    },
+    {
+      "ruleName": "h05",
+      "action": "follow",
+      "trainN": 53,
+      "trainWr": 62.264150943396224,
+      "holdoutN": 30,
+      "holdoutW": 14,
+      "holdoutWr": 46.666666666666664,
+      "delta": -15.59748427672956
+    },
+    {
+      "ruleName": "h15",
+      "action": "follow",
+      "trainN": 55,
+      "trainWr": 65.45454545454545,
+      "holdoutN": 30,
+      "holdoutW": 14,
+      "holdoutWr": 46.666666666666664,
+      "delta": -18.78787878787879
+    },
+    {
+      "ruleName": "h03",
+      "action": "follow",
+      "trainN": 49,
+      "trainWr": 61.224489795918366,
+      "holdoutN": 48,
+      "holdoutW": 22,
+      "holdoutWr": 45.833333333333336,
+      "delta": -15.39115646258503
+    },
+    {
+      "ruleName": "up / h09",
+      "action": "invert",
+      "trainN": 31,
+      "trainWr": 61.29032258064516,
+      "holdoutN": 27,
+      "holdoutW": 11,
+      "holdoutWr": 40.74074074074074,
+      "delta": -20.54958183990442
+    },
+    {
+      "ruleName": "up / h05",
+      "action": "follow",
+      "trainN": 38,
+      "trainWr": 68.42105263157895,
+      "holdoutN": 16,
+      "holdoutW": 6,
+      "holdoutWr": 37.5,
+      "delta": -30.921052631578945
+    },
+    {
+      "ruleName": "up / h12",
+      "action": "invert",
+      "trainN": 25,
+      "trainWr": 64,
+      "holdoutN": 17,
+      "holdoutW": 6,
+      "holdoutWr": 35.294117647058826,
+      "delta": -28.705882352941174
+    },
+    {
+      "ruleName": "up / Thu / london",
+      "action": "follow",
+      "trainN": 40,
+      "trainWr": 60,
+      "holdoutN": 30,
+      "holdoutW": 10,
+      "holdoutWr": 33.333333333333336,
+      "delta": -26.666666666666664
+    },
+    {
+      "ruleName": "Mon / conf 0.60-0.70",
+      "action": "follow",
+      "trainN": 35,
+      "trainWr": 65.71428571428571,
+      "holdoutN": 0,
+      "holdoutW": 0,
+      "holdoutWr": 0,
+      "delta": -65.71428571428571
+    }
+  ]
+}

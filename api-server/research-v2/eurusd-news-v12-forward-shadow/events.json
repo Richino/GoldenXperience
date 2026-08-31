@@ -1,0 +1,122 @@
+{
+  "source": "https://www.forexfactory.com/calendar?month=aug.2026",
+  "collectedAt": "2026-08-29T17:26:00.000Z",
+  "range": {
+    "start": "2026-08-01",
+    "end": "2026-08-29"
+  },
+  "pair": "EURUSD",
+  "filters": {
+    "impact": "high",
+    "currencies": ["EUR", "USD"]
+  },
+  "timezone": "America/New_York",
+  "timezoneNote": "August calendar times were displayed in EDT (UTC-04:00) and converted to UTC.",
+  "events": [
+    {
+      "releaseTimeUtc": "2026-08-03T14:00:00.000Z",
+      "currency": "USD",
+      "eventName": "ISM Manufacturing PMI",
+      "actual": "55.6",
+      "forecast": "54.0"
+    },
+    {
+      "releaseTimeUtc": "2026-08-07T12:30:00.000Z",
+      "currency": "USD",
+      "eventName": "Average Hourly Earnings m/m",
+      "actual": "0.1%",
+      "forecast": "0.3%"
+    },
+    {
+      "releaseTimeUtc": "2026-08-07T12:30:00.000Z",
+      "currency": "USD",
+      "eventName": "Non-Farm Employment Change",
+      "actual": "-23K",
+      "forecast": "85K"
+    },
+    {
+      "releaseTimeUtc": "2026-08-07T12:30:00.000Z",
+      "currency": "USD",
+      "eventName": "Unemployment Rate",
+      "actual": "4.1%",
+      "forecast": "4.2%"
+    },
+    {
+      "releaseTimeUtc": "2026-08-12T12:30:00.000Z",
+      "currency": "USD",
+      "eventName": "Core CPI m/m",
+      "actual": "0.2%",
+      "forecast": "0.2%"
+    },
+    {
+      "releaseTimeUtc": "2026-08-12T12:30:00.000Z",
+      "currency": "USD",
+      "eventName": "Core CPI y/y",
+      "actual": "2.5%",
+      "forecast": "2.5%"
+    },
+    {
+      "releaseTimeUtc": "2026-08-12T12:30:00.000Z",
+      "currency": "USD",
+      "eventName": "CPI m/m",
+      "actual": "0.1%",
+      "forecast": "0.1%"
+    },
+    {
+      "releaseTimeUtc": "2026-08-12T12:30:00.000Z",
+      "currency": "USD",
+      "eventName": "CPI y/y",
+      "actual": "3.4%",
+      "forecast": "3.4%"
+    },
+    {
+      "releaseTimeUtc": "2026-08-13T12:30:00.000Z",
+      "currency": "USD",
+      "eventName": "Core PPI m/m",
+      "actual": "0.2%",
+      "forecast": "0.3%"
+    },
+    {
+      "releaseTimeUtc": "2026-08-13T12:30:00.000Z",
+      "currency": "USD",
+      "eventName": "PPI m/m",
+      "actual": "0.0%",
+      "forecast": "0.2%"
+    },
+    {
+      "releaseTimeUtc": "2026-08-19T18:00:00.000Z",
+      "currency": "USD",
+      "eventName": "FOMC Meeting Minutes",
+      "actual": "",
+      "forecast": ""
+    },
+    {
+      "releaseTimeUtc": "2026-08-26T12:30:00.000Z",
+      "currency": "USD",
+      "eventName": "Core PCE Price Index m/m",
+      "actual": "0.2%",
+      "forecast": "0.2%"
+    },
+    {
+      "releaseTimeUtc": "2026-08-26T12:30:00.000Z",
+      "currency": "USD",
+      "eventName": "Prelim GDP q/q",
+      "actual": "1.5%",
+      "forecast": "1.5%"
+    },
+    {
+      "releaseTimeUtc": "2026-08-28T14:00:00.000Z",
+      "currency": "USD",
+      "eventName": "Fed Chairman Warsh Speaks",
+      "actual": "",
+      "forecast": ""
+    },
+    {
+      "releaseTimeUtc": "2026-08-28T14:00:00.000Z",
+      "currency": "USD",
+      "eventName": "Prelim Benchmark Payrolls Revision",
+      "actual": "-79K",
+      "forecast": ""
+    }
+  ]
+}

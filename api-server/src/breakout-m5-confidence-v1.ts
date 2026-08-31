@@ -1,13 +1,10 @@
 /**
  * Breakout-m5-confidence-v1 model loader + detector + decision.
  *
- * The M5 scalper: fires on M5 breakouts where the model DISAGREES with the
- * strategy's direction (CONF_T=0.00, take all). Walk-forward: 72.6% winrate,
- * +0.227R/trade, 2.68 trades/day, 87% winning months across 3 years/3 pairs.
- *
- * Slippage-sensitive: edge holds up to ~1 pip added cost, dies at ~2 pips.
- * Deployment discipline: 30 days DRY_RUN before going live; then 0.25% risk
- * for 100 trades before scaling to 1%.
+ * The M5 direction-flip model is retained for research only. Its previous
+ * walk-forward claim used `-originalR` as an inverse outcome and was
+ * invalidated by a bid/ask counterfactual audit. It must stay fail-closed
+ * until an unblocked-candidate replay proves an edge.
  */
 import fs from "node:fs";
 import path from "node:path";

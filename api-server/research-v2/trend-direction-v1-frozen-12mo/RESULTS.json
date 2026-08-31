@@ -1,0 +1,75 @@
+{
+  "generatedAt": "2026-08-28T10:15:01.646Z",
+  "scope": {
+    "period": "2025-08-01 through 2026-07-31",
+    "pairs": [
+      "EUR_USD",
+      "GBP_USD",
+      "USD_JPY"
+    ],
+    "source": "raw OANDA bid/ask candles fetched at runtime",
+    "frozenDetector": "trend-direction-v1; no thresholds changed after August 2026"
+  },
+  "execution": {
+    "sameCandidates": 1400,
+    "eachArm": "own bid/ask fills, preserved stop/target distance, forced session exit, one open position per pair"
+  },
+  "arms": {
+    "original": {
+      "n": 522,
+      "wins": 186,
+      "totalR": -70.04827652019016,
+      "expectancyR": -0.1341921006133911,
+      "winRate": 0.3563218390804598,
+      "byPair": {
+        "EUR_USD": {
+          "n": 157,
+          "totalR": -19.904613143386495,
+          "expectancyR": -0.12678097543558278
+        },
+        "GBP_USD": {
+          "n": 166,
+          "totalR": -12.488368347228173,
+          "expectancyR": -0.07523113462185646
+        },
+        "USD_JPY": {
+          "n": 199,
+          "totalR": -37.65529502957554,
+          "expectancyR": -0.1892225880883193
+        }
+      }
+    },
+    "inverse": {
+      "n": 562,
+      "wins": 194,
+      "totalR": -50.57557244676954,
+      "expectancyR": -0.08999212179140488,
+      "winRate": 0.34519572953736655,
+      "byPair": {
+        "EUR_USD": {
+          "n": 179,
+          "totalR": -25.979009239967624,
+          "expectancyR": -0.14513412983222138
+        },
+        "GBP_USD": {
+          "n": 174,
+          "totalR": -19.35834479292373,
+          "expectancyR": -0.11125485513174559
+        },
+        "USD_JPY": {
+          "n": 209,
+          "totalR": -5.238218413878145,
+          "expectancyR": -0.02506324599941696
+        }
+      }
+    },
+    "randomControls": {
+      "count": 100,
+      "meanExpectancyR": -0.1168756764909584,
+      "medianExpectancyR": -0.11446018930205744,
+      "p05ExpectancyR": -0.1821162067425516,
+      "p95ExpectancyR": -0.0546301420649221,
+      "controlsBeatenByInverse": 75
+    }
+  }
+}

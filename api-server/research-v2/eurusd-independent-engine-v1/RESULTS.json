@@ -1,0 +1,1031 @@
+{
+  "generatedAt": "2026-08-29T06:06:20.972Z",
+  "verdict": "NO_CANDIDATE_QUALIFIED_DEVELOPMENT",
+  "independence": {
+    "uses": "fresh raw OANDA Practice EUR_USD M5 bid/ask candles only",
+    "refuses": [
+      "stored trades",
+      "existing engine signals",
+      "existing strategy modules",
+      "confidence models",
+      "news/calendar data",
+      "prior research results"
+    ]
+  },
+  "engine": {
+    "opportunityClock": "Every completed 15-minute mark from 06:00 through 19:59 UTC, evaluated from M5 candles",
+    "continuation": "EMA12/EMA48 direction plus 24-bar efficiency and one-bar pullback/resumption",
+    "rejection": "48-bar close z-score extreme in a low-efficiency regime plus a rejection candle",
+    "volatility": "ATR14/ATR96 must be between 0.6 and 1.2; entry spread must be <=25% of ATR14",
+    "entry": "next M5 open using executable ask for long and bid for short",
+    "execution": "one open trade; stop = candidate ATR multiple; target = 2x stop; maximum 24 M5 bars; ambiguous bar charged as stop",
+    "payoffScale": "+1.5 target / -0.75 stop"
+  },
+  "data": {
+    "source": "OANDA Practice",
+    "instrument": "EUR_USD",
+    "granularity": "M5",
+    "from": "2021-12-20T00:00:00.000Z",
+    "toExclusive": "2026-08-01T00:00:00.000Z",
+    "candles": 344780,
+    "marketDays": {
+      "train2022_23": 622,
+      "development2024": 314,
+      "validation2025": 313,
+      "finalHoldout2026": 182
+    }
+  },
+  "selection": {
+    "candidateCount": 8,
+    "trainGate": "n>=500 and expectancy>0",
+    "developmentGate": "n>=200 and expectancy>0.02R",
+    "validationGate": "n>=200, expectancy>0, PF>1",
+    "finalHoldoutOpenedOnlyAfterValidation": true
+  },
+  "discovery": [
+    {
+      "candidate": {
+        "name": "er0.3_z1.25_stop1",
+        "trendEfficiency": 0.3,
+        "rejectionZ": 1.25,
+        "stopAtr": 1
+      },
+      "train2022_23": {
+        "trades": 360,
+        "tradesPerMarketDay": 0.5787781350482315,
+        "wins": 111,
+        "winRate": 0.30833333333333335,
+        "totalR": -26.30690860168106,
+        "expectancyR": -0.07307474611578071,
+        "profitFactor": 0.8577994053877436,
+        "maxDrawdownR": 39.3236912416109,
+        "targetHits": 102,
+        "stops": 245,
+        "timeExits": 13,
+        "medianSpreadPips": 1.40000000000029,
+        "byMode": {
+          "continuation": {
+            "trades": 170,
+            "totalR": -8.083113322375494,
+            "expectancyR": -0.0475477254257382
+          },
+          "rejection": {
+            "trades": 190,
+            "totalR": -18.223795279305563,
+            "expectancyR": -0.09591471199634506
+          }
+        }
+      },
+      "development2024": {
+        "trades": 18,
+        "tradesPerMarketDay": 0.05732484076433121,
+        "wins": 5,
+        "winRate": 0.2777777777777778,
+        "totalR": -3.550997506234272,
+        "expectancyR": -0.19727763923523733,
+        "profitFactor": 0.6357951275657157,
+        "maxDrawdownR": 3.550997506234272,
+        "targetHits": 4,
+        "stops": 13,
+        "timeExits": 1,
+        "medianSpreadPips": 1.4999999999987246,
+        "byMode": {
+          "continuation": {
+            "trades": 10,
+            "totalR": -3,
+            "expectancyR": -0.3
+          },
+          "rejection": {
+            "trades": 8,
+            "totalR": -0.550997506234272,
+            "expectancyR": -0.068874688279284
+          }
+        }
+      },
+      "qualified": false
+    },
+    {
+      "candidate": {
+        "name": "er0.3_z1.25_stop1.25",
+        "trendEfficiency": 0.3,
+        "rejectionZ": 1.25,
+        "stopAtr": 1.25
+      },
+      "train2022_23": {
+        "trades": 345,
+        "tradesPerMarketDay": 0.5546623794212219,
+        "wins": 115,
+        "winRate": 0.3333333333333333,
+        "totalR": -21.08329838020026,
+        "expectancyR": -0.061111009797681914,
+        "profitFactor": 0.8730444218359664,
+        "maxDrawdownR": 28.923334647478836,
+        "targetHits": 87,
+        "stops": 216,
+        "timeExits": 42,
+        "medianSpreadPips": 1.40000000000029,
+        "byMode": {
+          "continuation": {
+            "trades": 160,
+            "totalR": -9.208130855142446,
+            "expectancyR": -0.05755081784464029
+          },
+          "rejection": {
+            "trades": 185,
+            "totalR": -11.87516752505782,
+            "expectancyR": -0.06419009473004228
+          }
+        }
+      },
+      "development2024": {
+        "trades": 18,
+        "tradesPerMarketDay": 0.05732484076433121,
+        "wins": 4,
+        "winRate": 0.2222222222222222,
+        "totalR": -5.7381152538170355,
+        "expectancyR": -0.31878418076761306,
+        "profitFactor": 0.44811578636181837,
+        "maxDrawdownR": 5.7381152538170355,
+        "targetHits": 3,
+        "stops": 13,
+        "timeExits": 2,
+        "medianSpreadPips": 1.4999999999987246,
+        "byMode": {
+          "continuation": {
+            "trades": 10,
+            "totalR": -5.25,
+            "expectancyR": -0.525
+          },
+          "rejection": {
+            "trades": 8,
+            "totalR": -0.4881152538170357,
+            "expectancyR": -0.06101440672712946
+          }
+        }
+      },
+      "qualified": false
+    },
+    {
+      "candidate": {
+        "name": "er0.3_z1.75_stop1",
+        "trendEfficiency": 0.3,
+        "rejectionZ": 1.75,
+        "stopAtr": 1
+      },
+      "train2022_23": {
+        "trades": 219,
+        "tradesPerMarketDay": 0.3520900321543408,
+        "wins": 73,
+        "winRate": 0.3333333333333333,
+        "totalR": -4.333113322375494,
+        "expectancyR": -0.019785905581623263,
+        "profitFactor": 0.9600122525775928,
+        "maxDrawdownR": 24.17742909144646,
+        "targetHits": 67,
+        "stops": 144,
+        "timeExits": 8,
+        "medianSpreadPips": 1.40000000000029,
+        "byMode": {
+          "continuation": {
+            "trades": 173,
+            "totalR": -8.083113322375494,
+            "expectancyR": -0.04672319839523407
+          },
+          "rejection": {
+            "trades": 46,
+            "totalR": 3.75,
+            "expectancyR": 0.08152173913043478
+          }
+        }
+      },
+      "development2024": {
+        "trades": 13,
+        "tradesPerMarketDay": 0.041401273885350316,
+        "wins": 4,
+        "winRate": 0.3076923076923077,
+        "totalR": -2.050997506234272,
+        "expectancyR": -0.15776903894109784,
+        "profitFactor": 0.6961485175949227,
+        "maxDrawdownR": 2.800997506234272,
+        "targetHits": 3,
+        "stops": 9,
+        "timeExits": 1,
+        "medianSpreadPips": 1.4999999999987246,
+        "byMode": {
+          "continuation": {
+            "trades": 10,
+            "totalR": -3,
+            "expectancyR": -0.3
+          },
+          "rejection": {
+            "trades": 3,
+            "totalR": 0.9490024937657279,
+            "expectancyR": 0.31633416458857594
+          }
+        }
+      },
+      "qualified": false
+    },
+    {
+      "candidate": {
+        "name": "er0.3_z1.75_stop1.25",
+        "trendEfficiency": 0.3,
+        "rejectionZ": 1.75,
+        "stopAtr": 1.25
+      },
+      "train2022_23": {
+        "trades": 209,
+        "tradesPerMarketDay": 0.3360128617363344,
+        "wins": 73,
+        "winRate": 0.3492822966507177,
+        "totalR": -5.352826039926562,
+        "expectancyR": -0.025611607846538573,
+        "profitFactor": 0.9452356635897562,
+        "maxDrawdownR": 14.265124331207462,
+        "targetHits": 56,
+        "stops": 127,
+        "timeExits": 26,
+        "medianSpreadPips": 1.40000000000029,
+        "byMode": {
+          "continuation": {
+            "trades": 163,
+            "totalR": -8.953820773831675,
+            "expectancyR": -0.05493141579037837
+          },
+          "rejection": {
+            "trades": 46,
+            "totalR": 3.600994733905109,
+            "expectancyR": 0.07828249421532846
+          }
+        }
+      },
+      "development2024": {
+        "trades": 13,
+        "tradesPerMarketDay": 0.041401273885350316,
+        "wins": 3,
+        "winRate": 0.23076923076923078,
+        "totalR": -4.340798004987418,
+        "expectancyR": -0.333907538845186,
+        "profitFactor": 0.42122693266834427,
+        "maxDrawdownR": 4.340798004987418,
+        "targetHits": 2,
+        "stops": 10,
+        "timeExits": 1,
+        "medianSpreadPips": 1.4999999999987246,
+        "byMode": {
+          "continuation": {
+            "trades": 10,
+            "totalR": -5.25,
+            "expectancyR": -0.525
+          },
+          "rejection": {
+            "trades": 3,
+            "totalR": 0.9092019950125823,
+            "expectancyR": 0.30306733167086075
+          }
+        }
+      },
+      "qualified": false
+    },
+    {
+      "candidate": {
+        "name": "er0.4_z1.25_stop1",
+        "trendEfficiency": 0.4,
+        "rejectionZ": 1.25,
+        "stopAtr": 1
+      },
+      "train2022_23": {
+        "trades": 268,
+        "tradesPerMarketDay": 0.43086816720257237,
+        "wins": 79,
+        "winRate": 0.2947761194029851,
+        "totalR": -25.61017843950195,
+        "expectancyR": -0.09556036731157444,
+        "profitFactor": 0.8178344678385325,
+        "maxDrawdownR": 37.61576287114488,
+        "targetHits": 74,
+        "stops": 186,
+        "timeExits": 8,
+        "medianSpreadPips": 1.40000000000029,
+        "byMode": {
+          "continuation": {
+            "trades": 73,
+            "totalR": -8.136383160196388,
+            "expectancyR": -0.11145730356433409
+          },
+          "rejection": {
+            "trades": 195,
+            "totalR": -17.473795279305563,
+            "expectancyR": -0.08960920656054135
+          }
+        }
+      },
+      "development2024": {
+        "trades": 11,
+        "tradesPerMarketDay": 0.03503184713375796,
+        "wins": 4,
+        "winRate": 0.36363636363636365,
+        "totalR": -0.550997506234272,
+        "expectancyR": -0.05009068238493382,
+        "profitFactor": 0.8950480940506148,
+        "maxDrawdownR": 2.25,
+        "targetHits": 3,
+        "stops": 7,
+        "timeExits": 1,
+        "medianSpreadPips": 1.500000000000945,
+        "byMode": {
+          "continuation": {
+            "trades": 3,
+            "totalR": 0,
+            "expectancyR": 0
+          },
+          "rejection": {
+            "trades": 8,
+            "totalR": -0.550997506234272,
+            "expectancyR": -0.068874688279284
+          }
+        }
+      },
+      "qualified": false
+    },
+    {
+      "candidate": {
+        "name": "er0.4_z1.25_stop1.25",
+        "trendEfficiency": 0.4,
+        "rejectionZ": 1.25,
+        "stopAtr": 1.25
+      },
+      "train2022_23": {
+        "trades": 260,
+        "tradesPerMarketDay": 0.4180064308681672,
+        "wins": 87,
+        "winRate": 0.3346153846153846,
+        "totalR": -10.617066815549943,
+        "expectancyR": -0.04083487236749978,
+        "profitFactor": 0.9149202833516064,
+        "maxDrawdownR": 23.84607280840629,
+        "targetHits": 69,
+        "stops": 162,
+        "timeExits": 29,
+        "medianSpreadPips": 1.40000000000029,
+        "byMode": {
+          "continuation": {
+            "trades": 70,
+            "totalR": 0.253229649335839,
+            "expectancyR": 0.0036175664190834147
+          },
+          "rejection": {
+            "trades": 190,
+            "totalR": -10.870296464885778,
+            "expectancyR": -0.05721208665729357
+          }
+        }
+      },
+      "development2024": {
+        "trades": 11,
+        "tradesPerMarketDay": 0.03503184713375796,
+        "wins": 4,
+        "winRate": 0.36363636363636365,
+        "totalR": -0.4881152538170357,
+        "expectancyR": -0.04437411398336688,
+        "profitFactor": 0.9051709404684505,
+        "maxDrawdownR": 2.147317248829618,
+        "targetHits": 3,
+        "stops": 6,
+        "timeExits": 2,
+        "medianSpreadPips": 1.5999999999993797,
+        "byMode": {
+          "continuation": {
+            "trades": 3,
+            "totalR": 0,
+            "expectancyR": 0
+          },
+          "rejection": {
+            "trades": 8,
+            "totalR": -0.4881152538170357,
+            "expectancyR": -0.06101440672712946
+          }
+        }
+      },
+      "qualified": false
+    },
+    {
+      "candidate": {
+        "name": "er0.4_z1.75_stop1",
+        "trendEfficiency": 0.4,
+        "rejectionZ": 1.75,
+        "stopAtr": 1
+      },
+      "train2022_23": {
+        "trades": 120,
+        "tradesPerMarketDay": 0.19292604501607716,
+        "wins": 38,
+        "winRate": 0.31666666666666665,
+        "totalR": -5.136383160196387,
+        "expectancyR": -0.04280319300163656,
+        "profitFactor": 0.9157277026063392,
+        "maxDrawdownR": 18.130684931506796,
+        "targetHits": 36,
+        "stops": 81,
+        "timeExits": 3,
+        "medianSpreadPips": 1.40000000000029,
+        "byMode": {
+          "continuation": {
+            "trades": 74,
+            "totalR": -8.886383160196388,
+            "expectancyR": -0.1200862589215728
+          },
+          "rejection": {
+            "trades": 46,
+            "totalR": 3.75,
+            "expectancyR": 0.08152173913043478
+          }
+        }
+      },
+      "development2024": {
+        "trades": 6,
+        "tradesPerMarketDay": 0.01910828025477707,
+        "wins": 3,
+        "winRate": 0.5,
+        "totalR": 0.949002493765728,
+        "expectancyR": 0.158167082294288,
+        "profitFactor": 1.4217788861181013,
+        "maxDrawdownR": 0.75,
+        "targetHits": 2,
+        "stops": 3,
+        "timeExits": 1,
+        "medianSpreadPips": 1.500000000000945,
+        "byMode": {
+          "continuation": {
+            "trades": 3,
+            "totalR": 0,
+            "expectancyR": 0
+          },
+          "rejection": {
+            "trades": 3,
+            "totalR": 0.9490024937657279,
+            "expectancyR": 0.31633416458857594
+          }
+        }
+      },
+      "qualified": false
+    },
+    {
+      "candidate": {
+        "name": "er0.4_z1.75_stop1.25",
+        "trendEfficiency": 0.4,
+        "rejectionZ": 1.75,
+        "stopAtr": 1.25
+      },
+      "train2022_23": {
+        "trades": 117,
+        "tradesPerMarketDay": 0.18810289389067525,
+        "wins": 43,
+        "winRate": 0.36752136752136755,
+        "totalR": 4.253989010006194,
+        "expectancyR": 0.036358880427403366,
+        "profitFactor": 1.0803107453570095,
+        "maxDrawdownR": 8.978077448861274,
+        "targetHits": 35,
+        "stops": 69,
+        "timeExits": 13,
+        "medianSpreadPips": 1.40000000000029,
+        "byMode": {
+          "continuation": {
+            "trades": 71,
+            "totalR": 0.6529942761010847,
+            "expectancyR": 0.009197102480296968
+          },
+          "rejection": {
+            "trades": 46,
+            "totalR": 3.600994733905109,
+            "expectancyR": 0.07828249421532846
+          }
+        }
+      },
+      "development2024": {
+        "trades": 6,
+        "tradesPerMarketDay": 0.01910828025477707,
+        "wins": 3,
+        "winRate": 0.5,
+        "totalR": 0.9092019950125823,
+        "expectancyR": 0.15153366583543038,
+        "profitFactor": 1.4040897755611477,
+        "maxDrawdownR": 0.75,
+        "targetHits": 2,
+        "stops": 3,
+        "timeExits": 1,
+        "medianSpreadPips": 1.5999999999993797,
+        "byMode": {
+          "continuation": {
+            "trades": 3,
+            "totalR": 0,
+            "expectancyR": 0
+          },
+          "rejection": {
+            "trades": 3,
+            "totalR": 0.9092019950125823,
+            "expectancyR": 0.30306733167086075
+          }
+        }
+      },
+      "qualified": false
+    }
+  ],
+  "selected": null,
+  "priceDiscoveryBreakout": {
+    "mechanism": "At each completed 30-minute mark, bracket the completed six-bar executable range. The first completed M5 close beyond either side within 30 minutes determines direction; entry is the following M5 open.",
+    "candidateCount": 8,
+    "discovery": [
+      {
+        "candidate": {
+          "name": "range1.5_buffer0.05_stop1",
+          "maximumRangeAtr": 1.5,
+          "bufferAtr": 0.05,
+          "stopAtr": 1
+        },
+        "train2022_23": {
+          "trades": 433,
+          "tradesPerMarketDay": 0.6961414790996785,
+          "wins": 102,
+          "winRate": 0.23556581986143188,
+          "totalR": -107.96637970544069,
+          "expectancyR": -0.24934498777238034,
+          "profitFactor": 0.5604003980152624,
+          "maxDrawdownR": 109.52401682878133,
+          "targetHits": 85,
+          "stops": 325,
+          "timeExits": 23,
+          "medianSpreadPips": 1.4999999999987246,
+          "byMode": {
+            "continuation": {
+              "trades": 433,
+              "totalR": -107.96637970544069,
+              "expectancyR": -0.24934498777238034
+            },
+            "rejection": {
+              "trades": 0,
+              "totalR": 0,
+              "expectancyR": null
+            }
+          }
+        },
+        "development2024": {
+          "trades": 212,
+          "tradesPerMarketDay": 0.6751592356687898,
+          "wins": 44,
+          "winRate": 0.20754716981132076,
+          "totalR": -65.63202811011296,
+          "expectancyR": -0.3095850382552498,
+          "profitFactor": 0.47911088801497653,
+          "maxDrawdownR": 65.63202811011296,
+          "targetHits": 39,
+          "stops": 168,
+          "timeExits": 5,
+          "medianSpreadPips": 1.500000000000945,
+          "byMode": {
+            "continuation": {
+              "trades": 212,
+              "totalR": -65.63202811011296,
+              "expectancyR": -0.3095850382552498
+            },
+            "rejection": {
+              "trades": 0,
+              "totalR": 0,
+              "expectancyR": null
+            }
+          }
+        },
+        "qualified": false
+      },
+      {
+        "candidate": {
+          "name": "range1.5_buffer0.05_stop1.25",
+          "maximumRangeAtr": 1.5,
+          "bufferAtr": 0.05,
+          "stopAtr": 1.25
+        },
+        "train2022_23": {
+          "trades": 427,
+          "tradesPerMarketDay": 0.6864951768488746,
+          "wins": 110,
+          "winRate": 0.2576112412177986,
+          "totalR": -97.94982716033485,
+          "expectancyR": -0.22939069592584274,
+          "profitFactor": 0.5735448496344235,
+          "maxDrawdownR": 100.45647098363632,
+          "targetHits": 71,
+          "stops": 300,
+          "timeExits": 56,
+          "medianSpreadPips": 1.4999999999987246,
+          "byMode": {
+            "continuation": {
+              "trades": 427,
+              "totalR": -97.94982716033485,
+              "expectancyR": -0.22939069592584274
+            },
+            "rejection": {
+              "trades": 0,
+              "totalR": 0,
+              "expectancyR": null
+            }
+          }
+        },
+        "development2024": {
+          "trades": 207,
+          "tradesPerMarketDay": 0.6592356687898089,
+          "wins": 56,
+          "winRate": 0.27053140096618356,
+          "totalR": -40.58369397281872,
+          "expectancyR": -0.19605649262231267,
+          "profitFactor": 0.6395896755379025,
+          "maxDrawdownR": 42.08369397281872,
+          "targetHits": 43,
+          "stops": 149,
+          "timeExits": 15,
+          "medianSpreadPips": 1.500000000000945,
+          "byMode": {
+            "continuation": {
+              "trades": 207,
+              "totalR": -40.58369397281872,
+              "expectancyR": -0.19605649262231267
+            },
+            "rejection": {
+              "trades": 0,
+              "totalR": 0,
+              "expectancyR": null
+            }
+          }
+        },
+        "qualified": false
+      },
+      {
+        "candidate": {
+          "name": "range1.5_buffer0.15_stop1",
+          "maximumRangeAtr": 1.5,
+          "bufferAtr": 0.15,
+          "stopAtr": 1
+        },
+        "train2022_23": {
+          "trades": 415,
+          "tradesPerMarketDay": 0.6672025723472669,
+          "wins": 97,
+          "winRate": 0.23373493975903614,
+          "totalR": -106.98285290592052,
+          "expectancyR": -0.2577900070022181,
+          "profitFactor": 0.5463976570088759,
+          "maxDrawdownR": 108.07869005139182,
+          "targetHits": 79,
+          "stops": 312,
+          "timeExits": 24,
+          "medianSpreadPips": 1.4999999999987246,
+          "byMode": {
+            "continuation": {
+              "trades": 415,
+              "totalR": -106.98285290592052,
+              "expectancyR": -0.2577900070022181
+            },
+            "rejection": {
+              "trades": 0,
+              "totalR": 0,
+              "expectancyR": null
+            }
+          }
+        },
+        "development2024": {
+          "trades": 201,
+          "tradesPerMarketDay": 0.6401273885350318,
+          "wins": 43,
+          "winRate": 0.21393034825870647,
+          "totalR": -58.539593455713565,
+          "expectancyR": -0.29124175848613715,
+          "profitFactor": 0.5059949919349066,
+          "maxDrawdownR": 60.039593455713565,
+          "targetHits": 39,
+          "stops": 158,
+          "timeExits": 4,
+          "medianSpreadPips": 1.500000000000945,
+          "byMode": {
+            "continuation": {
+              "trades": 201,
+              "totalR": -58.539593455713565,
+              "expectancyR": -0.29124175848613715
+            },
+            "rejection": {
+              "trades": 0,
+              "totalR": 0,
+              "expectancyR": null
+            }
+          }
+        },
+        "qualified": false
+      },
+      {
+        "candidate": {
+          "name": "range1.5_buffer0.15_stop1.25",
+          "maximumRangeAtr": 1.5,
+          "bufferAtr": 0.15,
+          "stopAtr": 1.25
+        },
+        "train2022_23": {
+          "trades": 406,
+          "tradesPerMarketDay": 0.6527331189710611,
+          "wins": 107,
+          "winRate": 0.26354679802955666,
+          "totalR": -92.2241489120769,
+          "expectancyR": -0.22715307613812044,
+          "profitFactor": 0.5755946460846111,
+          "maxDrawdownR": 97.35046009209674,
+          "targetHits": 66,
+          "stops": 284,
+          "timeExits": 56,
+          "medianSpreadPips": 1.4999999999987246,
+          "byMode": {
+            "continuation": {
+              "trades": 406,
+              "totalR": -92.2241489120769,
+              "expectancyR": -0.22715307613812044
+            },
+            "rejection": {
+              "trades": 0,
+              "totalR": 0,
+              "expectancyR": null
+            }
+          }
+        },
+        "development2024": {
+          "trades": 197,
+          "tradesPerMarketDay": 0.6273885350318471,
+          "wins": 53,
+          "winRate": 0.26903553299492383,
+          "totalR": -40.257428159715595,
+          "expectancyR": -0.20435242720667815,
+          "profitFactor": 0.6246876773054362,
+          "maxDrawdownR": 43.57047163797663,
+          "targetHits": 39,
+          "stops": 142,
+          "timeExits": 16,
+          "medianSpreadPips": 1.500000000000945,
+          "byMode": {
+            "continuation": {
+              "trades": 197,
+              "totalR": -40.257428159715595,
+              "expectancyR": -0.20435242720667815
+            },
+            "rejection": {
+              "trades": 0,
+              "totalR": 0,
+              "expectancyR": null
+            }
+          }
+        },
+        "qualified": false
+      },
+      {
+        "candidate": {
+          "name": "range2_buffer0.05_stop1",
+          "maximumRangeAtr": 2,
+          "bufferAtr": 0.05,
+          "stopAtr": 1
+        },
+        "train2022_23": {
+          "trades": 1963,
+          "tradesPerMarketDay": 3.1559485530546625,
+          "wins": 478,
+          "winRate": 0.2435048395313296,
+          "totalR": -441.19589597371055,
+          "expectancyR": -0.22475593274259326,
+          "profitFactor": 0.6009389855468401,
+          "maxDrawdownR": 444.94589597371055,
+          "targetHits": 419,
+          "stops": 1466,
+          "timeExits": 78,
+          "medianSpreadPips": 1.4999999999987246,
+          "byMode": {
+            "continuation": {
+              "trades": 1963,
+              "totalR": -441.19589597371055,
+              "expectancyR": -0.22475593274259326
+            },
+            "rejection": {
+              "trades": 0,
+              "totalR": 0,
+              "expectancyR": null
+            }
+          }
+        },
+        "development2024": {
+          "trades": 970,
+          "tradesPerMarketDay": 3.089171974522293,
+          "wins": 185,
+          "winRate": 0.19072164948453607,
+          "totalR": -327.3478389292698,
+          "expectancyR": -0.3374719988961544,
+          "profitFactor": 0.4425525715900429,
+          "maxDrawdownR": 328.8478389292698,
+          "targetHits": 165,
+          "stops": 782,
+          "timeExits": 23,
+          "medianSpreadPips": 1.4999999999987246,
+          "byMode": {
+            "continuation": {
+              "trades": 970,
+              "totalR": -327.3478389292698,
+              "expectancyR": -0.3374719988961544
+            },
+            "rejection": {
+              "trades": 0,
+              "totalR": 0,
+              "expectancyR": null
+            }
+          }
+        },
+        "qualified": false
+      },
+      {
+        "candidate": {
+          "name": "range2_buffer0.05_stop1.25",
+          "maximumRangeAtr": 2,
+          "bufferAtr": 0.05,
+          "stopAtr": 1.25
+        },
+        "train2022_23": {
+          "trades": 1834,
+          "tradesPerMarketDay": 2.9485530546623795,
+          "wins": 491,
+          "winRate": 0.2677208287895311,
+          "totalR": -367.15614254849555,
+          "expectancyR": -0.20019418895774022,
+          "profitFactor": 0.6285974576924941,
+          "maxDrawdownR": 371.1951974477312,
+          "targetHits": 360,
+          "stops": 1302,
+          "timeExits": 172,
+          "medianSpreadPips": 1.4999999999987246,
+          "byMode": {
+            "continuation": {
+              "trades": 1834,
+              "totalR": -367.15614254849555,
+              "expectancyR": -0.20019418895774022
+            },
+            "rejection": {
+              "trades": 0,
+              "totalR": 0,
+              "expectancyR": null
+            }
+          }
+        },
+        "development2024": {
+          "trades": 898,
+          "tradesPerMarketDay": 2.859872611464968,
+          "wins": 220,
+          "winRate": 0.24498886414253898,
+          "totalR": -213.58534654643097,
+          "expectancyR": -0.23784559749045764,
+          "profitFactor": 0.5725216670684183,
+          "maxDrawdownR": 215.08534654643097,
+          "targetHits": 165,
+          "stops": 661,
+          "timeExits": 72,
+          "medianSpreadPips": 1.4999999999987246,
+          "byMode": {
+            "continuation": {
+              "trades": 898,
+              "totalR": -213.58534654643097,
+              "expectancyR": -0.23784559749045764
+            },
+            "rejection": {
+              "trades": 0,
+              "totalR": 0,
+              "expectancyR": null
+            }
+          }
+        },
+        "qualified": false
+      },
+      {
+        "candidate": {
+          "name": "range2_buffer0.15_stop1",
+          "maximumRangeAtr": 2,
+          "bufferAtr": 0.15,
+          "stopAtr": 1
+        },
+        "train2022_23": {
+          "trades": 1881,
+          "tradesPerMarketDay": 3.0241157556270095,
+          "wins": 453,
+          "winRate": 0.24082934609250398,
+          "totalR": -433.34517102965657,
+          "expectancyR": -0.23038020788392163,
+          "profitFactor": 0.592612206277343,
+          "maxDrawdownR": 437.09517102965657,
+          "targetHits": 396,
+          "stops": 1410,
+          "timeExits": 75,
+          "medianSpreadPips": 1.4999999999987246,
+          "byMode": {
+            "continuation": {
+              "trades": 1881,
+              "totalR": -433.34517102965657,
+              "expectancyR": -0.23038020788392163
+            },
+            "rejection": {
+              "trades": 0,
+              "totalR": 0,
+              "expectancyR": null
+            }
+          }
+        },
+        "development2024": {
+          "trades": 918,
+          "tradesPerMarketDay": 2.9235668789808917,
+          "wins": 170,
+          "winRate": 0.18518518518518517,
+          "totalR": -318.5989145136518,
+          "expectancyR": -0.34705764108240933,
+          "profitFactor": 0.4293249511845752,
+          "maxDrawdownR": 320.0989145136518,
+          "targetHits": 152,
+          "stops": 743,
+          "timeExits": 23,
+          "medianSpreadPips": 1.4999999999987246,
+          "byMode": {
+            "continuation": {
+              "trades": 918,
+              "totalR": -318.5989145136518,
+              "expectancyR": -0.34705764108240933
+            },
+            "rejection": {
+              "trades": 0,
+              "totalR": 0,
+              "expectancyR": null
+            }
+          }
+        },
+        "qualified": false
+      },
+      {
+        "candidate": {
+          "name": "range2_buffer0.15_stop1.25",
+          "maximumRangeAtr": 2,
+          "bufferAtr": 0.15,
+          "stopAtr": 1.25
+        },
+        "train2022_23": {
+          "trades": 1767,
+          "tradesPerMarketDay": 2.8408360128617365,
+          "wins": 471,
+          "winRate": 0.266553480475382,
+          "totalR": -354.63368703534053,
+          "expectancyR": -0.20069818168383732,
+          "profitFactor": 0.6289437144241157,
+          "maxDrawdownR": 358.67274193457615,
+          "targetHits": 350,
+          "stops": 1259,
+          "timeExits": 158,
+          "medianSpreadPips": 1.4999999999987246,
+          "byMode": {
+            "continuation": {
+              "trades": 1767,
+              "totalR": -354.63368703534053,
+              "expectancyR": -0.20069818168383732
+            },
+            "rejection": {
+              "trades": 0,
+              "totalR": 0,
+              "expectancyR": null
+            }
+          }
+        },
+        "development2024": {
+          "trades": 864,
+          "tradesPerMarketDay": 2.751592356687898,
+          "wins": 198,
+          "winRate": 0.22916666666666666,
+          "totalR": -233.45676257081033,
+          "expectancyR": -0.2702045863088082,
+          "profitFactor": 0.5240737343038688,
+          "maxDrawdownR": 234.95676257081033,
+          "targetHits": 148,
+          "stops": 649,
+          "timeExits": 67,
+          "medianSpreadPips": 1.4999999999987246,
+          "byMode": {
+            "continuation": {
+              "trades": 864,
+              "totalR": -233.45676257081033,
+              "expectancyR": -0.2702045863088082
+            },
+            "rejection": {
+              "trades": 0,
+              "totalR": 0,
+              "expectancyR": null
+            }
+          }
+        },
+        "qualified": false
+      }
+    ],
+    "selected": null
+  }
+}

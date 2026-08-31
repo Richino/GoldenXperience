@@ -1,0 +1,2100 @@
+{
+  "verdict": "NO_H1_DIRECTION_EDGE",
+  "generatedAt": "2026-08-30T03:28:30.787Z",
+  "pairs": [
+    "EUR_USD",
+    "GBP_USD",
+    "USD_JPY",
+    "AUD_USD",
+    "NZD_USD",
+    "USD_CAD",
+    "USD_CHF",
+    "EUR_GBP",
+    "EUR_JPY",
+    "GBP_JPY",
+    "AUD_JPY",
+    "EUR_AUD"
+  ],
+  "pairLabels": [
+    "EUR/USD",
+    "GBP/USD",
+    "USD/JPY",
+    "AUD/USD",
+    "NZD/USD",
+    "USD/CAD",
+    "USD/CHF",
+    "EUR/GBP",
+    "EUR/JPY",
+    "GBP/JPY",
+    "AUD/JPY",
+    "EUR/AUD"
+  ],
+  "historicalPeriod": {
+    "start": "2022-08-01T00:00:00.000Z",
+    "end": "2026-08-01T00:00:00.000Z"
+  },
+  "coverage": [
+    {
+      "pair": "EUR_USD",
+      "source": "json",
+      "start": "2022-08-01T00:00:00.000Z",
+      "end": "2026-07-31T21:00:00.000Z",
+      "candles": 24907,
+      "missingCandles": 10155,
+      "gaps": 212,
+      "maxGapHours": 73,
+      "medianSpreadPips": 1.6
+    },
+    {
+      "pair": "GBP_USD",
+      "source": "json",
+      "start": "2022-08-01T00:00:00.000Z",
+      "end": "2026-07-31T21:00:00.000Z",
+      "candles": 24905,
+      "missingCandles": 10157,
+      "gaps": 213,
+      "maxGapHours": 73,
+      "medianSpreadPips": 1.9
+    },
+    {
+      "pair": "USD_JPY",
+      "source": "json",
+      "start": "2022-08-01T00:00:00.000Z",
+      "end": "2026-07-31T21:00:00.000Z",
+      "candles": 24905,
+      "missingCandles": 10157,
+      "gaps": 213,
+      "maxGapHours": 73,
+      "medianSpreadPips": 1.7
+    },
+    {
+      "pair": "AUD_USD",
+      "source": "json",
+      "start": "2022-08-01T00:00:00.000Z",
+      "end": "2026-07-31T21:00:00.000Z",
+      "candles": 24905,
+      "missingCandles": 10157,
+      "gaps": 213,
+      "maxGapHours": 73,
+      "medianSpreadPips": 1.3
+    },
+    {
+      "pair": "NZD_USD",
+      "source": "json",
+      "start": "2022-08-01T00:00:00.000Z",
+      "end": "2026-07-31T21:00:00.000Z",
+      "candles": 24912,
+      "missingCandles": 10150,
+      "gaps": 217,
+      "maxGapHours": 69,
+      "medianSpreadPips": 1.5
+    },
+    {
+      "pair": "USD_CAD",
+      "source": "json",
+      "start": "2022-08-01T00:00:00.000Z",
+      "end": "2026-07-31T21:00:00.000Z",
+      "candles": 24905,
+      "missingCandles": 10157,
+      "gaps": 213,
+      "maxGapHours": 73,
+      "medianSpreadPips": 1.9
+    },
+    {
+      "pair": "USD_CHF",
+      "source": "json",
+      "start": "2022-08-01T00:00:00.000Z",
+      "end": "2026-07-31T21:00:00.000Z",
+      "candles": 24905,
+      "missingCandles": 10157,
+      "gaps": 213,
+      "maxGapHours": 73,
+      "medianSpreadPips": 1.6
+    },
+    {
+      "pair": "EUR_GBP",
+      "source": "json",
+      "start": "2022-08-01T00:00:00.000Z",
+      "end": "2026-07-31T21:00:00.000Z",
+      "candles": 24905,
+      "missingCandles": 10157,
+      "gaps": 213,
+      "maxGapHours": 73,
+      "medianSpreadPips": 1.4
+    },
+    {
+      "pair": "EUR_JPY",
+      "source": "json",
+      "start": "2022-08-01T00:00:00.000Z",
+      "end": "2026-07-31T21:00:00.000Z",
+      "candles": 24905,
+      "missingCandles": 10157,
+      "gaps": 213,
+      "maxGapHours": 73,
+      "medianSpreadPips": 2.3
+    },
+    {
+      "pair": "GBP_JPY",
+      "source": "json",
+      "start": "2022-08-01T00:00:00.000Z",
+      "end": "2026-07-31T21:00:00.000Z",
+      "candles": 24905,
+      "missingCandles": 10157,
+      "gaps": 213,
+      "maxGapHours": 73,
+      "medianSpreadPips": 3.2
+    },
+    {
+      "pair": "AUD_JPY",
+      "source": "json",
+      "start": "2022-08-01T00:00:00.000Z",
+      "end": "2026-07-31T21:00:00.000Z",
+      "candles": 24905,
+      "missingCandles": 10157,
+      "gaps": 213,
+      "maxGapHours": 73,
+      "medianSpreadPips": 2
+    },
+    {
+      "pair": "EUR_AUD",
+      "source": "oanda",
+      "start": "2022-08-01T00:00:00.000Z",
+      "end": "2026-07-31T21:00:00.000Z",
+      "candles": 24904,
+      "missingCandles": 10158,
+      "gaps": 214,
+      "maxGapHours": 73,
+      "medianSpreadPips": 2.8
+    }
+  ],
+  "totalH1Candles": 298868,
+  "evaluationBars": 295580,
+  "directionalSignals": 19782,
+  "horizons": {
+    "1": {
+      "signals": 19782,
+      "wins": 9713,
+      "losses": 10038,
+      "ties": 31,
+      "winRate": 0.49100192093822664,
+      "ciLower": 0.48403774790317555,
+      "ciUpper": 0.4979695880900531
+    },
+    "2": {
+      "signals": 19782,
+      "wins": 9658,
+      "losses": 10100,
+      "ties": 24,
+      "winRate": 0.48822161561015065,
+      "ciLower": 0.48125878731890354,
+      "ciUpper": 0.495189017660997
+    },
+    "3": {
+      "signals": 19782,
+      "wins": 9649,
+      "losses": 10108,
+      "ties": 25,
+      "winRate": 0.48776665655646545,
+      "ciLower": 0.4808040688349626,
+      "ciUpper": 0.49473399470639323
+    },
+    "4": {
+      "signals": 19782,
+      "wins": 9687,
+      "losses": 10072,
+      "ties": 23,
+      "winRate": 0.48968759478313617,
+      "ciLower": 0.4827240305851497,
+      "ciUpper": 0.49665516347450567
+    },
+    "6": {
+      "signals": 19782,
+      "wins": 9652,
+      "losses": 10116,
+      "ties": 14,
+      "winRate": 0.48791830957436055,
+      "ciLower": 0.48095564102158006,
+      "ciUpper": 0.49488566966595743
+    },
+    "8": {
+      "signals": 19782,
+      "wins": 9653,
+      "losses": 10114,
+      "ties": 15,
+      "winRate": 0.48796886058032557,
+      "ciLower": 0.4810061652263126,
+      "ciUpper": 0.49493622784328534
+    },
+    "12": {
+      "signals": 19782,
+      "wins": 9774,
+      "losses": 9996,
+      "ties": 12,
+      "winRate": 0.4940855323020928,
+      "ciLower": 0.4871201198537193,
+      "ciUpper": 0.5010532414452007
+    },
+    "24": {
+      "signals": 19782,
+      "wins": 9795,
+      "losses": 9983,
+      "ties": 4,
+      "winRate": 0.4951471034273582,
+      "ciLower": 0.4881813256157377,
+      "ciUpper": 0.5021147657064531
+    }
+  },
+  "bestHorizon": 24,
+  "bestHorizonStats": {
+    "signals": 19782,
+    "wins": 9795,
+    "losses": 9983,
+    "ties": 4,
+    "winRate": 0.4951471034273582,
+    "ciLower": 0.4881813256157377,
+    "ciUpper": 0.5021147657064531
+  },
+  "pairResults": [
+    {
+      "pair": "EUR_USD",
+      "signals": 1528,
+      "wins": 764,
+      "losses": 764,
+      "ties": 0,
+      "winRate": 0.5,
+      "ciLower": 0.47496087513062457,
+      "ciUpper": 0.5250391248693754
+    },
+    {
+      "pair": "GBP_USD",
+      "signals": 1530,
+      "wins": 763,
+      "losses": 767,
+      "ties": 0,
+      "winRate": 0.49869281045751634,
+      "ciLower": 0.473673374603053,
+      "ciUpper": 0.523718794184128
+    },
+    {
+      "pair": "USD_JPY",
+      "signals": 1800,
+      "wins": 961,
+      "losses": 839,
+      "ties": 0,
+      "winRate": 0.5338888888888889,
+      "ciLower": 0.5107954519534148,
+      "ciUpper": 0.5568379810486846
+    },
+    {
+      "pair": "AUD_USD",
+      "signals": 1656,
+      "wins": 799,
+      "losses": 857,
+      "ties": 0,
+      "winRate": 0.482487922705314,
+      "ciLower": 0.45848887561168306,
+      "ciUpper": 0.5065680310232632
+    },
+    {
+      "pair": "NZD_USD",
+      "signals": 1745,
+      "wins": 818,
+      "losses": 927,
+      "ties": 0,
+      "winRate": 0.4687679083094556,
+      "ciLower": 0.44544793793332926,
+      "ciUpper": 0.4922250908875771
+    },
+    {
+      "pair": "USD_CAD",
+      "signals": 1683,
+      "wins": 831,
+      "losses": 852,
+      "ties": 0,
+      "winRate": 0.49376114081996436,
+      "ciLower": 0.4699161869144168,
+      "ciUpper": 0.5176345113847005
+    },
+    {
+      "pair": "USD_CHF",
+      "signals": 1478,
+      "wins": 697,
+      "losses": 780,
+      "ties": 1,
+      "winRate": 0.47158322056833557,
+      "ciLower": 0.4462398786840009,
+      "ciUpper": 0.4970739006025301
+    },
+    {
+      "pair": "EUR_GBP",
+      "signals": 1387,
+      "wins": 610,
+      "losses": 776,
+      "ties": 1,
+      "winRate": 0.4397981254506128,
+      "ciLower": 0.41387735395723746,
+      "ciUpper": 0.46605146036640654
+    },
+    {
+      "pair": "EUR_JPY",
+      "signals": 1718,
+      "wins": 851,
+      "losses": 866,
+      "ties": 1,
+      "winRate": 0.49534342258440045,
+      "ciLower": 0.4717375756316488,
+      "ciUpper": 0.5189700481126027
+    },
+    {
+      "pair": "GBP_JPY",
+      "signals": 1732,
+      "wins": 897,
+      "losses": 835,
+      "ties": 0,
+      "winRate": 0.5178983833718245,
+      "ciLower": 0.49435198854189244,
+      "ciUpper": 0.5413655561926041
+    },
+    {
+      "pair": "AUD_JPY",
+      "signals": 1782,
+      "wins": 901,
+      "losses": 881,
+      "ties": 0,
+      "winRate": 0.5056116722783389,
+      "ciLower": 0.48241085215410623,
+      "ciUpper": 0.5287883493876206
+    },
+    {
+      "pair": "EUR_AUD",
+      "signals": 1743,
+      "wins": 903,
+      "losses": 839,
+      "ties": 1,
+      "winRate": 0.5180722891566265,
+      "ciLower": 0.4946001833431309,
+      "ciUpper": 0.5414649069317973
+    }
+  ],
+  "allPairs": {
+    "signals": 19782,
+    "wins": 9795,
+    "losses": 9983,
+    "ties": 4,
+    "winRate": 0.4951471034273582,
+    "ciLower": 0.4881813256157377,
+    "ciUpper": 0.5021147657064531
+  },
+  "longShort": {
+    "long": {
+      "signals": 12725,
+      "wins": 6525,
+      "losses": 6198,
+      "ties": 2,
+      "winRate": 0.5127701375245579,
+      "ciLower": 0.5040828799099322,
+      "ciUpper": 0.5214496870127325
+    },
+    "short": {
+      "signals": 7057,
+      "wins": 3270,
+      "losses": 3785,
+      "ties": 2,
+      "winRate": 0.4633697038401587,
+      "ciLower": 0.4517582897114324,
+      "ciUpper": 0.47502097694142653
+    },
+    "byPair": [
+      {
+        "pair": "EUR_USD",
+        "long": {
+          "signals": 899,
+          "wins": 454,
+          "losses": 445,
+          "ties": 0,
+          "winRate": 0.5050055617352615,
+          "ciLower": 0.47237067181167214,
+          "ciUpper": 0.5375978542287763
+        },
+        "short": {
+          "signals": 629,
+          "wins": 310,
+          "losses": 319,
+          "ties": 0,
+          "winRate": 0.492845786963434,
+          "ciLower": 0.45393680215378834,
+          "ciUpper": 0.5318416296054385
+        }
+      },
+      {
+        "pair": "GBP_USD",
+        "long": {
+          "signals": 965,
+          "wins": 517,
+          "losses": 448,
+          "ties": 0,
+          "winRate": 0.5357512953367876,
+          "ciLower": 0.5042050948287012,
+          "ciUpper": 0.5670139775150131
+        },
+        "short": {
+          "signals": 565,
+          "wins": 246,
+          "losses": 319,
+          "ties": 0,
+          "winRate": 0.4353982300884956,
+          "ciLower": 0.3950871253578522,
+          "ciUpper": 0.4765818946294342
+        }
+      },
+      {
+        "pair": "USD_JPY",
+        "long": {
+          "signals": 1354,
+          "wins": 757,
+          "losses": 597,
+          "ties": 0,
+          "winRate": 0.5590841949778435,
+          "ciLower": 0.5325077483615116,
+          "ciUpper": 0.5853263200600186
+        },
+        "short": {
+          "signals": 446,
+          "wins": 204,
+          "losses": 242,
+          "ties": 0,
+          "winRate": 0.45739910313901344,
+          "ciLower": 0.4117237142350282,
+          "ciUpper": 0.5038021064093942
+        }
+      },
+      {
+        "pair": "AUD_USD",
+        "long": {
+          "signals": 962,
+          "wins": 488,
+          "losses": 474,
+          "ties": 0,
+          "winRate": 0.5072765072765073,
+          "ciLower": 0.4757173227576155,
+          "ciUpper": 0.5387778077068416
+        },
+        "short": {
+          "signals": 694,
+          "wins": 311,
+          "losses": 383,
+          "ties": 0,
+          "winRate": 0.44812680115273773,
+          "ciLower": 0.4115136876693072,
+          "ciUpper": 0.4853110358782714
+        }
+      },
+      {
+        "pair": "NZD_USD",
+        "long": {
+          "signals": 908,
+          "wins": 437,
+          "losses": 471,
+          "ties": 0,
+          "winRate": 0.4812775330396476,
+          "ciLower": 0.4489252140062253,
+          "ciUpper": 0.5137876080453241
+        },
+        "short": {
+          "signals": 837,
+          "wins": 381,
+          "losses": 456,
+          "ties": 0,
+          "winRate": 0.4551971326164875,
+          "ciLower": 0.42174086909353403,
+          "ciUpper": 0.4890627828665974
+        }
+      },
+      {
+        "pair": "USD_CAD",
+        "long": {
+          "signals": 1075,
+          "wins": 565,
+          "losses": 510,
+          "ties": 0,
+          "winRate": 0.5255813953488372,
+          "ciLower": 0.49569278461862276,
+          "ciUpper": 0.5552878227291101
+        },
+        "short": {
+          "signals": 608,
+          "wins": 266,
+          "losses": 342,
+          "ties": 0,
+          "winRate": 0.4375,
+          "ciLower": 0.39858192770490125,
+          "ciUpper": 0.47720291595398046
+        }
+      },
+      {
+        "pair": "USD_CHF",
+        "long": {
+          "signals": 872,
+          "wins": 411,
+          "losses": 460,
+          "ties": 1,
+          "winRate": 0.4713302752293578,
+          "ciLower": 0.43839614245614245,
+          "ciUpper": 0.5045159092207816
+        },
+        "short": {
+          "signals": 606,
+          "wins": 286,
+          "losses": 320,
+          "ties": 0,
+          "winRate": 0.47194719471947194,
+          "ciLower": 0.4325018308368927,
+          "ciUpper": 0.511745986957105
+        }
+      },
+      {
+        "pair": "EUR_GBP",
+        "long": {
+          "signals": 786,
+          "wins": 328,
+          "losses": 458,
+          "ties": 0,
+          "winRate": 0.4173027989821883,
+          "ciLower": 0.38331258640887783,
+          "ciUpper": 0.4520974502364446
+        },
+        "short": {
+          "signals": 601,
+          "wins": 282,
+          "losses": 318,
+          "ties": 1,
+          "winRate": 0.46921797004991683,
+          "ciLower": 0.42964070247684905,
+          "ciUpper": 0.5091862565153895
+        }
+      },
+      {
+        "pair": "EUR_JPY",
+        "long": {
+          "signals": 1331,
+          "wins": 675,
+          "losses": 655,
+          "ties": 1,
+          "winRate": 0.507137490608565,
+          "ciLower": 0.48029643615186485,
+          "ciUpper": 0.533937462462023
+        },
+        "short": {
+          "signals": 387,
+          "wins": 176,
+          "losses": 211,
+          "ties": 0,
+          "winRate": 0.45478036175710596,
+          "ciLower": 0.4058551970981612,
+          "ciUpper": 0.5045944582097693
+        }
+      },
+      {
+        "pair": "GBP_JPY",
+        "long": {
+          "signals": 1324,
+          "wins": 709,
+          "losses": 615,
+          "ties": 0,
+          "winRate": 0.5354984894259819,
+          "ciLower": 0.5085696097285443,
+          "ciUpper": 0.5622219666161041
+        },
+        "short": {
+          "signals": 408,
+          "wins": 188,
+          "losses": 220,
+          "ties": 0,
+          "winRate": 0.46078431372549017,
+          "ciLower": 0.4130070617305604,
+          "ciUpper": 0.5092931624332928
+        }
+      },
+      {
+        "pair": "AUD_JPY",
+        "long": {
+          "signals": 1293,
+          "wins": 687,
+          "losses": 606,
+          "ties": 0,
+          "winRate": 0.531322505800464,
+          "ciLower": 0.5040696243315609,
+          "ciUpper": 0.5583898155877014
+        },
+        "short": {
+          "signals": 489,
+          "wins": 214,
+          "losses": 275,
+          "ties": 0,
+          "winRate": 0.4376278118609407,
+          "ciLower": 0.39431203280203553,
+          "ciUpper": 0.48191594795283565
+        }
+      },
+      {
+        "pair": "EUR_AUD",
+        "long": {
+          "signals": 956,
+          "wins": 497,
+          "losses": 459,
+          "ties": 0,
+          "winRate": 0.5198744769874477,
+          "ciLower": 0.4881878578090744,
+          "ciUpper": 0.551402007852093
+        },
+        "short": {
+          "signals": 787,
+          "wins": 406,
+          "losses": 380,
+          "ties": 1,
+          "winRate": 0.5158831003811944,
+          "ciLower": 0.48097517001134293,
+          "ciUpper": 0.5506367229391544
+        }
+      }
+    ]
+  },
+  "regimeResults": [
+    {
+      "regime": "TREND_UP",
+      "signals": 414,
+      "winRate": 0.4806763285024155,
+      "ciLower": 0.4329470249566518,
+      "ciUpper": 0.5287609524204212
+    },
+    {
+      "regime": "TREND_DOWN",
+      "signals": 331,
+      "winRate": 0.4199395770392749,
+      "ciLower": 0.36798534723497234,
+      "ciUpper": 0.47373085529183445
+    },
+    {
+      "regime": "RANGE",
+      "signals": 16,
+      "winRate": 0.375,
+      "ciLower": 0.18480982554752803,
+      "ciUpper": 0.6135935290206519
+    },
+    {
+      "regime": "BREAKOUT",
+      "signals": 4047,
+      "winRate": 0.5156906350382999,
+      "ciLower": 0.5002857166243496,
+      "ciUpper": 0.5310657931458669
+    },
+    {
+      "regime": "HIGH_VOLATILITY",
+      "signals": 9112,
+      "winRate": 0.5017559262510974,
+      "ciLower": 0.49149098844549743,
+      "ciUpper": 0.5120193840910328
+    },
+    {
+      "regime": "LOW_VOLATILITY",
+      "signals": 5862,
+      "winRate": 0.476287956328898,
+      "ciLower": 0.4635222656898706,
+      "ciUpper": 0.48908470549053085
+    }
+  ],
+  "scoreBuckets": [
+    {
+      "bucket": "0.60–0.69",
+      "signals": 16000,
+      "winRate": 0.4896875
+    },
+    {
+      "bucket": "0.70–0.79",
+      "signals": 3782,
+      "winRate": 0.518244315177155
+    },
+    {
+      "bucket": "0.80–0.89",
+      "signals": 0,
+      "winRate": 0
+    },
+    {
+      "bucket": "0.90–1.00",
+      "signals": 0,
+      "winRate": 0
+    }
+  ],
+  "scoreCalibrationMonotonic": true,
+  "selectivity": [
+    {
+      "threshold": 0.5,
+      "pctHoursTraded": 0.19013465051762637,
+      "signals": 56200,
+      "winRate": 0.49090747330960854
+    },
+    {
+      "threshold": 0.6,
+      "pctHoursTraded": 0.06692604371067054,
+      "signals": 19782,
+      "winRate": 0.4951471034273582
+    },
+    {
+      "threshold": 0.7,
+      "pctHoursTraded": 0.012795182353339197,
+      "signals": 3782,
+      "winRate": 0.518244315177155
+    },
+    {
+      "threshold": 0.8,
+      "pctHoursTraded": 0,
+      "signals": 0,
+      "winRate": 0
+    },
+    {
+      "threshold": 0.9,
+      "pctHoursTraded": 0,
+      "signals": 0,
+      "winRate": 0
+    }
+  ],
+  "walkForward": {
+    "byYear": {
+      "2022": {
+        "signals": 1860,
+        "wins": 915,
+        "losses": 945,
+        "ties": 0,
+        "winRate": 0.49193548387096775,
+        "ciLower": 0.46925527633777964,
+        "ciUpper": 0.5146489352647513
+      },
+      "2023": {
+        "signals": 4918,
+        "wins": 2342,
+        "losses": 2575,
+        "ties": 1,
+        "winRate": 0.4762098413989427,
+        "ciLower": 0.46227531708128555,
+        "ciUpper": 0.4901815031463301
+      },
+      "2024": {
+        "signals": 5022,
+        "wins": 2603,
+        "losses": 2418,
+        "ties": 1,
+        "winRate": 0.5183193946634806,
+        "ciLower": 0.5044910498018241,
+        "ciUpper": 0.5321197339522837
+      },
+      "2025": {
+        "signals": 4895,
+        "wins": 2390,
+        "losses": 2503,
+        "ties": 2,
+        "winRate": 0.4882533197139939,
+        "ciLower": 0.4742647376634958,
+        "ciUpper": 0.5022603249145636
+      },
+      "2026": {
+        "signals": 3087,
+        "wins": 1545,
+        "losses": 1542,
+        "ties": 0,
+        "winRate": 0.500485908649174,
+        "ciLower": 0.4828579356899212,
+        "ciUpper": 0.5181126737389153
+      }
+    },
+    "byQuarter": {
+      "2022-Q3": {
+        "signals": 729,
+        "wins": 411,
+        "losses": 318,
+        "ties": 0,
+        "winRate": 0.5637860082304527,
+        "ciLower": 0.5275448310720534,
+        "ciUpper": 0.5993584451611734
+      },
+      "2022-Q4": {
+        "signals": 1131,
+        "wins": 504,
+        "losses": 627,
+        "ties": 0,
+        "winRate": 0.44562334217506633,
+        "ciLower": 0.4168883877223422,
+        "ciUpper": 0.4747264420477331
+      },
+      "2023-Q1": {
+        "signals": 1160,
+        "wins": 476,
+        "losses": 684,
+        "ties": 0,
+        "winRate": 0.4103448275862069,
+        "ciLower": 0.38237852719805376,
+        "ciUpper": 0.43890299427359664
+      },
+      "2023-Q2": {
+        "signals": 1324,
+        "wins": 735,
+        "losses": 588,
+        "ties": 1,
+        "winRate": 0.5551359516616314,
+        "ciLower": 0.5282461266033469,
+        "ciUpper": 0.5817067472936601
+      },
+      "2023-Q3": {
+        "signals": 1238,
+        "wins": 558,
+        "losses": 680,
+        "ties": 0,
+        "winRate": 0.4507269789983845,
+        "ciLower": 0.4232048599916682,
+        "ciUpper": 0.47855394725073697
+      },
+      "2023-Q4": {
+        "signals": 1196,
+        "wins": 573,
+        "losses": 623,
+        "ties": 0,
+        "winRate": 0.4790969899665552,
+        "ciLower": 0.4508965409652604,
+        "ciUpper": 0.5074312916419772
+      },
+      "2024-Q1": {
+        "signals": 1183,
+        "wins": 557,
+        "losses": 626,
+        "ties": 0,
+        "winRate": 0.4708368554522401,
+        "ciLower": 0.44253296670295217,
+        "ciUpper": 0.4993295362629028
+      },
+      "2024-Q2": {
+        "signals": 1216,
+        "wins": 664,
+        "losses": 551,
+        "ties": 1,
+        "winRate": 0.5460526315789473,
+        "ciLower": 0.5179673550668411,
+        "ciUpper": 0.573847844545961
+      },
+      "2024-Q3": {
+        "signals": 1409,
+        "wins": 779,
+        "losses": 630,
+        "ties": 0,
+        "winRate": 0.552874378992193,
+        "ciLower": 0.5268041026688779,
+        "ciUpper": 0.5786571181785264
+      },
+      "2024-Q4": {
+        "signals": 1214,
+        "wins": 603,
+        "losses": 611,
+        "ties": 0,
+        "winRate": 0.49670510708401977,
+        "ciLower": 0.4686339378347726,
+        "ciUpper": 0.5247970633726096
+      },
+      "2025-Q1": {
+        "signals": 1114,
+        "wins": 555,
+        "losses": 559,
+        "ties": 0,
+        "winRate": 0.4982046678635548,
+        "ciLower": 0.4688996679116179,
+        "ciUpper": 0.5275220075744258
+      },
+      "2025-Q2": {
+        "signals": 1304,
+        "wins": 590,
+        "losses": 714,
+        "ties": 0,
+        "winRate": 0.45245398773006135,
+        "ciLower": 0.42561738124796034,
+        "ciUpper": 0.4795699136048719
+      },
+      "2025-Q3": {
+        "signals": 1203,
+        "wins": 565,
+        "losses": 638,
+        "ties": 0,
+        "winRate": 0.4696591853699086,
+        "ciLower": 0.4415977255074767,
+        "ciUpper": 0.49791380608043
+      },
+      "2025-Q4": {
+        "signals": 1274,
+        "wins": 680,
+        "losses": 592,
+        "ties": 2,
+        "winRate": 0.533751962323391,
+        "ciLower": 0.5062978815027352,
+        "ciUpper": 0.5610031047853932
+      },
+      "2026-Q1": {
+        "signals": 1365,
+        "wins": 726,
+        "losses": 639,
+        "ties": 0,
+        "winRate": 0.5318681318681319,
+        "ciLower": 0.5053443810263127,
+        "ciUpper": 0.558213009397824
+      },
+      "2026-Q2": {
+        "signals": 1332,
+        "wins": 641,
+        "losses": 691,
+        "ties": 0,
+        "winRate": 0.48123123123123124,
+        "ciLower": 0.4544908526816331,
+        "ciUpper": 0.5080795598582969
+      },
+      "2026-Q3": {
+        "signals": 390,
+        "wins": 178,
+        "losses": 212,
+        "ties": 0,
+        "winRate": 0.4564102564102564,
+        "ciLower": 0.4076400013646561,
+        "ciUpper": 0.5060308754548569
+      }
+    }
+  },
+  "baselines": [
+    {
+      "name": "Always LONG",
+      "winRate": 0.5197712971107653,
+      "signals": 295580,
+      "ciLower": 0.5179699065223901
+    },
+    {
+      "name": "Previous candle",
+      "winRate": 0.49607648230261125,
+      "signals": 294761,
+      "ciLower": 0.49427154317267574
+    },
+    {
+      "name": "EMA20 slope",
+      "winRate": 0.4968604100412748,
+      "signals": 295580,
+      "ciLower": 0.49505794297650285
+    },
+    {
+      "name": "EMA20/50 cross",
+      "winRate": 0.4934670816699371,
+      "signals": 295580,
+      "ciLower": 0.491664777037896
+    }
+  ],
+  "botBaseline": {
+    "name": "H1 Bot",
+    "winRate": 0.4951471034273582,
+    "signals": 19782,
+    "ciLower": 0.4881813256157377
+  },
+  "ablation": [
+    {
+      "model": "FULL MODEL",
+      "signals": 19782,
+      "winRate": 0.4951471034273582,
+      "changeVsFull": 0
+    },
+    {
+      "model": "minus structure",
+      "signals": 0,
+      "winRate": 0,
+      "changeVsFull": -0.4951471034273582
+    },
+    {
+      "model": "minus EMA trend",
+      "signals": 0,
+      "winRate": 0,
+      "changeVsFull": -0.4951471034273582
+    },
+    {
+      "model": "minus momentum",
+      "signals": 0,
+      "winRate": 0,
+      "changeVsFull": -0.4951471034273582
+    },
+    {
+      "model": "minus volatility",
+      "signals": 18234,
+      "winRate": 0.48343753427662606,
+      "changeVsFull": -0.011709569150732124
+    },
+    {
+      "model": "minus price location",
+      "signals": 29058,
+      "winRate": 0.4902952715259137,
+      "changeVsFull": -0.004851831901444503
+    },
+    {
+      "model": "minus regime adj",
+      "signals": 21917,
+      "winRate": 0.5002965734361454,
+      "changeVsFull": 0.005149470008787238
+    }
+  ],
+  "trading": {
+    "gross": [
+      {
+        "rr": "1:1",
+        "mode": "GROSS",
+        "trades": 19782,
+        "wins": 9416,
+        "losses": 10008,
+        "ambiguous": 358,
+        "open": 0,
+        "winRate": 0.4847611202635914,
+        "totalR": -950,
+        "expectancy": -0.048023455666767766,
+        "profitFactor": 0.9408473221422862
+      },
+      {
+        "rr": "1.5:1",
+        "mode": "GROSS",
+        "trades": 19782,
+        "wins": 7557,
+        "losses": 11992,
+        "ambiguous": 231,
+        "open": 2,
+        "winRate": 0.3865670878305796,
+        "totalR": -887.5,
+        "expectancy": -0.0448640177939541,
+        "profitFactor": 0.945255170113409
+      },
+      {
+        "rr": "2:1",
+        "mode": "GROSS",
+        "trades": 19782,
+        "wins": 6207,
+        "losses": 13387,
+        "ambiguous": 176,
+        "open": 12,
+        "winRate": 0.31678064713687865,
+        "totalR": -1149,
+        "expectancy": -0.058083105853806494,
+        "profitFactor": 0.9273175468738328
+      }
+    ],
+    "net": [
+      {
+        "rr": "1:1",
+        "mode": "NET",
+        "trades": 19782,
+        "wins": 9416,
+        "losses": 10008,
+        "ambiguous": 358,
+        "open": 0,
+        "winRate": 0.4847611202635914,
+        "totalR": -3670.603261845541,
+        "expectancy": -0.18555268738477107,
+        "profitFactor": 0.7142422590206412
+      },
+      {
+        "rr": "1.5:1",
+        "mode": "NET",
+        "trades": 19782,
+        "wins": 7557,
+        "losses": 11992,
+        "ambiguous": 231,
+        "open": 2,
+        "winRate": 0.3865670878305796,
+        "totalR": -3607.9262125550094,
+        "expectancy": -0.18238429949221563,
+        "profitFactor": 0.7553577740037043
+      },
+      {
+        "rr": "2:1",
+        "mode": "NET",
+        "trades": 19782,
+        "wins": 6207,
+        "losses": 13387,
+        "ambiguous": 176,
+        "open": 12,
+        "winRate": 0.31678064713687865,
+        "totalR": -3868.559997718382,
+        "expectancy": -0.19555959952069468,
+        "profitFactor": 0.7594321821680027
+      }
+    ],
+    "byPair": [
+      {
+        "pair": "EUR_USD",
+        "gross11": {
+          "rr": "1:1",
+          "mode": "GROSS",
+          "trades": 1528,
+          "wins": 734,
+          "losses": 748,
+          "ambiguous": 46,
+          "open": 0,
+          "winRate": 0.49527665317139,
+          "totalR": -60,
+          "expectancy": -0.03926701570680628,
+          "profitFactor": 0.9812834224598931
+        },
+        "net11": {
+          "rr": "1:1",
+          "mode": "NET",
+          "trades": 1528,
+          "wins": 734,
+          "losses": 748,
+          "ambiguous": 46,
+          "open": 0,
+          "winRate": 0.49527665317139,
+          "totalR": -255.86270001107997,
+          "expectancy": -0.16744941100201569,
+          "profitFactor": 0.7598247056071783
+        },
+        "gross15": {
+          "rr": "1.5:1",
+          "mode": "GROSS",
+          "trades": 1528,
+          "wins": 605,
+          "losses": 888,
+          "ambiguous": 35,
+          "open": 0,
+          "winRate": 0.40522438044206294,
+          "totalR": -15.5,
+          "expectancy": -0.010143979057591623,
+          "profitFactor": 1.0219594594594594
+        },
+        "net15": {
+          "rr": "1.5:1",
+          "mode": "NET",
+          "trades": 1528,
+          "wins": 605,
+          "losses": 888,
+          "ambiguous": 35,
+          "open": 0,
+          "winRate": 0.40522438044206294,
+          "totalR": -211.3627000110799,
+          "expectancy": -0.13832637435280098,
+          "profitFactor": 0.8294866924433169
+        },
+        "gross2": {
+          "rr": "2:1",
+          "mode": "GROSS",
+          "trades": 1528,
+          "wins": 502,
+          "losses": 999,
+          "ambiguous": 26,
+          "open": 1,
+          "winRate": 0.3344437041972019,
+          "totalR": -21,
+          "expectancy": -0.0137434554973822,
+          "profitFactor": 1.005005005005005
+        },
+        "net2": {
+          "rr": "2:1",
+          "mode": "NET",
+          "trades": 1528,
+          "wins": 502,
+          "losses": 999,
+          "ambiguous": 26,
+          "open": 1,
+          "winRate": 0.3344437041972019,
+          "totalR": -216.78557332076727,
+          "expectancy": -0.1418753752099262,
+          "profitFactor": 0.8345714157422511
+        }
+      },
+      {
+        "pair": "GBP_USD",
+        "gross11": {
+          "rr": "1:1",
+          "mode": "GROSS",
+          "trades": 1530,
+          "wins": 728,
+          "losses": 769,
+          "ambiguous": 33,
+          "open": 0,
+          "winRate": 0.4863059452237809,
+          "totalR": -74,
+          "expectancy": -0.048366013071895426,
+          "profitFactor": 0.9466840052015605
+        },
+        "net11": {
+          "rr": "1:1",
+          "mode": "NET",
+          "trades": 1530,
+          "wins": 728,
+          "losses": 769,
+          "ambiguous": 33,
+          "open": 0,
+          "winRate": 0.4863059452237809,
+          "totalR": -262.6512426005899,
+          "expectancy": -0.17166747882391498,
+          "profitFactor": 0.7392352913074207
+        },
+        "gross15": {
+          "rr": "1.5:1",
+          "mode": "GROSS",
+          "trades": 1530,
+          "wins": 576,
+          "losses": 933,
+          "ambiguous": 21,
+          "open": 0,
+          "winRate": 0.3817097415506958,
+          "totalR": -90,
+          "expectancy": -0.058823529411764705,
+          "profitFactor": 0.9260450160771704
+        },
+        "net15": {
+          "rr": "1.5:1",
+          "mode": "NET",
+          "trades": 1530,
+          "wins": 576,
+          "losses": 933,
+          "ambiguous": 21,
+          "open": 0,
+          "winRate": 0.3817097415506958,
+          "totalR": -278.6512426005899,
+          "expectancy": -0.18212499516378425,
+          "profitFactor": 0.7570091123366557
+        },
+        "gross2": {
+          "rr": "2:1",
+          "mode": "GROSS",
+          "trades": 1530,
+          "wins": 491,
+          "losses": 1026,
+          "ambiguous": 13,
+          "open": 0,
+          "winRate": 0.3236651285431773,
+          "totalR": -57,
+          "expectancy": -0.03725490196078431,
+          "profitFactor": 0.9571150097465887
+        },
+        "net2": {
+          "rr": "2:1",
+          "mode": "NET",
+          "trades": 1530,
+          "wins": 491,
+          "losses": 1026,
+          "ambiguous": 13,
+          "open": 0,
+          "winRate": 0.3236651285431773,
+          "totalR": -245.65124260058985,
+          "expectancy": -0.16055636771280382,
+          "profitFactor": 0.7994893492854657
+        }
+      },
+      {
+        "pair": "USD_JPY",
+        "gross11": {
+          "rr": "1:1",
+          "mode": "GROSS",
+          "trades": 1800,
+          "wins": 855,
+          "losses": 893,
+          "ambiguous": 52,
+          "open": 0,
+          "winRate": 0.4891304347826087,
+          "totalR": -90,
+          "expectancy": -0.05,
+          "profitFactor": 0.9574468085106383
+        },
+        "net11": {
+          "rr": "1:1",
+          "mode": "NET",
+          "trades": 1800,
+          "wins": 855,
+          "losses": 893,
+          "ambiguous": 52,
+          "open": 0,
+          "winRate": 0.4891304347826087,
+          "totalR": -254.28102658505946,
+          "expectancy": -0.1412672369916997,
+          "profitFactor": 0.7994720493465216
+        },
+        "gross15": {
+          "rr": "1.5:1",
+          "mode": "GROSS",
+          "trades": 1800,
+          "wins": 688,
+          "losses": 1073,
+          "ambiguous": 37,
+          "open": 2,
+          "winRate": 0.39068710959682,
+          "totalR": -78,
+          "expectancy": -0.043333333333333335,
+          "profitFactor": 0.961789375582479
+        },
+        "net15": {
+          "rr": "1.5:1",
+          "mode": "NET",
+          "trades": 1800,
+          "wins": 688,
+          "losses": 1073,
+          "ambiguous": 37,
+          "open": 2,
+          "winRate": 0.39068710959682,
+          "totalR": -242.1039772945232,
+          "expectancy": -0.13450220960806844,
+          "profitFactor": 0.829636747794596
+        },
+        "gross2": {
+          "rr": "2:1",
+          "mode": "GROSS",
+          "trades": 1800,
+          "wins": 566,
+          "losses": 1201,
+          "ambiguous": 29,
+          "open": 4,
+          "winRate": 0.3203169213355971,
+          "totalR": -98,
+          "expectancy": -0.05444444444444444,
+          "profitFactor": 0.9425478767693589
+        },
+        "net2": {
+          "rr": "2:1",
+          "mode": "NET",
+          "trades": 1800,
+          "wins": 566,
+          "losses": 1201,
+          "ambiguous": 29,
+          "open": 4,
+          "winRate": 0.3203169213355971,
+          "totalR": -262.00536145435797,
+          "expectancy": -0.14555853414130998,
+          "profitFactor": 0.8249997053615343
+        }
+      },
+      {
+        "pair": "AUD_USD",
+        "gross11": {
+          "rr": "1:1",
+          "mode": "GROSS",
+          "trades": 1656,
+          "wins": 747,
+          "losses": 889,
+          "ambiguous": 20,
+          "open": 0,
+          "winRate": 0.456601466992665,
+          "totalR": -162,
+          "expectancy": -0.09782608695652174,
+          "profitFactor": 0.8402699662542182
+        },
+        "net11": {
+          "rr": "1:1",
+          "mode": "NET",
+          "trades": 1656,
+          "wins": 747,
+          "losses": 889,
+          "ambiguous": 20,
+          "open": 0,
+          "winRate": 0.456601466992665,
+          "totalR": -369.02199706901786,
+          "expectancy": -0.22283937021075959,
+          "profitFactor": 0.6532252396951376
+        },
+        "gross15": {
+          "rr": "1.5:1",
+          "mode": "GROSS",
+          "trades": 1656,
+          "wins": 590,
+          "losses": 1053,
+          "ambiguous": 13,
+          "open": 0,
+          "winRate": 0.3590992087644553,
+          "totalR": -181,
+          "expectancy": -0.10929951690821256,
+          "profitFactor": 0.8404558404558404
+        },
+        "net15": {
+          "rr": "1.5:1",
+          "mode": "NET",
+          "trades": 1656,
+          "wins": 590,
+          "losses": 1053,
+          "ambiguous": 13,
+          "open": 0,
+          "winRate": 0.3590992087644553,
+          "totalR": -388.0219970690179,
+          "expectancy": -0.23431280016245043,
+          "profitFactor": 0.6844474875801463
+        },
+        "gross2": {
+          "rr": "2:1",
+          "mode": "GROSS",
+          "trades": 1656,
+          "wins": 466,
+          "losses": 1172,
+          "ambiguous": 16,
+          "open": 2,
+          "winRate": 0.2844932844932845,
+          "totalR": -256,
+          "expectancy": -0.15458937198067632,
+          "profitFactor": 0.7952218430034129
+        },
+        "net2": {
+          "rr": "2:1",
+          "mode": "NET",
+          "trades": 1656,
+          "wins": 466,
+          "losses": 1172,
+          "ambiguous": 16,
+          "open": 2,
+          "winRate": 0.2844932844932845,
+          "totalR": -462.81566821887503,
+          "expectancy": -0.2794780605186443,
+          "profitFactor": 0.6621240329385025
+        }
+      },
+      {
+        "pair": "NZD_USD",
+        "gross11": {
+          "rr": "1:1",
+          "mode": "GROSS",
+          "trades": 1745,
+          "wins": 865,
+          "losses": 855,
+          "ambiguous": 25,
+          "open": 0,
+          "winRate": 0.502906976744186,
+          "totalR": -15,
+          "expectancy": -0.008595988538681949,
+          "profitFactor": 1.0116959064327486
+        },
+        "net11": {
+          "rr": "1:1",
+          "mode": "NET",
+          "trades": 1745,
+          "wins": 865,
+          "losses": 855,
+          "ambiguous": 25,
+          "open": 0,
+          "winRate": 0.502906976744186,
+          "totalR": -283.96998842205164,
+          "expectancy": -0.16273351772037342,
+          "profitFactor": 0.7425767607622236
+        },
+        "gross15": {
+          "rr": "1.5:1",
+          "mode": "GROSS",
+          "trades": 1745,
+          "wins": 681,
+          "losses": 1045,
+          "ambiguous": 19,
+          "open": 0,
+          "winRate": 0.3945538818076477,
+          "totalR": -42.5,
+          "expectancy": -0.024355300859598854,
+          "profitFactor": 0.977511961722488
+        },
+        "net15": {
+          "rr": "1.5:1",
+          "mode": "NET",
+          "trades": 1745,
+          "wins": 681,
+          "losses": 1045,
+          "ambiguous": 19,
+          "open": 0,
+          "winRate": 0.3945538818076477,
+          "totalR": -311.4699884220514,
+          "expectancy": -0.1784928300412902,
+          "profitFactor": 0.761002082563115
+        },
+        "gross2": {
+          "rr": "2:1",
+          "mode": "GROSS",
+          "trades": 1745,
+          "wins": 556,
+          "losses": 1175,
+          "ambiguous": 14,
+          "open": 0,
+          "winRate": 0.3212016175621028,
+          "totalR": -77,
+          "expectancy": -0.044126074498567334,
+          "profitFactor": 0.9463829787234043
+        },
+        "net2": {
+          "rr": "2:1",
+          "mode": "NET",
+          "trades": 1745,
+          "wins": 556,
+          "losses": 1175,
+          "ambiguous": 14,
+          "open": 0,
+          "winRate": 0.3212016175621028,
+          "totalR": -345.96998842205096,
+          "expectancy": -0.19826360368025844,
+          "profitFactor": 0.7573169410443072
+        }
+      },
+      {
+        "pair": "USD_CAD",
+        "gross11": {
+          "rr": "1:1",
+          "mode": "GROSS",
+          "trades": 1683,
+          "wins": 800,
+          "losses": 858,
+          "ambiguous": 25,
+          "open": 0,
+          "winRate": 0.4825090470446321,
+          "totalR": -83,
+          "expectancy": -0.04931669637551991,
+          "profitFactor": 0.9324009324009324
+        },
+        "net11": {
+          "rr": "1:1",
+          "mode": "NET",
+          "trades": 1683,
+          "wins": 800,
+          "losses": 858,
+          "ambiguous": 25,
+          "open": 0,
+          "winRate": 0.4825090470446321,
+          "totalR": -341.94189931824985,
+          "expectancy": -0.20317403405718945,
+          "profitFactor": 0.6841513198476704
+        },
+        "gross15": {
+          "rr": "1.5:1",
+          "mode": "GROSS",
+          "trades": 1683,
+          "wins": 653,
+          "losses": 1017,
+          "ambiguous": 13,
+          "open": 0,
+          "winRate": 0.3910179640718563,
+          "totalR": -50.5,
+          "expectancy": -0.030005941770647655,
+          "profitFactor": 0.9631268436578171
+        },
+        "net15": {
+          "rr": "1.5:1",
+          "mode": "NET",
+          "trades": 1683,
+          "wins": 653,
+          "losses": 1017,
+          "ambiguous": 13,
+          "open": 0,
+          "winRate": 0.3910179640718563,
+          "totalR": -309.44189931824974,
+          "expectancy": -0.18386327945231715,
+          "profitFactor": 0.7490240780096047
+        },
+        "gross2": {
+          "rr": "2:1",
+          "mode": "GROSS",
+          "trades": 1683,
+          "wins": 550,
+          "losses": 1120,
+          "ambiguous": 13,
+          "open": 0,
+          "winRate": 0.32934131736526945,
+          "totalR": -33,
+          "expectancy": -0.0196078431372549,
+          "profitFactor": 0.9821428571428571
+        },
+        "net2": {
+          "rr": "2:1",
+          "mode": "NET",
+          "trades": 1683,
+          "wins": 550,
+          "losses": 1120,
+          "ambiguous": 13,
+          "open": 0,
+          "winRate": 0.32934131736526945,
+          "totalR": -291.9418993182496,
+          "expectancy": -0.1734651808189243,
+          "profitFactor": 0.7855381195551006
+        }
+      },
+      {
+        "pair": "USD_CHF",
+        "gross11": {
+          "rr": "1:1",
+          "mode": "GROSS",
+          "trades": 1478,
+          "wins": 722,
+          "losses": 731,
+          "ambiguous": 25,
+          "open": 0,
+          "winRate": 0.4969029593943565,
+          "totalR": -34,
+          "expectancy": -0.023004059539918808,
+          "profitFactor": 0.987688098495212
+        },
+        "net11": {
+          "rr": "1:1",
+          "mode": "NET",
+          "trades": 1478,
+          "wins": 722,
+          "losses": 731,
+          "ambiguous": 25,
+          "open": 0,
+          "winRate": 0.4969029593943565,
+          "totalR": -256.0187094335401,
+          "expectancy": -0.173219695151245,
+          "profitFactor": 0.7293056754555975
+        },
+        "gross15": {
+          "rr": "1.5:1",
+          "mode": "GROSS",
+          "trades": 1478,
+          "wins": 586,
+          "losses": 872,
+          "ambiguous": 20,
+          "open": 0,
+          "winRate": 0.401920438957476,
+          "totalR": -13,
+          "expectancy": -0.008795669824086604,
+          "profitFactor": 1.0080275229357798
+        },
+        "net15": {
+          "rr": "1.5:1",
+          "mode": "NET",
+          "trades": 1478,
+          "wins": 586,
+          "losses": 872,
+          "ambiguous": 20,
+          "open": 0,
+          "winRate": 0.401920438957476,
+          "totalR": -235.01870943353995,
+          "expectancy": -0.1590113054354127,
+          "profitFactor": 0.7881870327454938
+        },
+        "gross2": {
+          "rr": "2:1",
+          "mode": "GROSS",
+          "trades": 1478,
+          "wins": 474,
+          "losses": 990,
+          "ambiguous": 11,
+          "open": 3,
+          "winRate": 0.3237704918032787,
+          "totalR": -53,
+          "expectancy": -0.03585926928281461,
+          "profitFactor": 0.9575757575757575
+        },
+        "net2": {
+          "rr": "2:1",
+          "mode": "NET",
+          "trades": 1478,
+          "wins": 474,
+          "losses": 990,
+          "ambiguous": 11,
+          "open": 3,
+          "winRate": 0.3237704918032787,
+          "totalR": -274.6891514613039,
+          "expectancy": -0.185851929270165,
+          "profitFactor": 0.769685341375388
+        }
+      },
+      {
+        "pair": "EUR_GBP",
+        "gross11": {
+          "rr": "1:1",
+          "mode": "GROSS",
+          "trades": 1387,
+          "wins": 586,
+          "losses": 776,
+          "ambiguous": 25,
+          "open": 0,
+          "winRate": 0.4302496328928047,
+          "totalR": -215,
+          "expectancy": -0.15501081470800288,
+          "profitFactor": 0.7551546391752577
+        },
+        "net11": {
+          "rr": "1:1",
+          "mode": "NET",
+          "trades": 1387,
+          "wins": 586,
+          "losses": 776,
+          "ambiguous": 25,
+          "open": 0,
+          "winRate": 0.4302496328928047,
+          "totalR": -514.9169185629268,
+          "expectancy": -0.3712450746668542,
+          "profitFactor": 0.48990683009904645
+        },
+        "gross15": {
+          "rr": "1.5:1",
+          "mode": "GROSS",
+          "trades": 1387,
+          "wins": 440,
+          "losses": 927,
+          "ambiguous": 20,
+          "open": 0,
+          "winRate": 0.3218727139722019,
+          "totalR": -287,
+          "expectancy": -0.2069214131218457,
+          "profitFactor": 0.7119741100323624
+        },
+        "net15": {
+          "rr": "1.5:1",
+          "mode": "NET",
+          "trades": 1387,
+          "wins": 440,
+          "losses": 927,
+          "ambiguous": 20,
+          "open": 0,
+          "winRate": 0.3218727139722019,
+          "totalR": -586.916918562927,
+          "expectancy": -0.4231556730806972,
+          "profitFactor": 0.5031741782850828
+        },
+        "gross2": {
+          "rr": "2:1",
+          "mode": "GROSS",
+          "trades": 1387,
+          "wins": 356,
+          "losses": 1018,
+          "ambiguous": 13,
+          "open": 0,
+          "winRate": 0.2590975254730713,
+          "totalR": -319,
+          "expectancy": -0.22999279019466473,
+          "profitFactor": 0.6994106090373281
+        },
+        "net2": {
+          "rr": "2:1",
+          "mode": "NET",
+          "trades": 1387,
+          "wins": 356,
+          "losses": 1018,
+          "ambiguous": 13,
+          "open": 0,
+          "winRate": 0.2590975254730713,
+          "totalR": -618.9169185629271,
+          "expectancy": -0.44622705015351627,
+          "profitFactor": 0.5144849771990175
+        }
+      },
+      {
+        "pair": "EUR_JPY",
+        "gross11": {
+          "rr": "1:1",
+          "mode": "GROSS",
+          "trades": 1718,
+          "wins": 828,
+          "losses": 867,
+          "ambiguous": 23,
+          "open": 0,
+          "winRate": 0.48849557522123893,
+          "totalR": -62,
+          "expectancy": -0.03608847497089639,
+          "profitFactor": 0.9550173010380623
+        },
+        "net11": {
+          "rr": "1:1",
+          "mode": "NET",
+          "trades": 1718,
+          "wins": 828,
+          "losses": 867,
+          "ambiguous": 23,
+          "open": 0,
+          "winRate": 0.48849557522123893,
+          "totalR": -254.67842213899078,
+          "expectancy": -0.14824122359661862,
+          "profitFactor": 0.7634631685395744
+        },
+        "gross15": {
+          "rr": "1.5:1",
+          "mode": "GROSS",
+          "trades": 1718,
+          "wins": 670,
+          "losses": 1035,
+          "ambiguous": 13,
+          "open": 0,
+          "winRate": 0.39296187683284456,
+          "totalR": -43,
+          "expectancy": -0.025029103608847497,
+          "profitFactor": 0.9710144927536232
+        },
+        "net15": {
+          "rr": "1.5:1",
+          "mode": "NET",
+          "trades": 1718,
+          "wins": 670,
+          "losses": 1035,
+          "ambiguous": 13,
+          "open": 0,
+          "winRate": 0.39296187683284456,
+          "totalR": -235.67842213899075,
+          "expectancy": -0.13718185223456972,
+          "profitFactor": 0.8081712264166099
+        },
+        "gross2": {
+          "rr": "2:1",
+          "mode": "GROSS",
+          "trades": 1718,
+          "wins": 547,
+          "losses": 1164,
+          "ambiguous": 7,
+          "open": 0,
+          "winRate": 0.3196960841613092,
+          "totalR": -77,
+          "expectancy": -0.044819557625145515,
+          "profitFactor": 0.9398625429553265
+        },
+        "net2": {
+          "rr": "2:1",
+          "mode": "NET",
+          "trades": 1718,
+          "wins": 547,
+          "losses": 1164,
+          "ambiguous": 7,
+          "open": 0,
+          "winRate": 0.3196960841613092,
+          "totalR": -269.6784221389904,
+          "expectancy": -0.15697230625086753,
+          "profitFactor": 0.7980784035512474
+        }
+      },
+      {
+        "pair": "GBP_JPY",
+        "gross11": {
+          "rr": "1:1",
+          "mode": "GROSS",
+          "trades": 1732,
+          "wins": 872,
+          "losses": 828,
+          "ambiguous": 32,
+          "open": 0,
+          "winRate": 0.5129411764705882,
+          "totalR": 12,
+          "expectancy": 0.006928406466512702,
+          "profitFactor": 1.0531400966183575
+        },
+        "net11": {
+          "rr": "1:1",
+          "mode": "NET",
+          "trades": 1732,
+          "wins": 872,
+          "losses": 828,
+          "ambiguous": 32,
+          "open": 0,
+          "winRate": 0.5129411764705882,
+          "totalR": -213.92800842677383,
+          "expectancy": -0.12351501641268697,
+          "profitFactor": 0.8110023932498038
+        },
+        "gross15": {
+          "rr": "1.5:1",
+          "mode": "GROSS",
+          "trades": 1732,
+          "wins": 710,
+          "losses": 1000,
+          "ambiguous": 22,
+          "open": 0,
+          "winRate": 0.4152046783625731,
+          "totalR": 43,
+          "expectancy": 0.024826789838337183,
+          "profitFactor": 1.065
+        },
+        "net15": {
+          "rr": "1.5:1",
+          "mode": "NET",
+          "trades": 1732,
+          "wins": 710,
+          "losses": 1000,
+          "ambiguous": 22,
+          "open": 0,
+          "winRate": 0.4152046783625731,
+          "totalR": -182.9280084267736,
+          "expectancy": -0.10561663304086236,
+          "profitFactor": 0.8607210539402989
+        },
+        "gross2": {
+          "rr": "2:1",
+          "mode": "GROSS",
+          "trades": 1732,
+          "wins": 597,
+          "losses": 1118,
+          "ambiguous": 17,
+          "open": 0,
+          "winRate": 0.3481049562682216,
+          "totalR": 59,
+          "expectancy": 0.034064665127020784,
+          "profitFactor": 1.0679785330948122
+        },
+        "net2": {
+          "rr": "2:1",
+          "mode": "NET",
+          "trades": 1732,
+          "wins": 597,
+          "losses": 1118,
+          "ambiguous": 17,
+          "open": 0,
+          "winRate": 0.3481049562682216,
+          "totalR": -166.9280084267736,
+          "expectancy": -0.09637875775217876,
+          "profitFactor": 0.8833788853373604
+        }
+      },
+      {
+        "pair": "AUD_JPY",
+        "gross11": {
+          "rr": "1:1",
+          "mode": "GROSS",
+          "trades": 1782,
+          "wins": 841,
+          "losses": 921,
+          "ambiguous": 20,
+          "open": 0,
+          "winRate": 0.47729852440408627,
+          "totalR": -100,
+          "expectancy": -0.05611672278338945,
+          "profitFactor": 0.9131378935939196
+        },
+        "net11": {
+          "rr": "1:1",
+          "mode": "NET",
+          "trades": 1782,
+          "wins": 841,
+          "losses": 921,
+          "ambiguous": 20,
+          "open": 0,
+          "winRate": 0.47729852440408627,
+          "totalR": -339.06233445116743,
+          "expectancy": -0.1902706702868504,
+          "profitFactor": 0.6971675160434087
+        },
+        "gross15": {
+          "rr": "1.5:1",
+          "mode": "GROSS",
+          "trades": 1782,
+          "wins": 679,
+          "losses": 1100,
+          "ambiguous": 3,
+          "open": 0,
+          "winRate": 0.38167509836987074,
+          "totalR": -84.5,
+          "expectancy": -0.047418630751964085,
+          "profitFactor": 0.9259090909090909
+        },
+        "net15": {
+          "rr": "1.5:1",
+          "mode": "NET",
+          "trades": 1782,
+          "wins": 679,
+          "losses": 1100,
+          "ambiguous": 3,
+          "open": 0,
+          "winRate": 0.38167509836987074,
+          "totalR": -323.56233445116743,
+          "expectancy": -0.18157257825542505,
+          "profitFactor": 0.7432121272431357
+        },
+        "gross2": {
+          "rr": "2:1",
+          "mode": "GROSS",
+          "trades": 1782,
+          "wins": 544,
+          "losses": 1230,
+          "ambiguous": 6,
+          "open": 2,
+          "winRate": 0.30665163472378804,
+          "totalR": -148,
+          "expectancy": -0.08305274971941638,
+          "profitFactor": 0.8845528455284553
+        },
+        "net2": {
+          "rr": "2:1",
+          "mode": "NET",
+          "trades": 1782,
+          "wins": 544,
+          "losses": 1230,
+          "ambiguous": 6,
+          "open": 2,
+          "winRate": 0.30665163472378804,
+          "totalR": -386.9077489674023,
+          "expectancy": -0.21711994891548952,
+          "profitFactor": 0.7274491889653937
+        }
+      },
+      {
+        "pair": "EUR_AUD",
+        "gross11": {
+          "rr": "1:1",
+          "mode": "GROSS",
+          "trades": 1743,
+          "wins": 838,
+          "losses": 873,
+          "ambiguous": 32,
+          "open": 0,
+          "winRate": 0.48977206312098187,
+          "totalR": -67,
+          "expectancy": -0.03843947217441193,
+          "profitFactor": 0.9599083619702177
+        },
+        "net11": {
+          "rr": "1:1",
+          "mode": "NET",
+          "trades": 1743,
+          "wins": 838,
+          "losses": 873,
+          "ambiguous": 32,
+          "open": 0,
+          "winRate": 0.48977206312098187,
+          "totalR": -324.2700148260929,
+          "expectancy": -0.18604131659557827,
+          "profitFactor": 0.7131303840044597
+        },
+        "gross15": {
+          "rr": "1.5:1",
+          "mode": "GROSS",
+          "trades": 1743,
+          "wins": 679,
+          "losses": 1049,
+          "ambiguous": 15,
+          "open": 0,
+          "winRate": 0.3929398148148148,
+          "totalR": -45.5,
+          "expectancy": -0.02610441767068273,
+          "profitFactor": 0.9709246901811249
+        },
+        "net15": {
+          "rr": "1.5:1",
+          "mode": "NET",
+          "trades": 1743,
+          "wins": 679,
+          "losses": 1049,
+          "ambiguous": 15,
+          "open": 0,
+          "winRate": 0.3929398148148148,
+          "totalR": -302.7700148260929,
+          "expectancy": -0.17370626209184906,
+          "profitFactor": 0.7625089145664182
+        },
+        "gross2": {
+          "rr": "2:1",
+          "mode": "GROSS",
+          "trades": 1743,
+          "wins": 558,
+          "losses": 1174,
+          "ambiguous": 11,
+          "open": 0,
+          "winRate": 0.32217090069284066,
+          "totalR": -69,
+          "expectancy": -0.039586919104991396,
+          "profitFactor": 0.9505962521294719
+        },
+        "net2": {
+          "rr": "2:1",
+          "mode": "NET",
+          "trades": 1743,
+          "wins": 558,
+          "losses": 1174,
+          "ambiguous": 11,
+          "open": 0,
+          "winRate": 0.32217090069284066,
+          "totalR": -326.2700148260929,
+          "expectancy": -0.1871887635261577,
+          "profitFactor": 0.7669524316532251
+        }
+      }
+    ]
+  },
+  "costNote": "NET uses actual bid/ask spread per signal bar as round-trip cost in R units; labeled cost sensitivity, not guaranteed historical execution."
+}

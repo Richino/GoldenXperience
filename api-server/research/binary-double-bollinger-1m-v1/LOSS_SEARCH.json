@@ -1,0 +1,88 @@
+{
+  "minDecided_0": {
+    "confirmations": [
+      "HA"
+    ],
+    "bb3": true,
+    "session": "London",
+    "direction": null,
+    "n": 5,
+    "decided": 4,
+    "wins": 0,
+    "losses": 4,
+    "ties": 1,
+    "wr": 0,
+    "wrCiLo": 0,
+    "wrCiHi": 0.4898908364545973,
+    "lossRate": 1
+  },
+  "minDecided_20": {
+    "confirmations": [
+      "ADX"
+    ],
+    "bb3": false,
+    "session": "Asia",
+    "direction": "DOWN",
+    "n": 30,
+    "decided": 27,
+    "wins": 8,
+    "losses": 19,
+    "ties": 3,
+    "wr": 0.2962962962962963,
+    "wrCiLo": 0.15853040469779764,
+    "wrCiHi": 0.4848068296414815,
+    "lossRate": 0.7037037037037037
+  },
+  "minDecided_60": {
+    "confirmations": [
+      "HA"
+    ],
+    "bb3": false,
+    "session": "London",
+    "direction": "UP",
+    "n": 132,
+    "decided": 114,
+    "wins": 45,
+    "losses": 69,
+    "ties": 18,
+    "wr": 0.39473684210526316,
+    "wrCiLo": 0.30984949400241074,
+    "wrCiHi": 0.48648703950471395,
+    "lossRate": 0.6052631578947368
+  },
+  "minDecided_100": {
+    "confirmations": [
+      "HA"
+    ],
+    "bb3": false,
+    "session": "London",
+    "direction": "UP",
+    "n": 132,
+    "decided": 114,
+    "wins": 45,
+    "losses": 69,
+    "ties": 18,
+    "wr": 0.39473684210526316,
+    "wrCiLo": 0.30984949400241074,
+    "wrCiHi": 0.48648703950471395,
+    "lossRate": 0.6052631578947368
+  },
+  "minDecided_200": {
+    "confirmations": [
+      "HA",
+      "CCI"
+    ],
+    "bb3": false,
+    "session": "London",
+    "direction": null,
+    "n": 283,
+    "decided": 257,
+    "wins": 102,
+    "losses": 155,
+    "ties": 26,
+    "wr": 0.3968871595330739,
+    "wrCiLo": 0.33901281226011853,
+    "wrCiHi": 0.45779862929667436,
+    "lossRate": 0.6031128404669261
+  }
+}

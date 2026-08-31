@@ -1,0 +1,129 @@
+{
+  "generatedAt": "2026-08-29T00:16:15.476Z",
+  "verdict": "DESCRIPTIVE_ONLY_NO_PROMOTION",
+  "productionChanged": false,
+  "scope": {
+    "instrument": "EUR_USD",
+    "period": "2025-08-01T00:00:00.000Z through 2026-08-01T00:00:00.000Z",
+    "decisions": "completed M15 candles on UTC 00:00, 04:00, 08:00, 12:00, 16:00, 20:00 only",
+    "source": "raw OANDA Practice bid/ask candles fetched at runtime",
+    "stage1": "frozen eur-usd-move-gate-v1; large move means either executable side travels 1.5 ATR from the entry side within the following four hours, with no direction or stop claim",
+    "stage2": "frozen h1-regime-direction-v1; trend sign is compared with the next four-hour midpoint close sign only",
+    "excludes": "trade rows, stop/target P&L, parameter selection, production or practice execution"
+  },
+  "gates": {
+    "movement": "target: >=65% selected large-move rate, >=10 percentage-point lift over matched seeded-random selected schedules",
+    "direction": "target: beats exact inverse and seeded-random p95; no claim if it does not"
+  },
+  "development": {
+    "decisions": 1114,
+    "selected": 275,
+    "movement": {
+      "n": 275,
+      "hits": 208,
+      "rate": 0.7563636363636363,
+      "lower95": 0.702321640290281,
+      "liftOverRandom": -0.03276363636363655,
+      "randomControls": {
+        "count": 100,
+        "mean": 0.7891272727272729,
+        "p95": 0.8290909090909091
+      }
+    },
+    "direction": {
+      "directionalCalls": 80,
+      "abstained": 195,
+      "trend": {
+        "n": 80,
+        "hits": 41,
+        "rate": 0.5125,
+        "lower95": 0.4049314460370689
+      },
+      "inverse": {
+        "n": 80,
+        "hits": 39,
+        "rate": 0.4875,
+        "lower95": 0.3810769394436833
+      },
+      "randomControls": {
+        "count": 100,
+        "mean": 0.4929999999999998,
+        "p95": 0.5875
+      }
+    }
+  },
+  "sealedHoldout": {
+    "decisions": 379,
+    "selected": 87,
+    "movement": {
+      "n": 87,
+      "hits": 70,
+      "rate": 0.8045977011494253,
+      "lower95": 0.7091659220053534,
+      "liftOverRandom": -0.00218390804597679,
+      "randomControls": {
+        "count": 100,
+        "mean": 0.8067816091954021,
+        "p95": 0.8505747126436781
+      }
+    },
+    "direction": {
+      "directionalCalls": 14,
+      "abstained": 73,
+      "trend": {
+        "n": 14,
+        "hits": 7,
+        "rate": 0.5,
+        "lower95": 0.2679886791947528
+      },
+      "inverse": {
+        "n": 14,
+        "hits": 7,
+        "rate": 0.5,
+        "lower95": 0.2679886791947528
+      },
+      "randomControls": {
+        "count": 100,
+        "mean": 0.5078571428571437,
+        "p95": 0.7142857142857143
+      }
+    }
+  },
+  "allYearDescriptive": {
+    "decisions": 1493,
+    "selected": 362,
+    "movement": {
+      "n": 362,
+      "hits": 278,
+      "rate": 0.7679558011049724,
+      "lower95": 0.7217930008751001,
+      "liftOverRandom": -0.02530386740331525,
+      "randomControls": {
+        "count": 100,
+        "mean": 0.7932596685082877,
+        "p95": 0.8204419889502762
+      }
+    },
+    "direction": {
+      "directionalCalls": 94,
+      "abstained": 268,
+      "trend": {
+        "n": 94,
+        "hits": 48,
+        "rate": 0.5106382978723404,
+        "lower95": 0.41116709806344404
+      },
+      "inverse": {
+        "n": 94,
+        "hits": 46,
+        "rate": 0.48936170212765956,
+        "lower95": 0.3907258951395345
+      },
+      "randomControls": {
+        "count": 100,
+        "mean": 0.4952127659574467,
+        "p95": 0.5638297872340425
+      }
+    }
+  }
+}

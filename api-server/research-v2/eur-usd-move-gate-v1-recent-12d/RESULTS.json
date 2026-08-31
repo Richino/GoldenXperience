@@ -1,0 +1,36 @@
+{
+  "generatedAt": "2026-08-28T19:01:48.288Z",
+  "scope": {
+    "instrument": "EUR_USD",
+    "source": "raw OANDA M15 bid/ask candles fetched at runtime",
+    "period": {
+      "start": "2026-08-16T15:00:00.000Z",
+      "end": "2026-08-28T15:00:00.000Z"
+    },
+    "label": "within four hours, either long or short reaches +1.5 M15 ATR before its own -0.75 M15 ATR stop; same-bar collision fails closed",
+    "excludes": "all trade rows, shadow-table writes, paper-engine writes, and direction selection"
+  },
+  "results": {
+    "all": {
+      "n": 920,
+      "hits": 204,
+      "hitRate": 0.2217391304347826
+    },
+    "move": {
+      "n": 191,
+      "hits": 57,
+      "hitRate": 0.29842931937172773
+    },
+    "wait": {
+      "n": 729,
+      "hits": 147,
+      "hitRate": 0.20164609053497942
+    },
+    "randomControlsMatchedToMoveCount": {
+      "count": 100,
+      "meanHitRate": 0.2230890052356019,
+      "p95HitRate": 0.25654450261780104
+    }
+  },
+  "verdict": "DESCRIPTIVE_RECENT_12_DAY_REPLAY_NOT_A_NEW_MODEL_SELECTION"
+}

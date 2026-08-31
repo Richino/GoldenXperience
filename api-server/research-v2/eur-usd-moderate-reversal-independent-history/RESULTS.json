@@ -1,0 +1,139 @@
+{
+  "generatedAt": "2026-08-28T16:42:51.718Z",
+  "hypothesis": "EUR/USD London 08:00-11:00 moderate (0.25-0.75 Asian-range widths) extension reverses over the next 60 minutes",
+  "methodology": {
+    "source": "stored OANDA bid/ask M15 market quotes",
+    "independentPeriod": "2016-04-04T00:00:00.000Z through 2025-08-01T00:00:00.000Z",
+    "excluded": "all trade rows, all execution metrics, and the 2025-08 onward discovery/holdout period",
+    "label": "DOWN when price is above Asian range, UP when below; resolved by midpoint after 60 minutes",
+    "passGate": "99% lower confidence >50% and above random p95"
+  },
+  "coverage": {
+    "candles": 232118,
+    "rows": 4413
+  },
+  "overall": {
+    "n": 4413,
+    "correct": 2244,
+    "accuracy": 0.5084976206662135,
+    "lower99": 0.48911350764007056,
+    "randomControls": {
+      "count": 100,
+      "meanAccuracy": 0.5008338998413779,
+      "p95Accuracy": 0.5118966689326988
+    }
+  },
+  "byYear": {
+    "2016": {
+      "n": 318,
+      "correct": 180,
+      "accuracy": 0.5660377358490566,
+      "lower99": 0.4938158071815467,
+      "randomControls": {
+        "count": 100,
+        "meanAccuracy": 0.5043081761006292,
+        "p95Accuracy": 0.5440251572327044
+      }
+    },
+    "2017": {
+      "n": 517,
+      "correct": 276,
+      "accuracy": 0.5338491295938105,
+      "lower99": 0.4772615609732074,
+      "randomControls": {
+        "count": 100,
+        "meanAccuracy": 0.49899419729206956,
+        "p95Accuracy": 0.5357833655705996
+      }
+    },
+    "2018": {
+      "n": 583,
+      "correct": 298,
+      "accuracy": 0.5111492281303602,
+      "lower99": 0.4579942988563116,
+      "randomControls": {
+        "count": 100,
+        "meanAccuracy": 0.5014236706689534,
+        "p95Accuracy": 0.5334476843910806
+      }
+    },
+    "2019": {
+      "n": 482,
+      "correct": 254,
+      "accuracy": 0.5269709543568465,
+      "lower99": 0.46842128569976105,
+      "randomControls": {
+        "count": 100,
+        "meanAccuracy": 0.49585062240663885,
+        "p95Accuracy": 0.5311203319502075
+      }
+    },
+    "2020": {
+      "n": 451,
+      "correct": 212,
+      "accuracy": 0.4700665188470067,
+      "lower99": 0.410398749784518,
+      "randomControls": {
+        "count": 100,
+        "meanAccuracy": 0.5040133037694016,
+        "p95Accuracy": 0.541019955654102
+      }
+    },
+    "2021": {
+      "n": 483,
+      "correct": 242,
+      "accuracy": 0.5010351966873706,
+      "lower99": 0.44281374405601437,
+      "randomControls": {
+        "count": 100,
+        "meanAccuracy": 0.5020703933747412,
+        "p95Accuracy": 0.5403726708074534
+      }
+    },
+    "2022": {
+      "n": 431,
+      "correct": 228,
+      "accuracy": 0.5290023201856149,
+      "lower99": 0.467096028538308,
+      "randomControls": {
+        "count": 100,
+        "meanAccuracy": 0.5045243619489556,
+        "p95Accuracy": 0.5452436194895591
+      }
+    },
+    "2023": {
+      "n": 449,
+      "correct": 239,
+      "accuracy": 0.532293986636971,
+      "lower99": 0.4716075878846555,
+      "randomControls": {
+        "count": 100,
+        "meanAccuracy": 0.49953229398663673,
+        "p95Accuracy": 0.5367483296213809
+      }
+    },
+    "2024": {
+      "n": 435,
+      "correct": 177,
+      "accuracy": 0.4068965517241379,
+      "lower99": 0.3480619693702195,
+      "randomControls": {
+        "count": 100,
+        "meanAccuracy": 0.4988505747126434,
+        "p95Accuracy": 0.5333333333333333
+      }
+    },
+    "2025": {
+      "n": 264,
+      "correct": 138,
+      "accuracy": 0.5227272727272727,
+      "lower99": 0.44395589717632783,
+      "randomControls": {
+        "count": 100,
+        "meanAccuracy": 0.49981060606060557,
+        "p95Accuracy": 0.5492424242424242
+      }
+    }
+  },
+  "verdict": "INDEPENDENT_HISTORY_DOES_NOT_SUPPORT_HYPOTHESIS"
+}

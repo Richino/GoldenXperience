@@ -1,0 +1,56 @@
+{
+  "generatedAt": "2026-08-29T23:40:27.046Z",
+  "execution": {
+    "status": "SHADOW_ONLY",
+    "ordersAllowed": false,
+    "orderCallsMade": 0
+  },
+  "policy": {
+    "version": "eurusd-news-v13-spread-gate-shadow-1",
+    "instrument": "EUR_USD",
+    "status": "SHADOW_ONLY",
+    "ordersAllowed": false,
+    "forwardSampleStartsAt": "2026-09-01T00:00:00.000Z",
+    "baseVersion": "eurusd-news-v12-shadow-1",
+    "maximumSpreadToStopRatio": 0.5,
+    "minimumResolvedTrades": 60,
+    "minimumWinRate": 0.4,
+    "minimumProfitFactor": 1
+  },
+  "policyHash": "0f89a6adb164b43082d7313b9cb23ed793185116642c7de9e840d0b46c01de48",
+  "historicalDiagnostic": {
+    "development": {
+      "trades": 15,
+      "winRate": 0.4666666666666667,
+      "expectancyR": 0.3,
+      "profitFactor": 1.75
+    },
+    "reusedValidation": {
+      "trades": 20,
+      "winRate": 0.35,
+      "expectancyR": 0.0375,
+      "profitFactor": 1.0769230769230769
+    },
+    "warning": "These results justify observation only and do not establish a winning edge."
+  },
+  "sample": {
+    "ledgerRows": 0
+  },
+  "metrics": {
+    "resolvedTrades": 0,
+    "wins": 0,
+    "winRate": null,
+    "totalR": 0,
+    "expectancyR": null,
+    "profitFactor": 0,
+    "openTrades": 0,
+    "waitingRows": 0,
+    "skippedRows": 0
+  },
+  "gate": {
+    "status": "COLLECTING",
+    "passed": false,
+    "remainingResolvedTrades": 60,
+    "note": "Passing never authorizes orders; it only permits a separate review."
+  }
+}

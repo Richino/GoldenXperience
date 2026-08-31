@@ -1,0 +1,445 @@
+{
+  "verdict": "MARTINGALE_EVENTUALLY_BLEW_ACCOUNT",
+  "data": {
+    "source": "cache",
+    "fetchedAt": "2026-08-30T04:47:26.399Z",
+    "targetStart": "2024-08-01T00:00:00.000Z",
+    "targetEnd": "2026-08-01T00:00:00.000Z",
+    "actualStart": "2024-08-01T00:01:00.000Z",
+    "actualEnd": "2026-07-31T21:00:00.000Z",
+    "tradingDays": 626,
+    "totalCandles": 8881943,
+    "totalMissing": 3730297,
+    "coverage": [
+      {
+        "pair": "EUR_USD",
+        "candles": 740980,
+        "start": "2024-08-01T00:01:00.000Z",
+        "end": "2026-07-31T21:00:00.000Z",
+        "gaps": 2449,
+        "missing": 310040
+      },
+      {
+        "pair": "GBP_USD",
+        "candles": 741291,
+        "start": "2024-08-01T00:01:00.000Z",
+        "end": "2026-07-31T21:00:00.000Z",
+        "gaps": 1906,
+        "missing": 309729
+      },
+      {
+        "pair": "USD_JPY",
+        "candles": 740556,
+        "start": "2024-08-01T00:01:00.000Z",
+        "end": "2026-07-31T21:00:00.000Z",
+        "gaps": 2297,
+        "missing": 310464
+      },
+      {
+        "pair": "AUD_USD",
+        "candles": 738626,
+        "start": "2024-08-01T00:01:00.000Z",
+        "end": "2026-07-31T21:00:00.000Z",
+        "gaps": 4174,
+        "missing": 312394
+      },
+      {
+        "pair": "NZD_USD",
+        "candles": 737218,
+        "start": "2024-08-01T00:01:00.000Z",
+        "end": "2026-07-31T21:00:00.000Z",
+        "gaps": 4309,
+        "missing": 313802
+      },
+      {
+        "pair": "USD_CAD",
+        "candles": 740033,
+        "start": "2024-08-01T00:01:00.000Z",
+        "end": "2026-07-31T21:00:00.000Z",
+        "gaps": 2934,
+        "missing": 310987
+      },
+      {
+        "pair": "USD_CHF",
+        "candles": 737745,
+        "start": "2024-08-01T00:01:00.000Z",
+        "end": "2026-07-31T21:00:00.000Z",
+        "gaps": 4288,
+        "missing": 313275
+      },
+      {
+        "pair": "EUR_GBP",
+        "candles": 738337,
+        "start": "2024-08-01T00:01:00.000Z",
+        "end": "2026-07-31T21:00:00.000Z",
+        "gaps": 4696,
+        "missing": 312683
+      },
+      {
+        "pair": "EUR_JPY",
+        "candles": 740671,
+        "start": "2024-08-01T00:01:00.000Z",
+        "end": "2026-07-31T21:00:00.000Z",
+        "gaps": 2150,
+        "missing": 310349
+      },
+      {
+        "pair": "GBP_JPY",
+        "candles": 742564,
+        "start": "2024-08-01T00:01:00.000Z",
+        "end": "2026-07-31T21:00:00.000Z",
+        "gaps": 1103,
+        "missing": 308456
+      },
+      {
+        "pair": "AUD_JPY",
+        "candles": 741789,
+        "start": "2024-08-01T00:01:00.000Z",
+        "end": "2026-07-31T21:00:00.000Z",
+        "gaps": 1701,
+        "missing": 309231
+      },
+      {
+        "pair": "EUR_AUD",
+        "candles": 742133,
+        "start": "2024-08-01T00:01:00.000Z",
+        "end": "2026-07-31T21:00:00.000Z",
+        "gaps": 1520,
+        "missing": 308887
+      }
+    ]
+  },
+  "underlyingStrategy": {
+    "expiry5m": {
+      "signals": 37466,
+      "wins": 17709,
+      "losses": 18631,
+      "ties": 1126,
+      "decided": 36340,
+      "winRate": 0.4873142542652724,
+      "ciLower": 0.482176687087395,
+      "ciUpper": 0.4924545032488518,
+      "sampleFlag": "LARGE_SAMPLE"
+    },
+    "expiry3m": {
+      "signals": 37466,
+      "wins": 17588,
+      "losses": 18402,
+      "ties": 1476,
+      "decided": 35990,
+      "winRate": 0.48869130313976106,
+      "ciLower": 0.48352833598079037,
+      "ciUpper": 0.4938566842388907,
+      "sampleFlag": "LARGE_SAMPLE"
+    },
+    "breakEvenWr": 0.5555555555555556,
+    "fixedStakeEv": -0.12283434232250962
+  },
+  "signalOrdering": "Global chronological by entry timestamp, then pair name, then direction (CALL before PUT). Capital locked until trade expiry; overlapping signals skipped.",
+  "overlappingSignals": "While a trade is open, later signals are skipped. During recovery, the next eligible post-expiry signal is the next Martingale attempt (not a new sequence).",
+  "primaryMartingale": {
+    "finalBalance": 56.69,
+    "netProfit": -43.31,
+    "returnPct": -43.31,
+    "maxDrawdownPct": 45.09439999999999,
+    "maxDrawdownUsd": 46.56,
+    "largestStake": 26.32,
+    "longestLosingStreak": 5,
+    "signalsTraded": 15,
+    "individualWr": 0.26666666666666666,
+    "sequences": 5,
+    "successfulSequences": 4,
+    "failedSequences": 1,
+    "sequenceSuccessRate": 0.8,
+    "profitFactor": 0.37,
+    "blown": true
+  },
+  "bankruptcy": {
+    "blown": true,
+    "date": "2024-08-01T07:57:00.000Z",
+    "seqId": 5,
+    "balanceBeforeSequence": 103.25,
+    "lossesInSequence": 46.56,
+    "requiredNextStake": 59.23,
+    "availableBalance": 56.69,
+    "tradesBeforeFailure": 15,
+    "daysSurvived": 0.33055555555555555
+  },
+  "cappedMartingale": {
+    "mg1": {
+      "finalBalance": 0.01,
+      "netProfit": -99.99,
+      "returnPct": -99.99,
+      "maxDrawdownPct": 99.9901,
+      "maxDrawdownUsd": 100.79,
+      "largestStake": 2.28,
+      "longestLosingStreak": 11,
+      "signalsTraded": 3202,
+      "individualWr": 0.4945231958762887,
+      "sequences": 2070,
+      "successfulSequences": 1535,
+      "failedSequences": 535,
+      "sequenceSuccessRate": 0.7415458937198067,
+      "profitFactor": 0.78,
+      "blown": true
+    },
+    "mg2": {
+      "finalBalance": 0,
+      "netProfit": -100,
+      "returnPct": -100,
+      "maxDrawdownPct": 100,
+      "maxDrawdownUsd": 100.8,
+      "largestStake": 5.12,
+      "longestLosingStreak": 11,
+      "signalsTraded": 2314,
+      "individualWr": 0.5011125945705385,
+      "sequences": 1298,
+      "successfulSequences": 1126,
+      "failedSequences": 172,
+      "sequenceSuccessRate": 0.8674884437596302,
+      "profitFactor": 0.73,
+      "blown": true
+    },
+    "mg3": {
+      "finalBalance": 0.1,
+      "netProfit": -99.9,
+      "returnPct": -99.9,
+      "maxDrawdownPct": 99.9008,
+      "maxDrawdownUsd": 100.7,
+      "largestStake": 11.53,
+      "longestLosingStreak": 11,
+      "signalsTraded": 1859,
+      "individualWr": 0.5046935394809497,
+      "sequences": 976,
+      "successfulSequences": 914,
+      "failedSequences": 62,
+      "sequenceSuccessRate": 0.9364754098360656,
+      "profitFactor": 0.63,
+      "blown": true
+    },
+    "mg4": {
+      "finalBalance": 0.13,
+      "netProfit": -99.87,
+      "returnPct": -99.87,
+      "maxDrawdownPct": 99.8935,
+      "maxDrawdownUsd": 103.14,
+      "largestStake": 26.32,
+      "longestLosingStreak": 9,
+      "signalsTraded": 1116,
+      "individualWr": 0.49770009199632015,
+      "sequences": 560,
+      "successfulSequences": 541,
+      "failedSequences": 19,
+      "sequenceSuccessRate": 0.9660714285714286,
+      "profitFactor": 0.65,
+      "blown": true
+    }
+  },
+  "fixedControl": {
+    "finalBalance": 0,
+    "netProfit": -100,
+    "returnPct": -100,
+    "maxDrawdownPct": 100,
+    "maxDrawdownUsd": 100,
+    "largestStake": 1,
+    "longestLosingStreak": 11,
+    "signalsTraded": 5310,
+    "individualWr": 0.47855750487329435,
+    "sequences": 5130,
+    "successfulSequences": 2455,
+    "failedSequences": 2675,
+    "sequenceSuccessRate": 0.47855750487329435,
+    "profitFactor": 0.79,
+    "blown": true
+  },
+  "methodComparison": [
+    {
+      "method": "Fixed 1%",
+      "finalBalance": 0,
+      "netProfit": -100,
+      "returnPct": -100,
+      "maxDrawdownPct": 100,
+      "maxDrawdownUsd": 100,
+      "largestStake": 1,
+      "longestLosingStreak": 11,
+      "signalsTraded": 5310,
+      "individualWr": 0.47855750487329435,
+      "sequences": 5130,
+      "successfulSequences": 2455,
+      "failedSequences": 2675,
+      "sequenceSuccessRate": 0.47855750487329435,
+      "profitFactor": 0.79,
+      "blown": true
+    },
+    {
+      "method": "Unlimited MG",
+      "finalBalance": 56.69,
+      "netProfit": -43.31,
+      "returnPct": -43.31,
+      "maxDrawdownPct": 45.09439999999999,
+      "maxDrawdownUsd": 46.56,
+      "largestStake": 26.32,
+      "longestLosingStreak": 5,
+      "signalsTraded": 15,
+      "individualWr": 0.26666666666666666,
+      "sequences": 5,
+      "successfulSequences": 4,
+      "failedSequences": 1,
+      "sequenceSuccessRate": 0.8,
+      "profitFactor": 0.37,
+      "blown": true
+    },
+    {
+      "method": "Max MG1",
+      "finalBalance": 0.01,
+      "netProfit": -99.99,
+      "returnPct": -99.99,
+      "maxDrawdownPct": 99.9901,
+      "maxDrawdownUsd": 100.79,
+      "largestStake": 2.28,
+      "longestLosingStreak": 11,
+      "signalsTraded": 3202,
+      "individualWr": 0.4945231958762887,
+      "sequences": 2070,
+      "successfulSequences": 1535,
+      "failedSequences": 535,
+      "sequenceSuccessRate": 0.7415458937198067,
+      "profitFactor": 0.78,
+      "blown": true
+    },
+    {
+      "method": "Max MG2",
+      "finalBalance": 0,
+      "netProfit": -100,
+      "returnPct": -100,
+      "maxDrawdownPct": 100,
+      "maxDrawdownUsd": 100.8,
+      "largestStake": 5.12,
+      "longestLosingStreak": 11,
+      "signalsTraded": 2314,
+      "individualWr": 0.5011125945705385,
+      "sequences": 1298,
+      "successfulSequences": 1126,
+      "failedSequences": 172,
+      "sequenceSuccessRate": 0.8674884437596302,
+      "profitFactor": 0.73,
+      "blown": true
+    },
+    {
+      "method": "Max MG3",
+      "finalBalance": 0.1,
+      "netProfit": -99.9,
+      "returnPct": -99.9,
+      "maxDrawdownPct": 99.9008,
+      "maxDrawdownUsd": 100.7,
+      "largestStake": 11.53,
+      "longestLosingStreak": 11,
+      "signalsTraded": 1859,
+      "individualWr": 0.5046935394809497,
+      "sequences": 976,
+      "successfulSequences": 914,
+      "failedSequences": 62,
+      "sequenceSuccessRate": 0.9364754098360656,
+      "profitFactor": 0.63,
+      "blown": true
+    },
+    {
+      "method": "Max MG4",
+      "finalBalance": 0.13,
+      "netProfit": -99.87,
+      "returnPct": -99.87,
+      "maxDrawdownPct": 99.8935,
+      "maxDrawdownUsd": 103.14,
+      "largestStake": 26.32,
+      "longestLosingStreak": 9,
+      "signalsTraded": 1116,
+      "individualWr": 0.49770009199632015,
+      "sequences": 560,
+      "successfulSequences": 541,
+      "failedSequences": 19,
+      "sequenceSuccessRate": 0.9660714285714286,
+      "profitFactor": 0.65,
+      "blown": true
+    }
+  ],
+  "losingStreaks": {
+    "1": 2,
+    "2": 0,
+    "3": 0,
+    "4": 1,
+    "5": 1,
+    "6": 0,
+    "7+": 0
+  },
+  "longestLosingStreakObserved": 5,
+  "escalationTable": [
+    {
+      "attempt": "Base",
+      "stake": 1,
+      "cumulativeRisk": 1
+    },
+    {
+      "attempt": "MG1",
+      "stake": 2.25,
+      "cumulativeRisk": 3.25
+    },
+    {
+      "attempt": "MG2",
+      "stake": 5.06,
+      "cumulativeRisk": 8.31
+    },
+    {
+      "attempt": "MG3",
+      "stake": 11.39,
+      "cumulativeRisk": 19.7
+    },
+    {
+      "attempt": "MG4",
+      "stake": 25.63,
+      "cumulativeRisk": 45.33
+    },
+    {
+      "attempt": "MG5",
+      "stake": 57.66,
+      "cumulativeRisk": 102.99
+    },
+    {
+      "attempt": "MG6",
+      "stake": 129.74,
+      "cumulativeRisk": 232.73
+    }
+  ],
+  "year1": {
+    "startingBalance": 100,
+    "endingBalance": 56.69,
+    "sequences": 5,
+    "sequenceSuccess": 4,
+    "individualWr": 0.26666666666666666,
+    "maxDrawdown": 46.56,
+    "largestStake": 26.32,
+    "traded": 15
+  },
+  "year2": {
+    "startingBalance": 100,
+    "endingBalance": 100,
+    "sequences": 0,
+    "sequenceSuccess": 0,
+    "individualWr": 0,
+    "maxDrawdown": 0,
+    "largestStake": 0,
+    "traded": 0
+  },
+  "monteCarlo": {
+    "runs": 10000,
+    "pctProfitable": 0.0653,
+    "pctBelowStart": 0.9347,
+    "pctBlown": 1,
+    "medianEnding": 63.72,
+    "meanEnding": 69.93,
+    "p5": 54.92,
+    "p25": 57.63,
+    "p75": 74.11,
+    "p95": 105.88,
+    "medianMaxDrawdownPct": 45.33
+  }
+}

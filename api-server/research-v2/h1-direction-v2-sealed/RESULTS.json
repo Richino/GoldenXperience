@@ -1,0 +1,281 @@
+{
+  "generatedAt": "2026-08-28T16:15:17.358Z",
+  "methodology": {
+    "source": "raw OANDA bid/ask midpoint H1 candles fetched at runtime",
+    "label": "UP if the next completed H1 midpoint close is higher, otherwise DOWN",
+    "split": {
+      "train": "2025-08-01T00:00:00.000Z through 2026-02-01T00:00:00.000Z exclusive",
+      "development": "2026-02-01T00:00:00.000Z through 2026-04-01T00:00:00.000Z exclusive",
+      "sealedHoldout": "2026-04-01T00:00:00.000Z through 2026-08-01T00:00:00.000Z exclusive"
+    },
+    "features": [
+      "4h ATR-normalized impulse",
+      "12h ATR-normalized slope",
+      "24h range position",
+      "EMA8-EMA21 spread",
+      "ATR14/ATR48 volatility regime"
+    ],
+    "model": "L2-regularized logistic regression; candidate-specific model fits only the training split",
+    "selectionGate": "development n >= 250, accuracy > 50%, Wilson 95% lower bound > 50%; choose highest lower bound",
+    "controls": "exact inverse and 100 deterministic random directions",
+    "excluded": "trade rows, M15 timing, stops, targets, execution, and position locks"
+  },
+  "coverage": {
+    "trainAndDevelopmentRows": 12161,
+    "train": 9166,
+    "development": 2995,
+    "sealedHoldout": "not fetched"
+  },
+  "development": [
+    {
+      "model": "impulse_4h",
+      "columns": [
+        0
+      ],
+      "variants": [
+        {
+          "n": 2995,
+          "correct": 1549,
+          "accuracy": 0.517195325542571,
+          "inverseAccuracy": 0.48280467445742903,
+          "wilsonLower": 0.4992881445903841,
+          "threshold": 0
+        },
+        {
+          "n": 2,
+          "correct": 0,
+          "accuracy": 0,
+          "inverseAccuracy": 1,
+          "wilsonLower": 0,
+          "threshold": 0.05
+        },
+        {
+          "n": 0,
+          "correct": 0,
+          "accuracy": 0,
+          "inverseAccuracy": 0,
+          "wilsonLower": 0,
+          "threshold": 0.1
+        },
+        {
+          "n": 0,
+          "correct": 0,
+          "accuracy": 0,
+          "inverseAccuracy": 0,
+          "wilsonLower": 0,
+          "threshold": 0.15
+        }
+      ],
+      "selected": {
+        "n": 2995,
+        "correct": 1549,
+        "accuracy": 0.517195325542571,
+        "inverseAccuracy": 0.48280467445742903,
+        "wilsonLower": 0.4992881445903841,
+        "threshold": 0
+      },
+      "qualifies": false
+    },
+    {
+      "model": "slope_12h",
+      "columns": [
+        1
+      ],
+      "variants": [
+        {
+          "n": 2995,
+          "correct": 1507,
+          "accuracy": 0.5031719532554257,
+          "inverseAccuracy": 0.49682804674457426,
+          "wilsonLower": 0.48527252393141507,
+          "threshold": 0
+        },
+        {
+          "n": 0,
+          "correct": 0,
+          "accuracy": 0,
+          "inverseAccuracy": 0,
+          "wilsonLower": 0,
+          "threshold": 0.05
+        },
+        {
+          "n": 0,
+          "correct": 0,
+          "accuracy": 0,
+          "inverseAccuracy": 0,
+          "wilsonLower": 0,
+          "threshold": 0.1
+        },
+        {
+          "n": 0,
+          "correct": 0,
+          "accuracy": 0,
+          "inverseAccuracy": 0,
+          "wilsonLower": 0,
+          "threshold": 0.15
+        }
+      ],
+      "selected": {
+        "n": 2995,
+        "correct": 1507,
+        "accuracy": 0.5031719532554257,
+        "inverseAccuracy": 0.49682804674457426,
+        "wilsonLower": 0.48527252393141507,
+        "threshold": 0
+      },
+      "qualifies": false
+    },
+    {
+      "model": "range_position_24h",
+      "columns": [
+        2
+      ],
+      "variants": [
+        {
+          "n": 2995,
+          "correct": 1548,
+          "accuracy": 0.5168614357262103,
+          "inverseAccuracy": 0.48313856427378965,
+          "wilsonLower": 0.49895427578998175,
+          "threshold": 0
+        },
+        {
+          "n": 0,
+          "correct": 0,
+          "accuracy": 0,
+          "inverseAccuracy": 0,
+          "wilsonLower": 0,
+          "threshold": 0.05
+        },
+        {
+          "n": 0,
+          "correct": 0,
+          "accuracy": 0,
+          "inverseAccuracy": 0,
+          "wilsonLower": 0,
+          "threshold": 0.1
+        },
+        {
+          "n": 0,
+          "correct": 0,
+          "accuracy": 0,
+          "inverseAccuracy": 0,
+          "wilsonLower": 0,
+          "threshold": 0.15
+        }
+      ],
+      "selected": {
+        "n": 2995,
+        "correct": 1548,
+        "accuracy": 0.5168614357262103,
+        "inverseAccuracy": 0.48313856427378965,
+        "wilsonLower": 0.49895427578998175,
+        "threshold": 0
+      },
+      "qualifies": false
+    },
+    {
+      "model": "ema_spread_8_21",
+      "columns": [
+        3
+      ],
+      "variants": [
+        {
+          "n": 2995,
+          "correct": 1515,
+          "accuracy": 0.5058430717863105,
+          "inverseAccuracy": 0.4941569282136895,
+          "wilsonLower": 0.48794108148396964,
+          "threshold": 0
+        },
+        {
+          "n": 0,
+          "correct": 0,
+          "accuracy": 0,
+          "inverseAccuracy": 0,
+          "wilsonLower": 0,
+          "threshold": 0.05
+        },
+        {
+          "n": 0,
+          "correct": 0,
+          "accuracy": 0,
+          "inverseAccuracy": 0,
+          "wilsonLower": 0,
+          "threshold": 0.1
+        },
+        {
+          "n": 0,
+          "correct": 0,
+          "accuracy": 0,
+          "inverseAccuracy": 0,
+          "wilsonLower": 0,
+          "threshold": 0.15
+        }
+      ],
+      "selected": {
+        "n": 2995,
+        "correct": 1515,
+        "accuracy": 0.5058430717863105,
+        "inverseAccuracy": 0.4941569282136895,
+        "wilsonLower": 0.48794108148396964,
+        "threshold": 0
+      },
+      "qualifies": false
+    },
+    {
+      "model": "combined_price_and_volatility",
+      "columns": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "variants": [
+        {
+          "n": 2995,
+          "correct": 1523,
+          "accuracy": 0.5085141903171954,
+          "inverseAccuracy": 0.49148580968280464,
+          "wilsonLower": 0.4906101492252747,
+          "threshold": 0
+        },
+        {
+          "n": 4,
+          "correct": 3,
+          "accuracy": 0.75,
+          "inverseAccuracy": 0.25,
+          "wilsonLower": 0.30063605244263664,
+          "threshold": 0.05
+        },
+        {
+          "n": 0,
+          "correct": 0,
+          "accuracy": 0,
+          "inverseAccuracy": 0,
+          "wilsonLower": 0,
+          "threshold": 0.1
+        },
+        {
+          "n": 0,
+          "correct": 0,
+          "accuracy": 0,
+          "inverseAccuracy": 0,
+          "wilsonLower": 0,
+          "threshold": 0.15
+        }
+      ],
+      "selected": {
+        "n": 2995,
+        "correct": 1523,
+        "accuracy": 0.5085141903171954,
+        "inverseAccuracy": 0.49148580968280464,
+        "wilsonLower": 0.4906101492252747,
+        "threshold": 0
+      },
+      "qualifies": false
+    }
+  ],
+  "verdict": "NO_MODEL_QUALIFIED_HOLDOUT_REMAINS_UNREAD"
+}

@@ -1,0 +1,45 @@
+{
+  "centroidsPips": [
+    4.159226190476411,
+    6.9097321428574645,
+    20.301785714285487
+  ],
+  "fitPeriod": "2024-08 to 2025-07 only",
+  "scope": "frozen non-inflation/rate surprise direction; K-means uses pre-release ATR14 only",
+  "results": {
+    "development": {
+      "low": {
+        "n": 60,
+        "wins": 37,
+        "accuracy": 0.6166666666666667
+      },
+      "normal": {
+        "n": 40,
+        "wins": 22,
+        "accuracy": 0.55
+      },
+      "high": {
+        "n": 2,
+        "wins": 1,
+        "accuracy": 0.5
+      }
+    },
+    "validation": {
+      "low": {
+        "n": 66,
+        "wins": 42,
+        "accuracy": 0.6363636363636364
+      },
+      "normal": {
+        "n": 19,
+        "wins": 13,
+        "accuracy": 0.6842105263157895
+      },
+      "high": {
+        "n": 0,
+        "wins": 0,
+        "accuracy": null
+      }
+    }
+  }
+}

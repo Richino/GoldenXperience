@@ -1,0 +1,150 @@
+{
+  "generatedAt": "2026-08-29T02:21:59.316Z",
+  "verdict": "RESEARCH_ONLY_NO_PROMOTION",
+  "scope": {
+    "instrument": "EUR_USD",
+    "calendarFile": "C:\\Users\\arche\\Desktop\\code\\GoldenXperience\\api-server\\research-v2\\eurusd-ff-high-impact-aug2025-jul2026\\events.json",
+    "source": "user-supplied ForexFactory high-impact EUR/USD calendar plus raw OANDA Practice M5 bid/ask midpoint candles",
+    "hypothesis": "economic surprise sign predicts the four-hour EUR/USD direction after release",
+    "directionMap": "stronger EUR data -> UP; stronger USD data -> DOWN; higher unemployment/claims -> weaker currency; higher inflation/rates provisionally treated as more hawkish/stronger",
+    "groupRule": "same-timestamp numeric releases are voted into one signal; tied votes are WAIT; overlapping four-hour labels are excluded",
+    "label": "midpoint close immediately before release to midpoint exactly four hours after release",
+    "controls": "exact inverse and 1,000 seeded random-direction arms",
+    "excludes": "speeches, nonnumeric releases, missing actual/forecast, event types absent from the original rule, P&L, stops, targets, spreads, execution, and production/paper orders"
+  },
+  "dataIntegrity": {
+    "calendarRows": 339,
+    "numericMappedRows": 207,
+    "directionalTimestampGroups": 115,
+    "nonOverlappingGroups": 98,
+    "scoredGroups": 97,
+    "skippedForOverlappingOutcome": 17,
+    "chronologicalSplitAt": "2026-02-01T12:30:00.000Z"
+  },
+  "results": {
+    "all": {
+      "observations": 97,
+      "accuracy": 0.6494845360824743,
+      "inverseAccuracy": 0.35051546391752575,
+      "randomMean": 0.5011649484536116,
+      "randomP95": 0.5876288659793815
+    },
+    "chronologicalFirstHalf": {
+      "observations": 52,
+      "accuracy": 0.6346153846153846,
+      "inverseAccuracy": 0.3653846153846154,
+      "randomMean": 0.49975000000000375,
+      "randomP95": 0.6153846153846154
+    },
+    "chronologicalSecondHalf": {
+      "observations": 45,
+      "accuracy": 0.6666666666666666,
+      "inverseAccuracy": 0.33333333333333337,
+      "randomMean": 0.5028000000000025,
+      "randomP95": 0.6222222222222222
+    },
+    "byAssumption": {
+      "withoutInflationOrRates": {
+        "observations": 77,
+        "accuracy": 0.6363636363636364,
+        "inverseAccuracy": 0.36363636363636365,
+        "randomMean": 0.5021428571428591,
+        "randomP95": 0.5974025974025974
+      },
+      "withInflationOrRates": {
+        "observations": 20,
+        "accuracy": 0.7,
+        "inverseAccuracy": 0.30000000000000004,
+        "randomMean": 0.4974000000000023,
+        "randomP95": 0.7
+      }
+    },
+    "secondHalfSample": [
+      {
+        "time": "2026-02-02T15:00:00.000Z",
+        "expected": "DOWN",
+        "actual": "DOWN",
+        "events": [
+          "USD ISM Manufacturing PMI: 52.6 vs 48.5"
+        ]
+      },
+      {
+        "time": "2026-02-04T13:15:00.000Z",
+        "expected": "UP",
+        "actual": "DOWN",
+        "events": [
+          "USD ADP Non-Farm Employment Change: 22K vs 46K"
+        ]
+      },
+      {
+        "time": "2026-02-05T13:30:00.000Z",
+        "expected": "UP",
+        "actual": "UP",
+        "events": [
+          "USD Unemployment Claims: 231K vs 212K"
+        ]
+      },
+      {
+        "time": "2026-02-06T15:00:00.000Z",
+        "expected": "DOWN",
+        "actual": "DOWN",
+        "events": [
+          "USD Prelim UoM Consumer Sentiment: 57.3 vs 55.0"
+        ]
+      },
+      {
+        "time": "2026-02-10T13:30:00.000Z",
+        "expected": "UP",
+        "actual": "UP",
+        "events": [
+          "USD Retail Sales m/m: 0.0% vs 0.4%",
+          "USD Core Retail Sales m/m: 0.0% vs 0.3%"
+        ]
+      },
+      {
+        "time": "2026-02-11T13:30:00.000Z",
+        "expected": "DOWN",
+        "actual": "DOWN",
+        "events": [
+          "USD Unemployment Rate: 4.3% vs 4.4%",
+          "USD Average Hourly Earnings m/m: 0.4% vs 0.3%",
+          "USD Non-Farm Employment Change: 130K vs 66K"
+        ]
+      },
+      {
+        "time": "2026-02-12T13:30:00.000Z",
+        "expected": "UP",
+        "actual": "DOWN",
+        "events": [
+          "USD Unemployment Claims: 227K vs 222K"
+        ]
+      },
+      {
+        "time": "2026-02-13T13:30:00.000Z",
+        "expected": "UP",
+        "actual": "UP",
+        "events": [
+          "USD CPI m/m: 0.2% vs 0.3%",
+          "USD CPI y/y: 2.4% vs 2.5%"
+        ]
+      },
+      {
+        "time": "2026-02-19T13:30:00.000Z",
+        "expected": "DOWN",
+        "actual": "UP",
+        "events": [
+          "USD Unemployment Claims: 206K vs 223K"
+        ]
+      },
+      {
+        "time": "2026-02-20T08:30:00.000Z",
+        "expected": "UP",
+        "actual": "UP",
+        "events": [
+          "EUR German Flash Manufacturing PMI: 50.7 vs 49.6",
+          "EUR German Flash Services PMI: 53.4 vs 52.4"
+        ]
+      }
+    ]
+  }
+}

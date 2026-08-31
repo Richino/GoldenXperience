@@ -1,0 +1,123 @@
+{
+  "generatedAt": "2026-08-29T01:45:55.008Z",
+  "verdict": "RESEARCH_ONLY_NO_PROMOTION",
+  "scope": {
+    "instrument": "EUR_USD",
+    "priceData": "raw OANDA Practice H1 features plus M5 bid/ask midpoint outcome marks",
+    "calendarData": "user-supplied high-impact EUR/USD release timestamps; calendar is evaluation-only, not a feature",
+    "decision": "last completed H1 close before release",
+    "label": "M5 midpoint direction from the last completed pre-release M5 close to exactly four hours after the release",
+    "training": "same frozen price-only logistic model; retrained at calendar-month starts using only prior 4-hour decision rows",
+    "controls": "exact inverse and 1,000 seeded random-direction arms",
+    "excludes": "actual/forecast surprise values, stop/target P&L, spreads, execution, and production/paper orders"
+  },
+  "dataIntegrity": {
+    "calendarRows": 339,
+    "uniqueReleaseTimestamps": 199,
+    "nonOverlappingReleaseWindows": 146,
+    "scoredWindows": 143,
+    "groupedSameTimestampRows": 140,
+    "droppedForOverlappingFourHourOutcomes": 53
+  },
+  "results": {
+    "allNewsWindows": {
+      "observations": 143,
+      "selected": 65,
+      "wait": 78,
+      "accuracy": 0.5384615384615384,
+      "inverseAccuracy": 0.46153846153846156,
+      "randomMean": 0.5021846153846197,
+      "randomP95": 0.6
+    },
+    "developmentSummary": {
+      "observations": 75,
+      "selected": 31,
+      "wait": 44,
+      "accuracy": 0.5161290322580645,
+      "inverseAccuracy": 0.4838709677419355,
+      "randomMean": 0.5022258064516113,
+      "randomP95": 0.6451612903225806
+    },
+    "finalHoldoutSummary": {
+      "observations": 68,
+      "selected": 34,
+      "wait": 34,
+      "accuracy": 0.5588235294117647,
+      "inverseAccuracy": 0.4411764705882353,
+      "randomMean": 0.5021470588235236,
+      "randomP95": 0.6470588235294118
+    },
+    "finalHoldoutSample": [
+      {
+        "time": "2026-02-02T15:00:00.000Z",
+        "y": 0,
+        "probability": 0.5284251974870291,
+        "currency": "USD",
+        "eventName": "ISM Manufacturing PMI"
+      },
+      {
+        "time": "2026-02-04T13:15:00.000Z",
+        "y": 0,
+        "probability": 0.5105331158855724,
+        "currency": "USD",
+        "eventName": "ADP Non-Farm Employment Change"
+      },
+      {
+        "time": "2026-02-05T13:15:00.000Z",
+        "y": 1,
+        "probability": 0.520070123688188,
+        "currency": "EUR",
+        "eventName": "Monetary Policy Statement"
+      },
+      {
+        "time": "2026-02-06T15:00:00.000Z",
+        "y": 0,
+        "probability": 0.5091589613726093,
+        "currency": "USD",
+        "eventName": "Prelim UoM Inflation Expectations"
+      },
+      {
+        "time": "2026-02-10T13:30:00.000Z",
+        "y": 1,
+        "probability": 0.5018324239693134,
+        "currency": "USD",
+        "eventName": "Core Retail Sales m/m"
+      },
+      {
+        "time": "2026-02-11T13:30:00.000Z",
+        "y": 0,
+        "probability": 0.5041846240006831,
+        "currency": "USD",
+        "eventName": "Non-Farm Employment Change"
+      },
+      {
+        "time": "2026-02-12T13:30:00.000Z",
+        "y": 0,
+        "probability": 0.5168713670278684,
+        "currency": "USD",
+        "eventName": "Unemployment Claims"
+      },
+      {
+        "time": "2026-02-13T13:30:00.000Z",
+        "y": 1,
+        "probability": 0.5218941658932456,
+        "currency": "USD",
+        "eventName": "Core CPI y/y"
+      },
+      {
+        "time": "2026-02-18T19:00:00.000Z",
+        "y": 0,
+        "probability": 0.537215398665054,
+        "currency": "USD",
+        "eventName": "FOMC Meeting Minutes"
+      },
+      {
+        "time": "2026-02-19T13:30:00.000Z",
+        "y": 1,
+        "probability": 0.5294896506938122,
+        "currency": "USD",
+        "eventName": "Unemployment Claims"
+      }
+    ]
+  }
+}

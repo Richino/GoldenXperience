@@ -1,0 +1,58 @@
+{
+  "generatedAt": "2026-08-28T18:16:16.959Z",
+  "scope": {
+    "instrument": "EUR_USD",
+    "source": "stored OANDA M15 bid/ask market quotes only",
+    "detector": "existing movement-heuristic-v1",
+    "label": "within four hours, either long or short reaches +1.5 M15 ATR before its own -0.75 M15 ATR stop; a same-bar stop/target collision fails closed",
+    "developmentPeriod": {
+      "start": "2021-06-03T00:00:00.000Z",
+      "end": "2024-01-01T00:00:00.000Z"
+    },
+    "sealedHoldoutPeriod": {
+      "start": "2024-01-01T00:00:00.000Z",
+      "end": "2025-08-01T00:00:00.000Z"
+    },
+    "excludes": "trade rows, paper-engine writes, direction selection, and execution changes"
+  },
+  "development": {
+    "all": {
+      "n": 61851,
+      "hits": 23355,
+      "hitRate": 0.37760100887617015,
+      "lower99": 0.37259300653714644
+    },
+    "heuristicQualified": {
+      "n": 17451,
+      "hits": 7606,
+      "hitRate": 0.43584894848432754,
+      "lower99": 0.42620569815344894
+    },
+    "randomControls": {
+      "count": 100,
+      "meanHitRate": 0.37740530628617264,
+      "p95HitRate": 0.38244226691880123
+    }
+  },
+  "qualifiedForSealedHoldout": true,
+  "sealedHoldout": {
+    "all": {
+      "n": 38080,
+      "hits": 13310,
+      "hitRate": 0.3495273109243697,
+      "lower99": 0.34325964823117566
+    },
+    "heuristicQualified": {
+      "n": 10375,
+      "hits": 4330,
+      "hitRate": 0.41734939759036144,
+      "lower99": 0.4049349710613087
+    },
+    "randomControls": {
+      "count": 100,
+      "meanHitRate": 0.34968385542168684,
+      "p95HitRate": 0.35681927710843375
+    }
+  },
+  "verdict": "HEURISTIC_QUALIFIED_HOLDOUT_REVEALED"
+}

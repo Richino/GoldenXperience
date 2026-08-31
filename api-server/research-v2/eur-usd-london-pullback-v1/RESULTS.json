@@ -1,0 +1,55 @@
+{
+  "generatedAt": "2026-08-28T16:35:04.728Z",
+  "engine": "EUR/USD London pullback continuation v1",
+  "methodology": {
+    "source": "raw OANDA bid/ask M15 candles fetched at runtime",
+    "setup": "Asian range 00:00-07:00 Europe/London; 08:00-11:00 break, retest of the broken boundary, then M15 resumption",
+    "filters": "Asian range 0.35-1.2 session-volatility units; retest-swing risk 0.4-2.5 M15 ATR",
+    "exit": "1.5R target, production labelOutcome bid/ask resolver, forced-session/time close",
+    "split": {
+      "development": "2025-08-01 through 2026-03-31",
+      "sealedHoldout": "2026-04-01 through 2026-07-31"
+    },
+    "controls": "exact inverse with separate bid/ask fill and identical risk/target distance; 100 deterministic random arms",
+    "excluded": "all recorded trades and database reads/writes"
+  },
+  "development": {
+    "candidates": 33,
+    "diagnostics": {
+      "eightAmBars": 171,
+      "insufficientAsia": 0,
+      "rangeRejected": 23,
+      "noBreakout": 108,
+      "riskRejected": 7
+    },
+    "original": {
+      "n": 33,
+      "wins": 10,
+      "totalR": -7.999999999999907,
+      "expectancyR": -0.2424242424242396,
+      "winRate": 0.30303030303030304,
+      "ci95": [
+        -0.6405048935177386,
+        0.15565640866925945
+      ]
+    },
+    "inverse": {
+      "n": 33,
+      "wins": 13,
+      "totalR": -0.4999999999999001,
+      "expectancyR": -0.015151515151512123,
+      "winRate": 0.3939393939393939,
+      "ci95": [
+        -0.4383984532564964,
+        0.4080954229534721
+      ]
+    },
+    "randomControls": {
+      "count": 100,
+      "meanExpectancyR": -0.1621212121212096,
+      "controlsBeatenByOriginal": 39
+    },
+    "gate": "n >= 35; positive expectancy; 95% normal CI lower bound > 0; original beats inverse and at least 95/100 random controls"
+  },
+  "verdict": "NO_ENGINE_QUALIFIED_HOLDOUT_REMAINS_UNREAD"
+}

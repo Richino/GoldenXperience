@@ -1,0 +1,130 @@
+{
+  "generatedAt": "2026-08-31T04:33:37.054Z",
+  "frozenSelection": {
+    "arch": "mlp-16",
+    "geometry": "1.5|2.5",
+    "coverage": 0.2,
+    "conf": 0
+  },
+  "sample": {
+    "walkForwardTrades": 666,
+    "netExpectancy": -0.0812,
+    "netPF": 0.851,
+    "totalNetR": -54.05
+  },
+  "direction": {
+    "note": "chosen vs opposite are independent executable bid/ask outcomes (no mirror). directionHit uses gross to remove cost.",
+    "modelPickedBetterExecutableSide": 0.532,
+    "grossDirectionHitRate": 0.447,
+    "chosenNetExp": -0.0812,
+    "oppositeNetExp": -0.2234
+  },
+  "opportunitySelection": {
+    "note": "higher rankScore should mean higher net expectancy",
+    "rankQuartiles": [
+      {
+        "bucket": "Q1",
+        "n": 166,
+        "exp": -0.1236,
+        "winRate": 0.38
+      },
+      {
+        "bucket": "Q2",
+        "n": 167,
+        "exp": -0.0766,
+        "winRate": 0.377
+      },
+      {
+        "bucket": "Q3",
+        "n": 166,
+        "exp": -0.0531,
+        "winRate": 0.416
+      },
+      {
+        "bucket": "Q4",
+        "n": 167,
+        "exp": -0.0714,
+        "winRate": 0.413
+      }
+    ]
+  },
+  "entryTiming": {
+    "losers": 402,
+    "losersNeverReached025R": 178,
+    "losersNeverReached025RShare": 0.443,
+    "fastStopsWithin30min": 114,
+    "fastStopShareOfAll": 0.171
+  },
+  "costs": {
+    "grossExpectancy": 0.0655,
+    "netExpectancy": -0.0812,
+    "avgCostPerTradeR": 0.1467,
+    "grossPF": 1.135
+  },
+  "geometry": {
+    "note": "entries+direction held fixed; only exit geometry swapped",
+    "perGeometryNet": [
+      {
+        "geometry": "1|1.5",
+        "exp": -0.1424,
+        "pf": 0.775,
+        "winRate": 0.363
+      },
+      {
+        "geometry": "1|2",
+        "exp": -0.1374,
+        "pf": 0.792,
+        "winRate": 0.333
+      },
+      {
+        "geometry": "1|2.5",
+        "exp": -0.1375,
+        "pf": 0.796,
+        "winRate": 0.315
+      },
+      {
+        "geometry": "1.25|1.5",
+        "exp": -0.1008,
+        "pf": 0.827,
+        "winRate": 0.392
+      },
+      {
+        "geometry": "1.25|2",
+        "exp": -0.094,
+        "pf": 0.843,
+        "winRate": 0.368
+      },
+      {
+        "geometry": "1.25|2.5",
+        "exp": -0.0877,
+        "pf": 0.854,
+        "winRate": 0.36
+      },
+      {
+        "geometry": "1.5|1.5",
+        "exp": -0.0813,
+        "pf": 0.847,
+        "winRate": 0.416
+      },
+      {
+        "geometry": "1.5|2",
+        "exp": -0.082,
+        "pf": 0.849,
+        "winRate": 0.398
+      },
+      {
+        "geometry": "1.5|2.5",
+        "exp": -0.0812,
+        "pf": 0.851,
+        "winRate": 0.396
+      }
+    ]
+  },
+  "newsPremise": {
+    "note": "model-independent: does the signed news feature point to the better executable side? costless (mid) direction; all eligible OOS candidates carrying a news signal.",
+    "newsSignalCandidates": 1052,
+    "newsSignPredictsBetterSideRate": 0.525,
+    "netExpTradingNewsDirection": -0.094,
+    "netExpTradingAgainstNews": -0.1863
+  }
+}

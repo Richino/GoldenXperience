@@ -1,0 +1,31 @@
+{
+  "generatedAt": "2026-09-07T00:00:00.000Z",
+  "purpose": "PIPELINE_PARITY_V2_PROVENANCE_AUDIT",
+  "provenanceStatus": "PARTIAL_HISTORICAL_RULE_RECOVERED",
+  "verdict": "PIPELINE_PARITY_NOT_RESTORED",
+  "selectionRulesFrozen": false,
+  "reason": "Recovered chat provenance proves cluster-based selection, rejects reach-first ranking, and establishes the pre-identified primary-to-secondary fallback. It does not define generic within-cluster, cross-model, adequate-sample, or tie-break rules. Freezing those missing rules from known endpoint controls would be backfitting.",
+  "provenance": {
+    "repository": "Committed final cohorts, registries, validation code, and reports.",
+    "recoveredChat": "Original research-conversation records supplied after the initial parity audit; they predate it and are recorded in RECOVERED_CHAT_PROVENANCE.md."
+  },
+  "frozenProcedure": {
+    "primarySecondaryFallback": true,
+    "rule": "Identify primary and legitimate secondary in Phase 1 before Phase 2; test secondary only after primary fails Phase 3; do not rescan further hours."
+  },
+  "selectionRules": {
+    "phase1Deterministic": false,
+    "phase2Deterministic": false,
+    "paretoAsCompletePhase1Selector": false
+  },
+  "controls": [
+    { "pair": "USDCHF", "classification": "FAILED_TO_REDISCOVER", "equivalent": true },
+    { "pair": "EURJPY", "classification": "PARTIALLY_REDISCOVERED", "equivalent": true },
+    { "pair": "NZDUSD", "classification": "NOT_RUN", "equivalent": "unproven" },
+    { "pair": "CADJPY", "classification": "NOT_RUN", "equivalent": "unproven" },
+    { "pair": "NZDJPY", "classification": "NOT_RUN", "equivalent": "unproven" },
+    { "pair": "USDCAD", "classification": "NON_EQUIVALENT_CONTROL", "equivalent": false }
+  ],
+  "unchangedTradeMechanics": ["Wilder ATR14", "origin completed H1 close", "frozen ATR", "future bars +1 through +3", "SL 1 ATR", "TP 2 ATR", "future #3 time exit", "UTC", "conservative same-bar handling"],
+  "nextRequiredEvidence": ["historical Phase-1 hourly scorecards", "historical Phase-2 six-model LONG/SHORT metrics", "primary/secondary origin decisions", "documented model/side tie-breaks"]
+}

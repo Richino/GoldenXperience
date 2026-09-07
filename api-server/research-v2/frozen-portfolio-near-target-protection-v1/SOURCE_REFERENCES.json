@@ -1,0 +1,9 @@
+{
+  "USDCHF": "api-server/research-v2/usdchf-bear-consensus-v1-spread-validation/",
+  "USDCAD": "api-server/research-v2/usdcad-v3-1100-long-spread-validation/",
+  "GBPUSD": "api-server/research-v2/gbpusd-frequency-v3-spread-validation/",
+  "NZDUSD": "api-server/research-v2/nzdusd-bull-consensus-structure-v1-spread-validation/",
+  "AUDUSD": "api-server/research-v2/executable-cost-validation/ (GX AUDUSD Strong Consensus Structure V1)",
+  "USDJPY": "api-server/research-v2/usdjpy-v6-spread-validation/",
+  "EURUSD": "api-server/research-v2/executable-cost-validation/ (EURUSD London Breakout V1; not rejected Frequency V3)"
+}

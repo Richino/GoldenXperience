@@ -1,0 +1,84 @@
+{
+  "id": "SELECTIVE_PORTFOLIO_V1",
+  "status": "FROZEN_RESEARCH_ONLY",
+  "rules": {
+    "maximumSpreadToStop": 0.1,
+    "maximumOpenPositions": 1,
+    "riskPerTrade": 0.03
+  },
+  "hypothesis": "A fixed low execution-cost selector with one concurrent position improves total net profit and drawdown despite fewer trades.",
+  "arms": {
+    "CONTROL": "Every eligible frozen signal; original exits and geometry.",
+    "SELECTIVE": "Spread/executable-stop <= 0.10, at most one open position, lowest spread/stop wins simultaneous signals, lexical pair/ID ties. No waiting for a cheaper entry."
+  },
+  "initialAdmittedPairs": [
+    "EUR_USD",
+    "USD_JPY",
+    "GBP_USD",
+    "AUD_USD"
+  ],
+  "excluded": [
+    "NZD_USD"
+  ],
+  "additionalPairs": "PENDING_FROZEN_PAIR_SPECIFIC_RULES",
+  "additionalPairAdmission": [
+    "explicit pair and version",
+    "source hash frozen before evaluating outcomes",
+    "causal signal and original execution geometry adapter",
+    "midpoint parity documented",
+    "historical MBA coverage",
+    "development executable costs positive",
+    "separate prospective cohort begins only after admission; do not retroactively add to V1"
+  ],
+  "sourceSha256": "2f97072856720bbd20eb644317e386efcfbbd6ae24b1f4967f693c2eed23ce1f",
+  "strategyHashes": {
+    "EUR_USD": {
+      "path": "C:\\Users\\arche\\Desktop\\code\\GoldenXperience\\frontend\\src\\lib\\strategy\\strategies\\eurusd-strategy.ts",
+      "sha256": "44771092f6bcdb9dab16af05652a900a36c52fc369830e5a7501fde17bd6ab4c"
+    },
+    "USD_JPY": {
+      "path": "C:\\Users\\arche\\Desktop\\code\\GoldenXperience\\frontend\\src\\lib\\strategy\\strategies\\usdjpy-strategy.ts",
+      "sha256": "ef52871e7994a6b7db733ca377efdd004a5624b27c8ac2a52e76ba54750d8bcf"
+    },
+    "GBP_USD": {
+      "path": "C:\\Users\\arche\\Desktop\\code\\GoldenXperience\\frontend\\src\\lib\\strategy\\strategies\\gbpusd-strategy.ts",
+      "sha256": "cab1590f21a8164157dae00842e9a06b7b9d0e670ca5b26afa0832baf1d0c073"
+    },
+    "AUD_USD": {
+      "path": "C:\\Users\\arche\\Desktop\\code\\GoldenXperience\\frontend\\src\\lib\\strategy\\strategies\\audusd-strategy.ts",
+      "sha256": "cb58ccb7c1baa07d4ce047f78f248d244cda1f72a703d3b85269af2f0dae9daf"
+    }
+  },
+  "historicalPhase": {
+    "from": "2025-01-06T00:00:00.000Z",
+    "toExclusive": "2026-09-01T00:00:00.000Z",
+    "label": "REUSED_DEVELOPMENT_DATA_NOT_OOS",
+    "parameterSearch": false
+  },
+  "prospectivePhase": {
+    "from": "2026-09-07T00:00:00.000Z",
+    "toExclusive": "2027-09-07T00:00:00.000Z",
+    "status": "NOT_STARTED",
+    "interimOptimization": false,
+    "minimumControlSignals": 100,
+    "minimumSelectedSignals": 50,
+    "minimumMonthsWithSignals": 9,
+    "passRequirements": [
+      "SELECTIVE total net R and annual net R exceed CONTROL",
+      "SELECTIVE 3% account ending equity exceeds CONTROL under same verified margin model",
+      "SELECTIVE sampled equity drawdown no greater",
+      "positive paired monthly incremental R in at least 2 of 4 calendar quarters",
+      "paired month-bootstrap 95% interval for incremental total R excludes zero",
+      "no margin-closeout events",
+      "otherwise FAILS or INSUFFICIENT_DATA; no retuning"
+    ]
+  },
+  "limitations": [
+    "10% is a fixed hypothesis, not a proven profitable threshold",
+    "one combined selection policy; cannot attribute results separately to cost gate and position limit",
+    "prior historical signals and outcomes were already inspected",
+    "no validated big-move predictor is introduced",
+    "3% risk is an experiment assumption, not a safety claim",
+    "future collection is not scheduled or enabled by this standalone development run"
+  ]
+}

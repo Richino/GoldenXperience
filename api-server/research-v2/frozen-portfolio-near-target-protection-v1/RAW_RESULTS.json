@@ -1,0 +1,449 @@
+{
+  "generatedAt": "2026-09-06T22:52:35.658Z",
+  "purpose": "Exit-management only. Same frozen entries. Protection after +1.80R executable MFE.",
+  "classification": "NO_MEANINGFUL_IMPROVEMENT",
+  "oosLabel": "NOT_AN_OOS_CANDIDATE",
+  "bestOverallVariant": "V0",
+  "closestProtectionVariant": "V4",
+  "includedPairs": [
+    "USDCHF",
+    "USDCAD",
+    "GBPUSD",
+    "NZDUSD",
+    "AUDUSD",
+    "USDJPY",
+    "EURUSD"
+  ],
+  "excludedPairs": [],
+  "sanity": [
+    {
+      "pair": "USDCHF",
+      "publishedExpectancyR": 0.2664,
+      "replayedExpectancyR": 0.2664,
+      "delta": 0,
+      "publishedTrades": 103,
+      "replayedTrades": 103,
+      "cohortTrades": 103,
+      "matchedPublished": 103,
+      "usableM1": 103,
+      "geometry": [
+        "+2R/-1R ATR14 midpoint barriers; SHORT entry BID"
+      ],
+      "baselineOk": true,
+      "includedInAggregate": true
+    },
+    {
+      "pair": "USDCAD",
+      "publishedExpectancyR": 0.228,
+      "replayedExpectancyR": 0.2283,
+      "delta": 0.0003,
+      "publishedTrades": 53,
+      "replayedTrades": 53,
+      "cohortTrades": 53,
+      "matchedPublished": 53,
+      "usableM1": 53,
+      "geometry": [
+        "+2R/-1R ATR14; LONG ASK; 3 future H1 bars"
+      ],
+      "baselineOk": true,
+      "includedInAggregate": true
+    },
+    {
+      "pair": "GBPUSD",
+      "publishedExpectancyR": 0.196,
+      "replayedExpectancyR": 0.1961,
+      "delta": 0.0001,
+      "publishedTrades": 98,
+      "replayedTrades": 98,
+      "cohortTrades": 98,
+      "matchedPublished": 98,
+      "usableM1": 98,
+      "geometry": [
+        "+2R/-1R frozen TV/ATR risk; M30; max hold 6 bars"
+      ],
+      "baselineOk": true,
+      "includedInAggregate": true
+    },
+    {
+      "pair": "NZDUSD",
+      "publishedExpectancyR": 0.1898,
+      "replayedExpectancyR": 0.1898,
+      "delta": 0,
+      "publishedTrades": 100,
+      "replayedTrades": 100,
+      "cohortTrades": 102,
+      "matchedPublished": 100,
+      "usableM1": 100,
+      "geometry": [
+        "+2R/-1R ATR14; LONG ASK; 3 future H1 bars"
+      ],
+      "baselineOk": true,
+      "includedInAggregate": true
+    },
+    {
+      "pair": "AUDUSD",
+      "publishedExpectancyR": 0.118,
+      "replayedExpectancyR": 0.1181,
+      "delta": 0.0001,
+      "publishedTrades": 195,
+      "replayedTrades": 195,
+      "cohortTrades": 195,
+      "matchedPublished": 195,
+      "usableM1": 195,
+      "geometry": [
+        "+2R/-1R ATR14 around executable entry; 3 future H1 bars"
+      ],
+      "baselineOk": true,
+      "includedInAggregate": true
+    },
+    {
+      "pair": "USDJPY",
+      "publishedExpectancyR": 0.0802,
+      "replayedExpectancyR": 0.0802,
+      "delta": 0,
+      "publishedTrades": 271,
+      "replayedTrades": 271,
+      "cohortTrades": 272,
+      "matchedPublished": 271,
+      "usableM1": 271,
+      "geometry": [
+        "+2R/-1R frozen TV risk (ATR14 fallback on TIME_EXIT)"
+      ],
+      "baselineOk": true,
+      "includedInAggregate": true
+    },
+    {
+      "pair": "EURUSD",
+      "publishedExpectancyR": 0.078,
+      "replayedExpectancyR": 0.0936,
+      "delta": 0.0156,
+      "publishedTrades": 356,
+      "replayedTrades": 356,
+      "cohortTrades": 356,
+      "matchedPublished": 356,
+      "usableM1": 356,
+      "geometry": [
+        "+2R/-1R midpoint ATR barriers; executable 1R = |entry-stop| (MIDPOINT_LEVELS); no time exit"
+      ],
+      "baselineOk": true,
+      "includedInAggregate": true
+    }
+  ],
+  "sourceReferences": {
+    "USDCHF": "api-server/research-v2/usdchf-bear-consensus-v1-spread-validation/",
+    "USDCAD": "api-server/research-v2/usdcad-v3-1100-long-spread-validation/",
+    "GBPUSD": "api-server/research-v2/gbpusd-frequency-v3-spread-validation/",
+    "NZDUSD": "api-server/research-v2/nzdusd-bull-consensus-structure-v1-spread-validation/",
+    "AUDUSD": "api-server/research-v2/executable-cost-validation/ (GX AUDUSD Strong Consensus Structure V1)",
+    "USDJPY": "api-server/research-v2/usdjpy-v6-spread-validation/",
+    "EURUSD": "api-server/research-v2/executable-cost-validation/ (EURUSD London Breakout V1; not rejected Frequency V3)"
+  },
+  "publishedBaselines": {
+    "USDCHF": {
+      "expectancyR": 0.2664,
+      "trades": 103,
+      "pf": 1.523,
+      "wr": 45.63
+    },
+    "USDCAD": {
+      "expectancyR": 0.228,
+      "trades": 53,
+      "pf": 1.424,
+      "wr": 49.06
+    },
+    "GBPUSD": {
+      "expectancyR": 0.196,
+      "trades": 98,
+      "pf": 1.332,
+      "wr": 44.9
+    },
+    "NZDUSD": {
+      "expectancyR": 0.1898,
+      "trades": 102,
+      "pf": 1.38,
+      "wr": 48,
+      "matched": 100
+    },
+    "AUDUSD": {
+      "expectancyR": 0.118,
+      "trades": 195,
+      "pf": 1.232,
+      "wr": 45.64
+    },
+    "USDJPY": {
+      "expectancyR": 0.0802,
+      "trades": 272,
+      "pf": 1.179,
+      "wr": 48.34,
+      "matched": 271
+    },
+    "EURUSD": {
+      "expectancyR": 0.078,
+      "trades": 356,
+      "pf": 1.127,
+      "wr": 38.48
+    }
+  },
+  "portfolio": [
+    {
+      "variant": "V0",
+      "label": "FROZEN BASELINE",
+      "trades": 1176,
+      "wins": 524,
+      "losses": 652,
+      "wr": 44.5578,
+      "pf": 1.2487,
+      "total_r": 155.8446,
+      "expectancy_r": 0.132521,
+      "average_winner_r": 1.4932,
+      "average_loser_r": -0.9611,
+      "max_portfolio_dd_r": 25.0926,
+      "pairs_improved": 0,
+      "pairs_worsened": 0,
+      "pairs_in_aggregate": 7
+    },
+    {
+      "variant": "V1",
+      "label": "1.80R TRIGGER / LOCK +1.00R",
+      "trades": 1176,
+      "wins": 530,
+      "losses": 646,
+      "wr": 45.068,
+      "pf": 1.2394,
+      "total_r": 148.7491,
+      "expectancy_r": 0.126487,
+      "average_winner_r": 1.4529,
+      "average_loser_r": -0.9617,
+      "max_portfolio_dd_r": 25.2266,
+      "pairs_improved": 3,
+      "pairs_worsened": 4,
+      "pairs_in_aggregate": 7
+    },
+    {
+      "variant": "V2",
+      "label": "1.80R TRIGGER / LOCK +1.25R",
+      "trades": 1176,
+      "wins": 530,
+      "losses": 646,
+      "wr": 45.068,
+      "pf": 1.2472,
+      "total_r": 153.5873,
+      "expectancy_r": 0.130601,
+      "average_winner_r": 1.462,
+      "average_loser_r": -0.9617,
+      "max_portfolio_dd_r": 24.0072,
+      "pairs_improved": 4,
+      "pairs_worsened": 3,
+      "pairs_in_aggregate": 7
+    },
+    {
+      "variant": "V3",
+      "label": "1.80R TRIGGER / LOCK +1.50R",
+      "trades": 1176,
+      "wins": 530,
+      "losses": 646,
+      "wr": 45.068,
+      "pf": 1.2498,
+      "total_r": 155.2078,
+      "expectancy_r": 0.131979,
+      "average_winner_r": 1.4651,
+      "average_loser_r": -0.9617,
+      "max_portfolio_dd_r": 24.0072,
+      "pairs_improved": 3,
+      "pairs_worsened": 4,
+      "pairs_in_aggregate": 7
+    },
+    {
+      "variant": "V4",
+      "label": "LITERAL 90% TRAIL",
+      "trades": 1176,
+      "wins": 530,
+      "losses": 646,
+      "wr": 45.068,
+      "pf": 1.2498,
+      "total_r": 155.2193,
+      "expectancy_r": 0.131989,
+      "average_winner_r": 1.4651,
+      "average_loser_r": -0.9617,
+      "max_portfolio_dd_r": 24.0072,
+      "pairs_improved": 4,
+      "pairs_worsened": 3,
+      "pairs_in_aggregate": 7
+    }
+  ],
+  "comparison": [
+    {
+      "pair": "USDCHF",
+      "baseline_exp": 0.266433,
+      "lock_1_00": 0.259325,
+      "lock_1_25": 0.255836,
+      "lock_1_50": 0.25963,
+      "trail_90": 0.26129,
+      "best_variant": "V0",
+      "delta_vs_baseline": 0,
+      "improved": false
+    },
+    {
+      "pair": "USDCAD",
+      "baseline_exp": 0.228349,
+      "lock_1_00": 0.241338,
+      "lock_1_25": 0.260206,
+      "lock_1_50": 0.262901,
+      "trail_90": 0.27637,
+      "best_variant": "V4",
+      "delta_vs_baseline": 0.048021,
+      "improved": true
+    },
+    {
+      "pair": "GBPUSD",
+      "baseline_exp": 0.196063,
+      "lock_1_00": 0.201897,
+      "lock_1_25": 0.203038,
+      "lock_1_50": 0.204882,
+      "trail_90": 0.206131,
+      "best_variant": "V4",
+      "delta_vs_baseline": 0.010068,
+      "improved": true
+    },
+    {
+      "pair": "NZDUSD",
+      "baseline_exp": 0.189782,
+      "lock_1_00": 0.18742,
+      "lock_1_25": 0.19492,
+      "lock_1_50": 0.187486,
+      "trail_90": 0.191731,
+      "best_variant": "V2",
+      "delta_vs_baseline": 0.005138,
+      "improved": true
+    },
+    {
+      "pair": "AUDUSD",
+      "baseline_exp": 0.118117,
+      "lock_1_00": 0.085917,
+      "lock_1_25": 0.092322,
+      "lock_1_50": 0.10088,
+      "trail_90": 0.097131,
+      "best_variant": "V0",
+      "delta_vs_baseline": 0,
+      "improved": false
+    },
+    {
+      "pair": "USDJPY",
+      "baseline_exp": 0.080224,
+      "lock_1_00": 0.085921,
+      "lock_1_25": 0.093301,
+      "lock_1_50": 0.092094,
+      "trail_90": 0.087844,
+      "best_variant": "V2",
+      "delta_vs_baseline": 0.013077,
+      "improved": true
+    },
+    {
+      "pair": "EURUSD",
+      "baseline_exp": 0.093634,
+      "lock_1_00": 0.086184,
+      "lock_1_25": 0.086428,
+      "lock_1_50": 0.087292,
+      "trail_90": 0.088592,
+      "best_variant": "V0",
+      "delta_vs_baseline": 0,
+      "improved": false
+    }
+  ],
+  "changeTotals": [
+    {
+      "variant": "V1",
+      "rescueR": 11.1461,
+      "clipR": -15.142100000000001,
+      "rescueN": 6,
+      "clipN": 16
+    },
+    {
+      "variant": "V2",
+      "rescueR": 12.3961,
+      "clipR": -14.5142,
+      "rescueN": 6,
+      "clipN": 21
+    },
+    {
+      "variant": "V3",
+      "rescueR": 13.4476,
+      "clipR": -17.222,
+      "rescueN": 6,
+      "clipN": 39
+    },
+    {
+      "variant": "V4",
+      "rescueR": 14.1499,
+      "clipR": -20.796100000000003,
+      "rescueN": 6,
+      "clipN": 75
+    }
+  ],
+  "yearStability": [
+    {
+      "year": 2023,
+      "v0": 0.0505,
+      "best": 0.0638,
+      "improved": true
+    },
+    {
+      "year": 2024,
+      "v0": 0.2018,
+      "best": 0.1919,
+      "improved": false
+    },
+    {
+      "year": 2025,
+      "v0": 0.0982,
+      "best": 0.0923,
+      "improved": false
+    },
+    {
+      "year": 2026,
+      "v0": 0.2017,
+      "best": 0.2014,
+      "improved": false
+    }
+  ],
+  "bestVariant": {
+    "variant": "V4",
+    "label": "LITERAL 90% TRAIL",
+    "trades": 1176,
+    "wins": 530,
+    "losses": 646,
+    "wr": 45.068,
+    "pf": 1.2498,
+    "total_r": 155.2193,
+    "expectancy_r": 0.131989,
+    "average_winner_r": 1.4651,
+    "average_loser_r": -0.9617,
+    "max_portfolio_dd_r": 24.0072,
+    "pairs_improved": 4,
+    "pairs_worsened": 3,
+    "pairs_in_aggregate": 7
+  },
+  "baseline": {
+    "variant": "V0",
+    "label": "FROZEN BASELINE",
+    "trades": 1176,
+    "wins": 524,
+    "losses": 652,
+    "wr": 44.5578,
+    "pf": 1.2487,
+    "total_r": 155.8446,
+    "expectancy_r": 0.132521,
+    "average_winner_r": 1.4932,
+    "average_loser_r": -0.9611,
+    "max_portfolio_dd_r": 25.0926,
+    "pairs_improved": 0,
+    "pairs_worsened": 0,
+    "pairs_in_aggregate": 7
+  },
+  "deltaExp": -0.0005320000000000047,
+  "ambiguousCount": 77,
+  "frequencyUnchanged": true,
+  "deployment": false,
+  "brokerOrders": false,
+  "entryRuleChanges": false
+}

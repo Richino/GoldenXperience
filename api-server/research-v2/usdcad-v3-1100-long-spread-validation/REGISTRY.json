@@ -1,0 +1,39 @@
+{
+  "pair": "USDCAD",
+  "instrument": "USD_CAD",
+  "version": "V3",
+  "status": "FROZEN_RESEARCH_CANDIDATE",
+  "validation": "SURVIVES_COSTS",
+  "classification": "STRONG",
+  "exec_expectancy_r": 0.228,
+  "exec_pf": 1.424,
+  "exec_trades": 53,
+  "name": "GX USDCAD Structure EMA Reclaim V3 11:00 LONG Only 1 to 2 RR",
+  "timeframe": "H1",
+  "direction": "LONG_ONLY",
+  "originUtc": "11:00",
+  "penExtreme": "metadata_only",
+  "executionEnabled": false,
+  "deployed": false,
+  "brokerOrders": false,
+  "ruleOptimization": false,
+  "rejectedHours": ["09:00 LONG", "10:00 SHORT", "11:00 SHORT"],
+  "yearStabilityWarning": {
+    "doesNotInvalidate": true,
+    "doNotOptimizeOnSameSample": true,
+    "execExpectancyRByYear": {
+      "2023": 0.482,
+      "2024": 0.399,
+      "2025": 0.063,
+      "2026": 0.016
+    }
+  },
+  "supersedes": {
+    "id": "USDCAD_STRUCTURE_EMA_RECLAIM_V2_SELECTED_ORIGINS",
+    "status": "REJECTED",
+    "tags": ["RESEARCH_ONLY", "NO_EDGE_AFTER_COSTS", "REJECTED"],
+    "artifacts": "api-server/research-v2/usdcad-selected-v2-spread-validation/"
+  },
+  "artifacts": "api-server/research-v2/usdcad-v3-1100-long-spread-validation/",
+  "frozenAt": "2026-09-06T00:00:00.000Z"
+}

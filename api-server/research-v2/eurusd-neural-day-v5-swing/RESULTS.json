@@ -1,0 +1,565 @@
+{
+  "generatedAt": "2026-08-31T04:42:52.643Z",
+  "verdict": "NO_ROBUST_EDGE_AT_SWING_HORIZON",
+  "horizon": {
+    "maxHoldBars": 192,
+    "approxMaxHoldDays": 2,
+    "geometriesTested": [
+      "3|1.5",
+      "3|2",
+      "3|2.5",
+      "5|1.5",
+      "5|2",
+      "5|2.5",
+      "8|1.5",
+      "8|2",
+      "8|2.5"
+    ]
+  },
+  "selection": {
+    "arch": "logistic",
+    "geometry": "5|2",
+    "coverage": 0.2,
+    "minDirectionConfidence": 0.1,
+    "validationSummary": {
+      "trades": 58,
+      "tradesPerMarketDay": 0.439394,
+      "winRate": 0.568966,
+      "targetRate": 0.224138,
+      "avgWin": 1.230856,
+      "avgLoss": -0.758121,
+      "expectancyR": 0.373538,
+      "totalR": 21.665198,
+      "profitFactor": 2.143099,
+      "maxDrawdownR": 2.46664,
+      "expectancy95": {
+        "lower": 0.075735,
+        "upper": 0.671341
+      },
+      "positiveMonths": 5,
+      "months": 6
+    }
+  },
+  "results": {
+    "train": {
+      "summary": {
+        "trades": 93,
+        "tradesPerMarketDay": 0.481865,
+        "winRate": 0.548387,
+        "targetRate": 0.16129,
+        "avgWin": 1.042571,
+        "avgLoss": -0.876271,
+        "expectancyR": 0.175997,
+        "totalR": 16.367742,
+        "profitFactor": 1.444735,
+        "maxDrawdownR": 4.598586,
+        "expectancy95": {
+          "lower": -0.049051,
+          "upper": 0.401046
+        },
+        "positiveMonths": 7,
+        "months": 9
+      }
+    },
+    "validation": {
+      "summary": {
+        "trades": 58,
+        "tradesPerMarketDay": 0.439394,
+        "winRate": 0.568966,
+        "targetRate": 0.224138,
+        "avgWin": 1.230856,
+        "avgLoss": -0.758121,
+        "expectancyR": 0.373538,
+        "totalR": 21.665198,
+        "profitFactor": 2.143099,
+        "maxDrawdownR": 2.46664,
+        "expectancy95": {
+          "lower": 0.075735,
+          "upper": 0.671341
+        },
+        "positiveMonths": 5,
+        "months": 6
+      }
+    },
+    "test": {
+      "summary": {
+        "trades": 96,
+        "tradesPerMarketDay": 0.497409,
+        "winRate": 0.395833,
+        "targetRate": 0.15625,
+        "avgWin": 1.193315,
+        "avgLoss": -0.869706,
+        "expectancyR": -0.053094,
+        "totalR": -5.096991,
+        "profitFactor": 0.898955,
+        "maxDrawdownR": 12.632549,
+        "expectancy95": {
+          "lower": -0.280839,
+          "upper": 0.174652
+        },
+        "positiveMonths": 3,
+        "months": 9
+      },
+      "breakdowns": {
+        "long": {
+          "trades": 22,
+          "tradesPerMarketDay": 0.11399,
+          "winRate": 0.318182,
+          "targetRate": 0.227273,
+          "avgWin": 1.533273,
+          "avgLoss": -0.812884,
+          "expectancyR": -0.06638,
+          "totalR": -1.460356,
+          "profitFactor": 0.880233,
+          "maxDrawdownR": 8.590491,
+          "expectancy95": {
+            "lower": -0.581571,
+            "upper": 0.448811
+          },
+          "positiveMonths": 3,
+          "months": 8
+        },
+        "short": {
+          "trades": 74,
+          "tradesPerMarketDay": 0.38342,
+          "winRate": 0.418919,
+          "targetRate": 0.135135,
+          "avgWin": 1.11655,
+          "avgLoss": -0.889528,
+          "expectancyR": -0.049144,
+          "totalR": -3.636636,
+          "profitFactor": 0.904924,
+          "maxDrawdownR": 7.956578,
+          "expectancy95": {
+            "lower": -0.303826,
+            "upper": 0.205539
+          },
+          "positiveMonths": 3,
+          "months": 9
+        },
+        "news": {
+          "trades": 22,
+          "tradesPerMarketDay": 0.11399,
+          "winRate": 0.227273,
+          "targetRate": 0.090909,
+          "avgWin": 0.975065,
+          "avgLoss": -0.778267,
+          "expectancyR": -0.379783,
+          "totalR": -8.355222,
+          "profitFactor": 0.36849,
+          "maxDrawdownR": 9.308944,
+          "expectancy95": {
+            "lower": -0.765663,
+            "upper": 0.006098
+          },
+          "positiveMonths": 1,
+          "months": 8
+        },
+        "nonNews": {
+          "trades": 74,
+          "tradesPerMarketDay": 0.38342,
+          "winRate": 0.445946,
+          "targetRate": 0.175676,
+          "avgWin": 1.226383,
+          "avgLoss": -0.90762,
+          "expectancyR": 0.04403,
+          "totalR": 3.258231,
+          "profitFactor": 1.087558,
+          "maxDrawdownR": 7.086964,
+          "expectancy95": {
+            "lower": -0.225536,
+            "upper": 0.313596
+          },
+          "positiveMonths": 2,
+          "months": 9
+        },
+        "sessionLondon": {
+          "trades": 30,
+          "tradesPerMarketDay": 0.15544,
+          "winRate": 0.433333,
+          "targetRate": 0.266667,
+          "avgWin": 1.639993,
+          "avgLoss": -0.991225,
+          "expectancyR": 0.148969,
+          "totalR": 4.469078,
+          "profitFactor": 1.265214,
+          "maxDrawdownR": 7.549544,
+          "expectancy95": {
+            "lower": -0.34234,
+            "upper": 0.640279
+          },
+          "positiveMonths": 6,
+          "months": 9
+        },
+        "sessionNyAm": {
+          "trades": 11,
+          "tradesPerMarketDay": 0.056995,
+          "winRate": 0.545455,
+          "targetRate": 0.363636,
+          "avgWin": 1.435582,
+          "avgLoss": -0.881538,
+          "expectancyR": 0.382346,
+          "totalR": 4.205806,
+          "profitFactor": 1.954198,
+          "maxDrawdownR": 2.401396,
+          "expectancy95": {
+            "lower": -0.426404,
+            "upper": 1.191096
+          },
+          "positiveMonths": 3,
+          "months": 5
+        },
+        "sessionNyPm": {
+          "trades": 55,
+          "tradesPerMarketDay": 0.284974,
+          "winRate": 0.345455,
+          "targetRate": 0.054545,
+          "avgWin": 0.811187,
+          "avgLoss": -0.810679,
+          "expectancyR": -0.250398,
+          "totalR": -13.771876,
+          "profitFactor": 0.528109,
+          "maxDrawdownR": 13.771876,
+          "expectancy95": {
+            "lower": -0.489742,
+            "upper": -0.011053
+          },
+          "positiveMonths": 2,
+          "months": 9
+        }
+      }
+    },
+    "walkForward": {
+      "summary": {
+        "trades": 192,
+        "tradesPerMarketDay": 0.494845,
+        "winRate": 0.395833,
+        "targetRate": 0.140625,
+        "avgWin": 1.148586,
+        "avgLoss": -0.839149,
+        "expectancyR": -0.052337,
+        "totalR": -10.04875,
+        "profitFactor": 0.896768,
+        "maxDrawdownR": 16.883675,
+        "expectancy95": {
+          "lower": -0.207452,
+          "upper": 0.102778
+        },
+        "positiveMonths": 6,
+        "months": 18
+      },
+      "folds": [
+        {
+          "fold": "2025-02-01..2025-04-01",
+          "trades": 16,
+          "tradesPerMarketDay": 0.390244,
+          "winRate": 0.375,
+          "targetRate": 0.125,
+          "avgWin": 1.194384,
+          "avgLoss": -0.732854,
+          "expectancyR": -0.01014,
+          "totalR": -0.162237,
+          "profitFactor": 0.977862,
+          "maxDrawdownR": 4.114161,
+          "expectancy95": {
+            "lower": -0.535989,
+            "upper": 0.515709
+          },
+          "positiveMonths": 1,
+          "months": 2
+        },
+        {
+          "fold": "2025-04-01..2025-06-01",
+          "trades": 26,
+          "tradesPerMarketDay": 0.590909,
+          "winRate": 0.423077,
+          "targetRate": 0.192308,
+          "avgWin": 1.320946,
+          "avgLoss": -0.813179,
+          "expectancyR": 0.08972,
+          "totalR": 2.332725,
+          "profitFactor": 1.191243,
+          "maxDrawdownR": 4.935956,
+          "expectancy95": {
+            "lower": -0.368571,
+            "upper": 0.548011
+          },
+          "positiveMonths": 1,
+          "months": 2
+        },
+        {
+          "fold": "2025-06-01..2025-08-01",
+          "trades": 25,
+          "tradesPerMarketDay": 0.568182,
+          "winRate": 0.4,
+          "targetRate": 0.16,
+          "avgWin": 1.087434,
+          "avgLoss": -0.875446,
+          "expectancyR": -0.090294,
+          "totalR": -2.25735,
+          "profitFactor": 0.828099,
+          "maxDrawdownR": 5.745507,
+          "expectancy95": {
+            "lower": -0.531659,
+            "upper": 0.351071
+          },
+          "positiveMonths": 0,
+          "months": 2
+        },
+        {
+          "fold": "2025-08-01..2025-10-01",
+          "trades": 21,
+          "tradesPerMarketDay": 0.488372,
+          "winRate": 0.285714,
+          "targetRate": 0.095238,
+          "avgWin": 0.863766,
+          "avgLoss": -0.814897,
+          "expectancyR": -0.335279,
+          "totalR": -7.040851,
+          "profitFactor": 0.423988,
+          "maxDrawdownR": 7.784025,
+          "expectancy95": {
+            "lower": -0.735979,
+            "upper": 0.065422
+          },
+          "positiveMonths": 0,
+          "months": 2
+        },
+        {
+          "fold": "2025-10-01..2025-12-01",
+          "trades": 17,
+          "tradesPerMarketDay": 0.395349,
+          "winRate": 0.529412,
+          "targetRate": 0.176471,
+          "avgWin": 1.22647,
+          "avgLoss": -0.748829,
+          "expectancyR": 0.296917,
+          "totalR": 5.047596,
+          "profitFactor": 1.842582,
+          "maxDrawdownR": 2.088647,
+          "expectancy95": {
+            "lower": -0.245084,
+            "upper": 0.838919
+          },
+          "positiveMonths": 2,
+          "months": 2
+        },
+        {
+          "fold": "2025-12-01..2026-02-01",
+          "trades": 20,
+          "tradesPerMarketDay": 0.465116,
+          "winRate": 0.5,
+          "targetRate": 0.2,
+          "avgWin": 1.351174,
+          "avgLoss": -0.901143,
+          "expectancyR": 0.225016,
+          "totalR": 4.500311,
+          "profitFactor": 1.499401,
+          "maxDrawdownR": 3.006422,
+          "expectancy95": {
+            "lower": -0.323126,
+            "upper": 0.773157
+          },
+          "positiveMonths": 1,
+          "months": 2
+        },
+        {
+          "fold": "2026-02-01..2026-04-01",
+          "trades": 25,
+          "tradesPerMarketDay": 0.595238,
+          "winRate": 0.36,
+          "targetRate": 0.16,
+          "avgWin": 1.195796,
+          "avgLoss": -0.872324,
+          "expectancyR": -0.127801,
+          "totalR": -3.195019,
+          "profitFactor": 0.771084,
+          "maxDrawdownR": 7.070584,
+          "expectancy95": {
+            "lower": -0.57415,
+            "upper": 0.318549
+          },
+          "positiveMonths": 0,
+          "months": 2
+        },
+        {
+          "fold": "2026-04-01..2026-06-01",
+          "trades": 19,
+          "tradesPerMarketDay": 0.44186,
+          "winRate": 0.368421,
+          "targetRate": 0,
+          "avgWin": 0.601656,
+          "avgLoss": -0.814927,
+          "expectancyR": -0.293028,
+          "totalR": -5.567538,
+          "profitFactor": 0.430671,
+          "maxDrawdownR": 6.566627,
+          "expectancy95": {
+            "lower": -0.636866,
+            "upper": 0.05081
+          },
+          "positiveMonths": 0,
+          "months": 2
+        },
+        {
+          "fold": "2026-06-01..2026-08-01",
+          "trades": 23,
+          "tradesPerMarketDay": 0.511111,
+          "winRate": 0.347826,
+          "targetRate": 0.130435,
+          "avgWin": 1.251898,
+          "avgLoss": -0.914772,
+          "expectancyR": -0.161147,
+          "totalR": -3.706388,
+          "profitFactor": 0.729886,
+          "maxDrawdownR": 10.267955,
+          "expectancy95": {
+            "lower": -0.633055,
+            "upper": 0.310761
+          },
+          "positiveMonths": 1,
+          "months": 2
+        }
+      ],
+      "breakdowns": {
+        "long": {
+          "trades": 78,
+          "tradesPerMarketDay": 0.201031,
+          "winRate": 0.371795,
+          "targetRate": 0.141026,
+          "avgWin": 1.140051,
+          "avgLoss": -0.825115,
+          "expectancyR": -0.094476,
+          "totalR": -7.369167,
+          "profitFactor": 0.817733,
+          "maxDrawdownR": 12.084607,
+          "expectancy95": {
+            "lower": -0.33593,
+            "upper": 0.146977
+          },
+          "positiveMonths": 6,
+          "months": 18
+        },
+        "short": {
+          "trades": 114,
+          "tradesPerMarketDay": 0.293814,
+          "winRate": 0.412281,
+          "targetRate": 0.140351,
+          "avgWin": 1.153853,
+          "avgLoss": -0.849413,
+          "expectancyR": -0.023505,
+          "totalR": -2.679583,
+          "profitFactor": 0.952916,
+          "maxDrawdownR": 11.270792,
+          "expectancy95": {
+            "lower": -0.226592,
+            "upper": 0.179582
+          },
+          "positiveMonths": 10,
+          "months": 18
+        },
+        "news": {
+          "trades": 45,
+          "tradesPerMarketDay": 0.115979,
+          "winRate": 0.422222,
+          "targetRate": 0.088889,
+          "avgWin": 0.874603,
+          "avgLoss": -0.795323,
+          "expectancyR": -0.090243,
+          "totalR": -4.06094,
+          "profitFactor": 0.803614,
+          "maxDrawdownR": 8.475491,
+          "expectancy95": {
+            "lower": -0.377209,
+            "upper": 0.196723
+          },
+          "positiveMonths": 7,
+          "months": 15
+        },
+        "nonNews": {
+          "trades": 147,
+          "tradesPerMarketDay": 0.378866,
+          "winRate": 0.387755,
+          "targetRate": 0.156463,
+          "avgWin": 1.239914,
+          "avgLoss": -0.85181,
+          "expectancyR": -0.040733,
+          "totalR": -5.98781,
+          "profitFactor": 0.921894,
+          "maxDrawdownR": 13.190918,
+          "expectancy95": {
+            "lower": -0.223764,
+            "upper": 0.142297
+          },
+          "positiveMonths": 10,
+          "months": 18
+        },
+        "sessionLondon": {
+          "trades": 85,
+          "tradesPerMarketDay": 0.219072,
+          "winRate": 0.364706,
+          "targetRate": 0.2,
+          "avgWin": 1.485963,
+          "avgLoss": -0.860925,
+          "expectancyR": -0.005001,
+          "totalR": -0.425107,
+          "profitFactor": 0.990856,
+          "maxDrawdownR": 13.498765,
+          "expectancy95": {
+            "lower": -0.264269,
+            "upper": 0.254267
+          },
+          "positiveMonths": 9,
+          "months": 18
+        },
+        "sessionNyAm": {
+          "trades": 20,
+          "tradesPerMarketDay": 0.051546,
+          "winRate": 0.4,
+          "targetRate": 0.1,
+          "avgWin": 1.076263,
+          "avgLoss": -0.731719,
+          "expectancyR": -0.008526,
+          "totalR": -0.170522,
+          "profitFactor": 0.98058,
+          "maxDrawdownR": 4.362635,
+          "expectancy95": {
+            "lower": -0.460239,
+            "upper": 0.443187
+          },
+          "positiveMonths": 6,
+          "months": 12
+        },
+        "sessionNyPm": {
+          "trades": 87,
+          "tradesPerMarketDay": 0.224227,
+          "winRate": 0.425287,
+          "targetRate": 0.091954,
+          "avgWin": 0.881557,
+          "avgLoss": -0.841414,
+          "expectancyR": -0.108657,
+          "totalR": -9.45312,
+          "profitFactor": 0.775304,
+          "maxDrawdownR": 17.050981,
+          "expectancy95": {
+            "lower": -0.316408,
+            "upper": 0.099095
+          },
+          "positiveMonths": 6,
+          "months": 17
+        }
+      }
+    }
+  },
+  "diagnosis": {
+    "walkForwardTrades": 192,
+    "grossExpectancy": -0.024,
+    "netExpectancy": -0.0523,
+    "avgCostPerTradeR": 0.0283,
+    "grossPF": 0.951,
+    "netPF": 0.897,
+    "modelPickedBetterExecutableSide": 0.516,
+    "oppositeNetExpectancy": -0.1489,
+    "newsSignPredictsBetterSideRate": 0.442
+  }
+}

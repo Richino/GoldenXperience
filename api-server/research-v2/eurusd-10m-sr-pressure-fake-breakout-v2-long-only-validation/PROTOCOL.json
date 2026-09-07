@@ -1,0 +1,36 @@
+{
+  "strategyId": "eurusd_10m_sr_pressure_fake_breakout_v2_long_only",
+  "name": "EUR/USD 10m S/R Pressure Fake Breakout V2 Long Only",
+  "version": "v2",
+  "symbol": "EUR_USD",
+  "timeframe": "M10",
+  "frozen": true,
+  "longOnly": true,
+  "timeExit": false,
+  "productionStrategyModified": false,
+  "deployed": false,
+  "ordersPlaced": false,
+  "rules": {
+    "emaFastPeriod": 20,
+    "emaSlowPeriod": 50,
+    "atrPeriod": 14,
+    "pressureBars": 30,
+    "minTouches": 2,
+    "touchAtrBuffer": 0.15,
+    "breakoutBodyAtr": 0.35,
+    "stopAtr": 1,
+    "rewardR": 2,
+    "asiaStartHourUtc": 0,
+    "asiaEndHourUtc": 6,
+    "londonStartHourUtc": 6,
+    "londonEndHourUtc": 11
+  },
+  "period": {
+    "requestedFrom": "2018-01-01T00:00:00.000Z",
+    "availableFrom": "2018-01-01T00:00:00.000Z",
+    "toExclusive": "2026-09-05T00:00:00.000Z",
+    "warmup": "2017-12-01T00:00:00.000Z",
+    "m10From": "2017-12-01T00:00:00.000000000Z",
+    "m10To": "2026-09-04T20:50:00.000000000Z"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "strategyId": "eurusd_h4_breakout_retest_rejection_v1",
+  "name": "EUR/USD H4 Breakout Retest Rejection",
+  "version": "v1",
+  "symbol": "EUR_USD",
+  "timeframe": "H4",
+  "frozen": true,
+  "longOnly": true,
+  "shortsAdded": false,
+  "productionStrategyModified": false,
+  "deployed": false,
+  "ordersPlaced": false,
+  "rules": {
+    "emaFastPeriod": 20,
+    "emaSlowPeriod": 50,
+    "atrPeriod": 14,
+    "retestBars": 3,
+    "retestCloseBufferAtr": 0.1,
+    "minBodyAtr": 0.25,
+    "closeInTopRange": 0.3,
+    "stopAtr": 1.5,
+    "rewardR": 2,
+    "targetAtr": 3,
+    "maxHoldBars": 30
+  },
+  "dailyDirection": "previous completed OANDA D candle only",
+  "breakout": "H4 close through previous completed D1 high; previous H4 close still on the inside; no immediate entry",
+  "retest": "1 to 3 future H4 bars; reclaim close; close >= level + 0.10 ATR; bullish body >= 0.25 ATR; close in top 30% of range; daily bull and H4 EMA20>EMA50 still true",
+  "entry": "confirmed retest H4 midpoint close",
+  "period": {
+    "requestedFrom": "2018-01-01T00:00:00.000Z",
+    "availableFrom": "2018-01-01T00:00:00.000Z",
+    "toExclusive": "2026-09-05T00:00:00.000Z",
+    "warmupH4": "2017-07-01T00:00:00.000Z",
+    "warmupD": "2016-01-01T00:00:00.000Z",
+    "h4From": "2017-07-02T21:00:00.000000000Z",
+    "dailyFrom": "2016-01-03T22:00:00.000000000Z",
+    "reached2018": true
+  }
+}

@@ -1,0 +1,18 @@
+import assert from "node:assert/strict";
+import { nyWallTimeToUtc, replay } from "./validate-audusd-hl-v2-spread";
+import type { ResearchCandle } from "../src/lib/oanda/client";
+const candle = (time: string, bid: { open: number; high: number; low: number; close: number }, ask = bid): ResearchCandle => ({ time, complete: true, volume: 1, mid: { ...bid }, bid, ask });
+assert.equal(nyWallTimeToUtc("2023-01-04 06:00"), "2023-01-04T11:00:00.000Z");
+assert.equal(nyWallTimeToUtc("2026-09-04 07:00"), "2026-09-04T11:00:00.000Z");
+const start = Date.parse("2024-01-02T12:00:00.000Z"), bars = Array.from({ length: 180 }, (_, i) => candle(new Date(start + i * 60_000).toISOString(), { open: 100, high: 100.5, low: 99.5, close: 100 }));
+const trade = { decisionUtc: new Date(start).toISOString(), horizonUtc: new Date(start + 180 * 60_000).toISOString(), stop: 99, target: 102, risk: 1 };
+bars[0] = candle(bars[0]!.time, { open: 100, high: 103, low: 98, close: 100 });
+const ambiguous = replay(trade, bars, "exec", 100.1)!;
+assert.equal(ambiguous.reason, "STOP_LOSS"); assert.equal(ambiguous.sameMinuteAmbiguous, true); assert.ok(Math.abs(ambiguous.resultR + 1.1) < 1e-9);
+bars[0] = candle(bars[0]!.time, { open: 98.5, high: 100, low: 98, close: 99 });
+assert.ok(Math.abs(replay(trade, bars, "exec", 100.1)!.resultR + 1.6) < 1e-9, "Adverse opening gaps worsen the stop");
+bars[0] = candle(bars[0]!.time, { open: 100, high: 102, low: 99.5, close: 101 });
+assert.ok(Math.abs(replay(trade, bars, "exec", 100.1)!.resultR - 1.9) < 1e-9, "Fixed original target is not rebuilt around ASK");
+const quiet = bars.map(c => candle(c.time, { open: 100.2, high: 100.3, low: 100.1, close: 100.2 }));
+assert.ok(Math.abs(replay(trade, quiet, "exec", 100.1)!.resultR - .1) < 1e-9); assert.equal(replay(trade, quiet.slice(0, -1), "exec", 100.1), null);
+console.log("AUDUSD HL V2 validation tests passed: DST, fixed geometry, stop-first, adverse gaps, timeout, and incomplete-window rejection.");

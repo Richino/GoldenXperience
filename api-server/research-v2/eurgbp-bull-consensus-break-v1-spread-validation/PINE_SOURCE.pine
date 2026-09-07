@@ -1,0 +1,413 @@
+//@version=6
+
+strategy(
+     "GX EURGBP Bull Consensus Structure Break V1 - 1 to 2 RR",
+     overlay=true,
+     pyramiding=0,
+     process_orders_on_close=true,
+     calc_on_every_tick=false,
+     max_bars_back=5000,
+     initial_capital=10000,
+     default_qty_type=strategy.fixed,
+     default_qty_value=1)
+
+// ============================================================
+// EURGBP BULL CONSENSUS STRUCTURE BREAK V1
+//
+// PHASE 1:
+// Movement window = 05:00-07:00 UTC
+// Primary origin  = 06:00 UTC
+//
+// PHASE 2:
+// LONG only
+// 4-vote bullish consensus >= +3
+//
+// PHASE 3:
+// HH + HL
+//
+// PHASE 4:
+// Close above previous 3 completed H1 highs
+//
+// DIAGNOSTIC:
+//
+// 80 trades
+// 47.50% WR
+// PF 1.447
+// +0.233R/trade MID diagnostic
+//
+// EXECUTION:
+//
+// Entry = completed 06:00 UTC close
+// Stop = 1 frozen ATR14
+// Target = 2 frozen ATR14
+// Max hold = 3 future H1 bars
+// ============================================================
+
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+
+EMA_FAST = 20
+EMA_SLOW = 50
+ATR_LEN = 14
+
+ORIGIN_HOUR = 6
+
+CONSENSUS_MIN = 3
+
+STOP_R = 1.0
+TARGET_R = 2.0
+MAX_HOLD_BARS = 3
+
+
+// ============================================================
+// INPUTS
+// ============================================================
+
+startTime = input.time(
+     timestamp("01 Jan 2023 00:00 +0000"),
+     "Start date")
+
+showMarkers = input.bool(
+     true,
+     "Show Entries")
+
+
+// ============================================================
+// CHART
+// ============================================================
+
+isH1 =
+     timeframe.isminutes and
+     timeframe.multiplier == 60
+
+tickerUpper =
+     str.upper(syminfo.ticker)
+
+isEURGBP =
+     str.contains(tickerUpper, "EURGBP")
+
+validChart =
+     isH1 and isEURGBP
+
+
+// ============================================================
+// INDICATORS
+// ============================================================
+
+ema20 =
+     ta.ema(close, EMA_FAST)
+
+ema50 =
+     ta.ema(close, EMA_SLOW)
+
+atr14 =
+     ta.atr(ATR_LEN)
+
+
+// ============================================================
+// TIME
+// ============================================================
+
+utcHour =
+     hour(time, "UTC")
+
+utcMinute =
+     minute(time, "UTC")
+
+isOrigin =
+     validChart and
+     barstate.isconfirmed and
+     utcHour == ORIGIN_HOUR and
+     utcMinute == 0 and
+     time >= startTime
+
+
+// ============================================================
+// READINESS
+// ============================================================
+
+ready =
+     isOrigin and
+     not na(ema20) and
+     not na(ema50) and
+     not na(ema20[3]) and
+     not na(close[3]) and
+     not na(high[3]) and
+     not na(atr14) and
+     atr14 > 0
+
+
+// ============================================================
+// FOUR-VOTE BULLISH CONSENSUS
+// ============================================================
+
+int voteTrend = 0
+int votePrice = 0
+int voteSlope = 0
+int voteMomentum = 0
+
+if ready
+
+    voteTrend :=
+         ema20 > ema50 ? 1 :
+         ema20 < ema50 ? -1 :
+         0
+
+    votePrice :=
+         close > ema20 ? 1 :
+         close < ema20 ? -1 :
+         0
+
+    voteSlope :=
+         ema20 > ema20[3] ? 1 :
+         ema20 < ema20[3] ? -1 :
+         0
+
+    voteMomentum :=
+         close > close[3] ? 1 :
+         close < close[3] ? -1 :
+         0
+
+
+consensus =
+     voteTrend +
+     votePrice +
+     voteSlope +
+     voteMomentum
+
+
+bullishConsensus =
+     ready and
+     consensus >= CONSENSUS_MIN
+
+
+// ============================================================
+// HH + HL STRUCTURE
+// ============================================================
+
+bullStructure =
+     high > high[1] and
+     low > low[1]
+
+
+// ============================================================
+// PREVIOUS THREE-BAR HIGH
+//
+// IMPORTANT:
+//
+// Uses completed bars only:
+// high[1], high[2], high[3]
+//
+// Current 06:00 candle is NOT included.
+// ============================================================
+
+previous3High =
+     math.max(
+          high[1],
+          math.max(
+               high[2],
+               high[3]))
+
+
+threeBarBreak =
+     close > previous3High
+
+
+// ============================================================
+// FINAL SIGNAL
+// ============================================================
+
+rawLongSignal =
+     bullishConsensus and
+     bullStructure and
+     threeBarBreak
+
+
+// ============================================================
+// TRADE STATE
+// ============================================================
+
+var bool tradeActive = false
+
+var float frozenEntry = na
+var float frozenATR = na
+var float frozenStop = na
+var float frozenTarget = na
+
+var int entryBar = na
+
+bool executedLong = false
+
+
+// ============================================================
+// CLEAR CLOSED STATE
+// ============================================================
+
+if tradeActive and
+   not na(entryBar) and
+   bar_index > entryBar and
+   strategy.position_size == 0
+
+    tradeActive := false
+
+    frozenEntry := na
+    frozenATR := na
+    frozenStop := na
+    frozenTarget := na
+
+    entryBar := na
+
+
+// ============================================================
+// ENTRY
+// ============================================================
+
+canLong =
+     rawLongSignal and
+     not tradeActive and
+     strategy.position_size == 0
+
+if canLong
+
+    frozenEntry :=
+         close
+
+    frozenATR :=
+         atr14
+
+    frozenStop :=
+         frozenEntry -
+         frozenATR * STOP_R
+
+    frozenTarget :=
+         frozenEntry +
+         frozenATR * TARGET_R
+
+    entryBar :=
+         bar_index
+
+    tradeActive :=
+         true
+
+    executedLong :=
+         true
+
+
+    strategy.entry(
+         "EURGBP_LONG",
+         strategy.long,
+         comment="EURGBP_0600_LONG")
+
+
+    strategy.exit(
+         "EURGBP_LONG_EXIT",
+         from_entry="EURGBP_LONG",
+         stop=frozenStop,
+         limit=frozenTarget,
+         comment="TP_OR_SL")
+
+
+// ============================================================
+// MAINTAIN FROZEN SL / TP
+// ============================================================
+
+if tradeActive
+
+    strategy.exit(
+         "EURGBP_LONG_EXIT",
+         from_entry="EURGBP_LONG",
+         stop=frozenStop,
+         limit=frozenTarget,
+         comment="TP_OR_SL")
+
+
+// ============================================================
+// TIME EXIT
+//
+// 06:00 = entry
+// 07:00 = future #1
+// 08:00 = future #2
+// 09:00 = future #3
+// ============================================================
+
+if tradeActive and
+   not na(entryBar)
+
+    barsHeld =
+         bar_index - entryBar
+
+    if barsHeld >= MAX_HOLD_BARS
+
+        strategy.close(
+             "EURGBP_LONG",
+             comment="TIME_EXIT")
+
+
+// ============================================================
+// VISUALS
+// ============================================================
+
+plot(
+     ema20,
+     "EMA20")
+
+plot(
+     ema50,
+     "EMA50")
+
+plotshape(
+     showMarkers and executedLong,
+     title="EURGBP LONG",
+     text="LONG",
+     style=shape.triangleup,
+     location=location.belowbar,
+     size=size.tiny)
+
+
+// ============================================================
+// INFO
+// ============================================================
+
+var table info =
+     table.new(
+          position.top_right,
+          2,
+          9,
+          border_width=1)
+
+if barstate.islast
+
+    table.cell(info, 0, 0, "EURGBP")
+    table.cell(info, 1, 0, "V1")
+
+    table.cell(info, 0, 1, "Origin")
+    table.cell(info, 1, 1, "06:00 UTC")
+
+    table.cell(info, 0, 2, "Direction")
+    table.cell(info, 1, 2, "LONG ONLY")
+
+    table.cell(info, 0, 3, "Trend")
+    table.cell(info, 1, 3, "4-VOTE >= +3")
+
+    table.cell(info, 0, 4, "Structure")
+    table.cell(info, 1, 4, "HH + HL")
+
+    table.cell(info, 0, 5, "Break")
+    table.cell(info, 1, 5, "3-BAR HIGH")
+
+    table.cell(info, 0, 6, "SL")
+    table.cell(info, 1, 6, "1 ATR14")
+
+    table.cell(info, 0, 7, "TP")
+    table.cell(info, 1, 7, "2 ATR14")
+
+    table.cell(info, 0, 8, "Hold")
+    table.cell(info, 1, 8, "3 H1")
+
+
+bgcolor(
+     validChart ?
+     na :
+     color.new(color.red, 90))

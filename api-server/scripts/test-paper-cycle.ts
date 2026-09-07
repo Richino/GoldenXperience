@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
-import { buildPaperRecommendation, paperBatchMetrics, paperBreakdown, paperRiskAllowsEntry, parsePaperRiskConfiguration, type StoredTrade } from "../src/paper-cycle.js";
+import { buildPaperRecommendation, paperBatchMetrics, paperBreakdown, paperRiskAllowsEntry, parsePaperRiskConfiguration, sharedExecutionRejectionFor, type StoredTrade } from "../src/paper-cycle.js";
 import { MAJOR_INSTRUMENTS } from "../../frontend/src/types/forex.js";
+import { ENABLED_PAIR_STRATEGY_IDS } from "../../frontend/src/lib/strategy/strategies/index.js";
 
 assert.deepEqual(MAJOR_INSTRUMENTS, ["EUR_USD", "GBP_USD", "USD_JPY", "AUD_USD", "NZD_USD", "USD_CAD", "USD_CHF", "EUR_GBP", "EUR_JPY", "GBP_JPY", "AUD_JPY", "EUR_AUD"], "the monitored universe is the featured pair set");
+assert.ok(ENABLED_PAIR_STRATEGY_IDS.includes("audusd_strategy"), "the frozen AUDUSD strategy is enabled in the pair-specific execution path");
+assert.ok(ENABLED_PAIR_STRATEGY_IDS.includes("nzdusd_strategy"), "the frozen NZDUSD strategy is enabled in the pair-specific execution path");
 assert.deepEqual(parsePaperRiskConfiguration({ riskPercent: 0.5, maxSimultaneousPositions: 3, maxTotalNominalRiskPercent: 2 }), { riskPercent: 0.5, maxSimultaneousPositions: 3, maxTotalNominalRiskPercent: 2 });
 assert.deepEqual(parsePaperRiskConfiguration({ riskPercent: 1, maxSimultaneousPositions: null, maxTotalNominalRiskPercent: null }), { riskPercent: 1, maxSimultaneousPositions: null, maxTotalNominalRiskPercent: null }, "position and total exposure limits may be unlimited");
 assert.throws(() => parsePaperRiskConfiguration({ riskPercent: 10, maxSimultaneousPositions: null, maxTotalNominalRiskPercent: null }), /between 0.1% and 5%/);
@@ -10,6 +13,12 @@ assert.throws(() => parsePaperRiskConfiguration({ riskPercent: 1, maxSimultaneou
 assert.equal(paperRiskAllowsEntry({ riskPercent: 1, maxSimultaneousPositions: null, maxTotalNominalRiskPercent: null }, 10, 10), true, "unlimited collection accepts cross-pair exposure");
 assert.equal(paperRiskAllowsEntry({ riskPercent: 1, maxSimultaneousPositions: 3, maxTotalNominalRiskPercent: null }, 3, 3), false, "position cap blocks a new entry");
 assert.equal(paperRiskAllowsEntry({ riskPercent: 1, maxSimultaneousPositions: null, maxTotalNominalRiskPercent: 3 }, 2, 2.5), false, "total nominal exposure cap blocks a new entry");
+assert.match(sharedExecutionRejectionFor({ conditions: [
+  { name: "Spread", passed: false, required: true, reason: "Spread too wide.", currentValue: "2.0 / 1.5 pips" },
+] } as never) ?? "", /Spread too wide/, "a valid pair signal is blocked when a shared execution gate fails");
+assert.equal(sharedExecutionRejectionFor({ conditions: [
+  { name: "Spread", passed: true, required: true, reason: "Spread is inside the pair limit.", currentValue: "1.0 / 1.5 pips" },
+] } as never), null, "a passing shared execution gate does not block the pair signal");
 
 const rows: StoredTrade[] = Array.from({ length: 100 }, (_, index) => ({
   id: String(index),

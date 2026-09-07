@@ -1,0 +1,106 @@
+{
+  "pair": "NZDUSD",
+  "instrument": "NZD_USD",
+  "experiment": "NZDUSD Corrected 2R Runner V2",
+  "baseStrategy": "GX NZDUSD Bull Consensus Structure V1",
+  "type": "EXIT_OVERLAY_HYPOTHESIS",
+  "status": "NZDUSD_RUNNER_V2_REJECTED",
+  "classification": "NO_RUNNER_EDGE",
+  "frozenBaseStatus": "FROZEN_V1_UNCHANGED",
+  "timeframe": "H1",
+  "direction": "LONG_ONLY",
+  "originUtc": "11:00",
+  "entryRulesChanged": false,
+  "runnerRule": {
+    "activationR": 2.0,
+    "protectedFloorR": 1.8,
+    "trailDistanceR": 0.2,
+    "maxLifetimeHours": 48,
+    "activationDefinition": "frozen +2R target (tv_entry + 2*ATR14) == baseline TARGET_2R; executable R measured from entry ASK, all triggers/MFE/stops on BID"
+  },
+  "frozenExecBaseline": {
+    "matched": 100,
+    "winRate": 48.0,
+    "pf": 1.38,
+    "totalR": 18.9782,
+    "expectancyR": 0.1898,
+    "averageWinnerR": 1.4359,
+    "averageLoserR": -0.9605,
+    "parityGate": "PASS"
+  },
+  "runnerConservativePrimary": {
+    "trades": 100,
+    "winRate": 48.0,
+    "pf": 1.317,
+    "totalR": 15.8173,
+    "expectancyR": 0.1582,
+    "averageWinnerR": 1.37,
+    "averageLoserR": -0.9605,
+    "deltaExpectancyR": -0.0316,
+    "deltaTotalR": -3.1609
+  },
+  "optimisticBound": {
+    "expectancyR": 0.2438,
+    "deltaExpectancyR": 0.054,
+    "isRepeatableEdge": false,
+    "concentrationNote": "16/27 runners intraminute-ambiguous; trades 42 and 24 contribute ~+5.22R of ~+5.40R optimistic improvement; both are 12:30 UTC US-data spikes."
+  },
+  "runnerBehavior": {
+    "runnerCount": 27,
+    "cohort": 100,
+    "conservativeAverageR": 1.8116,
+    "conservativeMedianR": 1.8,
+    "conservativeMaxR": 2.0395,
+    "baselineWinnersConverted": 27,
+    "runnerBelowBaseline": 26,
+    "runnerApproxBaseline": 0,
+    "conservativeGe2_5R": 0,
+    "conservativeGe3R": 0,
+    "conservativeGe4R": 0,
+    "conservativeGe5R": 0,
+    "extensionGainR": 0.1059,
+    "givebackR": -3.2668,
+    "netR": -3.1608,
+    "runnersBelow1_8R": 0
+  },
+  "overnight": {
+    "crossedNyRollover": 0,
+    "held6to12h": 0,
+    "held12to24h": 0,
+    "held24to48h": 0,
+    "longestRunnerHours": 3.82,
+    "cap48hEverBound": false,
+    "financing": "EXEC_BEFORE_FINANCING",
+    "conclusion": "No evidence that letting NZDUSD winners run overnight improves performance."
+  },
+  "m1ResolutionLimit": {
+    "trailPips": "1.8-3.6",
+    "intraminuteAmbiguousRunners": 16,
+    "totalRunners": 27,
+    "tickDataRequiredToResolve": true,
+    "tickOrderingFabricated": false,
+    "preserveLimitation": true
+  },
+  "yearStability": {
+    "2023": { "trades": 33, "runners": 9, "frozenPf": 1.198, "frozenTotalR": 3.6398, "frozenExpR": 0.1103, "runnerPf": 1.13, "runnerTotalR": 2.394, "runnerExpR": 0.0725 },
+    "2024": { "trades": 23, "runners": 9, "frozenPf": 1.649, "frozenTotalR": 7.7353, "frozenExpR": 0.3363, "runnerPf": 1.556, "runnerTotalR": 6.625, "runnerExpR": 0.288 },
+    "2025": { "trades": 27, "runners": 4, "frozenPf": 0.926, "frozenTotalR": -1.0433, "frozenExpR": -0.0386, "runnerPf": 0.909, "runnerTotalR": -1.296, "runnerExpR": -0.048 },
+    "2026": { "trades": 17, "runners": 5, "frozenPf": 2.577, "frozenTotalR": 8.6464, "frozenExpR": 0.5086, "runnerPf": 2.477, "runnerTotalR": 8.0943, "runnerExpR": 0.4761 },
+    "runnerLowerEveryYear": true,
+    "doNotAddYearFilter": true
+  },
+  "isRunnerCandidateForPortfolioTest": false,
+  "replacesFrozenExit": false,
+  "noPostHocOptimization": {
+    "doNotTestOnSameSample": ["0.25R trail", "0.30R trail", "0.40R trail", "0.50R trail", "different activation threshold", "different floor", "different max runner duration"],
+    "note": "Any future runner design is a separate research hypothesis requiring new out-of-sample evidence."
+  },
+  "executionEnabled": false,
+  "deployed": false,
+  "brokerOrders": false,
+  "ruleOptimization": false,
+  "frozenStrategyModified": false,
+  "frozenRegistryReference": "api-server/research-v2/nzdusd-bull-consensus-structure-v1-spread-validation/REGISTRY.json (unchanged)",
+  "artifacts": "api-server/research-v2/nzdusd-2r-runner-v2-executable-validation/",
+  "decidedAt": "2026-09-06T00:00:00.000Z"
+}

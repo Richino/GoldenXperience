@@ -1,0 +1,77 @@
+{
+  "pair": "USDCHF",
+  "instrument": "USD_CHF",
+  "version": "V1",
+  "status": "FROZEN_RESEARCH_CANDIDATE",
+  "validation": "SURVIVES_COSTS",
+  "classification": "STRONG",
+  "exec_expectancy_r": 0.2664,
+  "exec_pf": 1.523,
+  "exec_win_rate": 45.63,
+  "exec_trades": 103,
+  "max_drawdown_r": 7.96,
+  "name": "GX USDCHF Bear Consensus Structure V1 1 to 2 RR",
+  "timeframe": "H1",
+  "direction": "SHORT_ONLY",
+  "originUtc": "11:00",
+  "trendGate": {
+    "consensusRule": "<= -3",
+    "votes": [
+      "EMA20 vs EMA50",
+      "close vs EMA20",
+      "EMA20 slope vs EMA20[3]",
+      "close vs close[3]"
+    ],
+    "observedNote": "All 103 actual signals were consensus = -4; rule preserved at <= -3 (NOT changed to -4)."
+  },
+  "structure": "current high < previous high AND current low < previous low (LH + LL)",
+  "execution": {
+    "entry": "completed 11:00 UTC candle close",
+    "stop": "1 frozen ATR14",
+    "target": "2 frozen ATR14",
+    "maxHoldBars": 3,
+    "trailingStop": false,
+    "breakEven": false,
+    "profitLock": false,
+    "partialExits": false,
+    "phase4BreakoutFilter": false
+  },
+  "midResult": {
+    "trades": 103,
+    "winRate": 49.51,
+    "pf": 1.908,
+    "expectancyR": 0.4024,
+    "totalR": 41.45
+  },
+  "execResult": {
+    "trades": 103,
+    "matched": 103,
+    "unmatched": 0,
+    "winRate": 45.63,
+    "pf": 1.523,
+    "expectancyR": 0.2664,
+    "totalR": 27.44,
+    "maxDrawdownR": 7.96,
+    "spreadDragRPerTrade": 0.136,
+    "spreadDragRTotal": 14.01
+  },
+  "executionEnabled": false,
+  "deployed": false,
+  "brokerOrders": false,
+  "ruleOptimization": false,
+  "yearStabilityWarning": {
+    "allYearsPositive": true,
+    "doesNotInvalidate": true,
+    "doNotOptimizeOnSameSample": true,
+    "note": "All tested calendar years are positive, but 2023 is nearly flat and 2026 is a small sample (12 trades).",
+    "execExpectancyRByYear": {
+      "2023": 0.033,
+      "2024": 0.274,
+      "2025": 0.254,
+      "2026": 0.881
+    }
+  },
+  "liveRegistryNote": "PAIR_STRATEGY_REGISTRY in frontend/src/lib/strategy/strategies/index.ts is the live pair-strategy path. USDCHF is NOT present there and is NOT added by this decision. ENABLED_PAIR_STRATEGY_IDS is unchanged (GBPUSD, USDJPY, AUDUSD, NZDUSD).",
+  "artifacts": "api-server/research-v2/usdchf-bear-consensus-v1-spread-validation/",
+  "frozenAt": "2026-09-06T00:00:00.000Z"
+}

@@ -1,0 +1,42 @@
+{
+  "total": 246,
+  "paired": {
+    "n": 246,
+    "original": -0.20471666632035918,
+    "inverted": 0.029730538607964537
+  },
+  "bySource": {
+    "executed/shadow": {
+      "n": 25,
+      "original": -0.29814388537423275,
+      "inverted": 0.278929278501589
+    },
+    "shadow/shadow": {
+      "n": 166,
+      "original": -0.16416992317050005,
+      "inverted": 0.04679025945689022
+    },
+    "shadow/executed": {
+      "n": 55,
+      "original": -0.2846271915299914,
+      "inverted": -0.13503095517862237
+    }
+  },
+  "bySession": {
+    "London": {
+      "n": 128,
+      "original": -0.2737205627524424,
+      "inverted": 0.12689939863416233
+    },
+    "London/New York overlap": {
+      "n": 80,
+      "original": -0.09772270031492085,
+      "inverted": -0.1261422314643352
+    },
+    "New York": {
+      "n": 38,
+      "original": -0.1975329436132121,
+      "inverted": 0.030578104987718957
+    }
+  }
+}

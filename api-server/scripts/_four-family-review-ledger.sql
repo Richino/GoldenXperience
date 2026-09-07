@@ -1,0 +1,6 @@
+SELECT trade_sequence,strategy_family,config_version,strategy_version_id,experiment_id,instrument,decision_time,
+direction,original_direction,inverted,status,outcome,entry,stop,target,exit,planned_r,result_r,
+spread_pips,session,weekday,setup_name,checklist_score,max_favorable_r,max_adverse_r,opened_at,closed_at,
+exit_reason,regime,trend_strength,volatility_bucket,atr_pips,spread_cost_r,commission_cost_r,
+slippage_cost_r,total_cost_r,gross_result_r,net_result_r,cost_basis,result_basis,news_impact_tag,
+features FROM paper_strategy_trades ORDER BY opened_at,trade_sequence;

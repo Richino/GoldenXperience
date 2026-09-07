@@ -1,0 +1,1012 @@
+{
+  "verdict": "NO_EDGE",
+  "verdict_notes": "TradingView M1/M5 London results were small-sample noise. Full-history LONDON_ONLY is PF<1 even at zero cost (M1 0.969, M5 0.904) and catastrophic under real spread (M1 stop distance 0.86pip < spread 1.55pip). London does not separate from other sessions (M1 Asia PF 1.05 > London 0.965). Not stable across years or walk-forward folds. Do not develop further.",
+  "meta": {
+    "generated": "2026-09-02T01:43:36.250Z",
+    "params": {
+      "lookback": 20,
+      "atrLength": 14,
+      "pressureBars": 10,
+      "pressureThreshold": 0.65,
+      "strongThreshold": 0.75,
+      "sustainBars": 3,
+      "breakATR": 0.1,
+      "minBodyATR": 0.15,
+      "holdBars": 2,
+      "structureLookback": 3,
+      "failureBars": 2,
+      "maxCrosses": 5,
+      "neutralReset": 0.6,
+      "stopATR": 0.5,
+      "targetATR": 1,
+      "bodyFilter": 0.6,
+      "pressureMin": 0.75,
+      "pressureMax": 0.85
+    }
+  },
+  "data": {
+    "m1": {
+      "candles": 1115000,
+      "from": "2023-08-28T03:17:00.000Z",
+      "to": "2026-09-01T13:21:00.000Z",
+      "duplicates": 0,
+      "intradayGaps": 4731,
+      "maxIntradayGapMin": 1446,
+      "weekendGaps": 157,
+      "bidAskAvailable": true,
+      "avgSpreadPips": 1.646
+    },
+    "m5": {
+      "candles": 223753,
+      "from": "2023-08-28T03:20:00.000Z",
+      "to": "2026-08-27T03:15:00.000Z",
+      "duplicates": 0,
+      "intradayGaps": 27,
+      "maxIntradayGapMin": 1445,
+      "weekendGaps": 156,
+      "bidAskAvailable": true,
+      "avgSpreadPips": 1.665
+    }
+  },
+  "reproduction": {
+    "windowFrom": "2026-08-21T08:45:00.000Z",
+    "m1_baseline_recent": {
+      "trades": 180,
+      "wins": 49,
+      "losses": 131,
+      "winRate": 27.22,
+      "wrCI95": [
+        21.25,
+        34.15
+      ],
+      "profitFactor": 0.735,
+      "expectancyR": -0.1893,
+      "totalR": -34.07,
+      "netPrice": -0.001624,
+      "avgWinR": 2.005,
+      "avgLossR": -1.01,
+      "maxDD_R": 36.07,
+      "maxWinStreak": 3,
+      "maxLossStreak": 12
+    },
+    "m1_london_recent": {
+      "trades": 43,
+      "wins": 17,
+      "losses": 26,
+      "winRate": 39.53,
+      "wrCI95": [
+        26.37,
+        54.42
+      ],
+      "profitFactor": 1.298,
+      "expectancyR": 0.186,
+      "totalR": 8,
+      "netPrice": 0.000422,
+      "avgWinR": 2,
+      "avgLossR": -1,
+      "maxDD_R": 6,
+      "maxWinStreak": 3,
+      "maxLossStreak": 6
+    },
+    "m5_london_recent": {
+      "trades": 6,
+      "wins": 3,
+      "losses": 3,
+      "winRate": 50,
+      "wrCI95": [
+        18.76,
+        81.24
+      ],
+      "profitFactor": 2.538,
+      "expectancyR": 0.5,
+      "totalR": 3,
+      "netPrice": 0.000535,
+      "avgWinR": 2,
+      "avgLossR": -1,
+      "maxDD_R": 3,
+      "maxWinStreak": 2,
+      "maxLossStreak": 3
+    },
+    "m5_baseline_recent": {
+      "trades": 22,
+      "wins": 7,
+      "losses": 15,
+      "winRate": 31.82,
+      "wrCI95": [
+        16.36,
+        52.68
+      ],
+      "profitFactor": 1.198,
+      "expectancyR": -0.0455,
+      "totalR": -1,
+      "netPrice": 0.000317,
+      "avgWinR": 2,
+      "avgLossR": -1,
+      "maxDD_R": 9,
+      "maxWinStreak": 2,
+      "maxLossStreak": 9
+    },
+    "tv_targets": {
+      "m1_london": {
+        "trades": 39,
+        "wr": 41,
+        "pf": 1.55
+      },
+      "m5_london": {
+        "trades": 28,
+        "wr": 50,
+        "pf": 1.54
+      },
+      "m1_baseline": {
+        "trades": 180,
+        "wr": 30.6,
+        "pf": 0.76
+      }
+    }
+  },
+  "performance": {
+    "m1": {
+      "pine": {
+        "trades": 5064,
+        "wins": 1694,
+        "losses": 3370,
+        "winRate": 33.45,
+        "wrCI95": [
+          32.17,
+          34.76
+        ],
+        "profitFactor": 0.969,
+        "expectancyR": 0.0031,
+        "totalR": 15.54,
+        "netPrice": -0.00906,
+        "avgWinR": 2.002,
+        "avgLossR": -1.002,
+        "maxDD_R": 184.1,
+        "maxWinStreak": 7,
+        "maxLossStreak": 21
+      },
+      "real": {
+        "trades": 5064,
+        "wins": 827,
+        "losses": 4237,
+        "winRate": 16.33,
+        "wrCI95": [
+          15.34,
+          17.37
+        ],
+        "profitFactor": 0.059,
+        "expectancyR": -2.0447,
+        "totalR": -10354.44,
+        "netPrice": -0.79427,
+        "avgWinR": 0.458,
+        "avgLossR": -2.533,
+        "maxDD_R": 10354.44,
+        "maxWinStreak": 6,
+        "maxLossStreak": 123
+      },
+      "dir_pine": {
+        "long": {
+          "trades": 2504,
+          "winRate": 32.55,
+          "expectancyR": -0.0244,
+          "totalR": -61.05,
+          "profitFactor": 0.936
+        },
+        "short": {
+          "trades": 2560,
+          "winRate": 34.34,
+          "expectancyR": 0.0299,
+          "totalR": 76.59,
+          "profitFactor": 1.002
+        }
+      },
+      "dir_real": {
+        "long": {
+          "trades": 2504,
+          "winRate": 15.62,
+          "expectancyR": -2.0897,
+          "totalR": -5232.65,
+          "profitFactor": 0.059
+        },
+        "short": {
+          "trades": 2560,
+          "winRate": 17.03,
+          "expectancyR": -2.0007,
+          "totalR": -5121.79,
+          "profitFactor": 0.059
+        }
+      }
+    },
+    "m5": {
+      "pine": {
+        "trades": 1037,
+        "wins": 325,
+        "losses": 712,
+        "winRate": 31.34,
+        "wrCI95": [
+          28.59,
+          34.23
+        ],
+        "profitFactor": 0.904,
+        "expectancyR": -0.0605,
+        "totalR": -62.75,
+        "netPrice": -0.013998,
+        "avgWinR": 2.001,
+        "avgLossR": -1.001,
+        "maxDD_R": 103.75,
+        "maxWinStreak": 5,
+        "maxLossStreak": 12
+      },
+      "real": {
+        "trades": 1037,
+        "wins": 325,
+        "losses": 712,
+        "winRate": 31.34,
+        "wrCI95": [
+          28.59,
+          34.23
+        ],
+        "profitFactor": 0.318,
+        "expectancyR": -0.9174,
+        "totalR": -951.35,
+        "netPrice": -0.175638,
+        "avgWinR": 1.141,
+        "avgLossR": -1.857,
+        "maxDD_R": 954.34,
+        "maxWinStreak": 5,
+        "maxLossStreak": 12
+      },
+      "dir_pine": {
+        "long": {
+          "trades": 529,
+          "winRate": 31.38,
+          "expectancyR": -0.0605,
+          "totalR": -32.02,
+          "profitFactor": 0.889
+        },
+        "short": {
+          "trades": 508,
+          "winRate": 31.3,
+          "expectancyR": -0.0605,
+          "totalR": -30.73,
+          "profitFactor": 0.921
+        }
+      },
+      "dir_real": {
+        "long": {
+          "trades": 529,
+          "winRate": 31.38,
+          "expectancyR": -0.9163,
+          "totalR": -484.7,
+          "profitFactor": 0.317
+        },
+        "short": {
+          "trades": 508,
+          "winRate": 31.3,
+          "expectancyR": -0.9186,
+          "totalR": -466.64,
+          "profitFactor": 0.319
+        }
+      }
+    }
+  },
+  "monthly_summary": {
+    "m1": {
+      "totalMonths": 38,
+      "profitableMonths": 22,
+      "monthsPFgt1": 21,
+      "monthsPFgt1_2": 9,
+      "medianPF": 1.03,
+      "medianExpR": 0.0443,
+      "best": {
+        "month": "2024-04",
+        "totalR": 43.42
+      },
+      "worst": {
+        "month": "2025-03",
+        "totalR": -49
+      }
+    },
+    "m5": {
+      "totalMonths": 37,
+      "profitableMonths": 15,
+      "monthsPFgt1": 15,
+      "monthsPFgt1_2": 10,
+      "medianPF": 0.932,
+      "medianExpR": -0.0357,
+      "best": {
+        "month": "2023-09",
+        "totalR": 12
+      },
+      "worst": {
+        "month": "2025-01",
+        "totalR": -15
+      }
+    }
+  },
+  "walk_forward": {
+    "m1": {
+      "folds": [
+        {
+          "fold": 1,
+          "from": "2023-08-28",
+          "to": "2024-02-27",
+          "s": {
+            "trades": 812,
+            "wins": 277,
+            "losses": 535,
+            "winRate": 34.11,
+            "wrCI95": [
+              30.93,
+              37.44
+            ],
+            "profitFactor": 1.02,
+            "expectancyR": 0.0192,
+            "totalR": 15.6,
+            "netPrice": 0.000897,
+            "avgWinR": 2,
+            "avgLossR": -1.007,
+            "maxDD_R": 47.78,
+            "maxWinStreak": 6,
+            "maxLossStreak": 12
+          }
+        },
+        {
+          "fold": 2,
+          "from": "2024-02-27",
+          "to": "2024-08-29",
+          "s": {
+            "trades": 873,
+            "wins": 334,
+            "losses": 539,
+            "winRate": 38.26,
+            "wrCI95": [
+              35.09,
+              41.53
+            ],
+            "profitFactor": 1.257,
+            "expectancyR": 0.1484,
+            "totalR": 129.59,
+            "netPrice": 0.008941,
+            "avgWinR": 2.008,
+            "avgLossR": -1.004,
+            "maxDD_R": 21.14,
+            "maxWinStreak": 7,
+            "maxLossStreak": 10
+          }
+        },
+        {
+          "fold": 3,
+          "from": "2024-08-29",
+          "to": "2025-02-28",
+          "s": {
+            "trades": 881,
+            "wins": 286,
+            "losses": 595,
+            "winRate": 32.46,
+            "wrCI95": [
+              29.45,
+              35.63
+            ],
+            "profitFactor": 0.944,
+            "expectancyR": -0.0259,
+            "totalR": -22.85,
+            "netPrice": -0.002988,
+            "avgWinR": 2.001,
+            "avgLossR": -1,
+            "maxDD_R": 65,
+            "maxWinStreak": 5,
+            "maxLossStreak": 17
+          }
+        },
+        {
+          "fold": 4,
+          "from": "2025-02-28",
+          "to": "2025-08-30",
+          "s": {
+            "trades": 853,
+            "wins": 262,
+            "losses": 591,
+            "winRate": 30.72,
+            "wrCI95": [
+              27.71,
+              33.89
+            ],
+            "profitFactor": 0.841,
+            "expectancyR": -0.0785,
+            "totalR": -66.98,
+            "netPrice": -0.011461,
+            "avgWinR": 2,
+            "avgLossR": -1,
+            "maxDD_R": 106,
+            "maxWinStreak": 7,
+            "maxLossStreak": 16
+          }
+        },
+        {
+          "fold": 5,
+          "from": "2025-08-30",
+          "to": "2026-03-02",
+          "s": {
+            "trades": 836,
+            "wins": 266,
+            "losses": 570,
+            "winRate": 31.82,
+            "wrCI95": [
+              28.75,
+              35.05
+            ],
+            "profitFactor": 0.904,
+            "expectancyR": -0.0454,
+            "totalR": -37.96,
+            "netPrice": -0.004506,
+            "avgWinR": 2,
+            "avgLossR": -1,
+            "maxDD_R": 65.96,
+            "maxWinStreak": 5,
+            "maxLossStreak": 13
+          }
+        },
+        {
+          "fold": 6,
+          "from": "2026-03-02",
+          "to": "2026-09-01",
+          "s": {
+            "trades": 809,
+            "wins": 269,
+            "losses": 540,
+            "winRate": 33.25,
+            "wrCI95": [
+              30.09,
+              36.57
+            ],
+            "profitFactor": 1.001,
+            "expectancyR": -0.0023,
+            "totalR": -1.86,
+            "netPrice": 0.000058,
+            "avgWinR": 2.002,
+            "avgLossR": -1.001,
+            "maxDD_R": 62.16,
+            "maxWinStreak": 5,
+            "maxLossStreak": 21
+          }
+        }
+      ],
+      "summary": {
+        "folds": 6,
+        "profitableFolds": 2,
+        "foldsPFgt1": 3,
+        "foldsPFgt1_2": 1,
+        "medianPF": 1.001,
+        "medianExpR": -0.0023
+      }
+    },
+    "m5": {
+      "folds": [
+        {
+          "fold": 1,
+          "from": "2023-08-28",
+          "to": "2024-02-26",
+          "s": {
+            "trades": 160,
+            "wins": 59,
+            "losses": 101,
+            "winRate": 36.88,
+            "wrCI95": [
+              29.79,
+              44.58
+            ],
+            "profitFactor": 1.17,
+            "expectancyR": 0.1001,
+            "totalR": 16.02,
+            "netPrice": 0.003286,
+            "avgWinR": 2,
+            "avgLossR": -1.01,
+            "maxDD_R": 20.98,
+            "maxWinStreak": 3,
+            "maxLossStreak": 12
+          }
+        },
+        {
+          "fold": 2,
+          "from": "2024-02-26",
+          "to": "2024-08-27",
+          "s": {
+            "trades": 173,
+            "wins": 48,
+            "losses": 125,
+            "winRate": 27.75,
+            "wrCI95": [
+              21.61,
+              34.85
+            ],
+            "profitFactor": 0.769,
+            "expectancyR": -0.1661,
+            "totalR": -28.73,
+            "netPrice": -0.004298,
+            "avgWinR": 2.006,
+            "avgLossR": -1,
+            "maxDD_R": 38.73,
+            "maxWinStreak": 4,
+            "maxLossStreak": 10
+          }
+        },
+        {
+          "fold": 3,
+          "from": "2024-08-27",
+          "to": "2025-02-25",
+          "s": {
+            "trades": 167,
+            "wins": 52,
+            "losses": 115,
+            "winRate": 31.14,
+            "wrCI95": [
+              24.61,
+              38.52
+            ],
+            "profitFactor": 0.811,
+            "expectancyR": -0.0661,
+            "totalR": -11.04,
+            "netPrice": -0.004939,
+            "avgWinR": 2,
+            "avgLossR": -1,
+            "maxDD_R": 31.04,
+            "maxWinStreak": 4,
+            "maxLossStreak": 12
+          }
+        },
+        {
+          "fold": 4,
+          "from": "2025-02-25",
+          "to": "2025-08-26",
+          "s": {
+            "trades": 179,
+            "wins": 55,
+            "losses": 124,
+            "winRate": 30.73,
+            "wrCI95": [
+              24.43,
+              37.83
+            ],
+            "profitFactor": 0.939,
+            "expectancyR": -0.0782,
+            "totalR": -14,
+            "netPrice": -0.002164,
+            "avgWinR": 2,
+            "avgLossR": -1,
+            "maxDD_R": 19,
+            "maxWinStreak": 5,
+            "maxLossStreak": 9
+          }
+        },
+        {
+          "fold": 5,
+          "from": "2025-08-26",
+          "to": "2026-02-25",
+          "s": {
+            "trades": 181,
+            "wins": 48,
+            "losses": 133,
+            "winRate": 26.52,
+            "wrCI95": [
+              20.62,
+              33.39
+            ],
+            "profitFactor": 0.736,
+            "expectancyR": -0.2044,
+            "totalR": -37,
+            "netPrice": -0.006685,
+            "avgWinR": 2,
+            "avgLossR": -1,
+            "maxDD_R": 45,
+            "maxWinStreak": 3,
+            "maxLossStreak": 9
+          }
+        },
+        {
+          "fold": 6,
+          "from": "2026-02-25",
+          "to": "2026-08-26",
+          "s": {
+            "trades": 177,
+            "wins": 63,
+            "losses": 114,
+            "winRate": 35.59,
+            "wrCI95": [
+              28.91,
+              42.88
+            ],
+            "profitFactor": 1.038,
+            "expectancyR": 0.0678,
+            "totalR": 12,
+            "netPrice": 0.000802,
+            "avgWinR": 2,
+            "avgLossR": -1,
+            "maxDD_R": 17,
+            "maxWinStreak": 4,
+            "maxLossStreak": 12
+          }
+        }
+      ],
+      "summary": {
+        "folds": 6,
+        "profitableFolds": 2,
+        "foldsPFgt1": 2,
+        "foldsPFgt1_2": 0,
+        "medianPF": 0.939,
+        "medianExpR": -0.0661
+      }
+    }
+  },
+  "session_comparison": {
+    "m1": {
+      "ASIA": {
+        "trades": 8452,
+        "wins": 2874,
+        "losses": 5578,
+        "winRate": 34,
+        "wrCI95": [
+          33,
+          35.02
+        ],
+        "profitFactor": 1.046,
+        "expectancyR": 0.0158,
+        "totalR": 133.2,
+        "netPrice": 0.013688,
+        "avgWinR": 2.011,
+        "avgLossR": -1.012,
+        "maxDD_R": 93.26,
+        "maxWinStreak": 7,
+        "maxLossStreak": 18
+      },
+      "LONDON": {
+        "trades": 5016,
+        "wins": 1672,
+        "losses": 3344,
+        "winRate": 33.33,
+        "wrCI95": [
+          32.04,
+          34.65
+        ],
+        "profitFactor": 0.965,
+        "expectancyR": -0.0005,
+        "totalR": -2.46,
+        "netPrice": -0.010267,
+        "avgWinR": 2.002,
+        "avgLossR": -1.002,
+        "maxDD_R": 187.1,
+        "maxWinStreak": 7,
+        "maxLossStreak": 21
+      },
+      "NEW_YORK": {
+        "trades": 8663,
+        "wins": 2834,
+        "losses": 5829,
+        "winRate": 32.71,
+        "wrCI95": [
+          31.73,
+          33.71
+        ],
+        "profitFactor": 0.944,
+        "expectancyR": -0.0395,
+        "totalR": -342.12,
+        "netPrice": -0.030974,
+        "avgWinR": 2.008,
+        "avgLossR": -1.035,
+        "maxDD_R": 437.47,
+        "maxWinStreak": 9,
+        "maxLossStreak": 20
+      },
+      "OTHER": {
+        "trades": 384,
+        "wins": 97,
+        "losses": 287,
+        "winRate": 25.26,
+        "wrCI95": [
+          21.17,
+          29.84
+        ],
+        "profitFactor": 0.778,
+        "expectancyR": -0.332,
+        "totalR": -127.49,
+        "netPrice": -0.00319,
+        "avgWinR": 2.13,
+        "avgLossR": -1.164,
+        "maxDD_R": 132.49,
+        "maxWinStreak": 4,
+        "maxLossStreak": 14
+      }
+    },
+    "m5": {
+      "ASIA": {
+        "trades": 1833,
+        "wins": 561,
+        "losses": 1272,
+        "winRate": 30.61,
+        "wrCI95": [
+          28.54,
+          32.75
+        ],
+        "profitFactor": 0.869,
+        "expectancyR": -0.0823,
+        "totalR": -150.85,
+        "netPrice": -0.020834,
+        "avgWinR": 2,
+        "avgLossR": -1.001,
+        "maxDD_R": 166.85,
+        "maxWinStreak": 6,
+        "maxLossStreak": 21
+      },
+      "LONDON": {
+        "trades": 981,
+        "wins": 313,
+        "losses": 668,
+        "winRate": 31.91,
+        "wrCI95": [
+          29.06,
+          34.89
+        ],
+        "profitFactor": 0.934,
+        "expectancyR": -0.0425,
+        "totalR": -41.73,
+        "netPrice": -0.009123,
+        "avgWinR": 2.001,
+        "avgLossR": -1,
+        "maxDD_R": 78.73,
+        "maxWinStreak": 5,
+        "maxLossStreak": 12
+      },
+      "NEW_YORK": {
+        "trades": 1599,
+        "wins": 476,
+        "losses": 1123,
+        "winRate": 29.77,
+        "wrCI95": [
+          27.58,
+          32.06
+        ],
+        "profitFactor": 0.844,
+        "expectancyR": -0.1215,
+        "totalR": -194.28,
+        "netPrice": -0.040916,
+        "avgWinR": 2.001,
+        "avgLossR": -1.021,
+        "maxDD_R": 202.28,
+        "maxWinStreak": 5,
+        "maxLossStreak": 14
+      },
+      "OTHER": {
+        "trades": 50,
+        "wins": 9,
+        "losses": 41,
+        "winRate": 18,
+        "wrCI95": [
+          9.77,
+          30.8
+        ],
+        "profitFactor": 0.561,
+        "expectancyR": -0.4508,
+        "totalR": -22.54,
+        "netPrice": -0.002126,
+        "avgWinR": 2.051,
+        "avgLossR": -1,
+        "maxDD_R": 24.54,
+        "maxWinStreak": 2,
+        "maxLossStreak": 16
+      }
+    }
+  },
+  "m1_vs_m5_overlap": {
+    "aTrades": 5064,
+    "bTrades": 1037,
+    "matchedWithinTol": 377,
+    "sameDirection": 373,
+    "toleranceMin": 5
+  },
+  "cost_stress": {
+    "m1": [
+      {
+        "cost": "0 (PINE mid, no spread)",
+        "trades": 5064,
+        "wins": 1694,
+        "losses": 3370,
+        "winRate": 33.45,
+        "wrCI95": [
+          32.17,
+          34.76
+        ],
+        "profitFactor": 0.969,
+        "expectancyR": 0.0031,
+        "totalR": 15.54,
+        "netPrice": -0.00906,
+        "avgWinR": 2.002,
+        "avgLossR": -1.002,
+        "maxDD_R": 184.1,
+        "maxWinStreak": 7,
+        "maxLossStreak": 21
+      },
+      {
+        "cost": "1x spread",
+        "trades": 5064,
+        "wins": 827,
+        "losses": 4237,
+        "winRate": 16.33,
+        "wrCI95": [
+          15.34,
+          17.37
+        ],
+        "profitFactor": 0.059,
+        "expectancyR": -2.0447,
+        "totalR": -10354.44,
+        "netPrice": -0.79427,
+        "avgWinR": 0.458,
+        "avgLossR": -2.533,
+        "maxDD_R": 10354.44,
+        "maxWinStreak": 6,
+        "maxLossStreak": 123
+      },
+      {
+        "cost": "1.25x spread",
+        "trades": 5064,
+        "wins": 406,
+        "losses": 4658,
+        "winRate": 8.02,
+        "wrCI95": [
+          7.3,
+          8.8
+        ],
+        "profitFactor": 0.026,
+        "expectancyR": -2.5567,
+        "totalR": -12946.93,
+        "netPrice": -0.990572,
+        "avgWinR": 0.406,
+        "avgLossR": -2.815,
+        "maxDD_R": 12946.93,
+        "maxWinStreak": 5,
+        "maxLossStreak": 149
+      },
+      {
+        "cost": "1.5x spread",
+        "trades": 5064,
+        "wins": 204,
+        "losses": 4860,
+        "winRate": 4.03,
+        "wrCI95": [
+          3.52,
+          4.61
+        ],
+        "profitFactor": 0.013,
+        "expectancyR": -3.0686,
+        "totalR": -15539.43,
+        "netPrice": -1.186875,
+        "avgWinR": 0.386,
+        "avgLossR": -3.214,
+        "maxDD_R": 15539.43,
+        "maxWinStreak": 4,
+        "maxLossStreak": 314
+      },
+      {
+        "cost": "2x spread",
+        "trades": 5064,
+        "wins": 58,
+        "losses": 5006,
+        "winRate": 1.15,
+        "wrCI95": [
+          0.89,
+          1.48
+        ],
+        "profitFactor": 0.004,
+        "expectancyR": -4.0925,
+        "totalR": -20724.42,
+        "netPrice": -1.57948,
+        "avgWinR": 0.397,
+        "avgLossR": -4.145,
+        "maxDD_R": 20724.42,
+        "maxWinStreak": 4,
+        "maxLossStreak": 957
+      }
+    ],
+    "m5": [
+      {
+        "cost": "0 (PINE mid, no spread)",
+        "trades": 1037,
+        "wins": 325,
+        "losses": 712,
+        "winRate": 31.34,
+        "wrCI95": [
+          28.59,
+          34.23
+        ],
+        "profitFactor": 0.904,
+        "expectancyR": -0.0605,
+        "totalR": -62.75,
+        "netPrice": -0.013998,
+        "avgWinR": 2.001,
+        "avgLossR": -1.001,
+        "maxDD_R": 103.75,
+        "maxWinStreak": 5,
+        "maxLossStreak": 12
+      },
+      {
+        "cost": "1x spread",
+        "trades": 1037,
+        "wins": 325,
+        "losses": 712,
+        "winRate": 31.34,
+        "wrCI95": [
+          28.59,
+          34.23
+        ],
+        "profitFactor": 0.318,
+        "expectancyR": -0.9174,
+        "totalR": -951.35,
+        "netPrice": -0.175638,
+        "avgWinR": 1.141,
+        "avgLossR": -1.857,
+        "maxDD_R": 954.34,
+        "maxWinStreak": 5,
+        "maxLossStreak": 12
+      },
+      {
+        "cost": "1.25x spread",
+        "trades": 1037,
+        "wins": 323,
+        "losses": 714,
+        "winRate": 31.15,
+        "wrCI95": [
+          28.4,
+          34.03
+        ],
+        "profitFactor": 0.243,
+        "expectancyR": -1.1316,
+        "totalR": -1173.5,
+        "netPrice": -0.216048,
+        "avgWinR": 0.934,
+        "avgLossR": -2.066,
+        "maxDD_R": 1174.74,
+        "maxWinStreak": 5,
+        "maxLossStreak": 12
+      },
+      {
+        "cost": "1.5x spread",
+        "trades": 1037,
+        "wins": 312,
+        "losses": 725,
+        "winRate": 30.09,
+        "wrCI95": [
+          27.37,
+          32.95
+        ],
+        "profitFactor": 0.182,
+        "expectancyR": -1.3459,
+        "totalR": -1395.65,
+        "netPrice": -0.256458,
+        "avgWinR": 0.752,
+        "avgLossR": -2.248,
+        "maxDD_R": 1395.67,
+        "maxWinStreak": 5,
+        "maxLossStreak": 14
+      },
+      {
+        "cost": "2x spread",
+        "trades": 1037,
+        "wins": 236,
+        "losses": 801,
+        "winRate": 22.76,
+        "wrCI95": [
+          20.31,
+          25.41
+        ],
+        "profitFactor": 0.096,
+        "expectancyR": -1.7743,
+        "totalR": -1839.95,
+        "netPrice": -0.337278,
+        "avgWinR": 0.544,
+        "avgLossR": -2.457,
+        "maxDD_R": 1839.95,
+        "maxWinStreak": 4,
+        "maxLossStreak": 30
+      }
+    ]
+  }
+}

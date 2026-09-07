@@ -10,7 +10,7 @@ type SetupStatus = "valid" | "developing" | "invalid" | "no_setup";
 
 type StrategyRow = {
   instrument: string;
-  family: "ema" | "breakout" | "momentum" | "meanrev";
+  family: "ema" | "breakout" | "momentum" | "meanrev" | "gbpusd_strategy" | "usdjpy_strategy" | "audusd_strategy" | "nzdusd_strategy";
   version: string;
   configVersion: string;
   setupStatus: SetupStatus;
@@ -51,8 +51,8 @@ type FamilyStat = {
   shadowExpectancyR: number | null;
 };
 
-const FAMILY_LABEL: Record<string, string> = { ema: "EMA", breakout: "Breakout", momentum: "Momentum", meanrev: "Mean Reversion" };
-const FAMILY_ORDER = ["ema", "breakout", "momentum", "meanrev"] as const;
+const FAMILY_LABEL: Record<string, string> = { ema: "EMA", breakout: "Breakout", momentum: "Momentum", meanrev: "Mean Reversion", gbpusd_strategy: "GBPUSD Dual-Origin V2", usdjpy_strategy: "USDJPY Body Extreme V6", audusd_strategy: "AUDUSD Strong Consensus V1", nzdusd_strategy: "NZDUSD Pre-Range Breakout V1" };
+const FAMILY_ORDER = ["ema", "breakout", "momentum", "meanrev", "gbpusd_strategy", "usdjpy_strategy", "audusd_strategy", "nzdusd_strategy"] as const;
 
 function setupLabel(status: SetupStatus, direction: "long" | "short" | null) {
   switch (status) {
@@ -208,7 +208,11 @@ export function MultiStrategyView() {
                   </p>
                 </div>
                 <div className="ms-setup-grid">
-                  {FAMILY_ORDER.map((family) => {
+                  {FAMILY_ORDER.filter((family) =>
+                    (family !== "gbpusd_strategy" || row.instrument === "GBP_USD")
+                    && (family !== "usdjpy_strategy" || row.instrument === "USD_JPY")
+                    && (family !== "audusd_strategy" || row.instrument === "AUD_USD")
+                    && (family !== "nzdusd_strategy" || row.instrument === "NZD_USD")).map((family) => {
                     const strat = row.strategies.find((item) => item.family === family);
                     const status = strat?.setupStatus ?? "no_setup";
                     return (

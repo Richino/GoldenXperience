@@ -1,0 +1,54 @@
+{
+  "ema": {
+    "n": 67,
+    "brokerN": 34,
+    "brokerNet": -3.7318777465682125,
+    "brokerE": -0.10976111019318271,
+    "modelN": 33,
+    "modelNet": 12.04888496104584,
+    "modelE": 0.36511772609229814,
+    "recordedGeometryE": -0.06208272286661122,
+    "brokerCapped": 31,
+    "brokerSizingAdjustedProxyE": -0.48499226934100625,
+    "mixedSizingAdjustedProxyE": -0.06628137606788617
+  },
+  "breakout": {
+    "n": 38,
+    "brokerN": 25,
+    "brokerNet": -3.655203719582388,
+    "brokerE": -0.14620814878329552,
+    "modelN": 13,
+    "modelNet": -1.5563033624785259,
+    "modelE": -0.11971564326757891,
+    "recordedGeometryE": -0.3591894782400809,
+    "brokerCapped": 17,
+    "brokerSizingAdjustedProxyE": -0.48718317437696784,
+    "mixedSizingAdjustedProxyE": -0.36147059794480846
+  },
+  "momentum": {
+    "n": 80,
+    "brokerN": 38,
+    "brokerNet": -6.751476542041377,
+    "brokerE": -0.17767043531687834,
+    "modelN": 42,
+    "modelNet": -8.128823127138672,
+    "modelE": -0.193543407789016,
+    "recordedGeometryE": -0.2883574086361679,
+    "brokerCapped": 22,
+    "brokerSizingAdjustedProxyE": -0.40305046278348666,
+    "mixedSizingAdjustedProxyE": -0.2930592589113895
+  },
+  "meanrev": {
+    "n": 16,
+    "brokerN": 11,
+    "brokerNet": -0.5334120472235129,
+    "brokerE": -0.04849200429304663,
+    "modelN": 5,
+    "modelNet": -0.017357611708450515,
+    "modelE": -0.003471522341690103,
+    "recordedGeometryE": -0.06327580325259699,
+    "brokerCapped": 11,
+    "brokerSizingAdjustedProxyE": -0.09941261074894392,
+    "mixedSizingAdjustedProxyE": -0.06943102062167711
+  }
+}

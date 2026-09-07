@@ -1,0 +1,24 @@
+{
+  "variants": [
+    "CONTROL",
+    "4H",
+    "6H",
+    "8H",
+    "12H",
+    "NO_TIMEOUT"
+  ],
+  "supportPolicy": {
+    "minimumTrades": 50,
+    "minimumChangedTrades": 20,
+    "minimumExpectancyGainR": 0.03,
+    "minimumProfitFactorGain": 0.05,
+    "minimumMaterialYearTrades": 10,
+    "minimumImprovingYears": 2,
+    "minimumImprovingYearFraction": 0.6666666666666666,
+    "maximumDrawdownIncreaseR": 2,
+    "minimumLeaveOneYearOutGainR": 0,
+    "choice": "Shortest finite duration meeting every criterion; no timeout only if it passes and no finite duration passes. Highest historical expectancy is descriptive only."
+  },
+  "source": "C:\\Users\\arche\\Desktop\\code\\GoldenXperience\\api-server\\research-v2\\executable-cost-validation\\RESULTS.json",
+  "frozenCohort": true
+}

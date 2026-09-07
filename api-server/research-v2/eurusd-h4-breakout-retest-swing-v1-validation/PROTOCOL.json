@@ -1,0 +1,36 @@
+{
+  "strategyId": "eurusd_h4_breakout_retest_swing_v1",
+  "name": "EUR/USD H4 Breakout Retest Swing",
+  "version": "v1",
+  "symbol": "EUR_USD",
+  "timeframe": "H4",
+  "frozen": true,
+  "longOnly": false,
+  "shortsRemoved": false,
+  "productionStrategyModified": false,
+  "deployed": false,
+  "ordersPlaced": false,
+  "rules": {
+    "emaFastPeriod": 20,
+    "emaSlowPeriod": 50,
+    "atrPeriod": 14,
+    "retestBars": 3,
+    "stopAtr": 1.5,
+    "rewardR": 2,
+    "targetAtr": 3,
+    "maxHoldBars": 30
+  },
+  "dailyDirection": "previous completed OANDA D candle only; EMA20/EMA50 plus close vs EMA20",
+  "breakout": "H4 close through previous completed D1 high/low; previous H4 close still on the inside; no immediate entry",
+  "retest": "1 to 3 future H4 bars; freeze the broken D1 level; reclaim close with candle in trade direction; daily regime and H4 EMA20/50 still aligned",
+  "entry": "confirmed retest H4 midpoint close",
+  "executionOfficial": "stop-first; adverse stop gaps fill at the worse executable open; target gaps get no improvement; time exit at bar 30 close",
+  "executable": "long ask in / bid out; short bid in / ask out; 1.5 ATR / 3.0 ATR rebuilt from frozen midpoint ATR around the executable entry; max hold 30 H4 bars",
+  "financing": "FINANCING_DATA_UNAVAILABLE for historical OANDA swap. Bid/ask result is authoritative. Hypothetical sensitivities are labeled separately.",
+  "period": {
+    "from": "2023-01-01T00:00:00.000Z",
+    "toExclusive": "2026-09-05T00:00:00.000Z",
+    "warmupH4": "2022-07-01T00:00:00.000Z",
+    "warmupD": "2021-01-01T00:00:00.000Z"
+  }
+}

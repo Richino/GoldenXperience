@@ -1,0 +1,3442 @@
+[
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-01-06T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1279996872483542,
+    "decisionTime": "2025-01-06T11:30:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-01-07T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.09514653844002002,
+    "decisionTime": "2025-01-07T08:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-01-08T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.12615725485526771,
+    "decisionTime": "2025-01-08T08:00:00.000Z",
+    "resultR": 1.8218956402046478,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-01-08T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1374013638545306,
+    "decisionTime": "2025-01-08T11:30:00.000Z",
+    "resultR": 1.7938979542185507,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-01-09T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1460047038675009,
+    "decisionTime": "2025-01-09T07:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-01-10T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1519153481337832,
+    "decisionTime": "2025-01-10T07:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-01-13T09:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.09566115441550715,
+    "decisionTime": "2025-01-13T10:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-01-20T10:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.11009709610746435,
+    "decisionTime": "2025-01-20T11:00:00.000Z",
+    "resultR": 1.82384464622822,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-01-22T09:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.0877231677548897,
+    "decisionTime": "2025-01-22T10:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-01-24T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1048303294088358,
+    "decisionTime": "2025-01-24T07:00:00.000Z",
+    "resultR": 1.8427545058863826,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-01-27T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.10471816172041665,
+    "decisionTime": "2025-01-27T09:00:00.000Z",
+    "resultR": 1.8521625952180905,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-01-27T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1129308049467868,
+    "decisionTime": "2025-01-27T11:30:00.000Z",
+    "resultR": -0.3744547742973585,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-01-29T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1187628530144839,
+    "decisionTime": "2025-01-29T08:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-01-30T09:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.10577128168915492,
+    "decisionTime": "2025-01-30T10:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-02-04T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.07812396513179784,
+    "decisionTime": "2025-02-04T12:00:00.000Z",
+    "resultR": 1.4127417027999085,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-02-05T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1064379597509765,
+    "decisionTime": "2025-02-05T08:00:00.000Z",
+    "resultR": 1.8497346450574368,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-02-05T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.12911902935133449,
+    "decisionTime": "2025-02-05T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-02-07T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.13991508054472998,
+    "decisionTime": "2025-02-07T09:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-02-11T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.07708702422453122,
+    "decisionTime": "2025-02-11T12:00:00.000Z",
+    "resultR": -0.3276198529543604,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-02-12T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.142420735884421,
+    "decisionTime": "2025-02-12T08:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-02-14T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.08851353304902401,
+    "decisionTime": "2025-02-14T09:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-02-19T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1483926721942003,
+    "decisionTime": "2025-02-19T09:00:00.000Z",
+    "resultR": 1.7625717244894112,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-03-03T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.15449317673229762,
+    "decisionTime": "2025-03-03T11:00:00.000Z",
+    "resultR": 1.7682602349015535,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-03-03T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.13930947233602547,
+    "decisionTime": "2025-03-03T11:30:00.000Z",
+    "resultR": 1.7910357914960477,
+    "exitReason": "TP"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-03-03T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.03914941130653929,
+    "decisionTime": "2025-03-03T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-03-04T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.0881676605878478,
+    "decisionTime": "2025-03-04T09:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-03-04T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.04277688600896118,
+    "decisionTime": "2025-03-04T12:00:00.000Z",
+    "resultR": -0.20633556780796405,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-03-04T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.11545787278112583,
+    "decisionTime": "2025-03-04T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-03-05T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.06638938863192512,
+    "decisionTime": "2025-03-05T08:00:00.000Z",
+    "resultR": 1.900415917052007,
+    "exitReason": "TP"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-03-05T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.10065175142049937,
+    "decisionTime": "2025-03-05T12:00:00.000Z",
+    "resultR": 1.999999999999914,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-03-07T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.07037168097389221,
+    "decisionTime": "2025-03-07T07:00:00.000Z",
+    "resultR": 1.8944424785392733,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-03-11T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.07714439701038686,
+    "decisionTime": "2025-03-11T08:00:00.000Z",
+    "resultR": 1.8842834044845267,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-03-12T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.09622600350923699,
+    "decisionTime": "2025-03-12T09:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-03-12T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.170843894547431,
+    "decisionTime": "2025-03-12T11:30:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-03-13T10:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.10181081718139905,
+    "decisionTime": "2025-03-13T11:00:00.000Z",
+    "resultR": 1.8383004668292846,
+    "exitReason": "TP"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-03-14T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.12467700825732472,
+    "decisionTime": "2025-03-14T12:00:00.000Z",
+    "resultR": 1.5272933511520836,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-03-17T09:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.10670817375499127,
+    "decisionTime": "2025-03-17T10:00:00.000Z",
+    "resultR": 1.839937739367587,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-03-17T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.17530170876551626,
+    "decisionTime": "2025-03-17T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-03-18T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.12948235565478566,
+    "decisionTime": "2025-03-18T08:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-03-20T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.09727588519362337,
+    "decisionTime": "2025-03-20T08:00:00.000Z",
+    "resultR": 1.844358583690001,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-03-25T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.11544046550481799,
+    "decisionTime": "2025-03-25T08:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-03-25T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1666146425213542,
+    "decisionTime": "2025-03-25T11:30:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-03-25T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1130275696568748,
+    "decisionTime": "2025-03-25T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-03-27T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.13479233672029658,
+    "decisionTime": "2025-03-27T11:00:00.000Z",
+    "resultR": 1.7859180534442451,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-03-27T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1471597816575386,
+    "decisionTime": "2025-03-27T11:30:00.000Z",
+    "resultR": 1.7676424500143313,
+    "exitReason": "TP"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-03-27T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.10916558646973626,
+    "decisionTime": "2025-03-27T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-04-02T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.07498159487163777,
+    "decisionTime": "2025-04-02T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-04-03T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.050601315634137084,
+    "decisionTime": "2025-04-03T07:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-04-03T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.025737073404561838,
+    "decisionTime": "2025-04-03T12:00:00.000Z",
+    "resultR": 1.1720267273457547,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-04-03T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "LOWER_COST_SIMULTANEOUS_SIGNAL_SELECTED",
+    "spreadToStop": 0.06569891714657723,
+    "decisionTime": "2025-04-03T12:00:00.000Z",
+    "resultR": 0.5349768967648894,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-04-07T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.05113602704622307,
+    "decisionTime": "2025-04-07T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-04-07T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "POSITION_ALREADY_OPEN",
+    "spreadToStop": 0.06736666350356468,
+    "decisionTime": "2025-04-07T11:30:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-04-09T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.05346269641506975,
+    "decisionTime": "2025-04-09T07:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-04-09T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.03505152694823107,
+    "decisionTime": "2025-04-09T12:00:00.000Z",
+    "resultR": -0.17156800032553554,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-04-10T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.05978826114523237,
+    "decisionTime": "2025-04-10T08:00:00.000Z",
+    "resultR": 1.910317608282085,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-04-10T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.10324724252241592,
+    "decisionTime": "2025-04-10T11:30:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-04-11T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.031694495003938644,
+    "decisionTime": "2025-04-11T09:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-04-11T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.05272941020410745,
+    "decisionTime": "2025-04-11T12:00:00.000Z",
+    "resultR": -0.1933411707482899,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-04-14T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.042612072556245245,
+    "decisionTime": "2025-04-14T07:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-04-14T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.08501110802217467,
+    "decisionTime": "2025-04-14T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-04-15T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.0745250350457427,
+    "decisionTime": "2025-04-15T12:00:00.000Z",
+    "resultR": 0.6649926204083811,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-04-17T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1133799439883991,
+    "decisionTime": "2025-04-17T12:00:00.000Z",
+    "resultR": 1.99999999999991,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-04-21T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.07120673438254128,
+    "decisionTime": "2025-04-21T08:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-04-28T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.07936751841978125,
+    "decisionTime": "2025-04-28T07:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-05-05T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.08092680196586591,
+    "decisionTime": "2025-05-05T08:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-05-05T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.13929225184441915,
+    "decisionTime": "2025-05-05T11:30:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-05-05T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.08682117877664135,
+    "decisionTime": "2025-05-05T12:00:00.000Z",
+    "resultR": -0.3005348496115021,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-05-06T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.134933174714344,
+    "decisionTime": "2025-05-06T11:00:00.000Z",
+    "resultR": 1.808252856984863,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-05-06T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.11703752941244423,
+    "decisionTime": "2025-05-06T11:30:00.000Z",
+    "resultR": 1.8347705467119244,
+    "exitReason": "TP"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-05-06T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.051579769516691805,
+    "decisionTime": "2025-05-06T12:00:00.000Z",
+    "resultR": -0.309478617100444,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-05-06T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "LOWER_COST_SIMULTANEOUS_SIGNAL_SELECTED",
+    "spreadToStop": 0.09990954843107294,
+    "decisionTime": "2025-05-06T12:00:00.000Z",
+    "resultR": 1.2072403768753337,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-05-07T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.07571622366689165,
+    "decisionTime": "2025-05-07T07:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-05-08T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.07445841507355586,
+    "decisionTime": "2025-05-08T07:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-05-12T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.07097871843743303,
+    "decisionTime": "2025-05-12T08:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-05-12T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.0815920048946719,
+    "decisionTime": "2025-05-12T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-05-14T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.0909658604144885,
+    "decisionTime": "2025-05-14T08:00:00.000Z",
+    "resultR": 1.87264779541977,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-05-15T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.09781525914059588,
+    "decisionTime": "2025-05-15T07:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-05-19T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.11410137770179872,
+    "decisionTime": "2025-05-19T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-05-20T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.09623220766348621,
+    "decisionTime": "2025-05-20T08:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-05-23T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.0506049657357078,
+    "decisionTime": "2025-05-23T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-06-02T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.0958598766434954,
+    "decisionTime": "2025-06-02T07:00:00.000Z",
+    "resultR": 1.8562101850350894,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-06-03T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.15610705230064467,
+    "decisionTime": "2025-06-03T11:30:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-06-04T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1359831071660601,
+    "decisionTime": "2025-06-04T12:00:00.000Z",
+    "resultR": 1.4595520169158729,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-06-09T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.05302880157433968,
+    "decisionTime": "2025-06-09T12:00:00.000Z",
+    "resultR": 0.49493548136046184,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-06-11T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.08744078686503277,
+    "decisionTime": "2025-06-11T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-06-12T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.10363715716016621,
+    "decisionTime": "2025-06-12T09:00:00.000Z",
+    "resultR": 1.8445442642597507,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-06-12T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.11915695549748423,
+    "decisionTime": "2025-06-12T11:00:00.000Z",
+    "resultR": 1.8212645667537737,
+    "exitReason": "TP"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-06-12T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.09980959817790044,
+    "decisionTime": "2025-06-12T12:00:00.000Z",
+    "resultR": 0.859898076609853,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-06-16T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.07720715193851489,
+    "decisionTime": "2025-06-16T07:00:00.000Z",
+    "resultR": 1.8841892720922278,
+    "exitReason": "TP"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-06-16T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.11670231134172272,
+    "decisionTime": "2025-06-16T12:00:00.000Z",
+    "resultR": 2,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-06-17T10:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.10892339519980819,
+    "decisionTime": "2025-06-17T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-06-17T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.11968104289589007,
+    "decisionTime": "2025-06-17T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-06-20T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.06962268226614497,
+    "decisionTime": "2025-06-20T12:00:00.000Z",
+    "resultR": 1.8043878487307314,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-06-23T09:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.08359428859667771,
+    "decisionTime": "2025-06-23T10:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-06-24T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.10797975728971605,
+    "decisionTime": "2025-06-24T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-06-26T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.08411560625032452,
+    "decisionTime": "2025-06-26T09:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-07-01T09:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.08551937385010036,
+    "decisionTime": "2025-07-01T10:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-07-01T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": false,
+    "reason": "POSITION_ALREADY_OPEN",
+    "spreadToStop": 0.06709616117636394,
+    "decisionTime": "2025-07-01T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-07-07T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1361544504637953,
+    "decisionTime": "2025-07-07T07:00:00.000Z",
+    "resultR": 1.795768324304307,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-07-08T10:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.10462137283176441,
+    "decisionTime": "2025-07-08T11:00:00.000Z",
+    "resultR": 1.8430679407523534,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-07-08T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1418221598244311,
+    "decisionTime": "2025-07-08T11:00:00.000Z",
+    "resultR": 1.787266760263091,
+    "exitReason": "TP"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-07-08T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.07941688523888983,
+    "decisionTime": "2025-07-08T12:00:00.000Z",
+    "resultR": 1.462205004692798,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-07-11T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1284258783547698,
+    "decisionTime": "2025-07-11T11:30:00.000Z",
+    "resultR": 1.8073611824676077,
+    "exitReason": "TP"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-07-11T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.10638966942455604,
+    "decisionTime": "2025-07-11T12:00:00.000Z",
+    "resultR": -0.5728674507477981,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-07-14T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1051318208249297,
+    "decisionTime": "2025-07-14T07:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-07-15T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.10056387694087206,
+    "decisionTime": "2025-07-15T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-07-17T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.08640862636047066,
+    "decisionTime": "2025-07-17T07:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-07-18T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.17366321305781668,
+    "decisionTime": "2025-07-18T11:00:00.000Z",
+    "resultR": 1.7395051804133954,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-07-18T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.20672709305765932,
+    "decisionTime": "2025-07-18T11:30:00.000Z",
+    "resultR": 1.70622992039162,
+    "exitReason": "TP"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-07-18T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.14485435765617574,
+    "decisionTime": "2025-07-18T12:00:00.000Z",
+    "resultR": 2,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-07-21T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.14456837676125164,
+    "decisionTime": "2025-07-21T07:00:00.000Z",
+    "resultR": 1.7831474348581224,
+    "exitReason": "TP"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-07-21T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.05493089220149515,
+    "decisionTime": "2025-07-21T12:00:00.000Z",
+    "resultR": 0.4237525969835361,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-07-21T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.13944446854672943,
+    "decisionTime": "2025-07-21T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-07-22T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.13825944046261956,
+    "decisionTime": "2025-07-22T09:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-07-22T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.0837636930821272,
+    "decisionTime": "2025-07-22T12:00:00.000Z",
+    "resultR": 2,
+    "exitReason": "TP"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-07-23T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.14858540125832664,
+    "decisionTime": "2025-07-23T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-07-25T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.14429253860178504,
+    "decisionTime": "2025-07-25T11:30:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-07-29T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.09494315486473166,
+    "decisionTime": "2025-07-29T07:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-07-30T10:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.10676684841122994,
+    "decisionTime": "2025-07-30T11:00:00.000Z",
+    "resultR": 1.8492703316546686,
+    "exitReason": "TP"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-07-30T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.05900908661124637,
+    "decisionTime": "2025-07-30T12:00:00.000Z",
+    "resultR": 2.0000000000001292,
+    "exitReason": "TP"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-08-04T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.053006928137249255,
+    "decisionTime": "2025-08-04T12:00:00.000Z",
+    "resultR": 0.32466743484020444,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-08-04T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "LOWER_COST_SIMULTANEOUS_SIGNAL_SELECTED",
+    "spreadToStop": 0.09272276383156,
+    "decisionTime": "2025-08-04T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-08-06T10:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.10102690525261276,
+    "decisionTime": "2025-08-06T11:00:00.000Z",
+    "resultR": 1.8484596421210808,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-08-06T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.15213143008432184,
+    "decisionTime": "2025-08-06T11:00:00.000Z",
+    "resultR": 0.59957681268521,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-08-06T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.15174403871900827,
+    "decisionTime": "2025-08-06T11:30:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-08-06T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1631148987903877,
+    "decisionTime": "2025-08-06T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-08-07T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.11444422838792115,
+    "decisionTime": "2025-08-07T08:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-08-07T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.14318455817123726,
+    "decisionTime": "2025-08-07T11:30:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-08-12T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.12230234032992977,
+    "decisionTime": "2025-08-12T07:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-08-12T09:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.10885951806936635,
+    "decisionTime": "2025-08-12T10:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-08-13T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.12091345487816986,
+    "decisionTime": "2025-08-13T07:00:00.000Z",
+    "resultR": 1.829298651936692,
+    "exitReason": "TP"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-08-15T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.17754376777352124,
+    "decisionTime": "2025-08-15T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-08-18T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.07739478162636058,
+    "decisionTime": "2025-08-18T12:00:00.000Z",
+    "resultR": 2,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-08-25T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.11116259099044536,
+    "decisionTime": "2025-08-25T07:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-08-25T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.15472143435110267,
+    "decisionTime": "2025-08-25T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-08-26T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.14470311315859438,
+    "decisionTime": "2025-08-26T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-08-27T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.11322508507678393,
+    "decisionTime": "2025-08-27T08:00:00.000Z",
+    "resultR": 1.830162372384667,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-08-27T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.17121693605893207,
+    "decisionTime": "2025-08-27T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-08-28T10:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.11200114842642682,
+    "decisionTime": "2025-08-28T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-08-28T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.18117897909958003,
+    "decisionTime": "2025-08-28T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-08-28T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.17463297690869126,
+    "decisionTime": "2025-08-28T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-09-01T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.12116418277509318,
+    "decisionTime": "2025-09-01T07:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-09-03T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.13330000361937364,
+    "decisionTime": "2025-09-03T12:00:00.000Z",
+    "resultR": 0.7075154038261864,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-09-05T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.14850072597906594,
+    "decisionTime": "2025-09-05T08:00:00.000Z",
+    "resultR": 1.7903519162648367,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-09-08T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.16014259599462707,
+    "decisionTime": "2025-09-08T11:00:00.000Z",
+    "resultR": 1.7597861060080593,
+    "exitReason": "TP"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-09-08T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.16498217539620125,
+    "decisionTime": "2025-09-08T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-09-11T09:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.13592363788869652,
+    "decisionTime": "2025-09-11T10:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-09-15T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.151055703598982,
+    "decisionTime": "2025-09-15T11:30:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-09-16T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.14793450380403259,
+    "decisionTime": "2025-09-16T07:00:00.000Z",
+    "resultR": 1.778098244293643,
+    "exitReason": "TP"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-09-16T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.13859819935348,
+    "decisionTime": "2025-09-16T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-09-17T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.16701980765168117,
+    "decisionTime": "2025-09-17T12:00:00.000Z",
+    "resultR": -0.8768539901712875,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-09-18T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.08766731412209955,
+    "decisionTime": "2025-09-18T08:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-09-19T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.11008401239348807,
+    "decisionTime": "2025-09-19T07:00:00.000Z",
+    "resultR": 1.8348739814097679,
+    "exitReason": "TP"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-09-19T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.06626625977244077,
+    "decisionTime": "2025-09-19T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-09-24T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.18779253142839253,
+    "decisionTime": "2025-09-24T11:00:00.000Z",
+    "resultR": 1.7331369290227876,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-09-24T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1706972649093143,
+    "decisionTime": "2025-09-24T11:30:00.000Z",
+    "resultR": 1.7590156260105896,
+    "exitReason": "TP"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-09-24T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.12150593533845927,
+    "decisionTime": "2025-09-24T12:00:00.000Z",
+    "resultR": 1.309563969758822,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-09-25T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.14817670208513575,
+    "decisionTime": "2025-09-25T08:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-09-25T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.17162217123844942,
+    "decisionTime": "2025-09-25T11:30:00.000Z",
+    "resultR": 1.7425667431417966,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-09-30T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.13922922951040637,
+    "decisionTime": "2025-09-30T07:00:00.000Z",
+    "resultR": 1.7911561557343905,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-10-01T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.14663471888817928,
+    "decisionTime": "2025-10-01T11:30:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-10-01T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.14920149897090412,
+    "decisionTime": "2025-10-01T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-10-02T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.12432716723207529,
+    "decisionTime": "2025-10-02T07:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-10-06T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.11580408993084115,
+    "decisionTime": "2025-10-06T07:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-10-07T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.12305085978293229,
+    "decisionTime": "2025-10-07T07:00:00.000Z",
+    "resultR": 1.8031186243476727,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-10-07T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.16051874192443896,
+    "decisionTime": "2025-10-07T11:00:00.000Z",
+    "resultR": 1.7450584687082564,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-10-07T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.13914890699409935,
+    "decisionTime": "2025-10-07T11:30:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-10-09T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.12732511030171706,
+    "decisionTime": "2025-10-09T07:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-10-10T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.13689642683503975,
+    "decisionTime": "2025-10-10T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-10-14T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.10766159022117901,
+    "decisionTime": "2025-10-14T08:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-10-20T10:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1400220731909435,
+    "decisionTime": "2025-10-20T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-10-21T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.13512970695791487,
+    "decisionTime": "2025-10-21T09:00:00.000Z",
+    "resultR": 1.7837924688670561,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-10-23T10:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1450463693831529,
+    "decisionTime": "2025-10-23T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-10-23T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.19858518871897837,
+    "decisionTime": "2025-10-23T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-10-29T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1552751252895853,
+    "decisionTime": "2025-10-29T09:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-10-30T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1229038747136777,
+    "decisionTime": "2025-10-30T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-11-03T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.14899605550418327,
+    "decisionTime": "2025-11-03T09:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-11-07T10:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1737549171647178,
+    "decisionTime": "2025-11-07T11:00:00.000Z",
+    "resultR": 1.7240363080327474,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-11-10T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.13688152961202105,
+    "decisionTime": "2025-11-10T08:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-11-11T10:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.14837520394337989,
+    "decisionTime": "2025-11-11T11:00:00.000Z",
+    "resultR": 1.7774371940852391,
+    "exitReason": "TP"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-11-11T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1782025045881919,
+    "decisionTime": "2025-11-11T12:00:00.000Z",
+    "resultR": 1.3513689931283859,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-11-13T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.17139708578112103,
+    "decisionTime": "2025-11-13T08:00:00.000Z",
+    "resultR": 1.7429043713280012,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-11-18T10:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.15057193432155783,
+    "decisionTime": "2025-11-18T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-11-18T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.14230654737075543,
+    "decisionTime": "2025-11-18T12:00:00.000Z",
+    "resultR": -0.6607089699359646,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-11-19T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.15382893111747448,
+    "decisionTime": "2025-11-19T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-11-21T09:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.14501844267547465,
+    "decisionTime": "2025-11-21T10:00:00.000Z",
+    "resultR": 1.795268080928541,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-12-01T09:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1258907311841264,
+    "decisionTime": "2025-12-01T10:00:00.000Z",
+    "resultR": 1.798574830105137,
+    "exitReason": "TP"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-12-01T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.07567990072382615,
+    "decisionTime": "2025-12-01T12:00:00.000Z",
+    "resultR": 2,
+    "exitReason": "TP"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-12-01T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.13398809810299556,
+    "decisionTime": "2025-12-01T12:00:00.000Z",
+    "resultR": 0.5247867175706031,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-12-03T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1897207749520965,
+    "decisionTime": "2025-12-03T11:30:00.000Z",
+    "resultR": 1.728970321496604,
+    "exitReason": "TP"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-12-03T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.09827983402485732,
+    "decisionTime": "2025-12-03T12:00:00.000Z",
+    "resultR": 0.16847971547106996,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-12-03T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.14314231626882748,
+    "decisionTime": "2025-12-03T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-12-04T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.17005452907337046,
+    "decisionTime": "2025-12-04T09:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-12-04T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.08198080113822896,
+    "decisionTime": "2025-12-04T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-12-08T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.17849468563229817,
+    "decisionTime": "2025-12-08T07:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-12-11T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.16277938105048032,
+    "decisionTime": "2025-12-11T11:30:00.000Z",
+    "resultR": 1.75583092842438,
+    "exitReason": "TP"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-12-11T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1119253002034229,
+    "decisionTime": "2025-12-11T12:00:00.000Z",
+    "resultR": 0.037308433401071935,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-12-16T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.16607356647359012,
+    "decisionTime": "2025-12-16T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-12-17T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.11294798812309255,
+    "decisionTime": "2025-12-17T07:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-12-19T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.12798054582658866,
+    "decisionTime": "2025-12-19T08:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-12-22T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.19525369793526304,
+    "decisionTime": "2025-12-22T12:00:00.000Z",
+    "resultR": 1.0363465505788318,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-12-23T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.15255462944708129,
+    "decisionTime": "2025-12-23T09:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2025-12-30T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1536922081273174,
+    "decisionTime": "2025-12-30T09:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-01-02T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.16881913209596283,
+    "decisionTime": "2026-01-02T07:00:00.000Z",
+    "resultR": 1.761667107629216,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-01-02T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.18296799150082121,
+    "decisionTime": "2026-01-02T11:30:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-01-05T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.13709232504917232,
+    "decisionTime": "2026-01-05T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-01-07T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.14576899887237502,
+    "decisionTime": "2026-01-07T08:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-01-08T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.17282210344863386,
+    "decisionTime": "2026-01-08T09:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-01-12T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.15897124091675383,
+    "decisionTime": "2026-01-12T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-01-12T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.13223046784291728,
+    "decisionTime": "2026-01-12T12:00:00.000Z",
+    "resultR": 0.30052379055190276,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-01-13T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.16033215535112796,
+    "decisionTime": "2026-01-13T09:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-01-15T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1859237386873227,
+    "decisionTime": "2026-01-15T11:00:00.000Z",
+    "resultR": 1.72111439196936,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-01-20T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.15042060757420825,
+    "decisionTime": "2026-01-20T08:00:00.000Z",
+    "resultR": 1.7876414951889485,
+    "exitReason": "TP"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-01-21T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.14348442114234145,
+    "decisionTime": "2026-01-21T12:00:00.000Z",
+    "resultR": 2.000000000000133,
+    "exitReason": "TP"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-01-23T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.14689753433213007,
+    "decisionTime": "2026-01-23T12:00:00.000Z",
+    "resultR": 1.0960816023236315,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-01-27T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.15307173265372867,
+    "decisionTime": "2026-01-27T11:00:00.000Z",
+    "resultR": 1.7824770114919757,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-01-27T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.17328544850591404,
+    "decisionTime": "2026-01-27T11:30:00.000Z",
+    "resultR": 1.7524493592767945,
+    "exitReason": "TP"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-01-27T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1212926689724073,
+    "decisionTime": "2026-01-27T12:00:00.000Z",
+    "resultR": 1.9999999999998963,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-02-03T09:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.10035522511423897,
+    "decisionTime": "2026-02-03T10:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-02-03T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.14000631001303976,
+    "decisionTime": "2026-02-03T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-02-05T09:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.12602682753718283,
+    "decisionTime": "2026-02-05T10:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-02-06T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.07903345206879038,
+    "decisionTime": "2026-02-06T12:00:00.000Z",
+    "resultR": 1.4489466212610351,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-02-09T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.14367762550155067,
+    "decisionTime": "2026-02-09T07:00:00.000Z",
+    "resultR": 1.7718061242036183,
+    "exitReason": "TP"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-02-09T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.079195236246341,
+    "decisionTime": "2026-02-09T12:00:00.000Z",
+    "resultR": 1.99999999999992,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-02-11T10:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1348304454344261,
+    "decisionTime": "2026-02-11T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-02-11T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.17111150084208995,
+    "decisionTime": "2026-02-11T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-02-12T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.09041458179327314,
+    "decisionTime": "2026-02-12T12:00:00.000Z",
+    "resultR": -0.5146676194387505,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-02-17T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.21377535345063986,
+    "decisionTime": "2026-02-17T08:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-02-19T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.18024485999515064,
+    "decisionTime": "2026-02-19T11:30:00.000Z",
+    "resultR": 1.7296327100074742,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-03-02T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.08826557251786993,
+    "decisionTime": "2026-03-02T07:00:00.000Z",
+    "resultR": 1.8676016412231338,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-03-03T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.08655263108484404,
+    "decisionTime": "2026-03-03T08:00:00.000Z",
+    "resultR": 1.8701710533730342,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-03-03T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.10765211680485287,
+    "decisionTime": "2026-03-03T11:30:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-03-06T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.11429820917065732,
+    "decisionTime": "2026-03-06T09:00:00.000Z",
+    "resultR": 1.8285526862439436,
+    "exitReason": "TP"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-03-09T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.06267889106762892,
+    "decisionTime": "2026-03-09T12:00:00.000Z",
+    "resultR": 0.8775044749473515,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-03-10T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.08399643931281621,
+    "decisionTime": "2026-03-10T08:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-03-10T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.07185364147286709,
+    "decisionTime": "2026-03-10T12:00:00.000Z",
+    "resultR": 1.252306322812566,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2026-03-11T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.059555920325976966,
+    "decisionTime": "2026-03-11T12:00:00.000Z",
+    "resultR": 0.7833894135201125,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-03-13T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.12548246427836116,
+    "decisionTime": "2026-03-13T07:00:00.000Z",
+    "resultR": 1.8228482857247534,
+    "exitReason": "TP"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-03-16T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.094727873707658,
+    "decisionTime": "2026-03-16T12:00:00.000Z",
+    "resultR": 0.7375241595815076,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-03-17T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.09569643028450295,
+    "decisionTime": "2026-03-17T09:00:00.000Z",
+    "resultR": 1.8564553545731792,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-03-19T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.09509417453392086,
+    "decisionTime": "2026-03-19T08:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-03-26T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.11158412195198394,
+    "decisionTime": "2026-03-26T08:00:00.000Z",
+    "resultR": 1.8326238170722564,
+    "exitReason": "TP"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2026-03-26T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.11150958848839597,
+    "decisionTime": "2026-03-26T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-03-27T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.10476950572965285,
+    "decisionTime": "2026-03-27T08:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-03-27T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.15900222933301764,
+    "decisionTime": "2026-03-27T11:00:00.000Z",
+    "resultR": 1.748943848421463,
+    "exitReason": "TP"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2026-03-31T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.09622776494139196,
+    "decisionTime": "2026-03-31T12:00:00.000Z",
+    "resultR": 1.6305260170624496,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-04-01T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.07635618954847372,
+    "decisionTime": "2026-04-01T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-04-02T10:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.08217783670472201,
+    "decisionTime": "2026-04-02T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-04-02T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.14077846729395255,
+    "decisionTime": "2026-04-02T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-04-07T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.14969453459270973,
+    "decisionTime": "2026-04-07T07:00:00.000Z",
+    "resultR": 1.775458198111247,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-04-07T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1296969027627471,
+    "decisionTime": "2026-04-07T09:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-04-08T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.10598196383505362,
+    "decisionTime": "2026-04-08T11:30:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-04-09T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.11334147695601908,
+    "decisionTime": "2026-04-09T09:00:00.000Z",
+    "resultR": 1.8199870660111852,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-04-10T09:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.12791463101339196,
+    "decisionTime": "2026-04-10T10:00:00.000Z",
+    "resultR": 1.808128053479912,
+    "exitReason": "TP"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-04-10T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.12680624490289347,
+    "decisionTime": "2026-04-10T12:00:00.000Z",
+    "resultR": 1.9999999999998916,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-04-13T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.13326040955025034,
+    "decisionTime": "2026-04-13T08:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2026-04-13T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.11494607311316028,
+    "decisionTime": "2026-04-13T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-04-14T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.17829300890143343,
+    "decisionTime": "2026-04-14T11:00:00.000Z",
+    "resultR": 1.7325604866477509,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-04-14T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.15757153081647318,
+    "decisionTime": "2026-04-14T11:30:00.000Z",
+    "resultR": 0.5865162535943802,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-04-14T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.11625424116722194,
+    "decisionTime": "2026-04-14T12:00:00.000Z",
+    "resultR": 1.332452456455449,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-04-21T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1607512621581922,
+    "decisionTime": "2026-04-21T08:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-04-23T10:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.131413156640565,
+    "decisionTime": "2026-04-23T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-04-24T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.12353847346786298,
+    "decisionTime": "2026-04-24T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-04-27T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1334074678757248,
+    "decisionTime": "2026-04-27T08:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-04-27T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.19892191414465946,
+    "decisionTime": "2026-04-27T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-04-28T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1645640688828488,
+    "decisionTime": "2026-04-28T07:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-04-28T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.19770094244481864,
+    "decisionTime": "2026-04-28T11:00:00.000Z",
+    "resultR": 1.719056555473128,
+    "exitReason": "TP"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2026-04-28T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.09448589385134673,
+    "decisionTime": "2026-04-28T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2026-04-29T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.14904803381442444,
+    "decisionTime": "2026-04-29T12:00:00.000Z",
+    "resultR": 2.000000000000249,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-04-30T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.23711854956197234,
+    "decisionTime": "2026-04-30T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-04-30T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1275273640010284,
+    "decisionTime": "2026-04-30T11:30:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-04-30T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.09409258067807638,
+    "decisionTime": "2026-04-30T12:00:00.000Z",
+    "resultR": 2.000000000000087,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-05-01T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.12004540435914719,
+    "decisionTime": "2026-05-01T09:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-05-01T10:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.10940112072052169,
+    "decisionTime": "2026-05-01T11:00:00.000Z",
+    "resultR": 1.8358983189190439,
+    "exitReason": "TP"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-05-01T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.13137640723536412,
+    "decisionTime": "2026-05-01T12:00:00.000Z",
+    "resultR": 2,
+    "exitReason": "TP"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-05-05T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.10429148921228404,
+    "decisionTime": "2026-05-05T12:00:00.000Z",
+    "resultR": 1.2949526577190889,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-05-06T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.12980230364335804,
+    "decisionTime": "2026-05-06T09:00:00.000Z",
+    "resultR": 1.805296544535123,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-05-06T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1301000159129103,
+    "decisionTime": "2026-05-06T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-05-07T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.12882123372802537,
+    "decisionTime": "2026-05-07T08:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-05-11T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.15507210826738702,
+    "decisionTime": "2026-05-11T12:00:00.000Z",
+    "resultR": 1.2516534453007535,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-05-13T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.17561465245506602,
+    "decisionTime": "2026-05-13T07:00:00.000Z",
+    "resultR": 1.7365780213177666,
+    "exitReason": "TP"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-05-13T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.13873641962428163,
+    "decisionTime": "2026-05-13T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-05-14T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.17474581454517019,
+    "decisionTime": "2026-05-14T08:00:00.000Z",
+    "resultR": 1.7553558596368652,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-05-15T09:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1578601036247744,
+    "decisionTime": "2026-05-15T10:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-05-19T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.13444314434591817,
+    "decisionTime": "2026-05-19T09:00:00.000Z",
+    "resultR": 1.784890969046929,
+    "exitReason": "TP"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-05-20T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.12578341279502317,
+    "decisionTime": "2026-05-20T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-05-21T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.13468219659076924,
+    "decisionTime": "2026-05-21T08:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-05-21T10:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.11054525707892777,
+    "decisionTime": "2026-05-21T11:00:00.000Z",
+    "resultR": 1.834182114381225,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-05-27T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.24370134589139855,
+    "decisionTime": "2026-05-27T11:30:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-05-28T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.18094274921304973,
+    "decisionTime": "2026-05-28T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-05-29T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.15715496586441952,
+    "decisionTime": "2026-05-29T12:00:00.000Z",
+    "resultR": 2,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-06-01T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1591351327325828,
+    "decisionTime": "2026-06-01T07:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-06-04T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.16229328095781698,
+    "decisionTime": "2026-06-04T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-06-08T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.11037258459882664,
+    "decisionTime": "2026-06-08T09:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-06-08T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.0768069779116345,
+    "decisionTime": "2026-06-08T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-06-09T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.17826063340947987,
+    "decisionTime": "2026-06-09T11:30:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-06-09T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.13330105739831408,
+    "decisionTime": "2026-06-09T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-06-11T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.12387279710109787,
+    "decisionTime": "2026-06-11T09:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-06-12T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1108729345441025,
+    "decisionTime": "2026-06-12T09:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-06-16T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.16938794836171392,
+    "decisionTime": "2026-06-16T08:00:00.000Z",
+    "resultR": 1.7309720820135404,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-06-17T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.23058817511224222,
+    "decisionTime": "2026-06-17T11:30:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-06-18T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.10025970003966243,
+    "decisionTime": "2026-06-18T09:00:00.000Z",
+    "resultR": 1.8596364199443243,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-06-18T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.11005627038938855,
+    "decisionTime": "2026-06-18T11:30:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-06-22T07:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.13939216389977027,
+    "decisionTime": "2026-06-22T08:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-06-25T10:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.13012037379304553,
+    "decisionTime": "2026-06-25T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-06-25T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.18170579258064612,
+    "decisionTime": "2026-06-25T11:30:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-06-29T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.13561775103716536,
+    "decisionTime": "2026-06-29T07:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-06-29T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.17114857029601677,
+    "decisionTime": "2026-06-29T11:30:00.000Z",
+    "resultR": 0.7606603124263658,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-06-29T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.15115831271600577,
+    "decisionTime": "2026-06-29T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-07-07T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.19039945770544017,
+    "decisionTime": "2026-07-07T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-07-09T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.16478132569204584,
+    "decisionTime": "2026-07-09T07:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-07-13T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.17034660823655987,
+    "decisionTime": "2026-07-13T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-07-15T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1593026865119042,
+    "decisionTime": "2026-07-15T12:00:00.000Z",
+    "resultR": 1.5072484954591523,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-07-17T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.18037716328188685,
+    "decisionTime": "2026-07-17T07:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-07-17T10:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.17003656148807497,
+    "decisionTime": "2026-07-17T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-07-17T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.17808389076964018,
+    "decisionTime": "2026-07-17T11:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-07-20T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.17178946497080538,
+    "decisionTime": "2026-07-20T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-07-21T10:30:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.20187499107615073,
+    "decisionTime": "2026-07-21T11:00:00.000Z",
+    "resultR": 1.6971875133856493,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-07-21T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.19278831278060768,
+    "decisionTime": "2026-07-21T11:30:00.000Z",
+    "resultR": 1.7108175308293263,
+    "exitReason": "TP"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2026-07-21T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.20857877043892503,
+    "decisionTime": "2026-07-21T12:00:00.000Z",
+    "resultR": 2.0000000000003704,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-07-23T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1997269935422728,
+    "decisionTime": "2026-07-23T11:30:00.000Z",
+    "resultR": 1.7004095096865908,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-07-27T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.18095621573335144,
+    "decisionTime": "2026-07-27T11:30:00.000Z",
+    "resultR": 0.6333467550663952,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2026-07-27T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.14033000785992722,
+    "decisionTime": "2026-07-27T12:00:00.000Z",
+    "resultR": 0.47110788352938937,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-07-30T10:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.11186032178792492,
+    "decisionTime": "2026-07-30T11:00:00.000Z",
+    "resultR": 1.8322095173183455,
+    "exitReason": "TP"
+  },
+  {
+    "id": "USD_JPY:USDJPY Body Extreme V1:v1:2026-08-04T11:00:00.000000000Z",
+    "pair": "USD_JPY",
+    "accepted": true,
+    "reason": "ACCEPTED",
+    "spreadToStop": 0.059524074330514806,
+    "decisionTime": "2026-08-04T12:00:00.000Z",
+    "resultR": -0.3352145238612218,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-08-04T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.15068413752091783,
+    "decisionTime": "2026-08-04T12:00:00.000Z",
+    "resultR": 0.5901795386235135,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-08-05T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1584376251036733,
+    "decisionTime": "2026-08-05T07:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-08-05T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.18046947219532755,
+    "decisionTime": "2026-08-05T11:30:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-08-05T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.18796863849036397,
+    "decisionTime": "2026-08-05T12:00:00.000Z",
+    "resultR": 1.9999999999998395,
+    "exitReason": "TP"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-08-11T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.16787008047956894,
+    "decisionTime": "2026-08-11T12:00:00.000Z",
+    "resultR": 0.2195224129348871,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-08-12T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.23053825903823852,
+    "decisionTime": "2026-08-12T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-08-13T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.19340857169747885,
+    "decisionTime": "2026-08-13T07:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-08-14T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.23129366824644285,
+    "decisionTime": "2026-08-14T07:00:00.000Z",
+    "resultR": 1.632651232784173,
+    "exitReason": "TP"
+  },
+  {
+    "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-08-14T11:00:00.000000000Z",
+    "pair": "GBP_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.26910610094865817,
+    "decisionTime": "2026-08-14T11:30:00.000Z",
+    "resultR": 1.617586067073423,
+    "exitReason": "TP"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-08-14T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.2309185717639827,
+    "decisionTime": "2026-08-14T12:00:00.000Z",
+    "resultR": 1.598667035288216,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-08-17T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1945131621605433,
+    "decisionTime": "2026-08-17T07:00:00.000Z",
+    "resultR": 1.70823025675986,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-08-19T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.19418232072863945,
+    "decisionTime": "2026-08-19T07:00:00.000Z",
+    "resultR": 1.6893082868337745,
+    "exitReason": "TP"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-08-20T06:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.14907755241522624,
+    "decisionTime": "2026-08-20T07:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-08-21T08:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.14074753302490564,
+    "decisionTime": "2026-08-21T09:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-08-21T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.1568493601557117,
+    "decisionTime": "2026-08-21T12:00:00.000Z",
+    "resultR": -0.14478402475917,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-08-25T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.18410869203979416,
+    "decisionTime": "2026-08-25T12:00:00.000Z",
+    "resultR": 0.1841086920399514,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-08-26T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.18833033073525504,
+    "decisionTime": "2026-08-26T12:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  },
+  {
+    "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-08-27T11:00:00.000000000Z",
+    "pair": "AUD_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.20560832014387542,
+    "decisionTime": "2026-08-27T12:00:00.000Z",
+    "resultR": 0.5535608619254403,
+    "exitReason": "TIME_EXIT"
+  },
+  {
+    "id": "EUR_USD:EURUSD London Breakout:v1:2026-08-28T09:00:00.000000000Z",
+    "pair": "EUR_USD",
+    "accepted": false,
+    "reason": "SPREAD_TOO_EXPENSIVE",
+    "spreadToStop": 0.2347163698672297,
+    "decisionTime": "2026-08-28T10:00:00.000Z",
+    "resultR": -1,
+    "exitReason": "SL"
+  }
+]

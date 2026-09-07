@@ -1,0 +1,3854 @@
+{
+  "decisions": [
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-01-06T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1279996872483542
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-01-07T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.09514653844002002
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-01-08T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.12615725485526771
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-01-08T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1374013638545306
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-01-09T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1460047038675009
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-01-10T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1519153481337832
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-01-13T09:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.09566115441550715
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-01-20T10:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.11009709610746435
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-01-22T09:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.0877231677548897
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-01-24T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1048303294088358
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-01-27T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.10471816172041665
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-01-27T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1129308049467868
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-01-29T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1187628530144839
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-01-30T09:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.10577128168915492
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-02-04T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.07812396513179784
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-02-05T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1064379597509765
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-02-05T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.12911902935133449
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-02-07T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.13991508054472998
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-02-11T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.07708702422453122
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-02-12T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.142420735884421
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-02-14T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.08851353304902401
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-02-19T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1483926721942003
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-03-03T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.15449317673229762
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-03-03T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.13930947233602547
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-03-03T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.03914941130653929
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-03-04T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.0881676605878478
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-03-04T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.04277688600896118
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-03-04T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.11545787278112583
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-03-05T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.06638938863192512
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-03-05T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.10065175142049937
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-03-07T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.07037168097389221
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-03-11T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.07714439701038686
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-03-12T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.09622600350923699
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-03-12T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.170843894547431
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-03-13T10:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.10181081718139905
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-03-14T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.12467700825732472
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-03-17T09:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.10670817375499127
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-03-17T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.17530170876551626
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-03-18T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.12948235565478566
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-03-20T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.09727588519362337
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-03-25T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.11544046550481799
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-03-25T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1666146425213542
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-03-25T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1130275696568748
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-03-27T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.13479233672029658
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-03-27T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1471597816575386
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-03-27T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.10916558646973626
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-04-02T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.07498159487163777
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-04-03T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.050601315634137084
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-04-03T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.025737073404561838
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-04-03T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "LOWER_COST_SIMULTANEOUS_SIGNAL_SELECTED",
+      "spreadToStop": 0.06569891714657723
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-04-07T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.05113602704622307
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-04-07T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "POSITION_ALREADY_OPEN",
+      "spreadToStop": 0.06736666350356468
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-04-09T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.05346269641506975
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-04-09T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.03505152694823107
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-04-10T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.05978826114523237
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-04-10T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.10324724252241592
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-04-11T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.031694495003938644
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-04-11T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.05272941020410745
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-04-14T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.042612072556245245
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-04-14T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.08501110802217467
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-04-15T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.0745250350457427
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-04-17T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1133799439883991
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-04-21T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.07120673438254128
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-04-28T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.07936751841978125
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-05-05T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.08092680196586591
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-05-05T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.13929225184441915
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-05-05T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.08682117877664135
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-05-06T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.134933174714344
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-05-06T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.11703752941244423
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-05-06T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.051579769516691805
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-05-06T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "LOWER_COST_SIMULTANEOUS_SIGNAL_SELECTED",
+      "spreadToStop": 0.09990954843107294
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-05-07T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.07571622366689165
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-05-08T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.07445841507355586
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-05-12T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.07097871843743303
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-05-12T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.0815920048946719
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-05-14T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.0909658604144885
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-05-15T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.09781525914059588
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-05-19T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.11410137770179872
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-05-20T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.09623220766348621
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-05-23T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.0506049657357078
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-06-02T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.0958598766434954
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-06-03T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.15610705230064467
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-06-04T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1359831071660601
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-06-09T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.05302880157433968
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-06-11T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.08744078686503277
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-06-12T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.10363715716016621
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-06-12T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.11915695549748423
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-06-12T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.09980959817790044
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-06-16T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.07720715193851489
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-06-16T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.11670231134172272
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-06-17T10:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.10892339519980819
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-06-17T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.11968104289589007
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-06-20T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.06962268226614497
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-06-23T09:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.08359428859667771
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-06-24T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.10797975728971605
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-06-26T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.08411560625032452
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-07-01T09:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.08551937385010036
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-07-01T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": false,
+      "reason": "POSITION_ALREADY_OPEN",
+      "spreadToStop": 0.06709616117636394
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-07-07T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1361544504637953
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-07-08T10:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.10462137283176441
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-07-08T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1418221598244311
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-07-08T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.07941688523888983
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-07-11T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1284258783547698
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-07-11T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.10638966942455604
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-07-14T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1051318208249297
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-07-15T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.10056387694087206
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-07-17T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.08640862636047066
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-07-18T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.17366321305781668
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-07-18T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.20672709305765932
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-07-18T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.14485435765617574
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-07-21T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.14456837676125164
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-07-21T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.05493089220149515
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-07-21T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.13944446854672943
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-07-22T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.13825944046261956
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-07-22T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.0837636930821272
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-07-23T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.14858540125832664
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-07-25T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.14429253860178504
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-07-29T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.09494315486473166
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-07-30T10:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.10676684841122994
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-07-30T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.05900908661124637
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-08-04T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.053006928137249255
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-08-04T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "LOWER_COST_SIMULTANEOUS_SIGNAL_SELECTED",
+      "spreadToStop": 0.09272276383156
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-08-06T10:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.10102690525261276
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-08-06T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.15213143008432184
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-08-06T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.15174403871900827
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-08-06T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1631148987903877
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-08-07T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.11444422838792115
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-08-07T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.14318455817123726
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-08-12T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.12230234032992977
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-08-12T09:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.10885951806936635
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-08-13T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.12091345487816986
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-08-15T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.17754376777352124
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-08-18T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.07739478162636058
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-08-25T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.11116259099044536
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-08-25T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.15472143435110267
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-08-26T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.14470311315859438
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-08-27T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.11322508507678393
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-08-27T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.17121693605893207
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-08-28T10:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.11200114842642682
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-08-28T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.18117897909958003
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-08-28T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.17463297690869126
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-09-01T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.12116418277509318
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-09-03T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.13330000361937364
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-09-05T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.14850072597906594
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-09-08T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.16014259599462707
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-09-08T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.16498217539620125
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-09-11T09:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.13592363788869652
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-09-15T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.151055703598982
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-09-16T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.14793450380403259
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-09-16T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.13859819935348
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-09-17T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.16701980765168117
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-09-18T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.08766731412209955
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-09-19T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.11008401239348807
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-09-19T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.06626625977244077
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-09-24T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.18779253142839253
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-09-24T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1706972649093143
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-09-24T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.12150593533845927
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-09-25T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.14817670208513575
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-09-25T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.17162217123844942
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-09-30T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.13922922951040637
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-10-01T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.14663471888817928
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-10-01T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.14920149897090412
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-10-02T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.12432716723207529
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-10-06T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.11580408993084115
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-10-07T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.12305085978293229
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-10-07T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.16051874192443896
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-10-07T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.13914890699409935
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-10-09T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.12732511030171706
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-10-10T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.13689642683503975
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-10-14T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.10766159022117901
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-10-20T10:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1400220731909435
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-10-21T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.13512970695791487
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-10-23T10:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1450463693831529
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-10-23T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.19858518871897837
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-10-29T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1552751252895853
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-10-30T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1229038747136777
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-11-03T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.14899605550418327
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-11-07T10:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1737549171647178
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-11-10T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.13688152961202105
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-11-11T10:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.14837520394337989
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-11-11T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1782025045881919
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-11-13T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.17139708578112103
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-11-18T10:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.15057193432155783
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-11-18T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.14230654737075543
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-11-19T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.15382893111747448
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-11-21T09:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.14501844267547465
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-12-01T09:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1258907311841264
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-12-01T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.07567990072382615
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-12-01T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.13398809810299556
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-12-03T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1897207749520965
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-12-03T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.09827983402485732
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-12-03T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.14314231626882748
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-12-04T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.17005452907337046
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2025-12-04T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.08198080113822896
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-12-08T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.17849468563229817
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-12-11T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.16277938105048032
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-12-11T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1119253002034229
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2025-12-16T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.16607356647359012
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-12-17T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.11294798812309255
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-12-19T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.12798054582658866
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2025-12-22T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.19525369793526304
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-12-23T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.15255462944708129
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2025-12-30T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1536922081273174
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-01-02T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.16881913209596283
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-01-02T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.18296799150082121
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-01-05T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.13709232504917232
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-01-07T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.14576899887237502
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-01-08T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.17282210344863386
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-01-12T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.15897124091675383
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-01-12T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.13223046784291728
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-01-13T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.16033215535112796
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-01-15T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1859237386873227
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-01-20T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.15042060757420825
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-01-21T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.14348442114234145
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-01-23T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.14689753433213007
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-01-27T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.15307173265372867
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-01-27T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.17328544850591404
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-01-27T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1212926689724073
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-02-03T09:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.10035522511423897
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-02-03T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.14000631001303976
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-02-05T09:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.12602682753718283
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-02-06T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.07903345206879038
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-02-09T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.14367762550155067
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-02-09T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.079195236246341
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-02-11T10:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1348304454344261
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-02-11T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.17111150084208995
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-02-12T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.09041458179327314
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-02-17T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.21377535345063986
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-02-19T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.18024485999515064
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-03-02T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.08826557251786993
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-03-03T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.08655263108484404
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-03-03T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.10765211680485287
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-03-06T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.11429820917065732
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-03-09T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.06267889106762892
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-03-10T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.08399643931281621
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-03-10T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.07185364147286709
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2026-03-11T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.059555920325976966
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-03-13T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.12548246427836116
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-03-16T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.094727873707658
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-03-17T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.09569643028450295
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-03-19T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.09509417453392086
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-03-26T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.11158412195198394
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2026-03-26T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.11150958848839597
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-03-27T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.10476950572965285
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-03-27T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.15900222933301764
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2026-03-31T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.09622776494139196
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-04-01T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.07635618954847372
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-04-02T10:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.08217783670472201
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-04-02T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.14077846729395255
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-04-07T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.14969453459270973
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-04-07T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1296969027627471
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-04-08T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.10598196383505362
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-04-09T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.11334147695601908
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-04-10T09:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.12791463101339196
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-04-10T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.12680624490289347
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-04-13T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.13326040955025034
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2026-04-13T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.11494607311316028
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-04-14T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.17829300890143343
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-04-14T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.15757153081647318
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-04-14T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.11625424116722194
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-04-21T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1607512621581922
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-04-23T10:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.131413156640565
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-04-24T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.12353847346786298
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-04-27T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1334074678757248
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-04-27T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.19892191414465946
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-04-28T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1645640688828488
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-04-28T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.19770094244481864
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2026-04-28T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.09448589385134673
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2026-04-29T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.14904803381442444
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-04-30T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.23711854956197234
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-04-30T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1275273640010284
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-04-30T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.09409258067807638
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-05-01T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.12004540435914719
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-05-01T10:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.10940112072052169
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-05-01T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.13137640723536412
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-05-05T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.10429148921228404
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-05-06T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.12980230364335804
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-05-06T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1301000159129103
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-05-07T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.12882123372802537
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-05-11T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.15507210826738702
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-05-13T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.17561465245506602
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-05-13T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.13873641962428163
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-05-14T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.17474581454517019
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-05-15T09:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1578601036247744
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-05-19T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.13444314434591817
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-05-20T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.12578341279502317
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-05-21T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.13468219659076924
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-05-21T10:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.11054525707892777
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-05-27T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.24370134589139855
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-05-28T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.18094274921304973
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-05-29T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.15715496586441952
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-06-01T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1591351327325828
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-06-04T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.16229328095781698
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-06-08T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.11037258459882664
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-06-08T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.0768069779116345
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-06-09T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.17826063340947987
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-06-09T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.13330105739831408
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-06-11T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.12387279710109787
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-06-12T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1108729345441025
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-06-16T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.16938794836171392
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-06-17T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.23058817511224222
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-06-18T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.10025970003966243
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-06-18T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.11005627038938855
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-06-22T07:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.13939216389977027
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-06-25T10:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.13012037379304553
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-06-25T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.18170579258064612
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-06-29T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.13561775103716536
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-06-29T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.17114857029601677
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-06-29T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.15115831271600577
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-07-07T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.19039945770544017
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-07-09T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.16478132569204584
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-07-13T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.17034660823655987
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-07-15T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1593026865119042
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-07-17T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.18037716328188685
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-07-17T10:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.17003656148807497
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-07-17T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.17808389076964018
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-07-20T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.17178946497080538
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-07-21T10:30:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.20187499107615073
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-07-21T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.19278831278060768
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2026-07-21T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.20857877043892503
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-07-23T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1997269935422728
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-07-27T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.18095621573335144
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2026-07-27T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.14033000785992722
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-07-30T10:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.11186032178792492
+    },
+    {
+      "id": "USD_JPY:USDJPY Body Extreme V1:v1:2026-08-04T11:00:00.000000000Z",
+      "pair": "USD_JPY",
+      "accepted": true,
+      "reason": "ACCEPTED",
+      "spreadToStop": 0.059524074330514806
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-08-04T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.15068413752091783
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-08-05T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1584376251036733
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-08-05T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.18046947219532755
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-08-05T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.18796863849036397
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-08-11T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.16787008047956894
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-08-12T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.23053825903823852
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-08-13T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.19340857169747885
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-08-14T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.23129366824644285
+    },
+    {
+      "id": "GBP_USD:GBPUSD 30M Dual-Origin V2:v2:2026-08-14T11:00:00.000000000Z",
+      "pair": "GBP_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.26910610094865817
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-08-14T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.2309185717639827
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-08-17T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1945131621605433
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-08-19T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.19418232072863945
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-08-20T06:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.14907755241522624
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-08-21T08:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.14074753302490564
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-08-21T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.1568493601557117
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-08-25T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.18410869203979416
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-08-26T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.18833033073525504
+    },
+    {
+      "id": "AUD_USD:AUDUSD Strong Consensus Structure V1:AUDUSD_STRONG_CONS_STRUCTURE_V1:2026-08-27T11:00:00.000000000Z",
+      "pair": "AUD_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.20560832014387542
+    },
+    {
+      "id": "EUR_USD:EURUSD London Breakout:v1:2026-08-28T09:00:00.000000000Z",
+      "pair": "EUR_USD",
+      "accepted": false,
+      "reason": "SPREAD_TOO_EXPENSIVE",
+      "spreadToStop": 0.2347163698672297
+    }
+  ],
+  "fills": [
+    {
+      "event": "ENTRY",
+      "time": "2025-01-07T08:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-01-07T07:00:00.000000000Z",
+      "riskDollars": 2.9983224264089094,
+      "units": 1783,
+      "preEntryEquity": 100
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-01-07T13:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-01-07T07:00:00.000000000Z",
+      "riskDollars": 2.9983224264089094,
+      "pnlDollars": -2.9983224264089094,
+      "cash": 97.0016775735911
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-01-13T10:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-01-13T09:00:00.000000000Z",
+      "riskDollars": 2.9091223255705714,
+      "units": 1637,
+      "preEntryEquity": 97.0016775735911
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-01-13T14:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-01-13T09:00:00.000000000Z",
+      "riskDollars": 2.9091223255705714,
+      "pnlDollars": -2.9091223255705714,
+      "cash": 94.09255524802052
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-01-22T10:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-01-22T09:00:00.000000000Z",
+      "riskDollars": 2.8216035322829613,
+      "units": 1547,
+      "preEntryEquity": 94.09255524802052
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-01-22T14:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-01-22T09:00:00.000000000Z",
+      "riskDollars": 2.8216035322829613,
+      "pnlDollars": -2.8216035322829613,
+      "cash": 91.27095171573755
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-02-04T12:00:00.000Z",
+      "pair": "AUD_USD",
+      "signalTimestamp": "2025-02-04T11:00:00.000000000Z",
+      "riskDollars": 2.737188257652572,
+      "units": 1782,
+      "preEntryEquity": 91.27095171573755
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-02-04T15:00:00.000Z",
+      "pair": "AUD_USD",
+      "signalTimestamp": "2025-02-04T11:00:00.000000000Z",
+      "riskDollars": 2.737188257652572,
+      "pnlDollars": 3.866940000000009,
+      "cash": 95.13789171573757
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-02-11T12:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-02-11T11:00:00.000000000Z",
+      "riskDollars": 2.8540791798240117,
+      "units": 2095,
+      "preEntryEquity": 95.13789171573757
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-02-11T15:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-02-11T11:00:00.000000000Z",
+      "riskDollars": 2.8540791798240117,
+      "pnlDollars": -0.9350530012140443,
+      "cash": 94.20283871452352
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-02-14T09:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-02-14T08:00:00.000000000Z",
+      "riskDollars": 2.8249917429198663,
+      "units": 1667,
+      "preEntryEquity": 94.20283871452352
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-02-14T13:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-02-14T08:00:00.000000000Z",
+      "riskDollars": 2.8249917429198663,
+      "pnlDollars": -2.8249917429198663,
+      "cash": 91.37784697160366
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-03-03T12:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-03-03T11:00:00.000000000Z",
+      "riskDollars": 2.7405506182136556,
+      "units": 1248,
+      "preEntryEquity": 91.37784697160366
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-03-03T15:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-03-03T11:00:00.000000000Z",
+      "riskDollars": 2.7405506182136556,
+      "pnlDollars": -2.7405506182136556,
+      "cash": 88.63729635339
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-03-04T09:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-03-04T08:00:00.000000000Z",
+      "riskDollars": 2.657436960876348,
+      "units": 1562,
+      "preEntryEquity": 88.63729635339
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-03-04T11:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-03-04T08:00:00.000000000Z",
+      "riskDollars": 2.657436960876348,
+      "pnlDollars": -2.657436960876348,
+      "cash": 85.97985939251365
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-03-04T12:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-03-04T11:00:00.000000000Z",
+      "riskDollars": 2.576902591858349,
+      "units": 962,
+      "preEntryEquity": 85.97985939251365
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-03-04T15:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-03-04T11:00:00.000000000Z",
+      "riskDollars": 2.576902591858349,
+      "pnlDollars": -0.5317066594769067,
+      "cash": 85.44815273303674
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-03-05T08:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-03-05T07:00:00.000000000Z",
+      "riskDollars": 2.562156445559405,
+      "units": 1215,
+      "preEntryEquity": 85.44815273303674
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-03-05T10:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-03-05T07:00:00.000000000Z",
+      "riskDollars": 2.562156445559405,
+      "pnlDollars": 4.869162891118487,
+      "cash": 90.31731562415523
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-03-07T07:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-03-07T06:00:00.000000000Z",
+      "riskDollars": 2.7076232564450113,
+      "units": 1361,
+      "preEntryEquity": 90.31731562415523
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-03-07T10:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-03-07T06:00:00.000000000Z",
+      "riskDollars": 2.7076232564450113,
+      "pnlDollars": 5.1294365128902655,
+      "cash": 95.4467521370455
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-03-11T08:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-03-11T07:00:00.000000000Z",
+      "riskDollars": 2.862165089844333,
+      "units": 1380,
+      "preEntryEquity": 95.4467521370455
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-03-11T18:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-03-11T07:00:00.000000000Z",
+      "riskDollars": 2.862165089844333,
+      "pnlDollars": 5.393130179688641,
+      "cash": 100.83988231673413
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-03-12T09:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-03-12T08:00:00.000000000Z",
+      "riskDollars": 3.0241305820442754,
+      "units": 1940,
+      "preEntryEquity": 100.83988231673413
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-03-12T11:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-03-12T08:00:00.000000000Z",
+      "riskDollars": 3.0241305820442754,
+      "pnlDollars": -3.0241305820442754,
+      "cash": 97.81575173468985
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-03-20T08:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-03-20T07:00:00.000000000Z",
+      "riskDollars": 2.9344374449228003,
+      "units": 1903,
+      "preEntryEquity": 97.81575173468985
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-03-20T10:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-03-20T07:00:00.000000000Z",
+      "riskDollars": 2.9344374449228003,
+      "pnlDollars": 5.412154889844722,
+      "cash": 103.22790662453457
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-04-02T12:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-04-02T11:00:00.000000000Z",
+      "riskDollars": 3.0960904295726643,
+      "units": 2165,
+      "preEntryEquity": 103.22790662453457
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-04-02T14:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-04-02T11:00:00.000000000Z",
+      "riskDollars": 3.0960904295726643,
+      "pnlDollars": -3.0960904295726643,
+      "cash": 100.1318161949619
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-04-03T07:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-04-03T06:00:00.000000000Z",
+      "riskDollars": 3.0028863498083824,
+      "units": 1013,
+      "preEntryEquity": 100.1318161949619
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-04-03T08:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-04-03T06:00:00.000000000Z",
+      "riskDollars": 3.0028863498083824,
+      "pnlDollars": -3.0028863498083824,
+      "cash": 97.12892984515352
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-04-03T12:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-04-03T11:00:00.000000000Z",
+      "riskDollars": 2.9123016328826328,
+      "units": 842,
+      "preEntryEquity": 97.12892984515352
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-04-03T15:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-04-03T11:00:00.000000000Z",
+      "riskDollars": 2.9123016328826328,
+      "pnlDollars": 3.4132953518311298,
+      "cash": 100.54222519698465
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-04-07T11:00:00.000Z",
+      "pair": "GBP_USD",
+      "signalTimestamp": "2025-04-07T10:30:00.000000000Z",
+      "riskDollars": 3.0154865152255983,
+      "units": 1028,
+      "preEntryEquity": 100.54222519698465
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-04-07T13:00:00.000Z",
+      "pair": "GBP_USD",
+      "signalTimestamp": "2025-04-07T10:30:00.000000000Z",
+      "riskDollars": 3.0154865152255983,
+      "pnlDollars": -3.0154865152255983,
+      "cash": 97.52673868175904
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-04-09T07:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-04-09T06:00:00.000000000Z",
+      "riskDollars": 2.9254042629229993,
+      "units": 920,
+      "preEntryEquity": 97.52673868175904
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-04-09T08:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-04-09T06:00:00.000000000Z",
+      "riskDollars": 2.9254042629229993,
+      "pnlDollars": -2.9254042629229993,
+      "cash": 94.60133441883605
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-04-09T12:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-04-09T11:00:00.000000000Z",
+      "riskDollars": 2.836946350148368,
+      "units": 757,
+      "preEntryEquity": 94.60133441883605
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-04-09T15:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-04-09T11:00:00.000000000Z",
+      "riskDollars": 2.836946350148368,
+      "pnlDollars": -0.48672921232578203,
+      "cash": 94.11460520651026
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-04-10T08:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-04-10T07:00:00.000000000Z",
+      "riskDollars": 2.823296693475452,
+      "units": 844,
+      "preEntryEquity": 94.11460520651026
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-04-10T13:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-04-10T07:00:00.000000000Z",
+      "riskDollars": 2.823296693475452,
+      "pnlDollars": 5.393393386950745,
+      "cash": 99.50799859346101
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-04-11T09:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-04-11T08:00:00.000000000Z",
+      "riskDollars": 2.9822213601527974,
+      "units": 556,
+      "preEntryEquity": 99.50799859346101
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-04-11T11:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-04-11T08:00:00.000000000Z",
+      "riskDollars": 2.9822213601527974,
+      "pnlDollars": -2.9822213601527974,
+      "cash": 96.52577723330822
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-04-11T12:00:00.000Z",
+      "pair": "AUD_USD",
+      "signalTimestamp": "2025-04-11T11:00:00.000000000Z",
+      "riskDollars": 2.8930723747828484,
+      "units": 1017,
+      "preEntryEquity": 96.52577723330822
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-04-11T15:00:00.000Z",
+      "pair": "AUD_USD",
+      "signalTimestamp": "2025-04-11T11:00:00.000000000Z",
+      "riskDollars": 2.8930723747828484,
+      "pnlDollars": -0.5593500000000513,
+      "cash": 95.96642723330817
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-04-14T07:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-04-14T06:00:00.000000000Z",
+      "riskDollars": 2.8766495654077637,
+      "units": 681,
+      "preEntryEquity": 95.96642723330817
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-04-14T11:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-04-14T06:00:00.000000000Z",
+      "riskDollars": 2.8766495654077637,
+      "pnlDollars": -2.8766495654077637,
+      "cash": 93.0897776679004
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-04-14T11:00:00.000Z",
+      "pair": "GBP_USD",
+      "signalTimestamp": "2025-04-14T10:30:00.000000000Z",
+      "riskDollars": 2.790694128327421,
+      "units": 1318,
+      "preEntryEquity": 93.0897776679004
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-04-14T12:00:00.000Z",
+      "pair": "GBP_USD",
+      "signalTimestamp": "2025-04-14T10:30:00.000000000Z",
+      "riskDollars": 2.790694128327421,
+      "pnlDollars": -2.790694128327421,
+      "cash": 90.29908353957299
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-04-15T12:00:00.000Z",
+      "pair": "AUD_USD",
+      "signalTimestamp": "2025-04-15T11:00:00.000000000Z",
+      "riskDollars": 2.7072781633192804,
+      "units": 1552,
+      "preEntryEquity": 90.29908353957299
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-04-15T15:00:00.000Z",
+      "pair": "AUD_USD",
+      "signalTimestamp": "2025-04-15T11:00:00.000000000Z",
+      "riskDollars": 2.7072781633192804,
+      "pnlDollars": 1.8003200000000774,
+      "cash": 92.09940353957307
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-04-21T08:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-04-21T07:00:00.000000000Z",
+      "riskDollars": 2.762238736343864,
+      "units": 1157,
+      "preEntryEquity": 92.09940353957307
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-04-21T11:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-04-21T07:00:00.000000000Z",
+      "riskDollars": 2.762238736343864,
+      "pnlDollars": -2.762238736343864,
+      "cash": 89.33716480322921
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-04-28T07:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-04-28T06:00:00.000000000Z",
+      "riskDollars": 2.6791816631527077,
+      "units": 1329,
+      "preEntryEquity": 89.33716480322921
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-04-28T08:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-04-28T06:00:00.000000000Z",
+      "riskDollars": 2.6791816631527077,
+      "pnlDollars": -2.6791816631527077,
+      "cash": 86.65798314007651
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-05-05T08:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-05-05T07:00:00.000000000Z",
+      "riskDollars": 2.597903227275524,
+      "units": 1314,
+      "preEntryEquity": 86.65798314007651
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-05-05T09:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-05-05T07:00:00.000000000Z",
+      "riskDollars": 2.597903227275524,
+      "pnlDollars": -2.597903227275524,
+      "cash": 84.06007991280099
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-05-05T12:00:00.000Z",
+      "pair": "AUD_USD",
+      "signalTimestamp": "2025-05-05T11:00:00.000000000Z",
+      "riskDollars": 2.5215045808481635,
+      "units": 1684,
+      "preEntryEquity": 84.06007991280099
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-05-05T15:00:00.000Z",
+      "pair": "AUD_USD",
+      "signalTimestamp": "2025-05-05T11:00:00.000000000Z",
+      "riskDollars": 2.5215045808481635,
+      "pnlDollars": -0.7577999999999165,
+      "cash": 83.30227991280107
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-05-06T12:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-05-06T11:00:00.000000000Z",
+      "riskDollars": 2.4971993030626645,
+      "units": 1226,
+      "preEntryEquity": 83.30227991280107
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-05-06T15:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-05-06T11:00:00.000000000Z",
+      "riskDollars": 2.4971993030626645,
+      "pnlDollars": -0.772829786936026,
+      "cash": 82.52945012586504
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-05-07T07:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-05-07T06:00:00.000000000Z",
+      "riskDollars": 2.474370629260041,
+      "units": 1249,
+      "preEntryEquity": 82.52945012586504
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-05-07T08:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-05-07T06:00:00.000000000Z",
+      "riskDollars": 2.474370629260041,
+      "pnlDollars": -2.474370629260041,
+      "cash": 80.055079496605
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-05-08T07:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-05-08T06:00:00.000000000Z",
+      "riskDollars": 2.401340396827079,
+      "units": 1192,
+      "preEntryEquity": 80.055079496605
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-05-08T09:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-05-08T06:00:00.000000000Z",
+      "riskDollars": 2.401340396827079,
+      "pnlDollars": -2.401340396827079,
+      "cash": 77.65373909977792
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-05-12T08:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-05-12T07:00:00.000000000Z",
+      "riskDollars": 2.3280217456408514,
+      "units": 918,
+      "preEntryEquity": 77.65373909977792
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-05-12T09:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-05-12T07:00:00.000000000Z",
+      "riskDollars": 2.3280217456408514,
+      "pnlDollars": -2.3280217456408514,
+      "cash": 75.32571735413707
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-05-12T11:00:00.000Z",
+      "pair": "GBP_USD",
+      "signalTimestamp": "2025-05-12T10:30:00.000000000Z",
+      "riskDollars": 2.2590448688938523,
+      "units": 1024,
+      "preEntryEquity": 75.32571735413707
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-05-12T11:30:00.000Z",
+      "pair": "GBP_USD",
+      "signalTimestamp": "2025-05-12T10:30:00.000000000Z",
+      "riskDollars": 2.2590448688938523,
+      "pnlDollars": -2.2590448688938523,
+      "cash": 73.06667248524322
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-05-14T08:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-05-14T07:00:00.000000000Z",
+      "riskDollars": 2.1914814974736867,
+      "units": 1329,
+      "preEntryEquity": 73.06667248524322
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-05-14T09:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-05-14T07:00:00.000000000Z",
+      "riskDollars": 2.1914814974736867,
+      "pnlDollars": 4.103872994947316,
+      "cash": 77.17054548019053
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-05-15T07:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-05-15T06:00:00.000000000Z",
+      "riskDollars": 2.314976231617692,
+      "units": 1332,
+      "preEntryEquity": 77.17054548019053
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-05-15T08:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-05-15T06:00:00.000000000Z",
+      "riskDollars": 2.314976231617692,
+      "pnlDollars": -2.314976231617692,
+      "cash": 74.85556924857283
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-05-20T08:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-05-20T07:00:00.000000000Z",
+      "riskDollars": 2.244570765281051,
+      "units": 1350,
+      "preEntryEquity": 74.85556924857283
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-05-20T09:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-05-20T07:00:00.000000000Z",
+      "riskDollars": 2.244570765281051,
+      "pnlDollars": -2.244570765281051,
+      "cash": 72.61099848329178
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-05-23T12:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-05-23T11:00:00.000000000Z",
+      "riskDollars": 2.176397358340549,
+      "units": 1122,
+      "preEntryEquity": 72.61099848329178
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-05-23T14:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-05-23T11:00:00.000000000Z",
+      "riskDollars": 2.176397358340549,
+      "pnlDollars": -2.176397358340549,
+      "cash": 70.43460112495123
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-06-02T07:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-06-02T06:00:00.000000000Z",
+      "riskDollars": 2.1114151935814682,
+      "units": 1265,
+      "preEntryEquity": 70.43460112495123
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-06-02T08:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-06-02T06:00:00.000000000Z",
+      "riskDollars": 2.1114151935814682,
+      "pnlDollars": 3.9192303871637564,
+      "cash": 74.35383151211498
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-06-09T12:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-06-09T11:00:00.000000000Z",
+      "riskDollars": 2.2300962018193946,
+      "units": 1424,
+      "preEntryEquity": 74.35383151211498
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-06-09T15:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-06-09T11:00:00.000000000Z",
+      "riskDollars": 2.2300962018193946,
+      "pnlDollars": 1.1037537371276198,
+      "cash": 75.4575852492426
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-06-11T12:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-06-11T11:00:00.000000000Z",
+      "riskDollars": 2.262766596522029,
+      "units": 1691,
+      "preEntryEquity": 75.4575852492426
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-06-11T13:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-06-11T11:00:00.000000000Z",
+      "riskDollars": 2.262766596522029,
+      "pnlDollars": -2.262766596522029,
+      "cash": 73.19481865272057
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-06-12T12:00:00.000Z",
+      "pair": "AUD_USD",
+      "signalTimestamp": "2025-06-12T11:00:00.000000000Z",
+      "riskDollars": 2.194678708249122,
+      "units": 1685,
+      "preEntryEquity": 73.19481865272057
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-06-12T15:00:00.000Z",
+      "pair": "AUD_USD",
+      "signalTimestamp": "2025-06-12T11:00:00.000000000Z",
+      "riskDollars": 2.194678708249122,
+      "pnlDollars": 1.8872000000000169,
+      "cash": 75.08201865272059
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-06-16T07:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-06-16T06:00:00.000000000Z",
+      "riskDollars": 2.2505687055850765,
+      "units": 1086,
+      "preEntryEquity": 75.08201865272059
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-06-16T15:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-06-16T06:00:00.000000000Z",
+      "riskDollars": 2.2505687055850765,
+      "pnlDollars": 4.240497411169892,
+      "cash": 79.32251606389049
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-06-20T12:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-06-20T11:00:00.000000000Z",
+      "riskDollars": 2.3794201952422305,
+      "units": 2010,
+      "preEntryEquity": 79.32251606389049
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-06-20T15:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-06-20T11:00:00.000000000Z",
+      "riskDollars": 2.3794201952422305,
+      "pnlDollars": 4.293396887319585,
+      "cash": 83.61591295121008
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-06-23T10:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-06-23T09:00:00.000000000Z",
+      "riskDollars": 2.5074679564691555,
+      "units": 1233,
+      "preEntryEquity": 83.61591295121008
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-06-23T14:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-06-23T09:00:00.000000000Z",
+      "riskDollars": 2.5074679564691555,
+      "pnlDollars": -2.5074679564691555,
+      "cash": 81.10844499474092
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-06-26T09:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-06-26T08:00:00.000000000Z",
+      "riskDollars": 2.4328422408431627,
+      "units": 1279,
+      "preEntryEquity": 81.10844499474092
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-06-26T12:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-06-26T08:00:00.000000000Z",
+      "riskDollars": 2.4328422408431627,
+      "pnlDollars": -2.4328422408431627,
+      "cash": 78.67560275389776
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-07-01T10:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-07-01T09:00:00.000000000Z",
+      "riskDollars": 2.359231492428484,
+      "units": 1261,
+      "preEntryEquity": 78.67560275389776
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-07-01T14:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-07-01T09:00:00.000000000Z",
+      "riskDollars": 2.359231492428484,
+      "pnlDollars": -2.359231492428484,
+      "cash": 76.31637126146929
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-07-08T12:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-07-08T11:00:00.000000000Z",
+      "riskDollars": 2.2881262585610544,
+      "units": 1567,
+      "preEntryEquity": 76.31637126146929
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-07-08T15:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-07-08T11:00:00.000000000Z",
+      "riskDollars": 2.2881262585610544,
+      "pnlDollars": 3.3457096666369806,
+      "cash": 79.66208092810626
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-07-17T07:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-07-17T06:00:00.000000000Z",
+      "riskDollars": 2.3884189425607727,
+      "units": 1214,
+      "preEntryEquity": 79.66208092810626
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-07-17T09:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-07-17T06:00:00.000000000Z",
+      "riskDollars": 2.3884189425607727,
+      "pnlDollars": -2.3884189425607727,
+      "cash": 77.27366198554549
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-07-21T12:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-07-21T11:00:00.000000000Z",
+      "riskDollars": 2.31817004027395,
+      "units": 1342,
+      "preEntryEquity": 77.27366198554549
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-07-21T15:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-07-21T11:00:00.000000000Z",
+      "riskDollars": 2.31817004027395,
+      "pnlDollars": 0.9823305748155148,
+      "cash": 78.25599256036101
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-07-22T12:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-07-22T11:00:00.000000000Z",
+      "riskDollars": 2.3476017651608676,
+      "units": 1608,
+      "preEntryEquity": 78.25599256036101
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-07-22T13:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-07-22T11:00:00.000000000Z",
+      "riskDollars": 2.3476017651608676,
+      "pnlDollars": 4.695203530321735,
+      "cash": 82.95119609068274
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-07-29T07:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-07-29T06:00:00.000000000Z",
+      "riskDollars": 2.487067133343381,
+      "units": 1389,
+      "preEntryEquity": 82.95119609068274
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-07-29T08:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-07-29T06:00:00.000000000Z",
+      "riskDollars": 2.487067133343381,
+      "pnlDollars": -2.487067133343381,
+      "cash": 80.46412895733935
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-07-30T12:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-07-30T11:00:00.000000000Z",
+      "riskDollars": 2.4136874736777028,
+      "units": 1625,
+      "preEntryEquity": 80.46412895733935
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-07-30T13:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-07-30T11:00:00.000000000Z",
+      "riskDollars": 2.4136874736777028,
+      "pnlDollars": 4.827374947355717,
+      "cash": 85.29150390469508
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-08-04T12:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-08-04T11:00:00.000000000Z",
+      "riskDollars": 2.5567608557504835,
+      "units": 1248,
+      "preEntryEquity": 85.29150390469508
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-08-04T15:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-08-04T11:00:00.000000000Z",
+      "riskDollars": 2.5567608557504835,
+      "pnlDollars": 0.8300969885363555,
+      "cash": 86.12160089323143
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-08-18T12:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-08-18T11:00:00.000000000Z",
+      "riskDollars": 2.5835406143445026,
+      "units": 1967,
+      "preEntryEquity": 86.12160089323143
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-08-18T15:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-08-18T11:00:00.000000000Z",
+      "riskDollars": 2.5835406143445026,
+      "pnlDollars": 5.167081228689005,
+      "cash": 91.28868212192043
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-09-18T08:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-09-18T07:00:00.000000000Z",
+      "riskDollars": 2.7380786374461836,
+      "units": 1412,
+      "preEntryEquity": 91.28868212192043
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-09-18T13:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2025-09-18T07:00:00.000000000Z",
+      "riskDollars": 2.7380786374461836,
+      "pnlDollars": -2.7380786374461836,
+      "cash": 88.55060348447425
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-09-19T12:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-09-19T11:00:00.000000000Z",
+      "riskDollars": 2.656074133907215,
+      "units": 1630,
+      "preEntryEquity": 88.55060348447425
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-09-19T14:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-09-19T11:00:00.000000000Z",
+      "riskDollars": 2.656074133907215,
+      "pnlDollars": -2.656074133907215,
+      "cash": 85.89452935056704
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-12-01T12:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-12-01T11:00:00.000000000Z",
+      "riskDollars": 2.576241875812101,
+      "units": 1890,
+      "preEntryEquity": 85.89452935056704
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-12-01T14:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-12-01T11:00:00.000000000Z",
+      "riskDollars": 2.576241875812101,
+      "pnlDollars": 5.152483751624202,
+      "cash": 91.04701310219124
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-12-03T12:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-12-03T11:00:00.000000000Z",
+      "riskDollars": 2.730564059284091,
+      "units": 2979,
+      "preEntryEquity": 91.04701310219124
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-12-03T15:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-12-03T11:00:00.000000000Z",
+      "riskDollars": 2.730564059284091,
+      "pnlDollars": 0.4600446557837135,
+      "cash": 91.50705775797496
+    },
+    {
+      "event": "ENTRY",
+      "time": "2025-12-04T12:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-12-04T11:00:00.000000000Z",
+      "riskDollars": 2.744351622926182,
+      "units": 2045,
+      "preEntryEquity": 91.50705775797496
+    },
+    {
+      "event": "EXIT",
+      "time": "2025-12-04T13:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2025-12-04T11:00:00.000000000Z",
+      "riskDollars": 2.744351622926182,
+      "pnlDollars": -2.744351622926182,
+      "cash": 88.76270613504877
+    },
+    {
+      "event": "ENTRY",
+      "time": "2026-02-06T12:00:00.000Z",
+      "pair": "AUD_USD",
+      "signalTimestamp": "2026-02-06T11:00:00.000000000Z",
+      "riskDollars": 2.6616577473665117,
+      "units": 1753,
+      "preEntryEquity": 88.76270613504877
+    },
+    {
+      "event": "EXIT",
+      "time": "2026-02-06T15:00:00.000Z",
+      "pair": "AUD_USD",
+      "signalTimestamp": "2026-02-06T11:00:00.000000000Z",
+      "riskDollars": 2.6616577473665117,
+      "pnlDollars": 3.856599999999965,
+      "cash": 92.61930613504875
+    },
+    {
+      "event": "ENTRY",
+      "time": "2026-02-09T12:00:00.000Z",
+      "pair": "AUD_USD",
+      "signalTimestamp": "2026-02-09T11:00:00.000000000Z",
+      "riskDollars": 2.7779448667286655,
+      "units": 2000,
+      "preEntryEquity": 92.61930613504875
+    },
+    {
+      "event": "EXIT",
+      "time": "2026-02-09T15:00:00.000Z",
+      "pair": "AUD_USD",
+      "signalTimestamp": "2026-02-09T11:00:00.000000000Z",
+      "riskDollars": 2.7779448667286655,
+      "pnlDollars": 5.555889733457109,
+      "cash": 98.17519586850585
+    },
+    {
+      "event": "ENTRY",
+      "time": "2026-02-12T12:00:00.000Z",
+      "pair": "AUD_USD",
+      "signalTimestamp": "2026-02-12T11:00:00.000000000Z",
+      "riskDollars": 2.9446577611636258,
+      "units": 2048,
+      "preEntryEquity": 98.17519586850585
+    },
+    {
+      "event": "EXIT",
+      "time": "2026-02-12T15:00:00.000Z",
+      "pair": "AUD_USD",
+      "signalTimestamp": "2026-02-12T11:00:00.000000000Z",
+      "riskDollars": 2.9446577611636258,
+      "pnlDollars": -1.515519999999924,
+      "cash": 96.65967586850593
+    },
+    {
+      "event": "ENTRY",
+      "time": "2026-03-02T07:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2026-03-02T06:00:00.000000000Z",
+      "riskDollars": 2.898525355943331,
+      "units": 1599,
+      "preEntryEquity": 96.65967586850593
+    },
+    {
+      "event": "EXIT",
+      "time": "2026-03-02T14:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2026-03-02T06:00:00.000000000Z",
+      "riskDollars": 2.898525355943331,
+      "pnlDollars": 5.413290711886633,
+      "cash": 102.07296658039256
+    },
+    {
+      "event": "ENTRY",
+      "time": "2026-03-03T08:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2026-03-03T07:00:00.000000000Z",
+      "riskDollars": 3.0612587587333735,
+      "units": 1656,
+      "preEntryEquity": 102.07296658039256
+    },
+    {
+      "event": "EXIT",
+      "time": "2026-03-03T10:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2026-03-03T07:00:00.000000000Z",
+      "riskDollars": 3.0612587587333735,
+      "pnlDollars": 5.72507751746782,
+      "cash": 107.79804409786038
+    },
+    {
+      "event": "ENTRY",
+      "time": "2026-03-09T12:00:00.000Z",
+      "pair": "AUD_USD",
+      "signalTimestamp": "2026-03-09T11:00:00.000000000Z",
+      "riskDollars": 3.2320291018120066,
+      "units": 1447,
+      "preEntryEquity": 107.79804409786038
+    },
+    {
+      "event": "EXIT",
+      "time": "2026-03-09T15:00:00.000Z",
+      "pair": "AUD_USD",
+      "signalTimestamp": "2026-03-09T11:00:00.000000000Z",
+      "riskDollars": 3.2320291018120066,
+      "pnlDollars": 2.836120000000105,
+      "cash": 110.63416409786049
+    },
+    {
+      "event": "ENTRY",
+      "time": "2026-03-10T08:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2026-03-10T07:00:00.000000000Z",
+      "riskDollars": 3.3172834739108765,
+      "units": 1548,
+      "preEntryEquity": 110.63416409786049
+    },
+    {
+      "event": "EXIT",
+      "time": "2026-03-10T11:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2026-03-10T07:00:00.000000000Z",
+      "riskDollars": 3.3172834739108765,
+      "pnlDollars": -3.3172834739108765,
+      "cash": 107.31688062394961
+    },
+    {
+      "event": "ENTRY",
+      "time": "2026-03-10T12:00:00.000Z",
+      "pair": "AUD_USD",
+      "signalTimestamp": "2026-03-10T11:00:00.000000000Z",
+      "riskDollars": 3.218765190729858,
+      "units": 1652,
+      "preEntryEquity": 107.31688062394961
+    },
+    {
+      "event": "EXIT",
+      "time": "2026-03-10T15:00:00.000Z",
+      "pair": "AUD_USD",
+      "signalTimestamp": "2026-03-10T11:00:00.000000000Z",
+      "riskDollars": 3.218765190729858,
+      "pnlDollars": 4.030879999999996,
+      "cash": 111.34776062394961
+    },
+    {
+      "event": "ENTRY",
+      "time": "2026-03-11T12:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2026-03-11T11:00:00.000000000Z",
+      "riskDollars": 3.3394598695224342,
+      "units": 2425,
+      "preEntryEquity": 111.34776062394961
+    },
+    {
+      "event": "EXIT",
+      "time": "2026-03-11T15:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2026-03-11T11:00:00.000000000Z",
+      "riskDollars": 3.3394598695224342,
+      "pnlDollars": 2.616097508659131,
+      "cash": 113.96385813260875
+    },
+    {
+      "event": "ENTRY",
+      "time": "2026-03-16T12:00:00.000Z",
+      "pair": "AUD_USD",
+      "signalTimestamp": "2026-03-16T11:00:00.000000000Z",
+      "riskDollars": 3.4184236099203393,
+      "units": 2313,
+      "preEntryEquity": 113.96385813260875
+    },
+    {
+      "event": "EXIT",
+      "time": "2026-03-16T15:00:00.000Z",
+      "pair": "AUD_USD",
+      "signalTimestamp": "2026-03-16T11:00:00.000000000Z",
+      "riskDollars": 3.4184236099203393,
+      "pnlDollars": 2.521170000000082,
+      "cash": 116.48502813260883
+    },
+    {
+      "event": "ENTRY",
+      "time": "2026-03-17T09:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2026-03-17T08:00:00.000000000Z",
+      "riskDollars": 3.4943832179080037,
+      "units": 2090,
+      "preEntryEquity": 116.48502813260883
+    },
+    {
+      "event": "EXIT",
+      "time": "2026-03-17T14:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2026-03-17T08:00:00.000000000Z",
+      "riskDollars": 3.4943832179080037,
+      "pnlDollars": 6.48716643581597,
+      "cash": 122.9721945684248
+    },
+    {
+      "event": "ENTRY",
+      "time": "2026-03-19T08:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2026-03-19T07:00:00.000000000Z",
+      "riskDollars": 3.688133386916981,
+      "units": 2192,
+      "preEntryEquity": 122.9721945684248
+    },
+    {
+      "event": "EXIT",
+      "time": "2026-03-19T10:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2026-03-19T07:00:00.000000000Z",
+      "riskDollars": 3.688133386916981,
+      "pnlDollars": -3.688133386916981,
+      "cash": 119.28406118150781
+    },
+    {
+      "event": "ENTRY",
+      "time": "2026-03-31T12:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2026-03-31T11:00:00.000000000Z",
+      "riskDollars": 3.577760332676203,
+      "units": 3049,
+      "preEntryEquity": 119.28406118150781
+    },
+    {
+      "event": "EXIT",
+      "time": "2026-03-31T15:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2026-03-31T11:00:00.000000000Z",
+      "riskDollars": 3.577760332676203,
+      "pnlDollars": 5.833631305242554,
+      "cash": 125.11769248675036
+    },
+    {
+      "event": "ENTRY",
+      "time": "2026-04-01T12:00:00.000Z",
+      "pair": "AUD_USD",
+      "signalTimestamp": "2026-04-01T11:00:00.000000000Z",
+      "riskDollars": 3.752413546226349,
+      "units": 2204,
+      "preEntryEquity": 125.11769248675036
+    },
+    {
+      "event": "EXIT",
+      "time": "2026-04-01T13:00:00.000Z",
+      "pair": "AUD_USD",
+      "signalTimestamp": "2026-04-01T11:00:00.000000000Z",
+      "riskDollars": 3.752413546226349,
+      "pnlDollars": -3.752413546226349,
+      "cash": 121.36527894052401
+    },
+    {
+      "event": "ENTRY",
+      "time": "2026-04-02T11:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2026-04-02T10:00:00.000000000Z",
+      "riskDollars": 3.640640980548844,
+      "units": 2137,
+      "preEntryEquity": 121.36527894052401
+    },
+    {
+      "event": "EXIT",
+      "time": "2026-04-02T13:00:00.000Z",
+      "pair": "EUR_USD",
+      "signalTimestamp": "2026-04-02T10:00:00.000000000Z",
+      "riskDollars": 3.640640980548844,
+      "pnlDollars": -3.640640980548844,
+      "cash": 117.72463795997517
+    },
+    {
+      "event": "ENTRY",
+      "time": "2026-04-28T12:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2026-04-28T11:00:00.000000000Z",
+      "riskDollars": 3.5316173147728307,
+      "units": 3332,
+      "preEntryEquity": 117.72463795997517
+    },
+    {
+      "event": "EXIT",
+      "time": "2026-04-28T13:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2026-04-28T11:00:00.000000000Z",
+      "riskDollars": 3.5316173147728307,
+      "pnlDollars": -3.5316173147728307,
+      "cash": 114.19302064520234
+    },
+    {
+      "event": "ENTRY",
+      "time": "2026-04-30T12:00:00.000Z",
+      "pair": "AUD_USD",
+      "signalTimestamp": "2026-04-30T11:00:00.000000000Z",
+      "riskDollars": 3.4255623310247527,
+      "units": 2686,
+      "preEntryEquity": 114.19302064520234
+    },
+    {
+      "event": "EXIT",
+      "time": "2026-04-30T15:00:00.000Z",
+      "pair": "AUD_USD",
+      "signalTimestamp": "2026-04-30T11:00:00.000000000Z",
+      "riskDollars": 3.4255623310247527,
+      "pnlDollars": 6.851124662049804,
+      "cash": 121.04414530725214
+    },
+    {
+      "event": "ENTRY",
+      "time": "2026-06-08T12:00:00.000Z",
+      "pair": "AUD_USD",
+      "signalTimestamp": "2026-06-08T11:00:00.000000000Z",
+      "riskDollars": 3.630529511533057,
+      "units": 2535,
+      "preEntryEquity": 121.04414530725214
+    },
+    {
+      "event": "EXIT",
+      "time": "2026-06-08T14:00:00.000Z",
+      "pair": "AUD_USD",
+      "signalTimestamp": "2026-06-08T11:00:00.000000000Z",
+      "riskDollars": 3.630529511533057,
+      "pnlDollars": -3.630529511533057,
+      "cash": 117.41361579571908
+    },
+    {
+      "event": "ENTRY",
+      "time": "2026-08-04T12:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2026-08-04T11:00:00.000000000Z",
+      "riskDollars": 3.5212657004670924,
+      "units": 1737,
+      "preEntryEquity": 117.41361579571908
+    },
+    {
+      "event": "EXIT",
+      "time": "2026-08-04T15:00:00.000Z",
+      "pair": "USD_JPY",
+      "signalTimestamp": "2026-08-04T11:00:00.000000000Z",
+      "riskDollars": 3.5212657004670924,
+      "pnlDollars": -1.180379405170928,
+      "cash": 116.23323639054816
+    }
+  ]
+}

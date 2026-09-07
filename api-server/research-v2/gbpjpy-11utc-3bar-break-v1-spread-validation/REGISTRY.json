@@ -1,0 +1,136 @@
+{
+  "pair": "GBPJPY",
+  "instrument": "GBP_JPY",
+  "version": "V1",
+  "name": "GX GBPJPY 11UTC 3-Bar Break V1 - 1 to 2 RR",
+  "status": "FROZEN_RESEARCH_CANDIDATE",
+  "validation": "SURVIVES_COSTS",
+  "classification": "STRONG",
+  "timeframe": "H1",
+  "direction": "LONG_ONLY",
+  "originUtc": "11:00",
+  "consensusVotes": [
+    "EMA20 > EMA50",
+    "close > EMA20",
+    "EMA20 > EMA20[3]",
+    "close > close[3]"
+  ],
+  "directionGate": "4-vote consensus >= +3",
+  "breakout": "close > high[1] AND close > max(high[1], high[2], high[3])",
+  "additionalFilters": "none",
+  "execution": {
+    "entry": "completed 11:00 UTC H1 candle close",
+    "stop": "1 frozen ATR14 below entry",
+    "target": "2 frozen ATR14 above entry",
+    "maxHoldBars": 3,
+    "trailingStop": false,
+    "breakEven": false,
+    "profitLock": false,
+    "partialExits": false,
+    "runner": false
+  },
+  "midResult": {
+    "trades": 79,
+    "wins": 44,
+    "losses": 35,
+    "winRate": 55.7,
+    "pf": 1.833,
+    "expectancyR": 0.3111,
+    "totalR": 24.5799
+  },
+  "tradingViewCurrencyWeighted": {
+    "note": "CSV fixed-qty PnL in JPY; currency-weighted PF differs from R-normalized PF purely by ATR weighting, not a parity failure.",
+    "pf": 1.681,
+    "grossProfitJpy": 14.56,
+    "grossLossJpy": 8.659,
+    "netJpy": 5.901
+  },
+  "execResult": {
+    "matched": 79,
+    "unmatched": 0,
+    "wins": 41,
+    "losses": 38,
+    "winRate": 51.9,
+    "pf": 1.431,
+    "expectancyR": 0.1864,
+    "totalR": 14.7264,
+    "averageWinnerR": 1.1918,
+    "averageLoserR": -0.8983,
+    "maxDrawdownR": 5.7953,
+    "spreadDragRPerTrade": 0.1247,
+    "spreadDragRTotal": 9.8536,
+    "ambiguousIntraminute": 0
+  },
+  "exitFinding": {
+    "tp": 17,
+    "sl": 30,
+    "timeExit": 32,
+    "timeExitDragRPerTrade": 0.1329,
+    "tpSlDragRPerTrade": 0.1191,
+    "conclusion": "Time exits show somewhat higher per-trade execution drag than TP/SL exits. Metadata only.",
+    "doNotModifyMaxHold": true
+  },
+  "yearStability": {
+    "positiveYears": 4,
+    "negativeYears": [],
+    "doNotAddYearFilter": true,
+    "doNotOptimizeOnSameSample": true,
+    "execExpectancyRByYear": {
+      "2023": 0.1871,
+      "2024": 0.0954,
+      "2025": 0.0425,
+      "2026": 0.5387
+    },
+    "execPfByYear": {
+      "2023": 1.401,
+      "2024": 1.193,
+      "2025": 1.084,
+      "2026": 4.099
+    },
+    "execTotalRByYear": {
+      "2023": 4.4908,
+      "2024": 1.7165,
+      "2025": 0.9778,
+      "2026": 7.5412
+    },
+    "note": "All 4 yearly buckets positive. Expectancy declines 2023->2025 (2025 ~breakeven) then rebounds strongly on 2026 (n=14). Uneven strength is a caveat, not a justification to filter by year; V1 stays frozen rather than re-optimized on the same sample."
+  },
+  "metadataOnly": {
+    "breakDistanceR": {
+      "note": "SAME-SAMPLE diagnostic. NOT a filter, threshold, or V2.",
+      "strongSubgroups": ["0 to <0.10R", "0.10 to <0.25R"],
+      "negativeSubgroup": ">=0.50R"
+    },
+    "consensusScore": {
+      "note": "SAME-SAMPLE diagnostic. The breakout requirement historically subsumed the consensus vote, so all qualifying trades happened to be consensus +4. This is historical metadata, NOT justification to change the rule.",
+      "plus3Trades": 0,
+      "plus4Trades": 79,
+      "frozenRuleRemains": "consensus >= +3",
+      "doNotChangeTo": "consensus == +4"
+    }
+  },
+  "parity": {
+    "allEntriesAt1100Utc": "79/79",
+    "voteTrendEma20GtEma50": "79/79",
+    "votePriceCloseGtEma20": "79/79",
+    "voteSlopeEma20GtEma20_3": "79/79",
+    "voteMomentumCloseGtClose_3": "79/79",
+    "consensusGte3": "79/79",
+    "closeGtPrevHigh": "79/79",
+    "closeGtPrev3High": "79/79",
+    "maxEntryDiffPips": 0.05,
+    "maxAtrDiffPips": 0.576,
+    "tpGeometryMeanR": 1.979,
+    "slGeometryMeanR": 0.991,
+    "maxDurationBars": 3
+  },
+  "executionEnabled": false,
+  "deployed": false,
+  "brokerOrders": false,
+  "ruleOptimization": false,
+  "yearFilter": false,
+  "metadataFilter": false,
+  "liveRegistryNote": "GBPJPY is absent from PAIR_STRATEGY_REGISTRY and ENABLED_PAIR_STRATEGY_IDS in frontend/src/lib/strategy/strategies/index.ts (enabled = GBPUSD, USDJPY, AUDUSD, NZDUSD). This research candidate adds no runtime strategy, migration, execution setting, deployment, or broker-order path.",
+  "artifacts": "api-server/research-v2/gbpjpy-11utc-3bar-break-v1-spread-validation/",
+  "frozenAt": "2026-09-06T00:00:00.000Z"
+}

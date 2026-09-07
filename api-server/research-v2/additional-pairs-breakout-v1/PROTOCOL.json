@@ -1,0 +1,84 @@
+{
+  "id": "ADDITIONAL_PAIRS_BREAKOUT_V1",
+  "pairs": [
+    "USD_CAD",
+    "USD_CHF",
+    "EUR_JPY",
+    "GBP_JPY"
+  ],
+  "pairRationale": "Two additional USD majors and two JPY crosses; not selected by this experiment's historical P&L",
+  "strategy": {
+    "lookbackBars": 20,
+    "breakoutAtrThreshold": 0.5,
+    "requireCandleClose": true,
+    "requireRetest": false,
+    "minimumVolatilityAtrPips": 2,
+    "minRangeWidthAtr": 1,
+    "maxRangeWidthAtr": 8,
+    "maxExtensionAtr": 3,
+    "stopBufferAtr": 0.5,
+    "targetR": 2,
+    "minStopAtr": 1
+  },
+  "development": {
+    "from": "2023-01-01T00:00:00.000Z",
+    "to": "2025-01-01T00:00:00.000Z",
+    "warmup": "2022-09-01T00:00:00.000Z",
+    "endPurgeHours": 48
+  },
+  "validation": {
+    "from": "2025-01-01T00:00:00.000Z",
+    "to": "2026-09-01T00:00:00.000Z",
+    "status": "NOT_RUN_UNTIL_DEVELOPMENT_PASS",
+    "notGloballyPristine": true
+  },
+  "gates": {
+    "minimumN": 100,
+    "minimumEachYearN": 40,
+    "expectancyR": 0.1,
+    "profitFactor": 1.15,
+    "positiveEachYear": true,
+    "monthBootstrap95LowerAboveZero": true,
+    "bootstrapSamples": 5000,
+    "seed": 914203
+  },
+  "execution": {
+    "prices": "Historical completed OANDA MBA M15",
+    "long": "ask entry / bid exit",
+    "short": "bid entry / ask exit",
+    "stopFirst": true,
+    "adverseOpeningStopGaps": true,
+    "entry": "signal-bar closing quote; zero latency assumption",
+    "targetR": 2,
+    "riskR": 1,
+    "holding": "16:45 America/New_York same-day close; 48h fallback",
+    "onePositionPerPair": true,
+    "gapPolicy": "Unresolved and block all following entries; never silently remove and reopen",
+    "noTimeExitExperiment": false
+  },
+  "limitations": [
+    "Historical news not retained; technical-only replay mode",
+    "No commission, financing, extra slippage or broker latency model",
+    "R evidence only: no USD account simulation or 3% risk activation",
+    "Not proof of a new strategy or globally pristine holdout"
+  ],
+  "antiOverfit": "No parameter changes, no inversion, no alternative strategy family sweep, no failed spread selector applied. Failed pairs do not open validation.",
+  "hashes": {
+    "scripts/research-additional-pairs-v1.ts": "3a6bb295948f9dfda01009a995aff1a71965c6bd0eacc228df434ac228f56d56",
+    "src/lib/strategy/strategies/breakout.ts": "3341d7ff45dbec6e1f816132268e0603b07ab3bd411b2e89e384e74401c47f06",
+    "src/lib/strategy/strategy-common.ts": "94dcf4ae6188c087d6e519d1d474feaa47b604dc8b995272b8a5c755891ae1c8",
+    "src/lib/strategy/indicators.ts": "fa4968ffbb85dfa8ea0f356364df98c3725bc8d817ba768145358c456faad630",
+    "src/lib/strategy/regime.ts": "0697b337c6a1a8e8dd8e30df3aa0c288dd522f878344a842e9f69cc2dd72a98e",
+    "src/lib/strategy/strategy-engine.ts": "6b9278e58fd55ada1c38d32560ca49a8f97bfbe99106440391c74ec0650a716a",
+    "src/lib/strategy/session.ts": "a4843abba58c70a0c273ee79704c8462a628ea1344c2accabf067bb5cbc47589",
+    "src/lib/instruments/catalog.ts": "a8e79b6ee9e491517e102fd05da772e42f8c8ac7813526204393d81dbcaa9702",
+    "src/lib/risk/engine.ts": "082c44ab5f8f0e8bdb2e949aa47dd2ecdf354eeeb326ed232c456ac26d29f412",
+    "src/lib/oanda/client.ts": "d841577361e555a51b0554dd91b4dd853fb8af804c5029c3156e6f8a547ba94b"
+  },
+  "controls": {
+    "eurusd": "44771092f6bcdb9dab16af05652a900a36c52fc369830e5a7501fde17bd6ab4c",
+    "usdjpy": "ef52871e7994a6b7db733ca377efdd004a5624b27c8ac2a52e76ba54750d8bcf",
+    "gbpusd": "cab1590f21a8164157dae00842e9a06b7b9d0e670ca5b26afa0832baf1d0c073",
+    "audusd": "cb58ccb7c1baa07d4ce047f78f248d244cda1f72a703d3b85269af2f0dae9daf"
+  }
+}

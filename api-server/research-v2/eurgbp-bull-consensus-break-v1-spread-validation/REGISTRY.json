@@ -1,0 +1,101 @@
+{
+  "pair": "EURGBP",
+  "instrument": "EUR_GBP",
+  "version": "V1",
+  "status": "REJECTED",
+  "statusTags": ["EURGBP_V1_REJECTED", "RESEARCH_ONLY", "FAILS_COSTS", "NO_EDGE", "REJECTED"],
+  "validation": "FAILS_COSTS",
+  "classification": "NO_EDGE",
+  "exec_expectancy_r": 0.0249,
+  "exec_pf": 1.042,
+  "exec_win_rate": 41.25,
+  "exec_trades": 80,
+  "max_drawdown_r": 9.3783,
+  "name": "GX EURGBP Bull Consensus Structure Break V1 1 to 2 RR",
+  "timeframe": "H1",
+  "direction": "LONG_ONLY",
+  "originUtc": "06:00",
+  "trendGate": {
+    "consensusRule": ">= +3",
+    "votes": [
+      "EMA20 vs EMA50",
+      "close vs EMA20",
+      "EMA20 slope vs EMA20[3]",
+      "close vs close[3]"
+    ],
+    "observedNote": "All 80 actual signals were consensus = +4; rule preserved at >= +3 (NOT changed to +4)."
+  },
+  "structure": "current high > previous high AND current low > previous low (HH + HL)",
+  "breakthrough": "close > max(high[1], high[2], high[3]) (current 06:00 bar excluded)",
+  "execution": {
+    "entry": "completed 06:00 UTC candle close (executable ASK)",
+    "stop": "1 frozen ATR14 (judged on BID)",
+    "target": "2 frozen ATR14 (judged on BID)",
+    "maxHoldBars": 3,
+    "trailingStop": false,
+    "breakEven": false,
+    "profitLock": false,
+    "partialExits": false,
+    "phase4BreakoutFilter": true
+  },
+  "midResult": {
+    "trades": 80,
+    "wins": 38,
+    "losses": 42,
+    "winRate": 47.5,
+    "pf": 1.435,
+    "expectancyR": 0.2224,
+    "totalR": 17.7955
+  },
+  "execResult": {
+    "trades": 80,
+    "matched": 80,
+    "unmatched": 0,
+    "wins": 33,
+    "losses": 47,
+    "winRate": 41.25,
+    "pf": 1.042,
+    "expectancyR": 0.0249,
+    "totalR": 1.9954,
+    "maxDrawdownR": 9.3783,
+    "spreadDragRPerTrade": 0.1975,
+    "spreadDragRTotal": 15.8002
+  },
+  "executionEnabled": false,
+  "deployed": false,
+  "brokerOrders": false,
+  "ruleOptimization": false,
+  "furtherSameSampleOptimization": false,
+  "confirmations": [
+    "EURGBP_V1_REJECTED",
+    "NO_DEPLOYMENT",
+    "NO_BROKER_ORDERS",
+    "NO_FURTHER_SAME_SAMPLE_OPTIMIZATION"
+  ],
+  "untouchedValidatedPairs": ["EURUSD", "GBPUSD", "AUDUSD", "USDJPY", "USDCAD", "USDCHF"],
+  "yearStability": {
+    "positiveYears": 2,
+    "activeYears": 4,
+    "note": "Edge is entirely 2025-dependent; 2023 and 2024 are negative after costs.",
+    "execExpectancyRByYear": {
+      "2023": -0.2655,
+      "2024": -0.0838,
+      "2025": 0.3682,
+      "2026": 0.0454
+    }
+  },
+  "consensusBreakdown": {
+    "note": "Entire cohort is consensus +4; the +3 subgroup is empty, so +3 vs +4 cannot be compared.",
+    "plus3Trades": 0,
+    "plus4Trades": 80
+  },
+  "breakStrengthBreakdown": {
+    "note": "Measurement only. Strongest breaks (>=0.25 ATR, 55 trades) are NEGATIVE after costs; weakest breaks (<0.10 ATR, 11 trades) carry the positive expectancy. Consistent with no genuine breakout edge (noise). NOT turned into a filter.",
+    "lt0_10ATR": { "trades": 11, "execExpectancyR": 0.3939, "execPf": 1.908 },
+    "from0_10to0_25ATR": { "trades": 14, "execExpectancyR": 0.0, "execPf": 1.0 },
+    "gte0_25ATR": { "trades": 55, "execExpectancyR": -0.0425, "execPf": 0.931 }
+  },
+  "liveRegistryNote": "PAIR_STRATEGY_REGISTRY in frontend/src/lib/strategy/strategies/index.ts is the live pair-strategy path. EURGBP is NOT present there and is NOT added by this decision. ENABLED_PAIR_STRATEGY_IDS is unchanged.",
+  "artifacts": "api-server/research-v2/eurgbp-bull-consensus-break-v1-spread-validation/",
+  "evaluatedAt": "2026-09-06T00:00:00.000Z"
+}

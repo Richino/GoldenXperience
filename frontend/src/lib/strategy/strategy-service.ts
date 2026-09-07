@@ -2,10 +2,10 @@ import { pipSizeFor } from "@/lib/instruments/catalog";
 import { getAccountSummary, getCandles, getPricing } from "@/lib/oanda/client";
 import { getPaperTradingAvailability, rankStrategySetups } from "@/lib/strategy/strategy-engine";
 import { evaluateLiquiditySetup, type LiquidityEvaluationInput } from "@/lib/strategy/liquidity-strategy";
-import { evaluateAllStrategies } from "@/lib/strategy/strategies";
+import { evaluateAllStrategies, evaluateEnabledPairStrategies } from "@/lib/strategy/strategies";
 import { highImpactMinutesFor, macroBiasFor } from "@/lib/macro/rates";
 import { getEconomicCalendar } from "@/lib/calendar/forex-factory";
-import type { MarketRegime, StrategyEvaluationBundle } from "@/lib/strategy/types";
+import type { MarketRegime, StrategyEvaluationBundle, StrategyId } from "@/lib/strategy/types";
 import type { StrategyCandidate } from "@/lib/strategy/strategy";
 import { MAJOR_INSTRUMENTS, type AccountSummary, type ConnectionStatus, type MajorInstrument, type PriceQuote } from "@/types/forex";
 
@@ -42,7 +42,7 @@ export interface MultiStrategyInstrument {
   instrument: MajorInstrument;
   quote: PriceQuote | undefined;
   regime: MarketRegime;
-  candidates: StrategyCandidate[];
+  candidates: StrategyCandidate<StrategyId>[];
 }
 
 export interface MultiStrategySnapshot {
@@ -92,7 +92,10 @@ async function buildEvaluationInputs(): Promise<EvaluationInputs> {
     { instrument, timeframe: "H1" },
     { instrument, timeframe: "H4" },
   ]);
-  const candleResults = await mapWithConcurrency(candleRequests, 5, (request) => getCandles(request.instrument, request.timeframe, CANDLE_COUNT));
+  const [candleResults, gbpusdM30] = await Promise.all([
+    mapWithConcurrency(candleRequests, 5, (request) => getCandles(request.instrument, request.timeframe, CANDLE_COUNT)),
+    getCandles("GBP_USD", "M30", CANDLE_COUNT),
+  ]);
   const quoteByInstrument = new Map(pricingResult.data.map((quote) => [quote.instrument, quote]));
   const availability = getPaperTradingAvailability();
   const macroReads = new Map(
@@ -110,7 +113,8 @@ async function buildEvaluationInputs(): Promise<EvaluationInputs> {
     const macro = macroReads.get(instrument);
     const quote = quoteByInstrument.get(instrument);
     const [m15, h1, h4] = candleResults.slice(index * 3, index * 3 + 3);
-    const pairCandlesLive = [m15, h1, h4].every((result) => result && statusIsLive(result.status));
+    const requiredCandles = instrument === "GBP_USD" ? [m15, h1, h4, gbpusdM30] : [m15, h1, h4];
+    const pairCandlesLive = requiredCandles.every((result) => result && statusIsLive(result.status));
     const quoteFresh = Boolean(quote && Date.now() - new Date(quote.time).getTime() <= 2 * 60_000);
     const liveData = accountAndPricingLive && pairCandlesLive && quoteFresh;
     const spreadPips = quote ? (quote.ask - quote.bid) / pipSizeFor(instrument) : null;
@@ -127,6 +131,7 @@ async function buildEvaluationInputs(): Promise<EvaluationInputs> {
         accountCurrency: accountResult.data.currency,
         dataSource: liveData ? "oanda" : "mock",
         candles15m: m15?.data.candles ?? [],
+        candles30m: instrument === "GBP_USD" ? gbpusdM30.data.candles : [],
         candles1h: h1?.data.candles ?? [],
         candles4h: h4?.data.candles ?? [],
         bid: quote?.bid ?? null,
@@ -156,6 +161,9 @@ async function buildEvaluationInputs(): Promise<EvaluationInputs> {
 
 async function evaluateAll(): Promise<StrategySnapshot> {
   const built = await buildEvaluationInputs();
+  // The legacy single-strategy collector must remain liquidity-only. Pair
+  // strategies execute exclusively through the multi-strategy collector,
+  // where their family/config identity and overlap policy are persisted.
   const setups = built.perInstrument.map((item) => evaluateLiquiditySetup(item.input));
   return {
     strategy: rankStrategySetups(setups),
@@ -171,7 +179,8 @@ async function evaluateAllMulti(): Promise<MultiStrategySnapshot> {
   const built = await buildEvaluationInputs();
   const instruments = built.perInstrument.map((item): MultiStrategyInstrument => {
     const { regime, candidates } = evaluateAllStrategies(item.input);
-    return { instrument: item.instrument, quote: item.quote, regime, candidates };
+    const pairCandidates = evaluateEnabledPairStrategies(item.input);
+    return { instrument: item.instrument, quote: item.quote, regime, candidates: [...candidates, ...pairCandidates] };
   });
   return {
     instruments,

@@ -1,0 +1,586 @@
+//@version=6
+
+strategy(
+     "GX AUDUSD Strong Consensus Structure V2 - HL Only - 1 to 2 RR",
+     overlay=true,
+     pyramiding=0,
+     process_orders_on_close=true,
+     calc_on_every_tick=false,
+     max_bars_back=5000,
+     initial_capital=10000,
+     default_qty_type=strategy.fixed,
+     default_qty_value=1)
+
+
+// ============================================================
+// GX AUDUSD STRONG CONSENSUS STRUCTURE V2
+//
+// CHANGE FROM V1:
+//
+// External structure requirement:
+// V1 = HH + HL
+// V2 = HL ONLY
+//
+// Everything else remains frozen.
+//
+// SYMBOL:
+// AUDUSD
+//
+// TIMEFRAME:
+// H1
+//
+// ORIGIN:
+// 11:00 UTC
+//
+// DIRECTION:
+// LONG ONLY
+//
+// CONSENSUS:
+// Six original causal votes
+// Vote sum >= +4
+//
+// STRUCTURE FILTER:
+// 11:00 Low > previous 10:00 Low
+//
+// IMPORTANT:
+// Vote #5 itself is NOT changed.
+// It still uses the original HH+HL / LH+LL definition.
+//
+// EXECUTION:
+// Entry = completed 11:00 candle close
+// Stop  = 1 ATR14
+// Target = 2R
+// Max hold = 3 future H1 bars
+//
+// BODY + EXTREME remains metadata only.
+// ============================================================
+
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+
+EMA_FAST = 20
+EMA_SLOW = 50
+ATR_LEN = 14
+
+STOP_ATR = 1.0
+TARGET_R = 2.0
+MAX_HOLD_BARS = 3
+
+ORIGIN_HOUR = 11
+VOTE_THRESHOLD = 4
+
+BODY_ATR_MIN = 0.50
+EXTREME_CLOSE_PCT = 0.25
+
+HOUR_MS = 60 * 60 * 1000
+
+
+// ============================================================
+// DISPLAY
+// ============================================================
+
+showRange = input.bool(true, "Show 06:00-10:00 Range")
+showMarkers = input.bool(true, "Show Entry Markers")
+showVotes = input.bool(false, "Show Vote Sum")
+
+
+// ============================================================
+// CHART VALIDATION
+// ============================================================
+
+isAUDUSD =
+     syminfo.basecurrency == "AUD" and
+     syminfo.currency == "USD"
+
+isH1 =
+     timeframe.isminutes and
+     timeframe.multiplier == 60
+
+validChart =
+     isAUDUSD and isH1
+
+
+// ============================================================
+// INDICATORS
+// ============================================================
+
+ema20 = ta.ema(close, EMA_FAST)
+ema50 = ta.ema(close, EMA_SLOW)
+atr14 = ta.atr(ATR_LEN)
+
+
+// ============================================================
+// UTC TIME
+// ============================================================
+
+utcHour = hour(time, "UTC")
+utcMinute = minute(time, "UTC")
+
+utcYear = year(time, "UTC")
+utcMonth = month(time, "UTC")
+utcDay = dayofmonth(time, "UTC")
+
+utcDateKey =
+     utcYear * 10000 +
+     utcMonth * 100 +
+     utcDay
+
+newUtcDay =
+     na(utcDateKey[1]) or
+     utcDateKey != utcDateKey[1]
+
+
+// ============================================================
+// FROZEN 06:00-10:00 UTC RANGE
+// ============================================================
+
+var float preHigh = na
+var float preLow = na
+var int preRangeBarCount = 0
+
+if newUtcDay
+    preHigh := na
+    preLow := na
+    preRangeBarCount := 0
+
+isPreRangeBar =
+     utcMinute == 0 and
+     utcHour >= 6 and
+     utcHour <= 10
+
+if isPreRangeBar
+
+    preHigh :=
+         na(preHigh) ?
+         high :
+         math.max(preHigh, high)
+
+    preLow :=
+         na(preLow) ?
+         low :
+         math.min(preLow, low)
+
+    preRangeBarCount += 1
+
+
+// ============================================================
+// 11:00 ORIGIN
+// ============================================================
+
+isOrigin =
+     utcHour == ORIGIN_HOUR and
+     utcMinute == 0
+
+historyContinuous =
+     isOrigin and
+     not na(time[5]) and
+     time - time[5] == 5 * HOUR_MS and
+     hour(time[5], "UTC") == 6
+
+rangeReady =
+     isOrigin and
+     preRangeBarCount == 5 and
+     not na(preHigh) and
+     not na(preLow)
+
+enoughIndicators =
+     not na(ema20) and
+     not na(ema50) and
+     not na(ema20[3]) and
+     not na(atr14) and
+     atr14 > 0
+
+validOrigin =
+     validChart and
+     barstate.isconfirmed and
+     isOrigin and
+     historyContinuous and
+     rangeReady and
+     enoughIndicators
+
+
+// ============================================================
+// SIX ORIGINAL VOTES
+// ============================================================
+
+// Vote 1 — EMA20 vs EMA50
+
+emaVote =
+     ema20 > ema50 ? 1 :
+     ema20 < ema50 ? -1 :
+     0
+
+
+// Vote 2 — Price vs EMA20
+
+priceEmaVote =
+     close > ema20 ? 1 :
+     close < ema20 ? -1 :
+     0
+
+
+// Vote 3 — EMA20 3-hour slope
+
+emaSlopeVote =
+     ema20 > ema20[3] ? 1 :
+     ema20 < ema20[3] ? -1 :
+     0
+
+
+// Vote 4 — Price vs 06:00-10:00 midpoint
+
+preMid =
+     not na(preHigh) and
+     not na(preLow) ?
+     (preHigh + preLow) / 2.0 :
+     na
+
+rangeVote =
+     not na(preMid) ?
+     (
+          close > preMid ? 1 :
+          close < preMid ? -1 :
+          0
+     ) :
+     0
+
+
+// Vote 5 — ORIGINAL structure vote.
+//
+// DO NOT change this to HL-only.
+//
+// Bull = HH + HL
+// Bear = LH + LL
+
+bullStructureVote =
+     high > high[1] and
+     low > low[1]
+
+bearStructureVote =
+     high < high[1] and
+     low < low[1]
+
+structureVote =
+     bullStructureVote ? 1 :
+     bearStructureVote ? -1 :
+     0
+
+
+// Vote 6 — 3-hour momentum
+
+momentumVote =
+     close > close[3] ? 1 :
+     close < close[3] ? -1 :
+     0
+
+
+voteSum =
+     emaVote +
+     priceEmaVote +
+     emaSlopeVote +
+     rangeVote +
+     structureVote +
+     momentumVote
+
+
+// ============================================================
+// CONSENSUS
+// ============================================================
+
+strongConsensusLong =
+     voteSum >= VOTE_THRESHOLD
+
+
+// ============================================================
+// V2 STRUCTURE FILTER
+//
+// THIS is the only strategy-rule change.
+//
+// V1:
+// high > high[1] AND low > low[1]
+//
+// V2:
+// low > low[1]
+// ============================================================
+
+higherLow =
+     low > low[1]
+
+
+// ============================================================
+// SIGNAL
+// ============================================================
+
+rawLongSignal =
+     validOrigin and
+     strongConsensusLong and
+     higherLow
+
+
+// ============================================================
+// HIGH-CONFIDENCE METADATA
+// ============================================================
+
+candleBody =
+     math.abs(close - open)
+
+candleRange =
+     high - low
+
+bodyConfirm =
+     candleBody >=
+     BODY_ATR_MIN * atr14
+
+extremeConfirm =
+     candleRange > 0 and
+     close >=
+     high -
+     candleRange *
+     EXTREME_CLOSE_PCT
+
+highConfidence =
+     rawLongSignal and
+     bodyConfirm and
+     extremeConfirm
+
+
+// ============================================================
+// DUPLICATE PROTECTION
+// ============================================================
+
+var int lastSignalDate = na
+
+newSignalAllowed =
+     na(lastSignalDate) or
+     lastSignalDate != utcDateKey
+
+
+// ============================================================
+// TRADE STATE
+// ============================================================
+
+var bool tradeActive = false
+
+var float frozenEntry = na
+var float frozenATR = na
+var float frozenStop = na
+var float frozenTarget = na
+
+var int entryBar = na
+
+var string activeTag = ""
+
+bool executedBase = false
+bool executedHighConfidence = false
+
+
+// ============================================================
+// CLEAR STATE AFTER BROKER CLOSE
+// ============================================================
+
+if tradeActive and
+   not na(entryBar) and
+   bar_index > entryBar and
+   strategy.position_size == 0
+
+    tradeActive := false
+
+    frozenEntry := na
+    frozenATR := na
+    frozenStop := na
+    frozenTarget := na
+
+    entryBar := na
+    activeTag := ""
+
+
+// ============================================================
+// ENTRY
+// ============================================================
+
+canEnter =
+     rawLongSignal and
+     newSignalAllowed and
+     not tradeActive and
+     strategy.position_size == 0
+
+if canEnter
+
+    frozenEntry := close
+    frozenATR := atr14
+
+    frozenStop :=
+         frozenEntry -
+         frozenATR * STOP_ATR
+
+    frozenTarget :=
+         frozenEntry +
+         frozenATR *
+         STOP_ATR *
+         TARGET_R
+
+    entryBar := bar_index
+    tradeActive := true
+    lastSignalDate := utcDateKey
+
+
+    if highConfidence
+
+        activeTag :=
+             "AUDUSD_HL_BODY_EXTREME"
+
+        executedHighConfidence := true
+
+        strategy.entry(
+             "AUDUSD_LONG",
+             strategy.long,
+             comment="AUDUSD_HL_BODY_EXTREME")
+
+    else
+
+        activeTag :=
+             "AUDUSD_HL_BASE"
+
+        executedBase := true
+
+        strategy.entry(
+             "AUDUSD_LONG",
+             strategy.long,
+             comment="AUDUSD_HL_BASE")
+
+
+    strategy.exit(
+         "AUDUSD_LONG_EXIT",
+         from_entry="AUDUSD_LONG",
+         stop=frozenStop,
+         limit=frozenTarget,
+         comment="TP_OR_SL")
+
+
+// ============================================================
+// MAINTAIN FROZEN STOP / TARGET
+// ============================================================
+
+if tradeActive
+
+    strategy.exit(
+         "AUDUSD_LONG_EXIT",
+         from_entry="AUDUSD_LONG",
+         stop=frozenStop,
+         limit=frozenTarget,
+         comment="TP_OR_SL")
+
+
+// ============================================================
+// 3 FUTURE H1 BAR TIME EXIT
+// ============================================================
+
+if tradeActive and
+   not na(entryBar)
+
+    barsHeld =
+         bar_index - entryBar
+
+    if barsHeld >= MAX_HOLD_BARS
+
+        strategy.close(
+             "AUDUSD_LONG",
+             comment="TIME_EXIT")
+
+
+// ============================================================
+// VISUALS
+// ============================================================
+
+plot(
+     ema20,
+     "EMA 20")
+
+plot(
+     ema50,
+     "EMA 50")
+
+plot(
+     showRange ?
+     preHigh :
+     na,
+     "06:00-10:00 High")
+
+plot(
+     showRange ?
+     preLow :
+     na,
+     "06:00-10:00 Low")
+
+plot(
+     showVotes ?
+     voteSum :
+     na,
+     "Vote Sum",
+     display=display.data_window)
+
+
+plotshape(
+     showMarkers and
+     executedBase,
+     title="AUDUSD HL BASE",
+     text="HL",
+     style=shape.triangleup,
+     location=location.belowbar,
+     size=size.tiny)
+
+plotshape(
+     showMarkers and
+     executedHighConfidence,
+     title="AUDUSD HL HIGH",
+     text="HIGH",
+     style=shape.triangleup,
+     location=location.belowbar,
+     size=size.tiny)
+
+
+// ============================================================
+// INFO TABLE
+// ============================================================
+
+var table info =
+     table.new(
+          position.top_right,
+          2,
+          7,
+          border_width=1)
+
+if barstate.islast
+
+    table.cell(info, 0, 0, "AUDUSD")
+    table.cell(info, 1, 0, "V2 HL ONLY")
+
+    table.cell(info, 0, 1, "Origin")
+    table.cell(info, 1, 1, "11:00 UTC")
+
+    table.cell(info, 0, 2, "Direction")
+    table.cell(info, 1, 2, "LONG ONLY")
+
+    table.cell(info, 0, 3, "Votes")
+    table.cell(info, 1, 3, ">= +4")
+
+    table.cell(info, 0, 4, "Structure")
+    table.cell(info, 1, 4, "HL ONLY")
+
+    table.cell(info, 0, 5, "SL / TP")
+    table.cell(info, 1, 5, "1 ATR / 2 ATR")
+
+    table.cell(info, 0, 6, "Max hold")
+    table.cell(info, 1, 6, "3 H1 bars")
+
+
+// ============================================================
+// WRONG CHART
+// ============================================================
+
+bgcolor(
+     validChart ?
+     na :
+     color.new(color.red, 90))

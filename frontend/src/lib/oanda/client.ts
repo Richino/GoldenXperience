@@ -37,6 +37,7 @@ interface OandaAccountResponse {
     unrealizedPL: string;
     marginAvailable: string;
     openTradeCount: number;
+    hedgingEnabled: boolean;
   };
 }
 
@@ -75,7 +76,7 @@ interface OandaOpenTradesResponse {
 
 type OandaOrderResponse = {
   orderCreateTransaction?: { id?: string };
-  orderFillTransaction?: { id?: string; tradeOpened?: { tradeID?: string } };
+  orderFillTransaction?: { id?: string; price?: string; tradeOpened?: { tradeID?: string } };
   // OANDA answers 201 for an order it accepted AND immediately cancelled — an
   // INSUFFICIENT_MARGIN rejection arrives as a success status carrying this
   // transaction. Reading only the create/fill transactions made a rejected
@@ -218,6 +219,7 @@ export async function submitPracticeMarketOrder(order: PracticeMarketOrder) {
   return {
     orderId: response.orderCreateTransaction?.id ?? response.orderFillTransaction?.id ?? null,
     tradeId: response.orderFillTransaction?.tradeOpened?.tradeID ?? null,
+    fillPrice: response.orderFillTransaction?.price ? Number(response.orderFillTransaction.price) : null,
     /** Set when the broker refused the order. A live order never carries one. */
     cancelReason: response.orderCancelTransaction?.reason ?? null,
   };
@@ -244,6 +246,10 @@ export interface PracticeTradeState {
   /** Cash the broker actually booked, in the account currency. */
   realizedPL: number | null;
   closeTime: string | null;
+  entryPrice: number | null;
+  initialUnits: number | null;
+  openTime: string | null;
+  financing: number | null;
 }
 
 /**
@@ -265,6 +271,10 @@ export async function getPracticeTradeState(brokerTradeId: string): Promise<Prac
       averageClosePrice?: string;
       realizedPL?: string;
       closeTime?: string;
+      price?: string;
+      initialUnits?: string;
+      openTime?: string;
+      financing?: string;
     };
   }>(`/v3/accounts/${encodeURIComponent(config.accountId)}/trades/${encodeURIComponent(brokerTradeId)}`);
 
@@ -283,6 +293,10 @@ export async function getPracticeTradeState(brokerTradeId: string): Promise<Prac
     averageClosePrice: numberOrNull(trade.averageClosePrice),
     realizedPL: numberOrNull(trade.realizedPL),
     closeTime: trade.closeTime ?? null,
+    entryPrice: numberOrNull(trade.price),
+    initialUnits: numberOrNull(trade.initialUnits),
+    openTime: trade.openTime ?? null,
+    financing: numberOrNull(trade.financing),
   };
 }
 
@@ -348,6 +362,7 @@ export async function getAccountSummary(): Promise<{
         unrealizedPL: Number(account.unrealizedPL),
         marginAvailable: Number(account.marginAvailable),
         openTradeCount: account.openTradeCount,
+        hedgingEnabled: account.hedgingEnabled,
         source: "oanda",
       },
       status: buildStatus("connected", "Practice account data is live."),

@@ -3,6 +3,10 @@ export const STRATEGY_FAMILY_LABEL: Record<string, string> = {
   breakout: "Breakout",
   momentum: "Momentum",
   meanrev: "Mean rev",
+  gbpusd_strategy: "GBPUSD Strategy",
+  usdjpy_strategy: "USDJPY Strategy",
+  audusd_strategy: "AUDUSD Strategy",
+  nzdusd_strategy: "NZDUSD Strategy",
 };
 
 /**

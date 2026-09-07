@@ -1,0 +1,49 @@
+{
+  "asOf": "2026-09-05T18:00:00.000Z",
+  "evidenceVersion": "four-family-policy-price-risk-v2",
+  "totalResolved": 497,
+  "families": {
+    "ema": {
+      "resolved": 176,
+      "wins": 57,
+      "netR": -26.988787151915105,
+      "sumSqR": 210.41549309833988,
+      "grossR": -26.988787151915105,
+      "mfe": null,
+      "mae": null
+    },
+    "breakout": {
+      "resolved": 138,
+      "wins": 39,
+      "netR": -36.1786040207685,
+      "sumSqR": 188.93415461724715,
+      "grossR": -36.1786040207685,
+      "mfe": null,
+      "mae": null
+    },
+    "momentum": {
+      "resolved": 166,
+      "wins": 81,
+      "netR": 7.76718306984378,
+      "sumSqR": 143.10804667748798,
+      "grossR": 7.76718306984378,
+      "mfe": null,
+      "mae": null
+    },
+    "meanrev": {
+      "resolved": 17,
+      "wins": 7,
+      "netR": -1.506505270440539,
+      "sumSqR": 16.800109587807,
+      "grossR": -1.506505270440539,
+      "mfe": null,
+      "mae": null
+    }
+  },
+  "checks": [
+    "Selected and trade-linked snapshots immutable",
+    "Unexecuted snapshots update and preserve rejection reasons",
+    "Current evidence SQL exercised in read-only mode"
+  ],
+  "productionWrites": 0
+}

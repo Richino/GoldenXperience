@@ -1,0 +1,116 @@
+{
+  "pair": "EURJPY",
+  "instrument": "EUR_JPY",
+  "version": "V1",
+  "name": "GX EURJPY 01-05 Range Break V1 - 1 to 2 RR",
+  "status": "FROZEN_RESEARCH_CANDIDATE",
+  "validation": "SURVIVES_COSTS",
+  "classification": "STRONG",
+  "timeframe": "H1",
+  "direction": "LONG_ONLY",
+  "originUtc": "06:00",
+  "directionGate": "EMA20 current > EMA20[3]",
+  "breakout": "close > previous H1 high AND close > max high of completed 01:00-05:00 UTC candles (preHigh)",
+  "additionalFilters": "none",
+  "execution": {
+    "entry": "completed 06:00 UTC H1 candle close",
+    "stop": "1 frozen ATR14 below entry",
+    "target": "2 frozen ATR14 above entry",
+    "maxHoldBars": 3,
+    "trailingStop": false,
+    "breakEven": false,
+    "profitLock": false,
+    "partialExits": false,
+    "runner": false
+  },
+  "midResult": {
+    "trades": 136,
+    "wins": 74,
+    "losses": 62,
+    "winRate": 54.41,
+    "pf": 1.733,
+    "expectancyR": 0.2957,
+    "totalR": 40.2145
+  },
+  "execResult": {
+    "matched": 136,
+    "unmatched": 0,
+    "wins": 68,
+    "losses": 68,
+    "winRate": 50.0,
+    "pf": 1.375,
+    "expectancyR": 0.1702,
+    "totalR": 23.152,
+    "averageWinnerR": 1.2482,
+    "averageLoserR": -0.9077,
+    "maxDrawdownR": 7.5154,
+    "spreadDragRPerTrade": 0.1255,
+    "spreadDragRTotal": 17.0625,
+    "ambiguousIntraminute": 0
+  },
+  "exitFinding": {
+    "tp": 27,
+    "sl": 55,
+    "timeExit": 54,
+    "timeExitDragRPerTrade": 0.1245,
+    "tpSlDragRPerTrade": 0.1261,
+    "conclusion": "Time exits are NOT unusually responsible for execution drag; do not modify max hold.",
+    "doNotModifyMaxHold": true
+  },
+  "yearStability": {
+    "positiveYears": 3,
+    "negativeYears": ["2026"],
+    "doNotAddYearFilter": true,
+    "doNotOptimizeOnSameSample": true,
+    "execExpectancyRByYear": {
+      "2023": 0.3834,
+      "2024": 0.093,
+      "2025": 0.1028,
+      "2026": -0.0329
+    },
+    "execPfByYear": {
+      "2023": 1.947,
+      "2024": 1.194,
+      "2025": 1.232,
+      "2026": 0.938
+    },
+    "execTotalRByYear": {
+      "2023": 17.2527,
+      "2024": 3.1614,
+      "2025": 3.4956,
+      "2026": -0.7577
+    },
+    "note": "3 of 4 years positive; recent performance has weakened. Warning does not invalidate V1; it means V1 stays frozen rather than re-optimized on the same sample."
+  },
+  "metadataOnly": {
+    "breakDistanceR": {
+      "note": "SAME-SAMPLE diagnostic. NOT a filter, threshold, or V2.",
+      "strongSubgroups": ["0.10 to <0.25R", "0.25 to <0.50R"],
+      "negativeSubgroup": ">=0.50R"
+    },
+    "emaSlopeR": {
+      "note": "SAME-SAMPLE diagnostic. NOT a filter, threshold, or V2.",
+      "strongestQuartile": "lowest slope quartile (Q1)"
+    }
+  },
+  "parity": {
+    "allEntriesAt0600Utc": "136/136",
+    "emaSlopePositive": "136/136",
+    "closeGtPrevHigh": "136/136",
+    "closeGtPreHigh": "136/136",
+    "maxEntryDiffPips": 0.3,
+    "maxAtrDiffPips": 0.235,
+    "tpGeometryMeanR": 1.985,
+    "slGeometryMeanR": 0.995,
+    "maxDurationBars": 3
+  },
+  "executionEnabled": false,
+  "deployed": false,
+  "brokerOrders": false,
+  "ruleOptimization": false,
+  "yearFilter": false,
+  "metadataFilter": false,
+  "liveRegistryNote": "EURJPY is absent from PAIR_STRATEGY_REGISTRY and ENABLED_PAIR_STRATEGY_IDS in frontend/src/lib/strategy/strategies/index.ts (enabled = GBPUSD, USDJPY, AUDUSD, NZDUSD). This research candidate adds no runtime strategy, migration, execution setting, deployment, or broker-order path.",
+  "artifacts": "api-server/research-v2/eurjpy-01-05-range-break-v1-spread-validation/",
+  "frozenAt": "2026-09-06T00:00:00.000Z"
+}

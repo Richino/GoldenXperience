@@ -298,7 +298,10 @@ function toDisplaySignal(setup: StrategySetup): TradeSignal[] {
     stop: setup.stop,
     target: setup.target,
     riskReward: setup.riskReward,
-    strategy: setup.status === "valid" ? "Setup ready" : "Blocked",
+    strategy: setup.features.nzdusdStrategy?.strategyName
+      ?? setup.features.audusdStrategy?.strategyName
+      ?? setup.features.usdjpyStrategy?.strategyName
+      ?? (setup.status === "valid" ? "Setup ready" : "Blocked"),
     note: setup.summary,
     freshness: `Evaluated ${formatClockTime(setup.evaluatedAt)}`,
   }];
@@ -1547,6 +1550,7 @@ export function SignalWorkspace({
   });
 
   const activeSetup =
+    strategySetups.find((setup) => setup.instrument === instrument && (setup.features.nzdusdStrategy || setup.features.audusdStrategy || setup.features.usdjpyStrategy)) ??
     strategySetups.find((setup) => setup.instrument === instrument) ??
     strategySetups[0];
   const activeCandidate = toDisplaySignal(activeSetup)[0] ?? null;

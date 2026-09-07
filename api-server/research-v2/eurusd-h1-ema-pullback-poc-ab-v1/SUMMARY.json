@@ -1,0 +1,48 @@
+{
+  "dataPeriod": {
+    "warmup": "2019-01-01T00:00:00.000Z",
+    "to": "2026-09-05T00:00:00.000Z",
+    "h1Start": "2019-01-01T22:00:00.000000000Z",
+    "h1End": "2026-09-04T20:00:00.000000000Z",
+    "h1Count": 47797,
+    "m5Count": 572202
+  },
+  "rawOpportunityCount": 2458,
+  "A": {
+    "trades": 1119,
+    "WR": 0.397676,
+    "PF": 1.036269,
+    "netR": 26.9178,
+    "expectancyR": 0.024055,
+    "endingBalance": 111.8203,
+    "maxDD": 0.215032,
+    "tradesPerYear": 146.1762
+  },
+  "B": {
+    "trades": 928,
+    "WR": 0.404095,
+    "PF": 1.057577,
+    "netR": 33.2491,
+    "expectancyR": 0.035829,
+    "endingBalance": 115.9283,
+    "maxDD": 0.104407,
+    "tradesPerYear": 121.2257
+  },
+  "POC": {
+    "blockedTrades": 330,
+    "blockedLongs": 166,
+    "blockedShorts": 164,
+    "percentTradesRemoved": 0.170688
+  },
+  "fresh": {
+    "A_WR": 0.397498,
+    "A_PF": 1.031725,
+    "A_expectancy": 0.021477,
+    "B_WR": 0.406542,
+    "B_PF": 1.058501,
+    "B_expectancy": 0.03645
+  },
+  "classification": "POC_NEUTRAL",
+  "classificationReason": "POC changed trade count more than it changed trade quality.",
+  "researchCandidate": "BOTH"
+}

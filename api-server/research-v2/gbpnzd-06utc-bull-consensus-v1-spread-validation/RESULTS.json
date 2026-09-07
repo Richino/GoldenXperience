@@ -1,0 +1,412 @@
+{
+  "generated_at": "2026-09-07T04:36:04.381Z",
+  "status": "RESEARCH_ONLY_PAPER_ONLY",
+  "instrument": "GBP_NZD",
+  "cohort": {
+    "trades": 216,
+    "wins": 112,
+    "losses": 104,
+    "wr": 51.85,
+    "source": "GX_GBPNZD_06UTC_Bull_Consensus_V1_-_1_to_2_RR_OANDA_GBPNZD_2026-09-07_38a1f.csv",
+    "matched": 213,
+    "unmatched": 3,
+    "resolved_executable": 213
+  },
+  "timezone": {
+    "chart_timezone": "America/New_York",
+    "all_at_0600_utc": 216
+  },
+  "parity": {
+    "consensusFailures": [],
+    "geometryFailures": [
+      {
+        "trade": 2,
+        "geometryR": 0.9676658098639841
+      },
+      {
+        "trade": 7,
+        "geometryR": 0.966600449298485
+      },
+      {
+        "trade": 9,
+        "geometryR": 0.9635108668619428
+      },
+      {
+        "trade": 12,
+        "geometryR": 0.9667587181551833
+      },
+      {
+        "trade": 14,
+        "geometryR": 0.9707154307035749
+      },
+      {
+        "trade": 17,
+        "geometryR": 0.9419590672260452
+      },
+      {
+        "trade": 19,
+        "geometryR": 0.9773949257153157
+      },
+      {
+        "trade": 25,
+        "geometryR": 0.9816349217701095
+      },
+      {
+        "trade": 27,
+        "geometryR": 0.9751887981952275
+      },
+      {
+        "trade": 28,
+        "geometryR": 0.9810529834067048
+      },
+      {
+        "trade": 29,
+        "geometryR": 0.9785607465461565
+      },
+      {
+        "trade": 30,
+        "geometryR": 0.9835212526318232
+      },
+      {
+        "trade": 33,
+        "geometryR": 0.9765818208008773
+      },
+      {
+        "trade": 40,
+        "geometryR": 0.9835239687062755
+      },
+      {
+        "trade": 42,
+        "geometryR": 0.9745078997404625
+      },
+      {
+        "trade": 51,
+        "geometryR": 0.9668243973496753
+      },
+      {
+        "trade": 54,
+        "geometryR": 0.9798544681221943
+      },
+      {
+        "trade": 55,
+        "geometryR": 0.978140941295853
+      },
+      {
+        "trade": 56,
+        "geometryR": 0.957986984765917
+      },
+      {
+        "trade": 59,
+        "geometryR": 0.9566460774727703
+      },
+      {
+        "trade": 60,
+        "geometryR": 0.9643173997596675
+      },
+      {
+        "trade": 61,
+        "geometryR": 0.9615198695786047
+      },
+      {
+        "trade": 65,
+        "geometryR": 0.9578774680636551
+      },
+      {
+        "trade": 66,
+        "geometryR": 0.9658755000152579
+      },
+      {
+        "trade": 67,
+        "geometryR": 0.9612194551417989
+      },
+      {
+        "trade": 70,
+        "geometryR": 0.9456897067140428
+      },
+      {
+        "trade": 75,
+        "geometryR": 0.9415834352088308
+      },
+      {
+        "trade": 76,
+        "geometryR": 0.9510754616855578
+      },
+      {
+        "trade": 79,
+        "geometryR": 0.9431267393639747
+      },
+      {
+        "trade": 80,
+        "geometryR": 0.9527542393792792
+      },
+      {
+        "trade": 82,
+        "geometryR": 0.92546947750464
+      },
+      {
+        "trade": 97,
+        "geometryR": 0.9526163378322778
+      },
+      {
+        "trade": 99,
+        "geometryR": 0.9333946350900232
+      },
+      {
+        "trade": 100,
+        "geometryR": 0.9449430375751762
+      },
+      {
+        "trade": 103,
+        "geometryR": 0.9234926144452159
+      },
+      {
+        "trade": 104,
+        "geometryR": 0.9219978785568049
+      },
+      {
+        "trade": 105,
+        "geometryR": 0.931693131393549
+      },
+      {
+        "trade": 106,
+        "geometryR": 0.9496230868461871
+      },
+      {
+        "trade": 107,
+        "geometryR": 0.9467940228594801
+      },
+      {
+        "trade": 109,
+        "geometryR": 0.962022985820221
+      },
+      {
+        "trade": 113,
+        "geometryR": 0.9582783552070785
+      },
+      {
+        "trade": 115,
+        "geometryR": 0.9345950385289681
+      },
+      {
+        "trade": 116,
+        "geometryR": 0.9575516059167383
+      },
+      {
+        "trade": 117,
+        "geometryR": 0.948338500963078
+      },
+      {
+        "trade": 118,
+        "geometryR": 0.9456135446921554
+      },
+      {
+        "trade": 119,
+        "geometryR": 0.90890425016472
+      },
+      {
+        "trade": 126,
+        "geometryR": 0.9575519767802965
+      },
+      {
+        "trade": 127,
+        "geometryR": 0.9686462812102745
+      },
+      {
+        "trade": 129,
+        "geometryR": 0.9621609198970034
+      },
+      {
+        "trade": 130,
+        "geometryR": 0.952412158725881
+      },
+      {
+        "trade": 139,
+        "geometryR": 0.9428700308010792
+      },
+      {
+        "trade": 140,
+        "geometryR": 0.9571162520143695
+      },
+      {
+        "trade": 142,
+        "geometryR": 0.9543968900846246
+      },
+      {
+        "trade": 150,
+        "geometryR": 0.9637694252376025
+      },
+      {
+        "trade": 156,
+        "geometryR": 0.9679290473277342
+      },
+      {
+        "trade": 159,
+        "geometryR": 0.9801235699231425
+      },
+      {
+        "trade": 160,
+        "geometryR": 0.9712308162855843
+      },
+      {
+        "trade": 165,
+        "geometryR": 0.9784096345985561
+      },
+      {
+        "trade": 167,
+        "geometryR": 0.9847158382909758
+      },
+      {
+        "trade": 179,
+        "geometryR": 0.9519796648754544
+      },
+      {
+        "trade": 181,
+        "geometryR": 0.9824944017431767
+      },
+      {
+        "trade": 183,
+        "geometryR": 0.9820856839530233
+      },
+      {
+        "trade": 184,
+        "geometryR": 0.9814968966262104
+      },
+      {
+        "trade": 193,
+        "geometryR": 0.9823175293779048
+      },
+      {
+        "trade": 196,
+        "geometryR": 0.9795681218126584
+      },
+      {
+        "trade": 197,
+        "geometryR": 0.9823508339969559
+      },
+      {
+        "trade": 205,
+        "geometryR": 0.9761299404673102
+      },
+      {
+        "trade": 212,
+        "geometryR": 0.9782888996225406
+      }
+    ],
+    "maxMidEntryDifferencePips": 0.5999999999994898
+  },
+  "mid": {
+    "n": 213,
+    "wins": 111,
+    "losses": 102,
+    "wr": 52.11267605633803,
+    "pf": 1.4110551106533264,
+    "total": 37.569160083385675,
+    "expectancy": 0.1763810332553318,
+    "averageWinner": 1.1618563366685548,
+    "averageLoser": -0.8960479734002345,
+    "maxDrawdown": 10.935287688778033
+  },
+  "exec": {
+    "n": 213,
+    "wins": 86,
+    "losses": 127,
+    "wr": 40.375586854460096,
+    "pf": 0.7902588550752802,
+    "total": -25.72460156423846,
+    "expectancy": -0.12077277729689417,
+    "averageWinner": 1.1270312085148735,
+    "averageLoser": -0.9657424054843902,
+    "maxDrawdown": 38.692379390418246
+  },
+  "cost_drag": {
+    "average_r_per_trade": 0.2971538105522259,
+    "total_r": 63.293761647624116,
+    "by_exit": [
+      {
+        "exit": "TP",
+        "count": 32,
+        "dragTotal": 4.783174815677237,
+        "dragAverage": 0.14947421298991365
+      },
+      {
+        "exit": "SL",
+        "count": 97,
+        "dragTotal": 30.993000085630904,
+        "dragAverage": 0.3195154648003186
+      },
+      {
+        "exit": "TIME",
+        "count": 84,
+        "dragTotal": 27.517586746315967,
+        "dragAverage": 0.32759031840852343
+      }
+    ]
+  },
+  "m1_ambiguity": {
+    "exec_count": 0,
+    "mid_count": 0,
+    "method": "same-minute TP and SL touches are conservatively STOP_FIRST"
+  },
+  "years": [
+    {
+      "year": "2023",
+      "n": 53,
+      "wins": 23,
+      "losses": 30,
+      "wr": 43.39622641509434,
+      "pf": 1.2408241112434637,
+      "total": 6.687372062804405,
+      "expectancy": 0.12617683137366803,
+      "averageWinner": 1.498090011137674,
+      "averageLoser": -0.92562327311207,
+      "status": "POSITIVE"
+    },
+    {
+      "year": "2024",
+      "n": 61,
+      "wins": 25,
+      "losses": 36,
+      "wr": 40.98360655737705,
+      "pf": 0.7117522067564858,
+      "total": -10.834897790348586,
+      "expectancy": -0.17762127525161617,
+      "averageWinner": 1.0701573566943656,
+      "averageLoser": -1.0441342141029923,
+      "status": "NEGATIVE"
+    },
+    {
+      "year": "2025",
+      "n": 65,
+      "wins": 27,
+      "losses": 38,
+      "wr": 41.53846153846154,
+      "pf": 0.6946222439270597,
+      "total": -11.286224014711378,
+      "expectancy": -0.17363421561094428,
+      "averageWinner": 0.9508153601815836,
+      "averageLoser": -0.9725852299898458,
+      "status": "NEGATIVE"
+    },
+    {
+      "year": "2026",
+      "n": 34,
+      "wins": 11,
+      "losses": 23,
+      "wr": 32.35294117647059,
+      "pf": 0.4938971012763844,
+      "total": -10.2908518219829,
+      "expectancy": -0.30267211241126174,
+      "averageWinner": 0.9129695485318845,
+      "averageLoser": -0.8840659502536359,
+      "status": "NEGATIVE"
+    }
+  ],
+  "classification": "LOSING",
+  "cost_verdict": "FAILS_COSTS",
+  "confirmations": [
+    "NO RULE CHANGE",
+    "NO NEW SIGNAL COHORT",
+    "NO DEPLOYMENT",
+    "NO BROKER ORDERS"
+  ]
+}

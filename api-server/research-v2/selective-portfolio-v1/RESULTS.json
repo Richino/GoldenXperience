@@ -1,0 +1,318 @@
+{
+  "generatedAt": "2026-09-04T23:46:58.486Z",
+  "verdict": "DEVELOPMENT_FAIL_DO_NOT_ACTIVATE",
+  "phase": "REUSED_DEVELOPMENT_ONLY",
+  "additionalPairs": "PENDING_ENTRY_RULES",
+  "prospective": "NOT_STARTED",
+  "protocolSha256": "55ff6523e0230e3db0914b575517204f09a06e31d1d0a36c21af92541136b797",
+  "control": {
+    "n": 344,
+    "wins": 149,
+    "winRate": 0.4331395348837209,
+    "expectancyR": 0.13570790982433353,
+    "totalR": 46.68352097957074,
+    "annualizedTotalR": 28.276626718707902,
+    "profitFactor": 1.249659944876968,
+    "annualTradeFrequency": 208.36388059701494,
+    "averageSpreadPips": 1.5953488372093065,
+    "averageSpreadToStop": 0.12925068728404934,
+    "averageWinR": 1.5682681234317475,
+    "tp": 107
+  },
+  "selective": {
+    "n": 80,
+    "wins": 33,
+    "winRate": 0.4125,
+    "expectancyR": 0.08500771637930149,
+    "totalR": 6.800617310344119,
+    "annualizedTotalR": 4.119194805925973,
+    "profitFactor": 1.1644299122399762,
+    "annualTradeFrequency": 48.45671641791045,
+    "averageSpreadPips": 1.5375000000000156,
+    "averageSpreadToStop": 0.07558794321341299,
+    "averageWinR": 1.4593750761270354,
+    "tp": 17
+  },
+  "byYear": {
+    "2025": {
+      "control": {
+        "n": 203,
+        "wins": 83,
+        "winRate": 0.4088669950738916,
+        "expectancyR": 0.09185725347102283,
+        "totalR": 18.647022454617634,
+        "annualizedTotalR": 18.918569719113005,
+        "profitFactor": 1.1635793215700165,
+        "annualTradeFrequency": 205.9561875,
+        "averageSpreadPips": 1.5955665024630925,
+        "averageSpreadToStop": 0.11718491345879216,
+        "averageWinR": 1.5980817554014233,
+        "tp": 62
+      },
+      "selective": {
+        "n": 61,
+        "wins": 22,
+        "winRate": 0.36065573770491804,
+        "expectancyR": -0.04383484597885715,
+        "totalR": -2.6739256047102864,
+        "annualizedTotalR": -2.71286464632888,
+        "profitFactor": 0.9225148496519161,
+        "annualTradeFrequency": 61.888312500000005,
+        "averageSpreadPips": 1.5639344262296995,
+        "averageSpreadToStop": 0.07344752942115393,
+        "averageWinR": 1.4470432933562638,
+        "tp": 12
+      }
+    },
+    "2026": {
+      "control": {
+        "n": 141,
+        "wins": 66,
+        "winRate": 0.46808510638297873,
+        "expectancyR": 0.19884041507058947,
+        "totalR": 28.036498524953117,
+        "annualizedTotalR": 42.140414866255924,
+        "profitFactor": 1.3840896875999587,
+        "annualTradeFrequency": 211.93083333333334,
+        "averageSpreadPips": 1.5950354609928639,
+        "averageSpreadToStop": 0.14662197867785906,
+        "averageWinR": 1.530775222621398,
+        "tp": 45
+      },
+      "selective": {
+        "n": 19,
+        "wins": 11,
+        "winRate": 0.5789473684210527,
+        "expectancyR": 0.49866015342391595,
+        "totalR": 9.474542915054403,
+        "annualizedTotalR": 14.24076436482205,
+        "profitFactor": 2.383168749015875,
+        "annualTradeFrequency": 28.55805555555556,
+        "averageSpreadPips": 1.452631578946818,
+        "averageSpreadToStop": 0.08245979802013945,
+        "averageWinR": 1.4840386416685796,
+        "tp": 5
+      }
+    }
+  },
+  "rejectedReasons": {
+    "SPREAD_TOO_EXPENSIVE": {
+      "n": 259,
+      "skippedWinners": 114,
+      "skippedNetR": 41.140686395586435
+    },
+    "LOWER_COST_SIMULTANEOUS_SIGNAL_SELECTED": {
+      "n": 3,
+      "skippedWinners": 2,
+      "skippedNetR": 0.742217273640223
+    },
+    "POSITION_ALREADY_OPEN": {
+      "n": 2,
+      "skippedWinners": 0,
+      "skippedNetR": -2
+    }
+  },
+  "byPair": {
+    "EUR_USD": {
+      "control": {
+        "n": 154,
+        "wins": 59,
+        "winRate": 0.38311688311688313,
+        "expectancyR": 0.07746460293422151,
+        "totalR": 11.929548851870113,
+        "annualizedTotalR": 7.22583457135849,
+        "profitFactor": 1.1255741984407384,
+        "annualTradeFrequency": 93.27917910447762,
+        "averageSpreadPips": 1.5974025974026516,
+        "averageSpreadToStop": 0.12333185026704487,
+        "averageWinR": 1.81236523477746,
+        "tp": 59
+      },
+      "selective": {
+        "n": 38,
+        "wins": 11,
+        "winRate": 0.2894736842105263,
+        "expectancyR": -0.1673396501640967,
+        "totalR": -6.358906706235674,
+        "annualizedTotalR": -3.851646737400138,
+        "profitFactor": 0.7644849368060861,
+        "annualTradeFrequency": 23.016940298507464,
+        "averageSpreadPips": 1.6131578947370095,
+        "averageSpreadToStop": 0.08067222280396597,
+        "averageWinR": 1.8764630267058477,
+        "tp": 11
+      }
+    },
+    "USD_JPY": {
+      "control": {
+        "n": 33,
+        "wins": 17,
+        "winRate": 0.5151515151515151,
+        "expectancyR": 0.29378259185595623,
+        "totalR": 9.694825531246556,
+        "annualizedTotalR": 5.872242643609154,
+        "profitFactor": 1.7849923507444707,
+        "annualTradeFrequency": 19.98839552238806,
+        "averageSpreadPips": 1.5666666666667404,
+        "averageSpreadToStop": 0.08061096017875333,
+        "averageWinR": 1.2967671819585926,
+        "tp": 6
+      },
+      "selective": {
+        "n": 25,
+        "wins": 13,
+        "winRate": 0.52,
+        "expectancyR": 0.3165661471183088,
+        "totalR": 7.914153677957721,
+        "annualizedTotalR": 4.793673755757004,
+        "profitFactor": 1.9477782545097524,
+        "annualTradeFrequency": 15.142723880597016,
+        "averageSpreadPips": 1.543999999999869,
+        "averageSpreadToStop": 0.06586332954913326,
+        "averageWinR": 1.2511054030774806,
+        "tp": 4
+      }
+    },
+    "GBP_USD": {
+      "control": {
+        "n": 79,
+        "wins": 34,
+        "winRate": 0.43037974683544306,
+        "expectancyR": 0.13612216410900513,
+        "totalR": 10.753650964611404,
+        "annualizedTotalR": 6.51358269061705,
+        "profitFactor": 1.2423387739479372,
+        "annualTradeFrequency": 47.85100746268657,
+        "averageSpreadPips": 1.8911392405063525,
+        "averageSpreadToStop": 0.1575857462330435,
+        "averageWinR": 1.6214148746737875,
+        "tp": 30
+      },
+      "selective": {
+        "n": 3,
+        "wins": 0,
+        "winRate": 0,
+        "expectancyR": -1,
+        "totalR": -3,
+        "annualizedTotalR": -1.817126865671642,
+        "profitFactor": 0,
+        "annualTradeFrequency": 1.817126865671642,
+        "averageSpreadPips": 1.700000000000775,
+        "averageSpreadToStop": 0.07257971332102321,
+        "averageWinR": null,
+        "tp": 0
+      }
+    },
+    "AUD_USD": {
+      "control": {
+        "n": 78,
+        "wins": 39,
+        "winRate": 0.5,
+        "expectancyR": 0.1834037901518292,
+        "totalR": 14.305495631842676,
+        "annualizedTotalR": 8.664966813123215,
+        "profitFactor": 1.4056713297899184,
+        "annualTradeFrequency": 47.245298507462685,
+        "averageSpreadPips": 1.3038461538460138,
+        "averageSpreadToStop": 0.13281661341382991,
+        "averageWinR": 1.2710065053142416,
+        "tp": 12
+      },
+      "selective": {
+        "n": 14,
+        "wins": 9,
+        "winRate": 0.6428571428571429,
+        "expectancyR": 0.5889550241872906,
+        "totalR": 8.245370338622068,
+        "annualizedTotalR": 4.994294653240748,
+        "profitFactor": 3.7406517324688675,
+        "annualTradeFrequency": 8.479925373134328,
+        "averageSpreadPips": 1.2857142857139852,
+        "averageSpreadToStop": 0.07979775798792378,
+        "averageWinR": 1.250434886491179,
+        "tp": 2
+      }
+    }
+  },
+  "missedWinnerCount": 116,
+  "avoidedLoserCount": 148,
+  "controlAccount": {
+    "from": "2025-01-06T00:00:00.000Z",
+    "to": "2026-09-01T00:00:00.000Z",
+    "marginConstrained": true,
+    "initialBalance": 100,
+    "endingBalance": 179.63988264870434,
+    "endingCash": 179.63988264870434,
+    "openPositionsAtEnd": 0,
+    "returnPct": 79.63988264870434,
+    "candidates": 344,
+    "filled": 299,
+    "marginRejected": 45,
+    "minimumSizeRejected": 0,
+    "wouldReject": 45,
+    "maxDrawdownPct": 37.09079362879445,
+    "minimumEquity": 87.85892599861559,
+    "maximumOpenPositions": 2,
+    "maximumCommittedRiskPct": 6.129259109029452,
+    "maxMarginToEquity": 0.9845163841886592,
+    "marginCloseoutSamples": 0,
+    "longestLosingStreak": 7,
+    "reached7000": false,
+    "reached10000": false
+  },
+  "selectiveAccount": {
+    "from": "2025-01-06T00:00:00.000Z",
+    "to": "2026-09-01T00:00:00.000Z",
+    "marginConstrained": true,
+    "initialBalance": 100,
+    "endingBalance": 116.23323639054816,
+    "endingCash": 116.23323639054816,
+    "openPositionsAtEnd": 0,
+    "returnPct": 16.233236390548168,
+    "candidates": 344,
+    "filled": 80,
+    "marginRejected": 0,
+    "minimumSizeRejected": 0,
+    "wouldReject": 0,
+    "maxDrawdownPct": 32.22116196343524,
+    "minimumEquity": 70.2322011249513,
+    "maximumOpenPositions": 1,
+    "maximumCommittedRiskPct": 3.075630590757112,
+    "maxMarginToEquity": 0.6667399081041279,
+    "marginCloseoutSamples": 0,
+    "longestLosingStreak": 9,
+    "reached7000": false,
+    "reached10000": false
+  },
+  "marginMetadata": "UNAVAILABLE_HTTP_503; ILLUSTRATIVE_50_TO_1_AND_WHOLE_UNITS",
+  "marginConstrainedMetrics": {
+    "control": {
+      "n": 299,
+      "wins": 123,
+      "winRate": 0.411371237458194,
+      "expectancyR": 0.09172192127527576,
+      "totalR": 27.42485446130745,
+      "annualizedTotalR": 16.611479942925516,
+      "profitFactor": 1.1621017759953078,
+      "annualTradeFrequency": 181.1069776119403,
+      "averageSpreadPips": 1.5923076923077224,
+      "averageSpreadToStop": 0.12490250611778975,
+      "averageWinR": 1.5984373242144057,
+      "tp": 91
+    },
+    "selective": {
+      "n": 80,
+      "wins": 33,
+      "winRate": 0.4125,
+      "expectancyR": 0.08500771637930146,
+      "totalR": 6.8006173103441165,
+      "annualizedTotalR": 4.1191948059259715,
+      "profitFactor": 1.1644299122399762,
+      "annualTradeFrequency": 48.45671641791045,
+      "averageSpreadPips": 1.537500000000016,
+      "averageSpreadToStop": 0.07558794321341299,
+      "averageWinR": 1.4593750761270357,
+      "tp": 17
+    }
+  }
+}

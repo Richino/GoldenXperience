@@ -1,0 +1,151 @@
+// © richino — EUR/USD MOVE_MODEL, Pine v5 port
+// =====================================================================================
+// WHAT THIS IS
+//   A faithful, self-calibrating reproduction of the MOVE_MODEL research
+//   (api-server/research-v2/MOVE_MODEL). It answers ONE question, the only one the
+//   research found a real out-of-sample edge on:
+//
+//        "Will EUR/USD make a meaningful (volatility-normalized) move within the
+//         next H bars?"   ——  DIRECTION is deliberately NOT modelled.
+//
+// WHY IT LOOKS LIKE THIS (honesty first)
+//   The deployed model is a 120-tree gradient-boosted ensemble. Its weights are not
+//   portable to Pine, but the research is explicit that this does not matter:
+//     * ~90% of the raw AUC (0.75–0.82) is EUR/USD's intraday VOLATILITY CLOCK.
+//     * The ablation (ABLATION_RESULTS.csv) shows the ONLY feature groups that carry
+//       the edge are:  time (-0.041 AUC if removed), volatility (-0.011),
+//       multitf (-0.009), range (-0.003). momentum/candle/location/spread/news ≈ 0.
+//   So this script rebuilds the edge as a 2-D clock that is trained LIVE on your chart:
+//
+//        P(MOVE)  =  f( half-hour-of-day , volatility regime )
+//
+//   That captures the two dominant groups (time + volatility level) data-drivenly,
+//   with zero fabricated coefficients. It self-calibrates as history accumulates.
+//
+// FIDELITY NOTES (matched to api-server/scripts/move-model-v1/lib.ts)
+//   * Label:      excursion = max(maxHigh - close_T, close_T - minLow) over (T, T+H]
+//                 MOVE = excursion / ATR14_T >= threshold.
+//   * ATR:        simple moving average of true range (SMA, not RMA) — matches lib.
+//   * Time:       half-hour-of-day bucket = UTC hour*2 + (min>=30). 48 buckets.
+//   * Sessions:   ASIA <6, LONDON 6-11, OVERLAP 11-13, NEW_YORK 13-17 (UTC), else ASIA.
+//   * Horizons:   15m=1 bar, 30m=2, 60m=4, 120m=8 (on an M15 chart).
+//   * Primary threshold per horizon (balanced classes): 15m=0.75, 30m=1, 60m=1.5, 120m=2.
+//   * Gap guard:  windows spanning a weekend/holiday gap are excluded (as in lib).
+//
+// HOW TO USE
+//   Apply to  EURUSD, 15-minute timeframe.  Let it load a few months of history so the
+//   clock cells fill. The plotted line is P(a >= threshold*ATR move in the next H bars).
+//   It says WHEN a move is likely — it says NOTHING about up vs down.
+// =====================================================================================
+//@version=5
+indicator("EUR/USD MOVE_MODEL (timing, not direction)", shorttitle="MOVE_MODEL", overlay=false, max_bars_back=5000)
+
+// ---------------------------------------------------------------------------- inputs
+grpMdl   = "Model"
+horizonBars = input.int(8,   "Horizon (M15 bars)  15m=1 30m=2 60m=4 120m=8", minval=1, maxval=8, group=grpMdl)
+threshATR   = input.float(2.0,"Move threshold (× ATR14)  .75/1/1.5/2 per horizon", minval=0.1, step=0.05, group=grpMdl)
+useVolReg   = input.bool(true,"Condition on volatility regime (2-D clock)", group=grpMdl, tooltip="ON = time × volatility clock (reproduces the model's top-2 feature groups). OFF = pure seasonal clock (the honest baseline).")
+regimeLook  = input.int(500, "Volatility-regime lookback (bars)", minval=100, group=grpMdl)
+minCell     = input.int(30,  "Min samples before trusting a cell", minval=5, group=grpMdl)
+
+grpSig   = "Signal / display"
+alertLvl = input.float(0.60, "Alert level (P(MOVE) ≥)", minval=0.0, maxval=1.0, step=0.01, group=grpSig)
+showTbl  = input.bool(true,  "Show info table", group=grpSig)
+
+// ---------------------------------------------------------------------------- guards
+isM15 = timeframe.period == "15"
+barMs = timeframe.in_seconds() * 1000
+
+// ---------------------------------------------------------------------------- ATR (SMA of TR, matches lib rollingAtr)
+atr14 = ta.sma(ta.tr(true), 14)
+atr56 = ta.sma(ta.tr(true), 56)
+volRatio = atr56 > 0 ? atr14 / atr56 : na          // atr14/atr56 : the #2 feature group
+
+// volatility regime = tercile of the vol-expansion ratio over its own recent history
+prNow  = not na(volRatio) ? ta.percentrank(volRatio, regimeLook) : na
+regime(pr) => na(pr) ? 1 : pr < 33.3333 ? 0 : pr < 66.6667 ? 1 : 2   // 0=low 1=mid 2=high
+regNow = useVolReg ? regime(prNow) : 1
+
+// ---------------------------------------------------------------------------- clock storage
+// 2-D clock:  index = halfHour(0..47) * 3 + regime(0..2)  →  144 cells
+// 1-D clock:  fallback by halfHour only                   →   48 cells
+var float[] cnt2 = array.new_float(144, 0.0)
+var float[] pos2 = array.new_float(144, 0.0)
+var float[] cnt1 = array.new_float(48,  0.0)
+var float[] pos1 = array.new_float(48,  0.0)
+var float   gCnt = 0.0
+var float   gPos = 0.0
+
+halfHour(_t) => hour(_t, "UTC") * 2 + (minute(_t, "UTC") >= 30 ? 1 : 0)
+
+// ---------------------------------------------------------------------------- TRAIN on completed labels
+// The label for the window that STARTED horizonBars ago is only fully known now, so we
+// anchor at bar index [horizonBars] and measure the excursion over the H bars that
+// followed it (bars 0..H-1). This keeps the clock strictly causal / non-repainting.
+H = horizonBars
+if bar_index >= H + 56 and isM15
+    anchorClose = close[H]
+    anchorAtr   = atr14[H]
+    maxHigh     = ta.highest(high, H)          // bars 0..H-1  = the H bars after the anchor
+    minLow      = ta.lowest(low,  H)
+    contiguous  = (time - time[H]) <= barMs * H * 1.5   // no weekend/holiday gap in window
+    if not na(anchorAtr) and anchorAtr > 0 and contiguous
+        excursion = math.max(maxHigh - anchorClose, anchorClose - minLow)
+        moved     = excursion / anchorAtr >= threshATR ? 1.0 : 0.0
+        hb        = halfHour(time[H])
+        rg        = useVolReg ? regime(ta.percentrank(volRatio, regimeLook)[H]) : 1
+        i2        = hb * 3 + rg
+        // accumulate
+        array.set(cnt2, i2, array.get(cnt2, i2) + 1.0)
+        array.set(pos2, i2, array.get(pos2, i2) + moved)
+        array.set(cnt1, hb, array.get(cnt1, hb) + 1.0)
+        array.set(pos1, hb, array.get(pos1, hb) + moved)
+        gCnt := gCnt + 1.0
+        gPos := gPos + moved
+
+// ---------------------------------------------------------------------------- PREDICT for the CURRENT forward window
+hbNow = halfHour(time)
+i2Now = hbNow * 3 + regNow
+globalRate = gCnt > 0 ? gPos / gCnt : na
+
+// prefer the 2-D cell; fall back to the 1-D clock; then to the global base rate
+c2 = array.get(cnt2, i2Now)
+p2 = array.get(pos2, i2Now)
+c1 = array.get(cnt1, hbNow)
+p1 = array.get(pos1, hbNow)
+
+cellN = c2
+pMove = c2 >= minCell ? p2 / c2 : c1 >= minCell ? p1 / c1 : globalRate
+pClock1D = c1 > 0 ? p1 / c1 : globalRate       // pure seasonal baseline, for reference
+
+// ---------------------------------------------------------------------------- plots
+col = na(pMove) ? color.gray : pMove >= alertLvl ? color.new(color.orange, 0) : color.new(color.teal, 0)
+plot(pMove,    "P(MOVE)",           color=col, linewidth=2)
+plot(pClock1D, "Seasonal clock",    color=color.new(color.blue, 40), linewidth=1)
+hline(alertLvl, "Alert level",      color=color.new(color.orange, 30), linestyle=hline.style_dashed)
+plot(globalRate, "Base rate",       color=color.new(color.gray, 40), linewidth=1)
+bgcolor(not na(pMove) and pMove >= alertLvl ? color.new(color.orange, 88) : na, title="MOVE likely")
+
+// ---------------------------------------------------------------------------- alerts
+alertcondition(pMove >= alertLvl, "MOVE likely", "EUR/USD MOVE likely in next window (P >= alert level)")
+
+// ---------------------------------------------------------------------------- info table
+sessName = hour(time, "UTC") < 6 ? "ASIA" : hour(time, "UTC") < 11 ? "LONDON" : hour(time, "UTC") < 13 ? "OVERLAP" : hour(time, "UTC") < 17 ? "NEW_YORK" : "ASIA"
+regName  = regNow == 0 ? "LOW" : regNow == 1 ? "MID" : "HIGH"
+if showTbl and barstate.islast
+    var table t = table.new(position.top_right, 2, 8, border_width=1)
+    f(r, k, v) => table.cell(t, 0, r, k, text_size=size.small, text_halign=text.align_left, bgcolor=color.new(color.gray, 90)), table.cell(t, 1, r, v, text_size=size.small, text_halign=text.align_right, bgcolor=color.new(color.gray, 90))
+    horLbl = H == 1 ? "15m" : H == 2 ? "30m" : H == 4 ? "60m" : H == 8 ? "120m" : str.tostring(H) + " bars"
+    f(0, "P(MOVE)",       na(pMove) ? "warming up" : str.tostring(math.round(pMove * 100)) + "%")
+    f(1, "verdict",       na(pMove) ? "—" : pMove >= alertLvl ? "MOVE LIKELY" : "quiet")
+    f(2, "horizon / thr", horLbl + " / " + str.tostring(threshATR) + "×ATR")
+    f(3, "session (UTC)", sessName)
+    f(4, "vol regime",    useVolReg ? regName + " (" + str.tostring(math.round(nz(prNow))) + "%)" : "off")
+    f(5, "cell samples",  str.tostring(math.round(cellN)))
+    f(6, "seasonal clock",na(pClock1D) ? "—" : str.tostring(math.round(pClock1D * 100)) + "%")
+    f(7, "base rate",     na(globalRate) ? "—" : str.tostring(math.round(globalRate * 100)) + "%")
+
+// timeframe warning
+if barstate.islast and not isM15
+    var table w = table.new(position.middle_center, 1, 1)
+    table.cell(w, 0, 0, "MOVE_MODEL expects a 15-minute EURUSD chart", text_color=color.white, bgcolor=color.new(color.red, 0), text_size=size.large)

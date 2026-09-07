@@ -1,0 +1,384 @@
+{
+  "queriedAt": "2026-09-05T18:09:35.871Z",
+  "rows": [
+    {
+      "kind": "schema",
+      "data": [
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "id"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "pair_id"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "arm"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "experiment_id"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "instrument"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "decision_time"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "strategy_family"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "strategy_version"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "config_version"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "session"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "regime"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "trend_strength"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "volatility_bucket"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "atr"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "atr_pips"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "spread_pips"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "direction"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "entry"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "stop"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "target"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "stop_distance"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "target_distance"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "executed"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "paper_trade_id"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "outcome"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "outcome_source"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "result_r"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "gross_result_r"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "spread_cost_r"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "net_result_r"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "max_favorable_r"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "max_adverse_r"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "exit"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "resolved_at"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "horizon_ends_at"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "exit_reason"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "status"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "excluded_reason"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "created_at"
+        },
+        {
+          "table_name": "momentum_inversion_arms",
+          "column_name": "updated_at"
+        },
+        {
+          "table_name": "practice_order_intents",
+          "column_name": "id"
+        },
+        {
+          "table_name": "practice_order_intents",
+          "column_name": "user_id"
+        },
+        {
+          "table_name": "practice_order_intents",
+          "column_name": "paper_trade_id"
+        },
+        {
+          "table_name": "practice_order_intents",
+          "column_name": "client_request_id"
+        },
+        {
+          "table_name": "practice_order_intents",
+          "column_name": "status"
+        },
+        {
+          "table_name": "practice_order_intents",
+          "column_name": "broker_order_id"
+        },
+        {
+          "table_name": "practice_order_intents",
+          "column_name": "broker_trade_id"
+        },
+        {
+          "table_name": "practice_order_intents",
+          "column_name": "request_payload"
+        },
+        {
+          "table_name": "practice_order_intents",
+          "column_name": "failure_reason"
+        },
+        {
+          "table_name": "practice_order_intents",
+          "column_name": "submitted_at"
+        },
+        {
+          "table_name": "practice_order_intents",
+          "column_name": "created_at"
+        },
+        {
+          "table_name": "practice_order_intents",
+          "column_name": "updated_at"
+        },
+        {
+          "table_name": "practice_order_intents",
+          "column_name": "broker_close_transaction_id"
+        },
+        {
+          "table_name": "practice_order_intents",
+          "column_name": "close_requested_at"
+        }
+      ]
+    },
+    {
+      "kind": "funnel",
+      "data": [
+        {
+          "n": 27,
+          "last": "2026-09-03T14:00:00+00:00",
+          "first": "2026-08-31T07:00:00+00:00",
+          "setup_status": "valid",
+          "strategy_family": "ema",
+          "execution_status": "selected"
+        },
+        {
+          "n": 2,
+          "last": "2026-09-03T13:00:00+00:00",
+          "first": "2026-09-02T20:00:00+00:00",
+          "setup_status": "no_setup",
+          "strategy_family": "momentum",
+          "execution_status": "selected"
+        },
+        {
+          "n": 27,
+          "last": "2026-09-04T12:30:00+00:00",
+          "first": "2026-09-02T20:15:00+00:00",
+          "setup_status": "valid",
+          "strategy_family": "momentum",
+          "execution_status": "blocked"
+        },
+        {
+          "n": 5556,
+          "last": "2026-09-04T20:45:00+00:00",
+          "first": "2026-08-31T00:00:00+00:00",
+          "setup_status": "no_setup",
+          "strategy_family": "breakout",
+          "execution_status": "no_setup"
+        },
+        {
+          "n": 5596,
+          "last": "2026-09-04T20:45:00+00:00",
+          "first": "2026-08-31T00:00:00+00:00",
+          "setup_status": "no_setup",
+          "strategy_family": "meanrev",
+          "execution_status": "no_setup"
+        },
+        {
+          "n": 55,
+          "last": "2026-09-02T13:45:00+00:00",
+          "first": "2026-08-31T07:15:00+00:00",
+          "setup_status": "valid",
+          "strategy_family": "momentum",
+          "execution_status": "suppressed"
+        },
+        {
+          "n": 5524,
+          "last": "2026-09-04T20:45:00+00:00",
+          "first": "2026-08-31T00:00:00+00:00",
+          "setup_status": "no_setup",
+          "strategy_family": "ema",
+          "execution_status": "no_setup"
+        },
+        {
+          "n": 3,
+          "last": "2026-09-02T07:00:00+00:00",
+          "first": "2026-08-31T08:00:00+00:00",
+          "setup_status": "no_setup",
+          "strategy_family": "meanrev",
+          "execution_status": "selected"
+        },
+        {
+          "n": 6,
+          "last": "2026-09-03T10:45:00+00:00",
+          "first": "2026-09-01T08:15:00+00:00",
+          "setup_status": "valid",
+          "strategy_family": "ema",
+          "execution_status": "suppressed"
+        },
+        {
+          "n": 60,
+          "last": "2026-09-04T13:00:00+00:00",
+          "first": "2026-08-31T07:15:00+00:00",
+          "setup_status": "valid",
+          "strategy_family": "breakout",
+          "execution_status": "suppressed"
+        },
+        {
+          "n": 6,
+          "last": "2026-09-03T16:00:00+00:00",
+          "first": "2026-09-02T11:00:00+00:00",
+          "setup_status": "valid",
+          "strategy_family": "meanrev",
+          "execution_status": "blocked"
+        },
+        {
+          "n": 5515,
+          "last": "2026-09-04T20:45:00+00:00",
+          "first": "2026-08-31T00:00:00+00:00",
+          "setup_status": "no_setup",
+          "strategy_family": "momentum",
+          "execution_status": "no_setup"
+        },
+        {
+          "n": 3,
+          "last": "2026-09-03T19:00:00+00:00",
+          "first": "2026-09-01T07:15:00+00:00",
+          "setup_status": "no_setup",
+          "strategy_family": "ema",
+          "execution_status": "selected"
+        },
+        {
+          "n": 11,
+          "last": "2026-09-04T13:00:00+00:00",
+          "first": "2026-09-01T08:00:00+00:00",
+          "setup_status": "valid",
+          "strategy_family": "meanrev",
+          "execution_status": "selected"
+        },
+        {
+          "n": 56,
+          "last": "2026-09-03T20:15:00+00:00",
+          "first": "2026-08-31T09:30:00+00:00",
+          "setup_status": "valid",
+          "strategy_family": "ema",
+          "execution_status": "blocked"
+        },
+        {
+          "n": 17,
+          "last": "2026-09-04T15:30:00+00:00",
+          "first": "2026-09-03T07:45:00+00:00",
+          "setup_status": "valid",
+          "strategy_family": "momentum",
+          "execution_status": "selected"
+        }
+      ]
+    },
+    {
+      "kind": "blocks",
+      "data": [
+        {
+          "n": 82,
+          "strategy_family": "momentum",
+          "rejection_reason": null
+        },
+        {
+          "n": 62,
+          "strategy_family": "ema",
+          "rejection_reason": null
+        },
+        {
+          "n": 60,
+          "strategy_family": "breakout",
+          "rejection_reason": null
+        },
+        {
+          "n": 6,
+          "strategy_family": "meanrev",
+          "rejection_reason": null
+        }
+      ]
+    }
+  ]
+}

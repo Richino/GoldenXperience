@@ -1,0 +1,95 @@
+{
+  "pair": "NZDJPY",
+  "instrument": "NZD_JPY",
+  "version": "V1",
+  "name": "GX NZDJPY 23UTC Bull Break V1 - 1 to 2 RR",
+  "status": "FROZEN_PAPER_RESEARCH_CANDIDATE",
+  "classification": "STRONG",
+  "validation": "SURVIVES_COSTS",
+  "stability": "UNSTABLE_BY_YEAR",
+  "liveReady": false,
+  "timeframe": "H1",
+  "direction": "LONG",
+  "originUtc": "23:00",
+  "frozenEntry": {
+    "consensus": ">= +3",
+    "votes": [
+      "EMA20 > EMA50",
+      "close > EMA20",
+      "EMA20 > EMA20[3]",
+      "close > close[3]"
+    ],
+    "bullishBody": "close > open",
+    "bodyMinimum": "abs(close - open) >= 0.50 * ATR14",
+    "closePosition": "close >= high - 0.25 * (high - low)",
+    "breakout": "close - high[1] >= 0.10 * ATR14"
+  },
+  "frozenExit": {
+    "atr": "ATR14 frozen at completed 23:00 UTC signal close",
+    "stop": "-1R",
+    "target": "+2R",
+    "maximumHoldFutureH1Bars": 3,
+    "trailingStop": false,
+    "breakEven": false,
+    "runner": false,
+    "profitLock": false,
+    "partialExits": false
+  },
+  "authoritativeValidation": {
+    "tradingViewTrades": 45,
+    "execMatched": 45,
+    "execUnmatched": 0,
+    "execWinRatePct": 48.89,
+    "execProfitFactor": 1.389,
+    "execExpectancyR": 0.1767,
+    "execTotalR": 7.9527,
+    "averageExecutionDragR": 0.165,
+    "totalExecutionDragR": 7.4269,
+    "ambiguousIntraminute": 0
+  },
+  "yearStability": {
+    "classification": "UNSTABLE_BY_YEAR",
+    "execExpectancyRByYear": {
+      "2023": 0.0408,
+      "2024": -0.197,
+      "2025": 0.8891,
+      "2026": 0.2656
+    },
+    "warning": "2024 is negative and 2025 supplies essentially all positive net result. This is not a stable multi-year edge.",
+    "doNotAddYearFilter": true,
+    "doNotOptimizeOnSameSample": true
+  },
+  "executionCostFinding": {
+    "timeExitExecutionDragR": 3.7545,
+    "conclusion": "Time exits are materially more cost-sensitive. This is diagnostic metadata only.",
+    "doNotChangeMaximumHold": true
+  },
+  "parityDiscrepancies": {
+    "tradingViewCohortRemainsAuthoritative": true,
+    "oandaMidpointFeedBoundaryDifferences": [
+      "one body-threshold boundary",
+      "one upper-25-percent-close boundary",
+      "one 0.10R breakout boundary"
+    ],
+    "doNotRegenerateCohort": true,
+    "doNotChangeRules": true
+  },
+  "forwardValidation": {
+    "required": true,
+    "question": "Does frozen NZDJPY V1 maintain positive executable expectancy outside the discovery sample?",
+    "rulesMustRemainFrozen": true,
+    "doNotPromoteToLiveOnThisEvidenceAlone": true
+  },
+  "prohibitions": {
+    "ruleOptimization": false,
+    "yearFilter": false,
+    "metadataFilter": false,
+    "exitChange": false,
+    "deployment": false,
+    "brokerOrders": false,
+    "runtimeRegistration": false
+  },
+  "runtimeAudit": "NZDJPY is absent from PAIR_STRATEGY_REGISTRY and ENABLED_PAIR_STRATEGY_IDS. No migration, runtime strategy, execution setting, deployment, or broker-order path was added.",
+  "artifacts": "api-server/research-v2/nzdjpy-23utc-bull-break-v1-spread-validation/",
+  "frozenAt": "2026-09-06T00:00:00.000Z"
+}

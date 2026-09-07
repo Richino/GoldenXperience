@@ -1,0 +1,365 @@
+//@version=6
+strategy(
+     "GX GBPNZD 06UTC Bull Consensus V1 - 1 to 2 RR",
+     overlay=true,
+     pyramiding=0,
+     process_orders_on_close=true,
+     calc_on_every_tick=false,
+     max_bars_back=5000,
+     initial_capital=10000,
+     default_qty_type=strategy.fixed,
+     default_qty_value=1)
+
+// ============================================================
+// GBPNZD 06UTC BULL CONSENSUS V1
+//
+// FROZEN RESEARCH CANDIDATE
+//
+// PAIR:
+// OANDA:GBPNZD
+//
+// TIMEFRAME:
+// H1
+//
+// ORIGIN:
+// Completed 06:00 UTC H1 candle
+//
+// DIRECTION:
+// LONG ONLY
+//
+// ENTRY:
+//
+// Four votes:
+//
+// 1. EMA20 vs EMA50
+// 2. Close vs EMA20
+// 3. EMA20 slope vs 3 bars ago
+// 4. 3-bar price momentum
+//
+// LONG when total vote >= +3.
+//
+// NO additional entry filter.
+//
+// PHASE 3 CORE:
+//
+// N = 216
+// WR = 51.85%
+// PF = 1.413
+// Exp = +0.179R
+// Total = +38.6R
+//
+// Phase 4 filters were rejected because the small
+// expectancy improvement did not justify the large
+// frequency reduction.
+//
+// EXIT:
+//
+// SL = 1 frozen ATR14
+// TP = 2 frozen ATR14
+// Maximum hold = 3 future H1 candles
+//
+// NO trailing.
+// NO breakeven.
+// NO profit lock.
+// NO runner.
+// ============================================================
+
+EMA_FAST = 20
+EMA_SLOW = 50
+ATR_LEN = 14
+
+ORIGIN_HOUR = 6
+CONSENSUS_MIN = 3
+
+STOP_R = 1.0
+TARGET_R = 2.0
+MAX_HOLD = 3
+
+// ============================================================
+// INPUT
+// ============================================================
+
+startTime = input.time(
+     timestamp("01 Jan 2023 00:00 +0000"),
+     "Start date")
+
+showEntries = input.bool(
+     true,
+     "Show entries")
+
+// ============================================================
+// CHART
+// ============================================================
+
+isH1 =
+     timeframe.isminutes and
+     timeframe.multiplier == 60
+
+tickerUpper =
+     str.upper(syminfo.ticker)
+
+isGBPNZD =
+     str.contains(tickerUpper, "GBPNZD")
+
+validChart =
+     isH1 and isGBPNZD
+
+// ============================================================
+// INDICATORS
+// ============================================================
+
+ema20 =
+     ta.ema(close, EMA_FAST)
+
+ema50 =
+     ta.ema(close, EMA_SLOW)
+
+atr14 =
+     ta.atr(ATR_LEN)
+
+// ============================================================
+// SIGNAL TIME
+// ============================================================
+
+isOrigin =
+     validChart and
+     barstate.isconfirmed and
+     hour(time, "UTC") == ORIGIN_HOUR and
+     minute(time, "UTC") == 0 and
+     time >= startTime
+
+ready =
+     isOrigin and
+     not na(ema20) and
+     not na(ema50) and
+     not na(ema20[3]) and
+     not na(close[3]) and
+     not na(atr14) and
+     atr14 > 0
+
+// ============================================================
+// FOUR VOTES
+// ============================================================
+
+int voteTrend = 0
+int votePrice = 0
+int voteSlope = 0
+int voteMomentum = 0
+
+if ready
+
+    voteTrend :=
+         ema20 > ema50 ? 1 :
+         ema20 < ema50 ? -1 :
+         0
+
+    votePrice :=
+         close > ema20 ? 1 :
+         close < ema20 ? -1 :
+         0
+
+    voteSlope :=
+         ema20 > ema20[3] ? 1 :
+         ema20 < ema20[3] ? -1 :
+         0
+
+    voteMomentum :=
+         close > close[3] ? 1 :
+         close < close[3] ? -1 :
+         0
+
+consensus =
+     voteTrend +
+     votePrice +
+     voteSlope +
+     voteMomentum
+
+longSignal =
+     ready and
+     consensus >= CONSENSUS_MIN
+
+// ============================================================
+// FROZEN TRADE STATE
+// ============================================================
+
+var bool tradeActive = false
+
+var float frozenEntry = na
+var float frozenATR = na
+var float frozenStop = na
+var float frozenTarget = na
+
+var int entryBar = na
+
+bool newLong = false
+
+// ============================================================
+// DETECT CLOSED TRADE
+// ============================================================
+
+if tradeActive and
+   not na(entryBar) and
+   bar_index > entryBar and
+   strategy.position_size == 0
+
+    tradeActive := false
+
+    frozenEntry := na
+    frozenATR := na
+    frozenStop := na
+    frozenTarget := na
+
+    entryBar := na
+
+// ============================================================
+// ENTRY
+// ============================================================
+
+canEnter =
+     longSignal and
+     not tradeActive and
+     strategy.position_size == 0
+
+if canEnter
+
+    frozenEntry :=
+         close
+
+    frozenATR :=
+         atr14
+
+    frozenStop :=
+         frozenEntry -
+         STOP_R * frozenATR
+
+    frozenTarget :=
+         frozenEntry +
+         TARGET_R * frozenATR
+
+    entryBar :=
+         bar_index
+
+    tradeActive :=
+         true
+
+    newLong :=
+         true
+
+    strategy.entry(
+         "GBPNZD_LONG",
+         strategy.long,
+         comment="GBPNZD_0600_LONG")
+
+    strategy.exit(
+         "GBPNZD_EXIT",
+         from_entry="GBPNZD_LONG",
+         stop=frozenStop,
+         limit=frozenTarget,
+         comment="TP_OR_SL")
+
+// ============================================================
+// MAINTAIN FROZEN EXIT
+// ============================================================
+
+if tradeActive
+
+    strategy.exit(
+         "GBPNZD_EXIT",
+         from_entry="GBPNZD_LONG",
+         stop=frozenStop,
+         limit=frozenTarget,
+         comment="TP_OR_SL")
+
+// ============================================================
+// TIME EXIT
+//
+// Entry candle = 06:00
+//
+// Future #1 = 07:00
+// Future #2 = 08:00
+// Future #3 = 09:00
+//
+// If TP/SL has not resolved by then,
+// close at future #3 close.
+// ============================================================
+
+if tradeActive and
+   not na(entryBar)
+
+    int barsHeld =
+         bar_index - entryBar
+
+    if barsHeld >= MAX_HOLD
+
+        strategy.close(
+             "GBPNZD_LONG",
+             comment="TIME_EXIT")
+
+// ============================================================
+// VISUALS
+// ============================================================
+
+plot(
+     ema20,
+     "EMA20")
+
+plot(
+     ema50,
+     "EMA50")
+
+plotshape(
+     showEntries and
+     newLong,
+     title="GBPNZD LONG",
+     text="LONG",
+     style=shape.triangleup,
+     location=location.belowbar,
+     size=size.tiny)
+
+// ============================================================
+// INFO
+// ============================================================
+
+var table info =
+     table.new(
+          position.top_right,
+          2,
+          10,
+          border_width=1)
+
+if barstate.islast
+
+    table.cell(info, 0, 0, "GBPNZD")
+    table.cell(info, 1, 0, "V1")
+
+    table.cell(info, 0, 1, "Origin")
+    table.cell(info, 1, 1, "06:00 UTC")
+
+    table.cell(info, 0, 2, "Direction")
+    table.cell(info, 1, 2, "LONG ONLY")
+
+    table.cell(info, 0, 3, "Gate")
+    table.cell(info, 1, 3, "4-VOTE >= +3")
+
+    table.cell(info, 0, 4, "Extra filter")
+    table.cell(info, 1, 4, "NONE")
+
+    table.cell(info, 0, 5, "SL")
+    table.cell(info, 1, 5, "1 ATR")
+
+    table.cell(info, 0, 6, "TP")
+    table.cell(info, 1, 6, "2 ATR")
+
+    table.cell(info, 0, 7, "Hold")
+    table.cell(info, 1, 7, "3 H1")
+
+    table.cell(info, 0, 8, "Phase 3 Exp")
+    table.cell(info, 1, 8, "+0.179R")
+
+    table.cell(info, 0, 9, "Phase 4")
+    table.cell(info, 1, 9, "FILTERS REJECTED")
+
+bgcolor(
+     validChart ?
+     na :
+     color.new(color.red, 90))

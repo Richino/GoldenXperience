@@ -1,0 +1,29 @@
+{
+  "strategyId": "eurusd_15m_trend_pullback_reclaim_v1",
+  "name": "EUR/USD 15m Trend Pullback Reclaim",
+  "version": "v1",
+  "symbol": "EUR_USD",
+  "timeframe": "M15",
+  "frozen": true,
+  "productionStrategyModified": false,
+  "deployed": false,
+  "ordersPlaced": false,
+  "rules": {
+    "emaFastPeriod": 20,
+    "emaSlowPeriod": 50,
+    "atrPeriod": 14,
+    "minimumBodyAtr": 0.35,
+    "stopAtr": 1,
+    "rewardR": 2
+  },
+  "dailyDirection": "previous completed OANDA D candle only; EMA20/EMA50 and close taken from that bar",
+  "entry": "confirmed M15 midpoint close",
+  "executionOfficial": "stop-first ambiguity; adverse stop gaps fill at the worse open; target gaps get no improvement",
+  "executable": "signals remain midpoint; long ask in / bid out; short bid in / ask out; 1 ATR / 2 ATR rebuilt from frozen midpoint ATR around the executable entry",
+  "period": {
+    "from": "2023-01-01T00:00:00.000Z",
+    "toExclusive": "2026-09-05T00:00:00.000Z",
+    "warmupM15": "2022-07-01T00:00:00.000Z",
+    "warmupD": "2021-01-01T00:00:00.000Z"
+  }
+}

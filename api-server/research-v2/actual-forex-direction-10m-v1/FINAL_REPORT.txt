@@ -3,30 +3,30 @@ Research only. This read-only audit does not change trades, runtime strategy pol
 
 Question tested: for each actual four-family forex paper decision, did the strategy's original direction match the raw OANDA M1 midpoint move exactly ten minutes after the latest completed M1 close at or before its decision time?
 This is direction-only: no trade entry, bid/ask, spread, stop, target, resolver, or R result is used. A zero midpoint move is a tie. Exact inverse flips only the original direction while keeping the same two midpoint marks.
-Source: 99 actual paper_strategy_trades rows from the EMA, breakout, momentum and mean-reversion families; 99 had both required M1 marks. 20 stored rows had an execution-policy direction flip.
-Observation window: 2026-08-19T07:15:00.000Z → 2026-08-26T11:30:00.000Z. Horizon: 10 minutes.
+Source: 141 actual paper_strategy_trades rows from the EMA, breakout, momentum and mean-reversion families; 141 had both required M1 marks. 36 stored rows had an execution-policy direction flip.
+Observation window: 2026-08-19T07:15:00.000Z → 2026-08-31T20:15:00.000Z. Horizon: 10 minutes.
 
 ALL-RECORDS EXPLORATORY FAMILY VIEW — descriptive only; do not use this pooled table to activate or invert a strategy:
-breakout   decisions= 30 | original n=30 W/L/T=15/15/0 WR=50.00% CI95=[33.15%, 66.85%] | inverse n=30 W/L/T=15/15/0 WR=50.00% CI95=[33.15%, 66.85%] | executed n=30 W/L/T=15/15/0 WR=50.00% CI95=[33.15%, 66.85%]
-ema        decisions= 23 | original n=23 W/L/T=14/9/0 WR=60.87% CI95=[40.79%, 77.84%] | inverse n=23 W/L/T=9/14/0 WR=39.13% CI95=[22.16%, 59.21%] | executed n=23 W/L/T=14/9/0 WR=60.87% CI95=[40.79%, 77.84%]
-meanrev    decisions=  1 | original n=1 W/L/T=0/1/0 WR=0.00% CI95=[0.00%, 79.35%] | inverse n=1 W/L/T=1/0/0 WR=100.00% CI95=[20.65%, 100.00%] | executed n=1 W/L/T=0/1/0 WR=0.00% CI95=[0.00%, 79.35%]
-momentum   decisions= 45 | original n=44 W/L/T=14/30/1 WR=31.82% CI95=[20.00%, 46.56%] | inverse n=44 W/L/T=30/14/1 WR=68.18% CI95=[53.44%, 80.00%] | executed n=44 W/L/T=24/20/1 WR=54.55% CI95=[40.07%, 68.29%]
+breakout   decisions= 38 | original n=38 W/L/T=16/22/0 WR=42.11% CI95=[27.85%, 57.81%] | inverse n=38 W/L/T=22/16/0 WR=57.89% CI95=[42.19%, 72.15%] | executed n=38 W/L/T=16/22/0 WR=42.11% CI95=[27.85%, 57.81%]
+ema        decisions= 39 | original n=39 W/L/T=20/19/0 WR=51.28% CI95=[36.20%, 66.14%] | inverse n=39 W/L/T=19/20/0 WR=48.72% CI95=[33.86%, 63.80%] | executed n=39 W/L/T=20/19/0 WR=51.28% CI95=[36.20%, 66.14%]
+meanrev    decisions=  3 | original n=3 W/L/T=1/2/0 WR=33.33% CI95=[6.15%, 79.23%] | inverse n=3 W/L/T=2/1/0 WR=66.67% CI95=[20.77%, 93.85%] | executed n=3 W/L/T=1/2/0 WR=33.33% CI95=[6.15%, 79.23%]
+momentum   decisions= 61 | original n=60 W/L/T=19/41/1 WR=31.67% CI95=[21.31%, 44.23%] | inverse n=60 W/L/T=41/19/1 WR=68.33% CI95=[55.77%, 78.69%] | executed n=60 W/L/T=35/25/1 WR=58.33% CI95=[45.73%, 69.94%]
 
 Chronological validation (the only activation decision):
-TRAIN original: n=54 W/L/T=27/27/1 WR=50.00% CI95=[37.11%, 62.89%]
-TRAIN exact inverse: n=54 W/L/T=27/27/1 WR=50.00% CI95=[37.11%, 62.89%]
-DEV original: n=19 W/L/T=4/15/0 WR=21.05% CI95=[8.51%, 43.33%]
-DEV exact inverse: n=19 W/L/T=15/4/0 WR=78.95% CI95=[56.67%, 91.49%]
+TRAIN original: n=109 W/L/T=46/63/1 WR=42.20% CI95=[33.35%, 51.58%]
+TRAIN exact inverse: n=109 W/L/T=63/46/1 WR=57.80% CI95=[48.42%, 66.65%]
+DEV original: n=28 W/L/T=8/20/0 WR=28.57% CI95=[15.25%, 47.06%]
+DEV exact inverse: n=28 W/L/T=20/8/0 WR=71.43% CI95=[52.94%, 84.75%]
 Predeclared gate: n>=100, WR>55.56%, Wilson lower bound >50%. Selected for holdout: NONE.
 HOLDOUT NOT READ — neither direction passed the fixed development gate.
 
 Coverage:
-AUD_USD: 15 actual decisions; 20000 fetched completed M1 candles.
-USD_JPY: 11 actual decisions; 20000 fetched completed M1 candles.
-EUR_USD: 15 actual decisions; 20000 fetched completed M1 candles.
-GBP_USD: 14 actual decisions; 20000 fetched completed M1 candles.
-USD_CHF: 14 actual decisions; 20000 fetched completed M1 candles.
-EUR_GBP: 8 actual decisions; 20000 fetched completed M1 candles.
-USD_CAD: 14 actual decisions; 20000 fetched completed M1 candles.
-AUD_JPY: 8 actual decisions; 20000 fetched completed M1 candles.
+AUD_USD: 20 actual decisions; 20000 fetched completed M1 candles.
+USD_JPY: 14 actual decisions; 20000 fetched completed M1 candles.
+GBP_USD: 20 actual decisions; 20000 fetched completed M1 candles.
+USD_CHF: 19 actual decisions; 20000 fetched completed M1 candles.
+EUR_USD: 23 actual decisions; 20000 fetched completed M1 candles.
+EUR_GBP: 12 actual decisions; 20000 fetched completed M1 candles.
+USD_CAD: 19 actual decisions; 20000 fetched completed M1 candles.
+AUD_JPY: 14 actual decisions; 20000 fetched completed M1 candles.
 Skipped because either M1 mark was unavailable: none.

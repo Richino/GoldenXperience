@@ -1,0 +1,192 @@
+{
+  "decision": {
+    "status": [
+      "RESEARCH_ONLY",
+      "MARGINAL_AFTER_COSTS",
+      "REJECTED_REPLACEMENT"
+    ],
+    "activeEurusdStrategy": "EURUSD London Breakout V1 (shadow, executionEnabled=false)",
+    "deployed": false,
+    "promoted": false
+  },
+  "mid": {
+    "trades": 234,
+    "wins": 116,
+    "losses": 118,
+    "wr": 49.572649572649574,
+    "pf": 1.4545251036842992,
+    "total": 52.328762375098734,
+    "exp": 0.22362718963717407,
+    "avgWin": 1.4435965010200082,
+    "avgLoss": -0.9756646757900183,
+    "mdd": 10.591161540273056
+  },
+  "exec": {
+    "trades": 234,
+    "wins": 114,
+    "losses": 120,
+    "wr": 48.717948717948715,
+    "pf": 1.124585431104244,
+    "total": 15.79169796294346,
+    "exp": 0.0674858887305276,
+    "avgWin": 1.250400593794732,
+    "avgLoss": -1.0562830810804662,
+    "mdd": 13.058418322119886
+  },
+  "execOptimisticBound": {
+    "trades": 234,
+    "wins": 115,
+    "losses": 119,
+    "wr": 49.14529914529914,
+    "pf": 1.168547064999973,
+    "total": 21.328733650142684,
+    "exp": 0.09114843440231916,
+    "avgWin": 1.285855731907719,
+    "avgLoss": -1.0634006346155043,
+    "mdd": 13.058418322119888
+  },
+  "ambiguousCount": 3,
+  "perLeg": [
+    {
+      "leg": "0600_SHORT",
+      "trades": 53,
+      "wins": 26,
+      "losses": 27,
+      "wr": 49.056603773584904,
+      "pf": 1.2013656000287385,
+      "total": 5.824710003278316,
+      "exp": 0.1099001887411003,
+      "avgWin": 1.3365674228451145,
+      "avgLoss": -1.0713349255812838,
+      "mdd": 6.519052104637977
+    },
+    {
+      "leg": "0700_LONG",
+      "trades": 49,
+      "wins": 24,
+      "losses": 25,
+      "wr": 48.97959183673469,
+      "pf": 0.9472503507245418,
+      "total": -1.411786410415862,
+      "exp": -0.028811967559507386,
+      "avgWin": 1.0563381232412856,
+      "avgLoss": -1.0705560547282686,
+      "mdd": 5.001085868045802
+    },
+    {
+      "leg": "0700_SHORT",
+      "trades": 42,
+      "wins": 21,
+      "losses": 21,
+      "wr": 50,
+      "pf": 1.4049198851590683,
+      "total": 9.105769939487017,
+      "exp": 0.2168040461782623,
+      "avgWin": 1.5044571868290937,
+      "avgLoss": -1.0708490944725688,
+      "mdd": 6.601518120977039
+    },
+    {
+      "leg": "0800_SHORT",
+      "trades": 33,
+      "wins": 17,
+      "losses": 16,
+      "wr": 51.515151515151516,
+      "pf": 1.1137518815117207,
+      "total": 1.9606708293717452,
+      "exp": 0.05941426755671955,
+      "avgWin": 1.1292383740188314,
+      "avgLoss": -1.0772738455592743,
+      "mdd": 6.592974473127505
+    },
+    {
+      "leg": "0900_LONG",
+      "trades": 20,
+      "wins": 9,
+      "losses": 11,
+      "wr": 45,
+      "pf": 1.0787075134895414,
+      "total": 0.9237300705501539,
+      "exp": 0.046186503527507694,
+      "avgWin": 1.406663062268549,
+      "avgLoss": -1.066930680896981,
+      "mdd": 5.233357262012849
+    },
+    {
+      "leg": "1000_LONG",
+      "trades": 17,
+      "wins": 8,
+      "losses": 9,
+      "wr": 47.05882352941176,
+      "pf": 0.9157609502862433,
+      "total": -0.7340867957410622,
+      "exp": -0.04318157622006248,
+      "avgWin": 0.9975302783339645,
+      "avgLoss": -0.9682587802680865,
+      "mdd": 5.722585568564749
+    },
+    {
+      "leg": "1000_SHORT",
+      "trades": 20,
+      "wins": 9,
+      "losses": 11,
+      "wr": 45,
+      "pf": 1.0112671090835135,
+      "total": 0.12269032641315247,
+      "exp": 0.006134516320657623,
+      "avgWin": 1.2235485191128697,
+      "avgLoss": -0.9899314859638793,
+      "mdd": 5.566716536169517
+    }
+  ],
+  "profitLock": {
+    "tvAct": 78,
+    "execAct": 116,
+    "tvLockExits": 45,
+    "execLockExits": 53,
+    "midNotExec": 2,
+    "execArmedDiffered": 18,
+    "lockSavedFromLoss": 53,
+    "lockReducedWinner": 12,
+    "spreadChangedLock": 42
+  },
+  "spread": {
+    "entry": {
+      "avg": 1.5538461538461263,
+      "median": 1.5500000000001624,
+      "max": 1.9999999999997797
+    },
+    "exit": {
+      "avg": 1.5726495726494605,
+      "median": 1.5999999999993797,
+      "max": 2.5999999999992696
+    },
+    "drag": {
+      "avg": 0.15614130090664644,
+      "median": 0.06546149128601791,
+      "max": 3.1133571334580035,
+      "total": 36.53706441215527
+    }
+  },
+  "outcomeChanges": {
+    "winToLoss": 7,
+    "winToSmaller": 98,
+    "lossToLarger": 112,
+    "lossToWin": 5,
+    "tpToLock": 12,
+    "tpToLoss": 4,
+    "lockToLoss": 2,
+    "lockToTp": 4,
+    "midLockNoExec": 2,
+    "slEarlier": 6,
+    "exitReasonChanged": 24
+  },
+  "benchmark": {
+    "BENCH": 0.078,
+    "classification": "WEAK",
+    "verdict": "MARGINAL_AFTER_COSTS",
+    "freqDecision": 2,
+    "freqText": "V3 sacrifices frequency for comparable executable edge (no material gain)."
+  },
+  "tvFixedQtyPF": 1.559131736526946
+}

@@ -1,0 +1,698 @@
+//@version=6
+
+strategy(
+     "GX EURUSD London Breakout V3 - Selected Frequency Legs - 1.25R Profit Lock",
+     overlay=true,
+     pyramiding=0,
+     process_orders_on_close=true,
+     calc_on_every_tick=false,
+     max_bars_back=5000)
+
+
+// ============================================================
+// EURUSD LONDON BREAKOUT V3
+//
+// SELECTED FREQUENCY LEGS:
+//
+// 06:00 SHORT
+//
+// 07:00 LONG
+// 07:00 SHORT
+//
+// 08:00 SHORT
+//
+// 09:00 LONG
+//
+// 10:00 LONG
+// 10:00 SHORT
+//
+// DISABLED:
+//
+// 06:00 LONG
+// 08:00 LONG
+// 09:00 SHORT
+//
+// CORE LOGIC FROZEN:
+//
+// Asia range = 00:00-05:00 UTC
+// EMA20 / EMA50
+// HH + HL bullish structure
+// LH + LL bearish structure
+// Close-confirmed Asia breakout
+// Body >= 0.35 ATR14
+//
+// Initial SL = -1R
+// TP = +2R
+//
+// Once FUTURE price reaches +1.25R:
+// stop permanently moves to +0.50R.
+//
+// NO TIME EXIT.
+//
+// IMPORTANT V3 CHANGE:
+// Each selected hour is treated as its own valid origin.
+// The old 0 -> nonzero transition suppression is removed.
+// Only one live position at a time is still allowed.
+// ============================================================
+
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+
+EMA_FAST = 20
+EMA_SLOW = 50
+ATR_LEN = 14
+
+MIN_BODY_ATR = 0.35
+
+STOP_R = 1.0
+TARGET_R = 2.0
+
+LOCK_TRIGGER_R = 1.25
+LOCK_STOP_R = 0.50
+
+
+// ============================================================
+// DISPLAY
+// ============================================================
+
+showAsia = input.bool(true, "Show Asia Range")
+showMarkers = input.bool(true, "Show Entry Markers")
+showLock = input.bool(true, "Show Profit Lock")
+
+
+// ============================================================
+// CHART VALIDATION
+// ============================================================
+
+isEURUSD =
+     syminfo.basecurrency == "EUR" and
+     syminfo.currency == "USD"
+
+isH1 =
+     timeframe.isminutes and
+     timeframe.multiplier == 60
+
+validChart =
+     isEURUSD and isH1
+
+
+// ============================================================
+// INDICATORS
+// ============================================================
+
+ema20 = ta.ema(close, EMA_FAST)
+ema50 = ta.ema(close, EMA_SLOW)
+atr14 = ta.atr(ATR_LEN)
+
+
+// ============================================================
+// UTC TIME
+// ============================================================
+
+utcHour = hour(time, "UTC")
+utcMinute = minute(time, "UTC")
+
+utcYear = year(time, "UTC")
+utcMonth = month(time, "UTC")
+utcDay = dayofmonth(time, "UTC")
+
+utcDateKey =
+     utcYear * 10000 +
+     utcMonth * 100 +
+     utcDay
+
+newUtcDay =
+     na(utcDateKey[1]) or
+     utcDateKey != utcDateKey[1]
+
+
+// ============================================================
+// ASIA RANGE
+//
+// 00:00 through 05:00 UTC
+// ============================================================
+
+var float asiaHigh = na
+var float asiaLow = na
+var int asiaBarCount = 0
+
+if newUtcDay
+
+    asiaHigh := na
+    asiaLow := na
+    asiaBarCount := 0
+
+
+inAsia =
+     utcHour >= 0 and
+     utcHour < 6
+
+
+if inAsia
+
+    asiaHigh :=
+         na(asiaHigh) ?
+         high :
+         math.max(asiaHigh, high)
+
+    asiaLow :=
+         na(asiaLow) ?
+         low :
+         math.min(asiaLow, low)
+
+    asiaBarCount += 1
+
+
+asiaReady =
+     asiaBarCount == 6 and
+     not na(asiaHigh) and
+     not na(asiaLow)
+
+
+// ============================================================
+// TREND
+// ============================================================
+
+bullTrend =
+     ema20 > ema50
+
+bearTrend =
+     ema20 < ema50
+
+
+// ============================================================
+// STRUCTURE
+// ============================================================
+
+bullStructure =
+     not na(high[1]) and
+     high > high[1] and
+     low > low[1]
+
+bearStructure =
+     not na(low[1]) and
+     high < high[1] and
+     low < low[1]
+
+
+// ============================================================
+// ASIA RANGE CROSS
+// ============================================================
+
+longCross =
+     asiaReady and
+     not na(close[1]) and
+     close > asiaHigh and
+     close[1] <= asiaHigh
+
+shortCross =
+     asiaReady and
+     not na(close[1]) and
+     close < asiaLow and
+     close[1] >= asiaLow
+
+
+// ============================================================
+// BODY FILTER
+// ============================================================
+
+body =
+     math.abs(close - open)
+
+bodyQualified =
+     not na(atr14) and
+     atr14 > 0 and
+     body >= MIN_BODY_ATR * atr14
+
+
+// ============================================================
+// BASE SIGNALS
+// ============================================================
+
+baseLong =
+     validChart and
+     barstate.isconfirmed and
+     asiaReady and
+     longCross and
+     bullTrend and
+     bullStructure and
+     bodyQualified
+
+baseShort =
+     validChart and
+     barstate.isconfirmed and
+     asiaReady and
+     shortCross and
+     bearTrend and
+     bearStructure and
+     bodyQualified
+
+
+// ============================================================
+// V3 SELECTED HOURS
+// ============================================================
+
+// LONG:
+// 07:00
+// 09:00
+// 10:00
+
+allowedLongHour =
+     utcHour == 7 or
+     utcHour == 9 or
+     utcHour == 10
+
+
+// SHORT:
+// 06:00
+// 07:00
+// 08:00
+// 10:00
+
+allowedShortHour =
+     utcHour == 6 or
+     utcHour == 7 or
+     utcHour == 8 or
+     utcHour == 10
+
+
+longSetup =
+     baseLong and
+     allowedLongHour
+
+shortSetup =
+     baseShort and
+     allowedShortHour
+
+
+// ============================================================
+// CONFLICT
+// ============================================================
+
+conflict =
+     longSetup and
+     shortSetup
+
+
+// ============================================================
+// ACTIVE TRADE STATE
+// ============================================================
+
+var float tradeEntry = na
+var float tradeAtr = na
+
+var float originalStop = na
+var float tradeStop = na
+var float tradeTarget = na
+
+var float profitLockTrigger = na
+var float profitLockStop = na
+
+var bool profitLockActive = false
+
+var int entryBarIndex = na
+var string activeLeg = ""
+
+var int blockedSignals = 0
+
+bool executedLong = false
+bool executedShort = false
+
+
+// ============================================================
+// BLOCKED SIGNAL TRACKING
+// ============================================================
+
+selectedSignal =
+     longSetup or
+     shortSetup
+
+if selectedSignal and
+   strategy.position_size != 0
+
+    blockedSignals += 1
+
+
+// ============================================================
+// CAN ENTER
+// ============================================================
+
+canEnter =
+     barstate.isconfirmed and
+     strategy.position_size == 0 and
+     selectedSignal and
+     not conflict
+
+
+// ============================================================
+// LONG ENTRY
+// ============================================================
+
+if canEnter and longSetup
+
+    tradeEntry := close
+    tradeAtr := atr14
+
+    originalStop :=
+         tradeEntry -
+         tradeAtr * STOP_R
+
+    tradeStop :=
+         originalStop
+
+    tradeTarget :=
+         tradeEntry +
+         tradeAtr * TARGET_R
+
+    profitLockTrigger :=
+         tradeEntry +
+         tradeAtr * LOCK_TRIGGER_R
+
+    profitLockStop :=
+         tradeEntry +
+         tradeAtr * LOCK_STOP_R
+
+    profitLockActive := false
+
+    entryBarIndex := bar_index
+
+    activeLeg :=
+         utcHour == 7 ?
+         "0700_LONG" :
+         utcHour == 9 ?
+         "0900_LONG" :
+         "1000_LONG"
+
+    executedLong := true
+
+
+    strategy.entry(
+         "EURUSD_LONG",
+         strategy.long,
+         comment=activeLeg)
+
+
+    strategy.exit(
+         "EURUSD_LONG_EXIT",
+         from_entry="EURUSD_LONG",
+         stop=tradeStop,
+         limit=tradeTarget,
+         comment="TP_OR_SL")
+
+
+// ============================================================
+// SHORT ENTRY
+// ============================================================
+
+if canEnter and shortSetup
+
+    tradeEntry := close
+    tradeAtr := atr14
+
+    originalStop :=
+         tradeEntry +
+         tradeAtr * STOP_R
+
+    tradeStop :=
+         originalStop
+
+    tradeTarget :=
+         tradeEntry -
+         tradeAtr * TARGET_R
+
+    profitLockTrigger :=
+         tradeEntry -
+         tradeAtr * LOCK_TRIGGER_R
+
+    profitLockStop :=
+         tradeEntry -
+         tradeAtr * LOCK_STOP_R
+
+    profitLockActive := false
+
+    entryBarIndex := bar_index
+
+    activeLeg :=
+         utcHour == 6 ?
+         "0600_SHORT" :
+         utcHour == 7 ?
+         "0700_SHORT" :
+         utcHour == 8 ?
+         "0800_SHORT" :
+         "1000_SHORT"
+
+    executedShort := true
+
+
+    strategy.entry(
+         "EURUSD_SHORT",
+         strategy.short,
+         comment=activeLeg)
+
+
+    strategy.exit(
+         "EURUSD_SHORT_EXIT",
+         from_entry="EURUSD_SHORT",
+         stop=tradeStop,
+         limit=tradeTarget,
+         comment="TP_OR_SL")
+
+
+// ============================================================
+// LONG PROFIT LOCK
+//
+// FUTURE bars only.
+//
+// At +1.25R:
+// move stop permanently to +0.50R.
+// ============================================================
+
+if strategy.position_size > 0 and
+   not na(entryBarIndex) and
+   bar_index > entryBarIndex
+
+    if not profitLockActive and
+       not na(profitLockTrigger) and
+       high >= profitLockTrigger
+
+        profitLockActive := true
+        tradeStop := profitLockStop
+
+
+// ============================================================
+// SHORT PROFIT LOCK
+// ============================================================
+
+if strategy.position_size < 0 and
+   not na(entryBarIndex) and
+   bar_index > entryBarIndex
+
+    if not profitLockActive and
+       not na(profitLockTrigger) and
+       low <= profitLockTrigger
+
+        profitLockActive := true
+        tradeStop := profitLockStop
+
+
+// ============================================================
+// MAINTAIN LONG EXIT
+// ============================================================
+
+if strategy.position_size > 0 and
+   not na(tradeStop) and
+   not na(tradeTarget)
+
+    strategy.exit(
+         "EURUSD_LONG_EXIT",
+         from_entry="EURUSD_LONG",
+         stop=tradeStop,
+         limit=tradeTarget,
+         comment=
+              profitLockActive ?
+              "PROFIT_LOCK_OR_TP" :
+              "TP_OR_SL")
+
+
+// ============================================================
+// MAINTAIN SHORT EXIT
+// ============================================================
+
+if strategy.position_size < 0 and
+   not na(tradeStop) and
+   not na(tradeTarget)
+
+    strategy.exit(
+         "EURUSD_SHORT_EXIT",
+         from_entry="EURUSD_SHORT",
+         stop=tradeStop,
+         limit=tradeTarget,
+         comment=
+              profitLockActive ?
+              "PROFIT_LOCK_OR_TP" :
+              "TP_OR_SL")
+
+
+// ============================================================
+// CLEAR STATE
+// ============================================================
+
+positionClosed =
+     strategy.position_size == 0 and
+     strategy.position_size[1] != 0
+
+if positionClosed
+
+    tradeEntry := na
+    tradeAtr := na
+
+    originalStop := na
+    tradeStop := na
+    tradeTarget := na
+
+    profitLockTrigger := na
+    profitLockStop := na
+
+    profitLockActive := false
+
+    entryBarIndex := na
+    activeLeg := ""
+
+
+// ============================================================
+// VISUALS
+// ============================================================
+
+plot(
+     ema20,
+     "EMA 20")
+
+plot(
+     ema50,
+     "EMA 50")
+
+
+plot(
+     showAsia and asiaReady ?
+     asiaHigh :
+     na,
+     "Asia High",
+     style=plot.style_stepline)
+
+plot(
+     showAsia and asiaReady ?
+     asiaLow :
+     na,
+     "Asia Low",
+     style=plot.style_stepline)
+
+
+plot(
+     strategy.position_size != 0 ?
+     tradeStop :
+     na,
+     "Active Stop",
+     style=plot.style_linebr)
+
+
+plot(
+     strategy.position_size != 0 ?
+     tradeTarget :
+     na,
+     "2R Target",
+     style=plot.style_linebr)
+
+
+plot(
+     showLock and
+     strategy.position_size != 0 and
+     not profitLockActive ?
+     profitLockTrigger :
+     na,
+     "1.25R Lock Trigger",
+     style=plot.style_linebr)
+
+
+// ============================================================
+// ENTRY MARKERS
+// ============================================================
+
+plotshape(
+     showMarkers and executedLong,
+     title="V3 LONG",
+     text="LONG",
+     style=shape.triangleup,
+     location=location.belowbar,
+     size=size.tiny)
+
+plotshape(
+     showMarkers and executedShort,
+     title="V3 SHORT",
+     text="SHORT",
+     style=shape.triangledown,
+     location=location.abovebar,
+     size=size.tiny)
+
+
+// ============================================================
+// PROFIT LOCK MARKER
+// ============================================================
+
+newProfitLock =
+     profitLockActive and
+     not profitLockActive[1]
+
+plotshape(
+     showMarkers and newProfitLock,
+     title="Profit Locked",
+     text="+0.5R",
+     style=shape.circle,
+     location=location.abovebar,
+     size=size.tiny)
+
+
+// ============================================================
+// INFO TABLE
+// ============================================================
+
+var table info =
+     table.new(
+          position.top_right,
+          2,
+          7,
+          border_width=1)
+
+if barstate.islast
+
+    table.cell(info, 0, 0, "EURUSD")
+    table.cell(info, 1, 0, "Frequency V3")
+
+    table.cell(info, 0, 1, "LONG")
+    table.cell(info, 1, 1, "07 / 09 / 10")
+
+    table.cell(info, 0, 2, "SHORT")
+    table.cell(info, 1, 2, "06 / 07 / 08 / 10")
+
+    table.cell(info, 0, 3, "Initial RR")
+    table.cell(info, 1, 3, "1 : 2")
+
+    table.cell(info, 0, 4, "Lock trigger")
+    table.cell(info, 1, 4, "+1.25R")
+
+    table.cell(info, 0, 5, "Lock stop")
+    table.cell(info, 1, 5, "+0.50R")
+
+    table.cell(info, 0, 6, "Blocked")
+    table.cell(info, 1, 6, str.tostring(blockedSignals))
+
+
+// ============================================================
+// WRONG CHART
+// ============================================================
+
+bgcolor(
+     validChart ?
+     na :
+     color.new(color.red, 90))

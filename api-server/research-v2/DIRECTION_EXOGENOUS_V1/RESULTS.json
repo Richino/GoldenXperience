@@ -34,7 +34,9 @@
     "newAuc": 0.511306,
     "incrementalAuc": 0.003217,
     "walkForwardFoldsWon": "16/32",
-    "oracleMoveImprovement": -0.002029
+    "oracleMoveImprovementAtPrimaryBest": -0.002029,
+    "bestOracleOnlyHorizon": "120m",
+    "bestOracleOnlyImprovement": 0.022784
   },
   "protocol": {
     "primaryScope": "all_causally_labelled_direction_rows",

@@ -1,0 +1,99 @@
+{
+  "checkedAt": "2026-09-06T03:18:34.910Z",
+  "source": "Read-only targeted OANDA MBA requests",
+  "replayGaps": 10,
+  "gapsBeforeOrAtExecutableExit": 9,
+  "details": [
+    {
+      "tradeNumber": 64,
+      "minute": "2024-01-19T12:16:00.000Z",
+      "beforeOrAtExit": true,
+      "returnedCompletedCandles": {
+        "M1": 0,
+        "S5": 0
+      }
+    },
+    {
+      "tradeNumber": 73,
+      "minute": "2024-02-15T12:56:00.000Z",
+      "beforeOrAtExit": true,
+      "returnedCompletedCandles": {
+        "M1": 0,
+        "S5": 0
+      }
+    },
+    {
+      "tradeNumber": 74,
+      "minute": "2024-02-16T12:30:00.000Z",
+      "beforeOrAtExit": true,
+      "returnedCompletedCandles": {
+        "M1": 0,
+        "S5": 0
+      }
+    },
+    {
+      "tradeNumber": 78,
+      "minute": "2024-03-06T13:06:00.000Z",
+      "beforeOrAtExit": true,
+      "returnedCompletedCandles": {
+        "M1": 0,
+        "S5": 0
+      }
+    },
+    {
+      "tradeNumber": 80,
+      "minute": "2024-03-08T12:17:00.000Z",
+      "beforeOrAtExit": true,
+      "returnedCompletedCandles": {
+        "M1": 0,
+        "S5": 0
+      }
+    },
+    {
+      "tradeNumber": 81,
+      "minute": "2024-03-13T12:53:00.000Z",
+      "beforeOrAtExit": true,
+      "returnedCompletedCandles": {
+        "M1": 0,
+        "S5": 0
+      }
+    },
+    {
+      "tradeNumber": 89,
+      "minute": "2024-04-24T13:28:00.000Z",
+      "beforeOrAtExit": false,
+      "returnedCompletedCandles": {
+        "M1": 0,
+        "S5": 0
+      }
+    },
+    {
+      "tradeNumber": 92,
+      "minute": "2024-05-06T12:03:00.000Z",
+      "beforeOrAtExit": true,
+      "returnedCompletedCandles": {
+        "M1": 0,
+        "S5": 0
+      }
+    },
+    {
+      "tradeNumber": 94,
+      "minute": "2024-05-13T14:14:00.000Z",
+      "beforeOrAtExit": true,
+      "returnedCompletedCandles": {
+        "M1": 0,
+        "S5": 0
+      }
+    },
+    {
+      "tradeNumber": 166,
+      "minute": "2025-09-17T12:44:00.000Z",
+      "beforeOrAtExit": true,
+      "returnedCompletedCandles": {
+        "M1": 0,
+        "S5": 0
+      }
+    }
+  ],
+  "interpretation": "OANDA returned no M1 or S5 price candles in these isolated minutes; no executable tick path exists to replay in the broker history."
+}

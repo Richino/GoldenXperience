@@ -55,7 +55,7 @@ export type DashboardStrategyRow = {
   atrPips: number | null;
   updatedAt: string | null;
   strategies: Array<{
-    family: "ema" | "breakout" | "momentum" | "meanrev";
+    family: "ema" | "breakout" | "momentum" | "meanrev" | "gbpusd_strategy" | "usdjpy_strategy" | "audusd_strategy" | "nzdusd_strategy";
     version: string;
     setupStatus: "valid" | "developing" | "invalid" | "no_setup";
     direction: "long" | "short" | null;
@@ -75,6 +75,10 @@ const STRATEGY_FAMILY_LABEL: Record<string, string> = {
   breakout: "Breakout",
   momentum: "Momentum",
   meanrev: "Mean reversion",
+  gbpusd_strategy: "GBPUSD Dual-Origin V2",
+  usdjpy_strategy: "USDJPY Body Extreme V6",
+  audusd_strategy: "AUDUSD Strong Consensus Structure V1",
+  nzdusd_strategy: "NZDUSD Pre-Range Breakout V1",
 };
 
 /** The one line shown under each pair: the adaptive pick, else the regime. */

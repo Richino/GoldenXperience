@@ -127,7 +127,9 @@
     "move-model-v1": "tsx scripts/move-model-v1/experiment.ts",
     "direction-model-v1": "tsx scripts/direction-model-v1/experiment.ts",
     "direction-model-v2-diagnosis": "tsx scripts/direction-model-v2-diagnosis/experiment.ts",
-    "direction-exogenous-v1": "tsx scripts/direction-exogenous-v1/experiment.ts"
+    "direction-exogenous-v1": "tsx scripts/direction-exogenous-v1/experiment.ts",
+    "eurusd:h1-ema-pullback-poc-ab-v1": "tsx scripts/eurusd-h1-ema-pullback-poc-ab-v1/experiment.ts",
+    "eurusd:h1-ema-pullback-poc-ab-v1:test": "tsx scripts/eurusd-h1-ema-pullback-poc-ab-v1/selftest.ts"
   },
   "dependencies": {
     "dotenv": "^17.2.3",

@@ -1,6 +1,6 @@
 import type { MajorInstrument } from "@/types/forex";
 import type {
-  MarketRegime, StrategyEvaluationInput, StrategyFamily, StrategySetup,
+  MarketRegime, StrategyEvaluationInput, StrategyFamily, StrategyId, StrategySetup,
 } from "@/lib/strategy/types";
 
 /**
@@ -16,8 +16,8 @@ import type {
  * no future candles. Each returns a single candidate per instrument whose
  * `status` is `valid` (executable) or `no_setup`/`invalid` (recorded only).
  */
-export interface StrategyCandidate extends StrategySetup {
-  family: StrategyFamily;
+export interface StrategyCandidate<Id extends StrategyId = StrategyFamily> extends StrategySetup {
+  family: Id;
   /** The strategy version, e.g. "ema-v1". */
   version: string;
   /** The immutable configuration version that produced this candidate. */
@@ -28,8 +28,8 @@ export interface StrategyCandidate extends StrategySetup {
   qualifyReason: string;
 }
 
-export interface Strategy<Config> {
-  family: StrategyFamily;
+export interface Strategy<Config, Id extends StrategyId = StrategyFamily> {
+  family: Id;
   version: string;
   defaultConfigVersion: string;
   defaultConfig: Config;
@@ -38,13 +38,13 @@ export interface Strategy<Config> {
 
 export type { MarketRegime, StrategyFamily } from "@/lib/strategy/types";
 
-export function isExecutable(candidate: StrategyCandidate): boolean {
+export function isExecutable(candidate: StrategyCandidate<StrategyId>): boolean {
   return candidate.status === "valid" && candidate.direction !== null
     && candidate.entry !== null && candidate.stop !== null && candidate.target !== null;
 }
 
-export function candidateSummary(candidate: StrategyCandidate): {
-  family: StrategyFamily; version: string; configVersion: string; instrument: MajorInstrument;
+export function candidateSummary<Id extends StrategyId>(candidate: StrategyCandidate<Id>): {
+  family: Id; version: string; configVersion: string; instrument: MajorInstrument;
   direction: StrategyCandidate["direction"]; status: StrategyCandidate["status"];
   entry: number | null; stop: number | null; target: number | null; riskReward: number | null;
 } {

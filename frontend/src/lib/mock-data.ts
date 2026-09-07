@@ -24,6 +24,7 @@ export const mockAccount: AccountSummary = {
   unrealizedPL: 88.42,
   marginAvailable: 24_806.11,
   openTradeCount: 1,
+  hedgingEnabled: false,
   source: "mock",
 };
 

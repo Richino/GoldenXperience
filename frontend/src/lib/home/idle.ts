@@ -165,8 +165,16 @@ export function todayClosedStats(trades: JournalTrade[], todayKey: string) {
       tradingDayKey(trade.closedAt) === todayKey,
   );
   const withR = today.filter((trade) => trade.resultR !== null);
+  const withPl = today.filter(
+    (trade) => trade.paperPl !== null && trade.paperPl !== undefined,
+  );
   return {
     trades: today.length,
     netR: withR.length ? withR.reduce((sum, trade) => sum + (trade.resultR ?? 0), 0) : null,
+    wins: today.filter((trade) => trade.result === "win").length,
+    losses: today.filter((trade) => trade.result === "loss").length,
+    netMoney: withPl.length
+      ? withPl.reduce((sum, trade) => sum + (trade.paperPl ?? 0), 0)
+      : null,
   };
 }

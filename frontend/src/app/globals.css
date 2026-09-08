@@ -2305,19 +2305,22 @@ input[type="number"] {
 .app-topbar-search-field {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.45rem;
   width: 15.5rem;
-  height: 1.85rem;
-  padding: 0 0.55rem;
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--surface) 78%, var(--background));
+  height: 2.2rem;
+  padding: 0 0.7rem;
+  border: none;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 70%, var(--background));
   color: var(--muted);
 }
 
 .app-topbar-search-field:focus-within {
-  border-color: var(--border-strong);
   color: var(--foreground);
+}
+
+.dark .app-topbar-search-field {
+  background: color-mix(in srgb, var(--foreground) 7%, transparent);
 }
 
 .app-topbar-search-field input {
@@ -2378,7 +2381,7 @@ input[type="number"] {
 
 @media (min-width: 1024px) {
   .has-topbar {
-    --app-topbar-height: 44px;
+    --app-topbar-height: 58px;
     padding-top: var(--app-topbar-height);
   }
 
@@ -2403,6 +2406,16 @@ input[type="number"] {
     background: #0b0d0e;
   }
 
+  /* On the home dashboard the top bar blends into the brand gradient rather
+     than sitting on it as a strip, so the green reaches the top-right corner.
+     A light blur keeps scrolling content legible under the transparent bar. */
+  .has-home-rail .app-topbar,
+  .dark .has-home-rail .app-topbar {
+    background: transparent;
+    border-bottom-color: transparent;
+    backdrop-filter: blur(6px);
+  }
+
   .app-topbar-session {
     display: flex;
     min-width: 0;
@@ -2424,6 +2437,32 @@ input[type="number"] {
     background: var(--accent);
   }
 
+  .app-topbar-page {
+    color: var(--foreground);
+    font-weight: 600;
+  }
+
+  .app-topbar-sep {
+    color: var(--muted);
+    opacity: 0.7;
+  }
+
+  .app-topbar-status,
+  .app-topbar-market-session {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+  }
+
+  .app-topbar-status {
+    color: var(--muted-strong);
+  }
+
+  .app-topbar-market-session {
+    color: var(--muted);
+  }
+
   .app-topbar-clock {
     color: var(--muted-strong);
     font-variant-numeric: tabular-nums;
@@ -2437,10 +2476,18 @@ input[type="number"] {
 
   .app-topbar .notification-bell-btn {
     display: grid;
-    width: 1.85rem;
-    height: 1.85rem;
-    border-radius: 5px;
-    background: transparent;
+    width: 2.2rem;
+    height: 2.2rem;
+    border: none;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--surface) 70%, var(--background));
+    box-shadow: none;
+  }
+
+  .dark .app-topbar .notification-bell-btn {
+    border: none;
+    background: color-mix(in srgb, var(--foreground) 7%, transparent);
+    box-shadow: none;
   }
 
   .app-topbar .notification-bell-btn > span.absolute {
@@ -6545,6 +6592,29 @@ input[type="number"] {
     background-color: #080A0B;
   }
 
+  /* The chart route is a single non-scrolling screen: the terminal fills the
+     viewport under the fixed top bar. Without this the workspace `main` keeps
+     its `min-h-dvh` (a full 100dvh) while the wrapper also reserves the 44px
+     top-bar strip, leaving the page one top-bar taller than the viewport and
+     scrollable. Mirrors the mobile clamp above for desktop. */
+  html:has(.signals-route),
+  body:has(.signals-route) {
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  .signals-route,
+  .signals-route > div {
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  .signals-route main {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
   .signals-view section.app-card:has(.gx-chart-terminal),
   .dark .signals-view section.app-card:has(.gx-chart-terminal),
   .dark .signals-view section.app-card:has(.signals-chart-desktop) {
@@ -6964,12 +7034,39 @@ input[type="number"] {
 
 /* Home replica — live account, quotes, and setups in the approved mockup frame. */
 .home-shell {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
 }
 
+/* Full-viewport brand wash: green anchored in the top-right corner, fading
+   across the whole center toward the bottom-left. Fixed so it reads as a
+   backdrop the content floats over. */
+.home-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    100% 150% at 0% 0%,
+    color-mix(in srgb, var(--accent) 9%, transparent),
+    transparent 80%
+  );
+}
+
+.dark .home-shell::before {
+  background: radial-gradient(
+    100% 150% at 0% 0%,
+    color-mix(in srgb, var(--accent) 15%, transparent),
+    transparent 78%
+  );
+}
+
 .home-main {
+  position: relative;
+  z-index: 1;
   display: flex;
   min-width: 0;
   flex-direction: column;
@@ -6999,6 +7096,133 @@ input[type="number"] {
   font-size: 0.75rem;
   font-weight: 450;
   opacity: 0.8;
+}
+
+.home-hero-label {
+  color: #6d7176;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.home-hero-nav {
+  margin-top: 0.35rem;
+}
+
+.home-hero-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+/* Mobile-only: on desktop the brand, market status and bell already live in the
+   sidebar + top bar, so the in-hero row is hidden (overrides the base display
+   above, which was winning over the utility `lg:hidden`). */
+@media (min-width: 1024px) {
+  .home-hero-topbar {
+    display: none;
+  }
+}
+
+/* Balance copy on the left, the period switcher pinned to the right, aligned to
+   the "Today" line. Wraps below on narrow screens. */
+.home-hero-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+
+/* The switcher as a filled pill matching the top-bar search input. */
+.home-shell .home-hero-range.account-range-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 0;
+  padding: 3px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 70%, var(--background));
+}
+
+.dark .home-shell .home-hero-range.account-range-row {
+  background: color-mix(in srgb, var(--foreground) 7%, transparent);
+}
+
+.home-shell .home-hero-range .account-range-btn,
+.home-shell .home-hero-range .account-range-btn.pressable {
+  min-height: 0;
+  padding: 6px 13px;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.home-shell .home-hero-range .account-range-btn.is-active,
+.home-shell .home-hero-range .account-range-btn.pressable.is-active {
+  background: var(--surface);
+  color: var(--foreground);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+
+.dark .home-shell .home-hero-range .account-range-btn.is-active,
+.dark .home-shell .home-hero-range .account-range-btn.pressable.is-active {
+  background: color-mix(in srgb, var(--foreground) 12%, transparent);
+  color: #ffffff;
+  box-shadow: none;
+}
+
+.home-shell .home-hero-range .account-range-btn.is-active::after {
+  content: none;
+}
+
+.home-hero-topbar-end {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.home-market-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--success) 26%, var(--border));
+  background: color-mix(in srgb, var(--success) 9%, var(--surface));
+  padding: 0.2rem 0.55rem;
+  color: var(--success);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.home-market-pill.is-closed {
+  border-color: color-mix(in srgb, var(--muted) 26%, var(--border));
+  background: color-mix(in srgb, var(--muted) 8%, var(--surface));
+  color: var(--muted-strong);
+}
+
+.home-market-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.dark .home-market-pill {
+  background: color-mix(in srgb, var(--success) 14%, var(--surface));
+}
+
+.dark .home-market-pill.is-closed {
+  background: color-mix(in srgb, var(--muted) 12%, var(--surface));
 }
 
 .home-shell .account-range-row {
@@ -7113,7 +7337,7 @@ input[type="number"] {
 .home-position-head,
 .home-position-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) 1fr 1fr 1fr;
+  grid-template-columns: minmax(0, 1.5fr) 1fr 1fr 0.7fr 0.8fr 1fr;
   align-items: center;
   gap: 10px;
   min-height: 36px;
@@ -7145,6 +7369,79 @@ input[type="number"] {
   align-items: center;
   gap: 8px;
   font-weight: 500;
+}
+
+/* Size / R / P/L sit at the right edge under their headers. */
+.home-position-head .home-position-size,
+.home-position-head .home-position-r,
+.home-position-head .home-position-pl,
+.home-position-row .home-position-size,
+.home-position-row .home-position-r,
+.home-position-row .home-position-pl {
+  text-align: right;
+}
+
+.home-position-pl.is-win,
+.home-position-r.is-win {
+  color: var(--success);
+}
+
+.home-position-pl.is-loss,
+.home-position-r.is-loss {
+  color: var(--danger);
+}
+
+/* The " · 0.40 lot" suffix only appears in the mobile two-line row; on desktop
+   the dedicated Size column carries it. */
+.home-position-lot {
+  display: none;
+  color: var(--muted);
+}
+
+@media (max-width: 639px) {
+  .home-position-head {
+    display: none;
+  }
+
+  .home-position-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "sym pl"
+      "meta r";
+    row-gap: 3px;
+    padding-inline: 0;
+  }
+
+  .home-position-symbol {
+    grid-area: sym;
+    font-size: 14px;
+  }
+
+  .home-position-pl {
+    grid-area: pl;
+    font-size: 14px;
+    font-weight: 550;
+  }
+
+  .home-position-price {
+    grid-area: meta;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .home-position-r {
+    grid-area: r;
+    font-size: 12px;
+  }
+
+  .home-position-entry,
+  .home-position-row .home-position-size {
+    display: none;
+  }
+
+  .home-position-lot {
+    display: inline;
+  }
 }
 
 .home-side {
@@ -7342,6 +7639,44 @@ input[type="number"] {
   gap: 8px;
   font-size: 14px;
   font-weight: 500;
+}
+
+.home-signal-ident {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.home-signal-time {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 450;
+}
+
+.home-signal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.home-signal-foot > span:first-child {
+  color: #6d7176;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.home-signal-foot .metric-number {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
 }
 
 .home-signal-card dl {
@@ -7624,13 +7959,15 @@ input[type="number"] {
     width: var(--home-rail-width, 20vw);
     padding: 20px 22px 22px;
     overflow: auto;
-    border-left: 1px solid var(--border);
-    background: var(--background);
+    border-left: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+    /* Transparent so the brand gradient behind it reads as one surface with the
+       main column instead of a separate panel. */
+    background: transparent;
   }
 
   .dark .home-rail {
-    border-left: 1px solid rgba(255, 255, 255, 0.06);
-    background: #0a0c0d;
+    border-left: 1px solid rgba(255, 255, 255, 0.05);
+    background: transparent;
   }
 
   .home-rail-total {
@@ -7696,9 +8033,24 @@ input[type="number"] {
   letter-spacing: -0.03em;
 }
 
+.home-stat-sub {
+  display: block;
+  margin-top: 1px;
+  color: var(--pending);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
 @media (max-width: 639px) {
   .home-chart-stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  /* Margin used is desktop-only in the reference; mobile keeps the three
+     first-glance figures (available, open P/L, risk today). */
+  .home-stat-desktop {
+    display: none;
   }
 }
 
@@ -10055,5 +10407,716 @@ input[type="number"] {
   .ms-family-card,
   .ms-pair-card {
     transition: none;
+  }
+}
+
+/* ── Signals list page ─────────────────────────────────────────────────── */
+.signals-list-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.signals-list-main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.signals-list-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.signals-list-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+
+.signals-list-title h1 {
+  font-size: 1.7rem;
+  font-weight: 650;
+  letter-spacing: -0.035em;
+}
+
+.signals-list-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.signals-list-count-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--success);
+}
+
+.signals-list-count-sep {
+  display: none;
+}
+
+.signals-filter-icon {
+  display: grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted-strong);
+}
+
+.signals-list-search {
+  display: none;
+}
+
+.signals-list-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.signals-list-tab {
+  min-height: 2.3rem;
+  padding: 0 1.1rem;
+  border-radius: 9px;
+  background: var(--surface-muted);
+  color: var(--muted-strong);
+  font-size: 13px;
+  font-weight: 600;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.signals-list-tab.is-active {
+  background: var(--accent);
+  color: #05271c;
+}
+
+.dark .signals-list-tab.is-active {
+  color: #04140d;
+}
+
+.signals-list-filters {
+  display: none;
+}
+
+.signals-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 1.9rem;
+  padding: 0 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--muted-strong);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.signals-section-label {
+  color: #6d7176;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.signals-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.signals-section-link {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.signal-empty {
+  margin: 0.75rem 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* Signal cards */
+.signal-card-grid {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 0.7rem;
+}
+
+.signal-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.dark .signal-card {
+  background: color-mix(in srgb, var(--surface) 92%, var(--background));
+  border-color: var(--border-strong);
+}
+
+.signal-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.signal-card-ident {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.signal-card-pair {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.signal-card-strategy {
+  width: 100%;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 450;
+}
+
+.signal-card-meta {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.signal-card-time {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.signal-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 999px;
+  padding: 0.2rem 0.5rem;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.signal-status.is-active {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--success);
+}
+
+.signal-status.is-watching {
+  background: color-mix(in srgb, var(--pending) 16%, transparent);
+  color: var(--pending);
+}
+
+.signal-status.is-triggered {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+
+.signal-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.signal-status-icon {
+  width: 12px;
+  height: 12px;
+}
+
+.signal-card-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.signal-card-stats > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.signal-card-stats dt {
+  color: #6d7176;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.signal-card-stats dd {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.signal-card-stats > .signal-card-current {
+  display: none;
+}
+
+/* Progress track: stop (left) → target (right), knob at the live price. */
+.signal-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.signal-progress-track {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 9%, transparent);
+}
+
+.signal-progress-dot {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  transform: translateY(-50%);
+}
+
+.signal-progress-dot.is-stop {
+  left: 0;
+  background: var(--danger);
+}
+
+.signal-progress-dot.is-target {
+  right: 0;
+  background: var(--success);
+}
+
+.signal-progress-knob {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--foreground);
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+  transform: translate(-50%, -50%);
+}
+
+.signal-progress-labels {
+  position: relative;
+  height: 0.95rem;
+  color: var(--muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.signal-progress-labels > span:first-child {
+  position: absolute;
+  left: 0;
+}
+
+.signal-progress-labels > span:last-child {
+  position: absolute;
+  right: 0;
+}
+
+.signal-progress-now {
+  position: absolute;
+  transform: translateX(-50%);
+  color: var(--foreground);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.signal-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.signal-card-note {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.signal-card-openr {
+  color: var(--muted-strong);
+}
+
+.signal-card-chart {
+  flex-shrink: 0;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Recent / history list */
+.signal-recent-list {
+  display: flex;
+  flex-direction: column;
+  margin-top: 0.5rem;
+}
+
+.signal-recent-head,
+.signal-recent-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) 0.6fr minmax(0, 1.5fr) 0.9fr 0.7fr 0.9fr;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.15rem;
+}
+
+.signal-recent-head {
+  color: #6d7176;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+}
+
+.signal-recent-row {
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.signal-recent-row:hover {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.signal-recent-pair {
+  font-weight: 600;
+}
+
+.signal-recent-strategy {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.signal-recent-status {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.signal-recent-row.is-tp .signal-recent-status,
+.signal-recent-row.is-tp .signal-recent-result {
+  color: var(--success);
+}
+
+.signal-recent-row.is-sl .signal-recent-status,
+.signal-recent-row.is-sl .signal-recent-result {
+  color: var(--danger);
+}
+
+.signal-recent-row.is-expired .signal-recent-status,
+.signal-recent-row.is-expired .signal-recent-result,
+.signal-recent-row.is-other .signal-recent-status {
+  color: var(--muted);
+}
+
+.signal-recent-result {
+  text-align: right;
+}
+
+.signal-recent-closed {
+  text-align: right;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* Rail */
+.signals-list-rail {
+  display: none;
+}
+
+.signals-rail-label {
+  color: #6d7176;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.signals-rail-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.signals-rail-overview dt {
+  color: #6d7176;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.signals-rail-overview dd {
+  margin-top: 3px;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.signals-rail-overview dd.is-positive {
+  color: var(--success);
+}
+
+.signals-rail-overview dd.is-watching {
+  color: var(--pending);
+}
+
+.signals-rail-today {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.7rem;
+}
+
+.signals-rail-r {
+  font-size: 1.6rem;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+}
+
+.signals-rail-r.is-positive {
+  color: var(--success);
+}
+
+.signals-rail-r.is-negative {
+  color: var(--danger);
+}
+
+.signals-rail-closed {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.signals-rail-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.7rem;
+}
+
+.signals-rail-meta > div:nth-child(2) {
+  text-align: center;
+}
+
+.signals-rail-meta > div:nth-child(3) {
+  text-align: right;
+}
+
+.signals-rail-meta dt {
+  color: #6d7176;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.signals-rail-meta dd {
+  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.signals-rail-bar {
+  display: flex;
+  height: 4px;
+  margin-top: 0.6rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 9%, transparent);
+}
+
+.signals-rail-bar > span {
+  height: 100%;
+}
+
+.signals-rail-bar > .is-win {
+  background: var(--success);
+}
+
+.signals-rail-bar > .is-loss {
+  background: var(--danger);
+}
+
+.signals-rail-markets {
+  display: flex;
+  flex-direction: column;
+  margin-top: 0.75rem;
+}
+
+.signals-rail-market {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.signals-rail-market:last-child {
+  border-bottom: 0;
+}
+
+.signals-rail-market > span:first-child {
+  font-weight: 600;
+}
+
+.signals-rail-market-status {
+  text-align: right;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.signals-rail-market-status.is-active {
+  color: var(--success);
+}
+
+.signals-rail-market-status.is-watching {
+  color: var(--pending);
+}
+
+.signals-rail-market-status.is-triggered {
+  color: var(--accent);
+}
+
+@media (max-width: 1023px) {
+  .signals-list-tab {
+    flex: 1;
+  }
+
+  .signal-recent-head {
+    display: none;
+  }
+
+  .signal-recent-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "pair result"
+      "strategy closed";
+    row-gap: 2px;
+    padding-inline: 0;
+  }
+
+  .signal-recent-pair {
+    grid-area: pair;
+  }
+
+  .signal-recent-row > .home-side {
+    display: none;
+  }
+
+  .signal-recent-strategy {
+    grid-area: strategy;
+  }
+
+  .signal-recent-status {
+    display: none;
+  }
+
+  .signal-recent-result {
+    grid-area: result;
+  }
+
+  .signal-recent-closed {
+    grid-area: closed;
+  }
+}
+
+@media (min-width: 1024px) {
+  .signals-list-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 1.75rem;
+    align-items: start;
+  }
+
+  .signals-list-title h1 {
+    font-size: 1.5rem;
+  }
+
+  .signals-list-count-sep {
+    display: inline;
+  }
+
+  .signals-filter-icon {
+    display: none;
+  }
+
+  .signals-list-search {
+    display: block;
+  }
+
+  .signals-list-filters {
+    display: flex;
+    margin-left: auto;
+    gap: 0.4rem;
+  }
+
+  .signal-card {
+    gap: 0.7rem;
+    padding: 0.95rem 1.1rem;
+  }
+
+  .signal-card-stats {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .signal-card-stats > .signal-card-current {
+    display: flex;
+  }
+
+  .signals-list-rail {
+    position: sticky;
+    top: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.4rem;
+  }
+
+  .signals-rail-section + .signals-rail-section {
+    padding-top: 1.4rem;
+    border-top: 1px solid var(--border);
   }
 }

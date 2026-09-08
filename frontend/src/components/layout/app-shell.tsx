@@ -184,8 +184,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const dockRef = useRef<HTMLElement>(null);
   const isClient = useSyncExternalStore(subscribe, () => true, () => false);
-  const isChart = pathname.startsWith("/chart") || pathname.startsWith("/signals");
+  const isChart = pathname.startsWith("/chart");
   const isDashboard = pathname === "/";
+  const isSignals = pathname === "/signals";
   const activeMobileIndex = Math.max(
     0,
     mobileNavItems.findIndex((item) => isActive(pathname, item.href)),
@@ -334,21 +335,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div
-        className={`min-w-0 w-full lg:pl-[224px] has-topbar ${
+        className={`min-w-0 w-full lg:pl-[224px] ${isSignals ? "" : "has-topbar"} ${
           isChart ? "lg:min-h-dvh" : ""
         } ${isDashboard ? "has-home-rail" : ""}`}
       >
-        <AppTopBar />
+        {/* Signals carries its own header strip (title + live counts + search),
+            so it opts out of the shared market-status top bar. */}
+        {isSignals ? null : <AppTopBar />}
         <main
           className={`w-full min-w-0 ${
             isChart
               ? "min-h-dvh p-0"
               : isDashboard
                 ? "w-full px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-5 lg:px-6 lg:pb-8"
-                : "mx-auto max-w-[1320px] px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-6 lg:px-8 lg:pb-10"
+                : isSignals
+                  ? "w-full max-w-[1320px] mx-auto px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-6 lg:px-6 lg:pb-8"
+                  : "mx-auto max-w-[1320px] px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-6 lg:px-8 lg:pb-10"
           }`}
         >
-          {!isChart && !isDashboard ? <MobileTopBar showBack /> : null}
+          {!isChart && !isDashboard && !isSignals ? <MobileTopBar showBack /> : null}
           <div key={pathname} className="mobile-page-transition">
             {children}
           </div>

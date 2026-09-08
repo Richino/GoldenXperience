@@ -8,7 +8,8 @@ import { HomeRail } from "@/components/dashboard/home-rail";
 import { HomeRecentActivity } from "@/components/dashboard/home-recent-activity";
 import { HomeUpcoming } from "@/components/dashboard/home-upcoming";
 import { RecentPredictions } from "@/components/dashboard/recent-predictions";
-import { ACCOUNT_STARTING_BALANCE } from "@/lib/account-starting-balance";
+import { RelativeTime } from "@/components/dashboard/relative-time";
+import { DEFAULT_RISK_POLICY } from "@/lib/risk/engine";
 import {
   recentActivityFromTrades,
   todayClosedStats,
@@ -317,11 +318,6 @@ export function DashboardView({
     await Promise.all([refreshAccount(), refresh()]);
   }, [refreshAccount, refresh]));
 
-  const lifetime = overview.lifetimeSummary;
-  // Prefer the live row count when the overview includes it — the denormalised
-  // assignedCount can under-report after multi-strategy batch splits.
-  const assigned = overview.current?.liveSummary?.assigned ?? overview.current?.assignedCount ?? 0;
-  const allTimePL = account.nav - ACCOUNT_STARTING_BALANCE;
   const featuredInstrument = (openTrades[0]?.instrument ?? strategyRows[0]?.instrument ?? "EUR_USD") as MajorInstrument;
   const signalRows = watchlist
     .filter((row) => row.entry !== null && row.stop !== null && row.target !== null && row.direction)
@@ -336,9 +332,14 @@ export function DashboardView({
   );
   const recentActivity = recentActivityFromTrades(journalTrades, 10);
   const todayFromList = todayClosedStats(journalTrades, todayKey);
+  // The API summary is authoritative when present; the list-derived figures are
+  // the fallback so the rail still reports a day with no summary payload.
   const todayTrades = journalSummary?.today
     ? journalSummary.today.wins + journalSummary.today.losses
     : todayFromList.trades;
+  const todayWins = journalSummary?.today?.wins ?? todayFromList.wins;
+  const todayLosses = journalSummary?.today?.losses ?? todayFromList.losses;
+  const todayNet = journalSummary?.today?.realizedPL ?? todayFromList.netMoney;
   const openPL = openTrades.reduce((sum, trade) => {
     const marked = markedOpenMoney(trade, quotes, fills, watchlist);
     return marked === null ? sum : sum + marked;
@@ -353,7 +354,8 @@ export function DashboardView({
         history={accountHistory}
         todayKey={todayKey}
         openPL={openPL}
-        riskToday={exposure.totalNominalRiskAmount}
+        riskTodayPercent={exposure.totalNominalRiskPercent}
+        riskLimitPercent={DEFAULT_RISK_POLICY.maxDailyLossPercent}
       />
 
       {error ? <p className="research-error">{error}</p> : null}
@@ -378,7 +380,9 @@ export function DashboardView({
                 <span>Symbol</span>
                 <span>Entry</span>
                 <span>Price</span>
-                <span>P/L</span>
+                <span className="home-position-size">Size</span>
+                <span className="home-position-r">R</span>
+                <span className="home-position-pl">P/L</span>
               </div>
               {openTrades.slice(0, 6).map((trade) => {
                 const shown = markedOpenMoney(trade, quotes, fills, watchlist);
@@ -395,6 +399,16 @@ export function DashboardView({
                   : null;
                 const plTone =
                   shown === null ? "is-open" : shown >= 0 ? "is-win" : "is-loss";
+                // Standard lots from the broker fill; R multiple is the live
+                // money over the cash that was risked between entry and stop.
+                const lots =
+                  fill && fill.units ? Math.abs(fill.units) / 100_000 : null;
+                const rMultiple =
+                  shown !== null && trade.nominalRiskAmount
+                    ? shown / trade.nominalRiskAmount
+                    : null;
+                const rTone =
+                  rMultiple === null ? "" : rMultiple >= 0 ? "is-win" : "is-loss";
                 return (
                   <Link
                     key={trade.id}
@@ -402,18 +416,29 @@ export function DashboardView({
                     className="home-position-row"
                   >
                     <span className="home-position-symbol">
-                      <span>{displayNameFor(trade.instrument).replace("/", "")}</span>
+                      <span>{displayNameFor(trade.instrument)}</span>
                       <span className={`home-side is-${trade.direction}`}>
                         {trade.direction === "long" ? "LONG" : "SHORT"}
                       </span>
                     </span>
-                    <span className="metric-number">
+                    <span className="home-position-entry metric-number">
                       {trade.entry == null ? "—" : formatChartPrice(trade.entry, trade.instrument)}
                     </span>
-                    <span className="metric-number">
+                    <span className="home-position-price metric-number">
                       {mark === null ? "—" : formatChartPrice(mark, trade.instrument)}
+                      {lots !== null ? (
+                        <span className="home-position-lot"> · {lots.toFixed(2)} lot</span>
+                      ) : null}
                     </span>
-                    <span className={`metric-number ${plTone}`}>
+                    <span className="home-position-size metric-number">
+                      {lots === null ? "—" : lots.toFixed(2)}
+                    </span>
+                    <span className={`home-position-r metric-number ${rTone}`}>
+                      {rMultiple === null
+                        ? "—"
+                        : `${rMultiple >= 0 ? "+" : ""}${rMultiple.toFixed(2)}R`}
+                    </span>
+                    <span className={`home-position-pl metric-number ${plTone}`}>
                       {shown === null ? "Open" : money(shown, account.currency)}
                     </span>
                   </Link>
@@ -433,16 +458,29 @@ export function DashboardView({
           </Link>
         </div>
           <div className="home-signal-grid">
-            {signalRows.map((row) => (
+            {signalRows.map((row) => {
+              const risk = Math.abs(row.entry! - row.stop!);
+              const reward = Math.abs(row.target! - row.entry!);
+              const ratio = risk > 0 ? Math.round((reward / risk) * 10) / 10 : null;
+              const rrLabel =
+                ratio === null
+                  ? null
+                  : `1:${Number.isInteger(ratio) ? ratio.toFixed(0) : ratio.toFixed(1)}`;
+              return (
               <Link
                 key={row.instrument}
                 href={`/chart?instrument=${row.instrument}`}
                 className="home-signal-card"
               >
                 <div className="home-signal-top">
-                  <span>{displayNameFor(row.instrument).replace("/", "")}</span>
-                  <span className={`home-side is-${row.direction}`}>
-                    {row.direction === "long" ? "LONG" : "SHORT"}
+                  <span className="home-signal-ident">
+                    <span>{displayNameFor(row.instrument)}</span>
+                    <span className={`home-side is-${row.direction}`}>
+                      {row.direction === "long" ? "LONG" : "SHORT"}
+                    </span>
+                  </span>
+                  <span className="home-signal-time">
+                    <RelativeTime at={row.evaluatedAt} />
                   </span>
                 </div>
                 <dl>
@@ -459,8 +497,15 @@ export function DashboardView({
                     <dd className="metric-number">{formatChartPrice(row.target!, row.instrument)}</dd>
                   </div>
                 </dl>
+                {rrLabel ? (
+                  <div className="home-signal-foot">
+                    <span>R:R</span>
+                    <span className="metric-number">{rrLabel}</span>
+                  </div>
+                ) : null}
               </Link>
-            ))}
+              );
+            })}
           </div>
       </section>
       ) : null}
@@ -479,14 +524,11 @@ export function DashboardView({
         quotes={quotes}
         featuredInstrument={featuredInstrument}
         currency={account.currency}
-        allTimePL={allTimePL}
-        openCount={openTrades.length}
-        assigned={assigned}
-        batchSize={overview.batchSize}
-        winRate={lifetime.winRate}
-        netR={lifetime.netR}
+        todayNet={todayNet}
+        todayR={todayFromList.netR}
         todayTrades={todayTrades}
-        todayNetR={todayFromList.netR}
+        todayWins={todayWins}
+        todayLosses={todayLosses}
       />
     </div>
   );

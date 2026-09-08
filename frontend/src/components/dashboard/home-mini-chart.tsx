@@ -16,7 +16,7 @@ import { displayNameFor } from "@/lib/instruments/catalog";
 import type { CandleSeries, MajorInstrument } from "@/types/forex";
 
 function compactPair(instrument: string) {
-  return displayNameFor(instrument).replace("/", "");
+  return displayNameFor(instrument);
 }
 
 export function HomeMiniChart({
@@ -80,7 +80,7 @@ export function HomeMiniChart({
     async function load() {
       try {
         const response = await fetch(
-          apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=H1&count=48`),
+          apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=M15&count=96`),
           { credentials: "include", cache: "no-store" },
         );
         if (!response.ok) return;
@@ -120,7 +120,7 @@ export function HomeMiniChart({
   return (
     <div className="home-mini-chart">
       <div className="home-mini-chart-meta">
-        <span className="home-mini-chart-pair">{compactPair(instrument)} 1H</span>
+        <span className="home-mini-chart-pair">{compactPair(instrument)} · 15M</span>
         <span className="home-mini-chart-quote">
           <span className="metric-number">
             {liveMid === null ? "—" : formatChartPrice(liveMid, instrument)}

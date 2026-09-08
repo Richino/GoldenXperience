@@ -1,0 +1,11 @@
+import { evaluateFrozenH1Pair, resolveFrozenH1Exit, type FrozenH1EvaluationOptions, type FrozenH1ExitInput } from "@/lib/strategy/strategies/frozen-h1-pair";
+import type { StrategyEvaluationInput } from "@/lib/strategy/types";
+export const USDCHF_STRATEGY_ID = "usdchf_strategy" as const;
+export const USDCHF_STRATEGY_NAME = "USDCHF Bear Consensus Structure V1" as const;
+export const USDCHF_STRATEGY_VERSION = "V1" as const;
+export const USDCHF_STRATEGY_CONFIG_VERSION = "usdchf-v1-frozen" as const;
+export const USDCHF_STRATEGY_SYMBOL = "USD_CHF" as const;
+export const USDCHF_STRATEGY_TIMEFRAME = "H1" as const;
+export const USDCHF_STRATEGY_CONFIG = Object.freeze({ symbol: USDCHF_STRATEGY_SYMBOL, timeframe: USDCHF_STRATEGY_TIMEFRAME, originHourUtc: 11, direction: "SHORT_ONLY", emaFastPeriod: 20, emaSlowPeriod: 50, atrPeriod: 14, consensus: "<= -3", structure: "LH_LL", stopAtr: 1, rewardR: 2, maxHoldBars: 3, executionEnabled: true, adaptiveParametersMutable: false });
+export const evaluateUsdchfStrategy = (input: StrategyEvaluationInput, options: FrozenH1EvaluationOptions = {}) => evaluateFrozenH1Pair({ id: USDCHF_STRATEGY_ID, name: USDCHF_STRATEGY_NAME, version: USDCHF_STRATEGY_VERSION, configVersion: USDCHF_STRATEGY_CONFIG_VERSION, symbol: USDCHF_STRATEGY_SYMBOL, originHour: 11, direction: "short", consensus: "bear", structure: "lhll" }, input, options);
+export const resolveUsdchfExit = (input: FrozenH1ExitInput) => resolveFrozenH1Exit(input);

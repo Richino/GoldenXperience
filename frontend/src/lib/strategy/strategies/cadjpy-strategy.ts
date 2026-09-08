@@ -1,0 +1,11 @@
+import { evaluateFrozenH1Pair, resolveFrozenH1Exit, type FrozenH1EvaluationOptions, type FrozenH1ExitInput } from "@/lib/strategy/strategies/frozen-h1-pair";
+import type { StrategyEvaluationInput } from "@/lib/strategy/types";
+export const CADJPY_STRATEGY_ID = "cadjpy_strategy" as const;
+export const CADJPY_STRATEGY_NAME = "CADJPY Bull Break Extreme V1" as const;
+export const CADJPY_STRATEGY_VERSION = "V1" as const;
+export const CADJPY_STRATEGY_CONFIG_VERSION = "cadjpy-v1-frozen" as const;
+export const CADJPY_STRATEGY_SYMBOL = "CAD_JPY" as const;
+export const CADJPY_STRATEGY_TIMEFRAME = "H1" as const;
+export const CADJPY_STRATEGY_CONFIG = Object.freeze({ symbol: CADJPY_STRATEGY_SYMBOL, timeframe: CADJPY_STRATEGY_TIMEFRAME, originHourUtc: 12, direction: "LONG_ONLY", emaFastPeriod: 20, emaSlowPeriod: 50, atrPeriod: 14, consensus: ">= +3", previousHighBreak: true, bodyAtrMinimum: .5, upperClosePct: .25, stopAtr: 1, rewardR: 2, maxHoldBars: 3, executionEnabled: true, adaptiveParametersMutable: false });
+export const evaluateCadjpyStrategy = (input: StrategyEvaluationInput, options: FrozenH1EvaluationOptions = {}) => evaluateFrozenH1Pair({ id: CADJPY_STRATEGY_ID, name: CADJPY_STRATEGY_NAME, version: CADJPY_STRATEGY_VERSION, configVersion: CADJPY_STRATEGY_CONFIG_VERSION, symbol: CADJPY_STRATEGY_SYMBOL, originHour: 12, direction: "long", consensus: "bull", previousHighBreak: true, bodyExtreme: true }, input, options);
+export const resolveCadjpyExit = (input: FrozenH1ExitInput) => resolveFrozenH1Exit(input);

@@ -3,7 +3,7 @@ import type { PoolClient } from "pg";
 import { query, transaction } from "./database.js";
 import { labelOutcome, type NormalizedQuote } from "./research.js";
 import { displayPair, queueNotification, sendPushNotification } from "./notifications.js";
-import { closePracticeTradeForPaperTrade, processPendingPracticeOrders, queuePracticeOrderIntent } from "./practice-execution.js";
+import { closePracticeTradeForPaperTrade, processPendingPracticeOrders, queuePracticeOrderIntent, requestPracticeTradeCloseForPaperTrade } from "./practice-execution.js";
 import { currenciesOf, pipSizeFor } from "../../frontend/src/lib/instruments/catalog.js";
 import { calculatePositionSize, usdPerUnitOfCurrency } from "../../frontend/src/lib/risk/engine.js";
 import { getPracticeTradeState, getResearchCandles } from "../../frontend/src/lib/oanda/client.js";
@@ -14,9 +14,30 @@ import { LIQUIDITY_STRATEGY_VERSION as ACTIVE_STRATEGY_VERSION, RISK as LIQUIDIT
 import { RULES as LIQUIDITY_RULES } from "../../frontend/src/lib/strategy/liquidity-confirmation.js";
 const MAX_TRADES_PER_DAY = LIQUIDITY_RISK.maxTradesPerDay;
 import { getMultiStrategySnapshot, getStrategySnapshot } from "../../frontend/src/lib/strategy/strategy-service.js";
-import type { StrategySetup } from "../../frontend/src/lib/strategy/types.js";
+import type { StrategyFamily, StrategyId, StrategySetup } from "../../frontend/src/lib/strategy/types.js";
 import type { StrategyCandidate } from "../../frontend/src/lib/strategy/strategy.js";
-import { MULTISTRATEGY_EXPERIMENT_LABEL, MULTISTRATEGY_NAME, SEED_STRATEGY_CONFIGS, STRATEGY_FAMILIES } from "../../frontend/src/lib/strategy/strategies/index.js";
+import {
+  ENABLED_PAIR_STRATEGY_IDS, ENABLED_PAIR_STRATEGY_SEEDS, MULTISTRATEGY_EXPERIMENT_LABEL,
+  MULTISTRATEGY_NAME, REPORTING_STRATEGY_IDS, SEED_STRATEGY_CONFIGS, STRATEGY_FAMILIES,
+} from "../../frontend/src/lib/strategy/strategies/index.js";
+import { USDJPY_STRATEGY_ID, resolveUsdjpyExit } from "../../frontend/src/lib/strategy/strategies/usdjpy-strategy.js";
+import {
+  AUDUSD_MAX_HOLD_BARS, AUDUSD_STRATEGY_ID, resolveAudusdExit,
+} from "../../frontend/src/lib/strategy/strategies/audusd-strategy.js";
+import {
+  NZDUSD_MAX_HOLD_BARS, NZDUSD_STRATEGY_ID, resolveNzdusdExit,
+} from "../../frontend/src/lib/strategy/strategies/nzdusd-strategy.js";
+import {
+  GBPUSD_MAX_HOLD_BARS, GBPUSD_STRATEGY_ID, gbpusdOverlapDecision, resolveGbpusdExit,
+  type GbpusdExecutionBlockReason, type GbpusdOriginCode,
+} from "../../frontend/src/lib/strategy/strategies/gbpusd-strategy.js";
+import { USDCAD_STRATEGY_ID, resolveUsdcadExit } from "../../frontend/src/lib/strategy/strategies/usdcad-strategy.js";
+import { USDCHF_STRATEGY_ID, resolveUsdchfExit } from "../../frontend/src/lib/strategy/strategies/usdchf-strategy.js";
+import { NZDUSD_CONSENSUS_STRATEGY_ID, resolveNzdusdConsensusExit } from "../../frontend/src/lib/strategy/strategies/nzdusd-consensus-strategy.js";
+import { EURJPY_STRATEGY_ID, resolveEurjpyExit } from "../../frontend/src/lib/strategy/strategies/eurjpy-strategy.js";
+import { CADJPY_STRATEGY_ID, resolveCadjpyExit } from "../../frontend/src/lib/strategy/strategies/cadjpy-strategy.js";
+import { NZDJPY_STRATEGY_ID, resolveNzdjpyExit } from "../../frontend/src/lib/strategy/strategies/nzdjpy-strategy.js";
+import type { FrozenH1ExitInput, FrozenH1ExitResult } from "../../frontend/src/lib/strategy/strategies/frozen-h1-pair.js";
 import { decideInstrument, loadAdaptiveEvidence, toAdaptiveCandidate } from "./adaptive-engine.js";
 import { resolveShadowOutcome } from "./shadow-outcomes.js";
 import { recordMomentumShortPair, resolveMomentumShortInversion } from "./momentum-short-inversion.js";
@@ -26,6 +47,8 @@ import { armForExecutedDirection, spreadCostR } from "./evidence-integrity.js";
 import { attachMomentumExecution, recordMomentumInversionArms, resolveMomentumInversionArms } from "./momentum-arms.js";
 import { recordMomentumDirection10m, resolveMomentumDirection10m } from "./momentum-direction-10m.js";
 import { MAJOR_INSTRUMENTS, type MajorInstrument } from "../../frontend/src/types/forex.js";
+import { measureBrokerExecution, requiresBrokerCloseConfirmation } from "./execution-measurement.js";
+import { reconcileClosedExecutionMeasurements } from "./reconcile-execution-measurements.js";
 
 const STRATEGY_NAME = "deterministic-forex";
 const BATCH_SIZE = 100;
@@ -133,6 +156,7 @@ type OpenTradeRow = {
   stop: string;
   target: string;
   nominal_risk_amount: string;
+  strategy_family: string | null;
 };
 
 async function queueNotificationInTransaction(client: PoolClient, event: { userId: string; kind: "setup_ready" | "paper_opened" | "paper_closed" | "system_issue"; title: string; message: string; instrument: string | null; paperTradeId: string | null; dedupeKey: string }) {
@@ -183,6 +207,44 @@ function toQuote(candle: Awaited<ReturnType<typeof getResearchCandles>>[number])
     askClose: candle.ask.close,
   };
 }
+
+function toM30Quote(candle: Awaited<ReturnType<typeof getResearchCandles>>[number]): NormalizedQuote {
+  return {
+    closeTime: new Date(new Date(candle.time).getTime() + 30 * 60_000).toISOString(),
+    bidOpen: candle.bid.open,
+    bidHigh: candle.bid.high,
+    bidLow: candle.bid.low,
+    bidClose: candle.bid.close,
+    askOpen: candle.ask.open,
+    askHigh: candle.ask.high,
+    askLow: candle.ask.low,
+    askClose: candle.ask.close,
+  };
+}
+
+function toH1Quote(candle: Awaited<ReturnType<typeof getResearchCandles>>[number]): NormalizedQuote {
+  return {
+    closeTime: new Date(new Date(candle.time).getTime() + 60 * 60_000).toISOString(),
+    bidOpen: candle.bid.open,
+    bidHigh: candle.bid.high,
+    bidLow: candle.bid.low,
+    bidClose: candle.bid.close,
+    askOpen: candle.ask.open,
+    askHigh: candle.ask.high,
+    askLow: candle.ask.low,
+    askClose: candle.ask.close,
+  };
+}
+
+type FrozenH1Resolver = (input: FrozenH1ExitInput) => FrozenH1ExitResult | null;
+const FROZEN_THREE_H1_RESOLVERS: Readonly<Record<string, FrozenH1Resolver>> = {
+  [USDCAD_STRATEGY_ID]: resolveUsdcadExit,
+  [USDCHF_STRATEGY_ID]: resolveUsdchfExit,
+  [NZDUSD_CONSENSUS_STRATEGY_ID]: resolveNzdusdConsensusExit,
+  [EURJPY_STRATEGY_ID]: resolveEurjpyExit,
+  [CADJPY_STRATEGY_ID]: resolveCadjpyExit,
+  [NZDJPY_STRATEGY_ID]: resolveNzdjpyExit,
+};
 
 function weekdayAt(value: string) {
   return new Intl.DateTimeFormat("en-US", { timeZone: DAY_TRADING_TIME_ZONE, weekday: "long" }).format(new Date(value));
@@ -391,12 +453,65 @@ async function persistWatchSnapshot(setup: StrategySetup, quote: { bid: number; 
     `INSERT INTO paper_watch_snapshots(instrument,strategy_version_id,evaluated_at,data_status,setup_status,direction,bid,ask,spread_pips,entry,stop,target,session,conditions,features,open_trade_id,batch_number)
      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15::jsonb,$16,$17)
      ON CONFLICT(instrument) DO UPDATE SET strategy_version_id=EXCLUDED.strategy_version_id,evaluated_at=EXCLUDED.evaluated_at,data_status=EXCLUDED.data_status,setup_status=EXCLUDED.setup_status,direction=EXCLUDED.direction,bid=EXCLUDED.bid,ask=EXCLUDED.ask,spread_pips=EXCLUDED.spread_pips,entry=EXCLUDED.entry,stop=EXCLUDED.stop,target=EXCLUDED.target,session=EXCLUDED.session,conditions=EXCLUDED.conditions,features=EXCLUDED.features,open_trade_id=EXCLUDED.open_trade_id,batch_number=EXCLUDED.batch_number,updated_at=now()`,
-    [setup.instrument, versionId, setup.evaluatedAt, setup.dataSource === "oanda" && fresh ? "connected" : "unavailable", setup.status, setup.direction, quote?.bid ?? null, quote?.ask ?? null, spreadPips, setup.entry, setup.stop, setup.target, dayTradingSession(new Date(setup.evaluatedAt)).label, JSON.stringify(setup.conditions), JSON.stringify(setup.features), open.rows[0]?.id ?? null, open.rows[0]?.batch_number ?? null],
+    [setup.instrument, versionId, setup.evaluatedAt, setup.dataSource === "oanda" && fresh ? "connected" : "unavailable", setup.status, setup.direction, quote?.bid ?? null, quote?.ask ?? null, spreadPips, setup.entry, setup.stop, setup.target, strategySession(setup), JSON.stringify(setup.conditions), JSON.stringify(setup.features), open.rows[0]?.id ?? null, open.rows[0]?.batch_number ?? null],
   );
 }
 
 function setupRejectionReason(setup: StrategySetup) {
   return setup.conditions.find((item) => item.required && !item.passed)?.reason ?? null;
+}
+
+function strategySession(setup: StrategySetup) {
+  return setup.features.gbpusdStrategy?.origin
+    ? `GBPUSD_${setup.features.gbpusdStrategy.originCode}_UTC`
+    : setup.features.audusdStrategy ? "AUDUSD_11_UTC"
+    : setup.features.nzdusdStrategy ? "NZDUSD_11_UTC"
+    : setup.features.frozenPairStrategy
+      ? `${setup.features.frozenPairStrategy.strategyId.toUpperCase()}_${String(setup.features.frozenPairStrategy.originHourUtc).padStart(2, "0")}_UTC`
+    : setup.features.usdjpyStrategy?.session
+    ?? setup.features.eurusdStrategy?.session
+    ?? dayTradingSession(new Date(setup.evaluatedAt)).label;
+}
+
+type OpenExecutionLeg = {
+  strategy_family: string | null;
+  direction: "long" | "short";
+  features: Record<string, any> | null;
+};
+
+type ExecutionBlock = { code: GbpusdExecutionBlockReason | "SPREAD_BLOCK" | "POSITION_LIMIT"; message: string };
+
+function gbpusdExecutionBlock(
+  setup: StrategySetup,
+  openLegs: readonly OpenExecutionLeg[],
+  hedgingEnabled: boolean,
+  strategyFamily?: string | null,
+): ExecutionBlock | null {
+  if (strategyFamily !== GBPUSD_STRATEGY_ID || !setup.direction) {
+    return openLegs.length ? { code: "GLOBAL_RISK_BLOCK", message: "Execution blocked: this instrument already has an open position." } : null;
+  }
+  const originCode = setup.features.gbpusdStrategy?.originCode;
+  if (!originCode) {
+    return { code: "GLOBAL_RISK_BLOCK", message: "Execution blocked: GBPUSD origin identity is unavailable." };
+  }
+  const verdict = gbpusdOverlapDecision({
+    originCode,
+    direction: setup.direction,
+    hedgingEnabled,
+    openLegs: openLegs.map((leg) => ({
+      strategyId: leg.strategy_family,
+      direction: leg.direction,
+      originCode: leg.features?.gbpusdStrategy?.originCode ?? null,
+    })),
+  });
+  if (verdict.allowed) return null;
+  if (verdict.blockReason === "BLOCKED_OPPOSITE_POSITION") {
+    return { code: verdict.blockReason, message: "BLOCKED_OPPOSITE_POSITION: OANDA account netting would alter the existing GBPUSD leg." };
+  }
+  if (verdict.blockReason === "DUPLICATE_SIGNAL") {
+    return { code: verdict.blockReason, message: "Duplicate GBPUSD origin signal: this UTC-day origin is already active." };
+  }
+  return { code: "GLOBAL_RISK_BLOCK", message: "Execution blocked: another strategy already owns GBPUSD exposure." };
 }
 
 /**
@@ -416,12 +531,40 @@ function setupRejectionReason(setup: StrategySetup) {
 export const EXECUTION_STATUS_CONFLICT_RULE =
   "execution_status=CASE WHEN paper_strategy_evaluations.execution_status='selected' THEN paper_strategy_evaluations.execution_status ELSE EXCLUDED.execution_status END";
 
-async function persistPaperEvaluation(setup: StrategySetup, versionId: string, spreadPips: number | null, attribution?: StrategyAttribution, executionStatus?: string) {
+/** A traded signal's decision-time facts must survive later ticks in the bar. */
+export const EVALUATION_SNAPSHOT_CONFLICT_RULE = [
+  'setup_status','direction','entry','stop','target','risk_reward','spread_pips',
+  'conditions','features','strategy_family','config_version','regime','trend_strength',
+  'volatility_bucket','atr_pips','experiment_id',
+].map((field) => `${field}=CASE WHEN paper_strategy_evaluations.execution_status='selected' OR paper_strategy_evaluations.trade_created OR paper_strategy_evaluations.paper_trade_id IS NOT NULL THEN paper_strategy_evaluations.${field} ELSE EXCLUDED.${field} END`).join(',')
+  + ",rejection_reason=CASE WHEN paper_strategy_evaluations.execution_status='selected' THEN paper_strategy_evaluations.rejection_reason ELSE COALESCE(EXCLUDED.rejection_reason,paper_strategy_evaluations.rejection_reason) END";
+
+async function persistPaperEvaluation(
+  setup: StrategySetup,
+  versionId: string,
+  spreadPips: number | null,
+  attribution?: StrategyAttribution,
+  executionStatus?: string,
+  executionRejectionReason?: string | null,
+  executionBlockCode?: ExecutionBlock["code"] | null,
+) {
+  const persistedFeatures = executionBlockCode && executionBlockCode !== "DUPLICATE_SIGNAL"
+    ? setup.features.gbpusdStrategy ? {
+      ...setup.features,
+      gbpusdStrategy: { ...setup.features.gbpusdStrategy, exitReason: executionBlockCode },
+    } : setup.features.audusdStrategy ? {
+      ...setup.features,
+      audusdStrategy: { ...setup.features.audusdStrategy, exitReason: executionBlockCode },
+    } : setup.features.nzdusdStrategy ? {
+      ...setup.features,
+      nzdusdStrategy: { ...setup.features.nzdusdStrategy, blockReason: executionBlockCode },
+    } : setup.features
+    : setup.features;
   await query(
     `INSERT INTO paper_strategy_evaluations(strategy_version_id,instrument,decision_time,setup_status,direction,entry,stop,target,risk_reward,rejection_reason,trade_created,spread_pips,conditions,features,strategy_family,config_version,regime,trend_strength,volatility_bucket,atr_pips,experiment_id,execution_status)
      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,false,$11,$12::jsonb,$13::jsonb,$14,$15,$16,$17,$18,$19,$20,$21)
-     ON CONFLICT(strategy_version_id,instrument,decision_time) DO UPDATE SET setup_status=EXCLUDED.setup_status,direction=EXCLUDED.direction,entry=EXCLUDED.entry,stop=EXCLUDED.stop,target=EXCLUDED.target,risk_reward=EXCLUDED.risk_reward,rejection_reason=EXCLUDED.rejection_reason,spread_pips=EXCLUDED.spread_pips,conditions=EXCLUDED.conditions,features=EXCLUDED.features,strategy_family=EXCLUDED.strategy_family,config_version=EXCLUDED.config_version,regime=EXCLUDED.regime,trend_strength=EXCLUDED.trend_strength,volatility_bucket=EXCLUDED.volatility_bucket,atr_pips=EXCLUDED.atr_pips,experiment_id=EXCLUDED.experiment_id,${EXECUTION_STATUS_CONFLICT_RULE},updated_at=now()`,
-    [versionId, setup.instrument, setup.evaluatedAt, setup.status, setup.direction, setup.entry, setup.stop, setup.target, setup.riskReward, setupRejectionReason(setup), spreadPips, JSON.stringify(setup.conditions), JSON.stringify(setup.features), attribution?.family ?? null, attribution?.configVersion ?? null, attribution?.regime ?? null, attribution?.trendStrength ?? null, attribution?.volatilityBucket ?? null, attribution?.atrPips ?? null, attribution?.experimentId ?? null, executionStatus ?? null],
+     ON CONFLICT(strategy_version_id,instrument,decision_time) DO UPDATE SET ${EVALUATION_SNAPSHOT_CONFLICT_RULE},${EXECUTION_STATUS_CONFLICT_RULE},updated_at=now()`,
+    [versionId, setup.instrument, setup.evaluatedAt, setup.status, setup.direction, setup.entry, setup.stop, setup.target, setup.riskReward, executionRejectionReason ?? setupRejectionReason(setup), spreadPips, JSON.stringify(setup.conditions), JSON.stringify(persistedFeatures), attribution?.family ?? null, attribution?.configVersion ?? null, attribution?.regime ?? null, attribution?.trendStrength ?? null, attribution?.volatilityBucket ?? null, attribution?.atrPips ?? null, attribution?.experimentId ?? null, executionStatus ?? null],
   );
 }
 
@@ -451,30 +594,103 @@ function costColumnsSql(resultParam: string, basis: "broker" | "model") {
     + `result_basis='${basis}'`;
 }
 
-async function openPaperTrade(setup: StrategySetup, userId: string, versionId: string, spreadPips: number, accountBalance: number, quoteToUsdRate: number | null, attribution?: StrategyAttribution): Promise<string | null> {
+/** Keep pair-specific structured journal payloads aligned with ledger closes. */
+function pairExitFeaturesSql(input: {
+  exitParam: string;
+  resultRParam: string;
+  pnlParam: string;
+  closedAtSql: string;
+  exitReasonParam: string;
+}) {
+  const gbpusd = "jsonb_set(jsonb_set(jsonb_set(jsonb_set(jsonb_set(features,"
+    + `'{gbpusdStrategy,actualExit}',COALESCE(to_jsonb(${input.exitParam}::numeric),'null'::jsonb),true),`
+    + `'{gbpusdStrategy,exitTimeUtc}',to_jsonb((${input.closedAtSql})::timestamptz),true),`
+    + `'{gbpusdStrategy,exitReason}',to_jsonb(${input.exitReasonParam}::text),true),`
+    + `'{gbpusdStrategy,realizedPnL}',COALESCE(to_jsonb(${input.pnlParam}::numeric),'null'::jsonb),true),`
+    + `'{gbpusdStrategy,realizedR}',COALESCE(to_jsonb(${input.resultRParam}::numeric),'null'::jsonb),true)`;
+  const audusd = "jsonb_set(jsonb_set(jsonb_set(jsonb_set(jsonb_set(features,"
+    + `'{audusdStrategy,actualExit}',COALESCE(to_jsonb(${input.exitParam}::numeric),'null'::jsonb),true),`
+    + `'{audusdStrategy,exitTimeUtc}',to_jsonb((${input.closedAtSql})::timestamptz),true),`
+    + `'{audusdStrategy,exitReason}',to_jsonb(${input.exitReasonParam}::text),true),`
+    + `'{audusdStrategy,realizedPnL}',COALESCE(to_jsonb(${input.pnlParam}::numeric),'null'::jsonb),true),`
+    + `'{audusdStrategy,realizedR}',COALESCE(to_jsonb(${input.resultRParam}::numeric),'null'::jsonb),true)`;
+  const nzdusd = "jsonb_set(jsonb_set(jsonb_set(jsonb_set(jsonb_set(features,"
+    + `'{nzdusdStrategy,actualExit}',COALESCE(to_jsonb(${input.exitParam}::numeric),'null'::jsonb),true),`
+    + `'{nzdusdStrategy,exitTimeUtc}',to_jsonb((${input.closedAtSql})::timestamptz),true),`
+    + `'{nzdusdStrategy,exitReason}',to_jsonb(${input.exitReasonParam}::text),true),`
+    + `'{nzdusdStrategy,realizedPnL}',COALESCE(to_jsonb(${input.pnlParam}::numeric),'null'::jsonb),true),`
+    + `'{nzdusdStrategy,realizedR}',COALESCE(to_jsonb(${input.resultRParam}::numeric),'null'::jsonb),true)`;
+  const frozenH1 = "jsonb_set(jsonb_set(jsonb_set(jsonb_set(features,"
+    + `'{frozenPairStrategy,actualExit}',COALESCE(to_jsonb(${input.exitParam}::numeric),'null'::jsonb),true),`
+    + `'{frozenPairStrategy,exitTimeUtc}',to_jsonb((${input.closedAtSql})::timestamptz),true),`
+    + `'{frozenPairStrategy,exitReason}',to_jsonb(${input.exitReasonParam}::text),true),`
+    + `'{frozenPairStrategy,realizedR}',COALESCE(to_jsonb(${input.resultRParam}::numeric),'null'::jsonb),true)`;
+  return `features=CASE WHEN strategy_family='${GBPUSD_STRATEGY_ID}' THEN ${gbpusd} `
+    + `WHEN strategy_family='${AUDUSD_STRATEGY_ID}' THEN ${audusd} `
+    + `WHEN strategy_family='${NZDUSD_STRATEGY_ID}' THEN ${nzdusd} `
+    + `WHEN features ? 'frozenPairStrategy' THEN ${frozenH1} `
+    + "ELSE features END";
+}
+
+async function openPaperTrade(
+  setup: StrategySetup,
+  userId: string,
+  versionId: string,
+  spreadPips: number,
+  accountBalance: number,
+  quoteToUsdRate: number | null,
+  attribution?: StrategyAttribution,
+  hedgingEnabled = false,
+): Promise<string | null> {
   if (setup.status !== "valid" || !setup.direction || setup.entry === null || setup.stop === null || setup.target === null || setup.riskReward === null) return null;
   const entry = setup.entry;
   const stop = setup.stop;
-  const session = dayTradingSession(new Date(setup.evaluatedAt)).label;
+  const usdjpyMetadata = setup.features.usdjpyStrategy;
+  const gbpusdMetadata = setup.features.gbpusdStrategy;
+  const audusdMetadata = setup.features.audusdStrategy;
+  const nzdusdMetadata = setup.features.nzdusdStrategy;
+  const frozenH1Metadata = setup.features.frozenPairStrategy;
+  const session = strategySession(setup);
   return transaction(async (client) => {
     await client.query("SELECT pg_advisory_xact_lock($1)", [COLLECTOR_LOCK]);
-    const reject = async (reason: string) => {
-      await client.query("UPDATE paper_strategy_evaluations SET rejection_reason=$1,updated_at=now() WHERE strategy_version_id=$2 AND instrument=$3 AND decision_time=$4 AND trade_created=false", [reason, versionId, setup.instrument, setup.evaluatedAt]);
+    const reject = async (reason: string, code: "GLOBAL_RISK_BLOCK" | "BLOCKED_OPPOSITE_POSITION" | "SPREAD_BLOCK" | "POSITION_LIMIT" | "EXECUTION_ERROR" | null = null) => {
+      await client.query(
+        `UPDATE paper_strategy_evaluations
+            SET rejection_reason=$1,
+                features=CASE WHEN $5::text IS NOT NULL AND strategy_family=$6
+                  THEN jsonb_set(features,'{gbpusdStrategy,exitReason}',to_jsonb($5::text),true)
+                  WHEN $5::text IS NOT NULL AND strategy_family=$7
+                  THEN jsonb_set(features,'{audusdStrategy,exitReason}',to_jsonb($5::text),true)
+                  WHEN $5::text IS NOT NULL AND strategy_family=$8
+                  THEN jsonb_set(features,'{nzdusdStrategy,blockReason}',to_jsonb($5::text),true)
+                  ELSE features END,
+                updated_at=now()
+          WHERE strategy_version_id=$2 AND instrument=$3 AND decision_time=$4 AND trade_created=false`,
+        [reason, versionId, setup.instrument, setup.evaluatedAt, code, GBPUSD_STRATEGY_ID, AUDUSD_STRATEGY_ID, NZDUSD_STRATEGY_ID],
+      );
       return null;
     };
     const policy = await policyRow(client, userId, true);
-    if (policy.collectionPaused) return reject("Risk blocked: paper collection is paused.");
-    const open = await client.query("SELECT 1 FROM paper_strategy_trades WHERE instrument=$1 AND status='open'", [setup.instrument]);
-    if (open.rowCount) return reject("Risk blocked: this instrument already has an open position.");
+    if (policy.collectionPaused) return reject("Risk blocked: paper collection is paused.", "GLOBAL_RISK_BLOCK");
+    const open = await client.query<OpenExecutionLeg>(
+      "SELECT strategy_family,direction,features FROM paper_strategy_trades WHERE instrument=$1 AND status='open' FOR UPDATE",
+      [setup.instrument],
+    );
+    const overlapBlock = gbpusdExecutionBlock(setup, open.rows, hedgingEnabled, attribution?.family);
+    if (overlapBlock?.code === "DUPLICATE_SIGNAL") return null;
+    if (overlapBlock) return reject(overlapBlock.message, overlapBlock.code);
     const duplicate = await client.query("SELECT 1 FROM paper_strategy_trades WHERE strategy_version_id=$1 AND instrument=$2 AND decision_time=$3", [versionId, setup.instrument, setup.evaluatedAt]);
-    if (duplicate.rowCount) return reject("Duplicate evaluation: this decision was already collected.");
+    if (duplicate.rowCount) return null;
     const batch = await ensureCollectingBatch(client, versionId, userId, attribution);
-    if (batch.configuration.excludedPairs.includes(setup.instrument) || batch.configuration.excludedSessions.includes(session)) return reject("Risk blocked: the active batch excludes this pair or session.");
+    if (batch.configuration.excludedPairs.includes(setup.instrument) || batch.configuration.excludedSessions.includes(session)) return reject("Risk blocked: the active batch excludes this pair or session.", "GLOBAL_RISK_BLOCK");
     const risk = storedRiskConfiguration(batch.configuration);
     const portfolio = await client.query<{ open_count: string; nominal_risk: string }>("SELECT count(*)::text AS open_count,COALESCE(sum(nominal_risk_percent),0)::text AS nominal_risk FROM paper_strategy_trades WHERE status='open'");
     const openCount = Number(portfolio.rows[0]!.open_count);
     const nominalRisk = Number(portfolio.rows[0]!.nominal_risk);
-    if (!paperRiskAllowsEntry(risk, openCount, nominalRisk)) return reject("Risk blocked: the portfolio position or nominal-risk limit was reached.");
+    if (!paperRiskAllowsEntry(risk, openCount, nominalRisk)) return reject(
+      "Risk blocked: the portfolio position or nominal-risk limit was reached.",
+      attribution?.family === AUDUSD_STRATEGY_ID || attribution?.family === NZDUSD_STRATEGY_ID ? "POSITION_LIMIT" : "GLOBAL_RISK_BLOCK",
+    );
 
     // A cap on how many the day is allowed to produce, so a busy morning cannot
     // spend the batch. Counted on the ET day the strategy trades in, not UTC.
@@ -486,7 +702,7 @@ async function openPaperTrade(setup: StrategySetup, userId: string, versionId: s
          WHERE strategy_version_id=$1 AND (opened_at AT TIME ZONE 'America/New_York')::date = (now() AT TIME ZONE 'America/New_York')::date`,
         [versionId],
       );
-      if (Number(takenToday.rows[0]!.count) >= MAX_TRADES_PER_DAY) return reject("Risk blocked: the daily trade limit was reached.");
+      if (Number(takenToday.rows[0]!.count) >= MAX_TRADES_PER_DAY) return reject("Risk blocked: the daily trade limit was reached.", "GLOBAL_RISK_BLOCK");
     }
     // A true cross (EUR_GBP, EUR_JPY, GBP_JPY) is quoted in a non-USD currency
     // whose USD value cannot be read from its own price, so without the cross
@@ -495,12 +711,18 @@ async function openPaperTrade(setup: StrategySetup, userId: string, versionId: s
     const { base, quote } = currenciesOf(setup.instrument);
     const isTrueCross = base !== "USD" && quote !== "USD";
     if (isTrueCross && (quoteToUsdRate === null || !Number.isFinite(quoteToUsdRate) || quoteToUsdRate <= 0)) {
-      return reject("Risk blocked: no USD conversion rate for the quote currency, so position size cannot be trusted.");
+      return reject("Risk blocked: no USD conversion rate for the quote currency, so position size cannot be trusted.", "GLOBAL_RISK_BLOCK");
     }
     const positionSize = calculatePositionSize({ instrument: setup.instrument, accountBalance, riskPercent: risk.riskPercent, entry, stop, applyPaperCap: false, quoteToUsdRate: quoteToUsdRate ?? undefined });
-    if (!positionSize) return reject("Risk blocked: no valid position size could be calculated.");
+    if (!positionSize) return reject("Risk blocked: no valid position size could be calculated.", "GLOBAL_RISK_BLOCK");
     const nextSequence = await client.query<{ value: string }>("SELECT (COALESCE(max(trade_sequence),0)+1)::text AS value FROM paper_strategy_trades");
-    const setupName = attribution ? `${attribution.family} ${setup.direction}` : setupNameFor(setup);
+    const setupName = gbpusdMetadata?.signalLabel
+      ?? usdjpyMetadata?.setup
+      ?? audusdMetadata?.strategyName
+      ?? nzdusdMetadata?.strategyName
+      ?? frozenH1Metadata?.strategyName
+      ?? setup.features.eurusdStrategy?.setup
+      ?? (attribution ? `${attribution.family} ${setup.direction}` : setupNameFor(setup));
     // The canonical executed link, resolved BEFORE the insert so the trade
     // carries it from birth. The UPDATE further down still stamps the evaluation
     // side, but that UPDATE is exactly what silently matched zero rows for 48 of
@@ -516,11 +738,14 @@ async function openPaperTrade(setup: StrategySetup, userId: string, versionId: s
     // until close would mean reading a spread that no longer exists.
     const spreadCost = spreadCostR({ instrument: setup.instrument, entry, stop, spreadPips });
     const inserted = await client.query<{ id: string }>(
-      `INSERT INTO paper_strategy_trades(trade_sequence,user_id,batch_id,strategy_version_id,instrument,decision_time,direction,entry,stop,target,planned_r,nominal_risk_percent,nominal_risk_amount,calculated_units,calculated_standard_lots,spread_pips,session,weekday,setup_name,checklist_score,conditions,features,news_status,opened_at,strategy_family,config_version,regime,trend_strength,volatility_bucket,atr_pips,experiment_id,original_direction,inverted,inversion_experiment_id,evaluation_id,spread_cost_r)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb,$22::jsonb,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36)
+      `INSERT INTO paper_strategy_trades(trade_sequence,user_id,batch_id,strategy_version_id,instrument,decision_time,direction,entry,stop,target,planned_r,nominal_risk_percent,nominal_risk_amount,calculated_units,calculated_standard_lots,spread_pips,session,weekday,setup_name,checklist_score,conditions,features,news_status,opened_at,strategy_family,config_version,regime,trend_strength,volatility_bucket,atr_pips,experiment_id,original_direction,inverted,inversion_experiment_id,evaluation_id,spread_cost_r,signal_price,actual_fill_price,max_hold_bars,bars_held)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb,$22::jsonb,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40)
        RETURNING id`,
       [nextSequence.rows[0]!.value, userId, batch.id, versionId, setup.instrument, setup.evaluatedAt, setup.direction, setup.entry, setup.stop, setup.target, setup.riskReward, risk.riskPercent, positionSize.calculatedEstimatedRisk, positionSize.calculatedUnits, positionSize.calculatedStandardLots, spreadPips, session, weekdayAt(setup.evaluatedAt), setupName, checklistScore(setup), JSON.stringify(setup.conditions), JSON.stringify(setup.features), setup.features.newsStatus ?? "not_evaluated", setup.evaluatedAt, attribution?.family ?? null, attribution?.configVersion ?? null, attribution?.regime ?? null, attribution?.trendStrength ?? null, attribution?.volatilityBucket ?? null, attribution?.atrPips ?? null, attribution?.experimentId ?? null,
-       attribution?.originalDirection ?? null, attribution?.inverted ?? false, attribution?.inversionExperimentId ?? null, evaluationId, spreadCost],
+       attribution?.originalDirection ?? null, attribution?.inverted ?? false, attribution?.inversionExperimentId ?? null, evaluationId, spreadCost,
+         gbpusdMetadata?.signalClose ?? usdjpyMetadata?.signalPrice ?? audusdMetadata?.signalClose ?? nzdusdMetadata?.signalClose ?? (frozenH1Metadata ? setup.entry : null), null,
+         gbpusdMetadata?.maxHoldBars ?? usdjpyMetadata?.maximumHoldBars ?? audusdMetadata?.maximumHoldBars ?? nzdusdMetadata?.maximumHoldBars ?? frozenH1Metadata?.maxHoldBars ?? null,
+         gbpusdMetadata || usdjpyMetadata || audusdMetadata || nzdusdMetadata || frozenH1Metadata ? 0 : null],
     );
     const tradeId = inserted.rows[0]!.id;
     // The row this updates is written before execution is attempted, so it is
@@ -566,8 +791,8 @@ type BrokerClose = {
  * caller falls back to the candle scan.
  */
 async function brokerCloseFor(trade: OpenTradeRow): Promise<BrokerClose | null> {
-  const intent = await query<{ broker_trade_id: string | null }>(
-    "SELECT broker_trade_id FROM practice_order_intents WHERE paper_trade_id=$1 AND status='submitted'",
+  const intent = await query<{ broker_trade_id: string | null; calculated_units: string; inverted: boolean }>(
+    "SELECT i.broker_trade_id,t.calculated_units,t.inverted FROM practice_order_intents i JOIN paper_strategy_trades t ON t.id=i.paper_trade_id WHERE i.paper_trade_id=$1 AND i.status='submitted'",
     [trade.id],
   );
   const brokerTradeId = intent.rows[0]?.broker_trade_id;
@@ -594,6 +819,12 @@ async function brokerCloseFor(trade: OpenTradeRow): Promise<BrokerClose | null> 
     : exit <= target + slack ? "target_first" : exit >= stop - slack ? "stop_first" : "forced_close";
 
   const risk = Number(trade.nominal_risk_amount);
+  if (STRATEGY_FAMILIES.includes(trade.strategy_family as StrategyFamily)) {
+    const measurement = measureBrokerExecution({ instrument: trade.instrument, direction: trade.direction,
+      signalEntry: entry, stop, nominalRiskAmount: risk,
+      requestedUnits: Number(intent.rows[0]!.calculated_units), inverted: intent.rows[0]!.inverted }, state);
+    if (measurement) await query("UPDATE paper_strategy_trades SET features=COALESCE(features,'{}'::jsonb)||jsonb_build_object('executionMeasurementV2',$2::jsonb) WHERE id=$1", [trade.id,JSON.stringify(measurement)]);
+  }
   return {
     outcome,
     exit,
@@ -612,10 +843,11 @@ async function bookBrokerClose(
   trade: OpenTradeRow,
   broker: BrokerClose,
   excursion: { maxFavorableR: number | null; maxAdverseR: number | null },
+  strategyExit?: { exitReason: string; barsHeld: number },
 ): Promise<boolean> {
   const closed = await query<{ id: string }>(
-    `UPDATE paper_strategy_trades SET status='closed',outcome=$2,exit=$3,result_r=$4,paper_pl=$5,max_favorable_r=$6,max_adverse_r=$7,closed_at=COALESCE($8,now()),exit_reason=$2,${costColumnsSql("$4", "broker")},updated_at=now() WHERE id=$1 AND status='open'`,
-    [trade.id, broker.outcome, broker.exit, broker.resultR, broker.paperPl, excursion.maxFavorableR, excursion.maxAdverseR, broker.closedAt],
+    `UPDATE paper_strategy_trades SET status='closed',outcome=$2,exit=$3,result_r=$4,paper_pl=$5,max_favorable_r=$6,max_adverse_r=$7,closed_at=COALESCE($8,now()),exit_reason=$9,bars_held=COALESCE($10,bars_held),${pairExitFeaturesSql({ exitParam: "$3", resultRParam: "$4", pnlParam: "$5", closedAtSql: "COALESCE($8::timestamptz,now())", exitReasonParam: "$9" })},${costColumnsSql("$4", "broker")},updated_at=now() WHERE id=$1 AND status='open'`,
+    [trade.id, broker.outcome, broker.exit, broker.resultR, broker.paperPl, excursion.maxFavorableR, excursion.maxAdverseR, broker.closedAt, strategyExit?.exitReason ?? broker.outcome, strategyExit?.barsHeld ?? null],
   );
   if (!closed.rowCount) return false;
   const label = broker.outcome === "target_first" ? "target reached" : broker.outcome === "stop_first" ? "stop reached" : "session exit";
@@ -676,7 +908,7 @@ function nearBrokerLevel(trade: OpenTradeRow, price: { bid: number; ask: number 
  */
 export async function fastResolveFilledTrades(priceOf: (instrument: MajorInstrument) => { bid: number; ask: number } | null) {
   const open = await query<OpenTradeRow>(
-    `SELECT trade.id,trade.user_id,trade.instrument,trade.decision_time,trade.direction,trade.entry,trade.stop,trade.target,trade.nominal_risk_amount
+    `SELECT trade.id,trade.user_id,trade.instrument,trade.decision_time,trade.direction,trade.entry,trade.stop,trade.target,trade.nominal_risk_amount,trade.strategy_family
      FROM paper_strategy_trades trade
      JOIN practice_order_intents intent ON intent.paper_trade_id=trade.id
      WHERE trade.status='open' AND intent.status='submitted' AND intent.broker_trade_id IS NOT NULL`,
@@ -688,7 +920,21 @@ export async function fastResolveFilledTrades(priceOf: (instrument: MajorInstrum
     const broker = await brokerCloseFor(trade);
     if (!broker) continue;
     const excursion = await excursionForTrade(trade);
-    if (await bookBrokerClose(trade, broker, excursion)) closed += 1;
+    const closedAtMs = broker.closedAt ? Date.parse(broker.closedAt) : Date.now();
+    const strategyExit = trade.strategy_family === GBPUSD_STRATEGY_ID ? {
+      exitReason: broker.outcome === "target_first" ? "TP" : broker.outcome === "stop_first" ? "SL" : "TIME_EXIT",
+      barsHeld: Math.max(1, Math.min(6, Math.ceil((closedAtMs - Date.parse(iso(trade.decision_time))) / (30 * 60_000)))),
+    } : trade.strategy_family === USDJPY_STRATEGY_ID ? {
+      exitReason: broker.outcome === "target_first" ? "TAKE_PROFIT" : broker.outcome === "stop_first" ? "STOP_LOSS" : "TIME_EXIT",
+      barsHeld: Math.max(1, Math.min(3, Math.ceil((closedAtMs - Date.parse(iso(trade.decision_time))) / (60 * 60_000)))),
+    } : trade.strategy_family === AUDUSD_STRATEGY_ID ? {
+      exitReason: broker.outcome === "target_first" ? "TP" : broker.outcome === "stop_first" ? "SL" : "TIME_EXIT",
+      barsHeld: Math.max(1, Math.min(AUDUSD_MAX_HOLD_BARS, Math.ceil((closedAtMs - Date.parse(iso(trade.decision_time))) / (60 * 60_000)))),
+    } : trade.strategy_family === NZDUSD_STRATEGY_ID ? {
+      exitReason: broker.outcome === "target_first" ? "TP" : broker.outcome === "stop_first" ? "SL" : "TIME_EXIT",
+      barsHeld: Math.max(1, Math.min(NZDUSD_MAX_HOLD_BARS, Math.ceil((closedAtMs - Date.parse(iso(trade.decision_time))) / (60 * 60_000)))),
+    } : undefined;
+    if (await bookBrokerClose(trade, broker, excursion, strategyExit)) closed += 1;
   }
   return closed;
 }
@@ -727,7 +973,7 @@ function tickOutcome(trade: OpenTradeRow, price: { bid: number; ask: number }): 
  */
 export async function liveResolvePaperTrades(priceOf: (instrument: MajorInstrument) => { bid: number; ask: number } | null) {
   const open = await query<OpenTradeRow>(
-    `SELECT trade.id,trade.user_id,trade.instrument,trade.decision_time,trade.direction,trade.entry,trade.stop,trade.target,trade.nominal_risk_amount
+    `SELECT trade.id,trade.user_id,trade.instrument,trade.decision_time,trade.direction,trade.entry,trade.stop,trade.target,trade.nominal_risk_amount,trade.strategy_family
      FROM paper_strategy_trades trade
      WHERE trade.status='open'
        AND NOT EXISTS(
@@ -754,6 +1000,24 @@ export async function liveResolvePaperTrades(priceOf: (instrument: MajorInstrume
     const resultR = outcome === "target_first" ? Math.abs(target - entry) / risk : -1;
     const riskAmount = Number(trade.nominal_risk_amount);
     const paperPl = Number.isFinite(riskAmount) ? riskAmount * resultR : null;
+    const strategyExitReason = trade.strategy_family === GBPUSD_STRATEGY_ID
+      ? outcome === "target_first" ? "TP" : "SL"
+      : trade.strategy_family === USDJPY_STRATEGY_ID
+        ? outcome === "target_first" ? "TAKE_PROFIT" : "STOP_LOSS"
+        : trade.strategy_family === AUDUSD_STRATEGY_ID
+          ? outcome === "target_first" ? "TP" : "SL"
+        : trade.strategy_family === NZDUSD_STRATEGY_ID
+          ? outcome === "target_first" ? "TP" : "SL"
+        : outcome;
+    const strategyBarsHeld = trade.strategy_family === GBPUSD_STRATEGY_ID
+      ? Math.max(1, Math.min(6, Math.ceil((Date.now() - Date.parse(iso(trade.decision_time))) / (30 * 60_000))))
+      : trade.strategy_family === USDJPY_STRATEGY_ID
+        ? Math.max(1, Math.min(3, Math.ceil((Date.now() - Date.parse(iso(trade.decision_time))) / (60 * 60_000))))
+        : trade.strategy_family === AUDUSD_STRATEGY_ID
+          ? Math.max(1, Math.min(AUDUSD_MAX_HOLD_BARS, Math.ceil((Date.now() - Date.parse(iso(trade.decision_time))) / (60 * 60_000))))
+        : trade.strategy_family === NZDUSD_STRATEGY_ID
+          ? Math.max(1, Math.min(NZDUSD_MAX_HOLD_BARS, Math.ceil((Date.now() - Date.parse(iso(trade.decision_time))) / (60 * 60_000))))
+        : null;
     // Excursion comes from the M15 scan, which may not yet include the bar that
     // just touched the level, so floor it at the outcome we are booking — the
     // recorded excursion can never contradict the close.
@@ -764,8 +1028,8 @@ export async function liveResolvePaperTrades(priceOf: (instrument: MajorInstrume
     // status='open' guard makes this idempotent against the 60s candle scan, so
     // the two can never double-close the same trade.
     const updated = await query<{ id: string }>(
-      `UPDATE paper_strategy_trades SET status='closed',outcome=$2,exit=$3,result_r=$4,paper_pl=$5,max_favorable_r=$6,max_adverse_r=$7,closed_at=now(),exit_reason=$2,${costColumnsSql("$4", "model")},updated_at=now() WHERE id=$1 AND status='open'`,
-      [trade.id, outcome, exit, resultR, paperPl, maxFavorableR, maxAdverseR],
+      `UPDATE paper_strategy_trades SET status='closed',outcome=$2,exit=$3,result_r=$4,paper_pl=$5,max_favorable_r=$6,max_adverse_r=$7,closed_at=now(),exit_reason=$8,bars_held=COALESCE($9,bars_held),${pairExitFeaturesSql({ exitParam: "$3", resultRParam: "$4", pnlParam: "$5", closedAtSql: "now()", exitReasonParam: "$8" })},${costColumnsSql("$4", "model")},updated_at=now() WHERE id=$1 AND status='open'`,
+      [trade.id, outcome, exit, resultR, paperPl, maxFavorableR, maxAdverseR, strategyExitReason, strategyBarsHeld],
     );
     if (!updated.rowCount) continue;
     await queueNotification({
@@ -782,13 +1046,466 @@ export async function liveResolvePaperTrades(priceOf: (instrument: MajorInstrume
   return closed;
 }
 
+/** Resolve one durable GBPUSD origin leg against its own six future M30 bars. */
+async function resolveGbpusdOpenTrade(trade: OpenTradeRow, quotes: NormalizedQuote[]): Promise<boolean> {
+  const entry = Number(trade.entry);
+  const stop = Number(trade.stop);
+  const target = Number(trade.target);
+  const decisionTime = iso(trade.decision_time);
+  const result = resolveGbpusdExit({
+    direction: trade.direction,
+    entry,
+    stop,
+    target,
+    decisionTime,
+    quotes,
+    now: new Date(),
+  });
+
+  const broker = await brokerCloseFor(trade);
+  if (broker) {
+    const resolvedMs = broker.closedAt ? Date.parse(broker.closedAt) : Date.now();
+    const barsHeld = Math.max(1, Math.min(6, Math.ceil((resolvedMs - Date.parse(decisionTime)) / (30 * 60_000))));
+    const exitReason = broker.outcome === "target_first" ? "TP"
+      : broker.outcome === "stop_first" ? "SL" : "TIME_EXIT";
+    return bookBrokerClose(trade, broker, {
+      maxFavorableR: result?.maxFavorableR ?? null,
+      maxAdverseR: result?.maxAdverseR ?? null,
+    }, { exitReason, barsHeld });
+  }
+  if (!result) return false;
+
+  if (result.outcome === "time_exit") {
+    try {
+      const closeState = await requestPracticeTradeCloseForPaperTrade(trade.id);
+      if (closeState === "pending_confirmation") {
+        await queueNotification({
+          userId: trade.user_id,
+          kind: "system_issue",
+          title: `${displayPair(trade.instrument)} practice close needs attention`,
+          message: "The GBPUSD six-M30-bar time exit was not sent because the broker order is not confirmed. The logical leg remains open.",
+          instrument: trade.instrument,
+          paperTradeId: trade.id,
+          dedupeKey: `gbpusd_time_exit_unconfirmed:${trade.id}`,
+        });
+        return false;
+      }
+      if (closeState === "requested") {
+        const confirmedClose = await brokerCloseFor(trade);
+        if (!confirmedClose) return false;
+        return bookBrokerClose(trade, confirmedClose, {
+          maxFavorableR: result.maxFavorableR,
+          maxAdverseR: result.maxAdverseR,
+        }, { exitReason: "TIME_EXIT", barsHeld: GBPUSD_MAX_HOLD_BARS });
+      }
+    } catch (error) {
+      console.error("[gbpusd-strategy] time exit failed", error);
+      await queueNotification({
+        userId: trade.user_id,
+        kind: "system_issue",
+        title: `${displayPair(trade.instrument)} practice close needs attention`,
+        message: "The GBPUSD six-M30-bar broker close failed. The logical leg remains open.",
+        instrument: trade.instrument,
+        paperTradeId: trade.id,
+        dedupeKey: `gbpusd_time_exit_failed:${trade.id}`,
+      });
+      return false;
+    }
+  }
+
+  const riskAmount = Number(trade.nominal_risk_amount);
+  const paperPl = Number.isFinite(riskAmount) ? riskAmount * result.resultR : null;
+  const updated = await query<{ id: string }>(
+    `UPDATE paper_strategy_trades
+        SET status='closed',outcome=$2,exit=$3,result_r=$4,paper_pl=$5,
+            max_favorable_r=$6,max_adverse_r=$7,closed_at=$8,exit_reason=$9,
+            bars_held=$10,${pairExitFeaturesSql({ exitParam: "$3", resultRParam: "$4", pnlParam: "$5", closedAtSql: "$8::timestamptz", exitReasonParam: "$9" })},${costColumnsSql("$4", "model")},updated_at=now()
+      WHERE id=$1 AND status='open'`,
+    [trade.id, result.outcome, result.exit, result.resultR, paperPl, result.maxFavorableR,
+     result.maxAdverseR, result.resolvedAt, result.exitReason, result.barsHeld],
+  );
+  if (!updated.rowCount) return false;
+  await queueNotification({
+    userId: trade.user_id,
+    kind: "paper_closed",
+    title: `${displayPair(trade.instrument)} paper trade closed`,
+    message: `${result.exitReason.replaceAll("_", " ").toLowerCase()} · ${result.resultR >= 0 ? "+" : ""}${result.resultR.toFixed(2)}R`,
+    instrument: trade.instrument,
+    paperTradeId: trade.id,
+    dedupeKey: `paper_closed:${trade.id}`,
+  });
+  return true;
+}
+
+/** Resolve the frozen USDJPY strategy without the generic 48h/16:45 ET horizon. */
+async function resolveUsdjpyOpenTrade(trade: OpenTradeRow, quotes: NormalizedQuote[]): Promise<boolean> {
+  const entry = Number(trade.entry);
+  const stop = Number(trade.stop);
+  const target = Number(trade.target);
+  const decisionTime = iso(trade.decision_time);
+  const result = resolveUsdjpyExit({
+    direction: trade.direction,
+    entry,
+    stop,
+    target,
+    decisionTime,
+    quotes,
+    now: new Date(),
+  });
+
+  // A broker-reported fill is stronger evidence than the candle model and keeps
+  // real slippage in realized R/P&L. The frozen three-bar horizon still supplies
+  // the strategy-specific bars-held and exit-reason labels.
+  const broker = await brokerCloseFor(trade);
+  if (broker) {
+    const resolvedMs = broker.closedAt ? Date.parse(broker.closedAt) : Date.now();
+    const barsHeld = Math.max(1, Math.min(3, Math.ceil((resolvedMs - Date.parse(decisionTime)) / (60 * 60_000))));
+    const exitReason = broker.outcome === "target_first" ? "TAKE_PROFIT"
+      : broker.outcome === "stop_first" ? "STOP_LOSS" : "TIME_EXIT";
+    return bookBrokerClose(trade, broker, {
+      maxFavorableR: result?.maxFavorableR ?? null,
+      maxAdverseR: result?.maxAdverseR ?? null,
+    }, { exitReason, barsHeld });
+  }
+  if (!result) return false;
+
+  if (result.outcome === "time_exit") {
+    try {
+      if (!(await closePracticeTradeForPaperTrade(trade.id))) {
+        await queueNotification({
+          userId: trade.user_id,
+          kind: "system_issue",
+          title: `${displayPair(trade.instrument)} practice close needs attention`,
+          message: "The USDJPY three-H1-bar time exit was not sent because the broker order is not confirmed. The internal trade remains open.",
+          instrument: trade.instrument,
+          paperTradeId: trade.id,
+          dedupeKey: `practice_time_exit_unconfirmed:${trade.id}`,
+        });
+        return false;
+      }
+    } catch (error) {
+      console.error("[usdjpy-strategy] time exit failed", error);
+      await queueNotification({
+        userId: trade.user_id,
+        kind: "system_issue",
+        title: `${displayPair(trade.instrument)} practice close needs attention`,
+        message: "The USDJPY three-H1-bar broker close failed. The internal trade remains open.",
+        instrument: trade.instrument,
+        paperTradeId: trade.id,
+        dedupeKey: `practice_time_exit_failed:${trade.id}`,
+      });
+      return false;
+    }
+  }
+
+  const riskAmount = Number(trade.nominal_risk_amount);
+  const paperPl = Number.isFinite(riskAmount) ? riskAmount * result.resultR : null;
+  const updated = await query<{ id: string }>(
+    `UPDATE paper_strategy_trades
+        SET status='closed',outcome=$2,exit=$3,result_r=$4,paper_pl=$5,
+            max_favorable_r=$6,max_adverse_r=$7,closed_at=$8,exit_reason=$9,
+            bars_held=$10,${costColumnsSql("$4", "model")},updated_at=now()
+      WHERE id=$1 AND status='open'`,
+    [trade.id, result.outcome, result.exit, result.resultR, paperPl, result.maxFavorableR,
+     result.maxAdverseR, result.resolvedAt, result.exitReason, result.barsHeld],
+  );
+  if (!updated.rowCount) return false;
+  await queueNotification({
+    userId: trade.user_id,
+    kind: "paper_closed",
+    title: `${displayPair(trade.instrument)} paper trade closed`,
+    message: `${result.exitReason.replaceAll("_", " ").toLowerCase()} · ${result.resultR >= 0 ? "+" : ""}${result.resultR.toFixed(2)}R`,
+    instrument: trade.instrument,
+    paperTradeId: trade.id,
+    dedupeKey: `paper_closed:${trade.id}`,
+  });
+  return true;
+}
+
+/** Resolve frozen AUDUSD after exactly three future completed H1 bars. */
+async function resolveAudusdOpenTrade(trade: OpenTradeRow, quotes: NormalizedQuote[]): Promise<boolean> {
+  const entry = Number(trade.entry);
+  const stop = Number(trade.stop);
+  const target = Number(trade.target);
+  const decisionTime = iso(trade.decision_time);
+  const result = resolveAudusdExit({ entry, stop, target, decisionTime, quotes, now: new Date() });
+
+  const broker = await brokerCloseFor(trade);
+  if (broker) {
+    const resolvedMs = broker.closedAt ? Date.parse(broker.closedAt) : Date.now();
+    const barsHeld = Math.max(1, Math.min(AUDUSD_MAX_HOLD_BARS,
+      Math.ceil((resolvedMs - Date.parse(decisionTime)) / (60 * 60_000))));
+    const exitReason = broker.outcome === "target_first" ? "TP"
+      : broker.outcome === "stop_first" ? "SL" : "TIME_EXIT";
+    return bookBrokerClose(trade, broker, {
+      maxFavorableR: result?.maxFavorableR ?? null,
+      maxAdverseR: result?.maxAdverseR ?? null,
+    }, { exitReason, barsHeld });
+  }
+  if (!result) return false;
+
+  if (result.outcome === "time_exit") {
+    try {
+      const closeState = await requestPracticeTradeCloseForPaperTrade(trade.id);
+      if (closeState === "pending_confirmation") {
+        await queueNotification({
+          userId: trade.user_id,
+          kind: "system_issue",
+          title: `${displayPair(trade.instrument)} practice close needs attention`,
+          message: "The AUDUSD three-H1-bar time exit was not sent because the broker order is not confirmed. The trade remains open.",
+          instrument: trade.instrument,
+          paperTradeId: trade.id,
+          dedupeKey: `audusd_time_exit_unconfirmed:${trade.id}`,
+        });
+        return false;
+      }
+      if (closeState === "requested") {
+        const confirmedClose = await brokerCloseFor(trade);
+        if (!confirmedClose) return false;
+        return bookBrokerClose(trade, confirmedClose, {
+          maxFavorableR: result.maxFavorableR,
+          maxAdverseR: result.maxAdverseR,
+        }, { exitReason: "TIME_EXIT", barsHeld: AUDUSD_MAX_HOLD_BARS });
+      }
+    } catch (error) {
+      console.error("[audusd-strategy] time exit failed", error);
+      await queueNotification({
+        userId: trade.user_id,
+        kind: "system_issue",
+        title: `${displayPair(trade.instrument)} practice close needs attention`,
+        message: "The AUDUSD three-H1-bar broker close failed. The trade remains open.",
+        instrument: trade.instrument,
+        paperTradeId: trade.id,
+        dedupeKey: `audusd_time_exit_failed:${trade.id}`,
+      });
+      return false;
+    }
+  }
+
+  const riskAmount = Number(trade.nominal_risk_amount);
+  const paperPl = Number.isFinite(riskAmount) ? riskAmount * result.resultR : null;
+  const updated = await query<{ id: string }>(
+    `UPDATE paper_strategy_trades
+        SET status='closed',outcome=$2,exit=$3,result_r=$4,paper_pl=$5,
+            max_favorable_r=$6,max_adverse_r=$7,closed_at=$8,exit_reason=$9,
+            bars_held=$10,${pairExitFeaturesSql({ exitParam: "$3", resultRParam: "$4", pnlParam: "$5", closedAtSql: "$8::timestamptz", exitReasonParam: "$9" })},${costColumnsSql("$4", "model")},updated_at=now()
+      WHERE id=$1 AND status='open'`,
+    [trade.id, result.outcome, result.exit, result.resultR, paperPl, result.maxFavorableR,
+     result.maxAdverseR, result.resolvedAt, result.exitReason, result.barsHeld],
+  );
+  if (!updated.rowCount) return false;
+  await queueNotification({
+    userId: trade.user_id,
+    kind: "paper_closed",
+    title: `${displayPair(trade.instrument)} paper trade closed`,
+    message: `${result.exitReason.replaceAll("_", " ").toLowerCase()} · ${result.resultR >= 0 ? "+" : ""}${result.resultR.toFixed(2)}R`,
+    instrument: trade.instrument,
+    paperTradeId: trade.id,
+    dedupeKey: `paper_closed:${trade.id}`,
+  });
+  return true;
+}
+
+/** Resolve frozen NZDUSD after exactly three future completed H1 bars. */
+async function resolveNzdusdOpenTrade(trade: OpenTradeRow, quotes: NormalizedQuote[]): Promise<boolean> {
+  const entry = Number(trade.entry);
+  const stop = Number(trade.stop);
+  const target = Number(trade.target);
+  const decisionTime = iso(trade.decision_time);
+  const result = resolveNzdusdExit({ direction: trade.direction, entry, stop, target, decisionTime, quotes, now: new Date() });
+
+  const broker = await brokerCloseFor(trade);
+  if (broker) {
+    const resolvedMs = broker.closedAt ? Date.parse(broker.closedAt) : Date.now();
+    const barsHeld = Math.max(1, Math.min(NZDUSD_MAX_HOLD_BARS,
+      Math.ceil((resolvedMs - Date.parse(decisionTime)) / (60 * 60_000))));
+    const exitReason = broker.outcome === "target_first" ? "TP"
+      : broker.outcome === "stop_first" ? "SL" : "TIME_EXIT";
+    return bookBrokerClose(trade, broker, {
+      maxFavorableR: result?.maxFavorableR ?? null,
+      maxAdverseR: result?.maxAdverseR ?? null,
+    }, { exitReason, barsHeld });
+  }
+  if (!result) return false;
+
+  if (result.outcome === "time_exit") {
+    try {
+      const closeState = await requestPracticeTradeCloseForPaperTrade(trade.id);
+      if (closeState === "pending_confirmation") {
+        await queueNotification({
+          userId: trade.user_id,
+          kind: "system_issue",
+          title: `${displayPair(trade.instrument)} practice close needs attention`,
+          message: "The NZDUSD three-H1-bar time exit was not sent because the broker order is not confirmed. The trade remains open.",
+          instrument: trade.instrument,
+          paperTradeId: trade.id,
+          dedupeKey: `nzdusd_time_exit_unconfirmed:${trade.id}`,
+        });
+        return false;
+      }
+      if (closeState === "requested") {
+        const confirmedClose = await brokerCloseFor(trade);
+        if (!confirmedClose) return false;
+        return bookBrokerClose(trade, confirmedClose, {
+          maxFavorableR: result.maxFavorableR,
+          maxAdverseR: result.maxAdverseR,
+        }, { exitReason: "TIME_EXIT", barsHeld: NZDUSD_MAX_HOLD_BARS });
+      }
+    } catch (error) {
+      console.error("[nzdusd-strategy] time exit failed", error);
+      await queueNotification({
+        userId: trade.user_id,
+        kind: "system_issue",
+        title: `${displayPair(trade.instrument)} practice close needs attention`,
+        message: "The NZDUSD three-H1-bar broker close failed. The trade remains open.",
+        instrument: trade.instrument,
+        paperTradeId: trade.id,
+        dedupeKey: `nzdusd_time_exit_failed:${trade.id}`,
+      });
+      return false;
+    }
+  }
+
+  const riskAmount = Number(trade.nominal_risk_amount);
+  const paperPl = Number.isFinite(riskAmount) ? riskAmount * result.resultR : null;
+  const updated = await query<{ id: string }>(
+    `UPDATE paper_strategy_trades
+        SET status='closed',outcome=$2,exit=$3,result_r=$4,paper_pl=$5,
+            max_favorable_r=$6,max_adverse_r=$7,closed_at=$8,exit_reason=$9,
+            bars_held=$10,${pairExitFeaturesSql({ exitParam: "$3", resultRParam: "$4", pnlParam: "$5", closedAtSql: "$8::timestamptz", exitReasonParam: "$9" })},${costColumnsSql("$4", "model")},updated_at=now()
+      WHERE id=$1 AND status='open'`,
+    [trade.id, result.outcome, result.exit, result.resultR, paperPl, result.maxFavorableR,
+     result.maxAdverseR, result.resolvedAt, result.exitReason, result.barsHeld],
+  );
+  if (!updated.rowCount) return false;
+  await queueNotification({
+    userId: trade.user_id,
+    kind: "paper_closed",
+    title: `${displayPair(trade.instrument)} paper trade closed`,
+    message: `${result.exitReason.replaceAll("_", " ").toLowerCase()} · ${result.resultR >= 0 ? "+" : ""}${result.resultR.toFixed(2)}R`,
+    instrument: trade.instrument,
+    paperTradeId: trade.id,
+    dedupeKey: `paper_closed:${trade.id}`,
+  });
+  return true;
+}
+
+/** Resolve the frozen three-H1-bar modules that share executable-side exit mechanics. */
+async function resolveFrozenH1OpenTrade(
+  trade: OpenTradeRow,
+  quotes: NormalizedQuote[],
+  resolver: FrozenH1Resolver,
+): Promise<boolean> {
+  const decisionTime = iso(trade.decision_time);
+  const result = resolver({
+    direction: trade.direction,
+    entry: Number(trade.entry),
+    stop: Number(trade.stop),
+    target: Number(trade.target),
+    decisionTime,
+    quotes,
+    now: new Date(),
+  });
+  const broker = await brokerCloseFor(trade);
+  if (broker) {
+    const resolvedMs = broker.closedAt ? Date.parse(broker.closedAt) : Date.now();
+    const barsHeld = Math.max(1, Math.min(3, Math.ceil((resolvedMs - Date.parse(decisionTime)) / (60 * 60_000))));
+    const exitReason = broker.outcome === "target_first" ? "TP"
+      : broker.outcome === "stop_first" ? "SL" : "TIME_EXIT";
+    return bookBrokerClose(trade, broker, {
+      maxFavorableR: result?.maxFavorableR ?? null,
+      maxAdverseR: result?.maxAdverseR ?? null,
+    }, { exitReason, barsHeld });
+  }
+  if (!result) return false;
+
+  if (result.outcome === "time_exit") {
+    try {
+      const closeState = await requestPracticeTradeCloseForPaperTrade(trade.id);
+      if (closeState === "pending_confirmation") return false;
+      if (closeState === "requested") {
+        const confirmedClose = await brokerCloseFor(trade);
+        if (!confirmedClose) return false;
+        return bookBrokerClose(trade, confirmedClose, {
+          maxFavorableR: result.maxFavorableR,
+          maxAdverseR: result.maxAdverseR,
+        }, { exitReason: "TIME_EXIT", barsHeld: 3 });
+      }
+    } catch (error) {
+      console.error(`[${trade.strategy_family ?? "frozen-h1"}] time exit failed`, error);
+      await queueNotification({
+        userId: trade.user_id,
+        kind: "system_issue",
+        title: `${displayPair(trade.instrument)} practice close needs attention`,
+        message: "The frozen three-H1-bar broker close failed. The logical trade remains open.",
+        instrument: trade.instrument,
+        paperTradeId: trade.id,
+        dedupeKey: `frozen_h1_time_exit_failed:${trade.id}`,
+      });
+      return false;
+    }
+  }
+
+  const riskAmount = Number(trade.nominal_risk_amount);
+  const paperPl = Number.isFinite(riskAmount) ? riskAmount * result.resultR : null;
+  const updated = await query<{ id: string }>(
+    `UPDATE paper_strategy_trades
+        SET status='closed',outcome=$2,exit=$3,result_r=$4,paper_pl=$5,
+            max_favorable_r=$6,max_adverse_r=$7,closed_at=$8,exit_reason=$9,
+            bars_held=$10,${pairExitFeaturesSql({ exitParam: "$3", resultRParam: "$4", pnlParam: "$5", closedAtSql: "$8::timestamptz", exitReasonParam: "$9" })},${costColumnsSql("$4", "model")},updated_at=now()
+      WHERE id=$1 AND status='open'`,
+    [trade.id, result.outcome, result.exit, result.resultR, paperPl, result.maxFavorableR,
+     result.maxAdverseR, result.resolvedAt, result.exitReason, result.barsHeld],
+  );
+  if (!updated.rowCount) return false;
+  await queueNotification({
+    userId: trade.user_id,
+    kind: "paper_closed",
+    title: `${displayPair(trade.instrument)} paper trade closed`,
+    message: `${result.exitReason.replaceAll("_", " ").toLowerCase()} · ${result.resultR >= 0 ? "+" : ""}${result.resultR.toFixed(2)}R`,
+    instrument: trade.instrument,
+    paperTradeId: trade.id,
+    dedupeKey: `paper_closed:${trade.id}`,
+  });
+  return true;
+}
+
 async function resolveOpenTrades() {
-  const open = await query<OpenTradeRow>("SELECT id,user_id,instrument,decision_time,direction,entry,stop,target,nominal_risk_amount FROM paper_strategy_trades WHERE status='open' ORDER BY opened_at");
+  const open = await query<OpenTradeRow>("SELECT id,user_id,instrument,decision_time,direction,entry,stop,target,nominal_risk_amount,strategy_family FROM paper_strategy_trades WHERE status='open' ORDER BY opened_at");
   let resolved = 0;
   for (const trade of open.rows) {
+    const frozenH1Resolver = trade.strategy_family ? FROZEN_THREE_H1_RESOLVERS[trade.strategy_family] : undefined;
+    if (frozenH1Resolver) {
+      const candles = (await getResearchCandles(trade.instrument, "H1", 500)).filter((item) => item.complete);
+      const quotes = candles.map(toH1Quote).filter((quote) => new Date(quote.closeTime) > new Date(trade.decision_time));
+      if (quotes.length && await resolveFrozenH1OpenTrade(trade, quotes, frozenH1Resolver)) resolved += 1;
+      continue;
+    }
+    if (trade.strategy_family === NZDUSD_STRATEGY_ID) {
+      const candles = (await getResearchCandles(trade.instrument, "H1", 500)).filter((item) => item.complete);
+      const quotes = candles.map(toH1Quote).filter((quote) => new Date(quote.closeTime) > new Date(trade.decision_time));
+      if (quotes.length && await resolveNzdusdOpenTrade(trade, quotes)) resolved += 1;
+      continue;
+    }
+    if (trade.strategy_family === AUDUSD_STRATEGY_ID) {
+      const candles = (await getResearchCandles(trade.instrument, "H1", 500)).filter((item) => item.complete);
+      const quotes = candles.map(toH1Quote).filter((quote) => new Date(quote.closeTime) > new Date(trade.decision_time));
+      if (quotes.length && await resolveAudusdOpenTrade(trade, quotes)) resolved += 1;
+      continue;
+    }
+    if (trade.strategy_family === GBPUSD_STRATEGY_ID) {
+      const candles = (await getResearchCandles(trade.instrument, "M30", 500)).filter((item) => item.complete);
+      const quotes = candles.map(toM30Quote).filter((quote) => new Date(quote.closeTime) > new Date(trade.decision_time));
+      if (quotes.length && await resolveGbpusdOpenTrade(trade, quotes)) resolved += 1;
+      continue;
+    }
     const candles = (await getResearchCandles(trade.instrument, "M15", 500)).filter((item) => item.complete);
     const quotes = candles.map(toQuote).filter((quote) => new Date(quote.closeTime) > new Date(trade.decision_time));
     if (!quotes.length) continue;
+    if (trade.strategy_family === USDJPY_STRATEGY_ID) {
+      if (await resolveUsdjpyOpenTrade(trade, quotes)) resolved += 1;
+      continue;
+    }
     const result = labelOutcome(trade.direction, Number(trade.entry), Number(trade.stop), Number(trade.target), iso(trade.decision_time), quotes);
 
     // The broker is asked first and wins when it has already finished the
@@ -813,6 +1530,17 @@ async function resolveOpenTrades() {
     // forced_close and a timed-out close both exit a live position mid-flight,
     // so both must square the broker order before the internal trade closes.
     const needsBrokerClose = result.outcome === "forced_close" || timedOut;
+
+    if (STRATEGY_FAMILIES.includes(trade.strategy_family as StrategyFamily)) {
+      const intent = (await query<{ status: string; broker_trade_id: string | null }>(
+        "SELECT status,broker_trade_id FROM practice_order_intents WHERE paper_trade_id=$1", [trade.id])).rows[0];
+      if (requiresBrokerCloseConfirmation(intent)) {
+        // Request a time exit, then let a confirmed broker fill book it on the
+        // next cycle. A successful close request does not reveal the fill price.
+        if (needsBrokerClose) await requestPracticeTradeCloseForPaperTrade(trade.id);
+        continue;
+      }
+    }
 
     const entryPrice = Number(trade.entry);
     const riskDistance = Math.abs(entryPrice - Number(trade.stop));
@@ -1140,13 +1868,17 @@ export async function journalTradeLog(
     `SELECT id, origin, pair, direction, status, result, opened_at AS "openedAt", closed_at AS "closedAt",
             entry, stop, target, exit, result_r AS "resultR", paper_pl AS "paperPl", reason, notes, sequence, outcome,
             instrument_code AS "instrument", nominal_risk_amount AS "nominalRiskAmount",
+            signal_price AS "signalPrice", actual_fill_price AS "actualFillPrice",
+            max_hold_bars AS "maxHoldBars", bars_held AS "barsHeld",
             strategy_family AS "strategyFamily", batch_number AS "batchNumber"
      FROM (
        SELECT id::text, origin, pair, direction, status, result, opened_at, closed_at,
               entry::float, stop::float, target::float, exit::float, result_r::float,
               NULL::float AS paper_pl, reason, notes, NULL::text AS sequence, NULL::text AS outcome,
-              NULL::text AS instrument_code, NULL::float AS nominal_risk_amount,
-              NULL::text AS strategy_family, NULL::int AS batch_number
+               NULL::text AS instrument_code, NULL::float AS nominal_risk_amount,
+               NULL::float AS signal_price, NULL::float AS actual_fill_price,
+               NULL::int AS max_hold_bars, NULL::int AS bars_held,
+               NULL::text AS strategy_family, NULL::int AS batch_number
        FROM paper_trades WHERE user_id=$1
        UNION ALL
        SELECT trade.id::text, 'strategy', instrument.display_name, trade.direction,
@@ -1161,8 +1893,10 @@ export async function journalTradeLog(
               trade.trade_sequence::text, trade.outcome,
               -- Carried so an open row can be marked to the live quote: the code
               -- matches the watchlist snapshot, the risk amount sets the scale.
-              trade.instrument, trade.nominal_risk_amount::float,
-              trade.strategy_family, batch.batch_number
+               trade.instrument, trade.nominal_risk_amount::float,
+               trade.signal_price::float, trade.actual_fill_price::float,
+               trade.max_hold_bars, trade.bars_held,
+               trade.strategy_family, batch.batch_number
        FROM paper_strategy_trades trade
        JOIN instruments instrument ON instrument.code = trade.instrument
        JOIN paper_strategy_batches batch ON batch.id = trade.batch_id
@@ -1329,9 +2063,10 @@ export async function decidePaperBatch(batchId: string, decision: "approved" | "
 // ===========================================================================
 // Multi-strategy + adaptive engine collector (Phase 2).
 //
-// A parallel collector to `collectPaperCycle`. It runs the four independent
-// strategies, records every candidate, asks the adaptive engine which single
-// candidate an instrument should attempt, and opens it through the exact same
+// A parallel collector to `collectPaperCycle`. It evaluates the four preserved
+// research families plus the enabled frozen pair modules. The legacy families
+// have an empty execution allowlist; only a qualifying pair candidate can reach
+// the shared paper/practice opening path. It opens through the exact same
 // risk/execution path (`openPaperTrade` → `queuePracticeOrderIntent`). The one-
 // open-position-per-instrument rule is unchanged and still enforced by the
 // existing open-trade check and the unique index. The legacy liquidity path is
@@ -1341,19 +2076,39 @@ export async function decidePaperBatch(batchId: string, decision: "approved" | "
 type MultiVersion = { versionId: string; version: string; configVersion: string };
 let multiVersionCache: Map<string, MultiVersion> | null = null;
 let experimentIdCache: string | null = null;
+let pairExperimentIdsCache: Map<string, string> | null = null;
 let configsSeeded = false;
+const EXECUTION_STRATEGY_SEEDS = [...SEED_STRATEGY_CONFIGS, ...ENABLED_PAIR_STRATEGY_SEEDS];
+
+function isAdaptiveFamily(value: StrategyId): value is StrategyFamily {
+  return (STRATEGY_FAMILIES as readonly string[]).includes(value);
+}
+
+function isAdaptiveCandidate(candidate: StrategyCandidate<StrategyId>): candidate is StrategyCandidate<StrategyFamily> {
+  return isAdaptiveFamily(candidate.family);
+}
+
+const SHARED_EXECUTION_GATE_NAMES = new Set(["Market data", "Session", "Spread", "News"]);
+
+export function sharedExecutionRejectionFor(candidate: StrategyCandidate<StrategyId>) {
+  const failed = candidate.conditions.find((item) =>
+    item.required && !item.passed && SHARED_EXECUTION_GATE_NAMES.has(item.name));
+  return failed ? `Execution blocked: ${failed.name}: ${failed.reason}` : null;
+}
 
 /** Register (once per process) a strategy_versions row per family. */
 async function multiStrategyVersionIds(): Promise<Map<string, MultiVersion>> {
   if (multiVersionCache) return multiVersionCache;
   const map = new Map<string, MultiVersion>();
-  for (const seed of SEED_STRATEGY_CONFIGS) {
-    const configuration = JSON.stringify({ status: "active", family: seed.family, configVersion: seed.configVersion, experiment: MULTISTRATEGY_EXPERIMENT_LABEL, configuration: seed.configuration });
+  for (const seed of EXECUTION_STRATEGY_SEEDS) {
+    const adaptive = isAdaptiveFamily(seed.family);
+    const experiment = adaptive ? MULTISTRATEGY_EXPERIMENT_LABEL : `${seed.family}-v1`;
+    const configuration = JSON.stringify({ status: adaptive ? "paused" : "active", family: seed.family, configVersion: seed.configVersion, experiment, configuration: seed.configuration });
     const result = await query<{ id: string }>(
       `INSERT INTO strategy_versions(name,version,configuration) VALUES($1,$2,$3::jsonb)
        ON CONFLICT(name,version) DO UPDATE SET configuration=strategy_versions.configuration || EXCLUDED.configuration
        RETURNING id`,
-      [MULTISTRATEGY_NAME, seed.version, configuration],
+      [adaptive ? MULTISTRATEGY_NAME : seed.family, seed.version, configuration],
     );
     map.set(seed.family, { versionId: result.rows[0]!.id, version: seed.version, configVersion: seed.configVersion });
   }
@@ -1372,29 +2127,47 @@ async function ensureExperiment(): Promise<string> {
   return experimentIdCache;
 }
 
+async function ensurePairStrategyExperiments(): Promise<Map<string, string>> {
+  if (pairExperimentIdsCache) return pairExperimentIdsCache;
+  const map = new Map<string, string>();
+  for (const seed of ENABLED_PAIR_STRATEGY_SEEDS) {
+    const label = seed.family === GBPUSD_STRATEGY_ID ? seed.configVersion : `${seed.family}-v1`;
+    const result = await query<{ id: string }>(
+      `INSERT INTO strategy_experiments(label,description) VALUES($1,$2)
+       ON CONFLICT(label) DO UPDATE SET label=EXCLUDED.label RETURNING id`,
+      [label, `${seed.family} ${seed.configVersion} frozen pair-specific paper/practice cohort. Not an adaptive input.`],
+    );
+    map.set(seed.family, result.rows[0]!.id);
+  }
+  pairExperimentIdsCache = map;
+  return map;
+}
+
 /** Seed the immutable V1 configs. ON CONFLICT DO NOTHING preserves history. */
 async function ensureStrategyConfigsSeeded(): Promise<void> {
   if (configsSeeded) return;
-  for (const seed of SEED_STRATEGY_CONFIGS) {
+  for (const seed of EXECUTION_STRATEGY_SEEDS) {
+    const status = isAdaptiveFamily(seed.family) ? "retired" : "active";
     await query(
-      `INSERT INTO strategy_configs(family,strategy_version,config_version,configuration) VALUES($1,$2,$3,$4::jsonb)
-       ON CONFLICT(family,config_version) DO NOTHING`,
-      [seed.family, seed.version, seed.configVersion, JSON.stringify(seed.configuration)],
+      `INSERT INTO strategy_configs(family,strategy_version,config_version,configuration,status) VALUES($1,$2,$3,$4::jsonb,$5)
+       ON CONFLICT(family,config_version) DO UPDATE SET status=EXCLUDED.status`,
+      [seed.family, seed.version, seed.configVersion, JSON.stringify(seed.configuration), status],
     );
   }
   configsSeeded = true;
 }
 
-function attributionFor(candidate: StrategyCandidate, versionIds: Map<string, MultiVersion>, experimentId: string): StrategyAttribution {
+function attributionFor(candidate: StrategyCandidate<StrategyId>, versionIds: Map<string, MultiVersion>, experimentId: string, pairExperimentIds: Map<string, string>): StrategyAttribution {
   const version = versionIds.get(candidate.family)!;
   return {
     versionId: version.versionId, family: candidate.family, version: candidate.version, configVersion: candidate.configVersion,
-    experimentId, regime: candidate.regime.regime, trendStrength: candidate.regime.trendStrength,
+    experimentId: pairExperimentIds.get(candidate.family) ?? experimentId,
+    regime: candidate.regime.regime, trendStrength: candidate.regime.trendStrength,
     volatilityBucket: candidate.regime.volatility, atrPips: candidate.regime.atrPips,
   };
 }
 
-async function persistMultiWatchSnapshot(candidate: StrategyCandidate, quote: { bid: number; ask: number; time: string } | undefined, attribution: StrategyAttribution, selected: boolean, selectionReason: string, session: string, openTradeId: string | null) {
+async function persistMultiWatchSnapshot(candidate: StrategyCandidate<StrategyId>, quote: { bid: number; ask: number; time: string } | undefined, attribution: StrategyAttribution, selected: boolean, selectionReason: string, session: string, openTradeId: string | null) {
   const spreadPips = quote ? (quote.ask - quote.bid) / pipSizeFor(candidate.instrument) : null;
   const fresh = quote && Date.now() - new Date(quote.time).getTime() <= 2 * 60_000;
   await query(
@@ -1405,7 +2178,7 @@ async function persistMultiWatchSnapshot(candidate: StrategyCandidate, quote: { 
   );
 }
 
-async function logAdaptiveDecision(experimentId: string, instrument: string, decisionTime: string, decision: ReturnType<typeof decideInstrument>, regime: unknown, candidates: StrategyCandidate[], selectedTradeId: string | null, statusByKey: (candidate: StrategyCandidate) => string) {
+async function logAdaptiveDecision(experimentId: string, instrument: string, decisionTime: string, decision: ReturnType<typeof decideInstrument>, regime: unknown, candidates: StrategyCandidate<StrategyFamily>[], selectedTradeId: string | null, statusByKey: (candidate: StrategyCandidate<StrategyId>) => string) {
   const candidateViews = candidates.map((candidate) => ({
     family: candidate.family, version: candidate.version, configVersion: candidate.configVersion,
     direction: candidate.direction, status: candidate.status, executionStatus: statusByKey(candidate),
@@ -1450,6 +2223,7 @@ async function resolveShadowCandidates(): Promise<number> {
        FROM paper_strategy_evaluations evaluation
        LEFT JOIN shadow_candidate_outcomes shadow ON shadow.evaluation_id = evaluation.id
       WHERE evaluation.strategy_family IS NOT NULL
+        AND evaluation.strategy_family = ANY($1::text[])
         AND evaluation.execution_status IN ('suppressed','blocked')
         AND evaluation.setup_status = 'valid'
         AND evaluation.direction IS NOT NULL
@@ -1465,6 +2239,7 @@ async function resolveShadowCandidates(): Promise<number> {
              AND traded.strategy_family = evaluation.strategy_family)
       ORDER BY evaluation.instrument
       LIMIT 300`,
+    [STRATEGY_FAMILIES],
   );
   if (!pending.rows.length) return 0;
 
@@ -1552,8 +2327,11 @@ export async function collectMultiStrategyCycle() {
   await completeReadyBatches();
 
   const experimentId = await ensureExperiment();
+  const pairExperimentIds = await ensurePairStrategyExperiments();
   await ensureStrategyConfigsSeeded();
   const versionIds = await multiStrategyVersionIds();
+  try { await reconcileClosedExecutionMeasurements(); }
+  catch (error) { console.error('[execution-measurement] reconciliation failed', error); }
   const evidence = await loadAdaptiveEvidence(experimentId);
 
   const snapshot = await getMultiStrategySnapshot();
@@ -1573,22 +2351,55 @@ export async function collectMultiStrategyCycle() {
     const spreadPips = quote ? (quote.ask - quote.bid) / pipSizeFor(instrument) : null;
     const liveData = candidates[0]!.dataSource === "oanda" && Boolean(quote);
 
-    const decision = decideInstrument({ instrument, session, regime, candidates: candidates.map(toAdaptiveCandidate), evidence });
-    const isSelected = (candidate: StrategyCandidate) => decision.selected !== null && candidate.family === decision.selected.family && candidate.direction === decision.selected.direction && candidate.status === "valid";
+    const adaptiveCandidates = candidates.filter(isAdaptiveCandidate);
+    const pairCandidates = candidates.filter((candidate) =>
+      (ENABLED_PAIR_STRATEGY_IDS as readonly string[]).includes(candidate.family));
+    const decision = decideInstrument({ instrument, session, regime, candidates: adaptiveCandidates.map(toAdaptiveCandidate), evidence });
+    const pairSelection = pairCandidates.find((candidate) => candidate.status === "valid" && candidate.direction !== null) ?? null;
+    const adaptiveSelection = decision.selected === null ? null : adaptiveCandidates.find((candidate) =>
+      candidate.family === decision.selected!.family && candidate.direction === decision.selected!.direction && candidate.status === "valid") ?? null;
+    // A frozen pair strategy is not an adaptive arm. When it fires it gets the
+    // instrument's execution opportunity; adaptive candidates remain recorded
+    // but cannot suppress or retune the frozen signal.
+    const selectedCandidate = pairSelection ?? adaptiveSelection;
+    const isSelected = (candidate: StrategyCandidate<StrategyId>) => selectedCandidate !== null
+      && candidate.family === selectedCandidate.family
+      && candidate.direction === selectedCandidate.direction
+      && candidate.evaluatedAt === selectedCandidate.evaluatedAt
+      && candidate.status === "valid";
+    const selectionReason = pairSelection
+      ? `Frozen ${pairSelection.family} pair strategy has execution priority; adaptive candidates remain observational.`
+      : decision.reason;
 
-    // One position per instrument, across every family and the legacy strategy.
-    const openRow = await query("SELECT 1 FROM paper_strategy_trades WHERE instrument=$1 AND status='open'", [instrument]);
-    const instrumentBusy = (openRow.rowCount ?? 0) > 0;
+    // The global default remains one open position per instrument. GBPUSD V3 is
+    // the sole exception: its 10:30, 11:00, and 11:30 legs may overlap when the frozen
+    // overlap policy says doing so cannot net or overwrite another position.
+    const openRows = await query<OpenExecutionLeg>(
+      "SELECT strategy_family,direction,features FROM paper_strategy_trades WHERE instrument=$1 AND status='open'",
+      [instrument],
+    );
     // The state as it stands BEFORE execution is attempted, which is when the row
     // is now written. A candidate the engine chose is recorded as not-executed;
     // openPaperTrade promotes it to 'selected' if — and only if — a trade is
     // actually created. So 'selected' means "this traded" rather than "we meant
     // to trade this", and a selection the risk gates turn away stays honestly
     // blocked with its reason attached, instead of being frozen as selected.
-    const executionStatusFor = (candidate: StrategyCandidate): string => {
+    const executionStatusFor = (candidate: StrategyCandidate<StrategyId>): string => {
       if (isSelected(candidate)) return "blocked";
       if (candidate.status !== "valid") return "no_setup";
       return "suppressed";
+    };
+    const preExecutionRejectionFor = (candidate: StrategyCandidate<StrategyId>): ExecutionBlock | null => {
+      if (!isSelected(candidate)) return null;
+      const overlap = gbpusdExecutionBlock(candidate, openRows.rows, snapshot.account.hedgingEnabled, candidate.family);
+      if (overlap) return overlap;
+      if (!liveData || !quote) return { code: "GLOBAL_RISK_BLOCK", message: "Execution blocked: OANDA data or the executable quote is unavailable." };
+      const sharedGateRejection = sharedExecutionRejectionFor(candidate);
+      if (sharedGateRejection) {
+        const spreadFailed = candidate.conditions.some((item) => item.required && !item.passed && item.name === "Spread");
+        return { code: spreadFailed ? "SPREAD_BLOCK" : "GLOBAL_RISK_BLOCK", message: sharedGateRejection };
+      }
+      return null;
     };
 
     // Record every candidate: the executed one, the suppressed ones, the blocked
@@ -1604,48 +2415,53 @@ export async function collectMultiStrategyCycle() {
     // The legacy single-strategy cycle above persists in this order for the same
     // reason, which is why its trade_created was the only one that worked.
     for (const candidate of candidates) {
-      const attribution = attributionFor(candidate, versionIds, experimentId);
-      await persistPaperEvaluation(candidate, attribution.versionId, spreadPips, attribution, executionStatusFor(candidate));
+      const attribution = attributionFor(candidate, versionIds, experimentId, pairExperimentIds);
+      const executionBlock = preExecutionRejectionFor(candidate);
+      const recordedReason = executionBlock?.message ?? (candidate.status === 'valid' && !isSelected(candidate) ? selectionReason : undefined);
+      await persistPaperEvaluation(candidate, attribution.versionId, spreadPips, attribution, executionStatusFor(candidate), recordedReason, executionBlock?.code);
       // Forward shadow A/B on the Momentum SHORT inversion hypothesis. Records
       // only; it opens nothing, sizes nothing, and its table is read by neither
       // the risk engine nor the adaptive engine's evidence loader, so it cannot
       // influence what this cycle decides. Wrapped so a research failure can
       // never interrupt trading.
-      try { await recordMomentumShortPair({ candidate, quote, spreadPips, session }); }
-      catch (error) { console.error("[momentum-short-inversion] record failed", error); }
+      if (isAdaptiveCandidate(candidate)) {
+        try { await recordMomentumShortPair({ candidate, quote, spreadPips, session }); }
+        catch (error) { console.error("[momentum-short-inversion] record failed", error); }
       // Paired original/inverted arms for EVERY eligible Momentum opportunity,
       // written before execution is attempted so the pair exists whether or not
       // anything trades. At most one arm is later marked executed; the other is
       // shadow-resolved. Research-only and outside the evidence loader, so it
       // cannot influence this or any later decision.
-      try { await recordMomentumInversionArms({ candidate, quote, spreadPips, session }); }
-      catch (error) { console.error("[momentum-arms] record failed", error); }
+        try { await recordMomentumInversionArms({ candidate, quote, spreadPips, session }); }
+        catch (error) { console.error("[momentum-arms] record failed", error); }
       // Separate fixed +10m direction cohort. Valid Momentum candidates are
       // recorded before selection, so suppressed and risk-blocked signals are
       // in the same honest denominator as signals that become paper trades.
-      try { await recordMomentumDirection10m({ candidate, session }); }
-      catch (error) { console.error("[momentum-direction-10m] record failed", error); }
+        try { await recordMomentumDirection10m({ candidate, session }); }
+        catch (error) { console.error("[momentum-direction-10m] record failed", error); }
+      }
     }
 
     let openedTradeId: string | null = null;
-    if (decision.selected && !instrumentBusy && liveData && quote) {
-      const selectedCandidate = candidates.find(isSelected);
+    const selectedExecutionRejection = selectedCandidate ? preExecutionRejectionFor(selectedCandidate) : null;
+    if (selectedCandidate && liveData && quote && !selectedExecutionRejection) {
       // The single point where an execution policy may change direction. The
       // adaptive engine has already chosen using the strategy's OWN verdict, so
       // selection is unaffected; only the trade that gets built changes. The
       // policy rebuilds geometry on the opposite side of the book rather than
       // negating anything, so the inverted trade pays its own real spread.
-      const policy = selectedCandidate ? applyMomentumInversion(selectedCandidate, quote) : null;
+      const policy = isAdaptiveCandidate(selectedCandidate) && selectedCandidate.family === "momentum"
+        ? applyMomentumInversion(selectedCandidate, quote) : null;
       const chosen = policy?.candidate ?? selectedCandidate;
       if (chosen && chosen.entry !== null) {
         const attribution = {
-          ...attributionFor(chosen, versionIds, experimentId),
+          ...attributionFor(chosen, versionIds, experimentId, pairExperimentIds),
           originalDirection: policy?.originalDirection ?? null,
           inverted: policy?.inverted ?? false,
           inversionExperimentId: policy?.inverted ? MOMENTUM_INVERSION_EXPERIMENT : null,
         };
         const quoteToUsdRate = usdPerUnitOfCurrency(currenciesOf(instrument).quote, midByInstrument);
-        openedTradeId = await openPaperTrade(chosen, userId, attribution.versionId, spreadPips ?? 0, snapshot.account.balance, quoteToUsdRate, attribution);
+        openedTradeId = await openPaperTrade(chosen, userId, attribution.versionId, spreadPips ?? 0, snapshot.account.balance, quoteToUsdRate, attribution, snapshot.account.hedgingEnabled);
         if (openedTradeId) {
           opened += 1;
           // Mark WHICH arm of the Momentum pair actually traded. The arm is
@@ -1677,8 +2493,8 @@ export async function collectMultiStrategyCycle() {
     // a trade actually exists for it — the same pair of facts the previous
     // single-loop form expressed as execStatus === "selected" && openedTradeId.
     for (const candidate of candidates) {
-      const attribution = attributionFor(candidate, versionIds, experimentId);
-      await persistMultiWatchSnapshot(candidate, quote, attribution, isSelected(candidate) && openedTradeId !== null, decision.reason, session, isSelected(candidate) ? openedTradeId : null);
+      const attribution = attributionFor(candidate, versionIds, experimentId, pairExperimentIds);
+      await persistMultiWatchSnapshot(candidate, quote, attribution, isSelected(candidate) && openedTradeId !== null, selectionReason, strategySession(candidate), isSelected(candidate) ? openedTradeId : null);
     }
 
     // Dashboard /api/watchlist still reads paper_watch_snapshots. Mirror the
@@ -1689,7 +2505,7 @@ export async function collectMultiStrategyCycle() {
       ?? candidates.find((candidate) => candidate.status === "valid")
       ?? candidates[0];
     if (representative) {
-      await persistWatchSnapshot(representative, quote, attributionFor(representative, versionIds, experimentId).versionId);
+      await persistWatchSnapshot(representative, quote, attributionFor(representative, versionIds, experimentId, pairExperimentIds).versionId);
     }
 
     if (!liveData && !reportedDataIssue) {
@@ -1697,7 +2513,8 @@ export async function collectMultiStrategyCycle() {
       reportedDataIssue = true;
     }
 
-    await logAdaptiveDecision(experimentId, instrument, evaluatedAt, decision, regime, candidates, openedTradeId, executionStatusFor);
+    const adaptiveTradeId = openedTradeId && selectedCandidate && isAdaptiveFamily(selectedCandidate.family) ? openedTradeId : null;
+    await logAdaptiveDecision(experimentId, instrument, evaluatedAt, decision, regime, adaptiveCandidates, adaptiveTradeId, executionStatusFor);
   }
 
   const execution = await processPendingPracticeOrders();
@@ -1714,6 +2531,14 @@ export async function multiStrategyWatchlist() {
   return MAJOR_INSTRUMENTS.map((instrument) => {
     const strategies = byInstrument.get(instrument) ?? [];
     const decision = decisionByInstrument.get(instrument) ?? null;
+    const selectedPair = strategies.find((strategy) => strategy.selected
+      && (ENABLED_PAIR_STRATEGY_IDS as readonly string[]).includes(strategy.family));
+    const displayedDecision = selectedPair ? {
+      adaptiveState: "pair_specific",
+      reason: "Frozen pair-specific strategy selected outside adaptive ranking.",
+      selected: { family: selectedPair.family, direction: selectedPair.direction },
+      decisionTime: selectedPair.evaluatedAt,
+    } : decision;
     const first = strategies[0];
     return {
       instrument,
@@ -1725,7 +2550,7 @@ export async function multiStrategyWatchlist() {
       atrPips: first?.atrPips ?? null,
       updatedAt: first?.updatedAt ?? null,
       strategies,
-      adaptive: decision,
+      adaptive: displayedDecision,
     };
   });
 }
@@ -1735,9 +2560,25 @@ export async function multiStrategyOverview() {
   const experiment = await query<{ id: string; label: string; status: string; created_at: string }>("SELECT id,label,status,created_at AS \"createdAt\" FROM strategy_experiments WHERE label=$1", [MULTISTRATEGY_EXPERIMENT_LABEL]);
   if (!experiment.rows[0]) return { experiment: null, families: [] };
   const experimentId = experiment.rows[0].id;
-  const trades = await query<StoredTrade & { strategy_family: string }>("SELECT id,trade_sequence::text,instrument,direction,status,outcome,result_r::text,session,weekday,spread_pips::text,opened_at,closed_at,features,strategy_family FROM paper_strategy_trades WHERE experiment_id=$1 ORDER BY trade_sequence", [experimentId]);
-  const evals = await query<{ strategy_family: string; execution_status: string | null; count: string }>("SELECT strategy_family,execution_status,count(*)::text FROM paper_strategy_evaluations WHERE experiment_id=$1 GROUP BY strategy_family,execution_status", [experimentId]);
-  const batches = await query<{ strategy_family: string; batch_number: number; status: string; assigned_count: number }>("SELECT strategy_family,batch_number AS \"batchNumber\",status,assigned_count AS \"assignedCount\" FROM paper_strategy_batches WHERE experiment_id=$1 ORDER BY strategy_family,batch_number", [experimentId]);
+  const pairIds = [...ENABLED_PAIR_STRATEGY_IDS];
+  const trades = await query<StoredTrade & { strategy_family: string }>("SELECT id,trade_sequence::text,instrument,direction,status,outcome,result_r::text,session,weekday,spread_pips::text,opened_at,closed_at,features,strategy_family FROM paper_strategy_trades WHERE experiment_id=$1 OR strategy_family=ANY($2::text[]) ORDER BY trade_sequence", [experimentId, pairIds]);
+  const evals = await query<{ strategy_family: string; execution_status: string | null; count: string }>("SELECT strategy_family,execution_status,count(*)::text FROM paper_strategy_evaluations WHERE experiment_id=$1 OR strategy_family=ANY($2::text[]) GROUP BY strategy_family,execution_status", [experimentId, pairIds]);
+  const batches = await query<{ strategy_family: string; batch_number: number; status: string; assigned_count: number }>("SELECT strategy_family,batch_number AS \"batchNumber\",status,assigned_count AS \"assignedCount\" FROM paper_strategy_batches WHERE experiment_id=$1 OR strategy_family=ANY($2::text[]) ORDER BY strategy_family,batch_number", [experimentId, pairIds]);
+  const gbpusdEvaluations = await query<{
+    setup_status: string; direction: string | null; execution_status: string | null;
+    rejection_reason: string | null; features: Record<string, any>;
+  }>(
+    `SELECT setup_status,direction,execution_status,rejection_reason,features
+       FROM paper_strategy_evaluations WHERE strategy_family=$1 ORDER BY decision_time`,
+    [GBPUSD_STRATEGY_ID],
+  );
+  const gbpusdBrokerIntents = await query<{ status: string; count: string }>(
+    `SELECT intent.status,count(*)::text
+       FROM practice_order_intents intent
+       JOIN paper_strategy_trades trade ON trade.id=intent.paper_trade_id
+      WHERE trade.strategy_family=$1 GROUP BY intent.status`,
+    [GBPUSD_STRATEGY_ID],
+  );
   // Shadow (hypothetical) outcomes of suppressed/blocked valid candidates, kept
   // separate from executed results so the two can be compared per family.
   const shadow = await query<{ strategy_family: string; resolved: string; wins: string; net_r: string }>(
@@ -1752,7 +2593,7 @@ export async function multiStrategyOverview() {
       GROUP BY evaluation.strategy_family`,
     [experimentId],
   );
-  const families = STRATEGY_FAMILIES.map((family) => {
+  const families = REPORTING_STRATEGY_IDS.map((family) => {
     const rows = trades.rows.filter((row) => row.strategy_family === family);
     const familyEvals = evals.rows.filter((row) => row.strategy_family === family);
     const totalCandidates = familyEvals.reduce((sum, row) => sum + Number(row.count), 0);
@@ -1775,5 +2616,37 @@ export async function multiStrategyOverview() {
       batches: batches.rows.filter((row) => row.strategy_family === family),
     };
   });
-  return { experiment: experiment.rows[0], families };
+  const rawGbpusd = gbpusdEvaluations.rows.filter((row) => row.setup_status === "valid" && row.direction !== null);
+  const gbpusdTrades = trades.rows.filter((row) => row.strategy_family === GBPUSD_STRATEGY_ID);
+  const originOf = (row: { features?: Record<string, unknown> }) =>
+    (row.features as any)?.gbpusdStrategy?.originCode as GbpusdOriginCode | undefined;
+  const confidenceOf = (row: { features?: Record<string, unknown> }) =>
+    (row.features as any)?.gbpusdStrategy?.confidenceTag as "BASE" | "PEN_EXTREME" | undefined;
+  const blockedByReason: Record<string, number> = {};
+  for (const row of rawGbpusd.filter((item) => item.execution_status === "blocked")) {
+    const explicit = row.features?.gbpusdStrategy?.exitReason as string | undefined;
+    const reason = explicit
+      ?? (/opposite/i.test(row.rejection_reason ?? "") ? "BLOCKED_OPPOSITE_POSITION"
+        : /spread/i.test(row.rejection_reason ?? "") ? "SPREAD_BLOCK" : "GLOBAL_RISK_BLOCK");
+    blockedByReason[reason] = (blockedByReason[reason] ?? 0) + 1;
+  }
+  const brokerCount = (status: string) => Number(gbpusdBrokerIntents.rows.find((row) => row.status === status)?.count ?? 0);
+  const gbpusdStrategy = {
+    rawSignals: rawGbpusd.length,
+    paperExecutedTrades: gbpusdTrades.length,
+    brokerExecutedTrades: brokerCount("submitted"),
+    blockedSignals: rawGbpusd.filter((row) => row.execution_status === "blocked").length,
+    blockedByReason,
+    executionErrors: brokerCount("failed") + brokerCount("rejected") + brokerCount("unknown"),
+    penExtremeSignals: rawGbpusd.filter((row) => row.features?.gbpusdStrategy?.confidenceTag === "PEN_EXTREME").length,
+    byOrigin: Object.fromEntries(["1030", "1100", "1130"].map((origin) => [origin, {
+      rawSignals: rawGbpusd.filter((row) => row.features?.gbpusdStrategy?.originCode === origin).length,
+      ...paperBatchMetrics(gbpusdTrades.filter((row) => originOf(row) === origin)),
+    }])),
+    byConfidence: Object.fromEntries(["BASE", "PEN_EXTREME"].map((tag) => [tag, {
+      rawSignals: rawGbpusd.filter((row) => row.features?.gbpusdStrategy?.confidenceTag === tag).length,
+      ...paperBatchMetrics(gbpusdTrades.filter((row) => confidenceOf(row) === tag)),
+    }])),
+  };
+  return { experiment: experiment.rows[0], families, gbpusdStrategy };
 }

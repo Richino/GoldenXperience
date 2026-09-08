@@ -12,7 +12,8 @@ import {
   shouldLoadOlderHistory,
   snapToCandleTime,
 } from "../src/lib/chart-utils";
-import { accountSeriesRose, buildAccountAmountSeries } from "../src/components/dashboard/account-amount-chart";
+import { accountSeriesRose, accountSeriesTone, buildAccountAmountSeries } from "../src/components/dashboard/account-amount-chart";
+import { startOfTradingDay, tradingDayKey } from "../src/lib/format/datetime";
 import type { BinaryPrediction } from "../src/types/binary";
 import type { PaperChartTrade } from "../src/types/forex";
 
@@ -412,11 +413,13 @@ const month = buildAccountAmountSeries({ nav: 10_225, unrealizedPL: 0, history, 
 const periodChange = (series: Array<{ value: number }>) => (series.at(-1)?.value ?? 0) - (series[0]?.value ?? 0);
 
 assert.equal(periodChange(hour), 25, "one hour includes only the recent $25 win");
-assert.equal(periodChange(day), -25, "one day includes the $50 loss and $25 win");
+assert.equal(periodChange(day), 25, "1D is the ET trading day, so yesterday's $50 loss stays out");
 assert.equal(periodChange(week), 275, "one week includes its three broker P/L changes");
 assert.equal(periodChange(month), 75, "one month excludes movements older than 30 days");
 assert.ok([hour, day, week, month].every((series) => series.at(-1)!.value === 10_225), "every range ends at the live NAV");
-assert.deepEqual([hour.length, day.length, week.length, month.length], [13, 13, 8, 11]);
+assert.equal(tradingDayKey(startOfTradingDay(NOW)), tradingDayKey(NOW), "1D opens at midnight of the current ET day");
+assert.ok(day[0]!.at === startOfTradingDay(NOW).toISOString(), "the first 1D point is the trading-day open");
+assert.deepEqual([hour.length, week.length, month.length], [31, 29, 31]);
 
 for (const [name, series] of [["hour", hour], ["day", day], ["week", week], ["month", month]] as const) {
   series.forEach((point, index) => assert.equal(point.index, index, `${name} keeps ordered time buckets`));
@@ -424,8 +427,9 @@ for (const [name, series] of [["hour", hour], ["day", day], ["week", week], ["mo
 
 // An account with no closed trades keeps empty time buckets, not invented P/L.
 const empty = buildAccountAmountSeries({ nav: 10_000, unrealizedPL: 0, history: [], range: "1d", now: NOW });
-assert.equal(empty.length, 13, "a day includes its opening balance plus twelve readable two-hour buckets");
+assert.ok(empty.length >= 2, "a trading day still has an open and at least one bucket");
 assert.ok(empty.every((point) => point.value === 10_000), "and an unchanged account remains at its reported balance");
+assert.equal(accountSeriesTone(empty), "flat", "a $0 day is flat, not a loss");
 
 // Current unrealised P/L belongs only in the final, live bucket.
 const withOpen = buildAccountAmountSeries({
@@ -436,7 +440,11 @@ const withOpen = buildAccountAmountSeries({
   now: NOW,
 });
 assert.equal(withOpen.at(-1)!.value, 10_250, "the last point equals the live NAV including open P/L");
-assert.equal(withOpen.at(-1)!.movementCount, 1, "the final bucket records its broker movement");
+assert.equal(
+  withOpen.reduce((sum, point) => sum + point.movementCount, 0),
+  1,
+  "today's broker movement is kept on its own hour, not invented into every bucket",
+);
 assert.equal(withOpen.at(-1)!.includesOpenPL, true, "the tooltip discloses that open P/L is included");
 
 // The card tint follows the sum of all bars, not the final bucket alone.
@@ -449,10 +457,12 @@ const fell = buildAccountAmountSeries({
   now: NOW,
 });
 assert.equal(accountSeriesRose(fell), false, "a losing day is a series that fell");
+assert.equal(accountSeriesTone(fell), "down");
 assert.equal(
   accountSeriesRose(buildAccountAmountSeries({ nav: 10_000, unrealizedPL: 0, history: [], range: "1m", now: NOW })),
   true,
   "a flat series is not a loss",
 );
+assert.equal(accountSeriesTone(week), "up");
 
 console.log("chart history checks passed");

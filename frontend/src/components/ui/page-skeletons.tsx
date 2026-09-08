@@ -454,38 +454,29 @@ export function SignalsLoadingSkeleton() {
             </div>
           </div>
 
-          <div className="signals-chart-desktop hidden lg:flex">
+          <div className="signals-chart-desktop hidden lg:grid gx-chart-terminal">
             <div className="signals-chart-head">
               <div className="signals-chart-head-main">
-                <Bone className="size-[38px] shrink-0 rounded-full" />
-                <div className="space-y-2">
+                <Line className="h-4 w-16" />
+                <div className="signals-chart-quote space-y-1">
                   <Line className="h-4 w-20" />
                   <Line className="h-3 w-16" />
                 </div>
-                <div className="signals-chart-quote space-y-1.5">
-                  <Line className="h-5 w-24" />
-                  <Line className="h-3 w-20" />
-                </div>
               </div>
               <div className="signals-chart-head-tools">
-                <Bone className="h-9 w-36 rounded-xl" />
-                <Bone className="size-9 rounded-[10px]" />
-                <Bone className="size-9 rounded-[10px]" />
-                <Bone className="size-9 rounded-[10px]" />
-                <Bone className="size-9 rounded-[10px]" />
+                <Bone className="h-7 w-20 rounded-md" />
+                <Bone className="h-7 w-24 rounded-md" />
+                <Bone className="size-7 rounded-md" />
+                <Bone className="size-7 rounded-md" />
               </div>
             </div>
-            <div className="signals-chart-strip">
-              {Array.from({ length: 5 }, (_, index) => (
-                <Bone key={`tf-${index}`} className="h-8 w-10 rounded-md" />
-              ))}
-              <span className="signals-chart-strip-divider" />
-              {Array.from({ length: 7 }, (_, index) => (
-                <Bone key={`range-${index}`} className="h-8 w-10 rounded-md" />
-              ))}
+            <div className="gx-chart-stage">
+              <div className="signals-chart-canvas chart-loading-static min-h-[24rem] flex-1">
+                <ChartPlotSkeleton />
+              </div>
             </div>
-            <div className="signals-chart-canvas chart-loading-static h-[680px]">
-              <ChartPlotSkeleton />
+            <div className="gx-active-position gx-active-position-empty">
+              <Line className="h-3 w-40" />
             </div>
           </div>
         </section>

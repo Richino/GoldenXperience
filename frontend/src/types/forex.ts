@@ -9,6 +9,8 @@ export const MAJOR_INSTRUMENTS = [
   "USD_CHF",
   "EUR_GBP",
   "EUR_JPY",
+  "CAD_JPY",
+  "NZD_JPY",
   "GBP_JPY",
   "AUD_JPY",
   "EUR_AUD",
@@ -41,8 +43,11 @@ export interface AccountSummary {
   balance: number;
   nav: number;
   unrealizedPL: number;
+  marginUsed: number;
   marginAvailable: number;
   openTradeCount: number;
+  /** OANDA account capability; false means opposite orders would net/reduce. */
+  hedgingEnabled: boolean;
   source: DataSource;
 }
 
@@ -89,7 +94,7 @@ export interface CandleSeries {
 export interface TradeSignal {
   instrument: MajorInstrument;
   pair: string;
-  timeframe: "15m" | "1h" | "4h";
+  timeframe: "15m" | "30m" | "1h" | "4h";
   direction: "long" | "short";
   bias: "Bullish" | "Bearish";
   entry: number;
@@ -159,6 +164,12 @@ export interface JournalTrade {
   instrument?: string | null;
   /** Cash risked between entry and stop, used to value an open trade. */
   nominalRiskAmount?: number | null;
+  /** Frozen signal-candle close for pair-specific strategies. */
+  signalPrice?: number | null;
+  /** Actual OANDA market fill when practice execution supplied it. */
+  actualFillPrice?: number | null;
+  maxHoldBars?: number | null;
+  barsHeld?: number | null;
   /** Multi-strategy family (`ema`, `breakout`, `momentum`, `meanrev`). */
   strategyFamily?: string | null;
   /** Paper batch that collected this trade. */

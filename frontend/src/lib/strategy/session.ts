@@ -8,6 +8,8 @@ export interface ForexSessionStatus {
 
 export const LONDON_TIME_ZONE = "Europe/London";
 export const NEW_YORK_TIME_ZONE = "America/New_York";
+export const TOKYO_TIME_ZONE = "Asia/Tokyo";
+export const SYDNEY_TIME_ZONE = "Australia/Sydney";
 
 /** Both centres keep 08:00–17:00 on their own wall clock. */
 const SESSION_OPEN_MINUTES = 8 * 60;
@@ -69,4 +71,36 @@ export function getForexSessionStatus(now = new Date()): ForexSessionStatus {
         : null;
 
   return { marketOpen: true, entrySession, label: entrySession ?? "Outside London/New York sessions" };
+}
+
+export type MarketCondition = {
+  marketOpen: boolean;
+  label: string;
+};
+
+/**
+ * Which cash session is on the board right now. London and New York use the
+ * entry-window centres; Asia is Tokyo or Sydney on the same 08:00–17:00 local
+ * clock. This is display only — it does not change who may enter.
+ */
+export function getMarketCondition(now = new Date()): MarketCondition {
+  const status = getForexSessionStatus(now);
+  if (!status.marketOpen) {
+    return { marketOpen: false, label: "Closed" };
+  }
+  if (status.entrySession === "London/New York overlap") {
+    return { marketOpen: true, label: "London / New York" };
+  }
+  if (status.entrySession === "London") {
+    return { marketOpen: true, label: "London" };
+  }
+  if (status.entrySession === "New York") {
+    return { marketOpen: true, label: "New York" };
+  }
+  const tokyo = centreOpen(now, TOKYO_TIME_ZONE);
+  const sydney = centreOpen(now, SYDNEY_TIME_ZONE);
+  if (tokyo || sydney) {
+    return { marketOpen: true, label: "Asia" };
+  }
+  return { marketOpen: true, label: "Open" };
 }

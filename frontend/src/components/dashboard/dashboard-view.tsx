@@ -3,12 +3,20 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AccountOverviewHero } from "@/components/dashboard/account-overview-hero";
+import { GxStatus, buildGxStatus } from "@/components/dashboard/gx-status";
+import { HomeRail } from "@/components/dashboard/home-rail";
+import { HomeRecentActivity } from "@/components/dashboard/home-recent-activity";
+import { HomeUpcoming } from "@/components/dashboard/home-upcoming";
 import { RecentPredictions } from "@/components/dashboard/recent-predictions";
-import { BinaryWatchlistCard } from "@/components/dashboard/binary-watchlist-card";
+import { ACCOUNT_STARTING_BALANCE } from "@/lib/account-starting-balance";
+import {
+  recentActivityFromTrades,
+  todayClosedStats,
+  upcomingFromStrategies,
+} from "@/lib/home/idle";
 import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { displayNameFor } from "@/lib/instruments/catalog";
-import { formatDayAndTime } from "@/lib/format/datetime";
 import {
   openTradeProgress,
   quoteToUsdRateFromQuotes,
@@ -16,11 +24,8 @@ import {
 } from "@/lib/open-trade-progress";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
-import { useOpenPositionFills } from "@/lib/market-stream/use-open-positions";
-import { getPaperTradingAvailability } from "@/lib/strategy/strategy-engine";
-import { openTradeCloseOutlook } from "@/lib/strategy/close-outlook";
-import { strategyTypeLabel } from "@/lib/strategy/family-label";
-import type { AccountBalanceHistoryPoint, AccountSummary, ConnectionStatus } from "@/types/forex";
+import { useOpenPositionFills, type OpenPositionFill } from "@/lib/market-stream/use-open-positions";
+import type { AccountBalanceHistoryPoint, AccountSummary, ConnectionStatus, JournalTrade, MajorInstrument } from "@/types/forex";
 
 export type DashboardWatchRow = {
   instrument: string;
@@ -69,36 +74,6 @@ export type DashboardStrategyRow = {
     selected: { family: string; direction: string } | null;
   } | null;
 };
-
-const STRATEGY_FAMILY_LABEL: Record<string, string> = {
-  ema: "EMA",
-  breakout: "Breakout",
-  momentum: "Momentum",
-  meanrev: "Mean reversion",
-};
-
-/** The one line shown under each pair: the adaptive pick, else the regime. */
-function strategyRowState(row: DashboardStrategyRow) {
-  const pick = row.adaptive?.selected ?? null;
-  if (pick) {
-    const family = STRATEGY_FAMILY_LABEL[pick.family] ?? pick.family;
-    return {
-      active: true as const,
-      label: `${family} · ${pick.direction.toUpperCase()}`,
-      tone:
-        pick.direction === "long"
-          ? "text-[color:var(--success)]"
-          : "text-[color:var(--danger)]",
-    };
-  }
-  if (row.dataStatus !== "connected") {
-    return { active: false as const, label: "Waiting for data", tone: "text-[color:var(--muted)]" };
-  }
-  const regime = row.regime
-    ? row.regime.charAt(0).toUpperCase() + row.regime.slice(1)
-    : "No signal";
-  return { active: false as const, label: regime, tone: "text-[color:var(--muted)]" };
-}
 
 type Metrics = {
   assigned: number;
@@ -165,47 +140,60 @@ export type DashboardExposure = {
   currencyExposure: Array<{ code: string; nominalRiskPercent: number }>;
 };
 
+export type DashboardJournal = {
+  trades: JournalTrade[];
+  summary?: {
+    total: number;
+    winRate: number | null;
+    avgR: number;
+    today?: { wins: number; losses: number; realizedPL: number | null };
+  };
+};
+
 function money(value: number, currency = "USD") {
   return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 2 }).format(value);
 }
 
-function time(value: string | null) {
-  if (!value) return "Waiting";
-  return formatDayAndTime(value);
-}
-
-function DashboardStat({
-  label,
-  value,
-  detail,
-  tone = "",
-}: {
-  label: string;
-  value: string;
-  detail: string;
-  tone?: string;
-}) {
-  return (
-    <div className="dashboard-stat min-w-0 px-3 first:pl-0 last:pr-0">
-      <div className="dashboard-stat-label">{label}</div>
-      <div
-        className={`metric-number text-lg font-semibold tracking-[-0.04em] sm:text-xl ${tone}`}
-      >
-        {value}
-      </div>
-      <div className="truncate text-[0.6875rem] text-[color:var(--muted)] sm:text-xs">
-        {detail}
-      </div>
-    </div>
+function markedOpenMoney(
+  trade: Trade,
+  quotes: Record<string, { bid: number; ask: number }>,
+  fills: Record<string, OpenPositionFill>,
+  watchlist: DashboardWatchRow[],
+) {
+  if (trade.paperPl !== null && trade.paperPl !== undefined) return trade.paperPl;
+  if (trade.entry == null || trade.stop == null || trade.target == null) {
+    return fills[trade.instrument]?.unrealizedPL ?? null;
+  }
+  const streamed = quotes[trade.instrument];
+  const fill = fills[trade.instrument];
+  const quote = resolveOpenTradeQuote(
+    streamed ?? watchlist.find((row) => row.instrument === trade.instrument),
+    fill?.currentPrice,
   );
+  const live = openTradeProgress({
+    direction: trade.direction,
+    instrument: trade.instrument,
+    entry: trade.entry,
+    stop: trade.stop,
+    target: trade.target,
+    bid: quote?.bid,
+    ask: quote?.ask,
+    riskAmount: trade.nominalRiskAmount,
+    fill: fill ? { price: fill.price, units: fill.units } : null,
+    quoteToUsdRate: quoteToUsdRateFromQuotes(trade.instrument, quotes),
+  });
+  return fill?.unrealizedPL ?? live?.money ?? null;
 }
 
 export function DashboardView({
   initialAccount,
   initialAccountHistory,
+  initialStatus,
   initialWatchlist,
   initialStrategyWatchlist,
   initialOverview,
+  initialExposure,
+  initialJournal,
   userLabel,
   todayKey,
 }: {
@@ -216,34 +204,39 @@ export function DashboardView({
   initialStrategyWatchlist: DashboardStrategyRow[];
   initialOverview: DashboardOverview;
   initialExposure: DashboardExposure;
+  initialJournal: DashboardJournal;
   userLabel: string;
   todayKey: string;
 }) {
   const [account, setAccount] = useState(initialAccount);
   const [accountHistory, setAccountHistory] = useState(initialAccountHistory);
+  const [connection, setConnection] = useState(initialStatus);
+  const [journalTrades, setJournalTrades] = useState(initialJournal.trades);
+  const [journalSummary, setJournalSummary] = useState(initialJournal.summary ?? null);
   // Kept for the Open-trades quote fallback below; the Watchlist section now
   // renders from the multi-strategy engine instead.
   const [watchlist, setWatchlist] = useState(initialWatchlist);
   const [strategyRows, setStrategyRows] = useState(initialStrategyWatchlist);
   const [overview, setOverview] = useState(initialOverview);
+  const [exposure, setExposure] = useState(initialExposure);
   const [error, setError] = useState<string | null>(null);
-  const [clockNow, setClockNow] = useState<Date | null>(null);
   // Ticks rather than the 60s refresh below, so an open trade's value moves
   // with the market instead of jumping once a minute.
   const quotes = useLiveQuotes();
   // Real fills, so an open row reports the same money as the account hero.
   const fills = useOpenPositionFills();
-  const availability = getPaperTradingAvailability();
   const openTrades = overview.openTrades ?? overview.trades.filter((trade) => trade.status === "open");
 
   const refresh = useCallback(async () => {
     try {
-      const [accountResponse, historyResponse, watchlistResponse, strategyResponse, cycleResponse] = await Promise.all([
+      const [accountResponse, historyResponse, watchlistResponse, strategyResponse, cycleResponse, journalResponse, riskResponse] = await Promise.all([
         fetch(apiUrl("/api/oanda/account-summary"), { credentials: "include", cache: "no-store" }),
         fetch(apiUrl("/api/oanda/account-history"), { credentials: "include", cache: "no-store" }),
         fetch(apiUrl("/api/watchlist"), { credentials: "include", cache: "no-store" }),
         fetch(apiUrl("/api/multistrategy/watchlist"), { credentials: "include", cache: "no-store" }),
         fetch(apiUrl("/api/paper-cycle"), { credentials: "include", cache: "no-store" }),
+        fetch(apiUrl("/api/journal/trades?limit=50&filter=all"), { credentials: "include", cache: "no-store" }),
+        fetch(apiUrl("/api/paper-risk"), { credentials: "include", cache: "no-store" }),
       ]);
       if (![accountResponse, historyResponse, watchlistResponse, cycleResponse].every((response) => response.ok)) {
         throw new Error("Dashboard data is temporarily unavailable.");
@@ -255,14 +248,24 @@ export function DashboardView({
         cycleResponse.json() as Promise<DashboardOverview>,
       ]);
       setAccount(accountPayload.data);
+      setConnection(accountPayload.status);
       setAccountHistory(historyPayload.data);
       setWatchlist(watchlistPayload.watchlist);
       setOverview(cyclePayload);
+      if (journalResponse.ok) {
+        const journalPayload = (await journalResponse.json()) as DashboardJournal;
+        setJournalTrades(journalPayload.trades);
+        if (journalPayload.summary) setJournalSummary(journalPayload.summary);
+      }
       // The strategy watchlist is non-blocking: a hiccup there leaves the last
       // rows in place rather than tearing down the whole dashboard.
       if (strategyResponse.ok) {
         const strategyPayload = (await strategyResponse.json()) as { instruments?: DashboardStrategyRow[] };
         if (strategyPayload.instruments) setStrategyRows(strategyPayload.instruments);
+      }
+      if (riskResponse.ok) {
+        const riskPayload = (await riskResponse.json()) as { exposure?: DashboardExposure };
+        if (riskPayload.exposure) setExposure(riskPayload.exposure);
       }
       setError(null);
     } catch (reason) {
@@ -307,18 +310,6 @@ export function DashboardView({
     return () => window.clearInterval(timer);
   }, [refresh]);
 
-  // Clock for the "when does this close" labels. Client-only and deliberately
-  // null on the first render, so the server-rendered markup and the first
-  // client render match; a time-dependent label produced during SSR would
-  // hydrate against a different minute. Ticks once a minute, which is the
-  // resolution the labels are written at.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setClockNow(new Date());
-    const timer = window.setInterval(() => setClockNow(new Date()), 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
-
   // Reopening the app after it was backgrounded lands on the last snapshot until
   // the next interval tick — up to a minute away. Pull everything fresh the
   // moment it returns to the foreground so it never opens on stale numbers.
@@ -330,80 +321,67 @@ export function DashboardView({
   // Prefer the live row count when the overview includes it — the denormalised
   // assignedCount can under-report after multi-strategy batch splits.
   const assigned = overview.current?.liveSummary?.assigned ?? overview.current?.assignedCount ?? 0;
-  const batchOpen = overview.current?.liveSummary?.open ?? lifetime.open;
-  // Account history spans batches; the recent-trades list below stays scoped to
-  // the batch that is collecting.
+  const allTimePL = account.nav - ACCOUNT_STARTING_BALANCE;
+  const featuredInstrument = (openTrades[0]?.instrument ?? strategyRows[0]?.instrument ?? "EUR_USD") as MajorInstrument;
+  const signalRows = watchlist
+    .filter((row) => row.entry !== null && row.stop !== null && row.target !== null && row.direction)
+    .slice(0, 2);
+  const hasOpenPositions = openTrades.length > 0;
+  const hasActiveSignals = signalRows.length > 0;
+  const showIdleContext = !hasOpenPositions || !hasActiveSignals;
+  const gxStatus = buildGxStatus(connection);
+  const upcoming = upcomingFromStrategies(
+    strategyRows,
+    signalRows.map((row) => row.instrument),
+  );
+  const recentActivity = recentActivityFromTrades(journalTrades, 10);
+  const todayFromList = todayClosedStats(journalTrades, todayKey);
+  const todayTrades = journalSummary?.today
+    ? journalSummary.today.wins + journalSummary.today.losses
+    : todayFromList.trades;
+  const openPL = openTrades.reduce((sum, trade) => {
+    const marked = markedOpenMoney(trade, quotes, fills, watchlist);
+    return marked === null ? sum : sum + marked;
+  }, 0);
+
   return (
-    <div className="dashboard-view dashboard-minimal space-y-8 lg:space-y-10">
+    <div className="dashboard-view dashboard-minimal home-shell">
+      <div className="home-main">
       <AccountOverviewHero
         account={account}
         userLabel={userLabel}
         history={accountHistory}
         todayKey={todayKey}
+        openPL={openPL}
+        riskToday={exposure.totalNominalRiskAmount}
       />
 
       {error ? <p className="research-error">{error}</p> : null}
 
-      <section className="dashboard-minimal-section" aria-label="Strategy performance">
-        <div className="grid grid-cols-3 divide-x divide-[color:var(--border)]">
-          {/* The strategy's edge in R (sum of per-trade risk-multiples), not a
-              money figure — the real-money truth lives in the account hero's
-              all-time pill. Kept position-size-agnostic on purpose. */}
-          <DashboardStat
-            label="Risked units"
-            value={`${lifetime.netR >= 0 ? "+" : ""}${lifetime.netR.toFixed(2)}`}
-            detail={`${lifetime.resolved} closed trades`}
-            tone={
-              lifetime.resolved === 0
-                ? ""
-                : lifetime.netR >= 0
-                  ? "text-[color:var(--success)]"
-                  : "text-[color:var(--danger)]"
-            }
-          />
-          {/* winRate arrives as a fraction (wins / resolved), like every other
-              rate from /api/paper-cycle — the research views scale it the same
-              way. Formatting it directly rendered 0.5 as "1%". */}
-          <DashboardStat
-            label="Win rate"
-            value={lifetime.winRate === null ? "—" : `${(lifetime.winRate * 100).toFixed(0)}%`}
-            detail={
-              lifetime.resolved === 0
-                ? "No closed trades"
-                : `${lifetime.wins}W · ${lifetime.resolved - lifetime.wins}L`
-            }
-          />
-          <DashboardStat
-            label="Batch"
-            value={`${assigned}/${overview.batchSize}`}
-            detail={
-              overview.current
-                ? `Batch ${overview.current.batchNumber} · ${batchOpen} open`
-                : `${lifetime.open} open`
-            }
-          />
-        </div>
-      </section>
+      {Math.abs(account.balance - account.nav) >= 0.01 ? (
+        <p className="home-balance-note">
+          Balance {money(account.balance, account.currency)}
+        </p>
+      ) : null}
 
+      {hasOpenPositions ? (
       <div className="dashboard-minimal-grid dashboard-trades-grid">
-        <section className="dashboard-minimal-section" aria-label="Open forex trades">
-          <div className="flex items-baseline justify-between gap-3">
-            <h2 className="text-sm font-semibold tracking-[-0.01em]">Open forex trades</h2>
-            <Link href="/journal" className="link-quiet pressable text-xs">
+        <section className="home-section" aria-label="Open positions">
+          <div className="home-section-head">
+            <h2>Open positions</h2>
+            <Link href="/journal" className="home-section-link">
               View all
             </Link>
           </div>
-          {openTrades.length ? (
-            <div className="dash-trade-list mt-3">
-              <div className="dash-trade-table-head" aria-hidden="true">
-                <span>Trade</span>
-                <span>Opened</span>
-                <span>Result</span>
+            <div className="home-position-list">
+              <div className="home-position-head" aria-hidden="true">
+                <span>Symbol</span>
+                <span>Entry</span>
+                <span>Price</span>
+                <span>P/L</span>
               </div>
               {openTrades.slice(0, 6).map((trade) => {
-                const settled = trade.paperPl !== null && trade.paperPl !== undefined;
-                // An open trade is marked against the live quote for its pair,
-                // so the row reports what it is worth now rather than "Open".
+                const shown = markedOpenMoney(trade, quotes, fills, watchlist);
                 const streamed = quotes[trade.instrument];
                 const fill = fills[trade.instrument];
                 const quote =
@@ -412,147 +390,104 @@ export function DashboardView({
                       watchlist.find((row) => row.instrument === trade.instrument),
                     fill?.currentPrice,
                   );
-                const live =
-                  settled ||
-                  trade.entry == null ||
-                  trade.stop == null ||
-                  trade.target == null
-                    ? null
-                    : openTradeProgress({
-                        direction: trade.direction,
-                        instrument: trade.instrument,
-                        entry: trade.entry,
-                        stop: trade.stop,
-                        target: trade.target,
-                        bid: quote?.bid,
-                        ask: quote?.ask,
-                        riskAmount: trade.nominalRiskAmount,
-                        fill: fill
-                          ? { price: fill.price, units: fill.units }
-                          : null,
-                        quoteToUsdRate: quoteToUsdRateFromQuotes(
-                          trade.instrument,
-                          quotes,
-                        ),
-                      });
-                const shown = settled
-                  ? trade.paperPl!
-                  : (fill?.unrealizedPL ?? live?.money ?? null);
+                const mark = quote?.bid && quote?.ask
+                  ? (quote.bid + quote.ask) / 2
+                  : null;
                 const plTone =
                   shown === null ? "is-open" : shown >= 0 ? "is-win" : "is-loss";
-                const typeLabel = strategyTypeLabel(trade);
-                // Null until the client clock starts, so the server and the
-                // first client render agree. A time-dependent label rendered
-                // during SSR would hydrate against a different minute.
-                const outlook = clockNow ? openTradeCloseOutlook(trade, clockNow) : null;
                 return (
                   <Link
                     key={trade.id}
                     href={`/chart?instrument=${trade.instrument}&trade=${trade.id}`}
-                    className="dash-trade-card pressable"
+                    className="home-position-row"
                   >
-                    <div className="dash-trade-main min-w-0">
-                      {/* Direction stays neutral: in this row green and red mean
-                          profit and loss, and a green "long" beside a red result
-                          made one colour say two things. */}
-                      <p className="dash-trade-title">
-                        <span className="dash-trade-pair">
-                          {displayNameFor(trade.instrument)}
-                        </span>
-                        <span className="dash-trade-dir">{trade.direction}</span>
-                        <span className="dash-trade-type">{typeLabel}</span>
-                      </p>
-                    </div>
-                    <p className="dash-trade-time">
-                      {time(trade.openedAt)}
-                      {outlook ? (
-                        <span className={`dash-trade-close is-${outlook.tone}`} title={outlook.detail}>
-                          {outlook.label}
-                        </span>
-                      ) : null}
-                    </p>
-                    <div className="dash-trade-aside">
-                      <p className={`dash-trade-pl metric-number ${plTone}`}>
-                        {shown === null ? "Open" : money(shown, account.currency)}
-                      </p>
-                      {trade.resultR !== null ? (
-                        <p className="dash-trade-r metric-number">
-                          {trade.resultR >= 0 ? "+" : ""}
-                          {trade.resultR.toFixed(2)}R
-                        </p>
-                      ) : live ? (
-                        <p className="dash-trade-r metric-number">
-                          {Math.round(live.percent)}%{" "}
-                          {live.towards === "stop" ? "to SL" : "to TP"}
-                        </p>
-                      ) : null}
-                    </div>
+                    <span className="home-position-symbol">
+                      <span>{displayNameFor(trade.instrument).replace("/", "")}</span>
+                      <span className={`home-side is-${trade.direction}`}>
+                        {trade.direction === "long" ? "LONG" : "SHORT"}
+                      </span>
+                    </span>
+                    <span className="metric-number">
+                      {trade.entry == null ? "—" : formatChartPrice(trade.entry, trade.instrument)}
+                    </span>
+                    <span className="metric-number">
+                      {mark === null ? "—" : formatChartPrice(mark, trade.instrument)}
+                    </span>
+                    <span className={`metric-number ${plTone}`}>
+                      {shown === null ? "Open" : money(shown, account.currency)}
+                    </span>
                   </Link>
                 );
               })}
             </div>
-          ) : (
-            <p className="mt-4 text-sm text-[color:var(--muted)]">No open forex trades.</p>
-          )}
         </section>
       </div>
+      ) : null}
 
-      <RecentPredictions />
-
-      <section className="dashboard-minimal-section" aria-label="Watchlist">
-        <div className="flex items-baseline justify-between gap-3">
-          <div className="flex min-w-0 items-baseline gap-2">
-            <h2 className="text-sm font-semibold tracking-[-0.01em]">Watchlist</h2>
-            {/* Said once here rather than under every pair. */}
-            {availability.state !== "entry_window_open" ? (
-              <span className="truncate text-xs text-[color:var(--muted)]">
-                {availability.label}
-              </span>
-            ) : null}
-          </div>
-          <Link href="/watchlist?tab=strategies" className="link-quiet pressable text-xs">
-            View all
+      {hasActiveSignals ? (
+      <section className="home-section" aria-label="Active signals">
+        <div className="home-section-head">
+          <h2>Active signals</h2>
+          <Link href="/watchlist?tab=strategies" className="home-section-link">
+            See all
           </Link>
         </div>
-        <div className="dashboard-watchlist-grid mt-3">
-          {strategyRows.map((row) => {
-            const state = strategyRowState(row);
-            const validCount = row.strategies.filter((strategy) => strategy.setupStatus === "valid").length;
-            const shownBid = quotes[row.instrument]?.bid ?? null;
-            return (
+          <div className="home-signal-grid">
+            {signalRows.map((row) => (
               <Link
                 key={row.instrument}
-                href={`/watchlist?tab=strategies&instrument=${row.instrument}`}
-                data-state={state.active ? "open" : undefined}
-                className="dashboard-minimal-row pressable block py-3"
+                href={`/chart?instrument=${row.instrument}`}
+                className="home-signal-card"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{displayNameFor(row.instrument)}</p>
-                    <p className={`watchlist-status-label mt-0.5 text-xs ${state.tone}`}>
-                      {state.label}
-                    </p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="dashboard-watchlist-price metric-number text-sm">
-                      {shownBid === null ? "—" : formatChartPrice(shownBid, row.instrument)}
-                    </p>
-                    {/* Not the adaptive pick, but a hint of activity: how many of
-                        the four families currently see a valid setup. */}
-                    {!state.active && validCount > 0 ? (
-                      <p className="mt-0.5 text-xs font-medium text-[color:var(--muted-strong)]">
-                        {validCount}/4 valid
-                      </p>
-                    ) : null}
-                  </div>
+                <div className="home-signal-top">
+                  <span>{displayNameFor(row.instrument).replace("/", "")}</span>
+                  <span className={`home-side is-${row.direction}`}>
+                    {row.direction === "long" ? "LONG" : "SHORT"}
+                  </span>
                 </div>
+                <dl>
+                  <div>
+                    <dt>Entry</dt>
+                    <dd className="metric-number">{formatChartPrice(row.entry!, row.instrument)}</dd>
+                  </div>
+                  <div>
+                    <dt>SL</dt>
+                    <dd className="metric-number">{formatChartPrice(row.stop!, row.instrument)}</dd>
+                  </div>
+                  <div>
+                    <dt>TP</dt>
+                    <dd className="metric-number">{formatChartPrice(row.target!, row.instrument)}</dd>
+                  </div>
+                </dl>
               </Link>
-            );
-          })}
-        </div>
+            ))}
+          </div>
       </section>
+      ) : null}
 
-      <BinaryWatchlistCard />
+      {showIdleContext ? <GxStatus status={gxStatus} hasActiveSetups={hasActiveSignals} /> : null}
+      {upcoming.length ? <HomeUpcoming items={upcoming} /> : null}
+
+      <HomeRecentActivity items={recentActivity} currency={account.currency} />
+
+      <div className="home-extra lg:hidden">
+        <RecentPredictions />
+      </div>
+      </div>
+
+      <HomeRail
+        quotes={quotes}
+        featuredInstrument={featuredInstrument}
+        currency={account.currency}
+        allTimePL={allTimePL}
+        openCount={openTrades.length}
+        assigned={assigned}
+        batchSize={overview.batchSize}
+        winRate={lifetime.winRate}
+        netR={lifetime.netR}
+        todayTrades={todayTrades}
+        todayNetR={todayFromList.netR}
+      />
     </div>
   );
 }

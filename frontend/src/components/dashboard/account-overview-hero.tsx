@@ -8,7 +8,6 @@ import {
   buildAccountAmountSeries,
   type AccountChartRange,
 } from "@/components/dashboard/account-amount-chart";
-import { BrandMark } from "@/components/ui/brand-mark";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { tradingDayKey } from "@/lib/format/datetime";
 import { getMarketCondition } from "@/lib/strategy/session";
@@ -38,8 +37,6 @@ export function AccountOverviewHero({
   history,
   todayKey,
   openPL,
-  riskTodayPercent,
-  riskLimitPercent,
 }: {
   account: AccountSummary;
   userLabel: string;
@@ -48,13 +45,9 @@ export function AccountOverviewHero({
    * The current ET day, resolved on the server. Reading the clock during render
    * would make the server and the browser disagree across a midnight boundary
    * and break hydration.
-   */
+  */
   todayKey: string;
   openPL: number;
-  /** Open nominal risk as a percent of the account, e.g. 1.0. */
-  riskTodayPercent: number;
-  /** The daily-loss guard, shown as the "limit" alongside risk today. */
-  riskLimitPercent: number;
 }) {
   const [range, setRange] = useState<AccountChartRange>("1d");
   // Client-only so the server and first client render agree; the label depends
@@ -80,17 +73,19 @@ export function AccountOverviewHero({
   // "Today" is every broker-reported balance movement this session plus the
   // still-floating value on open positions. Strategy estimates are deliberately
   // excluded because they can differ from the executed practice-account fill.
-  const dayPL = useMemo(() => {
-    const realized = history.reduce(
+  const realizedPL = useMemo(
+    () =>
+      history.reduce(
       (sum, point) =>
         tradingDayKey(point.time) === todayKey
           ? sum + point.change
           : sum,
       0,
-    );
+    ),
+    [todayKey, history],
+  );
 
-    return realized + account.unrealizedPL;
-  }, [account.unrealizedPL, todayKey, history]);
+  const dayPL = realizedPL + account.unrealizedPL;
 
   const baseline = account.nav - dayPL;
   const changePercent = baseline !== 0 ? (dayPL / baseline) * 100 : 0;
@@ -121,7 +116,6 @@ export function AccountOverviewHero({
       aria-label="Account overview"
     >
       <header className="home-hero-topbar lg:hidden">
-        <BrandMark compact />
         <div className="home-hero-topbar-end">
           <span
             className={`home-market-pill ${marketOpen === false ? "is-closed" : "is-open"}`}
@@ -166,26 +160,15 @@ export function AccountOverviewHero({
         />
         <dl className="home-chart-stats">
           <div>
-            <dt>Available</dt>
-            <dd className="metric-number">
-              {money(account.marginAvailable, account.currency)}
+            <dt>Realized</dt>
+            <dd className={`metric-number ${signedTone(realizedPL)}`}>
+              {signedMoney(realizedPL, account.currency)}
             </dd>
           </div>
           <div>
-            <dt>Open P&amp;L</dt>
+            <dt>Unrealized</dt>
             <dd className={`metric-number ${signedTone(openPL)}`}>
               {signedMoney(openPL, account.currency)}
-            </dd>
-          </div>
-          <div className="home-stat-desktop">
-            <dt>Margin used</dt>
-            <dd className="metric-number">{money(account.marginUsed, account.currency)}</dd>
-          </div>
-          <div>
-            <dt>Risk today</dt>
-            <dd className="metric-number">
-              {riskTodayPercent.toFixed(1)}%
-              <span className="home-stat-sub">{riskLimitPercent.toFixed(1)}% limit</span>
             </dd>
           </div>
         </dl>

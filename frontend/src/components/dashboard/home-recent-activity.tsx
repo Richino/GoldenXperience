@@ -50,7 +50,7 @@ export function HomeRecentActivity({
           </div>
           {items.map((item) => {
             const href = item.instrument
-              ? `/chart?instrument=${item.instrument}`
+              ? `/chart?instrument=${item.instrument}${item.chartTradeId ? `&trade=${item.chartTradeId}` : ""}`
               : "/journal";
             return (
               <Link

@@ -1,296 +1,36 @@
 "use client";
 
 import Link from "next/link";
-import { RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { ArrowDown, ArrowRight, ArrowUp, ChevronDown, Search, Star } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { displayNameFor, pipSizeFor } from "@/lib/instruments/catalog";
-import { apiUrl } from "@/lib/api/url";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
-import { formatClockTime } from "@/lib/format/datetime";
-import { getPaperTradingAvailability, type PaperTradingAvailability } from "@/lib/strategy/strategy-engine";
-import { watchlistCardStatus, type WatchlistCardStatus } from "@/lib/watchlist-status";
+import { getMarketCondition } from "@/lib/strategy/session";
+import type { CandleSeries } from "@/types/forex";
 import { WatchlistPairsSkeleton } from "@/components/ui/page-skeletons";
 
-type WatchRow = {
-  instrument: string;
-  evaluatedAt: string | null;
-  dataStatus: "connected" | "unavailable" | "stale";
-  setupStatus: "valid" | "developing" | "invalid" | "no_setup";
-  direction: "long" | "short" | null;
-  bid: number | null;
-  ask: number | null;
-  spreadPips: number | null;
-  entry: number | null;
-  stop: number | null;
-  target: number | null;
-  session: string;
-  conditions: Array<{ name: string; passed: boolean; required: boolean; reason: string }>;
-  openTradeId: string | null;
-  batchNumber: number | null;
-  tradeSequence: string | null;
-};
+type Row = { instrument:string; setupStatus:"valid"|"developing"|"invalid"|"no_setup"; direction:"long"|"short"|null; bid:number|null; ask:number|null; spreadPips:number|null; entry:number|null; stop:number|null; target:number|null; session:string; openTradeId:string|null };
+type Filter = "all"|"setups"|"bullish"|"bearish";
+type Day = { change:number|null; high:number|null; low:number|null };
 
-/** When every monitored pair reports the same status, lift it to the section. */
-function sharedStatusLabel(rows: WatchRow[]) {
-  if (rows.length < 2) return null;
-  const labels = rows.map((row) => watchlistCardStatus(row).label);
-  if (labels.some((label) => !label)) return null;
-  const first = labels[0];
-  return labels.every((label) => label === first) ? first : null;
-}
-
-function price(value: number | null, instrument: string) {
-  return value === null ? "—" : formatChartPrice(value, instrument);
-}
-
-function evaluatedLabel(value: string | null) {
-  if (!value) return "Waiting";
-  return formatClockTime(value);
-}
-
-// Keep the Watchlist reading the same readiness language as Dashboard: blue at
-// early checklist progress, cyan through confirmation, then clear green.
-function checklistProgressColor(progress: number) {
-  const clamped = Math.max(0, Math.min(100, progress));
-  const hue = Math.round(
-    clamped <= 50
-      ? 220 - clamped * 0.5
-      : clamped <= 75
-        ? 195 - (clamped - 50) * 2
-        : 145 - (clamped - 75) * 0.8,
-  );
-  return `hsl(${hue} 90% ${Math.round(55 - clamped * 0.04)}%)`;
-}
-
-function hasTradeLevels(row: WatchRow) {
-  return (
-    Boolean(row.direction) &&
-    row.entry !== null &&
-    row.stop !== null &&
-    row.target !== null
-  );
-}
-
-function levelsContent(row: WatchRow, availability: PaperTradingAvailability) {
-  const { entry, stop, target } = row;
-  if (hasTradeLevels(row) && entry !== null && stop !== null && target !== null) {
-    return (
-      <dl className="wl-levels-grid">
-        <div className="wl-level">
-          <dt>Entry</dt>
-          <dd className="metric-number">{price(entry, row.instrument)}</dd>
-        </div>
-        <div className="wl-level">
-          <dt>Target</dt>
-          <dd className="metric-number is-target">
-            {price(target, row.instrument)}
-          </dd>
-        </div>
-        <div className="wl-level">
-          <dt>Stop</dt>
-          <dd className="metric-number is-stop">
-            {price(stop, row.instrument)}
-          </dd>
-        </div>
-      </dl>
-    );
-  }
-  // Repeating the long availability.detail under every pair said nothing about this pair.
-  if (!row.openTradeId && availability.state !== "entry_window_open") return null;
-  const failed = row.conditions.filter((item) => item.required && !item.passed).map((item) => item.name).slice(0, 2);
-  return failed.length ? `No setup: ${failed.join(", ")}` : "No valid trade levels";
-}
+const names:Record<string,string>={AUD:"Australian Dollar",CAD:"Canadian Dollar",CHF:"Swiss Franc",EUR:"Euro",GBP:"British Pound",JPY:"Japanese Yen",NZD:"New Zealand Dollar",USD:"US Dollar"};
+const finiteOrNull=(value:unknown)=>typeof value==="number"&&Number.isFinite(value)?value:null;
+const mid=(r:Row)=>{const bid=finiteOrNull(r.bid);const ask=finiteOrNull(r.ask);return bid!==null&&ask!==null?(bid+ask)/2:bid??ask;};
+const description=(x:string)=>{const [a,b]=x.split("_");return `${names[a??""]??a} / ${names[b??""]??b}`;};
+const hasLevels=(r:Row)=>r.direction&&finiteOrNull(r.entry)!==null&&finiteOrNull(r.stop)!==null&&finiteOrNull(r.target)!==null;
+const status=(r:Row)=>r.openTradeId||r.setupStatus==="valid"?["Active","active"]:r.setupStatus==="developing"?["Forming","forming"]:["Watching","watching"];
+const setup=(r:Row)=>r.setupStatus==="developing"?"FORMING":r.setupStatus==="valid"?(r.direction==="long"?"LONG":"SHORT"):"—";
+const sessionDisplay=(value:string)=>value==="LONDON"?"London":value==="Outside London/New York sessions"?"Asia":value?"Strategy window":"Unavailable";
 
 export function WatchlistView() {
-  const [snapshot, setSnapshot] = useState<WatchRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const quotes = useLiveQuotes();
-  /**
-   * Prices come off the stream, everything else off the snapshot below.
-   *
-   * The poll carries the strategy's verdict — conditions, levels, session —
-   * which only changes when a candle closes, so a minute is the right cadence
-   * for it. Quotes move constantly and were sitting up to a minute stale
-   * beside it. A pair the stream has not reported keeps its polled price.
-   */
-  const rows = useMemo(
-    () =>
-      snapshot.map((row) => {
-        const quote = quotes[row.instrument];
-        if (!quote) return row;
-        return {
-          ...row,
-          bid: quote.bid,
-          ask: quote.ask,
-          spreadPips: (quote.ask - quote.bid) / pipSizeFor(row.instrument),
-        };
-      }),
-    [snapshot, quotes],
-  );
-  const availability = getPaperTradingAvailability();
-  const sharedStatus = sharedStatusLabel(rows);
-  const layout = "detail";
-
-  const load = useCallback(async () => {
-    try {
-      const response = await fetch(apiUrl("/api/watchlist"), { credentials: "include", cache: "no-store" });
-      const payload = await response.json() as { watchlist?: WatchRow[]; error?: string };
-      if (!response.ok || !payload.watchlist) throw new Error(payload.error ?? "Watchlist is unavailable.");
-      setSnapshot(payload.watchlist);
-      setError(null);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Watchlist is unavailable.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-    const timer = window.setInterval(() => void load(), 60_000);
-    return () => window.clearInterval(timer);
-  }, [load]);
-
-  useForegroundRefresh(load);
-
-  return (
-    <div className="watchlist-view watchlist-minimal space-y-8 lg:space-y-10">
-      <header className="flex items-end justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-display">Watchlist</h1>
-        </div>
-        <button
-          type="button"
-          onClick={() => void load()}
-          disabled={loading}
-          className="mobile-icon-btn pressable text-[color:var(--muted-strong)] hover:text-[color:var(--foreground)]"
-          aria-label="Refresh"
-        >
-          <RefreshCw className={`size-[18px] ${loading ? "animate-spin" : ""}`} strokeWidth={1.9} />
-        </button>
-      </header>
-
-      {error ? <p className="research-error">{error}</p> : null}
-
-      <section className="dashboard-minimal-section" aria-label="Monitored pairs">
-        <div className="flex items-baseline justify-between gap-3">
-          <h2 className="text-sm font-semibold tracking-[-0.01em]">Pairs</h2>
-          <p className="metric-number text-xs text-[color:var(--muted)]">{rows.length || "—"}</p>
-        </div>
-
-        {sharedStatus ? (
-          <p className="wl-section-note mt-2 text-xs leading-snug text-[color:var(--muted)]">
-            {sharedStatus}
-          </p>
-        ) : null}
-
-        {rows.length ? (
-          <div className="wl-pairs mt-3" data-wl-layout={layout}>
-            {rows.map((row) => {
-              const status: WatchlistCardStatus = watchlistCardStatus(row);
-              const rowStatus = status.label;
-              const levels = levelsContent(row, availability);
-              const direction = row.direction;
-              const hasDetail = Boolean(rowStatus || levels);
-              const progress = status.progress;
-              const showProgress = status.state !== "open" && status.state !== "unavailable";
-              const progressColor = checklistProgressColor(progress);
-              return (
-                <Link
-                  key={row.instrument}
-                  href={`/chart?instrument=${encodeURIComponent(row.instrument)}`}
-                  className="wl-pair-card pressable"
-                  data-state={status.state}
-                  style={
-                    showProgress
-                      ? { "--watch-progress-color": progressColor } as CSSProperties
-                      : undefined
-                  }
-                >
-                  {/* Two stacked blocks on mobile. On desktop the wrappers go
-                      `display: contents` so these cells become grid items. */}
-                  <div className="wl-main min-w-0">
-                    <p className="wl-pair">
-                      <span className="wl-pair-name">
-                        {displayNameFor(row.instrument)}
-                      </span>
-                      {direction ? (
-                        <span
-                          className={
-                            direction === "long"
-                              ? "wl-dir is-long"
-                              : "wl-dir is-short"
-                          }
-                        >
-                          {direction}
-                        </span>
-                      ) : null}
-                    </p>
-                    {hasDetail ? (
-                      <div className="wl-detail">
-                        {rowStatus ? (
-                          <p
-                            className={`wl-status watchlist-status-label ${
-                              showProgress ? "watchlist-progress-text" : status.tone
-                            }`}
-                          >
-                            {rowStatus}
-                          </p>
-                        ) : null}
-                        {levels ? (
-                          <div
-                            className={`wl-levels ${rowStatus ? "has-status" : ""}`}
-                          >
-                            {levels}
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className="wl-aside">
-                    <p className="wl-quote metric-number">
-                      {price(row.bid, row.instrument)}
-                      <span className="wl-quote-sep"> / </span>
-                      {price(row.ask, row.instrument)}
-                    </p>
-                    <p className="wl-meta metric-number">
-                      {row.spreadPips === null
-                        ? "—"
-                        : `${row.spreadPips.toFixed(1)} pips`}
-                      {" · "}
-                      {evaluatedLabel(row.evaluatedAt)}
-                    </p>
-                  </div>
-                  {showProgress ? (
-                    <div
-                      className="wl-checklist-progress"
-                      role="progressbar"
-                      aria-label={`${displayNameFor(row.instrument)} checklist completion`}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-valuenow={progress}
-                    >
-                      <span
-                        style={{
-                          width: `${progress}%`,
-                          backgroundColor: progressColor,
-                        }}
-                      />
-                    </div>
-                  ) : null}
-                </Link>
-              );
-            })}
-          </div>
-        ) : loading ? (
-          <WatchlistPairsSkeleton />
-        ) : (
-          <p className="mt-4 text-sm text-[color:var(--muted)]">No monitored pairs.</p>
-        )}
-      </section>
-    </div>
-  );
+  const [snapshot,setSnapshot]=useState<Row[]>([]); const [daily,setDaily]=useState<Record<string,Day>>({}); const [selected,setSelected]=useState<string|null>(null); const [filter,setFilter]=useState<Filter>("all"); const [query,setQuery]=useState(""); const [session,setSession]=useState("all"); const [loading,setLoading]=useState(true); const [error,setError]=useState<string|null>(null); const [market,setMarket]=useState(()=>getMarketCondition()); const quotes=useLiveQuotes();
+  const load=useCallback(async()=>{try{const response=await fetch(apiUrl("/api/watchlist"),{credentials:"include",cache:"no-store"});const payload=await response.json() as {watchlist?:Row[];error?:string};if(!response.ok||!payload.watchlist)throw new Error(payload.error??"Markets are unavailable.");const watchlist=payload.watchlist;setSnapshot(watchlist);setSelected(current=>current&&watchlist.some(r=>r.instrument===current)?current:watchlist[0]?.instrument??null);void Promise.all(watchlist.map(async r=>{try{const response=await fetch(apiUrl(`/api/oanda/candles?instrument=${r.instrument}&granularity=D&count=2`),{credentials:"include",cache:"no-store"});const payload=await response.json() as {data?:CandleSeries};const c=payload.data?.candles.at(-1),p=payload.data?.candles.at(-2);return [r.instrument,{change:c&&p?((c.close-p.close)/p.close)*100:null,high:c?.high??null,low:c?.low??null}] as const;}catch{return [r.instrument,{change:null,high:null,low:null}] as const;}})).then(entries=>setDaily(Object.fromEntries(entries)));setError(null);}catch(e){setError(e instanceof Error?e.message:"Markets are unavailable.");}finally{setLoading(false);}},[]);
+  useEffect(()=>{const initial=window.setTimeout(()=>void load(),0);const timer=window.setInterval(()=>void load(),60_000);return()=>{window.clearTimeout(initial);window.clearInterval(timer);};},[load]); useEffect(()=>{const update=()=>setMarket(getMarketCondition());const timer=window.setInterval(update,30_000);return()=>window.clearInterval(timer);},[]);useForegroundRefresh(load);
+  const rows=useMemo(()=>snapshot.map(r=>{const quote=quotes[r.instrument];const bid=finiteOrNull(quote?.bid??r.bid);const ask=finiteOrNull(quote?.ask??r.ask);return {...r,bid,ask,spreadPips:bid!==null&&ask!==null?(ask-bid)/pipSizeFor(r.instrument):finiteOrNull(r.spreadPips),entry:finiteOrNull(r.entry),stop:finiteOrNull(r.stop),target:finiteOrNull(r.target)};}),[snapshot,quotes]);
+  const summary={watched:rows.length,setups:rows.filter(r=>r.setupStatus==="valid"||r.openTradeId).length,bullish:rows.filter(r=>r.direction==="long").length,bearish:rows.filter(r=>r.direction==="short").length,neutral:rows.filter(r=>!r.direction).length}; const sessions=Array.from(new Set(rows.map(r=>sessionDisplay(r.session))));
+  const shown=rows.filter(r=>{const match=`${r.instrument} ${description(r.instrument)}`.toLowerCase().includes(query.toLowerCase());const matchFilter=filter==="all"||(filter==="setups"&&(r.setupStatus==="valid"||r.openTradeId))||(filter==="bullish"&&r.direction==="long")||(filter==="bearish"&&r.direction==="short");return match&&matchFilter&&(session==="all"||sessionDisplay(r.session)===session);}).sort((a,b)=>Number(b.setupStatus==="valid")-Number(a.setupStatus==="valid")||a.instrument.localeCompare(b.instrument)); const active=rows.find(r=>r.instrument===selected); const day=active?daily[active.instrument]:undefined;
+  const activeChange=finiteOrNull(day?.change);return <div className="markets-workspace"><header className="markets-header"><div><h1>Markets</h1><p>Monitor your forex watchlist and identify pairs worth attention.</p></div><span className={`markets-market ${market.marketOpen?"is-open":""}`}><i />Market {market.marketOpen?"open":"closed"} · {market.label}</span></header><dl className="markets-summary"><div><dd>{summary.watched}</dd><dt>Pairs watched</dt></div><div><dd className="is-positive">{summary.setups}</dd><dt>Active setups</dt></div><div><dd className="is-positive">{summary.bullish}</dd><dt>Bullish</dt></div><div><dd className="is-negative">{summary.bearish}</dd><dt>Bearish</dt></div><div><dd>{summary.neutral}</dd><dt>Neutral</dt></div></dl>{error?<p className="research-error">{error}</p>:null}{loading&&!rows.length?<WatchlistPairsSkeleton/>:<div className="markets-terminal"><section className="markets-scanner"><div className="markets-toolbar"><label><Search/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search markets..."/></label><nav>{(["all","setups","bullish","bearish"] as Filter[]).map(f=><button key={f} type="button" onClick={()=>setFilter(f)} className={filter===f?"is-active":""}>{f==="all"?"All":f[0]?.toUpperCase()+f.slice(1)}</button>)}</nav><label className="markets-session-select"><select aria-label="Filter by session" value={session} onChange={e=>setSession(e.target.value)}><option value="all">All sessions</option>{sessions.map(s=><option key={s}>{s}</option>)}</select><ChevronDown/></label><span>Sort: <b>Opportunity</b></span></div><div className="markets-table"><div className="markets-head"><span>Pair</span><span>Price</span><span>Chg</span><span>Bias</span><span>Session</span><span>Sprd</span><span>Setup</span><span>Status</span></div>{shown.map(r=>{const [state,tone]=status(r);const change=finiteOrNull(daily[r.instrument]?.change);return <button type="button" key={r.instrument} className={`markets-row ${active?.instrument===r.instrument?"is-selected":""}`} onClick={()=>setSelected(r.instrument)}><span className="markets-pair"><Star/><span><b>{displayNameFor(r.instrument)}</b><small>{description(r.instrument)}</small></span></span><b className="metric-number">{mid(r)===null?"—":formatChartPrice(mid(r)!,r.instrument)}</b><b className={`metric-number ${change===null?"":"is-"+(change>=0?"positive":"negative")}`}>{change===null?"—":`${change>=0?"+":""}${change.toFixed(2)}%`}</b><span className={`markets-bias is-${r.direction??"neutral"}`}>{r.direction==="long"?<ArrowUp/>:r.direction==="short"?<ArrowDown/>:null}{r.direction==="long"?"Bullish":r.direction==="short"?"Bearish":"Neutral"}</span><span>{sessionDisplay(r.session)}</span><span>{r.spreadPips===null?"—":r.spreadPips.toFixed(1)}</span><span className={`markets-setup is-${r.direction??"empty"}`}>{setup(r)}</span><span className={`markets-status is-${tone}`}><i/>{state}</span></button>;})}</div></section><aside className="markets-detail">{active?<><div className="markets-detail-head"><p>{displayNameFor(active.instrument)}</p><Star/><strong className="metric-number">{mid(active)===null?"—":formatChartPrice(mid(active)!,active.instrument)}</strong><em className={(activeChange??0)>=0?"is-positive":"is-negative"}>{activeChange===null?"—":`${activeChange>=0?"+":""}${activeChange.toFixed(2)}%`}</em></div><dl className="markets-detail-grid"><div><dt>Session</dt><dd>{sessionDisplay(active.session)}</dd></div><div><dt>Spread</dt><dd>{active.spreadPips===null?"—":active.spreadPips.toFixed(1)}</dd></div><div><dt>Day high</dt><dd>{day?.high===null||day?.high===undefined?"—":formatChartPrice(day.high,active.instrument)}</dd></div><div><dt>Day low</dt><dd>{day?.low===null||day?.low===undefined?"—":formatChartPrice(day.low,active.instrument)}</dd></div></dl><section className="markets-setup-detail"><p>GX setup</p>{hasLevels(active)?<><b className={active.direction==="long"?"is-positive":"is-negative"}>{active.direction==="long"?"LONG":"SHORT"}</b><dl><div><dt>Entry</dt><dd>{formatChartPrice(active.entry!,active.instrument)}</dd></div><div><dt>SL</dt><dd className="is-negative">{formatChartPrice(active.stop!,active.instrument)}</dd></div><div><dt>TP</dt><dd className="is-positive">{formatChartPrice(active.target!,active.instrument)}</dd></div></dl></>:<span>No active GX setup</span>}</section><Link href={`/chart?instrument=${active.instrument}`}>Open Chart <ArrowRight/></Link></>:null}</aside></div>}</div>;
 }

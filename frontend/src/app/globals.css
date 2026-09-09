@@ -2412,7 +2412,7 @@ input[type="number"] {
   .has-home-rail .app-topbar,
   .dark .has-home-rail .app-topbar {
     background: transparent;
-    border-bottom-color: transparent;
+    border-bottom-color: var(--border-strong);
     backdrop-filter: blur(6px);
   }
 
@@ -2772,9 +2772,9 @@ input[type="number"] {
 
 .chart-loading-skeleton {
   position: absolute;
-  inset: 1.25rem 0.75rem 1.75rem;
+  inset: 0;
   overflow: hidden;
-  border-radius: 0.5rem;
+  border-radius: 0;
   background: color-mix(in srgb, var(--foreground) 4%, transparent);
   opacity: 0.75;
 }
@@ -6155,6 +6155,7 @@ input[type="number"] {
 }
 .gx-active-position b.is-positive { color: var(--success); }
 .gx-active-position b.is-negative { color: var(--danger); }
+.gx-active-position > .gx-position-mobile-detail { display: none; }
 .gx-active-position-empty {
   display: flex;
   grid-template-columns: none;
@@ -6292,10 +6293,12 @@ input[type="number"] {
   .gx-mobile-chart-toolbar {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    flex: 0 0 2.9rem;
-    align-items: stretch;
-    border-bottom: 1px solid var(--border);
-    background: var(--surface);
+    flex: 0 0 3.75rem;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.55rem 0.75rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+    background: transparent;
   }
 
   .gx-mobile-chart-toolbar > *,
@@ -6311,17 +6314,18 @@ input[type="number"] {
     align-items: center;
     justify-content: center;
     gap: 0.35rem;
-    min-height: 2.9rem;
-    border: 0;
-    border-radius: 0;
-    padding: 0.25rem;
-    background: transparent;
+    min-height: 2.55rem;
+    border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+    border-radius: 11px;
+    padding: 0.25rem 0.4rem;
+    background: color-mix(in srgb, var(--surface-raised) 74%, transparent);
     color: var(--muted-strong);
     font-size: 0.625rem;
     font-weight: 600;
   }
 
   .signals-view .gx-mobile-chart-toolbar button.is-active {
+    border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
     background: var(--accent-soft);
     color: var(--accent);
   }
@@ -6329,7 +6333,7 @@ input[type="number"] {
   .gx-mobile-position-section {
     flex: 0 0 auto;
     padding: 0.7rem 1rem 0.75rem;
-    background: color-mix(in srgb, var(--surface) 94%, var(--background));
+    background: transparent;
   }
 
   .gx-mobile-position-section::before {
@@ -6365,6 +6369,14 @@ input[type="number"] {
 
   .gx-mobile-position-section .gx-position-side {
     justify-self: start;
+  }
+
+  .gx-mobile-position-section .gx-active-position > .gx-position-mobile-detail {
+    display: grid;
+  }
+
+  .gx-mobile-position-section .gx-position-opened {
+    grid-column: span 2;
   }
 
   .gx-mobile-position-section .gx-active-position-empty {
@@ -6656,6 +6668,11 @@ input[type="number"] {
     overflow: hidden;
   }
 
+  /* Give the mobile plot a gentle lift from the surrounding terminal chrome. */
+  .dark .signals-view .signals-chart-mobile > .chart-data-shell {
+    background-color: #0b0b0d;
+  }
+
   /* While fullscreen, drop the overflow:hidden on the ancestors of the fixed
      chart card. iOS Safari and iOS PWAs clip a position:fixed descendant of an
      overflow:hidden box, which painted the fullscreen overlay as a blank screen.
@@ -6690,8 +6707,8 @@ input[type="number"] {
   .signals-view .signals-chart-mobile > .chart-data-shell {
     flex: 1;
     min-height: 0;
-    border-top: 1px solid var(--border);
-    padding-bottom: calc(var(--app-dock-height, 5.5rem) + 0.875rem);
+    border-top: 0;
+    padding-bottom: 0;
   }
 
   /* Fullscreen covers the nav: the canvas takes every remaining pixel. */
@@ -6713,6 +6730,32 @@ input[type="number"] {
     margin-inline: -1rem;
     padding: max(1rem, env(safe-area-inset-top)) 1rem 0.9rem;
     background: var(--signals-mobile-page-bg);
+  }
+
+  .signals-view .signals-mobile-actions .gx-pair-search {
+    margin-left: 0.4rem;
+  }
+
+  .signals-view .signals-mobile-actions .gx-pair-search > .signals-tool-btn {
+    min-width: 7.1rem;
+    height: 2.35rem;
+    padding-inline: 0.8rem;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    font-weight: 650;
+  }
+
+  .signals-view .signals-mobile-actions .signals-fullscreen-reserve {
+    width: 2.5rem;
+    height: 2.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: #19191c;
+    color: var(--foreground);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+  }
+
+  .signals-view .signals-mobile-actions .signals-mobile-header-actions {
+    margin-right: 0.75rem;
   }
 
   .dark .signals-view .signals-mobile-actions {
@@ -6787,6 +6830,43 @@ input[type="number"] {
   .dark .signals-view .signals-chart-mobile .workspace-segment-btn-active {
     border: none;
     background: transparent;
+  }
+
+  .signals-view .signals-chart-mobile .gx-mobile-timeframes .workspace-segment {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    width: 100%;
+    gap: 0.15rem;
+    padding: 0.22rem;
+    border: none;
+    border-radius: 10px;
+    background: var(--surface-raised);
+  }
+
+  .dark .signals-view .signals-chart-mobile .gx-mobile-timeframes .workspace-segment {
+    background: color-mix(in srgb, var(--foreground) 8%, var(--background));
+  }
+
+  .signals-view .signals-chart-mobile .gx-mobile-timeframes .workspace-segment-btn {
+    min-height: 2.15rem;
+    padding: 0.3rem 0.2rem;
+    border: none;
+    border-radius: 7px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+
+  .signals-view .signals-chart-mobile .gx-mobile-timeframes .workspace-segment-btn-active,
+  .dark .signals-view .signals-chart-mobile .gx-mobile-timeframes .workspace-segment-btn-active {
+    border: none;
+    background: var(--accent-soft);
+    color: var(--accent);
+    box-shadow: none;
+  }
+
+  .signals-view .signals-chart-mobile .gx-mobile-timeframes .workspace-segment-btn-active::after {
+    display: none;
   }
 
   .signals-view .signals-chart-mobile .relative > button.pressable {
@@ -7040,9 +7120,10 @@ input[type="number"] {
   gap: 1.5rem;
 }
 
-/* Full-viewport brand wash: green anchored in the top-right corner, fading
-   across the whole center toward the bottom-left. Fixed so it reads as a
-   backdrop the content floats over. */
+/* Full-viewport brand wash: a wide, nearly-white mint bloom at the top of the
+   light home (and a deeper teal equivalent in dark mode), fading cleanly into
+   the page surface like the approved home reference. Fixed so the rail and
+   main column read as one continuous canvas. */
 .home-shell::before {
   content: "";
   position: fixed;
@@ -7050,17 +7131,19 @@ input[type="number"] {
   z-index: 0;
   pointer-events: none;
   background: radial-gradient(
-    100% 150% at 0% 0%,
-    color-mix(in srgb, var(--accent) 9%, transparent),
-    transparent 80%
+    74% 72% at 38% -24%,
+    color-mix(in srgb, var(--accent) 16%, var(--background)) 0%,
+    color-mix(in srgb, var(--accent) 7%, var(--background)) 42%,
+    var(--background) 80%
   );
 }
 
 .dark .home-shell::before {
   background: radial-gradient(
-    100% 150% at 0% 0%,
-    color-mix(in srgb, var(--accent) 15%, transparent),
-    transparent 78%
+    74% 72% at 38% -24%,
+    color-mix(in srgb, #00e59b 14%, var(--background)) 0%,
+    color-mix(in srgb, #00e59b 6%, var(--background)) 42%,
+    var(--background) 80%
   );
 }
 
@@ -7184,6 +7267,7 @@ input[type="number"] {
 
 .home-hero-topbar-end {
   display: flex;
+  margin-left: auto;
   flex-shrink: 0;
   align-items: center;
   gap: 0.6rem;
@@ -7737,6 +7821,90 @@ input[type="number"] {
   margin-top: 8px;
 }
 
+.home-available-signals {
+  min-width: 0;
+}
+
+.home-signal-swipe-hint {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.home-signal-carousel {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  touch-action: pan-x pan-y;
+}
+
+.home-signal-carousel::-webkit-scrollbar {
+  display: none;
+}
+
+.home-signal-preview {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 100%;
+  min-width: 0;
+  scroll-snap-align: start;
+  border-radius: 10px;
+  color: inherit;
+  outline-offset: 3px;
+}
+
+.home-signal-preview:hover {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+
+.home-signal-preview .home-mini-chart {
+  min-height: 148px;
+  padding: 2px 4px 0;
+  flex: 0 0 auto;
+}
+
+.home-signal-levels {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  min-height: 56px;
+  margin-top: 8px;
+  padding: 9px 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-raised) 72%, transparent);
+  flex: 0 0 auto;
+  isolation: isolate;
+}
+
+.home-signal-levels dt {
+  color: #6d7176;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.home-signal-levels dd {
+  margin-top: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.home-available-signals-empty {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .home-rail-heading {
   display: flex;
   align-items: center;
@@ -7960,8 +8128,6 @@ input[type="number"] {
     padding: 20px 22px 22px;
     overflow: auto;
     border-left: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
-    /* Transparent so the brand gradient behind it reads as one surface with the
-       main column instead of a separate panel. */
     background: transparent;
   }
 
@@ -8013,7 +8179,7 @@ input[type="number"] {
 
 .home-chart-stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px 16px;
   margin-top: 14px;
 }
@@ -8044,13 +8210,7 @@ input[type="number"] {
 
 @media (max-width: 639px) {
   .home-chart-stats {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  /* Margin used is desktop-only in the reference; mobile keeps the three
-     first-glance figures (available, open P/L, risk today). */
-  .home-stat-desktop {
-    display: none;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -10411,24 +10571,45 @@ input[type="number"] {
 }
 
 /* ── Signals list page ─────────────────────────────────────────────────── */
+.markets-workspace{min-height:calc(100dvh - var(--app-topbar-height,0px));margin:-1.5rem -2rem -2.5rem;padding:1.25rem 1.75rem 1.75rem;background:var(--background);color:var(--foreground)}.markets-header{display:flex;align-items:start;justify-content:space-between;gap:1rem}.markets-header h1{font-size:1.4rem;font-weight:650;letter-spacing:-.04em}.markets-header p{margin-top:.25rem;color:var(--muted);font-size:.78rem}.markets-market{display:flex;gap:.35rem;align-items:center;color:var(--muted);font-size:.62rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}.markets-market i,.markets-status i{width:.35rem;height:.35rem;border-radius:50%;background:var(--muted)}.markets-market.is-open i,.markets-status.is-active i{background:var(--accent)}.markets-summary{display:flex;gap:0;margin:1rem -1.75rem 0;padding:.7rem 1.75rem;border-block:1px solid var(--border)}.markets-summary div{min-width:8.5rem;padding:0 1rem;border-right:1px solid var(--border)}.markets-summary div:first-child{padding-left:0}.markets-summary dd{font-size:1rem;font-weight:700}.markets-summary dt,.markets-detail dt,.markets-setup-detail p{margin-top:.15rem;color:var(--muted);font-size:.55rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase}.markets-terminal{display:grid;grid-template-columns:minmax(0,1fr) 17rem;margin:0 -1.75rem;border-bottom:1px solid var(--border)}.markets-scanner{min-width:0;padding:1rem 1.75rem 1.5rem}.markets-detail{padding:1rem;border-left:1px solid var(--border);background:color-mix(in srgb,var(--surface) 75%,transparent)}.markets-toolbar{display:flex;align-items:center;gap:.5rem;margin-bottom:.7rem}.markets-toolbar>label:first-child{display:flex;align-items:center;gap:.45rem;width:7.5rem;padding:.45rem .6rem;border:1px solid var(--border);border-radius:.4rem;background:var(--surface)}.markets-toolbar svg{width:.8rem}.markets-toolbar input{width:100%;outline:0;background:transparent;font-size:.68rem}.markets-toolbar nav{display:flex;gap:.2rem}.markets-toolbar button{border:0;border-radius:.35rem;padding:.48rem .62rem;color:var(--muted);font-size:.65rem}.markets-toolbar button.is-active{background:var(--accent);color:#05271e}.markets-session-select{display:flex;align-items:center;gap:.2rem;margin-left:auto;border:1px solid var(--border);border-radius:.35rem;padding:.35rem .45rem}.markets-session-select select{max-width:5.5rem;border:0;outline:0;background:transparent;color:var(--foreground);font-size:.65rem}.markets-toolbar>span{font-size:.65rem;color:var(--muted)}.markets-toolbar>span b{color:var(--foreground)}.markets-head,.markets-row{display:grid;grid-template-columns:1.8fr .85fr .62fr .9fr .75fr .5fr .68fr .8fr;gap:.55rem;align-items:center;text-align:left}.markets-head{padding:.35rem .45rem;color:var(--muted);font-size:.54rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase}.markets-row{width:100%;min-height:3.2rem;border:0;border-top:1px solid color-mix(in srgb,var(--border) 70%,transparent);padding:.38rem .45rem;background:transparent;color:var(--foreground);font-size:.68rem}.markets-row:hover,.markets-row.is-selected{background:color-mix(in srgb,var(--accent) 8%,transparent)}.markets-row.is-selected{box-shadow:inset 2px 0 var(--accent)}.markets-pair{display:flex;gap:.35rem;align-items:center;min-width:0}.markets-pair svg{width:.7rem;color:var(--accent)}.markets-pair b{display:block;font-size:.72rem}.markets-pair small{display:block;overflow:hidden;color:var(--muted);font-size:.55rem;text-overflow:ellipsis;white-space:nowrap}.markets-bias,.markets-setup{display:inline-flex;width:max-content;align-items:center;gap:.18rem;border-radius:.25rem;padding:.2rem .35rem;font-size:.57rem;font-weight:650}.markets-bias svg{width:.62rem}.markets-bias.is-long,.markets-setup.is-long{color:var(--accent);background:var(--accent-soft)}.markets-bias.is-short,.markets-setup.is-short{color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent)}.markets-bias.is-neutral{color:var(--muted)}.markets-setup.is-empty{color:var(--muted)}.markets-status{display:flex;align-items:center;gap:.25rem;color:var(--muted);font-size:.6rem}.markets-status.is-forming i{background:var(--pending)}.markets-detail-head{display:grid;grid-template-columns:1fr auto;gap:.25rem}.markets-detail-head p{font-weight:650}.markets-detail-head>svg{width:.85rem;color:var(--accent)}.markets-detail-head strong{grid-column:1;font-size:1.4rem}.markets-detail-head em{grid-column:1;font-size:.7rem;font-style:normal}.markets-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:.85rem .5rem;margin-top:1.15rem;padding-top:1rem;border-top:1px solid var(--border)}.markets-detail dd{margin-top:.2rem;font-size:.73rem;font-weight:650}.markets-setup-detail{margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)}.markets-setup-detail>span{display:block;margin-top:.6rem;color:var(--muted);font-size:.7rem}.markets-setup-detail>b{display:block;margin-top:.55rem;font-size:.65rem}.markets-setup-detail dl{display:grid;grid-template-columns:repeat(3,1fr);gap:.3rem;margin-top:.6rem}.markets-setup-detail dd{margin-top:.2rem;font-size:.64rem;font-weight:650}.markets-detail>a{display:flex;align-items:center;justify-content:center;gap:.35rem;margin-top:1.2rem;border-radius:.4rem;padding:.65rem;background:var(--accent);color:#05271e;font-size:.7rem;font-weight:700}.markets-detail>a svg{width:.8rem}.is-positive{color:var(--accent)!important}.is-negative{color:var(--danger)!important}
+@media(max-width:1023px){.markets-workspace{margin:0 -1rem;padding:1rem 1rem calc(var(--app-dock-height,5rem) + 1rem)}.markets-header{padding-top:.25rem}.markets-header h1{font-size:1.25rem}.markets-header p{font-size:.68rem}.markets-market{display:none}.markets-summary{margin:1rem 0 0;padding:.65rem 0;justify-content:space-between}.markets-summary div{min-width:0;padding:0 .45rem}.markets-summary dt{font-size:.48rem}.markets-terminal{display:block;margin:0;border:0}.markets-scanner{padding:1rem 0}.markets-toolbar{flex-wrap:wrap}.markets-toolbar>label:first-child{width:100%;height:2.2rem}.markets-toolbar nav{flex:1}.markets-toolbar button{padding:.45rem .55rem}.markets-session-select{margin-left:0}.markets-toolbar>span{display:none}.markets-head{display:none}.markets-row{grid-template-columns:1.5fr 1fr .8fr;gap:.3rem;min-height:4rem}.markets-row>span:nth-child(4),.markets-row>span:nth-child(5),.markets-row>span:nth-child(6),.markets-row>span:nth-child(8){display:none}.markets-pair{grid-row:span 2}.markets-row>b:nth-child(2),.markets-row>b:nth-child(3){align-self:end}.markets-setup{align-self:start}.markets-detail{display:none}}
+.markets-session-select{gap:.3rem;border-radius:999px;padding:.1rem .5rem .1rem .65rem;background:color-mix(in srgb,var(--surface) 84%,transparent);transition:border-color .15s ease,background .15s ease}.markets-session-select:focus-within{border-color:color-mix(in srgb,var(--accent) 65%,var(--border));background:var(--surface)}.markets-session-select select{-webkit-appearance:none;-moz-appearance:none;appearance:none;cursor:pointer;min-width:5.8rem;max-width:8.5rem;font-weight:600;line-height:1.85rem;text-overflow:ellipsis}.markets-session-select option{background:var(--surface);color:var(--foreground)}.markets-session-select svg{width:.7rem;pointer-events:none;color:var(--muted)}@media(max-width:1023px){.markets-toolbar{gap:.6rem .45rem}.markets-toolbar nav{min-width:0}.markets-toolbar button{padding:.45rem .48rem}.markets-session-select{flex:0 0 auto;margin-left:0;padding-inline:.55rem}.markets-session-select select{min-width:4.75rem;max-width:5.8rem;line-height:1.9rem}}
+
 .signals-list-shell {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1.35rem;
 }
 
 .signals-list-main {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1.35rem;
+  /* The same overhead brand light used on Home: it belongs to the workspace,
+     while the overview rail stays a stable navigation-like surface. */
+  background: radial-gradient(
+    74% 72% at 38% -24%,
+    color-mix(in srgb, var(--accent) 16%, var(--background)) 0%,
+    color-mix(in srgb, var(--accent) 7%, var(--background)) 42%,
+    var(--background) 80%
+  );
+}
+
+.dark .signals-list-main {
+  background: radial-gradient(
+    74% 72% at 38% -24%,
+    color-mix(in srgb, #00e59b 14%, var(--background)) 0%,
+    color-mix(in srgb, #00e59b 6%, var(--background)) 42%,
+    var(--background) 80%
+  );
 }
 
 .signals-list-header {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.9rem;
 }
 
 .signals-list-title {
@@ -10563,7 +10744,7 @@ input[type="number"] {
 .signal-card {
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  gap: 0.75rem;
   padding: 1rem;
   border: 1px solid var(--border);
   border-radius: 16px;
@@ -10811,6 +10992,13 @@ input[type="number"] {
 .signal-recent-row {
   border-bottom: 1px solid var(--border);
   font-size: 13px;
+}
+
+/* Direction stays color-coded in the compact Signals history table, but it
+   should read as table text rather than a second pill-shaped control. */
+.signal-recent-row > .home-side.is-long,
+.signal-recent-row > .home-side.is-short {
+  background: transparent;
 }
 
 .signal-recent-row:hover {
@@ -11067,9 +11255,27 @@ input[type="number"] {
 @media (min-width: 1024px) {
   .signals-list-shell {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 300px;
-    gap: 1.75rem;
-    align-items: start;
+    grid-template-columns: minmax(0, 1fr) minmax(270px, 310px);
+    min-height: 100dvh;
+    gap: 0;
+    align-items: stretch;
+  }
+
+  .signals-list-main {
+    gap: 1.15rem;
+    padding: 1.15rem clamp(1.1rem, 2.2vw, 2rem) 2rem;
+  }
+
+  .signals-list-header {
+    min-height: 2.35rem;
+    align-items: center;
+  }
+
+  .signals-list-tabs {
+    min-height: 2.6rem;
+    padding: 0.35rem 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
   }
 
   .signals-list-title h1 {
@@ -11094,29 +11300,753 @@ input[type="number"] {
     gap: 0.4rem;
   }
 
+  .signals-list-tab {
+    min-height: 1.8rem;
+    padding-inline: 0.9rem;
+    border-radius: 6px;
+    font-size: 11px;
+  }
+
+  .signals-filter-chip {
+    min-height: 1.65rem;
+    padding-inline: 0.5rem;
+    border-color: color-mix(in srgb, var(--border) 72%, transparent);
+    background: color-mix(in srgb, var(--surface) 80%, transparent);
+    font-size: 9px;
+  }
+
   .signal-card {
-    gap: 0.7rem;
-    padding: 0.95rem 1.1rem;
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(210px, 0.9fr) minmax(145px, 0.55fr);
+    gap: 0.55rem 1rem;
+    padding: 0.75rem 0.85rem;
+    border-radius: 11px;
+  }
+
+  .signal-card-head {
+    grid-column: 1 / -1;
+    gap: 0.5rem;
+  }
+
+  .signal-card-ident {
+    flex-wrap: nowrap;
+    gap: 0.45rem;
+  }
+
+  .signal-card-pair {
+    font-size: 13px;
+  }
+
+  .signal-card-strategy {
+    width: auto;
+    overflow: hidden;
+    font-size: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .signal-card-meta {
+    gap: 0.45rem;
+  }
+
+  .signal-card-time,
+  .signal-status {
+    font-size: 9px;
   }
 
   .signal-card-stats {
+    grid-column: 1;
     grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.45rem;
+  }
+
+  .signal-card-stats dt {
+    font-size: 8px;
+  }
+
+  .signal-card-stats dd {
+    font-size: 11px;
   }
 
   .signal-card-stats > .signal-card-current {
     display: flex;
   }
 
+  .signal-progress {
+    grid-column: 2;
+    align-self: center;
+    gap: 0.25rem;
+  }
+
+  .signal-progress-labels {
+    height: 0.7rem;
+    font-size: 8px;
+  }
+
+  .signal-card-foot {
+    grid-column: 3;
+    align-self: center;
+    display: grid;
+    justify-items: end;
+    gap: 0.28rem;
+    padding: 0;
+    border: 0;
+  }
+
+  .signal-card-note {
+    overflow: hidden;
+    max-width: 100%;
+    font-size: 9px;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .signal-card-chart {
+    font-size: 10px;
+  }
+
   .signals-list-rail {
     position: sticky;
-    top: 1.5rem;
+    top: 0;
     display: flex;
     flex-direction: column;
-    gap: 1.4rem;
+    align-self: start;
+    min-height: 100dvh;
+    gap: 1.25rem;
+    padding: 5.1rem 1.25rem 1.5rem;
+    border-left: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .dark .signals-list-rail {
+    border-left-color: rgba(255, 255, 255, 0.05);
+    background: var(--background);
   }
 
   .signals-rail-section + .signals-rail-section {
-    padding-top: 1.4rem;
+    padding-top: 1.2rem;
     border-top: 1px solid var(--border);
+  }
+}
+
+/* ==================================================================== TRADES
+   GX Trades page (/journal) — matches the approved reference: sidebar (shared)
+   + thin header + inline summary strip + tabs/search/sort + dense table +
+   persistent right details panel. Terminal aesthetic: rows, separators, subtle
+   surfaces and badges rather than floating cards. Dark and light share one set
+   of tokens. Below 1024px the panel drops under the table and secondary
+   columns fold away (.trades-hide-md / .trades-hide-sm). */
+
+.trades-view { display: flex; flex-direction: column; gap: 1rem; color: var(--foreground); }
+
+/* Header ------------------------------------------------------------------- */
+.trades-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.trades-header-title h1 { font-size: 1.4rem; font-weight: 650; letter-spacing: -0.035em; line-height: 1.1; }
+.trades-header-title p { margin-top: 0.2rem; color: var(--muted); font-size: 0.8rem; }
+.trades-connection { display: inline-flex; align-items: center; gap: 0.4rem; color: color-mix(in srgb, var(--foreground) 66%, var(--muted)); font-size: 0.62rem; font-weight: 650; letter-spacing: 0.11em; text-transform: uppercase; white-space: nowrap; }
+.trades-connection i { width: 0.4rem; height: 0.4rem; border-radius: 50%; background: var(--muted); }
+.trades-connection.is-connected i { background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.trades-header-bell { display: none; }
+
+/* Summary strip ------------------------------------------------------------ */
+.trades-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 1.6rem; padding: 0.8rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.trades-summary-item { display: inline-flex; align-items: baseline; gap: 0.4rem; }
+.trades-summary-item b { font-size: 1rem; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.trades-summary-item i { color: var(--muted); font-size: 0.6rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; font-style: normal; }
+
+/* Body layout -------------------------------------------------------------- */
+.trades-body { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 1.25rem; align-items: start; }
+.trades-workspace { min-width: 0; display: flex; flex-direction: column; gap: 0.8rem; }
+
+/* Toolbar ------------------------------------------------------------------ */
+.trades-toolbar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.trades-tabs { display: inline-flex; gap: 0.15rem; padding: 0.2rem; border: 1px solid var(--border); border-radius: 0.6rem; background: color-mix(in srgb, var(--surface) 55%, transparent); }
+.trades-tabs button { display: inline-flex; align-items: center; gap: 0.35rem; border-radius: 0.4rem; padding: 0.4rem 0.7rem; color: var(--muted-strong); font-size: 0.72rem; font-weight: 600; }
+.trades-tabs button:hover { color: var(--foreground); }
+.trades-tabs button.is-active { background: var(--accent); color: #05271e; }
+.dark .trades-tabs button.is-active { color: #04140d; }
+.trades-tab-count { font-size: 0.62rem; opacity: 0.7; font-variant-numeric: tabular-nums; }
+.trades-tabs button.is-active .trades-tab-count { opacity: 0.85; }
+
+.trades-search { display: flex; align-items: center; gap: 0.4rem; min-width: 9rem; flex: 1 1 11rem; max-width: 17rem; padding: 0.45rem 0.65rem; border: 1px solid var(--border); border-radius: 0.5rem; background: var(--surface); }
+.trades-search svg { width: 0.85rem; height: 0.85rem; color: var(--muted); flex-shrink: 0; }
+.trades-search input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--foreground); font-size: 0.75rem; }
+
+.trades-subfilter { display: inline-flex; gap: 0.15rem; padding: 0.2rem; border: 1px solid var(--border); border-radius: 0.5rem; }
+.trades-subfilter button { border-radius: 0.35rem; padding: 0.35rem 0.6rem; color: var(--muted); font-size: 0.68rem; font-weight: 600; }
+.trades-subfilter button.is-active { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+
+.trades-sort { display: inline-flex; align-items: center; min-height: 2rem; margin-left: auto; border: 1px solid var(--border); border-radius: 0.55rem; padding: 0.4rem 0.7rem; background: var(--surface); color: var(--muted); font-size: 0.72rem; white-space: nowrap; transition: border-color .15s ease, background .15s ease; }
+.trades-sort:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
+.trades-sort b { color: var(--foreground); font-weight: 650; }
+
+/* Table -------------------------------------------------------------------- */
+.trades-table { display: flex; flex-direction: column; }
+.trades-head, .trades-row { display: grid; gap: 0.6rem; align-items: center; text-align: left; }
+.trades-table.is-open .trades-head, .trades-table.is-open .trades-row { grid-template-columns: 1.6fr 0.7fr 1fr 1fr 1fr 1fr 0.6fr 0.6fr 0.95fr 1fr 0.8fr; }
+.trades-table.is-closed .trades-head, .trades-table.is-closed .trades-row { grid-template-columns: 1.5fr 0.7fr 1.2fr 1fr 1fr 0.85fr 0.75fr 0.95fr 0.9fr 1.1fr; }
+.trades-head { padding: 0.4rem 0.6rem; color: var(--muted); font-size: 0.56rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+.trades-row { width: 100%; min-height: 3rem; padding: 0.5rem 0.6rem; border: 0; border-bottom: 1px solid color-mix(in srgb, var(--border) 75%, transparent); background: transparent; color: var(--foreground); font-size: 0.78rem; cursor: pointer; transition: background-color 0.12s ease; }
+.trades-row:hover { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.trades-row.is-selected { background: color-mix(in srgb, var(--accent) 10%, transparent); box-shadow: inset 2px 0 var(--accent); }
+.trades-row > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trades-row .metric-number { font-size: 0.8rem; }
+.trades-cell-pair { display: flex; flex-direction: column; gap: 1px; line-height: 1.15; }
+.trades-cell-pair b { font-size: 0.82rem; font-weight: 600; letter-spacing: -0.01em; }
+.trades-cell-pair small { color: var(--muted); font-size: 0.62rem; }
+.trades-muted { color: var(--muted); }
+
+.trades-load-more { margin: 0.8rem auto 0; padding: 0.5rem 1rem; border: 1px solid var(--border); border-radius: 0.5rem; background: var(--surface); color: var(--muted-strong); font-size: 0.72rem; font-weight: 600; }
+.trades-empty { padding: 1.5rem 0.2rem; color: var(--muted); font-size: 0.82rem; }
+.trades-skeleton { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.6rem; }
+.trades-skeleton-row { height: 2.6rem; border-radius: 0.4rem; background: linear-gradient(90deg, color-mix(in srgb, var(--foreground) 5%, transparent), color-mix(in srgb, var(--foreground) 9%, transparent), color-mix(in srgb, var(--foreground) 5%, transparent)); background-size: 200% 100%; animation: trades-shimmer 1.4s ease infinite; }
+@keyframes trades-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* Badges ------------------------------------------------------------------- */
+.trade-side, .trade-result { display: inline-flex; align-items: center; justify-content: center; border-radius: 0.3rem; padding: 0.16rem 0.42rem; font-size: 0.58rem; font-weight: 700; letter-spacing: 0.05em; white-space: nowrap; }
+.trade-side.is-long, .trade-result.is-win { color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, transparent); }
+.trade-side.is-short, .trade-result.is-loss { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); }
+.trade-result.is-be { color: var(--muted-strong); background: color-mix(in srgb, var(--foreground) 8%, transparent); }
+
+/* Right details panel ------------------------------------------------------ */
+.trades-panel { position: sticky; top: 1rem; display: flex; flex-direction: column; gap: 0.9rem; padding: 1.1rem 1.15rem 1.2rem; border: 1px solid var(--border); border-radius: 1rem; background: color-mix(in srgb, var(--surface) 82%, var(--background)); }
+.dark .trades-panel { background: color-mix(in srgb, var(--surface) 92%, var(--background)); border-color: var(--border-strong); }
+.trades-panel.is-empty { align-items: center; justify-content: center; min-height: 14rem; color: var(--muted); }
+.trades-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
+.trades-panel-ident { display: flex; align-items: center; gap: 0.5rem; }
+.trades-panel-pair { font-size: 1.05rem; font-weight: 650; letter-spacing: -0.02em; }
+.trades-panel-tag { color: var(--muted); font-size: 0.58rem; font-weight: 600; letter-spacing: 0.11em; text-transform: uppercase; }
+.trades-panel-pnl { display: flex; align-items: baseline; gap: 0.6rem; font-size: 1.5rem; font-weight: 700; letter-spacing: -0.03em; }
+.trades-panel-r { font-size: 0.85rem; font-weight: 650; color: color-mix(in srgb, currentColor 82%, var(--foreground)); }
+
+/* Level graph (SL to Entry to TP with the live marker) */
+.trade-level { position: relative; margin: 0.35rem 0 0.15rem; padding: 0 0 2.35rem; }
+.trade-level-marks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.35rem; margin-bottom: 0.75rem; }
+.trade-level-mark { display: flex; flex-direction: column; gap: 0.18rem; line-height: 1; white-space: nowrap; }
+.trade-level-mark i { color: var(--muted); font-size: 0.52rem; font-weight: 650; letter-spacing: 0.1em; font-style: normal; }
+.trade-level-mark b { font-size: 0.72rem; font-weight: 650; }
+.trade-level-mark.is-mid { align-items: center; text-align: center; }
+.trade-level-mark.is-end { align-items: flex-end; text-align: right; }
+.trade-level-track { position: relative; height: 0.45rem; border-radius: 999px; background: color-mix(in srgb, var(--foreground) 10%, transparent); }
+.trade-level-fill { position: absolute; left: 0; top: 0; height: 100%; border-radius: 999px; background: color-mix(in srgb, var(--accent) 55%, transparent); }
+.trade-level-tick { position: absolute; top: 50%; width: 2px; height: 0.7rem; background: var(--muted-strong); transform: translate(-50%, -50%); }
+.trade-level-knob { position: absolute; top: 50%; width: 0.72rem; height: 0.72rem; border-radius: 50%; background: var(--accent); border: 2px solid var(--surface); transform: translate(-50%, -50%); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+.trade-level-current { position: absolute; bottom: 0; display: flex; flex-direction: column; align-items: center; gap: 0.15rem; transform: translateX(-50%); white-space: nowrap; text-align: center; }
+.trade-level-current i { color: var(--muted); font-size: 0.52rem; font-weight: 650; letter-spacing: 0.1em; font-style: normal; }
+.trade-level-current b { font-size: 0.72rem; font-weight: 700; }
+
+/* Details grid + sections */
+.trade-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem 0.8rem; padding-top: 0.9rem; border-top: 1px solid var(--border); }
+.trade-detail-cell dt { color: var(--muted); font-size: 0.56rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; }
+.trade-detail-cell dd { margin-top: 0.15rem; font-size: 0.82rem; font-weight: 600; }
+.trade-panel-section { padding-top: 0.9rem; border-top: 1px solid var(--border); }
+.trade-panel-label { color: var(--muted); font-size: 0.56rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; }
+.trade-panel-strategy { margin-top: 0.3rem; font-size: 0.82rem; font-weight: 600; }
+.trade-panel-exit { margin: 0 -1.15rem; padding: 0.75rem 1.15rem; background: color-mix(in srgb, var(--accent) 7%, transparent); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.trade-panel-exit-value { margin-top: 0.3rem; font-size: 0.8rem; font-weight: 600; }
+.trade-panel-exit-value span { color: var(--muted); font-weight: 500; }
+.trade-panel-notes { margin-top: 0.35rem; color: var(--muted-strong); font-size: 0.76rem; line-height: 1.5; }
+.trade-panel-tags { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.5rem; }
+.trade-tag { border: 1px solid var(--border); border-radius: 0.35rem; padding: 0.18rem 0.45rem; color: var(--muted-strong); font-size: 0.6rem; font-weight: 600; }
+
+/* Actions */
+.trades-panel-actions { display: flex; gap: 0.5rem; margin-top: 0.3rem; }
+.trade-btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.6rem 0.9rem; border: 1px solid var(--border); border-radius: 0.55rem; background: var(--surface); color: var(--muted-strong); font-size: 0.75rem; font-weight: 600; }
+.trade-btn-ghost svg { width: 0.85rem; height: 0.85rem; }
+.trade-btn-ghost:disabled { opacity: 0.5; cursor: not-allowed; }
+.trade-btn-primary { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.6rem 0.9rem; border-radius: 0.55rem; background: var(--accent); color: #05271e; font-size: 0.78rem; font-weight: 700; }
+.dark .trade-btn-primary { color: #04140d; }
+.trade-btn-primary svg { width: 0.9rem; height: 0.9rem; }
+.trade-btn-primary.is-disabled { background: var(--surface-muted); color: var(--muted); cursor: default; }
+
+/* Responsive --------------------------------------------------------------- */
+@media (max-width: 1200px) { .trades-body { grid-template-columns: minmax(0, 1fr) 300px; } }
+@media (max-width: 1023px) {
+  .trades-body { grid-template-columns: minmax(0, 1fr); }
+  .trades-panel { position: static; top: auto; }
+  .trades-hide-md { display: none !important; }
+  .trades-table.is-open .trades-head, .trades-table.is-open .trades-row { grid-template-columns: 1.5fr 0.7fr 1fr 1fr 1fr 1fr 0.95fr 1fr 0.8fr; }
+  .trades-table.is-closed .trades-head, .trades-table.is-closed .trades-row { grid-template-columns: 1.4fr 0.7fr 1fr 1fr 0.85fr 0.8fr 1fr 1.1fr; }
+}
+@media (max-width: 767px) {
+  .trades-hide-sm { display: none !important; }
+  .trades-header-title h1 { font-size: 1.25rem; }
+  .trades-connection { display: none; }
+  .trades-header-bell { display: inline-flex; }
+  .trades-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; padding: 0.85rem 0.75rem; }
+  .trades-summary-item { min-width: 0; flex-direction: column; align-items: flex-start; gap: 0.15rem; }
+  .trades-summary-item b { font-size: 0.9rem; white-space: nowrap; }
+  .trades-summary-item i { font-size: 0.48rem; letter-spacing: 0.07em; white-space: nowrap; }
+  .trades-sort { margin-left: 0; }
+  .trades-table.is-open .trades-head, .trades-table.is-open .trades-row { grid-template-columns: 1.5fr 0.6fr 1fr 1fr 1fr 1fr 0.95fr 1fr; }
+  .trades-table.is-closed .trades-head, .trades-table.is-closed .trades-row { grid-template-columns: 1.5fr 0.7fr 1fr 1fr 0.9fr 0.9fr; }
+}
+
+/* ------------------------------------------- TRADES: phone list (stacked cards)
+   Below 768px the dense table is unreadable (truncated prices, clipped R), so
+   it is replaced by self-contained cards — each carries every figure its row
+   columns would. Tapping a card still selects it for the detail panel. */
+.trades-cards { display: none; flex-direction: column; gap: 0.55rem; margin-top: 0.2rem; }
+.trade-card { position: relative; display: flex; flex-direction: column; gap: 0.55rem; width: 100%; text-align: left; padding: 0.8rem 0.85rem 0.8rem 1rem; border: 1px solid var(--border); border-radius: 0.85rem; background: var(--surface); cursor: pointer; overflow: hidden; }
+.dark .trade-card { background: color-mix(in srgb, var(--surface) 90%, var(--background)); border-color: var(--border-strong); }
+.trade-card.is-selected { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+.trade-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--muted); }
+.trade-card.is-up::before, .trade-card.is-win::before { background: var(--accent); }
+.trade-card.is-down::before, .trade-card.is-loss::before { background: var(--danger); }
+.trade-card-top { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+.trade-card-pair { font-size: 0.95rem; font-weight: 650; letter-spacing: -0.01em; }
+.trade-card-r { font-size: 0.95rem; font-weight: 700; }
+.trade-card-sub { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; min-height: 1.1rem; }
+.trade-card-money { font-size: 0.82rem; font-weight: 650; }
+.trade-card-meta { color: var(--muted); font-size: 0.74rem; font-weight: 500; }
+.trade-card-side { font-weight: 700; letter-spacing: 0.03em; }
+.trade-card-side.is-long { color: var(--accent); }
+.trade-card-side.is-short { color: var(--danger); }
+.trade-card-levels { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.4rem; }
+.trade-card-levels dt { color: var(--muted); font-size: 0.54rem; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; }
+.trade-card-levels dd { margin-top: 2px; font-size: 0.8rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.trade-card-flow { font-size: 0.88rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.trade-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; color: var(--muted); font-size: 0.74rem; }
+
+@media (max-width: 767px) {
+  .trades-table { display: none; }
+  .trades-cards { display: flex; }
+  /* The selected row is already expanded in the detail panel immediately
+     below this list. Keeping its compact card creates a duplicate position. */
+  .trades-cards .trade-card.is-selected { display: none; }
+}
+
+/* Mobile chart toolbar: the four controls (Indicators, Range, Chart type,
+   Fullscreen) drop their borders — the surface fill alone reads as the button. */
+@media (max-width: 1023px) {
+  .signals-view .gx-mobile-chart-toolbar button,
+  .signals-view .gx-mobile-chart-toolbar button.is-active,
+  .signals-view .gx-mobile-chart-toolbar button.is-open {
+    border-color: transparent;
+  }
+}
+
+/* ============================================================
+   PREMIUM HOME
+   The home used to sit flat on one dark plane, hairline-divided,
+   which read as empty rather than minimal. This makes the balance
+   card the single elevated anchor and gives every content block a
+   consistent raised panel, on a near-neutral base (the page-wide
+   green wash is gone). Scoped to .home-shell; appended last so it
+   overrides the earlier flat/stripped rules by source order.
+   ============================================================ */
+.home-shell {
+  --home-panel: var(--surface);
+  --home-panel-border: var(--border);
+  --home-panel-radius: 18px;
+  --home-panel-shadow:
+    0 1px 2px color-mix(in srgb, var(--foreground) 6%, transparent),
+    0 12px 28px color-mix(in srgb, var(--foreground) 4%, transparent);
+  --home-hero-bloom: color-mix(in srgb, var(--accent) 10%, transparent);
+  --home-inset: color-mix(in srgb, var(--foreground) 3.5%, transparent);
+}
+
+.dark .home-shell {
+  /* A whisper above the near-black background so the card edge reads
+     without a heavy fill. */
+  --home-panel: color-mix(in srgb, var(--surface) 86%, var(--background));
+  --home-panel-border: rgba(255, 255, 255, 0.055);
+  --home-panel-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 16px 36px rgba(0, 0, 0, 0.44);
+  --home-hero-bloom: color-mix(in srgb, var(--accent) 14%, transparent);
+  --home-inset: rgba(255, 255, 255, 0.035);
+}
+
+/* Refined ambient base: a single, near-neutral top vignette. Depth
+   now comes from the panels, not a colored wash across the page. */
+.home-shell::before,
+.dark .home-shell::before {
+  background: radial-gradient(
+    120% 60% at 50% -24%,
+    color-mix(in srgb, var(--foreground) 5%, transparent),
+    transparent 66%
+  );
+}
+
+.home-main {
+  gap: 1.1rem;
+}
+
+/* --- Signature: the balance headline card ------------------- */
+.home-shell .account-overview-hero {
+  position: relative;
+  overflow: hidden;
+  margin: 0;
+  padding: 1.6rem 1.7rem 1.45rem;
+  border: 1px solid var(--home-panel-border);
+  border-radius: 22px;
+  background:
+    radial-gradient(150% 130% at 97% -45%, var(--home-hero-bloom), transparent 50%),
+    var(--home-panel);
+  box-shadow: var(--home-panel-shadow);
+}
+
+.dark .home-shell .account-overview-hero {
+  border: 1px solid var(--home-panel-border);
+  border-radius: 22px;
+  background:
+    radial-gradient(150% 130% at 97% -45%, var(--home-hero-bloom), transparent 50%),
+    var(--home-panel);
+  box-shadow: var(--home-panel-shadow);
+}
+
+.home-shell .account-overview-hero .account-chart-canvas {
+  --hero-surface: var(--home-panel);
+}
+
+/* The realized / unrealized strip reads as a footer inside the card. */
+.home-shell .home-chart-stats {
+  margin-top: 1.15rem;
+  padding-top: 1.05rem;
+  border-top: 1px solid var(--home-panel-border);
+}
+
+/* --- Unified content panels -------------------------------- */
+.home-main > .home-section,
+.home-main > .home-idle-section,
+.home-main .dashboard-trades-grid > .home-section {
+  margin: 0;
+  padding: 1.2rem 1.4rem;
+  border: 1px solid var(--home-panel-border);
+  border-radius: var(--home-panel-radius);
+  background: var(--home-panel);
+  box-shadow: var(--home-panel-shadow);
+}
+
+/* The status / recent-activity blocks used a top border as their only
+   separator; the panel border now carries that job on all four sides. */
+.home-main > .home-idle-section {
+  border-top: 1px solid var(--home-panel-border);
+}
+
+/* Signal tiles inside the Active-signals panel: flat insets, not
+   cards-within-a-card. */
+.home-main .home-section .home-signal-card {
+  border: 0;
+  background: var(--home-inset);
+}
+
+.home-main .home-section .home-signal-card:hover {
+  background: color-mix(in srgb, var(--accent) 8%, var(--home-inset));
+}
+
+/* --- Desktop: real two-column grid + sticky rail ------------
+   The rail used to be position:fixed anchored to the viewport, with a
+   reserved padding-right gutter. Framer Motion's page-transition wrapper
+   keeps a residual transform, which turns that wrapper into the fixed
+   rail's containing block — so the rail collapsed onto the content column
+   and overlapped it, while the reserved gutter sat empty. A grid column
+   with a sticky rail is immune to ancestor transforms and reclaims that
+   dead space. */
+@media (min-width: 1024px) {
+  .has-home-rail {
+    /* The grid owns the gutter now; drop the reserved padding. */
+    padding-right: 0;
+  }
+
+  .home-shell {
+    --home-rail-width: clamp(15.5rem, 21vw, 21rem);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--home-rail-width);
+    gap: 1.75rem;
+    align-items: start;
+  }
+
+  .home-rail {
+    position: sticky;
+    inset: auto;
+    top: calc(var(--app-topbar-height, 58px) + 1rem);
+    width: auto;
+    max-height: calc(100dvh - var(--app-topbar-height, 58px) - 2rem);
+    padding: 0 0 0 1.75rem;
+    overflow: auto;
+    border-left: 1px solid var(--home-panel-border);
+    background: transparent;
+  }
+
+  .dark .home-rail {
+    border-left: 1px solid var(--home-panel-border);
+    background: transparent;
+  }
+
+  .home-shell .account-overview-hero {
+    padding: 1.75rem 1.9rem 1.55rem;
+    border-radius: 24px;
+  }
+
+  .home-rail-total {
+    margin-top: 8px;
+    padding: 15px 17px 16px;
+    border: 1px solid var(--home-panel-border);
+    border-top: 1px solid var(--home-panel-border);
+    border-radius: 16px;
+    background: var(--home-panel);
+    box-shadow: var(--home-panel-shadow);
+  }
+}
+
+/* ============================================================
+   PREMIUM CHART — finish pass
+   The terminal's layout and dimensions are already hand-tuned, so this
+   only adds depth and refined selected/hover states (no size changes),
+   echoing the home overhaul. Appended last to win by source order.
+   ============================================================ */
+@media (min-width: 1024px) {
+  /* The control bar reads as a floating toolbar the chart sits beneath:
+     a subtle top-lit surface, a crisper hairline, and a soft cast down
+     onto the chart. */
+  .signals-view .gx-chart-terminal > .signals-chart-head {
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--surface) 84%, var(--chart-background)),
+      color-mix(in srgb, var(--surface) 60%, var(--chart-background))
+    );
+    border-bottom-color: color-mix(in srgb, var(--foreground) 12%, transparent);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.16);
+  }
+
+  /* Context rail: a quiet hover and a crisp accent cue on the active pair
+     — the classic premium "selected" marker. */
+  .signals-view .gx-chart-context .gx-watchlist-row {
+    position: relative;
+    transition: background-color 130ms ease;
+  }
+
+  .signals-view .gx-chart-context .gx-watchlist-row:hover {
+    background: color-mix(in srgb, var(--foreground) 5%, transparent);
+  }
+
+  .signals-view .gx-chart-context .gx-watchlist-row.is-active::before {
+    content: "";
+    position: absolute;
+    top: 7px;
+    bottom: 7px;
+    left: 0;
+    width: 2px;
+    border-radius: 0 2px 2px 0;
+    background: var(--accent);
+  }
+
+  /* A refined thin scrollbar so the rail doesn't show the heavy default. */
+  .signals-view .gx-chart-context {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--foreground) 16%, transparent) transparent;
+  }
+
+  .signals-view .gx-chart-context::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .signals-view .gx-chart-context::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--foreground) 16%, transparent);
+  }
+}
+
+/* ============================================================
+   PREMIUM TRADES (journal)
+   Same panel language as the home overhaul: the KPI strip becomes a
+   raised panel, trade cards and the detail panel gain consistent depth
+   and refined selected/hover states. Scoped to .trades-view; appended
+   last to win by source order.
+   ============================================================ */
+.trades-view {
+  --tp-panel: var(--surface);
+  --tp-border: var(--border);
+  --tp-shadow:
+    0 1px 2px color-mix(in srgb, var(--foreground) 6%, transparent),
+    0 12px 28px color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+
+.dark .trades-view {
+  --tp-panel: color-mix(in srgb, var(--surface) 86%, var(--background));
+  --tp-border: rgba(255, 255, 255, 0.055);
+  --tp-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 16px 36px rgba(0, 0, 0, 0.44);
+}
+
+.trades-view .trades-header-title h1 {
+  font-size: 1.6rem;
+  letter-spacing: -0.04em;
+}
+
+/* KPI strip → a single raised panel instead of a hairline-bounded text row. */
+.trades-view .trades-summary {
+  gap: 0.35rem 2.4rem;
+  padding: 1rem 1.35rem;
+  border: 1px solid var(--tp-border);
+  border-radius: 16px;
+  background: var(--tp-panel);
+  box-shadow: var(--tp-shadow);
+}
+
+.trades-view .trades-summary-item b {
+  font-size: 1.15rem;
+}
+
+/* Trade cards (mobile): panel depth + a clear selected state to go with the
+   win/loss accent bar they already carry. */
+.trades-view .trade-card,
+.dark .trades-view .trade-card {
+  padding: 0.9rem 1rem 0.9rem 1.1rem;
+  border: 1px solid var(--tp-border);
+  border-radius: 14px;
+  background: var(--tp-panel);
+  box-shadow: var(--tp-shadow);
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.trades-view .trade-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--tp-border));
+}
+
+.trades-view .trade-card.is-selected {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--tp-border));
+  box-shadow: var(--tp-shadow), 0 0 0 1px color-mix(in srgb, var(--accent) 38%, transparent);
+}
+
+/* Detail panel: align to the panel language (softer radius, matching depth). */
+.trades-view .trades-panel,
+.dark .trades-view .trades-panel {
+  border: 1px solid var(--tp-border);
+  border-radius: 18px;
+  background: var(--tp-panel);
+  box-shadow: var(--tp-shadow);
+}
+
+/* ============================================================
+   PREMIUM MARKETS + SETTINGS
+   Same panel language as the rest of the overhaul. Markets' KPI strip
+   becomes a raised panel; Settings' sections become cards on every
+   size (they were flat with hairline dividers below the desktop
+   breakpoint). Scoped per view; appended last to win by source order.
+   ============================================================ */
+.markets-workspace,
+.settings-view {
+  --sp-panel: var(--surface);
+  --sp-border: var(--border);
+  --sp-shadow:
+    0 1px 2px color-mix(in srgb, var(--foreground) 6%, transparent),
+    0 12px 28px color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+
+.dark .markets-workspace,
+.dark .settings-view {
+  --sp-panel: color-mix(in srgb, var(--surface) 86%, var(--background));
+  --sp-border: rgba(255, 255, 255, 0.055);
+  --sp-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 16px 36px rgba(0, 0, 0, 0.44);
+}
+
+/* --- Markets ------------------------------------------------ */
+.markets-workspace .markets-header h1 {
+  font-size: 1.6rem;
+  letter-spacing: -0.04em;
+}
+
+/* KPI strip → a raised panel (drops the full-bleed hairline row). */
+.markets-workspace .markets-summary {
+  margin: 1rem 0 0;
+  padding: 0.9rem 1.15rem;
+  border: 1px solid var(--sp-border);
+  border-radius: 16px;
+  background: var(--sp-panel);
+  box-shadow: var(--sp-shadow);
+}
+
+/* The per-KPI dividers keep the last item clean inside the panel. */
+.markets-workspace .markets-summary div:last-child {
+  border-right: 0;
+}
+
+/* Detail rail (desktop) aligned to the panel surface. */
+.markets-workspace .markets-detail {
+  border-left: 1px solid var(--sp-border);
+  background: var(--sp-panel);
+}
+
+/* --- Settings ---------------------------------------------- */
+.settings-view .text-display {
+  letter-spacing: -0.04em;
+}
+
+/* Each section is a card at every size (desktop already carded these;
+   this brings the same treatment to mobile and unifies the depth). */
+.settings-view > .settings-minimal-section,
+.dark .settings-view > .settings-minimal-section {
+  border: 1px solid var(--sp-border);
+  border-top: 1px solid var(--sp-border);
+  border-radius: 16px;
+  padding: 1.2rem 1.3rem;
+  background: var(--sp-panel);
+  box-shadow: var(--sp-shadow);
+}
+
+/* ============================================================
+   PREMIUM NAVIGATION
+   Left sidebar (desktop) gets a crisp "current page" accent marker;
+   the mobile dock becomes a frosted translucent bar with a refined
+   active pill instead of a flat opaque strip. Appended last to win by
+   source order.
+   ============================================================ */
+@media (min-width: 1024px) {
+  .app-sidebar .sidebar-nav-link {
+    position: relative;
+  }
+
+  /* A crisp accent bar marks the current page — the premium rail cue,
+     on top of the existing tinted fill + accent glyph. */
+  .app-sidebar .sidebar-nav-link-active,
+  .app-sidebar .sidebar-nav-link-active:hover {
+    font-weight: 600;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 15%, transparent);
+  }
+
+  .app-sidebar .sidebar-nav-link-active::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 9px;
+    bottom: 9px;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: var(--accent);
+  }
+
+  /* A hair more air between the rail items. */
+  .app-sidebar nav.mt-6 > * + *,
+  .app-sidebar nav.mt-3 > * + * {
+    margin-top: 3px;
+  }
+}
+
+@media (max-width: 1023px) {
+  /* Frosted dock: content scrolls elegantly beneath instead of hitting a
+     flat opaque strip. */
+  .mobile-dock {
+    background: color-mix(in srgb, var(--surface) 88%, transparent);
+    backdrop-filter: blur(22px) saturate(1.4);
+    -webkit-backdrop-filter: blur(22px) saturate(1.4);
+    border-top: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent);
+  }
+
+  .mobile-dock .nav-pill {
+    background: transparent;
+  }
+
+  /* Refined active pill: a crisper accent tint with a subtle ring. */
+  .mobile-dock .nav-mobile-link-active .nav-mobile-icon {
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 32%, transparent);
   }
 }

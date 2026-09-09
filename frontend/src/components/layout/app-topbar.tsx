@@ -16,7 +16,6 @@ function readCondition(now = new Date()) {
 }
 
 const PAGE_LABELS: Array<{ prefix: string; label: string }> = [
-  { prefix: "/signals", label: "Signals" },
   { prefix: "/chart", label: "Chart" },
   { prefix: "/journal", label: "Trades" },
   { prefix: "/watchlist", label: "Markets" },

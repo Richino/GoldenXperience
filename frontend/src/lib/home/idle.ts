@@ -27,6 +27,8 @@ export type HomeActivityItem = {
   id: string;
   pair: string;
   instrument: string | null;
+  /** Strategy records have a chartable paper-strategy trade id. */
+  chartTradeId: string | null;
   label: string;
   kind: HomeActivityKind;
   resultR: number | null;
@@ -148,6 +150,7 @@ export function recentActivityFromTrades(trades: JournalTrade[], limit = 10): Ho
         id: trade.id,
         pair: trade.pair,
         instrument: trade.instrument ?? null,
+        chartTradeId: trade.origin === "strategy" ? trade.id : null,
         label: activityLabel(trade.outcome, kind),
         kind,
         resultR: trade.resultR,

@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { WatchlistTabs } from "@/components/watchlist/watchlist-tabs";
+import { WatchlistView } from "@/components/watchlist/watchlist-view";
 
 export const metadata: Metadata = { title: "Watchlist" };
 
 export default function WatchlistPage() {
-  return <WatchlistTabs />;
+  return <WatchlistView />;
 }

@@ -16,6 +16,25 @@ const MARKET_PAIRS: MajorInstrument[] = [
   "USD_CAD",
 ];
 
+export type HomeAvailableSignal = {
+  instrument: MajorInstrument;
+  direction: "long" | "short";
+  entry: number;
+  stop: number;
+  target: number;
+  evaluatedAt: string | null;
+};
+
+export type HomeCurrentPosition = {
+  id: string;
+  instrument: MajorInstrument;
+  direction: "long" | "short";
+  entry: number;
+  stop: number;
+  target: number;
+  openedAt: string;
+};
+
 function compactPair(instrument: string) {
   return displayNameFor(instrument);
 }
@@ -30,7 +49,8 @@ function money(value: number, currency: string) {
 
 export function HomeRail({
   quotes,
-  featuredInstrument,
+  availableSignals,
+  currentPositions,
   currency,
   todayNet,
   todayR,
@@ -39,7 +59,10 @@ export function HomeRail({
   todayLosses,
 }: {
   quotes: Record<string, { bid: number; ask: number }>;
-  featuredInstrument: MajorInstrument;
+  /** Only fully formed, live watchlist setups belong in this surface. */
+  availableSignals: HomeAvailableSignal[];
+  /** Open paper trades take priority over prospective setups in this rail. */
+  currentPositions: HomeCurrentPosition[];
   currency: string;
   /** Realized money booked today; null when nothing has closed. */
   todayNet: number | null;
@@ -50,13 +73,12 @@ export function HomeRail({
 }) {
   const [dayChange, setDayChange] = useState<Record<string, number>>({});
   const [lastClose, setLastClose] = useState<Record<string, number>>({});
-  const featuredMid = quotes[featuredInstrument]
-    ? (quotes[featuredInstrument].bid + quotes[featuredInstrument].ask) / 2
-    : null;
   const resolvedToday = todayWins + todayLosses;
   const winPercent = resolvedToday > 0 ? Math.round((todayWins / resolvedToday) * 100) : null;
   const netPositive = (todayNet ?? 0) >= 0;
   const rPositive = (todayR ?? 0) >= 0;
+  const previewItems = currentPositions.length ? currentPositions : availableSignals;
+  const showingPositions = currentPositions.length > 0;
 
   useEffect(() => {
     let cancelled = false;
@@ -104,8 +126,52 @@ export function HomeRail({
   }, []);
 
   return (
-    <aside className="home-rail" aria-label="Markets">
-      <HomeMiniChart instrument={featuredInstrument} liveMid={featuredMid} />
+    <aside className="home-rail" aria-label="Current positions, available signals, and markets">
+      <section className="home-available-signals" aria-label={showingPositions ? "Current positions" : "Available signals"}>
+        <div className="home-rail-heading">
+          <span>{showingPositions ? "Current positions" : "Available signals"}</span>
+          {previewItems.length > 1 ? <span className="home-signal-swipe-hint">Swipe</span> : null}
+        </div>
+        {previewItems.length ? (
+          <div className="home-signal-carousel">
+            {previewItems.map((signal) => {
+              const quote = quotes[signal.instrument];
+              const liveMid = quote ? (quote.bid + quote.ask) / 2 : null;
+              const position = "id" in signal;
+              return (
+                <Link
+                  key={position ? signal.id : `${signal.instrument}-${signal.direction}-${signal.entry}`}
+                  href={position ? `/chart?instrument=${signal.instrument}&trade=${signal.id}` : `/chart?instrument=${signal.instrument}`}
+                  className="home-signal-preview"
+                  aria-label={`Open ${compactPair(signal.instrument)} ${signal.direction} ${position ? "position" : "signal"} chart with entry, stop loss, and target`}
+                >
+                  <HomeMiniChart
+                    instrument={signal.instrument}
+                    liveMid={liveMid}
+                    evaluatedAt={position ? signal.openedAt : signal.evaluatedAt}
+                  />
+                  <dl className="home-signal-levels">
+                    <div>
+                      <dt>Entry</dt>
+                      <dd>{formatChartPrice(signal.entry, signal.instrument)}</dd>
+                    </div>
+                    <div>
+                      <dt>Stop loss</dt>
+                      <dd className="is-negative">{formatChartPrice(signal.stop, signal.instrument)}</dd>
+                    </div>
+                    <div>
+                      <dt>Target</dt>
+                      <dd className="is-positive">{formatChartPrice(signal.target, signal.instrument)}</dd>
+                    </div>
+                  </dl>
+                </Link>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="home-available-signals-empty">No available entries right now.</p>
+        )}
+      </section>
 
       <section className="home-rail-section">
         <div className="home-rail-heading">

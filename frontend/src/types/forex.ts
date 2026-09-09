@@ -104,6 +104,8 @@ export interface TradeSignal {
   strategy: string;
   note: string;
   freshness: string;
+  /** Opening time when this signal represents a live paper position. */
+  openedAt?: string;
 }
 
 /** An automatic paper trade, reduced to what the chart needs to mark it up. */

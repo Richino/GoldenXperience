@@ -210,14 +210,17 @@ function chartTheme(
 ): DeepPartial<TimeChartOptions> {
   const background = embedded
     ? isDark
-      ? "#09090b"
+      ? "#0b0b0d"
       : "#ffffff"
     : isDark
       ? "#080A0B"
       : "#f7f6f3";
   const scaleText = isDark ? "#9a9aa3" : "#6e6e73";
   const accent = isDark ? "#00e59b" : "#00b377";
-  const gridLine = isDark ? "rgba(255,255,255,0.045)" : "rgba(28,28,30,0.07)";
+  // Horizontal-emphasis grid: price rows read clearly while the time lines
+  // recede, the way a refined trading terminal frames its candles.
+  const horzGrid = isDark ? "rgba(255,255,255,0.05)" : "rgba(28,28,30,0.06)";
+  const vertGrid = isDark ? "rgba(255,255,255,0.028)" : "rgba(28,28,30,0.035)";
 
   return {
     layout: {
@@ -229,8 +232,8 @@ function chartTheme(
       attributionLogo: false,
     },
     grid: {
-      vertLines: { color: gridLine, style: LineStyle.Solid, visible: !embedded },
-      horzLines: { color: gridLine, style: LineStyle.Solid, visible: !embedded },
+      vertLines: { color: vertGrid, style: LineStyle.Solid, visible: !embedded },
+      horzLines: { color: horzGrid, style: LineStyle.Solid, visible: !embedded },
     },
     crosshair: {
       mode: CrosshairMode.Normal,
@@ -857,12 +860,16 @@ export function SetupChart({
   const lastScrollRevisionRef = useRef(0);
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme !== "light";
+  // Candles use the same success/danger hues as the rest of the UI so the
+  // chart reads as part of one system. The down bar was a pastel salmon
+  // (#f87171) that sat weakly beside the vivid green; it now matches the
+  // design's danger red, and the wicks are one muted step off each body.
   const upColor = isDark ? "#00e59b" : "#00b377";
-  const downColor = isDark ? "#f87171" : "#e74c3c";
+  const downColor = isDark ? "#ff6370" : "#e74c3c";
   const winPathColor = isDark ? "#a7f3d0" : "#047857";
   const lossPathColor = isDark ? "#ff3b5c" : "#a61b3d";
   const wickUpColor = isDark ? "#00c488" : "#009966";
-  const wickDownColor = isDark ? "#e85d6a" : "#d64545";
+  const wickDownColor = isDark ? "#e5566b" : "#d64545";
   /**
    * Area and line charts express the direction of the complete selected
    * period—not the bars currently in view. Panning must not change whether a
@@ -1751,7 +1758,7 @@ export function SetupChart({
         ref={containerRef}
         className={`w-full overflow-visible ${
           embedded
-            ? "setup-chart-touch bg-[color:var(--signals-mobile-page-bg)] dark:bg-[#09090b] lg:bg-[color:var(--background)]"
+            ? "setup-chart-touch bg-[color:var(--signals-mobile-page-bg)] dark:bg-[#0b0b0d] lg:bg-[color:var(--background)]"
             : "bg-transparent"
         }`}
         style={{ height: chartHeight }}

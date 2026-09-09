@@ -19,18 +19,38 @@ function compactPair(instrument: string) {
   return displayNameFor(instrument);
 }
 
+function elapsedSince(value: string | null, now: number) {
+  if (!value) return null;
+  const startedAt = Date.parse(value);
+  if (!Number.isFinite(startedAt)) return null;
+  const minutes = Math.max(0, Math.floor((now - startedAt) / 60_000));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
 export function HomeMiniChart({
   instrument,
   liveMid,
+  evaluatedAt,
 }: {
   instrument: MajorInstrument;
   liveMid: number | null;
+  evaluatedAt: string | null;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const { resolvedTheme } = useTheme();
   const [changePercent, setChangePercent] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -116,11 +136,12 @@ export function HomeMiniChart({
   }, [instrument]);
 
   const positive = (changePercent ?? 0) >= 0;
+  const age = elapsedSince(evaluatedAt, now);
 
   return (
     <div className="home-mini-chart">
       <div className="home-mini-chart-meta">
-        <span className="home-mini-chart-pair">{compactPair(instrument)} · 15M</span>
+        <span className="home-mini-chart-pair">{compactPair(instrument)}{age ? ` · ${age}` : ""}</span>
         <span className="home-mini-chart-quote">
           <span className="metric-number">
             {liveMid === null ? "—" : formatChartPrice(liveMid, instrument)}

@@ -12,7 +12,6 @@ import {
   Ellipsis,
   House,
   ListChecks,
-  Radio,
   Settings,
   type LucideIcon,
 } from "lucide-react";
@@ -53,7 +52,6 @@ function clearNavClick(event: React.AnimationEvent<HTMLElement>) {
 
 const navItems: NavItem[] = [
   { label: "Home", href: "/", icon: House },
-  { label: "Signals", href: "/signals", icon: Radio },
   { label: "Chart", href: "/chart", icon: ChartNoAxesCombined },
   { label: "Trades", href: "/journal", icon: BookOpen },
   { label: "Markets", href: "/watchlist", icon: ListChecks },
@@ -62,7 +60,7 @@ const navItems: NavItem[] = [
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
-const mobilePrimaryHrefs = ["/", "/signals", "/chart", "/journal", "/settings"] as const;
+const mobilePrimaryHrefs = ["/", "/watchlist", "/chart", "/journal", "/settings"] as const;
 
 function isActive(pathname: string, href: string) {
   if (href === "/settings") {
@@ -186,7 +184,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isClient = useSyncExternalStore(subscribe, () => true, () => false);
   const isChart = pathname.startsWith("/chart");
   const isDashboard = pathname === "/";
-  const isSignals = pathname === "/signals";
+  // Trades (the /journal route) carries its own header + connection strip and a
+  // two-pane workspace, so it opts out of the shared market-status top bar.
+  const isTrades = pathname === "/journal";
   const activeMobileIndex = Math.max(
     0,
     mobileNavItems.findIndex((item) => isActive(pathname, item.href)),
@@ -335,25 +335,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div
-        className={`min-w-0 w-full lg:pl-[224px] ${isSignals ? "" : "has-topbar"} ${
+        className={`min-w-0 w-full lg:pl-[224px] ${isTrades ? "" : "has-topbar"} ${
           isChart ? "lg:min-h-dvh" : ""
         } ${isDashboard ? "has-home-rail" : ""}`}
       >
-        {/* Signals carries its own header strip (title + live counts + search),
-            so it opts out of the shared market-status top bar. */}
-        {isSignals ? null : <AppTopBar />}
+        {isTrades ? null : <AppTopBar />}
         <main
           className={`w-full min-w-0 ${
             isChart
               ? "min-h-dvh p-0"
               : isDashboard
                 ? "w-full px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-5 lg:px-6 lg:pb-8"
-                : isSignals
-                  ? "w-full max-w-[1320px] mx-auto px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-6 lg:px-6 lg:pb-8"
+                : isTrades
+                  ? "mx-auto w-full max-w-[1600px] px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-6 lg:px-8 lg:pb-10"
                   : "mx-auto max-w-[1320px] px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-6 lg:px-8 lg:pb-10"
           }`}
         >
-          {!isChart && !isDashboard && !isSignals ? <MobileTopBar showBack /> : null}
+          {!isChart && !isDashboard && !isTrades ? <MobileTopBar showBack /> : null}
           <div key={pathname} className="mobile-page-transition">
             {children}
           </div>

@@ -9,12 +9,12 @@ import {
   Maximize,
   Minimize,
   RotateCcw,
-  Layers3,
   Search,
   X,
 } from "lucide-react";
 import { ChartTypeSelect } from "@/components/charts/chart-type-select";
 import {
+  ChartOptionSheet,
   ChartTypeSheet,
   IndicatorSheet,
 } from "@/components/charts/chart-sheet-controls";
@@ -30,7 +30,7 @@ import {
 } from "@/components/charts/chart-context-panel";
 import { PairAvatar } from "@/components/ui/pair-avatar";
 import { apiUrl } from "@/lib/api/url";
-import { formatClockTime, formatDayAndTime } from "@/lib/format/datetime";
+import { formatClockTime, formatDayAndTime, formatShortDay } from "@/lib/format/datetime";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import {
   CHART_INDICATORS,
@@ -871,7 +871,40 @@ function ActivePositionStrip({
       <span><small>TP</small><b className="metric-number is-positive">{formatChartPrice(signal.target, signal.instrument)}</b></span>
       <span><small>R:R</small><b>{signal.riskReward.toFixed(1)}:1</b></span>
       <span><small>Open R</small><b className={openR !== null && openR < 0 ? "is-negative" : "is-positive"}>{openR === null ? "—" : `${openR >= 0 ? "+" : ""}${openR.toFixed(2)}R`}</b></span>
+      {signal.openedAt ? <PositionOpenTiming openedAt={signal.openedAt} /> : null}
     </div>
+  );
+}
+
+function PositionOpenTiming({ openedAt }: { openedAt: string }) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const started = Date.parse(openedAt);
+  const minutes = Number.isFinite(started) ? Math.max(0, Math.floor((now - started) / 60_000)) : null;
+  const duration = minutes === null
+    ? "—"
+    : minutes < 60
+      ? `${minutes}m`
+      : minutes < 1_440
+        ? `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+        : `${Math.floor(minutes / 1_440)}d ${Math.floor((minutes % 1_440) / 60)}h`;
+
+  return (
+    <>
+      <span className="gx-position-mobile-detail gx-position-opened">
+        <small>Opened</small>
+        <b>{formatShortDay(openedAt)} · {formatClockTime(openedAt)}</b>
+      </span>
+      <span className="gx-position-mobile-detail">
+        <small>Duration</small>
+        <b>{duration}</b>
+      </span>
+    </>
   );
 }
 
@@ -1729,6 +1762,30 @@ export function SignalWorkspace({
     ? predictionFocus
     : null;
   const activeFocusId = focusTrade?.id ?? null;
+  // A journal link can focus an open trade before the watchlist collector has
+  // refreshed its `openTradeId`. Prefer that focused trade in Active Position
+  // so the chart never says "no open position" while its own trade is open.
+  const positionSignal = useMemo<TradeSignal | null>(() => {
+    if (focusTrade && focusTrade.closedAt === null) {
+      const risk = Math.abs(focusTrade.entry - focusTrade.stop);
+      return {
+        instrument,
+        pair: activeSetup.pair,
+        timeframe: "15m",
+        direction: focusTrade.direction,
+        bias: focusTrade.direction === "long" ? "Bullish" : "Bearish",
+        entry: focusTrade.entry,
+        stop: focusTrade.stop,
+        target: focusTrade.target,
+        riskReward: risk > 0 ? Math.abs(focusTrade.target - focusTrade.entry) / risk : 0,
+        strategy: `Paper · Batch ${focusTrade.batchNumber ?? "—"}`,
+        note: `Trade #${focusTrade.tradeSequence}`,
+        freshness: "Open",
+        openedAt: focusTrade.openedAt,
+      };
+    }
+    return openSignal;
+  }, [activeSetup.pair, focusTrade, instrument, openSignal]);
   // A focused trade replaces the live plan on the chart: its own entry, stop,
   // target and exit are what the markers have to line up with.
   const setupLevels = useMemo(
@@ -2024,22 +2081,6 @@ export function SignalWorkspace({
   }
 
   const sessionLabel = marketSessionCaption();
-  const overlaysEnabled =
-    overlayPreferences.levels &&
-    overlayPreferences.signalMarkers &&
-    overlayPreferences.positionMarkers;
-  const overlaysActive =
-    overlayPreferences.levels ||
-    overlayPreferences.signalMarkers ||
-    overlayPreferences.positionMarkers;
-
-  function toggleAllOverlays() {
-    setOverlayPreferences({
-      levels: !overlaysEnabled,
-      signalMarkers: !overlaysEnabled,
-      positionMarkers: !overlaysEnabled,
-    });
-  }
 
   return (
     <div
@@ -2062,12 +2103,7 @@ export function SignalWorkspace({
                 onSelect={selectSearchResult}
                 className="gx-pair-search"
               />
-              <div className="flex items-center gap-2">
-                <FullscreenToggle
-                  className="signals-icon-btn"
-                  fullscreen={fullscreen}
-                  onToggle={() => setFullscreen((open) => !open)}
-                />
+              <div className="signals-mobile-header-actions flex items-center gap-2">
                 <NotificationBell compact className="signals-icon-btn signals-fullscreen-reserve" />
               </div>
             </div>
@@ -2097,7 +2133,7 @@ export function SignalWorkspace({
             ) : null}
           </div>
 
-          {focusTrade ? (
+          {focusTrade && focusTrade.closedAt !== null ? (
             <TradeFocusBar trade={focusTrade} onClear={clearFocusTrade} />
           ) : null}
           {focusedPrediction ? (
@@ -2153,13 +2189,7 @@ export function SignalWorkspace({
 
           <div className="gx-mobile-chart-toolbar">
             <IndicatorSheet enabled={enabledIndicators} onChange={setEnabledIndicators} />
-            <button
-              type="button"
-              className={`gx-mobile-tool-button ${overlaysActive ? "is-active" : ""}`}
-              onClick={toggleAllOverlays}
-            >
-              <Layers3 className="size-4" strokeWidth={2} /> GX
-            </button>
+            <ChartOptionSheet title="Range" options={CHART_RANGES} value={range} onChange={selectRange} />
             <ChartTypeSheet value={chartVariant} onChange={setChartVariant} />
             <FullscreenToggle
               className="gx-mobile-tool-button"
@@ -2170,7 +2200,7 @@ export function SignalWorkspace({
 
           <div className="gx-mobile-position-section">
             <ActivePositionStrip
-              signal={openSignal}
+              signal={positionSignal}
               currentPrice={quote?.mid ?? null}
               pairLabel={activeSetup.pair}
             />
@@ -2223,15 +2253,6 @@ export function SignalWorkspace({
                 enabled={enabledIndicators}
                 onChange={setEnabledIndicators}
               />
-              <button
-                type="button"
-                className={`gx-toolbar-btn pressable ${overlaysActive ? "is-emphasis" : ""}`}
-                aria-pressed={overlaysActive}
-                onClick={toggleAllOverlays}
-              >
-                <Layers3 className="size-3.5" strokeWidth={2} />
-                GX Overlays
-              </button>
               <ChartTypeSelect toolbar value={chartVariant} onChange={setChartVariant} />
               <RangeSelect value={range} onChange={selectRange} />
               <ResetViewButton
@@ -2256,7 +2277,7 @@ export function SignalWorkspace({
               </p>
             ) : null}
 
-            {focusTrade ? (
+            {focusTrade && focusTrade.closedAt !== null ? (
               <TradeFocusBar trade={focusTrade} onClear={clearFocusTrade} />
             ) : null}
             {focusedPrediction ? (
@@ -2296,7 +2317,7 @@ export function SignalWorkspace({
             </div>
           </div>
           <ActivePositionStrip
-            signal={openSignal}
+            signal={positionSignal}
             currentPrice={quote?.mid ?? null}
             pairLabel={activeSetup.pair}
           />

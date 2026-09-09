@@ -4,12 +4,11 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AccountOverviewHero } from "@/components/dashboard/account-overview-hero";
 import { GxStatus, buildGxStatus } from "@/components/dashboard/gx-status";
-import { HomeRail } from "@/components/dashboard/home-rail";
+import { HomeRail, type HomeAvailableSignal, type HomeCurrentPosition } from "@/components/dashboard/home-rail";
 import { HomeRecentActivity } from "@/components/dashboard/home-recent-activity";
 import { HomeUpcoming } from "@/components/dashboard/home-upcoming";
 import { RecentPredictions } from "@/components/dashboard/recent-predictions";
 import { RelativeTime } from "@/components/dashboard/relative-time";
-import { DEFAULT_RISK_POLICY } from "@/lib/risk/engine";
 import {
   recentActivityFromTrades,
   todayClosedStats,
@@ -134,13 +133,6 @@ export type DashboardOverview = {
   accountTrades?: Array<{ tradeSequence?: number; paperPl: number | null; closedAt: string | null; openedAt: string; status: string }>;
 };
 
-export type DashboardExposure = {
-  openTrades: number;
-  totalNominalRiskPercent: number;
-  totalNominalRiskAmount: number;
-  currencyExposure: Array<{ code: string; nominalRiskPercent: number }>;
-};
-
 export type DashboardJournal = {
   trades: JournalTrade[];
   summary?: {
@@ -193,7 +185,6 @@ export function DashboardView({
   initialWatchlist,
   initialStrategyWatchlist,
   initialOverview,
-  initialExposure,
   initialJournal,
   userLabel,
   todayKey,
@@ -204,7 +195,6 @@ export function DashboardView({
   initialWatchlist: DashboardWatchRow[];
   initialStrategyWatchlist: DashboardStrategyRow[];
   initialOverview: DashboardOverview;
-  initialExposure: DashboardExposure;
   initialJournal: DashboardJournal;
   userLabel: string;
   todayKey: string;
@@ -219,7 +209,6 @@ export function DashboardView({
   const [watchlist, setWatchlist] = useState(initialWatchlist);
   const [strategyRows, setStrategyRows] = useState(initialStrategyWatchlist);
   const [overview, setOverview] = useState(initialOverview);
-  const [exposure, setExposure] = useState(initialExposure);
   const [error, setError] = useState<string | null>(null);
   // Ticks rather than the 60s refresh below, so an open trade's value moves
   // with the market instead of jumping once a minute.
@@ -230,14 +219,13 @@ export function DashboardView({
 
   const refresh = useCallback(async () => {
     try {
-      const [accountResponse, historyResponse, watchlistResponse, strategyResponse, cycleResponse, journalResponse, riskResponse] = await Promise.all([
+      const [accountResponse, historyResponse, watchlistResponse, strategyResponse, cycleResponse, journalResponse] = await Promise.all([
         fetch(apiUrl("/api/oanda/account-summary"), { credentials: "include", cache: "no-store" }),
         fetch(apiUrl("/api/oanda/account-history"), { credentials: "include", cache: "no-store" }),
         fetch(apiUrl("/api/watchlist"), { credentials: "include", cache: "no-store" }),
         fetch(apiUrl("/api/multistrategy/watchlist"), { credentials: "include", cache: "no-store" }),
         fetch(apiUrl("/api/paper-cycle"), { credentials: "include", cache: "no-store" }),
         fetch(apiUrl("/api/journal/trades?limit=50&filter=all"), { credentials: "include", cache: "no-store" }),
-        fetch(apiUrl("/api/paper-risk"), { credentials: "include", cache: "no-store" }),
       ]);
       if (![accountResponse, historyResponse, watchlistResponse, cycleResponse].every((response) => response.ok)) {
         throw new Error("Dashboard data is temporarily unavailable.");
@@ -263,10 +251,6 @@ export function DashboardView({
       if (strategyResponse.ok) {
         const strategyPayload = (await strategyResponse.json()) as { instruments?: DashboardStrategyRow[] };
         if (strategyPayload.instruments) setStrategyRows(strategyPayload.instruments);
-      }
-      if (riskResponse.ok) {
-        const riskPayload = (await riskResponse.json()) as { exposure?: DashboardExposure };
-        if (riskPayload.exposure) setExposure(riskPayload.exposure);
       }
       setError(null);
     } catch (reason) {
@@ -318,10 +302,28 @@ export function DashboardView({
     await Promise.all([refreshAccount(), refresh()]);
   }, [refreshAccount, refresh]));
 
-  const featuredInstrument = (openTrades[0]?.instrument ?? strategyRows[0]?.instrument ?? "EUR_USD") as MajorInstrument;
   const signalRows = watchlist
     .filter((row) => row.entry !== null && row.stop !== null && row.target !== null && row.direction)
     .slice(0, 2);
+  const availableSignals: HomeAvailableSignal[] = signalRows.map((row) => ({
+    instrument: row.instrument as MajorInstrument,
+    direction: row.direction as "long" | "short",
+    entry: row.entry as number,
+    stop: row.stop as number,
+    target: row.target as number,
+    evaluatedAt: row.evaluatedAt,
+  }));
+  const currentPositions: HomeCurrentPosition[] = openTrades
+    .filter((trade) => trade.entry !== null && trade.entry !== undefined && trade.stop !== null && trade.stop !== undefined && trade.target !== null && trade.target !== undefined)
+    .map((trade) => ({
+      id: trade.id,
+      instrument: trade.instrument as MajorInstrument,
+      direction: trade.direction,
+      entry: trade.entry as number,
+      stop: trade.stop as number,
+      target: trade.target as number,
+      openedAt: trade.openedAt,
+    }));
   const hasOpenPositions = openTrades.length > 0;
   const hasActiveSignals = signalRows.length > 0;
   const showIdleContext = !hasOpenPositions || !hasActiveSignals;
@@ -354,8 +356,6 @@ export function DashboardView({
         history={accountHistory}
         todayKey={todayKey}
         openPL={openPL}
-        riskTodayPercent={exposure.totalNominalRiskPercent}
-        riskLimitPercent={DEFAULT_RISK_POLICY.maxDailyLossPercent}
       />
 
       {error ? <p className="research-error">{error}</p> : null}
@@ -522,7 +522,8 @@ export function DashboardView({
 
       <HomeRail
         quotes={quotes}
-        featuredInstrument={featuredInstrument}
+        availableSignals={availableSignals}
+        currentPositions={currentPositions}
         currency={account.currency}
         todayNet={todayNet}
         todayR={todayFromList.netR}

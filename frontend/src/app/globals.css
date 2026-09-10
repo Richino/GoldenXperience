@@ -6799,20 +6799,16 @@ input[type="number"] {
     /* !important defeats a base button reset that otherwise forces a square,
        borderless box on this element. */
     border-radius: 999px !important;
-    border: 1px solid color-mix(in srgb, var(--border) 85%, transparent) !important;
+    border: none !important;
     background: color-mix(in srgb, var(--surface) 94%, transparent);
     color: var(--foreground);
-    box-shadow:
-      0 1px 0 color-mix(in srgb, var(--foreground) 4%, transparent),
-      0 6px 18px color-mix(in srgb, var(--foreground) 8%, transparent);
+    box-shadow: none;
   }
 
   .dark .signals-view .signals-mobile-actions .signals-fullscreen-reserve {
-    border-color: color-mix(in srgb, var(--border-strong) 75%, transparent);
+    border: none !important;
     background: color-mix(in srgb, var(--surface) 88%, #000 12%);
-    box-shadow:
-      0 1px 0 color-mix(in srgb, var(--foreground) 5%, transparent),
-      0 8px 20px color-mix(in srgb, var(--background) 75%, transparent);
+    box-shadow: none;
   }
 
   .signals-view .signals-mobile-actions .signals-mobile-header-actions {

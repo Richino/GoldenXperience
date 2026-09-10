@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "GoldenXperience",
+    "slug": "goldenxperience",
+    "scheme": "goldenxperience",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.goldenxperience.mobile",
+      "userInterfaceStyle": "automatic"
+    },
+    "android": {
+      "package": "com.goldenxperience.mobile",
+      "userInterfaceStyle": "automatic",
+      "adaptiveIcon": {
+        "backgroundColor": "#09090b",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-font",
+      [
+        "expo-build-properties",
+        {
+          "comment": "Phase 1 runs the legacy architecture so @react-native-cookies/cookies (session-token capture) works. Move to the New Architecture with a New-Arch cookie manager in a later phase.",
+          "android": { "newArchEnabled": false },
+          "ios": { "newArchEnabled": false }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

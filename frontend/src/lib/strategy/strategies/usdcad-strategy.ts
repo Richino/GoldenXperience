@@ -1,0 +1,11 @@
+import { evaluateFrozenH1Pair, resolveFrozenH1Exit, type FrozenH1EvaluationOptions, type FrozenH1ExitInput } from "@/lib/strategy/strategies/frozen-h1-pair";
+import type { StrategyEvaluationInput } from "@/lib/strategy/types";
+export const USDCAD_STRATEGY_ID = "usdcad_strategy" as const;
+export const USDCAD_STRATEGY_NAME = "USDCAD Structure EMA Reclaim V3 11:00 LONG Only" as const;
+export const USDCAD_STRATEGY_VERSION = "V3" as const;
+export const USDCAD_STRATEGY_CONFIG_VERSION = "usdcad-v3-frozen" as const;
+export const USDCAD_STRATEGY_SYMBOL = "USD_CAD" as const;
+export const USDCAD_STRATEGY_TIMEFRAME = "H1" as const;
+export const USDCAD_STRATEGY_CONFIG = Object.freeze({ symbol: USDCAD_STRATEGY_SYMBOL, timeframe: USDCAD_STRATEGY_TIMEFRAME, originHourUtc: 11, direction: "LONG_ONLY", emaFastPeriod: 20, emaSlowPeriod: 50, atrPeriod: 14, structure: "HH_HL", ema20Reclaim: true, stopAtr: 1, rewardR: 2, maxHoldBars: 3, executionEnabled: true, adaptiveParametersMutable: false });
+export const evaluateUsdcadStrategy = (input: StrategyEvaluationInput, options: FrozenH1EvaluationOptions = {}) => evaluateFrozenH1Pair({ id: USDCAD_STRATEGY_ID, name: USDCAD_STRATEGY_NAME, version: USDCAD_STRATEGY_VERSION, configVersion: USDCAD_STRATEGY_CONFIG_VERSION, symbol: USDCAD_STRATEGY_SYMBOL, originHour: 11, direction: "long", structure: "hhhl", emaReclaim: true }, input, options);
+export const resolveUsdcadExit = (input: FrozenH1ExitInput) => resolveFrozenH1Exit(input);

@@ -108,6 +108,36 @@ export function getPaperTradingAvailability(now = new Date()): PaperTradingAvail
   };
 }
 
+export type NextEntryWindow = {
+  open: boolean;
+  at: Date;
+  label: string;
+};
+
+/**
+ * The next instant the day-trading engine will consider new entries.
+ *
+ * Walks the existing London/NY + 16:45 ET rules forward. It does not invent
+ * per-pair schedules — every instrument shares this window.
+ */
+export function nextEntryWindow(now = new Date()): NextEntryWindow {
+  const current = dayTradingSession(now);
+  if (current.open) {
+    return { open: true, at: now, label: current.label };
+  }
+
+  const stepMs = 15 * 60_000;
+  const limit = now.getTime() + 8 * 24 * 60 * 60_000;
+  for (let time = now.getTime() + stepMs; time <= limit; time += stepMs) {
+    const session = dayTradingSession(new Date(time));
+    if (session.open) {
+      return { open: false, at: new Date(time), label: session.label };
+    }
+  }
+
+  return { open: false, at: now, label: getForexSessionStatus(now).label };
+}
+
 function confirmationCandle(candles: StrategyEvaluationInput["candles15m"], direction: "long" | "short", atr: number, ema21: number, ema50: number, swingPrice: number | null) {
   const current = candles.at(-1);
   const previous = candles.at(-2);

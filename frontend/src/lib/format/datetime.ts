@@ -29,6 +29,17 @@ export function formatClockTime(value: string | number | Date) {
   }).format(new Date(value));
 }
 
+/** "21:14 ET" — 24-hour Eastern clock for the top bar. */
+export function formatEtClock(value: string | number | Date = Date.now()) {
+  const clock = new Intl.DateTimeFormat("en-US", {
+    timeZone: DAY_TRADING_TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(new Date(value));
+  return `${clock} ET`;
+}
+
 /** "Aug 6, 1:00 PM" */
 export function formatDayAndTime(value: string | number | Date) {
   return new Intl.DateTimeFormat("en-US", {
@@ -80,6 +91,55 @@ export function tradingDayKey(value: string | number | Date) {
  */
 export function currentTradingDayKey() {
   return tradingDayKey(Date.now());
+}
+
+function zonedClockParts(value: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(value);
+  const read = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value ?? "0");
+  return {
+    year: read("year"),
+    month: read("month"),
+    day: read("day"),
+    hour: read("hour"),
+    minute: read("minute"),
+    second: read("second"),
+  };
+}
+
+/**
+ * Midnight at the start of the trading day that contains `value`.
+ *
+ * The Home 1D chart and the "Today" P/L line must share this instant; a
+ * rolling 24-hour window would paint yesterday's ledger into today's curve.
+ */
+export function startOfTradingDay(value: string | number | Date = Date.now()): Date {
+  const key = tradingDayKey(value);
+  const [year, month, day] = key.split("-").map(Number);
+  const desired = Date.UTC(year, month - 1, day, 0, 0, 0, 0);
+  let utc = desired;
+  for (let step = 0; step < 4; step += 1) {
+    const shown = zonedClockParts(new Date(utc), DAY_TRADING_TIME_ZONE);
+    const shownAsUtc = Date.UTC(
+      shown.year,
+      shown.month - 1,
+      shown.day,
+      shown.hour,
+      shown.minute,
+      shown.second,
+    );
+    utc += desired - shownAsUtc;
+  }
+  return new Date(utc);
 }
 
 /** "1 PM" */

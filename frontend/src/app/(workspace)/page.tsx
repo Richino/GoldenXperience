@@ -22,6 +22,7 @@ export default async function DashboardPage() {
       initialStrategyWatchlist={strategyWatchlist.instruments}
       initialOverview={overview}
       initialExposure={risk.exposure}
+      initialJournal={{ trades: [] }}
       userLabel="Richie"
       todayKey={currentTradingDayKey()}
     />

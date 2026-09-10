@@ -1,0 +1,11 @@
+import { evaluateFrozenH1Pair, resolveFrozenH1Exit, type FrozenH1EvaluationOptions, type FrozenH1ExitInput } from "@/lib/strategy/strategies/frozen-h1-pair";
+import type { StrategyEvaluationInput } from "@/lib/strategy/types";
+export const EURJPY_STRATEGY_ID = "eurjpy_strategy" as const;
+export const EURJPY_STRATEGY_NAME = "EURJPY 01-05 Range Break V1" as const;
+export const EURJPY_STRATEGY_VERSION = "V1" as const;
+export const EURJPY_STRATEGY_CONFIG_VERSION = "eurjpy-v1-frozen" as const;
+export const EURJPY_STRATEGY_SYMBOL = "EUR_JPY" as const;
+export const EURJPY_STRATEGY_TIMEFRAME = "H1" as const;
+export const EURJPY_STRATEGY_CONFIG = Object.freeze({ symbol: EURJPY_STRATEGY_SYMBOL, timeframe: EURJPY_STRATEGY_TIMEFRAME, originHourUtc: 6, direction: "LONG_ONLY", emaFastPeriod: 20, atrPeriod: 14, rangeHoursUtc: [1, 2, 3, 4, 5], ema20Slope: "positive_vs_3_bars_ago", previousHighBreak: true, preRangeHighBreak: true, stopAtr: 1, rewardR: 2, maxHoldBars: 3, executionEnabled: true, adaptiveParametersMutable: false });
+export const evaluateEurjpyStrategy = (input: StrategyEvaluationInput, options: FrozenH1EvaluationOptions = {}) => evaluateFrozenH1Pair({ id: EURJPY_STRATEGY_ID, name: EURJPY_STRATEGY_NAME, version: EURJPY_STRATEGY_VERSION, configVersion: EURJPY_STRATEGY_CONFIG_VERSION, symbol: EURJPY_STRATEGY_SYMBOL, originHour: 6, direction: "long", rangeHours: [1, 2, 3, 4, 5], previousHighBreak: true }, input, options);
+export const resolveEurjpyExit = (input: FrozenH1ExitInput) => resolveFrozenH1Exit(input);

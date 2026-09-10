@@ -1,16 +1,17 @@
 import assert from "node:assert/strict";
-import { LIVE_EXECUTABLE_FAMILIES, STRATEGY_FAMILIES } from "../../frontend/src/lib/strategy/strategies/index.js";
+import { ENABLED_PAIR_STRATEGY_IDS, LIVE_EXECUTABLE_FAMILIES, STRATEGY_FAMILIES } from "../../frontend/src/lib/strategy/strategies/index.js";
 import { toAdaptiveCandidate } from "../src/adaptive-engine.js";
+import { PRACTICE_EXECUTION_FAMILIES } from "../src/practice-execution.js";
 import { applyMomentumInversion, MOMENTUM_DIRECTION_INVERSION, MOMENTUM_INVERSION_EXPERIMENT } from "../src/momentum-inversion.js";
 import type { StrategyCandidate } from "../../frontend/src/lib/strategy/strategy.js";
 import type { StrategyFamily } from "../../frontend/src/lib/strategy/types.js";
 
 /**
- * Four-family execution + Momentum-inversion pre-deploy gate. Pure: no DB, no network.
+ * Four-family pause + preserved Momentum-inversion research gate. Pure: no DB, no network.
  *
  * Proves the two properties the deployment depends on, and fails loudly on either:
- *   1. ALL FOUR families are executable through the one authoritative allowlist.
- *   2. Momentum is the ONLY family whose direction is inverted.
+ *   1. NONE of the four legacy families are executable.
+ *   2. Preserved research code still limits inversion to Momentum.
  */
 const FAMILIES: StrategyFamily[] = ["ema", "breakout", "momentum", "meanrev"];
 const BID = 1.10000; const ASK = 1.10014;
@@ -35,22 +36,23 @@ function candidate(family: StrategyFamily, direction: "long" | "short" | null, s
 
 // ============================================================ 1. ALLOWLIST
 console.log("1. EXECUTABLE ALLOWLIST");
-assert.deepEqual([...LIVE_EXECUTABLE_FAMILIES].sort(), [...FAMILIES].sort(),
-  "the allowlist must contain exactly the four families");
-assert.notEqual(LIVE_EXECUTABLE_FAMILIES.length, 0, "the allowlist must not be empty");
+assert.deepEqual(LIVE_EXECUTABLE_FAMILIES, [],
+  "the legacy four-family execution allowlist must be empty");
 assert.deepEqual([...STRATEGY_FAMILIES].sort(), [...FAMILIES].sort(),
-  "the allowlist must match the engine's family set");
+  "the preserved research engine must still expose all four families");
+assert.deepEqual(PRACTICE_EXECUTION_FAMILIES, [...ENABLED_PAIR_STRATEGY_IDS],
+  "only the enabled pair strategies may claim practice-order intents");
 console.log(`   allowlist = [${LIVE_EXECUTABLE_FAMILIES.join(", ")}]`);
 
 // the selection engine must actually consume it: every family, both directions
 for (const family of FAMILIES) {
   for (const d of ["long", "short"] as const) {
     const a = toAdaptiveCandidate(candidate(family, d));
-    assert.equal(a.executable, true, `${family} ${d} must be executable=true when its gates pass`);
+    assert.equal(a.executable, false, `${family} ${d} must stay executable=false while paused`);
     assert.equal(a.family, family);
   }
 }
-console.log("   EMA / Breakout / Momentum / MeanRev -> executable=true  (both directions)");
+console.log("   EMA / Breakout / Momentum / MeanRev -> executable=false (both directions)");
 
 // and it must genuinely gate: a family outside the list is not executable
 {
@@ -141,4 +143,4 @@ for (const d of ["long", "short"] as const) {
 }
 console.log("   stop/target distances + RR preserved; both sides pay real spread  OK");
 
-console.log("\nAll four-family execution + inversion assertions passed.");
+console.log("\nFour-family pause + preserved research assertions passed.");

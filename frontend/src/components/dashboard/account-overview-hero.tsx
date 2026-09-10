@@ -3,11 +3,12 @@
 import { useMemo, useState } from "react";
 import {
   AccountAmountChart,
-  accountSeriesRose,
+  accountSeriesTone,
   buildAccountAmountSeries,
   type AccountChartRange,
 } from "@/components/dashboard/account-amount-chart";
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { ACCOUNT_STARTING_BALANCE } from "@/lib/account-starting-balance";
 import { tradingDayKey } from "@/lib/format/datetime";
 import { useScrolledPast } from "@/lib/use-scrolled-past";
 import type { AccountBalanceHistoryPoint, AccountSummary } from "@/types/forex";
@@ -20,12 +21,16 @@ function money(value: number, currency: string) {
   }).format(value);
 }
 
-/**
- * The account's starting deposit. All-time P&L is the current NAV minus this,
- * and the broker API does not report the opening balance, so it is set here.
- * Change it if the practice account is reset or re-funded.
- */
-const ACCOUNT_STARTING_BALANCE = 100_000;
+function signedMoney(value: number, currency: string) {
+  const formatted = money(Math.abs(value), currency);
+  if (Math.abs(value) < 0.005) return formatted;
+  return `${value > 0 ? "+" : "−"}${formatted}`;
+}
+
+function signedTone(value: number) {
+  if (Math.abs(value) < 0.005) return "is-flat";
+  return value > 0 ? "is-positive" : "is-negative";
+}
 
 function greetingName(value: string) {
   const cleaned = value.trim();
@@ -45,6 +50,8 @@ export function AccountOverviewHero({
   userLabel,
   history,
   todayKey,
+  openPL,
+  riskToday,
 }: {
   account: AccountSummary;
   userLabel: string;
@@ -55,6 +62,8 @@ export function AccountOverviewHero({
    * and break hydration.
    */
   todayKey: string;
+  openPL: number;
+  riskToday: number;
 }) {
   const [range, setRange] = useState<AccountChartRange>("1d");
   const name = greetingName(userLabel);
@@ -100,12 +109,26 @@ export function AccountOverviewHero({
   // The card's tint follows the chart it wraps, not the day's P/L. Those are
   // different questions and they disagree often — a flat day around a losing
   // month painted the card green while the line inside it was red.
-  const chartRose = accountSeriesRose(series);
+  const chartTone = accountSeriesTone(series);
+  const heroTone = (() => {
+    switch (chartTone) {
+      case "up":
+        return "positive";
+      case "down":
+        return "negative";
+      case "flat":
+        return "flat";
+      default: {
+        const _never: never = chartTone;
+        return _never;
+      }
+    }
+  })();
 
   return (
     <section
       className="account-overview-hero"
-      data-tone={chartRose ? "positive" : "negative"}
+      data-tone={heroTone}
       aria-label="Account overview"
     >
       <header
@@ -130,39 +153,26 @@ export function AccountOverviewHero({
         </div>
       </header>
 
-      <div className="mt-7 lg:mt-0">
-        <p className="hidden text-sm text-[color:var(--muted)] lg:block">Hi, {name}</p>
-        <p className="metric-number mt-0 text-[2.65rem] font-semibold leading-none tracking-[-0.05em] lg:mt-3 lg:text-[3.25rem]">
+      <div className="home-hero-copy mt-7 lg:mt-0">
+        <p className="home-hero-nav metric-number">
           {money(account.nav, account.currency)}
         </p>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span
-            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-              positive
-                ? "bg-[color:var(--success-soft)] text-[color:var(--success)]"
-                : "bg-[color:var(--danger-soft)] text-[color:var(--danger)]"
-            }`}
-          >
-            {positive ? "+" : "−"}
-            {money(Math.abs(dayPL), account.currency)}
-            <span className="mx-1.5 opacity-45">·</span>
-            {positive ? "+" : "−"}
-            {Math.abs(changePercent).toFixed(2)}% today
+        <p className={`home-hero-today ${positive ? "is-positive" : "is-negative"}`}>
+          {positive ? "+" : "−"}
+          {money(Math.abs(dayPL), account.currency)}
+          <span>
+            ({positive ? "+" : "−"}
+            {Math.abs(changePercent).toFixed(2)}%) Today
           </span>
-          <span
-            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-              allTimePositive
-                ? "bg-[color:var(--success-soft)] text-[color:var(--success)]"
-                : "bg-[color:var(--danger-soft)] text-[color:var(--danger)]"
-            }`}
-          >
-            {allTimePositive ? "+" : "−"}
-            {money(Math.abs(allTimePL), account.currency)}
-            <span className="mx-1.5 opacity-45">·</span>
-            {allTimePositive ? "+" : "−"}
-            {Math.abs(allTimePercent).toFixed(2)}% all-time
+        </p>
+        <p className={`home-hero-alltime ${allTimePositive ? "is-positive" : "is-negative"}`}>
+          {allTimePositive ? "+" : "−"}
+          {money(Math.abs(allTimePL), account.currency)}
+          <span>
+            ({allTimePositive ? "+" : "−"}
+            {Math.abs(allTimePercent).toFixed(2)}%) all-time
           </span>
-        </div>
+        </p>
       </div>
 
       <div className="mt-5 lg:mt-7">
@@ -173,6 +183,28 @@ export function AccountOverviewHero({
           range={range}
           onRangeChange={setRange}
         />
+        <dl className="home-chart-stats">
+          <div>
+            <dt>Unrealized</dt>
+            <dd className={`metric-number ${signedTone(account.unrealizedPL)}`}>
+              {signedMoney(account.unrealizedPL, account.currency)}
+            </dd>
+          </div>
+          <div>
+            <dt>Open P/L</dt>
+            <dd className={`metric-number ${signedTone(openPL)}`}>
+              {signedMoney(openPL, account.currency)}
+            </dd>
+          </div>
+          <div>
+            <dt>Margin used</dt>
+            <dd className="metric-number">{money(account.marginUsed, account.currency)}</dd>
+          </div>
+          <div>
+            <dt>Risk today</dt>
+            <dd className="metric-number">{money(riskToday, account.currency)}</dd>
+          </div>
+        </dl>
       </div>
     </section>
   );

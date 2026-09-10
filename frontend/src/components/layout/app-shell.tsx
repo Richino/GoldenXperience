@@ -5,21 +5,27 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import {
+  Activity,
+  BarChart3,
   BookOpen,
   ChartNoAxesCombined,
+  Ellipsis,
   House,
   ListChecks,
+  Radio,
   Settings,
   type LucideIcon,
 } from "lucide-react";
 import { BrandMark } from "@/components/ui/brand-mark";
+import { AppTopBar } from "@/components/layout/app-topbar";
 import { MobileTopBar } from "@/components/ui/mobile-top-bar";
 import { NavigationProgress } from "@/components/ui/navigation-progress";
 import { PwaPullToRefresh } from "@/components/ui/pwa-pull-to-refresh";
 import { SignOutButton } from "@/components/ui/sign-out-button";
 import { NotificationProvider } from "@/components/notifications/notification-provider";
-import { NotificationBell } from "@/components/notifications/notification-bell";
 import { Toaster } from "@/components/ui/toaster";
+import { apiUrl } from "@/lib/api/url";
+import type { AccountSummary, ConnectionStatus } from "@/types/forex";
 
 function subscribe() {
   return () => undefined;
@@ -47,13 +53,16 @@ function clearNavClick(event: React.AnimationEvent<HTMLElement>) {
 
 const navItems: NavItem[] = [
   { label: "Home", href: "/", icon: House },
-  { label: "Charts", href: "/chart", icon: ChartNoAxesCombined },
-  { label: "Watchlist", href: "/watchlist", icon: ListChecks },
-  { label: "Journal", href: "/journal", icon: BookOpen },
+  { label: "Signals", href: "/signals", icon: Radio },
+  { label: "Chart", href: "/chart", icon: ChartNoAxesCombined },
+  { label: "Trades", href: "/journal", icon: BookOpen },
+  { label: "Markets", href: "/watchlist", icon: ListChecks },
+  { label: "Performance", href: "/research", icon: BarChart3 },
+  { label: "More", href: "/risk", icon: Activity },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
-const mobilePrimaryHrefs = ["/", "/chart", "/watchlist", "/journal", "/settings"] as const;
+const mobilePrimaryHrefs = ["/", "/signals", "/chart", "/journal", "/settings"] as const;
 
 function isActive(pathname: string, href: string) {
   if (href === "/settings") {
@@ -62,11 +71,14 @@ function isActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
 }
 
-const primaryNavItems = navItems.filter((item) => item.href !== "/settings");
+const workspaceNavItems = navItems.filter(
+  (item) => item.href !== "/settings" && item.href !== "/risk",
+);
+const moreNavItem = navItems.find((item) => item.href === "/risk")!;
 const settingsNavItem = navItems.find((item) => item.href === "/settings")!;
 const mobileNavItems = navItems.filter((item) =>
   (mobilePrimaryHrefs as readonly string[]).includes(item.href),
-);
+).map((item) => item.href === "/settings" ? { ...item, label: "More", icon: Ellipsis } : item);
 
 function SidebarNavLink({
   item,
@@ -83,13 +95,88 @@ function SidebarNavLink({
       className={`sidebar-nav-link pressable ${active ? "sidebar-nav-link-active" : ""}`}
       aria-current={active ? "page" : undefined}
     >
-      <span
-        className={`sidebar-nav-icon ${active ? "sidebar-nav-icon-active" : ""}`}
-      >
-        <Icon className="size-4" strokeWidth={active ? 2.25 : 1.85} />
-      </span>
+      <Icon className="sidebar-nav-glyph shrink-0" strokeWidth={active ? 2.15 : 1.7} />
       {item.label}
     </Link>
+  );
+}
+
+function initialsFrom(value: string) {
+  const local = value.replace(/@.*$/, "");
+  const parts = local.split(/[.\s_-]+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0]!.charAt(0)}${parts[1]!.charAt(0)}`.toUpperCase();
+  }
+  return local.slice(0, 2).toUpperCase() || "GX";
+}
+
+function titleFrom(email: string, alias: string | null) {
+  const cleaned = alias?.trim() ?? "";
+  if (cleaned && !/^\d+$/.test(cleaned)) return cleaned;
+  if (!email) return "Practice";
+  const local = email.split("@")[0] ?? "Practice";
+  return local.charAt(0).toUpperCase() + local.slice(1);
+}
+
+function SidebarAccount() {
+  const [email, setEmail] = useState<string | null>(null);
+  const [alias, setAlias] = useState<string | null>(null);
+  const [status, setStatus] = useState<ConnectionStatus | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const [meResponse, accountResponse] = await Promise.all([
+          fetch(apiUrl("/api/auth/me"), { credentials: "include", cache: "no-store" }),
+          fetch(apiUrl("/api/oanda/account-summary"), { credentials: "include", cache: "no-store" }),
+        ]);
+        if (cancelled) return;
+
+        if (meResponse.ok) {
+          const payload = (await meResponse.json()) as { user?: { email?: string } };
+          setEmail(payload.user?.email ?? null);
+        }
+
+        if (accountResponse.ok) {
+          const payload = (await accountResponse.json()) as {
+            data?: AccountSummary;
+            status?: ConnectionStatus;
+          };
+          setAlias(payload.data?.alias ?? null);
+          setStatus(payload.status ?? null);
+        }
+      } catch {
+        // The compact account chip is secondary chrome; keep the last known
+        // values if the snapshot is temporarily unavailable.
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const identity = email ?? alias ?? "Practice";
+  const venue = status?.source === "oanda" ? "OANDA" : status?.source ?? null;
+  const mode = status?.environment === "live" ? "LIVE" : "Practice";
+  const connected = status?.state === "connected";
+
+  return (
+    <div className="sidebar-account mt-auto">
+      <span className="sidebar-account-avatar" aria-hidden="true">
+        {initialsFrom(identity)}
+      </span>
+      <span className="sidebar-account-copy">
+        <span className="sidebar-account-name">{titleFrom(email ?? "", alias)}</span>
+        <span className="sidebar-account-status">
+          {venue ? `${mode} · ${venue}` : connected ? `${mode} · Connected` : mode}
+        </span>
+      </span>
+      <SignOutButton quiet />
+    </div>
   );
 }
 
@@ -97,7 +184,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const dockRef = useRef<HTMLElement>(null);
   const isClient = useSyncExternalStore(subscribe, () => true, () => false);
-  const isChart = pathname.startsWith("/chart");
+  const isChart = pathname.startsWith("/chart") || pathname.startsWith("/signals");
   const isDashboard = pathname === "/";
   const activeMobileIndex = Math.max(
     0,
@@ -198,6 +285,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <span className="nav-mobile-icon">
                 <Icon className="size-[1.55rem]" strokeWidth={1.7} />
               </span>
+              <span className="nav-mobile-label">{item.label}</span>
             </Link>
           );
         })}
@@ -210,9 +298,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <Toaster />
     <PwaPullToRefresh>
       <NavigationProgress />
-      <div className="fixed right-8 top-6 z-50 hidden lg:block">
-        <NotificationBell />
-      </div>
       <div
         className={`min-h-dvh ${
         isChart
@@ -220,57 +305,47 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           : "bg-[color:var(--background)]"
       }`}
     >
-      <aside className="app-sidebar fixed inset-y-0 left-0 z-30 hidden w-[260px] flex-col border-r border-[color:var(--border)] px-5 py-6 lg:flex">
-        <BrandMark />
-        <div className="mt-8">
-          <p className="sidebar-section-label px-3">Workspace</p>
-          <nav className="mt-2 space-y-1" aria-label="Primary navigation">
-            {primaryNavItems.map((item) => (
-              <SidebarNavLink
-                key={item.href}
-                item={item}
-                active={isActive(pathname, item.href)}
-              />
-            ))}
-          </nav>
-        </div>
+      <aside className="app-sidebar fixed inset-y-0 left-0 z-30 hidden w-[224px] flex-col border-r border-[color:var(--border)] px-3.5 py-4 lg:flex">
+        <BrandMark variant="sidebar" />
+        <nav className="mt-6 space-y-1" aria-label="Primary navigation">
+          {workspaceNavItems.map((item) => (
+            <SidebarNavLink
+              key={item.href}
+              item={item}
+              active={isActive(pathname, item.href)}
+            />
+          ))}
+        </nav>
 
-        <div className="mt-5 px-3">
-          <div className="h-px bg-[color:var(--border)]" />
-        </div>
+        <div className="mx-1 mt-5 h-px bg-[color:var(--border)]" />
 
-        <nav className="mt-4 space-y-1" aria-label="Settings">
+        <nav className="mt-3 space-y-1" aria-label="More">
+          <SidebarNavLink
+            item={moreNavItem}
+            active={isActive(pathname, moreNavItem.href)}
+          />
           <SidebarNavLink
             item={settingsNavItem}
             active={isActive(pathname, settingsNavItem.href)}
           />
         </nav>
 
-        <div className="sidebar-status-card mt-auto rounded-2xl p-3.5">
-          <div className="flex items-center gap-2 text-xs font-medium tracking-[-0.01em]">
-            <span className="relative grid size-2.5 place-items-center">
-              <span className="sidebar-status-dot-halo absolute size-2.5 rounded-full bg-[color:var(--success)] opacity-35" />
-              <span className="relative size-1.5 rounded-full bg-[color:var(--success)]" />
-            </span>
-            Practice workspace
-          </div>
-          <p className="text-caption mt-2 leading-5 text-[color:var(--muted)]">
-            Broker credentials stay on the server.
-          </p>
-          <SignOutButton />
-        </div>
+        <SidebarAccount />
       </aside>
 
       <div
-        className={`min-w-0 w-full lg:pl-[260px] ${
+        className={`min-w-0 w-full lg:pl-[224px] has-topbar ${
           isChart ? "lg:min-h-dvh" : ""
-        }`}
+        } ${isDashboard ? "has-home-rail" : ""}`}
       >
+        <AppTopBar />
         <main
-          className={`mx-auto w-full min-w-0 max-w-[1320px] ${
+          className={`w-full min-w-0 ${
             isChart
-              ? "pt-0 lg:flex lg:min-h-dvh lg:flex-col lg:justify-center lg:px-8 lg:py-6"
-              : "px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-6 lg:px-8 lg:pb-10"
+              ? "min-h-dvh p-0"
+              : isDashboard
+                ? "w-full px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-5 lg:px-6 lg:pb-8"
+                : "mx-auto max-w-[1320px] px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-6 lg:px-8 lg:pb-10"
           }`}
         >
           {!isChart && !isDashboard ? <MobileTopBar showBack /> : null}

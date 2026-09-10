@@ -12,6 +12,14 @@ export const CHART_TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h"] as const;
 
 export type ChartTimeframe = (typeof CHART_TIMEFRAMES)[number];
 
+export const CHART_TIMEFRAME_LABELS: Record<ChartTimeframe, string> = {
+  "1m": "1m",
+  "5m": "5m",
+  "15m": "15m",
+  "1h": "1H",
+  "4h": "4H",
+};
+
 export const CHART_RANGES = ["1D", "1W", "1M", "3M", "6M", "1Y", "All"] as const;
 
 export const MOBILE_CHART_RANGES = ["1D", "1W", "1M", "3M", "6M", "1Y"] as const;

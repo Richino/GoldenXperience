@@ -22,8 +22,10 @@ export const mockAccount: AccountSummary = {
   balance: 25_430,
   nav: 25_518.42,
   unrealizedPL: 88.42,
+  marginUsed: 712.31,
   marginAvailable: 24_806.11,
   openTradeCount: 1,
+  hedgingEnabled: false,
   source: "mock",
 };
 

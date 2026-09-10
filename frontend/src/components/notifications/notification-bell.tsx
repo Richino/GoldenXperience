@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, CheckCheck } from "lucide-react";
+import { Bell } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { MobileSheet } from "@/components/ui/mobile-sheet";
 import { detailTone, displayDetail, displayTitle, notificationHref } from "@/lib/notifications/display";
@@ -56,8 +56,7 @@ export function NotificationBell({ compact = false, className = "" }: { compact?
       className="notification-popover-read-all pressable"
       aria-label="Mark all as read"
     >
-      <CheckCheck className="size-3.5" />
-      <span>Read all</span>
+      Read all
     </button>
   ) : null;
 
@@ -123,7 +122,7 @@ export function NotificationBell({ compact = false, className = "" }: { compact?
           {list}
         </MobileSheet>
       ) : open ? (
-        <div className="notification-popover menu-popover absolute right-0 top-[calc(100%+0.5rem)] z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl">
+        <div className="notification-popover absolute right-0 z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden">
           <div className="notification-popover-head">
             <p className="notification-popover-title">Notifications</p>
             {readAllButton}

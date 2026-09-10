@@ -1,4 +1,19 @@
-export function BrandMark({ compact = false }: { compact?: boolean }) {
+export function BrandMark({
+  compact = false,
+  variant = "default",
+}: {
+  compact?: boolean;
+  variant?: "default" | "sidebar";
+}) {
+  if (variant === "sidebar") {
+    return (
+      <div className="brand-mark-sidebar" aria-label="GoldenXperience">
+        <span className="brand-gx">GX</span>
+        <span className="brand-gx-sub">GoldenXperience</span>
+      </div>
+    );
+  }
+
   return (
     <div className="brand-mark flex items-center gap-3">
       <div className="grid size-9 shrink-0 place-items-center">

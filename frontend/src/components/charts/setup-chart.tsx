@@ -43,6 +43,7 @@ import {
   chartTimesOf,
   compactAxisPricePrecision,
   countPrependedCandles,
+  formatChartPrice,
   getLatestVisibleLogicalRange,
   isChartIndicatorEnabled,
   pricePrecision,
@@ -212,13 +213,11 @@ function chartTheme(
       ? "#09090b"
       : "#ffffff"
     : isDark
-      ? "#131315"
-      : "#ffffff";
-  const scaleText = isDark ? "#71717a" : "#8e8e93";
+      ? "#080A0B"
+      : "#f7f6f3";
+  const scaleText = isDark ? "#9a9aa3" : "#6e6e73";
   const accent = isDark ? "#00e59b" : "#00b377";
-  // Hairline grid at the time/price ticks. Kept just under `--border` so it
-  // reads as a terminal lattice without competing with the series.
-  const gridLine = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)";
+  const gridLine = isDark ? "rgba(255,255,255,0.045)" : "rgba(28,28,30,0.07)";
 
   return {
     layout: {
@@ -226,14 +225,12 @@ function chartTheme(
       textColor: scaleText,
       fontFamily:
         '"Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif',
-      fontSize: 10,
+      fontSize: embedded ? 10 : 11,
       attributionLogo: false,
     },
     grid: {
-      vertLines: { color: gridLine, style: LineStyle.Solid, visible: false },
-      // Horizontal (price/y-axis) grid lines are off: the area fill and beacon
-      // carry the level read, and the lattice competed with them.
-      horzLines: { color: gridLine, style: LineStyle.Solid, visible: false },
+      vertLines: { color: gridLine, style: LineStyle.Solid, visible: !embedded },
+      horzLines: { color: gridLine, style: LineStyle.Solid, visible: !embedded },
     },
     crosshair: {
       mode: CrosshairMode.Normal,
@@ -278,7 +275,7 @@ function chartTheme(
       fixLeftEdge: true,
       rightOffset: embedded ? 4 : 6,
       ticksVisible: false,
-      minimumHeight: embedded ? 28 : 46,
+      minimumHeight: embedded ? 28 : 22,
       allowBoldLabels: false,
     },
   };
@@ -404,10 +401,18 @@ function closingLevel(levels: SetupLevels): "stop" | "target" | null {
   return null;
 }
 
+function plannedRewardR(levels: SetupLevels) {
+  const risk = Math.abs(levels.entry - levels.stop);
+  if (risk <= 0) return 0;
+  return Math.abs(levels.target - levels.entry) / risk;
+}
+
 function setupLevelTags(
   levels: SetupLevels,
   isDark: boolean,
   halfSpread: number,
+  instrument: string,
+  compactLabels: boolean,
 ): LevelTag[] {
   // Long when the target sits above entry. The levels carry no direction of
   // their own, and this cannot be ambiguous: a stop and a target always
@@ -416,30 +421,36 @@ function setupLevelTags(
   // Entry executes on the opposite side to the exits.
   const entrySide: 1 | -1 = isLong ? -1 : 1;
   const exitSide: 1 | -1 = isLong ? 1 : -1;
+  const rewardR = plannedRewardR(levels);
+  const entryPrice = formatChartPrice(levels.entry, instrument);
+  const stopPrice = formatChartPrice(levels.stop, instrument);
+  const targetPrice = formatChartPrice(levels.target, instrument);
   const tags: LevelTag[] = [
     {
       key: "entry",
-      label: "Entry",
+      label: compactLabels ? "Entry" : `ENTRY ${entryPrice}`,
       price: toChartPrice(levels.entry, entrySide, halfSpread),
-      color: isDark ? "#e4e4e7" : "#1c1c1e",
-      textColor: isDark ? "#09090b" : "#ffffff",
+      color: isDark ? "rgba(0, 229, 155, 0.82)" : "#00a06a",
+      textColor: isDark ? "#06281f" : "#ffffff",
       dashed: false,
     },
     {
       key: "stop",
-      label: "SL",
+      label: compactLabels ? "SL" : `STOP LOSS ${stopPrice} · -1R`,
       price: toChartPrice(levels.stop, exitSide, halfSpread),
-      color: isDark ? "#f87171" : "#e74c3c",
+      color: isDark ? "rgba(255, 99, 112, 0.88)" : "#e74c3c",
       textColor: "#ffffff",
-      dashed: false,
+      dashed: true,
     },
     {
       key: "target",
-      label: "TP",
+      label: compactLabels
+        ? "TP"
+        : `TAKE PROFIT ${targetPrice} · +${rewardR.toFixed(rewardR >= 10 ? 0 : 1)}R`,
       price: toChartPrice(levels.target, exitSide, halfSpread),
       color: isDark ? "#00e59b" : "#00b377",
-      textColor: isDark ? "#09090b" : "#ffffff",
-      dashed: false,
+      textColor: isDark ? "#06281f" : "#ffffff",
+      dashed: true,
     },
   ];
 
@@ -480,8 +491,12 @@ function overlayLevelTags(
   referenceLine: ChartReferenceLine | null,
   isDark: boolean,
   halfSpread: number,
+  instrument: string,
+  compactLabels: boolean,
 ): LevelTag[] {
-  const tags = levels ? setupLevelTags(levels, isDark, halfSpread) : [];
+  const tags = levels
+    ? setupLevelTags(levels, isDark, halfSpread, instrument, compactLabels)
+    : [];
   if (referenceLine) {
     tags.push({
       key: "reference",
@@ -504,7 +519,7 @@ interface PlacedLevelTag extends LevelTag {
 }
 
 /** Flag chip height including padding — used to unstack overlapping levels. */
-const LEVEL_TAG_HEIGHT = 16;
+const LEVEL_TAG_HEIGHT = 18;
 const LEVEL_TAG_STACK_GAP = 2;
 
 /**
@@ -562,7 +577,7 @@ function addSetupLevels(
       price: tag.price,
       color: tag.color,
       lineWidth: tag.lineWidth ?? 1,
-      lineStyle: tag.dashed ? LineStyle.Dashed : LineStyle.Dotted,
+      lineStyle: tag.dashed ? LineStyle.Dashed : LineStyle.Solid,
       // Desktop: the price sits on the scale and the named flag sits on the
       // plot's right edge. Mobile hides the scale, so library axis chips would
       // float on the pane; the overlay flag is the name instead.
@@ -765,6 +780,8 @@ export function SetupChart({
   focusPrediction = null,
   focusRange = null,
   referenceLine = null,
+  showTradeMarkers = true,
+  showTradePath = true,
 }: {
   series: CandleSeries;
   levels: SetupLevels | null;
@@ -783,6 +800,8 @@ export function SetupChart({
   focusPrediction?: BinaryPrediction | null;
   focusRange?: ChartFocusRange | null;
   referenceLine?: ChartReferenceLine | null;
+  showTradeMarkers?: boolean;
+  showTradePath?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -1060,6 +1079,8 @@ export function SetupChart({
       referenceLine,
       isDark,
       halfSpreadRef.current,
+      series.instrument,
+      embedded,
     );
     if (levelTags.length) {
       addSetupLevels(mainSeries, levelTags, !embedded);
@@ -1380,7 +1401,9 @@ export function SetupChart({
     // Prediction focus owns the markers when present; otherwise the focused
     // paper trade. Both reuse the same path series so arrows sit on exact
     // entry/exit prices rather than candle highs/lows.
-    const markers = focusPrediction
+    const markers = !showTradeMarkers
+      ? []
+      : focusPrediction
       ? buildPredictionMarkers(candleTimes, focusPrediction, palette)
       : buildTradeMarkers(
           candleTimes,
@@ -1423,11 +1446,13 @@ export function SetupChart({
       color: pathWon ? winPathColor : lossPathColor,
     });
     tradePath.setData(
-      focusPrediction
+      !showTradePath
+        ? []
+        : focusPrediction
         ? buildPredictionPath(candleTimes, focusPrediction)
         : buildTradePath(candleTimes, focusTrade),
     );
-  }, [chartEpoch, downColor, focusPrediction, focusTradeId, isDark, lossPathColor, series.candles, surfaceColor, trades, upColor, winPathColor]);
+  }, [chartEpoch, downColor, focusPrediction, focusTradeId, isDark, lossPathColor, series.candles, showTradeMarkers, showTradePath, surfaceColor, trades, upColor, winPathColor]);
 
   useEffect(() => {
     const mainSeries = mainSeriesRef.current;
@@ -1537,6 +1562,8 @@ export function SetupChart({
   // the effect deps. Optional slots change the array length (5 vs 8) and React
   // throws. The loop still reads `levels` / `referenceLine` from this render.
   const overlayTagFingerprint = [
+    series.instrument,
+    embedded ? "compact" : "full",
     levels?.entry ?? "",
     levels?.stop ?? "",
     levels?.target ?? "",
@@ -1558,6 +1585,8 @@ export function SetupChart({
       referenceLine,
       isDark,
       halfSpreadRef.current,
+      series.instrument,
+      embedded,
     );
     let frame = 0;
     let previous = "";

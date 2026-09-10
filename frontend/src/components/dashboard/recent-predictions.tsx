@@ -45,6 +45,8 @@ export function RecentPredictions() {
 
   useForegroundRefresh(load);
 
+  if (!predictions.length && !error) return null;
+
   return (
     <section className="dashboard-minimal-section" aria-label="Open binary position">
       <div className="flex items-baseline justify-between gap-3">

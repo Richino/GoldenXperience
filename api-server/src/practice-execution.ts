@@ -2,8 +2,10 @@ import { query, transaction } from "./database.js";
 import { OandaRequestError, closePracticeTrade, submitPracticeMarketOrder } from "../../frontend/src/lib/oanda/client.js";
 import { brokerUnitsForOrder } from "../../frontend/src/lib/risk/engine.js";
 import type { MajorInstrument } from "../../frontend/src/types/forex.js";
+import { ENABLED_PAIR_STRATEGY_IDS } from "../../frontend/src/lib/strategy/strategies/index.js";
 
 export type PracticeExecutionPolicy = { enabled: boolean; updatedAt: string };
+export const PRACTICE_EXECUTION_FAMILIES = [...ENABLED_PAIR_STRATEGY_IDS] as const;
 
 async function ensurePolicy(userId: string) {
   await query("INSERT INTO practice_execution_policies(user_id) VALUES($1) ON CONFLICT(user_id) DO NOTHING", [userId]);
@@ -54,8 +56,9 @@ export async function queuePracticeOrderIntent(userId: string, paperTradeId: str
   }>(
     `SELECT instrument,direction,calculated_units::text AS units,entry::text,stop::text,target::text,
             nominal_risk_amount::text AS risk_amount,nominal_risk_percent::text AS risk_percent
-     FROM paper_strategy_trades WHERE id=$1 AND user_id=$2 AND status='open'`,
-    [paperTradeId, userId],
+     FROM paper_strategy_trades
+     WHERE id=$1 AND user_id=$2 AND status='open' AND strategy_family=ANY($3::text[])`,
+    [paperTradeId, userId, PRACTICE_EXECUTION_FAMILIES],
   );
   const trade = found.rows[0];
   if (!trade) return false;
@@ -91,6 +94,7 @@ export async function queuePracticeOrderIntent(userId: string, paperTradeId: str
 type PendingIntent = {
   id: string;
   user_id: string;
+  paper_trade_id: string;
   client_request_id: string;
   instrument: string;
   direction: "long" | "short";
@@ -105,19 +109,37 @@ async function claimPendingIntent(): Promise<PendingIntent | null> {
       // Units come from the intent's own payload, which is the margin-guarded
       // size. Reading trade.calculated_units here would send the uncapped
       // research position and reinstate the rejections.
-      `SELECT intent.id,intent.user_id,intent.client_request_id,trade.instrument,trade.direction,COALESCE(intent.request_payload->>'units',trade.calculated_units::text) AS units,trade.stop::text AS stop,trade.target::text AS target
+      `SELECT intent.id,intent.user_id,intent.paper_trade_id,intent.client_request_id,trade.instrument,trade.direction,COALESCE(intent.request_payload->>'units',trade.calculated_units::text) AS units,trade.stop::text AS stop,trade.target::text AS target
        FROM practice_order_intents intent
        JOIN paper_strategy_trades trade ON trade.id=intent.paper_trade_id
        JOIN practice_execution_policies policy ON policy.user_id=intent.user_id
        WHERE intent.status='pending' AND policy.enabled=true AND trade.status='open'
+         AND trade.strategy_family=ANY($1::text[])
        ORDER BY intent.created_at
        LIMIT 1 FOR UPDATE OF intent SKIP LOCKED`,
+      [PRACTICE_EXECUTION_FAMILIES],
     );
     const intent = pending.rows[0];
     if (!intent) return null;
     await client.query("UPDATE practice_order_intents SET status='sending',updated_at=now() WHERE id=$1 AND status='pending'", [intent.id]);
     return intent;
   });
+}
+
+async function markPairExecutionError(paperTradeId: string) {
+  await query(
+    `UPDATE paper_strategy_trades
+        SET features=CASE WHEN strategy_family='gbpusd_strategy'
+          THEN jsonb_set(features,'{gbpusdStrategy,exitReason}',to_jsonb('EXECUTION_ERROR'::text),true)
+          WHEN strategy_family='audusd_strategy'
+          THEN jsonb_set(features,'{audusdStrategy,exitReason}',to_jsonb('EXECUTION_ERROR'::text),true)
+          WHEN strategy_family='nzdusd_strategy'
+          THEN jsonb_set(features,'{nzdusdStrategy,blockReason}',to_jsonb('EXECUTION_ERROR'::text),true)
+          ELSE features END,
+            updated_at=now()
+      WHERE id=$1`,
+    [paperTradeId],
+  );
 }
 
 export async function processPendingPracticeOrders() {
@@ -149,15 +171,48 @@ export async function processPendingPracticeOrders() {
           "UPDATE practice_order_intents SET status='rejected',broker_order_id=$2,failure_reason=$3,updated_at=now() WHERE id=$1",
           [intent.id, result.orderId, `Broker did not open a position (${result.cancelReason ?? "no trade opened"}).`],
         );
+        await markPairExecutionError(intent.paper_trade_id);
         rejected += 1;
         continue;
       }
       await query("UPDATE practice_order_intents SET status='submitted',broker_order_id=$2,broker_trade_id=$3,submitted_at=now(),updated_at=now() WHERE id=$1", [intent.id, result.orderId, result.tradeId]);
+      const fillPrice = result.fillPrice !== null && Number.isFinite(result.fillPrice) ? result.fillPrice : null;
+      await query(
+        `UPDATE paper_strategy_trades
+            SET actual_fill_price=COALESCE($2,actual_fill_price),
+                features=CASE WHEN strategy_family='gbpusd_strategy' THEN
+                  jsonb_set(
+                    jsonb_set(
+                      jsonb_set(
+                        jsonb_set(features,'{gbpusdStrategy,actualEntry}',COALESCE(to_jsonb($2::numeric),'null'::jsonb),true),
+                        '{gbpusdStrategy,slippage}',COALESCE(to_jsonb($2::numeric-entry),'null'::jsonb),true),
+                      '{gbpusdStrategy,brokerOrderId}',to_jsonb($3::text),true),
+                    '{gbpusdStrategy,brokerTradeId}',to_jsonb($4::text),true)
+                  WHEN strategy_family='audusd_strategy' THEN
+                  jsonb_set(
+                    jsonb_set(
+                      jsonb_set(features,'{audusdStrategy,actualEntry}',COALESCE(to_jsonb($2::numeric),'null'::jsonb),true),
+                      '{audusdStrategy,brokerOrderId}',to_jsonb($3::text),true),
+                    '{audusdStrategy,brokerTradeId}',to_jsonb($4::text),true)
+                  WHEN strategy_family='nzdusd_strategy' THEN
+                  jsonb_set(
+                    jsonb_set(
+                      jsonb_set(
+                        jsonb_set(features,'{nzdusdStrategy,actualEntry}',COALESCE(to_jsonb($2::numeric),'null'::jsonb),true),
+                        '{nzdusdStrategy,actualBrokerFill}',COALESCE(to_jsonb($2::numeric),'null'::jsonb),true),
+                      '{nzdusdStrategy,brokerOrderId}',to_jsonb($3::text),true),
+                    '{nzdusdStrategy,brokerTradeId}',to_jsonb($4::text),true)
+                  ELSE features END,
+                updated_at=now()
+          WHERE id=$1`,
+        [intent.paper_trade_id, fillPrice, result.orderId, result.tradeId],
+      );
       submitted += 1;
     } catch (error) {
       const status = error instanceof OandaRequestError ? error.status : undefined;
       const terminal = typeof status === "number" && status >= 400 && status < 500;
       await query("UPDATE practice_order_intents SET status=$2,failure_reason=$3,updated_at=now() WHERE id=$1", [intent.id, terminal ? "failed" : "unknown", error instanceof Error ? error.message.slice(0, 500) : "Unknown practice order failure"]);
+      await markPairExecutionError(intent.paper_trade_id);
       if (terminal) failed += 1;
       else unknown += 1;
     }
@@ -174,20 +229,36 @@ export async function processPendingPracticeOrders() {
  * trade open, and an internal trade left open freezes its instrument and its
  * whole batch indefinitely.
  */
-export async function closePracticeTradeForPaperTrade(paperTradeId: string) {
-  const intent = await query<{ broker_trade_id: string | null; status: string }>("SELECT broker_trade_id,status FROM practice_order_intents WHERE paper_trade_id=$1", [paperTradeId]);
+export type PracticeTradeCloseRequestState = "no_broker_trade" | "pending_confirmation" | "requested";
+
+/**
+ * Request a broker close without pretending its eventual fill price is known.
+ * GBPUSD uses the returned state to keep the logical leg open until OANDA
+ * confirms the closing transaction, so its actual exit and slippage survive.
+ */
+export async function requestPracticeTradeCloseForPaperTrade(paperTradeId: string): Promise<PracticeTradeCloseRequestState> {
+  const intent = await query<{ broker_trade_id: string | null; close_requested_at: string | null; status: string }>(
+    "SELECT broker_trade_id,close_requested_at,status FROM practice_order_intents WHERE paper_trade_id=$1",
+    [paperTradeId],
+  );
   const row = intent.rows[0];
-  if (!row) return true;
+  if (!row) return "no_broker_trade";
   // Nothing was ever opened at the broker, so there is nothing to square and
   // the internal trade must be free to close. Blocking here is what stranded
   // four instruments: a margin-rejected order left a row that could never be
   // closed and never be retried into existence.
-  if (row.status === "rejected" || row.status === "failed") return true;
-  if (row.status === "submitted" && !row.broker_trade_id) return true;
-  if (row.status !== "submitted" || !row.broker_trade_id) return false;
+  if (row.status === "rejected" || row.status === "failed" || row.status === "disabled") return "no_broker_trade";
+  if (row.status === "submitted" && !row.broker_trade_id) return "no_broker_trade";
+  if (row.status !== "submitted" || !row.broker_trade_id) return "pending_confirmation";
+  if (row.close_requested_at) return "requested";
   const closeTransactionId = await closePracticeTrade(row.broker_trade_id);
+  if (!closeTransactionId) throw new OandaRequestError("OANDA accepted the close request without a transaction identifier.");
   await query("UPDATE practice_order_intents SET broker_close_transaction_id=$2,close_requested_at=now(),updated_at=now() WHERE paper_trade_id=$1", [paperTradeId, closeTransactionId]);
-  return true;
+  return "requested";
+}
+
+export async function closePracticeTradeForPaperTrade(paperTradeId: string) {
+  return (await requestPracticeTradeCloseForPaperTrade(paperTradeId)) !== "pending_confirmation";
 }
 
 export async function practiceExecutionOverview(userId: string) {

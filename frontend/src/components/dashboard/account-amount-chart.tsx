@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { startOfTradingDay } from "@/lib/format/datetime";
 import type { AccountBalanceHistoryPoint } from "@/types/forex";
 
 export type AccountChartPoint = {
@@ -26,16 +27,25 @@ export type AccountChartPoint = {
 };
 
 /** Real wall-clock periods for account profit and loss. */
-export type AccountChartRange = "1h" | "1d" | "1w" | "1m";
+export type AccountChartRange = "1h" | "1d" | "1w" | "1m" | "1y" | "all";
 
-const RANGES: AccountChartRange[] = ["1h", "1d", "1w", "1m"];
+const RANGES: AccountChartRange[] = ["1d", "1w", "1m", "1y", "all"];
 
 const RANGE_CONFIG: Record<AccountChartRange, { tab: string; label: string; durationMs: number; bucketMs: number }> = {
   "1h": { tab: "1H", label: "the last hour", durationMs: 60 * 60_000, bucketMs: 2 * 60_000 },
-  "1d": { tab: "1D", label: "the last day", durationMs: 24 * 60 * 60_000, bucketMs: 60 * 60_000 },
+  "1d": { tab: "1D", label: "today", durationMs: 24 * 60 * 60_000, bucketMs: 60 * 60_000 },
   "1w": { tab: "1W", label: "the last week", durationMs: 7 * 24 * 60 * 60_000, bucketMs: 6 * 60 * 60_000 },
   "1m": { tab: "1M", label: "the last 30 days", durationMs: 30 * 24 * 60 * 60_000, bucketMs: 24 * 60 * 60_000 },
+  "1y": { tab: "1Y", label: "the last year", durationMs: 365 * 24 * 60 * 60_000, bucketMs: 7 * 24 * 60 * 60_000 },
+  "all": { tab: "ALL", label: "the full account history", durationMs: 10 * 365 * 24 * 60 * 60_000, bucketMs: 30 * 24 * 60 * 60_000 },
 };
+
+function rangeCutoff(range: AccountChartRange, now: number) {
+  if (range === "1d") {
+    return startOfTradingDay(now).getTime();
+  }
+  return now - RANGE_CONFIG[range].durationMs;
+}
 
 function moneyCompact(value: number, currency: string) {
   return new Intl.NumberFormat("en-US", {
@@ -55,33 +65,51 @@ function moneyExact(value: number, currency: string) {
 
 function formatAxisTick(value: number, range: AccountChartRange) {
   const date = new Date(value);
-  if (range === "1h" || range === "1d") {
-    return new Intl.DateTimeFormat("en-US", {
-      hour: "numeric",
-      minute: range === "1h" ? "2-digit" : undefined,
-    }).format(date);
+  switch (range) {
+    case "1h":
+      return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(date);
+    case "1d":
+      return new Intl.DateTimeFormat("en-US", { hour: "numeric" }).format(date);
+    case "1w":
+      return new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(date);
+    case "1m":
+      return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date);
+    case "1y":
+    case "all":
+      return new Intl.DateTimeFormat("en-US", { month: "short", year: "2-digit" }).format(date);
+    default: {
+      const _never: never = range;
+      return _never;
+    }
   }
-  if (range === "1w") {
-    return new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(date);
-  }
-  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date);
 }
 
 function formatBucketLabel(start: number, end: number, range: AccountChartRange) {
   const startDate = new Date(start);
   const endDate = new Date(end);
-  if (range === "1h" || range === "1d") {
-    const formatter = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
-    return `${formatter.format(startDate)}–${formatter.format(endDate)}`;
+  switch (range) {
+    case "1h":
+    case "1d": {
+      const formatter = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
+      return `${formatter.format(startDate)}–${formatter.format(endDate)}`;
+    }
+    case "1w": {
+      // 6-hour buckets sit inside a day, so the label carries the day and hour;
+      // month/day alone repeated the same string across a day's four buckets.
+      const formatter = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric" });
+      return `${formatter.format(startDate)}–${formatter.format(endDate)}`;
+    }
+    case "1m":
+    case "1y":
+    case "all": {
+      const formatter = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+      return `${formatter.format(startDate)}–${formatter.format(endDate)}`;
+    }
+    default: {
+      const _never: never = range;
+      return _never;
+    }
   }
-  if (range === "1w") {
-    // 6-hour buckets sit inside a day, so the label carries the day and hour;
-    // month/day alone repeated the same string across a day's four buckets.
-    const formatter = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric" });
-    return `${formatter.format(startDate)}–${formatter.format(endDate)}`;
-  }
-  const formatter = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-  return `${formatter.format(startDate)}–${formatter.format(endDate)}`;
 }
 
 /** Keep endpoint labels inside the SVG without moving the plotted values inward. */
@@ -133,8 +161,9 @@ export function buildAccountAmountSeries({
   now?: number;
 }): AccountChartPoint[] {
   const config = RANGE_CONFIG[range];
-  const cutoff = now - config.durationMs;
-  const bucketCount = Math.ceil(config.durationMs / config.bucketMs);
+  const cutoff = rangeCutoff(range, now);
+  const spanMs = Math.max(now - cutoff, config.bucketMs);
+  const bucketCount = Math.max(1, Math.ceil(spanMs / config.bucketMs));
   const buckets = Array.from({ length: bucketCount }, (_, index) => {
     const start = cutoff + index * config.bucketMs;
     const end = Math.min(start + config.bucketMs, now);
@@ -204,8 +233,39 @@ export function buildAccountAmountSeries({
  * line is coloured from. Reading it twice from two different measures is how
  * the hero ended up green around a red chart.
  */
+export type AccountSeriesTone = "up" | "down" | "flat";
+
+const FLAT_CASH = 1;
+
+/**
+ * Colour the selected-period curve from its net result, not from intra-period
+ * wiggles. Sub-dollar noise is treated as flat so a $0 day does not paint red.
+ */
+export function accountSeriesTone(series: AccountChartPoint[]): AccountSeriesTone {
+  const opening = series[0]?.value ?? 0;
+  const latest = series.at(-1)?.value ?? opening;
+  const net = latest - opening;
+  if (Math.abs(net) < FLAT_CASH) return "flat";
+  return net > 0 ? "up" : "down";
+}
+
 export function accountSeriesRose(series: AccountChartPoint[]) {
-  return (series.at(-1)?.value ?? 0) >= (series[0]?.value ?? 0);
+  return accountSeriesTone(series) !== "down";
+}
+
+function seriesStroke(tone: AccountSeriesTone) {
+  switch (tone) {
+    case "up":
+      return "var(--chart-up)";
+    case "down":
+      return "var(--chart-down)";
+    case "flat":
+      return "color-mix(in srgb, var(--accent) 42%, var(--muted))";
+    default: {
+      const _never: never = tone;
+      return _never;
+    }
+  }
 }
 
 function ActiveValueLabel({
@@ -310,12 +370,30 @@ export function AccountAmountChart({
   const opening = series[0]?.value ?? 0;
   const latest = series.at(-1)?.value ?? opening;
   const netChange = latest - opening;
-  const stroke = netChange >= 0 ? "var(--chart-up)" : "var(--chart-down)";
+  const tone = accountSeriesTone(series);
+  const stroke = seriesStroke(tone);
   // Finer buckets (1H: 2-min ×30, 1D: hourly ×24, 1W: 6-hour ×28, 1M: daily ×30)
   // mean more points, so each range skips enough labels to keep the axis
   // uncrowded: ~6 for 1H, ~7 for 1D, one-per-day for 1W, ~6 for 1M.
-  const tickInterval =
-    range === "1w" ? 3 : range === "1m" ? 4 : range === "1d" ? 3 : range === "1h" ? 4 : 2;
+  const tickInterval = (() => {
+    switch (range) {
+      case "1h":
+        return 4;
+      case "1d":
+      case "1w":
+        return 3;
+      case "1m":
+        return 4;
+      case "1y":
+        return 5;
+      case "all":
+        return 6;
+      default: {
+        const _never: never = range;
+        return _never;
+      }
+    }
+  })();
 
   function handleChartFocus(event: { activeTooltipIndex?: number | string | null }) {
     if (typeof event.activeTooltipIndex === "number") {
@@ -349,7 +427,7 @@ export function AccountAmountChart({
             </button>
           );
         })}
-        <span className="account-range-unit">P/L</span>
+        <span className="account-range-unit sr-only">P/L</span>
       </div>
 
       <div
@@ -401,12 +479,12 @@ export function AccountAmountChart({
               )}
             />
             <Area
-              type="monotone"
+              type="linear"
               dataKey="value"
               stroke={stroke}
               strokeWidth={2.25}
-              strokeLinecap="round"
-              strokeLinejoin="round"
+              strokeLinecap="butt"
+              strokeLinejoin="miter"
               fill={`url(#${gradientId})`}
               isAnimationActive={false}
               dot={false}
@@ -420,8 +498,11 @@ export function AccountAmountChart({
 
       {/* Colour is not the only channel: the total and direction remain spoken. */}
       <p className="sr-only">
-        Account balance {moneyCompact(latest, currency)}, {netChange >= 0 ? "up" : "down"}{" "}
-        {moneyCompact(Math.abs(netChange), currency)} over {RANGE_CONFIG[range].label}, from {moneyCompact(opening, currency)}.
+        Account balance {moneyCompact(latest, currency)},{" "}
+        {tone === "flat"
+          ? "unchanged"
+          : `${tone === "up" ? "up" : "down"} ${moneyCompact(Math.abs(netChange), currency)}`}{" "}
+        over {RANGE_CONFIG[range].label}, from {moneyCompact(opening, currency)}.
       </p>
     </div>
   );

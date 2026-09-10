@@ -29,10 +29,12 @@ export function ChartTypeSelect({
   value,
   onChange,
   compact = false,
+  toolbar = false,
 }: {
   value: ChartVariant;
   onChange: (value: ChartVariant) => void;
   compact?: boolean;
+  toolbar?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -75,7 +77,9 @@ export function ChartTypeSelect({
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
         className={
-          compact
+          toolbar
+            ? `gx-toolbar-btn pressable ${open ? "is-active" : ""}`
+            : compact
             ? `signals-tool-btn pressable ${open ? "is-active" : ""}`
             : `pressable inline-flex min-h-9 min-w-[132px] items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
                 open
@@ -85,12 +89,13 @@ export function ChartTypeSelect({
         }
       >
         <ActiveIcon
-          className={`shrink-0 ${compact ? "size-4" : "size-3.5"}`}
+          className={`shrink-0 ${compact || toolbar ? "size-3.5" : "size-3.5"}`}
           strokeWidth={2}
         />
-        {compact ? null : (
+        {compact && !toolbar ? null : (
           <>
-            <span className="flex-1 text-left">{active.label}</span>
+            <span className={toolbar ? "" : "flex-1 text-left"}>{active.label}</span>
+            {toolbar ? null : (
             <ChevronDown
               className={`size-3.5 shrink-0 transition-transform ${
                 open
@@ -99,6 +104,7 @@ export function ChartTypeSelect({
               } ${open ? "rotate-180" : ""}`}
               strokeWidth={2}
             />
+            )}
           </>
         )}
       </button>
@@ -121,7 +127,7 @@ export function ChartTypeSelect({
             }
             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
             className={`menu-popover absolute top-[calc(100%+6px)] z-50 min-w-[188px] overflow-hidden rounded-2xl p-1.5 ${
-              compact ? "right-0 left-auto origin-top-right" : "left-0 origin-top-left"
+              compact || toolbar ? "right-0 left-auto origin-top-right" : "left-0 origin-top-left"
             }`}
           >
             {CHART_VARIANTS.map((option, index) => {

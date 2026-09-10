@@ -14,6 +14,8 @@ export type StrategyEvaluationMode = "live" | "practice" | "historical_replay";
 // ---------------------------------------------------------------------------
 
 export type StrategyFamily = "ema" | "breakout" | "momentum" | "meanrev";
+export type PairStrategyId = "eurusd_strategy" | "usdjpy_strategy" | "gbpusd_strategy" | "audusd_strategy" | "nzdusd_strategy" | "nzdusd_consensus_strategy" | "usdcad_strategy" | "usdchf_strategy" | "eurjpy_strategy" | "cadjpy_strategy" | "nzdjpy_strategy";
+export type StrategyId = StrategyFamily | PairStrategyId;
 export type RegimeClass = "trending" | "ranging" | "mixed";
 export type TrendDirection = "up" | "down" | "none";
 export type VolatilityBucket = "low" | "normal" | "high";
@@ -89,6 +91,239 @@ export interface MeanReversionFeatures {
   rangeAgeBars: number | null;
   trendStrength: number | null;
   reversalConfirmation: boolean;
+}
+
+/** Frozen, decision-time evidence for EURUSD London Breakout V1. */
+export interface EurusdStrategyFeatures {
+  strategyId: "eurusd_strategy";
+  strategyName: "EURUSD London Breakout";
+  strategyVersion: "v1";
+  symbol: "EUR_USD";
+  timeframe: "H1";
+  session: "LONDON";
+  setup: "A_LONDON_BO";
+  signalDirection: "LONG" | "SHORT" | null;
+  entryReference: number | null;
+  stopATR: 1.0;
+  rewardR: 2.0;
+  atr14: number | null;
+  ema20: number | null;
+  ema50: number | null;
+  asiaHigh: number | null;
+  asiaLow: number | null;
+  signalCandleTimestamp: string | null;
+  body: number | null;
+  bullTrend: boolean;
+  bearTrend: boolean;
+  bullStructure: boolean;
+  bearStructure: boolean;
+  longSetup: boolean;
+  shortSetup: boolean;
+  sigA: -1 | 0 | 1;
+  evtA: boolean;
+  reason: string;
+  waitReason: string | null;
+  signalKey: string | null;
+}
+
+/** Frozen, decision-time evidence for USDJPY Body Extreme V6. */
+export interface UsdjpyStrategyFeatures {
+  strategyId: "usdjpy_strategy";
+  strategyName: "USDJPY Body Extreme V6";
+  strategyVersion: 6;
+  symbol: "USD_JPY";
+  timeframe: "H1";
+  session: "USDJPY_11_14_UTC";
+  setup: "USDJPY_BODY_EXTREME";
+  signalDirection: "LONG" | null;
+  signalCandleTimestamp: string | null;
+  signalTimestampUtc: string | null;
+  signalPrice: number | null;
+  executionEntryPrice: number | null;
+  actualFillPrice: number | null;
+  ema20: number | null;
+  ema50: number | null;
+  atr14: number | null;
+  entryATR: number | null;
+  riskDistance: number | null;
+  preHigh: number | null;
+  preLow: number | null;
+  preRangeBarCount: number;
+  rangeReady: boolean;
+  tradedEarlierUtcDay: boolean;
+  signalCandle: { open: number; high: number; low: number; close: number } | null;
+  body: number | null;
+  bodyATRRatio: number | null;
+  bodyPassed: boolean;
+  barRange: number | null;
+  closePositionPct: number | null;
+  trendDirection: "LONG" | "SHORT" | "WAIT";
+  breakoutLong: boolean;
+  breakoutShort: boolean;
+  bullExtremeClose: boolean;
+  bearExtremeClose: boolean;
+  extremeClosePassed: boolean;
+  finalLongSignal: boolean;
+  finalShortSignal: boolean;
+  stopPrice: number | null;
+  targetPrice: number | null;
+  stopATRMultiplier: 1;
+  rewardR: 2;
+  maximumHoldBars: 3;
+  barsHeld: number;
+  exitPrice: number | null;
+  exitReason: "TAKE_PROFIT" | "STOP_LOSS" | "TIME_EXIT" | null;
+  realizedR: number | null;
+  realizedPnL: number | null;
+  reason: string;
+  waitReason: string | null;
+  signalKey: string | null;
+}
+
+/** Frozen, decision-time evidence for AUDUSD Strong Consensus Structure V1. */
+export interface AudusdStrategyFeatures {
+  strategyId: "audusd_strategy";
+  strategyName: "AUDUSD Strong Consensus Structure V1";
+  strategyVersion: "AUDUSD_STRONG_CONS_STRUCTURE_V1";
+  symbol: "AUD_USD";
+  timeframe: "H1";
+  origin: "11:00 UTC";
+  direction: "LONG" | null;
+  signalKey: string | null;
+  signalCandleTimestamp: string | null;
+  signalTimeUtc: string | null;
+  entryTimeUtc: string | null;
+  signalClose: number | null;
+  intendedEntry: number | null;
+  actualEntry: number | null;
+  ema20: number | null;
+  ema50: number | null;
+  ema20At0800: number | null;
+  close0800: number | null;
+  preRangeHigh: number | null;
+  preRangeLow: number | null;
+  preRangeMid: number | null;
+  emaVote: -1 | 0 | 1;
+  priceEmaVote: -1 | 0 | 1;
+  emaSlopeVote: -1 | 0 | 1;
+  rangeVote: -1 | 0 | 1;
+  structureVote: -1 | 0 | 1;
+  momentumVote: -1 | 0 | 1;
+  voteSum: number | null;
+  bullStructure: boolean;
+  atr14: number | null;
+  entryATR: number | null;
+  candleBody: number | null;
+  bodyAtrRatio: number | null;
+  bodyConfirm: boolean;
+  candleRange: number | null;
+  extremeClose: boolean;
+  confidenceTag: "AUDUSD_BODY_EXTREME" | "AUDUSD_BASE" | null;
+  stopLoss: number | null;
+  takeProfit: number | null;
+  maximumHoldBars: 3;
+  expirationTimeUtc: string | null;
+  actualExit: number | null;
+  exitTimeUtc: string | null;
+  exitReason: "TP" | "SL" | "TIME_EXIT" | "GLOBAL_RISK_BLOCK" | "SPREAD_BLOCK" | "POSITION_LIMIT" | "EXECUTION_ERROR" | null;
+  realizedPnL: number | null;
+  realizedR: number | null;
+  brokerOrderId: string | null;
+  brokerTradeId: string | null;
+  waitReason: string | null;
+}
+
+/** Frozen, decision-time evidence for NZDUSD Pre-Range Breakout V1. */
+export interface NzdusdStrategyFeatures {
+  strategyId: "nzdusd_strategy";
+  strategyName: "NZDUSD Pre-Range Breakout V1";
+  strategyVersion: "NZDUSD_PRE_RANGE_BREAKOUT_V1";
+  symbol: "NZD_USD";
+  timeframe: "H1";
+  origin: "11:00 UTC";
+  signalKey: string | null;
+  direction: "LONG" | "SHORT" | null;
+  signalCandleTimestamp: string | null;
+  signalTimeUtc: string | null;
+  entryTimeUtc: string | null;
+  signalClose: number | null;
+  executionEntry: number | null;
+  actualEntry: number | null;
+  actualBrokerFill: number | null;
+  ema20: number | null;
+  ema50: number | null;
+  preRangeHigh: number | null;
+  preRangeLow: number | null;
+  atr14: number | null;
+  entryATR: number | null;
+  candleBody: number | null;
+  bodyAtrRatio: number | null;
+  confidenceTag: "NZDUSD_BODY" | "NZDUSD_BASE" | null;
+  stopLoss: number | null;
+  takeProfit: number | null;
+  maximumHoldBars: 3;
+  expirationTimeUtc: string | null;
+  actualExit: number | null;
+  exitTimeUtc: string | null;
+  exitReason: "TP" | "SL" | "TIME_EXIT" | null;
+  realizedPnL: number | null;
+  realizedR: number | null;
+  brokerOrderId: string | null;
+  brokerTradeId: string | null;
+  waitReason: string | null;
+  blockReason: "GLOBAL_RISK_BLOCK" | "SPREAD_BLOCK" | "POSITION_LIMIT" | "EXECUTION_ERROR" | null;
+}
+
+/** Frozen, decision-time evidence for GBPUSD 30M Frequency V3. */
+export interface GbpusdStrategyFeatures {
+  strategyId: "gbpusd_strategy";
+  strategyName: "GBPUSD 30M Frequency V3";
+  strategyVersion: "v3";
+  symbol: "GBP_USD";
+  timeframe: "M30";
+  origin: "10:30" | "11:00" | "11:30" | null;
+  originCode: "1030" | "1100" | "1130" | null;
+  signalLabel: "GBPUSD_1030_LONG" | "GBPUSD_1030_SHORT" | "GBPUSD_1100_LONG" | "GBPUSD_1100_SHORT" | "GBPUSD_1130_LONG" | null;
+  signalTimeUtc: string | null;
+  entryTimeUtc: string | null;
+  signalCandleTimestamp: string | null;
+  signalClose: number | null;
+  intendedEntry: number | null;
+  actualEntry: number | null;
+  bid: number | null;
+  ask: number | null;
+  spreadPips: number | null;
+  slippage: number | null;
+  ema20: number | null;
+  ema50: number | null;
+  atr14: number | null;
+  entryATR: number | null;
+  preRangeHigh: number | null;
+  preRangeLow: number | null;
+  rangeBars: number;
+  expectedRangeBars: number;
+  rangeReady: boolean;
+  breakoutDistance: number | null;
+  penetration: number | null;
+  extremeClose: boolean;
+  confidenceTag: "BASE" | "PEN_EXTREME";
+  trend: "LONG" | "SHORT" | "WAIT";
+  breakout: boolean;
+  rawSignal: boolean;
+  signalCandle: { open: number; high: number; low: number; close: number } | null;
+  stopLoss: number | null;
+  takeProfit: number | null;
+  maxHoldBars: 6;
+  plannedExpirationUtc: string | null;
+  actualExit: number | null;
+  exitTimeUtc: string | null;
+  exitReason: "TP" | "SL" | "TIME_EXIT" | "BLOCKED_OPPOSITE_POSITION" | "GLOBAL_RISK_BLOCK" | "SPREAD_BLOCK" | "EXECUTION_ERROR" | null;
+  realizedPnL: number | null;
+  realizedR: number | null;
+  brokerOrderId: string | null;
+  brokerTradeId: string | null;
+  waitReason: string | null;
+  signalKey: string | null;
 }
 
 export interface StrategyCondition {
@@ -187,6 +422,27 @@ export interface StrategyResearchFeatures {
   breakout?: BreakoutFeatures | null;
   momentum?: MomentumFeatures | null;
   meanReversion?: MeanReversionFeatures | null;
+  eurusdStrategy?: EurusdStrategyFeatures | null;
+  usdjpyStrategy?: UsdjpyStrategyFeatures | null;
+  gbpusdStrategy?: GbpusdStrategyFeatures | null;
+  audusdStrategy?: AudusdStrategyFeatures | null;
+  nzdusdStrategy?: NzdusdStrategyFeatures | null;
+  /** Generic decision-time facts for the new frozen pair modules. */
+  frozenPairStrategy?: {
+    strategyId: PairStrategyId;
+    strategyName: string;
+    strategyVersion: string;
+    symbol: string;
+    timeframe: "H1";
+    signalKey: string | null;
+    originHourUtc: number;
+    frozenAtr14: number | null;
+    maxHoldBars: 3;
+    actualExit: number | null;
+    exitTimeUtc: string | null;
+    exitReason: "TP" | "SL" | "TIME_EXIT" | null;
+    realizedR: number | null;
+  } | null;
 }
 
 export interface StrategySetup {
@@ -194,7 +450,7 @@ export interface StrategySetup {
   instrument: MajorInstrument;
   pair: string;
   direction: StrategyDirection;
-  timeframe: "15m";
+  timeframe: "15m" | "30m" | "1h";
   entry: number | null;
   stop: number | null;
   target: number | null;
@@ -215,6 +471,8 @@ export interface StrategyEvaluationInput {
   accountCurrency: string;
   dataSource: DataSource;
   candles15m: import("@/types/forex").Candle[];
+  /** Pair-specific M30 history. Optional so existing strategy/research callers remain source-compatible. */
+  candles30m?: import("@/types/forex").Candle[];
   candles1h: import("@/types/forex").Candle[];
   candles4h: import("@/types/forex").Candle[];
   bid: number | null;

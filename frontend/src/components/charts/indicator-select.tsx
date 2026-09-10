@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Check, ChevronDown, SlidersHorizontal } from "lucide-react";
+import { Activity, Check, ChevronDown } from "lucide-react";
 import {
   CHART_INDICATORS,
   type ChartIndicator,
@@ -79,10 +79,12 @@ export function IndicatorSelect({
   enabled,
   onChange,
   compact = false,
+  toolbar = false,
 }: {
   enabled: ChartIndicator[];
   onChange: (enabled: ChartIndicator[]) => void;
   compact?: boolean;
+  toolbar?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -145,13 +147,15 @@ export function IndicatorSelect({
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
         className={
-          compact
+          toolbar
+            ? `gx-toolbar-btn pressable ${isOpen || hasActive ? "is-active" : ""}`
+            : compact
             ? `signals-tool-btn pressable ${compactTriggerClassName}`
             : `pressable inline-flex min-h-9 items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${triggerClassName}`
         }
       >
-        <SlidersHorizontal className="size-4 shrink-0" strokeWidth={2} />
-        {compact ? (
+        <Activity className={`${toolbar ? "size-3.5" : "size-4"} shrink-0`} strokeWidth={2} />
+        {compact && !toolbar ? (
           activeCount > 0 ? (
             <span className="signals-tool-badge">{activeCount}</span>
           ) : null
@@ -160,6 +164,7 @@ export function IndicatorSelect({
             <span>
               Indicators{activeCount > 0 ? ` · ${activeCount}` : ""}
             </span>
+            {toolbar ? null : (
             <ChevronDown
               className={`size-3.5 shrink-0 transition-transform ${
                 isOpen || hasActive
@@ -168,6 +173,7 @@ export function IndicatorSelect({
               } ${isOpen ? "rotate-180" : ""}`}
               strokeWidth={2}
             />
+            )}
           </>
         )}
       </button>

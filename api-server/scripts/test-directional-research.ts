@@ -54,9 +54,8 @@ assert.ok(Math.abs(spreadTrade.resultR + 0.2) < 1e-9, "bid/ask timeout must char
 assert.ok(Math.abs(spreadTrade.grossR) < 1e-9, "grossR must add spread cost back exactly");
 
 assert.deepEqual(STRATEGY_FAMILIES, ["ema", "breakout", "momentum", "meanrev"]);
-assert.deepEqual(LIVE_EXECUTABLE_FAMILIES, ["ema", "breakout", "momentum", "meanrev"]);
+assert.deepEqual(LIVE_EXECUTABLE_FAMILIES, [], "legacy research families must remain paused for runtime execution");
 assert.equal(EIGHT_DIRECTIONAL_FAMILIES.length, 8);
 assert.ok(!LIVE_EXECUTABLE_FAMILIES.some((family) => (EIGHT_DIRECTIONAL_FAMILIES.slice(4) as readonly string[]).includes(family)), "research families must not enter the live allowlist");
 
 console.log("directional research tests passed");
-

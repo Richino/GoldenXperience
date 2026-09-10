@@ -1,0 +1,11 @@
+import { evaluateFrozenH1Pair, resolveFrozenH1Exit, type FrozenH1EvaluationOptions, type FrozenH1ExitInput } from "@/lib/strategy/strategies/frozen-h1-pair";
+import type { StrategyEvaluationInput } from "@/lib/strategy/types";
+export const NZDJPY_STRATEGY_ID = "nzdjpy_strategy" as const;
+export const NZDJPY_STRATEGY_NAME = "NZDJPY 23UTC Bull Break V1" as const;
+export const NZDJPY_STRATEGY_VERSION = "V1" as const;
+export const NZDJPY_STRATEGY_CONFIG_VERSION = "nzdjpy-v1-frozen" as const;
+export const NZDJPY_STRATEGY_SYMBOL = "NZD_JPY" as const;
+export const NZDJPY_STRATEGY_TIMEFRAME = "H1" as const;
+export const NZDJPY_STRATEGY_CONFIG = Object.freeze({ symbol: NZDJPY_STRATEGY_SYMBOL, timeframe: NZDJPY_STRATEGY_TIMEFRAME, originHourUtc: 23, direction: "LONG_ONLY", emaFastPeriod: 20, emaSlowPeriod: 50, atrPeriod: 14, consensus: ">= +3", previousHighBreak: true, previousHighBreakClearanceAtr: .1, bodyAtrMinimum: .5, upperClosePct: .25, stopAtr: 1, rewardR: 2, maxHoldBars: 3, executionEnabled: true, adaptiveParametersMutable: false });
+export const evaluateNzdjpyStrategy = (input: StrategyEvaluationInput, options: FrozenH1EvaluationOptions = {}) => evaluateFrozenH1Pair({ id: NZDJPY_STRATEGY_ID, name: NZDJPY_STRATEGY_NAME, version: NZDJPY_STRATEGY_VERSION, configVersion: NZDJPY_STRATEGY_CONFIG_VERSION, symbol: NZDJPY_STRATEGY_SYMBOL, originHour: 23, direction: "long", consensus: "bull", previousHighBreak: true, bodyExtreme: true, breakClearanceAtr: .1 }, input, options);
+export const resolveNzdjpyExit = (input: FrozenH1ExitInput) => resolveFrozenH1Exit(input);

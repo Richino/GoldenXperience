@@ -27,7 +27,7 @@ export function ThemeColorSync() {
 
     function updateSignalsMobile() {
       setIsSignalsMobile(
-        pathname.startsWith("/chart") && mediaQuery.matches,
+        (pathname.startsWith("/chart") || pathname.startsWith("/signals")) && mediaQuery.matches,
       );
     }
 

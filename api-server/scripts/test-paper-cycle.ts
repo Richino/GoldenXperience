@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { buildPaperRecommendation, paperBatchMetrics, paperBreakdown, paperRiskAllowsEntry, parsePaperRiskConfiguration, type StoredTrade } from "../src/paper-cycle.js";
 import { MAJOR_INSTRUMENTS } from "../../frontend/src/types/forex.js";
 
-assert.deepEqual(MAJOR_INSTRUMENTS, ["EUR_USD", "GBP_USD", "USD_JPY", "AUD_USD", "NZD_USD", "USD_CAD", "USD_CHF", "EUR_GBP", "EUR_JPY", "GBP_JPY", "AUD_JPY", "EUR_AUD"], "the monitored universe is the featured pair set");
+assert.deepEqual(MAJOR_INSTRUMENTS, ["EUR_USD", "GBP_USD", "USD_JPY", "AUD_USD", "NZD_USD", "USD_CAD", "USD_CHF", "EUR_GBP", "EUR_JPY", "CAD_JPY", "NZD_JPY", "GBP_JPY", "AUD_JPY", "EUR_AUD"], "the monitored universe includes every dedicated pair strategy");
 assert.deepEqual(parsePaperRiskConfiguration({ riskPercent: 0.5, maxSimultaneousPositions: 3, maxTotalNominalRiskPercent: 2 }), { riskPercent: 0.5, maxSimultaneousPositions: 3, maxTotalNominalRiskPercent: 2 });
 assert.deepEqual(parsePaperRiskConfiguration({ riskPercent: 1, maxSimultaneousPositions: null, maxTotalNominalRiskPercent: null }), { riskPercent: 1, maxSimultaneousPositions: null, maxTotalNominalRiskPercent: null }, "position and total exposure limits may be unlimited");
 assert.throws(() => parsePaperRiskConfiguration({ riskPercent: 10, maxSimultaneousPositions: null, maxTotalNominalRiskPercent: null }), /between 0.1% and 5%/);

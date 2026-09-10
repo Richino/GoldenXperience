@@ -6791,13 +6791,28 @@ input[type="number"] {
     font-weight: 650;
   }
 
+  /* Match the floating header icon used on other pages (e.g. Trades): a round,
+     subtle surface chip rather than a hard dark square with a heavy shadow. */
   .signals-view .signals-mobile-actions .signals-fullscreen-reserve {
     width: 2.5rem;
     height: 2.5rem;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: #19191c;
+    /* !important defeats a base button reset that otherwise forces a square,
+       borderless box on this element. */
+    border-radius: 999px !important;
+    border: 1px solid color-mix(in srgb, var(--border) 85%, transparent) !important;
+    background: color-mix(in srgb, var(--surface) 94%, transparent);
     color: var(--foreground);
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+    box-shadow:
+      0 1px 0 color-mix(in srgb, var(--foreground) 4%, transparent),
+      0 6px 18px color-mix(in srgb, var(--foreground) 8%, transparent);
+  }
+
+  .dark .signals-view .signals-mobile-actions .signals-fullscreen-reserve {
+    border-color: color-mix(in srgb, var(--border-strong) 75%, transparent);
+    background: color-mix(in srgb, var(--surface) 88%, #000 12%);
+    box-shadow:
+      0 1px 0 color-mix(in srgb, var(--foreground) 5%, transparent),
+      0 8px 20px color-mix(in srgb, var(--background) 75%, transparent);
   }
 
   .signals-view .signals-mobile-actions .signals-mobile-header-actions {
@@ -9437,7 +9452,6 @@ input[type="number"] {
     overflow: visible;
     border: 0;
     border-radius: 0;
-    padding: 0;
     background: transparent;
     box-shadow: none;
   }
@@ -11937,7 +11951,7 @@ input[type="number"] {
   }
 
   .home-shell .account-overview-hero {
-    padding: 1.75rem 1.9rem 1.55rem;
+    padding: 2.4rem 2.5rem 2.1rem;
     border-radius: 24px;
   }
 
@@ -12270,7 +12284,9 @@ input[type="number"] {
 /* Mobile navigation: a compact floating control rather than a flat footer. */
 @media (max-width: 1023px) {
   .mobile-dock {
-    padding: 0 .55rem calc(env(safe-area-inset-bottom, 0px) + .5rem);
+    /* Sit just above the home indicator — use only half the safe-area gap so
+       the pill doesn't float too high on iPhone. */
+    padding: 0 .55rem calc(env(safe-area-inset-bottom, 0px) / 2 + .25rem);
     background: linear-gradient(to top, color-mix(in srgb, var(--background) 96%, transparent) 62%, transparent);
     border-top: 0;
     backdrop-filter: none;

@@ -1,6 +1,7 @@
 import type { PoolClient } from "pg";
 
 import { query, transaction } from "./database.js";
+import { getClosedPracticeTrades } from "../../frontend/src/lib/oanda/client.js";
 import { labelOutcome, type NormalizedQuote } from "./research.js";
 import { displayPair, queueNotification, sendPushNotification } from "./notifications.js";
 import { closePracticeTradeForPaperTrade, processPendingPracticeOrders, queuePracticeOrderIntent, requestPracticeTradeCloseForPaperTrade } from "./practice-execution.js";
@@ -649,6 +650,12 @@ async function openPaperTrade(
   const gbpusdMetadata = setup.features.gbpusdStrategy;
   const audusdMetadata = setup.features.audusdStrategy;
   const nzdusdMetadata = setup.features.nzdusdStrategy;
+  const nzdjpyMetadata = setup.features.nzdjpyStrategy;
+  const cadjpyMetadata = setup.features.cadjpyStrategy;
+  const eurjpyMetadata = setup.features.eurjpyStrategy;
+  const usdchfMetadata = setup.features.usdchfStrategy;
+  const usdcadMetadata = setup.features.usdcadStrategy;
+  const nzdusdConsensusMetadata = setup.features.nzdusdConsensusStrategy;
   const frozenH1Metadata = setup.features.frozenPairStrategy;
   const session = strategySession(setup);
   return transaction(async (client) => {
@@ -663,10 +670,34 @@ async function openPaperTrade(
                   THEN jsonb_set(features,'{audusdStrategy,exitReason}',to_jsonb($5::text),true)
                   WHEN $5::text IS NOT NULL AND strategy_family=$8
                   THEN jsonb_set(features,'{nzdusdStrategy,blockReason}',to_jsonb($5::text),true)
+                  WHEN $5::text IS NOT NULL AND strategy_family=$9
+                  THEN jsonb_set(
+                    jsonb_set(features,'{nzdjpyStrategy,executionAllowed}','false'::jsonb,true),
+                    '{nzdjpyStrategy,executionBlockReason}',to_jsonb($5::text),true)
+                  WHEN $5::text IS NOT NULL AND strategy_family=$10
+                  THEN jsonb_set(
+                    jsonb_set(features,'{cadjpyStrategy,executionAllowed}','false'::jsonb,true),
+                    '{cadjpyStrategy,executionBlockReason}',to_jsonb($5::text),true)
+                  WHEN $5::text IS NOT NULL AND strategy_family=$11
+                  THEN jsonb_set(
+                    jsonb_set(features,'{eurjpyStrategy,executionAllowed}','false'::jsonb,true),
+                    '{eurjpyStrategy,executionBlockReason}',to_jsonb($5::text),true)
+                  WHEN $5::text IS NOT NULL AND strategy_family=$12
+                  THEN jsonb_set(
+                    jsonb_set(features,'{usdchfStrategy,executionAllowed}','false'::jsonb,true),
+                    '{usdchfStrategy,executionBlockReason}',to_jsonb($5::text),true)
+                  WHEN $5::text IS NOT NULL AND strategy_family=$13
+                  THEN jsonb_set(
+                    jsonb_set(features,'{usdcadStrategy,executionAllowed}','false'::jsonb,true),
+                    '{usdcadStrategy,executionBlockReason}',to_jsonb($5::text),true)
+                  WHEN $5::text IS NOT NULL AND strategy_family=$14
+                  THEN jsonb_set(
+                    jsonb_set(features,'{nzdusdConsensusStrategy,executionAllowed}','false'::jsonb,true),
+                    '{nzdusdConsensusStrategy,executionBlockReason}',to_jsonb($5::text),true)
                   ELSE features END,
                 updated_at=now()
           WHERE strategy_version_id=$2 AND instrument=$3 AND decision_time=$4 AND trade_created=false`,
-        [reason, versionId, setup.instrument, setup.evaluatedAt, code, GBPUSD_STRATEGY_ID, AUDUSD_STRATEGY_ID, NZDUSD_STRATEGY_ID],
+        [reason, versionId, setup.instrument, setup.evaluatedAt, code, GBPUSD_STRATEGY_ID, AUDUSD_STRATEGY_ID, NZDUSD_STRATEGY_ID, NZDJPY_STRATEGY_ID, CADJPY_STRATEGY_ID, EURJPY_STRATEGY_ID, USDCHF_STRATEGY_ID, USDCAD_STRATEGY_ID, NZDUSD_CONSENSUS_STRATEGY_ID],
       );
       return null;
     };
@@ -743,8 +774,8 @@ async function openPaperTrade(
        RETURNING id`,
       [nextSequence.rows[0]!.value, userId, batch.id, versionId, setup.instrument, setup.evaluatedAt, setup.direction, setup.entry, setup.stop, setup.target, setup.riskReward, risk.riskPercent, positionSize.calculatedEstimatedRisk, positionSize.calculatedUnits, positionSize.calculatedStandardLots, spreadPips, session, weekdayAt(setup.evaluatedAt), setupName, checklistScore(setup), JSON.stringify(setup.conditions), JSON.stringify(setup.features), setup.features.newsStatus ?? "not_evaluated", setup.evaluatedAt, attribution?.family ?? null, attribution?.configVersion ?? null, attribution?.regime ?? null, attribution?.trendStrength ?? null, attribution?.volatilityBucket ?? null, attribution?.atrPips ?? null, attribution?.experimentId ?? null,
        attribution?.originalDirection ?? null, attribution?.inverted ?? false, attribution?.inversionExperimentId ?? null, evaluationId, spreadCost,
-         gbpusdMetadata?.signalClose ?? usdjpyMetadata?.signalPrice ?? audusdMetadata?.signalClose ?? nzdusdMetadata?.signalClose ?? (frozenH1Metadata ? setup.entry : null), null,
-         gbpusdMetadata?.maxHoldBars ?? usdjpyMetadata?.maximumHoldBars ?? audusdMetadata?.maximumHoldBars ?? nzdusdMetadata?.maximumHoldBars ?? frozenH1Metadata?.maxHoldBars ?? null,
+         gbpusdMetadata?.signalClose ?? usdjpyMetadata?.signalPrice ?? audusdMetadata?.signalClose ?? nzdusdMetadata?.signalClose ?? nzdjpyMetadata?.signalMidClose ?? cadjpyMetadata?.signalMidClose ?? eurjpyMetadata?.signalMidClose ?? usdchfMetadata?.signalMidClose ?? usdcadMetadata?.signalMidClose ?? nzdusdConsensusMetadata?.signalMidClose ?? (frozenH1Metadata ? setup.entry : null), null,
+         gbpusdMetadata?.maxHoldBars ?? usdjpyMetadata?.maximumHoldBars ?? audusdMetadata?.maximumHoldBars ?? nzdusdMetadata?.maximumHoldBars ?? nzdjpyMetadata?.maxHoldBars ?? cadjpyMetadata?.maxHoldBars ?? eurjpyMetadata?.maxHoldBars ?? usdchfMetadata?.maxHoldBars ?? usdcadMetadata?.maxHoldBars ?? nzdusdConsensusMetadata?.maxHoldBars ?? frozenH1Metadata?.maxHoldBars ?? null,
          gbpusdMetadata || usdjpyMetadata || audusdMetadata || nzdusdMetadata || frozenH1Metadata ? 0 : null],
     );
     const tradeId = inserted.rows[0]!.id;
@@ -1840,6 +1871,59 @@ export async function paperCycleOverview() {
  */
 export type JournalTradeFilter = "all" | "wins" | "losses" | "active";
 
+/**
+ * Bring direct OANDA Practice-account trades into the durable journal.
+ *
+ * Strategy orders already carry a broker trade id in `practice_order_intents`,
+ * so they are explicitly excluded. The broker id is used as a stable legacy id
+ * for direct/manual orders, making every refresh idempotent and allowing a
+ * later closed-trade update to correct the same journal row.
+ */
+export async function syncPracticeBrokerHistory(userId: string) {
+  let brokerTrades: Awaited<ReturnType<typeof getClosedPracticeTrades>>;
+  try {
+    brokerTrades = await getClosedPracticeTrades();
+  } catch {
+    // A journal read must remain available when OANDA is temporarily down.
+    return { imported: 0, unavailable: true };
+  }
+  if (!brokerTrades.length) return { imported: 0, unavailable: false };
+
+  const linked = await query<{ broker_trade_id: string }>(
+    "SELECT broker_trade_id FROM practice_order_intents WHERE broker_trade_id IS NOT NULL",
+  );
+  const linkedIds = new Set(linked.rows.map((row) => row.broker_trade_id));
+  let imported = 0;
+
+  for (const trade of brokerTrades) {
+    if (linkedIds.has(trade.brokerTradeId)) continue;
+    const pair = trade.instrument.replace("_", "/");
+    const result = trade.realizedPL === null ? "breakeven" : trade.realizedPL > 0 ? "win" : trade.realizedPL < 0 ? "loss" : "breakeven";
+    const saved = await query<{ id: string }>(
+      `INSERT INTO paper_trades(
+         user_id,legacy_id,origin,pair,direction,status,result,opened_at,closed_at,entry,stop,target,exit,result_r,reason,notes
+       ) VALUES($1,$2,'manual',$3,$4,'closed',$5,$6,$7,$8,$8,$8,$9,NULL,'OANDA Practice account history',$10)
+       ON CONFLICT(user_id,legacy_id) DO UPDATE SET
+         closed_at=EXCLUDED.closed_at, exit=EXCLUDED.exit, result=EXCLUDED.result, updated_at=now()
+       RETURNING id`,
+      [
+        userId,
+        `oanda-trade:${trade.brokerTradeId}`,
+        pair,
+        trade.direction,
+        result,
+        trade.openedAt,
+        trade.closedAt,
+        trade.entry,
+        trade.exit,
+        trade.realizedPL === null ? "Broker P&L unavailable." : `Broker realized P&L: ${trade.realizedPL.toFixed(2)} USD.`,
+      ],
+    );
+    if (saved.rowCount) imported += 1;
+  }
+  return { imported, unavailable: false };
+}
+
 function journalTradeWhere(filter: JournalTradeFilter): string {
   // Wins/losses use raw result_r (open trades are NULL and fall out of both).
   // Active is status-based so closed-but-null-R edge cases stay out.
@@ -1903,7 +1987,7 @@ export async function journalTradeLog(
        WHERE trade.user_id=$1 AND trade.status IN ('open', 'closed')
      ) log
      ${where}
-     ORDER BY "openedAt" DESC
+     ORDER BY CASE WHEN status = 'closed' THEN closed_at ELSE opened_at END DESC, opened_at DESC
      LIMIT $2 OFFSET $3`,
     [userId, limit, offset],
   );

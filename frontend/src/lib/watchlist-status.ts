@@ -45,17 +45,42 @@ export function watchlistProgress(row: WatchlistStatusInput) {
 
 function blockerLabel(name: string) {
   const labels: Record<string, string> = {
-    Session: "entry window",
-    Spread: "tighter spread",
-    News: "clear news window",
-    "Liquidity sweep": "liquidity sweep",
-    Location: "price at a mapped level",
-    "Rejection or displacement": "price confirmation",
-    "Structure break": "structure break",
-    Macro: "macro confirmation",
-    Retest: "retest",
-    "Setup score": "setup score",
+    Session: "outside its trading session",
+    Spread: "trading costs are too high",
+    News: "major news nearby",
+    "Liquidity sweep": "waiting for price movement",
+    Location: "waiting for price to reach a level",
+    "Rejection or displacement": "waiting for price confirmation",
+    "Structure break": "waiting for a price break",
+    Macro: "waiting for market confirmation",
+    Retest: "waiting for a retest",
+    "Setup score": "waiting for a stronger setup",
+    "Strategy signal qualified": "waiting for a qualifying setup",
+    "Frozen entry rules": "waiting for a qualifying setup",
+    "No duplicate signal": "this setup was already used",
+    "No active pair position": "a trade is already open for this pair",
+    "Stretched from mean": "waiting for a better price",
+    "Strong consensus": "waiting for a clearer signal",
+    "London window": "waiting for its scheduled check",
+    "Enabled leg": "waiting for its scheduled check",
+    Origin: "waiting for its scheduled check",
+    "EMA20 above EMA50": "waiting for a clearer market trend",
+    "EMA alignment": "waiting for a clearer market trend",
+    "EMA trend": "waiting for a clearer market trend",
+    "Body strength": "waiting for a stronger price move",
+    "Asia breakout cross": "waiting for a qualifying setup",
+    Breakout: "waiting for a qualifying setup",
+    "Causal pre-range": "waiting for a qualifying setup",
+    "Close breakout": "waiting for a qualifying setup",
+    "Consecutive bars": "waiting for a qualifying setup",
+    "Event edge": "waiting for a qualifying setup",
+    "Pine bull structure": "waiting for a qualifying setup",
+    "Pine consensus": "waiting for a qualifying setup",
+    "Simple structure": "waiting for a qualifying setup",
+    "V2 external higher-low structure": "waiting for a qualifying setup",
   };
+  if (/completed.*utc.*candle/i.test(name)) return "waiting for its scheduled check";
+  if (/^Pine /i.test(name)) return "waiting for a qualifying setup";
   return labels[name] ?? name.toLowerCase();
 }
 
@@ -75,7 +100,7 @@ export function watchlistCardStatus(row: WatchlistStatusInput): WatchlistCardSta
 
   if (row.openTradeId) {
     return {
-      label: row.tradeSequence ? `Trade #${row.tradeSequence} is open` : "Paper trade is open",
+      label: row.tradeSequence ? `Paper trade #${row.tradeSequence} is active` : "Paper trade is active",
       tone: "text-[color:var(--accent)]",
       state: "open",
       progress: 100,
@@ -93,11 +118,24 @@ export function watchlistCardStatus(row: WatchlistStatusInput): WatchlistCardSta
   }
   if (row.setupStatus === "valid" && levels) {
     return {
-      label: "Entry plan ready — tap for Entry / TP / SL",
+      label: "Trade plan ready — tap to view details",
       tone: "text-[color:var(--success)]",
       state: "ready",
       progress: 100,
       hasLevels: true,
+    };
+  }
+
+  const strategyEnabled = (row.conditions ?? []).some(
+    (condition) => condition.name === "Enabled leg" && condition.passed,
+  );
+  if (strategyEnabled) {
+    return {
+      label: "Active strategy — waiting for its scheduled check",
+      tone: "text-[color:var(--pending)]",
+      state: "developing",
+      progress,
+      hasLevels: levels,
     };
   }
 
@@ -107,8 +145,8 @@ export function watchlistCardStatus(row: WatchlistStatusInput): WatchlistCardSta
 
   return {
     label: levels
-      ? `Draft Entry / TP / SL — waiting for ${waitingFor}`
-      : `Waiting for ${waitingFor}`,
+      ? `Trade plan forming — ${waitingFor}`
+      : waitingFor,
     tone: developing ? "text-[color:var(--pending)]" : "text-[color:var(--muted)]",
     state: developing ? "developing" : "idle",
     progress,

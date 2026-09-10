@@ -19,11 +19,9 @@ import {
 import { useSupplementalQuotes } from "@/lib/market-stream/use-supplemental-quotes";
 import { strategyTypeLabel } from "@/lib/strategy/family-label";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
-import { NotificationBell } from "@/components/notifications/notification-bell";
 
 type Tab = "open" | "closed" | "all";
 type ClosedFilter = "all" | "wins" | "losses";
-type Sort = "newest" | "oldest";
 
 type Quote = { bid: number; ask: number } | undefined;
 type Quotes = Record<string, { bid: number; ask: number } | undefined>;
@@ -31,7 +29,6 @@ type Quotes = Record<string, { bid: number; ask: number } | undefined>;
 type Summary = {
   total: number;
   winRate: number | null;
-  avgR: number;
   today?: { wins: number; losses: number; realizedPL: number | null };
   openTrades?: JournalTrade[];
 };
@@ -126,7 +123,33 @@ function liveMetrics(trade: JournalTrade, quote: Quote, quotes: Quotes, fill: Op
 }
 
 function strategyLabel(trade: JournalTrade) {
-  return trade.origin === "strategy" ? strategyTypeLabel(trade) : null;
+  // A missing family is not an "Other" strategy. It is simply unavailable
+  // metadata, and calling it Other made real recent trades look mislabeled.
+  return trade.origin === "strategy" && trade.strategyFamily
+    ? strategyTypeLabel(trade)
+    : null;
+}
+
+function activityLabel(trade: JournalTrade) {
+  switch (trade.outcome) {
+    case "target_first":
+      return "TARGET FIRST";
+    case "stop_first":
+      return "STOP FIRST";
+    case "forced_close":
+      return "FORCED CLOSED";
+    default:
+      return "CLOSED";
+  }
+}
+
+function chartHrefForTrade(trade: JournalTrade) {
+  // Only strategy trades exist in the chart's trade-marker dataset. Direct
+  // broker imports can still be inspected in the journal, but must not claim
+  // to focus a chart trade that does not exist there.
+  return trade.origin === "strategy" && trade.instrument
+    ? `/chart?instrument=${trade.instrument}&trade=${trade.id}`
+    : null;
 }
 
 /* ---------------------------------------------------------------- primitives */
@@ -176,15 +199,12 @@ function ClosedSummary({
   wins,
   losses,
   winRate,
-  netR,
 }: {
   closed: number;
   wins: number;
   losses: number;
   winRate: number | null;
-  netR: number | null;
 }) {
-  const netTone = netR === null ? "" : netR >= 0 ? "is-positive" : "is-negative";
   return (
     <div className="trades-summary" role="group" aria-label="Closed trades summary">
       <span className="trades-summary-item">
@@ -198,9 +218,6 @@ function ClosedSummary({
       </span>
       <span className="trades-summary-item">
         <b>{winRate === null ? "—" : `${Math.round(winRate * 100)}%`}</b> <i>win rate</i>
-      </span>
-      <span className="trades-summary-item">
-        <b className={netTone}>{fmtR(netR)}</b> <i>net</i>
       </span>
     </div>
   );
@@ -363,8 +380,9 @@ function OpenRow({
   const rTone = live.openR === null ? "" : live.openR >= 0 ? "is-positive" : "is-negative";
   const pnlTone = live.money === null ? "" : live.money >= 0 ? "is-positive" : "is-negative";
   const strategy = strategyLabel(trade);
-  return (
-    <button type="button" className={`trades-row is-open ${selected ? "is-selected" : ""}`} onClick={onSelect}>
+  const href = chartHrefForTrade(trade);
+  const body = (
+    <>
       <span className="trades-cell-pair">
         <b>{trade.pair}</b>
         {strategy ? <small>{strategy}</small> : null}
@@ -379,6 +397,15 @@ function OpenRow({
       <span className={`metric-number ${rTone}`}>{fmtR(live.openR)}</span>
       <span className={`metric-number ${pnlTone}`}>{fmtMoney(live.money, true) ?? "—"}</span>
       <span className="metric-number trades-muted trades-hide-sm">{durationLabel(trade.openedAt, null)}</span>
+    </>
+  );
+  return href ? (
+    <Link href={href} className="trades-row is-open">
+      {body}
+    </Link>
+  ) : (
+    <button type="button" className={`trades-row is-open ${selected ? "is-selected" : ""}`} onClick={onSelect}>
+      {body}
     </button>
   );
 }
@@ -395,8 +422,9 @@ function ClosedRow({
   const rTone = trade.resultR === null ? "" : trade.resultR >= 0 ? "is-positive" : "is-negative";
   const pnlTone = trade.paperPl == null ? "" : trade.paperPl >= 0 ? "is-positive" : "is-negative";
   const strategy = strategyLabel(trade) ?? "—";
-  return (
-    <button type="button" className={`trades-row is-closed ${selected ? "is-selected" : ""}`} onClick={onSelect}>
+  const href = chartHrefForTrade(trade);
+  const body = (
+    <>
       <span className="trades-cell-pair">
         <b>{trade.pair}</b>
       </span>
@@ -411,6 +439,15 @@ function ClosedRow({
         {durationLabel(trade.openedAt, trade.closedAt)}
       </span>
       <span className="metric-number trades-muted trades-hide-sm">{dayAndTime(trade.closedAt)}</span>
+    </>
+  );
+  return href ? (
+    <Link href={href} className="trades-row is-closed">
+      {body}
+    </Link>
+  ) : (
+    <button type="button" className={`trades-row is-closed ${selected ? "is-selected" : ""}`} onClick={onSelect}>
+      {body}
     </button>
   );
 }
@@ -441,13 +478,9 @@ function MobileTradeCard({
       ? "is-down"
       : "is-up"
     : `is-${trade.result}`;
-
-  return (
-    <button
-      type="button"
-      className={`trade-card ${isOpen ? "is-open" : "is-closed"} ${accent} ${selected ? "is-selected" : ""}`}
-      onClick={onSelect}
-    >
+  const href = chartHrefForTrade(trade);
+  const body = (
+    <>
       <div className="trade-card-top">
         <span className="trade-card-pair">{trade.pair}</span>
         <span className={`trade-card-r metric-number ${rTone}`}>{fmtR(rValue)}</span>
@@ -460,7 +493,7 @@ function MobileTradeCard({
             <span className={`trade-card-side is-${trade.direction}`}>
               {trade.direction === "long" ? "LONG" : "SHORT"}
             </span>
-            {strategy ? ` · ${strategy}` : ""}
+            {` · ${activityLabel(trade)}`}
           </span>
         )}
         {isOpen ? (
@@ -515,6 +548,24 @@ function MobileTradeCard({
           </>
         )}
       </div>
+    </>
+  );
+
+  return href ? (
+    <Link
+      href={href}
+      className={`trade-card ${isOpen ? "is-open" : "is-closed"} ${accent}`}
+      aria-label={`Open ${trade.pair} trade on chart`}
+    >
+      {body}
+    </Link>
+  ) : (
+    <button
+      type="button"
+      className={`trade-card ${isOpen ? "is-open" : "is-closed"} ${accent} ${selected ? "is-selected" : ""}`}
+      onClick={onSelect}
+    >
+      {body}
     </button>
   );
 }
@@ -529,12 +580,30 @@ function TradesSkeleton() {
   );
 }
 
+function TradesSummarySkeleton() {
+  return (
+    <div className="trades-summary trades-summary-skeleton" aria-hidden>
+      {Array.from({ length: 4 }).map((_, index) => (
+        <span key={index} />
+      ))}
+    </div>
+  );
+}
+
+function TradesToolbarSkeleton() {
+  return (
+    <div className="trades-toolbar-skeleton" aria-hidden>
+      <span className="trades-toolbar-skeleton-tabs" />
+      <span className="trades-toolbar-skeleton-search" />
+    </div>
+  );
+}
+
 /* --------------------------------------------------------------------- shell */
 
 export function TradesView() {
   const [tab, setTab] = useState<Tab>("open");
   const [closedFilter, setClosedFilter] = useState<ClosedFilter>("all");
-  const [sort, setSort] = useState<Sort>("newest");
   const [query, setQuery] = useState("");
   const [records, setRecords] = useState<JournalTrade[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -545,6 +614,7 @@ export function TradesView() {
   const [connection, setConnection] = useState<ConnectionStatus | null>(null);
   const offsetRef = useRef(0);
   const seqRef = useRef(0);
+  const initialTabResolvedRef = useRef(false);
 
   const liveQuotes = useLiveQuotes();
   const openInstruments = useMemo(
@@ -635,6 +705,19 @@ export function TradesView() {
   const openTrades = useMemo(() => summary?.openTrades ?? [], [summary?.openTrades]);
   const closedTrades = useMemo(() => records.filter((t) => t.status === "closed"), [records]);
 
+  // The first render cannot know whether an open position exists. Once the
+  // journal summary arrives, make a no-open-position launch useful by showing
+  // the latest closed trades. This runs once only, so a person's later tab
+  // choice is never overwritten by a background refresh.
+  useEffect(() => {
+    if (!summary || initialTabResolvedRef.current) return;
+    initialTabResolvedRef.current = true;
+    // The API response is the external source that resolves the otherwise
+    // unknown initial tab; later user choices are guarded by the ref above.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!(summary.openTrades?.length ?? 0)) setTab("closed");
+  }, [summary]);
+
   const openCount = openTrades.length;
   const closedCount = Math.max(0, (summary?.total ?? 0) - openCount);
   const allCount = summary?.total ?? openCount + closedTrades.length;
@@ -675,11 +758,12 @@ export function TradesView() {
     const winRate = summary?.winRate ?? null;
     const wins = winRate === null ? 0 : Math.round(winRate * closedCount);
     const losses = Math.max(0, closedCount - wins);
-    const netR = summary ? summary.avgR * closedCount : null;
-    return { winRate, wins, losses, netR };
+    return { winRate, wins, losses };
   }, [summary, closedCount]);
 
-  // Rows for the active tab, with search + closed sub-filter + sort applied.
+  // The API already returns closed trades by their actual close time (and open
+  // trades by open time), so a client-only sort control cannot hide a newly
+  // closed position behind a page boundary.
   const rows = useMemo(() => {
     let list: JournalTrade[] =
       tab === "open" ? openTrades : tab === "closed" ? closedTrades : records;
@@ -688,13 +772,8 @@ export function TradesView() {
     if (tab === "closed" && closedFilter !== "all") {
       list = list.filter((t) => (closedFilter === "wins" ? t.result === "win" : t.result === "loss"));
     }
-    const sorted = [...list].sort((a, b) => {
-      const at = new Date(a.status === "open" ? a.openedAt : a.closedAt ?? a.openedAt).getTime();
-      const bt = new Date(b.status === "open" ? b.openedAt : b.closedAt ?? b.openedAt).getTime();
-      return sort === "newest" ? bt - at : at - bt;
-    });
-    return sorted;
-  }, [tab, openTrades, closedTrades, records, query, closedFilter, sort]);
+    return list;
+  }, [tab, openTrades, closedTrades, records, query, closedFilter]);
 
   // Keep a valid selection as the visible set changes (follows the list rather
   // than syncing an external system, so the direct setState is intentional).
@@ -730,6 +809,7 @@ export function TradesView() {
     { id: "closed", label: "Closed", count: closedCount },
     { id: "all", label: "All", count: allCount },
   ];
+  const initialTabLoading = loading && summary === null;
 
   return (
     <div className="trades-view">
@@ -744,10 +824,9 @@ export function TradesView() {
             {oandaConnected ? "CONNECTED" : (connection?.label ?? "OFFLINE")}
           </span>
         ) : null}
-        <NotificationBell compact className="trades-header-bell" />
       </header>
 
-      {tab === "open" ? (
+      {initialTabLoading ? <TradesSummarySkeleton /> : tab === "open" ? (
         <OpenSummary count={openCount} pnl={openAgg.pnl} realized={summary?.today?.realizedPL ?? null} />
       ) : (
         <ClosedSummary
@@ -755,12 +834,12 @@ export function TradesView() {
           wins={closedAgg.wins}
           losses={closedAgg.losses}
           winRate={closedAgg.winRate}
-          netR={closedAgg.netR}
         />
       )}
 
       <div className="trades-body">
         <div className="trades-workspace">
+          {initialTabLoading ? <TradesToolbarSkeleton /> : <>
           <div className="trades-toolbar">
             <nav className="trades-tabs" aria-label="Trade state">
               {tabs.map((t) => (
@@ -800,14 +879,8 @@ export function TradesView() {
               </nav>
             ) : null}
 
-            <button
-              type="button"
-              className="trades-sort"
-              onClick={() => setSort((s) => (s === "newest" ? "oldest" : "newest"))}
-            >
-              Sort: <b>{sort === "newest" ? "Newest" : "Oldest"}</b>
-            </button>
           </div>
+          </>}
 
           {loading ? (
             <TradesSkeleton />

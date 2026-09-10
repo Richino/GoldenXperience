@@ -1,0 +1,212 @@
+//@version=6
+strategy(
+     "GX 1H A London Breakout Only V1 - 1 to 2 RR",
+     overlay = true,
+     pyramiding = 0,
+     process_orders_on_close = true
+)
+
+// Frozen strategy parameters
+ema20  = ta.ema(close, 20)
+ema50  = ta.ema(close, 50)
+atr14  = ta.atr(14)
+minBodyAtr = 0.35
+
+// EUR/USD and H1 only
+isEURUSD = syminfo.basecurrency == "EUR" and syminfo.currency == "USD"
+isH1 = timeframe.isminutes and timeframe.multiplier == 60
+
+// UTC sessions
+utcHour  = hour(time, "UTC")
+inAsia   = utcHour >= 0 and utcHour < 6
+inLondon = utcHour >= 6 and utcHour < 11
+
+// Reset the Asia range at the beginning of each UTC day
+utcDay = time("D", "0000-2359", "UTC")
+newUtcDay = na(utcDay[1]) or utcDay != utcDay[1]
+
+var float asiaHigh = na
+var float asiaLow  = na
+
+if newUtcDay
+    asiaHigh := na
+    asiaLow  := na
+
+if inAsia
+    asiaHigh := na(asiaHigh) ? high : math.max(asiaHigh, high)
+    asiaLow  := na(asiaLow)  ? low  : math.min(asiaLow, low)
+
+asiaReady = not na(asiaHigh) and not na(asiaLow)
+
+// Candle and trend filters
+body = math.abs(close - open)
+
+bullTrend = ema20 > ema50
+bearTrend = ema20 < ema50
+
+bullStructure =
+     not na(high[1]) and
+     high > high[1] and
+     low > low[1]
+
+bearStructure =
+     not na(low[1]) and
+     high < high[1] and
+     low < low[1]
+
+// Close-confirmed Asia-range crosses
+longCross =
+     asiaReady and
+     not na(close[1]) and
+     close > asiaHigh and
+     close[1] <= asiaHigh
+
+shortCross =
+     asiaReady and
+     not na(close[1]) and
+     close < asiaLow and
+     close[1] >= asiaLow
+
+bodyQualified =
+     not na(atr14) and
+     atr14 > 0 and
+     body >= minBodyAtr * atr14
+
+longSetup =
+     isEURUSD and
+     isH1 and
+     barstate.isconfirmed and
+     inLondon and
+     longCross and
+     bullTrend and
+     bullStructure and
+     bodyQualified
+
+shortSetup =
+     isEURUSD and
+     isH1 and
+     barstate.isconfirmed and
+     inLondon and
+     shortCross and
+     bearTrend and
+     bearStructure and
+     bodyQualified
+
+// Conflict handling: WAIT
+conflict = longSetup and shortSetup
+
+sigA =
+     conflict   ? 0 :
+     longSetup  ? 1 :
+     shortSetup ? -1 :
+     0
+
+// Emit only on a 0 -> nonzero transition
+evtA = sigA != 0 and nz(sigA[1], 0) == 0
+
+// Freeze geometry from the signal candle
+var float tradeEntry  = na
+var float tradeAtr    = na
+var float tradeStop   = na
+var float tradeTarget = na
+
+canEnter =
+     barstate.isconfirmed and
+     strategy.position_size == 0 and
+     evtA and
+     not conflict
+
+if canEnter and sigA == 1
+    tradeEntry  := close
+    tradeAtr    := atr14
+    tradeStop   := tradeEntry - tradeAtr
+    tradeTarget := tradeEntry + (2.0 * tradeAtr)
+
+    strategy.entry(
+         "A_LONDON_BO_LONG",
+         strategy.long,
+         alert_message = "A_LONDON_BO_LONG"
+    )
+
+    strategy.exit(
+         "A_LONDON_BO_LONG_EXIT",
+         from_entry = "A_LONDON_BO_LONG",
+         stop = tradeStop,
+         limit = tradeTarget
+    )
+
+if canEnter and sigA == -1
+    tradeEntry  := close
+    tradeAtr    := atr14
+    tradeStop   := tradeEntry + tradeAtr
+    tradeTarget := tradeEntry - (2.0 * tradeAtr)
+
+    strategy.entry(
+         "A_LONDON_BO_SHORT",
+         strategy.short,
+         alert_message = "A_LONDON_BO_SHORT"
+    )
+
+    strategy.exit(
+         "A_LONDON_BO_SHORT_EXIT",
+         from_entry = "A_LONDON_BO_SHORT",
+         stop = tradeStop,
+         limit = tradeTarget
+    )
+
+// Clear stored display values after a position closes
+positionClosed =
+     strategy.position_size == 0 and
+     strategy.position_size[1] != 0
+
+if positionClosed
+    tradeEntry  := na
+    tradeAtr    := na
+    tradeStop   := na
+    tradeTarget := na
+
+// Debug visibility
+if conflict and barstate.isconfirmed
+    label.new(
+         bar_index,
+         high,
+         "CONFLICT: WAIT",
+         color = color.red,
+         textcolor = color.white,
+         style = label.style_label_down
+    )
+
+plot(ema20, "EMA 20", color = color.orange)
+plot(ema50, "EMA 50", color = color.blue)
+
+plot(
+     asiaReady ? asiaHigh : na,
+     "Asia High",
+     color = color.new(color.green, 20),
+     style = plot.style_stepline
+)
+
+plot(
+     asiaReady ? asiaLow : na,
+     "Asia Low",
+     color = color.new(color.red, 20),
+     style = plot.style_stepline
+)
+
+plotshape(
+     canEnter and sigA == 1,
+     title = "Long signal",
+     style = shape.triangleup,
+     location = location.belowbar,
+     color = color.lime,
+     size = size.small
+)
+
+plotshape(
+     canEnter and sigA == -1,
+     title = "Short signal",
+     style = shape.triangledown,
+     location = location.abovebar,
+     color = color.red,
+     size = size.small
+)

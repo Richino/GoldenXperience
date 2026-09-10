@@ -9,21 +9,20 @@ export function HomeUpcoming({ items }: { items: HomeUpcomingItem[] }) {
       <div className="home-section-head">
         <h2>Upcoming</h2>
       </div>
-      <div className="home-idle-list">
-        <div className="home-idle-head" aria-hidden="true">
-          <span>Pair</span>
-          <span>Strategy</span>
-          <span>Next window</span>
-        </div>
+      <div className="home-idle-list home-upcoming-list">
         {items.map((item) => (
           <Link
             key={item.instrument}
             href={`/chart?instrument=${item.instrument}`}
-            className="home-idle-row home-upcoming-row"
+            className={`home-idle-row home-upcoming-row ${item.windowLabel === "Now" ? "is-ready" : ""}`}
           >
-            <span className="home-idle-pair">{item.pair}</span>
-            <span>{item.strategy}</span>
-            <span>{item.windowLabel}</span>
+            <span className="home-upcoming-main">
+              <span className="home-idle-pair">{item.pair}</span>
+              <span className="home-upcoming-strategy">{item.strategy}</span>
+            </span>
+            <span className="home-upcoming-window">
+              {item.windowLabel === "Now" ? "Ready now" : `Next · ${item.windowLabel}`}
+            </span>
           </Link>
         ))}
       </div>

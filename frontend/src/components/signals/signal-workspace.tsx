@@ -29,6 +29,7 @@ import {
   type ChartOverlayPreferences,
 } from "@/components/charts/chart-context-panel";
 import { PairAvatar } from "@/components/ui/pair-avatar";
+import { MobileSheet } from "@/components/ui/mobile-sheet";
 import { apiUrl } from "@/lib/api/url";
 import { formatClockTime, formatDayAndTime, formatShortDay } from "@/lib/format/datetime";
 import { NotificationBell } from "@/components/notifications/notification-bell";
@@ -58,8 +59,7 @@ import {
 } from "@/lib/instruments/catalog";
 import { useMarketStream } from "@/lib/market-stream/use-market-stream";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
-import { getForexSessionStatus, type EntrySession } from "@/lib/strategy/session";
-import { getActiveSessionLabel } from "@/lib/oanda/calendar";
+import { getMarketCondition } from "@/lib/strategy/session";
 import type { StrategySetup } from "@/lib/strategy/types";
 import type { PaperTradingAvailability } from "@/lib/strategy/strategy-engine";
 import type { WatchlistStatusInput } from "@/lib/watchlist-status";
@@ -342,29 +342,8 @@ function toneClassForKind(kind: StatusKind): string {
   return "text-[color:var(--pending)]";
 }
 
-function captionForEntrySession(session: EntrySession) {
-  switch (session) {
-    case "London":
-      return "London";
-    case "New York":
-      return "New York";
-    case "London/New York overlap":
-      return "London / NY";
-    default: {
-      const exhaustive: never = session;
-      throw new Error(`Unhandled session: ${exhaustive}`);
-    }
-  }
-}
-
 function marketSessionCaption() {
-  const marketSession = getForexSessionStatus();
-  if (!marketSession.marketOpen) return "Closed";
-  if (marketSession.entrySession) return captionForEntrySession(marketSession.entrySession);
-  const active = getActiveSessionLabel();
-  if (active.startsWith("Tokyo")) return "Tokyo";
-  if (active.startsWith("Sydney")) return "Sydney";
-  return null;
+  return getMarketCondition().label;
 }
 
 function SegmentControl<T extends string>({
@@ -545,23 +524,13 @@ function SignalSearch({
   useEffect(() => {
     if (!open) return;
 
-    function handlePointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-
     function handleEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setOpen(false);
       }
     }
 
-    document.addEventListener("keydown", handleEscape);
-
-    if (compact) {
-      document.addEventListener("mousedown", handlePointerDown);
-    }
+    if (!compact) document.addEventListener("keydown", handleEscape);
 
     const previousBodyOverflow = document.body.style.overflow;
     const previousRootOverflow = document.documentElement.style.overflow;
@@ -571,8 +540,7 @@ function SignalSearch({
     }
 
     return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleEscape);
+      if (!compact) document.removeEventListener("keydown", handleEscape);
       if (!compact) {
         document.body.style.overflow = previousBodyOverflow;
         document.documentElement.style.overflow = previousRootOverflow;
@@ -582,21 +550,23 @@ function SignalSearch({
 
   if (compact) {
     return (
-      <div ref={rootRef} className={`relative ${className}`}>
-        <button
-          type="button"
-          aria-label="Search pairs"
-          aria-expanded={open}
-          onClick={() => setOpen((current) => !current)}
-          className={`signals-tool-btn pressable ${open ? "is-active" : ""}`}
-        >
-          {pairLabel ? (
-            <><span>{pairLabel}</span><ChevronDown className="size-3.5" strokeWidth={2} /></>
-          ) : <Search className="size-4" strokeWidth={2} />}
-        </button>
+      <>
+        <div className={`relative ${className}`}>
+          <button
+            type="button"
+            aria-label="Search pairs"
+            aria-expanded={open}
+            onClick={() => setOpen((current) => !current)}
+            className={`signals-tool-btn pressable ${open ? "is-active" : ""}`}
+          >
+            {pairLabel ? (
+              <><span>{pairLabel}</span><ChevronDown className="size-3.5" strokeWidth={2} /></>
+            ) : <Search className="size-4" strokeWidth={2} />}
+          </button>
+        </div>
 
-        {open ? (
-          <div className="signals-search-popover menu-popover absolute left-0 top-[calc(100%+0.5rem)] z-50 w-[min(18rem,calc(100vw-2rem))] overflow-hidden rounded-xl p-2">
+        <MobileSheet open={open} onClose={() => setOpen(false)} title="Select a pair">
+          <div className="signals-pair-sheet">
             <div className="signals-search">
               <Search
                 className="size-3.5 shrink-0 text-[color:var(--muted)]"
@@ -634,7 +604,7 @@ function SignalSearch({
                 </button>
               ) : null}
             </div>
-            <div className="mt-1 max-h-[min(16rem,50vh)] overflow-y-auto overscroll-contain">
+            <div className="mt-2">
               {matches.length ? (
                 visibleMatches.map((result) => {
                   const active = result.instrument === activeInstrument;
@@ -665,8 +635,8 @@ function SignalSearch({
               )}
             </div>
           </div>
-        ) : null}
-      </div>
+        </MobileSheet>
+      </>
     );
   }
 
@@ -869,11 +839,15 @@ function ActivePositionStrip({
       <span><small>Current</small><b className="metric-number">{currentPrice === null ? "—" : formatChartPrice(currentPrice, signal.instrument)}</b></span>
       <span><small>SL</small><b className="metric-number is-negative">{formatChartPrice(signal.stop, signal.instrument)}</b></span>
       <span><small>TP</small><b className="metric-number is-positive">{formatChartPrice(signal.target, signal.instrument)}</b></span>
-      <span><small>R:R</small><b>{signal.riskReward.toFixed(1)}:1</b></span>
+      <span><small>R:R</small><b>{formatRiskReward(signal.riskReward)}</b></span>
       <span><small>Open R</small><b className={openR !== null && openR < 0 ? "is-negative" : "is-positive"}>{openR === null ? "—" : `${openR >= 0 ? "+" : ""}${openR.toFixed(2)}R`}</b></span>
       {signal.openedAt ? <PositionOpenTiming openedAt={signal.openedAt} /> : null}
     </div>
   );
+}
+
+function formatRiskReward(value: number) {
+  return `${value.toFixed(Number.isInteger(value) ? 0 : 1)}:1`;
 }
 
 function PositionOpenTiming({ openedAt }: { openedAt: string }) {
@@ -918,7 +892,7 @@ function SetupStats({ active }: { active: TradeSignal }) {
         SL {formatChartPrice(active.stop, active.instrument)}
       </span>
       <span className="text-[color:var(--accent)]">
-        1:{active.riskReward.toFixed(1)}
+        {formatRiskReward(active.riskReward)}
       </span>
     </p>
   );
@@ -1758,49 +1732,62 @@ export function SignalWorkspace({
       ) ?? null,
     [focusTradeId, instrument, paperTrades],
   );
+  // The page receives this list from the server before the workspace renders.
+  // Prefer it over the watchlist's `openTradeId`, which can lag the paper
+  // collector by one refresh. That way a chart opened directly always shows
+  // an existing position and its levels before falling back to the no-position
+  // state.
+  const openPaperTrade = useMemo(
+    () =>
+      paperTrades.find(
+        (trade) => trade.instrument === instrument && trade.status === "open" && trade.closedAt === null,
+      ) ?? null,
+    [instrument, paperTrades],
+  );
+  const displayedTrade = openPaperTrade ?? focusTrade;
   const focusedPrediction = predictionFocus?.instrument === instrument
     ? predictionFocus
     : null;
-  const activeFocusId = focusTrade?.id ?? null;
-  // A journal link can focus an open trade before the watchlist collector has
-  // refreshed its `openTradeId`. Prefer that focused trade in Active Position
-  // so the chart never says "no open position" while its own trade is open.
+  const activeFocusId = displayedTrade?.id ?? null;
+  // A direct chart visit can arrive before the watchlist collector has
+  // refreshed its `openTradeId`. Prefer the chart's own open-trade read so
+  // Active Position never says "no open position" while that trade is live.
   const positionSignal = useMemo<TradeSignal | null>(() => {
-    if (focusTrade && focusTrade.closedAt === null) {
-      const risk = Math.abs(focusTrade.entry - focusTrade.stop);
+    if (openPaperTrade) {
+      const risk = Math.abs(openPaperTrade.entry - openPaperTrade.stop);
       return {
         instrument,
         pair: activeSetup.pair,
         timeframe: "15m",
-        direction: focusTrade.direction,
-        bias: focusTrade.direction === "long" ? "Bullish" : "Bearish",
-        entry: focusTrade.entry,
-        stop: focusTrade.stop,
-        target: focusTrade.target,
-        riskReward: risk > 0 ? Math.abs(focusTrade.target - focusTrade.entry) / risk : 0,
-        strategy: `Paper · Batch ${focusTrade.batchNumber ?? "—"}`,
-        note: `Trade #${focusTrade.tradeSequence}`,
+        direction: openPaperTrade.direction,
+        bias: openPaperTrade.direction === "long" ? "Bullish" : "Bearish",
+        entry: openPaperTrade.entry,
+        stop: openPaperTrade.stop,
+        target: openPaperTrade.target,
+        riskReward: risk > 0 ? Math.abs(openPaperTrade.target - openPaperTrade.entry) / risk : 0,
+        strategy: `Paper · Batch ${openPaperTrade.batchNumber ?? "—"}`,
+        note: `Trade #${openPaperTrade.tradeSequence}`,
         freshness: "Open",
-        openedAt: focusTrade.openedAt,
+        openedAt: openPaperTrade.openedAt,
       };
     }
     return openSignal;
-  }, [activeSetup.pair, focusTrade, instrument, openSignal]);
-  // A focused trade replaces the live plan on the chart: its own entry, stop,
-  // target and exit are what the markers have to line up with.
+  }, [activeSetup.pair, instrument, openPaperTrade, openSignal]);
+  // An open trade takes priority over a historical focus: its own entry, stop,
+  // target and exit are what the chart must display on first load.
   const setupLevels = useMemo(
-    () => focusTrade ? ({
-      entry: focusTrade.entry,
-      stop: focusTrade.stop,
-      target: focusTrade.target,
-      exit: focusTrade.exit,
-      outcome: focusTrade.outcome,
+    () => displayedTrade ? ({
+      entry: displayedTrade.entry,
+      stop: displayedTrade.stop,
+      target: displayedTrade.target,
+      exit: displayedTrade.exit,
+      outcome: displayedTrade.outcome,
     }) : active ? ({
       entry: active.entry,
       stop: active.stop,
       target: active.target,
     }) : null,
-    [active, focusTrade],
+    [active, displayedTrade],
   );
   const focusRange = useMemo(() => {
     const interval =
@@ -1823,11 +1810,11 @@ export function SignalWorkspace({
       };
     }
 
-    if (!focusTrade) return null;
+    if (!displayedTrade) return null;
 
-    const opened = Date.parse(focusTrade.openedAt) / 1_000;
-    const closed = focusTrade.closedAt
-      ? Date.parse(focusTrade.closedAt) / 1_000
+    const opened = Date.parse(displayedTrade.openedAt) / 1_000;
+    const closed = displayedTrade.closedAt
+      ? Date.parse(displayedTrade.closedAt) / 1_000
       : opened;
 
     if (!Number.isFinite(opened) || !Number.isFinite(closed)) return null;
@@ -1836,7 +1823,7 @@ export function SignalWorkspace({
       from: Math.floor(opened - padding),
       to: Math.ceil(Math.max(opened, closed) + padding),
     };
-  }, [focusTrade, focusedPrediction, timeframe]);
+  }, [displayedTrade, focusedPrediction, timeframe]);
 
   useEffect(() => {
     return () => {

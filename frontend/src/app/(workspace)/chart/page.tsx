@@ -12,9 +12,19 @@ export const metadata: Metadata = {
 
 export default async function ChartPage({ searchParams }: { searchParams: Promise<{ instrument?: string; trade?: string; prediction?: string }> }) {
   const params = await searchParams;
-  const requested = params.instrument?.toUpperCase() ?? "EUR_USD";
+  // A plain chart launch should open an active paper trade first. Explicit
+  // watchlist/chart links still win so a user can inspect another pair on
+  // purpose.
+  const activeTrade = params.instrument
+    ? null
+    : await getApiData<{ openTrades?: Array<{ id: string; instrument: string; status: string; closedAt: string | null }> }>("/api/paper-cycle")
+      .then((payload) => payload.openTrades?.find((trade) => trade.status === "open" && trade.closedAt === null) ?? null)
+      .catch(() => null);
+  const requested = params.instrument?.toUpperCase() ?? activeTrade?.instrument ?? "EUR_USD";
   const instrument = isStrategyInstrument(requested) ? requested : "EUR_USD";
-  const focusTradeId = params.trade && /^[0-9a-f-]{36}$/i.test(params.trade) ? params.trade : null;
+  const focusTradeId = params.trade && /^[0-9a-f-]{36}$/i.test(params.trade)
+    ? params.trade
+    : activeTrade?.id ?? null;
   const focusPredictionId = params.prediction && /^[0-9a-f-]{36}$/i.test(params.prediction) ? params.prediction : null;
   const [snapshot, candleResult, watchlist, paperTrades] = await Promise.all([
     getApiData<StrategySnapshot>("/api/strategy"),

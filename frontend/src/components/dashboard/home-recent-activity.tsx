@@ -58,13 +58,13 @@ export function HomeRecentActivity({
                 href={href}
                 className={`home-idle-row home-activity-row is-${item.kind}`}
               >
-                <span className="home-idle-pair">{item.pair}</span>
+                <span className="home-idle-pair home-activity-pair">{item.pair}</span>
                 <span className="home-activity-result">{item.label}</span>
-                <span className={`metric-number ${signedTone(item.paperPl, 0.005)}`}>
+                <span className={`home-activity-money metric-number ${signedTone(item.paperPl, 0.005)}`}>
                   {moneyLabel(item.paperPl, currency)}
                 </span>
-                <span className={`metric-number ${signedTone(item.resultR)}`}>{rLabel(item.resultR)}</span>
-                <span>{formatShortDay(item.at)}</span>
+                <span className={`home-activity-r metric-number ${signedTone(item.resultR)}`}>{rLabel(item.resultR)}</span>
+                <span className="home-activity-time">{formatShortDay(item.at)}</span>
               </Link>
             );
           })}

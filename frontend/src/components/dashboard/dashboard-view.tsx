@@ -413,7 +413,7 @@ export function DashboardView({
                   <Link
                     key={trade.id}
                     href={`/chart?instrument=${trade.instrument}&trade=${trade.id}`}
-                    className="home-position-row"
+                    className={`home-position-row is-${trade.direction}`}
                   >
                     <span className="home-position-symbol">
                       <span>{displayNameFor(trade.instrument)}</span>
@@ -425,6 +425,7 @@ export function DashboardView({
                       {trade.entry == null ? "—" : formatChartPrice(trade.entry, trade.instrument)}
                     </span>
                     <span className="home-position-price metric-number">
+                      <span className="home-position-mark-label">Mark</span>
                       {mark === null ? "—" : formatChartPrice(mark, trade.instrument)}
                       {lots !== null ? (
                         <span className="home-position-lot"> · {lots.toFixed(2)} lot</span>

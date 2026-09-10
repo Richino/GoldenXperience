@@ -431,7 +431,7 @@ function setupLevelTags(
   const tags: LevelTag[] = [
     {
       key: "entry",
-      label: compactLabels ? "Entry" : `ENTRY ${entryPrice}`,
+      label: compactLabels ? `Entry ${entryPrice} · R:R ${rewardR.toFixed(rewardR >= 10 ? 0 : 1)}` : `ENTRY ${entryPrice}`,
       price: toChartPrice(levels.entry, entrySide, halfSpread),
       color: isDark ? "rgba(0, 229, 155, 0.82)" : "#00a06a",
       textColor: isDark ? "#06281f" : "#ffffff",
@@ -439,7 +439,7 @@ function setupLevelTags(
     },
     {
       key: "stop",
-      label: compactLabels ? "SL" : `STOP LOSS ${stopPrice} · -1R`,
+      label: compactLabels ? `SL ${stopPrice} · -1R` : `STOP LOSS ${stopPrice} · -1R`,
       price: toChartPrice(levels.stop, exitSide, halfSpread),
       color: isDark ? "rgba(255, 99, 112, 0.88)" : "#e74c3c",
       textColor: "#ffffff",
@@ -448,7 +448,7 @@ function setupLevelTags(
     {
       key: "target",
       label: compactLabels
-        ? "TP"
+        ? `TP ${targetPrice} · +${rewardR.toFixed(rewardR >= 10 ? 0 : 1)}R`
         : `TAKE PROFIT ${targetPrice} · +${rewardR.toFixed(rewardR >= 10 ? 0 : 1)}R`,
       price: toChartPrice(levels.target, exitSide, halfSpread),
       color: isDark ? "#00e59b" : "#00b377",
@@ -517,8 +517,10 @@ function overlayLevelTags(
 /** A level tag resolved to a pixel row, ready to be positioned. */
 interface PlacedLevelTag extends LevelTag {
   y: number;
-  /** Distance from the chart's right edge, clearing the price axis. */
-  right: number;
+  /** The horizontal side where this tag is anchored. */
+  edge: "left" | "right";
+  /** Distance from the selected chart edge. */
+  offset: number;
 }
 
 /** Flag chip height including padding — used to unstack overlapping levels. */
@@ -1624,7 +1626,8 @@ export function SetupChart({
         return [{
           ...tag,
           y: Math.min(Math.max(y, minTagY), maxTagY),
-          right: axisWidth,
+          edge: embedded ? "left" : "right",
+          offset: embedded ? 8 : axisWidth,
         }];
       });
 
@@ -1789,12 +1792,11 @@ export function SetupChart({
       {placedTags.map((tag) => (
         <span
           key={tag.key}
-          className="setup-chart-level-tag"
+          className={`setup-chart-level-tag is-${tag.edge}`}
           style={{
             top: tag.y,
-            right: tag.right,
-            background: tag.color,
-            color: tag.textColor,
+            ...(tag.edge === "left" ? { left: tag.offset } : { right: tag.offset }),
+            color: tag.color,
           }}
         >
           {tag.label}

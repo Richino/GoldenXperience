@@ -288,13 +288,17 @@ export function evaluateEurusdStrategy(
   else if (timeframe !== EURUSD_STRATEGY_TIMEFRAME) waitReason = "WRONG_TIMEFRAME";
   else if (normalized.error || traced.error) waitReason = "MALFORMED_CANDLES";
   else if (!lastCandle || !trace) waitReason = "CANDLE_NOT_CLOSED";
-  else if (options.hasActivePosition) waitReason = "POSITION_ALREADY_OPEN";
   else if (trace.longSetup && trace.shortSetup) {
     waitReason = "CONFLICTING_SIGNAL";
     options.onConflict?.(trace.timestamp);
   } else if (!trace.evtA) waitReason = waitReasonFor(trace, lastCandle, previousCandle);
 
-  const direction = waitReason === null && trace?.evtA ? (trace.sigA === 1 ? "long" : "short") : null;
+  const strategySetupQualified = waitReason === null && trace?.sigA !== 0;
+  const strategyEventQualified = waitReason === null && trace?.evtA === true;
+  const executionBlockReason = !strategyEventQualified ? "NO_STRATEGY_EVENT"
+    : options.hasActivePosition ? "POSITION_ALREADY_OPEN" : null;
+  const executionAllowed = strategyEventQualified && executionBlockReason === null;
+  const direction = executionAllowed && trace ? (trace.sigA === 1 ? "long" : "short") : null;
   const entry = direction ? trace!.entry : null;
   const stop = direction ? trace!.stop : null;
   const target = direction ? trace!.target : null;
@@ -304,7 +308,9 @@ export function evaluateEurusdStrategy(
     && (direction === "long" ? stop < entry && entry < target : target < entry && entry < stop);
   if (direction && !numericalSafety) waitReason = "NUMERICAL_SAFETY";
   const finalDirection = waitReason === null ? direction : null;
-  const signalReason = finalDirection ? reasonFor(finalDirection) : `WAIT: ${waitReason ?? "NO_ASIA_BREAKOUT"}.`;
+  const signalReason = strategyEventQualified
+    ? finalDirection ? reasonFor(finalDirection) : `EURUSD Pine event qualified; execution blocked: ${executionBlockReason ?? "NUMERICAL_SAFETY"}.`
+    : `WAIT: ${waitReason ?? "NO_ASIA_BREAKOUT"}.`;
   const crossedHigh = Boolean(trace && lastCandle && previousCandle && trace.asiaHigh !== null
     && lastCandle.close > trace.asiaHigh && previousCandle.close <= trace.asiaHigh);
   const crossedLow = Boolean(trace && lastCandle && previousCandle && trace.asiaLow !== null
@@ -357,6 +363,10 @@ export function evaluateEurusdStrategy(
     shortSetup: trace?.shortSetup ?? false,
     sigA: trace?.sigA ?? 0,
     evtA: trace?.evtA ?? false,
+    strategySetupQualified,
+    strategyEventQualified,
+    executionAllowed: finalDirection !== null,
+    executionBlockReason: finalDirection ? null : numericalSafety || !strategyEventQualified ? executionBlockReason : "NUMERICAL_SAFETY",
     reason: signalReason,
     waitReason,
     signalKey,

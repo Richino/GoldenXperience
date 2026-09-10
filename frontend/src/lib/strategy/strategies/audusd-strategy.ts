@@ -8,13 +8,13 @@ import type {
 import type { Candle } from "@/types/forex";
 
 /**
- * Frozen AUDUSD Strong Consensus Structure V1. Every rule and threshold in this
+ * Frozen AUDUSD Strong Consensus Structure V2. Every rule and threshold in this
  * module is literal; any future change must use a new strategy version.
  */
 export const AUDUSD_STRATEGY_ID = "audusd_strategy" as const;
-export const AUDUSD_STRATEGY_NAME = "AUDUSD Strong Consensus Structure V1" as const;
-export const AUDUSD_STRATEGY_VERSION = "AUDUSD_STRONG_CONS_STRUCTURE_V1" as const;
-export const AUDUSD_STRATEGY_CONFIG_VERSION = "audusd-strategy-cfg-v1" as const;
+export const AUDUSD_STRATEGY_NAME = "AUDUSD Strong Consensus Structure V2 HL Only" as const;
+export const AUDUSD_STRATEGY_VERSION = "AUDUSD_STRONG_CONS_STRUCTURE_V2" as const;
+export const AUDUSD_STRATEGY_CONFIG_VERSION = "audusd-strategy-cfg-v2-hl-only" as const;
 export const AUDUSD_STRATEGY_SYMBOL = "AUD_USD" as const;
 export const AUDUSD_STRATEGY_TIMEFRAME = "H1" as const;
 export const AUDUSD_STRATEGY_ORIGIN = "11:00 UTC" as const;
@@ -43,7 +43,7 @@ export const AUDUSD_STRATEGY_CONFIG = Object.freeze({
   preRangeEndUtcHour: AUDUSD_PRE_RANGE_END_UTC,
   signalOriginUtcHour: AUDUSD_SIGNAL_ORIGIN_UTC,
   minimumVoteSum: AUDUSD_MIN_VOTE_SUM,
-  requiredStructure: "HH_HL",
+  requiredStructure: "HL_ONLY_EXTERNAL",
   stopAtr: AUDUSD_STOP_ATR_MULTIPLIER,
   rewardR: AUDUSD_REWARD_R,
   maxHoldBars: AUDUSD_MAX_HOLD_BARS,
@@ -96,6 +96,7 @@ export interface AudusdVoteResult {
   momentumVote: AudusdVote;
   voteSum: number;
   bullStructure: boolean;
+  higherLow: boolean;
 }
 
 export interface AudusdStrategyTraceRow extends AudusdVoteResult {
@@ -175,12 +176,13 @@ export function evaluateAudusdVotes(input: AudusdVoteInput): AudusdVoteResult {
     emaVote, priceEmaVote, emaSlopeVote, rangeVote, structureVote, momentumVote,
     voteSum: emaVote + priceEmaVote + emaSlopeVote + rangeVote + structureVote + momentumVote,
     bullStructure,
+    higherLow: input.signalLow > input.priorLow,
   };
 }
 
-/** Frozen entry verdict. Deliberately has no bearish/short branch. */
-export function audusdLongSignal(votes: Pick<AudusdVoteResult, "voteSum" | "bullStructure">) {
-  return votes.voteSum >= AUDUSD_MIN_VOTE_SUM && votes.bullStructure;
+/** V2 entry verdict. Vote #5 stays HH+HL, while the external filter is HL-only. */
+export function audusdLongSignal(votes: Pick<AudusdVoteResult, "voteSum" | "higherLow">) {
+  return votes.voteSum >= AUDUSD_MIN_VOTE_SUM && votes.higherLow;
 }
 
 /** Frozen 1 ATR stop / 2 ATR target geometry for the long-only strategy. */
@@ -222,7 +224,7 @@ export function normalizeAudusdH1Candles(candles: readonly Candle[]) {
 
 const EMPTY_VOTES: AudusdVoteResult = {
   emaVote: 0, priceEmaVote: 0, emaSlopeVote: 0, rangeVote: 0,
-  structureVote: 0, momentumVote: 0, voteSum: 0, bullStructure: false,
+  structureVote: 0, momentumVote: 0, voteSum: 0, bullStructure: false, higherLow: false,
 };
 
 /**
@@ -262,7 +264,10 @@ export function evaluateAudusdStrategyTrace(candles: readonly Candle[]): { rows:
     const ema20At0800 = bar0800 ? ema20Values[bar0800.index] ?? null : null;
     const close0800 = bar0800?.candle.close ?? null;
     const atr14 = atr14Values[index] ?? null;
-    const voteInputsAvailable = ema20 !== null && ema50 !== null && ema20At0800 !== null
+    const historyContinuous = isExactH1Start(date) && date.getUTCHours() === AUDUSD_SIGNAL_ORIGIN_UTC
+      && index >= 5 && Date.parse(candle.time) - Date.parse(values[index - 5]!.time) === 5 * 60 * 60_000
+      && new Date(values[index - 5]!.time).getUTCHours() === 6;
+    const voteInputsAvailable = historyContinuous && missingRangeHours.length === 0 && ema20 !== null && ema50 !== null && ema20At0800 !== null
       && close0800 !== null && preRangeMid !== null && Boolean(bar1000);
     const votes = voteInputsAvailable ? evaluateAudusdVotes({
       ema20, ema50, close: candle.close, ema20At0800, preRangeMid,
@@ -276,7 +281,7 @@ export function evaluateAudusdStrategyTrace(candles: readonly Candle[]): { rows:
     const extremeClose = candleRange > 0 && candle.close >= candle.high - candleRange * AUDUSD_EXTREME_CLOSE_PCT;
     const confidenceTag = bodyConfirm && extremeClose ? "AUDUSD_BODY_EXTREME" as const : "AUDUSD_BASE" as const;
     const isOrigin = isExactH1Start(date) && date.getUTCHours() === AUDUSD_SIGNAL_ORIGIN_UTC;
-    const finalLongSignal = isOrigin && voteInputsAvailable && atr14 !== null && atr14 > 0
+    const finalLongSignal = isOrigin && historyContinuous && missingRangeHours.length === 0 && voteInputsAvailable && atr14 !== null && atr14 > 0
       && finite(atr14) && audusdLongSignal(votes);
     const signalClose = finalLongSignal ? candle.close : null;
     const geometry = signalClose === null || atr14 === null ? null : audusdTradeGeometry(signalClose, atr14);
@@ -317,7 +322,9 @@ function waitReasonFor(trace: AudusdStrategyTraceRow, candle: Candle): AudusdStr
   if (trace.atr14 === null) return "ATR14_UNAVAILABLE";
   if (!finite(trace.atr14) || !(trace.atr14 > 0)) return "ATR_INVALID";
   if (trace.voteSum < AUDUSD_MIN_VOTE_SUM) return "VOTE_SUM_TOO_LOW";
-  if (!trace.bullStructure) return "BULL_STRUCTURE_FAILED";
+  // V2's final external structure gate is HL-only. The full HH+HL check is
+  // retained solely inside vote #5 and must not reject a +4-or-better setup.
+  if (!trace.higherLow) return "BULL_STRUCTURE_FAILED";
   return null;
 }
 
@@ -380,7 +387,10 @@ export function evaluateAudusdStrategy(
   if (waitReason === null && options.hasActivePosition) waitReason = "POSITION_ALREADY_OPEN";
 
   const rawDirection = waitReason === null && trace?.finalLongSignal ? "long" as const : null;
-  const intendedEntry = rawDirection ? (finitePositive(input.ask) ? input.ask : trace?.signalClose ?? null) : null;
+  // Pine uses process_orders_on_close, so the frozen entry and its geometry are
+  // the completed 11:00 UTC signal candle close. A later live ASK must never
+  // rewrite a Pine-parity signal.
+  const intendedEntry = rawDirection ? trace?.signalClose ?? null : null;
   const riskDistance = rawDirection && trace?.atr14 != null ? trace.atr14 * AUDUSD_STOP_ATR_MULTIPLIER : null;
   const geometry = intendedEntry === null || trace?.atr14 == null ? null : audusdTradeGeometry(intendedEntry, trace.atr14);
   const stop = geometry?.stopLoss ?? null;
@@ -393,7 +403,7 @@ export function evaluateAudusdStrategy(
   const finalStop = direction ? stop : null;
   const finalTarget = direction ? target : null;
   const signalReason = direction
-    ? `AUDUSD LONG: six-vote sum ${trace!.voteSum} meets +4 and the completed 11:00 UTC candle has bullish HH+HL structure.`
+    ? `AUDUSD LONG: six-vote sum ${trace!.voteSum} meets +4 and the completed 11:00 UTC candle has the required external higher low.`
     : `WAIT: ${waitReason ?? "VOTE_SUM_TOO_LOW"}.`;
 
   const features: AudusdStrategyFeatures = {
@@ -458,7 +468,7 @@ export function evaluateAudusdStrategy(
     condition("EMA50 available", trace?.ema50 != null, "EMA50 must be available from completed H1 closes.", trace?.ema50?.toString() ?? "unavailable"),
     condition("Wilder ATR14", Boolean(trace?.atr14 != null && finite(trace.atr14) && trace.atr14 > 0), "ATR14 must be finite and positive.", trace?.atr14?.toString() ?? "unavailable"),
     condition("Strong consensus", Boolean(trace && trace.voteSum >= AUDUSD_MIN_VOTE_SUM), "The six-vote sum must be at least +4; bearish consensus never creates a short.", trace?.voteSum.toString() ?? "unavailable"),
-    condition("Bullish HH+HL structure", trace?.bullStructure ?? false, "11:00 high and low must both exceed the completed 10:00 candle.", trace?.bullStructure ? "passed" : "failed"),
+    condition("V2 external higher-low structure", trace?.higherLow ?? false, "Final V2 gate requires only low > low[1]; vote #5 retains HH+HL/LH+LL.", trace?.higherLow ? "passed" : "failed"),
     condition("No duplicate signal", !options.duplicateSignal, "The deterministic UTC-day signal key may execute only once.", options.duplicateSignal ? "duplicate" : "clear"),
     condition("No active strategy position", !options.hasActivePosition, "Pyramiding is disabled for audusd_strategy.", options.hasActivePosition ? "active" : "clear"),
     condition("Numerical safety", direction ? numericalSafety : true, "Entry, frozen ATR, stop, and target must be finite and ordered.", direction ? "valid" : "not applicable"),

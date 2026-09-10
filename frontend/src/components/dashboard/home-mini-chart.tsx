@@ -5,7 +5,9 @@ import {
   CandlestickSeries,
   ColorType,
   createChart,
+  LineStyle,
   type IChartApi,
+  type IPriceLine,
   type ISeriesApi,
   type UTCTimestamp,
 } from "lightweight-charts";
@@ -35,14 +37,21 @@ export function HomeMiniChart({
   instrument,
   liveMid,
   evaluatedAt,
+  entry,
+  stop,
+  target,
 }: {
   instrument: MajorInstrument;
   liveMid: number | null;
   evaluatedAt: string | null;
+  entry: number;
+  stop: number;
+  target: number;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const levelLinesRef = useRef<IPriceLine[]>([]);
   const { resolvedTheme } = useTheme();
   const [changePercent, setChangePercent] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -117,6 +126,22 @@ export function HomeMiniChart({
             close: candle.close,
           })),
         );
+        for (const line of levelLinesRef.current) {
+          seriesRef.current.removePriceLine(line);
+        }
+        levelLinesRef.current = [
+          seriesRef.current.createPriceLine({ price: entry, color: "#00e59b", lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: false, title: "Entry" }),
+          seriesRef.current.createPriceLine({ price: stop, color: "#ff6370", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "SL" }),
+          seriesRef.current.createPriceLine({ price: target, color: "#00e59b", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "TP" }),
+        ];
+
+        // Keep the current trade's full plan in view. A live price move should
+        // never push Entry, Stop Loss, or Target outside this home preview.
+        const low = Math.min(...candles.map((candle) => candle.low), entry, stop, target);
+        const high = Math.max(...candles.map((candle) => candle.high), entry, stop, target);
+        const span = Math.max(high - low, Math.abs(entry - stop));
+        const padding = span * 0.12;
+        seriesRef.current.priceScale().setVisibleRange({ from: low - padding, to: high + padding });
         chartRef.current?.timeScale().fitContent();
 
         const first = candles[0]?.close;
@@ -133,7 +158,7 @@ export function HomeMiniChart({
     return () => {
       cancelled = true;
     };
-  }, [instrument]);
+  }, [entry, instrument, stop, target]);
 
   const positive = (changePercent ?? 0) >= 0;
   const age = elapsedSince(evaluatedAt, now);

@@ -8,14 +8,14 @@ import type {
 import type { Candle } from "@/types/forex";
 
 /**
- * GBPUSD Frequency V3 — literal port of "GX GBPUSD 30M Frequency V3".
+ * GBPUSD Dual-Origin V2 — literal port of the frozen independent-leg Pine strategy.
  *
  * The constants below are frozen. A rule change requires a new version.
  */
 export const GBPUSD_STRATEGY_ID = "gbpusd_strategy" as const;
-export const GBPUSD_STRATEGY_NAME = "GBPUSD 30M Frequency V3" as const;
-export const GBPUSD_STRATEGY_VERSION = "v3" as const;
-export const GBPUSD_STRATEGY_CONFIG_VERSION = "gbpusd-frequency-v3" as const;
+export const GBPUSD_STRATEGY_NAME = "GBPUSD 30M Dual-Origin V2 Independent Legs" as const;
+export const GBPUSD_STRATEGY_VERSION = "v2" as const;
+export const GBPUSD_STRATEGY_CONFIG_VERSION = "gbpusd-dual-origin-v2" as const;
 export const GBPUSD_STRATEGY_SYMBOL = "GBP_USD" as const;
 export const GBPUSD_STRATEGY_TIMEFRAME = "M30" as const;
 
@@ -31,15 +31,13 @@ export const GBPUSD_EXTREME_CLOSE_PCT = 0.25;
 export const GBPUSD_ORIGINS = {
   "1030": { label: "10:30", hour: 10, minute: 30, expectedRangeBars: 9, directions: ["LONG", "SHORT"] },
   "1100": { label: "11:00", hour: 11, minute: 0, expectedRangeBars: 10, directions: ["LONG", "SHORT"] },
-  "1130": { label: "11:30", hour: 11, minute: 30, expectedRangeBars: 11, directions: ["LONG"] },
 } as const;
 
 export type GbpusdOriginCode = keyof typeof GBPUSD_ORIGINS;
 export type GbpusdOrigin = (typeof GBPUSD_ORIGINS)[GbpusdOriginCode]["label"];
 export type GbpusdSignalLabel =
   | "GBPUSD_1030_LONG" | "GBPUSD_1030_SHORT"
-  | "GBPUSD_1100_LONG" | "GBPUSD_1100_SHORT"
-  | "GBPUSD_1130_LONG";
+  | "GBPUSD_1100_LONG" | "GBPUSD_1100_SHORT";
 
 export const GBPUSD_STRATEGY_CONFIG = Object.freeze({
   emaFastPeriod: GBPUSD_EMA_FAST,
@@ -159,7 +157,6 @@ function originFor(date: Date): GbpusdOriginCode | null {
   if (!exactM30Start(date)) return null;
   if (date.getUTCHours() === 10 && date.getUTCMinutes() === 30) return "1030";
   if (date.getUTCHours() === 11 && date.getUTCMinutes() === 0) return "1100";
-  if (date.getUTCHours() === 11 && date.getUTCMinutes() === 30) return "1130";
   return null;
 }
 
@@ -204,8 +201,8 @@ export function evaluateGbpusdStrategyTrace(candles: readonly Candle[]): { rows:
       && ema20 !== null && ema50 !== null && trend !== "WAIT";
     const rawLongSignal = Boolean(validOrigin && trend === "LONG" && candle.close > preRangeHigh!);
     const shortBreakout = Boolean(validOrigin && trend === "SHORT" && candle.close < preRangeLow!);
-    const disabledShortSignal = shortBreakout && originCode === "1130";
-    const rawShortSignal = shortBreakout && originCode !== "1130";
+    const disabledShortSignal = false;
+    const rawShortSignal = shortBreakout;
     const breakout = rawLongSignal || rawShortSignal;
     const penetration = rawLongSignal ? candle.close - preRangeHigh!
       : rawShortSignal ? preRangeLow! - candle.close : null;
@@ -376,8 +373,8 @@ export function evaluateGbpusdStrategy(
   const conditions: StrategyCondition[] = [
     condition("Symbol", input.instrument === GBPUSD_STRATEGY_SYMBOL, "gbpusd_strategy is restricted to GBP_USD.", input.instrument),
     condition("Timeframe", timeframe === GBPUSD_STRATEGY_TIMEFRAME, "Only completed M30 candles are eligible.", timeframe),
-    condition("Origin", Boolean(trace?.originCode), "Only the completed 10:30, 11:00, or 11:30 UTC origin candle may signal.", trace?.origin ?? "none"),
-    condition("Enabled leg", !(trace?.disabledShortSignal ?? false), "10:30 and 11:00 allow both directions; 11:30 allows LONG only.", trace?.disabledShortSignal ? "11:30 SHORT disabled" : "enabled"),
+    condition("Origin", Boolean(trace?.originCode), "Only completed 10:30 and 11:00 UTC origin candles may signal.", trace?.origin ?? "none"),
+    condition("Enabled leg", true, "Both independent origins allow long and short legs.", "enabled"),
     condition("Causal pre-range", trace?.rangeReady ?? false, "Every exact 06:00-to-origin M30 slot is required and the origin candle is excluded.", trace ? `${trace.rangeBars}/${trace.expectedRangeBars}` : "0/0"),
     condition("EMA20 vs EMA50", Boolean(trace && trace.trend !== "WAIT"), "EMA20 must differ from EMA50.", trace?.trend ?? "WAIT"),
     condition("Wilder ATR14", Boolean(trace?.atr14 != null && trace.atr14 > 0), "ATR14 must be finite and positive at the origin close.", trace?.atr14?.toString() ?? "unavailable"),

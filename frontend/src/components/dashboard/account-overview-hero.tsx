@@ -11,6 +11,7 @@ import {
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { tradingDayKey } from "@/lib/format/datetime";
 import { getMarketCondition } from "@/lib/strategy/session";
+import { useScrolledPast } from "@/lib/use-scrolled-past";
 import type { AccountBalanceHistoryPoint, AccountSummary } from "@/types/forex";
 
 function money(value: number, currency: string) {
@@ -50,11 +51,12 @@ export function AccountOverviewHero({
   openPL: number;
 }) {
   const [range, setRange] = useState<AccountChartRange>("1d");
+  const { ref: topbarRef, scrolledPast } = useScrolledPast<HTMLElement>();
   // Client-only so the server and first client render agree; the label depends
   // on the wall clock, which the server cannot know for the viewer's minute.
-  const [marketOpen, setMarketOpen] = useState<boolean | null>(null);
+  const [marketCondition, setMarketCondition] = useState<ReturnType<typeof getMarketCondition> | null>(null);
   useEffect(() => {
-    const read = () => setMarketOpen(getMarketCondition().marketOpen);
+    const read = () => setMarketCondition(getMarketCondition());
     read();
     const timer = window.setInterval(read, 30_000);
     return () => window.clearInterval(timer);
@@ -115,15 +117,15 @@ export function AccountOverviewHero({
       data-tone={heroTone}
       aria-label="Account overview"
     >
-      <header className="home-hero-topbar lg:hidden">
+      <header ref={topbarRef} className="home-hero-topbar lg:hidden">
         <div className="home-hero-topbar-end">
           <span
-            className={`home-market-pill ${marketOpen === false ? "is-closed" : "is-open"}`}
+            className={`home-market-pill ${marketCondition?.marketOpen === false ? "is-closed" : "is-open"}`}
           >
             <span className="home-market-dot" aria-hidden="true" />
-            {marketOpen === false ? "Market closed" : "Market open"}
+            {marketCondition ? `${marketCondition.label} session` : "Session"}
           </span>
-          <NotificationBell compact className="home-hero-bell" />
+          <NotificationBell compact className={`home-hero-bell${scrolledPast ? " is-lifted" : ""}`} />
         </div>
       </header>
 

@@ -7,11 +7,10 @@ import { createPortal } from "react-dom";
 import {
   Activity,
   BarChart3,
+  CandlestickChart,
   BookOpen,
   ChartNoAxesCombined,
-  Ellipsis,
   House,
-  ListChecks,
   Settings,
   type LucideIcon,
 } from "lucide-react";
@@ -52,9 +51,9 @@ function clearNavClick(event: React.AnimationEvent<HTMLElement>) {
 
 const navItems: NavItem[] = [
   { label: "Home", href: "/", icon: House },
-  { label: "Chart", href: "/chart", icon: ChartNoAxesCombined },
+  { label: "Chart", href: "/chart", icon: CandlestickChart },
   { label: "Trades", href: "/journal", icon: BookOpen },
-  { label: "Markets", href: "/watchlist", icon: ListChecks },
+  { label: "Markets", href: "/watchlist", icon: ChartNoAxesCombined },
   { label: "Performance", href: "/research", icon: BarChart3 },
   { label: "More", href: "/risk", icon: Activity },
   { label: "Settings", href: "/settings", icon: Settings },
@@ -76,7 +75,7 @@ const moreNavItem = navItems.find((item) => item.href === "/risk")!;
 const settingsNavItem = navItems.find((item) => item.href === "/settings")!;
 const mobileNavItems = navItems.filter((item) =>
   (mobilePrimaryHrefs as readonly string[]).includes(item.href),
-).map((item) => item.href === "/settings" ? { ...item, label: "More", icon: Ellipsis } : item);
+);
 
 function SidebarNavLink({
   item,
@@ -286,7 +285,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <span className="nav-mobile-icon">
                 <Icon className="size-[1.55rem]" strokeWidth={1.7} />
               </span>
-              <span className="nav-mobile-label">{item.label}</span>
             </Link>
           );
         })}
@@ -351,7 +349,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   : "mx-auto max-w-[1320px] px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-6 lg:px-8 lg:pb-10"
           }`}
         >
-          {!isChart && !isDashboard && !isTrades ? <MobileTopBar showBack /> : null}
+          {!isChart && !isDashboard ? <MobileTopBar showBack /> : null}
           <div key={pathname} className="mobile-page-transition">
             {children}
           </div>

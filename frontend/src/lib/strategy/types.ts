@@ -121,6 +121,10 @@ export interface EurusdStrategyFeatures {
   shortSetup: boolean;
   sigA: -1 | 0 | 1;
   evtA: boolean;
+  strategySetupQualified: boolean;
+  strategyEventQualified: boolean;
+  executionAllowed: boolean;
+  executionBlockReason: string | null;
   reason: string;
   waitReason: string | null;
   signalKey: string | null;
@@ -165,6 +169,9 @@ export interface UsdjpyStrategyFeatures {
   extremeClosePassed: boolean;
   finalLongSignal: boolean;
   finalShortSignal: boolean;
+  strategySignalQualified: boolean;
+  executionAllowed: boolean;
+  executionBlockReason: string | null;
   stopPrice: number | null;
   targetPrice: number | null;
   stopATRMultiplier: 1;
@@ -180,11 +187,11 @@ export interface UsdjpyStrategyFeatures {
   signalKey: string | null;
 }
 
-/** Frozen, decision-time evidence for AUDUSD Strong Consensus Structure V1. */
+/** Frozen, decision-time evidence for AUDUSD Strong Consensus Structure V2 HL Only. */
 export interface AudusdStrategyFeatures {
   strategyId: "audusd_strategy";
-  strategyName: "AUDUSD Strong Consensus Structure V1";
-  strategyVersion: "AUDUSD_STRONG_CONS_STRUCTURE_V1";
+  strategyName: "AUDUSD Strong Consensus Structure V2 HL Only";
+  strategyVersion: "AUDUSD_STRONG_CONS_STRUCTURE_V2";
   symbol: "AUD_USD";
   timeframe: "H1";
   origin: "11:00 UTC";
@@ -274,16 +281,98 @@ export interface NzdusdStrategyFeatures {
   blockReason: "GLOBAL_RISK_BLOCK" | "SPREAD_BLOCK" | "POSITION_LIMIT" | "EXECUTION_ERROR" | null;
 }
 
-/** Frozen, decision-time evidence for GBPUSD 30M Frequency V3. */
+/**
+ * Frozen Pine and execution evidence for NZDJPY 23UTC Bull Break V1.
+ * `strategySignalQualified` is deliberately independent of broker policy.
+ */
+export interface NzdjpyStrategyFeatures {
+  strategyId: "nzdjpy_strategy";
+  strategyName: "NZDJPY 23UTC Bull Break V1";
+  strategyVersion: "V1";
+  symbol: "NZD_JPY";
+  timeframe: "H1";
+  signalKey: string | null;
+  originTime: string | null;
+  signalMidClose: number | null;
+  actualExecutableEntry: number | null;
+  frozenAtr14: number | null;
+  pineReferenceStop: number | null;
+  pineReferenceTarget: number | null;
+  executableStop: number | null;
+  executableTarget: number | null;
+  ema20: number | null;
+  ema50: number | null;
+  voteTrend: -1 | 0 | 1 | null;
+  votePrice: -1 | 0 | 1 | null;
+  voteSlope: -1 | 0 | 1 | null;
+  voteMomentum: -1 | 0 | 1 | null;
+  consensus: number | null;
+  bullBody: boolean;
+  bodyR: number | null;
+  closeLocation: number | null;
+  previousHigh: number | null;
+  breakDistanceR: number | null;
+  strategySignalQualified: boolean;
+  executionAllowed: boolean;
+  executionBlockReason: string | null;
+  maxHoldBars: 3;
+}
+
+export interface CadjpyStrategyFeatures {
+  strategyId: "cadjpy_strategy"; strategyName: "CADJPY Bull Break Extreme V1"; strategyVersion: "V1"; symbol: "CAD_JPY"; timeframe: "H1";
+  signalKey: string | null; originTime: string | null; signalMidClose: number | null; actualExecutableEntry: number | null; frozenAtr14: number | null;
+  pineReferenceStop: number | null; pineReferenceTarget: number | null; executableStop: number | null; executableTarget: number | null;
+  ema20: number | null; ema50: number | null; voteTrend: -1 | 0 | 1 | null; votePrice: -1 | 0 | 1 | null; voteSlope: -1 | 0 | 1 | null; voteMomentum: -1 | 0 | 1 | null;
+  consensus: number | null; previousHigh: number | null; previousHighBreak: boolean; bullBody: boolean; bodyR: number | null; closeLocation: number | null;
+  strategySignalQualified: boolean; executionAllowed: boolean; executionBlockReason: string | null; maxHoldBars: 3;
+}
+
+/** Frozen Pine and execution evidence for EURJPY 01-05 Range Break V1. */
+export interface EurjpyStrategyFeatures {
+  strategyId: "eurjpy_strategy"; strategyName: "EURJPY 01-05 Range Break V1"; strategyVersion: "V1"; symbol: "EUR_JPY"; timeframe: "H1";
+  signalKey: string | null; originTime: string | null; signalMidClose: number | null; actualExecutableEntry: number | null; frozenAtr14: number | null;
+  pineReferenceStop: number | null; pineReferenceTarget: number | null; executableStop: number | null; executableTarget: number | null;
+  ema20: number | null; ema20Back: number | null; previousHigh: number | null; preRangeStart: string | null; preRangeEnd: string | null; preHigh: number | null; preLow: number | null; preRangeBarCount: number; rangeReady: boolean;
+  emaSlopeUp: boolean; previousHighBreak: boolean; preRangeHighBreak: boolean; strategySignalQualified: boolean; executionAllowed: boolean; executionBlockReason: string | null; maxHoldBars: 3;
+}
+
+/** Frozen Pine and execution evidence for USDCHF Bear Consensus Structure V1. */
+export interface UsdchfStrategyFeatures {
+  strategyId: "usdchf_strategy"; strategyName: "USDCHF Bear Consensus Structure V1"; strategyVersion: "V1"; symbol: "USD_CHF"; timeframe: "H1";
+  signalKey: string | null; originTime: string | null; signalMidClose: number | null; actualExecutableEntry: number | null; frozenAtr14: number | null;
+  pineReferenceStop: number | null; pineReferenceTarget: number | null; executableStop: number | null; executableTarget: number | null;
+  ema20: number | null; ema50: number | null; ema20Back: number | null; voteTrend: -1 | 0 | 1 | null; votePrice: -1 | 0 | 1 | null; voteSlope: -1 | 0 | 1 | null; voteMomentum: -1 | 0 | 1 | null; consensus: number | null;
+  currentHigh: number | null; previousHigh: number | null; currentLow: number | null; previousLow: number | null; bearStructure: boolean;
+  strategySignalQualified: boolean; executionAllowed: boolean; executionBlockReason: string | null; maxHoldBars: 3;
+}
+
+/** Frozen Pine and execution evidence for USDCAD Structure EMA Reclaim V3. */
+export interface UsdcadStrategyFeatures {
+  strategyId: "usdcad_strategy"; strategyName: "USDCAD Structure EMA Reclaim V3 11:00 LONG Only"; strategyVersion: "V3"; symbol: "USD_CAD"; timeframe: "H1";
+  signalKey: string | null; originTime: string | null; signalMidClose: number | null; actualExecutableEntry: number | null; frozenAtr14: number | null; pineReferenceStop: number | null; pineReferenceTarget: number | null; executableStop: number | null; executableTarget: number | null;
+  currentHigh: number | null; previousHigh: number | null; currentLow: number | null; previousLow: number | null; ema20Current: number | null; ema20Previous: number | null; closeCurrent: number | null; closePrevious: number | null;
+  bullStructure: boolean; longReclaim: boolean; emaPenetrationR: number | null; emaPenLong: boolean; closeLocation: number | null; extremeLong: boolean; highConfidenceLong: boolean; signalTag: "USDCAD_1100_LONG_PEN_EXTREME" | "USDCAD_1100_LONG_BASE" | null;
+  strategySignalQualified: boolean; executionAllowed: boolean; executionBlockReason: string | null; maxHoldBars: 3;
+}
+
+/** Frozen Pine and execution evidence for NZDUSD Bull Consensus Structure V1. */
+export interface NzdusdConsensusStrategyFeatures {
+  strategyId: "nzdusd_consensus_strategy"; strategyName: "NZDUSD Bull Consensus Structure V1"; strategyVersion: "V1"; symbol: "NZD_USD"; timeframe: "H1";
+  signalKey: string | null; originTime: string | null; signalMidClose: number | null; actualExecutableEntry: number | null; frozenAtr14: number | null; pineReferenceStop: number | null; pineReferenceTarget: number | null; executableStop: number | null; executableTarget: number | null;
+  ema20: number | null; ema50: number | null; ema20Back: number | null; closeThreeBarsAgo: number | null; voteTrend: -1 | 0 | 1 | null; votePrice: -1 | 0 | 1 | null; voteSlope: -1 | 0 | 1 | null; voteMomentum: -1 | 0 | 1 | null; consensus: number | null;
+  currentHigh: number | null; previousHigh: number | null; currentLow: number | null; previousLow: number | null; higherHigh: boolean; higherLow: boolean; bullStructure: boolean; strategySignalQualified: boolean; executionAllowed: boolean; executionBlockReason: string | null; maxHoldBars: 3;
+}
+
+/** Frozen, decision-time evidence for GBPUSD 30M Dual-Origin V2. */
 export interface GbpusdStrategyFeatures {
   strategyId: "gbpusd_strategy";
-  strategyName: "GBPUSD 30M Frequency V3";
-  strategyVersion: "v3";
+  strategyName: "GBPUSD 30M Dual-Origin V2 Independent Legs";
+  strategyVersion: "v2";
   symbol: "GBP_USD";
   timeframe: "M30";
-  origin: "10:30" | "11:00" | "11:30" | null;
-  originCode: "1030" | "1100" | "1130" | null;
-  signalLabel: "GBPUSD_1030_LONG" | "GBPUSD_1030_SHORT" | "GBPUSD_1100_LONG" | "GBPUSD_1100_SHORT" | "GBPUSD_1130_LONG" | null;
+  origin: "10:30" | "11:00" | null;
+  originCode: "1030" | "1100" | null;
+  signalLabel: "GBPUSD_1030_LONG" | "GBPUSD_1030_SHORT" | "GBPUSD_1100_LONG" | "GBPUSD_1100_SHORT" | null;
   signalTimeUtc: string | null;
   entryTimeUtc: string | null;
   signalCandleTimestamp: string | null;
@@ -427,6 +516,12 @@ export interface StrategyResearchFeatures {
   gbpusdStrategy?: GbpusdStrategyFeatures | null;
   audusdStrategy?: AudusdStrategyFeatures | null;
   nzdusdStrategy?: NzdusdStrategyFeatures | null;
+  nzdjpyStrategy?: NzdjpyStrategyFeatures | null;
+  cadjpyStrategy?: CadjpyStrategyFeatures | null;
+  eurjpyStrategy?: EurjpyStrategyFeatures | null;
+  usdchfStrategy?: UsdchfStrategyFeatures | null;
+  usdcadStrategy?: UsdcadStrategyFeatures | null;
+  nzdusdConsensusStrategy?: NzdusdConsensusStrategyFeatures | null;
   /** Generic decision-time facts for the new frozen pair modules. */
   frozenPairStrategy?: {
     strategyId: PairStrategyId;

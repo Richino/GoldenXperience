@@ -318,12 +318,15 @@ export function evaluateUsdjpyStrategy(
   else if (!lastCandle || !trace) waitReason = "CANDLE_NOT_CLOSED";
   else waitReason = waitReasonFor(trace, lastCandle);
 
-  const rawDirection = waitReason === null && trace?.finalLongSignal ? "long" as const : null;
-  if (rawDirection && options.hasActivePosition) waitReason = "POSITION_ALREADY_OPEN";
-  const direction = waitReason === null ? rawDirection : null;
+  const strategySignalQualified = waitReason === null && trace?.finalLongSignal === true;
+  const executionBlockReason = !strategySignalQualified ? "NO_STRATEGY_SIGNAL"
+    : options.hasActivePosition ? "POSITION_ALREADY_OPEN"
+      : !finitePositive(input.ask) ? "OANDA_PRICE_UNAVAILABLE" : null;
+  const executionAllowed = strategySignalQualified && executionBlockReason === null;
+  const direction = executionAllowed ? "long" as const : null;
   const signalPrice = trace?.signalPrice ?? null;
   const quotedEntry = direction === "long" ? input.ask : null;
-  const entry = direction ? (finitePositive(quotedEntry) ? quotedEntry : signalPrice) : null;
+  const entry = direction && finitePositive(quotedEntry) ? quotedEntry : null;
   const riskDistance = direction && trace?.atr14 != null ? trace.atr14 * STOP_ATR_MULTIPLIER : null;
   const stop = entry === null || riskDistance === null ? null : entry - riskDistance;
   const target = entry === null || riskDistance === null ? null : entry + riskDistance * REWARD_R;
@@ -335,8 +338,10 @@ export function evaluateUsdjpyStrategy(
   const finalEntry = finalDirection ? entry : null;
   const finalStop = finalDirection ? stop : null;
   const finalTarget = finalDirection ? target : null;
-  const signalReason = finalDirection === "long"
-    ? "USDJPY long: an 11:00-14:00 UTC close broke the 08:00-10:00 range with EMA20>EMA50, body >= 0.40 ATR14, and an upper-40% close."
+  const signalReason = strategySignalQualified
+    ? finalDirection === "long"
+      ? "USDJPY Pine signal qualified and execution is allowed."
+      : `USDJPY Pine signal qualified; execution blocked: ${executionBlockReason ?? "NUMERICAL_SAFETY"}.`
     : `WAIT: ${waitReason ?? "NO_CLOSE_BREAKOUT"}.`;
 
   const features: UsdjpyStrategyFeatures = {
@@ -347,7 +352,7 @@ export function evaluateUsdjpyStrategy(
     timeframe: USDJPY_STRATEGY_TIMEFRAME,
     session: "USDJPY_11_14_UTC",
     setup: USDJPY_STRATEGY_SETUP,
-    signalDirection: finalDirection === "long" ? "LONG" : null,
+    signalDirection: strategySignalQualified ? "LONG" : null,
     signalCandleTimestamp: trace?.timestamp ?? null,
     signalTimestampUtc: trace?.signalCloseTime ?? null,
     signalPrice,
@@ -377,6 +382,9 @@ export function evaluateUsdjpyStrategy(
     extremeClosePassed: finalDirection === "long" ? trace?.bullExtremeClose ?? false : false,
     finalLongSignal: trace?.finalLongSignal ?? false,
     finalShortSignal: trace?.finalShortSignal ?? false,
+    strategySignalQualified,
+    executionAllowed: finalDirection === "long",
+    executionBlockReason: finalDirection === "long" ? null : numericalSafety || !strategySignalQualified ? executionBlockReason : "NUMERICAL_SAFETY",
     stopPrice: finalStop,
     targetPrice: finalTarget,
     stopATRMultiplier: STOP_ATR_MULTIPLIER,
@@ -388,8 +396,8 @@ export function evaluateUsdjpyStrategy(
     realizedR: null,
     realizedPnL: null,
     reason: signalReason,
-    waitReason,
-    signalKey: finalDirection && trace ? `${USDJPY_STRATEGY_ID}:${USDJPY_STRATEGY_SYMBOL}:${utcDay(trace.timestamp)}` : null,
+    waitReason: strategySignalQualified && !executionAllowed ? executionBlockReason : waitReason,
+    signalKey: strategySignalQualified && trace ? `${USDJPY_STRATEGY_ID}:${USDJPY_STRATEGY_SYMBOL}:${utcDay(trace.timestamp)}` : null,
   };
   options.onDebug?.(features);
 
@@ -442,7 +450,7 @@ export function evaluateUsdjpyStrategy(
       newsStatus: executionGates.newsStatus,
       usdjpyStrategy: features,
     },
-    summary: finalDirection ? signalReason : `${displayNameFor(input.instrument)} ${signalReason}`,
+    summary: signalReason,
     passedConditions: allConditions.filter((item) => item.passed),
     failedConditions: allConditions.filter((item) => !item.passed),
     conditions: allConditions,

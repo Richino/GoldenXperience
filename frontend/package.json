@@ -20,7 +20,14 @@
     "notional:test": "tsx scripts/test-notional-cap.ts",
     "news:test": "tsx scripts/test-news-impact.ts",
     "close-outlook:test": "tsx scripts/test-close-outlook.ts",
-    "pair-strategy-runtime:test": "tsx scripts/test-pair-strategy-runtime.ts"
+    "pair-strategy-runtime:test": "tsx scripts/test-pair-strategy-runtime.ts",
+    "nzdjpy-pine-parity:test": "tsx scripts/test-nzdjpy-pine-parity.ts",
+    "nzdjpy-pine-parity:replay": "tsx scripts/run-nzdjpy-pine-parity.ts",
+    "cadjpy-pine-parity:test": "tsx scripts/test-cadjpy-pine-parity.ts",
+    "eurjpy-pine-parity:test": "tsx scripts/test-eurjpy-pine-parity.ts",
+    "usdchf-pine-parity:test": "tsx scripts/test-usdchf-pine-parity.ts",
+    "usdcad-pine-parity:test": "tsx scripts/test-usdcad-pine-parity.ts",
+    "nzdusd-consensus-pine-parity:test": "tsx scripts/test-nzdusd-consensus-pine-parity.ts"
   },
   "dependencies": {
     "@radix-ui/react-toast": "^1.2.23",

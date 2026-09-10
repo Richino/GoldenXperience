@@ -149,6 +149,9 @@ export function HomeRail({
                     instrument={signal.instrument}
                     liveMid={liveMid}
                     evaluatedAt={position ? signal.openedAt : signal.evaluatedAt}
+                    entry={signal.entry}
+                    stop={signal.stop}
+                    target={signal.target}
                   />
                   <dl className="home-signal-levels">
                     <div>

@@ -6,11 +6,16 @@ import { isStrategyInstrument } from "@/lib/strategy/strategy-service";
 import type { CandleSeries, ConnectionStatus, PaperChartTrade } from "@/types/forex";
 import type { BinaryPrediction } from "@/types/binary";
 
+function finitePrice(value: string | undefined) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
 export const metadata: Metadata = {
   title: "Charts",
 };
 
-export default async function ChartPage({ searchParams }: { searchParams: Promise<{ instrument?: string; trade?: string; prediction?: string }> }) {
+export default async function ChartPage({ searchParams }: { searchParams: Promise<{ instrument?: string; trade?: string; prediction?: string; entry?: string; stop?: string; target?: string }> }) {
   const params = await searchParams;
   // A plain chart launch should open an active paper trade first. Explicit
   // watchlist/chart links still win so a user can inspect another pair on
@@ -26,6 +31,12 @@ export default async function ChartPage({ searchParams }: { searchParams: Promis
     ? params.trade
     : activeTrade?.id ?? null;
   const focusPredictionId = params.prediction && /^[0-9a-f-]{36}$/i.test(params.prediction) ? params.prediction : null;
+  const entry = finitePrice(params.entry);
+  const stop = finitePrice(params.stop);
+  const target = finitePrice(params.target);
+  const initialSetupFocus = entry !== null && stop !== null && target !== null && entry !== stop && entry !== target
+    ? { entry, stop, target }
+    : null;
   const [snapshot, candleResult, watchlist, paperTrades] = await Promise.all([
     getApiData<StrategySnapshot>("/api/strategy"),
     getApiData<{ data: CandleSeries; status: ConnectionStatus }>(`/api/oanda/candles?instrument=${instrument}&granularity=M15&count=120`),
@@ -48,6 +59,7 @@ export default async function ChartPage({ searchParams }: { searchParams: Promis
       initialPaperTrades={paperTrades.trades}
       initialFocusTradeId={focusTradeId}
       initialPredictionFocus={focusPrediction?.instrument === instrument ? focusPrediction : null}
+      initialSetupFocus={initialSetupFocus}
     />
   );
 }

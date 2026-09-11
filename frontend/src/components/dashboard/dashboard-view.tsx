@@ -3,16 +3,13 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AccountOverviewHero } from "@/components/dashboard/account-overview-hero";
-import { GxStatus, buildGxStatus } from "@/components/dashboard/gx-status";
 import { HomeRail, type HomeAvailableSignal, type HomeCurrentPosition } from "@/components/dashboard/home-rail";
 import { HomeRecentActivity } from "@/components/dashboard/home-recent-activity";
-import { HomeUpcoming } from "@/components/dashboard/home-upcoming";
 import { RecentPredictions } from "@/components/dashboard/recent-predictions";
 import { RelativeTime } from "@/components/dashboard/relative-time";
 import {
   recentActivityFromTrades,
   todayClosedStats,
-  upcomingFromStrategies,
 } from "@/lib/home/idle";
 import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
@@ -25,7 +22,7 @@ import {
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import { useOpenPositionFills, type OpenPositionFill } from "@/lib/market-stream/use-open-positions";
-import type { AccountBalanceHistoryPoint, AccountSummary, ConnectionStatus, JournalTrade, MajorInstrument } from "@/types/forex";
+import type { AccountBalanceHistoryPoint, AccountSummary, JournalTrade, MajorInstrument } from "@/types/forex";
 
 export type DashboardWatchRow = {
   instrument: string;
@@ -43,6 +40,18 @@ export type DashboardWatchRow = {
   openTradeId: string | null;
   batchNumber: number | null;
   tradeSequence: string | null;
+};
+
+export type DashboardSavedSetup = {
+  id: string;
+  instrument: MajorInstrument;
+  direction: "long" | "short";
+  entry: number;
+  stop: number;
+  target: number;
+  decisionTime: string;
+  expiresAt: string;
+  state: "setup";
 };
 
 /**
@@ -181,9 +190,8 @@ function markedOpenMoney(
 export function DashboardView({
   initialAccount,
   initialAccountHistory,
-  initialStatus,
   initialWatchlist,
-  initialStrategyWatchlist,
+  initialSavedSetups,
   initialOverview,
   initialJournal,
   userLabel,
@@ -191,9 +199,8 @@ export function DashboardView({
 }: {
   initialAccount: AccountSummary;
   initialAccountHistory: AccountBalanceHistoryPoint[];
-  initialStatus: ConnectionStatus;
   initialWatchlist: DashboardWatchRow[];
-  initialStrategyWatchlist: DashboardStrategyRow[];
+  initialSavedSetups: DashboardSavedSetup[];
   initialOverview: DashboardOverview;
   initialJournal: DashboardJournal;
   userLabel: string;
@@ -201,13 +208,12 @@ export function DashboardView({
 }) {
   const [account, setAccount] = useState(initialAccount);
   const [accountHistory, setAccountHistory] = useState(initialAccountHistory);
-  const [connection, setConnection] = useState(initialStatus);
   const [journalTrades, setJournalTrades] = useState(initialJournal.trades);
   const [journalSummary, setJournalSummary] = useState(initialJournal.summary ?? null);
   // Kept for the Open-trades quote fallback below; the Watchlist section now
   // renders from the multi-strategy engine instead.
   const [watchlist, setWatchlist] = useState(initialWatchlist);
-  const [strategyRows, setStrategyRows] = useState(initialStrategyWatchlist);
+  const [savedSetups, setSavedSetups] = useState(initialSavedSetups ?? []);
   const [overview, setOverview] = useState(initialOverview);
   const [error, setError] = useState<string | null>(null);
   // Ticks rather than the 60s refresh below, so an open trade's value moves
@@ -219,38 +225,33 @@ export function DashboardView({
 
   const refresh = useCallback(async () => {
     try {
-      const [accountResponse, historyResponse, watchlistResponse, strategyResponse, cycleResponse, journalResponse] = await Promise.all([
+      const [accountResponse, historyResponse, watchlistResponse, savedSetupsResponse, cycleResponse, journalResponse] = await Promise.all([
         fetch(apiUrl("/api/oanda/account-summary"), { credentials: "include", cache: "no-store" }),
         fetch(apiUrl("/api/oanda/account-history"), { credentials: "include", cache: "no-store" }),
         fetch(apiUrl("/api/watchlist"), { credentials: "include", cache: "no-store" }),
-        fetch(apiUrl("/api/multistrategy/watchlist"), { credentials: "include", cache: "no-store" }),
+        fetch(apiUrl("/api/saved-setups"), { credentials: "include", cache: "no-store" }),
         fetch(apiUrl("/api/paper-cycle"), { credentials: "include", cache: "no-store" }),
         fetch(apiUrl("/api/journal/trades?limit=50&filter=all"), { credentials: "include", cache: "no-store" }),
       ]);
-      if (![accountResponse, historyResponse, watchlistResponse, cycleResponse].every((response) => response.ok)) {
+      if (![accountResponse, historyResponse, watchlistResponse, savedSetupsResponse, cycleResponse].every((response) => response.ok)) {
         throw new Error("Dashboard data is temporarily unavailable.");
       }
-      const [accountPayload, historyPayload, watchlistPayload, cyclePayload] = await Promise.all([
-        accountResponse.json() as Promise<{ data: AccountSummary; status: ConnectionStatus }>,
+      const [accountPayload, historyPayload, watchlistPayload, savedSetupsPayload, cyclePayload] = await Promise.all([
+        accountResponse.json() as Promise<{ data: AccountSummary }>,
         historyResponse.json() as Promise<{ data: AccountBalanceHistoryPoint[] }>,
         watchlistResponse.json() as Promise<{ watchlist: DashboardWatchRow[] }>,
+        savedSetupsResponse.json() as Promise<{ setups: DashboardSavedSetup[] }>,
         cycleResponse.json() as Promise<DashboardOverview>,
       ]);
       setAccount(accountPayload.data);
-      setConnection(accountPayload.status);
       setAccountHistory(historyPayload.data);
       setWatchlist(watchlistPayload.watchlist);
+      setSavedSetups(Array.isArray(savedSetupsPayload.setups) ? savedSetupsPayload.setups : []);
       setOverview(cyclePayload);
       if (journalResponse.ok) {
         const journalPayload = (await journalResponse.json()) as DashboardJournal;
         setJournalTrades(journalPayload.trades);
         if (journalPayload.summary) setJournalSummary(journalPayload.summary);
-      }
-      // The strategy watchlist is non-blocking: a hiccup there leaves the last
-      // rows in place rather than tearing down the whole dashboard.
-      if (strategyResponse.ok) {
-        const strategyPayload = (await strategyResponse.json()) as { instruments?: DashboardStrategyRow[] };
-        if (strategyPayload.instruments) setStrategyRows(strategyPayload.instruments);
       }
       setError(null);
     } catch (reason) {
@@ -302,20 +303,21 @@ export function DashboardView({
     await Promise.all([refreshAccount(), refresh()]);
   }, [refreshAccount, refresh]));
 
-  const signalRows = watchlist
-    .filter((row) => row.entry !== null && row.stop !== null && row.target !== null && row.direction)
-    .slice(0, 2);
-  const availableSignals: HomeAvailableSignal[] = signalRows.map((row) => ({
-    instrument: row.instrument as MajorInstrument,
-    direction: row.direction as "long" | "short",
-    entry: row.entry as number,
-    stop: row.stop as number,
-    target: row.target as number,
-    evaluatedAt: row.evaluatedAt,
+  const signalRows = savedSetups.filter((setup) => setup.state === "setup");
+  const availableSignals: HomeAvailableSignal[] = signalRows.map((setup) => ({
+    kind: "setup",
+    id: setup.id,
+    instrument: setup.instrument,
+    direction: setup.direction,
+    entry: setup.entry,
+    stop: setup.stop,
+    target: setup.target,
+    evaluatedAt: setup.decisionTime,
   }));
   const currentPositions: HomeCurrentPosition[] = openTrades
     .filter((trade) => trade.entry !== null && trade.entry !== undefined && trade.stop !== null && trade.stop !== undefined && trade.target !== null && trade.target !== undefined)
     .map((trade) => ({
+      kind: "position",
       id: trade.id,
       instrument: trade.instrument as MajorInstrument,
       direction: trade.direction,
@@ -326,12 +328,6 @@ export function DashboardView({
     }));
   const hasOpenPositions = openTrades.length > 0;
   const hasActiveSignals = signalRows.length > 0;
-  const showIdleContext = !hasOpenPositions || !hasActiveSignals;
-  const gxStatus = buildGxStatus(connection);
-  const upcoming = upcomingFromStrategies(
-    strategyRows,
-    signalRows.map((row) => row.instrument),
-  );
   const recentActivity = recentActivityFromTrades(journalTrades, 10);
   const todayFromList = todayClosedStats(journalTrades, todayKey);
   // The API summary is authoritative when present; the list-derived figures are
@@ -451,17 +447,14 @@ export function DashboardView({
       ) : null}
 
       {hasActiveSignals ? (
-      <section className="home-section" aria-label="Active signals">
+      <section className="home-section" aria-label="Saved setups">
         <div className="home-section-head">
-          <h2>Active signals</h2>
-          <Link href="/watchlist?tab=strategies" className="home-section-link">
-            See all
-          </Link>
+          <h2>Saved setups</h2>
         </div>
           <div className="home-signal-grid">
             {signalRows.map((row) => {
-              const risk = Math.abs(row.entry! - row.stop!);
-              const reward = Math.abs(row.target! - row.entry!);
+              const risk = Math.abs(row.entry - row.stop);
+              const reward = Math.abs(row.target - row.entry);
               const ratio = risk > 0 ? Math.round((reward / risk) * 10) / 10 : null;
               const rrLabel =
                 ratio === null
@@ -469,8 +462,8 @@ export function DashboardView({
                   : `1:${Number.isInteger(ratio) ? ratio.toFixed(0) : ratio.toFixed(1)}`;
               return (
               <Link
-                key={row.instrument}
-                href={`/chart?instrument=${row.instrument}`}
+                key={row.id}
+                href={`/chart?instrument=${row.instrument}&setup=${row.id}&entry=${row.entry}&stop=${row.stop}&target=${row.target}`}
                 className="home-signal-card"
               >
                 <div className="home-signal-top">
@@ -481,21 +474,21 @@ export function DashboardView({
                     </span>
                   </span>
                   <span className="home-signal-time">
-                    <RelativeTime at={row.evaluatedAt} />
+                    <RelativeTime at={row.decisionTime} />
                   </span>
                 </div>
                 <dl>
                   <div>
                     <dt>Entry</dt>
-                    <dd className="metric-number">{formatChartPrice(row.entry!, row.instrument)}</dd>
+                    <dd className="metric-number">{formatChartPrice(row.entry, row.instrument)}</dd>
                   </div>
                   <div>
                     <dt>SL</dt>
-                    <dd className="metric-number">{formatChartPrice(row.stop!, row.instrument)}</dd>
+                    <dd className="metric-number">{formatChartPrice(row.stop, row.instrument)}</dd>
                   </div>
                   <div>
                     <dt>TP</dt>
-                    <dd className="metric-number">{formatChartPrice(row.target!, row.instrument)}</dd>
+                    <dd className="metric-number">{formatChartPrice(row.target, row.instrument)}</dd>
                   </div>
                 </dl>
                 {rrLabel ? (
@@ -510,9 +503,6 @@ export function DashboardView({
           </div>
       </section>
       ) : null}
-
-      {showIdleContext ? <GxStatus status={gxStatus} hasActiveSetups={hasActiveSignals} /> : null}
-      {upcoming.length ? <HomeUpcoming items={upcoming} /> : null}
 
       <HomeRecentActivity items={recentActivity} currency={account.currency} />
 

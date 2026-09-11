@@ -145,6 +145,19 @@ export function recentActivityFromTrades(trades: JournalTrade[], limit = 10): Ho
     .sort((a, b) => new Date(b.closedAt ?? 0).getTime() - new Date(a.closedAt ?? 0).getTime())
     .slice(0, limit)
     .map((trade) => {
+      if (trade.brokerExecutionStatus === "rejected") {
+        return {
+          id: trade.id,
+          pair: trade.pair,
+          instrument: trade.instrument ?? null,
+          chartTradeId: trade.origin === "strategy" ? trade.id : null,
+          label: "BROKER REJECTED",
+          kind: "other",
+          resultR: null,
+          paperPl: null,
+          at: trade.closedAt ?? trade.openedAt,
+        };
+      }
       const kind = activityKind(trade.outcome, trade.result);
       return {
         id: trade.id,

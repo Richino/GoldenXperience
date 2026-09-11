@@ -131,6 +131,7 @@ function strategyLabel(trade: JournalTrade) {
 }
 
 function activityLabel(trade: JournalTrade) {
+  if (trade.brokerExecutionStatus === "rejected") return "BROKER REJECTED";
   switch (trade.outcome) {
     case "target_first":
       return "TARGET FIRST";
@@ -161,6 +162,9 @@ function SideBadge({ direction }: { direction: "long" | "short" }) {
 }
 
 function ResultBadge({ trade }: { trade: JournalTrade }) {
+  if (trade.brokerExecutionStatus === "rejected") {
+    return <span className="trade-result is-be">NOT EXECUTED</span>;
+  }
   const map = { win: "WIN", loss: "LOSS", breakeven: "BE", open: "OPEN" } as const;
   const tone = trade.result === "win" ? "is-win" : trade.result === "loss" ? "is-loss" : "is-be";
   return <span className={`trade-result ${tone}`}>{map[trade.result]}</span>;
@@ -293,7 +297,7 @@ function SelectedTradePanel({
   const rValue = isOpen ? live?.openR ?? null : trade.resultR;
   const moneyTone = money === null ? "" : money >= 0 ? "is-positive" : "is-negative";
   const notes = trade.notes?.trim();
-  const exitReason = trade.reason?.trim() || (trade.outcome ? trade.outcome.replace(/_/g, " ") : null);
+  const exitReason = trade.brokerFailureReason?.trim() || trade.reason?.trim() || (trade.outcome ? trade.outcome.replace(/_/g, " ") : null);
   const lots = isOpen ? live?.lots ?? null : null;
 
   return (

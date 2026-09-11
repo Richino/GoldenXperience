@@ -17,6 +17,8 @@ const MARKET_PAIRS: MajorInstrument[] = [
 ];
 
 export type HomeAvailableSignal = {
+  kind: "setup";
+  id: string;
   instrument: MajorInstrument;
   direction: "long" | "short";
   entry: number;
@@ -26,6 +28,7 @@ export type HomeAvailableSignal = {
 };
 
 export type HomeCurrentPosition = {
+  kind: "position";
   id: string;
   instrument: MajorInstrument;
   direction: "long" | "short";
@@ -59,7 +62,7 @@ export function HomeRail({
   todayLosses,
 }: {
   quotes: Record<string, { bid: number; ask: number }>;
-  /** Only fully formed, live watchlist setups belong in this surface. */
+  /** Saved, immutable plans. These are never synthesized from a live quote. */
   availableSignals: HomeAvailableSignal[];
   /** Open paper trades take priority over prospective setups in this rail. */
   currentPositions: HomeCurrentPosition[];
@@ -127,9 +130,9 @@ export function HomeRail({
 
   return (
     <aside className="home-rail" aria-label="Current positions, available signals, and markets">
-      <section className="home-available-signals" aria-label={showingPositions ? "Current positions" : "Available signals"}>
+      <section className="home-available-signals" aria-label={showingPositions ? "Current positions" : "Saved setups"}>
         <div className="home-rail-heading">
-          <span>{showingPositions ? "Current positions" : "Available signals"}</span>
+          <span>{showingPositions ? "Current positions" : "Saved setups"}</span>
           {previewItems.length > 1 ? <span className="home-signal-swipe-hint">Swipe</span> : null}
         </div>
         {previewItems.length ? (
@@ -137,11 +140,13 @@ export function HomeRail({
             {previewItems.map((signal) => {
               const quote = quotes[signal.instrument];
               const liveMid = quote ? (quote.bid + quote.ask) / 2 : null;
-              const position = "id" in signal;
+              const position = signal.kind === "position";
               return (
                 <Link
                   key={position ? signal.id : `${signal.instrument}-${signal.direction}-${signal.entry}`}
-                  href={position ? `/chart?instrument=${signal.instrument}&trade=${signal.id}` : `/chart?instrument=${signal.instrument}`}
+                  href={position
+                    ? `/chart?instrument=${signal.instrument}&trade=${signal.id}`
+                    : `/chart?instrument=${signal.instrument}&setup=${signal.id}&entry=${signal.entry}&stop=${signal.stop}&target=${signal.target}`}
                   className="home-signal-preview"
                   aria-label={`Open ${compactPair(signal.instrument)} ${signal.direction} ${position ? "position" : "signal"} chart with entry, stop loss, and target`}
                 >
@@ -153,26 +158,12 @@ export function HomeRail({
                     stop={signal.stop}
                     target={signal.target}
                   />
-                  <dl className="home-signal-levels">
-                    <div>
-                      <dt>Entry</dt>
-                      <dd>{formatChartPrice(signal.entry, signal.instrument)}</dd>
-                    </div>
-                    <div>
-                      <dt>Stop loss</dt>
-                      <dd className="is-negative">{formatChartPrice(signal.stop, signal.instrument)}</dd>
-                    </div>
-                    <div>
-                      <dt>Target</dt>
-                      <dd className="is-positive">{formatChartPrice(signal.target, signal.instrument)}</dd>
-                    </div>
-                  </dl>
                 </Link>
               );
             })}
           </div>
         ) : (
-          <p className="home-available-signals-empty">No available entries right now.</p>
+          <p className="home-available-signals-empty">No saved setups right now.</p>
         )}
       </section>
 

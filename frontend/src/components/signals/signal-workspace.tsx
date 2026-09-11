@@ -1292,6 +1292,7 @@ export function SignalWorkspace({
   initialPaperTrades = [],
   initialFocusTradeId = null,
   initialPredictionFocus = null,
+  initialSetupFocus = null,
 }: {
   strategySetups: StrategySetup[];
   initialInstrument: MajorInstrument;
@@ -1301,6 +1302,8 @@ export function SignalWorkspace({
   initialPaperTrades?: PaperChartTrade[];
   initialFocusTradeId?: string | null;
   initialPredictionFocus?: BinaryPrediction | null;
+  /** Exact prospective setup selected from Home, kept stable across the route transition. */
+  initialSetupFocus?: { entry: number; stop: number; target: number } | null;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -1782,12 +1785,16 @@ export function SignalWorkspace({
       target: displayedTrade.target,
       exit: displayedTrade.exit,
       outcome: displayedTrade.outcome,
+    }) : initialSetupFocus ? ({
+      entry: initialSetupFocus.entry,
+      stop: initialSetupFocus.stop,
+      target: initialSetupFocus.target,
     }) : active ? ({
       entry: active.entry,
       stop: active.stop,
       target: active.target,
     }) : null,
-    [active, displayedTrade],
+    [active, displayedTrade, initialSetupFocus],
   );
   const focusRange = useMemo(() => {
     const interval =

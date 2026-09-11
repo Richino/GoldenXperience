@@ -17,6 +17,8 @@ import { formatChartPrice } from "@/lib/chart-utils";
 import { displayNameFor } from "@/lib/instruments/catalog";
 import type { CandleSeries, MajorInstrument } from "@/types/forex";
 
+type LevelTag = { key: "entry" | "stop" | "target"; label: string; price: number; top: number };
+
 function compactPair(instrument: string) {
   return displayNameFor(instrument);
 }
@@ -54,6 +56,7 @@ export function HomeMiniChart({
   const levelLinesRef = useRef<IPriceLine[]>([]);
   const { resolvedTheme } = useTheme();
   const [changePercent, setChangePercent] = useState<number | null>(null);
+  const [levelTags, setLevelTags] = useState<LevelTag[]>([]);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -143,6 +146,35 @@ export function HomeMiniChart({
         const padding = span * 0.12;
         seriesRef.current.priceScale().setVisibleRange({ from: low - padding, to: high + padding });
         chartRef.current?.timeScale().fitContent();
+        window.requestAnimationFrame(() => {
+          if (cancelled || !seriesRef.current) return;
+          const labels = [
+            { key: "entry" as const, label: "ENTRY", price: entry },
+            { key: "stop" as const, label: "STOP", price: stop },
+            { key: "target" as const, label: "TARGET", price: target },
+          ].flatMap((level) => {
+            const top = seriesRef.current?.priceToCoordinate(level.price);
+            return top === null || top === undefined
+              ? []
+              : [{ ...level, top: Number(top) }];
+          });
+          // Nearby levels can otherwise render on top of each other in this
+          // compact chart. Keep each label readable while leaving its level
+          // line at the exact executable price.
+          const labelPadding = 5;
+          const minimumGap = 12;
+          const maxTop = Math.max(labelPadding, (hostRef.current?.clientHeight ?? 0) - labelPadding);
+          const stackedLabels = labels.sort((left, right) => left.top - right.top);
+          for (let index = 0; index < stackedLabels.length; index += 1) {
+            const previousTop = index === 0 ? labelPadding : stackedLabels[index - 1].top + minimumGap;
+            stackedLabels[index].top = Math.max(previousTop, stackedLabels[index].top);
+          }
+          const overflow = (stackedLabels.at(-1)?.top ?? 0) - maxTop;
+          if (overflow > 0) {
+            for (const level of stackedLabels) level.top -= overflow;
+          }
+          setLevelTags(stackedLabels);
+        });
 
         const first = candles[0]?.close;
         const last = candles.at(-1)?.close;
@@ -179,7 +211,20 @@ export function HomeMiniChart({
           ) : null}
         </span>
       </div>
-      <div ref={hostRef} className="home-mini-chart-canvas" />
+      <div className="home-mini-chart-canvas-wrap">
+        <div ref={hostRef} className="home-mini-chart-canvas" />
+        <div className="home-mini-chart-level-tags" aria-label="Setup levels">
+          {levelTags.map((level) => (
+            <span
+              key={level.key}
+              className={`home-mini-chart-level is-${level.key}`}
+              style={{ top: level.top }}
+            >
+              {level.label} {formatChartPrice(level.price, instrument)}
+            </span>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

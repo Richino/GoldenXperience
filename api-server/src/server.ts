@@ -30,7 +30,7 @@ import { getForexSessionStatus } from "../../frontend/src/lib/strategy/session.j
 import { databaseConfigured, query } from "./database.js";
 import { cookieName, login, logout, sessionUser } from "./auth.js";
 import { decideResearchExperiment, forwardResearchSummary, latestDayTradingValidation, latestResearchExperiment, latestResearchHoldout, latestResearchRun, latestWalkForwardResearch, processNextResearchJob, researchDiagnostics, researchExperimentDiagnostics, researchSummary, runDayTradingValidation, runResearchExperiment, runWalkForwardResearch, startLockedResearchHoldout, startStrictHistoricalBackfill, stopResearchRun } from "./research.js";
-import { collectMultiStrategyCycle, collectPaperCycle, decidePaperBatch, fastResolveFilledTrades, liveResolvePaperTrades, journalTradeLog, journalTradeSummary, multiStrategyOverview, multiStrategyWatchlist, paperCycleOverview, paperRiskExposure, paperRiskPolicy, paperTradesForInstrument, parsePaperRiskConfiguration, reviewPaperTrade, syncPracticeBrokerHistory, updatePaperRiskPolicy, watchlistSnapshot } from "./paper-cycle.js";
+import { collectMultiStrategyCycle, collectPaperCycle, decidePaperBatch, fastResolveFilledTrades, liveResolvePaperTrades, journalTradeLog, journalTradeSummary, multiStrategyOverview, multiStrategyWatchlist, paperCycleOverview, paperRiskExposure, paperRiskPolicy, paperTradesForInstrument, parsePaperRiskConfiguration, reviewPaperTrade, savedExecutableSetups, syncPracticeBrokerHistory, updatePaperRiskPolicy, watchlistSnapshot } from "./paper-cycle.js";
 import { momentumShortInversionStatus } from "./momentum-short-inversion.js";
 import { markNotificationsRead, notificationsForUser, pushPublicKey, queueNotification, removePushSubscription, savePushSubscription } from "./notifications.js";
 import { practiceExecutionOverview, setPracticeExecutionEnabled } from "./practice-execution.js";
@@ -178,6 +178,9 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     const user = await requireOwner(request, response); if (!user) return;
     if (url.pathname === "/api/watchlist" && request.method === "GET") {
       return json(request, response, { watchlist: await watchlistSnapshot() });
+    }
+    if (url.pathname === "/api/saved-setups" && request.method === "GET") {
+      return json(request, response, { setups: await savedExecutableSetups() });
     }
     if (url.pathname === "/api/notifications" && request.method === "GET") {
       return json(request, response, await notificationsForUser(user.id, url.searchParams.get("after")));

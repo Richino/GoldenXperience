@@ -176,4 +176,8 @@ export interface JournalTrade {
   strategyFamily?: string | null;
   /** Paper batch that collected this trade. */
   batchNumber?: number | null;
+  /** The broker refused the submitted order, so no position or cash P&L exists. */
+  brokerExecutionStatus?: "rejected" | null;
+  /** OANDA's rejection detail, retained separately from the simulated trade outcome. */
+  brokerFailureReason?: string | null;
 }

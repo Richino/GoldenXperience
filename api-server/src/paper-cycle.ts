@@ -27,7 +27,7 @@ import {
 } from "../../frontend/src/lib/strategy/strategies/audusd-strategy.js";
 import {
   NZDUSD_MAX_HOLD_BARS, NZDUSD_STRATEGY_ID, resolveNzdusdExit,
-} from "../../frontend/src/lib/strategy/strategies/nzdusd-strategy.js";
+} from "../../frontend/src/lib/strategy/strategies/nzdusd-strategy.legacy.js";
 import {
   GBPUSD_MAX_HOLD_BARS, GBPUSD_STRATEGY_ID, gbpusdOverlapDecision, resolveGbpusdExit,
   type GbpusdExecutionBlockReason, type GbpusdOriginCode,
@@ -37,6 +37,8 @@ import { USDCHF_STRATEGY_ID, resolveUsdchfExit } from "../../frontend/src/lib/st
 import { NZDUSD_CONSENSUS_STRATEGY_ID, resolveNzdusdConsensusExit } from "../../frontend/src/lib/strategy/strategies/nzdusd-consensus-strategy.js";
 import { EURJPY_STRATEGY_ID, resolveEurjpyExit } from "../../frontend/src/lib/strategy/strategies/eurjpy-strategy.js";
 import { CADJPY_STRATEGY_ID, resolveCadjpyExit } from "../../frontend/src/lib/strategy/strategies/cadjpy-strategy.js";
+import { AUDJPY_STRATEGY_ID, resolveAudjpyExit } from "../../frontend/src/lib/strategy/strategies/audjpy-strategy.js";
+import { EURAUD_STRATEGY_ID, resolveEuraudExit } from "../../frontend/src/lib/strategy/strategies/euraud-strategy.js";
 import { NZDJPY_STRATEGY_ID, resolveNzdjpyExit } from "../../frontend/src/lib/strategy/strategies/nzdjpy-strategy.js";
 import type { FrozenH1ExitInput, FrozenH1ExitResult } from "../../frontend/src/lib/strategy/strategies/frozen-h1-pair.js";
 import { decideInstrument, loadAdaptiveEvidence, toAdaptiveCandidate } from "./adaptive-engine.js";
@@ -245,6 +247,8 @@ const FROZEN_THREE_H1_RESOLVERS: Readonly<Record<string, FrozenH1Resolver>> = {
   [EURJPY_STRATEGY_ID]: resolveEurjpyExit,
   [CADJPY_STRATEGY_ID]: resolveCadjpyExit,
   [NZDJPY_STRATEGY_ID]: resolveNzdjpyExit,
+  [AUDJPY_STRATEGY_ID]: resolveAudjpyExit,
+  [EURAUD_STRATEGY_ID]: resolveEuraudExit,
 };
 
 function weekdayAt(value: string) {

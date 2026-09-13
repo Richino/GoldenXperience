@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AccountOverviewHero } from "@/components/dashboard/account-overview-hero";
 import { HomeRail, type HomeAvailableSignal, type HomeCurrentPosition } from "@/components/dashboard/home-rail";
+import { HomePendingTrades } from "@/components/dashboard/home-pending-trades";
 import { HomeRecentActivity } from "@/components/dashboard/home-recent-activity";
 import { RecentPredictions } from "@/components/dashboard/recent-predictions";
 import { RelativeTime } from "@/components/dashboard/relative-time";
@@ -23,6 +24,7 @@ import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import { useOpenPositionFills, type OpenPositionFill } from "@/lib/market-stream/use-open-positions";
 import type { AccountBalanceHistoryPoint, AccountSummary, JournalTrade, MajorInstrument } from "@/types/forex";
+import type { PendingManualEntry } from "@/types/pending-entry";
 
 export type DashboardWatchRow = {
   instrument: string;
@@ -210,12 +212,16 @@ export function DashboardView({
   const [accountHistory, setAccountHistory] = useState(initialAccountHistory);
   const [journalTrades, setJournalTrades] = useState(initialJournal.trades);
   const [journalSummary, setJournalSummary] = useState(initialJournal.summary ?? null);
+  const [activityLoading, setActivityLoading] = useState(true);
   // Kept for the Open-trades quote fallback below; the Watchlist section now
   // renders from the multi-strategy engine instead.
   const [watchlist, setWatchlist] = useState(initialWatchlist);
   const [savedSetups, setSavedSetups] = useState(initialSavedSetups ?? []);
   const [overview, setOverview] = useState(initialOverview);
   const [error, setError] = useState<string | null>(null);
+  const [pendingEntries, setPendingEntries] = useState<PendingManualEntry[]>([]);
+  const [pendingEntryError, setPendingEntryError] = useState<string | null>(null);
+  const [cancellingPendingId, setCancellingPendingId] = useState<string | null>(null);
   // Ticks rather than the 60s refresh below, so an open trade's value moves
   // with the market instead of jumping once a minute.
   const quotes = useLiveQuotes();
@@ -256,6 +262,8 @@ export function DashboardView({
       setError(null);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Dashboard data is temporarily unavailable.");
+    } finally {
+      setActivityLoading(false);
     }
   }, []);
 
@@ -279,6 +287,39 @@ export function DashboardView({
     }
   }, []);
 
+  const refreshPendingEntries = useCallback(async () => {
+    try {
+      const response = await fetch(apiUrl("/api/pending-entries"), { credentials: "include", cache: "no-store" });
+      if (!response.ok) return;
+      const payload = await response.json() as { entries?: PendingManualEntry[] };
+      setPendingEntries((payload.entries ?? []).filter((entry) => entry.status === "PENDING" || entry.status === "TRIGGERING"));
+      setPendingEntryError(null);
+    } catch {
+      // The rest of Home should remain available during a temporary API outage.
+    }
+  }, []);
+
+  const cancelPendingEntry = useCallback(async (entry: PendingManualEntry) => {
+    if (entry.status !== "PENDING") return;
+    setCancellingPendingId(entry.id);
+    setPendingEntryError(null);
+    try {
+      const response = await fetch(apiUrl(`/api/pending-entries/${entry.id}`), {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Could not cancel the pending trade.");
+      setPendingEntries((current) => current.filter((item) => item.id !== entry.id));
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : "Could not cancel the pending trade.";
+      await refreshPendingEntries();
+      setPendingEntryError(message);
+    } finally {
+      setCancellingPendingId(null);
+    }
+  }, [refreshPendingEntries]);
+
   useEffect(() => {
     // Both fetches resolve before they set state, so the update lands in a
     // promise continuation rather than synchronously during the effect. The
@@ -296,12 +337,21 @@ export function DashboardView({
     return () => window.clearInterval(timer);
   }, [refresh]);
 
+  useEffect(() => {
+    const initial = window.setTimeout(() => void refreshPendingEntries(), 0);
+    const timer = window.setInterval(() => void refreshPendingEntries(), 5_000);
+    return () => {
+      window.clearTimeout(initial);
+      window.clearInterval(timer);
+    };
+  }, [refreshPendingEntries]);
+
   // Reopening the app after it was backgrounded lands on the last snapshot until
   // the next interval tick — up to a minute away. Pull everything fresh the
   // moment it returns to the foreground so it never opens on stale numbers.
   useForegroundRefresh(useCallback(async () => {
-    await Promise.all([refreshAccount(), refresh()]);
-  }, [refreshAccount, refresh]));
+    await Promise.all([refreshAccount(), refresh(), refreshPendingEntries()]);
+  }, [refreshAccount, refresh, refreshPendingEntries]));
 
   const signalRows = savedSetups.filter((setup) => setup.state === "setup");
   const availableSignals: HomeAvailableSignal[] = signalRows.map((setup) => ({
@@ -446,6 +496,13 @@ export function DashboardView({
       </div>
       ) : null}
 
+      <HomePendingTrades
+        entries={pendingEntries}
+        cancellingId={cancellingPendingId}
+        error={pendingEntryError}
+        onCancel={(entry) => void cancelPendingEntry(entry)}
+      />
+
       {hasActiveSignals ? (
       <section className="home-section" aria-label="Saved setups">
         <div className="home-section-head">
@@ -504,7 +561,7 @@ export function DashboardView({
       </section>
       ) : null}
 
-      <HomeRecentActivity items={recentActivity} currency={account.currency} />
+      <HomeRecentActivity items={recentActivity} currency={account.currency} loading={activityLoading} />
 
       <div className="home-extra lg:hidden">
         <RecentPredictions />

@@ -27,9 +27,11 @@ function signedTone(value: number | null, flat = 0.05) {
 export function HomeRecentActivity({
   items,
   currency,
+  loading = false,
 }: {
   items: HomeActivityItem[];
   currency: string;
+  loading?: boolean;
 }) {
   return (
     <section className="home-idle-section" aria-label="Recent activity">
@@ -39,7 +41,11 @@ export function HomeRecentActivity({
           See all
         </Link>
       </div>
-      {items.length ? (
+      {loading ? (
+        <div className="home-activity-skeleton" aria-label="Loading recent activity" aria-busy="true">
+          {[0, 1, 2, 3].map((row) => <span key={row} />)}
+        </div>
+      ) : items.length ? (
         <div className="home-idle-list">
           <div className="home-idle-head home-activity-head" aria-hidden="true">
             <span>Pair</span>

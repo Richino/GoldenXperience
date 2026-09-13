@@ -930,11 +930,54 @@ input[type="number"] {
   position: fixed;
   inset: 0;
   z-index: 68;
-  background: color-mix(in srgb, var(--background) 55%, transparent);
+  /* Translucent scrim + tap shield only. The blur is applied to the page
+     content itself (html.mobile-sheet-open, below), not via backdrop-filter:
+     Android GPUs frequently refuse to composite a backdrop-filter over the
+     position:fixed scroll-locked app, so the blur silently no-ops there while
+     iOS renders it. Filtering the real content is composited reliably on both.
+     rgba (not color-mix) so the scrim paints on every Chrome/WebView version;
+     values mirror --background: #f2f2f7 (light) / #09090b (dark). */
+  background: rgba(242, 242, 247, 0.4);
   animation: sheet-fade 180ms ease-out both;
   /* Nothing behind the sheet reacts to a finger. */
   touch-action: none;
   overscroll-behavior: contain;
+}
+
+.dark .mobile-sheet-backdrop {
+  background: rgba(9, 9, 11, 0.4);
+}
+
+/* On iOS a fixed body without an explicit dynamic viewport height leaves the
+   sheet and its backdrop short of the physical screen. The chart route already
+   supplies this; all other routes need the same viewport lock while a sheet is
+   open. */
+html.mobile-sheet-open {
+  height: 100dvh;
+  min-height: 100dvh;
+}
+
+/* Blur the frozen page behind the sheet by filtering the real content rather
+   than the scrim. `filter: blur` is composited reliably on both iOS and
+   Android, unlike `backdrop-filter` over the position:fixed scroll-locked app.
+   The sheet and backdrop portal to <body> (outside these wrappers), so they
+   stay sharp. The mobile dock also portals to <body>, hence the second target.
+   Scoped below the lg breakpoint, where the sheet itself is display:none. */
+@media (max-width: 1023px) {
+  html.mobile-sheet-open .pwa-pull-refresh,
+  html.mobile-sheet-open .mobile-dock {
+    filter: blur(14px);
+  }
+}
+
+/* The scroll lock pins the body with `top: -scrollY`. A fixed `height: 100dvh`
+   here only reaches the screen bottom when scrollY is 0 — once the page is
+   scrolled, the shifted body box ends partway up the viewport and the bare
+   `<html>` background shows through behind the transparent-backdrop sheet.
+   `min-height` keeps short pages full while letting a scrolled page keep its
+   real (taller) height so it still covers the whole viewport. */
+html.mobile-sheet-open body {
+  min-height: 100dvh;
 }
 
 .mobile-sheet {
@@ -1019,7 +1062,54 @@ input[type="number"] {
   overflow-y: auto;
   overscroll-behavior: contain;
   touch-action: pan-y;
-  padding: 0.5rem 0.75rem calc(1rem + env(safe-area-inset-bottom, 0px));
+  padding: 0.5rem 0.75rem max(0.35rem, env(safe-area-inset-bottom, 0px));
+}
+
+/* The sheet already reaches the iPhone edge; adding the home-indicator inset
+   inside its scrolling list leaves a conspicuous empty white gutter. */
+@supports (-webkit-touch-callout: none) {
+  .mobile-sheet-body {
+    padding-bottom: 0.35rem;
+  }
+}
+
+/* Journal adopts the same hierarchy as Home: one calm overview card, then
+   clearly separated working controls and record cards. */
+.trades-view .trades-overview {
+  display: flex;
+  flex-direction: column;
+  gap: .9rem;
+  border: 1px solid var(--tp-border);
+  border-radius: 18px;
+  padding: 1.2rem 1.35rem;
+  background: var(--tp-panel);
+  box-shadow: var(--tp-shadow);
+}
+.trades-view .trades-overview .trades-summary {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--tp-border);
+  border-radius: 0;
+  padding: .9rem 0 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+@media (max-width: 767px) {
+  .trades-view { gap: .8rem; }
+  .trades-view .trades-overview { gap: .8rem; border-radius: 1.1rem; padding: 1rem; }
+  .trades-view .trades-overview .trades-summary { padding-top: .8rem; }
+  .trades-view .trades-workspace { gap: .7rem; }
+  .trades-view .trades-toolbar {
+    gap: .55rem;
+    border: 1px solid var(--tp-border);
+    border-radius: 1rem;
+    padding: .7rem;
+    background: var(--tp-panel);
+    box-shadow: var(--tp-shadow);
+  }
+  .trades-view .trade-card,
+  .dark .trades-view .trade-card { border-radius: 1rem; }
 }
 
 /*
@@ -5971,6 +6061,46 @@ input[type="number"] {
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
+
+  /* The desktop rail used the dark terminal palette unconditionally. Keep that
+     treatment in dark mode, but let the light theme inherit the app surfaces
+     and readable foreground tokens. */
+  html:not(.dark) .signals-view .gx-chart-context {
+    border-left-color: var(--border);
+    background: var(--surface);
+  }
+
+  html:not(.dark) .signals-view .gx-chart-context .gx-context-heading,
+  html:not(.dark) .signals-view .gx-chart-context .gx-watchlist-search-btn,
+  html:not(.dark) .signals-view .gx-chart-context .gx-context-toggle:has(input:disabled),
+  html:not(.dark) .signals-view .gx-chart-context .gx-market-detail dt {
+    color: var(--muted);
+  }
+
+  html:not(.dark) .signals-view .gx-chart-context .gx-watchlist-search input {
+    border-bottom-color: var(--border);
+    color: var(--foreground);
+  }
+
+  html:not(.dark) .signals-view .gx-chart-context .gx-watchlist-pair,
+  html:not(.dark) .signals-view .gx-chart-context .gx-watchlist-price,
+  html:not(.dark) .signals-view .gx-chart-context .gx-watchlist-price.metric-number,
+  html:not(.dark) .signals-view .gx-chart-context .gx-watchlist-row.is-active .gx-watchlist-pair,
+  html:not(.dark) .signals-view .gx-chart-context .gx-watchlist-row.is-active .gx-watchlist-price,
+  html:not(.dark) .signals-view .gx-chart-context .gx-context-toggle,
+  html:not(.dark) .signals-view .gx-chart-context .gx-market-detail dd,
+  html:not(.dark) .signals-view .gx-chart-context .gx-market-detail .metric-number {
+    color: var(--foreground);
+  }
+
+  html:not(.dark) .signals-view .gx-chart-context .gx-context-toggle-track {
+    background: var(--surface-muted);
+  }
+
+  html:not(.dark) .signals-view .gx-chart-context .gx-context-toggle-track::after {
+    background: var(--surface);
+    box-shadow: 0 0 0 1px var(--border-strong);
+  }
 }
 
 .gx-pair-search > .signals-tool-btn {
@@ -6338,7 +6468,7 @@ input[type="number"] {
 
   .gx-mobile-chart-toolbar {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     flex: 0 0 3.75rem;
     align-items: center;
     gap: 0.45rem;
@@ -6435,26 +6565,476 @@ input[type="number"] {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     flex: 0 0 auto;
-    gap: 0.5rem;
+    gap: 0;
     margin: 0;
-    padding: 0.7rem 1rem calc(var(--app-dock-height, 5.5rem) + 0.5rem);
-    border-top: 1px solid var(--border);
-    background: var(--signals-mobile-page-bg);
+    padding: 0.85rem 1rem calc(var(--app-dock-height, 5.5rem) + 0.9rem);
+    border-top: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--surface-raised) 62%, var(--signals-mobile-page-bg)), var(--signals-mobile-page-bg) 72%);
+  }
+
+  .gx-mobile-market-strip > div {
+    min-width: 0;
+    padding: 0.1rem 0.45rem;
+  }
+
+  .gx-mobile-market-strip > div:first-child {
+    padding-left: 0;
+  }
+
+  .gx-mobile-market-strip > div + div {
+    border-left: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   }
 
   .gx-mobile-market-strip dt {
     color: var(--muted);
-    font-size: 0.5rem;
+    font-size: 0.525rem;
     font-weight: 700;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.115em;
+    line-height: 1.2;
     text-transform: uppercase;
+    white-space: nowrap;
   }
 
   .gx-mobile-market-strip dd {
-    margin: 0.25rem 0 0;
+    margin: 0.32rem 0 0;
     color: var(--foreground);
+    overflow: hidden;
     font-size: 0.6875rem;
-    font-weight: 700;
+    font-weight: 750;
+    letter-spacing: -0.018em;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .gx-mobile-market-strip > div:last-child dd {
+    font-size: 0.6875rem;
+    letter-spacing: -0.05em;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
+  }
+
+  .gx-mobile-market-strip > div:last-child {
+    padding-right: 0;
+  }
+}
+
+/* Pending manual entries reuse the chart palette but stay visually distinct
+   from strategy setup controls. The same dialog becomes a bottom sheet on
+   phones without changing its form or persisted lifecycle. */
+.pending-entry-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 2rem;
+  padding: 0 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: 0.65rem;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* The chart header is very light in the light theme, so this needs enough
+   presence to read as the primary action without looking like a harsh outline. */
+html:not(.dark) .signals-view .pending-entry-add {
+  min-height: 2.25rem;
+  border-color: color-mix(in srgb, var(--accent) 52%, white);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, white);
+  color: color-mix(in srgb, var(--accent-strong) 84%, #043d2d);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 85%, transparent), 0 .2rem .55rem color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+html:not(.dark) .signals-view .pending-entry-add:hover {
+  background: color-mix(in srgb, var(--accent) 18%, white);
+  border-color: var(--accent);
+}
+
+html:not(.dark) .signals-view .pending-entry-add:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.pending-entry-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 72;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  /* Scrim only; the blur is applied to the page content (see the :has() rule
+     below), since Android GPUs frequently no-op backdrop-filter here. */
+  background: color-mix(in srgb, var(--background) 60%, transparent);
+  animation: sheet-fade 160ms ease-out both;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+/* The dialog portals to <body>, outside .pwa-pull-refresh, so filtering the
+   content leaves the dialog sharp. filter: blur composites reliably on iOS and
+   Android, unlike backdrop-filter. */
+html:has(.pending-entry-backdrop) .pwa-pull-refresh,
+html:has(.pending-entry-backdrop) .mobile-dock {
+  filter: blur(14px);
+}
+
+.pending-entry-dialog {
+  width: min(32rem, 100%);
+  max-height: min(88dvh, 48rem);
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 1.1rem;
+  background: var(--surface);
+  box-shadow: none;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+.pending-entry-dialog > header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  backdrop-filter: blur(14px);
+}
+
+.pending-entry-dialog > header span,
+.pending-entry-form label > span,
+.pending-entry-form legend,
+.pending-entry-detail dt {
+  color: var(--muted);
+  font-size: 0.675rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pending-entry-dialog > header h2 {
+  margin-top: 0.15rem;
+  font-size: 1.1rem;
+  font-weight: 750;
+}
+
+.pending-entry-form,
+.pending-entry-detail {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem 1.1rem 1.1rem;
+}
+
+.pending-entry-direction {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+  padding: 0.25rem;
+  border-radius: 0.75rem;
+  background: var(--surface-raised);
+}
+
+.pending-entry-direction button,
+.pending-entry-presets button {
+  min-height: 2.25rem;
+  border-radius: 0.55rem;
+  color: var(--muted-strong);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.pending-entry-direction button.is-active,
+.pending-entry-presets button.is-active {
+  background: var(--surface);
+  color: var(--accent-strong);
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--foreground) 9%, transparent);
+}
+
+.pending-entry-form label,
+.pending-entry-form fieldset {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.pending-entry-form fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.pending-entry-form fieldset > legend {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0 0 0.35rem;
+}
+
+.pending-entry-form label > span {
+  display: flex;
+  justify-content: space-between;
+}
+
+.pending-entry-form label > span em {
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.pending-entry-form input {
+  width: 100%;
+  min-height: 2.65rem;
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  background: var(--surface-raised);
+  padding: 0 0.8rem;
+  color: var(--foreground);
+  font: 600 0.875rem var(--font-mono, monospace);
+  outline: none;
+}
+
+.pending-entry-form input:focus {
+  border-color: color-mix(in srgb, var(--accent) 65%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.pending-entry-form small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.pending-entry-presets {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.pending-entry-presets button {
+  min-width: 0;
+  grid-column: span 2;
+  padding: 0 0.35rem;
+  background: var(--surface-raised);
+  font-size: 0.68rem;
+}
+
+.pending-entry-presets button:nth-child(4),
+.pending-entry-presets button:nth-child(5) {
+  grid-column: span 2;
+}
+
+.pending-entry-presets button:nth-child(4) {
+  grid-column: 2 / span 2;
+}
+
+.pending-entry-presets button:nth-child(5) {
+  grid-column: 4 / span 2;
+}
+
+/* Five compact expiration choices are easier to scan in one row than a
+   staggered two-line cluster, especially in the mobile entry drawer. */
+.pending-entry-presets {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.pending-entry-presets button,
+.pending-entry-presets button:nth-child(4),
+.pending-entry-presets button:nth-child(5) {
+  grid-column: span 1;
+  min-height: 2.35rem;
+  padding: 0 .2rem;
+  font-size: .62rem;
+  white-space: nowrap;
+}
+
+.pending-entry-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem 0.8rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface-raised);
+  color: var(--muted-strong);
+  font-size: 0.75rem;
+}
+
+.pending-entry-summary strong {
+  grid-column: 1 / -1;
+  color: var(--foreground);
+}
+
+.pending-entry-summary-spread {
+  grid-column: 1 / -1;
+  color: var(--success);
+  font-weight: 700;
+}
+
+.pending-entry-summary-spread.is-wide {
+  color: var(--danger);
+}
+
+.pending-entry-form footer,
+.pending-entry-detail footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  padding-top: 0.25rem;
+}
+
+.pending-entry-form footer button,
+.pending-entry-detail footer button {
+  min-height: 2.45rem;
+  padding: 0 0.9rem;
+  border-radius: 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.pending-entry-primary {
+  background: var(--accent);
+  color: var(--accent-contrast, #fff);
+}
+
+.pending-entry-primary:disabled {
+  background: var(--surface-muted);
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.pending-entry-secondary {
+  background: var(--surface-raised);
+  color: var(--muted-strong);
+}
+
+.pending-entry-danger {
+  margin-right: auto;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.pending-entry-error {
+  color: var(--danger);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.pending-entry-status {
+  padding: 0.7rem 0.8rem;
+  border-radius: 0.7rem;
+  background: var(--surface-raised);
+  color: var(--muted-strong);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.pending-entry-status.is-pending,
+.pending-entry-status.is-triggering { color: var(--pending); }
+.pending-entry-status.is-triggered { color: var(--success); }
+.pending-entry-status.is-failed,
+.pending-entry-status.is-invalidated { color: var(--danger); }
+
+.pending-entry-detail dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.pending-entry-detail dl > div {
+  padding: 0.7rem 0.8rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.pending-entry-detail dl > div:nth-child(odd) { border-right: 1px solid var(--border); }
+.pending-entry-detail dd { margin-top: 0.2rem; font-size: 0.8rem; font-weight: 650; }
+.pending-entry-detail dd.is-wide { color: var(--danger); }
+
+.pending-entry-toast {
+  position: fixed;
+  z-index: 80;
+  right: 1rem;
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  color: var(--foreground);
+  box-shadow: 0 12px 40px color-mix(in srgb, var(--foreground) 15%, transparent);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.setup-chart-level-tag:not(:disabled) {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+@media (max-width: 639px) {
+  .pending-entry-backdrop {
+    align-items: end;
+    padding: 0;
+  }
+  .pending-entry-dialog {
+    width: 100%;
+    max-height: min(88dvh, 46rem);
+    border-inline: 0;
+    border-bottom: 0;
+    border-radius: 1.2rem 1.2rem 0 0;
+    animation: sheet-up 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .pending-entry-dialog > header,
+  .pending-entry-dialog.is-proposal > header {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+  }
+  .pending-entry-form footer,
+  .pending-entry-detail footer {
+    position: sticky;
+    z-index: 2;
+    bottom: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin: .25rem -1.1rem -1.1rem;
+    padding: 0.75rem 1.1rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--border);
+    background: color-mix(in srgb, var(--surface) 96%, transparent);
+    backdrop-filter: blur(14px);
+  }
+  .pending-entry-form footer button,
+  .pending-entry-detail footer button {
+    width: 100%;
+    min-height: 3rem;
+    padding-inline: 1rem;
+    border-radius: 0.8rem;
+    font-size: 0.875rem;
+  }
+  .pending-entry-detail footer .pending-entry-danger {
+    margin-right: 0;
+  }
+  .pending-entry-form,
+  .pending-entry-detail {
+    padding-bottom: 1.1rem;
+  }
+  .pending-entry-toast {
+    right: 50%;
+    bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+    transform: translateX(50%);
+    white-space: nowrap;
   }
 }
 
@@ -11897,6 +12477,151 @@ input[type="number"] {
   box-shadow: var(--home-panel-shadow);
 }
 
+.home-pending-trades {
+  overflow: hidden;
+}
+
+.home-pending-count {
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pending) 11%, transparent);
+  color: var(--pending);
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+}
+
+.home-pending-list {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.9rem;
+}
+
+.home-pending-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.85rem;
+  overflow: hidden;
+  border: 1px solid var(--home-panel-border);
+  border-radius: 0.9rem;
+  background: var(--home-inset);
+}
+
+.home-pending-row::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 2px;
+  background: var(--pending);
+}
+
+.home-pending-row.is-long::before {
+  background: var(--success);
+}
+
+.home-pending-row.is-short::before {
+  background: var(--danger);
+}
+
+.home-pending-link {
+  min-width: 0;
+  padding: 0.85rem 0 0.85rem 0.9rem;
+}
+
+.home-pending-ident {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.home-pending-ident strong {
+  font-size: 0.85rem;
+  letter-spacing: -0.015em;
+}
+
+.home-pending-order {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.home-pending-link dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-top: 0.7rem;
+}
+
+.home-pending-link dt {
+  color: var(--muted);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.home-pending-link dd {
+  margin-top: 0.15rem;
+  overflow: hidden;
+  color: var(--muted-strong);
+  font-size: 0.72rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-pending-cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-width: 5.5rem;
+  min-height: 2.75rem;
+  margin-right: 0.8rem;
+  padding: 0 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--danger) 24%, var(--border));
+  border-radius: 0.7rem;
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  color: var(--danger);
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.home-pending-cancel:disabled {
+  opacity: 0.55;
+}
+
+.home-pending-error {
+  margin-top: 0.65rem;
+  color: var(--danger);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+@media (max-width: 639px) {
+  .home-pending-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .home-pending-link {
+    padding: 0.9rem 0.9rem 0.75rem;
+  }
+
+  .home-pending-cancel {
+    width: calc(100% - 1.8rem);
+    min-height: 2.875rem;
+    margin: 0 0.9rem 0.9rem;
+  }
+}
+
 /* The status / recent-activity blocks used a top border as their only
    separator; the panel border now carries that job on all four sides. */
 .home-main > .home-idle-section {
@@ -11976,9 +12701,7 @@ input[type="number"] {
    echoing the home overhaul. Appended last to win by source order.
    ============================================================ */
 @media (min-width: 1024px) {
-  /* The control bar reads as a floating toolbar the chart sits beneath:
-     a subtle top-lit surface, a crisper hairline, and a soft cast down
-     onto the chart. */
+  /* Keep the control bar visually attached to the chart without elevation. */
   .signals-view .gx-chart-terminal > .signals-chart-head {
     background: linear-gradient(
       180deg,
@@ -11986,7 +12709,7 @@ input[type="number"] {
       color-mix(in srgb, var(--surface) 60%, var(--chart-background))
     );
     border-bottom-color: color-mix(in srgb, var(--foreground) 12%, transparent);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.16);
+    box-shadow: none;
   }
 
   /* Context rail: a quiet hover and a crisp accent cue on the active pair
@@ -12207,15 +12930,9 @@ input[type="number"] {
 }
 
 @media (max-width: 1023px) {
-  /* Frosted dock: content scrolls elegantly beneath instead of hitting a
-     flat opaque strip. */
-  .mobile-dock {
-    background: color-mix(in srgb, var(--surface) 88%, transparent);
-    backdrop-filter: blur(22px) saturate(1.4);
-    -webkit-backdrop-filter: blur(22px) saturate(1.4);
-    border-top: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent);
-  }
-
+  /* The dock's own frosted backdrop-filter was removed: it was fully overridden
+     by the gradient-scrim rule further down, and Android GPUs no-op it anyway.
+     The content fade now lives on .mobile-dock::before (see below). */
   .mobile-dock .nav-pill {
     background: transparent;
   }
@@ -12290,10 +13007,33 @@ input[type="number"] {
     /* Sit just above the home indicator — use only half the safe-area gap so
        the pill doesn't float too high on iPhone. */
     padding: 0 .55rem calc(env(safe-area-inset-bottom, 0px) / 2 + .25rem);
-    background: linear-gradient(to top, color-mix(in srgb, var(--background) 96%, transparent) 62%, transparent);
+    background: transparent;
     border-top: 0;
+    /* No backdrop-filter: some Android GPUs no-op it, and the ::before fade
+       below gives the same "content dissolves under the nav" read everywhere. */
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
+  }
+
+  /* Solid gradient scrim that extends above the pill so page content fades into
+     the background as it scrolls toward the dock — a device-independent stand-in
+     for the frosted-glass blur (which the GPU may refuse on Android). Extends
+     past the dock's own box (top: -2.85rem) without changing its measured
+     offsetHeight, so --app-dock-height stays correct. */
+  .mobile-dock::before {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    top: -2.85rem;
+    z-index: -1;
+    pointer-events: none;
+    background: linear-gradient(
+      to top,
+      var(--background) 44%,
+      color-mix(in srgb, var(--background) 66%, transparent) 70%,
+      transparent
+    );
   }
 
   .mobile-dock .nav-pill {
@@ -12524,4 +13264,258 @@ input[type="number"] {
   .markets-row-plan { margin-top: 0; }
   .markets-row-plan > b { flex: 0 0 auto; color: var(--accent); font-size: .68rem; font-weight: 800; }
   .markets-row-progress { display: none; }
+}
+
+/* The Analyze action produces a reviewable proposal only. */
+.markets-row { cursor: pointer; }
+.markets-row-analyze { margin-left: auto; border: 1px solid color-mix(in srgb, var(--accent) 62%, var(--border)); border-radius: 999px; padding: .25rem .55rem; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); font-size: .58rem; font-weight: 800; }
+.markets-row-analyze:disabled { cursor: wait; opacity: .62; }
+/* Dark scrim only; the blur is applied to the page content (see the :has()
+   rule below), since Android GPUs frequently no-op backdrop-filter here. */
+.manual-proposal-backdrop { position: fixed; z-index: 200; inset: 0; display: grid; place-items: center; padding: 1rem; background: color-mix(in srgb, #000 55%, transparent); }
+
+/* The modal portals to <body>, outside .pwa-pull-refresh, so filtering the
+   content leaves the modal itself sharp. filter: blur composites reliably on
+   both iOS and Android, unlike backdrop-filter. */
+html:has(.manual-proposal-backdrop) .pwa-pull-refresh,
+html:has(.manual-proposal-backdrop) .mobile-dock {
+  filter: blur(14px);
+}
+.manual-proposal { width: min(31rem, 100%); border: 1px solid var(--border); border-radius: 1rem; padding: 1.1rem; background: var(--surface); box-shadow: 0 1.5rem 4rem color-mix(in srgb, #000 44%, transparent); overscroll-behavior: contain; touch-action: pan-y; }
+.manual-proposal header { display: flex; justify-content: space-between; gap: 1rem; }
+.manual-proposal header span, .manual-proposal dt { color: var(--muted); font-size: .62rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.manual-proposal h2 { margin-top: .18rem; font-size: 1.05rem; font-weight: 800; }
+.manual-proposal header strong { align-self: start; border-radius: .6rem; padding: .4rem .55rem; background: var(--accent-soft); color: var(--accent); font-size: 1rem; }
+.manual-proposal header small { display: block; font-size: .5rem; text-transform: uppercase; }
+.manual-proposal-warning { margin-top: 1rem; border-left: 2px solid var(--pending); padding-left: .6rem; color: var(--muted); font-size: .72rem; }
+.manual-proposal-entry-time { margin-top: .2rem; border-left: 2px solid var(--accent); padding-left: .6rem; color: var(--muted-strong); font-size: .75rem; line-height: 1.45; }
+.manual-proposal dl { display: grid; grid-template-columns: repeat(3, 1fr); gap: .55rem; margin: 1rem 0; }
+.manual-proposal dl div { border: 1px solid var(--border); border-radius: .55rem; padding: .55rem; }
+.manual-proposal dd { margin-top: .22rem; font-size: .75rem; font-weight: 800; }
+.manual-proposal > p:not(.manual-proposal-warning) { margin-top: .7rem; color: var(--muted-strong); font-size: .75rem; line-height: 1.45; overflow-wrap: anywhere; }
+.manual-proposal > p b { color: var(--foreground); }
+.manual-proposal footer { display: flex; justify-content: flex-end; gap: .55rem; margin-top: 1.15rem; }
+.manual-proposal footer button { min-height: 2.45rem; border-radius: .55rem; padding: 0 .85rem; font-size: .72rem; font-weight: 800; }
+.manual-proposal-dismiss { border: 1px solid var(--border); background: transparent; color: var(--foreground); }
+.manual-proposal-accept { border: 0; background: var(--accent); color: #05271e; }
+.manual-analysis-error { position: fixed; z-index: 91; right: 1rem; bottom: 1rem; max-width: min(26rem, calc(100vw - 2rem)); border: 1px solid color-mix(in srgb, var(--danger) 50%, var(--border)); border-radius: .65rem; padding: .75rem; background: var(--surface); color: var(--danger); font-size: .75rem; box-shadow: 0 .8rem 2rem color-mix(in srgb, #000 30%, transparent); }
+@media (max-width: 1023px) { .markets-row-plan { width: 100%; } .markets-row-analyze { margin-left: auto; padding: .3rem .6rem; } .manual-proposal-backdrop { align-items: end; padding-bottom: calc(var(--app-dock-height, 5rem) + .75rem + env(safe-area-inset-bottom, 0px)); } .manual-proposal { align-self: end; max-height: calc(100dvh - var(--app-dock-height, 5rem) - 2rem); overflow-y: auto; border-radius: 1rem; } .manual-proposal dl { grid-template-columns: 1fr; } .manual-proposal footer { position: sticky; bottom: 0; padding-top: .8rem; background: var(--surface); } .manual-proposal footer button { flex: 1; } }
+
+.pending-entry-levels { display: grid; grid-template-columns: 1fr 1fr; gap: .65rem; }
+.pending-entry-proposal-note { margin: 0; border-left: 2px solid var(--pending); padding-left: .6rem; color: var(--muted-strong); font-size: .72rem; line-height: 1.45; }
+@media (max-width: 520px) { .pending-entry-levels { grid-template-columns: 1fr; } }
+
+.pending-entry-custom-expiration { width: 100%; min-height: 2.65rem; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border)); border-radius: .7rem; background: color-mix(in srgb, var(--accent) 8%, var(--surface-raised)); color: var(--accent); font-size: .78rem; font-weight: 750; text-align: left; padding: 0 .8rem; }
+/* Scrim only; page content is blurred via the :has() rule (Android GPUs
+   frequently no-op backdrop-filter here). */
+.custom-expiration-backdrop { position: fixed; z-index: 240; inset: 0; display: grid; place-items: center; padding: 1rem; background: color-mix(in srgb, #000 66%, transparent); overscroll-behavior: none; }
+
+html:has(.custom-expiration-backdrop) .pwa-pull-refresh,
+html:has(.custom-expiration-backdrop) .mobile-dock {
+  filter: blur(14px);
+}
+.custom-expiration-dialog { width: min(25rem, 100%); border: 1px solid var(--border); border-radius: 1rem; padding: 1rem; background: var(--surface); box-shadow: 0 1.5rem 4rem color-mix(in srgb, #000 46%, transparent); }
+.custom-expiration-dialog header span, .custom-expiration-fields label > span { display: block; color: var(--muted); font-size: .62rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.custom-expiration-dialog h3 { margin-top: .2rem; font-size: 1.05rem; font-weight: 800; }
+.custom-expiration-dialog > p { margin-top: .85rem; color: var(--muted-strong); font-size: .78rem; }
+.custom-expiration-fields { display: grid; grid-template-columns: 1fr 1fr; gap: .65rem; margin-top: 1rem; }
+.custom-expiration-fields label { display: grid; gap: .4rem; }
+.custom-expiration-fields input { min-width: 0; min-height: 2.7rem; border: 1px solid var(--border); border-radius: .65rem; padding: 0 .7rem; background: var(--surface-raised); color: var(--foreground); font: 700 .82rem var(--font-mono, monospace); outline: none; }
+.custom-expiration-fields input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent); }
+.custom-expiration-error { color: var(--danger)!important; }
+.custom-expiration-dialog footer { display: flex; justify-content: flex-end; gap: .55rem; margin-top: 1rem; }
+.custom-expiration-dialog footer button { min-height: 2.5rem; border-radius: .65rem; padding: 0 .85rem; background: var(--surface-raised); color: var(--foreground); font-size: .76rem; font-weight: 800; }
+.custom-expiration-dialog footer button:last-child { background: var(--accent); color: var(--accent-contrast, #fff); }
+@media (max-width: 520px) { .custom-expiration-backdrop { align-items: center; padding: 1rem; } .custom-expiration-fields { grid-template-columns: 1fr; } .custom-expiration-dialog footer button { flex: 1; } }
+.gx-mobile-tool-button.is-refreshing svg { animation: gx-chart-refresh .7s linear infinite; }
+@keyframes gx-chart-refresh { to { transform: rotate(360deg); } }
+
+@media (max-width: 1023px) {
+  .markets-row {
+    grid-template-areas: "pair analyze" "price analyze" "change analyze";
+    grid-template-rows: minmax(2.3rem, auto) minmax(1.3rem, auto) minmax(1.3rem, auto);
+    gap: .3rem .8rem;
+    min-height: 0;
+    padding: .8rem 1rem;
+  }
+  .markets-row > b:nth-child(2) { grid-area: price; align-self: center; justify-self: start; }
+  .markets-row > b:nth-child(3) { grid-area: change; align-self: center; justify-self: start; margin-left: 0; }
+  .markets-row-plan > span,
+  .markets-row-plan > em,
+  .markets-row-plan > b { display: none; }
+  .markets-row-plan { display: flex; grid-area: analyze; align-items: center; justify-content: flex-end; min-width: 0; }
+  .markets-row-analyze { min-height: 2.25rem; min-width: 5.25rem; margin-left: auto; padding: .4rem .9rem; font-size: .75rem; }
+}
+
+/* Home: retain visual structure while the first activity request resolves. */
+.home-activity-skeleton { display: grid; gap: .45rem; margin-top: .75rem; }
+.home-activity-skeleton span { display: block; height: 3rem; border-radius: .7rem; background: linear-gradient(90deg, color-mix(in srgb, var(--foreground) 5%, transparent) 20%, color-mix(in srgb, var(--foreground) 10%, transparent) 45%, color-mix(in srgb, var(--foreground) 5%, transparent) 70%); background-size: 220% 100%; animation: home-activity-shimmer 1.35s ease-in-out infinite; }
+@keyframes home-activity-shimmer { to { background-position: -220% 0; } }
+
+@media (max-width: 1023px) {
+  .home-rail { gap: 1rem; }
+  .home-rail-section {
+    border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+    border-radius: 1rem;
+    padding: 1rem;
+    background: color-mix(in srgb, var(--surface) 94%, var(--accent-soft));
+    box-shadow: 0 .55rem 1.4rem color-mix(in srgb, #000 4%, transparent);
+  }
+  .home-rail-heading { align-items: center; }
+  .home-rail-heading > span { font-size: .68rem; font-weight: 800; letter-spacing: .1em; }
+  .home-rail-heading a { border-radius: 999px; padding: .24rem .48rem; background: color-mix(in srgb, var(--accent) 10%, transparent); font-size: .62rem; font-weight: 800; }
+  .home-rail-markets { gap: .38rem; margin-top: .75rem; }
+  .home-rail-market {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    min-height: 2.8rem;
+    border: 1px solid transparent;
+    border-radius: .7rem;
+    padding: .52rem .62rem;
+    background: color-mix(in srgb, var(--foreground) 3%, transparent);
+  }
+  .home-rail-market:hover { border-color: color-mix(in srgb, var(--accent) 32%, var(--border)); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .home-rail-market > :first-child { font-weight: 800; letter-spacing: -.01em; }
+  .home-rail-market .metric-number { min-width: 4.8rem; color: var(--foreground); font-size: .75rem; text-align: right; }
+  .home-rail-market > :last-child { min-width: 3.7rem; border-radius: 999px; padding: .23rem .32rem; font-size: .66rem; font-weight: 800; text-align: center; }
+  .home-rail-total { overflow: hidden; background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, var(--surface)) 0%, var(--surface) 68%); }
+  .home-rail-total-row { align-items: baseline; margin: .7rem 0 .22rem; }
+  .home-rail-total-lead { font-size: 1.5rem; letter-spacing: -.05em; }
+  .home-rail-total-r { border-radius: 999px; padding: .22rem .45rem; background: color-mix(in srgb, var(--foreground) 5%, transparent); font-size: .7rem; }
+  .home-rail-total-empty { margin: 0 0 .9rem; color: var(--muted); font-size: .72rem; }
+  .home-rail-total-meta { border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent); padding-top: .8rem; }
+  .home-rail-total-meta > div { padding: 0 .55rem; }
+  .home-rail-total-meta dt { font-size: .56rem; }
+  .home-rail-total-meta dd { margin-top: .2rem; font-size: .82rem; }
+  .home-rail-bar { height: .24rem; margin-top: .9rem; border-radius: 999px; }
+  .home-activity-skeleton { gap: .35rem; }
+  .home-activity-skeleton span { height: 3.5rem; }
+}
+
+/* iPhone Safari: make the navigation feel like a floating hardware-shaped
+   control, rather than a full-width rounded Android footer. */
+@supports (-webkit-touch-callout: none) {
+  @media (max-width: 1023px) {
+    .mobile-dock {
+      /* The full Safari safe-area inset is too tall here; the dock already
+         clears the home indicator at this deliberate visual offset. */
+      padding: 0 .8rem 20px;
+      background: transparent;
+    }
+
+    .mobile-dock .nav-pill {
+      max-width: 27rem;
+      min-height: 4.35rem;
+      padding: .46rem;
+      border: 0;
+      border-radius: 1.8rem;
+      background: rgba(255, 255, 255, .94);
+      box-shadow: 0 .8rem 2.1rem rgba(13, 22, 38, .18), inset 0 1px 0 rgba(255, 255, 255, .9);
+    }
+
+    .dark .mobile-dock .nav-pill {
+      background: rgba(17, 17, 18, .96);
+      box-shadow: 0 .9rem 2.4rem rgba(0, 0, 0, .48), inset 0 1px 0 rgba(255, 255, 255, .08);
+    }
+
+    .mobile-dock .nav-liquid-lens-track {
+      top: .46rem;
+      left: .46rem;
+      width: calc((100% - .92rem) / 5);
+      height: calc(100% - .92rem);
+    }
+
+    .mobile-dock .nav-liquid-lens { border-radius: 1.35rem; }
+    .mobile-dock .nav-mobile-link { min-height: 3.42rem; border-radius: 1.28rem; }
+    .mobile-dock .nav-mobile-icon { width: 2.55rem; height: 2.16rem; border-radius: 1rem; }
+  }
+}
+
+/* Android and other non-WebKit mobile browsers: keep the dock just off the
+   bottom edge without applying iPhone home-indicator spacing. */
+@supports not (-webkit-touch-callout: none) {
+  @media (max-width: 1023px) {
+    .mobile-dock { padding-bottom: 25px; }
+  }
+}
+
+/* This must follow the older mobile Journal reset that squared every row. */
+@media (max-width: 767px) {
+  .trades-view .trades-cards .trade-card,
+  .dark .trades-view .trades-cards .trade-card {
+    border-radius: 1rem;
+    box-shadow: var(--tp-shadow);
+  }
+}
+
+@media (max-width: 767px) {
+  .trades-view { margin-top: .5rem; }
+  .trades-view .trades-toolbar { gap: .65rem; padding: .78rem; }
+  .trades-view .trades-tabs { min-height: 2.8rem; padding: .22rem; border-radius: .78rem; }
+  .trades-view .trades-tabs button { min-height: 2.32rem; gap: .28rem; border-radius: .6rem; padding: .45rem .3rem; font-size: .76rem; }
+  .trades-view .trades-tab-count { font-size: .64rem; }
+  .trades-view .trades-search { min-height: 2.78rem; border-radius: .72rem; padding-inline: .78rem; }
+  .trades-view .trades-search input { font-size: .8rem; }
+  .trades-view .trades-subfilter { width: 100%; gap: .4rem; border: 0; padding: 0; }
+  .trades-view .trades-subfilter button { flex: 1; min-height: 2.35rem; border-radius: .68rem; padding: .45rem; background: color-mix(in srgb, var(--foreground) 4%, transparent); color: var(--muted-strong); font-size: .74rem; }
+  .trades-view .trades-subfilter button.is-active { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); font-weight: 800; }
+  .trades-view .trades-panel { display: none; }
+}
+
+/* Watchlist: align the search and opportunity list with Home's card rhythm. */
+@media (max-width: 1023px) {
+  .markets-terminal { margin-top: .9rem; }
+  .markets-scanner { padding: 0; }
+  .markets-toolbar {
+    margin: 0 0 .75rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .markets-toolbar > label:first-child { min-height: 2.75rem; border-radius: .72rem; padding-inline: .78rem; }
+  .markets-toolbar input { font-size: .8rem; }
+  .markets-toolbar .markets-session-trigger { min-height: 2.65rem; border-radius: .72rem; font-size: .72rem; }
+  .markets-table { display: grid; gap: .58rem; margin-top: .75rem; }
+  .markets-row {
+    border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+    border-radius: 1rem;
+    padding: .82rem .9rem;
+    background: color-mix(in srgb, var(--surface) 96%, var(--accent-soft));
+    box-shadow: 0 .48rem 1.2rem color-mix(in srgb, #000 3%, transparent);
+  }
+  .markets-row:hover,
+  .markets-row.is-selected {
+    border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+    background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+    box-shadow: 0 .48rem 1.2rem color-mix(in srgb, #000 4%, transparent);
+  }
+  .markets-row.is-selected { box-shadow: 0 .48rem 1.2rem color-mix(in srgb, #000 4%, transparent); }
+  .markets-pair b { font-size: .83rem; }
+  .markets-pair small { font-size: .6rem; }
+}
+
+/* Notifications are an inbox on a phone, not a compressed desktop popover. */
+@media (max-width: 1023px) {
+  .mobile-sheet:has(.notification-popover-list) { max-height: min(76dvh, 38rem); border-radius: 1.5rem 1.5rem 0 0; }
+  .mobile-sheet:has(.notification-popover-list) .mobile-sheet-head { padding: .68rem 1rem .82rem; }
+  .mobile-sheet:has(.notification-popover-list) .mobile-sheet-title { font-size: 1rem; font-weight: 750; }
+  .mobile-sheet:has(.notification-popover-list) .mobile-sheet-body { padding: .65rem .8rem max(.6rem, env(safe-area-inset-bottom, 0px)); }
+  .mobile-sheet-body > .notification-popover-list { display: grid; gap: .45rem; }
+  .mobile-sheet .notification-popover-item {
+    min-height: 4.4rem;
+    gap: .6rem;
+    border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+    border-radius: .9rem;
+    padding: .72rem .75rem;
+    background: color-mix(in srgb, var(--surface-raised) 82%, var(--surface));
+  }
+  .mobile-sheet .notification-popover-item:last-child { border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent); }
+  .mobile-sheet .notification-popover-item.is-unread { border-color: color-mix(in srgb, var(--accent) 28%, var(--border)); background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+  .mobile-sheet .notification-popover-item.is-issue { border-color: color-mix(in srgb, var(--danger) 38%, var(--border)); background: color-mix(in srgb, var(--danger) 7%, var(--surface)); }
+  .mobile-sheet .notification-unread-slot { width: .45rem; padding-top: .38rem; }
+  .mobile-sheet .notification-unread-dot { width: .42rem; height: .42rem; }
+  .mobile-sheet .notification-popover-item-top { align-items: flex-start; gap: .55rem; }
+  .mobile-sheet .notification-popover-item-title { white-space: normal; font-size: .82rem; font-weight: 700; line-height: 1.3; }
+  .mobile-sheet .notification-popover-item-time { padding-top: .08rem; font-size: .64rem; }
+  .mobile-sheet .notification-popover-item-message { margin-top: .18rem; font-size: .74rem; line-height: 1.42; }
 }

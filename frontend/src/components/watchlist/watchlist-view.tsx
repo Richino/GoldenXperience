@@ -9,8 +9,8 @@ import {
   Search,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { WatchlistPairsSkeleton } from "@/components/ui/page-skeletons";
-import { SelectMenu } from "@/components/ui/select-menu";
 import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { displayNameFor, pipSizeFor } from "@/lib/instruments/catalog";
@@ -18,6 +18,9 @@ import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import { getMarketCondition } from "@/lib/strategy/session";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import {
+  hasActivePairStrategy,
+  hasPairStrategySchedule,
+  pairStrategyScheduleLabel,
   watchlistCardStatus,
   type WatchlistCondition,
 } from "@/lib/watchlist-status";
@@ -40,6 +43,20 @@ type Row = {
   tradeSequence: string | null;
 };
 type Day = { change: number | null; high: number | null; low: number | null };
+type ManualProposal = {
+  instrument: string;
+  direction: "long" | "short";
+  confidence: number;
+  entry: number;
+  stop: number;
+  target: number;
+  riskReward: number;
+  preferredEntryTime: string;
+  rationale: string;
+  newsSummary: string;
+  analyzedAt: string;
+  testOnly: true;
+};
 
 const names: Record<string, string> = {
   AUD: "Australian Dollar",
@@ -81,41 +98,70 @@ const setup = (row: Row) =>
         ? "LONG"
         : "SHORT"
       : "—";
-const sessionDisplay = (value: string) => {
-  const normalized = value.trim().toLowerCase();
-  if (normalized.includes("london/new york") || normalized.includes("london / new york")) {
-    return "London / NY";
-  }
-  if (normalized.includes("new york")) return "New York";
-  if (normalized.includes("london")) return "London";
-  if (normalized.includes("asia") || normalized.includes("tokyo") || normalized.includes("sydney")) {
-    return "Asia";
-  }
-
-  // Runtime sources may express an origin as `11 UTC`, `1100 UTC`, or
-  // `PAIR_11_UTC`. Convert every form to the same market-session chip.
-  const origin = value.match(/(?:^|[_\s])(\d{1,2})(?::?(\d{2}))?[_\s]*UTC\b/i);
-  const originHour = Number(origin?.[1]);
-  if (Number.isFinite(originHour)) {
-    if (originHour < 7 || originHour >= 22) return "Asia";
-    if (originHour < 13) return "London";
-    if (originHour < 17) return "London / NY";
-    return "New York";
-  }
-  return "Asia";
-};
-
 export function WatchlistView() {
   const router = useRouter();
   const [snapshot, setSnapshot] = useState<Row[]>([]);
   const [daily, setDaily] = useState<Record<string, Day>>({});
   const [selected, setSelected] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [session, setSession] = useState("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [proposal, setProposal] = useState<ManualProposal | null>(null);
+  const [analyzingInstrument, setAnalyzingInstrument] = useState<string | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [market, setMarket] = useState(() => getMarketCondition());
   const quotes = useLiveQuotes();
+  useEffect(() => {
+    if (!proposal) return;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousBodyOverscroll = document.body.style.overscrollBehavior;
+    const previousBodyPosition = document.body.style.position;
+    const previousBodyTop = document.body.style.top;
+    const previousBodyWidth = document.body.style.width;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousHtmlOverscroll = document.documentElement.style.overscrollBehavior;
+    const scrollY = window.scrollY;
+    let touchStartY: number | null = null;
+    const onTouchStart = (event: TouchEvent) => {
+      touchStartY = event.touches[0]?.clientY ?? null;
+    };
+    const onTouchMove = (event: TouchEvent) => {
+      const currentY = event.touches[0]?.clientY;
+      if (touchStartY === null || currentY === undefined) return;
+      const modal = event.target instanceof Element
+        ? event.target.closest<HTMLElement>(".manual-proposal")
+        : null;
+      if (!modal) {
+        event.preventDefault();
+        return;
+      }
+      const delta = currentY - touchStartY;
+      const atTop = modal.scrollTop <= 0;
+      const atBottom = modal.scrollTop + modal.clientHeight >= modal.scrollHeight - 1;
+      if ((atTop && delta > 0) || (atBottom && delta < 0)) event.preventDefault();
+    };
+    document.body.style.overflow = "hidden";
+    document.body.style.overscrollBehavior = "none";
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = "100%";
+    document.documentElement.style.overflow = "hidden";
+    document.documentElement.style.overscrollBehavior = "none";
+    document.addEventListener("touchstart", onTouchStart, { passive: true, capture: true });
+    document.addEventListener("touchmove", onTouchMove, { passive: false, capture: true });
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.body.style.overscrollBehavior = previousBodyOverscroll;
+      document.body.style.position = previousBodyPosition;
+      document.body.style.top = previousBodyTop;
+      document.body.style.width = previousBodyWidth;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.documentElement.style.overscrollBehavior = previousHtmlOverscroll;
+      document.removeEventListener("touchstart", onTouchStart, true);
+      document.removeEventListener("touchmove", onTouchMove, true);
+      window.scrollTo(0, scrollY);
+    };
+  }, [proposal]);
   const load = useCallback(async () => {
     try {
       const response = await fetch(apiUrl("/api/watchlist"), {
@@ -133,7 +179,7 @@ export function WatchlistView() {
       setSelected((current) =>
         current && watchlist.some((row) => row.instrument === current)
           ? current
-          : (watchlist[0]?.instrument ?? null),
+          : null,
       );
       void Promise.all(
         watchlist.map(async (row) => {
@@ -212,30 +258,12 @@ export function WatchlistView() {
       }),
     [snapshot, quotes],
   );
-  const summary = {
-    watched: rows.length,
-    setups: rows.filter((row) => row.setupStatus === "valid" || row.openTradeId)
-      .length,
-    bullish: rows.filter((row) => row.direction === "long").length,
-    bearish: rows.filter((row) => row.direction === "short").length,
-    neutral: rows.filter((row) => !row.direction).length,
-  };
-  const sessions = Array.from(
-    new Set(rows.map((row) => sessionDisplay(row.session))),
-  );
-  const sessionOptions = [
-    { value: "all", label: "All sessions" },
-    ...sessions.map((entry) => ({ value: entry, label: entry })),
-  ];
   const shown = rows
     .filter((row) => {
       const matches = `${row.instrument} ${description(row.instrument)}`
         .toLowerCase()
         .includes(query.toLowerCase());
-      return (
-        matches &&
-        (session === "all" || sessionDisplay(row.session) === session)
-      );
+      return matches;
     })
     .sort(
       (left, right) =>
@@ -246,6 +274,41 @@ export function WatchlistView() {
   const active = rows.find((row) => row.instrument === selected);
   const day = active ? daily[active.instrument] : undefined;
   const activeChange = finiteOrNull(day?.change);
+  const analyze = useCallback(async (instrument: string) => {
+    setAnalysisError(null);
+    setAnalyzingInstrument(instrument);
+    try {
+      const response = await fetch(apiUrl("/api/manual-analysis"), {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instrument }),
+      });
+      const payload = await response.json() as { proposal?: ManualProposal; error?: string };
+      if (!response.ok || !payload.proposal) throw new Error(payload.error ?? "Analysis could not produce a proposal.");
+      setProposal(payload.proposal);
+    } catch (reason) {
+      setAnalysisError(reason instanceof Error ? reason.message : "Analysis could not run.");
+    } finally {
+      setAnalyzingInstrument(null);
+    }
+  }, []);
+
+  const acceptProposal = useCallback(() => {
+    if (!proposal) return;
+    const parameters = new URLSearchParams({
+      instrument: proposal.instrument,
+      entry: String(proposal.entry),
+      stop: String(proposal.stop),
+      target: String(proposal.target),
+      direction: proposal.direction,
+      confidence: String(proposal.confidence),
+      preferredEntryTime: proposal.preferredEntryTime,
+      rationale: proposal.rationale,
+      proposal: "manual-analysis",
+    });
+    router.push(`/chart?${parameters.toString()}`);
+  }, [proposal, router]);
   return (
     <div className="markets-workspace">
       <header className="markets-header">
@@ -262,28 +325,6 @@ export function WatchlistView() {
           Market {market.marketOpen ? "open" : "closed"} · {market.label}
         </span>
       </header>
-      <dl className="markets-summary">
-        <div>
-          <dd>{summary.watched}</dd>
-          <dt>Pairs watched</dt>
-        </div>
-        <div>
-          <dd className="is-positive">{summary.setups}</dd>
-          <dt>Active setups</dt>
-        </div>
-        <div>
-          <dd className="is-positive">{summary.bullish}</dd>
-          <dt>Bullish</dt>
-        </div>
-        <div>
-          <dd className="is-negative">{summary.bearish}</dd>
-          <dt>Bearish</dt>
-        </div>
-        <div>
-          <dd>{summary.neutral}</dd>
-          <dt>Neutral</dt>
-        </div>
-      </dl>
       {error ? <p className="research-error">{error}</p> : null}
       {loading && !rows.length ? (
         <WatchlistPairsSkeleton />
@@ -299,10 +340,6 @@ export function WatchlistView() {
                   placeholder="Search markets..."
                 />
               </label>
-              <SelectMenu value={session} onChange={setSession} options={sessionOptions} ariaLabel="Filter by session" align="right" className="markets-session-filter" />
-              <span>
-                Sort: <b>Opportunity</b>
-              </span>
             </div>
             <div className="markets-table">
               <div className="markets-head">
@@ -318,13 +355,23 @@ export function WatchlistView() {
               {shown.map((row) => {
                 const [state, tone] = status(row);
                 const change = finiteOrNull(daily[row.instrument]?.change),
-                  cardStatus = watchlistCardStatus(row);
+                  cardStatus = watchlistCardStatus(row),
+                  hasStrategy = hasActivePairStrategy(row.instrument),
+                  hasSchedule = hasPairStrategySchedule(row.instrument),
+                  scheduleLabel = hasSchedule ? pairStrategyScheduleLabel(row.instrument) : null;
                 return (
-                  <button
-                    type="button"
+                  <div
+                    role="button"
+                    tabIndex={0}
                     key={row.instrument}
                     className={`markets-row ${active?.instrument === row.instrument ? "is-selected" : ""}`}
                     onClick={() => {
+                      setSelected(row.instrument);
+                      router.push(`/chart?instrument=${row.instrument}`);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
                       setSelected(row.instrument);
                       router.push(`/chart?instrument=${row.instrument}`);
                     }}
@@ -362,7 +409,7 @@ export function WatchlistView() {
                           ? "Bearish"
                           : "Neutral"}
                     </span>
-                    <span>{sessionDisplay(row.session)}</span>
+                    <span>{scheduleLabel ?? "No active strategy"}</span>
                     <span>
                       {row.spreadPips === null
                         ? "—"
@@ -378,9 +425,21 @@ export function WatchlistView() {
                       {state}
                     </span>
                     <span className={`markets-row-plan is-${cardStatus.state}`}>
-                      <span>{cardStatus.label}</span><em>{sessionDisplay(row.session)}</em><b>{cardStatus.progress}%</b>
+                      <span>{cardStatus.label}</span>{scheduleLabel ? <em>{scheduleLabel}</em> : null}{hasStrategy ? <b>{cardStatus.progress}%</b> : null}
+                      <button
+                        type="button"
+                        className="markets-row-analyze pressable"
+                        disabled={analyzingInstrument === row.instrument}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void analyze(row.instrument);
+                        }}
+                        onKeyDown={(event) => event.stopPropagation()}
+                      >
+                        {analyzingInstrument === row.instrument ? "Analyzing…" : "Analyze"}
+                      </button>
                     </span>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -407,8 +466,8 @@ export function WatchlistView() {
                 </div>
                 <dl className="markets-detail-grid">
                   <div>
-                    <dt>Session</dt>
-                    <dd>{sessionDisplay(active.session)}</dd>
+                    <dt>Next check</dt>
+                    <dd>{pairStrategyScheduleLabel(active.instrument)}</dd>
                   </div>
                   <div>
                     <dt>Spread</dt>
@@ -484,6 +543,31 @@ export function WatchlistView() {
           </aside>
         </div>
       )}
+      {proposal ? createPortal((
+        <div className="manual-proposal-backdrop" role="presentation" data-pull-to-refresh-ignore="true" onMouseDown={(event) => event.target === event.currentTarget && setProposal(null)}>
+          <section className="manual-proposal" role="dialog" aria-modal="true" aria-labelledby="manual-proposal-title">
+            <header>
+              <div>
+                <h2 id="manual-proposal-title">{displayNameFor(proposal.instrument)} · {proposal.direction.toUpperCase()}</h2>
+              </div>
+              <strong>{proposal.confidence}% <small>confidence</small></strong>
+            </header>
+            <dl>
+              <div><dt>Entry</dt><dd>{formatChartPrice(proposal.entry, proposal.instrument)}</dd></div>
+              <div><dt>Stop</dt><dd>{formatChartPrice(proposal.stop, proposal.instrument)}</dd></div>
+              <div><dt>Target</dt><dd>{formatChartPrice(proposal.target, proposal.instrument)} · {proposal.riskReward}:1</dd></div>
+            </dl>
+            <p className="manual-proposal-entry-time"><b>Preferred entry:</b> {proposal.preferredEntryTime}</p>
+            <p><b>Why:</b> {proposal.rationale}</p>
+            <p><b>News:</b> {proposal.newsSummary}</p>
+            <footer>
+              <button type="button" className="manual-proposal-dismiss pressable" onClick={() => setProposal(null)}>Dismiss</button>
+              <button type="button" className="manual-proposal-accept pressable" onClick={acceptProposal}>Accept & open chart</button>
+            </footer>
+          </section>
+        </div>
+      ), document.body) : null}
+      {analysisError ? <div className="manual-analysis-error" role="alert">{analysisError}</div> : null}
     </div>
   );
 }

@@ -112,10 +112,14 @@ export interface ChartFocusRange {
 
 /** A single externally focused price, such as an active binary prediction entry. */
 export interface ChartReferenceLine {
+  key?: string;
   price: number;
   label: string;
   color: string;
   textColor: string;
+  dashed?: boolean;
+  lineWidth?: 1 | 2;
+  onSelect?: () => void;
 }
 
 /**
@@ -357,6 +361,7 @@ interface LevelTag {
   textColor: string;
   dashed: boolean;
   lineWidth?: 1 | 2;
+  onSelect?: () => void;
 }
 
 /**
@@ -492,6 +497,7 @@ function setupLevelTags(
 function overlayLevelTags(
   levels: SetupLevels | null,
   referenceLine: ChartReferenceLine | null,
+  referenceLines: ChartReferenceLine[],
   isDark: boolean,
   halfSpread: number,
   instrument: string,
@@ -500,15 +506,16 @@ function overlayLevelTags(
   const tags = levels
     ? setupLevelTags(levels, isDark, halfSpread, instrument, compactLabels)
     : [];
-  if (referenceLine) {
+  for (const line of [referenceLine, ...referenceLines].filter((item): item is ChartReferenceLine => Boolean(item))) {
     tags.push({
-      key: "reference",
-      label: referenceLine.label,
-      price: referenceLine.price,
-      color: referenceLine.color,
-      textColor: referenceLine.textColor,
-      dashed: true,
-      lineWidth: 2,
+      key: line.key ?? `reference-${tags.length}`,
+      label: line.label,
+      price: line.price,
+      color: line.color,
+      textColor: line.textColor,
+      dashed: line.dashed ?? true,
+      lineWidth: line.lineWidth ?? 2,
+      onSelect: line.onSelect,
     });
   }
   return tags;
@@ -785,6 +792,7 @@ export function SetupChart({
   focusPrediction = null,
   focusRange = null,
   referenceLine = null,
+  referenceLines = [],
   showTradeMarkers = true,
   showTradePath = true,
 }: {
@@ -805,6 +813,7 @@ export function SetupChart({
   focusPrediction?: BinaryPrediction | null;
   focusRange?: ChartFocusRange | null;
   referenceLine?: ChartReferenceLine | null;
+  referenceLines?: ChartReferenceLine[];
   showTradeMarkers?: boolean;
   showTradePath?: boolean;
 }) {
@@ -932,6 +941,11 @@ export function SetupChart({
 
   const chartHeight = height;
   const shellHeight = height;
+  // Recreate price-line primitives only when their identity or geometry changes.
+  // Countdown text updates ride through the DOM overlay without resetting zoom.
+  const referenceLinesShapeFingerprint = referenceLines
+    .map((line) => `${line.key ?? ""}:${line.price}:${line.color}:${line.dashed ?? true}:${line.lineWidth ?? 2}`)
+    .join("|");
   // Height is applied to the live chart rather than being a creation dependency:
   // rebuilding on a height change would reset the visible range.
   const chartHeightRef = useRef(chartHeight);
@@ -1086,6 +1100,7 @@ export function SetupChart({
     const levelTags = overlayLevelTags(
       levels,
       referenceLine,
+      referenceLines,
       isDark,
       halfSpreadRef.current,
       series.instrument,
@@ -1276,7 +1291,7 @@ export function SetupChart({
   // the whole chart down on every tick for any instrument holding an open
   // trade, throwing away the user's zoom and scroll position mid-gesture.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [series.instrument, levels?.entry, levels?.stop, levels?.target, levels?.exit, levels?.outcome, referenceLine?.price, referenceLine?.label, referenceLine?.color, referenceLine?.textColor, enabledIndicators, variant, isDark, priceFormat, upColor, downColor, wickUpColor, wickDownColor, surfaceColor, embedded]);
+  }, [series.instrument, levels?.entry, levels?.stop, levels?.target, levels?.exit, levels?.outcome, referenceLine?.price, referenceLine?.label, referenceLine?.color, referenceLine?.textColor, referenceLinesShapeFingerprint, enabledIndicators, variant, isDark, priceFormat, upColor, downColor, wickUpColor, wickDownColor, surfaceColor, embedded]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -1582,6 +1597,7 @@ export function SetupChart({
     referenceLine?.label ?? "",
     referenceLine?.color ?? "",
     referenceLine?.textColor ?? "",
+    ...referenceLines.flatMap((line) => [line.key ?? "", line.price, line.label, line.color, line.textColor]),
   ].join("\0");
 
   // The named level tags ride along with the price scale, which the user can
@@ -1592,6 +1608,7 @@ export function SetupChart({
     const tags = overlayLevelTags(
       levels,
       referenceLine,
+      referenceLines,
       isDark,
       halfSpreadRef.current,
       series.instrument,
@@ -1790,7 +1807,8 @@ export function SetupChart({
         </div>
       ) : null}
       {placedTags.map((tag) => (
-        <span
+        <button
+          type="button"
           key={tag.key}
           className={`setup-chart-level-tag is-${tag.edge}`}
           style={{
@@ -1798,9 +1816,11 @@ export function SetupChart({
             ...(tag.edge === "left" ? { left: tag.offset } : { right: tag.offset }),
             color: tag.color,
           }}
+          onClick={tag.onSelect}
+          disabled={!tag.onSelect}
         >
           {tag.label}
-        </span>
+        </button>
       ))}
       <ChartPriceScaleRail
         chartRef={chartRef}

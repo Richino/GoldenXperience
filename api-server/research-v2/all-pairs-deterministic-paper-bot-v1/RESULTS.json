@@ -1,0 +1,1411 @@
+{
+  "version": "ALL_PAIRS_DETERMINISTIC_PAPER_BOT_V1",
+  "scope": {
+    "pairsRequested": 68,
+    "start": "2026-08-01T00:00:00.000Z",
+    "end": "2026-09-01T00:00:00.000Z",
+    "mode": "paper research only",
+    "portfolioModel": "none; each pair is independent, so aggregate results are not a tradable portfolio",
+    "aiRole": "explain-only; no influence on selection, levels, or outcome"
+  },
+  "rules": {
+    "timeframe": "H1 signal / M15 executable outcome",
+    "asiaRangeUtc": "00:00-06:00",
+    "signalWindowUtc": "06:00-11:00",
+    "trend": "EMA20 vs EMA50",
+    "structure": "HH+HL or LH+LL",
+    "body": "at least 0.35 ATR14",
+    "entry": "next completed H1 candle executable bid/ask open",
+    "stop": "signal candle opposite executable-side extreme",
+    "target": "1R",
+    "newsBlock": "high-impact base or quote currency +/-30m",
+    "spreadCap": "spread <= 10% of stop distance",
+    "maxOpenPositionsPerPair": 1,
+    "maxHold": "24h, then executable-side time exit",
+    "intrabarConflict": "loss"
+  },
+  "aggregate": {
+    "trades": 20,
+    "wins": 8,
+    "losses": 12,
+    "timeExits": 3,
+    "winRate": 0.4,
+    "totalR": -6.3761,
+    "expectancyR": -0.3188,
+    "profitFactor": 0.4687
+  },
+  "pairs": [
+    {
+      "pair": "AUD_CAD",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "AUD_CHF",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "AUD_HKD",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "AUD_JPY",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "AUD_NZD",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "AUD_SGD",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "AUD_USD",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 1,
+        "wins": 0,
+        "losses": 1,
+        "timeExits": 0,
+        "winRate": 0,
+        "totalR": -1,
+        "expectancyR": -1,
+        "profitFactor": 0
+      },
+      "trades": [
+        {
+          "pair": "AUD_USD",
+          "signalTime": "2026-08-17T06:00:00.000000000Z",
+          "entryTime": "2026-08-17T07:00:00.000000000Z",
+          "direction": "LONG",
+          "entry": 0.71226,
+          "stop": 0.71092,
+          "target": 0.7136,
+          "riskPips": 13.4,
+          "spreadPips": 1.1,
+          "exitTime": "2026-08-17T13:45:00.000000000Z",
+          "exit": 0.71092,
+          "outcome": "LOSS",
+          "r": -1,
+          "reason": "LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact AUD/USD news within 30m.",
+          "aiExplanationInput": "Explain only; do not change this paper trade. LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact AUD/USD news within 30m. Entry 0.71226, stop 0.71092, target 0.7136."
+        }
+      ]
+    },
+    {
+      "pair": "CAD_CHF",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "CAD_HKD",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 1,
+        "wins": 1,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": 1,
+        "totalR": 1,
+        "expectancyR": 1,
+        "profitFactor": null
+      },
+      "trades": [
+        {
+          "pair": "CAD_HKD",
+          "signalTime": "2026-08-24T06:00:00.000000000Z",
+          "entryTime": "2026-08-24T07:00:00.000000000Z",
+          "direction": "SHORT",
+          "entry": 5.67156,
+          "stop": 5.6815,
+          "target": 5.66162,
+          "riskPips": 99.4,
+          "spreadPips": 8.4,
+          "exitTime": "2026-08-24T11:00:00.000000000Z",
+          "exit": 5.66162,
+          "outcome": "WIN",
+          "r": 1,
+          "reason": "SHORT Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact CAD/HKD news within 30m.",
+          "aiExplanationInput": "Explain only; do not change this paper trade. SHORT Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact CAD/HKD news within 30m. Entry 5.67156, stop 5.6815, target 5.66162."
+        }
+      ]
+    },
+    {
+      "pair": "CAD_JPY",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "CAD_SGD",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "CHF_HKD",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 2,
+        "wins": 0,
+        "losses": 2,
+        "timeExits": 0,
+        "winRate": 0,
+        "totalR": -2,
+        "expectancyR": -1,
+        "profitFactor": 0
+      },
+      "trades": [
+        {
+          "pair": "CHF_HKD",
+          "signalTime": "2026-08-10T07:00:00.000000000Z",
+          "entryTime": "2026-08-10T08:00:00.000000000Z",
+          "direction": "LONG",
+          "entry": 9.72032,
+          "stop": 9.69939,
+          "target": 9.74125,
+          "riskPips": 209.3,
+          "spreadPips": 16,
+          "exitTime": "2026-08-10T11:15:00.000000000Z",
+          "exit": 9.69939,
+          "outcome": "LOSS",
+          "r": -1,
+          "reason": "LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact CHF/HKD news within 30m.",
+          "aiExplanationInput": "Explain only; do not change this paper trade. LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact CHF/HKD news within 30m. Entry 9.72032, stop 9.69939, target 9.74125."
+        },
+        {
+          "pair": "CHF_HKD",
+          "signalTime": "2026-08-20T09:00:00.000000000Z",
+          "entryTime": "2026-08-20T10:00:00.000000000Z",
+          "direction": "LONG",
+          "entry": 9.85772,
+          "stop": 9.82927,
+          "target": 9.88617,
+          "riskPips": 284.5,
+          "spreadPips": 21.9,
+          "exitTime": "2026-08-20T11:30:00.000000000Z",
+          "exit": 9.82927,
+          "outcome": "LOSS",
+          "r": -1,
+          "reason": "LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact CHF/HKD news within 30m.",
+          "aiExplanationInput": "Explain only; do not change this paper trade. LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact CHF/HKD news within 30m. Entry 9.85772, stop 9.82927, target 9.88617."
+        }
+      ]
+    },
+    {
+      "pair": "CHF_JPY",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 1,
+        "wins": 1,
+        "losses": 0,
+        "timeExits": 1,
+        "winRate": 1,
+        "totalR": 0.0979,
+        "expectancyR": 0.0979,
+        "profitFactor": null
+      },
+      "trades": [
+        {
+          "pair": "CHF_JPY",
+          "signalTime": "2026-08-17T07:00:00.000000000Z",
+          "entryTime": "2026-08-17T08:00:00.000000000Z",
+          "direction": "LONG",
+          "entry": 196.669,
+          "stop": 196.005,
+          "target": 197.333,
+          "riskPips": 66.4,
+          "spreadPips": 4,
+          "exitTime": "2026-08-18T08:00:00.000000000Z",
+          "exit": 196.734,
+          "outcome": "TIME_EXIT",
+          "r": 0.0979,
+          "reason": "LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact CHF/JPY news within 30m.",
+          "aiExplanationInput": "Explain only; do not change this paper trade. LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact CHF/JPY news within 30m. Entry 196.669, stop 196.005, target 197.333."
+        }
+      ]
+    },
+    {
+      "pair": "CHF_ZAR",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "EUR_AUD",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "EUR_CAD",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "EUR_CHF",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "EUR_CZK",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "EUR_DKK",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "EUR_GBP",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "EUR_HKD",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 1,
+        "wins": 0,
+        "losses": 1,
+        "timeExits": 0,
+        "winRate": 0,
+        "totalR": -1,
+        "expectancyR": -1,
+        "profitFactor": 0
+      },
+      "trades": [
+        {
+          "pair": "EUR_HKD",
+          "signalTime": "2026-08-21T08:00:00.000000000Z",
+          "entryTime": "2026-08-21T09:00:00.000000000Z",
+          "direction": "LONG",
+          "entry": 9.17926,
+          "stop": 9.16399,
+          "target": 9.19453,
+          "riskPips": 152.7,
+          "spreadPips": 12.8,
+          "exitTime": "2026-08-21T12:30:00.000000000Z",
+          "exit": 9.16399,
+          "outcome": "LOSS",
+          "r": -1,
+          "reason": "LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact EUR/HKD news within 30m.",
+          "aiExplanationInput": "Explain only; do not change this paper trade. LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact EUR/HKD news within 30m. Entry 9.17926, stop 9.16399, target 9.19453."
+        }
+      ]
+    },
+    {
+      "pair": "EUR_HUF",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 1,
+        "wins": 1,
+        "losses": 0,
+        "timeExits": 1,
+        "winRate": 1,
+        "totalR": 0.2141,
+        "expectancyR": 0.2141,
+        "profitFactor": null
+      },
+      "trades": [
+        {
+          "pair": "EUR_HUF",
+          "signalTime": "2026-08-27T07:00:00.000000000Z",
+          "entryTime": "2026-08-27T08:00:00.000000000Z",
+          "direction": "LONG",
+          "entry": 364.178,
+          "stop": 361.698,
+          "target": 366.658,
+          "riskPips": 248,
+          "spreadPips": 19.3,
+          "exitTime": "2026-08-28T08:00:00.000000000Z",
+          "exit": 364.709,
+          "outcome": "TIME_EXIT",
+          "r": 0.2141,
+          "reason": "LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact EUR/HUF news within 30m.",
+          "aiExplanationInput": "Explain only; do not change this paper trade. LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact EUR/HUF news within 30m. Entry 364.178, stop 361.698, target 366.658."
+        }
+      ]
+    },
+    {
+      "pair": "EUR_JPY",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "EUR_NOK",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "EUR_NZD",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "EUR_PLN",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "EUR_SEK",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "EUR_SGD",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "EUR_TRY",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "EUR_USD",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 2,
+        "wins": 1,
+        "losses": 1,
+        "timeExits": 0,
+        "winRate": 0.5,
+        "totalR": 0,
+        "expectancyR": 0,
+        "profitFactor": 1
+      },
+      "trades": [
+        {
+          "pair": "EUR_USD",
+          "signalTime": "2026-08-20T06:00:00.000000000Z",
+          "entryTime": "2026-08-20T07:00:00.000000000Z",
+          "direction": "LONG",
+          "entry": 1.16886,
+          "stop": 1.16725,
+          "target": 1.17047,
+          "riskPips": 16.1,
+          "spreadPips": 1.4,
+          "exitTime": "2026-08-20T09:15:00.000000000Z",
+          "exit": 1.17047,
+          "outcome": "WIN",
+          "r": 1,
+          "reason": "LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact EUR/USD news within 30m.",
+          "aiExplanationInput": "Explain only; do not change this paper trade. LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact EUR/USD news within 30m. Entry 1.16886, stop 1.16725, target 1.17047."
+        },
+        {
+          "pair": "EUR_USD",
+          "signalTime": "2026-08-21T08:00:00.000000000Z",
+          "entryTime": "2026-08-21T09:00:00.000000000Z",
+          "direction": "LONG",
+          "entry": 1.1706,
+          "stop": 1.16885,
+          "target": 1.17235,
+          "riskPips": 17.5,
+          "spreadPips": 1.6,
+          "exitTime": "2026-08-21T12:30:00.000000000Z",
+          "exit": 1.16885,
+          "outcome": "LOSS",
+          "r": -1,
+          "reason": "LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact EUR/USD news within 30m.",
+          "aiExplanationInput": "Explain only; do not change this paper trade. LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact EUR/USD news within 30m. Entry 1.1706, stop 1.16885, target 1.17235."
+        }
+      ]
+    },
+    {
+      "pair": "EUR_ZAR",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "GBP_AUD",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "GBP_CAD",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 1,
+        "wins": 1,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": 1,
+        "totalR": 1,
+        "expectancyR": 1,
+        "profitFactor": null
+      },
+      "trades": [
+        {
+          "pair": "GBP_CAD",
+          "signalTime": "2026-08-24T06:00:00.000000000Z",
+          "entryTime": "2026-08-24T07:00:00.000000000Z",
+          "direction": "LONG",
+          "entry": 1.88567,
+          "stop": 1.88227,
+          "target": 1.88907,
+          "riskPips": 34,
+          "spreadPips": 3.2,
+          "exitTime": "2026-08-25T06:45:00.000000000Z",
+          "exit": 1.88907,
+          "outcome": "WIN",
+          "r": 1,
+          "reason": "LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact GBP/CAD news within 30m.",
+          "aiExplanationInput": "Explain only; do not change this paper trade. LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact GBP/CAD news within 30m. Entry 1.88567, stop 1.88227, target 1.88907."
+        }
+      ]
+    },
+    {
+      "pair": "GBP_CHF",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "GBP_HKD",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "GBP_JPY",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "GBP_NZD",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "GBP_PLN",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "GBP_SGD",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "GBP_USD",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "GBP_ZAR",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "HKD_JPY",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 3,
+        "wins": 1,
+        "losses": 2,
+        "timeExits": 0,
+        "winRate": 0.3333,
+        "totalR": -1,
+        "expectancyR": -0.3333,
+        "profitFactor": 0.5
+      },
+      "trades": [
+        {
+          "pair": "HKD_JPY",
+          "signalTime": "2026-08-11T07:00:00.000000000Z",
+          "entryTime": "2026-08-11T08:00:00.000000000Z",
+          "direction": "LONG",
+          "entry": 20.31139,
+          "stop": 20.28925,
+          "target": 20.33353,
+          "riskPips": 221.4,
+          "spreadPips": 21.4,
+          "exitTime": "2026-08-11T10:15:00.000000000Z",
+          "exit": 20.28925,
+          "outcome": "LOSS",
+          "r": -1,
+          "reason": "LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact HKD/JPY news within 30m.",
+          "aiExplanationInput": "Explain only; do not change this paper trade. LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact HKD/JPY news within 30m. Entry 20.31139, stop 20.28925, target 20.33353."
+        },
+        {
+          "pair": "HKD_JPY",
+          "signalTime": "2026-08-21T08:00:00.000000000Z",
+          "entryTime": "2026-08-21T09:00:00.000000000Z",
+          "direction": "SHORT",
+          "entry": 20.21579,
+          "stop": 20.26491,
+          "target": 20.16667,
+          "riskPips": 491.2,
+          "spreadPips": 25,
+          "exitTime": "2026-08-21T13:30:00.000000000Z",
+          "exit": 20.26491,
+          "outcome": "LOSS",
+          "r": -1,
+          "reason": "SHORT Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact HKD/JPY news within 30m.",
+          "aiExplanationInput": "Explain only; do not change this paper trade. SHORT Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact HKD/JPY news within 30m. Entry 20.21579, stop 20.26491, target 20.16667."
+        },
+        {
+          "pair": "HKD_JPY",
+          "signalTime": "2026-08-24T06:00:00.000000000Z",
+          "entryTime": "2026-08-24T07:00:00.000000000Z",
+          "direction": "LONG",
+          "entry": 20.28975,
+          "stop": 20.26547,
+          "target": 20.31403,
+          "riskPips": 242.8,
+          "spreadPips": 22.9,
+          "exitTime": "2026-08-24T08:00:00.000000000Z",
+          "exit": 20.31403,
+          "outcome": "WIN",
+          "r": 1,
+          "reason": "LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact HKD/JPY news within 30m.",
+          "aiExplanationInput": "Explain only; do not change this paper trade. LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact HKD/JPY news within 30m. Entry 20.28975, stop 20.26547, target 20.31403."
+        }
+      ]
+    },
+    {
+      "pair": "NZD_CAD",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "NZD_CHF",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "NZD_HKD",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "NZD_JPY",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "NZD_SGD",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "NZD_USD",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "SGD_CHF",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "SGD_JPY",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "TRY_JPY",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "USD_CAD",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "USD_CHF",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 2,
+        "wins": 0,
+        "losses": 2,
+        "timeExits": 0,
+        "winRate": 0,
+        "totalR": -2,
+        "expectancyR": -1,
+        "profitFactor": 0
+      },
+      "trades": [
+        {
+          "pair": "USD_CHF",
+          "signalTime": "2026-08-10T07:00:00.000000000Z",
+          "entryTime": "2026-08-10T08:00:00.000000000Z",
+          "direction": "SHORT",
+          "entry": 0.80712,
+          "stop": 0.80884,
+          "target": 0.8054,
+          "riskPips": 17.2,
+          "spreadPips": 1.5,
+          "exitTime": "2026-08-10T11:15:00.000000000Z",
+          "exit": 0.80884,
+          "outcome": "LOSS",
+          "r": -1,
+          "reason": "SHORT Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact USD/CHF news within 30m.",
+          "aiExplanationInput": "Explain only; do not change this paper trade. SHORT Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact USD/CHF news within 30m. Entry 0.80712, stop 0.80884, target 0.8054."
+        },
+        {
+          "pair": "USD_CHF",
+          "signalTime": "2026-08-20T09:00:00.000000000Z",
+          "entryTime": "2026-08-20T10:00:00.000000000Z",
+          "direction": "SHORT",
+          "entry": 0.79571,
+          "stop": 0.79799,
+          "target": 0.79343,
+          "riskPips": 22.8,
+          "spreadPips": 1.3,
+          "exitTime": "2026-08-20T11:30:00.000000000Z",
+          "exit": 0.79799,
+          "outcome": "LOSS",
+          "r": -1,
+          "reason": "SHORT Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact USD/CHF news within 30m.",
+          "aiExplanationInput": "Explain only; do not change this paper trade. SHORT Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact USD/CHF news within 30m. Entry 0.79571, stop 0.79799, target 0.79343."
+        }
+      ]
+    },
+    {
+      "pair": "USD_CNH",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "USD_CZK",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "USD_DKK",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "USD_HKD",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "USD_HUF",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 1,
+        "wins": 1,
+        "losses": 0,
+        "timeExits": 1,
+        "winRate": 1,
+        "totalR": 0.3119,
+        "expectancyR": 0.3119,
+        "profitFactor": null
+      },
+      "trades": [
+        {
+          "pair": "USD_HUF",
+          "signalTime": "2026-08-27T07:00:00.000000000Z",
+          "entryTime": "2026-08-27T08:00:00.000000000Z",
+          "direction": "LONG",
+          "entry": 312.474,
+          "stop": 310.313,
+          "target": 314.635,
+          "riskPips": 216.1,
+          "spreadPips": 20.3,
+          "exitTime": "2026-08-28T08:00:00.000000000Z",
+          "exit": 313.148,
+          "outcome": "TIME_EXIT",
+          "r": 0.3119,
+          "reason": "LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact USD/HUF news within 30m.",
+          "aiExplanationInput": "Explain only; do not change this paper trade. LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact USD/HUF news within 30m. Entry 312.474, stop 310.313, target 314.635."
+        }
+      ]
+    },
+    {
+      "pair": "USD_JPY",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 4,
+        "wins": 1,
+        "losses": 3,
+        "timeExits": 0,
+        "winRate": 0.25,
+        "totalR": -2,
+        "expectancyR": -0.5,
+        "profitFactor": 0.3333
+      },
+      "trades": [
+        {
+          "pair": "USD_JPY",
+          "signalTime": "2026-08-11T07:00:00.000000000Z",
+          "entryTime": "2026-08-11T08:00:00.000000000Z",
+          "direction": "LONG",
+          "entry": 159.372,
+          "stop": 159.194,
+          "target": 159.55,
+          "riskPips": 17.8,
+          "spreadPips": 1.4,
+          "exitTime": "2026-08-11T10:15:00.000000000Z",
+          "exit": 159.194,
+          "outcome": "LOSS",
+          "r": -1,
+          "reason": "LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact USD/JPY news within 30m.",
+          "aiExplanationInput": "Explain only; do not change this paper trade. LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact USD/JPY news within 30m. Entry 159.372, stop 159.194, target 159.55."
+        },
+        {
+          "pair": "USD_JPY",
+          "signalTime": "2026-08-21T08:00:00.000000000Z",
+          "entryTime": "2026-08-21T09:00:00.000000000Z",
+          "direction": "SHORT",
+          "entry": 158.521,
+          "stop": 158.882,
+          "target": 158.16,
+          "riskPips": 36.1,
+          "spreadPips": 1.5,
+          "exitTime": "2026-08-21T13:30:00.000000000Z",
+          "exit": 158.882,
+          "outcome": "LOSS",
+          "r": -1,
+          "reason": "SHORT Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact USD/JPY news within 30m.",
+          "aiExplanationInput": "Explain only; do not change this paper trade. SHORT Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact USD/JPY news within 30m. Entry 158.521, stop 158.882, target 158.16."
+        },
+        {
+          "pair": "USD_JPY",
+          "signalTime": "2026-08-24T06:00:00.000000000Z",
+          "entryTime": "2026-08-24T07:00:00.000000000Z",
+          "direction": "LONG",
+          "entry": 159.039,
+          "stop": 158.851,
+          "target": 159.227,
+          "riskPips": 18.8,
+          "spreadPips": 1.4,
+          "exitTime": "2026-08-24T08:00:00.000000000Z",
+          "exit": 159.227,
+          "outcome": "WIN",
+          "r": 1,
+          "reason": "LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact USD/JPY news within 30m.",
+          "aiExplanationInput": "Explain only; do not change this paper trade. LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact USD/JPY news within 30m. Entry 159.039, stop 158.851, target 159.227."
+        },
+        {
+          "pair": "USD_JPY",
+          "signalTime": "2026-08-27T09:00:00.000000000Z",
+          "entryTime": "2026-08-27T10:00:00.000000000Z",
+          "direction": "LONG",
+          "entry": 159.487,
+          "stop": 159.305,
+          "target": 159.669,
+          "riskPips": 18.2,
+          "spreadPips": 1.3,
+          "exitTime": "2026-08-27T14:00:00.000000000Z",
+          "exit": 159.305,
+          "outcome": "LOSS",
+          "r": -1,
+          "reason": "LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact USD/JPY news within 30m.",
+          "aiExplanationInput": "Explain only; do not change this paper trade. LONG Asia-range break; EMA20/50 aligned; structure aligned; body >= 0.35 ATR; spread <= 10% of risk; no high-impact USD/JPY news within 30m. Entry 159.487, stop 159.305, target 159.669."
+        }
+      ]
+    },
+    {
+      "pair": "USD_MXN",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "USD_NOK",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "USD_PLN",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "USD_SEK",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "USD_SGD",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "USD_THB",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "USD_TRY",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "USD_ZAR",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    },
+    {
+      "pair": "ZAR_JPY",
+      "status": "COMPLETE",
+      "summary": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "timeExits": 0,
+        "winRate": null,
+        "totalR": 0,
+        "expectancyR": null,
+        "profitFactor": null
+      },
+      "trades": []
+    }
+  ]
+}

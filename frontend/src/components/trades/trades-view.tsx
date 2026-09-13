@@ -817,29 +817,31 @@ export function TradesView() {
 
   return (
     <div className="trades-view">
-      <header className="trades-header">
-        <div className="trades-header-title">
-          <h1>Trades</h1>
-        </div>
-        {oandaConnected !== null ? (
-          <span className={`trades-connection ${oandaConnected ? "is-connected" : "is-off"}`}>
-            <i aria-hidden />
-            OANDA {connection?.environment === "live" ? "LIVE" : "PRACTICE"} ·{" "}
-            {oandaConnected ? "CONNECTED" : (connection?.label ?? "OFFLINE")}
-          </span>
-        ) : null}
-      </header>
+      <section className="trades-overview" aria-label="Trade overview">
+        <header className="trades-header">
+          <div className="trades-header-title">
+            <h1>Trades</h1>
+          </div>
+          {oandaConnected !== null ? (
+            <span className={`trades-connection ${oandaConnected ? "is-connected" : "is-off"}`}>
+              <i aria-hidden />
+              OANDA {connection?.environment === "live" ? "LIVE" : "PRACTICE"} ·{" "}
+              {oandaConnected ? "CONNECTED" : (connection?.label ?? "OFFLINE")}
+            </span>
+          ) : null}
+        </header>
 
-      {initialTabLoading ? <TradesSummarySkeleton /> : tab === "open" ? (
-        <OpenSummary count={openCount} pnl={openAgg.pnl} realized={summary?.today?.realizedPL ?? null} />
-      ) : (
-        <ClosedSummary
-          closed={closedCount}
-          wins={closedAgg.wins}
-          losses={closedAgg.losses}
-          winRate={closedAgg.winRate}
-        />
-      )}
+        {initialTabLoading ? <TradesSummarySkeleton /> : tab === "open" ? (
+          <OpenSummary count={openCount} pnl={openAgg.pnl} realized={summary?.today?.realizedPL ?? null} />
+        ) : (
+          <ClosedSummary
+            closed={closedCount}
+            wins={closedAgg.wins}
+            losses={closedAgg.losses}
+            winRate={closedAgg.winRate}
+          />
+        )}
+      </section>
 
       <div className="trades-body">
         <div className="trades-workspace">

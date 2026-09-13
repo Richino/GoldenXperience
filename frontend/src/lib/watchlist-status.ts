@@ -5,6 +5,7 @@ export type WatchlistCondition = {
 };
 
 export type WatchlistStatusInput = {
+  instrument: string;
   dataStatus: "connected" | "unavailable" | "stale";
   setupStatus: "valid" | "developing" | "invalid" | "no_setup";
   direction: "long" | "short" | null;
@@ -15,6 +16,69 @@ export type WatchlistStatusInput = {
   openTradeId: string | null;
   tradeSequence: string | null;
 };
+
+/**
+ * Exact execution-check times, expressed as minutes after midnight UTC.
+ * These are completion times: a strategy first evaluates its scheduled candle
+ * after that candle has closed. This map contains only executable strategy
+ * runtimes; a scheduled-but-not-yet-executable pair is kept separate below.
+ */
+const ACTIVE_PAIR_CHECK_MINUTES_UTC: Readonly<Record<string, readonly number[]>> = {
+  EUR_JPY: [7 * 60],
+  EUR_USD: [7 * 60, 8 * 60, 9 * 60, 10 * 60, 11 * 60],
+  GBP_USD: [11 * 60, 11 * 60 + 30],
+  USD_JPY: [12 * 60, 13 * 60, 14 * 60, 15 * 60],
+  AUD_USD: [12 * 60],
+  NZD_USD: [12 * 60],
+  USD_CAD: [12 * 60],
+  USD_CHF: [12 * 60],
+  CAD_JPY: [13 * 60],
+  NZD_JPY: [0],
+};
+
+/**
+ * Known strategy evaluation times, including a schedule supplied before its
+ * execution runtime has been implemented. AUD/JPY evaluates the H1 candle
+ * that opens at 12:00 UTC, so it can only be checked after 13:00 UTC.
+ */
+const PAIR_CHECK_MINUTES_UTC: Readonly<Record<string, readonly number[]>> = {
+  ...ACTIVE_PAIR_CHECK_MINUTES_UTC,
+  AUD_JPY: [13 * 60],
+};
+
+export function hasActivePairStrategy(instrument: string) {
+  return instrument in ACTIVE_PAIR_CHECK_MINUTES_UTC;
+}
+
+export function hasPairStrategySchedule(instrument: string) {
+  return instrument in PAIR_CHECK_MINUTES_UTC;
+}
+
+/** Returns the next time this pair's strategy can evaluate, in the user's local time zone. */
+export function nextPairStrategyCheck(instrument: string, now = new Date()) {
+  const checks = PAIR_CHECK_MINUTES_UTC[instrument];
+  if (!checks?.length) return null;
+
+  const todayStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return checks
+    .map((minutes) => {
+      const candidate = new Date(todayStart + minutes * 60_000);
+      return candidate.getTime() > now.getTime()
+        ? candidate
+        : new Date(candidate.getTime() + 24 * 60 * 60_000);
+    })
+    .sort((left, right) => left.getTime() - right.getTime())[0]!;
+}
+
+export function pairStrategyScheduleLabel(instrument: string, now = new Date()) {
+  const next = nextPairStrategyCheck(instrument, now);
+  if (!next) return "No active strategy";
+  const time = new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(next);
+  return `Next check ${time}`;
+}
 
 export type WatchlistCardStatus = {
   label: string;
@@ -114,6 +178,24 @@ export function watchlistCardStatus(row: WatchlistStatusInput): WatchlistCardSta
       state: "unavailable",
       progress,
       hasLevels: levels,
+    };
+  }
+  if (!hasActivePairStrategy(row.instrument)) {
+    if (hasPairStrategySchedule(row.instrument)) {
+      return {
+        label: "Scheduled 12:00 UTC candle — runtime not enabled",
+        tone: "text-[color:var(--pending)]",
+        state: "idle",
+        progress: 0,
+        hasLevels: false,
+      };
+    }
+    return {
+      label: "No active strategy for this pair",
+      tone: "text-[color:var(--muted)]",
+      state: "idle",
+      progress: 0,
+      hasLevels: false,
     };
   }
   if (row.setupStatus === "valid" && levels) {

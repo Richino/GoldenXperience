@@ -1,0 +1,68 @@
+{
+  "version": "EURUSD_DETERMINISTIC_PAPER_BOT_V1",
+  "scope": {
+    "pair": "EUR_USD",
+    "start": "2026-08-01T00:00:00.000Z",
+    "end": "2026-09-01T00:00:00.000Z",
+    "mode": "paper research only",
+    "aiRole": "explain-only; no influence on selection, levels, or outcome"
+  },
+  "rules": {
+    "timeframe": "H1 signal / M15 executable outcome",
+    "asiaRangeUtc": "00:00-06:00",
+    "signalWindowUtc": "06:00-11:00",
+    "trend": "EMA20 vs EMA50",
+    "structure": "HH+HL or LH+LL",
+    "body": "at least 0.35 ATR14",
+    "entry": "next completed H1 candle executable bid/ask open",
+    "stop": "signal candle opposite executable-side extreme",
+    "target": "1R",
+    "newsBlock": "high-impact EUR/USD +/-30m",
+    "spreadCap": "spread <= 10% of stop distance",
+    "maxOpenPositions": 1,
+    "maxHold": "24h, then executable-side time exit"
+  },
+  "summary": {
+    "trades": 2,
+    "wins": 1,
+    "losses": 1,
+    "winRate": 0.5,
+    "totalR": 0,
+    "expectancyR": 0,
+    "profitFactor": 1
+  },
+  "trades": [
+    {
+      "signalTime": "2026-08-20T06:00:00.000000000Z",
+      "entryTime": "2026-08-20T07:00:00.000000000Z",
+      "direction": "LONG",
+      "entry": 1.16886,
+      "stop": 1.16725,
+      "target": 1.17047,
+      "riskPips": 16.1,
+      "spreadPips": 1.4,
+      "exitTime": "2026-08-20T09:15:00.000000000Z",
+      "exit": 1.17047,
+      "outcome": "WIN",
+      "r": 1,
+      "reason": "LONG Asia-range break; EMA20/50 aligned; HH/HL or LH/LL; body >= 0.35 ATR; spread <= 10% of risk; no high-impact EUR/USD news within 30m.",
+      "aiExplanationInput": "Explain only; do not change this paper trade. LONG Asia-range break; EMA20/50 aligned; HH/HL or LH/LL; body >= 0.35 ATR; spread <= 10% of risk; no high-impact EUR/USD news within 30m. Entry 1.16886, stop 1.16725, target 1.17047."
+    },
+    {
+      "signalTime": "2026-08-21T08:00:00.000000000Z",
+      "entryTime": "2026-08-21T09:00:00.000000000Z",
+      "direction": "LONG",
+      "entry": 1.1706,
+      "stop": 1.16885,
+      "target": 1.17235,
+      "riskPips": 17.5,
+      "spreadPips": 1.6,
+      "exitTime": "2026-08-21T12:30:00.000000000Z",
+      "exit": 1.16885,
+      "outcome": "LOSS",
+      "r": -1,
+      "reason": "LONG Asia-range break; EMA20/50 aligned; HH/HL or LH/LL; body >= 0.35 ATR; spread <= 10% of risk; no high-impact EUR/USD news within 30m.",
+      "aiExplanationInput": "Explain only; do not change this paper trade. LONG Asia-range break; EMA20/50 aligned; HH/HL or LH/LL; body >= 0.35 ATR; spread <= 10% of risk; no high-impact EUR/USD news within 30m. Entry 1.1706, stop 1.16885, target 1.17235."
+    }
+  ]
+}

@@ -78,6 +78,7 @@ export function HomeRail({
   const [lastClose, setLastClose] = useState<Record<string, number>>({});
   const resolvedToday = todayWins + todayLosses;
   const winPercent = resolvedToday > 0 ? Math.round((todayWins / resolvedToday) * 100) : null;
+  const hasTodayTrades = todayTrades > 0;
   const netPositive = (todayNet ?? 0) >= 0;
   const rPositive = (todayR ?? 0) >= 0;
   const previewItems = currentPositions.length ? currentPositions : availableSignals;
@@ -219,13 +220,14 @@ export function HomeRail({
         <div className="home-rail-total-row">
           <p className={`home-rail-total-lead ${netPositive ? "is-positive" : "is-negative"}`}>
             {todayNet === null
-              ? "—"
+              ? money(0, currency)
               : `${netPositive ? "+" : "−"}${money(Math.abs(todayNet), currency)}`}
           </p>
           <p className={`home-rail-total-r ${rPositive ? "is-positive" : "is-negative"}`}>
-            {todayR === null ? "—" : `${todayR > 0 ? "+" : ""}${todayR.toFixed(1)}R`}
+            {todayR === null ? "0.0R" : `${todayR > 0 ? "+" : ""}${todayR.toFixed(1)}R`}
           </p>
         </div>
+        {!hasTodayTrades ? <p className="home-rail-total-empty">No closed trades today</p> : null}
         <dl className="home-rail-total-meta">
           <div>
             <dt>Trades</dt>
@@ -239,7 +241,7 @@ export function HomeRail({
           </div>
           <div>
             <dt>Win rate</dt>
-            <dd>{winPercent === null ? "—" : `${winPercent}%`}</dd>
+            <dd>{winPercent === null ? "0%" : `${winPercent}%`}</dd>
           </div>
         </dl>
         <div className="home-rail-bar" aria-hidden="true">

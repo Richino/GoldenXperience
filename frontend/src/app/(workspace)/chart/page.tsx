@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   title: "Charts",
 };
 
-export default async function ChartPage({ searchParams }: { searchParams: Promise<{ instrument?: string; trade?: string; prediction?: string; entry?: string; stop?: string; target?: string }> }) {
+export default async function ChartPage({ searchParams }: { searchParams: Promise<{ instrument?: string; trade?: string; prediction?: string; entry?: string; stop?: string; target?: string; direction?: string; confidence?: string; rationale?: string; preferredEntryTime?: string; proposal?: string }> }) {
   const params = await searchParams;
   // A plain chart launch should open an active paper trade first. Explicit
   // watchlist/chart links still win so a user can inspect another pair on
@@ -36,6 +36,17 @@ export default async function ChartPage({ searchParams }: { searchParams: Promis
   const target = finitePrice(params.target);
   const initialSetupFocus = entry !== null && stop !== null && target !== null && entry !== stop && entry !== target
     ? { entry, stop, target }
+    : null;
+  const direction: "long" | "short" | null = params.direction === "long" || params.direction === "short" ? params.direction : null;
+  const confidence = Number(params.confidence);
+  const initialManualProposal = params.proposal === "manual-analysis" && initialSetupFocus && direction
+    ? {
+        ...initialSetupFocus,
+        direction,
+        confidence: Number.isFinite(confidence) && confidence >= 1 && confidence <= 100 ? Math.round(confidence) : null,
+        rationale: params.rationale?.slice(0, 480) ?? "",
+        preferredEntryTime: params.preferredEntryTime?.slice(0, 140) ?? "",
+      }
     : null;
   const [snapshot, candleResult, watchlist, paperTrades] = await Promise.all([
     getApiData<StrategySnapshot>("/api/strategy"),
@@ -60,6 +71,7 @@ export default async function ChartPage({ searchParams }: { searchParams: Promis
       initialFocusTradeId={focusTradeId}
       initialPredictionFocus={focusPrediction?.instrument === instrument ? focusPrediction : null}
       initialSetupFocus={initialSetupFocus}
+      initialManualProposal={initialManualProposal}
     />
   );
 }

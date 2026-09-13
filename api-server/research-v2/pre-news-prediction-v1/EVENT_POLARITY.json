@@ -1,0 +1,32 @@
+{
+  "_doc": {
+    "purpose": "Maps a USD economic indicator to how an ABOVE-forecast actual (a BEAT) moves the US dollar. predicted_currency_direction = polarity * sign(predicted_surprise). MATCH or polarity 0 => SKIP.",
+    "polarity": "+1 = higher actual is USD-bullish; -1 = higher actual is USD-bearish; 0 = direction ambiguous intraday -> never trade",
+    "keyed_by": "TradingView 'indicator' field (exact), with title as fallback",
+    "assumption_note": "Inflation prints are treated as USD-bullish on a beat via the hawkish-Fed channel, which is the usual immediate reaction but not universal (stagflation regimes can invert it). Documented, not hidden."
+  },
+  "polarity": {
+    "Non Farm Payrolls":            {"p":  1, "note": "more jobs = bullish"},
+    "Unemployment Rate":            {"p": -1, "note": "higher unemployment = bearish"},
+    "Job Offers":                   {"p":  1, "note": "JOLTS openings up = bullish"},
+    "Inflation Rate":               {"p":  1, "note": "hot CPI YoY = hawkish = bullish"},
+    "Inflation Rate Mom":           {"p":  1, "note": "hot CPI MoM = hawkish = bullish"},
+    "Core Inflation Rate":          {"p":  1, "note": "hot core CPI = hawkish = bullish"},
+    "Core Inflation Rate MoM":      {"p":  1, "note": "hot core CPI MoM = hawkish = bullish"},
+    "Core PCE Price Index MoM":     {"p":  1, "note": "Fed's preferred gauge hot = hawkish = bullish"},
+    "Producer Price Inflation MoM": {"p":  1, "note": "hot PPI = hawkish = bullish"},
+    "Retail Sales MoM":             {"p":  1, "note": "stronger consumer = bullish"},
+    "Durable Goods Orders":         {"p":  1, "note": "stronger orders = bullish"},
+    "Personal Spending":            {"p":  1, "note": "stronger spending = bullish"},
+    "Personal Income":              {"p":  0, "note": "minor, collinear with spending/PCE -> skip"},
+    "Business Confidence":          {"p":  1, "note": "ISM Manufacturing PMI up = bullish"},
+    "Non Manufacturing PMI":        {"p":  1, "note": "ISM Services PMI up = bullish"},
+    "Consumer Confidence":          {"p":  1, "note": "confidence up = bullish"},
+    "GDP Growth Rate":              {"p":  1, "note": "stronger growth = bullish"},
+    "Interest Rate":                {"p":  1, "note": "surprise higher policy rate = bullish"},
+    "Building Permits":             {"p":  1, "note": "housing pipeline up = mildly bullish"},
+    "Housing Starts":               {"p":  1, "note": "housing activity up = mildly bullish"},
+    "Existing Home Sales":          {"p":  1, "note": "housing activity up = mildly bullish"},
+    "Balance of Trade":             {"p":  0, "note": "trade balance direction on USD is ambiguous intraday -> skip"}
+  }
+}

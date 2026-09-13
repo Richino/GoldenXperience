@@ -1,0 +1,21 @@
+{
+  "name": "ff-event-study",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Forex Factory calendar scraper + OANDA market-context enrichment for the last N days.",
+  "scripts": {
+    "build": "tsx src/build.ts",
+    "install-browser": "playwright install chromium"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "node-html-parser": "^6.1.13",
+    "playwright": "^1.48.0",
+    "tsx": "^4.19.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.2",
+    "typescript": "^5.6.3"
+  }
+}

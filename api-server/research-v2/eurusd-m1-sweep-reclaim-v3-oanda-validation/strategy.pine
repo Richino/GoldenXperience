@@ -1,0 +1,313 @@
+//@version=6
+strategy(
+     "GX EURUSD M1 Sweep Reclaim V3 — 4AM SHORT ONLY — 1:1 RR",
+     overlay=true,
+     pyramiding=0,
+     initial_capital=10000,
+     default_qty_type=strategy.fixed,
+     default_qty_value=1,
+     process_orders_on_close=true,
+     calc_on_every_tick=false
+)
+
+// ============================================================
+// GX EURUSD M1 SWEEP RECLAIM V3
+//
+// FROZEN HYPOTHESIS TEST
+//
+// Pair:        EURUSD
+// Timeframe:   M1
+// Direction:   SHORT ONLY
+// NY Hour:     04:00–04:59
+// Reference:   Previous completed M15 high
+// Entry:       Sweep above M15 high + close back below
+// Stop:        0.35 ATR
+// Target:      1:1 RR
+// Max Hold:    10 M1 bars
+//
+// Discovery evidence:
+// V2 4AM SHORT cohort:
+// 46 trades
+// ~60.9% WR
+//
+// PURPOSE:
+// Determine whether that result survives substantially
+// more historical data.
+//
+// DO NOT OPTIMIZE THIS VERSION.
+// ============================================================
+
+
+// ============================================================
+// INPUTS
+// ============================================================
+
+grp = "Frozen V3 Settings"
+
+referenceTF = input.timeframe(
+     "15",
+     "Reference Timeframe",
+     group=grp
+)
+
+atrLength = input.int(
+     14,
+     "ATR Length",
+     minval=1,
+     group=grp
+)
+
+stopATR = input.float(
+     0.35,
+     "Stop Distance (ATR)",
+     minval=0.05,
+     step=0.05,
+     group=grp
+)
+
+maxHold = input.int(
+     10,
+     "Maximum Hold (M1 Bars)",
+     minval=1,
+     group=grp
+)
+
+
+// ============================================================
+// NEW YORK TIME
+// ============================================================
+
+string NY_TZ = "America/New_York"
+
+nyHour = hour(time, NY_TZ)
+
+// ONLY 04:00 through 04:59 New York time
+in4AM = nyHour == 4
+
+
+// ============================================================
+// INDICATORS
+// ============================================================
+
+atr = ta.atr(atrLength)
+
+
+// Metadata only.
+// These DO NOT affect entries.
+
+ema20 = ta.ema(close, 20)
+ema50 = ta.ema(close, 50)
+
+plot(
+     ema20,
+     "EMA 20",
+     linewidth=1
+)
+
+plot(
+     ema50,
+     "EMA 50",
+     linewidth=1
+)
+
+
+// ============================================================
+// PREVIOUS COMPLETED M15 HIGH
+// ============================================================
+
+// [1] means previous completed M15 candle.
+// This prevents using the unfinished current M15 high.
+
+prevHigh15 = request.security(
+     syminfo.tickerid,
+     referenceTF,
+     high[1],
+     lookahead=barmerge.lookahead_on
+)
+
+plot(
+     prevHigh15,
+     "Previous M15 High",
+     style=plot.style_stepline,
+     linewidth=1
+)
+
+
+// ============================================================
+// SHORT SWEEP + RECLAIM
+// ============================================================
+//
+// Required:
+//
+// 1. Current M1 HIGH trades ABOVE previous M15 high.
+// 2. Current M1 CLOSE returns BELOW previous M15 high.
+//
+// Example:
+//
+// Previous M15 high = 1.17000
+//
+// M1 high  = 1.17015  <-- sweep
+// M1 close = 1.16995  <-- reclaim
+//
+// Result = SHORT signal
+// ============================================================
+
+rawShortSweep =
+     high > prevHigh15 and
+     close < prevHigh15
+
+
+// ============================================================
+// ENTRY
+// ============================================================
+
+flat = strategy.position_size == 0
+
+shortSignal =
+     flat and
+     in4AM and
+     rawShortSweep
+
+
+// ============================================================
+// TRADE STATE
+// ============================================================
+
+var float tradeStop = na
+var float tradeTarget = na
+var int entryBar = na
+
+
+// ============================================================
+// SHORT ENTRY
+// ============================================================
+
+if shortSignal
+
+    riskDistance = atr * stopATR
+
+    tradeStop :=
+         close + riskDistance
+
+    // FROZEN 1:1 RR
+    tradeTarget :=
+         close - riskDistance
+
+    entryBar :=
+         bar_index
+
+    strategy.entry(
+         "SHORT",
+         strategy.short
+    )
+
+    strategy.exit(
+         "SHORT EXIT",
+         from_entry="SHORT",
+         stop=tradeStop,
+         limit=tradeTarget
+    )
+
+
+// ============================================================
+// MAINTAIN ORIGINAL STOP/TARGET
+// ============================================================
+
+if strategy.position_size < 0
+
+    strategy.exit(
+         "SHORT EXIT",
+         from_entry="SHORT",
+         stop=tradeStop,
+         limit=tradeTarget
+    )
+
+
+// ============================================================
+// TIME EXIT
+// ============================================================
+
+barsHeld =
+     not na(entryBar)
+     ? bar_index - entryBar
+     : 0
+
+if strategy.position_size < 0 and
+   barsHeld >= maxHold
+
+    strategy.close(
+         "SHORT",
+         comment="TIME EXIT"
+    )
+
+
+// ============================================================
+// RESET STATE
+// ============================================================
+
+if strategy.position_size == 0 and
+   strategy.position_size[1] < 0
+
+    tradeStop := na
+    tradeTarget := na
+    entryBar := na
+
+
+// ============================================================
+// VISUAL SIGNAL
+// ============================================================
+
+plotshape(
+     shortSignal,
+     title="4AM SHORT Sweep",
+     style=shape.triangledown,
+     location=location.abovebar,
+     size=size.tiny,
+     text="S"
+)
+
+
+// ============================================================
+// STATUS TABLE
+// ============================================================
+
+var table info =
+     table.new(
+         position.top_right,
+         2,
+         7
+     )
+
+if barstate.islast
+
+    table.cell(info, 0, 0, "GX V3")
+    table.cell(info, 1, 0, "4AM SHORT")
+
+    table.cell(info, 0, 1, "Direction")
+    table.cell(info, 1, 1, "SHORT ONLY")
+
+    table.cell(info, 0, 2, "NY Hour")
+    table.cell(info, 1, 2, "04:00–04:59")
+
+    table.cell(info, 0, 3, "Reference")
+    table.cell(info, 1, 3, "Previous M15 High")
+
+    table.cell(info, 0, 4, "Stop")
+    table.cell(info, 1, 4, "0.35 ATR")
+
+    table.cell(info, 0, 5, "RR")
+    table.cell(info, 1, 5, "1:1")
+
+    table.cell(info, 0, 6, "Max Hold")
+    table.cell(info, 1, 6, "10 min")
+
+
+// ============================================================
+// ALERT
+// ============================================================
+
+alertcondition(
+     shortSignal,
+     title="GX EURUSD M1 4AM SHORT",
+     message="EURUSD M1 4AM NY upside sweep + reclaim SHORT"
+)

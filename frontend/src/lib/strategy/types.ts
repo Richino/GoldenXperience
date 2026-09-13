@@ -14,7 +14,7 @@ export type StrategyEvaluationMode = "live" | "practice" | "historical_replay";
 // ---------------------------------------------------------------------------
 
 export type StrategyFamily = "ema" | "breakout" | "momentum" | "meanrev";
-export type PairStrategyId = "eurusd_strategy" | "usdjpy_strategy" | "gbpusd_strategy" | "audusd_strategy" | "nzdusd_strategy" | "nzdusd_consensus_strategy" | "usdcad_strategy" | "usdchf_strategy" | "eurjpy_strategy" | "cadjpy_strategy" | "nzdjpy_strategy";
+export type PairStrategyId = "eurusd_strategy" | "usdjpy_strategy" | "gbpusd_strategy" | "audusd_strategy" | "nzdusd_strategy" | "nzdusd_consensus_strategy" | "usdcad_strategy" | "usdchf_strategy" | "eurjpy_strategy" | "cadjpy_strategy" | "nzdjpy_strategy" | "audjpy_strategy" | "euraud_strategy";
 export type StrategyId = StrategyFamily | PairStrategyId;
 export type RegimeClass = "trending" | "ranging" | "mixed";
 export type TrendDirection = "up" | "down" | "none";
@@ -327,6 +327,26 @@ export interface CadjpyStrategyFeatures {
   strategySignalQualified: boolean; executionAllowed: boolean; executionBlockReason: string | null; maxHoldBars: 3;
 }
 
+/** Frozen Pine and execution evidence for AUDJPY Bull Consensus V1 (consensus-only, no structure/break/body/extreme filters). */
+export interface AudjpyStrategyFeatures {
+  strategyId: "audjpy_strategy"; strategyName: "AUDJPY Bull Consensus V1"; strategyVersion: "V1"; symbol: "AUD_JPY"; timeframe: "H1";
+  signalKey: string | null; originTime: string | null; signalMidClose: number | null; actualExecutableEntry: number | null; frozenAtr14: number | null;
+  pineReferenceStop: number | null; pineReferenceTarget: number | null; executableStop: number | null; executableTarget: number | null;
+  ema20: number | null; ema50: number | null; ema20Back: number | null; closeThreeBarsAgo: number | null;
+  voteTrend: -1 | 0 | 1 | null; votePrice: -1 | 0 | 1 | null; voteSlope: -1 | 0 | 1 | null; voteMomentum: -1 | 0 | 1 | null; consensus: number | null;
+  strategySignalQualified: boolean; executionAllowed: boolean; executionBlockReason: string | null; maxHoldBars: 3;
+}
+
+/** Frozen Pine and execution evidence for EURAUD Bull Consensus V1 (consensus-only, no structure/break/body/extreme filters). */
+export interface EuraudStrategyFeatures {
+  strategyId: "euraud_strategy"; strategyName: "EURAUD Bull Consensus V1"; strategyVersion: "V1"; symbol: "EUR_AUD"; timeframe: "H1";
+  signalKey: string | null; originTime: string | null; signalMidClose: number | null; actualExecutableEntry: number | null; frozenAtr14: number | null;
+  pineReferenceStop: number | null; pineReferenceTarget: number | null; executableStop: number | null; executableTarget: number | null;
+  ema20: number | null; ema50: number | null; ema20Back: number | null; closeThreeBarsAgo: number | null;
+  voteTrend: -1 | 0 | 1 | null; votePrice: -1 | 0 | 1 | null; voteSlope: -1 | 0 | 1 | null; voteMomentum: -1 | 0 | 1 | null; consensus: number | null;
+  strategySignalQualified: boolean; executionAllowed: boolean; executionBlockReason: string | null; maxHoldBars: 3;
+}
+
 /** Frozen Pine and execution evidence for EURJPY 01-05 Range Break V1. */
 export interface EurjpyStrategyFeatures {
   strategyId: "eurjpy_strategy"; strategyName: "EURJPY 01-05 Range Break V1"; strategyVersion: "V1"; symbol: "EUR_JPY"; timeframe: "H1";
@@ -518,6 +538,8 @@ export interface StrategyResearchFeatures {
   nzdusdStrategy?: NzdusdStrategyFeatures | null;
   nzdjpyStrategy?: NzdjpyStrategyFeatures | null;
   cadjpyStrategy?: CadjpyStrategyFeatures | null;
+  audjpyStrategy?: AudjpyStrategyFeatures | null;
+  euraudStrategy?: EuraudStrategyFeatures | null;
   eurjpyStrategy?: EurjpyStrategyFeatures | null;
   usdchfStrategy?: UsdchfStrategyFeatures | null;
   usdcadStrategy?: UsdcadStrategyFeatures | null;

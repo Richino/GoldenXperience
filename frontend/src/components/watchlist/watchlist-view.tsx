@@ -120,6 +120,8 @@ export function WatchlistView() {
     const previousBodyWidth = document.body.style.width;
     const previousHtmlOverflow = document.documentElement.style.overflow;
     const previousHtmlOverscroll = document.documentElement.style.overscrollBehavior;
+    const previousHtmlHeight = document.documentElement.style.height;
+    const previousBodyMinHeight = document.body.style.minHeight;
     const scrollY = window.scrollY;
     let touchStartY: number | null = null;
     const onTouchStart = (event: TouchEvent) => {
@@ -147,6 +149,12 @@ export function WatchlistView() {
     document.body.style.width = "100%";
     document.documentElement.style.overflow = "hidden";
     document.documentElement.style.overscrollBehavior = "none";
+    // On iOS a position:fixed body with no explicit height leaves fixed
+    // descendants (the portaled modal) short of the physical screen, so the
+    // centered dialog rides up and the bare page shows below. Pinning html/body
+    // to the dynamic viewport height gives the modal the full screen to center in.
+    document.documentElement.style.height = "100dvh";
+    document.body.style.minHeight = "100dvh";
     document.addEventListener("touchstart", onTouchStart, { passive: true, capture: true });
     document.addEventListener("touchmove", onTouchMove, { passive: false, capture: true });
     return () => {
@@ -157,6 +165,8 @@ export function WatchlistView() {
       document.body.style.width = previousBodyWidth;
       document.documentElement.style.overflow = previousHtmlOverflow;
       document.documentElement.style.overscrollBehavior = previousHtmlOverscroll;
+      document.documentElement.style.height = previousHtmlHeight;
+      document.body.style.minHeight = previousBodyMinHeight;
       document.removeEventListener("touchstart", onTouchStart, true);
       document.removeEventListener("touchmove", onTouchMove, true);
       window.scrollTo(0, scrollY);

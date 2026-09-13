@@ -52,6 +52,31 @@ interface OandaTransactionsResponse {
   }>;
 }
 
+interface OandaClosedTradesResponse {
+  trades?: Array<{
+    id: string;
+    instrument: MajorInstrument;
+    price: string;
+    initialUnits: string;
+    openTime: string;
+    closeTime?: string;
+    averageClosePrice?: string;
+    realizedPL?: string;
+  }>;
+}
+
+/** A broker-confirmed closed Practice trade, including OANDA's own trade id. */
+export type ClosedPracticeTrade = {
+  brokerTradeId: string;
+  instrument: MajorInstrument;
+  direction: "long" | "short";
+  openedAt: string;
+  closedAt: string;
+  entry: number;
+  exit: number;
+  realizedPL: number | null;
+};
+
 interface OandaPricingResponse {
   prices: Array<{
     instrument: MajorInstrument;
@@ -438,6 +463,54 @@ export async function getAccountBalanceHistory(): Promise<{
       status: buildStatus("error", errorMessage(error)),
     };
   }
+}
+
+/**
+ * Retrieves the broker's closed Practice trades rather than inferring trades
+ * from account-balance movements. This is intentionally read-only; callers
+ * can reconcile only rows that GoldenXperience did not place itself.
+ */
+export async function getClosedPracticeTrades(): Promise<ClosedPracticeTrade[]> {
+  const config = getConfig();
+  if (!config || config.environment !== "practice") return [];
+
+  const response = await requestOanda<OandaClosedTradesResponse>(
+    `/v3/accounts/${encodeURIComponent(config.accountId)}/trades?state=CLOSED&count=500`,
+  );
+
+  return (response.trades ?? [])
+    .map((trade) => {
+      const entry = Number(trade.price);
+      const exit = Number(trade.averageClosePrice);
+      const units = Number(trade.initialUnits);
+      const openedAt = new Date(trade.openTime).toISOString();
+      const closedAt = trade.closeTime ? new Date(trade.closeTime).toISOString() : null;
+      if (
+        !trade.id ||
+        !trade.instrument ||
+        !Number.isFinite(entry) ||
+        !Number.isFinite(exit) ||
+        !Number.isFinite(units) ||
+        !Number.isFinite(new Date(openedAt).getTime()) ||
+        !closedAt ||
+        !Number.isFinite(new Date(closedAt).getTime())
+      ) {
+        return null;
+      }
+      const realizedPL = Number(trade.realizedPL);
+      return {
+        brokerTradeId: trade.id,
+        instrument: trade.instrument,
+        direction: units >= 0 ? "long" : "short",
+        openedAt,
+        closedAt,
+        entry,
+        exit,
+        realizedPL: Number.isFinite(realizedPL) ? realizedPL : null,
+      };
+    })
+    .filter((trade): trade is ClosedPracticeTrade => trade !== null)
+    .sort((left, right) => new Date(right.closedAt).getTime() - new Date(left.closedAt).getTime());
 }
 
 export async function getPricing(

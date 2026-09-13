@@ -1,0 +1,3844 @@
+{
+  "scannedAt": "2026-09-12T23:08:41.991Z",
+  "universeSize": 68,
+  "validatedStrategyPairs": 12,
+  "selected": [],
+  "records": [
+    {
+      "instrument": "AUD_CAD",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "AUD_CHF",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "AUD_HKD",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "AUD_JPY",
+      "status": "NO_SETUP",
+      "strategyId": "audjpy_strategy",
+      "reason": "AUDJPY Pine signal did not qualify.",
+      "score": null,
+      "candidate": {
+        "family": "audjpy_strategy",
+        "version": "V1",
+        "configVersion": "audjpy-v1-frozen",
+        "regime": {
+          "regime": "mixed",
+          "trendDirection": "down",
+          "trendStrength": 0,
+          "volatility": "normal",
+          "atr": 0.15395205458716316,
+          "atrPips": 15.395205458716315,
+          "momentumState": "steady",
+          "emaFast": 110.34564272485821,
+          "emaMid": 110.54227894330052,
+          "emaSlow": null,
+          "slopeAtrPerBar": null,
+          "rangeHigh": null,
+          "rangeLow": null,
+          "rangeWidthAtr": null,
+          "rangeAgeBars": null,
+          "lookbackBars": 50,
+          "evaluatedAt": "2026-09-11T21:00:00.000Z"
+        },
+        "qualifyReason": "AUDJPY Pine signal did not qualify.",
+        "status": "no_setup",
+        "instrument": "AUD_JPY",
+        "pair": "AUD/JPY",
+        "direction": null,
+        "timeframe": "1h",
+        "entry": null,
+        "stop": null,
+        "target": null,
+        "riskReward": null,
+        "positionSize": null,
+        "features": {
+          "trend15m": "mixed",
+          "trend1h": "bearish",
+          "trend4h": null,
+          "ema21": null,
+          "ema50": 110.54227894330052,
+          "ema200": null,
+          "rsi14": null,
+          "atr14": 0.15395205458716316,
+          "atrPips": 15.395205458716315,
+          "structureHighs": 0,
+          "structureLows": 0,
+          "evaluationMode": "live",
+          "audjpyStrategy": {
+            "strategyId": "audjpy_strategy",
+            "strategyName": "AUDJPY Bull Consensus V1",
+            "strategyVersion": "V1",
+            "symbol": "AUD_JPY",
+            "timeframe": "H1",
+            "signalKey": null,
+            "originTime": "2026-09-11T20:00:00.000000000Z",
+            "signalMidClose": null,
+            "actualExecutableEntry": null,
+            "frozenAtr14": 0.15395205458716316,
+            "pineReferenceStop": null,
+            "pineReferenceTarget": null,
+            "executableStop": null,
+            "executableTarget": null,
+            "ema20": 110.34564272485821,
+            "ema50": 110.54227894330052,
+            "ema20Back": 110.39893064220905,
+            "closeThreeBarsAgo": 110.277,
+            "voteTrend": -1,
+            "votePrice": -1,
+            "voteSlope": -1,
+            "voteMomentum": -1,
+            "consensus": -4,
+            "strategySignalQualified": false,
+            "executionAllowed": false,
+            "executionBlockReason": "NO_STRATEGY_SIGNAL",
+            "maxHoldBars": 3
+          }
+        },
+        "summary": "AUDJPY Bull Consensus V1 WAIT.",
+        "passedConditions": [
+          {
+            "name": "Pine AUDJPY instrument",
+            "passed": true,
+            "reason": "AUD_JPY only.",
+            "currentValue": "AUD_JPY",
+            "required": true
+          },
+          {
+            "name": "Pine H1",
+            "passed": true,
+            "reason": "H1 only.",
+            "currentValue": "H1",
+            "required": true
+          },
+          {
+            "name": "Pine history",
+            "passed": true,
+            "reason": "EMA20/EMA50/EMA20[3]/close[3]/ATR14 required and ATR positive.",
+            "currentValue": "0.15395205458716316",
+            "required": true
+          },
+          {
+            "name": "Execution duplicate protection",
+            "passed": true,
+            "reason": "Same origin submits once.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution AUDJPY position",
+            "passed": true,
+            "reason": "Pyramiding scoped to AUDJPY V1.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution OANDA ASK",
+            "passed": true,
+            "reason": "Valid ASK required.",
+            "currentValue": "110.148",
+            "required": false
+          }
+        ],
+        "failedConditions": [
+          {
+            "name": "Pine completed 12:00 UTC origin",
+            "passed": false,
+            "reason": "Completed 12:00 UTC candle on/after the frozen start date.",
+            "currentValue": "2026-09-11T20:00:00.000000000Z",
+            "required": true
+          },
+          {
+            "name": "Pine consensus",
+            "passed": false,
+            "reason": "Four votes total +3 or +4.",
+            "currentValue": "-4",
+            "required": true
+          },
+          {
+            "name": "Strategy signal qualified",
+            "passed": false,
+            "reason": "Exact Pine result without broker policy.",
+            "currentValue": "not qualified",
+            "required": true
+          },
+          {
+            "name": "Execution OANDA connection",
+            "passed": false,
+            "reason": "Connected OANDA data required.",
+            "currentValue": "mock",
+            "required": false
+          }
+        ],
+        "conditions": [
+          {
+            "name": "Pine AUDJPY instrument",
+            "passed": true,
+            "reason": "AUD_JPY only.",
+            "currentValue": "AUD_JPY",
+            "required": true
+          },
+          {
+            "name": "Pine H1",
+            "passed": true,
+            "reason": "H1 only.",
+            "currentValue": "H1",
+            "required": true
+          },
+          {
+            "name": "Pine completed 12:00 UTC origin",
+            "passed": false,
+            "reason": "Completed 12:00 UTC candle on/after the frozen start date.",
+            "currentValue": "2026-09-11T20:00:00.000000000Z",
+            "required": true
+          },
+          {
+            "name": "Pine history",
+            "passed": true,
+            "reason": "EMA20/EMA50/EMA20[3]/close[3]/ATR14 required and ATR positive.",
+            "currentValue": "0.15395205458716316",
+            "required": true
+          },
+          {
+            "name": "Pine consensus",
+            "passed": false,
+            "reason": "Four votes total +3 or +4.",
+            "currentValue": "-4",
+            "required": true
+          },
+          {
+            "name": "Strategy signal qualified",
+            "passed": false,
+            "reason": "Exact Pine result without broker policy.",
+            "currentValue": "not qualified",
+            "required": true
+          },
+          {
+            "name": "Execution duplicate protection",
+            "passed": true,
+            "reason": "Same origin submits once.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution AUDJPY position",
+            "passed": true,
+            "reason": "Pyramiding scoped to AUDJPY V1.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution OANDA connection",
+            "passed": false,
+            "reason": "Connected OANDA data required.",
+            "currentValue": "mock",
+            "required": false
+          },
+          {
+            "name": "Execution OANDA ASK",
+            "passed": true,
+            "reason": "Valid ASK required.",
+            "currentValue": "110.148",
+            "required": false
+          }
+        ],
+        "evaluatedAt": "2026-09-11T21:00:00.000Z",
+        "dataSource": "mock"
+      },
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "AUD_NZD",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "AUD_SGD",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "AUD_USD",
+      "status": "NO_SETUP",
+      "strategyId": "audusd_strategy",
+      "reason": "WAIT: NOT_1100_UTC.",
+      "score": null,
+      "candidate": {
+        "family": "audusd_strategy",
+        "version": "AUDUSD_STRONG_CONS_STRUCTURE_V2",
+        "configVersion": "audusd-strategy-cfg-v2-hl-only",
+        "regime": {
+          "regime": "mixed",
+          "trendDirection": "none",
+          "trendStrength": 0,
+          "volatility": "normal",
+          "atr": 0.0008206890761096321,
+          "atrPips": 8.206890761096322,
+          "momentumState": "steady",
+          "emaFast": 0.7172923185304334,
+          "emaMid": 0.7181731416946454,
+          "emaSlow": null,
+          "slopeAtrPerBar": 0.11499124797856056,
+          "rangeHigh": 0.7176,
+          "rangeLow": 0.71648,
+          "rangeWidthAtr": 1.3647068452637647,
+          "rangeAgeBars": null,
+          "lookbackBars": 50,
+          "evaluatedAt": "2026-09-11T21:00:00.000Z"
+        },
+        "qualifyReason": "WAIT: NOT_1100_UTC.",
+        "status": "no_setup",
+        "instrument": "AUD_USD",
+        "pair": "AUD/USD",
+        "direction": null,
+        "timeframe": "1h",
+        "entry": null,
+        "stop": null,
+        "target": null,
+        "riskReward": null,
+        "positionSize": null,
+        "features": {
+          "trend15m": "mixed",
+          "trend1h": "mixed",
+          "trend4h": null,
+          "ema21": null,
+          "ema50": 0.7181731416946454,
+          "ema200": null,
+          "rsi14": null,
+          "atr14": 0.0008206890761096321,
+          "atrPips": 8.206890761096322,
+          "structureHighs": 0,
+          "structureLows": 0,
+          "evaluationMode": "live",
+          "newsStatus": "calendar_unavailable",
+          "audusdStrategy": {
+            "strategyId": "audusd_strategy",
+            "strategyName": "AUDUSD Strong Consensus Structure V2 HL Only",
+            "strategyVersion": "AUDUSD_STRONG_CONS_STRUCTURE_V2",
+            "symbol": "AUD_USD",
+            "timeframe": "H1",
+            "origin": "11:00 UTC",
+            "direction": null,
+            "signalKey": null,
+            "signalCandleTimestamp": "2026-09-11T20:00:00.000000000Z",
+            "signalTimeUtc": "2026-09-11T21:00:00.000Z",
+            "entryTimeUtc": null,
+            "signalClose": null,
+            "intendedEntry": null,
+            "actualEntry": null,
+            "ema20": 0.7172923185304334,
+            "ema50": 0.7181731416946454,
+            "ema20At0800": 0.7170092023472407,
+            "close0800": 0.71675,
+            "preRangeHigh": 0.7176,
+            "preRangeLow": 0.71648,
+            "preRangeMid": 0.71704,
+            "emaVote": 0,
+            "priceEmaVote": 0,
+            "emaSlopeVote": 0,
+            "rangeVote": 0,
+            "structureVote": 0,
+            "momentumVote": 0,
+            "voteSum": 0,
+            "bullStructure": false,
+            "atr14": 0.0008206890761096321,
+            "entryATR": null,
+            "candleBody": 0.00021999999999999797,
+            "bodyAtrRatio": 0.26806741603394896,
+            "bodyConfirm": false,
+            "candleRange": 0.000520000000000076,
+            "extremeClose": false,
+            "confidenceTag": null,
+            "stopLoss": null,
+            "takeProfit": null,
+            "maximumHoldBars": 3,
+            "expirationTimeUtc": null,
+            "actualExit": null,
+            "exitTimeUtc": null,
+            "exitReason": null,
+            "realizedPnL": null,
+            "realizedR": null,
+            "brokerOrderId": null,
+            "brokerTradeId": null,
+            "waitReason": "NOT_1100_UTC"
+          }
+        },
+        "summary": "AUD/USD WAIT: NOT_1100_UTC.",
+        "passedConditions": [
+          {
+            "name": "Symbol",
+            "passed": true,
+            "required": true,
+            "reason": "audusd_strategy is restricted to AUD_USD.",
+            "currentValue": "AUD_USD"
+          },
+          {
+            "name": "Timeframe",
+            "passed": true,
+            "required": true,
+            "reason": "Only H1 candles are eligible.",
+            "currentValue": "H1"
+          },
+          {
+            "name": "06:00-10:00 UTC range",
+            "passed": true,
+            "required": true,
+            "reason": "All five range candles are required and 11:00 is excluded.",
+            "currentValue": "5/5"
+          },
+          {
+            "name": "EMA20 available",
+            "passed": true,
+            "required": true,
+            "reason": "EMA20 must be available from completed H1 closes.",
+            "currentValue": "0.7172923185304334"
+          },
+          {
+            "name": "EMA50 available",
+            "passed": true,
+            "required": true,
+            "reason": "EMA50 must be available from completed H1 closes.",
+            "currentValue": "0.7181731416946454"
+          },
+          {
+            "name": "Wilder ATR14",
+            "passed": true,
+            "required": true,
+            "reason": "ATR14 must be finite and positive.",
+            "currentValue": "0.0008206890761096321"
+          },
+          {
+            "name": "No duplicate signal",
+            "passed": true,
+            "required": true,
+            "reason": "The deterministic UTC-day signal key may execute only once.",
+            "currentValue": "clear"
+          },
+          {
+            "name": "No active strategy position",
+            "passed": true,
+            "required": true,
+            "reason": "Pyramiding is disabled for audusd_strategy.",
+            "currentValue": "clear"
+          },
+          {
+            "name": "Numerical safety",
+            "passed": true,
+            "required": true,
+            "reason": "Entry, frozen ATR, stop, and target must be finite and ordered.",
+            "currentValue": "not applicable"
+          }
+        ],
+        "failedConditions": [
+          {
+            "name": "Completed 11:00 UTC candle",
+            "passed": false,
+            "required": true,
+            "reason": "The completed H1 candle stamped 11:00 UTC is the sole origin.",
+            "currentValue": "2026-09-11T20:00:00.000000000Z"
+          },
+          {
+            "name": "Strong consensus",
+            "passed": false,
+            "required": true,
+            "reason": "The six-vote sum must be at least +4; bearish consensus never creates a short.",
+            "currentValue": "0"
+          },
+          {
+            "name": "V2 external higher-low structure",
+            "passed": false,
+            "required": true,
+            "reason": "Final V2 gate requires only low > low[1]; vote #5 retains HH+HL/LH+LL.",
+            "currentValue": "failed"
+          },
+          {
+            "name": "Market data",
+            "passed": false,
+            "required": true,
+            "reason": "Live OANDA candle history is unavailable or incomplete.",
+            "currentValue": "260/260/260 candles"
+          },
+          {
+            "name": "Session",
+            "passed": false,
+            "required": true,
+            "reason": "Entries are limited to the London and New York sessions and close at 16:45 ET.",
+            "currentValue": "Forex market closed"
+          },
+          {
+            "name": "Spread",
+            "passed": false,
+            "required": true,
+            "reason": "Spread too wide.",
+            "currentValue": "3.2 / 2.0 pips"
+          },
+          {
+            "name": "News",
+            "passed": false,
+            "required": true,
+            "reason": "Economic calendar is unavailable or stale; entries pause until the 30-minute news buffer can be verified.",
+            "currentValue": "calendar_unavailable"
+          }
+        ],
+        "conditions": [
+          {
+            "name": "Symbol",
+            "passed": true,
+            "required": true,
+            "reason": "audusd_strategy is restricted to AUD_USD.",
+            "currentValue": "AUD_USD"
+          },
+          {
+            "name": "Timeframe",
+            "passed": true,
+            "required": true,
+            "reason": "Only H1 candles are eligible.",
+            "currentValue": "H1"
+          },
+          {
+            "name": "Completed 11:00 UTC candle",
+            "passed": false,
+            "required": true,
+            "reason": "The completed H1 candle stamped 11:00 UTC is the sole origin.",
+            "currentValue": "2026-09-11T20:00:00.000000000Z"
+          },
+          {
+            "name": "06:00-10:00 UTC range",
+            "passed": true,
+            "required": true,
+            "reason": "All five range candles are required and 11:00 is excluded.",
+            "currentValue": "5/5"
+          },
+          {
+            "name": "EMA20 available",
+            "passed": true,
+            "required": true,
+            "reason": "EMA20 must be available from completed H1 closes.",
+            "currentValue": "0.7172923185304334"
+          },
+          {
+            "name": "EMA50 available",
+            "passed": true,
+            "required": true,
+            "reason": "EMA50 must be available from completed H1 closes.",
+            "currentValue": "0.7181731416946454"
+          },
+          {
+            "name": "Wilder ATR14",
+            "passed": true,
+            "required": true,
+            "reason": "ATR14 must be finite and positive.",
+            "currentValue": "0.0008206890761096321"
+          },
+          {
+            "name": "Strong consensus",
+            "passed": false,
+            "required": true,
+            "reason": "The six-vote sum must be at least +4; bearish consensus never creates a short.",
+            "currentValue": "0"
+          },
+          {
+            "name": "V2 external higher-low structure",
+            "passed": false,
+            "required": true,
+            "reason": "Final V2 gate requires only low > low[1]; vote #5 retains HH+HL/LH+LL.",
+            "currentValue": "failed"
+          },
+          {
+            "name": "No duplicate signal",
+            "passed": true,
+            "required": true,
+            "reason": "The deterministic UTC-day signal key may execute only once.",
+            "currentValue": "clear"
+          },
+          {
+            "name": "No active strategy position",
+            "passed": true,
+            "required": true,
+            "reason": "Pyramiding is disabled for audusd_strategy.",
+            "currentValue": "clear"
+          },
+          {
+            "name": "Numerical safety",
+            "passed": true,
+            "required": true,
+            "reason": "Entry, frozen ATR, stop, and target must be finite and ordered.",
+            "currentValue": "not applicable"
+          },
+          {
+            "name": "Market data",
+            "passed": false,
+            "required": true,
+            "reason": "Live OANDA candle history is unavailable or incomplete.",
+            "currentValue": "260/260/260 candles"
+          },
+          {
+            "name": "Session",
+            "passed": false,
+            "required": true,
+            "reason": "Entries are limited to the London and New York sessions and close at 16:45 ET.",
+            "currentValue": "Forex market closed"
+          },
+          {
+            "name": "Spread",
+            "passed": false,
+            "required": true,
+            "reason": "Spread too wide.",
+            "currentValue": "3.2 / 2.0 pips"
+          },
+          {
+            "name": "News",
+            "passed": false,
+            "required": true,
+            "reason": "Economic calendar is unavailable or stale; entries pause until the 30-minute news buffer can be verified.",
+            "currentValue": "calendar_unavailable"
+          }
+        ],
+        "evaluatedAt": "2026-09-11T21:00:00.000Z",
+        "dataSource": "mock"
+      },
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "CAD_CHF",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "CAD_HKD",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "CAD_JPY",
+      "status": "NO_SETUP",
+      "strategyId": "cadjpy_strategy",
+      "reason": "CADJPY Pine signal did not qualify.",
+      "score": null,
+      "candidate": {
+        "family": "cadjpy_strategy",
+        "version": "V1",
+        "configVersion": "cadjpy-v1-frozen",
+        "regime": {
+          "regime": "mixed",
+          "trendDirection": "down",
+          "trendStrength": 0,
+          "volatility": "normal",
+          "atr": 0.17912852811119478,
+          "atrPips": 17.91285281111948,
+          "momentumState": "steady",
+          "emaFast": 111.03837396809135,
+          "emaMid": 111.25129145330722,
+          "emaSlow": null,
+          "slopeAtrPerBar": null,
+          "rangeHigh": null,
+          "rangeLow": null,
+          "rangeWidthAtr": null,
+          "rangeAgeBars": null,
+          "lookbackBars": 50,
+          "evaluatedAt": "2026-09-11T21:00:00.000Z"
+        },
+        "qualifyReason": "CADJPY Pine signal did not qualify.",
+        "status": "no_setup",
+        "instrument": "CAD_JPY",
+        "pair": "CAD/JPY",
+        "direction": null,
+        "timeframe": "1h",
+        "entry": null,
+        "stop": null,
+        "target": null,
+        "riskReward": null,
+        "positionSize": null,
+        "features": {
+          "trend15m": "mixed",
+          "trend1h": "bearish",
+          "trend4h": null,
+          "ema21": null,
+          "ema50": 111.25129145330722,
+          "ema200": null,
+          "rsi14": null,
+          "atr14": 0.17912852811119478,
+          "atrPips": 17.91285281111948,
+          "structureHighs": 0,
+          "structureLows": 0,
+          "evaluationMode": "live",
+          "cadjpyStrategy": {
+            "strategyId": "cadjpy_strategy",
+            "strategyName": "CADJPY Bull Break Extreme V1",
+            "strategyVersion": "V1",
+            "symbol": "CAD_JPY",
+            "timeframe": "H1",
+            "signalKey": null,
+            "originTime": "2026-09-11T20:00:00.000000000Z",
+            "signalMidClose": null,
+            "actualExecutableEntry": null,
+            "frozenAtr14": 0.17912852811119478,
+            "pineReferenceStop": null,
+            "pineReferenceTarget": null,
+            "executableStop": null,
+            "executableTarget": null,
+            "ema20": 111.03837396809135,
+            "ema50": 111.25129145330722,
+            "voteTrend": -1,
+            "votePrice": -1,
+            "voteSlope": -1,
+            "voteMomentum": -1,
+            "consensus": -4,
+            "previousHigh": 110.9,
+            "previousHighBreak": false,
+            "bullBody": false,
+            "bodyR": 0.9490392278245791,
+            "closeLocation": 0.20720720720722854,
+            "strategySignalQualified": false,
+            "executionAllowed": false,
+            "executionBlockReason": "NO_STRATEGY_SIGNAL",
+            "maxHoldBars": 3
+          }
+        },
+        "summary": "CADJPY Bull Break Extreme V1 WAIT.",
+        "passedConditions": [
+          {
+            "name": "Pine history",
+            "passed": true,
+            "reason": "EMA/ATR and lookbacks required.",
+            "currentValue": "0.17912852811119478",
+            "required": true
+          },
+          {
+            "name": "Pine body strength",
+            "passed": true,
+            "reason": "Body >= .50 ATR.",
+            "currentValue": "0.9490392278245791",
+            "required": true
+          },
+          {
+            "name": "Execution duplicate protection",
+            "passed": true,
+            "reason": "Same origin submits once.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution CADJPY position",
+            "passed": true,
+            "reason": "Pyramiding scoped to CADJPY V1.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution OANDA ASK",
+            "passed": true,
+            "reason": "Valid ASK required.",
+            "currentValue": "110.723",
+            "required": false
+          }
+        ],
+        "failedConditions": [
+          {
+            "name": "Pine completed 12:00 UTC origin",
+            "passed": false,
+            "reason": "Only completed 12:00 UTC candle may signal.",
+            "currentValue": "2026-09-11T20:00:00.000000000Z",
+            "required": true
+          },
+          {
+            "name": "Pine consensus",
+            "passed": false,
+            "reason": "Four votes total +3 or +4.",
+            "currentValue": "-4",
+            "required": true
+          },
+          {
+            "name": "Pine previous-high break",
+            "passed": false,
+            "reason": "Strict close > high[1], no ATR clearance.",
+            "currentValue": "110.9",
+            "required": true
+          },
+          {
+            "name": "Pine bullish body",
+            "passed": false,
+            "reason": "close > open.",
+            "currentValue": "not bullish",
+            "required": true
+          },
+          {
+            "name": "Pine upper 25% close",
+            "passed": false,
+            "reason": "Close in upper 25%.",
+            "currentValue": "0.20720720720722854",
+            "required": true
+          },
+          {
+            "name": "Strategy signal qualified",
+            "passed": false,
+            "reason": "Exact Pine result without broker policy.",
+            "currentValue": "not qualified",
+            "required": true
+          },
+          {
+            "name": "Execution OANDA connection",
+            "passed": false,
+            "reason": "Connected OANDA data required.",
+            "currentValue": "mock",
+            "required": false
+          }
+        ],
+        "conditions": [
+          {
+            "name": "Pine completed 12:00 UTC origin",
+            "passed": false,
+            "reason": "Only completed 12:00 UTC candle may signal.",
+            "currentValue": "2026-09-11T20:00:00.000000000Z",
+            "required": true
+          },
+          {
+            "name": "Pine history",
+            "passed": true,
+            "reason": "EMA/ATR and lookbacks required.",
+            "currentValue": "0.17912852811119478",
+            "required": true
+          },
+          {
+            "name": "Pine consensus",
+            "passed": false,
+            "reason": "Four votes total +3 or +4.",
+            "currentValue": "-4",
+            "required": true
+          },
+          {
+            "name": "Pine previous-high break",
+            "passed": false,
+            "reason": "Strict close > high[1], no ATR clearance.",
+            "currentValue": "110.9",
+            "required": true
+          },
+          {
+            "name": "Pine bullish body",
+            "passed": false,
+            "reason": "close > open.",
+            "currentValue": "not bullish",
+            "required": true
+          },
+          {
+            "name": "Pine body strength",
+            "passed": true,
+            "reason": "Body >= .50 ATR.",
+            "currentValue": "0.9490392278245791",
+            "required": true
+          },
+          {
+            "name": "Pine upper 25% close",
+            "passed": false,
+            "reason": "Close in upper 25%.",
+            "currentValue": "0.20720720720722854",
+            "required": true
+          },
+          {
+            "name": "Strategy signal qualified",
+            "passed": false,
+            "reason": "Exact Pine result without broker policy.",
+            "currentValue": "not qualified",
+            "required": true
+          },
+          {
+            "name": "Execution duplicate protection",
+            "passed": true,
+            "reason": "Same origin submits once.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution CADJPY position",
+            "passed": true,
+            "reason": "Pyramiding scoped to CADJPY V1.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution OANDA connection",
+            "passed": false,
+            "reason": "Connected OANDA data required.",
+            "currentValue": "mock",
+            "required": false
+          },
+          {
+            "name": "Execution OANDA ASK",
+            "passed": true,
+            "reason": "Valid ASK required.",
+            "currentValue": "110.723",
+            "required": false
+          }
+        ],
+        "evaluatedAt": "2026-09-11T21:00:00.000Z",
+        "dataSource": "mock"
+      },
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "CAD_SGD",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "CHF_HKD",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "CHF_JPY",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "CHF_ZAR",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "EUR_AUD",
+      "status": "NO_SETUP",
+      "strategyId": "euraud_strategy",
+      "reason": "EURAUD Pine signal did not qualify.",
+      "score": null,
+      "candidate": {
+        "family": "euraud_strategy",
+        "version": "V1",
+        "configVersion": "euraud-v1-frozen",
+        "regime": {
+          "regime": "mixed",
+          "trendDirection": "up",
+          "trendStrength": 0,
+          "volatility": "normal",
+          "atr": 0.0014802754915653102,
+          "atrPips": 14.802754915653102,
+          "momentumState": "steady",
+          "emaFast": 1.6177176341905566,
+          "emaMid": 1.6169468068256014,
+          "emaSlow": null,
+          "slopeAtrPerBar": null,
+          "rangeHigh": null,
+          "rangeLow": null,
+          "rangeWidthAtr": null,
+          "rangeAgeBars": null,
+          "lookbackBars": 50,
+          "evaluatedAt": "2026-09-11T21:00:00.000Z"
+        },
+        "qualifyReason": "EURAUD Pine signal did not qualify.",
+        "status": "no_setup",
+        "instrument": "EUR_AUD",
+        "pair": "EUR/AUD",
+        "direction": null,
+        "timeframe": "1h",
+        "entry": null,
+        "stop": null,
+        "target": null,
+        "riskReward": null,
+        "positionSize": null,
+        "features": {
+          "trend15m": "mixed",
+          "trend1h": "bullish",
+          "trend4h": null,
+          "ema21": null,
+          "ema50": 1.6169468068256014,
+          "ema200": null,
+          "rsi14": null,
+          "atr14": 0.0014802754915653102,
+          "atrPips": 14.802754915653102,
+          "structureHighs": 0,
+          "structureLows": 0,
+          "evaluationMode": "live",
+          "euraudStrategy": {
+            "strategyId": "euraud_strategy",
+            "strategyName": "EURAUD Bull Consensus V1",
+            "strategyVersion": "V1",
+            "symbol": "EUR_AUD",
+            "timeframe": "H1",
+            "signalKey": null,
+            "originTime": "2026-09-11T20:00:00.000000000Z",
+            "signalMidClose": null,
+            "actualExecutableEntry": null,
+            "frozenAtr14": 0.0014802754915653102,
+            "pineReferenceStop": null,
+            "pineReferenceTarget": null,
+            "executableStop": null,
+            "executableTarget": null,
+            "ema20": 1.6177176341905566,
+            "ema50": 1.6169468068256014,
+            "ema20Back": 1.6179683350690692,
+            "closeThreeBarsAgo": 1.61653,
+            "voteTrend": 1,
+            "votePrice": -1,
+            "voteSlope": -1,
+            "voteMomentum": 1,
+            "consensus": 0,
+            "strategySignalQualified": false,
+            "executionAllowed": false,
+            "executionBlockReason": "NO_STRATEGY_SIGNAL",
+            "maxHoldBars": 3
+          }
+        },
+        "summary": "EURAUD Bull Consensus V1 WAIT.",
+        "passedConditions": [
+          {
+            "name": "Pine EURAUD instrument",
+            "passed": true,
+            "reason": "EUR_AUD only.",
+            "currentValue": "EUR_AUD",
+            "required": true
+          },
+          {
+            "name": "Pine H1",
+            "passed": true,
+            "reason": "H1 only.",
+            "currentValue": "H1",
+            "required": true
+          },
+          {
+            "name": "Pine history",
+            "passed": true,
+            "reason": "EMA20/EMA50/EMA20[3]/close[3]/ATR14 required and ATR positive.",
+            "currentValue": "0.0014802754915653102",
+            "required": true
+          },
+          {
+            "name": "Execution duplicate protection",
+            "passed": true,
+            "reason": "Same origin submits once.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution EURAUD position",
+            "passed": true,
+            "reason": "Pyramiding scoped to EURAUD V1.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution OANDA ASK",
+            "passed": true,
+            "reason": "Valid ASK required.",
+            "currentValue": "1.61848",
+            "required": false
+          }
+        ],
+        "failedConditions": [
+          {
+            "name": "Pine completed 11:00 UTC origin",
+            "passed": false,
+            "reason": "Completed 11:00 UTC candle on/after the frozen start date.",
+            "currentValue": "2026-09-11T20:00:00.000000000Z",
+            "required": true
+          },
+          {
+            "name": "Pine consensus",
+            "passed": false,
+            "reason": "Four votes total +3 or +4.",
+            "currentValue": "0",
+            "required": true
+          },
+          {
+            "name": "Strategy signal qualified",
+            "passed": false,
+            "reason": "Exact Pine result without broker policy.",
+            "currentValue": "not qualified",
+            "required": true
+          },
+          {
+            "name": "Execution OANDA connection",
+            "passed": false,
+            "reason": "Connected OANDA data required.",
+            "currentValue": "mock",
+            "required": false
+          }
+        ],
+        "conditions": [
+          {
+            "name": "Pine EURAUD instrument",
+            "passed": true,
+            "reason": "EUR_AUD only.",
+            "currentValue": "EUR_AUD",
+            "required": true
+          },
+          {
+            "name": "Pine H1",
+            "passed": true,
+            "reason": "H1 only.",
+            "currentValue": "H1",
+            "required": true
+          },
+          {
+            "name": "Pine completed 11:00 UTC origin",
+            "passed": false,
+            "reason": "Completed 11:00 UTC candle on/after the frozen start date.",
+            "currentValue": "2026-09-11T20:00:00.000000000Z",
+            "required": true
+          },
+          {
+            "name": "Pine history",
+            "passed": true,
+            "reason": "EMA20/EMA50/EMA20[3]/close[3]/ATR14 required and ATR positive.",
+            "currentValue": "0.0014802754915653102",
+            "required": true
+          },
+          {
+            "name": "Pine consensus",
+            "passed": false,
+            "reason": "Four votes total +3 or +4.",
+            "currentValue": "0",
+            "required": true
+          },
+          {
+            "name": "Strategy signal qualified",
+            "passed": false,
+            "reason": "Exact Pine result without broker policy.",
+            "currentValue": "not qualified",
+            "required": true
+          },
+          {
+            "name": "Execution duplicate protection",
+            "passed": true,
+            "reason": "Same origin submits once.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution EURAUD position",
+            "passed": true,
+            "reason": "Pyramiding scoped to EURAUD V1.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution OANDA connection",
+            "passed": false,
+            "reason": "Connected OANDA data required.",
+            "currentValue": "mock",
+            "required": false
+          },
+          {
+            "name": "Execution OANDA ASK",
+            "passed": true,
+            "reason": "Valid ASK required.",
+            "currentValue": "1.61848",
+            "required": false
+          }
+        ],
+        "evaluatedAt": "2026-09-11T21:00:00.000Z",
+        "dataSource": "mock"
+      },
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "EUR_CAD",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "EUR_CHF",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "EUR_CZK",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "EUR_DKK",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "EUR_GBP",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "EUR_HKD",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "EUR_HUF",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "EUR_JPY",
+      "status": "NO_SETUP",
+      "strategyId": "eurjpy_strategy",
+      "reason": "EURJPY Pine signal did not qualify.",
+      "score": null,
+      "candidate": {
+        "family": "eurjpy_strategy",
+        "version": "V1",
+        "configVersion": "eurjpy-v1-frozen",
+        "regime": {
+          "regime": "mixed",
+          "trendDirection": "down",
+          "trendStrength": 0,
+          "volatility": "normal",
+          "atr": 0.2321349092036493,
+          "atrPips": 23.21349092036493,
+          "momentumState": "steady",
+          "emaFast": 178.50732616586666,
+          "emaMid": null,
+          "emaSlow": null,
+          "slopeAtrPerBar": null,
+          "rangeHigh": 179.485,
+          "rangeLow": 178.805,
+          "rangeWidthAtr": 2.9293310615485697,
+          "rangeAgeBars": null,
+          "lookbackBars": 20,
+          "evaluatedAt": "2026-09-11T21:00:00.000Z"
+        },
+        "qualifyReason": "EURJPY Pine signal did not qualify.",
+        "status": "no_setup",
+        "instrument": "EUR_JPY",
+        "pair": "EUR/JPY",
+        "direction": null,
+        "timeframe": "1h",
+        "entry": null,
+        "stop": null,
+        "target": null,
+        "riskReward": null,
+        "positionSize": null,
+        "features": {
+          "trend15m": "mixed",
+          "trend1h": "bearish",
+          "trend4h": null,
+          "ema21": null,
+          "ema50": null,
+          "ema200": null,
+          "rsi14": null,
+          "atr14": 0.2321349092036493,
+          "atrPips": 23.21349092036493,
+          "structureHighs": 0,
+          "structureLows": 0,
+          "evaluationMode": "live",
+          "eurjpyStrategy": {
+            "strategyId": "eurjpy_strategy",
+            "strategyName": "EURJPY 01-05 Range Break V1",
+            "strategyVersion": "V1",
+            "symbol": "EUR_JPY",
+            "timeframe": "H1",
+            "signalKey": null,
+            "originTime": "2026-09-11T20:00:00.000000000Z",
+            "signalMidClose": null,
+            "actualExecutableEntry": null,
+            "frozenAtr14": 0.2321349092036493,
+            "pineReferenceStop": null,
+            "pineReferenceTarget": null,
+            "executableStop": null,
+            "executableTarget": null,
+            "ema20": 178.50732616586666,
+            "ema20Back": 178.62130654936448,
+            "previousHigh": 178.294,
+            "preRangeStart": "2026-09-11T01:00:00.000000000Z",
+            "preRangeEnd": "2026-09-11T05:00:00.000000000Z",
+            "preHigh": 179.485,
+            "preLow": 178.805,
+            "preRangeBarCount": 5,
+            "rangeReady": true,
+            "emaSlopeUp": false,
+            "previousHighBreak": false,
+            "preRangeHighBreak": false,
+            "strategySignalQualified": false,
+            "executionAllowed": false,
+            "executionBlockReason": "NO_STRATEGY_SIGNAL",
+            "maxHoldBars": 3
+          }
+        },
+        "summary": "EURJPY 01-05 Range Break V1 WAIT.",
+        "passedConditions": [
+          {
+            "name": "Pine history",
+            "passed": true,
+            "reason": "EMA20, EMA20[3], and positive Wilder ATR14 are required.",
+            "currentValue": "0.2321349092036493",
+            "required": true
+          },
+          {
+            "name": "Pine 01:00-05:00 range",
+            "passed": true,
+            "reason": "One or more current UTC-day 01:00-05:00 H1 candles form the range (Pine: not na(preHigh)).",
+            "currentValue": "5 bar(s)",
+            "required": true
+          },
+          {
+            "name": "Execution duplicate protection",
+            "passed": true,
+            "reason": "Same 06:00 origin submits once.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution EURJPY position",
+            "passed": true,
+            "reason": "Pyramiding is scoped to EURJPY V1.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution OANDA ASK",
+            "passed": true,
+            "reason": "Valid ASK required.",
+            "currentValue": "178.141",
+            "required": false
+          }
+        ],
+        "failedConditions": [
+          {
+            "name": "Pine completed 06:00 UTC origin",
+            "passed": false,
+            "reason": "Only the completed 06:00 UTC candle may signal.",
+            "currentValue": "2026-09-11T20:00:00.000000000Z",
+            "required": true
+          },
+          {
+            "name": "Pine EMA20 slope",
+            "passed": false,
+            "reason": "EMA20 must be greater than EMA20[3].",
+            "currentValue": "178.50732616586666 > 178.62130654936448",
+            "required": true
+          },
+          {
+            "name": "Pine previous-high break",
+            "passed": false,
+            "reason": "Strict close > high[1], without ATR clearance.",
+            "currentValue": "178.294",
+            "required": true
+          },
+          {
+            "name": "Pine pre-range-high break",
+            "passed": false,
+            "reason": "Strict close > the 01:00-05:00 range high.",
+            "currentValue": "179.485",
+            "required": true
+          },
+          {
+            "name": "Strategy signal qualified",
+            "passed": false,
+            "reason": "Exact Pine result, without execution policy.",
+            "currentValue": "not qualified",
+            "required": true
+          },
+          {
+            "name": "Execution OANDA connection",
+            "passed": false,
+            "reason": "Connected OANDA data required.",
+            "currentValue": "mock",
+            "required": false
+          }
+        ],
+        "conditions": [
+          {
+            "name": "Pine completed 06:00 UTC origin",
+            "passed": false,
+            "reason": "Only the completed 06:00 UTC candle may signal.",
+            "currentValue": "2026-09-11T20:00:00.000000000Z",
+            "required": true
+          },
+          {
+            "name": "Pine history",
+            "passed": true,
+            "reason": "EMA20, EMA20[3], and positive Wilder ATR14 are required.",
+            "currentValue": "0.2321349092036493",
+            "required": true
+          },
+          {
+            "name": "Pine 01:00-05:00 range",
+            "passed": true,
+            "reason": "One or more current UTC-day 01:00-05:00 H1 candles form the range (Pine: not na(preHigh)).",
+            "currentValue": "5 bar(s)",
+            "required": true
+          },
+          {
+            "name": "Pine EMA20 slope",
+            "passed": false,
+            "reason": "EMA20 must be greater than EMA20[3].",
+            "currentValue": "178.50732616586666 > 178.62130654936448",
+            "required": true
+          },
+          {
+            "name": "Pine previous-high break",
+            "passed": false,
+            "reason": "Strict close > high[1], without ATR clearance.",
+            "currentValue": "178.294",
+            "required": true
+          },
+          {
+            "name": "Pine pre-range-high break",
+            "passed": false,
+            "reason": "Strict close > the 01:00-05:00 range high.",
+            "currentValue": "179.485",
+            "required": true
+          },
+          {
+            "name": "Strategy signal qualified",
+            "passed": false,
+            "reason": "Exact Pine result, without execution policy.",
+            "currentValue": "not qualified",
+            "required": true
+          },
+          {
+            "name": "Execution duplicate protection",
+            "passed": true,
+            "reason": "Same 06:00 origin submits once.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution EURJPY position",
+            "passed": true,
+            "reason": "Pyramiding is scoped to EURJPY V1.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution OANDA connection",
+            "passed": false,
+            "reason": "Connected OANDA data required.",
+            "currentValue": "mock",
+            "required": false
+          },
+          {
+            "name": "Execution OANDA ASK",
+            "passed": true,
+            "reason": "Valid ASK required.",
+            "currentValue": "178.141",
+            "required": false
+          }
+        ],
+        "evaluatedAt": "2026-09-11T21:00:00.000Z",
+        "dataSource": "mock"
+      },
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "EUR_NOK",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "EUR_NZD",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "EUR_PLN",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "EUR_SEK",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "EUR_SGD",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "EUR_TRY",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "EUR_USD",
+      "status": "NO_SETUP",
+      "strategyId": "eurusd_strategy",
+      "reason": "WAIT: OUTSIDE_LONDON.",
+      "score": null,
+      "candidate": {
+        "family": "eurusd_strategy",
+        "version": "v1",
+        "configVersion": "eurusd-strategy-cfg-v1",
+        "regime": {
+          "regime": "mixed",
+          "trendDirection": "down",
+          "trendStrength": 0,
+          "volatility": "normal",
+          "atr": 0.0009442373778665399,
+          "atrPips": 9.442373778665399,
+          "momentumState": "steady",
+          "emaFast": 1.1603656172424999,
+          "emaMid": 1.1612313286048166,
+          "emaSlow": null,
+          "slopeAtrPerBar": null,
+          "rangeHigh": 1.16176,
+          "rangeLow": 1.15997,
+          "rangeWidthAtr": 1.895709746255099,
+          "rangeAgeBars": null,
+          "lookbackBars": 50,
+          "evaluatedAt": "2026-09-11T21:00:00.000Z"
+        },
+        "qualifyReason": "WAIT: OUTSIDE_LONDON.",
+        "status": "no_setup",
+        "instrument": "EUR_USD",
+        "pair": "EUR/USD",
+        "direction": null,
+        "timeframe": "1h",
+        "entry": null,
+        "stop": null,
+        "target": null,
+        "riskReward": null,
+        "positionSize": null,
+        "features": {
+          "trend15m": "mixed",
+          "trend1h": "bearish",
+          "trend4h": null,
+          "ema21": null,
+          "ema50": 1.1612313286048166,
+          "ema200": null,
+          "rsi14": null,
+          "atr14": 0.0009442373778665399,
+          "atrPips": 9.442373778665399,
+          "structureHighs": 0,
+          "structureLows": 0,
+          "evaluationMode": "live",
+          "eurusdStrategy": {
+            "strategyId": "eurusd_strategy",
+            "strategyName": "EURUSD London Breakout",
+            "strategyVersion": "v1",
+            "symbol": "EUR_USD",
+            "timeframe": "H1",
+            "session": "LONDON",
+            "setup": "A_LONDON_BO",
+            "signalDirection": null,
+            "entryReference": null,
+            "stopATR": 1,
+            "rewardR": 2,
+            "atr14": 0.0009442373778665399,
+            "ema20": 1.1603656172424999,
+            "ema50": 1.1612313286048166,
+            "asiaHigh": 1.16176,
+            "asiaLow": 1.15997,
+            "signalCandleTimestamp": "2026-09-11T20:00:00.000000000Z",
+            "body": 0.00032999999999994145,
+            "bullTrend": false,
+            "bearTrend": true,
+            "bullStructure": false,
+            "bearStructure": false,
+            "longSetup": false,
+            "shortSetup": false,
+            "sigA": 0,
+            "evtA": false,
+            "strategySetupQualified": false,
+            "strategyEventQualified": false,
+            "executionAllowed": false,
+            "executionBlockReason": "NO_STRATEGY_EVENT",
+            "reason": "WAIT: OUTSIDE_LONDON.",
+            "waitReason": "OUTSIDE_LONDON",
+            "signalKey": null
+          }
+        },
+        "summary": "EUR/USD WAIT: OUTSIDE_LONDON.",
+        "passedConditions": [
+          {
+            "name": "Symbol",
+            "passed": true,
+            "required": true,
+            "reason": "EURUSD_STRATEGY V1 is restricted to EUR_USD.",
+            "currentValue": "EUR_USD"
+          },
+          {
+            "name": "Timeframe",
+            "passed": true,
+            "required": true,
+            "reason": "EURUSD_STRATEGY V1 evaluates completed H1 candles only.",
+            "currentValue": "H1"
+          },
+          {
+            "name": "Completed candle",
+            "passed": true,
+            "required": true,
+            "reason": "A completed H1 candle is required.",
+            "currentValue": "2026-09-11T20:00:00.000000000Z"
+          },
+          {
+            "name": "Asia range",
+            "passed": true,
+            "required": true,
+            "reason": "The current UTC day's 00:00-06:00 Asia range must be complete.",
+            "currentValue": "1.15997-1.16176"
+          },
+          {
+            "name": "Indicators",
+            "passed": true,
+            "required": true,
+            "reason": "EMA20, EMA50, and Wilder ATR14 must be available.",
+            "currentValue": "1.1603656172424999/1.1612313286048166/0.0009442373778665399"
+          },
+          {
+            "name": "No active position",
+            "passed": true,
+            "required": true,
+            "reason": "Only one eurusd_strategy EUR_USD position may be active.",
+            "currentValue": "clear"
+          },
+          {
+            "name": "Numerical safety",
+            "passed": true,
+            "required": true,
+            "reason": "Entry, ATR, indicators, range, stop, and target must be finite and correctly ordered.",
+            "currentValue": "not applicable"
+          }
+        ],
+        "failedConditions": [
+          {
+            "name": "London window",
+            "passed": false,
+            "required": true,
+            "reason": "Signals are restricted to 06:00-11:00 UTC.",
+            "currentValue": "2026-09-11T20:00:00.000000000Z"
+          },
+          {
+            "name": "Asia breakout cross",
+            "passed": false,
+            "required": true,
+            "reason": "The close must cross the frozen Asia boundary on this candle.",
+            "currentValue": "none"
+          },
+          {
+            "name": "EMA trend",
+            "passed": false,
+            "required": true,
+            "reason": "EMA20 must be above EMA50 for a long or below EMA50 for a short.",
+            "currentValue": "bear"
+          },
+          {
+            "name": "Simple structure",
+            "passed": false,
+            "required": true,
+            "reason": "Longs require a higher high and higher low; shorts require a lower high and lower low.",
+            "currentValue": "none"
+          },
+          {
+            "name": "Body strength",
+            "passed": false,
+            "required": true,
+            "reason": "The signal candle body must be at least 0.35 ATR14.",
+            "currentValue": "0.3495 ATR"
+          },
+          {
+            "name": "Event edge",
+            "passed": false,
+            "required": true,
+            "reason": "sigA must be non-zero after a zero sigA bar.",
+            "currentValue": "none"
+          }
+        ],
+        "conditions": [
+          {
+            "name": "Symbol",
+            "passed": true,
+            "required": true,
+            "reason": "EURUSD_STRATEGY V1 is restricted to EUR_USD.",
+            "currentValue": "EUR_USD"
+          },
+          {
+            "name": "Timeframe",
+            "passed": true,
+            "required": true,
+            "reason": "EURUSD_STRATEGY V1 evaluates completed H1 candles only.",
+            "currentValue": "H1"
+          },
+          {
+            "name": "Completed candle",
+            "passed": true,
+            "required": true,
+            "reason": "A completed H1 candle is required.",
+            "currentValue": "2026-09-11T20:00:00.000000000Z"
+          },
+          {
+            "name": "Asia range",
+            "passed": true,
+            "required": true,
+            "reason": "The current UTC day's 00:00-06:00 Asia range must be complete.",
+            "currentValue": "1.15997-1.16176"
+          },
+          {
+            "name": "London window",
+            "passed": false,
+            "required": true,
+            "reason": "Signals are restricted to 06:00-11:00 UTC.",
+            "currentValue": "2026-09-11T20:00:00.000000000Z"
+          },
+          {
+            "name": "Indicators",
+            "passed": true,
+            "required": true,
+            "reason": "EMA20, EMA50, and Wilder ATR14 must be available.",
+            "currentValue": "1.1603656172424999/1.1612313286048166/0.0009442373778665399"
+          },
+          {
+            "name": "Asia breakout cross",
+            "passed": false,
+            "required": true,
+            "reason": "The close must cross the frozen Asia boundary on this candle.",
+            "currentValue": "none"
+          },
+          {
+            "name": "EMA trend",
+            "passed": false,
+            "required": true,
+            "reason": "EMA20 must be above EMA50 for a long or below EMA50 for a short.",
+            "currentValue": "bear"
+          },
+          {
+            "name": "Simple structure",
+            "passed": false,
+            "required": true,
+            "reason": "Longs require a higher high and higher low; shorts require a lower high and lower low.",
+            "currentValue": "none"
+          },
+          {
+            "name": "Body strength",
+            "passed": false,
+            "required": true,
+            "reason": "The signal candle body must be at least 0.35 ATR14.",
+            "currentValue": "0.3495 ATR"
+          },
+          {
+            "name": "Event edge",
+            "passed": false,
+            "required": true,
+            "reason": "sigA must be non-zero after a zero sigA bar.",
+            "currentValue": "none"
+          },
+          {
+            "name": "No active position",
+            "passed": true,
+            "required": true,
+            "reason": "Only one eurusd_strategy EUR_USD position may be active.",
+            "currentValue": "clear"
+          },
+          {
+            "name": "Numerical safety",
+            "passed": true,
+            "required": true,
+            "reason": "Entry, ATR, indicators, range, stop, and target must be finite and correctly ordered.",
+            "currentValue": "not applicable"
+          }
+        ],
+        "evaluatedAt": "2026-09-11T21:00:00.000Z",
+        "dataSource": "mock"
+      },
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "EUR_ZAR",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "GBP_AUD",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "GBP_CAD",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "GBP_CHF",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "GBP_HKD",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "GBP_JPY",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "GBP_NZD",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "GBP_PLN",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "GBP_SGD",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "GBP_USD",
+      "status": "NO_SETUP",
+      "strategyId": "gbpusd_strategy",
+      "reason": "WAIT: WRONG_ORIGIN.",
+      "score": null,
+      "candidate": {
+        "family": "gbpusd_strategy",
+        "version": "v2",
+        "configVersion": "gbpusd-dual-origin-v2",
+        "regime": {
+          "regime": "mixed",
+          "trendDirection": "up",
+          "trendStrength": 0,
+          "volatility": "normal",
+          "atr": 0.0007782802494883459,
+          "atrPips": 7.782802494883459,
+          "momentumState": "steady",
+          "emaFast": 1.3522264485222482,
+          "emaMid": 1.3520550861065648,
+          "emaSlow": null,
+          "slopeAtrPerBar": null,
+          "rangeHigh": null,
+          "rangeLow": null,
+          "rangeWidthAtr": null,
+          "rangeAgeBars": null,
+          "lookbackBars": 50,
+          "evaluatedAt": "2026-09-11T21:00:00.000Z"
+        },
+        "qualifyReason": "WAIT: WRONG_ORIGIN.",
+        "status": "no_setup",
+        "instrument": "GBP_USD",
+        "pair": "GBP/USD",
+        "direction": null,
+        "timeframe": "30m",
+        "entry": null,
+        "stop": null,
+        "target": null,
+        "riskReward": null,
+        "positionSize": null,
+        "features": {
+          "trend15m": "mixed",
+          "trend1h": null,
+          "trend4h": null,
+          "ema21": null,
+          "ema50": 1.3520550861065648,
+          "ema200": null,
+          "rsi14": null,
+          "atr14": 0.0007782802494883459,
+          "atrPips": 7.782802494883459,
+          "structureHighs": 0,
+          "structureLows": 0,
+          "evaluationMode": "live",
+          "newsStatus": "calendar_unavailable",
+          "gbpusdStrategy": {
+            "strategyId": "gbpusd_strategy",
+            "strategyName": "GBPUSD 30M Dual-Origin V2 Independent Legs",
+            "strategyVersion": "v2",
+            "symbol": "GBP_USD",
+            "timeframe": "M30",
+            "origin": null,
+            "originCode": null,
+            "signalLabel": null,
+            "signalTimeUtc": "2026-09-11T21:00:00.000Z",
+            "entryTimeUtc": null,
+            "signalCandleTimestamp": "2026-09-11T20:30:00.000000000Z",
+            "signalClose": null,
+            "intendedEntry": null,
+            "actualEntry": null,
+            "bid": 1.35242,
+            "ask": 1.35286,
+            "spreadPips": 4.3999999999999595,
+            "slippage": null,
+            "ema20": 1.3522264485222482,
+            "ema50": 1.3520550861065648,
+            "atr14": 0.0007782802494883459,
+            "entryATR": null,
+            "preRangeHigh": null,
+            "preRangeLow": null,
+            "rangeBars": 0,
+            "expectedRangeBars": 0,
+            "rangeReady": false,
+            "breakoutDistance": null,
+            "penetration": null,
+            "extremeClose": false,
+            "confidenceTag": "BASE",
+            "trend": "LONG",
+            "breakout": false,
+            "rawSignal": false,
+            "signalCandle": {
+              "open": 1.35262,
+              "high": 1.35278,
+              "low": 1.35225,
+              "close": 1.35264
+            },
+            "stopLoss": null,
+            "takeProfit": null,
+            "maxHoldBars": 6,
+            "plannedExpirationUtc": null,
+            "actualExit": null,
+            "exitTimeUtc": null,
+            "exitReason": null,
+            "realizedPnL": null,
+            "realizedR": null,
+            "brokerOrderId": null,
+            "brokerTradeId": null,
+            "waitReason": "WRONG_ORIGIN",
+            "signalKey": null
+          }
+        },
+        "summary": "GBP/USD WAIT: WRONG_ORIGIN.",
+        "passedConditions": [
+          {
+            "name": "Symbol",
+            "passed": true,
+            "required": true,
+            "reason": "gbpusd_strategy is restricted to GBP_USD.",
+            "currentValue": "GBP_USD"
+          },
+          {
+            "name": "Timeframe",
+            "passed": true,
+            "required": true,
+            "reason": "Only completed M30 candles are eligible.",
+            "currentValue": "M30"
+          },
+          {
+            "name": "Enabled leg",
+            "passed": true,
+            "required": true,
+            "reason": "Both independent origins allow long and short legs.",
+            "currentValue": "enabled"
+          },
+          {
+            "name": "EMA20 vs EMA50",
+            "passed": true,
+            "required": true,
+            "reason": "EMA20 must differ from EMA50.",
+            "currentValue": "LONG"
+          },
+          {
+            "name": "Wilder ATR14",
+            "passed": true,
+            "required": true,
+            "reason": "ATR14 must be finite and positive at the origin close.",
+            "currentValue": "0.0007782802494883459"
+          },
+          {
+            "name": "Numerical safety",
+            "passed": true,
+            "required": true,
+            "reason": "Entry, frozen ATR, stop, and target must be finite and ordered.",
+            "currentValue": "not applicable"
+          }
+        ],
+        "failedConditions": [
+          {
+            "name": "Origin",
+            "passed": false,
+            "required": true,
+            "reason": "Only completed 10:30 and 11:00 UTC origin candles may signal.",
+            "currentValue": "none"
+          },
+          {
+            "name": "Causal pre-range",
+            "passed": false,
+            "required": true,
+            "reason": "Every exact 06:00-to-origin M30 slot is required and the origin candle is excluded.",
+            "currentValue": "0/0"
+          },
+          {
+            "name": "Close breakout",
+            "passed": false,
+            "required": true,
+            "reason": "The origin close—not merely its wick—must clear the causal range in the EMA direction.",
+            "currentValue": "none"
+          },
+          {
+            "name": "Market data",
+            "passed": false,
+            "required": true,
+            "reason": "Live OANDA candle history is unavailable or incomplete.",
+            "currentValue": "260/260/260 candles"
+          },
+          {
+            "name": "Session",
+            "passed": false,
+            "required": true,
+            "reason": "Entries are limited to the London and New York sessions and close at 16:45 ET.",
+            "currentValue": "Forex market closed"
+          },
+          {
+            "name": "Spread",
+            "passed": false,
+            "required": true,
+            "reason": "Spread too wide.",
+            "currentValue": "4.4 / 2.0 pips"
+          },
+          {
+            "name": "News",
+            "passed": false,
+            "required": true,
+            "reason": "Economic calendar is unavailable or stale; entries pause until the 30-minute news buffer can be verified.",
+            "currentValue": "calendar_unavailable"
+          }
+        ],
+        "conditions": [
+          {
+            "name": "Symbol",
+            "passed": true,
+            "required": true,
+            "reason": "gbpusd_strategy is restricted to GBP_USD.",
+            "currentValue": "GBP_USD"
+          },
+          {
+            "name": "Timeframe",
+            "passed": true,
+            "required": true,
+            "reason": "Only completed M30 candles are eligible.",
+            "currentValue": "M30"
+          },
+          {
+            "name": "Origin",
+            "passed": false,
+            "required": true,
+            "reason": "Only completed 10:30 and 11:00 UTC origin candles may signal.",
+            "currentValue": "none"
+          },
+          {
+            "name": "Enabled leg",
+            "passed": true,
+            "required": true,
+            "reason": "Both independent origins allow long and short legs.",
+            "currentValue": "enabled"
+          },
+          {
+            "name": "Causal pre-range",
+            "passed": false,
+            "required": true,
+            "reason": "Every exact 06:00-to-origin M30 slot is required and the origin candle is excluded.",
+            "currentValue": "0/0"
+          },
+          {
+            "name": "EMA20 vs EMA50",
+            "passed": true,
+            "required": true,
+            "reason": "EMA20 must differ from EMA50.",
+            "currentValue": "LONG"
+          },
+          {
+            "name": "Wilder ATR14",
+            "passed": true,
+            "required": true,
+            "reason": "ATR14 must be finite and positive at the origin close.",
+            "currentValue": "0.0007782802494883459"
+          },
+          {
+            "name": "Close breakout",
+            "passed": false,
+            "required": true,
+            "reason": "The origin close—not merely its wick—must clear the causal range in the EMA direction.",
+            "currentValue": "none"
+          },
+          {
+            "name": "Numerical safety",
+            "passed": true,
+            "required": true,
+            "reason": "Entry, frozen ATR, stop, and target must be finite and ordered.",
+            "currentValue": "not applicable"
+          },
+          {
+            "name": "Market data",
+            "passed": false,
+            "required": true,
+            "reason": "Live OANDA candle history is unavailable or incomplete.",
+            "currentValue": "260/260/260 candles"
+          },
+          {
+            "name": "Session",
+            "passed": false,
+            "required": true,
+            "reason": "Entries are limited to the London and New York sessions and close at 16:45 ET.",
+            "currentValue": "Forex market closed"
+          },
+          {
+            "name": "Spread",
+            "passed": false,
+            "required": true,
+            "reason": "Spread too wide.",
+            "currentValue": "4.4 / 2.0 pips"
+          },
+          {
+            "name": "News",
+            "passed": false,
+            "required": true,
+            "reason": "Economic calendar is unavailable or stale; entries pause until the 30-minute news buffer can be verified.",
+            "currentValue": "calendar_unavailable"
+          }
+        ],
+        "evaluatedAt": "2026-09-11T21:00:00.000Z",
+        "dataSource": "mock"
+      },
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "GBP_ZAR",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "HKD_JPY",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "NZD_CAD",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "NZD_CHF",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "NZD_HKD",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "NZD_JPY",
+      "status": "NO_SETUP",
+      "strategyId": "nzdjpy_strategy",
+      "reason": "NZDJPY Pine signal did not qualify.",
+      "score": null,
+      "candidate": {
+        "family": "nzdjpy_strategy",
+        "version": "V1",
+        "configVersion": "nzdjpy-v1-frozen",
+        "regime": {
+          "regime": "mixed",
+          "trendDirection": "down",
+          "trendStrength": 0,
+          "volatility": "normal",
+          "atr": 0.13244759047399896,
+          "atrPips": 13.244759047399896,
+          "momentumState": "steady",
+          "emaFast": 89.51097436048016,
+          "emaMid": 89.66778383809422,
+          "emaSlow": null,
+          "slopeAtrPerBar": null,
+          "rangeHigh": null,
+          "rangeLow": null,
+          "rangeWidthAtr": null,
+          "rangeAgeBars": null,
+          "lookbackBars": 50,
+          "evaluatedAt": "2026-09-11T21:00:00.000Z"
+        },
+        "qualifyReason": "NZDJPY Pine signal did not qualify.",
+        "status": "no_setup",
+        "instrument": "NZD_JPY",
+        "pair": "NZD/JPY",
+        "direction": null,
+        "timeframe": "1h",
+        "entry": null,
+        "stop": null,
+        "target": null,
+        "riskReward": null,
+        "positionSize": null,
+        "features": {
+          "trend15m": "mixed",
+          "trend1h": "bearish",
+          "trend4h": null,
+          "ema21": null,
+          "ema50": 89.66778383809422,
+          "ema200": null,
+          "rsi14": null,
+          "atr14": 0.13244759047399896,
+          "atrPips": 13.244759047399896,
+          "structureHighs": 0,
+          "structureLows": 0,
+          "evaluationMode": "live",
+          "nzdjpyStrategy": {
+            "strategyId": "nzdjpy_strategy",
+            "strategyName": "NZDJPY 23UTC Bull Break V1",
+            "strategyVersion": "V1",
+            "symbol": "NZD_JPY",
+            "timeframe": "H1",
+            "signalKey": null,
+            "originTime": "2026-09-11T20:00:00.000000000Z",
+            "signalMidClose": null,
+            "actualExecutableEntry": null,
+            "frozenAtr14": 0.13244759047399896,
+            "pineReferenceStop": null,
+            "pineReferenceTarget": null,
+            "executableStop": null,
+            "executableTarget": null,
+            "ema20": 89.51097436048016,
+            "ema50": 89.66778383809422,
+            "voteTrend": -1,
+            "votePrice": -1,
+            "voteSlope": -1,
+            "voteMomentum": -1,
+            "consensus": -4,
+            "bullBody": false,
+            "bodyR": 0.7399153102693669,
+            "closeLocation": 0.22535211267611555,
+            "previousHigh": 89.412,
+            "breakDistanceR": -1.192924683903695,
+            "strategySignalQualified": false,
+            "executionAllowed": false,
+            "executionBlockReason": "NO_STRATEGY_SIGNAL",
+            "maxHoldBars": 3
+          }
+        },
+        "summary": "NZDJPY 23UTC Bull Break V1 WAIT.",
+        "passedConditions": [
+          {
+            "name": "Pine history",
+            "passed": true,
+            "reason": "EMA20, EMA50, EMA20[3], close[3], high[1], and positive Wilder ATR14 are required.",
+            "currentValue": "0.13244759047399896",
+            "required": true
+          },
+          {
+            "name": "Pine body strength",
+            "passed": true,
+            "reason": "Absolute body must be at least 0.50 ATR14.",
+            "currentValue": "0.739915",
+            "required": true
+          },
+          {
+            "name": "Execution instrument",
+            "passed": true,
+            "reason": "Runtime may execute this evaluator only for NZD_JPY.",
+            "currentValue": "NZD_JPY",
+            "required": false
+          },
+          {
+            "name": "Execution timeframe",
+            "passed": true,
+            "reason": "Runtime requires H1 data.",
+            "currentValue": "H1",
+            "required": false
+          },
+          {
+            "name": "Execution duplicate protection",
+            "passed": true,
+            "reason": "The same completed 23:00 candle can be submitted once.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution NZDJPY position",
+            "passed": true,
+            "reason": "Pyramiding is disabled only for NZDJPY V1.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution OANDA ASK",
+            "passed": true,
+            "reason": "A valid executable ASK is required to submit a long practice order.",
+            "currentValue": "89.309",
+            "required": false
+          }
+        ],
+        "failedConditions": [
+          {
+            "name": "Pine completed 23:00 UTC origin",
+            "passed": false,
+            "reason": "The completed candle labelled 23:00 UTC is the only Pine origin.",
+            "currentValue": "2026-09-11T20:00:00.000000000Z",
+            "required": true
+          },
+          {
+            "name": "Pine consensus",
+            "passed": false,
+            "reason": "The four Pine votes must total +3 or +4.",
+            "currentValue": "-4",
+            "required": true
+          },
+          {
+            "name": "Pine bullish body",
+            "passed": false,
+            "reason": "close must be greater than open.",
+            "currentValue": "not bullish",
+            "required": true
+          },
+          {
+            "name": "Pine upper 25% close",
+            "passed": false,
+            "reason": "Close must be in the upper 25% of its range.",
+            "currentValue": "0.225352",
+            "required": true
+          },
+          {
+            "name": "Pine previous-high break",
+            "passed": false,
+            "reason": "Close must be at least 0.10 ATR14 above high[1].",
+            "currentValue": "-1.192925",
+            "required": true
+          },
+          {
+            "name": "Strategy signal qualified",
+            "passed": false,
+            "reason": "Exact Pine result, without execution policy.",
+            "currentValue": "not qualified",
+            "required": true
+          },
+          {
+            "name": "Execution OANDA connection",
+            "passed": false,
+            "reason": "A connected OANDA candle/quote source is required to submit a practice order.",
+            "currentValue": "mock",
+            "required": false
+          }
+        ],
+        "conditions": [
+          {
+            "name": "Pine completed 23:00 UTC origin",
+            "passed": false,
+            "reason": "The completed candle labelled 23:00 UTC is the only Pine origin.",
+            "currentValue": "2026-09-11T20:00:00.000000000Z",
+            "required": true
+          },
+          {
+            "name": "Pine history",
+            "passed": true,
+            "reason": "EMA20, EMA50, EMA20[3], close[3], high[1], and positive Wilder ATR14 are required.",
+            "currentValue": "0.13244759047399896",
+            "required": true
+          },
+          {
+            "name": "Pine consensus",
+            "passed": false,
+            "reason": "The four Pine votes must total +3 or +4.",
+            "currentValue": "-4",
+            "required": true
+          },
+          {
+            "name": "Pine bullish body",
+            "passed": false,
+            "reason": "close must be greater than open.",
+            "currentValue": "not bullish",
+            "required": true
+          },
+          {
+            "name": "Pine body strength",
+            "passed": true,
+            "reason": "Absolute body must be at least 0.50 ATR14.",
+            "currentValue": "0.739915",
+            "required": true
+          },
+          {
+            "name": "Pine upper 25% close",
+            "passed": false,
+            "reason": "Close must be in the upper 25% of its range.",
+            "currentValue": "0.225352",
+            "required": true
+          },
+          {
+            "name": "Pine previous-high break",
+            "passed": false,
+            "reason": "Close must be at least 0.10 ATR14 above high[1].",
+            "currentValue": "-1.192925",
+            "required": true
+          },
+          {
+            "name": "Strategy signal qualified",
+            "passed": false,
+            "reason": "Exact Pine result, without execution policy.",
+            "currentValue": "not qualified",
+            "required": true
+          },
+          {
+            "name": "Execution instrument",
+            "passed": true,
+            "reason": "Runtime may execute this evaluator only for NZD_JPY.",
+            "currentValue": "NZD_JPY",
+            "required": false
+          },
+          {
+            "name": "Execution timeframe",
+            "passed": true,
+            "reason": "Runtime requires H1 data.",
+            "currentValue": "H1",
+            "required": false
+          },
+          {
+            "name": "Execution duplicate protection",
+            "passed": true,
+            "reason": "The same completed 23:00 candle can be submitted once.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution NZDJPY position",
+            "passed": true,
+            "reason": "Pyramiding is disabled only for NZDJPY V1.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution OANDA connection",
+            "passed": false,
+            "reason": "A connected OANDA candle/quote source is required to submit a practice order.",
+            "currentValue": "mock",
+            "required": false
+          },
+          {
+            "name": "Execution OANDA ASK",
+            "passed": true,
+            "reason": "A valid executable ASK is required to submit a long practice order.",
+            "currentValue": "89.309",
+            "required": false
+          }
+        ],
+        "evaluatedAt": "2026-09-11T21:00:00.000Z",
+        "dataSource": "mock"
+      },
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "NZD_SGD",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "NZD_USD",
+      "status": "NO_SETUP",
+      "strategyId": "nzdusd_consensus_strategy",
+      "reason": "NZDUSD Pine signal did not qualify.",
+      "score": null,
+      "candidate": {
+        "family": "nzdusd_consensus_strategy",
+        "version": "V1",
+        "configVersion": "nzdusd-consensus-v1-frozen",
+        "regime": {
+          "regime": "mixed",
+          "trendDirection": "down",
+          "trendStrength": 0,
+          "volatility": "normal",
+          "atr": 0.0007970186659027139,
+          "atrPips": 7.970186659027139,
+          "momentumState": "steady",
+          "emaFast": 0.5818573187049413,
+          "emaMid": 0.5825494009372495,
+          "emaSlow": null,
+          "slopeAtrPerBar": null,
+          "rangeHigh": null,
+          "rangeLow": null,
+          "rangeWidthAtr": null,
+          "rangeAgeBars": null,
+          "lookbackBars": 50,
+          "evaluatedAt": "2026-09-11T21:00:00.000Z"
+        },
+        "qualifyReason": "NZDUSD Pine signal did not qualify.",
+        "status": "no_setup",
+        "instrument": "NZD_USD",
+        "pair": "NZD/USD",
+        "direction": null,
+        "timeframe": "1h",
+        "entry": null,
+        "stop": null,
+        "target": null,
+        "riskReward": null,
+        "positionSize": null,
+        "features": {
+          "trend15m": "mixed",
+          "trend1h": "bearish",
+          "trend4h": null,
+          "ema21": null,
+          "ema50": 0.5825494009372495,
+          "ema200": null,
+          "rsi14": null,
+          "atr14": 0.0007970186659027139,
+          "atrPips": 7.970186659027139,
+          "structureHighs": 0,
+          "structureLows": 0,
+          "evaluationMode": "live",
+          "nzdusdConsensusStrategy": {
+            "strategyId": "nzdusd_consensus_strategy",
+            "strategyName": "NZDUSD Bull Consensus Structure V1",
+            "strategyVersion": "V1",
+            "symbol": "NZD_USD",
+            "timeframe": "H1",
+            "signalKey": null,
+            "originTime": "2026-09-11T20:00:00.000000000Z",
+            "signalMidClose": null,
+            "actualExecutableEntry": null,
+            "frozenAtr14": 0.0007970186659027139,
+            "pineReferenceStop": null,
+            "pineReferenceTarget": null,
+            "executableStop": null,
+            "executableTarget": null,
+            "ema20": 0.5818573187049413,
+            "ema50": 0.5825494009372495,
+            "ema20Back": 0.5820309037070216,
+            "closeThreeBarsAgo": 0.58172,
+            "voteTrend": -1,
+            "votePrice": -1,
+            "voteSlope": -1,
+            "voteMomentum": -1,
+            "consensus": -4,
+            "currentHigh": 0.58142,
+            "previousHigh": 0.58158,
+            "currentLow": 0.5811,
+            "previousLow": 0.5812,
+            "higherHigh": false,
+            "higherLow": false,
+            "bullStructure": false,
+            "strategySignalQualified": false,
+            "executionAllowed": false,
+            "executionBlockReason": "NO_STRATEGY_SIGNAL",
+            "maxHoldBars": 3
+          }
+        },
+        "summary": "NZDUSD Bull Consensus Structure V1 WAIT.",
+        "passedConditions": [
+          {
+            "name": "Pine NZDUSD instrument",
+            "passed": true,
+            "reason": "NZD_USD only.",
+            "currentValue": "NZD_USD",
+            "required": true
+          },
+          {
+            "name": "Pine H1",
+            "passed": true,
+            "reason": "H1 only.",
+            "currentValue": "H1",
+            "required": true
+          },
+          {
+            "name": "Execution duplicate protection",
+            "passed": true,
+            "reason": "Same origin submits once.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution NZDUSD position",
+            "passed": true,
+            "reason": "Pyramiding scoped to NZDUSD V1.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution OANDA ASK",
+            "passed": true,
+            "reason": "Valid ASK required.",
+            "currentValue": "0.58157",
+            "required": false
+          }
+        ],
+        "failedConditions": [
+          {
+            "name": "Pine completed 11:00 UTC origin",
+            "passed": false,
+            "reason": "Completed 11:00 after frozen start date.",
+            "currentValue": "2026-09-11T20:00:00.000000000Z",
+            "required": true
+          },
+          {
+            "name": "Pine consensus",
+            "passed": false,
+            "reason": "Four votes must total +3 or +4.",
+            "currentValue": "-4",
+            "required": true
+          },
+          {
+            "name": "Pine bull structure",
+            "passed": false,
+            "reason": "Strict high > high[1] AND low > low[1].",
+            "currentValue": "0.58142/0.5811",
+            "required": true
+          },
+          {
+            "name": "Strategy signal qualified",
+            "passed": false,
+            "reason": "Exact Pine result without policy.",
+            "currentValue": "not qualified",
+            "required": true
+          },
+          {
+            "name": "Execution OANDA connection",
+            "passed": false,
+            "reason": "Connected OANDA data required.",
+            "currentValue": "mock",
+            "required": false
+          }
+        ],
+        "conditions": [
+          {
+            "name": "Pine NZDUSD instrument",
+            "passed": true,
+            "reason": "NZD_USD only.",
+            "currentValue": "NZD_USD",
+            "required": true
+          },
+          {
+            "name": "Pine H1",
+            "passed": true,
+            "reason": "H1 only.",
+            "currentValue": "H1",
+            "required": true
+          },
+          {
+            "name": "Pine completed 11:00 UTC origin",
+            "passed": false,
+            "reason": "Completed 11:00 after frozen start date.",
+            "currentValue": "2026-09-11T20:00:00.000000000Z",
+            "required": true
+          },
+          {
+            "name": "Pine consensus",
+            "passed": false,
+            "reason": "Four votes must total +3 or +4.",
+            "currentValue": "-4",
+            "required": true
+          },
+          {
+            "name": "Pine bull structure",
+            "passed": false,
+            "reason": "Strict high > high[1] AND low > low[1].",
+            "currentValue": "0.58142/0.5811",
+            "required": true
+          },
+          {
+            "name": "Strategy signal qualified",
+            "passed": false,
+            "reason": "Exact Pine result without policy.",
+            "currentValue": "not qualified",
+            "required": true
+          },
+          {
+            "name": "Execution duplicate protection",
+            "passed": true,
+            "reason": "Same origin submits once.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution NZDUSD position",
+            "passed": true,
+            "reason": "Pyramiding scoped to NZDUSD V1.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution OANDA connection",
+            "passed": false,
+            "reason": "Connected OANDA data required.",
+            "currentValue": "mock",
+            "required": false
+          },
+          {
+            "name": "Execution OANDA ASK",
+            "passed": true,
+            "reason": "Valid ASK required.",
+            "currentValue": "0.58157",
+            "required": false
+          }
+        ],
+        "evaluatedAt": "2026-09-11T21:00:00.000Z",
+        "dataSource": "mock"
+      },
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "SGD_CHF",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "SGD_JPY",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "TRY_JPY",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "USD_CAD",
+      "status": "NO_SETUP",
+      "strategyId": "usdcad_strategy",
+      "reason": "USDCAD Pine signal did not qualify.",
+      "score": null,
+      "candidate": {
+        "family": "usdcad_strategy",
+        "version": "V3",
+        "configVersion": "usdcad-v3-frozen",
+        "regime": {
+          "regime": "mixed",
+          "trendDirection": "up",
+          "trendStrength": 0,
+          "volatility": "normal",
+          "atr": 0.0010089755106218689,
+          "atrPips": 10.089755106218687,
+          "momentumState": "steady",
+          "emaFast": 1.3855222651637245,
+          "emaMid": null,
+          "emaSlow": null,
+          "slopeAtrPerBar": null,
+          "rangeHigh": null,
+          "rangeLow": null,
+          "rangeWidthAtr": null,
+          "rangeAgeBars": null,
+          "lookbackBars": 20,
+          "evaluatedAt": "2026-09-11T21:00:00.000Z"
+        },
+        "qualifyReason": "USDCAD Pine signal did not qualify.",
+        "status": "no_setup",
+        "instrument": "USD_CAD",
+        "pair": "USD/CAD",
+        "direction": null,
+        "timeframe": "1h",
+        "entry": null,
+        "stop": null,
+        "target": null,
+        "riskReward": null,
+        "positionSize": null,
+        "features": {
+          "trend15m": "mixed",
+          "trend1h": "bullish",
+          "trend4h": null,
+          "ema21": null,
+          "ema50": null,
+          "ema200": null,
+          "rsi14": null,
+          "atr14": 0.0010089755106218689,
+          "atrPips": 10.089755106218687,
+          "structureHighs": 0,
+          "structureLows": 0,
+          "evaluationMode": "live",
+          "usdcadStrategy": {
+            "strategyId": "usdcad_strategy",
+            "strategyName": "USDCAD Structure EMA Reclaim V3 11:00 LONG Only",
+            "strategyVersion": "V3",
+            "symbol": "USD_CAD",
+            "timeframe": "H1",
+            "signalKey": null,
+            "originTime": "2026-09-11T20:00:00.000000000Z",
+            "signalMidClose": null,
+            "actualExecutableEntry": null,
+            "frozenAtr14": 0.0010089755106218689,
+            "pineReferenceStop": null,
+            "pineReferenceTarget": null,
+            "executableStop": null,
+            "executableTarget": null,
+            "currentHigh": 1.38743,
+            "previousHigh": 1.3871,
+            "currentLow": 1.38634,
+            "previousLow": 1.38643,
+            "ema20Current": 1.3855222651637245,
+            "ema20Previous": 1.38534355623359,
+            "closeCurrent": 1.38722,
+            "closePrevious": 1.38649,
+            "bullStructure": false,
+            "longReclaim": false,
+            "emaPenetrationR": 1.6826323517297932,
+            "emaPenLong": true,
+            "closeLocation": 0.8073394495412508,
+            "extremeLong": true,
+            "highConfidenceLong": false,
+            "signalTag": null,
+            "strategySignalQualified": false,
+            "executionAllowed": false,
+            "executionBlockReason": "NO_STRATEGY_SIGNAL",
+            "maxHoldBars": 3
+          }
+        },
+        "summary": "USDCAD Structure EMA Reclaim V3 WAIT.",
+        "passedConditions": [
+          {
+            "name": "Pine USD_CAD instrument",
+            "passed": true,
+            "reason": "USD_CAD only.",
+            "currentValue": "USD_CAD",
+            "required": true
+          },
+          {
+            "name": "Pine H1",
+            "passed": true,
+            "reason": "H1 only.",
+            "currentValue": "H1",
+            "required": true
+          },
+          {
+            "name": "Pine history",
+            "passed": true,
+            "reason": "EMA20 current/previous, ATR and prior H/L/C required.",
+            "currentValue": "0.0010089755106218689",
+            "required": true
+          },
+          {
+            "name": "Execution duplicate protection",
+            "passed": true,
+            "reason": "Same origin submits once.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution USDCAD position",
+            "passed": true,
+            "reason": "Pyramiding scoped to USDCAD V3.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution OANDA ASK",
+            "passed": true,
+            "reason": "Valid ASK required for a long.",
+            "currentValue": "1.38741",
+            "required": false
+          }
+        ],
+        "failedConditions": [
+          {
+            "name": "Pine completed 11:00 UTC origin",
+            "passed": false,
+            "reason": "Only completed 11:00 may signal.",
+            "currentValue": "2026-09-11T20:00:00.000000000Z",
+            "required": true
+          },
+          {
+            "name": "Pine HH + HL",
+            "passed": false,
+            "reason": "Strict high > high[1] and low > low[1].",
+            "currentValue": "1.38743/1.38634",
+            "required": true
+          },
+          {
+            "name": "Pine EMA reclaim",
+            "passed": false,
+            "reason": "close[1] <= EMA20[1] and close > EMA20.",
+            "currentValue": "1.38649/1.38722",
+            "required": true
+          },
+          {
+            "name": "Strategy signal qualified",
+            "passed": false,
+            "reason": "Exact rawLongSignal; PEN/extreme do not gate entry.",
+            "currentValue": "not qualified",
+            "required": true
+          },
+          {
+            "name": "Execution OANDA connection",
+            "passed": false,
+            "reason": "Connected OANDA data required.",
+            "currentValue": "mock",
+            "required": false
+          }
+        ],
+        "conditions": [
+          {
+            "name": "Pine USD_CAD instrument",
+            "passed": true,
+            "reason": "USD_CAD only.",
+            "currentValue": "USD_CAD",
+            "required": true
+          },
+          {
+            "name": "Pine H1",
+            "passed": true,
+            "reason": "H1 only.",
+            "currentValue": "H1",
+            "required": true
+          },
+          {
+            "name": "Pine completed 11:00 UTC origin",
+            "passed": false,
+            "reason": "Only completed 11:00 may signal.",
+            "currentValue": "2026-09-11T20:00:00.000000000Z",
+            "required": true
+          },
+          {
+            "name": "Pine history",
+            "passed": true,
+            "reason": "EMA20 current/previous, ATR and prior H/L/C required.",
+            "currentValue": "0.0010089755106218689",
+            "required": true
+          },
+          {
+            "name": "Pine HH + HL",
+            "passed": false,
+            "reason": "Strict high > high[1] and low > low[1].",
+            "currentValue": "1.38743/1.38634",
+            "required": true
+          },
+          {
+            "name": "Pine EMA reclaim",
+            "passed": false,
+            "reason": "close[1] <= EMA20[1] and close > EMA20.",
+            "currentValue": "1.38649/1.38722",
+            "required": true
+          },
+          {
+            "name": "Strategy signal qualified",
+            "passed": false,
+            "reason": "Exact rawLongSignal; PEN/extreme do not gate entry.",
+            "currentValue": "not qualified",
+            "required": true
+          },
+          {
+            "name": "Execution duplicate protection",
+            "passed": true,
+            "reason": "Same origin submits once.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution USDCAD position",
+            "passed": true,
+            "reason": "Pyramiding scoped to USDCAD V3.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution OANDA connection",
+            "passed": false,
+            "reason": "Connected OANDA data required.",
+            "currentValue": "mock",
+            "required": false
+          },
+          {
+            "name": "Execution OANDA ASK",
+            "passed": true,
+            "reason": "Valid ASK required for a long.",
+            "currentValue": "1.38741",
+            "required": false
+          }
+        ],
+        "evaluatedAt": "2026-09-11T21:00:00.000Z",
+        "dataSource": "mock"
+      },
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "USD_CHF",
+      "status": "NO_SETUP",
+      "strategyId": "usdchf_strategy",
+      "reason": "USDCHF Pine signal did not qualify.",
+      "score": null,
+      "candidate": {
+        "family": "usdchf_strategy",
+        "version": "V1",
+        "configVersion": "usdchf-v1-frozen",
+        "regime": {
+          "regime": "mixed",
+          "trendDirection": "up",
+          "trendStrength": 0,
+          "volatility": "normal",
+          "atr": 0.0009716888241976743,
+          "atrPips": 9.716888241976742,
+          "momentumState": "steady",
+          "emaFast": 0.8149240471242022,
+          "emaMid": 0.8131238500857063,
+          "emaSlow": null,
+          "slopeAtrPerBar": null,
+          "rangeHigh": null,
+          "rangeLow": null,
+          "rangeWidthAtr": null,
+          "rangeAgeBars": null,
+          "lookbackBars": 50,
+          "evaluatedAt": "2026-09-11T21:00:00.000Z"
+        },
+        "qualifyReason": "USDCHF Pine signal did not qualify.",
+        "status": "no_setup",
+        "instrument": "USD_CHF",
+        "pair": "USD/CHF",
+        "direction": null,
+        "timeframe": "1h",
+        "entry": null,
+        "stop": null,
+        "target": null,
+        "riskReward": null,
+        "positionSize": null,
+        "features": {
+          "trend15m": "mixed",
+          "trend1h": "bullish",
+          "trend4h": null,
+          "ema21": null,
+          "ema50": 0.8131238500857063,
+          "ema200": null,
+          "rsi14": null,
+          "atr14": 0.0009716888241976743,
+          "atrPips": 9.716888241976742,
+          "structureHighs": 0,
+          "structureLows": 0,
+          "evaluationMode": "live",
+          "usdchfStrategy": {
+            "strategyId": "usdchf_strategy",
+            "strategyName": "USDCHF Bear Consensus Structure V1",
+            "strategyVersion": "V1",
+            "symbol": "USD_CHF",
+            "timeframe": "H1",
+            "signalKey": null,
+            "originTime": "2026-09-11T20:00:00.000000000Z",
+            "signalMidClose": null,
+            "actualExecutableEntry": null,
+            "frozenAtr14": 0.0009716888241976743,
+            "pineReferenceStop": null,
+            "pineReferenceTarget": null,
+            "executableStop": null,
+            "executableTarget": null,
+            "ema20": 0.8149240471242022,
+            "ema50": 0.8131238500857063,
+            "ema20Back": 0.8143355183579583,
+            "voteTrend": 1,
+            "votePrice": 1,
+            "voteSlope": 1,
+            "voteMomentum": 1,
+            "consensus": 4,
+            "currentHigh": 0.81684,
+            "previousHigh": 0.8169,
+            "currentLow": 0.81638,
+            "previousLow": 0.81651,
+            "bearStructure": true,
+            "strategySignalQualified": false,
+            "executionAllowed": false,
+            "executionBlockReason": "NO_STRATEGY_SIGNAL",
+            "maxHoldBars": 3
+          }
+        },
+        "summary": "USDCHF Bear Consensus Structure V1 WAIT.",
+        "passedConditions": [
+          {
+            "name": "Pine USDCHF instrument",
+            "passed": true,
+            "reason": "USDCHF only.",
+            "currentValue": "USD_CHF",
+            "required": true
+          },
+          {
+            "name": "Pine H1",
+            "passed": true,
+            "reason": "H1 only.",
+            "currentValue": "H1",
+            "required": true
+          },
+          {
+            "name": "Pine history",
+            "passed": true,
+            "reason": "EMA20/50, EMA20[3], close[3], high/low[1], and ATR14 required.",
+            "currentValue": "0.0009716888241976743",
+            "required": true
+          },
+          {
+            "name": "Pine bear structure",
+            "passed": true,
+            "reason": "Strict high < high[1] AND low < low[1].",
+            "currentValue": "0.81684/0.81638",
+            "required": true
+          },
+          {
+            "name": "Execution duplicate protection",
+            "passed": true,
+            "reason": "Same 11:00 origin submits once.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution USDCHF position",
+            "passed": true,
+            "reason": "Pyramiding is scoped to USDCHF V1.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution OANDA BID",
+            "passed": true,
+            "reason": "Valid BID required for a short.",
+            "currentValue": "0.81637",
+            "required": false
+          }
+        ],
+        "failedConditions": [
+          {
+            "name": "Pine completed 11:00 UTC origin",
+            "passed": false,
+            "reason": "Only the completed 11:00 candle after the frozen start time may signal.",
+            "currentValue": "2026-09-11T20:00:00.000000000Z",
+            "required": true
+          },
+          {
+            "name": "Pine consensus",
+            "passed": false,
+            "reason": "Four votes must total -3 or -4.",
+            "currentValue": "4",
+            "required": true
+          },
+          {
+            "name": "Strategy signal qualified",
+            "passed": false,
+            "reason": "Exact Pine result without execution policy.",
+            "currentValue": "not qualified",
+            "required": true
+          },
+          {
+            "name": "Execution OANDA connection",
+            "passed": false,
+            "reason": "Connected OANDA data required.",
+            "currentValue": "mock",
+            "required": false
+          }
+        ],
+        "conditions": [
+          {
+            "name": "Pine USDCHF instrument",
+            "passed": true,
+            "reason": "USDCHF only.",
+            "currentValue": "USD_CHF",
+            "required": true
+          },
+          {
+            "name": "Pine H1",
+            "passed": true,
+            "reason": "H1 only.",
+            "currentValue": "H1",
+            "required": true
+          },
+          {
+            "name": "Pine completed 11:00 UTC origin",
+            "passed": false,
+            "reason": "Only the completed 11:00 candle after the frozen start time may signal.",
+            "currentValue": "2026-09-11T20:00:00.000000000Z",
+            "required": true
+          },
+          {
+            "name": "Pine history",
+            "passed": true,
+            "reason": "EMA20/50, EMA20[3], close[3], high/low[1], and ATR14 required.",
+            "currentValue": "0.0009716888241976743",
+            "required": true
+          },
+          {
+            "name": "Pine consensus",
+            "passed": false,
+            "reason": "Four votes must total -3 or -4.",
+            "currentValue": "4",
+            "required": true
+          },
+          {
+            "name": "Pine bear structure",
+            "passed": true,
+            "reason": "Strict high < high[1] AND low < low[1].",
+            "currentValue": "0.81684/0.81638",
+            "required": true
+          },
+          {
+            "name": "Strategy signal qualified",
+            "passed": false,
+            "reason": "Exact Pine result without execution policy.",
+            "currentValue": "not qualified",
+            "required": true
+          },
+          {
+            "name": "Execution duplicate protection",
+            "passed": true,
+            "reason": "Same 11:00 origin submits once.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution USDCHF position",
+            "passed": true,
+            "reason": "Pyramiding is scoped to USDCHF V1.",
+            "currentValue": "clear",
+            "required": false
+          },
+          {
+            "name": "Execution OANDA connection",
+            "passed": false,
+            "reason": "Connected OANDA data required.",
+            "currentValue": "mock",
+            "required": false
+          },
+          {
+            "name": "Execution OANDA BID",
+            "passed": true,
+            "reason": "Valid BID required for a short.",
+            "currentValue": "0.81637",
+            "required": false
+          }
+        ],
+        "evaluatedAt": "2026-09-11T21:00:00.000Z",
+        "dataSource": "mock"
+      },
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "USD_CNH",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "USD_CZK",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "USD_DKK",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "USD_HKD",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "USD_HUF",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "USD_JPY",
+      "status": "NO_SETUP",
+      "strategyId": "usdjpy_strategy",
+      "reason": "WAIT: OUTSIDE_ENTRY_WINDOW.",
+      "score": null,
+      "candidate": {
+        "family": "usdjpy_strategy",
+        "version": "v6",
+        "configVersion": "usdjpy-strategy-cfg-v6",
+        "regime": {
+          "regime": "mixed",
+          "trendDirection": "down",
+          "trendStrength": 0,
+          "volatility": "normal",
+          "atr": 0.2520984985066945,
+          "atrPips": 25.209849850669453,
+          "momentumState": "steady",
+          "emaFast": 153.83715663768174,
+          "emaMid": 153.92284765580507,
+          "emaSlow": null,
+          "slopeAtrPerBar": null,
+          "rangeHigh": 154.376,
+          "rangeLow": 153.953,
+          "rangeWidthAtr": 1.6779155865887434,
+          "rangeAgeBars": null,
+          "lookbackBars": 50,
+          "evaluatedAt": "2026-09-11T21:00:00.000Z"
+        },
+        "qualifyReason": "WAIT: OUTSIDE_ENTRY_WINDOW.",
+        "status": "no_setup",
+        "instrument": "USD_JPY",
+        "pair": "USD/JPY",
+        "direction": null,
+        "timeframe": "1h",
+        "entry": null,
+        "stop": null,
+        "target": null,
+        "riskReward": null,
+        "positionSize": null,
+        "features": {
+          "trend15m": "mixed",
+          "trend1h": "bearish",
+          "trend4h": null,
+          "ema21": null,
+          "ema50": 153.92284765580507,
+          "ema200": null,
+          "rsi14": null,
+          "atr14": 0.2520984985066945,
+          "atrPips": 25.209849850669453,
+          "structureHighs": 0,
+          "structureLows": 0,
+          "evaluationMode": "live",
+          "newsStatus": "calendar_unavailable",
+          "usdjpyStrategy": {
+            "strategyId": "usdjpy_strategy",
+            "strategyName": "USDJPY Body Extreme V6",
+            "strategyVersion": 6,
+            "symbol": "USD_JPY",
+            "timeframe": "H1",
+            "session": "USDJPY_11_14_UTC",
+            "setup": "USDJPY_BODY_EXTREME",
+            "signalDirection": null,
+            "signalCandleTimestamp": "2026-09-11T20:00:00.000000000Z",
+            "signalTimestampUtc": "2026-09-11T21:00:00.000Z",
+            "signalPrice": null,
+            "executionEntryPrice": null,
+            "actualFillPrice": null,
+            "ema20": 153.83715663768174,
+            "ema50": 153.92284765580507,
+            "atr14": 0.2520984985066945,
+            "entryATR": null,
+            "riskDistance": null,
+            "preHigh": 154.376,
+            "preLow": 153.953,
+            "preRangeBarCount": 3,
+            "rangeReady": true,
+            "tradedEarlierUtcDay": false,
+            "signalCandle": {
+              "open": 153.692,
+              "high": 153.76,
+              "low": 153.463,
+              "close": 153.533
+            },
+            "body": 0.15900000000002024,
+            "bodyATRRatio": 0.6307058587887542,
+            "bodyPassed": true,
+            "barRange": 0.29699999999999704,
+            "closePositionPct": 23.569023569021507,
+            "trendDirection": "SHORT",
+            "breakoutLong": false,
+            "breakoutShort": false,
+            "bullExtremeClose": false,
+            "bearExtremeClose": false,
+            "extremeClosePassed": false,
+            "finalLongSignal": false,
+            "finalShortSignal": false,
+            "strategySignalQualified": false,
+            "executionAllowed": false,
+            "executionBlockReason": "NO_STRATEGY_SIGNAL",
+            "stopPrice": null,
+            "targetPrice": null,
+            "stopATRMultiplier": 1,
+            "rewardR": 2,
+            "maximumHoldBars": 3,
+            "barsHeld": 0,
+            "exitPrice": null,
+            "exitReason": null,
+            "realizedR": null,
+            "realizedPnL": null,
+            "reason": "WAIT: OUTSIDE_ENTRY_WINDOW.",
+            "waitReason": "OUTSIDE_ENTRY_WINDOW",
+            "signalKey": null
+          }
+        },
+        "summary": "WAIT: OUTSIDE_ENTRY_WINDOW.",
+        "passedConditions": [
+          {
+            "name": "Symbol",
+            "passed": true,
+            "required": true,
+            "reason": "USDJPY Body Extreme V6 is restricted to USD_JPY.",
+            "currentValue": "USD_JPY"
+          },
+          {
+            "name": "Timeframe",
+            "passed": true,
+            "required": true,
+            "reason": "Only completed H1 candles are eligible.",
+            "currentValue": "H1"
+          },
+          {
+            "name": "08:00-10:00 UTC range",
+            "passed": true,
+            "required": true,
+            "reason": "All three current-day UTC range candles are required; entry-window candles are excluded.",
+            "currentValue": "3/3"
+          },
+          {
+            "name": "Wilder ATR14",
+            "passed": true,
+            "required": true,
+            "reason": "ATR14 must be finite and positive.",
+            "currentValue": "0.2520984985066945"
+          },
+          {
+            "name": "Body strength",
+            "passed": true,
+            "required": true,
+            "reason": "Body must be at least 0.40 ATR14.",
+            "currentValue": "0.6307 ATR"
+          },
+          {
+            "name": "Positive candle range",
+            "passed": true,
+            "required": true,
+            "reason": "The signal candle high-low range must be positive.",
+            "currentValue": "0.29699999999999704"
+          },
+          {
+            "name": "One trade per UTC day",
+            "passed": true,
+            "required": true,
+            "reason": "Only the first qualifying V6 signal of each UTC day may enter.",
+            "currentValue": "clear"
+          },
+          {
+            "name": "No active strategy position",
+            "passed": true,
+            "required": true,
+            "reason": "Pyramiding is disabled for usdjpy_strategy.",
+            "currentValue": "clear"
+          },
+          {
+            "name": "Numerical safety",
+            "passed": true,
+            "required": true,
+            "reason": "Entry, ATR-frozen risk, stop, and target must be finite and ordered.",
+            "currentValue": "not applicable"
+          }
+        ],
+        "failedConditions": [
+          {
+            "name": "Completed 11:00-14:00 UTC candle",
+            "passed": false,
+            "required": true,
+            "reason": "Entry evaluation is limited to completed H1 candles starting 11:00 through 14:00 UTC inclusive.",
+            "currentValue": "2026-09-11T20:00:00.000000000Z"
+          },
+          {
+            "name": "EMA20 above EMA50",
+            "passed": false,
+            "required": true,
+            "reason": "V6 is long-only and requires EMA20 > EMA50.",
+            "currentValue": "SHORT"
+          },
+          {
+            "name": "Close breakout",
+            "passed": false,
+            "required": true,
+            "reason": "The close, not merely the wick, must exceed the pre-range high.",
+            "currentValue": "none"
+          },
+          {
+            "name": "Upper-40% close",
+            "passed": false,
+            "required": true,
+            "reason": "The long signal must close within the upper 40% of its candle range.",
+            "currentValue": "23.57% from low"
+          },
+          {
+            "name": "Market data",
+            "passed": false,
+            "required": true,
+            "reason": "Live OANDA candle history is unavailable or incomplete.",
+            "currentValue": "260/260/260 candles"
+          },
+          {
+            "name": "Session",
+            "passed": false,
+            "required": true,
+            "reason": "Entries are limited to the London and New York sessions and close at 16:45 ET.",
+            "currentValue": "Forex market closed"
+          },
+          {
+            "name": "Spread",
+            "passed": false,
+            "required": true,
+            "reason": "Spread too wide.",
+            "currentValue": "3.6 / 1.5 pips"
+          },
+          {
+            "name": "News",
+            "passed": false,
+            "required": true,
+            "reason": "Economic calendar is unavailable or stale; entries pause until the 30-minute news buffer can be verified.",
+            "currentValue": "calendar_unavailable"
+          }
+        ],
+        "conditions": [
+          {
+            "name": "Symbol",
+            "passed": true,
+            "required": true,
+            "reason": "USDJPY Body Extreme V6 is restricted to USD_JPY.",
+            "currentValue": "USD_JPY"
+          },
+          {
+            "name": "Timeframe",
+            "passed": true,
+            "required": true,
+            "reason": "Only completed H1 candles are eligible.",
+            "currentValue": "H1"
+          },
+          {
+            "name": "Completed 11:00-14:00 UTC candle",
+            "passed": false,
+            "required": true,
+            "reason": "Entry evaluation is limited to completed H1 candles starting 11:00 through 14:00 UTC inclusive.",
+            "currentValue": "2026-09-11T20:00:00.000000000Z"
+          },
+          {
+            "name": "08:00-10:00 UTC range",
+            "passed": true,
+            "required": true,
+            "reason": "All three current-day UTC range candles are required; entry-window candles are excluded.",
+            "currentValue": "3/3"
+          },
+          {
+            "name": "Wilder ATR14",
+            "passed": true,
+            "required": true,
+            "reason": "ATR14 must be finite and positive.",
+            "currentValue": "0.2520984985066945"
+          },
+          {
+            "name": "EMA20 above EMA50",
+            "passed": false,
+            "required": true,
+            "reason": "V6 is long-only and requires EMA20 > EMA50.",
+            "currentValue": "SHORT"
+          },
+          {
+            "name": "Close breakout",
+            "passed": false,
+            "required": true,
+            "reason": "The close, not merely the wick, must exceed the pre-range high.",
+            "currentValue": "none"
+          },
+          {
+            "name": "Body strength",
+            "passed": true,
+            "required": true,
+            "reason": "Body must be at least 0.40 ATR14.",
+            "currentValue": "0.6307 ATR"
+          },
+          {
+            "name": "Positive candle range",
+            "passed": true,
+            "required": true,
+            "reason": "The signal candle high-low range must be positive.",
+            "currentValue": "0.29699999999999704"
+          },
+          {
+            "name": "Upper-40% close",
+            "passed": false,
+            "required": true,
+            "reason": "The long signal must close within the upper 40% of its candle range.",
+            "currentValue": "23.57% from low"
+          },
+          {
+            "name": "One trade per UTC day",
+            "passed": true,
+            "required": true,
+            "reason": "Only the first qualifying V6 signal of each UTC day may enter.",
+            "currentValue": "clear"
+          },
+          {
+            "name": "No active strategy position",
+            "passed": true,
+            "required": true,
+            "reason": "Pyramiding is disabled for usdjpy_strategy.",
+            "currentValue": "clear"
+          },
+          {
+            "name": "Numerical safety",
+            "passed": true,
+            "required": true,
+            "reason": "Entry, ATR-frozen risk, stop, and target must be finite and ordered.",
+            "currentValue": "not applicable"
+          },
+          {
+            "name": "Market data",
+            "passed": false,
+            "required": true,
+            "reason": "Live OANDA candle history is unavailable or incomplete.",
+            "currentValue": "260/260/260 candles"
+          },
+          {
+            "name": "Session",
+            "passed": false,
+            "required": true,
+            "reason": "Entries are limited to the London and New York sessions and close at 16:45 ET.",
+            "currentValue": "Forex market closed"
+          },
+          {
+            "name": "Spread",
+            "passed": false,
+            "required": true,
+            "reason": "Spread too wide.",
+            "currentValue": "3.6 / 1.5 pips"
+          },
+          {
+            "name": "News",
+            "passed": false,
+            "required": true,
+            "reason": "Economic calendar is unavailable or stale; entries pause until the 30-minute news buffer can be verified.",
+            "currentValue": "calendar_unavailable"
+          }
+        ],
+        "evaluatedAt": "2026-09-11T21:00:00.000Z",
+        "dataSource": "mock"
+      },
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "USD_MXN",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "USD_NOK",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "USD_PLN",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "USD_SEK",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "USD_SGD",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "USD_THB",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "USD_TRY",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "USD_ZAR",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    },
+    {
+      "instrument": "ZAR_JPY",
+      "status": "NO_VALIDATED_STRATEGY",
+      "strategyId": null,
+      "reason": "No dedicated tested strategy is registered for this pair.",
+      "score": null,
+      "candidate": null,
+      "aiExplanationInput": null
+    }
+  ],
+  "safety": {
+    "marketOpen": false,
+    "calendarConnected": false,
+    "pricingConnected": true
+  }
+}

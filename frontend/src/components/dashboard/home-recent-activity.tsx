@@ -27,9 +27,11 @@ function signedTone(value: number | null, flat = 0.05) {
 export function HomeRecentActivity({
   items,
   currency,
+  loading = false,
 }: {
   items: HomeActivityItem[];
   currency: string;
+  loading?: boolean;
 }) {
   return (
     <section className="home-idle-section" aria-label="Recent activity">
@@ -39,7 +41,11 @@ export function HomeRecentActivity({
           See all
         </Link>
       </div>
-      {items.length ? (
+      {loading ? (
+        <div className="home-activity-skeleton" aria-label="Loading recent activity" aria-busy="true">
+          {[0, 1, 2, 3].map((row) => <span key={row} />)}
+        </div>
+      ) : items.length ? (
         <div className="home-idle-list">
           <div className="home-idle-head home-activity-head" aria-hidden="true">
             <span>Pair</span>
@@ -50,7 +56,7 @@ export function HomeRecentActivity({
           </div>
           {items.map((item) => {
             const href = item.instrument
-              ? `/chart?instrument=${item.instrument}`
+              ? `/chart?instrument=${item.instrument}${item.chartTradeId ? `&trade=${item.chartTradeId}` : ""}`
               : "/journal";
             return (
               <Link
@@ -58,13 +64,13 @@ export function HomeRecentActivity({
                 href={href}
                 className={`home-idle-row home-activity-row is-${item.kind}`}
               >
-                <span className="home-idle-pair">{item.pair}</span>
+                <span className="home-idle-pair home-activity-pair">{item.pair}</span>
                 <span className="home-activity-result">{item.label}</span>
-                <span className={`metric-number ${signedTone(item.paperPl, 0.005)}`}>
+                <span className={`home-activity-money metric-number ${signedTone(item.paperPl, 0.005)}`}>
                   {moneyLabel(item.paperPl, currency)}
                 </span>
-                <span className={`metric-number ${signedTone(item.resultR)}`}>{rLabel(item.resultR)}</span>
-                <span>{formatShortDay(item.at)}</span>
+                <span className={`home-activity-r metric-number ${signedTone(item.resultR)}`}>{rLabel(item.resultR)}</span>
+                <span className="home-activity-time">{formatShortDay(item.at)}</span>
               </Link>
             );
           })}

@@ -21,7 +21,7 @@ export function MobileTopBar({ showBack = true }: { showBack?: boolean }) {
   const lift = scrolledPast ? " is-lifted" : "";
 
   return (
-    <div ref={ref} className="mb-4 h-10 lg:hidden">
+    <div ref={ref} className="h-10 lg:hidden">
       {showBack ? (
         <Link
           href="/"

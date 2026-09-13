@@ -30,7 +30,7 @@ import { getForexSessionStatus } from "../../frontend/src/lib/strategy/session.j
 import { databaseConfigured, query } from "./database.js";
 import { cookieName, login, logout, sessionUser } from "./auth.js";
 import { decideResearchExperiment, forwardResearchSummary, latestDayTradingValidation, latestResearchExperiment, latestResearchHoldout, latestResearchRun, latestWalkForwardResearch, processNextResearchJob, researchDiagnostics, researchExperimentDiagnostics, researchSummary, runDayTradingValidation, runResearchExperiment, runWalkForwardResearch, startLockedResearchHoldout, startStrictHistoricalBackfill, stopResearchRun } from "./research.js";
-import { collectMultiStrategyCycle, collectPaperCycle, decidePaperBatch, fastResolveFilledTrades, liveResolvePaperTrades, journalTradeLog, journalTradeSummary, multiStrategyOverview, multiStrategyWatchlist, paperCycleOverview, paperRiskExposure, paperRiskPolicy, paperTradesForInstrument, parsePaperRiskConfiguration, reviewPaperTrade, updatePaperRiskPolicy, watchlistSnapshot } from "./paper-cycle.js";
+import { collectMultiStrategyCycle, collectPaperCycle, decidePaperBatch, fastResolveFilledTrades, liveResolvePaperTrades, journalTradeLog, journalTradeSummary, multiStrategyOverview, multiStrategyWatchlist, paperCycleOverview, paperRiskExposure, paperRiskPolicy, paperTradesForInstrument, parsePaperRiskConfiguration, reviewPaperTrade, savedExecutableSetups, syncPracticeBrokerHistory, updatePaperRiskPolicy, watchlistSnapshot } from "./paper-cycle.js";
 import { momentumShortInversionStatus } from "./momentum-short-inversion.js";
 import { markNotificationsRead, notificationsForUser, pushPublicKey, queueNotification, removePushSubscription, savePushSubscription } from "./notifications.js";
 import { practiceExecutionOverview, setPracticeExecutionEnabled } from "./practice-execution.js";
@@ -41,6 +41,16 @@ import { collectPatternV1Cycle, patternV1Disagreement, patternV1Status } from ".
 import { collectLegacyConfidenceV2Cycle } from "./legacy-confidence-v2-collector.js";
 import { collectBreakoutConfidenceV1Cycle } from "./breakout-confidence-v1-collector.js";
 import { collectBreakoutM5Cycle } from "./breakout-m5-confidence-v1-collector.js";
+import { createManualTradeProposal } from "./manual-analysis.js";
+import {
+  cancelPendingManualEntry,
+  createPendingManualEntry,
+  editPendingManualEntry,
+  evaluatePendingManualEntries,
+  expirePendingManualEntries,
+  pendingManualEntriesForUser,
+  recoverTriggeringManualEntries,
+} from "./pending-manual-entries.js";
 
 // The multi-strategy + adaptive engine replaces the single liquidity strategy as
 // the active forex collector. Default on; set MULTISTRATEGY_ENABLED=false to roll
@@ -99,7 +109,7 @@ function cors(request: IncomingMessage, response: ServerResponse) {
     response.setHeader("Access-Control-Allow-Origin", origin);
     response.setHeader("Vary", "Origin");
   }
-  response.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS");
+  response.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
   response.setHeader("Access-Control-Allow-Headers", "Content-Type");
   response.setHeader("Access-Control-Allow-Credentials", "true");
 }
@@ -178,6 +188,65 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     const user = await requireOwner(request, response); if (!user) return;
     if (url.pathname === "/api/watchlist" && request.method === "GET") {
       return json(request, response, { watchlist: await watchlistSnapshot() });
+    }
+    if (url.pathname === "/api/manual-analysis" && request.method === "POST") {
+      const payload = await body(request);
+      const instrument = typeof payload?.instrument === "string" ? payload.instrument.toUpperCase() : "";
+      if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
+      try {
+        // This endpoint deliberately only returns a proposal. It never calls
+        // paper-cycle, pending-entry creation, or an OANDA order API.
+        return json(request, response, { proposal: await createManualTradeProposal(instrument) });
+      } catch (error) {
+        return json(request, response, { error: error instanceof Error ? error.message : "Manual analysis could not run." }, 502);
+      }
+    }
+    if (url.pathname === "/api/saved-setups" && request.method === "GET") {
+      return json(request, response, { setups: await savedExecutableSetups() });
+    }
+    if (url.pathname === "/api/pending-entries" && request.method === "GET") {
+      const instrument = url.searchParams.get("instrument")?.toUpperCase();
+      if (instrument && !isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
+      return json(request, response, { entries: await pendingManualEntriesForUser(user.id, instrument) });
+    }
+    if (url.pathname === "/api/pending-entries" && request.method === "POST") {
+      if (!pendingEntryMonitoringEnabled) return json(request, response, { error: "Pending-entry monitoring is disabled on this API instance." }, 503);
+      const payload = await body(request);
+      const instrument = typeof payload?.instrument === "string" ? payload.instrument.toUpperCase() : "";
+      if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
+      const tick = latestPrices.get(instrument);
+      if (!tick) return json(request, response, { error: "A fresh market quote is not available yet." }, 409);
+      try {
+        const entry = await createPendingManualEntry(user.id, { ...payload, instrument }, tick);
+        void evaluatePendingManualEntries(tick).catch((error) => console.error("[pending-entry] initial evaluation failed", error));
+        return json(request, response, { entry }, 201);
+      } catch (error) {
+        return json(request, response, { error: error instanceof Error ? error.message : "Could not create the pending entry." }, 400);
+      }
+    }
+    const pendingEntryMatch = url.pathname.match(/^\/api\/pending-entries\/([0-9a-f-]{36})$/i);
+    if (pendingEntryMatch && request.method === "PATCH") {
+      if (!pendingEntryMonitoringEnabled) return json(request, response, { error: "Pending-entry monitoring is disabled on this API instance." }, 503);
+      const payload = await body(request);
+      const instrument = typeof payload?.instrument === "string" ? payload.instrument.toUpperCase() : "";
+      if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
+      const tick = latestPrices.get(instrument);
+      if (!tick) return json(request, response, { error: "A fresh market quote is not available yet." }, 409);
+      try {
+        const entry = await editPendingManualEntry(user.id, pendingEntryMatch[1]!, payload ?? {}, tick);
+        void evaluatePendingManualEntries(tick).catch((error) => console.error("[pending-entry] edited-entry evaluation failed", error));
+        return json(request, response, { entry });
+      } catch (error) {
+        return json(request, response, { error: error instanceof Error ? error.message : "Could not edit the pending entry." }, 409);
+      }
+    }
+    if (pendingEntryMatch && request.method === "DELETE") {
+      if (!pendingEntryMonitoringEnabled) return json(request, response, { error: "Pending-entry monitoring is disabled on this API instance." }, 503);
+      try {
+        return json(request, response, { entry: await cancelPendingManualEntry(user.id, pendingEntryMatch[1]!) });
+      } catch (error) {
+        return json(request, response, { error: error instanceof Error ? error.message : "Could not cancel the pending entry." }, 409);
+      }
     }
     if (url.pathname === "/api/notifications" && request.method === "GET") {
       return json(request, response, await notificationsForUser(user.id, url.searchParams.get("after")));
@@ -271,6 +340,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
         filterParam === "wins" || filterParam === "losses" || filterParam === "active"
           ? filterParam
           : "all";
+      await syncPracticeBrokerHistory(user.id);
       const trades = await journalTradeLog(user.id, { limit, offset, filter });
       // The stats card is filter- and page-independent, so it only rides the
       // first page and is computed over the whole journal.
@@ -542,7 +612,21 @@ const heartbeat = setInterval(() => {
   broadcast({ type: "heartbeat", source: currentStatus.source, time: new Date().toISOString() });
 }, 10_000);
 
-function handlePrice(tick: MarketPriceTick) { latestPrices.set(tick.instrument, tick); broadcast(tick); }
+const pendingEntryChecks = new Set<MajorInstrument>();
+const pendingEntryLastCheck = new Map<MajorInstrument, number>();
+let pendingEntryMonitoringEnabled = false;
+function handlePrice(tick: MarketPriceTick) {
+  latestPrices.set(tick.instrument, tick);
+  broadcast(tick);
+  if (!pendingEntryMonitoringEnabled || pendingEntryChecks.has(tick.instrument)) return;
+  const now = Date.now();
+  if (now - (pendingEntryLastCheck.get(tick.instrument) ?? 0) < 250) return;
+  pendingEntryLastCheck.set(tick.instrument, now);
+  pendingEntryChecks.add(tick.instrument);
+  void evaluatePendingManualEntries(tick)
+    .catch((error) => console.error(`[pending-entry] ${tick.instrument} evaluation failed`, error))
+    .finally(() => pendingEntryChecks.delete(tick.instrument));
+}
 
 if (config.isConfigured) {
   const stream = new OandaPricingStream(config, {
@@ -581,6 +665,12 @@ if (databaseConfigured() && !schedulersEnabled) {
   console.log("[schedulers] ENABLE_SCHEDULERS=false — background trade, research and binary loops are OFF (read-only database mode)");
 }
 if (databaseConfigured() && schedulersEnabled) {
+  pendingEntryMonitoringEnabled = config.isConfigured;
+  if (pendingEntryMonitoringEnabled) {
+    void recoverTriggeringManualEntries().catch((error) => console.error("[pending-entry] recovery failed", error));
+  } else {
+    console.log("[pending-entry] monitoring disabled because OANDA pricing is not configured");
+  }
   let collectionBusy = false;
   // Forex is shut Friday 17:00 ET to Sunday 17:00 ET. The loop keeps ticking so
   // the process stays warm on Railway, but while the market is closed it skips
@@ -656,9 +746,11 @@ if (databaseConfigured() && schedulersEnabled) {
   };
   let fastResolveBusy = false;
   const fastResolve = async () => {
-    if (fastResolveBusy || !getForexSessionStatus(new Date()).marketOpen) return;
+    if (fastResolveBusy) return;
     fastResolveBusy = true;
     try {
+      await expirePendingManualEntries();
+      if (!getForexSessionStatus(new Date()).marketOpen) return;
       const brokerClosed = await fastResolveFilledTrades(liveTick);
       if (brokerClosed) console.log(`[paper-cycle] fast broker close booked ${brokerClosed}`);
       const paperClosed = await liveResolvePaperTrades(liveTick);

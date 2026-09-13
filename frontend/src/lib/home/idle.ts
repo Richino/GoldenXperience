@@ -27,6 +27,8 @@ export type HomeActivityItem = {
   id: string;
   pair: string;
   instrument: string | null;
+  /** Strategy records have a chartable paper-strategy trade id. */
+  chartTradeId: string | null;
   label: string;
   kind: HomeActivityKind;
   resultR: number | null;
@@ -143,11 +145,25 @@ export function recentActivityFromTrades(trades: JournalTrade[], limit = 10): Ho
     .sort((a, b) => new Date(b.closedAt ?? 0).getTime() - new Date(a.closedAt ?? 0).getTime())
     .slice(0, limit)
     .map((trade) => {
+      if (trade.brokerExecutionStatus === "rejected") {
+        return {
+          id: trade.id,
+          pair: trade.pair,
+          instrument: trade.instrument ?? null,
+          chartTradeId: trade.origin === "strategy" ? trade.id : null,
+          label: "BROKER REJECTED",
+          kind: "other",
+          resultR: null,
+          paperPl: null,
+          at: trade.closedAt ?? trade.openedAt,
+        };
+      }
       const kind = activityKind(trade.outcome, trade.result);
       return {
         id: trade.id,
         pair: trade.pair,
         instrument: trade.instrument ?? null,
+        chartTradeId: trade.origin === "strategy" ? trade.id : null,
         label: activityLabel(trade.outcome, kind),
         kind,
         resultR: trade.resultR,
@@ -165,8 +181,16 @@ export function todayClosedStats(trades: JournalTrade[], todayKey: string) {
       tradingDayKey(trade.closedAt) === todayKey,
   );
   const withR = today.filter((trade) => trade.resultR !== null);
+  const withPl = today.filter(
+    (trade) => trade.paperPl !== null && trade.paperPl !== undefined,
+  );
   return {
     trades: today.length,
     netR: withR.length ? withR.reduce((sum, trade) => sum + (trade.resultR ?? 0), 0) : null,
+    wins: today.filter((trade) => trade.result === "win").length,
+    losses: today.filter((trade) => trade.result === "loss").length,
+    netMoney: withPl.length
+      ? withPl.reduce((sum, trade) => sum + (trade.paperPl ?? 0), 0)
+      : null,
   };
 }

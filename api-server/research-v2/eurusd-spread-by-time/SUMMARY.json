@@ -1,0 +1,448 @@
+{
+  "source_primary": "backtest-breakout-m5/candles/EUR_USD_M5.json (OANDA M5 bid/ask)",
+  "source_corroborating": "four-family-v2-201-trades/cache/EUR_USD-M1.json (OANDA M1 bid/ask)",
+  "m5_range": "2023-08-28 to 2026-08-27",
+  "m1_range": "2026-08-16 to 2026-09-05",
+  "spread_def": "askClose - bidClose per bar, in pips (1 pip=0.0001); Saturday excluded; spreads>50pip dropped as errors",
+  "m5_total_obs": 223753,
+  "m1_total_obs": 21426,
+  "ranked_hours_low_to_high": [
+    {
+      "time_et": "11 AM",
+      "hour24": 11,
+      "avg": 1.54,
+      "median": 1.5,
+      "p90": 1.7,
+      "cv": 0.079,
+      "spike2": 0.0016,
+      "n": 9324
+    },
+    {
+      "time_et": "12 PM",
+      "hour24": 12,
+      "avg": 1.541,
+      "median": 1.5,
+      "p90": 1.7,
+      "cv": 0.072,
+      "spike2": 0.0018,
+      "n": 9324
+    },
+    {
+      "time_et": "1 PM",
+      "hour24": 13,
+      "avg": 1.544,
+      "median": 1.5,
+      "p90": 1.7,
+      "cv": 0.074,
+      "spike2": 0.0021,
+      "n": 9324
+    },
+    {
+      "time_et": "7 AM",
+      "hour24": 7,
+      "avg": 1.549,
+      "median": 1.5,
+      "p90": 1.7,
+      "cv": 0.074,
+      "spike2": 0.0023,
+      "n": 9324
+    },
+    {
+      "time_et": "6 AM",
+      "hour24": 6,
+      "avg": 1.55,
+      "median": 1.5,
+      "p90": 1.7,
+      "cv": 0.074,
+      "spike2": 0.0023,
+      "n": 9324
+    },
+    {
+      "time_et": "5 AM",
+      "hour24": 5,
+      "avg": 1.554,
+      "median": 1.5,
+      "p90": 1.7,
+      "cv": 0.079,
+      "spike2": 0.0032,
+      "n": 9324
+    },
+    {
+      "time_et": "4 AM",
+      "hour24": 4,
+      "avg": 1.556,
+      "median": 1.6,
+      "p90": 1.7,
+      "cv": 0.077,
+      "spike2": 0.003,
+      "n": 9324
+    },
+    {
+      "time_et": "2 PM",
+      "hour24": 14,
+      "avg": 1.556,
+      "median": 1.5,
+      "p90": 1.7,
+      "cv": 0.132,
+      "spike2": 0.0074,
+      "n": 9324
+    },
+    {
+      "time_et": "9 AM",
+      "hour24": 9,
+      "avg": 1.557,
+      "median": 1.5,
+      "p90": 1.7,
+      "cv": 0.095,
+      "spike2": 0.0057,
+      "n": 9324
+    },
+    {
+      "time_et": "3 PM",
+      "hour24": 15,
+      "avg": 1.559,
+      "median": 1.5,
+      "p90": 1.7,
+      "cv": 0.137,
+      "spike2": 0.0056,
+      "n": 9323
+    },
+    {
+      "time_et": "10 AM",
+      "hour24": 10,
+      "avg": 1.56,
+      "median": 1.5,
+      "p90": 1.7,
+      "cv": 0.106,
+      "spike2": 0.0109,
+      "n": 9324
+    },
+    {
+      "time_et": "2 AM",
+      "hour24": 2,
+      "avg": 1.565,
+      "median": 1.6,
+      "p90": 1.7,
+      "cv": 0.077,
+      "spike2": 0.0024,
+      "n": 9324
+    },
+    {
+      "time_et": "3 AM",
+      "hour24": 3,
+      "avg": 1.568,
+      "median": 1.6,
+      "p90": 1.7,
+      "cv": 0.092,
+      "spike2": 0.0051,
+      "n": 9324
+    },
+    {
+      "time_et": "1 AM",
+      "hour24": 1,
+      "avg": 1.569,
+      "median": 1.6,
+      "p90": 1.7,
+      "cv": 0.078,
+      "spike2": 0.0024,
+      "n": 9324
+    },
+    {
+      "time_et": "12 AM",
+      "hour24": 0,
+      "avg": 1.571,
+      "median": 1.6,
+      "p90": 1.7,
+      "cv": 0.08,
+      "spike2": 0.0026,
+      "n": 9324
+    },
+    {
+      "time_et": "11 PM",
+      "hour24": 23,
+      "avg": 1.572,
+      "median": 1.6,
+      "p90": 1.7,
+      "cv": 0.077,
+      "spike2": 0.0024,
+      "n": 9324
+    },
+    {
+      "time_et": "10 PM",
+      "hour24": 22,
+      "avg": 1.573,
+      "median": 1.6,
+      "p90": 1.7,
+      "cv": 0.08,
+      "spike2": 0.0028,
+      "n": 9324
+    },
+    {
+      "time_et": "9 PM",
+      "hour24": 21,
+      "avg": 1.579,
+      "median": 1.6,
+      "p90": 1.7,
+      "cv": 0.079,
+      "spike2": 0.0023,
+      "n": 9324
+    },
+    {
+      "time_et": "8 PM",
+      "hour24": 20,
+      "avg": 1.585,
+      "median": 1.6,
+      "p90": 1.7,
+      "cv": 0.089,
+      "spike2": 0.0025,
+      "n": 9324
+    },
+    {
+      "time_et": "8 AM",
+      "hour24": 8,
+      "avg": 1.602,
+      "median": 1.6,
+      "p90": 1.7,
+      "cv": 0.217,
+      "spike2": 0.0282,
+      "n": 9324
+    },
+    {
+      "time_et": "7 PM",
+      "hour24": 19,
+      "avg": 1.605,
+      "median": 1.6,
+      "p90": 1.8,
+      "cv": 0.119,
+      "spike2": 0.0061,
+      "n": 9324
+    },
+    {
+      "time_et": "4 PM",
+      "hour24": 16,
+      "avg": 1.612,
+      "median": 1.6,
+      "p90": 1.8,
+      "cv": 0.282,
+      "spike2": 0.0146,
+      "n": 9323
+    },
+    {
+      "time_et": "6 PM",
+      "hour24": 18,
+      "avg": 1.837,
+      "median": 1.7,
+      "p90": 2.1,
+      "cv": 0.402,
+      "spike2": 0.1142,
+      "n": 9324
+    },
+    {
+      "time_et": "5 PM",
+      "hour24": 17,
+      "avg": 3.663,
+      "median": 3.1,
+      "p90": 6.3,
+      "cv": 0.523,
+      "spike2": 0.8642,
+      "n": 9303
+    }
+  ],
+  "cheapest_1h": {
+    "time_et": "11 AM–12 PM",
+    "avg": 1.54,
+    "p90": 1.7,
+    "n": 9324
+  },
+  "cheapest_2h": {
+    "time_et": "11 AM–1 PM",
+    "hours": [
+      "11 AM",
+      "12 PM"
+    ],
+    "avg": 1.54,
+    "worstP90": 1.7,
+    "n": 18648
+  },
+  "cheapest_3h": {
+    "time_et": "11 AM–2 PM",
+    "hours": [
+      "11 AM",
+      "12 PM",
+      "1 PM"
+    ],
+    "avg": 1.541,
+    "worstP90": 1.7,
+    "n": 27972
+  },
+  "most_consistent_hours": [
+    {
+      "time_et": "12 PM",
+      "avg": 1.541,
+      "p90": 1.7,
+      "cv": 0.072,
+      "spike2": 0.0018,
+      "score": 0,
+      "n": 9324
+    },
+    {
+      "time_et": "1 PM",
+      "avg": 1.544,
+      "p90": 1.7,
+      "cv": 0.074,
+      "spike2": 0.0021,
+      "score": 0.002,
+      "n": 9324
+    },
+    {
+      "time_et": "6 AM",
+      "avg": 1.55,
+      "p90": 1.7,
+      "cv": 0.074,
+      "spike2": 0.0023,
+      "score": 0.003,
+      "n": 9324
+    },
+    {
+      "time_et": "7 AM",
+      "avg": 1.549,
+      "p90": 1.7,
+      "cv": 0.074,
+      "spike2": 0.0023,
+      "score": 0.003,
+      "n": 9324
+    },
+    {
+      "time_et": "11 AM",
+      "avg": 1.54,
+      "p90": 1.7,
+      "cv": 0.079,
+      "spike2": 0.0016,
+      "score": 0.003,
+      "n": 9324
+    },
+    {
+      "time_et": "4 AM",
+      "avg": 1.556,
+      "p90": 1.7,
+      "cv": 0.077,
+      "spike2": 0.003,
+      "score": 0.006,
+      "n": 9324
+    }
+  ],
+  "avoid_hours": [
+    {
+      "time_et": "5 PM",
+      "avg": 3.663,
+      "p90": 6.3,
+      "max": 10,
+      "spike_rate_gt2pip": 0.8642,
+      "n": 9303
+    },
+    {
+      "time_et": "6 PM",
+      "avg": 1.837,
+      "p90": 2.1,
+      "max": 10,
+      "spike_rate_gt2pip": 0.1142,
+      "n": 9324
+    },
+    {
+      "time_et": "8 AM",
+      "avg": 1.602,
+      "p90": 1.7,
+      "max": 10,
+      "spike_rate_gt2pip": 0.0282,
+      "n": 9324
+    },
+    {
+      "time_et": "4 PM",
+      "avg": 1.612,
+      "p90": 1.8,
+      "max": 10,
+      "spike_rate_gt2pip": 0.0146,
+      "n": 9323
+    },
+    {
+      "time_et": "10 AM",
+      "avg": 1.56,
+      "p90": 1.7,
+      "max": 5.2,
+      "spike_rate_gt2pip": 0.0109,
+      "n": 9324
+    },
+    {
+      "time_et": "2 PM",
+      "avg": 1.556,
+      "p90": 1.7,
+      "max": 7.5,
+      "spike_rate_gt2pip": 0.0074,
+      "n": 9324
+    }
+  ],
+  "top2_windows_2h": [
+    {
+      "time_et": "11 AM–1 PM",
+      "avg": 1.54,
+      "worstP90": 1.7,
+      "n": 18648
+    },
+    {
+      "time_et": "12 PM–2 PM",
+      "avg": 1.542,
+      "worstP90": 1.7,
+      "n": 18648
+    },
+    {
+      "time_et": "6 AM–8 AM",
+      "avg": 1.549,
+      "worstP90": 1.7,
+      "n": 18648
+    },
+    {
+      "time_et": "10 AM–12 PM",
+      "avg": 1.55,
+      "worstP90": 1.7,
+      "n": 18648
+    },
+    {
+      "time_et": "1 PM–3 PM",
+      "avg": 1.55,
+      "worstP90": 1.7,
+      "n": 18648
+    }
+  ],
+  "top_windows_3h": [
+    {
+      "time_et": "11 AM–2 PM",
+      "avg": 1.541,
+      "worstP90": 1.7,
+      "n": 27972
+    },
+    {
+      "time_et": "10 AM–1 PM",
+      "avg": 1.547,
+      "worstP90": 1.7,
+      "n": 27972
+    },
+    {
+      "time_et": "12 PM–3 PM",
+      "avg": 1.547,
+      "worstP90": 1.7,
+      "n": 27972
+    },
+    {
+      "time_et": "5 AM–8 AM",
+      "avg": 1.551,
+      "worstP90": 1.7,
+      "n": 27972
+    },
+    {
+      "time_et": "9 AM–12 PM",
+      "avg": 1.552,
+      "worstP90": 1.7,
+      "n": 27972
+    }
+  ]
+}

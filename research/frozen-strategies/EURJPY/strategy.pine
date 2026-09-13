@@ -1,0 +1,425 @@
+//@version=6
+strategy(
+     "GX EURJPY 01-05 Range Break V1 - 1 to 2 RR",
+     overlay=true,
+     pyramiding=0,
+     process_orders_on_close=true,
+     calc_on_every_tick=false,
+     max_bars_back=5000,
+     initial_capital=10000,
+     default_qty_type=strategy.fixed,
+     default_qty_value=1)
+
+// ============================================================
+// EURJPY 01-05 RANGE BREAK V1
+//
+// SYMBOL:
+// OANDA:EURJPY
+//
+// TIMEFRAME:
+// H1
+//
+// FROZEN RESEARCH:
+//
+// Phase 1:
+// Primary movement window = 05:00-06:00 UTC
+// Primary origin = 06:00 UTC
+//
+// Phase 2:
+// LONG ONLY
+// EMA20 slope up:
+// EMA20 > EMA20[3]
+//
+// Phase 3:
+// Close > previous high
+//
+// Phase 4:
+// 01:00-05:00 UTC range breakout selected
+//
+// Diagnostic:
+//
+// 136 trades
+// 54.41% WR
+// PF 1.737
+// +0.299R/trade
+//
+// EXECUTION:
+//
+// Entry = completed 06:00 UTC close
+// Stop = 1 frozen ATR14
+// Target = 2 frozen ATR14
+// Max hold = 3 future H1 bars
+//
+// Research / paper only.
+// ============================================================
+
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+
+EMA_LEN = 20
+ATR_LEN = 14
+
+ORIGIN_HOUR = 6
+
+STOP_R = 1.0
+TARGET_R = 2.0
+MAX_HOLD_BARS = 3
+
+
+// ============================================================
+// INPUTS
+// ============================================================
+
+startTime = input.time(
+     timestamp("01 Jan 2023 00:00 +0000"),
+     "Start date")
+
+showMarkers = input.bool(
+     true,
+     "Show entries")
+
+
+// ============================================================
+// CHART CHECK
+// ============================================================
+
+isH1 =
+     timeframe.isminutes and
+     timeframe.multiplier == 60
+
+tickerUpper =
+     str.upper(syminfo.ticker)
+
+isEURJPY =
+     str.contains(tickerUpper, "EURJPY")
+
+validChart =
+     isH1 and isEURJPY
+
+
+// ============================================================
+// INDICATORS
+// ============================================================
+
+ema20 =
+     ta.ema(close, EMA_LEN)
+
+atr14 =
+     ta.atr(ATR_LEN)
+
+
+// ============================================================
+// UTC TIME
+// ============================================================
+
+utcHour =
+     hour(time, "UTC")
+
+utcMinute =
+     minute(time, "UTC")
+
+utcYear =
+     year(time, "UTC")
+
+utcMonth =
+     month(time, "UTC")
+
+utcDay =
+     dayofmonth(time, "UTC")
+
+dateKey =
+     utcYear * 10000 +
+     utcMonth * 100 +
+     utcDay
+
+
+// ============================================================
+// 01:00-05:00 UTC RANGE
+// ============================================================
+
+var float preHigh = na
+var float preLow = na
+
+newUtcDay =
+     na(dateKey[1]) or
+     dateKey != dateKey[1]
+
+if newUtcDay
+
+    preHigh := na
+    preLow := na
+
+
+inPreRange =
+     utcHour >= 1 and
+     utcHour <= 5
+
+if inPreRange
+
+    preHigh :=
+         na(preHigh) ?
+         high :
+         math.max(
+              preHigh,
+              high)
+
+    preLow :=
+         na(preLow) ?
+         low :
+         math.min(
+              preLow,
+              low)
+
+
+// ============================================================
+// 06:00 ORIGIN
+// ============================================================
+
+isOrigin =
+     validChart and
+     barstate.isconfirmed and
+     utcHour == ORIGIN_HOUR and
+     utcMinute == 0 and
+     time >= startTime
+
+
+ready =
+     isOrigin and
+     not na(ema20) and
+     not na(ema20[3]) and
+     not na(atr14) and
+     not na(preHigh) and
+     atr14 > 0
+
+
+// ============================================================
+// PHASE 2 — DIRECTION
+// ============================================================
+
+bullDirection =
+     ready and
+     ema20 > ema20[3]
+
+
+// ============================================================
+// PHASE 3 — PREVIOUS HIGH BREAK
+// ============================================================
+
+prevHighBreak =
+     close > high[1]
+
+
+// ============================================================
+// PHASE 4 — 01-05 RANGE BREAK
+// ============================================================
+
+rangeBreak =
+     close > preHigh
+
+
+// ============================================================
+// FINAL FROZEN SIGNAL
+// ============================================================
+
+longSignal =
+     bullDirection and
+     prevHighBreak and
+     rangeBreak
+
+
+// ============================================================
+// TRADE STATE
+// ============================================================
+
+var bool tradeActive = false
+
+var float frozenEntry = na
+var float frozenATR = na
+var float frozenStop = na
+var float frozenTarget = na
+
+var int entryBar = na
+
+bool executedLong = false
+
+
+// ============================================================
+// RESET AFTER CLOSED POSITION
+// ============================================================
+
+if tradeActive and
+   not na(entryBar) and
+   bar_index > entryBar and
+   strategy.position_size == 0
+
+    tradeActive := false
+
+    frozenEntry := na
+    frozenATR := na
+    frozenStop := na
+    frozenTarget := na
+
+    entryBar := na
+
+
+// ============================================================
+// ENTRY
+// ============================================================
+
+canLong =
+     longSignal and
+     not tradeActive and
+     strategy.position_size == 0
+
+
+if canLong
+
+    frozenEntry :=
+         close
+
+    frozenATR :=
+         atr14
+
+    frozenStop :=
+         frozenEntry -
+         frozenATR * STOP_R
+
+    frozenTarget :=
+         frozenEntry +
+         frozenATR * TARGET_R
+
+    entryBar :=
+         bar_index
+
+    tradeActive :=
+         true
+
+    executedLong :=
+         true
+
+
+    strategy.entry(
+         "EURJPY_LONG",
+         strategy.long,
+         comment="EURJPY_0600_LONG")
+
+
+    strategy.exit(
+         "EURJPY_EXIT",
+         from_entry="EURJPY_LONG",
+         stop=frozenStop,
+         limit=frozenTarget,
+         comment="TP_OR_SL")
+
+
+// ============================================================
+// MAINTAIN FROZEN STOP / TARGET
+// ============================================================
+
+if tradeActive
+
+    strategy.exit(
+         "EURJPY_EXIT",
+         from_entry="EURJPY_LONG",
+         stop=frozenStop,
+         limit=frozenTarget,
+         comment="TP_OR_SL")
+
+
+// ============================================================
+// TIME EXIT
+//
+// 06:00 entry
+//
+// 07:00 = future #1
+// 08:00 = future #2
+// 09:00 = future #3
+// ============================================================
+
+if tradeActive and
+   not na(entryBar)
+
+    barsHeld =
+         bar_index -
+         entryBar
+
+    if barsHeld >= MAX_HOLD_BARS
+
+        strategy.close(
+             "EURJPY_LONG",
+             comment="TIME_EXIT")
+
+
+// ============================================================
+// VISUALS
+// ============================================================
+
+plot(
+     ema20,
+     "EMA20")
+
+plot(
+     preHigh,
+     "01-05 High",
+     style=plot.style_linebr)
+
+plot(
+     preLow,
+     "01-05 Low",
+     style=plot.style_linebr)
+
+
+plotshape(
+     showMarkers and
+     executedLong,
+     title="EURJPY LONG",
+     text="LONG",
+     style=shape.triangleup,
+     location=location.belowbar,
+     size=size.tiny)
+
+
+// ============================================================
+// INFO
+// ============================================================
+
+var table info =
+     table.new(
+          position.top_right,
+          2,
+          8,
+          border_width=1)
+
+if barstate.islast
+
+    table.cell(info, 0, 0, "EURJPY")
+    table.cell(info, 1, 0, "V1")
+
+    table.cell(info, 0, 1, "Origin")
+    table.cell(info, 1, 1, "06:00 UTC")
+
+    table.cell(info, 0, 2, "Direction")
+    table.cell(info, 1, 2, "LONG ONLY")
+
+    table.cell(info, 0, 3, "Trend")
+    table.cell(info, 1, 3, "EMA20 SLOPE UP")
+
+    table.cell(info, 0, 4, "Break")
+    table.cell(info, 1, 4, "01-05 HIGH")
+
+    table.cell(info, 0, 5, "SL")
+    table.cell(info, 1, 5, "1 ATR14")
+
+    table.cell(info, 0, 6, "TP")
+    table.cell(info, 1, 6, "2 ATR14")
+
+    table.cell(info, 0, 7, "Hold")
+    table.cell(info, 1, 7, "3 H1")
+
+
+bgcolor(
+     validChart ?
+     na :
+     color.new(color.red, 90))

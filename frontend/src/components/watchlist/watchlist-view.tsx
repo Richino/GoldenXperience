@@ -1,21 +1,33 @@
 "use client";
 
 import Link from "next/link";
-import { RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useRouter } from "next/navigation";
+import {
+  ArrowDown,
+  ArrowRight,
+  ArrowUp,
+  Search,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+import { WatchlistPairsSkeleton } from "@/components/ui/page-skeletons";
+import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { displayNameFor, pipSizeFor } from "@/lib/instruments/catalog";
-import { apiUrl } from "@/lib/api/url";
-import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
-import { formatClockTime } from "@/lib/format/datetime";
-import { getPaperTradingAvailability, type PaperTradingAvailability } from "@/lib/strategy/strategy-engine";
-import { watchlistCardStatus, type WatchlistCardStatus } from "@/lib/watchlist-status";
-import { WatchlistPairsSkeleton } from "@/components/ui/page-skeletons";
+import { getMarketCondition } from "@/lib/strategy/session";
+import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
+import {
+  hasActivePairStrategy,
+  hasPairStrategySchedule,
+  pairStrategyScheduleLabel,
+  watchlistCardStatus,
+  type WatchlistCondition,
+} from "@/lib/watchlist-status";
+import type { CandleSeries } from "@/types/forex";
 
-type WatchRow = {
+type Row = {
   instrument: string;
-  evaluatedAt: string | null;
   dataStatus: "connected" | "unavailable" | "stale";
   setupStatus: "valid" | "developing" | "invalid" | "no_setup";
   direction: "long" | "short" | null;
@@ -26,271 +38,536 @@ type WatchRow = {
   stop: number | null;
   target: number | null;
   session: string;
-  conditions: Array<{ name: string; passed: boolean; required: boolean; reason: string }>;
+  conditions: WatchlistCondition[];
   openTradeId: string | null;
-  batchNumber: number | null;
   tradeSequence: string | null;
 };
+type Day = { change: number | null; high: number | null; low: number | null };
+type ManualProposal = {
+  instrument: string;
+  direction: "long" | "short";
+  confidence: number;
+  entry: number;
+  stop: number;
+  target: number;
+  riskReward: number;
+  preferredEntryTime: string;
+  rationale: string;
+  newsSummary: string;
+  analyzedAt: string;
+  testOnly: true;
+};
 
-/** When every monitored pair reports the same status, lift it to the section. */
-function sharedStatusLabel(rows: WatchRow[]) {
-  if (rows.length < 2) return null;
-  const labels = rows.map((row) => watchlistCardStatus(row).label);
-  if (labels.some((label) => !label)) return null;
-  const first = labels[0];
-  return labels.every((label) => label === first) ? first : null;
-}
-
-function price(value: number | null, instrument: string) {
-  return value === null ? "—" : formatChartPrice(value, instrument);
-}
-
-function evaluatedLabel(value: string | null) {
-  if (!value) return "Waiting";
-  return formatClockTime(value);
-}
-
-// Keep the Watchlist reading the same readiness language as Dashboard: blue at
-// early checklist progress, cyan through confirmation, then clear green.
-function checklistProgressColor(progress: number) {
-  const clamped = Math.max(0, Math.min(100, progress));
-  const hue = Math.round(
-    clamped <= 50
-      ? 220 - clamped * 0.5
-      : clamped <= 75
-        ? 195 - (clamped - 50) * 2
-        : 145 - (clamped - 75) * 0.8,
-  );
-  return `hsl(${hue} 90% ${Math.round(55 - clamped * 0.04)}%)`;
-}
-
-function hasTradeLevels(row: WatchRow) {
-  return (
-    Boolean(row.direction) &&
-    row.entry !== null &&
-    row.stop !== null &&
-    row.target !== null
-  );
-}
-
-function levelsContent(row: WatchRow, availability: PaperTradingAvailability) {
-  const { entry, stop, target } = row;
-  if (hasTradeLevels(row) && entry !== null && stop !== null && target !== null) {
-    return (
-      <dl className="wl-levels-grid">
-        <div className="wl-level">
-          <dt>Entry</dt>
-          <dd className="metric-number">{price(entry, row.instrument)}</dd>
-        </div>
-        <div className="wl-level">
-          <dt>Target</dt>
-          <dd className="metric-number is-target">
-            {price(target, row.instrument)}
-          </dd>
-        </div>
-        <div className="wl-level">
-          <dt>Stop</dt>
-          <dd className="metric-number is-stop">
-            {price(stop, row.instrument)}
-          </dd>
-        </div>
-      </dl>
-    );
-  }
-  // Repeating the long availability.detail under every pair said nothing about this pair.
-  if (!row.openTradeId && availability.state !== "entry_window_open") return null;
-  const failed = row.conditions.filter((item) => item.required && !item.passed).map((item) => item.name).slice(0, 2);
-  return failed.length ? `No setup: ${failed.join(", ")}` : "No valid trade levels";
-}
-
+const names: Record<string, string> = {
+  AUD: "Australian Dollar",
+  CAD: "Canadian Dollar",
+  CHF: "Swiss Franc",
+  EUR: "Euro",
+  GBP: "British Pound",
+  JPY: "Japanese Yen",
+  NZD: "New Zealand Dollar",
+  USD: "US Dollar",
+};
+const finiteOrNull = (value: unknown) =>
+  typeof value === "number" && Number.isFinite(value) ? value : null;
+const mid = (row: Row) => {
+  const bid = finiteOrNull(row.bid),
+    ask = finiteOrNull(row.ask);
+  return bid !== null && ask !== null ? (bid + ask) / 2 : (bid ?? ask);
+};
+const description = (instrument: string) => {
+  const [base, quote] = instrument.split("_");
+  return `${names[base ?? ""] ?? base} / ${names[quote ?? ""] ?? quote}`;
+};
+const hasLevels = (row: Row) =>
+  row.direction &&
+  finiteOrNull(row.entry) !== null &&
+  finiteOrNull(row.stop) !== null &&
+  finiteOrNull(row.target) !== null;
+const status = (row: Row) =>
+  row.openTradeId || row.setupStatus === "valid"
+    ? ["Active", "active"]
+    : row.setupStatus === "developing"
+      ? ["Forming", "forming"]
+      : ["Watching", "watching"];
+const setup = (row: Row) =>
+  row.setupStatus === "developing"
+    ? "FORMING"
+    : row.setupStatus === "valid"
+      ? row.direction === "long"
+        ? "LONG"
+        : "SHORT"
+      : "—";
 export function WatchlistView() {
-  const [snapshot, setSnapshot] = useState<WatchRow[]>([]);
+  const router = useRouter();
+  const [snapshot, setSnapshot] = useState<Row[]>([]);
+  const [daily, setDaily] = useState<Record<string, Day>>({});
+  const [selected, setSelected] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [proposal, setProposal] = useState<ManualProposal | null>(null);
+  const [analyzingInstrument, setAnalyzingInstrument] = useState<string | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [market, setMarket] = useState(() => getMarketCondition());
   const quotes = useLiveQuotes();
-  /**
-   * Prices come off the stream, everything else off the snapshot below.
-   *
-   * The poll carries the strategy's verdict — conditions, levels, session —
-   * which only changes when a candle closes, so a minute is the right cadence
-   * for it. Quotes move constantly and were sitting up to a minute stale
-   * beside it. A pair the stream has not reported keeps its polled price.
-   */
-  const rows = useMemo(
-    () =>
-      snapshot.map((row) => {
-        const quote = quotes[row.instrument];
-        if (!quote) return row;
-        return {
-          ...row,
-          bid: quote.bid,
-          ask: quote.ask,
-          spreadPips: (quote.ask - quote.bid) / pipSizeFor(row.instrument),
-        };
-      }),
-    [snapshot, quotes],
-  );
-  const availability = getPaperTradingAvailability();
-  const sharedStatus = sharedStatusLabel(rows);
-  const layout = "detail";
-
+  useEffect(() => {
+    if (!proposal) return;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousBodyOverscroll = document.body.style.overscrollBehavior;
+    const previousBodyPosition = document.body.style.position;
+    const previousBodyTop = document.body.style.top;
+    const previousBodyWidth = document.body.style.width;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousHtmlOverscroll = document.documentElement.style.overscrollBehavior;
+    const scrollY = window.scrollY;
+    let touchStartY: number | null = null;
+    const onTouchStart = (event: TouchEvent) => {
+      touchStartY = event.touches[0]?.clientY ?? null;
+    };
+    const onTouchMove = (event: TouchEvent) => {
+      const currentY = event.touches[0]?.clientY;
+      if (touchStartY === null || currentY === undefined) return;
+      const modal = event.target instanceof Element
+        ? event.target.closest<HTMLElement>(".manual-proposal")
+        : null;
+      if (!modal) {
+        event.preventDefault();
+        return;
+      }
+      const delta = currentY - touchStartY;
+      const atTop = modal.scrollTop <= 0;
+      const atBottom = modal.scrollTop + modal.clientHeight >= modal.scrollHeight - 1;
+      if ((atTop && delta > 0) || (atBottom && delta < 0)) event.preventDefault();
+    };
+    document.body.style.overflow = "hidden";
+    document.body.style.overscrollBehavior = "none";
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = "100%";
+    document.documentElement.style.overflow = "hidden";
+    document.documentElement.style.overscrollBehavior = "none";
+    document.addEventListener("touchstart", onTouchStart, { passive: true, capture: true });
+    document.addEventListener("touchmove", onTouchMove, { passive: false, capture: true });
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.body.style.overscrollBehavior = previousBodyOverscroll;
+      document.body.style.position = previousBodyPosition;
+      document.body.style.top = previousBodyTop;
+      document.body.style.width = previousBodyWidth;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.documentElement.style.overscrollBehavior = previousHtmlOverscroll;
+      document.removeEventListener("touchstart", onTouchStart, true);
+      document.removeEventListener("touchmove", onTouchMove, true);
+      window.scrollTo(0, scrollY);
+    };
+  }, [proposal]);
   const load = useCallback(async () => {
     try {
-      const response = await fetch(apiUrl("/api/watchlist"), { credentials: "include", cache: "no-store" });
-      const payload = await response.json() as { watchlist?: WatchRow[]; error?: string };
-      if (!response.ok || !payload.watchlist) throw new Error(payload.error ?? "Watchlist is unavailable.");
-      setSnapshot(payload.watchlist);
+      const response = await fetch(apiUrl("/api/watchlist"), {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const payload = (await response.json()) as {
+        watchlist?: Row[];
+        error?: string;
+      };
+      if (!response.ok || !payload.watchlist)
+        throw new Error(payload.error ?? "Markets are unavailable.");
+      const watchlist = payload.watchlist;
+      setSnapshot(watchlist);
+      setSelected((current) =>
+        current && watchlist.some((row) => row.instrument === current)
+          ? current
+          : null,
+      );
+      void Promise.all(
+        watchlist.map(async (row) => {
+          try {
+            const candleResponse = await fetch(
+              apiUrl(
+                `/api/oanda/candles?instrument=${row.instrument}&granularity=D&count=2`,
+              ),
+              { credentials: "include", cache: "no-store" },
+            );
+            const candlePayload = (await candleResponse.json()) as {
+              data?: CandleSeries;
+            };
+            const current = candlePayload.data?.candles.at(-1),
+              previous = candlePayload.data?.candles.at(-2);
+            return [
+              row.instrument,
+              {
+                change:
+                  current && previous
+                    ? ((current.close - previous.close) / previous.close) * 100
+                    : null,
+                high: current?.high ?? null,
+                low: current?.low ?? null,
+              },
+            ] as const;
+          } catch {
+            return [
+              row.instrument,
+              { change: null, high: null, low: null },
+            ] as const;
+          }
+        }),
+      ).then((entries) => setDaily(Object.fromEntries(entries)));
       setError(null);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Watchlist is unavailable.");
+      setError(
+        reason instanceof Error ? reason.message : "Markets are unavailable.",
+      );
     } finally {
       setLoading(false);
     }
   }, []);
-
   useEffect(() => {
-    void load();
-    const timer = window.setInterval(() => void load(), 60_000);
-    return () => window.clearInterval(timer);
+    const initial = window.setTimeout(() => void load(), 0),
+      timer = window.setInterval(() => void load(), 60_000);
+    return () => {
+      window.clearTimeout(initial);
+      window.clearInterval(timer);
+    };
   }, [load]);
-
+  useEffect(() => {
+    const update = () => setMarket(getMarketCondition()),
+      timer = window.setInterval(update, 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
   useForegroundRefresh(load);
+  const rows = useMemo(
+    () =>
+      snapshot.map((row) => {
+        const quote = quotes[row.instrument],
+          bid = finiteOrNull(quote?.bid ?? row.bid),
+          ask = finiteOrNull(quote?.ask ?? row.ask);
+        return {
+          ...row,
+          bid,
+          ask,
+          spreadPips:
+            bid !== null && ask !== null
+              ? (ask - bid) / pipSizeFor(row.instrument)
+              : finiteOrNull(row.spreadPips),
+          entry: finiteOrNull(row.entry),
+          stop: finiteOrNull(row.stop),
+          target: finiteOrNull(row.target),
+        };
+      }),
+    [snapshot, quotes],
+  );
+  const shown = rows
+    .filter((row) => {
+      const matches = `${row.instrument} ${description(row.instrument)}`
+        .toLowerCase()
+        .includes(query.toLowerCase());
+      return matches;
+    })
+    .sort(
+      (left, right) =>
+        Number(right.setupStatus === "valid") -
+          Number(left.setupStatus === "valid") ||
+        left.instrument.localeCompare(right.instrument),
+    );
+  const active = rows.find((row) => row.instrument === selected);
+  const day = active ? daily[active.instrument] : undefined;
+  const activeChange = finiteOrNull(day?.change);
+  const analyze = useCallback(async (instrument: string) => {
+    setAnalysisError(null);
+    setAnalyzingInstrument(instrument);
+    try {
+      const response = await fetch(apiUrl("/api/manual-analysis"), {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instrument }),
+      });
+      const payload = await response.json() as { proposal?: ManualProposal; error?: string };
+      if (!response.ok || !payload.proposal) throw new Error(payload.error ?? "Analysis could not produce a proposal.");
+      setProposal(payload.proposal);
+    } catch (reason) {
+      setAnalysisError(reason instanceof Error ? reason.message : "Analysis could not run.");
+    } finally {
+      setAnalyzingInstrument(null);
+    }
+  }, []);
 
+  const acceptProposal = useCallback(() => {
+    if (!proposal) return;
+    const parameters = new URLSearchParams({
+      instrument: proposal.instrument,
+      entry: String(proposal.entry),
+      stop: String(proposal.stop),
+      target: String(proposal.target),
+      direction: proposal.direction,
+      confidence: String(proposal.confidence),
+      preferredEntryTime: proposal.preferredEntryTime,
+      rationale: proposal.rationale,
+      proposal: "manual-analysis",
+    });
+    router.push(`/chart?${parameters.toString()}`);
+  }, [proposal, router]);
   return (
-    <div className="watchlist-view watchlist-minimal space-y-8 lg:space-y-10">
-      <header className="flex items-end justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-display">Watchlist</h1>
-        </div>
-        <button
-          type="button"
-          onClick={() => void load()}
-          disabled={loading}
-          className="mobile-icon-btn pressable text-[color:var(--muted-strong)] hover:text-[color:var(--foreground)]"
-          aria-label="Refresh"
-        >
-          <RefreshCw className={`size-[18px] ${loading ? "animate-spin" : ""}`} strokeWidth={1.9} />
-        </button>
-      </header>
-
-      {error ? <p className="research-error">{error}</p> : null}
-
-      <section className="dashboard-minimal-section" aria-label="Monitored pairs">
-        <div className="flex items-baseline justify-between gap-3">
-          <h2 className="text-sm font-semibold tracking-[-0.01em]">Pairs</h2>
-          <p className="metric-number text-xs text-[color:var(--muted)]">{rows.length || "—"}</p>
-        </div>
-
-        {sharedStatus ? (
-          <p className="wl-section-note mt-2 text-xs leading-snug text-[color:var(--muted)]">
-            {sharedStatus}
+    <div className="markets-workspace">
+      <header className="markets-header">
+        <div>
+          <h1>Markets</h1>
+          <p>
+            Monitor your forex watchlist and identify pairs worth attention.
           </p>
-        ) : null}
-
-        {rows.length ? (
-          <div className="wl-pairs mt-3" data-wl-layout={layout}>
-            {rows.map((row) => {
-              const status: WatchlistCardStatus = watchlistCardStatus(row);
-              const rowStatus = status.label;
-              const levels = levelsContent(row, availability);
-              const direction = row.direction;
-              const hasDetail = Boolean(rowStatus || levels);
-              const progress = status.progress;
-              const showProgress = status.state !== "open" && status.state !== "unavailable";
-              const progressColor = checklistProgressColor(progress);
-              return (
-                <Link
-                  key={row.instrument}
-                  href={`/chart?instrument=${encodeURIComponent(row.instrument)}`}
-                  className="wl-pair-card pressable"
-                  data-state={status.state}
-                  style={
-                    showProgress
-                      ? { "--watch-progress-color": progressColor } as CSSProperties
-                      : undefined
-                  }
-                >
-                  {/* Two stacked blocks on mobile. On desktop the wrappers go
-                      `display: contents` so these cells become grid items. */}
-                  <div className="wl-main min-w-0">
-                    <p className="wl-pair">
-                      <span className="wl-pair-name">
-                        {displayNameFor(row.instrument)}
+        </div>
+        <span
+          className={`markets-market ${market.marketOpen ? "is-open" : ""}`}
+        >
+          <i />
+          Market {market.marketOpen ? "open" : "closed"} · {market.label}
+        </span>
+      </header>
+      {error ? <p className="research-error">{error}</p> : null}
+      {loading && !rows.length ? (
+        <WatchlistPairsSkeleton />
+      ) : (
+        <div className="markets-terminal">
+          <section className="markets-scanner">
+            <div className="markets-toolbar">
+              <label>
+                <Search />
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search markets..."
+                />
+              </label>
+            </div>
+            <div className="markets-table">
+              <div className="markets-head">
+                <span>Pair</span>
+                <span>Price</span>
+                <span>Chg</span>
+                <span>Bias</span>
+                <span>Session</span>
+                <span>Sprd</span>
+                <span>Setup</span>
+                <span>Status</span>
+              </div>
+              {shown.map((row) => {
+                const [state, tone] = status(row);
+                const change = finiteOrNull(daily[row.instrument]?.change),
+                  cardStatus = watchlistCardStatus(row),
+                  hasStrategy = hasActivePairStrategy(row.instrument),
+                  hasSchedule = hasPairStrategySchedule(row.instrument),
+                  scheduleLabel = hasSchedule ? pairStrategyScheduleLabel(row.instrument) : null;
+                return (
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    key={row.instrument}
+                    className={`markets-row ${active?.instrument === row.instrument ? "is-selected" : ""}`}
+                    onClick={() => {
+                      setSelected(row.instrument);
+                      router.push(`/chart?instrument=${row.instrument}`);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
+                      setSelected(row.instrument);
+                      router.push(`/chart?instrument=${row.instrument}`);
+                    }}
+                    aria-label={`View ${displayNameFor(row.instrument)} chart and setup`}
+                  >
+                    <span className="markets-pair">
+                      <span>
+                        <b>{displayNameFor(row.instrument)}</b>
+                        <small>{description(row.instrument)}</small>
                       </span>
-                      {direction ? (
-                        <span
-                          className={
-                            direction === "long"
-                              ? "wl-dir is-long"
-                              : "wl-dir is-short"
-                          }
-                        >
-                          {direction}
-                        </span>
+                    </span>
+                    <b className="metric-number">
+                      {mid(row) === null
+                        ? "—"
+                        : formatChartPrice(mid(row)!, row.instrument)}
+                    </b>
+                    <b
+                      className={`metric-number ${change === null ? "" : `is-${change >= 0 ? "positive" : "negative"}`}`}
+                    >
+                      {change === null
+                        ? "—"
+                        : `${change >= 0 ? "+" : ""}${change.toFixed(2)}%`}
+                    </b>
+                    <span
+                      className={`markets-bias is-${row.direction ?? "neutral"}`}
+                    >
+                      {row.direction === "long" ? (
+                        <ArrowUp />
+                      ) : row.direction === "short" ? (
+                        <ArrowDown />
                       ) : null}
-                    </p>
-                    {hasDetail ? (
-                      <div className="wl-detail">
-                        {rowStatus ? (
-                          <p
-                            className={`wl-status watchlist-status-label ${
-                              showProgress ? "watchlist-progress-text" : status.tone
-                            }`}
-                          >
-                            {rowStatus}
-                          </p>
-                        ) : null}
-                        {levels ? (
-                          <div
-                            className={`wl-levels ${rowStatus ? "has-status" : ""}`}
-                          >
-                            {levels}
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className="wl-aside">
-                    <p className="wl-quote metric-number">
-                      {price(row.bid, row.instrument)}
-                      <span className="wl-quote-sep"> / </span>
-                      {price(row.ask, row.instrument)}
-                    </p>
-                    <p className="wl-meta metric-number">
+                      {row.direction === "long"
+                        ? "Bullish"
+                        : row.direction === "short"
+                          ? "Bearish"
+                          : "Neutral"}
+                    </span>
+                    <span>{scheduleLabel ?? "No active strategy"}</span>
+                    <span>
                       {row.spreadPips === null
                         ? "—"
-                        : `${row.spreadPips.toFixed(1)} pips`}
-                      {" · "}
-                      {evaluatedLabel(row.evaluatedAt)}
-                    </p>
-                  </div>
-                  {showProgress ? (
-                    <div
-                      className="wl-checklist-progress"
-                      role="progressbar"
-                      aria-label={`${displayNameFor(row.instrument)} checklist completion`}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-valuenow={progress}
+                        : row.spreadPips.toFixed(1)}
+                    </span>
+                    <span
+                      className={`markets-setup is-${row.direction ?? "empty"}`}
                     >
-                      <span
-                        style={{
-                          width: `${progress}%`,
-                          backgroundColor: progressColor,
+                      {setup(row)}
+                    </span>
+                    <span className={`markets-status is-${tone}`}>
+                      <i />
+                      {state}
+                    </span>
+                    <span className={`markets-row-plan is-${cardStatus.state}`}>
+                      <span>{cardStatus.label}</span>{scheduleLabel ? <em>{scheduleLabel}</em> : null}{hasStrategy ? <b>{cardStatus.progress}%</b> : null}
+                      <button
+                        type="button"
+                        className="markets-row-analyze pressable"
+                        disabled={analyzingInstrument === row.instrument}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void analyze(row.instrument);
                         }}
-                      />
-                    </div>
-                  ) : null}
+                        onKeyDown={(event) => event.stopPropagation()}
+                      >
+                        {analyzingInstrument === row.instrument ? "Analyzing…" : "Analyze"}
+                      </button>
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+          <aside className="markets-detail">
+            {active ? (
+              <>
+                <div className="markets-detail-head">
+                  <p>{displayNameFor(active.instrument)}</p>
+                  <strong className="metric-number">
+                    {mid(active) === null
+                      ? "—"
+                      : formatChartPrice(mid(active)!, active.instrument)}
+                  </strong>
+                  <em
+                    className={
+                      (activeChange ?? 0) >= 0 ? "is-positive" : "is-negative"
+                    }
+                  >
+                    {activeChange === null
+                      ? "—"
+                      : `${activeChange >= 0 ? "+" : ""}${activeChange.toFixed(2)}%`}
+                  </em>
+                </div>
+                <dl className="markets-detail-grid">
+                  <div>
+                    <dt>Next check</dt>
+                    <dd>{pairStrategyScheduleLabel(active.instrument)}</dd>
+                  </div>
+                  <div>
+                    <dt>Spread</dt>
+                    <dd>
+                      {active.spreadPips === null
+                        ? "—"
+                        : active.spreadPips.toFixed(1)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Day high</dt>
+                    <dd>
+                      {day?.high === null || day?.high === undefined
+                        ? "—"
+                        : formatChartPrice(day.high, active.instrument)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Day low</dt>
+                    <dd>
+                      {day?.low === null || day?.low === undefined
+                        ? "—"
+                        : formatChartPrice(day.low, active.instrument)}
+                    </dd>
+                  </div>
+                </dl>
+                <section className="markets-setup-detail">
+                  <p>GX setup</p>
+                  {hasLevels(active) ? (
+                    <>
+                      <b
+                        className={
+                          active.direction === "long"
+                            ? "is-positive"
+                            : "is-negative"
+                        }
+                      >
+                        {active.direction === "long" ? "LONG" : "SHORT"}
+                      </b>
+                      <dl>
+                        <div>
+                          <dt>Entry</dt>
+                          <dd>
+                            {formatChartPrice(active.entry!, active.instrument)}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>SL</dt>
+                          <dd className="is-negative">
+                            {formatChartPrice(active.stop!, active.instrument)}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>TP</dt>
+                          <dd className="is-positive">
+                            {formatChartPrice(
+                              active.target!,
+                              active.instrument,
+                            )}
+                          </dd>
+                        </div>
+                      </dl>
+                    </>
+                  ) : (
+                    <span>No active GX setup</span>
+                  )}
+                </section>
+                <Link href={`/chart?instrument=${active.instrument}`}>
+                  Open Chart <ArrowRight />
                 </Link>
-              );
-            })}
-          </div>
-        ) : loading ? (
-          <WatchlistPairsSkeleton />
-        ) : (
-          <p className="mt-4 text-sm text-[color:var(--muted)]">No monitored pairs.</p>
-        )}
-      </section>
+              </>
+            ) : null}
+          </aside>
+        </div>
+      )}
+      {proposal ? createPortal((
+        <div className="manual-proposal-backdrop" role="presentation" data-pull-to-refresh-ignore="true" onMouseDown={(event) => event.target === event.currentTarget && setProposal(null)}>
+          <section className="manual-proposal" role="dialog" aria-modal="true" aria-labelledby="manual-proposal-title">
+            <header>
+              <div>
+                <h2 id="manual-proposal-title">{displayNameFor(proposal.instrument)} · {proposal.direction.toUpperCase()}</h2>
+              </div>
+              <strong>{proposal.confidence}% <small>confidence</small></strong>
+            </header>
+            <dl>
+              <div><dt>Entry</dt><dd>{formatChartPrice(proposal.entry, proposal.instrument)}</dd></div>
+              <div><dt>Stop</dt><dd>{formatChartPrice(proposal.stop, proposal.instrument)}</dd></div>
+              <div><dt>Target</dt><dd>{formatChartPrice(proposal.target, proposal.instrument)} · {proposal.riskReward}:1</dd></div>
+            </dl>
+            <p className="manual-proposal-entry-time"><b>Preferred entry:</b> {proposal.preferredEntryTime}</p>
+            <p><b>Why:</b> {proposal.rationale}</p>
+            <p><b>News:</b> {proposal.newsSummary}</p>
+            <footer>
+              <button type="button" className="manual-proposal-dismiss pressable" onClick={() => setProposal(null)}>Dismiss</button>
+              <button type="button" className="manual-proposal-accept pressable" onClick={acceptProposal}>Accept & open chart</button>
+            </footer>
+          </section>
+        </div>
+      ), document.body) : null}
+      {analysisError ? <div className="manual-analysis-error" role="alert">{analysisError}</div> : null}
     </div>
   );
 }

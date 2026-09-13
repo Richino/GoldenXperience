@@ -8,13 +8,14 @@ import {
   Clock3,
   Maximize,
   Minimize,
+  Plus,
   RotateCcw,
-  Layers3,
   Search,
   X,
 } from "lucide-react";
 import { ChartTypeSelect } from "@/components/charts/chart-type-select";
 import {
+  ChartOptionSheet,
   ChartTypeSheet,
   IndicatorSheet,
 } from "@/components/charts/chart-sheet-controls";
@@ -23,14 +24,16 @@ import {
   settleChartLoad,
 } from "@/components/charts/chart-loading-overlay";
 import { IndicatorSelect } from "@/components/charts/indicator-select";
-import { SetupChart } from "@/components/charts/setup-chart";
+import { SetupChart, type ChartReferenceLine } from "@/components/charts/setup-chart";
+import { PendingEntryDialog } from "@/components/charts/pending-entry-dialog";
 import {
   ChartContextPanel,
   type ChartOverlayPreferences,
 } from "@/components/charts/chart-context-panel";
 import { PairAvatar } from "@/components/ui/pair-avatar";
+import { MobileSheet } from "@/components/ui/mobile-sheet";
 import { apiUrl } from "@/lib/api/url";
-import { formatClockTime, formatDayAndTime } from "@/lib/format/datetime";
+import { formatClockTime, formatDayAndTime, formatShortDay } from "@/lib/format/datetime";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import {
   CHART_INDICATORS,
@@ -58,13 +61,13 @@ import {
 } from "@/lib/instruments/catalog";
 import { useMarketStream } from "@/lib/market-stream/use-market-stream";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
-import { getForexSessionStatus, type EntrySession } from "@/lib/strategy/session";
-import { getActiveSessionLabel } from "@/lib/oanda/calendar";
+import { getMarketCondition } from "@/lib/strategy/session";
 import type { StrategySetup } from "@/lib/strategy/types";
 import type { PaperTradingAvailability } from "@/lib/strategy/strategy-engine";
 import type { WatchlistStatusInput } from "@/lib/watchlist-status";
 import type { MarketPriceTick } from "@/types/market-stream";
 import type { BinaryPrediction, BinaryWatchRow } from "@/types/binary";
+import type { PendingManualEntry } from "@/types/pending-entry";
 import { MAJOR_INSTRUMENTS } from "@/types/forex";
 import type {
   Candle,
@@ -342,29 +345,8 @@ function toneClassForKind(kind: StatusKind): string {
   return "text-[color:var(--pending)]";
 }
 
-function captionForEntrySession(session: EntrySession) {
-  switch (session) {
-    case "London":
-      return "London";
-    case "New York":
-      return "New York";
-    case "London/New York overlap":
-      return "London / NY";
-    default: {
-      const exhaustive: never = session;
-      throw new Error(`Unhandled session: ${exhaustive}`);
-    }
-  }
-}
-
 function marketSessionCaption() {
-  const marketSession = getForexSessionStatus();
-  if (!marketSession.marketOpen) return "Closed";
-  if (marketSession.entrySession) return captionForEntrySession(marketSession.entrySession);
-  const active = getActiveSessionLabel();
-  if (active.startsWith("Tokyo")) return "Tokyo";
-  if (active.startsWith("Sydney")) return "Sydney";
-  return null;
+  return getMarketCondition().label;
 }
 
 function SegmentControl<T extends string>({
@@ -545,23 +527,13 @@ function SignalSearch({
   useEffect(() => {
     if (!open) return;
 
-    function handlePointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-
     function handleEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setOpen(false);
       }
     }
 
-    document.addEventListener("keydown", handleEscape);
-
-    if (compact) {
-      document.addEventListener("mousedown", handlePointerDown);
-    }
+    if (!compact) document.addEventListener("keydown", handleEscape);
 
     const previousBodyOverflow = document.body.style.overflow;
     const previousRootOverflow = document.documentElement.style.overflow;
@@ -571,8 +543,7 @@ function SignalSearch({
     }
 
     return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleEscape);
+      if (!compact) document.removeEventListener("keydown", handleEscape);
       if (!compact) {
         document.body.style.overflow = previousBodyOverflow;
         document.documentElement.style.overflow = previousRootOverflow;
@@ -582,21 +553,23 @@ function SignalSearch({
 
   if (compact) {
     return (
-      <div ref={rootRef} className={`relative ${className}`}>
-        <button
-          type="button"
-          aria-label="Search pairs"
-          aria-expanded={open}
-          onClick={() => setOpen((current) => !current)}
-          className={`signals-tool-btn pressable ${open ? "is-active" : ""}`}
-        >
-          {pairLabel ? (
-            <><span>{pairLabel}</span><ChevronDown className="size-3.5" strokeWidth={2} /></>
-          ) : <Search className="size-4" strokeWidth={2} />}
-        </button>
+      <>
+        <div className={`relative ${className}`}>
+          <button
+            type="button"
+            aria-label="Search pairs"
+            aria-expanded={open}
+            onClick={() => setOpen((current) => !current)}
+            className={`signals-tool-btn pressable ${open ? "is-active" : ""}`}
+          >
+            {pairLabel ? (
+              <><span>{pairLabel}</span><ChevronDown className="size-3.5" strokeWidth={2} /></>
+            ) : <Search className="size-4" strokeWidth={2} />}
+          </button>
+        </div>
 
-        {open ? (
-          <div className="signals-search-popover menu-popover absolute left-0 top-[calc(100%+0.5rem)] z-50 w-[min(18rem,calc(100vw-2rem))] overflow-hidden rounded-xl p-2">
+        <MobileSheet open={open} onClose={() => setOpen(false)} title="Select a pair">
+          <div className="signals-pair-sheet">
             <div className="signals-search">
               <Search
                 className="size-3.5 shrink-0 text-[color:var(--muted)]"
@@ -634,7 +607,7 @@ function SignalSearch({
                 </button>
               ) : null}
             </div>
-            <div className="mt-1 max-h-[min(16rem,50vh)] overflow-y-auto overscroll-contain">
+            <div className="mt-2">
               {matches.length ? (
                 visibleMatches.map((result) => {
                   const active = result.instrument === activeInstrument;
@@ -665,8 +638,8 @@ function SignalSearch({
               )}
             </div>
           </div>
-        ) : null}
-      </div>
+        </MobileSheet>
+      </>
     );
   }
 
@@ -869,9 +842,46 @@ function ActivePositionStrip({
       <span><small>Current</small><b className="metric-number">{currentPrice === null ? "—" : formatChartPrice(currentPrice, signal.instrument)}</b></span>
       <span><small>SL</small><b className="metric-number is-negative">{formatChartPrice(signal.stop, signal.instrument)}</b></span>
       <span><small>TP</small><b className="metric-number is-positive">{formatChartPrice(signal.target, signal.instrument)}</b></span>
-      <span><small>R:R</small><b>{signal.riskReward.toFixed(1)}:1</b></span>
+      <span><small>R:R</small><b>{formatRiskReward(signal.riskReward)}</b></span>
       <span><small>Open R</small><b className={openR !== null && openR < 0 ? "is-negative" : "is-positive"}>{openR === null ? "—" : `${openR >= 0 ? "+" : ""}${openR.toFixed(2)}R`}</b></span>
+      {signal.openedAt ? <PositionOpenTiming openedAt={signal.openedAt} /> : null}
     </div>
+  );
+}
+
+function formatRiskReward(value: number) {
+  return `${value.toFixed(Number.isInteger(value) ? 0 : 1)}:1`;
+}
+
+function PositionOpenTiming({ openedAt }: { openedAt: string }) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const started = Date.parse(openedAt);
+  const minutes = Number.isFinite(started) ? Math.max(0, Math.floor((now - started) / 60_000)) : null;
+  const duration = minutes === null
+    ? "—"
+    : minutes < 60
+      ? `${minutes}m`
+      : minutes < 1_440
+        ? `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+        : `${Math.floor(minutes / 1_440)}d ${Math.floor((minutes % 1_440) / 60)}h`;
+
+  return (
+    <>
+      <span className="gx-position-mobile-detail gx-position-opened">
+        <small>Opened</small>
+        <b>{formatShortDay(openedAt)} · {formatClockTime(openedAt)}</b>
+      </span>
+      <span className="gx-position-mobile-detail">
+        <small>Duration</small>
+        <b>{duration}</b>
+      </span>
+    </>
   );
 }
 
@@ -885,7 +895,7 @@ function SetupStats({ active }: { active: TradeSignal }) {
         SL {formatChartPrice(active.stop, active.instrument)}
       </span>
       <span className="text-[color:var(--accent)]">
-        1:{active.riskReward.toFixed(1)}
+        {formatRiskReward(active.riskReward)}
       </span>
     </p>
   );
@@ -1285,6 +1295,8 @@ export function SignalWorkspace({
   initialPaperTrades = [],
   initialFocusTradeId = null,
   initialPredictionFocus = null,
+  initialSetupFocus = null,
+  initialManualProposal = null,
 }: {
   strategySetups: StrategySetup[];
   initialInstrument: MajorInstrument;
@@ -1294,6 +1306,10 @@ export function SignalWorkspace({
   initialPaperTrades?: PaperChartTrade[];
   initialFocusTradeId?: string | null;
   initialPredictionFocus?: BinaryPrediction | null;
+  /** Exact prospective setup selected from Home, kept stable across the route transition. */
+  initialSetupFocus?: { entry: number; stop: number; target: number } | null;
+  /** A user accepted a test-only AI proposal; this opens a reviewable draft, never an order. */
+  initialManualProposal?: { direction: "long" | "short"; entry: number; stop: number; target: number; confidence: number | null; rationale: string; preferredEntryTime: string } | null;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -1368,6 +1384,7 @@ export function SignalWorkspace({
     initialStatus.state === "connected" ? null : initialStatus.message,
   );
   const [loading, setLoading] = useState(false);
+  const [refreshingChart, setRefreshingChart] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [historyExhausted, setHistoryExhausted] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -1387,6 +1404,19 @@ export function SignalWorkspace({
   const [focusTradeId, setFocusTradeId] = useState<string | null>(initialFocusTradeId);
   const [predictionFocus, setPredictionFocus] = useState<BinaryPrediction | null>(initialPredictionFocus);
   const [predictionClock, setPredictionClock] = useState(() => Date.now());
+  const [pendingEntries, setPendingEntries] = useState<PendingManualEntry[]>([]);
+  const [pendingEntryDialogOpen, setPendingEntryDialogOpen] = useState(false);
+  const [selectedPendingEntry, setSelectedPendingEntry] = useState<PendingManualEntry | null>(null);
+  const [pendingEntryNotice, setPendingEntryNotice] = useState<string | null>(null);
+  const [pendingEntryClock, setPendingEntryClock] = useState(() => Date.now());
+  const openedManualProposalRef = useRef(false);
+
+  useEffect(() => {
+    if (!initialManualProposal || openedManualProposalRef.current) return;
+    openedManualProposalRef.current = true;
+    setSelectedPendingEntry(null);
+    setPendingEntryDialogOpen(true);
+  }, [initialManualProposal]);
   // The first pair is already rendered with server-fetched trades.
   const skipInitialTradeFetchRef = useRef(true);
   const olderRequestInFlightRef = useRef(false);
@@ -1447,6 +1477,22 @@ export function SignalWorkspace({
     }
   }, [instrument]);
 
+  const refreshPendingEntries = useCallback(async () => {
+    try {
+      const response = await fetch(apiUrl(`/api/pending-entries?instrument=${instrument}`), {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const payload = await response.json() as { entries?: PendingManualEntry[] };
+      if (response.ok && payload.entries) {
+        setPendingEntries(payload.entries);
+        setSelectedPendingEntry((current) => current ? payload.entries!.find((entry) => entry.id === current.id) ?? current : null);
+      }
+    } catch {
+      // Existing chart data remains usable while the persisted entry read retries.
+    }
+  }, [instrument]);
+
   const refreshActivePrediction = useCallback(async () => {
     if (!predictionFocus || predictionFocus.status !== "active") return;
     try {
@@ -1481,6 +1527,24 @@ export function SignalWorkspace({
     const timer = window.setInterval(() => void refreshBinaryWatch(), 60_000);
     return () => window.clearInterval(timer);
   }, [refreshBinaryWatch]);
+
+  useEffect(() => {
+    const initial = window.setTimeout(() => void refreshPendingEntries(), 0);
+    const timer = window.setInterval(() => {
+      setPendingEntryClock(Date.now());
+      void refreshPendingEntries();
+    }, 5_000);
+    return () => {
+      window.clearTimeout(initial);
+      window.clearInterval(timer);
+    };
+  }, [refreshPendingEntries]);
+
+  useEffect(() => {
+    if (!pendingEntryNotice) return;
+    const timer = window.setTimeout(() => setPendingEntryNotice(null), 3_000);
+    return () => window.clearTimeout(timer);
+  }, [pendingEntryNotice]);
 
   useEffect(() => {
     setPredictionFocus(initialPredictionFocus);
@@ -1620,6 +1684,12 @@ export function SignalWorkspace({
     }
   }, [instrument, range, replaceSeries, timeframe]);
 
+  const refreshChart = useCallback(async () => {
+    setRefreshingChart(true);
+    await refreshMarketQuietly();
+    setRefreshingChart(false);
+  }, [refreshMarketQuietly]);
+
   useForegroundRefresh(
     useCallback(async () => {
       await Promise.all([
@@ -1627,6 +1697,7 @@ export function SignalWorkspace({
         refreshPaperPlans(),
         refreshBinaryWatch(),
         refreshPaperTrades(),
+        refreshPendingEntries(),
         refreshActivePrediction(),
       ]);
     }, [
@@ -1635,6 +1706,7 @@ export function SignalWorkspace({
       refreshMarketQuietly,
       refreshPaperPlans,
       refreshPaperTrades,
+      refreshPendingEntries,
     ]),
   );
 
@@ -1725,26 +1797,135 @@ export function SignalWorkspace({
       ) ?? null,
     [focusTradeId, instrument, paperTrades],
   );
+  // The page receives this list from the server before the workspace renders.
+  // Prefer it over the watchlist's `openTradeId`, which can lag the paper
+  // collector by one refresh. That way a chart opened directly always shows
+  // an existing position and its levels before falling back to the no-position
+  // state.
+  const openPaperTrade = useMemo(
+    () =>
+      paperTrades.find(
+        (trade) => trade.instrument === instrument && trade.status === "open" && trade.closedAt === null,
+      ) ?? null,
+    [instrument, paperTrades],
+  );
+  const displayedTrade = openPaperTrade ?? focusTrade;
+  const triggeredManualEntry = useMemo(
+    () => pendingEntries.find((entry) => entry.status === "TRIGGERED" && entry.stopPrice !== null && entry.targetPrice !== null) ?? null,
+    [pendingEntries],
+  );
   const focusedPrediction = predictionFocus?.instrument === instrument
     ? predictionFocus
     : null;
-  const activeFocusId = focusTrade?.id ?? null;
-  // A focused trade replaces the live plan on the chart: its own entry, stop,
-  // target and exit are what the markers have to line up with.
+  const activeFocusId = displayedTrade?.id ?? null;
+  // A direct chart visit can arrive before the watchlist collector has
+  // refreshed its `openTradeId`. Prefer the chart's own open-trade read so
+  // Active Position never says "no open position" while that trade is live.
+  const positionSignal = useMemo<TradeSignal | null>(() => {
+    if (openPaperTrade) {
+      const risk = Math.abs(openPaperTrade.entry - openPaperTrade.stop);
+      return {
+        instrument,
+        pair: activeSetup.pair,
+        timeframe: "15m",
+        direction: openPaperTrade.direction,
+        bias: openPaperTrade.direction === "long" ? "Bullish" : "Bearish",
+        entry: openPaperTrade.entry,
+        stop: openPaperTrade.stop,
+        target: openPaperTrade.target,
+        riskReward: risk > 0 ? Math.abs(openPaperTrade.target - openPaperTrade.entry) / risk : 0,
+        strategy: `Paper · Batch ${openPaperTrade.batchNumber ?? "—"}`,
+        note: `Trade #${openPaperTrade.tradeSequence}`,
+        freshness: "Open",
+        openedAt: openPaperTrade.openedAt,
+      };
+    }
+    if (triggeredManualEntry?.triggerPrice && triggeredManualEntry.stopPrice !== null && triggeredManualEntry.targetPrice !== null) {
+      const risk = Math.abs(triggeredManualEntry.triggerPrice - triggeredManualEntry.stopPrice);
+      return {
+        instrument,
+        pair: activeSetup.pair,
+        timeframe: "1h",
+        direction: triggeredManualEntry.direction,
+        bias: triggeredManualEntry.direction === "long" ? "Bullish" : "Bearish",
+        entry: triggeredManualEntry.triggerPrice,
+        stop: triggeredManualEntry.stopPrice,
+        target: triggeredManualEntry.targetPrice,
+        riskReward: risk > 0 ? Math.abs(triggeredManualEntry.targetPrice - triggeredManualEntry.triggerPrice) / risk : 2,
+        strategy: "Pending manual entry",
+        note: "Simulated paper execution",
+        freshness: "Triggered",
+        openedAt: triggeredManualEntry.triggeredAt ?? triggeredManualEntry.createdAt,
+      };
+    }
+    return openSignal;
+  }, [activeSetup.pair, instrument, openPaperTrade, openSignal, triggeredManualEntry]);
+  // An open trade takes priority over a historical focus: its own entry, stop,
+  // target and exit are what the chart must display on first load.
   const setupLevels = useMemo(
-    () => focusTrade ? ({
-      entry: focusTrade.entry,
-      stop: focusTrade.stop,
-      target: focusTrade.target,
-      exit: focusTrade.exit,
-      outcome: focusTrade.outcome,
+    () => displayedTrade ? ({
+      entry: displayedTrade.entry,
+      stop: displayedTrade.stop,
+      target: displayedTrade.target,
+      exit: displayedTrade.exit,
+      outcome: displayedTrade.outcome,
+    }) : initialSetupFocus ? ({
+      entry: initialSetupFocus.entry,
+      stop: initialSetupFocus.stop,
+      target: initialSetupFocus.target,
     }) : active ? ({
       entry: active.entry,
       stop: active.stop,
       target: active.target,
     }) : null,
-    [active, focusTrade],
+    [active, displayedTrade, initialSetupFocus],
   );
+  const pendingEntryReferenceLines = useMemo(() => {
+    const openManager = (entry: PendingManualEntry) => {
+      setSelectedPendingEntry(entry);
+      setPendingEntryDialogOpen(true);
+    };
+    return pendingEntries.flatMap((entry) => {
+      if (entry.status === "PENDING" || entry.status === "TRIGGERING") {
+        const remaining = entry.expiresAt
+          ? Math.max(0, Date.parse(entry.expiresAt) - pendingEntryClock)
+          : null;
+        const remainingMinutes = remaining === null ? null : Math.ceil(remaining / 60_000);
+        const countdown = remainingMinutes === null ? "" : remainingMinutes >= 60
+          ? ` • ${Math.floor(remainingMinutes / 60)}h ${remainingMinutes % 60}m`
+          : ` • ${remainingMinutes}m`;
+        const lines: ChartReferenceLine[] = [{
+          key: `pending-${entry.id}`,
+          price: entry.entryPrice,
+          label: `${entry.direction.toUpperCase()} ENTRY ${formatChartPrice(entry.entryPrice, instrument)}${countdown}`,
+          color: entry.direction === "long" ? "#00b377" : "#e67e22",
+          textColor: "#ffffff",
+          dashed: false,
+          lineWidth: 2 as const,
+          onSelect: () => openManager(entry),
+        }];
+        if (entry.invalidationPrice !== null) lines.push({
+          key: `cancel-${entry.id}`,
+          price: entry.invalidationPrice,
+          label: `CANCEL ${formatChartPrice(entry.invalidationPrice, instrument)}`,
+          color: "#8c8c93",
+          textColor: "#ffffff",
+          dashed: true,
+          lineWidth: 1 as const,
+          onSelect: () => openManager(entry),
+        });
+        return lines;
+      }
+      if (entry.status === "TRIGGERED" && entry.triggerPrice !== null && entry.stopPrice !== null && entry.targetPrice !== null) {
+        return [
+          { key: `manual-entry-${entry.id}`, price: entry.triggerPrice, label: `ENTRY ${formatChartPrice(entry.triggerPrice, instrument)}`, color: "#00a06a", textColor: "#ffffff", dashed: false, lineWidth: 2 as const, onSelect: () => openManager(entry) },
+          { key: `manual-stop-${entry.id}`, price: entry.stopPrice, label: `SL ${formatChartPrice(entry.stopPrice, instrument)} · -1R`, color: "#e74c3c", textColor: "#ffffff", dashed: true, lineWidth: 1 as const, onSelect: () => openManager(entry) },
+          { key: `manual-target-${entry.id}`, price: entry.targetPrice, label: `TP ${formatChartPrice(entry.targetPrice, instrument)} · +2R`, color: "#00b377", textColor: "#ffffff", dashed: true, lineWidth: 1 as const, onSelect: () => openManager(entry) },
+        ];
+      }
+      return [];
+    });
+  }, [instrument, pendingEntries, pendingEntryClock]);
   const focusRange = useMemo(() => {
     const interval =
       GRANULARITY_MS[TIMEFRAME_TO_GRANULARITY[timeframe]] ?? GRANULARITY_MS.M15;
@@ -1766,11 +1947,11 @@ export function SignalWorkspace({
       };
     }
 
-    if (!focusTrade) return null;
+    if (!displayedTrade) return null;
 
-    const opened = Date.parse(focusTrade.openedAt) / 1_000;
-    const closed = focusTrade.closedAt
-      ? Date.parse(focusTrade.closedAt) / 1_000
+    const opened = Date.parse(displayedTrade.openedAt) / 1_000;
+    const closed = displayedTrade.closedAt
+      ? Date.parse(displayedTrade.closedAt) / 1_000
       : opened;
 
     if (!Number.isFinite(opened) || !Number.isFinite(closed)) return null;
@@ -1779,7 +1960,7 @@ export function SignalWorkspace({
       from: Math.floor(opened - padding),
       to: Math.ceil(Math.max(opened, closed) + padding),
     };
-  }, [focusTrade, focusedPrediction, timeframe]);
+  }, [displayedTrade, focusedPrediction, timeframe]);
 
   useEffect(() => {
     return () => {
@@ -2024,22 +2205,6 @@ export function SignalWorkspace({
   }
 
   const sessionLabel = marketSessionCaption();
-  const overlaysEnabled =
-    overlayPreferences.levels &&
-    overlayPreferences.signalMarkers &&
-    overlayPreferences.positionMarkers;
-  const overlaysActive =
-    overlayPreferences.levels ||
-    overlayPreferences.signalMarkers ||
-    overlayPreferences.positionMarkers;
-
-  function toggleAllOverlays() {
-    setOverlayPreferences({
-      levels: !overlaysEnabled,
-      signalMarkers: !overlaysEnabled,
-      positionMarkers: !overlaysEnabled,
-    });
-  }
 
   return (
     <div
@@ -2062,12 +2227,10 @@ export function SignalWorkspace({
                 onSelect={selectSearchResult}
                 className="gx-pair-search"
               />
-              <div className="flex items-center gap-2">
-                <FullscreenToggle
-                  className="signals-icon-btn"
-                  fullscreen={fullscreen}
-                  onToggle={() => setFullscreen((open) => !open)}
-                />
+              <div className="signals-mobile-header-actions flex items-center gap-2">
+                <button type="button" className="pending-entry-add pressable" onClick={() => { setSelectedPendingEntry(null); setPendingEntryDialogOpen(true); }}>
+                  <Plus className="size-3.5" /> Add Entry
+                </button>
                 <NotificationBell compact className="signals-icon-btn signals-fullscreen-reserve" />
               </div>
             </div>
@@ -2097,7 +2260,7 @@ export function SignalWorkspace({
             ) : null}
           </div>
 
-          {focusTrade ? (
+          {focusTrade && focusTrade.closedAt !== null ? (
             <TradeFocusBar trade={focusTrade} onClear={clearFocusTrade} />
           ) : null}
           {focusedPrediction ? (
@@ -2147,20 +2310,25 @@ export function SignalWorkspace({
               focusPrediction={focusedPrediction}
               focusRange={focusRange}
               referenceLine={predictionReferenceLine}
+              referenceLines={pendingEntryReferenceLines}
             />
             <ChartLoadingOverlay visible={loading} />
           </div>
 
           <div className="gx-mobile-chart-toolbar">
             <IndicatorSheet enabled={enabledIndicators} onChange={setEnabledIndicators} />
+            <ChartOptionSheet title="Range" options={CHART_RANGES} value={range} onChange={selectRange} />
+            <ChartTypeSheet value={chartVariant} onChange={setChartVariant} />
             <button
               type="button"
-              className={`gx-mobile-tool-button ${overlaysActive ? "is-active" : ""}`}
-              onClick={toggleAllOverlays}
+              className={`gx-mobile-tool-button pressable${refreshingChart ? " is-refreshing" : ""}`}
+              onClick={() => void refreshChart()}
+              disabled={refreshingChart}
+              aria-label="Refresh chart"
+              title="Refresh chart"
             >
-              <Layers3 className="size-4" strokeWidth={2} /> GX
+              <RotateCcw className="size-3.5" strokeWidth={2} />
             </button>
-            <ChartTypeSheet value={chartVariant} onChange={setChartVariant} />
             <FullscreenToggle
               className="gx-mobile-tool-button"
               fullscreen={fullscreen}
@@ -2170,7 +2338,7 @@ export function SignalWorkspace({
 
           <div className="gx-mobile-position-section">
             <ActivePositionStrip
-              signal={openSignal}
+              signal={positionSignal}
               currentPrice={quote?.mid ?? null}
               pairLabel={activeSetup.pair}
             />
@@ -2218,20 +2386,14 @@ export function SignalWorkspace({
             />
 
             <div className="signals-chart-head-tools">
+              <button type="button" className="pending-entry-add pressable" onClick={() => { setSelectedPendingEntry(null); setPendingEntryDialogOpen(true); }}>
+                <Plus className="size-3.5" /> Add Entry
+              </button>
               <IndicatorSelect
                 toolbar
                 enabled={enabledIndicators}
                 onChange={setEnabledIndicators}
               />
-              <button
-                type="button"
-                className={`gx-toolbar-btn pressable ${overlaysActive ? "is-emphasis" : ""}`}
-                aria-pressed={overlaysActive}
-                onClick={toggleAllOverlays}
-              >
-                <Layers3 className="size-3.5" strokeWidth={2} />
-                GX Overlays
-              </button>
               <ChartTypeSelect toolbar value={chartVariant} onChange={setChartVariant} />
               <RangeSelect value={range} onChange={selectRange} />
               <ResetViewButton
@@ -2256,7 +2418,7 @@ export function SignalWorkspace({
               </p>
             ) : null}
 
-            {focusTrade ? (
+            {focusTrade && focusTrade.closedAt !== null ? (
               <TradeFocusBar trade={focusTrade} onClear={clearFocusTrade} />
             ) : null}
             {focusedPrediction ? (
@@ -2291,12 +2453,13 @@ export function SignalWorkspace({
                 focusPrediction={focusedPrediction}
                 focusRange={focusRange}
                 referenceLine={predictionReferenceLine}
+                referenceLines={pendingEntryReferenceLines}
               />
               <ChartLoadingOverlay visible={loading} />
             </div>
           </div>
           <ActivePositionStrip
-            signal={openSignal}
+            signal={positionSignal}
             currentPrice={quote?.mid ?? null}
             pairLabel={activeSetup.pair}
           />
@@ -2314,6 +2477,22 @@ export function SignalWorkspace({
         </div>
         </section>
       </div>
+
+      {pendingEntryDialogOpen ? <PendingEntryDialog
+        key={selectedPendingEntry?.id ?? "new-pending-entry"}
+        open={pendingEntryDialogOpen}
+        instrument={instrument}
+        bid={quote?.bid ?? null}
+        ask={quote?.ask ?? null}
+        selectedEntry={selectedPendingEntry}
+        initialProposal={initialManualProposal}
+        onClose={() => setPendingEntryDialogOpen(false)}
+        onChanged={(message) => {
+          setPendingEntryNotice(message);
+          void refreshPendingEntries();
+        }}
+      /> : null}
+      {pendingEntryNotice ? <div className="pending-entry-toast" role="status">{pendingEntryNotice}</div> : null}
 
     </div>
   );

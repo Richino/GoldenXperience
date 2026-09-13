@@ -59,7 +59,7 @@ export function GxStatus({
   return (
     <section className="home-idle-section" aria-label="GX status">
       <div className="home-section-head">
-        <h2>GX Status</h2>
+        <h2>Status</h2>
         {status.live ? (
           <span className="home-live">
             <span className="home-live-dot" aria-hidden="true" />
@@ -68,9 +68,6 @@ export function GxStatus({
         ) : null}
       </div>
       <p className="home-idle-lead">{headline(hasActiveSetups, status.availability)}</p>
-      <p className="home-idle-meta">
-        {status.marketsMonitored} markets · {status.strategiesActive} strategies
-      </p>
     </section>
   );
 }

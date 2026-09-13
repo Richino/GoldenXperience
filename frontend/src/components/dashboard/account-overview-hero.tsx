@@ -1,15 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AccountAmountChart,
+  AccountRangeControl,
   accountSeriesTone,
   buildAccountAmountSeries,
   type AccountChartRange,
 } from "@/components/dashboard/account-amount-chart";
 import { NotificationBell } from "@/components/notifications/notification-bell";
-import { ACCOUNT_STARTING_BALANCE } from "@/lib/account-starting-balance";
 import { tradingDayKey } from "@/lib/format/datetime";
+import { getMarketCondition } from "@/lib/strategy/session";
 import { useScrolledPast } from "@/lib/use-scrolled-past";
 import type { AccountBalanceHistoryPoint, AccountSummary } from "@/types/forex";
 
@@ -32,26 +33,11 @@ function signedTone(value: number) {
   return value > 0 ? "is-positive" : "is-negative";
 }
 
-function greetingName(value: string) {
-  const cleaned = value.trim();
-  if (!cleaned) return "trader";
-  const local = cleaned.includes("@") ? cleaned.split("@")[0] : cleaned;
-  const token = local.split(/[.\s_-]+/).find(Boolean) ?? local;
-  return token.charAt(0).toUpperCase() + token.slice(1);
-}
-
-function initials(value: string) {
-  const name = greetingName(value);
-  return name.slice(0, 1).toUpperCase();
-}
-
 export function AccountOverviewHero({
   account,
-  userLabel,
   history,
   todayKey,
   openPL,
-  riskToday,
 }: {
   account: AccountSummary;
   userLabel: string;
@@ -60,17 +46,21 @@ export function AccountOverviewHero({
    * The current ET day, resolved on the server. Reading the clock during render
    * would make the server and the browser disagree across a midnight boundary
    * and break hydration.
-   */
+  */
   todayKey: string;
   openPL: number;
-  riskToday: number;
 }) {
   const [range, setRange] = useState<AccountChartRange>("1d");
-  const name = greetingName(userLabel);
-  // The bell is fixed to the viewport, so the greeting row it was lifted out of
-  // is what decides when it stops reading as part of the header.
-  const { ref: greetingRef, scrolledPast: greetingScrolledPast } =
-    useScrolledPast<HTMLElement>();
+  const { ref: topbarRef, scrolledPast } = useScrolledPast<HTMLElement>();
+  // Client-only so the server and first client render agree; the label depends
+  // on the wall clock, which the server cannot know for the viewer's minute.
+  const [marketCondition, setMarketCondition] = useState<ReturnType<typeof getMarketCondition> | null>(null);
+  useEffect(() => {
+    const read = () => setMarketCondition(getMarketCondition());
+    read();
+    const timer = window.setInterval(read, 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const series = useMemo(
     () =>
       buildAccountAmountSeries({
@@ -85,27 +75,23 @@ export function AccountOverviewHero({
   // "Today" is every broker-reported balance movement this session plus the
   // still-floating value on open positions. Strategy estimates are deliberately
   // excluded because they can differ from the executed practice-account fill.
-  const dayPL = useMemo(() => {
-    const realized = history.reduce(
+  const realizedPL = useMemo(
+    () =>
+      history.reduce(
       (sum, point) =>
         tradingDayKey(point.time) === todayKey
           ? sum + point.change
           : sum,
       0,
-    );
+    ),
+    [todayKey, history],
+  );
 
-    return realized + account.unrealizedPL;
-  }, [account.unrealizedPL, todayKey, history]);
+  const dayPL = realizedPL + account.unrealizedPL;
 
   const baseline = account.nav - dayPL;
   const changePercent = baseline !== 0 ? (dayPL / baseline) * 100 : 0;
   const positive = dayPL >= 0;
-  // All-time result: where the account sits now versus the opening deposit,
-  // floating P&L included (NAV already carries it). This is the "am I up
-  // overall?" figure, which the day pill above never answers.
-  const allTimePL = account.nav - ACCOUNT_STARTING_BALANCE;
-  const allTimePositive = allTimePL >= 0;
-  const allTimePercent = (allTimePL / ACCOUNT_STARTING_BALANCE) * 100;
   // The card's tint follows the chart it wraps, not the day's P/L. Those are
   // different questions and they disagree often — a flat day around a losing
   // month painted the card green while the line inside it was red.
@@ -131,48 +117,38 @@ export function AccountOverviewHero({
       data-tone={heroTone}
       aria-label="Account overview"
     >
-      <header
-        ref={greetingRef}
-        className="flex items-center justify-between gap-3 lg:hidden"
-      >
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="mobile-account-avatar" aria-hidden>
-            {initials(userLabel)}
-          </div>
-          <p className="truncate text-[1.05rem] font-medium tracking-[-0.02em]">
-            Hi, {name}
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-0.5">
-          <NotificationBell
-            compact
-            className={`mobile-floating-icon mobile-floating-icon-end${
-              greetingScrolledPast ? " is-lifted" : ""
-            }`}
-          />
+      <header ref={topbarRef} className="home-hero-topbar lg:hidden">
+        <div className="home-hero-topbar-end">
+          <span
+            className={`home-market-pill ${marketCondition?.marketOpen === false ? "is-closed" : "is-open"}`}
+          >
+            <span className="home-market-dot" aria-hidden="true" />
+            {marketCondition ? `${marketCondition.label} session` : "Session"}
+          </span>
+          <NotificationBell compact className={`home-hero-bell${scrolledPast ? " is-lifted" : ""}`} />
         </div>
       </header>
 
-      <div className="home-hero-copy mt-7 lg:mt-0">
-        <p className="home-hero-nav metric-number">
-          {money(account.nav, account.currency)}
-        </p>
-        <p className={`home-hero-today ${positive ? "is-positive" : "is-negative"}`}>
-          {positive ? "+" : "−"}
-          {money(Math.abs(dayPL), account.currency)}
-          <span>
-            ({positive ? "+" : "−"}
-            {Math.abs(changePercent).toFixed(2)}%) Today
-          </span>
-        </p>
-        <p className={`home-hero-alltime ${allTimePositive ? "is-positive" : "is-negative"}`}>
-          {allTimePositive ? "+" : "−"}
-          {money(Math.abs(allTimePL), account.currency)}
-          <span>
-            ({allTimePositive ? "+" : "−"}
-            {Math.abs(allTimePercent).toFixed(2)}%) all-time
-          </span>
-        </p>
+      <div className="home-hero-head mt-6 lg:mt-0">
+        <div className="home-hero-copy">
+          <p className="home-hero-label">Total balance</p>
+          <p className="home-hero-nav metric-number">
+            {money(account.nav, account.currency)}
+          </p>
+          <p className={`home-hero-today ${positive ? "is-positive" : "is-negative"}`}>
+            {positive ? "+" : "−"}
+            {money(Math.abs(dayPL), account.currency)}
+            <span>
+              ({positive ? "+" : "−"}
+              {Math.abs(changePercent).toFixed(2)}%) Today
+            </span>
+          </p>
+        </div>
+        <AccountRangeControl
+          range={range}
+          onRangeChange={setRange}
+          className="home-hero-range"
+        />
       </div>
 
       <div className="mt-5 lg:mt-7">
@@ -182,27 +158,20 @@ export function AccountOverviewHero({
           currency={account.currency}
           range={range}
           onRangeChange={setRange}
+          hideRangeRow
         />
         <dl className="home-chart-stats">
           <div>
-            <dt>Unrealized</dt>
-            <dd className={`metric-number ${signedTone(account.unrealizedPL)}`}>
-              {signedMoney(account.unrealizedPL, account.currency)}
+            <dt>Realized</dt>
+            <dd className={`metric-number ${signedTone(realizedPL)}`}>
+              {signedMoney(realizedPL, account.currency)}
             </dd>
           </div>
           <div>
-            <dt>Open P/L</dt>
+            <dt>Unrealized</dt>
             <dd className={`metric-number ${signedTone(openPL)}`}>
               {signedMoney(openPL, account.currency)}
             </dd>
-          </div>
-          <div>
-            <dt>Margin used</dt>
-            <dd className="metric-number">{money(account.marginUsed, account.currency)}</dd>
-          </div>
-          <div>
-            <dt>Risk today</dt>
-            <dd className="metric-number">{money(riskToday, account.currency)}</dd>
           </div>
         </dl>
       </div>

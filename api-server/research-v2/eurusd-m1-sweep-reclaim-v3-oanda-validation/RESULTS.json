@@ -1,0 +1,42 @@
+{
+  "phase1": {
+    "tvTrades": 46,
+    "matched": 46,
+    "unmatched": 0,
+    "duplicates": 0,
+    "timestampMismatches": 0,
+    "entryPriceMismatches": 0,
+    "atrImpliedMedianDiffPips": -0.04220065201738516
+  },
+  "mid": {
+    "N": 46,
+    "wins": 28,
+    "losses": 18,
+    "wr": 60.86956521739131,
+    "pf": 1.5555555555555556,
+    "exp": 0.21739130434782608
+  },
+  "exec": {
+    "N_resolved": 37,
+    "wins": 0,
+    "losses": 37,
+    "wr": 0,
+    "pf": 0,
+    "exp": -2.8925168134351056,
+    "total": -107.0231220970989
+  },
+  "costs": {
+    "avgSpreadPips": 1.5326086956523672,
+    "medianSpreadPips": 1.500000000000945,
+    "avgRiskPips": 0.4377600572020829,
+    "spreadPctOf1R": 350.10245234522847,
+    "avgDragR": 3.0817060026242946,
+    "totalDragR": 114.0231220970989,
+    "winnersToLosers": 22,
+    "tpMissedAskNeverReached": 28,
+    "spreadStops": 37,
+    "ambiguous": 9,
+    "timeExits": 0,
+    "unresolvedOpen": 0
+  }
+}

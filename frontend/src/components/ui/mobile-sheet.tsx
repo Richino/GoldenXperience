@@ -60,6 +60,7 @@ export function MobileSheet({
     if (!open) return;
 
     const { body } = document;
+    const root = document.documentElement;
     const scrollY = window.scrollY;
     const previous = {
       position: body.style.position,
@@ -76,9 +77,11 @@ export function MobileSheet({
     body.style.right = "0";
     body.style.width = "100%";
     body.style.overflow = "hidden";
+    root.classList.add("mobile-sheet-open");
 
     return () => {
       Object.assign(body.style, previous);
+      root.classList.remove("mobile-sheet-open");
       window.scrollTo(0, scrollY);
     };
   }, [open]);
@@ -202,7 +205,12 @@ export function MobileSheet({
 
   return createPortal(
     <>
-      <div className="mobile-sheet-backdrop" onClick={onClose} aria-hidden />
+      <div
+        className="mobile-sheet-backdrop"
+        onClick={onClose}
+        data-pull-to-refresh-ignore="true"
+        aria-hidden
+      />
       <div
         ref={sheetRef}
         role="dialog"

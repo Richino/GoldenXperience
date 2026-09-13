@@ -1,0 +1,380 @@
+import { getCandles } from "../../frontend/src/lib/oanda/client.js";
+import { precisionFor } from "../../frontend/src/lib/instruments/catalog.js";
+import { calculateAtrValues } from "../../frontend/src/lib/strategy/indicators.js";
+import type { MajorInstrument, MarketPriceTick } from "./market-stream-types.js";
+import { query, transaction } from "./database.js";
+
+export type PendingManualEntryStatus = "PENDING" | "TRIGGERING" | "TRIGGERED" | "EXPIRED" | "INVALIDATED" | "CANCELLED" | "FAILED";
+export type PendingManualEntryDirection = "long" | "short";
+
+export type PendingManualEntry = {
+  id: string;
+  instrument: MajorInstrument;
+  direction: PendingManualEntryDirection;
+  entryPrice: number;
+  entryOrderType: "buy_stop" | "buy_limit" | "sell_stop" | "sell_limit";
+  currentPriceAtCreation: number;
+  expirationType: "none" | "time";
+  expiresAt: string | null;
+  invalidationPrice: number | null;
+  status: PendingManualEntryStatus;
+  triggerPrice: number | null;
+  stopPrice: number | null;
+  targetPrice: number | null;
+  paperTradeId: string | null;
+  failureReason: string | null;
+  triggeredAt: string | null;
+  cancelledAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  metadata: Record<string, unknown>;
+};
+
+type EntryRow = {
+  id: string;
+  user_id: string;
+  instrument: MajorInstrument;
+  direction: PendingManualEntryDirection;
+  entry_price: string;
+  entry_order_type: PendingManualEntry["entryOrderType"];
+  current_price_at_creation: string;
+  expiration_type: "none" | "time";
+  expires_at: string | null;
+  invalidation_price: string | null;
+  invalidation_side: "above" | "below" | null;
+  status: PendingManualEntryStatus;
+  trigger_price: string | null;
+  stop_price: string | null;
+  target_price: string | null;
+  paper_trade_id: string | null;
+  failure_reason: string | null;
+  last_observed_price: string | null;
+  triggered_at: string | null;
+  cancelled_at: string | null;
+  created_at: string;
+  updated_at: string;
+  metadata: Record<string, unknown>;
+};
+
+const SELECT_FIELDS = `id,user_id,instrument,direction,entry_price::text,entry_order_type,
+  current_price_at_creation::text,expiration_type,expires_at,invalidation_price::text,invalidation_side,
+  status,trigger_price::text,stop_price::text,target_price::text,paper_trade_id,failure_reason,
+  last_observed_price::text,triggered_at,cancelled_at,created_at,updated_at,metadata`;
+
+function numberOrNull(value: string | null) {
+  if (value === null) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function serialize(row: EntryRow): PendingManualEntry {
+  return {
+    id: row.id,
+    instrument: row.instrument,
+    direction: row.direction,
+    entryPrice: Number(row.entry_price),
+    entryOrderType: row.entry_order_type,
+    currentPriceAtCreation: Number(row.current_price_at_creation),
+    expirationType: row.expiration_type,
+    expiresAt: row.expires_at,
+    invalidationPrice: numberOrNull(row.invalidation_price),
+    status: row.status,
+    triggerPrice: numberOrNull(row.trigger_price),
+    stopPrice: numberOrNull(row.stop_price),
+    targetPrice: numberOrNull(row.target_price),
+    paperTradeId: row.paper_trade_id,
+    failureReason: row.failure_reason,
+    triggeredAt: row.triggered_at,
+    cancelledAt: row.cancelled_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    metadata: row.metadata ?? {},
+  };
+}
+
+function finitePrice(value: unknown): number | null {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function executablePrice(direction: PendingManualEntryDirection, tick: MarketPriceTick) {
+  return direction === "long" ? tick.ask : tick.bid;
+}
+
+export function inferPendingOrderType(direction: PendingManualEntryDirection, entryPrice: number, currentPrice: number): PendingManualEntry["entryOrderType"] {
+  if (direction === "long") return entryPrice >= currentPrice ? "buy_stop" : "buy_limit";
+  return entryPrice <= currentPrice ? "sell_stop" : "sell_limit";
+}
+
+export function decidePendingManualEntryEvent(input: {
+  entryOrderType: PendingManualEntry["entryOrderType"];
+  entryPrice: number;
+  invalidationPrice: number | null;
+  invalidationSide: "above" | "below" | null;
+  previousPrice: number;
+  currentPrice: number;
+  expiresAt: string | null;
+  tickTime: Date;
+}): "expired" | "entry" | "invalidation" | null {
+  if (input.expiresAt && Date.parse(input.expiresAt) <= input.tickTime.getTime()) return "expired";
+  const entryHit = input.entryOrderType === "buy_stop" || input.entryOrderType === "sell_limit"
+    ? input.currentPrice >= input.entryPrice
+    : input.currentPrice <= input.entryPrice;
+  const invalidationHit = input.invalidationPrice !== null && input.invalidationSide !== null
+    ? input.invalidationSide === "above"
+      ? input.currentPrice >= input.invalidationPrice
+      : input.currentPrice <= input.invalidationPrice
+    : false;
+  if (entryHit && invalidationHit) {
+    const entryProgress = crossingProgress(input.previousPrice, input.currentPrice, input.entryPrice);
+    const invalidationProgress = crossingProgress(input.previousPrice, input.currentPrice, input.invalidationPrice!);
+    return entryProgress <= invalidationProgress ? "entry" : "invalidation";
+  }
+  if (entryHit) return "entry";
+  if (invalidationHit) return "invalidation";
+  return null;
+}
+
+function invalidationSide(invalidationPrice: number, currentPrice: number) {
+  return invalidationPrice > currentPrice ? "above" as const : "below" as const;
+}
+
+function validateTick(tick: MarketPriceTick) {
+  if (tick.source !== "oanda") throw new Error("A live OANDA quote is required for a pending entry.");
+  const tickTime = Date.parse(tick.time);
+  if (!Number.isFinite(tickTime) || Date.now() - tickTime > 30_000) throw new Error("The market price is stale. Wait for a fresh OANDA quote.");
+  if (!(tick.bid > 0) || !(tick.ask > 0) || tick.ask < tick.bid) throw new Error("The executable OANDA quote is invalid.");
+}
+
+function parseExpiresAt(value: unknown): string | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value !== "string") throw new Error("Choose a valid expiration.");
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp) || timestamp <= Date.now()) throw new Error("Expiration must be in the future.");
+  if (timestamp > Date.now() + 30 * 24 * 60 * 60_000) throw new Error("Expiration cannot be more than 30 days away.");
+  return new Date(timestamp).toISOString();
+}
+
+function optionalTradeLevels(payload: Record<string, unknown>, direction: PendingManualEntryDirection, entryPrice: number) {
+  const rawStop = payload.stopPrice;
+  const rawTarget = payload.targetPrice;
+  const stop = rawStop === null || rawStop === undefined || rawStop === "" ? null : finitePrice(rawStop);
+  const target = rawTarget === null || rawTarget === undefined || rawTarget === "" ? null : finitePrice(rawTarget);
+  if ((rawStop !== null && rawStop !== undefined && rawStop !== "" && stop === null) || (rawTarget !== null && rawTarget !== undefined && rawTarget !== "" && target === null)) {
+    throw new Error("Enter valid stop and target prices.");
+  }
+  if ((stop === null) !== (target === null)) throw new Error("Enter both stop and target, or leave both blank.");
+  if (stop === null || target === null) return { stop: null, target: null };
+  const valid = direction === "long"
+    ? stop < entryPrice && target > entryPrice
+    : stop > entryPrice && target < entryPrice;
+  if (!valid) throw new Error("Stop and target must be on the correct side of entry.");
+  return { stop, target };
+}
+
+export async function pendingManualEntriesForUser(userId: string, instrument?: string) {
+  const values: unknown[] = [userId];
+  const instrumentClause = instrument ? " AND instrument=$2" : "";
+  if (instrument) values.push(instrument);
+  const result = await query<EntryRow>(
+    `SELECT ${SELECT_FIELDS} FROM pending_manual_entries WHERE user_id=$1${instrumentClause} ORDER BY created_at DESC`,
+    values,
+  );
+  return result.rows.map(serialize);
+}
+
+export async function expirePendingManualEntries(userId?: string) {
+  const values: unknown[] = [];
+  const userClause = userId ? " AND user_id=$1" : "";
+  if (userId) values.push(userId);
+  const result = await query(
+    `UPDATE pending_manual_entries SET status='EXPIRED',updated_at=now()
+     WHERE status='PENDING' AND expires_at IS NOT NULL AND expires_at<=now()${userClause}`,
+    values,
+  );
+  return result.rowCount;
+}
+
+export async function createPendingManualEntry(userId: string, payload: Record<string, unknown>, tick: MarketPriceTick) {
+  validateTick(tick);
+  const direction = payload.direction === "long" || payload.direction === "short" ? payload.direction : null;
+  if (!direction) throw new Error("Choose LONG or SHORT.");
+  if (payload.instrument !== tick.instrument) throw new Error("The selected instrument does not match the live quote.");
+  const entryPrice = finitePrice(payload.entryPrice);
+  if (entryPrice === null) throw new Error("Enter a valid entry price.");
+  const currentPrice = executablePrice(direction, tick);
+  const orderReferencePrice = finitePrice(payload.orderReferencePrice) ?? currentPrice;
+  const levels = optionalTradeLevels(payload, direction, entryPrice);
+  const expiresAt = parseExpiresAt(payload.expiresAt);
+  const invalidationPrice = payload.invalidationPrice === null || payload.invalidationPrice === undefined || payload.invalidationPrice === ""
+    ? null : finitePrice(payload.invalidationPrice);
+  if (payload.invalidationPrice !== null && payload.invalidationPrice !== undefined && payload.invalidationPrice !== "" && invalidationPrice === null) {
+    throw new Error("Enter a valid cancellation price.");
+  }
+  if (invalidationPrice !== null && Math.abs(invalidationPrice - currentPrice) < Number.EPSILON) {
+    throw new Error("The cancellation price is already reached.");
+  }
+  if (invalidationPrice !== null && Math.abs(invalidationPrice - entryPrice) < Number.EPSILON) {
+    throw new Error("Entry and cancellation prices must be different.");
+  }
+  const result = await query<EntryRow>(
+    `INSERT INTO pending_manual_entries(
+       user_id,instrument,direction,entry_price,entry_order_type,current_price_at_creation,
+       expiration_type,expires_at,invalidation_price,invalidation_side,last_observed_price,last_observed_at,stop_price,target_price,metadata
+     ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,jsonb_build_object('priceSource',$15::text,'createdFrom','chart','orderReferencePrice',$11::numeric))
+     RETURNING ${SELECT_FIELDS}`,
+    [userId, tick.instrument, direction, entryPrice, inferPendingOrderType(direction, entryPrice, orderReferencePrice), currentPrice,
+      expiresAt ? "time" : "none", expiresAt, invalidationPrice,
+      invalidationPrice === null ? null : invalidationSide(invalidationPrice, orderReferencePrice), orderReferencePrice, tick.time, levels.stop, levels.target, tick.source],
+  );
+  return serialize(result.rows[0]!);
+}
+
+export async function editPendingManualEntry(userId: string, id: string, payload: Record<string, unknown>, tick: MarketPriceTick) {
+  validateTick(tick);
+  return transaction(async (client) => {
+    const found = await client.query<EntryRow>(`SELECT ${SELECT_FIELDS} FROM pending_manual_entries WHERE id=$1 AND user_id=$2 FOR UPDATE`, [id, userId]);
+    const existing = found.rows[0];
+    if (!existing) throw new Error("Pending entry not found.");
+    if (existing.status !== "PENDING") throw new Error("Only a pending entry can be edited.");
+    if (existing.instrument !== tick.instrument) throw new Error("No fresh quote is available for this entry.");
+    const direction = payload.direction === "long" || payload.direction === "short" ? payload.direction : existing.direction;
+    const entryPrice = finitePrice(payload.entryPrice ?? existing.entry_price);
+    if (entryPrice === null) throw new Error("Enter a valid entry price.");
+    const currentPrice = executablePrice(direction, tick);
+    const orderReferencePrice = finitePrice(payload.orderReferencePrice) ?? currentPrice;
+    const levels = optionalTradeLevels(payload, direction, entryPrice);
+    const expiresAt = parseExpiresAt(payload.expiresAt);
+    const rawInvalidation = payload.invalidationPrice;
+    const invalidationPrice = rawInvalidation === null || rawInvalidation === undefined || rawInvalidation === "" ? null : finitePrice(rawInvalidation);
+    if (rawInvalidation !== null && rawInvalidation !== undefined && rawInvalidation !== "" && invalidationPrice === null) throw new Error("Enter a valid cancellation price.");
+    if (invalidationPrice !== null && (invalidationPrice === currentPrice || invalidationPrice === entryPrice)) throw new Error("Cancellation must differ from the current and entry prices.");
+    const updated = await client.query<EntryRow>(
+      `UPDATE pending_manual_entries SET direction=$3,entry_price=$4,entry_order_type=$5,
+         expiration_type=$6,expires_at=$7,invalidation_price=$8,invalidation_side=$9,
+         last_observed_price=$10,last_observed_at=$11,stop_price=$12,target_price=$13,updated_at=now()
+       WHERE id=$1 AND user_id=$2 AND status='PENDING' RETURNING ${SELECT_FIELDS}`,
+      [id, userId, direction, entryPrice, inferPendingOrderType(direction, entryPrice, orderReferencePrice), expiresAt ? "time" : "none", expiresAt,
+        invalidationPrice, invalidationPrice === null ? null : invalidationSide(invalidationPrice, orderReferencePrice), orderReferencePrice, tick.time, levels.stop, levels.target],
+    );
+    return serialize(updated.rows[0]!);
+  });
+}
+
+export async function cancelPendingManualEntry(userId: string, id: string) {
+  const result = await query<EntryRow>(
+    `UPDATE pending_manual_entries SET status='CANCELLED',cancelled_at=now(),updated_at=now()
+     WHERE id=$1 AND user_id=$2 AND status='PENDING' RETURNING ${SELECT_FIELDS}`,
+    [id, userId],
+  );
+  if (!result.rows[0]) throw new Error("The entry already changed state and cannot be cancelled.");
+  return serialize(result.rows[0]);
+}
+
+function crossingProgress(previous: number, current: number, level: number) {
+  if (previous === current) return 0;
+  const progress = (level - previous) / (current - previous);
+  return progress >= 0 && progress <= 1 ? progress : 0;
+}
+
+export async function calculateManualTradeRisk(instrument: MajorInstrument, direction: PendingManualEntryDirection, entry: number) {
+  const candles = await getCandles(instrument as never, "H1", 64);
+  if (candles.status.state !== "connected") throw new Error("OANDA H1 candles are unavailable for stop calculation.");
+  const complete = candles.data.candles.filter((candle) => candle.complete);
+  const atr = calculateAtrValues(complete, 14).at(-1);
+  if (atr === null || atr === undefined || !Number.isFinite(atr) || atr <= 0) throw new Error("A trustworthy H1 ATR14 stop could not be calculated.");
+  const precision = precisionFor(instrument);
+  const rounded = (value: number) => Number(value.toFixed(precision));
+  const stop = rounded(direction === "long" ? entry - atr : entry + atr);
+  const risk = Math.abs(entry - stop);
+  if (!(risk > 0)) throw new Error("The calculated stop distance is invalid.");
+  const target = rounded(direction === "long" ? entry + 2 * risk : entry - 2 * risk);
+  return { stop, target, atr14: atr, rewardRisk: 2, model: "H1_ATR14_1R" };
+}
+
+async function finalizeTriggeredEntry(id: string) {
+  try {
+    const found = await query<EntryRow>(`SELECT ${SELECT_FIELDS} FROM pending_manual_entries WHERE id=$1 AND status='TRIGGERING'`, [id]);
+    const entry = found.rows[0];
+    if (!entry || entry.trigger_price === null) return;
+    const triggerPrice = Number(entry.trigger_price);
+    const storedStop = numberOrNull(entry.stop_price);
+    const storedTarget = numberOrNull(entry.target_price);
+    const hasStoredLevels = storedStop !== null && storedTarget !== null && (entry.direction === "long"
+      ? storedStop < triggerPrice && storedTarget > triggerPrice
+      : storedStop > triggerPrice && storedTarget < triggerPrice);
+    const risk = hasStoredLevels
+      ? { stop: storedStop!, target: storedTarget!, atr14: null, rewardRisk: Math.abs(storedTarget! - triggerPrice) / Math.abs(triggerPrice - storedStop!), model: "MANUAL_LEVELS" }
+      : await calculateManualTradeRisk(entry.instrument, entry.direction, triggerPrice);
+    await transaction(async (client) => {
+      const locked = await client.query<EntryRow>(`SELECT ${SELECT_FIELDS} FROM pending_manual_entries WHERE id=$1 FOR UPDATE`, [id]);
+      if (locked.rows[0]?.status !== "TRIGGERING") return;
+      const trade = await client.query<{ id: string }>(
+        `INSERT INTO paper_trades(user_id,legacy_id,origin,pair,direction,status,result,opened_at,entry,stop,target,reason,notes)
+         VALUES($1,$2,'manual',$3,$4,'open','open',$5,$6,$7,$8,'Pending manual entry triggered',$9)
+         ON CONFLICT(user_id,legacy_id) DO UPDATE SET updated_at=paper_trades.updated_at RETURNING id`,
+        [entry.user_id, `pending-entry:${entry.id}`, entry.instrument.replace("_", "/"), entry.direction, entry.triggered_at,
+          triggerPrice, risk.stop, risk.target, `Backend OANDA-price trigger. Risk model ${risk.model}; 1:2 R:R. Broker execution not submitted.`],
+      );
+      await client.query(
+        `UPDATE pending_manual_entries SET status='TRIGGERED',stop_price=$2,target_price=$3,paper_trade_id=$4,
+           metadata=metadata || $5::jsonb,updated_at=now() WHERE id=$1 AND status='TRIGGERING'`,
+        [id, risk.stop, risk.target, trade.rows[0]!.id, JSON.stringify({ riskModel: risk.model, atr14: risk.atr14, rewardRisk: 2, execution: "simulated_paper" })],
+      );
+    });
+  } catch (error) {
+    console.error(`[pending-entry] ${id} finalization failed`, error);
+    await query(
+      "UPDATE pending_manual_entries SET status='FAILED',failure_reason=$2,updated_at=now() WHERE id=$1 AND status='TRIGGERING'",
+      [id, error instanceof Error ? error.message.slice(0, 500) : "Pending-entry trigger failed."],
+    );
+  }
+}
+
+export async function evaluatePendingManualEntries(tick: MarketPriceTick) {
+  if (!(tick.bid > 0) || !(tick.ask > 0)) return { changed: 0 };
+  const triggering = await transaction(async (client) => {
+    const pending = await client.query<EntryRow>(
+      `SELECT ${SELECT_FIELDS} FROM pending_manual_entries
+       WHERE instrument=$1 AND status='PENDING' ORDER BY created_at FOR UPDATE SKIP LOCKED`,
+      [tick.instrument],
+    );
+    const claimed: string[] = [];
+    const tickTime = Number.isFinite(Date.parse(tick.time)) ? new Date(tick.time) : new Date();
+    for (const row of pending.rows) {
+      const price = executablePrice(row.direction, tick);
+      const event = decidePendingManualEntryEvent({
+        entryOrderType: row.entry_order_type,
+        entryPrice: Number(row.entry_price),
+        invalidationPrice: numberOrNull(row.invalidation_price),
+        invalidationSide: row.invalidation_side,
+        previousPrice: Number(row.last_observed_price ?? row.current_price_at_creation),
+        currentPrice: price,
+        expiresAt: row.expires_at,
+        tickTime,
+      });
+      if (event === "expired") {
+        await client.query("UPDATE pending_manual_entries SET status='EXPIRED',updated_at=now(),last_observed_price=$2,last_observed_at=$3 WHERE id=$1 AND status='PENDING'", [row.id, price, tickTime]);
+        continue;
+      }
+      if (event === "invalidation") {
+        await client.query("UPDATE pending_manual_entries SET status='INVALIDATED',cancelled_at=$2,last_observed_price=$3,last_observed_at=$2,updated_at=now() WHERE id=$1 AND status='PENDING'", [row.id, tickTime, price]);
+      } else if (event === "entry") {
+        const updated = await client.query("UPDATE pending_manual_entries SET status='TRIGGERING',trigger_price=$2,triggered_at=$3,last_observed_price=$2,last_observed_at=$3,updated_at=now() WHERE id=$1 AND status='PENDING' RETURNING id", [row.id, price, tickTime]);
+        if (updated.rows[0]) claimed.push(row.id);
+      } else {
+        await client.query("UPDATE pending_manual_entries SET last_observed_price=$2,last_observed_at=$3,updated_at=now() WHERE id=$1 AND status='PENDING'", [row.id, price, tickTime]);
+      }
+    }
+    return claimed;
+  });
+  for (const id of triggering) await finalizeTriggeredEntry(id);
+  return { changed: triggering.length };
+}
+
+/** Resume entries claimed immediately before a process restart. */
+export async function recoverTriggeringManualEntries() {
+  const rows = await query<{ id: string }>("SELECT id FROM pending_manual_entries WHERE status='TRIGGERING' ORDER BY updated_at");
+  for (const row of rows.rows) await finalizeTriggeredEntry(row.id);
+  return rows.rowCount;
+}

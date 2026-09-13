@@ -16,8 +16,30 @@ const MARKET_PAIRS: MajorInstrument[] = [
   "USD_CAD",
 ];
 
+export type HomeAvailableSignal = {
+  kind: "setup";
+  id: string;
+  instrument: MajorInstrument;
+  direction: "long" | "short";
+  entry: number;
+  stop: number;
+  target: number;
+  evaluatedAt: string | null;
+};
+
+export type HomeCurrentPosition = {
+  kind: "position";
+  id: string;
+  instrument: MajorInstrument;
+  direction: "long" | "short";
+  entry: number;
+  stop: number;
+  target: number;
+  openedAt: string;
+};
+
 function compactPair(instrument: string) {
-  return displayNameFor(instrument).replace("/", "");
+  return displayNameFor(instrument);
 }
 
 function money(value: number, currency: string) {
@@ -30,37 +52,37 @@ function money(value: number, currency: string) {
 
 export function HomeRail({
   quotes,
-  featuredInstrument,
+  availableSignals,
+  currentPositions,
   currency,
-  allTimePL,
-  openCount,
-  assigned,
-  batchSize,
-  winRate,
-  netR,
+  todayNet,
+  todayR,
   todayTrades,
-  todayNetR,
+  todayWins,
+  todayLosses,
 }: {
   quotes: Record<string, { bid: number; ask: number }>;
-  featuredInstrument: MajorInstrument;
+  /** Saved, immutable plans. These are never synthesized from a live quote. */
+  availableSignals: HomeAvailableSignal[];
+  /** Open paper trades take priority over prospective setups in this rail. */
+  currentPositions: HomeCurrentPosition[];
   currency: string;
-  allTimePL: number;
-  openCount: number;
-  assigned: number;
-  batchSize: number;
-  winRate: number | null;
-  netR: number;
+  /** Realized money booked today; null when nothing has closed. */
+  todayNet: number | null;
+  todayR: number | null;
   todayTrades: number;
-  todayNetR: number | null;
+  todayWins: number;
+  todayLosses: number;
 }) {
   const [dayChange, setDayChange] = useState<Record<string, number>>({});
   const [lastClose, setLastClose] = useState<Record<string, number>>({});
-  const featuredMid = quotes[featuredInstrument]
-    ? (quotes[featuredInstrument].bid + quotes[featuredInstrument].ask) / 2
-    : null;
-  const winPercent = winRate === null ? null : Math.round(winRate * 100);
-  const allTimePositive = allTimePL >= 0;
-  const netRPositive = netR >= 0;
+  const resolvedToday = todayWins + todayLosses;
+  const winPercent = resolvedToday > 0 ? Math.round((todayWins / resolvedToday) * 100) : null;
+  const hasTodayTrades = todayTrades > 0;
+  const netPositive = (todayNet ?? 0) >= 0;
+  const rPositive = (todayR ?? 0) >= 0;
+  const previewItems = currentPositions.length ? currentPositions : availableSignals;
+  const showingPositions = currentPositions.length > 0;
 
   useEffect(() => {
     let cancelled = false;
@@ -108,8 +130,43 @@ export function HomeRail({
   }, []);
 
   return (
-    <aside className="home-rail" aria-label="Markets">
-      <HomeMiniChart instrument={featuredInstrument} liveMid={featuredMid} />
+    <aside className="home-rail" aria-label="Current positions, available signals, and markets">
+      <section className="home-available-signals" aria-label={showingPositions ? "Current positions" : "Saved setups"}>
+        <div className="home-rail-heading">
+          <span>{showingPositions ? "Current positions" : "Saved setups"}</span>
+          {previewItems.length > 1 ? <span className="home-signal-swipe-hint">Swipe</span> : null}
+        </div>
+        {previewItems.length ? (
+          <div className="home-signal-carousel">
+            {previewItems.map((signal) => {
+              const quote = quotes[signal.instrument];
+              const liveMid = quote ? (quote.bid + quote.ask) / 2 : null;
+              const position = signal.kind === "position";
+              return (
+                <Link
+                  key={position ? signal.id : `${signal.instrument}-${signal.direction}-${signal.entry}`}
+                  href={position
+                    ? `/chart?instrument=${signal.instrument}&trade=${signal.id}`
+                    : `/chart?instrument=${signal.instrument}&setup=${signal.id}&entry=${signal.entry}&stop=${signal.stop}&target=${signal.target}`}
+                  className="home-signal-preview"
+                  aria-label={`Open ${compactPair(signal.instrument)} ${signal.direction} ${position ? "position" : "signal"} chart with entry, stop loss, and target`}
+                >
+                  <HomeMiniChart
+                    instrument={signal.instrument}
+                    liveMid={liveMid}
+                    evaluatedAt={position ? signal.openedAt : signal.evaluatedAt}
+                    entry={signal.entry}
+                    stop={signal.stop}
+                    target={signal.target}
+                  />
+                </Link>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="home-available-signals-empty">No saved setups right now.</p>
+        )}
+      </section>
 
       <section className="home-rail-section">
         <div className="home-rail-heading">
@@ -156,56 +213,35 @@ export function HomeRail({
         </div>
       </section>
 
-      {todayTrades > 0 || todayNetR !== null ? (
-      <section className="home-rail-section" aria-label="Today">
+      <section className="home-rail-section home-rail-total" aria-label="Today">
         <div className="home-rail-heading">
           <span>Today</span>
         </div>
-        <dl className="home-rail-today">
-          <div>
-            <dt>Trades</dt>
-            <dd className="metric-number">{todayTrades}</dd>
-          </div>
-          <div>
-            <dt>Net R</dt>
-            <dd className={`metric-number ${todayNetR === null || Math.abs(todayNetR) < 0.05 ? "" : todayNetR > 0 ? "is-positive" : "is-negative"}`}>
-              {todayNetR === null
-                ? "—"
-                : `${todayNetR > 0 ? "+" : ""}${todayNetR.toFixed(1)}R`}
-            </dd>
-          </div>
-        </dl>
-      </section>
-      ) : null}
-
-      <section className="home-rail-section home-rail-total">
-        <div className="home-rail-heading">
-          <span>Total</span>
-        </div>
         <div className="home-rail-total-row">
-          <p className={`home-rail-total-lead ${allTimePositive ? "is-positive" : "is-negative"}`}>
-            {allTimePositive ? "+" : "−"}
-            {money(Math.abs(allTimePL), currency)}
+          <p className={`home-rail-total-lead ${netPositive ? "is-positive" : "is-negative"}`}>
+            {todayNet === null
+              ? money(0, currency)
+              : `${netPositive ? "+" : "−"}${money(Math.abs(todayNet), currency)}`}
           </p>
-          <p className={`home-rail-total-r ${netRPositive ? "is-positive" : "is-negative"}`}>
-            {netR > 0 ? "+" : ""}
-            {netR.toFixed(1)}R
+          <p className={`home-rail-total-r ${rPositive ? "is-positive" : "is-negative"}`}>
+            {todayR === null ? "0.0R" : `${todayR > 0 ? "+" : ""}${todayR.toFixed(1)}R`}
           </p>
         </div>
+        {!hasTodayTrades ? <p className="home-rail-total-empty">No closed trades today</p> : null}
         <dl className="home-rail-total-meta">
           <div>
             <dt>Trades</dt>
-            <dd>{openCount}</dd>
+            <dd>{todayTrades}</dd>
           </div>
           <div>
-            <dt>w/r</dt>
+            <dt>W/L</dt>
             <dd>
-              {assigned}/{batchSize}
+              {todayWins}/{todayLosses}
             </dd>
           </div>
           <div>
             <dt>Win rate</dt>
-            <dd>{winPercent === null ? "—" : `${winPercent}%`}</dd>
+            <dd>{winPercent === null ? "0%" : `${winPercent}%`}</dd>
           </div>
         </dl>
         <div className="home-rail-bar" aria-hidden="true">

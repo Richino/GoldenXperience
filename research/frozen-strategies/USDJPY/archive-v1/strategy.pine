@@ -1,0 +1,432 @@
+//@version=6
+strategy(
+     "GX USDJPY Body Extreme V1 - 1 to 2 RR",
+     overlay=true,
+     initial_capital=10000,
+     pyramiding=0,
+     process_orders_on_close=true,
+     calc_on_every_tick=false,
+     max_bars_back=5000,
+     default_qty_type=strategy.percent_of_equity,
+     default_qty_value=1)
+
+// ============================================================
+// GX USDJPY BODY EXTREME V1
+//
+// FROZEN RESEARCH RESULT
+//
+// SYMBOL: USDJPY
+// TIMEFRAME: H1
+//
+// PHASE 1:
+// Strong movement window = 10:00-13:00 UTC
+// Entry origin           = 11:00 UTC
+//
+// PHASE 2:
+// Trend:
+// LONG  = EMA20 > EMA50
+// SHORT = EMA20 < EMA50
+//
+// PHASE 3:
+// Breakout of 06:00-10:00 UTC range.
+//
+// PHASE 4:
+// Confirmation:
+// 1. Candle body >= 0.50 ATR14
+// 2. Close in outer 25% of breakout candle
+//
+// EXECUTION:
+// Stop = 1 ATR14
+// TP   = 2 ATR14
+// Max hold = 3 H1 bars
+//
+// R:R = 1:2
+//
+// CSV LABEL:
+// USDJPY_BODY_EXTREME
+//
+// DO NOT OPTIMIZE WITHOUT CREATING A NEW VERSION.
+// ============================================================
+
+
+// ============================================================
+// INPUTS
+// ============================================================
+
+grpExecution = "Execution"
+
+stopATR = input.float(
+     1.0,
+     "Stop ATR",
+     minval=0.1,
+     step=0.1,
+     group=grpExecution)
+
+rewardR = input.float(
+     2.0,
+     "Reward R",
+     minval=0.1,
+     step=0.1,
+     group=grpExecution)
+
+maxHoldBars = input.int(
+     3,
+     "Maximum Hold Bars",
+     minval=1,
+     group=grpExecution)
+
+showMarkers = input.bool(
+     true,
+     "Show Entry Markers")
+
+showRange = input.bool(
+     true,
+     "Show 06:00-10:00 Range")
+
+
+// ============================================================
+// FROZEN STRATEGY CONSTANTS
+// ============================================================
+
+ATR_LEN = 14
+BODY_ATR_MIN = 0.50
+EXTREME_CLOSE_PCT = 0.25
+
+
+// ============================================================
+// CHART VALIDATION
+// ============================================================
+
+isH1 = timeframe.isminutes and timeframe.multiplier == 60
+
+tickerUpper = str.upper(syminfo.ticker)
+
+isUSDJPY = str.contains(tickerUpper, "USDJPY")
+
+validChart = isH1 and isUSDJPY
+
+
+// ============================================================
+// TIME
+// ============================================================
+
+utcHour = hour(time, "UTC")
+utcYear = year(time, "UTC")
+utcMonth = month(time, "UTC")
+utcDay = dayofmonth(time, "UTC")
+
+utcDateKey = utcYear * 10000 + utcMonth * 100 + utcDay
+
+newUtcDay = na(utcDateKey[1]) or utcDateKey != utcDateKey[1]
+
+
+// ============================================================
+// INDICATORS
+// ============================================================
+
+ema20 = ta.ema(close, 20)
+ema50 = ta.ema(close, 50)
+atr = ta.atr(ATR_LEN)
+
+body = math.abs(close - open)
+barRange = high - low
+
+
+// ============================================================
+// TREND
+// ============================================================
+
+int trendDir = 0
+
+if not na(ema20) and not na(ema50)
+    if ema20 > ema50
+        trendDir := 1
+    else if ema20 < ema50
+        trendDir := -1
+
+
+// ============================================================
+// BUILD 06:00-10:00 UTC RANGE
+//
+// Included:
+//
+// 06:00
+// 07:00
+// 08:00
+// 09:00
+// 10:00
+//
+// 11:00 is deliberately NOT part of the range.
+// ============================================================
+
+inPreRange = utcHour >= 6 and utcHour < 11
+
+var float preHigh = na
+var float preLow = na
+
+if newUtcDay
+    preHigh := na
+    preLow := na
+
+if inPreRange
+
+    if na(preHigh)
+        preHigh := high
+    else
+        preHigh := math.max(preHigh, high)
+
+    if na(preLow)
+        preLow := low
+    else
+        preLow := math.min(preLow, low)
+
+preRangeReady = not na(preHigh) and not na(preLow)
+
+
+// ============================================================
+// ORIGIN
+//
+// Signal is evaluated ONLY after the 11:00 UTC H1 candle
+// has completed.
+// ============================================================
+
+isOrigin = validChart and barstate.isconfirmed and utcHour == 11 and preRangeReady and not na(atr) and atr > 0 and trendDir != 0
+
+
+// ============================================================
+// BASE RANGE BREAKOUT
+// ============================================================
+
+bool breakoutLong = false
+bool breakoutShort = false
+
+if isOrigin
+
+    if trendDir == 1 and close > preHigh
+        breakoutLong := true
+
+    if trendDir == -1 and close < preLow
+        breakoutShort := true
+
+
+// ============================================================
+// BODY CONFIRMATION
+//
+// Body must be at least 0.50 ATR.
+// ============================================================
+
+strongBody = body >= atr * BODY_ATR_MIN
+
+
+// ============================================================
+// EXTREME-CLOSE CONFIRMATION
+//
+// LONG:
+// close must be in upper 25% of candle.
+//
+// SHORT:
+// close must be in lower 25%.
+// ============================================================
+
+bool bullExtremeClose = false
+bool bearExtremeClose = false
+
+if barRange > 0
+
+    bullExtremeClose := close >= high - barRange * EXTREME_CLOSE_PCT
+
+    bearExtremeClose := close <= low + barRange * EXTREME_CLOSE_PCT
+
+
+// ============================================================
+// FINAL FROZEN SIGNAL
+// ============================================================
+
+longSignal = isOrigin and breakoutLong and strongBody and bullExtremeClose
+
+shortSignal = isOrigin and breakoutShort and strongBody and bearExtremeClose
+
+
+// ============================================================
+// ACTIVE TRADE STATE
+//
+// ATR risk is frozen at entry.
+// ============================================================
+
+var float activeRisk = na
+var float activeStop = na
+var float activeTarget = na
+
+var int entryBarIndex = na
+
+var string activeEntryId = ""
+
+
+// ============================================================
+// POSITION STATE
+// ============================================================
+
+flat = strategy.position_size == 0
+
+
+// ============================================================
+// LONG ENTRY
+// ============================================================
+
+if longSignal and flat
+
+    activeRisk := atr * stopATR
+    activeStop := close - activeRisk
+    activeTarget := close + activeRisk * rewardR
+
+    entryBarIndex := bar_index
+
+    activeEntryId := "USDJPY_BODY_EXTREME_LONG"
+
+    strategy.entry(
+         activeEntryId,
+         strategy.long,
+         comment="USDJPY_BODY_EXTREME")
+
+    strategy.exit(
+         "USDJPY_BODY_EXTREME_LONG_EXIT",
+         from_entry="USDJPY_BODY_EXTREME_LONG",
+         stop=activeStop,
+         limit=activeTarget,
+         comment="TP_OR_SL")
+
+
+// ============================================================
+// SHORT ENTRY
+// ============================================================
+
+if shortSignal and flat
+
+    activeRisk := atr * stopATR
+    activeStop := close + activeRisk
+    activeTarget := close - activeRisk * rewardR
+
+    entryBarIndex := bar_index
+
+    activeEntryId := "USDJPY_BODY_EXTREME_SHORT"
+
+    strategy.entry(
+         activeEntryId,
+         strategy.short,
+         comment="USDJPY_BODY_EXTREME")
+
+    strategy.exit(
+         "USDJPY_BODY_EXTREME_SHORT_EXIT",
+         from_entry="USDJPY_BODY_EXTREME_SHORT",
+         stop=activeStop,
+         limit=activeTarget,
+         comment="TP_OR_SL")
+
+
+// ============================================================
+// MAINTAIN FROZEN LONG EXIT
+// ============================================================
+
+if strategy.position_size > 0 and not na(activeStop) and not na(activeTarget)
+
+    strategy.exit(
+         "USDJPY_BODY_EXTREME_LONG_EXIT",
+         from_entry="USDJPY_BODY_EXTREME_LONG",
+         stop=activeStop,
+         limit=activeTarget,
+         comment="TP_OR_SL")
+
+
+// ============================================================
+// MAINTAIN FROZEN SHORT EXIT
+// ============================================================
+
+if strategy.position_size < 0 and not na(activeStop) and not na(activeTarget)
+
+    strategy.exit(
+         "USDJPY_BODY_EXTREME_SHORT_EXIT",
+         from_entry="USDJPY_BODY_EXTREME_SHORT",
+         stop=activeStop,
+         limit=activeTarget,
+         comment="TP_OR_SL")
+
+
+// ============================================================
+// MAXIMUM 3-BAR HOLD
+//
+// If neither TP nor SL has closed the position,
+// close after maxHoldBars completed H1 bars.
+// ============================================================
+
+if strategy.position_size != 0 and not na(entryBarIndex)
+
+    barsHeld = bar_index - entryBarIndex
+
+    if barsHeld >= maxHoldBars
+
+        if strategy.position_size > 0
+
+            strategy.close(
+                 "USDJPY_BODY_EXTREME_LONG",
+                 comment="TIME_EXIT")
+
+        else if strategy.position_size < 0
+
+            strategy.close(
+                 "USDJPY_BODY_EXTREME_SHORT",
+                 comment="TIME_EXIT")
+
+
+// ============================================================
+// RESET STATE AFTER CLOSE
+// ============================================================
+
+justClosed = strategy.position_size == 0 and strategy.position_size[1] != 0
+
+if justClosed
+
+    activeRisk := na
+    activeStop := na
+    activeTarget := na
+
+    entryBarIndex := na
+
+    activeEntryId := ""
+
+
+// ============================================================
+// VISUALS
+// ============================================================
+
+plot(
+     ema20,
+     "EMA 20")
+
+plot(
+     ema50,
+     "EMA 50")
+
+plot(
+     showRange ? preHigh : na,
+     "06-10 Range High")
+
+plot(
+     showRange ? preLow : na,
+     "06-10 Range Low")
+
+
+plotshape(
+     showMarkers and longSignal,
+     title="USDJPY LONG",
+     text="LONG",
+     style=shape.triangleup,
+     location=location.belowbar,
+     size=size.tiny)
+
+plotshape(
+     showMarkers and shortSignal,
+     title="USDJPY SHORT",
+     text="SHORT",
+     style=shape.triangledown,
+     location=location.abovebar,
+     size=size.tiny)

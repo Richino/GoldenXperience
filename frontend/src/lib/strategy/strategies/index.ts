@@ -35,6 +35,8 @@ import { USDCHF_STRATEGY_CONFIG, USDCHF_STRATEGY_CONFIG_VERSION, USDCHF_STRATEGY
 import { EURJPY_STRATEGY_CONFIG, EURJPY_STRATEGY_CONFIG_VERSION, EURJPY_STRATEGY_ID, EURJPY_STRATEGY_NAME, EURJPY_STRATEGY_SYMBOL, EURJPY_STRATEGY_TIMEFRAME, EURJPY_STRATEGY_VERSION, evaluateEurjpyStrategy } from "@/lib/strategy/strategies/eurjpy-strategy";
 import { CADJPY_STRATEGY_CONFIG, CADJPY_STRATEGY_CONFIG_VERSION, CADJPY_STRATEGY_ID, CADJPY_STRATEGY_NAME, CADJPY_STRATEGY_SYMBOL, CADJPY_STRATEGY_TIMEFRAME, CADJPY_STRATEGY_VERSION, evaluateCadjpyStrategy } from "@/lib/strategy/strategies/cadjpy-strategy";
 import { NZDJPY_STRATEGY_CONFIG, NZDJPY_STRATEGY_CONFIG_VERSION, NZDJPY_STRATEGY_ID, NZDJPY_STRATEGY_NAME, NZDJPY_STRATEGY_SYMBOL, NZDJPY_STRATEGY_TIMEFRAME, NZDJPY_STRATEGY_VERSION, evaluateNzdjpyStrategy } from "@/lib/strategy/strategies/nzdjpy-strategy";
+import { AUDJPY_STRATEGY_CONFIG, AUDJPY_STRATEGY_CONFIG_VERSION, AUDJPY_STRATEGY_ID, AUDJPY_STRATEGY_NAME, AUDJPY_STRATEGY_SYMBOL, AUDJPY_STRATEGY_TIMEFRAME, AUDJPY_STRATEGY_VERSION, evaluateAudjpyStrategy } from "@/lib/strategy/strategies/audjpy-strategy";
+import { EURAUD_STRATEGY_CONFIG, EURAUD_STRATEGY_CONFIG_VERSION, EURAUD_STRATEGY_ID, EURAUD_STRATEGY_NAME, EURAUD_STRATEGY_SYMBOL, EURAUD_STRATEGY_TIMEFRAME, EURAUD_STRATEGY_VERSION, evaluateEuraudStrategy } from "@/lib/strategy/strategies/euraud-strategy";
 
 export { classifyRegime, DEFAULT_REGIME_CONFIG } from "@/lib/strategy/regime";
 export type { EmaConfig } from "@/lib/strategy/strategies/ema";
@@ -45,13 +47,15 @@ export * from "@/lib/strategy/strategies/eurusd-strategy";
 export * from "@/lib/strategy/strategies/gbpusd-strategy";
 export * from "@/lib/strategy/strategies/usdjpy-strategy";
 export * from "@/lib/strategy/strategies/audusd-strategy";
-export * from "@/lib/strategy/strategies/nzdusd-strategy";
+export * from "@/lib/strategy/strategies/nzdusd-strategy.legacy";
 export * from "@/lib/strategy/strategies/nzdusd-consensus-strategy";
 export * from "@/lib/strategy/strategies/usdcad-strategy";
 export * from "@/lib/strategy/strategies/usdchf-strategy";
 export * from "@/lib/strategy/strategies/eurjpy-strategy";
 export * from "@/lib/strategy/strategies/cadjpy-strategy";
 export * from "@/lib/strategy/strategies/nzdjpy-strategy";
+export * from "@/lib/strategy/strategies/audjpy-strategy";
+export * from "@/lib/strategy/strategies/euraud-strategy";
 
 /** The strategy_versions.name namespace for the whole multi-strategy family. */
 export const MULTISTRATEGY_NAME = "adaptive-multistrategy";
@@ -142,6 +146,8 @@ export const PAIR_STRATEGY_REGISTRY = {
   [EURJPY_STRATEGY_SYMBOL]: { id: EURJPY_STRATEGY_ID, name: EURJPY_STRATEGY_NAME, version: EURJPY_STRATEGY_VERSION, timeframe: EURJPY_STRATEGY_TIMEFRAME, config: EURJPY_STRATEGY_CONFIG, evaluate: evaluateEurjpyStrategy, executionEnabled: true, adaptiveParametersMutable: false, requiresActivePositionState: true },
   [CADJPY_STRATEGY_SYMBOL]: { id: CADJPY_STRATEGY_ID, name: CADJPY_STRATEGY_NAME, version: CADJPY_STRATEGY_VERSION, timeframe: CADJPY_STRATEGY_TIMEFRAME, config: CADJPY_STRATEGY_CONFIG, evaluate: evaluateCadjpyStrategy, executionEnabled: true, adaptiveParametersMutable: false, requiresActivePositionState: true },
   [NZDJPY_STRATEGY_SYMBOL]: { id: NZDJPY_STRATEGY_ID, name: NZDJPY_STRATEGY_NAME, version: NZDJPY_STRATEGY_VERSION, timeframe: NZDJPY_STRATEGY_TIMEFRAME, config: NZDJPY_STRATEGY_CONFIG, evaluate: evaluateNzdjpyStrategy, executionEnabled: true, adaptiveParametersMutable: false, requiresActivePositionState: true },
+  [AUDJPY_STRATEGY_SYMBOL]: { id: AUDJPY_STRATEGY_ID, name: AUDJPY_STRATEGY_NAME, version: AUDJPY_STRATEGY_VERSION, timeframe: AUDJPY_STRATEGY_TIMEFRAME, config: AUDJPY_STRATEGY_CONFIG, evaluate: evaluateAudjpyStrategy, executionEnabled: true, adaptiveParametersMutable: false, requiresActivePositionState: true },
+  [EURAUD_STRATEGY_SYMBOL]: { id: EURAUD_STRATEGY_ID, name: EURAUD_STRATEGY_NAME, version: EURAUD_STRATEGY_VERSION, timeframe: EURAUD_STRATEGY_TIMEFRAME, config: EURAUD_STRATEGY_CONFIG, evaluate: evaluateEuraudStrategy, executionEnabled: true, adaptiveParametersMutable: false, requiresActivePositionState: true },
 } as const;
 
 /** Pair-specific strategies that are intentionally live in the paper/practice pipeline. */
@@ -156,6 +162,8 @@ export const ENABLED_PAIR_STRATEGY_IDS = [
   EURJPY_STRATEGY_ID,
   CADJPY_STRATEGY_ID,
   NZDJPY_STRATEGY_ID,
+  AUDJPY_STRATEGY_ID,
+  EURAUD_STRATEGY_ID,
 ] as const;
 
 export const ENABLED_PAIR_STRATEGY_SEEDS: Array<{
@@ -186,6 +194,8 @@ export const ENABLED_PAIR_STRATEGY_SEEDS: Array<{
   { family: EURJPY_STRATEGY_ID, version: EURJPY_STRATEGY_VERSION, configVersion: EURJPY_STRATEGY_CONFIG_VERSION, configuration: EURJPY_STRATEGY_CONFIG },
   { family: CADJPY_STRATEGY_ID, version: CADJPY_STRATEGY_VERSION, configVersion: CADJPY_STRATEGY_CONFIG_VERSION, configuration: CADJPY_STRATEGY_CONFIG },
   { family: NZDJPY_STRATEGY_ID, version: NZDJPY_STRATEGY_VERSION, configVersion: NZDJPY_STRATEGY_CONFIG_VERSION, configuration: NZDJPY_STRATEGY_CONFIG },
+  { family: AUDJPY_STRATEGY_ID, version: AUDJPY_STRATEGY_VERSION, configVersion: AUDJPY_STRATEGY_CONFIG_VERSION, configuration: AUDJPY_STRATEGY_CONFIG },
+  { family: EURAUD_STRATEGY_ID, version: EURAUD_STRATEGY_VERSION, configVersion: EURAUD_STRATEGY_CONFIG_VERSION, configuration: EURAUD_STRATEGY_CONFIG },
 ];
 
 export const REPORTING_STRATEGY_IDS: readonly StrategyId[] = [
@@ -205,6 +215,8 @@ export function evaluateEnabledPairStrategies(input: StrategyEvaluationInput): S
   if (input.instrument === EURJPY_STRATEGY_SYMBOL && PAIR_STRATEGY_REGISTRY[EURJPY_STRATEGY_SYMBOL].executionEnabled) return [evaluateEurjpyStrategy(input)];
   if (input.instrument === CADJPY_STRATEGY_SYMBOL && PAIR_STRATEGY_REGISTRY[CADJPY_STRATEGY_SYMBOL].executionEnabled) return [evaluateCadjpyStrategy(input)];
   if (input.instrument === NZDJPY_STRATEGY_SYMBOL && PAIR_STRATEGY_REGISTRY[NZDJPY_STRATEGY_SYMBOL].executionEnabled) return [evaluateNzdjpyStrategy(input)];
+  if (input.instrument === AUDJPY_STRATEGY_SYMBOL && PAIR_STRATEGY_REGISTRY[AUDJPY_STRATEGY_SYMBOL].executionEnabled) return [evaluateAudjpyStrategy(input)];
+  if (input.instrument === EURAUD_STRATEGY_SYMBOL && PAIR_STRATEGY_REGISTRY[EURAUD_STRATEGY_SYMBOL].executionEnabled) return [evaluateEuraudStrategy(input)];
   return [];
 }
 

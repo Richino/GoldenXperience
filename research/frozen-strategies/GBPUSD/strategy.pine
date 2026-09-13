@@ -1,0 +1,596 @@
+//@version=6
+
+strategy("GX GBPUSD 30M Dual-Origin V2 - Independent Legs", overlay=true, pyramiding=2, process_orders_on_close=true, calc_on_every_tick=false, max_bars_back=5000)
+
+// ============================================================
+// GBPUSD 30M DUAL-ORIGIN V2
+//
+// PAIR:
+// GBPUSD
+//
+// TIMEFRAME:
+// 30m
+//
+// ORIGINS:
+// 10:30 UTC
+// 11:00 UTC
+//
+// SAME-DIRECTION ORIGINS MAY OVERLAP.
+//
+// TradingView cannot hedge LONG + SHORT independently
+// on the same symbol.
+//
+// If the second signal is opposite an existing position,
+// it is skipped and counted instead of reversing/netting.
+//
+// DIRECTION:
+// LONG  = EMA20 > EMA50
+// SHORT = EMA20 < EMA50
+//
+// PRE-RANGE:
+// 10:30 -> 06:00 through 10:00
+// 11:00 -> 06:00 through 10:30
+//
+// ENTRY:
+// Origin CLOSE must break range in EMA direction.
+//
+// STOP:
+// 1 ATR14
+//
+// TARGET:
+// 2 ATR14
+//
+// MAX HOLD:
+// 6 future 30m bars = 3 hours
+//
+// NO:
+// trailing stop
+// profit lock
+// optimization
+// ============================================================
+
+
+// ============================================================
+// FROZEN CONSTANTS
+// ============================================================
+
+EMA_FAST = 20
+EMA_SLOW = 50
+ATR_LEN = 14
+
+STOP_ATR = 1.0
+REWARD_R = 2.0
+MAX_HOLD_BARS = 6
+
+
+// ============================================================
+// DISPLAY
+// ============================================================
+
+showRange = input.bool(true, "Show Pre-Range")
+showMarkers = input.bool(true, "Show Executed Entries")
+showBlocked = input.bool(true, "Show Blocked Opposite Signals")
+
+
+// ============================================================
+// VALIDATION
+// ============================================================
+
+isGBPUSD = syminfo.basecurrency == "GBP" and syminfo.currency == "USD"
+is30m = timeframe.isminutes and timeframe.multiplier == 30
+validChart = isGBPUSD and is30m
+
+
+// ============================================================
+// INDICATORS
+// ============================================================
+
+ema20 = ta.ema(close, EMA_FAST)
+ema50 = ta.ema(close, EMA_SLOW)
+atr14 = ta.atr(ATR_LEN)
+
+
+// ============================================================
+// UTC TIME
+// ============================================================
+
+utcHour = hour(time, "UTC")
+utcMinute = minute(time, "UTC")
+
+utcYear = year(time, "UTC")
+utcMonth = month(time, "UTC")
+utcDay = dayofmonth(time, "UTC")
+
+utcDateKey = utcYear * 10000 + utcMonth * 100 + utcDay
+newUtcDay = na(utcDateKey[1]) or utcDateKey != utcDateKey[1]
+
+
+// ============================================================
+// BUILD RUNNING 06:00-10:30 UTC RANGE
+// ============================================================
+
+var float preHigh = na
+var float preLow = na
+var int preRangeBarCount = 0
+
+if newUtcDay
+    preHigh := na
+    preLow := na
+    preRangeBarCount := 0
+
+isRangeBuildBar = utcHour >= 6 and utcHour < 11
+
+if isRangeBuildBar
+    preHigh := na(preHigh) ? high : math.max(preHigh, high)
+    preLow := na(preLow) ? low : math.min(preLow, low)
+    preRangeBarCount += 1
+
+
+// ============================================================
+// ORIGINS
+// ============================================================
+
+is1030 = utcHour == 10 and utcMinute == 30
+is1100 = utcHour == 11 and utcMinute == 0
+
+
+// ============================================================
+// CAUSAL RANGE
+//
+// 10:30 uses PREVIOUS bar's range:
+// 06:00 -> 10:00 = 9 bars.
+//
+// 11:00 uses PREVIOUS bar's range:
+// 06:00 -> 10:30 = 10 bars.
+// ============================================================
+
+signalPreHigh = preHigh[1]
+signalPreLow = preLow[1]
+
+signalRangeCount = preRangeBarCount[1]
+
+expectedRangeBars = is1030 ? 9 : is1100 ? 10 : 0
+
+signalRangeReady = expectedRangeBars > 0 and signalRangeCount == expectedRangeBars and not na(signalPreHigh) and not na(signalPreLow)
+
+
+// ============================================================
+// TREND
+// ============================================================
+
+trendDir = ema20 > ema50 ? 1 : ema20 < ema50 ? -1 : 0
+
+
+// ============================================================
+// VALID SIGNAL ORIGIN
+// ============================================================
+
+isValidOrigin = validChart and barstate.isconfirmed and (is1030 or is1100) and signalRangeReady and not na(ema20) and not na(ema50) and not na(atr14) and atr14 > 0 and trendDir != 0
+
+
+// ============================================================
+// BREAKOUT
+// ============================================================
+
+rawLongSignal = isValidOrigin and trendDir == 1 and close > signalPreHigh
+rawShortSignal = isValidOrigin and trendDir == -1 and close < signalPreLow
+
+
+// ============================================================
+// TRADINGVIEW HEDGING LIMITATION
+//
+// Flat:
+// LONG or SHORT allowed.
+//
+// Existing LONG:
+// another LONG allowed.
+// SHORT blocked.
+//
+// Existing SHORT:
+// another SHORT allowed.
+// LONG blocked.
+// ============================================================
+
+canLong = strategy.position_size >= 0
+canShort = strategy.position_size <= 0
+
+longSignal = rawLongSignal and canLong
+shortSignal = rawShortSignal and canShort
+
+blockedLong = rawLongSignal and not canLong
+blockedShort = rawShortSignal and not canShort
+
+var int blockedOppositeSignals = 0
+
+if blockedLong
+    blockedOppositeSignals += 1
+
+if blockedShort
+    blockedOppositeSignals += 1
+
+
+// ============================================================
+// PER-BAR EXECUTION MARKERS
+// ============================================================
+
+bool executedLong = false
+bool executedShort = false
+
+
+// ============================================================
+// 10:30 LEG STATE
+// ============================================================
+
+var bool leg1030Active = false
+var int leg1030Dir = 0
+
+var float leg1030Entry = na
+var float leg1030ATR = na
+var float leg1030Stop = na
+var float leg1030Target = na
+
+var int leg1030EntryBar = na
+
+
+// ============================================================
+// 11:00 LEG STATE
+// ============================================================
+
+var bool leg1100Active = false
+var int leg1100Dir = 0
+
+var float leg1100Entry = na
+var float leg1100ATR = na
+var float leg1100Stop = na
+var float leg1100Target = na
+
+var int leg1100EntryBar = na
+
+
+// ============================================================
+// 10:30 LONG
+// ============================================================
+
+if is1030 and longSignal
+
+    leg1030Active := true
+    leg1030Dir := 1
+
+    leg1030Entry := close
+    leg1030ATR := atr14
+
+    leg1030Stop := leg1030Entry - leg1030ATR * STOP_ATR
+    leg1030Target := leg1030Entry + leg1030ATR * STOP_ATR * REWARD_R
+
+    leg1030EntryBar := bar_index
+
+    executedLong := true
+
+    strategy.entry(
+         "GBPUSD_1030_LONG",
+         strategy.long,
+         comment="GBPUSD_1030_LONG")
+
+    strategy.exit(
+         "GBPUSD_1030_LONG_EXIT",
+         from_entry="GBPUSD_1030_LONG",
+         stop=leg1030Stop,
+         limit=leg1030Target,
+         comment="TP_OR_SL")
+
+
+// ============================================================
+// 10:30 SHORT
+// ============================================================
+
+if is1030 and shortSignal
+
+    leg1030Active := true
+    leg1030Dir := -1
+
+    leg1030Entry := close
+    leg1030ATR := atr14
+
+    leg1030Stop := leg1030Entry + leg1030ATR * STOP_ATR
+    leg1030Target := leg1030Entry - leg1030ATR * STOP_ATR * REWARD_R
+
+    leg1030EntryBar := bar_index
+
+    executedShort := true
+
+    strategy.entry(
+         "GBPUSD_1030_SHORT",
+         strategy.short,
+         comment="GBPUSD_1030_SHORT")
+
+    strategy.exit(
+         "GBPUSD_1030_SHORT_EXIT",
+         from_entry="GBPUSD_1030_SHORT",
+         stop=leg1030Stop,
+         limit=leg1030Target,
+         comment="TP_OR_SL")
+
+
+// ============================================================
+// 11:00 LONG
+// ============================================================
+
+if is1100 and longSignal
+
+    leg1100Active := true
+    leg1100Dir := 1
+
+    leg1100Entry := close
+    leg1100ATR := atr14
+
+    leg1100Stop := leg1100Entry - leg1100ATR * STOP_ATR
+    leg1100Target := leg1100Entry + leg1100ATR * STOP_ATR * REWARD_R
+
+    leg1100EntryBar := bar_index
+
+    executedLong := true
+
+    strategy.entry(
+         "GBPUSD_1100_LONG",
+         strategy.long,
+         comment="GBPUSD_1100_LONG")
+
+    strategy.exit(
+         "GBPUSD_1100_LONG_EXIT",
+         from_entry="GBPUSD_1100_LONG",
+         stop=leg1100Stop,
+         limit=leg1100Target,
+         comment="TP_OR_SL")
+
+
+// ============================================================
+// 11:00 SHORT
+// ============================================================
+
+if is1100 and shortSignal
+
+    leg1100Active := true
+    leg1100Dir := -1
+
+    leg1100Entry := close
+    leg1100ATR := atr14
+
+    leg1100Stop := leg1100Entry + leg1100ATR * STOP_ATR
+    leg1100Target := leg1100Entry - leg1100ATR * STOP_ATR * REWARD_R
+
+    leg1100EntryBar := bar_index
+
+    executedShort := true
+
+    strategy.entry(
+         "GBPUSD_1100_SHORT",
+         strategy.short,
+         comment="GBPUSD_1100_SHORT")
+
+    strategy.exit(
+         "GBPUSD_1100_SHORT_EXIT",
+         from_entry="GBPUSD_1100_SHORT",
+         stop=leg1100Stop,
+         limit=leg1100Target,
+         comment="TP_OR_SL")
+
+
+// ============================================================
+// MAINTAIN 10:30 LEG
+// ============================================================
+
+if leg1030Active
+
+    if leg1030Dir == 1
+
+        strategy.exit(
+             "GBPUSD_1030_LONG_EXIT",
+             from_entry="GBPUSD_1030_LONG",
+             stop=leg1030Stop,
+             limit=leg1030Target,
+             comment="TP_OR_SL")
+
+    else if leg1030Dir == -1
+
+        strategy.exit(
+             "GBPUSD_1030_SHORT_EXIT",
+             from_entry="GBPUSD_1030_SHORT",
+             stop=leg1030Stop,
+             limit=leg1030Target,
+             comment="TP_OR_SL")
+
+
+    barsHeld1030 = bar_index - leg1030EntryBar
+
+    if barsHeld1030 >= MAX_HOLD_BARS
+
+        if leg1030Dir == 1
+
+            strategy.close(
+                 "GBPUSD_1030_LONG",
+                 comment="TIME_EXIT")
+
+        else if leg1030Dir == -1
+
+            strategy.close(
+                 "GBPUSD_1030_SHORT",
+                 comment="TIME_EXIT")
+
+        leg1030Active := false
+        leg1030Dir := 0
+
+        leg1030Entry := na
+        leg1030ATR := na
+        leg1030Stop := na
+        leg1030Target := na
+        leg1030EntryBar := na
+
+
+// ============================================================
+// MAINTAIN 11:00 LEG
+// ============================================================
+
+if leg1100Active
+
+    if leg1100Dir == 1
+
+        strategy.exit(
+             "GBPUSD_1100_LONG_EXIT",
+             from_entry="GBPUSD_1100_LONG",
+             stop=leg1100Stop,
+             limit=leg1100Target,
+             comment="TP_OR_SL")
+
+    else if leg1100Dir == -1
+
+        strategy.exit(
+             "GBPUSD_1100_SHORT_EXIT",
+             from_entry="GBPUSD_1100_SHORT",
+             stop=leg1100Stop,
+             limit=leg1100Target,
+             comment="TP_OR_SL")
+
+
+    barsHeld1100 = bar_index - leg1100EntryBar
+
+    if barsHeld1100 >= MAX_HOLD_BARS
+
+        if leg1100Dir == 1
+
+            strategy.close(
+                 "GBPUSD_1100_LONG",
+                 comment="TIME_EXIT")
+
+        else if leg1100Dir == -1
+
+            strategy.close(
+                 "GBPUSD_1100_SHORT",
+                 comment="TIME_EXIT")
+
+        leg1100Active := false
+        leg1100Dir := 0
+
+        leg1100Entry := na
+        leg1100ATR := na
+        leg1100Stop := na
+        leg1100Target := na
+        leg1100EntryBar := na
+
+
+// ============================================================
+// VISUALS
+// ============================================================
+
+plot(
+     ema20,
+     "EMA 20")
+
+plot(
+     ema50,
+     "EMA 50")
+
+plot(
+     showRange ? preHigh : na,
+     "Running Pre-Range High")
+
+plot(
+     showRange ? preLow : na,
+     "Running Pre-Range Low")
+
+
+// ============================================================
+// ENTRY MARKERS
+// ============================================================
+
+plotshape(
+     showMarkers and executedLong,
+     title="Executed LONG",
+     text="LONG",
+     style=shape.triangleup,
+     location=location.belowbar,
+     size=size.tiny)
+
+plotshape(
+     showMarkers and executedShort,
+     title="Executed SHORT",
+     text="SHORT",
+     style=shape.triangledown,
+     location=location.abovebar,
+     size=size.tiny)
+
+
+// ============================================================
+// BLOCKED OPPOSITE-DIRECTION SIGNALS
+// ============================================================
+
+plotshape(
+     showBlocked and blockedLong,
+     title="Blocked LONG",
+     text="BLOCK",
+     style=shape.xcross,
+     location=location.belowbar,
+     size=size.tiny)
+
+plotshape(
+     showBlocked and blockedShort,
+     title="Blocked SHORT",
+     text="BLOCK",
+     style=shape.xcross,
+     location=location.abovebar,
+     size=size.tiny)
+
+
+// ============================================================
+// INFO TABLE
+// ============================================================
+
+var table info = table.new(
+     position.top_right,
+     2,
+     3,
+     border_width=1)
+
+if barstate.islast
+
+    table.cell(
+         info,
+         0,
+         0,
+         "GBPUSD V2")
+
+    table.cell(
+         info,
+         1,
+         0,
+         "10:30 + 11:00")
+
+    table.cell(
+         info,
+         0,
+         1,
+         "Blocked opposite")
+
+    table.cell(
+         info,
+         1,
+         1,
+         str.tostring(blockedOppositeSignals))
+
+    table.cell(
+         info,
+         0,
+         2,
+         "Pyramiding")
+
+    table.cell(
+         info,
+         1,
+         2,
+         "2")
+
+
+// ============================================================
+// WRONG CHART
+// ============================================================
+
+bgcolor(validChart ? na : color.new(color.red, 90))

@@ -1,6 +1,7 @@
 import type { PoolClient } from "pg";
 
 import { query, transaction } from "./database.js";
+import { getClosedPracticeTrades } from "../../frontend/src/lib/oanda/client.js";
 import { labelOutcome, type NormalizedQuote } from "./research.js";
 import { displayPair, queueNotification, sendPushNotification } from "./notifications.js";
 import { closePracticeTradeForPaperTrade, processPendingPracticeOrders, queuePracticeOrderIntent, requestPracticeTradeCloseForPaperTrade } from "./practice-execution.js";
@@ -26,7 +27,7 @@ import {
 } from "../../frontend/src/lib/strategy/strategies/audusd-strategy.js";
 import {
   NZDUSD_MAX_HOLD_BARS, NZDUSD_STRATEGY_ID, resolveNzdusdExit,
-} from "../../frontend/src/lib/strategy/strategies/nzdusd-strategy.js";
+} from "../../frontend/src/lib/strategy/strategies/nzdusd-strategy.legacy.js";
 import {
   GBPUSD_MAX_HOLD_BARS, GBPUSD_STRATEGY_ID, gbpusdOverlapDecision, resolveGbpusdExit,
   type GbpusdExecutionBlockReason, type GbpusdOriginCode,
@@ -36,6 +37,8 @@ import { USDCHF_STRATEGY_ID, resolveUsdchfExit } from "../../frontend/src/lib/st
 import { NZDUSD_CONSENSUS_STRATEGY_ID, resolveNzdusdConsensusExit } from "../../frontend/src/lib/strategy/strategies/nzdusd-consensus-strategy.js";
 import { EURJPY_STRATEGY_ID, resolveEurjpyExit } from "../../frontend/src/lib/strategy/strategies/eurjpy-strategy.js";
 import { CADJPY_STRATEGY_ID, resolveCadjpyExit } from "../../frontend/src/lib/strategy/strategies/cadjpy-strategy.js";
+import { AUDJPY_STRATEGY_ID, resolveAudjpyExit } from "../../frontend/src/lib/strategy/strategies/audjpy-strategy.js";
+import { EURAUD_STRATEGY_ID, resolveEuraudExit } from "../../frontend/src/lib/strategy/strategies/euraud-strategy.js";
 import { NZDJPY_STRATEGY_ID, resolveNzdjpyExit } from "../../frontend/src/lib/strategy/strategies/nzdjpy-strategy.js";
 import type { FrozenH1ExitInput, FrozenH1ExitResult } from "../../frontend/src/lib/strategy/strategies/frozen-h1-pair.js";
 import { decideInstrument, loadAdaptiveEvidence, toAdaptiveCandidate } from "./adaptive-engine.js";
@@ -245,6 +248,8 @@ const FROZEN_THREE_H1_RESOLVERS: Readonly<Record<string, FrozenH1Resolver>> = {
   [EURJPY_STRATEGY_ID]: resolveEurjpyExit,
   [CADJPY_STRATEGY_ID]: resolveCadjpyExit,
   [NZDJPY_STRATEGY_ID]: resolveNzdjpyExit,
+  [AUDJPY_STRATEGY_ID]: resolveAudjpyExit,
+  [EURAUD_STRATEGY_ID]: resolveEuraudExit,
 };
 
 function weekdayAt(value: string) {
@@ -537,8 +542,8 @@ export const EVALUATION_SNAPSHOT_CONFLICT_RULE = [
   'setup_status','direction','entry','stop','target','risk_reward','spread_pips',
   'conditions','features','strategy_family','config_version','regime','trend_strength',
   'volatility_bucket','atr_pips','experiment_id',
-].map((field) => `${field}=CASE WHEN paper_strategy_evaluations.execution_status='selected' OR paper_strategy_evaluations.trade_created OR paper_strategy_evaluations.paper_trade_id IS NOT NULL THEN paper_strategy_evaluations.${field} ELSE EXCLUDED.${field} END`).join(',')
-  + ",rejection_reason=CASE WHEN paper_strategy_evaluations.execution_status='selected' THEN paper_strategy_evaluations.rejection_reason ELSE COALESCE(EXCLUDED.rejection_reason,paper_strategy_evaluations.rejection_reason) END";
+].map((field) => `${field}=CASE WHEN paper_strategy_evaluations.setup_status='valid' OR paper_strategy_evaluations.execution_status='selected' OR paper_strategy_evaluations.trade_created OR paper_strategy_evaluations.paper_trade_id IS NOT NULL THEN paper_strategy_evaluations.${field} ELSE EXCLUDED.${field} END`).join(',')
+  + ",rejection_reason=CASE WHEN paper_strategy_evaluations.setup_status='valid' OR paper_strategy_evaluations.execution_status='selected' THEN paper_strategy_evaluations.rejection_reason ELSE COALESCE(EXCLUDED.rejection_reason,paper_strategy_evaluations.rejection_reason) END";
 
 async function persistPaperEvaluation(
   setup: StrategySetup,
@@ -650,6 +655,12 @@ async function openPaperTrade(
   const gbpusdMetadata = setup.features.gbpusdStrategy;
   const audusdMetadata = setup.features.audusdStrategy;
   const nzdusdMetadata = setup.features.nzdusdStrategy;
+  const nzdjpyMetadata = setup.features.nzdjpyStrategy;
+  const cadjpyMetadata = setup.features.cadjpyStrategy;
+  const eurjpyMetadata = setup.features.eurjpyStrategy;
+  const usdchfMetadata = setup.features.usdchfStrategy;
+  const usdcadMetadata = setup.features.usdcadStrategy;
+  const nzdusdConsensusMetadata = setup.features.nzdusdConsensusStrategy;
   const frozenH1Metadata = setup.features.frozenPairStrategy;
   const session = strategySession(setup);
   return transaction(async (client) => {
@@ -664,10 +675,34 @@ async function openPaperTrade(
                   THEN jsonb_set(features,'{audusdStrategy,exitReason}',to_jsonb($5::text),true)
                   WHEN $5::text IS NOT NULL AND strategy_family=$8
                   THEN jsonb_set(features,'{nzdusdStrategy,blockReason}',to_jsonb($5::text),true)
+                  WHEN $5::text IS NOT NULL AND strategy_family=$9
+                  THEN jsonb_set(
+                    jsonb_set(features,'{nzdjpyStrategy,executionAllowed}','false'::jsonb,true),
+                    '{nzdjpyStrategy,executionBlockReason}',to_jsonb($5::text),true)
+                  WHEN $5::text IS NOT NULL AND strategy_family=$10
+                  THEN jsonb_set(
+                    jsonb_set(features,'{cadjpyStrategy,executionAllowed}','false'::jsonb,true),
+                    '{cadjpyStrategy,executionBlockReason}',to_jsonb($5::text),true)
+                  WHEN $5::text IS NOT NULL AND strategy_family=$11
+                  THEN jsonb_set(
+                    jsonb_set(features,'{eurjpyStrategy,executionAllowed}','false'::jsonb,true),
+                    '{eurjpyStrategy,executionBlockReason}',to_jsonb($5::text),true)
+                  WHEN $5::text IS NOT NULL AND strategy_family=$12
+                  THEN jsonb_set(
+                    jsonb_set(features,'{usdchfStrategy,executionAllowed}','false'::jsonb,true),
+                    '{usdchfStrategy,executionBlockReason}',to_jsonb($5::text),true)
+                  WHEN $5::text IS NOT NULL AND strategy_family=$13
+                  THEN jsonb_set(
+                    jsonb_set(features,'{usdcadStrategy,executionAllowed}','false'::jsonb,true),
+                    '{usdcadStrategy,executionBlockReason}',to_jsonb($5::text),true)
+                  WHEN $5::text IS NOT NULL AND strategy_family=$14
+                  THEN jsonb_set(
+                    jsonb_set(features,'{nzdusdConsensusStrategy,executionAllowed}','false'::jsonb,true),
+                    '{nzdusdConsensusStrategy,executionBlockReason}',to_jsonb($5::text),true)
                   ELSE features END,
                 updated_at=now()
           WHERE strategy_version_id=$2 AND instrument=$3 AND decision_time=$4 AND trade_created=false`,
-        [reason, versionId, setup.instrument, setup.evaluatedAt, code, GBPUSD_STRATEGY_ID, AUDUSD_STRATEGY_ID, NZDUSD_STRATEGY_ID],
+        [reason, versionId, setup.instrument, setup.evaluatedAt, code, GBPUSD_STRATEGY_ID, AUDUSD_STRATEGY_ID, NZDUSD_STRATEGY_ID, NZDJPY_STRATEGY_ID, CADJPY_STRATEGY_ID, EURJPY_STRATEGY_ID, USDCHF_STRATEGY_ID, USDCAD_STRATEGY_ID, NZDUSD_CONSENSUS_STRATEGY_ID],
       );
       return null;
     };
@@ -744,8 +779,8 @@ async function openPaperTrade(
        RETURNING id`,
       [nextSequence.rows[0]!.value, userId, batch.id, versionId, setup.instrument, setup.evaluatedAt, setup.direction, setup.entry, setup.stop, setup.target, setup.riskReward, risk.riskPercent, positionSize.calculatedEstimatedRisk, positionSize.calculatedUnits, positionSize.calculatedStandardLots, spreadPips, session, weekdayAt(setup.evaluatedAt), setupName, checklistScore(setup), JSON.stringify(setup.conditions), JSON.stringify(setup.features), setup.features.newsStatus ?? "not_evaluated", setup.evaluatedAt, attribution?.family ?? null, attribution?.configVersion ?? null, attribution?.regime ?? null, attribution?.trendStrength ?? null, attribution?.volatilityBucket ?? null, attribution?.atrPips ?? null, attribution?.experimentId ?? null,
        attribution?.originalDirection ?? null, attribution?.inverted ?? false, attribution?.inversionExperimentId ?? null, evaluationId, spreadCost,
-         gbpusdMetadata?.signalClose ?? usdjpyMetadata?.signalPrice ?? audusdMetadata?.signalClose ?? nzdusdMetadata?.signalClose ?? (frozenH1Metadata ? setup.entry : null), null,
-         gbpusdMetadata?.maxHoldBars ?? usdjpyMetadata?.maximumHoldBars ?? audusdMetadata?.maximumHoldBars ?? nzdusdMetadata?.maximumHoldBars ?? frozenH1Metadata?.maxHoldBars ?? null,
+         gbpusdMetadata?.signalClose ?? usdjpyMetadata?.signalPrice ?? audusdMetadata?.signalClose ?? nzdusdMetadata?.signalClose ?? nzdjpyMetadata?.signalMidClose ?? cadjpyMetadata?.signalMidClose ?? eurjpyMetadata?.signalMidClose ?? usdchfMetadata?.signalMidClose ?? usdcadMetadata?.signalMidClose ?? nzdusdConsensusMetadata?.signalMidClose ?? (frozenH1Metadata ? setup.entry : null), null,
+         gbpusdMetadata?.maxHoldBars ?? usdjpyMetadata?.maximumHoldBars ?? audusdMetadata?.maximumHoldBars ?? nzdusdMetadata?.maximumHoldBars ?? nzdjpyMetadata?.maxHoldBars ?? cadjpyMetadata?.maxHoldBars ?? eurjpyMetadata?.maxHoldBars ?? usdchfMetadata?.maxHoldBars ?? usdcadMetadata?.maxHoldBars ?? nzdusdConsensusMetadata?.maxHoldBars ?? frozenH1Metadata?.maxHoldBars ?? null,
          gbpusdMetadata || usdjpyMetadata || audusdMetadata || nzdusdMetadata || frozenH1Metadata ? 0 : null],
     );
     const tradeId = inserted.rows[0]!.id;
@@ -819,19 +854,33 @@ async function brokerCloseFor(trade: OpenTradeRow): Promise<BrokerClose | null> 
     ? exit >= target - slack ? "target_first" : exit <= stop + slack ? "stop_first" : "forced_close"
     : exit <= target + slack ? "target_first" : exit >= stop - slack ? "stop_first" : "forced_close";
 
-  const risk = Number(trade.nominal_risk_amount);
-  if (STRATEGY_FAMILIES.includes(trade.strategy_family as StrategyFamily)) {
-    const measurement = measureBrokerExecution({ instrument: trade.instrument, direction: trade.direction,
-      signalEntry: entry, stop, nominalRiskAmount: risk,
-      requestedUnits: Number(intent.rows[0]!.calculated_units), inverted: intent.rows[0]!.inverted }, state);
-    if (measurement) await query("UPDATE paper_strategy_trades SET features=COALESCE(features,'{}'::jsonb)||jsonb_build_object('executionMeasurementV2',$2::jsonb) WHERE id=$1", [trade.id,JSON.stringify(measurement)]);
+  const nominalRisk = Number(trade.nominal_risk_amount);
+  const measurement = measureBrokerExecution({
+    instrument: trade.instrument,
+    direction: trade.direction,
+    signalEntry: entry,
+    stop,
+    nominalRiskAmount: nominalRisk,
+    requestedUnits: Number(intent.rows[0]!.calculated_units),
+    inverted: intent.rows[0]!.inverted,
+  }, state);
+  if (measurement) {
+    await query(
+      "UPDATE paper_strategy_trades SET features=COALESCE(features,'{}'::jsonb)||jsonb_build_object('executionMeasurementV2',$2::jsonb) WHERE id=$1",
+      [trade.id, JSON.stringify(measurement)],
+    );
   }
   return {
     outcome,
     exit,
-    // R is derived from the cash the broker booked, so it carries the slippage
-    // the modelled ±1R never showed.
-    resultR: state.realizedPL !== null && Number.isFinite(risk) && risk !== 0 ? state.realizedPL / risk : null,
+    // A capped broker order has less cash at risk than its paper sizing budget.
+    // Use the executed fill's own size and stop distance, not that original
+    // budget, so a real target cannot be reported as a fractional-R win.
+    resultR: measurement?.cashRiskR ?? (
+      state.realizedPL !== null && Number.isFinite(nominalRisk) && nominalRisk !== 0
+        ? state.realizedPL / nominalRisk
+        : null
+    ),
     paperPl: state.realizedPL,
     closedAt: state.closeTime,
   };
@@ -1841,6 +1890,101 @@ export async function paperCycleOverview() {
  */
 export type JournalTradeFilter = "all" | "wins" | "losses" | "active";
 
+/**
+ * Bring direct OANDA Practice-account trades into the durable journal.
+ *
+ * Strategy orders already carry a broker trade id in `practice_order_intents`,
+ * so they are explicitly excluded. The broker id is used as a stable legacy id
+ * for direct/manual orders, making every refresh idempotent and allowing a
+ * later closed-trade update to correct the same journal row.
+ */
+export async function syncPracticeBrokerHistory(userId: string) {
+  let brokerTrades: Awaited<ReturnType<typeof getClosedPracticeTrades>>;
+  try {
+    brokerTrades = await getClosedPracticeTrades();
+  } catch {
+    // A journal read must remain available when OANDA is temporarily down.
+    return { imported: 0, unavailable: true };
+  }
+  if (!brokerTrades.length) return { imported: 0, unavailable: false };
+
+  const linked = await query<{ broker_trade_id: string }>(
+    "SELECT broker_trade_id FROM practice_order_intents WHERE broker_trade_id IS NOT NULL",
+  );
+  const linkedIds = new Set(linked.rows.map((row) => row.broker_trade_id));
+  let imported = 0;
+
+  for (const trade of brokerTrades) {
+    if (linkedIds.has(trade.brokerTradeId)) continue;
+    const pair = trade.instrument.replace("_", "/");
+    const result = trade.realizedPL === null ? "breakeven" : trade.realizedPL > 0 ? "win" : trade.realizedPL < 0 ? "loss" : "breakeven";
+    const saved = await query<{ id: string }>(
+      `INSERT INTO paper_trades(
+         user_id,legacy_id,origin,pair,direction,status,result,opened_at,closed_at,entry,stop,target,exit,result_r,reason,notes
+       ) VALUES($1,$2,'manual',$3,$4,'closed',$5,$6,$7,$8,$8,$8,$9,NULL,'OANDA Practice account history',$10)
+       ON CONFLICT(user_id,legacy_id) DO UPDATE SET
+         closed_at=EXCLUDED.closed_at, exit=EXCLUDED.exit, result=EXCLUDED.result, updated_at=now()
+       RETURNING id`,
+      [
+        userId,
+        `oanda-trade:${trade.brokerTradeId}`,
+        pair,
+        trade.direction,
+        result,
+        trade.openedAt,
+        trade.closedAt,
+        trade.entry,
+        trade.exit,
+        trade.realizedPL === null ? "Broker P&L unavailable." : `Broker realized P&L: ${trade.realizedPL.toFixed(2)} USD.`,
+      ],
+    );
+    if (saved.rowCount) imported += 1;
+  }
+  return { imported, unavailable: false };
+}
+
+/**
+ * A saved setup is the first valid, completed-candle evaluation for an
+ * executable pair. Its levels are immutable: it is evidence of a plan, not a
+ * live quote or a broker order. A setup remains actionable only until the next
+ * strategy candle begins (M30 for GBPUSD, H1 for every other enabled pair).
+ */
+export async function savedExecutableSetups() {
+  const rows = await query<{
+    id: string;
+    instrument: MajorInstrument;
+    direction: "long" | "short";
+    entry: number;
+    stop: number;
+    target: number;
+    decisionTime: string;
+    expiresAt: string;
+  }>(
+    `SELECT DISTINCT ON (evaluation.instrument)
+            evaluation.id,
+            evaluation.instrument,
+            evaluation.direction,
+            evaluation.entry::float AS entry,
+            evaluation.stop::float AS stop,
+            evaluation.target::float AS target,
+            evaluation.decision_time AS "decisionTime",
+            (evaluation.decision_time + CASE WHEN evaluation.strategy_family=$2 THEN interval '30 minutes' ELSE interval '1 hour' END) AS "expiresAt"
+       FROM paper_strategy_evaluations evaluation
+      WHERE evaluation.strategy_family = ANY($1::text[])
+        AND evaluation.setup_status='valid'
+        AND evaluation.direction IS NOT NULL
+        AND evaluation.entry IS NOT NULL
+        AND evaluation.stop IS NOT NULL
+        AND evaluation.target IS NOT NULL
+        AND evaluation.trade_created=false
+        AND evaluation.paper_trade_id IS NULL
+        AND now() < evaluation.decision_time + CASE WHEN evaluation.strategy_family=$2 THEN interval '30 minutes' ELSE interval '1 hour' END
+      ORDER BY evaluation.instrument, evaluation.decision_time DESC`,
+    [ENABLED_PAIR_STRATEGY_IDS, GBPUSD_STRATEGY_ID],
+  );
+  return rows.rows.map((row) => ({ ...row, state: "setup" as const }));
+}
+
 function journalTradeWhere(filter: JournalTradeFilter): string {
   // Wins/losses use raw result_r (open trades are NULL and fall out of both).
   // Active is status-based so closed-but-null-R edge cases stay out.
@@ -1871,7 +2015,8 @@ export async function journalTradeLog(
             instrument_code AS "instrument", nominal_risk_amount AS "nominalRiskAmount",
             signal_price AS "signalPrice", actual_fill_price AS "actualFillPrice",
             max_hold_bars AS "maxHoldBars", bars_held AS "barsHeld",
-            strategy_family AS "strategyFamily", batch_number AS "batchNumber"
+            strategy_family AS "strategyFamily", batch_number AS "batchNumber",
+            "brokerExecutionStatus", "brokerFailureReason"
      FROM (
        SELECT id::text, origin, pair, direction, status, result, opened_at, closed_at,
               entry::float, stop::float, target::float, exit::float, result_r::float,
@@ -1879,15 +2024,19 @@ export async function journalTradeLog(
                NULL::text AS instrument_code, NULL::float AS nominal_risk_amount,
                NULL::float AS signal_price, NULL::float AS actual_fill_price,
                NULL::int AS max_hold_bars, NULL::int AS bars_held,
-               NULL::text AS strategy_family, NULL::int AS batch_number
+               NULL::text AS strategy_family, NULL::int AS batch_number,
+               NULL::text AS "brokerExecutionStatus", NULL::text AS "brokerFailureReason"
        FROM paper_trades WHERE user_id=$1
        UNION ALL
        SELECT trade.id::text, 'strategy', instrument.display_name, trade.direction,
-              trade.status, CASE WHEN trade.status <> 'closed' OR trade.result_r IS NULL THEN 'open'
+              trade.status, CASE WHEN intent.status='rejected' THEN 'breakeven'
+                                 WHEN trade.status <> 'closed' OR trade.result_r IS NULL THEN 'open'
                                  WHEN trade.result_r > 0.01 THEN 'win'
                                  WHEN trade.result_r < -0.01 THEN 'loss' ELSE 'breakeven' END,
               trade.opened_at, trade.closed_at,
-              trade.entry::float, trade.stop::float, trade.target::float, trade.exit::float, trade.result_r::float, trade.paper_pl::float,
+              trade.entry::float, trade.stop::float, trade.target::float, trade.exit::float,
+              CASE WHEN intent.status='rejected' THEN NULL ELSE trade.result_r::float END,
+              CASE WHEN intent.status='rejected' THEN NULL ELSE trade.paper_pl::float END,
               trade.setup_name || ' · ' || trade.session,
               CASE WHEN trade.exit_reason IS NULL THEN ''
                    ELSE 'Broker outcome: ' || replace(trade.exit_reason, '_', ' ') END,
@@ -1897,14 +2046,17 @@ export async function journalTradeLog(
                trade.instrument, trade.nominal_risk_amount::float,
                trade.signal_price::float, trade.actual_fill_price::float,
                trade.max_hold_bars, trade.bars_held,
-               trade.strategy_family, batch.batch_number
+               trade.strategy_family, batch.batch_number,
+               CASE WHEN intent.status='rejected' THEN 'rejected' ELSE NULL END,
+               CASE WHEN intent.status='rejected' THEN intent.failure_reason ELSE NULL END
        FROM paper_strategy_trades trade
        JOIN instruments instrument ON instrument.code = trade.instrument
        JOIN paper_strategy_batches batch ON batch.id = trade.batch_id
+       LEFT JOIN practice_order_intents intent ON intent.paper_trade_id = trade.id
        WHERE trade.user_id=$1 AND trade.status IN ('open', 'closed')
      ) log
      ${where}
-     ORDER BY "openedAt" DESC
+     ORDER BY CASE WHEN status = 'closed' THEN closed_at ELSE opened_at END DESC, opened_at DESC
      LIMIT $2 OFFSET $3`,
     [userId, limit, offset],
   );
@@ -1918,14 +2070,17 @@ export async function journalTradeLog(
  */
 export async function journalTradeSummary(userId: string) {
   const rows = await query<{ total: string; closed: string; wins: string; sumR: string | null }>(
-    `SELECT count(*)::text AS total,
-            count(*) FILTER (WHERE status='closed' AND result_r IS NOT NULL)::text AS closed,
-            count(*) FILTER (WHERE result_r > 0)::text AS wins,
-            sum(result_r) FILTER (WHERE status='closed' AND result_r IS NOT NULL)::text AS "sumR"
+    `SELECT count(*) FILTER (WHERE NOT broker_rejected)::text AS total,
+            count(*) FILTER (WHERE status='closed' AND result_r IS NOT NULL AND NOT broker_rejected)::text AS closed,
+            count(*) FILTER (WHERE result_r > 0 AND NOT broker_rejected)::text AS wins,
+            sum(result_r) FILTER (WHERE status='closed' AND result_r IS NOT NULL AND NOT broker_rejected)::text AS "sumR"
      FROM (
-       SELECT status, result_r::float AS result_r FROM paper_trades WHERE user_id=$1
+       SELECT status, result_r::float AS result_r, false AS broker_rejected FROM paper_trades WHERE user_id=$1
        UNION ALL
-       SELECT status, trade.result_r::float FROM paper_strategy_trades trade WHERE trade.user_id=$1 AND trade.status IN ('open', 'closed')
+       SELECT trade.status, trade.result_r::float, COALESCE(intent.status='rejected',false)
+       FROM paper_strategy_trades trade
+       LEFT JOIN practice_order_intents intent ON intent.paper_trade_id=trade.id
+       WHERE trade.user_id=$1 AND trade.status IN ('open', 'closed')
      ) log`,
     [userId],
   );
@@ -1942,17 +2097,18 @@ export async function journalTradeSummary(userId: string) {
     losses: string;
     realizedPL: string | null;
   }>(
-    `SELECT count(*) FILTER (WHERE result_r > 0)::text AS wins,
-            count(*) FILTER (WHERE result_r < 0)::text AS losses,
-            sum(paper_pl)::text AS "realizedPL"
+    `SELECT count(*) FILTER (WHERE result_r > 0 AND NOT broker_rejected)::text AS wins,
+            count(*) FILTER (WHERE result_r < 0 AND NOT broker_rejected)::text AS losses,
+            sum(paper_pl) FILTER (WHERE NOT broker_rejected)::text AS "realizedPL"
      FROM (
-       SELECT result_r::float AS result_r, NULL::float AS paper_pl, closed_at
+       SELECT result_r::float AS result_r, NULL::float AS paper_pl, closed_at, false AS broker_rejected
        FROM paper_trades
        WHERE user_id=$1 AND status='closed'
        UNION ALL
-       SELECT result_r::float, paper_pl::float, closed_at
-       FROM paper_strategy_trades
-       WHERE user_id=$1 AND status='closed'
+       SELECT trade.result_r::float, trade.paper_pl::float, trade.closed_at, COALESCE(intent.status='rejected',false)
+       FROM paper_strategy_trades trade
+       LEFT JOIN practice_order_intents intent ON intent.paper_trade_id=trade.id
+       WHERE trade.user_id=$1 AND trade.status='closed'
      ) log
      WHERE (closed_at AT TIME ZONE 'America/New_York')::date =
            (now() AT TIME ZONE 'America/New_York')::date`,

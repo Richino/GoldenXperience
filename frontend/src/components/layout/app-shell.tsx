@@ -7,12 +7,10 @@ import { createPortal } from "react-dom";
 import {
   Activity,
   BarChart3,
+  CandlestickChart,
   BookOpen,
   ChartNoAxesCombined,
-  Ellipsis,
   House,
-  ListChecks,
-  Radio,
   Settings,
   type LucideIcon,
 } from "lucide-react";
@@ -53,16 +51,15 @@ function clearNavClick(event: React.AnimationEvent<HTMLElement>) {
 
 const navItems: NavItem[] = [
   { label: "Home", href: "/", icon: House },
-  { label: "Signals", href: "/signals", icon: Radio },
-  { label: "Chart", href: "/chart", icon: ChartNoAxesCombined },
+  { label: "Chart", href: "/chart", icon: CandlestickChart },
   { label: "Trades", href: "/journal", icon: BookOpen },
-  { label: "Markets", href: "/watchlist", icon: ListChecks },
+  { label: "Markets", href: "/watchlist", icon: ChartNoAxesCombined },
   { label: "Performance", href: "/research", icon: BarChart3 },
   { label: "More", href: "/risk", icon: Activity },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
-const mobilePrimaryHrefs = ["/", "/signals", "/chart", "/journal", "/settings"] as const;
+const mobilePrimaryHrefs = ["/", "/watchlist", "/chart", "/journal", "/settings"] as const;
 
 function isActive(pathname: string, href: string) {
   if (href === "/settings") {
@@ -78,7 +75,7 @@ const moreNavItem = navItems.find((item) => item.href === "/risk")!;
 const settingsNavItem = navItems.find((item) => item.href === "/settings")!;
 const mobileNavItems = navItems.filter((item) =>
   (mobilePrimaryHrefs as readonly string[]).includes(item.href),
-).map((item) => item.href === "/settings" ? { ...item, label: "More", icon: Ellipsis } : item);
+);
 
 function SidebarNavLink({
   item,
@@ -184,8 +181,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const dockRef = useRef<HTMLElement>(null);
   const isClient = useSyncExternalStore(subscribe, () => true, () => false);
-  const isChart = pathname.startsWith("/chart") || pathname.startsWith("/signals");
+  const isChart = pathname.startsWith("/chart");
   const isDashboard = pathname === "/";
+  // Trades (the /journal route) carries its own header + connection strip and a
+  // two-pane workspace, so it opts out of the shared market-status top bar.
+  const isTrades = pathname === "/journal";
   const activeMobileIndex = Math.max(
     0,
     mobileNavItems.findIndex((item) => isActive(pathname, item.href)),
@@ -285,7 +285,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <span className="nav-mobile-icon">
                 <Icon className="size-[1.55rem]" strokeWidth={1.7} />
               </span>
-              <span className="nav-mobile-label">{item.label}</span>
             </Link>
           );
         })}
@@ -334,18 +333,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div
-        className={`min-w-0 w-full lg:pl-[224px] has-topbar ${
+        className={`min-w-0 w-full lg:pl-[224px] ${isTrades ? "" : "has-topbar"} ${
           isChart ? "lg:min-h-dvh" : ""
         } ${isDashboard ? "has-home-rail" : ""}`}
       >
-        <AppTopBar />
+        {isTrades ? null : <AppTopBar />}
         <main
           className={`w-full min-w-0 ${
             isChart
               ? "min-h-dvh p-0"
               : isDashboard
                 ? "w-full px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-5 lg:px-6 lg:pb-8"
-                : "mx-auto max-w-[1320px] px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-6 lg:px-8 lg:pb-10"
+                : isTrades
+                  ? "mx-auto w-full max-w-[1600px] px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-6 lg:px-8 lg:pb-10"
+                  : "mx-auto max-w-[1320px] px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-6 lg:px-8 lg:pb-10"
           }`}
         >
           {!isChart && !isDashboard ? <MobileTopBar showBack /> : null}

@@ -27,15 +27,16 @@ export type AccountChartPoint = {
 };
 
 /** Real wall-clock periods for account profit and loss. */
-export type AccountChartRange = "1h" | "1d" | "1w" | "1m" | "1y" | "all";
+export type AccountChartRange = "1h" | "1d" | "1w" | "1m" | "3m" | "1y" | "all";
 
-const RANGES: AccountChartRange[] = ["1d", "1w", "1m", "1y", "all"];
+const RANGES: AccountChartRange[] = ["1d", "1w", "1m", "3m", "1y"];
 
 const RANGE_CONFIG: Record<AccountChartRange, { tab: string; label: string; durationMs: number; bucketMs: number }> = {
   "1h": { tab: "1H", label: "the last hour", durationMs: 60 * 60_000, bucketMs: 2 * 60_000 },
   "1d": { tab: "1D", label: "today", durationMs: 24 * 60 * 60_000, bucketMs: 60 * 60_000 },
   "1w": { tab: "1W", label: "the last week", durationMs: 7 * 24 * 60 * 60_000, bucketMs: 6 * 60 * 60_000 },
   "1m": { tab: "1M", label: "the last 30 days", durationMs: 30 * 24 * 60 * 60_000, bucketMs: 24 * 60 * 60_000 },
+  "3m": { tab: "3M", label: "the last 90 days", durationMs: 90 * 24 * 60 * 60_000, bucketMs: 2 * 24 * 60 * 60_000 },
   "1y": { tab: "1Y", label: "the last year", durationMs: 365 * 24 * 60 * 60_000, bucketMs: 7 * 24 * 60 * 60_000 },
   "all": { tab: "ALL", label: "the full account history", durationMs: 10 * 365 * 24 * 60 * 60_000, bucketMs: 30 * 24 * 60 * 60_000 },
 };
@@ -73,6 +74,7 @@ function formatAxisTick(value: number, range: AccountChartRange) {
     case "1w":
       return new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(date);
     case "1m":
+    case "3m":
       return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date);
     case "1y":
     case "all":
@@ -100,6 +102,7 @@ function formatBucketLabel(start: number, end: number, range: AccountChartRange)
       return `${formatter.format(startDate)}–${formatter.format(endDate)}`;
     }
     case "1m":
+    case "3m":
     case "1y":
     case "all": {
       const formatter = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
@@ -349,16 +352,57 @@ function PnLDot({
   );
 }
 
+/** The 1D/1W/1M/3M/1Y period switcher, extracted so the hero can place it
+ *  beside the balance while the chart still owns the range state. */
+export function AccountRangeControl({
+  range,
+  onRangeChange,
+  className = "",
+}: {
+  range: AccountChartRange;
+  onRangeChange: (range: AccountChartRange) => void;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`account-range-row ${className}`}
+      role="tablist"
+      aria-label="Account profit and loss period"
+    >
+      {RANGES.map((option) => {
+        const active = option === range;
+        return (
+          <button
+            key={option}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            aria-label={`Chart ${RANGE_CONFIG[option].label}`}
+            onClick={() => onRangeChange(option)}
+            className={`account-range-btn pressable ${active ? "is-active" : ""}`}
+          >
+            {RANGE_CONFIG[option].tab}
+          </button>
+        );
+      })}
+      <span className="account-range-unit sr-only">P/L</span>
+    </div>
+  );
+}
+
 export function AccountAmountChart({
   series,
   currency,
   range,
   onRangeChange,
+  hideRangeRow = false,
 }: {
   series: AccountChartPoint[];
   currency: string;
   range: AccountChartRange;
   onRangeChange: (range: AccountChartRange) => void;
+  /** When the range switcher is rendered elsewhere (e.g. beside the balance). */
+  hideRangeRow?: boolean;
 }) {
   const gradientId = useId().replace(/:/g, "");
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
@@ -384,6 +428,8 @@ export function AccountAmountChart({
         return 3;
       case "1m":
         return 4;
+      case "3m":
+        return 8;
       case "1y":
         return 5;
       case "all":
@@ -410,25 +456,9 @@ export function AccountAmountChart({
 
   return (
     <div className="account-chart">
-      <div className="account-range-row" role="tablist" aria-label="Account profit and loss period">
-        {RANGES.map((option) => {
-          const active = option === range;
-          return (
-            <button
-              key={option}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              aria-label={`Chart ${RANGE_CONFIG[option].label}`}
-              onClick={() => onRangeChange(option)}
-              className={`account-range-btn pressable ${active ? "is-active" : ""}`}
-            >
-              {RANGE_CONFIG[option].tab}
-            </button>
-          );
-        })}
-        <span className="account-range-unit sr-only">P/L</span>
-      </div>
+      {hideRangeRow ? null : (
+        <AccountRangeControl range={range} onRangeChange={onRangeChange} />
+      )}
 
       <div
         className="account-chart-canvas mt-4"

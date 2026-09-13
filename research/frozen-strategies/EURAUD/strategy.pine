@@ -1,0 +1,403 @@
+//@version=6
+strategy(
+     "GX EURAUD Bull Consensus V1 - 1 to 2 RR",
+     overlay=true,
+     pyramiding=0,
+     process_orders_on_close=true,
+     calc_on_every_tick=false,
+     max_bars_back=5000,
+     initial_capital=10000,
+     default_qty_type=strategy.fixed,
+     default_qty_value=1
+)
+
+// ============================================================
+// EURAUD BULL CONSENSUS V1
+//
+// Pair:
+// OANDA:EURAUD
+//
+// Timeframe:
+// H1
+//
+// Phase 1:
+// Strong movement cluster = 11:00-13:00 UTC
+// Original displacement winner = 12:00 UTC
+//
+// Directional/trade rescue:
+// 11:00 UTC produced the strongest actual 1:2 RR branch.
+//
+// Frozen origin:
+// 11:00 UTC
+//
+// Direction:
+// LONG ONLY
+//
+// Entry:
+// Four-vote consensus >= +3
+//
+// NO structure filter.
+// NO breakout filter.
+// NO EMA reclaim filter.
+// NO body/extreme filter.
+//
+// Frozen research result:
+//
+// N = 194
+// WR = 44.33%
+// PF = 1.303
+// Exp = +0.141R/trade
+//
+// Exit:
+// SL = 1 frozen ATR14
+// TP = 2 frozen ATR14
+// Max hold = 3 future H1 candles
+// ============================================================
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+
+EMA_FAST = 20
+EMA_SLOW = 50
+ATR_LEN = 14
+
+ORIGIN_HOUR = 11
+CONSENSUS_MIN = 3
+
+STOP_R = 1.0
+TARGET_R = 2.0
+MAX_HOLD = 3
+
+// ============================================================
+// INPUTS
+// ============================================================
+
+startTime = input.time(
+     timestamp("01 Jan 2023 00:00 +0000"),
+     "Start date"
+)
+
+showEntries = input.bool(
+     true,
+     "Show entries"
+)
+
+// ============================================================
+// CHART VALIDATION
+// ============================================================
+
+isH1 =
+     timeframe.isminutes and
+     timeframe.multiplier == 60
+
+tickerUpper =
+     str.upper(syminfo.ticker)
+
+isEURAUD =
+     str.contains(tickerUpper, "EURAUD")
+
+validChart =
+     isH1 and isEURAUD
+
+// ============================================================
+// INDICATORS
+// ============================================================
+
+ema20 =
+     ta.ema(close, EMA_FAST)
+
+ema50 =
+     ta.ema(close, EMA_SLOW)
+
+atr14 =
+     ta.atr(ATR_LEN)
+
+// ============================================================
+// ORIGIN
+// ============================================================
+
+utcHour =
+     hour(time, "UTC")
+
+utcMinute =
+     minute(time, "UTC")
+
+isOrigin =
+     validChart and
+     barstate.isconfirmed and
+     utcHour == ORIGIN_HOUR and
+     utcMinute == 0 and
+     time >= startTime
+
+// ============================================================
+// READINESS
+// ============================================================
+
+ready =
+     isOrigin and
+     not na(ema20) and
+     not na(ema50) and
+     not na(ema20[3]) and
+     not na(close[3]) and
+     not na(atr14) and
+     atr14 > 0
+
+// ============================================================
+// FOUR-VOTE CONSENSUS
+// ============================================================
+
+int voteTrend = 0
+int votePrice = 0
+int voteSlope = 0
+int voteMomentum = 0
+
+if ready
+
+    // Vote 1:
+    // EMA20 vs EMA50
+    voteTrend :=
+         ema20 > ema50 ? 1 :
+         ema20 < ema50 ? -1 :
+         0
+
+    // Vote 2:
+    // close vs EMA20
+    votePrice :=
+         close > ema20 ? 1 :
+         close < ema20 ? -1 :
+         0
+
+    // Vote 3:
+    // EMA20 vs EMA20[3]
+    voteSlope :=
+         ema20 > ema20[3] ? 1 :
+         ema20 < ema20[3] ? -1 :
+         0
+
+    // Vote 4:
+    // close vs close[3]
+    voteMomentum :=
+         close > close[3] ? 1 :
+         close < close[3] ? -1 :
+         0
+
+consensus =
+     voteTrend +
+     votePrice +
+     voteSlope +
+     voteMomentum
+
+bullishConsensus =
+     ready and
+     consensus >= CONSENSUS_MIN
+
+// ============================================================
+// FINAL SIGNAL
+//
+// IMPORTANT:
+//
+// Consensus only.
+//
+// No HH+HL.
+// No previous-high break.
+// No range breakout.
+// No body filter.
+// No extreme-close filter.
+// ============================================================
+
+rawLongSignal =
+     bullishConsensus
+
+// ============================================================
+// TRADE STATE
+// ============================================================
+
+var bool tradeActive = false
+
+var float frozenEntry = na
+var float frozenATR = na
+var float frozenStop = na
+var float frozenTarget = na
+
+var int entryBar = na
+
+bool newLong = false
+
+// ============================================================
+// RESET AFTER CLOSED TRADE
+// ============================================================
+
+if tradeActive and
+   not na(entryBar) and
+   bar_index > entryBar and
+   strategy.position_size == 0
+
+    tradeActive := false
+
+    frozenEntry := na
+    frozenATR := na
+    frozenStop := na
+    frozenTarget := na
+
+    entryBar := na
+
+// ============================================================
+// ENTRY
+// ============================================================
+
+canEnter =
+     rawLongSignal and
+     not tradeActive and
+     strategy.position_size == 0
+
+if canEnter
+
+    frozenEntry :=
+         close
+
+    frozenATR :=
+         atr14
+
+    frozenStop :=
+         frozenEntry -
+         STOP_R * frozenATR
+
+    frozenTarget :=
+         frozenEntry +
+         TARGET_R * frozenATR
+
+    entryBar :=
+         bar_index
+
+    tradeActive :=
+         true
+
+    newLong :=
+         true
+
+    strategy.entry(
+         "EURAUD_LONG",
+         strategy.long,
+         comment="EURAUD_1100_LONG"
+    )
+
+    strategy.exit(
+         "EURAUD_EXIT",
+         from_entry="EURAUD_LONG",
+         stop=frozenStop,
+         limit=frozenTarget,
+         comment="TP_OR_SL"
+    )
+
+// ============================================================
+// MAINTAIN FROZEN SL / TP
+// ============================================================
+
+if tradeActive
+
+    strategy.exit(
+         "EURAUD_EXIT",
+         from_entry="EURAUD_LONG",
+         stop=frozenStop,
+         limit=frozenTarget,
+         comment="TP_OR_SL"
+    )
+
+// ============================================================
+// TIME EXIT
+//
+// Entry candle = 11:00 UTC
+//
+// Future #1 = 12:00
+// Future #2 = 13:00
+// Future #3 = 14:00
+//
+// Exit at future #3 close if unresolved.
+// ============================================================
+
+if tradeActive and
+   not na(entryBar)
+
+    int barsHeld =
+         bar_index - entryBar
+
+    if barsHeld >= MAX_HOLD
+
+        strategy.close(
+             "EURAUD_LONG",
+             comment="TIME_EXIT"
+        )
+
+// ============================================================
+// VISUALS
+// ============================================================
+
+plot(
+     ema20,
+     "EMA20"
+)
+
+plot(
+     ema50,
+     "EMA50"
+)
+
+plotshape(
+     showEntries and newLong,
+     title="EURAUD LONG",
+     text="LONG",
+     style=shape.triangleup,
+     location=location.belowbar,
+     size=size.tiny
+)
+
+// ============================================================
+// INFO
+// ============================================================
+
+var table info =
+     table.new(
+          position.top_right,
+          2,
+          10,
+          border_width=1
+     )
+
+if barstate.islast
+
+    table.cell(info, 0, 0, "EURAUD")
+    table.cell(info, 1, 0, "V1")
+
+    table.cell(info, 0, 1, "Origin")
+    table.cell(info, 1, 1, "11:00 UTC")
+
+    table.cell(info, 0, 2, "Direction")
+    table.cell(info, 1, 2, "LONG ONLY")
+
+    table.cell(info, 0, 3, "Gate")
+    table.cell(info, 1, 3, "4-VOTE >= +3")
+
+    table.cell(info, 0, 4, "Extra filter")
+    table.cell(info, 1, 4, "NONE")
+
+    table.cell(info, 0, 5, "SL")
+    table.cell(info, 1, 5, "1 ATR14")
+
+    table.cell(info, 0, 6, "TP")
+    table.cell(info, 1, 6, "2 ATR14")
+
+    table.cell(info, 0, 7, "Hold")
+    table.cell(info, 1, 7, "3 H1")
+
+    table.cell(info, 0, 8, "Exp")
+    table.cell(info, 1, 8, "+0.141R")
+
+    table.cell(info, 0, 9, "Phase 4")
+    table.cell(info, 1, 9, "BASELINE KEPT")
+
+bgcolor(
+     validChart
+     ? na
+     : color.new(color.red, 90)
+)

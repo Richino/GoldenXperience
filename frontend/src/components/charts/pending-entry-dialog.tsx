@@ -116,16 +116,20 @@ export function PendingEntryDialog({
     const onTouchMove = (event: TouchEvent) => {
       const currentY = event.touches[0]?.clientY;
       if (touchStartY === null || currentY === undefined) return;
-      const dialog = event.target instanceof Element
-        ? event.target.closest<HTMLElement>(".pending-entry-dialog")
+      // The scroll container is the form/detail body, not the dialog shell
+      // (the dialog is overflow:hidden). Reading the dialog's scrollTop — which
+      // is always 0 — made the handler treat every swipe as an at-edge
+      // overscroll and preventDefault it, blocking all touch scrolling.
+      const scroller = event.target instanceof Element
+        ? event.target.closest<HTMLElement>(".pending-entry-form, .pending-entry-detail")
         : null;
-      if (!dialog) {
+      if (!scroller) {
         event.preventDefault();
         return;
       }
       const delta = currentY - touchStartY;
-      const atTop = dialog.scrollTop <= 0;
-      const atBottom = dialog.scrollTop + dialog.clientHeight >= dialog.scrollHeight - 1;
+      const atTop = scroller.scrollTop <= 0;
+      const atBottom = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1;
       if ((atTop && delta > 0) || (atBottom && delta < 0)) event.preventDefault();
     };
     document.body.style.overflow = "hidden";
@@ -264,7 +268,8 @@ export function PendingEntryDialog({
         </header>
 
         {isDetail && selectedEntry ? (
-          <div className="pending-entry-detail">
+          <>
+            <div className="pending-entry-detail">
             <p className={`pending-entry-status is-${selectedEntry.status.toLowerCase()}`}>
               {selectedEntry.status === "PENDING" ? `Waiting for ${selectedEntry.entryPrice.toFixed(precision)}`
                 : selectedEntry.status === "TRIGGERED" ? `Entry triggered at ${selectedEntry.triggerPrice?.toFixed(precision) ?? "—"}`
@@ -286,8 +291,9 @@ export function PendingEntryDialog({
               {selectedEntry.targetPrice !== null ? <div><dt>Target</dt><dd>{selectedEntry.targetPrice.toFixed(precision)}</dd></div> : null}
             </dl>
             {error ? <p className="pending-entry-error">{error}</p> : null}
+            </div>
             {selectedEntry.status === "PENDING" ? (
-              <footer>
+              <footer className="pending-entry-actions">
                 <button type="button" className="pending-entry-danger pressable" disabled={saving} onClick={() => void cancelEntry()}>Cancel Entry</button>
                 <button type="button" className="pending-entry-primary pressable" onClick={() => {
                   setOrderReferencePrice(current);
@@ -295,9 +301,10 @@ export function PendingEntryDialog({
                 }}>Edit Entry</button>
               </footer>
             ) : null}
-          </div>
+          </>
         ) : (
-          <div className="pending-entry-form">
+          <>
+            <div className="pending-entry-form">
             <div className="pending-entry-direction" role="group" aria-label="Direction">
               {(["long", "short"] as const).map((option) => (
                 <button key={option} type="button" className={direction === option ? "is-active" : ""} onClick={() => {
@@ -355,7 +362,8 @@ export function PendingEntryDialog({
               </span>
             </div>
             {error ? <p className="pending-entry-error">{error}</p> : null}
-            <footer>
+            </div>
+            <footer className="pending-entry-actions">
               <button type="button" className="pending-entry-secondary pressable" onClick={selectedEntry ? () => setEditing(false) : onClose}>Cancel</button>
               <button
                 type="button"
@@ -366,7 +374,7 @@ export function PendingEntryDialog({
                 {saving ? "Saving…" : selectedEntry ? "Save Changes" : "Create Entry"}
               </button>
             </footer>
-          </div>
+          </>
         )}
       </section>
     </div>

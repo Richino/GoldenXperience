@@ -6673,7 +6673,9 @@ html:not(.dark) .signals-view .pending-entry-add:focus-visible {
   background: color-mix(in srgb, var(--background) 60%, transparent);
   animation: sheet-fade 160ms ease-out both;
   overscroll-behavior: none;
-  touch-action: none;
+  /* A parent with touch-action: none prevents the form's scroll container
+     from receiving its vertical pan gesture on touch devices. */
+  touch-action: pan-y;
 }
 
 /* The dialog portals to <body>, outside .pwa-pull-refresh, so filtering the
@@ -6687,7 +6689,9 @@ html:has(.pending-entry-backdrop) .mobile-dock {
 .pending-entry-dialog {
   width: min(32rem, 100%);
   max-height: min(88dvh, 48rem);
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 1.1rem;
   background: var(--surface);
@@ -6697,6 +6701,7 @@ html:has(.pending-entry-backdrop) .mobile-dock {
 }
 
 .pending-entry-dialog > header {
+  flex: 0 0 auto;
   position: sticky;
   top: 0;
   z-index: 1;
@@ -6729,9 +6734,15 @@ html:has(.pending-entry-backdrop) .mobile-dock {
 
 .pending-entry-form,
 .pending-entry-detail {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
   display: grid;
   gap: 1rem;
   padding: 1rem 1.1rem 1.1rem;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
 }
 
 .pending-entry-direction {
@@ -6883,16 +6894,17 @@ html:has(.pending-entry-backdrop) .mobile-dock {
   color: var(--danger);
 }
 
-.pending-entry-form footer,
-.pending-entry-detail footer {
+.pending-entry-actions {
+  flex: 0 0 auto;
   display: flex;
   justify-content: flex-end;
   gap: 0.55rem;
-  padding-top: 0.25rem;
+  padding: 0.75rem 1.1rem 1.1rem;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
 }
 
-.pending-entry-form footer button,
-.pending-entry-detail footer button {
+.pending-entry-actions button {
   min-height: 2.45rem;
   padding: 0 0.9rem;
   border-radius: 0.65rem;
@@ -7001,29 +7013,22 @@ html:has(.pending-entry-backdrop) .mobile-dock {
     top: 0;
     z-index: 3;
   }
-  .pending-entry-form footer,
-  .pending-entry-detail footer {
-    position: sticky;
-    z-index: 2;
-    bottom: 0;
+  .pending-entry-actions {
+    position: static;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.75rem;
-    margin: .25rem -1.1rem -1.1rem;
     padding: 0.75rem 1.1rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
-    border-top: 1px solid var(--border);
     background: color-mix(in srgb, var(--surface) 96%, transparent);
-    backdrop-filter: blur(14px);
   }
-  .pending-entry-form footer button,
-  .pending-entry-detail footer button {
+  .pending-entry-actions button {
     width: 100%;
     min-height: 3rem;
     padding-inline: 1rem;
     border-radius: 0.8rem;
     font-size: 0.875rem;
   }
-  .pending-entry-detail footer .pending-entry-danger {
+  .pending-entry-actions .pending-entry-danger {
     margin-right: 0;
   }
   .pending-entry-form,

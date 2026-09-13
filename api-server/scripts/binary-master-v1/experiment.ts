@@ -259,7 +259,7 @@ async function main() {
   ));
   writeFileSync(path.join(OUT, "MARTINGALE_RESULTS.csv"), csv(
     ["metric", "value"],
-    Object.entries({ individualWR: sealed5.winRate, sequenceSuccessRate: mg.sequenceSuccessRate, fullFailureRate: mg.fullFailure / Math.max(1, mg.sequences), simpleDoublingPL: mg.simpleDoublingPL, recoverySizingPL: mg.recoverySizingPL, maxDrawdown: mg.maxDrawdown, fixedStakePL80: fixedPL80 }),
+    Object.entries({ individualWR: sealed5.winRate, sequenceSuccessRate: mg.sequenceSuccessRate, fullFailureRate: mg.fullFailure / Math.max(1, mg.sequences), simpleDoublingPL: mg.simpleDoublingPL, recoverySizingPL: mg.recoverySizingPL, maxDrawdown: mg.maxDrawdown, fixedStakePL80: fixedPL80 }).map(([metric, value]) => ({ metric, value })),
   ));
   writeFileSync(path.join(OUT, "TRADES.csv"), csv(
     ["timestamp", "pair", "split", "variant", "expiry", "direction", "entry", "expiryPrice", "result", "session"],

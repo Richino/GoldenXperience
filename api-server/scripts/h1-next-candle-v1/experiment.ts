@@ -297,7 +297,7 @@ async function main() {
     if (o === "WIN") b.w++; else if (o === "LOSS") b.l++; else b.t++;
   }
   const sessionResults = [...sessionMap.entries()].map(([session, b]) => ({
-    session, n: b.w + b.l + b.t, ...wrStats(b.w, b.l, b.t),
+    session, ...wrStats(b.w, b.l, b.t),
   })).sort((a, b) => b.winRate - a.winRate);
 
   // Year results sealed
@@ -354,7 +354,7 @@ async function main() {
     confusion,
     exactClassAcc,
     dirAcc,
-    strongCandles: { n: strongEval.length, ...strongStats },
+    strongCandles: { ...strongStats, n: strongEval.length },
     patternRank: patternRank.slice(0, 20),
     pairResults,
     sessionResults,

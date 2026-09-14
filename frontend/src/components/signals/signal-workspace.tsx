@@ -2184,10 +2184,10 @@ export function SignalWorkspace({
     }
     return openSignal;
   }, [activeSetup.pair, instrument, openPaperTrade, openSignal, triggeredManualEntry]);
-  // Only an open trade owns live Entry / SL / TP overlays. A closed trade can
-  // still be focused for its markers and path, but its completed plan must not
-  // remain on the live chart. Likewise, do not replace that historical focus
-  // with the current strategy draft until the user clears the focus.
+  // Only an open trade owns live Entry / SL / TP overlays. Manual positions
+  // already render their clickable levels through pendingEntryReferenceLines,
+  // so suppress the strategy draft while one is open instead of drawing both.
+  // A closed focused trade can retain its markers and path without live levels.
   const setupLevels = useMemo(
     () => openPaperTrade ? ({
       entry: openPaperTrade.entry,
@@ -2195,7 +2195,7 @@ export function SignalWorkspace({
       target: openPaperTrade.target,
       exit: openPaperTrade.exit,
       outcome: openPaperTrade.outcome,
-    }) : focusTrade ? null : initialSetupFocus ? ({
+    }) : focusTrade || triggeredManualEntry ? null : initialSetupFocus ? ({
       entry: initialSetupFocus.entry,
       stop: initialSetupFocus.stop,
       target: initialSetupFocus.target,
@@ -2204,7 +2204,7 @@ export function SignalWorkspace({
       stop: active.stop,
       target: active.target,
     }) : null,
-    [active, focusTrade, initialSetupFocus, openPaperTrade],
+    [active, focusTrade, initialSetupFocus, openPaperTrade, triggeredManualEntry],
   );
   const pendingEntryReferenceLines = useMemo(() => {
     const openManager = (entry: PendingManualEntry) => {

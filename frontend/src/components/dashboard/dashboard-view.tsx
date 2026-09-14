@@ -250,7 +250,13 @@ export function DashboardView({
       entry: trade.entry,
       stop: trade.stop,
       target: trade.target,
-      nominalRiskAmount: trade.nominalRiskAmount ?? null,
+      // Paper manual trades carry no position size, so value them against a
+      // nominal 1% risk to show a simulated live P&L that moves with price.
+      // Real OANDA-backed trades ignore this — markedOpenMoney prefers the
+      // broker position's actual unrealized P&L when a fill exists.
+      nominalRiskAmount:
+        trade.nominalRiskAmount ??
+        (account.balance > 0 ? Number((account.balance * 0.01).toFixed(2)) : null),
     }));
   const openTrades = [...overviewOpen, ...manualOpen];
 

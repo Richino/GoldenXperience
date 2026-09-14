@@ -108,7 +108,7 @@ export interface TradeSignal {
   openedAt?: string;
 }
 
-/** An automatic paper trade, reduced to what the chart needs to mark it up. */
+/** A chartable paper trade, reduced to what the chart needs to mark it up. */
 export interface PaperChartTrade {
   id: string;
   tradeSequence: string;
@@ -143,6 +143,8 @@ export interface OpenPosition {
 export interface JournalTrade {
   id: string;
   origin: "demo" | "manual" | "strategy";
+  /** Present only when the chart API can resolve this exact trade. */
+  chartTradeId?: string | null;
   pair: string;
   direction: "long" | "short";
   status: "open" | "closed";

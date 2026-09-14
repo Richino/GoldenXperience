@@ -2010,7 +2010,7 @@ export async function journalTradeLog(
 ) {
   const where = journalTradeWhere(filter);
   const rows = await query(
-    `SELECT id, origin, pair, direction, status, result, opened_at AS "openedAt", closed_at AS "closedAt",
+    `SELECT id, origin, chart_trade_id AS "chartTradeId", pair, direction, status, result, opened_at AS "openedAt", closed_at AS "closedAt",
             entry, stop, target, exit, result_r AS "resultR", paper_pl AS "paperPl", reason, notes, sequence, outcome,
             instrument_code AS "instrument", nominal_risk_amount AS "nominalRiskAmount",
             signal_price AS "signalPrice", actual_fill_price AS "actualFillPrice",
@@ -2018,17 +2018,26 @@ export async function journalTradeLog(
             strategy_family AS "strategyFamily", batch_number AS "batchNumber",
             "brokerExecutionStatus", "brokerFailureReason"
      FROM (
-       SELECT id::text, origin, pair, direction, status, result, opened_at, closed_at,
-              entry::float, stop::float, target::float, exit::float, result_r::float,
-              paper_pl::float, reason, notes, NULL::text AS sequence, NULL::text AS outcome,
-               NULL::text AS instrument_code, NULL::float AS nominal_risk_amount,
+       SELECT manual.id::text, manual.origin,
+              CASE WHEN pending.paper_trade_id IS NOT NULL THEN manual.id::text ELSE NULL END AS chart_trade_id,
+              manual.pair, manual.direction, manual.status, manual.result, manual.opened_at, manual.closed_at,
+              manual.entry::float, manual.stop::float, manual.target::float, manual.exit::float, manual.result_r::float,
+              manual.paper_pl::float, manual.reason, manual.notes, NULL::text AS sequence, NULL::text AS outcome,
+               pending.instrument AS instrument_code, NULL::float AS nominal_risk_amount,
                NULL::float AS signal_price, NULL::float AS actual_fill_price,
                NULL::int AS max_hold_bars, NULL::int AS bars_held,
                NULL::text AS strategy_family, NULL::int AS batch_number,
                NULL::text AS "brokerExecutionStatus", NULL::text AS "brokerFailureReason"
-       FROM paper_trades WHERE user_id=$1
+       FROM paper_trades manual
+       LEFT JOIN LATERAL (
+         SELECT entry.instrument, entry.paper_trade_id
+           FROM pending_manual_entries entry
+          WHERE entry.paper_trade_id=manual.id
+          LIMIT 1
+       ) pending ON true
+       WHERE manual.user_id=$1
        UNION ALL
-       SELECT trade.id::text, 'strategy', instrument.display_name, trade.direction,
+       SELECT trade.id::text, 'strategy', trade.id::text, instrument.display_name, trade.direction,
               trade.status, CASE WHEN intent.status='rejected' THEN 'breakeven'
                                  WHEN trade.status <> 'closed' OR trade.result_r IS NULL THEN 'open'
                                  WHEN trade.result_r > 0.01 THEN 'win'
@@ -2137,9 +2146,20 @@ export async function journalTradeSummary(userId: string) {
 /** Entry and exit points for one pair, used to draw trade markers on the chart. */
 export async function paperTradesForInstrument(userId: string, instrument: string, limit = 40) {
   const rows = await query(
-    `SELECT trade.id,trade.trade_sequence::text AS "tradeSequence",trade.instrument,trade.direction,trade.status,trade.outcome,trade.entry::float,trade.stop::float,trade.target::float,trade.exit::float,trade.result_r::float AS "resultR",trade.opened_at AS "openedAt",trade.closed_at AS "closedAt",trade.exit_reason AS "exitReason",batch.batch_number AS "batchNumber"
-     FROM paper_strategy_trades trade JOIN paper_strategy_batches batch ON batch.id=trade.batch_id
-     WHERE trade.user_id=$1 AND trade.instrument=$2 ORDER BY trade.opened_at DESC LIMIT $3`,
+    `SELECT * FROM (
+       SELECT trade.id,trade.trade_sequence::text AS "tradeSequence",trade.instrument,trade.direction,trade.status,trade.outcome,trade.entry::float,trade.stop::float,trade.target::float,trade.exit::float,trade.result_r::float AS "resultR",trade.opened_at AS "openedAt",trade.closed_at AS "closedAt",trade.exit_reason AS "exitReason",batch.batch_number AS "batchNumber"
+       FROM paper_strategy_trades trade JOIN paper_strategy_batches batch ON batch.id=trade.batch_id
+       WHERE trade.user_id=$1 AND trade.instrument=$2
+       UNION ALL
+       SELECT manual.id,'Manual'::text AS "tradeSequence",pending.instrument,manual.direction,manual.status,
+              CASE manual.result WHEN 'win' THEN 'target_first' WHEN 'loss' THEN 'stop_first' ELSE 'forced_close' END AS outcome,
+              manual.entry::float,manual.stop::float,manual.target::float,manual.exit::float,manual.result_r::float AS "resultR",
+              manual.opened_at AS "openedAt",manual.closed_at AS "closedAt",manual.reason AS "exitReason",NULL::int AS "batchNumber"
+       FROM paper_trades manual
+       JOIN pending_manual_entries pending ON pending.paper_trade_id=manual.id
+       WHERE manual.user_id=$1 AND pending.instrument=$2 AND manual.status='closed'
+     ) chart_trade
+     ORDER BY "openedAt" DESC LIMIT $3`,
     [userId, instrument, limit],
   );
   return rows.rows;

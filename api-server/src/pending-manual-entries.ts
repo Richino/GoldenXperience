@@ -1,8 +1,58 @@
-import { getCandles } from "../../frontend/src/lib/oanda/client.js";
+import { getCandles, getAccountSummary, submitPracticeEntryOrder, cancelPracticeOrder } from "../../frontend/src/lib/oanda/client.js";
 import { precisionFor } from "../../frontend/src/lib/instruments/catalog.js";
 import { calculateAtrValues } from "../../frontend/src/lib/strategy/indicators.js";
+import { calculatePositionSize, DEFAULT_RISK_POLICY } from "../../frontend/src/lib/risk/engine.js";
 import type { MajorInstrument, MarketPriceTick } from "./market-stream-types.js";
 import { query, transaction } from "./database.js";
+
+/** STOP for buy/sell-stop (break beyond), LIMIT for buy/sell-limit (pullback). */
+function oandaOrderKind(entryOrderType: string): "STOP" | "LIMIT" {
+  return entryOrderType.endsWith("stop") ? "STOP" : "LIMIT";
+}
+
+/**
+ * Place a manual pending entry as a real OANDA entry order, sized by risk % of
+ * the account. Returns the resting broker order id, or throws with a reason.
+ */
+async function submitManualEntryToOanda(params: {
+  clientRequestId: string;
+  instrument: MajorInstrument;
+  direction: PendingManualEntryDirection;
+  entryOrderType: string;
+  entryPrice: number;
+  stop: number;
+  target: number;
+  gtdTime: string | null;
+}) {
+  const summary = await getAccountSummary();
+  const balance = Number(summary.data?.balance);
+  if (!Number.isFinite(balance) || balance <= 0) {
+    throw new Error("OANDA account balance is unavailable, so the order could not be sized.");
+  }
+  const sized = calculatePositionSize({
+    instrument: params.instrument,
+    accountBalance: balance,
+    riskPercent: DEFAULT_RISK_POLICY.riskPercent,
+    entry: params.entryPrice,
+    stop: params.stop,
+  });
+  const units = sized?.units ?? 0;
+  if (!(units >= 1)) throw new Error("Risk-based position size came out below one unit; widen the stop or raise risk.");
+  const result = await submitPracticeEntryOrder({
+    instrument: params.instrument,
+    direction: params.direction,
+    kind: oandaOrderKind(params.entryOrderType),
+    entryPrice: params.entryPrice,
+    units,
+    stop: params.stop,
+    target: params.target,
+    clientRequestId: params.clientRequestId,
+    gtdTime: params.gtdTime,
+  });
+  if (result.cancelReason) throw new Error(`OANDA rejected the entry order (${result.cancelReason}).`);
+  if (!result.orderId) throw new Error("OANDA accepted the request without an order identifier.");
+  return { orderId: result.orderId, units, riskPercent: DEFAULT_RISK_POLICY.riskPercent };
+}
 
 export type PendingManualEntryStatus = "PENDING" | "TRIGGERING" | "TRIGGERED" | "EXPIRED" | "INVALIDATED" | "CANCELLED" | "FAILED";
 export type PendingManualEntryDirection = "long" | "short";
@@ -217,6 +267,12 @@ export async function createPendingManualEntry(userId: string, payload: Record<s
   if (invalidationPrice !== null && Math.abs(invalidationPrice - entryPrice) < Number.EPSILON) {
     throw new Error("Entry and cancellation prices must be different.");
   }
+  // Concrete stop/target are resolved now so the broker order can carry the
+  // stop-loss and take-profit. Use the user's own levels when supplied; else an
+  // H1 ATR14 1R stop with a 1:2 target.
+  const risk = levels.stop !== null && levels.target !== null
+    ? { stop: levels.stop, target: levels.target, model: "MANUAL_LEVELS" as const }
+    : await calculateManualTradeRisk(tick.instrument, direction, entryPrice);
   const result = await query<EntryRow>(
     `INSERT INTO pending_manual_entries(
        user_id,instrument,direction,entry_price,entry_order_type,current_price_at_creation,
@@ -225,9 +281,39 @@ export async function createPendingManualEntry(userId: string, payload: Record<s
      RETURNING ${SELECT_FIELDS}`,
     [userId, tick.instrument, direction, entryPrice, inferPendingOrderType(direction, entryPrice, orderReferencePrice), currentPrice,
       expiresAt ? "time" : "none", expiresAt, invalidationPrice,
-      invalidationPrice === null ? null : invalidationSide(invalidationPrice, orderReferencePrice), orderReferencePrice, tick.time, levels.stop, levels.target, tick.source],
+      invalidationPrice === null ? null : invalidationSide(invalidationPrice, orderReferencePrice), orderReferencePrice, tick.time, risk.stop, risk.target, tick.source],
   );
-  return serialize(result.rows[0]!);
+  const entryRow = result.rows[0]!;
+  // Submit the real (practice-only) OANDA entry order. On rejection the entry is
+  // recorded as FAILED with the reason so the user sees why nothing rests at the
+  // broker, rather than a silent paper-only fill.
+  try {
+    const broker = await submitManualEntryToOanda({
+      clientRequestId: entryRow.id,
+      instrument: tick.instrument,
+      direction,
+      entryOrderType: entryRow.entry_order_type,
+      entryPrice,
+      stop: risk.stop,
+      target: risk.target,
+      gtdTime: expiresAt ? new Date(expiresAt).toISOString() : null,
+    });
+    const updated = await query<EntryRow>(
+      `UPDATE pending_manual_entries SET metadata = metadata || $2::jsonb, updated_at=now()
+        WHERE id=$1 RETURNING ${SELECT_FIELDS}`,
+      [entryRow.id, JSON.stringify({ execution: "oanda_entry_order", brokerOrderId: broker.orderId, units: broker.units, riskPercent: broker.riskPercent, riskModel: risk.model })],
+    );
+    return serialize(updated.rows[0] ?? entryRow);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message.slice(0, 500) : "OANDA submission failed.";
+    const failed = await query<EntryRow>(
+      `UPDATE pending_manual_entries SET status='FAILED', failure_reason=$2,
+              metadata = metadata || '{"execution":"oanda_rejected"}'::jsonb, updated_at=now()
+        WHERE id=$1 AND status='PENDING' RETURNING ${SELECT_FIELDS}`,
+      [entryRow.id, reason],
+    );
+    return serialize(failed.rows[0] ?? entryRow);
+  }
 }
 
 export async function editPendingManualEntry(userId: string, id: string, payload: Record<string, unknown>, tick: MarketPriceTick) {
@@ -261,7 +347,29 @@ export async function editPendingManualEntry(userId: string, id: string, payload
   });
 }
 
+function brokerOrderIdOf(row: EntryRow): string | null {
+  const meta = row.metadata as Record<string, unknown> | null | undefined;
+  const id = meta && typeof meta === "object" ? meta.brokerOrderId : null;
+  return typeof id === "string" && id ? id : null;
+}
+
 export async function cancelPendingManualEntry(userId: string, id: string) {
+  const found = await query<EntryRow>(
+    `SELECT ${SELECT_FIELDS} FROM pending_manual_entries WHERE id=$1 AND user_id=$2 AND status='PENDING'`,
+    [id, userId],
+  );
+  const entry = found.rows[0];
+  if (!entry) throw new Error("The entry already changed state and cannot be cancelled.");
+  const brokerOrderId = brokerOrderIdOf(entry);
+  if (brokerOrderId) {
+    // Cancel the resting OANDA order. If the broker already removed it (filled
+    // or expired), don't trap the local entry — proceed to cancel it here too.
+    try {
+      await cancelPracticeOrder(brokerOrderId);
+    } catch (error) {
+      console.error(`[pending-entry] ${id} broker order cancel failed`, error);
+    }
+  }
   const result = await query<EntryRow>(
     `UPDATE pending_manual_entries SET status='CANCELLED',cancelled_at=now(),updated_at=now()
      WHERE id=$1 AND user_id=$2 AND status='PENDING' RETURNING ${SELECT_FIELDS}`,
@@ -333,16 +441,23 @@ async function finalizeTriggeredEntry(id: string) {
 
 export async function evaluatePendingManualEntries(tick: MarketPriceTick) {
   if (!(tick.bid > 0) || !(tick.ask > 0)) return { changed: 0 };
-  const triggering = await transaction(async (client) => {
+  const { claimed, toCancel } = await transaction(async (client) => {
     const pending = await client.query<EntryRow>(
       `SELECT ${SELECT_FIELDS} FROM pending_manual_entries
        WHERE instrument=$1 AND status='PENDING' ORDER BY created_at FOR UPDATE SKIP LOCKED`,
       [tick.instrument],
     );
     const claimed: string[] = [];
+    // Broker order ids to cancel after the transaction — never call OANDA while
+    // holding row locks.
+    const toCancel: string[] = [];
     const tickTime = Number.isFinite(Date.parse(tick.time)) ? new Date(tick.time) : new Date();
     for (const row of pending.rows) {
       const price = executablePrice(row.direction, tick);
+      // An OANDA-backed entry: the broker owns the trigger, fill, SL and TP, so
+      // this monitor must NOT open a paper trade for it. It still watches the
+      // user's "cancel if price reaches" and expiry to pull the resting order.
+      const brokerOrderId = brokerOrderIdOf(row);
       const event = decidePendingManualEntryEvent({
         entryOrderType: row.entry_order_type,
         entryPrice: Number(row.entry_price),
@@ -355,21 +470,32 @@ export async function evaluatePendingManualEntries(tick: MarketPriceTick) {
       });
       if (event === "expired") {
         await client.query("UPDATE pending_manual_entries SET status='EXPIRED',updated_at=now(),last_observed_price=$2,last_observed_at=$3 WHERE id=$1 AND status='PENDING'", [row.id, price, tickTime]);
+        if (brokerOrderId) toCancel.push(brokerOrderId);
         continue;
       }
       if (event === "invalidation") {
         await client.query("UPDATE pending_manual_entries SET status='INVALIDATED',cancelled_at=$2,last_observed_price=$3,last_observed_at=$2,updated_at=now() WHERE id=$1 AND status='PENDING'", [row.id, tickTime, price]);
-      } else if (event === "entry") {
+        if (brokerOrderId) toCancel.push(brokerOrderId);
+      } else if (event === "entry" && !brokerOrderId) {
         const updated = await client.query("UPDATE pending_manual_entries SET status='TRIGGERING',trigger_price=$2,triggered_at=$3,last_observed_price=$2,last_observed_at=$3,updated_at=now() WHERE id=$1 AND status='PENDING' RETURNING id", [row.id, price, tickTime]);
         if (updated.rows[0]) claimed.push(row.id);
       } else {
+        // Either a plain "hold", or an OANDA-backed entry whose level was hit —
+        // the broker fills that one, so only record the observation here.
         await client.query("UPDATE pending_manual_entries SET last_observed_price=$2,last_observed_at=$3,updated_at=now() WHERE id=$1 AND status='PENDING'", [row.id, price, tickTime]);
       }
     }
-    return claimed;
+    return { claimed, toCancel };
   });
-  for (const id of triggering) await finalizeTriggeredEntry(id);
-  return { changed: triggering.length };
+  for (const orderId of toCancel) {
+    try {
+      await cancelPracticeOrder(orderId);
+    } catch (error) {
+      console.error(`[pending-entry] broker order ${orderId} cancel failed`, error);
+    }
+  }
+  for (const id of claimed) await finalizeTriggeredEntry(id);
+  return { changed: claimed.length + toCancel.length };
 }
 
 /** Resume entries claimed immediately before a process restart. */

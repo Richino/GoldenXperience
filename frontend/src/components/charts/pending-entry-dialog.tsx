@@ -307,7 +307,7 @@ export function PendingEntryDialog({
             <div className="pending-entry-form">
             <div className="pending-entry-direction" role="group" aria-label="Direction">
               {(["long", "short"] as const).map((option) => (
-                <button key={option} type="button" className={direction === option ? "is-active" : ""} onClick={() => {
+                <button key={option} type="button" className={`is-${option}${direction === option ? " is-active" : ""}`} onClick={() => {
                   setDirection(option);
                   setOrderReferencePrice(option === "long" ? ask : bid);
                 }}>{option.toUpperCase()}</button>

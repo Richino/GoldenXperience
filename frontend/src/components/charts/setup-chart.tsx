@@ -41,6 +41,7 @@ import {
   calculateEma,
   calculateRsi,
   chartTimesOf,
+  detectFalseBreakouts,
   compactAxisPricePrecision,
   countPrependedCandles,
   formatChartPrice,
@@ -120,6 +121,15 @@ export interface ChartReferenceLine {
   dashed?: boolean;
   lineWidth?: 1 | 2;
   onSelect?: () => void;
+}
+
+/** A finite diagonal or horizontal segment used by visual chart indicators. */
+export interface ChartPatternLine {
+  key: string;
+  color: string;
+  dashed?: boolean;
+  lineWidth?: 1 | 2;
+  points: Array<{ time: string; price: number }>;
 }
 
 /**
@@ -626,6 +636,37 @@ function addOverlayLine(
   lineSeries.setData(toLinePoints(chartData, values));
 }
 
+function addPatternLines(
+  chart: IChartApi,
+  lines: ChartPatternLine[],
+  priceFormat: {
+    type: "price";
+    precision: number;
+    minMove: number;
+  },
+) {
+  for (const line of lines) {
+    const points = line.points.flatMap((point) => {
+      const time = chartTimeValue(point);
+      return time === null || !Number.isFinite(point.price)
+        ? []
+        : [{ time: time as UTCTimestamp, value: point.price }];
+    });
+    if (points.length < 2) continue;
+
+    const series = chart.addSeries(LineSeries, {
+      color: line.color,
+      lineWidth: line.lineWidth ?? 1,
+      lineStyle: line.dashed ? LineStyle.Dashed : LineStyle.Solid,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      crosshairMarkerVisible: false,
+      priceFormat,
+    });
+    series.setData(points);
+  }
+}
+
 function addOscillatorPane(
   chart: IChartApi,
   paneIndex: number,
@@ -793,6 +834,7 @@ export function SetupChart({
   focusRange = null,
   referenceLine = null,
   referenceLines = [],
+  patternLines = [],
   showTradeMarkers = true,
   showTradePath = true,
 }: {
@@ -814,6 +856,7 @@ export function SetupChart({
   focusRange?: ChartFocusRange | null;
   referenceLine?: ChartReferenceLine | null;
   referenceLines?: ChartReferenceLine[];
+  patternLines?: ChartPatternLine[];
   showTradeMarkers?: boolean;
   showTradePath?: boolean;
 }) {
@@ -822,6 +865,7 @@ export function SetupChart({
   const mainSeriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
   const markerOutlinesRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+  const falseBreakoutMarkersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const tradePathRef = useRef<ISeriesApi<"Line"> | null>(null);
   const focusCoveredRef = useRef(true);
   const focusPagesRef = useRef(0);
@@ -945,6 +989,9 @@ export function SetupChart({
   // Countdown text updates ride through the DOM overlay without resetting zoom.
   const referenceLinesShapeFingerprint = referenceLines
     .map((line) => `${line.key ?? ""}:${line.price}:${line.color}:${line.dashed ?? true}:${line.lineWidth ?? 2}`)
+    .join("|");
+  const patternLinesFingerprint = patternLines
+    .map((line) => `${line.key}:${line.color}:${line.dashed ?? false}:${line.lineWidth ?? 1}:${line.points.map((point) => `${point.time}:${point.price}`).join(",")}`)
     .join("|");
   // Height is applied to the live chart rather than being a creation dependency:
   // rebuilding on a height change would reset the visible range.
@@ -1109,6 +1156,9 @@ export function SetupChart({
     if (levelTags.length) {
       addSetupLevels(mainSeries, levelTags, !embedded);
     }
+    if (patternLines.length) {
+      addPatternLines(chart, patternLines, priceFormat);
+    }
 
     // The entry-to-exit segment is created with the chart, even when there is no
     // focused trade to draw yet. Adding a series later — after the candles have
@@ -1162,6 +1212,23 @@ export function SetupChart({
         calculateEma(closes, 200),
         isDark ? "#5e5ce6" : "#5856d6",
         priceFormat,
+      );
+    }
+
+    if (isChartIndicatorEnabled(enabledIndicators, "breakout")) {
+      // Part of the Breakout overlay: alongside the ceiling/floor levels, flag
+      // failed breaks. A failed break up is bearish (down colour); a failed
+      // break down is bullish (up colour). Detect on the real OHLC so
+      // heikin/line variants still flag genuine fakeouts, and anchor arrows to
+      // the trap candle. The plugin is kept in a ref (created even when empty)
+      // so the live-candle effect can re-detect on every tick without a rebuild.
+      const falseBreakoutMarkers = detectFalseBreakouts(chartData, {
+        bullTrapColor: downColor,
+        bearTrapColor: upColor,
+      });
+      falseBreakoutMarkersRef.current = createSeriesMarkers(
+        mainSeries,
+        falseBreakoutMarkers,
       );
     }
 
@@ -1280,6 +1347,7 @@ export function SetupChart({
       // Both are owned by the removed chart, so they only need to be forgotten.
       markerOutlinesRef.current = null;
       markersRef.current = null;
+      falseBreakoutMarkersRef.current = null;
       tradePathRef.current = null;
       latestChartTimeRef.current = null;
     };
@@ -1291,7 +1359,7 @@ export function SetupChart({
   // the whole chart down on every tick for any instrument holding an open
   // trade, throwing away the user's zoom and scroll position mid-gesture.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [series.instrument, levels?.entry, levels?.stop, levels?.target, levels?.exit, levels?.outcome, referenceLine?.price, referenceLine?.label, referenceLine?.color, referenceLine?.textColor, referenceLinesShapeFingerprint, enabledIndicators, variant, isDark, priceFormat, upColor, downColor, wickUpColor, wickDownColor, surfaceColor, embedded]);
+  }, [series.instrument, levels?.entry, levels?.stop, levels?.target, levels?.exit, levels?.outcome, referenceLine?.price, referenceLine?.label, referenceLine?.color, referenceLine?.textColor, referenceLinesShapeFingerprint, patternLinesFingerprint, enabledIndicators, variant, isDark, priceFormat, upColor, downColor, wickUpColor, wickDownColor, surfaceColor, embedded]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -1556,7 +1624,27 @@ export function SetupChart({
         throw new Error(`Unsupported chart variant: ${unhandledVariant}`);
       }
     }
-  }, [liveCandle, series.candles, variant]);
+
+    if (
+      isChartIndicatorEnabled(enabledIndicators, "breakout") &&
+      falseBreakoutMarkersRef.current
+    ) {
+      // Real-time detection: re-run on every live tick so a fakeout is flagged
+      // the instant the forming candle closes back inside the range — and
+      // cleared again if price pushes back through before the bar closes. Uses
+      // the real OHLC with the live candle merged onto the last bar.
+      const merged =
+        series.candles.at(-1)?.time === liveCandle.time
+          ? [...series.candles.slice(0, -1), liveCandle]
+          : [...series.candles, liveCandle];
+      falseBreakoutMarkersRef.current.setMarkers(
+        detectFalseBreakouts(toChartCandles(merged), {
+          bullTrapColor: downColor,
+          bearTrapColor: upColor,
+        }),
+      );
+    }
+  }, [enabledIndicators, liveCandle, series.candles, variant, downColor, upColor]);
 
   useEffect(() => {
     chartRef.current?.applyOptions(chartTheme(isDark, embedded));

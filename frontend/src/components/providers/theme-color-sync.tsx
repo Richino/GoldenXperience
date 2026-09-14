@@ -51,6 +51,14 @@ export function ThemeColorSync() {
 
     meta.setAttribute("content", color);
 
+    // iOS can prefer the first matching media-qualified theme-color tag over
+    // the runtime tag. Keep every candidate in sync with the app theme so the
+    // home-indicator canvas cannot remain light beneath a dark app (or vice
+    // versa) when the device scheme and in-app theme differ.
+    document.querySelectorAll('meta[name="theme-color"]').forEach((themeMeta) => {
+      themeMeta.setAttribute("content", color);
+    });
+
     if (isSignalsMobile) {
       document.documentElement.style.backgroundColor = color;
       document.body.style.backgroundColor = color;

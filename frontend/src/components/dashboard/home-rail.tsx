@@ -80,6 +80,7 @@ export function HomeRail({
   const winPercent = resolvedToday > 0 ? Math.round((todayWins / resolvedToday) * 100) : null;
   const hasTodayTrades = todayTrades > 0;
   const netPositive = (todayNet ?? 0) >= 0;
+  const todayIsLoss = todayNet !== null && todayNet < 0;
   const rPositive = (todayR ?? 0) >= 0;
   const previewItems = currentPositions.length ? currentPositions : availableSignals;
   const showingPositions = currentPositions.length > 0;
@@ -213,7 +214,10 @@ export function HomeRail({
         </div>
       </section>
 
-      <section className="home-rail-section home-rail-total" aria-label="Today">
+      <section
+        className={`home-rail-section home-rail-total${todayIsLoss ? " is-loss" : ""}`}
+        aria-label="Today"
+      >
         <div className="home-rail-heading">
           <span>Today</span>
         </div>

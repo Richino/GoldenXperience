@@ -28,7 +28,19 @@ export function HomePendingTrades({
   error: string | null;
   onCancel: (entry: PendingManualEntry) => void;
 }) {
-  if (!entries.length) return null;
+  if (!entries.length) {
+    return (
+      <section className="home-section home-pending-trades" aria-label="Pending trades">
+        <div className="home-section-head">
+          <h2>Pending trades</h2>
+        </div>
+        <p className="home-pending-empty">
+          No pending trades yet. Open a pair and use <strong>+ Add Entry</strong> to place one — it will rest here until it triggers or you cancel it.
+        </p>
+        {error ? <p className="home-pending-error" role="status">{error}</p> : null}
+      </section>
+    );
+  }
 
   return (
     <section className="home-section home-pending-trades" aria-label="Pending trades">

@@ -251,6 +251,74 @@ export async function submitPracticeMarketOrder(order: PracticeMarketOrder) {
   };
 }
 
+export type PracticeEntryOrder = {
+  instrument: MajorInstrument;
+  direction: "long" | "short";
+  /** STOP for a break beyond the price, LIMIT for a pullback to it. */
+  kind: "STOP" | "LIMIT";
+  entryPrice: number;
+  units: number;
+  stop: number;
+  target: number;
+  clientRequestId: string;
+  /** RFC3339 expiry for a GTD order; omit for good-till-cancelled. */
+  gtdTime?: string | null;
+};
+
+/**
+ * Place a real (practice-only) pending entry order — a STOP or LIMIT resting at
+ * `entryPrice` with a stop-loss and take-profit attached. OANDA holds it in its
+ * pending orders and fills it natively, so a manual pending entry becomes a
+ * genuine broker order rather than a simulated paper fill.
+ */
+export async function submitPracticeEntryOrder(order: PracticeEntryOrder) {
+  const config = getConfig();
+  if (!config) throw new OandaRequestError("OANDA credentials are not configured.");
+  if (config.environment !== "practice") throw new OandaRequestError("Automatic execution is locked to OANDA practice accounts.");
+  const units = Math.floor(Math.abs(order.units));
+  if (!Number.isFinite(units) || units < 1) throw new OandaRequestError("Calculated practice order size is invalid.");
+  const precision = precisionFor(order.instrument);
+  const response = await requestOanda<OandaOrderResponse>(`/v3/accounts/${encodeURIComponent(config.accountId)}/orders`, {
+    method: "POST",
+    body: {
+      order: {
+        type: order.kind,
+        instrument: order.instrument,
+        units: String(signedPracticeUnits(order.direction, units)),
+        price: order.entryPrice.toFixed(precision),
+        timeInForce: order.gtdTime ? "GTD" : "GTC",
+        ...(order.gtdTime ? { gtdTime: order.gtdTime } : {}),
+        positionFill: "DEFAULT",
+        stopLossOnFill: { price: order.stop.toFixed(precision), timeInForce: "GTC" },
+        takeProfitOnFill: { price: order.target.toFixed(precision), timeInForce: "GTC" },
+        clientExtensions: { id: `gx-${order.clientRequestId}`.slice(0, 127), tag: "goldenxperience-manual" },
+      },
+    },
+  });
+  return {
+    /** The resting order's id — cancel it with cancelPracticeOrder. */
+    orderId: response.orderCreateTransaction?.id ?? null,
+    /** Set only if it filled immediately (price already through the level). */
+    tradeId: response.orderFillTransaction?.tradeOpened?.tradeID ?? null,
+    fillPrice: response.orderFillTransaction?.price ? Number(response.orderFillTransaction.price) : null,
+    /** Set when the broker refused or cancelled the order. */
+    cancelReason: response.orderCancelTransaction?.reason ?? null,
+  };
+}
+
+/** Cancel a resting practice order by its OANDA order id. */
+export async function cancelPracticeOrder(orderId: string) {
+  const config = getConfig();
+  if (!config) throw new OandaRequestError("OANDA credentials are not configured.");
+  if (config.environment !== "practice") throw new OandaRequestError("Automatic execution is locked to OANDA practice accounts.");
+  if (!orderId) throw new OandaRequestError("Broker order identifier is unavailable.");
+  const response = await requestOanda<{ orderCancelTransaction?: { id?: string } }>(
+    `/v3/accounts/${encodeURIComponent(config.accountId)}/orders/${encodeURIComponent(orderId)}/cancel`,
+    { method: "PUT" },
+  );
+  return response.orderCancelTransaction?.id ?? null;
+}
+
 export async function closePracticeTrade(brokerTradeId: string) {
   const config = getConfig();
   if (!config) throw new OandaRequestError("OANDA credentials are not configured.");

@@ -31,22 +31,22 @@ export default function LoginPage() {
 
       if (!response.ok) {
         setError("Invalid email or password.");
+        setBusy(false);
         return;
       }
 
+      // Keep the submitting state visible until the authenticated route
+      // replaces this page. Resetting it here makes a successful, slow
+      // transition look like the sign-in attempt was abandoned.
       router.replace("/");
     } catch {
       setError("Could not reach the workspace. Try again in a moment.");
-    } finally {
       setBusy(false);
     }
   }
 
   return (
     <main className="login-page px-4 sm:px-6">
-      <div className="login-orb login-orb-primary" aria-hidden="true" />
-      <div className="login-orb login-orb-secondary" aria-hidden="true" />
-
       <section className="login-shell">
         <div className="login-brand">
           <BrandMark />
@@ -110,7 +110,7 @@ export default function LoginPage() {
 
           {error ? <p className="login-error" role="alert">{error}</p> : null}
 
-          <button disabled={busy} className="login-submit" type="submit">
+          <button disabled={busy} className="login-submit" type="submit" aria-busy={busy}>
             {busy ? "Signing in…" : "Sign in to workspace"}
           </button>
         </form>

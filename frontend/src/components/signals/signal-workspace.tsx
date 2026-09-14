@@ -24,8 +24,16 @@ import {
   settleChartLoad,
 } from "@/components/charts/chart-loading-overlay";
 import { IndicatorSelect } from "@/components/charts/indicator-select";
-import { SetupChart, type ChartReferenceLine } from "@/components/charts/setup-chart";
+import {
+  SetupChart,
+  type ChartPatternLine,
+  type ChartReferenceLine,
+} from "@/components/charts/setup-chart";
 import { PendingEntryDialog } from "@/components/charts/pending-entry-dialog";
+import {
+  ManualProposalModal,
+  useManualProposal,
+} from "@/components/analysis/manual-proposal";
 import {
   ChartContextPanel,
   type ChartOverlayPreferences,
@@ -44,8 +52,10 @@ import {
   DEFAULT_CHART_INDICATORS,
   TIMEFRAME_TO_GRANULARITY,
   candleCountForRange,
+  calculateAtr,
   formatChartPrice,
   formatResultR,
+  isChartIndicatorEnabled,
   mapSignalTimeframe,
   spreadInPips,
   type ChartIndicator,
@@ -117,15 +127,21 @@ function readStoredChartPreferences(): StoredChartPreferences | null {
       !CHART_TIMEFRAMES.includes(parsed.timeframe as ChartTimeframe) ||
       !CHART_RANGES.includes(parsed.range as ChartRange) ||
       !CHART_VARIANTS.some((variant) => variant.value === parsed.chartVariant) ||
-      !Array.isArray(parsed.enabledIndicators) ||
-      !parsed.enabledIndicators.every((indicator) =>
-        CHART_INDICATORS.some((option) => option.value === indicator),
-      )
+      !Array.isArray(parsed.enabledIndicators)
     ) {
       return null;
     }
 
-    return parsed as StoredChartPreferences;
+    // Drop any stored indicators that no longer exist (e.g. one that was later
+    // merged into another). Keeping them would count toward the "active" badge
+    // while rendering no checkbox — an indicator shown as on that can't be
+    // turned off. Filtering keeps the rest of the preferences usable.
+    return {
+      ...(parsed as StoredChartPreferences),
+      enabledIndicators: parsed.enabledIndicators.filter((indicator) =>
+        CHART_INDICATORS.some((option) => option.value === indicator),
+      ),
+    };
   } catch {
     return null;
   }
@@ -167,6 +183,266 @@ function mergeCandles(current: Candle[], incoming: Candle[]) {
   return [...byTime.values()].sort(
     (left, right) => Date.parse(left.time) - Date.parse(right.time),
   );
+}
+
+/**
+ * A deliberately small, visual-only support/resistance read of the displayed
+ * chart. The range levels show where this market recently turned; the swing
+ * levels show the nearest confirmed local pivot. They are not fed to any trade
+ * evaluator, so enabling the chart indicator cannot change execution.
+ */
+function supportResistanceLines(
+  candles: Candle[],
+  instrument: MajorInstrument,
+): ChartReferenceLine[] {
+  const visible = candles.slice(-160);
+  const current = visible.at(-1)?.close;
+  if (current === undefined || visible.length < 20) return [];
+
+  const range = visible.slice(-Math.min(60, visible.length));
+  const rangeHigh = Math.max(...range.map((candle) => candle.high));
+  const rangeLow = Math.min(...range.map((candle) => candle.low));
+  const pivotReach = 5;
+  const swingHighs: number[] = [];
+  const swingLows: number[] = [];
+
+  for (let index = pivotReach; index < visible.length - pivotReach; index += 1) {
+    const candle = visible[index]!;
+    const window = visible.slice(index - pivotReach, index + pivotReach + 1);
+    if (window.every((other) => other === candle || other.high <= candle.high)) {
+      swingHighs.push(candle.high);
+    }
+    if (window.every((other) => other === candle || other.low >= candle.low)) {
+      swingLows.push(candle.low);
+    }
+  }
+
+  const nearest = (prices: number[]) => prices
+    .sort((left, right) => Math.abs(left - current) - Math.abs(right - current))[0];
+  const candidates: ChartReferenceLine[] = [];
+  const minimumGap = pipSizeFor(instrument) * 8;
+  const add = (line: ChartReferenceLine) => {
+    if (!Number.isFinite(line.price)) return;
+    if (candidates.some((existing) => Math.abs(existing.price - line.price) < minimumGap)) return;
+    candidates.push(line);
+  };
+
+  if (rangeHigh > current) {
+    add({
+      key: "sr-range-resistance",
+      price: rangeHigh,
+      label: "Resistance · range",
+      color: "#ff9f43",
+      textColor: "#111827",
+      dashed: false,
+      lineWidth: 2,
+    });
+  }
+  if (rangeLow < current) {
+    add({
+      key: "sr-range-support",
+      price: rangeLow,
+      label: "Support · range",
+      color: "#35d6b4",
+      textColor: "#06281f",
+      dashed: false,
+      lineWidth: 2,
+    });
+  }
+
+  const swingHigh = nearest(swingHighs.filter((price) => price > current));
+  const swingLow = nearest(swingLows.filter((price) => price < current));
+  if (swingHigh !== undefined) {
+    add({
+      key: "sr-swing-resistance",
+      price: swingHigh,
+      label: "Resistance · swing",
+      color: "#ff5c7a",
+      textColor: "#ffffff",
+      dashed: true,
+      lineWidth: 1,
+    });
+  }
+  if (swingLow !== undefined) {
+    add({
+      key: "sr-swing-support",
+      price: swingLow,
+      label: "Support · swing",
+      color: "#72a8ff",
+      textColor: "#071426",
+      dashed: true,
+      lineWidth: 1,
+    });
+  }
+
+  return candidates;
+}
+
+/**
+ * A visual, close-confirmed breakout read of the twenty completed candles
+ * preceding the newest completed candle. Its levels are deliberately kept out
+ * of strategy evaluation: this overlay describes the chart; it does not place
+ * or qualify a trade.
+ */
+function breakoutLines(candles: Candle[]): ChartReferenceLine[] {
+  const completed = candles.filter((candle) => candle.complete !== false);
+  const last = completed.at(-1);
+  const range = completed.slice(-21, -1);
+  const atr = calculateAtr(completed, 14).at(-1) ?? 0;
+  if (!last || range.length < 20 || atr <= 0) return [];
+
+  const high = Math.max(...range.map((candle) => candle.high));
+  const low = Math.min(...range.map((candle) => candle.low));
+  const buffer = atr * 0.5;
+  const brokeUp = last.close > high + buffer;
+  const brokeDown = last.close < low - buffer;
+
+  // Fakeouts are signalled by the on-candle FB arrows (the merged false-breakout
+  // detector), so these level lines only mark the range edges and whether the
+  // latest close has confirmed a break through them.
+  return [
+    {
+      key: "breakout-ceiling",
+      price: high,
+      label: brokeUp ? "Breakout ↑ confirmed" : "Breakout ↑ watch",
+      color: brokeUp ? "#31d38a" : "#f6c35b",
+      textColor: "#06281f",
+      dashed: !brokeUp,
+      lineWidth: 2,
+    },
+    {
+      key: "breakout-floor",
+      price: low,
+      label: brokeDown ? "Breakdown ↓ confirmed" : "Breakdown ↓ watch",
+      color: brokeDown ? "#fb7185" : "#9c8cff",
+      textColor: "#ffffff",
+      dashed: !brokeDown,
+      lineWidth: 2,
+    },
+  ];
+}
+
+type PatternOverlay = {
+  lines: ChartPatternLine[];
+  tags: ChartReferenceLine[];
+};
+
+type SwingPoint = {
+  index: number;
+  time: string;
+  price: number;
+};
+
+/**
+ * Draw only two defensible breakout geometries: a repeatedly respected box or
+ * converging confirmed swings. The overlay is explanatory and never reaches
+ * any execution code.
+ */
+function breakoutPatternOverlay(candles: Candle[]): PatternOverlay {
+  const completed = candles.filter((candle) => candle.complete !== false).slice(-96);
+  const last = completed.at(-1);
+  const atr = calculateAtr(completed, 14).at(-1) ?? 0;
+  if (!last || completed.length < 32 || atr <= 0) return { lines: [], tags: [] };
+
+  const reach = 3;
+  const highs: SwingPoint[] = [];
+  const lows: SwingPoint[] = [];
+  for (let index = reach; index < completed.length - reach; index += 1) {
+    const candle = completed[index]!;
+    const window = completed.slice(index - reach, index + reach + 1);
+    if (window.every((other) => other === candle || other.high <= candle.high)) {
+      highs.push({ index, time: candle.time, price: candle.high });
+    }
+    if (window.every((other) => other === candle || other.low >= candle.low)) {
+      lows.push({ index, time: candle.time, price: candle.low });
+    }
+  }
+
+  const highA = highs.at(-2);
+  const highB = highs.at(-1);
+  const lowA = lows.at(-2);
+  const lowB = lows.at(-1);
+  if (highA && highB && lowA && lowB && highB.index > highA.index && lowB.index > lowA.index) {
+    const upperSlope = (highB.price - highA.price) / (highB.index - highA.index);
+    const lowerSlope = (lowB.price - lowA.price) / (lowB.index - lowA.index);
+    const upperAtLast = highB.price + upperSlope * (completed.length - 1 - highB.index);
+    const lowerAtLast = lowB.price + lowerSlope * (completed.length - 1 - lowB.index);
+    const converging = highB.price < highA.price - atr * 0.15
+      && lowB.price > lowA.price + atr * 0.15
+      && upperAtLast > lowerAtLast + atr * 0.25;
+
+    if (converging) {
+      const buffer = atr * 0.25;
+      const brokeUp = last.close > upperAtLast + buffer;
+      const brokeDown = last.close < lowerAtLast - buffer;
+      const previous = completed.at(-2)!;
+      const upperAtPrevious = highB.price + upperSlope * (completed.length - 2 - highB.index);
+      const lowerAtPrevious = lowB.price + lowerSlope * (completed.length - 2 - lowB.index);
+      return {
+        lines: [
+          {
+            key: "triangle-ceiling",
+            color: "#e8eaed",
+            dashed: false,
+            lineWidth: 2,
+            points: [{ time: highA.time, price: highA.price }, { time: last.time, price: upperAtLast }],
+          },
+          {
+            key: "triangle-floor",
+            color: "#e8eaed",
+            dashed: false,
+            lineWidth: 2,
+            points: [{ time: lowA.time, price: lowA.price }, { time: last.time, price: lowerAtLast }],
+          },
+          ...(brokeUp ? [{
+            key: "triangle-breakout-up",
+            color: "#31d38a",
+            lineWidth: 2 as const,
+            points: [{ time: previous.time, price: upperAtPrevious }, { time: last.time, price: last.close }],
+          }] : brokeDown ? [{
+            key: "triangle-breakout-down",
+            color: "#fb7185",
+            lineWidth: 2 as const,
+            points: [{ time: previous.time, price: lowerAtPrevious }, { time: last.time, price: last.close }],
+          }] : []),
+        ],
+        tags: [],
+      };
+    }
+  }
+
+  const box = completed.slice(-25);
+  const high = Math.max(...box.map((candle) => candle.high));
+  const low = Math.min(...box.map((candle) => candle.low));
+  const tolerance = atr * 0.35;
+  const highTouches = box.filter((candle) => candle.high >= high - tolerance).length;
+  const lowTouches = box.filter((candle) => candle.low <= low + tolerance).length;
+  const rangeWidth = high - low;
+  const rectangle = highTouches >= 2 && lowTouches >= 2 && rangeWidth >= atr && rangeWidth <= atr * 7;
+  if (!rectangle) return { lines: [], tags: [] };
+
+  const buffer = atr * 0.25;
+  const brokeUp = last.close > high + buffer;
+  const brokeDown = last.close < low - buffer;
+  const previous = box.at(-2)!;
+  return {
+    lines: [
+      { key: "rectangle-ceiling", color: "#e8eaed", dashed: false, lineWidth: 2, points: [{ time: box[0]!.time, price: high }, { time: last.time, price: high }] },
+      { key: "rectangle-floor", color: "#e8eaed", dashed: false, lineWidth: 2, points: [{ time: box[0]!.time, price: low }, { time: last.time, price: low }] },
+      ...(brokeUp ? [{
+        key: "rectangle-breakout-up",
+        color: "#31d38a",
+        lineWidth: 2 as const,
+        points: [{ time: previous.time, price: high }, { time: last.time, price: last.close }],
+      }] : brokeDown ? [{
+        key: "rectangle-breakout-down",
+        color: "#fb7185",
+        lineWidth: 2 as const,
+        points: [{ time: previous.time, price: low }, { time: last.time, price: last.close }],
+      }] : []),
+    ],
+    tags: [],
+  };
 }
 
 function applyTickToCandles(
@@ -256,7 +532,9 @@ function buildSearchIndex(signals: TradeSignal[]): SearchResult[] {
     signals.map((signal) => [signal.instrument, signal]),
   );
 
-  return INSTRUMENT_CATALOG.filter((info) => MAJOR_INSTRUMENTS.includes(info.name as (typeof MAJOR_INSTRUMENTS)[number])).map((info) => {
+  // Every tradeable OANDA pair is browsable in the picker, not just the
+  // featured ones — the pairs with a live setup still sort to the top.
+  return INSTRUMENT_CATALOG.map((info) => {
     const signal = signalByInstrument.get(info.name);
     const { base, quote } = currenciesOf(info.name);
 
@@ -1417,6 +1695,15 @@ export function SignalWorkspace({
     setSelectedPendingEntry(null);
     setPendingEntryDialogOpen(true);
   }, [initialManualProposal]);
+
+  const {
+    proposal: manualProposal,
+    setProposal: setManualProposal,
+    analyze: analyzeInstrument,
+    analyzingInstrument,
+    analysisError,
+    acceptProposal: acceptManualProposal,
+  } = useManualProposal();
   // The first pair is already rendered with server-fetched trades.
   const skipInitialTradeFetchRef = useRef(true);
   const olderRequestInFlightRef = useRef(false);
@@ -1926,6 +2213,32 @@ export function SignalWorkspace({
       return [];
     });
   }, [instrument, pendingEntries, pendingEntryClock]);
+  const supportResistanceReferenceLines = useMemo(
+    () => isChartIndicatorEnabled(enabledIndicators, "support-resistance")
+      ? supportResistanceLines(series.candles, instrument)
+      : [],
+    [enabledIndicators, instrument, series.candles],
+  );
+  const breakoutReferenceLines = useMemo(
+    () => isChartIndicatorEnabled(enabledIndicators, "breakout")
+      ? breakoutLines(series.candles)
+      : [],
+    [enabledIndicators, series.candles],
+  );
+  const patternOverlay = useMemo(
+    () => isChartIndicatorEnabled(enabledIndicators, "breakout-patterns")
+      ? breakoutPatternOverlay(series.candles)
+      : { lines: [], tags: [] },
+    [enabledIndicators, series.candles],
+  );
+  const chartReferenceLines = useMemo(
+    () => [
+      ...pendingEntryReferenceLines,
+      ...supportResistanceReferenceLines,
+      ...(patternOverlay.lines.length ? [] : breakoutReferenceLines),
+    ],
+    [breakoutReferenceLines, patternOverlay.lines, pendingEntryReferenceLines, supportResistanceReferenceLines],
+  );
   const focusRange = useMemo(() => {
     const interval =
       GRANULARITY_MS[TIMEFRAME_TO_GRANULARITY[timeframe]] ?? GRANULARITY_MS.M15;
@@ -2243,6 +2556,10 @@ export function SignalWorkspace({
                 {priceStats.positive ? "+" : ""}{priceStats.change.toFixed(precisionForInstrument(instrument))}
                 <span>{priceStats.positive ? "+" : ""}{priceStats.changePercent.toFixed(2)}%</span>
               </span>
+              <span className="gx-mobile-session">{sessionLabel}</span>
+              {spreadPips !== null && Number.isFinite(spreadPips) ? (
+                <span className="gx-mobile-spread">Spread {spreadPips.toFixed(1)}p</span>
+              ) : null}
             </div>
             <div className="gx-mobile-timeframes">
               <SegmentControl
@@ -2310,13 +2627,22 @@ export function SignalWorkspace({
               focusPrediction={focusedPrediction}
               focusRange={focusRange}
               referenceLine={predictionReferenceLine}
-              referenceLines={pendingEntryReferenceLines}
+              referenceLines={chartReferenceLines}
+              patternLines={patternOverlay.lines}
             />
             <ChartLoadingOverlay visible={loading} />
           </div>
 
           <div className="gx-mobile-chart-toolbar">
             <IndicatorSheet enabled={enabledIndicators} onChange={setEnabledIndicators} />
+            {fullscreen ? (
+              <ChartOptionSheet
+                title="Timeframe"
+                options={CHART_TIMEFRAMES}
+                value={timeframe}
+                onChange={selectTimeframe}
+              />
+            ) : null}
             <ChartOptionSheet title="Range" options={CHART_RANGES} value={range} onChange={selectRange} />
             <ChartTypeSheet value={chartVariant} onChange={setChartVariant} />
             <button
@@ -2336,20 +2662,19 @@ export function SignalWorkspace({
             />
           </div>
 
-          <div className="gx-mobile-position-section">
-            <ActivePositionStrip
-              signal={positionSignal}
-              currentPrice={quote?.mid ?? null}
-              pairLabel={activeSetup.pair}
-            />
+          <div className="gx-mobile-analyze-section">
+            <button
+              type="button"
+              className="gx-mobile-analyze pressable"
+              onClick={() => void analyzeInstrument(instrument)}
+              disabled={analyzingInstrument === instrument}
+            >
+              {analyzingInstrument === instrument ? "Analyzing…" : "Analyze"}
+            </button>
+            {analysisError ? (
+              <p className="gx-mobile-analyze-error" role="alert">{analysisError}</p>
+            ) : null}
           </div>
-
-          <dl className="gx-mobile-market-strip">
-            <div><dt>Spread</dt><dd>{spreadPips === null ? "—" : spreadPips.toFixed(1)}</dd></div>
-            <div><dt>Day high</dt><dd className="metric-number">{dayRange.high === null ? "—" : formatChartPrice(dayRange.high, instrument)}</dd></div>
-            <div><dt>Day low</dt><dd className="metric-number">{dayRange.low === null ? "—" : formatChartPrice(dayRange.low, instrument)}</dd></div>
-            <div><dt>Session</dt><dd>{sessionLabel ?? "—"}</dd></div>
-          </dl>
         </div>
 
         <div className="hidden lg:grid signals-chart-desktop gx-chart-terminal">
@@ -2453,7 +2778,8 @@ export function SignalWorkspace({
                 focusPrediction={focusedPrediction}
                 focusRange={focusRange}
                 referenceLine={predictionReferenceLine}
-                referenceLines={pendingEntryReferenceLines}
+                referenceLines={chartReferenceLines}
+                patternLines={patternOverlay.lines}
               />
               <ChartLoadingOverlay visible={loading} />
             </div>
@@ -2493,6 +2819,12 @@ export function SignalWorkspace({
         }}
       /> : null}
       {pendingEntryNotice ? <div className="pending-entry-toast" role="status">{pendingEntryNotice}</div> : null}
+
+      <ManualProposalModal
+        proposal={manualProposal}
+        onDismiss={() => setManualProposal(null)}
+        onAccept={acceptManualProposal}
+      />
 
     </div>
   );

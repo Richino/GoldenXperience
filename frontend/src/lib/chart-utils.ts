@@ -39,6 +39,9 @@ export const CHART_VARIANTS = [
 export type ChartVariant = (typeof CHART_VARIANTS)[number]["value"];
 
 export const CHART_INDICATORS = [
+  { value: "support-resistance", label: "Support & resistance", group: "overlay" },
+  { value: "breakout", label: "Breakout", group: "overlay" },
+  { value: "breakout-patterns", label: "Breakout patterns", group: "overlay" },
   { value: "ema21", label: "EMA 21", group: "overlay" },
   { value: "ema50", label: "EMA 50", group: "overlay" },
   { value: "ema200", label: "EMA 200", group: "overlay" },
@@ -264,6 +267,96 @@ export function calculateRsi(
   }
 
   return rsi;
+}
+
+export interface FalseBreakoutOptions {
+  /** Bars of prior range whose extreme must be pierced to count as a breakout. */
+  lookback?: number;
+  /** Same-direction traps within this many bars collapse to the first one. */
+  cooldown?: number;
+  /** Colour for a failed break *up* (a bull trap — a bearish signal). */
+  bullTrapColor: string;
+  /** Colour for a failed break *down* (a bear trap — a bullish signal). */
+  bearTrapColor: string;
+}
+
+/**
+ * A false breakout ("fakeout") is a candle whose wick pierces the extreme of the
+ * prior `lookback` bars — a new local high or low — but which then *closes back
+ * inside* the range, so the breakout failed. A bull trap pierces the prior high
+ * and closes below it (price is likely to fall); a bear trap pierces the prior
+ * low and closes above it (price is likely to rise).
+ *
+ * Operates on the chart-ready candles (deduped, time-sorted) so every marker
+ * lands on a time the series actually holds. Clusters are debounced so a choppy
+ * level does not stamp an arrow on every bar.
+ */
+export function detectFalseBreakouts(
+  candles: CandlestickData<UTCTimestamp>[],
+  options: FalseBreakoutOptions,
+): SeriesMarker<UTCTimestamp>[] {
+  const lookback = Math.max(2, options.lookback ?? 20);
+  const cooldown = Math.max(0, options.cooldown ?? 3);
+  const markers: SeriesMarker<UTCTimestamp>[] = [];
+  if (candles.length <= lookback) return markers;
+
+  let lastIndex = Number.NEGATIVE_INFINITY;
+  let lastKind: "bull" | "bear" | null = null;
+
+  for (let index = lookback; index < candles.length; index += 1) {
+    const candle = candles[index]!;
+
+    let priorHigh = Number.NEGATIVE_INFINITY;
+    let priorLow = Number.POSITIVE_INFINITY;
+    for (let past = index - lookback; past < index; past += 1) {
+      const previous = candles[past]!;
+      if (previous.high > priorHigh) priorHigh = previous.high;
+      if (previous.low < priorLow) priorLow = previous.low;
+    }
+
+    const bullTrap = candle.high > priorHigh && candle.close < priorHigh;
+    const bearTrap = candle.low < priorLow && candle.close > priorLow;
+
+    let kind: "bull" | "bear" | null = null;
+    if (bullTrap && bearTrap) {
+      // An outside bar that rejected both edges: keep the larger rejection.
+      kind = candle.high - priorHigh >= priorLow - candle.low ? "bull" : "bear";
+    } else if (bullTrap) {
+      kind = "bull";
+    } else if (bearTrap) {
+      kind = "bear";
+    }
+
+    if (!kind) continue;
+    if (kind === lastKind && index - lastIndex <= cooldown) continue;
+
+    lastKind = kind;
+    lastIndex = index;
+
+    markers.push(
+      kind === "bull"
+        ? {
+            id: `false-breakout:${candle.time}`,
+            time: candle.time,
+            position: "aboveBar",
+            shape: "arrowDown",
+            color: options.bullTrapColor,
+            size: 1.25,
+            text: "FB",
+          }
+        : {
+            id: `false-breakout:${candle.time}`,
+            time: candle.time,
+            position: "belowBar",
+            shape: "arrowUp",
+            color: options.bearTrapColor,
+            size: 1.25,
+            text: "FB",
+          },
+    );
+  }
+
+  return markers;
 }
 
 export function toChartCandles(

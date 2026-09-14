@@ -8,12 +8,12 @@ import {
   ArrowUp,
   Search,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { WatchlistPairsSkeleton } from "@/components/ui/page-skeletons";
 import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
-import { displayNameFor, pipSizeFor } from "@/lib/instruments/catalog";
+import { INSTRUMENT_CATALOG, displayNameFor, pipSizeFor } from "@/lib/instruments/catalog";
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import { getMarketCondition } from "@/lib/strategy/session";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
@@ -42,7 +42,27 @@ type Row = {
   openTradeId: string | null;
   tradeSequence: string | null;
 };
-type Day = { change: number | null; high: number | null; low: number | null };
+/** A placeholder row for a catalog pair the backend hasn't evaluated yet: it is
+ * browsable and can be charted or Analyzed on demand, it just carries no live
+ * setup data until then. */
+const EMPTY_ROW: Omit<Row, "instrument"> = {
+  dataStatus: "unavailable",
+  setupStatus: "no_setup",
+  direction: null,
+  bid: null,
+  ask: null,
+  spreadPips: null,
+  entry: null,
+  stop: null,
+  target: null,
+  session: "",
+  conditions: [],
+  openTradeId: null,
+  tradeSequence: null,
+};
+/** How many rows to reveal per infinite-scroll page. */
+const WATCHLIST_PAGE_SIZE = 20;
+type Day = { change: number | null; high: number | null; low: number | null; close: number | null };
 type ManualProposal = {
   instrument: string;
   direction: "long" | "short";
@@ -191,39 +211,9 @@ export function WatchlistView() {
           ? current
           : null,
       );
-      void Promise.all(
-        watchlist.map(async (row) => {
-          try {
-            const candleResponse = await fetch(
-              apiUrl(
-                `/api/oanda/candles?instrument=${row.instrument}&granularity=D&count=2`,
-              ),
-              { credentials: "include", cache: "no-store" },
-            );
-            const candlePayload = (await candleResponse.json()) as {
-              data?: CandleSeries;
-            };
-            const current = candlePayload.data?.candles.at(-1),
-              previous = candlePayload.data?.candles.at(-2);
-            return [
-              row.instrument,
-              {
-                change:
-                  current && previous
-                    ? ((current.close - previous.close) / previous.close) * 100
-                    : null,
-                high: current?.high ?? null,
-                low: current?.low ?? null,
-              },
-            ] as const;
-          } catch {
-            return [
-              row.instrument,
-              { change: null, high: null, low: null },
-            ] as const;
-          }
-        }),
-      ).then((entries) => setDaily(Object.fromEntries(entries)));
+      // Per-pair daily data (price + change) is fetched lazily for whatever rows
+      // are on screen — see the effect below — so opening the full 68-pair
+      // catalog doesn't fire dozens of candle requests at once.
       setError(null);
     } catch (reason) {
       setError(
@@ -247,28 +237,37 @@ export function WatchlistView() {
     return () => window.clearInterval(timer);
   }, []);
   useForegroundRefresh(load);
+  const snapshotByInstrument = useMemo(
+    () => new Map(snapshot.map((row) => [row.instrument, row])),
+    [snapshot],
+  );
+  // Every tradeable OANDA pair from the static catalog, with the backend's live
+  // setup data merged in for the ones it evaluates. Pairs it hasn't evaluated
+  // still list (browse / chart / Analyze on demand) with empty fields.
   const rows = useMemo(
     () =>
-      snapshot.map((row) => {
-        const quote = quotes[row.instrument],
+      INSTRUMENT_CATALOG.map(({ name: instrument }) => {
+        const row = snapshotByInstrument.get(instrument) ?? { instrument, ...EMPTY_ROW };
+        const quote = quotes[instrument],
           bid = finiteOrNull(quote?.bid ?? row.bid),
           ask = finiteOrNull(quote?.ask ?? row.ask);
         return {
           ...row,
+          instrument,
           bid,
           ask,
           spreadPips:
             bid !== null && ask !== null
-              ? (ask - bid) / pipSizeFor(row.instrument)
+              ? (ask - bid) / pipSizeFor(instrument)
               : finiteOrNull(row.spreadPips),
           entry: finiteOrNull(row.entry),
           stop: finiteOrNull(row.stop),
           target: finiteOrNull(row.target),
         };
       }),
-    [snapshot, quotes],
+    [snapshotByInstrument, quotes],
   );
-  const shown = rows
+  const matched = rows
     .filter((row) => {
       const matches = `${row.instrument} ${description(row.instrument)}`
         .toLowerCase()
@@ -277,10 +276,87 @@ export function WatchlistView() {
     })
     .sort(
       (left, right) =>
+        // Valid setups first, then pairs the backend actually evaluates
+        // (the featured ones), then the rest of the catalog alphabetically.
         Number(right.setupStatus === "valid") -
           Number(left.setupStatus === "valid") ||
+        Number(right.dataStatus !== "unavailable") -
+          Number(left.dataStatus !== "unavailable") ||
         left.instrument.localeCompare(right.instrument),
     );
+  const [visibleCount, setVisibleCount] = useState(WATCHLIST_PAGE_SIZE);
+  // A new search resets paging so results start from the top of the filtered set.
+  useEffect(() => {
+    setVisibleCount(WATCHLIST_PAGE_SIZE);
+  }, [query]);
+  const shown = matched.slice(0, visibleCount);
+  const hasMore = matched.length > shown.length;
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const node = loadMoreRef.current;
+    if (!node || !hasMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setVisibleCount((count) => count + WATCHLIST_PAGE_SIZE);
+        }
+      },
+      { rootMargin: "240px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasMore]);
+  // Lazily pull daily price + change for whatever pairs are currently on screen,
+  // once per pair, so scrolling reveals data for the non-featured pairs too
+  // without loading all 68 up front.
+  const shownInstrumentsKey = shown.map((row) => row.instrument).join(",");
+  const dailyRequestedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const instruments = shownInstrumentsKey ? shownInstrumentsKey.split(",") : [];
+    const missing = instruments.filter(
+      (instrument) => !dailyRequestedRef.current.has(instrument),
+    );
+    if (!missing.length) return;
+    missing.forEach((instrument) => dailyRequestedRef.current.add(instrument));
+    void Promise.all(
+      missing.map(async (instrument) => {
+        try {
+          const candleResponse = await fetch(
+            apiUrl(
+              `/api/oanda/candles?instrument=${instrument}&granularity=D&count=2`,
+            ),
+            { credentials: "include", cache: "no-store" },
+          );
+          const candlePayload = (await candleResponse.json()) as {
+            data?: CandleSeries;
+          };
+          const current = candlePayload.data?.candles.at(-1),
+            previous = candlePayload.data?.candles.at(-2);
+          return [
+            instrument,
+            {
+              change:
+                current && previous
+                  ? ((current.close - previous.close) / previous.close) * 100
+                  : null,
+              high: current?.high ?? null,
+              low: current?.low ?? null,
+              close: current?.close ?? null,
+            },
+          ] as const;
+        } catch {
+          // Let it retry the next time this pair scrolls into view.
+          dailyRequestedRef.current.delete(instrument);
+          return [
+            instrument,
+            { change: null, high: null, low: null, close: null },
+          ] as const;
+        }
+      }),
+    ).then((entries) => {
+      setDaily((previous) => ({ ...previous, ...Object.fromEntries(entries) }));
+    });
+  }, [shownInstrumentsKey]);
   const active = rows.find((row) => row.instrument === selected);
   const day = active ? daily[active.instrument] : undefined;
   const activeChange = finiteOrNull(day?.change);
@@ -365,6 +441,9 @@ export function WatchlistView() {
               {shown.map((row) => {
                 const [state, tone] = status(row);
                 const change = finiteOrNull(daily[row.instrument]?.change),
+                  // Fall back to the daily close when this pair has no live quote
+                  // (only the featured pairs stream), so every row shows a price.
+                  price = mid(row) ?? finiteOrNull(daily[row.instrument]?.close),
                   cardStatus = watchlistCardStatus(row),
                   hasStrategy = hasActivePairStrategy(row.instrument),
                   hasSchedule = hasPairStrategySchedule(row.instrument),
@@ -394,9 +473,9 @@ export function WatchlistView() {
                       </span>
                     </span>
                     <b className="metric-number">
-                      {mid(row) === null
+                      {price === null
                         ? "—"
-                        : formatChartPrice(mid(row)!, row.instrument)}
+                        : formatChartPrice(price, row.instrument)}
                     </b>
                     <b
                       className={`metric-number ${change === null ? "" : `is-${change >= 0 ? "positive" : "negative"}`}`}
@@ -452,6 +531,15 @@ export function WatchlistView() {
                   </div>
                 );
               })}
+              {hasMore ? (
+                <div
+                  ref={loadMoreRef}
+                  className="markets-load-more"
+                  aria-hidden
+                >
+                  Loading more pairs…
+                </div>
+              ) : null}
             </div>
           </section>
           <aside className="markets-detail">
@@ -460,9 +548,12 @@ export function WatchlistView() {
                 <div className="markets-detail-head">
                   <p>{displayNameFor(active.instrument)}</p>
                   <strong className="metric-number">
-                    {mid(active) === null
+                    {(mid(active) ?? finiteOrNull(daily[active.instrument]?.close)) === null
                       ? "—"
-                      : formatChartPrice(mid(active)!, active.instrument)}
+                      : formatChartPrice(
+                          (mid(active) ?? finiteOrNull(daily[active.instrument]?.close))!,
+                          active.instrument,
+                        )}
                   </strong>
                   <em
                     className={

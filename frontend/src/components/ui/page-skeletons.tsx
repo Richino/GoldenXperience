@@ -16,6 +16,34 @@ function Line({ className = "" }: { className?: string }) {
   );
 }
 
+/** Mirrors the chart pane while price history is still loading. */
+function ChartScreenSkeleton() {
+  const candles = [
+    [56, 16, "down"], [48, 11, "up"], [52, 18, "up"], [43, 10, "down"],
+    [37, 16, "up"], [45, 9, "down"], [50, 13, "down"], [58, 10, "up"],
+    [53, 17, "up"], [45, 9, "down"], [39, 15, "down"], [47, 12, "up"],
+    [55, 10, "down"], [49, 16, "up"], [42, 11, "up"], [46, 17, "down"],
+  ] as const;
+
+  return (
+    <div className="chart-route-skeleton" aria-hidden>
+      <div className="chart-route-skeleton-grid" />
+      <div className="chart-route-skeleton-bars">
+        {candles.map(([top, height, tone], index) => (
+          <span
+            key={index}
+            className={`is-${tone}`}
+            style={{ left: `${3 + index * 6.15}%`, top: `${top}%`, height: `${height}%` }}
+          >
+            <i />
+          </span>
+        ))}
+      </div>
+      <div className="chart-route-skeleton-axis" />
+    </div>
+  );
+}
+
 function PageTitleSkeleton({
   titleWidth = "w-36",
   subtitleWidth = "w-48",
@@ -386,7 +414,7 @@ export function DashboardLoadingSkeleton() {
 export function SignalsLoadingSkeleton() {
   return (
     <div
-      className="signals-view signals-minimal grid w-full gap-5"
+      className="signals-view signals-minimal signals-loading-skeleton grid w-full gap-5"
       aria-busy
       aria-label="Loading signals"
     >
@@ -396,35 +424,36 @@ export function SignalsLoadingSkeleton() {
             <div className="signals-mobile-content">
               <div className="signals-mobile-actions flex items-center justify-between">
                 <Bone className="h-[2.35rem] w-[7.1rem] rounded-full" />
-                <Bone className="size-10 rounded-full" />
+                <div className="flex items-center gap-2">
+                  <Bone className="h-8 w-[6.4rem] rounded-lg" />
+                  <Bone className="size-8 rounded-full" />
+                </div>
               </div>
               <div className="gx-mobile-quote-row">
                 <Line className="h-8 w-28" />
                 <Line className="h-4 w-20" />
+                <Line className="h-3 w-9" />
+                <Bone className="ml-auto h-5 w-16 rounded-full" />
               </div>
               <div className="gx-mobile-timeframes">
-                <Bone className="h-[2.6rem] w-full rounded-[10px]" />
+                <div className="grid h-[2.6rem] grid-cols-5 gap-1 rounded-[10px] bg-[color:var(--surface-raised)] p-1">
+                  {Array.from({ length: 5 }, (_, index) => (
+                    <Bone key={index} className="h-full w-full rounded-md" />
+                  ))}
+                </div>
               </div>
             </div>
             <div className="relative min-h-[14rem] flex-1 overflow-hidden chart-data-shell chart-loading-static">
-              <ChartPlotSkeleton />
+              <ChartScreenSkeleton />
             </div>
             <div className="gx-mobile-chart-toolbar px-3 py-2">
-              {Array.from({ length: 4 }, (_, index) => (
+              {Array.from({ length: 5 }, (_, index) => (
                 <Bone key={index} className="h-full w-full rounded-xl" />
               ))}
             </div>
-            <div className="gx-mobile-position-section">
+            <div className="gx-mobile-analyze-section">
               <Bone className="h-11 w-full rounded-xl" />
             </div>
-            <dl className="gx-mobile-market-strip">
-              {Array.from({ length: 4 }, (_, index) => (
-                <div key={index} className="space-y-1.5">
-                  <Line className="h-2 w-8" />
-                  <Line className="h-3 w-10" />
-                </div>
-              ))}
-            </dl>
           </div>
 
           <div className="signals-chart-desktop hidden lg:grid gx-chart-terminal">
@@ -445,7 +474,7 @@ export function SignalsLoadingSkeleton() {
             </div>
             <div className="gx-chart-stage">
               <div className="signals-chart-canvas chart-loading-static min-h-[24rem] flex-1">
-                <ChartPlotSkeleton />
+                <ChartScreenSkeleton />
               </div>
             </div>
             <div className="gx-active-position gx-active-position-empty">
@@ -710,4 +739,3 @@ export function ResearchLoadingSkeleton() {
     </div>
   );
 }
-import { ChartPlotSkeleton } from "@/components/charts/chart-loading-overlay";

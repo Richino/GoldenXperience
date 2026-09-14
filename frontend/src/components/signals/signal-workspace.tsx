@@ -107,6 +107,23 @@ const DESKTOP_CHART_HEIGHT = 680;
 const CHART_PREFERENCES_STORAGE_KEY =
   "goldenxperience:signals-chart-preferences:v1";
 
+/* Keep the mobile picker scannable. The full OANDA catalog remains available
+ * as soon as someone starts typing in search. */
+const DEFAULT_PAIR_PICKER_INSTRUMENTS = [
+  "EUR_USD",
+  "USD_JPY",
+  "GBP_USD",
+  "AUD_USD",
+  "USD_CAD",
+  "USD_CHF",
+  "NZD_USD",
+  "EUR_JPY",
+  "EUR_GBP",
+  "GBP_JPY",
+  "AUD_JPY",
+  "CAD_JPY",
+] as const;
+
 type StoredChartPreferences = {
   version: 1;
   timeframe: ChartTimeframe;
@@ -775,10 +792,11 @@ function SignalSearch({
   const index = useMemo(() => buildSearchIndex(signals), [signals]);
   const matches = useMemo(() => {
     if (!normalizedQuery) {
-      // Lead with the pairs that actually have a setup to act on.
-      return [...index].sort(
-        (left, right) => Number(!!right.signal) - Number(!!left.signal),
-      );
+      const byInstrument = new Map(index.map((result) => [result.instrument, result]));
+      return DEFAULT_PAIR_PICKER_INSTRUMENTS.flatMap((instrument) => {
+        const result = byInstrument.get(instrument);
+        return result ? [result] : [];
+      });
     }
 
     return index
@@ -846,7 +864,13 @@ function SignalSearch({
           </button>
         </div>
 
-        <MobileSheet open={open} onClose={() => setOpen(false)} title="Select a pair">
+        <MobileSheet
+          open={open}
+          onClose={() => setOpen(false)}
+          title="Select a pair"
+          keyboardAvoiding
+          className="signals-pair-mobile-sheet"
+        >
           <div className="signals-pair-sheet">
             <div className="signals-search">
               <Search
@@ -854,10 +878,10 @@ function SignalSearch({
                 strokeWidth={2}
               />
               <input
-                autoFocus
                 aria-label="Search all forex pairs"
                 className="min-w-0 flex-1 bg-transparent text-[color:var(--foreground)] outline-none placeholder:text-[color:var(--muted)]"
                 placeholder="Search pairs"
+                style={{ fontSize: 16 }}
                 type="search"
                 value={query}
                 onChange={(event) => onQueryChange(event.target.value)}
@@ -1689,13 +1713,6 @@ export function SignalWorkspace({
   const [pendingEntryClock, setPendingEntryClock] = useState(() => Date.now());
   const openedManualProposalRef = useRef(false);
 
-  useEffect(() => {
-    if (!initialManualProposal || openedManualProposalRef.current) return;
-    openedManualProposalRef.current = true;
-    setSelectedPendingEntry(null);
-    setPendingEntryDialogOpen(true);
-  }, [initialManualProposal]);
-
   const {
     proposal: manualProposal,
     setProposal: setManualProposal,
@@ -1704,6 +1721,17 @@ export function SignalWorkspace({
     analysisError,
     acceptProposal: acceptManualProposal,
   } = useManualProposal();
+
+  useEffect(() => {
+    if (!initialManualProposal || openedManualProposalRef.current) return;
+    openedManualProposalRef.current = true;
+    // The same chart workspace can survive a query-string navigation. Clear
+    // its previous proposal state before opening the pending-entry sheet so
+    // the two dialogs never stack.
+    setManualProposal(null);
+    setSelectedPendingEntry(null);
+    setPendingEntryDialogOpen(true);
+  }, [initialManualProposal, setManualProposal]);
   // The first pair is already rendered with server-fetched trades.
   const skipInitialTradeFetchRef = useRef(true);
   const olderRequestInFlightRef = useRef(false);
@@ -2191,6 +2219,37 @@ export function SignalWorkspace({
           lineWidth: 2 as const,
           onSelect: () => openManager(entry),
         }];
+        // A pending manual entry is a complete trade plan, not merely a price
+        // alert. Keep its protective stop and profit objective visible from
+        // the moment it is created, just as we do after it has triggered.
+        if (entry.stopPrice !== null && entry.targetPrice !== null) {
+          const risk = Math.abs(entry.entryPrice - entry.stopPrice);
+          const rewardR = risk > 0
+            ? Math.abs(entry.targetPrice - entry.entryPrice) / risk
+            : null;
+          lines.push(
+            {
+              key: `pending-stop-${entry.id}`,
+              price: entry.stopPrice,
+              label: `SL ${formatChartPrice(entry.stopPrice, instrument)} · -1R`,
+              color: "#e74c3c",
+              textColor: "#ffffff",
+              dashed: true,
+              lineWidth: 1 as const,
+              onSelect: () => openManager(entry),
+            },
+            {
+              key: `pending-target-${entry.id}`,
+              price: entry.targetPrice,
+              label: `TP ${formatChartPrice(entry.targetPrice, instrument)}${rewardR === null ? "" : ` · +${rewardR.toFixed(rewardR >= 10 ? 0 : 1)}R`}`,
+              color: "#00b377",
+              textColor: "#ffffff",
+              dashed: true,
+              lineWidth: 1 as const,
+              onSelect: () => openManager(entry),
+            },
+          );
+        }
         if (entry.invalidationPrice !== null) lines.push({
           key: `cancel-${entry.id}`,
           price: entry.invalidationPrice,

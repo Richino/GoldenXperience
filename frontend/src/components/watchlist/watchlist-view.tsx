@@ -9,7 +9,7 @@ import {
   Search,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { ManualProposalModal, type ManualProposal } from "@/components/analysis/manual-proposal";
 import { WatchlistPairsSkeleton } from "@/components/ui/page-skeletons";
 import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
@@ -63,21 +63,6 @@ const EMPTY_ROW: Omit<Row, "instrument"> = {
 /** How many rows to reveal per infinite-scroll page. */
 const WATCHLIST_PAGE_SIZE = 20;
 type Day = { change: number | null; high: number | null; low: number | null; close: number | null };
-type ManualProposal = {
-  instrument: string;
-  direction: "long" | "short";
-  confidence: number;
-  entry: number;
-  stop: number;
-  target: number;
-  riskReward: number;
-  preferredEntryTime: string;
-  rationale: string;
-  newsSummary: string;
-  analyzedAt: string;
-  testOnly: true;
-};
-
 const names: Record<string, string> = {
   AUD: "Australian Dollar",
   CAD: "Canadian Dollar",
@@ -393,7 +378,10 @@ export function WatchlistView() {
       rationale: proposal.rationale,
       proposal: "manual-analysis",
     });
-    router.push(`/chart?${parameters.toString()}`);
+    const timeout = window.setTimeout(() => {
+      router.push(`/chart?${parameters.toString()}`);
+    }, 180);
+    return () => window.clearTimeout(timeout);
   }, [proposal, router]);
   return (
     <div className="markets-workspace">
@@ -644,30 +632,11 @@ export function WatchlistView() {
           </aside>
         </div>
       )}
-      {proposal ? createPortal((
-        <div className="manual-proposal-backdrop" role="presentation" data-pull-to-refresh-ignore="true" onMouseDown={(event) => event.target === event.currentTarget && setProposal(null)}>
-          <section className="manual-proposal" role="dialog" aria-modal="true" aria-labelledby="manual-proposal-title">
-            <header>
-              <div>
-                <h2 id="manual-proposal-title">{displayNameFor(proposal.instrument)} · {proposal.direction.toUpperCase()}</h2>
-              </div>
-              <strong>{proposal.confidence}% <small>confidence</small></strong>
-            </header>
-            <dl>
-              <div><dt>Entry</dt><dd>{formatChartPrice(proposal.entry, proposal.instrument)}</dd></div>
-              <div><dt>Stop</dt><dd>{formatChartPrice(proposal.stop, proposal.instrument)}</dd></div>
-              <div><dt>Target</dt><dd>{formatChartPrice(proposal.target, proposal.instrument)} · {proposal.riskReward}:1</dd></div>
-            </dl>
-            <p className="manual-proposal-entry-time"><b>Preferred entry:</b> {proposal.preferredEntryTime}</p>
-            <p><b>Why:</b> {proposal.rationale}</p>
-            <p><b>News:</b> {proposal.newsSummary}</p>
-            <footer>
-              <button type="button" className="manual-proposal-dismiss pressable" onClick={() => setProposal(null)}>Dismiss</button>
-              <button type="button" className="manual-proposal-accept pressable" onClick={acceptProposal}>Accept & open chart</button>
-            </footer>
-          </section>
-        </div>
-      ), document.body) : null}
+      <ManualProposalModal
+        proposal={proposal}
+        onDismiss={() => setProposal(null)}
+        onAccept={acceptProposal}
+      />
       {analysisError ? <div className="manual-analysis-error" role="alert">{analysisError}</div> : null}
     </div>
   );

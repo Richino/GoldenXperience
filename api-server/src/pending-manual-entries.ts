@@ -4,10 +4,54 @@ import { calculateAtrValues } from "../../frontend/src/lib/strategy/indicators.j
 import { calculatePositionSize, DEFAULT_RISK_POLICY } from "../../frontend/src/lib/risk/engine.js";
 import type { MajorInstrument, MarketPriceTick } from "./market-stream-types.js";
 import { query, transaction } from "./database.js";
+import { displayPair, queueNotification } from "./notifications.js";
 
 /** STOP for buy/sell-stop (break beyond), LIMIT for buy/sell-limit (pullback). */
 function oandaOrderKind(entryOrderType: string): "STOP" | "LIMIT" {
   return entryOrderType.endsWith("stop") ? "STOP" : "LIMIT";
+}
+
+type ManualEntryNotification =
+  | "accepted"
+  | "triggered"
+  | "cancelled"
+  | "expired"
+  | "invalidated"
+  | "failed"
+  | "won"
+  | "lost"
+  | "breakeven";
+
+async function notifyManualEntry(input: {
+  userId: string;
+  entryId: string;
+  instrument: string;
+  event: ManualEntryNotification;
+  paperTradeId?: string | null;
+  message?: string;
+}) {
+  const label = displayPair(input.instrument);
+  const copy: Record<ManualEntryNotification, { title: string; message: string }> = {
+    accepted: { title: `${label} entry accepted`, message: "Your pending entry is now being monitored." },
+    triggered: { title: `${label} trade opened`, message: "Your entry was filled and the trade is now open." },
+    cancelled: { title: `${label} entry cancelled`, message: "Your pending entry was cancelled." },
+    expired: { title: `${label} entry expired`, message: "Your pending entry expired before it filled." },
+    invalidated: { title: `${label} entry invalidated`, message: "Your pending entry was cancelled at its invalidation price." },
+    failed: { title: `${label} entry needs attention`, message: "The entry triggered but the trade could not be opened." },
+    won: { title: `${label} trade won`, message: "Target reached. Your trade is closed." },
+    lost: { title: `${label} trade lost`, message: "Stop reached. Your trade is closed." },
+    breakeven: { title: `${label} trade closed`, message: "Your trade closed at breakeven." },
+  };
+  const notification = copy[input.event];
+  await queueNotification({
+    userId: input.userId,
+    kind: "trade_update",
+    title: notification.title,
+    message: input.message ?? notification.message,
+    instrument: input.instrument,
+    paperTradeId: input.paperTradeId ?? null,
+    dedupeKey: `manual-entry:${input.entryId}:${input.event}`,
+  }).catch((error) => console.error(`[pending-entry] notification failed for ${input.entryId}`, error));
 }
 
 /**
@@ -376,7 +420,14 @@ export async function cancelPendingManualEntry(userId: string, id: string) {
     [id, userId],
   );
   if (!result.rows[0]) throw new Error("The entry already changed state and cannot be cancelled.");
-  return serialize(result.rows[0]);
+  const cancelled = serialize(result.rows[0]);
+  await notifyManualEntry({
+    userId,
+    entryId: cancelled.id,
+    instrument: cancelled.instrument,
+    event: "cancelled",
+  });
+  return cancelled;
 }
 
 function crossingProgress(previous: number, current: number, level: number) {
@@ -414,9 +465,9 @@ async function finalizeTriggeredEntry(id: string) {
     const risk = hasStoredLevels
       ? { stop: storedStop!, target: storedTarget!, atr14: null, rewardRisk: Math.abs(storedTarget! - triggerPrice) / Math.abs(triggerPrice - storedStop!), model: "MANUAL_LEVELS" }
       : await calculateManualTradeRisk(entry.instrument, entry.direction, triggerPrice);
-    await transaction(async (client) => {
+    const triggered = await transaction(async (client) => {
       const locked = await client.query<EntryRow>(`SELECT ${SELECT_FIELDS} FROM pending_manual_entries WHERE id=$1 FOR UPDATE`, [id]);
-      if (locked.rows[0]?.status !== "TRIGGERING") return;
+      if (locked.rows[0]?.status !== "TRIGGERING") return null;
       const trade = await client.query<{ id: string }>(
         `INSERT INTO paper_trades(user_id,legacy_id,origin,pair,direction,status,result,opened_at,entry,stop,target,reason,notes)
          VALUES($1,$2,'manual',$3,$4,'open','open',$5,$6,$7,$8,'Pending manual entry triggered',$9)
@@ -429,19 +480,41 @@ async function finalizeTriggeredEntry(id: string) {
            metadata=metadata || $5::jsonb,updated_at=now() WHERE id=$1 AND status='TRIGGERING'`,
         [id, risk.stop, risk.target, trade.rows[0]!.id, JSON.stringify({ riskModel: risk.model, atr14: risk.atr14, rewardRisk: 2, execution: "simulated_paper" })],
       );
+      return trade.rows[0]!.id;
     });
+    if (triggered) {
+      await notifyManualEntry({
+        userId: entry.user_id,
+        entryId: entry.id,
+        instrument: entry.instrument,
+        event: "triggered",
+        paperTradeId: triggered,
+      });
+    }
   } catch (error) {
     console.error(`[pending-entry] ${id} finalization failed`, error);
     await query(
       "UPDATE pending_manual_entries SET status='FAILED',failure_reason=$2,updated_at=now() WHERE id=$1 AND status='TRIGGERING'",
       [id, error instanceof Error ? error.message.slice(0, 500) : "Pending-entry trigger failed."],
     );
+    const failed = await query<{ user_id: string; instrument: MajorInstrument }>(
+      "SELECT user_id,instrument FROM pending_manual_entries WHERE id=$1",
+      [id],
+    );
+    if (failed.rows[0]) {
+      await notifyManualEntry({
+        userId: failed.rows[0].user_id,
+        entryId: id,
+        instrument: failed.rows[0].instrument,
+        event: "failed",
+      });
+    }
   }
 }
 
 export async function evaluatePendingManualEntries(tick: MarketPriceTick) {
   if (!(tick.bid > 0) || !(tick.ask > 0)) return { changed: 0 };
-  const { claimed, toCancel } = await transaction(async (client) => {
+  const { claimed, toCancel, terminal } = await transaction(async (client) => {
     const pending = await client.query<EntryRow>(
       `SELECT ${SELECT_FIELDS} FROM pending_manual_entries
        WHERE instrument=$1 AND status='PENDING' ORDER BY created_at FOR UPDATE SKIP LOCKED`,
@@ -451,6 +524,7 @@ export async function evaluatePendingManualEntries(tick: MarketPriceTick) {
     // Broker order ids to cancel after the transaction — never call OANDA while
     // holding row locks.
     const toCancel: string[] = [];
+    const terminal: Array<{ entry: EntryRow; event: "expired" | "invalidated" }> = [];
     const tickTime = Number.isFinite(Date.parse(tick.time)) ? new Date(tick.time) : new Date();
     for (const row of pending.rows) {
       const price = executablePrice(row.direction, tick);
@@ -471,11 +545,13 @@ export async function evaluatePendingManualEntries(tick: MarketPriceTick) {
       if (event === "expired") {
         await client.query("UPDATE pending_manual_entries SET status='EXPIRED',updated_at=now(),last_observed_price=$2,last_observed_at=$3 WHERE id=$1 AND status='PENDING'", [row.id, price, tickTime]);
         if (brokerOrderId) toCancel.push(brokerOrderId);
+        terminal.push({ entry: row, event: "expired" });
         continue;
       }
       if (event === "invalidation") {
         await client.query("UPDATE pending_manual_entries SET status='INVALIDATED',cancelled_at=$2,last_observed_price=$3,last_observed_at=$2,updated_at=now() WHERE id=$1 AND status='PENDING'", [row.id, tickTime, price]);
         if (brokerOrderId) toCancel.push(brokerOrderId);
+        terminal.push({ entry: row, event: "invalidated" });
       } else if (event === "entry" && !brokerOrderId) {
         const updated = await client.query("UPDATE pending_manual_entries SET status='TRIGGERING',trigger_price=$2,triggered_at=$3,last_observed_price=$2,last_observed_at=$3,updated_at=now() WHERE id=$1 AND status='PENDING' RETURNING id", [row.id, price, tickTime]);
         if (updated.rows[0]) claimed.push(row.id);
@@ -485,8 +561,16 @@ export async function evaluatePendingManualEntries(tick: MarketPriceTick) {
         await client.query("UPDATE pending_manual_entries SET last_observed_price=$2,last_observed_at=$3,updated_at=now() WHERE id=$1 AND status='PENDING'", [row.id, price, tickTime]);
       }
     }
-    return { claimed, toCancel };
+    return { claimed, toCancel, terminal };
   });
+  for (const item of terminal) {
+    await notifyManualEntry({
+      userId: item.entry.user_id,
+      entryId: item.entry.id,
+      instrument: item.entry.instrument,
+      event: item.event,
+    });
+  }
   for (const orderId of toCancel) {
     try {
       await cancelPracticeOrder(orderId);
@@ -520,8 +604,8 @@ export async function resolveOpenManualTrades(tick: MarketPriceTick) {
     // OANDA-backed trades (their entry carries a brokerTradeId) are squared by
     // the broker's own SL/TP and mirrored back by reconcileManualOandaOrders —
     // this paper resolver only closes trades that have no broker leg.
-    const open = await client.query<{ id: string; direction: PendingManualEntryDirection; entry: string; stop: string; target: string }>(
-      `SELECT t.id, t.direction, t.entry::text AS entry, t.stop::text AS stop, t.target::text AS target
+    const open = await client.query<{ id: string; user_id: string; direction: PendingManualEntryDirection; entry: string; stop: string; target: string }>(
+      `SELECT t.id, t.user_id, t.direction, t.entry::text AS entry, t.stop::text AS stop, t.target::text AS target
          FROM paper_trades t
          LEFT JOIN pending_manual_entries e ON e.paper_trade_id = t.id
         WHERE t.origin='manual' AND t.status='open' AND t.pair=$1
@@ -530,7 +614,7 @@ export async function resolveOpenManualTrades(tick: MarketPriceTick) {
         FOR UPDATE OF t SKIP LOCKED`,
       [pair],
     );
-    let count = 0;
+    const events: Array<{ id: string; userId: string; result: "win" | "loss" }> = [];
     for (const row of open.rows) {
       const entry = Number(row.entry), stop = Number(row.stop), target = Number(row.target);
       // Exit at the price you could actually close on: bid for a long, ask for a short.
@@ -552,11 +636,20 @@ export async function resolveOpenManualTrades(tick: MarketPriceTick) {
           WHERE id=$1 AND status='open'`,
         [row.id, hit.result, hit.exit, resultR],
       );
-      count += 1;
+      events.push({ id: row.id, userId: row.user_id, result: hit.result });
     }
-    return count;
+    return events;
   });
-  return { closed };
+  for (const event of closed) {
+    await notifyManualEntry({
+      userId: event.userId,
+      entryId: event.id,
+      instrument: tick.instrument,
+      event: event.result === "win" ? "won" : "lost",
+      paperTradeId: event.id,
+    });
+  }
+  return { closed: closed.length };
 }
 
 /** Open the app-side trade for a manual OANDA order that just filled. */
@@ -565,9 +658,9 @@ async function openFilledManualTrade(entry: EntryRow, brokerTradeId: string, fil
   const openPrice = state?.entryPrice ?? fillPrice ?? Number(entry.entry_price);
   const stop = numberOrNull(entry.stop_price) ?? openPrice;
   const target = numberOrNull(entry.target_price) ?? openPrice;
-  await transaction(async (client) => {
+  const opened = await transaction(async (client) => {
     const locked = await client.query<EntryRow>(`SELECT ${SELECT_FIELDS} FROM pending_manual_entries WHERE id=$1 FOR UPDATE`, [entry.id]);
-    if (locked.rows[0]?.status !== "PENDING") return;
+    if (locked.rows[0]?.status !== "PENDING") return null;
     const trade = await client.query<{ id: string }>(
       `INSERT INTO paper_trades(user_id,legacy_id,origin,pair,direction,status,result,opened_at,entry,stop,target,reason,notes)
        VALUES($1,$2,'manual',$3,$4,'open','open',now(),$5,$6,$7,'Manual OANDA order filled',$8)
@@ -583,7 +676,17 @@ async function openFilledManualTrade(entry: EntryRow, brokerTradeId: string, fil
         WHERE id=$1 AND status='PENDING'`,
       [entry.id, openPrice, trade.rows[0]!.id, brokerTradeId],
     );
+    return trade.rows[0]!.id;
   });
+  if (opened) {
+    await notifyManualEntry({
+      userId: entry.user_id,
+      entryId: entry.id,
+      instrument: entry.instrument,
+      event: "triggered",
+      paperTradeId: opened,
+    });
+  }
 }
 
 /**
@@ -610,8 +713,19 @@ export async function reconcileManualOandaOrders() {
         await openFilledManualTrade(entry, state.tradeId, state.fillPrice);
         filled += 1;
       } else if (state.state === "CANCELLED") {
-        await query("UPDATE pending_manual_entries SET status='CANCELLED',cancelled_at=now(),updated_at=now() WHERE id=$1 AND status='PENDING'", [entry.id]);
-        cancelled += 1;
+        const cancelledEntry = await query<{ id: string }>(
+          "UPDATE pending_manual_entries SET status='CANCELLED',cancelled_at=now(),updated_at=now() WHERE id=$1 AND status='PENDING' RETURNING id",
+          [entry.id],
+        );
+        if (cancelledEntry.rows[0]) {
+          cancelled += 1;
+          await notifyManualEntry({
+            userId: entry.user_id,
+            entryId: entry.id,
+            instrument: entry.instrument,
+            event: "cancelled",
+          });
+        }
       }
     } catch (error) {
       console.error(`[pending-entry] reconcile order ${orderId} failed`, error);
@@ -619,8 +733,8 @@ export async function reconcileManualOandaOrders() {
   }
 
   // 2) Open trades with a broker leg → square the app trade once OANDA closes it.
-  const open = await query<{ id: string; direction: PendingManualEntryDirection; entry: string; broker_trade_id: string }>(
-    `SELECT t.id, t.direction, t.entry::text AS entry, e.metadata->>'brokerTradeId' AS broker_trade_id
+  const open = await query<{ id: string; user_id: string; pair: string; direction: PendingManualEntryDirection; entry: string; broker_trade_id: string }>(
+    `SELECT t.id, t.user_id, t.pair, t.direction, t.entry::text AS entry, e.metadata->>'brokerTradeId' AS broker_trade_id
        FROM paper_trades t
        JOIN pending_manual_entries e ON e.paper_trade_id = t.id
       WHERE t.origin='manual' AND t.status='open' AND e.metadata->>'brokerTradeId' IS NOT NULL`,
@@ -633,12 +747,21 @@ export async function reconcileManualOandaOrders() {
       const exit = state.averageClosePrice ?? entry;
       const pl = state.realizedPL ?? 0;
       const result = pl > 0 ? "win" : pl < 0 ? "loss" : "breakeven";
-      await query(
+      const updated = await query<{ id: string }>(
         `UPDATE paper_trades SET status='closed', result=$2, exit=$3, closed_at=$4, updated_at=now()
-          WHERE id=$1 AND status='open'`,
+          WHERE id=$1 AND status='open' RETURNING id`,
         [row.id, result, exit, state.closeTime ?? new Date().toISOString()],
       );
-      closedTrades += 1;
+      if (updated.rows[0]) {
+        closedTrades += 1;
+        await notifyManualEntry({
+          userId: row.user_id,
+          entryId: row.id,
+          instrument: row.pair.replace("/", "_"),
+          event: result === "win" ? "won" : result === "loss" ? "lost" : "breakeven",
+          paperTradeId: row.id,
+        });
+      }
     } catch (error) {
       console.error(`[pending-entry] reconcile trade ${row.broker_trade_id} failed`, error);
     }

@@ -1,4 +1,4 @@
-export type NotificationKind = "setup_ready" | "paper_opened" | "paper_closed" | "system_issue";
+export type NotificationKind = "setup_ready" | "paper_opened" | "paper_closed" | "trade_update" | "system_issue";
 
 export type AppNotification = {
   id: string;

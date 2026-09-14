@@ -220,6 +220,15 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       if (!tick) return json(request, response, { error: "A fresh market quote is not available yet." }, 409);
       try {
         const entry = await createPendingManualEntry(user.id, { ...payload, instrument }, tick);
+        await queueNotification({
+          userId: user.id,
+          kind: "trade_update",
+          title: `${instrument.replace("_", "/")} entry accepted`,
+          message: "Your pending entry is now being monitored.",
+          instrument,
+          paperTradeId: null,
+          dedupeKey: `manual-entry:${entry.id}:accepted`,
+        }).catch((error) => console.error(`[pending-entry] acceptance notification failed for ${entry.id}`, error));
         void evaluatePendingManualEntries(tick).catch((error) => console.error("[pending-entry] initial evaluation failed", error));
         return json(request, response, { entry }, 201);
       } catch (error) {

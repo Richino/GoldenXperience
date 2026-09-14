@@ -958,6 +958,17 @@ html.mobile-sheet-open body {
   overscroll-behavior: contain;
 }
 
+/* Leave pair selection as a drawer, but when its search field has focus move
+   the drawer's bottom edge to the visual viewport above the software keyboard.
+   `visualViewport` values are supplied by MobileSheet because iOS PWA `dvh`
+   can keep reporting the larger, pre-keyboard viewport. */
+@media (max-width: 1023px) {
+  .mobile-sheet.signals-pair-mobile-sheet:has(.signals-search:focus-within) {
+    bottom: var(--mobile-sheet-keyboard-offset, 0px);
+    max-height: min(78vh, var(--mobile-sheet-visible-height, 78vh));
+  }
+}
+
 .mobile-sheet-grip {
   flex-shrink: 0;
   touch-action: none;
@@ -1090,6 +1101,19 @@ html.mobile-sheet-open body {
 
 .signals-pair-sheet .signals-search:focus-within {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+/* Safari still enlarges a focused form control whose computed text is below
+   16px, even when the page disables pinch zoom. That changes the visual
+   viewport underneath a fixed bottom sheet and leaves the chart looking
+   enlarged after the sheet closes. Keep the pair search at the iOS threshold
+   on phone layouts; the compact field has enough vertical room for it. */
+@media (max-width: 1023px) {
+  .signals-pair-sheet .signals-search input[type="search"] {
+    font-size: 16px;
+    line-height: 1.25;
+    -webkit-text-size-adjust: 100%;
+  }
 }
 
 .signals-pair-sheet .signals-search-result {
@@ -6574,7 +6598,14 @@ html.mobile-sheet-open body {
     justify-content: center;
     /* Reserve room for the fixed bottom nav dock, the way the market strip it
        replaced did — otherwise the button sits underneath the dock. */
-    padding: 0.75rem 1rem calc(var(--app-dock-height, 5.5rem) + 0.85rem);
+    /* The chart route already reserves the dock's height. Adding it again
+       here created the large dead band in the standalone PWA. Only reserve
+       the intended 22px clearance between Analyze and the dock. */
+    padding: 0.75rem 1rem 1.4rem;
+    /* The floating dock is outside the chart's flex layout. On standalone
+       PWAs its overlay still covers the final layout pixels, so lift the
+       action by the same 22px rather than reserving the dock a second time. */
+    transform: translateY(-1.4rem);
   }
 
   .gx-mobile-analyze {
@@ -6615,6 +6646,36 @@ html.mobile-sheet-open body {
     font-size: 0.72rem;
     font-weight: 650;
     text-align: center;
+  }
+
+  @supports (-webkit-touch-callout: none) {
+    /* Analyze is visually lifted above the floating iPhone dock. Reserve that
+       lift in the normal flex flow too, so it cannot paint over the toolbar. */
+    .signals-view:not(.signals-view-fullscreen) .gx-mobile-chart-toolbar {
+      margin-bottom: 1.4rem;
+    }
+  }
+
+  /* Android Chrome's address bar changes the usable visual viewport after the
+     flex chart has measured itself. Keep Analyze independent of that late
+     resize, and reserve its exact slot so the chart/toolbar cannot cover it.
+     WebKit retains the in-flow treatment above, which is the correct layout
+     for the standalone iPhone PWA. */
+  @supports not (-webkit-touch-callout: none) {
+    .signals-view .signals-chart-mobile {
+      height: 100dvh;
+      padding-bottom: calc(var(--app-dock-height, 5.5rem) + 4.95rem);
+    }
+
+    .gx-mobile-analyze-section {
+      position: fixed;
+      z-index: 39;
+      right: 1rem;
+      bottom: calc(var(--app-dock-height, 5.5rem) + 1.4rem);
+      left: 1rem;
+      padding: 0;
+      transform: none;
+    }
   }
 
   .gx-mobile-position-section {
@@ -7465,7 +7526,12 @@ html:has(.pending-entry-backdrop) .mobile-dock {
   .signals-view .signals-chart-mobile {
     display: flex;
     flex-direction: column;
+    /* Android WebViews sometimes report a dynamic viewport that is taller
+       than the actually visible PWA window. Use the smaller stable viewport
+       when it is available so the non-shrinking Analyze action remains above
+       the dock instead of being clipped below the system controls. */
     height: 100dvh;
+    height: min(100dvh, 100svh);
     overflow: hidden;
   }
 
@@ -13458,7 +13524,11 @@ html:has(.manual-proposal-backdrop) .mobile-dock {
 .manual-proposal footer { display: flex; justify-content: flex-end; gap: .55rem; margin-top: 1.15rem; }
 .manual-proposal footer button { min-height: 2.45rem; border-radius: .55rem; padding: 0 .85rem; font-size: .72rem; font-weight: 800; }
 .manual-proposal-dismiss { border: 1px solid var(--border); background: transparent; color: var(--foreground); }
-.manual-proposal-accept { border: 0; background: var(--accent); color: #05271e; }
+.manual-proposal-accept { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; border: 0; background: var(--accent); color: #05271e; }
+.manual-proposal-accept:disabled { cursor: wait; opacity: .82; }
+.pending-cancel-confirmation { width: min(25rem, 100%); }
+.pending-cancel-confirm { border: 0; background: var(--danger); color: #fff; }
+.pending-cancel-confirm:disabled { cursor: wait; opacity: .7; }
 .manual-analysis-error { position: fixed; z-index: 91; right: 1rem; bottom: 1rem; max-width: min(26rem, calc(100vw - 2rem)); border: 1px solid color-mix(in srgb, var(--danger) 50%, var(--border)); border-radius: .65rem; padding: .75rem; background: var(--surface); color: var(--danger); font-size: .75rem; box-shadow: 0 .8rem 2rem color-mix(in srgb, #000 30%, transparent); }
 @media (max-width: 1023px) { .markets-row-plan { width: 100%; } .markets-row-analyze { margin-left: auto; padding: .3rem .6rem; } .manual-proposal-backdrop { align-items: end; min-height: 100dvh; padding-bottom: calc(var(--app-dock-height, 5rem) + .75rem + env(safe-area-inset-bottom, 0px)); } .manual-proposal-backdrop::after { position: absolute; right: 0; bottom: calc(-1 * env(safe-area-inset-bottom, 0px)); left: 0; height: env(safe-area-inset-bottom, 0px); background: inherit; content: ""; pointer-events: none; } .manual-proposal { align-self: end; max-height: calc(100dvh - var(--app-dock-height, 5rem) - 2rem); overflow-y: auto; border-radius: 1rem; } .manual-proposal dl { grid-template-columns: 1fr; } .manual-proposal footer { position: sticky; bottom: 0; padding-top: .8rem; background: var(--surface); } .manual-proposal footer button { flex: 1; } }
 

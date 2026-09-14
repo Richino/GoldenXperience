@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import { LoaderCircle } from "lucide-react";
 import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { displayNameFor } from "@/lib/instruments/catalog";
@@ -21,6 +22,8 @@ export type ManualProposal = {
   analyzedAt: string;
   testOnly: true;
 };
+
+const CHART_OPEN_DELAY_MS = 180;
 
 /**
  * The test-only "AI analysis" flow shared by the watchlist and the chart page:
@@ -131,7 +134,13 @@ export function useManualProposal() {
       rationale: proposal.rationale,
       proposal: "manual-analysis",
     });
-    router.push(`/chart?${parameters.toString()}`);
+    // Give the modal one frame of visible feedback before navigation. During
+    // this small handoff window the returned cancellation function makes an
+    // outside tap or Cancel a real cancellation rather than a cosmetic one.
+    const timeout = window.setTimeout(() => {
+      router.push(`/chart?${parameters.toString()}`);
+    }, CHART_OPEN_DELAY_MS);
+    return () => window.clearTimeout(timeout);
   }, [proposal, router]);
 
   return {
@@ -152,9 +161,40 @@ export function ManualProposalModal({
 }: {
   proposal: ManualProposal | null;
   onDismiss: () => void;
-  onAccept: () => void;
+  /** Starts navigation and may return a cancellation function for the handoff. */
+  onAccept: () => void | (() => void);
 }) {
+  const [opening, setOpening] = useState(false);
+  const cancelOpenRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    if (proposal) return;
+    cancelOpenRef.current?.();
+    cancelOpenRef.current = null;
+    setOpening(false);
+  }, [proposal]);
+
+  useEffect(
+    () => () => {
+      cancelOpenRef.current?.();
+    },
+    [],
+  );
+
   if (!proposal) return null;
+
+  function dismiss() {
+    cancelOpenRef.current?.();
+    cancelOpenRef.current = null;
+    setOpening(false);
+    onDismiss();
+  }
+
+  function accept() {
+    if (opening) return;
+    cancelOpenRef.current = onAccept() ?? null;
+    setOpening(true);
+  }
 
   return createPortal(
     (
@@ -162,7 +202,7 @@ export function ManualProposalModal({
         className="manual-proposal-backdrop"
         role="presentation"
         data-pull-to-refresh-ignore="true"
-        onMouseDown={(event) => event.target === event.currentTarget && onDismiss()}
+        onMouseDown={(event) => event.target === event.currentTarget && dismiss()}
       >
         <section className="manual-proposal" role="dialog" aria-modal="true" aria-labelledby="manual-proposal-title">
           <header>
@@ -180,8 +220,18 @@ export function ManualProposalModal({
           <p><b>Why:</b> {proposal.rationale}</p>
           <p><b>News:</b> {proposal.newsSummary}</p>
           <footer>
-            <button type="button" className="manual-proposal-dismiss pressable" onClick={onDismiss}>Dismiss</button>
-            <button type="button" className="manual-proposal-accept pressable" onClick={onAccept}>Accept &amp; open chart</button>
+            <button type="button" className="manual-proposal-dismiss pressable" onClick={dismiss}>
+              {opening ? "Cancel" : "Dismiss"}
+            </button>
+            <button
+              type="button"
+              className="manual-proposal-accept pressable"
+              onClick={accept}
+              disabled={opening}
+              aria-live="polite"
+            >
+              {opening ? <><LoaderCircle className="size-3.5 animate-spin" /> Opening chart…</> : "Accept & open chart"}
+            </button>
           </footer>
         </section>
       </div>

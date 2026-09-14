@@ -12,16 +12,18 @@ const DISMISS_VELOCITY = 0.5;
 /**
  * A bottom sheet for the mobile layouts.
  *
- * Dragging works from anywhere on the sheet, the way a native sheet does: a
- * drag that starts in the option list only moves the sheet when the list is
- * already scrolled to the top, so scrolling a long list still works and the
- * gesture hands off to the sheet once there is nothing left to scroll.
+ * Dismissal dragging is deliberately limited to the visible grip/header. This
+ * keeps option lists purely scrollable and prevents a selection swipe from
+ * pulling the whole sheet down.
  */
 export function MobileSheet({
   open,
   onClose,
   title,
   headerAction,
+  lockPageScroll = true,
+  keyboardAvoiding = false,
+  className,
   children,
 }: {
   open: boolean;
@@ -29,6 +31,12 @@ export function MobileSheet({
   title: string;
   /** Optional control shown in the head, to the left of the close button. */
   headerAction?: React.ReactNode;
+  /** The chart already fills a non-scrolling PWA viewport, so it can opt out
+   * of iOS's fragile fixed-body scroll lock. */
+  lockPageScroll?: boolean;
+  /** Keep an input-focused drawer above the software keyboard. */
+  keyboardAvoiding?: boolean;
+  className?: string;
   children: React.ReactNode;
 }) {
   const [dragY, setDragY] = useState(0);
@@ -64,7 +72,7 @@ export function MobileSheet({
    * offset on close is what actually holds it still.
    */
   useEffect(() => {
-    if (!open) return;
+    if (!open || !lockPageScroll) return;
 
     const { body } = document;
     const root = document.documentElement;
@@ -108,7 +116,36 @@ export function MobileSheet({
       root.classList.remove("mobile-sheet-open");
       window.scrollTo(0, scrollY);
     };
-  }, [open]);
+  }, [lockPageScroll, open]);
+
+  /* iOS PWAs keep the layout viewport at its pre-keyboard height. Fixed
+   * drawers therefore remain beneath the keyboard unless we explicitly move
+   * their bottom edge to visualViewport's visible bottom. This is scoped to
+   * sheets that opt in, and CSS only applies it while a search field is focused. */
+  useEffect(() => {
+    if (!open || !keyboardAvoiding) return;
+
+    const sheet = sheetRef.current;
+    const viewport = window.visualViewport;
+    if (!sheet || !viewport) return;
+
+    const sync = () => {
+      const layoutHeight = Math.max(window.innerHeight, document.documentElement.clientHeight);
+      const keyboardOffset = Math.max(0, layoutHeight - viewport.height - viewport.offsetTop);
+      sheet.style.setProperty("--mobile-sheet-keyboard-offset", `${Math.round(keyboardOffset)}px`);
+      sheet.style.setProperty("--mobile-sheet-visible-height", `${Math.round(viewport.height)}px`);
+    };
+
+    sync();
+    viewport.addEventListener("resize", sync);
+    viewport.addEventListener("scroll", sync);
+    return () => {
+      viewport.removeEventListener("resize", sync);
+      viewport.removeEventListener("scroll", sync);
+      sheet.style.removeProperty("--mobile-sheet-keyboard-offset");
+      sheet.style.removeProperty("--mobile-sheet-visible-height");
+    };
+  }, [keyboardAvoiding, open]);
 
   const finish = useCallback(
     (endY: number, endTime: number) => {
@@ -143,7 +180,8 @@ export function MobileSheet({
 
     function onTouchStart(event: TouchEvent) {
       const touch = event.touches[0];
-      if (!touch) return;
+      const grip = sheetRef.current?.querySelector(".mobile-sheet-grip");
+      if (!touch || !(event.target instanceof Node) || !grip?.contains(event.target)) return;
       const body = bodyRef.current;
       start.current = {
         y: touch.clientY,
@@ -242,7 +280,7 @@ export function MobileSheet({
         aria-label={title}
         tabIndex={-1}
         data-pull-to-refresh-ignore="true"
-        className="mobile-sheet"
+        className={`mobile-sheet${className ? ` ${className}` : ""}`}
         style={{
           transform: `translateY(${dragY}px)`,
           transition: dragging ? "none" : undefined,

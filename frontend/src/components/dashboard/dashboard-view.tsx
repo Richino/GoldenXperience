@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { AccountOverviewHero } from "@/components/dashboard/account-overview-hero";
 import { HomeRail, type HomeAvailableSignal, type HomeCurrentPosition } from "@/components/dashboard/home-rail";
 import { HomePendingTrades } from "@/components/dashboard/home-pending-trades";
@@ -222,6 +223,7 @@ export function DashboardView({
   const [pendingEntries, setPendingEntries] = useState<PendingManualEntry[]>([]);
   const [pendingEntryError, setPendingEntryError] = useState<string | null>(null);
   const [cancellingPendingId, setCancellingPendingId] = useState<string | null>(null);
+  const [pendingCancellation, setPendingCancellation] = useState<PendingManualEntry | null>(null);
   // Ticks rather than the 60s refresh below, so an open trade's value moves
   // with the market instead of jumping once a minute.
   const quotes = useLiveQuotes();
@@ -531,8 +533,61 @@ export function DashboardView({
         entries={pendingEntries}
         cancellingId={cancellingPendingId}
         error={pendingEntryError}
-        onCancel={(entry) => void cancelPendingEntry(entry)}
+        onCancel={setPendingCancellation}
       />
+
+      {pendingCancellation ? createPortal(
+        <div
+          className="manual-proposal-backdrop"
+          role="presentation"
+          data-pull-to-refresh-ignore="true"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !cancellingPendingId) {
+              setPendingCancellation(null);
+            }
+          }}
+        >
+          <section
+            className="manual-proposal pending-cancel-confirmation"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pending-cancel-title"
+          >
+            <header>
+              <div>
+                <span>Pending trade</span>
+                <h2 id="pending-cancel-title">Cancel {displayNameFor(pendingCancellation.instrument)}?</h2>
+              </div>
+            </header>
+            <p>
+              This removes the {pendingCancellation.direction} {pendingCancellation.entryOrderType.replace("_", " ").toLowerCase()} entry. It cannot be restored.
+            </p>
+            <footer>
+              <button
+                type="button"
+                className="manual-proposal-dismiss pressable"
+                disabled={Boolean(cancellingPendingId)}
+                onClick={() => setPendingCancellation(null)}
+              >
+                No, keep it
+              </button>
+              <button
+                type="button"
+                className="pending-cancel-confirm pressable"
+                disabled={Boolean(cancellingPendingId)}
+                onClick={() => {
+                  void cancelPendingEntry(pendingCancellation).finally(() => {
+                    setPendingCancellation(null);
+                  });
+                }}
+              >
+                {cancellingPendingId ? "Cancelling…" : "Yes, cancel trade"}
+              </button>
+            </footer>
+          </section>
+        </div>,
+        document.body,
+      ) : null}
 
       {hasActiveSignals ? (
       <section className="home-section" aria-label="Saved setups">

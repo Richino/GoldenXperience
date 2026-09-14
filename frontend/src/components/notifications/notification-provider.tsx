@@ -93,7 +93,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     void refresh();
-    const interval = window.setInterval(() => void refresh(), 60_000);
+    // Trade state changes should feel live while the workspace is open. Event
+    // IDs and the server dedupe key prevent a polling refresh from replaying a
+    // notification that was already presented.
+    const interval = window.setInterval(() => void refresh(), 10_000);
     return () => window.clearInterval(interval);
   }, [refresh]);
 

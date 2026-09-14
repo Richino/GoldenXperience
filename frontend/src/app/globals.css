@@ -6454,7 +6454,9 @@ html.mobile-sheet-open body {
   }
 
   .signals-view .signals-chart-mobile {
-    height: 100dvh;
+    /* Track the visible viewport so the fixed-height chart shrinks with the iOS
+       keyboard instead of leaving a gap; falls back to 100dvh before JS runs. */
+    height: var(--app-viewport-height, 100dvh);
   }
 
   .signals-view .signals-mobile-content {
@@ -7532,6 +7534,10 @@ html:has(.pending-entry-backdrop) .mobile-dock {
        the dock instead of being clipped below the system controls. */
     height: 100dvh;
     height: min(100dvh, 100svh);
+    /* Prefer the live visible-viewport height (set in AppShell) so the page
+       shrinks with the iOS keyboard instead of leaving a gap; falls back to the
+       stable viewport when JS hasn't set it. */
+    height: var(--app-viewport-height, min(100dvh, 100svh));
     overflow: hidden;
   }
 

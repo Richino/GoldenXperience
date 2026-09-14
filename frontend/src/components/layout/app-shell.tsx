@@ -222,19 +222,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const viewport = window.visualViewport;
     if (!viewport) return;
-    // The keyboard covers this much of the layout viewport when open.
+    const root = document.documentElement;
     let keyboardWasOpen = viewport.height < window.innerHeight - 120;
-    const onResize = () => {
+    const onViewportChange = () => {
+      // iOS keeps the layout viewport at full height when the keyboard opens and
+      // only shrinks the *visual* one, so a fixed 100dvh page (the chart) can't
+      // absorb it and leaves a gap. Publish the visible height so that page can
+      // size to it instead (see --app-viewport-height in globals.css). Scrollable
+      // pages ignore it, so they keep working as they already do.
+      root.style.setProperty("--app-viewport-height", `${Math.round(viewport.height)}px`);
       const keyboardOpen = viewport.height < window.innerHeight - 120;
       if (keyboardWasOpen && !keyboardOpen) {
         // Keyboard just dismissed: clear any residual offset iOS left behind.
         window.scrollTo(0, 0);
-        document.documentElement.scrollTop = 0;
+        root.scrollTop = 0;
       }
       keyboardWasOpen = keyboardOpen;
     };
-    viewport.addEventListener("resize", onResize);
-    return () => viewport.removeEventListener("resize", onResize);
+    onViewportChange();
+    viewport.addEventListener("resize", onViewportChange);
+    viewport.addEventListener("scroll", onViewportChange);
+    return () => {
+      viewport.removeEventListener("resize", onViewportChange);
+      viewport.removeEventListener("scroll", onViewportChange);
+      root.style.removeProperty("--app-viewport-height");
+    };
   }, []);
 
   // Portaled to document.body so no shell ancestor (pull-to-refresh, page

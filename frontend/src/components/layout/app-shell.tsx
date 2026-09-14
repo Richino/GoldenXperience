@@ -22,7 +22,6 @@ import { PwaPullToRefresh } from "@/components/ui/pwa-pull-to-refresh";
 import { SignOutButton } from "@/components/ui/sign-out-button";
 import { NotificationProvider } from "@/components/notifications/notification-provider";
 import { Toaster } from "@/components/ui/toaster";
-import { KeyboardDebug } from "@/components/dev/keyboard-debug";
 import { apiUrl } from "@/lib/api/url";
 import type { AccountSummary, ConnectionStatus } from "@/types/forex";
 
@@ -332,7 +331,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <NotificationProvider>
     <Toaster />
-    <KeyboardDebug />{/* TEMP: remove after diagnosing the iOS keyboard shift */}
     <PwaPullToRefresh>
       <NavigationProgress />
       <div

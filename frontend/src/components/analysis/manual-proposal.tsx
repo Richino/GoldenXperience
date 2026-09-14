@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { LoaderCircle } from "lucide-react";
 import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
-import { displayNameFor } from "@/lib/instruments/catalog";
+import { displayNameFor, pipSizeFor } from "@/lib/instruments/catalog";
 
 export type ManualProposal = {
   instrument: string;
@@ -156,10 +156,13 @@ export function useManualProposal() {
 /** The reviewable AI-proposal modal. Portals to <body>, above the page. */
 export function ManualProposalModal({
   proposal,
+  currentPrice = null,
   onDismiss,
   onAccept,
 }: {
   proposal: ManualProposal | null;
+  /** The live executable side: Ask for a long, Bid for a short. */
+  currentPrice?: number | null;
   onDismiss: () => void;
   /** Starts navigation and may return a cancellation function for the handoff. */
   onAccept: () => void | (() => void);
@@ -182,6 +185,17 @@ export function ManualProposalModal({
   );
 
   if (!proposal) return null;
+
+  const executableSide = proposal.direction === "long" ? "Ask" : "Bid";
+  const currentPriceIsValid = currentPrice !== null && Number.isFinite(currentPrice);
+  const entryDistancePips = currentPriceIsValid
+    ? (currentPrice - proposal.entry) / pipSizeFor(proposal.instrument)
+    : null;
+  const entryDistanceLabel = entryDistancePips === null
+    ? "Waiting for a live quote"
+    : Math.abs(entryDistancePips) < 0.05
+      ? "At entry"
+      : `${Math.abs(entryDistancePips).toFixed(1)} pips ${entryDistancePips > 0 ? "above" : "below"} entry`;
 
   function dismiss() {
     cancelOpenRef.current?.();
@@ -211,6 +225,11 @@ export function ManualProposalModal({
             </div>
             <strong>{proposal.confidence}% <small>confidence</small></strong>
           </header>
+          <div className="manual-proposal-quote" aria-label={`Live ${executableSide} price`}>
+            <span>Live {executableSide}</span>
+            <strong>{currentPriceIsValid ? formatChartPrice(currentPrice, proposal.instrument) : "—"}</strong>
+            <small>{entryDistanceLabel}</small>
+          </div>
           <dl>
             <div><dt>Entry</dt><dd>{formatChartPrice(proposal.entry, proposal.instrument)}</dd></div>
             <div><dt>Stop</dt><dd>{formatChartPrice(proposal.stop, proposal.instrument)}</dd></div>

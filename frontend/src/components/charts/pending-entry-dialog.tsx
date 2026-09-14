@@ -107,7 +107,11 @@ export function PendingEntryDialog({
     const previousBodyWidth = document.body.style.width;
     const previousHtmlOverflow = document.documentElement.style.overflow;
     const previousHtmlOverscroll = document.documentElement.style.overscrollBehavior;
-    const scrollY = window.scrollY;
+    // The chart is a fixed workspace. Do not let an iOS input-reveal scroll be
+    // captured as a negative body offset when this dialog applies its lock.
+    const scrollY = 0;
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
     let touchStartY: number | null = null;
     const onKeyDown = (event: KeyboardEvent) => event.key === "Escape" && onClose();
     const onTouchStart = (event: TouchEvent) => {
@@ -184,6 +188,16 @@ export function PendingEntryDialog({
   );
   const isDetail = Boolean(selectedEntry && !editing);
 
+  function resetDialogDocumentScroll() {
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    // iOS performs its reveal scroll after focus dispatches.
+    window.requestAnimationFrame(() => {
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+    });
+  }
+
   function openCustomExpirationPicker() {
     const fields = expirationFieldValues(customExpiration || null);
     setCustomDate(fields.date);
@@ -256,7 +270,7 @@ export function PendingEntryDialog({
     <>
       {createPortal((
     <div className="pending-entry-backdrop" data-pull-to-refresh-ignore="true" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className={`pending-entry-dialog${initialProposal ? " is-proposal" : ""}`} role="dialog" aria-modal="true" aria-labelledby="pending-entry-title">
+      <section className={`pending-entry-dialog${initialProposal ? " is-proposal" : ""}`} role="dialog" aria-modal="true" aria-labelledby="pending-entry-title" onFocusCapture={resetDialogDocumentScroll}>
         <header>
           <div>
             <span>{isDetail ? selectedEntry?.status : selectedEntry ? "Edit pending entry" : "Pending manual entry"}</span>

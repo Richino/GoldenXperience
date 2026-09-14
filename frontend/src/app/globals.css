@@ -958,14 +958,29 @@ html.mobile-sheet-open body {
   overscroll-behavior: contain;
 }
 
-/* Leave pair selection as a drawer, but when its search field has focus move
-   the drawer's bottom edge to the visual viewport above the software keyboard.
-   `visualViewport` values are supplied by MobileSheet because iOS PWA `dvh`
-   can keep reporting the larger, pre-keyboard viewport. */
+/* Pair selection owns its own scrolling surface. When its search field has
+   focus, move the drawer above the software keyboard but keep its body as the
+   scroll container; the page behind it stays locked. */
 @media (max-width: 1023px) {
-  .mobile-sheet.signals-pair-mobile-sheet:has(.signals-search:focus-within) {
+  .mobile-sheet.signals-pair-mobile-sheet {
+    height: min(86dvh, 42rem);
+    max-height: min(86dvh, 42rem);
+    /* `touch-action` is intersected through ancestors on iOS. The shared
+       sheet's `none` was cancelling this list body's `pan-y` before it could
+       scroll. The grip keeps its own `none`, so drawer dismissal still works. */
+    touch-action: pan-y;
+  }
+
+  .mobile-sheet.signals-pair-mobile-sheet .mobile-sheet-body {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+  }
+
+  .mobile-sheet.signals-pair-mobile-sheet[data-keyboard-open="true"]:has(.signals-search:focus-within) {
     bottom: var(--mobile-sheet-keyboard-offset, 0px);
-    max-height: min(78vh, var(--mobile-sheet-visible-height, 78vh));
+    height: var(--mobile-sheet-visible-height, 86dvh);
+    max-height: var(--mobile-sheet-visible-height, 86dvh);
   }
 }
 
@@ -6651,10 +6666,20 @@ html.mobile-sheet-open body {
   }
 
   @supports (-webkit-touch-callout: none) {
-    /* Analyze is visually lifted above the floating iPhone dock. Reserve that
-       lift in the normal flex flow too, so it cannot paint over the toolbar. */
-    .signals-view:not(.signals-view-fullscreen) .gx-mobile-chart-toolbar {
-      margin-bottom: 1.4rem;
+    /* The dock is a `position: fixed` overlay covering the bottom of the
+       viewport-height chart column, so the in-flow Analyze action lands
+       underneath it unless we reserve the dock's height in the flow. A 22px
+       lift wasn't nearly enough; reserve the full dock height (which already
+       includes the iPhone home-indicator clearance — see AppShell measuring
+       dock.offsetHeight and .mobile-dock's padding-bottom). */
+    .signals-view:not(.signals-view-fullscreen) .signals-chart-mobile {
+      padding-bottom: calc(var(--app-dock-height, 5.5rem) + 1rem);
+    }
+    /* The reservation above replaces the old translate/margin lift hacks, so
+       the action sits naturally just above the dock. */
+    .signals-view:not(.signals-view-fullscreen) .gx-mobile-analyze-section {
+      transform: none;
+      padding: 0.75rem 1rem 0;
     }
   }
 
@@ -13522,7 +13547,11 @@ html:has(.manual-proposal-backdrop) .mobile-dock {
 .manual-proposal header small { display: block; font-size: .5rem; text-transform: uppercase; }
 .manual-proposal-warning { margin-top: 1rem; border-left: 2px solid var(--pending); padding-left: .6rem; color: var(--muted); font-size: .72rem; }
 .manual-proposal-entry-time { margin-top: .2rem; border-left: 2px solid var(--accent); padding-left: .6rem; color: var(--muted-strong); font-size: .75rem; line-height: 1.45; }
-.manual-proposal dl { display: grid; grid-template-columns: repeat(3, 1fr); gap: .55rem; margin: 1rem 0; }
+.manual-proposal-quote { display: grid; grid-template-columns: auto 1fr auto; align-items: baseline; gap: .45rem .7rem; margin-top: .85rem; border: 1px solid color-mix(in srgb, var(--accent) 36%, var(--border)); border-radius: .65rem; padding: .55rem .65rem; background: color-mix(in srgb, var(--accent) 7%, var(--surface-raised)); }
+.manual-proposal-quote span { color: var(--muted); font-size: .6rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.manual-proposal-quote strong { color: var(--accent); font-size: .88rem; font-variant-numeric: tabular-nums; }
+.manual-proposal-quote small { color: var(--muted-strong); font-size: .65rem; text-align: right; }
+.manual-proposal dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .55rem; margin: .65rem 0 1rem; }
 .manual-proposal dl div { border: 1px solid var(--border); border-radius: .55rem; padding: .55rem; }
 .manual-proposal dd { margin-top: .22rem; font-size: .75rem; font-weight: 800; }
 .manual-proposal > p:not(.manual-proposal-warning) { margin-top: .7rem; color: var(--muted-strong); font-size: .75rem; line-height: 1.45; overflow-wrap: anywhere; }
@@ -13536,7 +13565,7 @@ html:has(.manual-proposal-backdrop) .mobile-dock {
 .pending-cancel-confirm { border: 0; background: var(--danger); color: #fff; }
 .pending-cancel-confirm:disabled { cursor: wait; opacity: .7; }
 .manual-analysis-error { position: fixed; z-index: 91; right: 1rem; bottom: 1rem; max-width: min(26rem, calc(100vw - 2rem)); border: 1px solid color-mix(in srgb, var(--danger) 50%, var(--border)); border-radius: .65rem; padding: .75rem; background: var(--surface); color: var(--danger); font-size: .75rem; box-shadow: 0 .8rem 2rem color-mix(in srgb, #000 30%, transparent); }
-@media (max-width: 1023px) { .markets-row-plan { width: 100%; } .markets-row-analyze { margin-left: auto; padding: .3rem .6rem; } .manual-proposal-backdrop { align-items: end; min-height: 100dvh; padding-bottom: calc(var(--app-dock-height, 5rem) + .75rem + env(safe-area-inset-bottom, 0px)); } .manual-proposal-backdrop::after { position: absolute; right: 0; bottom: calc(-1 * env(safe-area-inset-bottom, 0px)); left: 0; height: env(safe-area-inset-bottom, 0px); background: inherit; content: ""; pointer-events: none; } .manual-proposal { align-self: end; max-height: calc(100dvh - var(--app-dock-height, 5rem) - 2rem); overflow-y: auto; border-radius: 1rem; } .manual-proposal dl { grid-template-columns: 1fr; } .manual-proposal footer { position: sticky; bottom: 0; padding-top: .8rem; background: var(--surface); } .manual-proposal footer button { flex: 1; } }
+@media (max-width: 1023px) { .markets-row-plan { width: 100%; } .markets-row-analyze { margin-left: auto; padding: .3rem .6rem; } .manual-proposal-backdrop { align-items: end; min-height: 100dvh; padding: .75rem .75rem calc(var(--app-dock-height, 5rem) + .75rem + env(safe-area-inset-bottom, 0px)); } .manual-proposal-backdrop::after { position: absolute; right: 0; bottom: calc(-1 * env(safe-area-inset-bottom, 0px)); left: 0; height: env(safe-area-inset-bottom, 0px); background: inherit; content: ""; pointer-events: none; } .manual-proposal { align-self: end; max-height: calc(100dvh - var(--app-dock-height, 5rem) - 1.5rem); overflow-y: auto; border-radius: 1rem; padding: .95rem; } .manual-proposal-quote { grid-template-columns: auto 1fr; } .manual-proposal-quote small { grid-column: 1 / -1; text-align: left; } .manual-proposal dl { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .4rem; } .manual-proposal dl div { min-width: 0; padding: .48rem; } .manual-proposal dd { overflow: hidden; font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; } .manual-proposal footer { position: sticky; bottom: 0; padding-top: .8rem; background: var(--surface); } .manual-proposal footer button { flex: 1; } }
 
 .pending-entry-levels { display: grid; grid-template-columns: 1fr 1fr; gap: .65rem; }
 .pending-entry-proposal-note { margin: 0; border-left: 2px solid var(--pending); padding-left: .6rem; color: var(--muted-strong); font-size: .72rem; line-height: 1.45; }

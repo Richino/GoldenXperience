@@ -634,6 +634,11 @@ export function WatchlistView() {
       )}
       <ManualProposalModal
         proposal={proposal}
+        currentPrice={proposal
+          ? proposal.direction === "long"
+            ? quotes[proposal.instrument]?.ask ?? null
+            : quotes[proposal.instrument]?.bid ?? null
+          : null}
         onDismiss={() => setProposal(null)}
         onAccept={acceptProposal}
       />

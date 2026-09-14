@@ -22,6 +22,8 @@ export function MobileSheet({
   title,
   headerAction,
   lockPageScroll = true,
+  resetPageScrollOnOpen = false,
+  resetPageScrollOnInputFocus = false,
   keyboardAvoiding = false,
   className,
   children,
@@ -34,6 +36,10 @@ export function MobileSheet({
   /** The chart already fills a non-scrolling PWA viewport, so it can opt out
    * of iOS's fragile fixed-body scroll lock. */
   lockPageScroll?: boolean;
+  /** Start the fixed-body lock from the top, ignoring an iOS focus-scroll. */
+  resetPageScrollOnOpen?: boolean;
+  /** Reassert the top position after an input receives focus on iOS. */
+  resetPageScrollOnInputFocus?: boolean;
   /** Keep an input-focused drawer above the software keyboard. */
   keyboardAvoiding?: boolean;
   className?: string;
@@ -53,6 +59,11 @@ export function MobileSheet({
   // every tick — the keyboard opened and immediately closed.
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+
+  const resetDocumentScroll = useCallback(() => {
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -76,7 +87,10 @@ export function MobileSheet({
 
     const { body } = document;
     const root = document.documentElement;
-    const scrollY = window.scrollY;
+    const scrollY = resetPageScrollOnOpen ? 0 : window.scrollY;
+    if (resetPageScrollOnOpen && window.scrollY !== 0) {
+      resetDocumentScroll();
+    }
     const previous = {
       position: body.style.position,
       top: body.style.top,
@@ -99,12 +113,13 @@ export function MobileSheet({
       root.classList.remove("mobile-sheet-open");
       window.scrollTo(0, scrollY);
     };
-  }, [lockPageScroll, open]);
+  }, [lockPageScroll, open, resetDocumentScroll, resetPageScrollOnOpen]);
 
   /* iOS PWAs keep the layout viewport at its pre-keyboard height. Fixed
    * drawers therefore remain beneath the keyboard unless we explicitly move
    * their bottom edge to visualViewport's visible bottom. This is scoped to
-   * sheets that opt in, and CSS only applies it while a search field is focused. */
+   * sheets that opt in. CSS also requires a measured keyboard, because iOS can
+   * leave focus on an input after the keyboard has already been dismissed. */
   useEffect(() => {
     if (!open || !keyboardAvoiding) return;
 
@@ -115,8 +130,10 @@ export function MobileSheet({
     const sync = () => {
       const layoutHeight = Math.max(window.innerHeight, document.documentElement.clientHeight);
       const keyboardOffset = Math.max(0, layoutHeight - viewport.height - viewport.offsetTop);
+      const keyboardOpen = viewport.height < layoutHeight - 120;
       sheet.style.setProperty("--mobile-sheet-keyboard-offset", `${Math.round(keyboardOffset)}px`);
       sheet.style.setProperty("--mobile-sheet-visible-height", `${Math.round(viewport.height)}px`);
+      sheet.dataset.keyboardOpen = keyboardOpen ? "true" : "false";
     };
 
     sync();
@@ -127,6 +144,7 @@ export function MobileSheet({
       viewport.removeEventListener("scroll", sync);
       sheet.style.removeProperty("--mobile-sheet-keyboard-offset");
       sheet.style.removeProperty("--mobile-sheet-visible-height");
+      delete sheet.dataset.keyboardOpen;
     };
   }, [keyboardAvoiding, open]);
 
@@ -264,6 +282,12 @@ export function MobileSheet({
         tabIndex={-1}
         data-pull-to-refresh-ignore="true"
         className={`mobile-sheet${className ? ` ${className}` : ""}`}
+        onFocusCapture={resetPageScrollOnInputFocus ? () => {
+          // iOS performs its input-reveal scroll after focus dispatches; run
+          // again on the next frame to keep the fixed chart origin stable.
+          resetDocumentScroll();
+          window.requestAnimationFrame(resetDocumentScroll);
+        } : undefined}
         style={{
           transform: `translateY(${dragY}px)`,
           transition: dragging ? "none" : undefined,

@@ -868,6 +868,8 @@ function SignalSearch({
           open={open}
           onClose={() => setOpen(false)}
           title="Select a pair"
+          resetPageScrollOnOpen
+          resetPageScrollOnInputFocus
           keyboardAvoiding
           className="signals-pair-mobile-sheet"
         >
@@ -2881,6 +2883,9 @@ export function SignalWorkspace({
 
       <ManualProposalModal
         proposal={manualProposal}
+        currentPrice={manualProposal
+          ? manualProposal.direction === "long" ? quote?.ask ?? null : quote?.bid ?? null
+          : null}
         onDismiss={() => setManualProposal(null)}
         onAccept={acceptManualProposal}
       />

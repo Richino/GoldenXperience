@@ -220,22 +220,33 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // any offset is that keyboard shift: pin it back to the top. This never fires
   // on normal (unlocked) pages, so ordinary scrolling is untouched.
   useEffect(() => {
-    const pin = () => {
+    const root = document.documentElement;
+    const onViewportChange = () => {
       if (
         document.body.style.position === "fixed" &&
-        (window.scrollY !== 0 || document.documentElement.scrollTop !== 0)
+        (window.scrollY !== 0 || root.scrollTop !== 0)
       ) {
         window.scrollTo(0, 0);
       }
+      // How much of the layout viewport the soft keyboard covers, from the
+      // visualViewport. Exposed as --keyboard-inset so open overlays can lift
+      // themselves above the keyboard (see globals.css). 0 when no keyboard.
+      const viewport = window.visualViewport;
+      const inset = viewport
+        ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+        : 0;
+      root.style.setProperty("--keyboard-inset", `${Math.round(inset)}px`);
     };
     const viewport = window.visualViewport;
-    window.addEventListener("scroll", pin, { passive: true });
-    viewport?.addEventListener("resize", pin);
-    viewport?.addEventListener("scroll", pin);
+    window.addEventListener("scroll", onViewportChange, { passive: true });
+    viewport?.addEventListener("resize", onViewportChange);
+    viewport?.addEventListener("scroll", onViewportChange);
+    onViewportChange();
     return () => {
-      window.removeEventListener("scroll", pin);
-      viewport?.removeEventListener("resize", pin);
-      viewport?.removeEventListener("scroll", pin);
+      window.removeEventListener("scroll", onViewportChange);
+      viewport?.removeEventListener("resize", onViewportChange);
+      viewport?.removeEventListener("scroll", onViewportChange);
+      root.style.removeProperty("--keyboard-inset");
     };
   }, []);
 

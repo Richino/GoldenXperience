@@ -49,6 +49,10 @@ interface OandaTransactionsResponse {
     time: string;
     type: string;
     accountBalance?: string;
+    /** The original order this fill or cancellation resolved. */
+    orderID?: string;
+    price?: string;
+    tradeOpened?: { tradeID?: string };
   }>;
 }
 
@@ -404,6 +408,41 @@ export interface PracticeOrderState {
 }
 
 /**
+ * Resolve a terminal order event from OANDA's immutable transaction ledger.
+ * OANDA can remove a filled/cancelled pending order from the order endpoint,
+ * but its fill/cancel transaction remains and names the original order ID.
+ */
+export function practiceOrderStateFromTransactions(
+  orderId: string,
+  transactions: NonNullable<OandaTransactionsResponse["transactions"]>,
+): PracticeOrderState | null {
+  for (const transaction of [...transactions].reverse()) {
+    if (transaction.orderID !== orderId) continue;
+    if (transaction.type === "ORDER_FILL") {
+      const fillPrice = transaction.price !== undefined && Number.isFinite(Number(transaction.price))
+        ? Number(transaction.price)
+        : null;
+      return {
+        state: "FILLED",
+        tradeId: transaction.tradeOpened?.tradeID ?? null,
+        fillPrice,
+      };
+    }
+    if (transaction.type === "ORDER_CANCEL") {
+      return { state: "CANCELLED", tradeId: null, fillPrice: null };
+    }
+  }
+  return null;
+}
+
+async function getPracticeOrderStateFromTransactions(config: OandaConfig, orderId: string) {
+  const response = await requestOanda<OandaTransactionsResponse>(
+    `/v3/accounts/${encodeURIComponent(config.accountId)}/transactions/sinceid?id=${encodeURIComponent(orderId)}`,
+  );
+  return practiceOrderStateFromTransactions(orderId, response.transactions ?? []);
+}
+
+/**
  * The broker's state for a resting entry order — used to mirror a manual OANDA
  * order back into the app: PENDING while it waits, FILLED (with a trade id) once
  * price reaches it, CANCELLED if it was pulled or expired.
@@ -411,9 +450,22 @@ export interface PracticeOrderState {
 export async function getPracticeOrderState(orderId: string): Promise<PracticeOrderState | null> {
   const config = getConfig();
   if (!config || !orderId) return null;
-  const response = await requestOanda<{
+  let response: {
     order?: { state?: string; tradeOpenedID?: string; fillingTransactionID?: string; price?: string };
-  }>(`/v3/accounts/${encodeURIComponent(config.accountId)}/orders/${encodeURIComponent(orderId)}`);
+  };
+  try {
+    response = await requestOanda<{
+      order?: { state?: string; tradeOpenedID?: string; fillingTransactionID?: string; price?: string };
+    }>(`/v3/accounts/${encodeURIComponent(config.accountId)}/orders/${encodeURIComponent(orderId)}`);
+  } catch (error) {
+    // A terminal order may no longer be available from /orders/:id. Its ledger
+    // event is authoritative and is the only safe source for deciding whether
+    // to open the app-side trade or mark the entry cancelled.
+    if (error instanceof OandaRequestError && error.status === 404) {
+      return getPracticeOrderStateFromTransactions(config, orderId);
+    }
+    throw error;
+  }
   const order = response.order;
   if (!order?.state) return null;
   const fillPrice = order.price !== undefined && Number.isFinite(Number(order.price)) ? Number(order.price) : null;

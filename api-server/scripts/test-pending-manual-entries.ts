@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { decidePendingManualEntryEvent, inferPendingOrderType } from "../src/pending-manual-entries.js";
 import { pipSizeFor } from "../../frontend/src/lib/instruments/catalog.js";
+import { practiceOrderStateFromTransactions } from "../../frontend/src/lib/oanda/client.js";
 
 assert.equal(inferPendingOrderType("long", 0.582, 0.58129), "buy_stop");
 assert.equal(inferPendingOrderType("long", 0.5805, 0.58129), "buy_limit");
@@ -32,5 +33,15 @@ assert.equal(decidePendingManualEntryEvent({
   entryOrderType: "sell_limit", entryPrice: 1.2, invalidationPrice: 1.05, invalidationSide: "below",
   previousPrice: 1.1, currentPrice: 1.11, expiresAt: null, tickTime,
 }), null);
+
+assert.deepEqual(practiceOrderStateFromTransactions("1516", [
+  { id: "1517", time: tickTime.toISOString(), type: "ORDER_FILL", orderID: "1516", price: "154.103", tradeOpened: { tradeID: "1518" } },
+]), { state: "FILLED", tradeId: "1518", fillPrice: 154.103 });
+assert.deepEqual(practiceOrderStateFromTransactions("1516", [
+  { id: "1517", time: tickTime.toISOString(), type: "ORDER_CANCEL", orderID: "1516" },
+]), { state: "CANCELLED", tradeId: null, fillPrice: null });
+assert.equal(practiceOrderStateFromTransactions("1516", [
+  { id: "1517", time: tickTime.toISOString(), type: "ORDER_FILL", orderID: "1515", price: "154.103" },
+]), null);
 
 console.log("Pending manual entry checks passed.");

@@ -39,17 +39,24 @@ export function MobileSheet({
   const latest = useRef<{ y: number; time: number } | null>(null);
   const active = useRef(false);
 
+  // onClose is recreated by the parent on every render (e.g. live price ticks),
+  // so keep it in a ref. Depending on it here re-ran this effect constantly,
+  // and the sheetRef.focus() below then stole focus from the search input on
+  // every tick — the keyboard opened and immediately closed.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     if (!open) return;
 
     function handleEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") onCloseRef.current();
     }
 
     document.addEventListener("keydown", handleEscape);
     sheetRef.current?.focus();
     return () => document.removeEventListener("keydown", handleEscape);
-  }, [onClose, open]);
+  }, [open]);
 
   /*
    * iOS ignores `overflow: hidden` on the body for touch scrolling, so the page
@@ -103,9 +110,9 @@ export function MobileSheet({
       setDragging(false);
       setDragY(0);
 
-      if (distance > DISMISS_DISTANCE || velocity > DISMISS_VELOCITY) onClose();
+      if (distance > DISMISS_DISTANCE || velocity > DISMISS_VELOCITY) onCloseRef.current();
     },
-    [onClose],
+    [],
   );
 
   /*

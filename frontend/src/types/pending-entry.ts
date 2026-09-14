@@ -22,6 +22,8 @@ export interface PendingManualEntry {
   stopPrice: number | null;
   targetPrice: number | null;
   paperTradeId: string | null;
+  /** Current state of the paper trade created when this entry triggered. */
+  paperTradeStatus: "open" | "closed" | null;
   failureReason: string | null;
   triggeredAt: string | null;
   cancelledAt: string | null;

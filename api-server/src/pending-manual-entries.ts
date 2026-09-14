@@ -116,6 +116,7 @@ export type PendingManualEntry = {
   stopPrice: number | null;
   targetPrice: number | null;
   paperTradeId: string | null;
+  paperTradeStatus: "open" | "closed" | null;
   failureReason: string | null;
   triggeredAt: string | null;
   cancelledAt: string | null;
@@ -141,6 +142,7 @@ type EntryRow = {
   stop_price: string | null;
   target_price: string | null;
   paper_trade_id: string | null;
+  paper_trade_status?: "open" | "closed" | null;
   failure_reason: string | null;
   last_observed_price: string | null;
   triggered_at: string | null;
@@ -177,6 +179,7 @@ function serialize(row: EntryRow): PendingManualEntry {
     stopPrice: numberOrNull(row.stop_price),
     targetPrice: numberOrNull(row.target_price),
     paperTradeId: row.paper_trade_id,
+    paperTradeStatus: row.paper_trade_status ?? null,
     failureReason: row.failure_reason,
     triggeredAt: row.triggered_at,
     cancelledAt: row.cancelled_at,
@@ -271,7 +274,11 @@ export async function pendingManualEntriesForUser(userId: string, instrument?: s
   const instrumentClause = instrument ? " AND instrument=$2" : "";
   if (instrument) values.push(instrument);
   const result = await query<EntryRow>(
-    `SELECT ${SELECT_FIELDS} FROM pending_manual_entries WHERE user_id=$1${instrumentClause} ORDER BY created_at DESC`,
+    `SELECT ${SELECT_FIELDS},
+            (SELECT trade.status FROM paper_trades trade WHERE trade.id=pending_manual_entries.paper_trade_id) AS paper_trade_status
+       FROM pending_manual_entries
+      WHERE user_id=$1${instrumentClause}
+      ORDER BY created_at DESC`,
     values,
   );
   return result.rows.map(serialize);
@@ -428,6 +435,19 @@ export async function cancelPendingManualEntry(userId: string, id: string) {
     event: "cancelled",
   });
   return cancelled;
+}
+
+/** Result R from the actual broker exit against the manual entry/stop geometry. */
+export function manualBrokerCloseResultR(input: {
+  direction: PendingManualEntryDirection;
+  entry: number;
+  stop: number;
+  exit: number;
+}) {
+  const risk = Math.abs(input.entry - input.stop);
+  if (!(risk > 0) || !Number.isFinite(input.exit)) return null;
+  const reward = input.direction === "long" ? input.exit - input.entry : input.entry - input.exit;
+  return Number((reward / risk).toFixed(4));
 }
 
 function crossingProgress(previous: number, current: number, level: number) {
@@ -733,8 +753,8 @@ export async function reconcileManualOandaOrders() {
   }
 
   // 2) Open trades with a broker leg → square the app trade once OANDA closes it.
-  const open = await query<{ id: string; user_id: string; pair: string; direction: PendingManualEntryDirection; entry: string; broker_trade_id: string }>(
-    `SELECT t.id, t.user_id, t.pair, t.direction, t.entry::text AS entry, e.metadata->>'brokerTradeId' AS broker_trade_id
+  const open = await query<{ id: string; user_id: string; pair: string; direction: PendingManualEntryDirection; entry: string; stop: string; broker_trade_id: string }>(
+    `SELECT t.id, t.user_id, t.pair, t.direction, t.entry::text AS entry, t.stop::text AS stop, e.metadata->>'brokerTradeId' AS broker_trade_id
        FROM paper_trades t
        JOIN pending_manual_entries e ON e.paper_trade_id = t.id
       WHERE t.origin='manual' AND t.status='open' AND e.metadata->>'brokerTradeId' IS NOT NULL`,
@@ -747,10 +767,11 @@ export async function reconcileManualOandaOrders() {
       const exit = state.averageClosePrice ?? entry;
       const pl = state.realizedPL ?? 0;
       const result = pl > 0 ? "win" : pl < 0 ? "loss" : "breakeven";
+      const resultR = manualBrokerCloseResultR({ direction: row.direction, entry, stop: Number(row.stop), exit });
       const updated = await query<{ id: string }>(
-        `UPDATE paper_trades SET status='closed', result=$2, exit=$3, closed_at=$4, updated_at=now()
+        `UPDATE paper_trades SET status='closed', result=$2, exit=$3, result_r=$4, paper_pl=$5, closed_at=$6, updated_at=now()
           WHERE id=$1 AND status='open' RETURNING id`,
-        [row.id, result, exit, state.closeTime ?? new Date().toISOString()],
+        [row.id, result, exit, resultR, state.realizedPL, state.closeTime ?? new Date().toISOString()],
       );
       if (updated.rows[0]) {
         closedTrades += 1;

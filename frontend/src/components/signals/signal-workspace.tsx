@@ -1734,8 +1734,6 @@ export function SignalWorkspace({
     setSelectedPendingEntry(null);
     setPendingEntryDialogOpen(true);
   }, [initialManualProposal, setManualProposal]);
-  // The first pair is already rendered with server-fetched trades.
-  const skipInitialTradeFetchRef = useRef(true);
   const olderRequestInFlightRef = useRef(false);
   const pendingTickRef = useRef<MarketPriceTick | null>(null);
   const marketFrameRef = useRef<number | null>(null);
@@ -2126,9 +2124,18 @@ export function SignalWorkspace({
       ) ?? null,
     [instrument, paperTrades],
   );
+  // A closed trade may remain selected so its historical entry/exit markers
+  // and focused time range stay available. It is not an active plan though:
+  // showing its Entry / SL / TP as live chart levels made completed positions
+  // look as if they were still open.
   const displayedTrade = openPaperTrade ?? focusTrade;
   const triggeredManualEntry = useMemo(
-    () => pendingEntries.find((entry) => entry.status === "TRIGGERED" && entry.stopPrice !== null && entry.targetPrice !== null) ?? null,
+    () => pendingEntries.find((entry) =>
+      entry.status === "TRIGGERED" &&
+      entry.paperTradeStatus === "open" &&
+      entry.stopPrice !== null &&
+      entry.targetPrice !== null,
+    ) ?? null,
     [pendingEntries],
   );
   const focusedPrediction = predictionFocus?.instrument === instrument
@@ -2177,16 +2184,18 @@ export function SignalWorkspace({
     }
     return openSignal;
   }, [activeSetup.pair, instrument, openPaperTrade, openSignal, triggeredManualEntry]);
-  // An open trade takes priority over a historical focus: its own entry, stop,
-  // target and exit are what the chart must display on first load.
+  // Only an open trade owns live Entry / SL / TP overlays. A closed trade can
+  // still be focused for its markers and path, but its completed plan must not
+  // remain on the live chart. Likewise, do not replace that historical focus
+  // with the current strategy draft until the user clears the focus.
   const setupLevels = useMemo(
-    () => displayedTrade ? ({
-      entry: displayedTrade.entry,
-      stop: displayedTrade.stop,
-      target: displayedTrade.target,
-      exit: displayedTrade.exit,
-      outcome: displayedTrade.outcome,
-    }) : initialSetupFocus ? ({
+    () => openPaperTrade ? ({
+      entry: openPaperTrade.entry,
+      stop: openPaperTrade.stop,
+      target: openPaperTrade.target,
+      exit: openPaperTrade.exit,
+      outcome: openPaperTrade.outcome,
+    }) : focusTrade ? null : initialSetupFocus ? ({
       entry: initialSetupFocus.entry,
       stop: initialSetupFocus.stop,
       target: initialSetupFocus.target,
@@ -2195,7 +2204,7 @@ export function SignalWorkspace({
       stop: active.stop,
       target: active.target,
     }) : null,
-    [active, displayedTrade, initialSetupFocus],
+    [active, focusTrade, initialSetupFocus, openPaperTrade],
   );
   const pendingEntryReferenceLines = useMemo(() => {
     const openManager = (entry: PendingManualEntry) => {
@@ -2264,7 +2273,11 @@ export function SignalWorkspace({
         });
         return lines;
       }
-      if (entry.status === "TRIGGERED" && entry.triggerPrice !== null && entry.stopPrice !== null && entry.targetPrice !== null) {
+      // TRIGGERED describes how the pending order ended; it does not mean the
+      // resulting trade is still active. Draw its plan only while the linked
+      // paper trade is open, otherwise every completed manual trade accumulates
+      // another Entry / SL / TP set on the chart.
+      if (entry.status === "TRIGGERED" && entry.paperTradeStatus === "open" && entry.triggerPrice !== null && entry.stopPrice !== null && entry.targetPrice !== null) {
         return [
           { key: `manual-entry-${entry.id}`, price: entry.triggerPrice, label: `ENTRY ${formatChartPrice(entry.triggerPrice, instrument)}`, color: "#00a06a", textColor: "#ffffff", dashed: false, lineWidth: 2 as const, onSelect: () => openManager(entry) },
           { key: `manual-stop-${entry.id}`, price: entry.stopPrice, label: `SL ${formatChartPrice(entry.stopPrice, instrument)} · -1R`, color: "#e74c3c", textColor: "#ffffff", dashed: true, lineWidth: 1 as const, onSelect: () => openManager(entry) },
@@ -2480,13 +2493,12 @@ export function SignalWorkspace({
     timeframe,
   ]);
 
+  // A paper-cycle close happens on the server. Refresh independently of a
+  // route or pair change so the old plan disappears shortly after it resolves.
   useEffect(() => {
-    if (skipInitialTradeFetchRef.current) {
-      skipInitialTradeFetchRef.current = false;
-      return;
-    }
-
     void refreshPaperTrades();
+    const timer = window.setInterval(() => void refreshPaperTrades(), 15_000);
+    return () => window.clearInterval(timer);
   }, [refreshPaperTrades]);
 
   const clearFocusTrade = useCallback(() => {

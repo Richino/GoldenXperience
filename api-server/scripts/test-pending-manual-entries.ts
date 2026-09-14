@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { decidePendingManualEntryEvent, inferPendingOrderType } from "../src/pending-manual-entries.js";
+import { decidePendingManualEntryEvent, inferPendingOrderType, manualBrokerCloseResultR } from "../src/pending-manual-entries.js";
 import { pipSizeFor } from "../../frontend/src/lib/instruments/catalog.js";
-import { practiceOrderStateFromTransactions } from "../../frontend/src/lib/oanda/client.js";
+import { practiceOrderStateFromTransactions, practiceTradeStateFromTransactions } from "../../frontend/src/lib/oanda/client.js";
 
 assert.equal(inferPendingOrderType("long", 0.582, 0.58129), "buy_stop");
 assert.equal(inferPendingOrderType("long", 0.5805, 0.58129), "buy_limit");
@@ -43,5 +43,22 @@ assert.deepEqual(practiceOrderStateFromTransactions("1516", [
 assert.equal(practiceOrderStateFromTransactions("1516", [
   { id: "1517", time: tickTime.toISOString(), type: "ORDER_FILL", orderID: "1515", price: "154.103" },
 ]), null);
+
+assert.deepEqual(practiceTradeStateFromTransactions("1517", [
+  {
+    id: "1528", time: "2026-09-14T07:51:47.498755197Z", type: "ORDER_FILL", price: "154.410", pl: "410.3135", financing: "0.0000",
+    tradesClosed: [{ tradeID: "1517", price: "154.410", realizedPL: "410.3135", financing: "0.0000" }],
+  },
+]), {
+  state: "CLOSED", closed: true, averageClosePrice: 154.41, realizedPL: 410.3135,
+  closeTime: "2026-09-14T07:51:47.498755197Z", entryPrice: null, initialUnits: null, openTime: null, financing: 0,
+});
+assert.equal(practiceTradeStateFromTransactions("1517", [
+  { id: "1528", time: tickTime.toISOString(), type: "ORDER_FILL", tradesClosed: [{ tradeID: "other-trade" }] },
+]), null);
+
+assert.equal(manualBrokerCloseResultR({ direction: "long", entry: 154.09, stop: 153.93, exit: 154.41 }), 2);
+assert.equal(manualBrokerCloseResultR({ direction: "short", entry: 1.35044, stop: 1.35165, exit: 1.34805 }), 1.9752);
+assert.equal(manualBrokerCloseResultR({ direction: "long", entry: 1.2, stop: 1.2, exit: 1.21 }), null);
 
 console.log("Pending manual entry checks passed.");

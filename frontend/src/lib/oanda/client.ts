@@ -52,7 +52,15 @@ interface OandaTransactionsResponse {
     /** The original order this fill or cancellation resolved. */
     orderID?: string;
     price?: string;
+    pl?: string;
+    financing?: string;
     tradeOpened?: { tradeID?: string };
+    tradesClosed?: Array<{
+      tradeID?: string;
+      price?: string;
+      realizedPL?: string;
+      financing?: string;
+    }>;
   }>;
 }
 
@@ -350,6 +358,46 @@ export interface PracticeTradeState {
   financing: number | null;
 }
 
+function transactionNumberOrNull(value: string | undefined) {
+  if (value === undefined) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/**
+ * Resolve a closed trade from OANDA's immutable transaction ledger. OANDA can
+ * remove a terminal trade from /trades/:id; its closing fill remains the
+ * authoritative source for the actual exit, P/L, and close time.
+ */
+export function practiceTradeStateFromTransactions(
+  brokerTradeId: string,
+  transactions: NonNullable<OandaTransactionsResponse["transactions"]>,
+): PracticeTradeState | null {
+  for (const transaction of [...transactions].reverse()) {
+    const closed = transaction.tradesClosed?.find((trade) => trade.tradeID === brokerTradeId);
+    if (!closed) continue;
+    return {
+      state: "CLOSED",
+      closed: true,
+      averageClosePrice: transactionNumberOrNull(closed.price ?? transaction.price),
+      realizedPL: transactionNumberOrNull(closed.realizedPL ?? transaction.pl),
+      closeTime: transaction.time ?? null,
+      entryPrice: null,
+      initialUnits: null,
+      openTime: null,
+      financing: transactionNumberOrNull(closed.financing ?? transaction.financing),
+    };
+  }
+  return null;
+}
+
+async function getPracticeTradeStateFromTransactions(config: OandaConfig, brokerTradeId: string) {
+  const response = await requestOanda<OandaTransactionsResponse>(
+    `/v3/accounts/${encodeURIComponent(config.accountId)}/transactions/sinceid?id=${encodeURIComponent(brokerTradeId)}`,
+  );
+  return practiceTradeStateFromTransactions(brokerTradeId, response.transactions ?? []);
+}
+
 /**
  * The broker's own record of a trade it executed.
  *
@@ -363,7 +411,7 @@ export async function getPracticeTradeState(brokerTradeId: string): Promise<Prac
   const config = getConfig();
   if (!config || !brokerTradeId) return null;
 
-  const response = await requestOanda<{
+  let response: {
     trade?: {
       state?: string;
       averageClosePrice?: string;
@@ -374,27 +422,29 @@ export async function getPracticeTradeState(brokerTradeId: string): Promise<Prac
       openTime?: string;
       financing?: string;
     };
-  }>(`/v3/accounts/${encodeURIComponent(config.accountId)}/trades/${encodeURIComponent(brokerTradeId)}`);
+  };
+  try {
+    response = await requestOanda<typeof response>(`/v3/accounts/${encodeURIComponent(config.accountId)}/trades/${encodeURIComponent(brokerTradeId)}`);
+  } catch (error) {
+    if (error instanceof OandaRequestError && error.status === 404) {
+      return getPracticeTradeStateFromTransactions(config, brokerTradeId);
+    }
+    throw error;
+  }
 
   const trade = response.trade;
   if (!trade?.state) return null;
 
-  const numberOrNull = (value: string | undefined) => {
-    if (value === undefined) return null;
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  };
-
   return {
     state: trade.state,
     closed: trade.state === "CLOSED",
-    averageClosePrice: numberOrNull(trade.averageClosePrice),
-    realizedPL: numberOrNull(trade.realizedPL),
+    averageClosePrice: transactionNumberOrNull(trade.averageClosePrice),
+    realizedPL: transactionNumberOrNull(trade.realizedPL),
     closeTime: trade.closeTime ?? null,
-    entryPrice: numberOrNull(trade.price),
-    initialUnits: numberOrNull(trade.initialUnits),
+    entryPrice: transactionNumberOrNull(trade.price),
+    initialUnits: transactionNumberOrNull(trade.initialUnits),
     openTime: trade.openTime ?? null,
-    financing: numberOrNull(trade.financing),
+    financing: transactionNumberOrNull(trade.financing),
   };
 }
 

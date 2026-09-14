@@ -2020,7 +2020,7 @@ export async function journalTradeLog(
      FROM (
        SELECT id::text, origin, pair, direction, status, result, opened_at, closed_at,
               entry::float, stop::float, target::float, exit::float, result_r::float,
-              NULL::float AS paper_pl, reason, notes, NULL::text AS sequence, NULL::text AS outcome,
+              paper_pl::float, reason, notes, NULL::text AS sequence, NULL::text AS outcome,
                NULL::text AS instrument_code, NULL::float AS nominal_risk_amount,
                NULL::float AS signal_price, NULL::float AS actual_fill_price,
                NULL::int AS max_hold_bars, NULL::int AS bars_held,
@@ -2101,7 +2101,7 @@ export async function journalTradeSummary(userId: string) {
             count(*) FILTER (WHERE result_r < 0 AND NOT broker_rejected)::text AS losses,
             sum(paper_pl) FILTER (WHERE NOT broker_rejected)::text AS "realizedPL"
      FROM (
-       SELECT result_r::float AS result_r, NULL::float AS paper_pl, closed_at, false AS broker_rejected
+       SELECT result_r::float AS result_r, paper_pl::float, closed_at, false AS broker_rejected
        FROM paper_trades
        WHERE user_id=$1 AND status='closed'
        UNION ALL

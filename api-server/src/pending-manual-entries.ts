@@ -1,4 +1,4 @@
-import { getCandles, getAccountSummary, submitPracticeEntryOrder, cancelPracticeOrder } from "../../frontend/src/lib/oanda/client.js";
+import { getCandles, getAccountSummary, submitPracticeEntryOrder, cancelPracticeOrder, getPracticeOrderState, getPracticeTradeState } from "../../frontend/src/lib/oanda/client.js";
 import { precisionFor } from "../../frontend/src/lib/instruments/catalog.js";
 import { calculateAtrValues } from "../../frontend/src/lib/strategy/indicators.js";
 import { calculatePositionSize, DEFAULT_RISK_POLICY } from "../../frontend/src/lib/risk/engine.js";
@@ -503,4 +503,146 @@ export async function recoverTriggeringManualEntries() {
   const rows = await query<{ id: string }>("SELECT id FROM pending_manual_entries WHERE status='TRIGGERING' ORDER BY updated_at");
   for (const row of rows.rows) await finalizeTriggeredEntry(row.id);
   return rows.rowCount;
+}
+
+/**
+ * Close an open manual trade once price reaches its stop or target. Manual
+ * trades are opened by finalizeTriggeredEntry but were never resolved, so they
+ * hung on "open" forever with no result. This marks the outcome from the level
+ * that was hit (paper fill at the level), giving a definite win/loss and R.
+ * OANDA-backed trades let the broker's own SL/TP square the position; this
+ * covers the paper trades that have no broker leg.
+ */
+export async function resolveOpenManualTrades(tick: MarketPriceTick) {
+  if (!(tick.bid > 0) || !(tick.ask > 0)) return { closed: 0 };
+  const pair = tick.instrument.replace("_", "/");
+  const closed = await transaction(async (client) => {
+    // OANDA-backed trades (their entry carries a brokerTradeId) are squared by
+    // the broker's own SL/TP and mirrored back by reconcileManualOandaOrders —
+    // this paper resolver only closes trades that have no broker leg.
+    const open = await client.query<{ id: string; direction: PendingManualEntryDirection; entry: string; stop: string; target: string }>(
+      `SELECT t.id, t.direction, t.entry::text AS entry, t.stop::text AS stop, t.target::text AS target
+         FROM paper_trades t
+         LEFT JOIN pending_manual_entries e ON e.paper_trade_id = t.id
+        WHERE t.origin='manual' AND t.status='open' AND t.pair=$1
+          AND t.entry IS NOT NULL AND t.stop IS NOT NULL AND t.target IS NOT NULL
+          AND (e.metadata->>'brokerTradeId') IS NULL
+        FOR UPDATE OF t SKIP LOCKED`,
+      [pair],
+    );
+    let count = 0;
+    for (const row of open.rows) {
+      const entry = Number(row.entry), stop = Number(row.stop), target = Number(row.target);
+      // Exit at the price you could actually close on: bid for a long, ask for a short.
+      const exitQuote = row.direction === "long" ? tick.bid : tick.ask;
+      let hit: { exit: number; result: "win" | "loss" } | null = null;
+      if (row.direction === "long") {
+        if (exitQuote <= stop) hit = { exit: stop, result: "loss" };
+        else if (exitQuote >= target) hit = { exit: target, result: "win" };
+      } else {
+        if (exitQuote >= stop) hit = { exit: stop, result: "loss" };
+        else if (exitQuote <= target) hit = { exit: target, result: "win" };
+      }
+      if (!hit) continue;
+      const risk = Math.abs(entry - stop);
+      const reward = row.direction === "long" ? hit.exit - entry : entry - hit.exit;
+      const resultR = risk > 0 ? Number((reward / risk).toFixed(4)) : 0;
+      await client.query(
+        `UPDATE paper_trades SET status='closed', result=$2, exit=$3, result_r=$4, closed_at=now(), updated_at=now()
+          WHERE id=$1 AND status='open'`,
+        [row.id, hit.result, hit.exit, resultR],
+      );
+      count += 1;
+    }
+    return count;
+  });
+  return { closed };
+}
+
+/** Open the app-side trade for a manual OANDA order that just filled. */
+async function openFilledManualTrade(entry: EntryRow, brokerTradeId: string, fillPrice: number | null) {
+  const state = await getPracticeTradeState(brokerTradeId).catch(() => null);
+  const openPrice = state?.entryPrice ?? fillPrice ?? Number(entry.entry_price);
+  const stop = numberOrNull(entry.stop_price) ?? openPrice;
+  const target = numberOrNull(entry.target_price) ?? openPrice;
+  await transaction(async (client) => {
+    const locked = await client.query<EntryRow>(`SELECT ${SELECT_FIELDS} FROM pending_manual_entries WHERE id=$1 FOR UPDATE`, [entry.id]);
+    if (locked.rows[0]?.status !== "PENDING") return;
+    const trade = await client.query<{ id: string }>(
+      `INSERT INTO paper_trades(user_id,legacy_id,origin,pair,direction,status,result,opened_at,entry,stop,target,reason,notes)
+       VALUES($1,$2,'manual',$3,$4,'open','open',now(),$5,$6,$7,'Manual OANDA order filled',$8)
+       ON CONFLICT(user_id,legacy_id) DO UPDATE SET updated_at=paper_trades.updated_at RETURNING id`,
+      [entry.user_id, `pending-entry:${entry.id}`, entry.instrument.replace("_", "/"), entry.direction,
+        openPrice, stop, target, `Filled from OANDA order; broker trade ${brokerTradeId} @ ${openPrice}.`],
+    );
+    await client.query(
+      `UPDATE pending_manual_entries
+          SET status='TRIGGERED', trigger_price=$2, triggered_at=now(), paper_trade_id=$3,
+              metadata = metadata || jsonb_build_object('brokerTradeId', $4::text, 'execution', 'oanda_filled'),
+              updated_at=now()
+        WHERE id=$1 AND status='PENDING'`,
+      [entry.id, openPrice, trade.rows[0]!.id, brokerTradeId],
+    );
+  });
+}
+
+/**
+ * Mirror manual OANDA orders back into the app: a resting order that filled
+ * becomes an open trade (so it shows in the app with the broker's live P&L), a
+ * cancelled/expired order closes the entry, and a broker position that has since
+ * closed squares the app trade. Runs on a short interval from the server.
+ */
+export async function reconcileManualOandaOrders() {
+  let filled = 0, cancelled = 0, closedTrades = 0;
+
+  // 1) Resting orders → detect fill or cancellation.
+  const resting = await query<EntryRow>(
+    `SELECT ${SELECT_FIELDS} FROM pending_manual_entries
+      WHERE status='PENDING' AND metadata->>'brokerOrderId' IS NOT NULL`,
+  );
+  for (const entry of resting.rows) {
+    const orderId = brokerOrderIdOf(entry);
+    if (!orderId) continue;
+    try {
+      const state = await getPracticeOrderState(orderId);
+      if (!state) continue;
+      if (state.state === "FILLED" && state.tradeId) {
+        await openFilledManualTrade(entry, state.tradeId, state.fillPrice);
+        filled += 1;
+      } else if (state.state === "CANCELLED") {
+        await query("UPDATE pending_manual_entries SET status='CANCELLED',cancelled_at=now(),updated_at=now() WHERE id=$1 AND status='PENDING'", [entry.id]);
+        cancelled += 1;
+      }
+    } catch (error) {
+      console.error(`[pending-entry] reconcile order ${orderId} failed`, error);
+    }
+  }
+
+  // 2) Open trades with a broker leg → square the app trade once OANDA closes it.
+  const open = await query<{ id: string; direction: PendingManualEntryDirection; entry: string; broker_trade_id: string }>(
+    `SELECT t.id, t.direction, t.entry::text AS entry, e.metadata->>'brokerTradeId' AS broker_trade_id
+       FROM paper_trades t
+       JOIN pending_manual_entries e ON e.paper_trade_id = t.id
+      WHERE t.origin='manual' AND t.status='open' AND e.metadata->>'brokerTradeId' IS NOT NULL`,
+  );
+  for (const row of open.rows) {
+    try {
+      const state = await getPracticeTradeState(row.broker_trade_id);
+      if (!state?.closed) continue;
+      const entry = Number(row.entry);
+      const exit = state.averageClosePrice ?? entry;
+      const pl = state.realizedPL ?? 0;
+      const result = pl > 0 ? "win" : pl < 0 ? "loss" : "breakeven";
+      await query(
+        `UPDATE paper_trades SET status='closed', result=$2, exit=$3, closed_at=$4, updated_at=now()
+          WHERE id=$1 AND status='open'`,
+        [row.id, result, exit, state.closeTime ?? new Date().toISOString()],
+      );
+      closedTrades += 1;
+    } catch (error) {
+      console.error(`[pending-entry] reconcile trade ${row.broker_trade_id} failed`, error);
+    }
+  }
+
+  return { filled, cancelled, closedTrades };
 }

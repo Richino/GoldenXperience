@@ -50,6 +50,8 @@ import {
   expirePendingManualEntries,
   pendingManualEntriesForUser,
   recoverTriggeringManualEntries,
+  resolveOpenManualTrades,
+  reconcileManualOandaOrders,
 } from "./pending-manual-entries.js";
 
 // The multi-strategy + adaptive engine replaces the single liquidity strategy as
@@ -624,6 +626,10 @@ function handlePrice(tick: MarketPriceTick) {
   pendingEntryLastCheck.set(tick.instrument, now);
   pendingEntryChecks.add(tick.instrument);
   void evaluatePendingManualEntries(tick)
+    // Also square any open manual (paper) trade whose stop or target this tick
+    // reached — manual trades have no other resolver, so they would otherwise
+    // stay open forever.
+    .then(() => resolveOpenManualTrades(tick))
     .catch((error) => console.error(`[pending-entry] ${tick.instrument} evaluation failed`, error))
     .finally(() => pendingEntryChecks.delete(tick.instrument));
 }
@@ -668,6 +674,17 @@ if (databaseConfigured() && schedulersEnabled) {
   pendingEntryMonitoringEnabled = config.isConfigured;
   if (pendingEntryMonitoringEnabled) {
     void recoverTriggeringManualEntries().catch((error) => console.error("[pending-entry] recovery failed", error));
+    // Poll OANDA to mirror manual orders back into the app: resting orders that
+    // filled become open trades, cancellations close the entry, and closed
+    // broker positions square the app trade. Serialised so slow polls never overlap.
+    let reconcileBusy = false;
+    setInterval(() => {
+      if (reconcileBusy) return;
+      reconcileBusy = true;
+      void reconcileManualOandaOrders()
+        .catch((error) => console.error("[pending-entry] OANDA reconciliation failed", error))
+        .finally(() => { reconcileBusy = false; });
+    }, 8_000);
   } else {
     console.log("[pending-entry] monitoring disabled because OANDA pricing is not configured");
   }

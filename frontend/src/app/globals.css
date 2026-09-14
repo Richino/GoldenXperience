@@ -12499,9 +12499,9 @@ html:has(.pending-entry-backdrop) .mobile-dock {
 @media (max-width: 767px) {
   .trades-table { display: none; }
   .trades-cards { display: flex; }
-  /* The selected row is already expanded in the detail panel immediately
-     below this list. Keeping its compact card creates a duplicate position. */
-  .trades-cards .trade-card.is-selected { display: none; }
+  /* The detail panel is hidden on phones (cards carry every figure), so the
+     selected card must stay visible — hiding it made the auto-selected first
+     trade of each tab disappear entirely. */
 }
 
 /* Mobile chart toolbar: the four controls (Indicators, Range, Chart type,

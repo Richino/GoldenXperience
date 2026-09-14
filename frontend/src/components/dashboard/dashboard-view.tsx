@@ -227,7 +227,32 @@ export function DashboardView({
   const quotes = useLiveQuotes();
   // Real fills, so an open row reports the same money as the account hero.
   const fills = useOpenPositionFills();
-  const openTrades = overview.openTrades ?? overview.trades.filter((trade) => trade.status === "open");
+  const overviewOpen = overview.openTrades ?? overview.trades.filter((trade) => trade.status === "open");
+  const overviewOpenIds = new Set(overviewOpen.map((trade) => trade.id));
+  // Manual trades live in the journal, not the strategy overview, so their open
+  // ones must be pulled in here too — otherwise a filled manual entry shows in
+  // the journal but never in the home Open Positions section.
+  const manualOpen: Trade[] = journalTrades
+    .filter((trade) => trade.status === "open" && trade.origin === "manual" && !overviewOpenIds.has(trade.id))
+    .map((trade) => ({
+      id: trade.id,
+      tradeSequence: trade.sequence ?? "",
+      // `pair` is a display name ("EUR/USD"); the OANDA code ("EUR_USD") is what
+      // joins to live quotes, so recover it when the row carries no instrument.
+      instrument: trade.instrument ?? trade.pair.replace("/", "_"),
+      direction: trade.direction,
+      status: trade.status,
+      outcome: trade.outcome ?? "",
+      resultR: trade.resultR ?? null,
+      paperPl: trade.paperPl ?? null,
+      openedAt: trade.openedAt,
+      closedAt: trade.closedAt,
+      entry: trade.entry,
+      stop: trade.stop,
+      target: trade.target,
+      nominalRiskAmount: trade.nominalRiskAmount ?? null,
+    }));
+  const openTrades = [...overviewOpen, ...manualOpen];
 
   const refresh = useCallback(async () => {
     try {

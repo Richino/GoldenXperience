@@ -394,6 +394,36 @@ export async function getPracticeTradeState(brokerTradeId: string): Promise<Prac
   };
 }
 
+export interface PracticeOrderState {
+  /** OANDA reports PENDING, FILLED, TRIGGERED or CANCELLED. */
+  state: string;
+  /** The trade the order opened, set once it FILLED. */
+  tradeId: string | null;
+  /** Price the order filled at, when known. */
+  fillPrice: number | null;
+}
+
+/**
+ * The broker's state for a resting entry order — used to mirror a manual OANDA
+ * order back into the app: PENDING while it waits, FILLED (with a trade id) once
+ * price reaches it, CANCELLED if it was pulled or expired.
+ */
+export async function getPracticeOrderState(orderId: string): Promise<PracticeOrderState | null> {
+  const config = getConfig();
+  if (!config || !orderId) return null;
+  const response = await requestOanda<{
+    order?: { state?: string; tradeOpenedID?: string; fillingTransactionID?: string; price?: string };
+  }>(`/v3/accounts/${encodeURIComponent(config.accountId)}/orders/${encodeURIComponent(orderId)}`);
+  const order = response.order;
+  if (!order?.state) return null;
+  const fillPrice = order.price !== undefined && Number.isFinite(Number(order.price)) ? Number(order.price) : null;
+  return {
+    state: order.state,
+    tradeId: order.tradeOpenedID ?? null,
+    fillPrice,
+  };
+}
+
 function buildStatus(
   state: ConnectionStatus["state"],
   message: string,

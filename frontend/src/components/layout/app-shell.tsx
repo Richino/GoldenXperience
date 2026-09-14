@@ -213,6 +213,32 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, [isClient]);
 
+  // iOS PWA keyboard fix. When an overlay (a sheet or dialog) locks the body
+  // with position:fixed and you focus an input, iOS scrolls the document to
+  // reveal it — shifting the fixed nav/sheet up and leaving a gap that persists
+  // until reload. While the body is locked the window has nothing to scroll, so
+  // any offset is that keyboard shift: pin it back to the top. This never fires
+  // on normal (unlocked) pages, so ordinary scrolling is untouched.
+  useEffect(() => {
+    const pin = () => {
+      if (
+        document.body.style.position === "fixed" &&
+        (window.scrollY !== 0 || document.documentElement.scrollTop !== 0)
+      ) {
+        window.scrollTo(0, 0);
+      }
+    };
+    const viewport = window.visualViewport;
+    window.addEventListener("scroll", pin, { passive: true });
+    viewport?.addEventListener("resize", pin);
+    viewport?.addEventListener("scroll", pin);
+    return () => {
+      window.removeEventListener("scroll", pin);
+      viewport?.removeEventListener("resize", pin);
+      viewport?.removeEventListener("scroll", pin);
+    };
+  }, []);
+
   // Portaled to document.body so no shell ancestor (pull-to-refresh, page
   // motion, overflow) can create a containing block and unpin fixed bottom.
   const mobileDock = (

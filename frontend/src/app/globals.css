@@ -13778,17 +13778,3 @@ html:has(.custom-expiration-backdrop) .mobile-dock {
     background: var(--signals-mobile-page-bg);
   }
 }
-
-/* iOS soft-keyboard reposition. --keyboard-inset is the height the keyboard
-   covers, measured live from visualViewport in AppShell (0 when closed). Lift
-   the open overlay above the keyboard so its inputs stay visible: the bottom
-   sheet moves its bottom edge up; the bottom-anchored dialogs add a matching
-   bottom margin (which is 0 when no keyboard, so nothing changes otherwise). */
-.mobile-sheet {
-  bottom: var(--keyboard-inset, 0px);
-}
-.pending-entry-dialog,
-.manual-proposal,
-.custom-expiration-dialog {
-  margin-bottom: var(--keyboard-inset, 0px);
-}

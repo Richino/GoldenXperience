@@ -213,41 +213,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, [isClient]);
 
-  // iOS PWA keyboard fix. When an overlay (a sheet or dialog) locks the body
-  // with position:fixed and you focus an input, iOS scrolls the document to
-  // reveal it — shifting the fixed nav/sheet up and leaving a gap that persists
-  // until reload. While the body is locked the window has nothing to scroll, so
-  // any offset is that keyboard shift: pin it back to the top. This never fires
-  // on normal (unlocked) pages, so ordinary scrolling is untouched.
+  // iOS PWA soft-keyboard cleanup. iOS overlays the keyboard and shifts the
+  // visual viewport to reveal a focused input; when the keyboard closes it can
+  // leave the page scrolled, so a gap sits under the fixed nav until a reload.
+  // Rather than fight the shift while typing (which only opened gaps), just
+  // reset the scroll once the keyboard closes — the automatic version of the
+  // manual refresh. It never touches normal scrolling, only the close edge.
   useEffect(() => {
-    const root = document.documentElement;
-    const onViewportChange = () => {
-      if (
-        document.body.style.position === "fixed" &&
-        (window.scrollY !== 0 || root.scrollTop !== 0)
-      ) {
-        window.scrollTo(0, 0);
-      }
-      // How much of the layout viewport the soft keyboard covers, from the
-      // visualViewport. Exposed as --keyboard-inset so open overlays can lift
-      // themselves above the keyboard (see globals.css). 0 when no keyboard.
-      const viewport = window.visualViewport;
-      const inset = viewport
-        ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
-        : 0;
-      root.style.setProperty("--keyboard-inset", `${Math.round(inset)}px`);
-    };
     const viewport = window.visualViewport;
-    window.addEventListener("scroll", onViewportChange, { passive: true });
-    viewport?.addEventListener("resize", onViewportChange);
-    viewport?.addEventListener("scroll", onViewportChange);
-    onViewportChange();
-    return () => {
-      window.removeEventListener("scroll", onViewportChange);
-      viewport?.removeEventListener("resize", onViewportChange);
-      viewport?.removeEventListener("scroll", onViewportChange);
-      root.style.removeProperty("--keyboard-inset");
+    if (!viewport) return;
+    // The keyboard covers this much of the layout viewport when open.
+    let keyboardWasOpen = viewport.height < window.innerHeight - 120;
+    const onResize = () => {
+      const keyboardOpen = viewport.height < window.innerHeight - 120;
+      if (keyboardWasOpen && !keyboardOpen) {
+        // Keyboard just dismissed: clear any residual offset iOS left behind.
+        window.scrollTo(0, 0);
+        document.documentElement.scrollTop = 0;
+      }
+      keyboardWasOpen = keyboardOpen;
     };
+    viewport.addEventListener("resize", onResize);
+    return () => viewport.removeEventListener("resize", onResize);
   }, []);
 
   // Portaled to document.body so no shell ancestor (pull-to-refresh, page

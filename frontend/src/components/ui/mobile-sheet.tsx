@@ -86,7 +86,24 @@ export function MobileSheet({
     body.style.overflow = "hidden";
     root.classList.add("mobile-sheet-open");
 
+    // iOS scrolls the document to reveal a focused input even though the body is
+    // position:fixed, which shifts the whole sheet up — and it doesn't reset when
+    // the keyboard closes, so the page stays shifted until reload. Pin the scroll
+    // back to the top whenever iOS (or the keyboard's visualViewport change) moves
+    // it. The sheet's own inputs sit near its top, above the keyboard, so nothing
+    // is hidden by holding the page still.
+    const pinScroll = () => {
+      if (window.scrollY !== 0 || root.scrollTop !== 0) window.scrollTo(0, 0);
+    };
+    const viewport = window.visualViewport;
+    window.addEventListener("scroll", pinScroll, { passive: true });
+    viewport?.addEventListener("resize", pinScroll);
+    viewport?.addEventListener("scroll", pinScroll);
+
     return () => {
+      window.removeEventListener("scroll", pinScroll);
+      viewport?.removeEventListener("resize", pinScroll);
+      viewport?.removeEventListener("scroll", pinScroll);
       Object.assign(body.style, previous);
       root.classList.remove("mobile-sheet-open");
       window.scrollTo(0, scrollY);

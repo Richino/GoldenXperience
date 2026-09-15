@@ -1600,7 +1600,6 @@ export function SignalWorkspace({
   initialPaperTrades = [],
   initialFocusTradeId = null,
   initialPredictionFocus = null,
-  initialSetupFocus = null,
   initialManualProposal = null,
 }: {
   strategySetups: StrategySetup[];
@@ -2163,10 +2162,10 @@ export function SignalWorkspace({
     } catch (error) {
       setTradeActionError(error instanceof Error ? error.message : "Could not cancel the trade.");
     } finally {
-      await refreshPendingEntries(); // reflect reconciled state (e.g. it became active)
+      await Promise.all([refreshPendingEntries(), refreshPaperTrades()]);
       setTradeActionBusy(false);
     }
-  }, [pendingManualEntry, refreshPendingEntries]);
+  }, [pendingManualEntry, refreshPendingEntries, refreshPaperTrades]);
 
   const closeManualTrade = useCallback(async () => {
     if (!activeManualTrade) return;
@@ -2184,10 +2183,12 @@ export function SignalWorkspace({
     } catch (error) {
       setTradeActionError(error instanceof Error ? error.message : "Could not close the trade.");
     } finally {
-      await refreshPendingEntries(); // reflect reconciled state (e.g. already closed)
+      // Refresh paper trades too so openPaperTrade clears and its Entry/SL/TP
+      // overlay disappears immediately instead of on the next 15s poll.
+      await Promise.all([refreshPendingEntries(), refreshPaperTrades()]);
       setTradeActionBusy(false);
     }
-  }, [activeManualTrade, instrument, refreshPendingEntries]);
+  }, [activeManualTrade, instrument, refreshPendingEntries, refreshPaperTrades]);
   const focusedPrediction = predictionFocus?.instrument === instrument
     ? predictionFocus
     : null;
@@ -2245,16 +2246,12 @@ export function SignalWorkspace({
       target: openPaperTrade.target,
       exit: openPaperTrade.exit,
       outcome: openPaperTrade.outcome,
-    }) : focusTrade || triggeredManualEntry ? null : initialSetupFocus ? ({
-      entry: initialSetupFocus.entry,
-      stop: initialSetupFocus.stop,
-      target: initialSetupFocus.target,
-    }) : active ? ({
-      entry: active.entry,
-      stop: active.stop,
-      target: active.target,
+    }) : focusTrade || triggeredManualEntry ? null : openSignal ? ({
+      entry: openSignal.entry,
+      stop: openSignal.stop,
+      target: openSignal.target,
     }) : null,
-    [active, focusTrade, initialSetupFocus, openPaperTrade, triggeredManualEntry],
+    [openSignal, focusTrade, openPaperTrade, triggeredManualEntry],
   );
   const pendingEntryReferenceLines = useMemo(() => {
     const openManager = (entry: PendingManualEntry) => {

@@ -32,31 +32,23 @@ function remainingLabel(expiresAt: string | null) {
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m remaining`;
 }
 
-function expirationFieldValues(value: string | null) {
-  const date = value ? new Date(value) : new Date(Date.now() + 60 * 60_000);
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const hour24 = date.getHours();
-  const hour = hour24 % 12 || 12;
-  return {
-    date: `${month}/${day}/${date.getFullYear()}`,
-    time: `${String(hour).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")} ${hour24 >= 12 ? "PM" : "AM"}`,
-  };
+/** Split an ISO/local value into native <input type="date"> and type="time" values. */
+function splitLocal(value: string | null) {
+  const local = localDateTimeValue(value); // "YYYY-MM-DDTHH:MM" or ""
+  const [date = "", time = ""] = local.split("T");
+  return { date, time };
 }
 
-function parseExpirationFields(dateText: string, timeText: string) {
-  const date = dateText.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  const time = timeText.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-  if (!date || !time) return null;
-  const month = Number(date[1]), day = Number(date[2]), year = Number(date[3]);
-  let hour = Number(time[1]);
-  const minute = Number(time[2]);
-  if (month < 1 || month > 12 || day < 1 || day > 31 || hour < 1 || hour > 12 || minute > 59) return null;
-  if (time[3]!.toUpperCase() === "PM" && hour !== 12) hour += 12;
-  if (time[3]!.toUpperCase() === "AM" && hour === 12) hour = 0;
-  const parsed = new Date(year, month - 1, day, hour, minute, 0, 0);
-  if (parsed.getFullYear() !== year || parsed.getMonth() !== month - 1 || parsed.getDate() !== day) return null;
-  return parsed.toISOString();
+/** Combine a native date (YYYY-MM-DD) and time (HH:MM) into an ISO string, or null. */
+function combineLocalToIso(dateStr: string, timeStr: string) {
+  if (!dateStr || !timeStr) return null;
+  const parsed = new Date(`${dateStr}T${timeStr}`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+/** Today's local date as YYYY-MM-DD, for the date picker's `min`. */
+function todayLocalDate() {
+  return splitLocal(new Date().toISOString()).date;
 }
 
 export function PendingEntryDialog({
@@ -88,10 +80,16 @@ export function PendingEntryDialog({
   const [stopPrice, setStopPrice] = useState(selectedEntry?.stopPrice == null ? (initialProposal ? String(initialProposal.stop) : "") : String(selectedEntry.stopPrice));
   const [targetPrice, setTargetPrice] = useState(selectedEntry?.targetPrice == null ? (initialProposal ? String(initialProposal.target) : "") : String(selectedEntry.targetPrice));
   const [invalidationPrice, setInvalidationPrice] = useState(selectedEntry?.invalidationPrice == null ? "" : String(selectedEntry.invalidationPrice));
+  const [activateAt, setActivateAt] = useState(localDateTimeValue(selectedEntry?.activateAt ?? null));
+  const [activatePickerOpen, setActivatePickerOpen] = useState(false);
+  const initialActivateFields = splitLocal(selectedEntry?.activateAt ?? null);
+  const [activateDate, setActivateDate] = useState(initialActivateFields.date);
+  const [activateTime, setActivateTime] = useState(initialActivateFields.time);
+  const [activateError, setActivateError] = useState<string | null>(null);
   const [expiration, setExpiration] = useState<ExpirationPreset>(selectedEntry?.expiresAt ? "custom" : "none");
   const [customExpiration, setCustomExpiration] = useState(localDateTimeValue(selectedEntry?.expiresAt ?? null));
   const [customExpirationPickerOpen, setCustomExpirationPickerOpen] = useState(false);
-  const initialExpirationFields = expirationFieldValues(selectedEntry?.expiresAt ?? null);
+  const initialExpirationFields = splitLocal(selectedEntry?.expiresAt ?? null);
   const [customDate, setCustomDate] = useState(initialExpirationFields.date);
   const [customTime, setCustomTime] = useState(initialExpirationFields.time);
   const [customExpirationError, setCustomExpirationError] = useState<string | null>(null);
@@ -199,7 +197,7 @@ export function PendingEntryDialog({
   }
 
   function openCustomExpirationPicker() {
-    const fields = expirationFieldValues(customExpiration || null);
+    const fields = splitLocal(customExpiration || new Date(Date.now() + 60 * 60_000).toISOString());
     setCustomDate(fields.date);
     setCustomTime(fields.time);
     setCustomExpirationError(null);
@@ -208,13 +206,27 @@ export function PendingEntryDialog({
   }
 
   function applyCustomExpiration() {
-    const parsed = parseExpirationFields(customDate, customTime);
-    if (!parsed || Date.parse(parsed) <= Date.now()) {
-      setCustomExpirationError("Choose a future date and time, for example 09/15/2026 and 09:30 AM.");
-      return;
-    }
-    setCustomExpiration(localDateTimeValue(parsed));
+    const iso = combineLocalToIso(customDate, customTime);
+    if (!iso) { setCustomExpirationError("Pick both a date and a time."); return; }
+    if (Date.parse(iso) <= Date.now()) { setCustomExpirationError("Choose a date and time in the future."); return; }
+    setCustomExpiration(localDateTimeValue(iso));
     setCustomExpirationPickerOpen(false);
+  }
+
+  function openActivatePicker() {
+    const fields = splitLocal(activateAt || new Date(Date.now() + 30 * 60_000).toISOString());
+    setActivateDate(fields.date);
+    setActivateTime(fields.time);
+    setActivateError(null);
+    setActivatePickerOpen(true);
+  }
+
+  function applyActivate() {
+    const iso = combineLocalToIso(activateDate, activateTime);
+    if (!iso) { setActivateError("Pick both a date and a time."); return; }
+    if (Date.parse(iso) <= Date.now()) { setActivateError("Choose a date and time in the future."); return; }
+    setActivateAt(localDateTimeValue(iso));
+    setActivatePickerOpen(false);
   }
 
   if (!open) return null;
@@ -226,14 +238,32 @@ export function PendingEntryDialog({
     if (stopPrice && (!Number.isFinite(parsedStop) || (parsedStop ?? 0) <= 0)) return setError("Enter a valid stop price.");
     if (targetPrice && (!Number.isFinite(parsedTarget) || (parsedTarget ?? 0) <= 0)) return setError("Enter a valid target price.");
     if (invalidationPrice && (!Number.isFinite(parsedInvalidation) || (parsedInvalidation ?? 0) <= 0)) return setError("Enter a valid cancellation price.");
+    // Stop and target must be supplied together and sit on the correct side of entry.
+    if (Boolean(stopPrice.trim()) !== Boolean(targetPrice.trim())) return setError("Enter both a stop and a target, or leave both blank.");
+    if (parsedStop !== null && parsedTarget !== null && Number.isFinite(parsedStop) && Number.isFinite(parsedTarget)) {
+      const okSide = direction === "long"
+        ? parsedStop < parsedEntry && parsedTarget > parsedEntry
+        : parsedStop > parsedEntry && parsedTarget < parsedEntry;
+      if (!okSide) return setError(direction === "long"
+        ? "For a long: stop must be below entry, target above it."
+        : "For a short: stop must be above entry, target below it.");
+    }
+    // Cancellation price cannot equal the entry or the current price.
+    if (parsedInvalidation !== null && Number.isFinite(parsedInvalidation)) {
+      if (Math.abs(parsedInvalidation - parsedEntry) < Number.EPSILON) return setError("Cancellation price must differ from the entry price.");
+      if (current !== null && Math.abs(parsedInvalidation - current) < Number.EPSILON) return setError("Cancellation price is already reached.");
+    }
     if (expiration === "custom" && (!expiresAt || Date.parse(expiresAt) <= Date.now())) return setError("Choose a custom expiration in the future.");
+    // Blank, or within the next minute, means submit now. Otherwise it must be before any expiration.
+    const activateAtIso = activateAt && Date.parse(activateAt) > Date.now() + 60_000 ? new Date(activateAt).toISOString() : null;
+    if (activateAtIso && expiresAt && Date.parse(activateAtIso) >= Date.parse(expiresAt)) return setError("The submit-after time must be before the expiration.");
     setSaving(true);
     try {
       const response = await fetch(apiUrl(selectedEntry ? `/api/pending-entries/${selectedEntry.id}` : "/api/pending-entries"), {
         method: selectedEntry ? "PATCH" : "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instrument, direction, entryPrice: parsedEntry, stopPrice: parsedStop, targetPrice: parsedTarget, expiresAt, invalidationPrice: parsedInvalidation, orderReferencePrice }),
+        body: JSON.stringify({ instrument, direction, entryPrice: parsedEntry, stopPrice: parsedStop, targetPrice: parsedTarget, expiresAt, activateAt: activateAtIso, invalidationPrice: parsedInvalidation, orderReferencePrice }),
       });
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Could not save the pending entry.");
@@ -298,6 +328,7 @@ export function PendingEntryDialog({
               <div><dt>Entry</dt><dd>{selectedEntry.entryPrice.toFixed(precision)}</dd></div>
               <div><dt>Distance</dt><dd>{distancePips === null ? "—" : `${distancePips.toFixed(1)} pips`}</dd></div>
               <div><dt>Spread</dt><dd className={spreadIsWide ? "is-wide" : undefined}>{spreadPips === null ? "—" : `${spreadPips.toFixed(1)} pips${spreadIsWide ? " · Wide" : ""}`}</dd></div>
+              {selectedEntry.activateAt ? <div><dt>Submits at</dt><dd>{new Date(selectedEntry.activateAt).toLocaleString()}</dd></div> : null}
               <div><dt>Expiration</dt><dd>{remainingLabel(selectedEntry.expiresAt)}</dd></div>
               <div><dt>Invalidation</dt><dd>{selectedEntry.invalidationPrice?.toFixed(precision) ?? "None"}</dd></div>
               <div><dt>Created</dt><dd>{new Date(selectedEntry.createdAt).toLocaleString()}</dd></div>
@@ -356,6 +387,14 @@ export function PendingEntryDialog({
               </div>
               {expiration === "custom" ? <button type="button" className="pending-entry-custom-expiration" onClick={openCustomExpirationPicker}>{customExpiration ? new Date(customExpiration).toLocaleString() : "Choose date and time"}</button> : null}
             </fieldset>
+            <fieldset>
+              <legend>Submit after</legend>
+              <div className="pending-entry-presets">
+                <button type="button" className={!activateAt ? "is-active" : ""} onClick={() => { setActivateAt(""); setActivateError(null); }}>Submit now</button>
+                <button type="button" className={activateAt ? "is-active" : ""} onClick={openActivatePicker}>Choose time</button>
+              </div>
+              {activateAt ? <button type="button" className="pending-entry-custom-expiration" onClick={openActivatePicker}>{new Date(activateAt).toLocaleString()}</button> : null}
+            </fieldset>
             <label>
               <span>Cancel if price reaches <em>Optional</em></span>
               <input inputMode="decimal" value={invalidationPrice} onChange={(event) => setInvalidationPrice(event.target.value)} placeholder="Exact price" />
@@ -368,14 +407,15 @@ export function PendingEntryDialog({
               <span>Target: {parsedTarget && Number.isFinite(parsedTarget) ? parsedTarget.toFixed(precision) : "—"}</span>
               <span>Current: {current?.toFixed(precision) ?? "—"}</span>
               <span>Distance: {distancePips === null ? "—" : `${distancePips.toFixed(1)} pips`}</span>
+              <span>Submit: {activateAt ? new Date(activateAt).toLocaleString() : "Now"}</span>
               <span>Expires: {expiration === "none" ? "No expiration" : expiration === "custom" ? customExpiration || "Choose time" : expiration}</span>
               <span>Invalidation: {parsedInvalidation && Number.isFinite(parsedInvalidation) ? parsedInvalidation.toFixed(precision) : "None"}</span>
               <span className={`pending-entry-summary-spread${spreadIsWide ? " is-wide" : ""}`}>
                 Spread: {spreadPips === null ? "—" : `${spreadPips.toFixed(1)} pips`}
                 {spreadIsWide ? " · Wide — may be expensive" : " · Normal"}
               </span>
+              {error ? <span className="pending-entry-summary-error" role="alert">{error}</span> : null}
             </div>
-            {error ? <p className="pending-entry-error">{error}</p> : null}
             </div>
             <footer className="pending-entry-actions">
               <button type="button" className="pending-entry-secondary pressable" onClick={selectedEntry ? () => setEditing(false) : onClose}>Cancel</button>
@@ -399,11 +439,26 @@ export function PendingEntryDialog({
             <header><div><span>Pending entry</span><h3 id="custom-expiration-title">Custom expiration</h3></div></header>
             <p>Choose when this pending entry should expire.</p>
             <div className="custom-expiration-fields">
-              <label><span>Date</span><input value={customDate} onChange={(event) => setCustomDate(event.target.value)} placeholder="MM/DD/YYYY" inputMode="numeric" /></label>
-              <label><span>Time</span><input value={customTime} onChange={(event) => setCustomTime(event.target.value)} placeholder="HH:MM AM" /></label>
+              <label><span>Date</span><input type="date" value={customDate} min={todayLocalDate()} onChange={(event) => setCustomDate(event.target.value)} /></label>
+              <label><span>Time</span><input type="time" value={customTime} onChange={(event) => setCustomTime(event.target.value)} /></label>
             </div>
             {customExpirationError ? <p className="custom-expiration-error">{customExpirationError}</p> : null}
             <footer><button type="button" onClick={() => setCustomExpirationPickerOpen(false)}>Cancel</button><button type="button" onClick={applyCustomExpiration}>Apply time</button></footer>
+          </section>
+        </div>,
+        document.body,
+      ) : null}
+      {activatePickerOpen ? createPortal(
+        <div className="custom-expiration-backdrop" data-pull-to-refresh-ignore="true" onMouseDown={(event) => event.target === event.currentTarget && setActivatePickerOpen(false)}>
+          <section className="custom-expiration-dialog" role="dialog" aria-modal="true" aria-labelledby="submit-after-title">
+            <header><div><span>Pending entry</span><h3 id="submit-after-title">Submit after</h3></div></header>
+            <p>Choose when this pending entry should be submitted. It stays dormant until then.</p>
+            <div className="custom-expiration-fields">
+              <label><span>Date</span><input type="date" value={activateDate} min={todayLocalDate()} onChange={(event) => setActivateDate(event.target.value)} /></label>
+              <label><span>Time</span><input type="time" value={activateTime} onChange={(event) => setActivateTime(event.target.value)} /></label>
+            </div>
+            {activateError ? <p className="custom-expiration-error">{activateError}</p> : null}
+            <footer><button type="button" onClick={() => setActivatePickerOpen(false)}>Cancel</button><button type="button" onClick={applyActivate}>Apply time</button></footer>
           </section>
         </div>,
         document.body,

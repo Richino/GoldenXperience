@@ -1893,10 +1893,10 @@ export type JournalTradeFilter = "all" | "wins" | "losses" | "active";
 /**
  * Bring direct OANDA Practice-account trades into the durable journal.
  *
- * Strategy orders already carry a broker trade id in `practice_order_intents`,
- * so they are explicitly excluded. The broker id is used as a stable legacy id
- * for direct/manual orders, making every refresh idempotent and allowing a
- * later closed-trade update to correct the same journal row.
+ * Strategy orders and manual pending entries already carry their broker trade
+ * ids, so they are explicitly excluded. The broker id is used as a stable
+ * legacy id only for unlinked direct/manual orders, making every refresh
+ * idempotent without duplicating a pending-entry journal record.
  */
 export async function syncPracticeBrokerHistory(userId: string) {
   let brokerTrades: Awaited<ReturnType<typeof getClosedPracticeTrades>>;
@@ -1909,7 +1909,13 @@ export async function syncPracticeBrokerHistory(userId: string) {
   if (!brokerTrades.length) return { imported: 0, unavailable: false };
 
   const linked = await query<{ broker_trade_id: string }>(
-    "SELECT broker_trade_id FROM practice_order_intents WHERE broker_trade_id IS NOT NULL",
+    `SELECT broker_trade_id
+       FROM practice_order_intents
+      WHERE broker_trade_id IS NOT NULL
+     UNION
+     SELECT metadata->>'brokerTradeId' AS broker_trade_id
+       FROM pending_manual_entries
+      WHERE metadata->>'brokerTradeId' IS NOT NULL`,
   );
   const linkedIds = new Set(linked.rows.map((row) => row.broker_trade_id));
   let imported = 0;
@@ -2036,6 +2042,22 @@ export async function journalTradeLog(
           LIMIT 1
        ) pending ON true
        WHERE manual.user_id=$1
+         -- De-dupe broker-history imports. syncPracticeBrokerHistory inserts every
+         -- closed OANDA trade as an 'oanda-trade:<brokerTradeId>' row, but if a fill
+         -- closes before reconcile links its brokerTradeId to the pending entry, the
+         -- same trade also exists as a linked manual/strategy row (with P&L and a
+         -- chart link). Hide the raw import whenever the broker trade is already
+         -- represented, so the same fill never appears twice.
+         AND NOT (
+           COALESCE(manual.legacy_id, '') LIKE 'oanda-trade:%'
+           AND substring(manual.legacy_id FROM 13) IN (
+             SELECT e.metadata->>'brokerTradeId' FROM pending_manual_entries e
+               WHERE e.metadata->>'brokerTradeId' IS NOT NULL
+             UNION
+             SELECT i.broker_trade_id FROM practice_order_intents i
+               WHERE i.broker_trade_id IS NOT NULL
+           )
+         )
        UNION ALL
        SELECT trade.id::text, 'strategy', trade.id::text, instrument.display_name, trade.direction,
               trade.status, CASE WHEN intent.status='rejected' THEN 'breakeven'

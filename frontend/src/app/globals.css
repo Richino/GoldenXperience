@@ -6839,6 +6839,71 @@ html.mobile-sheet-open body {
   white-space: nowrap;
 }
 
+/* Desktop Analyze trigger — filled accent so it reads as the primary AI action
+   in the chart toolbar, distinct from the outlined Add Entry button. */
+.signals-analyze-desktop {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 2rem;
+  padding: 0 0.8rem;
+  border: 1px solid var(--accent);
+  border-radius: 0.65rem;
+  background: var(--accent);
+  color: var(--accent-contrast, #04140d);
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.signals-analyze-desktop:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.signals-analyze-desktop:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+/* Cancel (pending) = amber outline; Close (active) = solid danger. Applies to
+   both the desktop toolbar button and the mobile full-width button. */
+.signals-analyze-desktop.is-cancel,
+.gx-mobile-analyze.is-cancel {
+  border-color: color-mix(in srgb, #f59e0b 60%, var(--border));
+  background: color-mix(in srgb, #f59e0b 14%, var(--surface-raised));
+  color: #f59e0b;
+}
+.signals-analyze-desktop.is-close,
+.gx-mobile-analyze.is-close {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #fff;
+}
+/* Hover must keep the amber/red palette — the base .gx-mobile-analyze:hover rule
+   (accent green) is more specific than the plain .is-* rules, so these hover
+   selectors are written specific enough to win and re-assert the colors. */
+.signals-analyze-desktop.is-cancel:hover:not(:disabled),
+.gx-mobile-analyze.is-cancel:hover:not(:disabled) {
+  border-color: #f59e0b;
+  background: color-mix(in srgb, #f59e0b 22%, var(--surface-raised));
+  color: #f59e0b;
+}
+.signals-analyze-desktop.is-close:hover:not(:disabled),
+.gx-mobile-analyze.is-close:hover:not(:disabled) {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #fff;
+  filter: brightness(1.08);
+}
+
+.signals-analyze-error {
+  color: var(--danger);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 /* The chart header is very light in the light theme, so this needs enough
    presence to read as the primary action without looking like a harsh outline. */
 html:not(.dark) .signals-view .pending-entry-add {
@@ -7096,6 +7161,19 @@ html:has(.pending-entry-backdrop) .mobile-dock {
   background: var(--surface-raised);
   color: var(--muted-strong);
   font-size: 0.75rem;
+}
+
+.pending-entry-summary-error {
+  grid-column: 1 / -1;
+  margin-top: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border));
+  border-radius: 0.55rem;
+  padding: 0.5rem 0.6rem;
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  color: var(--danger);
+  font-weight: 700;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .pending-entry-summary strong {
@@ -13530,7 +13608,7 @@ html:has(.pending-entry-backdrop) .mobile-dock {
    fixed inset:0 element short of the physical screen on iOS PWA, exposing the
    bare page background at the bottom. An explicit dynamic-viewport height fills
    it regardless of the shrunken containing block. */
-.manual-proposal-backdrop { position: fixed; z-index: 200; inset: 0; min-height: 100dvh; display: grid; place-items: center; padding: 1rem; background: color-mix(in srgb, #000 55%, transparent); }
+.manual-proposal-backdrop { position: fixed; z-index: 200; inset: 0; min-height: 100dvh; display: grid; place-items: center; padding: 1rem; background: color-mix(in srgb, #000 55%, transparent); animation: manual-proposal-backdrop-in 160ms ease-out both; }
 
 /* The modal portals to <body>, outside .pwa-pull-refresh, so filtering the
    content leaves the modal itself sharp. filter: blur composites reliably on
@@ -13539,7 +13617,9 @@ html:has(.manual-proposal-backdrop) .pwa-pull-refresh,
 html:has(.manual-proposal-backdrop) .mobile-dock {
   filter: blur(14px);
 }
-.manual-proposal { width: min(31rem, 100%); border: 1px solid var(--border); border-radius: 1rem; padding: 1.1rem; background: var(--surface); box-shadow: 0 1.5rem 4rem color-mix(in srgb, #000 44%, transparent); overscroll-behavior: contain; touch-action: pan-y; }
+.manual-proposal { width: min(31rem, 100%); border: 1px solid var(--border); border-radius: 1rem; padding: 1.1rem; background: var(--surface); box-shadow: 0 1.5rem 4rem color-mix(in srgb, #000 44%, transparent); overscroll-behavior: contain; touch-action: pan-y; transform-origin: center; animation: manual-proposal-pop-in 220ms cubic-bezier(.2, .85, .32, 1.1) both; }
+@keyframes manual-proposal-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes manual-proposal-pop-in { from { opacity: 0; transform: translateY(1rem) scale(.965); } to { opacity: 1; transform: translateY(0) scale(1); } }
 .manual-proposal header { display: flex; justify-content: space-between; gap: 1rem; }
 .manual-proposal header span, .manual-proposal dt { color: var(--muted); font-size: .62rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
 .manual-proposal h2 { margin-top: .18rem; font-size: 1.05rem; font-weight: 800; }
@@ -13555,17 +13635,21 @@ html:has(.manual-proposal-backdrop) .mobile-dock {
 .manual-proposal dl div { border: 1px solid var(--border); border-radius: .55rem; padding: .55rem; }
 .manual-proposal dd { margin-top: .22rem; font-size: .75rem; font-weight: 800; }
 .manual-proposal > p:not(.manual-proposal-warning) { margin-top: .7rem; color: var(--muted-strong); font-size: .75rem; line-height: 1.45; overflow-wrap: anywhere; }
+/* Shown only when the app adjusted the model's numbers (e.g. widened the stop to
+   clear the spread). Amber so it reads as "the app changed something", not advice. */
+.manual-proposal p.manual-proposal-notice { margin-top: .7rem; border: 1px solid color-mix(in srgb, #f59e0b 45%, var(--border)); border-radius: .55rem; padding: .5rem .6rem; background: color-mix(in srgb, #f59e0b 13%, var(--surface-raised)); color: var(--muted-strong); font-size: .72rem; line-height: 1.45; overflow-wrap: anywhere; }
 .manual-proposal > p b { color: var(--foreground); }
 .manual-proposal footer { display: flex; justify-content: flex-end; gap: .55rem; margin-top: 1.15rem; }
 .manual-proposal footer button { min-height: 2.45rem; border-radius: .55rem; padding: 0 .85rem; font-size: .72rem; font-weight: 800; }
-.manual-proposal-dismiss { border: 1px solid var(--border); background: transparent; color: var(--foreground); }
+.manual-proposal-dismiss { border: 1px solid color-mix(in srgb, var(--danger) 42%, var(--border)); background: var(--danger-soft); color: var(--danger); }
 .manual-proposal-accept { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; border: 0; background: var(--accent); color: #05271e; }
 .manual-proposal-accept:disabled { cursor: wait; opacity: .82; }
 .pending-cancel-confirmation { width: min(25rem, 100%); }
 .pending-cancel-confirm { border: 0; background: var(--danger); color: #fff; }
 .pending-cancel-confirm:disabled { cursor: wait; opacity: .7; }
 .manual-analysis-error { position: fixed; z-index: 91; right: 1rem; bottom: 1rem; max-width: min(26rem, calc(100vw - 2rem)); border: 1px solid color-mix(in srgb, var(--danger) 50%, var(--border)); border-radius: .65rem; padding: .75rem; background: var(--surface); color: var(--danger); font-size: .75rem; box-shadow: 0 .8rem 2rem color-mix(in srgb, #000 30%, transparent); }
-@media (max-width: 1023px) { .markets-row-plan { width: 100%; } .markets-row-analyze { margin-left: auto; padding: .3rem .6rem; } .manual-proposal-backdrop { align-items: end; min-height: 100dvh; padding: .75rem .75rem calc(var(--app-dock-height, 5rem) + .75rem + env(safe-area-inset-bottom, 0px)); } .manual-proposal-backdrop::after { position: absolute; right: 0; bottom: calc(-1 * env(safe-area-inset-bottom, 0px)); left: 0; height: env(safe-area-inset-bottom, 0px); background: inherit; content: ""; pointer-events: none; } .manual-proposal { align-self: end; max-height: calc(100dvh - var(--app-dock-height, 5rem) - 1.5rem); overflow-y: auto; border-radius: 1rem; padding: .95rem; } .manual-proposal-quote { grid-template-columns: auto 1fr; } .manual-proposal-quote small { grid-column: 1 / -1; text-align: left; } .manual-proposal dl { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .4rem; } .manual-proposal dl div { min-width: 0; padding: .48rem; } .manual-proposal dd { overflow: hidden; font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; } .manual-proposal footer { position: sticky; bottom: 0; padding-top: .8rem; background: var(--surface); } .manual-proposal footer button { flex: 1; } }
+@media (max-width: 1023px) { .markets-row-plan { width: 100%; } .markets-row-analyze { margin-left: auto; padding: .3rem .6rem; } .manual-proposal-backdrop { align-items: end; min-height: 100dvh; padding: .75rem .75rem calc(var(--app-dock-height, 5rem) + .75rem + env(safe-area-inset-bottom, 0px)); } .manual-proposal-backdrop::after { position: absolute; right: 0; bottom: calc(-1 * env(safe-area-inset-bottom, 0px)); left: 0; height: env(safe-area-inset-bottom, 0px); background: inherit; content: ""; pointer-events: none; } .manual-proposal { align-self: end; max-height: calc(100dvh - var(--app-dock-height, 5rem) - 1.5rem); overflow-y: auto; border-radius: 1rem; padding: .95rem; transform-origin: bottom center; } .manual-proposal-quote { grid-template-columns: auto 1fr; } .manual-proposal-quote small { grid-column: 1 / -1; text-align: left; } .manual-proposal dl { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .4rem; } .manual-proposal dl div { min-width: 0; padding: .48rem; } .manual-proposal dd { overflow: hidden; font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; } .manual-proposal footer { position: sticky; bottom: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; margin-top: 1.25rem; padding: .8rem 0 .1rem; background: var(--surface); } .manual-proposal footer button { min-height: 3rem; padding: 0 1rem; font-size: .8rem; } }
+@media (prefers-reduced-motion: reduce) { .manual-proposal-backdrop, .manual-proposal { animation: none; } }
 
 .pending-entry-levels { display: grid; grid-template-columns: 1fr 1fr; gap: .65rem; }
 .pending-entry-proposal-note { margin: 0; border-left: 2px solid var(--pending); padding-left: .6rem; color: var(--muted-strong); font-size: .72rem; line-height: 1.45; }
@@ -13588,11 +13672,53 @@ html:has(.custom-expiration-backdrop) .mobile-dock {
 .custom-expiration-fields label { display: grid; gap: .4rem; }
 .custom-expiration-fields input { min-width: 0; min-height: 2.7rem; border: 1px solid var(--border); border-radius: .65rem; padding: 0 .7rem; background: var(--surface-raised); color: var(--foreground); font: 700 .82rem var(--font-mono, monospace); outline: none; }
 .custom-expiration-fields input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent); }
+/* Make the native date/time controls read as custom dark fields: the box already
+   matches (rule above); here we own the picker icon, the edited text, and the
+   popup's own theme so nothing renders as raw browser chrome. */
+.custom-expiration-fields input[type="date"],
+.custom-expiration-fields input[type="time"] { -webkit-appearance: none; appearance: none; width: 100%; box-sizing: border-box; display: flex; align-items: center; }
+/* iOS renders the value in an inner pseudo-element that defaults to top/center
+   misalignment; pin it left and flush so the field reads like a normal input. */
+.custom-expiration-fields input::-webkit-date-and-time-value { text-align: left; margin: 0; }
+.custom-expiration-fields input[type="date"]::-webkit-clear-button,
+.custom-expiration-fields input[type="time"]::-webkit-clear-button,
+.custom-expiration-fields input[type="date"]::-webkit-inner-spin-button,
+.custom-expiration-fields input[type="time"]::-webkit-inner-spin-button { display: none; -webkit-appearance: none; }
+.custom-expiration-fields input[type="date"]::-webkit-datetime-edit,
+.custom-expiration-fields input[type="time"]::-webkit-datetime-edit { color: var(--foreground); }
+.custom-expiration-fields input::-webkit-calendar-picker-indicator { cursor: pointer; opacity: .75; transition: opacity .15s ease; }
+.custom-expiration-fields input::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+/* Dark theme: recolor the (black) picker icon to light, and let the native popup
+   + time spinners render dark so they match the dialog. */
+.dark .custom-expiration-fields input[type="date"],
+.dark .custom-expiration-fields input[type="time"] { color-scheme: dark; }
+.dark .custom-expiration-fields input::-webkit-calendar-picker-indicator { filter: invert(1); }
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) .custom-expiration-fields input[type="date"],
+  :root:not(.light) .custom-expiration-fields input[type="time"] { color-scheme: dark; }
+  :root:not(.light) .custom-expiration-fields input::-webkit-calendar-picker-indicator { filter: invert(1); }
+}
 .custom-expiration-error { color: var(--danger)!important; }
 .custom-expiration-dialog footer { display: flex; justify-content: flex-end; gap: .55rem; margin-top: 1rem; }
 .custom-expiration-dialog footer button { min-height: 2.5rem; border-radius: .65rem; padding: 0 .85rem; background: var(--surface-raised); color: var(--foreground); font-size: .76rem; font-weight: 800; }
 .custom-expiration-dialog footer button:last-child { background: var(--accent); color: var(--accent-contrast, #fff); }
-@media (max-width: 520px) { .custom-expiration-backdrop { align-items: center; padding: 1rem; } .custom-expiration-fields { grid-template-columns: 1fr; } .custom-expiration-dialog footer button { flex: 1; } }
+/* Trade-confirm actions: red for Close, amber for Cancel — override the accent
+   last-child default (placed after it to win the equal-specificity tie). */
+.custom-expiration-dialog footer button.is-danger { background: var(--danger); color: #fff; }
+.custom-expiration-dialog footer button.is-warning { background: #f59e0b; color: #1a1205; }
+.custom-expiration-dialog footer button.is-danger:hover,
+.custom-expiration-dialog footer button.is-warning:hover { filter: brightness(1.06); }
+@media (max-width: 520px) {
+  .custom-expiration-backdrop { align-items: end; padding: 0; }
+  /* Bottom sheet on phones: full-width, rounded top, safe-area padding. */
+  .custom-expiration-dialog { width: 100%; max-width: none; border-radius: 1.1rem 1.1rem 0 0; padding: 1.15rem 1.15rem calc(1.15rem + env(safe-area-inset-bottom)); }
+  .custom-expiration-fields { grid-template-columns: 1fr; gap: .8rem; }
+  /* 16px kills iOS focus-zoom; 3rem gives a comfortable tap target both OSes. */
+  .custom-expiration-fields input[type="date"],
+  .custom-expiration-fields input[type="time"] { min-height: 3rem; font-size: 16px; }
+  .custom-expiration-dialog footer { gap: .65rem; }
+  .custom-expiration-dialog footer button { flex: 1; min-height: 3rem; }
+}
 .gx-mobile-tool-button.is-refreshing svg { animation: gx-chart-refresh .7s linear infinite; }
 @keyframes gx-chart-refresh { to { transform: rotate(360deg); } }
 

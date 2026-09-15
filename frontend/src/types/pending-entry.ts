@@ -16,6 +16,8 @@ export interface PendingManualEntry {
   currentPriceAtCreation: number;
   expirationType: "none" | "time";
   expiresAt: string | null;
+  /** Submit-after time. When set and in the future the entry stays dormant until it passes. Null = submit immediately. */
+  activateAt: string | null;
   invalidationPrice: number | null;
   status: PendingManualEntryStatus;
   triggerPrice: number | null;

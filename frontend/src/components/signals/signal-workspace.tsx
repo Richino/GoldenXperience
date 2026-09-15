@@ -11,6 +11,7 @@ import {
   Plus,
   RotateCcw,
   Search,
+  Sparkles,
   X,
 } from "lucide-react";
 import { ChartTypeSelect } from "@/components/charts/chart-type-select";
@@ -1709,6 +1710,9 @@ export function SignalWorkspace({
   const [predictionFocus, setPredictionFocus] = useState<BinaryPrediction | null>(initialPredictionFocus);
   const [predictionClock, setPredictionClock] = useState(() => Date.now());
   const [pendingEntries, setPendingEntries] = useState<PendingManualEntry[]>([]);
+  const [tradeActionBusy, setTradeActionBusy] = useState(false);
+  const [tradeActionError, setTradeActionError] = useState<string | null>(null);
+  const [tradeConfirm, setTradeConfirm] = useState<"cancel" | "close" | null>(null);
   const [pendingEntryDialogOpen, setPendingEntryDialogOpen] = useState(false);
   const [selectedPendingEntry, setSelectedPendingEntry] = useState<PendingManualEntry | null>(null);
   const [pendingEntryNotice, setPendingEntryNotice] = useState<string | null>(null);
@@ -2138,6 +2142,52 @@ export function SignalWorkspace({
     ) ?? null,
     [pendingEntries],
   );
+  // The pair's one non-terminal manual entry drives the Analyze / Cancel / Close
+  // button. A resting or scheduled order is cancellable; a filled (active) trade
+  // is closeable; anything else means the pair is free to analyze.
+  const pendingManualEntry = useMemo(
+    () => pendingEntries.find((entry) => entry.status === "PENDING" || entry.status === "TRIGGERING") ?? null,
+    [pendingEntries],
+  );
+  const activeManualTrade = triggeredManualEntry ?? pendingEntries.find((entry) => entry.status === "TRIGGERED" && entry.paperTradeStatus === "open") ?? null;
+  const manualTradeMode: "analyze" | "cancel" | "close" = activeManualTrade ? "close" : pendingManualEntry ? "cancel" : "analyze";
+
+  const cancelManualTrade = useCallback(async () => {
+    if (!pendingManualEntry) return;
+    setTradeActionBusy(true);
+    setTradeActionError(null);
+    try {
+      const res = await fetch(apiUrl(`/api/pending-entries/${pendingManualEntry.id}`), { method: "DELETE", credentials: "include" });
+      const payload = await res.json() as { error?: string };
+      if (!res.ok) throw new Error(payload.error ?? "Could not cancel the trade.");
+    } catch (error) {
+      setTradeActionError(error instanceof Error ? error.message : "Could not cancel the trade.");
+    } finally {
+      await refreshPendingEntries(); // reflect reconciled state (e.g. it became active)
+      setTradeActionBusy(false);
+    }
+  }, [pendingManualEntry, refreshPendingEntries]);
+
+  const closeManualTrade = useCallback(async () => {
+    if (!activeManualTrade) return;
+    setTradeActionBusy(true);
+    setTradeActionError(null);
+    try {
+      const res = await fetch(apiUrl(`/api/pending-entries/${activeManualTrade.id}/close`), {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instrument }),
+      });
+      const payload = await res.json() as { error?: string };
+      if (!res.ok) throw new Error(payload.error ?? "Could not close the trade.");
+    } catch (error) {
+      setTradeActionError(error instanceof Error ? error.message : "Could not close the trade.");
+    } finally {
+      await refreshPendingEntries(); // reflect reconciled state (e.g. already closed)
+      setTradeActionBusy(false);
+    }
+  }, [activeManualTrade, instrument, refreshPendingEntries]);
   const focusedPrediction = predictionFocus?.instrument === instrument
     ? predictionFocus
     : null;
@@ -2736,16 +2786,26 @@ export function SignalWorkspace({
           </div>
 
           <div className="gx-mobile-analyze-section">
-            <button
-              type="button"
-              className="gx-mobile-analyze pressable"
-              onClick={() => void analyzeInstrument(instrument)}
-              disabled={analyzingInstrument === instrument}
-            >
-              {analyzingInstrument === instrument ? "Analyzing…" : "Analyze"}
-            </button>
-            {analysisError ? (
-              <p className="gx-mobile-analyze-error" role="alert">{analysisError}</p>
+            {manualTradeMode === "close" ? (
+              <button type="button" className="gx-mobile-analyze pressable is-close" onClick={() => setTradeConfirm("close")} disabled={tradeActionBusy}>
+                {tradeActionBusy ? "Closing…" : "Close Trade"}
+              </button>
+            ) : manualTradeMode === "cancel" ? (
+              <button type="button" className="gx-mobile-analyze pressable is-cancel" onClick={() => setTradeConfirm("cancel")} disabled={tradeActionBusy}>
+                {tradeActionBusy ? "Cancelling…" : "Cancel Trade"}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="gx-mobile-analyze pressable"
+                onClick={() => void analyzeInstrument(instrument)}
+                disabled={analyzingInstrument === instrument}
+              >
+                {analyzingInstrument === instrument ? "Analyzing…" : "Analyze"}
+              </button>
+            )}
+            {(tradeActionError || analysisError) ? (
+              <p className="gx-mobile-analyze-error" role="alert">{tradeActionError ?? analysisError}</p>
             ) : null}
           </div>
         </div>
@@ -2784,6 +2844,29 @@ export function SignalWorkspace({
             />
 
             <div className="signals-chart-head-tools">
+              {manualTradeMode === "close" ? (
+                <button type="button" className="signals-analyze-desktop pressable is-close" onClick={() => setTradeConfirm("close")} disabled={tradeActionBusy}>
+                  {tradeActionBusy ? "Closing…" : "Close Trade"}
+                </button>
+              ) : manualTradeMode === "cancel" ? (
+                <button type="button" className="signals-analyze-desktop pressable is-cancel" onClick={() => setTradeConfirm("cancel")} disabled={tradeActionBusy}>
+                  {tradeActionBusy ? "Cancelling…" : "Cancel Trade"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="signals-analyze-desktop pressable"
+                  onClick={() => void analyzeInstrument(instrument)}
+                  disabled={analyzingInstrument === instrument}
+                  title="Run a test-only AI analysis of this chart"
+                >
+                  <Sparkles className="size-3.5" />
+                  {analyzingInstrument === instrument ? "Analyzing…" : "Analyze"}
+                </button>
+              )}
+              {(tradeActionError || analysisError) ? (
+                <span className="signals-analyze-error" role="alert">{tradeActionError ?? analysisError}</span>
+              ) : null}
               <button type="button" className="pending-entry-add pressable" onClick={() => { setSelectedPendingEntry(null); setPendingEntryDialogOpen(true); }}>
                 <Plus className="size-3.5" /> Add Entry
               </button>
@@ -2901,6 +2984,28 @@ export function SignalWorkspace({
         onDismiss={() => setManualProposal(null)}
         onAccept={acceptManualProposal}
       />
+
+      {tradeConfirm ? createPortal(
+        <div className="custom-expiration-backdrop" data-pull-to-refresh-ignore="true" onMouseDown={(event) => event.target === event.currentTarget && setTradeConfirm(null)}>
+          <section className="custom-expiration-dialog trade-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="trade-confirm-title">
+            <header><div><span>{instrument.replace("_", "/")}</span><h3 id="trade-confirm-title">{tradeConfirm === "cancel" ? "Cancel pending trade?" : "Close active trade?"}</h3></div></header>
+            <p>{tradeConfirm === "cancel"
+              ? "This removes the resting order from OANDA so it will not fill. You can create a new one afterward."
+              : "This closes the position on OANDA at the current market price and books the result. This cannot be undone."}</p>
+            <footer>
+              <button type="button" onClick={() => setTradeConfirm(null)}>Keep it</button>
+              <button
+                type="button"
+                className={tradeConfirm === "close" ? "is-danger" : "is-warning"}
+                onClick={() => { const action = tradeConfirm; setTradeConfirm(null); void (action === "cancel" ? cancelManualTrade() : closeManualTrade()); }}
+              >
+                {tradeConfirm === "cancel" ? "Cancel Trade" : "Close Trade"}
+              </button>
+            </footer>
+          </section>
+        </div>,
+        document.body,
+      ) : null}
 
     </div>
   );

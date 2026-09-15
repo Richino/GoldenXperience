@@ -1,4 +1,4 @@
-import { getCandles, getAccountSummary, submitPracticeEntryOrder, cancelPracticeOrder, getPracticeOrderState, getPracticeTradeState } from "../../frontend/src/lib/oanda/client.js";
+import { getCandles, getAccountSummary, submitPracticeEntryOrder, cancelPracticeOrder, closePracticeTrade, getPracticeOrderState, getPracticeTradeState } from "../../frontend/src/lib/oanda/client.js";
 import { precisionFor } from "../../frontend/src/lib/instruments/catalog.js";
 import { calculateAtrValues } from "../../frontend/src/lib/strategy/indicators.js";
 import { calculatePositionSize, DEFAULT_RISK_POLICY } from "../../frontend/src/lib/risk/engine.js";
@@ -110,6 +110,8 @@ export type PendingManualEntry = {
   currentPriceAtCreation: number;
   expirationType: "none" | "time";
   expiresAt: string | null;
+  /** Submit-after time. When set and in the future the entry stays dormant (not sent to OANDA, not triggered) until it passes. Null = submit immediately. */
+  activateAt: string | null;
   invalidationPrice: number | null;
   status: PendingManualEntryStatus;
   triggerPrice: number | null;
@@ -135,6 +137,7 @@ type EntryRow = {
   current_price_at_creation: string;
   expiration_type: "none" | "time";
   expires_at: string | null;
+  activate_at: string | null;
   invalidation_price: string | null;
   invalidation_side: "above" | "below" | null;
   status: PendingManualEntryStatus;
@@ -153,7 +156,7 @@ type EntryRow = {
 };
 
 const SELECT_FIELDS = `id,user_id,instrument,direction,entry_price::text,entry_order_type,
-  current_price_at_creation::text,expiration_type,expires_at,invalidation_price::text,invalidation_side,
+  current_price_at_creation::text,expiration_type,expires_at,activate_at::text AS activate_at,invalidation_price::text,invalidation_side,
   status,trigger_price::text,stop_price::text,target_price::text,paper_trade_id,failure_reason,
   last_observed_price::text,triggered_at,cancelled_at,created_at,updated_at,metadata`;
 
@@ -173,6 +176,7 @@ function serialize(row: EntryRow): PendingManualEntry {
     currentPriceAtCreation: Number(row.current_price_at_creation),
     expirationType: row.expiration_type,
     expiresAt: row.expires_at,
+    activateAt: row.activate_at,
     invalidationPrice: numberOrNull(row.invalidation_price),
     status: row.status,
     triggerPrice: numberOrNull(row.trigger_price),
@@ -252,6 +256,22 @@ function parseExpiresAt(value: unknown): string | null {
   return new Date(timestamp).toISOString();
 }
 
+/**
+ * Parse the optional "submit after" time. Empty means submit immediately. A time
+ * only counts as scheduling when it is comfortably in the future; a value within
+ * the next 30 seconds (or in the past) is treated as immediate so a clock skew
+ * or a "now" pick doesn't leave the order dormant forever.
+ */
+function parseActivateAt(value: unknown): string | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value !== "string") throw new Error("Choose a valid submit-after time.");
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) throw new Error("Choose a valid submit-after time.");
+  if (timestamp <= Date.now() + 30_000) return null; // now-ish → submit immediately
+  if (timestamp > Date.now() + 30 * 24 * 60 * 60_000) throw new Error("Submit-after time cannot be more than 30 days away.");
+  return new Date(timestamp).toISOString();
+}
+
 function optionalTradeLevels(payload: Record<string, unknown>, direction: PendingManualEntryDirection, entryPrice: number) {
   const rawStop = payload.stopPrice;
   const rawTarget = payload.targetPrice;
@@ -296,17 +316,91 @@ export async function expirePendingManualEntries(userId?: string) {
   return result.rowCount;
 }
 
+/**
+ * Submit scheduled ("submit after") entries to OANDA once their activate_at has
+ * passed. Runs on a timer from the server. Each entry is claimed atomically
+ * (execution -> 'submitting') so a second instance or a fast re-run can never
+ * double-submit, then the resting broker order is placed using the stop/target
+ * fixed at creation. Failures land the entry as FAILED with the reason.
+ */
+export async function activateDuePendingManualEntries() {
+  const due = await query<EntryRow>(
+    `UPDATE pending_manual_entries
+        SET metadata = metadata || '{"execution":"submitting"}'::jsonb, updated_at=now()
+      WHERE id IN (
+        SELECT id FROM pending_manual_entries
+         WHERE status='PENDING'
+           AND COALESCE(metadata->>'execution','') = 'scheduled'
+           AND (activate_at IS NULL OR activate_at <= now())
+         ORDER BY activate_at NULLS FIRST
+         FOR UPDATE SKIP LOCKED
+      )
+      RETURNING ${SELECT_FIELDS}`,
+  );
+  let submitted = 0;
+  for (const row of due.rows) {
+    const entryPrice = Number(row.entry_price);
+    const stop = numberOrNull(row.stop_price);
+    const target = numberOrNull(row.target_price);
+    if (stop === null || target === null) {
+      await query("UPDATE pending_manual_entries SET status='FAILED',failure_reason=$2,updated_at=now() WHERE id=$1 AND status='PENDING'",
+        [row.id, "Scheduled entry was missing its stop/target at activation."]);
+      continue;
+    }
+    try {
+      const broker = await submitManualEntryToOanda({
+        clientRequestId: row.id,
+        instrument: row.instrument,
+        direction: row.direction,
+        entryOrderType: row.entry_order_type,
+        entryPrice,
+        stop,
+        target,
+        gtdTime: row.expires_at ? new Date(row.expires_at).toISOString() : null,
+      });
+      await query(
+        `UPDATE pending_manual_entries SET activate_at=NULL, metadata = metadata || $2::jsonb, updated_at=now()
+          WHERE id=$1 AND status='PENDING'`,
+        [row.id, JSON.stringify({ execution: "oanda_entry_order", brokerOrderId: broker.orderId, units: broker.units, riskPercent: broker.riskPercent, activatedAt: new Date().toISOString() })],
+      );
+      submitted += 1;
+      console.log(`[pending-entry] ${row.id} scheduled entry submitted to OANDA (${row.instrument})`);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message.slice(0, 500) : "Scheduled OANDA submission failed.";
+      await query(
+        `UPDATE pending_manual_entries SET status='FAILED', failure_reason=$2,
+                metadata = metadata || '{"execution":"oanda_rejected"}'::jsonb, updated_at=now()
+          WHERE id=$1 AND status='PENDING'`,
+        [row.id, reason],
+      );
+      await notifyManualEntry({ userId: row.user_id, entryId: row.id, instrument: row.instrument, event: "failed" }).catch(() => undefined);
+    }
+  }
+  return { submitted };
+}
+
 export async function createPendingManualEntry(userId: string, payload: Record<string, unknown>, tick: MarketPriceTick) {
   validateTick(tick);
   const direction = payload.direction === "long" || payload.direction === "short" ? payload.direction : null;
   if (!direction) throw new Error("Choose LONG or SHORT.");
   if (payload.instrument !== tick.instrument) throw new Error("The selected instrument does not match the live quote.");
+  // One trade per pair: a resting/scheduled order or an open trade blocks a new one.
+  const occupied = await activeManualEntryForPair(userId, tick.instrument);
+  if (occupied) {
+    throw new Error(occupied.status === "TRIGGERED"
+      ? "You already have an active trade on this pair. Close it before creating another."
+      : "You already have a pending trade on this pair. Cancel it before creating another.");
+  }
   const entryPrice = finitePrice(payload.entryPrice);
   if (entryPrice === null) throw new Error("Enter a valid entry price.");
   const currentPrice = executablePrice(direction, tick);
   const orderReferencePrice = finitePrice(payload.orderReferencePrice) ?? currentPrice;
   const levels = optionalTradeLevels(payload, direction, entryPrice);
   const expiresAt = parseExpiresAt(payload.expiresAt);
+  const activateAt = parseActivateAt(payload.activateAt);
+  if (activateAt && expiresAt && Date.parse(activateAt) >= Date.parse(expiresAt)) {
+    throw new Error("The submit-after time must be before the expiration.");
+  }
   const invalidationPrice = payload.invalidationPrice === null || payload.invalidationPrice === undefined || payload.invalidationPrice === ""
     ? null : finitePrice(payload.invalidationPrice);
   if (payload.invalidationPrice !== null && payload.invalidationPrice !== undefined && payload.invalidationPrice !== "" && invalidationPrice === null) {
@@ -327,14 +421,25 @@ export async function createPendingManualEntry(userId: string, payload: Record<s
   const result = await query<EntryRow>(
     `INSERT INTO pending_manual_entries(
        user_id,instrument,direction,entry_price,entry_order_type,current_price_at_creation,
-       expiration_type,expires_at,invalidation_price,invalidation_side,last_observed_price,last_observed_at,stop_price,target_price,metadata
-     ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,jsonb_build_object('priceSource',$15::text,'createdFrom','chart','orderReferencePrice',$11::numeric))
+       expiration_type,expires_at,activate_at,invalidation_price,invalidation_side,last_observed_price,last_observed_at,stop_price,target_price,metadata
+     ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$16,$9,$10,$11,$12,$13,$14,jsonb_build_object('priceSource',$15::text,'createdFrom','chart','orderReferencePrice',$11::numeric))
      RETURNING ${SELECT_FIELDS}`,
     [userId, tick.instrument, direction, entryPrice, inferPendingOrderType(direction, entryPrice, orderReferencePrice), currentPrice,
       expiresAt ? "time" : "none", expiresAt, invalidationPrice,
-      invalidationPrice === null ? null : invalidationSide(invalidationPrice, orderReferencePrice), orderReferencePrice, tick.time, risk.stop, risk.target, tick.source],
+      invalidationPrice === null ? null : invalidationSide(invalidationPrice, orderReferencePrice), orderReferencePrice, tick.time, risk.stop, risk.target, tick.source, activateAt],
   );
   const entryRow = result.rows[0]!;
+  // Scheduled ("submit after") entry: stay dormant until the activation job runs
+  // at activate_at. Do NOT place the OANDA order now, and flag it so the price
+  // monitor leaves it alone until it becomes broker-backed.
+  if (activateAt) {
+    const scheduled = await query<EntryRow>(
+      `UPDATE pending_manual_entries SET metadata = metadata || '{"execution":"scheduled"}'::jsonb, updated_at=now()
+        WHERE id=$1 RETURNING ${SELECT_FIELDS}`,
+      [entryRow.id],
+    );
+    return serialize(scheduled.rows[0] ?? entryRow);
+  }
   // Submit the real (practice-only) OANDA entry order. On rejection the entry is
   // recorded as FAILED with the reason so the user sees why nothing rests at the
   // broker, rather than a silent paper-only fill.
@@ -382,6 +487,15 @@ export async function editPendingManualEntry(userId: string, id: string, payload
     const orderReferencePrice = finitePrice(payload.orderReferencePrice) ?? currentPrice;
     const levels = optionalTradeLevels(payload, direction, entryPrice);
     const expiresAt = parseExpiresAt(payload.expiresAt);
+    // Only a still-dormant scheduled entry can have its submit-after time changed;
+    // once it is broker-backed the resting order already exists.
+    const stillScheduled = brokerOrderIdOf(existing) === null;
+    const activateAt = stillScheduled && payload.activateAt !== undefined
+      ? parseActivateAt(payload.activateAt)
+      : existing.activate_at;
+    if (activateAt && expiresAt && Date.parse(activateAt) >= Date.parse(expiresAt)) {
+      throw new Error("The submit-after time must be before the expiration.");
+    }
     const rawInvalidation = payload.invalidationPrice;
     const invalidationPrice = rawInvalidation === null || rawInvalidation === undefined || rawInvalidation === "" ? null : finitePrice(rawInvalidation);
     if (rawInvalidation !== null && rawInvalidation !== undefined && rawInvalidation !== "" && invalidationPrice === null) throw new Error("Enter a valid cancellation price.");
@@ -389,10 +503,10 @@ export async function editPendingManualEntry(userId: string, id: string, payload
     const updated = await client.query<EntryRow>(
       `UPDATE pending_manual_entries SET direction=$3,entry_price=$4,entry_order_type=$5,
          expiration_type=$6,expires_at=$7,invalidation_price=$8,invalidation_side=$9,
-         last_observed_price=$10,last_observed_at=$11,stop_price=$12,target_price=$13,updated_at=now()
+         last_observed_price=$10,last_observed_at=$11,stop_price=$12,target_price=$13,activate_at=$14,updated_at=now()
        WHERE id=$1 AND user_id=$2 AND status='PENDING' RETURNING ${SELECT_FIELDS}`,
       [id, userId, direction, entryPrice, inferPendingOrderType(direction, entryPrice, orderReferencePrice), expiresAt ? "time" : "none", expiresAt,
-        invalidationPrice, invalidationPrice === null ? null : invalidationSide(invalidationPrice, orderReferencePrice), orderReferencePrice, tick.time, levels.stop, levels.target],
+        invalidationPrice, invalidationPrice === null ? null : invalidationSide(invalidationPrice, orderReferencePrice), orderReferencePrice, tick.time, levels.stop, levels.target, activateAt],
     );
     return serialize(updated.rows[0]!);
   });
@@ -404,6 +518,35 @@ function brokerOrderIdOf(row: EntryRow): string | null {
   return typeof id === "string" && id ? id : null;
 }
 
+function brokerTradeIdOf(row: EntryRow): string | null {
+  const meta = row.metadata as Record<string, unknown> | null | undefined;
+  const id = meta && typeof meta === "object" ? meta.brokerTradeId : null;
+  return typeof id === "string" && id ? id : null;
+}
+
+/**
+ * The single non-terminal manual entry occupying a pair for this user, or null.
+ * "Occupying" = a resting/scheduled order (PENDING), a claim in flight
+ * (TRIGGERING), or a filled entry whose paper trade is still open (TRIGGERED +
+ * open). This is what enforces one trade per pair and drives the Analyze /
+ * Cancel Trade / Close Trade button state.
+ */
+export async function activeManualEntryForPair(userId: string, instrument: string): Promise<PendingManualEntry | null> {
+  const result = await query<EntryRow>(
+    `SELECT ${SELECT_FIELDS},
+            (SELECT trade.status FROM paper_trades trade WHERE trade.id=pending_manual_entries.paper_trade_id) AS paper_trade_status
+       FROM pending_manual_entries
+      WHERE user_id=$1 AND instrument=$2
+        AND (status IN ('PENDING','TRIGGERING')
+             OR (status='TRIGGERED'
+                 AND (SELECT trade.status FROM paper_trades trade WHERE trade.id=pending_manual_entries.paper_trade_id)='open'))
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    [userId, instrument],
+  );
+  return result.rows[0] ? serialize(result.rows[0]) : null;
+}
+
 export async function cancelPendingManualEntry(userId: string, id: string) {
   const found = await query<EntryRow>(
     `SELECT ${SELECT_FIELDS} FROM pending_manual_entries WHERE id=$1 AND user_id=$2 AND status='PENDING'`,
@@ -413,8 +556,17 @@ export async function cancelPendingManualEntry(userId: string, id: string) {
   if (!entry) throw new Error("The entry already changed state and cannot be cancelled.");
   const brokerOrderId = brokerOrderIdOf(entry);
   if (brokerOrderId) {
-    // Cancel the resting OANDA order. If the broker already removed it (filled
-    // or expired), don't trap the local entry — proceed to cancel it here too.
+    // OANDA is the source of truth. If the resting order already FILLED, the app
+    // is stale — the trade is live now, so cancelling is wrong. Reconcile it to an
+    // open trade and tell the user to close it instead.
+    const state = await getPracticeOrderState(brokerOrderId).catch(() => null);
+    if (state?.state === "FILLED" && state.tradeId) {
+      await openFilledManualTrade(entry, state.tradeId, state.fillPrice).catch(() => undefined);
+      throw new Error("This trade is already active. You need to close the trade instead.");
+    }
+    // Still resting (or the broker already removed it) — cancel the OANDA order.
+    // A broker that already dropped it must not trap the local entry, so failures
+    // here are logged, not fatal.
     try {
       await cancelPracticeOrder(brokerOrderId);
     } catch (error) {
@@ -435,6 +587,65 @@ export async function cancelPendingManualEntry(userId: string, id: string) {
     event: "cancelled",
   });
   return cancelled;
+}
+
+/**
+ * Manually close an active trade for a pair. OANDA is the source of truth: if the
+ * broker position is already gone (a stop/target hit while the app was stale) the
+ * close is refused with a clear message and the app trade is reconciled instead.
+ */
+export async function closeActiveManualTrade(userId: string, id: string, tick: MarketPriceTick | null) {
+  const found = await query<EntryRow>(
+    `SELECT ${SELECT_FIELDS} FROM pending_manual_entries WHERE id=$1 AND user_id=$2`,
+    [id, userId],
+  );
+  const entry = found.rows[0];
+  if (!entry) throw new Error("Trade not found.");
+  if (entry.status !== "TRIGGERED" || !entry.paper_trade_id) throw new Error("This entry is not an active trade.");
+
+  const tradeRow = await query<{ status: string; entry: string; stop: string; direction: PendingManualEntryDirection }>(
+    `SELECT status, entry::text AS entry, stop::text AS stop, direction FROM paper_trades WHERE id=$1`,
+    [entry.paper_trade_id],
+  );
+  const trade = tradeRow.rows[0];
+  if (!trade || trade.status !== "open") throw new Error("This trade has already been closed.");
+  const entryPrice = Number(trade.entry);
+  const stopPrice = Number(trade.stop);
+
+  const brokerTradeId = brokerTradeIdOf(entry);
+  if (brokerTradeId) {
+    // Confirm it is still open at OANDA before acting on possibly-stale app state.
+    const state = await getPracticeTradeState(brokerTradeId).catch(() => null);
+    if (!state || state.closed) {
+      await reconcileManualOandaOrders().catch(() => undefined);
+      throw new Error("This trade has already been closed.");
+    }
+    await closePracticeTrade(brokerTradeId); // throws on broker rejection
+    const after = await getPracticeTradeState(brokerTradeId).catch(() => null);
+    const exit = after?.averageClosePrice ?? entryPrice;
+    const pl = after?.realizedPL ?? null;
+    const result = pl != null ? (pl > 0 ? "win" : pl < 0 ? "loss" : "breakeven") : "breakeven";
+    const resultR = manualBrokerCloseResultR({ direction: trade.direction, entry: entryPrice, stop: stopPrice, exit });
+    await query(
+      `UPDATE paper_trades SET status='closed', result=$2, exit=$3, result_r=$4, paper_pl=$5, closed_at=$6, updated_at=now()
+        WHERE id=$1 AND status='open'`,
+      [entry.paper_trade_id, result, exit, resultR, pl, after?.closeTime ?? new Date().toISOString()],
+    );
+    await notifyManualEntry({ userId, entryId: entry.id, instrument: entry.instrument, event: result === "win" ? "won" : result === "loss" ? "lost" : "breakeven", paperTradeId: entry.paper_trade_id });
+  } else {
+    // Paper-only trade (no broker leg): close at the current executable price.
+    if (!tick || !(tick.bid > 0) || !(tick.ask > 0)) throw new Error("A live quote is required to close this trade.");
+    const exit = trade.direction === "long" ? tick.bid : tick.ask;
+    const resultR = manualBrokerCloseResultR({ direction: trade.direction, entry: entryPrice, stop: stopPrice, exit }) ?? 0;
+    const result = resultR > 0 ? "win" : resultR < 0 ? "loss" : "breakeven";
+    await query(
+      `UPDATE paper_trades SET status='closed', result=$2, exit=$3, result_r=$4, closed_at=now(), updated_at=now()
+        WHERE id=$1 AND status='open'`,
+      [entry.paper_trade_id, result, exit, resultR],
+    );
+    await notifyManualEntry({ userId, entryId: entry.id, instrument: entry.instrument, event: result === "win" ? "won" : result === "loss" ? "lost" : "breakeven", paperTradeId: entry.paper_trade_id });
+  }
+  return { closed: true };
 }
 
 /** Result R from the actual broker exit against the manual entry/stop geometry. */
@@ -537,7 +748,11 @@ export async function evaluatePendingManualEntries(tick: MarketPriceTick) {
   const { claimed, toCancel, terminal } = await transaction(async (client) => {
     const pending = await client.query<EntryRow>(
       `SELECT ${SELECT_FIELDS} FROM pending_manual_entries
-       WHERE instrument=$1 AND status='PENDING' ORDER BY created_at FOR UPDATE SKIP LOCKED`,
+       WHERE instrument=$1 AND status='PENDING'
+         -- Scheduled ("submit after") entries wait for the activation job; the
+         -- monitor must not paper-trigger them before they are broker-backed.
+         AND COALESCE(metadata->>'execution','') NOT IN ('scheduled','submitting')
+       ORDER BY created_at FOR UPDATE SKIP LOCKED`,
       [tick.instrument],
     );
     const claimed: string[] = [];

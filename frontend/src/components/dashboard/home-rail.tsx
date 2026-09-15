@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { HomeMiniChart } from "@/components/dashboard/home-mini-chart";
 import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { displayNameFor } from "@/lib/instruments/catalog";
@@ -52,8 +51,6 @@ function money(value: number, currency: string) {
 
 export function HomeRail({
   quotes,
-  availableSignals,
-  currentPositions,
   currency,
   todayNet,
   todayR,
@@ -82,8 +79,6 @@ export function HomeRail({
   const netPositive = (todayNet ?? 0) >= 0;
   const todayIsLoss = todayNet !== null && todayNet < 0;
   const rPositive = (todayR ?? 0) >= 0;
-  const previewItems = currentPositions.length ? currentPositions : availableSignals;
-  const showingPositions = currentPositions.length > 0;
 
   useEffect(() => {
     let cancelled = false;
@@ -132,43 +127,6 @@ export function HomeRail({
 
   return (
     <aside className="home-rail" aria-label="Current positions, available signals, and markets">
-      <section className="home-available-signals" aria-label={showingPositions ? "Current positions" : "Saved setups"}>
-        <div className="home-rail-heading">
-          <span>{showingPositions ? "Current positions" : "Saved setups"}</span>
-          {previewItems.length > 1 ? <span className="home-signal-swipe-hint">Swipe</span> : null}
-        </div>
-        {previewItems.length ? (
-          <div className="home-signal-carousel">
-            {previewItems.map((signal) => {
-              const quote = quotes[signal.instrument];
-              const liveMid = quote ? (quote.bid + quote.ask) / 2 : null;
-              const position = signal.kind === "position";
-              return (
-                <Link
-                  key={position ? signal.id : `${signal.instrument}-${signal.direction}-${signal.entry}`}
-                  href={position
-                    ? `/chart?instrument=${signal.instrument}&trade=${signal.id}`
-                    : `/chart?instrument=${signal.instrument}&setup=${signal.id}&entry=${signal.entry}&stop=${signal.stop}&target=${signal.target}`}
-                  className="home-signal-preview"
-                  aria-label={`Open ${compactPair(signal.instrument)} ${signal.direction} ${position ? "position" : "signal"} chart with entry, stop loss, and target`}
-                >
-                  <HomeMiniChart
-                    instrument={signal.instrument}
-                    liveMid={liveMid}
-                    evaluatedAt={position ? signal.openedAt : signal.evaluatedAt}
-                    entry={signal.entry}
-                    stop={signal.stop}
-                    target={signal.target}
-                  />
-                </Link>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="home-available-signals-empty">No saved setups right now.</p>
-        )}
-      </section>
-
       <section className="home-rail-section">
         <div className="home-rail-heading">
           <span>Markets</span>

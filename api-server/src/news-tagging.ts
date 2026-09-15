@@ -56,6 +56,50 @@ export async function ingestCalendarEvents(events: readonly CalendarEventRecord[
   return { stored, received: events.length };
 }
 
+/**
+ * Upcoming events for a pair's two currencies, read from the persisted calendar.
+ *
+ * The fallback the manual-analysis news gate uses when the live ForexFactory
+ * feed is rate limited. The feed only ever publishes the current week and every
+ * successful analyze warms this table, so the stored copy answers the same
+ * question the live feed would have.
+ */
+export async function upcomingCalendarEventsForCurrencies(
+  currencies: readonly string[],
+  limit = 6,
+): Promise<CalendarEventRecord[]> {
+  const wanted = currencies.map((currency) => currency.trim().toUpperCase()).filter(Boolean);
+  if (wanted.length === 0) return [];
+  const rows = await query<{ id: string; currency: string; title: string; timestamp: string; impact: number; forecast: string | null; previous: string | null; actual: string | null }>(
+    `SELECT id,currency,title,event_time::text AS timestamp,impact,forecast,previous,actual
+     FROM economic_calendar_events
+     WHERE currency = ANY($1::text[]) AND event_time >= now()
+     ORDER BY event_time ASC
+     LIMIT $2`,
+    [wanted, limit],
+  );
+  return rows.rows.map((row) => ({
+    id: row.id, currency: row.currency, title: row.title,
+    timestamp: row.timestamp, impact: Number(row.impact),
+    forecast: row.forecast, previous: row.previous, actual: row.actual,
+  }));
+}
+
+/**
+ * How many events the persisted calendar holds across the current trading week.
+ *
+ * Lets the news gate tell "no cached calendar exists at all" (block analysis)
+ * apart from "the calendar is warm but this pair simply has no upcoming events"
+ * (proceed with an empty pair list).
+ */
+export async function persistedCalendarCoverage(): Promise<number> {
+  const rows = await query<{ n: number }>(
+    `SELECT count(*)::int AS n FROM economic_calendar_events
+     WHERE event_time BETWEEN now() - interval '2 days' AND now() + interval '8 days'`,
+  );
+  return rows.rows[0]?.n ?? 0;
+}
+
 /** The widest window any rule can reach, so the candidate query loads enough. */
 function lookbackMinutes(config: NewsWindowConfig) {
   return Math.max(config.highImpactWindowMinutes, config.nearWindowMinutes, config.highImpactNearWindowMinutes);

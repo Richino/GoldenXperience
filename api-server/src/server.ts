@@ -43,7 +43,9 @@ import { collectBreakoutConfidenceV1Cycle } from "./breakout-confidence-v1-colle
 import { collectBreakoutM5Cycle } from "./breakout-m5-confidence-v1-collector.js";
 import { createManualTradeProposal } from "./manual-analysis.js";
 import {
+  activateDuePendingManualEntries,
   cancelPendingManualEntry,
+  closeActiveManualTrade,
   createPendingManualEntry,
   editPendingManualEntry,
   evaluatePendingManualEntries,
@@ -257,6 +259,18 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
         return json(request, response, { entry: await cancelPendingManualEntry(user.id, pendingEntryMatch[1]!) });
       } catch (error) {
         return json(request, response, { error: error instanceof Error ? error.message : "Could not cancel the pending entry." }, 409);
+      }
+    }
+    const pendingEntryCloseMatch = url.pathname.match(/^\/api\/pending-entries\/([0-9a-f-]{36})\/close$/i);
+    if (pendingEntryCloseMatch && request.method === "POST") {
+      if (!pendingEntryMonitoringEnabled) return json(request, response, { error: "Pending-entry monitoring is disabled on this API instance." }, 503);
+      const payload = await body(request);
+      const instrument = typeof payload?.instrument === "string" ? payload.instrument.toUpperCase() : "";
+      const tick = instrument && isKnownInstrument(instrument) ? latestPrices.get(instrument) ?? null : null;
+      try {
+        return json(request, response, await closeActiveManualTrade(user.id, pendingEntryCloseMatch[1]!, tick));
+      } catch (error) {
+        return json(request, response, { error: error instanceof Error ? error.message : "Could not close the trade." }, 409);
       }
     }
     if (url.pathname === "/api/notifications" && request.method === "GET") {
@@ -777,6 +791,9 @@ if (databaseConfigured() && schedulersEnabled) {
     try {
       await expirePendingManualEntries();
       if (!getForexSessionStatus(new Date()).marketOpen) return;
+      // Submit any scheduled ("submit after") entries whose time has arrived.
+      const activated = await activateDuePendingManualEntries();
+      if (activated.submitted) console.log(`[pending-entry] activated ${activated.submitted} scheduled entr${activated.submitted === 1 ? "y" : "ies"}`);
       const brokerClosed = await fastResolveFilledTrades(liveTick);
       if (brokerClosed) console.log(`[paper-cycle] fast broker close booked ${brokerClosed}`);
       const paperClosed = await liveResolvePaperTrades(liveTick);
@@ -976,7 +993,10 @@ if (databaseConfigured() && schedulersEnabled) {
   newsRetagger = setInterval(() => void retag(), 15 * 60_000);
 }
 
+let shuttingDown = false;
 function shutdown() {
+  if (shuttingDown) return; // SIGTERM can arrive twice during a dev reload.
+  shuttingDown = true;
   clearInterval(heartbeat);
   if (researchWorker) clearInterval(researchWorker);
   if (paperCollector) clearInterval(paperCollector);
@@ -988,8 +1008,16 @@ function shutdown() {
   if (legacyConfidenceV2Collector) clearInterval(legacyConfidenceV2Collector);
   if (breakoutConfidenceV1Collector) clearInterval(breakoutConfidenceV1Collector);
   if (breakoutM5Collector) clearInterval(breakoutM5Collector);
-  wss.clients.forEach((socket) => socket.close(1001, "Server shutting down"));
+  // Hard-close sockets so server.close() resolves at once. A graceful 1001
+  // leaves keep-alive/WebSocket connections lingering, which holds the port
+  // open long enough that a fast dev reload (tsx watch) fails with EADDRINUSE.
+  // terminate() drops them immediately; clients simply reconnect.
+  wss.clients.forEach((socket) => socket.terminate());
+  wss.close();
   server.close(() => process.exit(0));
+  // Fallback: exit even if a handle is still open, so the port is always freed
+  // promptly for the next boot. unref() so it never itself keeps us alive.
+  setTimeout(() => process.exit(0), 1000).unref();
 }
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);

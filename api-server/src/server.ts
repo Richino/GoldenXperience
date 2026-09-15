@@ -107,6 +107,60 @@ const latestPrices = new Map<MajorInstrument, MarketPriceTick>();
 let currentStatus: MarketStreamStatus;
 const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 
+function freshTick(tick: MarketPriceTick | undefined) {
+  const receivedAt = tick ? Date.parse(tick.time) : Number.NaN;
+  return Boolean(
+    tick
+    && tick.source === "oanda"
+    && Number.isFinite(tick.bid)
+    && Number.isFinite(tick.ask)
+    && tick.bid > 0
+    && tick.ask >= tick.bid
+    && Number.isFinite(receivedAt)
+    && Date.now() - receivedAt <= 30_000,
+  );
+}
+
+/**
+ * Pending-entry creation must use a current executable OANDA quote. The stream
+ * normally supplies it, but a restarted/disconnected stream cache must not
+ * reject a trade while the authenticated REST pricing endpoint is healthy.
+ */
+async function executableTick(instrument: MajorInstrument): Promise<MarketPriceTick | null> {
+  const cached = latestPrices.get(instrument);
+  if (freshTick(cached)) return cached ?? null;
+
+  const pricing = await getPricing([instrument]);
+  const quote = pricing.data.find((candidate) => candidate.instrument === instrument);
+  if (
+    pricing.status.state !== "connected"
+    || pricing.status.source !== "oanda"
+    || !quote
+    || !Number.isFinite(quote.bid)
+    || !Number.isFinite(quote.ask)
+    || quote.bid <= 0
+    || quote.ask < quote.bid
+    || !Number.isFinite(Date.parse(quote.time))
+    || Date.now() - Date.parse(quote.time) > 30_000
+  ) return null;
+
+  const refreshed: MarketPriceTick = {
+    type: "price",
+    instrument,
+    displayName: quote.displayName,
+    bid: quote.bid,
+    ask: quote.ask,
+    mid: quote.mid,
+    spread: quote.ask - quote.bid,
+    status: quote.status,
+    time: quote.time,
+    source: "oanda",
+    sequence: Date.now(),
+  };
+  latestPrices.set(instrument, refreshed);
+  return refreshed;
+}
+
 function cors(request: IncomingMessage, response: ServerResponse) {
   const origin = request.headers.origin ? normalizeOrigin(request.headers.origin) : null;
   if (origin && allowedOrigins.has(origin)) {
@@ -218,7 +272,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       const payload = await body(request);
       const instrument = typeof payload?.instrument === "string" ? payload.instrument.toUpperCase() : "";
       if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
-      const tick = latestPrices.get(instrument);
+      const tick = await executableTick(instrument);
       if (!tick) return json(request, response, { error: "A fresh market quote is not available yet." }, 409);
       try {
         const entry = await createPendingManualEntry(user.id, { ...payload, instrument }, tick);
@@ -243,7 +297,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       const payload = await body(request);
       const instrument = typeof payload?.instrument === "string" ? payload.instrument.toUpperCase() : "";
       if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
-      const tick = latestPrices.get(instrument);
+      const tick = await executableTick(instrument);
       if (!tick) return json(request, response, { error: "A fresh market quote is not available yet." }, 409);
       try {
         const entry = await editPendingManualEntry(user.id, pendingEntryMatch[1]!, payload ?? {}, tick);

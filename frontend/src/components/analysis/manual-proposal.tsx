@@ -19,7 +19,6 @@ export type ManualProposal = {
   preferredEntryTime: string;
   rationale: string;
   newsSummary: string;
-  notice?: string;
   analyzedAt: string;
   testOnly: true;
 };
@@ -236,9 +235,6 @@ export function ManualProposalModal({
             <div><dt>Stop</dt><dd>{formatChartPrice(proposal.stop, proposal.instrument)}</dd></div>
             <div><dt>Target</dt><dd>{formatChartPrice(proposal.target, proposal.instrument)} · {proposal.riskReward}:1</dd></div>
           </dl>
-          {proposal.notice ? (
-            <p className="manual-proposal-notice">{proposal.notice}</p>
-          ) : null}
           <p className="manual-proposal-entry-time"><b>Preferred entry:</b> {proposal.preferredEntryTime}</p>
           <p><b>Why:</b> {proposal.rationale}</p>
           <p><b>News:</b> {proposal.newsSummary}</p>
@@ -253,7 +249,7 @@ export function ManualProposalModal({
               disabled={opening}
               aria-live="polite"
             >
-              {opening ? <><LoaderCircle className="size-3.5 animate-spin" /> Opening chart…</> : "Accept"}
+              {opening ? <><LoaderCircle className="size-3.5 animate-spin" /> Opening chart…</> : "Accept & open chart"}
             </button>
           </footer>
         </section>

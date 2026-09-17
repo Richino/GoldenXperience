@@ -21,6 +21,7 @@
     "research:rebuild-position-aware": "tsx scripts/rebuild-position-aware.ts",
     "research:run-experiment": "tsx scripts/run-research-experiment.ts",
     "research:test-gbp-candidate": "tsx scripts/test-gbp-candidate.ts",
+    "analyze:test": "tsx scripts/test-analyze-pipeline.ts",
     "paper-cycle:test": "tsx scripts/test-paper-cycle.ts",
     "pending-entry:test": "tsx scripts/test-pending-manual-entries.ts",
     "evaluations:test": "tsx scripts/test-evaluation-upsert.ts",

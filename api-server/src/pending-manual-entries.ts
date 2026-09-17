@@ -379,6 +379,26 @@ export async function activateDuePendingManualEntries() {
   return { submitted };
 }
 
+/**
+ * The Stage 5 frozen Analyze context, captured at accept and stored with the
+ * entry so live monitoring can compare original-vs-current. Untrusted client
+ * input: validated shape and capped size, else dropped (monitoring just becomes
+ * unavailable for that trade).
+ */
+function sanitizeFrozenContext(value: unknown): string | null {
+  if (!value || typeof value !== "object") return null;
+  const context = value as Record<string, unknown>;
+  if (context.version !== 1) return null;
+  if (context.direction !== "long" && context.direction !== "short") return null;
+  if (!context.frozen || typeof context.frozen !== "object") return null;
+  try {
+    const json = JSON.stringify(context);
+    return json.length > 8000 ? null : json;
+  } catch {
+    return null;
+  }
+}
+
 export async function createPendingManualEntry(userId: string, payload: Record<string, unknown>, tick: MarketPriceTick) {
   validateTick(tick);
   const direction = payload.direction === "long" || payload.direction === "short" ? payload.direction : null;
@@ -418,15 +438,16 @@ export async function createPendingManualEntry(userId: string, payload: Record<s
   const risk = levels.stop !== null && levels.target !== null
     ? { stop: levels.stop, target: levels.target, model: "MANUAL_LEVELS" as const }
     : await calculateManualTradeRisk(tick.instrument, direction, entryPrice);
+  const frozenContext = sanitizeFrozenContext(payload.analysisContext);
   const result = await query<EntryRow>(
     `INSERT INTO pending_manual_entries(
        user_id,instrument,direction,entry_price,entry_order_type,current_price_at_creation,
        expiration_type,expires_at,activate_at,invalidation_price,invalidation_side,last_observed_price,last_observed_at,stop_price,target_price,metadata
-     ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$16,$9,$10,$11,$12,$13,$14,jsonb_build_object('priceSource',$15::text,'createdFrom','chart','orderReferencePrice',$11::numeric))
+     ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$16,$9,$10,$11,$12,$13,$14,jsonb_build_object('priceSource',$15::text,'createdFrom','chart','orderReferencePrice',$11::numeric,'frozenContext',$17::jsonb))
      RETURNING ${SELECT_FIELDS}`,
     [userId, tick.instrument, direction, entryPrice, inferPendingOrderType(direction, entryPrice, orderReferencePrice), currentPrice,
       expiresAt ? "time" : "none", expiresAt, invalidationPrice,
-      invalidationPrice === null ? null : invalidationSide(invalidationPrice, orderReferencePrice), orderReferencePrice, tick.time, risk.stop, risk.target, tick.source, activateAt],
+      invalidationPrice === null ? null : invalidationSide(invalidationPrice, orderReferencePrice), orderReferencePrice, tick.time, risk.stop, risk.target, tick.source, activateAt, frozenContext],
   );
   const entryRow = result.rows[0]!;
   // Scheduled ("submit after") entry: stay dormant until the activation job runs

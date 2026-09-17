@@ -41,7 +41,9 @@ import { collectPatternV1Cycle, patternV1Disagreement, patternV1Status } from ".
 import { collectLegacyConfidenceV2Cycle } from "./legacy-confidence-v2-collector.js";
 import { collectBreakoutConfidenceV1Cycle } from "./breakout-confidence-v1-collector.js";
 import { collectBreakoutM5Cycle } from "./breakout-m5-confidence-v1-collector.js";
-import { createManualTradeProposal } from "./manual-analysis.js";
+import { runManualAnalysis } from "./manual-analysis.js";
+import { runTradeMonitor } from "./trade-monitor-service.js";
+import { createPlannedSetup, evaluatePlannedSetup, evaluateActivePlannedSetups } from "./planned-setup-service.js";
 import {
   activateDuePendingManualEntries,
   cancelPendingManualEntry,
@@ -251,16 +253,51 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       const payload = await body(request);
       const instrument = typeof payload?.instrument === "string" ? payload.instrument.toUpperCase() : "";
       if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
+      // Stage 6: the selected chart timeframe drives the analysis (default 15m).
+      const timeframe = typeof payload?.timeframe === "string" ? payload.timeframe : undefined;
       try {
-        // This endpoint deliberately only returns a proposal. It never calls
+        // This endpoint deliberately only returns an analysis. It never calls
         // paper-cycle, pending-entry creation, or an OANDA order API.
-        return json(request, response, { proposal: await createManualTradeProposal(instrument) });
+        return json(request, response, { analysis: await runManualAnalysis(instrument, timeframe) });
       } catch (error) {
         return json(request, response, { error: error instanceof Error ? error.message : "Manual analysis could not run." }, 502);
       }
     }
     if (url.pathname === "/api/saved-setups" && request.method === "GET") {
       return json(request, response, { setups: await savedExecutableSetups() });
+    }
+    if (url.pathname === "/api/planned-setups" && request.method === "POST") {
+      // Arm backend monitoring of a range-reversion plan. Never places an order.
+      const payload = await body(request);
+      const instrument = typeof payload?.instrument === "string" ? payload.instrument.toUpperCase() : "";
+      if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
+      const timeframe = typeof payload?.timeframe === "string" ? payload.timeframe : "M15";
+      try {
+        const created = await createPlannedSetup(user.id, instrument, timeframe, payload?.plan);
+        return json(request, response, { plannedSetup: created }, 201);
+      } catch (error) {
+        return json(request, response, { error: error instanceof Error ? error.message : "Could not arm monitoring." }, 400);
+      }
+    }
+    if (url.pathname === "/api/planned-setups" && request.method === "GET") {
+      const instrument = url.searchParams.get("instrument")?.toUpperCase();
+      if (!instrument || !isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
+      try {
+        // Poll-driven evaluation: reading also advances the monitor.
+        return json(request, response, await evaluatePlannedSetup(user.id, instrument));
+      } catch (error) {
+        return json(request, response, { error: error instanceof Error ? error.message : "Monitoring could not run." }, 502);
+      }
+    }
+    if (url.pathname === "/api/trade-monitor" && request.method === "GET") {
+      const instrument = url.searchParams.get("instrument")?.toUpperCase();
+      if (!instrument || !isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
+      try {
+        // Read-only structural monitoring: it never modifies or closes a trade.
+        return json(request, response, await runTradeMonitor(user.id, instrument));
+      } catch (error) {
+        return json(request, response, { error: error instanceof Error ? error.message : "Trade monitoring could not run." }, 502);
+      }
     }
     if (url.pathname === "/api/pending-entries" && request.method === "GET") {
       const instrument = url.searchParams.get("instrument")?.toUpperCase();
@@ -859,6 +896,17 @@ if (databaseConfigured() && schedulersEnabled) {
     }
   };
   fastResolver = setInterval(() => void fastResolve(), 5_000);
+  // Stage 8: background sweep of monitored range plans (PLANNED → READY / cancel).
+  // Completed-candle driven, so a 30s cadence is ample and keeps monitoring alive
+  // with no UI open. Never places an order.
+  let planSweepBusy = false;
+  setInterval(() => {
+    if (planSweepBusy || !getForexSessionStatus(new Date()).marketOpen) return;
+    planSweepBusy = true;
+    void evaluateActivePlannedSetups()
+      .catch((error) => console.error("[planned-setup] sweep failed", error))
+      .finally(() => { planSweepBusy = false; });
+  }, 30_000);
   let workerBusy = false;
   const work = async () => {
     if (workerBusy) return;

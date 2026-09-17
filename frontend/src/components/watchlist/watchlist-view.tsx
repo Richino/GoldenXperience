@@ -9,7 +9,7 @@ import {
   Search,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ManualProposalModal, type ManualProposal } from "@/components/analysis/manual-proposal";
+import { ManualProposalModal, stashFrozenContext, type ManualAnalysis } from "@/components/analysis/manual-proposal";
 import { WatchlistPairsSkeleton } from "@/components/ui/page-skeletons";
 import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
@@ -111,7 +111,7 @@ export function WatchlistView() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [proposal, setProposal] = useState<ManualProposal | null>(null);
+  const [proposal, setProposal] = useState<ManualAnalysis | null>(null);
   const [analyzingInstrument, setAnalyzingInstrument] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [market, setMarket] = useState(() => getMarketCondition());
@@ -355,9 +355,9 @@ export function WatchlistView() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ instrument }),
       });
-      const payload = await response.json() as { proposal?: ManualProposal; error?: string };
-      if (!response.ok || !payload.proposal) throw new Error(payload.error ?? "Analysis could not produce a proposal.");
-      setProposal(payload.proposal);
+      const payload = await response.json() as { analysis?: ManualAnalysis; error?: string };
+      if (!response.ok || !payload.analysis) throw new Error(payload.error ?? "Analysis could not run.");
+      setProposal(payload.analysis);
     } catch (reason) {
       setAnalysisError(reason instanceof Error ? reason.message : "Analysis could not run.");
     } finally {
@@ -366,16 +366,17 @@ export function WatchlistView() {
   }, []);
 
   const acceptProposal = useCallback(() => {
-    if (!proposal) return;
+    const trade = proposal?.trade;
+    if (!proposal || !trade) return;
+    stashFrozenContext(proposal);
     const parameters = new URLSearchParams({
       instrument: proposal.instrument,
-      entry: String(proposal.entry),
-      stop: String(proposal.stop),
-      target: String(proposal.target),
-      direction: proposal.direction,
-      confidence: String(proposal.confidence),
-      preferredEntryTime: proposal.preferredEntryTime,
-      rationale: proposal.rationale,
+      entry: String(trade.entry),
+      stop: String(trade.stop),
+      target: String(trade.target),
+      direction: trade.direction,
+      preferredEntryTime: proposal.proposal?.entryReason ?? "",
+      rationale: proposal.reason,
       proposal: "manual-analysis",
     });
     const timeout = window.setTimeout(() => {
@@ -633,9 +634,9 @@ export function WatchlistView() {
         </div>
       )}
       <ManualProposalModal
-        proposal={proposal}
-        currentPrice={proposal
-          ? proposal.direction === "long"
+        analysis={proposal}
+        currentPrice={proposal?.trade
+          ? proposal.trade.direction === "long"
             ? quotes[proposal.instrument]?.ask ?? null
             : quotes[proposal.instrument]?.bid ?? null
           : null}

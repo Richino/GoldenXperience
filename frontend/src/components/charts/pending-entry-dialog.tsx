@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { apiUrl } from "@/lib/api/url";
 import { displayNameFor, pipSizeFor, precisionFor } from "@/lib/instruments/catalog";
+import { frozenContextKey } from "@/components/analysis/manual-proposal";
 import type { PendingManualEntry } from "@/types/pending-entry";
 
 type ExpirationPreset = "none" | "30m" | "1h" | "4h" | "custom";
@@ -259,14 +260,28 @@ export function PendingEntryDialog({
     if (activateAtIso && expiresAt && Date.parse(activateAtIso) >= Date.parse(expiresAt)) return setError("The submit-after time must be before the expiration.");
     setSaving(true);
     try {
+      // On create, attach the Stage 5 frozen Analyze context captured at accept
+      // so the trade can be monitored structurally. Best-effort only.
+      let analysisContext: unknown;
+      if (!selectedEntry) {
+        try {
+          const raw = window.sessionStorage.getItem(frozenContextKey(instrument));
+          if (raw) analysisContext = JSON.parse(raw);
+        } catch {
+          analysisContext = undefined;
+        }
+      }
       const response = await fetch(apiUrl(selectedEntry ? `/api/pending-entries/${selectedEntry.id}` : "/api/pending-entries"), {
         method: selectedEntry ? "PATCH" : "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instrument, direction, entryPrice: parsedEntry, stopPrice: parsedStop, targetPrice: parsedTarget, expiresAt, activateAt: activateAtIso, invalidationPrice: parsedInvalidation, orderReferencePrice }),
+        body: JSON.stringify({ instrument, direction, entryPrice: parsedEntry, stopPrice: parsedStop, targetPrice: parsedTarget, expiresAt, activateAt: activateAtIso, invalidationPrice: parsedInvalidation, orderReferencePrice, ...(analysisContext ? { analysisContext } : {}) }),
       });
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Could not save the pending entry.");
+      if (!selectedEntry) {
+        try { window.sessionStorage.removeItem(frozenContextKey(instrument)); } catch { /* ignore */ }
+      }
       onChanged(selectedEntry ? "Pending entry updated" : "Pending entry created");
       onClose();
     } catch (reason) {

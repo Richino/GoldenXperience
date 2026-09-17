@@ -35,6 +35,7 @@ import {
   ManualProposalModal,
   useManualProposal,
 } from "@/components/analysis/manual-proposal";
+import { TradeHealthPanel } from "@/components/analysis/trade-health";
 import {
   ChartContextPanel,
   type ChartOverlayPreferences,
@@ -73,6 +74,7 @@ import {
 import { useMarketStream } from "@/lib/market-stream/use-market-stream";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { getMarketCondition } from "@/lib/strategy/session";
+import { computeSupportResistanceLevels } from "@/lib/strategy/support-resistance";
 import type { StrategySetup } from "@/lib/strategy/types";
 import type { PaperTradingAvailability } from "@/lib/strategy/strategy-engine";
 import type { WatchlistStatusInput } from "@/lib/watchlist-status";
@@ -213,30 +215,12 @@ function supportResistanceLines(
   candles: Candle[],
   instrument: MajorInstrument,
 ): ChartReferenceLine[] {
-  const visible = candles.slice(-160);
-  const current = visible.at(-1)?.close;
-  if (current === undefined || visible.length < 20) return [];
+  // The numbers come from the shared engine so the drawn lines and the Analyze
+  // market-condition read are always the same levels.
+  const levels = computeSupportResistanceLevels(candles, instrument);
+  if (!levels) return [];
+  const { current, rangeHigh, rangeLow, swingHigh, swingLow } = levels;
 
-  const range = visible.slice(-Math.min(60, visible.length));
-  const rangeHigh = Math.max(...range.map((candle) => candle.high));
-  const rangeLow = Math.min(...range.map((candle) => candle.low));
-  const pivotReach = 5;
-  const swingHighs: number[] = [];
-  const swingLows: number[] = [];
-
-  for (let index = pivotReach; index < visible.length - pivotReach; index += 1) {
-    const candle = visible[index]!;
-    const window = visible.slice(index - pivotReach, index + pivotReach + 1);
-    if (window.every((other) => other === candle || other.high <= candle.high)) {
-      swingHighs.push(candle.high);
-    }
-    if (window.every((other) => other === candle || other.low >= candle.low)) {
-      swingLows.push(candle.low);
-    }
-  }
-
-  const nearest = (prices: number[]) => prices
-    .sort((left, right) => Math.abs(left - current) - Math.abs(right - current))[0];
   const candidates: ChartReferenceLine[] = [];
   const minimumGap = pipSizeFor(instrument) * 8;
   const add = (line: ChartReferenceLine) => {
@@ -268,9 +252,7 @@ function supportResistanceLines(
     });
   }
 
-  const swingHigh = nearest(swingHighs.filter((price) => price > current));
-  const swingLow = nearest(swingLows.filter((price) => price < current));
-  if (swingHigh !== undefined) {
+  if (swingHigh !== null) {
     add({
       key: "sr-swing-resistance",
       price: swingHigh,
@@ -281,7 +263,7 @@ function supportResistanceLines(
       lineWidth: 1,
     });
   }
-  if (swingLow !== undefined) {
+  if (swingLow !== null) {
     add({
       key: "sr-swing-support",
       price: swingLow,
@@ -1719,12 +1701,13 @@ export function SignalWorkspace({
   const openedManualProposalRef = useRef(false);
 
   const {
-    proposal: manualProposal,
-    setProposal: setManualProposal,
+    analysis: manualProposal,
+    setAnalysis: setManualProposal,
     analyze: analyzeInstrument,
     analyzingInstrument,
     analysisError,
     acceptProposal: acceptManualProposal,
+    monitorSetup: monitorManualSetup,
   } = useManualProposal();
 
   useEffect(() => {
@@ -2795,7 +2778,7 @@ export function SignalWorkspace({
               <button
                 type="button"
                 className="gx-mobile-analyze pressable"
-                onClick={() => void analyzeInstrument(instrument)}
+                onClick={() => void analyzeInstrument(instrument, TIMEFRAME_TO_GRANULARITY[timeframe])}
                 disabled={analyzingInstrument === instrument}
               >
                 {analyzingInstrument === instrument ? "Analyzing…" : "Analyze"}
@@ -2804,6 +2787,7 @@ export function SignalWorkspace({
             {(tradeActionError || analysisError) ? (
               <p className="gx-mobile-analyze-error" role="alert">{tradeActionError ?? analysisError}</p>
             ) : null}
+            <TradeHealthPanel instrument={instrument} active={Boolean(activeManualTrade)} />
           </div>
         </div>
 
@@ -2853,7 +2837,7 @@ export function SignalWorkspace({
                 <button
                   type="button"
                   className="signals-analyze-desktop pressable"
-                  onClick={() => void analyzeInstrument(instrument)}
+                  onClick={() => void analyzeInstrument(instrument, TIMEFRAME_TO_GRANULARITY[timeframe])}
                   disabled={analyzingInstrument === instrument}
                   title="Run a test-only AI analysis of this chart"
                 >
@@ -2907,6 +2891,7 @@ export function SignalWorkspace({
                 onClear={clearFocusPrediction}
               />
             ) : null}
+            {activeManualTrade ? <TradeHealthPanel instrument={instrument} active /> : null}
 
             <div
               ref={desktopChartShellRef}
@@ -2974,12 +2959,13 @@ export function SignalWorkspace({
       {pendingEntryNotice ? <div className="pending-entry-toast" role="status">{pendingEntryNotice}</div> : null}
 
       <ManualProposalModal
-        proposal={manualProposal}
-        currentPrice={manualProposal
-          ? manualProposal.direction === "long" ? quote?.ask ?? null : quote?.bid ?? null
+        analysis={manualProposal}
+        currentPrice={manualProposal?.trade
+          ? manualProposal.trade.direction === "long" ? quote?.ask ?? null : quote?.bid ?? null
           : null}
         onDismiss={() => setManualProposal(null)}
         onAccept={acceptManualProposal}
+        onMonitor={monitorManualSetup}
       />
 
       {tradeConfirm ? createPortal(

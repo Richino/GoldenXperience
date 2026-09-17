@@ -13644,6 +13644,70 @@ html:has(.manual-proposal-backdrop) .mobile-dock {
 .manual-proposal-dismiss { border: 1px solid color-mix(in srgb, var(--danger) 42%, var(--border)); background: var(--danger-soft); color: var(--danger); }
 .manual-proposal-accept { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; border: 0; background: var(--accent); color: #05271e; }
 .manual-proposal-accept:disabled { cursor: wait; opacity: .82; }
+/* The LONG / SHORT / WAIT verdict pill. */
+.manual-proposal-action { align-self: start; border-radius: .6rem; padding: .4rem .6rem; font-size: .82rem; font-weight: 850; letter-spacing: .04em; }
+.manual-proposal-action.is-long { background: color-mix(in srgb, var(--accent) 18%, var(--surface-raised)); color: var(--accent); }
+.manual-proposal-action.is-short { background: var(--danger-soft); color: var(--danger); }
+.manual-proposal-action.is-wait { background: color-mix(in srgb, var(--pending) 18%, var(--surface-raised)); color: var(--pending); }
+.manual-proposal-action.is-no_trade { background: color-mix(in srgb, var(--muted) 20%, var(--surface-raised)); color: var(--muted-strong); }
+.manual-proposal-status { display: block; margin-top: .2rem; color: var(--muted); font-size: .58rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+/* Stage 8: all diagnostics live behind one Debug details section. */
+.manual-proposal-debug-root { margin-top: .85rem; }
+.manual-proposal-debug-root > summary { font-size: .66rem; }
+.manual-proposal-debug-root .manual-proposal-debug { margin-top: .5rem; }
+/* Execution-economics grid on the primary card (Average move / Spread / SL·TP). */
+.manual-proposal-economics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.manual-proposal-economics dt { text-transform: none; letter-spacing: 0; font-size: .58rem; }
+.manual-proposal-economics dd { font-size: .72rem; }
+/* Higher-timeframe context + confluence line. */
+.manual-proposal-htf { margin-top: .55rem; color: var(--muted-strong); font-size: .72rem; line-height: 1.4; }
+.manual-proposal-htf b { color: var(--foreground); }
+.htf-confluence { border-radius: .4rem; padding: .08rem .35rem; font-size: .62rem; font-weight: 800; letter-spacing: .04em; }
+.htf-confluence.is-aligned { background: color-mix(in srgb, var(--accent) 18%, var(--surface-raised)); color: var(--accent); }
+.htf-confluence.is-counter_trend { background: var(--danger-soft); color: var(--danger); }
+.htf-confluence.is-mixed { background: color-mix(in srgb, var(--pending) 18%, var(--surface-raised)); color: var(--pending); }
+.htf-confluence.is-neutral { background: color-mix(in srgb, var(--muted) 18%, var(--surface-raised)); color: var(--muted-strong); }
+/* Stage 5 live trade-health readout. */
+.trade-health { width: 100%; border: 1px solid var(--border); border-radius: .7rem; padding: .7rem .75rem; background: var(--surface-raised); }
+.trade-health.is-muted { color: var(--muted-strong); font-size: .72rem; }
+.trade-health.is-muted p { margin: .3rem 0 0; }
+.trade-health header { display: flex; align-items: flex-start; justify-content: space-between; gap: .6rem; }
+.trade-health-title { display: block; color: var(--muted); font-size: .56rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.trade-health header strong { display: block; margin-top: .15rem; font-size: .82rem; font-weight: 800; }
+.trade-health-status { align-self: start; border-radius: .5rem; padding: .3rem .5rem; font-size: .68rem; font-weight: 850; letter-spacing: .04em; }
+.trade-health-status.is-up { background: color-mix(in srgb, var(--accent) 18%, var(--surface)); color: var(--accent); }
+.trade-health-status.is-warn { background: color-mix(in srgb, var(--pending) 20%, var(--surface)); color: var(--pending); }
+.trade-health-status.is-down { background: var(--danger-soft); color: var(--danger); }
+.trade-health-r { margin-top: .5rem; font-size: 1.05rem; font-weight: 850; font-variant-numeric: tabular-nums; }
+.trade-health-r[data-sign="pos"] { color: var(--accent); }
+.trade-health-r[data-sign="neg"] { color: var(--danger); }
+.trade-health dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; margin: .55rem 0 0; }
+.trade-health > dl div { border: 1px solid var(--border); border-radius: .5rem; padding: .45rem .5rem; }
+.trade-health > dl dt { color: var(--muted); font-size: .56rem; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+.trade-health > dl dd { margin: .2rem 0 0; font-size: .74rem; font-weight: 800; }
+.trade-health-reason { margin: .55rem 0 0; color: var(--muted-strong); font-size: .72rem; line-height: 1.4; }
+.trade-health-factors { list-style: none; margin: .5rem 0 0; padding: 0; display: grid; gap: .3rem; }
+.trade-health-factors li { font-size: .68rem; color: var(--muted-strong); }
+.trade-health-factors li span { display: inline-block; min-width: 2.4rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.trade-health-factors li[data-sign="pos"] span { color: var(--accent); }
+.trade-health-factors li[data-sign="neg"] span { color: var(--danger); }
+/* Market / Location / Gate summary — always shown, no fabricated percentage. */
+.manual-proposal-condition { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .55rem; margin-top: .85rem; }
+.manual-proposal-condition div { border: 1px solid var(--border); border-radius: .55rem; padding: .5rem .55rem; }
+.manual-proposal-condition span { display: block; color: var(--muted); font-size: .58rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.manual-proposal-condition strong { display: block; margin-top: .22rem; font-size: .74rem; font-weight: 800; overflow-wrap: anywhere; }
+.manual-proposal-wait-reason { margin-top: .7rem; border-left: 2px solid var(--pending); padding-left: .6rem; color: var(--muted-strong); font-size: .78rem; line-height: 1.45; }
+.manual-proposal-debug { margin-top: .85rem; border: 1px solid var(--border); border-radius: .55rem; }
+.manual-proposal-debug summary { padding: .5rem .6rem; color: var(--muted); font-size: .62rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
+.manual-proposal-debug[open] summary { border-bottom: 1px solid var(--border); }
+.manual-proposal-debug dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .35rem .6rem; margin: 0; padding: .6rem; }
+.manual-proposal-debug dl div { display: flex; justify-content: space-between; gap: .5rem; border: 0; padding: 0; }
+.manual-proposal-debug dt { color: var(--muted); font-size: .66rem; font-weight: 700; text-transform: none; letter-spacing: 0; }
+.manual-proposal-debug dd { margin: 0; font-size: .68rem; font-weight: 750; font-variant-numeric: tabular-nums; }
+.manual-proposal-debug dd.mig-up { color: var(--accent); }
+.manual-proposal-debug dd.mig-down { color: var(--danger); }
+.manual-proposal-debug dd.mig-flat { color: var(--muted-strong); }
+@media (max-width: 1023px) { .manual-proposal-condition { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .4rem; } }
 .pending-cancel-confirmation { width: min(25rem, 100%); }
 .pending-cancel-confirm { border: 0; background: var(--danger); color: #fff; }
 .pending-cancel-confirm:disabled { cursor: wait; opacity: .7; }

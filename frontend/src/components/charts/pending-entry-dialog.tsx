@@ -5,7 +5,6 @@ import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { apiUrl } from "@/lib/api/url";
 import { displayNameFor, pipSizeFor, precisionFor } from "@/lib/instruments/catalog";
-import { frozenContextKey } from "@/components/analysis/manual-proposal";
 import type { PendingManualEntry } from "@/types/pending-entry";
 
 type ExpirationPreset = "none" | "30m" | "1h" | "4h" | "custom";
@@ -54,6 +53,7 @@ function todayLocalDate() {
 
 export function PendingEntryDialog({
   open,
+  layout = "dialog",
   instrument,
   bid,
   ask,
@@ -63,6 +63,7 @@ export function PendingEntryDialog({
   onChanged,
 }: {
   open: boolean;
+  layout?: "dialog" | "panel";
   instrument: string;
   bid: number | null;
   ask: number | null;
@@ -71,15 +72,16 @@ export function PendingEntryDialog({
   onClose: () => void;
   onChanged: (message: string) => void;
 }) {
+  const isPanel = layout === "panel";
   const [editing, setEditing] = useState(false);
   const [direction, setDirection] = useState<"long" | "short">(selectedEntry?.direction ?? initialProposal?.direction ?? "long");
   const [orderReferencePrice, setOrderReferencePrice] = useState<number | null>(() => {
-    const initialDirection = selectedEntry?.direction ?? "long";
+    const initialDirection = selectedEntry?.direction ?? initialProposal?.direction ?? "long";
     return initialDirection === "long" ? ask : bid;
   });
-  const [entryPrice, setEntryPrice] = useState(selectedEntry ? String(selectedEntry.entryPrice) : initialProposal ? String(initialProposal.entry) : "");
-  const [stopPrice, setStopPrice] = useState(selectedEntry?.stopPrice == null ? (initialProposal ? String(initialProposal.stop) : "") : String(selectedEntry.stopPrice));
-  const [targetPrice, setTargetPrice] = useState(selectedEntry?.targetPrice == null ? (initialProposal ? String(initialProposal.target) : "") : String(selectedEntry.targetPrice));
+  const [entryPrice, setEntryPrice] = useState(selectedEntry ? String(selectedEntry.entryPrice) : initialProposal ? initialProposal.entry.toFixed(precisionFor(instrument)) : "");
+  const [stopPrice, setStopPrice] = useState(selectedEntry?.stopPrice == null ? (initialProposal ? initialProposal.stop.toFixed(precisionFor(instrument)) : "") : String(selectedEntry.stopPrice));
+  const [targetPrice, setTargetPrice] = useState(selectedEntry?.targetPrice == null ? (initialProposal ? initialProposal.target.toFixed(precisionFor(instrument)) : "") : String(selectedEntry.targetPrice));
   const [invalidationPrice, setInvalidationPrice] = useState(selectedEntry?.invalidationPrice == null ? "" : String(selectedEntry.invalidationPrice));
   const [activateAt, setActivateAt] = useState(localDateTimeValue(selectedEntry?.activateAt ?? null));
   const [activatePickerOpen, setActivatePickerOpen] = useState(false);
@@ -98,7 +100,7 @@ export function PendingEntryDialog({
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || isPanel) return;
     const previousBodyOverflow = document.body.style.overflow;
     const previousBodyOverscroll = document.body.style.overscrollBehavior;
     const previousBodyPosition = document.body.style.position;
@@ -158,7 +160,7 @@ export function PendingEntryDialog({
       document.removeEventListener("touchmove", onTouchMove, true);
       window.scrollTo(0, scrollY);
     };
-  }, [onClose, open]);
+  }, [isPanel, onClose, open]);
 
   const current = direction === "long" ? ask : bid;
   const parsedEntry = entryPrice.trim() === "" ? Number.NaN : Number(entryPrice);
@@ -188,6 +190,7 @@ export function PendingEntryDialog({
   const isDetail = Boolean(selectedEntry && !editing);
 
   function resetDialogDocumentScroll() {
+    if (isPanel) return;
     window.scrollTo(0, 0);
     document.documentElement.scrollTop = 0;
     // iOS performs its reveal scroll after focus dispatches.
@@ -195,6 +198,41 @@ export function PendingEntryDialog({
       window.scrollTo(0, 0);
       document.documentElement.scrollTop = 0;
     });
+  }
+
+  function resetCreateForm() {
+    const nextDirection = initialProposal?.direction ?? "long";
+    setEditing(false);
+    setDirection(nextDirection);
+    setOrderReferencePrice(nextDirection === "long" ? ask : bid);
+    setEntryPrice(initialProposal ? initialProposal.entry.toFixed(precision) : "");
+    setStopPrice(initialProposal ? initialProposal.stop.toFixed(precision) : "");
+    setTargetPrice(initialProposal ? initialProposal.target.toFixed(precision) : "");
+    setInvalidationPrice("");
+    setActivateAt("");
+    setActivatePickerOpen(false);
+    setActivateDate("");
+    setActivateTime("");
+    setActivateError(null);
+    setExpiration("none");
+    setCustomExpiration("");
+    setCustomExpirationPickerOpen(false);
+    setCustomDate("");
+    setCustomTime("");
+    setCustomExpirationError(null);
+    setError(null);
+  }
+
+  function dismissCreateOrClose() {
+    if (selectedEntry) {
+      setEditing(false);
+      return;
+    }
+    if (isPanel) {
+      resetCreateForm();
+      return;
+    }
+    onClose();
   }
 
   function openCustomExpirationPicker() {
@@ -260,28 +298,14 @@ export function PendingEntryDialog({
     if (activateAtIso && expiresAt && Date.parse(activateAtIso) >= Date.parse(expiresAt)) return setError("The submit-after time must be before the expiration.");
     setSaving(true);
     try {
-      // On create, attach the Stage 5 frozen Analyze context captured at accept
-      // so the trade can be monitored structurally. Best-effort only.
-      let analysisContext: unknown;
-      if (!selectedEntry) {
-        try {
-          const raw = window.sessionStorage.getItem(frozenContextKey(instrument));
-          if (raw) analysisContext = JSON.parse(raw);
-        } catch {
-          analysisContext = undefined;
-        }
-      }
       const response = await fetch(apiUrl(selectedEntry ? `/api/pending-entries/${selectedEntry.id}` : "/api/pending-entries"), {
         method: selectedEntry ? "PATCH" : "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instrument, direction, entryPrice: parsedEntry, stopPrice: parsedStop, targetPrice: parsedTarget, expiresAt, activateAt: activateAtIso, invalidationPrice: parsedInvalidation, orderReferencePrice, ...(analysisContext ? { analysisContext } : {}) }),
+        body: JSON.stringify({ instrument, direction, entryPrice: parsedEntry, stopPrice: parsedStop, targetPrice: parsedTarget, expiresAt, activateAt: activateAtIso, invalidationPrice: parsedInvalidation, orderReferencePrice }),
       });
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Could not save the pending entry.");
-      if (!selectedEntry) {
-        try { window.sessionStorage.removeItem(frozenContextKey(instrument)); } catch { /* ignore */ }
-      }
       onChanged(selectedEntry ? "Pending entry updated" : "Pending entry created");
       onClose();
     } catch (reason) {
@@ -311,24 +335,43 @@ export function PendingEntryDialog({
     }
   }
 
-  return (
-    <>
-      {createPortal((
-    <div className="pending-entry-backdrop" data-pull-to-refresh-ignore="true" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className={`pending-entry-dialog${initialProposal ? " is-proposal" : ""}`} role="dialog" aria-modal="true" aria-labelledby="pending-entry-title" onFocusCapture={resetDialogDocumentScroll}>
+  const headerEyebrow = isDetail
+    ? selectedEntry?.status
+    : selectedEntry
+      ? "Edit pending entry"
+      : isPanel
+        ? "Add entry"
+        : "Pending manual entry";
+
+  const shell = (
+    <section
+      className={`pending-entry-dialog${isPanel ? " is-panel" : ""}${initialProposal ? " is-proposal" : ""}`}
+      role={isPanel ? "region" : "dialog"}
+      aria-modal={isPanel ? undefined : true}
+      aria-labelledby={isPanel && !selectedEntry ? undefined : "pending-entry-title"}
+      aria-label={isPanel && !selectedEntry ? "Add entry" : undefined}
+      onFocusCapture={resetDialogDocumentScroll}
+    >
+      {isPanel && !selectedEntry ? null : (
         <header>
           <div>
-            <span>{isDetail ? selectedEntry?.status : selectedEntry ? "Edit pending entry" : "Pending manual entry"}</span>
+            <span>{headerEyebrow}</span>
             <h2 id="pending-entry-title">{displayNameFor(instrument)}</h2>
           </div>
-          <button type="button" className="mobile-sheet-close pressable" onClick={onClose} aria-label="Close pending entry">
+          <button
+            type="button"
+            className="mobile-sheet-close pressable"
+            onClick={onClose}
+            aria-label={isPanel ? "Back to new entry" : "Close pending entry"}
+          >
             <X className="size-4" />
           </button>
         </header>
+      )}
 
-        {isDetail && selectedEntry ? (
-          <>
-            <div className="pending-entry-detail">
+      {isDetail && selectedEntry ? (
+        <>
+          <div className="pending-entry-detail">
             <p className={`pending-entry-status is-${selectedEntry.status.toLowerCase()}`}>
               {selectedEntry.status === "PENDING" ? `Waiting for ${selectedEntry.entryPrice.toFixed(precision)}`
                 : selectedEntry.status === "TRIGGERED" ? `Entry triggered at ${selectedEntry.triggerPrice?.toFixed(precision) ?? "—"}`
@@ -351,20 +394,24 @@ export function PendingEntryDialog({
               {selectedEntry.targetPrice !== null ? <div><dt>Target</dt><dd>{selectedEntry.targetPrice.toFixed(precision)}</dd></div> : null}
             </dl>
             {error ? <p className="pending-entry-error">{error}</p> : null}
-            </div>
-            {selectedEntry.status === "PENDING" ? (
-              <footer className="pending-entry-actions">
-                <button type="button" className="pending-entry-danger pressable" disabled={saving} onClick={() => void cancelEntry()}>Cancel Entry</button>
-                <button type="button" className="pending-entry-primary pressable" onClick={() => {
-                  setOrderReferencePrice(current);
-                  setEditing(true);
-                }}>Edit Entry</button>
-              </footer>
-            ) : null}
-          </>
-        ) : (
-          <>
-            <div className="pending-entry-form">
+          </div>
+          {selectedEntry.status === "PENDING" ? (
+            <footer className="pending-entry-actions">
+              <button type="button" className="pending-entry-danger pressable" disabled={saving} onClick={() => void cancelEntry()}>Cancel Entry</button>
+              <button type="button" className="pending-entry-primary pressable" onClick={() => {
+                setOrderReferencePrice(current);
+                setEditing(true);
+              }}>Edit Entry</button>
+            </footer>
+          ) : isPanel ? (
+            <footer className="pending-entry-actions">
+              <button type="button" className="pending-entry-secondary pressable" onClick={onClose}>New Entry</button>
+            </footer>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <div className="pending-entry-form">
             <div className="pending-entry-direction" role="group" aria-label="Direction">
               {(["long", "short"] as const).map((option) => (
                 <button key={option} type="button" className={`is-${option}${direction === option ? " is-active" : ""}`} onClick={() => {
@@ -431,22 +478,33 @@ export function PendingEntryDialog({
               </span>
               {error ? <span className="pending-entry-summary-error" role="alert">{error}</span> : null}
             </div>
-            </div>
-            <footer className="pending-entry-actions">
-              <button type="button" className="pending-entry-secondary pressable" onClick={selectedEntry ? () => setEditing(false) : onClose}>Cancel</button>
-              <button
-                type="button"
-                className="pending-entry-primary pressable"
-                disabled={saving || !Number.isFinite(parsedEntry) || parsedEntry <= 0}
-                onClick={() => void save()}
-              >
-                {saving ? "Saving…" : selectedEntry ? "Save Changes" : "Create Entry"}
+          </div>
+          <footer className="pending-entry-actions">
+            {(!isPanel || selectedEntry) ? (
+              <button type="button" className="pending-entry-secondary pressable" onClick={dismissCreateOrClose}>
+                {selectedEntry ? "Back" : "Cancel"}
               </button>
-            </footer>
-          </>
-        )}
-      </section>
-    </div>
+            ) : null}
+            <button
+              type="button"
+              className="pending-entry-primary pressable"
+              disabled={saving || !Number.isFinite(parsedEntry) || parsedEntry <= 0}
+              onClick={() => void save()}
+            >
+              {saving ? "Saving…" : selectedEntry ? "Save Changes" : "Create Entry"}
+            </button>
+          </footer>
+        </>
+      )}
+    </section>
+  );
+
+  return (
+    <>
+      {isPanel ? shell : createPortal((
+        <div className="pending-entry-backdrop" data-pull-to-refresh-ignore="true" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+          {shell}
+        </div>
       ), document.body)}
       {customExpirationPickerOpen ? createPortal(
         <div className="custom-expiration-backdrop" data-pull-to-refresh-ignore="true" onMouseDown={(event) => event.target === event.currentTarget && setCustomExpirationPickerOpen(false)}>

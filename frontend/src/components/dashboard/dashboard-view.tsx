@@ -440,7 +440,7 @@ export function DashboardView({
       {error ? <p className="research-error">{error}</p> : null}
 
       {Math.abs(account.balance - account.nav) >= 0.01 ? (
-        <p className="home-balance-note">
+        <p className="home-balance-note lg:hidden">
           Balance {money(account.balance, account.currency)}
         </p>
       ) : null}

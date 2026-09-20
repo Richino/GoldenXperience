@@ -1,16 +1,16 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import {
   ChevronDown,
   Clock3,
   Maximize,
   Minimize,
-  Plus,
   RotateCcw,
   Search,
+  Scaling,
   Sparkles,
   X,
 } from "lucide-react";
@@ -27,7 +27,9 @@ import {
 import { IndicatorSelect } from "@/components/charts/indicator-select";
 import {
   SetupChart,
+  createOneToTwoSetup,
   type ChartPatternLine,
+  type ChartPositionTool,
   type ChartReferenceLine,
 } from "@/components/charts/setup-chart";
 import { PendingEntryDialog } from "@/components/charts/pending-entry-dialog";
@@ -35,7 +37,6 @@ import {
   ManualProposalModal,
   useManualProposal,
 } from "@/components/analysis/manual-proposal";
-import { TradeHealthPanel } from "@/components/analysis/trade-health";
 import {
   ChartContextPanel,
   type ChartOverlayPreferences,
@@ -74,6 +75,19 @@ import {
 import { useMarketStream } from "@/lib/market-stream/use-market-stream";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { getMarketCondition } from "@/lib/strategy/session";
+import {
+  computeSessionSrLevels,
+  logSessionSrDebug,
+  type SessionSrCentre,
+  type SessionSrLevels,
+} from "@/lib/strategy/session-sr";
+import { computeLastDaySrLevels } from "@/lib/strategy/last-day-sr";
+import {
+  computeActiveFrozen4hSr,
+  computeFrozen4hBlocks,
+  logFrozen4hDebug,
+  type Frozen4hBlock,
+} from "@/lib/strategy/frozen-4h-sr";
 import { computeSupportResistanceLevels } from "@/lib/strategy/support-resistance";
 import type { StrategySetup } from "@/lib/strategy/types";
 import type { PaperTradingAvailability } from "@/lib/strategy/strategy-engine";
@@ -81,7 +95,6 @@ import type { WatchlistStatusInput } from "@/lib/watchlist-status";
 import type { MarketPriceTick } from "@/types/market-stream";
 import type { BinaryPrediction, BinaryWatchRow } from "@/types/binary";
 import type { PendingManualEntry } from "@/types/pending-entry";
-import { MAJOR_INSTRUMENTS } from "@/types/forex";
 import type {
   Candle,
   CandleSeries,
@@ -276,6 +289,171 @@ function supportResistanceLines(
   }
 
   return candidates;
+}
+
+const SESSION_SR_STYLES: Record<
+  SessionSrCentre,
+  { label: string; highColor: string; lowColor: string; textColor: string }
+> = {
+  asia: {
+    label: "Asia",
+    highColor: "#f0b429",
+    lowColor: "#d97706",
+    textColor: "#1a1205",
+  },
+  london: {
+    label: "London",
+    highColor: "#72a8ff",
+    lowColor: "#3b82f6",
+    textColor: "#071426",
+  },
+  newyork: {
+    label: "New York",
+    highColor: "#c084fc",
+    lowColor: "#a855f7",
+    textColor: "#1a0b2e",
+  },
+};
+
+/**
+ * Frozen S/R lines for one session centre. Levels come from
+ * `computeSessionSrLevels` (existing S/R engine at session open). Swing lines
+ * are skipped when they sit within a few pips of the range twin so overlapping
+ * labels stay readable.
+ */
+function sessionSrLines(
+  levels: SessionSrLevels,
+  instrument: MajorInstrument,
+): ChartReferenceLine[] {
+  const style = SESSION_SR_STYLES[levels.centre];
+  const lines: ChartReferenceLine[] = [];
+  const minimumGap = pipSizeFor(instrument) * 8;
+  const add = (line: ChartReferenceLine) => {
+    if (!Number.isFinite(line.price)) return;
+    if (lines.some((existing) => Math.abs(existing.price - line.price) < minimumGap)) return;
+    lines.push(line);
+  };
+
+  add({
+    key: `session-sr-${levels.centre}-range-r`,
+    price: levels.rangeHigh,
+    label: `${style.label} R · range`,
+    color: style.highColor,
+    textColor: style.textColor,
+    dashed: false,
+    lineWidth: 2,
+  });
+  add({
+    key: `session-sr-${levels.centre}-range-s`,
+    price: levels.rangeLow,
+    label: `${style.label} S · range`,
+    color: style.lowColor,
+    textColor: "#ffffff",
+    dashed: false,
+    lineWidth: 2,
+  });
+  if (levels.swingHigh !== null) {
+    add({
+      key: `session-sr-${levels.centre}-swing-r`,
+      price: levels.swingHigh,
+      label: `${style.label} R · swing`,
+      color: style.highColor,
+      textColor: style.textColor,
+      dashed: true,
+      lineWidth: 1,
+    });
+  }
+  if (levels.swingLow !== null) {
+    add({
+      key: `session-sr-${levels.centre}-swing-s`,
+      price: levels.swingLow,
+      label: `${style.label} S · swing`,
+      color: style.lowColor,
+      textColor: "#ffffff",
+      dashed: true,
+      lineWidth: 1,
+    });
+  }
+
+  return lines;
+}
+
+/**
+ * Previous-day high/low lines. Frozen on the last completed ET calendar day —
+ * today's price action does not move them.
+ */
+function lastDaySrLines(candles: Candle[]): ChartReferenceLine[] {
+  const levels = computeLastDaySrLevels(candles);
+  if (!levels) return [];
+  return [
+    {
+      key: "last-day-sr-high",
+      price: levels.high,
+      label: "Prev day high",
+      color: "#fbbf24",
+      textColor: "#1a1205",
+      dashed: false,
+      lineWidth: 2,
+    },
+    {
+      key: "last-day-sr-low",
+      price: levels.low,
+      label: "Prev day low",
+      color: "#f59e0b",
+      textColor: "#ffffff",
+      dashed: true,
+      lineWidth: 1,
+    },
+  ];
+}
+
+/**
+ * Active-block tagged reference lines removed — they cluttered the chart with
+ * "R · 20:00–00:00 UTC" style labels. Levels render as finite segments only.
+ */
+function frozen4hActiveLines(_block: Frozen4hBlock): ChartReferenceLine[] {
+  return [];
+}
+
+/** One horizontal segment per level per 4H block (active + historical). */
+function frozen4hPatternLines(blocks: Frozen4hBlock[]): ChartPatternLine[] {
+  const lines: ChartPatternLine[] = [];
+  for (const block of blocks) {
+    const id = String(block.blockStartMs);
+    lines.push(
+      {
+        key: `frozen-4h-${id}-r`,
+        color: "#ff5252",
+        dashed: false,
+        lineWidth: 1,
+        points: [
+          { time: block.startTime, price: block.resistance },
+          { time: block.endTime, price: block.resistance },
+        ],
+      },
+      {
+        key: `frozen-4h-${id}-mid`,
+        color: "#fbbf24",
+        dashed: true,
+        lineWidth: 1,
+        points: [
+          { time: block.startTime, price: block.midpoint },
+          { time: block.endTime, price: block.midpoint },
+        ],
+      },
+      {
+        key: `frozen-4h-${id}-s`,
+        color: "#00e59b",
+        dashed: false,
+        lineWidth: 1,
+        points: [
+          { time: block.startTime, price: block.support },
+          { time: block.endTime, price: block.support },
+        ],
+      },
+    );
+  }
+  return lines;
 }
 
 /**
@@ -750,6 +928,24 @@ function RangeSelect({
   );
 }
 
+function subscribeDesktopChartViewport(onStoreChange: () => void) {
+  const media = window.matchMedia("(min-width: 1024px)");
+  media.addEventListener("change", onStoreChange);
+  return () => media.removeEventListener("change", onStoreChange);
+}
+
+function getDesktopChartViewport() {
+  return window.matchMedia("(min-width: 1024px)").matches;
+}
+
+function useDesktopChartViewport() {
+  return useSyncExternalStore(
+    subscribeDesktopChartViewport,
+    getDesktopChartViewport,
+    () => true,
+  );
+}
+
 function SignalSearch({
   signals,
   activeInstrument,
@@ -771,6 +967,9 @@ function SignalSearch({
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const isDesktop = useDesktopChartViewport();
   const normalizedQuery = normalizeSearchValue(query);
   const index = useMemo(() => buildSearchIndex(signals), [signals]);
   const matches = useMemo(() => {
@@ -802,6 +1001,7 @@ function SignalSearch({
   }, [index, normalizedQuery]);
   const visibleMatches = compact ? matches : matches.slice(0, 5);
   const showResults = open;
+  const useDesktopDropdown = compact && isDesktop;
 
   useEffect(() => {
     if (!open) return;
@@ -812,7 +1012,9 @@ function SignalSearch({
       }
     }
 
-    if (!compact) document.addEventListener("keydown", handleEscape);
+    if (!compact || useDesktopDropdown) {
+      document.addEventListener("keydown", handleEscape);
+    }
 
     const previousBodyOverflow = document.body.style.overflow;
     const previousRootOverflow = document.documentElement.style.overflow;
@@ -822,23 +1024,149 @@ function SignalSearch({
     }
 
     return () => {
-      if (!compact) document.removeEventListener("keydown", handleEscape);
+      if (!compact || useDesktopDropdown) {
+        document.removeEventListener("keydown", handleEscape);
+      }
       if (!compact) {
         document.body.style.overflow = previousBodyOverflow;
         document.documentElement.style.overflow = previousRootOverflow;
       }
     };
-  }, [compact, open]);
+  }, [compact, open, useDesktopDropdown]);
+
+  useEffect(() => {
+    if (!open || !useDesktopDropdown) {
+      setMenuPosition(null);
+      return;
+    }
+
+    function syncPosition() {
+      const rect = rootRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setMenuPosition({ top: rect.bottom + 8, left: rect.left });
+    }
+
+    syncPosition();
+    window.addEventListener("resize", syncPosition);
+    window.addEventListener("scroll", syncPosition, true);
+    return () => {
+      window.removeEventListener("resize", syncPosition);
+      window.removeEventListener("scroll", syncPosition, true);
+    };
+  }, [open, useDesktopDropdown]);
+
+  useEffect(() => {
+    if (!open || !useDesktopDropdown) return;
+
+    function handlePointerDown(event: MouseEvent) {
+      const target = event.target as Node;
+      if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) {
+        return;
+      }
+      setOpen(false);
+      onQueryChange("");
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [onQueryChange, open, useDesktopDropdown]);
 
   if (compact) {
+    function closePicker() {
+      setOpen(false);
+      onQueryChange("");
+    }
+
+    const pairList = (
+      <div className="signals-pair-sheet">
+        <div className="signals-search">
+          <Search
+            className="size-3.5 shrink-0 text-[color:var(--muted)]"
+            strokeWidth={2}
+          />
+          <input
+            aria-label="Search all forex pairs"
+            className="min-w-0 flex-1 bg-transparent text-[color:var(--foreground)] outline-none placeholder:text-[color:var(--muted)]"
+            placeholder="Search pairs"
+            style={useDesktopDropdown ? undefined : { fontSize: 16 }}
+            type="search"
+            value={query}
+            autoFocus={useDesktopDropdown && open}
+            onChange={(event) => onQueryChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                closePicker();
+                event.currentTarget.blur();
+              }
+
+              if (event.key === "Enter" && matches[0]) {
+                event.preventDefault();
+                onSelect(matches[0]);
+                closePicker();
+              }
+            }}
+          />
+          {query ? (
+            <button
+              aria-label="Clear search"
+              className="signals-icon-btn pressable !size-6 shrink-0"
+              type="button"
+              onClick={() => onQueryChange("")}
+            >
+              <X className="size-3" strokeWidth={2} />
+            </button>
+          ) : null}
+        </div>
+        <div className={useDesktopDropdown ? "signals-pair-dropdown-results" : "mt-2"}>
+          {matches.length ? (
+            visibleMatches.map((result) => {
+              const active = result.instrument === activeInstrument;
+
+              return (
+                <button
+                  key={result.instrument}
+                  type="button"
+                  onClick={() => {
+                    onSelect(result);
+                    closePicker();
+                  }}
+                  className={`signals-search-result pressable flex w-full items-center gap-2.5 text-left ${
+                    useDesktopDropdown ? "px-2.5 py-2" : "rounded-lg px-2 py-2"
+                  } ${active ? "is-active" : ""}`}
+                >
+                  {useDesktopDropdown ? null : (
+                    <PairAvatar instrument={result.instrument} size={26} />
+                  )}
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium tracking-[-0.02em]">
+                    {result.displayName}
+                  </span>
+                  {active && useDesktopDropdown ? (
+                    <span className="signals-search-current">Current</span>
+                  ) : null}
+                </button>
+              );
+            })
+          ) : (
+            <div className="px-2 py-3 text-center text-xs text-[color:var(--muted)]">
+              No matching pair
+            </div>
+          )}
+        </div>
+      </div>
+    );
+
     return (
       <>
-        <div className={`relative ${className}`}>
+        <div ref={rootRef} className={`relative ${className}`}>
           <button
             type="button"
             aria-label="Search pairs"
             aria-expanded={open}
-            onClick={() => setOpen((current) => !current)}
+            aria-haspopup={useDesktopDropdown ? "listbox" : undefined}
+            onClick={() => setOpen((current) => {
+              if (current) onQueryChange("");
+              return !current;
+            })}
             className={`signals-tool-btn pressable ${open ? "is-active" : ""}`}
           >
             {pairLabel ? (
@@ -847,85 +1175,34 @@ function SignalSearch({
           </button>
         </div>
 
-        <MobileSheet
-          open={open}
-          onClose={() => setOpen(false)}
-          title="Select a pair"
-          resetPageScrollOnOpen
-          resetPageScrollOnInputFocus
-          keyboardAvoiding
-          className="signals-pair-mobile-sheet"
-        >
-          <div className="signals-pair-sheet">
-            <div className="signals-search">
-              <Search
-                className="size-3.5 shrink-0 text-[color:var(--muted)]"
-                strokeWidth={2}
-              />
-              <input
-                aria-label="Search all forex pairs"
-                className="min-w-0 flex-1 bg-transparent text-[color:var(--foreground)] outline-none placeholder:text-[color:var(--muted)]"
-                placeholder="Search pairs"
-                style={{ fontSize: 16 }}
-                type="search"
-                value={query}
-                onChange={(event) => onQueryChange(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Escape") {
-                    setOpen(false);
-                    event.currentTarget.blur();
-                  }
+        {useDesktopDropdown && open && menuPosition && typeof document !== "undefined"
+          ? createPortal(
+              <div
+                ref={menuRef}
+                className="signals-pair-dropdown menu-popover"
+                role="listbox"
+                aria-label="Select a pair"
+                style={{ top: menuPosition.top, left: menuPosition.left }}
+              >
+                {pairList}
+              </div>,
+              document.body,
+            )
+          : null}
 
-                  if (event.key === "Enter" && matches[0]) {
-                    event.preventDefault();
-                    onSelect(matches[0]);
-                    setOpen(false);
-                  }
-                }}
-              />
-              {query ? (
-                <button
-                  aria-label="Clear search"
-                  className="signals-icon-btn pressable !size-6 shrink-0"
-                  type="button"
-                  onClick={() => onQueryChange("")}
-                >
-                  <X className="size-3" strokeWidth={2} />
-                </button>
-              ) : null}
-            </div>
-            <div className="mt-2">
-              {matches.length ? (
-                visibleMatches.map((result) => {
-                  const active = result.instrument === activeInstrument;
-
-                  return (
-                    <button
-                      key={result.instrument}
-                      type="button"
-                      onClick={() => {
-                        onSelect(result);
-                        setOpen(false);
-                      }}
-                      className={`signals-search-result pressable flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left ${
-                        active ? "is-active" : ""
-                      }`}
-                    >
-                      <PairAvatar instrument={result.instrument} size={26} />
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium tracking-[-0.02em]">
-                        {result.displayName}
-                      </span>
-                    </button>
-                  );
-                })
-              ) : (
-                <div className="px-2 py-3 text-center text-xs text-[color:var(--muted)]">
-                  No matching pair
-                </div>
-              )}
-            </div>
-          </div>
-        </MobileSheet>
+        {!useDesktopDropdown ? (
+          <MobileSheet
+            open={open}
+            onClose={closePicker}
+            title="Select a pair"
+            resetPageScrollOnOpen
+            resetPageScrollOnInputFocus
+            keyboardAvoiding
+            className="signals-pair-mobile-sheet"
+          >
+            {pairList}
+          </MobileSheet>
+        ) : null}
       </>
     );
   }
@@ -1660,12 +1937,15 @@ export function SignalWorkspace({
   const seriesRef = useRef(primarySeries);
   const [liveCandle, setLiveCandle] = useState<Candle | null>(null);
   const [quote, setQuote] = useState<PriceQuote | null>(null);
-  const [watchlistQuotes, setWatchlistQuotes] = useState<PriceQuote[]>([]);
-  const [overlayPreferences, setOverlayPreferences] = useState<ChartOverlayPreferences>({
+  // Dedicated completed-M15 history for session S/R freezes. Independent of the
+  // chart timeframe so a 5m/1h view cannot change or invalidate the snapshot.
+  const [sessionSrM15Candles, setSessionSrM15Candles] = useState<Candle[]>([]);
+  const sessionSrDebugKeyRef = useRef("");
+  const overlayPreferences: ChartOverlayPreferences = {
     levels: true,
     signalMarkers: true,
     positionMarkers: true,
-  });
+  };
   const [dataNotice, setDataNotice] = useState<string | null>(
     initialStatus.state === "connected" ? null : initialStatus.message,
   );
@@ -1698,16 +1978,64 @@ export function SignalWorkspace({
   const [selectedPendingEntry, setSelectedPendingEntry] = useState<PendingManualEntry | null>(null);
   const [pendingEntryNotice, setPendingEntryNotice] = useState<string | null>(null);
   const [pendingEntryClock, setPendingEntryClock] = useState(() => Date.now());
+  const [entryComposerRevision, setEntryComposerRevision] = useState(0);
+  const [positionTool, setPositionTool] = useState<ChartPositionTool | null>(null);
+  const [positionToolPrompt, setPositionToolPrompt] = useState(false);
+  const [entryDraftProposal, setEntryDraftProposal] = useState<{
+    direction: "long" | "short";
+    entry: number;
+    stop: number;
+    target: number;
+    confidence: number | null;
+    rationale: string;
+    preferredEntryTime: string;
+  } | null>(null);
   const openedManualProposalRef = useRef(false);
 
+  function isCompactChartViewport() {
+    return typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches;
+  }
+
+  function openPendingEntryManager(entry: PendingManualEntry | null = null) {
+    setSelectedPendingEntry(entry);
+    if (isCompactChartViewport()) {
+      setPendingEntryDialogOpen(true);
+    } else {
+      setPendingEntryDialogOpen(false);
+    }
+  }
+
+  function clearPendingEntrySelection() {
+    setSelectedPendingEntry(null);
+    setPendingEntryDialogOpen(false);
+    setEntryDraftProposal(null);
+    setEntryComposerRevision((revision) => revision + 1);
+  }
+
+  function submitPositionTool(tool: ChartPositionTool) {
+    const precision = precisionFor(instrument);
+    const round = (value: number) => Number(value.toFixed(precision));
+    setEntryDraftProposal({
+      direction: tool.direction,
+      entry: round(tool.entry),
+      stop: round(tool.stop),
+      target: round(tool.target),
+      confidence: null,
+      rationale: "1:2 setup from chart",
+      preferredEntryTime: new Date().toISOString(),
+    });
+    setPositionTool(null);
+    openPendingEntryManager(null);
+    setEntryComposerRevision((revision) => revision + 1);
+  }
+
   const {
-    analysis: manualProposal,
-    setAnalysis: setManualProposal,
+    proposal: manualProposal,
+    setProposal: setManualProposal,
     analyze: analyzeInstrument,
     analyzingInstrument,
     analysisError,
     acceptProposal: acceptManualProposal,
-    monitorSetup: monitorManualSetup,
   } = useManualProposal();
 
   useEffect(() => {
@@ -1717,8 +2045,8 @@ export function SignalWorkspace({
     // its previous proposal state before opening the pending-entry sheet so
     // the two dialogs never stack.
     setManualProposal(null);
-    setSelectedPendingEntry(null);
-    setPendingEntryDialogOpen(true);
+    openPendingEntryManager(null);
+    setEntryComposerRevision((revision) => revision + 1);
   }, [initialManualProposal, setManualProposal]);
   const olderRequestInFlightRef = useRef(false);
   const pendingTickRef = useRef<MarketPriceTick | null>(null);
@@ -1734,20 +2062,6 @@ export function SignalWorkspace({
       if (response.ok && payload.watchlist) setLivePaperPlans(payload.watchlist);
     } catch {
       // Retain the last known strategy verdict while a refresh is unavailable.
-    }
-  }, []);
-
-  const refreshWatchlistQuotes = useCallback(async () => {
-    try {
-      const response = await fetch(
-        apiUrl(`/api/oanda/pricing?instruments=${MAJOR_INSTRUMENTS.join(",")}`),
-        { credentials: "include", cache: "no-store" },
-      );
-      const payload = (await response.json()) as { data?: PriceQuote[] };
-      if (response.ok && payload.data) setWatchlistQuotes(payload.data);
-    } catch {
-      // The chart quote remains independently stream-driven if this contextual
-      // snapshot is temporarily unavailable.
     }
   }, []);
 
@@ -1813,15 +2127,6 @@ export function SignalWorkspace({
     const timer = window.setInterval(() => void refreshPaperPlans(), 60_000);
     return () => window.clearInterval(timer);
   }, [refreshPaperPlans]);
-
-  useEffect(() => {
-    const initial = window.setTimeout(() => void refreshWatchlistQuotes(), 0);
-    const timer = window.setInterval(() => void refreshWatchlistQuotes(), 60_000);
-    return () => {
-      window.clearTimeout(initial);
-      window.clearInterval(timer);
-    };
-  }, [refreshWatchlistQuotes]);
 
   useEffect(() => {
     void refreshBinaryWatch();
@@ -2218,6 +2523,30 @@ export function SignalWorkspace({
     }
     return openSignal;
   }, [activeSetup.pair, instrument, openPaperTrade, openSignal, triggeredManualEntry]);
+
+  const startPositionTool = useCallback((direction: "long" | "short") => {
+    const candles = series.candles;
+    const entry =
+      liveCandle?.close
+      ?? candles.at(-1)?.close
+      ?? null;
+    if (entry === null || !Number.isFinite(entry) || candles.length === 0) {
+      setPositionToolPrompt(false);
+      return;
+    }
+    const atr = calculateAtr(candles, 14).at(-1);
+    const pip = pipSizeFor(instrument);
+    const risk = typeof atr === "number" && atr > 0
+      ? Math.max(pip * 8, atr * 0.5)
+      : pip * 20;
+    const lastIndex = candles.length - 1;
+    const spanBars = Math.min(36, Math.max(lastIndex, 1));
+    const toLogical = lastIndex;
+    const fromLogical = Math.max(0, lastIndex - spanBars);
+    setPositionTool(createOneToTwoSetup(direction, entry, risk, fromLogical, toLogical));
+    setPositionToolPrompt(false);
+  }, [instrument, liveCandle?.close, series.candles]);
+
   // Only an open trade owns live Entry / SL / TP overlays. Manual positions
   // already render their clickable levels through pendingEntryReferenceLines,
   // so suppress the strategy draft while one is open instead of drawing both.
@@ -2238,8 +2567,7 @@ export function SignalWorkspace({
   );
   const pendingEntryReferenceLines = useMemo(() => {
     const openManager = (entry: PendingManualEntry) => {
-      setSelectedPendingEntry(entry);
-      setPendingEntryDialogOpen(true);
+      openPendingEntryManager(entry);
     };
     return pendingEntries.flatMap((entry) => {
       if (entry.status === "PENDING" || entry.status === "TRIGGERING") {
@@ -2323,6 +2651,116 @@ export function SignalWorkspace({
       : [],
     [enabledIndicators, instrument, series.candles],
   );
+  const sessionSrEnabled = useMemo(
+    () =>
+      isChartIndicatorEnabled(enabledIndicators, "session-sr-asia")
+      || isChartIndicatorEnabled(enabledIndicators, "session-sr-london")
+      || isChartIndicatorEnabled(enabledIndicators, "session-sr-newyork"),
+    [enabledIndicators],
+  );
+  const frozen4hSrEnabled = useMemo(
+    () => isChartIndicatorEnabled(enabledIndicators, "frozen-4h-sr"),
+    [enabledIndicators],
+  );
+  const m15OverlayEnabled = sessionSrEnabled || frozen4hSrEnabled;
+  // Prefer the dedicated M15 feed; when the chart is already on M15 and that
+  // feed has not arrived yet, fall back so the overlay is not blank.
+  const sessionSrSourceCandles = useMemo(() => {
+    if (sessionSrM15Candles.length >= 20) return sessionSrM15Candles;
+    if (TIMEFRAME_TO_GRANULARITY[timeframe] === "M15") return series.candles;
+    return sessionSrM15Candles;
+  }, [sessionSrM15Candles, series.candles, timeframe]);
+  const sessionSrSnapshots = useMemo(() => {
+    if (!sessionSrEnabled) return [] as SessionSrLevels[];
+    const centres: SessionSrCentre[] = [];
+    if (isChartIndicatorEnabled(enabledIndicators, "session-sr-asia")) centres.push("asia");
+    if (isChartIndicatorEnabled(enabledIndicators, "session-sr-london")) centres.push("london");
+    if (isChartIndicatorEnabled(enabledIndicators, "session-sr-newyork")) centres.push("newyork");
+    return centres
+      .map((centre) => computeSessionSrLevels(sessionSrSourceCandles, centre, instrument))
+      .filter((levels): levels is SessionSrLevels => levels !== null);
+  }, [enabledIndicators, instrument, sessionSrEnabled, sessionSrSourceCandles]);
+  const sessionSrReferenceLines = useMemo(
+    () => sessionSrSnapshots.flatMap((levels) => sessionSrLines(levels, instrument)),
+    [instrument, sessionSrSnapshots],
+  );
+  const frozen4hBlocks = useMemo(
+    () => frozen4hSrEnabled
+      ? computeFrozen4hBlocks(sessionSrSourceCandles, instrument)
+      : [],
+    [frozen4hSrEnabled, instrument, sessionSrSourceCandles],
+  );
+  const frozen4hActive = useMemo(
+    () => frozen4hSrEnabled
+      ? computeActiveFrozen4hSr(sessionSrSourceCandles, instrument)
+      : null,
+    [frozen4hSrEnabled, instrument, sessionSrSourceCandles],
+  );
+  const frozen4hReferenceLines = useMemo(
+    () => frozen4hActive ? frozen4hActiveLines(frozen4hActive) : [],
+    [frozen4hActive],
+  );
+  const frozen4hHistoryLines = useMemo(
+    () => frozen4hSrEnabled ? frozen4hPatternLines(frozen4hBlocks) : [],
+    [frozen4hBlocks, frozen4hSrEnabled],
+  );
+  const lastDaySrReferenceLines = useMemo(
+    () => isChartIndicatorEnabled(enabledIndicators, "last-day-sr")
+      ? lastDaySrLines(series.candles)
+      : [],
+    [enabledIndicators, series.candles],
+  );
+
+  // Load a dedicated M15 window whenever session S/R or 4H Frozen S/R is on.
+  useEffect(() => {
+    if (!m15OverlayEnabled) {
+      setSessionSrM15Candles([]);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    async function loadSessionSrM15() {
+      try {
+        const response = await fetch(
+          apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=M15&count=500`),
+          { credentials: "include", cache: "no-store", signal: controller.signal },
+        );
+        if (!response.ok) return;
+        const payload = (await response.json()) as {
+          data: CandleSeries;
+        };
+        if (payload.data.instrument !== instrument) return;
+        setSessionSrM15Candles(payload.data.candles);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        // Keep any prior M15 snapshot on transient failures.
+      }
+    }
+
+    void loadSessionSrM15();
+    return () => controller.abort();
+  }, [instrument, m15OverlayEnabled]);
+
+  // Log freeze diagnostics once per centre+sessionStart so a refresh can be
+  // compared against the original open without spamming every tick.
+  useEffect(() => {
+    if (!sessionSrSnapshots.length) return;
+    const key = sessionSrSnapshots
+      .map((levels) => `${levels.centre}:${levels.sessionStart}:${levels.debug.historicalCandleCount}`)
+      .join("|");
+    if (key === sessionSrDebugKeyRef.current) return;
+    sessionSrDebugKeyRef.current = key;
+    for (const levels of sessionSrSnapshots) {
+      logSessionSrDebug(levels);
+    }
+  }, [sessionSrSnapshots]);
+
+  useEffect(() => {
+    if (!frozen4hActive) return;
+    logFrozen4hDebug(frozen4hActive);
+  }, [frozen4hActive?.blockStartMs, frozen4hActive?.resistance, frozen4hActive?.support, frozen4hActive?.sourceBarCount]);
+
   const breakoutReferenceLines = useMemo(
     () => isChartIndicatorEnabled(enabledIndicators, "breakout")
       ? breakoutLines(series.candles)
@@ -2335,13 +2773,20 @@ export function SignalWorkspace({
       : { lines: [], tags: [] },
     [enabledIndicators, series.candles],
   );
+  const chartPatternLines = useMemo(
+    () => [...patternOverlay.lines, ...frozen4hHistoryLines],
+    [frozen4hHistoryLines, patternOverlay.lines],
+  );
   const chartReferenceLines = useMemo(
     () => [
       ...pendingEntryReferenceLines,
       ...supportResistanceReferenceLines,
+      ...sessionSrReferenceLines,
+      ...lastDaySrReferenceLines,
+      ...frozen4hReferenceLines,
       ...(patternOverlay.lines.length ? [] : breakoutReferenceLines),
     ],
-    [breakoutReferenceLines, patternOverlay.lines, pendingEntryReferenceLines, supportResistanceReferenceLines],
+    [breakoutReferenceLines, frozen4hReferenceLines, lastDaySrReferenceLines, patternOverlay.lines, pendingEntryReferenceLines, sessionSrReferenceLines, supportResistanceReferenceLines],
   );
   const focusRange = useMemo(() => {
     const interval =
@@ -2593,31 +3038,12 @@ export function SignalWorkspace({
     return Number(spreadInPips(instrument, quote.bid, quote.ask));
   }, [instrument, quote]);
 
-  const dayRange = useMemo(() => {
-    const dayStart = new Date();
-    dayStart.setUTCHours(0, 0, 0, 0);
-    const today = series.candles.filter((candle) => Date.parse(candle.time) >= dayStart.getTime());
-    const candidates = today.length ? today : series.candles;
-    if (!candidates.length) return { high: null, low: null };
-    return {
-      high: Math.max(...candidates.map((candle) => candle.high)),
-      low: Math.min(...candidates.map((candle) => candle.low)),
-    };
-  }, [series.candles]);
-
   function selectSearchResult(result: SearchResult) {
     setLiveCandle(null);
     setFocusTradeId(null);
     setSelectedInstrument(result.instrument);
     router.replace(`${workspacePath}?instrument=${encodeURIComponent(result.instrument)}`, { scroll: false });
     setSearchQuery("");
-  }
-
-  function selectContextInstrument(nextInstrument: MajorInstrument) {
-    setLiveCandle(null);
-    setFocusTradeId(null);
-    setSelectedInstrument(nextInstrument);
-    router.replace(`${workspacePath}?instrument=${encodeURIComponent(nextInstrument)}`, { scroll: false });
   }
 
   const sessionLabel = marketSessionCaption();
@@ -2644,9 +3070,26 @@ export function SignalWorkspace({
                 className="gx-pair-search"
               />
               <div className="signals-mobile-header-actions flex items-center gap-2">
-                <button type="button" className="pending-entry-add pressable" onClick={() => { setSelectedPendingEntry(null); setPendingEntryDialogOpen(true); }}>
-                  <Plus className="size-3.5" /> Add Entry
-                </button>
+                {manualTradeMode === "close" ? (
+                  <button type="button" className="signals-analyze-desktop pressable is-close" onClick={() => setTradeConfirm("close")} disabled={tradeActionBusy}>
+                    {tradeActionBusy ? "Closing…" : "Close Trade"}
+                  </button>
+                ) : manualTradeMode === "cancel" ? (
+                  <button type="button" className="signals-analyze-desktop pressable is-cancel" onClick={() => setTradeConfirm("cancel")} disabled={tradeActionBusy}>
+                    {tradeActionBusy ? "Cancelling…" : "Cancel Trade"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="signals-analyze-desktop pressable"
+                    onClick={() => void analyzeInstrument(instrument)}
+                    disabled={analyzingInstrument === instrument}
+                    title="Run a test-only AI analysis of this chart"
+                  >
+                    <Sparkles className="size-3.5" />
+                    {analyzingInstrument === instrument ? "Analyzing…" : "Analyze"}
+                  </button>
+                )}
                 <NotificationBell compact className="signals-icon-btn signals-fullscreen-reserve" />
               </div>
             </div>
@@ -2655,14 +3098,13 @@ export function SignalWorkspace({
               <span className="signals-mobile-price metric-number">
                 {formatChartPrice(priceStats.displayPrice, instrument)}
               </span>
-              <span className={priceStats.positive ? "gx-chart-change is-positive" : "gx-chart-change is-negative"}>
-                {priceStats.positive ? "+" : ""}{priceStats.change.toFixed(precisionForInstrument(instrument))}
-                <span>{priceStats.positive ? "+" : ""}{priceStats.changePercent.toFixed(2)}%</span>
+              <span className="gx-mobile-quote-meta">
+                <span className={priceStats.positive ? "gx-chart-change is-positive" : "gx-chart-change is-negative"}>
+                  {priceStats.positive ? "+" : ""}{priceStats.change.toFixed(precisionForInstrument(instrument))}
+                  <span>{priceStats.positive ? "+" : ""}{priceStats.changePercent.toFixed(2)}%</span>
+                </span>
+                <span className="gx-mobile-session">{sessionLabel}</span>
               </span>
-              <span className="gx-mobile-session">{sessionLabel}</span>
-              {spreadPips !== null && Number.isFinite(spreadPips) ? (
-                <span className="gx-mobile-spread">Spread {spreadPips.toFixed(1)}p</span>
-              ) : null}
             </div>
             <div className="gx-mobile-timeframes">
               <SegmentControl
@@ -2731,13 +3173,31 @@ export function SignalWorkspace({
               focusRange={focusRange}
               referenceLine={predictionReferenceLine}
               referenceLines={chartReferenceLines}
-              patternLines={patternOverlay.lines}
+              patternLines={chartPatternLines}
+              positionTool={positionTool}
+              onPositionToolChange={setPositionTool}
+              onPositionToolSubmit={submitPositionTool}
             />
             <ChartLoadingOverlay visible={loading} />
           </div>
 
           <div className="gx-mobile-chart-toolbar">
             <IndicatorSheet enabled={enabledIndicators} onChange={setEnabledIndicators} />
+            <button
+              type="button"
+              className={`gx-mobile-tool-button pressable${positionTool ? " is-active" : ""}`}
+              onClick={() => {
+                if (positionTool) {
+                  setPositionTool(null);
+                  return;
+                }
+                setPositionToolPrompt(true);
+              }}
+              aria-label="Draw a 1:2 risk/reward setup"
+              title="1:2 setup"
+            >
+              <Scaling className="size-3.5" strokeWidth={2} />
+            </button>
             {fullscreen ? (
               <ChartOptionSheet
                 title="Timeframe"
@@ -2766,28 +3226,12 @@ export function SignalWorkspace({
           </div>
 
           <div className="gx-mobile-analyze-section">
-            {manualTradeMode === "close" ? (
-              <button type="button" className="gx-mobile-analyze pressable is-close" onClick={() => setTradeConfirm("close")} disabled={tradeActionBusy}>
-                {tradeActionBusy ? "Closing…" : "Close Trade"}
-              </button>
-            ) : manualTradeMode === "cancel" ? (
-              <button type="button" className="gx-mobile-analyze pressable is-cancel" onClick={() => setTradeConfirm("cancel")} disabled={tradeActionBusy}>
-                {tradeActionBusy ? "Cancelling…" : "Cancel Trade"}
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="gx-mobile-analyze pressable"
-                onClick={() => void analyzeInstrument(instrument, TIMEFRAME_TO_GRANULARITY[timeframe])}
-                disabled={analyzingInstrument === instrument}
-              >
-                {analyzingInstrument === instrument ? "Analyzing…" : "Analyze"}
-              </button>
-            )}
+            <button type="button" className="gx-mobile-analyze pressable" onClick={() => openPendingEntryManager(null)}>
+              Trade
+            </button>
             {(tradeActionError || analysisError) ? (
               <p className="gx-mobile-analyze-error" role="alert">{tradeActionError ?? analysisError}</p>
             ) : null}
-            <TradeHealthPanel instrument={instrument} active={Boolean(activeManualTrade)} />
           </div>
         </div>
 
@@ -2837,7 +3281,7 @@ export function SignalWorkspace({
                 <button
                   type="button"
                   className="signals-analyze-desktop pressable"
-                  onClick={() => void analyzeInstrument(instrument, TIMEFRAME_TO_GRANULARITY[timeframe])}
+                  onClick={() => void analyzeInstrument(instrument)}
                   disabled={analyzingInstrument === instrument}
                   title="Run a test-only AI analysis of this chart"
                 >
@@ -2848,14 +3292,26 @@ export function SignalWorkspace({
               {(tradeActionError || analysisError) ? (
                 <span className="signals-analyze-error" role="alert">{tradeActionError ?? analysisError}</span>
               ) : null}
-              <button type="button" className="pending-entry-add pressable" onClick={() => { setSelectedPendingEntry(null); setPendingEntryDialogOpen(true); }}>
-                <Plus className="size-3.5" /> Add Entry
-              </button>
               <IndicatorSelect
                 toolbar
                 enabled={enabledIndicators}
                 onChange={setEnabledIndicators}
               />
+              <button
+                type="button"
+                className={`gx-toolbar-btn pressable${positionTool ? " is-active" : ""}`}
+                onClick={() => {
+                  if (positionTool) {
+                    setPositionTool(null);
+                    return;
+                  }
+                  setPositionToolPrompt(true);
+                }}
+                title="Draw a 1:2 risk/reward setup"
+              >
+                <Scaling className="size-3.5" />
+                1:2
+              </button>
               <ChartTypeSelect toolbar value={chartVariant} onChange={setChartVariant} />
               <RangeSelect value={range} onChange={selectRange} />
               <ResetViewButton
@@ -2891,7 +3347,6 @@ export function SignalWorkspace({
                 onClear={clearFocusPrediction}
               />
             ) : null}
-            {activeManualTrade ? <TradeHealthPanel instrument={instrument} active /> : null}
 
             <div
               ref={desktopChartShellRef}
@@ -2917,7 +3372,10 @@ export function SignalWorkspace({
                 focusRange={focusRange}
                 referenceLine={predictionReferenceLine}
                 referenceLines={chartReferenceLines}
-                patternLines={patternOverlay.lines}
+                patternLines={chartPatternLines}
+                positionTool={positionTool}
+                onPositionToolChange={setPositionTool}
+                onPositionToolSubmit={submitPositionTool}
               />
               <ChartLoadingOverlay visible={loading} />
             </div>
@@ -2928,15 +3386,17 @@ export function SignalWorkspace({
             pairLabel={activeSetup.pair}
           />
           <ChartContextPanel
-            activeInstrument={instrument}
-            quotes={watchlistQuotes}
-            overlayPreferences={overlayPreferences}
-            onOverlayChange={setOverlayPreferences}
-            onSelectInstrument={selectContextInstrument}
-            spreadPips={spreadPips}
-            dayHigh={dayRange.high}
-            dayLow={dayRange.low}
-            sessionLabel={sessionLabel}
+            instrument={instrument}
+            bid={quote?.bid ?? null}
+            ask={quote?.ask ?? null}
+            selectedEntry={selectedPendingEntry}
+            initialProposal={entryDraftProposal ?? initialManualProposal}
+            composerKey={`${instrument}:${selectedPendingEntry?.id ?? "new"}:${entryComposerRevision}`}
+            onClearSelection={clearPendingEntrySelection}
+            onChanged={(message) => {
+              setPendingEntryNotice(message);
+              void refreshPendingEntries();
+            }}
           />
         </div>
         </section>
@@ -2949,7 +3409,7 @@ export function SignalWorkspace({
         bid={quote?.bid ?? null}
         ask={quote?.ask ?? null}
         selectedEntry={selectedPendingEntry}
-        initialProposal={initialManualProposal}
+        initialProposal={entryDraftProposal ?? initialManualProposal}
         onClose={() => setPendingEntryDialogOpen(false)}
         onChanged={(message) => {
           setPendingEntryNotice(message);
@@ -2959,13 +3419,12 @@ export function SignalWorkspace({
       {pendingEntryNotice ? <div className="pending-entry-toast" role="status">{pendingEntryNotice}</div> : null}
 
       <ManualProposalModal
-        analysis={manualProposal}
-        currentPrice={manualProposal?.trade
-          ? manualProposal.trade.direction === "long" ? quote?.ask ?? null : quote?.bid ?? null
+        proposal={manualProposal}
+        currentPrice={manualProposal
+          ? manualProposal.direction === "long" ? quote?.ask ?? null : quote?.bid ?? null
           : null}
         onDismiss={() => setManualProposal(null)}
         onAccept={acceptManualProposal}
-        onMonitor={monitorManualSetup}
       />
 
       {tradeConfirm ? createPortal(
@@ -2984,6 +3443,41 @@ export function SignalWorkspace({
               >
                 {tradeConfirm === "cancel" ? "Cancel Trade" : "Close Trade"}
               </button>
+            </footer>
+          </section>
+        </div>,
+        document.body,
+      ) : null}
+
+      {positionToolPrompt ? createPortal(
+        <div
+          className="custom-expiration-backdrop"
+          data-pull-to-refresh-ignore="true"
+          onMouseDown={(event) => event.target === event.currentTarget && setPositionToolPrompt(false)}
+        >
+          <section
+            className="custom-expiration-dialog trade-confirm-dialog position-tool-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="position-tool-title"
+          >
+            <header>
+              <div>
+                <span>{instrument.replace("_", "/")}</span>
+                <h3 id="position-tool-title">1:2 setup</h3>
+              </div>
+            </header>
+            <p>Choose a direction. Risk is sized from ATR with reward locked at 2R — drag the box to move, drag left/right edges to set width, or drag SL/TP to scale while staying 1:2.</p>
+            <div className="position-tool-direction">
+              <button type="button" className="is-long" onClick={() => startPositionTool("long")}>
+                Long
+              </button>
+              <button type="button" className="is-short" onClick={() => startPositionTool("short")}>
+                Short
+              </button>
+            </div>
+            <footer>
+              <button type="button" onClick={() => setPositionToolPrompt(false)}>Cancel</button>
             </footer>
           </section>
         </div>,

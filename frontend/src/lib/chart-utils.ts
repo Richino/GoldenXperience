@@ -40,6 +40,11 @@ export type ChartVariant = (typeof CHART_VARIANTS)[number]["value"];
 
 export const CHART_INDICATORS = [
   { value: "support-resistance", label: "Support & resistance", group: "overlay" },
+  { value: "frozen-4h-sr", label: "4H Frozen S/R", group: "overlay" },
+  { value: "last-day-sr", label: "Last day SR", group: "overlay" },
+  { value: "session-sr-asia", label: "Session SR · Asia", group: "overlay" },
+  { value: "session-sr-london", label: "Session SR · London", group: "overlay" },
+  { value: "session-sr-newyork", label: "Session SR · New York", group: "overlay" },
   { value: "breakout", label: "Breakout", group: "overlay" },
   { value: "breakout-patterns", label: "Breakout patterns", group: "overlay" },
   { value: "ema21", label: "EMA 21", group: "overlay" },

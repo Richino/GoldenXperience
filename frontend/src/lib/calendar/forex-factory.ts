@@ -7,11 +7,7 @@ import {
 import { normalizeForexFactoryEvents } from "@/lib/calendar/normalize";
 import type { ConnectionStatus } from "@/types/forex";
 
-/**
- * Only the current week is published — nextweek/lastweek/today all 404 — so the
- * snapshot has to declare where its coverage ends rather than imply it can see
- * a full 24 hours ahead.
- */
+/** The current-week export is stable enough to fetch directly. */
 const THIS_WEEK_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json";
 
 /**
@@ -29,6 +25,7 @@ interface CachedFeed {
 
 let cache: CachedFeed | null = null;
 let inFlight: Promise<EconomicCalendarEvent[]> | null = null;
+
 
 async function fetchFeed(url: string): Promise<EconomicCalendarEvent[]> {
   const controller = new AbortController();

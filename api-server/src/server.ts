@@ -41,7 +41,7 @@ import { collectPatternV1Cycle, patternV1Disagreement, patternV1Status } from ".
 import { collectLegacyConfidenceV2Cycle } from "./legacy-confidence-v2-collector.js";
 import { collectBreakoutConfidenceV1Cycle } from "./breakout-confidence-v1-collector.js";
 import { collectBreakoutM5Cycle } from "./breakout-m5-confidence-v1-collector.js";
-import { runManualAnalysis } from "./manual-analysis.js";
+import { createManualTradeProposal } from "./manual-analysis.js";
 import { runTradeMonitor } from "./trade-monitor-service.js";
 import { createPlannedSetup, evaluatePlannedSetup, evaluateActivePlannedSetups } from "./planned-setup-service.js";
 import {
@@ -253,12 +253,8 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       const payload = await body(request);
       const instrument = typeof payload?.instrument === "string" ? payload.instrument.toUpperCase() : "";
       if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
-      // Stage 6: the selected chart timeframe drives the analysis (default 15m).
-      const timeframe = typeof payload?.timeframe === "string" ? payload.timeframe : undefined;
       try {
-        // This endpoint deliberately only returns an analysis. It never calls
-        // paper-cycle, pending-entry creation, or an OANDA order API.
-        return json(request, response, { analysis: await runManualAnalysis(instrument, timeframe) });
+        return json(request, response, { proposal: await createManualTradeProposal(instrument) });
       } catch (error) {
         return json(request, response, { error: error instanceof Error ? error.message : "Manual analysis could not run." }, 502);
       }

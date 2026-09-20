@@ -18,12 +18,25 @@ function Line({ className = "" }: { className?: string }) {
 
 /** Mirrors the chart pane while price history is still loading. */
 function ChartScreenSkeleton() {
+  // Dense enough to read like a live chart viewport. Heights/tops are uneven
+  // on purpose so the strip doesn't look like a repeating pattern.
   const candles = [
-    [56, 16, "down"], [48, 11, "up"], [52, 18, "up"], [43, 10, "down"],
-    [37, 16, "up"], [45, 9, "down"], [50, 13, "down"], [58, 10, "up"],
-    [53, 17, "up"], [45, 9, "down"], [39, 15, "down"], [47, 12, "up"],
-    [55, 10, "down"], [49, 16, "up"], [42, 11, "up"], [46, 17, "down"],
+    [61, 14, "down"], [48, 6, "up"], [53, 19, "up"], [57, 4, "down"],
+    [41, 16, "down"], [36, 9, "up"], [44, 22, "up"], [55, 5, "down"],
+    [62, 11, "down"], [49, 3, "up"], [38, 18, "up"], [33, 7, "down"],
+    [29, 13, "down"], [42, 21, "up"], [51, 8, "up"], [58, 15, "down"],
+    [64, 4, "down"], [56, 17, "up"], [47, 6, "up"], [39, 20, "down"],
+    [34, 10, "down"], [28, 14, "up"], [37, 23, "up"], [46, 5, "down"],
+    [54, 12, "down"], [60, 7, "up"], [52, 16, "up"], [43, 9, "down"],
+    [35, 19, "down"], [40, 4, "up"], [50, 14, "up"], [59, 8, "down"],
+    [66, 11, "down"], [55, 20, "up"], [45, 6, "up"], [38, 13, "down"],
+    [32, 17, "down"], [27, 8, "up"], [36, 5, "up"], [48, 21, "down"],
+    [56, 9, "down"], [63, 15, "up"], [51, 4, "up"], [42, 18, "down"],
+    [37, 7, "down"], [31, 12, "up"], [40, 22, "up"], [49, 6, "down"],
+    [57, 14, "down"], [61, 3, "up"], [53, 19, "up"], [44, 10, "down"],
   ] as const;
+
+  const step = 100 / candles.length;
 
   return (
     <div className="chart-route-skeleton" aria-hidden>
@@ -33,7 +46,12 @@ function ChartScreenSkeleton() {
           <span
             key={index}
             className={`is-${tone}`}
-            style={{ left: `${3 + index * 6.15}%`, top: `${top}%`, height: `${height}%` }}
+            style={{
+              left: `${index * step + step * 0.18}%`,
+              width: `${step * 0.62}%`,
+              top: `${top}%`,
+              height: `${height}%`,
+            }}
           >
             <i />
           </span>
@@ -61,33 +79,20 @@ function PageTitleSkeleton({
 
 export function WatchlistPairsSkeleton({ rows = 10 }: { rows?: number }) {
   return (
-    <div className="wl-pairs mt-3" data-wl-layout="detail">
+    <div className="markets-table" aria-busy aria-label="Loading markets">
       {Array.from({ length: rows }, (_, index) => (
-        <div key={index} className="wl-pair-card">
-          <div className="wl-main min-w-0">
-            <div className="wl-pair">
-              <Line className="h-4 w-28" />
-              <Bone className="h-4 w-10 rounded-full" />
-            </div>
-            <div className="wl-detail">
-              <Line className="h-3 w-32" />
-              <div className="wl-levels-grid mt-2">
-                {Array.from({ length: 3 }, (_, level) => (
-                  <div key={level} className="wl-level space-y-1.5">
-                    <Line className="h-2.5 w-10" />
-                    <Line className="h-4 w-16" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="wl-aside">
-            <Line className="ml-auto h-4 w-32" />
-            <Line className="ml-auto mt-1.5 h-3 w-24" />
-          </div>
-          <div className="wl-checklist-progress">
-            <span className="animate-pulse bg-[color:var(--surface-raised)]" style={{ width: "40%" }} />
-          </div>
+        <div key={index} className="markets-row" aria-hidden>
+          <span className="markets-pair">
+            <span className="space-y-1.5">
+              <Line className="h-4 w-20" />
+              <Line className="h-3 w-28" />
+            </span>
+          </span>
+          <Line className="h-4 w-16" />
+          <Line className="h-4 w-12" />
+          <span className="markets-row-plan">
+            <Bone className="markets-row-analyze h-9 w-[5.25rem] rounded-full" />
+          </span>
         </div>
       ))}
     </div>
@@ -425,15 +430,16 @@ export function SignalsLoadingSkeleton() {
               <div className="signals-mobile-actions flex items-center justify-between">
                 <Bone className="h-[2.35rem] w-[7.1rem] rounded-full" />
                 <div className="flex items-center gap-2">
-                  <Bone className="h-8 w-[6.4rem] rounded-lg" />
+                  <Bone className="h-8 w-[5.6rem] rounded-lg" />
                   <Bone className="size-8 rounded-full" />
                 </div>
               </div>
               <div className="gx-mobile-quote-row">
                 <Line className="h-8 w-28" />
-                <Line className="h-4 w-20" />
-                <Line className="h-3 w-9" />
-                <Bone className="ml-auto h-5 w-16 rounded-full" />
+                <span className="gx-mobile-quote-meta">
+                  <Line className="h-4 w-20" />
+                  <Line className="h-3 w-9" />
+                </span>
               </div>
               <div className="gx-mobile-timeframes">
                 <div className="grid h-[2.6rem] grid-cols-5 gap-1 rounded-[10px] bg-[color:var(--surface-raised)] p-1">
@@ -459,27 +465,72 @@ export function SignalsLoadingSkeleton() {
           <div className="signals-chart-desktop hidden lg:grid gx-chart-terminal">
             <div className="signals-chart-head">
               <div className="signals-chart-head-main">
-                <Line className="h-4 w-16" />
-                <div className="signals-chart-quote space-y-1">
-                  <Line className="h-4 w-20" />
+                <Bone className="h-7 w-[6.75rem] rounded-md" />
+                <div className="signals-chart-quote flex items-baseline gap-2">
+                  <Line className="h-5 w-[4.75rem]" />
                   <Line className="h-3 w-16" />
                 </div>
               </div>
+              <div className="flex items-center gap-1" aria-hidden>
+                {Array.from({ length: 5 }, (_, index) => (
+                  <Bone key={index} className="h-7 w-10 rounded-md" />
+                ))}
+              </div>
               <div className="signals-chart-head-tools">
-                <Bone className="h-7 w-20 rounded-md" />
-                <Bone className="h-7 w-24 rounded-md" />
+                <Bone className="h-7 w-[5.75rem] rounded-md" />
+                <Bone className="h-7 w-[4.75rem] rounded-md" />
+                <Bone className="h-7 w-12 rounded-md" />
+                <Bone className="h-7 w-[4.25rem] rounded-md" />
+                <Bone className="h-7 w-12 rounded-md" />
                 <Bone className="size-7 rounded-md" />
                 <Bone className="size-7 rounded-md" />
               </div>
             </div>
+
             <div className="gx-chart-stage">
-              <div className="signals-chart-canvas chart-loading-static min-h-[24rem] flex-1">
+              <div className="signals-chart-canvas chart-loading-static min-h-0 flex-1">
                 <ChartScreenSkeleton />
               </div>
             </div>
-            <div className="gx-active-position gx-active-position-empty">
-              <Line className="h-3 w-40" />
+
+            <div className="gx-active-position" aria-hidden>
+              <Line className="h-3 w-20" />
+              <Line className="h-3 w-14" />
+              <Bone className="h-5 w-12 rounded" />
+              {Array.from({ length: 6 }, (_, index) => (
+                <span key={index} className="inline-flex items-baseline gap-1.5">
+                  <Line className="h-2.5 w-8" />
+                  <Line className="h-3.5 w-12" />
+                </span>
+              ))}
             </div>
+
+            <aside className="gx-chart-context" aria-hidden>
+              <div className="pending-entry-dialog is-panel">
+                <header>
+                  <Line className="h-2.5 w-16" />
+                  <Line className="mt-2 h-5 w-28" />
+                </header>
+                <div className="pending-entry-form space-y-4 p-4">
+                  <div className="grid grid-cols-2 gap-2">
+                    <Bone className="h-10 w-full rounded-md" />
+                    <Bone className="h-10 w-full rounded-md" />
+                  </div>
+                  {Array.from({ length: 3 }, (_, index) => (
+                    <div key={index} className="space-y-2">
+                      <Line className="h-2.5 w-12" />
+                      <Bone className="h-9 w-full rounded-md" />
+                    </div>
+                  ))}
+                  <div className="flex flex-wrap gap-1.5">
+                    {Array.from({ length: 4 }, (_, index) => (
+                      <Bone key={index} className="h-8 w-14 rounded-md" />
+                    ))}
+                  </div>
+                  <Bone className="mt-2 h-10 w-full rounded-md" />
+                </div>
+              </div>
+            </aside>
           </div>
         </section>
       </div>
@@ -524,13 +575,19 @@ export function JournalLoadingSkeleton() {
 
 export function WatchlistLoadingSkeleton() {
   return (
-    <div className="watchlist-tabs space-y-6" aria-busy aria-label="Loading watchlist">
-      <WatchlistTabChipsSkeleton />
-      <div className="ms-view space-y-8 lg:space-y-10">
-        <header>
-          <Line className="h-8 w-32 lg:h-9" />
-        </header>
-        <StrategiesWatchlistSkeleton />
+    <div className="markets-workspace" aria-busy aria-label="Loading markets">
+      <header className="markets-header">
+        <div>
+          <Line className="h-7 w-28 lg:h-9 lg:w-36" />
+        </div>
+      </header>
+      <div className="markets-terminal">
+        <section className="markets-scanner">
+          <div className="markets-toolbar">
+            <Bone className="h-[2.05rem] w-full max-w-[18rem] rounded" />
+          </div>
+          <WatchlistPairsSkeleton />
+        </section>
       </div>
     </div>
   );

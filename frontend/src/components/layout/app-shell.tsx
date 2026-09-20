@@ -5,8 +5,6 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import {
-  Activity,
-  BarChart3,
   CandlestickChart,
   BookOpen,
   ChartNoAxesCombined,
@@ -22,8 +20,6 @@ import { PwaPullToRefresh } from "@/components/ui/pwa-pull-to-refresh";
 import { SignOutButton } from "@/components/ui/sign-out-button";
 import { NotificationProvider } from "@/components/notifications/notification-provider";
 import { Toaster } from "@/components/ui/toaster";
-import { apiUrl } from "@/lib/api/url";
-import type { AccountSummary, ConnectionStatus } from "@/types/forex";
 
 function subscribe() {
   return () => undefined;
@@ -54,8 +50,6 @@ const navItems: NavItem[] = [
   { label: "Chart", href: "/chart", icon: CandlestickChart },
   { label: "Trades", href: "/journal", icon: BookOpen },
   { label: "Markets", href: "/watchlist", icon: ChartNoAxesCombined },
-  { label: "Performance", href: "/research", icon: BarChart3 },
-  { label: "More", href: "/risk", icon: Activity },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
@@ -68,10 +62,7 @@ function isActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
 }
 
-const workspaceNavItems = navItems.filter(
-  (item) => item.href !== "/settings" && item.href !== "/risk",
-);
-const moreNavItem = navItems.find((item) => item.href === "/risk")!;
+const workspaceNavItems = navItems.filter((item) => item.href !== "/settings");
 const settingsNavItem = navItems.find((item) => item.href === "/settings")!;
 const mobileNavItems = navItems.filter((item) =>
   (mobilePrimaryHrefs as readonly string[]).includes(item.href),
@@ -92,86 +83,15 @@ function SidebarNavLink({
       className={`sidebar-nav-link pressable ${active ? "sidebar-nav-link-active" : ""}`}
       aria-current={active ? "page" : undefined}
     >
-      <Icon className="sidebar-nav-glyph shrink-0" strokeWidth={active ? 2.15 : 1.7} />
+      <Icon className="sidebar-nav-glyph shrink-0" strokeWidth={active ? 1.9 : 1.55} />
       {item.label}
     </Link>
   );
 }
 
-function initialsFrom(value: string) {
-  const local = value.replace(/@.*$/, "");
-  const parts = local.split(/[.\s_-]+/).filter(Boolean);
-  if (parts.length >= 2) {
-    return `${parts[0]!.charAt(0)}${parts[1]!.charAt(0)}`.toUpperCase();
-  }
-  return local.slice(0, 2).toUpperCase() || "GX";
-}
-
-function titleFrom(email: string, alias: string | null) {
-  const cleaned = alias?.trim() ?? "";
-  if (cleaned && !/^\d+$/.test(cleaned)) return cleaned;
-  if (!email) return "Practice";
-  const local = email.split("@")[0] ?? "Practice";
-  return local.charAt(0).toUpperCase() + local.slice(1);
-}
-
 function SidebarAccount() {
-  const [email, setEmail] = useState<string | null>(null);
-  const [alias, setAlias] = useState<string | null>(null);
-  const [status, setStatus] = useState<ConnectionStatus | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      try {
-        const [meResponse, accountResponse] = await Promise.all([
-          fetch(apiUrl("/api/auth/me"), { credentials: "include", cache: "no-store" }),
-          fetch(apiUrl("/api/oanda/account-summary"), { credentials: "include", cache: "no-store" }),
-        ]);
-        if (cancelled) return;
-
-        if (meResponse.ok) {
-          const payload = (await meResponse.json()) as { user?: { email?: string } };
-          setEmail(payload.user?.email ?? null);
-        }
-
-        if (accountResponse.ok) {
-          const payload = (await accountResponse.json()) as {
-            data?: AccountSummary;
-            status?: ConnectionStatus;
-          };
-          setAlias(payload.data?.alias ?? null);
-          setStatus(payload.status ?? null);
-        }
-      } catch {
-        // The compact account chip is secondary chrome; keep the last known
-        // values if the snapshot is temporarily unavailable.
-      }
-    }
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const identity = email ?? alias ?? "Practice";
-  const venue = status?.source === "oanda" ? "OANDA" : status?.source ?? null;
-  const mode = status?.environment === "live" ? "LIVE" : "Practice";
-  const connected = status?.state === "connected";
-
   return (
-    <div className="sidebar-account mt-auto">
-      <span className="sidebar-account-avatar" aria-hidden="true">
-        {initialsFrom(identity)}
-      </span>
-      <span className="sidebar-account-copy">
-        <span className="sidebar-account-name">{titleFrom(email ?? "", alias)}</span>
-        <span className="sidebar-account-status">
-          {venue ? `${mode} · ${venue}` : connected ? `${mode} · Connected` : mode}
-        </span>
-      </span>
+    <div className="sidebar-account">
       <SignOutButton quiet />
     </div>
   );
@@ -340,9 +260,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           : "bg-[color:var(--background)]"
       }`}
     >
-      <aside className="app-sidebar fixed inset-y-0 left-0 z-30 hidden w-[224px] flex-col border-r border-[color:var(--border)] px-3.5 py-4 lg:flex">
-        <BrandMark variant="sidebar" />
-        <nav className="mt-6 space-y-1" aria-label="Primary navigation">
+      <aside className="app-sidebar fixed inset-y-0 left-0 z-30 hidden w-[220px] flex-col lg:flex">
+        <div className="sidebar-header">
+          <BrandMark variant="sidebar" />
+        </div>
+
+        <nav className="sidebar-nav sidebar-nav-primary" aria-label="Primary navigation">
           {workspaceNavItems.map((item) => (
             <SidebarNavLink
               key={item.href}
@@ -352,13 +275,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
 
-        <div className="mx-1 mt-5 h-px bg-[color:var(--border)]" />
-
-        <nav className="mt-3 space-y-1" aria-label="More">
-          <SidebarNavLink
-            item={moreNavItem}
-            active={isActive(pathname, moreNavItem.href)}
-          />
+        <nav className="sidebar-nav sidebar-nav-utility" aria-label="Settings">
           <SidebarNavLink
             item={settingsNavItem}
             active={isActive(pathname, settingsNavItem.href)}
@@ -369,17 +286,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div
-        className={`min-w-0 w-full lg:pl-[224px] ${isTrades ? "" : "has-topbar"} ${
+        className={`min-w-0 w-full lg:pl-[220px] has-topbar ${
           isChart ? "lg:min-h-dvh" : ""
         } ${isDashboard ? "has-home-rail" : ""}`}
       >
-        {isTrades ? null : <AppTopBar />}
+        <AppTopBar />
         <main
           className={`w-full min-w-0 ${
             isChart
               ? "min-h-dvh p-0"
               : isDashboard
-                ? "w-full px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-5 lg:px-6 lg:pb-8"
+                ? "w-full px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-5 lg:px-8 lg:pb-10"
                 : isTrades
                   ? "mx-auto w-full max-w-[1600px] px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-6 lg:px-8 lg:pb-10"
                   : "mx-auto max-w-[1320px] px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-6 lg:px-8 lg:pb-10"

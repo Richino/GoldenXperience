@@ -90,11 +90,11 @@ export function HomeMiniChart({
     });
     const series = chart.addSeries(CandlestickSeries, {
       upColor: "#00e59b",
-      downColor: "#ff6370",
+      downColor: "#ff5252",
       borderUpColor: "#00e59b",
-      borderDownColor: "#ff6370",
+      borderDownColor: "#ff5252",
       wickUpColor: "#00e59b",
-      wickDownColor: "#ff6370",
+      wickDownColor: "#ff5252",
     });
     chartRef.current = chart;
     seriesRef.current = series;

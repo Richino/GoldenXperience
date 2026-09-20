@@ -1,11 +1,14 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useTheme } from "next-themes";
 import {
@@ -109,6 +112,49 @@ interface SetupLevels {
 export interface ChartFocusRange {
   from: number;
   to: number;
+}
+
+/** A draft long/short risk-reward box drawn on the chart (TradingView-style). */
+export interface ChartPositionTool {
+  direction: "long" | "short";
+  entry: number;
+  stop: number;
+  target: number;
+  /** Left edge of the box, in chart logical indices. */
+  fromLogical: number;
+  /** Right edge of the box, in chart logical indices. */
+  toLogical: number;
+}
+
+/** Build a fixed 1:2 geometry around an entry price with a finite bar span. */
+export function createOneToTwoSetup(
+  direction: "long" | "short",
+  entry: number,
+  risk: number,
+  fromLogical: number,
+  toLogical: number,
+): ChartPositionTool {
+  const r = Math.abs(risk);
+  const left = Math.min(fromLogical, toLogical);
+  const right = Math.max(fromLogical, toLogical);
+  if (direction === "long") {
+    return {
+      direction,
+      entry,
+      stop: entry - r,
+      target: entry + 2 * r,
+      fromLogical: left,
+      toLogical: right,
+    };
+  }
+  return {
+    direction,
+    entry,
+    stop: entry + r,
+    target: entry - 2 * r,
+    fromLogical: left,
+    toLogical: right,
+  };
 }
 
 /** A single externally focused price, such as an active binary prediction entry. */
@@ -217,6 +263,356 @@ function ChartPriceScaleRail({
   );
 }
 
+type PositionHandle = "move" | "entry" | "stop" | "target" | "left" | "right";
+
+function PositionToolOverlay({
+  chartRef,
+  mainSeriesRef,
+  chartEpoch,
+  tool,
+  onChange,
+  onClear,
+  onSubmit,
+}: {
+  chartRef: { current: IChartApi | null };
+  mainSeriesRef: { current: ISeriesApi<SeriesType> | null };
+  chartEpoch: number;
+  tool: ChartPositionTool;
+  onChange: (next: ChartPositionTool) => void;
+  onClear: () => void;
+  onSubmit?: (tool: ChartPositionTool) => void;
+}) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const rewardRef = useRef<HTMLDivElement>(null);
+  const riskRef = useRef<HTMLDivElement>(null);
+  const entryRef = useRef<HTMLButtonElement>(null);
+  const stopRef = useRef<HTMLButtonElement>(null);
+  const targetRef = useRef<HTMLButtonElement>(null);
+  const metaRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{
+    handle: PositionHandle;
+    start: ChartPositionTool;
+    pointerPrice: number;
+    pointerLogical: number;
+  } | null>(null);
+  const toolRef = useRef(tool);
+  const onChangeRef = useRef(onChange);
+  toolRef.current = tool;
+  onChangeRef.current = onChange;
+
+  const paint = useCallback(() => {
+    const chart = chartRef.current;
+    const series = mainSeriesRef.current;
+    const root = rootRef.current;
+    const box = boxRef.current;
+    if (!chart || !series || !root || !box) return;
+
+    const current = toolRef.current;
+    const entryY = series.priceToCoordinate(current.entry);
+    const stopY = series.priceToCoordinate(current.stop);
+    const targetY = series.priceToCoordinate(current.target);
+    const leftX = chart.timeScale().logicalToCoordinate(current.fromLogical as Logical);
+    const rightX = chart.timeScale().logicalToCoordinate(current.toLogical as Logical);
+    if (
+      entryY === null ||
+      stopY === null ||
+      targetY === null ||
+      leftX === null ||
+      rightX === null
+    ) {
+      root.hidden = true;
+      return;
+    }
+    root.hidden = false;
+
+    const left = Math.min(leftX, rightX);
+    const width = Math.max(Math.abs(rightX - leftX), 24);
+    const top = Math.min(entryY, stopY, targetY);
+    const bottom = Math.max(entryY, stopY, targetY);
+    const height = Math.max(bottom - top, 1);
+
+    box.style.left = `${left}px`;
+    box.style.width = `${width}px`;
+    box.style.top = `${top}px`;
+    box.style.height = `${height}px`;
+
+    const rewardTop = Math.min(entryY, targetY) - top;
+    const rewardHeight = Math.abs(targetY - entryY);
+    const riskTop = Math.min(entryY, stopY) - top;
+    const riskHeight = Math.abs(stopY - entryY);
+
+    if (rewardRef.current) {
+      rewardRef.current.style.top = `${rewardTop}px`;
+      rewardRef.current.style.height = `${Math.max(rewardHeight, 1)}px`;
+    }
+    if (riskRef.current) {
+      riskRef.current.style.top = `${riskTop}px`;
+      riskRef.current.style.height = `${Math.max(riskHeight, 1)}px`;
+    }
+    if (entryRef.current) entryRef.current.style.top = `${entryY - top}px`;
+    if (stopRef.current) stopRef.current.style.top = `${stopY - top}px`;
+    if (targetRef.current) targetRef.current.style.top = `${targetY - top}px`;
+    if (metaRef.current) metaRef.current.style.top = `-28px`;
+  }, [chartRef, mainSeriesRef]);
+
+  const paintRef = useRef(paint);
+  paintRef.current = paint;
+
+  useEffect(() => {
+    paint();
+    const chart = chartRef.current;
+    if (!chart) return;
+    const onView = () => paint();
+    chart.timeScale().subscribeVisibleLogicalRangeChange(onView);
+    chart.subscribeCrosshairMove(onView);
+    return () => {
+      chart.timeScale().unsubscribeVisibleLogicalRangeChange(onView);
+      chart.unsubscribeCrosshairMove(onView);
+    };
+  }, [chartEpoch, chartRef, paint]);
+
+  useLayoutEffect(() => {
+    paint();
+  }, [paint, tool.entry, tool.stop, tool.target, tool.fromLogical, tool.toLogical]);
+
+  useEffect(() => {
+    const readPointer = (clientX: number, clientY: number) => {
+      const chart = chartRef.current;
+      const series = mainSeriesRef.current;
+      const root = rootRef.current;
+      if (!chart || !series || !root) return null;
+      const rect = root.getBoundingClientRect();
+      const price = series.coordinateToPrice(clientY - rect.top);
+      const logical = chart.timeScale().coordinateToLogical(clientX - rect.left);
+      if (
+        price === null ||
+        !Number.isFinite(price) ||
+        logical === null ||
+        !Number.isFinite(logical)
+      ) {
+        return null;
+      }
+      return { price, logical };
+    };
+
+    const apply = (next: ChartPositionTool) => {
+      toolRef.current = next;
+      onChangeRef.current(next);
+      paintRef.current();
+    };
+
+    const onMove = (event: PointerEvent) => {
+      const drag = dragRef.current;
+      if (!drag) return;
+      event.preventDefault();
+      const pointer = readPointer(event.clientX, event.clientY);
+      if (!pointer) return;
+
+      const { handle, start, pointerPrice, pointerLogical } = drag;
+      const minSpan = 2;
+
+      if (handle === "left" || handle === "right") {
+        if (handle === "left") {
+          apply({
+            ...start,
+            fromLogical: Math.min(pointer.logical, start.toLogical - minSpan),
+            toLogical: start.toLogical,
+          });
+          return;
+        }
+        apply({
+          ...start,
+          fromLogical: start.fromLogical,
+          toLogical: Math.max(pointer.logical, start.fromLogical + minSpan),
+        });
+        return;
+      }
+
+      if (handle === "move") {
+        const deltaPrice = pointer.price - pointerPrice;
+        const deltaLogical = pointer.logical - pointerLogical;
+        apply({
+          direction: start.direction,
+          entry: start.entry + deltaPrice,
+          stop: start.stop + deltaPrice,
+          target: start.target + deltaPrice,
+          fromLogical: start.fromLogical + deltaLogical,
+          toLogical: start.toLogical + deltaLogical,
+        });
+        return;
+      }
+
+      if (handle === "entry") {
+        const deltaPrice = pointer.price - pointerPrice;
+        apply({
+          ...start,
+          entry: start.entry + deltaPrice,
+          stop: start.stop + deltaPrice,
+          target: start.target + deltaPrice,
+        });
+        return;
+      }
+
+      // Scale keeps a true 1:2: risk = R, reward = 2R. Dragging either outer
+      // edge only changes R; the opposite edge mirrors it around entry.
+      let risk: number;
+      if (handle === "stop") {
+        risk =
+          start.direction === "long"
+            ? start.entry - pointer.price
+            : pointer.price - start.entry;
+      } else {
+        const reward =
+          start.direction === "long"
+            ? pointer.price - start.entry
+            : start.entry - pointer.price;
+        risk = reward / 2;
+      }
+      risk = Math.max(risk, Number.EPSILON);
+
+      if (start.direction === "long") {
+        apply({
+          ...start,
+          stop: start.entry - risk,
+          target: start.entry + 2 * risk,
+        });
+        return;
+      }
+      apply({
+        ...start,
+        stop: start.entry + risk,
+        target: start.entry - 2 * risk,
+      });
+    };
+
+    const onUp = () => {
+      dragRef.current = null;
+      document.body.classList.remove("is-dragging-position-tool");
+    };
+
+    window.addEventListener("pointermove", onMove, { passive: false });
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      document.body.classList.remove("is-dragging-position-tool");
+    };
+  }, [chartRef, mainSeriesRef]);
+
+  const beginDrag = (handle: PositionHandle) => (event: ReactPointerEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const chart = chartRef.current;
+    const series = mainSeriesRef.current;
+    const root = rootRef.current;
+    if (!chart || !series || !root) return;
+    const rect = root.getBoundingClientRect();
+    const price = series.coordinateToPrice(event.clientY - rect.top);
+    const logical = chart.timeScale().coordinateToLogical(event.clientX - rect.left);
+    if (
+      price === null ||
+      !Number.isFinite(price) ||
+      logical === null ||
+      !Number.isFinite(logical)
+    ) {
+      return;
+    }
+
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Capture is best-effort; window listeners still drive the drag.
+    }
+    document.body.classList.add("is-dragging-position-tool");
+    dragRef.current = {
+      handle,
+      start: { ...toolRef.current },
+      pointerPrice: price,
+      pointerLogical: logical,
+    };
+  };
+
+  const risk = Math.abs(tool.entry - tool.stop);
+  const reward = Math.abs(tool.target - tool.entry);
+  const rr = risk > 0 ? reward / risk : 0;
+
+  return (
+    <div ref={rootRef} className="setup-chart-position-tool">
+      <div ref={boxRef} className="setup-chart-position-box">
+        <div
+          ref={rewardRef}
+          className="setup-chart-position-band is-reward"
+          onPointerDown={beginDrag("move")}
+        />
+        <div
+          ref={riskRef}
+          className="setup-chart-position-band is-risk"
+          onPointerDown={beginDrag("move")}
+        />
+        <div ref={metaRef} className="setup-chart-position-meta">
+          <span>
+            {tool.direction === "long" ? "Long" : "Short"} · 1:{rr >= 10 ? rr.toFixed(0) : rr.toFixed(1)}
+          </span>
+          {onSubmit ? (
+            <button
+              type="button"
+              className="setup-chart-position-submit"
+              onClick={() => onSubmit(toolRef.current)}
+            >
+              Submit
+            </button>
+          ) : null}
+          <button type="button" className="setup-chart-position-clear" onClick={onClear}>
+            Clear
+          </button>
+        </div>
+        <button
+          type="button"
+          className="setup-chart-position-edge is-left"
+          aria-label="Drag left edge"
+          onPointerDown={beginDrag("left")}
+        />
+        <button
+          type="button"
+          className="setup-chart-position-edge is-right"
+          aria-label="Drag right edge"
+          onPointerDown={beginDrag("right")}
+        />
+        <button
+          type="button"
+          ref={targetRef}
+          className="setup-chart-position-handle is-target"
+          aria-label="Scale take profit"
+          onPointerDown={beginDrag("target")}
+        >
+          <span>Take Profit</span>
+        </button>
+        <button
+          type="button"
+          ref={entryRef}
+          className="setup-chart-position-handle is-entry"
+          aria-label="Move entry"
+          onPointerDown={beginDrag("entry")}
+        >
+          <span>Entry</span>
+        </button>
+        <button
+          type="button"
+          ref={stopRef}
+          className="setup-chart-position-handle is-stop"
+          aria-label="Scale stop loss"
+          onPointerDown={beginDrag("stop")}
+        >
+          <span>Stop Loss</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // Lightweight Charts reserves space for the desktop time scale via minimumHeight.
 function chartTheme(
   isDark: boolean,
@@ -228,7 +624,7 @@ function chartTheme(
       : "#ffffff"
     : isDark
       ? "#080A0B"
-      : "#f7f6f3";
+      : "#f1f5f9";
   const scaleText = isDark ? "#9a9aa3" : "#6e6e73";
   const accent = isDark ? "#00e59b" : "#00b377";
   // Horizontal-emphasis grid: price rows read clearly while the time lines
@@ -502,7 +898,7 @@ function setupLevelTags(
 
 /**
  * Named overlays drawn on the pane: planned levels plus an optional binary
- * entry marker. Kept as one list so they share the same right-edge stacking.
+ * entry marker. Kept as one list so they share the same left-edge stacking.
  */
 function overlayLevelTags(
   levels: SetupLevels | null,
@@ -545,7 +941,7 @@ const LEVEL_TAG_HEIGHT = 18;
 const LEVEL_TAG_STACK_GAP = 2;
 
 /**
- * Nudge overlapping right-edge flags apart so Entry / SL / TP stay readable
+ * Nudge overlapping left-edge flags apart so Entry / SL / TP stay readable
  * when their prices sit on the same pixel row.
  */
 function stackLevelTagYs(tags: PlacedLevelTag[], paneHeight: number): PlacedLevelTag[] {
@@ -837,6 +1233,9 @@ export function SetupChart({
   patternLines = [],
   showTradeMarkers = true,
   showTradePath = true,
+  positionTool = null,
+  onPositionToolChange,
+  onPositionToolSubmit,
 }: {
   series: CandleSeries;
   levels: SetupLevels | null;
@@ -859,6 +1258,9 @@ export function SetupChart({
   patternLines?: ChartPatternLine[];
   showTradeMarkers?: boolean;
   showTradePath?: boolean;
+  positionTool?: ChartPositionTool | null;
+  onPositionToolChange?: (next: ChartPositionTool | null) => void;
+  onPositionToolSubmit?: (tool: ChartPositionTool) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -867,6 +1269,13 @@ export function SetupChart({
   const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const falseBreakoutMarkersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const tradePathRef = useRef<ISeriesApi<"Line"> | null>(null);
+  // Survives chart teardown so toggling indicators / redrawing price lines does
+  // not throw the user back to the latest bars. Cleared after a successful
+  // restore; left null on first mount so the chart still opens on the live edge.
+  const preservedViewRef = useRef<{
+    logical: LogicalRange | null;
+    price: { from: number; to: number } | null;
+  } | null>(null);
   const focusCoveredRef = useRef(true);
   const focusPagesRef = useRef(0);
   const hadFocusRef = useRef(false);
@@ -915,16 +1324,14 @@ export function SetupChart({
   const lastScrollRevisionRef = useRef(0);
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme !== "light";
-  // Candles use the same success/danger hues as the rest of the UI so the
-  // chart reads as part of one system. The down bar was a pastel salmon
-  // (#f87171) that sat weakly beside the vivid green; it now matches the
-  // design's danger red, and the wicks are one muted step off each body.
+  // Solid opaque candles: body, border, and wick share one hue so bars read
+  // crisp against the dark chart (same treatment as the home mini-chart).
   const upColor = isDark ? "#00e59b" : "#00b377";
-  const downColor = isDark ? "#ff6370" : "#e74c3c";
+  const downColor = isDark ? "#ff5252" : "#e74c3c";
   const winPathColor = isDark ? "#a7f3d0" : "#047857";
   const lossPathColor = isDark ? "#ff3b5c" : "#a61b3d";
-  const wickUpColor = isDark ? "#00c488" : "#009966";
-  const wickDownColor = isDark ? "#e5566b" : "#d64545";
+  const wickUpColor = upColor;
+  const wickDownColor = downColor;
   /**
    * Area and line charts express the direction of the complete selected
    * period—not the bars currently in view. Panning must not change whether a
@@ -1006,6 +1413,13 @@ export function SetupChart({
     const container = containerRef.current;
     if (!container || !series.candles.length) return;
 
+    // Pair / timeframe / range loads bump scrollToLatestRevision. Drop any
+    // preserved viewport from the previous series so we open on the live edge
+    // instead of restoring bar indices that belong to another dataset.
+    if (scrollToLatestRevision > lastScrollRevisionRef.current) {
+      preservedViewRef.current = null;
+    }
+
     const chart = createChart(container, {
       ...chartTheme(isDark, embedded),
       width: container.clientWidth,
@@ -1054,7 +1468,9 @@ export function SetupChart({
         mainSeries = chart.addSeries(CandlestickSeries, {
           upColor,
           downColor,
-          borderVisible: false,
+          borderVisible: true,
+          borderUpColor: upColor,
+          borderDownColor: downColor,
           wickUpColor,
           wickDownColor,
           ...displayOptions,
@@ -1067,6 +1483,7 @@ export function SetupChart({
         mainSeries = chart.addSeries(CandlestickSeries, {
           upColor: surfaceColor,
           downColor: surfaceColor,
+          borderVisible: true,
           borderUpColor: upColor,
           borderDownColor: downColor,
           wickUpColor,
@@ -1081,7 +1498,9 @@ export function SetupChart({
         mainSeries = chart.addSeries(CandlestickSeries, {
           upColor,
           downColor,
-          borderVisible: false,
+          borderVisible: true,
+          borderUpColor: upColor,
+          borderDownColor: downColor,
           wickUpColor,
           wickDownColor,
           ...displayOptions,
@@ -1260,7 +1679,30 @@ export function SetupChart({
       );
     }
 
-    focusCoveredRef.current = scrollChartToFocus(chart, series, range, focusRange);
+    // Prefer the pre-teardown viewport when this run is a soft rebuild (indicator
+    // toggle, level redraw, theme). Fresh mounts and intentional "go to latest"
+    // navigations leave preservedViewRef empty and fall through to focus scroll.
+    const preserved = preservedViewRef.current;
+    preservedViewRef.current = null;
+    if (preserved?.logical) {
+      try {
+        chart.timeScale().setVisibleLogicalRange(preserved.logical);
+        if (
+          preserved.price
+          && Number.isFinite(preserved.price.from)
+          && Number.isFinite(preserved.price.to)
+          && preserved.price.to > preserved.price.from
+        ) {
+          chart.priceScale("right").applyOptions({ autoScale: false });
+          chart.priceScale("right").setVisibleRange(preserved.price);
+        }
+        focusCoveredRef.current = true;
+      } catch {
+        focusCoveredRef.current = scrollChartToFocus(chart, series, range, focusRange);
+      }
+    } else {
+      focusCoveredRef.current = scrollChartToFocus(chart, series, range, focusRange);
+    }
     setChartEpoch((value) => value + 1);
 
     const handleVisibleRangeChange = (logicalRange: LogicalRange | null) => {
@@ -1328,6 +1770,13 @@ export function SetupChart({
     resizeObserver.observe(container);
 
     return () => {
+      // Snapshot the view before destroy so the next create can restore it.
+      // Indicator toggles rebuild this effect; without this, the chart always
+      // re-opens on the live edge and feels like it "reset".
+      preservedViewRef.current = {
+        logical: chart.timeScale().getVisibleLogicalRange(),
+        price: chart.priceScale("right").getVisibleRange(),
+      };
       chart
         .timeScale()
         .unsubscribeVisibleLogicalRangeChange(handleVisibleRangeChange);
@@ -1712,7 +2161,6 @@ export function SetupChart({
       const mainSeries = mainSeriesRef.current;
       if (!chart || !mainSeries) return;
 
-      const axisWidth = chart.priceScale("right").width();
       const paneHeight = chartHeightRef.current;
       const priceRange = chart.priceScale("right").getVisibleRange();
       const minTagY = LEVEL_TAG_HEIGHT / 2;
@@ -1721,8 +2169,8 @@ export function SetupChart({
         let y: number | null = mainSeries.priceToCoordinate(tag.price);
         if (y === null && priceRange && priceRange.to > priceRange.from) {
           // Lightweight Charts only returns a coordinate for a visible price.
-          // Project an off-screen level onto the pane so its flag can remain at
-          // the right edge, clamped to the nearest vertical boundary below.
+          // Project an off-screen level onto the pane so its flag can remain
+          // visible, clamped to the nearest vertical boundary.
           y = ((priceRange.to - tag.price) / (priceRange.to - priceRange.from)) * paneHeight;
         }
         if (y === null) return [];
@@ -1731,8 +2179,8 @@ export function SetupChart({
         return [{
           ...tag,
           y: Math.min(Math.max(y, minTagY), maxTagY),
-          edge: embedded ? "left" : "right",
-          offset: embedded ? 8 : axisWidth,
+          edge: "left",
+          offset: 8,
         }];
       });
 
@@ -1910,6 +2358,17 @@ export function SetupChart({
           {tag.label}
         </button>
       ))}
+      {positionTool && onPositionToolChange ? (
+        <PositionToolOverlay
+          chartRef={chartRef}
+          mainSeriesRef={mainSeriesRef}
+          chartEpoch={chartEpoch}
+          tool={positionTool}
+          onChange={onPositionToolChange}
+          onClear={() => onPositionToolChange(null)}
+          onSubmit={onPositionToolSubmit}
+        />
+      ) : null}
       <ChartPriceScaleRail
         chartRef={chartRef}
         onViewChange={() => paintLastPriceRef.current()}

@@ -49,9 +49,6 @@ export function AppTopBar() {
     <header className="app-topbar" aria-label="Market status">
       <p className="app-topbar-session">
         <span className="app-topbar-page">{page}</span>
-        <span className="app-topbar-sep" aria-hidden="true">
-          •
-        </span>
         <span
           className={`app-topbar-dot ${condition.marketOpen ? "is-open" : "is-closed"}`}
           aria-hidden="true"

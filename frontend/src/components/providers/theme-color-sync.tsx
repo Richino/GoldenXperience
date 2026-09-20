@@ -11,7 +11,7 @@ function pageBackground(
   const isLight = theme === "light";
 
   if (isLight) {
-    return isSignalsMobile ? "#ffffff" : "#f2f2f7";
+    return isSignalsMobile ? "#ffffff" : "#f8fafc";
   }
 
   return "#09090b";

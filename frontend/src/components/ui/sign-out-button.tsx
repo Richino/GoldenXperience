@@ -42,7 +42,7 @@ export function SignOutButton({
         aria-label={busy ? "Signing out" : "Sign out"}
         title="Sign out"
       >
-        <LogOut className="size-3.5" strokeWidth={1.85} />
+        {busy ? "Signing out…" : "Log out"}
       </button>
     );
   }

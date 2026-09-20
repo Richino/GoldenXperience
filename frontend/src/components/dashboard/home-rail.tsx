@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { ExternalLink } from "lucide-react";
 import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { displayNameFor } from "@/lib/instruments/catalog";
+import { useEconomicCalendar } from "@/lib/oanda/use-economic-calendar";
 import type { CandleSeries, MajorInstrument } from "@/types/forex";
 
 const MARKET_PAIRS: MajorInstrument[] = [
@@ -49,6 +51,14 @@ function money(value: number, currency: string) {
   }).format(value);
 }
 
+function eventTime(timestamp: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/New_York",
+  }).format(new Date(timestamp));
+}
+
 export function HomeRail({
   quotes,
   currency,
@@ -73,12 +83,14 @@ export function HomeRail({
 }) {
   const [dayChange, setDayChange] = useState<Record<string, number>>({});
   const [lastClose, setLastClose] = useState<Record<string, number>>({});
+  const { snapshot: calendar, loading: calendarLoading } = useEconomicCalendar();
   const resolvedToday = todayWins + todayLosses;
   const winPercent = resolvedToday > 0 ? Math.round((todayWins / resolvedToday) * 100) : null;
   const hasTodayTrades = todayTrades > 0;
   const netPositive = (todayNet ?? 0) >= 0;
   const todayIsLoss = todayNet !== null && todayNet < 0;
   const rPositive = (todayR ?? 0) >= 0;
+  const upcomingHighImpact = calendar.events.filter((event) => event.impact >= 3).slice(0, 3);
 
   useEffect(() => {
     let cancelled = false;
@@ -207,13 +219,44 @@ export function HomeRail({
           </div>
         </dl>
         <div className="home-rail-bar" aria-hidden="true">
-          {winPercent === null ? null : (
-            <>
-              <span className="is-win" style={{ width: `${Math.min(100, winPercent)}%` }} />
-              <span className="is-loss" style={{ width: `${Math.max(0, 100 - winPercent)}%` }} />
-            </>
-          )}
+          <span className={todayIsLoss ? "is-loss" : "is-win"} />
         </div>
+      </section>
+
+      <section className="home-rail-section home-rail-news" aria-label="Upcoming high-impact news">
+        <div className="home-rail-heading">
+          <span>High-impact news</span>
+          <a
+            href="https://www.forexfactory.com/calendar"
+            target="_blank"
+            rel="noreferrer"
+            className="home-rail-news-source"
+            aria-label="Open Forex Factory calendar"
+          >
+            <ExternalLink aria-hidden="true" />
+          </a>
+        </div>
+        {calendarLoading ? (
+          <p className="home-rail-news-empty">Loading calendar…</p>
+        ) : !calendar.connected ? (
+          <p className="home-rail-news-empty is-unavailable">Calendar unavailable — verify news manually.</p>
+        ) : upcomingHighImpact.length ? (
+          <div className="home-rail-news-list">
+            {upcomingHighImpact.map((event) => (
+              <div key={event.id} className="home-rail-news-event">
+                <time className="metric-number" dateTime={event.timestamp}>{eventTime(event.timestamp)}</time>
+                <span>{event.currency}</span>
+                <p>{event.title}</p>
+              </div>
+            ))}
+          </div>
+        ) : calendar.warnings[0]?.tone !== "success" ? (
+          <p className={`home-rail-news-empty ${calendar.warnings[0]?.tone === "danger" ? "is-unavailable" : ""}`}>
+            {calendar.warnings[0]?.message}
+          </p>
+        ) : (
+          <p className="home-rail-news-empty">No high-impact events in this week’s feed.</p>
+        )}
       </section>
     </aside>
   );

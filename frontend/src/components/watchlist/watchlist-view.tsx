@@ -1,29 +1,16 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  ArrowDown,
-  ArrowRight,
-  ArrowUp,
-  Search,
-} from "lucide-react";
+import { Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ManualProposalModal, stashFrozenContext, type ManualAnalysis } from "@/components/analysis/manual-proposal";
+import { ManualProposalModal, type ManualProposal } from "@/components/analysis/manual-proposal";
 import { WatchlistPairsSkeleton } from "@/components/ui/page-skeletons";
 import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { INSTRUMENT_CATALOG, displayNameFor, pipSizeFor } from "@/lib/instruments/catalog";
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
-import { getMarketCondition } from "@/lib/strategy/session";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
-import {
-  hasActivePairStrategy,
-  hasPairStrategySchedule,
-  pairStrategyScheduleLabel,
-  watchlistCardStatus,
-  type WatchlistCondition,
-} from "@/lib/watchlist-status";
+import type { WatchlistCondition } from "@/lib/watchlist-status";
 import type { CandleSeries } from "@/types/forex";
 
 type Row = {
@@ -84,25 +71,6 @@ const description = (instrument: string) => {
   const [base, quote] = instrument.split("_");
   return `${names[base ?? ""] ?? base} / ${names[quote ?? ""] ?? quote}`;
 };
-const hasLevels = (row: Row) =>
-  row.direction &&
-  finiteOrNull(row.entry) !== null &&
-  finiteOrNull(row.stop) !== null &&
-  finiteOrNull(row.target) !== null;
-const status = (row: Row) =>
-  row.openTradeId || row.setupStatus === "valid"
-    ? ["Active", "active"]
-    : row.setupStatus === "developing"
-      ? ["Forming", "forming"]
-      : ["Watching", "watching"];
-const setup = (row: Row) =>
-  row.setupStatus === "developing"
-    ? "FORMING"
-    : row.setupStatus === "valid"
-      ? row.direction === "long"
-        ? "LONG"
-        : "SHORT"
-      : "—";
 export function WatchlistView() {
   const router = useRouter();
   const [snapshot, setSnapshot] = useState<Row[]>([]);
@@ -111,10 +79,9 @@ export function WatchlistView() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [proposal, setProposal] = useState<ManualAnalysis | null>(null);
+  const [proposal, setProposal] = useState<ManualProposal | null>(null);
   const [analyzingInstrument, setAnalyzingInstrument] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
-  const [market, setMarket] = useState(() => getMarketCondition());
   const quotes = useLiveQuotes();
   useEffect(() => {
     if (!proposal) return;
@@ -216,11 +183,6 @@ export function WatchlistView() {
       window.clearInterval(timer);
     };
   }, [load]);
-  useEffect(() => {
-    const update = () => setMarket(getMarketCondition()),
-      timer = window.setInterval(update, 30_000);
-    return () => window.clearInterval(timer);
-  }, []);
   useForegroundRefresh(load);
   const snapshotByInstrument = useMemo(
     () => new Map(snapshot.map((row) => [row.instrument, row])),
@@ -342,9 +304,6 @@ export function WatchlistView() {
       setDaily((previous) => ({ ...previous, ...Object.fromEntries(entries) }));
     });
   }, [shownInstrumentsKey]);
-  const active = rows.find((row) => row.instrument === selected);
-  const day = active ? daily[active.instrument] : undefined;
-  const activeChange = finiteOrNull(day?.change);
   const analyze = useCallback(async (instrument: string) => {
     setAnalysisError(null);
     setAnalyzingInstrument(instrument);
@@ -355,9 +314,9 @@ export function WatchlistView() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ instrument }),
       });
-      const payload = await response.json() as { analysis?: ManualAnalysis; error?: string };
-      if (!response.ok || !payload.analysis) throw new Error(payload.error ?? "Analysis could not run.");
-      setProposal(payload.analysis);
+      const payload = await response.json() as { proposal?: ManualProposal; error?: string };
+      if (!response.ok || !payload.proposal) throw new Error(payload.error ?? "Analysis could not produce a proposal.");
+      setProposal(payload.proposal);
     } catch (reason) {
       setAnalysisError(reason instanceof Error ? reason.message : "Analysis could not run.");
     } finally {
@@ -366,17 +325,16 @@ export function WatchlistView() {
   }, []);
 
   const acceptProposal = useCallback(() => {
-    const trade = proposal?.trade;
-    if (!proposal || !trade) return;
-    stashFrozenContext(proposal);
+    if (!proposal) return;
     const parameters = new URLSearchParams({
       instrument: proposal.instrument,
-      entry: String(trade.entry),
-      stop: String(trade.stop),
-      target: String(trade.target),
-      direction: trade.direction,
-      preferredEntryTime: proposal.proposal?.entryReason ?? "",
-      rationale: proposal.reason,
+      entry: String(proposal.entry),
+      stop: String(proposal.stop),
+      target: String(proposal.target),
+      direction: proposal.direction,
+      confidence: String(proposal.confidence),
+      preferredEntryTime: proposal.preferredEntryTime,
+      rationale: proposal.rationale,
       proposal: "manual-analysis",
     });
     const timeout = window.setTimeout(() => {
@@ -389,16 +347,7 @@ export function WatchlistView() {
       <header className="markets-header">
         <div>
           <h1>Markets</h1>
-          <p>
-            Monitor your forex watchlist and identify pairs worth attention.
-          </p>
         </div>
-        <span
-          className={`markets-market ${market.marketOpen ? "is-open" : ""}`}
-        >
-          <i />
-          Market {market.marketOpen ? "open" : "closed"} · {market.label}
-        </span>
       </header>
       {error ? <p className="research-error">{error}</p> : null}
       {loading && !rows.length ? (
@@ -417,32 +366,17 @@ export function WatchlistView() {
               </label>
             </div>
             <div className="markets-table">
-              <div className="markets-head">
-                <span>Pair</span>
-                <span>Price</span>
-                <span>Chg</span>
-                <span>Bias</span>
-                <span>Session</span>
-                <span>Sprd</span>
-                <span>Setup</span>
-                <span>Status</span>
-              </div>
               {shown.map((row) => {
-                const [state, tone] = status(row);
-                const change = finiteOrNull(daily[row.instrument]?.change),
-                  // Fall back to the daily close when this pair has no live quote
-                  // (only the featured pairs stream), so every row shows a price.
-                  price = mid(row) ?? finiteOrNull(daily[row.instrument]?.close),
-                  cardStatus = watchlistCardStatus(row),
-                  hasStrategy = hasActivePairStrategy(row.instrument),
-                  hasSchedule = hasPairStrategySchedule(row.instrument),
-                  scheduleLabel = hasSchedule ? pairStrategyScheduleLabel(row.instrument) : null;
+                const change = finiteOrNull(daily[row.instrument]?.change);
+                // Fall back to the daily close when this pair has no live quote
+                // (only the featured pairs stream), so every row shows a price.
+                const price = mid(row) ?? finiteOrNull(daily[row.instrument]?.close);
                 return (
                   <div
                     role="button"
                     tabIndex={0}
                     key={row.instrument}
-                    className={`markets-row ${active?.instrument === row.instrument ? "is-selected" : ""}`}
+                    className={`markets-row ${selected === row.instrument ? "is-selected" : ""}`}
                     onClick={() => {
                       setSelected(row.instrument);
                       router.push(`/chart?instrument=${row.instrument}`);
@@ -473,37 +407,7 @@ export function WatchlistView() {
                         ? "—"
                         : `${change >= 0 ? "+" : ""}${change.toFixed(2)}%`}
                     </b>
-                    <span
-                      className={`markets-bias is-${row.direction ?? "neutral"}`}
-                    >
-                      {row.direction === "long" ? (
-                        <ArrowUp />
-                      ) : row.direction === "short" ? (
-                        <ArrowDown />
-                      ) : null}
-                      {row.direction === "long"
-                        ? "Bullish"
-                        : row.direction === "short"
-                          ? "Bearish"
-                          : "Neutral"}
-                    </span>
-                    <span>{scheduleLabel ?? "No active strategy"}</span>
-                    <span>
-                      {row.spreadPips === null
-                        ? "—"
-                        : row.spreadPips.toFixed(1)}
-                    </span>
-                    <span
-                      className={`markets-setup is-${row.direction ?? "empty"}`}
-                    >
-                      {setup(row)}
-                    </span>
-                    <span className={`markets-status is-${tone}`}>
-                      <i />
-                      {state}
-                    </span>
-                    <span className={`markets-row-plan is-${cardStatus.state}`}>
-                      <span>{cardStatus.label}</span>{scheduleLabel ? <em>{scheduleLabel}</em> : null}{hasStrategy ? <b>{cardStatus.progress}%</b> : null}
+                    <span className="markets-row-plan">
                       <button
                         type="button"
                         className="markets-row-analyze pressable"
@@ -531,112 +435,12 @@ export function WatchlistView() {
               ) : null}
             </div>
           </section>
-          <aside className="markets-detail">
-            {active ? (
-              <>
-                <div className="markets-detail-head">
-                  <p>{displayNameFor(active.instrument)}</p>
-                  <strong className="metric-number">
-                    {(mid(active) ?? finiteOrNull(daily[active.instrument]?.close)) === null
-                      ? "—"
-                      : formatChartPrice(
-                          (mid(active) ?? finiteOrNull(daily[active.instrument]?.close))!,
-                          active.instrument,
-                        )}
-                  </strong>
-                  <em
-                    className={
-                      (activeChange ?? 0) >= 0 ? "is-positive" : "is-negative"
-                    }
-                  >
-                    {activeChange === null
-                      ? "—"
-                      : `${activeChange >= 0 ? "+" : ""}${activeChange.toFixed(2)}%`}
-                  </em>
-                </div>
-                <dl className="markets-detail-grid">
-                  <div>
-                    <dt>Next check</dt>
-                    <dd>{pairStrategyScheduleLabel(active.instrument)}</dd>
-                  </div>
-                  <div>
-                    <dt>Spread</dt>
-                    <dd>
-                      {active.spreadPips === null
-                        ? "—"
-                        : active.spreadPips.toFixed(1)}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Day high</dt>
-                    <dd>
-                      {day?.high === null || day?.high === undefined
-                        ? "—"
-                        : formatChartPrice(day.high, active.instrument)}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Day low</dt>
-                    <dd>
-                      {day?.low === null || day?.low === undefined
-                        ? "—"
-                        : formatChartPrice(day.low, active.instrument)}
-                    </dd>
-                  </div>
-                </dl>
-                <section className="markets-setup-detail">
-                  <p>GX setup</p>
-                  {hasLevels(active) ? (
-                    <>
-                      <b
-                        className={
-                          active.direction === "long"
-                            ? "is-positive"
-                            : "is-negative"
-                        }
-                      >
-                        {active.direction === "long" ? "LONG" : "SHORT"}
-                      </b>
-                      <dl>
-                        <div>
-                          <dt>Entry</dt>
-                          <dd>
-                            {formatChartPrice(active.entry!, active.instrument)}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt>SL</dt>
-                          <dd className="is-negative">
-                            {formatChartPrice(active.stop!, active.instrument)}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt>TP</dt>
-                          <dd className="is-positive">
-                            {formatChartPrice(
-                              active.target!,
-                              active.instrument,
-                            )}
-                          </dd>
-                        </div>
-                      </dl>
-                    </>
-                  ) : (
-                    <span>No active GX setup</span>
-                  )}
-                </section>
-                <Link href={`/chart?instrument=${active.instrument}`}>
-                  Open Chart <ArrowRight />
-                </Link>
-              </>
-            ) : null}
-          </aside>
         </div>
       )}
       <ManualProposalModal
-        analysis={proposal}
-        currentPrice={proposal?.trade
-          ? proposal.trade.direction === "long"
+        proposal={proposal}
+        currentPrice={proposal
+          ? proposal.direction === "long"
             ? quotes[proposal.instrument]?.ask ?? null
             : quotes[proposal.instrument]?.bid ?? null
           : null}

@@ -59,6 +59,7 @@ export function PendingEntryDialog({
   ask,
   selectedEntry,
   initialProposal = null,
+  creationBlocked = false,
   onClose,
   onChanged,
 }: {
@@ -69,6 +70,7 @@ export function PendingEntryDialog({
   ask: number | null;
   selectedEntry: PendingManualEntry | null;
   initialProposal?: { direction: "long" | "short"; entry: number; stop: number; target: number; confidence: number | null; rationale: string; preferredEntryTime: string } | null;
+  creationBlocked?: boolean;
   onClose: () => void;
   onChanged: (message: string) => void;
 }) {
@@ -272,6 +274,10 @@ export function PendingEntryDialog({
 
   async function save() {
     setError(null);
+    if (!selectedEntry && creationBlocked) {
+      setError("This pair already has an active position. Close it before creating another entry.");
+      return;
+    }
     if (current === null) return setError("Wait for a fresh executable market quote.");
     if (!Number.isFinite(parsedEntry) || parsedEntry <= 0) return setError("Enter a valid entry price.");
     if (stopPrice && (!Number.isFinite(parsedStop) || (parsedStop ?? 0) <= 0)) return setError("Enter a valid stop price.");
@@ -488,7 +494,7 @@ export function PendingEntryDialog({
             <button
               type="button"
               className="pending-entry-primary pressable"
-              disabled={saving || !Number.isFinite(parsedEntry) || parsedEntry <= 0}
+              disabled={saving || creationBlocked || !Number.isFinite(parsedEntry) || parsedEntry <= 0}
               onClick={() => void save()}
             >
               {saving ? "Saving…" : selectedEntry ? "Save Changes" : "Create Entry"}

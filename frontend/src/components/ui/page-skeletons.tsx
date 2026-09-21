@@ -442,9 +442,9 @@ export function SignalsLoadingSkeleton() {
                 </span>
               </div>
               <div className="gx-mobile-timeframes">
-                <div className="grid h-[2.6rem] grid-cols-5 gap-1 rounded-[10px] bg-[color:var(--surface-raised)] p-1">
+                <div className="workspace-segment" aria-hidden>
                   {Array.from({ length: 5 }, (_, index) => (
-                    <Bone key={index} className="h-full w-full rounded-md" />
+                    <Bone key={index} className="workspace-segment-btn h-full w-full" />
                   ))}
                 </div>
               </div>
@@ -454,7 +454,7 @@ export function SignalsLoadingSkeleton() {
             </div>
             <div className="gx-mobile-chart-toolbar px-3 py-2">
               {Array.from({ length: 5 }, (_, index) => (
-                <Bone key={index} className="h-full w-full rounded-xl" />
+                <Bone key={index} className="h-[2.4rem] w-full rounded-[11px]" />
               ))}
             </div>
             <div className="gx-mobile-analyze-section">

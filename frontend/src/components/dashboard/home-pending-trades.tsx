@@ -34,9 +34,7 @@ export function HomePendingTrades({
         <div className="home-section-head">
           <h2>Pending trades</h2>
         </div>
-        <p className="home-pending-empty">
-          No pending trades yet. Open a pair and use <strong>+ Add Entry</strong> to place one — it will rest here until it triggers or you cancel it.
-        </p>
+        <p className="home-pending-empty">Nothing pending yet.</p>
         {error ? <p className="home-pending-error" role="status">{error}</p> : null}
       </section>
     );

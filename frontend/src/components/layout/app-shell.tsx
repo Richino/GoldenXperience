@@ -53,7 +53,7 @@ const navItems: NavItem[] = [
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
-const mobilePrimaryHrefs = ["/", "/watchlist", "/chart", "/journal", "/settings"] as const;
+const mobilePrimaryHrefs = ["/", "/chart", "/journal", "/settings"] as const;
 
 function isActive(pathname: string, href: string) {
   if (href === "/settings") {
@@ -205,7 +205,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </filter>
         </defs>
       </svg>
-      <div className="nav-pill mx-auto grid w-full max-w-[24rem] grid-cols-5 items-center p-2">
+      <div className="nav-pill mx-auto grid w-full max-w-[24rem] grid-cols-4 items-center p-2">
         <span
           key={`${previousMobileIndex}-${activeMobileIndex}-${pathname}`}
           className="nav-liquid-lens-track"

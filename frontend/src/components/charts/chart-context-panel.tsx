@@ -15,6 +15,7 @@ export function ChartContextPanel({
   ask,
   selectedEntry,
   initialProposal = null,
+  creationBlocked = false,
   composerKey,
   onClearSelection,
   onChanged,
@@ -32,6 +33,7 @@ export function ChartContextPanel({
     rationale: string;
     preferredEntryTime: string;
   } | null;
+  creationBlocked?: boolean;
   composerKey: string;
   onClearSelection: () => void;
   onChanged: (message: string) => void;
@@ -47,6 +49,7 @@ export function ChartContextPanel({
         ask={ask}
         selectedEntry={selectedEntry}
         initialProposal={selectedEntry ? null : initialProposal}
+        creationBlocked={creationBlocked}
         onClose={onClearSelection}
         onChanged={onChanged}
       />

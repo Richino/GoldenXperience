@@ -411,6 +411,9 @@ export async function createPendingManualEntry(userId: string, payload: Record<s
       ? "You already have an active trade on this pair. Close it before creating another."
       : "You already have a pending trade on this pair. Cancel it before creating another.");
   }
+  if (await hasOpenPositionForPair(userId, tick.instrument)) {
+    throw new Error("You already have an active trade on this pair. Close it before creating another.");
+  }
   const entryPrice = finitePrice(payload.entryPrice);
   if (entryPrice === null) throw new Error("Enter a valid entry price.");
   const currentPrice = executablePrice(direction, tick);
@@ -566,6 +569,25 @@ export async function activeManualEntryForPair(userId: string, instrument: strin
     [userId, instrument],
   );
   return result.rows[0] ? serialize(result.rows[0]) : null;
+}
+
+/**
+ * A manually-created entry must not bypass an already-open strategy or imported
+ * practice position. `activeManualEntryForPair` above covers manual orders that
+ * are still resting or triggered; this closes the remaining same-pair gap.
+ */
+async function hasOpenPositionForPair(userId: string, instrument: string): Promise<boolean> {
+  const result = await query<{ occupied: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1 FROM paper_strategy_trades
+        WHERE user_id=$1 AND instrument=$2 AND status='open'
+       UNION ALL
+       SELECT 1 FROM paper_trades
+        WHERE user_id=$1 AND pair=$3 AND status='open'
+     ) AS occupied`,
+    [userId, instrument, instrument.replace("_", "/")],
+  );
+  return result.rows[0]?.occupied ?? false;
 }
 
 export async function cancelPendingManualEntry(userId: string, id: string) {

@@ -232,18 +232,16 @@ export function buildAccountAmountSeries({
 /**
  * Whether the plotted window ends above where it opened.
  *
- * Exported so the card around the chart can be tinted from the same signal the
- * line is coloured from. Reading it twice from two different measures is how
- * the hero ended up green around a red chart.
+ * The full curve intentionally receives one colour, so it must describe the
+ * selected period's net P/L rather than a live tick inside that period.
+ * Exported so the card around the chart uses exactly the same signal as the
+ * curve.
  */
 export type AccountSeriesTone = "up" | "down" | "flat";
 
 const FLAT_CASH = 1;
 
-/**
- * Colour the selected-period curve from its net result, not from intra-period
- * wiggles. Sub-dollar noise is treated as flat so a $0 day does not paint red.
- */
+/** Colour the full selected-period curve from its selected-period net result. */
 export function accountSeriesTone(series: AccountChartPoint[]): AccountSeriesTone {
   const opening = series[0]?.value ?? 0;
   const latest = series.at(-1)?.value ?? opening;

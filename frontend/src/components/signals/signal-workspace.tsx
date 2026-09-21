@@ -27,7 +27,7 @@ import {
 import { IndicatorSelect } from "@/components/charts/indicator-select";
 import {
   SetupChart,
-  createOneToTwoSetup,
+  createFixedTenPipSetup,
   type ChartPatternLine,
   type ChartPositionTool,
   type ChartReferenceLine,
@@ -512,6 +512,51 @@ type SwingPoint = {
 };
 
 /**
+ * A visual-only structural trend read. A pivot is confirmed only after three
+ * completed candles print on either side, so the lines do not move with the
+ * forming bar or get treated as execution inputs.
+ */
+function swingTrendLines(candles: Candle[]): ChartPatternLine[] {
+  const completed = candles.filter((candle) => candle.complete !== false).slice(-160);
+  const last = completed.at(-1);
+  if (!last || completed.length < 16) return [];
+
+  const reach = 3;
+  const highs: SwingPoint[] = [];
+  const lows: SwingPoint[] = [];
+  for (let index = reach; index < completed.length - reach; index += 1) {
+    const candle = completed[index]!;
+    const window = completed.slice(index - reach, index + reach + 1);
+    if (window.every((other) => other === candle || other.high <= candle.high)) {
+      highs.push({ index, time: candle.time, price: candle.high });
+    }
+    if (window.every((other) => other === candle || other.low >= candle.low)) {
+      lows.push({ index, time: candle.time, price: candle.low });
+    }
+  }
+
+  const lineFrom = (key: string, color: string, first?: SwingPoint, second?: SwingPoint): ChartPatternLine | null => {
+    if (!first || !second || second.index <= first.index) return null;
+    const slope = (second.price - first.price) / (second.index - first.index);
+    return {
+      key,
+      color,
+      dashed: false,
+      lineWidth: 2,
+      points: [
+        { time: first.time, price: first.price },
+        { time: last.time, price: second.price + slope * (completed.length - 1 - second.index) },
+      ],
+    };
+  };
+
+  return [
+    lineFrom("swing-trend-highs", "#f0526b", highs.at(-2), highs.at(-1)),
+    lineFrom("swing-trend-lows", "#3b82f6", lows.at(-2), lows.at(-1)),
+  ].filter((line): line is ChartPatternLine => line !== null);
+}
+
+/**
  * Draw only two defensible breakout geometries: a repeatedly respected box or
  * converging confirmed swings. The overlay is explanatory and never reaches
  * any execution code.
@@ -949,6 +994,7 @@ function useDesktopChartViewport() {
 function SignalSearch({
   signals,
   activeInstrument,
+  tradingInstruments,
   query,
   onQueryChange,
   onSelect,
@@ -958,6 +1004,8 @@ function SignalSearch({
 }: {
   signals: TradeSignal[];
   activeInstrument: MajorInstrument;
+  /** Pairs that currently have an open paper position. */
+  tradingInstruments: ReadonlySet<string>;
   query: string;
   onQueryChange: (value: string) => void;
   onSelect: (result: SearchResult) => void;
@@ -1121,6 +1169,7 @@ function SignalSearch({
           {matches.length ? (
             visibleMatches.map((result) => {
               const active = result.instrument === activeInstrument;
+              const isTrading = tradingInstruments.has(result.instrument);
 
               return (
                 <button
@@ -1140,6 +1189,9 @@ function SignalSearch({
                   <span className="min-w-0 flex-1 truncate text-sm font-medium tracking-[-0.02em]">
                     {result.displayName}
                   </span>
+                  {isTrading ? (
+                    <span className="signals-search-trading-badge">Trading</span>
+                  ) : null}
                   {active && useDesktopDropdown ? (
                     <span className="signals-search-current">Current</span>
                   ) : null}
@@ -1289,6 +1341,7 @@ function SignalSearch({
                   {matches.length ? (
                     visibleMatches.map((result) => {
                       const active = result.instrument === activeInstrument;
+                      const isTrading = tradingInstruments.has(result.instrument);
 
                       return (
                         <button
@@ -1306,6 +1359,9 @@ function SignalSearch({
                           <span className="min-w-0 flex-1 truncate text-sm font-semibold tracking-[-0.02em]">
                             {result.displayName}
                           </span>
+                          {isTrading ? (
+                            <span className="signals-search-trading-badge">Trading</span>
+                          ) : null}
                           {active ? <span className="signals-search-current">Current</span> : null}
                         </button>
                       );
@@ -1971,6 +2027,7 @@ export function SignalWorkspace({
   const [predictionFocus, setPredictionFocus] = useState<BinaryPrediction | null>(initialPredictionFocus);
   const [predictionClock, setPredictionClock] = useState(() => Date.now());
   const [pendingEntries, setPendingEntries] = useState<PendingManualEntry[]>([]);
+  const [allPendingEntries, setAllPendingEntries] = useState<PendingManualEntry[]>([]);
   const [tradeActionBusy, setTradeActionBusy] = useState(false);
   const [tradeActionError, setTradeActionError] = useState<string | null>(null);
   const [tradeConfirm, setTradeConfirm] = useState<"cancel" | "close" | null>(null);
@@ -1997,6 +2054,10 @@ export function SignalWorkspace({
   }
 
   function openPendingEntryManager(entry: PendingManualEntry | null = null) {
+    if (!entry && hasActivePosition) {
+      setPendingEntryNotice("This pair already has an active position. Close it before creating another entry.");
+      return;
+    }
     setSelectedPendingEntry(entry);
     if (isCompactChartViewport()) {
       setPendingEntryDialogOpen(true);
@@ -2021,7 +2082,7 @@ export function SignalWorkspace({
       stop: round(tool.stop),
       target: round(tool.target),
       confidence: null,
-      rationale: "1:2 setup from chart",
+      rationale: "Fixed 10-pip 1:1 setup from chart",
       preferredEntryTime: new Date().toISOString(),
     });
     setPositionTool(null);
@@ -2094,14 +2155,18 @@ export function SignalWorkspace({
 
   const refreshPendingEntries = useCallback(async () => {
     try {
-      const response = await fetch(apiUrl(`/api/pending-entries?instrument=${instrument}`), {
+      // Read every non-terminal manual entry, not only the selected pair. The
+      // picker uses this same source to mark a pair whose manual trade filled.
+      const response = await fetch(apiUrl("/api/pending-entries"), {
         credentials: "include",
         cache: "no-store",
       });
       const payload = await response.json() as { entries?: PendingManualEntry[] };
       if (response.ok && payload.entries) {
-        setPendingEntries(payload.entries);
-        setSelectedPendingEntry((current) => current ? payload.entries!.find((entry) => entry.id === current.id) ?? current : null);
+        const entriesForInstrument = payload.entries.filter((entry) => entry.instrument === instrument);
+        setAllPendingEntries(payload.entries);
+        setPendingEntries(entriesForInstrument);
+        setSelectedPendingEntry((current) => current ? entriesForInstrument.find((entry) => entry.id === current.id) ?? current : null);
       }
     } catch {
       // Existing chart data remains usable while the persisted entry read retries.
@@ -2438,6 +2503,33 @@ export function SignalWorkspace({
   );
   const activeManualTrade = triggeredManualEntry ?? pendingEntries.find((entry) => entry.status === "TRIGGERED" && entry.paperTradeStatus === "open") ?? null;
   const manualTradeMode: "analyze" | "cancel" | "close" = activeManualTrade ? "close" : pendingManualEntry ? "cancel" : "analyze";
+  const hasActivePosition = Boolean(openPaperTrade || activeManualTrade);
+
+  useEffect(() => {
+    // A fixed setup would create a competing entry. Clear any draft as soon as
+    // an open position is observed, including the brief watchlist-lag window.
+    if (!hasActivePosition) return;
+    setPositionTool(null);
+    setPositionToolPrompt(false);
+  }, [hasActivePosition]);
+
+  // The watchlist is the only chart payload that covers every pair. Add the
+  // current chart's direct trade read too, because the watchlist can trail a
+  // just-opened position by one collector refresh.
+  const tradingInstruments = useMemo(() => {
+    const instruments = new Set(
+      livePaperPlans
+        .filter((plan) => Boolean(plan.openTradeId))
+        .map((plan) => plan.instrument),
+    );
+    for (const entry of allPendingEntries) {
+      if (entry.status === "TRIGGERED" && entry.paperTradeStatus === "open") {
+        instruments.add(entry.instrument);
+      }
+    }
+    if (hasActivePosition) instruments.add(instrument);
+    return instruments;
+  }, [allPendingEntries, hasActivePosition, instrument, livePaperPlans]);
 
   const cancelManualTrade = useCallback(async () => {
     if (!pendingManualEntry) return;
@@ -2534,16 +2626,12 @@ export function SignalWorkspace({
       setPositionToolPrompt(false);
       return;
     }
-    const atr = calculateAtr(candles, 14).at(-1);
     const pip = pipSizeFor(instrument);
-    const risk = typeof atr === "number" && atr > 0
-      ? Math.max(pip * 8, atr * 0.5)
-      : pip * 20;
     const lastIndex = candles.length - 1;
     const spanBars = Math.min(36, Math.max(lastIndex, 1));
     const toLogical = lastIndex;
     const fromLogical = Math.max(0, lastIndex - spanBars);
-    setPositionTool(createOneToTwoSetup(direction, entry, risk, fromLogical, toLogical));
+    setPositionTool(createFixedTenPipSetup(direction, entry, pip, fromLogical, toLogical));
     setPositionToolPrompt(false);
   }, [instrument, liveCandle?.close, series.candles]);
 
@@ -2773,9 +2861,15 @@ export function SignalWorkspace({
       : { lines: [], tags: [] },
     [enabledIndicators, series.candles],
   );
+  const swingTrendPatternLines = useMemo(
+    () => isChartIndicatorEnabled(enabledIndicators, "swing-trend-lines")
+      ? swingTrendLines(series.candles)
+      : [],
+    [enabledIndicators, series.candles],
+  );
   const chartPatternLines = useMemo(
-    () => [...patternOverlay.lines, ...frozen4hHistoryLines],
-    [frozen4hHistoryLines, patternOverlay.lines],
+    () => [...patternOverlay.lines, ...swingTrendPatternLines, ...frozen4hHistoryLines],
+    [frozen4hHistoryLines, patternOverlay.lines, swingTrendPatternLines],
   );
   const chartReferenceLines = useMemo(
     () => [
@@ -2788,17 +2882,27 @@ export function SignalWorkspace({
     ],
     [breakoutReferenceLines, frozen4hReferenceLines, lastDaySrReferenceLines, patternOverlay.lines, pendingEntryReferenceLines, sessionSrReferenceLines, supportResistanceReferenceLines],
   );
+  // The chart refreshes paper trades in the background. Depending on the whole
+  // trade object here made an otherwise identical refresh look like a new
+  // focus request and snapped a user's panned/zoomed result view back again.
+  const focusedTradeId = displayedTrade?.id ?? null;
+  const focusedTradeOpenedAt = displayedTrade?.openedAt ?? null;
+  const focusedTradeClosedAt = displayedTrade?.closedAt ?? null;
+  const focusedPredictionId = focusedPrediction?.id ?? null;
+  const focusedPredictionStartedAt = focusedPrediction?.startAt ?? null;
+  const focusedPredictionResolvedAt = focusedPrediction?.resolvedAt ?? null;
+  const focusedPredictionExpiration = focusedPrediction?.intendedExpiration ?? null;
   const focusRange = useMemo(() => {
     const interval =
       GRANULARITY_MS[TIMEFRAME_TO_GRANULARITY[timeframe]] ?? GRANULARITY_MS.M15;
     const padding = (FOCUS_PADDING_BARS * interval) / 1_000;
 
-    if (focusedPrediction) {
-      const opened = Date.parse(focusedPrediction.startAt) / 1_000;
-      const closed = focusedPrediction.resolvedAt
-        ? Date.parse(focusedPrediction.resolvedAt) / 1_000
-        : focusedPrediction.intendedExpiration
-          ? Date.parse(focusedPrediction.intendedExpiration) / 1_000
+    if (focusedPredictionStartedAt) {
+      const opened = Date.parse(focusedPredictionStartedAt) / 1_000;
+      const closed = focusedPredictionResolvedAt
+        ? Date.parse(focusedPredictionResolvedAt) / 1_000
+        : focusedPredictionExpiration
+          ? Date.parse(focusedPredictionExpiration) / 1_000
           : opened;
 
       if (!Number.isFinite(opened) || !Number.isFinite(closed)) return null;
@@ -2809,11 +2913,11 @@ export function SignalWorkspace({
       };
     }
 
-    if (!displayedTrade) return null;
+    if (!focusedTradeOpenedAt) return null;
 
-    const opened = Date.parse(displayedTrade.openedAt) / 1_000;
-    const closed = displayedTrade.closedAt
-      ? Date.parse(displayedTrade.closedAt) / 1_000
+    const opened = Date.parse(focusedTradeOpenedAt) / 1_000;
+    const closed = focusedTradeClosedAt
+      ? Date.parse(focusedTradeClosedAt) / 1_000
       : opened;
 
     if (!Number.isFinite(opened) || !Number.isFinite(closed)) return null;
@@ -2822,7 +2926,7 @@ export function SignalWorkspace({
       from: Math.floor(opened - padding),
       to: Math.ceil(Math.max(opened, closed) + padding),
     };
-  }, [displayedTrade, focusedPrediction, timeframe]);
+  }, [focusedPredictionExpiration, focusedPredictionId, focusedPredictionResolvedAt, focusedPredictionStartedAt, focusedTradeClosedAt, focusedTradeId, focusedTradeOpenedAt, timeframe]);
 
   useEffect(() => {
     return () => {
@@ -3041,12 +3145,38 @@ export function SignalWorkspace({
   function selectSearchResult(result: SearchResult) {
     setLiveCandle(null);
     setFocusTradeId(null);
+    // Clear the prior pair's pan/zoom immediately. The data loader also bumps
+    // this once fresh candles arrive, covering both the transition and result.
+    setScrollToLatestRevision((revision) => revision + 1);
     setSelectedInstrument(result.instrument);
     router.replace(`${workspacePath}?instrument=${encodeURIComponent(result.instrument)}`, { scroll: false });
     setSearchQuery("");
   }
 
   const sessionLabel = marketSessionCaption();
+  const mobileTradeAction = manualTradeMode === "close"
+    ? {
+        label: tradeActionBusy ? "Closing…" : "Close Trade",
+        className: " is-close",
+        onClick: () => setTradeConfirm("close"),
+        disabled: tradeActionBusy,
+        title: "Close the active position",
+      }
+    : manualTradeMode === "cancel"
+      ? {
+          label: tradeActionBusy ? "Cancelling…" : "Cancel Trade",
+          className: " is-cancel",
+          onClick: () => setTradeConfirm("cancel"),
+          disabled: tradeActionBusy,
+          title: "Cancel the pending trade",
+        }
+      : {
+          label: "Trade",
+          className: "",
+          onClick: () => openPendingEntryManager(null),
+          disabled: hasActivePosition,
+          title: hasActivePosition ? "Close the active position before creating another entry" : undefined,
+        };
 
   return (
     <div
@@ -3064,21 +3194,14 @@ export function SignalWorkspace({
                 pairLabel={activeSetup.pair}
                 signals={signals}
                 activeInstrument={instrument}
+                tradingInstruments={tradingInstruments}
                 query={searchQuery}
                 onQueryChange={setSearchQuery}
                 onSelect={selectSearchResult}
                 className="gx-pair-search"
               />
               <div className="signals-mobile-header-actions flex items-center gap-2">
-                {manualTradeMode === "close" ? (
-                  <button type="button" className="signals-analyze-desktop pressable is-close" onClick={() => setTradeConfirm("close")} disabled={tradeActionBusy}>
-                    {tradeActionBusy ? "Closing…" : "Close Trade"}
-                  </button>
-                ) : manualTradeMode === "cancel" ? (
-                  <button type="button" className="signals-analyze-desktop pressable is-cancel" onClick={() => setTradeConfirm("cancel")} disabled={tradeActionBusy}>
-                    {tradeActionBusy ? "Cancelling…" : "Cancel Trade"}
-                  </button>
-                ) : (
+                {manualTradeMode === "analyze" ? (
                   <button
                     type="button"
                     className="signals-analyze-desktop pressable"
@@ -3089,7 +3212,7 @@ export function SignalWorkspace({
                     <Sparkles className="size-3.5" />
                     {analyzingInstrument === instrument ? "Analyzing…" : "Analyze"}
                   </button>
-                )}
+                ) : null}
                 <NotificationBell compact className="signals-icon-btn signals-fullscreen-reserve" />
               </div>
             </div>
@@ -3098,6 +3221,12 @@ export function SignalWorkspace({
               <span className="signals-mobile-price metric-number">
                 {formatChartPrice(priceStats.displayPrice, instrument)}
               </span>
+              {quote?.instrument === instrument && Number.isFinite(quote.bid) && Number.isFinite(quote.ask) ? (
+                <span className="gx-mobile-bid-ask" aria-label="Live bid and ask prices">
+                  <span><small>Bid</small><b className="metric-number">{formatChartPrice(quote.bid, instrument)}</b></span>
+                  <span><small>Ask</small><b className="metric-number">{formatChartPrice(quote.ask, instrument)}</b></span>
+                </span>
+              ) : null}
               <span className="gx-mobile-quote-meta">
                 <span className={priceStats.positive ? "gx-chart-change is-positive" : "gx-chart-change is-negative"}>
                   {priceStats.positive ? "+" : ""}{priceStats.change.toFixed(precisionForInstrument(instrument))}
@@ -3193,8 +3322,9 @@ export function SignalWorkspace({
                 }
                 setPositionToolPrompt(true);
               }}
-              aria-label="Draw a 1:2 risk/reward setup"
-              title="1:2 setup"
+              disabled={hasActivePosition}
+              aria-label="Draw a fixed 10-pip 1:1 risk/reward setup"
+              title={hasActivePosition ? "Close the active position before creating another entry" : "Fixed 10-pip 1:1 setup"}
             >
               <Scaling className="size-3.5" strokeWidth={2} />
             </button>
@@ -3226,8 +3356,14 @@ export function SignalWorkspace({
           </div>
 
           <div className="gx-mobile-analyze-section">
-            <button type="button" className="gx-mobile-analyze pressable" onClick={() => openPendingEntryManager(null)}>
-              Trade
+            <button
+              type="button"
+              className={`gx-mobile-analyze pressable${mobileTradeAction.className}`}
+              onClick={mobileTradeAction.onClick}
+              disabled={mobileTradeAction.disabled}
+              title={mobileTradeAction.title}
+            >
+              {mobileTradeAction.label}
             </button>
             {(tradeActionError || analysisError) ? (
               <p className="gx-mobile-analyze-error" role="alert">{tradeActionError ?? analysisError}</p>
@@ -3243,6 +3379,7 @@ export function SignalWorkspace({
                 pairLabel={activeSetup.pair}
                 signals={signals}
                 activeInstrument={instrument}
+                tradingInstruments={tradingInstruments}
                 query={searchQuery}
                 onQueryChange={setSearchQuery}
                 onSelect={selectSearchResult}
@@ -3307,10 +3444,11 @@ export function SignalWorkspace({
                   }
                   setPositionToolPrompt(true);
                 }}
-                title="Draw a 1:2 risk/reward setup"
+                disabled={hasActivePosition}
+                title={hasActivePosition ? "Close the active position before creating another entry" : "Draw a fixed 10-pip 1:1 risk/reward setup"}
               >
                 <Scaling className="size-3.5" />
-                1:2
+                10p · 1:1
               </button>
               <ChartTypeSelect toolbar value={chartVariant} onChange={setChartVariant} />
               <RangeSelect value={range} onChange={selectRange} />
@@ -3391,6 +3529,7 @@ export function SignalWorkspace({
             ask={quote?.ask ?? null}
             selectedEntry={selectedPendingEntry}
             initialProposal={entryDraftProposal ?? initialManualProposal}
+            creationBlocked={hasActivePosition}
             composerKey={`${instrument}:${selectedPendingEntry?.id ?? "new"}:${entryComposerRevision}`}
             onClearSelection={clearPendingEntrySelection}
             onChanged={(message) => {
@@ -3410,6 +3549,7 @@ export function SignalWorkspace({
         ask={quote?.ask ?? null}
         selectedEntry={selectedPendingEntry}
         initialProposal={entryDraftProposal ?? initialManualProposal}
+        creationBlocked={hasActivePosition}
         onClose={() => setPendingEntryDialogOpen(false)}
         onChanged={(message) => {
           setPendingEntryNotice(message);
@@ -3464,10 +3604,10 @@ export function SignalWorkspace({
             <header>
               <div>
                 <span>{instrument.replace("_", "/")}</span>
-                <h3 id="position-tool-title">1:2 setup</h3>
+                <h3 id="position-tool-title">Fixed 10-pip setup</h3>
               </div>
             </header>
-            <p>Choose a direction. Risk is sized from ATR with reward locked at 2R — drag the box to move, drag left/right edges to set width, or drag SL/TP to scale while staying 1:2.</p>
+            <p>Choose a direction. Risk and reward are both fixed at 10 pips (1:1). You can move the complete setup, but its size cannot be changed.</p>
             <div className="position-tool-direction">
               <button type="button" className="is-long" onClick={() => startPositionTool("long")}>
                 Long

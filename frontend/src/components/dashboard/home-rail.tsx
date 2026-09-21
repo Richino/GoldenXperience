@@ -59,6 +59,15 @@ function eventTime(timestamp: string) {
   }).format(new Date(timestamp));
 }
 
+function eventDay(timestamp: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: "America/New_York",
+  }).format(new Date(timestamp));
+}
+
 export function HomeRail({
   quotes,
   currency,
@@ -139,7 +148,7 @@ export function HomeRail({
 
   return (
     <aside className="home-rail" aria-label="Current positions, available signals, and markets">
-      <section className="home-rail-section">
+      <section className="home-rail-section home-rail-markets-section">
         <div className="home-rail-heading">
           <span>Markets</span>
           <Link href="/watchlist" className="home-rail-link">
@@ -244,7 +253,10 @@ export function HomeRail({
           <div className="home-rail-news-list">
             {upcomingHighImpact.map((event) => (
               <div key={event.id} className="home-rail-news-event">
-                <time className="metric-number" dateTime={event.timestamp}>{eventTime(event.timestamp)}</time>
+                <time className="metric-number" dateTime={event.timestamp}>
+                  <span>{eventTime(event.timestamp)}</span>
+                  <span className="home-rail-news-day">{eventDay(event.timestamp)}</span>
+                </time>
                 <span>{event.currency}</span>
                 <p>{event.title}</p>
               </div>

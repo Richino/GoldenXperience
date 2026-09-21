@@ -439,12 +439,6 @@ export function DashboardView({
 
       {error ? <p className="research-error">{error}</p> : null}
 
-      {Math.abs(account.balance - account.nav) >= 0.01 ? (
-        <p className="home-balance-note lg:hidden">
-          Balance {money(account.balance, account.currency)}
-        </p>
-      ) : null}
-
       {hasOpenPositions ? (
       <div className="dashboard-minimal-grid dashboard-trades-grid">
         <section className="home-section" aria-label="Open positions">

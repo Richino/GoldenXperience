@@ -145,12 +145,9 @@ function activityLabel(trade: JournalTrade) {
 }
 
 function chartHrefForTrade(trade: JournalTrade) {
-  // Only strategy trades exist in the chart's trade-marker dataset. Direct
-  // broker imports can still be inspected in the journal, but must not claim
-  // to focus a chart trade that does not exist there.
-  return trade.origin === "strategy" && trade.instrument
-    ? `/chart?instrument=${trade.instrument}&trade=${trade.id}`
-    : null;
+  if (!trade.instrument) return null;
+  const focusId = trade.chartTradeId ?? trade.id;
+  return `/chart?instrument=${trade.instrument}&trade=${focusId}`;
 }
 
 /* ---------------------------------------------------------------- primitives */

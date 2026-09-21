@@ -126,23 +126,23 @@ export interface ChartPositionTool {
   toLogical: number;
 }
 
-/** Build a fixed 1:2 geometry around an entry price with a finite bar span. */
-export function createOneToTwoSetup(
+/** Build a fixed 10-pip, 1:1 geometry around an entry price with a finite bar span. */
+export function createFixedTenPipSetup(
   direction: "long" | "short",
   entry: number,
-  risk: number,
+  pipSize: number,
   fromLogical: number,
   toLogical: number,
 ): ChartPositionTool {
-  const r = Math.abs(risk);
+  const distance = Math.abs(pipSize) * 10;
   const left = Math.min(fromLogical, toLogical);
   const right = Math.max(fromLogical, toLogical);
   if (direction === "long") {
     return {
       direction,
       entry,
-      stop: entry - r,
-      target: entry + 2 * r,
+      stop: entry - distance,
+      target: entry + distance,
       fromLogical: left,
       toLogical: right,
     };
@@ -150,8 +150,8 @@ export function createOneToTwoSetup(
   return {
     direction,
     entry,
-    stop: entry + r,
-    target: entry - 2 * r,
+    stop: entry + distance,
+    target: entry - distance,
     fromLogical: left,
     toLogical: right,
   };
@@ -263,7 +263,7 @@ function ChartPriceScaleRail({
   );
 }
 
-type PositionHandle = "move" | "entry" | "stop" | "target" | "left" | "right";
+type PositionHandle = "move" | "entry";
 
 function PositionToolOverlay({
   chartRef,
@@ -287,9 +287,9 @@ function PositionToolOverlay({
   const rewardRef = useRef<HTMLDivElement>(null);
   const riskRef = useRef<HTMLDivElement>(null);
   const entryRef = useRef<HTMLButtonElement>(null);
-  const stopRef = useRef<HTMLButtonElement>(null);
-  const targetRef = useRef<HTMLButtonElement>(null);
   const metaRef = useRef<HTMLDivElement>(null);
+  const repaintFrameRef = useRef<number | null>(null);
+  const retryPaintsRef = useRef(0);
   const dragRef = useRef<{
     handle: PositionHandle;
     start: ChartPositionTool;
@@ -321,9 +321,20 @@ function PositionToolOverlay({
       leftX === null ||
       rightX === null
     ) {
-      root.hidden = true;
+      // Chart coordinates can briefly be unavailable while Lightweight Charts
+      // applies a resize or swaps a data set. Hiding here made a valid setup
+      // vanish permanently when no later viewport event arrived. Keep the last
+      // paint visible and retry after the chart has completed that frame.
+      if (retryPaintsRef.current < 2 && repaintFrameRef.current === null) {
+        retryPaintsRef.current += 1;
+        repaintFrameRef.current = requestAnimationFrame(() => {
+          repaintFrameRef.current = null;
+          paintRef.current();
+        });
+      }
       return;
     }
+    retryPaintsRef.current = 0;
     root.hidden = false;
 
     const left = Math.min(leftX, rightX);
@@ -351,9 +362,30 @@ function PositionToolOverlay({
       riskRef.current.style.height = `${Math.max(riskHeight, 1)}px`;
     }
     if (entryRef.current) entryRef.current.style.top = `${entryY - top}px`;
-    if (stopRef.current) stopRef.current.style.top = `${stopY - top}px`;
-    if (targetRef.current) targetRef.current.style.top = `${targetY - top}px`;
-    if (metaRef.current) metaRef.current.style.top = `-28px`;
+    if (metaRef.current) {
+      // Keep the setup summary usable when the box is drawn against an edge of
+      // the chart. The overlay intentionally clips its children, so a fixed
+      // offset would otherwise hide the controls on narrow/mobile charts.
+      const meta = metaRef.current;
+      const inset = 8;
+      const metaHeight = meta.offsetHeight;
+      const metaWidth = meta.offsetWidth;
+      const roomAbove = top;
+      const roomBelow = root.clientHeight - bottom;
+
+      meta.style.left = `${Math.max(
+        -left + inset,
+        Math.min(inset, root.clientWidth - left - metaWidth - inset),
+      )}px`;
+
+      if (roomAbove >= metaHeight + inset) {
+        meta.style.top = `${-metaHeight - inset}px`;
+      } else if (roomBelow >= metaHeight + inset) {
+        meta.style.top = `${height + inset}px`;
+      } else {
+        meta.style.top = `${Math.max(inset, (height - metaHeight) / 2)}px`;
+      }
+    }
   }, [chartRef, mainSeriesRef]);
 
   const paintRef = useRef(paint);
@@ -371,6 +403,26 @@ function PositionToolOverlay({
       chart.unsubscribeCrosshairMove(onView);
     };
   }, [chartEpoch, chartRef, paint]);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const resizeObserver = new ResizeObserver(() => {
+      if (repaintFrameRef.current !== null) return;
+      repaintFrameRef.current = requestAnimationFrame(() => {
+        repaintFrameRef.current = null;
+        paintRef.current();
+      });
+    });
+    resizeObserver.observe(root);
+    return () => {
+      resizeObserver.disconnect();
+      if (repaintFrameRef.current !== null) {
+        cancelAnimationFrame(repaintFrameRef.current);
+        repaintFrameRef.current = null;
+      }
+    };
+  }, [paint]);
 
   useLayoutEffect(() => {
     paint();
@@ -410,25 +462,6 @@ function PositionToolOverlay({
       if (!pointer) return;
 
       const { handle, start, pointerPrice, pointerLogical } = drag;
-      const minSpan = 2;
-
-      if (handle === "left" || handle === "right") {
-        if (handle === "left") {
-          apply({
-            ...start,
-            fromLogical: Math.min(pointer.logical, start.toLogical - minSpan),
-            toLogical: start.toLogical,
-          });
-          return;
-        }
-        apply({
-          ...start,
-          fromLogical: start.fromLogical,
-          toLogical: Math.max(pointer.logical, start.fromLogical + minSpan),
-        });
-        return;
-      }
-
       if (handle === "move") {
         const deltaPrice = pointer.price - pointerPrice;
         const deltaLogical = pointer.logical - pointerLogical;
@@ -454,35 +487,12 @@ function PositionToolOverlay({
         return;
       }
 
-      // Scale keeps a true 1:2: risk = R, reward = 2R. Dragging either outer
-      // edge only changes R; the opposite edge mirrors it around entry.
-      let risk: number;
-      if (handle === "stop") {
-        risk =
-          start.direction === "long"
-            ? start.entry - pointer.price
-            : pointer.price - start.entry;
-      } else {
-        const reward =
-          start.direction === "long"
-            ? pointer.price - start.entry
-            : start.entry - pointer.price;
-        risk = reward / 2;
-      }
-      risk = Math.max(risk, Number.EPSILON);
-
-      if (start.direction === "long") {
-        apply({
-          ...start,
-          stop: start.entry - risk,
-          target: start.entry + 2 * risk,
-        });
-        return;
-      }
+      const deltaPrice = pointer.price - pointerPrice;
       apply({
         ...start,
-        stop: start.entry + risk,
-        target: start.entry - 2 * risk,
+        entry: start.entry + deltaPrice,
+        stop: start.stop + deltaPrice,
+        target: start.target + deltaPrice,
       });
     };
 
@@ -535,9 +545,24 @@ function PositionToolOverlay({
     };
   };
 
-  const risk = Math.abs(tool.entry - tool.stop);
-  const reward = Math.abs(tool.target - tool.entry);
-  const rr = risk > 0 ? reward / risk : 0;
+  const setDirection = (direction: ChartPositionTool["direction"]) => {
+    const current = toolRef.current;
+    if (current.direction === direction) return;
+
+    // Changing side should keep this a fixed 1:1 setup at the exact entry,
+    // not merely relabel the existing stop and target.
+    const distance = Math.max(
+      Math.abs(current.entry - current.stop),
+      Math.abs(current.target - current.entry),
+      Number.EPSILON,
+    );
+    const next: ChartPositionTool = direction === "long"
+      ? { ...current, direction, stop: current.entry - distance, target: current.entry + distance }
+      : { ...current, direction, stop: current.entry + distance, target: current.entry - distance };
+    toolRef.current = next;
+    onChangeRef.current(next);
+    paintRef.current();
+  };
 
   return (
     <div ref={rootRef} className="setup-chart-position-tool">
@@ -552,61 +577,55 @@ function PositionToolOverlay({
           className="setup-chart-position-band is-risk"
           onPointerDown={beginDrag("move")}
         />
-        <div ref={metaRef} className="setup-chart-position-meta">
-          <span>
-            {tool.direction === "long" ? "Long" : "Short"} · 1:{rr >= 10 ? rr.toFixed(0) : rr.toFixed(1)}
+        <div ref={metaRef} className="setup-chart-position-meta" aria-label="Fixed setup controls">
+          <span className="setup-chart-position-summary">
+            <span className="setup-chart-position-direction" role="group" aria-label="Setup direction">
+              <button
+                type="button"
+                className={`is-long${tool.direction === "long" ? " is-active" : ""}`}
+                aria-pressed={tool.direction === "long"}
+                onClick={() => setDirection("long")}
+              >
+                Long
+              </button>
+              <button
+                type="button"
+                className={`is-short${tool.direction === "short" ? " is-active" : ""}`}
+                aria-pressed={tool.direction === "short"}
+                onClick={() => setDirection("short")}
+              >
+                Short
+              </button>
+            </span>
           </span>
-          {onSubmit ? (
+          <span className="setup-chart-position-actions">
+            {onSubmit ? (
+              <button
+                type="button"
+                className="setup-chart-position-submit"
+                onClick={() => onSubmit(toolRef.current)}
+              >
+                Review setup
+              </button>
+            ) : null}
             <button
               type="button"
-              className="setup-chart-position-submit"
-              onClick={() => onSubmit(toolRef.current)}
+              className="setup-chart-position-clear"
+              aria-label="Clear fixed setup"
+              onClick={onClear}
             >
-              Submit
+              Clear
             </button>
-          ) : null}
-          <button type="button" className="setup-chart-position-clear" onClick={onClear}>
-            Clear
-          </button>
+          </span>
         </div>
-        <button
-          type="button"
-          className="setup-chart-position-edge is-left"
-          aria-label="Drag left edge"
-          onPointerDown={beginDrag("left")}
-        />
-        <button
-          type="button"
-          className="setup-chart-position-edge is-right"
-          aria-label="Drag right edge"
-          onPointerDown={beginDrag("right")}
-        />
-        <button
-          type="button"
-          ref={targetRef}
-          className="setup-chart-position-handle is-target"
-          aria-label="Scale take profit"
-          onPointerDown={beginDrag("target")}
-        >
-          <span>Take Profit</span>
-        </button>
         <button
           type="button"
           ref={entryRef}
           className="setup-chart-position-handle is-entry"
-          aria-label="Move entry"
+          aria-label="Move fixed 10-pip setup"
           onPointerDown={beginDrag("entry")}
         >
           <span>Entry</span>
-        </button>
-        <button
-          type="button"
-          ref={stopRef}
-          className="setup-chart-position-handle is-stop"
-          aria-label="Scale stop loss"
-          onPointerDown={beginDrag("stop")}
-        >
-          <span>Stop Loss</span>
         </button>
       </div>
     </div>
@@ -1321,6 +1340,11 @@ export function SetupChart({
   // older-history prepend: they both change the first candle, but only a
   // prepend keeps the granularity, and only a prepend should anchor the view.
   const prevGranularityRef = useRef(series.granularity);
+  // A scroll revision normally arrives alongside a fetched dataset, but an
+  // instrument change can rebuild this component a render before that async
+  // state update. Keep the rendered dataset identity too, so a stale logical
+  // range can never be restored onto another pair or timeframe.
+  const renderedDatasetKeyRef = useRef<string | null>(null);
   const lastScrollRevisionRef = useRef(0);
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme !== "light";
@@ -1413,10 +1437,19 @@ export function SetupChart({
     const container = containerRef.current;
     if (!container || !series.candles.length) return;
 
+    const datasetKey = `${series.instrument}:${series.granularity}`;
+    const datasetChanged =
+      renderedDatasetKeyRef.current !== null &&
+      renderedDatasetKeyRef.current !== datasetKey;
     // Pair / timeframe / range loads bump scrollToLatestRevision. Drop any
     // preserved viewport from the previous series so we open on the live edge
-    // instead of restoring bar indices that belong to another dataset.
-    if (scrollToLatestRevision > lastScrollRevisionRef.current) {
+    // instead of restoring bar indices that belong to another dataset. The
+    // dataset check covers the short transition before a new fetch increments
+    // that revision.
+    if (
+      scrollToLatestRevision > lastScrollRevisionRef.current ||
+      datasetChanged
+    ) {
       preservedViewRef.current = null;
     }
 
@@ -1703,6 +1736,7 @@ export function SetupChart({
     } else {
       focusCoveredRef.current = scrollChartToFocus(chart, series, range, focusRange);
     }
+    renderedDatasetKeyRef.current = datasetKey;
     setChartEpoch((value) => value + 1);
 
     const handleVisibleRangeChange = (logicalRange: LogicalRange | null) => {
@@ -1818,6 +1852,10 @@ export function SetupChart({
     const prevFirstTime = prevFirstCandleTimeRef.current;
     const nextFirstTime = series.candles[0]?.time ?? null;
     const granularityChanged = series.granularity !== prevGranularityRef.current;
+    const datasetKey = `${series.instrument}:${series.granularity}`;
+    const datasetChanged =
+      renderedDatasetKeyRef.current !== null &&
+      renderedDatasetKeyRef.current !== datasetKey;
     const scrolledToLatest =
       scrollToLatestRevision > lastScrollRevisionRef.current;
     // Only a same-timeframe older-history page is a real prepend. A timeframe or
@@ -1884,8 +1922,10 @@ export function SetupChart({
         .setVisibleLogicalRange(
           anchorRangeAfterPrepend(logicalRange, prependedCount),
         );
-    } else if (scrolledToLatest && chart) {
-      lastScrollRevisionRef.current = scrollToLatestRevision;
+    } else if ((scrolledToLatest || datasetChanged) && chart) {
+      if (scrolledToLatest) {
+        lastScrollRevisionRef.current = scrollToLatestRevision;
+      }
       requestAnimationFrame(() => {
         focusCoveredRef.current = scrollChartToFocus(
           chart,
@@ -1898,6 +1938,7 @@ export function SetupChart({
 
     prevFirstCandleTimeRef.current = nextFirstTime;
     prevGranularityRef.current = series.granularity;
+    renderedDatasetKeyRef.current = datasetKey;
     latestChartTimeRef.current = nextLatestTime;
     latestCloseRef.current = series.candles.at(-1)?.close ?? null;
   }, [focusRange, range, scrollToLatestRevision, series, variant]);

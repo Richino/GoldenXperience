@@ -47,6 +47,7 @@ export const CHART_INDICATORS = [
   { value: "session-sr-newyork", label: "Session SR · New York", group: "overlay" },
   { value: "breakout", label: "Breakout", group: "overlay" },
   { value: "breakout-patterns", label: "Breakout patterns", group: "overlay" },
+  { value: "swing-trend-lines", label: "Swing trend lines", group: "overlay" },
   { value: "ema21", label: "EMA 21", group: "overlay" },
   { value: "ema50", label: "EMA 50", group: "overlay" },
   { value: "ema200", label: "EMA 200", group: "overlay" },

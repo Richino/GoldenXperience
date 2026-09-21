@@ -8,6 +8,7 @@ import {
   buildTradeMarkers,
   buildTradePath,
   countPrependedCandles,
+  deriveDominantSwingTrend,
   historyPrefetchThreshold,
   shouldLoadOlderHistory,
   snapToCandleTime,
@@ -16,6 +17,7 @@ import { accountSeriesRose, accountSeriesTone, buildAccountAmountSeries } from "
 import { startOfTradingDay, tradingDayKey } from "../src/lib/format/datetime";
 import type { BinaryPrediction } from "../src/types/binary";
 import type { PaperChartTrade } from "../src/types/forex";
+import type { Candle } from "../src/types/forex";
 
 function bars(...isoTimes: string[]) {
   return isoTimes.map((time) => ({ time }));
@@ -23,6 +25,55 @@ function bars(...isoTimes: string[]) {
 
 const M15 = (index: number) =>
   new Date(Date.UTC(2026, 6, 24, 0, index * 15)).toISOString();
+
+function swingFixture(values: number[]): Candle[] {
+  return values.map((value, index) => ({
+    time: M15(index),
+    open: value,
+    high: value + 0.2,
+    low: value - 0.2,
+    close: value,
+    volume: 1,
+    complete: true,
+  }));
+}
+
+// A broad bullish move can finish with a small pullback. The trendline must
+// retain the structural low that began the move instead of joining only the
+// latest two local lows.
+const bullishTrend = deriveDominantSwingTrend(swingFixture([
+  12, 11, 10, 9, 8, 9, 10, 11, 12, 11, 10, 11, 12, 13, 14, 15,
+  14, 13, 12, 13, 14, 15, 16, 17, 16, 15, 14, 15, 16, 17, 18,
+]));
+assert.ok(bullishTrend, "expected a confirmed bullish swing trend");
+assert.equal(bullishTrend.direction, "bullish");
+assert.equal(bullishTrend.first.index, 4, "anchor the full move at its structural low");
+assert.equal(bullishTrend.second.index, 26, "end at the latest confirmed higher low");
+
+const bearishTrend = deriveDominantSwingTrend(swingFixture([
+  8, 9, 10, 11, 12, 11, 10, 9, 8, 9, 10, 9, 8, 7, 6, 5,
+  6, 7, 8, 7, 6, 5, 4, 3, 4, 5, 6, 5, 4, 3, 2,
+]));
+assert.ok(bearishTrend, "expected a confirmed bearish swing trend");
+assert.equal(bearishTrend.direction, "bearish");
+assert.equal(bearishTrend.first.index, 4, "anchor the full move at its structural high");
+assert.equal(bearishTrend.second.index, 26, "end at the latest confirmed lower high");
+
+// Trendline anchors must remain recent across every timeframe. A fixed candle
+// count is wrong here: it means hours on M1 but weeks on H4.
+const oldHistory = swingFixture([
+  12, 11, 10, 9, 8, 9, 10,
+  ...Array.from({ length: 161 }, () => 7),
+  12, 11, 10, 9, 8, 9, 10, 11, 12, 11, 10, 11, 12, 13, 14, 15,
+  14, 13, 12, 13, 14, 15, 16, 17, 16, 15, 14, 15, 16, 17, 18,
+]);
+const recentTrend = deriveDominantSwingTrend(oldHistory);
+assert.ok(recentTrend, "expected a trend in the recent two-day window");
+const recentCutoff = Date.parse(oldHistory.at(-1)!.time) - 2 * 24 * 60 * 60 * 1_000;
+assert.ok(
+  Date.parse(recentTrend.first.time) >= recentCutoff,
+  "never anchor a swing trend line more than two days before the latest candle",
+);
 
 // The loader starts well before the loaded edge. Its buffer is at least the
 // base threshold and grows with the visible window, so continuous panning does

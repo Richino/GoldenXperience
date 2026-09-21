@@ -86,6 +86,10 @@ export function useChartTouchGestures({
     let mode: GestureMode = "none";
     let frame = 0;
     let inertiaFrame = 0;
+    // Chart rebuilds dispose Lightweight Charts' internal price scale before
+    // React has necessarily cancelled a queued inertia frame. Keep that frame
+    // from talking to a stale chart instance.
+    let disposed = false;
     // The container's viewport origin, cached once per gesture so pointermove
     // never forces a layout read. `touch-action: none` keeps the page from
     // scrolling mid-gesture, so it stays valid until the fingers lift.
@@ -122,31 +126,43 @@ export function useChartTouchGestures({
 
     // --- native-API primitives ---
     function shiftTimeByPixels(dxPx: number) {
-      const timeScale = chart.timeScale();
-      const range = timeScale.getVisibleLogicalRange();
-      if (!range) return;
-      const bars = range.to - range.from;
-      if (bars <= 0) return;
-      const barSpacing = width() / bars;
-      const deltaBars = dxPx / barSpacing;
-      timeScale.setVisibleLogicalRange({
-        from: (range.from - deltaBars) as Logical,
-        to: (range.to - deltaBars) as Logical,
-      });
+      if (disposed) return false;
+      try {
+        const timeScale = chart.timeScale();
+        const range = timeScale.getVisibleLogicalRange();
+        if (!range) return true;
+        const bars = range.to - range.from;
+        if (bars <= 0) return true;
+        const barSpacing = width() / bars;
+        const deltaBars = dxPx / barSpacing;
+        timeScale.setVisibleLogicalRange({
+          from: (range.from - deltaBars) as Logical,
+          to: (range.to - deltaBars) as Logical,
+        });
+        return true;
+      } catch {
+        return false;
+      }
     }
 
     function shiftPriceByPixels(dyPx: number) {
-      const priceScale = chart.priceScale("right");
-      const range = priceScale.getVisibleRange();
-      if (!range) return;
-      const span = range.to - range.from;
-      if (span <= 0) return;
-      const delta = (dyPx / height()) * span;
-      priceScale.setAutoScale(false);
-      priceScale.setVisibleRange({
-        from: range.from + delta,
-        to: range.to + delta,
-      });
+      if (disposed) return false;
+      try {
+        const priceScale = chart.priceScale("right");
+        const range = priceScale.getVisibleRange();
+        if (!range) return true;
+        const span = range.to - range.from;
+        if (span <= 0) return true;
+        const delta = (dyPx / height()) * span;
+        priceScale.setAutoScale(false);
+        priceScale.setVisibleRange({
+          from: range.from + delta,
+          to: range.to + delta,
+        });
+        return true;
+      } catch {
+        return false;
+      }
     }
 
     // --- gesture starts ---
@@ -271,8 +287,16 @@ export function useChartTouchGestures({
       let vy = clamp(velocityY, -MAX_VELOCITY, MAX_VELOCITY);
       if (Math.max(Math.abs(vx), Math.abs(vy)) < INERTIA_STOP) return;
       const step = () => {
-        shiftTimeByPixels(vx * FRAME_MS);
-        shiftPriceByPixels(vy * FRAME_MS);
+        if (disposed) {
+          inertiaFrame = 0;
+          return;
+        }
+        const timeScaleAlive = shiftTimeByPixels(vx * FRAME_MS);
+        const priceScaleAlive = shiftPriceByPixels(vy * FRAME_MS);
+        if (!timeScaleAlive || !priceScaleAlive) {
+          inertiaFrame = 0;
+          return;
+        }
         onViewChangeRef.current?.();
         vx *= INERTIA_DECAY;
         vy *= INERTIA_DECAY;
@@ -354,6 +378,7 @@ export function useChartTouchGestures({
     container.addEventListener("pointercancel", endPointer);
 
     return () => {
+      disposed = true;
       container.removeEventListener("pointerdown", onPointerDown);
       container.removeEventListener("pointermove", onPointerMove);
       container.removeEventListener("pointerup", endPointer);

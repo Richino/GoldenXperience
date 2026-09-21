@@ -230,6 +230,85 @@ export function calculateAtr(
   return atr;
 }
 
+export type SwingTrendDirection = "bullish" | "bearish";
+
+export type SwingTrendAnchor = {
+  index: number;
+  time: string;
+  price: number;
+};
+
+export type DominantSwingTrend = {
+  direction: SwingTrendDirection;
+  first: SwingTrendAnchor;
+  second: SwingTrendAnchor;
+  last: SwingTrendAnchor;
+};
+
+const SWING_TREND_LOOKBACK_MS = 2 * 24 * 60 * 60 * 1_000;
+
+/**
+ * Finds the dominant confirmed swing structure in the visible history. The
+ * chart used to join the two newest pivots unconditionally, which made a
+ * healthy trend look like its latest pullback. For an uptrend we anchor from
+ * the structural low that started the move to the latest higher low (and use
+ * the inverse for a downtrend).
+ */
+export function deriveDominantSwingTrend(
+  candles: Candle[],
+): DominantSwingTrend | null {
+  const completedCandles = candles.filter((candle) => candle.complete !== false);
+  const latestCandle = completedCandles.at(-1);
+  if (!latestCandle) return null;
+
+  const latestTime = Date.parse(latestCandle.time);
+  const completed = Number.isFinite(latestTime)
+    ? completedCandles.filter((candle) => Date.parse(candle.time) >= latestTime - SWING_TREND_LOOKBACK_MS)
+    : completedCandles.slice(-160);
+  const latest = completed.at(-1);
+  if (!latest || completed.length < 16) return null;
+
+  const reach = 3;
+  const highs: SwingTrendAnchor[] = [];
+  const lows: SwingTrendAnchor[] = [];
+  for (let index = reach; index < completed.length - reach; index += 1) {
+    const candle = completed[index]!;
+    const window = completed.slice(index - reach, index + reach + 1);
+    if (window.every((other) => other === candle || other.high <= candle.high)) {
+      highs.push({ index, time: candle.time, price: candle.high });
+    }
+    if (window.every((other) => other === candle || other.low >= candle.low)) {
+      lows.push({ index, time: candle.time, price: candle.low });
+    }
+  }
+
+  const firstHigh = highs.at(0);
+  const lastHigh = highs.at(-1);
+  const firstLow = lows.at(0);
+  const lastLow = lows.at(-1);
+  if (!firstHigh || !lastHigh || !firstLow || !lastLow) return null;
+
+  const bullish = lastHigh.price > firstHigh.price && lastLow.price > firstLow.price;
+  const bearish = lastHigh.price < firstHigh.price && lastLow.price < firstLow.price;
+  if (!bullish && !bearish) return null;
+
+  const points = bullish ? lows : highs;
+  const first = points.reduce((best, point) => bullish
+    ? (point.price < best.price ? point : best)
+    : (point.price > best.price ? point : best), points[0]!);
+  const second = [...points]
+    .reverse()
+    .find((point) => point.index > first.index && (bullish ? point.price > first.price : point.price < first.price));
+
+  if (!second) return null;
+  return {
+    direction: bullish ? "bullish" : "bearish",
+    first,
+    second,
+    last: { index: completed.length - 1, time: latest.time, price: latest.close },
+  };
+}
+
 export function calculateRsi(
   closes: number[],
   period: number,

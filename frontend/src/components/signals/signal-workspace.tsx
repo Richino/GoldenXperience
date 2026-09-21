@@ -56,6 +56,7 @@ import {
   TIMEFRAME_TO_GRANULARITY,
   candleCountForRange,
   calculateAtr,
+  deriveDominantSwingTrend,
   formatChartPrice,
   formatResultR,
   isChartIndicatorEnabled,
@@ -517,43 +518,20 @@ type SwingPoint = {
  * forming bar or get treated as execution inputs.
  */
 function swingTrendLines(candles: Candle[]): ChartPatternLine[] {
-  const completed = candles.filter((candle) => candle.complete !== false).slice(-160);
-  const last = completed.at(-1);
-  if (!last || completed.length < 16) return [];
+  const trend = deriveDominantSwingTrend(candles);
+  if (!trend) return [];
 
-  const reach = 3;
-  const highs: SwingPoint[] = [];
-  const lows: SwingPoint[] = [];
-  for (let index = reach; index < completed.length - reach; index += 1) {
-    const candle = completed[index]!;
-    const window = completed.slice(index - reach, index + reach + 1);
-    if (window.every((other) => other === candle || other.high <= candle.high)) {
-      highs.push({ index, time: candle.time, price: candle.high });
-    }
-    if (window.every((other) => other === candle || other.low >= candle.low)) {
-      lows.push({ index, time: candle.time, price: candle.low });
-    }
-  }
-
-  const lineFrom = (key: string, color: string, first?: SwingPoint, second?: SwingPoint): ChartPatternLine | null => {
-    if (!first || !second || second.index <= first.index) return null;
-    const slope = (second.price - first.price) / (second.index - first.index);
-    return {
-      key,
-      color,
-      dashed: false,
-      lineWidth: 2,
-      points: [
-        { time: first.time, price: first.price },
-        { time: last.time, price: second.price + slope * (completed.length - 1 - second.index) },
-      ],
-    };
-  };
-
-  return [
-    lineFrom("swing-trend-highs", "#f0526b", highs.at(-2), highs.at(-1)),
-    lineFrom("swing-trend-lows", "#3b82f6", lows.at(-2), lows.at(-1)),
-  ].filter((line): line is ChartPatternLine => line !== null);
+  const slope = (trend.second.price - trend.first.price) / (trend.second.index - trend.first.index);
+  return [{
+    key: `swing-trend-${trend.direction}`,
+    color: trend.direction === "bullish" ? "#3b82f6" : "#f0526b",
+    dashed: false,
+    lineWidth: 2,
+    points: [
+      { time: trend.first.time, price: trend.first.price },
+      { time: trend.last.time, price: trend.second.price + slope * (trend.last.index - trend.second.index) },
+    ],
+  }];
 }
 
 /**

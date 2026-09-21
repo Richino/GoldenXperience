@@ -1,6 +1,6 @@
--- AUDJPY Bull Consensus V1 is registered in the dedicated-pair runtime, but
--- migration 040 omitted its family from this immutable-config allowlist. That
--- caused every live collector cycle to fail while seeding the frozen config.
+-- 047 shipped without the already-active EUR/AUD frozen strategy family.
+-- Rebuild the immutable config allowlist so existing production databases
+-- accept both the AUD/JPY and EUR/AUD dedicated runtimes.
 ALTER TABLE strategy_configs
   DROP CONSTRAINT IF EXISTS strategy_configs_family_check;
 

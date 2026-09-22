@@ -2313,7 +2313,11 @@ export function SignalWorkspace({
       if (candlesPayload.data.instrument !== instrument) return;
 
       replaceSeries(candlesPayload.data);
-      setScrollToLatestRevision((revision) => revision + 1);
+      // A quiet foreground/manual refresh must not behave like Reset View.
+      // The chart keeps its visible logical range while fresh candles replace
+      // the stale snapshot, so resuming a mobile PWA cannot throw the user
+      // back to the live edge. Pair, timeframe, and range changes explicitly
+      // advance `scrollToLatestRevision` in their own handlers.
       setHistoryExhausted(false);
       setLiveCandle(null);
       setQuote(
@@ -3469,6 +3473,7 @@ export function SignalWorkspace({
               className={`signals-chart-canvas chart-data-shell${loading ? " chart-data-shell-loading" : ""}`}
             >
               <SetupChart
+                key={`desktop-chart:${instrument}:${timeframe}:${range}`}
                 series={series}
                 levels={overlayPreferences.levels ? setupLevels : null}
                 enabledIndicators={enabledIndicators}

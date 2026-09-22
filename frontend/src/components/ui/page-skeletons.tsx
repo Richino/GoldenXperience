@@ -16,44 +16,59 @@ function Line({ className = "" }: { className?: string }) {
   );
 }
 
+/** A stable random walk gives the loading pane the shape of price history. */
+function loadingCandles() {
+  let seed = 0x7a4d92f1;
+  let price = 50;
+  const random = () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 0x100000000;
+  };
+
+  const candles = Array.from({ length: 60 }, (_, index) => {
+    const open = price;
+    const drift = index < 15 ? -0.8 : index < 31 ? 1.1 : index < 45 ? -0.9 : 0.65;
+    const close = open + (random() - 0.5) * 7 + drift;
+    const high = Math.max(open, close) + 0.7 + random() * 3;
+    const low = Math.min(open, close) - 0.7 - random() * 3;
+    price = close;
+    return { open, close, high, low };
+  });
+
+  const high = Math.max(...candles.map((candle) => candle.high));
+  const low = Math.min(...candles.map((candle) => candle.low));
+  const scale = 82 / (high - low);
+  return candles.map((candle) => ({
+    top: 9 + (high - candle.high) * scale,
+    height: (candle.high - candle.low) * scale,
+    bodyTop: ((candle.high - Math.max(candle.open, candle.close)) / (candle.high - candle.low)) * 100,
+    bodyHeight: (Math.abs(candle.close - candle.open) / (candle.high - candle.low)) * 100,
+    tone: candle.close >= candle.open ? "up" : "down",
+  }));
+}
+
+const CHART_LOADING_CANDLES = loadingCandles();
+
 /** Mirrors the chart pane while price history is still loading. */
 function ChartScreenSkeleton() {
-  // Dense enough to read like a live chart viewport. Heights/tops are uneven
-  // on purpose so the strip doesn't look like a repeating pattern.
-  const candles = [
-    [61, 14, "down"], [48, 6, "up"], [53, 19, "up"], [57, 4, "down"],
-    [41, 16, "down"], [36, 9, "up"], [44, 22, "up"], [55, 5, "down"],
-    [62, 11, "down"], [49, 3, "up"], [38, 18, "up"], [33, 7, "down"],
-    [29, 13, "down"], [42, 21, "up"], [51, 8, "up"], [58, 15, "down"],
-    [64, 4, "down"], [56, 17, "up"], [47, 6, "up"], [39, 20, "down"],
-    [34, 10, "down"], [28, 14, "up"], [37, 23, "up"], [46, 5, "down"],
-    [54, 12, "down"], [60, 7, "up"], [52, 16, "up"], [43, 9, "down"],
-    [35, 19, "down"], [40, 4, "up"], [50, 14, "up"], [59, 8, "down"],
-    [66, 11, "down"], [55, 20, "up"], [45, 6, "up"], [38, 13, "down"],
-    [32, 17, "down"], [27, 8, "up"], [36, 5, "up"], [48, 21, "down"],
-    [56, 9, "down"], [63, 15, "up"], [51, 4, "up"], [42, 18, "down"],
-    [37, 7, "down"], [31, 12, "up"], [40, 22, "up"], [49, 6, "down"],
-    [57, 14, "down"], [61, 3, "up"], [53, 19, "up"], [44, 10, "down"],
-  ] as const;
-
-  const step = 100 / candles.length;
+  const step = 100 / CHART_LOADING_CANDLES.length;
 
   return (
     <div className="chart-route-skeleton" aria-hidden>
       <div className="chart-route-skeleton-grid" />
       <div className="chart-route-skeleton-bars">
-        {candles.map(([top, height, tone], index) => (
+        {CHART_LOADING_CANDLES.map((candle, index) => (
           <span
             key={index}
-            className={`is-${tone}`}
+            className={`is-${candle.tone}`}
             style={{
               left: `${index * step + step * 0.18}%`,
               width: `${step * 0.62}%`,
-              top: `${top}%`,
-              height: `${height}%`,
+              top: `${candle.top}%`,
+              height: `${candle.height}%`,
             }}
           >
-            <i />
+            <i style={{ top: `${candle.bodyTop}%`, height: `${candle.bodyHeight}%` }} />
           </span>
         ))}
       </div>

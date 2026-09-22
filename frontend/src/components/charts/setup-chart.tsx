@@ -662,7 +662,9 @@ function chartTheme(
     },
     grid: {
       vertLines: { color: vertGrid, style: LineStyle.Solid, visible: !embedded },
-      horzLines: { color: horzGrid, style: LineStyle.Solid, visible: !embedded },
+      // Keep a few quiet horizontal guides on the compact chart so the restored
+      // right-side prices remain easy to scan without giving mobile a desktop grid.
+      horzLines: { color: horzGrid, style: LineStyle.Solid, visible: true },
     },
     crosshair: {
       mode: CrosshairMode.Normal,
@@ -680,10 +682,10 @@ function chartTheme(
       },
     },
     rightPriceScale: {
-      // Mobile hides the price axis entirely: the numbers on the right eat into
-      // a narrow screen, and the level tags (Entry/SL/TP) already carry the
-      // prices that matter. The candles get the full width instead.
-      visible: !embedded,
+      // The mobile scale deliberately uses one fewer decimal place and a
+      // narrow reserved rail, retaining a useful price reference without
+      // turning the chart into a cramped desktop terminal.
+      visible: true,
       borderVisible: false,
       borderColor: "transparent",
       textColor: scaleText,
@@ -1060,6 +1062,7 @@ function addPatternLines(
     minMove: number;
   },
 ) {
+  const lineSeries: ISeriesApi<"Line">[] = [];
   for (const line of lines) {
     const points = line.points.flatMap((point) => {
       const time = chartTimeValue(point);
@@ -1079,7 +1082,10 @@ function addPatternLines(
       priceFormat,
     });
     series.setData(points);
+    lineSeries.push(series);
   }
+
+  return lineSeries;
 }
 
 function addOscillatorPane(
@@ -1139,10 +1145,9 @@ function mainSeriesDisplayOptions(
 
   return {
     priceFormat,
-    // The mobile chart drops the last-price dot and the horizontal price line
-    // that trailed it: with the right axis gone the line points at nothing, and
-    // for line/area charts a pulsing beacon marks the latest price instead.
-    lastValueVisible: !embedded,
+    // The compact right axis keeps the current-price label useful on mobile;
+    // the guide line remains a desktop aid so mobile stays visually quiet.
+    lastValueVisible: true,
     priceLineVisible: !embedded,
     priceLineColor: "",
     priceLineWidth: 1 as const,
@@ -1287,6 +1292,8 @@ export function SetupChart({
   const markerOutlinesRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const falseBreakoutMarkersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+  const patternLineSeriesRef = useRef<ISeriesApi<"Line">[]>([]);
+  const renderedPatternLinesFingerprintRef = useRef<string | null>(null);
   const tradePathRef = useRef<ISeriesApi<"Line"> | null>(null);
   // Survives chart teardown so toggling indicators / redrawing price lines does
   // not throw the user back to the latest bars. Cleared after a successful
@@ -1609,8 +1616,9 @@ export function SetupChart({
       addSetupLevels(mainSeries, levelTags, !embedded);
     }
     if (patternLines.length) {
-      addPatternLines(chart, patternLines, priceFormat);
+      patternLineSeriesRef.current = addPatternLines(chart, patternLines, priceFormat);
     }
+    renderedPatternLinesFingerprintRef.current = patternLinesFingerprint;
 
     // The entry-to-exit segment is created with the chart, even when there is no
     // focused trade to draw yet. Adding a series later — after the candles have
@@ -1831,6 +1839,8 @@ export function SetupChart({
       markerOutlinesRef.current = null;
       markersRef.current = null;
       falseBreakoutMarkersRef.current = null;
+      patternLineSeriesRef.current = [];
+      renderedPatternLinesFingerprintRef.current = null;
       tradePathRef.current = null;
       latestChartTimeRef.current = null;
     };
@@ -1842,7 +1852,20 @@ export function SetupChart({
   // the whole chart down on every tick for any instrument holding an open
   // trade, throwing away the user's zoom and scroll position mid-gesture.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [series.instrument, levels?.entry, levels?.stop, levels?.target, levels?.exit, levels?.outcome, referenceLine?.price, referenceLine?.label, referenceLine?.color, referenceLine?.textColor, referenceLinesShapeFingerprint, patternLinesFingerprint, enabledIndicators, variant, isDark, priceFormat, upColor, downColor, wickUpColor, wickDownColor, surfaceColor, embedded]);
+  }, [series.instrument, levels?.entry, levels?.stop, levels?.target, levels?.exit, levels?.outcome, referenceLine?.price, referenceLine?.label, referenceLine?.color, referenceLine?.textColor, referenceLinesShapeFingerprint, enabledIndicators, variant, isDark, priceFormat, upColor, downColor, wickUpColor, wickDownColor, surfaceColor, embedded]);
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || renderedPatternLinesFingerprintRef.current === patternLinesFingerprint) {
+      return;
+    }
+
+    for (const lineSeries of patternLineSeriesRef.current) {
+      chart.removeSeries(lineSeries);
+    }
+    patternLineSeriesRef.current = addPatternLines(chart, patternLines, priceFormat);
+    renderedPatternLinesFingerprintRef.current = patternLinesFingerprint;
+  }, [patternLines, patternLinesFingerprint, priceFormat]);
 
   useEffect(() => {
     const chart = chartRef.current;

@@ -85,6 +85,9 @@ export function openRFromLevels(input: {
 }): number | null {
   const { direction, entry, stop, current } = input;
   if (
+    typeof entry !== "number" ||
+    typeof stop !== "number" ||
+    typeof current !== "number" ||
     !Number.isFinite(entry) ||
     !Number.isFinite(stop) ||
     !Number.isFinite(current)

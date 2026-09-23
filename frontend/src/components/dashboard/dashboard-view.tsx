@@ -17,6 +17,7 @@ import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { displayNameFor } from "@/lib/instruments/catalog";
 import {
+  openRFromLevels,
   openTradeProgress,
   quoteToUsdRateFromQuotes,
   resolveOpenTradeQuote,
@@ -127,6 +128,7 @@ type Trade = {
   stop?: number | null;
   target?: number | null;
   nominalRiskAmount?: number | null;
+  brokerTradeId?: string | null;
   strategyFamily?: string | null;
   batchNumber?: number | null;
 };
@@ -159,27 +161,28 @@ function money(value: number, currency = "USD") {
   return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 2 }).format(value);
 }
 
-function markedOpenMoney(
+function liveOpenProgress(
   trade: Trade,
   quotes: Record<string, { bid: number; ask: number }>,
   fills: Record<string, OpenPositionFill>,
   watchlist: DashboardWatchRow[],
 ) {
-  if (trade.paperPl !== null && trade.paperPl !== undefined) return trade.paperPl;
   if (trade.entry == null || trade.stop == null || trade.target == null) {
-    return fills[trade.instrument]?.unrealizedPL ?? null;
+    return null;
   }
   const streamed = quotes[trade.instrument];
-  const fill = fills[trade.instrument];
+  const fill = trade.brokerTradeId
+    ? fills[`broker:${trade.brokerTradeId}`]
+    : undefined;
   const quote = resolveOpenTradeQuote(
     streamed ?? watchlist.find((row) => row.instrument === trade.instrument),
     fill?.currentPrice,
   );
-  const live = openTradeProgress({
+  return openTradeProgress({
     direction: trade.direction,
     instrument: trade.instrument,
     entry: trade.entry,
-    stop: trade.stop,
+    stop: fill?.stopPrice ?? trade.stop,
     target: trade.target,
     bid: quote?.bid,
     ask: quote?.ask,
@@ -187,6 +190,19 @@ function markedOpenMoney(
     fill: fill ? { price: fill.price, units: fill.units } : null,
     quoteToUsdRate: quoteToUsdRateFromQuotes(trade.instrument, quotes),
   });
+}
+
+function markedOpenMoney(
+  trade: Trade,
+  quotes: Record<string, { bid: number; ask: number }>,
+  fills: Record<string, OpenPositionFill>,
+  watchlist: DashboardWatchRow[],
+) {
+  if (trade.paperPl !== null && trade.paperPl !== undefined) return trade.paperPl;
+  const fill = trade.brokerTradeId
+    ? fills[`broker:${trade.brokerTradeId}`]
+    : undefined;
+  const live = liveOpenProgress(trade, quotes, fills, watchlist);
   return fill?.unrealizedPL ?? live?.money ?? null;
 }
 
@@ -459,8 +475,11 @@ export function DashboardView({
               </div>
               {openTrades.slice(0, 6).map((trade) => {
                 const shown = markedOpenMoney(trade, quotes, fills, watchlist);
+                const live = liveOpenProgress(trade, quotes, fills, watchlist);
                 const streamed = quotes[trade.instrument];
-                const fill = fills[trade.instrument];
+                const fill = trade.brokerTradeId
+                  ? fills[`broker:${trade.brokerTradeId}`]
+                  : undefined;
                 const quote =
                   resolveOpenTradeQuote(
                     streamed ??
@@ -472,14 +491,21 @@ export function DashboardView({
                   : null;
                 const plTone =
                   shown === null ? "is-open" : shown >= 0 ? "is-win" : "is-loss";
-                // Standard lots from the broker fill; R multiple is the live
-                // money over the cash that was risked between entry and stop.
+                // Match the chart's Open R: planned Entry → current midpoint
+                // measured against the displayed Stop. P/L stays broker-based.
                 const lots =
                   fill && fill.units ? Math.abs(fill.units) / 100_000 : null;
                 const rMultiple =
-                  shown !== null && trade.nominalRiskAmount
+                  openRFromLevels({
+                    direction: trade.direction,
+                    entry: trade.entry,
+                    stop: trade.stop,
+                    current: mark,
+                  }) ??
+                  live?.unrealizedR ??
+                  (shown !== null && trade.nominalRiskAmount
                     ? shown / trade.nominalRiskAmount
-                    : null;
+                    : null);
                 const rTone =
                   rMultiple === null ? "" : rMultiple >= 0 ? "is-win" : "is-loss";
                 return (

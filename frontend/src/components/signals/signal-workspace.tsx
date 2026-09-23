@@ -44,6 +44,7 @@ import {
 import { PairAvatar } from "@/components/ui/pair-avatar";
 import { MobileSheet } from "@/components/ui/mobile-sheet";
 import { apiUrl } from "@/lib/api/url";
+import { openRFromLevels } from "@/lib/open-trade-progress";
 import { formatClockTime, formatDayAndTime, formatShortDay } from "@/lib/format/datetime";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import {
@@ -61,12 +62,14 @@ import {
   formatResultR,
   isChartIndicatorEnabled,
   mapSignalTimeframe,
+  mergeRefreshedCandles,
   spreadInPips,
   type ChartIndicator,
   type ChartRange,
   type ChartTimeframe,
   type ChartVariant,
 } from "@/lib/chart-utils";
+import { analyzeAdaptiveSwingTrendlines, type AdaptiveTrendline } from "@/lib/adaptive-swing-trendlines";
 import {
   INSTRUMENT_CATALOG,
   currenciesOf,
@@ -532,6 +535,23 @@ function swingTrendLines(candles: Candle[]): ChartPatternLine[] {
       { time: trend.last.time, price: trend.second.price + slope * (trend.last.index - trend.second.index) },
     ],
   }];
+}
+
+function adaptiveSwingTrendlineOverlay(candles: Candle[], instrument: MajorInstrument): PatternOverlay {
+  const read = analyzeAdaptiveSwingTrendlines(candles, instrument);
+  const lines: ChartPatternLine[] = [];
+  const tags: ChartReferenceLine[] = [];
+  const last = candles.filter((candle) => candle.complete !== false).at(-1);
+  const add = (line: AdaptiveTrendline | null, label: string, color: string, dashed = false) => {
+    if (!line || !last) return;
+    const endPrice = line.pointA.price + line.slopePerBar * (candles.length - 1 - line.pointA.index);
+    lines.push({ key: `adaptive-${line.id}`, color, dashed, lineWidth: line.type === "major" ? 2 : 1, points: [{ time: line.pointA.time, price: line.pointA.price }, { time: last.time, price: endPrice }] });
+    tags.push({ key: `adaptive-${line.id}`, label, price: endPrice, color, textColor: "#ffffff", dashed, lineWidth: line.type === "major" ? 2 : 1 });
+  };
+  add(read.major, read.major?.status === "broken" ? "MAJOR BROKEN" : `MAJOR ${read.majorDirection === "bullish" ? "↑" : "↓"}`, read.majorDirection === "bullish" ? "#2563eb" : "#dc2626", read.major?.status === "broken");
+  add(read.current, `CURRENT ${read.currentDirection === "bullish" ? "↑" : "↓"}${read.majorDirection && read.currentDirection && read.majorDirection !== read.currentDirection ? " PULLBACK" : ""}`, read.currentDirection === "bullish" ? "#16a34a" : "#ea580c");
+  if (read.previous?.status === "broken") add(read.previous, "PREV BROKEN", "#71717a", true);
+  return { lines, tags };
 }
 
 /**
@@ -1426,10 +1446,12 @@ function ActivePositionStrip({
     );
   }
 
-  const risk = Math.abs(signal.entry - signal.stop);
-  const openR = currentPrice && risk > 0
-    ? (signal.direction === "long" ? currentPrice - signal.entry : signal.entry - currentPrice) / risk
-    : null;
+  const openR = openRFromLevels({
+    direction: signal.direction,
+    entry: signal.entry,
+    stop: signal.stop,
+    current: currentPrice,
+  });
 
   return (
     <div className="gx-active-position">
@@ -1989,6 +2011,7 @@ export function SignalWorkspace({
   const [historyExhausted, setHistoryExhausted] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [scrollToLatestRevision, setScrollToLatestRevision] = useState(0);
+  const [preserveViewportRevision, setPreserveViewportRevision] = useState(0);
   // Both charts are sized from the box they are given rather than from the
   // viewport: the mobile layout is a single non-scrolling column and the
   // desktop card grows to the screen in fullscreen, so only a measurement
@@ -2310,14 +2333,24 @@ export function SignalWorkspace({
         status: ConnectionStatus;
       };
 
-      if (candlesPayload.data.instrument !== instrument) return;
+      const currentSeries = seriesRef.current;
+      if (
+        candlesPayload.data.instrument !== instrument ||
+        candlesPayload.data.granularity !== TIMEFRAME_TO_GRANULARITY[timeframe] ||
+        currentSeries.instrument !== instrument ||
+        currentSeries.granularity !== candlesPayload.data.granularity
+      ) return;
 
-      replaceSeries(candlesPayload.data);
-      // A quiet foreground/manual refresh must not behave like Reset View.
-      // The chart keeps its visible logical range while fresh candles replace
-      // the stale snapshot, so resuming a mobile PWA cannot throw the user
-      // back to the live edge. Pair, timeframe, and range changes explicitly
-      // advance `scrollToLatestRevision` in their own handlers.
+      replaceSeries({
+        ...candlesPayload.data,
+        candles: mergeRefreshedCandles(
+          currentSeries.candles,
+          candlesPayload.data.candles,
+        ),
+      });
+      // The refreshed bars update in place while the already loaded history
+      // remains, so logical viewport indexes keep pointing at the same times.
+      setPreserveViewportRevision((revision) => revision + 1);
       setHistoryExhausted(false);
       setLiveCandle(null);
       setQuote(
@@ -2849,9 +2882,15 @@ export function SignalWorkspace({
       : [],
     [enabledIndicators, series.candles],
   );
+  const adaptiveSwingTrendOverlay = useMemo(
+    () => isChartIndicatorEnabled(enabledIndicators, "adaptive-swing-trendlines-v1") && timeframe === "15m"
+      ? adaptiveSwingTrendlineOverlay(series.candles, instrument)
+      : { lines: [], tags: [] },
+    [enabledIndicators, instrument, series.candles, timeframe],
+  );
   const chartPatternLines = useMemo(
-    () => [...patternOverlay.lines, ...swingTrendPatternLines, ...frozen4hHistoryLines],
-    [frozen4hHistoryLines, patternOverlay.lines, swingTrendPatternLines],
+    () => [...patternOverlay.lines, ...swingTrendPatternLines, ...adaptiveSwingTrendOverlay.lines, ...frozen4hHistoryLines],
+    [adaptiveSwingTrendOverlay.lines, frozen4hHistoryLines, patternOverlay.lines, swingTrendPatternLines],
   );
   const chartReferenceLines = useMemo(
     () => [
@@ -3276,6 +3315,7 @@ export function SignalWorkspace({
               height={mobileChartHeight}
               embedded
               scrollToLatestRevision={scrollToLatestRevision}
+              preserveViewportRevision={preserveViewportRevision}
               loadingOlder={loadingOlder}
               onLoadOlder={loadOlderCandles}
               trades={paperTrades}
@@ -3285,6 +3325,7 @@ export function SignalWorkspace({
               referenceLine={predictionReferenceLine}
               referenceLines={chartReferenceLines}
               patternLines={chartPatternLines}
+              patternTags={adaptiveSwingTrendOverlay.tags}
               positionTool={positionTool}
               onPositionToolChange={setPositionTool}
               onPositionToolSubmit={submitPositionTool}
@@ -3483,6 +3524,7 @@ export function SignalWorkspace({
                 height={desktopChartHeight}
                 spreadPips={spreadPips}
                 scrollToLatestRevision={scrollToLatestRevision}
+                preserveViewportRevision={preserveViewportRevision}
                 loadingOlder={loadingOlder}
                 onLoadOlder={loadOlderCandles}
                 trades={paperTrades}
@@ -3494,6 +3536,7 @@ export function SignalWorkspace({
                 referenceLine={predictionReferenceLine}
                 referenceLines={chartReferenceLines}
                 patternLines={chartPatternLines}
+                patternTags={adaptiveSwingTrendOverlay.tags}
                 positionTool={positionTool}
                 onPositionToolChange={setPositionTool}
                 onPositionToolSubmit={submitPositionTool}

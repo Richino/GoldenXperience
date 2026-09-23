@@ -14,12 +14,13 @@ import { useEffect, useRef } from "react";
  *
  * Three signals are watched because no single one covers every platform:
  *  - `visibilitychange` → the tab becoming visible again (the common case).
- *  - `focus` → returning to the window on desktop without a visibility change.
  *  - `pageshow` with `persisted` → a page restored from the back/forward cache,
  *    which fires neither of the above.
  *
- * They frequently fire together on a single return, so calls are coalesced
- * within a short window to run `refresh` once per foregrounding.
+ * A bare browser-window `focus` is deliberately excluded. Clicking away to
+ * another desktop app and back leaves the tab visible, while the live stream
+ * remains responsible for quotes; treating that as a full data refresh made
+ * chart viewports jump without a real foreground transition.
  */
 const COALESCE_WINDOW_MS = 1_000;
 const APP_REFRESH_EVENT = "goldenxperience:refresh";
@@ -73,13 +74,11 @@ export function useForegroundRefresh(refresh: () => void | Promise<void>, enable
     }
 
     document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("focus", run);
     window.addEventListener("pageshow", onPageShow);
     window.addEventListener(APP_REFRESH_EVENT, onAppRefresh);
 
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("focus", run);
       window.removeEventListener("pageshow", onPageShow);
       window.removeEventListener(APP_REFRESH_EVENT, onAppRefresh);
     };

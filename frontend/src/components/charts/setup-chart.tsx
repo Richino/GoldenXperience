@@ -24,6 +24,7 @@ import {
   createChart,
   createSeriesMarkers,
   type IChartApi,
+  type IPriceLine,
   type AutoscaleInfo,
   type ISeriesApi,
   type ISeriesMarkersPluginApi,
@@ -1079,6 +1080,8 @@ function addPatternLines(
       priceLineVisible: false,
       lastValueVisible: false,
       crosshairMarkerVisible: false,
+      // Projected annotations must not expand the candle price scale.
+      autoscaleInfoProvider: () => null,
       priceFormat,
     });
     series.setData(points);
@@ -1248,6 +1251,7 @@ export function SetupChart({
   loadingOlder = false,
   onLoadOlder,
   scrollToLatestRevision,
+  preserveViewportRevision = 0,
   trades,
   focusTradeId = null,
   focusPrediction = null,
@@ -1255,6 +1259,7 @@ export function SetupChart({
   referenceLine = null,
   referenceLines = [],
   patternLines = [],
+  patternTags = [],
   showTradeMarkers = true,
   showTradePath = true,
   positionTool = null,
@@ -1273,6 +1278,8 @@ export function SetupChart({
   loadingOlder?: boolean;
   onLoadOlder?: () => void;
   scrollToLatestRevision: number;
+  /** Foreground data replacement: retain the user's current logical range. */
+  preserveViewportRevision?: number;
   trades?: PaperChartTrade[];
   focusTradeId?: string | null;
   focusPrediction?: BinaryPrediction | null;
@@ -1280,6 +1287,8 @@ export function SetupChart({
   referenceLine?: ChartReferenceLine | null;
   referenceLines?: ChartReferenceLine[];
   patternLines?: ChartPatternLine[];
+  /** Labels for diagonal pattern lines, updated without chart recreation. */
+  patternTags?: ChartReferenceLine[];
   showTradeMarkers?: boolean;
   showTradePath?: boolean;
   positionTool?: ChartPositionTool | null;
@@ -1294,6 +1303,7 @@ export function SetupChart({
   const falseBreakoutMarkersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const patternLineSeriesRef = useRef<ISeriesApi<"Line">[]>([]);
   const renderedPatternLinesFingerprintRef = useRef<string | null>(null);
+  const patternPriceLinesRef = useRef<IPriceLine[]>([]);
   const tradePathRef = useRef<ISeriesApi<"Line"> | null>(null);
   // Survives chart teardown so toggling indicators / redrawing price lines does
   // not throw the user back to the latest bars. Cleared after a successful
@@ -1339,6 +1349,10 @@ export function SetupChart({
   const halfSpreadRef = useRef(halfSpread);
   const loadingOlderRef = useRef(loadingOlder);
   const onLoadOlderRef = useRef(onLoadOlder);
+  // `setData` can briefly report an empty/leftmost logical range before a
+  // foreground snapshot's saved range is reapplied. That transient range must
+  // not be treated as a deliberate user pan to the history boundary.
+  const suppressHistoryLoadRef = useRef(false);
   // The visible-range callback is registered once per chart, so it cannot read
   // candles through the closure without going stale as live data streams in.
   const candlesRef = useRef(series.candles);
@@ -1353,6 +1367,7 @@ export function SetupChart({
   // range can never be restored onto another pair or timeframe.
   const renderedDatasetKeyRef = useRef<string | null>(null);
   const lastScrollRevisionRef = useRef(0);
+  const lastPreserveViewportRevisionRef = useRef(0);
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme !== "light";
   // Solid opaque candles: body, border, and wick share one hue so bars read
@@ -1428,8 +1443,14 @@ export function SetupChart({
   const referenceLinesShapeFingerprint = referenceLines
     .map((line) => `${line.key ?? ""}:${line.price}:${line.color}:${line.dashed ?? true}:${line.lineWidth ?? 2}`)
     .join("|");
+  const chartCreationIndicators = enabledIndicators
+    .filter((indicator) => indicator !== "adaptive-swing-trendlines-v1")
+    .join("|");
   const patternLinesFingerprint = patternLines
     .map((line) => `${line.key}:${line.color}:${line.dashed ?? false}:${line.lineWidth ?? 1}:${line.points.map((point) => `${point.time}:${point.price}`).join(",")}`)
+    .join("|");
+  const patternTagsFingerprint = patternTags
+    .map((line) => `${line.key ?? ""}:${line.price}:${line.color}:${line.dashed ?? true}:${line.lineWidth ?? 1}`)
     .join("|");
   // Height is applied to the live chart rather than being a creation dependency:
   // rebuilding on a height change would reset the visible range.
@@ -1750,7 +1771,8 @@ export function SetupChart({
     const handleVisibleRangeChange = (logicalRange: LogicalRange | null) => {
       if (
         shouldLoadOlderHistory(logicalRange) &&
-        !loadingOlderRef.current
+        !loadingOlderRef.current &&
+        !suppressHistoryLoadRef.current
       ) {
         onLoadOlderRef.current?.();
       }
@@ -1803,9 +1825,11 @@ export function SetupChart({
     const resizeObserver = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (!entry) return;
-      containerWidthRef.current = entry.contentRect.width;
+      const width = entry.contentRect.width;
+      if (!Number.isFinite(width) || width <= 0) return;
+      containerWidthRef.current = width;
       chart.applyOptions({
-        width: entry.contentRect.width,
+        width,
         height: chartHeightRef.current,
       });
     });
@@ -1841,6 +1865,7 @@ export function SetupChart({
       falseBreakoutMarkersRef.current = null;
       patternLineSeriesRef.current = [];
       renderedPatternLinesFingerprintRef.current = null;
+      patternPriceLinesRef.current = [];
       tradePathRef.current = null;
       latestChartTimeRef.current = null;
     };
@@ -1852,7 +1877,7 @@ export function SetupChart({
   // the whole chart down on every tick for any instrument holding an open
   // trade, throwing away the user's zoom and scroll position mid-gesture.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [series.instrument, levels?.entry, levels?.stop, levels?.target, levels?.exit, levels?.outcome, referenceLine?.price, referenceLine?.label, referenceLine?.color, referenceLine?.textColor, referenceLinesShapeFingerprint, enabledIndicators, variant, isDark, priceFormat, upColor, downColor, wickUpColor, wickDownColor, surfaceColor, embedded]);
+  }, [series.instrument, levels?.entry, levels?.stop, levels?.target, levels?.exit, levels?.outcome, referenceLine?.price, referenceLine?.label, referenceLine?.color, referenceLine?.textColor, referenceLinesShapeFingerprint, chartCreationIndicators, variant, isDark, priceFormat, upColor, downColor, wickUpColor, wickDownColor, surfaceColor, embedded]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -1866,6 +1891,29 @@ export function SetupChart({
     patternLineSeriesRef.current = addPatternLines(chart, patternLines, priceFormat);
     renderedPatternLinesFingerprintRef.current = patternLinesFingerprint;
   }, [patternLines, patternLinesFingerprint, priceFormat]);
+
+  // Keep the horizontal MAJOR / CURRENT / PREV reference lines the indicator
+  // exposes, but update them in place. Passing them through the chart-creation
+  // path used to destroy the chart and move the user's viewport on every toggle.
+  useEffect(() => {
+    const mainSeries = mainSeriesRef.current;
+    if (!mainSeries) return;
+
+    for (const priceLine of patternPriceLinesRef.current) {
+      mainSeries.removePriceLine(priceLine);
+    }
+    patternPriceLinesRef.current = patternTags
+      .filter((line) => Number.isFinite(line.price))
+      .map((line) => mainSeries.createPriceLine({
+        price: line.price,
+        color: line.color,
+        lineWidth: line.lineWidth ?? 1,
+        lineStyle: line.dashed ? LineStyle.Dashed : LineStyle.Solid,
+        axisLabelVisible: !embedded,
+        axisLabelColor: line.color,
+        axisLabelTextColor: line.textColor,
+      }));
+  }, [chartEpoch, embedded, patternTags, patternTagsFingerprint]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -1881,6 +1929,8 @@ export function SetupChart({
       renderedDatasetKeyRef.current !== datasetKey;
     const scrolledToLatest =
       scrollToLatestRevision > lastScrollRevisionRef.current;
+    const shouldPreserveViewport =
+      preserveViewportRevision > lastPreserveViewportRevisionRef.current;
     // Only a same-timeframe older-history page is a real prepend. A timeframe or
     // range switch replaces the whole dataset (new granularity, and the parent
     // bumps the scroll revision), and counting its unfamiliar bars as
@@ -1890,15 +1940,20 @@ export function SetupChart({
     const isHistoryPrepend =
       !granularityChanged &&
       !scrolledToLatest &&
+      !shouldPreserveViewport &&
       nextFirstTime !== prevFirstTime;
     const prependedCount = isHistoryPrepend
       ? countPrependedCandles(series.candles, prevFirstTime)
       : 0;
     const logicalRange =
-      prependedCount > 0
+      (prependedCount > 0 || shouldPreserveViewport)
         ? chart?.timeScale().getVisibleLogicalRange()
         : null;
     const nextLatestTime = latestCandleChartTime(series.candles);
+
+    if (shouldPreserveViewport) {
+      suppressHistoryLoadRef.current = true;
+    }
 
     switch (variant) {
       case "candle":
@@ -1936,14 +1991,16 @@ export function SetupChart({
         range,
         focusRange,
       );
-    } else if (prependedCount > 0 && logicalRange && chart) {
+    } else if ((prependedCount > 0 || shouldPreserveViewport) && logicalRange && chart) {
       // Preserve the exact candles currently under the user's pointer. Older
-      // data is requested well before the edge, so this anchor does not make
-      // panning feel blocked while a history page is appended.
+      // history is requested well before the edge, and a foreground snapshot
+      // replacement must likewise keep the desktop user's current viewport.
       chart
         .timeScale()
         .setVisibleLogicalRange(
-          anchorRangeAfterPrepend(logicalRange, prependedCount),
+          prependedCount > 0
+            ? anchorRangeAfterPrepend(logicalRange, prependedCount)
+            : logicalRange,
         );
     } else if ((scrolledToLatest || datasetChanged) && chart) {
       if (scrolledToLatest) {
@@ -1962,9 +2019,15 @@ export function SetupChart({
     prevFirstCandleTimeRef.current = nextFirstTime;
     prevGranularityRef.current = series.granularity;
     renderedDatasetKeyRef.current = datasetKey;
+    if (shouldPreserveViewport) {
+      lastPreserveViewportRevisionRef.current = preserveViewportRevision;
+      requestAnimationFrame(() => {
+        suppressHistoryLoadRef.current = false;
+      });
+    }
     latestChartTimeRef.current = nextLatestTime;
     latestCloseRef.current = series.candles.at(-1)?.close ?? null;
-  }, [focusRange, range, scrollToLatestRevision, series, variant]);
+  }, [focusRange, preserveViewportRevision, range, scrollToLatestRevision, series, variant]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -2199,6 +2262,7 @@ export function SetupChart({
     referenceLine?.color ?? "",
     referenceLine?.textColor ?? "",
     ...referenceLines.flatMap((line) => [line.key ?? "", line.price, line.label, line.color, line.textColor]),
+    ...patternTags.flatMap((line) => [line.key ?? "", line.price, line.label, line.color, line.textColor]),
   ].join("\0");
 
   // The named level tags ride along with the price scale, which the user can
@@ -2206,15 +2270,27 @@ export function SetupChart({
   // their positions are re-read each frame and only written back to React when
   // something actually moved.
   useEffect(() => {
-    const tags = overlayLevelTags(
-      levels,
-      referenceLine,
-      referenceLines,
-      isDark,
-      halfSpreadRef.current,
-      series.instrument,
-      embedded,
-    );
+    const tags = [
+      ...overlayLevelTags(
+        levels,
+        referenceLine,
+        referenceLines,
+        isDark,
+        halfSpreadRef.current,
+        series.instrument,
+        embedded,
+      ),
+      ...patternTags.map((line) => ({
+        key: line.key ?? "pattern-tag",
+        label: line.label,
+        price: line.price,
+        color: line.color,
+        textColor: line.textColor,
+        dashed: line.dashed ?? true,
+        lineWidth: line.lineWidth ?? 1,
+        onSelect: line.onSelect,
+      })),
+    ];
     let frame = 0;
     let previous = "";
 

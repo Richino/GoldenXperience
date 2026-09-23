@@ -1,9 +1,21 @@
 import assert from "node:assert/strict";
 import {
+  openRFromLevels,
   openTradeProgress,
   quoteToUsdRateFromQuotes,
   resolveOpenTradeQuote,
 } from "../src/lib/open-trade-progress";
+
+// Dashboard and chart must calculate the displayed Open R from the same
+// strategy levels, independent of the broker's eventual fill price.
+const chartOpenR = openRFromLevels({
+  direction: "short",
+  entry: 1.14181,
+  stop: 1.14261,
+  current: 1.141,
+});
+assert.ok(chartOpenR !== null);
+assert.ok(Math.abs(chartOpenR - 1.0125) < 1e-9, `chart Open R ${chartOpenR}`);
 
 // USD-quoted fill money is already account cash: move × units.
 const eurUsd = openTradeProgress({

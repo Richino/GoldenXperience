@@ -48,6 +48,7 @@ export const CHART_INDICATORS = [
   { value: "breakout", label: "Breakout", group: "overlay" },
   { value: "breakout-patterns", label: "Breakout patterns", group: "overlay" },
   { value: "swing-trend-lines", label: "Swing trend lines", group: "overlay" },
+  { value: "adaptive-swing-trendlines-v1", label: "Adaptive Swing Trendlines V1", group: "overlay" },
   { value: "ema21", label: "EMA 21", group: "overlay" },
   { value: "ema50", label: "EMA 50", group: "overlay" },
   { value: "ema200", label: "EMA 200", group: "overlay" },
@@ -161,6 +162,30 @@ export function countPrependedCandles(
   // -1 means the old anchor is gone entirely (the instrument changed), and 0
   // means nothing was inserted ahead of it.
   return index > 0 ? index : 0;
+}
+
+/**
+ * A foreground fetch returns a bounded recent snapshot, even when the chart
+ * already holds older pages. Retain those pages so existing logical indexes
+ * continue to refer to the same candles after the fresh bars are applied.
+ */
+export function mergeRefreshedCandles(
+  current: Candle[],
+  refreshed: Candle[],
+): Candle[] {
+  if (!current.length) return refreshed;
+  if (!refreshed.length) return current;
+
+  const firstLoadedTime = Date.parse(current[0]!.time);
+  const byTime = new Map(current.map((candle) => [candle.time, candle]));
+  for (const candle of refreshed) {
+    if (Date.parse(candle.time) >= firstLoadedTime) {
+      byTime.set(candle.time, candle);
+    }
+  }
+  return [...byTime.values()].sort(
+    (left, right) => Date.parse(left.time) - Date.parse(right.time),
+  );
 }
 
 export function calculateEma(closes: number[], period: number): (number | null)[] {

@@ -71,6 +71,32 @@ export interface OpenTradeProgress {
   percent: number;
 }
 
+/**
+ * Strategy-level open R used by the active-position chart: the displayed
+ * entry, current midpoint, and planned stop. This deliberately does not use
+ * a broker fill, so every surface that presents "Open R" speaks the same
+ * language as the chart levels.
+ */
+export function openRFromLevels(input: {
+  direction: "long" | "short";
+  entry: number | null | undefined;
+  stop: number | null | undefined;
+  current: number | null | undefined;
+}): number | null {
+  const { direction, entry, stop, current } = input;
+  if (
+    !Number.isFinite(entry) ||
+    !Number.isFinite(stop) ||
+    !Number.isFinite(current)
+  ) {
+    return null;
+  }
+
+  const risk = Math.abs(entry - stop);
+  if (risk === 0) return null;
+  return (direction === "long" ? current - entry : entry - current) / risk;
+}
+
 function finitePrice(value: number | null | undefined): value is number {
   return value !== null && value !== undefined && Number.isFinite(value) && value > 0;
 }

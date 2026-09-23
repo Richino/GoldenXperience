@@ -109,6 +109,7 @@ interface OandaOpenTradesResponse {
     openTime: string;
     currentUnits: string;
     unrealizedPL: string;
+    stopLossOrder?: { price?: string };
   }>;
 }
 
@@ -883,6 +884,7 @@ export async function getOpenPositions(): Promise<{
         direction: currentUnits >= 0 ? "long" : "short",
         units: Math.abs(currentUnits),
         entryPrice: Number(trade.price),
+        stopPrice: trade.stopLossOrder?.price == null ? null : Number(trade.stopLossOrder.price),
         currentPrice:
           priceByInstrument.get(trade.instrument) ?? Number(trade.price),
         unrealizedPL: Number(trade.unrealizedPL),

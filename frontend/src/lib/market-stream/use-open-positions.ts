@@ -5,8 +5,10 @@ import { apiUrl } from "@/lib/api/url";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 
 export interface OpenPositionFill {
+  brokerTradeId: string;
   price: number;
   units: number;
+  stopPrice: number | null;
   /** Mid from the broker's last pricing read — used when the tick stream has not
    *  delivered this pair yet, so a row can still mark to market. */
   currentPrice: number;
@@ -39,25 +41,30 @@ export function useOpenPositionFills() {
       const payload = (await response.json()) as {
         data?: Array<{
           instrument: string;
+          id: string;
           entryPrice: number;
+          stopPrice?: number | null;
           units: number;
           currentPrice: number;
           unrealizedPL: number;
         }>;
       };
-      setFills(
-        Object.fromEntries(
-          (payload.data ?? []).map((position) => [
-            position.instrument,
-            {
-              price: position.entryPrice,
-              units: Math.abs(position.units),
-              currentPrice: position.currentPrice,
-              unrealizedPL: position.unrealizedPL,
-            },
-          ]),
-        ),
-      );
+      const nextFills: Record<string, OpenPositionFill> = {};
+      for (const position of payload.data ?? []) {
+        const fill = {
+          brokerTradeId: position.id,
+          price: position.entryPrice,
+          units: Math.abs(position.units),
+          stopPrice: position.stopPrice ?? null,
+          currentPrice: position.currentPrice,
+          unrealizedPL: position.unrealizedPL,
+        };
+        // Exact broker IDs are the authoritative lookup. Keep the instrument
+        // alias for older presentation-only callers that do not carry an ID.
+        nextFills[`broker:${position.id}`] = fill;
+        nextFills[position.instrument] ??= fill;
+      }
+      setFills(nextFills);
     } catch {
       // A missing broker snapshot leaves the paper model in place.
     }

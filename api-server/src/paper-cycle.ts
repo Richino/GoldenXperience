@@ -1849,9 +1849,17 @@ export async function paperCycleOverview() {
             trade.planned_r::float AS "plannedR",trade.checklist_score::float AS "checklistScore",trade.news_status AS "newsStatus",
             trade.max_favorable_r::float AS "maxFavorableR",trade.max_adverse_r::float AS "maxAdverseR",
             trade.opened_at AS "openedAt",trade.closed_at AS "closedAt",trade.exit_reason AS "exitReason",trade.review,
-            trade.strategy_family AS "strategyFamily",batch.batch_number AS "batchNumber"
+            trade.strategy_family AS "strategyFamily",batch.batch_number AS "batchNumber",
+            intent.broker_trade_id AS "brokerTradeId"
      FROM paper_strategy_trades trade
      JOIN paper_strategy_batches batch ON batch.id = trade.batch_id
+     LEFT JOIN LATERAL (
+       SELECT broker_trade_id
+       FROM practice_order_intents
+       WHERE paper_trade_id=trade.id AND broker_trade_id IS NOT NULL
+       ORDER BY updated_at DESC
+       LIMIT 1
+     ) intent ON true
      WHERE trade.status = 'open'
      ORDER BY trade.opened_at DESC
      LIMIT 20`,

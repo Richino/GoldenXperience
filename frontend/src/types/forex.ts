@@ -134,6 +134,8 @@ export interface OpenPosition {
   direction: "long" | "short";
   units: number;
   entryPrice: number;
+  /** The broker's currently attached stop, when one exists. */
+  stopPrice?: number | null;
   currentPrice: number;
   unrealizedPL: number;
   openedAt: string;

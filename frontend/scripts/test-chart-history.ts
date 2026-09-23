@@ -10,6 +10,7 @@ import {
   countPrependedCandles,
   deriveDominantSwingTrend,
   historyPrefetchThreshold,
+  mergeRefreshedCandles,
   shouldLoadOlderHistory,
   snapToCandleTime,
 } from "../src/lib/chart-utils";
@@ -25,6 +26,23 @@ function bars(...isoTimes: string[]) {
 
 const M15 = (index: number) =>
   new Date(Date.UTC(2026, 6, 24, 0, index * 15)).toISOString();
+
+// A foreground response is capped to recent bars. Dropping earlier loaded
+// pages while restoring their logical range leaves all candles at the left.
+const loadedCandles = Array.from({ length: 900 }, (_, index) => ({
+  time: M15(index), open: 1, high: 1, low: 1, close: 1, volume: 1, complete: true,
+}));
+const refreshedCandles = Array.from({ length: 200 }, (_, index) => ({
+  time: M15(index + 701), open: 2, high: 2, low: 2, close: 2, volume: 1, complete: true,
+}));
+const foregroundCandles = mergeRefreshedCandles(loadedCandles, refreshedCandles);
+assert.equal(foregroundCandles.length, 901);
+assert.equal(foregroundCandles[0]?.time, loadedCandles[0]?.time);
+assert.equal(foregroundCandles[850]?.time, loadedCandles[850]?.time);
+assert.equal(foregroundCandles[850]?.close, 2, "refresh overlapping bars in place");
+assert.equal(foregroundCandles.at(-1)?.time, refreshedCandles.at(-1)?.time);
+assert.equal(countPrependedCandles(foregroundCandles, loadedCandles[0]!.time), 0);
+assert.ok(foregroundCandles[899], "the previous live-edge index still exists");
 
 function swingFixture(values: number[]): Candle[] {
   return values.map((value, index) => ({

@@ -1934,10 +1934,10 @@ export async function syncPracticeBrokerHistory(userId: string) {
     const result = trade.realizedPL === null ? "breakeven" : trade.realizedPL > 0 ? "win" : trade.realizedPL < 0 ? "loss" : "breakeven";
     const saved = await query<{ id: string }>(
       `INSERT INTO paper_trades(
-         user_id,legacy_id,origin,pair,direction,status,result,opened_at,closed_at,entry,stop,target,exit,result_r,reason,notes
-       ) VALUES($1,$2,'manual',$3,$4,'closed',$5,$6,$7,$8,$8,$8,$9,NULL,'OANDA Practice account history',$10)
+         user_id,legacy_id,origin,pair,direction,status,result,opened_at,closed_at,entry,stop,target,exit,result_r,paper_pl,reason,notes
+       ) VALUES($1,$2,'manual',$3,$4,'closed',$5,$6,$7,$8,$8,$8,$9,NULL,$10,'OANDA Practice account history',$11)
        ON CONFLICT(user_id,legacy_id) DO UPDATE SET
-         closed_at=EXCLUDED.closed_at, exit=EXCLUDED.exit, result=EXCLUDED.result, updated_at=now()
+         closed_at=EXCLUDED.closed_at, exit=EXCLUDED.exit, result=EXCLUDED.result, paper_pl=EXCLUDED.paper_pl, notes=EXCLUDED.notes, updated_at=now()
        RETURNING id`,
       [
         userId,
@@ -1949,6 +1949,10 @@ export async function syncPracticeBrokerHistory(userId: string) {
         trade.closedAt,
         trade.entry,
         trade.exit,
+        // Structured amount, so the journal/dashboard never need to scrape it
+        // back out of the note below (which stays for a human-readable audit
+        // trail, not as the only place this number lives).
+        trade.realizedPL,
         trade.realizedPL === null ? "Broker P&L unavailable." : `Broker realized P&L: ${trade.realizedPL.toFixed(2)} USD.`,
       ],
     );

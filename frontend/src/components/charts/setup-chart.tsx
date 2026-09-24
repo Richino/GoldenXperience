@@ -46,9 +46,9 @@ import {
   calculateRsi,
   chartTimesOf,
   detectFalseBreakouts,
-  compactAxisPricePrecision,
   countPrependedCandles,
   formatChartPrice,
+  EMBED_MAX_VISIBLE_BARS,
   getLatestVisibleLogicalRange,
   isChartIndicatorEnabled,
   pricePrecision,
@@ -658,7 +658,7 @@ function chartTheme(
       textColor: scaleText,
       fontFamily:
         '"Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif',
-      fontSize: embedded ? 10 : 11,
+      fontSize: embedded ? 9 : 11,
       attributionLogo: false,
     },
     grid: {
@@ -694,11 +694,13 @@ function chartTheme(
         top: embedded ? 0.08 : 0.1,
         bottom: embedded ? 0.08 : 0.06,
       },
-      // Wide enough on mobile to be a comfortable drag target for scaling.
-      minimumWidth: embedded ? 56 : 68,
+      // Fit labels tightly: minimumWidth is a floor only; the scale grows when
+      // needed (entireTextOnly off) instead of reserving a wide empty gutter.
+      minimumWidth: embedded ? 52 : 68,
       alignLabels: true,
-      tickMarkDensity: embedded ? 5.5 : 3.5,
-      entireTextOnly: embedded,
+      tickMarkDensity: embedded ? 3.25 : 3.5,
+      entireTextOnly: false,
+      ensureEdgeTickMarksVisible: true,
       ticksVisible: false,
     },
     timeScale: {
@@ -720,6 +722,7 @@ function scrollChartToLatest(
   chart: IChartApi,
   series: CandleSeries,
   range: ChartRange,
+  embedded = false,
 ) {
   if (!series.candles.length) return;
 
@@ -733,6 +736,7 @@ function scrollChartToLatest(
     series.candles,
     range,
     rightOffset,
+    { maxVisibleBars: embedded ? EMBED_MAX_VISIBLE_BARS : undefined },
   );
   if (logicalRange) {
     chart.timeScale().setVisibleLogicalRange(logicalRange);
@@ -753,13 +757,14 @@ function scrollChartToFocus(
   series: CandleSeries,
   range: ChartRange,
   focusRange: ChartFocusRange | null,
+  embedded = false,
 ) {
   const candleTimes = chartTimesOf(toChartCandles(series.candles));
   const first = candleTimes[0];
   const last = candleTimes.at(-1);
 
   if (!focusRange || first === undefined || last === undefined) {
-    scrollChartToLatest(chart, series, range);
+    scrollChartToLatest(chart, series, range, embedded);
     return true;
   }
 
@@ -768,7 +773,7 @@ function scrollChartToFocus(
   const to = Math.min(last, from + width);
 
   if (to <= from) {
-    scrollChartToLatest(chart, series, range);
+    scrollChartToLatest(chart, series, range, embedded);
     return true;
   }
 
@@ -1139,7 +1144,7 @@ function mainSeriesDisplayOptions(
     minMove: number;
   },
   levels: SetupLevels | null,
-  embedded: boolean,
+  priceLineColor: string,
 ) {
   const plannedPrices = levels
     ? [levels.entry, levels.stop, levels.target, levels.exit]
@@ -1148,13 +1153,11 @@ function mainSeriesDisplayOptions(
 
   return {
     priceFormat,
-    // The compact right axis keeps the current-price label useful on mobile;
-    // the guide line remains a desktop aid so mobile stays visually quiet.
     lastValueVisible: true,
-    priceLineVisible: !embedded,
-    priceLineColor: "",
+    priceLineVisible: true,
+    priceLineColor,
     priceLineWidth: 1 as const,
-    priceLineStyle: LineStyle.Dotted,
+    priceLineStyle: LineStyle.Dashed,
     autoscaleInfoProvider: plannedPrices.length
       ? (original: () => AutoscaleInfo | null) => {
           const info = original();
@@ -1404,9 +1407,9 @@ export function SetupChart({
       ? "#131315"
       : "#ffffff";
   const precision = pricePrecision(series.instrument);
-  const axisPrecision = embedded
-    ? compactAxisPricePrecision(series.instrument)
-    : precision;
+  // Native embed shares the header quote with the axis — use full instrument
+  // precision so every digit matches and labels are not truncated early.
+  const axisPrecision = precision;
   // minMove tracks the precision actually in use, not the instrument's full
   // precision. The compact mobile axis drops a digit, and the mismatched pair
   // made the formatter emit prices like "1.0002" and "1.43.7" on the level and
@@ -1520,7 +1523,10 @@ export function SetupChart({
     latestChartTimeRef.current = chartTimeValue(chartData.at(-1));
     latestCloseRef.current = series.candles.at(-1)?.close ?? null;
     prevFirstCandleTimeRef.current = series.candles[0]?.time ?? null;
-    const displayOptions = mainSeriesDisplayOptions(priceFormat, levels, embedded);
+    const priceLineColor = isDark
+      ? "rgba(0, 229, 155, 0.42)"
+      : "rgba(0, 179, 119, 0.42)";
+    const displayOptions = mainSeriesDisplayOptions(priceFormat, levels, priceLineColor);
 
     let mainSeries: ISeriesApi<SeriesType>;
 
@@ -1760,10 +1766,10 @@ export function SetupChart({
         }
         focusCoveredRef.current = true;
       } catch {
-        focusCoveredRef.current = scrollChartToFocus(chart, series, range, focusRange);
+        focusCoveredRef.current = scrollChartToFocus(chart, series, range, focusRange, embedded);
       }
     } else {
-      focusCoveredRef.current = scrollChartToFocus(chart, series, range, focusRange);
+      focusCoveredRef.current = scrollChartToFocus(chart, series, range, focusRange, embedded);
     }
     renderedDatasetKeyRef.current = datasetKey;
     setChartEpoch((value) => value + 1);
@@ -1990,6 +1996,7 @@ export function SetupChart({
         series,
         range,
         focusRange,
+        embedded,
       );
     } else if ((prependedCount > 0 || shouldPreserveViewport) && logicalRange && chart) {
       // Preserve the exact candles currently under the user's pointer. Older
@@ -2012,6 +2019,7 @@ export function SetupChart({
           series,
           range,
           focusRange,
+          embedded,
         );
       });
     }
@@ -2037,14 +2045,14 @@ export function SetupChart({
       // Clearing the focused trade hands the chart back to the live view.
       if (hadFocusRef.current) {
         hadFocusRef.current = false;
-        scrollChartToLatest(chart, series, range);
+        scrollChartToLatest(chart, series, range, embedded);
       }
       return;
     }
 
     hadFocusRef.current = true;
     focusPagesRef.current = 0;
-    focusCoveredRef.current = scrollChartToFocus(chart, series, range, focusRange);
+    focusCoveredRef.current = scrollChartToFocus(chart, series, range, focusRange, embedded);
   // Candles are deliberately excluded: re-running this on every new bar would
   // drag the viewport back while the user is panning.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2228,16 +2236,33 @@ export function SetupChart({
 
   /** Keep the overall trend color current without rebuilding the chart. */
   useEffect(() => {
+    const priceLineColor = isDark
+      ? "rgba(0, 229, 155, 0.42)"
+      : "rgba(0, 179, 119, 0.42)";
     if (variant === "line") {
-      mainSeriesRef.current?.applyOptions({ color: trendColor });
+      mainSeriesRef.current?.applyOptions({
+        color: trendColor,
+        priceLineVisible: true,
+        priceLineColor,
+        priceLineStyle: LineStyle.Dashed,
+      });
     } else if (variant === "area") {
       mainSeriesRef.current?.applyOptions({
         lineColor: trendColor,
         topColor: areaFill.top,
         bottomColor: areaFill.bottom,
+        priceLineVisible: true,
+        priceLineColor,
+        priceLineStyle: LineStyle.Dashed,
+      });
+    } else {
+      mainSeriesRef.current?.applyOptions({
+        priceLineVisible: true,
+        priceLineColor,
+        priceLineStyle: LineStyle.Dashed,
       });
     }
-  }, [variant, trendColor, areaFill.top, areaFill.bottom]);
+  }, [isDark, variant, trendColor, areaFill.top, areaFill.bottom]);
 
   // Last-bar marker for mobile line/area charts: a ringed endpoint on the
   // latest candle. The numeric right-edge price flag is gone; SL / Entry / TP

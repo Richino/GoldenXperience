@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
+import { useTheme } from "next-themes";
 import {
   ChevronDown,
   Clock3,
@@ -79,6 +80,7 @@ import {
 import { useMarketStream } from "@/lib/market-stream/use-market-stream";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { getMarketCondition } from "@/lib/strategy/session";
+import { isStrategyInstrument } from "@/lib/strategy/strategy-service";
 import {
   computeSessionSrLevels,
   logSessionSrDebug,
@@ -1916,6 +1918,7 @@ export function SignalWorkspace({
   initialFocusTradeId = null,
   initialPredictionFocus = null,
   initialManualProposal = null,
+  embeddedSurfaceOnly = false,
 }: {
   strategySetups: StrategySetup[];
   initialInstrument: MajorInstrument;
@@ -1929,9 +1932,15 @@ export function SignalWorkspace({
   initialSetupFocus?: { entry: number; stop: number; target: number } | null;
   /** A user accepted a test-only AI proposal; this opens a reviewable draft, never an order. */
   initialManualProposal?: { direction: "long" | "short"; entry: number; stop: number; target: number; confidence: number | null; rationale: string; preferredEntryTime: string } | null;
+  /** Renders the live chart canvas without the GX workspace shell for the native WebView. */
+  embeddedSurfaceOnly?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  // Only the native Chart tab drives this: it embeds this exact page in a
+  // WebView, which starts from next-themes' own default/system resolution
+  // and has no way to know the app's in-settings theme choice otherwise.
+  const { setTheme } = useTheme();
   const workspacePath = pathname.startsWith("/signals") ? "/signals" : "/chart";
   const signals = useMemo(
     () => strategySetups.flatMap(toDisplaySignal),
@@ -1948,7 +1957,9 @@ export function SignalWorkspace({
   const [timeframe, setTimeframe] = useState<ChartTimeframe>(
     initialPredictionFocus ? "1m" as const : initialFocusTradeId ? "15m" as const : mapSignalTimeframe(initialSignal?.timeframe ?? "15m"),
   );
-  const [range, setRange] = useState<ChartRange>(initialPredictionFocus ? "1D" : "6M");
+  const [range, setRange] = useState<ChartRange>(
+    embeddedSurfaceOnly ? "1D" : initialPredictionFocus ? "1D" : "6M",
+  );
   const [chartVariant, setChartVariant] = useState<ChartVariant>("candle");
   const [enabledIndicators, setEnabledIndicators] = useState<ChartIndicator[]>(
     DEFAULT_CHART_INDICATORS,
@@ -1956,6 +1967,11 @@ export function SignalWorkspace({
   const [chartPreferencesReady, setChartPreferencesReady] = useState(false);
 
   useEffect(() => {
+    if (embeddedSurfaceOnly) {
+      setChartVariant("area");
+      setChartPreferencesReady(true);
+      return;
+    }
     const saved = readStoredChartPreferences();
     if (saved) {
       setTimeframe(saved.timeframe);
@@ -1968,10 +1984,10 @@ export function SignalWorkspace({
       setChartVariant("area");
     }
     setChartPreferencesReady(true);
-  }, []);
+  }, [embeddedSurfaceOnly]);
 
   useEffect(() => {
-    if (!chartPreferencesReady) return;
+    if (!chartPreferencesReady || embeddedSurfaceOnly) return;
     const preferences: StoredChartPreferences = {
       version: 1,
       timeframe,
@@ -1988,7 +2004,7 @@ export function SignalWorkspace({
       // Storage can be unavailable in private/restricted browsing. The chart
       // remains usable for the current session even when persistence is denied.
     }
-  }, [chartPreferencesReady, chartVariant, enabledIndicators, range, timeframe]);
+  }, [chartPreferencesReady, chartVariant, embeddedSurfaceOnly, enabledIndicators, range, timeframe]);
   const [series, setSeries] = useState(primarySeries);
   const seriesRef = useRef(primarySeries);
   const [liveCandle, setLiveCandle] = useState<Candle | null>(null);
@@ -3132,9 +3148,9 @@ export function SignalWorkspace({
   const priceStats = useMemo(() => {
     const lastClose = series.candles.at(-1)?.close ?? active?.entry ?? 0;
     const prevClose = series.candles.at(-2)?.close ?? lastClose;
-    const change = lastClose - prevClose;
+    const displayPrice = liveCandle?.close ?? quote?.mid ?? lastClose;
+    const change = displayPrice - prevClose;
     const changePercent = prevClose ? (change / prevClose) * 100 : 0;
-    const displayPrice = quote?.mid ?? lastClose;
 
     return {
       displayPrice,
@@ -3142,7 +3158,122 @@ export function SignalWorkspace({
       changePercent,
       positive: change >= 0,
     };
-  }, [active?.entry, quote, series.candles]);
+  }, [active?.entry, liveCandle?.close, quote?.mid, series.candles]);
+
+  // The native Chart tab owns the mobile controls while this component owns
+  // the live chart instance. Keep the two deliberately small and explicit:
+  // native sends an intent, and this surface applies it to the real chart
+  // state. There is no embedded web workspace chrome to duplicate.
+  useEffect(() => {
+    if (!embeddedSurfaceOnly) return;
+
+    const onNativeCommand = (event: MessageEvent) => {
+      let command: { type?: string; action?: string; value?: string } | null = null;
+      try {
+        command = typeof event.data === "string" ? JSON.parse(event.data) : event.data as typeof command;
+      } catch {
+        return;
+      }
+      if (!command || command.type !== "gx-native-chart-command") return;
+
+      if (command.action === "preferences" && command.value) {
+        try {
+          const parsed = JSON.parse(command.value) as {
+            timeframe?: string;
+            range?: string;
+            variant?: string;
+            indicators?: string[];
+          };
+          if (parsed.timeframe) {
+            const normalized = parsed.timeframe.toLowerCase() as ChartTimeframe;
+            if (CHART_TIMEFRAMES.includes(normalized)) {
+              setTimeframe(normalized);
+            }
+          }
+          if (parsed.range && CHART_RANGES.includes(parsed.range as ChartRange)) {
+            setRange(parsed.range as ChartRange);
+          }
+          if (parsed.variant && CHART_VARIANTS.some((item) => item.value === parsed.variant)) {
+            setChartVariant(parsed.variant as ChartVariant);
+          }
+          if (Array.isArray(parsed.indicators)) {
+            setEnabledIndicators(
+              parsed.indicators.filter((indicator): indicator is ChartIndicator =>
+                CHART_INDICATORS.some((option) => option.value === indicator),
+              ),
+            );
+          }
+          setLiveCandle(null);
+          setScrollToLatestRevision((revision) => revision + 1);
+        } catch {
+          // Ignore malformed native preference payloads.
+        }
+      } else if (command.action === "instrument" && command.value && isStrategyInstrument(command.value)) {
+        if (command.value !== instrument) {
+          setSelectedInstrument(command.value);
+          setLiveCandle(null);
+          setScrollToLatestRevision((revision) => revision + 1);
+        }
+      } else if (command.action === "timeframe") {
+        const normalized = command.value?.toLowerCase() as ChartTimeframe | undefined;
+        if (!normalized || !CHART_TIMEFRAMES.includes(normalized)) return;
+        setLiveCandle(null);
+        setScrollToLatestRevision((revision) => revision + 1);
+        setTimeframe(normalized);
+      } else if (command.action === "range" && CHART_RANGES.includes(command.value as ChartRange)) {
+        setLiveCandle(null);
+        setScrollToLatestRevision((revision) => revision + 1);
+        setRange(command.value as ChartRange);
+      } else if (command.action === "variant" && CHART_VARIANTS.some((variant) => variant.value === command.value)) {
+        setChartVariant(command.value as ChartVariant);
+      } else if (command.action === "indicator" && CHART_INDICATORS.some((indicator) => indicator.value === command.value)) {
+        const indicator = command.value as ChartIndicator;
+        setEnabledIndicators((enabled) => enabled.includes(indicator)
+          ? enabled.filter((item) => item !== indicator)
+          : [...enabled, indicator]);
+      } else if (command.action === "position" && (command.value === "long" || command.value === "short")) {
+        startPositionTool(command.value);
+      } else if (command.action === "analyze") {
+        void analyzeInstrument(instrument);
+      } else if (command.action === "trade") {
+        openPendingEntryManager(null);
+      } else if (command.action === "reset") {
+        setScrollToLatestRevision((revision) => revision + 1);
+      } else if (command.action === "refresh") {
+        void refreshChart();
+      } else if (command.action === "theme" && (command.value === "light" || command.value === "dark")) {
+        setTheme(command.value);
+      }
+    };
+
+    window.addEventListener("message", onNativeCommand);
+    document.addEventListener("message", onNativeCommand as EventListener);
+    return () => {
+      window.removeEventListener("message", onNativeCommand);
+      document.removeEventListener("message", onNativeCommand as EventListener);
+    };
+  }, [analyzeInstrument, embeddedSurfaceOnly, instrument, openPendingEntryManager, refreshChart, setTheme, startPositionTool]);
+
+  useEffect(() => {
+    if (!embeddedSurfaceOnly) return;
+    const nativeBridge = (window as Window & {
+      ReactNativeWebView?: { postMessage: (message: string) => void };
+    }).ReactNativeWebView;
+    nativeBridge?.postMessage(JSON.stringify({
+      type: "gx-native-chart-state",
+      instrument,
+      price: priceStats.displayPrice,
+      priceLabel: formatChartPrice(priceStats.displayPrice, instrument),
+      bid: quote?.instrument === instrument ? quote.bid : null,
+      ask: quote?.instrument === instrument ? quote.ask : null,
+      change: priceStats.change,
+      changePercent: priceStats.changePercent,
+      positive: priceStats.positive,
+      timeframe,
+      range,
+      variant: chartVariant,
+    }));
+  }, [chartVariant, embeddedSurfaceOnly, instrument, priceStats, quote, range, timeframe]);
 
   const predictionCurrentPrice = focusedPrediction
     ? quote?.mid ?? series.candles.at(-1)?.close ?? null
@@ -3198,6 +3329,82 @@ export function SignalWorkspace({
           disabled: hasActivePosition,
           title: hasActivePosition ? "Close the active position before creating another entry" : undefined,
         };
+
+  if (embeddedSurfaceOnly) {
+    return (
+      <>
+        <div className="gx-native-chart-embed h-[100dvh] w-full overflow-hidden">
+          <div
+            ref={mobileChartShellRef}
+            className={`relative h-full w-full overflow-hidden chart-data-shell${loading ? " chart-data-shell-loading" : ""}`}
+          >
+            <SetupChart
+              series={series}
+              levels={setupLevels}
+              enabledIndicators={enabledIndicators}
+              liveCandle={liveCandle}
+              variant={chartVariant}
+              range={range}
+              height={mobileChartHeight}
+              embedded
+              scrollToLatestRevision={scrollToLatestRevision}
+              preserveViewportRevision={preserveViewportRevision}
+              loadingOlder={loadingOlder}
+              onLoadOlder={loadOlderCandles}
+              trades={paperTrades}
+              focusTradeId={activeFocusId}
+              focusPrediction={focusedPrediction}
+              focusRange={focusRange}
+              referenceLine={predictionReferenceLine}
+              referenceLines={chartReferenceLines}
+              patternLines={chartPatternLines}
+              patternTags={adaptiveSwingTrendOverlay.tags}
+              positionTool={positionTool}
+              onPositionToolChange={setPositionTool}
+              onPositionToolSubmit={submitPositionTool}
+            />
+            <ChartLoadingOverlay visible={loading} />
+          </div>
+        </div>
+        <ManualProposalModal
+          proposal={manualProposal}
+          currentPrice={manualProposal
+            ? manualProposal.direction === "long" ? quote?.ask ?? null : quote?.bid ?? null
+            : null}
+          onDismiss={() => setManualProposal(null)}
+          acceptLabel="Show setup on chart"
+          onAccept={() => {
+            if (!manualProposal) return;
+            const lastIndex = Math.max(0, series.candles.length - 1);
+            setPositionTool({
+              direction: manualProposal.direction,
+              entry: manualProposal.entry,
+              stop: manualProposal.stop,
+              target: manualProposal.target,
+              fromLogical: Math.max(0, lastIndex - 36),
+              toLogical: lastIndex,
+            });
+            setManualProposal(null);
+          }}
+        />
+        {pendingEntryDialogOpen ? <PendingEntryDialog
+          key={selectedPendingEntry?.id ?? "new-pending-entry"}
+          open={pendingEntryDialogOpen}
+          instrument={instrument}
+          bid={quote?.bid ?? null}
+          ask={quote?.ask ?? null}
+          selectedEntry={selectedPendingEntry}
+          initialProposal={entryDraftProposal ?? initialManualProposal}
+          creationBlocked={hasActivePosition}
+          onClose={() => setPendingEntryDialogOpen(false)}
+          onChanged={(message) => {
+            setPendingEntryNotice(message);
+            void refreshPendingEntries();
+          }}
+        /> : null}
+      </>
+    );
+  }
 
   return (
     <div

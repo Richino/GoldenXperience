@@ -3254,6 +3254,10 @@ html.mobile-sheet-open body {
   cursor: ns-resize;
 }
 
+.gx-native-chart-embed .setup-chart-root .tv-lightweight-charts tr:first-child > td:last-child {
+  overflow: visible;
+}
+
 @media (min-width: 1024px) {
   .setup-chart-price-scale-rail {
     width: 68px;

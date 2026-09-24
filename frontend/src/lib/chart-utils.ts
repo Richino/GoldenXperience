@@ -909,6 +909,8 @@ export function getVisibleRangeFromCandles(
 /** A readable default zoom: never the whole dataset, never a lonely handful. */
 export const MIN_VISIBLE_BARS = 40;
 export const MAX_VISIBLE_BARS = 180;
+/** Native embed should frame the full selected range (e.g. 1W), not desktop cap. */
+export const EMBED_MAX_VISIBLE_BARS = 5_000;
 
 /**
  * The logical range that frames the most recent candles for the selected range.
@@ -924,6 +926,7 @@ export function getLatestVisibleLogicalRange(
   candles: Candle[],
   range: ChartRange,
   rightOffset: number,
+  options?: { maxVisibleBars?: number },
 ) {
   const count = candles.length;
   if (!count) return null;
@@ -939,9 +942,10 @@ export function getLatestVisibleLogicalRange(
     spanBars = firstIndex <= 0 ? count : count - firstIndex;
   }
 
+  const maxVisibleBars = options?.maxVisibleBars ?? MAX_VISIBLE_BARS;
   const visible = Math.min(
     count,
-    Math.max(MIN_VISIBLE_BARS, Math.min(spanBars, MAX_VISIBLE_BARS)),
+    Math.max(MIN_VISIBLE_BARS, Math.min(spanBars, maxVisibleBars)),
   );
 
   return {

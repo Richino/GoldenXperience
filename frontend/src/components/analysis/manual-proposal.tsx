@@ -159,6 +159,7 @@ export function ManualProposalModal({
   currentPrice = null,
   onDismiss,
   onAccept,
+  acceptLabel = "Accept & open chart",
 }: {
   proposal: ManualProposal | null;
   /** The live executable side: Ask for a long, Bid for a short. */
@@ -166,6 +167,8 @@ export function ManualProposalModal({
   onDismiss: () => void;
   /** Starts navigation and may return a cancellation function for the handoff. */
   onAccept: () => void | (() => void);
+  /** Embed surfaces can apply a proposal in place instead of navigating. */
+  acceptLabel?: string;
 }) {
   const [opening, setOpening] = useState(false);
   const cancelOpenRef = useRef<(() => void) | null>(null);
@@ -249,7 +252,7 @@ export function ManualProposalModal({
               disabled={opening}
               aria-live="polite"
             >
-              {opening ? <><LoaderCircle className="size-3.5 animate-spin" /> Opening chart…</> : "Accept & open chart"}
+              {opening ? <><LoaderCircle className="size-3.5 animate-spin" /> Opening chart…</> : acceptLabel}
             </button>
           </footer>
         </section>

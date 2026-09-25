@@ -7,6 +7,16 @@ import { theme } from '@/constants/theme';
 import { formatPrice, moneyLabel, pairLabel } from '@/lib/format';
 import type { OpenPosition } from '@/types/api';
 
+function openR(position: OpenPosition) {
+  if (position.stopPrice === null) return null;
+  const risk = Math.abs(position.entryPrice - position.stopPrice);
+  if (risk === 0) return null;
+  const move = position.direction === 'long'
+    ? position.currentPrice - position.entryPrice
+    : position.entryPrice - position.currentPrice;
+  return move / risk;
+}
+
 export function OpenPositionsCard({ positions, currency }: { positions: OpenPosition[]; currency: string }) {
   if (!positions.length) return null;
 
@@ -23,6 +33,7 @@ export function OpenPositionsCard({ positions, currency }: { positions: OpenPosi
         {positions.slice(0, 6).map((position) => {
           const profitable = position.unrealizedPL >= 0;
           const action = position.direction === 'long' ? 'Buy' : 'Sell';
+          const resultR = openR(position);
           return (
             <Pressable
               key={position.id}
@@ -37,6 +48,7 @@ export function OpenPositionsCard({ positions, currency }: { positions: OpenPosi
                 <Text style={[styles.pl, profitable ? styles.positive : styles.negative]}>{moneyLabel(position.unrealizedPL, currency)}</Text>
               </View>
               <Text style={styles.summary}>{action} opened at <Text style={styles.entryPrice}>{formatPrice(position.entryPrice, position.instrument)}</Text></Text>
+              {resultR !== null ? <Text style={[styles.progress, resultR >= 0 ? styles.positive : styles.negative]}>Progress: {resultR >= 0 ? '+' : ''}{resultR.toFixed(2)}R</Text> : null}
             </Pressable>
           );
         })}
@@ -61,6 +73,7 @@ const styles = StyleSheet.create({
   pl: { flexShrink: 0, fontSize: 13, fontFamily: theme.fonts.monoSemiBold },
   summary: { fontSize: 13, lineHeight: 19, fontFamily: theme.fonts.sans, color: theme.colors.textSecondary },
   entryPrice: { fontFamily: theme.fonts.monoSemiBold, color: theme.colors.textPrimary },
+  progress: { fontSize: 11, fontFamily: theme.fonts.monoSemiBold },
   positive: { color: theme.colors.primary },
   negative: { color: theme.colors.danger },
 });

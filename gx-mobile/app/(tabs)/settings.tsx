@@ -32,7 +32,7 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { user, signOut } = useAuth();
   const { themeMode, textSize, notificationSound, setThemeMode, setTextSize, setNotificationSound } = usePreferences();
-  const [picker, setPicker] = useState<'theme' | 'text' | 'sound' | null>(null);
+  const [picker, setPicker] = useState<'theme' | 'text' | 'sound' | 'positions' | null>(null);
   const [policy, setPolicy] = useState<PaperRiskPolicy | null>(null);
   const [risk, setRisk] = useState('');
   const [positions, setPositions] = useState<number | null>(null);
@@ -102,20 +102,22 @@ export default function SettingsScreen() {
     <HomeCard style={styles.card} accessibilityLabel="Paper trading risk settings"><View style={styles.sectionHead}><View><Text style={styles.section}>Paper trading</Text><Text style={styles.helper}>Practice-entry risk limits</Text></View><Text style={[styles.status, paused ? styles.paused : styles.active]}>{paused ? 'Paused' : 'Accepting'}</Text></View>
       {loading && !policy ? <ActivityIndicator style={styles.loader} color={theme.colors.primary} /> : <>
         <Text style={styles.field}>Risk per trade</Text><Field value={risk} onChangeText={setRisk} label="Risk per trade percent" placeholder="0.1–5" />
-        <Text style={styles.field}>Max open positions</Text><View style={styles.grid}>{POSITION_OPTIONS.map((option) => <Pressable key={option ?? 'all'} onPress={() => setPositions(option)} style={[styles.choice, positions === option ? styles.choiceOn : null]} accessibilityRole="button" accessibilityState={{ selected: positions === option }}><Text style={[styles.choiceText, positions === option ? styles.choiceTextOn : null]}>{option ?? '∞'}</Text></Pressable>)}</View>
+        <Row label="Max open positions" value={positionLimitLabel(positions)} onPress={() => setPicker('positions')} />
         <Text style={styles.field}>Max exposure <Text style={styles.optional}>Optional</Text></Text><Field value={exposure} onChangeText={setExposure} label="Maximum exposure percent" placeholder="Unlimited" />
         <View style={styles.switchRow}><View style={styles.switchCopy}><Text style={styles.switchTitle}>Allow new entries</Text></View><Switch value={!paused} onValueChange={(value) => setPaused(!value)} trackColor={{ false: theme.colors.surfaceRaised, true: theme.colors.primarySoft }} thumbColor={!paused ? theme.colors.primary : theme.colors.textSecondary} /></View>
         {error ? <Text style={styles.error}>{error}</Text> : null}{saving && !error ? <Text style={styles.helper}>Saving…</Text> : null}
       </>}
     </HomeCard>
     <HomeCard style={styles.card}><Text style={styles.section}>Account</Text><Row label="Signed in as" value={user?.email ?? '—'} /><Pressable onPress={confirmSignOut} style={styles.signOut} accessibilityRole="button"><SymbolView name={{ ios: 'rectangle.portrait.and.arrow.right', android: 'logout', web: 'logout' }} size={16} tintColor={theme.colors.danger} /><Text style={styles.signOutText}>Sign out</Text></Pressable></HomeCard>
-  </ScrollView><DockFade height={96} /><PreferencePicker visible={picker === 'theme'} title="Theme" options={[{ value: 'dark', label: 'Dark', detail: 'GX dark appearance' }, { value: 'light', label: 'Light', detail: 'Bright GX appearance' }]} selected={themeMode} onSelect={(value) => { changeTheme(value as ThemeMode); }} onClose={() => setPicker(null)} /><PreferencePicker visible={picker === 'text'} title="Text size" options={[{ value: 'small', label: 'Small', detail: 'More information on screen' }, { value: 'standard', label: 'Standard', detail: 'Recommended' }, { value: 'large', label: 'Large', detail: 'Easier to read' }]} selected={textSize} onSelect={(value) => { setTextSize(value as TextSize); setPicker(null); }} onClose={() => setPicker(null)} /><PreferencePicker visible={picker === 'sound'} title="Notification sound" options={notificationSounds.map((sound) => ({ ...sound, detail: 'Saved for alert playback' }))} selected={notificationSound} onSelect={(value) => { selectSound(value as NotificationSound); setPicker(null); }} onClose={() => setPicker(null)} /></View>;
+  </ScrollView><DockFade height={96} /><PreferencePicker visible={picker === 'theme'} title="Theme" options={[{ value: 'dark', label: 'Dark', detail: 'GX dark appearance' }, { value: 'light', label: 'Light', detail: 'Bright GX appearance' }]} selected={themeMode} onSelect={(value) => { changeTheme(value as ThemeMode); }} onClose={() => setPicker(null)} /><PreferencePicker visible={picker === 'text'} title="Text size" options={[{ value: 'small', label: 'Small', detail: 'More information on screen' }, { value: 'standard', label: 'Standard', detail: 'Recommended' }, { value: 'large', label: 'Large', detail: 'Easier to read' }]} selected={textSize} onSelect={(value) => { setTextSize(value as TextSize); setPicker(null); }} onClose={() => setPicker(null)} /><PreferencePicker visible={picker === 'sound'} title="Notification sound" options={notificationSounds.map((sound) => ({ ...sound, detail: 'Saved for alert playback' }))} selected={notificationSound} onSelect={(value) => { selectSound(value as NotificationSound); setPicker(null); }} onClose={() => setPicker(null)} /><PositionLimitPicker visible={picker === 'positions'} selected={positions} onSelect={(value) => { setPositions(value); setPicker(null); }} onClose={() => setPicker(null)} /></View>;
 }
 
 function Field({ value, onChangeText, label, placeholder }: { value: string; onChangeText: (value: string) => void; label: string; placeholder: string }) {
   return <View style={styles.fieldWrap}><TextInput value={value} onChangeText={onChangeText} keyboardType="decimal-pad" placeholder={placeholder} placeholderTextColor={theme.colors.textMuted} style={styles.input} accessibilityLabel={label} /><Text style={styles.suffix}>%</Text></View>;
 }
 function Row({ label, value, last = false, onPress }: { label: string; value: string; last?: boolean; onPress?: () => void }) { return <Pressable disabled={!onPress} onPress={onPress} style={[styles.row, last ? styles.last : null]} accessibilityRole={onPress ? 'button' : undefined}><Text style={styles.rowLabel}>{label}</Text><View style={styles.rowEnd}><Text style={styles.rowValue}>{value}</Text>{onPress ? <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={14} tintColor={theme.colors.textMuted} /> : null}</View></Pressable>; }
+
+function positionLimitLabel(value: number | null) { return value === null ? 'Unlimited' : `${value} ${value === 1 ? 'position' : 'positions'}`; }
 
 function PreferencePicker({ visible, title, options, selected, onSelect, onClose }: { visible: boolean; title: string; options: Array<{ value: string; label: string; detail: string }>; selected: string; onSelect: (value: string) => void; onClose: () => void }) {
   return (
@@ -143,6 +145,10 @@ function PreferencePicker({ visible, title, options, selected, onSelect, onClose
       ))}
     </BottomDrawer>
   );
+}
+
+function PositionLimitPicker({ visible, selected, onSelect, onClose }: { visible: boolean; selected: number | null; onSelect: (value: number | null) => void; onClose: () => void }) {
+  return <BottomDrawer visible={visible} onClose={onClose} eyebrow="Paper trading" title="Max open positions" scrollable>{POSITION_OPTIONS.map((option, index) => <Pressable key={option ?? 'unlimited'} onPress={() => onSelect(option)} style={[styles.drawerRow, selected === option ? styles.drawerRowActive : null, index === POSITION_OPTIONS.length - 1 ? styles.drawerRowLast : null]} accessibilityRole="radio" accessibilityState={{ selected: selected === option }}><View style={styles.drawerCopy}><Text style={styles.drawerLabel}>{positionLimitLabel(option)}</Text><Text style={styles.drawerDetail}>{option === null ? 'No limit on simultaneous practice trades.' : `Allow up to ${option} practice trade${option === 1 ? '' : 's'} at once.`}</Text></View>{selected === option ? <SymbolView name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={18} tintColor={theme.colors.primary} /> : null}</Pressable>)}</BottomDrawer>;
 }
 
 const styles = StyleSheet.create({

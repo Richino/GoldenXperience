@@ -79,7 +79,7 @@ export function PendingTradesCard({ entries, onCancelled }: { entries: PendingEn
                 onPress={() => confirmCancel(entry)}
                 style={[styles.cancelBtn, !canCancel || cancelling ? styles.cancelBtnDisabled : null]}
               >
-                <SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={12} tintColor={theme.colors.textSecondary} />
+                <SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={12} tintColor={theme.colors.warning} />
                 <Text style={styles.cancelText}>{cancelling ? 'Cancelling…' : canCancel ? 'Cancel pending trade' : 'Setting up…'}</Text>
               </Pressable>
             </View>
@@ -171,7 +171,9 @@ const styles = StyleSheet.create({
     minHeight: 42,
     marginTop: 2,
     borderRadius: 11,
-    backgroundColor: theme.colors.surfaceRaised,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colors.warning,
+    backgroundColor: theme.colors.warningSoft,
   },
   cancelBtnDisabled: {
     opacity: 0.5,
@@ -179,6 +181,6 @@ const styles = StyleSheet.create({
   cancelText: {
     fontSize: 11,
     fontFamily: theme.fonts.sansSemiBold,
-    color: theme.colors.textSecondary,
+    color: theme.colors.warning,
   },
 });

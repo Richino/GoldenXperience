@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { Text } from '@/components/ui/AppText';
@@ -44,6 +44,10 @@ export function TradeDrawer({
   const [saving, setSaving] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const [checkingBlock, setCheckingBlock] = useState(false);
+  const bidRef = useRef(bid);
+  const askRef = useRef(ask);
+  bidRef.current = bid;
+  askRef.current = ask;
 
   const current = direction === 'long' ? ask : bid;
   const parsedEntry = entryPrice.trim() === '' ? Number.NaN : Number(entryPrice);
@@ -58,31 +62,35 @@ export function TradeDrawer({
   const resetForm = useCallback(() => {
     const initialDirection: 'long' | 'short' = draft?.direction ?? 'long';
     setDirection(initialDirection);
-    const reference = initialDirection === 'long' ? ask : bid;
+    const reference = initialDirection === 'long' ? askRef.current : bidRef.current;
     setOrderReferencePrice(reference);
     setEntryPrice(draft ? formatPrice(draft.entry, instrument) : reference !== null ? formatPrice(reference, instrument) : '');
     setStopPrice(draft ? formatPrice(draft.stop, instrument) : '');
     setTargetPrice(draft ? formatPrice(draft.target, instrument) : '');
     setError(null);
-  }, [ask, bid, draft, instrument]);
+  }, [draft, instrument]);
 
   useEffect(() => {
     if (!visible) return;
+    let cancelled = false;
     resetForm();
     setCheckingBlock(true);
     void (async () => {
       try {
         const payload = await apiGet<{ trades: JournalTrade[] }>('/api/journal/trades?limit=40&filter=open');
+        if (cancelled) return;
         const hasOpen = (payload.trades ?? []).some(
           (trade) => trade.status === 'open' && trade.instrument?.toUpperCase() === instrument.toUpperCase(),
         );
         setBlocked(hasOpen);
       } catch {
+        if (cancelled) return;
         setBlocked(false);
       } finally {
-        setCheckingBlock(false);
+        if (!cancelled) setCheckingBlock(false);
       }
     })();
+    return () => { cancelled = true; };
   }, [instrument, resetForm, visible]);
 
   const creationBlocked = blocked;

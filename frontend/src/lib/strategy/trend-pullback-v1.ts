@@ -112,10 +112,19 @@ export function analyzeTrendPullbackV1(
   const eligible = candidates.filter(({ price }) => long ? price < currentPrice : price > currentPrice);
   const selected = inZonePoint ?? (eligible.length ? eligible : candidates).sort((a, b) => a.score - b.score || a.index - b.index)[0]!;
   const lineReached = !inZonePoint && eligible.length === 0;
-  const entry = lineReached ? round(currentPrice) : selected.price;
+  const entry = selected.price;
   const zoneLow = round(entry - tolerance);
   const zoneHigh = round(entry + tolerance);
-  const inZone = lineReached || currentPrice >= zoneLow && currentPrice <= zoneHigh;
+  const inZone = currentPrice >= zoneLow && currentPrice <= zoneHigh;
+  if (lineReached) {
+    result.action = long ? "LONG" : "SHORT";
+    result.entry = entry;
+    result.entryZoneLow = zoneLow;
+    result.entryZoneHigh = zoneHigh;
+    result.distanceToEntryPips = Number((Math.abs(currentPrice - entry) / pip).toFixed(1));
+    result.debug.selectedProjectionTime = new Date(Date.parse(last.time) + (selected.index + 1) * 15 * 60_000).toISOString();
+    return reject("Price has moved beyond the projected swing line. The level is shown for reference, but there is no actionable entry at the current price.");
+  }
 
   const structuralReference = line.pointB.price;
   const stop = round(long ? structuralReference - settings.invalidationBufferPips * pip : structuralReference + settings.invalidationBufferPips * pip);
@@ -149,8 +158,7 @@ export function analyzeTrendPullbackV1(
   result.debug.selectedProjectionTime = new Date(Date.parse(last.time) + (selected.index + 1) * 15 * 60_000).toISOString();
   result.reasons = [
     `The ${line.type.toUpperCase()} confirmed swing line points ${trend.toLowerCase()}.`,
-    lineReached ? "Price has reached or passed the projected line; the current quote is the available entry." : activePullback
-      ? `The active pullback is closest to the ${15 * (selected.index + 1)} minute line projection.`
+    activePullback ? `The active pullback is closest to the ${15 * (selected.index + 1)} minute line projection.`
       : `No active pullback yet; the ${15 * (selected.index + 1)} minute line projection is the nearest planned entry.`,
     "Stop and target use the confirmed swing structure and recent trend extreme.",
   ];

@@ -45,6 +45,11 @@ assert.equal(noQuote.priceBasis, "LAST_M15_CLOSE");
 assert.equal(noQuote.status, "TRADE_PLAN");
 assert.ok(noQuote.entry !== null);
 
+const crossedLine = analyzeTrendPullbackV1({ instrument: "EUR_USD", candles, currentPrice: 1.1060 });
+assert.equal(crossedLine.status, "NO_VALID_ENTRY");
+assert.ok(crossedLine.entry !== null);
+assert.match(crossedLine.reasons[0] ?? "", /beyond the projected swing line/);
+
 const noPullback = analyzeTrendPullbackV1({ instrument: "EUR_USD", candles: candles.slice(0, 46), currentPrice: candles[45]!.close });
 assert.equal(noPullback.currentMove, "NONE");
 assert.notEqual(noPullback.status, "NO_VALID_ENTRY");

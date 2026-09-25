@@ -41,11 +41,14 @@ assert.equal(entryNow.status, "ENTRY_AVAILABLE_NOW");
 assert.equal(entryNow.entry, plan.entry);
 
 const noQuote = analyzeTrendPullbackV1({ instrument: "EUR_USD", candles });
-assert.equal(noQuote.status, "NO_VALID_ENTRY");
-assert.match(noQuote.reasons[0] ?? "", /current market price/);
+assert.equal(noQuote.priceBasis, "LAST_M15_CLOSE");
+assert.equal(noQuote.status, "TRADE_PLAN");
+assert.ok(noQuote.entry !== null);
 
-const noPullback = analyzeTrendPullbackV1({ instrument: "EUR_USD", candles: candles.slice(0, 46) });
-assert.equal(noPullback.status, "NO_VALID_ENTRY");
+const noPullback = analyzeTrendPullbackV1({ instrument: "EUR_USD", candles: candles.slice(0, 46), currentPrice: candles[45]!.close });
+assert.equal(noPullback.currentMove, "NONE");
+assert.notEqual(noPullback.status, "NO_VALID_ENTRY");
+assert.ok(noPullback.entry !== null);
 const bearishCandles = candles.map((candle) => ({
   ...candle,
   open: 2.2 - candle.open,

@@ -2144,33 +2144,30 @@ export function SignalWorkspace({
     setTrendPullbackBusy(true);
     setTrendPullbackResult(null);
     setTrendPullbackDialogOpen(!embeddedSurfaceOnly);
+    setEnabledIndicators((enabled) => enabled.filter((indicator) =>
+      indicator !== "adaptive-swing-trendlines-v1" && indicator !== "swing-trend-lines"));
     try {
       const [candlesResponse, pricingResponse] = await Promise.all([
         fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=M15&count=500`), { credentials: "include", cache: "no-store", signal: controller.signal }),
-        fetch(apiUrl(`/api/oanda/pricing?instruments=${instrument}`), { credentials: "include", cache: "no-store", signal: controller.signal }),
+        fetch(apiUrl(`/api/oanda/pricing?instruments=${instrument}`), { credentials: "include", cache: "no-store", signal: controller.signal }).catch(() => null),
       ]);
       if (!candlesResponse.ok) throw new Error("Completed M15 candles are unavailable.");
       const candlesPayload = await candlesResponse.json() as { data?: CandleSeries };
-      const pricingPayload = pricingResponse.ok ? await pricingResponse.json() as { data?: PriceQuote[] } : null;
+      const pricingPayload = pricingResponse?.ok ? await pricingResponse.json().catch(() => null) as { data?: PriceQuote[] } | null : null;
       if (!candlesPayload.data?.candles.length || candlesPayload.data.instrument !== instrument || candlesPayload.data.granularity !== "M15") {
         throw new Error("Completed M15 candles are unavailable.");
       }
       if (candlesPayload.data.source !== "oanda") throw new Error("Live OANDA M15 candles are unavailable; no trade plan was generated from demo data.");
       const quote = pricingPayload?.data?.find((item) => item.instrument === instrument);
       const quoteAgeMs = quote ? Date.now() - Date.parse(quote.time) : Number.POSITIVE_INFINITY;
-      if (quote?.source !== "oanda" || !Number.isFinite(quote.mid) || quote.mid <= 0
-        || !Number.isFinite(quoteAgeMs) || quoteAgeMs < -30_000 || quoteAgeMs > 2 * 60_000) {
-        throw new Error("A fresh OANDA price is unavailable; no trade plan was generated.");
-      }
-      const currentPrice = quote.mid;
+      const currentPrice = quote?.source === "oanda" && Number.isFinite(quote.mid) && quote.mid > 0
+        && Number.isFinite(quoteAgeMs) && quoteAgeMs >= -30_000 && quoteAgeMs <= 2 * 60_000 ? quote.mid : null;
       const result = analyzeTrendPullbackV1({ instrument, candles: candlesPayload.data.candles, currentPrice });
       if (request !== trendPullbackRequestRef.current) return;
       setTrendPullbackResult(result);
       setTrendPullbackDialogOpen(!embeddedSurfaceOnly);
       postTrendPullbackToNative({ type: "gx-native-trend-pullback-result", result });
       setTimeframe("15m");
-      setEnabledIndicators((enabled) => enabled.includes("adaptive-swing-trendlines-v1")
-        ? enabled : [...enabled, "adaptive-swing-trendlines-v1"]);
     } catch (error) {
       if (controller.signal.aborted) return;
       if (request === trendPullbackRequestRef.current) {
@@ -2191,7 +2188,7 @@ export function SignalWorkspace({
     setTrendPullbackDialogOpen(false);
   }, []);
   const reviewTrendPullback = () => {
-    if (!trendPullbackResult?.action || trendPullbackResult.entry === null
+    if (!trendPullbackResult?.action || trendPullbackResult.priceBasis !== "LIVE_QUOTE" || trendPullbackResult.entry === null
       || trendPullbackResult.stopLoss === null || trendPullbackResult.takeProfit === null) return;
     setEntryDraftProposal({
       direction: trendPullbackResult.action === "LONG" ? "long" : "short",
@@ -2995,36 +2992,12 @@ export function SignalWorkspace({
       : { lines: [], tags: [] },
     [enabledIndicators, instrument, series.candles, timeframe],
   );
-  const trendPullbackProjectionLine = useMemo((): ChartPatternLine[] => {
-    const result = trendPullbackResult;
-    const last = series.candles.filter((candle) => candle.complete !== false).at(-1);
-    if (timeframe !== "15m" || !last || !result || result.status === "NO_VALID_ENTRY"
-      || result.debug.lineSlope === null || result.debug.selectedProjectionTime === null || result.entry === null) return [];
-    const barsAhead = (Date.parse(result.debug.selectedProjectionTime) - Date.parse(last.time)) / (15 * 60_000);
-    if (!Number.isFinite(barsAhead) || barsAhead <= 0) return [];
-    const linePriceAtLastBar = result.entry - result.debug.lineSlope * barsAhead;
-    return [{ key: "trend-pullback-projection", color: "#00b377", dashed: true, lineWidth: 2,
-      points: [{ time: last.time, price: linePriceAtLastBar }, { time: result.debug.selectedProjectionTime, price: result.entry }] }];
-  }, [series.candles, timeframe, trendPullbackResult]);
   const chartPatternLines = useMemo(
-    () => [...patternOverlay.lines, ...swingTrendPatternLines, ...adaptiveSwingTrendOverlay.lines, ...trendPullbackProjectionLine, ...frozen4hHistoryLines],
-    [adaptiveSwingTrendOverlay.lines, frozen4hHistoryLines, patternOverlay.lines, swingTrendPatternLines, trendPullbackProjectionLine],
+    () => [...patternOverlay.lines, ...swingTrendPatternLines, ...adaptiveSwingTrendOverlay.lines, ...frozen4hHistoryLines],
+    [adaptiveSwingTrendOverlay.lines, frozen4hHistoryLines, patternOverlay.lines, swingTrendPatternLines],
   );
-  const trendPullbackReferenceLines = useMemo((): ChartReferenceLine[] => {
-    if (!trendPullbackResult || trendPullbackResult.status === "NO_VALID_ENTRY" || trendPullbackResult.entry === null
-      || trendPullbackResult.stopLoss === null || trendPullbackResult.takeProfit === null
-      || trendPullbackResult.entryZoneLow === null || trendPullbackResult.entryZoneHigh === null) return [];
-    return [
-      { key: "trend-pullback-entry", price: trendPullbackResult.entry, label: `V1 ENTRY ${formatChartPrice(trendPullbackResult.entry, instrument)}`, color: "#00b377", textColor: "#ffffff", lineWidth: 2 },
-      { key: "trend-pullback-zone-low", price: trendPullbackResult.entryZoneLow, label: "V1 ZONE LOW", color: "#00b377", textColor: "#ffffff", dashed: true },
-      { key: "trend-pullback-zone-high", price: trendPullbackResult.entryZoneHigh, label: "V1 ZONE HIGH", color: "#00b377", textColor: "#ffffff", dashed: true },
-      { key: "trend-pullback-stop", price: trendPullbackResult.stopLoss, label: `V1 SL ${formatChartPrice(trendPullbackResult.stopLoss, instrument)}`, color: "#e74c3c", textColor: "#ffffff" },
-      { key: "trend-pullback-target", price: trendPullbackResult.takeProfit, label: `V1 TP ${formatChartPrice(trendPullbackResult.takeProfit, instrument)}`, color: "#2563eb", textColor: "#ffffff" },
-    ];
-  }, [instrument, trendPullbackResult]);
   const chartReferenceLines = useMemo(
     () => [
-      ...trendPullbackReferenceLines,
       ...pendingEntryReferenceLines,
       ...supportResistanceReferenceLines,
       ...sessionSrReferenceLines,
@@ -3032,7 +3005,7 @@ export function SignalWorkspace({
       ...frozen4hReferenceLines,
       ...(patternOverlay.lines.length ? [] : breakoutReferenceLines),
     ],
-    [breakoutReferenceLines, frozen4hReferenceLines, lastDaySrReferenceLines, patternOverlay.lines, pendingEntryReferenceLines, sessionSrReferenceLines, supportResistanceReferenceLines, trendPullbackReferenceLines],
+    [breakoutReferenceLines, frozen4hReferenceLines, lastDaySrReferenceLines, patternOverlay.lines, pendingEntryReferenceLines, sessionSrReferenceLines, supportResistanceReferenceLines],
   );
   // The chart refreshes paper trades in the background. Depending on the whole
   // trade object here made an otherwise identical refresh look like a new

@@ -22,6 +22,7 @@ export type TrendPullbackV1Result = {
   action: "LONG" | "SHORT" | null;
   orderType: "BUY_LIMIT" | "SELL_LIMIT" | null;
   currentPrice: number;
+  priceBasis: "LIVE_QUOTE" | "LAST_M15_CLOSE";
   entry: number | null;
   entryZoneLow: number | null;
   entryZoneHigh: number | null;
@@ -64,13 +65,16 @@ export function analyzeTrendPullbackV1(
   const read = analyzeAdaptiveSwingTrendlines(candles, input.instrument);
   const majorTrend: Direction = read.major?.status === "broken" ? "MIXED" : (read.majorDirection?.toUpperCase() as Direction | undefined) ?? "MIXED";
   const currentTrend: Direction = (read.currentDirection?.toUpperCase() as Direction | undefined) ?? "MIXED";
-  const line = read.current;
-  const trend: Direction = majorTrend === currentTrend ? majorTrend : "MIXED";
+  // Prefer the current confirmed swing structure. A viable major line is the
+  // fallback when the indicator has not formed a current line yet.
+  const line = read.current ?? (read.major?.status !== "broken" ? read.major : null);
+  const trend: Direction = line ? line.direction.toUpperCase() as Direction : "MIXED";
   const projected = line ? [1, 2, 3, 4].map((bars) => round(line.pointA.price + line.slopePerBar * (candles.length - 1 + bars - line.pointA.index))) : [];
   const currentLinePrice = line ? round(line.pointA.price + line.slopePerBar * (candles.length - 1 - line.pointA.index)) : null;
   const result: TrendPullbackV1Result = {
     strategy: "TrendPullbackV1", status: "NO_VALID_ENTRY", trend, majorTrend, currentTrend,
     currentMove: "NONE", action: null, orderType: null, currentPrice: round(currentPrice),
+    priceBasis: hasCurrentPrice ? "LIVE_QUOTE" : "LAST_M15_CLOSE",
     entry: null, entryZoneLow: null, entryZoneHigh: null, distanceToEntryPips: null,
     stopLoss: null, stopDistancePips: null, takeProfit: null, targetDistancePips: null,
     riskReward: null, reasons: [],
@@ -83,44 +87,35 @@ export function analyzeTrendPullbackV1(
   };
   const reject = (reason: string) => { result.reasons.push(reason); return result; };
   if (candles.length < 24 || !last) return reject("Not enough completed M15 candles for a trendline analysis.");
-  if (!hasCurrentPrice) return reject("A valid current market price is unavailable.");
-  if (!line || line.status === "broken") return reject("Adaptive Swing Trendlines V1 has no valid CURRENT line.");
-  if (trend === "MIXED") return reject(`MAJOR ${majorTrend} and CURRENT ${currentTrend} do not agree.`);
+  if (!line || line.status === "broken") return reject("No usable confirmed swing trendline is available yet.");
   const long = trend === "BULLISH";
-  if (long ? line.slopePerBar <= 0 : line.slopePerBar >= 0) return reject("The CURRENT line slope does not match the trend.");
-  if (currentLinePrice === null || (long ? currentPrice < currentLinePrice - settings.entryBufferPips * pip : currentPrice > currentLinePrice + settings.entryBufferPips * pip)) {
-    return reject("Price is already beyond the CURRENT trendline; the structure may be invalid.");
-  }
 
-  // A completed-bar move toward the line is enough; no touch or reversal is required.
+  // Pullback activity changes which forward point is preferred, not whether
+  // the user receives a planned entry.
   const recent = candles.slice(-4);
   const changes = recent.slice(1).map((candle, index) => candle.close - recent[index]!.close);
   const toward = changes.filter((change) => long ? change < 0 : change > 0);
-  if (toward.length < 2 || !(long ? last.close < recent[0]!.close : last.close > recent[0]!.close)) {
-    return reject("The latest completed candles are not pulling back toward the CURRENT line.");
-  }
+  const activePullback = toward.length >= 2 && (long ? last.close < recent[0]!.close : last.close > recent[0]!.close);
   const speed = changes.reduce((sum, change) => sum + change, 0) / changes.length;
   result.debug.pullbackSpeedPerBar = speed;
-  result.currentMove = long ? "BEARISH_PULLBACK" : "BULLISH_PULLBACK";
-  // Select the first of four forward line points that intersects the observed
-  // countertrend path within the configured buffer. This is a geometric plan,
-  // not a predicted probability or a requirement to wait for a touch.
+  result.currentMove = activePullback ? long ? "BEARISH_PULLBACK" : "BULLISH_PULLBACK" : "NONE";
+  // With an active pullback, choose the projected point nearest its observed
+  // path. Otherwise choose the nearest forward line price to the live quote.
   const tolerance = settings.entryBufferPips * pip;
-  const intersection = projected.findIndex((price, index) => {
-    const estimatedPullbackPrice = last.close + speed * (index + 1);
-    return long ? estimatedPullbackPrice <= price + tolerance : estimatedPullbackPrice >= price - tolerance;
-  });
-  if (intersection < 0) return reject("At the current pullback pace, the next four M15 projections do not intersect the CURRENT line.");
-  const entry = projected[intersection]!;
+  const candidates = projected.map((price, index) => ({
+    price, index,
+    score: Math.abs((activePullback ? last.close + speed * (index + 1) : currentPrice) - price),
+  }));
+  const inZonePoint = candidates
+    .filter(({ price }) => Math.abs(currentPrice - price) <= tolerance)
+    .sort((a, b) => Math.abs(currentPrice - a.price) - Math.abs(currentPrice - b.price) || a.index - b.index)[0];
+  const eligible = candidates.filter(({ price }) => long ? price < currentPrice : price > currentPrice);
+  const selected = inZonePoint ?? (eligible.length ? eligible : candidates).sort((a, b) => a.score - b.score || a.index - b.index)[0]!;
+  const lineReached = !inZonePoint && eligible.length === 0;
+  const entry = lineReached ? round(currentPrice) : selected.price;
   const zoneLow = round(entry - tolerance);
   const zoneHigh = round(entry + tolerance);
-  const inZone = currentPrice >= zoneLow && currentPrice <= zoneHigh;
-  if (!inZone && (long ? entry >= currentPrice : entry <= currentPrice)) {
-    return reject("The projected limit entry is on the wrong side of the current market price.");
-  }
-  if (long ? currentPrice < zoneLow : currentPrice > zoneHigh) {
-    return reject("Price has moved through the projected entry zone; do not chase it.");
-  }
+  const inZone = lineReached || currentPrice >= zoneLow && currentPrice <= zoneHigh;
 
   const structuralReference = line.pointB.price;
   const stop = round(long ? structuralReference - settings.invalidationBufferPips * pip : structuralReference + settings.invalidationBufferPips * pip);
@@ -131,10 +126,17 @@ export function analyzeTrendPullbackV1(
   const reward = long ? target - entry : entry - target;
   result.debug.slStructuralReference = structuralReference;
   result.debug.tpStructuralReference = extreme;
-  if (risk <= pip || reward <= pip) return reject("The structural swing does not leave a valid stop and target around this entry.");
-  result.status = inZone ? "ENTRY_AVAILABLE_NOW" : "TRADE_PLAN";
+  if (risk <= pip || reward <= pip) {
+    result.entry = entry;
+    result.entryZoneLow = zoneLow;
+    result.entryZoneHigh = zoneHigh;
+    result.distanceToEntryPips = Number((Math.abs(currentPrice - entry) / pip).toFixed(1));
+    result.debug.selectedProjectionTime = new Date(Date.parse(last.time) + (selected.index + 1) * 15 * 60_000).toISOString();
+    return reject("The swing line gives an entry, but its structural stop or recent extreme does not support a trade plan yet.");
+  }
+  result.status = inZone && hasCurrentPrice ? "ENTRY_AVAILABLE_NOW" : "TRADE_PLAN";
   result.action = long ? "LONG" : "SHORT";
-  result.orderType = inZone ? null : long ? "BUY_LIMIT" : "SELL_LIMIT";
+  result.orderType = !hasCurrentPrice || inZone ? null : long ? "BUY_LIMIT" : "SELL_LIMIT";
   result.entry = entry;
   result.entryZoneLow = zoneLow;
   result.entryZoneHigh = zoneHigh;
@@ -144,12 +146,13 @@ export function analyzeTrendPullbackV1(
   result.takeProfit = target;
   result.targetDistancePips = Number((reward / pip).toFixed(1));
   result.riskReward = Number((reward / risk).toFixed(2));
-  result.debug.selectedProjectionTime = new Date(Date.parse(last.time) + (intersection + 1) * 15 * 60_000).toISOString();
+  result.debug.selectedProjectionTime = new Date(Date.parse(last.time) + (selected.index + 1) * 15 * 60_000).toISOString();
   result.reasons = [
-    `MAJOR and CURRENT Adaptive Swing Trendlines V1 are ${trend.toLowerCase()}.`,
-    `The latest completed M15 candles are pulling ${long ? "down" : "up"} toward the CURRENT line.`,
-    `The ${15 * (intersection + 1)} minute line projection intersects the current pullback path.`,
-    `Stop is beyond the CURRENT line's structural swing; target is near the recent trend extreme.`,
+    `The ${line.type.toUpperCase()} confirmed swing line points ${trend.toLowerCase()}.`,
+    lineReached ? "Price has reached or passed the projected line; the current quote is the available entry." : activePullback
+      ? `The active pullback is closest to the ${15 * (selected.index + 1)} minute line projection.`
+      : `No active pullback yet; the ${15 * (selected.index + 1)} minute line projection is the nearest planned entry.`,
+    "Stop and target use the confirmed swing structure and recent trend extreme.",
   ];
   return result;
 }

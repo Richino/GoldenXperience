@@ -47,13 +47,6 @@ const CHART_VARIANTS = [
 ] as const;
 const CHART_INDICATORS = [
   { value: 'support-resistance', label: 'Support & resistance', group: 'overlay' as const },
-  { value: 'frozen-4h-sr', label: '4H Frozen S/R', group: 'overlay' as const },
-  { value: 'last-day-sr', label: 'Last day SR', group: 'overlay' as const },
-  { value: 'session-sr-asia', label: 'Session SR · Asia', group: 'overlay' as const },
-  { value: 'session-sr-london', label: 'Session SR · London', group: 'overlay' as const },
-  { value: 'session-sr-newyork', label: 'Session SR · New York', group: 'overlay' as const },
-  { value: 'breakout', label: 'Breakout', group: 'overlay' as const },
-  { value: 'breakout-patterns', label: 'Breakout patterns', group: 'overlay' as const },
   { value: 'swing-trend-lines', label: 'Swing trend lines', group: 'overlay' as const },
   { value: 'adaptive-swing-trendlines-v1', label: 'Adaptive Swing Trendlines V1', group: 'overlay' as const },
   { value: 'ema21', label: 'EMA 21', group: 'overlay' as const },
@@ -73,6 +66,11 @@ type Timeframe = typeof TIMEFRAMES[number];
 type Range = typeof RANGES[number];
 type Variant = typeof CHART_VARIANTS[number]['value'];
 type ChartIndicator = typeof CHART_INDICATORS[number]['value'];
+const ALLOWED_CHART_INDICATORS = new Set<string>(CHART_INDICATORS.map((item) => item.value));
+
+function sanitizeIndicators(raw: string[]): ChartIndicator[] {
+  return raw.filter((item): item is ChartIndicator => ALLOWED_CHART_INDICATORS.has(item));
+}
 type WebChartTimeframe = '1m' | '5m' | '15m' | '1h' | '4h';
 type ChartState = {
   instrument?: string;
@@ -173,7 +171,7 @@ export default function ChartScreen() {
       setTimeframe(saved.timeframe as Timeframe);
       setRange(saved.range as Range);
       setVariant(saved.variant as Variant);
-      setEnabledIndicators(saved.indicators as ChartIndicator[]);
+      setEnabledIndicators(sanitizeIndicators(saved.indicators));
       setPrefsReady(true);
     });
     return () => { cancelled = true; };
@@ -289,6 +287,16 @@ export default function ChartScreen() {
     setMarketBusy(true);
     setTimeframe(next);
   };
+  const analyzeChart = () => {
+    setEnabledIndicators((current) => current.includes('adaptive-swing-trendlines-v1')
+      ? current : [...current, 'adaptive-swing-trendlines-v1']);
+    if (timeframe !== '15m') {
+      setMarketBusy(true);
+      setTimeframe('15m');
+      command('timeframe', '15m');
+    }
+    command('analyze');
+  };
   const selectRange = (next: Range) => {
     if (next === range) { setRangesOpen(false); return; }
     setMarketBusy(true);
@@ -309,7 +317,7 @@ export default function ChartScreen() {
     <View style={[styles.header, themedScreen.header, { paddingTop: Math.max(insets.top + 8, 24) }]}>
       <View style={styles.headerRow}>
         <Pressable onPress={() => setPairsOpen(true)} style={styles.pairButton} accessibilityRole="button" accessibilityLabel="Select currency pair"><Text style={styles.pair}>{pairLabel(instrument)}</Text><ChevronDown size={16} strokeWidth={2} color={theme.colors.textSecondary} /></Pressable>
-        <View style={styles.headerActions}><Pressable onPress={() => command('analyze')} style={styles.analyze} accessibilityRole="button" accessibilityLabel="Analyze chart"><Sparkles size={18} strokeWidth={2} color="#ffffff" /></Pressable><Pressable onPress={() => setNotificationsOpen(true)} style={styles.bell} accessibilityRole="button" accessibilityLabel="Open notifications"><Bell size={19} strokeWidth={2} color={theme.colors.textSecondary} /></Pressable></View>
+        <View style={styles.headerActions}><Pressable onPress={analyzeChart} style={styles.analyze} accessibilityRole="button" accessibilityLabel="Analyze with TrendPullbackV1"><Sparkles size={18} strokeWidth={2} color="#ffffff" /></Pressable><Pressable onPress={() => setNotificationsOpen(true)} style={styles.bell} accessibilityRole="button" accessibilityLabel="Open notifications"><Bell size={19} strokeWidth={2} color={theme.colors.textSecondary} /></Pressable></View>
       </View>
       <View style={styles.quoteRow}><Text style={styles.quote}>{chartState?.priceLabel ?? price(chartState?.price ?? null, instrument)}</Text><Text style={[styles.change, chartState?.positive === false ? styles.down : styles.up]}>{chartState ? `${chartState.positive ? '+' : ''}${chartState.change.toFixed(instrument.includes('JPY') ? 3 : 5)}  ${chartState.positive ? '+' : ''}${chartState.changePercent.toFixed(2)}%` : 'Live quote'}</Text><Text style={styles.session}>{session.marketOpen ? `${session.label} session` : 'Market closed'}</Text></View>
       <View style={styles.timeframes}>{TIMEFRAMES.map((option) => <Pressable key={option} onPress={() => selectTimeframe(option)} style={[styles.timeframe, timeframe === option ? styles.timeframeActive : null]} accessibilityRole="button"><Text style={[styles.timeframeText, timeframe === option ? styles.timeframeTextActive : null]}>{option}</Text></Pressable>)}</View>

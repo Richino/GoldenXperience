@@ -38,6 +38,7 @@ import {
   ManualProposalModal,
   useManualProposal,
 } from "@/components/analysis/manual-proposal";
+import { TrendPullbackResultDialog } from "@/components/analysis/trend-pullback-result";
 import {
   ChartContextPanel,
   type ChartOverlayPreferences,
@@ -71,6 +72,7 @@ import {
   type ChartVariant,
 } from "@/lib/chart-utils";
 import { analyzeAdaptiveSwingTrendlines, type AdaptiveTrendline } from "@/lib/adaptive-swing-trendlines";
+import { analyzeTrendPullbackV1, type TrendPullbackV1Result } from "@/lib/strategy/trend-pullback-v1";
 import {
   INSTRUMENT_CATALOG,
   currenciesOf,
@@ -2110,11 +2112,90 @@ export function SignalWorkspace({
   const {
     proposal: manualProposal,
     setProposal: setManualProposal,
-    analyze: analyzeInstrument,
-    analyzingInstrument,
-    analysisError,
     acceptProposal: acceptManualProposal,
   } = useManualProposal();
+  const [trendPullbackResult, setTrendPullbackResult] = useState<TrendPullbackV1Result | null>(null);
+  const [trendPullbackDialogOpen, setTrendPullbackDialogOpen] = useState(false);
+  const [trendPullbackBusy, setTrendPullbackBusy] = useState(false);
+  const [trendPullbackError, setTrendPullbackError] = useState<string | null>(null);
+  const trendPullbackRequestRef = useRef(0);
+  const trendPullbackAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => {
+    trendPullbackRequestRef.current += 1;
+    trendPullbackAbortRef.current?.abort();
+    trendPullbackAbortRef.current = null;
+    setTrendPullbackResult(null);
+    setTrendPullbackDialogOpen(false);
+    setTrendPullbackError(null);
+    setTrendPullbackBusy(false);
+  }, [instrument]);
+
+  const runTrendPullback = useCallback(async () => {
+    trendPullbackAbortRef.current?.abort();
+    const controller = new AbortController();
+    trendPullbackAbortRef.current = controller;
+    const request = ++trendPullbackRequestRef.current;
+    setTrendPullbackError(null);
+    setTrendPullbackBusy(true);
+    setTrendPullbackResult(null);
+    setTrendPullbackDialogOpen(true);
+    try {
+      const [candlesResponse, pricingResponse] = await Promise.all([
+        fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=M15&count=500`), { credentials: "include", cache: "no-store", signal: controller.signal }),
+        fetch(apiUrl(`/api/oanda/pricing?instruments=${instrument}`), { credentials: "include", cache: "no-store", signal: controller.signal }),
+      ]);
+      if (!candlesResponse.ok) throw new Error("Completed M15 candles are unavailable.");
+      const candlesPayload = await candlesResponse.json() as { data?: CandleSeries };
+      const pricingPayload = pricingResponse.ok ? await pricingResponse.json() as { data?: PriceQuote[] } : null;
+      if (!candlesPayload.data?.candles.length || candlesPayload.data.instrument !== instrument || candlesPayload.data.granularity !== "M15") {
+        throw new Error("Completed M15 candles are unavailable.");
+      }
+      if (candlesPayload.data.source !== "oanda") throw new Error("Live OANDA M15 candles are unavailable; no trade plan was generated from demo data.");
+      const quote = pricingPayload?.data?.find((item) => item.instrument === instrument);
+      const quoteAgeMs = quote ? Date.now() - Date.parse(quote.time) : Number.POSITIVE_INFINITY;
+      if (quote?.source !== "oanda" || !Number.isFinite(quote.mid) || quote.mid <= 0
+        || !Number.isFinite(quoteAgeMs) || quoteAgeMs < -30_000 || quoteAgeMs > 2 * 60_000) {
+        throw new Error("A fresh OANDA price is unavailable; no trade plan was generated.");
+      }
+      const currentPrice = quote.mid;
+      const result = analyzeTrendPullbackV1({ instrument, candles: candlesPayload.data.candles, currentPrice });
+      if (request !== trendPullbackRequestRef.current) return;
+      setTrendPullbackResult(result);
+      setTrendPullbackDialogOpen(true);
+      setTimeframe("15m");
+      setEnabledIndicators((enabled) => enabled.includes("adaptive-swing-trendlines-v1")
+        ? enabled : [...enabled, "adaptive-swing-trendlines-v1"]);
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      if (request === trendPullbackRequestRef.current) setTrendPullbackError(error instanceof Error ? error.message : "TrendPullbackV1 could not run.");
+    } finally {
+      if (request === trendPullbackRequestRef.current) setTrendPullbackBusy(false);
+      if (trendPullbackAbortRef.current === controller) trendPullbackAbortRef.current = null;
+    }
+  }, [instrument]);
+  const cancelTrendPullback = useCallback(() => {
+    trendPullbackRequestRef.current += 1;
+    trendPullbackAbortRef.current?.abort();
+    trendPullbackAbortRef.current = null;
+    setTrendPullbackBusy(false);
+    setTrendPullbackDialogOpen(false);
+  }, []);
+  const reviewTrendPullback = () => {
+    if (!trendPullbackResult?.action || trendPullbackResult.entry === null
+      || trendPullbackResult.stopLoss === null || trendPullbackResult.takeProfit === null) return;
+    setEntryDraftProposal({
+      direction: trendPullbackResult.action === "LONG" ? "long" : "short",
+      entry: trendPullbackResult.entry,
+      stop: trendPullbackResult.stopLoss,
+      target: trendPullbackResult.takeProfit,
+      confidence: null,
+      rationale: trendPullbackResult.reasons.join(" "),
+      preferredEntryTime: new Date().toISOString(),
+    });
+    setTrendPullbackDialogOpen(false);
+    openPendingEntryManager(null);
+    setEntryComposerRevision((revision) => revision + 1);
+  };
 
   useEffect(() => {
     if (!initialManualProposal || openedManualProposalRef.current) return;
@@ -2904,12 +2985,36 @@ export function SignalWorkspace({
       : { lines: [], tags: [] },
     [enabledIndicators, instrument, series.candles, timeframe],
   );
+  const trendPullbackProjectionLine = useMemo((): ChartPatternLine[] => {
+    const result = trendPullbackResult;
+    const last = series.candles.filter((candle) => candle.complete !== false).at(-1);
+    if (timeframe !== "15m" || !last || !result || result.status === "NO_VALID_ENTRY"
+      || result.debug.lineSlope === null || result.debug.selectedProjectionTime === null || result.entry === null) return [];
+    const barsAhead = (Date.parse(result.debug.selectedProjectionTime) - Date.parse(last.time)) / (15 * 60_000);
+    if (!Number.isFinite(barsAhead) || barsAhead <= 0) return [];
+    const linePriceAtLastBar = result.entry - result.debug.lineSlope * barsAhead;
+    return [{ key: "trend-pullback-projection", color: "#00b377", dashed: true, lineWidth: 2,
+      points: [{ time: last.time, price: linePriceAtLastBar }, { time: result.debug.selectedProjectionTime, price: result.entry }] }];
+  }, [series.candles, timeframe, trendPullbackResult]);
   const chartPatternLines = useMemo(
-    () => [...patternOverlay.lines, ...swingTrendPatternLines, ...adaptiveSwingTrendOverlay.lines, ...frozen4hHistoryLines],
-    [adaptiveSwingTrendOverlay.lines, frozen4hHistoryLines, patternOverlay.lines, swingTrendPatternLines],
+    () => [...patternOverlay.lines, ...swingTrendPatternLines, ...adaptiveSwingTrendOverlay.lines, ...trendPullbackProjectionLine, ...frozen4hHistoryLines],
+    [adaptiveSwingTrendOverlay.lines, frozen4hHistoryLines, patternOverlay.lines, swingTrendPatternLines, trendPullbackProjectionLine],
   );
+  const trendPullbackReferenceLines = useMemo((): ChartReferenceLine[] => {
+    if (!trendPullbackResult || trendPullbackResult.status === "NO_VALID_ENTRY" || trendPullbackResult.entry === null
+      || trendPullbackResult.stopLoss === null || trendPullbackResult.takeProfit === null
+      || trendPullbackResult.entryZoneLow === null || trendPullbackResult.entryZoneHigh === null) return [];
+    return [
+      { key: "trend-pullback-entry", price: trendPullbackResult.entry, label: `V1 ENTRY ${formatChartPrice(trendPullbackResult.entry, instrument)}`, color: "#00b377", textColor: "#ffffff", lineWidth: 2 },
+      { key: "trend-pullback-zone-low", price: trendPullbackResult.entryZoneLow, label: "V1 ZONE LOW", color: "#00b377", textColor: "#ffffff", dashed: true },
+      { key: "trend-pullback-zone-high", price: trendPullbackResult.entryZoneHigh, label: "V1 ZONE HIGH", color: "#00b377", textColor: "#ffffff", dashed: true },
+      { key: "trend-pullback-stop", price: trendPullbackResult.stopLoss, label: `V1 SL ${formatChartPrice(trendPullbackResult.stopLoss, instrument)}`, color: "#e74c3c", textColor: "#ffffff" },
+      { key: "trend-pullback-target", price: trendPullbackResult.takeProfit, label: `V1 TP ${formatChartPrice(trendPullbackResult.takeProfit, instrument)}`, color: "#2563eb", textColor: "#ffffff" },
+    ];
+  }, [instrument, trendPullbackResult]);
   const chartReferenceLines = useMemo(
     () => [
+      ...trendPullbackReferenceLines,
       ...pendingEntryReferenceLines,
       ...supportResistanceReferenceLines,
       ...sessionSrReferenceLines,
@@ -2917,7 +3022,7 @@ export function SignalWorkspace({
       ...frozen4hReferenceLines,
       ...(patternOverlay.lines.length ? [] : breakoutReferenceLines),
     ],
-    [breakoutReferenceLines, frozen4hReferenceLines, lastDaySrReferenceLines, patternOverlay.lines, pendingEntryReferenceLines, sessionSrReferenceLines, supportResistanceReferenceLines],
+    [breakoutReferenceLines, frozen4hReferenceLines, lastDaySrReferenceLines, patternOverlay.lines, pendingEntryReferenceLines, sessionSrReferenceLines, supportResistanceReferenceLines, trendPullbackReferenceLines],
   );
   // The chart refreshes paper trades in the background. Depending on the whole
   // trade object here made an otherwise identical refresh look like a new
@@ -3246,7 +3351,7 @@ export function SignalWorkspace({
       } else if (command.action === "position" && (command.value === "long" || command.value === "short")) {
         startPositionTool(command.value);
       } else if (command.action === "analyze") {
-        void analyzeInstrument(instrument);
+        void runTrendPullback();
       } else if (command.action === "trade") {
         openPendingEntryManager(null);
       } else if (command.action === "reset") {
@@ -3271,7 +3376,7 @@ export function SignalWorkspace({
       window.removeEventListener("message", onNativeCommand);
       document.removeEventListener("message", onNativeCommand as EventListener);
     };
-  }, [analyzeInstrument, embeddedSurfaceOnly, instrument, openPendingEntryManager, refreshChart, setTheme, startPositionTool]);
+  }, [embeddedSurfaceOnly, instrument, openPendingEntryManager, refreshChart, runTrendPullback, setTheme, startPositionTool]);
 
   useEffect(() => {
     if (!embeddedSurfaceOnly) return;
@@ -3406,6 +3511,7 @@ export function SignalWorkspace({
             setManualProposal(null);
           }}
         />
+        <TrendPullbackResultDialog result={trendPullbackDialogOpen ? trendPullbackResult : null} analyzing={trendPullbackDialogOpen && trendPullbackBusy} instrument={instrument} onClose={() => setTrendPullbackDialogOpen(false)} onCancel={cancelTrendPullback} onReview={reviewTrendPullback} />
         {pendingEntryDialogOpen ? <PendingEntryDialog
           key={selectedPendingEntry?.id ?? "new-pending-entry"}
           open={pendingEntryDialogOpen}
@@ -3449,16 +3555,9 @@ export function SignalWorkspace({
               />
               <div className="signals-mobile-header-actions flex items-center gap-2">
                 {manualTradeMode === "analyze" ? (
-                  <button
-                    type="button"
-                    className="signals-analyze-desktop pressable"
-                    onClick={() => void analyzeInstrument(instrument)}
-                    disabled={analyzingInstrument === instrument}
-                    title="Run a test-only AI analysis of this chart"
-                  >
-                    <Sparkles className="size-3.5" />
-                    {analyzingInstrument === instrument ? "Analyzing…" : "Analyze"}
-                  </button>
+                  <>
+                    <button type="button" className="signals-analyze-desktop pressable" onClick={() => void runTrendPullback()} disabled={trendPullbackBusy} title="Analyze with TrendPullbackV1"><Sparkles className="size-3.5" />{trendPullbackBusy ? "Analyzing…" : "Analyze"}</button>
+                  </>
                 ) : null}
                 <NotificationBell compact className="signals-icon-btn signals-fullscreen-reserve" />
               </div>
@@ -3614,8 +3713,8 @@ export function SignalWorkspace({
             >
               {mobileTradeAction.label}
             </button>
-            {(tradeActionError || analysisError) ? (
-              <p className="gx-mobile-analyze-error" role="alert">{tradeActionError ?? analysisError}</p>
+            {(tradeActionError || trendPullbackError) ? (
+              <p className="gx-mobile-analyze-error" role="alert">{tradeActionError ?? trendPullbackError}</p>
             ) : null}
           </div>
         </div>
@@ -3664,19 +3763,12 @@ export function SignalWorkspace({
                   {tradeActionBusy ? "Cancelling…" : "Cancel Trade"}
                 </button>
               ) : (
-                <button
-                  type="button"
-                  className="signals-analyze-desktop pressable"
-                  onClick={() => void analyzeInstrument(instrument)}
-                  disabled={analyzingInstrument === instrument}
-                  title="Run a test-only AI analysis of this chart"
-                >
-                  <Sparkles className="size-3.5" />
-                  {analyzingInstrument === instrument ? "Analyzing…" : "Analyze"}
-                </button>
+                <>
+                  <button type="button" className="signals-analyze-desktop pressable" onClick={() => void runTrendPullback()} disabled={trendPullbackBusy} title="Analyze with TrendPullbackV1"><Sparkles className="size-3.5" />{trendPullbackBusy ? "Analyzing…" : "Analyze"}</button>
+                </>
               )}
-              {(tradeActionError || analysisError) ? (
-                <span className="signals-analyze-error" role="alert">{tradeActionError ?? analysisError}</span>
+              {(tradeActionError || trendPullbackError) ? (
+                <span className="signals-analyze-error" role="alert">{tradeActionError ?? trendPullbackError}</span>
               ) : null}
               <IndicatorSelect
                 toolbar
@@ -3818,6 +3910,7 @@ export function SignalWorkspace({
         onDismiss={() => setManualProposal(null)}
         onAccept={acceptManualProposal}
       />
+      <TrendPullbackResultDialog result={trendPullbackDialogOpen ? trendPullbackResult : null} analyzing={trendPullbackDialogOpen && trendPullbackBusy} instrument={instrument} onClose={() => setTrendPullbackDialogOpen(false)} onCancel={cancelTrendPullback} onReview={reviewTrendPullback} />
 
       {tradeConfirm ? createPortal(
         <div className="custom-expiration-backdrop" data-pull-to-refresh-ignore="true" onMouseDown={(event) => event.target === event.currentTarget && setTradeConfirm(null)}>

@@ -363,8 +363,10 @@ export default function ChartScreen() {
   );
   const onTimeframeLayout = (event: LayoutChangeEvent) => setTimeframeWidth(event.nativeEvent.layout.width);
   const hasPendingManualEntry = manualEntries.some((entry) => entry.status === 'PENDING' || entry.status === 'TRIGGERING');
+  const hasOpenManualTrade = manualEntries.some((entry) => entry.status === 'TRIGGERED' && entry.paperTradeStatus === 'open');
+  const hasBlockingManualTrade = hasPendingManualEntry || hasOpenManualTrade;
   const analyzeChart = () => {
-    if (hasPendingManualEntry) return;
+    if (hasBlockingManualTrade) return;
     setAnalysisResult(null);
     setAnalysisError(null);
     setAnalysisBusy(true);
@@ -443,7 +445,7 @@ export default function ChartScreen() {
     <View style={[styles.header, themedScreen.header, { paddingTop: Math.max(insets.top + 8, 24) }]}>
       <View style={styles.headerRow}>
         <Pressable onPress={() => setPairsOpen(true)} style={styles.pairButton} accessibilityRole="button" accessibilityLabel="Select currency pair"><Text style={styles.pair}>{pairLabel(instrument)}</Text><ChevronDown size={16} strokeWidth={2} color={theme.colors.textSecondary} /></Pressable>
-        <View style={styles.headerActions}><Pressable onPress={analyzeChart} disabled={hasPendingManualEntry} style={[styles.analyze, hasPendingManualEntry ? styles.analyzeDisabled : null]} accessibilityRole="button" accessibilityLabel={hasPendingManualEntry ? 'Analyze unavailable while a pending trade exists' : 'Analyze with TrendPullbackV1'}><Sparkles size={18} strokeWidth={2} color="#ffffff" /></Pressable><Pressable onPress={() => setNotificationsOpen(true)} style={styles.bell} accessibilityRole="button" accessibilityLabel="Open notifications"><Bell size={19} strokeWidth={2} color={theme.colors.textSecondary} /></Pressable></View>
+        <View style={styles.headerActions}><Pressable onPress={analyzeChart} disabled={hasBlockingManualTrade} style={[styles.analyze, hasBlockingManualTrade ? styles.analyzeDisabled : null]} accessibilityRole="button" accessibilityLabel={hasBlockingManualTrade ? 'Analyze unavailable while a pending or open trade exists' : 'Analyze with TrendPullbackV1'}><Sparkles size={18} strokeWidth={2} color="#ffffff" /></Pressable><Pressable onPress={() => setNotificationsOpen(true)} style={styles.bell} accessibilityRole="button" accessibilityLabel="Open notifications"><Bell size={19} strokeWidth={2} color={theme.colors.textSecondary} /></Pressable></View>
       </View>
       <View style={styles.quoteRow}><Text style={styles.quote}>{chartState?.priceLabel ?? price(chartState?.price ?? null, instrument)}</Text><Text style={[styles.change, chartState?.positive === false ? styles.down : styles.up]}>{chartState ? `${chartState.positive ? '+' : ''}${chartState.change.toFixed(instrument.includes('JPY') ? 3 : 5)}  ${chartState.positive ? '+' : ''}${chartState.changePercent.toFixed(2)}%` : 'Live quote'}</Text><Text style={styles.session}>{session.marketOpen ? `${session.label} session` : 'Market closed'}</Text></View>
       <View style={styles.timeframes} onLayout={onTimeframeLayout}>{timeframeColumnWidth > 0 ? <Animated.View pointerEvents="none" style={[styles.timeframeLens, { width: timeframeColumnWidth }, timeframeLensStyle]} /> : null}{TIMEFRAMES.map((option) => <TimeframeItem key={option} option={option} active={timeframe === option} onPress={() => selectTimeframe(option)} />)}</View>

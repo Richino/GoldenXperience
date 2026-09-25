@@ -30,9 +30,11 @@ import { BottomDrawer } from '@/components/ui/BottomDrawer';
 import { DockFade } from '@/components/ui/DockFade';
 import { rawColors, theme } from '@/constants/theme';
 import { webAppUrl } from '@/lib/api/config';
+import { apiFetchDelete, apiGet, apiPost } from '@/lib/api/client';
 import { getMarketCondition } from '@/lib/time';
 import { loadChartPreferences, saveChartPreferences, type SavedChartPreferences } from '@/lib/chart/chart-preferences';
 import { usePreferences } from '@/lib/preferences/PreferencesContext';
+import type { PendingEntry } from '@/types/api';
 
 const PAIRS = ['EUR_USD', 'USD_JPY', 'GBP_USD', 'AUD_USD', 'USD_CAD', 'USD_CHF', 'NZD_USD', 'EUR_JPY', 'EUR_GBP', 'GBP_JPY'] as const;
 const TIMEFRAMES = ['1m', '5m', '15m', '1H', '4H'] as const;
@@ -67,6 +69,7 @@ type Timeframe = typeof TIMEFRAMES[number];
 type Range = typeof RANGES[number];
 type Variant = typeof CHART_VARIANTS[number]['value'];
 type ChartIndicator = typeof CHART_INDICATORS[number]['value'];
+type ManualTradeAction = 'trade' | 'cancel' | 'close';
 const ALLOWED_CHART_INDICATORS = new Set<string>(CHART_INDICATORS.map((item) => item.value));
 
 function sanitizeIndicators(raw: string[]): ChartIndicator[] {
@@ -174,6 +177,10 @@ export default function ChartScreen() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [tradeOpen, setTradeOpen] = useState(false);
   const [tradeDraft, setTradeDraft] = useState<{ direction: 'long' | 'short'; entry: number; stop: number; target: number } | null>(null);
+  const [manualEntries, setManualEntries] = useState<PendingEntry[]>([]);
+  const [confirmTradeAction, setConfirmTradeAction] = useState<Exclude<ManualTradeAction, 'trade'> | null>(null);
+  const [tradeActionBusy, setTradeActionBusy] = useState(false);
+  const [tradeActionError, setTradeActionError] = useState<string | null>(null);
   const [prefsReady, setPrefsReady] = useState(false);
   const [marketBusy, setMarketBusy] = useState(false);
   const [analysisModalOpen, setAnalysisModalOpen] = useState(false);
@@ -202,19 +209,35 @@ export default function ChartScreen() {
     return () => { cancelled = true; };
   }, []);
 
+  const refreshManualEntries = useCallback(async () => {
+    try {
+      const payload = await apiGet<{ entries?: PendingEntry[] }>(`/api/pending-entries?instrument=${encodeURIComponent(instrument)}`);
+      setManualEntries(payload.entries ?? []);
+    } catch {
+      // The order action must remain available if this supporting read is
+      // temporarily unavailable; its endpoint will still report a conflict.
+      setManualEntries([]);
+    }
+  }, [instrument]);
+
   useFocusEffect(
     useCallback(() => {
       const next = resolveInstrumentParam(params.instrument);
       setInstrument((current) => (current === next ? current : next));
       setChartState(null);
       webReadyRef.current = false;
-    }, [params.instrument]),
+      void refreshManualEntries();
+    }, [params.instrument, refreshManualEntries]),
   );
 
   useEffect(() => {
     setChartState(null);
     webReadyRef.current = false;
   }, [instrument]);
+
+  useEffect(() => {
+    void refreshManualEntries();
+  }, [refreshManualEntries]);
 
   useEffect(() => {
     activeTimeframeIndex.value = withTiming(TIMEFRAMES.indexOf(timeframe), {
@@ -379,6 +402,38 @@ export default function ChartScreen() {
   const toggleIndicator = (indicator: ChartIndicator) => {
     setEnabledIndicators((current) => (current.includes(indicator) ? current.filter((item) => item !== indicator) : [...current, indicator]));
   };
+  const activeManualEntry = manualEntries.find((entry) => entry.status === 'TRIGGERED' && entry.paperTradeStatus === 'open')
+    ?? manualEntries.find((entry) => entry.status === 'PENDING' || entry.status === 'TRIGGERING')
+    ?? null;
+  const manualTradeAction: ManualTradeAction = activeManualEntry?.status === 'TRIGGERED' ? 'close' : activeManualEntry ? 'cancel' : 'trade';
+  const tradeActionLabel = manualTradeAction === 'close' ? 'Close trade' : manualTradeAction === 'cancel' ? 'Cancel' : 'Trade';
+  const handleTradeAction = () => {
+    setTradeActionError(null);
+    if (manualTradeAction === 'trade') {
+      setTradeOpen(true);
+      return;
+    }
+    setConfirmTradeAction(manualTradeAction);
+  };
+  const executeTradeAction = async () => {
+    if (!confirmTradeAction || !activeManualEntry) return;
+    setTradeActionBusy(true);
+    setTradeActionError(null);
+    try {
+      if (confirmTradeAction === 'cancel') {
+        await apiFetchDelete(`/api/pending-entries/${activeManualEntry.id}`);
+      } else {
+        await apiPost(`/api/pending-entries/${activeManualEntry.id}/close`, { instrument });
+      }
+      setConfirmTradeAction(null);
+      command('refresh');
+      await refreshManualEntries();
+    } catch (error) {
+      setTradeActionError(error instanceof Error ? error.message : `Could not ${confirmTradeAction === 'cancel' ? 'cancel the pending trade' : 'close the trade'}.`);
+    } finally {
+      setTradeActionBusy(false);
+    }
+  };
 
   if (failed) return <View style={[styles.errorState, themedScreen.errorState]}><Text style={styles.errorTitle}>Chart unavailable</Text><Text style={styles.errorCopy}>Check that the GX web app is reachable on this device, then try again.</Text><Pressable onPress={() => { setFailed(false); setLoading(true); setRetry((value) => value + 1); }} style={styles.retry}><Text style={styles.retryText}>Retry chart</Text></Pressable></View>;
 
@@ -396,7 +451,7 @@ export default function ChartScreen() {
       {loading || marketBusy ? <View pointerEvents="none" style={[styles.loading, themedScreen.loading]}><ActivityIndicator color={theme.colors.primary} /><Text style={styles.loadingText}>{loading ? 'Loading chart…' : 'Updating chart…'}</Text></View> : null}
     </View>
     <View style={[styles.toolbar, themedScreen.toolbar]}><Tool icon={SlidersHorizontal} label="Indicators" active={enabledIndicators.length > 0} onPress={() => setIndicatorsOpen(true)} /><Tool icon={Crosshair} label="Fixed 10-pip setup" onPress={() => setPositionOpen(true)} /><Tool icon={CalendarRange} label={`Visible range · ${range}`} active={false} onPress={() => setRangesOpen(true)} /><Tool icon={VariantIcon} label={`Chart type · ${activeVariant.label}`} onPress={() => setVariantsOpen(true)} /><Tool icon={RotateCcw} label="Reset chart view" onPress={() => command('reset')} /></View>
-    <View style={styles.tradeAction}><Pressable onPress={() => setTradeOpen(true)} style={styles.tradeButton} accessibilityRole="button" accessibilityLabel="Create trade"><Text style={styles.tradeButtonText}>Trade</Text></Pressable></View>
+    <View style={styles.tradeAction}>{tradeActionError ? <Text style={styles.tradeActionError} accessibilityRole="alert">{tradeActionError}</Text> : null}<Pressable onPress={handleTradeAction} disabled={tradeActionBusy} style={[styles.tradeButton, manualTradeAction === 'close' ? styles.closeTradeButton : null, tradeActionBusy ? styles.tradeButtonDisabled : null]} accessibilityRole="button" accessibilityLabel={tradeActionLabel}><Text style={styles.tradeButtonText}>{tradeActionBusy ? 'Working…' : tradeActionLabel}</Text></Pressable></View>
     <DockFade height={96} />
     <BottomDrawer visible={pairsOpen} onClose={() => setPairsOpen(false)} eyebrow="Chart" title="Select pair">{PAIRS.map((option) => <Pressable key={option} onPress={() => selectPair(option)} style={[styles.drawerRow, instrument === option ? styles.drawerRowActive : null]}><Text style={styles.drawerPair}>{pairLabel(option)}</Text>{instrument === option ? <SymbolView name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={18} tintColor={theme.colors.primary} /> : null}</Pressable>)}</BottomDrawer>
     <BottomDrawer visible={rangesOpen} onClose={() => setRangesOpen(false)} eyebrow="Chart" title="Visible range">{RANGES.map((option) => <Pressable key={option} onPress={() => selectRange(option)} style={[styles.drawerRow, range === option ? styles.drawerRowActive : null]}><Text style={styles.drawerPair}>{option}</Text>{range === option ? <SymbolView name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={18} tintColor={theme.colors.primary} /> : null}</Pressable>)}</BottomDrawer>
@@ -411,8 +466,12 @@ export default function ChartScreen() {
       bid={chartState?.bid ?? null}
       ask={chartState?.ask ?? null}
       draft={tradeDraft}
-      onCreated={() => command('refresh')}
+      onCreated={() => { command('refresh'); void refreshManualEntries(); }}
     />
+    <BottomDrawer visible={confirmTradeAction !== null} onClose={() => { if (!tradeActionBusy) setConfirmTradeAction(null); }} title={confirmTradeAction === 'cancel' ? 'Cancel pending trade?' : 'Close active trade?'}>
+      <Text style={styles.confirmCopy}>{confirmTradeAction === 'cancel' ? 'This removes the pending order. It will not open a trade.' : 'This closes the open paper trade at the current available price.'}</Text>
+      <View style={styles.confirmActions}><Pressable onPress={() => setConfirmTradeAction(null)} disabled={tradeActionBusy} style={[styles.confirmSecondary, tradeActionBusy ? styles.tradeButtonDisabled : null]}><Text style={styles.confirmSecondaryText}>Keep trade</Text></Pressable><Pressable onPress={() => void executeTradeAction()} disabled={tradeActionBusy} style={[styles.confirmPrimary, confirmTradeAction === 'close' ? styles.closeTradeButton : null, tradeActionBusy ? styles.tradeButtonDisabled : null]}><Text style={styles.tradeButtonText}>{tradeActionBusy ? 'Working…' : confirmTradeAction === 'cancel' ? 'Cancel pending trade' : 'Close trade'}</Text></Pressable></View>
+    </BottomDrawer>
     <NativeTrendPullbackModal visible={analysisModalOpen} busy={analysisBusy} result={analysisResult} error={analysisError} instrument={instrument} onClose={() => setAnalysisModalOpen(false)} onCancel={cancelAnalysis} onAccept={acceptAnalysis} />
   </View>;
 }
@@ -442,7 +501,7 @@ function TimeframeItem({ option, active, onPress }: { option: Timeframe; active:
 const styles = StyleSheet.create({
   root: { flex: 1 }, header: { paddingHorizontal: 16, paddingBottom: 10, gap: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.cardBorder }, headerRow: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }, pairButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5 }, pair: { fontSize: 15, fontFamily: theme.fonts.sansBold, color: theme.colors.textPrimary }, headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 }, analyze: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: theme.colors.primary }, bell: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: theme.colors.surfaceRaised },
   quoteRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }, quote: { fontSize: 22, fontFamily: theme.fonts.monoBold, color: theme.colors.textPrimary, letterSpacing: -0.5 }, change: { fontSize: 11, fontFamily: theme.fonts.monoMedium }, up: { color: theme.colors.primary }, down: { color: theme.colors.danger }, session: { marginLeft: 'auto', fontSize: 10, fontFamily: theme.fonts.sansSemiBold, letterSpacing: 0.4, textTransform: 'uppercase', color: theme.colors.textMuted }, timeframes: { position: 'relative', minHeight: 39, flexDirection: 'row', padding: 3, overflow: 'hidden', borderRadius: 10, backgroundColor: theme.colors.surfaceRaised }, timeframeLens: { position: 'absolute', top: 3, bottom: 3, left: 3, borderRadius: 7, backgroundColor: theme.colors.primarySoft, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.primary }, timeframe: { zIndex: 1, flex: 1, minHeight: 33, alignItems: 'center', justifyContent: 'center' }, timeframeText: { fontSize: 11, fontFamily: theme.fonts.sansSemiBold, color: theme.colors.textSecondary }, timeframeTextActive: { color: theme.colors.primary },
-  chartFrame: { flex: 1, minHeight: 180 }, webview: { flex: 1 }, loading: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', gap: 9 }, loadingText: { fontSize: 13, fontFamily: theme.fonts.sansMedium, color: theme.colors.textSecondary }, toolbar: { zIndex: 6, minHeight: 52, flexDirection: 'row', paddingHorizontal: 8, paddingVertical: 8, gap: 4, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.cardBorder }, tool: { flex: 1, minWidth: 0, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 11 }, toolActive: { backgroundColor: theme.colors.primarySoft }, tradeAction: { zIndex: 6, marginBottom: 94, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10, backgroundColor: 'transparent' }, tradeButton: { minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: theme.colors.primary }, tradeButtonText: { fontSize: 14, fontFamily: theme.fonts.sansSemiBold, color: '#ffffff' },
+  chartFrame: { flex: 1, minHeight: 180 }, webview: { flex: 1 }, loading: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', gap: 9 }, loadingText: { fontSize: 13, fontFamily: theme.fonts.sansMedium, color: theme.colors.textSecondary }, toolbar: { zIndex: 6, minHeight: 52, flexDirection: 'row', paddingHorizontal: 8, paddingVertical: 8, gap: 4, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.cardBorder }, tool: { flex: 1, minWidth: 0, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 11 }, toolActive: { backgroundColor: theme.colors.primarySoft }, tradeAction: { zIndex: 6, marginBottom: 94, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10, backgroundColor: 'transparent' }, tradeActionError: { marginBottom: 8, textAlign: 'center', fontSize: 12, lineHeight: 17, fontFamily: theme.fonts.sansMedium, color: theme.colors.danger }, tradeButton: { minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: theme.colors.primary }, closeTradeButton: { backgroundColor: theme.colors.danger }, tradeButtonDisabled: { opacity: 0.55 }, tradeButtonText: { fontSize: 14, fontFamily: theme.fonts.sansSemiBold, color: '#ffffff' }, confirmCopy: { marginHorizontal: 4, fontSize: 14, lineHeight: 20, fontFamily: theme.fonts.sans, color: theme.colors.textSecondary }, confirmActions: { flexDirection: 'row', gap: 10, marginTop: 22, marginHorizontal: 4 }, confirmSecondary: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 13, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border }, confirmSecondaryText: { fontSize: 14, fontFamily: theme.fonts.sansSemiBold, color: theme.colors.textPrimary }, confirmPrimary: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: theme.colors.primary },
   drawerRow: { minHeight: 49, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border, borderRadius: 10 }, drawerRowActive: { backgroundColor: theme.colors.primaryMuted }, drawerPair: { fontSize: 14, fontFamily: theme.fonts.sansSemiBold, color: theme.colors.textPrimary }, drawerGroupTitle: { marginTop: 8, marginBottom: 4, paddingHorizontal: 12, fontSize: 11, fontFamily: theme.fonts.sansSemiBold, letterSpacing: 0.6, textTransform: 'uppercase', color: theme.colors.textMuted }, drawerCopy: { marginHorizontal: 12, marginBottom: 14, fontSize: 13, lineHeight: 19, fontFamily: theme.fonts.sans, color: theme.colors.textSecondary }, directionRow: { flexDirection: 'row', gap: 10, marginHorizontal: 12, paddingBottom: 8 }, directionButton: { flex: 1, minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 12 }, longButton: { backgroundColor: theme.colors.primary }, shortButton: { backgroundColor: theme.colors.danger }, directionText: { fontSize: 14, fontFamily: theme.fonts.sansSemiBold, color: '#ffffff' }, errorState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }, errorTitle: { fontSize: 19, fontFamily: theme.fonts.sansSemiBold, color: theme.colors.textPrimary }, errorCopy: { marginTop: 7, textAlign: 'center', fontSize: 13, lineHeight: 19, fontFamily: theme.fonts.sans, color: theme.colors.textSecondary }, retry: { marginTop: 20, minHeight: 44, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: theme.colors.primary }, retryText: { fontSize: 13, fontFamily: theme.fonts.sansSemiBold, color: '#ffffff' },
   analysisTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginHorizontal: 4 }, analysisDirection: { fontSize: 20, fontFamily: theme.fonts.sansBold }, analysisLong: { color: theme.colors.primary }, analysisShort: { color: theme.colors.danger }, analysisSpinner: { marginTop: 14 }, analysisCopy: { marginTop: 8, marginHorizontal: 4, fontSize: 13, lineHeight: 19, fontFamily: theme.fonts.sans, color: theme.colors.textSecondary }, analysisEntry: { marginTop: 18, marginHorizontal: 4, padding: 16, borderRadius: 16, backgroundColor: theme.colors.surfaceRaised }, analysisLabel: { fontSize: 11, fontFamily: theme.fonts.sansSemiBold, textTransform: 'uppercase', letterSpacing: 0.7, color: theme.colors.textMuted }, analysisEntryPrice: { marginTop: 5, fontSize: 30, fontFamily: theme.fonts.monoBold, letterSpacing: -0.7, color: theme.colors.textPrimary }, analysisLevels: { flexDirection: 'row', gap: 10, marginTop: 10, marginHorizontal: 4 }, analysisLevel: { flex: 1, padding: 13, borderRadius: 14, backgroundColor: theme.colors.surfaceRaised }, analysisStopLabel: { fontSize: 11, fontFamily: theme.fonts.sansSemiBold, color: theme.colors.danger }, analysisTargetLabel: { fontSize: 11, fontFamily: theme.fonts.sansSemiBold, color: theme.colors.primary }, analysisLevelPrice: { marginTop: 5, fontSize: 15, fontFamily: theme.fonts.monoBold, color: theme.colors.textPrimary }, analysisLevelCopy: { marginTop: 4, fontSize: 11, fontFamily: theme.fonts.sans, color: theme.colors.textMuted }, analysisRr: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingHorizontal: 8 }, analysisRrValue: { fontSize: 16, fontFamily: theme.fonts.monoBold, color: theme.colors.textPrimary }, analysisActions: { flexDirection: 'row', gap: 10, marginHorizontal: 4, marginTop: 20 }, analysisPrimary: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', marginTop: 20, borderRadius: 13, backgroundColor: theme.colors.primary }, analysisPrimaryText: { fontSize: 15, fontFamily: theme.fonts.sansSemiBold, color: '#ffffff' }, analysisSecondary: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', marginTop: 20, borderRadius: 13, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border }, analysisSecondaryText: { fontSize: 15, fontFamily: theme.fonts.sansSemiBold, color: theme.colors.textPrimary },
 });

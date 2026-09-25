@@ -73,7 +73,9 @@ export type PendingEntry = {
   entryOrderType: string;
   expiresAt: string | null;
   invalidationPrice: number | null;
-  status: 'PENDING' | 'TRIGGERING' | 'CANCELLED' | 'TRIGGERED' | 'EXPIRED' | 'FAILED';
+  status: 'PENDING' | 'TRIGGERING' | 'CANCELLED' | 'TRIGGERED' | 'EXPIRED' | 'INVALIDATED' | 'FAILED';
+  paperTradeId: string | null;
+  paperTradeStatus: 'open' | 'closed' | null;
 };
 
 export type CalendarEvent = {

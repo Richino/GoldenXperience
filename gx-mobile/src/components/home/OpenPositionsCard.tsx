@@ -44,7 +44,6 @@ export function OpenPositionsCard({ positions, currency }: { positions: OpenPosi
             >
               <View style={styles.rowTop}>
                 <Text style={styles.pair}>{position.pair || pairLabel(position.instrument)}</Text>
-                <Text style={[styles.status, position.direction === 'long' ? styles.statusLong : styles.statusShort]}>Open</Text>
                 <Text style={[styles.pl, profitable ? styles.positive : styles.negative]}>{moneyLabel(position.unrealizedPL, currency)}</Text>
               </View>
               <View style={styles.summaryRow}>
@@ -69,9 +68,6 @@ const styles = StyleSheet.create({
   rowPressed: { opacity: 0.72 },
   rowTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   pair: { fontSize: 14, fontFamily: theme.fonts.sansBold, color: theme.colors.textPrimary },
-  status: { fontSize: 11, fontFamily: theme.fonts.sansSemiBold, color: theme.colors.textSecondary },
-  statusLong: { color: theme.colors.primary },
-  statusShort: { color: theme.colors.danger },
   pl: { flexShrink: 0, fontSize: 13, fontFamily: theme.fonts.monoSemiBold },
   summaryRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   summary: { flex: 1, fontSize: 13, lineHeight: 19, fontFamily: theme.fonts.sans, color: theme.colors.textSecondary },

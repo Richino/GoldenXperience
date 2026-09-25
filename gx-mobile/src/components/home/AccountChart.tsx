@@ -1,14 +1,11 @@
 import { useMemo, useState } from 'react';
 import { LayoutChangeEvent, StyleSheet, View } from 'react-native';
-import Svg, { Defs, Line, LinearGradient, Path, Stop, Text as SvgText } from 'react-native-svg';
+import Svg, { Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
 
 import { rawColors, theme } from '@/constants/theme';
 import { Text } from '@/components/ui/AppText';
 import { usePreferences } from '@/lib/preferences/PreferencesContext';
 import { accountSeriesTone, type AccountChartPoint } from '@/lib/home/account-series';
-
-const Y_TICK_COUNT = 4;
-const RIGHT_LABEL_GUTTER = 50;
 
 function seriesStroke(tone: ReturnType<typeof accountSeriesTone>, palette: (typeof rawColors)['light' | 'dark']) {
   if (tone === 'up') return palette.chartUp;
@@ -26,20 +23,11 @@ function chartDomain(points: AccountChartPoint[]) {
   return { domainMin, domainMax, domainSpan: domainMax - domainMin || 1 };
 }
 
-function formatAxisMoney(value: number, currency: string) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: Math.abs(value) >= 1000 ? 0 : 2,
-  }).format(value);
-}
-
 function buildPaths(points: AccountChartPoint[], width: number, height: number, domainMin: number, domainSpan: number) {
   if (points.length < 2 || width <= 0) return { line: '', area: '' };
 
   const padX = 4;
-  const plotRight = width - RIGHT_LABEL_GUTTER;
-  const usableW = Math.max(plotRight - padX, 1);
+  const usableW = Math.max(width - padX, 1);
   const step = usableW / (points.length - 1);
 
   const coords = points.map((point, index) => ({
@@ -58,21 +46,14 @@ function buildPaths(points: AccountChartPoint[], width: number, height: number, 
   return { line, area };
 }
 
-export function AccountChart({ series, currency, height = 148 }: { series: AccountChartPoint[]; currency: string; height?: number }) {
+export function AccountChart({ series, height = 148 }: { series: AccountChartPoint[]; height?: number }) {
   const [width, setWidth] = useState(0);
   const { themeMode } = usePreferences();
   const palette = rawColors[themeMode];
   const tone = accountSeriesTone(series);
   const stroke = seriesStroke(tone, palette);
-  const { domainMin, domainMax, domainSpan } = useMemo(() => chartDomain(series), [series]);
+  const { domainMin, domainSpan } = useMemo(() => chartDomain(series), [series]);
   const paths = buildPaths(series, width, height, domainMin, domainSpan);
-  const yTicks = useMemo(
-    () => Array.from({ length: Y_TICK_COUNT }, (_, index) => ({
-      value: domainMax - (domainSpan * index) / (Y_TICK_COUNT - 1),
-      y: (height * index) / (Y_TICK_COUNT - 1),
-    })),
-    [domainMax, domainSpan, height],
-  );
   const labelStep = Math.max(1, Math.ceil(series.length / 6));
   const labels = series.filter((_, index) => index % labelStep === 0 || index === series.length - 1);
 
@@ -95,7 +76,7 @@ export function AccountChart({ series, currency, height = 148 }: { series: Accou
               <Line
                 key={ratio}
                 x1={0}
-                x2={width - RIGHT_LABEL_GUTTER}
+                x2={width}
                 y1={height * ratio}
                 y2={height * ratio}
                 stroke={palette.border}
@@ -105,19 +86,6 @@ export function AccountChart({ series, currency, height = 148 }: { series: Accou
             ))}
             <Path d={paths.area} fill="url(#accountFill)" />
             <Path d={paths.line} stroke={stroke} strokeWidth={2.25} fill="none" strokeLinecap="butt" strokeLinejoin="miter" />
-            {yTicks.map((tick) => (
-              <SvgText
-                key={tick.value}
-                x={width - 2}
-                y={Math.min(height - 2, Math.max(10, tick.y + 3))}
-                fill={palette.textMuted}
-                fontSize={9}
-                fontFamily={theme.fonts.monoMedium}
-                textAnchor="end"
-              >
-                {formatAxisMoney(tick.value, currency)}
-              </SvgText>
-            ))}
           </Svg>
         ) : null}
       </View>

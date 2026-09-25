@@ -117,7 +117,7 @@ export function BalancePerformanceCard({
         })}
       </View>
 
-      <AccountChart series={series} currency={account.currency} height={190} />
+      <AccountChart series={series} height={190} />
 
       <View style={styles.stats}>
         <View style={styles.stat}>

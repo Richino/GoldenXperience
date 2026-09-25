@@ -47,8 +47,10 @@ export function OpenPositionsCard({ positions, currency }: { positions: OpenPosi
                 <Text style={[styles.status, position.direction === 'long' ? styles.statusLong : styles.statusShort]}>Open</Text>
                 <Text style={[styles.pl, profitable ? styles.positive : styles.negative]}>{moneyLabel(position.unrealizedPL, currency)}</Text>
               </View>
-              <Text style={styles.summary}>{action} opened at <Text style={styles.entryPrice}>{formatPrice(position.entryPrice, position.instrument)}</Text></Text>
-              {resultR !== null ? <Text style={[styles.progress, resultR >= 0 ? styles.positive : styles.negative]}>Progress: {resultR >= 0 ? '+' : ''}{resultR.toFixed(2)}R</Text> : null}
+              <View style={styles.summaryRow}>
+                <Text style={styles.summary} numberOfLines={1}>{action} opened at <Text style={styles.entryPrice}>{formatPrice(position.entryPrice, position.instrument)}</Text></Text>
+                {resultR !== null ? <Text style={[styles.progress, resultR >= 0 ? styles.positive : styles.negative]}>{resultR >= 0 ? '+' : ''}{resultR.toFixed(2)}R</Text> : null}
+              </View>
             </Pressable>
           );
         })}
@@ -71,7 +73,8 @@ const styles = StyleSheet.create({
   statusLong: { color: theme.colors.primary },
   statusShort: { color: theme.colors.danger },
   pl: { flexShrink: 0, fontSize: 13, fontFamily: theme.fonts.monoSemiBold },
-  summary: { fontSize: 13, lineHeight: 19, fontFamily: theme.fonts.sans, color: theme.colors.textSecondary },
+  summaryRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  summary: { flex: 1, fontSize: 13, lineHeight: 19, fontFamily: theme.fonts.sans, color: theme.colors.textSecondary },
   entryPrice: { fontFamily: theme.fonts.monoSemiBold, color: theme.colors.textPrimary },
   progress: { fontSize: 11, fontFamily: theme.fonts.monoSemiBold },
   positive: { color: theme.colors.primary },

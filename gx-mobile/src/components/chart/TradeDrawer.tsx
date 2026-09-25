@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { Text } from '@/components/ui/AppText';
 import { BottomDrawer } from '@/components/ui/BottomDrawer';
@@ -162,7 +162,6 @@ export function TradeDrawer({
 
   return (
     <BottomDrawer visible={visible} onClose={onClose} eyebrow="Trade" title={pairLabel(instrument)} scrollable>
-      {checkingBlock ? <ActivityIndicator style={styles.loader} color={theme.colors.primary} /> : null}
       {creationBlocked ? (
         <Text style={styles.blocked}>
           This pair already has an active position. Close it before creating another entry.
@@ -215,7 +214,7 @@ export function TradeDrawer({
         accessibilityRole="button"
         accessibilityLabel="Create pending entry"
       >
-        <Text style={styles.submitText}>{saving ? 'Saving…' : 'Create entry'}</Text>
+        <Text style={styles.submitText}>{saving ? 'Saving…' : checkingBlock ? 'Checking open positions…' : 'Create entry'}</Text>
       </Pressable>
     </BottomDrawer>
   );
@@ -242,7 +241,6 @@ function Field({
 }
 
 const styles = StyleSheet.create({
-  loader: { marginVertical: 8 },
   blocked: { marginHorizontal: 4, marginBottom: 12, fontSize: 13, lineHeight: 19, fontFamily: theme.fonts.sansMedium, color: theme.colors.danger },
   directionRow: { flexDirection: 'row', gap: 10, marginBottom: 14, paddingHorizontal: 4 },
   directionButton: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12, opacity: 0.45 },

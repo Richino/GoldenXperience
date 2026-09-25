@@ -4,13 +4,20 @@ import { HomeCard } from '@/components/home/HomeCard';
 import { Text } from '@/components/ui/AppText';
 import { theme } from '@/constants/theme';
 import type { ActivityItem } from '@/lib/home/activity';
-import { moneyLabel, rLabel } from '@/lib/format';
+import { moneyLabel } from '@/lib/format';
 import { formatShortDay } from '@/lib/time';
 
 function toneColor(kind: ActivityItem['kind']) {
   if (kind === 'tp') return theme.colors.primary;
   if (kind === 'sl') return theme.colors.danger;
   return theme.colors.textSecondary;
+}
+
+function friendlyOutcome(item: ActivityItem) {
+  if (item.label === 'BROKER REJECTED') return 'Could not open trade';
+  if (item.kind === 'tp') return 'Profit target reached';
+  if (item.kind === 'sl') return 'Stopped at your limit';
+  return 'Trade closed';
 }
 
 export function RecentActivityCard({ items, currency }: { items: ActivityItem[]; currency: string }) {
@@ -26,23 +33,19 @@ export function RecentActivityCard({ items, currency }: { items: ActivityItem[];
           {items.map((item, index) => {
             const tone = toneColor(item.kind);
             const hasMoney = item.paperPl !== null;
-            const hasR = item.resultR !== null;
-            const primaryValue = hasMoney ? moneyLabel(item.paperPl, currency) : hasR ? rLabel(item.resultR) : 'Closed';
+            const primaryValue = hasMoney ? moneyLabel(item.paperPl, currency) : 'Closed';
             return (
               <View key={item.id} style={[styles.row, index < items.length - 1 ? styles.rowBorder : null]}>
                 <View style={styles.left}>
                   <Text style={styles.pair}>{item.pair}</Text>
                   <View style={styles.outcomeRow}>
                     <View style={[styles.outcomeDot, { backgroundColor: tone }]} />
-                    <Text style={[styles.result, { color: tone }]}>{item.label}</Text>
+                    <Text style={[styles.result, { color: tone }]}>{friendlyOutcome(item)}</Text>
                   </View>
                 </View>
                 <View style={styles.right}>
-                  <Text style={[styles.money, { color: hasMoney || hasR ? tone : theme.colors.textSecondary }]}>{primaryValue}</Text>
-                  <View style={styles.meta}>
-                    {hasMoney && hasR ? <><Text style={[styles.rValue, { color: tone }]}>{rLabel(item.resultR)}</Text><Text style={styles.metaDivider}>·</Text></> : null}
-                    <Text style={styles.date}>{formatShortDay(item.at)}</Text>
-                  </View>
+                  <Text style={[styles.money, { color: hasMoney ? tone : theme.colors.textSecondary }]}>{primaryValue}</Text>
+                  <Text style={styles.date}>{formatShortDay(item.at)}</Text>
                 </View>
               </View>
             );
@@ -116,10 +119,8 @@ const styles = StyleSheet.create({
     color: theme.colors.textPrimary,
   },
   result: {
-    fontSize: 10,
-    fontFamily: theme.fonts.sansBold,
-    letterSpacing: 0.3,
-    textTransform: 'uppercase',
+    fontSize: 11,
+    fontFamily: theme.fonts.sansMedium,
   },
   outcomeDot: {
     width: 5,
@@ -131,21 +132,8 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     fontFamily: theme.fonts.monoSemiBold,
   },
-  meta: {
-    marginTop: 3,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  rValue: {
-    fontSize: 10.5,
-    fontFamily: theme.fonts.monoMedium,
-  },
-  metaDivider: {
-    fontSize: 10,
-    color: theme.colors.textMuted,
-  },
   date: {
+    marginTop: 3,
     fontSize: 10.5,
     fontFamily: theme.fonts.sansSemiBold,
     color: theme.colors.textSecondary,

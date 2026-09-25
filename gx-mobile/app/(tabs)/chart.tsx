@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import {
   BarChart3,
@@ -85,6 +85,21 @@ type ChartState = {
   range?: Range;
   variant?: Variant;
 };
+type NativeTrendPullbackResult = {
+  status: 'TRADE_PLAN' | 'ENTRY_AVAILABLE_NOW' | 'NO_VALID_ENTRY';
+  action: 'LONG' | 'SHORT' | null;
+  orderType: 'BUY_LIMIT' | 'SELL_LIMIT' | null;
+  entry: number | null;
+  entryZoneLow: number | null;
+  entryZoneHigh: number | null;
+  distanceToEntryPips: number | null;
+  stopLoss: number | null;
+  stopDistancePips: number | null;
+  takeProfit: number | null;
+  targetDistancePips: number | null;
+  riskReward: number | null;
+  reasons: string[];
+};
 
 const VARIANT_ICONS: Record<Variant, LucideIcon> = {
   candle: CandlestickChart,
@@ -157,6 +172,10 @@ export default function ChartScreen() {
   const [tradeOpen, setTradeOpen] = useState(false);
   const [prefsReady, setPrefsReady] = useState(false);
   const [marketBusy, setMarketBusy] = useState(false);
+  const [analysisModalOpen, setAnalysisModalOpen] = useState(false);
+  const [analysisBusy, setAnalysisBusy] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<NativeTrendPullbackResult | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const webView = useRef<WebView>(null);
   const webReadyRef = useRef(false);
   const insets = useSafeAreaInsets();
@@ -240,8 +259,22 @@ export default function ChartScreen() {
   // saved choice back to the web default, e.g. candles → area.
   const reconciledAtRef = useRef(0);
   const handleWebMessage = (data: string) => {
-    let message: { type?: string } & Partial<ChartState>;
+    let message: { type?: string; result?: NativeTrendPullbackResult; error?: string } & Partial<ChartState>;
     try { message = JSON.parse(data) as typeof message; } catch { return; }
+    if (message.type === 'gx-native-trend-pullback-result' && message.result) {
+      setAnalysisResult(message.result);
+      setAnalysisError(null);
+      setAnalysisBusy(false);
+      setAnalysisModalOpen(true);
+      return;
+    }
+    if (message.type === 'gx-native-trend-pullback-error') {
+      setAnalysisResult(null);
+      setAnalysisError(message.error ?? 'TrendPullbackV1 could not run.');
+      setAnalysisBusy(false);
+      setAnalysisModalOpen(true);
+      return;
+    }
     if (message.type === 'gx-native-chart-ready') {
       webReadyRef.current = true;
       if (prefsReady) pushChartPreferences();
@@ -288,6 +321,10 @@ export default function ChartScreen() {
     setTimeframe(next);
   };
   const analyzeChart = () => {
+    setAnalysisResult(null);
+    setAnalysisError(null);
+    setAnalysisBusy(true);
+    setAnalysisModalOpen(true);
     setEnabledIndicators((current) => current.includes('adaptive-swing-trendlines-v1')
       ? current : [...current, 'adaptive-swing-trendlines-v1']);
     if (timeframe !== '15m') {
@@ -296,6 +333,11 @@ export default function ChartScreen() {
       command('timeframe', '15m');
     }
     command('analyze');
+  };
+  const cancelAnalysis = () => {
+    command('cancel-analysis');
+    setAnalysisBusy(false);
+    setAnalysisModalOpen(false);
   };
   const selectRange = (next: Range) => {
     if (next === range) { setRangesOpen(false); return; }
@@ -343,7 +385,18 @@ export default function ChartScreen() {
       ask={chartState?.ask ?? null}
       onCreated={() => command('refresh')}
     />
+    <NativeTrendPullbackModal visible={analysisModalOpen} busy={analysisBusy} result={analysisResult} error={analysisError} instrument={instrument} onClose={() => setAnalysisModalOpen(false)} onCancel={cancelAnalysis} />
   </View>;
+}
+
+function NativeTrendPullbackModal({ visible, busy, result, error, instrument, onClose, onCancel }: { visible: boolean; busy: boolean; result: NativeTrendPullbackResult | null; error: string | null; instrument: string; onClose: () => void; onCancel: () => void }) {
+  const plan = result?.status !== 'NO_VALID_ENTRY' ? result : null;
+  return <Modal visible={visible} transparent animationType="fade" presentationStyle="overFullScreen" onRequestClose={busy ? onCancel : onClose}>
+    <View style={styles.analysisBackdrop}><View style={styles.analysisCard}>
+      <Text style={styles.analysisEyebrow}>TrendPullbackV1 · M15</Text>
+      {busy ? <><Text style={styles.analysisTitle}>Analyzing chart</Text><ActivityIndicator style={styles.analysisSpinner} color={theme.colors.primary} /><Text style={styles.analysisCopy}>Loading fresh candles and the current OANDA price.</Text><Pressable onPress={onCancel} style={styles.analysisSecondary}><Text style={styles.analysisSecondaryText}>Cancel</Text></Pressable></> : plan ? <><View style={styles.analysisTitleRow}><Text style={styles.analysisTitle}>{result?.status === 'ENTRY_AVAILABLE_NOW' ? 'Entry available now' : 'Planned pullback entry'}</Text><Text style={[styles.analysisDirection, plan.action === 'LONG' ? styles.analysisLong : styles.analysisShort]}>{plan.action}</Text></View><View style={styles.analysisEntry}><Text style={styles.analysisLabel}>Entry</Text><Text style={styles.analysisEntryPrice}>{price(plan.entry, instrument)}</Text><Text style={styles.analysisCopy}>Zone {price(plan.entryZoneLow, instrument)} – {price(plan.entryZoneHigh, instrument)} · {plan.distanceToEntryPips?.toFixed(1) ?? '—'} pips away</Text></View><View style={styles.analysisLevels}><View style={styles.analysisLevel}><Text style={styles.analysisStopLabel}>Stop loss</Text><Text style={styles.analysisLevelPrice}>{price(plan.stopLoss, instrument)}</Text><Text style={styles.analysisLevelCopy}>{plan.stopDistancePips?.toFixed(1) ?? '—'} pips risk</Text></View><View style={styles.analysisLevel}><Text style={styles.analysisTargetLabel}>Take profit</Text><Text style={styles.analysisLevelPrice}>{price(plan.takeProfit, instrument)}</Text><Text style={styles.analysisLevelCopy}>{plan.targetDistancePips?.toFixed(1) ?? '—'} pips reward</Text></View></View><View style={styles.analysisRr}><Text style={styles.analysisCopy}>Risk / reward</Text><Text style={styles.analysisRrValue}>{plan.riskReward?.toFixed(2) ?? '—'}:1</Text></View><Pressable onPress={onClose} style={styles.analysisPrimary}><Text style={styles.analysisPrimaryText}>Done</Text></Pressable></> : <><Text style={styles.analysisTitle}>{error ? 'Analysis unavailable' : 'No trade plan'}</Text><Text style={styles.analysisCopy}>{error ?? result?.reasons[0] ?? 'TrendPullbackV1 could not form a valid setup.'}</Text><Pressable onPress={onClose} style={styles.analysisPrimary}><Text style={styles.analysisPrimaryText}>Done</Text></Pressable></>}
+    </View></View>
+  </Modal>;
 }
 
 function Tool({ icon: Icon, label, active = false, onPress }: { icon: LucideIcon; label: string; active?: boolean; onPress: () => void }) {
@@ -360,4 +413,5 @@ const styles = StyleSheet.create({
   quoteRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }, quote: { fontSize: 22, fontFamily: theme.fonts.monoBold, color: theme.colors.textPrimary, letterSpacing: -0.5 }, change: { fontSize: 11, fontFamily: theme.fonts.monoMedium }, up: { color: theme.colors.primary }, down: { color: theme.colors.danger }, session: { marginLeft: 'auto', fontSize: 10, fontFamily: theme.fonts.sansSemiBold, letterSpacing: 0.4, textTransform: 'uppercase', color: theme.colors.textMuted }, timeframes: { minHeight: 39, flexDirection: 'row', padding: 3, borderRadius: 10, backgroundColor: theme.colors.surfaceRaised }, timeframe: { flex: 1, minHeight: 33, alignItems: 'center', justifyContent: 'center', borderRadius: 7 }, timeframeActive: { backgroundColor: theme.colors.primarySoft }, timeframeText: { fontSize: 11, fontFamily: theme.fonts.sansSemiBold, color: theme.colors.textSecondary }, timeframeTextActive: { color: theme.colors.primary },
   chartFrame: { flex: 1, minHeight: 180 }, webview: { flex: 1 }, loading: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', gap: 9 }, loadingText: { fontSize: 13, fontFamily: theme.fonts.sansMedium, color: theme.colors.textSecondary }, toolbar: { zIndex: 6, minHeight: 52, flexDirection: 'row', paddingHorizontal: 8, paddingVertical: 8, gap: 4, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.cardBorder }, tool: { flex: 1, minWidth: 0, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 11 }, toolActive: { backgroundColor: theme.colors.primarySoft }, tradeAction: { zIndex: 6, marginBottom: 94, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10, backgroundColor: 'transparent' }, tradeButton: { minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: theme.colors.primary }, tradeButtonText: { fontSize: 14, fontFamily: theme.fonts.sansSemiBold, color: '#ffffff' },
   drawerRow: { minHeight: 49, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border, borderRadius: 10 }, drawerRowActive: { backgroundColor: theme.colors.primaryMuted }, drawerPair: { fontSize: 14, fontFamily: theme.fonts.sansSemiBold, color: theme.colors.textPrimary }, drawerGroupTitle: { marginTop: 8, marginBottom: 4, paddingHorizontal: 12, fontSize: 11, fontFamily: theme.fonts.sansSemiBold, letterSpacing: 0.6, textTransform: 'uppercase', color: theme.colors.textMuted }, drawerCopy: { marginHorizontal: 12, marginBottom: 14, fontSize: 13, lineHeight: 19, fontFamily: theme.fonts.sans, color: theme.colors.textSecondary }, directionRow: { flexDirection: 'row', gap: 10, marginHorizontal: 12, paddingBottom: 8 }, directionButton: { flex: 1, minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 12 }, longButton: { backgroundColor: theme.colors.primary }, shortButton: { backgroundColor: theme.colors.danger }, directionText: { fontSize: 14, fontFamily: theme.fonts.sansSemiBold, color: '#ffffff' }, errorState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }, errorTitle: { fontSize: 19, fontFamily: theme.fonts.sansSemiBold, color: theme.colors.textPrimary }, errorCopy: { marginTop: 7, textAlign: 'center', fontSize: 13, lineHeight: 19, fontFamily: theme.fonts.sans, color: theme.colors.textSecondary }, retry: { marginTop: 20, minHeight: 44, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: theme.colors.primary }, retryText: { fontSize: 13, fontFamily: theme.fonts.sansSemiBold, color: '#ffffff' },
+  analysisBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.54)' }, analysisCard: { borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 32, backgroundColor: theme.colors.surface }, analysisEyebrow: { fontSize: 11, fontFamily: theme.fonts.sansSemiBold, letterSpacing: 0.8, textTransform: 'uppercase', color: theme.colors.primary }, analysisTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }, analysisTitle: { marginTop: 5, fontSize: 22, fontFamily: theme.fonts.sansBold, color: theme.colors.textPrimary }, analysisDirection: { fontSize: 20, fontFamily: theme.fonts.sansBold }, analysisLong: { color: theme.colors.primary }, analysisShort: { color: theme.colors.danger }, analysisSpinner: { marginTop: 22 }, analysisCopy: { marginTop: 8, fontSize: 13, lineHeight: 19, fontFamily: theme.fonts.sans, color: theme.colors.textSecondary }, analysisEntry: { marginTop: 18, padding: 16, borderRadius: 16, backgroundColor: theme.colors.surfaceRaised }, analysisLabel: { fontSize: 11, fontFamily: theme.fonts.sansSemiBold, textTransform: 'uppercase', letterSpacing: 0.7, color: theme.colors.textMuted }, analysisEntryPrice: { marginTop: 5, fontSize: 30, fontFamily: theme.fonts.monoBold, letterSpacing: -0.7, color: theme.colors.textPrimary }, analysisLevels: { flexDirection: 'row', gap: 10, marginTop: 10 }, analysisLevel: { flex: 1, padding: 13, borderRadius: 14, backgroundColor: theme.colors.surfaceRaised }, analysisStopLabel: { fontSize: 11, fontFamily: theme.fonts.sansSemiBold, color: theme.colors.danger }, analysisTargetLabel: { fontSize: 11, fontFamily: theme.fonts.sansSemiBold, color: theme.colors.primary }, analysisLevelPrice: { marginTop: 5, fontSize: 15, fontFamily: theme.fonts.monoBold, color: theme.colors.textPrimary }, analysisLevelCopy: { marginTop: 4, fontSize: 11, fontFamily: theme.fonts.sans, color: theme.colors.textMuted }, analysisRr: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingHorizontal: 4 }, analysisRrValue: { fontSize: 16, fontFamily: theme.fonts.monoBold, color: theme.colors.textPrimary }, analysisPrimary: { minHeight: 48, alignItems: 'center', justifyContent: 'center', marginTop: 20, borderRadius: 13, backgroundColor: theme.colors.primary }, analysisPrimaryText: { fontSize: 15, fontFamily: theme.fonts.sansSemiBold, color: '#ffffff' }, analysisSecondary: { minHeight: 48, alignItems: 'center', justifyContent: 'center', marginTop: 20, borderRadius: 13, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border }, analysisSecondaryText: { fontSize: 15, fontFamily: theme.fonts.sansSemiBold, color: theme.colors.textPrimary },
 });

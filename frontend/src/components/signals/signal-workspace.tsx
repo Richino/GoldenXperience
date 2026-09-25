@@ -2120,6 +2120,11 @@ export function SignalWorkspace({
   const [trendPullbackError, setTrendPullbackError] = useState<string | null>(null);
   const trendPullbackRequestRef = useRef(0);
   const trendPullbackAbortRef = useRef<AbortController | null>(null);
+  const postTrendPullbackToNative = useCallback((message: Record<string, unknown>) => {
+    if (!embeddedSurfaceOnly) return;
+    (window as Window & { ReactNativeWebView?: { postMessage: (data: string) => void } }).ReactNativeWebView
+      ?.postMessage(JSON.stringify(message));
+  }, [embeddedSurfaceOnly]);
   useEffect(() => {
     trendPullbackRequestRef.current += 1;
     trendPullbackAbortRef.current?.abort();
@@ -2138,7 +2143,7 @@ export function SignalWorkspace({
     setTrendPullbackError(null);
     setTrendPullbackBusy(true);
     setTrendPullbackResult(null);
-    setTrendPullbackDialogOpen(true);
+    setTrendPullbackDialogOpen(!embeddedSurfaceOnly);
     try {
       const [candlesResponse, pricingResponse] = await Promise.all([
         fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=M15&count=500`), { credentials: "include", cache: "no-store", signal: controller.signal }),
@@ -2161,18 +2166,23 @@ export function SignalWorkspace({
       const result = analyzeTrendPullbackV1({ instrument, candles: candlesPayload.data.candles, currentPrice });
       if (request !== trendPullbackRequestRef.current) return;
       setTrendPullbackResult(result);
-      setTrendPullbackDialogOpen(true);
+      setTrendPullbackDialogOpen(!embeddedSurfaceOnly);
+      postTrendPullbackToNative({ type: "gx-native-trend-pullback-result", result });
       setTimeframe("15m");
       setEnabledIndicators((enabled) => enabled.includes("adaptive-swing-trendlines-v1")
         ? enabled : [...enabled, "adaptive-swing-trendlines-v1"]);
     } catch (error) {
       if (controller.signal.aborted) return;
-      if (request === trendPullbackRequestRef.current) setTrendPullbackError(error instanceof Error ? error.message : "TrendPullbackV1 could not run.");
+      if (request === trendPullbackRequestRef.current) {
+        const message = error instanceof Error ? error.message : "TrendPullbackV1 could not run.";
+        setTrendPullbackError(message);
+        postTrendPullbackToNative({ type: "gx-native-trend-pullback-error", error: message });
+      }
     } finally {
       if (request === trendPullbackRequestRef.current) setTrendPullbackBusy(false);
       if (trendPullbackAbortRef.current === controller) trendPullbackAbortRef.current = null;
     }
-  }, [instrument]);
+  }, [embeddedSurfaceOnly, instrument, postTrendPullbackToNative]);
   const cancelTrendPullback = useCallback(() => {
     trendPullbackRequestRef.current += 1;
     trendPullbackAbortRef.current?.abort();
@@ -3352,6 +3362,8 @@ export function SignalWorkspace({
         startPositionTool(command.value);
       } else if (command.action === "analyze") {
         void runTrendPullback();
+      } else if (command.action === "cancel-analysis") {
+        cancelTrendPullback();
       } else if (command.action === "trade") {
         openPendingEntryManager(null);
       } else if (command.action === "reset") {
@@ -3376,7 +3388,7 @@ export function SignalWorkspace({
       window.removeEventListener("message", onNativeCommand);
       document.removeEventListener("message", onNativeCommand as EventListener);
     };
-  }, [embeddedSurfaceOnly, instrument, openPendingEntryManager, refreshChart, runTrendPullback, setTheme, startPositionTool]);
+  }, [cancelTrendPullback, embeddedSurfaceOnly, instrument, openPendingEntryManager, refreshChart, runTrendPullback, setTheme, startPositionTool]);
 
   useEffect(() => {
     if (!embeddedSurfaceOnly) return;

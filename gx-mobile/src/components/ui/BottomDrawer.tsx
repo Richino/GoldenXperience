@@ -30,7 +30,7 @@ export function BottomDrawer({
 }: {
   visible: boolean;
   onClose: () => void;
-  eyebrow: string;
+  eyebrow?: string;
   title: string;
   headerRight?: ReactNode;
   /** Long option lists (e.g. chart indicators) need a bounded scroll region inside the capped sheet. */
@@ -94,7 +94,7 @@ export function BottomDrawer({
               <View style={styles.handle} />
               <View style={styles.header}>
                 <View>
-                  <Text style={styles.eyebrow}>{eyebrow}</Text>
+                  {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
                   <Text style={styles.title}>{title}</Text>
                 </View>
                 <View style={styles.actions}>

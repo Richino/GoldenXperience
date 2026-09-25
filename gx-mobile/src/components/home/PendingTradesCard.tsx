@@ -65,40 +65,22 @@ export function PendingTradesCard({ entries, onCancelled }: { entries: PendingEn
         {entries.map((entry) => {
           const canCancel = entry.status === 'PENDING';
           const cancelling = cancellingId === entry.id;
+          const action = entry.direction === 'long' ? 'Buy' : 'Sell';
           return (
             <View key={entry.id} style={styles.row}>
               <View style={styles.rowTop}>
                 <Text style={styles.pair}>{pairLabel(entry.instrument)}</Text>
-                <View style={[styles.sideBadge, entry.direction === 'long' ? styles.sideLong : styles.sideShort]}>
-                  <Text style={[styles.sideText, entry.direction === 'long' ? styles.sideTextLong : styles.sideTextShort]}>
-                    {entry.direction.toUpperCase()}
-                  </Text>
-                </View>
-                <Text style={styles.orderType}>{entry.entryOrderType.replace('_', ' ')}</Text>
+                <Text style={[styles.status, entry.direction === 'long' ? styles.statusLong : styles.statusShort]}>{canCancel ? 'Waiting' : 'Setting up'}</Text>
               </View>
-              <View style={styles.rowMeta}>
-                <View>
-                  <Text style={styles.metaLabel}>Entry</Text>
-                  <Text style={styles.metaValue}>{formatPrice(entry.entryPrice, entry.instrument)}</Text>
-                </View>
-                <View>
-                  <Text style={styles.metaLabel}>Expires</Text>
-                  <Text style={styles.metaValue}>{expirationLabel(entry.expiresAt)}</Text>
-                </View>
-                <View>
-                  <Text style={styles.metaLabel}>Cancel at</Text>
-                  <Text style={styles.metaValue}>
-                    {entry.invalidationPrice === null ? 'None' : formatPrice(entry.invalidationPrice, entry.instrument)}
-                  </Text>
-                </View>
-              </View>
+              <Text style={styles.summary}>{action} when price reaches <Text style={styles.entryPrice}>{formatPrice(entry.entryPrice, entry.instrument)}</Text></Text>
+              {entry.expiresAt ? <Text style={styles.expiration}>Expires {expirationLabel(entry.expiresAt)}</Text> : null}
               <Pressable
                 disabled={!canCancel || cancelling}
                 onPress={() => confirmCancel(entry)}
                 style={[styles.cancelBtn, !canCancel || cancelling ? styles.cancelBtnDisabled : null]}
               >
                 <SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={12} tintColor={theme.colors.textSecondary} />
-                <Text style={styles.cancelText}>{cancelling ? 'Cancelling…' : canCancel ? 'Cancel' : 'Processing'}</Text>
+                <Text style={styles.cancelText}>{cancelling ? 'Cancelling…' : canCancel ? 'Cancel pending trade' : 'Setting up…'}</Text>
               </Pressable>
             </View>
           );
@@ -142,8 +124,8 @@ const styles = StyleSheet.create({
   row: {
     borderRadius: theme.radii.md,
     backgroundColor: theme.colors.surfaceInset,
-    padding: 12,
-    gap: 10,
+    padding: 14,
+    gap: 8,
   },
   rowTop: {
     flexDirection: 'row',
@@ -155,60 +137,40 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.sansBold,
     color: theme.colors.textPrimary,
   },
-  sideBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 5,
+  status: {
+    marginLeft: 'auto',
+    fontSize: 11,
+    fontFamily: theme.fonts.sansSemiBold,
   },
-  sideLong: {
-    backgroundColor: theme.colors.primarySoft,
-  },
-  sideShort: {
-    backgroundColor: theme.colors.dangerSoft,
-  },
-  sideText: {
-    fontSize: 9,
-    fontFamily: theme.fonts.sansExtraBold,
-    letterSpacing: 0.4,
-  },
-  sideTextLong: {
+  statusLong: {
     color: theme.colors.primary,
   },
-  sideTextShort: {
+  statusShort: {
     color: theme.colors.danger,
   },
-  orderType: {
+  summary: {
+    fontSize: 13,
+    lineHeight: 19,
+    fontFamily: theme.fonts.sans,
+    color: theme.colors.textSecondary,
+  },
+  entryPrice: {
+    fontFamily: theme.fonts.monoSemiBold,
+    color: theme.colors.textPrimary,
+  },
+  expiration: {
     fontSize: 11,
     fontFamily: theme.fonts.sansMedium,
-    color: theme.colors.textSecondary,
-    textTransform: 'capitalize',
-  },
-  rowMeta: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  metaLabel: {
-    fontSize: 9,
-    fontFamily: theme.fonts.sansMedium,
-    letterSpacing: 0.6,
     color: theme.colors.textMuted,
-    textTransform: 'uppercase',
-  },
-  metaValue: {
-    marginTop: 3,
-    fontSize: 12.5,
-    fontFamily: theme.fonts.monoMedium,
-    color: theme.colors.textPrimary,
   },
   cancelBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: theme.radii.pill,
+    minHeight: 42,
+    marginTop: 2,
+    borderRadius: 11,
     backgroundColor: theme.colors.surfaceRaised,
   },
   cancelBtnDisabled: {

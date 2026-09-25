@@ -51,6 +51,8 @@ import {
   EMBED_MAX_VISIBLE_BARS,
   getLatestVisibleLogicalRange,
   isChartIndicatorEnabled,
+  LATEST_CANDLE_POSITION,
+  MAX_VISIBLE_BARS,
   pricePrecision,
   anchorRangeAfterPrepend,
   shouldLoadOlderHistory,
@@ -668,7 +670,9 @@ function chartTheme(
       horzLines: { color: horzGrid, style: LineStyle.Solid, visible: true },
     },
     crosshair: {
-      mode: CrosshairMode.Normal,
+      // Mobile has no hover: the crosshair only appeared on a long press, where
+      // it got in the way of panning and pinching. Desktop keeps it.
+      mode: embedded ? CrosshairMode.Hidden : CrosshairMode.Normal,
       vertLine: {
         color: isDark ? "rgba(0,229,155,0.22)" : "rgba(0,179,119,0.28)",
         width: 1 as const,
@@ -731,13 +735,20 @@ function scrollChartToLatest(
   // whatever timeframe just loaded. A time window sized to the range selector
   // dropped the whole (capped) history onto the screen, compressed edge to
   // edge, and any leftover width threw the candles against the far-left side.
-  const rightOffset = chart.timeScale().options().rightOffset ?? 6;
-  const logicalRange = getLatestVisibleLogicalRange(
-    series.candles,
-    range,
-    rightOffset,
-    { maxVisibleBars: embedded ? EMBED_MAX_VISIBLE_BARS : undefined },
+  //
+  // The bar count is also capped by what the pane can draw at the library's
+  // minimum bar spacing. Past that the library clamps the zoom itself and the
+  // newest candle no longer lands at LATEST_CANDLE_POSITION of the width.
+  const timeScale = chart.timeScale();
+  const minBarSpacing = timeScale.options().minBarSpacing || 0.5;
+  const drawableBars = Math.floor(
+    (timeScale.width() / minBarSpacing) * LATEST_CANDLE_POSITION,
   );
+  const preferredMax = embedded ? EMBED_MAX_VISIBLE_BARS : MAX_VISIBLE_BARS;
+  const logicalRange = getLatestVisibleLogicalRange(series.candles, range, {
+    maxVisibleBars:
+      drawableBars > 0 ? Math.min(preferredMax, drawableBars) : preferredMax,
+  });
   if (logicalRange) {
     chart.timeScale().setVisibleLogicalRange(logicalRange);
   } else {
@@ -1057,6 +1068,18 @@ function addOverlayLine(
     priceFormat,
   });
   lineSeries.setData(toLinePoints(chartData, values));
+  return lineSeries;
+}
+
+/**
+ * An indicator line plus how to recompute it. Indicators share the candles'
+ * time scale, so they must be re-fed whenever the candles are replaced: a line
+ * still holding the previous timeframe's timestamps merges its times into the
+ * axis, squeezing the new candles and throwing the viewport way back.
+ */
+interface IndicatorLine {
+  series: ISeriesApi<"Line">;
+  compute: (candles: Candle[]) => (number | null)[];
 }
 
 function addPatternLines(
@@ -1135,6 +1158,7 @@ function addOscillatorPane(
       axisLabelVisible: false,
     });
   });
+  return lineSeries;
 }
 
 function mainSeriesDisplayOptions(
@@ -1308,6 +1332,7 @@ export function SetupChart({
   const renderedPatternLinesFingerprintRef = useRef<string | null>(null);
   const patternPriceLinesRef = useRef<IPriceLine[]>([]);
   const tradePathRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const indicatorLinesRef = useRef<IndicatorLine[]>([]);
   // Survives chart teardown so toggling indicators / redrawing price lines does
   // not throw the user back to the latest bars. Cleared after a successful
   // restore; left null on first mount so the chart still opens on the live edge.
@@ -1672,33 +1697,31 @@ export function SetupChart({
     );
     tradePathRef.current = tradePath;
 
-    const closes = series.candles.map((candle) => candle.close);
+    const closesOf = (candles: Candle[]) => candles.map((candle) => candle.close);
+    const indicatorLines: IndicatorLine[] = [];
+    const addOverlay = (
+      compute: IndicatorLine["compute"],
+      color: string,
+    ) => {
+      indicatorLines.push({
+        series: addOverlayLine(chart, chartData, compute(series.candles), color, priceFormat),
+        compute,
+      });
+    };
 
     if (isChartIndicatorEnabled(enabledIndicators, "ema21")) {
-      addOverlayLine(
-        chart,
-        chartData,
-        calculateEma(closes, 21),
-        upColor,
-        priceFormat,
-      );
+      addOverlay((candles) => calculateEma(closesOf(candles), 21), upColor);
     }
     if (isChartIndicatorEnabled(enabledIndicators, "ema50")) {
-      addOverlayLine(
-        chart,
-        chartData,
-        calculateEma(closes, 50),
+      addOverlay(
+        (candles) => calculateEma(closesOf(candles), 50),
         isDark ? "#c9a227" : "#b8860b",
-        priceFormat,
       );
     }
     if (isChartIndicatorEnabled(enabledIndicators, "ema200")) {
-      addOverlayLine(
-        chart,
-        chartData,
-        calculateEma(closes, 200),
+      addOverlay(
+        (candles) => calculateEma(closesOf(candles), 200),
         isDark ? "#5e5ce6" : "#5856d6",
-        priceFormat,
       );
     }
 
@@ -1723,29 +1746,38 @@ export function SetupChart({
 
     if (isChartIndicatorEnabled(enabledIndicators, "atr14")) {
       chart.addPane();
-      addOscillatorPane(
-        chart,
-        nextPaneIndex,
-        chartData,
-        calculateAtr(series.candles, 14),
-        isDark ? "#64d2ff" : "#007aff",
-        64,
-      );
+      const compute = (candles: Candle[]) => calculateAtr(candles, 14);
+      indicatorLines.push({
+        series: addOscillatorPane(
+          chart,
+          nextPaneIndex,
+          chartData,
+          compute(series.candles),
+          isDark ? "#64d2ff" : "#007aff",
+          64,
+        ),
+        compute,
+      });
       nextPaneIndex += 1;
     }
 
     if (isChartIndicatorEnabled(enabledIndicators, "rsi14")) {
       chart.addPane();
-      addOscillatorPane(
-        chart,
-        nextPaneIndex,
-        chartData,
-        calculateRsi(closes, 14),
-        isDark ? "#bf5af2" : "#af52de",
-        72,
-        [30, 70],
-      );
+      const compute = (candles: Candle[]) => calculateRsi(closesOf(candles), 14);
+      indicatorLines.push({
+        series: addOscillatorPane(
+          chart,
+          nextPaneIndex,
+          chartData,
+          compute(series.candles),
+          isDark ? "#bf5af2" : "#af52de",
+          72,
+          [30, 70],
+        ),
+        compute,
+      });
     }
+    indicatorLinesRef.current = indicatorLines;
 
     // Prefer the pre-teardown viewport when this run is a soft rebuild (indicator
     // toggle, level redraw, theme). Fresh mounts and intentional "go to latest"
@@ -1873,6 +1905,7 @@ export function SetupChart({
       renderedPatternLinesFingerprintRef.current = null;
       patternPriceLinesRef.current = [];
       tradePathRef.current = null;
+      indicatorLinesRef.current = [];
       latestChartTimeRef.current = null;
     };
   // The chart instance is intentionally not recreated for every candle update.
@@ -1981,6 +2014,23 @@ export function SetupChart({
       }
     }
 
+    // Re-feed every indicator from the same candles, so no line keeps the old
+    // timeframe's timestamps on the shared time axis.
+    if (indicatorLinesRef.current.length) {
+      const chartData = toChartCandles(series.candles);
+      for (const indicator of indicatorLinesRef.current) {
+        indicator.series.setData(
+          toLinePoints(chartData, indicator.compute(series.candles)),
+        );
+      }
+    }
+    falseBreakoutMarkersRef.current?.setMarkers(
+      detectFalseBreakouts(toChartCandles(series.candles), {
+        bullTrapColor: downColor,
+        bearTrapColor: upColor,
+      }),
+    );
+
     if (
       prependedCount > 0 &&
       chart &&
@@ -2013,7 +2063,19 @@ export function SetupChart({
       if (scrolledToLatest) {
         lastScrollRevisionRef.current = scrollToLatestRevision;
       }
+      // Frame now so a chart rebuild before the next frame snapshots the new
+      // view, not the previous dataset's; frame again once layout (indicator
+      // panes, price-scale width) has settled.
+      focusCoveredRef.current = scrollChartToFocus(
+        chart,
+        series,
+        range,
+        focusRange,
+        embedded,
+      );
       requestAnimationFrame(() => {
+        // A rebuild in between owns its own framing; never touch a removed chart.
+        if (chartRef.current !== chart) return;
         focusCoveredRef.current = scrollChartToFocus(
           chart,
           series,
@@ -2035,7 +2097,7 @@ export function SetupChart({
     }
     latestChartTimeRef.current = nextLatestTime;
     latestCloseRef.current = series.candles.at(-1)?.close ?? null;
-  }, [focusRange, preserveViewportRevision, range, scrollToLatestRevision, series, variant]);
+  }, [downColor, embedded, focusRange, preserveViewportRevision, range, scrollToLatestRevision, series, upColor, variant]);
 
   useEffect(() => {
     const chart = chartRef.current;

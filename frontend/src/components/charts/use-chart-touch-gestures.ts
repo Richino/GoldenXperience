@@ -121,8 +121,25 @@ export function useChartTouchGestures({
       y: event.clientY - originY,
     });
 
-    const width = () => container.clientWidth || 1;
-    const height = () => container.clientHeight || 1;
+    // The candle plot, not the container: the library maps logical bars across
+    // the time scale's width (container minus the price axis) and prices across
+    // the main pane's height (minus the time axis and indicator panes). Using
+    // the container made the content under a held finger slide further the more
+    // the view zoomed, so a pinch crept sideways instead of staying anchored.
+    const width = () => {
+      try {
+        return chart.timeScale().width() || container.clientWidth || 1;
+      } catch {
+        return container.clientWidth || 1;
+      }
+    };
+    const height = () => {
+      try {
+        return chart.paneSize(0).height || container.clientHeight || 1;
+      } catch {
+        return container.clientHeight || 1;
+      }
+    };
 
     // --- native-API primitives ---
     function shiftTimeByPixels(dxPx: number) {

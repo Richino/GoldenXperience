@@ -913,19 +913,26 @@ export const MAX_VISIBLE_BARS = 180;
 export const EMBED_MAX_VISIBLE_BARS = 5_000;
 
 /**
+ * Where the newest candle sits across the plot width after a timeframe, range
+ * or pair change: 80% of the way to the right, leaving a fifth of the pane as
+ * empty space ahead of price whatever the bar count or screen width.
+ */
+export const LATEST_CANDLE_POSITION = 0.8;
+
+/**
  * The logical range that frames the most recent candles for the selected range.
  *
  * Anchored to the latest bar and expressed in bar indices rather than a time
  * window, so every timeframe opens on a comfortable number of recent candles
  * instead of the entire loaded history squeezed edge to edge. The count is
  * bounded on both sides: a coarse range cannot compress months onto the screen,
- * and a sparse one still fills the pane. `rightOffset` keeps the newest candle
- * off the hard right edge. Older bars stay loaded and pannable.
+ * and a sparse one still fills the pane. The right padding is proportional to
+ * the visible bars so the newest candle always lands at
+ * `LATEST_CANDLE_POSITION` of the width. Older bars stay loaded and pannable.
  */
 export function getLatestVisibleLogicalRange(
   candles: Candle[],
   range: ChartRange,
-  rightOffset: number,
   options?: { maxVisibleBars?: number },
 ) {
   const count = candles.length;
@@ -947,9 +954,14 @@ export function getLatestVisibleLogicalRange(
     count,
     Math.max(MIN_VISIBLE_BARS, Math.min(spanBars, maxVisibleBars)),
   );
+  // `visible` bars fill LATEST_CANDLE_POSITION of the pane; the remainder is
+  // empty logical space to the right of the newest candle.
+  const rightPadding =
+    (visible * (1 - LATEST_CANDLE_POSITION)) / LATEST_CANDLE_POSITION;
+  const from = count - visible;
 
   return {
-    from: Math.max(0, count - visible),
-    to: count - 1 + Math.max(0, rightOffset),
+    from,
+    to: count - 1 + rightPadding,
   };
 }

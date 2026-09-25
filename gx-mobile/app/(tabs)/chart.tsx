@@ -236,6 +236,40 @@ export default function ChartScreen() {
     pushChartPreferences();
   }, [enabledIndicators, loading, prefsReady, pushChartPreferences, range, timeframe, variant]);
 
+  // Native owns timeframe, range and chart type; the web chart only reports
+  // what it is showing. Adopting its report let a state message sent before a
+  // preference arrived (or a push the page missed while loading) flip the
+  // saved choice back to the web default, e.g. candles → area.
+  const reconciledAtRef = useRef(0);
+  const handleWebMessage = (data: string) => {
+    let message: { type?: string } & Partial<ChartState>;
+    try { message = JSON.parse(data) as typeof message; } catch { return; }
+    if (message.type === 'gx-native-chart-ready') {
+      webReadyRef.current = true;
+      if (prefsReady) pushChartPreferences();
+      return;
+    }
+    if (message.type !== 'gx-native-chart-state' || typeof message.price !== 'number') return;
+    if (message.instrument && message.instrument !== instrument) return;
+    setChartState(message as ChartState);
+    webReadyRef.current = true;
+    const drifted =
+      (message.timeframe !== undefined && NATIVE_TIMEFRAME[message.timeframe] !== timeframe)
+      || (message.range !== undefined && message.range !== range)
+      || (message.variant !== undefined && message.variant !== variant);
+    if (!drifted) {
+      setMarketBusy(false);
+      return;
+    }
+    // A mismatch right after a change is just the old state still in flight;
+    // one that persists means the page missed a push, so resend (throttled).
+    const now = Date.now();
+    if (prefsReady && now - reconciledAtRef.current > 1500) {
+      reconciledAtRef.current = now;
+      pushChartPreferences();
+    }
+  };
+
   // The embedded page starts from its own default/system theme, which has no
   // way to know the app's in-Settings choice — push it on load and whenever
   // it changes while this tab stays mounted (e.g. flipping Theme in Settings
@@ -281,7 +315,7 @@ export default function ChartScreen() {
       <View style={styles.timeframes}>{TIMEFRAMES.map((option) => <Pressable key={option} onPress={() => selectTimeframe(option)} style={[styles.timeframe, timeframe === option ? styles.timeframeActive : null]} accessibilityRole="button"><Text style={[styles.timeframeText, timeframe === option ? styles.timeframeTextActive : null]}>{option}</Text></Pressable>)}</View>
     </View>
     <View style={[styles.chartFrame, themedScreen.chartFrame]}>
-      <WebView key={`${instrument}-${retry}`} ref={webView} source={{ uri: source }} style={[styles.webview, themedScreen.webview]} originWhitelist={['*']} sharedCookiesEnabled thirdPartyCookiesEnabled cacheEnabled={false} javaScriptEnabled domStorageEnabled injectedJavaScriptBeforeContentLoaded={webViewThemeBootstrap} onLoadStart={() => { setLoading(true); webReadyRef.current = false; }} onLoadEnd={() => { setLoading(false); webReadyRef.current = true; setTimeout(() => { pushChartPreferences(); }, 0); }} onMessage={(event) => { try { const message = JSON.parse(event.nativeEvent.data) as { type?: string } & Partial<ChartState>; if (message.type !== 'gx-native-chart-state' || typeof message.price !== 'number') return; if (message.instrument && message.instrument !== instrument) return; setChartState(message as ChartState); webReadyRef.current = true; if (message.timeframe && NATIVE_TIMEFRAME[message.timeframe]) { setTimeframe(NATIVE_TIMEFRAME[message.timeframe]); } if (message.range && RANGES.includes(message.range)) { setRange(message.range); } if (message.variant && CHART_VARIANTS.some((item) => item.value === message.variant)) { setVariant(message.variant as Variant); } setMarketBusy(false); } catch { /* Ignore unrelated WebView messages. */ } }} onError={() => { setLoading(false); setFailed(true); setMarketBusy(false); }} onHttpError={(event) => { if (event.nativeEvent.statusCode >= 400) { setLoading(false); setFailed(true); setMarketBusy(false); } }} />
+      <WebView key={`${instrument}-${retry}`} ref={webView} source={{ uri: source }} style={[styles.webview, themedScreen.webview]} originWhitelist={['*']} sharedCookiesEnabled thirdPartyCookiesEnabled cacheEnabled={false} javaScriptEnabled domStorageEnabled injectedJavaScriptBeforeContentLoaded={webViewThemeBootstrap} onLoadStart={() => { setLoading(true); webReadyRef.current = false; }} onLoadEnd={() => { setLoading(false); webReadyRef.current = true; setTimeout(() => { pushChartPreferences(); }, 0); }} onMessage={(event) => handleWebMessage(event.nativeEvent.data)} onError={() => { setLoading(false); setFailed(true); setMarketBusy(false); }} onHttpError={(event) => { if (event.nativeEvent.statusCode >= 400) { setLoading(false); setFailed(true); setMarketBusy(false); } }} />
       {loading || marketBusy ? <View pointerEvents="none" style={[styles.loading, themedScreen.loading]}><ActivityIndicator color={theme.colors.primary} /><Text style={styles.loadingText}>{loading ? 'Loading chart…' : 'Updating chart…'}</Text></View> : null}
     </View>
     <View style={[styles.toolbar, themedScreen.toolbar]}><Tool icon={SlidersHorizontal} label="Indicators" active={enabledIndicators.length > 0} onPress={() => setIndicatorsOpen(true)} /><Tool icon={Crosshair} label="Fixed 10-pip setup" onPress={() => setPositionOpen(true)} /><Tool icon={CalendarRange} label={`Visible range · ${range}`} active={false} onPress={() => setRangesOpen(true)} /><Tool icon={VariantIcon} label={`Chart type · ${activeVariant.label}`} onPress={() => setVariantsOpen(true)} /><Tool icon={RotateCcw} label="Reset chart view" onPress={() => command('reset')} /></View>

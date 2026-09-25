@@ -3164,6 +3164,13 @@ export function SignalWorkspace({
   // the live chart instance. Keep the two deliberately small and explicit:
   // native sends an intent, and this surface applies it to the real chart
   // state. There is no embedded web workspace chrome to duplicate.
+  // Read by the native command handler, which is registered once and must not
+  // reset the view for a preferences push that changes nothing.
+  const embeddedViewRef = useRef({ timeframe, range });
+  useEffect(() => {
+    embeddedViewRef.current = { timeframe, range };
+  }, [range, timeframe]);
+
   useEffect(() => {
     if (!embeddedSurfaceOnly) return;
 
@@ -3184,13 +3191,16 @@ export function SignalWorkspace({
             variant?: string;
             indicators?: string[];
           };
+          let viewChanged = false;
           if (parsed.timeframe) {
             const normalized = parsed.timeframe.toLowerCase() as ChartTimeframe;
             if (CHART_TIMEFRAMES.includes(normalized)) {
+              viewChanged ||= normalized !== embeddedViewRef.current.timeframe;
               setTimeframe(normalized);
             }
           }
           if (parsed.range && CHART_RANGES.includes(parsed.range as ChartRange)) {
+            viewChanged ||= parsed.range !== embeddedViewRef.current.range;
             setRange(parsed.range as ChartRange);
           }
           if (parsed.variant && CHART_VARIANTS.some((item) => item.value === parsed.variant)) {
@@ -3203,8 +3213,10 @@ export function SignalWorkspace({
               ),
             );
           }
-          setLiveCandle(null);
-          setScrollToLatestRevision((revision) => revision + 1);
+          if (viewChanged) {
+            setLiveCandle(null);
+            setScrollToLatestRevision((revision) => revision + 1);
+          }
         } catch {
           // Ignore malformed native preference payloads.
         }
@@ -3248,6 +3260,13 @@ export function SignalWorkspace({
 
     window.addEventListener("message", onNativeCommand);
     document.addEventListener("message", onNativeCommand as EventListener);
+    // Preferences pushed before this listener exists are lost, and the chart
+    // would sit on its own defaults. Tell native it can push them now.
+    (window as Window & {
+      ReactNativeWebView?: { postMessage: (message: string) => void };
+    }).ReactNativeWebView?.postMessage(
+      JSON.stringify({ type: "gx-native-chart-ready" }),
+    );
     return () => {
       window.removeEventListener("message", onNativeCommand);
       document.removeEventListener("message", onNativeCommand as EventListener);

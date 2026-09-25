@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, type LayoutChangeEvent, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import {
   BarChart3,
@@ -21,6 +21,7 @@ import {
 import { SymbolView } from 'expo-symbols';
 import { WebView } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { Easing, interpolate, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 
 import { Text } from '@/components/ui/AppText';
 import { TradeDrawer } from '@/components/chart/TradeDrawer';
@@ -179,6 +180,8 @@ export default function ChartScreen() {
   const [analysisBusy, setAnalysisBusy] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<NativeTrendPullbackResult | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [timeframeWidth, setTimeframeWidth] = useState(0);
+  const activeTimeframeIndex = useSharedValue(TIMEFRAMES.indexOf(timeframe));
   const webView = useRef<WebView>(null);
   const webReadyRef = useRef(false);
   const insets = useSafeAreaInsets();
@@ -212,6 +215,13 @@ export default function ChartScreen() {
     setChartState(null);
     webReadyRef.current = false;
   }, [instrument]);
+
+  useEffect(() => {
+    activeTimeframeIndex.value = withTiming(TIMEFRAMES.indexOf(timeframe), {
+      duration: 260,
+      easing: Easing.bezier(0.22, 1, 0.36, 1),
+    });
+  }, [activeTimeframeIndex, timeframe]);
 
   const source = useMemo(() => webAppUrl(`/embed/chart?instrument=${encodeURIComponent(instrument)}&native=1`), [instrument]);
   const webViewThemeBootstrap = useMemo(
@@ -323,6 +333,12 @@ export default function ChartScreen() {
     setMarketBusy(true);
     setTimeframe(next);
   };
+  const timeframeColumnWidth = Math.max(0, timeframeWidth - 6) / TIMEFRAMES.length;
+  const timeframeLensStyle = useAnimatedStyle(
+    () => ({ transform: [{ translateX: activeTimeframeIndex.value * timeframeColumnWidth }] }),
+    [timeframeColumnWidth],
+  );
+  const onTimeframeLayout = (event: LayoutChangeEvent) => setTimeframeWidth(event.nativeEvent.layout.width);
   const analyzeChart = () => {
     setAnalysisResult(null);
     setAnalysisError(null);
@@ -373,7 +389,7 @@ export default function ChartScreen() {
         <View style={styles.headerActions}><Pressable onPress={analyzeChart} style={styles.analyze} accessibilityRole="button" accessibilityLabel="Analyze with TrendPullbackV1"><Sparkles size={18} strokeWidth={2} color="#ffffff" /></Pressable><Pressable onPress={() => setNotificationsOpen(true)} style={styles.bell} accessibilityRole="button" accessibilityLabel="Open notifications"><Bell size={19} strokeWidth={2} color={theme.colors.textSecondary} /></Pressable></View>
       </View>
       <View style={styles.quoteRow}><Text style={styles.quote}>{chartState?.priceLabel ?? price(chartState?.price ?? null, instrument)}</Text><Text style={[styles.change, chartState?.positive === false ? styles.down : styles.up]}>{chartState ? `${chartState.positive ? '+' : ''}${chartState.change.toFixed(instrument.includes('JPY') ? 3 : 5)}  ${chartState.positive ? '+' : ''}${chartState.changePercent.toFixed(2)}%` : 'Live quote'}</Text><Text style={styles.session}>{session.marketOpen ? `${session.label} session` : 'Market closed'}</Text></View>
-      <View style={styles.timeframes}>{TIMEFRAMES.map((option) => <Pressable key={option} onPress={() => selectTimeframe(option)} style={[styles.timeframe, timeframe === option ? styles.timeframeActive : null]} accessibilityRole="button"><Text style={[styles.timeframeText, timeframe === option ? styles.timeframeTextActive : null]}>{option}</Text></Pressable>)}</View>
+      <View style={styles.timeframes} onLayout={onTimeframeLayout}>{timeframeColumnWidth > 0 ? <Animated.View pointerEvents="none" style={[styles.timeframeLens, { width: timeframeColumnWidth }, timeframeLensStyle]} /> : null}{TIMEFRAMES.map((option) => <TimeframeItem key={option} option={option} active={timeframe === option} onPress={() => selectTimeframe(option)} />)}</View>
     </View>
     <View style={[styles.chartFrame, themedScreen.chartFrame]}>
       <WebView key={`${instrument}-${retry}`} ref={webView} source={{ uri: source }} style={[styles.webview, themedScreen.webview]} originWhitelist={['*']} sharedCookiesEnabled thirdPartyCookiesEnabled cacheEnabled={false} javaScriptEnabled domStorageEnabled injectedJavaScriptBeforeContentLoaded={webViewThemeBootstrap} onLoadStart={() => { setLoading(true); webReadyRef.current = false; }} onLoadEnd={() => { setLoading(false); webReadyRef.current = true; setTimeout(() => { pushChartPreferences(); }, 0); }} onMessage={(event) => handleWebMessage(event.nativeEvent.data)} onError={() => { setLoading(false); setFailed(true); setMarketBusy(false); }} onHttpError={(event) => { if (event.nativeEvent.statusCode >= 400) { setLoading(false); setFailed(true); setMarketBusy(false); } }} />
@@ -417,9 +433,15 @@ function Tool({ icon: Icon, label, active = false, onPress }: { icon: LucideIcon
   );
 }
 
+function TimeframeItem({ option, active, onPress }: { option: Timeframe; active: boolean; onPress: () => void }) {
+  const pressProgress = useSharedValue(0);
+  const pressStyle = useAnimatedStyle(() => ({ transform: [{ scale: interpolate(pressProgress.value, [0, 1], [1, 0.9]) }] }));
+  return <Pressable onPress={onPress} onPressIn={() => { pressProgress.value = withTiming(1, { duration: 75 }); }} onPressOut={() => { pressProgress.value = withSpring(0, { damping: 15, stiffness: 230, mass: 0.4 }); }} style={styles.timeframe} accessibilityRole="button" accessibilityState={{ selected: active }} accessibilityLabel={`${option} timeframe`}><Animated.View style={pressStyle}><Text style={[styles.timeframeText, active ? styles.timeframeTextActive : null]}>{option}</Text></Animated.View></Pressable>;
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1 }, header: { paddingHorizontal: 16, paddingBottom: 10, gap: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.cardBorder }, headerRow: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }, pairButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5 }, pair: { fontSize: 15, fontFamily: theme.fonts.sansBold, color: theme.colors.textPrimary }, headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 }, analyze: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: theme.colors.primary }, bell: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: theme.colors.surfaceRaised },
-  quoteRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }, quote: { fontSize: 22, fontFamily: theme.fonts.monoBold, color: theme.colors.textPrimary, letterSpacing: -0.5 }, change: { fontSize: 11, fontFamily: theme.fonts.monoMedium }, up: { color: theme.colors.primary }, down: { color: theme.colors.danger }, session: { marginLeft: 'auto', fontSize: 10, fontFamily: theme.fonts.sansSemiBold, letterSpacing: 0.4, textTransform: 'uppercase', color: theme.colors.textMuted }, timeframes: { minHeight: 39, flexDirection: 'row', padding: 3, borderRadius: 10, backgroundColor: theme.colors.surfaceRaised }, timeframe: { flex: 1, minHeight: 33, alignItems: 'center', justifyContent: 'center', borderRadius: 7 }, timeframeActive: { backgroundColor: theme.colors.primarySoft }, timeframeText: { fontSize: 11, fontFamily: theme.fonts.sansSemiBold, color: theme.colors.textSecondary }, timeframeTextActive: { color: theme.colors.primary },
+  quoteRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }, quote: { fontSize: 22, fontFamily: theme.fonts.monoBold, color: theme.colors.textPrimary, letterSpacing: -0.5 }, change: { fontSize: 11, fontFamily: theme.fonts.monoMedium }, up: { color: theme.colors.primary }, down: { color: theme.colors.danger }, session: { marginLeft: 'auto', fontSize: 10, fontFamily: theme.fonts.sansSemiBold, letterSpacing: 0.4, textTransform: 'uppercase', color: theme.colors.textMuted }, timeframes: { position: 'relative', minHeight: 39, flexDirection: 'row', padding: 3, overflow: 'hidden', borderRadius: 10, backgroundColor: theme.colors.surfaceRaised }, timeframeLens: { position: 'absolute', top: 3, bottom: 3, left: 3, borderRadius: 7, backgroundColor: theme.colors.primarySoft, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.primary }, timeframe: { zIndex: 1, flex: 1, minHeight: 33, alignItems: 'center', justifyContent: 'center' }, timeframeText: { fontSize: 11, fontFamily: theme.fonts.sansSemiBold, color: theme.colors.textSecondary }, timeframeTextActive: { color: theme.colors.primary },
   chartFrame: { flex: 1, minHeight: 180 }, webview: { flex: 1 }, loading: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', gap: 9 }, loadingText: { fontSize: 13, fontFamily: theme.fonts.sansMedium, color: theme.colors.textSecondary }, toolbar: { zIndex: 6, minHeight: 52, flexDirection: 'row', paddingHorizontal: 8, paddingVertical: 8, gap: 4, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.cardBorder }, tool: { flex: 1, minWidth: 0, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 11 }, toolActive: { backgroundColor: theme.colors.primarySoft }, tradeAction: { zIndex: 6, marginBottom: 94, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10, backgroundColor: 'transparent' }, tradeButton: { minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: theme.colors.primary }, tradeButtonText: { fontSize: 14, fontFamily: theme.fonts.sansSemiBold, color: '#ffffff' },
   drawerRow: { minHeight: 49, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border, borderRadius: 10 }, drawerRowActive: { backgroundColor: theme.colors.primaryMuted }, drawerPair: { fontSize: 14, fontFamily: theme.fonts.sansSemiBold, color: theme.colors.textPrimary }, drawerGroupTitle: { marginTop: 8, marginBottom: 4, paddingHorizontal: 12, fontSize: 11, fontFamily: theme.fonts.sansSemiBold, letterSpacing: 0.6, textTransform: 'uppercase', color: theme.colors.textMuted }, drawerCopy: { marginHorizontal: 12, marginBottom: 14, fontSize: 13, lineHeight: 19, fontFamily: theme.fonts.sans, color: theme.colors.textSecondary }, directionRow: { flexDirection: 'row', gap: 10, marginHorizontal: 12, paddingBottom: 8 }, directionButton: { flex: 1, minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 12 }, longButton: { backgroundColor: theme.colors.primary }, shortButton: { backgroundColor: theme.colors.danger }, directionText: { fontSize: 14, fontFamily: theme.fonts.sansSemiBold, color: '#ffffff' }, errorState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }, errorTitle: { fontSize: 19, fontFamily: theme.fonts.sansSemiBold, color: theme.colors.textPrimary }, errorCopy: { marginTop: 7, textAlign: 'center', fontSize: 13, lineHeight: 19, fontFamily: theme.fonts.sans, color: theme.colors.textSecondary }, retry: { marginTop: 20, minHeight: 44, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: theme.colors.primary }, retryText: { fontSize: 13, fontFamily: theme.fonts.sansSemiBold, color: '#ffffff' },
   analysisTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginHorizontal: 4 }, analysisDirection: { fontSize: 20, fontFamily: theme.fonts.sansBold }, analysisLong: { color: theme.colors.primary }, analysisShort: { color: theme.colors.danger }, analysisSpinner: { marginTop: 14 }, analysisCopy: { marginTop: 8, marginHorizontal: 4, fontSize: 13, lineHeight: 19, fontFamily: theme.fonts.sans, color: theme.colors.textSecondary }, analysisEntry: { marginTop: 18, marginHorizontal: 4, padding: 16, borderRadius: 16, backgroundColor: theme.colors.surfaceRaised }, analysisLabel: { fontSize: 11, fontFamily: theme.fonts.sansSemiBold, textTransform: 'uppercase', letterSpacing: 0.7, color: theme.colors.textMuted }, analysisEntryPrice: { marginTop: 5, fontSize: 30, fontFamily: theme.fonts.monoBold, letterSpacing: -0.7, color: theme.colors.textPrimary }, analysisLevels: { flexDirection: 'row', gap: 10, marginTop: 10, marginHorizontal: 4 }, analysisLevel: { flex: 1, padding: 13, borderRadius: 14, backgroundColor: theme.colors.surfaceRaised }, analysisStopLabel: { fontSize: 11, fontFamily: theme.fonts.sansSemiBold, color: theme.colors.danger }, analysisTargetLabel: { fontSize: 11, fontFamily: theme.fonts.sansSemiBold, color: theme.colors.primary }, analysisLevelPrice: { marginTop: 5, fontSize: 15, fontFamily: theme.fonts.monoBold, color: theme.colors.textPrimary }, analysisLevelCopy: { marginTop: 4, fontSize: 11, fontFamily: theme.fonts.sans, color: theme.colors.textMuted }, analysisRr: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingHorizontal: 8 }, analysisRrValue: { fontSize: 16, fontFamily: theme.fonts.monoBold, color: theme.colors.textPrimary }, analysisActions: { flexDirection: 'row', gap: 10, marginHorizontal: 4, marginTop: 20 }, analysisPrimary: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', marginTop: 20, borderRadius: 13, backgroundColor: theme.colors.primary }, analysisPrimaryText: { fontSize: 15, fontFamily: theme.fonts.sansSemiBold, color: '#ffffff' }, analysisSecondary: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', marginTop: 20, borderRadius: 13, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border }, analysisSecondaryText: { fontSize: 15, fontFamily: theme.fonts.sansSemiBold, color: theme.colors.textPrimary },

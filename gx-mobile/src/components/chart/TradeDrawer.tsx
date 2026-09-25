@@ -24,6 +24,7 @@ export function TradeDrawer({
   instrument,
   bid,
   ask,
+  draft,
   onCreated,
 }: {
   visible: boolean;
@@ -31,6 +32,7 @@ export function TradeDrawer({
   instrument: string;
   bid: number | null;
   ask: number | null;
+  draft?: { direction: 'long' | 'short'; entry: number; stop: number; target: number } | null;
   onCreated?: () => void;
 }) {
   const [direction, setDirection] = useState<'long' | 'short'>('long');
@@ -54,14 +56,15 @@ export function TradeDrawer({
   const spreadPips = bid !== null && ask !== null ? Math.max(0, (ask - bid) / pipSize(instrument)) : null;
 
   const resetForm = useCallback(() => {
-    const initialDirection: 'long' | 'short' = 'long';
+    const initialDirection: 'long' | 'short' = draft?.direction ?? 'long';
     setDirection(initialDirection);
-    setOrderReferencePrice(ask);
-    setEntryPrice(ask !== null ? formatPrice(ask, instrument) : '');
-    setStopPrice('');
-    setTargetPrice('');
+    const reference = initialDirection === 'long' ? ask : bid;
+    setOrderReferencePrice(reference);
+    setEntryPrice(draft ? formatPrice(draft.entry, instrument) : reference !== null ? formatPrice(reference, instrument) : '');
+    setStopPrice(draft ? formatPrice(draft.stop, instrument) : '');
+    setTargetPrice(draft ? formatPrice(draft.target, instrument) : '');
     setError(null);
-  }, [ask, instrument]);
+  }, [ask, bid, draft, instrument]);
 
   useEffect(() => {
     if (!visible) return;

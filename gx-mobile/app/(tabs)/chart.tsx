@@ -344,9 +344,11 @@ export default function ChartScreen() {
   };
   const acceptAnalysis = (plan: NativeTrendPullbackResult) => {
     if (!plan.action || plan.entry === null || plan.stopLoss === null || plan.takeProfit === null) return;
-    setAnalysisModalOpen(false);
     setTradeDraft({ direction: plan.action === 'LONG' ? 'long' : 'short', entry: plan.entry, stop: plan.stopLoss, target: plan.takeProfit });
-    setTradeOpen(true);
+    setAnalysisModalOpen(false);
+    // BottomDrawer keeps its native Modal mounted for its exit animation.
+    // Open the next drawer after that Modal is gone so it cannot be hidden beneath it.
+    setTimeout(() => setTradeOpen(true), 260);
   };
   const selectRange = (next: Range) => {
     if (next === range) { setRangesOpen(false); return; }

@@ -1471,9 +1471,7 @@ export function SetupChart({
   const referenceLinesShapeFingerprint = referenceLines
     .map((line) => `${line.key ?? ""}:${line.price}:${line.color}:${line.dashed ?? true}:${line.lineWidth ?? 2}`)
     .join("|");
-  const chartCreationIndicators = enabledIndicators
-    .filter((indicator) => indicator !== "adaptive-swing-trendlines-v1")
-    .join("|");
+  const chartCreationIndicators = enabledIndicators.join("|");
   const patternLinesFingerprint = patternLines
     .map((line) => `${line.key}:${line.color}:${line.dashed ?? false}:${line.lineWidth ?? 1}:${line.points.map((point) => `${point.time}:${point.price}`).join(",")}`)
     .join("|");

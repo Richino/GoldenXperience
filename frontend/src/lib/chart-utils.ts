@@ -41,7 +41,6 @@ export type ChartVariant = (typeof CHART_VARIANTS)[number]["value"];
 export const CHART_INDICATORS = [
   { value: "support-resistance", label: "Support & resistance", group: "overlay" },
   { value: "swing-trend-lines", label: "Swing trend lines", group: "overlay" },
-  { value: "adaptive-swing-trendlines-v1", label: "Adaptive Swing Trendlines V1", group: "overlay" },
   { value: "ema21", label: "EMA 21", group: "overlay" },
   { value: "ema50", label: "EMA 50", group: "overlay" },
   { value: "ema200", label: "EMA 200", group: "overlay" },

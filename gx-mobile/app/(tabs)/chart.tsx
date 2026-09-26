@@ -54,7 +54,6 @@ const CHART_VARIANTS = [
 const CHART_INDICATORS = [
   { value: 'support-resistance', label: 'Support & resistance', group: 'overlay' as const },
   { value: 'swing-trend-lines', label: 'Swing trend lines', group: 'overlay' as const },
-  { value: 'adaptive-swing-trendlines-v1', label: 'Adaptive Swing Trendlines V1', group: 'overlay' as const },
   { value: 'ema21', label: 'EMA 21', group: 'overlay' as const },
   { value: 'ema50', label: 'EMA 50', group: 'overlay' as const },
   { value: 'ema200', label: 'EMA 200', group: 'overlay' as const },

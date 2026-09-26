@@ -71,7 +71,6 @@ import {
   type ChartTimeframe,
   type ChartVariant,
 } from "@/lib/chart-utils";
-import { analyzeAdaptiveSwingTrendlines, type AdaptiveTrendline } from "@/lib/adaptive-swing-trendlines";
 import { analyzeTrendPullbackV1, trendPullbackContext, type TrendPullbackV1Result } from "@/lib/strategy/trend-pullback-v1";
 import {
   INSTRUMENT_CATALOG,
@@ -539,23 +538,6 @@ function swingTrendLines(candles: Candle[]): ChartPatternLine[] {
       { time: trend.last.time, price: trend.second.price + slope * (trend.last.index - trend.second.index) },
     ],
   }];
-}
-
-function adaptiveSwingTrendlineOverlay(candles: Candle[], instrument: MajorInstrument): PatternOverlay {
-  const read = analyzeAdaptiveSwingTrendlines(candles, instrument);
-  const lines: ChartPatternLine[] = [];
-  const tags: ChartReferenceLine[] = [];
-  const last = candles.filter((candle) => candle.complete !== false).at(-1);
-  const add = (line: AdaptiveTrendline | null, label: string, color: string, dashed = false) => {
-    if (!line || !last) return;
-    const endPrice = line.pointA.price + line.slopePerBar * (candles.length - 1 - line.pointA.index);
-    lines.push({ key: `adaptive-${line.id}`, color, dashed, lineWidth: line.type === "major" ? 2 : 1, points: [{ time: line.pointA.time, price: line.pointA.price }, { time: last.time, price: endPrice }] });
-    tags.push({ key: `adaptive-${line.id}`, label, price: endPrice, color, textColor: "#ffffff", dashed, lineWidth: line.type === "major" ? 2 : 1 });
-  };
-  add(read.major, read.major?.status === "broken" ? "MAJOR BROKEN" : `MAJOR ${read.majorDirection === "bullish" ? "↑" : "↓"}`, read.majorDirection === "bullish" ? "#2563eb" : "#dc2626", read.major?.status === "broken");
-  add(read.current, `CURRENT ${read.currentDirection === "bullish" ? "↑" : "↓"}${read.majorDirection && read.currentDirection && read.majorDirection !== read.currentDirection ? " PULLBACK" : ""}`, read.currentDirection === "bullish" ? "#16a34a" : "#ea580c");
-  if (read.previous?.status === "broken") add(read.previous, "PREV BROKEN", "#71717a", true);
-  return { lines, tags };
 }
 
 /**
@@ -3022,15 +3004,9 @@ export function SignalWorkspace({
       : [],
     [enabledIndicators, series.candles],
   );
-  const adaptiveSwingTrendOverlay = useMemo(
-    () => isChartIndicatorEnabled(enabledIndicators, "adaptive-swing-trendlines-v1") && timeframe === "15m"
-      ? adaptiveSwingTrendlineOverlay(series.candles, instrument)
-      : { lines: [], tags: [] },
-    [enabledIndicators, instrument, series.candles, timeframe],
-  );
   const chartPatternLines = useMemo(
-    () => [...patternOverlay.lines, ...swingTrendPatternLines, ...adaptiveSwingTrendOverlay.lines, ...frozen4hHistoryLines],
-    [adaptiveSwingTrendOverlay.lines, frozen4hHistoryLines, patternOverlay.lines, swingTrendPatternLines],
+    () => [...patternOverlay.lines, ...swingTrendPatternLines, ...frozen4hHistoryLines],
+    [frozen4hHistoryLines, patternOverlay.lines, swingTrendPatternLines],
   );
   const chartReferenceLines = useMemo(
     () => [
@@ -3551,7 +3527,6 @@ export function SignalWorkspace({
               referenceLine={predictionReferenceLine}
               referenceLines={chartReferenceLines}
               patternLines={chartPatternLines}
-              patternTags={adaptiveSwingTrendOverlay.tags}
               positionTool={positionTool}
               onPositionToolChange={setPositionTool}
               onPositionToolSubmit={submitPositionTool}
@@ -3724,7 +3699,6 @@ export function SignalWorkspace({
               referenceLine={predictionReferenceLine}
               referenceLines={chartReferenceLines}
               patternLines={chartPatternLines}
-              patternTags={adaptiveSwingTrendOverlay.tags}
               positionTool={positionTool}
               onPositionToolChange={setPositionTool}
               onPositionToolSubmit={submitPositionTool}
@@ -3928,7 +3902,6 @@ export function SignalWorkspace({
                 referenceLine={predictionReferenceLine}
                 referenceLines={chartReferenceLines}
                 patternLines={chartPatternLines}
-                patternTags={adaptiveSwingTrendOverlay.tags}
                 positionTool={positionTool}
                 onPositionToolChange={setPositionTool}
                 onPositionToolSubmit={submitPositionTool}

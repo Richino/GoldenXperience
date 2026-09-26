@@ -74,7 +74,6 @@ export function RiskWorkspace({
     initialForm.maxTotalNominalRiskPercent === null ? "" : String(initialForm.maxTotalNominalRiskPercent),
   );
   const [collectionPaused, setCollectionPaused] = useState(initialPolicy.collectionPaused);
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const lastSavedKeyRef = useRef(configurationKey(initialForm, initialPolicy.collectionPaused));
   const saveSequenceRef = useRef(0);
@@ -120,7 +119,6 @@ export function RiskWorkspace({
 
     const timer = window.setTimeout(async () => {
       setError(null);
-      setSaveMessage(null);
       try {
         const response = await fetch(apiUrl("/api/paper-risk/settings"), {
           method: "PATCH",
@@ -134,11 +132,6 @@ export function RiskWorkspace({
         if (sequence !== saveSequenceRef.current) return;
         lastSavedKeyRef.current = key;
         setPolicy(payload.policy);
-        setSaveMessage(
-          payload.policy.applied === "next_batch"
-            ? "Saved · risk limits apply next batch; entry pause applies now."
-            : "Saved automatically.",
-        );
       } catch (reason) {
         if (sequence === saveSequenceRef.current) {
           setError(reason instanceof Error ? reason.message : "Risk settings could not be saved.");
@@ -241,14 +234,13 @@ export function RiskWorkspace({
           </span>
         </div>
 
-        {(policy.pending || saveMessage) && (
+        {policy.pending && (
           <p className="mt-3 text-xs text-[color:var(--muted)]">
-            {saveMessage ??
-              `Queued for Batch ${(policy.currentBatch?.batchNumber ?? 0) + 1}: ${policy.pending!.riskPercent.toFixed(2)}% · ${
-                policy.pending!.maxSimultaneousPositions === null
-                  ? "unlimited"
-                  : `${policy.pending!.maxSimultaneousPositions} max`
-              }`}
+            {`Queued for Batch ${(policy.currentBatch?.batchNumber ?? 0) + 1}: ${policy.pending.riskPercent.toFixed(2)}% · ${
+              policy.pending.maxSimultaneousPositions === null
+                ? "unlimited"
+                : `${policy.pending.maxSimultaneousPositions} max`
+            }`}
           </p>
         )}
       </section>

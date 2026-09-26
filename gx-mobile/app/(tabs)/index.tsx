@@ -23,7 +23,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [showFloatingBell, setShowFloatingBell] = useState(false);
-  const { account, accountHistory, openPositions, journalTrades, pendingEntries, calendar, calendarLoading, loading, error, todayKey, refresh } = useHomeData();
+  const { account, accountHistory, openPositions, journalTrades, pendingEntries, calendar, calendarLoading, ready, error, todayKey, refresh } = useHomeData();
 
   // Home is a quick status surface. Keep the full history in Journal instead
   // of letting ten activity rows push the rest of the dashboard below the dock.
@@ -31,7 +31,8 @@ export default function HomeScreen() {
   const today = useMemo(() => todayClosedStats(journalTrades, todayKey), [journalTrades, todayKey]);
   const highImpactEvents = useMemo(() => (calendar?.events ?? []).filter((event) => event.impact >= 3).slice(0, 3), [calendar]);
 
-  if (loading && !account) {
+  // Wait for every card's first answer so none flashes its empty state first.
+  if (!ready) {
     return (
       <View style={[styles.root, styles.centered]}>
         <ActivityIndicator color={theme.colors.primary} />

@@ -86,6 +86,8 @@ export default function JournalScreen() {
   const [records, setRecords] = useState<JournalTrade[]>([]);
   const [summary, setSummary] = useState<JournalSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  // Until the first answer, the summary and tab counts would read 0 and then jump.
+  const [loadedOnce, setLoadedOnce] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
@@ -105,7 +107,7 @@ export default function JournalScreen() {
       if (payload.summary) setSummary(payload.summary);
       setError(null);
     } catch { setError('Could not load your trade journal.'); }
-    finally { setLoading(false); setRefreshing(false); setLoadingMore(false); }
+    finally { setLoading(false); setRefreshing(false); setLoadingMore(false); setLoadedOnce(true); }
   }, []);
   useEffect(() => { void load(true); }, [load]);
 
@@ -139,12 +141,14 @@ export default function JournalScreen() {
 
   return <View style={styles.root}><ScrollView contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top + 12, 30), paddingBottom: DOCK_CLEARANCE + Math.max(insets.bottom, 8) }]} showsVerticalScrollIndicator={false} scrollEventThrottle={16} onScroll={(event) => { const next = event.nativeEvent.contentOffset.y > 52; setShowFloatingBell((current) => current === next ? current : next); }} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}>
     <View style={styles.header}><Text style={styles.title}>Trades</Text><Pressable onPress={() => setNotificationsOpen(true)} style={styles.headerBell} accessibilityRole="button" accessibilityLabel="Open notifications"><SymbolView name={{ ios: 'bell', android: 'notifications', web: 'notifications' }} size={21} tintColor={theme.colors.textSecondary} /></Pressable></View>
+    {loadedOnce ? <>
     <HomeCard style={styles.summaryCard}>{tab === 'open' ? <View style={styles.summaryGrid}><Summary label="Open trades" value={String(openTrades.length)} /><Summary label="Unrealized P&L" value={money(openPnl)} tone={openPnl === null ? undefined : openPnl >= 0 ? styles.positive : styles.negative} /><Summary label="Realized P&L" value={money(todayRealized)} tone={todayRealized === null ? undefined : todayRealized >= 0 ? styles.positive : styles.negative} /></View> : <View style={styles.summaryGrid}><Summary label="Closed trades" value={String(closedCount)} /><Summary label="Wins" value={String(closedWins)} tone={styles.positive} /><Summary label="Losses" value={String(closedLosses)} tone={styles.negative} /><Summary label="Win rate" value={summary?.winRate === null || summary?.winRate === undefined ? '—' : `${Math.round(summary.winRate * 100)}%`} /></View>}</HomeCard>
     <View style={styles.toolbar}>
       <View style={styles.tabs}>{([['open', 'Open', openTrades.length], ['closed', 'Closed', closedCount], ['all', 'All', summary?.total ?? records.length]] as const).map(([id, label, count]) => <Pressable key={id} onPress={() => setTab(id)} style={[styles.tab, tab === id ? styles.tabActive : null]}><Text style={[styles.tabText, tab === id ? styles.tabTextActive : null]}>{label} <Text style={styles.tabCount}>{count}</Text></Text></Pressable>)}</View>
       <View style={styles.search}><Search size={17} color={theme.colors.textMuted} strokeWidth={2} /><TextInput value={query} onChangeText={setQuery} placeholder="Search trades..." placeholderTextColor={theme.colors.textMuted} style={styles.searchInput} accessibilityLabel="Search trades" /></View>
       {tab === 'closed' ? <View style={styles.filters}>{(['all', 'wins', 'losses'] as const).map((filter) => <Pressable key={filter} onPress={() => setClosedFilter(filter)} style={[styles.filter, closedFilter === filter ? styles.filterActive : null]}><Text style={[styles.filterText, closedFilter === filter ? styles.filterTextActive : null]}>{filter === 'all' ? 'All' : filter === 'wins' ? 'Wins' : 'Losses'}</Text></Pressable>)}</View> : null}
     </View>
+    </> : null}
     {error ? <Text style={styles.error}>{error}</Text> : null}
     {loading ? <View style={styles.loading}><ActivityIndicator color={theme.colors.primary} /></View> : selectedRows.length ? <View style={styles.cards}>{selectedRows.map((trade) => <TradeCard key={trade.id} trade={trade} />)}</View> : tab === 'open' ? <HomeCard style={styles.emptyCard}><Text style={styles.emptyTitle}>No trades open now</Text><Text style={styles.emptyDetail}>New paper positions will appear here as soon as they are active.</Text></HomeCard> : <Text style={styles.empty}>No trades in this view.</Text>}
     {tab !== 'open' && hasMore ? <Pressable onPress={() => void load(false)} disabled={loadingMore} style={styles.loadMore}><Text style={styles.loadMoreText}>{loadingMore ? 'Loading…' : 'Load more'}</Text></Pressable> : null}

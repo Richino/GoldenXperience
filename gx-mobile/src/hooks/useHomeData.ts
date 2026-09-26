@@ -14,6 +14,13 @@ export type HomeData = {
   calendar: CalendarSnapshot | null;
   calendarLoading: boolean;
   loading: boolean;
+  /**
+   * True once account, history, trades, open positions and pending entries
+   * have each answered at least once (success or failure). Until then the
+   * cards would show their empty defaults ("No open positions", 0 trades)
+   * and then jump to the real data.
+   */
+  ready: boolean;
   error: string | null;
   todayKey: string;
   refresh: () => Promise<void>;
@@ -28,6 +35,8 @@ export function useHomeData(): HomeData {
   const [calendar, setCalendar] = useState<CalendarSnapshot | null>(null);
   const [calendarLoading, setCalendarLoading] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [positionsLoaded, setPositionsLoaded] = useState(false);
+  const [pendingLoaded, setPendingLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const todayKey = useRef(currentTradingDayKey()).current;
 
@@ -46,6 +55,8 @@ export function useHomeData(): HomeData {
       setOpenPositions(payload.data);
     } catch {
       // A broker snapshot outage must not make the rest of Home unavailable.
+    } finally {
+      setPositionsLoaded(true);
     }
   }, []);
 
@@ -73,6 +84,8 @@ export function useHomeData(): HomeData {
       setPendingEntries((payload.entries ?? []).filter((entry) => entry.status === 'PENDING' || entry.status === 'TRIGGERING'));
     } catch {
       // Non-fatal: the rest of Home stays usable during a pending-entries outage.
+    } finally {
+      setPendingLoaded(true);
     }
   }, []);
 
@@ -139,6 +152,7 @@ export function useHomeData(): HomeData {
     calendar,
     calendarLoading,
     loading,
+    ready: !loading && positionsLoaded && pendingLoaded,
     error,
     todayKey,
     refresh,

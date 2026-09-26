@@ -127,8 +127,10 @@ export default function JournalScreen() {
   const allTrades = useMemo(() => dedupeTrades(records), [records]);
   const selectedRows = useMemo(() => {
     let rows = tab === 'open' ? openTrades : tab === 'closed' ? closedTrades : allTrades;
-    const needle = query.trim().toLowerCase();
-    if (needle) rows = rows.filter((trade) => trade.pair.toLowerCase().includes(needle));
+    // "eurusd", "eur/usd" and "EUR_USD" all match: compare letters and digits only.
+    const compact = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const needle = compact(query);
+    if (needle) rows = rows.filter((trade) => compact(trade.pair).includes(needle));
     if (tab === 'closed' && closedFilter !== 'all') rows = rows.filter((trade) => closedFilter === 'wins' ? trade.result === 'win' : trade.result === 'loss');
     return rows;
   }, [allTrades, closedFilter, closedTrades, openTrades, query, tab]);

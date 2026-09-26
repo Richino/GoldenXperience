@@ -768,8 +768,10 @@ export function TradesView() {
   const rows = useMemo(() => {
     let list: JournalTrade[] =
       tab === "open" ? openTrades : tab === "closed" ? closedTrades : records;
-    const q = query.trim().toLowerCase();
-    if (q) list = list.filter((t) => t.pair.toLowerCase().includes(q));
+    // "eurusd", "eur/usd" and "EUR_USD" all match: compare letters and digits only.
+    const compact = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const q = compact(query);
+    if (q) list = list.filter((t) => compact(t.pair).includes(q));
     if (tab === "closed" && closedFilter !== "all") {
       list = list.filter((t) => (closedFilter === "wins" ? t.result === "win" : t.result === "loss"));
     }

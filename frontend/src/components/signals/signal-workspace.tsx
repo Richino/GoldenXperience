@@ -2146,8 +2146,6 @@ export function SignalWorkspace({
     setTrendPullbackBusy(true);
     setTrendPullbackResult(null);
     setTrendPullbackDialogOpen(!embeddedSurfaceOnly);
-    setEnabledIndicators((enabled) => enabled.filter((indicator) =>
-      indicator !== "adaptive-swing-trendlines-v1" && indicator !== "swing-trend-lines"));
     try {
       const [candlesResponse, pricingResponse] = await Promise.all([
         fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=M15&count=500`), { credentials: "include", cache: "no-store", signal: controller.signal }),

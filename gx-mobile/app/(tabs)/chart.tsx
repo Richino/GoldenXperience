@@ -393,8 +393,6 @@ export default function ChartScreen() {
     setAnalysisError(null);
     setAnalysisBusy(true);
     setAnalysisModalOpen(true);
-    setEnabledIndicators((current) => current.filter((indicator) =>
-      indicator !== 'adaptive-swing-trendlines-v1' && indicator !== 'swing-trend-lines'));
     if (timeframe !== '15m') {
       setMarketBusy(true);
       setTimeframe('15m');

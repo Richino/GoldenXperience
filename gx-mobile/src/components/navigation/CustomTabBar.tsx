@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { BottomTabBarProps } from 'expo-router/build/react-navigation/bottom-tabs';
 import { BookOpen, CandlestickChart, House, Settings, type LucideIcon } from 'lucide-react-native';
-import { LayoutChangeEvent, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { LayoutChangeEvent, PixelRatio, Platform, Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
   interpolate,
@@ -49,10 +49,14 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
     });
   }, [activeIndex, state.index]);
 
-  const columnWidth = innerWidth / state.routes.length;
+  // The dock width rarely divides evenly by the tab count. A lens at a
+  // fractional width or offset anti-aliases its 1px ring unevenly, so one side
+  // looked shaved off; keep both on whole device pixels.
+  const columnWidth = PixelRatio.roundToNearestPixel(innerWidth / state.routes.length);
+  const pixelRatio = PixelRatio.get();
   const sliderStyle = useAnimatedStyle(
-    () => ({ transform: [{ translateX: activeIndex.value * columnWidth }] }),
-    [columnWidth],
+    () => ({ transform: [{ translateX: Math.round(activeIndex.value * columnWidth * pixelRatio) / pixelRatio }] }),
+    [columnWidth, pixelRatio],
   );
 
   function onLayout(event: LayoutChangeEvent) {
@@ -73,7 +77,7 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
                 sliderStyle,
               ]}
             >
-              <View style={styles.sliderFill} />
+              <View style={[styles.sliderFill, themeMode === 'dark' ? styles.sliderFillDark : null]} />
             </Animated.View>
           ) : null}
 
@@ -187,11 +191,16 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     backgroundColor: theme.colors.primarySoft,
     borderWidth: 1,
-    borderColor: theme.colors.primary,
+    // A soft mint ring like the web dock's lens; the solid accent line was
+    // harsh on the white light-theme pill and made any uneven edge obvious.
+    borderColor: 'rgba(0, 184, 120, 0.3)',
     shadowColor: theme.colors.primary,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
     shadowRadius: 1,
+  },
+  sliderFillDark: {
+    borderColor: 'rgba(0, 229, 155, 0.42)',
   },
   item: {
     flex: 1,

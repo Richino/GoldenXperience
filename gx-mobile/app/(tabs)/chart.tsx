@@ -105,6 +105,12 @@ type NativeTrendPullbackResult = {
   targetDistancePips: number | null;
   riskReward: number | null;
   reasons: string[];
+  // Loose V1 fields (older web builds omit them).
+  warnings?: string[];
+  trend?: string;
+  trendSource?: string;
+  currentPrice?: number;
+  debug?: { pullbackLevelKind?: string | null; h1AtrPips?: number | null };
 };
 
 const VARIANT_ICONS: Record<Variant, LucideIcon> = {
@@ -124,6 +130,11 @@ function resolveInstrumentParam(raw: string | string[] | undefined) {
   const value = Array.isArray(raw) ? raw[0] : raw;
   const upper = typeof value === 'string' ? value.toUpperCase() : 'EUR_USD';
   return PAIRS.includes(upper as typeof PAIRS[number]) ? upper : 'EUR_USD';
+}
+
+function requestedTrade(raw: string | string[] | undefined) {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return typeof value === 'string' && /^[0-9a-f-]{36}$/i.test(value) ? value : null;
 }
 
 const WEB_TIMEFRAME: Record<Timeframe, WebChartTimeframe> = {
@@ -158,9 +169,11 @@ function preferencesPayload(
 
 /** Native mobile controls around the isolated live GX chart canvas. */
 export default function ChartScreen() {
-  const params = useLocalSearchParams<{ instrument?: string | string[] }>();
+  const params = useLocalSearchParams<{ instrument?: string | string[]; trade?: string | string[] }>();
   const requested = resolveInstrumentParam(params.instrument);
   const [instrument, setInstrument] = useState(() => requested);
+  // A past trade to show on the chart, set by links such as Recent activity.
+  const [focusTradeId, setFocusTradeId] = useState<string | null>(() => requestedTrade(params.trade));
   const [timeframe, setTimeframe] = useState<Timeframe>('15m');
   const [range, setRange] = useState<Range>('1D');
   const [variant, setVariant] = useState<Variant>('area');
@@ -176,7 +189,7 @@ export default function ChartScreen() {
   const [enabledIndicators, setEnabledIndicators] = useState<ChartIndicator[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [tradeOpen, setTradeOpen] = useState(false);
-  const [tradeDraft, setTradeDraft] = useState<{ direction: 'long' | 'short'; entry: number; stop: number; target: number } | null>(null);
+  const [tradeDraft, setTradeDraft] = useState<{ direction: 'long' | 'short'; entry: number; stop: number; target: number; analysisContext?: Record<string, unknown> } | null>(null);
   const [manualEntries, setManualEntries] = useState<PendingEntry[]>([]);
   const [confirmTradeAction, setConfirmTradeAction] = useState<Exclude<ManualTradeAction, 'trade'> | null>(null);
   const [tradeActionBusy, setTradeActionBusy] = useState(false);
@@ -224,10 +237,12 @@ export default function ChartScreen() {
     useCallback(() => {
       const next = resolveInstrumentParam(params.instrument);
       setInstrument((current) => (current === next ? current : next));
+      const trade = requestedTrade(params.trade);
+      if (trade) setFocusTradeId(trade);
       setChartState(null);
       webReadyRef.current = false;
       void refreshManualEntries();
-    }, [params.instrument, refreshManualEntries]),
+    }, [params.instrument, params.trade, refreshManualEntries]),
   );
 
   useEffect(() => {
@@ -271,7 +286,8 @@ export default function ChartScreen() {
     command('preferences', preferencesPayload(timeframe, range, variant, enabledIndicators));
     command('theme', themeMode);
     command('instrument', instrument);
-  }, [command, enabledIndicators, instrument, range, themeMode, timeframe, variant]);
+    command('focus-trade', focusTradeId ?? '');
+  }, [command, enabledIndicators, focusTradeId, instrument, range, themeMode, timeframe, variant]);
 
   useEffect(() => {
     if (!prefsReady) return;
@@ -287,7 +303,7 @@ export default function ChartScreen() {
   useEffect(() => {
     if (!prefsReady || loading || !webReadyRef.current) return;
     pushChartPreferences();
-  }, [enabledIndicators, loading, prefsReady, pushChartPreferences, range, timeframe, variant]);
+  }, [enabledIndicators, focusTradeId, loading, prefsReady, pushChartPreferences, range, timeframe, variant]);
 
   // Native owns timeframe, range and chart type; the web chart only reports
   // what it is showing. Adopting its report let a state message sent before a
@@ -309,6 +325,11 @@ export default function ChartScreen() {
       setAnalysisError(message.error ?? 'TrendPullbackV1 could not run.');
       setAnalysisBusy(false);
       setAnalysisModalOpen(true);
+      return;
+    }
+    if (message.type === 'gx-native-trade-focus-cleared') {
+      setFocusTradeId(null);
+      router.setParams({ trade: undefined });
       return;
     }
     if (message.type === 'gx-native-chart-ready') {
@@ -348,7 +369,8 @@ export default function ChartScreen() {
     setInstrument(next);
     setPairsOpen(false);
     setChartState(null);
-    router.setParams({ instrument: next });
+    setFocusTradeId(null);
+    router.setParams({ instrument: next, trade: undefined });
     command('instrument', next);
   };
   const selectTimeframe = (next: Timeframe) => {
@@ -387,7 +409,25 @@ export default function ChartScreen() {
   };
   const acceptAnalysis = (plan: NativeTrendPullbackResult) => {
     if (!plan.action || plan.entry === null || plan.stopLoss === null || plan.takeProfit === null) return;
-    setTradeDraft({ direction: plan.action === 'LONG' ? 'long' : 'short', entry: plan.entry, stop: plan.stopLoss, target: plan.takeProfit });
+    const direction = plan.action === 'LONG' ? 'long' : 'short';
+    setTradeDraft({
+      direction, entry: plan.entry, stop: plan.stopLoss, target: plan.takeProfit,
+      // Same shape the web builds, so forward-test trades are tagged either way.
+      analysisContext: {
+        version: 1,
+        direction,
+        setup: 'trend-pullback-loose-v1',
+        frozen: {
+          trend: plan.trend ?? null,
+          trendSource: plan.trendSource ?? null,
+          currentMove: plan.currentMove,
+          pullbackLevelKind: plan.debug?.pullbackLevelKind ?? null,
+          h1AtrPips: plan.debug?.h1AtrPips ?? null,
+          planned: { entry: plan.entry, stop: plan.stopLoss, target: plan.takeProfit, currentPrice: plan.currentPrice ?? null, status: plan.status },
+          warnings: plan.warnings ?? [],
+        },
+      },
+    });
     setAnalysisModalOpen(false);
     // BottomDrawer keeps its native Modal mounted for its exit animation.
     // Open the next drawer after that Modal is gone so it cannot be hidden beneath it.
@@ -483,7 +523,7 @@ export default function ChartScreen() {
 function NativeTrendPullbackModal({ visible, busy, result, error, instrument, onClose, onCancel, onAccept }: { visible: boolean; busy: boolean; result: NativeTrendPullbackResult | null; error: string | null; instrument: string; onClose: () => void; onCancel: () => void; onAccept: (plan: NativeTrendPullbackResult) => void }) {
   const plan = result?.status !== 'NO_VALID_ENTRY' ? result : null;
   return <BottomDrawer visible={visible} onClose={busy ? onCancel : onClose} title={busy ? 'Analyzing chart' : plan ? result?.status === 'ENTRY_AVAILABLE_NOW' ? 'Entry available now' : plan.currentMove === 'NONE' ? 'Next pullback level' : 'Planned pullback entry' : error ? 'Analysis unavailable' : 'No trade plan'}>
-    {busy ? <><ActivityIndicator style={styles.analysisSpinner} color={theme.colors.primary} /><Text style={styles.analysisCopy}>Loading fresh candles and the current OANDA price.</Text><Pressable onPress={onCancel} style={styles.analysisSecondary}><Text style={styles.analysisSecondaryText}>Cancel</Text></Pressable></> : plan ? <><View style={styles.analysisTitleRow}><Text style={[styles.analysisDirection, plan.action === 'LONG' ? styles.analysisLong : styles.analysisShort]}>{plan.action}</Text></View><View style={styles.analysisEntry}><Text style={styles.analysisLabel}>Entry</Text><Text style={styles.analysisEntryPrice}>{price(plan.entry, instrument)}</Text><Text style={styles.analysisCopy}>Zone {price(plan.entryZoneLow, instrument)} – {price(plan.entryZoneHigh, instrument)} · {plan.distanceToEntryPips?.toFixed(1) ?? '—'} pips away</Text></View><View style={styles.analysisLevels}><View style={styles.analysisLevel}><Text style={styles.analysisStopLabel}>Stop loss</Text><Text style={styles.analysisLevelPrice}>{price(plan.stopLoss, instrument)}</Text><Text style={styles.analysisLevelCopy}>{plan.stopDistancePips?.toFixed(1) ?? '—'} pips risk</Text></View><View style={styles.analysisLevel}><Text style={styles.analysisTargetLabel}>Take profit</Text><Text style={styles.analysisLevelPrice}>{price(plan.takeProfit, instrument)}</Text><Text style={styles.analysisLevelCopy}>{plan.targetDistancePips?.toFixed(1) ?? '—'} pips reward</Text></View></View><View style={styles.analysisRr}><Text style={styles.analysisCopy}>Risk / reward</Text><Text style={styles.analysisRrValue}>{plan.riskReward?.toFixed(2) ?? '—'}:1</Text></View>{plan.priceBasis === 'LAST_M15_CLOSE' ? <Text style={styles.analysisCopy}>Using the last completed M15 close. Refresh prices before trading.</Text> : null}<View style={styles.analysisActions}><Pressable onPress={onClose} style={styles.analysisSecondary}><Text style={styles.analysisSecondaryText}>Reject</Text></Pressable><Pressable onPress={() => onAccept(plan)} style={styles.analysisPrimary}><Text style={styles.analysisPrimaryText}>Accept</Text></Pressable></View></> : <><Text style={styles.analysisCopy}>{error ?? result?.reasons[0] ?? 'TrendPullbackV1 could not form a valid setup.'}</Text><Pressable onPress={onClose} style={styles.analysisPrimary}><Text style={styles.analysisPrimaryText}>Done</Text></Pressable></>}
+    {busy ? <><ActivityIndicator style={styles.analysisSpinner} color={theme.colors.primary} /><Text style={styles.analysisCopy}>Loading fresh candles and the current OANDA price.</Text><Pressable onPress={onCancel} style={styles.analysisSecondary}><Text style={styles.analysisSecondaryText}>Cancel</Text></Pressable></> : plan ? <><View style={styles.analysisTitleRow}><Text style={[styles.analysisDirection, plan.action === 'LONG' ? styles.analysisLong : styles.analysisShort]}>{plan.action}</Text></View><View style={styles.analysisEntry}><Text style={styles.analysisLabel}>Entry</Text><Text style={styles.analysisEntryPrice}>{price(plan.entry, instrument)}</Text><Text style={styles.analysisCopy}>Zone {price(plan.entryZoneLow, instrument)} – {price(plan.entryZoneHigh, instrument)} · {plan.distanceToEntryPips?.toFixed(1) ?? '—'} pips away</Text></View><View style={styles.analysisLevels}><View style={styles.analysisLevel}><Text style={styles.analysisStopLabel}>Stop loss</Text><Text style={styles.analysisLevelPrice}>{price(plan.stopLoss, instrument)}</Text><Text style={styles.analysisLevelCopy}>{plan.stopDistancePips?.toFixed(1) ?? '—'} pips risk</Text></View><View style={styles.analysisLevel}><Text style={styles.analysisTargetLabel}>Take profit</Text><Text style={styles.analysisLevelPrice}>{price(plan.takeProfit, instrument)}</Text><Text style={styles.analysisLevelCopy}>{plan.targetDistancePips?.toFixed(1) ?? '—'} pips reward</Text></View></View><View style={styles.analysisRr}><Text style={styles.analysisCopy}>Risk / reward</Text><Text style={styles.analysisRrValue}>{plan.riskReward?.toFixed(2) ?? '—'}:1</Text></View>{plan.reasons.map((reason) => <Text key={reason} style={styles.analysisCopy}>{reason}</Text>)}{(plan.warnings ?? []).map((warning) => <Text key={warning} style={[styles.analysisCopy, { color: theme.colors.warning }]}>⚠ {warning}</Text>)}{plan.priceBasis === 'LAST_M15_CLOSE' ? <Text style={styles.analysisCopy}>Using the last completed M15 close. Refresh prices before trading.</Text> : null}<View style={styles.analysisActions}><Pressable onPress={onClose} style={styles.analysisSecondary}><Text style={styles.analysisSecondaryText}>Reject</Text></Pressable><Pressable onPress={() => onAccept(plan)} style={styles.analysisPrimary}><Text style={styles.analysisPrimaryText}>Accept</Text></Pressable></View></> : <><Text style={styles.analysisCopy}>{error ?? result?.reasons[0] ?? 'TrendPullbackV1 could not form a valid setup.'}</Text><Pressable onPress={onClose} style={styles.analysisPrimary}><Text style={styles.analysisPrimaryText}>Done</Text></Pressable></>}
   </BottomDrawer>;
 }
 

@@ -14307,6 +14307,8 @@ html:has(.manual-proposal-backdrop) .mobile-dock {
 @media (prefers-reduced-motion: reduce) { .manual-proposal-backdrop, .manual-proposal { animation: none; } }
 
 .pending-entry-levels { display: grid; grid-template-columns: 1fr 1fr; gap: .65rem; }
+.pending-entry-breakout { display: grid; gap: .55rem; }
+.pending-entry-breakout > small { color: var(--muted-strong); font-size: .72rem; line-height: 1.45; }
 .pending-entry-proposal-note { margin: 0; border-left: 2px solid var(--pending); padding-left: .6rem; color: var(--muted-strong); font-size: .72rem; line-height: 1.45; }
 @media (max-width: 520px) { .pending-entry-levels { grid-template-columns: 1fr; } }
 

@@ -3,22 +3,30 @@ import { pipSizeFor, precisionFor } from "@/lib/instruments/catalog";
 import { computeSupportResistanceLevels } from "@/lib/strategy/support-resistance";
 import type { Candle, MajorInstrument } from "@/types/forex";
 
-/** Deliberately fixed V1 research settings; none are execution inputs. */
+/**
+ * Loose V1 settings for the forward test. Loose means Analyze always returns a
+ * plan: anything questionable becomes a warning instead of a refusal. Nothing
+ * here has an edge proven by backtest; the plan is information to be logged.
+ */
 export const TREND_PULLBACK_V1 = {
   entryBufferPips: 2,
-  stopAtrMultiplier: 0.75,
-  minimumRiskReward: 1.5,
+  minStopPips: 10,
+  stopH1AtrMultiplier: 1,
+  rewardRisk: 2,
+  fallbackPullbackH1Atr: 0.5,
 } as const;
 
 type Direction = "BULLISH" | "BEARISH" | "MIXED";
-type PullbackLevelKind = "SWING_SUPPORT" | "RANGE_SUPPORT" | "SWING_RESISTANCE" | "RANGE_RESISTANCE";
+type PullbackLevelKind = "SWING_SUPPORT" | "RANGE_SUPPORT" | "SWING_RESISTANCE" | "RANGE_RESISTANCE" | "ATR_PULLBACK";
 
 export type TrendPullbackV1Result = {
   strategy: "TrendPullbackV1";
+  version: "loose-v1";
   status: "TRADE_PLAN" | "ENTRY_AVAILABLE_NOW" | "NO_VALID_ENTRY";
   trend: Direction;
   majorTrend: Direction;
   currentTrend: Direction;
+  trendSource: "SWING_STRUCTURE" | "PRICE_CHANGE_24H";
   currentMove: "BEARISH_PULLBACK" | "BULLISH_PULLBACK" | "NONE";
   action: "LONG" | "SHORT" | null;
   orderType: "BUY_LIMIT" | "SELL_LIMIT" | null;
@@ -34,6 +42,8 @@ export type TrendPullbackV1Result = {
   targetDistancePips: number | null;
   riskReward: number | null;
   reasons: string[];
+  /** Things a strict version would have refused on; shown with the plan. */
+  warnings: string[];
   debug: {
     trendSource: "LEGACY_SWING_TREND_LINES";
     pointA: SwingTrendAnchor | null;
@@ -43,22 +53,40 @@ export type TrendPullbackV1Result = {
     pullbackLevelKind: PullbackLevelKind | null;
     invalidationLevel: number | null;
     targetLevel: number | null;
+    h1AtrPips: number | null;
   };
 };
 
+/** Group completed M15 candles into clock-hour candles so the stop can be sized from 1-hour volatility. */
+function hourlyFromM15(candles: Candle[]): Candle[] {
+  const hours = new Map<number, Candle>();
+  for (const candle of candles) {
+    const hour = Math.floor(Date.parse(candle.time) / 3_600_000);
+    const existing = hours.get(hour);
+    if (!existing) hours.set(hour, { ...candle });
+    else {
+      existing.high = Math.max(existing.high, candle.high);
+      existing.low = Math.min(existing.low, candle.low);
+      existing.close = candle.close;
+    }
+  }
+  return [...hours.entries()].sort((a, b) => a[0] - b[0]).map(([, candle]) => candle);
+}
+
 /**
- * TrendPullbackV1 has deliberately separate responsibilities:
- * - Legacy Swing Trend Lines establish direction.
- * - Shared S/R supplies the level to wait for and the opposing target.
- *
- * Adaptive Swing Trendlines remain a chart research overlay and never affect
- * this result. That prevents a local adaptive line from overriding the
- * broader visible trend.
+ * TrendPullbackV1 (loose): detect the trend, find the pullback level in that
+ * trend's direction, and return a full plan every time.
+ * - Trend: Legacy Swing Trend Lines; when the swings are mixed, the last 24h
+ *   of price decides.
+ * - Pullback: the nearest shared S/R level on the trend side of price; when
+ *   none exists, half an average 1-hour candle back from price.
+ * - Stop: at least one average 1-hour candle past the pullback level.
+ * - Target: 2R, with a warning if an S/R level sits in the way.
  */
 export function analyzeTrendPullbackV1(
   input: { instrument: MajorInstrument; candles: Candle[]; currentPrice?: number | null },
-  settings: { entryBufferPips: number; stopAtrMultiplier?: number; minimumRiskReward?: number } = TREND_PULLBACK_V1,
 ): TrendPullbackV1Result {
+  const settings = TREND_PULLBACK_V1;
   const candles = input.candles.filter((candle) => candle.complete !== false);
   const last = candles.at(-1);
   const pip = pipSizeFor(input.instrument);
@@ -66,35 +94,45 @@ export function analyzeTrendPullbackV1(
   const hasCurrentPrice = typeof input.currentPrice === "number" && Number.isFinite(input.currentPrice) && input.currentPrice > 0;
   const currentPrice = hasCurrentPrice ? input.currentPrice! : last?.close ?? 0;
   const trendRead = deriveDominantSwingTrend(candles);
-  const trend: Direction = trendRead ? trendRead.direction.toUpperCase() as Direction : "MIXED";
   const slope = trendRead ? (trendRead.second.price - trendRead.first.price) / (trendRead.second.index - trendRead.first.index) : null;
-  const projectedTrendlinePrice = trendRead && slope !== null && last
+  const projectedTrendlinePrice = trendRead && slope !== null
     ? round(trendRead.second.price + slope * (trendRead.last.index - trendRead.second.index))
     : null;
-  const levels = computeSupportResistanceLevels(candles, input.instrument);
+  const h1Atr = calculateAtr(hourlyFromM15(candles), 14).at(-1) ?? null;
   const result: TrendPullbackV1Result = {
-    strategy: "TrendPullbackV1", status: "NO_VALID_ENTRY", trend, majorTrend: trend, currentTrend: trend,
-    currentMove: "NONE", action: null, orderType: null, currentPrice: round(currentPrice),
+    strategy: "TrendPullbackV1", version: "loose-v1", status: "NO_VALID_ENTRY", trend: "MIXED", majorTrend: "MIXED", currentTrend: "MIXED",
+    trendSource: "SWING_STRUCTURE", currentMove: "NONE", action: null, orderType: null, currentPrice: round(currentPrice),
     priceBasis: hasCurrentPrice ? "LIVE_QUOTE" : "LAST_M15_CLOSE",
     entry: null, entryZoneLow: null, entryZoneHigh: null, distanceToEntryPips: null,
     stopLoss: null, stopDistancePips: null, takeProfit: null, targetDistancePips: null,
-    riskReward: null, reasons: [],
+    riskReward: null, reasons: [], warnings: [],
     debug: {
       trendSource: "LEGACY_SWING_TREND_LINES", pointA: trendRead?.first ?? null, pointB: trendRead?.second ?? null,
       projectedTrendlinePrice, pullbackLevel: null, pullbackLevelKind: null, invalidationLevel: null, targetLevel: null,
+      h1AtrPips: h1Atr === null ? null : Number((h1Atr / pip).toFixed(1)),
     },
   };
-  const reject = (reason: string) => { result.reasons.push(reason); return result; };
-  if (candles.length < 24 || !last) return reject("Not enough completed M15 candles for a trendline analysis.");
-  if (!trendRead || projectedTrendlinePrice === null) return reject("No confirmed legacy swing trend is available yet.");
+  // The only refusal left: there is not enough data to read anything at all.
+  if (candles.length < 110 || !last || h1Atr === null || !(h1Atr > 0)) {
+    result.reasons.push("Not enough completed M15 candles to build a plan yet.");
+    return result;
+  }
 
+  // 1. Trend — always pick a side.
+  let trend: "BULLISH" | "BEARISH";
+  if (trendRead) {
+    trend = trendRead.direction === "bullish" ? "BULLISH" : "BEARISH";
+    const broken = trend === "BULLISH" ? last.close < projectedTrendlinePrice! : last.close > projectedTrendlinePrice!;
+    if (broken) result.warnings.push("Price has closed through the swing trendline, so this trend may be turning.");
+  } else {
+    const dayAgo = candles.at(-97)!.close;
+    trend = last.close >= dayAgo ? "BULLISH" : "BEARISH";
+    result.trendSource = "PRICE_CHANGE_24H";
+    result.warnings.push(`Swing highs and lows disagree, so the trend comes from the last 24h (${last.close >= dayAgo ? "up" : "down"} ${(Math.abs(last.close - dayAgo) / pip).toFixed(1)} pips).`);
+  }
   const long = trend === "BULLISH";
-  // A historical direction is not a valid present trend after price closes
-  // through its legacy trendline support/resistance.
-  const trendlineBroken = long ? last.close < projectedTrendlinePrice : last.close > projectedTrendlinePrice;
-  if (trendlineBroken) return reject("The legacy swing trendline has been broken; wait for a new confirmed trend.");
-  if (!levels) return reject("No support/resistance pullback levels are available yet.");
-  const tolerance = settings.entryBufferPips * pip;
+  const sign = long ? 1 : -1;
+  result.trend = result.majorTrend = result.currentTrend = trend;
 
   const recent = candles.slice(-4);
   const changes = recent.slice(1).map((candle, index) => candle.close - recent[index]!.close);
@@ -102,73 +140,87 @@ export function analyzeTrendPullbackV1(
     && (long ? last.close < recent[0]!.close : last.close > recent[0]!.close);
   result.currentMove = activePullback ? long ? "BEARISH_PULLBACK" : "BULLISH_PULLBACK" : "NONE";
 
-  const pullbackCandidates: Array<{ price: number; kind: PullbackLevelKind } | null> = long
-    ? [
-      levels.swingLow === null ? null : { price: levels.swingLow, kind: "SWING_SUPPORT" },
-      { price: levels.rangeLow, kind: "RANGE_SUPPORT" },
-    ]
-    : [
-      levels.swingHigh === null ? null : { price: levels.swingHigh, kind: "SWING_RESISTANCE" },
-      { price: levels.rangeHigh, kind: "RANGE_RESISTANCE" },
-    ];
-  const usablePullbacks = pullbackCandidates
-    .filter((level): level is { price: number; kind: PullbackLevelKind } => level !== null)
-    .filter((level) => long ? level.price <= currentPrice + tolerance : level.price >= currentPrice - tolerance)
-    .sort((left, right) => Math.abs(left.price - currentPrice) - Math.abs(right.price - currentPrice));
-  const pullback = usablePullbacks[0];
-  if (!pullback) return reject("No direction-aligned support/resistance pullback level is available ahead of price.");
-
-  const opposingCandidates = long
-    ? [levels.swingHigh, levels.rangeHigh].filter((price): price is number => price !== null && price > pullback.price)
-    : [levels.swingLow, levels.rangeLow].filter((price): price is number => price !== null && price < pullback.price);
-  const targetLevel = opposingCandidates
-    .sort((left, right) => Math.abs(left - pullback.price) - Math.abs(right - pullback.price))[0];
-  if (targetLevel === undefined) return reject("No opposing support/resistance level leaves a target for this pullback.");
-
-  const entry = round(pullback.price);
-  const zoneLow = round(entry - tolerance);
-  const zoneHigh = round(entry + tolerance);
-  // The selected S/R level is where we want to enter. The next structural S/R
-  // level beyond it is where the continuation thesis is invalidated. Do not
-  // manufacture a stop from an arbitrary pip distance when that level is absent.
-  const invalidationLevel = long
-    ? (levels.rangeLow < entry ? levels.rangeLow : null)
-    : (levels.rangeHigh > entry ? levels.rangeHigh : null);
-  if (invalidationLevel === null) {
-    return reject("No deeper structural support/resistance level is available for a stop; wait for a clearer pullback.");
+  // 2. Pullback level — nearest S/R on the trend side of price, else an ATR pullback.
+  const tolerance = settings.entryBufferPips * pip;
+  const levels = computeSupportResistanceLevels(candles, input.instrument);
+  const candidates: Array<{ price: number; kind: PullbackLevelKind }> = [];
+  if (levels) {
+    if (long) {
+      if (levels.swingLow !== null) candidates.push({ price: levels.swingLow, kind: "SWING_SUPPORT" });
+      candidates.push({ price: levels.rangeLow, kind: "RANGE_SUPPORT" });
+    } else {
+      if (levels.swingHigh !== null) candidates.push({ price: levels.swingHigh, kind: "SWING_RESISTANCE" });
+      candidates.push({ price: levels.rangeHigh, kind: "RANGE_RESISTANCE" });
+    }
   }
-  const latestAtr = calculateAtr(candles, 14).at(-1) ?? 0;
-  const stopBuffer = latestAtr * (settings.stopAtrMultiplier ?? TREND_PULLBACK_V1.stopAtrMultiplier);
-  const stop = round(long ? invalidationLevel - stopBuffer : invalidationLevel + stopBuffer);
-  const target = round(long ? targetLevel - pip : targetLevel + pip);
-  const risk = long ? entry - stop : stop - entry;
-  const reward = long ? target - entry : entry - target;
-  const minimumRiskReward = settings.minimumRiskReward ?? TREND_PULLBACK_V1.minimumRiskReward;
-  result.debug.pullbackLevel = entry;
-  result.debug.pullbackLevelKind = pullback.kind;
-  result.debug.invalidationLevel = invalidationLevel;
-  result.debug.targetLevel = targetLevel;
+  const pullback = candidates
+    .filter((level) => long ? level.price <= currentPrice + tolerance : level.price >= currentPrice - tolerance)
+    .sort((a, b) => Math.abs(a.price - currentPrice) - Math.abs(b.price - currentPrice))[0]
+    ?? { price: currentPrice - sign * settings.fallbackPullbackH1Atr * h1Atr, kind: "ATR_PULLBACK" as const };
+  if (pullback.kind === "ATR_PULLBACK") {
+    result.warnings.push(`No ${long ? "support below" : "resistance above"} price, so the pullback is half an average 1-hour candle ${long ? "below" : "above"} price.`);
+  }
+
+  // 3. Stop past the pullback level, 4. fixed 2R target.
+  const entry = round(pullback.price);
+  const risk = Math.max(settings.stopH1AtrMultiplier * h1Atr, settings.minStopPips * pip);
+  const stop = round(entry - sign * risk);
+  const target = round(entry + sign * settings.rewardRisk * risk);
+  const opposing = levels
+    ? (long ? [levels.swingHigh, levels.rangeHigh] : [levels.swingLow, levels.rangeLow])
+      .filter((price): price is number => price !== null && (long ? price > entry && price < target : price < entry && price > target))
+      .sort((a, b) => Math.abs(a - entry) - Math.abs(b - entry))
+    : [];
+  if (opposing.length) {
+    result.warnings.push(`${long ? "Resistance" : "Support"} at ${round(opposing[0]!)} sits before the target, so price may stall there.`);
+  }
+
+  const inZone = Math.abs(currentPrice - entry) <= tolerance;
+  result.status = inZone && hasCurrentPrice ? "ENTRY_AVAILABLE_NOW" : "TRADE_PLAN";
+  result.action = long ? "LONG" : "SHORT";
+  result.orderType = !hasCurrentPrice || inZone ? null : long ? "BUY_LIMIT" : "SELL_LIMIT";
   result.entry = entry;
-  result.entryZoneLow = zoneLow;
-  result.entryZoneHigh = zoneHigh;
+  result.entryZoneLow = round(entry - tolerance);
+  result.entryZoneHigh = round(entry + tolerance);
   result.distanceToEntryPips = Number((Math.abs(currentPrice - entry) / pip).toFixed(1));
   result.stopLoss = stop;
   result.stopDistancePips = Number((risk / pip).toFixed(1));
   result.takeProfit = target;
-  result.targetDistancePips = Number((reward / pip).toFixed(1));
-  result.riskReward = risk > 0 ? Number((reward / risk).toFixed(2)) : null;
-  if (risk <= pip || reward <= pip || result.riskReward === null || result.riskReward < minimumRiskReward) {
-    return reject(`The nearest ${pullback.kind.toLowerCase().replace("_", " ")} does not leave at least ${minimumRiskReward}:1 risk/reward to the next opposing level.`);
-  }
-
-  const inZone = currentPrice >= zoneLow && currentPrice <= zoneHigh;
-  result.status = inZone && hasCurrentPrice ? "ENTRY_AVAILABLE_NOW" : "TRADE_PLAN";
-  result.action = long ? "LONG" : "SHORT";
-  result.orderType = !hasCurrentPrice || inZone ? null : long ? "BUY_LIMIT" : "SELL_LIMIT";
+  result.targetDistancePips = Number((settings.rewardRisk * risk / pip).toFixed(1));
+  result.riskReward = settings.rewardRisk;
+  result.debug.pullbackLevel = entry;
+  result.debug.pullbackLevelKind = pullback.kind;
+  result.debug.invalidationLevel = stop;
+  result.debug.targetLevel = opposing[0] ?? null;
+  const levelLabel: Record<PullbackLevelKind, string> = {
+    SWING_SUPPORT: "swing support", RANGE_SUPPORT: "range support", SWING_RESISTANCE: "swing resistance",
+    RANGE_RESISTANCE: "range resistance", ATR_PULLBACK: "an ATR pullback",
+  };
   result.reasons = [
-    `Legacy Swing Trend Lines confirm a ${trend.toLowerCase()} trend.`,
-    `${pullback.kind.replace("_", " ")} is the nearest direction-aligned pullback level.`,
-    `The next opposing S/R level provides ${result.riskReward.toFixed(2)}:1 risk/reward with the stop beyond the outer structural boundary.`,
+    `Trend: ${long ? "up" : "down"} (${result.trendSource === "SWING_STRUCTURE" ? "swing trend line" : "last 24h of price"}).`,
+    `Pullback entry at ${levelLabel[pullback.kind]} ${entry}.`,
+    `Stop ${result.stopDistancePips} pips past it (one average 1-hour candle, minimum ${settings.minStopPips}); target ${settings.rewardRisk}:1.`,
   ];
   return result;
+}
+
+/**
+ * The frozen record saved with an order placed from this plan (the backend
+ * keeps it as `frozenContext`), so forward-test trades can be scored later.
+ */
+export function trendPullbackContext(result: TrendPullbackV1Result) {
+  return {
+    version: 1,
+    direction: result.action === "LONG" ? "long" : "short",
+    setup: "trend-pullback-loose-v1",
+    frozen: {
+      trend: result.trend,
+      trendSource: result.trendSource,
+      currentMove: result.currentMove,
+      pullbackLevelKind: result.debug.pullbackLevelKind,
+      h1AtrPips: result.debug.h1AtrPips,
+      planned: { entry: result.entry, stop: result.stopLoss, target: result.takeProfit, currentPrice: result.currentPrice, status: result.status },
+      warnings: result.warnings,
+    },
+  };
 }

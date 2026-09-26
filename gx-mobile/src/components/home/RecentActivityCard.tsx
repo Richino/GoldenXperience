@@ -1,4 +1,5 @@
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { router } from 'expo-router';
 
 import { HomeCard } from '@/components/home/HomeCard';
 import { Text } from '@/components/ui/AppText';
@@ -34,8 +35,17 @@ export function RecentActivityCard({ items, currency }: { items: ActivityItem[];
             const tone = toneColor(item.kind);
             const hasMoney = item.paperPl !== null;
             const primaryValue = hasMoney ? moneyLabel(item.paperPl, currency) : 'Closed';
+            // A rejected order never filled, so it has no result to show on the chart.
+            const openable = item.instrument !== null && item.label !== 'BROKER REJECTED';
             return (
-              <View key={item.id} style={[styles.row, index < items.length - 1 ? styles.rowBorder : null]}>
+              <Pressable
+                key={item.id}
+                disabled={!openable}
+                accessibilityRole="button"
+                accessibilityLabel={`${item.pair}, ${friendlyOutcome(item)}, ${primaryValue}. Show on chart`}
+                style={({ pressed }) => [styles.row, index < items.length - 1 ? styles.rowBorder : null, pressed ? styles.rowPressed : null]}
+                onPress={() => router.push({ pathname: '/chart', params: item.chartTradeId ? { instrument: item.instrument!, trade: item.chartTradeId } : { instrument: item.instrument! } })}
+              >
                 <View style={styles.left}>
                   <Text style={styles.pair}>{item.pair}</Text>
                   <View style={styles.outcomeRow}>
@@ -47,7 +57,7 @@ export function RecentActivityCard({ items, currency }: { items: ActivityItem[];
                   <Text style={[styles.money, { color: hasMoney ? tone : theme.colors.textSecondary }]}>{primaryValue}</Text>
                   <Text style={styles.date}>{formatShortDay(item.at)}</Text>
                 </View>
-              </View>
+              </Pressable>
             );
           })}
         </View>
@@ -94,6 +104,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 14,
+  },
+  rowPressed: {
+    opacity: 0.72,
   },
   rowBorder: {
     borderBottomWidth: StyleSheet.hairlineWidth,

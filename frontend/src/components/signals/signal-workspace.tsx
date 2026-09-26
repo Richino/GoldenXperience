@@ -72,7 +72,7 @@ import {
   type ChartVariant,
 } from "@/lib/chart-utils";
 import { analyzeAdaptiveSwingTrendlines, type AdaptiveTrendline } from "@/lib/adaptive-swing-trendlines";
-import { analyzeTrendPullbackV1, type TrendPullbackV1Result } from "@/lib/strategy/trend-pullback-v1";
+import { analyzeTrendPullbackV1, trendPullbackContext, type TrendPullbackV1Result } from "@/lib/strategy/trend-pullback-v1";
 import {
   INSTRUMENT_CATALOG,
   currenciesOf,
@@ -2065,6 +2065,8 @@ export function SignalWorkspace({
     confidence: number | null;
     rationale: string;
     preferredEntryTime: string;
+    /** Saved with the order so forward-test trades can be scored by setup. */
+    analysisContext?: Record<string, unknown>;
   } | null>(null);
   const openedManualProposalRef = useRef(false);
 
@@ -2198,6 +2200,7 @@ export function SignalWorkspace({
       confidence: null,
       rationale: trendPullbackResult.reasons.join(" "),
       preferredEntryTime: new Date().toISOString(),
+      analysisContext: trendPullbackContext(trendPullbackResult),
     });
     setTrendPullbackDialogOpen(false);
     openPendingEntryManager(null);
@@ -2603,7 +2606,9 @@ export function SignalWorkspace({
   // and focused time range stay available. It is not an active plan though:
   // showing its Entry / SL / TP as live chart levels made completed positions
   // look as if they were still open.
-  const displayedTrade = openPaperTrade ?? focusTrade;
+  // An explicitly requested trade (a journal or recent-activity link) wins over
+  // the pair's open trade, so tapping a past result never shows another trade.
+  const displayedTrade = focusTrade ?? openPaperTrade;
   const triggeredManualEntry = useMemo(
     () => pendingEntries.find((entry) =>
       entry.status === "TRIGGERED" &&
@@ -3212,6 +3217,13 @@ export function SignalWorkspace({
     });
   }, [instrument, router, workspacePath]);
 
+  // The embed has no URL to rewrite; native owns the focus, so tell it instead.
+  const clearEmbeddedFocusTrade = useCallback(() => {
+    setFocusTradeId(null);
+    (window as Window & { ReactNativeWebView?: { postMessage: (data: string) => void } }).ReactNativeWebView
+      ?.postMessage(JSON.stringify({ type: "gx-native-trade-focus-cleared" }));
+  }, []);
+
   const clearFocusPrediction = useCallback(() => {
     setPredictionFocus(null);
     router.replace(`${workspacePath}?instrument=${encodeURIComponent(instrument)}`, {
@@ -3314,6 +3326,10 @@ export function SignalWorkspace({
           setLiveCandle(null);
           setScrollToLatestRevision((revision) => revision + 1);
         }
+      } else if (command.action === "focus-trade") {
+        // An empty value clears the focus; anything else must be a trade id.
+        const id = command.value ?? "";
+        if (id === "" || /^[0-9a-f-]{36}$/i.test(id)) setFocusTradeId(id || null);
       } else if (command.action === "timeframe") {
         const normalized = command.value?.toLowerCase() as ChartTimeframe | undefined;
         if (!normalized || !CHART_TIMEFRAMES.includes(normalized)) return;
@@ -3473,6 +3489,11 @@ export function SignalWorkspace({
               onPositionToolSubmit={submitPositionTool}
             />
             <ChartLoadingOverlay visible={loading} />
+            {focusTrade && focusTrade.closedAt !== null ? (
+              <div className="absolute inset-x-0 top-0 z-10">
+                <TradeFocusBar trade={focusTrade} onClear={clearEmbeddedFocusTrade} />
+              </div>
+            ) : null}
           </div>
         </div>
         <ManualProposalModal

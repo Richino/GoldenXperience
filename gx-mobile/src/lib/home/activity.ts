@@ -8,6 +8,8 @@ export type ActivityItem = {
   id: string;
   pair: string;
   instrument: string | null;
+  /** The id the chart knows this trade by; null when only the broker has it. */
+  chartTradeId: string | null;
   label: string;
   kind: ActivityKind;
   resultR: number | null;
@@ -57,6 +59,7 @@ function toActivityItem(trade: JournalTrade): ActivityItem {
       id: trade.id,
       pair: trade.pair,
       instrument: trade.instrument,
+      chartTradeId: trade.chartTradeId,
       label: 'BROKER REJECTED',
       kind: 'other',
       resultR: null,
@@ -69,6 +72,7 @@ function toActivityItem(trade: JournalTrade): ActivityItem {
     id: trade.id,
     pair: trade.pair,
     instrument: trade.instrument,
+    chartTradeId: trade.chartTradeId,
     label: activityLabel(trade.outcome, kind),
     kind,
     resultR: trade.resultR,

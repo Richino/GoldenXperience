@@ -32,7 +32,8 @@ export function TradeDrawer({
   instrument: string;
   bid: number | null;
   ask: number | null;
-  draft?: { direction: 'long' | 'short'; entry: number; stop: number; target: number } | null;
+  /** analysisContext tags an Analyze plan so forward-test trades can be scored by setup. */
+  draft?: { direction: 'long' | 'short'; entry: number; stop: number; target: number; analysisContext?: Record<string, unknown> } | null;
   onCreated?: () => void;
 }) {
   const [direction, setDirection] = useState<'long' | 'short'>('long');
@@ -145,6 +146,19 @@ export function TradeDrawer({
         activateAt: null,
         invalidationPrice: null,
         orderReferencePrice,
+        analysisContext: draft?.analysisContext
+          ? {
+            ...draft.analysisContext,
+            direction,
+            frozen: {
+              ...(draft.analysisContext.frozen as Record<string, unknown> | undefined),
+              editedAfterFill: direction !== draft.direction
+                || formatPrice(parsedEntry, instrument) !== formatPrice(draft.entry, instrument)
+                || (parsedStop === null ? '' : formatPrice(parsedStop, instrument)) !== formatPrice(draft.stop, instrument)
+                || (parsedTarget === null ? '' : formatPrice(parsedTarget, instrument)) !== formatPrice(draft.target, instrument),
+            },
+          }
+          : undefined,
       });
       onCreated?.();
       onClose();

@@ -4,10 +4,54 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { apiUrl } from "@/lib/api/url";
+import { calculateAtr } from "@/lib/chart-utils";
 import { displayNameFor, pipSizeFor, precisionFor } from "@/lib/instruments/catalog";
+import type { Candle } from "@/types/forex";
 import type { PendingManualEntry } from "@/types/pending-entry";
 
 type ExpirationPreset = "none" | "30m" | "1h" | "4h" | "custom";
+
+/**
+ * Breakout V1 (forward test only, never backtested as the user trades it): a
+ * stop order just past a level the trader picks, stop at least one average
+ * 1-hour candle, 2R target, 4h expiry, cancelled if price turns away first.
+ */
+const BREAKOUT_V1 = { bufferPips: 3, minStopPips: 10, rewardRisk: 2, cancelBeyondStopPips: 3 } as const;
+
+type BreakoutPlan = {
+  direction: "long" | "short";
+  level: number;
+  entry: number;
+  stop: number;
+  target: number;
+  invalidation: number;
+  stopPips: number;
+  h1AtrPips: number;
+};
+
+function breakoutPlan(level: number, bid: number, ask: number, h1Atr: number, instrument: string): BreakoutPlan | string {
+  const pip = pipSizeFor(instrument);
+  const mid = (bid + ask) / 2;
+  const direction = level > mid ? "long" : "short";
+  const sign = direction === "long" ? 1 : -1;
+  const entry = level + sign * BREAKOUT_V1.bufferPips * pip;
+  // A stop order must still be ahead of price; otherwise the break already happened.
+  if (direction === "long" ? entry <= ask : entry >= bid) {
+    return "Price is already past this level, so the breakout has already happened.";
+  }
+  const stopDistance = Math.max(h1Atr, BREAKOUT_V1.minStopPips * pip);
+  const stop = entry - sign * stopDistance;
+  return {
+    direction,
+    level,
+    entry,
+    stop,
+    target: entry + sign * BREAKOUT_V1.rewardRisk * stopDistance,
+    invalidation: stop - sign * BREAKOUT_V1.cancelBeyondStopPips * pip,
+    stopPips: stopDistance / pip,
+    h1AtrPips: h1Atr / pip,
+  };
+}
 
 function localDateTimeValue(value: string | null) {
   if (!value) return "";
@@ -69,7 +113,7 @@ export function PendingEntryDialog({
   bid: number | null;
   ask: number | null;
   selectedEntry: PendingManualEntry | null;
-  initialProposal?: { direction: "long" | "short"; entry: number; stop: number; target: number; confidence: number | null; rationale: string; preferredEntryTime: string } | null;
+  initialProposal?: { direction: "long" | "short"; entry: number; stop: number; target: number; confidence: number | null; rationale: string; preferredEntryTime: string; analysisContext?: Record<string, unknown> } | null;
   creationBlocked?: boolean;
   onClose: () => void;
   onChanged: (message: string) => void;
@@ -100,6 +144,49 @@ export function PendingEntryDialog({
   const [customExpirationError, setCustomExpirationError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [mode, setMode] = useState<"manual" | "breakout">("manual");
+  const [breakoutLevel, setBreakoutLevel] = useState("");
+  // Keyed by instrument so a pair switch never sizes a stop from another pair's candles.
+  const [h1AtrRead, setH1AtrRead] = useState<{ instrument: string; atr: number | null; error: string | null } | null>(null);
+  const h1Atr = h1AtrRead?.instrument === instrument ? h1AtrRead.atr : null;
+  const h1AtrError = h1AtrRead?.instrument === instrument ? h1AtrRead.error : null;
+  const [breakout, setBreakout] = useState<BreakoutPlan | null>(null);
+
+  // The breakout stop is sized from the pair's current average 1-hour candle.
+  useEffect(() => {
+    if (!open || mode !== "breakout") return;
+    let cancelled = false;
+    void fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=H1&count=60`), { credentials: "include", cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json() as { data?: { candles?: Candle[] }; error?: string };
+        if (!response.ok || !payload.data?.candles) throw new Error(payload.error ?? "1-hour candles are unavailable.");
+        const atr = calculateAtr(payload.data.candles.filter((candle) => candle.complete !== false), 14).at(-1) ?? null;
+        if (!atr || !(atr > 0)) throw new Error("Not enough 1-hour candles to size the stop.");
+        if (!cancelled) setH1AtrRead({ instrument, atr, error: null });
+      })
+      .catch((reason) => {
+        if (!cancelled) setH1AtrRead({ instrument, atr: null, error: reason instanceof Error ? reason.message : "1-hour candles are unavailable." });
+      });
+    return () => { cancelled = true; };
+  }, [instrument, mode, open]);
+
+  function fillBreakout() {
+    setError(null);
+    const level = Number(breakoutLevel);
+    if (!Number.isFinite(level) || level <= 0) return setError("Enter the level price.");
+    if (bid === null || ask === null) return setError("Wait for a fresh executable market quote.");
+    if (h1Atr === null) return setError(h1AtrError ?? "Still loading the 1-hour candle size.");
+    const plan = breakoutPlan(level, bid, ask, h1Atr, instrument);
+    if (typeof plan === "string") return setError(plan);
+    setBreakout(plan);
+    setDirection(plan.direction);
+    setOrderReferencePrice(plan.direction === "long" ? ask : bid);
+    setEntryPrice(plan.entry.toFixed(precision));
+    setStopPrice(plan.stop.toFixed(precision));
+    setTargetPrice(plan.target.toFixed(precision));
+    setInvalidationPrice(plan.invalidation.toFixed(precision));
+    setExpiration("4h");
+  }
 
   useEffect(() => {
     if (!open || isPanel) return;
@@ -223,6 +310,8 @@ export function PendingEntryDialog({
     setCustomTime("");
     setCustomExpirationError(null);
     setError(null);
+    setBreakoutLevel("");
+    setBreakout(null);
   }
 
   function dismissCreateOrClose() {
@@ -308,7 +397,38 @@ export function PendingEntryDialog({
         method: selectedEntry ? "PATCH" : "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instrument, direction, entryPrice: parsedEntry, stopPrice: parsedStop, targetPrice: parsedTarget, expiresAt, activateAt: activateAtIso, invalidationPrice: parsedInvalidation, orderReferencePrice }),
+        body: JSON.stringify({
+          instrument, direction, entryPrice: parsedEntry, stopPrice: parsedStop, targetPrice: parsedTarget, expiresAt, activateAt: activateAtIso, invalidationPrice: parsedInvalidation, orderReferencePrice,
+          // Tags forward-test trades so they can be scored separately later.
+          analysisContext: !selectedEntry && mode === "breakout" && breakout
+            ? {
+              version: 1,
+              direction,
+              setup: "breakout-v1",
+              frozen: {
+                level: breakout.level,
+                h1AtrPips: Number(breakout.h1AtrPips.toFixed(1)),
+                planned: { entry: breakout.entry, stop: breakout.stop, target: breakout.target, invalidation: breakout.invalidation },
+                editedAfterFill: direction !== breakout.direction
+                  || parsedEntry.toFixed(precision) !== breakout.entry.toFixed(precision)
+                  || parsedStop?.toFixed(precision) !== breakout.stop.toFixed(precision)
+                  || parsedTarget?.toFixed(precision) !== breakout.target.toFixed(precision),
+              },
+            }
+            : !selectedEntry && mode === "manual" && initialProposal?.analysisContext
+              ? {
+                ...initialProposal.analysisContext,
+                direction,
+                frozen: {
+                  ...(initialProposal.analysisContext.frozen as Record<string, unknown> | undefined),
+                  editedAfterFill: direction !== initialProposal.direction
+                    || parsedEntry.toFixed(precision) !== initialProposal.entry.toFixed(precision)
+                    || parsedStop?.toFixed(precision) !== initialProposal.stop.toFixed(precision)
+                    || parsedTarget?.toFixed(precision) !== initialProposal.target.toFixed(precision),
+                },
+              }
+              : undefined,
+        }),
       });
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Could not save the pending entry.");
@@ -418,6 +538,45 @@ export function PendingEntryDialog({
       ) : (
         <>
           <div className="pending-entry-form">
+            {selectedEntry ? null : (
+              <fieldset>
+                <legend>Mode</legend>
+                <div className="pending-entry-presets" role="group" aria-label="Entry mode">
+                  {(["manual", "breakout"] as const).map((option) => (
+                    <button key={option} type="button" className={mode === option ? "is-active" : ""} onClick={() => {
+                      setMode(option);
+                      setBreakout(null);
+                      setError(null);
+                    }}>
+                      {option === "manual" ? "Manual" : "Breakout"}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            )}
+            {!selectedEntry && mode === "breakout" ? (
+              <div className="pending-entry-breakout">
+                <label>
+                  <span>Level price</span>
+                  <input inputMode="decimal" value={breakoutLevel} onChange={(event) => { setBreakoutLevel(event.target.value); setBreakout(null); }} placeholder="Support or resistance you picked" />
+                  <small>
+                    {h1AtrError
+                      ? h1AtrError
+                      : h1Atr === null
+                        ? "Loading 1-hour candle size…"
+                        : `Average 1-hour candle: ${(h1Atr / pipSizeFor(instrument)).toFixed(1)} pips · Above price = buy stop, below = sell stop`}
+                  </small>
+                </label>
+                <button type="button" className="pending-entry-secondary pressable" disabled={h1Atr === null || !breakoutLevel.trim()} onClick={fillBreakout}>
+                  Fill breakout order
+                </button>
+                {breakout ? (
+                  <small>
+                    {breakout.direction === "long" ? "Buy" : "Sell"} stop {BREAKOUT_V1.bufferPips} pips past the level · stop {breakout.stopPips.toFixed(1)} pips · target {BREAKOUT_V1.rewardRisk}:1 · expires in 4h · cancels if price reaches {breakout.invalidation.toFixed(precision)} first. Once filled, let it hit target or stop.
+                  </small>
+                ) : null}
+              </div>
+            ) : null}
             <div className="pending-entry-direction" role="group" aria-label="Direction">
               {(["long", "short"] as const).map((option) => (
                 <button key={option} type="button" className={`is-${option}${direction === option ? " is-active" : ""}`} onClick={() => {

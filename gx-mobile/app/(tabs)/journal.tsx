@@ -95,6 +95,8 @@ export default function JournalScreen() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [showFloatingBell, setShowFloatingBell] = useState(false);
   const offset = useRef(0);
+  // The starting tab is decided once, from the first answer; later refreshes never override the user's pick.
+  const initialTabResolved = useRef(false);
 
   const load = useCallback(async (reset: boolean) => {
     if (reset) setLoading(true); else setLoadingMore(true);
@@ -105,6 +107,11 @@ export default function JournalScreen() {
       setRecords((previous) => reset ? payload.trades : [...previous, ...payload.trades.filter((trade) => !previous.some((item) => item.id === trade.id))]);
       setHasMore(payload.hasMore);
       if (payload.summary) setSummary(payload.summary);
+      if (!initialTabResolved.current) {
+        initialTabResolved.current = true;
+        const openCount = payload.summary?.openTrades?.length ?? payload.trades.filter((trade) => trade.status === 'open').length;
+        if (openCount === 0) setTab('closed');
+      }
       setError(null);
     } catch { setError('Could not load your trade journal.'); }
     finally { setLoading(false); setRefreshing(false); setLoadingMore(false); setLoadedOnce(true); }

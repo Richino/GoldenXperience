@@ -39,7 +39,6 @@ export default function SettingsScreen() {
   const [exposure, setExposure] = useState('');
   const [paused, setPaused] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const skipNextSave = useRef(true);
@@ -66,7 +65,6 @@ export default function SettingsScreen() {
     if (!next) return;
     const timer = setTimeout(() => {
       void (async () => {
-        setSaving(true);
         try {
           const payload = await apiPatch<{ policy: PaperRiskPolicy }>('/api/paper-risk/settings', {
             configuration: next,
@@ -76,8 +74,6 @@ export default function SettingsScreen() {
           setError(null);
         } catch (reason) {
           setError(reason instanceof Error ? reason.message : 'Risk settings could not be saved.');
-        } finally {
-          setSaving(false);
         }
       })();
     }, 450);
@@ -105,7 +101,7 @@ export default function SettingsScreen() {
         <Row label="Max open positions" value={positionLimitLabel(positions)} onPress={() => setPicker('positions')} />
         <Text style={styles.field}>Max exposure <Text style={styles.optional}>Optional</Text></Text><Field value={exposure} onChangeText={setExposure} label="Maximum exposure percent" placeholder="Unlimited" />
         <View style={styles.switchRow}><View style={styles.switchCopy}><Text style={styles.switchTitle}>Allow new entries</Text></View><Switch value={!paused} onValueChange={(value) => setPaused(!value)} trackColor={{ false: theme.colors.surfaceRaised, true: theme.colors.primarySoft }} thumbColor={!paused ? theme.colors.primary : theme.colors.textSecondary} /></View>
-        {error ? <Text style={styles.error}>{error}</Text> : null}{saving && !error ? <Text style={styles.helper}>Saving…</Text> : null}
+        {error ? <Text style={styles.error}>{error}</Text> : null}
       </>}
     </HomeCard>
     <HomeCard style={styles.card}><Text style={styles.section}>Account</Text><Row label="Signed in as" value={user?.email ?? '—'} /><Pressable onPress={confirmSignOut} style={styles.signOut} accessibilityRole="button"><SymbolView name={{ ios: 'rectangle.portrait.and.arrow.right', android: 'logout', web: 'logout' }} size={16} tintColor={theme.colors.danger} /><Text style={styles.signOutText}>Sign out</Text></Pressable></HomeCard>

@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { LayoutChangeEvent, StyleSheet, View } from 'react-native';
 import Svg, { Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
 
-import { rawColors, theme } from '@/constants/theme';
+import { rawColors, theme, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/lib/theme/useTheme';
 import { Text } from '@/components/ui/AppText';
 import { usePreferences } from '@/lib/preferences/PreferencesContext';
 import { accountSeriesTone, type AccountChartPoint } from '@/lib/home/account-series';
@@ -47,6 +48,7 @@ function buildPaths(points: AccountChartPoint[], width: number, height: number, 
 }
 
 export function AccountChart({ series, height = 148 }: { series: AccountChartPoint[]; height?: number }) {
+  const styles = useThemedStyles(createStyles);
   const [width, setWidth] = useState(0);
   const { themeMode } = usePreferences();
   const palette = rawColors[themeMode];
@@ -108,7 +110,7 @@ export function AccountChart({ series, height = 148 }: { series: AccountChartPoi
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   wrap: {
     marginTop: 4,
   },
@@ -124,7 +126,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 9,
     fontFamily: theme.fonts.sansMedium,
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
   },
   labelStart: {
     textAlign: 'left',

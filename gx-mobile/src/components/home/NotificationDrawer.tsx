@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { theme } from '@/constants/theme';
+import { theme, type ThemeColors } from '@/constants/theme';
+import { useThemeColors, useThemedStyles } from '@/lib/theme/useTheme';
 import { Text } from '@/components/ui/AppText';
 import { BottomDrawer } from '@/components/ui/BottomDrawer';
 import { apiGet, apiPatch } from '@/lib/api/client';
@@ -16,6 +17,8 @@ function timeLabel(value: string) {
 }
 
 export function NotificationDrawer({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const colors = useThemeColors();
+  const styles = useThemedStyles(createStyles);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,14 +67,14 @@ export function NotificationDrawer({ visible, onClose }: { visible: boolean; onC
       title="Notifications"
       headerRight={unreadCount ? <Pressable onPress={() => void markRead()} hitSlop={8}><Text style={styles.readAll}>Read all</Text></Pressable> : null}
     >
-      {loading && !notifications.length ? <ActivityIndicator style={styles.loader} color={theme.colors.primary} /> : null}
+      {loading && !notifications.length ? <ActivityIndicator style={styles.loader} color={colors.primary} /> : null}
       {!loading && error && !notifications.length ? <Text style={styles.error}>{error}</Text> : null}
       {!loading && !error && !notifications.length ? <Text style={styles.empty}>You’re all caught up.</Text> : null}
       {notifications.length ? (
         <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
           {notifications.map((item) => (
             <Pressable key={item.id} onPress={() => { if (!item.readAt) void markRead([item.id]); }} style={[styles.item, !item.readAt ? styles.unread : null]} accessibilityRole="button">
-              <View style={[styles.dot, { backgroundColor: item.readAt ? theme.colors.textMuted : item.kind === 'system_issue' ? theme.colors.danger : theme.colors.primary }]} />
+              <View style={[styles.dot, { backgroundColor: item.readAt ? colors.textMuted : item.kind === 'system_issue' ? colors.danger : colors.primary }]} />
               <View style={styles.itemBody}>
                 <View style={styles.itemTop}><Text style={styles.itemTitle}>{item.title}</Text><Text style={styles.time}>{timeLabel(item.createdAt)}</Text></View>
                 {item.message ? <Text style={[styles.message, item.kind === 'system_issue' ? styles.issue : null]}>{item.message}</Text> : null}
@@ -84,8 +87,8 @@ export function NotificationDrawer({ visible, onClose }: { visible: boolean; onC
   );
 }
 
-const styles = StyleSheet.create({
-  readAll: { fontSize: 12, fontFamily: theme.fonts.sansSemiBold, color: theme.colors.primary },
-  loader: { marginVertical: 36 }, empty: { paddingVertical: 32, fontSize: 13, fontFamily: theme.fonts.sans, color: theme.colors.textSecondary, textAlign: 'center' }, error: { paddingVertical: 24, fontSize: 13, fontFamily: theme.fonts.sansMedium, color: theme.colors.danger, textAlign: 'center' },
-  list: { paddingHorizontal: 4, paddingBottom: 6 }, item: { flexDirection: 'row', gap: 10, paddingHorizontal: 10, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border }, unread: { backgroundColor: 'rgba(0, 229, 155, 0.035)' }, dot: { width: 7, height: 7, borderRadius: 4, marginTop: 6 }, itemBody: { flex: 1, minWidth: 0 }, itemTop: { flexDirection: 'row', alignItems: 'baseline', gap: 8 }, itemTitle: { flex: 1, fontSize: 13, fontFamily: theme.fonts.sansSemiBold, color: theme.colors.textPrimary }, time: { fontSize: 11, fontFamily: theme.fonts.sansMedium, color: theme.colors.textMuted }, message: { marginTop: 3, fontSize: 12, lineHeight: 17, fontFamily: theme.fonts.sans, color: theme.colors.textSecondary }, issue: { color: theme.colors.danger },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  readAll: { fontSize: 12, fontFamily: theme.fonts.sansSemiBold, color: colors.primary },
+  loader: { marginVertical: 36 }, empty: { paddingVertical: 32, fontSize: 13, fontFamily: theme.fonts.sans, color: colors.textSecondary, textAlign: 'center' }, error: { paddingVertical: 24, fontSize: 13, fontFamily: theme.fonts.sansMedium, color: colors.danger, textAlign: 'center' },
+  list: { paddingHorizontal: 4, paddingBottom: 6 }, item: { flexDirection: 'row', gap: 10, paddingHorizontal: 10, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }, unread: { backgroundColor: colors.primaryTint }, dot: { width: 7, height: 7, borderRadius: 4, marginTop: 6 }, itemBody: { flex: 1, minWidth: 0 }, itemTop: { flexDirection: 'row', alignItems: 'baseline', gap: 8 }, itemTitle: { flex: 1, fontSize: 13, fontFamily: theme.fonts.sansSemiBold, color: colors.textPrimary }, time: { fontSize: 11, fontFamily: theme.fonts.sansMedium, color: colors.textMuted }, message: { marginTop: 3, fontSize: 12, lineHeight: 17, fontFamily: theme.fonts.sans, color: colors.textSecondary }, issue: { color: colors.danger },
 });

@@ -1,7 +1,8 @@
 import { StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import { theme } from '@/constants/theme';
+import { theme, shadows, type ThemeColors, lightCardShadow } from '@/constants/theme';
+import { useThemeColors, useThemedStyles } from '@/lib/theme/useTheme';
 import { Text } from '@/components/ui/AppText';
 import { usePreferences } from '@/lib/preferences/PreferencesContext';
 
@@ -21,6 +22,8 @@ function formatSignedMoney(value: number, currency: string) {
 }
 
 export function TodayPerformanceCard({ net, resultR, trades, wins, losses, currency }: TodayPerformanceCardProps) {
+  const colors = useThemeColors();
+  const styles = useThemedStyles(createStyles);
   const { themeMode } = usePreferences();
   const isLightTheme = themeMode === 'light';
   const resolved = wins + losses;
@@ -44,11 +47,11 @@ export function TodayPerformanceCard({ net, resultR, trades, wins, losses, curre
       >
       <Text style={styles.title}>Today</Text>
       <View style={styles.totalRow}>
-        <Text style={[styles.lead, { color: netPositive ? theme.colors.primary : theme.colors.danger }]}>
+        <Text style={[styles.lead, { color: netPositive ? colors.primary : colors.danger }]}>
           {formatSignedMoney(net ?? 0, currency)}
         </Text>
         <View style={styles.rPill}>
-          <Text style={[styles.rText, { color: rPositive ? theme.colors.primary : theme.colors.danger }]}>
+          <Text style={[styles.rText, { color: rPositive ? colors.primary : colors.danger }]}>
             {resultR === null ? '0.0R' : `${resultR > 0 ? '+' : ''}${resultR.toFixed(1)}R`}
           </Text>
         </View>
@@ -73,37 +76,31 @@ export function TodayPerformanceCard({ net, resultR, trades, wins, losses, curre
       </View>
 
       <View style={styles.barTrack}>
-        <View style={[styles.barFill, { width: `${winShare * 100}%`, backgroundColor: isLoss ? theme.colors.danger : theme.colors.primary }]} />
+        <View style={[styles.barFill, { width: `${winShare * 100}%`, backgroundColor: isLoss ? colors.danger : colors.primary }]} />
       </View>
       </LinearGradient>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   card: {
     borderRadius: theme.radii.lg,
     padding: 16,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.cardBorder,
+    borderColor: colors.cardBorder,
   },
   shadowWrap: {
     borderRadius: theme.radii.lg,
-    ...theme.shadow.card,
+    ...shadows(colors).card,
     shadowOpacity: 0.12,
   },
-  lightShadow: {
-    shadowColor: '#52616c',
-    shadowOffset: { width: 0, height: 9 },
-    shadowOpacity: 0.075,
-    shadowRadius: 22,
-    elevation: 2,
-  },
+  lightShadow: lightCardShadow,
   title: {
     fontSize: 10,
     fontFamily: theme.fonts.sansMedium,
     letterSpacing: 1.4,
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     textTransform: 'uppercase',
   },
   totalRow: {
@@ -122,7 +119,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
     paddingVertical: 3.5,
     borderRadius: theme.radii.pill,
-    backgroundColor: theme.colors.primaryMuted,
+    backgroundColor: colors.primaryMuted,
   },
   rText: {
     fontSize: 11,
@@ -133,13 +130,13 @@ const styles = StyleSheet.create({
     marginBottom: 9,
     fontSize: 11.5,
     fontFamily: theme.fonts.sans,
-    color: theme.colors.textSecondary,
+    color: colors.textSecondary,
   },
   meta: {
     marginTop: 14,
     paddingTop: 13,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: theme.colors.border,
+    borderTopColor: colors.border,
     flexDirection: 'row',
   },
   metaItem: {
@@ -155,20 +152,20 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontFamily: theme.fonts.sansMedium,
     letterSpacing: 1.05,
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     textTransform: 'uppercase',
   },
   metaValue: {
     marginTop: 3,
     fontSize: 13,
     fontFamily: theme.fonts.sansMedium,
-    color: theme.colors.textSecondary,
+    color: colors.textSecondary,
   },
   barTrack: {
     marginTop: 14,
     height: 4,
     borderRadius: 2,
-    backgroundColor: theme.colors.surfaceInset,
+    backgroundColor: colors.surfaceInset,
     overflow: 'hidden',
   },
   barFill: {

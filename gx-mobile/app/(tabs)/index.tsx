@@ -13,13 +13,16 @@ import { RecentActivityCard } from '@/components/home/RecentActivityCard';
 import { TodayPerformanceCard } from '@/components/home/TodayPerformanceCard';
 import { DockFade } from '@/components/ui/DockFade';
 import { Text } from '@/components/ui/AppText';
-import { theme } from '@/constants/theme';
+import { theme, type ThemeColors, floatingShadow } from '@/constants/theme';
+import { useThemeColors, useThemedStyles } from '@/lib/theme/useTheme';
 import { useHomeData } from '@/hooks/useHomeData';
 import { recentActivityFromTrades, todayClosedStats } from '@/lib/home/activity';
 
 const DOCK_CLEARANCE = 98;
 
 export default function HomeScreen() {
+  const colors = useThemeColors();
+  const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [showFloatingBell, setShowFloatingBell] = useState(false);
@@ -35,7 +38,7 @@ export default function HomeScreen() {
   if (!ready) {
     return (
       <View style={[styles.root, styles.centered]}>
-        <ActivityIndicator color={theme.colors.primary} />
+        <ActivityIndicator color={colors.primary} />
       </View>
     );
   }
@@ -55,7 +58,7 @@ export default function HomeScreen() {
           setShowFloatingBell((current) => current === next ? current : next);
         }}
         keyboardShouldPersistTaps="handled"
-        refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={false} onRefresh={() => void refresh()} />}
+        refreshControl={<RefreshControl tintColor={colors.primary} refreshing={false} onRefresh={() => void refresh()} />}
       >
         {error ? <Text style={styles.error}>{error}</Text> : null}
         {account ? <BalancePerformanceCard account={account} history={accountHistory} todayKey={todayKey} onNotificationsPress={() => setNotificationsOpen(true)} /> : null}
@@ -77,7 +80,7 @@ export default function HomeScreen() {
         <Animated.View entering={FadeInDown.duration(180)} exiting={FadeOutUp.duration(140)} style={[styles.floatingBellWrap, { top: insets.top + 14 }]}>
           <View style={styles.floatingBellTouchTarget}>
             <Pressable onPress={() => setNotificationsOpen(true)} accessibilityRole="button" accessibilityLabel="Open notifications" style={styles.floatingBell}>
-              <SymbolView name={{ ios: 'bell', android: 'notifications', web: 'notifications' }} size={19} tintColor={theme.colors.textPrimary} />
+              <SymbolView name={{ ios: 'bell', android: 'notifications', web: 'notifications' }} size={19} tintColor={colors.textPrimary} />
             </Pressable>
           </View>
         </Animated.View>
@@ -87,10 +90,10 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: colors.background,
   },
   centered: {
     alignItems: 'center',
@@ -106,7 +109,7 @@ const styles = StyleSheet.create({
   error: {
     fontSize: 12,
     fontFamily: theme.fonts.sansMedium,
-    color: theme.colors.danger,
+    color: colors.danger,
   },
   floatingBellWrap: {
     position: 'absolute',
@@ -125,13 +128,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: theme.colors.surface,
+    backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.border,
-    shadowColor: theme.shadow.dock.shadowColor,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.16,
-    shadowRadius: 16,
-    elevation: 8,
+    borderColor: colors.border,
+    ...floatingShadow(colors),
   },
 });

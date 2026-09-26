@@ -1,20 +1,60 @@
-import { DynamicColorIOS, Platform } from 'react-native';
+import { Platform } from 'react-native';
 
-// iOS resolves DynamicColorIOS inside already-created native StyleSheets when
-// Appearance.setColorScheme changes. This keeps theme changes live rather than
-// requiring a bundle restart. Android falls back to its startup palette.
-const adaptive = (light: string, dark: string) => Platform.OS === 'ios' ? DynamicColorIOS({ light, dark }) : dark;
+import palette from './palette.json';
+
+type ColorName = keyof typeof palette;
+export type ThemeMode = 'light' | 'dark';
+export type ThemeColors = Record<ColorName, string>;
+
+function paletteFor(index: 0 | 1): ThemeColors {
+  return Object.fromEntries(Object.entries(palette).map(([name, pair]) => [name, pair[index]])) as ThemeColors;
+}
+
+/**
+ * Plain light and dark palettes. Screens read the active one with
+ * useThemeColors() / useThemedStyles() (src/lib/theme), so a theme switch
+ * re-renders everything with the new colours on iOS, Android and web alike.
+ */
+export const palettes: Record<ThemeMode, ThemeColors> = { light: paletteFor(0), dark: paletteFor(1) };
+
+/**
+ * Android turns `elevation` into a hard, box-shaped shadow (dark on light
+ * cards, a visible square around the rounded dock). On Android use a soft CSS
+ * box-shadow instead, which follows border radius; iOS keeps its shadow props.
+ */
+const android = Platform.OS === 'android';
+function androidShadow(boxShadow: string) {
+  return { boxShadow, elevation: 0 };
+}
+
+/** Card and dock shadows; their colour follows the theme. */
+export function shadows(colors: ThemeColors) {
+  const dark = colors.shadow === palettes.dark.shadow;
+  if (android) {
+    return {
+      card: androidShadow(dark ? '0px 10px 24px rgba(0, 0, 0, 0.32)' : '0px 8px 22px rgba(39, 49, 58, 0.10)'),
+      dock: androidShadow(dark ? '0px 10px 26px rgba(0, 0, 0, 0.4)' : '0px 8px 24px rgba(39, 49, 58, 0.14)'),
+    } as const;
+  }
+  return {
+    card: { shadowColor: colors.shadow, shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.22, shadowRadius: 24, elevation: 6 },
+    dock: { shadowColor: colors.shadow, shadowOffset: { width: 0, height: 11 }, shadowOpacity: 0.3, shadowRadius: 28, elevation: 12 },
+  } as const;
+}
+
+/** The lighter lift light-theme cards use on top of their card shadow. */
+export const lightCardShadow = android
+  ? androidShadow('0px 6px 18px rgba(82, 97, 108, 0.10)')
+  : { shadowColor: '#52616c', shadowOffset: { width: 0, height: 9 }, shadowOpacity: 0.075, shadowRadius: 22, elevation: 2 };
+
+/** Small floating controls (the Home bell). */
+export function floatingShadow(colors: ThemeColors) {
+  return android
+    ? androidShadow(colors.shadow === palettes.dark.shadow ? '0px 6px 16px rgba(0, 0, 0, 0.35)' : '0px 6px 16px rgba(39, 49, 58, 0.14)')
+    : { shadowColor: colors.shadow, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.16, shadowRadius: 16, elevation: 8 };
+}
 
 export const theme = {
-  colors: {
-    background: adaptive('#f5f7f8', '#09090b'), surface: adaptive('#ffffff', '#131315'), surfaceRaised: adaptive('#eef1f2', '#1c1c1f'), surfaceMuted: adaptive('#f7f8f9', '#18181b'),
-    surfaceInset: adaptive('rgba(16, 24, 32, 0.045)', 'rgba(255, 255, 255, 0.03)'), cardBorder: adaptive('rgba(16, 24, 32, 0.10)', 'rgba(255, 255, 255, 0.055)'),
-    primary: adaptive('#00b878', '#00e59b'), primaryBright: adaptive('#009b66', '#3ef0ad'), primarySoft: adaptive('rgba(0, 184, 120, 0.14)', 'rgba(0, 229, 155, 0.14)'), primaryMuted: adaptive('rgba(0, 184, 120, 0.1)', 'rgba(0, 229, 155, 0.1)'),
-    textPrimary: adaptive('#17191c', '#f4f4f5'), textSecondary: adaptive('#5f6770', '#a1a1aa'), textMuted: adaptive('#7b838c', '#6d7176'), textMutedStrong: adaptive('#414850', '#d4d4d8'),
-    border: adaptive('rgba(16, 24, 32, 0.12)', 'rgba(255, 255, 255, 0.09)'), danger: adaptive('#df4350', '#ff6370'), dangerSoft: adaptive('rgba(223, 67, 80, 0.1)', 'rgba(255, 99, 112, 0.1)'),
-    warning: adaptive('#c27016', '#d98324'), warningSoft: adaptive('rgba(194, 112, 22, 0.12)', 'rgba(217, 131, 36, 0.12)'), currencyBadge: adaptive('rgba(223, 67, 80, 0.1)', 'rgba(255, 99, 112, 0.1)'),
-    chartUp: adaptive('#00b878', '#00e59b'), chartDown: adaptive('#e14b57', '#ff5252'),
-  },
   spacing: {
     xs: 4,
     sm: 8,
@@ -29,22 +69,6 @@ export const theme = {
     xl: 18,
     hero: 22,
     pill: 999,
-  },
-  shadow: {
-    card: {
-      shadowColor: adaptive('#27313a', '#000000'),
-      shadowOffset: { width: 0, height: 16 },
-      shadowOpacity: 0.22,
-      shadowRadius: 24,
-      elevation: 6,
-    },
-    dock: {
-      shadowColor: adaptive('#27313a', '#000000'),
-      shadowOffset: { width: 0, height: 11 },
-      shadowOpacity: 0.3,
-      shadowRadius: 28,
-      elevation: 12,
-    },
   },
   fonts: {
     sans: 'Geist_400Regular',
@@ -61,15 +85,8 @@ export const theme = {
 
 export type Theme = typeof theme;
 
-/**
- * Plain-string light/dark pairs for the handful of colors used inside SVG
- * (react-native-svg `Stop`/`Line`/`Path` props, expo-linear-gradient
- * `colors` arrays). Those render outside RN's style system, which is the
- * only thing that knows how to resolve `DynamicColorIOS` — passed one of
- * those objects directly, SVG logs "[object Object] is not a valid color".
- * Pick a variant with `rawColors[themeMode]` (see PreferencesContext).
- */
+/** Plain strings for SVG and gradient props (kept for existing callers; same values as palettes). */
 export const rawColors = {
-  light: { chartUp: '#00b878', chartDown: '#e14b57', textMuted: '#7b838c', border: 'rgba(16, 24, 32, 0.12)', background: '#f5f7f8', chartPage: '#ffffff', primary: '#00b878' },
-  dark: { chartUp: '#00e59b', chartDown: '#ff5252', textMuted: '#6d7176', border: 'rgba(255, 255, 255, 0.09)', background: '#09090b', chartPage: '#09090b', primary: '#00e59b' },
+  light: { ...palettes.light, chartPage: '#ffffff' },
+  dark: { ...palettes.dark, chartPage: '#09090b' },
 } as const;

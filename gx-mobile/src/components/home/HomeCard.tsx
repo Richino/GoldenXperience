@@ -1,6 +1,7 @@
 import { StyleSheet, View, type ViewProps, type ViewStyle } from 'react-native';
 
-import { theme } from '@/constants/theme';
+import { theme, shadows, type ThemeColors, lightCardShadow } from '@/constants/theme';
+import { useThemedStyles } from '@/lib/theme/useTheme';
 import { usePreferences } from '@/lib/preferences/PreferencesContext';
 
 type HomeCardProps = ViewProps & {
@@ -8,6 +9,7 @@ type HomeCardProps = ViewProps & {
 };
 
 export function HomeCard({ style, children, ...rest }: HomeCardProps) {
+  const styles = useThemedStyles(createStyles);
   const { themeMode } = usePreferences();
   return (
     <View style={[styles.card, themeMode === 'light' ? styles.lightShadow : null, style]} {...rest}>
@@ -16,21 +18,15 @@ export function HomeCard({ style, children, ...rest }: HomeCardProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   card: {
-    backgroundColor: theme.colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: theme.radii.xl,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.cardBorder,
+    borderColor: colors.cardBorder,
     paddingHorizontal: 22,
     paddingVertical: 19,
-    ...theme.shadow.card,
+    ...shadows(colors).card,
   },
-  lightShadow: {
-    shadowColor: '#52616c',
-    shadowOffset: { width: 0, height: 9 },
-    shadowOpacity: 0.075,
-    shadowRadius: 22,
-    elevation: 2,
-  },
+  lightShadow: lightCardShadow,
 });

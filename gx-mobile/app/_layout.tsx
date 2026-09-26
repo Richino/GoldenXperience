@@ -15,7 +15,7 @@ import 'react-native-reanimated';
 
 import { LoginScreen } from '@/components/auth/LoginScreen';
 import { SplashView } from '@/components/auth/SplashView';
-import { theme } from '@/constants/theme';
+import { useThemeColors } from '@/lib/theme/useTheme';
 import { AuthProvider, useAuth } from '@/lib/auth/AuthContext';
 import { PreferencesProvider } from '@/lib/preferences/PreferencesContext';
 
@@ -65,19 +65,27 @@ export default function RootLayout() {
           <AuthProvider>
             <SplashReveal onReady={revealJsSplash} />
             <AuthGate>
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  contentStyle: { backgroundColor: theme.colors.background },
-                }}
-              >
-                <Stack.Screen name="(tabs)" />
-              </Stack>
+              <ThemedStack />
             </AuthGate>
           </AuthProvider>
         )}
       </PreferencesProvider>
     </SafeAreaProvider>
+  );
+}
+
+/** The app's navigator; reads the theme, so it renders inside PreferencesProvider. */
+function ThemedStack() {
+  const colors = useThemeColors();
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: colors.background },
+      }}
+    >
+      <Stack.Screen name="(tabs)" />
+    </Stack>
   );
 }
 

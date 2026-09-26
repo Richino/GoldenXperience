@@ -3,7 +3,8 @@ import { router } from 'expo-router';
 
 import { HomeCard } from '@/components/home/HomeCard';
 import { Text } from '@/components/ui/AppText';
-import { theme } from '@/constants/theme';
+import { theme, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/lib/theme/useTheme';
 import { formatPrice, moneyLabel, pairLabel } from '@/lib/format';
 import type { OpenPosition } from '@/types/api';
 
@@ -18,6 +19,7 @@ function openR(position: OpenPosition) {
 }
 
 export function OpenPositionsCard({ positions, currency }: { positions: OpenPosition[]; currency: string }) {
+  const styles = useThemedStyles(createStyles);
   if (!positions.length) return null;
 
   return (
@@ -58,21 +60,21 @@ export function OpenPositionsCard({ positions, currency }: { positions: OpenPosi
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   card: { paddingVertical: 19 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  title: { fontSize: 10, fontFamily: theme.fonts.sansMedium, letterSpacing: 1.4, color: theme.colors.textMuted, textTransform: 'uppercase' },
-  viewAll: { fontSize: 12, fontFamily: theme.fonts.sansSemiBold, color: theme.colors.primary },
+  title: { fontSize: 10, fontFamily: theme.fonts.sansMedium, letterSpacing: 1.4, color: colors.textMuted, textTransform: 'uppercase' },
+  viewAll: { fontSize: 12, fontFamily: theme.fonts.sansSemiBold, color: colors.primary },
   list: { marginTop: 10, gap: 10 },
-  row: { borderRadius: theme.radii.md, padding: 14, backgroundColor: theme.colors.surfaceInset, gap: 8 },
+  row: { borderRadius: theme.radii.md, padding: 14, backgroundColor: colors.surfaceInset, gap: 8 },
   rowPressed: { opacity: 0.72 },
   rowTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  pair: { fontSize: 14, fontFamily: theme.fonts.sansBold, color: theme.colors.textPrimary },
+  pair: { fontSize: 14, fontFamily: theme.fonts.sansBold, color: colors.textPrimary },
   pl: { flexShrink: 0, fontSize: 13, fontFamily: theme.fonts.monoSemiBold },
   summaryRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  summary: { flex: 1, fontSize: 13, lineHeight: 19, fontFamily: theme.fonts.sans, color: theme.colors.textSecondary },
-  entryPrice: { fontFamily: theme.fonts.monoSemiBold, color: theme.colors.textPrimary },
+  summary: { flex: 1, fontSize: 13, lineHeight: 19, fontFamily: theme.fonts.sans, color: colors.textSecondary },
+  entryPrice: { fontFamily: theme.fonts.monoSemiBold, color: colors.textPrimary },
   progress: { fontSize: 11, fontFamily: theme.fonts.monoSemiBold },
-  positive: { color: theme.colors.primary },
-  negative: { color: theme.colors.danger },
+  positive: { color: colors.primary },
+  negative: { color: colors.danger },
 });

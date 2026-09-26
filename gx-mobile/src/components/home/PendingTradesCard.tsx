@@ -4,7 +4,8 @@ import { SymbolView } from 'expo-symbols';
 
 import { HomeCard } from '@/components/home/HomeCard';
 import { Text } from '@/components/ui/AppText';
-import { theme } from '@/constants/theme';
+import { theme, type ThemeColors } from '@/constants/theme';
+import { useThemeColors, useThemedStyles } from '@/lib/theme/useTheme';
 import { apiFetchDelete } from '@/lib/api/client';
 import { formatPrice, pairLabel } from '@/lib/format';
 import type { PendingEntry } from '@/types/api';
@@ -21,6 +22,8 @@ function expirationLabel(expiresAt: string | null) {
 }
 
 export function PendingTradesCard({ entries, onCancelled }: { entries: PendingEntry[]; onCancelled: () => void }) {
+  const colors = useThemeColors();
+  const styles = useThemedStyles(createStyles);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   function confirmCancel(entry: PendingEntry) {
@@ -79,7 +82,7 @@ export function PendingTradesCard({ entries, onCancelled }: { entries: PendingEn
                 onPress={() => confirmCancel(entry)}
                 style={[styles.cancelBtn, !canCancel || cancelling ? styles.cancelBtnDisabled : null]}
               >
-                <SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={12} tintColor={theme.colors.warning} />
+                <SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={12} tintColor={colors.warning} />
                 <Text style={styles.cancelText}>{cancelling ? 'Cancelling…' : canCancel ? 'Cancel pending trade' : 'Setting up…'}</Text>
               </Pressable>
             </View>
@@ -90,7 +93,7 @@ export function PendingTradesCard({ entries, onCancelled }: { entries: PendingEn
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   card: {
     paddingVertical: 19,
   },
@@ -103,19 +106,19 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontFamily: theme.fonts.sansMedium,
     letterSpacing: 1.4,
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     textTransform: 'uppercase',
   },
   count: {
     fontSize: 11,
     fontFamily: theme.fonts.sansSemiBold,
-    color: theme.colors.textSecondary,
+    color: colors.textSecondary,
   },
   empty: {
     marginTop: 6,
     fontSize: 12,
     fontFamily: theme.fonts.sans,
-    color: theme.colors.textSecondary,
+    color: colors.textSecondary,
   },
   list: {
     marginTop: 10,
@@ -123,7 +126,7 @@ const styles = StyleSheet.create({
   },
   row: {
     borderRadius: theme.radii.md,
-    backgroundColor: theme.colors.surfaceInset,
+    backgroundColor: colors.surfaceInset,
     padding: 14,
     gap: 8,
   },
@@ -135,7 +138,7 @@ const styles = StyleSheet.create({
   pair: {
     fontSize: 14,
     fontFamily: theme.fonts.sansBold,
-    color: theme.colors.textPrimary,
+    color: colors.textPrimary,
   },
   status: {
     marginLeft: 'auto',
@@ -143,25 +146,25 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.sansSemiBold,
   },
   statusLong: {
-    color: theme.colors.primary,
+    color: colors.primary,
   },
   statusShort: {
-    color: theme.colors.danger,
+    color: colors.danger,
   },
   summary: {
     fontSize: 13,
     lineHeight: 19,
     fontFamily: theme.fonts.sans,
-    color: theme.colors.textSecondary,
+    color: colors.textSecondary,
   },
   entryPrice: {
     fontFamily: theme.fonts.monoSemiBold,
-    color: theme.colors.textPrimary,
+    color: colors.textPrimary,
   },
   expiration: {
     fontSize: 11,
     fontFamily: theme.fonts.sansMedium,
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
   },
   cancelBtn: {
     flexDirection: 'row',
@@ -172,8 +175,8 @@ const styles = StyleSheet.create({
     marginTop: 2,
     borderRadius: 11,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.warning,
-    backgroundColor: theme.colors.warningSoft,
+    borderColor: colors.warning,
+    backgroundColor: colors.warningSoft,
   },
   cancelBtnDisabled: {
     opacity: 0.5,
@@ -181,6 +184,6 @@ const styles = StyleSheet.create({
   cancelText: {
     fontSize: 11,
     fontFamily: theme.fonts.sansSemiBold,
-    color: theme.colors.warning,
+    color: colors.warning,
   },
 });

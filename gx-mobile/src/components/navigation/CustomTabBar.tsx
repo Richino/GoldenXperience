@@ -12,7 +12,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { theme } from '@/constants/theme';
+import { shadows, type ThemeColors } from '@/constants/theme';
+import { useThemeColors, useThemedStyles } from '@/lib/theme/useTheme';
 import { usePreferences } from '@/lib/preferences/PreferencesContext';
 
 const ICONS: Record<string, LucideIcon> = {
@@ -31,6 +32,7 @@ const ICONS: Record<string, LucideIcon> = {
  * instead, which is what made the highlight disappear intermittently).
  */
 export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
+  const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const { themeMode } = usePreferences();
   // The web iOS dock deliberately sits 20px above the screen edge instead of
@@ -107,6 +109,8 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
 }
 
 function TabItem({ focused, Icon, onPress }: { focused: boolean; Icon: LucideIcon; onPress: () => void }) {
+  const colors = useThemeColors();
+  const styles = useThemedStyles(createStyles);
   const pressProgress = useSharedValue(0);
   const pressStyle = useAnimatedStyle(() => ({
     transform: [{ scale: interpolate(pressProgress.value, [0, 1], [1, 0.78]) }],
@@ -130,13 +134,13 @@ function TabItem({ focused, Icon, onPress }: { focused: boolean; Icon: LucideIco
   return (
     <Pressable style={styles.item} onPress={onPress} onPressIn={pressIn} onPressOut={pressOut}>
       <Animated.View style={pressStyle}>
-        <Icon size={24} strokeWidth={1.7} color={focused ? theme.colors.primary : theme.colors.textSecondary} />
+        <Icon size={24} strokeWidth={1.7} color={focused ? colors.primary : colors.textSecondary} />
       </Animated.View>
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   dock: {
     position: 'absolute',
     // Web iOS: `.mobile-dock { padding-inline: .8rem; }`.
@@ -148,18 +152,12 @@ const styles = StyleSheet.create({
     height: 70,
     padding: 7,
     borderRadius: 29,
-    backgroundColor: theme.colors.surface,
-    shadowColor: theme.shadow.dock.shadowColor,
-    shadowOffset: { width: 0, height: 8 },
-    // The light dock uses a restrained cool-gray lift; dark retains the
-    // deeper web-style elevation.
-    shadowOpacity: 0.18,
-    shadowRadius: 22,
-    ...Platform.select({
-      ios: {},
-      android: { elevation: 6 },
-      default: {},
-    }),
+    backgroundColor: colors.surface,
+    // iOS: a restrained lift (softer than the card preset); Android: the
+    // theme's soft box-shadow, which follows the pill's rounded corners.
+    ...(Platform.OS === 'android'
+      ? shadows(colors).dock
+      : { shadowColor: colors.shadow, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 22 }),
   },
   pillOuter: {
     flex: 1,
@@ -189,12 +187,12 @@ const styles = StyleSheet.create({
   sliderFill: {
     flex: 1,
     borderRadius: 22,
-    backgroundColor: theme.colors.primarySoft,
+    backgroundColor: colors.primarySoft,
     borderWidth: 1,
     // A soft mint ring like the web dock's lens; the solid accent line was
     // harsh on the white light-theme pill and made any uneven edge obvious.
     borderColor: 'rgba(0, 184, 120, 0.3)',
-    shadowColor: theme.colors.primary,
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
     shadowRadius: 1,

@@ -5,7 +5,8 @@ import { SymbolView } from 'expo-symbols';
 import { AccountChart } from '@/components/home/AccountChart';
 import { Text } from '@/components/ui/AppText';
 import { HomeCard } from '@/components/home/HomeCard';
-import { theme } from '@/constants/theme';
+import { theme, type ThemeColors } from '@/constants/theme';
+import { useThemeColors, useThemedStyles } from '@/lib/theme/useTheme';
 import {
   RANGES,
   RANGE_TABS,
@@ -37,6 +38,8 @@ export function BalancePerformanceCard({
   todayKey: string;
   onNotificationsPress: () => void;
 }) {
+  const colors = useThemeColors();
+  const styles = useThemedStyles(createStyles);
   const { themeMode } = usePreferences();
   const isLightTheme = themeMode === 'light';
   const [range, setRange] = useState<AccountChartRange>('1d');
@@ -69,7 +72,7 @@ export function BalancePerformanceCard({
   const baseline = account.nav - dayPL;
   const changePercent = baseline !== 0 ? (dayPL / baseline) * 100 : 0;
   const positive = dayPL >= 0;
-  const changeColor = positive ? theme.colors.primary : theme.colors.danger;
+  const changeColor = positive ? colors.primary : colors.danger;
 
   return (
     <HomeCard style={styles.card} accessibilityLabel="Account overview">
@@ -87,7 +90,7 @@ export function BalancePerformanceCard({
           </Text>
         </View>
         <Pressable onPress={onNotificationsPress} accessibilityRole="button" accessibilityLabel="Open notifications" hitSlop={4} style={styles.bellButton}>
-          <SymbolView name={{ ios: 'bell', android: 'notifications', web: 'notifications' }} size={18} tintColor={theme.colors.textMutedStrong} />
+          <SymbolView name={{ ios: 'bell', android: 'notifications', web: 'notifications' }} size={18} tintColor={colors.textMutedStrong} />
         </Pressable>
       </View>
 
@@ -122,7 +125,7 @@ export function BalancePerformanceCard({
       <View style={styles.stats}>
         <View style={styles.stat}>
           <Text style={styles.statLabel}>Realized</Text>
-          <Text style={[styles.statValue, { color: Math.abs(realizedPL) < 0.005 ? theme.colors.textPrimary : realizedPL > 0 ? theme.colors.primary : theme.colors.danger }]}>
+          <Text style={[styles.statValue, { color: Math.abs(realizedPL) < 0.005 ? colors.textPrimary : realizedPL > 0 ? colors.primary : colors.danger }]}>
             {formatSignedMoney(realizedPL, account.currency)}
           </Text>
         </View>
@@ -131,7 +134,7 @@ export function BalancePerformanceCard({
           <Text
             style={[
               styles.statValue,
-              { color: Math.abs(account.unrealizedPL) < 0.005 ? theme.colors.textPrimary : account.unrealizedPL > 0 ? theme.colors.primary : theme.colors.danger },
+              { color: Math.abs(account.unrealizedPL) < 0.005 ? colors.textPrimary : account.unrealizedPL > 0 ? colors.primary : colors.danger },
             ]}
           >
             {formatSignedMoney(account.unrealizedPL, account.currency)}
@@ -142,7 +145,7 @@ export function BalancePerformanceCard({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   card: {
     borderRadius: theme.radii.hero,
     paddingTop: 17,
@@ -178,27 +181,27 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(16, 24, 32, 0.045)',
   },
   sessionPillClosedDark: {
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surfaceRaised,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceRaised,
   },
   sessionDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: colors.primary,
   },
   sessionDotClosed: {
-    backgroundColor: theme.colors.textMuted,
+    backgroundColor: colors.textMuted,
   },
   sessionText: {
     fontSize: 10,
     fontFamily: theme.fonts.sansExtraBold,
     letterSpacing: 1,
-    color: theme.colors.primary,
+    color: colors.primary,
     textTransform: 'uppercase',
   },
   sessionTextClosed: {
-    color: theme.colors.textSecondary,
+    color: colors.textSecondary,
   },
   bellButton: {
     width: 40,
@@ -206,13 +209,13 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: theme.colors.surfaceRaised,
+    backgroundColor: colors.surfaceRaised,
   },
   label: {
     fontSize: 10,
     fontFamily: theme.fonts.sansMedium,
     letterSpacing: 1.4,
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     textTransform: 'uppercase',
   },
   balance: {
@@ -221,7 +224,7 @@ const styles = StyleSheet.create({
     lineHeight: 44,
     fontFamily: theme.fonts.monoBold,
     letterSpacing: -2.2,
-    color: theme.colors.textPrimary,
+    color: colors.textPrimary,
   },
   today: {
     marginTop: 11,
@@ -244,7 +247,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     // A dark-mode translucent white rail vanishes on light surfaces. Use the
     // shared raised token so all five time-range targets read as one control.
-    backgroundColor: theme.colors.surfaceRaised,
+    backgroundColor: colors.surfaceRaised,
   },
   rangeBtn: {
     flex: 1,
@@ -254,21 +257,21 @@ const styles = StyleSheet.create({
     borderRadius: 7,
   },
   rangeBtnSelected: {
-    backgroundColor: theme.colors.primarySoft,
+    backgroundColor: colors.primarySoft,
   },
   rangeText: {
     fontSize: 12.5,
     fontFamily: theme.fonts.sansSemiBold,
-    color: theme.colors.textSecondary,
+    color: colors.textSecondary,
   },
   rangeTextSelected: {
-    color: theme.colors.primary,
+    color: colors.primary,
   },
   stats: {
     marginTop: 18,
     paddingTop: 14,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: theme.colors.border,
+    borderTopColor: colors.border,
     flexDirection: 'row',
     gap: 24,
   },
@@ -279,7 +282,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontFamily: theme.fonts.sansMedium,
     letterSpacing: 1.2,
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     textTransform: 'uppercase',
   },
   statValue: {

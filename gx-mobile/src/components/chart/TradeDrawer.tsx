@@ -3,7 +3,8 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { Text } from '@/components/ui/AppText';
 import { BottomDrawer } from '@/components/ui/BottomDrawer';
-import { theme } from '@/constants/theme';
+import { theme, type ThemeColors } from '@/constants/theme';
+import { useThemeColors, useThemedStyles } from '@/lib/theme/useTheme';
 import { apiGet, apiPost } from '@/lib/api/client';
 import { formatPrice, pairLabel } from '@/lib/format';
 import type { JournalTrade } from '@/types/api';
@@ -36,6 +37,8 @@ export function TradeDrawer({
   draft?: { direction: 'long' | 'short'; entry: number; stop: number; target: number; analysisContext?: Record<string, unknown> } | null;
   onCreated?: () => void;
 }) {
+  const colors = useThemeColors();
+  const styles = useThemedStyles(createStyles);
   const [direction, setDirection] = useState<'long' | 'short'>('long');
   const [orderReferencePrice, setOrderReferencePrice] = useState<number | null>(null);
   const [entryPrice, setEntryPrice] = useState('');
@@ -214,17 +217,17 @@ export function TradeDrawer({
           }}
           keyboardType="decimal-pad"
           placeholder={current !== null ? formatPrice(current, instrument) : '0.00000'}
-          placeholderTextColor={theme.colors.textMuted}
+          placeholderTextColor={colors.textMuted}
           style={styles.input}
           accessibilityLabel="Entry price"
         />
       </Field>
       <View style={styles.levelRow}>
         <Field label="Stop loss" compact>
-          <TextInput value={stopPrice} onChangeText={setStopPrice} keyboardType="decimal-pad" placeholder="Optional" placeholderTextColor={theme.colors.textMuted} style={styles.input} accessibilityLabel="Stop loss" />
+          <TextInput value={stopPrice} onChangeText={setStopPrice} keyboardType="decimal-pad" placeholder="Optional" placeholderTextColor={colors.textMuted} style={styles.input} accessibilityLabel="Stop loss" />
         </Field>
         <Field label="Take profit" compact>
-          <TextInput value={targetPrice} onChangeText={setTargetPrice} keyboardType="decimal-pad" placeholder="Optional" placeholderTextColor={theme.colors.textMuted} style={styles.input} accessibilityLabel="Take profit" />
+          <TextInput value={targetPrice} onChangeText={setTargetPrice} keyboardType="decimal-pad" placeholder="Optional" placeholderTextColor={colors.textMuted} style={styles.input} accessibilityLabel="Take profit" />
         </Field>
       </View>
       {summary}
@@ -253,6 +256,7 @@ function Field({
   compact?: boolean;
   children: ReactNode;
 }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={[styles.field, compact ? styles.fieldCompact : null]}>
       <Text style={styles.label}>{label}</Text>
@@ -262,35 +266,35 @@ function Field({
   );
 }
 
-const styles = StyleSheet.create({
-  blocked: { marginHorizontal: 4, marginBottom: 12, fontSize: 13, lineHeight: 19, fontFamily: theme.fonts.sansMedium, color: theme.colors.danger },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  blocked: { marginHorizontal: 4, marginBottom: 12, fontSize: 13, lineHeight: 19, fontFamily: theme.fonts.sansMedium, color: colors.danger },
   directionRow: { flexDirection: 'row', gap: 10, marginBottom: 14, paddingHorizontal: 4 },
   directionButton: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12, opacity: 0.45 },
   directionActive: { opacity: 1 },
-  long: { backgroundColor: theme.colors.primary },
-  short: { backgroundColor: theme.colors.danger },
+  long: { backgroundColor: colors.primary },
+  short: { backgroundColor: colors.danger },
   directionText: { fontSize: 13, fontFamily: theme.fonts.sansSemiBold, color: '#ffffff' },
   field: { marginBottom: 14, paddingHorizontal: 4 },
   fieldCompact: { flex: 1, marginBottom: 0 },
-  label: { marginBottom: 6, fontSize: 12, fontFamily: theme.fonts.sansSemiBold, color: theme.colors.textSecondary },
-  hint: { marginTop: 6, fontSize: 11, fontFamily: theme.fonts.sans, color: theme.colors.textMuted },
+  label: { marginBottom: 6, fontSize: 12, fontFamily: theme.fonts.sansSemiBold, color: colors.textSecondary },
+  hint: { marginTop: 6, fontSize: 11, fontFamily: theme.fonts.sans, color: colors.textMuted },
   input: {
     minHeight: 44,
     paddingHorizontal: 12,
     borderRadius: 10,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surfaceRaised,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceRaised,
     fontSize: 15,
     fontFamily: theme.fonts.monoMedium,
-    color: theme.colors.textPrimary,
+    color: colors.textPrimary,
   },
   levelRow: { flexDirection: 'row', gap: 10, marginBottom: 14, paddingHorizontal: 4 },
-  summary: { marginTop: 4, marginBottom: 12, marginHorizontal: 4, padding: 12, borderRadius: 12, backgroundColor: theme.colors.surfaceRaised, gap: 4 },
-  summaryTitle: { fontSize: 13, fontFamily: theme.fonts.sansSemiBold, color: theme.colors.textPrimary },
-  summaryLine: { fontSize: 12, fontFamily: theme.fonts.sans, color: theme.colors.textSecondary },
-  error: { marginHorizontal: 4, marginBottom: 10, fontSize: 13, lineHeight: 18, fontFamily: theme.fonts.sansMedium, color: theme.colors.danger },
-  submit: { marginHorizontal: 4, marginTop: 4, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: theme.colors.primary },
+  summary: { marginTop: 4, marginBottom: 12, marginHorizontal: 4, padding: 12, borderRadius: 12, backgroundColor: colors.surfaceRaised, gap: 4 },
+  summaryTitle: { fontSize: 13, fontFamily: theme.fonts.sansSemiBold, color: colors.textPrimary },
+  summaryLine: { fontSize: 12, fontFamily: theme.fonts.sans, color: colors.textSecondary },
+  error: { marginHorizontal: 4, marginBottom: 10, fontSize: 13, lineHeight: 18, fontFamily: theme.fonts.sansMedium, color: colors.danger },
+  submit: { marginHorizontal: 4, marginTop: 4, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: colors.primary },
   submitDisabled: { opacity: 0.45 },
   submitText: { fontSize: 14, fontFamily: theme.fonts.sansSemiBold, color: '#ffffff' },
 });

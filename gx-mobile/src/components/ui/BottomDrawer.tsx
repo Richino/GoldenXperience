@@ -4,7 +4,8 @@ import { SymbolView } from 'expo-symbols';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { Easing, interpolate, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
-import { theme } from '@/constants/theme';
+import { theme, type ThemeColors } from '@/constants/theme';
+import { useThemeColors, useThemedStyles } from '@/lib/theme/useTheme';
 import { Text } from '@/components/ui/AppText';
 
 const SHEET_OFFSCREEN = 640;
@@ -37,6 +38,8 @@ export function BottomDrawer({
   scrollable?: boolean;
   children: ReactNode;
 }) {
+  const colors = useThemeColors();
+  const styles = useThemedStyles(createStyles);
   const [mounted, setMounted] = useState(visible);
   const translateY = useSharedValue(SHEET_OFFSCREEN);
   const { height: windowHeight } = useWindowDimensions();
@@ -100,7 +103,7 @@ export function BottomDrawer({
                 <View style={styles.actions}>
                   {headerRight}
                   <Pressable onPress={requestClose} hitSlop={8} style={styles.close} accessibilityRole="button" accessibilityLabel={`Close ${title.toLowerCase()}`}>
-                    <SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={16} tintColor={theme.colors.textSecondary} />
+                    <SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={16} tintColor={colors.textSecondary} />
                   </Pressable>
                 </View>
               </View>
@@ -125,19 +128,19 @@ export function BottomDrawer({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   // `flex: 1` alone collapses to 0 height on web: RN Web's Modal portal
   // wrapper is `display: block`, not flex, so there's no flex parent for it
   // to size against. An explicit height fixes that without affecting native.
   root: { flex: 1, height: '100%', justifyContent: 'flex-end' },
   backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0, 0, 0, 0.36)' },
-  sheet: { maxHeight: '72%', minHeight: 250, overflow: 'hidden', borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: theme.colors.surface, paddingHorizontal: 20, paddingBottom: 30, borderTopWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.cardBorder },
+  sheet: { maxHeight: '72%', minHeight: 250, overflow: 'hidden', borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: colors.surface, paddingHorizontal: 20, paddingBottom: 30, borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.cardBorder },
   scrollContent: { paddingBottom: 4 },
   dragHeader: { paddingTop: 1 },
-  handle: { alignSelf: 'center', width: 38, height: 4, borderRadius: 2, marginTop: 9, backgroundColor: theme.colors.border },
+  handle: { alignSelf: 'center', width: 38, height: 4, borderRadius: 2, marginTop: 9, backgroundColor: colors.border },
   header: { marginTop: 16, marginBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  eyebrow: { fontSize: 10, fontFamily: theme.fonts.sansMedium, letterSpacing: 1.2, color: theme.colors.textMuted, textTransform: 'uppercase' },
-  title: { marginTop: 2, fontSize: 20, fontFamily: theme.fonts.sansBold, color: theme.colors.textPrimary },
+  eyebrow: { fontSize: 10, fontFamily: theme.fonts.sansMedium, letterSpacing: 1.2, color: colors.textMuted, textTransform: 'uppercase' },
+  title: { marginTop: 2, fontSize: 20, fontFamily: theme.fonts.sansBold, color: colors.textPrimary },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  close: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.surfaceRaised },
+  close: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised },
 });

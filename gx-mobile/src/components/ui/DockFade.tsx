@@ -1,17 +1,19 @@
 import { StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import { rawColors } from '@/constants/theme';
+import { rawColors, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/lib/theme/useTheme';
 import { usePreferences } from '@/lib/preferences/PreferencesContext';
 
 /**
  * A soft page-to-dock transition with a white-only light-mode scrim.
  * Uses `rawColors` (plain strings), not `theme.colors` — expo-linear-gradient
  * renders through react-native-svg, which can't resolve the `DynamicColorIOS`
- * object `theme.colors.*` returns on iOS ("[object Object] is not a valid
+ * object `colors.*` returns on iOS ("[object Object] is not a valid
  * color").
  */
 export function DockFade({ height = 96 }: { height?: number }) {
+  const styles = useThemedStyles(createStyles);
   const { themeMode } = usePreferences();
   const isLightTheme = themeMode === 'light';
   return (
@@ -28,7 +30,7 @@ export function DockFade({ height = 96 }: { height?: number }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   // The navigator renders the dock above each tab scene. This layer only
   // needs to sit above a scene's scroll content, including Journal's cards.
   fade: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 5 },

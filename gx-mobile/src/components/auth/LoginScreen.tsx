@@ -3,11 +3,14 @@ import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleShee
 import { SymbolView } from 'expo-symbols';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { theme } from '@/constants/theme';
+import { theme, shadows, type ThemeColors } from '@/constants/theme';
+import { useThemeColors, useThemedStyles } from '@/lib/theme/useTheme';
 import { Text } from '@/components/ui/AppText';
 import { useAuth } from '@/lib/auth/AuthContext';
 
 export function LoginScreen() {
+  const colors = useThemeColors();
+  const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const { signIn, error } = useAuth();
   const [email, setEmail] = useState('');
@@ -36,7 +39,7 @@ export function LoginScreen() {
           </View>
           <View>
             <Text style={styles.brandTitle}>
-              Golden<Text style={{ color: theme.colors.primary }}>X</Text>perience
+              Golden<Text style={{ color: colors.primary }}>X</Text>perience
             </Text>
             <Text style={styles.brandSubtitle}>Forex workspace</Text>
           </View>
@@ -45,7 +48,7 @@ export function LoginScreen() {
         <View style={styles.card}>
           <View style={styles.cardHeading}>
             <View style={styles.securityIcon}>
-              <SymbolView name={{ ios: 'lock', android: 'lock', web: 'lock' }} size={16} tintColor={theme.colors.primary} />
+              <SymbolView name={{ ios: 'lock', android: 'lock', web: 'lock' }} size={16} tintColor={colors.primary} />
             </View>
             <View style={styles.cardHeadingText}>
               <Text style={styles.overline}>Secure access</Text>
@@ -58,12 +61,12 @@ export function LoginScreen() {
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>Email address</Text>
               <View style={styles.inputWrap}>
-                <SymbolView name={{ ios: 'envelope', android: 'mail', web: 'mail' }} size={15} tintColor={theme.colors.textSecondary} />
+                <SymbolView name={{ ios: 'envelope', android: 'mail', web: 'mail' }} size={15} tintColor={colors.textSecondary} />
                 <TextInput
                   value={email}
                   onChangeText={setEmail}
                   placeholder="you@example.com"
-                  placeholderTextColor={theme.colors.textSecondary}
+                  placeholderTextColor={colors.textSecondary}
                   autoCapitalize="none"
                   autoCorrect={false}
                   keyboardType="email-address"
@@ -75,12 +78,12 @@ export function LoginScreen() {
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>Password</Text>
               <View style={styles.inputWrap}>
-                <SymbolView name={{ ios: 'lock', android: 'lock', web: 'lock' }} size={15} tintColor={theme.colors.textSecondary} />
+                <SymbolView name={{ ios: 'lock', android: 'lock', web: 'lock' }} size={15} tintColor={colors.textSecondary} />
                 <TextInput
                   value={password}
                   onChangeText={setPassword}
                   placeholder="Enter your password"
-                  placeholderTextColor={theme.colors.textSecondary}
+                  placeholderTextColor={colors.textSecondary}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -90,7 +93,7 @@ export function LoginScreen() {
                   <SymbolView
                     name={{ ios: showPassword ? 'eye.slash' : 'eye', android: showPassword ? 'visibility_off' : 'visibility', web: showPassword ? 'visibility_off' : 'visibility' }}
                     size={15}
-                    tintColor={theme.colors.textSecondary}
+                    tintColor={colors.textSecondary}
                   />
                 </Pressable>
               </View>
@@ -108,10 +111,10 @@ export function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: colors.background,
   },
   content: {
     flex: 1,
@@ -130,33 +133,33 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: theme.colors.primarySoft,
+    backgroundColor: colors.primarySoft,
   },
   brandMarkText: {
     fontSize: 16,
     fontFamily: theme.fonts.sansExtraBold,
-    color: theme.colors.primary,
+    color: colors.primary,
   },
   brandTitle: {
     fontSize: 15,
     fontFamily: theme.fonts.sansBold,
-    color: theme.colors.textPrimary,
+    color: colors.textPrimary,
   },
   brandSubtitle: {
     marginTop: 1,
     fontSize: 10,
     fontFamily: theme.fonts.sansSemiBold,
     letterSpacing: 1,
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     textTransform: 'uppercase',
   },
   card: {
-    backgroundColor: theme.colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: theme.radii.hero,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.cardBorder,
+    borderColor: colors.cardBorder,
     padding: 22,
-    ...theme.shadow.card,
+    ...shadows(colors).card,
   },
   cardHeading: {
     flexDirection: 'row',
@@ -169,7 +172,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: theme.colors.primarySoft,
+    backgroundColor: colors.primarySoft,
   },
   cardHeadingText: {
     flex: 1,
@@ -178,20 +181,20 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontFamily: theme.fonts.sansBold,
     letterSpacing: 1,
-    color: theme.colors.primary,
+    color: colors.primary,
     textTransform: 'uppercase',
   },
   heading: {
     marginTop: 2,
     fontSize: 21,
     fontFamily: theme.fonts.sansBold,
-    color: theme.colors.textPrimary,
+    color: colors.textPrimary,
   },
   subheading: {
     marginTop: 4,
     fontSize: 12.5,
     fontFamily: theme.fonts.sans,
-    color: theme.colors.textSecondary,
+    color: colors.textSecondary,
   },
   fields: {
     gap: 16,
@@ -202,30 +205,30 @@ const styles = StyleSheet.create({
   fieldLabel: {
     fontSize: 12,
     fontFamily: theme.fonts.sansSemiBold,
-    color: theme.colors.textMutedStrong,
+    color: colors.textMutedStrong,
   },
   inputWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 9,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.border,
+    borderColor: colors.border,
     borderRadius: theme.radii.md,
     paddingHorizontal: 13,
     paddingVertical: Platform.OS === 'ios' ? 12 : 4,
-    backgroundColor: theme.colors.surfaceRaised,
+    backgroundColor: colors.surfaceRaised,
   },
   input: {
     flex: 1,
     fontSize: 14,
     fontFamily: theme.fonts.sans,
-    color: theme.colors.textPrimary,
+    color: colors.textPrimary,
   },
   error: {
     marginTop: 14,
     fontSize: 12,
     fontFamily: theme.fonts.sansMedium,
-    color: theme.colors.danger,
+    color: colors.danger,
   },
   submit: {
     marginTop: 20,
@@ -233,7 +236,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.radii.md,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: theme.colors.primary,
+    backgroundColor: colors.primary,
   },
   submitBusy: {
     opacity: 0.85,

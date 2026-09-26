@@ -3,15 +3,16 @@ import { router } from 'expo-router';
 
 import { HomeCard } from '@/components/home/HomeCard';
 import { Text } from '@/components/ui/AppText';
-import { theme } from '@/constants/theme';
+import { theme, type ThemeColors } from '@/constants/theme';
+import { useThemeColors, useThemedStyles } from '@/lib/theme/useTheme';
 import type { ActivityItem } from '@/lib/home/activity';
 import { moneyLabel } from '@/lib/format';
 import { formatShortDay } from '@/lib/time';
 
-function toneColor(kind: ActivityItem['kind']) {
-  if (kind === 'tp') return theme.colors.primary;
-  if (kind === 'sl') return theme.colors.danger;
-  return theme.colors.textSecondary;
+function toneColor(kind: ActivityItem['kind'], colors: ThemeColors) {
+  if (kind === 'tp') return colors.primary;
+  if (kind === 'sl') return colors.danger;
+  return colors.textSecondary;
 }
 
 function friendlyOutcome(item: ActivityItem) {
@@ -22,6 +23,8 @@ function friendlyOutcome(item: ActivityItem) {
 }
 
 export function RecentActivityCard({ items, currency }: { items: ActivityItem[]; currency: string }) {
+  const colors = useThemeColors();
+  const styles = useThemedStyles(createStyles);
   return (
     <HomeCard style={styles.card} accessibilityLabel="Recent activity">
       <View style={styles.header}>
@@ -32,7 +35,7 @@ export function RecentActivityCard({ items, currency }: { items: ActivityItem[];
       {items.length ? (
         <View>
           {items.map((item, index) => {
-            const tone = toneColor(item.kind);
+            const tone = toneColor(item.kind, colors);
             const hasMoney = item.paperPl !== null;
             const primaryValue = hasMoney ? moneyLabel(item.paperPl, currency) : 'Closed';
             // A rejected order never filled, so it has no result to show on the chart.
@@ -54,7 +57,7 @@ export function RecentActivityCard({ items, currency }: { items: ActivityItem[];
                   </View>
                 </View>
                 <View style={styles.right}>
-                  <Text style={[styles.money, { color: hasMoney ? tone : theme.colors.textSecondary }]}>{primaryValue}</Text>
+                  <Text style={[styles.money, { color: hasMoney ? tone : colors.textSecondary }]}>{primaryValue}</Text>
                   <Text style={styles.date}>{formatShortDay(item.at)}</Text>
                 </View>
               </Pressable>
@@ -68,7 +71,7 @@ export function RecentActivityCard({ items, currency }: { items: ActivityItem[];
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   card: {
     paddingVertical: 19,
   },
@@ -81,13 +84,13 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontFamily: theme.fonts.sansMedium,
     letterSpacing: 1.4,
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     textTransform: 'uppercase',
   },
   previewLabel: {
     fontSize: 10,
     fontFamily: theme.fonts.sansMedium,
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
@@ -95,7 +98,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 12,
     fontFamily: theme.fonts.sans,
-    color: theme.colors.textSecondary,
+    color: colors.textSecondary,
   },
   row: {
     minHeight: 62,
@@ -110,7 +113,7 @@ const styles = StyleSheet.create({
   },
   rowBorder: {
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: theme.colors.border,
+    borderBottomColor: colors.border,
   },
   left: {
     flex: 1,
@@ -129,7 +132,7 @@ const styles = StyleSheet.create({
     fontSize: 12.8,
     fontFamily: theme.fonts.sansBold,
     letterSpacing: -0.1,
-    color: theme.colors.textPrimary,
+    color: colors.textPrimary,
   },
   result: {
     fontSize: 11,
@@ -149,6 +152,6 @@ const styles = StyleSheet.create({
     marginTop: 3,
     fontSize: 10.5,
     fontFamily: theme.fonts.sansSemiBold,
-    color: theme.colors.textSecondary,
+    color: colors.textSecondary,
   },
 });

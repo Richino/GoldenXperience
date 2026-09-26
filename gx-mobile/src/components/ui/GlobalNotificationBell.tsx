@@ -5,10 +5,13 @@ import { usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { NotificationDrawer } from '@/components/home/NotificationDrawer';
-import { theme } from '@/constants/theme';
+import { shadows, type ThemeColors } from '@/constants/theme';
+import { useThemeColors, useThemedStyles } from '@/lib/theme/useTheme';
 
 /** Fixed inbox access for tab pages without Home's own header bell. */
 export function GlobalNotificationBell() {
+  const colors = useThemeColors();
+  const styles = useThemedStyles(createStyles);
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
@@ -19,14 +22,14 @@ export function GlobalNotificationBell() {
   return <>
     <View pointerEvents="box-none" style={[styles.wrap, { top: insets.top + 8 }]}>
       <Pressable onPress={() => setOpen(true)} style={styles.button} accessibilityRole="button" accessibilityLabel="Open notifications">
-        <SymbolView name={{ ios: 'bell', android: 'notifications', web: 'notifications' }} size={20} tintColor={theme.colors.textPrimary} />
+        <SymbolView name={{ ios: 'bell', android: 'notifications', web: 'notifications' }} size={20} tintColor={colors.textPrimary} />
       </Pressable>
     </View>
     <NotificationDrawer visible={open} onClose={() => setOpen(false)} />
   </>;
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   wrap: { position: 'absolute', right: 16, zIndex: 40 },
-  button: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.cardBorder, ...theme.shadow.card },
+  button: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.cardBorder, ...shadows(colors).card },
 });

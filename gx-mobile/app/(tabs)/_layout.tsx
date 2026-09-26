@@ -3,16 +3,17 @@ import { Tabs } from 'expo-router';
 import { CustomTabBar } from '@/components/navigation/CustomTabBar';
 import { IOSStatusAreaOverlay } from '@/components/ui/IOSStatusAreaOverlay';
 import { GlobalNotificationBell } from '@/components/ui/GlobalNotificationBell';
-import { theme } from '@/constants/theme';
+import { useThemeColors } from '@/lib/theme/useTheme';
 
 export default function TabsLayout() {
+  const colors = useThemeColors();
   return <>
     <Tabs
       tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{
         headerShown: false,
         sceneStyle: {
-          backgroundColor: theme.colors.background,
+          backgroundColor: colors.background,
         },
       }}
     >

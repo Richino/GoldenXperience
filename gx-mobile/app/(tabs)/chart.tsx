@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, TextInput, type LayoutChangeEvent, View } from 'react-native';
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { ActivityIndicator, BackHandler, Pressable, StyleSheet, TextInput, type LayoutChangeEvent, View } from 'react-native';
+import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import {
   BarChart3,
   Bell,
@@ -8,9 +8,10 @@ import {
   CandlestickChart,
   ChevronDown,
   Circle,
-  Crosshair,
   Layers,
   LineChart,
+  Maximize2,
+  Minimize2,
   RotateCcw,
   Search,
   SlidersHorizontal,
@@ -128,10 +129,11 @@ const VARIANT_ICONS: Record<Variant, LucideIcon> = {
 function pairLabel(instrument: string) { return instrument.replace('_', '/'); }
 function price(value: number | null, instrument: string) { return value === null || !Number.isFinite(value) ? '—' : value.toFixed(instrument.includes('JPY') ? 3 : 5); }
 
-function resolveInstrumentParam(raw: string | string[] | undefined) {
+/** The pair a link asked for, or null when none (e.g. opened from the tab bar). */
+function requestedInstrument(raw: string | string[] | undefined) {
   const value = Array.isArray(raw) ? raw[0] : raw;
-  const upper = typeof value === 'string' ? value.toUpperCase() : 'EUR_USD';
-  return PAIRS.includes(upper as typeof PAIRS[number]) ? upper : 'EUR_USD';
+  const upper = typeof value === 'string' ? value.toUpperCase() : '';
+  return PAIRS.includes(upper as typeof PAIRS[number]) ? upper : null;
 }
 
 function requestedTrade(raw: string | string[] | undefined) {
@@ -174,8 +176,10 @@ export default function ChartScreen() {
   const colors = useThemeColors();
   const styles = useThemedStyles(createStyles);
   const params = useLocalSearchParams<{ instrument?: string | string[]; trade?: string | string[] }>();
-  const requested = resolveInstrumentParam(params.instrument);
-  const [instrument, setInstrument] = useState(() => requested);
+  const requested = requestedInstrument(params.instrument);
+  // Without a requested pair this is a placeholder until the saved last pair
+  // loads; the chart page is not requested before then.
+  const [instrument, setInstrument] = useState(() => requested ?? 'EUR_USD');
   // A past trade to show on the chart, set by links such as Recent activity.
   const [focusTradeId, setFocusTradeId] = useState<string | null>(() => requestedTrade(params.trade));
   const [timeframe, setTimeframe] = useState<Timeframe>('15m');
@@ -188,7 +192,8 @@ export default function ChartScreen() {
   const [pairsOpen, setPairsOpen] = useState(false);
   const [pairQuery, setPairQuery] = useState('');
   const [rangesOpen, setRangesOpen] = useState(false);
-  const [positionOpen, setPositionOpen] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [pairStatuses, setPairStatuses] = useState<Partial<Record<string, PairStatus>>>({});
   const [indicatorsOpen, setIndicatorsOpen] = useState(false);
   const [variantsOpen, setVariantsOpen] = useState(false);
   const [enabledIndicators, setEnabledIndicators] = useState<ChartIndicator[]>([]);
@@ -213,11 +218,34 @@ export default function ChartScreen() {
   const session = getMarketCondition();
   const { themeMode } = usePreferences();
   const pageBg = rawColors[themeMode].chartPage;
+  const navigation = useNavigation();
+
+  // Fullscreen keeps only the chart and its toolbar: the header, Trade button
+  // and tab dock are hidden. The dock reads `tabBarStyle` from this screen.
+  useEffect(() => {
+    navigation.setOptions({ tabBarStyle: fullscreen ? { display: 'none' } : undefined });
+  }, [fullscreen, navigation]);
+
+  // Leaving the tab always restores the normal layout, and Android's back
+  // button exits fullscreen before it navigates anywhere.
+  useFocusEffect(
+    useCallback(() => {
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (!fullscreen) return false;
+        setFullscreen(false);
+        return true;
+      });
+      return () => sub.remove();
+    }, [fullscreen]),
+  );
+  useFocusEffect(useCallback(() => () => setFullscreen(false), []));
 
   useEffect(() => {
     let cancelled = false;
     void loadChartPreferences().then((saved) => {
       if (cancelled) return;
+      const lastPair = requestedInstrument(saved.instrument);
+      if (!requestedInstrument(params.instrument) && lastPair) setInstrument(lastPair);
       setTimeframe(saved.timeframe as Timeframe);
       setRange(saved.range as Range);
       setVariant(saved.variant as Variant);
@@ -226,6 +254,21 @@ export default function ChartScreen() {
     });
     return () => { cancelled = true; };
   }, []);
+
+  // Every pair's manual-entry state for the pair picker, fetched each time it
+  // opens so a trade that filled or was cancelled elsewhere shows correctly.
+  useEffect(() => {
+    if (!pairsOpen) return;
+    let cancelled = false;
+    void apiGet<{ entries?: PendingEntry[] }>('/api/pending-entries')
+      .then((payload) => {
+        if (!cancelled) setPairStatuses(pairStatusesFrom(payload.entries ?? []));
+      })
+      .catch(() => {
+        // Keep the last known badges; the picker itself still works.
+      });
+    return () => { cancelled = true; };
+  }, [pairsOpen]);
 
   const refreshManualEntries = useCallback(async () => {
     try {
@@ -240,19 +283,19 @@ export default function ChartScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      const next = resolveInstrumentParam(params.instrument);
-      setInstrument((current) => (current === next ? current : next));
+      // Only an explicit link changes the pair. Returning through the tab bar
+      // carries no pair and keeps whatever was open last. The page stays loaded
+      // across tab switches; a new pair reaches it as a bridge command.
+      const next = requestedInstrument(params.instrument);
+      if (next) setInstrument((current) => (current === next ? current : next));
       const trade = requestedTrade(params.trade);
       if (trade) setFocusTradeId(trade);
-      setChartState(null);
-      webReadyRef.current = false;
       void refreshManualEntries();
     }, [params.instrument, params.trade, refreshManualEntries]),
   );
 
   useEffect(() => {
     setChartState(null);
-    webReadyRef.current = false;
   }, [instrument]);
 
   useEffect(() => {
@@ -266,7 +309,18 @@ export default function ChartScreen() {
     });
   }, [activeTimeframeIndex, timeframe]);
 
-  const source = useMemo(() => webAppUrl(`/embed/chart?instrument=${encodeURIComponent(instrument)}&native=1`), [instrument]);
+  // Built once per page load (and on retry), never per pair or preference:
+  // changing the URL reloads the whole web app. The saved timeframe, range and
+  // chart type ride along so the server renders the right candles the first
+  // time; later changes go over the message bridge. Waits for the stored
+  // preferences so the first load is not a throwaway default.
+  const source = useMemo(
+    () => prefsReady
+      ? webAppUrl(`/embed/chart?instrument=${encodeURIComponent(instrument)}&native=1&tf=${WEB_TIMEFRAME[timeframe]}&range=${range}&variant=${variant}`)
+      : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately frozen; see above.
+    [prefsReady, retry],
+  );
   const webViewThemeBootstrap = useMemo(
     () => `(function(){var t=${JSON.stringify(themeMode)};var bg=t==='light'?'#ffffff':'#09090b';document.documentElement.classList.toggle('dark',t==='dark');document.documentElement.style.backgroundColor=bg;if(document.body)document.body.style.backgroundColor=bg;})();true;`,
     [themeMode],
@@ -301,9 +355,10 @@ export default function ChartScreen() {
       range,
       variant,
       indicators: enabledIndicators,
+      instrument,
     };
     void saveChartPreferences(snapshot);
-  }, [enabledIndicators, prefsReady, range, timeframe, variant]);
+  }, [enabledIndicators, instrument, prefsReady, range, timeframe, variant]);
 
   useEffect(() => {
     if (!prefsReady || loading || !webReadyRef.current) return;
@@ -378,6 +433,7 @@ export default function ChartScreen() {
     setPairsOpen(false);
     setPairQuery('');
     setChartState(null);
+    if (next !== instrument) setMarketBusy(true);
     setFocusTradeId(null);
     router.setParams({ instrument: next, trade: undefined });
     command('instrument', next);
@@ -489,26 +545,25 @@ export default function ChartScreen() {
   if (failed) return <View style={[styles.errorState, themedScreen.errorState]}><Text style={styles.errorTitle}>Chart unavailable</Text><Text style={styles.errorCopy}>Check that the GX web app is reachable on this device, then try again.</Text><Pressable onPress={() => { setFailed(false); setLoading(true); setRetry((value) => value + 1); }} style={styles.retry}><Text style={styles.retryText}>Retry chart</Text></Pressable></View>;
 
   return <View style={[styles.root, themedScreen.root]}>
-    <View style={[styles.header, themedScreen.header, { paddingTop: Math.max(insets.top + 8, 24) }]}>
+    {fullscreen ? null : <View style={[styles.header, themedScreen.header, { paddingTop: Math.max(insets.top + 8, 24) }]}>
       <View style={styles.headerRow}>
-        <Pressable onPress={() => setPairsOpen(true)} style={styles.pairButton} accessibilityRole="button" accessibilityLabel="Select currency pair"><Text style={styles.pair}>{pairLabel(instrument)}</Text><ChevronDown size={16} strokeWidth={2} color={colors.textSecondary} /></Pressable>
+        <Pressable onPress={() => setPairsOpen(true)} style={styles.pairButton} accessibilityRole="button" accessibilityLabel="Select currency pair"><Text style={styles.pair}>{prefsReady || requested ? pairLabel(instrument) : ' '}</Text><ChevronDown size={16} strokeWidth={2} color={colors.textSecondary} /></Pressable>
         <View style={styles.headerActions}><Pressable onPress={analyzeChart} disabled={hasBlockingManualTrade} style={[styles.analyze, hasBlockingManualTrade ? styles.analyzeDisabled : null]} accessibilityRole="button" accessibilityLabel={hasBlockingManualTrade ? 'Analyze unavailable while a pending or open trade exists' : 'Analyze with TrendPullbackV1'}><Sparkles size={18} strokeWidth={2} color="#ffffff" /></Pressable><Pressable onPress={() => setNotificationsOpen(true)} style={styles.bell} accessibilityRole="button" accessibilityLabel="Open notifications"><Bell size={19} strokeWidth={2} color={colors.textSecondary} /></Pressable></View>
       </View>
       <View style={styles.quoteRow}><Text style={styles.quote}>{chartState?.priceLabel ?? price(chartState?.price ?? null, instrument)}</Text><Text style={[styles.change, chartState?.positive === false ? styles.down : styles.up]}>{chartState ? `${chartState.positive ? '+' : ''}${chartState.change.toFixed(instrument.includes('JPY') ? 3 : 5)}  ${chartState.positive ? '+' : ''}${chartState.changePercent.toFixed(2)}%` : 'Live quote'}</Text><Text style={styles.session}>{session.marketOpen ? `${session.label} session` : 'Market closed'}</Text></View>
       <View style={styles.timeframes} onLayout={onTimeframeLayout}>{timeframeColumnWidth > 0 ? <Animated.View pointerEvents="none" style={[styles.timeframeLens, { width: timeframeColumnWidth }, timeframeLensStyle]} /> : null}{TIMEFRAMES.map((option) => <TimeframeItem key={option} option={option} active={timeframe === option} onPress={() => selectTimeframe(option)} />)}</View>
-    </View>
-    <View style={[styles.chartFrame, themedScreen.chartFrame]}>
-      <WebView key={`${instrument}-${retry}`} ref={webView} source={{ uri: source }} style={[styles.webview, themedScreen.webview]} originWhitelist={['*']} sharedCookiesEnabled thirdPartyCookiesEnabled cacheEnabled={false} javaScriptEnabled domStorageEnabled injectedJavaScriptBeforeContentLoaded={webViewThemeBootstrap} onLoadStart={() => { setLoading(true); webReadyRef.current = false; }} onLoadEnd={() => { setLoading(false); webReadyRef.current = true; setTimeout(() => { pushChartPreferences(); }, 0); }} onMessage={(event) => handleWebMessage(event.nativeEvent.data)} onError={() => { setLoading(false); setFailed(true); setMarketBusy(false); }} onHttpError={(event) => { if (event.nativeEvent.statusCode >= 400) { setLoading(false); setFailed(true); setMarketBusy(false); } }} />
+    </View>}
+    <View style={[styles.chartFrame, themedScreen.chartFrame, fullscreen ? { paddingTop: insets.top } : null]}>
+      {source ? <WebView key={`chart-${retry}`} ref={webView} source={{ uri: source }} style={[styles.webview, themedScreen.webview]} originWhitelist={['*']} sharedCookiesEnabled thirdPartyCookiesEnabled javaScriptEnabled domStorageEnabled injectedJavaScriptBeforeContentLoaded={webViewThemeBootstrap} onLoadStart={() => { setLoading(true); webReadyRef.current = false; }} onLoadEnd={() => { setLoading(false); webReadyRef.current = true; setTimeout(() => { pushChartPreferences(); }, 0); }} onMessage={(event) => handleWebMessage(event.nativeEvent.data)} onError={() => { setLoading(false); setFailed(true); setMarketBusy(false); }} onHttpError={(event) => { if (event.nativeEvent.statusCode >= 400) { setLoading(false); setFailed(true); setMarketBusy(false); } }} /> : null}
       {loading || marketBusy ? <View pointerEvents="none" style={[styles.loading, themedScreen.loading]}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>{loading ? 'Loading chart…' : 'Updating chart…'}</Text></View> : null}
     </View>
-    <View style={[styles.toolbar, themedScreen.toolbar]}><Tool icon={SlidersHorizontal} label="Indicators" active={enabledIndicators.length > 0} onPress={() => setIndicatorsOpen(true)} /><Tool icon={Crosshair} label="Fixed 10-pip setup" onPress={() => setPositionOpen(true)} /><Tool icon={CalendarRange} label={`Visible range · ${range}`} active={false} onPress={() => setRangesOpen(true)} /><Tool icon={VariantIcon} label={`Chart type · ${activeVariant.label}`} onPress={() => setVariantsOpen(true)} /><Tool icon={RotateCcw} label="Reset chart view" onPress={() => command('reset')} /></View>
-    <View style={styles.tradeAction}>{tradeActionError ? <Text style={styles.tradeActionError} accessibilityRole="alert">{tradeActionError}</Text> : null}<Pressable onPress={handleTradeAction} disabled={tradeActionBusy} style={[styles.tradeButton, manualTradeAction === 'cancel' ? styles.cancelTradeButton : manualTradeAction === 'close' ? styles.closeTradeButton : null, tradeActionBusy ? styles.tradeButtonDisabled : null]} accessibilityRole="button" accessibilityLabel={tradeActionLabel}><Text style={styles.tradeButtonText}>{tradeActionBusy ? 'Working…' : tradeActionLabel}</Text></Pressable></View>
-    <DockFade height={96} />
-    <BottomDrawer visible={pairsOpen} onClose={() => { setPairsOpen(false); setPairQuery(''); }} eyebrow="Chart" title="Select pair"><View style={styles.pairSearch}><Search size={17} color={colors.textMuted} strokeWidth={2} /><TextInput value={pairQuery} onChangeText={setPairQuery} placeholder="Search pairs..." placeholderTextColor={colors.textMuted} style={styles.pairSearchInput} autoCapitalize="none" autoCorrect={false} accessibilityLabel="Search pairs" /></View>{pairMatches.map((option) => <Pressable key={option} onPress={() => selectPair(option)} style={[styles.drawerRow, instrument === option ? styles.drawerRowActive : null]}><Text style={styles.drawerPair}>{pairLabel(option)}</Text>{instrument === option ? <SymbolView name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={18} tintColor={colors.primary} /> : null}</Pressable>)}{pairMatches.length ? null : <Text style={styles.pairSearchEmpty}>No pairs match</Text>}</BottomDrawer>
+    <View style={[styles.toolbar, themedScreen.toolbar, fullscreen ? { paddingBottom: Math.max(insets.bottom, 8) } : null]}><Tool icon={SlidersHorizontal} label="Indicators" active={enabledIndicators.length > 0} onPress={() => setIndicatorsOpen(true)} /><Tool icon={CalendarRange} label={`Visible range · ${range}`} active={false} onPress={() => setRangesOpen(true)} /><Tool icon={VariantIcon} label={`Chart type · ${activeVariant.label}`} onPress={() => setVariantsOpen(true)} /><Tool icon={RotateCcw} label="Reset chart view" onPress={() => command('reset')} /><Tool icon={fullscreen ? Minimize2 : Maximize2} label={fullscreen ? 'Exit fullscreen' : 'Fullscreen chart'} active={fullscreen} onPress={() => setFullscreen((value) => !value)} /></View>
+    {fullscreen ? null : <View style={styles.tradeAction}>{tradeActionError ? <Text style={styles.tradeActionError} accessibilityRole="alert">{tradeActionError}</Text> : null}<Pressable onPress={handleTradeAction} disabled={tradeActionBusy} style={[styles.tradeButton, manualTradeAction === 'cancel' ? styles.cancelTradeButton : manualTradeAction === 'close' ? styles.closeTradeButton : null, tradeActionBusy ? styles.tradeButtonDisabled : null]} accessibilityRole="button" accessibilityLabel={tradeActionLabel}><Text style={styles.tradeButtonText}>{tradeActionBusy ? 'Working…' : tradeActionLabel}</Text></Pressable></View>}
+    {fullscreen ? null : <DockFade height={96} />}
+    <BottomDrawer visible={pairsOpen} onClose={() => { setPairsOpen(false); setPairQuery(''); }} eyebrow="Chart" title="Select pair"><View style={styles.pairSearch}><Search size={17} color={colors.textMuted} strokeWidth={2} /><TextInput value={pairQuery} onChangeText={setPairQuery} placeholder="Search pairs..." placeholderTextColor={colors.textMuted} style={styles.pairSearchInput} autoCapitalize="none" autoCorrect={false} accessibilityLabel="Search pairs" /></View>{pairMatches.map((option) => <Pressable key={option} onPress={() => selectPair(option)} style={[styles.drawerRow, instrument === option ? styles.drawerRowActive : null]}><Text style={styles.drawerPair}>{pairLabel(option)}</Text><View style={styles.pairRowEnd}>{pairStatuses[option] ? <PairStatusBadge status={pairStatuses[option]} /> : null}{instrument === option ? <SymbolView name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={18} tintColor={colors.primary} /> : null}</View></Pressable>)}{pairMatches.length ? null : <Text style={styles.pairSearchEmpty}>No pairs match</Text>}</BottomDrawer>
     <BottomDrawer visible={rangesOpen} onClose={() => setRangesOpen(false)} eyebrow="Chart" title="Visible range">{RANGES.map((option) => <Pressable key={option} onPress={() => selectRange(option)} style={[styles.drawerRow, range === option ? styles.drawerRowActive : null]}><Text style={styles.drawerPair}>{option}</Text>{range === option ? <SymbolView name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={18} tintColor={colors.primary} /> : null}</Pressable>)}</BottomDrawer>
     <BottomDrawer visible={variantsOpen} onClose={() => setVariantsOpen(false)} eyebrow="Chart" title="Chart type">{CHART_VARIANTS.map((option) => <Pressable key={option.value} onPress={() => selectVariant(option.value)} style={[styles.drawerRow, variant === option.value ? styles.drawerRowActive : null]}><Text style={styles.drawerPair}>{option.label}</Text>{variant === option.value ? <SymbolView name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={18} tintColor={colors.primary} /> : null}</Pressable>)}</BottomDrawer>
     <BottomDrawer visible={indicatorsOpen} onClose={() => setIndicatorsOpen(false)} eyebrow="Chart" title="Indicators" scrollable>{INDICATOR_GROUPS.map((group) => <View key={group.title}><Text style={styles.drawerGroupTitle}>{group.title}</Text>{group.options.map((option) => { const on = enabledIndicators.includes(option.value); return <Pressable key={option.value} onPress={() => toggleIndicator(option.value)} style={[styles.drawerRow, on ? styles.drawerRowActive : null]}><Text style={styles.drawerPair}>{option.label}</Text>{on ? <SymbolView name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={18} tintColor={colors.primary} /> : null}</Pressable>; })}</View>)}</BottomDrawer>
-    <BottomDrawer visible={positionOpen} onClose={() => setPositionOpen(false)} eyebrow="Chart" title="Fixed 10-pip setup"><Text style={styles.drawerCopy}>Risk and reward are both fixed at 10 pips. Choose a direction to place the movable setup on the chart.</Text><View style={styles.directionRow}><Pressable onPress={() => { setPositionOpen(false); command('position', 'long'); }} style={[styles.directionButton, styles.longButton]}><Text style={styles.directionText}>Long</Text></Pressable><Pressable onPress={() => { setPositionOpen(false); command('position', 'short'); }} style={[styles.directionButton, styles.shortButton]}><Text style={styles.directionText}>Short</Text></Pressable></View></BottomDrawer>
     <NotificationDrawer visible={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
     <TradeDrawer
       visible={tradeOpen}
@@ -536,6 +591,37 @@ function NativeTrendPullbackModal({ visible, busy, result, error, instrument, on
   </BottomDrawer>;
 }
 
+type PairStatus = 'pending' | 'trading';
+
+/** An open filled trade outranks a waiting order on the same pair. */
+function pairStatusesFrom(entries: PendingEntry[]) {
+  const statuses: Partial<Record<string, PairStatus>> = {};
+  for (const entry of entries) {
+    if (entry.status === 'TRIGGERED' && entry.paperTradeStatus === 'open') {
+      statuses[entry.instrument] = 'trading';
+    } else if ((entry.status === 'PENDING' || entry.status === 'TRIGGERING') && !statuses[entry.instrument]) {
+      statuses[entry.instrument] = 'pending';
+    }
+  }
+  return statuses;
+}
+
+const PAIR_STATUS_STYLE: Record<PairStatus, { label: string; color: string; background: string }> = {
+  pending: { label: 'Pending', color: '#f59e0b', background: 'rgba(245, 158, 11, 0.14)' },
+  trading: { label: 'Trading', color: '#10b981', background: 'rgba(16, 185, 129, 0.14)' },
+};
+
+function PairStatusBadge({ status }: { status: PairStatus }) {
+  const styles = useThemedStyles(createStyles);
+  const tone = PAIR_STATUS_STYLE[status];
+  return (
+    <View style={[styles.pairBadge, { backgroundColor: tone.background }]}>
+      <View style={[styles.pairBadgeDot, { backgroundColor: tone.color }]} />
+      <Text style={[styles.pairBadgeText, { color: tone.color }]}>{tone.label}</Text>
+    </View>
+  );
+}
+
 function Tool({ icon: Icon, label, active = false, onPress }: { icon: LucideIcon; label: string; active?: boolean; onPress: () => void }) {
   const colors = useThemeColors();
   const styles = useThemedStyles(createStyles);
@@ -558,6 +644,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   root: { flex: 1 }, header: { paddingHorizontal: 16, paddingBottom: 10, gap: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.cardBorder }, headerRow: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }, pairButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5 }, pair: { fontSize: 15, fontFamily: theme.fonts.sansBold, color: colors.textPrimary }, headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 }, analyze: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: colors.primary }, analyzeDisabled: { opacity: 0.38 }, bell: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: colors.surfaceRaised },
   quoteRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }, quote: { fontSize: 22, fontFamily: theme.fonts.monoBold, color: colors.textPrimary, letterSpacing: -0.5 }, change: { fontSize: 11, fontFamily: theme.fonts.monoMedium }, up: { color: colors.primary }, down: { color: colors.danger }, session: { marginLeft: 'auto', fontSize: 10, fontFamily: theme.fonts.sansSemiBold, letterSpacing: 0.4, textTransform: 'uppercase', color: colors.textMuted }, timeframes: { position: 'relative', minHeight: 39, flexDirection: 'row', padding: 3, overflow: 'hidden', borderRadius: 10, backgroundColor: colors.surfaceRaised }, timeframeLens: { position: 'absolute', top: 3, bottom: 3, left: 3, borderRadius: 7, backgroundColor: colors.primarySoft, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.primary }, timeframe: { zIndex: 1, flex: 1, minHeight: 33, alignItems: 'center', justifyContent: 'center' }, timeframeText: { fontSize: 11, fontFamily: theme.fonts.sansSemiBold, color: colors.textSecondary }, timeframeTextActive: { color: colors.primary },
   chartFrame: { flex: 1, minHeight: 180 }, webview: { flex: 1 }, loading: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', gap: 9 }, loadingText: { fontSize: 13, fontFamily: theme.fonts.sansMedium, color: colors.textSecondary }, toolbar: { zIndex: 6, minHeight: 52, flexDirection: 'row', paddingHorizontal: 8, paddingVertical: 8, gap: 4, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.cardBorder }, tool: { flex: 1, minWidth: 0, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 11 }, toolActive: { backgroundColor: colors.primarySoft }, tradeAction: { zIndex: 6, marginBottom: 94, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10, backgroundColor: 'transparent' }, tradeActionError: { marginBottom: 8, textAlign: 'center', fontSize: 12, lineHeight: 17, fontFamily: theme.fonts.sansMedium, color: colors.danger }, tradeButton: { minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: colors.primary }, cancelTradeButton: { backgroundColor: colors.warning }, closeTradeButton: { backgroundColor: colors.danger }, tradeButtonDisabled: { opacity: 0.55 }, tradeButtonText: { fontSize: 14, fontFamily: theme.fonts.sansSemiBold, color: '#ffffff' }, confirmCopy: { marginHorizontal: 4, fontSize: 14, lineHeight: 20, fontFamily: theme.fonts.sans, color: colors.textSecondary }, confirmActions: { flexDirection: 'row', gap: 10, marginTop: 22, marginHorizontal: 4 }, confirmSecondary: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 13, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border }, confirmSecondaryText: { fontSize: 14, fontFamily: theme.fonts.sansSemiBold, color: colors.textPrimary }, confirmPrimary: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: colors.primary },
+  pairRowEnd: { flexDirection: 'row', alignItems: 'center', gap: 10 }, pairBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 }, pairBadgeDot: { width: 6, height: 6, borderRadius: 3 }, pairBadgeText: { fontSize: 11, fontFamily: theme.fonts.sansSemiBold, letterSpacing: 0.2 },
   pairSearch: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8, paddingHorizontal: 13, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.surface }, pairSearchInput: { flex: 1, color: colors.textPrimary, fontSize: 13, fontFamily: theme.fonts.sans }, pairSearchEmpty: { paddingVertical: 16, textAlign: 'center', fontSize: 13, fontFamily: theme.fonts.sans, color: colors.textSecondary }, drawerRow: { minHeight: 49, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border, borderRadius: 10 }, drawerRowActive: { backgroundColor: colors.primaryMuted }, drawerPair: { fontSize: 14, fontFamily: theme.fonts.sansSemiBold, color: colors.textPrimary }, drawerGroupTitle: { marginTop: 8, marginBottom: 4, paddingHorizontal: 12, fontSize: 11, fontFamily: theme.fonts.sansSemiBold, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.textMuted }, drawerCopy: { marginHorizontal: 12, marginBottom: 14, fontSize: 13, lineHeight: 19, fontFamily: theme.fonts.sans, color: colors.textSecondary }, directionRow: { flexDirection: 'row', gap: 10, marginHorizontal: 12, paddingBottom: 8 }, directionButton: { flex: 1, minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 12 }, longButton: { backgroundColor: colors.primary }, shortButton: { backgroundColor: colors.danger }, directionText: { fontSize: 14, fontFamily: theme.fonts.sansSemiBold, color: '#ffffff' }, errorState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }, errorTitle: { fontSize: 19, fontFamily: theme.fonts.sansSemiBold, color: colors.textPrimary }, errorCopy: { marginTop: 7, textAlign: 'center', fontSize: 13, lineHeight: 19, fontFamily: theme.fonts.sans, color: colors.textSecondary }, retry: { marginTop: 20, minHeight: 44, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: colors.primary }, retryText: { fontSize: 13, fontFamily: theme.fonts.sansSemiBold, color: '#ffffff' },
   analysisTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginHorizontal: 4 }, analysisDirection: { fontSize: 20, fontFamily: theme.fonts.sansBold }, analysisLong: { color: colors.primary }, analysisShort: { color: colors.danger }, analysisSpinner: { marginTop: 14 }, analysisCopy: { marginTop: 8, marginHorizontal: 4, fontSize: 13, lineHeight: 19, fontFamily: theme.fonts.sans, color: colors.textSecondary }, analysisEntry: { marginTop: 18, marginHorizontal: 4, padding: 16, borderRadius: 16, backgroundColor: colors.surfaceRaised }, analysisLabel: { fontSize: 11, fontFamily: theme.fonts.sansSemiBold, textTransform: 'uppercase', letterSpacing: 0.7, color: colors.textMuted }, analysisEntryPrice: { marginTop: 5, fontSize: 30, fontFamily: theme.fonts.monoBold, letterSpacing: -0.7, color: colors.textPrimary }, analysisLevels: { flexDirection: 'row', gap: 10, marginTop: 10, marginHorizontal: 4 }, analysisLevel: { flex: 1, padding: 13, borderRadius: 14, backgroundColor: colors.surfaceRaised }, analysisStopLabel: { fontSize: 11, fontFamily: theme.fonts.sansSemiBold, color: colors.danger }, analysisTargetLabel: { fontSize: 11, fontFamily: theme.fonts.sansSemiBold, color: colors.primary }, analysisLevelPrice: { marginTop: 5, fontSize: 15, fontFamily: theme.fonts.monoBold, color: colors.textPrimary }, analysisLevelCopy: { marginTop: 4, fontSize: 11, fontFamily: theme.fonts.sans, color: colors.textMuted }, analysisRr: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingHorizontal: 8 }, analysisRrValue: { fontSize: 16, fontFamily: theme.fonts.monoBold, color: colors.textPrimary }, analysisActions: { flexDirection: 'row', gap: 10, marginHorizontal: 4, marginTop: 20 }, analysisPrimary: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', marginTop: 20, borderRadius: 13, backgroundColor: colors.primary }, analysisPrimaryText: { fontSize: 15, fontFamily: theme.fonts.sansSemiBold, color: '#ffffff' }, analysisReject: { backgroundColor: colors.danger }, analysisSecondary: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', marginTop: 20, borderRadius: 13, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border }, analysisSecondaryText: { fontSize: 15, fontFamily: theme.fonts.sansSemiBold, color: colors.textPrimary },
 });

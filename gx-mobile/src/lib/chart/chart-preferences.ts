@@ -11,6 +11,8 @@ export type SavedChartPreferences = {
   range: SavedChartRange;
   variant: SavedChartVariant;
   indicators: string[];
+  /** Last pair opened on the Chart tab; reopened when no pair is requested. */
+  instrument?: string;
 };
 
 const DEFAULTS: SavedChartPreferences = {
@@ -42,6 +44,7 @@ export async function loadChartPreferences(): Promise<SavedChartPreferences> {
       range: validRange(parsed.range) ? parsed.range : DEFAULTS.range,
       variant: validVariant(parsed.variant) ? parsed.variant : DEFAULTS.variant,
       indicators: Array.isArray(parsed.indicators) ? parsed.indicators.filter((item) => typeof item === 'string') : [],
+      instrument: typeof parsed.instrument === 'string' ? parsed.instrument : undefined,
     };
   } catch {
     return DEFAULTS;

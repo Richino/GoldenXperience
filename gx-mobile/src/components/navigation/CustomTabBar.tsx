@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { BottomTabBarProps } from 'expo-router/build/react-navigation/bottom-tabs';
 import { BookOpen, CandlestickChart, House, Settings, type LucideIcon } from 'lucide-react-native';
-import { LayoutChangeEvent, PixelRatio, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { LayoutChangeEvent, PixelRatio, Platform, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 import Animated, {
   Easing,
   interpolate,
@@ -31,7 +31,7 @@ const ICONS: Record<string, LucideIcon> = {
  * reliably reproduce (focus state read from React Navigation's own props
  * instead, which is what made the highlight disappear intermittently).
  */
-export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
+export function CustomTabBar({ state, navigation, descriptors }: BottomTabBarProps) {
   const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const { themeMode } = usePreferences();
@@ -64,6 +64,11 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   function onLayout(event: LayoutChangeEvent) {
     setInnerWidth(event.nativeEvent.layout.width);
   }
+
+  // A screen hides the dock with `tabBarStyle: { display: 'none' }` (the chart's
+  // fullscreen mode); honour it the way the default tab bar would.
+  const focusedStyle = descriptors[state.routes[state.index].key]?.options.tabBarStyle;
+  if ((StyleSheet.flatten(focusedStyle as ViewStyle) as ViewStyle | undefined)?.display === 'none') return null;
 
   return (
     <View style={[styles.dock, { bottom: bottomOffset }]}>

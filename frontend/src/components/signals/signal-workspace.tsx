@@ -1911,9 +1911,13 @@ function MobileSignalDetails({
 }
 
 export function SignalWorkspace({
-  strategySetups,
+  strategySetups: initialStrategySetups,
   initialInstrument,
   primarySeries,
+  primarySeriesRange,
+  initialTimeframe,
+  initialRange,
+  initialVariant,
   initialStatus,
   paperPlans,
   initialPaperTrades = [],
@@ -1925,6 +1929,15 @@ export function SignalWorkspace({
   strategySetups: StrategySetup[];
   initialInstrument: MajorInstrument;
   primarySeries: CandleSeries;
+  /**
+   * The range `primarySeries` was fetched for. When it matches the opening
+   * view, the first market-data load reuses it instead of downloading the same
+   * candles again.
+   */
+  primarySeriesRange?: ChartRange;
+  initialTimeframe?: ChartTimeframe;
+  initialRange?: ChartRange;
+  initialVariant?: ChartVariant;
   initialStatus: ConnectionStatus;
   paperPlans: SignalPaperPlan[];
   initialPaperTrades?: PaperChartTrade[];
@@ -1943,6 +1956,23 @@ export function SignalWorkspace({
   // WebView, which starts from next-themes' own default/system resolution
   // and has no way to know the app's in-settings theme choice otherwise.
   const { setTheme } = useTheme();
+  // The native embed renders before the multi-pair strategy evaluation (slow:
+  // it reads candles for every pair) and loads it here after first paint.
+  const [loadedStrategySetups, setLoadedStrategySetups] = useState<StrategySetup[] | null>(null);
+  const strategySetups = loadedStrategySetups ?? initialStrategySetups;
+  useEffect(() => {
+    if (!embeddedSurfaceOnly || initialStrategySetups.length) return;
+    const controller = new AbortController();
+    void fetch(apiUrl("/api/strategy"), { credentials: "include", signal: controller.signal })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((snapshot: { strategy?: { setups?: StrategySetup[] } } | null) => {
+        if (snapshot?.strategy?.setups) setLoadedStrategySetups(snapshot.strategy.setups);
+      })
+      .catch(() => {
+        // Candidate levels are optional on the chart; it stays usable without them.
+      });
+    return () => controller.abort();
+  }, [embeddedSurfaceOnly, initialStrategySetups]);
   const workspacePath = pathname.startsWith("/signals") ? "/signals" : "/chart";
   const signals = useMemo(
     () => strategySetups.flatMap(toDisplaySignal),
@@ -1957,12 +1987,12 @@ export function SignalWorkspace({
   // Paper decisions are taken on completed M15 candles, so a trade opened from
   // the dashboard always lands on the timeframe it was actually decided on.
   const [timeframe, setTimeframe] = useState<ChartTimeframe>(
-    initialPredictionFocus ? "1m" as const : initialFocusTradeId ? "15m" as const : mapSignalTimeframe(initialSignal?.timeframe ?? "15m"),
+    initialTimeframe ?? (initialPredictionFocus ? "1m" as const : initialFocusTradeId ? "15m" as const : mapSignalTimeframe(initialSignal?.timeframe ?? "15m")),
   );
   const [range, setRange] = useState<ChartRange>(
-    embeddedSurfaceOnly ? "1D" : initialPredictionFocus ? "1D" : "6M",
+    initialRange ?? (embeddedSurfaceOnly ? "1D" : initialPredictionFocus ? "1D" : "6M"),
   );
-  const [chartVariant, setChartVariant] = useState<ChartVariant>("candle");
+  const [chartVariant, setChartVariant] = useState<ChartVariant>(initialVariant ?? "candle");
   const [enabledIndicators, setEnabledIndicators] = useState<ChartIndicator[]>(
     DEFAULT_CHART_INDICATORS,
   );
@@ -1970,7 +2000,7 @@ export function SignalWorkspace({
 
   useEffect(() => {
     if (embeddedSurfaceOnly) {
-      setChartVariant("area");
+      if (!initialVariant) setChartVariant("area");
       setChartPreferencesReady(true);
       return;
     }
@@ -1986,7 +2016,7 @@ export function SignalWorkspace({
       setChartVariant("area");
     }
     setChartPreferencesReady(true);
-  }, [embeddedSurfaceOnly]);
+  }, [embeddedSurfaceOnly, initialVariant]);
 
   useEffect(() => {
     if (!chartPreferencesReady || embeddedSurfaceOnly) return;
@@ -2548,8 +2578,10 @@ export function SignalWorkspace({
 
   const activeSetup =
     strategySetups.find((setup) => setup.instrument === instrument) ??
-    strategySetups[0];
-  const activeCandidate = toDisplaySignal(activeSetup)[0] ?? null;
+    strategySetups[0] ??
+    null;
+  const activeCandidate = activeSetup ? toDisplaySignal(activeSetup)[0] ?? null : null;
+  const activePair = activeSetup?.pair ?? instrument.replace("_", "/");
   const selectedPlan = livePaperPlans.find((plan) => plan.instrument === instrument) ?? null;
   const paperPlan = selectedPlan?.openTradeId ? selectedPlan : null;
   // Memoised because this feeds the chart's `levels` prop through `active`.
@@ -2558,7 +2590,7 @@ export function SignalWorkspace({
   const openSignal: TradeSignal | null = useMemo(
     () => paperPlan?.direction && paperPlan.entry !== null && paperPlan.stop !== null && paperPlan.target !== null ? {
       instrument,
-      pair: activeSetup.pair,
+      pair: activePair,
       timeframe: "15m",
       direction: paperPlan.direction,
       bias: paperPlan.direction === "long" ? "Bullish" : "Bearish",
@@ -2570,7 +2602,7 @@ export function SignalWorkspace({
       note: `Trade #${paperPlan.tradeSequence ?? "—"}`,
       freshness: "Open",
     } : null,
-    [paperPlan, instrument, activeSetup.pair],
+    [paperPlan, instrument, activePair],
   );
   // Blocked setups can still have a concrete draft entry, stop and target.
   // Show those levels when a Watchlist card is opened; execution remains gated
@@ -2704,7 +2736,7 @@ export function SignalWorkspace({
       const risk = Math.abs(openPaperTrade.entry - openPaperTrade.stop);
       return {
         instrument,
-        pair: activeSetup.pair,
+        pair: activePair,
         timeframe: "15m",
         direction: openPaperTrade.direction,
         bias: openPaperTrade.direction === "long" ? "Bullish" : "Bearish",
@@ -2722,7 +2754,7 @@ export function SignalWorkspace({
       const risk = Math.abs(triggeredManualEntry.triggerPrice - triggeredManualEntry.stopPrice);
       return {
         instrument,
-        pair: activeSetup.pair,
+        pair: activePair,
         timeframe: "1h",
         direction: triggeredManualEntry.direction,
         bias: triggeredManualEntry.direction === "long" ? "Bullish" : "Bearish",
@@ -2737,7 +2769,7 @@ export function SignalWorkspace({
       };
     }
     return openSignal;
-  }, [activeSetup.pair, instrument, openPaperTrade, openSignal, triggeredManualEntry]);
+  }, [activePair, instrument, openPaperTrade, openSignal, triggeredManualEntry]);
 
   const startPositionTool = useCallback((direction: "long" | "short") => {
     const candles = series.candles;
@@ -3067,8 +3099,42 @@ export function SignalWorkspace({
     };
   }, [instrument, timeframe]);
 
+  // The server-rendered series is reused for the opening view when it was
+  // fetched for exactly that pair, timeframe and range. Consumed once.
+  const reusableInitialSeriesRef = useRef(
+    primarySeriesRange !== undefined &&
+      primarySeries.candles.length > 0 &&
+      primarySeries.instrument === initialInstrument &&
+      primarySeriesRange === range &&
+      primarySeries.granularity === TIMEFRAME_TO_GRANULARITY[timeframe],
+  );
+
   useEffect(() => {
     const controller = new AbortController();
+
+    if (reusableInitialSeriesRef.current) {
+      reusableInitialSeriesRef.current = false;
+      if (
+        seriesRef.current.instrument === instrument &&
+        seriesRef.current.granularity === TIMEFRAME_TO_GRANULARITY[timeframe] &&
+        primarySeriesRange === range
+      ) {
+        // Candles are already on screen; only the quote is missing.
+        void fetch(apiUrl(`/api/oanda/pricing?instruments=${instrument}`), {
+          credentials: "include",
+          signal: controller.signal,
+        })
+          .then((response) => (response.ok ? response.json() : null))
+          .then((payload: { data: PriceQuote[] } | null) => {
+            const next = payload?.data.find((price) => price.instrument === instrument);
+            if (next) setQuote(next);
+          })
+          .catch(() => {
+            // The live stream fills the quote in shortly.
+          });
+        return () => controller.abort();
+      }
+    }
 
     async function loadMarketData() {
       const loadStartedAt = Date.now();
@@ -3124,7 +3190,9 @@ export function SignalWorkspace({
         );
       } finally {
         if (!controller.signal.aborted) {
-          await settleChartLoad(loadStartedAt);
+          // Mobile shows the chart the moment it is ready; the desktop minimum
+          // spinner time exists to avoid a flash on fast desktop reloads.
+          await settleChartLoad(loadStartedAt, embeddedSurfaceOnly ? 0 : undefined);
           if (!controller.signal.aborted) {
             setLoading(false);
           }
@@ -3135,6 +3203,7 @@ export function SignalWorkspace({
     loadMarketData();
 
     return () => controller.abort();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- primarySeriesRange is a mount-time value.
   }, [instrument, timeframe, range, replaceSeries]);
 
   const loadOlderCandles = useCallback(async () => {
@@ -3549,7 +3618,7 @@ export function SignalWorkspace({
             <div className="signals-mobile-actions flex items-center justify-between">
               <SignalSearch
                 compact
-                pairLabel={activeSetup.pair}
+                pairLabel={activePair}
                 signals={signals}
                 activeInstrument={instrument}
                 tradingInstruments={tradingInstruments}
@@ -3620,7 +3689,7 @@ export function SignalWorkspace({
           >
             <div className="signals-fs-overlay" aria-hidden={!fullscreen}>
               <PairAvatar instrument={instrument} size={22} />
-              <span className="signals-fs-pair">{activeSetup.pair}</span>
+              <span className="signals-fs-pair">{activePair}</span>
               <span
                 className={`signals-fs-dot is-${engineStatus.kind}`}
                 title={engineStatus.label}
@@ -3729,7 +3798,7 @@ export function SignalWorkspace({
             <div className="signals-chart-head-main">
               <SignalSearch
                 compact
-                pairLabel={activeSetup.pair}
+                pairLabel={activePair}
                 signals={signals}
                 activeInstrument={instrument}
                 tradingInstruments={tradingInstruments}
@@ -3870,7 +3939,7 @@ export function SignalWorkspace({
           <ActivePositionStrip
             signal={positionSignal}
             currentPrice={quote?.mid ?? null}
-            pairLabel={activeSetup.pair}
+            pairLabel={activePair}
           />
           <ChartContextPanel
             instrument={instrument}

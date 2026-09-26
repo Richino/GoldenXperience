@@ -639,13 +639,46 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       const granularity = GRANULARITIES.has(requestedGranularity) ? requestedGranularity : "M15";
       const requestedCount = Number(url.searchParams.get("count") || 64);
       const count = Number.isFinite(requestedCount) ? Math.min(5_000, Math.max(10, Math.floor(requestedCount))) : 64;
-      return json(request, response, await getCandles(instrument, granularity, count, { to: url.searchParams.get("to") || undefined }));
+      return json(request, response, await cachedCandles(instrument, granularity, count, url.searchParams.get("to") || undefined));
     }
     case "/api/strategy":
       return json(request, response, await getStrategySnapshot());
     default:
       return json(request, response, { error: "Not found." }, 404);
   }
+}
+
+// Chart loads ask for the same candles repeatedly (page render, reconnects,
+// several open devices). A short cache answers those without another OANDA
+// round trip. The latest window expires fast because its last bar is still
+// forming; the live stream carries price between refreshes. Older history
+// (`to` set) is immutable, so it is kept longer. Concurrent identical requests
+// share one upstream call. Failed/fallback responses are never cached.
+const CANDLE_CACHE_LATEST_MS = 5_000;
+const CANDLE_CACHE_HISTORY_MS = 10 * 60_000;
+const CANDLE_CACHE_MAX_ENTRIES = 300;
+type CandleResult = Awaited<ReturnType<typeof getCandles>>;
+const candleCache = new Map<string, { expiresAt: number; result: Promise<CandleResult> }>();
+
+function cachedCandles(instrument: Parameters<typeof getCandles>[0], granularity: string, count: number, to: string | undefined) {
+  const key = `${instrument}|${granularity}|${count}|${to ?? ""}`;
+  const now = Date.now();
+  const hit = candleCache.get(key);
+  if (hit && hit.expiresAt > now) return hit.result;
+
+  const result = getCandles(instrument, granularity, count, { to });
+  candleCache.delete(key);
+  candleCache.set(key, { expiresAt: now + (to ? CANDLE_CACHE_HISTORY_MS : CANDLE_CACHE_LATEST_MS), result });
+  result.then(
+    (value) => { if (value.status.state !== "connected") candleCache.delete(key); },
+    () => candleCache.delete(key),
+  );
+  while (candleCache.size > CANDLE_CACHE_MAX_ENTRIES) {
+    const oldest = candleCache.keys().next().value;
+    if (oldest === undefined) break;
+    candleCache.delete(oldest);
+  }
+  return result;
 }
 
 function serialize(message: MarketStreamMessage) {

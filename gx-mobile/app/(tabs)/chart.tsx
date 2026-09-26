@@ -37,7 +37,7 @@ import { loadChartPreferences, saveChartPreferences, type SavedChartPreferences 
 import { usePreferences } from '@/lib/preferences/PreferencesContext';
 import type { PendingEntry } from '@/types/api';
 
-const PAIRS = ['EUR_USD', 'USD_JPY', 'GBP_USD', 'AUD_USD', 'USD_CAD', 'USD_CHF', 'NZD_USD', 'EUR_JPY', 'EUR_GBP', 'GBP_JPY'] as const;
+const PAIRS = ['EUR_USD', 'USD_JPY', 'GBP_USD', 'AUD_USD', 'USD_CAD', 'USD_CHF', 'NZD_USD', 'EUR_JPY', 'EUR_GBP', 'GBP_JPY', 'AUD_JPY', 'NZD_JPY', 'CAD_JPY', 'EUR_AUD'] as const;
 const TIMEFRAMES = ['1m', '5m', '15m', '1H', '4H'] as const;
 const RANGES = ['1D', '1W', '1M', '3M', '1Y'] as const;
 const CHART_VARIANTS = [

@@ -2178,7 +2178,11 @@ export async function journalTradeSummary(userId: string) {
 }
 
 /** Entry and exit points for one pair, used to draw trade markers on the chart. */
-export async function paperTradesForInstrument(userId: string, instrument: string, limit = 40) {
+/**
+ * The chart's recent trades for one pair. `includeTradeId` (the trade a link
+ * asked for) is always returned, however old, so its result can be shown.
+ */
+export async function paperTradesForInstrument(userId: string, instrument: string, limit = 40, includeTradeId: string | null = null) {
   const rows = await query(
     `SELECT * FROM (
        SELECT trade.id,trade.trade_sequence::text AS "tradeSequence",trade.instrument,trade.direction,trade.status,trade.outcome,trade.entry::float,trade.stop::float,trade.target::float,trade.exit::float,trade.result_r::float AS "resultR",trade.opened_at AS "openedAt",trade.closed_at AS "closedAt",trade.exit_reason AS "exitReason",batch.batch_number AS "batchNumber"
@@ -2193,8 +2197,8 @@ export async function paperTradesForInstrument(userId: string, instrument: strin
        JOIN pending_manual_entries pending ON pending.paper_trade_id=manual.id
        WHERE manual.user_id=$1 AND pending.instrument=$2 AND manual.status='closed'
      ) chart_trade
-     ORDER BY "openedAt" DESC LIMIT $3`,
-    [userId, instrument, limit],
+     ORDER BY (chart_trade.id::text = $4) DESC, "openedAt" DESC LIMIT $3`,
+    [userId, instrument, limit, includeTradeId ?? ""],
   );
   return rows.rows;
 }

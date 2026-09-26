@@ -2248,7 +2248,8 @@ export function SignalWorkspace({
   const refreshPaperTrades = useCallback(async () => {
     try {
       const response = await fetch(
-        apiUrl(`/api/paper-cycle/trades?instrument=${instrument}`),
+        // The focused trade is always included, even when it is older than the recent window.
+        apiUrl(`/api/paper-cycle/trades?instrument=${instrument}${focusTradeId ? `&trade=${focusTradeId}` : ""}`),
         { credentials: "include", cache: "no-store" },
       );
       if (!response.ok) return;
@@ -2257,7 +2258,7 @@ export function SignalWorkspace({
     } catch {
       // Markers are supplementary — the chart stays usable without them.
     }
-  }, [instrument]);
+  }, [focusTradeId, instrument]);
 
   const refreshPendingEntries = useCallback(async () => {
     try {

@@ -52,7 +52,7 @@ export default async function ChartPage({ searchParams }: { searchParams: Promis
     getApiData<StrategySnapshot>("/api/strategy"),
     getApiData<{ data: CandleSeries; status: ConnectionStatus }>(`/api/oanda/candles?instrument=${instrument}&granularity=M15&count=120`),
     getApiData<{ watchlist: SignalPaperPlan[] }>("/api/watchlist"),
-    getApiData<{ trades: PaperChartTrade[] }>(`/api/paper-cycle/trades?instrument=${instrument}`),
+    getApiData<{ trades: PaperChartTrade[] }>(`/api/paper-cycle/trades?instrument=${instrument}${focusTradeId ? `&trade=${focusTradeId}` : ""}`),
   ]);
   const focusPrediction = focusPredictionId
     ? await getApiData<{ prediction?: BinaryPrediction }>(`/api/binary/prediction?id=${focusPredictionId}`).then(

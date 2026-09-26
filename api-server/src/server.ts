@@ -429,7 +429,9 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     if (url.pathname === "/api/paper-cycle/trades" && request.method === "GET") {
       const instrument = url.searchParams.get("instrument")?.toUpperCase();
       if (!instrument || !MAJOR_INSTRUMENTS.includes(instrument as (typeof MAJOR_INSTRUMENTS)[number])) return json(request, response, { error: "Choose a monitored currency pair." }, 400);
-      return json(request, response, { trades: await paperTradesForInstrument(user.id, instrument) });
+      const requestedTrade = url.searchParams.get("trade");
+      const includeTradeId = requestedTrade && /^[0-9a-f-]{36}$/i.test(requestedTrade) ? requestedTrade : null;
+      return json(request, response, { trades: await paperTradesForInstrument(user.id, instrument, 40, includeTradeId) });
     }
     if (url.pathname === "/api/paper-cycle/trades/review" && request.method === "PATCH") {
       const payload = await body(request);

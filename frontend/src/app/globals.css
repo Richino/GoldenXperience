@@ -6160,6 +6160,111 @@ body.is-dragging-position-tool .setup-chart-position-band {
   }
 }
 
+/* Inside the native app the result floats over the chart as one of the app's
+   cards (rounded, hairline border, pill badges) instead of a flat web strip.
+   Scoped to the embed so the desktop chart keeps its blotter strip. */
+.gx-native-chart-embed .trade-focus-bar {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "id end"
+    "legs legs";
+  align-items: center;
+  row-gap: 0.7rem;
+  margin: 0.6rem 0.75rem 0;
+  padding: 0.75rem 0.8rem 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--foreground) 9%, transparent);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  box-shadow: 0 0.6rem 1.6rem color-mix(in srgb, #000 22%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.gx-native-chart-embed .trade-focus-bar::before {
+  display: none;
+}
+
+.gx-native-chart-embed .trade-focus-bar-id {
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.gx-native-chart-embed .trade-focus-bar-side {
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.gx-native-chart-embed .trade-focus-bar[data-side="buy"] .trade-focus-bar-side {
+  background: var(--success-soft);
+}
+
+.gx-native-chart-embed .trade-focus-bar[data-side="sell"] .trade-focus-bar-side {
+  background: var(--danger-soft);
+}
+
+.gx-native-chart-embed .trade-focus-bar-seq {
+  font-size: 0.75rem;
+}
+
+.gx-native-chart-embed .trade-focus-bar-r {
+  margin-left: auto;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  font-family: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.gx-native-chart-embed .trade-focus-bar-clear {
+  min-width: 0;
+  min-height: 0;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 7%, transparent);
+  touch-action: manipulation;
+}
+
+.gx-native-chart-embed .trade-focus-bar-clear:active {
+  background: color-mix(in srgb, var(--foreground) 13%, transparent);
+}
+
+.gx-native-chart-embed .trade-focus-bar-clear-label {
+  display: none;
+}
+
+.gx-native-chart-embed .trade-focus-bar-legs {
+  gap: 0.5rem;
+  max-width: none;
+}
+
+.gx-native-chart-embed .trade-focus-bar-leg,
+.gx-native-chart-embed .trade-focus-bar-leg + .trade-focus-bar-leg {
+  padding: 0.55rem 0.65rem;
+  border: 0;
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--foreground) 4.5%, transparent);
+}
+
+.gx-native-chart-embed .trade-focus-bar-price {
+  margin-top: 0.3rem;
+  font-family: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.gx-native-chart-embed .trade-focus-bar-time {
+  margin-top: 0.2rem;
+}
+
 .signals-view .signals-chart-canvas {
   position: relative;
   flex: 1;

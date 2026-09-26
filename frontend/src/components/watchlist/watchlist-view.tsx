@@ -214,13 +214,14 @@ export function WatchlistView() {
       }),
     [snapshotByInstrument, quotes],
   );
+  // "eurusd", "eur/usd" and "EUR_USD" all match the pair; names ("euro", "yen") still match too.
+  const compact = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const needle = compact(query);
   const matched = rows
-    .filter((row) => {
-      const matches = `${row.instrument} ${description(row.instrument)}`
-        .toLowerCase()
-        .includes(query.toLowerCase());
-      return matches;
-    })
+    .filter((row) =>
+      !needle
+      || compact(row.instrument).includes(needle)
+      || description(row.instrument).toLowerCase().includes(query.trim().toLowerCase()))
     .sort(
       (left, right) =>
         // Valid setups first, then pairs the backend actually evaluates

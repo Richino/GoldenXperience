@@ -225,13 +225,11 @@ export function RiskWorkspace({
             />
             Allow new entries
           </label>
-          <span
-            className={`text-xs ${formIsValid ? "text-[color:var(--muted)]" : "text-[color:var(--danger)]"}`}
-            role="status"
-            aria-live="polite"
-          >
-            {formIsValid ? "Changes save automatically" : "Enter valid limits"}
-          </span>
+          {formIsValid ? null : (
+            <span className="text-xs text-[color:var(--danger)]" role="status" aria-live="polite">
+              Enter valid limits
+            </span>
+          )}
         </div>
 
         {policy.pending && (

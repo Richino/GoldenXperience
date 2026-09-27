@@ -1,8 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { Volume1, Volume2, VolumeX } from "lucide-react";
+import { LogOut, Volume1, Volume2, VolumeX } from "lucide-react";
+import { PhoneSettingsPicker, PhoneSettingsRow } from "@/components/settings/phone-settings-ui";
+import { MobileSheet } from "@/components/ui/mobile-sheet";
+import { apiUrl } from "@/lib/api/url";
 import { RiskWorkspace, type PaperRiskPolicy } from "@/components/risk/risk-workspace";
 import { SelectMenu } from "@/components/ui/select-menu";
 import { SignOutButton } from "@/components/ui/sign-out-button";
@@ -11,6 +15,26 @@ import { DEFAULT_NOTIFICATION_VOLUME, NOTIFICATION_SOUND_KEY, NOTIFICATION_VOLUM
 import { currentPushStatus, subscribeThisDeviceToPush, type PushUiStatus } from "@/lib/notifications/push";
 import { useNotificationContext } from "@/components/notifications/notification-provider";
 import type { TextSize } from "@/lib/text-size";
+
+/** Phone pickers: the app's Settings drawer options and wording. */
+const phoneThemeOptions = [
+  { value: "dark", label: "Dark", detail: "GX dark appearance" },
+  { value: "light", label: "Light", detail: "Bright GX appearance" },
+] as const;
+
+const phoneTextSizeOptions = [
+  { value: "small", label: "Small", detail: "More information on screen" },
+  { value: "medium", label: "Standard", detail: "Recommended" },
+  { value: "large", label: "Large", detail: "Easier to read" },
+] as const satisfies readonly { value: TextSize; label: string; detail: string }[];
+
+const phoneSoundOptions = notificationSounds.map((sound) => ({
+  value: sound.value,
+  label: sound.label,
+  detail: "Saved for alert playback",
+}));
+
+type PhonePicker = "theme" | "text" | "sound" | null;
 
 const textSizeOptions: { value: TextSize; label: string }[] = [
   { value: "small", label: "S" },
@@ -94,9 +118,15 @@ function pushDetail(status: PushUiStatus, errorMessage: string | null) {
 
 export function SettingsPanel({
   initialPolicy,
+  email,
 }: {
   initialPolicy: PaperRiskPolicy;
+  email: string | null;
 }) {
+  const router = useRouter();
+  const [phonePicker, setPhonePicker] = useState<PhonePicker>(null);
+  const [signOutOpen, setSignOutOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const { resolvedTheme, setTheme } = useTheme();
   const { textSize, setTextSize, mounted: textSizeMounted } = useTextSize();
   const mounted = useSyncExternalStore(
@@ -160,6 +190,29 @@ export function SettingsPanel({
 
   const themeValue =
     mounted && resolvedTheme === "dark" ? "dark" : "light";
+  const textSizeValue: TextSize = textSizeMounted ? textSize : "medium";
+
+  function playSound(value: NotificationSound) {
+    const selected = notificationSounds.find((sound) => sound.value === value);
+    if (!selected || !notificationAudio.current) return;
+    notificationAudio.current.src = selected.path;
+    notificationAudio.current.volume = notificationVolume(String(notificationVolumePercent));
+    notificationAudio.current.currentTime = 0;
+    void notificationAudio.current.play().catch(() => undefined);
+  }
+
+  async function signOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await fetch(apiUrl("/api/auth/logout"), { method: "POST", credentials: "include" });
+    } finally {
+      router.replace("/login");
+      router.refresh();
+    }
+  }
+
+  const pushActionable = pushStatus === "available" || pushStatus === "unavailable" || pushStatus === "error";
 
   return (
     <div className="settings-view settings-minimal space-y-8 lg:space-y-10">
@@ -170,7 +223,71 @@ export function SettingsPanel({
         </p>
       </header>
 
-      <section className="settings-minimal-section" aria-label="Appearance">
+      {/* Phone layout: the app's Settings tab (rows that open drawers). */}
+      <section className="phone-settings-card settings-phone-only" aria-label="Appearance">
+        <h2 className="phone-settings-section">Appearance</h2>
+        <PhoneSettingsRow label="Theme" value={themeValue === "light" ? "Light" : "Dark"} onClick={() => setPhonePicker("theme")} />
+        <PhoneSettingsRow
+          label="Text size"
+          value={phoneTextSizeOptions.find((option) => option.value === textSizeValue)?.label ?? "Standard"}
+          onClick={() => setPhonePicker("text")}
+        />
+      </section>
+
+      <section className="phone-settings-card settings-phone-only" aria-label="Notifications">
+        <h2 className="phone-settings-section">Notifications</h2>
+        <PhoneSettingsRow
+          label="Notification sound"
+          value={notificationSounds.find((sound) => sound.value === notificationSound)?.label ?? "Soft Whistle"}
+          onClick={() => setPhonePicker("sound")}
+        />
+        <PhoneSettingsRow
+          label="Push alerts"
+          value={pushBusy ? "Enabling…" : pushActionable ? "Enable" : pushDetail(pushStatus, pushError)}
+          onClick={pushActionable && !pushBusy ? () => void enablePushNotifications() : undefined}
+        />
+      </section>
+
+      <PhoneSettingsPicker
+        open={phonePicker === "theme"}
+        onClose={() => setPhonePicker(null)}
+        eyebrow="Settings"
+        title="Theme"
+        options={phoneThemeOptions}
+        selected={themeValue}
+        onSelect={(value) => {
+          setTheme(value);
+          setPhonePicker(null);
+        }}
+      />
+      <PhoneSettingsPicker
+        open={phonePicker === "text"}
+        onClose={() => setPhonePicker(null)}
+        eyebrow="Settings"
+        title="Text size"
+        options={phoneTextSizeOptions}
+        selected={textSizeValue}
+        onSelect={(value) => {
+          setTextSize(value);
+          setPhonePicker(null);
+        }}
+      />
+      <PhoneSettingsPicker
+        open={phonePicker === "sound"}
+        onClose={() => setPhonePicker(null)}
+        eyebrow="Settings"
+        title="Notification sound"
+        options={phoneSoundOptions}
+        selected={notificationSound}
+        onSelect={(value) => {
+          selectNotificationSound(value);
+          // The phone layout has no Preview button, so play the choice.
+          playSound(value);
+          setPhonePicker(null);
+        }}
+      />
+
+      <section className="settings-minimal-section settings-desktop-only" aria-label="Appearance">
         <h2 className="text-sm font-semibold tracking-[-0.01em]">Appearance</h2>
         <div className="mt-4 space-y-4">
           <div className="settings-row">
@@ -197,7 +314,7 @@ export function SettingsPanel({
         </div>
       </section>
 
-      <section className="settings-minimal-section" aria-label="Notifications">
+      <section className="settings-minimal-section settings-desktop-only" aria-label="Notifications">
         <h2 className="text-sm font-semibold tracking-[-0.01em]">Notifications</h2>
         <div className="mt-4 space-y-4">
           <div className="settings-row items-end">
@@ -284,16 +401,37 @@ export function SettingsPanel({
             ) : null}
           </div>
         </div>
-        <audio ref={notificationAudio} preload="none" aria-hidden="true" />
       </section>
+      <audio ref={notificationAudio} preload="none" aria-hidden="true" />
 
       <section id="risk" className="settings-minimal-section scroll-mt-6" aria-label="Risk">
         <RiskWorkspace initialPolicy={initialPolicy} />
       </section>
 
-      <section className="settings-minimal-section" aria-label="Account actions">
+      <section className="settings-minimal-section settings-desktop-only" aria-label="Account actions">
         <SignOutButton />
       </section>
+
+      <section className="phone-settings-card settings-phone-only" aria-label="Account">
+        <h2 className="phone-settings-section">Account</h2>
+        <PhoneSettingsRow label="Signed in as" value={email ?? "—"} />
+        <button type="button" className="phone-settings-sign-out pressable" onClick={() => setSignOutOpen(true)}>
+          <LogOut className="size-4" strokeWidth={2} aria-hidden="true" />
+          Sign out
+        </button>
+      </section>
+
+      <MobileSheet open={signOutOpen} onClose={() => setSignOutOpen(false)} title="Sign out?">
+        <p className="phone-settings-confirm-copy">You will need to sign in again to access your workspace.</p>
+        <div className="phone-settings-confirm-actions">
+          <button type="button" className="phone-settings-confirm-cancel pressable" onClick={() => setSignOutOpen(false)} disabled={signingOut}>
+            Cancel
+          </button>
+          <button type="button" className="phone-settings-confirm-sign-out pressable" onClick={() => void signOut()} disabled={signingOut}>
+            {signingOut ? "Signing out…" : "Sign out"}
+          </button>
+        </div>
+      </MobileSheet>
     </div>
   );
 }

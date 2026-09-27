@@ -305,6 +305,9 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       const payload = await body(request);
       const instrument = typeof payload?.instrument === "string" ? payload.instrument.toUpperCase() : "";
       if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
+      if (!getForexSessionStatus(new Date()).marketOpen) {
+        return json(request, response, { error: "Market is closed. New entries will be available when forex reopens." }, 409);
+      }
       const tick = await executableTick(instrument);
       if (!tick) return json(request, response, { error: "A fresh market quote is not available yet." }, 409);
       try {
@@ -330,6 +333,9 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       const payload = await body(request);
       const instrument = typeof payload?.instrument === "string" ? payload.instrument.toUpperCase() : "";
       if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
+      if (!getForexSessionStatus(new Date()).marketOpen) {
+        return json(request, response, { error: "Market is closed. New entries will be available when forex reopens." }, 409);
+      }
       const tick = await executableTick(instrument);
       if (!tick) return json(request, response, { error: "A fresh market quote is not available yet." }, 409);
       try {

@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { SignalWorkspace, type SignalPaperPlan } from "@/components/signals/signal-workspace";
+import { cookies } from "next/headers";
+import { SignalWorkspace } from "@/components/signals/signal-workspace";
 import { getApiData } from "@/lib/api/server";
-import type { StrategySnapshot } from "@/lib/strategy/strategy-service";
 import { isStrategyInstrument } from "@/lib/strategy/strategy-service";
-import type { CandleSeries, ConnectionStatus, PaperChartTrade } from "@/types/forex";
+import { TIMEFRAME_TO_GRANULARITY, candleCountForRange, type ChartRange, type ChartTimeframe } from "@/lib/chart-utils";
+import type { CandleSeries, ConnectionStatus } from "@/types/forex";
 import type { BinaryPrediction } from "@/types/binary";
 
 function finitePrice(value: string | undefined) {
@@ -17,16 +18,23 @@ export const metadata: Metadata = {
 
 export default async function ChartPage({ searchParams }: { searchParams: Promise<{ instrument?: string; trade?: string; prediction?: string; entry?: string; stop?: string; target?: string; direction?: string; confidence?: string; rationale?: string; preferredEntryTime?: string; proposal?: string }> }) {
   const params = await searchParams;
-  // A plain chart launch should open an active paper trade first. Explicit
-  // watchlist/chart links still win so a user can inspect another pair on
-  // purpose.
-  const activeTrade = params.instrument
+  const cookieStore = await cookies();
+  const savedInstrument = cookieStore.get("gx-last-chart-instrument")?.value?.toUpperCase();
+  const requestedInstrument = params.instrument?.toUpperCase();
+  const savedInstrumentIsValid = savedInstrument !== undefined && isStrategyInstrument(savedInstrument);
+  // Explicit links win, then the last chart the user chose. We only consult an
+  // active paper trade when neither is available.
+  const activeTrade = requestedInstrument || savedInstrumentIsValid
     ? null
     : await getApiData<{ openTrades?: Array<{ id: string; instrument: string; status: string; closedAt: string | null }> }>("/api/paper-cycle")
       .then((payload) => payload.openTrades?.find((trade) => trade.status === "open" && trade.closedAt === null) ?? null)
       .catch(() => null);
-  const requested = params.instrument?.toUpperCase() ?? activeTrade?.instrument ?? "EUR_USD";
+  const requested = requestedInstrument ?? (savedInstrumentIsValid ? savedInstrument : null) ?? activeTrade?.instrument ?? "EUR_USD";
   const instrument = isStrategyInstrument(requested) ? requested : "EUR_USD";
+  // First paint is intentionally a compact, exact range. Strategy evaluation,
+  // plans and trade markers are all hydrated client-side after the chart draws.
+  const initialTimeframe: ChartTimeframe = "15m";
+  const initialRange: ChartRange = "1D";
   const focusTradeId = params.trade && /^[0-9a-f-]{36}$/i.test(params.trade)
     ? params.trade
     : activeTrade?.id ?? null;
@@ -48,12 +56,9 @@ export default async function ChartPage({ searchParams }: { searchParams: Promis
         preferredEntryTime: params.preferredEntryTime?.slice(0, 140) ?? "",
       }
     : null;
-  const [snapshot, candleResult, watchlist, paperTrades] = await Promise.all([
-    getApiData<StrategySnapshot>("/api/strategy"),
-    getApiData<{ data: CandleSeries; status: ConnectionStatus }>(`/api/oanda/candles?instrument=${instrument}&granularity=M15&count=120`),
-    getApiData<{ watchlist: SignalPaperPlan[] }>("/api/watchlist"),
-    getApiData<{ trades: PaperChartTrade[] }>(`/api/paper-cycle/trades?instrument=${instrument}${focusTradeId ? `&trade=${focusTradeId}` : ""}`),
-  ]);
+  const candleResult = await getApiData<{ data: CandleSeries; status: ConnectionStatus }>(
+    `/api/oanda/candles?instrument=${instrument}&granularity=${TIMEFRAME_TO_GRANULARITY[initialTimeframe]}&count=${candleCountForRange(initialTimeframe, initialRange)}`,
+  );
   const focusPrediction = focusPredictionId
     ? await getApiData<{ prediction?: BinaryPrediction }>(`/api/binary/prediction?id=${focusPredictionId}`).then(
         (payload) => payload.prediction ?? null,
@@ -62,12 +67,15 @@ export default async function ChartPage({ searchParams }: { searchParams: Promis
 
   return (
     <SignalWorkspace
-      strategySetups={snapshot.strategy.setups}
+      strategySetups={[]}
       initialInstrument={candleResult.data.instrument}
       primarySeries={candleResult.data}
+      primarySeriesRange={initialRange}
+      initialTimeframe={initialTimeframe}
+      initialRange={initialRange}
       initialStatus={candleResult.status}
-      paperPlans={watchlist.watchlist}
-      initialPaperTrades={paperTrades.trades}
+      paperPlans={[]}
+      initialPaperTrades={[]}
       initialFocusTradeId={focusTradeId}
       initialPredictionFocus={focusPrediction?.instrument === instrument ? focusPrediction : null}
       initialSetupFocus={initialSetupFocus}

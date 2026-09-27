@@ -28,10 +28,6 @@ function useAnimatedVisibility(visible: boolean, exitMs = EXIT_MS) {
   return { mounted, active };
 }
 
-export function ChartPlotSkeleton() {
-  return <div className="chart-loading-skeleton" aria-hidden="true" />;
-}
-
 export function ChartLoadingOverlay({ visible }: { visible: boolean }) {
   const { mounted, active } = useAnimatedVisibility(visible);
 
@@ -43,11 +39,7 @@ export function ChartLoadingOverlay({ visible }: { visible: boolean }) {
       aria-live="polite"
       className={`chart-loading-overlay${active ? " chart-loading-overlay-visible" : ""}`}
     >
-      <ChartPlotSkeleton />
-      <div className="chart-loading-overlay-content">
-        <span aria-hidden className="chart-loading-overlay-spinner" />
-        <span>Loading chart</span>
-      </div>
+      <div className="chart-loading-skeleton" aria-hidden />
     </div>
   );
 }
@@ -71,7 +63,7 @@ export function ChartHistoryLoader({ visible }: { visible: boolean }) {
 
 export async function settleChartLoad(
   startedAt: number,
-  minimumMs = 480,
+  minimumMs = 0,
 ): Promise<void> {
   await new Promise<void>((resolve) => {
     window.requestAnimationFrame(() => {

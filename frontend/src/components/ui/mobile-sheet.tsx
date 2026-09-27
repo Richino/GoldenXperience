@@ -1,13 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
-
-/** Drag distance past which releasing dismisses the sheet. */
-const DISMISS_DISTANCE = 90;
-/** A flick this fast dismisses regardless of distance, in px per ms. */
-const DISMISS_VELOCITY = 0.5;
+import {
+  DISMISS_DISTANCE,
+  DISMISS_VELOCITY,
+  animateSheetBack,
+  animateSheetIn,
+  animateSheetOut,
+  createDragFollower,
+  createVelocityTracker,
+} from "@/lib/sheet-motion";
 
 /**
  * A bottom sheet for the mobile layouts.
@@ -20,6 +24,7 @@ export function MobileSheet({
   open,
   onClose,
   title,
+  eyebrow,
   headerAction,
   lockPageScroll = true,
   resetPageScrollOnOpen = false,
@@ -31,6 +36,8 @@ export function MobileSheet({
   open: boolean;
   onClose: () => void;
   title: string;
+  /** Small uppercase context label above the title ("Chart", "Inbox"). */
+  eyebrow?: string;
   /** Optional control shown in the head, to the left of the close button. */
   headerAction?: React.ReactNode;
   /** The chart already fills a non-scrolling PWA viewport, so it can opt out
@@ -45,20 +52,30 @@ export function MobileSheet({
   className?: string;
   children: React.ReactNode;
 }) {
-  const [dragY, setDragY] = useState(0);
-  const [dragging, setDragging] = useState(false);
+  // `present` outlives `open` by the exit animation, so closing (X, backdrop,
+  // a pick, or a drag) slides the sheet away instead of cutting it.
+  const [present, setPresent] = useState(open);
+  if (open && !present) setPresent(true);
   const sheetRef = useRef<HTMLDivElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const start = useRef<{ y: number; time: number; inBody: boolean } | null>(null);
-  const latest = useRef<{ y: number; time: number } | null>(null);
   const active = useRef(false);
+  const follower = useRef<ReturnType<typeof createDragFollower> | null>(null);
+  const velocity = useRef<ReturnType<typeof createVelocityTracker> | null>(null);
+  /** Where a dismissing drag let go, so the exit continues from there. */
+  const releaseY = useRef(0);
+  const shown = useRef(false);
+  const exiting = useRef(false);
 
   // onClose is recreated by the parent on every render (e.g. live price ticks),
   // so keep it in a ref. Depending on it here re-ran this effect constantly,
   // and the sheetRef.focus() below then stole focus from the search input on
   // every tick — the keyboard opened and immediately closed.
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  useLayoutEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   const resetDocumentScroll = useCallback(() => {
     window.scrollTo(0, 0);
@@ -80,10 +97,12 @@ export function MobileSheet({
   /*
    * iOS ignores `overflow: hidden` on the body for touch scrolling, so the page
    * behind kept moving under the sheet. Pinning the body and restoring the
-   * offset on close is what actually holds it still.
+   * offset after the exit animation is what actually holds it still. Releasing
+   * this lock as soon as `open` flips false reflows the fixed chart behind a
+   * still-visible drawer, producing a flash on every close button tap.
    */
   useEffect(() => {
-    if (!open || !lockPageScroll) return;
+    if (!present || !lockPageScroll) return;
 
     const { body } = document;
     const root = document.documentElement;
@@ -113,7 +132,7 @@ export function MobileSheet({
       root.classList.remove("mobile-sheet-open");
       window.scrollTo(0, scrollY);
     };
-  }, [lockPageScroll, open, resetDocumentScroll, resetPageScrollOnOpen]);
+  }, [lockPageScroll, present, resetDocumentScroll, resetPageScrollOnOpen]);
 
   /* iOS PWAs keep the layout viewport at its pre-keyboard height. Fixed
    * drawers therefore remain beneath the keyboard unless we explicitly move
@@ -148,24 +167,64 @@ export function MobileSheet({
     };
   }, [keyboardAvoiding, open]);
 
+  /* Open: slide in on mount. Close: slide out from wherever the sheet is, then
+   * unmount. Layout effect so the first painted frame is already off-screen. */
+  useLayoutEffect(() => {
+    const sheet = sheetRef.current;
+    if (open && present && sheet && !shown.current) {
+      shown.current = true;
+      void animateSheetIn(sheet, backdropRef.current);
+      return;
+    }
+    if (!open && present && !exiting.current) {
+      exiting.current = true;
+      const from = releaseY.current;
+      releaseY.current = 0;
+      const done = () => {
+        shown.current = false;
+        exiting.current = false;
+        setPresent(false);
+      };
+      if (sheet) void animateSheetOut(sheet, backdropRef.current, from).then(done);
+      else done();
+    }
+  }, [open, present]);
+
+  const beginDrag = useCallback((y: number, time: number) => {
+    const sheet = sheetRef.current;
+    if (!sheet) return;
+    active.current = true;
+    follower.current = createDragFollower(sheet, backdropRef.current);
+    velocity.current = createVelocityTracker();
+    velocity.current.add(y, time);
+  }, []);
+
+  const moveDrag = useCallback((y: number, time: number) => {
+    if (!start.current) return;
+    velocity.current?.add(y, time);
+    follower.current?.move(y - start.current.y);
+  }, []);
+
   const finish = useCallback(
     (endY: number, endTime: number) => {
       if (!active.current || !start.current) return;
-
+      velocity.current?.add(endY, endTime);
       const distance = Math.max(0, endY - start.current.y);
-      const previous = latest.current;
-      const velocity =
-        previous && endTime > previous.time
-          ? (endY - previous.y) / (endTime - previous.time)
-          : 0;
+      const speed = velocity.current?.velocity() ?? 0;
+      const at = follower.current?.stop() ?? distance;
 
       active.current = false;
       start.current = null;
-      latest.current = null;
-      setDragging(false);
-      setDragY(0);
+      follower.current = null;
+      velocity.current = null;
 
-      if (distance > DISMISS_DISTANCE || velocity > DISMISS_VELOCITY) onCloseRef.current();
+      if (distance > DISMISS_DISTANCE || speed > DISMISS_VELOCITY) {
+        releaseY.current = at;
+        onCloseRef.current();
+        return;
+      }
+      const sheet = sheetRef.current;
+      if (sheet) void animateSheetBack(sheet, backdropRef.current, at);
     },
     [],
   );
@@ -189,7 +248,6 @@ export function MobileSheet({
         time: event.timeStamp,
         inBody: Boolean(body && event.target instanceof Node && body.contains(event.target)),
       };
-      latest.current = { y: touch.clientY, time: event.timeStamp };
       active.current = false;
     }
 
@@ -203,17 +261,12 @@ export function MobileSheet({
       if (!active.current) {
         // A list that can still scroll up keeps the gesture.
         const atTop = (bodyRef.current?.scrollTop ?? 0) <= 0;
-        if (delta <= 0 || (from.inBody && !atTop)) {
-          latest.current = { y: touch.clientY, time: event.timeStamp };
-          return;
-        }
-        active.current = true;
-        setDragging(true);
+        if (delta <= 0 || (from.inBody && !atTop)) return;
+        beginDrag(touch.clientY, event.timeStamp);
       }
 
       if (event.cancelable) event.preventDefault();
-      latest.current = { y: touch.clientY, time: event.timeStamp };
-      setDragY(Math.max(0, delta));
+      moveDrag(touch.clientY, event.timeStamp);
     }
 
     function onTouchEnd(event: TouchEvent) {
@@ -221,7 +274,6 @@ export function MobileSheet({
       if (!touch) return;
       if (!active.current) {
         start.current = null;
-        latest.current = null;
         return;
       }
       finish(touch.clientY, event.timeStamp);
@@ -238,22 +290,19 @@ export function MobileSheet({
       sheet.removeEventListener("touchend", onTouchEnd);
       sheet.removeEventListener("touchcancel", onTouchEnd);
     };
-  }, [finish, open]);
+  }, [beginDrag, finish, moveDrag, open]);
 
-  if (!open) return null;
+  if (!present) return null;
 
   // Mouse dragging stays on the grip: a pointer has no momentum to hand back to
   // a scroll container, and click-dragging a list would be surprising.
   function onGripMouseDown(event: React.MouseEvent<HTMLDivElement>) {
+    if (!open) return;
     start.current = { y: event.clientY, time: event.timeStamp, inBody: false };
-    latest.current = { y: event.clientY, time: event.timeStamp };
-    active.current = true;
-    setDragging(true);
+    beginDrag(event.clientY, event.timeStamp);
 
     function move(moveEvent: MouseEvent) {
-      if (!start.current) return;
-      latest.current = { y: moveEvent.clientY, time: moveEvent.timeStamp };
-      setDragY(Math.max(0, moveEvent.clientY - start.current.y));
+      moveDrag(moveEvent.clientY, moveEvent.timeStamp);
     }
 
     function up(upEvent: MouseEvent) {
@@ -269,8 +318,9 @@ export function MobileSheet({
   return createPortal(
     <>
       <div
+        ref={backdropRef}
         className="mobile-sheet-backdrop"
-        onClick={onClose}
+        onClick={open ? onClose : undefined}
         data-pull-to-refresh-ignore="true"
         aria-hidden
       />
@@ -288,15 +338,14 @@ export function MobileSheet({
           resetDocumentScroll();
           window.requestAnimationFrame(resetDocumentScroll);
         } : undefined}
-        style={{
-          transform: `translateY(${dragY}px)`,
-          transition: dragging ? "none" : undefined,
-        }}
       >
         <div className="mobile-sheet-grip" onMouseDown={onGripMouseDown}>
           <div className="mobile-sheet-handle" aria-hidden />
           <div className="mobile-sheet-head">
-            <p className="mobile-sheet-title">{title}</p>
+            <div className="mobile-sheet-heading">
+              {eyebrow ? <p className="mobile-sheet-eyebrow">{eyebrow}</p> : null}
+              <p className="mobile-sheet-title">{title}</p>
+            </div>
             <div className="mobile-sheet-actions">
               {headerAction}
               <button

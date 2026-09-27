@@ -1,3 +1,11 @@
+import {
+  PhoneChartFooterSkeleton,
+  PhoneChartHeaderSkeleton,
+  PhoneHomeSkeleton,
+  PhoneSettingsSkeleton,
+  PhoneTradesSkeleton,
+} from "@/components/ui/phone-skeletons";
+
 function Bone({ className = "" }: { className?: string }) {
   return (
     <div
@@ -16,63 +24,11 @@ function Line({ className = "" }: { className?: string }) {
   );
 }
 
-/** A stable random walk gives the loading pane the shape of price history. */
-function loadingCandles() {
-  let seed = 0x7a4d92f1;
-  let price = 50;
-  const random = () => {
-    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-    return seed / 0x100000000;
-  };
-
-  const candles = Array.from({ length: 60 }, (_, index) => {
-    const open = price;
-    const drift = index < 15 ? -0.8 : index < 31 ? 1.1 : index < 45 ? -0.9 : 0.65;
-    const close = open + (random() - 0.5) * 7 + drift;
-    const high = Math.max(open, close) + 0.7 + random() * 3;
-    const low = Math.min(open, close) - 0.7 - random() * 3;
-    price = close;
-    return { open, close, high, low };
-  });
-
-  const high = Math.max(...candles.map((candle) => candle.high));
-  const low = Math.min(...candles.map((candle) => candle.low));
-  const scale = 82 / (high - low);
-  return candles.map((candle) => ({
-    top: 9 + (high - candle.high) * scale,
-    height: (candle.high - candle.low) * scale,
-    bodyTop: ((candle.high - Math.max(candle.open, candle.close)) / (candle.high - candle.low)) * 100,
-    bodyHeight: (Math.abs(candle.close - candle.open) / (candle.high - candle.low)) * 100,
-    tone: candle.close >= candle.open ? "up" : "down",
-  }));
-}
-
-const CHART_LOADING_CANDLES = loadingCandles();
-
-/** Mirrors the chart pane while price history is still loading. */
+/** Keeps the chart space stable while price history is still loading. */
 function ChartScreenSkeleton() {
-  const step = 100 / CHART_LOADING_CANDLES.length;
-
   return (
     <div className="chart-route-skeleton" aria-hidden>
-      <div className="chart-route-skeleton-grid" />
-      <div className="chart-route-skeleton-bars">
-        {CHART_LOADING_CANDLES.map((candle, index) => (
-          <span
-            key={index}
-            className={`is-${candle.tone}`}
-            style={{
-              left: `${index * step + step * 0.18}%`,
-              width: `${step * 0.62}%`,
-              top: `${candle.top}%`,
-              height: `${candle.height}%`,
-            }}
-          >
-            <i style={{ top: `${candle.bodyTop}%`, height: `${candle.bodyHeight}%` }} />
-          </span>
-        ))}
-      </div>
-      <div className="chart-route-skeleton-axis" />
+      <div className="chart-loading-skeleton" />
     </div>
   );
 }
@@ -341,7 +297,9 @@ function ResearchMetricGridSkeleton({ count = 8 }: { count?: number }) {
 
 export function DashboardLoadingSkeleton() {
   return (
-    <div className="dashboard-view dashboard-minimal home-shell" aria-busy aria-label="Loading dashboard">
+    <>
+    <PhoneHomeSkeleton />
+    <div className="dashboard-view dashboard-minimal home-shell gx-desktop-only" aria-busy aria-label="Loading dashboard">
       <div className="home-main">
         <section className="account-overview-hero" aria-hidden>
           <header className="home-hero-topbar lg:hidden">
@@ -428,6 +386,7 @@ export function DashboardLoadingSkeleton() {
         </section>
       </div>
     </div>
+    </>
   );
 }
 
@@ -442,39 +401,12 @@ export function SignalsLoadingSkeleton() {
         <section className="app-card signals-chart-card min-w-0 w-full">
           <div className="signals-chart-mobile lg:hidden">
             <div className="signals-mobile-content">
-              <div className="signals-mobile-actions flex items-center justify-between">
-                <Bone className="h-[2.35rem] w-[7.1rem] rounded-full" />
-                <div className="flex items-center gap-2">
-                  <Bone className="h-8 w-[5.6rem] rounded-lg" />
-                  <Bone className="size-8 rounded-full" />
-                </div>
-              </div>
-              <div className="gx-mobile-quote-row">
-                <Line className="h-8 w-28" />
-                <span className="gx-mobile-quote-meta">
-                  <Line className="h-4 w-20" />
-                  <Line className="h-3 w-9" />
-                </span>
-              </div>
-              <div className="gx-mobile-timeframes">
-                <div className="workspace-segment" aria-hidden>
-                  {Array.from({ length: 5 }, (_, index) => (
-                    <Bone key={index} className="workspace-segment-btn h-full w-full" />
-                  ))}
-                </div>
-              </div>
+              <PhoneChartHeaderSkeleton />
             </div>
             <div className="relative min-h-[14rem] flex-1 overflow-hidden chart-data-shell chart-loading-static">
               <ChartScreenSkeleton />
             </div>
-            <div className="gx-mobile-chart-toolbar px-3 py-2">
-              {Array.from({ length: 5 }, (_, index) => (
-                <Bone key={index} className="h-[2.4rem] w-full rounded-[11px]" />
-              ))}
-            </div>
-            <div className="gx-mobile-analyze-section">
-              <Bone className="h-11 w-full rounded-xl" />
-            </div>
+            <PhoneChartFooterSkeleton />
           </div>
 
           <div className="signals-chart-desktop hidden lg:grid gx-chart-terminal">
@@ -555,7 +487,9 @@ export function SignalsLoadingSkeleton() {
 
 export function JournalLoadingSkeleton() {
   return (
-    <div className="journal-view journal-minimal space-y-8 lg:space-y-10" aria-busy aria-label="Loading journal">
+    <>
+    <PhoneTradesSkeleton />
+    <div className="journal-view journal-minimal gx-desktop-only space-y-8 lg:space-y-10" aria-busy aria-label="Loading journal">
       <header>
         <Line className="h-8 w-28 lg:h-9" />
         <div className="binary-seg journal-mode-tabs mt-3" aria-hidden>
@@ -585,6 +519,7 @@ export function JournalLoadingSkeleton() {
         <JournalEntriesSkeleton />
       </section>
     </div>
+    </>
   );
 }
 
@@ -696,7 +631,9 @@ export function RiskLoadingSkeleton() {
 
 export function SettingsLoadingSkeleton() {
   return (
-    <div className="settings-view settings-minimal space-y-8 lg:space-y-10" aria-busy aria-label="Loading settings">
+    <>
+    <PhoneSettingsSkeleton />
+    <div className="settings-view settings-minimal gx-desktop-only space-y-8 lg:space-y-10" aria-busy aria-label="Loading settings">
       <header>
         <PageTitleSkeleton titleWidth="w-36" subtitleWidth="w-64" />
       </header>
@@ -771,6 +708,7 @@ export function SettingsLoadingSkeleton() {
         </div>
       </section>
     </div>
+    </>
   );
 }
 

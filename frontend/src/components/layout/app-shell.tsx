@@ -106,6 +106,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Trades (the /journal route) carries its own header + connection strip and a
   // two-pane workspace, so it opts out of the shared market-status top bar.
   const isTrades = pathname === "/journal";
+  // Bottom-dock tabs have no "back"; their bell shares the title row.
+  const isTabPage = isTrades || pathname === "/settings";
   const activeMobileIndex = Math.max(
     0,
     mobileNavItems.findIndex((item) => isActive(pathname, item.href)),
@@ -302,7 +304,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   : "mx-auto max-w-[1320px] px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-6 lg:px-8 lg:pb-10"
           }`}
         >
-          {!isChart && !isDashboard ? <MobileTopBar showBack /> : null}
+          {!isChart && !isDashboard ? <MobileTopBar showBack={!isTabPage} inline={isTabPage} /> : null}
           <div key={pathname} className="mobile-page-transition">
             {children}
           </div>

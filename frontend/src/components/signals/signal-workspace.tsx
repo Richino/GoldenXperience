@@ -1,17 +1,17 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { useTheme } from "next-themes";
 import {
+  CalendarRange,
   ChevronDown,
   Clock3,
   Maximize,
   Minimize,
   RotateCcw,
   Search,
-  Scaling,
   Sparkles,
   X,
 } from "lucide-react";
@@ -60,6 +60,7 @@ import {
   candleCountForRange,
   calculateAtr,
   deriveDominantSwingTrend,
+  deriveFibonacciRetracement,
   formatChartPrice,
   formatResultR,
   isChartIndicatorEnabled,
@@ -129,6 +130,7 @@ const DESKTOP_CHART_HEIGHT = 680;
 
 const CHART_PREFERENCES_STORAGE_KEY =
   "goldenxperience:signals-chart-preferences:v1";
+const LAST_CHART_INSTRUMENT_COOKIE = "gx-last-chart-instrument";
 
 /* Keep the mobile picker scannable. The full OANDA catalog remains available
  * as soon as someone starts typing in search. */
@@ -296,6 +298,25 @@ function supportResistanceLines(
   }
 
   return candidates;
+}
+
+/** Visual-only automatic Fib of the latest confirmed directional impulse. */
+function fibonacciRetracementLines(candles: Candle[]): ChartReferenceLine[] {
+  const fib = deriveFibonacciRetracement(candles);
+  if (!fib) return [];
+  return fib.levels.map(({ ratio, price }) => {
+    const boundary = ratio === 0 || ratio === 1;
+    const midpoint = ratio === 0.5;
+    return {
+      key: `fib-${fib.direction}-${ratio}`,
+      price,
+      label: `Fib ${(ratio * 100).toFixed(ratio === 0 || ratio === 1 || midpoint ? 0 : 1)}%`,
+      color: boundary ? "#f59e0b" : midpoint ? "#14b8a6" : "#a78bfa",
+      textColor: "#ffffff",
+      dashed: !boundary,
+      lineWidth: boundary ? 2 as const : 1 as const,
+    };
+  });
 }
 
 const SESSION_SR_STYLES: Record<
@@ -525,17 +546,87 @@ type SwingPoint = {
  */
 function swingTrendLines(candles: Candle[]): ChartPatternLine[] {
   const trend = deriveDominantSwingTrend(candles);
-  if (!trend) return [];
+  // A two-day window can be structurally mixed even though it contains a
+  // legitimate support or resistance trendline. The analyzer treats that as
+  // no confirmation; the visual legacy overlay still selects the most relevant
+  // confirmed line, rather than disappearing or drawing a steep local segment.
+  const completed = candles.filter((candle) => candle.complete !== false);
+  const latest = completed.at(-1);
+  const latestTime = latest ? Date.parse(latest.time) : Number.NaN;
+  const scoped = Number.isFinite(latestTime)
+    ? completed.filter((candle) => Date.parse(candle.time) >= latestTime - 2 * 24 * 60 * 60 * 1_000)
+    : completed.slice(-192);
+  const reach = 3;
+  const highs: SwingPoint[] = [];
+  const lows: SwingPoint[] = [];
+  for (let index = reach; index < scoped.length - reach; index += 1) {
+    const candle = scoped[index]!;
+    const window = scoped.slice(index - reach, index + reach + 1);
+    if (window.every((other) => other === candle || other.high <= candle.high)) {
+      highs.push({ index, time: candle.time, price: candle.high });
+    }
+    if (window.every((other) => other === candle || other.low >= candle.low)) {
+      lows.push({ index, time: candle.time, price: candle.low });
+    }
+  }
+  const fallbackCandidates: Array<{
+    direction: "bullish" | "bearish";
+    first: SwingPoint;
+    second: SwingPoint;
+    last: SwingPoint;
+    distanceFromCurrent: number;
+    span: number;
+  }> = [];
+  const last = scoped.at(-1);
+  if (last) {
+    const addCandidates = (points: SwingPoint[], direction: "bullish" | "bearish") => {
+      for (let start = 0; start < points.length - 1; start += 1) {
+        for (let end = start + 1; end < points.length; end += 1) {
+          const first = points[start]!;
+          const second = points[end]!;
+          const span = second.index - first.index;
+          // M15 source: four hours keeps this from selecting a steep intraday
+          // micro-line when the requested legacy read is two days.
+          if (span < 16) continue;
+          const movesWithDirection = direction === "bullish"
+            ? second.price > first.price
+            : second.price < first.price;
+          if (!movesWithDirection) continue;
+          const slope = (second.price - first.price) / span;
+          const projected = second.price + slope * (scoped.length - 1 - second.index);
+          fallbackCandidates.push({
+            direction,
+            first,
+            second,
+            last: { index: scoped.length - 1, time: last.time, price: last.close },
+            distanceFromCurrent: Math.abs(projected - last.close),
+            span,
+          });
+        }
+      }
+    };
+    addCandidates(lows, "bullish");
+    addCandidates(highs, "bearish");
+  }
+  const fallback = fallbackCandidates.sort((left, right) =>
+    left.distanceFromCurrent - right.distanceFromCurrent || right.span - left.span,
+  )[0] ?? null;
+  const visibleTrend = trend ?? fallback;
+  if (!visibleTrend) return [];
 
-  const slope = (trend.second.price - trend.first.price) / (trend.second.index - trend.first.index);
+  const slope = (visibleTrend.second.price - visibleTrend.first.price)
+    / (visibleTrend.second.index - visibleTrend.first.index);
   return [{
-    key: `swing-trend-${trend.direction}`,
-    color: trend.direction === "bullish" ? "#3b82f6" : "#f0526b",
+    key: `swing-trend-${visibleTrend.direction}`,
+    color: visibleTrend.direction === "bullish" ? "#3b82f6" : "#f0526b",
     dashed: false,
     lineWidth: 2,
     points: [
-      { time: trend.first.time, price: trend.first.price },
-      { time: trend.last.time, price: trend.second.price + slope * (trend.last.index - trend.second.index) },
+      { time: visibleTrend.first.time, price: visibleTrend.first.price },
+      {
+        time: visibleTrend.last.time,
+        price: visibleTrend.second.price + slope * (visibleTrend.last.index - visibleTrend.second.index),
+      },
     ],
   }];
 }
@@ -830,8 +921,10 @@ function toneClassForKind(kind: StatusKind): string {
   return "text-[color:var(--pending)]";
 }
 
+/** Same wording as the app's chart header: "London session" / "Market closed". */
 function marketSessionCaption() {
-  return getMarketCondition().label;
+  const condition = getMarketCondition();
+  return condition.marketOpen ? `${condition.label} session` : "Market closed";
 }
 
 function SegmentControl<T extends string>({
@@ -1164,7 +1257,7 @@ function SignalSearch({
                     closePicker();
                   }}
                   className={`signals-search-result pressable flex w-full items-center gap-2.5 text-left ${
-                    useDesktopDropdown ? "px-2.5 py-2" : "rounded-lg px-2 py-2"
+                    useDesktopDropdown ? "px-2.5 py-2" : "px-2 py-2"
                   } ${active ? "is-active" : ""}`}
                 >
                   {useDesktopDropdown ? null : (
@@ -1230,7 +1323,8 @@ function SignalSearch({
           <MobileSheet
             open={open}
             onClose={closePicker}
-            title="Select a pair"
+            eyebrow="Chart"
+            title="Select pair"
             resetPageScrollOnOpen
             resetPageScrollOnInputFocus
             keyboardAvoiding
@@ -1663,6 +1757,9 @@ function TradeFocusBar({
       <div className="trade-focus-bar-id">
         <span className="trade-focus-bar-side">{long ? "Buy" : "Sell"}</span>
         <span className="trade-focus-bar-seq">#{trade.tradeSequence}</span>
+      </div>
+
+      <div className="trade-focus-bar-end">
         {trade.resultR !== null ? (
           <span
             className={`trade-focus-bar-r metric-number ${won ? "is-won" : "is-lost"}`}
@@ -1670,9 +1767,6 @@ function TradeFocusBar({
             {formatResultR(trade.resultR)}
           </span>
         ) : null}
-      </div>
-
-      <div className="trade-focus-bar-end">
         <button
           type="button"
           onClick={onClear}
@@ -1934,16 +2028,22 @@ export function SignalWorkspace({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  // Local visual-debug switch. It deliberately only works on localhost, so a
+  // shared/deployed chart can never get stuck loading.
+  const forceChartSkeleton = typeof window !== "undefined"
+    && window.location.hostname === "localhost"
+    && searchParams.get("debugChartSkeleton") === "1";
   // Only the native Chart tab drives this: it embeds this exact page in a
   // WebView, which starts from next-themes' own default/system resolution
   // and has no way to know the app's in-settings theme choice otherwise.
   const { setTheme } = useTheme();
-  // The native embed renders before the multi-pair strategy evaluation (slow:
-  // it reads candles for every pair) and loads it here after first paint.
+  // Strategy evaluation reads candles for every pair, so it must never block
+  // the first chart paint on either the workspace or native embed.
   const [loadedStrategySetups, setLoadedStrategySetups] = useState<StrategySetup[] | null>(null);
   const strategySetups = loadedStrategySetups ?? initialStrategySetups;
   useEffect(() => {
-    if (!embeddedSurfaceOnly || initialStrategySetups.length) return;
+    if (initialStrategySetups.length) return;
     const controller = new AbortController();
     void fetch(apiUrl("/api/strategy"), { credentials: "include", signal: controller.signal })
       .then((response) => (response.ok ? response.json() : null))
@@ -1964,6 +2064,11 @@ export function SignalWorkspace({
     initialInstrument,
   );
   const instrument = selectedInstrument;
+  useEffect(() => {
+    // Keep the next server-rendered /chart visit on the pair the user actually
+    // chose. A cookie avoids the EUR/USD flash that localStorage cannot prevent.
+    document.cookie = `${LAST_CHART_INSTRUMENT_COOKIE}=${instrument}; Path=/; Max-Age=31536000; SameSite=Lax`;
+  }, [instrument]);
   const initialSignal = signals.find((signal) => signal.instrument === instrument);
 
   // Paper decisions are taken on completed M15 candles, so a trade opened from
@@ -2026,6 +2131,9 @@ export function SignalWorkspace({
   // Dedicated completed-M15 history for session S/R freezes. Independent of the
   // chart timeframe so a 5m/1h view cannot change or invalidate the snapshot.
   const [sessionSrM15Candles, setSessionSrM15Candles] = useState<Candle[]>([]);
+  // Fib needs enough completed bars to establish its structural impulse. The
+  // visible range can be only one day, which is not enough on H1/4H.
+  const [fibonacciHistory, setFibonacciHistory] = useState<CandleSeries | null>(null);
   const sessionSrDebugKeyRef = useRef("");
   const overlayPreferences: ChartOverlayPreferences = {
     levels: true,
@@ -2036,12 +2144,17 @@ export function SignalWorkspace({
     initialStatus.state === "connected" ? null : initialStatus.message,
   );
   const [loading, setLoading] = useState(false);
+  const chartLoadingVisible = loading || forceChartSkeleton;
   const [refreshingChart, setRefreshingChart] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [historyExhausted, setHistoryExhausted] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [scrollToLatestRevision, setScrollToLatestRevision] = useState(0);
   const [preserveViewportRevision, setPreserveViewportRevision] = useState(0);
+  // Replay is intentionally display-only. It cuts the chart off at a selected
+  // completed candle; live prices, analysis, and trade-entry controls remain
+  // unavailable until the user exits back to the live chart.
+  const [replayEndTime, setReplayEndTime] = useState<string | null>(null);
   // Both charts are sized from the box they are given rather than from the
   // viewport: the mobile layout is a single non-scrolling column and the
   // desktop card grows to the screen in fullscreen, so only a measurement
@@ -2053,6 +2166,60 @@ export function SignalWorkspace({
   const desktopChartShellRef = useRef<HTMLDivElement>(null);
   const [paperTrades, setPaperTrades] = useState<PaperChartTrade[]>(initialPaperTrades);
   const [livePaperPlans, setLivePaperPlans] = useState<SignalPaperPlan[]>(paperPlans);
+  const replayEndIndex = useMemo(() => {
+    if (!replayEndTime) return -1;
+    const cutoff = Date.parse(replayEndTime);
+    if (!Number.isFinite(cutoff)) return -1;
+    let index = -1;
+    for (let cursor = 0; cursor < series.candles.length; cursor += 1) {
+      const timestamp = Date.parse(series.candles[cursor]!.time);
+      if (!Number.isFinite(timestamp) || timestamp > cutoff) break;
+      index = cursor;
+    }
+    return index;
+  }, [replayEndTime, series.candles]);
+  const replayActive = replayEndTime !== null && replayEndIndex >= 0;
+  const replaySeries = useMemo(
+    () => replayActive
+      ? { ...series, candles: series.candles.slice(0, replayEndIndex + 1) }
+      : series,
+    [replayActive, replayEndIndex, series],
+  );
+  // Every visual indicator must receive the same cutoff as the candles. Using
+  // the live series here would reveal future pivots/levels during replay.
+  const chartIndicatorCandles = replaySeries.candles;
+  const beginReplay = useCallback(() => {
+    const latest = series.candles.at(-1);
+    if (!latest) return;
+    // Replay starts at the current/latest completed candle. From there the
+    // user walks backward one hour at a time, just like a normal chart replay.
+    setPositionTool(null);
+    setReplayEndTime(latest.time);
+    setPreserveViewportRevision((revision) => revision + 1);
+  }, [series.candles]);
+  const stepReplayHour = useCallback((direction: -1 | 1) => {
+    if (!replayEndTime || !series.candles.length) return;
+    const current = Date.parse(replayEndTime);
+    if (!Number.isFinite(current)) return;
+    const target = current + direction * 60 * 60 * 1_000;
+    const next = direction < 0
+      ? [...series.candles].reverse().find((candle) => Date.parse(candle.time) <= target)
+      : series.candles.find((candle) => Date.parse(candle.time) >= target);
+    if (!next) return;
+    setReplayEndTime(next.time);
+    // Preserve candle spacing and the viewport position from the last replay
+    // frame. The normal live-edge revision would refit/zoom every hour.
+    setPreserveViewportRevision((revision) => revision + 1);
+  }, [replayEndTime, series.candles]);
+  const exitReplay = useCallback(() => {
+    setReplayEndTime(null);
+    setScrollToLatestRevision((revision) => revision + 1);
+  }, []);
+  useEffect(() => {
+    // A new pair, timeframe, or selected range creates a different history
+    // series. Do not carry a stale replay cutoff into that series.
+    setReplayEndTime(null);
+  }, [instrument, range, timeframe]);
   const [binaryWatch, setBinaryWatch] = useState<BinaryWatchRow[]>([]);
   const [focusTradeId, setFocusTradeId] = useState<string | null>(initialFocusTradeId);
   const [predictionFocus, setPredictionFocus] = useState<BinaryPrediction | null>(initialPredictionFocus);
@@ -2087,6 +2254,10 @@ export function SignalWorkspace({
   }
 
   function openPendingEntryManager(entry: PendingManualEntry | null = null) {
+    if (!entry && replayActive) {
+      setPendingEntryNotice("Exit chart replay before creating an entry.");
+      return;
+    }
     if (!entry && hasActivePosition) {
       setPendingEntryNotice("This pair already has an active position. Close it before creating another entry.");
       return;
@@ -2150,6 +2321,10 @@ export function SignalWorkspace({
   }, [instrument]);
 
   const runTrendPullback = useCallback(async () => {
+    if (replayActive) {
+      setTrendPullbackError("Exit chart replay before running live analysis.");
+      return;
+    }
     trendPullbackAbortRef.current?.abort();
     const controller = new AbortController();
     trendPullbackAbortRef.current = controller;
@@ -2178,8 +2353,9 @@ export function SignalWorkspace({
       if (request !== trendPullbackRequestRef.current) return;
       setTrendPullbackResult(result);
       setTrendPullbackDialogOpen(!embeddedSurfaceOnly);
+      // The analysis reads its own M15 candles; the chart stays on whatever
+      // timeframe the trader is looking at.
       postTrendPullbackToNative({ type: "gx-native-trend-pullback-result", result });
-      setTimeframe("15m");
     } catch (error) {
       if (controller.signal.aborted) return;
       if (request === trendPullbackRequestRef.current) {
@@ -2191,7 +2367,7 @@ export function SignalWorkspace({
       if (request === trendPullbackRequestRef.current) setTrendPullbackBusy(false);
       if (trendPullbackAbortRef.current === controller) trendPullbackAbortRef.current = null;
     }
-  }, [embeddedSurfaceOnly, instrument, postTrendPullbackToNative]);
+  }, [embeddedSurfaceOnly, instrument, postTrendPullbackToNative, replayActive]);
   const cancelTrendPullback = useCallback(() => {
     trendPullbackRequestRef.current += 1;
     trendPullbackAbortRef.current?.abort();
@@ -2200,7 +2376,11 @@ export function SignalWorkspace({
     setTrendPullbackDialogOpen(false);
   }, []);
   const reviewTrendPullback = () => {
-    if (!trendPullbackResult?.action || trendPullbackResult.priceBasis !== "LIVE_QUOTE" || trendPullbackResult.entry === null
+    // Accept means review the planned entry in the drawer, never create an
+    // order. A reference-only analysis still has a useful planned level, and
+    // the drawer obtains/validates the executable quote when the user later
+    // chooses to create the pending entry.
+    if (!trendPullbackResult?.action || trendPullbackResult.entry === null
       || trendPullbackResult.stopLoss === null || trendPullbackResult.takeProfit === null) return;
     setEntryDraftProposal({
       direction: trendPullbackResult.action === "LONG" ? "long" : "short",
@@ -2872,9 +3052,29 @@ export function SignalWorkspace({
   }, [instrument, pendingEntries, pendingEntryClock]);
   const supportResistanceReferenceLines = useMemo(
     () => isChartIndicatorEnabled(enabledIndicators, "support-resistance")
-      ? supportResistanceLines(series.candles, instrument)
+      ? supportResistanceLines(chartIndicatorCandles, instrument)
       : [],
-    [enabledIndicators, instrument, series.candles],
+    [chartIndicatorCandles, enabledIndicators, instrument],
+  );
+  const fibonacciEnabled = isChartIndicatorEnabled(enabledIndicators, "fibonacci-retracement");
+  const fibonacciGranularity = TIMEFRAME_TO_GRANULARITY[timeframe];
+  const fibonacciSourceCandles = useMemo(() => {
+    const source = fibonacciHistory?.instrument === instrument
+      && fibonacciHistory.granularity === fibonacciGranularity
+      && fibonacciHistory.candles.length >= 48
+      ? fibonacciHistory.candles
+      : chartIndicatorCandles;
+    if (!replayActive || !replayEndTime) return source;
+    const cutoff = Date.parse(replayEndTime);
+    return Number.isFinite(cutoff)
+      ? source.filter((candle) => Date.parse(candle.time) <= cutoff)
+      : source;
+  }, [chartIndicatorCandles, fibonacciGranularity, fibonacciHistory, instrument, replayActive, replayEndTime]);
+  const fibonacciReferenceLines = useMemo(
+    () => fibonacciEnabled
+      ? fibonacciRetracementLines(fibonacciSourceCandles)
+      : [],
+    [fibonacciEnabled, fibonacciSourceCandles],
   );
   const sessionSrEnabled = useMemo(
     () =>
@@ -2887,14 +3087,35 @@ export function SignalWorkspace({
     () => isChartIndicatorEnabled(enabledIndicators, "frozen-4h-sr"),
     [enabledIndicators],
   );
-  const m15OverlayEnabled = sessionSrEnabled || frozen4hSrEnabled;
+  const swingTrendEnabled = isChartIndicatorEnabled(enabledIndicators, "swing-trend-lines");
+  const m15OverlayEnabled = sessionSrEnabled || frozen4hSrEnabled || swingTrendEnabled;
   // Prefer the dedicated M15 feed; when the chart is already on M15 and that
   // feed has not arrived yet, fall back so the overlay is not blank.
   const sessionSrSourceCandles = useMemo(() => {
-    if (sessionSrM15Candles.length >= 20) return sessionSrM15Candles;
-    if (TIMEFRAME_TO_GRANULARITY[timeframe] === "M15") return series.candles;
-    return sessionSrM15Candles;
-  }, [sessionSrM15Candles, series.candles, timeframe]);
+    const source = sessionSrM15Candles.length >= 20
+      ? sessionSrM15Candles
+      : TIMEFRAME_TO_GRANULARITY[timeframe] === "M15"
+        ? chartIndicatorCandles
+        : sessionSrM15Candles;
+    if (!replayActive || !replayEndTime) return source;
+    const cutoff = Date.parse(replayEndTime);
+    return Number.isFinite(cutoff)
+      ? source.filter((candle) => Date.parse(candle.time) <= cutoff)
+      : source;
+  }, [chartIndicatorCandles, replayActive, replayEndTime, sessionSrM15Candles, timeframe]);
+  // The legacy trendline always evaluates its confirmed pivots across the last
+  // two M15 days. It must not inherit the visible chart range (for example,
+  // selecting 1D), which only contains half of the required context.
+  const swingTrendSourceCandles = useMemo(() => {
+    const source = sessionSrM15Candles.length >= 192
+      ? sessionSrM15Candles
+      : [];
+    if (!replayActive || !replayEndTime) return source;
+    const cutoff = Date.parse(replayEndTime);
+    return Number.isFinite(cutoff)
+      ? source.filter((candle) => Date.parse(candle.time) <= cutoff)
+      : source;
+  }, [replayActive, replayEndTime, sessionSrM15Candles]);
   const sessionSrSnapshots = useMemo(() => {
     if (!sessionSrEnabled) return [] as SessionSrLevels[];
     const centres: SessionSrCentre[] = [];
@@ -2931,9 +3152,9 @@ export function SignalWorkspace({
   );
   const lastDaySrReferenceLines = useMemo(
     () => isChartIndicatorEnabled(enabledIndicators, "last-day-sr")
-      ? lastDaySrLines(series.candles)
+      ? lastDaySrLines(chartIndicatorCandles)
       : [],
-    [enabledIndicators, series.candles],
+    [chartIndicatorCandles, enabledIndicators],
   );
 
   // Load a dedicated M15 window whenever session S/R or 4H Frozen S/R is on.
@@ -2967,6 +3188,48 @@ export function SignalWorkspace({
     return () => controller.abort();
   }, [instrument, m15OverlayEnabled]);
 
+  // Do not let a short selected visual range decide whether Fib exists. Fetch
+  // sufficient native-timeframe history solely for the visual calculation;
+  // its results are horizontal price lines, so this cannot change the x-axis.
+  useEffect(() => {
+    if (!fibonacciEnabled) {
+      setFibonacciHistory(null);
+      return;
+    }
+
+    const historyCount = fibonacciGranularity === "M1"
+      ? 3000
+      : fibonacciGranularity === "M5"
+        ? 720
+        : fibonacciGranularity === "M15"
+          ? 288
+          : fibonacciGranularity === "H1"
+            ? 120
+            : 96;
+    const controller = new AbortController();
+
+    async function loadFibonacciHistory() {
+      try {
+        const response = await fetch(
+          apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=${fibonacciGranularity}&count=${historyCount}`),
+          { credentials: "include", cache: "no-store", signal: controller.signal },
+        );
+        if (!response.ok) return;
+        const payload = (await response.json()) as { data?: CandleSeries };
+        if (
+          payload.data?.instrument !== instrument
+          || payload.data.granularity !== fibonacciGranularity
+        ) return;
+        setFibonacciHistory(payload.data);
+      } catch {
+        // Keep the prior compatible snapshot on a transient fetch failure.
+      }
+    }
+
+    void loadFibonacciHistory();
+    return () => controller.abort();
+  }, [fibonacciEnabled, fibonacciGranularity, instrument]);
+
   // Log freeze diagnostics once per centre+sessionStart so a refresh can be
   // compared against the original open without spamming every tick.
   useEffect(() => {
@@ -2988,21 +3251,21 @@ export function SignalWorkspace({
 
   const breakoutReferenceLines = useMemo(
     () => isChartIndicatorEnabled(enabledIndicators, "breakout")
-      ? breakoutLines(series.candles)
+      ? breakoutLines(chartIndicatorCandles)
       : [],
-    [enabledIndicators, series.candles],
+    [chartIndicatorCandles, enabledIndicators],
   );
   const patternOverlay = useMemo(
     () => isChartIndicatorEnabled(enabledIndicators, "breakout-patterns")
-      ? breakoutPatternOverlay(series.candles)
+      ? breakoutPatternOverlay(chartIndicatorCandles)
       : { lines: [], tags: [] },
-    [enabledIndicators, series.candles],
+    [chartIndicatorCandles, enabledIndicators],
   );
   const swingTrendPatternLines = useMemo(
     () => isChartIndicatorEnabled(enabledIndicators, "swing-trend-lines")
-      ? swingTrendLines(series.candles)
+      ? swingTrendLines(swingTrendSourceCandles)
       : [],
-    [enabledIndicators, series.candles],
+    [enabledIndicators, swingTrendSourceCandles],
   );
   const chartPatternLines = useMemo(
     () => [...patternOverlay.lines, ...swingTrendPatternLines, ...frozen4hHistoryLines],
@@ -3010,14 +3273,17 @@ export function SignalWorkspace({
   );
   const chartReferenceLines = useMemo(
     () => [
-      ...pendingEntryReferenceLines,
+      // A pending order belongs to live trading and would reveal a current
+      // decision in a historical replay. Technical indicators remain visible.
+      ...(replayActive ? [] : pendingEntryReferenceLines),
       ...supportResistanceReferenceLines,
+      ...fibonacciReferenceLines,
       ...sessionSrReferenceLines,
       ...lastDaySrReferenceLines,
       ...frozen4hReferenceLines,
       ...(patternOverlay.lines.length ? [] : breakoutReferenceLines),
     ],
-    [breakoutReferenceLines, frozen4hReferenceLines, lastDaySrReferenceLines, patternOverlay.lines, pendingEntryReferenceLines, sessionSrReferenceLines, supportResistanceReferenceLines],
+    [breakoutReferenceLines, fibonacciReferenceLines, frozen4hReferenceLines, lastDaySrReferenceLines, patternOverlay.lines, pendingEntryReferenceLines, replayActive, sessionSrReferenceLines, supportResistanceReferenceLines],
   );
   // The chart refreshes paper trades in the background. Depending on the whole
   // trade object here made an otherwise identical refresh look like a new
@@ -3531,7 +3797,7 @@ export function SignalWorkspace({
               onPositionToolChange={setPositionTool}
               onPositionToolSubmit={submitPositionTool}
             />
-            <ChartLoadingOverlay visible={loading} />
+            <ChartLoadingOverlay visible={chartLoadingVisible} />
             {focusTrade && focusTrade.closedAt !== null ? (
               <div className="absolute inset-x-0 top-0 z-10">
                 <TradeFocusBar trade={focusTrade} onClear={clearEmbeddedFocusTrade} />
@@ -3605,7 +3871,7 @@ export function SignalWorkspace({
               <div className="signals-mobile-header-actions flex items-center gap-2">
                 {manualTradeMode === "analyze" ? (
                   <>
-                    <button type="button" className="signals-analyze-desktop pressable" onClick={() => void runTrendPullback()} disabled={trendPullbackBusy} title="Analyze with TrendPullbackV1"><Sparkles className="size-3.5" />{trendPullbackBusy ? "Analyzing…" : "Analyze"}</button>
+                    <button type="button" className="signals-analyze-desktop pressable" onClick={() => void runTrendPullback()} disabled={trendPullbackBusy} title="Analyze with TrendPullbackV1" aria-label="Analyze with TrendPullbackV1"><Sparkles className="size-3.5" /><span className="signals-analyze-label">{trendPullbackBusy ? "Analyzing…" : "Analyze"}</span></button>
                   </>
                 ) : null}
                 <NotificationBell compact className="signals-icon-btn signals-fullscreen-reserve" />
@@ -3646,9 +3912,6 @@ export function SignalWorkspace({
             ) : null}
           </div>
 
-          {focusTrade && focusTrade.closedAt !== null ? (
-            <TradeFocusBar trade={focusTrade} onClear={clearFocusTrade} />
-          ) : null}
           {focusedPrediction ? (
             <PredictionFocusBar
               prediction={focusedPrediction}
@@ -3703,36 +3966,26 @@ export function SignalWorkspace({
               onPositionToolChange={setPositionTool}
               onPositionToolSubmit={submitPositionTool}
             />
-            <ChartLoadingOverlay visible={loading} />
+            {focusTrade && focusTrade.closedAt !== null && !fullscreen ? (
+              <div className="trade-focus-overlay">
+                <TradeFocusBar trade={focusTrade} onClear={clearFocusTrade} />
+              </div>
+            ) : null}
+            <ChartLoadingOverlay visible={chartLoadingVisible} />
           </div>
 
           <div className="gx-mobile-chart-toolbar">
             <IndicatorSheet enabled={enabledIndicators} onChange={setEnabledIndicators} />
-            <button
-              type="button"
-              className={`gx-mobile-tool-button pressable${positionTool ? " is-active" : ""}`}
-              onClick={() => {
-                if (positionTool) {
-                  setPositionTool(null);
-                  return;
-                }
-                setPositionToolPrompt(true);
-              }}
-              disabled={hasActivePosition}
-              aria-label="Draw a fixed 10-pip 1:1 risk/reward setup"
-              title={hasActivePosition ? "Close the active position before creating another entry" : "Fixed 10-pip 1:1 setup"}
-            >
-              <Scaling className="size-3.5" strokeWidth={2} />
-            </button>
             {fullscreen ? (
               <ChartOptionSheet
                 title="Timeframe"
+                icon={<Clock3 className="size-4 shrink-0" strokeWidth={2} />}
                 options={CHART_TIMEFRAMES}
                 value={timeframe}
                 onChange={selectTimeframe}
               />
             ) : null}
-            <ChartOptionSheet title="Range" options={CHART_RANGES} value={range} onChange={selectRange} />
+            <ChartOptionSheet title="Visible range" icon={<CalendarRange className="size-4 shrink-0" strokeWidth={2} />} options={CHART_RANGES} value={range} onChange={selectRange} />
             <ChartTypeSheet value={chartVariant} onChange={setChartVariant} />
             <button
               type="button"
@@ -3802,7 +4055,16 @@ export function SignalWorkspace({
             />
 
             <div className="signals-chart-head-tools">
-              {manualTradeMode === "close" ? (
+              {replayActive ? (
+                <>
+                  <span className="rounded-lg bg-amber-500/15 px-2.5 py-2 text-xs font-semibold text-amber-700 dark:text-amber-300" role="status">
+                    Replay · {formatDayAndTime(replayEndTime!)}
+                  </span>
+                  <button type="button" className="gx-toolbar-btn pressable" onClick={() => stepReplayHour(-1)} title="Move replay back one hour">← 1h</button>
+                  <button type="button" className="gx-toolbar-btn pressable" onClick={() => stepReplayHour(1)} disabled={replayEndIndex >= series.candles.length - 1} title="Move replay forward one hour">1h →</button>
+                  <button type="button" className="gx-toolbar-btn pressable" onClick={exitReplay}>Exit replay</button>
+                </>
+              ) : manualTradeMode === "close" ? (
                 <button type="button" className="signals-analyze-desktop pressable is-close" onClick={() => setTradeConfirm("close")} disabled={tradeActionBusy}>
                   {tradeActionBusy ? "Closing…" : "Close Trade"}
                 </button>
@@ -3823,24 +4085,14 @@ export function SignalWorkspace({
                 enabled={enabledIndicators}
                 onChange={setEnabledIndicators}
               />
-              <button
-                type="button"
-                className={`gx-toolbar-btn pressable${positionTool ? " is-active" : ""}`}
-                onClick={() => {
-                  if (positionTool) {
-                    setPositionTool(null);
-                    return;
-                  }
-                  setPositionToolPrompt(true);
-                }}
-                disabled={hasActivePosition}
-                title={hasActivePosition ? "Close the active position before creating another entry" : "Draw a fixed 10-pip 1:1 risk/reward setup"}
-              >
-                <Scaling className="size-3.5" />
-                10p · 1:1
-              </button>
               <ChartTypeSelect toolbar value={chartVariant} onChange={setChartVariant} />
               <RangeSelect value={range} onChange={selectRange} />
+              {!replayActive ? (
+                <button type="button" className="gx-toolbar-btn pressable" onClick={beginReplay} title="Replay candles one hour at a time">
+                  <Clock3 className="size-3.5" strokeWidth={2} />
+                  Replay
+                </button>
+              ) : null}
               <ResetViewButton
                 className="gx-toolbar-icon-btn"
                 onReset={() =>
@@ -3863,7 +4115,7 @@ export function SignalWorkspace({
               </p>
             ) : null}
 
-            {focusTrade && focusTrade.closedAt !== null ? (
+            {focusTrade && focusTrade.closedAt !== null && !fullscreen ? (
               <TradeFocusBar trade={focusTrade} onClear={clearFocusTrade} />
             ) : null}
             {focusedPrediction ? (
@@ -3881,10 +4133,10 @@ export function SignalWorkspace({
             >
               <SetupChart
                 key={`desktop-chart:${instrument}:${timeframe}:${range}`}
-                series={series}
-                levels={overlayPreferences.levels ? setupLevels : null}
+                series={replaySeries}
+                levels={!replayActive && overlayPreferences.levels ? setupLevels : null}
                 enabledIndicators={enabledIndicators}
-                liveCandle={liveCandle}
+                liveCandle={replayActive ? null : liveCandle}
                 variant={chartVariant}
                 range={range}
                 height={desktopChartHeight}
@@ -3893,20 +4145,20 @@ export function SignalWorkspace({
                 preserveViewportRevision={preserveViewportRevision}
                 loadingOlder={loadingOlder}
                 onLoadOlder={loadOlderCandles}
-                trades={paperTrades}
-                showTradeMarkers={overlayPreferences.signalMarkers}
-                showTradePath={overlayPreferences.positionMarkers}
-                focusTradeId={activeFocusId}
-                focusPrediction={focusedPrediction}
-                focusRange={focusRange}
-                referenceLine={predictionReferenceLine}
+                trades={replayActive ? [] : paperTrades}
+                showTradeMarkers={!replayActive && overlayPreferences.signalMarkers}
+                showTradePath={!replayActive && overlayPreferences.positionMarkers}
+                focusTradeId={replayActive ? null : activeFocusId}
+                focusPrediction={replayActive ? null : focusedPrediction}
+                focusRange={replayActive ? null : focusRange}
+                referenceLine={replayActive ? null : predictionReferenceLine}
                 referenceLines={chartReferenceLines}
                 patternLines={chartPatternLines}
-                positionTool={positionTool}
+                positionTool={replayActive ? null : positionTool}
                 onPositionToolChange={setPositionTool}
                 onPositionToolSubmit={submitPositionTool}
               />
-              <ChartLoadingOverlay visible={loading} />
+              <ChartLoadingOverlay visible={chartLoadingVisible} />
             </div>
           </div>
           <ActivePositionStrip
@@ -3920,7 +4172,7 @@ export function SignalWorkspace({
             ask={quote?.ask ?? null}
             selectedEntry={selectedPendingEntry}
             initialProposal={entryDraftProposal ?? initialManualProposal}
-            creationBlocked={hasActivePosition}
+            creationBlocked={hasActivePosition || replayActive}
             composerKey={`${instrument}:${selectedPendingEntry?.id ?? "new"}:${entryComposerRevision}`}
             onClearSelection={clearPendingEntrySelection}
             onChanged={(message) => {

@@ -8,9 +8,13 @@ export const metadata: Metadata = {
 };
 
 export default async function SettingsPage() {
-  const riskResult = await getApiData<{ policy: PaperRiskPolicy }>("/api/paper-risk");
+  const [riskResult, account] = await Promise.all([
+    getApiData<{ policy: PaperRiskPolicy }>("/api/paper-risk"),
+    // Only feeds the phone "Signed in as" row; the page still renders without it.
+    getApiData<{ user: { email: string } }>("/api/auth/me").catch(() => null),
+  ]);
 
   return (
-    <SettingsPanel initialPolicy={riskResult.policy} />
+    <SettingsPanel initialPolicy={riskResult.policy} email={account?.user.email ?? null} />
   );
 }

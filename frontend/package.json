@@ -15,6 +15,7 @@
     "instruments:test": "tsx scripts/test-instruments.ts",
     "open-trade:test": "tsx scripts/test-open-trade-progress.ts",
     "chart:test": "tsx scripts/test-chart-history.ts",
+    "fibonacci:test": "tsx scripts/test-fibonacci-retracement.ts",
     "adaptive-trendlines:test": "tsx scripts/test-adaptive-swing-trendlines.ts",
     "trend-pullback-v1:test": "tsx scripts/test-trend-pullback-v1.ts",
     "strategy:test": "tsx scripts/test-strategy.ts",

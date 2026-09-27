@@ -14,11 +14,9 @@ import {
 const INDICATOR_GROUPS = [
   {
     title: "Overlays",
-    options: CHART_INDICATORS.filter((indicator) => indicator.group === "overlay"),
-  },
-  {
-    title: "Filters",
-    options: CHART_INDICATORS.filter((indicator) => indicator.group === "filter"),
+    options: CHART_INDICATORS.filter((indicator) =>
+      ["support-resistance", "swing-trend-lines", "fibonacci-retracement", "ema-50-100-200"].includes(indicator.value),
+    ),
   },
 ];
 
@@ -107,11 +105,14 @@ export function ChartOptionSheet<T extends string>({
   options,
   value,
   onChange,
+  icon,
 }: {
   title: string;
   options: readonly T[];
   value: T;
   onChange: (next: T) => void;
+  /** Leading glyph for the trigger; the phone toolbar shows it instead of the value. */
+  icon?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -122,8 +123,15 @@ export function ChartOptionSheet<T extends string>({
         open={open}
         onOpen={() => setOpen(true)}
         ariaLabel={`${title} · ${value}`}
+        icon={icon}
       />
-      <MobileSheet open={open} onClose={() => setOpen(false)} title={title}>
+      <MobileSheet
+        open={open}
+        onClose={() => setOpen(false)}
+        eyebrow="Chart"
+        title={title}
+        className="chart-option-sheet"
+      >
         <div role="listbox" aria-label={title} className="sheet-option-list">
           {options.map((option) => (
             <SheetOption
@@ -164,7 +172,13 @@ export function ChartTypeSheet({
         ariaLabel={`Chart type · ${active.label}`}
         icon={<ActiveIcon className="size-4 shrink-0" strokeWidth={2} />}
       />
-      <MobileSheet open={open} onClose={() => setOpen(false)} title="Chart type">
+      <MobileSheet
+        open={open}
+        onClose={() => setOpen(false)}
+        eyebrow="Chart"
+        title="Chart type"
+        className="chart-type-sheet"
+      >
         <div role="listbox" aria-label="Chart type" className="sheet-option-list">
           {CHART_VARIANTS.map((option) => {
             const Icon = VARIANT_ICONS[option.value];
@@ -220,7 +234,13 @@ export function IndicatorSheet({
         badge={enabled.length}
         icon={<SlidersHorizontal className="size-4 shrink-0" strokeWidth={2} />}
       />
-      <MobileSheet open={open} onClose={() => setOpen(false)} title="Indicators">
+      <MobileSheet
+        open={open}
+        onClose={() => setOpen(false)}
+        eyebrow="Chart"
+        title="Indicators"
+        className="chart-indicator-sheet"
+      >
         <div role="menu" aria-label="Chart indicators">
           {INDICATOR_GROUPS.map((group) => (
             <div key={group.title} className="sheet-option-group">

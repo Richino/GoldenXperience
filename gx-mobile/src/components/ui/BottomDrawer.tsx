@@ -25,6 +25,7 @@ export function BottomDrawer({
   onClose,
   eyebrow,
   title,
+  titleNode,
   headerRight,
   scrollable = false,
   children,
@@ -33,6 +34,8 @@ export function BottomDrawer({
   onClose: () => void;
   eyebrow?: string;
   title: string;
+  /** Replaces the visible title (e.g. a loading skeleton); `title` still labels the sheet. */
+  titleNode?: ReactNode;
   headerRight?: ReactNode;
   /** Long option lists (e.g. chart indicators) need a bounded scroll region inside the capped sheet. */
   scrollable?: boolean;
@@ -98,7 +101,7 @@ export function BottomDrawer({
               <View style={styles.header}>
                 <View>
                   {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
-                  <Text style={styles.title}>{title}</Text>
+                  {titleNode ?? <Text style={styles.title}>{title}</Text>}
                 </View>
                 <View style={styles.actions}>
                   {headerRight}

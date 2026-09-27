@@ -19,6 +19,17 @@ function moneyLabel(value: number | null, currency: string) {
   return `${value > 0 ? "+" : "−"}${formatted}`;
 }
 
+/** Plain-English outcome, matching the Expo Home card (phones only). */
+function friendlyOutcome(item: HomeActivityItem) {
+  if (item.label === "BROKER REJECTED") return "Could not open trade";
+  if (item.kind === "tp") return "Profit target reached";
+  if (item.kind === "sl") return "Stopped at your limit";
+  return "Trade closed";
+}
+
+/** Rows the phone layout shows; the rest stay in the desktop list. */
+const PHONE_ROWS = 5;
+
 function signedTone(value: number | null, flat = 0.05) {
   if (value === null || Math.abs(value) < flat) return "is-flat";
   return value > 0 ? "is-positive" : "is-negative";
@@ -40,6 +51,7 @@ export function HomeRecentActivity({
         <Link href="/journal" className="home-section-link">
           See all
         </Link>
+        <span className="home-activity-count">Last {Math.min(items.length, PHONE_ROWS)}</span>
       </div>
       {loading ? (
         <div className="home-activity-skeleton" aria-label="Loading recent activity" aria-busy="true">
@@ -66,6 +78,7 @@ export function HomeRecentActivity({
               >
                 <span className="home-idle-pair home-activity-pair">{item.pair}</span>
                 <span className="home-activity-result">{item.label}</span>
+                <span className="home-activity-outcome">{friendlyOutcome(item)}</span>
                 <span className={`home-activity-money metric-number ${signedTone(item.paperPl, 0.005)}`}>
                   {moneyLabel(item.paperPl, currency)}
                 </span>

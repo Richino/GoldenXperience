@@ -116,6 +116,7 @@ export function NotificationBell({ compact = false, className = "" }: { compact?
         <MobileSheet
           open={open}
           onClose={() => setOpen(false)}
+          eyebrow="Inbox"
           title="Notifications"
           headerAction={readAllButton}
         >

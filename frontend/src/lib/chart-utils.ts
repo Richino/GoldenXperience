@@ -41,8 +41,10 @@ export type ChartVariant = (typeof CHART_VARIANTS)[number]["value"];
 export const CHART_INDICATORS = [
   { value: "support-resistance", label: "Support & resistance", group: "overlay" },
   { value: "swing-trend-lines", label: "Swing trend lines", group: "overlay" },
+  { value: "fibonacci-retracement", label: "Fibonacci retracement", group: "overlay" },
   { value: "ema21", label: "EMA 21", group: "overlay" },
   { value: "ema50", label: "EMA 50", group: "overlay" },
+  { value: "ema-50-100-200", label: "EMA 50 / 100 / 200", group: "overlay" },
   { value: "ema200", label: "EMA 200", group: "overlay" },
   { value: "atr14", label: "ATR 14", group: "overlay" },
   { value: "rsi14", label: "RSI 14", group: "overlay" },
@@ -262,7 +264,21 @@ export type DominantSwingTrend = {
   last: SwingTrendAnchor;
 };
 
+export const FIBONACCI_RETRACEMENT_RATIOS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1] as const;
+
+export type FibonacciRetracement = {
+  direction: SwingTrendDirection;
+  start: SwingTrendAnchor;
+  end: SwingTrendAnchor;
+  levels: Array<{ ratio: number; price: number }>;
+};
+
 const SWING_TREND_LOOKBACK_MS = 2 * 24 * 60 * 60 * 1_000;
+
+type DominantSwingTrendOptions = {
+  lookbackMs?: number;
+  minimumCandles?: number;
+};
 
 /**
  * Finds the dominant confirmed swing structure in the visible history. The
@@ -273,17 +289,20 @@ const SWING_TREND_LOOKBACK_MS = 2 * 24 * 60 * 60 * 1_000;
  */
 export function deriveDominantSwingTrend(
   candles: Candle[],
+  options: DominantSwingTrendOptions = {},
 ): DominantSwingTrend | null {
   const completedCandles = candles.filter((candle) => candle.complete !== false);
   const latestCandle = completedCandles.at(-1);
   if (!latestCandle) return null;
 
   const latestTime = Date.parse(latestCandle.time);
+  const lookbackMs = options.lookbackMs ?? SWING_TREND_LOOKBACK_MS;
+  const minimumCandles = options.minimumCandles ?? 16;
   const completed = Number.isFinite(latestTime)
-    ? completedCandles.filter((candle) => Date.parse(candle.time) >= latestTime - SWING_TREND_LOOKBACK_MS)
+    ? completedCandles.filter((candle) => Date.parse(candle.time) >= latestTime - lookbackMs)
     : completedCandles.slice(-160);
   const latest = completed.at(-1);
-  if (!latest || completed.length < 16) return null;
+  if (!latest || completed.length < minimumCandles) return null;
 
   const reach = 3;
   const highs: SwingTrendAnchor[] = [];
@@ -323,6 +342,51 @@ export function deriveDominantSwingTrend(
     first,
     second,
     last: { index: completed.length - 1, time: latest.time, price: latest.close },
+  };
+}
+
+/**
+ * A chart-only automatic Fib. It measures the latest directional impulse from
+ * the legacy trendline's structural anchor to the furthest completed extreme
+ * reached afterwards. It intentionally does not feed an execution rule.
+ */
+export function deriveFibonacciRetracement(candles: Candle[]): FibonacciRetracement | null {
+  const completed = candles.filter((candle) => candle.complete !== false);
+  const timestamps = completed
+    .map((candle) => Date.parse(candle.time))
+    .filter((timestamp) => Number.isFinite(timestamp));
+  const intervals = timestamps.slice(1).map((timestamp, index) => timestamp - timestamps[index]! ).filter((interval) => interval > 0);
+  const medianInterval = intervals.length
+    ? intervals.slice().sort((left, right) => left - right)[Math.floor(intervals.length / 2)]!
+    : 0;
+  // H4 needs more than the legacy two-day window to provide 16 confirmed
+  // candles. Lower timeframes retain the same two-day structural read.
+  const lookbackMs = Math.max(SWING_TREND_LOOKBACK_MS, medianInterval * 48);
+  const trend = deriveDominantSwingTrend(completed, { lookbackMs });
+  if (!trend) return null;
+  const startIndex = completed.findIndex((candle) => candle.time === trend.first.time);
+  if (startIndex < 0) return null;
+  const impulseCandles = completed.slice(startIndex);
+  if (!impulseCandles.length) return null;
+  const end = trend.direction === "bullish"
+    ? impulseCandles.reduce((best, candle, index) => candle.high > best.price
+      ? { index: startIndex + index, time: candle.time, price: candle.high }
+      : best, { index: startIndex, time: trend.first.time, price: trend.first.price })
+    : impulseCandles.reduce((best, candle, index) => candle.low < best.price
+      ? { index: startIndex + index, time: candle.time, price: candle.low }
+      : best, { index: startIndex, time: trend.first.time, price: trend.first.price });
+  const distance = Math.abs(end.price - trend.first.price);
+  if (!Number.isFinite(distance) || distance <= 0 || end.index <= startIndex) return null;
+  return {
+    direction: trend.direction,
+    start: trend.first,
+    end,
+    levels: FIBONACCI_RETRACEMENT_RATIOS.map((ratio) => ({
+      ratio,
+      price: trend.direction === "bullish"
+        ? end.price - distance * ratio
+        : end.price + distance * ratio,
+    })),
   };
 }
 
@@ -600,7 +664,10 @@ export function candleCountForRange(
 
   const minutesPerCandle = TIMEFRAME_MINUTES[timeframe];
   const count = Math.ceil(rangeMs / (minutesPerCandle * 60 * 1000));
-  return Math.min(5_000, Math.max(40, count));
+  // A chosen range is an exact history request. The previous 40-bar floor
+  // silently loaded older candles for short ranges (for example 1D on H1/H4),
+  // making it impossible for the chart to frame just that selected period.
+  return Math.min(5_000, Math.max(1, count));
 }
 
 export interface TradeMarkerPalette {
@@ -915,11 +982,10 @@ export const LATEST_CANDLE_POSITION = 0.8;
  * The logical range that frames the most recent candles for the selected range.
  *
  * Anchored to the latest bar and expressed in bar indices rather than a time
- * window, so every timeframe opens on a comfortable number of recent candles
- * instead of the entire loaded history squeezed edge to edge. The count is
- * bounded on both sides: a coarse range cannot compress months onto the screen,
- * and a sparse one still fills the pane. The right padding is proportional to
- * the visible bars so the newest candle always lands at
+ * window. An explicit range frames every candle from that period; only `All`
+ * uses a comfortable bounded view instead of squeezing the entire loaded
+ * history edge to edge. The right padding is proportional to the visible bars
+ * so the newest candle always lands at
  * `LATEST_CANDLE_POSITION` of the width. Older bars stay loaded and pannable.
  */
 export function getLatestVisibleLogicalRange(
@@ -942,9 +1008,10 @@ export function getLatestVisibleLogicalRange(
   }
 
   const maxVisibleBars = options?.maxVisibleBars ?? MAX_VISIBLE_BARS;
+  const minVisibleBars = range === "All" ? MIN_VISIBLE_BARS : 1;
   const visible = Math.min(
     count,
-    Math.max(MIN_VISIBLE_BARS, Math.min(spanBars, maxVisibleBars)),
+    Math.max(minVisibleBars, Math.min(spanBars, maxVisibleBars)),
   );
   // `visible` bars fill LATEST_CANDLE_POSITION of the pane; the remainder is
   // empty logical space to the right of the newest candle.

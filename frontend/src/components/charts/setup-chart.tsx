@@ -649,8 +649,8 @@ function chartTheme(
       : "#f1f5f9";
   const scaleText = isDark ? "#9a9aa3" : "#6e6e73";
   const accent = isDark ? "#00e59b" : "#00b377";
-  // Horizontal-emphasis grid: price rows read clearly while the time lines
-  // recede, the way a refined trading terminal frames its candles.
+  // Desktop keeps quiet price guides. The native mobile WebView stays clean:
+  // its labels provide orientation without a desktop-style grid behind candles.
   const horzGrid = isDark ? "rgba(255,255,255,0.05)" : "rgba(28,28,30,0.06)";
   const vertGrid = isDark ? "rgba(255,255,255,0.028)" : "rgba(28,28,30,0.035)";
 
@@ -665,9 +665,7 @@ function chartTheme(
     },
     grid: {
       vertLines: { color: vertGrid, style: LineStyle.Solid, visible: !embedded },
-      // Keep a few quiet horizontal guides on the compact chart so the restored
-      // right-side prices remain easy to scan without giving mobile a desktop grid.
-      horzLines: { color: horzGrid, style: LineStyle.Solid, visible: true },
+      horzLines: { color: horzGrid, style: LineStyle.Solid, visible: !embedded },
     },
     crosshair: {
       // Mobile has no hover: the crosshair only appeared on a long press, where
@@ -715,6 +713,9 @@ function chartTheme(
       tickMarkFormatter: formatChartAxisTime,
       fixLeftEdge: true,
       rightOffset: embedded ? 4 : 6,
+      // A selected short range (notably 1D at M1) must be able to fit in a
+      // phone viewport. The default floor would cap it before all candles fit.
+      minBarSpacing: embedded ? 0.1 : 0.25,
       ticksVisible: false,
       minimumHeight: embedded ? 28 : 22,
       allowBoldLabels: false,
@@ -730,24 +731,23 @@ function scrollChartToLatest(
 ) {
   if (!series.candles.length) return;
 
-  // Bar-index range rather than a time window: it always frames a readable
-  // number of the most recent candles and pins the newest one near the right,
-  // whatever timeframe just loaded. A time window sized to the range selector
-  // dropped the whole (capped) history onto the screen, compressed edge to
-  // edge, and any leftover width threw the candles against the far-left side.
-  //
-  // The bar count is also capped by what the pane can draw at the library's
-  // minimum bar spacing. Past that the library clamps the zoom itself and the
-  // newest candle no longer lands at LATEST_CANDLE_POSITION of the width.
+  // Bar-index range pins the newest candle near the right whatever timeframe
+  // just loaded. A named range is an explicit request to see every candle in
+  // that period; only `All` stays capped for readability.
   const timeScale = chart.timeScale();
   const minBarSpacing = timeScale.options().minBarSpacing || 0.5;
   const drawableBars = Math.floor(
     (timeScale.width() / minBarSpacing) * LATEST_CANDLE_POSITION,
   );
-  const preferredMax = embedded ? EMBED_MAX_VISIBLE_BARS : MAX_VISIBLE_BARS;
+  const preferredMax =
+    range === "All"
+      ? (embedded ? EMBED_MAX_VISIBLE_BARS : MAX_VISIBLE_BARS)
+      : EMBED_MAX_VISIBLE_BARS;
   const logicalRange = getLatestVisibleLogicalRange(series.candles, range, {
     maxVisibleBars:
-      drawableBars > 0 ? Math.min(preferredMax, drawableBars) : preferredMax,
+      range === "All" && drawableBars > 0
+        ? Math.min(preferredMax, drawableBars)
+        : preferredMax,
   });
   if (logicalRange) {
     chart.timeScale().setVisibleLogicalRange(logicalRange);
@@ -1028,8 +1028,9 @@ function addSetupLevels(
   tags: LevelTag[],
   axisLabels: boolean,
 ) {
+  const priceLines: IPriceLine[] = [];
   for (const tag of tags) {
-    mainSeries.createPriceLine({
+    priceLines.push(mainSeries.createPriceLine({
       price: tag.price,
       color: tag.color,
       lineWidth: tag.lineWidth ?? 1,
@@ -1044,8 +1045,9 @@ function addSetupLevels(
       axisLabelVisible: axisLabels,
       axisLabelColor: tag.color,
       axisLabelTextColor: tag.textColor,
-    });
+    }));
   }
+  return priceLines;
 }
 
 function addOverlayLine(
@@ -1085,6 +1087,7 @@ interface IndicatorLine {
 function addPatternLines(
   chart: IChartApi,
   lines: ChartPatternLine[],
+  chartData: ReturnType<typeof toChartCandles>,
   priceFormat: {
     type: "price";
     precision: number;
@@ -1092,14 +1095,36 @@ function addPatternLines(
   },
 ) {
   const lineSeries: ISeriesApi<"Line">[] = [];
+  const firstVisibleTime = chartTimeValue(chartData[0]);
+  const lastVisibleTime = chartTimeValue(chartData.at(-1));
+  if (firstVisibleTime === null || lastVisibleTime === null || lastVisibleTime <= firstVisibleTime) {
+    return lineSeries;
+  }
+
   for (const line of lines) {
-    const points = line.points.flatMap((point) => {
+    const endpoints = line.points.flatMap((point) => {
       const time = chartTimeValue(point);
       return time === null || !Number.isFinite(point.price)
         ? []
-        : [{ time: time as UTCTimestamp, value: point.price }];
-    });
-    if (points.length < 2) continue;
+        : [{ time, price: point.price }];
+    }).sort((left, right) => left.time - right.time);
+    const start = endpoints[0];
+    const end = endpoints.at(-1);
+    if (!start || !end || end.time <= start.time) continue;
+
+    // Pattern overlays may be calculated from more history than the currently
+    // displayed candle window. Feeding their older timestamps into Lightweight
+    // Charts expands the shared time scale and pushes the real candles away.
+    // Clip the rendered segment to the loaded chart range while retaining the
+    // original line slope.
+    const from = Math.max(start.time, firstVisibleTime);
+    const to = Math.min(end.time, lastVisibleTime);
+    if (to <= from) continue;
+    const slopePerSecond = (end.price - start.price) / (end.time - start.time);
+    const points = [
+      { time: from as UTCTimestamp, value: start.price + slopePerSecond * (from - start.time) },
+      { time: to as UTCTimestamp, value: start.price + slopePerSecond * (to - start.time) },
+    ];
 
     const series = chart.addSeries(LineSeries, {
       color: line.color,
@@ -1330,6 +1355,7 @@ export function SetupChart({
   const falseBreakoutMarkersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const patternLineSeriesRef = useRef<ISeriesApi<"Line">[]>([]);
   const renderedPatternLinesFingerprintRef = useRef<string | null>(null);
+  const levelPriceLinesRef = useRef<IPriceLine[]>([]);
   const patternPriceLinesRef = useRef<IPriceLine[]>([]);
   const tradePathRef = useRef<ISeriesApi<"Line"> | null>(null);
   const indicatorLinesRef = useRef<IndicatorLine[]>([]);
@@ -1377,9 +1403,10 @@ export function SetupChart({
   const halfSpreadRef = useRef(halfSpread);
   const loadingOlderRef = useRef(loadingOlder);
   const onLoadOlderRef = useRef(onLoadOlder);
-  // `setData` can briefly report an empty/leftmost logical range before a
-  // foreground snapshot's saved range is reapplied. That transient range must
-  // not be treated as a deliberate user pan to the history boundary.
+  // A foreground snapshot or a soft chart rebuild can briefly report an
+  // empty/leftmost logical range before its saved range is reapplied. That
+  // transient range must not be treated as a deliberate user pan to the
+  // history boundary.
   const suppressHistoryLoadRef = useRef(false);
   // The visible-range callback is registered once per chart, so it cannot read
   // candles through the closure without going stale as live data streams in.
@@ -1468,9 +1495,6 @@ export function SetupChart({
   const shellHeight = height;
   // Recreate price-line primitives only when their identity or geometry changes.
   // Countdown text updates ride through the DOM overlay without resetting zoom.
-  const referenceLinesShapeFingerprint = referenceLines
-    .map((line) => `${line.key ?? ""}:${line.price}:${line.color}:${line.dashed ?? true}:${line.lineWidth ?? 2}`)
-    .join("|");
   const chartCreationIndicators = enabledIndicators.join("|");
   const patternLinesFingerprint = patternLines
     .map((line) => `${line.key}:${line.color}:${line.dashed ?? false}:${line.lineWidth ?? 1}:${line.points.map((point) => `${point.time}:${point.price}`).join(",")}`)
@@ -1533,8 +1557,9 @@ export function SetupChart({
         axisPressedMouseMove: { time: true, price: true },
         axisDoubleClickReset: { time: true, price: true },
         mouseWheel: true,
-        // Native pinch only scales time and would fight the custom two-finger
-        // price scaling, so it is disabled on mobile and handled by the hook.
+        // Mobile owns two-finger X-axis scaling in the gesture hook, anchored
+        // under the pinch midpoint. Disable the library gesture to avoid both
+        // handlers changing the viewport at once.
         pinch: !embedded,
       },
     });
@@ -1663,10 +1688,10 @@ export function SetupChart({
       embedded,
     );
     if (levelTags.length) {
-      addSetupLevels(mainSeries, levelTags, !embedded);
+      levelPriceLinesRef.current = addSetupLevels(mainSeries, levelTags, !embedded);
     }
     if (patternLines.length) {
-      patternLineSeriesRef.current = addPatternLines(chart, patternLines, priceFormat);
+      patternLineSeriesRef.current = addPatternLines(chart, patternLines, chartData, priceFormat);
     }
     renderedPatternLinesFingerprintRef.current = patternLinesFingerprint;
 
@@ -1714,6 +1739,20 @@ export function SetupChart({
       addOverlay(
         (candles) => calculateEma(closesOf(candles), 50),
         isDark ? "#c9a227" : "#b8860b",
+      );
+    }
+    if (isChartIndicatorEnabled(enabledIndicators, "ema-50-100-200")) {
+      addOverlay(
+        (candles) => calculateEma(closesOf(candles), 50),
+        isDark ? "#c9a227" : "#b8860b",
+      );
+      addOverlay(
+        (candles) => calculateEma(closesOf(candles), 100),
+        isDark ? "#34d399" : "#059669",
+      );
+      addOverlay(
+        (candles) => calculateEma(closesOf(candles), 200),
+        isDark ? "#5e5ce6" : "#5856d6",
       );
     }
     if (isChartIndicatorEnabled(enabledIndicators, "ema200")) {
@@ -1783,8 +1822,14 @@ export function SetupChart({
     const preserved = preservedViewRef.current;
     preservedViewRef.current = null;
     if (preserved?.logical) {
+      const preservedLogical = preserved.logical;
       try {
-        chart.timeScale().setVisibleLogicalRange(preserved.logical);
+        // Rebuilding for a chart type or indicator must not make the history
+        // loader interpret the intermediate empty/left edge as a user pan.
+        // Keep the guard through the next paint, when Lightweight Charts has
+        // finished applying this restored logical range.
+        suppressHistoryLoadRef.current = true;
+        chart.timeScale().setVisibleLogicalRange(preservedLogical);
         if (
           preserved.price
           && Number.isFinite(preserved.price.from)
@@ -1795,7 +1840,38 @@ export function SetupChart({
           chart.priceScale("right").setVisibleRange(preserved.price);
         }
         focusCoveredRef.current = true;
+        requestAnimationFrame(() => {
+          if (chartRef.current === chart) {
+            // Adding indicator series can make Lightweight Charts recalculate
+            // the shared time scale on its first layout pass. Reapply the
+            // saved window after that pass so an EMA/S&R toggle cannot leave
+            // the current candles stranded at the far-left edge.
+            try {
+              chart.timeScale().setVisibleLogicalRange(preservedLogical);
+              if (
+                preserved.price
+                && Number.isFinite(preserved.price.from)
+                && Number.isFinite(preserved.price.to)
+                && preserved.price.to > preserved.price.from
+              ) {
+                chart.priceScale("right").applyOptions({ autoScale: false });
+                chart.priceScale("right").setVisibleRange(preserved.price);
+              }
+            } catch {
+              focusCoveredRef.current = scrollChartToFocus(
+                chart,
+                series,
+                range,
+                focusRange,
+                embedded,
+              );
+            } finally {
+              suppressHistoryLoadRef.current = false;
+            }
+          }
+        });
       } catch {
+        suppressHistoryLoadRef.current = false;
         focusCoveredRef.current = scrollChartToFocus(chart, series, range, focusRange, embedded);
       }
     } else {
@@ -1872,13 +1948,32 @@ export function SetupChart({
     resizeObserver.observe(container);
 
     return () => {
+      const ownsCurrentChart = chartRef.current === chart;
       // Snapshot the view before destroy so the next create can restore it.
       // Indicator toggles rebuild this effect; without this, the chart always
-      // re-opens on the live edge and feels like it "reset".
-      preservedViewRef.current = {
-        logical: chart.timeScale().getVisibleLogicalRange(),
-        price: chart.priceScale("right").getVisibleRange(),
-      };
+      // re-opens on the live edge and feels like it "reset". An older cleanup
+      // must never overwrite a newer chart instance's saved viewport though.
+      if (ownsCurrentChart) {
+        preservedViewRef.current = {
+          logical: chart.timeScale().getVisibleLogicalRange(),
+          price: chart.priceScale("right").getVisibleRange(),
+        };
+        // Clear shared handles before `remove()`. React can flush another
+        // effect during a route/pair transition; leaving a removed series in a
+        // ref lets that effect call setData on it ("Value is null").
+        chartRef.current = null;
+        if (mainSeriesRef.current === mainSeries) mainSeriesRef.current = null;
+        markerOutlinesRef.current = null;
+        markersRef.current = null;
+        falseBreakoutMarkersRef.current = null;
+        patternLineSeriesRef.current = [];
+        renderedPatternLinesFingerprintRef.current = null;
+        levelPriceLinesRef.current = [];
+        patternPriceLinesRef.current = [];
+        tradePathRef.current = null;
+        indicatorLinesRef.current = [];
+        latestChartTimeRef.current = null;
+      }
       chart
         .timeScale()
         .unsubscribeVisibleLogicalRangeChange(handleVisibleRangeChange);
@@ -1893,18 +1988,6 @@ export function SetupChart({
       });
       resizeObserver.disconnect();
       chart.remove();
-      chartRef.current = null;
-      mainSeriesRef.current = null;
-      // Both are owned by the removed chart, so they only need to be forgotten.
-      markerOutlinesRef.current = null;
-      markersRef.current = null;
-      falseBreakoutMarkersRef.current = null;
-      patternLineSeriesRef.current = [];
-      renderedPatternLinesFingerprintRef.current = null;
-      patternPriceLinesRef.current = [];
-      tradePathRef.current = null;
-      indicatorLinesRef.current = [];
-      latestChartTimeRef.current = null;
     };
   // The chart instance is intentionally not recreated for every candle update.
   // Candle data is pushed through the data effect below so live ticks stay cheap.
@@ -1914,7 +1997,7 @@ export function SetupChart({
   // the whole chart down on every tick for any instrument holding an open
   // trade, throwing away the user's zoom and scroll position mid-gesture.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [series.instrument, levels?.entry, levels?.stop, levels?.target, levels?.exit, levels?.outcome, referenceLine?.price, referenceLine?.label, referenceLine?.color, referenceLine?.textColor, referenceLinesShapeFingerprint, chartCreationIndicators, variant, isDark, priceFormat, upColor, downColor, wickUpColor, wickDownColor, surfaceColor, embedded]);
+  }, [series.instrument, levels?.entry, levels?.stop, levels?.target, levels?.exit, levels?.outcome, referenceLine?.price, referenceLine?.label, referenceLine?.color, referenceLine?.textColor, chartCreationIndicators, variant, isDark, priceFormat, upColor, downColor, wickUpColor, wickDownColor, surfaceColor, embedded]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -1925,7 +2008,12 @@ export function SetupChart({
     for (const lineSeries of patternLineSeriesRef.current) {
       chart.removeSeries(lineSeries);
     }
-    patternLineSeriesRef.current = addPatternLines(chart, patternLines, priceFormat);
+    patternLineSeriesRef.current = addPatternLines(
+      chart,
+      patternLines,
+      toChartCandles(series.candles),
+      priceFormat,
+    );
     renderedPatternLinesFingerprintRef.current = patternLinesFingerprint;
   }, [patternLines, patternLinesFingerprint, priceFormat]);
 
@@ -1955,7 +2043,12 @@ export function SetupChart({
   useEffect(() => {
     const chart = chartRef.current;
     const mainSeries = mainSeriesRef.current;
-    if (!mainSeries || !series.candles.length) return;
+    if (!chart || !mainSeries || !series.candles.length) return;
+
+    // A pair/variant rebuild removes the old series. Effects from the previous
+    // render may still run after that cleanup, so only the series still owned
+    // by the live chart instance may receive data.
+    if (chartRef.current !== chart || mainSeriesRef.current !== mainSeries) return;
 
     const prevFirstTime = prevFirstCandleTimeRef.current;
     const nextFirstTime = series.candles[0]?.time ?? null;
@@ -1992,24 +2085,32 @@ export function SetupChart({
       suppressHistoryLoadRef.current = true;
     }
 
-    switch (variant) {
-      case "candle":
-      case "hollow":
-      case "bar":
-        mainSeries.setData(toChartCandles(series.candles));
-        break;
-      case "heikin":
-        mainSeries.setData(toHeikinAshiCandles(series.candles));
-        break;
-      case "line":
-      case "area":
-      case "baseline":
-        mainSeries.setData(toCloseLine(series.candles));
-        break;
-      default: {
-        const unhandledVariant: never = variant;
-        throw new Error(`Unsupported chart variant: ${unhandledVariant}`);
+    try {
+      switch (variant) {
+        case "candle":
+        case "hollow":
+        case "bar":
+          mainSeries.setData(toChartCandles(series.candles));
+          break;
+        case "heikin":
+          mainSeries.setData(toHeikinAshiCandles(series.candles));
+          break;
+        case "line":
+        case "area":
+        case "baseline":
+          mainSeries.setData(toCloseLine(series.candles));
+          break;
+        default: {
+          const unhandledVariant: never = variant;
+          throw new Error(`Unsupported chart variant: ${unhandledVariant}`);
+        }
       }
+    } catch (error) {
+      // Lightweight Charts uses this opaque error when a React effect wins a
+      // race with chart.remove(). The replacement chart owns the next update;
+      // letting the stale update escape would crash the entire chart screen.
+      if (error instanceof Error && error.message === "Value is null") return;
+      throw error;
     }
 
     // Re-feed every indicator from the same candles, so no line keeps the old
@@ -2346,9 +2447,44 @@ export function SetupChart({
     referenceLine?.label ?? "",
     referenceLine?.color ?? "",
     referenceLine?.textColor ?? "",
-    ...referenceLines.flatMap((line) => [line.key ?? "", line.price, line.label, line.color, line.textColor]),
+    ...referenceLines.flatMap((line) => [
+      line.key ?? "",
+      line.price,
+      line.label,
+      line.color,
+      line.textColor,
+      line.dashed ?? true,
+      line.lineWidth ?? 1,
+    ]),
     ...patternTags.flatMap((line) => [line.key ?? "", line.price, line.label, line.color, line.textColor]),
   ].join("\0");
+
+  // Reference levels, including support/resistance, are price-scale overlays.
+  // Recreating the chart just to change them re-applies a stale logical range
+  // on H1/4H. Replace only their price lines so the user's current candle view
+  // and zoom remain untouched.
+  useEffect(() => {
+    const mainSeries = mainSeriesRef.current;
+    if (!mainSeries) return;
+
+    for (const priceLine of levelPriceLinesRef.current) {
+      mainSeries.removePriceLine(priceLine);
+    }
+
+    const tags = overlayLevelTags(
+      levels,
+      referenceLine,
+      referenceLines,
+      isDark,
+      halfSpreadRef.current,
+      series.instrument,
+      embedded,
+    );
+    levelPriceLinesRef.current = addSetupLevels(mainSeries, tags, !embedded);
+    // The fingerprint represents every supplied level field without varying the
+    // React dependency-array length when optional level objects come and go.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chartEpoch, isDark, overlayTagFingerprint]);
 
   // The named level tags ride along with the price scale, which the user can
   // now drag and pinch. The library exposes no "price scale changed" event, so
@@ -2482,7 +2618,7 @@ export function SetupChart({
     };
   }, [chartEpoch, showBeacon]);
 
-  // Mobile supports only history panning and pinch-to-zoom. Desktop input is
+  // Mobile supports history panning and X-axis pinch scaling. Desktop input is
   // untouched. Re-binds to the freshly built chart via `chartEpoch`.
   useChartTouchGestures({
     containerRef,

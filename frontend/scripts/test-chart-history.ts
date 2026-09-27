@@ -9,6 +9,8 @@ import {
   buildTradePath,
   countPrependedCandles,
   deriveDominantSwingTrend,
+  candleCountForRange,
+  getLatestVisibleLogicalRange,
   historyPrefetchThreshold,
   mergeRefreshedCandles,
   shouldLoadOlderHistory,
@@ -26,6 +28,25 @@ function bars(...isoTimes: string[]) {
 
 const M15 = (index: number) =>
   new Date(Date.UTC(2026, 6, 24, 0, index * 15)).toISOString();
+
+// A named range must request and frame exactly its own history. A hidden
+// 40-bar floor used to make short H1/H4 selections spill into earlier candles.
+assert.equal(candleCountForRange("4h", "1D"), 6);
+const oneDayAtH4 = Array.from({ length: 6 }, (_, index) => ({
+  time: new Date(Date.UTC(2026, 6, 24, index * 4)).toISOString(),
+  open: 1,
+  high: 1,
+  low: 1,
+  close: 1,
+  volume: 1,
+  complete: true,
+}));
+const oneDayRange = getLatestVisibleLogicalRange(oneDayAtH4, "1D", {
+  maxVisibleBars: 5_000,
+});
+assert.ok(oneDayRange);
+assert.equal(oneDayRange.from, 0, "a named range includes its first candle");
+assert.ok(oneDayRange.to > 5, "keep right-side breathing room after the latest candle");
 
 // A foreground response is capped to recent bars. Dropping earlier loaded
 // pages while restoring their logical range leaves all candles at the left.

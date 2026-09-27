@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { apiUrl } from "@/lib/api/url";
 import { calculateAtr } from "@/lib/chart-utils";
+import { useDragToDismiss } from "@/lib/use-drag-to-dismiss";
 import { displayNameFor, pipSizeFor, precisionFor } from "@/lib/instruments/catalog";
 import type { Candle } from "@/types/forex";
 import type { PendingManualEntry } from "@/types/pending-entry";
@@ -119,13 +120,27 @@ export function PendingEntryDialog({
   onChanged: (message: string) => void;
 }) {
   const isPanel = layout === "panel";
+  const { setSheet, setBackdrop, handlers: dragHandlers, requestClose: requestDrawerClose } = useDragToDismiss({
+    open,
+    onDismiss: onClose,
+    handleSelector: ".pending-entry-grip, .pending-entry-dialog > header",
+    enabled: !isPanel,
+  });
   const [editing, setEditing] = useState(false);
   const [direction, setDirection] = useState<"long" | "short">(selectedEntry?.direction ?? initialProposal?.direction ?? "long");
   const [orderReferencePrice, setOrderReferencePrice] = useState<number | null>(() => {
     const initialDirection = selectedEntry?.direction ?? initialProposal?.direction ?? "long";
     return initialDirection === "long" ? ask : bid;
   });
-  const [entryPrice, setEntryPrice] = useState(selectedEntry ? String(selectedEntry.entryPrice) : initialProposal ? initialProposal.entry.toFixed(precisionFor(instrument)) : "");
+  const [entryPrice, setEntryPrice] = useState(() => {
+    if (selectedEntry) return String(selectedEntry.entryPrice);
+    if (initialProposal) return initialProposal.entry.toFixed(precisionFor(instrument));
+    // Phone drawer, like the app's TradeDrawer: start from the live ask (a new
+    // entry opens as LONG) so Order and Distance read immediately. The desktop
+    // panel stays blank.
+    const reference = isPanel ? null : ask;
+    return reference !== null ? reference.toFixed(precisionFor(instrument)) : "";
+  });
   const [stopPrice, setStopPrice] = useState(selectedEntry?.stopPrice == null ? (initialProposal ? initialProposal.stop.toFixed(precisionFor(instrument)) : "") : String(selectedEntry.stopPrice));
   const [targetPrice, setTargetPrice] = useState(selectedEntry?.targetPrice == null ? (initialProposal ? initialProposal.target.toFixed(precisionFor(instrument)) : "") : String(selectedEntry.targetPrice));
   const [invalidationPrice, setInvalidationPrice] = useState(selectedEntry?.invalidationPrice == null ? "" : String(selectedEntry.invalidationPrice));
@@ -263,9 +278,6 @@ export function PendingEntryDialog({
   const spreadIsWide = spreadPips !== null && spreadPips > 2;
   const distancePips = current !== null && Number.isFinite(parsedEntry)
     ? Math.abs(parsedEntry - current) / pipSizeFor(instrument)
-    : null;
-  const relative = current !== null && Number.isFinite(parsedEntry)
-    ? parsedEntry >= current ? "above" : "below"
     : null;
   const inferredOrder = orderReferencePrice !== null && Number.isFinite(parsedEntry)
     ? direction === "long"
@@ -467,7 +479,7 @@ export function PendingEntryDialog({
       ? "Edit pending entry"
       : isPanel
         ? "Add entry"
-        : "Pending manual entry";
+        : "Trade";
 
   const shell = (
     <section
@@ -477,7 +489,10 @@ export function PendingEntryDialog({
       aria-labelledby={isPanel && !selectedEntry ? undefined : "pending-entry-title"}
       aria-label={isPanel && !selectedEntry ? "Add entry" : undefined}
       onFocusCapture={resetDialogDocumentScroll}
+      ref={setSheet}
+      {...dragHandlers}
     >
+      {isPanel ? null : <div className="pending-entry-grip" aria-hidden="true" />}
       {isPanel && !selectedEntry ? null : (
         <header>
           <div>
@@ -487,7 +502,7 @@ export function PendingEntryDialog({
           <button
             type="button"
             className="mobile-sheet-close pressable"
-            onClick={onClose}
+            onClick={requestDrawerClose}
             aria-label={isPanel ? "Back to new entry" : "Close pending entry"}
           >
             <X className="size-4" />
@@ -539,7 +554,7 @@ export function PendingEntryDialog({
         <>
           <div className="pending-entry-form">
             {selectedEntry ? null : (
-              <fieldset>
+              <fieldset className="pending-entry-advanced">
                 <legend>Mode</legend>
                 <div className="pending-entry-presets" role="group" aria-label="Entry mode">
                   {(["manual", "breakout"] as const).map((option) => (
@@ -555,7 +570,7 @@ export function PendingEntryDialog({
               </fieldset>
             )}
             {!selectedEntry && mode === "breakout" ? (
-              <div className="pending-entry-breakout">
+              <div className="pending-entry-breakout pending-entry-advanced">
                 <label>
                   <span>Level price</span>
                   <input inputMode="decimal" value={breakoutLevel} onChange={(event) => { setBreakoutLevel(event.target.value); setBreakout(null); }} placeholder="Support or resistance you picked" />
@@ -591,19 +606,19 @@ export function PendingEntryDialog({
                 if (entryPrice.trim() === "") setOrderReferencePrice(current);
                 setEntryPrice(event.target.value);
               }} placeholder={current?.toFixed(precision) ?? "0.00000"} />
-              <small>Current: {current?.toFixed(precision) ?? "waiting…"}{distancePips !== null && relative ? ` · Entry ${distancePips.toFixed(1)} pips ${relative}` : ""}</small>
+              <small>{current === null ? "Waiting for quote…" : `Current ${current.toFixed(precision)}${distancePips !== null ? ` · ${distancePips.toFixed(1)} pips away` : ""}`}</small>
             </label>
             <div className="pending-entry-levels">
               <label>
                 <span>Stop loss</span>
-                <input inputMode="decimal" value={stopPrice} onChange={(event) => setStopPrice(event.target.value)} placeholder="Exact price" />
+                <input inputMode="decimal" value={stopPrice} onChange={(event) => setStopPrice(event.target.value)} placeholder="Optional" />
               </label>
               <label>
                 <span>Take profit</span>
-                <input inputMode="decimal" value={targetPrice} onChange={(event) => setTargetPrice(event.target.value)} placeholder="Exact price" />
+                <input inputMode="decimal" value={targetPrice} onChange={(event) => setTargetPrice(event.target.value)} placeholder="Optional" />
               </label>
             </div>
-            <fieldset>
+            <fieldset className="pending-entry-advanced">
               <legend>Expiration</legend>
               <div className="pending-entry-presets">
                 {(["none", "30m", "1h", "4h", "custom"] as const).map((option) => (
@@ -614,7 +629,7 @@ export function PendingEntryDialog({
               </div>
               {expiration === "custom" ? <button type="button" className="pending-entry-custom-expiration" onClick={openCustomExpirationPicker}>{customExpiration ? new Date(customExpiration).toLocaleString() : "Choose date and time"}</button> : null}
             </fieldset>
-            <fieldset>
+            <fieldset className="pending-entry-advanced">
               <legend>Submit after</legend>
               <div className="pending-entry-presets">
                 <button type="button" className={!activateAt ? "is-active" : ""} onClick={() => { setActivateAt(""); setActivateError(null); }}>Submit now</button>
@@ -622,7 +637,7 @@ export function PendingEntryDialog({
               </div>
               {activateAt ? <button type="button" className="pending-entry-custom-expiration" onClick={openActivatePicker}>{new Date(activateAt).toLocaleString()}</button> : null}
             </fieldset>
-            <label>
+            <label className="pending-entry-advanced">
               <span>Cancel if price reaches <em>Optional</em></span>
               <input inputMode="decimal" value={invalidationPrice} onChange={(event) => setInvalidationPrice(event.target.value)} placeholder="Exact price" />
             </label>
@@ -630,16 +645,16 @@ export function PendingEntryDialog({
               <strong>{direction.toUpperCase()} {displayNameFor(instrument)}</strong>
               <span>Order: {inferredOrder ?? "—"}</span>
               <span>Entry: {Number.isFinite(parsedEntry) ? parsedEntry.toFixed(precision) : "—"}</span>
-              <span>Stop: {parsedStop && Number.isFinite(parsedStop) ? parsedStop.toFixed(precision) : "—"}</span>
-              <span>Target: {parsedTarget && Number.isFinite(parsedTarget) ? parsedTarget.toFixed(precision) : "—"}</span>
+              <span className="pending-entry-advanced">Stop: {parsedStop && Number.isFinite(parsedStop) ? parsedStop.toFixed(precision) : "—"}</span>
+              <span className="pending-entry-advanced">Target: {parsedTarget && Number.isFinite(parsedTarget) ? parsedTarget.toFixed(precision) : "—"}</span>
               <span>Current: {current?.toFixed(precision) ?? "—"}</span>
               <span>Distance: {distancePips === null ? "—" : `${distancePips.toFixed(1)} pips`}</span>
-              <span>Submit: {activateAt ? new Date(activateAt).toLocaleString() : "Now"}</span>
-              <span>Expires: {expiration === "none" ? "No expiration" : expiration === "custom" ? customExpiration || "Choose time" : expiration}</span>
-              <span>Invalidation: {parsedInvalidation && Number.isFinite(parsedInvalidation) ? parsedInvalidation.toFixed(precision) : "None"}</span>
+              <span className="pending-entry-advanced">Submit: {activateAt ? new Date(activateAt).toLocaleString() : "Now"}</span>
+              <span className="pending-entry-advanced">Expires: {expiration === "none" ? "No expiration" : expiration === "custom" ? customExpiration || "Choose time" : expiration}</span>
+              <span className="pending-entry-advanced">Invalidation: {parsedInvalidation && Number.isFinite(parsedInvalidation) ? parsedInvalidation.toFixed(precision) : "None"}</span>
               <span className={`pending-entry-summary-spread${spreadIsWide ? " is-wide" : ""}`}>
                 Spread: {spreadPips === null ? "—" : `${spreadPips.toFixed(1)} pips`}
-                {spreadIsWide ? " · Wide — may be expensive" : " · Normal"}
+                <span className="pending-entry-advanced">{spreadIsWide ? " · Wide — may be expensive" : " · Normal"}</span>
               </span>
               {error ? <span className="pending-entry-summary-error" role="alert">{error}</span> : null}
             </div>
@@ -656,7 +671,7 @@ export function PendingEntryDialog({
               disabled={saving || creationBlocked || !Number.isFinite(parsedEntry) || parsedEntry <= 0}
               onClick={() => void save()}
             >
-              {saving ? "Saving…" : selectedEntry ? "Save Changes" : "Create Entry"}
+              {saving ? "Saving…" : selectedEntry ? "Save Changes" : "Create entry"}
             </button>
           </footer>
         </>
@@ -667,7 +682,7 @@ export function PendingEntryDialog({
   return (
     <>
       {isPanel ? shell : createPortal((
-        <div className="pending-entry-backdrop" data-pull-to-refresh-ignore="true" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+        <div ref={setBackdrop} className="pending-entry-backdrop" data-pull-to-refresh-ignore="true" onMouseDown={(event) => event.target === event.currentTarget && requestDrawerClose()}>
           {shell}
         </div>
       ), document.body)}

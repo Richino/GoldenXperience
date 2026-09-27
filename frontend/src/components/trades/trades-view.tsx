@@ -19,6 +19,7 @@ import {
 import { useSupplementalQuotes } from "@/lib/market-stream/use-supplemental-quotes";
 import { strategyTypeLabel } from "@/lib/strategy/family-label";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
+import { TradesSkeleton, TradesSummarySkeleton, TradesToolbarSkeleton } from "@/components/ui/phone-skeletons";
 
 type Tab = "open" | "closed" | "all";
 type ClosedFilter = "all" | "wins" | "losses";
@@ -568,35 +569,6 @@ function MobileTradeCard({
     >
       {body}
     </button>
-  );
-}
-
-function TradesSkeleton() {
-  return (
-    <div className="trades-skeleton" aria-hidden>
-      {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="trades-skeleton-row" />
-      ))}
-    </div>
-  );
-}
-
-function TradesSummarySkeleton() {
-  return (
-    <div className="trades-summary trades-summary-skeleton" aria-hidden>
-      {Array.from({ length: 4 }).map((_, index) => (
-        <span key={index} />
-      ))}
-    </div>
-  );
-}
-
-function TradesToolbarSkeleton() {
-  return (
-    <div className="trades-toolbar-skeleton" aria-hidden>
-      <span className="trades-toolbar-skeleton-tabs" />
-      <span className="trades-toolbar-skeleton-search" />
-    </div>
   );
 }
 

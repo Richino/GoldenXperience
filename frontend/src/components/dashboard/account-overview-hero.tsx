@@ -123,7 +123,11 @@ export function AccountOverviewHero({
             className={`home-market-pill ${marketCondition?.marketOpen === false ? "is-closed" : "is-open"}`}
           >
             <span className="home-market-dot" aria-hidden="true" />
-            {marketCondition ? `${marketCondition.label} session` : "Session"}
+            {marketCondition
+              ? marketCondition.marketOpen
+                ? `${marketCondition.label} session`
+                : "Market closed"
+              : "Session"}
           </span>
           <NotificationBell compact className={`home-hero-bell${scrolledPast ? " is-lifted" : ""}`} />
         </div>

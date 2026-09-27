@@ -15,7 +15,7 @@ import type {
  * Gestures:
  *   1 finger  → free pan through both history and price, with restrained
  *               release inertia.
- *   2 fingers → pinch to zoom both visible ranges around the pinch midpoint.
+ *   2 fingers → scale the time (X) axis around the pinch midpoint.
  *
  * All per-frame state lives in closure variables (no React state), and visual
  * updates are coalesced into a single `requestAnimationFrame`.
@@ -111,10 +111,6 @@ export function useChartTouchGestures({
     let baseLogicalFrom = 0;
     let baseLogicalTo = 0;
     let baseWidth = 0;
-    let baseHeight = 0;
-    let basePriceFrom = 0;
-    let basePriceTo = 0;
-    let baseMidPrice = 0;
 
     const relativePoint = (event: PointerEvent): Point => ({
       x: event.clientX - originX,
@@ -210,17 +206,10 @@ export function useChartTouchGestures({
       baseMidLogical = timeScale.coordinateToLogical(midX) ?? baseLogicalTo;
 
       baseWidth = width();
-      baseHeight = height();
-      const priceRange = chart.priceScale("right").getVisibleRange();
-      basePriceFrom = priceRange?.from ?? 0;
-      basePriceTo = priceRange?.to ?? 0;
-      const midY = (a.y + b.y) / 2;
-      const priceFraction = clamp(midY / baseHeight, 0, 1);
-      baseMidPrice = basePriceTo - priceFraction * (basePriceTo - basePriceFrom);
     }
 
     // --- per-frame application ---
-    function applyPinch(curDistance: number, midX: number, midY: number) {
+    function applyPinch(curDistance: number, midX: number) {
       const baseBars = baseLogicalTo - baseLogicalFrom;
       if (baseBars <= 0) return;
       const baseBarSpacing = baseWidth / baseBars;
@@ -243,17 +232,6 @@ export function useChartTouchGestures({
         to: to as Logical,
       });
 
-      const basePriceSpan = basePriceTo - basePriceFrom;
-      if (basePriceSpan <= 0) return;
-      const priceSpan = basePriceSpan / scale;
-      const priceFraction = clamp(midY / baseHeight, 0, 1);
-      const priceTo = baseMidPrice + priceFraction * priceSpan;
-      const priceScale = chart.priceScale("right");
-      priceScale.setAutoScale(false);
-      priceScale.setVisibleRange({
-        from: priceTo - priceSpan,
-        to: priceTo,
-      });
     }
 
     function applyTwoFinger() {
@@ -263,9 +241,8 @@ export function useChartTouchGestures({
       if (!a || !b) return;
       const curDistance = Math.hypot(b.x - a.x, b.y - a.y);
       const midX = (a.x + b.x) / 2;
-      const midY = (a.y + b.y) / 2;
       mode = "pinch";
-      applyPinch(curDistance, midX, midY);
+      applyPinch(curDistance, midX);
     }
 
     function applyFrame() {

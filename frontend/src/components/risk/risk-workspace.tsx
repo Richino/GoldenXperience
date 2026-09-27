@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { PhoneSettingsPicker, PhoneSettingsRow } from "@/components/settings/phone-settings-ui";
 import { SelectMenu } from "@/components/ui/select-menu";
 import { apiUrl } from "@/lib/api/url";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
@@ -27,6 +28,20 @@ const maxPositionOptions = [
     return { value: count, label: count };
   }),
 ];
+
+/** Phone drawer options, worded like the app's Max open positions picker. */
+const phonePositionOptions = maxPositionOptions.map((option) => ({
+  value: option.value,
+  label: positionLimitLabel(option.value),
+  detail: option.value === "unlimited"
+    ? "No limit on simultaneous practice trades."
+    : `Allow up to ${option.value} practice trade${option.value === "1" ? "" : "s"} at once.`,
+}));
+
+function positionLimitLabel(value: string) {
+  if (value === "unlimited") return "Unlimited";
+  return `${value} ${value === "1" ? "position" : "positions"}`;
+}
 
 const AUTO_SAVE_DELAY_MS = 500;
 
@@ -75,6 +90,7 @@ export function RiskWorkspace({
   );
   const [collectionPaused, setCollectionPaused] = useState(initialPolicy.collectionPaused);
   const [error, setError] = useState<string | null>(null);
+  const [positionsPickerOpen, setPositionsPickerOpen] = useState(false);
   const lastSavedKeyRef = useRef(configurationKey(initialForm, initialPolicy.collectionPaused));
   const saveSequenceRef = useRef(0);
 
@@ -145,7 +161,93 @@ export function RiskWorkspace({
   const formIsValid = configurationFromForm(riskPercent, maxPositions, maxExposure) !== null;
 
   return (
-    <div className="risk-view risk-embedded space-y-6 lg:space-y-8">
+    <>
+    {/* Phone layout: the app's Paper trading card. Same state and auto-save. */}
+    <div className="phone-settings-card settings-phone-only" aria-label="Paper trading risk settings">
+      <div className="phone-settings-risk-head">
+        <div>
+          <h2 className="phone-settings-section">Paper trading</h2>
+          <p className="phone-settings-helper">Practice-entry risk limits</p>
+        </div>
+        <span className={`phone-settings-status ${collectionPaused ? "is-paused" : "is-active"}`}>
+          {collectionPaused ? "Paused" : "Accepting"}
+        </span>
+      </div>
+
+      <label className="phone-settings-field">
+        <span className="phone-settings-field-label">Risk per trade</span>
+        <span className="phone-settings-input">
+          <input
+            type="number"
+            inputMode="decimal"
+            min="0.1"
+            max="5"
+            step="0.1"
+            value={riskPercent}
+            onChange={(event) => setRiskPercent(event.target.value)}
+            placeholder="0.1–5"
+            aria-label="Risk per trade percent"
+          />
+          <span aria-hidden="true">%</span>
+        </span>
+      </label>
+
+      <PhoneSettingsRow
+        label="Max open positions"
+        value={positionLimitLabel(maxPositions)}
+        onClick={() => setPositionsPickerOpen(true)}
+      />
+
+      <label className="phone-settings-field">
+        <span className="phone-settings-field-label">Max exposure <em>Optional</em></span>
+        <span className="phone-settings-input">
+          <input
+            type="number"
+            inputMode="decimal"
+            min={riskPercent || "0.1"}
+            max="50"
+            step="0.1"
+            value={maxExposure}
+            onChange={(event) => setMaxExposure(event.target.value)}
+            placeholder="Unlimited"
+            aria-label="Maximum exposure percent"
+          />
+          <span aria-hidden="true">%</span>
+        </span>
+      </label>
+
+      <div className="phone-settings-switch-row">
+        <span>Allow new entries</span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={!collectionPaused}
+          aria-label="Allow new entries"
+          className={`phone-settings-switch${collectionPaused ? "" : " is-on"}`}
+          onClick={() => setCollectionPaused((paused) => !paused)}
+        >
+          <span />
+        </button>
+      </div>
+
+      {error ? <p className="phone-settings-error">{error}</p> : null}
+      {formIsValid ? null : <p className="phone-settings-error" role="status">Enter valid limits</p>}
+
+      <PhoneSettingsPicker
+        open={positionsPickerOpen}
+        onClose={() => setPositionsPickerOpen(false)}
+        eyebrow="Paper trading"
+        title="Max open positions"
+        options={phonePositionOptions}
+        selected={maxPositions}
+        onSelect={(value) => {
+          setMaxPositions(value);
+          setPositionsPickerOpen(false);
+        }}
+      />
+    </div>
+
+    <div className="risk-view risk-embedded settings-desktop-only space-y-6 lg:space-y-8">
       <header>
         <div>
           <h2 className="text-sm font-semibold tracking-[-0.01em]">Risk</h2>
@@ -243,5 +345,6 @@ export function RiskWorkspace({
         )}
       </section>
     </div>
+    </>
   );
 }

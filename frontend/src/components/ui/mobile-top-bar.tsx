@@ -16,12 +16,14 @@ import { useScrolledPast } from "@/lib/use-scrolled-past";
  * scrolls away the icons lift off the page, and until then they read as part of
  * the header they came from.
  */
-export function MobileTopBar({ showBack = true }: { showBack?: boolean }) {
+export function MobileTopBar({ showBack = true, inline = false }: { showBack?: boolean; inline?: boolean }) {
   const { ref, scrolledPast } = useScrolledPast<HTMLDivElement>();
   const lift = scrolledPast ? " is-lifted" : "";
 
+  // `inline`: tab pages (Trades, Settings) reserve no row of their own, so the
+  // bell floats on the page title's line like the app's tab headers.
   return (
-    <div ref={ref} className="h-10 lg:hidden">
+    <div ref={ref} className={`${inline ? "h-0" : "h-10"} lg:hidden`}>
       {showBack ? (
         <Link
           href="/"

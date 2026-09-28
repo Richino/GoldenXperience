@@ -39,6 +39,7 @@ import {
   useManualProposal,
 } from "@/components/analysis/manual-proposal";
 import { TrendPullbackResultDialog } from "@/components/analysis/trend-pullback-result";
+import { TradeConfirmDialog } from "@/components/signals/trade-confirm-dialog";
 import {
   ChartContextPanel,
   type ChartOverlayPreferences,
@@ -57,7 +58,7 @@ import {
   CHART_VARIANTS,
   DEFAULT_CHART_INDICATORS,
   TIMEFRAME_TO_GRANULARITY,
-  candleCountForRange,
+  candleCountForChartViewport,
   calculateAtr,
   deriveDominantSwingTrend,
   deriveFibonacciRetracement,
@@ -124,9 +125,24 @@ type MobileTab = "Overview" | "Setup";
 
 /** Bars of breathing room kept on each side of a focused trade. */
 const FOCUS_PADDING_BARS = 30;
+const DEFAULT_CHART_TIMEFRAME: ChartTimeframe = "15m";
+const DEFAULT_CHART_HISTORY_RANGE: ChartRange = "1D";
 
 /** Height of the desktop chart canvas before it is measured. */
 const DESKTOP_CHART_HEIGHT = 680;
+
+// A day only contains six 4H candles, which makes that chart look artificially
+// zoomed even when its viewport is working correctly. One month, however,
+// over-compresses the mobile H4 chart. These defaults keep the chart near a
+// readable 24–42 candle window. They are visible range changes, not hidden data
+// changes: the range control always reflects the amount of history shown.
+const DEFAULT_RANGE_BY_TIMEFRAME: Record<ChartTimeframe, ChartRange> = {
+  "1m": "1D",
+  "5m": "1D",
+  "15m": "1D",
+  "1h": "1D",
+  "4h": "1W",
+};
 
 const CHART_PREFERENCES_STORAGE_KEY =
   "goldenxperience:signals-chart-preferences:v1";
@@ -193,6 +209,23 @@ export type SignalPaperPlan = WatchlistStatusInput & {
   instrument: string;
   batchNumber: number | null;
 };
+
+function pairMayHaveOpenManualTrade(
+  instrument: MajorInstrument,
+  trades: PaperChartTrade[],
+  plans: SignalPaperPlan[],
+) {
+  const hasOpenPaper = trades.some(
+    (trade) =>
+      trade.instrument === instrument &&
+      trade.status === "open" &&
+      trade.closedAt === null,
+  );
+  const hasOpenPlan = plans.some(
+    (plan) => plan.instrument === instrument && Boolean(plan.openTradeId),
+  );
+  return hasOpenPaper || hasOpenPlan;
+}
 
 const GRANULARITY_MS: Record<string, number> = {
   M1: 60 * 1000,
@@ -551,11 +584,12 @@ function swingTrendLines(candles: Candle[]): ChartPatternLine[] {
   // no confirmation; the visual legacy overlay still selects the most relevant
   // confirmed line, rather than disappearing or drawing a steep local segment.
   const completed = candles.filter((candle) => candle.complete !== false);
-  const latest = completed.at(-1);
-  const latestTime = latest ? Date.parse(latest.time) : Number.NaN;
-  const scoped = Number.isFinite(latestTime)
-    ? completed.filter((candle) => Date.parse(candle.time) >= latestTime - 2 * 24 * 60 * 60 * 1_000)
-    : completed.slice(-192);
+  // Use trading bars rather than elapsed wall-clock time. Around the FX
+  // weekend, "last 48 hours" only contains the first few candles of the new
+  // session, which makes a confirmed-pivot overlay disappear despite a full
+  // M15 history being available. 192 M15 bars is the intended two-session
+  // structural read and remains stable over market closures.
+  const scoped = completed.slice(-192);
   const reach = 3;
   const highs: SwingPoint[] = [];
   const lows: SwingPoint[] = [];
@@ -612,7 +646,45 @@ function swingTrendLines(candles: Candle[]): ChartPatternLine[] {
     left.distanceFromCurrent - right.distanceFromCurrent || right.span - left.span,
   )[0] ?? null;
   const visibleTrend = trend ?? fallback;
-  if (!visibleTrend) return [];
+  if (!last) return [];
+  if (!visibleTrend) {
+    // A ranging market has no honest single directional trend. The old
+    // behaviour returned nothing, which made an enabled Swing trend lines
+    // control look broken. Keep the same confirmed (three candles each side)
+    // pivots, then show the most recent sufficiently-separated support and
+    // resistance swings as visual context only.
+    const latestConfirmedLine = (
+      points: SwingPoint[],
+      key: string,
+      color: string,
+    ): ChartPatternLine | null => {
+      const lastPoint = points.at(-1);
+      if (!lastPoint) return null;
+      const firstPoint = [...points]
+        .reverse()
+        .find((point) => point.index < lastPoint.index && lastPoint.index - point.index >= 8);
+      if (!firstPoint) return null;
+      const slope = (lastPoint.price - firstPoint.price) / (lastPoint.index - firstPoint.index);
+      return {
+        key,
+        color,
+        dashed: false,
+        lineWidth: 2,
+        points: [
+          { time: firstPoint.time, price: firstPoint.price },
+          {
+            time: last.time,
+            price: lastPoint.price + slope * (scoped.length - 1 - lastPoint.index),
+          },
+        ],
+      };
+    };
+
+    return [
+      latestConfirmedLine(lows, "swing-support", "#3b82f6"),
+      latestConfirmedLine(highs, "swing-resistance", "#f0526b"),
+    ].filter((line): line is ChartPatternLine => line !== null);
+  }
 
   const slope = (visibleTrend.second.price - visibleTrend.first.price)
     / (visibleTrend.second.index - visibleTrend.first.index);
@@ -2079,6 +2151,9 @@ export function SignalWorkspace({
   const [range, setRange] = useState<ChartRange>(
     initialRange ?? (embeddedSurfaceOnly ? "1D" : initialPredictionFocus ? "1D" : "6M"),
   );
+  // A timeframe switch may choose a legible default range until the person
+  // deliberately selects one. We do not overwrite an explicit range choice.
+  const hasExplicitRangeSelectionRef = useRef(false);
   const [chartVariant, setChartVariant] = useState<ChartVariant>(initialVariant ?? "candle");
   const [enabledIndicators, setEnabledIndicators] = useState<ChartIndicator[]>(
     DEFAULT_CHART_INDICATORS,
@@ -2094,7 +2169,14 @@ export function SignalWorkspace({
     const saved = readStoredChartPreferences();
     if (saved) {
       setTimeframe(saved.timeframe);
-      setRange(saved.range);
+      // The short-lived H4 -> 1M automatic default was persisted like a
+      // deliberate preference. Migrate that exact generated combination to
+      // the readable H4 default rather than reopening the stretched view.
+      setRange(
+        saved.timeframe === "4h" && saved.range === "1M"
+          ? DEFAULT_RANGE_BY_TIMEFRAME["4h"]
+          : saved.range,
+      );
       setChartVariant(saved.chartVariant);
       setEnabledIndicators(saved.enabledIndicators);
     } else if (window.matchMedia("(max-width: 1023.98px)").matches) {
@@ -2226,6 +2308,9 @@ export function SignalWorkspace({
   const [predictionClock, setPredictionClock] = useState(() => Date.now());
   const [pendingEntries, setPendingEntries] = useState<PendingManualEntry[]>([]);
   const [allPendingEntries, setAllPendingEntries] = useState<PendingManualEntry[]>([]);
+  const [pendingEntriesHydrated, setPendingEntriesHydrated] = useState(() =>
+    !pairMayHaveOpenManualTrade(initialInstrument, initialPaperTrades, paperPlans),
+  );
   const [tradeActionBusy, setTradeActionBusy] = useState(false);
   const [tradeActionError, setTradeActionError] = useState<string | null>(null);
   const [tradeConfirm, setTradeConfirm] = useState<"cancel" | "close" | null>(null);
@@ -2469,6 +2554,8 @@ export function SignalWorkspace({
       }
     } catch {
       // Existing chart data remains usable while the persisted entry read retries.
+    } finally {
+      setPendingEntriesHydrated(true);
     }
   }, [instrument]);
 
@@ -2509,6 +2596,14 @@ export function SignalWorkspace({
       window.clearInterval(timer);
     };
   }, [refreshPendingEntries]);
+
+  useEffect(() => {
+    setPendingEntriesHydrated(
+      !pairMayHaveOpenManualTrade(instrument, paperTrades, livePaperPlans),
+    );
+    // Only re-resolve the Trade / Cancel / Close label when the pair changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- paperTrades/livePaperPlans are read for the switched pair only.
+  }, [instrument]);
 
   useEffect(() => {
     if (!pendingEntryNotice) return;
@@ -2611,7 +2706,7 @@ export function SignalWorkspace({
     try {
       const [candlesResponse, pricingResponse] = await Promise.all([
         fetch(
-          apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=${TIMEFRAME_TO_GRANULARITY[timeframe]}&count=${candleCountForRange(timeframe, range)}`),
+          apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=${TIMEFRAME_TO_GRANULARITY[timeframe]}&count=${candleCountForChartViewport(timeframe, range)}`),
           { credentials: "include", cache: "no-store" },
         ),
         fetch(apiUrl(`/api/oanda/pricing?instruments=${instrument}`), {
@@ -2620,7 +2715,7 @@ export function SignalWorkspace({
         }),
       ]);
 
-      if (!candlesResponse.ok || !pricingResponse.ok) return;
+      if (!candlesResponse.ok || !pricingResponse.ok) return false;
 
       const candlesPayload = (await candlesResponse.json()) as {
         data: CandleSeries;
@@ -2637,7 +2732,7 @@ export function SignalWorkspace({
         candlesPayload.data.granularity !== TIMEFRAME_TO_GRANULARITY[timeframe] ||
         currentSeries.instrument !== instrument ||
         currentSeries.granularity !== candlesPayload.data.granularity
-      ) return;
+      ) return false;
 
       replaceSeries({
         ...candlesPayload.data,
@@ -2663,16 +2758,31 @@ export function SignalWorkspace({
       } else {
         setDataNotice(null);
       }
+      return true;
     } catch {
       // Keep the last loaded chart while the next resume refresh retries.
+      return false;
     }
   }, [instrument, range, replaceSeries, timeframe]);
 
   const refreshChart = useCallback(async () => {
     setRefreshingChart(true);
-    await refreshMarketQuietly();
-    setRefreshingChart(false);
-  }, [refreshMarketQuietly]);
+    try {
+      const alreadyAtDefault =
+        timeframe === DEFAULT_CHART_TIMEFRAME &&
+        range === DEFAULT_CHART_HISTORY_RANGE;
+      hasExplicitRangeSelectionRef.current = false;
+      setLiveCandle(null);
+      setTimeframe(DEFAULT_CHART_TIMEFRAME);
+      setRange(DEFAULT_CHART_HISTORY_RANGE);
+      // Any non-default selection triggers the market-data effect with these
+      // values. When already there, explicitly refetch the default view.
+      if (alreadyAtDefault) await refreshMarketQuietly();
+      setScrollToLatestRevision((revision) => revision + 1);
+    } finally {
+      setRefreshingChart(false);
+    }
+  }, [range, refreshMarketQuietly, timeframe]);
 
   useForegroundRefresh(
     useCallback(async () => {
@@ -2818,9 +2928,36 @@ export function SignalWorkspace({
     () => pendingEntries.find((entry) => entry.status === "PENDING" || entry.status === "TRIGGERING") ?? null,
     [pendingEntries],
   );
-  const activeManualTrade = triggeredManualEntry ?? pendingEntries.find((entry) => entry.status === "TRIGGERED" && entry.paperTradeStatus === "open") ?? null;
-  const manualTradeMode: "analyze" | "cancel" | "close" = activeManualTrade ? "close" : pendingManualEntry ? "cancel" : "analyze";
+  const activeManualTrade = useMemo(() => {
+    const fromPending =
+      triggeredManualEntry ??
+      pendingEntries.find(
+        (entry) => entry.status === "TRIGGERED" && entry.paperTradeStatus === "open",
+      ) ??
+      null;
+    if (fromPending) return fromPending;
+    if (!openPaperTrade) return null;
+    return (
+      pendingEntries.find(
+        (entry) =>
+          entry.paperTradeId === openPaperTrade.id && entry.paperTradeStatus === "open",
+      ) ?? null
+    );
+  }, [triggeredManualEntry, pendingEntries, openPaperTrade]);
+  const manualTradeMode: "analyze" | "cancel" | "close" =
+    activeManualTrade || openPaperTrade
+      ? "close"
+      : pendingManualEntry
+        ? "cancel"
+        : "analyze";
   const hasActivePosition = Boolean(openPaperTrade || activeManualTrade);
+  /** Avoid flashing "Trade" while paper/pending reads disagree on open exposure. */
+  const mobileTradeActionReady =
+    pendingEntriesHydrated &&
+    !(
+      pairMayHaveOpenManualTrade(instrument, paperTrades, livePaperPlans) &&
+      manualTradeMode === "analyze"
+    );
 
   useEffect(() => {
     // A fixed setup would create a competing entry. Clear any draft as soon as
@@ -3104,18 +3241,21 @@ export function SignalWorkspace({
       : source;
   }, [chartIndicatorCandles, replayActive, replayEndTime, sessionSrM15Candles, timeframe]);
   // The legacy trendline always evaluates its confirmed pivots across the last
-  // two M15 days. It must not inherit the visible chart range (for example,
-  // selecting 1D), which only contains half of the required context.
+  // two M15 days when that background feed is available. On an M15 chart, use
+  // the already rendered candles immediately rather than making the enabled
+  // overlay appear broken while its larger background request is in flight.
   const swingTrendSourceCandles = useMemo(() => {
-    const source = sessionSrM15Candles.length >= 192
+    const source = sessionSrM15Candles.length >= 96
       ? sessionSrM15Candles
-      : [];
+      : TIMEFRAME_TO_GRANULARITY[timeframe] === "M15"
+        ? chartIndicatorCandles
+        : sessionSrM15Candles;
     if (!replayActive || !replayEndTime) return source;
     const cutoff = Date.parse(replayEndTime);
     return Number.isFinite(cutoff)
       ? source.filter((candle) => Date.parse(candle.time) <= cutoff)
       : source;
-  }, [replayActive, replayEndTime, sessionSrM15Candles]);
+  }, [chartIndicatorCandles, replayActive, replayEndTime, sessionSrM15Candles, timeframe]);
   const sessionSrSnapshots = useMemo(() => {
     if (!sessionSrEnabled) return [] as SessionSrLevels[];
     const centres: SessionSrCentre[] = [];
@@ -3388,7 +3528,7 @@ export function SignalWorkspace({
       try {
         const [candlesResponse, pricingResponse] = await Promise.all([
           fetch(
-            apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=${TIMEFRAME_TO_GRANULARITY[timeframe]}&count=${candleCountForRange(timeframe, range)}`),
+            apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=${TIMEFRAME_TO_GRANULARITY[timeframe]}&count=${candleCountForChartViewport(timeframe, range)}`),
             { credentials: "include", signal: controller.signal },
           ),
           fetch(apiUrl(`/api/oanda/pricing?instruments=${instrument}`), {
@@ -3545,10 +3685,14 @@ export function SignalWorkspace({
     if (nextTimeframe === timeframe) return;
     setLiveCandle(null);
     setScrollToLatestRevision((revision) => revision + 1);
+    if (!hasExplicitRangeSelectionRef.current) {
+      setRange(DEFAULT_RANGE_BY_TIMEFRAME[nextTimeframe]);
+    }
     setTimeframe(nextTimeframe);
   }, [timeframe]);
 
   const selectRange = useCallback((nextRange: ChartRange) => {
+    hasExplicitRangeSelectionRef.current = true;
     if (nextRange === range) return;
     setLiveCandle(null);
     setScrollToLatestRevision((revision) => revision + 1);
@@ -3611,6 +3755,7 @@ export function SignalWorkspace({
           }
           if (parsed.range && CHART_RANGES.includes(parsed.range as ChartRange)) {
             viewChanged ||= parsed.range !== embeddedViewRef.current.range;
+            hasExplicitRangeSelectionRef.current = true;
             setRange(parsed.range as ChartRange);
           }
           if (parsed.variant && CHART_VARIANTS.some((item) => item.value === parsed.variant)) {
@@ -3645,8 +3790,12 @@ export function SignalWorkspace({
         if (!normalized || !CHART_TIMEFRAMES.includes(normalized)) return;
         setLiveCandle(null);
         setScrollToLatestRevision((revision) => revision + 1);
+        if (!hasExplicitRangeSelectionRef.current) {
+          setRange(DEFAULT_RANGE_BY_TIMEFRAME[normalized]);
+        }
         setTimeframe(normalized);
       } else if (command.action === "range" && CHART_RANGES.includes(command.value as ChartRange)) {
+        hasExplicitRangeSelectionRef.current = true;
         setLiveCandle(null);
         setScrollToLatestRevision((revision) => revision + 1);
         setRange(command.value as ChartRange);
@@ -3985,7 +4134,7 @@ export function SignalWorkspace({
                 onChange={selectTimeframe}
               />
             ) : null}
-            <ChartOptionSheet title="Visible range" icon={<CalendarRange className="size-4 shrink-0" strokeWidth={2} />} options={CHART_RANGES} value={range} onChange={selectRange} />
+            <ChartOptionSheet title="History range" icon={<CalendarRange className="size-4 shrink-0" strokeWidth={2} />} options={CHART_RANGES} value={range} onChange={selectRange} />
             <ChartTypeSheet value={chartVariant} onChange={setChartVariant} />
             <button
               type="button"
@@ -4004,20 +4153,23 @@ export function SignalWorkspace({
             />
           </div>
 
-          <div className="gx-mobile-analyze-section">
-            <button
-              type="button"
-              className={`gx-mobile-analyze pressable${mobileTradeAction.className}`}
-              onClick={mobileTradeAction.onClick}
-              disabled={mobileTradeAction.disabled}
-              title={mobileTradeAction.title}
-            >
-              {mobileTradeAction.label}
-            </button>
-            {(tradeActionError || trendPullbackError) ? (
-              <p className="gx-mobile-analyze-error" role="alert">{tradeActionError ?? trendPullbackError}</p>
-            ) : null}
-          </div>
+          {mobileTradeActionReady ? (
+            <div className="gx-mobile-analyze-section">
+              <button
+                key={manualTradeMode}
+                type="button"
+                className={`gx-mobile-analyze pressable${mobileTradeAction.className}`}
+                onClick={mobileTradeAction.onClick}
+                disabled={mobileTradeAction.disabled}
+                title={mobileTradeAction.title}
+              >
+                {mobileTradeAction.label}
+              </button>
+              {(tradeActionError || trendPullbackError) ? (
+                <p className="gx-mobile-analyze-error" role="alert">{tradeActionError ?? trendPullbackError}</p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         <div className="hidden lg:grid signals-chart-desktop gx-chart-terminal">
@@ -4211,27 +4363,14 @@ export function SignalWorkspace({
       />
       <TrendPullbackResultDialog result={trendPullbackDialogOpen ? trendPullbackResult : null} analyzing={trendPullbackDialogOpen && trendPullbackBusy} instrument={instrument} onClose={() => setTrendPullbackDialogOpen(false)} onCancel={cancelTrendPullback} onReview={reviewTrendPullback} />
 
-      {tradeConfirm ? createPortal(
-        <div className="custom-expiration-backdrop" data-pull-to-refresh-ignore="true" onMouseDown={(event) => event.target === event.currentTarget && setTradeConfirm(null)}>
-          <section className="custom-expiration-dialog trade-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="trade-confirm-title">
-            <header><div><span>{instrument.replace("_", "/")}</span><h3 id="trade-confirm-title">{tradeConfirm === "cancel" ? "Cancel pending trade?" : "Close active trade?"}</h3></div></header>
-            <p>{tradeConfirm === "cancel"
-              ? "This removes the resting order from OANDA so it will not fill. You can create a new one afterward."
-              : "This closes the position on OANDA at the current market price and books the result. This cannot be undone."}</p>
-            <footer>
-              <button type="button" onClick={() => setTradeConfirm(null)}>Keep it</button>
-              <button
-                type="button"
-                className={tradeConfirm === "close" ? "is-danger" : "is-warning"}
-                onClick={() => { const action = tradeConfirm; setTradeConfirm(null); void (action === "cancel" ? cancelManualTrade() : closeManualTrade()); }}
-              >
-                {tradeConfirm === "cancel" ? "Cancel Trade" : "Close Trade"}
-              </button>
-            </footer>
-          </section>
-        </div>,
-        document.body,
-      ) : null}
+      <TradeConfirmDialog
+        mode={tradeConfirm}
+        pairLabel={instrument.replace("_", "/")}
+        onDismiss={() => setTradeConfirm(null)}
+        onConfirm={(action) => {
+          void (action === "cancel" ? cancelManualTrade() : closeManualTrade());
+        }}
+      />
 
       {positionToolPrompt ? createPortal(
         <div

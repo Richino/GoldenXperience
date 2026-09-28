@@ -95,6 +95,16 @@ function lotsFromFill(fill: OpenPositionFill | undefined) {
   return Math.abs(fill.units) / 100_000;
 }
 
+function fillForTrade(trade: JournalTrade, fills: Record<string, OpenPositionFill>) {
+  // The OANDA id is unambiguous; instrument fallback only supports legacy rows
+  // that predate persisted broker ids.
+  return trade.brokerTradeId
+    ? fills[`broker:${trade.brokerTradeId}`]
+    : trade.instrument
+      ? fills[trade.instrument]
+      : undefined;
+}
+
 /** Live open-trade figures: current price, Open R, unrealised P&L, level fill. */
 function liveMetrics(trade: JournalTrade, quote: Quote, quotes: Quotes, fill: OpenPositionFill | undefined) {
   const mark = resolveOpenTradeQuote(quote, fill?.currentPrice);
@@ -114,7 +124,7 @@ function liveMetrics(trade: JournalTrade, quote: Quote, quotes: Quotes, fill: Op
     mark && Number.isFinite(mark.bid) && Number.isFinite(mark.ask)
       ? ((mark.bid as number) + (mark.ask as number)) / 2
       : (fill?.currentPrice ?? null);
-  const money = trade.paperPl ?? fill?.unrealizedPL ?? progress?.money ?? null;
+  const money = fill?.unrealizedPL ?? trade.paperPl ?? progress?.money ?? null;
   return {
     current: current === null || !Number.isFinite(current) ? null : current,
     openR: progress?.unrealizedR ?? null,
@@ -485,7 +495,10 @@ function MobileTradeCard({
     <>
       <div className="trade-card-top">
         <span className="trade-card-pair">{trade.pair}</span>
-        <span className={`trade-card-r metric-number ${rTone}`}>{fmtR(rValue)}</span>
+        <span className={`trade-card-r metric-number ${rTone}`}>
+          {isOpen ? <span className="trade-card-r-label">Open R</span> : null}
+          {fmtR(rValue)}
+        </span>
       </div>
       <div className="trade-card-sub">
         {isOpen ? (
@@ -500,7 +513,10 @@ function MobileTradeCard({
         )}
         {isOpen ? (
           <span className={`trade-card-money metric-number ${pnlTone}`}>
-            {fmtMoney(money, true) ?? "—"}
+            <span className="trade-card-money-label">
+              {money === null ? "Updating" : money >= 0 ? "Currently up" : "Currently down"}
+            </span>
+            <span>{fmtMoney(money, true) ?? "—"}</span>
           </span>
         ) : (
           <ResultBadge trade={trade} />
@@ -707,7 +723,7 @@ export function TradesView() {
         t,
         t.instrument ? quotes[t.instrument] : undefined,
         quotes,
-        t.instrument ? fills[t.instrument] : undefined,
+        fillForTrade(t, fills),
       );
       if (m.openR !== null) {
         openR += m.openR;
@@ -771,7 +787,7 @@ export function TradesView() {
       selected,
       selected.instrument ? quotes[selected.instrument] : undefined,
       quotes,
-      selected.instrument ? fills[selected.instrument] : undefined,
+      fillForTrade(selected, fills),
     );
   }, [selected, quotes, fills]);
 
@@ -911,7 +927,7 @@ export function TradesView() {
                       trade,
                       trade.instrument ? quotes[trade.instrument] : undefined,
                       quotes,
-                      trade.instrument ? fills[trade.instrument] : undefined,
+                      fillForTrade(trade, fills),
                     )}
                     selected={trade.id === selectedId}
                     onSelect={() => setSelectedId(trade.id)}
@@ -942,7 +958,7 @@ export function TradesView() {
                           trade,
                           trade.instrument ? quotes[trade.instrument] : undefined,
                           quotes,
-                          trade.instrument ? fills[trade.instrument] : undefined,
+                          fillForTrade(trade, fills),
                         )
                       : null
                   }

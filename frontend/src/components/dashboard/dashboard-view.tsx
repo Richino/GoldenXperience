@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 import { AccountOverviewHero } from "@/components/dashboard/account-overview-hero";
 import { HomeRail, type HomeAvailableSignal, type HomeCurrentPosition } from "@/components/dashboard/home-rail";
 import { HomePendingTrades } from "@/components/dashboard/home-pending-trades";
+import { PendingCancelConfirmation } from "@/components/dashboard/pending-cancel-confirmation";
 import { HomeRecentActivity } from "@/components/dashboard/home-recent-activity";
 import { RecentPredictions } from "@/components/dashboard/recent-predictions";
 import { RelativeTime } from "@/components/dashboard/relative-time";
@@ -198,12 +198,13 @@ function markedOpenMoney(
   fills: Record<string, OpenPositionFill>,
   watchlist: DashboardWatchRow[],
 ) {
-  if (trade.paperPl !== null && trade.paperPl !== undefined) return trade.paperPl;
   const fill = trade.brokerTradeId
     ? fills[`broker:${trade.brokerTradeId}`]
     : undefined;
   const live = liveOpenProgress(trade, quotes, fills, watchlist);
-  return fill?.unrealizedPL ?? live?.money ?? null;
+  // OANDA already reports this account-currency amount. A stored paper result
+  // is only a fallback for a non-broker practice row, never the live value.
+  return fill?.unrealizedPL ?? trade.paperPl ?? live?.money ?? null;
 }
 
 export function DashboardView({
@@ -275,6 +276,7 @@ export function DashboardView({
       nominalRiskAmount:
         trade.nominalRiskAmount ??
         (account.balance > 0 ? Number((account.balance * 0.01).toFixed(2)) : null),
+      brokerTradeId: trade.brokerTradeId ?? null,
     }));
   const openTrades = [...overviewOpen, ...manualOpen];
 
@@ -348,8 +350,8 @@ export function DashboardView({
     }
   }, []);
 
-  const cancelPendingEntry = useCallback(async (entry: PendingManualEntry) => {
-    if (entry.status !== "PENDING") return;
+  const cancelPendingEntry = useCallback(async (entry: PendingManualEntry): Promise<boolean> => {
+    if (entry.status !== "PENDING") return false;
     setCancellingPendingId(entry.id);
     setPendingEntryError(null);
     try {
@@ -360,10 +362,12 @@ export function DashboardView({
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Could not cancel the pending trade.");
       setPendingEntries((current) => current.filter((item) => item.id !== entry.id));
+      return true;
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : "Could not cancel the pending trade.";
       await refreshPendingEntries();
       setPendingEntryError(message);
+      return false;
     } finally {
       setCancellingPendingId(null);
     }
@@ -437,11 +441,6 @@ export function DashboardView({
   const todayWins = journalSummary?.today?.wins ?? todayFromList.wins;
   const todayLosses = journalSummary?.today?.losses ?? todayFromList.losses;
   const todayNet = journalSummary?.today?.realizedPL ?? todayFromList.netMoney;
-  const openPL = openTrades.reduce((sum, trade) => {
-    const marked = markedOpenMoney(trade, quotes, fills, watchlist);
-    return marked === null ? sum : sum + marked;
-  }, 0);
-
   return (
     <div className="dashboard-view dashboard-minimal home-shell">
       <div className="home-main">
@@ -450,7 +449,9 @@ export function DashboardView({
         userLabel={userLabel}
         history={accountHistory}
         todayKey={todayKey}
-        openPL={openPL}
+        // Account summary is OANDA's aggregate of every open trade. Using it
+        // here makes Today and the Unrealized footer reconcile exactly.
+        openPL={account.unrealizedPL}
       />
 
       {error ? <p className="research-error">{error}</p> : null}
@@ -515,9 +516,19 @@ export function DashboardView({
                     className={`home-position-row is-${trade.direction}`}
                   >
                     <span className="home-position-symbol">
-                      <span>{displayNameFor(trade.instrument)}</span>
+                      <span className="home-position-pair">{displayNameFor(trade.instrument)}</span>
                       <span className={`home-side is-${trade.direction}`}>
                         {trade.direction === "long" ? "LONG" : "SHORT"}
+                      </span>
+                      <span className="home-position-open-r-row">
+                        <span className={`home-position-open-r metric-number ${rTone}`}>
+                          <span>Open R</span>
+                          <span>
+                            {rMultiple === null
+                              ? "—"
+                              : `${rMultiple >= 0 ? "+" : ""}${rMultiple.toFixed(2)}R`}
+                          </span>
+                        </span>
                       </span>
                     </span>
                     <span className="home-position-entry metric-number">
@@ -539,7 +550,16 @@ export function DashboardView({
                         : `${rMultiple >= 0 ? "+" : ""}${rMultiple.toFixed(2)}R`}
                     </span>
                     <span className={`home-position-pl metric-number ${plTone}`}>
-                      {shown === null ? "Open" : money(shown, account.currency)}
+                      <span className="home-position-pl-label">
+                        {shown === null
+                          ? "Updating"
+                          : shown > 0
+                            ? "Currently up"
+                            : shown < 0
+                              ? "Currently down"
+                              : "No change"}
+                      </span>
+                      <span>{shown === null ? "Open" : money(shown, account.currency)}</span>
                     </span>
                   </Link>
                 );
@@ -556,58 +576,12 @@ export function DashboardView({
         onCancel={setPendingCancellation}
       />
 
-      {pendingCancellation ? createPortal(
-        <div
-          className="manual-proposal-backdrop"
-          role="presentation"
-          data-pull-to-refresh-ignore="true"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget && !cancellingPendingId) {
-              setPendingCancellation(null);
-            }
-          }}
-        >
-          <section
-            className="manual-proposal pending-cancel-confirmation"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="pending-cancel-title"
-          >
-            <header>
-              <div>
-                <span>Pending trade</span>
-                <h2 id="pending-cancel-title">Cancel {displayNameFor(pendingCancellation.instrument)}?</h2>
-              </div>
-            </header>
-            <p>
-              This removes the {pendingCancellation.direction} {pendingCancellation.entryOrderType.replace("_", " ").toLowerCase()} entry. It cannot be restored.
-            </p>
-            <footer>
-              <button
-                type="button"
-                className="manual-proposal-dismiss pressable"
-                disabled={Boolean(cancellingPendingId)}
-                onClick={() => setPendingCancellation(null)}
-              >
-                No, keep it
-              </button>
-              <button
-                type="button"
-                className="pending-cancel-confirm pressable"
-                disabled={Boolean(cancellingPendingId)}
-                onClick={() => {
-                  void cancelPendingEntry(pendingCancellation).finally(() => {
-                    setPendingCancellation(null);
-                  });
-                }}
-              >
-                {cancellingPendingId ? "Cancelling…" : "Yes, cancel trade"}
-              </button>
-            </footer>
-          </section>
-        </div>,
-        document.body,
-      ) : null}
+      <PendingCancelConfirmation
+        entry={pendingCancellation}
+        confirming={Boolean(cancellingPendingId)}
+        onDismiss={() => setPendingCancellation(null)}
+        onConfirm={cancelPendingEntry}
+      />
 
       {hasActiveSignals ? (
       <section className="home-section" aria-label="Saved setups">

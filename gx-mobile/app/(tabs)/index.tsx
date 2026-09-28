@@ -16,6 +16,7 @@ import { Text } from '@/components/ui/AppText';
 import { theme, type ThemeColors, floatingShadow } from '@/constants/theme';
 import { useThemeColors, useThemedStyles } from '@/lib/theme/useTheme';
 import { useHomeData } from '@/hooks/useHomeData';
+import { upcomingHomeCalendarEvents } from '@/lib/home/calendar';
 import { recentActivityFromTrades, todayClosedStats } from '@/lib/home/activity';
 
 const DOCK_CLEARANCE = 98;
@@ -32,7 +33,10 @@ export default function HomeScreen() {
   // of letting ten activity rows push the rest of the dashboard below the dock.
   const recentActivity = useMemo(() => recentActivityFromTrades(journalTrades, 5), [journalTrades]);
   const today = useMemo(() => todayClosedStats(journalTrades, todayKey), [journalTrades, todayKey]);
-  const highImpactEvents = useMemo(() => (calendar?.events ?? []).filter((event) => event.impact >= 3).slice(0, 3), [calendar]);
+  const homeNewsEvents = useMemo(
+    () => upcomingHomeCalendarEvents(calendar?.events ?? []),
+    [calendar],
+  );
 
   // Wait for every card's first answer so none flashes its empty state first.
   if (!ready) {
@@ -73,7 +77,7 @@ export default function HomeScreen() {
           losses={today.losses}
           currency={account?.currency ?? 'USD'}
         />
-        <HighImpactNewsCard events={highImpactEvents} loading={calendarLoading} connected={calendar?.connected ?? false} />
+        <HighImpactNewsCard events={homeNewsEvents} loading={calendarLoading} connected={calendar?.connected ?? false} />
       </ScrollView>
       <DockFade height={96} />
       {showFloatingBell && !notificationsOpen ? (

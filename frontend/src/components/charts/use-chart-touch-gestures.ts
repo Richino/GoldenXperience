@@ -108,6 +108,7 @@ export function useChartTouchGestures({
     // --- two-finger baseline, captured when the second finger lands ---
     let baseDistance = 0;
     let baseMidLogical = 0;
+    let baseMidFraction = 0;
     let baseLogicalFrom = 0;
     let baseLogicalTo = 0;
     let baseWidth = 0;
@@ -203,13 +204,19 @@ export function useChartTouchGestures({
       const logical = timeScale.getVisibleLogicalRange();
       baseLogicalFrom = logical?.from ?? 0;
       baseLogicalTo = logical?.to ?? 0;
-      baseMidLogical = timeScale.coordinateToLogical(midX) ?? baseLogicalTo;
+      // A captured pointer can briefly report just outside the chart while a
+      // second finger lands. Never turn that into a logical coordinate beyond
+      // the viewport: it was the source of the occasional jump to old history.
+      const boundedMidX = clamp(midX, 0, width());
+      baseMidFraction = boundedMidX / Math.max(width(), 1);
+      baseMidLogical = timeScale.coordinateToLogical(boundedMidX) ??
+        (baseLogicalFrom + baseMidFraction * (baseLogicalTo - baseLogicalFrom));
 
       baseWidth = width();
     }
 
     // --- per-frame application ---
-    function applyPinch(curDistance: number, midX: number) {
+    function applyPinch(curDistance: number) {
       const baseBars = baseLogicalTo - baseLogicalFrom;
       if (baseBars <= 0) return;
       const baseBarSpacing = baseWidth / baseBars;
@@ -224,8 +231,10 @@ export function useChartTouchGestures({
         MAX_BAR_SPACING,
       );
       const barsVisible = baseWidth / newBarSpacing;
-      const fraction = midX / baseWidth;
-      const from = baseMidLogical - fraction * barsVisible;
+      // A two-finger gesture is zoom-only. Keeping the original midpoint
+      // fraction stable prevents a tiny centroid wobble (or a third finger)
+      // from translating the whole view into the far-left history.
+      const from = baseMidLogical - baseMidFraction * barsVisible;
       const to = from + barsVisible;
       chart.timeScale().setVisibleLogicalRange({
         from: from as Logical,
@@ -235,14 +244,16 @@ export function useChartTouchGestures({
     }
 
     function applyTwoFinger() {
+      // More than two fingers is not a chart command. In particular, do not
+      // let an incidental third contact replace one of the pinch endpoints.
+      if (pointers.size !== 2) return;
       const values = [...pointers.values()];
       const a = values[0];
       const b = values[1];
       if (!a || !b) return;
       const curDistance = Math.hypot(b.x - a.x, b.y - a.y);
-      const midX = (a.x + b.x) / 2;
       mode = "pinch";
-      applyPinch(curDistance, midX);
+      applyPinch(curDistance);
     }
 
     function applyFrame() {
@@ -322,6 +333,10 @@ export function useChartTouchGestures({
         startPan([...pointers.values()][0]!);
       } else if (pointers.size === 2) {
         startTwoFinger();
+      } else {
+        // Three-or-more-finger touches deliberately leave the last stable
+        // viewport alone until the gesture returns to one or two fingers.
+        mode = "none";
       }
     }
 

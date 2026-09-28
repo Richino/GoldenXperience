@@ -6,6 +6,12 @@ import { ExternalLink } from "lucide-react";
 import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { displayNameFor } from "@/lib/instruments/catalog";
+import {
+  homeCalendarImpactTier,
+  upcomingHomeCalendarEvents,
+} from "@/lib/news/home-calendar";
+import { NewsSurpriseHintDisplay } from "@/components/dashboard/news-surprise-hint";
+import { newsSurpriseHint } from "@/lib/news/surprise-hint";
 import { useEconomicCalendar } from "@/lib/oanda/use-economic-calendar";
 import type { CandleSeries, MajorInstrument } from "@/types/forex";
 
@@ -99,7 +105,7 @@ export function HomeRail({
   const netPositive = (todayNet ?? 0) >= 0;
   const todayIsLoss = todayNet !== null && todayNet < 0;
   const rPositive = (todayR ?? 0) >= 0;
-  const upcomingHighImpact = calendar.events.filter((event) => event.impact >= 3).slice(0, 3);
+  const upcomingNews = upcomingHomeCalendarEvents(calendar.events);
 
   useEffect(() => {
     let cancelled = false;
@@ -232,9 +238,9 @@ export function HomeRail({
         </div>
       </section>
 
-      <section className="home-rail-section home-rail-news" aria-label="Upcoming high-impact news">
+      <section className="home-rail-section home-rail-news" aria-label="Upcoming high and medium impact news">
         <div className="home-rail-heading">
-          <span>High-impact news</span>
+          <span>High &amp; medium news</span>
           <a
             href="https://www.forexfactory.com/calendar"
             target="_blank"
@@ -249,25 +255,34 @@ export function HomeRail({
           <p className="home-rail-news-empty">Loading calendar…</p>
         ) : !calendar.connected ? (
           <p className="home-rail-news-empty is-unavailable">Calendar unavailable — verify news manually.</p>
-        ) : upcomingHighImpact.length ? (
+        ) : upcomingNews.length ? (
           <div className="home-rail-news-list">
-            {upcomingHighImpact.map((event) => (
-              <div key={event.id} className="home-rail-news-event">
-                <time className="metric-number" dateTime={event.timestamp}>
-                  <span>{eventTime(event.timestamp)}</span>
-                  <span className="home-rail-news-day">{eventDay(event.timestamp)}</span>
-                </time>
-                <span>{event.currency}</span>
-                <p>{event.title}</p>
-              </div>
-            ))}
+            {upcomingNews.map((event) => {
+              const tier = homeCalendarImpactTier(event.impact);
+              const surpriseHint = newsSurpriseHint(event);
+              return (
+                <div key={event.id} className={`home-rail-news-event is-${tier}-impact`}>
+                  <time className="metric-number" dateTime={event.timestamp}>
+                    <span>{eventTime(event.timestamp)}</span>
+                    <span className="home-rail-news-day">{eventDay(event.timestamp)}</span>
+                  </time>
+                  <span className="home-rail-news-currency">{event.currency}</span>
+                  <div className="home-rail-news-copy">
+                    <p>{event.title}</p>
+                    {surpriseHint.kind === "before" || surpriseHint.kind === "after" ? (
+                      <NewsSurpriseHintDisplay hint={surpriseHint} />
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         ) : calendar.warnings[0]?.tone !== "success" ? (
           <p className={`home-rail-news-empty ${calendar.warnings[0]?.tone === "danger" ? "is-unavailable" : ""}`}>
             {calendar.warnings[0]?.message}
           </p>
         ) : (
-          <p className="home-rail-news-empty">No high-impact events in this week’s feed.</p>
+          <p className="home-rail-news-empty">No high or medium impact events in this week’s feed.</p>
         )}
       </section>
     </aside>

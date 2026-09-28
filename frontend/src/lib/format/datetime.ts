@@ -149,3 +149,27 @@ export function formatHour(value: string | number | Date) {
     hour: "numeric",
   }).format(new Date(value));
 }
+
+/** "27" — day-of-month in the trading zone (chart day dividers). */
+export function formatTradingZoneDayOfMonth(value: string | number | Date) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: DAY_TRADING_TIME_ZONE,
+    day: "numeric",
+  }).format(new Date(value));
+}
+
+/** "Sep" — month in the trading zone (chart month dividers). */
+export function formatTradingZoneMonth(value: string | number | Date) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: DAY_TRADING_TIME_ZONE,
+    month: "short",
+  }).format(new Date(value));
+}
+
+/** "2026" — year in the trading zone (chart year dividers). */
+export function formatTradingZoneYear(value: string | number | Date) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: DAY_TRADING_TIME_ZONE,
+    year: "numeric",
+  }).format(new Date(value));
+}

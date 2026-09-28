@@ -7,7 +7,7 @@ import {
   CHART_TIMEFRAMES,
   CHART_VARIANTS,
   TIMEFRAME_TO_GRANULARITY,
-  candleCountForRange,
+  candleCountForChartViewport,
   type ChartRange,
   type ChartTimeframe,
   type ChartVariant,
@@ -52,7 +52,7 @@ export default async function EmbeddedChartPage({
   const [auth, candleResult, watchlist, paperTrades] = await Promise.allSettled([
     getApiData("/api/auth/me"),
     getApiData<{ data: CandleSeries; status: ConnectionStatus }>(
-      `/api/oanda/candles?instrument=${instrument}&granularity=${TIMEFRAME_TO_GRANULARITY[timeframe]}&count=${candleCountForRange(timeframe, range)}`,
+      `/api/oanda/candles?instrument=${instrument}&granularity=${TIMEFRAME_TO_GRANULARITY[timeframe]}&count=${candleCountForChartViewport(timeframe, range)}`,
     ),
     getApiData<{ watchlist: SignalPaperPlan[] }>("/api/watchlist"),
     getApiData<{ trades: PaperChartTrade[] }>(`/api/paper-cycle/trades?instrument=${instrument}`),

@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { SignalWorkspace } from "@/components/signals/signal-workspace";
 import { getApiData } from "@/lib/api/server";
 import { isStrategyInstrument } from "@/lib/strategy/strategy-service";
-import { TIMEFRAME_TO_GRANULARITY, candleCountForRange, type ChartRange, type ChartTimeframe } from "@/lib/chart-utils";
+import { TIMEFRAME_TO_GRANULARITY, candleCountForChartViewport, type ChartRange, type ChartTimeframe } from "@/lib/chart-utils";
 import type { CandleSeries, ConnectionStatus } from "@/types/forex";
 import type { BinaryPrediction } from "@/types/binary";
 
@@ -57,7 +57,7 @@ export default async function ChartPage({ searchParams }: { searchParams: Promis
       }
     : null;
   const candleResult = await getApiData<{ data: CandleSeries; status: ConnectionStatus }>(
-    `/api/oanda/candles?instrument=${instrument}&granularity=${TIMEFRAME_TO_GRANULARITY[initialTimeframe]}&count=${candleCountForRange(initialTimeframe, initialRange)}`,
+    `/api/oanda/candles?instrument=${instrument}&granularity=${TIMEFRAME_TO_GRANULARITY[initialTimeframe]}&count=${candleCountForChartViewport(initialTimeframe, initialRange)}`,
   );
   const focusPrediction = focusPredictionId
     ? await getApiData<{ prediction?: BinaryPrediction }>(`/api/binary/prediction?id=${focusPredictionId}`).then(

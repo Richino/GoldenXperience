@@ -970,6 +970,21 @@ export const MIN_VISIBLE_BARS = 40;
 export const MAX_VISIBLE_BARS = 180;
 /** Native embed should frame the full selected range (e.g. 1W), not desktop cap. */
 export const EMBED_MAX_VISIBLE_BARS = 5_000;
+/** Mobile's stable opening frame: roughly the density shown in the chart reference. */
+export const MOBILE_CHART_FRAME_BARS = 96;
+
+/**
+ * Load enough history for the stable mobile frame even when a high timeframe's
+ * selected period contains only a handful of candles. The selected range still
+ * controls the requested history and pan context; it no longer dictates the
+ * on-screen candle density.
+ */
+export function candleCountForChartViewport(
+  timeframe: ChartTimeframe,
+  range: ChartRange,
+) {
+  return Math.max(MOBILE_CHART_FRAME_BARS, candleCountForRange(timeframe, range));
+}
 
 /**
  * Where the newest candle sits across the plot width after a timeframe, range
@@ -991,7 +1006,7 @@ export const LATEST_CANDLE_POSITION = 0.8;
 export function getLatestVisibleLogicalRange(
   candles: Candle[],
   range: ChartRange,
-  options?: { maxVisibleBars?: number },
+  options?: { maxVisibleBars?: number; minVisibleBars?: number },
 ) {
   const count = candles.length;
   if (!count) return null;
@@ -1008,7 +1023,7 @@ export function getLatestVisibleLogicalRange(
   }
 
   const maxVisibleBars = options?.maxVisibleBars ?? MAX_VISIBLE_BARS;
-  const minVisibleBars = range === "All" ? MIN_VISIBLE_BARS : 1;
+  const minVisibleBars = options?.minVisibleBars ?? (range === "All" ? MIN_VISIBLE_BARS : 1);
   const visible = Math.min(
     count,
     Math.max(minVisibleBars, Math.min(spanBars, maxVisibleBars)),

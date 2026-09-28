@@ -10,6 +10,7 @@ import {
   countPrependedCandles,
   deriveDominantSwingTrend,
   candleCountForRange,
+  candleCountForChartViewport,
   getLatestVisibleLogicalRange,
   historyPrefetchThreshold,
   mergeRefreshedCandles,
@@ -32,6 +33,7 @@ const M15 = (index: number) =>
 // A named range must request and frame exactly its own history. A hidden
 // 40-bar floor used to make short H1/H4 selections spill into earlier candles.
 assert.equal(candleCountForRange("4h", "1D"), 6);
+assert.equal(candleCountForChartViewport("4h", "1D"), 96);
 const oneDayAtH4 = Array.from({ length: 6 }, (_, index) => ({
   time: new Date(Date.UTC(2026, 6, 24, index * 4)).toISOString(),
   open: 1,

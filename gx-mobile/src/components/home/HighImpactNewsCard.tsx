@@ -6,6 +6,9 @@ import { useThemeColors, useThemedStyles } from '@/lib/theme/useTheme';
 import { Text } from '@/components/ui/AppText';
 import { usePreferences } from '@/lib/preferences/PreferencesContext';
 import { eventDay, eventTime } from '@/lib/time';
+import { homeCalendarImpactTier } from '@/lib/home/calendar';
+import { NewsSurpriseHintView } from '@/components/home/NewsSurpriseHint';
+import { newsSurpriseHint } from '@/lib/news/surprise-hint';
 import type { CalendarEvent } from '@/types/api';
 
 export function HighImpactNewsCard({
@@ -23,7 +26,7 @@ export function HighImpactNewsCard({
   return (
     <View style={[styles.card, themeMode === 'light' ? styles.lightShadow : null]}>
       <View style={styles.header}>
-        <Text style={styles.title}>High-impact news</Text>
+        <Text style={styles.title}>High & medium news</Text>
         <Pressable
           accessibilityRole="link"
           accessibilityLabel="Open Forex Factory calendar"
@@ -41,25 +44,35 @@ export function HighImpactNewsCard({
         <Text style={[styles.empty, styles.emptyDanger]}>Calendar unavailable — verify news manually.</Text>
       ) : events.length ? (
         <View style={styles.list}>
-          {events.map((event) => (
+          {events.map((event) => {
+            const tier = homeCalendarImpactTier(event.impact);
+            const isHigh = tier === 'high';
+            const surpriseHint = newsSurpriseHint(event);
+            return (
             <View key={event.id} style={styles.row}>
               <View style={styles.timeCol}>
                 <Text style={styles.time}>{eventTime(event.timestamp)}</Text>
                 <Text style={styles.day}>{eventDay(event.timestamp)}</Text>
               </View>
               <View style={styles.body}>
-                <View style={styles.currencyBadge}>
-                  <Text style={styles.currency}>{event.currency}</Text>
+                <View style={[styles.currencyBadge, isHigh ? styles.currencyBadgeHigh : styles.currencyBadgeMedium]}>
+                  <Text style={[styles.currency, isHigh ? styles.currencyHigh : styles.currencyMedium]}>{event.currency}</Text>
                 </View>
-                <Text style={styles.eventTitle} numberOfLines={2}>
-                  {event.title}
-                </Text>
+                <View style={styles.titleCol}>
+                  <Text style={styles.eventTitle} numberOfLines={2}>
+                    {event.title}
+                  </Text>
+                  {surpriseHint.kind !== 'unknown' ? (
+                    <NewsSurpriseHintView hint={surpriseHint} />
+                  ) : null}
+                </View>
               </View>
             </View>
-          ))}
+            );
+          })}
         </View>
       ) : (
-        <Text style={styles.empty}>No high-impact events in this week’s feed.</Text>
+        <Text style={styles.empty}>No high or medium impact events in this week’s feed.</Text>
       )}
     </View>
   );
@@ -143,16 +156,30 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 5,
     paddingVertical: 2.5,
     borderRadius: 3,
+  },
+  currencyBadgeHigh: {
     backgroundColor: colors.currencyBadge,
+  },
+  currencyBadgeMedium: {
+    backgroundColor: colors.warningSoft,
   },
   currency: {
     fontSize: 9,
     fontFamily: theme.fonts.sansBold,
-    color: colors.danger,
     letterSpacing: 0.45,
   },
-  eventTitle: {
+  currencyHigh: {
+    color: colors.danger,
+  },
+  currencyMedium: {
+    color: colors.warning,
+  },
+  titleCol: {
     flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  eventTitle: {
     fontSize: 12,
     fontFamily: theme.fonts.sansSemiBold,
     color: colors.textMutedStrong,

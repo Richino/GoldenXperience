@@ -84,6 +84,9 @@ export type CalendarEvent = {
   currency: string;
   impact: number;
   timestamp: string;
+  forecast?: string | null;
+  previous?: string | null;
+  actual?: string | null;
 };
 
 export type CalendarSnapshot = {

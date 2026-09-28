@@ -174,6 +174,8 @@ export interface JournalTrade {
   signalPrice?: number | null;
   /** Actual OANDA market fill when practice execution supplied it. */
   actualFillPrice?: number | null;
+  /** Exact OANDA trade id, used to join an open row to broker P&L. */
+  brokerTradeId?: string | null;
   maxHoldBars?: number | null;
   barsHeld?: number | null;
   /** Multi-strategy family (`ema`, `breakout`, `momentum`, `meanrev`). */

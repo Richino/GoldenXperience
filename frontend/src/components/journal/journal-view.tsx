@@ -91,7 +91,15 @@ function openTradeMoney(
       : null,
   });
 
-  return trade.paperPl ?? fill?.unrealizedPL ?? live?.money ?? null;
+  return fill?.unrealizedPL ?? trade.paperPl ?? live?.money ?? null;
+}
+
+function fillForTrade(trade: JournalTrade, fills: Record<string, OpenPositionFill>) {
+  return trade.brokerTradeId
+    ? fills[`broker:${trade.brokerTradeId}`]
+    : trade.instrument
+      ? fills[trade.instrument]
+      : undefined;
 }
 
 function JournalTradeRow({
@@ -416,7 +424,7 @@ export function JournalView({ embedded = false }: { embedded?: boolean } = {}) {
         trade,
         trade.instrument ? quotes[trade.instrument] : undefined,
         quotes,
-        trade.instrument ? fills[trade.instrument] : undefined,
+        fillForTrade(trade, fills),
       );
       if (money === null) continue;
       if (tradingDayKey(trade.openedAt) === currentDay) today.push(money);
@@ -508,7 +516,7 @@ export function JournalView({ embedded = false }: { embedded?: boolean } = {}) {
                       trade={trade}
                       quote={trade.instrument ? quotes[trade.instrument] : undefined}
                       quotes={quotes}
-                      fill={trade.instrument ? fills[trade.instrument] : undefined}
+                      fill={fillForTrade(trade, fills)}
                     />
                   </motion.div>
                 ))}

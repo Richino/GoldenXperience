@@ -53,6 +53,7 @@ import {
   isChartIndicatorEnabled,
   LATEST_CANDLE_POSITION,
   MAX_VISIBLE_BARS,
+  MOBILE_CHART_FRAME_BARS,
   pricePrecision,
   anchorRangeAfterPrepend,
   shouldLoadOlderHistory,
@@ -67,7 +68,12 @@ import {
 } from "@/lib/chart-utils";
 import { ChartHistoryLoader } from "@/components/charts/chart-loading-overlay";
 import { useChartTouchGestures } from "@/components/charts/use-chart-touch-gestures";
-import { formatClockTime } from "@/lib/format/datetime";
+import {
+  formatClockTime,
+  formatTradingZoneDayOfMonth,
+  formatTradingZoneMonth,
+  formatTradingZoneYear,
+} from "@/lib/format/datetime";
 import { pipSizeFor } from "@/lib/instruments/catalog";
 import type { BinaryPrediction } from "@/types/binary";
 import type { Candle, CandleSeries, PaperChartTrade } from "@/types/forex";
@@ -78,23 +84,34 @@ import type { Candle, CandleSeries, PaperChartTrade } from "@/types/forex";
  */
 const MAX_FOCUS_HISTORY_PAGES = 8;
 
-function formatChartAxisTime(time: Time, tickMarkType: TickMarkType): string | null {
-  // Leave day/month/year dividers to Lightweight Charts' default formatter;
-  // only intraday ticks need the requested 12-hour display. Use the same
-  // trading-zone clock as entry/exit labels so axis ticks match real session time.
-  if (tickMarkType !== TickMarkType.Time && tickMarkType !== TickMarkType.TimeWithSeconds) {
-    return null;
-  }
-
+function chartTimeToMs(time: Time): number {
   if (typeof time === "number") {
-    return formatClockTime(time * 1_000);
+    return time * 1_000;
   }
-
   if (typeof time === "string") {
-    return formatClockTime(time);
+    return new Date(time).getTime();
   }
+  return Date.UTC(time.year, time.month - 1, time.day);
+}
 
-  return formatClockTime(Date.UTC(time.year, time.month - 1, time.day));
+function formatChartAxisTime(time: Time, tickMarkType: TickMarkType): string | null {
+  const ms = chartTimeToMs(time);
+
+  switch (tickMarkType) {
+    case TickMarkType.Year:
+      return formatTradingZoneYear(ms);
+    case TickMarkType.Month:
+      return formatTradingZoneMonth(ms);
+    case TickMarkType.DayOfMonth:
+      return formatTradingZoneDayOfMonth(ms);
+    case TickMarkType.Time:
+    case TickMarkType.TimeWithSeconds:
+      return formatClockTime(ms);
+    default: {
+      const _exhaustive: never = tickMarkType;
+      return _exhaustive;
+    }
+  }
 }
 
 interface SetupLevels {
@@ -732,8 +749,8 @@ function scrollChartToLatest(
   if (!series.candles.length) return;
 
   // Bar-index range pins the newest candle near the right whatever timeframe
-  // just loaded. A named range is an explicit request to see every candle in
-  // that period; only `All` stays capped for readability.
+  // just loaded. Mobile has a fixed, readable candle density so an H4 switch
+  // looks like the M15 opening frame instead of becoming either huge or tiny.
   const timeScale = chart.timeScale();
   const minBarSpacing = timeScale.options().minBarSpacing || 0.5;
   const drawableBars = Math.floor(
@@ -745,12 +762,26 @@ function scrollChartToLatest(
       : EMBED_MAX_VISIBLE_BARS;
   const logicalRange = getLatestVisibleLogicalRange(series.candles, range, {
     maxVisibleBars:
-      range === "All" && drawableBars > 0
+      embedded
+        ? MOBILE_CHART_FRAME_BARS
+        : range === "All" && drawableBars > 0
         ? Math.min(preferredMax, drawableBars)
         : preferredMax,
+    minVisibleBars: embedded ? MOBILE_CHART_FRAME_BARS : undefined,
   });
   if (logicalRange) {
-    chart.timeScale().setVisibleLogicalRange(logicalRange);
+    const applyRange = () => {
+      try {
+        chart.timeScale().setVisibleLogicalRange(logicalRange);
+      } catch {
+        // A concurrent React rebuild owns the replacement chart's framing.
+      }
+    };
+    applyRange();
+    // The first mobile layout can recalculate bar spacing after series and
+    // price lines are added. Reapply the intended selected-range framing once
+    // that layout settles so the opening view cannot snap back to a tight zoom.
+    requestAnimationFrame(applyRange);
   } else {
     chart.timeScale().fitContent();
   }
@@ -776,6 +807,14 @@ function scrollChartToFocus(
 
   if (!focusRange || first === undefined || last === undefined) {
     scrollChartToLatest(chart, series, range, embedded);
+    return true;
+  }
+
+  if (embedded) {
+    // Mobile opens and timeframe switches should show the selected market
+    // range, not magnify the active trade. The levels remain on screen, while
+    // the desktop retains its focused historical-trade review behaviour.
+    scrollChartToLatest(chart, series, range, true);
     return true;
   }
 
@@ -1429,6 +1468,13 @@ export function SetupChart({
   // crisp against the dark chart (same treatment as the home mini-chart).
   const upColor = isDark ? "#00e59b" : "#00b377";
   const downColor = isDark ? "#ff5252" : "#e74c3c";
+  const activeCandle = liveCandle ?? series.candles.at(-1);
+  // This is applied with `series.applyOptions`, never by rebuilding the chart.
+  // The dotted last-price line therefore follows the active candle's direction
+  // without disturbing the visible range, gestures, or indicator series.
+  const livePriceLineColor = activeCandle && activeCandle.close < activeCandle.open
+    ? (isDark ? "rgba(255, 82, 82, 0.52)" : "rgba(231, 76, 60, 0.52)")
+    : (isDark ? "rgba(0, 229, 155, 0.42)" : "rgba(0, 179, 119, 0.42)");
   const winPathColor = isDark ? "#a7f3d0" : "#047857";
   const lossPathColor = isDark ? "#ff3b5c" : "#a61b3d";
   const wickUpColor = upColor;
@@ -1571,10 +1617,7 @@ export function SetupChart({
     latestChartTimeRef.current = chartTimeValue(chartData.at(-1));
     latestCloseRef.current = series.candles.at(-1)?.close ?? null;
     prevFirstCandleTimeRef.current = series.candles[0]?.time ?? null;
-    const priceLineColor = isDark
-      ? "rgba(0, 229, 155, 0.42)"
-      : "rgba(0, 179, 119, 0.42)";
-    const displayOptions = mainSeriesDisplayOptions(priceFormat, levels, priceLineColor);
+    const displayOptions = mainSeriesDisplayOptions(priceFormat, levels, livePriceLineColor);
 
     let mainSeries: ISeriesApi<SeriesType>;
 
@@ -2059,8 +2102,10 @@ export function SetupChart({
       renderedDatasetKeyRef.current !== datasetKey;
     const scrolledToLatest =
       scrollToLatestRevision > lastScrollRevisionRef.current;
-    const shouldPreserveViewport =
+    const preserveViewportRequested =
       preserveViewportRevision > lastPreserveViewportRevisionRef.current;
+    const shouldPreserveViewport =
+      preserveViewportRequested && !scrolledToLatest;
     // Only a same-timeframe older-history page is a real prepend. A timeframe or
     // range switch replaces the whole dataset (new granularity, and the parent
     // bumps the scroll revision), and counting its unfamiliar bars as
@@ -2188,8 +2233,10 @@ export function SetupChart({
     prevFirstCandleTimeRef.current = nextFirstTime;
     prevGranularityRef.current = series.granularity;
     renderedDatasetKeyRef.current = datasetKey;
-    if (shouldPreserveViewport) {
+    if (preserveViewportRequested) {
       lastPreserveViewportRevisionRef.current = preserveViewportRevision;
+    }
+    if (shouldPreserveViewport) {
       requestAnimationFrame(() => {
         suppressHistoryLoadRef.current = false;
       });
@@ -2225,6 +2272,9 @@ export function SetupChart({
     const tradePath = tradePathRef.current;
     if (!chart || !mainSeries || !tradePath) return;
 
+    const tradePathStillLive = () =>
+      tradePathRef.current === tradePath && chartRef.current === chart;
+
     const candleTimes = chartTimesOf(toChartCandles(series.candles));
     const palette: TradeMarkerPalette = {
       long: upColor,
@@ -2256,39 +2306,49 @@ export function SetupChart({
       text: undefined,
     }));
 
-    if (markerOutlinesRef.current) {
-      markerOutlinesRef.current.setMarkers(markerOutlines);
-    } else {
-      // Lightweight Charts has no marker stroke option. A slightly larger
-      // surface-coloured marker under the fill creates a crisp, thin outline.
-      markerOutlinesRef.current = createSeriesMarkers(tradePath, markerOutlines);
+    if (!tradePathStillLive()) return;
+
+    try {
+      if (markerOutlinesRef.current) {
+        markerOutlinesRef.current.setMarkers(markerOutlines);
+      } else {
+        // Lightweight Charts has no marker stroke option. A slightly larger
+        // surface-coloured marker under the fill creates a crisp, thin outline.
+        markerOutlinesRef.current = createSeriesMarkers(tradePath, markerOutlines);
+      }
+
+      if (markersRef.current) {
+        markersRef.current.setMarkers(markers);
+      } else {
+        // Anchor the arrows to the trade's exact entry/exit prices. Attaching
+        // them to the candle series makes aboveBar/belowBar use candle extremes,
+        // so price-scale zoom can leave an arrow floating far from the fill.
+        markersRef.current = createSeriesMarkers(tradePath, markers);
+      }
+
+      if (!tradePathStillLive()) return;
+
+      const focusTrade =
+        trades?.find((trade) => trade.id === focusTradeId) ?? null;
+      const pathWon = focusPrediction
+        ? focusPrediction.result !== "lost"
+        : (focusTrade?.resultR ?? 0) >= 0;
+
+      tradePath.applyOptions({
+        color: pathWon ? winPathColor : lossPathColor,
+      });
+      tradePath.setData(
+        !showTradePath
+          ? []
+          : focusPrediction
+          ? buildPredictionPath(candleTimes, focusPrediction)
+          : buildTradePath(candleTimes, focusTrade),
+      );
+    } catch (error) {
+      // Chart rebuild can clear tradePathRef while this effect is mid-flight.
+      if (error instanceof Error && error.message === "Value is null") return;
+      throw error;
     }
-
-    if (markersRef.current) {
-      markersRef.current.setMarkers(markers);
-    } else {
-      // Anchor the arrows to the trade's exact entry/exit prices. Attaching
-      // them to the candle series makes aboveBar/belowBar use candle extremes,
-      // so price-scale zoom can leave an arrow floating far from the fill.
-      markersRef.current = createSeriesMarkers(tradePath, markers);
-    }
-
-    const focusTrade =
-      trades?.find((trade) => trade.id === focusTradeId) ?? null;
-    const pathWon = focusPrediction
-      ? focusPrediction.result !== "lost"
-      : (focusTrade?.resultR ?? 0) >= 0;
-
-    tradePath.applyOptions({
-      color: pathWon ? winPathColor : lossPathColor,
-    });
-    tradePath.setData(
-      !showTradePath
-        ? []
-        : focusPrediction
-        ? buildPredictionPath(candleTimes, focusPrediction)
-        : buildTradePath(candleTimes, focusTrade),
-    );
   }, [chartEpoch, downColor, focusPrediction, focusTradeId, isDark, lossPathColor, series.candles, showTradeMarkers, showTradePath, surfaceColor, trades, upColor, winPathColor]);
 
   useEffect(() => {
@@ -2397,14 +2457,11 @@ export function SetupChart({
 
   /** Keep the overall trend color current without rebuilding the chart. */
   useEffect(() => {
-    const priceLineColor = isDark
-      ? "rgba(0, 229, 155, 0.42)"
-      : "rgba(0, 179, 119, 0.42)";
     if (variant === "line") {
       mainSeriesRef.current?.applyOptions({
         color: trendColor,
         priceLineVisible: true,
-        priceLineColor,
+        priceLineColor: livePriceLineColor,
         priceLineStyle: LineStyle.Dashed,
       });
     } else if (variant === "area") {
@@ -2413,17 +2470,17 @@ export function SetupChart({
         topColor: areaFill.top,
         bottomColor: areaFill.bottom,
         priceLineVisible: true,
-        priceLineColor,
+        priceLineColor: livePriceLineColor,
         priceLineStyle: LineStyle.Dashed,
       });
     } else {
       mainSeriesRef.current?.applyOptions({
         priceLineVisible: true,
-        priceLineColor,
+        priceLineColor: livePriceLineColor,
         priceLineStyle: LineStyle.Dashed,
       });
     }
-  }, [isDark, variant, trendColor, areaFill.top, areaFill.bottom]);
+  }, [variant, trendColor, areaFill.top, areaFill.bottom, livePriceLineColor]);
 
   // Last-bar marker for mobile line/area charts: a ringed endpoint on the
   // latest candle. The numeric right-edge price flag is gone; SL / Entry / TP

@@ -23,7 +23,7 @@ export function TrendPullbackResultDialog({ result, instrument, analyzing = fals
   // While the plan is computed, show the plan's own layout as a skeleton so the
   // drawer does not jump from a spinner card to a different-shaped result.
   if (analyzing) return createPortal(
-    <div ref={setBackdrop} className={`tp-backdrop fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 p-4`} data-pull-to-refresh-ignore="true">
+    <div ref={setBackdrop} className="tp-backdrop fixed inset-0 z-[10000] flex items-center justify-center p-4" data-pull-to-refresh-ignore="true">
       <section className="tp-sheet is-loading max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-5 text-zinc-900 shadow-2xl dark:bg-zinc-950 dark:text-zinc-100" role="dialog" aria-modal="true" aria-busy="true" aria-label="Analyzing chart" ref={setSheet} {...dragHandlers}>
         <div className="tp-grip" aria-hidden="true" />
         <header className="tp-head flex items-start justify-between gap-4">
@@ -59,7 +59,7 @@ export function TrendPullbackResultDialog({ result, instrument, analyzing = fals
   const directionTone = result.action === "LONG" ? "text-emerald-600" : "text-rose-600";
   const status = result.status === "ENTRY_AVAILABLE_NOW" ? "Entry available now" : result.currentMove === "NONE" ? "Next pullback level" : "Planned pullback entry";
   return createPortal(
-    <div ref={setBackdrop} className={`tp-backdrop fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 p-4`} data-pull-to-refresh-ignore="true" onMouseDown={(event) => { if (event.target === event.currentTarget) requestClose(); }}>
+    <div ref={setBackdrop} className="tp-backdrop fixed inset-0 z-[10000] flex items-center justify-center p-4" data-pull-to-refresh-ignore="true" onMouseDown={(event) => { if (event.target === event.currentTarget) requestClose(); }}>
       <section className="tp-sheet max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-5 text-zinc-900 shadow-2xl dark:bg-zinc-950 dark:text-zinc-100" role="dialog" aria-modal="true" aria-labelledby="trend-pullback-title" ref={setSheet} {...dragHandlers}>
         <div className="tp-grip" aria-hidden="true" />
         <header className="tp-head flex items-start justify-between gap-4">

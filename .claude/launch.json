@@ -8,6 +8,12 @@
       "port": 3000
     },
     {
+      "name": "api-server",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--workspace", "api-server", "run", "dev"],
+      "port": 8787
+    },
+    {
       "name": "gx-mobile-web",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["expo", "start", "--web", "--port", "8082"],

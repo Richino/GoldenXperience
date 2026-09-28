@@ -329,9 +329,17 @@ function PositionToolOverlay({
     if (!chart || !series || !root || !box) return;
 
     const current = toolRef.current;
-    const entryY = series.priceToCoordinate(current.entry);
-    const stopY = series.priceToCoordinate(current.stop);
-    const targetY = series.priceToCoordinate(current.target);
+    let entryY: number | null;
+    let stopY: number | null;
+    let targetY: number | null;
+    try {
+      entryY = series.priceToCoordinate(current.entry);
+      stopY = series.priceToCoordinate(current.stop);
+      targetY = series.priceToCoordinate(current.target);
+    } catch (error) {
+      if (isRemovedChartError(error)) return;
+      throw error;
+    }
     const leftX = chart.timeScale().logicalToCoordinate(current.fromLogical as Logical);
     const rightX = chart.timeScale().logicalToCoordinate(current.toLogical as Logical);
     if (
@@ -740,6 +748,17 @@ function chartTheme(
   };
 }
 
+/**
+ * Lightweight Charts throws "Value is null" when a series or chart it is asked
+ * about has just been removed. Rebuilds (timeframe, type, pair, indicators)
+ * swap both refs, and a frame/observer/event callback queued before the swap
+ * can still fire once against the old objects. Those callbacks skip that one
+ * paint; the next one reads the new chart.
+ */
+function isRemovedChartError(error: unknown) {
+  return error instanceof Error && error.message === "Value is null";
+}
+
 function scrollChartToLatest(
   chart: IChartApi,
   series: CandleSeries,
@@ -783,7 +802,11 @@ function scrollChartToLatest(
     // that layout settles so the opening view cannot snap back to a tight zoom.
     requestAnimationFrame(applyRange);
   } else {
-    chart.timeScale().fitContent();
+    try {
+      chart.timeScale().fitContent();
+    } catch {
+      // Same rebuild race as above.
+    }
   }
 }
 
@@ -827,9 +850,16 @@ function scrollChartToFocus(
     return true;
   }
 
-  chart
-    .timeScale()
-    .setVisibleRange({ from: from as UTCTimestamp, to: to as UTCTimestamp });
+  try {
+    chart
+      .timeScale()
+      .setVisibleRange({ from: from as UTCTimestamp, to: to as UTCTimestamp });
+  } catch (error) {
+    // A rebuild (timeframe, type or pair switch) removed this chart's series
+    // while the framing was queued; the new chart frames itself.
+    if (error instanceof Error && error.message === "Value is null") return true;
+    throw error;
+  }
 
   return first <= focusRange.from;
 }
@@ -2373,7 +2403,10 @@ export function SetupChart({
       } catch (error) {
         if (
           error instanceof Error &&
-          error.message.includes("Cannot update oldest data")
+          (error.message.includes("Cannot update oldest data") ||
+            // A tick that lands while the chart is being rebuilt targets the
+            // removed series; the rebuilt one gets the next tick.
+            error.message === "Value is null")
         ) {
           return;
         }
@@ -2580,11 +2613,20 @@ export function SetupChart({
       if (!chart || !mainSeries) return;
 
       const paneHeight = chartHeightRef.current;
-      const priceRange = chart.priceScale("right").getVisibleRange();
+      let priceRange: ReturnType<ReturnType<IChartApi["priceScale"]>["getVisibleRange"]>;
+      const coordinateOf = (price: number) => mainSeries.priceToCoordinate(price);
+      try {
+        priceRange = chart.priceScale("right").getVisibleRange();
+        // Probe once: a removed series throws here instead of mid-map below.
+        coordinateOf(tags[0]?.price ?? 0);
+      } catch (error) {
+        if (isRemovedChartError(error)) return;
+        throw error;
+      }
       const minTagY = LEVEL_TAG_HEIGHT / 2;
       const maxTagY = Math.max(minTagY, paneHeight - minTagY);
       const placed = tags.flatMap<PlacedLevelTag>((tag) => {
-        let y: number | null = mainSeries.priceToCoordinate(tag.price);
+        let y: number | null = coordinateOf(tag.price);
         if (y === null && priceRange && priceRange.to > priceRange.from) {
           // Lightweight Charts only returns a coordinate for a visible price.
           // Project an off-screen level onto the pane so its flag can remain
@@ -2628,16 +2670,21 @@ export function SetupChart({
         return;
       }
 
-      paintLastPriceOverlay({
-        chart,
-        mainSeries,
-        candles: candlesRef.current,
-        latestClose: latestCloseRef.current,
-        width: containerWidthRef.current,
-        height: chartHeightRef.current,
-        host,
-        dot,
-      });
+      try {
+        paintLastPriceOverlay({
+          chart,
+          mainSeries,
+          candles: candlesRef.current,
+          latestClose: latestCloseRef.current,
+          width: containerWidthRef.current,
+          height: chartHeightRef.current,
+          host,
+          dot,
+        });
+      } catch (error) {
+        if (isRemovedChartError(error)) return;
+        throw error;
+      }
     };
 
     paintLastPriceRef.current = paint;

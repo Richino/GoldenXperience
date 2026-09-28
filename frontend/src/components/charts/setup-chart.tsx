@@ -323,7 +323,7 @@ function PositionToolOverlay({
 
   const paint = useCallback(() => {
     const chart = chartRef.current;
-    const series = mainSeriesRef.current;
+    const series = liveSeries(mainSeriesRef.current);
     const root = rootRef.current;
     const box = boxRef.current;
     if (!chart || !series || !root || !box) return;
@@ -459,7 +459,7 @@ function PositionToolOverlay({
   useEffect(() => {
     const readPointer = (clientX: number, clientY: number) => {
       const chart = chartRef.current;
-      const series = mainSeriesRef.current;
+      const series = liveSeries(mainSeriesRef.current);
       const root = rootRef.current;
       if (!chart || !series || !root) return null;
       const rect = root.getBoundingClientRect();
@@ -544,7 +544,7 @@ function PositionToolOverlay({
     event.preventDefault();
     event.stopPropagation();
     const chart = chartRef.current;
-    const series = mainSeriesRef.current;
+    const series = liveSeries(mainSeriesRef.current);
     const root = rootRef.current;
     if (!chart || !series || !root) return;
     const rect = root.getBoundingClientRect();
@@ -757,6 +757,19 @@ function chartTheme(
  */
 function isRemovedChartError(error: unknown) {
   return error instanceof Error && error.message === "Value is null";
+}
+
+/**
+ * Main series whose chart has been torn down. A ref can briefly still hold one
+ * (the phone and desktop charts rebuild independently, and dev hot-reloads
+ * replay effects), and any call on it throws "Value is null". Reading the ref
+ * through `liveSeries` turns that stale handle into "no series yet", which
+ * every caller already handles.
+ */
+const removedSeries = new WeakSet<object>();
+
+function liveSeries<T extends object>(series: T | null): T | null {
+  return series && !removedSeries.has(series) ? series : null;
 }
 
 function scrollChartToLatest(
@@ -2026,6 +2039,8 @@ export function SetupChart({
       // Indicator toggles rebuild this effect; without this, the chart always
       // re-opens on the live edge and feels like it "reset". An older cleanup
       // must never overwrite a newer chart instance's saved viewport though.
+      removedSeries.add(mainSeries);
+      if (mainSeriesRef.current === mainSeries) mainSeriesRef.current = null;
       if (ownsCurrentChart) {
         preservedViewRef.current = {
           logical: chart.timeScale().getVisibleLogicalRange(),
@@ -2094,7 +2109,7 @@ export function SetupChart({
   // exposes, but update them in place. Passing them through the chart-creation
   // path used to destroy the chart and move the user's viewport on every toggle.
   useEffect(() => {
-    const mainSeries = mainSeriesRef.current;
+    const mainSeries = liveSeries(mainSeriesRef.current);
     if (!mainSeries) return;
 
     for (const priceLine of patternPriceLinesRef.current) {
@@ -2115,7 +2130,7 @@ export function SetupChart({
 
   useEffect(() => {
     const chart = chartRef.current;
-    const mainSeries = mainSeriesRef.current;
+    const mainSeries = liveSeries(mainSeriesRef.current);
     if (!chart || !mainSeries || !series.candles.length) return;
 
     // A pair/variant rebuild removes the old series. Effects from the previous
@@ -2298,7 +2313,7 @@ export function SetupChart({
 
   useEffect(() => {
     const chart = chartRef.current;
-    const mainSeries = mainSeriesRef.current;
+    const mainSeries = liveSeries(mainSeriesRef.current);
     const tradePath = tradePathRef.current;
     if (!chart || !mainSeries || !tradePath) return;
 
@@ -2382,7 +2397,7 @@ export function SetupChart({
   }, [chartEpoch, downColor, focusPrediction, focusTradeId, isDark, lossPathColor, series.candles, showTradeMarkers, showTradePath, surfaceColor, trades, upColor, winPathColor]);
 
   useEffect(() => {
-    const mainSeries = mainSeriesRef.current;
+    const mainSeries = liveSeries(mainSeriesRef.current);
     if (!mainSeries || !liveCandle) return;
 
     const updateIfCurrent = (
@@ -2490,28 +2505,35 @@ export function SetupChart({
 
   /** Keep the overall trend color current without rebuilding the chart. */
   useEffect(() => {
-    if (variant === "line") {
-      mainSeriesRef.current?.applyOptions({
-        color: trendColor,
-        priceLineVisible: true,
-        priceLineColor: livePriceLineColor,
-        priceLineStyle: LineStyle.Dashed,
-      });
-    } else if (variant === "area") {
-      mainSeriesRef.current?.applyOptions({
-        lineColor: trendColor,
-        topColor: areaFill.top,
-        bottomColor: areaFill.bottom,
-        priceLineVisible: true,
-        priceLineColor: livePriceLineColor,
-        priceLineStyle: LineStyle.Dashed,
-      });
-    } else {
-      mainSeriesRef.current?.applyOptions({
-        priceLineVisible: true,
-        priceLineColor: livePriceLineColor,
-        priceLineStyle: LineStyle.Dashed,
-      });
+    const mainSeries = liveSeries(mainSeriesRef.current);
+    if (!mainSeries) return;
+    try {
+      if (variant === "line") {
+        mainSeries.applyOptions({
+          color: trendColor,
+          priceLineVisible: true,
+          priceLineColor: livePriceLineColor,
+          priceLineStyle: LineStyle.Dashed,
+        });
+      } else if (variant === "area") {
+        mainSeries.applyOptions({
+          lineColor: trendColor,
+          topColor: areaFill.top,
+          bottomColor: areaFill.bottom,
+          priceLineVisible: true,
+          priceLineColor: livePriceLineColor,
+          priceLineStyle: LineStyle.Dashed,
+        });
+      } else {
+        mainSeries.applyOptions({
+          priceLineVisible: true,
+          priceLineColor: livePriceLineColor,
+          priceLineStyle: LineStyle.Dashed,
+        });
+      }
+    } catch (error) {
+      if (isRemovedChartError(error)) return;
+      throw error;
     }
   }, [variant, trendColor, areaFill.top, areaFill.bottom, livePriceLineColor]);
 
@@ -2554,7 +2576,7 @@ export function SetupChart({
   // on H1/4H. Replace only their price lines so the user's current candle view
   // and zoom remain untouched.
   useEffect(() => {
-    const mainSeries = mainSeriesRef.current;
+    const mainSeries = liveSeries(mainSeriesRef.current);
     if (!mainSeries) return;
 
     for (const priceLine of levelPriceLinesRef.current) {
@@ -2609,7 +2631,7 @@ export function SetupChart({
       frame = requestAnimationFrame(readPositions);
 
       const chart = chartRef.current;
-      const mainSeries = mainSeriesRef.current;
+      const mainSeries = liveSeries(mainSeriesRef.current);
       if (!chart || !mainSeries) return;
 
       const paneHeight = chartHeightRef.current;
@@ -2662,7 +2684,7 @@ export function SetupChart({
   useEffect(() => {
     const paint = () => {
       const chart = chartRef.current;
-      const mainSeries = mainSeriesRef.current;
+      const mainSeries = liveSeries(mainSeriesRef.current);
       const host = lastPriceHostRef.current;
       const dot = lastPriceDotRef.current;
       if (!showBeacon || !chart || !mainSeries || !host || !dot) {

@@ -28,6 +28,7 @@ import {
   type AutoscaleInfo,
   type ISeriesApi,
   type ISeriesMarkersPluginApi,
+  type LineData,
   type Logical,
   type LogicalRange,
   type SeriesType,
@@ -35,6 +36,7 @@ import {
   type Time,
   type TimeChartOptions,
   type UTCTimestamp,
+  type WhitespaceData,
 } from "lightweight-charts";
 import {
   buildPredictionMarkers,
@@ -770,6 +772,28 @@ const removedSeries = new WeakSet<object>();
 
 function liveSeries<T extends object>(series: T | null): T | null {
   return series && !removedSeries.has(series) ? series : null;
+}
+
+/**
+ * Keeps the trade path series holding data even when no trade is focused: a
+ * lone whitespace point on the first candle, which adds no time-scale point.
+ *
+ * Lightweight Charts 5.2 has a single-series fast path: when the candles are
+ * the only series with data and are re-set with unchanged times (a refresh,
+ * or any re-run of the data effect), it rebuilds its time-point records but
+ * keeps the old ones in its sorted list. A trade path drawn afterwards binds
+ * to the orphaned records, so the next history prepend leaves bar indices
+ * stale and every paint throws "Value is null" — the axes still render but
+ * the candles vanish until a timeframe switch rebuilds the data. A second
+ * populated series keeps the library off that path.
+ */
+function withPathAnchor(
+  points: LineData<UTCTimestamp>[],
+  candleTimes: number[],
+): (LineData<UTCTimestamp> | WhitespaceData<UTCTimestamp>)[] {
+  const first = candleTimes[0];
+  if (points.length || first === undefined) return points;
+  return [{ time: first as UTCTimestamp }];
 }
 
 function scrollChartToLatest(
@@ -1800,9 +1824,12 @@ export function SetupChart({
     const initialFocusTrade =
       trades?.find((trade) => trade.id === focusTradeId) ?? null;
     tradePath.setData(
-      focusPrediction
-        ? buildPredictionPath(initialCandleTimes, focusPrediction)
-        : buildTradePath(initialCandleTimes, initialFocusTrade),
+      withPathAnchor(
+        focusPrediction
+          ? buildPredictionPath(initialCandleTimes, focusPrediction)
+          : buildTradePath(initialCandleTimes, initialFocusTrade),
+        initialCandleTimes,
+      ),
     );
     tradePathRef.current = tradePath;
 
@@ -2383,11 +2410,14 @@ export function SetupChart({
         color: pathWon ? winPathColor : lossPathColor,
       });
       tradePath.setData(
-        !showTradePath
-          ? []
-          : focusPrediction
-          ? buildPredictionPath(candleTimes, focusPrediction)
-          : buildTradePath(candleTimes, focusTrade),
+        withPathAnchor(
+          !showTradePath
+            ? []
+            : focusPrediction
+            ? buildPredictionPath(candleTimes, focusPrediction)
+            : buildTradePath(candleTimes, focusTrade),
+          candleTimes,
+        ),
       );
     } catch (error) {
       // Chart rebuild can clear tradePathRef while this effect is mid-flight.

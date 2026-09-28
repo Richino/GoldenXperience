@@ -1,4 +1,4 @@
-import { calculateAtr, deriveDominantSwingTrend, type SwingTrendAnchor } from "@/lib/chart-utils";
+import { calculateAtr, calculateEma, deriveDominantSwingTrend, type SwingTrendAnchor } from "@/lib/chart-utils";
 import { pipSizeFor, precisionFor } from "@/lib/instruments/catalog";
 import { computeSupportResistanceLevels } from "@/lib/strategy/support-resistance";
 import type { Candle, MajorInstrument } from "@/types/forex";
@@ -14,10 +14,71 @@ export const TREND_PULLBACK_V1 = {
   stopH1AtrMultiplier: 1,
   rewardRisk: 2,
   fallbackPullbackH1Atr: 0.5,
+  /** Against the 1H/4H trend: take profit at 1:1 instead of 2:1. */
+  counterTrendRewardRisk: 1,
+  /** Against the 1H/4H trend, look for a tested level at most this far past the normal pullback. */
+  counterTrendSearchH1Atr: 1,
+  /** A level must have held at least this many swing touches to count as strong. */
+  counterTrendMinTouches: 2,
+  counterTrendPivotReach: 3,
+  counterTrendLookback: 200,
+  /** Warn when the spread is more than this share of the stop. */
+  maxSpreadShareOfRisk: 0.1,
 } as const;
 
+/**
+ * Higher-timeframe bias from the 50 and 200 EMAs: up when the 50 is above the
+ * 200 and price is above the 50, down for the mirror, otherwise mixed.
+ */
+function emaBias(candles: Candle[] | undefined): Direction | null {
+  const closes = (candles ?? []).filter((candle) => candle.complete !== false).map((candle) => candle.close);
+  if (closes.length < 200) return null;
+  const ema50 = calculateEma(closes, 50).at(-1);
+  const ema200 = calculateEma(closes, 200).at(-1);
+  const close = closes.at(-1)!;
+  if (ema50 == null || ema200 == null) return null;
+  if (ema50 > ema200 && close > ema50) return "BULLISH";
+  if (ema50 < ema200 && close < ema50) return "BEARISH";
+  return "MIXED";
+}
+
+/**
+ * The most-tested swing level between `near` and `far` (prices on the pullback
+ * side of price): swing lows for a long, swing highs for a short, grouped when
+ * they sit within `tolerance`. A level only counts while no M15 candle has
+ * closed through it since its first touch.
+ */
+function strongestHeldLevel(candles: Candle[], long: boolean, near: number, far: number, tolerance: number, reach: number, minTouches: number) {
+  const pivots: Array<{ index: number; price: number }> = [];
+  for (let index = reach; index < candles.length - reach; index += 1) {
+    const price = long ? candles[index]!.low : candles[index]!.high;
+    const window = candles.slice(index - reach, index + reach + 1);
+    const isPivot = long ? window.every((other) => other.low >= price) : window.every((other) => other.high <= price);
+    const inWindow = long ? price <= near && price >= far : price >= near && price <= far;
+    if (isPivot && inWindow) pivots.push({ index, price });
+  }
+  const clusters: Array<{ touches: typeof pivots }> = [];
+  for (const pivot of pivots.sort((a, b) => a.price - b.price)) {
+    const cluster = clusters.find((group) => Math.abs(group.touches[0]!.price - pivot.price) <= tolerance);
+    if (cluster) cluster.touches.push(pivot);
+    else clusters.push({ touches: [pivot] });
+  }
+  return clusters
+    .map((cluster) => {
+      const prices = cluster.touches.map((touch) => touch.price);
+      // Entry at the side price reaches first; the stop goes past the far side.
+      const edge = long ? Math.max(...prices) : Math.min(...prices);
+      const extreme = long ? Math.min(...prices) : Math.max(...prices);
+      const firstTouch = Math.min(...cluster.touches.map((touch) => touch.index));
+      const held = candles.slice(firstTouch).every((candle) => long ? candle.close >= extreme - tolerance : candle.close <= extreme + tolerance);
+      return { touches: cluster.touches.length, edge, extreme, held };
+    })
+    .filter((cluster) => cluster.held && cluster.touches >= minTouches)
+    .sort((a, b) => b.touches - a.touches || Math.abs(a.edge - near) - Math.abs(b.edge - near))[0] ?? null;
+}
+
 type Direction = "BULLISH" | "BEARISH" | "MIXED";
-type PullbackLevelKind = "SWING_SUPPORT" | "RANGE_SUPPORT" | "SWING_RESISTANCE" | "RANGE_RESISTANCE" | "ATR_PULLBACK";
+type PullbackLevelKind = "SWING_SUPPORT" | "RANGE_SUPPORT" | "SWING_RESISTANCE" | "RANGE_RESISTANCE" | "ATR_PULLBACK" | "TESTED_SUPPORT" | "TESTED_RESISTANCE";
 
 export type TrendPullbackV1Result = {
   strategy: "TrendPullbackV1";
@@ -41,6 +102,10 @@ export type TrendPullbackV1Result = {
   takeProfit: number | null;
   targetDistancePips: number | null;
   riskReward: number | null;
+  /** 1H/4H EMA bias; null when those candles were not supplied. */
+  higherTimeframe: { h1: Direction | null; h4: Direction | null };
+  /** The plan goes against the 1H/4H trend, so it uses a tested level and a 1:1 target. */
+  counterTrend: boolean;
   reasons: string[];
   /** Things a strict version would have refused on; shown with the plan. */
   warnings: string[];
@@ -84,7 +149,15 @@ function hourlyFromM15(candles: Candle[]): Candle[] {
  * - Target: 2R, with a warning if an S/R level sits in the way.
  */
 export function analyzeTrendPullbackV1(
-  input: { instrument: MajorInstrument; candles: Candle[]; currentPrice?: number | null },
+  input: {
+    instrument: MajorInstrument;
+    candles: Candle[];
+    currentPrice?: number | null;
+    /** H1/H4 candles for the higher-timeframe trend; without them the plan is never treated as counter-trend. */
+    h1Candles?: Candle[];
+    h4Candles?: Candle[];
+    spreadPips?: number | null;
+  },
 ): TrendPullbackV1Result {
   const settings = TREND_PULLBACK_V1;
   const candles = input.candles.filter((candle) => candle.complete !== false);
@@ -105,7 +178,8 @@ export function analyzeTrendPullbackV1(
     priceBasis: hasCurrentPrice ? "LIVE_QUOTE" : "LAST_M15_CLOSE",
     entry: null, entryZoneLow: null, entryZoneHigh: null, distanceToEntryPips: null,
     stopLoss: null, stopDistancePips: null, takeProfit: null, targetDistancePips: null,
-    riskReward: null, reasons: [], warnings: [],
+    riskReward: null, higherTimeframe: { h1: emaBias(input.h1Candles), h4: emaBias(input.h4Candles) }, counterTrend: false,
+    reasons: [], warnings: [],
     debug: {
       trendSource: "LEGACY_SWING_TREND_LINES", pointA: trendRead?.first ?? null, pointB: trendRead?.second ?? null,
       projectedTrendlinePrice, pullbackLevel: null, pullbackLevelKind: null, invalidationLevel: null, targetLevel: null,
@@ -153,7 +227,7 @@ export function analyzeTrendPullbackV1(
       candidates.push({ price: levels.rangeHigh, kind: "RANGE_RESISTANCE" });
     }
   }
-  const pullback = candidates
+  let pullback: { price: number; kind: PullbackLevelKind } = candidates
     .filter((level) => long ? level.price <= currentPrice + tolerance : level.price >= currentPrice - tolerance)
     .sort((a, b) => Math.abs(a.price - currentPrice) - Math.abs(b.price - currentPrice))[0]
     ?? { price: currentPrice - sign * settings.fallbackPullbackH1Atr * h1Atr, kind: "ATR_PULLBACK" as const };
@@ -161,11 +235,41 @@ export function analyzeTrendPullbackV1(
     result.warnings.push(`No ${long ? "support below" : "resistance above"} price, so the pullback is half an average 1-hour candle ${long ? "below" : "above"} price.`);
   }
 
-  // 3. Stop past the pullback level, 4. fixed 2R target.
+  // Counter-trend: the 1H/4H trend points the other way (at least one against,
+  // none agreeing). Look for the most-tested level that has held, from the
+  // normal pullback out to one average 1-hour candle past it, and aim 1:1.
+  const htf = [result.higherTimeframe.h1, result.higherTimeframe.h4].filter((bias): bias is Direction => bias !== null);
+  const opposite = long ? "BEARISH" : "BULLISH";
+  result.counterTrend = htf.some((bias) => bias === opposite) && !htf.some((bias) => bias === trend);
+  let extremeOfLevel: number | null = null;
+  if (result.counterTrend) {
+    const near = long ? Math.min(pullback.price, currentPrice) : Math.max(pullback.price, currentPrice);
+    const far = near - sign * settings.counterTrendSearchH1Atr * h1Atr;
+    const clusterTolerance = Math.max(3 * pip, 0.15 * h1Atr);
+    const strong = strongestHeldLevel(
+      candles.slice(-settings.counterTrendLookback), long, near, far, clusterTolerance,
+      settings.counterTrendPivotReach, settings.counterTrendMinTouches,
+    );
+    if (strong) {
+      pullback = { price: strong.edge, kind: long ? "TESTED_SUPPORT" : "TESTED_RESISTANCE" };
+      extremeOfLevel = strong.extreme;
+      result.reasons.push(`${long ? "Support" : "Resistance"} tested ${strong.touches} times and held.`);
+    } else {
+      result.warnings.push(`No tested ${long ? "support" : "resistance"} within one average 1-hour candle of the pullback, so the normal level is used.`);
+    }
+  }
+
+  // 3. Stop past the pullback level (and past the whole tested zone), 4. fixed target.
+  const rewardRisk = result.counterTrend ? settings.counterTrendRewardRisk : settings.rewardRisk;
   const entry = round(pullback.price);
-  const risk = Math.max(settings.stopH1AtrMultiplier * h1Atr, settings.minStopPips * pip);
+  const zoneDepth = extremeOfLevel === null ? 0 : Math.abs(entry - extremeOfLevel);
+  const risk = Math.max(settings.stopH1AtrMultiplier * h1Atr + zoneDepth, settings.minStopPips * pip);
   const stop = round(entry - sign * risk);
-  const target = round(entry + sign * settings.rewardRisk * risk);
+  const target = round(entry + sign * rewardRisk * risk);
+  const spreadPips = input.spreadPips ?? null;
+  if (spreadPips !== null && spreadPips > settings.maxSpreadShareOfRisk * (risk / pip)) {
+    result.warnings.push(`Spread is ${spreadPips.toFixed(1)} pips, ${Math.round(spreadPips / (risk / pip) * 100)}% of the stop; above 10% the cost eats ${rewardRisk === 1 ? "a 1:1 target" : "the target"} quickly.`);
+  }
   const opposing = levels
     ? (long ? [levels.swingHigh, levels.rangeHigh] : [levels.swingLow, levels.rangeLow])
       .filter((price): price is number => price !== null && (long ? price > entry && price < target : price < entry && price > target))
@@ -186,8 +290,8 @@ export function analyzeTrendPullbackV1(
   result.stopLoss = stop;
   result.stopDistancePips = Number((risk / pip).toFixed(1));
   result.takeProfit = target;
-  result.targetDistancePips = Number((settings.rewardRisk * risk / pip).toFixed(1));
-  result.riskReward = settings.rewardRisk;
+  result.targetDistancePips = Number((rewardRisk * risk / pip).toFixed(1));
+  result.riskReward = rewardRisk;
   result.debug.pullbackLevel = entry;
   result.debug.pullbackLevelKind = pullback.kind;
   result.debug.invalidationLevel = stop;
@@ -195,11 +299,15 @@ export function analyzeTrendPullbackV1(
   const levelLabel: Record<PullbackLevelKind, string> = {
     SWING_SUPPORT: "swing support", RANGE_SUPPORT: "range support", SWING_RESISTANCE: "swing resistance",
     RANGE_RESISTANCE: "range resistance", ATR_PULLBACK: "an ATR pullback",
+    TESTED_SUPPORT: "tested support", TESTED_RESISTANCE: "tested resistance",
   };
+  const htfLabel = (bias: Direction | null) => bias === null ? "n/a" : bias === "BULLISH" ? "up" : bias === "BEARISH" ? "down" : "mixed";
   result.reasons = [
     `Trend: ${long ? "up" : "down"} (${result.trendSource === "SWING_STRUCTURE" ? "swing trend line" : "last 24h of price"}).`,
+    ...(result.counterTrend ? [`Against the higher timeframes (1H ${htfLabel(result.higherTimeframe.h1)}, 4H ${htfLabel(result.higherTimeframe.h4)}), so the target is 1:1.`] : []),
+    ...result.reasons,
     `Pullback entry at ${levelLabel[pullback.kind]} ${entry}.`,
-    `Stop ${result.stopDistancePips} pips past it (one average 1-hour candle, minimum ${settings.minStopPips}); target ${settings.rewardRisk}:1.`,
+    `Stop ${result.stopDistancePips} pips past it (one average 1-hour candle${zoneDepth > 0 ? " beyond the zone" : ""}, minimum ${settings.minStopPips}); target ${rewardRisk}:1.`,
   ];
   return result;
 }
@@ -219,6 +327,8 @@ export function trendPullbackContext(result: TrendPullbackV1Result) {
       currentMove: result.currentMove,
       pullbackLevelKind: result.debug.pullbackLevelKind,
       h1AtrPips: result.debug.h1AtrPips,
+      higherTimeframe: result.higherTimeframe,
+      counterTrend: result.counterTrend,
       planned: { entry: result.entry, stop: result.stopLoss, target: result.takeProfit, currentPrice: result.currentPrice, status: result.status },
       warnings: result.warnings,
     },

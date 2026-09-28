@@ -2419,9 +2419,17 @@ export function SignalWorkspace({
     setTrendPullbackResult(null);
     setTrendPullbackDialogOpen(!embeddedSurfaceOnly);
     try {
-      const [candlesResponse, pricingResponse] = await Promise.all([
+      // H1/H4 only decide whether the plan is counter-trend; if they fail the
+      // plan is still built, just without that check.
+      const higherTimeframe = (granularity: "H1" | "H4") => fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=${granularity}&count=250`), { credentials: "include", cache: "no-store", signal: controller.signal })
+        .then(async (response) => response.ok ? (await response.json() as { data?: CandleSeries }).data : undefined)
+        .then((series) => series?.source === "oanda" && series.granularity === granularity ? series.candles : undefined)
+        .catch(() => undefined);
+      const [candlesResponse, pricingResponse, h1Candles, h4Candles] = await Promise.all([
         fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=M15&count=500`), { credentials: "include", cache: "no-store", signal: controller.signal }),
         fetch(apiUrl(`/api/oanda/pricing?instruments=${instrument}`), { credentials: "include", cache: "no-store", signal: controller.signal }).catch(() => null),
+        higherTimeframe("H1"),
+        higherTimeframe("H4"),
       ]);
       if (!candlesResponse.ok) throw new Error("Completed M15 candles are unavailable.");
       const candlesPayload = await candlesResponse.json() as { data?: CandleSeries };
@@ -2434,7 +2442,8 @@ export function SignalWorkspace({
       const quoteAgeMs = quote ? Date.now() - Date.parse(quote.time) : Number.POSITIVE_INFINITY;
       const currentPrice = quote?.source === "oanda" && Number.isFinite(quote.mid) && quote.mid > 0
         && Number.isFinite(quoteAgeMs) && quoteAgeMs >= -30_000 && quoteAgeMs <= 2 * 60_000 ? quote.mid : null;
-      const result = analyzeTrendPullbackV1({ instrument, candles: candlesPayload.data.candles, currentPrice });
+      const spreadPips = currentPrice !== null && quote && quote.ask > quote.bid ? (quote.ask - quote.bid) / pipSizeFor(instrument) : null;
+      const result = analyzeTrendPullbackV1({ instrument, candles: candlesPayload.data.candles, currentPrice, h1Candles, h4Candles, spreadPips });
       if (request !== trendPullbackRequestRef.current) return;
       setTrendPullbackResult(result);
       setTrendPullbackDialogOpen(!embeddedSurfaceOnly);

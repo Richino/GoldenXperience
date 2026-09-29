@@ -51,3 +51,15 @@ export async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
   if (!response.ok) throw new ApiError(payload?.error ?? `Request to ${path} failed.`, response.status);
   return payload as T;
 }
+
+export async function apiPut<T>(path: string, body?: unknown): Promise<T> {
+  const response = await fetch(apiUrl(path), {
+    method: 'PUT',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const payload = await response.json().catch(() => null) as (T & { error?: string }) | null;
+  if (!response.ok) throw new ApiError(payload?.error ?? `Request to ${path} failed.`, response.status);
+  return payload as T;
+}

@@ -39,6 +39,7 @@ import {
   useManualProposal,
 } from "@/components/analysis/manual-proposal";
 import { TrendPullbackResultDialog } from "@/components/analysis/trend-pullback-result";
+import { AutomateButton } from "@/components/analysis/automate-panel";
 import { TradeConfirmDialog } from "@/components/signals/trade-confirm-dialog";
 import {
   ChartContextPanel,
@@ -4030,6 +4031,7 @@ export function SignalWorkspace({
                 {manualTradeMode === "analyze" ? (
                   <>
                     <button type="button" className="signals-analyze-desktop pressable" onClick={() => void runTrendPullback()} disabled={trendPullbackBusy} title="Analyze with TrendPullbackV1" aria-label="Analyze with TrendPullbackV1"><Sparkles className="size-3.5" /><span className="signals-analyze-label">{trendPullbackBusy ? "Analyzing…" : "Analyze"}</span></button>
+                    <AutomateButton instrument={instrument} className="pressable" onPlaced={() => void refreshPendingEntries()} />
                   </>
                 ) : null}
                 <NotificationBell compact className="signals-icon-btn signals-fullscreen-reserve" />
@@ -4236,6 +4238,7 @@ export function SignalWorkspace({
               ) : (
                 <>
                   <button type="button" className="signals-analyze-desktop pressable" onClick={() => void runTrendPullback()} disabled={trendPullbackBusy} title="Analyze with TrendPullbackV1"><Sparkles className="size-3.5" />{trendPullbackBusy ? "Analyzing…" : "Analyze"}</button>
+                  <AutomateButton instrument={instrument} className="pressable" onPlaced={() => void refreshPendingEntries()} />
                 </>
               )}
               {(tradeActionError || trendPullbackError) ? (

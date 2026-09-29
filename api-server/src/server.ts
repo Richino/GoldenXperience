@@ -43,6 +43,7 @@ import { collectBreakoutConfidenceV1Cycle } from "./breakout-confidence-v1-colle
 import { collectBreakoutM5Cycle } from "./breakout-m5-confidence-v1-collector.js";
 import { createManualTradeProposal } from "./manual-analysis.js";
 import { runTradeMonitor } from "./trade-monitor-service.js";
+import { acceptPullbackSignal, pullbackAutomationForUser, rejectPullbackSignal, runPullbackAutomations, setPullbackAutomation } from "./pullback-automation.js";
 import { createPlannedSetup, evaluatePlannedSetup, evaluateActivePlannedSetups } from "./planned-setup-service.js";
 import {
   activateDuePendingManualEntries,
@@ -283,6 +284,34 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
         return json(request, response, await evaluatePlannedSetup(user.id, instrument));
       } catch (error) {
         return json(request, response, { error: error instanceof Error ? error.message : "Monitoring could not run." }, 502);
+      }
+    }
+    if (url.pathname === "/api/automate" && request.method === "GET") {
+      const instrument = url.searchParams.get("instrument")?.toUpperCase();
+      if (!instrument || !isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
+      return json(request, response, await pullbackAutomationForUser(user.id, instrument));
+    }
+    if (url.pathname === "/api/automate" && request.method === "PUT") {
+      const payload = await body(request);
+      const instrument = typeof payload?.instrument === "string" ? payload.instrument.toUpperCase() : "";
+      if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
+      if (typeof payload?.enabled !== "boolean" || (payload.mode !== "alert" && payload.mode !== "auto")) {
+        return json(request, response, { error: "Choose on/off and alert or auto." }, 400);
+      }
+      await setPullbackAutomation(user.id, instrument, { enabled: payload.enabled, mode: payload.mode });
+      return json(request, response, await pullbackAutomationForUser(user.id, instrument));
+    }
+    const automateSignalMatch = url.pathname.match(/^\/api\/automate\/signals\/([0-9a-f-]{36})\/(accept|reject)$/i);
+    if (automateSignalMatch && request.method === "POST") {
+      try {
+        if (automateSignalMatch[2] === "reject") {
+          await rejectPullbackSignal(user.id, automateSignalMatch[1]!);
+          return json(request, response, { ok: true });
+        }
+        if (!getForexSessionStatus(new Date()).marketOpen) return json(request, response, { error: "Market is closed." }, 409);
+        return json(request, response, await acceptPullbackSignal(user.id, automateSignalMatch[1]!, executableTick), 201);
+      } catch (error) {
+        return json(request, response, { error: error instanceof Error ? error.message : "Could not act on the signal." }, 409);
       }
     }
     if (url.pathname === "/api/trade-monitor" && request.method === "GET") {
@@ -944,6 +973,17 @@ if (databaseConfigured() && schedulersEnabled) {
       .catch((error) => console.error("[planned-setup] sweep failed", error))
       .finally(() => { planSweepBusy = false; });
   }, 30_000);
+  // Automate: watch enabled pairs' pullback levels for a rejection or sweep on
+  // each completed M15 candle. 60s cadence, so a confirmation acts within a
+  // minute of the candle closing.
+  let automateBusy = false;
+  setInterval(() => {
+    if (automateBusy || !pendingEntryMonitoringEnabled || !getForexSessionStatus(new Date()).marketOpen) return;
+    automateBusy = true;
+    void runPullbackAutomations(executableTick)
+      .catch((error) => console.error("[automate] sweep failed", error))
+      .finally(() => { automateBusy = false; });
+  }, 60_000);
   let workerBusy = false;
   const work = async () => {
     if (workerBusy) return;

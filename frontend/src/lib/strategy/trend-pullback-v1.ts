@@ -116,6 +116,8 @@ export type TrendPullbackV1Result = {
     projectedTrendlinePrice: number | null;
     pullbackLevel: number | null;
     pullbackLevelKind: PullbackLevelKind | null;
+    /** Far side of a tested zone (the level itself for a single-price level). */
+    levelExtreme: number | null;
     invalidationLevel: number | null;
     targetLevel: number | null;
     h1AtrPips: number | null;
@@ -182,7 +184,7 @@ export function analyzeTrendPullbackV1(
     reasons: [], warnings: [],
     debug: {
       trendSource: "LEGACY_SWING_TREND_LINES", pointA: trendRead?.first ?? null, pointB: trendRead?.second ?? null,
-      projectedTrendlinePrice, pullbackLevel: null, pullbackLevelKind: null, invalidationLevel: null, targetLevel: null,
+      projectedTrendlinePrice, pullbackLevel: null, pullbackLevelKind: null, levelExtreme: null, invalidationLevel: null, targetLevel: null,
       h1AtrPips: h1Atr === null ? null : Number((h1Atr / pip).toFixed(1)),
     },
   };
@@ -294,6 +296,7 @@ export function analyzeTrendPullbackV1(
   result.riskReward = rewardRisk;
   result.debug.pullbackLevel = entry;
   result.debug.pullbackLevelKind = pullback.kind;
+  result.debug.levelExtreme = extremeOfLevel === null ? entry : round(extremeOfLevel);
   result.debug.invalidationLevel = stop;
   result.debug.targetLevel = opposing[0] ?? null;
   const levelLabel: Record<PullbackLevelKind, string> = {

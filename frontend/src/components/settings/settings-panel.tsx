@@ -369,8 +369,8 @@ export function SettingsPanel({
 
           <div className="settings-row">
             <div className="min-w-0">
-              <p className="text-sm font-medium">Toast</p>
-              <p className="mt-0.5 text-xs text-[color:var(--muted)]">Sample alert with the selected sound</p>
+              <p className="text-sm font-medium">Alert sound</p>
+              <p className="mt-0.5 text-xs text-[color:var(--muted)]">Play the selected sound</p>
             </div>
             <button type="button" className="secondary-button pressable" onClick={previewToast}>
               Test

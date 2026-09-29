@@ -24,6 +24,13 @@ export const TREND_PULLBACK_V1 = {
   counterTrendLookback: 200,
   /** Warn when the spread is more than this share of the stop. */
   maxSpreadShareOfRisk: 0.1,
+  /** Structure stop: swing extremes from the last day (96 M15 candles)... */
+  structureLookback: 96,
+  structurePivotReach: 3,
+  /** ...no further than this from the entry, so one old spike does not set it. */
+  structureMaxH1Atr: 2,
+  /** Buffer past the swing, on top of the spread (never less than entryBufferPips). */
+  structureBufferH1Atr: 0.15,
 } as const;
 
 /**
@@ -77,6 +84,40 @@ function strongestHeldLevel(candles: Candle[], long: boolean, near: number, far:
     .sort((a, b) => b.touches - a.touches || Math.abs(a.edge - near) - Math.abs(b.edge - near))[0] ?? null;
 }
 
+/**
+ * The swing a structure stop has to clear: the highest swing high (short) or
+ * lowest swing low (long) past the entry within `maxDistance`, including the
+ * last few candles, which cannot be confirmed pivots yet but are real wicks.
+ */
+function structureAnchor(candles: Candle[], long: boolean, entry: number, maxDistance: number, reach: number) {
+  const extremes: number[] = [];
+  for (let index = reach; index < candles.length; index += 1) {
+    const price = long ? candles[index]!.low : candles[index]!.high;
+    const window = candles.slice(index - reach, Math.min(candles.length, index + reach + 1));
+    const isPivot = long ? window.every((other) => other.low >= price) : window.every((other) => other.high <= price);
+    if (isPivot) extremes.push(price);
+  }
+  const beyond = extremes.filter((price) => long ? price < entry && entry - price <= maxDistance : price > entry && price - entry <= maxDistance);
+  if (!beyond.length) return null;
+  return long ? Math.min(...beyond) : Math.max(...beyond);
+}
+
+export type StructureStop =
+  | { available: false; note: string }
+  | {
+    available: true;
+    /** The swing high/low the stop sits past. */
+    anchor: number;
+    stop: number;
+    stopDistancePips: number;
+    takeProfit: number;
+    targetDistancePips: number;
+    /** Spread as a share of this stop, when the spread is known. */
+    spreadSharePct: number | null;
+    /** Support/resistance between entry and this target, if any. */
+    opposingLevel: number | null;
+  };
+
 type Direction = "BULLISH" | "BEARISH" | "MIXED";
 type PullbackLevelKind = "SWING_SUPPORT" | "RANGE_SUPPORT" | "SWING_RESISTANCE" | "RANGE_RESISTANCE" | "ATR_PULLBACK" | "TESTED_SUPPORT" | "TESTED_RESISTANCE";
 
@@ -106,6 +147,8 @@ export type TrendPullbackV1Result = {
   higherTimeframe: { h1: Direction | null; h4: Direction | null };
   /** The plan goes against the 1H/4H trend, so it uses a tested level and a 1:1 target. */
   counterTrend: boolean;
+  /** Alternative stop past the day's swing beyond the level, same R:R; null until a plan exists. */
+  structureStop: StructureStop | null;
   reasons: string[];
   /** Things a strict version would have refused on; shown with the plan. */
   warnings: string[];
@@ -180,7 +223,7 @@ export function analyzeTrendPullbackV1(
     priceBasis: hasCurrentPrice ? "LIVE_QUOTE" : "LAST_M15_CLOSE",
     entry: null, entryZoneLow: null, entryZoneHigh: null, distanceToEntryPips: null,
     stopLoss: null, stopDistancePips: null, takeProfit: null, targetDistancePips: null,
-    riskReward: null, higherTimeframe: { h1: emaBias(input.h1Candles), h4: emaBias(input.h4Candles) }, counterTrend: false,
+    riskReward: null, higherTimeframe: { h1: emaBias(input.h1Candles), h4: emaBias(input.h4Candles) }, counterTrend: false, structureStop: null,
     reasons: [], warnings: [],
     debug: {
       trendSource: "LEGACY_SWING_TREND_LINES", pointA: trendRead?.first ?? null, pointB: trendRead?.second ?? null,
@@ -281,6 +324,36 @@ export function analyzeTrendPullbackV1(
     result.warnings.push(`${long ? "Resistance" : "Support"} at ${round(opposing[0]!)} sits before the target, so price may stall there.`);
   }
 
+  // Structure stop: past the most extreme swing beyond the level from the last
+  // day (within two average 1-hour candles), plus a buffer and the spread, so a
+  // sweep of the obvious high/low does not reach it. Never tighter than the
+  // normal stop; the target keeps the same R:R from the wider stop.
+  const anchor = structureAnchor(candles.slice(-settings.structureLookback), long, entry, settings.structureMaxH1Atr * h1Atr, settings.structurePivotReach);
+  const structureBuffer = Math.max(settings.entryBufferPips * pip, settings.structureBufferH1Atr * h1Atr) + (spreadPips ?? 0) * pip;
+  const structureRisk = anchor === null ? null : Math.abs(entry - anchor) + structureBuffer;
+  if (structureRisk === null) {
+    result.structureStop = { available: false, note: `No swing ${long ? "low below" : "high above"} the entry within two average 1-hour candles in the last day.` };
+  } else if (structureRisk <= risk + pip) {
+    result.structureStop = { available: false, note: "The normal stop is already past the nearest swing." };
+  } else {
+    const structureTarget = round(entry + sign * rewardRisk * structureRisk);
+    const structureOpposing = levels
+      ? (long ? [levels.swingHigh, levels.rangeHigh] : [levels.swingLow, levels.rangeLow])
+        .filter((price): price is number => price !== null && (long ? price > entry && price < structureTarget : price < entry && price > structureTarget))
+        .sort((a, b) => Math.abs(a - entry) - Math.abs(b - entry))
+      : [];
+    result.structureStop = {
+      available: true,
+      anchor: round(anchor!),
+      stop: round(entry - sign * structureRisk),
+      stopDistancePips: Number((structureRisk / pip).toFixed(1)),
+      takeProfit: structureTarget,
+      targetDistancePips: Number((rewardRisk * structureRisk / pip).toFixed(1)),
+      spreadSharePct: spreadPips === null ? null : Math.round(spreadPips / (structureRisk / pip) * 100),
+      opposingLevel: structureOpposing[0] === undefined ? null : round(structureOpposing[0]),
+    };
+  }
+
   const inZone = Math.abs(currentPrice - entry) <= tolerance;
   result.status = inZone && hasCurrentPrice ? "ENTRY_AVAILABLE_NOW" : "TRADE_PLAN";
   result.action = long ? "LONG" : "SHORT";
@@ -319,7 +392,8 @@ export function analyzeTrendPullbackV1(
  * The frozen record saved with an order placed from this plan (the backend
  * keeps it as `frozenContext`), so forward-test trades can be scored later.
  */
-export function trendPullbackContext(result: TrendPullbackV1Result) {
+export function trendPullbackContext(result: TrendPullbackV1Result, stopChoice: "normal" | "structure" = "normal") {
+  const structure = stopChoice === "structure" && result.structureStop?.available ? result.structureStop : null;
   return {
     version: 1,
     direction: result.action === "LONG" ? "long" : "short",
@@ -332,7 +406,10 @@ export function trendPullbackContext(result: TrendPullbackV1Result) {
       h1AtrPips: result.debug.h1AtrPips,
       higherTimeframe: result.higherTimeframe,
       counterTrend: result.counterTrend,
-      planned: { entry: result.entry, stop: result.stopLoss, target: result.takeProfit, currentPrice: result.currentPrice, status: result.status },
+      planned: { entry: result.entry, stop: structure?.stop ?? result.stopLoss, target: structure?.takeProfit ?? result.takeProfit, currentPrice: result.currentPrice, status: result.status },
+      stopChoice: structure ? "structure" : "normal",
+      normalStop: { stop: result.stopLoss, target: result.takeProfit },
+      structureStop: result.structureStop,
       warnings: result.warnings,
     },
   };

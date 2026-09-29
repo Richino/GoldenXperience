@@ -100,7 +100,8 @@ export async function runTradeMonitor(userId: string, instrument: MajorInstrumen
         title: `${displayPair(instrument)} · ${event.type.replace(/_/g, " ").toLowerCase()}`,
         message: event.reason,
         instrument,
-        paperTradeId: entry.paper_trade_id,
+        // paper_trade_id there references strategy trades; a manual id would fail the insert.
+        paperTradeId: null,
         dedupeKey: `monitor:${entry.id}:${event.dedupeKey}`,
       }).catch((error) => console.error(`[trade-monitor] notification failed for ${entry.id}`, error));
     }

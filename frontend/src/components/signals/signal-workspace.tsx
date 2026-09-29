@@ -278,7 +278,11 @@ function supportResistanceLines(
   const { current, rangeHigh, rangeLow, swingHigh, swingLow } = levels;
 
   const candidates: ChartReferenceLine[] = [];
-  const minimumGap = pipSizeFor(instrument) * 8;
+  // Two lines closer than one average candle are the same level. A fixed 8 pips
+  // swallowed most lines on 1m/5m, where the whole range can be under 8 pips.
+  const atr = calculateAtr(candles.filter((candle) => candle.complete !== false), 14).at(-1) ?? null;
+  const pip = pipSizeFor(instrument);
+  const minimumGap = atr !== null && atr > 0 ? Math.min(8 * pip, Math.max(pip, atr)) : 8 * pip;
   const add = (line: ChartReferenceLine) => {
     if (!Number.isFinite(line.price)) return;
     if (candidates.some((existing) => Math.abs(existing.price - line.price) < minimumGap)) return;
@@ -2470,22 +2474,23 @@ export function SignalWorkspace({
     setTrendPullbackBusy(false);
     setTrendPullbackDialogOpen(false);
   }, []);
-  const reviewTrendPullback = () => {
+  const reviewTrendPullback = (stopChoice: "normal" | "structure" = "normal") => {
     // Accept means review the planned entry in the drawer, never create an
     // order. A reference-only analysis still has a useful planned level, and
     // the drawer obtains/validates the executable quote when the user later
     // chooses to create the pending entry.
     if (!trendPullbackResult?.action || trendPullbackResult.entry === null
       || trendPullbackResult.stopLoss === null || trendPullbackResult.takeProfit === null) return;
+    const structure = stopChoice === "structure" && trendPullbackResult.structureStop?.available ? trendPullbackResult.structureStop : null;
     setEntryDraftProposal({
       direction: trendPullbackResult.action === "LONG" ? "long" : "short",
       entry: trendPullbackResult.entry,
-      stop: trendPullbackResult.stopLoss,
-      target: trendPullbackResult.takeProfit,
+      stop: structure?.stop ?? trendPullbackResult.stopLoss,
+      target: structure?.takeProfit ?? trendPullbackResult.takeProfit,
       confidence: null,
       rationale: trendPullbackResult.reasons.join(" "),
       preferredEntryTime: new Date().toISOString(),
-      analysisContext: trendPullbackContext(trendPullbackResult),
+      analysisContext: trendPullbackContext(trendPullbackResult, structure ? "structure" : "normal"),
     });
     setTrendPullbackDialogOpen(false);
     openPendingEntryManager(null);

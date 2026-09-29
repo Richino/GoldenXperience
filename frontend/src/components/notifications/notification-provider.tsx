@@ -1,9 +1,8 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "@/hooks/use-toast";
 import { apiUrl } from "@/lib/api/url";
-import { detailTone, displayDetail, displayTitle, notificationHref, sampleToastNotification } from "@/lib/notifications/display";
+import { sampleToastNotification } from "@/lib/notifications/display";
 import { NOTIFICATION_SOUND_KEY, NOTIFICATION_VOLUME_KEY, notificationSoundPath, notificationVolume } from "@/lib/notifications/sounds";
 import type { AppNotification, NotificationToast } from "@/lib/notifications/types";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
@@ -40,27 +39,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const initialized = useRef(false);
   const seenIds = useRef(new Set<string>());
   const audio = useRef<HTMLAudioElement | null>(null);
-  const markReadRef = useRef<(ids?: string[]) => Promise<void>>(async () => undefined);
 
+  // No in-app toast: new notifications play the sound, land in the bell's
+  // inbox, and raise a system notification only while the tab is hidden.
   const present = useCallback((events: NotificationToast[]) => {
     if (!events.length) return;
     playSelectedSound(audio.current);
-    for (const item of [...events].reverse()) {
-      const detail = displayDetail(item);
-      toast({
-        title: displayTitle(item),
-        description: detail || undefined,
-        href: item.preview ? undefined : notificationHref(item),
-        preview: item.preview,
-        tone: detailTone(item),
-        variant: item.kind === "system_issue" ? "destructive" : "default",
-        onNavigate: item.preview
-          ? undefined
-          : () => {
-              void markReadRef.current([item.id]);
-            },
-      });
-    }
     const hidden = document.visibilityState !== "visible";
     const latest = events[0]!;
     if (hidden && !latest.preview && typeof Notification !== "undefined" && Notification.permission === "granted") {
@@ -114,10 +98,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     setNotifications((items) => items.map((item) => !ids || ids.includes(item.id) ? { ...item, readAt: item.readAt ?? now } : item));
     setUnreadCount((count) => ids?.length ? Math.max(0, count - ids.filter((id) => notifications.some((item) => item.id === id && !item.readAt)).length) : 0);
   }, [notifications]);
-
-  useEffect(() => {
-    markReadRef.current = markRead;
-  }, [markRead]);
 
   const value = useMemo(
     () => ({ notifications, unreadCount, markRead, previewToast }),

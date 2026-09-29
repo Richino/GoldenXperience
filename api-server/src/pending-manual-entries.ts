@@ -49,7 +49,10 @@ async function notifyManualEntry(input: {
     title: notification.title,
     message: input.message ?? notification.message,
     instrument: input.instrument,
-    paperTradeId: input.paperTradeId ?? null,
+    // notification_events.paper_trade_id references paper_strategy_trades, not
+    // the manual paper_trades row, so a manual trade id there fails the insert
+    // and the notification is silently lost. Manual trades link by pair only.
+    paperTradeId: null,
     dedupeKey: `manual-entry:${input.entryId}:${input.event}`,
   }).catch((error) => console.error(`[pending-entry] notification failed for ${input.entryId}`, error));
 }
@@ -957,12 +960,14 @@ async function openFilledManualTrade(entry: EntryRow, brokerTradeId: string, fil
     return trade.rows[0]!.id;
   });
   if (opened) {
+    const digits = entry.instrument.includes("JPY") ? 3 : 5;
     await notifyManualEntry({
       userId: entry.user_id,
       entryId: entry.id,
       instrument: entry.instrument,
       event: "triggered",
       paperTradeId: opened,
+      message: `${entry.direction === "long" ? "Long" : "Short"} filled at ${openPrice.toFixed(digits)}. Stop ${stop.toFixed(digits)}, target ${target.toFixed(digits)}.`,
     });
   }
 }

@@ -6,8 +6,7 @@ import {
   resolveOpenTradeQuote,
 } from "../src/lib/open-trade-progress";
 
-// Dashboard and chart must calculate the displayed Open R from the same
-// strategy levels, independent of the broker's eventual fill price.
+// Planned-level R remains available for charts and paper-only positions.
 const chartOpenR = openRFromLevels({
   direction: "short",
   entry: 1.14181,
@@ -16,6 +15,25 @@ const chartOpenR = openRFromLevels({
 });
 assert.ok(chartOpenR !== null);
 assert.ok(Math.abs(chartOpenR - 1.0125) < 1e-9, `chart Open R ${chartOpenR}`);
+
+// Broker-backed Open R uses the actual fill, broker stop, and closeout side.
+// This is the USD/CAD position checked against OANDA: 1.41809 fill, 1.41670
+// stop, and a 1.41861 closeout bid = +0.3741R (not a midpoint-based +0.79R).
+const usdcadBrokerR = openTradeProgress({
+  direction: "long",
+  instrument: "USD_CAD",
+  entry: 1.41812,
+  stop: 1.4167,
+  target: 1.42096,
+  bid: 1.41861,
+  ask: 1.4194,
+  fill: { price: 1.41809, units: 200_000 },
+});
+assert.ok(usdcadBrokerR);
+assert.ok(
+  Math.abs(usdcadBrokerR.unrealizedR - (0.00052 / 0.00139)) < 1e-9,
+  `USD_CAD broker Open R ${usdcadBrokerR.unrealizedR}`,
+);
 
 // USD-quoted fill money is already account cash: move × units.
 const eurUsd = openTradeProgress({

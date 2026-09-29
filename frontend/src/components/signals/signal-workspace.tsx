@@ -39,7 +39,6 @@ import {
   useManualProposal,
 } from "@/components/analysis/manual-proposal";
 import { TrendPullbackResultDialog } from "@/components/analysis/trend-pullback-result";
-import { AutomateButton } from "@/components/analysis/automate-panel";
 import { TradeConfirmDialog } from "@/components/signals/trade-confirm-dialog";
 import {
   ChartContextPanel,
@@ -48,6 +47,7 @@ import {
 import { PairAvatar } from "@/components/ui/pair-avatar";
 import { MobileSheet } from "@/components/ui/mobile-sheet";
 import { apiUrl } from "@/lib/api/url";
+import { PairStrengthTag, usePairStrength } from "@/components/signals/pair-strength-tag";
 import { openRFromLevels } from "@/lib/open-trade-progress";
 import { formatClockTime, formatDayAndTime, formatShortDay } from "@/lib/format/datetime";
 import { NotificationBell } from "@/components/notifications/notification-bell";
@@ -1168,6 +1168,7 @@ function SignalSearch({
   pairLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const pairStrength = usePairStrength(open);
   const rootRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
@@ -1324,6 +1325,7 @@ function SignalSearch({
             visibleMatches.map((result) => {
               const active = result.instrument === activeInstrument;
               const isTrading = tradingInstruments.has(result.instrument);
+              const strength = pairStrength.get(result.instrument);
 
               return (
                 <button
@@ -1340,8 +1342,13 @@ function SignalSearch({
                   {useDesktopDropdown ? null : (
                     <PairAvatar instrument={result.instrument} size={26} />
                   )}
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium tracking-[-0.02em]">
-                    {result.displayName}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium tracking-[-0.02em]">
+                      {result.displayName}
+                    </span>
+                    {strength ? (
+                      <PairStrengthTag strength={strength} />
+                    ) : null}
                   </span>
                   {isTrading ? (
                     <span className="signals-search-trading-badge">Trading</span>
@@ -1497,6 +1504,7 @@ function SignalSearch({
                     visibleMatches.map((result) => {
                       const active = result.instrument === activeInstrument;
                       const isTrading = tradingInstruments.has(result.instrument);
+                      const strength = pairStrength.get(result.instrument);
 
                       return (
                         <button
@@ -1511,8 +1519,13 @@ function SignalSearch({
                           }`}
                         >
                           <PairAvatar instrument={result.instrument} size={30} />
-                          <span className="min-w-0 flex-1 truncate text-sm font-semibold tracking-[-0.02em]">
-                            {result.displayName}
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-semibold tracking-[-0.02em]">
+                              {result.displayName}
+                            </span>
+                            {strength ? (
+                              <PairStrengthTag strength={strength} />
+                            ) : null}
                           </span>
                           {isTrading ? (
                             <span className="signals-search-trading-badge">Trading</span>
@@ -2141,6 +2154,8 @@ export function SignalWorkspace({
     initialInstrument,
   );
   const instrument = selectedInstrument;
+  // The chart header's trend pill; the picker reads its own copy when opened.
+  const headerStrength = usePairStrength(true, 60_000).get(instrument);
   useEffect(() => {
     // Keep the next server-rendered /chart visit on the pair the user actually
     // chose. A cookie avoids the EUR/USD flash that localStorage cannot prevent.
@@ -4034,22 +4049,24 @@ export function SignalWorkspace({
         <div className="signals-chart-mobile lg:hidden">
           <div className="signals-mobile-content">
             <div className="signals-mobile-actions flex items-center justify-between">
-              <SignalSearch
-                compact
-                pairLabel={activePair}
-                signals={signals}
-                activeInstrument={instrument}
-                tradingInstruments={tradingInstruments}
-                query={searchQuery}
-                onQueryChange={setSearchQuery}
-                onSelect={selectSearchResult}
-                className="gx-pair-search"
-              />
+              <div className="flex min-w-0 items-center gap-1.5">
+                <SignalSearch
+                  compact
+                  pairLabel={activePair}
+                  signals={signals}
+                  activeInstrument={instrument}
+                  tradingInstruments={tradingInstruments}
+                  query={searchQuery}
+                  onQueryChange={setSearchQuery}
+                  onSelect={selectSearchResult}
+                  className="gx-pair-search"
+                />
+                {headerStrength ? <PairStrengthTag strength={headerStrength} pillOnly /> : null}
+              </div>
               <div className="signals-mobile-header-actions flex items-center gap-2">
                 {manualTradeMode === "analyze" ? (
                   <>
                     <button type="button" className="signals-analyze-desktop pressable" onClick={() => void runTrendPullback()} disabled={trendPullbackBusy} title="Analyze with TrendPullbackV1" aria-label="Analyze with TrendPullbackV1"><Sparkles className="size-3.5" /><span className="signals-analyze-label">{trendPullbackBusy ? "Analyzing…" : "Analyze"}</span></button>
-                    <AutomateButton instrument={instrument} className="pressable" onPlaced={() => void refreshPendingEntries()} />
                   </>
                 ) : null}
                 <NotificationBell compact className="signals-icon-btn signals-fullscreen-reserve" />
@@ -4256,7 +4273,6 @@ export function SignalWorkspace({
               ) : (
                 <>
                   <button type="button" className="signals-analyze-desktop pressable" onClick={() => void runTrendPullback()} disabled={trendPullbackBusy} title="Analyze with TrendPullbackV1"><Sparkles className="size-3.5" />{trendPullbackBusy ? "Analyzing…" : "Analyze"}</button>
-                  <AutomateButton instrument={instrument} className="pressable" onPlaced={() => void refreshPendingEntries()} />
                 </>
               )}
               {(tradeActionError || trendPullbackError) ? (

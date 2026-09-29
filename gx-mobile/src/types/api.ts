@@ -120,3 +120,29 @@ export type PaperRiskPolicy = {
   currentBatch: { batchNumber: number; assignedCount: number } | null;
   applied?: 'immediately' | 'next_batch';
 };
+
+/** GET /api/pair-strength — mirrors frontend/src/lib/strategy/pair-strength.ts. */
+export type PairTrendGrade = 'strong' | 'pullback' | 'turning' | 'weak' | 'range';
+export type CurrencyTier = 'strong' | 'neutral' | 'weak';
+
+export type CurrencyStrength = {
+  currency: string;
+  score: number;
+  rank: number;
+  tier: CurrencyTier;
+  pairCount: number;
+};
+
+export type PairStrength = {
+  instrument: string;
+  trend: { grade: PairTrendGrade; direction: 'up' | 'down' | null; score: number; recentMoveAtr: number | null };
+  base: CurrencyStrength | null;
+  quote: CurrencyStrength | null;
+};
+
+export type PairStrengthSnapshot = {
+  evaluatedAt: string;
+  lookbackBars: number;
+  pairs: PairStrength[];
+  currencies: CurrencyStrength[];
+};

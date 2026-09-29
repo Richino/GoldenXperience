@@ -1251,6 +1251,114 @@ html.mobile-sheet-open body {
   text-transform: uppercase;
 }
 
+/* Pair picker strength read: one trend pill, then any standout currency.
+   Amber matches the native app's warning tone. */
+.pair-strength {
+  --pair-strength-weak: #c27016;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem 0.5rem;
+  margin-top: 0.2rem;
+  font-size: 0.6875rem;
+  line-height: 1.2;
+}
+
+.dark .pair-strength {
+  --pair-strength-weak: #d98324;
+}
+
+.pair-strength--pill {
+  flex-shrink: 0;
+  margin-top: 0;
+}
+
+/* Stands in for the arrow on Weak and Range once the label is hidden. */
+.pair-strength-dot {
+  display: none;
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+/* The narrowest phones can't fit the word beside the header's action buttons:
+   keep the coloured arrow (or dot) and leave the word to screen readers. */
+@media (max-width: 359px) {
+  .pair-strength--pill .pair-strength-chip {
+    padding: 0.25rem;
+  }
+
+  .pair-strength--pill .pair-strength-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .pair-strength--pill .pair-strength-dot {
+    display: block;
+  }
+}
+
+.pair-strength-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.12rem 0.4rem;
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.pair-strength-chip[data-tone="strong-up"] {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.pair-strength-chip[data-tone="strong-down"] {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+/* A pullback keeps the trend's colour but drops the fill: same direction,
+   less conviction right now. */
+.pair-strength-chip[data-tone="pullback-up"] {
+  color: var(--success);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--success) 40%, transparent);
+}
+
+.pair-strength-chip[data-tone="pullback-down"] {
+  color: var(--danger);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 40%, transparent);
+}
+
+.pair-strength-chip[data-tone="turning"],
+.pair-strength-chip[data-tone="weak"] {
+  color: var(--pair-strength-weak);
+  background: color-mix(in srgb, var(--pair-strength-weak) 13%, transparent);
+}
+
+.pair-strength-chip[data-tone="range"] {
+  color: var(--muted);
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
+.pair-strength-currency {
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.pair-strength-currency [data-tier="strong"] {
+  color: var(--success);
+}
+
+.pair-strength-currency [data-tier="weak"] {
+  color: var(--danger);
+}
+
 .signals-pair-sheet .signals-icon-btn {
   display: grid;
   place-items: center;

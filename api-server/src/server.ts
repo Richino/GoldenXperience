@@ -27,6 +27,7 @@ import {
 } from "../../frontend/src/lib/oanda/client.js";
 import { getStrategySnapshot } from "../../frontend/src/lib/strategy/strategy-service.js";
 import { getForexSessionStatus } from "../../frontend/src/lib/strategy/session.js";
+import { computePairStrength, type PairStrengthSnapshot } from "../../frontend/src/lib/strategy/pair-strength.js";
 import { databaseConfigured, query } from "./database.js";
 import { cookieName, login, logout, sessionUser } from "./auth.js";
 import { decideResearchExperiment, forwardResearchSummary, latestDayTradingValidation, latestResearchExperiment, latestResearchHoldout, latestResearchRun, latestWalkForwardResearch, processNextResearchJob, researchDiagnostics, researchExperimentDiagnostics, researchSummary, runDayTradingValidation, runResearchExperiment, runWalkForwardResearch, startLockedResearchHoldout, startStrictHistoricalBackfill, stopResearchRun } from "./research.js";
@@ -249,6 +250,13 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     const user = await requireOwner(request, response); if (!user) return;
     if (url.pathname === "/api/watchlist" && request.method === "GET") {
       return json(request, response, { watchlist: await watchlistSnapshot() });
+    }
+    if (url.pathname === "/api/pair-strength" && request.method === "GET") {
+      try {
+        return json(request, response, await cachedPairStrength());
+      } catch (error) {
+        return json(request, response, { error: error instanceof Error ? error.message : "Pair strength could not be read." }, 502);
+      }
     }
     if (url.pathname === "/api/manual-analysis" && request.method === "POST") {
       const payload = await body(request);
@@ -713,6 +721,36 @@ function cachedCandles(instrument: Parameters<typeof getCandles>[0], granularity
     if (oldest === undefined) break;
     candleCache.delete(oldest);
   }
+  return result;
+}
+
+// The pair picker asks for this each time it opens, and the read only moves as
+// 15m bars close, so one snapshot is shared for a minute. Pairs whose candles
+// fell back to generated data are left out rather than graded on fake prices.
+const PAIR_STRENGTH_CACHE_MS = 60_000;
+/** Each covers the 50-bar lookback plus ATR warm-up. */
+const PAIR_STRENGTH_M15_CANDLES = 120;
+const PAIR_STRENGTH_H1_CANDLES = 80;
+let pairStrengthCache: { expiresAt: number; result: Promise<PairStrengthSnapshot> } | null = null;
+
+function cachedPairStrength() {
+  const now = Date.now();
+  if (pairStrengthCache && pairStrengthCache.expiresAt > now) return pairStrengthCache.result;
+
+  const result = Promise.all(
+    MAJOR_INSTRUMENTS.map(async (instrument) => {
+      const [m15, h1] = await Promise.all([
+        cachedCandles(instrument, "M15", PAIR_STRENGTH_M15_CANDLES, undefined),
+        cachedCandles(instrument, "H1", PAIR_STRENGTH_H1_CANDLES, undefined),
+      ]);
+      const live = m15.status.state === "connected" && h1.status.state === "connected";
+      return [instrument, { m15: live ? m15.data.candles : [], h1: live ? h1.data.candles : [] }] as const;
+    }),
+  ).then((entries) => computePairStrength(Object.fromEntries(entries), new Date().toISOString()));
+  pairStrengthCache = { expiresAt: now + PAIR_STRENGTH_CACHE_MS, result };
+  result.catch(() => {
+    if (pairStrengthCache?.result === result) pairStrengthCache = null;
+  });
   return result;
 }
 

@@ -492,18 +492,20 @@ export function DashboardView({
                   : null;
                 const plTone =
                   shown === null ? "is-open" : shown >= 0 ? "is-win" : "is-loss";
-                // Match the chart's Open R: planned Entry → current midpoint
-                // measured against the displayed Stop. P/L stays broker-based.
+                // A broker-backed row must use its real fill, active broker stop,
+                // and the executable bid/ask mark. Otherwise slippage or a moved
+                // stop can make its R disagree with the broker P/L beside it.
+                // Paper-only rows retain the planned-level calculation.
                 const lots =
                   fill && fill.units ? Math.abs(fill.units) / 100_000 : null;
                 const rMultiple =
+                  live?.unrealizedR ??
                   openRFromLevels({
                     direction: trade.direction,
                     entry: trade.entry,
                     stop: trade.stop,
                     current: mark,
                   }) ??
-                  live?.unrealizedR ??
                   (shown !== null && trade.nominalRiskAmount
                     ? shown / trade.nominalRiskAmount
                     : null);

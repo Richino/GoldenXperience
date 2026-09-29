@@ -3240,7 +3240,11 @@ export function SignalWorkspace({
     [enabledIndicators],
   );
   const swingTrendEnabled = isChartIndicatorEnabled(enabledIndicators, "swing-trend-lines");
-  const m15OverlayEnabled = sessionSrEnabled || frozen4hSrEnabled || swingTrendEnabled;
+  // On 1m/5m the chart's own S/R only covers the last hour or two, so the 15m
+  // levels are drawn alongside as the bigger-picture reference.
+  const supportResistance15mEnabled = isChartIndicatorEnabled(enabledIndicators, "support-resistance")
+    && (TIMEFRAME_TO_GRANULARITY[timeframe] === "M1" || TIMEFRAME_TO_GRANULARITY[timeframe] === "M5");
+  const m15OverlayEnabled = sessionSrEnabled || frozen4hSrEnabled || swingTrendEnabled || supportResistance15mEnabled;
   // Prefer the dedicated M15 feed; when the chart is already on M15 and that
   // feed has not arrived yet, fall back so the overlay is not blank.
   const sessionSrSourceCandles = useMemo(() => {
@@ -3281,6 +3285,14 @@ export function SignalWorkspace({
       .map((centre) => computeSessionSrLevels(sessionSrSourceCandles, centre, instrument))
       .filter((levels): levels is SessionSrLevels => levels !== null);
   }, [enabledIndicators, instrument, sessionSrEnabled, sessionSrSourceCandles]);
+  const supportResistance15mReferenceLines = useMemo(() => {
+    if (!supportResistance15mEnabled || sessionSrM15Candles.length < 20) return [];
+    // A 15m level sitting on one of the chart's own lines is the same level; keep one.
+    const pip = pipSizeFor(instrument);
+    return supportResistanceLines(sessionSrSourceCandles, instrument)
+      .filter((line) => !supportResistanceReferenceLines.some((own) => Math.abs(own.price - line.price) < pip))
+      .map((line) => ({ ...line, key: `m15-${line.key}`, label: `15m ${line.label}` }));
+  }, [instrument, sessionSrM15Candles.length, sessionSrSourceCandles, supportResistance15mEnabled, supportResistanceReferenceLines]);
   const sessionSrReferenceLines = useMemo(
     () => sessionSrSnapshots.flatMap((levels) => sessionSrLines(levels, instrument)),
     [instrument, sessionSrSnapshots],
@@ -3432,13 +3444,14 @@ export function SignalWorkspace({
       // decision in a historical replay. Technical indicators remain visible.
       ...(replayActive ? [] : pendingEntryReferenceLines),
       ...supportResistanceReferenceLines,
+      ...supportResistance15mReferenceLines,
       ...fibonacciReferenceLines,
       ...sessionSrReferenceLines,
       ...lastDaySrReferenceLines,
       ...frozen4hReferenceLines,
       ...(patternOverlay.lines.length ? [] : breakoutReferenceLines),
     ],
-    [breakoutReferenceLines, fibonacciReferenceLines, frozen4hReferenceLines, lastDaySrReferenceLines, patternOverlay.lines, pendingEntryReferenceLines, replayActive, sessionSrReferenceLines, supportResistanceReferenceLines],
+    [breakoutReferenceLines, fibonacciReferenceLines, frozen4hReferenceLines, lastDaySrReferenceLines, patternOverlay.lines, pendingEntryReferenceLines, replayActive, sessionSrReferenceLines, supportResistance15mReferenceLines, supportResistanceReferenceLines],
   );
   // The chart refreshes paper trades in the background. Depending on the whole
   // trade object here made an otherwise identical refresh look like a new

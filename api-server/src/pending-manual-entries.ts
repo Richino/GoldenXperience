@@ -239,6 +239,35 @@ export function decidePendingManualEntryEvent(input: {
   return null;
 }
 
+/**
+ * Orders from an Analyze plan cancel themselves; this is not a user option.
+ * Plans that filled in the Sep 27-30 forward test did so within two hours,
+ * and ones that took longer mostly never filled because the trend ran
+ * without pulling back. So a plan's order expires four hours after it starts
+ * watching (24 hours for a swing plan; after any news hold), and is pulled if
+ * price reaches the target first, since the move then happened without the
+ * pullback.
+ */
+const ANALYZE_PLAN_LIFETIME_MS: Record<string, number> = {
+  "trend-pullback-loose-v1": 4 * 60 * 60_000,
+  // Swing plans read 1-hour candles and give the pullback more room to form.
+  "trend-pullback-swing-v1": 24 * 60 * 60_000,
+};
+
+/** The order lifetime for an Analyze plan's context, or null when it is not one. */
+function analyzePlanLifetime(context: unknown) {
+  const setup = context && typeof context === "object" ? (context as { setup?: unknown }).setup : null;
+  return typeof setup === "string" ? ANALYZE_PLAN_LIFETIME_MS[setup] ?? null : null;
+}
+
+function isAnalyzePlan(context: unknown) {
+  return analyzePlanLifetime(context) !== null;
+}
+
+function analyzePlanExpiry(context: unknown, activateAt: string | null) {
+  return new Date((activateAt ? Date.parse(activateAt) : Date.now()) + (analyzePlanLifetime(context) ?? 0)).toISOString();
+}
+
 function invalidationSide(invalidationPrice: number, currentPrice: number) {
   return invalidationPrice > currentPrice ? "above" as const : "below" as const;
 }
@@ -445,6 +474,12 @@ export async function createPendingManualEntry(userId: string, payload: Record<s
     ? { stop: levels.stop, target: levels.target, model: "MANUAL_LEVELS" as const }
     : await calculateManualTradeRisk(tick.instrument, direction, entryPrice);
   const frozenContext = sanitizeFrozenContext(payload.analysisContext);
+  const analyzePlan = frozenContext !== null && isAnalyzePlan(payload.analysisContext);
+  const orderExpiresAt = analyzePlan ? analyzePlanExpiry(payload.analysisContext, activateAt) : expiresAt;
+  const cancelPrice = analyzePlan ? risk.target : invalidationPrice;
+  if (analyzePlan && (direction === "long" ? currentPrice >= risk.target : currentPrice <= risk.target)) {
+    throw new Error("Price has already reached this plan's target. Run Analyze again.");
+  }
   const result = await query<EntryRow>(
     `INSERT INTO pending_manual_entries(
        user_id,instrument,direction,entry_price,entry_order_type,current_price_at_creation,
@@ -452,8 +487,8 @@ export async function createPendingManualEntry(userId: string, payload: Record<s
      ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$16,$9,$10,$11,$12,$13,$14,jsonb_build_object('priceSource',$15::text,'createdFrom','chart','orderReferencePrice',$11::numeric,'frozenContext',$17::jsonb))
      RETURNING ${SELECT_FIELDS}`,
     [userId, tick.instrument, direction, entryPrice, inferPendingOrderType(direction, entryPrice, orderReferencePrice), currentPrice,
-      expiresAt ? "time" : "none", expiresAt, invalidationPrice,
-      invalidationPrice === null ? null : invalidationSide(invalidationPrice, orderReferencePrice), orderReferencePrice, tick.time, risk.stop, risk.target, tick.source, activateAt, frozenContext],
+      orderExpiresAt ? "time" : "none", orderExpiresAt, cancelPrice,
+      cancelPrice === null ? null : invalidationSide(cancelPrice, orderReferencePrice), orderReferencePrice, tick.time, risk.stop, risk.target, tick.source, activateAt, frozenContext],
   );
   const entryRow = result.rows[0]!;
   // Scheduled ("submit after") entry: stay dormant until the activation job runs
@@ -479,7 +514,7 @@ export async function createPendingManualEntry(userId: string, payload: Record<s
       entryPrice,
       stop: risk.stop,
       target: risk.target,
-      gtdTime: expiresAt ? new Date(expiresAt).toISOString() : null,
+      gtdTime: orderExpiresAt ? new Date(orderExpiresAt).toISOString() : null,
     });
     const updated = await query<EntryRow>(
       `UPDATE pending_manual_entries SET metadata = metadata || $2::jsonb, updated_at=now()
@@ -513,19 +548,26 @@ export async function editPendingManualEntry(userId: string, id: string, payload
     const currentPrice = executablePrice(direction, tick);
     const orderReferencePrice = finitePrice(payload.orderReferencePrice) ?? currentPrice;
     const levels = optionalTradeLevels(payload, direction, entryPrice);
-    const expiresAt = parseExpiresAt(payload.expiresAt);
+    const requestedExpiresAt = parseExpiresAt(payload.expiresAt);
     // Only a still-dormant scheduled entry can have its submit-after time changed;
     // once it is broker-backed the resting order already exists.
     const stillScheduled = brokerOrderIdOf(existing) === null;
     const activateAt = stillScheduled && payload.activateAt !== undefined
       ? parseActivateAt(payload.activateAt)
       : existing.activate_at;
-    if (activateAt && expiresAt && Date.parse(activateAt) >= Date.parse(expiresAt)) {
+    if (activateAt && requestedExpiresAt && Date.parse(activateAt) >= Date.parse(requestedExpiresAt)) {
       throw new Error("The submit-after time must be before the expiration.");
     }
     const rawInvalidation = payload.invalidationPrice;
-    const invalidationPrice = rawInvalidation === null || rawInvalidation === undefined || rawInvalidation === "" ? null : finitePrice(rawInvalidation);
-    if (rawInvalidation !== null && rawInvalidation !== undefined && rawInvalidation !== "" && invalidationPrice === null) throw new Error("Enter a valid cancellation price.");
+    const requestedInvalidation = rawInvalidation === null || rawInvalidation === undefined || rawInvalidation === "" ? null : finitePrice(rawInvalidation);
+    if (rawInvalidation !== null && rawInvalidation !== undefined && rawInvalidation !== "" && requestedInvalidation === null) throw new Error("Enter a valid cancellation price.");
+    // An Analyze plan keeps its automatic expiry and target cancel through edits.
+    const existingContext = (existing.metadata as Record<string, unknown> | null)?.frozenContext;
+    const analyzePlan = isAnalyzePlan(existingContext);
+    const expiresAt = analyzePlan ? existing.expires_at ?? analyzePlanExpiry(existingContext, activateAt) : requestedExpiresAt;
+    const invalidationPrice = analyzePlan
+      ? levels.target ?? numberOrNull(existing.target_price)
+      : requestedInvalidation;
     if (invalidationPrice !== null && (invalidationPrice === currentPrice || invalidationPrice === entryPrice)) throw new Error("Cancellation must differ from the current and entry prices.");
     const updated = await client.query<EntryRow>(
       `UPDATE pending_manual_entries SET direction=$3,entry_price=$4,entry_order_type=$5,
@@ -813,10 +855,15 @@ export async function evaluatePendingManualEntries(tick: MarketPriceTick) {
       // this monitor must NOT open a paper trade for it. It still watches the
       // user's "cancel if price reaches" and expiry to pull the resting order.
       const brokerOrderId = brokerOrderIdOf(row);
+      // Once price has reached a broker order's entry it may already be filled
+      // at OANDA; the reconciler (every 8s) records that. Until it does, a
+      // cancel level must not be applied, or a fast fill-then-target (an
+      // Analyze plan's cancel level is its target) would be marked cancelled.
+      const entryTouched = brokerOrderId !== null && (row.metadata as Record<string, unknown> | null)?.entryTouched === true;
       const event = decidePendingManualEntryEvent({
         entryOrderType: row.entry_order_type,
         entryPrice: Number(row.entry_price),
-        invalidationPrice: numberOrNull(row.invalidation_price),
+        invalidationPrice: entryTouched ? null : numberOrNull(row.invalidation_price),
         invalidationSide: row.invalidation_side,
         previousPrice: Number(row.last_observed_price ?? row.current_price_at_creation),
         currentPrice: price,
@@ -836,9 +883,16 @@ export async function evaluatePendingManualEntries(tick: MarketPriceTick) {
       } else if (event === "entry" && !brokerOrderId) {
         const updated = await client.query("UPDATE pending_manual_entries SET status='TRIGGERING',trigger_price=$2,triggered_at=$3,last_observed_price=$2,last_observed_at=$3,updated_at=now() WHERE id=$1 AND status='PENDING' RETURNING id", [row.id, price, tickTime]);
         if (updated.rows[0]) claimed.push(row.id);
+      } else if (event === "entry" && brokerOrderId && !entryTouched) {
+        // An OANDA-backed entry whose level was hit: the broker fills it, so
+        // only record the observation and that the entry was reached.
+        await client.query(
+          `UPDATE pending_manual_entries SET last_observed_price=$2,last_observed_at=$3,metadata = metadata || '{"entryTouched":true}'::jsonb,updated_at=now()
+            WHERE id=$1 AND status='PENDING'`,
+          [row.id, price, tickTime],
+        );
       } else {
-        // Either a plain "hold", or an OANDA-backed entry whose level was hit —
-        // the broker fills that one, so only record the observation here.
+        // A plain "hold", or an entry already recorded as reached.
         await client.query("UPDATE pending_manual_entries SET last_observed_price=$2,last_observed_at=$3,updated_at=now() WHERE id=$1 AND status='PENDING'", [row.id, price, tickTime]);
       }
     }

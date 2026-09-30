@@ -239,6 +239,11 @@ export function TradeDrawer({
         </Field>
       </View>
       {summary}
+      {draft?.analysisContext ? (
+        <Text style={styles.planLifetime}>
+          This order cancels itself {draft.analysisContext.setup === 'trend-pullback-swing-v1' ? 24 : 4} hours after it starts watching, or sooner if price reaches the target before it fills.
+        </Text>
+      ) : null}
       {draft?.activateAt && Date.parse(draft.activateAt) > Date.now() ? (
         <Text style={styles.newsHold}>
           High-impact news is due, so this order starts watching at {new Date(draft.activateAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.
@@ -307,6 +312,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   summaryTitle: { fontSize: 13, fontFamily: theme.fonts.sansSemiBold, color: colors.textPrimary },
   summaryLine: { fontSize: 12, fontFamily: theme.fonts.sans, color: colors.textSecondary },
   error: { marginHorizontal: 4, marginBottom: 10, fontSize: 13, lineHeight: 18, fontFamily: theme.fonts.sansMedium, color: colors.danger },
+  planLifetime: { marginHorizontal: 4, marginBottom: 8, fontSize: 12, lineHeight: 17, fontFamily: theme.fonts.sans, color: colors.textSecondary },
   newsHold: { marginHorizontal: 4, marginBottom: 10, fontSize: 13, lineHeight: 18, fontFamily: theme.fonts.sansMedium, color: colors.warning },
   submit: { marginHorizontal: 4, marginTop: 4, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: colors.primary },
   submitDisabled: { opacity: 0.45 },

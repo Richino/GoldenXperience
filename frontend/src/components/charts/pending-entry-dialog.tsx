@@ -269,6 +269,15 @@ export function PendingEntryDialog({
   const current = direction === null ? null : direction === "long" ? ask : bid;
   const parsedEntry = entryPrice.trim() === "" ? Number.NaN : Number(entryPrice);
   const parsedInvalidation = invalidationPrice ? Number(invalidationPrice) : null;
+  // Orders from an Analyze plan get their expiry and cancel level from the
+  // server (4 hours after they start watching, 24 for a swing plan; cancelled
+  // at the target), so those two are shown as facts rather than choices.
+  const analyzeContext = selectedEntry
+    ? (selectedEntry.metadata?.frozenContext as { setup?: unknown } | undefined)
+    : mode === "manual" ? (initialProposal?.analysisContext as { setup?: unknown } | undefined) : undefined;
+  const automaticLifetimeHours = analyzeContext?.setup === "trend-pullback-swing-v1" ? 24
+    : analyzeContext?.setup === "trend-pullback-loose-v1" ? 4 : null;
+  const automaticLifetime = automaticLifetimeHours !== null;
   const parsedStop = stopPrice ? Number(stopPrice) : null;
   const parsedTarget = targetPrice ? Number(targetPrice) : null;
   const precision = precisionFor(instrument);
@@ -624,7 +633,12 @@ export function PendingEntryDialog({
                 <input inputMode="decimal" value={targetPrice} onChange={(event) => setTargetPrice(event.target.value)} placeholder="Optional" />
               </label>
             </div>
-            <fieldset className="pending-entry-advanced">
+            {automaticLifetime ? (
+              <p className="pending-entry-automatic">
+                {automaticLifetimeHours === 24 ? "Swing plan" : "Analyze plan"}: this order cancels itself {automaticLifetimeHours} hours after it starts watching, or sooner if price reaches the target before it fills.
+              </p>
+            ) : null}
+            {automaticLifetime ? null : <fieldset className="pending-entry-advanced">
               <legend>Expiration</legend>
               <div className="pending-entry-presets">
                 {(["none", "30m", "1h", "4h", "custom"] as const).map((option) => (
@@ -634,7 +648,7 @@ export function PendingEntryDialog({
                 ))}
               </div>
               {expiration === "custom" ? <button type="button" className="pending-entry-custom-expiration" onClick={openCustomExpirationPicker}>{customExpiration ? new Date(customExpiration).toLocaleString() : "Choose date and time"}</button> : null}
-            </fieldset>
+            </fieldset>}
             <fieldset className="pending-entry-advanced">
               <legend>Submit after</legend>
               <div className="pending-entry-presets">
@@ -643,10 +657,10 @@ export function PendingEntryDialog({
               </div>
               {activateAt ? <button type="button" className="pending-entry-custom-expiration" onClick={openActivatePicker}>{new Date(activateAt).toLocaleString()}</button> : null}
             </fieldset>
-            <label className="pending-entry-advanced">
+            {automaticLifetime ? null : <label className="pending-entry-advanced">
               <span>Cancel if price reaches <em>Optional</em></span>
               <input inputMode="decimal" value={invalidationPrice} onChange={(event) => setInvalidationPrice(event.target.value)} placeholder="Exact price" />
-            </label>
+            </label>}
             <div className="pending-entry-summary">
               <strong>{direction === null ? "Choose direction ·" : direction.toUpperCase()} {displayNameFor(instrument)}</strong>
               <span>Order: {inferredOrder ?? "—"}</span>
@@ -656,8 +670,8 @@ export function PendingEntryDialog({
               <span>Current: {current?.toFixed(precision) ?? "—"}</span>
               <span>Distance: {distancePips === null ? "—" : `${distancePips.toFixed(1)} pips`}</span>
               <span className="pending-entry-advanced">Submit: {activateAt ? new Date(activateAt).toLocaleString() : "Now"}</span>
-              <span className="pending-entry-advanced">Expires: {expiration === "none" ? "No expiration" : expiration === "custom" ? customExpiration || "Choose time" : expiration}</span>
-              <span className="pending-entry-advanced">Invalidation: {parsedInvalidation && Number.isFinite(parsedInvalidation) ? parsedInvalidation.toFixed(precision) : "None"}</span>
+              <span className="pending-entry-advanced">Expires: {automaticLifetime ? `${automaticLifetimeHours}h after it starts watching` : expiration === "none" ? "No expiration" : expiration === "custom" ? customExpiration || "Choose time" : expiration}</span>
+              <span className="pending-entry-advanced">Invalidation: {automaticLifetime ? "At target" : parsedInvalidation && Number.isFinite(parsedInvalidation) ? parsedInvalidation.toFixed(precision) : "None"}</span>
               <span className={`pending-entry-summary-spread${spreadIsWide ? " is-wide" : ""}`}>
                 Spread: {spreadPips === null ? "—" : `${spreadPips.toFixed(1)} pips`}
                 <span className="pending-entry-advanced">{spreadIsWide ? " · Wide — may be expensive" : " · Normal"}</span>

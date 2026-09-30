@@ -122,10 +122,15 @@ type NativeTrendPullbackResult = {
   structureStop?: { available: false; note: string } | { available: true; anchor: number; stop: number; stopDistancePips: number; takeProfit: number; targetDistancePips: number; spreadSharePct: number | null; opposingLevel: number | null } | null;
   /** The stop the plan recommends; the structure stop whenever one exists. */
   recommendedStop?: StopChoice;
+  /** Normal reads M15; swing reads H1 with wider room (older web builds omit it). */
+  mode?: TradeMode;
+  /** The two higher timeframes the counter-trend check read. */
+  higherTimeframeLabels?: [string, string];
   /** ISO time the order waits for because high-impact news is due; null to place it now. */
   activateAfter?: string | null;
 };
 type StopChoice = 'normal' | 'structure';
+type TradeMode = 'normal' | 'swing';
 
 const VARIANT_ICONS: Record<Variant, LucideIcon> = {
   candle: CandlestickChart,
@@ -221,6 +226,8 @@ export default function ChartScreen() {
   const [analysisModalOpen, setAnalysisModalOpen] = useState(false);
   const [analysisBusy, setAnalysisBusy] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<NativeTrendPullbackResult | null>(null);
+  /** The swing (H1) plan the web built alongside the normal one. */
+  const [analysisSwing, setAnalysisSwing] = useState<NativeTrendPullbackResult | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [timeframeWidth, setTimeframeWidth] = useState(0);
   const activeTimeframeIndex = useSharedValue(TIMEFRAMES.indexOf(timeframe));
@@ -404,10 +411,11 @@ export default function ChartScreen() {
   // saved choice back to the web default, e.g. candles → area.
   const reconciledAtRef = useRef(0);
   const handleWebMessage = (data: string) => {
-    let message: { type?: string; result?: NativeTrendPullbackResult; error?: string } & Partial<ChartState>;
+    let message: { type?: string; result?: NativeTrendPullbackResult; swing?: NativeTrendPullbackResult | null; error?: string } & Partial<ChartState>;
     try { message = JSON.parse(data) as typeof message; } catch { return; }
     if (message.type === 'gx-native-trend-pullback-result' && message.result) {
       setAnalysisResult(message.result);
+      setAnalysisSwing(message.swing ?? null);
       setAnalysisError(null);
       setAnalysisBusy(false);
       setAnalysisModalOpen(true);
@@ -415,6 +423,7 @@ export default function ChartScreen() {
     }
     if (message.type === 'gx-native-trend-pullback-error') {
       setAnalysisResult(null);
+      setAnalysisSwing(null);
       setAnalysisError(message.error ?? 'TrendPullbackV1 could not run.');
       setAnalysisBusy(false);
       setAnalysisModalOpen(true);
@@ -488,6 +497,7 @@ export default function ChartScreen() {
   const analyzeChart = () => {
     if (hasBlockingManualTrade) return;
     setAnalysisResult(null);
+    setAnalysisSwing(null);
     setAnalysisError(null);
     setAnalysisBusy(true);
     setAnalysisModalOpen(true);
@@ -500,10 +510,12 @@ export default function ChartScreen() {
     setAnalysisBusy(false);
     setAnalysisModalOpen(false);
   };
-  const acceptAnalysis = (plan: NativeTrendPullbackResult, stopChoice: StopChoice) => {
+  // Each mode's plan carries the stop it recommends (the structure stop when
+  // one exists); a swing plan's stop already clears the 1-hour swing.
+  const acceptAnalysis = (plan: NativeTrendPullbackResult) => {
     if (!plan.action || plan.entry === null || plan.stopLoss === null || plan.takeProfit === null) return;
     const direction = plan.action === 'LONG' ? 'long' : 'short';
-    const structure = stopChoice === 'structure' && plan.structureStop?.available ? plan.structureStop : null;
+    const structure = plan.recommendedStop === 'structure' && plan.structureStop?.available ? plan.structureStop : null;
     const stop = structure?.stop ?? plan.stopLoss;
     const target = structure?.takeProfit ?? plan.takeProfit;
     setTradeDraft({
@@ -512,7 +524,7 @@ export default function ChartScreen() {
       analysisContext: {
         version: 1,
         direction,
-        setup: 'trend-pullback-loose-v1',
+        setup: plan.mode === 'swing' ? 'trend-pullback-swing-v1' : 'trend-pullback-loose-v1',
         frozen: {
           trend: plan.trend ?? null,
           trendSource: plan.trendSource ?? null,
@@ -617,27 +629,33 @@ export default function ChartScreen() {
       <Text style={styles.confirmCopy}>{confirmTradeAction === 'cancel' ? 'This removes the pending order. It will not open a trade.' : 'This closes the open paper trade at the current available price.'}</Text>
       <View style={styles.confirmActions}><Pressable onPress={() => setConfirmTradeAction(null)} disabled={tradeActionBusy} style={[styles.confirmSecondary, tradeActionBusy ? styles.tradeButtonDisabled : null]}><Text style={styles.confirmSecondaryText}>Keep trade</Text></Pressable><Pressable onPress={() => void executeTradeAction()} disabled={tradeActionBusy} style={[styles.confirmPrimary, confirmTradeAction === 'cancel' ? styles.cancelTradeButton : styles.closeTradeButton, tradeActionBusy ? styles.tradeButtonDisabled : null]}><Text style={styles.tradeButtonText}>{tradeActionBusy ? 'Working…' : confirmTradeAction === 'cancel' ? 'Cancel pending trade' : 'Close trade'}</Text></Pressable></View>
     </BottomDrawer>
-    <NativeTrendPullbackModal visible={analysisModalOpen} busy={analysisBusy} result={analysisResult} error={analysisError} instrument={instrument} onClose={() => setAnalysisModalOpen(false)} onCancel={cancelAnalysis} onAccept={acceptAnalysis} />
+    <NativeTrendPullbackModal visible={analysisModalOpen} busy={analysisBusy} result={analysisResult} swingResult={analysisSwing} error={analysisError} instrument={instrument} onClose={() => setAnalysisModalOpen(false)} onCancel={cancelAnalysis} onAccept={acceptAnalysis} />
   </View>;
 }
 
-function NativeTrendPullbackModal({ visible, busy, result, error, instrument, onClose, onCancel, onAccept }: { visible: boolean; busy: boolean; result: NativeTrendPullbackResult | null; error: string | null; instrument: string; onClose: () => void; onCancel: () => void; onAccept: (plan: NativeTrendPullbackResult, stopChoice: StopChoice) => void }) {
+function NativeTrendPullbackModal({ visible, busy, result: normalResult, swingResult, error, instrument, onClose, onCancel, onAccept }: { visible: boolean; busy: boolean; result: NativeTrendPullbackResult | null; swingResult: NativeTrendPullbackResult | null; error: string | null; instrument: string; onClose: () => void; onCancel: () => void; onAccept: (plan: NativeTrendPullbackResult) => void }) {
   const colors = useThemeColors();
   const styles = useThemedStyles(createStyles);
+  // Tied to the analysis it was picked on, so a new analysis starts on Normal.
+  const [picked, setPicked] = useState<{ plan: NativeTrendPullbackResult | null; mode: TradeMode }>({ plan: null, mode: 'normal' });
+  const swingUsable = swingResult !== null && swingResult.status !== 'NO_VALID_ENTRY';
+  const mode: TradeMode = picked.plan === normalResult && picked.mode === 'swing' && swingUsable ? 'swing' : 'normal';
+  const result = mode === 'swing' ? swingResult : normalResult;
   const plan = result?.status !== 'NO_VALID_ENTRY' ? result : null;
-  // Tied to the plan it was picked on, so a new analysis starts on the normal stop.
-  const [picked, setPicked] = useState<{ plan: NativeTrendPullbackResult | null; choice: StopChoice }>({ plan: null, choice: 'normal' });
   const structure = plan?.structureStop?.available ? plan.structureStop : null;
-  // A new plan starts on the stop it recommends until the trader picks one.
-  const choice = picked.plan === result ? picked.choice : result?.recommendedStop ?? 'normal';
-  const useStructure = choice === 'structure' && structure !== null;
+  // Each plan shows the stop it recommends: the structure stop when one exists.
+  const useStructure = plan?.recommendedStop === 'structure' && structure !== null;
+  const planStopPips = (option: NativeTrendPullbackResult | null) => option?.recommendedStop === 'structure' && option.structureStop?.available
+    ? option.structureStop.stopDistancePips
+    : option?.stopDistancePips ?? null;
+  const labels = plan?.higherTimeframeLabels ?? ['1H', '4H'];
   const shown = plan ? useStructure && structure
     ? { stop: structure.stop, stopPips: structure.stopDistancePips, target: structure.takeProfit, targetPips: structure.targetDistancePips }
     : { stop: plan.stopLoss, stopPips: plan.stopDistancePips, target: plan.takeProfit, targetPips: plan.targetDistancePips } : null;
   // While analyzing, show the plan's own layout as a skeleton so the drawer does
   // not jump from a spinner to a differently shaped result.
   return <BottomDrawer visible={visible} onClose={busy ? onCancel : onClose} title={busy ? 'Analyzing chart' : plan ? result?.status === 'ENTRY_AVAILABLE_NOW' ? 'Entry available now' : plan.currentMove === 'NONE' ? 'Next pullback level' : 'Planned pullback entry' : error ? 'Analysis unavailable' : 'No trade plan'} titleNode={busy ? <SkeletonBlock width={220} height={22} /> : undefined}>
-    {busy ? <View accessibilityLabel="Analyzing chart" accessibilityState={{ busy: true }}><View style={styles.analysisTitleRow}><SkeletonBlock width={72} height={24} /></View><View style={styles.analysisEntry}><SkeletonBlock width={44} height={11} /><SkeletonBlock width={170} height={34} style={styles.skeletonGap} /><SkeletonBlock width={90} height={13} style={styles.skeletonGapLarge} /></View><View style={styles.analysisLevels}>{[0, 1].map((index) => <View key={index} style={styles.analysisLevel}><SkeletonBlock width={60} height={11} /><SkeletonBlock width={80} height={16} style={styles.skeletonGap} /><SkeletonBlock width={90} height={11} style={styles.skeletonGap} /></View>)}</View><View style={styles.analysisRr}><SkeletonBlock width={90} height={13} /><SkeletonBlock width={56} height={16} /></View><View style={styles.analysisActions}><SkeletonBlock height={48} radius={13} style={styles.skeletonButton} /><SkeletonBlock height={48} radius={13} style={styles.skeletonButton} /></View></View> : plan ? <><View style={styles.analysisTitleRow}><Text style={[styles.analysisDirection, plan.action === 'LONG' ? styles.analysisLong : styles.analysisShort]}>{plan.action}</Text></View>{plan.counterTrend ? <Text style={styles.analysisCounter}>Against the 1H/4H trend · tested level · 1:1 target</Text> : null}<View style={styles.analysisEntry}><Text style={styles.analysisLabel}>Entry</Text><Text style={styles.analysisEntryPrice}>{price(plan.entry, instrument)}</Text><Text style={styles.analysisCopy}>{plan.distanceToEntryPips?.toFixed(1) ?? '—'} pips away</Text></View><View style={styles.analysisLevels}><View style={styles.analysisLevel}><Text style={styles.analysisStopLabel}>Stop loss</Text><Text style={styles.analysisLevelPrice}>{price(shown!.stop, instrument)}</Text><Text style={styles.analysisLevelCopy}>{shown!.stopPips?.toFixed(1) ?? '—'} pips risk</Text></View><View style={styles.analysisLevel}><Text style={styles.analysisTargetLabel}>Take profit</Text><Text style={styles.analysisLevelPrice}>{price(shown!.target, instrument)}</Text><Text style={styles.analysisLevelCopy}>{shown!.targetPips?.toFixed(1) ?? '—'} pips reward</Text></View></View>{plan.structureStop ? <View style={styles.stopChoice}><View style={styles.stopChoiceRow}>{(['normal', 'structure'] as const).map((choice) => <Pressable key={choice} disabled={choice === 'structure' && !structure} onPress={() => setPicked({ plan: result, choice })} style={[styles.stopChoiceOption, (choice === 'structure') === useStructure ? styles.stopChoiceActive : null, choice === 'structure' && !structure ? styles.analysisDisabledOption : null]} accessibilityRole="radio" accessibilityState={{ checked: (choice === 'structure') === useStructure, disabled: choice === 'structure' && !structure }}><Text style={styles.stopChoiceText}>{choice === 'normal' ? `Normal · ${plan.stopDistancePips?.toFixed(1) ?? '—'}p` : `Structure${structure ? ` · ${structure.stopDistancePips.toFixed(1)}p` : ''}`}</Text></Pressable>)}</View></View> : null}<View style={styles.analysisRr}><Text style={styles.analysisCopy}>Risk / reward</Text><Text style={styles.analysisRrValue}>{plan.riskReward?.toFixed(2) ?? '—'}:1</Text></View><View style={styles.analysisActions}><Pressable onPress={onClose} style={[styles.analysisPrimary, styles.analysisReject]}><Text style={styles.analysisPrimaryText}>Reject</Text></Pressable><Pressable onPress={() => onAccept(plan, useStructure ? 'structure' : 'normal')} style={styles.analysisPrimary}><Text style={styles.analysisPrimaryText}>Accept</Text></Pressable></View></> : <><Text style={styles.analysisCopy}>{error ?? result?.reasons[0] ?? 'TrendPullbackV1 could not form a valid setup.'}</Text><Pressable onPress={onClose} style={styles.analysisPrimary}><Text style={styles.analysisPrimaryText}>Done</Text></Pressable></>}
+    {busy ? <View accessibilityLabel="Analyzing chart" accessibilityState={{ busy: true }}><View style={styles.analysisTitleRow}><SkeletonBlock width={72} height={24} /></View><View style={styles.analysisEntry}><SkeletonBlock width={44} height={11} /><SkeletonBlock width={170} height={34} style={styles.skeletonGap} /><SkeletonBlock width={90} height={13} style={styles.skeletonGapLarge} /></View><View style={styles.analysisLevels}>{[0, 1].map((index) => <View key={index} style={styles.analysisLevel}><SkeletonBlock width={60} height={11} /><SkeletonBlock width={80} height={16} style={styles.skeletonGap} /><SkeletonBlock width={90} height={11} style={styles.skeletonGap} /></View>)}</View><View style={styles.analysisRr}><SkeletonBlock width={90} height={13} /><SkeletonBlock width={56} height={16} /></View><View style={styles.analysisActions}><SkeletonBlock height={48} radius={13} style={styles.skeletonButton} /><SkeletonBlock height={48} radius={13} style={styles.skeletonButton} /></View></View> : plan ? <><View style={styles.analysisTitleRow}><Text style={[styles.analysisDirection, plan.action === 'LONG' ? styles.analysisLong : styles.analysisShort]}>{plan.action}</Text></View>{plan.counterTrend ? <Text style={styles.analysisCounter}>Against the {labels[0]}/{labels[1]} trend · tested level · 1:1 target</Text> : null}<View style={styles.analysisEntry}><Text style={styles.analysisLabel}>Entry</Text><Text style={styles.analysisEntryPrice}>{price(plan.entry, instrument)}</Text><Text style={styles.analysisCopy}>{plan.distanceToEntryPips?.toFixed(1) ?? '—'} pips away</Text></View><View style={styles.analysisLevels}><View style={styles.analysisLevel}><Text style={styles.analysisStopLabel}>Stop loss</Text><Text style={styles.analysisLevelPrice}>{price(shown!.stop, instrument)}</Text><Text style={styles.analysisLevelCopy}>{shown!.stopPips?.toFixed(1) ?? '—'} pips risk</Text></View><View style={styles.analysisLevel}><Text style={styles.analysisTargetLabel}>Take profit</Text><Text style={styles.analysisLevelPrice}>{price(shown!.target, instrument)}</Text><Text style={styles.analysisLevelCopy}>{shown!.targetPips?.toFixed(1) ?? '—'} pips reward</Text></View></View><View style={styles.stopChoice}><View style={styles.stopChoiceRow} accessibilityLabel="Trade mode">{(['normal', 'swing'] as const).map((option) => <Pressable key={option} disabled={option === 'swing' && !swingUsable} onPress={() => setPicked({ plan: normalResult, mode: option })} style={[styles.stopChoiceOption, option === mode ? styles.stopChoiceActive : null, option === 'swing' && !swingUsable ? styles.analysisDisabledOption : null]} accessibilityRole="radio" accessibilityState={{ checked: option === mode, disabled: option === 'swing' && !swingUsable }}><Text style={styles.stopChoiceText}>{option === 'normal' ? `Normal · ${planStopPips(normalResult)?.toFixed(1) ?? '—'}p` : `Swing${swingUsable ? ` · ${planStopPips(swingResult)?.toFixed(1) ?? '—'}p` : ''}`}</Text></Pressable>)}</View></View><View style={styles.analysisRr}><Text style={styles.analysisCopy}>Risk / reward</Text><Text style={styles.analysisRrValue}>{plan.riskReward?.toFixed(2) ?? '—'}:1</Text></View><View style={styles.analysisActions}><Pressable onPress={onClose} style={[styles.analysisPrimary, styles.analysisReject]}><Text style={styles.analysisPrimaryText}>Reject</Text></Pressable><Pressable onPress={() => onAccept(plan)} style={styles.analysisPrimary}><Text style={styles.analysisPrimaryText}>Accept</Text></Pressable></View></> : <><Text style={styles.analysisCopy}>{error ?? result?.reasons[0] ?? 'TrendPullbackV1 could not form a valid setup.'}</Text><Pressable onPress={onClose} style={styles.analysisPrimary}><Text style={styles.analysisPrimaryText}>Done</Text></Pressable></>}
   </BottomDrawer>;
 }
 

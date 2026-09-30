@@ -42,7 +42,59 @@ export const TREND_PULLBACK_V1 = {
   newsSettleMinutes: 15,
   /** ForexFactory impact 3 = high ("red folder"). */
   newsMinImpact: 3,
+  /** Fallback trend read when the swings disagree: this many base candles back... */
+  trendFallbackBars: 96,
+  /** ...described as this. */
+  trendFallbackLabel: "last 24h",
+  structureLookbackLabel: "last day",
+  /** Higher timeframes read for the counter-trend check. */
+  higherTimeframeLabels: ["1H", "4H"],
 } as const;
+
+export type TrendPullbackMode = "normal" | "swing";
+
+type TrendPullbackSettings = {
+  [K in keyof typeof TREND_PULLBACK_V1]: (typeof TREND_PULLBACK_V1)[K] extends number ? number
+    : (typeof TREND_PULLBACK_V1)[K] extends string ? string : readonly [string, string];
+};
+
+/**
+ * Swing mode: the same pullback method read from 1-hour candles, with the
+ * higher-timeframe check on 4H and daily. Wider room everywhere so normal
+ * 5/15-minute noise, spikes and fakeouts do not decide the trade:
+ * - the stop always clears the last 1-hour swing (plus a buffer), and is never
+ *   tighter than 1.5 average 1-hour candles or 25 pips;
+ * - the pullback may sit up to one average 1-hour candle back;
+ * - the 2R target is correspondingly larger, so the spread is a small share.
+ * Position size falls as the stop widens (risk is a fixed 1% of balance), so
+ * dollar risk is unchanged. Orders live 24 hours (see pending-manual-entries).
+ */
+export const TREND_PULLBACK_SWING: TrendPullbackSettings = {
+  ...TREND_PULLBACK_V1,
+  entryBufferPips: 3,
+  minStopPips: 25,
+  stopH1AtrMultiplier: 1.5,
+  fallbackPullbackH1Atr: 1,
+  /** 1-hour candles: ~8 days of levels for the tested-level search. */
+  counterTrendLookback: 200,
+  /** Swing extremes from the last 3 days (72 H1 candles)... */
+  structureLookback: 72,
+  /** ...up to four average 1-hour candles from the entry. */
+  structureMaxH1Atr: 4,
+  structureBufferH1Atr: 0.25,
+  trendFallbackBars: 96,
+  trendFallbackLabel: "last 4 days",
+  structureLookbackLabel: "last 3 days",
+  higherTimeframeLabels: ["4H", "1D"],
+};
+
+/** "half an average 1-hour candle", "one average 1-hour candle", "1.5 average 1-hour candles". */
+function h1CandlesText(multiple: number) {
+  if (multiple === 0.5) return "half an average 1-hour candle";
+  if (multiple === 1) return "one average 1-hour candle";
+  if (multiple === 2) return "two average 1-hour candles";
+  return `${multiple} average 1-hour candles`;
+}
 
 type NewsEvent = Pick<EconomicCalendarEvent, "title" | "currency" | "impact" | "timestamp">;
 
@@ -178,6 +230,10 @@ type PullbackLevelKind = "SWING_SUPPORT" | "RANGE_SUPPORT" | "SWING_RESISTANCE" 
 export type TrendPullbackV1Result = {
   strategy: "TrendPullbackV1";
   version: "loose-v1";
+  /** Normal reads M15 candles; swing reads H1 with wider room. */
+  mode: TrendPullbackMode;
+  /** The two higher timeframes `higherTimeframe.h1`/`.h4` were read from. */
+  higherTimeframeLabels: readonly [string, string];
   status: "TRADE_PLAN" | "ENTRY_AVAILABLE_NOW" | "NO_VALID_ENTRY";
   trend: Direction;
   majorTrend: Direction;
@@ -264,9 +320,15 @@ export function analyzeTrendPullbackV1(
     newsEvents?: NewsEvent[];
     /** The moment the plan is for, in ms; defaults to now. */
     now?: number;
+    /**
+     * "swing" reads `candles` as H1, with `h1Candles`/`h4Candles` as the 4H and
+     * daily series; "normal" (default) reads M15 with H1/H4.
+     */
+    mode?: TrendPullbackMode;
   },
 ): TrendPullbackV1Result {
-  const settings = TREND_PULLBACK_V1;
+  const mode = input.mode ?? "normal";
+  const settings: TrendPullbackSettings = mode === "swing" ? TREND_PULLBACK_SWING : TREND_PULLBACK_V1;
   const candles = input.candles.filter((candle) => candle.complete !== false);
   const last = candles.at(-1);
   const pip = pipSizeFor(input.instrument);
@@ -280,7 +342,7 @@ export function analyzeTrendPullbackV1(
     : null;
   const h1Atr = calculateAtr(hourlyFromM15(candles), 14).at(-1) ?? null;
   const result: TrendPullbackV1Result = {
-    strategy: "TrendPullbackV1", version: "loose-v1", status: "NO_VALID_ENTRY", trend: "MIXED", majorTrend: "MIXED", currentTrend: "MIXED",
+    strategy: "TrendPullbackV1", version: "loose-v1", mode, higherTimeframeLabels: settings.higherTimeframeLabels, status: "NO_VALID_ENTRY", trend: "MIXED", majorTrend: "MIXED", currentTrend: "MIXED",
     trendSource: "SWING_STRUCTURE", currentMove: "NONE", action: null, orderType: null, currentPrice: round(currentPrice),
     priceBasis: hasCurrentPrice ? "LIVE_QUOTE" : "LAST_M15_CLOSE",
     entry: null, entryZoneLow: null, entryZoneHigh: null, distanceToEntryPips: null,
@@ -307,10 +369,10 @@ export function analyzeTrendPullbackV1(
     const broken = trend === "BULLISH" ? last.close < projectedTrendlinePrice! : last.close > projectedTrendlinePrice!;
     if (broken) result.warnings.push("Price has closed through the swing trendline, so this trend may be turning.");
   } else {
-    const dayAgo = candles.at(-97)!.close;
+    const dayAgo = candles.at(-(settings.trendFallbackBars + 1))!.close;
     trend = last.close >= dayAgo ? "BULLISH" : "BEARISH";
     result.trendSource = "PRICE_CHANGE_24H";
-    result.warnings.push(`Swing highs and lows disagree, so the trend comes from the last 24h (${last.close >= dayAgo ? "up" : "down"} ${(Math.abs(last.close - dayAgo) / pip).toFixed(1)} pips).`);
+    result.warnings.push(`Swing highs and lows disagree, so the trend comes from the ${settings.trendFallbackLabel} (${last.close >= dayAgo ? "up" : "down"} ${(Math.abs(last.close - dayAgo) / pip).toFixed(1)} pips).`);
   }
   const long = trend === "BULLISH";
   const sign = long ? 1 : -1;
@@ -340,7 +402,7 @@ export function analyzeTrendPullbackV1(
     .sort((a, b) => Math.abs(a.price - currentPrice) - Math.abs(b.price - currentPrice))[0]
     ?? { price: currentPrice - sign * settings.fallbackPullbackH1Atr * h1Atr, kind: "ATR_PULLBACK" as const };
   if (pullback.kind === "ATR_PULLBACK") {
-    result.warnings.push(`No ${long ? "support below" : "resistance above"} price, so the pullback is half an average 1-hour candle ${long ? "below" : "above"} price.`);
+    result.warnings.push(`No ${long ? "support below" : "resistance above"} price, so the pullback is ${h1CandlesText(settings.fallbackPullbackH1Atr)} ${long ? "below" : "above"} price.`);
   }
 
   // Counter-trend: the 1H/4H trend points the other way (at least one against,
@@ -363,7 +425,7 @@ export function analyzeTrendPullbackV1(
       extremeOfLevel = strong.extreme;
       result.reasons.push(`${long ? "Support" : "Resistance"} tested ${strong.touches} times and held.`);
     } else {
-      result.warnings.push(`No tested ${long ? "support" : "resistance"} within one average 1-hour candle of the pullback, so the normal level is used.`);
+      result.warnings.push(`No tested ${long ? "support" : "resistance"} within ${h1CandlesText(settings.counterTrendSearchH1Atr)} of the pullback, so the normal level is used.`);
     }
   }
 
@@ -380,10 +442,22 @@ export function analyzeTrendPullbackV1(
   const rewardRisk = result.counterTrend ? settings.counterTrendRewardRisk : settings.rewardRisk;
   const entry = round(pullback.price);
   const zoneDepth = extremeOfLevel === null ? 0 : Math.abs(entry - extremeOfLevel);
-  const risk = Math.max(settings.stopH1AtrMultiplier * h1Atr + zoneDepth, settings.minStopPips * pip);
+  const spreadPips = input.spreadPips ?? null;
+  const structureBuffer = Math.max(settings.entryBufferPips * pip, settings.structureBufferH1Atr * h1Atr) + (spreadPips ?? 0) * pip;
+  let risk = Math.max(settings.stopH1AtrMultiplier * h1Atr + zoneDepth, settings.minStopPips * pip);
+  // Swing: the stop itself clears the last 1-hour swing, so there is one stop
+  // and no separate structure choice.
+  let swingAnchor: number | null = null;
+  if (mode === "swing") {
+    const anchor = structureAnchor(candles.slice(-settings.structureLookback), long, entry, settings.structureMaxH1Atr * h1Atr, settings.structurePivotReach);
+    const past = anchor === null ? null : Math.abs(entry - anchor) + structureBuffer;
+    if (past !== null && past > risk) {
+      risk = past;
+      swingAnchor = anchor;
+    }
+  }
   const stop = round(entry - sign * risk);
   const target = round(entry + sign * rewardRisk * risk);
-  const spreadPips = input.spreadPips ?? null;
   if (spreadPips !== null && spreadPips > settings.maxSpreadShareOfRisk * (risk / pip)) {
     result.warnings.push(`Spread is ${spreadPips.toFixed(1)} pips, ${Math.round(spreadPips / (risk / pip) * 100)}% of the stop; above 10% the cost eats ${rewardRisk === 1 ? "a 1:1 target" : "the target"} quickly.`);
   }
@@ -401,10 +475,9 @@ export function analyzeTrendPullbackV1(
   // sweep of the obvious high/low does not reach it. Never tighter than the
   // normal stop; the target keeps the same R:R from the wider stop.
   const anchor = structureAnchor(candles.slice(-settings.structureLookback), long, entry, settings.structureMaxH1Atr * h1Atr, settings.structurePivotReach);
-  const structureBuffer = Math.max(settings.entryBufferPips * pip, settings.structureBufferH1Atr * h1Atr) + (spreadPips ?? 0) * pip;
   const structureRisk = anchor === null ? null : Math.abs(entry - anchor) + structureBuffer;
   if (structureRisk === null) {
-    result.structureStop = { available: false, note: `No swing ${long ? "low below" : "high above"} the entry within two average 1-hour candles in the last day.` };
+    result.structureStop = { available: false, note: `No swing ${long ? "low below" : "high above"} the entry within ${h1CandlesText(settings.structureMaxH1Atr)} in the ${settings.structureLookbackLabel}.` };
   } else if (structureRisk <= risk + pip) {
     result.structureStop = { available: false, note: "The normal stop is already past the nearest swing." };
   } else {
@@ -454,12 +527,14 @@ export function analyzeTrendPullbackV1(
   };
   const htfLabel = (bias: Direction | null) => bias === null ? "n/a" : bias === "BULLISH" ? "up" : bias === "BEARISH" ? "down" : "mixed";
   result.reasons = [
-    `Trend: ${long ? "up" : "down"} (${result.trendSource === "SWING_STRUCTURE" ? "swing trend line" : "last 24h of price"}).`,
-    ...(result.counterTrend ? [`Against the higher timeframes (1H ${htfLabel(result.higherTimeframe.h1)}, 4H ${htfLabel(result.higherTimeframe.h4)}), so the target is 1:1.`] : []),
+    `Trend: ${long ? "up" : "down"} (${result.trendSource === "SWING_STRUCTURE" ? "swing trend line" : `${settings.trendFallbackLabel} of price`}${mode === "swing" ? ", 1-hour chart" : ""}).`,
+    ...(result.counterTrend ? [`Against the higher timeframes (${settings.higherTimeframeLabels[0]} ${htfLabel(result.higherTimeframe.h1)}, ${settings.higherTimeframeLabels[1]} ${htfLabel(result.higherTimeframe.h4)}), so the target is 1:1.`] : []),
     ...result.reasons,
-    ...(waitsForPullback ? ["No pullback yet, so the entry waits half an average 1-hour candle back instead of filling mid-move."] : []),
+    ...(waitsForPullback ? [`No pullback yet, so the entry waits ${h1CandlesText(settings.fallbackPullbackH1Atr)} back instead of filling mid-move.`] : []),
     `Pullback entry at ${levelLabel[pullback.kind]} ${entry}.`,
-    `Stop ${result.stopDistancePips} pips past it (one average 1-hour candle${zoneDepth > 0 ? " beyond the zone" : ""}, minimum ${settings.minStopPips}); target ${rewardRisk}:1.`,
+    swingAnchor !== null
+      ? `Stop ${result.stopDistancePips} pips, past the last 1-hour swing ${long ? "low" : "high"} at ${round(swingAnchor)} (never under ${h1CandlesText(settings.stopH1AtrMultiplier)} or ${settings.minStopPips} pips); target ${rewardRisk}:1.`
+      : `Stop ${result.stopDistancePips} pips past it (${h1CandlesText(settings.stopH1AtrMultiplier)}${zoneDepth > 0 ? " beyond the zone" : ""}, minimum ${settings.minStopPips}); target ${rewardRisk}:1.`,
   ];
 
   // News goes first: holding a tight stop into a release lost the Sep 30 EUR/USD short.
@@ -482,7 +557,7 @@ export function trendPullbackContext(result: TrendPullbackV1Result, stopChoice: 
   return {
     version: 1,
     direction: result.action === "LONG" ? "long" : "short",
-    setup: "trend-pullback-loose-v1",
+    setup: result.mode === "swing" ? "trend-pullback-swing-v1" : "trend-pullback-loose-v1",
     frozen: {
       trend: result.trend,
       trendSource: result.trendSource,

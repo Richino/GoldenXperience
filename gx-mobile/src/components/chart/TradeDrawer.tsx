@@ -34,7 +34,8 @@ export function TradeDrawer({
   bid: number | null;
   ask: number | null;
   /** analysisContext tags an Analyze plan so forward-test trades can be scored by setup. */
-  draft?: { direction: 'long' | 'short'; entry: number; stop: number; target: number; analysisContext?: Record<string, unknown> } | null;
+  /** activateAt holds the order until after high-impact news the plan found. */
+  draft?: { direction: 'long' | 'short'; entry: number; stop: number; target: number; activateAt?: string | null; analysisContext?: Record<string, unknown> } | null;
   onCreated?: () => void;
 }) {
   const colors = useThemeColors();
@@ -153,7 +154,7 @@ export function TradeDrawer({
         stopPrice: parsedStop,
         targetPrice: parsedTarget,
         expiresAt: null,
-        activateAt: null,
+        activateAt: draft?.activateAt && Date.parse(draft.activateAt) > Date.now() + 60_000 ? draft.activateAt : null,
         invalidationPrice: null,
         orderReferencePrice,
         analysisContext: draft?.analysisContext
@@ -238,6 +239,11 @@ export function TradeDrawer({
         </Field>
       </View>
       {summary}
+      {draft?.activateAt && Date.parse(draft.activateAt) > Date.now() ? (
+        <Text style={styles.newsHold}>
+          High-impact news is due, so this order starts watching at {new Date(draft.activateAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.
+        </Text>
+      ) : null}
       {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
       <Pressable
         onPress={() => void save()}
@@ -301,6 +307,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   summaryTitle: { fontSize: 13, fontFamily: theme.fonts.sansSemiBold, color: colors.textPrimary },
   summaryLine: { fontSize: 12, fontFamily: theme.fonts.sans, color: colors.textSecondary },
   error: { marginHorizontal: 4, marginBottom: 10, fontSize: 13, lineHeight: 18, fontFamily: theme.fonts.sansMedium, color: colors.danger },
+  newsHold: { marginHorizontal: 4, marginBottom: 10, fontSize: 13, lineHeight: 18, fontFamily: theme.fonts.sansMedium, color: colors.warning },
   submit: { marginHorizontal: 4, marginTop: 4, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: colors.primary },
   submitDisabled: { opacity: 0.45 },
   submitText: { fontSize: 14, fontFamily: theme.fonts.sansSemiBold, color: '#ffffff' },

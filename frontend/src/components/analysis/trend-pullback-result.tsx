@@ -15,9 +15,9 @@ export function TrendPullbackResultDialog({ result, instrument, analyzing = fals
   onCancel: () => void;
   onReview: (stopChoice: "normal" | "structure") => void;
 }) {
-  // Tied to the plan it was picked on, so a new analysis starts on the normal stop.
+  // Tied to the plan it was picked on, so a new analysis starts on the stop it recommends.
   const [picked, setPicked] = useState<{ plan: TrendPullbackV1Result | null; choice: "normal" | "structure" }>({ plan: null, choice: "normal" });
-  const stopChoice = picked.plan === result ? picked.choice : "normal";
+  const stopChoice = picked.plan === result ? picked.choice : result?.recommendedStop ?? "normal";
   const setStopChoice = (choice: "normal" | "structure") => setPicked({ plan: result, choice });
   const { setSheet, setBackdrop, handlers: dragHandlers, requestClose } = useDragToDismiss({
     open: analyzing || result !== null,

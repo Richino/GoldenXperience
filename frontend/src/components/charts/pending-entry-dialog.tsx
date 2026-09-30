@@ -114,7 +114,7 @@ export function PendingEntryDialog({
   bid: number | null;
   ask: number | null;
   selectedEntry: PendingManualEntry | null;
-  initialProposal?: { direction: "long" | "short"; entry: number; stop: number; target: number; confidence: number | null; rationale: string; preferredEntryTime: string; analysisContext?: Record<string, unknown> } | null;
+  initialProposal?: { direction: "long" | "short"; entry: number; stop: number; target: number; confidence: number | null; rationale: string; preferredEntryTime: string; activateAt?: string | null; analysisContext?: Record<string, unknown> } | null;
   creationBlocked?: boolean;
   onClose: () => void;
   onChanged: (message: string) => void;
@@ -143,9 +143,10 @@ export function PendingEntryDialog({
   const [stopPrice, setStopPrice] = useState(selectedEntry?.stopPrice == null ? (initialProposal ? initialProposal.stop.toFixed(precisionFor(instrument)) : "") : String(selectedEntry.stopPrice));
   const [targetPrice, setTargetPrice] = useState(selectedEntry?.targetPrice == null ? (initialProposal ? initialProposal.target.toFixed(precisionFor(instrument)) : "") : String(selectedEntry.targetPrice));
   const [invalidationPrice, setInvalidationPrice] = useState(selectedEntry?.invalidationPrice == null ? "" : String(selectedEntry.invalidationPrice));
-  const [activateAt, setActivateAt] = useState(localDateTimeValue(selectedEntry?.activateAt ?? null));
+  // A plan held back for news arrives with its start time already set.
+  const [activateAt, setActivateAt] = useState(localDateTimeValue(selectedEntry?.activateAt ?? initialProposal?.activateAt ?? null));
   const [activatePickerOpen, setActivatePickerOpen] = useState(false);
-  const initialActivateFields = splitLocal(selectedEntry?.activateAt ?? null);
+  const initialActivateFields = splitLocal(selectedEntry?.activateAt ?? initialProposal?.activateAt ?? null);
   const [activateDate, setActivateDate] = useState(initialActivateFields.date);
   const [activateTime, setActivateTime] = useState(initialActivateFields.time);
   const [activateError, setActivateError] = useState<string | null>(null);
@@ -309,10 +310,12 @@ export function PendingEntryDialog({
     setStopPrice(initialProposal ? initialProposal.stop.toFixed(precision) : "");
     setTargetPrice(initialProposal ? initialProposal.target.toFixed(precision) : "");
     setInvalidationPrice("");
-    setActivateAt("");
+    const proposalActivateAt = initialProposal?.activateAt ?? null;
+    const proposalActivateFields = splitLocal(proposalActivateAt);
+    setActivateAt(localDateTimeValue(proposalActivateAt));
     setActivatePickerOpen(false);
-    setActivateDate("");
-    setActivateTime("");
+    setActivateDate(proposalActivateFields.date);
+    setActivateTime(proposalActivateFields.time);
     setActivateError(null);
     setExpiration("none");
     setCustomExpiration("");

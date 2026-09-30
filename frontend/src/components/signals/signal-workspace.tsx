@@ -47,6 +47,7 @@ import {
 import { PairAvatar } from "@/components/ui/pair-avatar";
 import { MobileSheet } from "@/components/ui/mobile-sheet";
 import { apiUrl } from "@/lib/api/url";
+import type { EconomicCalendarSnapshot } from "@/lib/oanda/calendar";
 import { PairStrengthTag, usePairStrength } from "@/components/signals/pair-strength-tag";
 import { openRFromLevels } from "@/lib/open-trade-progress";
 import { formatClockTime, formatDayAndTime, formatShortDay } from "@/lib/format/datetime";
@@ -2353,6 +2354,8 @@ export function SignalWorkspace({
     confidence: number | null;
     rationale: string;
     preferredEntryTime: string;
+    /** Set when the plan holds the order until after high-impact news. */
+    activateAt?: string | null;
     /** Saved with the order so forward-test trades can be scored by setup. */
     analysisContext?: Record<string, unknown>;
   } | null>(null);
@@ -2449,11 +2452,18 @@ export function SignalWorkspace({
         .then(async (response) => response.ok ? (await response.json() as { data?: CandleSeries }).data : undefined)
         .then((series) => series?.source === "oanda" && series.granularity === granularity ? series.candles : undefined)
         .catch(() => undefined);
-      const [candlesResponse, pricingResponse, h1Candles, h4Candles] = await Promise.all([
+      // The calendar only adds the news warning; the plan is built without it.
+      // Generated fallback events are ignored so they cannot raise a false alarm.
+      const newsEvents = fetch(apiUrl("/api/oanda/calendar"), { credentials: "include", signal: controller.signal })
+        .then(async (response) => response.ok ? (await response.json() as { data?: EconomicCalendarSnapshot }).data : undefined)
+        .then((calendar) => calendar?.connected ? calendar.events : undefined)
+        .catch(() => undefined);
+      const [candlesResponse, pricingResponse, h1Candles, h4Candles, calendarEvents] = await Promise.all([
         fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=M15&count=500`), { credentials: "include", cache: "no-store", signal: controller.signal }),
         fetch(apiUrl(`/api/oanda/pricing?instruments=${instrument}`), { credentials: "include", cache: "no-store", signal: controller.signal }).catch(() => null),
         higherTimeframe("H1"),
         higherTimeframe("H4"),
+        newsEvents,
       ]);
       if (!candlesResponse.ok) throw new Error("Completed M15 candles are unavailable.");
       const candlesPayload = await candlesResponse.json() as { data?: CandleSeries };
@@ -2467,7 +2477,7 @@ export function SignalWorkspace({
       const currentPrice = quote?.source === "oanda" && Number.isFinite(quote.mid) && quote.mid > 0
         && Number.isFinite(quoteAgeMs) && quoteAgeMs >= -30_000 && quoteAgeMs <= 2 * 60_000 ? quote.mid : null;
       const spreadPips = currentPrice !== null && quote && quote.ask > quote.bid ? (quote.ask - quote.bid) / pipSizeFor(instrument) : null;
-      const result = analyzeTrendPullbackV1({ instrument, candles: candlesPayload.data.candles, currentPrice, h1Candles, h4Candles, spreadPips });
+      const result = analyzeTrendPullbackV1({ instrument, candles: candlesPayload.data.candles, currentPrice, h1Candles, h4Candles, spreadPips, newsEvents: calendarEvents });
       if (request !== trendPullbackRequestRef.current) return;
       setTrendPullbackResult(result);
       setTrendPullbackDialogOpen(!embeddedSurfaceOnly);
@@ -2493,7 +2503,7 @@ export function SignalWorkspace({
     setTrendPullbackBusy(false);
     setTrendPullbackDialogOpen(false);
   }, []);
-  const reviewTrendPullback = (stopChoice: "normal" | "structure" = "normal") => {
+  const reviewTrendPullback = (stopChoice: "normal" | "structure" = trendPullbackResult?.recommendedStop ?? "normal") => {
     // Accept means review the planned entry in the drawer, never create an
     // order. A reference-only analysis still has a useful planned level, and
     // the drawer obtains/validates the executable quote when the user later
@@ -2509,6 +2519,7 @@ export function SignalWorkspace({
       confidence: null,
       rationale: trendPullbackResult.reasons.join(" "),
       preferredEntryTime: new Date().toISOString(),
+      activateAt: trendPullbackResult.activateAfter,
       analysisContext: trendPullbackContext(trendPullbackResult, structure ? "structure" : "normal"),
     });
     setTrendPullbackDialogOpen(false);

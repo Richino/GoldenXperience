@@ -1,6 +1,7 @@
 import { calculateAtr, calculateEma, deriveDominantSwingTrend, type SwingTrendAnchor } from "@/lib/chart-utils";
 import { pipSizeFor, precisionFor } from "@/lib/instruments/catalog";
 import { computeSupportResistanceLevels } from "@/lib/strategy/support-resistance";
+import type { EconomicCalendarEvent } from "@/lib/oanda/calendar";
 import type { Candle, MajorInstrument } from "@/types/forex";
 
 /**
@@ -31,7 +32,60 @@ export const TREND_PULLBACK_V1 = {
   structureMaxH1Atr: 2,
   /** Buffer past the swing, on top of the spread (never less than entryBufferPips). */
   structureBufferH1Atr: 0.15,
+  /** Warn about news for either currency due within this many hours... */
+  newsLookaheadHours: 4,
+  /** ...and hold the order until after any due within this many hours... */
+  newsDelayHours: 2,
+  /** ...or released this recently, while the spike may still be running. */
+  newsJustReleasedMinutes: 15,
+  /** The held order starts watching this long after the last release. */
+  newsSettleMinutes: 15,
+  /** ForexFactory impact 3 = high ("red folder"). */
+  newsMinImpact: 3,
 } as const;
+
+type NewsEvent = Pick<EconomicCalendarEvent, "title" | "currency" | "impact" | "timestamp">;
+
+/**
+ * High-impact news for either currency in the pair inside the lookahead (or
+ * only just released). News candles routinely run past a one-hour-ATR stop;
+ * that is how the Sep 30 EUR/USD short was stopped. News due within
+ * `newsDelayHours` also holds the order until after the last such release.
+ */
+function newsCheck(instrument: MajorInstrument, events: NewsEvent[], now: number, stopPips: number) {
+  const settings = TREND_PULLBACK_V1;
+  const [base, quote] = instrument.split("_");
+  const due = events
+    .filter((event) => event.impact >= settings.newsMinImpact && (event.currency === base || event.currency === quote))
+    .map((event) => ({ ...event, at: Date.parse(event.timestamp) }))
+    .filter((event) => Number.isFinite(event.at)
+      && event.at >= now - settings.newsJustReleasedMinutes * 60_000
+      && event.at <= now + settings.newsLookaheadHours * 3_600_000)
+    .sort((a, b) => a.at - b.at);
+  const first = due[0];
+  if (!first) return null;
+  const sameTime = due.filter((event) => event.at === first.at);
+  const later = due.length - sameTime.length;
+  const titles = sameTime.slice(0, 3).map((event) => event.title).join(", ");
+  const minutes = Math.round((first.at - now) / 60_000);
+  const when = minutes <= 0
+    ? "just released"
+    : `in ${minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`}`;
+  const more = later ? `, plus ${later} more in the next ${settings.newsLookaheadHours}h` : "";
+  const held = due.filter((event) => event.at <= now + settings.newsDelayHours * 3_600_000);
+  const lastHeld = held.at(-1);
+  if (!lastHeld) {
+    return {
+      warning: `High-impact ${first.currency} news ${when} (${titles}${more}): a news candle can run past a ${stopPips}-pip stop. Consider closing before it.`,
+      activateAfter: null,
+    };
+  }
+  const activateAfter = new Date(lastHeld.at + settings.newsSettleMinutes * 60_000).toISOString();
+  return {
+    warning: `High-impact ${first.currency} news ${when} (${titles}${more}), so the order waits until ${settings.newsSettleMinutes} minutes after it before it can fill.`,
+    activateAfter,
+  };
+}
 
 /**
  * Higher-timeframe bias from the 50 and 200 EMAs: up when the 50 is above the
@@ -149,6 +203,10 @@ export type TrendPullbackV1Result = {
   counterTrend: boolean;
   /** Alternative stop past the day's swing beyond the level, same R:R; null until a plan exists. */
   structureStop: StructureStop | null;
+  /** The stop the plan recommends: the structure stop whenever one is available. */
+  recommendedStop: "normal" | "structure";
+  /** Hold the order until this time (ISO) because high-impact news is due; null to place it now. */
+  activateAfter: string | null;
   reasons: string[];
   /** Things a strict version would have refused on; shown with the plan. */
   warnings: string[];
@@ -202,6 +260,10 @@ export function analyzeTrendPullbackV1(
     h1Candles?: Candle[];
     h4Candles?: Candle[];
     spreadPips?: number | null;
+    /** Economic calendar events; without them there is no news warning. */
+    newsEvents?: NewsEvent[];
+    /** The moment the plan is for, in ms; defaults to now. */
+    now?: number;
   },
 ): TrendPullbackV1Result {
   const settings = TREND_PULLBACK_V1;
@@ -224,6 +286,7 @@ export function analyzeTrendPullbackV1(
     entry: null, entryZoneLow: null, entryZoneHigh: null, distanceToEntryPips: null,
     stopLoss: null, stopDistancePips: null, takeProfit: null, targetDistancePips: null,
     riskReward: null, higherTimeframe: { h1: emaBias(input.h1Candles), h4: emaBias(input.h4Candles) }, counterTrend: false, structureStop: null,
+    recommendedStop: "normal", activateAfter: null,
     reasons: [], warnings: [],
     debug: {
       trendSource: "LEGACY_SWING_TREND_LINES", pointA: trendRead?.first ?? null, pointB: trendRead?.second ?? null,
@@ -304,6 +367,15 @@ export function analyzeTrendPullbackV1(
     }
   }
 
+  // No pullback under way and price already at the level: filling now enters
+  // mid-move (0 of 3 such plans won, Sep 27-30). Wait half an average 1-hour
+  // candle back instead, so the order only fills on a pullback.
+  const waitsForPullback = hasCurrentPrice && result.currentMove === "NONE" && Math.abs(currentPrice - pullback.price) <= tolerance;
+  if (waitsForPullback) {
+    pullback = { price: currentPrice - sign * settings.fallbackPullbackH1Atr * h1Atr, kind: "ATR_PULLBACK" };
+    extremeOfLevel = null;
+  }
+
   // 3. Stop past the pullback level (and past the whole tested zone), 4. fixed target.
   const rewardRisk = result.counterTrend ? settings.counterTrendRewardRisk : settings.rewardRisk;
   const entry = round(pullback.price);
@@ -352,6 +424,9 @@ export function analyzeTrendPullbackV1(
       spreadSharePct: spreadPips === null ? null : Math.round(spreadPips / (structureRisk / pip) * 100),
       opposingLevel: structureOpposing[0] === undefined ? null : round(structureOpposing[0]),
     };
+    // One-hour-ATR stops sat inside normal noise: 4 of 6 stopped trades
+    // (Sep 27-30) went on to reach the target. The swing stop is the default.
+    result.recommendedStop = "structure";
   }
 
   const inZone = Math.abs(currentPrice - entry) <= tolerance;
@@ -382,9 +457,19 @@ export function analyzeTrendPullbackV1(
     `Trend: ${long ? "up" : "down"} (${result.trendSource === "SWING_STRUCTURE" ? "swing trend line" : "last 24h of price"}).`,
     ...(result.counterTrend ? [`Against the higher timeframes (1H ${htfLabel(result.higherTimeframe.h1)}, 4H ${htfLabel(result.higherTimeframe.h4)}), so the target is 1:1.`] : []),
     ...result.reasons,
+    ...(waitsForPullback ? ["No pullback yet, so the entry waits half an average 1-hour candle back instead of filling mid-move."] : []),
     `Pullback entry at ${levelLabel[pullback.kind]} ${entry}.`,
     `Stop ${result.stopDistancePips} pips past it (one average 1-hour candle${zoneDepth > 0 ? " beyond the zone" : ""}, minimum ${settings.minStopPips}); target ${rewardRisk}:1.`,
   ];
+
+  // News goes first: holding a tight stop into a release lost the Sep 30 EUR/USD short.
+  const news = input.newsEvents?.length
+    ? newsCheck(input.instrument, input.newsEvents, input.now ?? Date.now(), result.stopDistancePips!)
+    : null;
+  if (news) {
+    result.warnings.unshift(news.warning);
+    result.activateAfter = news.activateAfter;
+  }
   return result;
 }
 
@@ -410,6 +495,7 @@ export function trendPullbackContext(result: TrendPullbackV1Result, stopChoice: 
       stopChoice: structure ? "structure" : "normal",
       normalStop: { stop: result.stopLoss, target: result.takeProfit },
       structureStop: result.structureStop,
+      activateAfter: result.activateAfter,
       warnings: result.warnings,
     },
   };

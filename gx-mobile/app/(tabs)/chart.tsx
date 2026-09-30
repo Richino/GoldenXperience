@@ -120,6 +120,10 @@ type NativeTrendPullbackResult = {
   higherTimeframe?: { h1: string | null; h4: string | null };
   counterTrend?: boolean;
   structureStop?: { available: false; note: string } | { available: true; anchor: number; stop: number; stopDistancePips: number; takeProfit: number; targetDistancePips: number; spreadSharePct: number | null; opposingLevel: number | null } | null;
+  /** The stop the plan recommends; the structure stop whenever one exists. */
+  recommendedStop?: StopChoice;
+  /** ISO time the order waits for because high-impact news is due; null to place it now. */
+  activateAfter?: string | null;
 };
 type StopChoice = 'normal' | 'structure';
 
@@ -207,7 +211,7 @@ export default function ChartScreen() {
   const [enabledIndicators, setEnabledIndicators] = useState<ChartIndicator[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [tradeOpen, setTradeOpen] = useState(false);
-  const [tradeDraft, setTradeDraft] = useState<{ direction: 'long' | 'short'; entry: number; stop: number; target: number; analysisContext?: Record<string, unknown> } | null>(null);
+  const [tradeDraft, setTradeDraft] = useState<{ direction: 'long' | 'short'; entry: number; stop: number; target: number; activateAt?: string | null; analysisContext?: Record<string, unknown> } | null>(null);
   const [manualEntries, setManualEntries] = useState<PendingEntry[]>([]);
   const [confirmTradeAction, setConfirmTradeAction] = useState<Exclude<ManualTradeAction, 'trade'> | null>(null);
   const [tradeActionBusy, setTradeActionBusy] = useState(false);
@@ -503,7 +507,7 @@ export default function ChartScreen() {
     const stop = structure?.stop ?? plan.stopLoss;
     const target = structure?.takeProfit ?? plan.takeProfit;
     setTradeDraft({
-      direction, entry: plan.entry, stop, target,
+      direction, entry: plan.entry, stop, target, activateAt: plan.activateAfter ?? null,
       // Same shape the web builds, so forward-test trades are tagged either way.
       analysisContext: {
         version: 1,
@@ -521,6 +525,7 @@ export default function ChartScreen() {
           stopChoice: structure ? 'structure' : 'normal',
           normalStop: { stop: plan.stopLoss, target: plan.takeProfit },
           structureStop: plan.structureStop ?? null,
+          activateAfter: plan.activateAfter ?? null,
           warnings: plan.warnings ?? [],
         },
       },
@@ -623,7 +628,9 @@ function NativeTrendPullbackModal({ visible, busy, result, error, instrument, on
   // Tied to the plan it was picked on, so a new analysis starts on the normal stop.
   const [picked, setPicked] = useState<{ plan: NativeTrendPullbackResult | null; choice: StopChoice }>({ plan: null, choice: 'normal' });
   const structure = plan?.structureStop?.available ? plan.structureStop : null;
-  const useStructure = picked.plan === result && picked.choice === 'structure' && structure !== null;
+  // A new plan starts on the stop it recommends until the trader picks one.
+  const choice = picked.plan === result ? picked.choice : result?.recommendedStop ?? 'normal';
+  const useStructure = choice === 'structure' && structure !== null;
   const shown = plan ? useStructure && structure
     ? { stop: structure.stop, stopPips: structure.stopDistancePips, target: structure.takeProfit, targetPips: structure.targetDistancePips }
     : { stop: plan.stopLoss, stopPips: plan.stopDistancePips, target: plan.takeProfit, targetPips: plan.targetDistancePips } : null;

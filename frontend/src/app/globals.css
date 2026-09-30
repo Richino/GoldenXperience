@@ -304,28 +304,20 @@ a {
 }
 
 .pwa-pull-refresh-indicator {
+  --spinner-size: 28px;
   position: fixed;
   z-index: 60;
   top: max(0.4rem, env(safe-area-inset-top));
   left: 50%;
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  min-width: 8.75rem;
-  height: 2.5rem;
-  padding: 0 0.75rem 0 0.4rem;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--foreground) 9%, transparent);
-  background: color-mix(in srgb, var(--surface) 94%, transparent);
-  box-shadow: 0 8px 28px color-mix(in srgb, var(--foreground) 14%, transparent);
-  backdrop-filter: blur(16px);
+  width: var(--spinner-size);
+  height: var(--spinner-size);
   opacity: 0;
   pointer-events: none;
   will-change: transform, opacity;
-  transform: translate3d(-50%, calc(-100% - 0.7rem + var(--pull-distance, 0px)), 0) scale(0.96);
+  transform: translate3d(-50%, calc(var(--pull-distance, 0px) * 0.5 - 50%), 0);
   transition:
     opacity 150ms ease,
-    transform 190ms cubic-bezier(0.22, 1, 0.36, 1);
+    transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .pwa-pull-refresh-indicator.is-visible {
@@ -337,57 +329,48 @@ a {
   transition: opacity 100ms linear;
 }
 
-.pwa-pull-refresh-indicator.is-refreshing,
+/* Done: fade out where it is, like Instagram, instead of showing a check. */
 .pwa-pull-refresh-indicator.is-complete {
-  transform: translate3d(-50%, calc(-100% - 0.7rem + 62px), 0) scale(1);
-  transition: opacity 150ms ease, transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  opacity: 0;
+  transform: translate3d(-50%, calc(var(--pull-distance, 0px) * 0.5 - 50%), 0) scale(0.85);
+  transition: opacity 200ms ease, transform 200ms ease;
 }
 
-.dark .pwa-pull-refresh-indicator {
-  border-color: color-mix(in srgb, var(--foreground) 10%, transparent);
-  background: color-mix(in srgb, var(--surface) 96%, transparent);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.42);
+/* Space above the page: follows the finger while pulling, eases open/closed otherwise. */
+.pwa-pull-refresh-gap {
+  transition: height 280ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.pwa-pull-refresh-icon {
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 1.75rem;
-  height: 1.75rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--accent);
-}
-
-.pwa-pull-refresh-indicator.is-ready .pwa-pull-refresh-icon {
-  background: var(--accent);
-  color: white;
-}
-
-.pwa-pull-refresh-indicator.is-complete .pwa-pull-refresh-icon {
-  background: var(--success);
-  color: white;
-}
-
-.pwa-pull-refresh-label {
-  white-space: nowrap;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--muted-strong);
-}
-
-.pwa-pull-refresh-arrow {
-  transform: rotate(var(--pull-rotation, 0deg));
-}
-
-.pwa-pull-refresh-indicator.is-pulling .pwa-pull-refresh-arrow {
+.pwa-pull-refresh-gap.is-tracking {
   transition: none;
 }
 
-.pwa-pull-refresh-loader {
-  animation: pwa-pull-refresh-spin 700ms linear infinite;
+.pwa-pull-refresh-spinner {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Eight bars around the centre; bar N shows once the pull passes N/8 of the threshold. */
+.pwa-pull-refresh-bar {
+  position: absolute;
+  left: calc(50% - 1.3px);
+  top: calc(50% - 3.75px);
+  width: 2.6px;
+  height: 7.5px;
+  border-radius: 999px;
+  background: var(--muted-strong);
+  opacity: clamp(0, calc(var(--pull-bars, 0) - var(--bar)), 1);
+  transform: rotate(calc(var(--bar) * 45deg)) translateY(-7px);
+}
+
+/* Refreshing: the lit bar steps clockwise and the ones behind it fade. */
+.pwa-pull-refresh-indicator.is-refreshing .pwa-pull-refresh-bar,
+.pwa-pull-refresh-indicator.is-complete .pwa-pull-refresh-bar {
+  opacity: 0.2;
+  animation: pwa-pull-refresh-bar 800ms steps(8, end) infinite;
+  animation-delay: calc(var(--bar) * 100ms - 800ms);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -399,14 +382,18 @@ a {
     transition-duration: 0.01ms;
   }
 
-  .pwa-pull-refresh-loader {
-    animation-duration: 1.2s;
+  .pwa-pull-refresh-indicator.is-refreshing .pwa-pull-refresh-bar {
+    animation-duration: 1.6s;
   }
 }
 
-@keyframes pwa-pull-refresh-spin {
+@keyframes pwa-pull-refresh-bar {
+  from {
+    opacity: 1;
+  }
+
   to {
-    transform: rotate(360deg);
+    opacity: 0.2;
   }
 }
 
@@ -17714,6 +17701,10 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
   html:is(.dark, :not(.dark)) .signals-chart-mobile .gx-chart-change span { margin: 0; font-size: inherit; }
   html:is(.dark, :not(.dark)) .signals-chart-mobile .gx-chart-change.is-positive { color: var(--gx-primary); }
   html:is(.dark, :not(.dark)) .signals-chart-mobile .gx-chart-change.is-negative { color: var(--gx-danger); }
+  html:is(.dark, :not(.dark)) .signals-chart-mobile .gx-spread-tier.is-cheap { color: var(--gx-primary); }
+  html:is(.dark, :not(.dark)) .signals-chart-mobile .gx-spread-tier.is-pricey { color: var(--gx-warning); }
+  html:is(.dark, :not(.dark)) .signals-chart-mobile .gx-spread-tier.is-expensive { color: var(--gx-danger); }
+  html:is(.dark, :not(.dark)) .signals-chart-mobile .gx-spread-tier.is-unknown { color: var(--gx-muted); }
 
   html:is(.dark, :not(.dark)) .signals-chart-mobile .gx-mobile-session {
     margin-left: auto;
@@ -17888,6 +17879,22 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
   html:is(.dark, :not(.dark)) .signals-chart-mobile .gx-mobile-analyze.is-cancel { background: var(--gx-warning); }
   html:is(.dark, :not(.dark)) .signals-chart-mobile .gx-mobile-analyze.is-close { background: var(--gx-danger); }
   html:is(.dark, :not(.dark)) .signals-chart-mobile .gx-mobile-analyze:disabled { opacity: 0.55; }
+
+  /* Keep the action slot stable while the browser determines whether this is
+     a new entry, a pending entry, or an active trade. */
+  html:is(.dark, :not(.dark)) .signals-chart-mobile .gx-mobile-trade-action-skeleton {
+    width: 100%;
+    min-height: 46px;
+    border-radius: 12px;
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--foreground) 5%, transparent) 20%,
+      color-mix(in srgb, var(--foreground) 10%, transparent) 45%,
+      color-mix(in srgb, var(--foreground) 5%, transparent) 70%
+    );
+    background-size: 220% 100%;
+    animation: home-activity-shimmer 1.35s ease-in-out infinite;
+  }
 
   /* Trade / Cancel / Close: solid fills — keep label white on hover (outline
      .gx-mobile-analyze:hover rules otherwise swap text to accent/danger). */
@@ -19256,6 +19263,26 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
   html:is(.dark, :not(.dark)) .trades-view .trade-card-levels {
     padding-top: 0.65rem;
     border-top: 1px solid color-mix(in srgb, var(--gx-card-border) 88%, transparent);
+  }
+
+  html:is(.dark, :not(.dark)) .trades-view .trade-card-broker-cost {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 0.58rem;
+    border-top: 1px solid color-mix(in srgb, var(--gx-card-border) 88%, transparent);
+    color: var(--gx-muted);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  html:is(.dark, :not(.dark)) .trades-view .trade-card-broker-cost strong {
+    color: var(--gx-text);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0;
   }
 }
 

@@ -54,15 +54,36 @@ interface OandaTransactionsResponse {
     price?: string;
     pl?: string;
     financing?: string;
-    tradeOpened?: { tradeID?: string };
+    tradeOpened?: {
+      tradeID?: string;
+      halfSpreadCost?: string;
+      guaranteedExecutionFee?: string;
+    };
     tradesClosed?: Array<{
       tradeID?: string;
       price?: string;
       realizedPL?: string;
       financing?: string;
     }>;
+    commission?: string;
+    guaranteedExecutionFee?: string;
+    halfSpreadCost?: string;
   }>;
 }
+
+type OandaOrderFillTransaction = {
+  id?: string;
+  price?: string;
+  commission?: string;
+  guaranteedExecutionFee?: string;
+  halfSpreadCost?: string;
+  tradeOpened?: {
+    tradeID?: string;
+    price?: string;
+    guaranteedExecutionFee?: string;
+    halfSpreadCost?: string;
+  };
+};
 
 interface OandaClosedTradesResponse {
   trades?: Array<{
@@ -115,7 +136,7 @@ interface OandaOpenTradesResponse {
 
 type OandaOrderResponse = {
   orderCreateTransaction?: { id?: string };
-  orderFillTransaction?: { id?: string; price?: string; tradeOpened?: { tradeID?: string } };
+  orderFillTransaction?: OandaOrderFillTransaction;
   // OANDA answers 201 for an order it accepted AND immediately cancelled — an
   // INSUFFICIENT_MARGIN rejection arrives as a success status carrying this
   // transaction. Reading only the create/fill transactions made a rejected
@@ -259,9 +280,76 @@ export async function submitPracticeMarketOrder(order: PracticeMarketOrder) {
     orderId: response.orderCreateTransaction?.id ?? response.orderFillTransaction?.id ?? null,
     tradeId: response.orderFillTransaction?.tradeOpened?.tradeID ?? null,
     fillPrice: response.orderFillTransaction?.price ? Number(response.orderFillTransaction.price) : null,
+    // OANDA reports this from the actual order-fill ledger, in the account's
+    // home currency. It is not a quote-time or strategy spread estimate.
+    entryHalfSpreadCost: transactionNumberOrNull(response.orderFillTransaction?.tradeOpened?.halfSpreadCost ?? response.orderFillTransaction?.halfSpreadCost),
+    entryCommission: transactionNumberOrNull(response.orderFillTransaction?.commission),
+    entryGuaranteedExecutionFee: transactionNumberOrNull(response.orderFillTransaction?.tradeOpened?.guaranteedExecutionFee ?? response.orderFillTransaction?.guaranteedExecutionFee),
     /** Set when the broker refused the order. A live order never carries one. */
     cancelReason: response.orderCancelTransaction?.reason ?? null,
   };
+}
+
+export type PracticeTradeEntryCosts = {
+  halfSpreadCost: number | null;
+  commission: number | null;
+  guaranteedExecutionFee: number | null;
+};
+
+export type PracticeOrderFillCost = PracticeTradeEntryCosts & { brokerTradeId: string };
+
+function orderFillCostsFromTransactions(transactions: NonNullable<OandaTransactionsResponse["transactions"]>): PracticeOrderFillCost[] {
+  return transactions.flatMap((transaction) => {
+    const tradeId = transaction.type === "ORDER_FILL" ? transaction.tradeOpened?.tradeID : null;
+    if (!tradeId) return [];
+    return [{
+      // OANDA's JSON examples use string IDs, but some SDK/proxy paths expose
+      // them as numbers. The database stores IDs as text, so normalize before
+      // matching a historical ledger fill.
+      brokerTradeId: String(tradeId),
+      halfSpreadCost: transactionNumberOrNull(transaction.tradeOpened?.halfSpreadCost ?? transaction.halfSpreadCost),
+      commission: transactionNumberOrNull(transaction.commission),
+      guaranteedExecutionFee: transactionNumberOrNull(transaction.tradeOpened?.guaranteedExecutionFee ?? transaction.guaranteedExecutionFee),
+    }];
+  });
+}
+
+/**
+ * Read recent immutable ORDER_FILL ledger pages once, then let callers match
+ * a trade by `tradeOpened.tradeID`. This is the only safe historical backfill:
+ * it preserves OANDA's fill-time account-currency cost and never derives a
+ * value from a later quote.
+ */
+export async function getRecentPracticeOrderFillCosts(pageCount?: number): Promise<PracticeOrderFillCost[]> {
+  const config = getConfig();
+  if (!config) return [];
+  const accountPath = `/v3/accounts/${encodeURIComponent(config.accountId)}`;
+  const index = await requestOanda<OandaTransactionsResponse>(`${accountPath}/transactions?pageSize=1000`);
+  const allPagePaths = index.pages ?? [];
+  const pagePaths = (pageCount === undefined ? allPagePaths : allPagePaths.slice(0, Math.max(1, pageCount))).map((page) => {
+    const url = new URL(page, config.baseUrl);
+    if (url.origin !== config.baseUrl) throw new OandaRequestError("OANDA returned an unexpected transaction page.");
+    return `${url.pathname}${url.search}`;
+  });
+  // This is only used by a maintenance backfill. Keep the broker polite while
+  // still allowing accounts with more than five ledger pages to be complete.
+  const pages: OandaTransactionsResponse[] = [];
+  for (let offset = 0; offset < pagePaths.length; offset += 3) {
+    pages.push(...await Promise.all(pagePaths.slice(offset, offset + 3).map((page) => requestOanda<OandaTransactionsResponse>(page))));
+  }
+  if (!pages.length) pages.push(index);
+  return orderFillCostsFromTransactions(pages.flatMap((page) => page.transactions ?? []));
+}
+
+/** All fill costs after a known OANDA transaction ID, including newer pages
+ * that a stale transaction index can omit. */
+export async function getPracticeOrderFillCostsSince(transactionId: string): Promise<PracticeOrderFillCost[]> {
+  const config = getConfig();
+  if (!config || !/^\d+$/.test(transactionId)) return [];
+  const response = await requestOanda<OandaTransactionsResponse>(
+    `/v3/accounts/${encodeURIComponent(config.accountId)}/transactions/sinceid?id=${encodeURIComponent(transactionId)}`,
+  );
+  return orderFillCostsFromTransactions(response.transactions ?? []);
 }
 
 export type PracticeEntryOrder = {
@@ -356,6 +444,8 @@ export interface PracticeTradeState {
   entryPrice: number | null;
   initialUnits: number | null;
   openTime: string | null;
+  /** OANDA ledger transaction that opened this trade. */
+  openTransactionId: string | null;
   financing: number | null;
 }
 
@@ -386,6 +476,7 @@ export function practiceTradeStateFromTransactions(
       entryPrice: null,
       initialUnits: null,
       openTime: null,
+      openTransactionId: null,
       financing: transactionNumberOrNull(closed.financing ?? transaction.financing),
     };
   }
@@ -421,6 +512,7 @@ export async function getPracticeTradeState(brokerTradeId: string): Promise<Prac
       price?: string;
       initialUnits?: string;
       openTime?: string;
+      openTransactionID?: string;
       financing?: string;
     };
   };
@@ -445,6 +537,7 @@ export async function getPracticeTradeState(brokerTradeId: string): Promise<Prac
     entryPrice: transactionNumberOrNull(trade.price),
     initialUnits: transactionNumberOrNull(trade.initialUnits),
     openTime: trade.openTime ?? null,
+    openTransactionId: trade.openTransactionID ?? null,
     financing: transactionNumberOrNull(trade.financing),
   };
 }

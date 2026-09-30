@@ -655,7 +655,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     case "/api/oanda/account-summary":
       return json(request, response, await getAccountSummary());
     case "/api/oanda/account-history":
-      return json(request, response, await getAccountBalanceHistory());
+      return json(request, response, await cachedAccountBalanceHistory());
     case "/api/oanda/open-positions":
       return json(request, response, await getOpenPositions());
     case "/api/oanda/calendar":
@@ -689,6 +689,27 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     default:
       return json(request, response, { error: "Not found." }, 404);
   }
+}
+
+// Account history needs several OANDA transaction pages but changes only when
+// money-moving events settle. Keep a short, shared cache so repeated page
+// navigations do not redo that ledger crawl; the live summary remains uncached.
+const ACCOUNT_HISTORY_CACHE_MS = 15_000;
+type AccountHistoryResult = Awaited<ReturnType<typeof getAccountBalanceHistory>>;
+let accountHistoryCache: { expiresAt: number; result: Promise<AccountHistoryResult> } | null = null;
+
+function cachedAccountBalanceHistory() {
+  const now = Date.now();
+  if (accountHistoryCache && accountHistoryCache.expiresAt > now) return accountHistoryCache.result;
+
+  const result = getAccountBalanceHistory();
+  accountHistoryCache = { expiresAt: now + ACCOUNT_HISTORY_CACHE_MS, result };
+  void result.then((value) => {
+    if (value.status.state !== "connected") accountHistoryCache = null;
+  }, () => {
+    accountHistoryCache = null;
+  });
+  return result;
 }
 
 // Chart loads ask for the same candles repeatedly (page render, reconnects,

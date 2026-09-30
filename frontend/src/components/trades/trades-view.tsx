@@ -548,6 +548,17 @@ function MobileTradeCard({
         </p>
       )}
 
+      {trade.brokerTradeId ? (
+        <div className="trade-card-broker-cost">
+          <span>OANDA entry spread</span>
+          <strong className="metric-number">
+            {trade.oandaEntryHalfSpreadCost !== null && trade.oandaEntryHalfSpreadCost !== undefined
+              ? fmtMoney(-Math.abs(trade.oandaEntryHalfSpreadCost))
+              : "Unavailable for legacy fill"}
+          </strong>
+        </div>
+      ) : null}
+
       <div className="trade-card-foot">
         {isOpen ? (
           <>

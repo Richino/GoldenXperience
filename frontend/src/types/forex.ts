@@ -176,6 +176,10 @@ export interface JournalTrade {
   actualFillPrice?: number | null;
   /** Exact OANDA trade id, used to join an open row to broker P&L. */
   brokerTradeId?: string | null;
+  /** OANDA ORDER_FILL values, in the account home currency (not quote-time estimates). */
+  oandaEntryHalfSpreadCost?: number | null;
+  oandaEntryCommission?: number | null;
+  oandaEntryGuaranteedExecutionFee?: number | null;
   maxHoldBars?: number | null;
   barsHeld?: number | null;
   /** Multi-strategy family (`ema`, `breakout`, `momentum`, `meanrev`). */

@@ -8,6 +8,7 @@
     "start": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",
     "db:migrate": "tsx scripts/migrate.ts",
+    "oanda:backfill-entry-costs": "tsx scripts/backfill-oanda-execution-costs.ts",
     "auth:create-owner": "tsx scripts/create-owner.ts",
     "auth:reset-owner-password": "tsx scripts/reset-owner-password.ts",
     "api:test": "tsx scripts/check-api.ts",

@@ -4,7 +4,7 @@ import { SignalWorkspace } from "@/components/signals/signal-workspace";
 import { getApiData } from "@/lib/api/server";
 import { isStrategyInstrument } from "@/lib/strategy/strategy-service";
 import { TIMEFRAME_TO_GRANULARITY, candleCountForChartViewport, type ChartRange, type ChartTimeframe } from "@/lib/chart-utils";
-import type { CandleSeries, ConnectionStatus } from "@/types/forex";
+import type { CandleSeries, ConnectionStatus, PaperChartTrade } from "@/types/forex";
 import type { BinaryPrediction } from "@/types/binary";
 
 function finitePrice(value: string | undefined) {
@@ -56,9 +56,18 @@ export default async function ChartPage({ searchParams }: { searchParams: Promis
         preferredEntryTime: params.preferredEntryTime?.slice(0, 140) ?? "",
       }
     : null;
-  const candleResult = await getApiData<{ data: CandleSeries; status: ConnectionStatus }>(
-    `/api/oanda/candles?instrument=${instrument}&granularity=${TIMEFRAME_TO_GRANULARITY[initialTimeframe]}&count=${candleCountForChartViewport(initialTimeframe, initialRange)}`,
-  );
+  // A focused trade must be present on the first render. Previously this page
+  // always handed the workspace an empty trade list, so a direct journal/chart
+  // link painted the default Trade action before client hydration replaced it
+  // with Close Trade.
+  const [candleResult, paperTrades] = await Promise.all([
+    getApiData<{ data: CandleSeries; status: ConnectionStatus }>(
+      `/api/oanda/candles?instrument=${instrument}&granularity=${TIMEFRAME_TO_GRANULARITY[initialTimeframe]}&count=${candleCountForChartViewport(initialTimeframe, initialRange)}`,
+    ),
+    getApiData<{ trades: PaperChartTrade[] }>(
+      `/api/paper-cycle/trades?instrument=${instrument}${focusTradeId ? `&trade=${focusTradeId}` : ""}`,
+    ).catch(() => ({ trades: [] })),
+  ]);
   const focusPrediction = focusPredictionId
     ? await getApiData<{ prediction?: BinaryPrediction }>(`/api/binary/prediction?id=${focusPredictionId}`).then(
         (payload) => payload.prediction ?? null,
@@ -75,7 +84,7 @@ export default async function ChartPage({ searchParams }: { searchParams: Promis
       initialRange={initialRange}
       initialStatus={candleResult.status}
       paperPlans={[]}
-      initialPaperTrades={[]}
+      initialPaperTrades={paperTrades.trades}
       initialFocusTradeId={focusTradeId}
       initialPredictionFocus={focusPrediction?.instrument === instrument ? focusPrediction : null}
       initialSetupFocus={initialSetupFocus}

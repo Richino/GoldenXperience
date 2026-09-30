@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import Animated, { FadeInDown, FadeOutUp } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,6 +12,7 @@ import { PendingTradesCard } from '@/components/home/PendingTradesCard';
 import { RecentActivityCard } from '@/components/home/RecentActivityCard';
 import { TodayPerformanceCard } from '@/components/home/TodayPerformanceCard';
 import { DockFade } from '@/components/ui/DockFade';
+import { PullRefreshSpinner, usePullRefresh } from '@/components/ui/PullRefresh';
 import { Text } from '@/components/ui/AppText';
 import { theme, type ThemeColors, floatingShadow } from '@/constants/theme';
 import { useThemeColors, useThemedStyles } from '@/lib/theme/useTheme';
@@ -28,6 +29,11 @@ export default function HomeScreen() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [showFloatingBell, setShowFloatingBell] = useState(false);
   const { account, accountHistory, openPositions, journalTrades, pendingEntries, calendar, calendarLoading, ready, error, todayKey, refresh } = useHomeData();
+  const onScrollY = useCallback((y: number) => {
+    const next = y > 56;
+    setShowFloatingBell((current) => current === next ? current : next);
+  }, []);
+  const pullRefresh = usePullRefresh(refresh, onScrollY);
 
   // Home is a quick status surface. Keep the full history in Journal instead
   // of letting ten activity rows push the rest of the dashboard below the dock.
@@ -49,7 +55,7 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.root}>
-      <ScrollView
+      <Animated.ScrollView
         style={styles.scroll}
         contentContainerStyle={[
           styles.content,
@@ -57,12 +63,9 @@ export default function HomeScreen() {
         ]}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
-        onScroll={(event) => {
-          const next = event.nativeEvent.contentOffset.y > 56;
-          setShowFloatingBell((current) => current === next ? current : next);
-        }}
+        onScroll={pullRefresh.onScroll}
         keyboardShouldPersistTaps="handled"
-        refreshControl={<RefreshControl tintColor={colors.primary} refreshing={false} onRefresh={() => void refresh()} />}
+        refreshControl={pullRefresh.refreshControl}
       >
         {error ? <Text style={styles.error}>{error}</Text> : null}
         {account ? <BalancePerformanceCard account={account} history={accountHistory} todayKey={todayKey} onNotificationsPress={() => setNotificationsOpen(true)} /> : null}
@@ -78,7 +81,8 @@ export default function HomeScreen() {
           currency={account?.currency ?? 'USD'}
         />
         <HighImpactNewsCard events={homeNewsEvents} loading={calendarLoading} connected={calendar?.connected ?? false} />
-      </ScrollView>
+      </Animated.ScrollView>
+      {pullRefresh.custom ? <PullRefreshSpinner pull={pullRefresh.pull} refreshing={pullRefresh.refreshing} safeTop={insets.top} contentTop={Math.max(insets.top + 8, 20)} /> : null}
       <DockFade height={96} />
       {showFloatingBell && !notificationsOpen ? (
         <Animated.View entering={FadeInDown.duration(180)} exiting={FadeOutUp.duration(140)} style={[styles.floatingBellWrap, { top: insets.top + 14 }]}>

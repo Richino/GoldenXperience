@@ -8,15 +8,18 @@ import {
   type ReactNode,
   type TouchEvent,
 } from "react";
-import { ArrowDown, Check, LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { requestAppRefresh } from "@/lib/use-foreground-refresh";
 
 const MAX_PULL_DISTANCE = 92;
 const REFRESH_THRESHOLD = 62;
+/** Gap held open above the page while refreshing, with the spinner centred in it. */
+const REFRESH_HOLD = 76;
 const MIN_REFRESH_TIME_MS = 550;
 const MAX_REFRESH_TIME_MS = 7_000;
-const COMPLETE_HOLD_MS = 420;
+const COMPLETE_HOLD_MS = 220;
+/** Instagram-style spinner: bars fill in clockwise as you pull, then step round while refreshing. */
+const SPINNER_BARS = 8;
 
 type RefreshPhase = "idle" | "pulling" | "ready" | "refreshing" | "complete";
 
@@ -112,8 +115,8 @@ export function PwaPullToRefresh({ children }: { children: ReactNode }) {
   async function refreshInPlace() {
     const startedAt = performance.now();
     startYRef.current = null;
-    pullDistanceRef.current = REFRESH_THRESHOLD;
-    setPullDistance(REFRESH_THRESHOLD);
+    pullDistanceRef.current = REFRESH_HOLD;
+    setPullDistance(REFRESH_HOLD);
     setPhase("refreshing");
 
     try {
@@ -143,7 +146,11 @@ export function PwaPullToRefresh({ children }: { children: ReactNode }) {
   }
 
   const indicatorVisible = phase !== "idle";
+  // The page follows the finger, stays pushed down while refreshing, and
+  // eases back once done. Height, not transform, so fixed bars are unaffected.
+  const gap = phase === "idle" || phase === "complete" ? 0 : pullDistance;
   const progress = Math.min(1, pullDistance / REFRESH_THRESHOLD);
+  // Screen readers only; the spinner itself carries no text.
   const label =
     phase === "refreshing" ? "Refreshing"
       : phase === "complete" ? "Updated"
@@ -166,21 +173,21 @@ export function PwaPullToRefresh({ children }: { children: ReactNode }) {
         }`}
         style={{
           "--pull-distance": `${pullDistance}px`,
-          "--pull-progress": progress,
-          "--pull-rotation": `${progress * 180}deg`,
+          "--pull-bars": progress * SPINNER_BARS,
         } as CSSProperties}
       >
-        <span className="pwa-pull-refresh-icon" aria-hidden="true">
-          {phase === "refreshing" ? (
-            <LoaderCircle className="size-4 pwa-pull-refresh-loader" strokeWidth={2} />
-          ) : phase === "complete" ? (
-            <Check className="size-4" strokeWidth={2.25} />
-          ) : (
-            <ArrowDown className="size-4 pwa-pull-refresh-arrow" strokeWidth={2} />
-          )}
+        <span className="pwa-pull-refresh-spinner" aria-hidden="true">
+          {Array.from({ length: SPINNER_BARS }, (_, index) => (
+            <span key={index} className="pwa-pull-refresh-bar" style={{ "--bar": index } as CSSProperties} />
+          ))}
         </span>
-        <span className="pwa-pull-refresh-label">{label}</span>
+        <span className="sr-only">{label}</span>
       </div>
+      <div
+        aria-hidden="true"
+        className={`pwa-pull-refresh-gap${phase === "pulling" || phase === "ready" ? " is-tracking" : ""}`}
+        style={{ height: gap }}
+      />
       {children}
     </div>
   );

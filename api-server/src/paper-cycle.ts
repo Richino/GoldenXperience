@@ -2032,6 +2032,8 @@ export async function journalTradeLog(
             entry, stop, target, exit, result_r AS "resultR", paper_pl AS "paperPl", reason, notes, sequence, outcome,
             instrument_code AS "instrument", nominal_risk_amount AS "nominalRiskAmount",
             signal_price AS "signalPrice", actual_fill_price AS "actualFillPrice", broker_trade_id AS "brokerTradeId",
+            entry_half_spread_cost AS "oandaEntryHalfSpreadCost", entry_commission AS "oandaEntryCommission",
+            entry_guaranteed_execution_fee AS "oandaEntryGuaranteedExecutionFee",
             max_hold_bars AS "maxHoldBars", bars_held AS "barsHeld",
             strategy_family AS "strategyFamily", batch_number AS "batchNumber",
             "brokerExecutionStatus", "brokerFailureReason"
@@ -2043,12 +2045,16 @@ export async function journalTradeLog(
               manual.paper_pl::float, manual.reason, manual.notes, NULL::text AS sequence, NULL::text AS outcome,
                pending.instrument AS instrument_code, NULL::float AS nominal_risk_amount,
                NULL::float AS signal_price, NULL::float AS actual_fill_price, pending.broker_trade_id,
+               NULLIF(pending.metadata->>'oandaEntrySpreadCost','')::float AS entry_half_spread_cost,
+               NULLIF(pending.metadata->>'oandaEntryCommission','')::float AS entry_commission,
+               NULLIF(pending.metadata->>'oandaEntryGuaranteedExecutionFee','')::float AS entry_guaranteed_execution_fee,
                NULL::int AS max_hold_bars, NULL::int AS bars_held,
                NULL::text AS strategy_family, NULL::int AS batch_number,
                NULL::text AS "brokerExecutionStatus", NULL::text AS "brokerFailureReason"
        FROM paper_trades manual
        LEFT JOIN LATERAL (
-         SELECT entry.instrument, entry.paper_trade_id, entry.metadata->>'brokerTradeId' AS broker_trade_id
+         SELECT entry.instrument, entry.paper_trade_id, entry.metadata,
+                entry.metadata->>'brokerTradeId' AS broker_trade_id
            FROM pending_manual_entries entry
           WHERE entry.paper_trade_id=manual.id
           LIMIT 1
@@ -2088,6 +2094,7 @@ export async function journalTradeLog(
               -- matches the watchlist snapshot, the risk amount sets the scale.
                trade.instrument, trade.nominal_risk_amount::float,
                trade.signal_price::float, trade.actual_fill_price::float, intent.broker_trade_id,
+               intent.entry_half_spread_cost::float, intent.entry_commission::float, intent.entry_guaranteed_execution_fee::float,
                trade.max_hold_bars, trade.bars_held,
                trade.strategy_family, batch.batch_number,
                CASE WHEN intent.status='rejected' THEN 'rejected' ELSE NULL END,

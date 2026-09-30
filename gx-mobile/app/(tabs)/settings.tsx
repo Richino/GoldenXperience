@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { SymbolView } from 'expo-symbols';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HomeCard } from '@/components/home/HomeCard';
 import { Text } from '@/components/ui/AppText';
 import { BottomDrawer } from '@/components/ui/BottomDrawer';
+import { PullRefreshSpinner, usePullRefresh } from '@/components/ui/PullRefresh';
 import { DockFade } from '@/components/ui/DockFade';
 import { theme, type ThemeColors } from '@/constants/theme';
 import { useThemeColors, useThemedStyles } from '@/lib/theme/useTheme';
@@ -93,8 +95,9 @@ export default function SettingsScreen() {
     setThemeMode(value);
     setPicker(null);
   }
+  const pullRefresh = usePullRefresh(load);
 
-  return <View style={styles.root}><ScrollView contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top + 10, 28), paddingBottom: 118 + Math.max(insets.bottom, 8) }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl tintColor={colors.primary} refreshing={loading} onRefresh={() => void load()} />}>
+  return <View style={styles.root}><Animated.ScrollView contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top + 10, 28), paddingBottom: 118 + Math.max(insets.bottom, 8) }]} showsVerticalScrollIndicator={false} scrollEventThrottle={16} onScroll={pullRefresh.onScroll} keyboardShouldPersistTaps="handled" refreshControl={pullRefresh.refreshControl}>
     <View><Text style={styles.title}>Settings</Text><Text style={styles.subtitle}>Appearance, alerts, and account</Text></View>
     <HomeCard style={styles.card}><Text style={styles.section}>Appearance</Text><Row label="Theme" value={themeMode === 'light' ? 'Light' : 'Dark'} onPress={() => setPicker('theme')} /><Row label="Text size" value={textSize === 'small' ? 'Small' : textSize === 'large' ? 'Large' : 'Standard'} onPress={() => setPicker('text')} last /></HomeCard>
     <HomeCard style={styles.card}><Text style={styles.section}>Notifications</Text><Row label="Notification sound" value={notificationSounds.find((sound) => sound.value === notificationSound)?.label ?? 'Soft Whistle'} onPress={() => setPicker('sound')} last /></HomeCard>
@@ -108,7 +111,7 @@ export default function SettingsScreen() {
       </>}
     </HomeCard>
     <HomeCard style={styles.card}><Text style={styles.section}>Account</Text><Row label="Signed in as" value={user?.email ?? '—'} /><Pressable onPress={confirmSignOut} style={styles.signOut} accessibilityRole="button"><SymbolView name={{ ios: 'rectangle.portrait.and.arrow.right', android: 'logout', web: 'logout' }} size={16} tintColor={colors.danger} /><Text style={styles.signOutText}>Sign out</Text></Pressable></HomeCard>
-  </ScrollView><DockFade height={96} /><PreferencePicker visible={picker === 'theme'} title="Theme" options={[{ value: 'dark', label: 'Dark', detail: 'GX dark appearance' }, { value: 'light', label: 'Light', detail: 'Bright GX appearance' }]} selected={themeMode} onSelect={(value) => { changeTheme(value as ThemeMode); }} onClose={() => setPicker(null)} /><PreferencePicker visible={picker === 'text'} title="Text size" options={[{ value: 'small', label: 'Small', detail: 'More information on screen' }, { value: 'standard', label: 'Standard', detail: 'Recommended' }, { value: 'large', label: 'Large', detail: 'Easier to read' }]} selected={textSize} onSelect={(value) => { setTextSize(value as TextSize); setPicker(null); }} onClose={() => setPicker(null)} /><PreferencePicker visible={picker === 'sound'} title="Notification sound" options={notificationSounds.map((sound) => ({ ...sound, detail: 'Saved for alert playback' }))} selected={notificationSound} onSelect={(value) => { selectSound(value as NotificationSound); setPicker(null); }} onClose={() => setPicker(null)} /><PositionLimitPicker visible={picker === 'positions'} selected={positions} onSelect={(value) => { setPositions(value); setPicker(null); }} onClose={() => setPicker(null)} /></View>;
+  </Animated.ScrollView>{pullRefresh.custom ? <PullRefreshSpinner pull={pullRefresh.pull} refreshing={pullRefresh.refreshing} safeTop={insets.top} contentTop={Math.max(insets.top + 10, 28)} /> : null}<DockFade height={96} /><PreferencePicker visible={picker === 'theme'} title="Theme" options={[{ value: 'dark', label: 'Dark', detail: 'GX dark appearance' }, { value: 'light', label: 'Light', detail: 'Bright GX appearance' }]} selected={themeMode} onSelect={(value) => { changeTheme(value as ThemeMode); }} onClose={() => setPicker(null)} /><PreferencePicker visible={picker === 'text'} title="Text size" options={[{ value: 'small', label: 'Small', detail: 'More information on screen' }, { value: 'standard', label: 'Standard', detail: 'Recommended' }, { value: 'large', label: 'Large', detail: 'Easier to read' }]} selected={textSize} onSelect={(value) => { setTextSize(value as TextSize); setPicker(null); }} onClose={() => setPicker(null)} /><PreferencePicker visible={picker === 'sound'} title="Notification sound" options={notificationSounds.map((sound) => ({ ...sound, detail: 'Saved for alert playback' }))} selected={notificationSound} onSelect={(value) => { selectSound(value as NotificationSound); setPicker(null); }} onClose={() => setPicker(null)} /><PositionLimitPicker visible={picker === 'positions'} selected={positions} onSelect={(value) => { setPositions(value); setPicker(null); }} onClose={() => setPicker(null)} /></View>;
 }
 
 function Field({ value, onChangeText, label, placeholder }: { value: string; onChangeText: (value: string) => void; label: string; placeholder: string }) {

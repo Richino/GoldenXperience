@@ -127,19 +127,18 @@ export function PendingEntryDialog({
     enabled: !isPanel,
   });
   const [editing, setEditing] = useState(false);
-  const [direction, setDirection] = useState<"long" | "short">(selectedEntry?.direction ?? initialProposal?.direction ?? "long");
+  // A blank entry has no direction until the user picks one, so a form that
+  // lost its Analyze plan (e.g. a reload) can never submit a default LONG.
+  const [direction, setDirection] = useState<"long" | "short" | null>(selectedEntry?.direction ?? initialProposal?.direction ?? null);
   const [orderReferencePrice, setOrderReferencePrice] = useState<number | null>(() => {
-    const initialDirection = selectedEntry?.direction ?? initialProposal?.direction ?? "long";
-    return initialDirection === "long" ? ask : bid;
+    const initialDirection = selectedEntry?.direction ?? initialProposal?.direction ?? null;
+    return initialDirection === null ? null : initialDirection === "long" ? ask : bid;
   });
   const [entryPrice, setEntryPrice] = useState(() => {
     if (selectedEntry) return String(selectedEntry.entryPrice);
     if (initialProposal) return initialProposal.entry.toFixed(precisionFor(instrument));
-    // Phone drawer, like the app's TradeDrawer: start from the live ask (a new
-    // entry opens as LONG) so Order and Distance read immediately. The desktop
-    // panel stays blank.
-    const reference = isPanel ? null : ask;
-    return reference !== null ? reference.toFixed(precisionFor(instrument)) : "";
+    // Blank until a direction is picked; the phone drawer then fills in that side's price.
+    return "";
   });
   const [stopPrice, setStopPrice] = useState(selectedEntry?.stopPrice == null ? (initialProposal ? initialProposal.stop.toFixed(precisionFor(instrument)) : "") : String(selectedEntry.stopPrice));
   const [targetPrice, setTargetPrice] = useState(selectedEntry?.targetPrice == null ? (initialProposal ? initialProposal.target.toFixed(precisionFor(instrument)) : "") : String(selectedEntry.targetPrice));
@@ -266,7 +265,7 @@ export function PendingEntryDialog({
     };
   }, [isPanel, onClose, open]);
 
-  const current = direction === "long" ? ask : bid;
+  const current = direction === null ? null : direction === "long" ? ask : bid;
   const parsedEntry = entryPrice.trim() === "" ? Number.NaN : Number(entryPrice);
   const parsedInvalidation = invalidationPrice ? Number(invalidationPrice) : null;
   const parsedStop = stopPrice ? Number(stopPrice) : null;
@@ -279,7 +278,7 @@ export function PendingEntryDialog({
   const distancePips = current !== null && Number.isFinite(parsedEntry)
     ? Math.abs(parsedEntry - current) / pipSizeFor(instrument)
     : null;
-  const inferredOrder = orderReferencePrice !== null && Number.isFinite(parsedEntry)
+  const inferredOrder = direction !== null && orderReferencePrice !== null && Number.isFinite(parsedEntry)
     ? direction === "long"
       ? parsedEntry >= orderReferencePrice ? "Buy stop" : "Buy limit"
       : parsedEntry <= orderReferencePrice ? "Sell stop" : "Sell limit"
@@ -302,10 +301,10 @@ export function PendingEntryDialog({
   }
 
   function resetCreateForm() {
-    const nextDirection = initialProposal?.direction ?? "long";
+    const nextDirection = initialProposal?.direction ?? null;
     setEditing(false);
     setDirection(nextDirection);
-    setOrderReferencePrice(nextDirection === "long" ? ask : bid);
+    setOrderReferencePrice(nextDirection === null ? null : nextDirection === "long" ? ask : bid);
     setEntryPrice(initialProposal ? initialProposal.entry.toFixed(precision) : "");
     setStopPrice(initialProposal ? initialProposal.stop.toFixed(precision) : "");
     setTargetPrice(initialProposal ? initialProposal.target.toFixed(precision) : "");
@@ -379,6 +378,7 @@ export function PendingEntryDialog({
       setError("This pair already has an active position. Close it before creating another entry.");
       return;
     }
+    if (direction === null) return setError("Choose LONG or SHORT.");
     if (current === null) return setError("Wait for a fresh executable market quote.");
     if (!Number.isFinite(parsedEntry) || parsedEntry <= 0) return setError("Enter a valid entry price.");
     if (stopPrice && (!Number.isFinite(parsedStop) || (parsedStop ?? 0) <= 0)) return setError("Enter a valid stop price.");
@@ -595,8 +595,11 @@ export function PendingEntryDialog({
             <div className="pending-entry-direction" role="group" aria-label="Direction">
               {(["long", "short"] as const).map((option) => (
                 <button key={option} type="button" className={`is-${option}${direction === option ? " is-active" : ""}`} onClick={() => {
+                  const reference = option === "long" ? ask : bid;
                   setDirection(option);
-                  setOrderReferencePrice(option === "long" ? ask : bid);
+                  setOrderReferencePrice(reference);
+                  // Phone drawer: start from the live price so Order and Distance read immediately.
+                  if (!isPanel && entryPrice.trim() === "" && reference !== null) setEntryPrice(reference.toFixed(precision));
                 }}>{option.toUpperCase()}</button>
               ))}
             </div>
@@ -606,7 +609,7 @@ export function PendingEntryDialog({
                 if (entryPrice.trim() === "") setOrderReferencePrice(current);
                 setEntryPrice(event.target.value);
               }} placeholder={current?.toFixed(precision) ?? "0.00000"} />
-              <small>{current === null ? "Waiting for quote…" : `Current ${current.toFixed(precision)}${distancePips !== null ? ` · ${distancePips.toFixed(1)} pips away` : ""}`}</small>
+              <small>{direction === null ? "Choose LONG or SHORT" : current === null ? "Waiting for quote…" : `Current ${current.toFixed(precision)}${distancePips !== null ? ` · ${distancePips.toFixed(1)} pips away` : ""}`}</small>
             </label>
             <div className="pending-entry-levels">
               <label>
@@ -642,7 +645,7 @@ export function PendingEntryDialog({
               <input inputMode="decimal" value={invalidationPrice} onChange={(event) => setInvalidationPrice(event.target.value)} placeholder="Exact price" />
             </label>
             <div className="pending-entry-summary">
-              <strong>{direction.toUpperCase()} {displayNameFor(instrument)}</strong>
+              <strong>{direction === null ? "Choose direction ·" : direction.toUpperCase()} {displayNameFor(instrument)}</strong>
               <span>Order: {inferredOrder ?? "—"}</span>
               <span>Entry: {Number.isFinite(parsedEntry) ? parsedEntry.toFixed(precision) : "—"}</span>
               <span className="pending-entry-advanced">Stop: {parsedStop && Number.isFinite(parsedStop) ? parsedStop.toFixed(precision) : "—"}</span>
@@ -668,7 +671,7 @@ export function PendingEntryDialog({
             <button
               type="button"
               className="pending-entry-primary pressable"
-              disabled={saving || creationBlocked || !Number.isFinite(parsedEntry) || parsedEntry <= 0}
+              disabled={saving || creationBlocked || direction === null || !Number.isFinite(parsedEntry) || parsedEntry <= 0}
               onClick={() => void save()}
             >
               {saving ? "Saving…" : selectedEntry ? "Save Changes" : "Create entry"}

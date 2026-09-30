@@ -214,6 +214,7 @@ export function DashboardView({
   initialSavedSetups,
   initialOverview,
   initialJournal,
+  initialPendingEntries,
   userLabel,
   todayKey,
 }: {
@@ -223,6 +224,7 @@ export function DashboardView({
   initialSavedSetups: DashboardSavedSetup[];
   initialOverview: DashboardOverview;
   initialJournal: DashboardJournal;
+  initialPendingEntries: PendingManualEntry[];
   userLabel: string;
   todayKey: string;
 }) {
@@ -230,14 +232,18 @@ export function DashboardView({
   const [accountHistory, setAccountHistory] = useState(initialAccountHistory);
   const [journalTrades, setJournalTrades] = useState(initialJournal.trades);
   const [journalSummary, setJournalSummary] = useState(initialJournal.summary ?? null);
-  const [activityLoading, setActivityLoading] = useState(true);
+  // Journal is now part of the server-rendered Home snapshot, so showing a
+  // second client-only skeleton here would make the cards resolve unevenly.
+  const [activityLoading, setActivityLoading] = useState(false);
   // Kept for the Open-trades quote fallback below; the Watchlist section now
   // renders from the multi-strategy engine instead.
   const [watchlist, setWatchlist] = useState(initialWatchlist);
   const [savedSetups, setSavedSetups] = useState(initialSavedSetups ?? []);
   const [overview, setOverview] = useState(initialOverview);
   const [error, setError] = useState<string | null>(null);
-  const [pendingEntries, setPendingEntries] = useState<PendingManualEntry[]>([]);
+  const [pendingEntries, setPendingEntries] = useState<PendingManualEntry[]>(() =>
+    initialPendingEntries.filter((entry) => entry.status === "PENDING" || entry.status === "TRIGGERING"),
+  );
   const [pendingEntryError, setPendingEntryError] = useState<string | null>(null);
   const [cancellingPendingId, setCancellingPendingId] = useState<string | null>(null);
   const [pendingCancellation, setPendingCancellation] = useState<PendingManualEntry | null>(null);

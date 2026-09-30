@@ -13,8 +13,8 @@ function pipSize(instrument: string) {
   return instrument.includes('JPY') ? 0.01 : 0.0001;
 }
 
-function inferOrderType(direction: 'long' | 'short', entry: number, reference: number | null) {
-  if (reference === null || !Number.isFinite(entry)) return null;
+function inferOrderType(direction: 'long' | 'short' | null, entry: number, reference: number | null) {
+  if (direction === null || reference === null || !Number.isFinite(entry)) return null;
   if (direction === 'long') return entry >= reference ? 'Buy stop' : 'Buy limit';
   return entry <= reference ? 'Sell stop' : 'Sell limit';
 }
@@ -39,7 +39,9 @@ export function TradeDrawer({
 }) {
   const colors = useThemeColors();
   const styles = useThemedStyles(createStyles);
-  const [direction, setDirection] = useState<'long' | 'short'>('long');
+  // A blank entry has no direction until the user picks one, so a drawer that
+  // lost its Analyze plan can never submit a default LONG.
+  const [direction, setDirection] = useState<'long' | 'short' | null>(null);
   const [orderReferencePrice, setOrderReferencePrice] = useState<number | null>(null);
   const [entryPrice, setEntryPrice] = useState('');
   const [stopPrice, setStopPrice] = useState('');
@@ -53,7 +55,7 @@ export function TradeDrawer({
   bidRef.current = bid;
   askRef.current = ask;
 
-  const current = direction === 'long' ? ask : bid;
+  const current = direction === null ? null : direction === 'long' ? ask : bid;
   const parsedEntry = entryPrice.trim() === '' ? Number.NaN : Number(entryPrice);
   const parsedStop = stopPrice.trim() === '' ? null : Number(stopPrice);
   const parsedTarget = targetPrice.trim() === '' ? null : Number(targetPrice);
@@ -64,11 +66,12 @@ export function TradeDrawer({
   const spreadPips = bid !== null && ask !== null ? Math.max(0, (ask - bid) / pipSize(instrument)) : null;
 
   const resetForm = useCallback(() => {
-    const initialDirection: 'long' | 'short' = draft?.direction ?? 'long';
+    const initialDirection = draft?.direction ?? null;
     setDirection(initialDirection);
-    const reference = initialDirection === 'long' ? askRef.current : bidRef.current;
+    const reference = initialDirection === null ? null : initialDirection === 'long' ? askRef.current : bidRef.current;
     setOrderReferencePrice(reference);
-    setEntryPrice(draft ? formatPrice(draft.entry, instrument) : reference !== null ? formatPrice(reference, instrument) : '');
+    // Blank until a direction is picked; the direction buttons fill in that side's price.
+    setEntryPrice(draft ? formatPrice(draft.entry, instrument) : '');
     setStopPrice(draft ? formatPrice(draft.stop, instrument) : '');
     setTargetPrice(draft ? formatPrice(draft.target, instrument) : '');
     setError(null);
@@ -103,6 +106,10 @@ export function TradeDrawer({
     setError(null);
     if (creationBlocked) {
       setError('This pair already has an active position. Close it before creating another entry.');
+      return;
+    }
+    if (direction === null) {
+      setError('Choose LONG or SHORT.');
       return;
     }
     if (current === null) {
@@ -172,11 +179,11 @@ export function TradeDrawer({
     }
   }
 
-  const submitDisabled = saving || creationBlocked || checkingBlock || !Number.isFinite(parsedEntry) || parsedEntry <= 0;
+  const submitDisabled = saving || creationBlocked || checkingBlock || direction === null || !Number.isFinite(parsedEntry) || parsedEntry <= 0;
 
   const summary = useMemo(() => (
     <View style={styles.summary}>
-      <Text style={styles.summaryTitle}>{direction.toUpperCase()} {pairLabel(instrument)}</Text>
+      <Text style={styles.summaryTitle}>{direction === null ? 'Choose direction ·' : direction.toUpperCase()} {pairLabel(instrument)}</Text>
       <Text style={styles.summaryLine}>Order: {inferredOrder ?? '—'}</Text>
       <Text style={styles.summaryLine}>Entry: {Number.isFinite(parsedEntry) ? formatPrice(parsedEntry, instrument) : '—'}</Text>
       <Text style={styles.summaryLine}>Current: {current !== null ? formatPrice(current, instrument) : '—'}</Text>
@@ -208,7 +215,7 @@ export function TradeDrawer({
           </Pressable>
         ))}
       </View>
-      <Field label="Entry price" hint={current !== null ? `Current ${formatPrice(current, instrument)}${distancePips !== null ? ` · ${distancePips.toFixed(1)} pips away` : ''}` : 'Waiting for quote…'}>
+      <Field label="Entry price" hint={direction === null ? 'Choose LONG or SHORT' : current !== null ? `Current ${formatPrice(current, instrument)}${distancePips !== null ? ` · ${distancePips.toFixed(1)} pips away` : ''}` : 'Waiting for quote…'}>
         <TextInput
           value={entryPrice}
           onChangeText={(value) => {

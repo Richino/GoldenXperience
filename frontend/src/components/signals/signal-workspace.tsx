@@ -92,6 +92,7 @@ import {
   type SessionSrLevels,
 } from "@/lib/strategy/session-sr";
 import { computeLastDaySrLevels } from "@/lib/strategy/last-day-sr";
+import { MAX_SPREAD_PIPS } from "@/lib/strategy/strategy-common";
 import {
   computeActiveFrozen4hSr,
   computeFrozen4hBlocks,
@@ -2267,6 +2268,11 @@ export function SignalWorkspace({
   const mobileChartShellRef = useRef<HTMLDivElement>(null);
   const desktopChartShellRef = useRef<HTMLDivElement>(null);
   const [paperTrades, setPaperTrades] = useState<PaperChartTrade[]>(initialPaperTrades);
+  // Do not expose an entry action until the browser has checked the current
+  // trade state. A server render can lack the browser session needed to fill
+  // initialPaperTrades, which otherwise flashes Trade before Close Trade on a
+  // chart opened from Journal.
+  const [paperTradesHydrated, setPaperTradesHydrated] = useState(false);
   const [livePaperPlans, setLivePaperPlans] = useState<SignalPaperPlan[]>(paperPlans);
   const replayEndIndex = useMemo(() => {
     if (!replayEndTime) return -1;
@@ -2328,9 +2334,7 @@ export function SignalWorkspace({
   const [predictionClock, setPredictionClock] = useState(() => Date.now());
   const [pendingEntries, setPendingEntries] = useState<PendingManualEntry[]>([]);
   const [allPendingEntries, setAllPendingEntries] = useState<PendingManualEntry[]>([]);
-  const [pendingEntriesHydrated, setPendingEntriesHydrated] = useState(() =>
-    !pairMayHaveOpenManualTrade(initialInstrument, initialPaperTrades, paperPlans),
-  );
+  const [pendingEntriesHydrated, setPendingEntriesHydrated] = useState(false);
   const [tradeActionBusy, setTradeActionBusy] = useState(false);
   const [tradeActionError, setTradeActionError] = useState<string | null>(null);
   const [tradeConfirm, setTradeConfirm] = useState<"cancel" | "close" | null>(null);
@@ -2564,6 +2568,10 @@ export function SignalWorkspace({
       setPaperTrades(payload.trades);
     } catch {
       // Markers are supplementary — the chart stays usable without them.
+    } finally {
+      // A direct chart link must wait for this first client-side read before
+      // choosing between Trade and Close Trade.
+      setPaperTradesHydrated(true);
     }
   }, [focusTradeId, instrument]);
 
@@ -2628,11 +2636,11 @@ export function SignalWorkspace({
   }, [refreshPendingEntries]);
 
   useEffect(() => {
-    setPendingEntriesHydrated(
-      !pairMayHaveOpenManualTrade(instrument, paperTrades, livePaperPlans),
-    );
-    // Only re-resolve the Trade / Cancel / Close label when the pair changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- paperTrades/livePaperPlans are read for the switched pair only.
+    // The primary action is derived from both the paper-trade and pending-entry
+    // sources. Reset both gates before reading a different pair so its previous
+    // Trade action cannot flash before a manual position resolves to Close.
+    setPaperTradesHydrated(false);
+    setPendingEntriesHydrated(false);
   }, [instrument]);
 
   useEffect(() => {
@@ -2984,6 +2992,7 @@ export function SignalWorkspace({
   /** Avoid flashing "Trade" while paper/pending reads disagree on open exposure. */
   const mobileTradeActionReady =
     pendingEntriesHydrated &&
+    paperTradesHydrated &&
     !(
       pairMayHaveOpenManualTrade(instrument, paperTrades, livePaperPlans) &&
       manualTradeMode === "analyze"
@@ -3820,6 +3829,8 @@ export function SignalWorkspace({
         }
       } else if (command.action === "instrument" && command.value && isStrategyInstrument(command.value)) {
         if (command.value !== instrument) {
+          setPaperTradesHydrated(false);
+          setPendingEntriesHydrated(false);
           setSelectedInstrument(command.value);
           setLiveCandle(null);
           setScrollToLatestRevision((revision) => revision + 1);
@@ -3920,10 +3931,19 @@ export function SignalWorkspace({
     if (!quote || quote.instrument !== instrument) return null;
     return Number(spreadInPips(instrument, quote.bid, quote.ask));
   }, [instrument, quote]);
+  // Cheap under 75% of the pair's spread ceiling, pricey up to it, expensive past it.
+  const spreadTier = useMemo(() => {
+    if (spreadPips === null || !Number.isFinite(spreadPips)) return "unknown";
+    const ceiling = MAX_SPREAD_PIPS[instrument] ?? 1.5;
+    if (spreadPips <= ceiling * 0.75) return "cheap";
+    return spreadPips <= ceiling ? "pricey" : "expensive";
+  }, [instrument, spreadPips]);
 
   function selectSearchResult(result: SearchResult) {
     setLiveCandle(null);
     setFocusTradeId(null);
+    setPaperTradesHydrated(false);
+    setPendingEntriesHydrated(false);
     // Clear the prior pair's pan/zoom immediately. The data loader also bumps
     // this once fresh candles arrive, covering both the transition and result.
     setScrollToLatestRevision((revision) => revision + 1);
@@ -4020,7 +4040,7 @@ export function SignalWorkspace({
         />
         <TrendPullbackResultDialog result={trendPullbackDialogOpen ? trendPullbackResult : null} analyzing={trendPullbackDialogOpen && trendPullbackBusy} instrument={instrument} onClose={() => setTrendPullbackDialogOpen(false)} onCancel={cancelTrendPullback} onReview={reviewTrendPullback} />
         {pendingEntryDialogOpen ? <PendingEntryDialog
-          key={selectedPendingEntry?.id ?? "new-pending-entry"}
+          key={`${selectedPendingEntry?.id ?? "new-pending-entry"}:${entryComposerRevision}`}
           open={pendingEntryDialogOpen}
           instrument={instrument}
           bid={quote?.bid ?? null}
@@ -4084,9 +4104,8 @@ export function SignalWorkspace({
                 </span>
               ) : null}
               <span className="gx-mobile-quote-meta">
-                <span className={priceStats.positive ? "gx-chart-change is-positive" : "gx-chart-change is-negative"}>
-                  {priceStats.positive ? "+" : ""}{priceStats.change.toFixed(precisionForInstrument(instrument))}
-                  <span>{priceStats.positive ? "+" : ""}{priceStats.changePercent.toFixed(2)}%</span>
+                <span className={`gx-chart-change gx-spread-tier is-${spreadTier}`} aria-label={`Current spread (${spreadTier})`}>
+                  <span>{spreadPips !== null && Number.isFinite(spreadPips) ? `${spreadPips.toFixed(1)} pips` : "—"}</span>
                 </span>
                 <span className="gx-mobile-session">{sessionLabel}</span>
               </span>
@@ -4215,7 +4234,11 @@ export function SignalWorkspace({
                 <p className="gx-mobile-analyze-error" role="alert">{tradeActionError ?? trendPullbackError}</p>
               ) : null}
             </div>
-          ) : null}
+          ) : (
+            <div className="gx-mobile-analyze-section" role="status" aria-label="Checking trade status">
+              <div className="gx-mobile-trade-action-skeleton" aria-hidden="true" />
+            </div>
+          )}
         </div>
 
         <div className="hidden lg:grid signals-chart-desktop gx-chart-terminal">
@@ -4383,7 +4406,7 @@ export function SignalWorkspace({
       </div>
 
       {pendingEntryDialogOpen ? <PendingEntryDialog
-        key={selectedPendingEntry?.id ?? "new-pending-entry"}
+        key={`${selectedPendingEntry?.id ?? "new-pending-entry"}:${entryComposerRevision}`}
         open={pendingEntryDialogOpen}
         instrument={instrument}
         bid={quote?.bid ?? null}

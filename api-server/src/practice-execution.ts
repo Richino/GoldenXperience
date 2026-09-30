@@ -1,5 +1,5 @@
 import { query, transaction } from "./database.js";
-import { OandaRequestError, closePracticeTrade, submitPracticeMarketOrder } from "../../frontend/src/lib/oanda/client.js";
+import { OandaRequestError, closePracticeTrade, getPracticeOrderFillCostsSince, getRecentPracticeOrderFillCosts, submitPracticeMarketOrder } from "../../frontend/src/lib/oanda/client.js";
 import { brokerUnitsForOrder } from "../../frontend/src/lib/risk/engine.js";
 import type { MajorInstrument } from "../../frontend/src/types/forex.js";
 import { ENABLED_PAIR_STRATEGY_IDS } from "../../frontend/src/lib/strategy/strategies/index.js";
@@ -175,7 +175,14 @@ export async function processPendingPracticeOrders() {
         rejected += 1;
         continue;
       }
-      await query("UPDATE practice_order_intents SET status='submitted',broker_order_id=$2,broker_trade_id=$3,submitted_at=now(),updated_at=now() WHERE id=$1", [intent.id, result.orderId, result.tradeId]);
+      await query(
+        `UPDATE practice_order_intents
+            SET status='submitted',broker_order_id=$2,broker_trade_id=$3,
+                entry_half_spread_cost=$4,entry_commission=$5,entry_guaranteed_execution_fee=$6,
+                submitted_at=now(),updated_at=now()
+          WHERE id=$1`,
+        [intent.id, result.orderId, result.tradeId, result.entryHalfSpreadCost, result.entryCommission, result.entryGuaranteedExecutionFee],
+      );
       const fillPrice = result.fillPrice !== null && Number.isFinite(result.fillPrice) ? result.fillPrice : null;
       await query(
         `UPDATE paper_strategy_trades
@@ -218,6 +225,63 @@ export async function processPendingPracticeOrders() {
     }
   }
   return { submitted, failed, unknown, rejected };
+}
+
+/** Persist OANDA's immutable opening-fill costs for older strategy rows once. */
+export async function backfillPracticeEntryCosts() {
+  const missing = await query<{ id: string; broker_trade_id: string }>(
+    `SELECT id,broker_trade_id FROM practice_order_intents
+      WHERE status='submitted' AND broker_trade_id IS NOT NULL
+        AND entry_half_spread_cost IS NULL
+      ORDER BY submitted_at DESC NULLS LAST
+      LIMIT 500`,
+  );
+  const manualMissing = await query<{ id: string; broker_trade_id: string }>(
+    `SELECT id,metadata->>'brokerTradeId' AS broker_trade_id
+       FROM pending_manual_entries
+      WHERE metadata->>'brokerTradeId' IS NOT NULL
+        AND NOT (metadata ? 'oandaEntrySpreadCost')
+      ORDER BY triggered_at DESC NULLS LAST
+      LIMIT 500`,
+  );
+  if (!missing.rows.length && !manualMissing.rows.length) return { scanned: 0, ledgerFills: 0, matches: 0, backfilled: 0 };
+  const allMissing = [...missing.rows, ...manualMissing.rows];
+  const numericTradeIds = allMissing.map((intent) => Number(intent.broker_trade_id)).filter((id) => Number.isSafeInteger(id) && id > 1);
+  const oldestTradeId = numericTradeIds.length ? Math.min(...numericTradeIds) : null;
+  const ledgerCosts = [
+    ...(oldestTradeId ? await getPracticeOrderFillCostsSince(String(oldestTradeId - 1)) : []),
+    ...(await getRecentPracticeOrderFillCosts()),
+  ];
+  const costsByTradeId = new Map(ledgerCosts.map((cost) => [cost.brokerTradeId, cost]));
+  const matches = missing.rows.filter((intent) => costsByTradeId.has(intent.broker_trade_id));
+  let backfilled = 0;
+  for (const intent of matches) {
+    const costs = costsByTradeId.get(intent.broker_trade_id);
+    if (!costs) continue;
+    await query(
+      `UPDATE practice_order_intents
+          SET entry_half_spread_cost=$2,entry_commission=$3,entry_guaranteed_execution_fee=$4,updated_at=now()
+        WHERE id=$1 AND entry_half_spread_cost IS NULL`,
+      [intent.id, costs.halfSpreadCost, costs.commission, costs.guaranteedExecutionFee],
+    );
+    backfilled += 1;
+  }
+  const manualMatches = manualMissing.rows.filter((entry) => costsByTradeId.has(entry.broker_trade_id));
+  for (const entry of manualMatches) {
+    const costs = costsByTradeId.get(entry.broker_trade_id)!;
+    await query(
+      `UPDATE pending_manual_entries
+          SET metadata=metadata || jsonb_build_object(
+                'oandaEntrySpreadCost', $2::numeric,
+                'oandaEntryCommission', $3::numeric,
+                'oandaEntryGuaranteedExecutionFee', $4::numeric
+              ),updated_at=now()
+        WHERE id=$1 AND NOT (metadata ? 'oandaEntrySpreadCost')`,
+      [entry.id, costs.halfSpreadCost, costs.commission, costs.guaranteedExecutionFee],
+    );
+    backfilled += 1;
+  }
+  return { scanned: allMissing.length, ledgerFills: costsByTradeId.size, matches: matches.length + manualMatches.length, backfilled };
 }
 
 /**

@@ -241,7 +241,7 @@ export function TradeDrawer({
       {summary}
       {draft?.analysisContext ? (
         <Text style={styles.planLifetime}>
-          This order cancels itself {draft.analysisContext.setup === 'trend-pullback-swing-v1' ? 24 : 4} hours after it starts watching, or sooner if price reaches the target before it fills.
+          This order cancels itself {PLAN_LIFETIME_HOURS[String(draft.analysisContext.setup)] ?? 4} hours after it starts watching, or sooner if price reaches the target before it fills.
         </Text>
       ) : null}
       {draft?.activateAt && Date.parse(draft.activateAt) > Date.now() ? (
@@ -283,6 +283,12 @@ function Field({
     </View>
   );
 }
+
+/** Mirrors the server: hours an Analyze plan's order waits before cancelling itself. */
+const PLAN_LIFETIME_HOURS: Record<string, number> = {
+  'trend-pullback-loose-v1': 4, 'trend-pullback-swing-v1': 24,
+  'market-regime-normal-v1': 4, 'market-regime-swing-v1': 48,
+};
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   blocked: { marginHorizontal: 4, marginBottom: 12, fontSize: 13, lineHeight: 19, fontFamily: theme.fonts.sansMedium, color: colors.danger },

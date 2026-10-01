@@ -38,7 +38,7 @@ import {
   ManualProposalModal,
   useManualProposal,
 } from "@/components/analysis/manual-proposal";
-import { TrendPullbackResultDialog, type TrendPullbackPlanMode } from "@/components/analysis/trend-pullback-result";
+import { MarketAnalysisDialog } from "@/components/analysis/market-analysis-dialog";
 import { TradeConfirmDialog } from "@/components/signals/trade-confirm-dialog";
 import {
   ChartContextPanel,
@@ -75,7 +75,7 @@ import {
   type ChartTimeframe,
   type ChartVariant,
 } from "@/lib/chart-utils";
-import { analyzeTrendPullbackV1, trendPullbackContext, type TrendPullbackV1Result } from "@/lib/strategy/trend-pullback-v1";
+import { analyzeMarket, marketAnalysisContext, type AnalysisMode, type MarketAnalysis } from "@/lib/strategy/market-analysis";
 import {
   INSTRUMENT_CATALOG,
   currenciesOf,
@@ -2411,9 +2411,10 @@ export function SignalWorkspace({
     setProposal: setManualProposal,
     acceptProposal: acceptManualProposal,
   } = useManualProposal();
-  const [trendPullbackResult, setTrendPullbackResult] = useState<TrendPullbackV1Result | null>(null);
-  /** The swing (H1) plan built alongside the normal one; null when it could not be. */
-  const [trendPullbackSwing, setTrendPullbackSwing] = useState<TrendPullbackV1Result | null>(null);
+  /** Normal-mode market analysis (M15 structure; H1/H4 context). */
+  const [trendPullbackResult, setTrendPullbackResult] = useState<MarketAnalysis | null>(null);
+  /** Swing-mode analysis (H4 structure; D1 context; H1 entry refinement); null when it could not be built. */
+  const [trendPullbackSwing, setTrendPullbackSwing] = useState<MarketAnalysis | null>(null);
   const [trendPullbackDialogOpen, setTrendPullbackDialogOpen] = useState(false);
   const [trendPullbackBusy, setTrendPullbackBusy] = useState(false);
   const [trendPullbackError, setTrendPullbackError] = useState<string | null>(null);
@@ -2450,10 +2451,10 @@ export function SignalWorkspace({
     setTrendPullbackSwing(null);
     setTrendPullbackDialogOpen(!embeddedSurfaceOnly);
     try {
-      // H1/H4 decide whether the normal plan is counter-trend (4H/D for swing),
-      // and H1 is also the swing plan's base. If they fail the normal plan is
-      // still built, just without that check; the swing plan needs H1.
-      const higherTimeframe = (granularity: "H1" | "H4" | "D", count = 250) => fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=${granularity}&count=${count}`), { credentials: "include", cache: "no-store", signal: controller.signal })
+      // timeframe-roles.ts assigns the jobs: Normal is H4 context, H1
+      // regime, M15 setup, M5 execution; Swing is D1, H4, H1, M15. Missing
+      // context or execution only drops that line; swing needs H4.
+      const higherTimeframe = (granularity: "M5" | "H1" | "H4" | "D", count = 250) => fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=${granularity}&count=${count}`), { credentials: "include", cache: "no-store", signal: controller.signal })
         .then(async (response) => response.ok ? (await response.json() as { data?: CandleSeries }).data : undefined)
         .then((series) => series?.source === "oanda" && series.granularity === granularity ? series.candles : undefined)
         .catch(() => undefined);
@@ -2463,12 +2464,13 @@ export function SignalWorkspace({
         .then(async (response) => response.ok ? (await response.json() as { data?: EconomicCalendarSnapshot }).data : undefined)
         .then((calendar) => calendar?.connected ? calendar.events : undefined)
         .catch(() => undefined);
-      const [candlesResponse, pricingResponse, h1Candles, h4Candles, dailyCandles, calendarEvents] = await Promise.all([
+      const [candlesResponse, pricingResponse, h1Candles, h4Candles, dailyCandles, m5Candles, calendarEvents] = await Promise.all([
         fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=M15&count=500`), { credentials: "include", cache: "no-store", signal: controller.signal }),
         fetch(apiUrl(`/api/oanda/pricing?instruments=${instrument}`), { credentials: "include", cache: "no-store", signal: controller.signal }).catch(() => null),
         higherTimeframe("H1", 500),
-        higherTimeframe("H4"),
-        higherTimeframe("D"),
+        higherTimeframe("H4", 500),
+        higherTimeframe("D", 300),
+        higherTimeframe("M5", 300),
         newsEvents,
       ]);
       if (!candlesResponse.ok) throw new Error("Completed M15 candles are unavailable.");
@@ -2483,9 +2485,10 @@ export function SignalWorkspace({
       const currentPrice = quote?.source === "oanda" && Number.isFinite(quote.mid) && quote.mid > 0
         && Number.isFinite(quoteAgeMs) && quoteAgeMs >= -30_000 && quoteAgeMs <= 2 * 60_000 ? quote.mid : null;
       const spreadPips = currentPrice !== null && quote && quote.ask > quote.bid ? (quote.ask - quote.bid) / pipSizeFor(instrument) : null;
-      const result = analyzeTrendPullbackV1({ instrument, candles: candlesPayload.data.candles, currentPrice, h1Candles, h4Candles, spreadPips, newsEvents: calendarEvents });
-      const swing = h1Candles?.length
-        ? analyzeTrendPullbackV1({ instrument, candles: h1Candles, currentPrice, h1Candles: h4Candles, h4Candles: dailyCandles, spreadPips, newsEvents: calendarEvents, mode: "swing" })
+      const candles = { M5: m5Candles, M15: candlesPayload.data.candles, H1: h1Candles, H4: h4Candles, D1: dailyCandles };
+      const result = analyzeMarket({ instrument, mode: "NORMAL", candles, currentPrice, spreadPips, newsEvents: calendarEvents });
+      const swing = h4Candles?.length
+        ? analyzeMarket({ instrument, mode: "SWING", candles, currentPrice, spreadPips, newsEvents: calendarEvents })
         : null;
       if (request !== trendPullbackRequestRef.current) return;
       setTrendPullbackResult(result);
@@ -2513,26 +2516,24 @@ export function SignalWorkspace({
     setTrendPullbackBusy(false);
     setTrendPullbackDialogOpen(false);
   }, []);
-  const reviewTrendPullback = (mode: TrendPullbackPlanMode = "normal") => {
+  const reviewTrendPullback = (mode: AnalysisMode = "NORMAL") => {
     // Accept means review the planned entry in the drawer, never create an
     // order. A reference-only analysis still has a useful planned level, and
     // the drawer obtains/validates the executable quote when the user later
     // chooses to create the pending entry.
-    // Each mode's plan carries the stop it recommends (the structure stop
-    // whenever one exists); swing plans already clear the 1-hour swing.
-    const plan = mode === "swing" ? trendPullbackSwing : trendPullbackResult;
-    if (!plan?.action || plan.entry === null || plan.stopLoss === null || plan.takeProfit === null) return;
-    const structure = plan.recommendedStop === "structure" && plan.structureStop?.available ? plan.structureStop : null;
+    // Only a LONG/SHORT decision carries a trade; NO TRADE has nothing to accept.
+    const plan = mode === "SWING" ? trendPullbackSwing : trendPullbackResult;
+    if (!plan?.trade || plan.decision === "NO TRADE") return;
     setEntryDraftProposal({
-      direction: plan.action === "LONG" ? "long" : "short",
-      entry: plan.entry,
-      stop: structure?.stop ?? plan.stopLoss,
-      target: structure?.takeProfit ?? plan.takeProfit,
+      direction: plan.decision === "LONG" ? "long" : "short",
+      entry: plan.trade.entry,
+      stop: plan.trade.stopLoss,
+      target: plan.trade.takeProfit,
       confidence: null,
-      rationale: plan.reasons.join(" "),
+      rationale: plan.reason,
       preferredEntryTime: new Date().toISOString(),
       activateAt: plan.activateAfter,
-      analysisContext: trendPullbackContext(plan, structure ? "structure" : "normal"),
+      analysisContext: marketAnalysisContext(plan),
     });
     setTrendPullbackDialogOpen(false);
     openPendingEntryManager(null);
@@ -4061,7 +4062,7 @@ export function SignalWorkspace({
             setManualProposal(null);
           }}
         />
-        <TrendPullbackResultDialog result={trendPullbackDialogOpen ? trendPullbackResult : null} analyzing={trendPullbackDialogOpen && trendPullbackBusy} instrument={instrument} onClose={() => setTrendPullbackDialogOpen(false)} onCancel={cancelTrendPullback} swingResult={trendPullbackDialogOpen ? trendPullbackSwing : null} onReview={reviewTrendPullback} />
+        <MarketAnalysisDialog normal={trendPullbackDialogOpen ? trendPullbackResult : null} swing={trendPullbackDialogOpen ? trendPullbackSwing : null} analyzing={trendPullbackDialogOpen && trendPullbackBusy} instrument={instrument} onClose={() => setTrendPullbackDialogOpen(false)} onCancel={cancelTrendPullback} onReview={reviewTrendPullback} />
         {pendingEntryDialogOpen ? <PendingEntryDialog
           key={`${selectedPendingEntry?.id ?? "new-pending-entry"}:${entryComposerRevision}`}
           open={pendingEntryDialogOpen}
@@ -4453,7 +4454,7 @@ export function SignalWorkspace({
         onDismiss={() => setManualProposal(null)}
         onAccept={acceptManualProposal}
       />
-      <TrendPullbackResultDialog result={trendPullbackDialogOpen ? trendPullbackResult : null} analyzing={trendPullbackDialogOpen && trendPullbackBusy} instrument={instrument} onClose={() => setTrendPullbackDialogOpen(false)} onCancel={cancelTrendPullback} swingResult={trendPullbackDialogOpen ? trendPullbackSwing : null} onReview={reviewTrendPullback} />
+      <MarketAnalysisDialog normal={trendPullbackDialogOpen ? trendPullbackResult : null} swing={trendPullbackDialogOpen ? trendPullbackSwing : null} analyzing={trendPullbackDialogOpen && trendPullbackBusy} instrument={instrument} onClose={() => setTrendPullbackDialogOpen(false)} onCancel={cancelTrendPullback} onReview={reviewTrendPullback} />
 
       <TradeConfirmDialog
         mode={tradeConfirm}

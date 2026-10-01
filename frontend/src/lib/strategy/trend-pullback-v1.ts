@@ -96,7 +96,7 @@ function h1CandlesText(multiple: number) {
   return `${multiple} average 1-hour candles`;
 }
 
-type NewsEvent = Pick<EconomicCalendarEvent, "title" | "currency" | "impact" | "timestamp">;
+export type NewsEvent = Pick<EconomicCalendarEvent, "title" | "currency" | "impact" | "timestamp">;
 
 /**
  * High-impact news for either currency in the pair inside the lookahead (or
@@ -104,7 +104,7 @@ type NewsEvent = Pick<EconomicCalendarEvent, "title" | "currency" | "impact" | "
  * that is how the Sep 30 EUR/USD short was stopped. News due within
  * `newsDelayHours` also holds the order until after the last such release.
  */
-function newsCheck(instrument: MajorInstrument, events: NewsEvent[], now: number, stopPips: number) {
+export function newsCheck(instrument: MajorInstrument, events: NewsEvent[], now: number, stopPips: number) {
   const settings = TREND_PULLBACK_V1;
   const [base, quote] = instrument.split("_");
   const due = events

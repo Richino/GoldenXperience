@@ -359,8 +359,9 @@ export type PracticeEntryOrder = {
   kind: "STOP" | "LIMIT";
   entryPrice: number;
   units: number;
-  stop: number;
-  target: number;
+  /** Null sends no stop-loss / take-profit: the trade runs until closed by hand. */
+  stop: number | null;
+  target: number | null;
   clientRequestId: string;
   /** RFC3339 expiry for a GTD order; omit for good-till-cancelled. */
   gtdTime?: string | null;
@@ -390,8 +391,8 @@ export async function submitPracticeEntryOrder(order: PracticeEntryOrder) {
         timeInForce: order.gtdTime ? "GTD" : "GTC",
         ...(order.gtdTime ? { gtdTime: order.gtdTime } : {}),
         positionFill: "DEFAULT",
-        stopLossOnFill: { price: order.stop.toFixed(precision), timeInForce: "GTC" },
-        takeProfitOnFill: { price: order.target.toFixed(precision), timeInForce: "GTC" },
+        ...(order.stop !== null ? { stopLossOnFill: { price: order.stop.toFixed(precision), timeInForce: "GTC" } } : {}),
+        ...(order.target !== null ? { takeProfitOnFill: { price: order.target.toFixed(precision), timeInForce: "GTC" } } : {}),
         clientExtensions: { id: `gx-${order.clientRequestId}`.slice(0, 127), tag: "goldenxperience-manual" },
       },
     },

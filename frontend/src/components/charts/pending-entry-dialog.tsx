@@ -275,8 +275,11 @@ export function PendingEntryDialog({
   const analyzeContext = selectedEntry
     ? (selectedEntry.metadata?.frozenContext as { setup?: unknown } | undefined)
     : mode === "manual" ? (initialProposal?.analysisContext as { setup?: unknown } | undefined) : undefined;
-  const automaticLifetimeHours = analyzeContext?.setup === "trend-pullback-swing-v1" ? 24
-    : analyzeContext?.setup === "trend-pullback-loose-v1" ? 4 : null;
+  const AUTOMATIC_LIFETIME_HOURS: Record<string, number> = {
+    "trend-pullback-loose-v1": 4, "trend-pullback-swing-v1": 24,
+    "market-regime-normal-v1": 4, "market-regime-swing-v1": 48,
+  };
+  const automaticLifetimeHours = typeof analyzeContext?.setup === "string" ? AUTOMATIC_LIFETIME_HOURS[analyzeContext.setup] ?? null : null;
   const automaticLifetime = automaticLifetimeHours !== null;
   const parsedStop = stopPrice ? Number(stopPrice) : null;
   const parsedTarget = targetPrice ? Number(targetPrice) : null;
@@ -635,7 +638,7 @@ export function PendingEntryDialog({
             </div>
             {automaticLifetime ? (
               <p className="pending-entry-automatic">
-                {automaticLifetimeHours === 24 ? "Swing plan" : "Analyze plan"}: this order cancels itself {automaticLifetimeHours} hours after it starts watching, or sooner if price reaches the target before it fills.
+                {analyzeContext?.setup === "market-regime-swing-v1" || analyzeContext?.setup === "trend-pullback-swing-v1" ? "Swing plan" : "Analyze plan"}: this order cancels itself {automaticLifetimeHours} hours after it starts watching, or sooner if price reaches the target before it fills.
               </p>
             ) : null}
             {automaticLifetime ? null : <fieldset className="pending-entry-advanced">

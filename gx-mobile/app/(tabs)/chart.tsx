@@ -95,42 +95,36 @@ type ChartState = {
   range?: Range;
   variant?: Variant;
 };
-type NativeTrendPullbackResult = {
-  status: 'TRADE_PLAN' | 'ENTRY_AVAILABLE_NOW' | 'NO_VALID_ENTRY';
-  currentMove: 'BEARISH_PULLBACK' | 'BULLISH_PULLBACK' | 'NONE';
-  priceBasis: 'LIVE_QUOTE' | 'LAST_M15_CLOSE';
-  action: 'LONG' | 'SHORT' | null;
-  orderType: 'BUY_LIMIT' | 'SELL_LIMIT' | null;
-  entry: number | null;
-  entryZoneLow: number | null;
-  entryZoneHigh: number | null;
-  distanceToEntryPips: number | null;
-  stopLoss: number | null;
-  stopDistancePips: number | null;
-  takeProfit: number | null;
-  targetDistancePips: number | null;
-  riskReward: number | null;
-  reasons: string[];
-  // Loose V1 fields (older web builds omit them).
-  warnings?: string[];
-  trend?: string;
-  trendSource?: string;
-  currentPrice?: number;
-  debug?: { pullbackLevelKind?: string | null; h1AtrPips?: number | null };
-  higherTimeframe?: { h1: string | null; h4: string | null };
-  counterTrend?: boolean;
-  structureStop?: { available: false; note: string } | { available: true; anchor: number; stop: number; stopDistancePips: number; takeProfit: number; targetDistancePips: number; spreadSharePct: number | null; opposingLevel: number | null } | null;
-  /** The stop the plan recommends; the structure stop whenever one exists. */
-  recommendedStop?: StopChoice;
-  /** Normal reads M15; swing reads H1 with wider room (older web builds omit it). */
-  mode?: TradeMode;
-  /** The two higher timeframes the counter-trend check read. */
-  higherTimeframeLabels?: [string, string];
-  /** ISO time the order waits for because high-impact news is due; null to place it now. */
-  activateAfter?: string | null;
+/** The web's MarketAnalysis (frontend/src/lib/strategy/market-analysis.ts), as received over the bridge. */
+type NativeMarketAnalysis = {
+  mode: AnalysisMode;
+  pair: string;
+  primaryTimeframe: string;
+  regime: 'UPTREND' | 'DOWNTREND' | 'RANGE' | 'TRANSITION';
+  regimeConfidence: 'HIGH' | 'MEDIUM' | 'LOW';
+  context: { timeframe: string; regime: 'UPTREND' | 'DOWNTREND' | 'RANGE' | 'TRANSITION'; agrees: boolean | null; alignment?: 'ALIGNED' | 'CONFLICTING' | 'MIXED' | 'UNKNOWN' };
+  /** Absent from web builds before the timeframe-role split. */
+  hierarchy?: {
+    version: 'ROLES' | 'LEGACY';
+    roles: { context: string; primary: string; setup: string | null; execution: string | null; holding: string };
+    setup: { timeframe: string; regime: string; movement: string; state: string; label: string } | null;
+    execution: { timeframe: string; regime: string; movement: string; role: string } | null;
+    interpretation: string;
+    strategy: string;
+  };
+  decision: 'LONG' | 'SHORT' | 'NO TRADE';
+  setupType: string;
+  currentPrice: number;
+  structure: { latestSwingHigh: number | null; latestSwingLow: number | null; interpretation: string };
+  trend: { impulse: string; pullbackZone: { low: number; high: number } | null; entry: number | null; chaseRisk: string; distanceToPullbackPips: number | null } | null;
+  range: { high: number; low: number; mid: number; location: string; preferredSide: string } | null;
+  transition: { previous: string; broken: string; potential: string } | null;
+  trade: { entry: number; stopLoss: number; takeProfit: number; riskReward: number; stopPips: number; targetPips: number; orderType: 'BUY_LIMIT' | 'SELL_LIMIT' | 'MARKET'; holding: string } | null;
+  risk: { spread: string; news: string; invalidation: string; main: string };
+  activateAfter: string | null;
+  reason: string;
 };
-type StopChoice = 'normal' | 'structure';
-type TradeMode = 'normal' | 'swing';
+type AnalysisMode = 'NORMAL' | 'SWING';
 
 const VARIANT_ICONS: Record<Variant, LucideIcon> = {
   candle: CandlestickChart,
@@ -225,9 +219,9 @@ export default function ChartScreen() {
   const [marketBusy, setMarketBusy] = useState(false);
   const [analysisModalOpen, setAnalysisModalOpen] = useState(false);
   const [analysisBusy, setAnalysisBusy] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<NativeTrendPullbackResult | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<NativeMarketAnalysis | null>(null);
   /** The swing (H1) plan the web built alongside the normal one. */
-  const [analysisSwing, setAnalysisSwing] = useState<NativeTrendPullbackResult | null>(null);
+  const [analysisSwing, setAnalysisSwing] = useState<NativeMarketAnalysis | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [timeframeWidth, setTimeframeWidth] = useState(0);
   const activeTimeframeIndex = useSharedValue(TIMEFRAMES.indexOf(timeframe));
@@ -411,7 +405,7 @@ export default function ChartScreen() {
   // saved choice back to the web default, e.g. candles → area.
   const reconciledAtRef = useRef(0);
   const handleWebMessage = (data: string) => {
-    let message: { type?: string; result?: NativeTrendPullbackResult; swing?: NativeTrendPullbackResult | null; error?: string } & Partial<ChartState>;
+    let message: { type?: string; result?: NativeMarketAnalysis; swing?: NativeMarketAnalysis | null; error?: string } & Partial<ChartState>;
     try { message = JSON.parse(data) as typeof message; } catch { return; }
     if (message.type === 'gx-native-trend-pullback-result' && message.result) {
       setAnalysisResult(message.result);
@@ -510,35 +504,33 @@ export default function ChartScreen() {
     setAnalysisBusy(false);
     setAnalysisModalOpen(false);
   };
-  // Each mode's plan carries the stop it recommends (the structure stop when
-  // one exists); a swing plan's stop already clears the 1-hour swing.
-  const acceptAnalysis = (plan: NativeTrendPullbackResult) => {
-    if (!plan.action || plan.entry === null || plan.stopLoss === null || plan.takeProfit === null) return;
-    const direction = plan.action === 'LONG' ? 'long' : 'short';
-    const structure = plan.recommendedStop === 'structure' && plan.structureStop?.available ? plan.structureStop : null;
-    const stop = structure?.stop ?? plan.stopLoss;
-    const target = structure?.takeProfit ?? plan.takeProfit;
+  // Only a LONG/SHORT decision carries a trade. Same context shape the web
+  // saves, so forward-test trades are tagged by mode, regime and setup.
+  const acceptAnalysis = (analysis: NativeMarketAnalysis) => {
+    const trade = analysis.trade;
+    if (!trade || analysis.decision === 'NO TRADE') return;
+    const direction = analysis.decision === 'LONG' ? 'long' : 'short';
     setTradeDraft({
-      direction, entry: plan.entry, stop, target, activateAt: plan.activateAfter ?? null,
-      // Same shape the web builds, so forward-test trades are tagged either way.
+      direction, entry: trade.entry, stop: trade.stopLoss, target: trade.takeProfit, activateAt: analysis.activateAfter ?? null,
       analysisContext: {
         version: 1,
         direction,
-        setup: plan.mode === 'swing' ? 'trend-pullback-swing-v1' : 'trend-pullback-loose-v1',
+        setup: analysis.mode === 'SWING' ? 'market-regime-swing-v1' : 'market-regime-normal-v1',
         frozen: {
-          trend: plan.trend ?? null,
-          trendSource: plan.trendSource ?? null,
-          currentMove: plan.currentMove,
-          pullbackLevelKind: plan.debug?.pullbackLevelKind ?? null,
-          h1AtrPips: plan.debug?.h1AtrPips ?? null,
-          higherTimeframe: plan.higherTimeframe ?? null,
-          counterTrend: plan.counterTrend ?? false,
-          planned: { entry: plan.entry, stop, target, currentPrice: plan.currentPrice ?? null, status: plan.status },
-          stopChoice: structure ? 'structure' : 'normal',
-          normalStop: { stop: plan.stopLoss, target: plan.takeProfit },
-          structureStop: plan.structureStop ?? null,
-          activateAfter: plan.activateAfter ?? null,
-          warnings: plan.warnings ?? [],
+          mode: analysis.mode,
+          primaryTimeframe: analysis.primaryTimeframe,
+          regime: analysis.regime,
+          regimeConfidence: analysis.regimeConfidence,
+          context: analysis.context,
+          hierarchy: analysis.hierarchy ?? null,
+          setupType: analysis.setupType,
+          structure: analysis.structure,
+          trend: analysis.trend,
+          range: analysis.range,
+          planned: { ...trade, currentPrice: analysis.currentPrice },
+          risk: analysis.risk,
+          activateAfter: analysis.activateAfter,
+          reason: analysis.reason,
         },
       },
     });
@@ -633,29 +625,52 @@ export default function ChartScreen() {
   </View>;
 }
 
-function NativeTrendPullbackModal({ visible, busy, result: normalResult, swingResult, error, instrument, onClose, onCancel, onAccept }: { visible: boolean; busy: boolean; result: NativeTrendPullbackResult | null; swingResult: NativeTrendPullbackResult | null; error: string | null; instrument: string; onClose: () => void; onCancel: () => void; onAccept: (plan: NativeTrendPullbackResult) => void }) {
+const REGIME_LABEL = { UPTREND: 'Uptrend', DOWNTREND: 'Downtrend', RANGE: 'Range', TRANSITION: 'Transition' } as const;
+const DECISION_LABEL = { LONG: 'Long setup', SHORT: 'Short setup', 'NO TRADE': 'No trade' } as const;
+
+/** Analyze result: regime first, then the decision; Normal (M15) and Swing (H4) reads of the same structure. */
+function NativeTrendPullbackModal({ visible, busy, result: normal, swingResult: swing, error, instrument, onClose, onCancel, onAccept }: { visible: boolean; busy: boolean; result: NativeMarketAnalysis | null; swingResult: NativeMarketAnalysis | null; error: string | null; instrument: string; onClose: () => void; onCancel: () => void; onAccept: (analysis: NativeMarketAnalysis) => void }) {
   const colors = useThemeColors();
   const styles = useThemedStyles(createStyles);
   // Tied to the analysis it was picked on, so a new analysis starts on Normal.
-  const [picked, setPicked] = useState<{ plan: NativeTrendPullbackResult | null; mode: TradeMode }>({ plan: null, mode: 'normal' });
-  const swingUsable = swingResult !== null && swingResult.status !== 'NO_VALID_ENTRY';
-  const mode: TradeMode = picked.plan === normalResult && picked.mode === 'swing' && swingUsable ? 'swing' : 'normal';
-  const result = mode === 'swing' ? swingResult : normalResult;
-  const plan = result?.status !== 'NO_VALID_ENTRY' ? result : null;
-  const structure = plan?.structureStop?.available ? plan.structureStop : null;
-  // Each plan shows the stop it recommends: the structure stop when one exists.
-  const useStructure = plan?.recommendedStop === 'structure' && structure !== null;
-  const planStopPips = (option: NativeTrendPullbackResult | null) => option?.recommendedStop === 'structure' && option.structureStop?.available
-    ? option.structureStop.stopDistancePips
-    : option?.stopDistancePips ?? null;
-  const labels = plan?.higherTimeframeLabels ?? ['1H', '4H'];
-  const shown = plan ? useStructure && structure
-    ? { stop: structure.stop, stopPips: structure.stopDistancePips, target: structure.takeProfit, targetPips: structure.targetDistancePips }
-    : { stop: plan.stopLoss, stopPips: plan.stopDistancePips, target: plan.takeProfit, targetPips: plan.targetDistancePips } : null;
-  // While analyzing, show the plan's own layout as a skeleton so the drawer does
-  // not jump from a spinner to a differently shaped result.
-  return <BottomDrawer visible={visible} onClose={busy ? onCancel : onClose} title={busy ? 'Analyzing chart' : plan ? result?.status === 'ENTRY_AVAILABLE_NOW' ? 'Entry available now' : plan.currentMove === 'NONE' ? 'Next pullback level' : 'Planned pullback entry' : error ? 'Analysis unavailable' : 'No trade plan'} titleNode={busy ? <SkeletonBlock width={220} height={22} /> : undefined}>
-    {busy ? <View accessibilityLabel="Analyzing chart" accessibilityState={{ busy: true }}><View style={styles.analysisTitleRow}><SkeletonBlock width={72} height={24} /></View><View style={styles.analysisEntry}><SkeletonBlock width={44} height={11} /><SkeletonBlock width={170} height={34} style={styles.skeletonGap} /><SkeletonBlock width={90} height={13} style={styles.skeletonGapLarge} /></View><View style={styles.analysisLevels}>{[0, 1].map((index) => <View key={index} style={styles.analysisLevel}><SkeletonBlock width={60} height={11} /><SkeletonBlock width={80} height={16} style={styles.skeletonGap} /><SkeletonBlock width={90} height={11} style={styles.skeletonGap} /></View>)}</View><View style={styles.analysisRr}><SkeletonBlock width={90} height={13} /><SkeletonBlock width={56} height={16} /></View><View style={styles.analysisActions}><SkeletonBlock height={48} radius={13} style={styles.skeletonButton} /><SkeletonBlock height={48} radius={13} style={styles.skeletonButton} /></View></View> : plan ? <><View style={styles.analysisTitleRow}><Text style={[styles.analysisDirection, plan.action === 'LONG' ? styles.analysisLong : styles.analysisShort]}>{plan.action}</Text></View>{plan.counterTrend ? <Text style={styles.analysisCounter}>Against the {labels[0]}/{labels[1]} trend · tested level · 1:1 target</Text> : null}<View style={styles.analysisEntry}><Text style={styles.analysisLabel}>Entry</Text><Text style={styles.analysisEntryPrice}>{price(plan.entry, instrument)}</Text><Text style={styles.analysisCopy}>{plan.distanceToEntryPips?.toFixed(1) ?? '—'} pips away</Text></View><View style={styles.analysisLevels}><View style={styles.analysisLevel}><Text style={styles.analysisStopLabel}>Stop loss</Text><Text style={styles.analysisLevelPrice}>{price(shown!.stop, instrument)}</Text><Text style={styles.analysisLevelCopy}>{shown!.stopPips?.toFixed(1) ?? '—'} pips risk</Text></View><View style={styles.analysisLevel}><Text style={styles.analysisTargetLabel}>Take profit</Text><Text style={styles.analysisLevelPrice}>{price(shown!.target, instrument)}</Text><Text style={styles.analysisLevelCopy}>{shown!.targetPips?.toFixed(1) ?? '—'} pips reward</Text></View></View><View style={styles.stopChoice}><View style={styles.stopChoiceRow} accessibilityLabel="Trade mode">{(['normal', 'swing'] as const).map((option) => <Pressable key={option} disabled={option === 'swing' && !swingUsable} onPress={() => setPicked({ plan: normalResult, mode: option })} style={[styles.stopChoiceOption, option === mode ? styles.stopChoiceActive : null, option === 'swing' && !swingUsable ? styles.analysisDisabledOption : null]} accessibilityRole="radio" accessibilityState={{ checked: option === mode, disabled: option === 'swing' && !swingUsable }}><Text style={styles.stopChoiceText}>{option === 'normal' ? `Normal · ${planStopPips(normalResult)?.toFixed(1) ?? '—'}p` : `Swing${swingUsable ? ` · ${planStopPips(swingResult)?.toFixed(1) ?? '—'}p` : ''}`}</Text></Pressable>)}</View></View><View style={styles.analysisRr}><Text style={styles.analysisCopy}>Risk / reward</Text><Text style={styles.analysisRrValue}>{plan.riskReward?.toFixed(2) ?? '—'}:1</Text></View><View style={styles.analysisActions}><Pressable onPress={onClose} style={[styles.analysisPrimary, styles.analysisReject]}><Text style={styles.analysisPrimaryText}>Reject</Text></Pressable><Pressable onPress={() => onAccept(plan)} style={styles.analysisPrimary}><Text style={styles.analysisPrimaryText}>Accept</Text></Pressable></View></> : <><Text style={styles.analysisCopy}>{error ?? result?.reasons[0] ?? 'TrendPullbackV1 could not form a valid setup.'}</Text><Pressable onPress={onClose} style={styles.analysisPrimary}><Text style={styles.analysisPrimaryText}>Done</Text></Pressable></>}
+  const [picked, setPicked] = useState<{ analysis: NativeMarketAnalysis | null; mode: AnalysisMode }>({ analysis: null, mode: 'NORMAL' });
+  const mode: AnalysisMode = picked.analysis === normal && picked.mode === 'SWING' && swing ? 'SWING' : 'NORMAL';
+  const analysis = mode === 'SWING' && swing ? swing : normal;
+  const trade = analysis?.trade ?? null;
+  const rows: Array<[string, string]> = [];
+  if (analysis?.trend) {
+    rows.push(['Impulse', analysis.trend.impulse]);
+    if (analysis.trend.pullbackZone) rows.push(['Pullback zone', `${price(analysis.trend.pullbackZone.low, instrument)} – ${price(analysis.trend.pullbackZone.high, instrument)}`]);
+    rows.push(['To pullback', `${analysis.trend.distanceToPullbackPips ?? '—'} pips · chase risk ${analysis.trend.chaseRisk.toLowerCase()}`]);
+  }
+  if (analysis?.range) rows.push(['Range', `${price(analysis.range.low, instrument)} – ${price(analysis.range.high, instrument)} · ${analysis.range.location.toLowerCase()}`]);
+  if (analysis?.transition && analysis.regime === 'TRANSITION') rows.push(['Broken', analysis.transition.broken], ['Could become', analysis.transition.potential]);
+  if (analysis) {
+    rows.push(['Spread', analysis.risk.spread], ['News', analysis.risk.news]);
+    if (trade) rows.push(['Invalidation', analysis.risk.invalidation]);
+    rows.push(['Main risk', analysis.risk.main]);
+  }
+  const title = busy ? 'Analyzing chart' : analysis ? DECISION_LABEL[analysis.decision] : error ? 'Analysis unavailable' : 'No analysis';
+  return <BottomDrawer visible={visible} onClose={busy ? onCancel : onClose} title={title} titleNode={busy ? <SkeletonBlock width={220} height={22} /> : undefined} scrollable>
+    {busy ? <View accessibilityLabel="Analyzing chart" accessibilityState={{ busy: true }}><SkeletonBlock height={40} radius={12} /><View style={styles.analysisEntry}><SkeletonBlock width={110} height={22} /><SkeletonBlock width={180} height={13} style={styles.skeletonGapLarge} /></View><View style={styles.analysisLevels}>{[0, 1].map((index) => <View key={index} style={styles.analysisLevel}><SkeletonBlock width={60} height={11} /><SkeletonBlock width={80} height={16} style={styles.skeletonGap} /></View>)}</View><View style={styles.analysisActions}><SkeletonBlock height={48} radius={13} style={styles.skeletonButton} /><SkeletonBlock height={48} radius={13} style={styles.skeletonButton} /></View></View>
+      : analysis ? <>
+        <View style={styles.stopChoice}><View style={styles.stopChoiceRow} accessibilityLabel="Trade mode">{(['NORMAL', 'SWING'] as const).map((option) => { const read = option === 'SWING' ? swing : normal; return <Pressable key={option} disabled={!read} onPress={() => setPicked({ analysis: normal, mode: option })} style={[styles.stopChoiceOption, option === mode ? styles.stopChoiceActive : null, !read ? styles.analysisDisabledOption : null]} accessibilityRole="radio" accessibilityState={{ checked: option === mode, disabled: !read }}><Text style={styles.stopChoiceText}>{option === 'NORMAL' ? 'Normal' : 'Swing'}{read ? ` · ${read.decision === 'NO TRADE' ? 'No trade' : read.decision === 'LONG' ? 'Long' : 'Short'}` : ''}</Text></Pressable>; })}</View></View>
+        <View style={styles.analysisEntry}>
+          <View style={styles.analysisTitleRow}><Text style={[styles.analysisDirection, analysis.decision === 'LONG' ? styles.analysisLong : analysis.decision === 'SHORT' ? styles.analysisShort : null]}>{REGIME_LABEL[analysis.regime]}</Text><Text style={styles.analysisLabel}>{analysis.regimeConfidence.toLowerCase()} confidence · {analysis.primaryTimeframe}</Text></View>
+          {analysis.hierarchy ? <>
+            <Text style={styles.analysisLevelCopy}>{analysis.context.timeframe} context: {REGIME_LABEL[analysis.context.regime]} · {(analysis.context.alignment ?? 'UNKNOWN').toLowerCase()}</Text>
+            {analysis.hierarchy.roles.setup ? <Text style={styles.analysisLevelCopy}>{analysis.hierarchy.roles.setup} setup: {analysis.hierarchy.setup?.label ?? 'unavailable'}</Text> : null}
+            {analysis.hierarchy.roles.execution ? <Text style={styles.analysisLevelCopy}>{analysis.hierarchy.roles.execution} execution: {analysis.hierarchy.execution ? 'entry refinement' : 'unavailable'}</Text> : null}
+            <Text style={styles.analysisLevelCopy}>{analysis.hierarchy.interpretation} {analysis.hierarchy.strategy}</Text>
+          </> : <Text style={styles.analysisLevelCopy}>{analysis.context.timeframe} context: {REGIME_LABEL[analysis.context.regime]}{analysis.context.agrees === false ? ' — disagrees' : ''}</Text>}
+          {trade ? <><Text style={[styles.analysisLabel, styles.skeletonGapLarge]}>Entry · {trade.orderType === 'MARKET' ? 'available now' : trade.orderType === 'BUY_LIMIT' ? 'buy limit' : 'sell limit'}</Text><Text style={styles.analysisEntryPrice}>{price(trade.entry, instrument)}</Text><Text style={styles.analysisLevelCopy}>{trade.holding}</Text></> : <Text style={styles.analysisCopy}>{analysis.reason}</Text>}
+        </View>
+        {trade ? <><View style={styles.analysisLevels}><View style={styles.analysisLevel}><Text style={styles.analysisStopLabel}>Stop loss</Text><Text style={styles.analysisLevelPrice}>{price(trade.stopLoss, instrument)}</Text><Text style={styles.analysisLevelCopy}>{trade.stopPips} pips risk</Text></View><View style={styles.analysisLevel}><Text style={styles.analysisTargetLabel}>Take profit</Text><Text style={styles.analysisLevelPrice}>{price(trade.takeProfit, instrument)}</Text><Text style={styles.analysisLevelCopy}>{trade.targetPips} pips reward</Text></View></View>
+          <View style={styles.analysisRr}><Text style={styles.analysisCopy}>Risk / reward</Text><Text style={styles.analysisRrValue}>{trade.riskReward.toFixed(2)}:1</Text></View>
+          <Text style={styles.analysisCopy}>{analysis.reason}</Text></> : null}
+        <View style={styles.analysisRows}>{rows.map(([label, value]) => <View key={label} style={styles.analysisRow}><Text style={styles.analysisRowLabel}>{label}</Text><Text style={styles.analysisRowValue}>{value}</Text></View>)}</View>
+        <View style={styles.analysisActions}><Pressable onPress={onClose} style={[styles.analysisPrimary, styles.analysisReject]}><Text style={styles.analysisPrimaryText}>{trade ? 'Reject' : 'Close'}</Text></Pressable>{trade ? <Pressable onPress={() => onAccept(analysis)} style={[styles.analysisPrimary, { backgroundColor: colors.primary }]}><Text style={styles.analysisPrimaryText}>Accept</Text></Pressable> : null}</View>
+      </> : <><Text style={styles.analysisCopy}>{error ?? 'Analysis could not run.'}</Text><Pressable onPress={onClose} style={styles.analysisPrimary}><Text style={styles.analysisPrimaryText}>Done</Text></Pressable></>}
   </BottomDrawer>;
 }
 
@@ -725,5 +740,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   chartFrame: { flex: 1, minHeight: 180 }, webview: { flex: 1 }, loading: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', gap: 9 }, loadingText: { fontSize: 13, fontFamily: theme.fonts.sansMedium, color: colors.textSecondary }, toolbar: { zIndex: 6, minHeight: 52, flexDirection: 'row', paddingHorizontal: 8, paddingVertical: 8, gap: 4, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.cardBorder }, tool: { flex: 1, minWidth: 0, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 11 }, toolActive: { backgroundColor: colors.primarySoft }, tradeAction: { zIndex: 6, marginBottom: 94, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10, backgroundColor: 'transparent' }, tradeActionError: { marginBottom: 8, textAlign: 'center', fontSize: 12, lineHeight: 17, fontFamily: theme.fonts.sansMedium, color: colors.danger }, tradeButton: { minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: colors.primary }, cancelTradeButton: { backgroundColor: colors.warning }, closeTradeButton: { backgroundColor: colors.danger }, tradeButtonDisabled: { opacity: 0.55 }, tradeButtonText: { fontSize: 14, fontFamily: theme.fonts.sansSemiBold, color: '#ffffff' }, confirmCopy: { marginHorizontal: 4, fontSize: 14, lineHeight: 20, fontFamily: theme.fonts.sans, color: colors.textSecondary }, confirmActions: { flexDirection: 'row', gap: 10, marginTop: 22, marginHorizontal: 4 }, confirmSecondary: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 13, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border }, confirmSecondaryText: { fontSize: 14, fontFamily: theme.fonts.sansSemiBold, color: colors.textPrimary }, confirmPrimary: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: colors.primary },
   pairRowMain: { flex: 1, minWidth: 0, paddingVertical: 8 }, pairRowEnd: { flexDirection: 'row', alignItems: 'center', gap: 10 }, pairBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 }, pairBadgeDot: { width: 6, height: 6, borderRadius: 3 }, pairBadgeText: { fontSize: 11, fontFamily: theme.fonts.sansSemiBold, letterSpacing: 0.2 },
   pairSearch: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8, paddingHorizontal: 13, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.surface }, pairSearchInput: { flex: 1, color: colors.textPrimary, fontSize: 13, fontFamily: theme.fonts.sans }, pairSearchEmpty: { paddingVertical: 16, textAlign: 'center', fontSize: 13, fontFamily: theme.fonts.sans, color: colors.textSecondary }, drawerRow: { minHeight: 49, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border, borderRadius: 10 }, drawerRowActive: { backgroundColor: colors.primaryMuted }, drawerPair: { fontSize: 14, fontFamily: theme.fonts.sansSemiBold, color: colors.textPrimary }, drawerGroupTitle: { marginTop: 8, marginBottom: 4, paddingHorizontal: 12, fontSize: 11, fontFamily: theme.fonts.sansSemiBold, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.textMuted }, drawerCopy: { marginHorizontal: 12, marginBottom: 14, fontSize: 13, lineHeight: 19, fontFamily: theme.fonts.sans, color: colors.textSecondary }, directionRow: { flexDirection: 'row', gap: 10, marginHorizontal: 12, paddingBottom: 8 }, directionButton: { flex: 1, minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 12 }, longButton: { backgroundColor: colors.primary }, shortButton: { backgroundColor: colors.danger }, directionText: { fontSize: 14, fontFamily: theme.fonts.sansSemiBold, color: '#ffffff' }, errorState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }, errorTitle: { fontSize: 19, fontFamily: theme.fonts.sansSemiBold, color: colors.textPrimary }, errorCopy: { marginTop: 7, textAlign: 'center', fontSize: 13, lineHeight: 19, fontFamily: theme.fonts.sans, color: colors.textSecondary }, retry: { marginTop: 20, minHeight: 44, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: colors.primary }, retryText: { fontSize: 13, fontFamily: theme.fonts.sansSemiBold, color: '#ffffff' },
-  analysisTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginHorizontal: 4 }, analysisDirection: { fontSize: 20, fontFamily: theme.fonts.sansBold }, analysisLong: { color: colors.primary }, analysisShort: { color: colors.danger }, analysisSpinner: { marginTop: 14 }, analysisCopy: { marginTop: 8, marginHorizontal: 4, fontSize: 13, lineHeight: 19, fontFamily: theme.fonts.sans, color: colors.textSecondary }, analysisEntry: { marginTop: 18, marginHorizontal: 4, padding: 16, borderRadius: 16, backgroundColor: colors.surfaceRaised }, analysisLabel: { fontSize: 11, fontFamily: theme.fonts.sansSemiBold, textTransform: 'uppercase', letterSpacing: 0.7, color: colors.textMuted }, analysisEntryPrice: { marginTop: 5, fontSize: 30, fontFamily: theme.fonts.monoBold, letterSpacing: -0.7, color: colors.textPrimary }, analysisLevels: { flexDirection: 'row', gap: 10, marginTop: 10, marginHorizontal: 4 }, analysisLevel: { flex: 1, padding: 13, borderRadius: 14, backgroundColor: colors.surfaceRaised }, analysisStopLabel: { fontSize: 11, fontFamily: theme.fonts.sansSemiBold, color: colors.danger }, analysisTargetLabel: { fontSize: 11, fontFamily: theme.fonts.sansSemiBold, color: colors.primary }, analysisLevelPrice: { marginTop: 5, fontSize: 15, fontFamily: theme.fonts.monoBold, color: colors.textPrimary }, analysisLevelCopy: { marginTop: 4, fontSize: 11, fontFamily: theme.fonts.sans, color: colors.textMuted }, analysisRr: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingHorizontal: 8 }, analysisRrValue: { fontSize: 16, fontFamily: theme.fonts.monoBold, color: colors.textPrimary }, analysisActions: { flexDirection: 'row', gap: 10, marginHorizontal: 4, marginTop: 20 }, analysisPrimary: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', marginTop: 20, borderRadius: 13, backgroundColor: colors.primary }, analysisPrimaryText: { fontSize: 15, fontFamily: theme.fonts.sansSemiBold, color: '#ffffff' }, analysisReject: { backgroundColor: colors.danger }, stopChoice: { marginTop: 10, marginHorizontal: 4, gap: 6 }, stopChoiceRow: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: 12, backgroundColor: colors.surfaceRaised }, stopChoiceOption: { flex: 1, minHeight: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 9 }, stopChoiceActive: { backgroundColor: colors.surface }, stopChoiceText: { fontSize: 13, fontFamily: theme.fonts.sansSemiBold, color: colors.textPrimary }, analysisDisabledOption: { opacity: 0.4 }, analysisCounter: { marginTop: 6, marginHorizontal: 4, fontSize: 12, fontFamily: theme.fonts.sansSemiBold, color: '#d97706' }, skeletonGap: { marginTop: 8 }, skeletonGapLarge: { marginTop: 10 }, skeletonButton: { flex: 1, marginTop: 20 }, analysisSecondary: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', marginTop: 20, borderRadius: 13, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border }, analysisSecondaryText: { fontSize: 15, fontFamily: theme.fonts.sansSemiBold, color: colors.textPrimary },
+  analysisTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginHorizontal: 4 }, analysisDirection: { fontSize: 20, fontFamily: theme.fonts.sansBold }, analysisLong: { color: colors.primary }, analysisShort: { color: colors.danger }, analysisSpinner: { marginTop: 14 }, analysisCopy: { marginTop: 8, marginHorizontal: 4, fontSize: 13, lineHeight: 19, fontFamily: theme.fonts.sans, color: colors.textSecondary }, analysisEntry: { marginTop: 18, marginHorizontal: 4, padding: 16, borderRadius: 16, backgroundColor: colors.surfaceRaised }, analysisLabel: { fontSize: 11, fontFamily: theme.fonts.sansSemiBold, textTransform: 'uppercase', letterSpacing: 0.7, color: colors.textMuted }, analysisEntryPrice: { marginTop: 5, fontSize: 30, fontFamily: theme.fonts.monoBold, letterSpacing: -0.7, color: colors.textPrimary }, analysisLevels: { flexDirection: 'row', gap: 10, marginTop: 10, marginHorizontal: 4 }, analysisLevel: { flex: 1, padding: 13, borderRadius: 14, backgroundColor: colors.surfaceRaised }, analysisStopLabel: { fontSize: 11, fontFamily: theme.fonts.sansSemiBold, color: colors.danger }, analysisTargetLabel: { fontSize: 11, fontFamily: theme.fonts.sansSemiBold, color: colors.primary }, analysisLevelPrice: { marginTop: 5, fontSize: 15, fontFamily: theme.fonts.monoBold, color: colors.textPrimary }, analysisLevelCopy: { marginTop: 4, fontSize: 11, fontFamily: theme.fonts.sans, color: colors.textMuted }, analysisRr: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingHorizontal: 8 }, analysisRrValue: { fontSize: 16, fontFamily: theme.fonts.monoBold, color: colors.textPrimary }, analysisActions: { flexDirection: 'row', gap: 10, marginHorizontal: 4, marginTop: 20 }, analysisPrimary: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', marginTop: 20, borderRadius: 13, backgroundColor: colors.primary }, analysisPrimaryText: { fontSize: 15, fontFamily: theme.fonts.sansSemiBold, color: '#ffffff' }, analysisReject: { backgroundColor: colors.danger }, stopChoice: { marginTop: 10, marginHorizontal: 4, gap: 6 }, stopChoiceRow: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: 12, backgroundColor: colors.surfaceRaised }, stopChoiceOption: { flex: 1, minHeight: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 9 }, stopChoiceActive: { backgroundColor: colors.surface }, stopChoiceText: { fontSize: 13, fontFamily: theme.fonts.sansSemiBold, color: colors.textPrimary }, analysisDisabledOption: { opacity: 0.4 }, analysisRows: { marginTop: 12, marginHorizontal: 4, gap: 6 }, analysisRow: { flexDirection: 'row', gap: 10 }, analysisRowLabel: { width: 92, fontSize: 12, fontFamily: theme.fonts.sansSemiBold, color: colors.textMuted }, analysisRowValue: { flex: 1, fontSize: 12, lineHeight: 17, fontFamily: theme.fonts.sans, color: colors.textSecondary }, analysisCounter: { marginTop: 6, marginHorizontal: 4, fontSize: 12, fontFamily: theme.fonts.sansSemiBold, color: '#d97706' }, skeletonGap: { marginTop: 8 }, skeletonGapLarge: { marginTop: 10 }, skeletonButton: { flex: 1, marginTop: 20 }, analysisSecondary: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', marginTop: 20, borderRadius: 13, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border }, analysisSecondaryText: { fontSize: 15, fontFamily: theme.fonts.sansSemiBold, color: colors.textPrimary },
 });

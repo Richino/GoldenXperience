@@ -7,7 +7,6 @@ import { HomeRail, type HomeAvailableSignal, type HomeCurrentPosition } from "@/
 import { HomePendingTrades } from "@/components/dashboard/home-pending-trades";
 import { PendingCancelConfirmation } from "@/components/dashboard/pending-cancel-confirmation";
 import { HomeRecentActivity } from "@/components/dashboard/home-recent-activity";
-import { RecentPredictions } from "@/components/dashboard/recent-predictions";
 import { RelativeTime } from "@/components/dashboard/relative-time";
 import {
   recentActivityFromTrades,
@@ -161,6 +160,24 @@ function money(value: number, currency = "USD") {
   return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 2 }).format(value);
 }
 
+/**
+ * Price an open row is marked against: the streamed bid/ask first, then the
+ * broker's polled price, and only then the watchlist row. The watchlist is a
+ * page-load snapshot, so preferring it over the broker left pairs the stream
+ * does not tick (e.g. USD/CAD) showing an Open R minutes out of date.
+ */
+function openTradeQuote(
+  trade: Trade,
+  quotes: Record<string, { bid: number; ask: number }>,
+  fill: OpenPositionFill | undefined,
+  watchlist: DashboardWatchRow[],
+) {
+  return (
+    resolveOpenTradeQuote(quotes[trade.instrument], fill) ??
+    resolveOpenTradeQuote(watchlist.find((row) => row.instrument === trade.instrument))
+  );
+}
+
 function liveOpenProgress(
   trade: Trade,
   quotes: Record<string, { bid: number; ask: number }>,
@@ -170,14 +187,10 @@ function liveOpenProgress(
   if (trade.entry == null || trade.stop == null || trade.target == null) {
     return null;
   }
-  const streamed = quotes[trade.instrument];
   const fill = trade.brokerTradeId
     ? fills[`broker:${trade.brokerTradeId}`]
     : undefined;
-  const quote = resolveOpenTradeQuote(
-    streamed ?? watchlist.find((row) => row.instrument === trade.instrument),
-    fill?.currentPrice,
-  );
+  const quote = openTradeQuote(trade, quotes, fill, watchlist);
   return openTradeProgress({
     direction: trade.direction,
     instrument: trade.instrument,
@@ -483,16 +496,10 @@ export function DashboardView({
               {openTrades.slice(0, 6).map((trade) => {
                 const shown = markedOpenMoney(trade, quotes, fills, watchlist);
                 const live = liveOpenProgress(trade, quotes, fills, watchlist);
-                const streamed = quotes[trade.instrument];
                 const fill = trade.brokerTradeId
                   ? fills[`broker:${trade.brokerTradeId}`]
                   : undefined;
-                const quote =
-                  resolveOpenTradeQuote(
-                    streamed ??
-                      watchlist.find((row) => row.instrument === trade.instrument),
-                    fill?.currentPrice,
-                  );
+                const quote = openTradeQuote(trade, quotes, fill, watchlist);
                 const mark = quote?.bid && quote?.ask
                   ? (quote.bid + quote.ask) / 2
                   : null;
@@ -651,9 +658,6 @@ export function DashboardView({
 
       <HomeRecentActivity items={recentActivity} currency={account.currency} loading={activityLoading} />
 
-      <div className="home-extra lg:hidden">
-        <RecentPredictions />
-      </div>
       </div>
 
       <HomeRail

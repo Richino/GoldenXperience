@@ -12,6 +12,9 @@ export interface OpenPositionFill {
   /** Mid from the broker's last pricing read — used when the tick stream has not
    *  delivered this pair yet, so a row can still mark to market. */
   currentPrice: number;
+  /** Broker bid/ask from the same pricing read; null when not returned. */
+  currentBid: number | null;
+  currentAsk: number | null;
   /** Account-currency unrealised P&L from the broker. Prefer this over
    *  recomputing `move × units` so JPY/CAD pairs never show quote cash as USD. */
   unrealizedPL: number;
@@ -46,6 +49,8 @@ export function useOpenPositionFills() {
           stopPrice?: number | null;
           units: number;
           currentPrice: number;
+          currentBid?: number | null;
+          currentAsk?: number | null;
           unrealizedPL: number;
         }>;
       };
@@ -57,6 +62,8 @@ export function useOpenPositionFills() {
           units: Math.abs(position.units),
           stopPrice: position.stopPrice ?? null,
           currentPrice: position.currentPrice,
+          currentBid: position.currentBid ?? null,
+          currentAsk: position.currentAsk ?? null,
           unrealizedPL: position.unrealizedPL,
         };
         // Exact broker IDs are the authoritative lookup. Keep the instrument

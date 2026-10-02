@@ -106,17 +106,25 @@ function finitePrice(value: number | null | undefined): value is number {
 
 /**
  * Prefer a live stream bid/ask; when that pair has not ticked yet, fall back to
- * the broker mid so an open row can still show progress instead of "Open".
+ * the broker's own bid/ask, then its mid, so an open row can still show
+ * progress instead of "Open". A broker bid/ask keeps the close-side mark — a
+ * mid reads half a spread kinder than the position's real P/L.
  */
 export function resolveOpenTradeQuote(
   streamed: OpenTradeQuote | undefined,
-  brokerMid?: number | null,
+  broker?: number | null | { currentPrice?: number | null; currentBid?: number | null; currentAsk?: number | null },
 ): OpenTradeQuote | undefined {
   if (finitePrice(streamed?.bid) && finitePrice(streamed?.ask)) {
     return streamed;
   }
-  if (!finitePrice(brokerMid)) return undefined;
-  return { bid: brokerMid, ask: brokerMid };
+  if (broker !== null && typeof broker === "object") {
+    if (finitePrice(broker.currentBid) && finitePrice(broker.currentAsk)) {
+      return { bid: broker.currentBid, ask: broker.currentAsk };
+    }
+    broker = broker.currentPrice;
+  }
+  if (!finitePrice(broker)) return undefined;
+  return { bid: broker, ask: broker };
 }
 
 /**
@@ -171,14 +179,17 @@ export function openTradeProgress(input: OpenTradeInput): OpenTradeProgress | nu
   const origin = input.fill?.price ?? entry;
   const risk = Math.abs(origin - stop);
   const span = Math.abs(target - origin);
-  if (risk === 0 || span === 0) return null;
+  if (risk === 0) return null;
 
   const move = direction === "long" ? price - origin : origin - price;
   const unrealizedR = move / risk;
   const towards = move < 0 ? "stop" : "target";
   // Measured against whichever level is being approached: the target's span
-  // beyond the open, or the stop's risk behind it.
-  const reach = Math.abs(move) / (towards === "stop" ? risk : span);
+  // beyond the open, or the stop's risk behind it. A no-target trade stores
+  // its entry as a placeholder target, so it has no target progress to show —
+  // but its Open R is still real and must not be dropped.
+  const reach =
+    towards === "stop" ? Math.abs(move) / risk : span === 0 ? 0 : Math.abs(move) / span;
 
   return {
     price,

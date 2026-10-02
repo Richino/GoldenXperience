@@ -132,4 +132,21 @@ const midOnly = openTradeProgress({
 assert.ok(midOnly, "broker mid must unlock progress when the stream is quiet");
 assert.ok(midOnly.money !== null, "paper money should land from risk × R");
 
+// A no-target order stores its entry as a placeholder target. Open R must still
+// come from the fill and the close side, not fall back to a mid-price estimate.
+const noTarget = openTradeProgress({
+  direction: "long",
+  instrument: "USD_CAD",
+  entry: 1.42399,
+  stop: 1.42259,
+  target: 1.42399,
+  bid: 1.42178,
+  ask: 1.42198,
+  riskAmount: 200,
+  fill: { price: 1.42399, units: 200_000 },
+});
+assert.ok(noTarget, "a no-target trade must still report Open R");
+assert.ok(Math.abs(noTarget.unrealizedR - -1.5786) < 0.001);
+assert.equal(noTarget.towards, "stop");
+
 console.log("Open trade progress checks passed.");

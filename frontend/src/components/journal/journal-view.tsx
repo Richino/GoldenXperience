@@ -75,7 +75,7 @@ function openTradeMoney(
   fill: OpenPositionFill | undefined,
 ) {
   if (trade.resultR !== null) return null;
-  const mark = resolveOpenTradeQuote(quote, fill?.currentPrice);
+  const mark = resolveOpenTradeQuote(quote, fill);
   const live = openTradeProgress({
     direction: trade.direction,
     instrument: trade.instrument ?? undefined,
@@ -117,7 +117,7 @@ function JournalTradeRow({
   // come towards its target, rather than only that it is open. Stream ticks
   // win; when a pair has not ticked yet the broker mid (or a REST price) still
   // marks the row so it does not sit on "Open" with no figure.
-  const mark = resolveOpenTradeQuote(quote, fill?.currentPrice);
+  const mark = resolveOpenTradeQuote(quote, fill);
   const live =
     trade.resultR === null
       ? openTradeProgress({
@@ -155,7 +155,9 @@ function JournalTradeRow({
     trade.resultR !== null
       ? `${positive ? "+" : ""}${trade.resultR.toFixed(2)}`
       : live
-        ? `${Math.round(live.percent)}% ${live.towards === "stop" ? "to SL" : "to TP"}`
+        ? live.towards === "target" && trade.target === trade.entry
+          ? `${live.unrealizedR >= 0 ? "+" : ""}${live.unrealizedR.toFixed(2)}R`
+          : `${Math.round(live.percent)}% ${live.towards === "stop" ? "to SL" : "to TP"}`
         : "Open";
   const money = formatMoney(moneyValue);
   const moneyTone =

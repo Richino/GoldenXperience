@@ -965,7 +965,7 @@ export async function getOpenPositions(): Promise<{
     ];
     const pricing = await getPricing(instruments);
     const priceByInstrument = new Map(
-      pricing.data.map((price) => [price.instrument, price.mid]),
+      pricing.data.map((price) => [price.instrument, price]),
     );
 
     const data: OpenPosition[] = response.trades.map((trade) => {
@@ -980,7 +980,9 @@ export async function getOpenPositions(): Promise<{
         entryPrice: Number(trade.price),
         stopPrice: trade.stopLossOrder?.price == null ? null : Number(trade.stopLossOrder.price),
         currentPrice:
-          priceByInstrument.get(trade.instrument) ?? Number(trade.price),
+          priceByInstrument.get(trade.instrument)?.mid ?? Number(trade.price),
+        currentBid: priceByInstrument.get(trade.instrument)?.bid ?? null,
+        currentAsk: priceByInstrument.get(trade.instrument)?.ask ?? null,
         unrealizedPL: Number(trade.unrealizedPL),
         openedAt: trade.openTime,
         source: "oanda",

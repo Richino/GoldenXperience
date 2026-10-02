@@ -107,7 +107,7 @@ function fillForTrade(trade: JournalTrade, fills: Record<string, OpenPositionFil
 
 /** Live open-trade figures: current price, Open R, unrealised P&L, level fill. */
 function liveMetrics(trade: JournalTrade, quote: Quote, quotes: Quotes, fill: OpenPositionFill | undefined) {
-  const mark = resolveOpenTradeQuote(quote, fill?.currentPrice);
+  const mark = resolveOpenTradeQuote(quote, fill);
   const progress = openTradeProgress({
     direction: trade.direction,
     instrument: trade.instrument ?? undefined,

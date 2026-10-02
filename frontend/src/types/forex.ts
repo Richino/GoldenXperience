@@ -137,6 +137,10 @@ export interface OpenPosition {
   /** The broker's currently attached stop, when one exists. */
   stopPrice?: number | null;
   currentPrice: number;
+  /** Executable quote from the same pricing read, so a row can mark a long on
+   *  the bid and a short on the ask when the tick stream is quiet. */
+  currentBid?: number | null;
+  currentAsk?: number | null;
   unrealizedPL: number;
   openedAt: string;
   source: DataSource;

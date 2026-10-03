@@ -30,7 +30,7 @@ export interface TimeframeRoles {
 }
 
 export const TIMEFRAME_ROLES: Record<AnalysisMode, TimeframeRoles> = {
-  NORMAL: { context: "H4", primary: "H1", setup: "M15", execution: "M5", holding: "Intraday: within the trading day" },
+  NORMAL: { context: "H4", primary: "H1", setup: "M15", execution: "M5", holding: "Day trade: sized to finish within the day" },
   SWING: { context: "D1", primary: "H4", setup: "H1", execution: "M15", holding: "Multi-session swing: about 2–4 days" },
 };
 

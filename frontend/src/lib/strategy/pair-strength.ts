@@ -16,9 +16,13 @@ import type { Candle, MajorInstrument } from "@/types/forex";
  *   every 15 minutes, so a trend breaking — or a sharp new move where there
  *   was no trend — shows as "turning" within hours.
  *
- * Currency strength reads the last 50 completed 15m candles: each pair's net
- * move in ATRs is credited to its base and debited from its quote, then
- * averaged per currency across every pair that contains it.
+ * Currency strength is measured across all 28 pairs of the 8 majors, so every
+ * currency is read against each of the other 7 (the 14 featured pairs alone
+ * left CHF in one pair). Each pair's net move in ATRs is credited to its base
+ * and debited from its quote, then averaged per currency, over two windows:
+ * today (50 × 15m, ~12h) and the last 3 days (72 × 1H). It also counts how
+ * many of the 7 other currencies each one gained on today, so one pair's
+ * spike cannot pass for broad strength.
  *
  * Deterministic and descriptive: it reads what price did, not what it will do.
  */
@@ -41,8 +45,12 @@ export interface PairTrendRead {
 
 export interface CurrencyStrength {
   currency: string;
-  /** Average ATR-scaled move across this currency's pairs; + is strong. */
+  /** Today: average 15m-ATR-scaled move over ~12h across this currency's pairs; + is strong. */
   score: number;
+  /** Last 3 days: average 1H-ATR-scaled move across the same pairs; null without the history. */
+  longScore: number | null;
+  /** How many of its pairs it gained on today. */
+  upCount: number;
   /** 1 is the strongest currency. */
   rank: number;
   tier: CurrencyTier;
@@ -68,6 +76,22 @@ export interface PairCandles {
   m15: Candle[];
   h1: Candle[];
 }
+
+/**
+ * Every pair of the 8 majors, as OANDA names them. Currency strength reads all
+ * of them; the trend pill is only shown for the featured pairs.
+ */
+export const STRENGTH_PAIRS = [
+  "EUR_USD", "GBP_USD", "AUD_USD", "NZD_USD", "USD_JPY", "USD_CHF", "USD_CAD",
+  "EUR_GBP", "EUR_JPY", "EUR_CHF", "EUR_AUD", "EUR_CAD", "EUR_NZD",
+  "GBP_JPY", "GBP_CHF", "GBP_AUD", "GBP_CAD", "GBP_NZD",
+  "AUD_JPY", "AUD_CHF", "AUD_CAD", "AUD_NZD",
+  "NZD_JPY", "NZD_CHF", "NZD_CAD",
+  "CAD_JPY", "CAD_CHF", "CHF_JPY",
+] as const;
+
+/** The 3-day strength window, in 1H bars. */
+const LONG_WINDOW_H1_BARS = 72;
 
 /** The fast window: 16 × 15m = 4 hours. */
 const RECENT_BARS = 16;
@@ -142,35 +166,55 @@ function gradeTrend(trend: MarketRegime, recent: MarketRegime, m15: Candle[]): P
   };
 }
 
+/**
+ * `candlesByPair` may hold any of STRENGTH_PAIRS; all of them feed currency
+ * strength. Only `trendPairs` (the featured pairs) get a trend read and come
+ * back in `pairs`.
+ */
 export function computePairStrength(
-  candlesByPair: Partial<Record<MajorInstrument, PairCandles>>,
+  candlesByPair: Partial<Record<string, PairCandles>>,
   evaluatedAt: string,
+  trendPairs: readonly string[],
 ): PairStrengthSnapshot {
   const lookbackBars = DEFAULT_REGIME_CONFIG.lookbackBars;
-  const sums = new Map<string, { total: number; count: number }>();
+  const featured = new Set(trendPairs);
+  const sums = new Map<string, { total: number; count: number; up: number; longTotal: number; longCount: number }>();
   const trends = new Map<MajorInstrument, PairTrendRead>();
 
   for (const [instrument, candles] of Object.entries(candlesByPair)) {
     if (!candles?.m15.length || !candles.h1.length) continue;
     const m15 = completedOf(candles.m15);
+    const h1 = completedOf(candles.h1);
     const trend = classifyRegime(instrument, candles.h1, evaluatedAt, DEFAULT_REGIME_CONFIG);
     const recent = classifyRegime(instrument, candles.m15, evaluatedAt, DEFAULT_REGIME_CONFIG);
-    trends.set(instrument, gradeTrend(trend, recent, m15));
+    if (featured.has(instrument)) trends.set(instrument as MajorInstrument, gradeTrend(trend, recent, m15));
 
     const [base, quote] = instrument.split("_");
     if (!base || !quote) continue;
     const move = scaledMove(m15, lookbackBars, recent.atr);
     if (move === null) continue;
-    for (const [currency, signed] of [[base, move], [quote, -move]] as const) {
-      const entry = sums.get(currency) ?? { total: 0, count: 0 };
-      entry.total += signed;
+    const longMove = scaledMove(h1, LONG_WINDOW_H1_BARS, trend.atr);
+    for (const [currency, sign] of [[base, 1], [quote, -1]] as const) {
+      const entry = sums.get(currency) ?? { total: 0, count: 0, up: 0, longTotal: 0, longCount: 0 };
+      entry.total += sign * move;
       entry.count += 1;
+      if (sign * move > 0) entry.up += 1;
+      if (longMove !== null) {
+        entry.longTotal += sign * longMove;
+        entry.longCount += 1;
+      }
       sums.set(currency, entry);
     }
   }
 
   const ranked = [...sums.entries()]
-    .map(([currency, { total, count }]) => ({ currency, score: total / count, pairCount: count }))
+    .map(([currency, { total, count, up, longTotal, longCount }]) => ({
+      currency,
+      score: total / count,
+      longScore: longCount ? longTotal / longCount : null,
+      upCount: up,
+      pairCount: count,
+    }))
     .sort((left, right) => right.score - left.score);
   const currencies: CurrencyStrength[] = ranked.map((entry, index) => {
     const rank = index + 1;

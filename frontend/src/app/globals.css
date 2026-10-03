@@ -1333,16 +1333,21 @@ html.mobile-sheet-open body {
   background: color-mix(in srgb, var(--foreground) 6%, transparent);
 }
 
-.pair-strength-currency {
-  font-weight: 500;
+/* Which currency is stronger: green when it pushes the pair up, red when
+   down, muted when the two cancel out. */
+.pair-strength-lean {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  font-weight: 600;
   color: var(--muted);
 }
 
-.pair-strength-currency [data-tier="strong"] {
+.pair-strength-lean[data-lean="up"] {
   color: var(--success);
 }
 
-.pair-strength-currency [data-tier="weak"] {
+.pair-strength-lean[data-lean="down"] {
   color: var(--danger);
 }
 
@@ -7376,6 +7381,13 @@ body.is-dragging-position-tool .setup-chart-position-band {
        PWAs its overlay still covers the final layout pixels, so lift the
        action by the same 22px rather than reserving the dock a second time. */
     transform: translateY(-1.4rem);
+  }
+
+  /* With several trades on the pair, the trade picker sits above the button. */
+  .gx-mobile-analyze-section:has(.gx-pair-trade-trigger) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
   }
 
   .gx-mobile-analyze {
@@ -18412,6 +18424,11 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
     font-weight: 700;
   }
 
+  /* The trade's direction colours the title; a weak-setup note stays muted. */
+  html:is(.dark, :not(.dark)) .tp-sheet .tp-title.is-long { color: var(--gx-primary); }
+  html:is(.dark, :not(.dark)) .tp-sheet .tp-title.is-short { color: var(--gx-danger); }
+  html:is(.dark, :not(.dark)) .tp-sheet .tp-title .tp-title-note { color: var(--gx-text-2); font-weight: 600; }
+
   html:is(.dark, :not(.dark)) .tp-close {
     display: grid;
     place-items: center;
@@ -18425,10 +18442,10 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
     line-height: 1;
   }
 
-  /* Direction sits above the entry card, the entry card holds the price. */
+  /* The entry card holds the regime and the price, right under the mode toggle. */
   html:is(.dark, :not(.dark)) .tp-entry {
     position: relative;
-    margin: 58px 4px 0;
+    margin: 12px 4px 0;
     padding: 16px;
     border-radius: 16px;
     background: var(--gx-surface-raised);
@@ -18571,6 +18588,11 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
 
     html:is(.dark, :not(.dark)) .signals-view:not(.signals-view-fullscreen) .signals-chart-mobile {
       padding-bottom: calc(var(--app-dock-height, 5.5rem) + 66px);
+    }
+
+    /* The trade picker button (42px) and its 8px gap sit above the pinned button. */
+    html:is(.dark, :not(.dark)) .signals-view:not(.signals-view-fullscreen) .signals-chart-mobile:has(.gx-pair-trade-trigger) {
+      padding-bottom: calc(var(--app-dock-height, 5.5rem) + 116px);
     }
   }
 }
@@ -19598,3 +19620,77 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
 .gx-switch.is-on span { transform: translateX(1.15rem); }
 .gx-switch:disabled { opacity: 0.5; }
 .gx-automate-mode.is-active { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+
+/* Chart trade picker: a button showing the trade on the chart, opening a
+   bottom drawer (the Analyze sheet) that lists the pair's trades. */
+.gx-pair-trade-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  min-height: 2.6rem;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--gx-border);
+  border-radius: 0.7rem;
+  background: var(--gx-surface-raised);
+  color: var(--gx-text);
+  text-align: left;
+}
+
+.signals-chart-head-tools .gx-pair-trade-trigger { width: auto; min-height: 2.25rem; }
+
+.gx-pair-trade-trigger-text {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.gx-pair-trade-trigger-text b { font-weight: 700; white-space: nowrap; }
+.gx-pair-trade-trigger-text span { color: var(--gx-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gx-pair-trade-trigger b.is-long, .gx-pair-trade-name .is-long { color: var(--gx-primary); }
+.gx-pair-trade-trigger b.is-short { color: var(--gx-danger); }
+
+.gx-pair-trade-count {
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--gx-text) 8%, transparent);
+  color: var(--gx-text-2);
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.gx-pair-trade-list { display: grid; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+
+.gx-pair-trade-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--gx-border);
+  border-radius: 0.9rem;
+  background: var(--gx-surface-raised);
+  color: var(--gx-text);
+  text-align: left;
+}
+
+.gx-pair-trade-row.is-selected { border-color: var(--gx-primary); }
+.gx-pair-trade-row.is-new { border-style: dashed; color: var(--gx-text-2); }
+
+.gx-pair-trade-side { align-self: stretch; width: 4px; border-radius: 2px; }
+.gx-pair-trade-side.is-long { background: var(--gx-primary); }
+.gx-pair-trade-side.is-short { background: var(--gx-danger); }
+
+.gx-pair-trade-main { display: grid; flex: 1; min-width: 0; gap: 0.2rem; }
+.gx-pair-trade-name { display: flex; align-items: center; gap: 0.5rem; color: var(--gx-text); font-size: 0.9rem; font-weight: 700; }
+.gx-pair-trade-levels { overflow: hidden; color: var(--gx-text-2); font-size: 0.75rem; text-overflow: ellipsis; white-space: nowrap; }
+
+.gx-pair-trade-status { padding: 0.05rem 0.45rem; border-radius: 999px; font-size: 0.68rem; font-weight: 700; }
+.gx-pair-trade-status.is-open { background: color-mix(in srgb, var(--gx-primary) 16%, transparent); color: var(--gx-primary); }
+.gx-pair-trade-status.is-pending { background: color-mix(in srgb, var(--gx-warning) 18%, transparent); color: var(--gx-warning); }
+
+.gx-pair-trade-check { flex: none; color: var(--gx-primary); }

@@ -27,7 +27,7 @@ import {
 } from "../../frontend/src/lib/oanda/client.js";
 import { getStrategySnapshot } from "../../frontend/src/lib/strategy/strategy-service.js";
 import { getForexSessionStatus } from "../../frontend/src/lib/strategy/session.js";
-import { computePairStrength, type PairStrengthSnapshot } from "../../frontend/src/lib/strategy/pair-strength.js";
+import { computePairStrength, STRENGTH_PAIRS, type PairStrengthSnapshot } from "../../frontend/src/lib/strategy/pair-strength.js";
 import { databaseConfigured, query } from "./database.js";
 import { cookieName, login, logout, sessionUser } from "./auth.js";
 import { decideResearchExperiment, forwardResearchSummary, latestDayTradingValidation, latestResearchExperiment, latestResearchHoldout, latestResearchRun, latestWalkForwardResearch, processNextResearchJob, researchDiagnostics, researchExperimentDiagnostics, researchSummary, runDayTradingValidation, runResearchExperiment, runWalkForwardResearch, startLockedResearchHoldout, startStrictHistoricalBackfill, stopResearchRun } from "./research.js";
@@ -749,25 +749,29 @@ function cachedCandles(instrument: Parameters<typeof getCandles>[0], granularity
 // 15m bars close, so one snapshot is shared for a minute. Pairs whose candles
 // fell back to generated data are left out rather than graded on fake prices.
 const PAIR_STRENGTH_CACHE_MS = 60_000;
-/** Each covers the 50-bar lookback plus ATR warm-up. */
+/** Each covers its lookback (50 × 15m; 72 × 1H for the 3-day window) plus ATR warm-up. */
 const PAIR_STRENGTH_M15_CANDLES = 120;
-const PAIR_STRENGTH_H1_CANDLES = 80;
+const PAIR_STRENGTH_H1_CANDLES = 120;
 let pairStrengthCache: { expiresAt: number; result: Promise<PairStrengthSnapshot> } | null = null;
 
 function cachedPairStrength() {
   const now = Date.now();
   if (pairStrengthCache && pairStrengthCache.expiresAt > now) return pairStrengthCache.result;
 
+  // All 28 major pairs feed currency strength; the featured ones also get a
+  // trend read. getCandles is typed for the featured pairs but takes any
+  // OANDA instrument.
   const result = Promise.all(
-    MAJOR_INSTRUMENTS.map(async (instrument) => {
+    STRENGTH_PAIRS.map(async (instrument) => {
+      const name = instrument as MajorInstrument;
       const [m15, h1] = await Promise.all([
-        cachedCandles(instrument, "M15", PAIR_STRENGTH_M15_CANDLES, undefined),
-        cachedCandles(instrument, "H1", PAIR_STRENGTH_H1_CANDLES, undefined),
+        cachedCandles(name, "M15", PAIR_STRENGTH_M15_CANDLES, undefined),
+        cachedCandles(name, "H1", PAIR_STRENGTH_H1_CANDLES, undefined),
       ]);
       const live = m15.status.state === "connected" && h1.status.state === "connected";
       return [instrument, { m15: live ? m15.data.candles : [], h1: live ? h1.data.candles : [] }] as const;
     }),
-  ).then((entries) => computePairStrength(Object.fromEntries(entries), new Date().toISOString()));
+  ).then((entries) => computePairStrength(Object.fromEntries(entries), new Date().toISOString(), MAJOR_INSTRUMENTS));
   pairStrengthCache = { expiresAt: now + PAIR_STRENGTH_CACHE_MS, result };
   result.catch(() => {
     if (pairStrengthCache?.result === result) pairStrengthCache = null;

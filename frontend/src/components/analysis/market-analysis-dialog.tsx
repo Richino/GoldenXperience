@@ -4,18 +4,23 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { useDragToDismiss } from "@/lib/use-drag-to-dismiss";
-import type { AnalysisMode, MarketAnalysis } from "@/lib/strategy/market-analysis";
+import { NO_NEWS, type AnalysisMode, type MarketAnalysis } from "@/lib/strategy/market-analysis";
 import type { MajorInstrument } from "@/types/forex";
 
 const REGIME_LABEL = { UPTREND: "Uptrend", DOWNTREND: "Downtrend", RANGE: "Range", TRANSITION: "Transition" } as const;
 const DECISION_LABEL = { LONG: "Long setup", SHORT: "Short setup", "NO TRADE": "No trade" } as const;
-const ALIGNMENT_LABEL = { ALIGNED: "aligned", CONFLICTING: "conflicting", MIXED: "mixed", UNKNOWN: "unknown" } as const;
+
+/** Risk first, reward as 2, the way the plan is set: reward/risk 0.5 reads "4:2". */
+function riskToReward(rewardRisk: number) {
+  const risk = Number((2 / rewardRisk).toFixed(1));
+  return `${risk}:2`;
+}
 
 /**
- * Analyze result: regime first, then the decision. Normal (H1 regime) and
- * Swing (H4 regime) are two reads of the same structure framework, each
- * shown with its context/regime/setup/execution roles; the toggle switches
- * between them and Accept places the one shown.
+ * Analyze result, kept to the trade itself: regime, entry, stop, target and a
+ * caution when high-impact news is due. Normal (H1 regime) and Swing (H4
+ * regime) are two reads of the same structure; the toggle switches between
+ * them and Accept places the one shown.
  */
 export function MarketAnalysisDialog({ normal, swing, instrument, analyzing = false, onClose, onCancel, onReview }: {
   normal: MarketAnalysis | null;
@@ -69,32 +74,7 @@ export function MarketAnalysisDialog({ normal, swing, instrument, analyzing = fa
   const format = (price: number | null | undefined) => price === null || price === undefined ? "—" : formatChartPrice(price, instrument);
   const trade = analysis.trade;
   const tone = analysis.decision === "LONG" ? "text-emerald-600" : analysis.decision === "SHORT" ? "text-rose-600" : "text-zinc-500";
-  const roles = analysis.hierarchy.roles;
-  const hierarchyRows: Array<[string, string]> = [
-    [`${roles.context} context`, `${REGIME_LABEL[analysis.context.regime]} · ${ALIGNMENT_LABEL[analysis.context.alignment]}`],
-    [`${roles.primary} regime`, REGIME_LABEL[analysis.regime]],
-  ];
-  if (roles.setup) hierarchyRows.push([`${roles.setup} setup`, analysis.hierarchy.setup ? analysis.hierarchy.setup.label : "Unavailable"]);
-  if (roles.execution) hierarchyRows.push([`${roles.execution} execution`, analysis.hierarchy.execution ? "Entry refinement" : "Unavailable"]);
-  const rows: Array<[string, string]> = [];
-  if (analysis.trend) {
-    rows.push(["Impulse", analysis.trend.impulse]);
-    if (analysis.trend.pullbackZone) rows.push(["Pullback zone", `${format(analysis.trend.pullbackZone.low)} – ${format(analysis.trend.pullbackZone.high)}`]);
-    rows.push(["Distance to pullback", `${analysis.trend.distanceToPullbackPips ?? "—"} pips`], ["Chase risk", analysis.trend.chaseRisk]);
-  }
-  if (analysis.range) {
-    rows.push(["Range", `${format(analysis.range.low)} – ${format(analysis.range.high)} (mid ${format(analysis.range.mid)})`], ["Location", analysis.range.location]);
-  }
-  if (analysis.transition && analysis.regime === "TRANSITION") {
-    rows.push(["Previous", analysis.transition.previous], ["Broken", analysis.transition.broken], ["Could become", analysis.transition.potential]);
-  }
-  rows.push(
-    ["Swing high / low", `${format(analysis.structure.latestSwingHigh)} / ${format(analysis.structure.latestSwingLow)}`],
-    ["Spread", analysis.risk.spread],
-    ["News", analysis.risk.news],
-  );
-  if (trade) rows.push(["Invalidation", analysis.risk.invalidation]);
-  rows.push(["Main risk", analysis.risk.main]);
+  const news = analysis.risk.news !== NO_NEWS ? analysis.risk.news : null;
 
   return createPortal(
     <div ref={setBackdrop} className="tp-backdrop fixed inset-0 z-[10000] flex items-center justify-center p-4" data-pull-to-refresh-ignore="true" onMouseDown={(event) => { if (event.target === event.currentTarget) requestClose(); }}>
@@ -103,7 +83,7 @@ export function MarketAnalysisDialog({ normal, swing, instrument, analyzing = fa
         <header className="tp-head flex items-start justify-between gap-4">
           <div>
             <p className="tp-eyebrow text-xs font-semibold uppercase tracking-wide text-emerald-600">Market structure · {analysis.mode === "SWING" ? "Swing" : "Normal"} · {analysis.primaryTimeframe}</p>
-            <h2 id="market-analysis-title" className={`tp-title mt-1 text-xl font-semibold ${tone}`}>{DECISION_LABEL[analysis.decision]}</h2>
+            <h2 id="market-analysis-title" className={`tp-title mt-1 text-xl font-semibold ${tone}${analysis.decision === "LONG" ? " is-long" : analysis.decision === "SHORT" ? " is-short" : ""}`}>{analysis.weakSetup ? <>{analysis.decision === "LONG" ? "Long" : "Short"}<span className="tp-title-note"> · weak setup</span></> : DECISION_LABEL[analysis.decision]}</h2>
           </div>
           <button type="button" onClick={requestClose} className="tp-close rounded-lg px-2 py-1 text-xl" aria-label="Close analysis">×</button>
         </header>
@@ -127,39 +107,27 @@ export function MarketAnalysisDialog({ normal, swing, instrument, analyzing = fa
             <span className="text-lg font-bold">{REGIME_LABEL[analysis.regime]}</span>
             <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">{analysis.regimeConfidence.toLowerCase()} confidence</span>
           </div>
-          <dl className="mt-2 grid gap-0.5 text-xs">
-            {hierarchyRows.map(([label, value]) => (
-              <div key={label} className="grid grid-cols-[7.5rem_1fr] gap-2">
-                <dt className="font-semibold text-zinc-500">{label}</dt>
-                <dd className="text-zinc-700 dark:text-zinc-300">{value}</dd>
-              </div>
-            ))}
-          </dl>
-          <p className="mt-2 text-xs leading-5 text-zinc-600 dark:text-zinc-300">{analysis.hierarchy.interpretation} {analysis.hierarchy.strategy}</p>
           {trade ? <>
             <p className="tp-label mt-3 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Entry · {trade.orderType === "MARKET" ? "available now" : trade.orderType === "BUY_LIMIT" ? "buy limit" : "sell limit"}</p>
             <p className="tp-entry-price mt-1 font-mono text-3xl font-bold tracking-tight">{format(trade.entry)}</p>
-            <p className="tp-distance mt-1 text-sm text-zinc-600 dark:text-zinc-300">Current {format(analysis.currentPrice)} · {trade.holding}</p>
+            <p className="tp-distance mt-1 text-sm text-zinc-600 dark:text-zinc-300">Current {format(analysis.currentPrice)}{trade.orderType === "MARKET" ? "" : ` · ~${trade.fillChancePct}% chance to fill`} · {trade.holding}</p>
           </> : <p className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-300">{analysis.reason}</p>}
         </div>
+
+        {news ? (
+          <div className="tp-news-caution mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200" role="alert">
+            <p className="text-[11px] font-bold uppercase tracking-wide">⚠ Caution · news</p>
+            <p className="mt-1 text-xs leading-5">{news}</p>
+          </div>
+        ) : null}
 
         {trade ? <>
           <dl className="tp-levels mt-3 grid grid-cols-2 gap-2">
             <div className="tp-level is-stop rounded-xl border border-rose-200 p-3 dark:border-rose-950"><dt className="tp-level-label text-[11px] font-semibold uppercase tracking-wide text-rose-600">Stop loss</dt><dd className="tp-level-price mt-1 font-mono text-base font-semibold">{format(trade.stopLoss)}</dd><dd className="tp-level-copy mt-1 text-xs text-zinc-500">{trade.stopPips} pips risk</dd></div>
             <div className="tp-level is-target rounded-xl border border-sky-200 p-3 dark:border-sky-950"><dt className="tp-level-label text-[11px] font-semibold uppercase tracking-wide text-sky-600">Take profit</dt><dd className="tp-level-price mt-1 font-mono text-base font-semibold">{format(trade.takeProfit)}</dd><dd className="tp-level-copy mt-1 text-xs text-zinc-500">{trade.targetPips} pips reward</dd></div>
           </dl>
-          <div className="tp-rr mt-3 flex items-center justify-between rounded-xl px-3 py-2 text-sm"><span className="text-zinc-500">Risk / reward</span><strong className="font-mono text-base">{trade.riskReward.toFixed(2)}:1</strong></div>
-          <p className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-300">{analysis.reason}</p>
+          <div className="tp-rr mt-3 flex items-center justify-between rounded-xl px-3 py-2 text-sm"><span className="text-zinc-500">Risk : reward</span><strong className="font-mono text-base">{riskToReward(trade.riskReward)}</strong></div>
         </> : null}
-
-        <dl className="mt-3 grid gap-1.5 text-xs">
-          {rows.map(([label, value]) => (
-            <div key={label} className="grid grid-cols-[7.5rem_1fr] gap-2">
-              <dt className="font-semibold text-zinc-500">{label}</dt>
-              <dd className="text-zinc-700 dark:text-zinc-300">{value}</dd>
-            </div>
-          ))}
-        </dl>
 
         <footer className="tp-actions mt-5 flex gap-2">
           <button type="button" onClick={requestClose} className="tp-reject min-h-11 flex-1 rounded-xl border border-rose-200 px-4 font-medium text-rose-700 dark:border-rose-900 dark:text-rose-300">{trade ? "Reject" : "Close"}</button>

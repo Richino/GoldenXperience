@@ -441,15 +441,12 @@ export async function createPendingManualEntry(userId: string, payload: Record<s
   const direction = payload.direction === "long" || payload.direction === "short" ? payload.direction : null;
   if (!direction) throw new Error("Choose LONG or SHORT.");
   if (payload.instrument !== tick.instrument) throw new Error("The selected instrument does not match the live quote.");
-  // One trade per pair: a resting/scheduled order or an open trade blocks a new one.
-  const occupied = await activeManualEntryForPair(userId, tick.instrument);
-  if (occupied) {
-    throw new Error(occupied.status === "TRIGGERED"
-      ? "You already have an active trade on this pair. Close it before creating another."
-      : "You already have a pending trade on this pair. Cancel it before creating another.");
-  }
-  if (await hasOpenPositionForPair(userId, tick.instrument)) {
-    throw new Error("You already have an active trade on this pair. Close it before creating another.");
+  // Several trades per pair are allowed, but only one way: the OANDA account
+  // has hedging off, so an opposite order would net against the open position
+  // instead of opening its own trade.
+  const opposite = await oppositeDirectionOnPair(userId, tick.instrument, direction);
+  if (opposite) {
+    throw new Error(`You have ${opposite === "open" ? "an open" : "a pending"} ${direction === "long" ? "short" : "long"} on this pair. This account can't hold a long and a short together, so ${opposite === "open" ? "close" : "cancel"} it first.`);
   }
   const entryPrice = finitePrice(payload.entryPrice);
   if (entryPrice === null) throw new Error("Enter a valid entry price.");
@@ -601,45 +598,30 @@ function brokerTradeIdOf(row: EntryRow): string | null {
 }
 
 /**
- * The single non-terminal manual entry occupying a pair for this user, or null.
- * "Occupying" = a resting/scheduled order (PENDING), a claim in flight
- * (TRIGGERING), or a filled entry whose paper trade is still open (TRIGGERED +
- * open). This is what enforces one trade per pair and drives the Analyze /
- * Cancel Trade / Close Trade button state.
+ * Whether this pair already holds the other direction for this user: "open"
+ * for an open manual, strategy or imported position, "pending" for a resting
+ * or in-flight manual order, else null. Same-direction trades may stack; the
+ * account has hedging off, so opposite ones would net at the broker.
  */
-export async function activeManualEntryForPair(userId: string, instrument: string): Promise<PendingManualEntry | null> {
-  const result = await query<EntryRow>(
-    `SELECT ${SELECT_FIELDS},
-            (SELECT trade.status FROM paper_trades trade WHERE trade.id=pending_manual_entries.paper_trade_id) AS paper_trade_status
-       FROM pending_manual_entries
-      WHERE user_id=$1 AND instrument=$2
-        AND (status IN ('PENDING','TRIGGERING')
-             OR (status='TRIGGERED'
-                 AND (SELECT trade.status FROM paper_trades trade WHERE trade.id=pending_manual_entries.paper_trade_id)='open'))
-      ORDER BY created_at DESC
-      LIMIT 1`,
-    [userId, instrument],
+async function oppositeDirectionOnPair(userId: string, instrument: string, direction: PendingManualEntryDirection): Promise<"open" | "pending" | null> {
+  const other = direction === "long" ? "short" : "long";
+  const result = await query<{ open: boolean; pending: boolean }>(
+    `SELECT
+       EXISTS (
+         SELECT 1 FROM paper_strategy_trades
+          WHERE user_id=$1 AND instrument=$2 AND status='open' AND direction=$4
+         UNION ALL
+         SELECT 1 FROM paper_trades
+          WHERE user_id=$1 AND pair=$3 AND status='open' AND direction=$4
+       ) AS open,
+       EXISTS (
+         SELECT 1 FROM pending_manual_entries
+          WHERE user_id=$1 AND instrument=$2 AND direction=$4 AND status IN ('PENDING','TRIGGERING')
+       ) AS pending`,
+    [userId, instrument, instrument.replace("_", "/"), other],
   );
-  return result.rows[0] ? serialize(result.rows[0]) : null;
-}
-
-/**
- * A manually-created entry must not bypass an already-open strategy or imported
- * practice position. `activeManualEntryForPair` above covers manual orders that
- * are still resting or triggered; this closes the remaining same-pair gap.
- */
-async function hasOpenPositionForPair(userId: string, instrument: string): Promise<boolean> {
-  const result = await query<{ occupied: boolean }>(
-    `SELECT EXISTS (
-       SELECT 1 FROM paper_strategy_trades
-        WHERE user_id=$1 AND instrument=$2 AND status='open'
-       UNION ALL
-       SELECT 1 FROM paper_trades
-        WHERE user_id=$1 AND pair=$3 AND status='open'
-     ) AS occupied`,
-    [userId, instrument, instrument.replace("_", "/")],
-  );
-  return result.rows[0]?.occupied ?? false;
+  const row = result.rows[0];
+  return row?.open ? "open" : row?.pending ? "pending" : null;
 }
 
 export async function cancelPendingManualEntry(userId: string, id: string) {

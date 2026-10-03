@@ -12,9 +12,10 @@ import {
   Minimize,
   RotateCcw,
   Search,
-  Sparkles,
   X,
 } from "lucide-react";
+import { AnalyzeIcon } from "@/components/icons/analyze-icon";
+import { NEW_PAIR_TRADE, PairTradePicker } from "@/components/charts/pair-trade-picker";
 import { ChartTypeSelect } from "@/components/charts/chart-type-select";
 import {
   ChartOptionSheet,
@@ -212,6 +213,15 @@ export type SignalPaperPlan = WatchlistStatusInput & {
   instrument: string;
   batchNumber: number | null;
 };
+
+/** " · +0.5R" for a filled manual trade's target, from its own entry and stop. */
+function triggeredRewardR(entry: PendingManualEntry) {
+  if (entry.triggerPrice === null || entry.stopPrice === null || entry.targetPrice === null) return "";
+  const risk = Math.abs(entry.triggerPrice - entry.stopPrice);
+  if (!(risk > 0)) return "";
+  const reward = Math.abs(entry.targetPrice - entry.triggerPrice) / risk;
+  return ` · +${reward.toFixed(reward >= 10 ? 0 : 1)}R`;
+}
 
 function pairMayHaveOpenManualTrade(
   instrument: MajorInstrument,
@@ -2336,6 +2346,9 @@ export function SignalWorkspace({
   const [pendingEntries, setPendingEntries] = useState<PendingManualEntry[]>([]);
   const [allPendingEntries, setAllPendingEntries] = useState<PendingManualEntry[]>([]);
   const [pendingEntriesHydrated, setPendingEntriesHydrated] = useState(false);
+  // Which of the pair's trades the chart shows: a trade id, NEW_TRADE while
+  // setting up another one, or null to follow the default (newest).
+  const [pickedPairTrade, setPickedPairTrade] = useState<string | null>(null);
   const [tradeActionBusy, setTradeActionBusy] = useState(false);
   const [tradeActionError, setTradeActionError] = useState<string | null>(null);
   const [tradeConfirm, setTradeConfirm] = useState<"cancel" | "close" | null>(null);
@@ -2960,13 +2973,47 @@ export function SignalWorkspace({
   // collector by one refresh. That way a chart opened directly always shows
   // an existing position and its levels before falling back to the no-position
   // state.
-  const openPaperTrade = useMemo(
-    () =>
-      paperTrades.find(
-        (trade) => trade.instrument === instrument && trade.status === "open" && trade.closedAt === null,
-      ) ?? null,
-    [instrument, paperTrades],
+  // Every live trade on this pair, oldest first: resting or scheduled orders,
+  // claims in flight, and filled entries whose trade is still open. Several can
+  // run at once (one direction only; the account cannot hedge).
+  const pairTrades = useMemo(
+    () => pendingEntries
+      .filter((entry) =>
+        entry.status === "PENDING" ||
+        entry.status === "TRIGGERING" ||
+        (entry.status === "TRIGGERED" && entry.paperTradeStatus === "open"))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    [pendingEntries],
   );
+  // A new trade appearing (or one finishing, or a pair change) drops the pick
+  // back to the default, so a just-placed trade is the one shown.
+  const pairTradesKey = `${instrument}:${pairTrades.length}`;
+  const [pickedForKey, setPickedForKey] = useState(pairTradesKey);
+  if (pickedForKey !== pairTradesKey) {
+    setPickedForKey(pairTradesKey);
+    setPickedPairTrade(null);
+  }
+  const selectedPairTrade = useMemo(() => {
+    if (pickedPairTrade === NEW_PAIR_TRADE) return null;
+    return pairTrades.find((entry) => entry.id === pickedPairTrade)
+      // A journal link to one of this pair's trades opens on that trade.
+      ?? pairTrades.find((entry) => focusTradeId !== null && entry.paperTradeId === focusTradeId)
+      ?? pairTrades.at(-1)
+      ?? null;
+  }, [focusTradeId, pairTrades, pickedPairTrade]);
+  const settingUpNewTrade = pickedPairTrade === NEW_PAIR_TRADE;
+  const openPaperTrade = useMemo(() => {
+    const open = paperTrades.filter(
+      (trade) => trade.instrument === instrument && trade.status === "open" && trade.closedAt === null,
+    );
+    if (selectedPairTrade?.status === "TRIGGERED") {
+      return open.find((trade) => trade.id === selectedPairTrade.paperTradeId) ?? null;
+    }
+    // A pending order or a new trade being set up owns the chart; otherwise
+    // show the pair's open strategy or imported trade.
+    if (selectedPairTrade || settingUpNewTrade) return null;
+    return open[0] ?? null;
+  }, [instrument, paperTrades, selectedPairTrade, settingUpNewTrade]);
   // A closed trade may remain selected so its historical entry/exit markers
   // and focused time range stay available. It is not an active plan though:
   // showing its Entry / SL / TP as live chart levels made completed positions
@@ -2974,38 +3021,18 @@ export function SignalWorkspace({
   // An explicitly requested trade (a journal or recent-activity link) wins over
   // the pair's open trade, so tapping a past result never shows another trade.
   const displayedTrade = focusTrade ?? openPaperTrade;
-  const triggeredManualEntry = useMemo(
-    () => pendingEntries.find((entry) =>
-      entry.status === "TRIGGERED" &&
-      entry.paperTradeStatus === "open" &&
-      entry.stopPrice !== null &&
-      entry.targetPrice !== null,
-    ) ?? null,
-    [pendingEntries],
-  );
-  // The pair's one non-terminal manual entry drives the Analyze / Cancel / Close
-  // button. A resting or scheduled order is cancellable; a filled (active) trade
-  // is closeable; anything else means the pair is free to analyze.
-  const pendingManualEntry = useMemo(
-    () => pendingEntries.find((entry) => entry.status === "PENDING" || entry.status === "TRIGGERING") ?? null,
-    [pendingEntries],
-  );
-  const activeManualTrade = useMemo(() => {
-    const fromPending =
-      triggeredManualEntry ??
-      pendingEntries.find(
-        (entry) => entry.status === "TRIGGERED" && entry.paperTradeStatus === "open",
-      ) ??
-      null;
-    if (fromPending) return fromPending;
-    if (!openPaperTrade) return null;
-    return (
-      pendingEntries.find(
-        (entry) =>
-          entry.paperTradeId === openPaperTrade.id && entry.paperTradeStatus === "open",
-      ) ?? null
-    );
-  }, [triggeredManualEntry, pendingEntries, openPaperTrade]);
+  // The selected trade drives the Cancel / Close button and the chart levels.
+  // A resting or scheduled order is cancellable; a filled (active) trade is
+  // closeable; with none selected the pair is free to analyze.
+  const pendingManualEntry =
+    selectedPairTrade && (selectedPairTrade.status === "PENDING" || selectedPairTrade.status === "TRIGGERING")
+      ? selectedPairTrade
+      : null;
+  const activeManualTrade = selectedPairTrade?.status === "TRIGGERED" ? selectedPairTrade : null;
+  const triggeredManualEntry =
+    activeManualTrade && activeManualTrade.stopPrice !== null && activeManualTrade.targetPrice !== null
+      ? activeManualTrade
+      : null;
   const manualTradeMode: "analyze" | "cancel" | "close" =
     activeManualTrade || openPaperTrade
       ? "close"
@@ -3019,7 +3046,8 @@ export function SignalWorkspace({
     paperTradesHydrated &&
     !(
       pairMayHaveOpenManualTrade(instrument, paperTrades, livePaperPlans) &&
-      manualTradeMode === "analyze"
+      manualTradeMode === "analyze" &&
+      !settingUpNewTrade
     );
 
   useEffect(() => {
@@ -3174,7 +3202,7 @@ export function SignalWorkspace({
     const openManager = (entry: PendingManualEntry) => {
       openPendingEntryManager(entry);
     };
-    return pendingEntries.flatMap((entry) => {
+    return pendingEntries.filter((entry) => entry.id === selectedPairTrade?.id).flatMap((entry) => {
       if (entry.status === "PENDING" || entry.status === "TRIGGERING") {
         const remaining = entry.expiresAt
           ? Math.max(0, Date.parse(entry.expiresAt) - pendingEntryClock)
@@ -3244,12 +3272,12 @@ export function SignalWorkspace({
         return [
           { key: `manual-entry-${entry.id}`, price: entry.triggerPrice, label: `ENTRY ${formatChartPrice(entry.triggerPrice, instrument)}`, color: "#00a06a", textColor: "#ffffff", dashed: false, lineWidth: 2 as const, onSelect: () => openManager(entry) },
           { key: `manual-stop-${entry.id}`, price: entry.stopPrice, label: `SL ${formatChartPrice(entry.stopPrice, instrument)} · -1R`, color: "#e74c3c", textColor: "#ffffff", dashed: true, lineWidth: 1 as const, onSelect: () => openManager(entry) },
-          { key: `manual-target-${entry.id}`, price: entry.targetPrice, label: `TP ${formatChartPrice(entry.targetPrice, instrument)} · +2R`, color: "#00b377", textColor: "#ffffff", dashed: true, lineWidth: 1 as const, onSelect: () => openManager(entry) },
+          { key: `manual-target-${entry.id}`, price: entry.targetPrice, label: `TP ${formatChartPrice(entry.targetPrice, instrument)}${triggeredRewardR(entry)}`, color: "#00b377", textColor: "#ffffff", dashed: true, lineWidth: 1 as const, onSelect: () => openManager(entry) },
         ];
       }
       return [];
     });
-  }, [instrument, pendingEntries, pendingEntryClock]);
+  }, [instrument, pendingEntries, pendingEntryClock, selectedPairTrade?.id]);
   const supportResistanceReferenceLines = useMemo(
     () => isChartIndicatorEnabled(enabledIndicators, "support-resistance")
       ? supportResistanceLines(chartIndicatorCandles, instrument)
@@ -3997,8 +4025,8 @@ export function SignalWorkspace({
           label: "Trade",
           className: "",
           onClick: () => openPendingEntryManager(null),
-          disabled: hasActivePosition,
-          title: hasActivePosition ? "Close the active position before creating another entry" : undefined,
+          disabled: false,
+          title: undefined,
         };
 
   if (embeddedSurfaceOnly) {
@@ -4071,7 +4099,6 @@ export function SignalWorkspace({
           ask={quote?.ask ?? null}
           selectedEntry={selectedPendingEntry}
           initialProposal={entryDraftProposal ?? initialManualProposal}
-          creationBlocked={hasActivePosition}
           onClose={() => setPendingEntryDialogOpen(false)}
           onChanged={(message) => {
             setPendingEntryNotice(message);
@@ -4108,11 +4135,7 @@ export function SignalWorkspace({
                 {headerStrength ? <PairStrengthTag strength={headerStrength} pillOnly /> : null}
               </div>
               <div className="signals-mobile-header-actions flex items-center gap-2">
-                {manualTradeMode === "analyze" ? (
-                  <>
-                    <button type="button" className="signals-analyze-desktop pressable" onClick={() => void runTrendPullback()} disabled={trendPullbackBusy} title="Analyze with TrendPullbackV1" aria-label="Analyze with TrendPullbackV1"><Sparkles className="size-3.5" /><span className="signals-analyze-label">{trendPullbackBusy ? "Analyzing…" : "Analyze"}</span></button>
-                  </>
-                ) : null}
+                <button type="button" className="signals-analyze-desktop pressable" onClick={() => void runTrendPullback()} disabled={trendPullbackBusy} title="Analyze with TrendPullbackV1" aria-label="Analyze with TrendPullbackV1"><AnalyzeIcon className="size-4" /><span className="signals-analyze-label">{trendPullbackBusy ? "Analyzing…" : "Analyze"}</span></button>
                 <NotificationBell compact className="signals-icon-btn signals-fullscreen-reserve" />
               </div>
             </div>
@@ -4244,6 +4267,7 @@ export function SignalWorkspace({
 
           {mobileTradeActionReady ? (
             <div className="gx-mobile-analyze-section">
+              <PairTradePicker trades={pairTrades} selectedId={settingUpNewTrade ? NEW_PAIR_TRADE : selectedPairTrade?.id ?? null} instrument={instrument} onSelect={setPickedPairTrade} />
               <button
                 key={manualTradeMode}
                 type="button"
@@ -4309,17 +4333,19 @@ export function SignalWorkspace({
                   <button type="button" className="gx-toolbar-btn pressable" onClick={() => stepReplayHour(1)} disabled={replayEndIndex >= series.candles.length - 1} title="Move replay forward one hour">1h →</button>
                   <button type="button" className="gx-toolbar-btn pressable" onClick={exitReplay}>Exit replay</button>
                 </>
-              ) : manualTradeMode === "close" ? (
-                <button type="button" className="signals-analyze-desktop pressable is-close" onClick={() => setTradeConfirm("close")} disabled={tradeActionBusy}>
-                  {tradeActionBusy ? "Closing…" : "Close Trade"}
-                </button>
-              ) : manualTradeMode === "cancel" ? (
-                <button type="button" className="signals-analyze-desktop pressable is-cancel" onClick={() => setTradeConfirm("cancel")} disabled={tradeActionBusy}>
-                  {tradeActionBusy ? "Cancelling…" : "Cancel Trade"}
-                </button>
               ) : (
                 <>
-                  <button type="button" className="signals-analyze-desktop pressable" onClick={() => void runTrendPullback()} disabled={trendPullbackBusy} title="Analyze with TrendPullbackV1"><Sparkles className="size-3.5" />{trendPullbackBusy ? "Analyzing…" : "Analyze"}</button>
+                  <PairTradePicker trades={pairTrades} selectedId={settingUpNewTrade ? NEW_PAIR_TRADE : selectedPairTrade?.id ?? null} instrument={instrument} onSelect={setPickedPairTrade} />
+                  {manualTradeMode === "close" ? (
+                    <button type="button" className="signals-analyze-desktop pressable is-close" onClick={() => setTradeConfirm("close")} disabled={tradeActionBusy}>
+                      {tradeActionBusy ? "Closing…" : "Close Trade"}
+                    </button>
+                  ) : manualTradeMode === "cancel" ? (
+                    <button type="button" className="signals-analyze-desktop pressable is-cancel" onClick={() => setTradeConfirm("cancel")} disabled={tradeActionBusy}>
+                      {tradeActionBusy ? "Cancelling…" : "Cancel Trade"}
+                    </button>
+                  ) : null}
+                  <button type="button" className="signals-analyze-desktop pressable" onClick={() => void runTrendPullback()} disabled={trendPullbackBusy} title="Analyze with TrendPullbackV1"><AnalyzeIcon className="size-4" />{trendPullbackBusy ? "Analyzing…" : "Analyze"}</button>
                 </>
               )}
               {(tradeActionError || trendPullbackError) ? (
@@ -4417,7 +4443,7 @@ export function SignalWorkspace({
             ask={quote?.ask ?? null}
             selectedEntry={selectedPendingEntry}
             initialProposal={entryDraftProposal ?? initialManualProposal}
-            creationBlocked={hasActivePosition || replayActive}
+            creationBlocked={replayActive}
             composerKey={`${instrument}:${selectedPendingEntry?.id ?? "new"}:${entryComposerRevision}`}
             onClearSelection={clearPendingEntrySelection}
             onChanged={(message) => {
@@ -4437,7 +4463,6 @@ export function SignalWorkspace({
         ask={quote?.ask ?? null}
         selectedEntry={selectedPendingEntry}
         initialProposal={entryDraftProposal ?? initialManualProposal}
-        creationBlocked={hasActivePosition}
         onClose={() => setPendingEntryDialogOpen(false)}
         onChanged={(message) => {
           setPendingEntryNotice(message);

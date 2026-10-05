@@ -8,10 +8,10 @@ import { formatChartPrice } from "@/lib/chart-utils";
 import { displayNameFor } from "@/lib/instruments/catalog";
 import {
   homeCalendarImpactTier,
+  homeCalendarMoveSize,
   upcomingHomeCalendarEvents,
 } from "@/lib/news/home-calendar";
-import { NewsSurpriseHintDisplay } from "@/components/dashboard/news-surprise-hint";
-import { newsSurpriseHint } from "@/lib/news/surprise-hint";
+import { NewsImpactSheet } from "@/components/dashboard/news-impact-sheet";
 import { useEconomicCalendar } from "@/lib/oanda/use-economic-calendar";
 import type { CandleSeries, MajorInstrument } from "@/types/forex";
 
@@ -76,6 +76,7 @@ function eventDay(timestamp: string) {
 
 export function HomeRail({
   quotes,
+  currentPositions,
   currency,
   todayNet,
   todayR,
@@ -106,6 +107,8 @@ export function HomeRail({
   const todayIsLoss = todayNet !== null && todayNet < 0;
   const rPositive = (todayR ?? 0) >= 0;
   const upcomingNews = upcomingHomeCalendarEvents(calendar.events);
+  const [openEventId, setOpenEventId] = useState<string | null>(null);
+  const openEvent = upcomingNews.find((event) => event.id === openEventId) ?? null;
 
   useEffect(() => {
     let cancelled = false;
@@ -259,9 +262,22 @@ export function HomeRail({
           <div className="home-rail-news-list">
             {upcomingNews.map((event) => {
               const tier = homeCalendarImpactTier(event.impact);
-              const surpriseHint = newsSurpriseHint(event);
+              const moveSize = homeCalendarMoveSize(event);
               return (
-                <div key={event.id} className={`home-rail-news-event is-${tier}-impact`}>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  key={event.id}
+                  className={`home-rail-news-event is-${tier}-impact`}
+                  onClick={() => setOpenEventId(event.id)}
+                  onKeyDown={(keyEvent) => {
+                    if (keyEvent.key === "Enter" || keyEvent.key === " ") {
+                      keyEvent.preventDefault();
+                      setOpenEventId(event.id);
+                    }
+                  }}
+                  aria-label={`${event.title}: see how it affects ${event.currency} pairs`}
+                >
                   <time className="metric-number" dateTime={event.timestamp}>
                     <span>{eventTime(event.timestamp)}</span>
                     <span className="home-rail-news-day">{eventDay(event.timestamp)}</span>
@@ -269,9 +285,13 @@ export function HomeRail({
                   <span className="home-rail-news-currency">{event.currency}</span>
                   <div className="home-rail-news-copy">
                     <p>{event.title}</p>
-                    {surpriseHint.kind === "before" || surpriseHint.kind === "after" ? (
-                      <NewsSurpriseHintDisplay hint={surpriseHint} />
-                    ) : null}
+                    <p className={`home-rail-news-size is-${moveSize}`}>
+                      {moveSize === "massive"
+                        ? "Massive impact"
+                        : moveSize === "high"
+                          ? "High impact"
+                          : "Moderate impact"}
+                    </p>
                   </div>
                 </div>
               );
@@ -285,6 +305,11 @@ export function HomeRail({
           <p className="home-rail-news-empty">No high or medium impact events in this week’s feed.</p>
         )}
       </section>
+      <NewsImpactSheet
+        event={openEvent}
+        positions={currentPositions}
+        onClose={() => setOpenEventId(null)}
+      />
     </aside>
   );
 }

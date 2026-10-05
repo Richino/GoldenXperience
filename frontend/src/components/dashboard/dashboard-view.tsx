@@ -299,6 +299,28 @@ export function DashboardView({
     }));
   const openTrades = [...overviewOpen, ...manualOpen];
 
+  // Every broker position (tracked or not), plus paper-only open rows.
+  let heroOpenPL: number = account.unrealizedPL;
+  {
+    let total = 0;
+    let seen = false;
+    for (const [key, fill] of Object.entries(fills)) {
+      if (!key.startsWith("broker:")) continue;
+      total += fill.unrealizedPL;
+      seen = true;
+    }
+    for (const trade of openTrades) {
+      if (trade.brokerTradeId && fills[`broker:${trade.brokerTradeId}`]) continue;
+      if (trade.brokerTradeId) continue; // broker-backed but fill not loaded yet
+      const money = markedOpenMoney(trade, quotes, fills, watchlist);
+      if (money !== null) {
+        total += money;
+        seen = true;
+      }
+    }
+    if (seen) heroOpenPL = total;
+  }
+
   const refresh = useCallback(async () => {
     try {
       const [accountResponse, historyResponse, watchlistResponse, savedSetupsResponse, cycleResponse, journalResponse] = await Promise.all([
@@ -468,9 +490,10 @@ export function DashboardView({
         userLabel={userLabel}
         history={accountHistory}
         todayKey={todayKey}
-        // Account summary is OANDA's aggregate of every open trade. Using it
-        // here makes Today and the Unrealized footer reconcile exactly.
-        openPL={account.unrealizedPL}
+        // Built from the same per-position figures the rows show, so the
+        // hero and the rows always add up. The account summary is polled on a
+        // different clock and drifts; it is only the fallback.
+        openPL={heroOpenPL}
       />
 
       {error ? <p className="research-error">{error}</p> : null}
@@ -505,25 +528,28 @@ export function DashboardView({
                   : null;
                 const plTone =
                   shown === null ? "is-open" : shown >= 0 ? "is-win" : "is-loss";
-                // A broker-backed row must use its real fill, active broker stop,
-                // and the executable bid/ask mark. Otherwise slippage or a moved
-                // stop can make its R disagree with the broker P/L beside it.
-                // Paper-only rows retain the planned-level calculation.
+                // Open R speaks the chart's language: planned entry and stop
+                // against the mid. The fill/close-side figure (live) is only a
+                // fallback, so this row matches the chart's Active position.
                 const lots =
                   fill && fill.units ? Math.abs(fill.units) / 100_000 : null;
                 const rMultiple =
-                  live?.unrealizedR ??
                   openRFromLevels({
                     direction: trade.direction,
                     entry: trade.entry,
                     stop: trade.stop,
                     current: mark,
                   }) ??
+                  live?.unrealizedR ??
                   (shown !== null && trade.nominalRiskAmount
                     ? shown / trade.nominalRiskAmount
                     : null);
+                // Tone follows the shown 2dp value, so ±0.004R reads as a
+                // neutral 0.00R rather than a green/red "+0.00R".
+                const rShown =
+                  rMultiple === null ? null : Number(rMultiple.toFixed(2)) || 0;
                 const rTone =
-                  rMultiple === null ? "" : rMultiple >= 0 ? "is-win" : "is-loss";
+                  rShown === null || rShown === 0 ? "" : rShown > 0 ? "is-win" : "is-loss";
                 return (
                   <Link
                     key={trade.id}
@@ -539,9 +565,9 @@ export function DashboardView({
                         <span className={`home-position-open-r metric-number ${rTone}`}>
                           <span>Open R</span>
                           <span>
-                            {rMultiple === null
+                            {rShown === null
                               ? "—"
-                              : `${rMultiple >= 0 ? "+" : ""}${rMultiple.toFixed(2)}R`}
+                              : `${rShown > 0 ? "+" : ""}${rShown.toFixed(2)}R`}
                           </span>
                         </span>
                       </span>
@@ -560,9 +586,9 @@ export function DashboardView({
                       {lots === null ? "—" : lots.toFixed(2)}
                     </span>
                     <span className={`home-position-r metric-number ${rTone}`}>
-                      {rMultiple === null
+                      {rShown === null
                         ? "—"
-                        : `${rMultiple >= 0 ? "+" : ""}${rMultiple.toFixed(2)}R`}
+                        : `${rShown > 0 ? "+" : ""}${rShown.toFixed(2)}R`}
                     </span>
                     <span className={`home-position-pl metric-number ${plTone}`}>
                       <span className="home-position-pl-label">

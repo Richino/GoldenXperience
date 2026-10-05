@@ -241,10 +241,15 @@ export type AccountSeriesTone = "up" | "down" | "flat";
 
 const FLAT_CASH = 1;
 
-/** Colour the full selected-period curve from its selected-period net result. */
+/**
+ * Colour the full selected-period curve. Any time the account sits below the
+ * period's high it reads as down, even if it is still above the opening.
+ */
 export function accountSeriesTone(series: AccountChartPoint[]): AccountSeriesTone {
   const opening = series[0]?.value ?? 0;
   const latest = series.at(-1)?.value ?? opening;
+  const high = series.reduce((max, point) => Math.max(max, point.value), opening);
+  if (high - latest >= FLAT_CASH) return "down";
   const net = latest - opening;
   if (Math.abs(net) < FLAT_CASH) return "flat";
   return net > 0 ? "up" : "down";

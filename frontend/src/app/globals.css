@@ -303,6 +303,15 @@ a {
   overscroll-behavior-y: contain;
 }
 
+/* The document is the real scroller. In the installed app, stop the native
+   top bounce/refresh so it cannot fight the custom pull gesture. */
+@media (display-mode: standalone) {
+  html,
+  body {
+    overscroll-behavior-y: none;
+  }
+}
+
 .pwa-pull-refresh-indicator {
   --spinner-size: 28px;
   position: fixed;
@@ -19694,3 +19703,93 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
 .gx-pair-trade-status.is-pending { background: color-mix(in srgb, var(--gx-warning) 18%, transparent); color: var(--gx-warning); }
 
 .gx-pair-trade-check { flex: none; color: var(--gx-primary); }
+
+/* News impact drawer: opens from a Home news row. Unlike other sheets it is
+   also used on desktop, as a centred bottom drawer. */
+.home-rail-news-event[role="button"] {
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.home-rail-news-event[role="button"]:hover {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+.home-rail-news-event[role="button"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (min-width: 1024px) {
+  .mobile-sheet.news-impact-sheet {
+    display: flex;
+    left: 50%;
+    right: auto;
+    width: min(30rem, calc(100vw - 2rem));
+    translate: -50% 0;
+  }
+  html.mobile-sheet-open:has(.news-impact-sheet) .mobile-sheet-backdrop {
+    display: block;
+  }
+}
+.news-impact-drawer { display: grid; gap: 0.85rem; padding-bottom: 0.75rem; }
+.news-impact-values {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+.news-impact-values > div {
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  padding: 0.45rem 0.6rem;
+}
+.news-impact-values dt {
+  color: var(--muted);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.news-impact-values dd { margin-top: 0.15rem; font-size: 0.9rem; font-weight: 650; }
+.news-impact-note { color: var(--muted); font-size: 0.74rem; line-height: 1.45; }
+.news-impact-pairs { display: grid; gap: 0.35rem; }
+.news-impact-pair {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-radius: 0.6rem;
+  padding: 0.55rem 0.7rem;
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+}
+.news-impact-pairs li.is-held .news-impact-pair {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.news-impact-pair-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.news-impact-legs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.25rem 0.7rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+.news-impact-legs em { flex-basis: 100%; text-align: right; font-style: normal; font-size: 0.68rem; }
+.news-impact-move { font-weight: 700; }
+.news-impact-move.is-up, .news-impact-legs em.is-up { color: var(--chart-up); }
+.news-impact-move.is-down, .news-impact-legs em.is-down { color: var(--chart-down); }
+
+/* Home news row: expected move size in place of the beat/miss hint. */
+.home-rail-news-size {
+  margin-top: 0.1rem;
+  font-size: 0.72rem;
+  font-weight: 650;
+  color: var(--muted);
+}
+.home-rail-news-size.is-massive { color: var(--danger); font-weight: 750; }
+.home-rail-news-size.is-high { color: var(--pending); }

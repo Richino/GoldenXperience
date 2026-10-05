@@ -102,6 +102,23 @@ export function newsSurpriseHint(event: CalendarValueFields): NewsSurpriseHint {
   };
 }
 
+/**
+ * A first-pass call on whether a release will beat or miss, from the only data
+ * the calendar carries: previous vs forecast. Consensus forecasts tend to lag,
+ * so the print is assumed to land nearer the previous reading — a previous above
+ * forecast leans "beat", below leans "miss". Equal values give no call.
+ * Deliberately simple; expect it to be wrong often.
+ */
+export function predictSurprise(event: CalendarValueFields): "beat" | "miss" | null {
+  const forecast = parseCalendarValue(event.forecast);
+  const previous = parseCalendarValue(event.previous);
+  if (forecast === null || previous === null) return null;
+  const epsilon = Math.max(Math.abs(forecast) * 0.001, 1e-9);
+  const delta = previous - forecast;
+  if (Math.abs(delta) <= epsilon) return null;
+  return delta > 0 ? "beat" : "miss";
+}
+
 /** Screen-reader / tooltip text when the visual uses trend lines. */
 export function describeNewsSurpriseHint(hint: NewsSurpriseHint): string | null {
   switch (hint.kind) {

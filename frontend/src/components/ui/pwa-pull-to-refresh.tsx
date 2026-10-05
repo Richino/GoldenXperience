@@ -6,7 +6,6 @@ import {
   useState,
   type CSSProperties,
   type ReactNode,
-  type TouchEvent,
 } from "react";
 import { useRouter } from "next/navigation";
 import { requestAppRefresh } from "@/lib/use-foreground-refresh";
@@ -38,86 +37,89 @@ function isPullToRefreshIgnored(target: EventTarget | null) {
   return target instanceof Element && Boolean(target.closest("[data-pull-to-refresh-ignore]"));
 }
 
+/**
+ * Rubber-band resistance: follows the finger closely at first, then stiffens
+ * smoothly towards the max instead of hitting a hard clamp.
+ */
+function resist(rawDistance: number) {
+  return MAX_PULL_DISTANCE * (1 - Math.exp(-rawDistance / (MAX_PULL_DISTANCE * 1.6)));
+}
+
 export function PwaPullToRefresh({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const indicatorRef = useRef<HTMLDivElement>(null);
+  const gapRef = useRef<HTMLDivElement>(null);
   const startYRef = useRef<number | null>(null);
   const pullDistanceRef = useRef(0);
   const frameRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
-  const [pullDistance, setPullDistance] = useState(0);
-  const [phase, setPhase] = useState<RefreshPhase>("idle");
-  const refreshing = phase === "refreshing" || phase === "complete";
+  const phaseRef = useRef<RefreshPhase>("idle");
+  const [phase, setPhaseState] = useState<RefreshPhase>("idle");
+  // Latest refresh callback for the native listeners registered once below.
+  const refreshRef = useRef<() => void>(() => {});
 
-  useEffect(() => () => {
-    mountedRef.current = false;
-    if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current);
-  }, []);
+  function setPhase(next: RefreshPhase) {
+    if (phaseRef.current === next) return;
+    phaseRef.current = next;
+    setPhaseState(next);
+  }
+
+  /**
+   * Pull distance is written straight to the DOM once per frame. Routing it
+   * through React state re-rendered the whole tree on every touchmove, which is
+   * what made the drag stutter on a busy page.
+   */
+  function paint(distance: number) {
+    const indicator = indicatorRef.current;
+    const gap = gapRef.current;
+    if (indicator) {
+      indicator.style.setProperty("--pull-distance", `${distance}px`);
+      indicator.style.setProperty(
+        "--pull-bars",
+        String(Math.min(1, distance / REFRESH_THRESHOLD) * SPINNER_BARS),
+      );
+    }
+    if (gap) {
+      const hidden = phaseRef.current === "idle" || phaseRef.current === "complete";
+      gap.style.height = `${hidden ? 0 : distance}px`;
+    }
+  }
 
   function publishPull(nextDistance: number) {
     pullDistanceRef.current = nextDistance;
     if (frameRef.current !== null) return;
     frameRef.current = window.requestAnimationFrame(() => {
       frameRef.current = null;
-      setPullDistance(pullDistanceRef.current);
       setPhase(pullDistanceRef.current >= REFRESH_THRESHOLD ? "ready" : "pulling");
+      paint(pullDistanceRef.current);
     });
   }
 
   function resetPull() {
     startYRef.current = null;
-    pullDistanceRef.current = 0;
     if (frameRef.current !== null) {
       window.cancelAnimationFrame(frameRef.current);
       frameRef.current = null;
     }
-    setPullDistance(0);
+    if (phaseRef.current === "idle" && pullDistanceRef.current === 0) return;
+    pullDistanceRef.current = 0;
     setPhase("idle");
-  }
-
-  function handleTouchStart(event: TouchEvent<HTMLDivElement>) {
-    if (
-      phase !== "idle" ||
-      !isStandalonePwa() ||
-      isPullToRefreshIgnored(event.target) ||
-      window.scrollY > 0 ||
-      event.touches.length !== 1
-    ) {
-      return;
-    }
-
-    startYRef.current = event.touches[0]?.clientY ?? null;
-  }
-
-  function handleTouchMove(event: TouchEvent<HTMLDivElement>) {
-    const startY = startYRef.current;
-    const touch = event.touches[0];
-    if (
-      startY === null ||
-      !touch ||
-      isPullToRefreshIgnored(event.target) ||
-      window.scrollY > 0
-    ) {
-      resetPull();
-      return;
-    }
-
-    const downwardDistance = touch.clientY - startY;
-    if (downwardDistance <= 0) {
-      resetPull();
-      return;
-    }
-
-    event.preventDefault();
-    const nextDistance = Math.min(MAX_PULL_DISTANCE, downwardDistance * 0.52);
-    publishPull(nextDistance);
+    paint(0);
   }
 
   async function refreshInPlace() {
     const startedAt = performance.now();
     startYRef.current = null;
+    // A frame queued by the last touchmove would otherwise land after this and
+    // flip the phase back to "ready", so the spinner never starts turning.
+    if (frameRef.current !== null) {
+      window.cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+    }
     pullDistanceRef.current = REFRESH_HOLD;
-    setPullDistance(REFRESH_HOLD);
     setPhase("refreshing");
+    paint(REFRESH_HOLD);
 
     try {
       router.refresh();
@@ -126,30 +128,88 @@ export function PwaPullToRefresh({ children }: { children: ReactNode }) {
       if (!mountedRef.current) return;
 
       setPhase("complete");
+      paint(pullDistanceRef.current);
       await delay(COMPLETE_HOLD_MS);
     } finally {
       if (mountedRef.current) resetPull();
     }
   }
+  refreshRef.current = () => void refreshInPlace();
 
-  function handleTouchEnd() {
-    if (pullDistanceRef.current < REFRESH_THRESHOLD || refreshing) {
-      resetPull();
-      return;
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    mountedRef.current = true;
+
+    function onStart(event: TouchEvent) {
+      if (
+        phaseRef.current !== "idle" ||
+        !isStandalonePwa() ||
+        isPullToRefreshIgnored(event.target) ||
+        window.scrollY > 0 ||
+        event.touches.length !== 1
+      ) {
+        startYRef.current = null;
+        return;
+      }
+      startYRef.current = event.touches[0]?.clientY ?? null;
     }
 
-    void refreshInPlace();
-  }
+    function onMove(event: TouchEvent) {
+      const startY = startYRef.current;
+      // Not a pull gesture: return immediately so ordinary scrolling is untouched.
+      if (startY === null) return;
+      const touch = event.touches[0];
+      if (!touch || window.scrollY > 0) {
+        resetPull();
+        return;
+      }
 
-  function handleTouchCancel() {
-    if (!refreshing) resetPull();
-  }
+      const downwardDistance = touch.clientY - startY;
+      if (downwardDistance <= 0) {
+        // Finger went back up past the start: collapse, but keep tracking so
+        // pulling down again in the same gesture still works.
+        if (pullDistanceRef.current > 0) publishPull(0);
+        return;
+      }
+
+      // Non-passive listener, so this actually stops the native bounce from
+      // fighting the custom pull (React's touchmove is passive and ignores it).
+      if (event.cancelable) event.preventDefault();
+      publishPull(resist(downwardDistance));
+    }
+
+    function onEnd() {
+      if (phaseRef.current === "refreshing" || phaseRef.current === "complete") return;
+      if (pullDistanceRef.current < REFRESH_THRESHOLD) {
+        resetPull();
+        return;
+      }
+      refreshRef.current();
+    }
+
+    function onCancel() {
+      if (phaseRef.current === "refreshing" || phaseRef.current === "complete") return;
+      resetPull();
+    }
+
+    root.addEventListener("touchstart", onStart, { passive: true });
+    root.addEventListener("touchmove", onMove, { passive: false });
+    root.addEventListener("touchend", onEnd, { passive: true });
+    root.addEventListener("touchcancel", onCancel, { passive: true });
+    return () => {
+      mountedRef.current = false;
+      root.removeEventListener("touchstart", onStart);
+      root.removeEventListener("touchmove", onMove);
+      root.removeEventListener("touchend", onEnd);
+      root.removeEventListener("touchcancel", onCancel);
+      if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current);
+    };
+    // Handlers read refs only; register once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const indicatorVisible = phase !== "idle";
-  // The page follows the finger, stays pushed down while refreshing, and
-  // eases back once done. Height, not transform, so fixed bars are unaffected.
-  const gap = phase === "idle" || phase === "complete" ? 0 : pullDistance;
-  const progress = Math.min(1, pullDistance / REFRESH_THRESHOLD);
   // Screen readers only; the spinner itself carries no text.
   const label =
     phase === "refreshing" ? "Refreshing"
@@ -158,23 +218,15 @@ export function PwaPullToRefresh({ children }: { children: ReactNode }) {
           : "Pull to refresh";
 
   return (
-    <div
-      className="pwa-pull-refresh"
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-      onTouchCancel={handleTouchCancel}
-    >
+    <div ref={rootRef} className="pwa-pull-refresh">
       <div
+        ref={indicatorRef}
         role="status"
         aria-live="polite"
         className={`pwa-pull-refresh-indicator${indicatorVisible ? " is-visible" : ""}${
           phase !== "idle" ? ` is-${phase}` : ""
         }`}
-        style={{
-          "--pull-distance": `${pullDistance}px`,
-          "--pull-bars": progress * SPINNER_BARS,
-        } as CSSProperties}
+        style={{ "--pull-distance": "0px", "--pull-bars": 0 } as CSSProperties}
       >
         <span className="pwa-pull-refresh-spinner" aria-hidden="true">
           {Array.from({ length: SPINNER_BARS }, (_, index) => (
@@ -183,10 +235,13 @@ export function PwaPullToRefresh({ children }: { children: ReactNode }) {
         </span>
         <span className="sr-only">{label}</span>
       </div>
+      {/* The page follows the finger, stays pushed down while refreshing, and
+          eases back once done. Height, not transform, so fixed bars are unaffected. */}
       <div
+        ref={gapRef}
         aria-hidden="true"
         className={`pwa-pull-refresh-gap${phase === "pulling" || phase === "ready" ? " is-tracking" : ""}`}
-        style={{ height: gap }}
+        style={{ height: 0 }}
       />
       {children}
     </div>

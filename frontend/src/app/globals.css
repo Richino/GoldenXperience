@@ -16996,7 +16996,7 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
     white-space: nowrap;
   }
 
-  .home-rail-news-event .home-rail-news-currency {
+  .home-rail-news-event .home-rail-news-tags {
     grid-column: 2;
     grid-row: 1;
     align-self: end;
@@ -19783,6 +19783,22 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
 .news-impact-move { font-weight: 700; }
 .news-impact-move.is-up, .news-impact-legs em.is-up { color: var(--chart-up); }
 .news-impact-move.is-down, .news-impact-legs em.is-down { color: var(--chart-down); }
+/* After a release: what price actually did, and whether it helped you. */
+.news-impact-outcome {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  color: var(--muted-strong);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+.news-impact-outcome p:first-child { color: var(--muted); }
+.news-impact-outcome strong { font-weight: 700; }
+.news-impact-outcome strong.is-up { color: var(--chart-up); }
+.news-impact-outcome strong.is-down { color: var(--chart-down); }
+.news-impact-detail { flex-basis: 100%; text-align: right; color: var(--muted); font-size: 0.64rem; }
 
 /* Home news row: expected move size in place of the beat/miss hint. */
 .home-rail-news-size {
@@ -19793,3 +19809,49 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
 }
 .home-rail-news-size.is-massive { color: var(--danger); font-weight: 750; }
 .home-rail-news-size.is-high { color: var(--pending); }
+
+/* Home news row for a release that has landed: it stays on the list for an
+   hour, highlighted as the news price is reacting to now. */
+.home-rail-news-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; min-width: 0; }
+.home-rail-news-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.14rem 0.35rem;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.home-rail-news-live::before {
+  content: "";
+  width: 0.35rem;
+  height: 0.35rem;
+  border-radius: 50%;
+  background: currentColor;
+  animation: home-rail-news-live-pulse 1.6s ease-in-out infinite;
+}
+@keyframes home-rail-news-live-pulse { 50% { opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) { .home-rail-news-live::before { animation: none; } }
+.home-rail-news-event.is-live,
+.home-rail-news-event.is-live[role="button"]:hover {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.home-rail-news-event.is-live time,
+.home-rail-news-event.is-live .home-rail-news-copy p:first-child { color: var(--foreground); }
+/* Released earlier today and past its first hour: kept, but greyed out. */
+.home-rail-news-event.is-released { opacity: 0.5; }
+.home-rail-news-released {
+  padding: 0.14rem 0.35rem;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  color: var(--muted-strong);
+  font-size: 0.5625rem;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}

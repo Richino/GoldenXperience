@@ -9,7 +9,7 @@ import { displayNameFor } from "@/lib/instruments/catalog";
 import {
   homeCalendarImpactTier,
   homeCalendarMoveSize,
-  upcomingHomeCalendarEvents,
+  homeCalendarRows,
 } from "@/lib/news/home-calendar";
 import { NewsImpactSheet } from "@/components/dashboard/news-impact-sheet";
 import { useEconomicCalendar } from "@/lib/oanda/use-economic-calendar";
@@ -106,7 +106,13 @@ export function HomeRail({
   const netPositive = (todayNet ?? 0) >= 0;
   const todayIsLoss = todayNet !== null && todayNet < 0;
   const rPositive = (todayR ?? 0) >= 0;
-  const upcomingNews = upcomingHomeCalendarEvents(calendar.events);
+  // Ticks so rows go live, grey out and roll over at midnight without a reload.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const upcomingNews = homeCalendarRows(calendar.recentEvents ?? [], calendar.events, now);
   const [openEventId, setOpenEventId] = useState<string | null>(null);
   const openEvent = upcomingNews.find((event) => event.id === openEventId) ?? null;
 
@@ -241,7 +247,7 @@ export function HomeRail({
         </div>
       </section>
 
-      <section className="home-rail-section home-rail-news" aria-label="Upcoming high and medium impact news">
+      <section className="home-rail-section home-rail-news" aria-label="Current and upcoming high and medium impact news">
         <div className="home-rail-heading">
           <span>High &amp; medium news</span>
           <a
@@ -268,7 +274,7 @@ export function HomeRail({
                   role="button"
                   tabIndex={0}
                   key={event.id}
-                  className={`home-rail-news-event is-${tier}-impact`}
+                  className={`home-rail-news-event is-${tier}-impact is-${event.state}`}
                   onClick={() => setOpenEventId(event.id)}
                   onKeyDown={(keyEvent) => {
                     if (keyEvent.key === "Enter" || keyEvent.key === " ") {
@@ -276,13 +282,17 @@ export function HomeRail({
                       setOpenEventId(event.id);
                     }
                   }}
-                  aria-label={`${event.title}: see how it affects ${event.currency} pairs`}
+                  aria-label={`${event.title}${event.state === "live" ? " (released, happening now)" : event.state === "released" ? " (released today)" : ""}: see how it affects ${event.currency} pairs`}
                 >
                   <time className="metric-number" dateTime={event.timestamp}>
                     <span>{eventTime(event.timestamp)}</span>
                     <span className="home-rail-news-day">{eventDay(event.timestamp)}</span>
                   </time>
-                  <span className="home-rail-news-currency">{event.currency}</span>
+                  <span className="home-rail-news-tags">
+                    <span className="home-rail-news-currency">{event.currency}</span>
+                    {event.state === "live" ? <span className="home-rail-news-live">Now</span>
+                      : event.state === "released" ? <span className="home-rail-news-released">Released</span> : null}
+                  </span>
                   <div className="home-rail-news-copy">
                     <p>{event.title}</p>
                     <p className={`home-rail-news-size is-${moveSize}`}>
@@ -309,6 +319,7 @@ export function HomeRail({
         event={openEvent}
         positions={currentPositions}
         onClose={() => setOpenEventId(null)}
+        now={now}
       />
     </aside>
   );

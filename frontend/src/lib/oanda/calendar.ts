@@ -21,7 +21,13 @@ export interface CalendarWarning {
 }
 
 export interface EconomicCalendarSnapshot {
+  /** Upcoming events only; the pre-trade news gates read this. */
   events: EconomicCalendarEvent[];
+  /**
+   * Events already released today (New York day), oldest first, so Home can
+   * keep showing them. Optional: older API builds omit it.
+   */
+  recentEvents?: EconomicCalendarEvent[];
   source: CalendarDataSource;
   connected: boolean;
   sessionLabel: string;
@@ -49,6 +55,21 @@ export interface OandaCalendarEvent {
 }
 
 const HIGH_IMPACT_THRESHOLD = 3;
+/** How long a released event stays highlighted on Home as the news you are in. */
+export const RELEASED_EVENT_WINDOW_MINUTES = 60;
+
+/** Midnight in New York for the day containing `now`, in ms. */
+export function startOfNewYorkDay(now: number) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    hourCycle: "h23",
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric",
+  }).formatToParts(new Date(now));
+  const part = (type: string) => Number(parts.find((entry) => entry.type === type)?.value ?? 0);
+  return now - ((part("hour") * 60 + part("minute")) * 60 + part("second")) * 1000 - (now % 1000);
+}
 const ENTRY_BUFFER_MINUTES = 30;
 /** The window the "no high-impact events" message implicitly claims to cover. */
 const LOOKAHEAD_MINUTES = 24 * 60;
@@ -138,6 +159,11 @@ export function buildCalendarSnapshot({
   const upcoming = events.filter(
     (event) => Date.parse(event.timestamp) >= now.getTime(),
   );
+  const todayStart = startOfNewYorkDay(now.getTime());
+  const recentEvents = events.filter((event) => {
+    const time = Date.parse(event.timestamp);
+    return time < now.getTime() && time >= todayStart;
+  });
   const highImpactUpcoming = upcoming.filter(
     (event) => event.impact >= HIGH_IMPACT_THRESHOLD,
   );
@@ -206,6 +232,7 @@ export function buildCalendarSnapshot({
 
   return {
     events: upcoming,
+    recentEvents,
     source,
     connected,
     sessionLabel: getActiveSessionLabel(now),

@@ -5,6 +5,7 @@ import {
   type EconomicCalendarSnapshot,
 } from "@/lib/oanda/calendar";
 import { normalizeForexFactoryEvents } from "@/lib/calendar/normalize";
+import { withActuals } from "@/lib/calendar/forex-factory-actuals";
 import type { ConnectionStatus } from "@/types/forex";
 
 /** The current-week export is stable enough to fetch directly. */
@@ -69,7 +70,7 @@ async function fetchFeed(url: string): Promise<EconomicCalendarEvent[]> {
  * and shares the same rate-limit cache.
  */
 export async function getAllCalendarEvents(): Promise<EconomicCalendarEvent[]> {
-  return loadEvents();
+  return withActuals(await loadEvents());
 }
 
 async function loadEvents(): Promise<EconomicCalendarEvent[]> {
@@ -117,7 +118,7 @@ export async function getEconomicCalendar(): Promise<{
   status: ConnectionStatus;
 }> {
   try {
-    const events = await loadEvents();
+    const events = await withActuals(await loadEvents());
     const stale = cache ? Date.now() - cache.fetchedAt >= CACHE_TTL_MS : false;
 
     return {

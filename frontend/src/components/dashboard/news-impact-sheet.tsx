@@ -170,7 +170,7 @@ export function NewsImpactSheet({
                   {actualCurrencyMove === "up" ? currencyGains : measured.length - currencyGains} of {measured.length} currencies
                   {currencyMove ? (
                     <>
-                      {"; the expected call ("}{currency} {currencyMove}){" "}
+                      {hint.kind === "after" ? `; the figure (${hint.outcome}, so ${currency} ${currencyMove}) ` : `; the expected call (${currency} ${currencyMove}) `}
                       <strong className={currencyMove === actualCurrencyMove ? "is-up" : "is-down"}>
                         {currencyMove === actualCurrencyMove ? "is right" : "is wrong"}
                       </strong>

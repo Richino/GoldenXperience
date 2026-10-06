@@ -16,6 +16,7 @@ import type {
 import { MAJOR_INSTRUMENTS } from "../../frontend/src/types/forex.js";
 import { getAllCalendarEvents, getEconomicCalendar } from "../../frontend/src/lib/calendar/forex-factory.js";
 import { ingestCalendarEvents, nightlyNewsRetagIfDue } from "./news-tagging.js";
+import { newsPredictionsSnapshot, runNewsPredictionJournal } from "./news-predictions.js";
 import { isKnownInstrument } from "../../frontend/src/lib/instruments/catalog.js";
 import {
   getAccountSummary,
@@ -660,6 +661,8 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       return json(request, response, await getOpenPositions());
     case "/api/oanda/calendar":
       return json(request, response, await getEconomicCalendar());
+    case "/api/news/predictions":
+      return json(request, response, await newsPredictionsSnapshot());
     case "/api/oanda/status": {
       const status = await testOandaConnection();
       return json(request, response, { ok: status.state === "connected", status }, status.state === "error" ? 502 : 200);
@@ -898,6 +901,7 @@ let fastResolver: NodeJS.Timeout | null = null;
 let binaryCollector: NodeJS.Timeout | null = null;
 let binaryResolver: NodeJS.Timeout | null = null;
 let newsRetagger: NodeJS.Timeout | null = null;
+let newsPredictionJournal: NodeJS.Timeout | null = null;
 let patternV1Collector: NodeJS.Timeout | null = null;
 let legacyConfidenceV2Collector: NodeJS.Timeout | null = null;
 let breakoutConfidenceV1Collector: NodeJS.Timeout | null = null;
@@ -1233,6 +1237,24 @@ if (databaseConfigured() && schedulersEnabled) {
   };
   void retag();
   newsRetagger = setInterval(() => void retag(), 15 * 60_000);
+
+  // News prediction journal: freezes a beat/miss call before each release and
+  // scores it afterwards, so the signal picker learns from its own record.
+  // Display only; no trading decision reads it.
+  let newsJournalBusy = false;
+  const newsJournal = async () => {
+    if (newsJournalBusy) return;
+    newsJournalBusy = true;
+    try {
+      await runNewsPredictionJournal();
+    } catch (error) {
+      console.error("[news-predictions] failed", error);
+    } finally {
+      newsJournalBusy = false;
+    }
+  };
+  void newsJournal();
+  newsPredictionJournal = setInterval(() => void newsJournal(), 5 * 60_000);
 }
 
 let shuttingDown = false;
@@ -1246,6 +1268,7 @@ function shutdown() {
   if (binaryCollector) clearInterval(binaryCollector);
   if (binaryResolver) clearInterval(binaryResolver);
   if (newsRetagger) clearInterval(newsRetagger);
+  if (newsPredictionJournal) clearInterval(newsPredictionJournal);
   if (patternV1Collector) clearInterval(patternV1Collector);
   if (legacyConfidenceV2Collector) clearInterval(legacyConfidenceV2Collector);
   if (breakoutConfidenceV1Collector) clearInterval(breakoutConfidenceV1Collector);

@@ -32,6 +32,8 @@ export type TradingViewEvent = {
   currency: string;
   date: string;
   actual: number | null;
+  forecast?: number | null;
+  previous?: number | null;
   unit?: string | null;
   scale?: string | null;
 };
@@ -84,6 +86,29 @@ function formatActual(match: TradingViewEvent, like: EconomicCalendarEvent) {
   const decimals = sample.match(/\.(\d+)/)?.[1]?.length ?? (/\d/.test(sample) ? 0 : null);
   const value = decimals === null ? String(match.actual) : match.actual.toFixed(decimals);
   return `${value}${match.scale ?? ""}${match.unit === "%" ? "%" : ""}`;
+}
+
+/**
+ * Whether a TradingView event is the same data series as this Forex Factory
+ * event, at any date: same currency (and euro country), similar title, same
+ * stated period. Used to read a release's history.
+ */
+export function isSameSeries(event: { title: string; currency: string }, candidate: TradingViewEvent) {
+  let title = event.title.toLowerCase();
+  let country: string | null = event.currency === "EUR" ? "EU" : null;
+  for (const [word, code] of Object.entries(EURO_COUNTRY_WORDS)) {
+    if (title.startsWith(`${word} `)) {
+      country = code;
+      title = title.slice(word.length + 1);
+    }
+  }
+  if (candidate.currency !== event.currency) return false;
+  if (country && candidate.country !== country) return false;
+  const wanted = tokens(TITLE_ALIASES[title] ?? (RATE_DECISION.test(title) ? "interest rate decision" : title));
+  const candidateTokens = tokens(candidate.title);
+  if ([...wanted].some((word) => PERIODS.has(word) && !candidateTokens.has(word))) return false;
+  if ([...candidateTokens].some((word) => PERIODS.has(word) && !wanted.has(word))) return false;
+  return similarity(wanted, candidateTokens) >= SAME_DAY_MIN_SIMILARITY;
 }
 
 /** The TradingView event that is this Forex Factory release, or null. */

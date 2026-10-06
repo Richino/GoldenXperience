@@ -92,6 +92,29 @@ function useReleaseMoves(pairs: string[], releasedAt: number | null) {
   return releasedAt === null ? {} : moves;
 }
 
+type SavedPrediction = { event_key: string; call: "beat" | "miss" | null; chosen_signal: string | null };
+type PredictionJournal = { predictions: SavedPrediction[]; record: { calls: number; correct: number } };
+
+/** Same key the server journal stores each call under. */
+function eventKey(event: { currency: string; title: string; timestamp: string }) {
+  return `${event.currency}|${event.title}|${new Date(event.timestamp).toISOString()}`;
+}
+
+/** The server's frozen calls and their live track record, loaded when the sheet opens. */
+function usePredictionJournal(open: boolean) {
+  const [journal, setJournal] = useState<PredictionJournal | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    fetch(apiUrl("/api/news/predictions"), { credentials: "include", cache: "no-store" })
+      .then((response) => (response.ok ? response.json() as Promise<PredictionJournal> : null))
+      .then((payload) => { if (!cancelled && payload) setJournal(payload); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [open]);
+  return journal;
+}
+
 function signedPips(value: number) {
   return `${value >= 0 ? "+" : "−"}${Math.abs(value).toFixed(1)}`;
 }
@@ -114,14 +137,18 @@ export function NewsImpactSheet({
   now: number;
 }) {
   const hint = event ? newsSurpriseHint(event) : null;
-  const predicted = event ? predictSurprise(event) : null;
-  // The currency's expected move: the real one once released, else the lean.
+  const journal = usePredictionJournal(event !== null);
+  const saved = event ? journal?.predictions.find((row) => row.event_key === eventKey(event)) : undefined;
+  // The journal's frozen call wins; the simple local rule covers events it has
+  // not seen (e.g. before its first run).
+  const predicted = saved ? saved.call : event ? predictSurprise(event) : null;
+  // The expected move is the pre-release call and never changes: it comes only
+  // from forecast vs previous, so the actual cannot rewrite it after the fact.
+  const preRelease = event ? newsSurpriseHint({ ...event, actual: null }) : null;
   const currencyMove: TrendDirection | null =
-    hint?.kind === "after"
-      ? hint.direction === "flat" ? null : hint.direction
-      : hint?.kind === "before" && predicted
-        ? predicted === "beat" ? hint.beatDirection : hint.missDirection
-        : null;
+    preRelease?.kind === "before" && predicted
+      ? predicted === "beat" ? preRelease.beatDirection : preRelease.missDirection
+      : null;
   const currency = event?.currency ?? "";
   const pairs = event ? pairsFor(currency) : [];
   // Pairs you hold come first, so the answer you care about is at the top.
@@ -158,6 +185,13 @@ export function NewsImpactSheet({
             <div><dt>Actual</dt><dd className="metric-number">{event.actual || "—"}</dd></div>
           </dl>
 
+          {journal && journal.record.calls > 0 ? (
+            <p className="news-impact-note">
+              Prediction record: {journal.record.correct} of {journal.record.calls} right
+              ({Math.round((journal.record.correct / journal.record.calls) * 100)}%)
+            </p>
+          ) : null}
+
           {releasedAt !== null ? (
             <div className="news-impact-outcome">
               <p>
@@ -170,7 +204,7 @@ export function NewsImpactSheet({
                   {actualCurrencyMove === "up" ? currencyGains : measured.length - currencyGains} of {measured.length} currencies
                   {currencyMove ? (
                     <>
-                      {hint.kind === "after" ? `; the figure (${hint.outcome}, so ${currency} ${currencyMove}) ` : `; the expected call (${currency} ${currencyMove}) `}
+                      {`; the prediction (${predicted}, so ${currency} ${currencyMove}) `}
                       <strong className={currencyMove === actualCurrencyMove ? "is-up" : "is-down"}>
                         {currencyMove === actualCurrencyMove ? "is right" : "is wrong"}
                       </strong>
@@ -228,6 +262,9 @@ export function NewsImpactSheet({
                           ) : null}
                           <small className="news-impact-detail">
                             {move ? `Expected ${move === "up" ? "▲ up" : "▼ down"}` : "No call"}
+                            {move && actual && actual.sinceRelease !== 0
+                              ? (actual.sinceRelease > 0) === (move === "up") ? " ✓" : " ✗"
+                              : ""}
                             {actual && actual.firstReaction !== null ? ` · first ${FIRST_REACTION_MINUTES}m ${signedPips(actual.firstReaction)}` : ""}
                           </small>
                         </span>

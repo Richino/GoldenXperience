@@ -28,10 +28,10 @@ import type { Candle, MajorInstrument } from "@/types/forex";
  * is the best lean instead, flagged `weakSetup`, with the reason kept as the
  * main risk.
  *
- * Entries come from detected structure; the stop and target are 4:2 multiples
- * of a base distance: in Normal a share of the average daily range so the
- * trade fits in a day, in Swing
- * 1-hour volatility (`stopMultiple`/`targetMultiple`). A trade is refused
+ * Entries come from detected structure; the stop and target are multiples of
+ * a base distance (`stopMultiple`/`targetMultiple`): Normal is 4:2 on a share
+ * of the average daily range so the trade fits in a day, Swing is 1:2 with the
+ * stop one average daily range away. A trade is refused
  * when price is extended away from the pullback, or when the spread eats the
  * stop.
  */
@@ -52,13 +52,17 @@ export const NO_NEWS = "No high-impact news found";
 
 export const MARKET_ANALYSIS = {
   /**
-   * 4:2 geometry: the stop sits 4x the base distance from the entry and the
+   * Normal is 4:2: the stop sits 4x the base distance from the entry and the
    * target 2x. Chosen by the user over structural levels. In a 5-year, 14-pair
    * replay of the old trend-pullback rule this won 63-65% but still lost
    * (-0.03R/trade at equal risk; break-even needs ~67% plus spread).
+   * Swing is 1:2 (user's choice, 2026-10-05): replaying the user's 36 manual
+   * trades of Sep 21-Oct 5 with a one-day-range stop, 1:2 and 4:2 banked about
+   * the same on closed trades (+7R vs +8R); 1:2 led only on open trades. Over
+   * five years swing-width 1:2 ran -0.01 to -0.04R/trade: no edge either way.
    */
-  stopMultiple: 4,
-  targetMultiple: 2,
+  stopMultiple: { NORMAL: 4, SWING: 1 },
+  targetMultiple: { NORMAL: 2, SWING: 2 },
   /**
    * Normal is a day trade, so its target is this share of the pair's average
    * daily range (base = half of it). In a 14-major, 5-year replay a target of
@@ -66,14 +70,16 @@ export const MARKET_ANALYSIS = {
    * time and within 24h 93%; at one full 1-hour candle only 28% / 63% did.
    */
   normalTargetShareOfDailyRange: 0.17,
+  /** Swing's stop is this many average daily ranges (base = the stop). */
+  swingStopShareOfDailyRange: 1,
   /** Days averaged for that range, from the H1 candles Analyze already reads. */
   dailyRangeDays: 10,
   /**
    * Base distance otherwise, and the fallback when there are too few days:
-   * average 1-hour candles (H1 ATR14) with a pip floor. Swing gets the old
-   * swing mode's wider room.
+   * average 1-hour candles (H1 ATR14) with a pip floor. Swing's fallback is
+   * about a day's range (a day spans roughly 4-5 average 1-hour candles).
    */
-  baseH1Atr: { NORMAL: 0.5, SWING: 1.5 },
+  baseH1Atr: { NORMAL: 0.5, SWING: 4.5 },
   baseMinPips: { NORMAL: 5, SWING: 25 },
   /**
    * A limit entry never sits further from price than this many average 1-hour
@@ -351,10 +357,15 @@ export function analyzeMarket(input: MarketAnalysisInput): MarketAnalysis {
     return result;
   }
 
-  // Normal mode sizes from the day's range so the trade can finish within the day.
-  const dailyRange = input.mode === "NORMAL" ? averageDailyRange(input.candles.H1 ?? [], settings.dailyRangeDays) : null;
+  // Both modes size from the day's range: Normal so the trade can finish within the day, Swing so the stop clears a day's noise.
+  const dailyRange = averageDailyRange(input.candles.H1 ?? [], settings.dailyRangeDays);
+  const stopMultiple = settings.stopMultiple[input.mode];
+  const targetMultiple = settings.targetMultiple[input.mode];
+  const rangeBase = dailyRange === null ? null
+    : input.mode === "NORMAL" ? (settings.normalTargetShareOfDailyRange * dailyRange) / targetMultiple
+      : (settings.swingStopShareOfDailyRange * dailyRange) / stopMultiple;
 
-  /** Builds the 4:2 trade. A costly spread is flagged, never refused. */
+  /** Builds the trade (4:2 Normal, 1:2 Swing). A costly spread is flagged, never refused. */
   const finishTrade = (direction: "LONG" | "SHORT", structuralEntry: number, setup: SetupType, invalidation: string) => {
     const long = direction === "LONG";
     // Pull a far structural entry in to the fill-chance cap.
@@ -363,12 +374,12 @@ export function analyzeMarket(input: MarketAnalysisInput): MarketAnalysis {
     const atEntry = Math.abs(price - capped) <= 0.1 * (atr > 0 ? atr : h1Atr) || (long ? price < capped : price > capped);
     const entry = atEntry ? price : capped;
     const base = Math.max(
-      dailyRange !== null ? (settings.normalTargetShareOfDailyRange * dailyRange) / settings.targetMultiple : settings.baseH1Atr[input.mode] * h1Atr,
+      rangeBase ?? settings.baseH1Atr[input.mode] * h1Atr,
       settings.baseMinPips[input.mode] * pip,
     );
-    const risk = settings.stopMultiple * base;
+    const risk = stopMultiple * base;
     const stop = long ? entry - risk : entry + risk;
-    const target = long ? entry + settings.targetMultiple * base : entry - settings.targetMultiple * base;
+    const target = long ? entry + targetMultiple * base : entry - targetMultiple * base;
     const stopPips = risk / pip;
     result.decision = direction;
     result.setupType = setup;
@@ -409,7 +420,7 @@ export function analyzeMarket(input: MarketAnalysisInput): MarketAnalysis {
   };
   /** A trade with no proper setup behind it: `why` is what the read objected to. */
   const leanTrade = (why: string, risk: string, direction = leanDirection(), entry = price) => {
-    finishTrade(direction, entry, "LEAN", "No structure defines this trade; the 4:2 stop is the only exit.");
+    finishTrade(direction, entry, "LEAN", "No structure defines this trade; the plan's stop is the only exit.");
     result.weakSetup = true;
     result.reason = `${why} Weak setup: leaning ${direction === "LONG" ? "long" : "short"} anyway.`;
     result.risk.main = risk;

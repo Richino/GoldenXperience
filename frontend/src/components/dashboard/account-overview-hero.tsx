@@ -38,6 +38,7 @@ export function AccountOverviewHero({
   history,
   todayKey,
   openPL,
+  openRisk = null,
 }: {
   account: AccountSummary;
   userLabel: string;
@@ -49,6 +50,8 @@ export function AccountOverviewHero({
   */
   todayKey: string;
   openPL: number;
+  /** Planned loss if every open trade hits its stop; desktop Home shows it. */
+  openRisk?: number | null;
 }) {
   const [range, setRange] = useState<AccountChartRange>("1d");
   const { ref: topbarRef, scrolledPast } = useScrolledPast<HTMLElement>();
@@ -177,6 +180,16 @@ export function AccountOverviewHero({
               {signedMoney(openPL, account.currency)}
             </dd>
           </div>
+          {openRisk !== null ? (
+            <div className="home-chart-stat-risk">
+              {/* The share of balance rides in the label so the value stays one number. */}
+              <dt>
+                Open risk
+                {account.nav > 0 ? <span> · {((openRisk / account.nav) * 100).toFixed(1)}%</span> : null}
+              </dt>
+              <dd className="metric-number">{money(openRisk, account.currency)}</dd>
+            </div>
+          ) : null}
         </dl>
       </div>
     </section>

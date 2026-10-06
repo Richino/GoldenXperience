@@ -1,11 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
-import { apiUrl } from "@/lib/api/url";
-import { formatChartPrice } from "@/lib/chart-utils";
-import { displayNameFor } from "@/lib/instruments/catalog";
 import {
   homeCalendarImpactTier,
   homeCalendarMoveSize,
@@ -13,15 +9,7 @@ import {
 } from "@/lib/news/home-calendar";
 import { NewsImpactSheet } from "@/components/dashboard/news-impact-sheet";
 import { useEconomicCalendar } from "@/lib/oanda/use-economic-calendar";
-import type { CandleSeries, MajorInstrument } from "@/types/forex";
-
-const MARKET_PAIRS: MajorInstrument[] = [
-  "EUR_USD",
-  "GBP_USD",
-  "USD_JPY",
-  "AUD_USD",
-  "USD_CAD",
-];
+import type { MajorInstrument } from "@/types/forex";
 
 export type HomeAvailableSignal = {
   kind: "setup";
@@ -44,10 +32,6 @@ export type HomeCurrentPosition = {
   target: number;
   openedAt: string;
 };
-
-function compactPair(instrument: string) {
-  return displayNameFor(instrument);
-}
 
 function money(value: number, currency: string) {
   return new Intl.NumberFormat("en-US", {
@@ -75,7 +59,6 @@ function eventDay(timestamp: string) {
 }
 
 export function HomeRail({
-  quotes,
   currentPositions,
   currency,
   todayNet,
@@ -84,6 +67,7 @@ export function HomeRail({
   todayWins,
   todayLosses,
 }: {
+  /** Unused since the Markets card was removed; kept so callers need no change. */
   quotes: Record<string, { bid: number; ask: number }>;
   /** Saved, immutable plans. These are never synthesized from a live quote. */
   availableSignals: HomeAvailableSignal[];
@@ -97,8 +81,6 @@ export function HomeRail({
   todayWins: number;
   todayLosses: number;
 }) {
-  const [dayChange, setDayChange] = useState<Record<string, number>>({});
-  const [lastClose, setLastClose] = useState<Record<string, number>>({});
   const { snapshot: calendar, loading: calendarLoading } = useEconomicCalendar();
   const resolvedToday = todayWins + todayLosses;
   const winPercent = resolvedToday > 0 ? Math.round((todayWins / resolvedToday) * 100) : null;
@@ -116,98 +98,8 @@ export function HomeRail({
   const [openEventId, setOpenEventId] = useState<string | null>(null);
   const openEvent = upcomingNews.find((event) => event.id === openEventId) ?? null;
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadChanges() {
-      const entries = await Promise.all(
-        MARKET_PAIRS.map(async (instrument) => {
-          try {
-            const response = await fetch(
-              apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=D&count=3`),
-              { credentials: "include", cache: "no-store" },
-            );
-            if (!response.ok) return { instrument, change: null, close: null };
-            const payload = (await response.json()) as { data?: CandleSeries };
-            const candles = payload.data?.candles ?? [];
-            const previous = candles.at(-2)?.close;
-            const latest = candles.at(-1)?.close;
-            if (!previous || !latest) return { instrument, change: null, close: latest ?? null };
-            return {
-              instrument,
-              change: ((latest - previous) / previous) * 100,
-              close: latest,
-            };
-          } catch {
-            return { instrument, change: null, close: null };
-          }
-        }),
-      );
-
-      if (cancelled) return;
-      const nextChange: Record<string, number> = {};
-      const nextClose: Record<string, number> = {};
-      for (const entry of entries) {
-        if (entry.change !== null) nextChange[entry.instrument] = entry.change;
-        if (entry.close !== null) nextClose[entry.instrument] = entry.close;
-      }
-      setDayChange(nextChange);
-      setLastClose(nextClose);
-    }
-
-    void loadChanges();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   return (
-    <aside className="home-rail" aria-label="Current positions, available signals, and markets">
-      <section className="home-rail-section home-rail-markets-section">
-        <div className="home-rail-heading">
-          <span>Markets</span>
-          <Link href="/watchlist" className="home-rail-link">
-            See all
-          </Link>
-        </div>
-        <div className="home-rail-markets">
-          {MARKET_PAIRS.map((instrument) => {
-            const quote = quotes[instrument];
-            const mid = quote
-              ? (quote.bid + quote.ask) / 2
-              : lastClose[instrument] ?? null;
-            const change = dayChange[instrument];
-            const flat = change !== undefined && Math.abs(change) < 0.005;
-            const positive = (change ?? 0) >= 0;
-            return (
-              <Link
-                key={instrument}
-                href={`/chart?instrument=${instrument}`}
-                className="home-rail-market"
-              >
-                <span>{compactPair(instrument)}</span>
-                <span className="metric-number">
-                  {mid === null ? "—" : formatChartPrice(mid, instrument)}
-                </span>
-                <span
-                  className={
-                    change === undefined || flat
-                      ? "is-neutral"
-                      : positive
-                        ? "is-positive"
-                        : "is-negative"
-                  }
-                >
-                  {change === undefined
-                    ? "—"
-                    : `${positive ? "+" : ""}${change.toFixed(2)}%`}
-                </span>
-              </Link>
-            );
-          })}
-        </div>
-      </section>
-
+    <aside className="home-rail" aria-label="Today and upcoming news">
       <section
         className={`home-rail-section home-rail-total${todayIsLoss ? " is-loss" : ""}`}
         aria-label="Today"

@@ -800,9 +800,14 @@ export function buildTradePath(
   candleTimes: number[],
   trade: PaperChartTrade | null,
 ): LineData<UTCTimestamp>[] {
-  if (!trade || trade.exit === null) return [];
+  if (!trade) return [];
 
   const entryTime = tradeEntryTime(candleTimes, trade);
+  // An open trade is just its entry point: the BUY / SELL arrow attaches to
+  // this series, and a marker only draws at a time the series has data for.
+  if (trade.exit === null) {
+    return entryTime === null ? [] : [{ time: entryTime as UTCTimestamp, value: trade.entry }];
+  }
   const exitTime = tradeExitTime(candleTimes, trade);
   if (entryTime === null || exitTime === null || exitTime <= entryTime) return [];
 

@@ -1297,6 +1297,12 @@ html.mobile-sheet-open body {
   .pair-strength--pill .pair-strength-dot {
     display: block;
   }
+
+  /* A long read can wrap beside the TRADING badge here; squarer corners keep
+     a two-line label from looking like a stretched pill. */
+  .pair-strength:not(.pair-strength--pill) .pair-strength-chip {
+    border-radius: 0.5rem;
+  }
 }
 
 .pair-strength-chip {
@@ -9231,6 +9237,12 @@ html:has(.pending-entry-backdrop) .mobile-dock {
   display: none;
 }
 
+/* "Mark" only labels the price in the mobile two-line row; on desktop the
+   Price column header already says it. */
+.home-position-mark-label {
+  display: none;
+}
+
 /* The " · 0.40 lot" suffix only appears in the mobile two-line row; on desktop
    the dedicated Size column carries it. */
 .home-position-lot {
@@ -17071,14 +17083,15 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
     display: contents;
   }
 
+  /* Overridden by the later dark/light card rules; kept in the same order. */
   .home-shell .account-overview-hero { order: 1; }
   .home-shell .dashboard-trades-grid { order: 2; }
-  .home-shell .home-pending-trades { order: 3; }
-  .home-shell .home-rail-news { order: 4; }
-  .home-shell .home-section[aria-label="Saved setups"] { order: 5; }
-  .home-shell .home-rail-total { order: 7; }
-  .home-shell .home-idle-section[aria-label="Recent activity"] { order: 8; }
-  .home-shell .home-extra { order: 9; }
+  .home-shell .home-rail-news { order: 3; }
+  .home-shell .home-pending-trades { order: 4; }
+  .home-shell .home-rail-total { order: 5; }
+  .home-shell .home-section[aria-label="Saved setups"] { order: 6; }
+  .home-shell .home-idle-section[aria-label="Recent activity"] { order: 7; }
+  .home-shell .home-extra { order: 8; }
 
   /* Prices are available in the Markets tab; repeating five quotes here pushes
      the more actionable exposure and calendar information too far down Home. */
@@ -17361,16 +17374,17 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
     --gx-pill-closed-border: rgba(255, 255, 255, 0.09);
   }
 
-  /* Card rhythm and order: balance, open positions, pending, recent activity,
-     today, news (the Expo ScrollView order), 14px apart. */
+  /* Card rhythm and order, most needed first (the user's choice): balance,
+     open positions, news that could move them, pending orders, today's
+     results, saved setups, recent activity. 14px apart. */
   html:is(.dark, :not(.dark)) .home-shell { gap: 14px; }
   html:is(.dark, :not(.dark)) .home-shell .account-overview-hero { order: 1; }
   html:is(.dark, :not(.dark)) .home-shell .dashboard-trades-grid { order: 2; }
-  html:is(.dark, :not(.dark)) .home-shell .home-pending-trades { order: 3; }
-  html:is(.dark, :not(.dark)) .home-shell .home-section[aria-label="Saved setups"] { order: 4; }
-  html:is(.dark, :not(.dark)) .home-shell .home-idle-section[aria-label="Recent activity"] { order: 5; }
-  html:is(.dark, :not(.dark)) .home-shell .home-rail-total { order: 6; }
-  html:is(.dark, :not(.dark)) .home-shell .home-rail-news { order: 7; }
+  html:is(.dark, :not(.dark)) .home-shell .home-rail-news { order: 3; }
+  html:is(.dark, :not(.dark)) .home-shell .home-pending-trades { order: 4; }
+  html:is(.dark, :not(.dark)) .home-shell .home-rail-total { order: 5; }
+  html:is(.dark, :not(.dark)) .home-shell .home-section[aria-label="Saved setups"] { order: 6; }
+  html:is(.dark, :not(.dark)) .home-shell .home-idle-section[aria-label="Recent activity"] { order: 7; }
   html:is(.dark, :not(.dark)) .home-shell .home-extra { order: 8; }
 
   /* HomeCard: surface fill, hairline border, 18px corners, 19/22 padding. */
@@ -17487,10 +17501,9 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
 /* Recent activity rows (RecentActivityCard): pair over a coloured outcome on
    the left, P/L over the date on the right, last five only. */
 @media (max-width: 639px) {
-  html:is(.dark, :not(.dark)) .home-shell .home-idle-section[aria-label="Recent activity"] .home-section-link { display: none; }
-
+  /* "View all" (to the closed trades) stands where the "Last 5" count was. */
   html:is(.dark, :not(.dark)) .home-shell .home-activity-count {
-    display: block;
+    display: none;
     color: var(--gx-muted);
     font-size: 10px;
     font-weight: 500;
@@ -19317,6 +19330,36 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
     font-weight: 600;
     letter-spacing: 0;
   }
+
+  /* Entry and exit times: two label / value rows under the spread row. */
+  html:is(.dark, :not(.dark)) .trades-view .trade-card-times {
+    display: grid;
+    gap: 0.4rem;
+    padding-top: 0.58rem;
+    border-top: 1px solid color-mix(in srgb, var(--gx-card-border) 88%, transparent);
+  }
+
+  html:is(.dark, :not(.dark)) .trades-view .trade-card-times > div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  html:is(.dark, :not(.dark)) .trades-view .trade-card-times dt {
+    color: var(--gx-muted);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  html:is(.dark, :not(.dark)) .trades-view .trade-card-times dd {
+    color: var(--gx-text);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
 }
 
 /*
@@ -19798,7 +19841,36 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
 .news-impact-outcome strong { font-weight: 700; }
 .news-impact-outcome strong.is-up { color: var(--chart-up); }
 .news-impact-outcome strong.is-down { color: var(--chart-down); }
-.news-impact-detail { flex-basis: 100%; text-align: right; color: var(--muted); font-size: 0.64rem; }
+.news-impact-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 0.5rem; }
+.news-impact-summary dt { color: var(--muted); font-size: 0.6rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
+.news-impact-summary dd { margin-top: 0.1rem; color: var(--foreground); font-size: 0.85rem; font-weight: 700; white-space: nowrap; }
+.news-impact-summary dd.is-up { color: var(--chart-up); }
+.news-impact-summary dd.is-down { color: var(--chart-down); }
+
+/* Released rows: result, price move, forecast — stacked and right-aligned. */
+.news-impact-legs.is-released {
+  display: grid;
+  justify-items: end;
+  gap: 0.2rem;
+  text-align: right;
+}
+.news-impact-result { font-size: 0.85rem; font-weight: 750; }
+.news-impact-result.is-up { color: var(--chart-up); }
+.news-impact-result.is-down { color: var(--chart-down); }
+.news-impact-move.is-plain { color: var(--muted-strong); font-weight: 600; }
+.news-impact-tags { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.3rem; }
+.news-impact-call,
+.news-impact-first {
+  border-radius: 999px;
+  padding: 0.1rem 0.45rem;
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  color: var(--muted);
+  font-size: 0.64rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.news-impact-call.is-right { background: color-mix(in srgb, var(--chart-up) 13%, transparent); color: var(--chart-up); }
+.news-impact-call.is-wrong { background: color-mix(in srgb, var(--chart-down) 13%, transparent); color: var(--chart-down); }
 
 /* Home news row: expected move size in place of the beat/miss hint. */
 .home-rail-news-size {
@@ -19854,4 +19926,520 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
   font-weight: 650;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+}
+
+/* Desktop Home polish: the rail flows with the page instead of scrolling
+   inside its own box (which clipped the Markets header), and a released news
+   row stacks its currency and "Released" tags instead of overlapping the title. */
+@media (min-width: 1024px) {
+  .home-shell > .home-rail {
+    position: relative;
+    top: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .home-rail-news-event {
+    grid-template-columns: 4.5rem 3.9rem minmax(0, 1fr);
+  }
+
+  .home-rail-news-event .home-rail-news-tags {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.2rem;
+  }
+
+  .home-rail-news-event.is-released .home-rail-news-currency {
+    align-self: flex-start;
+  }
+}
+
+/* ============================================================
+   DESKTOP HOME v2
+   Balance first, then today's result and the news clock beside it; open
+   positions run full width with a stop → target track; setups sit beside
+   Markets. Main and rail dissolve into one grid so each section can be
+   placed on its own. Phones and tablets keep the layout above.
+   ============================================================ */
+.home-position-track {
+  display: none;
+}
+
+/* Phones and tablets: open risk sits as a third stat beside realized / unrealized. */
+@media (max-width: 1023px) {
+  .home-shell .home-chart-stats:has(.home-chart-stat-risk) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px 10px;
+  }
+
+  /* Values never wrap: past the base size they shrink with the strip's width. */
+  .home-shell .home-chart-stats dd {
+    font-size: min(0.875rem, 4.4cqi);
+  }
+
+  /* Labels too, so "Open risk · 4.0%" fits its column on a 320px phone. */
+  .home-shell .home-chart-stats dt {
+    font-size: min(10px, 3.05cqi);
+    letter-spacing: 0.08em;
+  }
+}
+
+.home-chart-stats {
+  container-type: inline-size;
+}
+
+.home-chart-stats dt,
+.home-chart-stats dd {
+  white-space: nowrap;
+}
+
+.home-chart-stat-risk dt span {
+  color: var(--muted);
+}
+
+@media (min-width: 1024px) {
+  .home-shell.home-layout-v2 {
+    --home-v2-card: var(--surface);
+    --home-v2-border: color-mix(in srgb, var(--foreground) 8%, transparent);
+    --home-v2-gap: 1.25rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) clamp(18rem, 24vw, 22rem);
+    grid-template-areas:
+      "hero hero today"
+      "hero hero news"
+      "error error error"
+      "positions positions positions"
+      "pending pending pending"
+      "setups setups setups"
+      "activity activity activity";
+    /* Gaps live on the items: an absent section (no setups, no error) then
+       collapses to nothing instead of leaving a double gap. */
+    gap: 0 var(--home-v2-gap);
+    align-items: start;
+    width: min(100%, 84rem);
+    margin-inline: auto;
+    padding-bottom: 3rem;
+  }
+
+  .home-shell.home-layout-v2 > .home-main,
+  .home-shell.home-layout-v2 > .home-rail {
+    display: contents;
+  }
+
+  .home-shell.home-layout-v2 .account-overview-hero { grid-area: hero; align-self: stretch; }
+  .home-shell.home-layout-v2 .home-rail-total { grid-area: today; }
+  .home-shell.home-layout-v2 .home-rail-news { grid-area: news; align-self: stretch; margin-top: var(--home-v2-gap); }
+  .home-shell.home-layout-v2 .research-error { grid-area: error; margin-top: var(--home-v2-gap); }
+  .home-shell.home-layout-v2 .dashboard-trades-grid { grid-area: positions; margin-top: var(--home-v2-gap); }
+  .home-shell.home-layout-v2 .home-pending-trades { grid-area: pending; margin-top: var(--home-v2-gap); }
+  .home-shell.home-layout-v2 .home-section[aria-label="Saved setups"] { grid-area: setups; margin-top: var(--home-v2-gap); }
+  .home-shell.home-layout-v2 .home-rail-markets-section { grid-area: markets; margin-top: var(--home-v2-gap); }
+  .home-shell.home-layout-v2 .home-idle-section[aria-label="Recent activity"] { grid-area: activity; margin-top: var(--home-v2-gap); }
+
+  /* --- Cards ------------------------------------------------ */
+  .home-shell.home-layout-v2 .account-overview-hero,
+  .home-shell.home-layout-v2 .dashboard-trades-grid,
+  .home-shell.home-layout-v2 .home-pending-trades,
+  .home-shell.home-layout-v2 .home-rail-news,
+  .home-shell.home-layout-v2 .home-rail-markets-section,
+  .home-shell.home-layout-v2 .home-idle-section[aria-label="Recent activity"] {
+    padding: 1.4rem 1.6rem;
+    border: 1px solid var(--home-v2-border);
+    border-radius: 24px;
+    background: var(--home-v2-card);
+    box-shadow: none;
+  }
+
+  .home-shell.home-layout-v2 .dashboard-trades-grid {
+    display: block;
+  }
+
+  .home-shell.home-layout-v2 .account-overview-hero {
+    display: flex;
+    flex-direction: column;
+    padding: 1.75rem 1.75rem 1.4rem;
+  }
+
+  .home-shell.home-layout-v2 .account-overview-hero .account-chart-canvas {
+    --hero-surface: var(--home-v2-card);
+  }
+
+  /* --- Section headings: sentence case, readable ------------- */
+  .home-shell.home-layout-v2 .home-section-head h2,
+  .home-shell.home-layout-v2 .home-rail-heading > span,
+  .home-shell.home-layout-v2 .home-idle-section h2 {
+    color: var(--foreground);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    text-transform: none;
+  }
+
+  .home-shell.home-layout-v2 .home-section-link,
+  .home-shell.home-layout-v2 .home-rail-link {
+    color: var(--muted-strong);
+    font-size: 0.8125rem;
+    font-weight: 500;
+  }
+
+  /* --- Hero ------------------------------------------------- */
+  .home-shell.home-layout-v2 .home-hero-label {
+    color: var(--muted-strong);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  .home-shell.home-layout-v2 .home-hero-nav {
+    margin-top: 0.4rem;
+    font-size: 3rem;
+    font-weight: 600;
+    letter-spacing: -0.05em;
+    line-height: 1;
+  }
+
+  .home-shell.home-layout-v2 .home-hero-today {
+    margin-top: 0.7rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  .home-shell.home-layout-v2 .home-hero-range.account-range-row {
+    gap: 2px;
+    padding: 4px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--foreground) 5%, transparent);
+  }
+
+  .home-shell.home-layout-v2 .home-hero-range .account-range-btn,
+  .home-shell.home-layout-v2 .home-hero-range .account-range-btn.pressable {
+    min-width: 2.75rem;
+    min-height: 2.25rem;
+    border-radius: 9px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .home-shell.home-layout-v2 .home-hero-range .account-range-btn.is-active,
+  .home-shell.home-layout-v2 .home-hero-range .account-range-btn.is-active:hover,
+  .home-shell.home-layout-v2 .home-hero-range .account-range-btn.pressable.is-active,
+  .home-shell.home-layout-v2 .home-hero-range .account-range-btn.pressable.is-active:hover {
+    background: var(--home-v2-card);
+    color: var(--foreground);
+    box-shadow: 0 1px 2px color-mix(in srgb, #000 12%, transparent);
+  }
+
+  .home-shell.home-layout-v2 .home-hero-range .account-range-btn.is-active::after {
+    display: none;
+  }
+
+  .home-shell.home-layout-v2 .home-chart-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-top: auto;
+    padding-top: 1rem;
+    border-top: 1px solid var(--home-v2-border);
+  }
+
+  .home-shell.home-layout-v2 .home-chart-stat-risk {
+    display: block;
+  }
+
+  .home-shell.home-layout-v2 .home-chart-stats dt {
+    color: var(--muted-strong);
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  .home-shell.home-layout-v2 .home-chart-stats dd {
+    margin-top: 0.3rem;
+    font-size: min(1.0625rem, 4.4cqi);
+    font-weight: 600;
+  }
+
+  /* --- Today: the one inverted card ------------------------ */
+  .home-shell.home-layout-v2 .home-rail-total,
+  .home-shell.home-layout-v2 .home-rail-total.is-loss {
+    --foreground: #f4f4f5;
+    --muted: #a1a1aa;
+    --muted-strong: #c4c4cc;
+    --success: #00e59b;
+    --accent: #00e59b;
+    --danger: #ff6370;
+    --border: rgba(255, 255, 255, 0.1);
+    margin: 0;
+    padding: 1.4rem 1.5rem;
+    border: 0;
+    border-radius: 24px;
+    background: #111214;
+    color: var(--foreground);
+    box-shadow: none;
+  }
+
+  .dark .home-shell.home-layout-v2 .home-rail-total {
+    border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+    background: color-mix(in srgb, var(--accent) 6%, #131315);
+  }
+
+  .dark .home-shell.home-layout-v2 .home-rail-total.is-loss {
+    border: 1px solid color-mix(in srgb, var(--danger) 26%, transparent);
+    background: color-mix(in srgb, var(--danger) 6%, #131315);
+  }
+
+  .home-shell.home-layout-v2 .home-rail-total .home-rail-heading > span {
+    color: var(--muted);
+    font-size: 0.8125rem;
+    font-weight: 500;
+  }
+
+  .home-shell.home-layout-v2 .home-rail-total-row {
+    margin-top: 0.85rem;
+  }
+
+  .home-shell.home-layout-v2 .home-rail-total-lead {
+    font-size: 2.1rem;
+    font-weight: 600;
+    letter-spacing: -0.045em;
+  }
+
+  .home-shell.home-layout-v2 .home-rail-total-r {
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    font-size: 1.05rem;
+    font-weight: 600;
+  }
+
+  .home-shell.home-layout-v2 .home-rail-total-meta {
+    margin-top: 0.9rem;
+    padding-top: 0.9rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .home-shell.home-layout-v2 .home-rail-total-meta dt {
+    color: var(--muted);
+    font-size: 0.75rem;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  .home-shell.home-layout-v2 .home-rail-total-meta dd {
+    color: var(--foreground);
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .home-shell.home-layout-v2 .home-rail-bar {
+    height: 6px;
+    margin-top: 1rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  /* --- News: a card beside the hero; long weeks scroll inside --- */
+  .home-shell.home-layout-v2 .home-rail-news {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .home-shell.home-layout-v2 .home-rail-news-list {
+    flex: 1 1 auto;
+    max-height: 17rem;
+    margin: 0.6rem -0.6rem 0;
+    padding: 0 0.6rem;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+
+  /* --- Open positions: wider grid with the stop → target track --- */
+  .home-shell.home-layout-v2 .home-position-list {
+    margin-top: 0.75rem;
+    border-top: 0;
+  }
+
+  .home-shell.home-layout-v2 .home-position-head,
+  .home-shell.home-layout-v2 .home-position-row {
+    grid-template-columns:
+      minmax(9rem, 1.3fr) minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(10rem, 2.2fr)
+      minmax(0, 0.55fr) minmax(0, 0.6fr) minmax(0, 0.85fr);
+    gap: 1rem;
+    padding-inline: 0.5rem;
+  }
+
+  .home-shell.home-layout-v2 .home-position-head {
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid var(--home-v2-border);
+    color: var(--muted-strong);
+    font-size: 0.75rem;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  .home-shell.home-layout-v2 .home-position-row {
+    min-height: 4.1rem;
+    border-bottom: 1px solid var(--home-v2-border);
+    border-radius: 0;
+    font-size: 0.875rem;
+  }
+
+  .home-shell.home-layout-v2 .home-position-row:last-child {
+    border-bottom: 0;
+  }
+
+  .home-shell.home-layout-v2 .home-position-pair {
+    font-size: 0.9375rem;
+    font-weight: 600;
+  }
+
+  .home-shell.home-layout-v2 .home-position-r,
+  .home-shell.home-layout-v2 .home-position-pl {
+    font-weight: 600;
+  }
+
+  .home-shell.home-layout-v2 .home-position-track {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+
+  .home-shell.home-layout-v2 .home-position-head .home-position-track {
+    display: block;
+  }
+
+  .home-position-track-bar {
+    position: relative;
+    height: 6px;
+    border-radius: 999px;
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--danger) 26%, transparent) 0 var(--entry-at),
+      color-mix(in srgb, var(--chart-up) 24%, transparent) var(--entry-at) 100%
+    );
+  }
+
+  .home-position-track-entry {
+    position: absolute;
+    top: -4px;
+    left: var(--entry-at);
+    width: 2px;
+    height: 14px;
+    border-radius: 1px;
+    background: var(--foreground);
+    transform: translateX(-50%);
+  }
+
+  .home-position-track-mark {
+    position: absolute;
+    top: 50%;
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--home-v2-card, var(--surface));
+    border-radius: 999px;
+    background: var(--muted);
+    box-shadow: 0 0 0 1px var(--muted);
+    transform: translate(-50%, -50%);
+  }
+
+  .home-position-track-mark.is-win {
+    background: var(--chart-up);
+    box-shadow: 0 0 0 1px var(--chart-up);
+  }
+
+  .home-position-track-mark.is-loss {
+    background: var(--danger);
+    box-shadow: 0 0 0 1px var(--danger);
+  }
+
+  .home-position-track-levels {
+    display: flex;
+    justify-content: space-between;
+    color: var(--muted);
+    font-size: 0.6875rem;
+  }
+
+  /* --- Saved setups: three-up cards ------------------------ */
+  .home-shell.home-layout-v2 .home-section[aria-label="Saved setups"] {
+    margin-inline: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .home-shell.home-layout-v2 .home-section[aria-label="Saved setups"] .home-section-head {
+    padding-inline: 0.25rem;
+  }
+
+  .home-shell.home-layout-v2 .home-signal-grid {
+    grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+    gap: 0.875rem;
+    margin-top: 0.75rem;
+  }
+
+  .home-shell.home-layout-v2 .home-signal-card {
+    padding: 1.1rem 1.15rem;
+    border: 1px solid var(--home-v2-border);
+    border-radius: 20px;
+    background: var(--home-v2-card);
+    box-shadow: none;
+  }
+
+  .home-shell.home-layout-v2 .home-signal-card:hover {
+    border-color: color-mix(in srgb, var(--accent) 35%, var(--home-v2-border));
+  }
+
+  /* --- Markets: a card beside the setups -------------------- */
+  .home-shell.home-layout-v2 .home-rail-markets {
+    margin-top: 0.5rem;
+    border-top: 0;
+  }
+
+  .home-shell.home-layout-v2 .home-rail-market {
+    min-height: 2.75rem;
+    padding-inline: 0.25rem;
+    border-bottom: 1px solid var(--home-v2-border);
+    font-size: 0.875rem;
+  }
+
+  .home-shell.home-layout-v2 .home-rail-market > :first-child {
+    font-weight: 600;
+  }
+}
+
+/* Small laptops: a third column squeezes the news titles and the hero stats,
+   so Today and News share a row under the balance instead. */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .home-shell.home-layout-v2 {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "hero hero"
+      "today news"
+      "error error"
+      "positions positions"
+      "pending pending"
+      "setups setups"
+      "activity activity";
+  }
+
+  .home-shell.home-layout-v2 .home-rail-total {
+    align-self: stretch;
+    margin-top: var(--home-v2-gap);
+  }
+
+  .home-shell.home-layout-v2 .home-rail-news-list {
+    max-height: 12rem;
+  }
+
+  .home-shell.home-layout-v2 .home-position-head,
+  .home-shell.home-layout-v2 .home-position-row {
+    grid-template-columns:
+      minmax(9rem, 1.3fr) minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(7rem, 1.6fr)
+      minmax(0, 0.5fr) minmax(0, 0.6fr) minmax(0, 0.85fr);
+    gap: 0.75rem;
+  }
 }

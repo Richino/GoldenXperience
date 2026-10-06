@@ -48,8 +48,8 @@ export function HomeRecentActivity({
     <section className="home-idle-section" aria-label="Recent activity">
       <div className="home-section-head">
         <h2>Recent activity</h2>
-        <Link href="/journal" className="home-section-link">
-          See all
+        <Link href="/journal?tab=closed" className="home-section-link">
+          View all
         </Link>
         <span className="home-activity-count">Last {Math.min(items.length, PHONE_ROWS)}</span>
       </div>

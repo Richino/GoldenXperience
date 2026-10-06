@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowRight, Search } from "lucide-react";
 import type { ConnectionStatus, JournalTrade } from "@/types/forex";
 import { apiUrl } from "@/lib/api/url";
-import { formatClockTime, formatShortDay } from "@/lib/format/datetime";
+import { formatClockTime, formatDayAndTime, formatShortDay } from "@/lib/format/datetime";
 import {
   openTradeProgress,
   quoteToUsdRateFromQuotes,
@@ -554,10 +554,24 @@ function MobileTradeCard({
           <strong className="metric-number">
             {trade.oandaEntryHalfSpreadCost !== null && trade.oandaEntryHalfSpreadCost !== undefined
               ? fmtMoney(-Math.abs(trade.oandaEntryHalfSpreadCost))
-              : "Unavailable for legacy fill"}
+              : "Waiting for OANDA"}
           </strong>
         </div>
       ) : null}
+
+      {/* Eastern time, like every other clock in the app. */}
+      <dl className="trade-card-times">
+        <div>
+          <dt>Entered</dt>
+          <dd className="metric-number">{formatDayAndTime(trade.openedAt)} ET</dd>
+        </div>
+        <div>
+          <dt>Exited</dt>
+          <dd className="metric-number">
+            {trade.closedAt ? `${formatDayAndTime(trade.closedAt)} ET` : "Still open"}
+          </dd>
+        </div>
+      </dl>
 
       <div className="trade-card-foot">
         {isOpen ? (
@@ -704,6 +718,16 @@ export function TradesView() {
 
   const openTrades = useMemo(() => summary?.openTrades ?? [], [summary?.openTrades]);
   const closedTrades = useMemo(() => records.filter((t) => t.status === "closed"), [records]);
+
+  // A link can ask for a tab (Home's Recent activity opens ?tab=closed). It
+  // wins over the no-open-position default below, which then never runs.
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get("tab");
+    if (requested !== "open" && requested !== "closed" && requested !== "all") return;
+    initialTabResolvedRef.current = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTab(requested);
+  }, []);
 
   // The first render cannot know whether an open position exists. Once the
   // journal summary arrives, make a no-open-position launch useful by showing

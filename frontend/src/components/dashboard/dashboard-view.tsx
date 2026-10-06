@@ -482,8 +482,12 @@ export function DashboardView({
   const todayWins = journalSummary?.today?.wins ?? todayFromList.wins;
   const todayLosses = journalSummary?.today?.losses ?? todayFromList.losses;
   const todayNet = journalSummary?.today?.realizedPL ?? todayFromList.netMoney;
+  const riskedTrades = openTrades.filter((trade) => trade.nominalRiskAmount != null);
+  const openRisk = riskedTrades.length
+    ? riskedTrades.reduce((sum, trade) => sum + (trade.nominalRiskAmount as number), 0)
+    : null;
   return (
-    <div className="dashboard-view dashboard-minimal home-shell">
+    <div className="dashboard-view dashboard-minimal home-shell home-layout-v2">
       <div className="home-main">
       <AccountOverviewHero
         account={account}
@@ -494,6 +498,7 @@ export function DashboardView({
         // hero and the rows always add up. The account summary is polled on a
         // different clock and drifts; it is only the fallback.
         openPL={heroOpenPL}
+        openRisk={openRisk}
       />
 
       {error ? <p className="research-error">{error}</p> : null}
@@ -512,6 +517,7 @@ export function DashboardView({
                 <span>Symbol</span>
                 <span>Entry</span>
                 <span>Price</span>
+                <span className="home-position-track">Stop → Target</span>
                 <span className="home-position-size">Size</span>
                 <span className="home-position-r">R</span>
                 <span className="home-position-pl">P/L</span>
@@ -550,6 +556,17 @@ export function DashboardView({
                   rMultiple === null ? null : Number(rMultiple.toFixed(2)) || 0;
                 const rTone =
                   rShown === null || rShown === 0 ? "" : rShown > 0 ? "is-win" : "is-loss";
+                // Where entry and the mark sit on the stop → target line, 0–100%.
+                // The same formula serves both sides: for a short the target is
+                // below the stop, so the span is negative and the signs cancel.
+                const span =
+                  trade.stop != null && trade.target != null ? trade.target - trade.stop : 0;
+                const trackAt = (price: number | null | undefined) =>
+                  price == null || span === 0
+                    ? null
+                    : Math.min(100, Math.max(0, ((price - (trade.stop as number)) / span) * 100));
+                const entryAt = trackAt(trade.entry);
+                const markAt = trackAt(mark);
                 return (
                   <Link
                     key={trade.id}
@@ -581,6 +598,27 @@ export function DashboardView({
                       {lots !== null ? (
                         <span className="home-position-lot"> · {lots.toFixed(2)} lot</span>
                       ) : null}
+                    </span>
+                    <span className="home-position-track">
+                      {entryAt !== null ? (
+                        <span
+                          className="home-position-track-bar"
+                          aria-hidden="true"
+                          style={{ "--entry-at": `${entryAt}%` } as React.CSSProperties}
+                        >
+                          <span className="home-position-track-entry" />
+                          {markAt !== null ? (
+                            <span
+                              className={`home-position-track-mark ${rTone}`}
+                              style={{ left: `${markAt}%` }}
+                            />
+                          ) : null}
+                        </span>
+                      ) : null}
+                      <span className="home-position-track-levels metric-number">
+                        <span>{trade.stop == null ? "—" : formatChartPrice(trade.stop, trade.instrument)}</span>
+                        <span>{trade.target == null ? "—" : formatChartPrice(trade.target, trade.instrument)}</span>
+                      </span>
                     </span>
                     <span className="home-position-size metric-number">
                       {lots === null ? "—" : lots.toFixed(2)}

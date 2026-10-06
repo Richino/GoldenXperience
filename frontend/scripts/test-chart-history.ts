@@ -355,7 +355,8 @@ assert.deepEqual(buildTradePath(candleTimes, trade()), [
   { time: seconds(2), value: 1.085 },
   { time: seconds(5), value: 1.088 },
 ]);
-assert.deepEqual(buildTradePath(candleTimes, trade({ exit: null })), []);
+// An open trade is its entry point alone, so the entry arrow has a data point to sit on.
+assert.deepEqual(buildTradePath(candleTimes, trade({ exit: null })), [{ time: seconds(2), value: 1.085 }]);
 assert.deepEqual(buildTradePath(candleTimes, trade({ closedAt: M15(2) })), []);
 assert.deepEqual(buildTradePath(candleTimes, null), []);
 

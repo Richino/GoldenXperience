@@ -37,19 +37,25 @@ function Arrow({ direction }: { direction: TrendDirection }) {
   );
 }
 
-export type NewsImpactPosition = { instrument: string; direction: "long" | "short" };
+export type NewsImpactPosition = { instrument: string; direction: "long" | "short"; openedAt?: string };
 
 /** What a pair has actually done since the release, in pips (positive = up). */
 type ReleaseMove = { firstReaction: number | null; sinceRelease: number };
 
 const MOVE_REFRESH_MS = 30_000;
 const FIRST_REACTION_MINUTES = 15;
+/**
+ * A release's effect is measured over this window, then frozen. Hours later
+ * the price is mostly moving on other things, so calling that the news
+ * helping or hurting a trade would mislead.
+ */
+const NEWS_WINDOW_MINUTES = 60;
 
 /**
- * Price moves since a released event, per pair, from 5-minute candles: the
+ * Price moves after a released event, per pair, from 5-minute candles: the
  * open of the candle at the release time is the reference, the first
- * reaction is the close 15 minutes later, and "since release" is the latest
- * close. Refreshes while the sheet is open, so the outcome keeps updating.
+ * reaction is the close 15 minutes later, and the move is the latest close
+ * inside the news window. Refreshes while the window is open, then stops.
  */
 function useReleaseMoves(pairs: string[], releasedAt: number | null) {
   const [moves, setMoves] = useState<Record<string, ReleaseMove>>({});
@@ -69,11 +75,16 @@ function useReleaseMoves(pairs: string[], releasedAt: number | null) {
           if (start < 0) return null;
           const pip = pipSizeFor(instrument);
           const reference = candles[start]!.open;
+          const closedBy = (end: number) =>
+            candles.slice(start).filter((candle) => Date.parse(candle.time) + 300_000 <= end).at(-1);
           const reactionEnd = release + FIRST_REACTION_MINUTES * 60_000;
-          const reaction = candles.slice(start).filter((candle) => Date.parse(candle.time) + 300_000 <= reactionEnd).at(-1);
+          const reaction = closedBy(reactionEnd);
+          const windowEnd = release + NEWS_WINDOW_MINUTES * 60_000;
+          // Inside the window the latest candle; after it, the last one that closed by its end.
+          const last = Date.now() >= windowEnd ? closedBy(windowEnd) ?? candles.at(-1)! : candles.at(-1)!;
           const move: ReleaseMove = {
             firstReaction: Date.now() >= reactionEnd && reaction ? (reaction.close - reference) / pip : null,
-            sinceRelease: (candles.at(-1)!.close - reference) / pip,
+            sinceRelease: (last.close - reference) / pip,
           };
           return [instrument, move] as const;
         } catch {
@@ -83,7 +94,14 @@ function useReleaseMoves(pairs: string[], releasedAt: number | null) {
       if (!cancelled) setMoves(Object.fromEntries(entries.filter((entry) => entry !== null)));
     }
     void load();
-    const timer = window.setInterval(() => void load(), MOVE_REFRESH_MS);
+    // Once the window has closed the numbers are final: one read, no polling.
+    const windowEnd = release + NEWS_WINDOW_MINUTES * 60_000;
+    const timer = Date.now() < windowEnd
+      ? window.setInterval(() => {
+        void load();
+        if (Date.now() >= windowEnd + 300_000) window.clearInterval(timer);
+      }, MOVE_REFRESH_MS)
+      : undefined;
     return () => {
       cancelled = true;
       window.clearInterval(timer);
@@ -151,11 +169,16 @@ export function NewsImpactSheet({
       : null;
   const currency = event?.currency ?? "";
   const pairs = event ? pairsFor(currency) : [];
-  // Pairs you hold come first, so the answer you care about is at the top.
-  const held = new Map(positions.map((p) => [p.instrument, p.direction]));
+  // Pairs you hold come first, so the answer you care about is at the top. A
+  // trade opened after the news window closed was never exposed to it.
+  const eventTime = event ? Date.parse(event.timestamp) : null;
+  const held = new Map(positions
+    .filter((p) => eventTime === null || !p.openedAt || Date.parse(p.openedAt) < eventTime + NEWS_WINDOW_MINUTES * 60_000)
+    .map((p) => [p.instrument, p.direction]));
   pairs.sort((a, b) => Number(held.has(b)) - Number(held.has(a)));
   const releasedAt = event && Date.parse(event.timestamp) <= now ? Date.parse(event.timestamp) : null;
   const moves = useReleaseMoves(pairs, releasedAt);
+  const windowClosed = releasedAt !== null && now >= releasedAt + NEWS_WINDOW_MINUTES * 60_000;
   // How the currency itself reacted: against how many others it gained.
   const measured = pairs.filter((instrument) => moves[instrument]);
   const currencyGains = measured.filter((instrument) => {
@@ -193,35 +216,37 @@ export function NewsImpactSheet({
           ) : null}
 
           {releasedAt !== null ? (
+            // A short summary: one line of context, then up to three figures.
             <div className="news-impact-outcome">
               <p>
-                Released {sinceText(now - releasedAt)} ago. Moves are pips from the price at release and update
-                every 30 seconds.
+                Released {sinceText(now - releasedAt)} ago ·{" "}
+                {windowClosed ? "final, first hour only" : "live for the first hour"}
               </p>
-              {actualCurrencyMove ? (
-                <p>
-                  {currency} has {actualCurrencyMove === "up" ? "risen" : "fallen"} against{" "}
-                  {actualCurrencyMove === "up" ? currencyGains : measured.length - currencyGains} of {measured.length} currencies
-                  {currencyMove ? (
-                    <>
-                      {`; the prediction (${predicted}, so ${currency} ${currencyMove}) `}
-                      <strong className={currencyMove === actualCurrencyMove ? "is-up" : "is-down"}>
-                        {currencyMove === actualCurrencyMove ? "is right" : "is wrong"}
-                      </strong>
-                      {" so far."}
-                    </>
-                  ) : "."}
-                </p>
-              ) : null}
-              {heldResults.length ? (
-                <p>
-                  {heldResults.length === 1 ? "Your position: " : `Your ${heldResults.length} positions: `}
-                  <strong className={heldNet >= 0 ? "is-up" : "is-down"}>
-                    {heldNet >= 0 ? "helped" : "hurt"}, {signedPips(heldNet)} pips
-                  </strong>
-                  {" since the release."}
-                </p>
-              ) : null}
+              <dl className="news-impact-summary">
+                {heldResults.length ? (
+                  <div>
+                    <dt>{heldResults.length === 1 ? "Your trade" : `Your ${heldResults.length} trades`}</dt>
+                    <dd className={heldNet >= 0 ? "is-up" : "is-down"}>{signedPips(heldNet)} pips</dd>
+                  </div>
+                ) : null}
+                {currencyMove && actualCurrencyMove ? (
+                  <div>
+                    <dt>Prediction</dt>
+                    <dd className={currencyMove === actualCurrencyMove ? "is-up" : "is-down"}>
+                      {currencyMove === actualCurrencyMove ? "✓ Right" : "✗ Wrong"}
+                    </dd>
+                  </div>
+                ) : null}
+                {actualCurrencyMove ? (
+                  <div>
+                    <dt>{currency}</dt>
+                    <dd>
+                      {actualCurrencyMove === "up" ? "▲ Up" : "▼ Down"} vs{" "}
+                      {actualCurrencyMove === "up" ? currencyGains : measured.length - currencyGains}/{measured.length}
+                    </dd>
+                  </div>
+                ) : null}
+              </dl>
             </div>
           ) : null}
 
@@ -249,24 +274,42 @@ export function NewsImpactSheet({
                         ) : null}
                       </span>
                       {releasedAt !== null ? (
-                        <span className="news-impact-legs">
+                        // Three lines, most important first: what it did to
+                        // your trade, what the price did, and whether the
+                        // forecast was right. Green / red always mean good /
+                        // bad for you on a held pair, so the price line stays
+                        // neutral there instead of contradicting the result.
+                        <span className="news-impact-legs is-released">
+                          {result !== null ? (
+                            <strong className={`news-impact-result ${result >= 0 ? "is-up" : "is-down"}`}>
+                              {result >= 0 ? "Helped you" : "Hurt you"} {signedPips(result)} pips
+                            </strong>
+                          ) : null}
                           {actual ? (
-                            <span className={`news-impact-move is-${actual.sinceRelease >= 0 ? "up" : "down"}`}>
-                              {actual.sinceRelease >= 0 ? "▲" : "▼"} {signedPips(actual.sinceRelease)} pips
+                            <span className={`news-impact-move${result !== null ? " is-plain" : ` is-${actual.sinceRelease >= 0 ? "up" : "down"}`}`}>
+                              Price {actual.sinceRelease >= 0 ? "▲ up" : "▼ down"} {Math.abs(actual.sinceRelease).toFixed(1)} pips
+                              {windowClosed ? " in 1st hour" : ""}
                             </span>
                           ) : <span>Loading…</span>}
-                          {result !== null ? (
-                            <em className={result >= 0 ? "is-up" : "is-down"}>
-                              {result >= 0 ? "Helped you" : "Hurt you"} {signedPips(result)} pips
-                            </em>
-                          ) : null}
-                          <small className="news-impact-detail">
-                            {move ? `Expected ${move === "up" ? "▲ up" : "▼ down"}` : "No call"}
-                            {move && actual && actual.sinceRelease !== 0
-                              ? (actual.sinceRelease > 0) === (move === "up") ? " ✓" : " ✗"
-                              : ""}
-                            {actual && actual.firstReaction !== null ? ` · first ${FIRST_REACTION_MINUTES}m ${signedPips(actual.firstReaction)}` : ""}
-                          </small>
+                          <span className="news-impact-tags">
+                            {move ? (
+                              <span
+                                className={`news-impact-call${actual && actual.sinceRelease !== 0
+                                  ? (actual.sinceRelease > 0) === (move === "up") ? " is-right" : " is-wrong"
+                                  : ""}`}
+                              >
+                                Forecast {move}
+                                {actual && actual.sinceRelease !== 0
+                                  ? (actual.sinceRelease > 0) === (move === "up") ? " ✓ right" : " ✗ wrong"
+                                  : ""}
+                              </span>
+                            ) : <span className="news-impact-call">No forecast</span>}
+                            {actual && actual.firstReaction !== null ? (
+                              <span className="news-impact-first">
+                                First {FIRST_REACTION_MINUTES} min: {signedPips(actual.firstReaction)} pips
+                              </span>
+                            ) : null}
+                          </span>
                         </span>
                       ) : (
                         <span className="news-impact-legs">

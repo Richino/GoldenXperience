@@ -3118,6 +3118,36 @@ export function SignalWorkspace({
     ? predictionFocus
     : null;
   const activeFocusId = displayedTrade?.id ?? null;
+  // An open manual trade is not in the chart-trade list (the API returns
+  // manual trades only once closed), so the chart gets one built from the
+  // filled entry, just for its BUY / SELL arrow at the entry candle. It has no
+  // exit, so no trade path is drawn, and Close Trade still reads the entry.
+  const manualChartTrade = useMemo<PaperChartTrade | null>(() => {
+    if (displayedTrade || !activeManualTrade) return null;
+    const entry = activeManualTrade.triggerPrice ?? activeManualTrade.entryPrice;
+    return {
+      id: `manual-entry:${activeManualTrade.id}`,
+      tradeSequence: "Manual",
+      instrument,
+      direction: activeManualTrade.direction,
+      status: "open",
+      outcome: "",
+      entry,
+      stop: activeManualTrade.stopPrice ?? entry,
+      target: activeManualTrade.targetPrice ?? entry,
+      exit: null,
+      resultR: null,
+      openedAt: activeManualTrade.triggeredAt ?? activeManualTrade.createdAt,
+      closedAt: null,
+      exitReason: null,
+      batchNumber: null,
+    };
+  }, [activeManualTrade, displayedTrade, instrument]);
+  const chartTrades = useMemo(
+    () => (manualChartTrade ? [...paperTrades, manualChartTrade] : paperTrades),
+    [manualChartTrade, paperTrades],
+  );
+  const chartFocusId = activeFocusId ?? manualChartTrade?.id ?? null;
   // A direct chart visit can arrive before the watchlist collector has
   // refreshed its `openTradeId`. Prefer the chart's own open-trade read so
   // Active Position never says "no open position" while that trade is live.
@@ -4050,8 +4080,8 @@ export function SignalWorkspace({
               preserveViewportRevision={preserveViewportRevision}
               loadingOlder={loadingOlder}
               onLoadOlder={loadOlderCandles}
-              trades={paperTrades}
-              focusTradeId={activeFocusId}
+              trades={chartTrades}
+              focusTradeId={chartFocusId}
               focusPrediction={focusedPrediction}
               focusRange={focusRange}
               referenceLine={predictionReferenceLine}
@@ -4216,8 +4246,8 @@ export function SignalWorkspace({
               preserveViewportRevision={preserveViewportRevision}
               loadingOlder={loadingOlder}
               onLoadOlder={loadOlderCandles}
-              trades={paperTrades}
-              focusTradeId={activeFocusId}
+              trades={chartTrades}
+              focusTradeId={chartFocusId}
               focusPrediction={focusedPrediction}
               focusRange={focusRange}
               referenceLine={predictionReferenceLine}
@@ -4416,10 +4446,10 @@ export function SignalWorkspace({
                 preserveViewportRevision={preserveViewportRevision}
                 loadingOlder={loadingOlder}
                 onLoadOlder={loadOlderCandles}
-                trades={replayActive ? [] : paperTrades}
+                trades={replayActive ? [] : chartTrades}
                 showTradeMarkers={!replayActive && overlayPreferences.signalMarkers}
                 showTradePath={!replayActive && overlayPreferences.positionMarkers}
-                focusTradeId={replayActive ? null : activeFocusId}
+                focusTradeId={replayActive ? null : chartFocusId}
                 focusPrediction={replayActive ? null : focusedPrediction}
                 focusRange={replayActive ? null : focusRange}
                 referenceLine={replayActive ? null : predictionReferenceLine}

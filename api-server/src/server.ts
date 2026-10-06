@@ -35,7 +35,7 @@ import { decideResearchExperiment, forwardResearchSummary, latestDayTradingValid
 import { collectMultiStrategyCycle, collectPaperCycle, decidePaperBatch, fastResolveFilledTrades, liveResolvePaperTrades, journalTradeLog, journalTradeSummary, multiStrategyOverview, multiStrategyWatchlist, paperCycleOverview, paperRiskExposure, paperRiskPolicy, paperTradesForInstrument, parsePaperRiskConfiguration, reviewPaperTrade, savedExecutableSetups, syncPracticeBrokerHistory, updatePaperRiskPolicy, watchlistSnapshot } from "./paper-cycle.js";
 import { momentumShortInversionStatus } from "./momentum-short-inversion.js";
 import { markNotificationsRead, notificationsForUser, pushPublicKey, queueNotification, removePushSubscription, savePushSubscription } from "./notifications.js";
-import { practiceExecutionOverview, setPracticeExecutionEnabled } from "./practice-execution.js";
+import { backfillPracticeEntryCosts, practiceExecutionOverview, setPracticeExecutionEnabled } from "./practice-execution.js";
 import { binaryJournal, binaryPerformance, binaryPredictionDetail, binaryWatchlistSnapshot, collectBinaryCycle, recentBinaryPredictions, resolveDueBinaryPredictions } from "./binary-engine.js";
 import { binaryAdaptiveStats } from "./binary-adaptive-stats.js";
 import { binaryAdaptiveSelectorStatus } from "./binary-adaptive-selector.js";
@@ -932,6 +932,18 @@ if (databaseConfigured() && schedulersEnabled) {
         .catch((error) => console.error("[pending-entry] OANDA reconciliation failed", error))
         .finally(() => { reconcileBusy = false; });
     }, 8_000);
+    // Copy OANDA's opening-fill spread cost onto new fills. Manual fills had
+    // no other writer, so their trade cards showed no spread cost.
+    let entryCostBusy = false;
+    const backfillEntryCosts = () => {
+      if (entryCostBusy) return;
+      entryCostBusy = true;
+      void backfillPracticeEntryCosts()
+        .catch((error) => console.error("[entry-costs] OANDA spread-cost backfill failed", error))
+        .finally(() => { entryCostBusy = false; });
+    };
+    backfillEntryCosts();
+    setInterval(backfillEntryCosts, 60_000);
   } else {
     console.log("[pending-entry] monitoring disabled because OANDA pricing is not configured");
   }

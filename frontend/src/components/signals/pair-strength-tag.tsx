@@ -5,15 +5,40 @@ import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { apiUrl } from "@/lib/api/url";
 import type { CurrencyStrength, PairStrength, PairStrengthSnapshot } from "@/lib/strategy/pair-strength";
 
-/** Short labels for tight spots (the chart header). */
-const GRADE_LABEL = { strong: "Trending", pullback: "Pullback", turning: "Turning", weak: "Choppy", range: "Sideways" } as const;
+/** Short labels for tight spots (the chart header), in the pair list's plain words. */
+const GRADE_LABEL = { strong: "Trending", pullback: "Pausing", turning: "Fast move", weak: "No trend", range: "Flat" } as const;
 
-/** Plain-English trend, with its direction, for the pair list. */
-function trendLabel(grade: keyof typeof GRADE_LABEL, direction: "up" | "down" | null) {
-  if (grade === "strong") return direction === "down" ? "Trending down" : "Trending up";
-  if (grade === "pullback") return direction === "down" ? "Downtrend, bouncing" : "Uptrend, dipping";
-  if (grade === "turning") return direction === "down" ? "Turning down" : direction === "up" ? "Turning up" : "Turning";
+function pillLabel(grade: keyof typeof GRADE_LABEL, direction: "up" | "down" | null) {
+  if (grade === "strong" && direction) return direction === "down" ? "Going down" : "Going up";
   return GRADE_LABEL[grade];
+}
+
+/**
+ * The pair list's one-line read, in words for someone new to trading. It merges
+ * the 1H trend with which of the two currencies is stronger: a clean trend
+ * reads plainly ("Price going up") only when the stronger currency pushes the
+ * same way; otherwise it adds "but weakly". Chop and sideways say outright there
+ * is no clear direction. It describes the recent move; it is not a forecast.
+ */
+function verdict(
+  grade: keyof typeof GRADE_LABEL,
+  direction: "up" | "down" | null,
+  lean: ReturnType<typeof currencyLean>,
+): { text: string; tone: string } {
+  const going = direction === "down" ? "Price going down" : "Price going up";
+  if (grade === "strong" && direction) {
+    return lean?.lean === direction
+      ? { text: going, tone: `strong-${direction}` }
+      : { text: `${going}, but weakly`, tone: `pullback-${direction}` };
+  }
+  if (grade === "pullback" && direction) {
+    return { text: direction === "down" ? "Price going down, small rise now" : "Price going up, small drop now", tone: `pullback-${direction}` };
+  }
+  if (grade === "turning") {
+    return { text: direction === "down" ? "Price just dropped fast" : direction === "up" ? "Price just jumped fast" : "Price just moved fast", tone: "turning" };
+  }
+  if (grade === "range") return { text: "Price barely moving", tone: "range" };
+  return { text: "Price jumping around, no trend", tone: "weak" };
 }
 
 /**
@@ -27,11 +52,11 @@ const LEAN_EVEN_BELOW = 1.5;
 const LEAN_MUCH_FROM = 4;
 
 const GRADE_TITLE = {
-  strong: "Trending on the 1H chart and moving with it now",
-  pullback: "Trending on the 1H chart, dipping or pausing now",
-  turning: "A sharp move over the last 4 hours against the trend, or where there was none",
-  weak: "Moving, but not in a clean trend",
-  range: "Going sideways",
+  strong: "The price has been moving one way on the hourly chart and is still moving that way",
+  pullback: "The price has been moving one way on the hourly chart, but for the last few hours it has moved back a little the other way",
+  turning: "A sudden move in the last 4 hours, against the earlier direction or out of a flat market",
+  weak: "The price keeps going up and down without settling on a direction",
+  range: "The price has stayed between the same high and low",
 } as const;
 
 /**
@@ -111,10 +136,10 @@ export function usePairStrength(enabled: boolean, refreshMs?: number) {
 }
 
 /**
- * The line under a pair's name, in plain words: the trend ("Trending up",
- * "Sideways") from the 1H trend and the last 4 hours inside it, then which of
- * the pair's two currencies is stronger across the market ("AUD much
- * stronger ↑", or "Evenly matched" when they cancel out).
+ * The line under a pair's name: one plain-words read about the price
+ * ("Price going up", "Price jumping around, no trend") from the 1H trend, the last 4 hours inside it,
+ * and which of the pair's two currencies is stronger across the market. The
+ * tooltip keeps both underlying reads.
  */
 export function PairStrengthTag({
   strength,
@@ -125,24 +150,23 @@ export function PairStrengthTag({
   pillOnly?: boolean;
 }) {
   const { grade, direction } = strength.trend;
-  const tone = (grade === "strong" || grade === "pullback") && direction ? `${grade}-${direction}` : grade;
-  const Arrow = direction === "up" ? ArrowUpRight : direction === "down" ? ArrowDownRight : null;
-  const lean = pillOnly ? null : currencyLean(strength.base, strength.quote);
-  const LeanArrow = lean?.lean === "up" ? ArrowUpRight : lean?.lean === "down" ? ArrowDownRight : null;
+  const lean = currencyLean(strength.base, strength.quote);
+  const read = verdict(grade, direction, lean);
+  // The chart header keeps its short pill; the colours follow the full read.
+  const tone = pillOnly
+    ? (grade === "strong" || grade === "pullback") && direction ? `${grade}-${direction}` : grade
+    : read.tone;
+  const Arrow = (grade === "range" || grade === "weak") ? null
+    : direction === "up" ? ArrowUpRight : direction === "down" ? ArrowDownRight : null;
+  const title = pillOnly || !lean ? GRADE_TITLE[grade] : `${GRADE_TITLE[grade]}. ${lean.text}: ${lean.title}`;
 
   return (
-    <span className={`pair-strength${pillOnly ? " pair-strength--pill" : ""}`} title={GRADE_TITLE[grade]}>
+    <span className={`pair-strength${pillOnly ? " pair-strength--pill" : ""}`} title={title}>
       <span className="pair-strength-chip" data-tone={tone}>
         {Arrow ? <Arrow className="size-3" strokeWidth={2.4} aria-hidden /> : <span className="pair-strength-dot" aria-hidden />}
-        <span className="pair-strength-label">{pillOnly ? GRADE_LABEL[grade] : trendLabel(grade, direction)}</span>
+        <span className="pair-strength-label">{pillOnly ? pillLabel(grade, direction) : read.text}</span>
         {pillOnly && direction ? <span className="sr-only"> {direction}</span> : null}
       </span>
-      {lean ? (
-        <span className="pair-strength-lean" data-lean={lean.lean} title={lean.title}>
-          {lean.text}
-          {LeanArrow ? <LeanArrow className="size-3" strokeWidth={2.4} aria-hidden /> : null}
-        </span>
-      ) : null}
     </span>
   );
 }

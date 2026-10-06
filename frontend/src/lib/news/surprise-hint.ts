@@ -25,17 +25,18 @@ export type NewsSurpriseHint =
       direction: TrendDirection | "flat";
     };
 
-/** Parse ForexFactory-style values (220K, 0.3%, -1.2M). */
+/**
+ * Parse ForexFactory-style values (220K, 0.3%, -1.2M). A trailing % is dropped,
+ * not scaled: values are only compared within one release, and the calendar
+ * sometimes prints the actual without the % its forecast has ("3.0" vs "3.1%"),
+ * which scaled one side by 0.01 and turned a lower reading into a "beat".
+ */
 export function parseCalendarValue(raw: string | null): number | null {
   if (!raw?.trim()) return null;
   let s = raw.trim().replace(/,/g, "").replace(/\s+/g, "");
   if (!s || s === "—" || s === "-") return null;
 
-  let percent = false;
-  if (s.endsWith("%")) {
-    percent = true;
-    s = s.slice(0, -1);
-  }
+  if (s.endsWith("%")) s = s.slice(0, -1);
 
   const suffix = s.slice(-1).toUpperCase();
   let multiplier = 1;
@@ -55,7 +56,7 @@ export function parseCalendarValue(raw: string | null): number | null {
 
   const value = Number(s);
   if (!Number.isFinite(value)) return null;
-  return value * multiplier * (percent ? 0.01 : 1);
+  return value * multiplier;
 }
 
 /**

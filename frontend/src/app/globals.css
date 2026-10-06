@@ -18449,7 +18449,6 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
   /* The trade's direction colours the title; a weak-setup note stays muted. */
   html:is(.dark, :not(.dark)) .tp-sheet .tp-title.is-long { color: var(--gx-primary); }
   html:is(.dark, :not(.dark)) .tp-sheet .tp-title.is-short { color: var(--gx-danger); }
-  html:is(.dark, :not(.dark)) .tp-sheet .tp-title .tp-title-note { color: var(--gx-text-2); font-weight: 600; }
 
   html:is(.dark, :not(.dark)) .tp-close {
     display: grid;

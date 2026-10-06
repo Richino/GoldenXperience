@@ -83,7 +83,7 @@ export function MarketAnalysisDialog({ normal, swing, instrument, analyzing = fa
         <header className="tp-head flex items-start justify-between gap-4">
           <div>
             <p className="tp-eyebrow text-xs font-semibold uppercase tracking-wide text-emerald-600">Market structure · {analysis.mode === "SWING" ? "Swing" : "Normal"} · {analysis.primaryTimeframe}</p>
-            <h2 id="market-analysis-title" className={`tp-title mt-1 text-xl font-semibold ${tone}${analysis.decision === "LONG" ? " is-long" : analysis.decision === "SHORT" ? " is-short" : ""}`}>{analysis.weakSetup ? <>{analysis.decision === "LONG" ? "Long" : "Short"}<span className="tp-title-note"> · weak setup</span></> : DECISION_LABEL[analysis.decision]}</h2>
+            <h2 id="market-analysis-title" className={`tp-title mt-1 text-xl font-semibold ${tone}${analysis.decision === "LONG" ? " is-long" : analysis.decision === "SHORT" ? " is-short" : ""}`}>{DECISION_LABEL[analysis.decision]}</h2>
           </div>
           <button type="button" onClick={requestClose} className="tp-close rounded-lg px-2 py-1 text-xl" aria-label="Close analysis">×</button>
         </header>
@@ -121,9 +121,16 @@ export function MarketAnalysisDialog({ normal, swing, instrument, analyzing = fa
           </div>
         ) : null}
 
+        {trade && analysis.warnings.length ? (
+          <div className="tp-plan-caution mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200" role="alert">
+            <p className="text-[11px] font-bold uppercase tracking-wide">⚠ Before you accept</p>
+            <ul className="mt-1 space-y-1 text-xs leading-5">{analysis.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>
+          </div>
+        ) : null}
+
         {trade ? <>
           <dl className="tp-levels mt-3 grid grid-cols-2 gap-2">
-            <div className="tp-level is-stop rounded-xl border border-rose-200 p-3 dark:border-rose-950"><dt className="tp-level-label text-[11px] font-semibold uppercase tracking-wide text-rose-600">Stop loss</dt><dd className="tp-level-price mt-1 font-mono text-base font-semibold">{format(trade.stopLoss)}</dd><dd className="tp-level-copy mt-1 text-xs text-zinc-500">{trade.stopPips} pips risk</dd></div>
+            <div className="tp-level is-stop rounded-xl border border-rose-200 p-3 dark:border-rose-950"><dt className="tp-level-label text-[11px] font-semibold uppercase tracking-wide text-rose-600">Stop loss</dt><dd className="tp-level-price mt-1 font-mono text-base font-semibold">{format(trade.stopLoss)}</dd><dd className="tp-level-copy mt-1 text-xs text-zinc-500">{trade.stopPips} pips risk · {trade.stopBasis}</dd></div>
             <div className="tp-level is-target rounded-xl border border-sky-200 p-3 dark:border-sky-950"><dt className="tp-level-label text-[11px] font-semibold uppercase tracking-wide text-sky-600">Take profit</dt><dd className="tp-level-price mt-1 font-mono text-base font-semibold">{format(trade.takeProfit)}</dd><dd className="tp-level-copy mt-1 text-xs text-zinc-500">{trade.targetPips} pips reward</dd></div>
           </dl>
           <div className="tp-rr mt-3 flex items-center justify-between rounded-xl px-3 py-2 text-sm"><span className="text-zinc-500">Risk : reward</span><strong className="font-mono text-base">{riskToReward(trade.riskReward)}</strong></div>

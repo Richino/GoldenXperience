@@ -154,6 +154,8 @@ const LAST_CHART_INSTRUMENT_COOKIE = "gx-last-chart-instrument";
 
 /* Keep the mobile picker scannable. The full OANDA catalog remains available
  * as soon as someone starts typing in search. */
+/** Pair picker order: tradable trends first (a pullback is the setup Analyze trades), flat pairs last. */
+const PICKER_GRADE_ORDER = { pullback: 0, strong: 1, turning: 2, weak: 3, range: 4 } as const;
 const DEFAULT_PAIR_PICKER_INSTRUMENTS = [
   "EUR_USD",
   "USD_JPY",
@@ -1190,10 +1192,17 @@ function SignalSearch({
   const matches = useMemo(() => {
     if (!normalizedQuery) {
       const byInstrument = new Map(index.map((result) => [result.instrument, result]));
+      // Tradable pairs on top, cleaner trends first within a grade; a pair
+      // without a strength read yet keeps its usual place after them.
+      const rank = (instrument: string) => {
+        const strength = pairStrength.get(instrument);
+        return strength ? PICKER_GRADE_ORDER[strength.trend.grade] : 9;
+      };
       return DEFAULT_PAIR_PICKER_INSTRUMENTS.flatMap((instrument) => {
         const result = byInstrument.get(instrument);
         return result ? [result] : [];
-      });
+      }).sort((left, right) => rank(left.instrument) - rank(right.instrument)
+        || (pairStrength.get(right.instrument)?.trend.score ?? 0) - (pairStrength.get(left.instrument)?.trend.score ?? 0));
     }
 
     return index
@@ -1213,7 +1222,7 @@ function SignalSearch({
         if (leftRank !== rightRank) return leftRank - rightRank;
         return Number(!!right.signal) - Number(!!left.signal);
       });
-  }, [index, normalizedQuery]);
+  }, [index, normalizedQuery, pairStrength]);
   const visibleMatches = compact ? matches : matches.slice(0, 5);
   const showResults = open;
   const useDesktopDropdown = compact && isDesktop;
@@ -2499,9 +2508,13 @@ export function SignalWorkspace({
         && Number.isFinite(quoteAgeMs) && quoteAgeMs >= -30_000 && quoteAgeMs <= 2 * 60_000 ? quote.mid : null;
       const spreadPips = currentPrice !== null && quote && quote.ask > quote.bid ? (quote.ask - quote.bid) / pipSizeFor(instrument) : null;
       const candles = { M5: m5Candles, M15: candlesPayload.data.candles, H1: h1Candles, H4: h4Candles, D1: dailyCandles };
-      const result = analyzeMarket({ instrument, mode: "NORMAL", candles, currentPrice, spreadPips, newsEvents: calendarEvents });
+      // Open trades and resting orders on every pair, for the same-currency warning.
+      const exposure = allPendingEntries
+        .filter((entry) => entry.status === "PENDING" || entry.status === "TRIGGERING" || (entry.status === "TRIGGERED" && entry.paperTradeStatus === "open"))
+        .map((entry) => ({ instrument: entry.instrument, direction: entry.direction }));
+      const result = analyzeMarket({ instrument, mode: "NORMAL", candles, currentPrice, spreadPips, newsEvents: calendarEvents, exposure });
       const swing = h4Candles?.length
-        ? analyzeMarket({ instrument, mode: "SWING", candles, currentPrice, spreadPips, newsEvents: calendarEvents })
+        ? analyzeMarket({ instrument, mode: "SWING", candles, currentPrice, spreadPips, newsEvents: calendarEvents, exposure })
         : null;
       if (request !== trendPullbackRequestRef.current) return;
       setTrendPullbackResult(result);
@@ -2521,7 +2534,7 @@ export function SignalWorkspace({
       if (request === trendPullbackRequestRef.current) setTrendPullbackBusy(false);
       if (trendPullbackAbortRef.current === controller) trendPullbackAbortRef.current = null;
     }
-  }, [embeddedSurfaceOnly, instrument, postTrendPullbackToNative, replayActive]);
+  }, [allPendingEntries, embeddedSurfaceOnly, instrument, postTrendPullbackToNative, replayActive]);
   const cancelTrendPullback = useCallback(() => {
     trendPullbackRequestRef.current += 1;
     trendPullbackAbortRef.current?.abort();

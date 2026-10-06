@@ -23,22 +23,26 @@ import type { Candle, MajorInstrument } from "@/types/forex";
  *   RANGE      → support = LONG area, resistance = SHORT area, middle = avoid
  *   TRANSITION → no trade; reassess once a new regime is confirmed
  *
- * Analyze always returns a trade (the user's choice). When the read finds no
- * proper setup (transition, mid-range, weak range, extended price) the plan
- * is the best lean instead, flagged `weakSetup`, with the reason kept as the
- * main risk.
+ * When the read finds no proper setup (transition, mid-range, weak range,
+ * too few candles) the decision is NO TRADE (user's choice, 2026-10-06: the
+ * "lean anyway" orders were most of the Oct 5 losses). A limit entry sits at
+ * its structural level when that fills often enough, otherwise at the
+ * deepest point that still fills about 70% of the time (`minFillChancePct`):
+ * a nearer support bounces no more often than any other price, so going
+ * deeper only costs fills.
  *
- * Entries come from detected structure; the stop and target are multiples of
- * a base distance (`stopMultiple`/`targetMultiple`): both modes are 1:2, with
- * the stop a share of the average daily range (about a third of a day in
- * Normal, a full day in Swing). A trade is refused
- * when price is extended away from the pullback, or when the spread eats the
- * stop.
+ * Both modes are 1:2. The stop starts at a share of the average daily range
+ * (about a third of a day in Normal, a full day in Swing), then moves to just
+ * past the swing or tested zone nearest that distance, so it does not sit
+ * inside structure; the target stays twice the stop. `warnings` flags open
+ * trades on the same side of a currency. (Obstacle-before-target and
+ * day-range-used warnings were tried and dropped: in a 2-year replay the
+ * flagged trades did no worse.)
  */
 
 export type { AnalysisMode, NormalHierarchy } from "@/lib/strategy/timeframe-roles";
 export type Decision = "LONG" | "SHORT" | "NO TRADE";
-export type SetupType = "TREND_PULLBACK" | "RANGE_SUPPORT" | "RANGE_RESISTANCE" | "LEAN" | "NONE";
+export type SetupType = "TREND_PULLBACK" | "RANGE_SUPPORT" | "RANGE_RESISTANCE" | "NONE";
 export type ChaseRisk = "LOW" | "MEDIUM" | "HIGH";
 /** How the primary regime and the context regime relate. */
 export type Alignment = "ALIGNED" | "CONFLICTING" | "MIXED" | "UNKNOWN";
@@ -78,17 +82,26 @@ export const MARKET_ANALYSIS = {
   baseH1Atr: { NORMAL: 2, SWING: 4.5 },
   baseMinPips: { NORMAL: 20, SWING: 25 },
   /**
-   * A limit entry never sits further from price than this many average 1-hour
-   * candles, so it has a high chance of filling within the order's lifetime
-   * (4h normal, 48h swing). Measured on 14 majors, 2021-10..2026-10, M5
-   * bid/ask: 0.25 fills ~83% in 4h, 0.75 fills ~82% in 48h. The structural
-   * level is used when it is closer than this.
+   * A limit entry is never placed where it would fill less often than this
+   * within the order's lifetime (4h normal, 48h swing), per FILL_CURVE: about
+   * 0.44 average 1-hour candles from price in Normal, 1.4 in Swing (user's
+   * choice, 2026-10-06). The structural level is used when it is closer.
+   * Supports, fib levels and zones bounce no more often than other prices, so
+   * a deeper entry buys no better hold, only fewer fills.
    */
-  maxEntryH1Atr: { NORMAL: 0.25, SWING: 0.75 },
+  minFillChancePct: 70,
   /** Distance from the pullback zone, in ATRs: up to this is low chase risk... */
   lowChaseAtr: 1,
-  /** ...up to this medium; beyond it price is extended and no trade is offered. */
+  /** ...up to this medium; beyond it HIGH (the limit still rests at the zone). */
   maxChaseAtr: 2.5,
+  /**
+   * Structure stop: a swing or tested-zone edge between these shares of the
+   * daily-range stop distance (behind the entry) may carry the stop; the one
+   * nearest the default distance wins, and the stop goes past it by
+   * `structureStopBuffer` of the default distance plus the spread.
+   */
+  structureStopBand: [0.6, 1.4] as const,
+  structureStopBuffer: 0.1,
   /** Range thirds: the outer third on each side is a boundary, the middle is avoided. */
   rangeEdgeShare: 1 / 3,
   /**
@@ -128,6 +141,8 @@ export interface MarketAnalysisInput {
   newsEvents?: NewsEvent[];
   /** The moment of the analysis in ms (replays pass the candle time). */
   now?: number;
+  /** The trader's open trades and resting orders, for the same-currency warning. */
+  exposure?: Array<{ instrument: string; direction: "long" | "short" }>;
 }
 
 export interface MarketAnalysis {
@@ -148,8 +163,6 @@ export interface MarketAnalysis {
   };
   decision: Decision;
   setupType: SetupType;
-  /** No proper setup was found, so the trade is the best lean rather than a setup. */
-  weakSetup: boolean;
   currentPrice: number;
   structure: { latestSwingHigh: number | null; latestSwingLow: number | null; interpretation: string };
   trend: { impulse: string; pullbackZone: { low: number; high: number } | null; entry: number | null; chaseRisk: ChaseRisk; distanceToPullbackPips: number | null } | null;
@@ -167,8 +180,12 @@ export interface MarketAnalysis {
     holding: string;
     /** Estimated chance a limit entry fills before the order expires (100 for market). */
     fillChancePct: number;
+    /** What the stop sits behind: a structure level, or the daily-range distance alone. */
+    stopBasis: string;
   } | null;
   risk: { spread: string; news: string; invalidation: string; main: string };
+  /** Cautions the plan itself cannot fix; empty when there are none. */
+  warnings: string[];
   /** Hold the order until after imminent high-impact news (ISO), else null. */
   activateAfter: string | null;
   reason: string;
@@ -177,7 +194,7 @@ export interface MarketAnalysis {
 /**
  * Share of limit orders this many average 1-hour candles from price that filled
  * within the Analyze lifetime (normal 4h, swing 48h), interpolated from the
- * 14-major, 5-year measurement behind `maxEntryH1Atr`.
+ * 14-major, 5-year measurement (14 majors, 2021-10..2026-10, M5 bid/ask).
  */
 const FILL_CURVE: Record<AnalysisMode, Array<[number, number]>> = {
   NORMAL: [[0, 100], [0.1, 93], [0.25, 83], [0.5, 66], [0.75, 52], [1, 40], [1.5, 24], [2, 14], [3, 5]],
@@ -207,6 +224,50 @@ function averageDailyRange(candles: Candle[], days: number): number | null {
   const complete = ordered.slice(0, -1).map(([, day]) => day).filter((day) => day.count >= 18).slice(-days);
   if (complete.length < 3) return null;
   return complete.reduce((sum, day) => sum + (day.high - day.low), 0) / complete.length;
+}
+
+/** A structure level a read found, with where it came from for the plan's wording. */
+type Level = { price: number; label: string };
+
+/**
+ * Swings and tested-zone edges of one read that still hold: no completed close
+ * has gone through them since they formed, and price is still on their side.
+ * `side` "below" gives supports (swing lows, zone lows), "above" resistances.
+ */
+function intactLevels(read: RegimeRead | null, candles: Candle[] | undefined, timeframe: string, side: "below" | "above", price: number): Level[] {
+  if (!read || !candles?.length) return [];
+  const complete = candles.filter((candle) => candle.complete !== false);
+  const below = side === "below";
+  const holds = (level: number, after: (candle: Candle, index: number) => boolean) =>
+    (below ? price > level : price < level) && complete.every((candle, index) => !after(candle, index) || (below ? candle.close >= level : candle.close <= level));
+  const swings = read.swings
+    .filter((swing) => swing.type === (below ? "low" : "high"))
+    .filter((swing) => holds(swing.price, (_, index) => index > swing.index))
+    .map((swing) => ({ price: swing.price, label: `${timeframe} swing ${swing.type}` }));
+  const zones = read.zones
+    .filter((zone) => zone.touches >= 2)
+    .map((zone) => ({ edge: below ? zone.low : zone.high, zone }))
+    .filter(({ edge, zone }) => holds(edge, (candle) => candle.time > zone.lastTime))
+    .map(({ edge, zone }) => ({ price: edge, label: `${timeframe} ${below ? "support" : "resistance"} (${zone.touches} touches)` }));
+  return [...swings, ...zones];
+}
+
+/** +1 for each currency the trade buys, -1 for each it sells. */
+function currencyLegs(instrument: string, direction: "long" | "short") {
+  const [base, quote] = instrument.split("_");
+  const sign = direction === "long" ? 1 : -1;
+  return base && quote ? [{ currency: base, sign }, { currency: quote, sign: -sign }] : [];
+}
+
+/** The furthest distance from price, in average 1-hour candles, that still fills `pct`% of the time. */
+function distanceForFill(mode: AnalysisMode, pct: number) {
+  const curve = FILL_CURVE[mode];
+  for (let i = 1; i < curve.length; i += 1) {
+    const [x1, y1] = curve[i]!;
+    const [x0, y0] = curve[i - 1]!;
+    if (pct >= y1) return x0 + ((x1 - x0) * (y0 - pct)) / (y0 - y1);
+  }
+  return curve.at(-1)![0];
 }
 
 function fillChance(mode: AnalysisMode, distanceH1Atr: number) {
@@ -325,7 +386,6 @@ export function analyzeMarket(input: MarketAnalysisInput): MarketAnalysis {
     },
     decision: "NO TRADE",
     setupType: "NONE",
-    weakSetup: false,
     currentPrice: round(price),
     structure: {
       latestSwingHigh: read.latestSwingHigh ? round(read.latestSwingHigh.price) : null,
@@ -337,6 +397,7 @@ export function analyzeMarket(input: MarketAnalysisInput): MarketAnalysis {
     transition: read.transition,
     trade: null,
     risk: { spread: spreadPips === null ? "Unknown (no live quote)" : `${spreadPips.toFixed(1)} pips`, news: NO_NEWS, invalidation: "—", main: "—" },
+    warnings: [],
     activateAfter: null,
     reason: read.interpretation,
   };
@@ -359,11 +420,20 @@ export function analyzeMarket(input: MarketAnalysisInput): MarketAnalysis {
   const targetMultiple = settings.targetMultiple[input.mode];
   const rangeBase = dailyRange === null ? null : (settings.stopShareOfDailyRange[input.mode] * dailyRange) / stopMultiple;
 
-  /** Builds the 1:2 trade. A costly spread is flagged, never refused. */
+  /** Supports ("below") or resistances ("above") on the primary and setup timeframes. */
+  const levels = (side: "below" | "above") => [
+    ...intactLevels(read, input.candles[config.primary], config.primary, side, price),
+    ...(config.setup ? intactLevels(setupRead, input.candles[config.setup], config.setup, side, price) : []),
+  ];
+
+  /**
+   * Builds the 1:2 trade. A costly spread is flagged, never refused. A
+   * structural entry further away than the 70%-fill distance is pulled in to
+   * that distance; it still waits for a dip (or rise), never chases.
+   */
   const finishTrade = (direction: "LONG" | "SHORT", structuralEntry: number, setup: SetupType, invalidation: string) => {
     const long = direction === "LONG";
-    // Pull a far structural entry in to the fill-chance cap.
-    const maxDistance = settings.maxEntryH1Atr[input.mode] * h1Atr;
+    const maxDistance = distanceForFill(input.mode, settings.minFillChancePct) * h1Atr;
     const capped = long ? Math.max(structuralEntry, price - maxDistance) : Math.min(structuralEntry, price + maxDistance);
     const atEntry = Math.abs(price - capped) <= 0.1 * (atr > 0 ? atr : h1Atr) || (long ? price < capped : price > capped);
     const entry = atEntry ? price : capped;
@@ -371,10 +441,20 @@ export function analyzeMarket(input: MarketAnalysisInput): MarketAnalysis {
       rangeBase ?? settings.baseH1Atr[input.mode] * h1Atr,
       settings.baseMinPips[input.mode] * pip,
     );
-    const risk = stopMultiple * base;
+    const defaultRisk = stopMultiple * base;
+    // Move the stop just past the structure nearest the default distance, so
+    // a retest of that level does not take it out.
+    const [bandNear, bandFar] = settings.structureStopBand;
+    const behind = levels(long ? "below" : "above")
+      .map((level) => ({ ...level, distance: long ? entry - level.price : level.price - entry }))
+      .filter((level) => level.distance >= bandNear * defaultRisk && level.distance <= bandFar * defaultRisk)
+      .sort((a, b) => Math.abs(a.distance - defaultRisk) - Math.abs(b.distance - defaultRisk))[0] ?? null;
+    const buffer = settings.structureStopBuffer * defaultRisk + (spreadPips ?? 0) * pip;
+    const risk = behind ? behind.distance + buffer : defaultRisk;
     const stop = long ? entry - risk : entry + risk;
-    const target = long ? entry + targetMultiple * base : entry - targetMultiple * base;
+    const target = long ? entry + targetMultiple * risk : entry - targetMultiple * risk;
     const stopPips = risk / pip;
+    const targetPips = Math.abs(target - entry) / pip;
     result.decision = direction;
     result.setupType = setup;
     result.trade = {
@@ -383,45 +463,38 @@ export function analyzeMarket(input: MarketAnalysisInput): MarketAnalysis {
       takeProfit: round(target),
       riskReward: Number((Math.abs(target - entry) / risk).toFixed(2)),
       stopPips: Number(stopPips.toFixed(1)),
-      targetPips: Number((Math.abs(target - entry) / pip).toFixed(1)),
+      targetPips: Number(targetPips.toFixed(1)),
       orderType: atEntry ? "MARKET" : long ? "BUY_LIMIT" : "SELL_LIMIT",
       holding: config.holding,
       fillChancePct: atEntry ? 100 : fillChance(input.mode, Math.abs(price - entry) / h1Atr),
+      stopBasis: behind
+        ? `${long ? "Below" : "Above"} ${behind.label} ${behind.price.toFixed(digits)}`
+        : `${settings.stopShareOfDailyRange[input.mode] === 1 ? "One average daily range" : `${settings.stopShareOfDailyRange[input.mode]} of the average daily range`}; no structure near it`,
     };
     result.risk.invalidation = invalidation;
     const spreadShare = spreadPips === null ? null : spreadPips / stopPips;
     result.risk.spread = spreadPips === null
       ? result.risk.spread
-      : `${spreadPips.toFixed(1)} pips (${Math.round(spreadShare! * 100)}% of stop, ${Math.round((spreadPips / (Math.abs(target - entry) / pip)) * 100)}% of target)${spreadShare! > settings.spreadRejectShare ? " — too costly" : spreadShare! > settings.spreadWarnShare ? " — high" : ""}`;
+      : `${spreadPips.toFixed(1)} pips (${Math.round(spreadShare! * 100)}% of stop, ${Math.round((spreadPips / targetPips) * 100)}% of target)${spreadShare! > settings.spreadRejectShare ? " — too costly" : spreadShare! > settings.spreadWarnShare ? " — high" : ""}`;
+
+    // Open trades and orders betting the same way on a currency.
+    const legs = currencyLegs(input.instrument, long ? "long" : "short");
+    for (const leg of legs) {
+      const same = (input.exposure ?? []).filter((open) => currencyLegs(open.instrument, open.direction).some((other) => other.currency === leg.currency && other.sign === leg.sign));
+      if (!same.length) continue;
+      const list = same.map((open) => `${open.direction} ${open.instrument.replace("_", "/")}`).join(", ");
+      result.warnings.push(`Already ${leg.sign > 0 ? "long" : "short"} ${leg.currency} in ${same.length} open trade${same.length === 1 ? "" : "s"} or order${same.length === 1 ? "" : "s"} (${list}); this adds to the same bet.`);
+    }
   };
 
-  /**
-   * The direction to lean when there is no setup: where a transition is
-   * heading, else the context trend, else the setup timeframe's move, else
-   * the last day of primary candles.
-   */
-  const leanDirection = (): "LONG" | "SHORT" => {
-    const potential = read.transition?.potential ?? "";
-    if (potential.startsWith("UPTREND")) return "LONG";
-    if (potential.startsWith("DOWNTREND")) return "SHORT";
-    if (contextRead?.regime === "UPTREND") return "LONG";
-    if (contextRead?.regime === "DOWNTREND") return "SHORT";
-    if (setupMovement === "UP") return "LONG";
-    if (setupMovement === "DOWN") return "SHORT";
-    const closes = (input.candles[config.primary] ?? []).filter((candle) => candle.complete !== false);
-    const dayAgo = closes.at(-25)?.close ?? closes[0]?.close ?? price;
-    return price >= dayAgo ? "LONG" : "SHORT";
-  };
-  /** A trade with no proper setup behind it: `why` is what the read objected to. */
-  const leanTrade = (why: string, risk: string, direction = leanDirection(), entry = price) => {
-    finishTrade(direction, entry, "LEAN", "No structure defines this trade; the plan's stop is the only exit.");
-    result.weakSetup = true;
-    result.reason = `${why} Weak setup: leaning ${direction === "LONG" ? "long" : "short"} anyway.`;
+  /** No proper setup: `why` is what the read objected to. */
+  const noTrade = (why: string, risk: string) => {
+    result.reason = `${why} No trade.`;
     result.risk.main = risk;
     return result;
   };
 
-  if (!(atr > 0)) return leanTrade("Not enough completed candles to read structure.", "No structure read.");
+  if (!(atr > 0)) return noTrade("Not enough completed candles to read structure.", "No structure read.");
 
   if (read.regime === "UPTREND" || read.regime === "DOWNTREND") {
     const up = read.regime === "UPTREND";
@@ -489,20 +562,20 @@ export function analyzeMarket(input: MarketAnalysisInput): MarketAnalysis {
       chaseRisk,
       distanceToPullbackPips: Number((Math.max(0, distance) / pip).toFixed(1)),
     };
-    if (chaseRisk === "HIGH") {
-      // Extended: the limit waits back at the pullback zone instead of chasing.
-      return leanTrade(`${read.regime === "UPTREND" ? "Uptrend" : "Downtrend"}, but price is ${distanceAtr.toFixed(1)} ATR past the pullback zone ${zoneText(zone, digits)}; the order waits there.`,
-        "Extended price: it may never pull back far enough to fill.", up ? "LONG" : "SHORT", entryEdge);
-    }
     // Pullback already beyond the zone toward the structure: still valid while
     // the structure holds; the entry is then price itself.
     const entry = up ? Math.min(entryEdge, Math.max(price, legLow)) : Math.max(entryEdge, Math.min(price, legHigh));
     finishTrade(up ? "LONG" : "SHORT", entry, "TREND_PULLBACK",
       `${up ? "Close below" : "Close above"} ${structureLevel.toFixed(digits)} (the ${up ? "higher low" : "lower high"}) ends the trend.`);
+    // The 70%-fill cap may have pulled the limit in from the zone.
+    const shortOfZone = result.trade && result.trade.orderType !== "MARKET" ? Math.abs(result.trade.entry - entryEdge) / pip : 0;
     result.risk.main = contextAgrees === false
       ? `${config.context} is ${contextRead!.regime}: this trade runs against the higher timeframe.`
-      : chaseRisk === "MEDIUM" ? "Price may not pull back far enough to fill." : "Structure failure through the invalidation level.";
-    result.reason = `${read.interpretation} ${up ? "Buy" : "Sell"} the pullback at ${zone.kind}, ${zoneText(zone, digits)}.`;
+      : shortOfZone >= 1 ? `The entry sits ${shortOfZone.toFixed(0)} pips ${up ? "above" : "below"} the zone so it fills about ${settings.minFillChancePct}% of the time; it may fill before price reaches the zone.`
+        : "Structure failure through the invalidation level.";
+    // Price already pulled back through the zone (still short of the structure level).
+    const pastZone = result.trade?.orderType === "MARKET" && (up ? price < zone.low : price > zone.high);
+    result.reason = `${read.interpretation} ${up ? "Buy" : "Sell"} the pullback ${shortOfZone >= 1 ? "toward" : pastZone ? "past" : "at"} ${zone.kind}, ${zoneText(zone, digits)}${shortOfZone >= 1 ? `; the limit sits ${shortOfZone.toFixed(0)} pips ${up ? "above" : "below"} it, the deepest entry that still fills about ${settings.minFillChancePct}% of the time` : pastZone ? `; price is already through it, so the entry is now` : ""}.`;
     return result;
   }
 
@@ -516,14 +589,14 @@ export function analyzeMarket(input: MarketAnalysisInput): MarketAnalysis {
       location, preferredSide: location === "NEAR SUPPORT" ? "LONG" : location === "NEAR RESISTANCE" ? "SHORT" : "NONE",
     };
     if (location === "MIDDLE") {
-      return leanTrade(`Range ${range.low.toFixed(digits)}–${range.high.toFixed(digits)}; price is in the middle (${Math.round(share * 100)}%), a poor location.`,
+      return noTrade(`Range ${range.low.toFixed(digits)}–${range.high.toFixed(digits)}; price is in the middle (${Math.round(share * 100)}%), a poor location.`,
         "Poor location: no edge in the middle of a range.");
     }
     const long = location === "NEAR SUPPORT";
     const entry = long ? Math.min(price, range.lowZone.high) : Math.max(price, range.highZone.low);
     if (read.confidence !== settings.rangeTradeMinConfidence) {
-      return leanTrade(`Range ${range.low.toFixed(digits)}–${range.high.toFixed(digits)}, price ${long ? "near support" : "near resistance"}, but the range is not established (${read.confidence.toLowerCase()} confidence; needs 5+ boundary touches).`,
-        "Weak range: young ranges usually break instead of holding.", long ? "LONG" : "SHORT", entry);
+      return noTrade(`Range ${range.low.toFixed(digits)}–${range.high.toFixed(digits)}, price ${long ? "near support" : "near resistance"}, but the range is not established (${read.confidence.toLowerCase()} confidence; needs 5+ boundary touches).`,
+        "Weak range: young ranges usually break instead of holding.");
     }
     finishTrade(long ? "LONG" : "SHORT", entry, long ? "RANGE_SUPPORT" : "RANGE_RESISTANCE",
       `A close ${long ? "below" : "above"} ${(long ? range.low : range.high).toFixed(digits)} breaks the range.`);
@@ -532,8 +605,8 @@ export function analyzeMarket(input: MarketAnalysisInput): MarketAnalysis {
     return result;
   }
 
-  // TRANSITION: no confirmed regime, so lean the most likely way.
-  return leanTrade(read.interpretation, "No confirmed regime.");
+  // TRANSITION: no confirmed regime, so no trade until one is.
+  return noTrade(read.interpretation, "No confirmed regime.");
 }
 
 /** The analysis as the plain-text report the spec describes. */
@@ -588,7 +661,7 @@ export function formatMarketAnalysis(analysis: MarketAnalysis) {
   }
   lines.push("", "TRADE:",
     `- Entry: ${price(analysis.trade?.entry)}${analysis.trade ? ` (${analysis.trade.orderType === "MARKET" ? "available now" : analysis.trade.orderType.replace("_", " ").toLowerCase()})` : ""}`,
-    `- Stop Loss: ${price(analysis.trade?.stopLoss)}${analysis.trade ? ` (${analysis.trade.stopPips} pips)` : ""}`,
+    `- Stop Loss: ${price(analysis.trade?.stopLoss)}${analysis.trade ? ` (${analysis.trade.stopPips} pips; ${analysis.trade.stopBasis})` : ""}`,
     `- Take Profit: ${price(analysis.trade?.takeProfit)}${analysis.trade ? ` (${analysis.trade.targetPips} pips)` : ""}`,
     `- Risk/Reward: ${analysis.trade ? `${analysis.trade.riskReward}:1` : "—"}`,
     `- Expected holding style: ${analysis.trade?.holding ?? "—"}`,
@@ -597,6 +670,7 @@ export function formatMarketAnalysis(analysis: MarketAnalysis) {
     `- News: ${analysis.risk.news}`,
     `- Structure invalidation: ${analysis.risk.invalidation}`,
     `- Main setup risk: ${analysis.risk.main}`,
+    ...analysis.warnings.map((warning) => `- Warning: ${warning}`),
     "", `DECISION: ${analysis.decision}`,
     "", `REASON: ${analysis.reason}`);
   return lines.join("\n");
@@ -626,12 +700,12 @@ export function marketAnalysisContext(analysis: MarketAnalysis) {
       context: analysis.context,
       hierarchy: analysis.hierarchy,
       setupType: analysis.setupType,
-      weakSetup: analysis.weakSetup,
       structure: analysis.structure,
       trend: analysis.trend,
       range: analysis.range,
       planned: analysis.trade ? { ...analysis.trade, currentPrice: analysis.currentPrice } : null,
       risk: analysis.risk,
+      warnings: analysis.warnings,
       activateAfter: analysis.activateAfter,
       reason: analysis.reason,
     },

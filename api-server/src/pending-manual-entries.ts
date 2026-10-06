@@ -482,6 +482,13 @@ export async function createPendingManualEntry(userId: string, payload: Record<s
   if (analyzePlan && risk.target !== null && (direction === "long" ? currentPrice >= risk.target : currentPrice <= risk.target)) {
     throw new Error("Price has already reached this plan's target. Run Analyze again.");
   }
+  // pending_manual_entries.instrument references instruments(code); a pair
+  // added to the catalog after the last seed migration would otherwise fail
+  // the insert with a foreign-key error.
+  await query(
+    "INSERT INTO instruments(code,display_name,price_precision) VALUES($1,$2,$3) ON CONFLICT(code) DO NOTHING",
+    [tick.instrument, displayPair(tick.instrument), precisionFor(tick.instrument)],
+  );
   const result = await query<EntryRow>(
     `INSERT INTO pending_manual_entries(
        user_id,instrument,direction,entry_price,entry_order_type,current_price_at_creation,

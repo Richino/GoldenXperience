@@ -22,13 +22,33 @@ const HISTORY_DAYS = 400;
 /** TradingView caps a response at 2,000 events; ten days stays well under. */
 const CHUNK_DAYS = 10;
 const HISTORY_REFRESH_MS = 6 * 60 * 60 * 1000;
+/**
+ * TradingView answers 429 to a burst: the first year-long load (~41 chunks
+ * back to back) was refused in production. Two seconds between chunks loaded
+ * the full year cleanly in a local test.
+ */
+const CHUNK_PAUSE_MS = 2_000;
+/** After a 429 the load pauses this long, doubling up to the cap, then resumes where it stopped. */
+const BACKOFF_START_MS = 15 * 60_000;
+const BACKOFF_MAX_MS = 6 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** A series needs this many scored releases before its own record is used. */
 const MIN_SERIES_SAMPLES = 8;
 
 type Candidate = `${SignalName}` | `${SignalName}:inverse`;
 
-let history: { events: TradingViewEvent[]; fetchedAt: number } | null = null;
+class RateLimitedError extends Error {}
+
+const loaded = new Map<string, TradingViewEvent>();
+/** Start of the next chunk to fetch; null when no load is in progress. */
+let loadCursor: number | null = null;
+/** Set once the full history has loaded; until then the journal waits. */
+let loadedAt: number | null = null;
+let pausedUntil = 0;
+let backoffMs = BACKOFF_START_MS;
+
+const eventId = (event: TradingViewEvent) => (event as { id?: string }).id ?? `${event.currency}|${event.title}|${event.date}`;
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function fetchChunk(from: number, to: number) {
   const url = `${TRADINGVIEW_URL}?from=${new Date(from).toISOString()}&to=${new Date(to).toISOString()}&countries=${COUNTRIES}`;
@@ -36,25 +56,43 @@ async function fetchChunk(from: number, to: number) {
     headers: { Origin: "https://www.tradingview.com", "User-Agent": "Mozilla/5.0 (compatible; GoldenXperience/1.0)" },
     signal: AbortSignal.timeout(15_000),
   });
+  if (response.status === 429) throw new RateLimitedError("TradingView calendar returned 429.");
   if (!response.ok) throw new Error(`TradingView calendar returned ${response.status}.`);
   const body = (await response.json()) as { result?: TradingViewEvent[] & Array<{ id?: string }> };
   return Array.isArray(body.result) ? body.result : [];
 }
 
-/** A year of releases; after the first load only the last few weeks are refetched. */
-async function loadHistory(now: number) {
-  if (history && now - history.fetchedAt < HISTORY_REFRESH_MS) return history.events;
-  const from = history ? now - 21 * DAY_MS : now - HISTORY_DAYS * DAY_MS;
-  const fetched: TradingViewEvent[] = [];
-  for (let start = from; start < now + 8 * DAY_MS; start += CHUNK_DAYS * DAY_MS) {
-    fetched.push(...await fetchChunk(start, start + CHUNK_DAYS * DAY_MS));
+/**
+ * A year of releases; after the first load only the last few weeks are
+ * refetched. Chunks are paced, and a 429 pauses the load with backoff and
+ * resumes from the same chunk instead of starting over. Null until the first
+ * full load completes.
+ */
+async function loadHistory(now: number): Promise<TradingViewEvent[] | null> {
+  const ready = () => (loadedAt === null ? null : [...loaded.values()]);
+  if (loadedAt !== null && now - loadedAt < HISTORY_REFRESH_MS) return ready();
+  if (Date.now() < pausedUntil) return ready();
+  loadCursor ??= loadedAt === null ? now - HISTORY_DAYS * DAY_MS : now - 21 * DAY_MS;
+  const end = now + 8 * DAY_MS;
+  while (loadCursor < end) {
+    let events: TradingViewEvent[];
+    try {
+      events = await fetchChunk(loadCursor, loadCursor + CHUNK_DAYS * DAY_MS);
+    } catch (error) {
+      if (!(error instanceof RateLimitedError)) throw error;
+      pausedUntil = Date.now() + backoffMs;
+      console.warn(`[news-predictions] TradingView rate limit; resuming in ${Math.round(backoffMs / 60_000)} min`);
+      backoffMs = Math.min(backoffMs * 2, BACKOFF_MAX_MS);
+      return ready();
+    }
+    for (const event of events) loaded.set(eventId(event), event);
+    loadCursor += CHUNK_DAYS * DAY_MS;
+    if (loadCursor < end) await sleep(CHUNK_PAUSE_MS);
   }
-  const byId = new Map<string, TradingViewEvent>();
-  const key = (event: TradingViewEvent) => (event as { id?: string }).id ?? `${event.currency}|${event.title}|${event.date}`;
-  for (const event of history?.events ?? []) byId.set(key(event), event);
-  for (const event of fetched) byId.set(key(event), event);
-  history = { events: [...byId.values()], fetchedAt: now };
-  return history.events;
+  loadCursor = null;
+  loadedAt = now;
+  backoffMs = BACKOFF_START_MS;
+  return ready();
 }
 
 function numberString(value: number | null | undefined) {
@@ -142,7 +180,10 @@ export function newsEventKey(event: { currency: string; title: string; timestamp
 /** Freeze calls for upcoming releases and score released ones. Safe to run often. */
 export async function runNewsPredictionJournal(now = Date.now()) {
   if (!databaseConfigured()) return;
-  const [tradingView, calendar] = await Promise.all([loadHistory(now), getAllCalendarEvents()]);
+  const tradingView = await loadHistory(now);
+  // Calls lean on that history, and the backfill seeds only once, so wait for a full load.
+  if (!tradingView) return;
+  const calendar = await getAllCalendarEvents();
   await seedBackfillOnce(tradingView, now);
 
   const records = await loadRecords();

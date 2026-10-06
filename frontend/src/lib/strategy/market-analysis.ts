@@ -29,9 +29,9 @@ import type { Candle, MajorInstrument } from "@/types/forex";
  * main risk.
  *
  * Entries come from detected structure; the stop and target are multiples of
- * a base distance (`stopMultiple`/`targetMultiple`): Normal is 4:2 on a share
- * of the average daily range so the trade fits in a day, Swing is 1:2 with the
- * stop one average daily range away. A trade is refused
+ * a base distance (`stopMultiple`/`targetMultiple`): both modes are 1:2, with
+ * the stop a share of the average daily range (about a third of a day in
+ * Normal, a full day in Swing). A trade is refused
  * when price is extended away from the pullback, or when the spread eats the
  * stop.
  */
@@ -52,35 +52,31 @@ export const NO_NEWS = "No high-impact news found";
 
 export const MARKET_ANALYSIS = {
   /**
-   * Normal is 4:2: the stop sits 4x the base distance from the entry and the
-   * target 2x. Chosen by the user over structural levels. In a 5-year, 14-pair
-   * replay of the old trend-pullback rule this won 63-65% but still lost
-   * (-0.03R/trade at equal risk; break-even needs ~67% plus spread).
-   * Swing is 1:2 (user's choice, 2026-10-05): replaying the user's 36 manual
-   * trades of Sep 21-Oct 5 with a one-day-range stop, 1:2 and 4:2 banked about
-   * the same on closed trades (+7R vs +8R); 1:2 led only on open trades. Over
-   * five years swing-width 1:2 ran -0.01 to -0.04R/trade: no edge either way.
+   * 1:2 in both modes (user's choice, 2026-10-05; both were 4:2 before): the
+   * stop is the base distance from the entry and the target twice that.
+   * Replaying the user's 36 manual trades of Sep 21-Oct 5 with a one-day-range
+   * stop, 1:2 and 4:2 banked about the same on closed trades (+7R vs +8R); 1:2
+   * led only on open trades. The old 4:2 won 63-65% over five years yet lost
+   * -0.03R/trade; swing-width 1:2 ran -0.01 to -0.04R. No edge either way.
    */
-  stopMultiple: { NORMAL: 4, SWING: 1 },
+  stopMultiple: { NORMAL: 1, SWING: 1 },
   targetMultiple: { NORMAL: 2, SWING: 2 },
   /**
-   * Normal is a day trade, so its target is this share of the pair's average
-   * daily range (base = half of it). In a 14-major, 5-year replay a target of
-   * ~17% of the day (0.5 average 1-hour candles) finished within 8h 69% of the
-   * time and within 24h 93%; at one full 1-hour candle only 28% / 63% did.
+   * The stop as a share of the pair's average daily range. Normal keeps the
+   * stop it had under 4:2 (a third of the day; the old target was half that),
+   * so only the target moved out. Swing's stop clears a full day's range.
    */
-  normalTargetShareOfDailyRange: 0.17,
-  /** Swing's stop is this many average daily ranges (base = the stop). */
-  swingStopShareOfDailyRange: 1,
+  stopShareOfDailyRange: { NORMAL: 0.34, SWING: 1 },
   /** Days averaged for that range, from the H1 candles Analyze already reads. */
   dailyRangeDays: 10,
   /**
    * Base distance otherwise, and the fallback when there are too few days:
-   * average 1-hour candles (H1 ATR14) with a pip floor. Swing's fallback is
-   * about a day's range (a day spans roughly 4-5 average 1-hour candles).
+   * average 1-hour candles (H1 ATR14) with a pip floor on the stop. Swing's
+   * fallback is about a day's range (a day spans roughly 4-5 average 1-hour
+   * candles).
    */
-  baseH1Atr: { NORMAL: 0.5, SWING: 4.5 },
-  baseMinPips: { NORMAL: 5, SWING: 25 },
+  baseH1Atr: { NORMAL: 2, SWING: 4.5 },
+  baseMinPips: { NORMAL: 20, SWING: 25 },
   /**
    * A limit entry never sits further from price than this many average 1-hour
    * candles, so it has a high chance of filling within the order's lifetime
@@ -357,15 +353,13 @@ export function analyzeMarket(input: MarketAnalysisInput): MarketAnalysis {
     return result;
   }
 
-  // Both modes size from the day's range: Normal so the trade can finish within the day, Swing so the stop clears a day's noise.
+  // Both modes size the stop from the day's range.
   const dailyRange = averageDailyRange(input.candles.H1 ?? [], settings.dailyRangeDays);
   const stopMultiple = settings.stopMultiple[input.mode];
   const targetMultiple = settings.targetMultiple[input.mode];
-  const rangeBase = dailyRange === null ? null
-    : input.mode === "NORMAL" ? (settings.normalTargetShareOfDailyRange * dailyRange) / targetMultiple
-      : (settings.swingStopShareOfDailyRange * dailyRange) / stopMultiple;
+  const rangeBase = dailyRange === null ? null : (settings.stopShareOfDailyRange[input.mode] * dailyRange) / stopMultiple;
 
-  /** Builds the trade (4:2 Normal, 1:2 Swing). A costly spread is flagged, never refused. */
+  /** Builds the 1:2 trade. A costly spread is flagged, never refused. */
   const finishTrade = (direction: "LONG" | "SHORT", structuralEntry: number, setup: SetupType, invalidation: string) => {
     const long = direction === "LONG";
     // Pull a far structural entry in to the fill-chance cap.

@@ -10,7 +10,7 @@ import type { MajorInstrument } from "@/types/forex";
 const REGIME_LABEL = { UPTREND: "Uptrend", DOWNTREND: "Downtrend", RANGE: "Range", TRANSITION: "Transition" } as const;
 const DECISION_LABEL = { LONG: "Long setup", SHORT: "Short setup", "NO TRADE": "No trade" } as const;
 
-/** Risk first, reward as 2, the way the plan is set: reward/risk 0.5 reads "4:2". */
+/** Risk first, reward as 2, the way the plan is set: reward/risk 2 reads "1:2". */
 function riskToReward(rewardRisk: number) {
   const risk = Number((2 / rewardRisk).toFixed(1));
   return `${risk}:2`;

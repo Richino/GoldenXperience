@@ -761,9 +761,9 @@ function cachedPairStrength() {
   const now = Date.now();
   if (pairStrengthCache && pairStrengthCache.expiresAt > now) return pairStrengthCache.result;
 
-  // All 28 major pairs feed currency strength; the featured ones also get a
-  // trend read. getCandles is typed for the featured pairs but takes any
-  // OANDA instrument.
+  // All 28 major pairs feed currency strength and each gets a trend read, so
+  // the pair picker can tag (and sort) a searched cross like GBP/AUD too.
+  // getCandles is typed for the featured pairs but takes any OANDA instrument.
   const result = Promise.all(
     STRENGTH_PAIRS.map(async (instrument) => {
       const name = instrument as MajorInstrument;
@@ -774,7 +774,7 @@ function cachedPairStrength() {
       const live = m15.status.state === "connected" && h1.status.state === "connected";
       return [instrument, { m15: live ? m15.data.candles : [], h1: live ? h1.data.candles : [] }] as const;
     }),
-  ).then((entries) => computePairStrength(Object.fromEntries(entries), new Date().toISOString(), MAJOR_INSTRUMENTS));
+  ).then((entries) => computePairStrength(Object.fromEntries(entries), new Date().toISOString(), STRENGTH_PAIRS));
   pairStrengthCache = { expiresAt: now + PAIR_STRENGTH_CACHE_MS, result };
   result.catch(() => {
     if (pairStrengthCache?.result === result) pairStrengthCache = null;

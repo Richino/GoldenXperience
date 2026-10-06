@@ -168,7 +168,7 @@ function gradeTrend(trend: MarketRegime, recent: MarketRegime, m15: Candle[]): P
 
 /**
  * `candlesByPair` may hold any of STRENGTH_PAIRS; all of them feed currency
- * strength. Only `trendPairs` (the featured pairs) get a trend read and come
+ * strength. Only `trendPairs` (the server passes all of them) get a trend read and come
  * back in `pairs`.
  */
 export function computePairStrength(

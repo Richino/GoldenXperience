@@ -15,7 +15,7 @@ const INDICATOR_GROUPS = [
   {
     title: "Overlays",
     options: CHART_INDICATORS.filter((indicator) =>
-      ["support-resistance", "swing-trend-lines", "fibonacci-retracement", "ema-50-100-200"].includes(indicator.value),
+      ["support-resistance", "swing-trend-lines", "fibonacci-retracement", "amd", "amd-range", "amd-fvg", "ema-50-100-200"].includes(indicator.value),
     ),
   },
 ];

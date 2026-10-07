@@ -8,6 +8,7 @@ import {
   CalendarRange,
   ChevronDown,
   Clock3,
+  History,
   Maximize,
   Minimize,
   RotateCcw,
@@ -94,6 +95,10 @@ import {
   type SessionSrLevels,
 } from "@/lib/strategy/session-sr";
 import { computeLastDaySrLevels } from "@/lib/strategy/last-day-sr";
+import { computeAmdDays, type AmdDay } from "@/lib/strategy/amd";
+import { amdRelatedPair, computeAmdRanges, type AmdRange } from "@/lib/strategy/amd-range";
+import type { ChartBox } from "@/components/charts/chart-box-primitive";
+import type { DisplacementCandle, FvgZone } from "@/lib/strategy/fvg";
 import { MAX_SPREAD_PIPS } from "@/lib/strategy/strategy-common";
 import {
   computeActiveFrozen4hSr,
@@ -534,6 +539,136 @@ function frozen4hPatternLines(blocks: Frozen4hBlock[]): ChartPatternLine[] {
     );
   }
   return lines;
+}
+
+const AMD_COLORS = {
+  accumulation: "#ff6370",
+  manipulation: "#d98324",
+  distribution: "#00e59b",
+  fvg: "#a855f7",
+};
+
+/** Tag on the displacement candle: where a move away from the range showed. */
+function displacementBox(key: string, candle: DisplacementCandle): ChartBox {
+  return {
+    key,
+    startTime: candle.time,
+    endTime: candle.endTime,
+    top: candle.high,
+    bottom: candle.low,
+    color: AMD_COLORS.distribution,
+    label: candle.direction === "long" ? "D ↑" : "D ↓",
+    faded: true,
+  };
+}
+
+function fvgBox(key: string, fvg: FvgZone): ChartBox {
+  return {
+    key,
+    startTime: fvg.startTime,
+    endTime: fvg.endTime,
+    top: fvg.top,
+    bottom: fvg.bottom,
+    color: AMD_COLORS.fvg,
+    label: "FVG",
+  };
+}
+
+/**
+ * AMD as three boxes per day: the Asian range (accumulation, red), the sweep
+ * past one side of it (manipulation, amber) and the move to its furthest point
+ * (distribution, green) — after a sweep, or straight from a breakout.
+ */
+function amdBoxes(days: AmdDay[], showFvg: boolean): ChartBox[] {
+  const boxes: ChartBox[] = [];
+  for (const day of days) {
+    boxes.push({
+      key: `amd-${day.day}-a`,
+      startTime: day.asiaStart,
+      endTime: day.asiaEnd,
+      top: day.asiaHigh,
+      bottom: day.asiaLow,
+      color: AMD_COLORS.accumulation,
+      // A wide Asian range already holds a move; it is not a quiet build-up.
+      label: day.tight ? "A" : "A · wide",
+      faded: !day.tight,
+    });
+    const m = day.manipulation;
+    if (m) {
+      // The whole candles of the manipulation, wicks included.
+      boxes.push({
+        key: `amd-${day.day}-m`,
+        startTime: m.sweepTime,
+        endTime: m.reclaimTime,
+        top: m.high,
+        bottom: m.low,
+        color: AMD_COLORS.manipulation,
+        label: "M",
+      });
+    }
+    if (showFvg && day.fvg) boxes.push(fvgBox(`amd-${day.day}-fvg`, day.fvg));
+    if (day.displacement) boxes.push(displacementBox(`amd-${day.day}-disp`, day.displacement));
+    // Drawn after a sweep, and on breakout days with no sweep at all.
+    const d = day.distribution;
+    if (!d || Date.parse(d.bestTime) < Date.parse(d.startTime)) continue;
+    boxes.push({
+      key: `amd-${day.day}-d`,
+      startTime: d.startTime,
+      endTime: new Date(Date.parse(d.bestTime) + 15 * 60 * 1000).toISOString(),
+      top: Math.max(d.from, d.best),
+      bottom: Math.min(d.from, d.best),
+      color: AMD_COLORS.distribution,
+      label: "D",
+    });
+  }
+  return boxes;
+}
+
+const AMD_HINT_LABEL = {
+  "expect-highs-down": "A · highs ↓",
+  "expect-lows-up": "A · lows ↑",
+} as const;
+
+/** "Any range" AMD: same three colours; the A label carries the related-pair hint. */
+function amdRangeBoxes(ranges: AmdRange[], showFvg: boolean): ChartBox[] {
+  const boxes: ChartBox[] = [];
+  for (const range of ranges) {
+    boxes.push({
+      key: `${range.key}-a`,
+      startTime: range.startTime,
+      endTime: range.endTime,
+      top: range.high,
+      bottom: range.low,
+      color: AMD_COLORS.accumulation,
+      label: range.hint ? AMD_HINT_LABEL[range.hint] : "A",
+    });
+    if (showFvg && range.fvg) boxes.push(fvgBox(`${range.key}-fvg`, range.fvg));
+    if (range.displacement) boxes.push(displacementBox(`${range.key}-disp`, range.displacement));
+    const m = range.manipulation;
+    if (m) {
+      boxes.push({
+        key: `${range.key}-m`,
+        startTime: m.sweepTime,
+        endTime: m.reclaimTime,
+        top: m.high,
+        bottom: m.low,
+        color: AMD_COLORS.manipulation,
+        label: "M",
+      });
+    }
+    const d = range.distribution;
+    if (!d || Date.parse(d.endTime) <= Date.parse(d.startTime)) continue;
+    boxes.push({
+      key: `${range.key}-d`,
+      startTime: d.startTime,
+      endTime: d.endTime,
+      top: Math.max(d.from, d.best),
+      bottom: Math.min(d.from, d.best),
+      color: AMD_COLORS.distribution,
+      label: "D",
+    });
+  }
+  return boxes;
 }
 
 /**
@@ -2325,12 +2460,13 @@ export function SignalWorkspace({
     setReplayEndTime(latest.time);
     setPreserveViewportRevision((revision) => revision + 1);
   }, [series.candles]);
-  const stepReplayHour = useCallback((direction: -1 | 1) => {
+  /** Move the replay cutoff by `minutes` (negative = back), at least one candle. */
+  const stepReplay = useCallback((minutes: number) => {
     if (!replayEndTime || !series.candles.length) return;
     const current = Date.parse(replayEndTime);
     if (!Number.isFinite(current)) return;
-    const target = current + direction * 60 * 60 * 1_000;
-    const next = direction < 0
+    const target = current + minutes * 60 * 1_000;
+    const next = minutes < 0
       ? [...series.candles].reverse().find((candle) => Date.parse(candle.time) <= target)
       : series.candles.find((candle) => Date.parse(candle.time) >= target);
     if (!next) return;
@@ -2339,6 +2475,7 @@ export function SignalWorkspace({
     // frame. The normal live-edge revision would refit/zoom every hour.
     setPreserveViewportRevision((revision) => revision + 1);
   }, [replayEndTime, series.candles]);
+  const replayAtLatest = replayEndIndex >= series.candles.length - 1;
   const exitReplay = useCallback(() => {
     setReplayEndTime(null);
     setScrollToLatestRevision((revision) => revision + 1);
@@ -3359,11 +3496,12 @@ export function SignalWorkspace({
     [enabledIndicators],
   );
   const swingTrendEnabled = isChartIndicatorEnabled(enabledIndicators, "swing-trend-lines");
+  const amdEnabled = isChartIndicatorEnabled(enabledIndicators, "amd");
   // On 1m/5m the chart's own S/R only covers the last hour or two, so the 15m
   // levels are drawn alongside as the bigger-picture reference.
   const supportResistance15mEnabled = isChartIndicatorEnabled(enabledIndicators, "support-resistance")
     && (TIMEFRAME_TO_GRANULARITY[timeframe] === "M1" || TIMEFRAME_TO_GRANULARITY[timeframe] === "M5");
-  const m15OverlayEnabled = sessionSrEnabled || frozen4hSrEnabled || swingTrendEnabled || supportResistance15mEnabled;
+  const m15OverlayEnabled = sessionSrEnabled || frozen4hSrEnabled || swingTrendEnabled || amdEnabled || supportResistance15mEnabled;
   // Prefer the dedicated M15 feed; when the chart is already on M15 and that
   // feed has not arrived yet, fall back so the overlay is not blank.
   const sessionSrSourceCandles = useMemo(() => {
@@ -3435,6 +3573,67 @@ export function SignalWorkspace({
   const frozen4hHistoryLines = useMemo(
     () => frozen4hSrEnabled ? frozen4hPatternLines(frozen4hBlocks) : [],
     [frozen4hBlocks, frozen4hSrEnabled],
+  );
+  // On a 15m chart the chart's own candles reach as far back as the user has
+  // scrolled; the background M15 feed is only the last 500. Use both, so the
+  // Asia boxes do not stop a few days back.
+  const amdM15Candles = useMemo(() => {
+    if (TIMEFRAME_TO_GRANULARITY[timeframe] !== "M15" || chartIndicatorCandles.length <= sessionSrSourceCandles.length) {
+      return sessionSrSourceCandles;
+    }
+    const byTime = new Map(sessionSrSourceCandles.map((candle) => [Date.parse(candle.time), candle]));
+    for (const candle of chartIndicatorCandles) byTime.set(Date.parse(candle.time), candle);
+    return [...byTime.entries()].sort((a, b) => a[0] - b[0]).map(([, candle]) => candle);
+  }, [chartIndicatorCandles, sessionSrSourceCandles, timeframe]);
+  // AMD reads the same M15 window as the session overlays, so it draws the
+  // same Asia/London structure on every chart timeframe.
+  const amdDays = useMemo(
+    () => amdEnabled ? computeAmdDays(amdM15Candles, instrument) : [],
+    [amdEnabled, amdM15Candles, instrument],
+  );
+  // "Any range" AMD runs on the chart's own timeframe, with the related pair's
+  // candles on the same timeframe for the hint.
+  const amdRangeEnabled = isChartIndicatorEnabled(enabledIndicators, "amd-range");
+  const amdRelated = amdRangeEnabled ? amdRelatedPair(instrument) : null;
+  const [amdRelatedCandles, setAmdRelatedCandles] = useState<{ key: string; candles: Candle[] }>({ key: "", candles: [] });
+  const amdRelatedKey = amdRelated ? `${amdRelated.instrument}:${TIMEFRAME_TO_GRANULARITY[timeframe]}` : "";
+  useEffect(() => {
+    if (!amdRelatedKey) return;
+    const [relatedInstrument, granularity] = amdRelatedKey.split(":");
+    const controller = new AbortController();
+    const load = () => fetch(
+      apiUrl(`/api/oanda/candles?instrument=${relatedInstrument}&granularity=${granularity}&count=500`),
+      { credentials: "include", cache: "no-store", signal: controller.signal },
+    )
+      .then(async (response) => response.ok ? (await response.json() as { data?: CandleSeries }).data : undefined)
+      .then((data) => {
+        if (data?.instrument === relatedInstrument) setAmdRelatedCandles({ key: amdRelatedKey, candles: data.candles });
+      })
+      .catch(() => {
+        // Keep the previous related snapshot on transient failures.
+      });
+    void load();
+    const timer = window.setInterval(() => void load(), 60_000);
+    return () => {
+      controller.abort();
+      window.clearInterval(timer);
+    };
+  }, [amdRelatedKey]);
+  const amdRanges = useMemo(
+    () => amdRangeEnabled
+      ? computeAmdRanges(
+        chartIndicatorCandles,
+        instrument,
+        amdRelatedCandles.key === amdRelatedKey ? amdRelatedCandles.candles : [],
+      )
+      : [],
+    [amdRangeEnabled, amdRelatedCandles, amdRelatedKey, chartIndicatorCandles, instrument],
+  );
+  // FVG boxes are their own toggle on top of either AMD overlay.
+  const amdFvgEnabled = isChartIndicatorEnabled(enabledIndicators, "amd-fvg");
+  const chartBoxes = useMemo(
+    () => [...amdBoxes(amdDays, amdFvgEnabled), ...amdRangeBoxes(amdRanges, amdFvgEnabled)],
+    [amdDays, amdFvgEnabled, amdRanges],
   );
   const lastDaySrReferenceLines = useMemo(
     () => isChartIndicatorEnabled(enabledIndicators, "last-day-sr")
@@ -4100,6 +4299,7 @@ export function SignalWorkspace({
               referenceLine={predictionReferenceLine}
               referenceLines={chartReferenceLines}
               patternLines={chartPatternLines}
+              boxes={chartBoxes}
               positionTool={positionTool}
               onPositionToolChange={setPositionTool}
               onPositionToolSubmit={submitPositionTool}
@@ -4266,6 +4466,7 @@ export function SignalWorkspace({
               referenceLine={predictionReferenceLine}
               referenceLines={chartReferenceLines}
               patternLines={chartPatternLines}
+              boxes={chartBoxes}
               positionTool={positionTool}
               onPositionToolChange={setPositionTool}
               onPositionToolSubmit={submitPositionTool}
@@ -4293,6 +4494,16 @@ export function SignalWorkspace({
             <ChartTypeSheet value={chartVariant} onChange={setChartVariant} />
             <button
               type="button"
+              className={`gx-mobile-tool-button pressable${replayActive ? " is-active" : ""}`}
+              onClick={replayActive ? exitReplay : beginReplay}
+              aria-label={replayActive ? "Exit replay" : "Replay"}
+              aria-pressed={replayActive}
+              title={replayActive ? "Exit replay" : "Replay candles step by step"}
+            >
+              <History className="size-3.5" strokeWidth={2} />
+            </button>
+            <button
+              type="button"
               className={`gx-mobile-tool-button pressable${refreshingChart ? " is-refreshing" : ""}`}
               onClick={() => void refreshChart()}
               disabled={refreshingChart}
@@ -4308,7 +4519,18 @@ export function SignalWorkspace({
             />
           </div>
 
-          {mobileTradeActionReady ? (
+          {replayActive ? (
+            // Replay replaces the trade action: stepping through history is
+            // not a moment to place orders. The lit toolbar button exits.
+            <div className="gx-mobile-analyze-section gx-mobile-replay" role="group" aria-label="Replay controls">
+              <div className="gx-mobile-replay-steps">
+                <button type="button" className="gx-mobile-replay-step pressable" onClick={() => stepReplay(-60)} aria-label="Back one hour">‹ 1h</button>
+                <button type="button" className="gx-mobile-replay-step pressable" onClick={() => stepReplay(-15)} aria-label="Back 15 minutes">‹ 15m</button>
+                <button type="button" className="gx-mobile-replay-step pressable" onClick={() => stepReplay(15)} disabled={replayAtLatest} aria-label="Forward 15 minutes">15m ›</button>
+                <button type="button" className="gx-mobile-replay-step pressable" onClick={() => stepReplay(60)} disabled={replayAtLatest} aria-label="Forward one hour">1h ›</button>
+              </div>
+            </div>
+          ) : mobileTradeActionReady ? (
             <div className="gx-mobile-analyze-section">
               <PairTradePicker trades={pairTrades} selectedId={settingUpNewTrade ? NEW_PAIR_TRADE : selectedPairTrade?.id ?? null} instrument={instrument} onSelect={setPickedPairTrade} />
               <button
@@ -4372,8 +4594,10 @@ export function SignalWorkspace({
                   <span className="rounded-lg bg-amber-500/15 px-2.5 py-2 text-xs font-semibold text-amber-700 dark:text-amber-300" role="status">
                     Replay · {formatDayAndTime(replayEndTime!)}
                   </span>
-                  <button type="button" className="gx-toolbar-btn pressable" onClick={() => stepReplayHour(-1)} title="Move replay back one hour">← 1h</button>
-                  <button type="button" className="gx-toolbar-btn pressable" onClick={() => stepReplayHour(1)} disabled={replayEndIndex >= series.candles.length - 1} title="Move replay forward one hour">1h →</button>
+                  <button type="button" className="gx-toolbar-btn pressable" onClick={() => stepReplay(-60)} title="Move replay back one hour">← 1h</button>
+                  <button type="button" className="gx-toolbar-btn pressable" onClick={() => stepReplay(-15)} title="Move replay back 15 minutes">← 15m</button>
+                  <button type="button" className="gx-toolbar-btn pressable" onClick={() => stepReplay(15)} disabled={replayAtLatest} title="Move replay forward 15 minutes">15m →</button>
+                  <button type="button" className="gx-toolbar-btn pressable" onClick={() => stepReplay(60)} disabled={replayAtLatest} title="Move replay forward one hour">1h →</button>
                   <button type="button" className="gx-toolbar-btn pressable" onClick={exitReplay}>Exit replay</button>
                 </>
               ) : (
@@ -4468,6 +4692,7 @@ export function SignalWorkspace({
                 referenceLine={replayActive ? null : predictionReferenceLine}
                 referenceLines={chartReferenceLines}
                 patternLines={chartPatternLines}
+              boxes={chartBoxes}
                 positionTool={replayActive ? null : positionTool}
                 onPositionToolChange={setPositionTool}
                 onPositionToolSubmit={submitPositionTool}

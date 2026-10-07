@@ -70,6 +70,7 @@ import {
 } from "@/lib/chart-utils";
 import { ChartHistoryLoader } from "@/components/charts/chart-loading-overlay";
 import { useChartTouchGestures } from "@/components/charts/use-chart-touch-gestures";
+import { ChartBoxPrimitive, type ChartBox } from "@/components/charts/chart-box-primitive";
 import {
   formatClockTime,
   formatTradingZoneDayOfMonth,
@@ -1417,6 +1418,7 @@ export function SetupChart({
   referenceLine = null,
   referenceLines = [],
   patternLines = [],
+  boxes = [],
   patternTags = [],
   showTradeMarkers = true,
   showTradePath = true,
@@ -1445,6 +1447,8 @@ export function SetupChart({
   referenceLine?: ChartReferenceLine | null;
   referenceLines?: ChartReferenceLine[];
   patternLines?: ChartPatternLine[];
+  /** Filled time/price rectangles behind the candles (e.g. AMD phases). */
+  boxes?: ChartBox[];
   /** Labels for diagonal pattern lines, updated without chart recreation. */
   patternTags?: ChartReferenceLine[];
   showTradeMarkers?: boolean;
@@ -1460,6 +1464,8 @@ export function SetupChart({
   const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const falseBreakoutMarkersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const patternLineSeriesRef = useRef<ISeriesApi<"Line">[]>([]);
+  const boxPrimitiveRef = useRef<ChartBoxPrimitive | null>(null);
+  const boxesRef = useRef<ChartBox[]>(boxes);
   const renderedPatternLinesFingerprintRef = useRef<string | null>(null);
   const levelPriceLinesRef = useRef<IPriceLine[]>([]);
   const patternPriceLinesRef = useRef<IPriceLine[]>([]);
@@ -1803,6 +1809,10 @@ export function SetupChart({
     if (patternLines.length) {
       patternLineSeriesRef.current = addPatternLines(chart, patternLines, chartData, priceFormat);
     }
+    const boxPrimitive = new ChartBoxPrimitive();
+    mainSeries.attachPrimitive(boxPrimitive);
+    boxPrimitive.setBoxes(boxesRef.current);
+    boxPrimitiveRef.current = boxPrimitive;
     renderedPatternLinesFingerprintRef.current = patternLinesFingerprint;
 
     // The entry-to-exit segment is created with the chart, even when there is no
@@ -2082,6 +2092,7 @@ export function SetupChart({
         markersRef.current = null;
         falseBreakoutMarkersRef.current = null;
         patternLineSeriesRef.current = [];
+        boxPrimitiveRef.current = null;
         renderedPatternLinesFingerprintRef.current = null;
         levelPriceLinesRef.current = [];
         patternPriceLinesRef.current = [];
@@ -2131,6 +2142,16 @@ export function SetupChart({
     );
     renderedPatternLinesFingerprintRef.current = patternLinesFingerprint;
   }, [patternLines, patternLinesFingerprint, priceFormat]);
+
+  const boxesFingerprint = boxes
+    .map((box) => `${box.key}:${box.startTime}:${box.endTime}:${box.top}:${box.bottom}:${box.color}:${box.label ?? ""}:${box.faded ?? false}`)
+    .join("|");
+  // Boxes update in place on the attached primitive; no chart rebuild.
+  useEffect(() => {
+    boxesRef.current = boxes;
+    boxPrimitiveRef.current?.setBoxes(boxes);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boxesFingerprint]);
 
   // Keep the horizontal MAJOR / CURRENT / PREV reference lines the indicator
   // exposes, but update them in place. Passing them through the chart-creation

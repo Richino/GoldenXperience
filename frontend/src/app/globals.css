@@ -17912,6 +17912,31 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
     font-weight: 600;
   }
 
+  /* Replay bar: takes the Trade slot while stepping through history. */
+  /* The section centres its one button; the replay bar spans the width. */
+  html:is(.dark, :not(.dark)) .signals-chart-mobile .gx-mobile-replay {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-content: stretch;
+    gap: 8px;
+  }
+  html:is(.dark, :not(.dark)) .signals-chart-mobile .gx-mobile-replay-steps {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+  html:is(.dark, :not(.dark)) .signals-chart-mobile .gx-mobile-replay-step {
+    min-height: 44px;
+    border: 1px solid var(--gx-border);
+    border-radius: 12px;
+    background: var(--gx-surface-raised);
+    color: var(--gx-text);
+    font-size: 13px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  html:is(.dark, :not(.dark)) .signals-chart-mobile .gx-mobile-replay-step:disabled { opacity: 0.4; }
+
   html:is(.dark, :not(.dark)) .signals-chart-mobile .gx-mobile-analyze.is-cancel { background: var(--gx-warning); }
   html:is(.dark, :not(.dark)) .signals-chart-mobile .gx-mobile-analyze.is-close { background: var(--gx-danger); }
   html:is(.dark, :not(.dark)) .signals-chart-mobile .gx-mobile-analyze:disabled { opacity: 0.55; }
@@ -18187,7 +18212,19 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
     background: transparent;
   }
 
-  html:is(.dark, :not(.dark)) .mobile-sheet .notification-popover-item.is-unread { background: var(--gx-primary-tint); }
+  /* Unread rows sit on the app's raised card surface; the green dot carries the
+     accent, so the row itself stays neutral instead of a muddy green wash. */
+  html:is(.dark, :not(.dark)) .mobile-sheet .notification-popover-item.is-unread {
+    margin-bottom: 4px;
+    border-bottom-color: transparent;
+    border-radius: 12px;
+    background: var(--gx-surface-raised);
+  }
+  html:is(.dark, :not(.dark)) .mobile-sheet .notification-popover-item:hover,
+  html:is(.dark, :not(.dark)) .mobile-sheet .notification-popover-item:active {
+    border-radius: 12px;
+    background: var(--gx-surface-raised);
+  }
   html:is(.dark, :not(.dark)) .mobile-sheet .notification-unread-slot { width: 7px; padding-top: 6px; }
   html:is(.dark, :not(.dark)) .mobile-sheet .notification-unread-dot { width: 7px; height: 7px; background: var(--gx-primary); }
 

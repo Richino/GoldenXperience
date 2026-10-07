@@ -20,6 +20,8 @@
     "trend-pullback-v1:test": "tsx scripts/test-trend-pullback-v1.ts",
     "strategy:test": "tsx scripts/test-strategy.ts",
     "liquidity:test": "tsx scripts/test-liquidity.ts",
+    "asia-amd:test": "tsx scripts/test-asia-amd.ts",
+    "amd-sessions:test": "tsx scripts/test-amd-sessions.ts",
     "notional:test": "tsx scripts/test-notional-cap.ts",
     "news:test": "tsx scripts/test-news-impact.ts",
     "close-outlook:test": "tsx scripts/test-close-outlook.ts",

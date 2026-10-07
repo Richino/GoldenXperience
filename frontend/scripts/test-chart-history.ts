@@ -540,8 +540,19 @@ assert.equal(
 );
 assert.equal(withOpen.at(-1)!.includesOpenPL, true, "the tooltip discloses that open P/L is included");
 
-// The card tint follows the sum of all bars, not the final bucket alone.
-assert.equal(accountSeriesRose(week), true, "a profitable week is a series that rose");
+// The card tint follows drawdown from the selected period's high. This week
+// is profitable overall, but its $25 drawdown from the high still reads down.
+assert.equal(accountSeriesRose(week), false, "a profitable week below its high reads down");
+assert.equal(accountSeriesTone(week), "down");
+const risen = buildAccountAmountSeries({
+  nav: 10_200,
+  unrealizedPL: 0,
+  history: brokerHistory([{ hoursAgo: 2, change: 200 }]),
+  range: "1d",
+  now: NOW,
+});
+assert.equal(accountSeriesRose(risen), true, "a profitable period at its high reads up");
+assert.equal(accountSeriesTone(risen), "up");
 const fell = buildAccountAmountSeries({
   nav: 9_800,
   unrealizedPL: 0,
@@ -556,6 +567,5 @@ assert.equal(
   true,
   "a flat series is not a loss",
 );
-assert.equal(accountSeriesTone(week), "up");
 
 console.log("chart history checks passed");

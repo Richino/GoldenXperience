@@ -54,7 +54,8 @@ class BoxRenderer implements IPrimitivePaneRenderer {
         context.setLineDash(box.faded ? [4 * h, 3 * h] : []);
         context.strokeRect(x + 0.5, y + 0.5, width - 1, height - 1);
         context.setLineDash([]);
-        if (box.label && width > 14 * h) {
+        // Labels draw even on narrow boxes (a one- or two-candle sweep).
+        if (box.label) {
           context.fillStyle = withAlpha(box.color, 0.95);
           context.font = `600 ${Math.round(10 * v)}px sans-serif`;
           context.textBaseline = "top";

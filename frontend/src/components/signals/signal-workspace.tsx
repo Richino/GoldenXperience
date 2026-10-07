@@ -95,7 +95,8 @@ import {
   type SessionSrLevels,
 } from "@/lib/strategy/session-sr";
 import { computeLastDaySrLevels } from "@/lib/strategy/last-day-sr";
-import { computeAmdDays, type AmdDay } from "@/lib/strategy/amd";
+import { computeAmdDays } from "@/lib/strategy/amd";
+import { computeAmdSessionBoxes } from "@/lib/strategy/amd-sessions";
 import { amdRelatedPair, computeAmdRanges, type AmdRange } from "@/lib/strategy/amd-range";
 import type { ChartBox } from "@/components/charts/chart-box-primitive";
 import type { DisplacementCandle, FvgZone } from "@/lib/strategy/fvg";
@@ -572,56 +573,6 @@ function fvgBox(key: string, fvg: FvgZone): ChartBox {
     color: AMD_COLORS.fvg,
     label: "FVG",
   };
-}
-
-/**
- * AMD as three boxes per day: the Asian range (accumulation, red), the sweep
- * past one side of it (manipulation, amber) and the move to its furthest point
- * (distribution, green) — after a sweep, or straight from a breakout.
- */
-function amdBoxes(days: AmdDay[], showFvg: boolean): ChartBox[] {
-  const boxes: ChartBox[] = [];
-  for (const day of days) {
-    boxes.push({
-      key: `amd-${day.day}-a`,
-      startTime: day.asiaStart,
-      endTime: day.asiaEnd,
-      top: day.asiaHigh,
-      bottom: day.asiaLow,
-      color: AMD_COLORS.accumulation,
-      // A wide Asian range already holds a move; it is not a quiet build-up.
-      label: day.tight ? "A" : "A · wide",
-      faded: !day.tight,
-    });
-    const m = day.manipulation;
-    if (m) {
-      // The whole candles of the manipulation, wicks included.
-      boxes.push({
-        key: `amd-${day.day}-m`,
-        startTime: m.sweepTime,
-        endTime: m.reclaimTime,
-        top: m.high,
-        bottom: m.low,
-        color: AMD_COLORS.manipulation,
-        label: "M",
-      });
-    }
-    if (showFvg && day.fvg) boxes.push(fvgBox(`amd-${day.day}-fvg`, day.fvg));
-    if (day.displacement) boxes.push(displacementBox(`amd-${day.day}-disp`, day.displacement));
-    // Drawn after a sweep, and on breakout days with no sweep at all.
-    const d = day.distribution;
-    if (!d || Date.parse(d.bestTime) < Date.parse(d.startTime)) continue;
-    boxes.push({
-      key: `amd-${day.day}-d`,
-      startTime: d.startTime,
-      endTime: new Date(Date.parse(d.bestTime) + 15 * 60 * 1000).toISOString(),
-      top: Math.max(d.from, d.best),
-      bottom: Math.min(d.from, d.best),
-      color: AMD_COLORS.distribution,
-      label: "D",
-    });
-  }
-  return boxes;
 }
 
 const AMD_HINT_LABEL = {
@@ -3585,11 +3536,10 @@ export function SignalWorkspace({
     for (const candle of chartIndicatorCandles) byTime.set(Date.parse(candle.time), candle);
     return [...byTime.entries()].sort((a, b) => a[0] - b[0]).map(([, candle]) => candle);
   }, [chartIndicatorCandles, sessionSrSourceCandles, timeframe]);
-  // AMD reads the same M15 window as the session overlays, so it draws the
-  // same Asia/London structure on every chart timeframe.
-  const amdDays = useMemo(
-    () => amdEnabled ? computeAmdDays(amdM15Candles, instrument) : [],
-    [amdEnabled, amdM15Candles, instrument],
+  // Fixed session shading uses the same M15 prices on every chart timeframe.
+  const amdSessionBoxes = useMemo(
+    () => amdEnabled ? computeAmdSessionBoxes(amdM15Candles) : [],
+    [amdEnabled, amdM15Candles],
   );
   // "Any range" AMD runs on the chart's own timeframe, with the related pair's
   // candles on the same timeframe for the hint.
@@ -3631,9 +3581,18 @@ export function SignalWorkspace({
   );
   // FVG boxes are their own toggle on top of either AMD overlay.
   const amdFvgEnabled = isChartIndicatorEnabled(enabledIndicators, "amd-fvg");
+  // FVG remains price-confirmed; scheduled M/D windows do not imply a sweep.
+  const amdDays = useMemo(
+    () => amdEnabled && amdFvgEnabled ? computeAmdDays(amdM15Candles, instrument) : [],
+    [amdEnabled, amdFvgEnabled, amdM15Candles, instrument],
+  );
   const chartBoxes = useMemo(
-    () => [...amdBoxes(amdDays, amdFvgEnabled), ...amdRangeBoxes(amdRanges, amdFvgEnabled)],
-    [amdDays, amdFvgEnabled, amdRanges],
+    () => [
+      ...amdSessionBoxes,
+      ...amdDays.flatMap((day) => day.fvg ? [fvgBox(`amd-${day.day}-fvg`, day.fvg)] : []),
+      ...amdRangeBoxes(amdRanges, amdFvgEnabled),
+    ],
+    [amdSessionBoxes, amdDays, amdFvgEnabled, amdRanges],
   );
   const lastDaySrReferenceLines = useMemo(
     () => isChartIndicatorEnabled(enabledIndicators, "last-day-sr")

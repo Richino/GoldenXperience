@@ -42,7 +42,7 @@ export const CHART_INDICATORS = [
   { value: "support-resistance", label: "Support & resistance", group: "overlay" },
   { value: "swing-trend-lines", label: "Swing trend lines", group: "overlay" },
   { value: "fibonacci-retracement", label: "Fibonacci retracement", group: "overlay" },
-  { value: "amd", label: "AMD · Asia session", group: "overlay" },
+  { value: "amd", label: "AMD · sessions to NY noon", group: "overlay" },
   { value: "amd-range", label: "AMD · any range", group: "overlay" },
   { value: "amd-fvg", label: "AMD · FVG", group: "overlay" },
   { value: "ema21", label: "EMA 21", group: "overlay" },

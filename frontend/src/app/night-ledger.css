@@ -5230,21 +5230,20 @@ html:is(.dark, :not(.dark)) body .signals-view .workspace-tab-btn.workspace-tab-
   }
 
   .nl-mquote-main {
-    display: contents;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    white-space: nowrap;
   }
 
   .nl-mquote-price {
-    grid-column: 1;
-    grid-row: 1;
-    font-size: 34px;
+    font-size: clamp(26px, 7vw, 34px);
     font-weight: 500;
     letter-spacing: -0.03em;
     line-height: 1;
   }
 
   .nl-mquote-meta {
-    grid-column: 1;
-    grid-row: 2;
     display: flex;
     flex-wrap: nowrap;
     white-space: nowrap;
@@ -5257,6 +5256,15 @@ html:is(.dark, :not(.dark)) body .signals-view .workspace-tab-btn.workspace-tab-
 
   .nl-mquote-meta .is-up { color: var(--accent); }
   .nl-mquote-meta .is-down { color: var(--danger); }
+
+  .nl-mquote-session {
+    grid-column: 1;
+    grid-row: 2;
+    color: var(--muted);
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: 13px;
+    white-space: nowrap;
+  }
 
   .nl-mquote-facts {
     grid-column: 2;

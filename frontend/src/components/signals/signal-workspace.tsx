@@ -4292,9 +4292,9 @@ export function SignalWorkspace({
                     {priceStats.positive ? "+" : "−"}
                     {Math.abs(priceStats.changePercent).toFixed(2)}%
                   </span>
-                  <span> · {sessionLabel}</span>
                 </span>
               </div>
+              <span className="nl-mquote-session">{sessionLabel.replace(/ session$/, "")}</span>
               <dl className="nl-mquote-facts" aria-label="Live bid, ask and spread">
                 <div>
                   <dt>Bid</dt>

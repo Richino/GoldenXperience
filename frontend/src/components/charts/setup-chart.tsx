@@ -2368,13 +2368,12 @@ export function SetupChart({
 
     const candleTimes = chartTimesOf(toChartCandles(series.candles));
     const palette: TradeMarkerPalette = {
-      long: upColor,
-      short: downColor,
-      win: upColor,
-      loss: downColor,
-      // Translucent so the candles read through the arrow rather than the
-      // arrow competing with them.
-      muted: isDark ? "rgba(161,161,170,0.45)" : "rgba(142,142,147,0.5)",
+      // Trade actions must stay distinct from the green/orange candle bodies.
+      long: isDark ? "#60a5fa" : "#2563eb",
+      short: isDark ? "#e879f9" : "#a21caf",
+      win: isDark ? "#e2e8f0" : "#334155",
+      loss: isDark ? "#e2e8f0" : "#334155",
+      muted: isDark ? "#cbd5e1" : "#475569",
     };
     // Prediction focus owns the markers when present; otherwise the focused
     // paper trade. Both reuse the same path series so arrows sit on exact

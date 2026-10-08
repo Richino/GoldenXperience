@@ -17,7 +17,7 @@ export function ChartLoadingSkeleton() {
           <div className="signals-chart-mobile lg:hidden">
             <div className="signals-mobile-content">
               <div className="signals-mobile-actions nl-mhead"><Block width={184} height={48} radius={16} /><div className="nl-mhead-actions"><Block width={104} height={48} radius={16} /><Block width={48} height={48} radius={16} /></div></div>
-              <div className="gx-mobile-quote-row nl-mquote"><div className="nl-mquote-main"><span className="nl-mquote-price"><Block width={138} height={34} /></span><span className="nl-mquote-meta"><Block width={160} height={19.5} /></span></div><Facts mobile /></div>
+              <div className="gx-mobile-quote-row nl-mquote"><div className="nl-mquote-main"><span className="nl-mquote-price"><Block width="4em" height="1em" /></span><span className="nl-mquote-meta"><Block width={48} height={19.5} /></span></div><span className="nl-mquote-session"><Block width={148} height={19.5} /></span><Facts mobile /></div>
               <div className="gx-mobile-timeframes"><div className="nl-skeleton-timeframes">{Array.from({ length: 5 }, (_, i) => <Block key={i} width="100%" height={38} radius={10} />)}</div></div>
             </div>
             <div className="relative min-h-[14rem] flex-1 overflow-hidden chart-data-shell chart-loading-static"><Plot /></div>

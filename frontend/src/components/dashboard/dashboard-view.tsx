@@ -1,20 +1,22 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { AccountOverviewHero } from "@/components/dashboard/account-overview-hero";
-import { HomeRail, type HomeAvailableSignal, type HomeCurrentPosition } from "@/components/dashboard/home-rail";
-import { HomePendingTrades } from "@/components/dashboard/home-pending-trades";
+import type { HomeCurrentPosition } from "@/components/dashboard/home-rail";
+import {
+  LedgerHome,
+  type LedgerPosition,
+  type LedgerSetup,
+  type LedgerTicker,
+  type LedgerToday,
+} from "@/components/dashboard/ledger-home";
 import { PendingCancelConfirmation } from "@/components/dashboard/pending-cancel-confirmation";
-import { HomeRecentActivity } from "@/components/dashboard/home-recent-activity";
-import { RelativeTime } from "@/components/dashboard/relative-time";
 import {
   recentActivityFromTrades,
   todayClosedStats,
 } from "@/lib/home/idle";
 import { apiUrl } from "@/lib/api/url";
-import { formatChartPrice } from "@/lib/chart-utils";
-import { displayNameFor } from "@/lib/instruments/catalog";
+import { tradingDayKey } from "@/lib/format/datetime";
+import { pipSizeFor } from "@/lib/instruments/catalog";
 import {
   openRFromLevels,
   openTradeProgress,
@@ -156,10 +158,6 @@ export type DashboardJournal = {
   };
 };
 
-function money(value: number, currency = "USD") {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 2 }).format(value);
-}
-
 /**
  * Price an open row is marked against: the streamed bid/ask first, then the
  * broker's polled price, and only then the watchlist row. The watchlist is a
@@ -228,7 +226,7 @@ export function DashboardView({
   initialOverview,
   initialJournal,
   initialPendingEntries,
-  userLabel,
+  greeting,
   todayKey,
 }: {
   initialAccount: AccountSummary;
@@ -238,16 +236,14 @@ export function DashboardView({
   initialOverview: DashboardOverview;
   initialJournal: DashboardJournal;
   initialPendingEntries: PendingManualEntry[];
-  userLabel: string;
+  /** "Morning, Richie": worked out on the server from the ET hour. */
+  greeting: string;
   todayKey: string;
 }) {
   const [account, setAccount] = useState(initialAccount);
   const [accountHistory, setAccountHistory] = useState(initialAccountHistory);
   const [journalTrades, setJournalTrades] = useState(initialJournal.trades);
   const [journalSummary, setJournalSummary] = useState(initialJournal.summary ?? null);
-  // Journal is now part of the server-rendered Home snapshot, so showing a
-  // second client-only skeleton here would make the cards resolve unevenly.
-  const [activityLoading, setActivityLoading] = useState(false);
   // Kept for the Open-trades quote fallback below; the Watchlist section now
   // renders from the multi-strategy engine instead.
   const [watchlist, setWatchlist] = useState(initialWatchlist);
@@ -354,8 +350,6 @@ export function DashboardView({
       setError(null);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Dashboard data is temporarily unavailable.");
-    } finally {
-      setActivityLoading(false);
     }
   }, []);
 
@@ -448,18 +442,8 @@ export function DashboardView({
   }, [refreshAccount, refresh, refreshPendingEntries]));
 
   const signalRows = savedSetups.filter((setup) => setup.state === "setup");
-  const availableSignals: HomeAvailableSignal[] = signalRows.map((setup) => ({
-    kind: "setup",
-    id: setup.id,
-    instrument: setup.instrument,
-    direction: setup.direction,
-    entry: setup.entry,
-    stop: setup.stop,
-    target: setup.target,
-    evaluatedAt: setup.decisionTime,
-  }));
   const currentPositions: HomeCurrentPosition[] = openTrades
-    .filter((trade) => trade.entry !== null && trade.entry !== undefined && trade.stop !== null && trade.stop !== undefined && trade.target !== null && trade.target !== undefined)
+    .filter((trade) => trade.entry != null && trade.stop != null && trade.target != null)
     .map((trade) => ({
       kind: "position",
       id: trade.id,
@@ -470,271 +454,135 @@ export function DashboardView({
       target: trade.target as number,
       openedAt: trade.openedAt,
     }));
-  const hasOpenPositions = openTrades.length > 0;
-  const hasActiveSignals = signalRows.length > 0;
+
+  // One finished row per open trade. The figures are the ones the old rows
+  // showed (mark, Open R, P/L, lots); only the presentation moved.
+  const ledgerPositions: LedgerPosition[] = openTrades.slice(0, 6).map((trade) => {
+    const shown = markedOpenMoney(trade, quotes, fills, watchlist);
+    const live = liveOpenProgress(trade, quotes, fills, watchlist);
+    const fill = trade.brokerTradeId ? fills[`broker:${trade.brokerTradeId}`] : undefined;
+    const quote = openTradeQuote(trade, quotes, fill, watchlist);
+    const mark = quote?.bid && quote?.ask ? (quote.bid + quote.ask) / 2 : null;
+    const lots = fill && fill.units ? Math.abs(fill.units) / 100_000 : null;
+    // Open R speaks the chart's language: planned entry and stop against the
+    // mid. The fill/close-side figure is only a fallback.
+    const rMultiple =
+      openRFromLevels({ direction: trade.direction, entry: trade.entry, stop: trade.stop, current: mark }) ??
+      live?.unrealizedR ??
+      (shown !== null && trade.nominalRiskAmount ? shown / trade.nominalRiskAmount : null);
+    const r = rMultiple === null ? null : Number(rMultiple.toFixed(2)) || 0;
+    // Position on the stop → target line, 0–100%. For a short the span is
+    // negative and the signs cancel, so one formula serves both sides.
+    const span = trade.stop != null && trade.target != null ? trade.target - trade.stop : 0;
+    const trackAt = (price: number | null | undefined) =>
+      price == null || span === 0 ? null : Math.min(100, Math.max(0, ((price - (trade.stop as number)) / span) * 100));
+    // Progress from entry toward the target, or how far price sits against it.
+    let progress: string | null = null;
+    if (mark !== null && trade.entry != null && trade.target != null && trade.target !== trade.entry) {
+      const toward = (mark - trade.entry) / (trade.target - trade.entry);
+      progress =
+        toward >= 0
+          ? `${Math.round(Math.min(1, toward) * 100)}% to target`
+          : `${(Math.abs(mark - trade.entry) / pipSizeFor(trade.instrument)).toFixed(1)} pips against`;
+    }
+    return {
+      id: trade.id,
+      href: `/chart?instrument=${trade.instrument}&trade=${trade.id}`,
+      instrument: trade.instrument,
+      direction: trade.direction,
+      openedAt: trade.openedAt,
+      entry: trade.entry ?? null,
+      mark,
+      stop: trade.stop ?? null,
+      target: trade.target ?? null,
+      entryAt: trackAt(trade.entry),
+      markAt: trackAt(mark),
+      r,
+      money: shown,
+      lots,
+      progress,
+    };
+  });
+
+  const ledgerSetups: LedgerSetup[] = signalRows.map((row) => ({
+    id: row.id,
+    href: `/chart?instrument=${row.instrument}&setup=${row.id}&entry=${row.entry}&stop=${row.stop}&target=${row.target}`,
+    instrument: row.instrument,
+    direction: row.direction,
+    entry: row.entry,
+    stop: row.stop,
+    target: row.target,
+    decisionTime: row.decisionTime,
+  }));
+
+  // The ticker follows the pairs the backend evaluates, priced off the stream.
+  const tickers: LedgerTicker[] = watchlist.slice(0, 10).map((row) => {
+    const live = quotes[row.instrument];
+    const bid = live?.bid ?? row.bid;
+    const ask = live?.ask ?? row.ask;
+    return { instrument: row.instrument, mid: bid != null && ask != null ? (bid + ask) / 2 : (bid ?? ask ?? null) };
+  });
+
   const recentActivity = recentActivityFromTrades(journalTrades, 10);
   const todayFromList = todayClosedStats(journalTrades, todayKey);
   // The API summary is authoritative when present; the list-derived figures are
-  // the fallback so the rail still reports a day with no summary payload.
+  // the fallback so the card still reports a day with no summary payload.
   const todayTrades = journalSummary?.today
     ? journalSummary.today.wins + journalSummary.today.losses
     : todayFromList.trades;
-  const todayWins = journalSummary?.today?.wins ?? todayFromList.wins;
-  const todayLosses = journalSummary?.today?.losses ?? todayFromList.losses;
-  const todayNet = journalSummary?.today?.realizedPL ?? todayFromList.netMoney;
+  const todayResults = journalTrades
+    .filter(
+      (trade) =>
+        trade.status === "closed" &&
+        trade.closedAt &&
+        trade.resultR !== null &&
+        tradingDayKey(trade.closedAt) === todayKey,
+    )
+    .sort((a, b) => Date.parse(a.closedAt ?? "") - Date.parse(b.closedAt ?? ""))
+    .map((trade) => trade.resultR as number);
+  const today: LedgerToday = {
+    net: journalSummary?.today?.realizedPL ?? todayFromList.netMoney,
+    r: todayFromList.netR,
+    trades: todayTrades,
+    wins: journalSummary?.today?.wins ?? todayFromList.wins,
+    losses: journalSummary?.today?.losses ?? todayFromList.losses,
+    results: todayResults,
+  };
   const riskedTrades = openTrades.filter((trade) => trade.nominalRiskAmount != null);
   const openRisk = riskedTrades.length
     ? riskedTrades.reduce((sum, trade) => sum + (trade.nominalRiskAmount as number), 0)
     : null;
+
   return (
-    <div className="dashboard-view dashboard-minimal home-shell home-layout-v2">
-      <div className="home-main">
-      <AccountOverviewHero
+    <>
+      <LedgerHome
         account={account}
-        userLabel={userLabel}
         history={accountHistory}
         todayKey={todayKey}
-        // Built from the same per-position figures the rows show, so the
-        // hero and the rows always add up. The account summary is polled on a
-        // different clock and drifts; it is only the fallback.
+        // Built from the same per-position figures the rows show, so the hero
+        // and the rows always add up. The account summary drifts; it is only
+        // the fallback.
         openPL={heroOpenPL}
         openRisk={openRisk}
+        greeting={greeting}
+        tickers={tickers}
+        positions={ledgerPositions}
+        setups={ledgerSetups}
+        newsPositions={currentPositions}
+        today={today}
+        pending={pendingEntries}
+        cancellingPendingId={cancellingPendingId}
+        pendingError={pendingEntryError}
+        onCancelPending={setPendingCancellation}
+        activity={recentActivity}
+        error={error}
       />
-
-      {error ? <p className="research-error">{error}</p> : null}
-
-      {hasOpenPositions ? (
-      <div className="dashboard-minimal-grid dashboard-trades-grid">
-        <section className="home-section" aria-label="Open positions">
-          <div className="home-section-head">
-            <h2>Open positions</h2>
-            <Link href="/journal" className="home-section-link">
-              View all
-            </Link>
-          </div>
-            <div className="home-position-list">
-              <div className="home-position-head" aria-hidden="true">
-                <span>Symbol</span>
-                <span>Entry</span>
-                <span>Price</span>
-                <span className="home-position-track">Stop → Target</span>
-                <span className="home-position-size">Size</span>
-                <span className="home-position-r">R</span>
-                <span className="home-position-pl">P/L</span>
-              </div>
-              {openTrades.slice(0, 6).map((trade) => {
-                const shown = markedOpenMoney(trade, quotes, fills, watchlist);
-                const live = liveOpenProgress(trade, quotes, fills, watchlist);
-                const fill = trade.brokerTradeId
-                  ? fills[`broker:${trade.brokerTradeId}`]
-                  : undefined;
-                const quote = openTradeQuote(trade, quotes, fill, watchlist);
-                const mark = quote?.bid && quote?.ask
-                  ? (quote.bid + quote.ask) / 2
-                  : null;
-                const plTone =
-                  shown === null ? "is-open" : shown >= 0 ? "is-win" : "is-loss";
-                // Open R speaks the chart's language: planned entry and stop
-                // against the mid. The fill/close-side figure (live) is only a
-                // fallback, so this row matches the chart's Active position.
-                const lots =
-                  fill && fill.units ? Math.abs(fill.units) / 100_000 : null;
-                const rMultiple =
-                  openRFromLevels({
-                    direction: trade.direction,
-                    entry: trade.entry,
-                    stop: trade.stop,
-                    current: mark,
-                  }) ??
-                  live?.unrealizedR ??
-                  (shown !== null && trade.nominalRiskAmount
-                    ? shown / trade.nominalRiskAmount
-                    : null);
-                // Tone follows the shown 2dp value, so ±0.004R reads as a
-                // neutral 0.00R rather than a green/red "+0.00R".
-                const rShown =
-                  rMultiple === null ? null : Number(rMultiple.toFixed(2)) || 0;
-                const rTone =
-                  rShown === null || rShown === 0 ? "" : rShown > 0 ? "is-win" : "is-loss";
-                // Where entry and the mark sit on the stop → target line, 0–100%.
-                // The same formula serves both sides: for a short the target is
-                // below the stop, so the span is negative and the signs cancel.
-                const span =
-                  trade.stop != null && trade.target != null ? trade.target - trade.stop : 0;
-                const trackAt = (price: number | null | undefined) =>
-                  price == null || span === 0
-                    ? null
-                    : Math.min(100, Math.max(0, ((price - (trade.stop as number)) / span) * 100));
-                const entryAt = trackAt(trade.entry);
-                const markAt = trackAt(mark);
-                return (
-                  <Link
-                    key={trade.id}
-                    href={`/chart?instrument=${trade.instrument}&trade=${trade.id}`}
-                    className={`home-position-row is-${trade.direction}`}
-                  >
-                    <span className="home-position-symbol">
-                      <span className="home-position-pair">{displayNameFor(trade.instrument)}</span>
-                      <span className={`home-side is-${trade.direction}`}>
-                        {trade.direction === "long" ? "LONG" : "SHORT"}
-                      </span>
-                      <span className="home-position-open-r-row">
-                        <span className={`home-position-open-r metric-number ${rTone}`}>
-                          <span>Open R</span>
-                          <span>
-                            {rShown === null
-                              ? "—"
-                              : `${rShown > 0 ? "+" : ""}${rShown.toFixed(2)}R`}
-                          </span>
-                        </span>
-                      </span>
-                    </span>
-                    <span className="home-position-entry metric-number">
-                      {trade.entry == null ? "—" : formatChartPrice(trade.entry, trade.instrument)}
-                    </span>
-                    <span className="home-position-price metric-number">
-                      <span className="home-position-mark-label">Mark</span>
-                      {mark === null ? "—" : formatChartPrice(mark, trade.instrument)}
-                      {lots !== null ? (
-                        <span className="home-position-lot"> · {lots.toFixed(2)} lot</span>
-                      ) : null}
-                    </span>
-                    <span className="home-position-track">
-                      {entryAt !== null ? (
-                        <span
-                          className="home-position-track-bar"
-                          aria-hidden="true"
-                          style={{ "--entry-at": `${entryAt}%` } as React.CSSProperties}
-                        >
-                          <span className="home-position-track-entry" />
-                          {markAt !== null ? (
-                            <span
-                              className={`home-position-track-mark ${rTone}`}
-                              style={{ left: `${markAt}%` }}
-                            />
-                          ) : null}
-                        </span>
-                      ) : null}
-                      <span className="home-position-track-levels metric-number">
-                        <span>{trade.stop == null ? "—" : formatChartPrice(trade.stop, trade.instrument)}</span>
-                        <span>{trade.target == null ? "—" : formatChartPrice(trade.target, trade.instrument)}</span>
-                      </span>
-                    </span>
-                    <span className="home-position-size metric-number">
-                      {lots === null ? "—" : lots.toFixed(2)}
-                    </span>
-                    <span className={`home-position-r metric-number ${rTone}`}>
-                      {rShown === null
-                        ? "—"
-                        : `${rShown > 0 ? "+" : ""}${rShown.toFixed(2)}R`}
-                    </span>
-                    <span className={`home-position-pl metric-number ${plTone}`}>
-                      <span className="home-position-pl-label">
-                        {shown === null
-                          ? "Updating"
-                          : shown > 0
-                            ? "Currently up"
-                            : shown < 0
-                              ? "Currently down"
-                              : "No change"}
-                      </span>
-                      <span>{shown === null ? "Open" : money(shown, account.currency)}</span>
-                    </span>
-                  </Link>
-                );
-              })}
-            </div>
-        </section>
-      </div>
-      ) : null}
-
-      <HomePendingTrades
-        entries={pendingEntries}
-        cancellingId={cancellingPendingId}
-        error={pendingEntryError}
-        onCancel={setPendingCancellation}
-      />
-
       <PendingCancelConfirmation
         entry={pendingCancellation}
         confirming={Boolean(cancellingPendingId)}
         onDismiss={() => setPendingCancellation(null)}
         onConfirm={cancelPendingEntry}
       />
-
-      {hasActiveSignals ? (
-      <section className="home-section" aria-label="Saved setups">
-        <div className="home-section-head">
-          <h2>Saved setups</h2>
-        </div>
-          <div className="home-signal-grid">
-            {signalRows.map((row) => {
-              const risk = Math.abs(row.entry - row.stop);
-              const reward = Math.abs(row.target - row.entry);
-              const ratio = risk > 0 ? Math.round((reward / risk) * 10) / 10 : null;
-              const rrLabel =
-                ratio === null
-                  ? null
-                  : `1:${Number.isInteger(ratio) ? ratio.toFixed(0) : ratio.toFixed(1)}`;
-              return (
-              <Link
-                key={row.id}
-                href={`/chart?instrument=${row.instrument}&setup=${row.id}&entry=${row.entry}&stop=${row.stop}&target=${row.target}`}
-                className="home-signal-card"
-              >
-                <div className="home-signal-top">
-                  <span className="home-signal-ident">
-                    <span>{displayNameFor(row.instrument)}</span>
-                    <span className={`home-side is-${row.direction}`}>
-                      {row.direction === "long" ? "LONG" : "SHORT"}
-                    </span>
-                  </span>
-                  <span className="home-signal-time">
-                    <RelativeTime at={row.decisionTime} />
-                  </span>
-                </div>
-                <dl>
-                  <div>
-                    <dt>Entry</dt>
-                    <dd className="metric-number">{formatChartPrice(row.entry, row.instrument)}</dd>
-                  </div>
-                  <div>
-                    <dt>SL</dt>
-                    <dd className="metric-number">{formatChartPrice(row.stop, row.instrument)}</dd>
-                  </div>
-                  <div>
-                    <dt>TP</dt>
-                    <dd className="metric-number">{formatChartPrice(row.target, row.instrument)}</dd>
-                  </div>
-                </dl>
-                {rrLabel ? (
-                  <div className="home-signal-foot">
-                    <span>R:R</span>
-                    <span className="metric-number">{rrLabel}</span>
-                  </div>
-                ) : null}
-              </Link>
-              );
-            })}
-          </div>
-      </section>
-      ) : null}
-
-      <HomeRecentActivity items={recentActivity} currency={account.currency} loading={activityLoading} />
-
-      </div>
-
-      <HomeRail
-        quotes={quotes}
-        availableSignals={availableSignals}
-        currentPositions={currentPositions}
-        currency={account.currency}
-        todayNet={todayNet}
-        todayR={todayFromList.netR}
-        todayTrades={todayTrades}
-        todayWins={todayWins}
-        todayLosses={todayLosses}
-      />
-    </div>
+    </>
   );
 }

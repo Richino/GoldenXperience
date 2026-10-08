@@ -14,6 +14,7 @@ import {
 import { useTheme } from "next-themes";
 import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
+import { CHART_COLORS, chartColors } from "@/lib/theme/chart-colors";
 import { displayNameFor } from "@/lib/instruments/catalog";
 import type { CandleSeries, MajorInstrument } from "@/types/forex";
 
@@ -69,13 +70,14 @@ export function HomeMiniChart({
     if (!host) return;
 
     const dark = resolvedTheme !== "light";
+    const palette = chartColors(dark);
     const chart = createChart(host, {
       width: host.clientWidth,
       height: host.clientHeight,
       autoSize: true,
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: dark ? "#6d7176" : "#8a8f96",
+        textColor: palette.scaleText,
         attributionLogo: false,
       },
       grid: {
@@ -89,12 +91,12 @@ export function HomeMiniChart({
       handleScale: false,
     });
     const series = chart.addSeries(CandlestickSeries, {
-      upColor: "#00e59b",
-      downColor: "#ff5252",
-      borderUpColor: "#00e59b",
-      borderDownColor: "#ff5252",
-      wickUpColor: "#00e59b",
-      wickDownColor: "#ff5252",
+      upColor: palette.up,
+      downColor: palette.down,
+      borderUpColor: palette.up,
+      borderDownColor: palette.down,
+      wickUpColor: palette.up,
+      wickDownColor: palette.down,
     });
     chartRef.current = chart;
     seriesRef.current = series;
@@ -133,9 +135,9 @@ export function HomeMiniChart({
           seriesRef.current.removePriceLine(line);
         }
         levelLinesRef.current = [
-          seriesRef.current.createPriceLine({ price: entry, color: "#00e59b", lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: false, title: "Entry" }),
-          seriesRef.current.createPriceLine({ price: stop, color: "#ff6370", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "SL" }),
-          seriesRef.current.createPriceLine({ price: target, color: "#00e59b", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "TP" }),
+          seriesRef.current.createPriceLine({ price: entry, color: CHART_COLORS.dark.up, lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: false, title: "Entry" }),
+          seriesRef.current.createPriceLine({ price: stop, color: CHART_COLORS.dark.down, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "SL" }),
+          seriesRef.current.createPriceLine({ price: target, color: CHART_COLORS.dark.up, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "TP" }),
         ];
 
         // Keep the current trade's full plan in view. A live price move should

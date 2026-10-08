@@ -10,6 +10,18 @@ import { currentTradingDayKey } from "@/lib/format/datetime";
 import type { AccountBalanceHistoryPoint, AccountSummary } from "@/types/forex";
 import type { PendingManualEntry } from "@/types/pending-entry";
 
+/**
+ * Worked out here rather than in the browser so the server render and
+ * hydration agree; the trading day runs on New York time, so the greeting does.
+ */
+function greetingFor(name: string, now = new Date()) {
+  const hour = Number(
+    new Intl.DateTimeFormat("en-US", { hour: "numeric", hourCycle: "h23", timeZone: "America/New_York" }).format(now),
+  );
+  const part = hour < 12 ? "Morning" : hour < 17 ? "Afternoon" : "Evening";
+  return `${part}, ${name}`;
+}
+
 export default async function DashboardPage() {
   // Open manual positions live in Journal and pending entries live in their own
   // endpoint. Fetch them with the rest of Home so these cards do not arrive a
@@ -39,7 +51,7 @@ export default async function DashboardPage() {
       initialOverview={overview}
       initialJournal={journal}
       initialPendingEntries={pendingEntries.entries ?? []}
-      userLabel="Richie"
+      greeting={greetingFor("Richie")}
       todayKey={currentTradingDayKey()}
     />
   );

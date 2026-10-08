@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   title: "Charts",
 };
 
-export default async function ChartPage({ searchParams }: { searchParams: Promise<{ instrument?: string; trade?: string; prediction?: string; entry?: string; stop?: string; target?: string; direction?: string; confidence?: string; rationale?: string; preferredEntryTime?: string; proposal?: string }> }) {
+export default async function ChartPage({ searchParams }: { searchParams: Promise<{ instrument?: string; trade?: string; prediction?: string; entry?: string; stop?: string; target?: string; direction?: string; confidence?: string; rationale?: string; preferredEntryTime?: string; proposal?: string; plan?: string }> }) {
   const params = await searchParams;
   const cookieStore = await cookies();
   const savedInstrument = cookieStore.get("gx-last-chart-instrument")?.value?.toUpperCase();
@@ -89,6 +89,7 @@ export default async function ChartPage({ searchParams }: { searchParams: Promis
       initialPredictionFocus={focusPrediction?.instrument === instrument ? focusPrediction : null}
       initialSetupFocus={initialSetupFocus}
       initialManualProposal={initialManualProposal}
+      initialPlanHandoff={params.plan === "analyze"}
     />
   );
 }

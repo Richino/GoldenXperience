@@ -8,7 +8,10 @@ export function BrandMark({
   if (variant === "sidebar") {
     return (
       <div className="brand-mark-sidebar" aria-label="GoldenXperience">
-        <span className="brand-gx">GX</span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img alt="" aria-hidden="true" className="brand-icon-light brand-mark-sidebar-icon" src="/brand-icon-light.svg" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img alt="" aria-hidden="true" className="brand-icon-dark brand-mark-sidebar-icon" src="/brand-icon.svg" />
         <span className="brand-gx-sub">GoldenXperience</span>
       </div>
     );

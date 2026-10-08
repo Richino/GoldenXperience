@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { AnalyzeIcon } from "@/components/icons/analyze-icon";
 import { X } from "lucide-react";
 import { apiUrl } from "@/lib/api/url";
 import { calculateAtr } from "@/lib/chart-utils";
@@ -301,6 +302,23 @@ export function PendingEntryDialog({
     [customExpiration, expiration],
   );
   const isDetail = Boolean(selectedEntry && !editing);
+  // A new order from an Analyze plan is reviewed in the plan's own layout
+  // (the Analyze card's head, levels and rows); everything else is the form.
+  const isPlan = !selectedEntry && !isPanel && automaticLifetime && direction !== null;
+  const planRatio = Number.isFinite(parsedEntry) && parsedStop && parsedTarget && parsedEntry !== parsedStop
+    ? Math.abs(parsedTarget - parsedEntry) / Math.abs(parsedEntry - parsedStop)
+    : null;
+  // Until the entry is edited there is no reference price, so read the order
+  // type against the live quote.
+  const planOrder = inferredOrder ?? (direction !== null && current !== null && Number.isFinite(parsedEntry)
+    ? direction === "long"
+      ? parsedEntry >= current ? "Buy stop" : "Buy limit"
+      : parsedEntry <= current ? "Sell stop" : "Sell limit"
+    : null);
+  const pipsBetween = (from: number | null, to: number | null) =>
+    from !== null && to !== null && Number.isFinite(from) && Number.isFinite(to)
+      ? `${(Math.abs(to - from) / pipSizeFor(instrument)).toFixed(1)} pips`
+      : "—";
 
   function resetDialogDocumentScroll() {
     if (isPanel) return;
@@ -498,7 +516,7 @@ export function PendingEntryDialog({
 
   const shell = (
     <section
-      className={`pending-entry-dialog${isPanel ? " is-panel" : ""}${initialProposal ? " is-proposal" : ""}`}
+      className={`pending-entry-dialog${isPanel ? " is-panel" : ""}${initialProposal ? " is-proposal" : ""}${isPlan ? " is-plan" : ""}`}
       role={isPanel ? "region" : "dialog"}
       aria-modal={isPanel ? undefined : true}
       aria-labelledby={isPanel && !selectedEntry ? undefined : "pending-entry-title"}
@@ -508,7 +526,17 @@ export function PendingEntryDialog({
       {...dragHandlers}
     >
       {isPanel ? null : <div className="pending-entry-grip" aria-hidden="true" />}
-      {isPanel && !selectedEntry ? null : (
+      {isPlan ? (
+        <header className="nl-an-top">
+          <span className="nl-an-eyebrow">
+            <AnalyzeIcon className="size-3.5" />
+            Review entry · {displayNameFor(instrument)}
+          </span>
+          <button type="button" className="nl-an-close" onClick={requestDrawerClose} aria-label="Close pending entry">
+            <X aria-hidden="true" />
+          </button>
+        </header>
+      ) : isPanel && !selectedEntry ? null : (
         <header>
           <div>
             <span>{headerEyebrow}</span>
@@ -564,6 +592,68 @@ export function PendingEntryDialog({
               <button type="button" className="pending-entry-secondary pressable" onClick={onClose}>New Entry</button>
             </footer>
           ) : null}
+        </>
+      ) : isPlan ? (
+        <>
+          <div className="nl-pe-plan">
+            <div className="nl-an-head">
+              <h2 id="pending-entry-title" className={`nl-an-decision ${direction === "long" ? "is-up" : "is-down"}`}>
+                {direction === "long" ? "Long" : "Short"}
+              </h2>
+              {planRatio !== null ? (
+                <span className="nl-an-ratio">1:{Number.isInteger(Number(planRatio.toFixed(1))) ? planRatio.toFixed(0) : planRatio.toFixed(1)}</span>
+              ) : null}
+            </div>
+            <p className="nl-an-regime">
+              {planOrder ?? "Order"} · {current === null ? "waiting for quote" : `now ${current.toFixed(precision)}, ${distancePips === null ? "—" : `${distancePips.toFixed(1)} pips away`}`}
+            </p>
+
+            <div className="nl-pe-levels">
+              <label>
+                <span>Entry</span>
+                <input className="metric-number" inputMode="decimal" value={entryPrice} onChange={(event) => {
+                  if (entryPrice.trim() === "") setOrderReferencePrice(current);
+                  setEntryPrice(event.target.value);
+                }} aria-label="Entry price" />
+              </label>
+              <label>
+                <span>Stop</span>
+                <input className="metric-number is-down" inputMode="decimal" value={stopPrice} onChange={(event) => setStopPrice(event.target.value)} aria-label="Stop loss" />
+              </label>
+              <label>
+                <span>Target</span>
+                <input className="metric-number is-up" inputMode="decimal" value={targetPrice} onChange={(event) => setTargetPrice(event.target.value)} aria-label="Take profit" />
+              </label>
+            </div>
+
+            <dl className="nl-an-rows">
+              <div><dt>Stop distance</dt><dd className="metric-number">{pipsBetween(parsedEntry, parsedStop)}</dd></div>
+              <div><dt>Target distance</dt><dd className="metric-number">{pipsBetween(parsedEntry, parsedTarget)}</dd></div>
+              <div><dt>Spread</dt><dd className={`metric-number${spreadIsWide ? " is-caution" : ""}`}>{spreadPips === null ? "—" : `${spreadPips.toFixed(1)} pips${spreadIsWide ? " · wide" : ""}`}</dd></div>
+              <div><dt>Expires</dt><dd>{automaticLifetimeHours}h after it starts watching</dd></div>
+            </dl>
+
+            <div className="nl-pe-submit">
+              <span>Submit</span>
+              <div className="nl-an-modes" role="radiogroup" aria-label="Submit after">
+                <button type="button" role="radio" aria-checked={!activateAt} className={!activateAt ? "is-active" : ""} onClick={() => { setActivateAt(""); setActivateError(null); }}>Now</button>
+                <button type="button" role="radio" aria-checked={Boolean(activateAt)} className={activateAt ? "is-active" : ""} onClick={openActivatePicker}>{activateAt ? new Date(activateAt).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" }) : "Later"}</button>
+              </div>
+            </div>
+
+            {error ? <p className="nl-pe-error" role="alert">{error}</p> : null}
+          </div>
+          <footer className="nl-an-actions is-card nl-pe-actions">
+            <button type="button" className="nl-an-secondary pressable" onClick={dismissCreateOrClose}>Cancel</button>
+            <button
+              type="button"
+              className="nl-an-primary pressable"
+              disabled={saving || creationBlocked || !Number.isFinite(parsedEntry) || parsedEntry <= 0}
+              onClick={() => void save()}
+            >
+              {saving ? "Saving…" : "Create entry"}
+            </button>
+          </footer>
         </>
       ) : (
         <>

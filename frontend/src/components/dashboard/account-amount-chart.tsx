@@ -116,6 +116,47 @@ function formatBucketLabel(start: number, end: number, range: AccountChartRange)
 }
 
 /** Keep endpoint labels inside the SVG without moving the plotted values inward. */
+/**
+ * Right-hand scale for the ledger chart: "25.5k" rather than a full amount.
+ * `digits` grows as the visible range narrows, so neighbouring ticks never
+ * round to the same label.
+ */
+function LedgerValueTick({
+  x = 0,
+  y = 0,
+  payload,
+  digits = 1,
+}: {
+  x?: number;
+  y?: number;
+  payload?: { value?: number };
+  digits?: number;
+}) {
+  const value = payload?.value;
+  if (typeof value !== "number") return null;
+  const label = new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  })
+    .format(value)
+    .toLowerCase();
+  return (
+    <text
+      className="recharts-text recharts-cartesian-axis-tick-value"
+      x={x + 56}
+      y={y}
+      dy={4}
+      fill="var(--muted)"
+      fontSize={11}
+      fontFamily="var(--font-geist-mono), ui-monospace, monospace"
+      textAnchor="end"
+    >
+      {label}
+    </text>
+  );
+}
+
 function AccountChartAxisTick({
   x = 0,
   y = 0,
@@ -399,6 +440,8 @@ export function AccountAmountChart({
   range,
   onRangeChange,
   hideRangeRow = false,
+  variant = "default",
+  scales = true,
 }: {
   series: AccountChartPoint[];
   currency: string;
@@ -406,13 +449,26 @@ export function AccountAmountChart({
   onRangeChange: (range: AccountChartRange) => void;
   /** When the range switcher is rendered elsewhere (e.g. beside the balance). */
   hideRangeRow?: boolean;
+  /**
+   * "ledger" is the Home redesign: dashed guides, a right-hand value scale, a
+   * flat low-opacity fill and a dot on the latest point. Below 1024px the
+   * stylesheet hides the scales so the line runs edge to edge.
+   */
+  variant?: "default" | "ledger";
+  /** Ledger only: false drops the axes and guides so the line runs edge to edge. */
+  scales?: boolean;
 }) {
+  const ledger = variant === "ledger";
+  const bare = ledger && !scales;
   const gradientId = useId().replace(/:/g, "");
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const values = useMemo(() => series.map((point) => point.value), [series]);
   const min = Math.min(...values);
   const max = Math.max(...values);
   const room = Math.max((max - min) * 0.12, 1);
+  // Thousands shown in the ledger scale: tighter ranges need more decimals.
+  const scaleSpan = (max - min + room * 2) / 1000;
+  const scaleDigits = scaleSpan < 0.5 ? 2 : scaleSpan < 5 ? 1 : 0;
   const activePoint = activeIndex === null ? null : (series[activeIndex] ?? null);
   const opening = series[0]?.value ?? 0;
   const latest = series.at(-1)?.value ?? opening;
@@ -458,13 +514,13 @@ export function AccountAmountChart({
   }
 
   return (
-    <div className="account-chart">
+    <div className={`account-chart${ledger ? " is-ledger" : ""}`}>
       {hideRangeRow ? null : (
         <AccountRangeControl range={range} onRangeChange={onRangeChange} />
       )}
 
       <div
-        className="account-chart-canvas mt-4"
+        className={`account-chart-canvas${ledger ? "" : " mt-4"}`}
         role="img"
         aria-label={`Account balance over ${RANGE_CONFIG[range].label}`}
       >
@@ -475,7 +531,13 @@ export function AccountAmountChart({
             // Match Signals: fill continues beneath the line to the chart's
             // lower edge, then fades out.
             baseValue={min - room}
-            margin={{ top: 14, right: 4, left: 4, bottom: 4 }}
+            margin={
+              bare
+                ? { top: 10, right: 0, left: 0, bottom: 0 }
+                : ledger
+                  ? { top: 18, right: 0, left: 0, bottom: 6 }
+                  : { top: 14, right: 4, left: 4, bottom: 4 }
+            }
             onMouseMove={handleChartFocus}
             onMouseLeave={() => setActiveIndex(null)}
             onTouchStart={handleChartFocus}
@@ -488,15 +550,33 @@ export function AccountAmountChart({
                 <stop offset="100%" stopColor={stroke} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid vertical={false} stroke="var(--border)" strokeOpacity={0.45} />
+            {bare ? null : <CartesianGrid
+              vertical={false}
+              stroke="var(--border)"
+              strokeOpacity={ledger ? 1 : 0.45}
+              strokeDasharray={ledger ? "4 4" : undefined}
+            />}
             <XAxis
               dataKey="axisLabel"
               axisLine={false}
               tickLine={false}
               tick={<AccountChartAxisTick />}
               interval={tickInterval}
+              hide={bare}
             />
-            <YAxis hide domain={[min - room, max + room]} />
+            {ledger && !bare ? (
+              <YAxis
+                orientation="right"
+                domain={[min - room, max + room]}
+                axisLine={false}
+                tickLine={false}
+                width={64}
+                tickCount={4}
+                tick={<LedgerValueTick digits={scaleDigits} />}
+              />
+            ) : (
+              <YAxis hide domain={[min - room, max + room]} />
+            )}
             <Tooltip
               isAnimationActive={false}
               cursor={{ stroke, strokeWidth: 1, strokeDasharray: "4 4", strokeOpacity: 0.55 }}
@@ -515,12 +595,30 @@ export function AccountAmountChart({
               type="linear"
               dataKey="value"
               stroke={stroke}
-              strokeWidth={2.25}
+              strokeWidth={ledger ? 2.5 : 2.25}
               strokeLinecap="butt"
-              strokeLinejoin="miter"
-              fill={`url(#${gradientId})`}
+              strokeLinejoin={ledger ? "round" : "miter"}
+              fill={ledger ? stroke : `url(#${gradientId})`}
+              fillOpacity={ledger ? 0.08 : 1}
               isAnimationActive={false}
-              dot={false}
+              dot={
+                ledger
+                  ? (props: { cx?: number; cy?: number; index?: number }) =>
+                      props.index === series.length - 1 && props.cx !== undefined && props.cy !== undefined ? (
+                        <circle
+                          key="latest"
+                          cx={props.cx}
+                          cy={props.cy}
+                          r={5.5}
+                          fill={stroke}
+                          stroke="var(--hero-surface, var(--surface))"
+                          strokeWidth={3}
+                        />
+                      ) : (
+                        <g key={`dot-${props.index}`} />
+                      )
+                  : false
+              }
               activeDot={(props: { cx?: number; cy?: number; payload?: AccountChartPoint }) => (
                 <PnLDot cx={props.cx} cy={props.cy} payload={props.payload} radius={5} />
               )}

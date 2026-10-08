@@ -78,6 +78,7 @@ import {
   formatTradingZoneYear,
 } from "@/lib/format/datetime";
 import { pipSizeFor } from "@/lib/instruments/catalog";
+import { chartColors } from "@/lib/theme/chart-colors";
 import type { BinaryPrediction } from "@/types/binary";
 import type { Candle, CandleSeries, PaperChartTrade } from "@/types/forex";
 
@@ -668,19 +669,14 @@ function chartTheme(
   isDark: boolean,
   embedded = false,
 ): DeepPartial<TimeChartOptions> {
-  const background = embedded
-    ? isDark
-      ? "#0b0b0d"
-      : "#ffffff"
-    : isDark
-      ? "#080A0B"
-      : "#f1f5f9";
-  const scaleText = isDark ? "#9a9aa3" : "#6e6e73";
-  const accent = isDark ? "#00e59b" : "#00b377";
+  const palette = chartColors(isDark);
+  const background = embedded ? palette.embeddedBackground : palette.background;
+  const scaleText = palette.scaleText;
+  const accent = palette.up;
   // Desktop keeps quiet price guides. The native mobile WebView stays clean:
   // its labels provide orientation without a desktop-style grid behind candles.
-  const horzGrid = isDark ? "rgba(255,255,255,0.05)" : "rgba(28,28,30,0.06)";
-  const vertGrid = isDark ? "rgba(255,255,255,0.028)" : "rgba(28,28,30,0.035)";
+  const horzGrid = palette.horzGrid;
+  const vertGrid = palette.vertGrid;
 
   return {
     layout: {
@@ -700,13 +696,13 @@ function chartTheme(
       // it got in the way of panning and pinching. Desktop keeps it.
       mode: embedded ? CrosshairMode.Hidden : CrosshairMode.Normal,
       vertLine: {
-        color: isDark ? "rgba(0,229,155,0.22)" : "rgba(0,179,119,0.28)",
+        color: palette.upLine,
         width: 1 as const,
         style: LineStyle.LargeDashed,
         labelBackgroundColor: accent,
       },
       horzLine: {
-        color: isDark ? "rgba(0,229,155,0.22)" : "rgba(0,179,119,0.28)",
+        color: palette.upLine,
         width: 1 as const,
         style: LineStyle.LargeDashed,
         labelBackgroundColor: accent,
@@ -981,6 +977,7 @@ function setupLevelTags(
   const entrySide: 1 | -1 = isLong ? -1 : 1;
   const exitSide: 1 | -1 = isLong ? 1 : -1;
   const rewardR = plannedRewardR(levels);
+  const palette = chartColors(isDark);
   const entryPrice = formatChartPrice(levels.entry, instrument);
   const stopPrice = formatChartPrice(levels.stop, instrument);
   const targetPrice = formatChartPrice(levels.target, instrument);
@@ -989,16 +986,16 @@ function setupLevelTags(
       key: "entry",
       label: compactLabels ? `Entry ${entryPrice} · R:R ${rewardR.toFixed(rewardR >= 10 ? 0 : 1)}` : `ENTRY ${entryPrice}`,
       price: toChartPrice(levels.entry, entrySide, halfSpread),
-      color: isDark ? "rgba(0, 229, 155, 0.82)" : "#00a06a",
-      textColor: isDark ? "#06281f" : "#ffffff",
+      color: palette.up,
+      textColor: palette.onUp,
       dashed: false,
     },
     {
       key: "stop",
       label: compactLabels ? `SL ${stopPrice} · -1R` : `STOP LOSS ${stopPrice} · -1R`,
       price: toChartPrice(levels.stop, exitSide, halfSpread),
-      color: isDark ? "rgba(255, 99, 112, 0.88)" : "#e74c3c",
-      textColor: "#ffffff",
+      color: palette.stopLine,
+      textColor: palette.onDown,
       dashed: true,
     },
     {
@@ -1007,8 +1004,8 @@ function setupLevelTags(
         ? `TP ${targetPrice} · +${rewardR.toFixed(rewardR >= 10 ? 0 : 1)}R`
         : `TAKE PROFIT ${targetPrice} · +${rewardR.toFixed(rewardR >= 10 ? 0 : 1)}R`,
       price: toChartPrice(levels.target, exitSide, halfSpread),
-      color: isDark ? "#00e59b" : "#00b377",
-      textColor: isDark ? "#06281f" : "#ffffff",
+      color: palette.up,
+      textColor: palette.onUp,
       dashed: true,
     },
   ];
@@ -1539,15 +1536,16 @@ export function SetupChart({
   const isDark = resolvedTheme !== "light";
   // Solid opaque candles: body, border, and wick share one hue so bars read
   // crisp against the dark chart (same treatment as the home mini-chart).
-  const upColor = isDark ? "#00e59b" : "#00b377";
-  const downColor = isDark ? "#ff5252" : "#e74c3c";
+  const palette = chartColors(isDark);
+  const upColor = palette.up;
+  const downColor = palette.down;
   const activeCandle = liveCandle ?? series.candles.at(-1);
   // This is applied with `series.applyOptions`, never by rebuilding the chart.
   // The dotted last-price line therefore follows the active candle's direction
   // without disturbing the visible range, gestures, or indicator series.
   const livePriceLineColor = activeCandle && activeCandle.close < activeCandle.open
-    ? (isDark ? "rgba(255, 82, 82, 0.52)" : "rgba(231, 76, 60, 0.52)")
-    : (isDark ? "rgba(0, 229, 155, 0.42)" : "rgba(0, 179, 119, 0.42)");
+    ? palette.downLine
+    : palette.upLine;
   const winPathColor = isDark ? "#a7f3d0" : "#047857";
   const lossPathColor = isDark ? "#ff3b5c" : "#a61b3d";
   const wickUpColor = upColor;

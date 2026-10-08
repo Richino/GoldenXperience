@@ -53,7 +53,7 @@ const navItems: NavItem[] = [
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
-const mobilePrimaryHrefs = ["/", "/chart", "/journal", "/settings"] as const;
+const mobilePrimaryHrefs = ["/", "/chart", "/journal", "/watchlist", "/settings"] as const;
 
 function isActive(pathname: string, href: string) {
   if (href === "/settings") {
@@ -106,8 +106,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Trades (the /journal route) carries its own header + connection strip and a
   // two-pane workspace, so it opts out of the shared market-status top bar.
   const isTrades = pathname === "/journal";
+  const isMarkets = pathname === "/watchlist";
+  const isSettings = pathname === "/settings";
+  // Pages that draw their own header row (title, status, tools) as designed.
+  const ownsHeader = isDashboard || isChart || isTrades || isMarkets || isSettings;
   // Bottom-dock tabs have no "back"; their bell shares the title row.
-  const isTabPage = isTrades || pathname === "/settings";
+  const isTabPage = isTrades || pathname === "/settings" || pathname === "/watchlist";
   const activeMobileIndex = Math.max(
     0,
     mobileNavItems.findIndex((item) => isActive(pathname, item.href)),
@@ -207,7 +211,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </filter>
         </defs>
       </svg>
-      <div className="nav-pill mx-auto grid w-full max-w-[24rem] grid-cols-4 items-center p-2">
+      <div className="nav-pill mx-auto grid w-full max-w-[26rem] grid-cols-5 items-center p-2">
         <span
           key={`${previousMobileIndex}-${activeMobileIndex}-${pathname}`}
           className="nav-liquid-lens-track"
@@ -262,7 +266,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           : "bg-[color:var(--background)]"
       }`}
     >
-      <aside className="app-sidebar fixed inset-y-0 left-0 z-30 hidden w-[220px] flex-col lg:flex">
+      <aside className="app-sidebar fixed inset-y-0 left-0 z-30 hidden w-24 flex-col lg:flex">
         <div className="sidebar-header">
           <BrandMark variant="sidebar" />
         </div>
@@ -288,23 +292,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div
-        className={`min-w-0 w-full lg:pl-[220px] has-topbar ${
+        className={`min-w-0 w-full lg:pl-24 ${ownsHeader ? "" : "has-topbar"} ${
           isChart ? "lg:min-h-dvh" : ""
-        } ${isDashboard ? "has-home-rail" : ""}`}
+        }`}
       >
-        <AppTopBar />
+        {ownsHeader ? null : <AppTopBar />}
         <main
           className={`w-full min-w-0 ${
             isChart
               ? "min-h-dvh p-0"
-              : isDashboard
-                ? "w-full px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-5 lg:px-8 lg:pb-10"
-                : isTrades
-                  ? "mx-auto w-full max-w-[1600px] px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-6 lg:px-8 lg:pb-10"
-                  : "mx-auto max-w-[1320px] px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-6 lg:px-8 lg:pb-10"
+              : ownsHeader
+                ? "w-full pb-32 pt-[env(safe-area-inset-top)] lg:pb-0 lg:pt-0"
+                : "mx-auto max-w-[1320px] px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-6 lg:px-8 lg:pb-10"
           }`}
         >
-          {!isChart && !isDashboard ? <MobileTopBar showBack={!isTabPage} inline={isTabPage} /> : null}
+          {!ownsHeader ? <MobileTopBar showBack={!isTabPage} inline={isTabPage} /> : null}
           <div key={pathname} className="mobile-page-transition">
             {children}
           </div>

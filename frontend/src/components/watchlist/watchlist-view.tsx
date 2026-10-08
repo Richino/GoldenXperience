@@ -1,17 +1,25 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ManualProposalModal, type ManualProposal } from "@/components/analysis/manual-proposal";
 import { WatchlistPairsSkeleton } from "@/components/ui/page-skeletons";
+import { MarketRowSkeleton } from "@/components/ui/ledger-loading-skeletons";
+import { AnalyzeSheet } from "@/components/analysis/analyze-card";
+import { AnalyzeIcon } from "@/components/icons/analyze-icon";
+import { SessionStrip } from "@/components/watchlist/session-strip";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { INSTRUMENT_CATALOG, displayNameFor, pipSizeFor } from "@/lib/instruments/catalog";
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import type { WatchlistCondition } from "@/lib/watchlist-status";
-import type { CandleSeries } from "@/types/forex";
+import { marketAnalysisContext, type AnalysisMode, type MarketAnalysis } from "@/lib/strategy/market-analysis";
+import { ANALYZE_HANDOFF_KEY, runMarketAnalysis, type AnalyzeHandoff } from "@/lib/strategy/run-market-analysis";
+import type { CandleSeries, MajorInstrument } from "@/types/forex";
+import type { PendingManualEntry } from "@/types/pending-entry";
 
 type Row = {
   instrument: string;
@@ -49,7 +57,7 @@ const EMPTY_ROW: Omit<Row, "instrument"> = {
 };
 /** How many rows to reveal per infinite-scroll page. */
 const WATCHLIST_PAGE_SIZE = 20;
-type Day = { change: number | null; high: number | null; low: number | null; close: number | null };
+type Day = { change: number | null; high: number | null; low: number | null; close: number | null; spark: number[] | null };
 const names: Record<string, string> = {
   AUD: "Australian Dollar",
   CAD: "Canadian Dollar",
@@ -75,75 +83,20 @@ export function WatchlistView() {
   const router = useRouter();
   const [snapshot, setSnapshot] = useState<Row[]>([]);
   const [daily, setDaily] = useState<Record<string, Day>>({});
-  const [selected, setSelected] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [group, setGroup] = useState<PairGroup>("all");
+  const [sort, setSort] = useState<PairSort>("setups");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [proposal, setProposal] = useState<ManualProposal | null>(null);
-  const [analyzingInstrument, setAnalyzingInstrument] = useState<string | null>(null);
+  // Analyze runs here; normal is null while it is still reading.
+  const [analysis, setAnalysis] = useState<{
+    instrument: MajorInstrument;
+    normal: MarketAnalysis | null;
+    swing: MarketAnalysis | null;
+  } | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const analysisAbortRef = useRef<AbortController | null>(null);
   const quotes = useLiveQuotes();
-  useEffect(() => {
-    if (!proposal) return;
-    const previousBodyOverflow = document.body.style.overflow;
-    const previousBodyOverscroll = document.body.style.overscrollBehavior;
-    const previousBodyPosition = document.body.style.position;
-    const previousBodyTop = document.body.style.top;
-    const previousBodyWidth = document.body.style.width;
-    const previousHtmlOverflow = document.documentElement.style.overflow;
-    const previousHtmlOverscroll = document.documentElement.style.overscrollBehavior;
-    const previousHtmlHeight = document.documentElement.style.height;
-    const previousBodyMinHeight = document.body.style.minHeight;
-    const scrollY = window.scrollY;
-    let touchStartY: number | null = null;
-    const onTouchStart = (event: TouchEvent) => {
-      touchStartY = event.touches[0]?.clientY ?? null;
-    };
-    const onTouchMove = (event: TouchEvent) => {
-      const currentY = event.touches[0]?.clientY;
-      if (touchStartY === null || currentY === undefined) return;
-      const modal = event.target instanceof Element
-        ? event.target.closest<HTMLElement>(".manual-proposal")
-        : null;
-      if (!modal) {
-        event.preventDefault();
-        return;
-      }
-      const delta = currentY - touchStartY;
-      const atTop = modal.scrollTop <= 0;
-      const atBottom = modal.scrollTop + modal.clientHeight >= modal.scrollHeight - 1;
-      if ((atTop && delta > 0) || (atBottom && delta < 0)) event.preventDefault();
-    };
-    document.body.style.overflow = "hidden";
-    document.body.style.overscrollBehavior = "none";
-    document.body.style.position = "fixed";
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.width = "100%";
-    document.documentElement.style.overflow = "hidden";
-    document.documentElement.style.overscrollBehavior = "none";
-    // On iOS a position:fixed body with no explicit height leaves fixed
-    // descendants (the portaled modal) short of the physical screen, so the
-    // centered dialog rides up and the bare page shows below. Pinning html/body
-    // to the dynamic viewport height gives the modal the full screen to center in.
-    document.documentElement.style.height = "100dvh";
-    document.body.style.minHeight = "100dvh";
-    document.addEventListener("touchstart", onTouchStart, { passive: true, capture: true });
-    document.addEventListener("touchmove", onTouchMove, { passive: false, capture: true });
-    return () => {
-      document.body.style.overflow = previousBodyOverflow;
-      document.body.style.overscrollBehavior = previousBodyOverscroll;
-      document.body.style.position = previousBodyPosition;
-      document.body.style.top = previousBodyTop;
-      document.body.style.width = previousBodyWidth;
-      document.documentElement.style.overflow = previousHtmlOverflow;
-      document.documentElement.style.overscrollBehavior = previousHtmlOverscroll;
-      document.documentElement.style.height = previousHtmlHeight;
-      document.body.style.minHeight = previousBodyMinHeight;
-      document.removeEventListener("touchstart", onTouchStart, true);
-      document.removeEventListener("touchmove", onTouchMove, true);
-      window.scrollTo(0, scrollY);
-    };
-  }, [proposal]);
   const load = useCallback(async () => {
     try {
       const response = await fetch(apiUrl("/api/watchlist"), {
@@ -158,11 +111,6 @@ export function WatchlistView() {
         throw new Error(payload.error ?? "Markets are unavailable.");
       const watchlist = payload.watchlist;
       setSnapshot(watchlist);
-      setSelected((current) =>
-        current && watchlist.some((row) => row.instrument === current)
-          ? current
-          : null,
-      );
       // Per-pair daily data (price + change) is fetched lazily for whatever rows
       // are on screen — see the effect below — so opening the full 68-pair
       // catalog doesn't fire dozens of candle requests at once.
@@ -217,13 +165,25 @@ export function WatchlistView() {
   // "eurusd", "eur/usd" and "EUR_USD" all match the pair; names ("euro", "yen") still match too.
   const compact = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
   const needle = compact(query);
+  // Absolute daily move; -1 for pairs whose daily data has not loaded yet.
+  const changeOf = (instrument: string) => {
+    const change = finiteOrNull(daily[instrument]?.change);
+    return change === null ? -1 : Math.abs(change);
+  };
   const matched = rows
     .filter((row) =>
       !needle
       || compact(row.instrument).includes(needle)
       || description(row.instrument).toLowerCase().includes(query.trim().toLowerCase()))
+    .filter((row) => group === "all" || groupOf(row.instrument) === group)
     .sort(
       (left, right) =>
+        sort === "name"
+          ? left.instrument.localeCompare(right.instrument)
+          : sort === "move"
+            ? // Pairs without daily data yet sort last.
+              changeOf(right.instrument) - changeOf(left.instrument) || left.instrument.localeCompare(right.instrument)
+            :
         // Valid setups first, then pairs the backend actually evaluates
         // (the featured ones), then the rest of the catalog alphabetically.
         Number(right.setupStatus === "valid") -
@@ -236,7 +196,7 @@ export function WatchlistView() {
   // A new search resets paging so results start from the top of the filtered set.
   useEffect(() => {
     setVisibleCount(WATCHLIST_PAGE_SIZE);
-  }, [query]);
+  }, [query, group, sort]);
   const shown = matched.slice(0, visibleCount);
   const hasMore = matched.length > shown.length;
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -253,10 +213,30 @@ export function WatchlistView() {
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [hasMore]);
+  }, [hasMore, loading]);
   // Lazily pull daily price + change for whatever pairs are currently on screen,
   // once per pair, so scrolling reveals data for the non-featured pairs too
   // without loading all 68 up front.
+  // Ranked only among pairs whose daily data has arrived; the header says so.
+  const loadedDailyCount = rows.filter((row) => finiteOrNull(daily[row.instrument]?.change) !== null).length;
+  const movers = rows
+    .map((row) => {
+      const day = daily[row.instrument];
+      const change = finiteOrNull(day?.change);
+      const price = mid(row) ?? finiteOrNull(day?.close);
+      const high = finiteOrNull(day?.high);
+      const low = finiteOrNull(day?.low);
+      const rangePosition =
+        price !== null && high !== null && low !== null && high > low
+          ? Math.min(100, Math.max(0, ((price - low) / (high - low)) * 100))
+          : null;
+      return change === null || price === null
+        ? null
+        : { instrument: row.instrument, change, price, rangePosition, spark: day?.spark ?? null };
+    })
+    .filter((mover): mover is NonNullable<typeof mover> => mover !== null)
+    .sort((left, right) => Math.abs(right.change) - Math.abs(left.change))
+    .slice(0, 4);
   const shownInstrumentsKey = shown.map((row) => row.instrument).join(",");
   const dailyRequestedRef = useRef<Set<string>>(new Set());
   useEffect(() => {
@@ -269,15 +249,26 @@ export function WatchlistView() {
     void Promise.all(
       missing.map(async (instrument) => {
         try {
-          const candleResponse = await fetch(
-            apiUrl(
-              `/api/oanda/candles?instrument=${instrument}&granularity=D&count=2`,
+          const [candleResponse, hourlyResponse] = await Promise.all([
+            fetch(
+              apiUrl(
+                `/api/oanda/candles?instrument=${instrument}&granularity=D&count=2`,
+              ),
+              { credentials: "include", cache: "no-store" },
             ),
-            { credentials: "include", cache: "no-store" },
-          );
+            // The row's sparkline: the last 24 hourly closes.
+            fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=H1&count=24`), {
+              credentials: "include",
+              cache: "no-store",
+            }).catch(() => null),
+          ]);
           const candlePayload = (await candleResponse.json()) as {
             data?: CandleSeries;
           };
+          const hourlyPayload = hourlyResponse?.ok
+            ? ((await hourlyResponse.json()) as { data?: CandleSeries })
+            : null;
+          const spark = hourlyPayload?.data?.candles.map((candle) => candle.close) ?? null;
           const current = candlePayload.data?.candles.at(-1),
             previous = candlePayload.data?.candles.at(-2);
           return [
@@ -290,6 +281,7 @@ export function WatchlistView() {
               high: current?.high ?? null,
               low: current?.low ?? null,
               close: current?.close ?? null,
+              spark,
             },
           ] as const;
         } catch {
@@ -297,7 +289,7 @@ export function WatchlistView() {
           dailyRequestedRef.current.delete(instrument);
           return [
             instrument,
-            { change: null, high: null, low: null, close: null },
+            { change: null, high: null, low: null, close: null, spark: null },
           ] as const;
         }
       }),
@@ -305,150 +297,318 @@ export function WatchlistView() {
       setDaily((previous) => ({ ...previous, ...Object.fromEntries(entries) }));
     });
   }, [shownInstrumentsKey]);
-  const analyze = useCallback(async (instrument: string) => {
+  // Analyze reads the pair in place (the same Normal/Swing plan as the
+  // chart). Only accepting the plan leaves Markets: the chart opens with the
+  // entry form filled in for review.
+  const analyze = useCallback(async (instrument: MajorInstrument) => {
+    analysisAbortRef.current?.abort();
+    const controller = new AbortController();
+    analysisAbortRef.current = controller;
     setAnalysisError(null);
-    setAnalyzingInstrument(instrument);
+    setAnalysis({ instrument, normal: null, swing: null });
     try {
-      const response = await fetch(apiUrl("/api/manual-analysis"), {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instrument }),
-      });
-      const payload = await response.json() as { proposal?: ManualProposal; error?: string };
-      if (!response.ok || !payload.proposal) throw new Error(payload.error ?? "Analysis could not produce a proposal.");
-      setProposal(payload.proposal);
+      // Open trades and resting orders, for the same-currency warning.
+      const exposure = await fetch(apiUrl("/api/pending-entries"), { credentials: "include", cache: "no-store", signal: controller.signal })
+        .then(async (response) => response.ok ? ((await response.json()) as { entries?: PendingManualEntry[] }).entries ?? [] : [])
+        .then((entries) => entries
+          .filter((entry) => entry.status === "PENDING" || entry.status === "TRIGGERING" || (entry.status === "TRIGGERED" && entry.paperTradeStatus === "open"))
+          .map((entry) => ({ instrument: entry.instrument, direction: entry.direction })))
+        .catch(() => []);
+      const { normal, swing } = await runMarketAnalysis({ instrument, signal: controller.signal, exposure });
+      if (analysisAbortRef.current !== controller) return;
+      setAnalysis({ instrument, normal, swing });
     } catch (reason) {
+      if (controller.signal.aborted) return;
+      setAnalysis(null);
       setAnalysisError(reason instanceof Error ? reason.message : "Analysis could not run.");
     } finally {
-      setAnalyzingInstrument(null);
+      if (analysisAbortRef.current === controller) analysisAbortRef.current = null;
     }
   }, []);
+  const closeAnalysis = useCallback(() => {
+    analysisAbortRef.current?.abort();
+    analysisAbortRef.current = null;
+    setAnalysis(null);
+  }, []);
+  const reviewPlan = useCallback((mode: AnalysisMode) => {
+    if (!analysis?.normal) return;
+    const plan = mode === "SWING" && analysis.swing ? analysis.swing : analysis.normal;
+    if (!plan.trade || plan.decision === "NO TRADE") return;
+    const handoff: AnalyzeHandoff = {
+      instrument: analysis.instrument,
+      proposal: {
+        direction: plan.decision === "LONG" ? "long" : "short",
+        entry: plan.trade.entry,
+        stop: plan.trade.stopLoss,
+        target: plan.trade.takeProfit,
+        confidence: null,
+        rationale: plan.reason,
+        preferredEntryTime: new Date().toISOString(),
+        activateAt: plan.activateAfter,
+        analysisContext: marketAnalysisContext(plan),
+      },
+    };
+    try {
+      window.sessionStorage.setItem(ANALYZE_HANDOFF_KEY, JSON.stringify(handoff));
+    } catch {
+      setAnalysisError("Could not hand the plan to the chart.");
+      return;
+    }
+    setAnalysis(null);
+    router.push(`/chart?instrument=${analysis.instrument}&plan=analyze`);
+  }, [analysis, router]);
+  const groups: Array<{ id: PairGroup; label: string }> = [
+    { id: "all", label: "All" },
+    { id: "major", label: "Majors" },
+    { id: "yen", label: "Yen crosses" },
+    { id: "cross", label: "Other crosses" },
+  ];
+  const sorts: Array<{ id: PairSort; label: string }> = [
+    { id: "setups", label: "Setups first" },
+    { id: "move", label: "Biggest move" },
+    { id: "name", label: "A–Z" },
+  ];
 
-  const acceptProposal = useCallback(() => {
-    if (!proposal) return;
-    const parameters = new URLSearchParams({
-      instrument: proposal.instrument,
-      entry: String(proposal.entry),
-      stop: String(proposal.stop),
-      target: String(proposal.target),
-      direction: proposal.direction,
-      confidence: String(proposal.confidence),
-      preferredEntryTime: proposal.preferredEntryTime,
-      rationale: proposal.rationale,
-      proposal: "manual-analysis",
-    });
-    const timeout = window.setTimeout(() => {
-      router.push(`/chart?${parameters.toString()}`);
-    }, 180);
-    return () => window.clearTimeout(timeout);
-  }, [proposal, router]);
   return (
-    <div className="markets-workspace">
-      <header className="markets-header">
-        <div>
+    <div className="nl-mk">
+      <header className="nl-mk-head">
+        <div className="nl-mk-title">
+          <span className="nl-overline">{INSTRUMENT_CATALOG.length} pairs · live</span>
           <h1>Markets</h1>
         </div>
+        <NotificationBell compact className="nl-mk-bell" />
+        <SessionStrip />
       </header>
-      {error ? <p className="research-error">{error}</p> : null}
-      {loading && !rows.length ? (
-        <WatchlistPairsSkeleton />
-      ) : (
-        <div className="markets-terminal">
-          <section className="markets-scanner">
-            <div className="markets-toolbar">
-              <label>
-                <Search />
-                <input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search markets..."
-                />
-              </label>
+      {error ? <p className="nl-mk-error">{error}</p> : null}
+
+      {movers.length && !needle ? (
+        <section className="nl-mk-movers" aria-labelledby="nl-mk-movers-title">
+          <div className="nl-mk-sec-head">
+            <h2 id="nl-mk-movers-title">Biggest moves today</h2>
+            {/* Daily data loads per page of rows, so say what was ranked. */}
+            <span>of {loadedDailyCount} pairs loaded</span>
+          </div>
+          <div className="nl-mk-movers-grid">
+            {movers.map((mover) => (
+              <Link
+                key={mover.instrument}
+                href={`/chart?instrument=${mover.instrument}`}
+                className="nl-mk-mover"
+                aria-label={`View ${displayNameFor(mover.instrument)} chart`}
+              >
+                <span className="nl-mk-mover-top">
+                  <b>{displayNameFor(mover.instrument)}</b>
+                  <ChangePill change={mover.change} />
+                </span>
+                <Spark points={mover.spark} up={mover.change >= 0} className="nl-mk-mover-spark" />
+                <span className="nl-mk-mover-price metric-number">{formatChartPrice(mover.price, mover.instrument)}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section className="nl-mk-all" aria-labelledby="nl-mk-all-title">
+        <div className="nl-mk-toolbar">
+          <h2 id="nl-mk-all-title">All pairs</h2>
+          <div className="nl-mk-groups" role="group" aria-label="Pair group">
+            {groups.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                aria-pressed={group === option.id}
+                className={group === option.id ? "is-active" : ""}
+                onClick={() => setGroup(option.id)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <div className="nl-mk-sorts" role="group" aria-label="Sort">
+            {sorts.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                aria-pressed={sort === option.id}
+                className={sort === option.id ? "is-active" : ""}
+                onClick={() => setSort(option.id)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <label className="nl-mk-search">
+            <Search aria-hidden="true" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search markets"
+              aria-label="Search markets"
+            />
+          </label>
+        </div>
+
+        {loading ? (
+          <WatchlistPairsSkeleton />
+        ) : (
+          <>
+            <div className="nl-mk-rowhead" aria-hidden="true">
+              <span>Pair</span>
+              <span className="nl-mk-hide-md">Today</span>
+              <span className="is-end">Price</span>
+              <span className="is-end nl-mk-hide-sm">Change</span>
+              <span className="nl-mk-hide-sm">Day range</span>
+              <span className="is-end nl-mk-hide-md">Spread</span>
+              <span />
             </div>
-            <div className="markets-table">
+            <div className="nl-mk-rows">
               {shown.map((row) => {
-                const change = finiteOrNull(daily[row.instrument]?.change);
+                const day = daily[row.instrument];
+                // Reveal the pair and its market fields together after both
+                // daily candles and the sparkline request have settled.
+                if (!day) return <MarketRowSkeleton key={row.instrument} />;
+                const change = finiteOrNull(day?.change);
                 // Fall back to the daily close when this pair has no live quote
                 // (only the featured pairs stream), so every row shows a price.
-                const price = mid(row) ?? finiteOrNull(daily[row.instrument]?.close);
+                const price = mid(row) ?? finiteOrNull(day?.close);
+                const high = finiteOrNull(day?.high);
+                const low = finiteOrNull(day?.low);
+                const rangeAt =
+                  price !== null && high !== null && low !== null && high > low
+                    ? Math.min(100, Math.max(0, ((price - low) / (high - low)) * 100))
+                    : null;
+                const name = displayNameFor(row.instrument);
+                const busy = analysis?.instrument === row.instrument && analysis.normal === null;
                 return (
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    key={row.instrument}
-                    className={`markets-row ${selected === row.instrument ? "is-selected" : ""}`}
-                    onClick={() => {
-                      setSelected(row.instrument);
-                      router.push(`/chart?instrument=${row.instrument}`);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key !== "Enter" && event.key !== " ") return;
-                      event.preventDefault();
-                      setSelected(row.instrument);
-                      router.push(`/chart?instrument=${row.instrument}`);
-                    }}
-                    aria-label={`View ${displayNameFor(row.instrument)} chart and setup`}
-                  >
-                    <span className="markets-pair">
-                      <span>
-                        <b>{displayNameFor(row.instrument)}</b>
+                  <div key={row.instrument} className="nl-mk-row">
+                    <Link href={`/chart?instrument=${row.instrument}`} className="nl-mk-pair" aria-label={`View ${name} chart`}>
+                      <Coins instrument={row.instrument} />
+                      <span className="nl-mk-pair-copy">
+                        <b>{name}</b>
                         <small>{description(row.instrument)}</small>
                       </span>
+                    </Link>
+                    <Spark points={day?.spark ?? null} up={(change ?? 0) >= 0} className="nl-mk-row-spark nl-mk-hide-md" />
+                    <span className="nl-mk-price metric-number">
+                      {price === null ? "—" : formatChartPrice(price, row.instrument)}
+                      <span className="nl-mk-narrow-change">
+                        <ChangePill change={change} />
+                      </span>
                     </span>
-                    <b className="metric-number">
-                      {price === null
-                        ? "—"
-                        : formatChartPrice(price, row.instrument)}
-                    </b>
-                    <b
-                      className={`metric-number ${change === null ? "" : `is-${change >= 0 ? "positive" : "negative"}`}`}
+                    <span className="nl-mk-hide-sm nl-mk-change-cell">
+                      <ChangePill change={change} />
+                    </span>
+                    <span className="nl-mk-range nl-mk-hide-sm">
+                      {rangeAt !== null && high !== null && low !== null ? (
+                        <>
+                          <span className="nl-mk-range-bar" aria-hidden="true">
+                            <span style={{ left: `${rangeAt}%` }} />
+                          </span>
+                          <span className="nl-mk-range-ends metric-number">
+                            <span>{formatChartPrice(low, row.instrument)}</span>
+                            <span>{formatChartPrice(high, row.instrument)}</span>
+                          </span>
+                        </>
+                      ) : (
+                        <span className="nl-mk-muted">—</span>
+                      )}
+                    </span>
+                    <span className="nl-mk-spread metric-number nl-mk-hide-md">
+                      {row.spreadPips === null ? "—" : row.spreadPips.toFixed(1)}
+                    </span>
+                    <button
+                      type="button"
+                      className="nl-mk-analyze pressable"
+                      disabled={busy}
+                      onClick={() => void analyze(row.instrument as MajorInstrument)}
+                      aria-label={`Analyze ${name}`}
                     >
-                      {change === null
-                        ? "—"
-                        : `${change >= 0 ? "+" : ""}${change.toFixed(2)}%`}
-                    </b>
-                    <span className="markets-row-plan">
-                      <button
-                        type="button"
-                        className="markets-row-analyze pressable"
-                        disabled={analyzingInstrument === row.instrument}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void analyze(row.instrument);
-                        }}
-                        onKeyDown={(event) => event.stopPropagation()}
-                      >
-                        {analyzingInstrument === row.instrument ? "Analyzing…" : "Analyze"}
-                      </button>
-                    </span>
+                      <AnalyzeIcon className="size-[14px]" />
+                      <span className="nl-mk-analyze-label">{busy ? "Analyzing…" : "Analyze"}</span>
+                    </button>
                   </div>
                 );
               })}
+              {!shown.length ? <p className="nl-mk-empty">No pairs match that search.</p> : null}
               {hasMore ? (
-                <div
-                  ref={loadMoreRef}
-                  className="markets-load-more"
-                  aria-hidden
-                >
+                <div ref={loadMoreRef} className="nl-mk-more" aria-hidden>
                   Loading more pairs…
                 </div>
               ) : null}
             </div>
-          </section>
-        </div>
-      )}
-      <ManualProposalModal
-        proposal={proposal}
-        currentPrice={proposal
-          ? proposal.direction === "long"
-            ? quotes[proposal.instrument]?.ask ?? null
-            : quotes[proposal.instrument]?.bid ?? null
-          : null}
-        onDismiss={() => setProposal(null)}
-        onAccept={acceptProposal}
+          </>
+        )}
+      </section>
+
+      <AnalyzeSheet
+        normal={analysis?.normal ?? null}
+        swing={analysis?.swing ?? null}
+        analyzing={analysis !== null && analysis.normal === null}
+        instrument={analysis?.instrument ?? "EUR_USD"}
+        onClose={closeAnalysis}
+        onCancel={closeAnalysis}
+        onReview={reviewPlan}
       />
       {analysisError ? <div className="manual-analysis-error" role="alert">{analysisError}</div> : null}
     </div>
+  );
+}
+
+/* ------------------------------------------------------------- night ledger */
+
+type PairGroup = "all" | "major" | "yen" | "cross";
+type PairSort = "setups" | "move" | "name";
+
+const MAJOR_CURRENCIES = new Set(["EUR", "GBP", "AUD", "NZD", "CAD", "CHF", "JPY"]);
+
+/** Majors: USD against another G8 currency. Yen crosses: non-USD vs JPY. */
+function groupOf(instrument: string): Exclude<PairGroup, "all"> {
+  const [base = "", quote = ""] = instrument.split("_");
+  if ((base === "USD" && MAJOR_CURRENCIES.has(quote)) || (quote === "USD" && MAJOR_CURRENCIES.has(base))) return "major";
+  if (quote === "JPY") return "yen";
+  return "cross";
+}
+
+function Coins({ instrument }: { instrument: string }) {
+  const [base = "", quote = ""] = instrument.split("_");
+  return (
+    <span className="nl-mk-coins" aria-hidden="true">
+      <span>{base}</span>
+      <span>{quote}</span>
+    </span>
+  );
+}
+
+function ChangePill({ change }: { change: number | null }) {
+  if (change === null) return <span className="nl-mk-muted">—</span>;
+  return (
+    <span className={`nl-mk-pill metric-number ${change >= 0 ? "is-up" : "is-down"}`}>
+      {change >= 0 ? "+" : "−"}
+      {Math.abs(change).toFixed(2)}%
+    </span>
+  );
+}
+
+/** The last 24 hourly closes as a line; empty until the candles arrive. */
+function Spark({ points, up, className }: { points: number[] | null; up: boolean; className: string }) {
+  if (!points || points.length < 2) return <span className={className} aria-hidden="true" />;
+  const high = Math.max(...points);
+  const low = Math.min(...points);
+  const span = high - low || 1;
+  const path = points
+    .map((value, index) => `${((index / (points.length - 1)) * 100).toFixed(2)},${(30 - ((value - low) / span) * 28).toFixed(2)}`)
+    .join(" ");
+  return (
+    <svg className={className} viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true">
+      <polyline
+        points={path}
+        fill="none"
+        className={up ? "is-up" : "is-down"}
+        strokeWidth={1.8}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
   );
 }

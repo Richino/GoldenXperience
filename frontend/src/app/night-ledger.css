@@ -1,0 +1,5958 @@
+/*
+ * Night Ledger — the 2026 redesign layer.
+ *
+ * Loaded after globals.css (see app/layout.tsx), so a rule here beats a
+ * globals.css rule of equal specificity on source order alone. Where globals.css
+ * already escalates with `html:is(.dark, :not(.dark)) …`, the overrides below
+ * prefix `body` to stay one step ahead rather than reaching for !important.
+ *
+ * Palette: near-black ground, lime for gains and primary actions, orange for
+ * losses and destructive actions. The two status colours differ in lightness,
+ * not just hue. Light mode keeps the same structure on an ivory ground, with a
+ * darker olive standing in for lime wherever the accent is used as text.
+ */
+
+:root {
+  --font-display: var(--font-bricolage), "Geist", ui-sans-serif, system-ui, sans-serif;
+  /* Text and icons that sit on a lime fill — dark in both themes. */
+  --on-accent: #0b0c0a;
+  /* The lime itself, for filled buttons, chips and the active tab. Separate
+     from --accent because light mode needs a darker accent for text. */
+  --accent-fill: #c8f560;
+
+  --background: #f5f5f0;
+  --surface: #ffffff;
+  --surface-raised: #eeefe8;
+  --surface-muted: #e6e7df;
+  --signals-mobile-page-bg: #ffffff;
+  --foreground: #141612;
+  --muted: #61675a;
+  --muted-strong: #3f443a;
+  --border: rgba(20, 22, 18, 0.09);
+  --border-strong: rgba(20, 22, 18, 0.16);
+  --accent: #4e7a00;
+  --accent-bright: #6b9e0a;
+  --accent-soft: rgba(110, 160, 0, 0.13);
+  --success: #4e7a00;
+  --success-soft: rgba(110, 160, 0, 0.13);
+  --danger: #c2410c;
+  --danger-soft: rgba(194, 65, 12, 0.1);
+  --chart-up: #5b8c00;
+  --chart-down: #e0672f;
+  --chart-grid: rgba(20, 22, 18, 0.07);
+  --chart-background: #fafaf6;
+  --nav-active: rgba(110, 160, 0, 0.12);
+  --interactive-hover: rgba(20, 22, 18, 0.05);
+  --interactive-selected: rgba(110, 160, 0, 0.14);
+  --focus-ring: rgba(78, 122, 0, 0.6);
+  --pending: #b7791f;
+  --pending-soft: rgba(183, 121, 31, 0.13);
+  --radius-card: 24px;
+}
+
+.dark {
+  --background: #0b0c0a;
+  --surface: #141612;
+  --surface-raised: #1b1e19;
+  --surface-muted: #171a15;
+  --signals-mobile-page-bg: #0b0c0a;
+  --foreground: #f1f2ec;
+  --muted: #9ca195;
+  --muted-strong: #c9ccc2;
+  --border: rgba(241, 242, 236, 0.09);
+  --border-strong: rgba(241, 242, 236, 0.16);
+  --accent: #c8f560;
+  --accent-bright: #d8fa86;
+  --accent-soft: rgba(200, 245, 96, 0.14);
+  --accent-fill: #c8f560;
+  --success: #c8f560;
+  --success-soft: rgba(200, 245, 96, 0.14);
+  --danger: #ff8a5b;
+  --danger-soft: rgba(255, 138, 91, 0.14);
+  --chart-up: #c8f560;
+  --chart-down: #ff8a5b;
+  --chart-grid: rgba(241, 242, 236, 0.06);
+  --chart-background: #0b0c0a;
+  --nav-active: rgba(200, 245, 96, 0.13);
+  --interactive-hover: rgba(241, 242, 236, 0.06);
+  --interactive-selected: rgba(200, 245, 96, 0.16);
+  --focus-ring: rgba(200, 245, 96, 0.7);
+  --pending: #ffc14d;
+  --pending-soft: rgba(255, 193, 77, 0.15);
+}
+
+/* ------------------------------------------------------------------ type */
+
+/* Page titles and the one hero number per screen use the display face. */
+html:is(.dark, :not(.dark)) body :is(
+  .text-display,
+  .trades-view .trades-header h1,
+  .markets-workspace .markets-header h1,
+  .settings-view .text-display
+) {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(2.5rem, 4.6vw, 4rem);
+  letter-spacing: -0.05em;
+  line-height: 0.92;
+}
+
+/* -------------------------------------------------------- desktop nav rail */
+
+@media (min-width: 1024px) {
+  html:is(.dark, :not(.dark)) body .app-sidebar {
+    width: 96px;
+    align-items: center;
+    padding: 1.5rem 0 1.25rem;
+    border-right: 1px solid var(--border);
+    background: var(--background);
+  }
+
+  .app-sidebar .sidebar-header {
+    padding: 0;
+  }
+
+  .app-sidebar .brand-mark-sidebar {
+    display: grid;
+    width: 48px;
+    height: 48px;
+    place-items: center;
+    border-radius: 14px;
+    background: transparent;
+  }
+
+  /* The app icon itself: lime mark on the dark tile (white tile in light). */
+  .app-sidebar .brand-mark-sidebar-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+  }
+
+  .app-sidebar .brand-gx {
+    color: var(--on-accent);
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: 1;
+  }
+
+  .app-sidebar .brand-gx-sub {
+    display: none;
+  }
+
+  html:is(.dark, :not(.dark)) body .app-sidebar .sidebar-nav {
+    width: 100%;
+    align-items: center;
+    gap: 6px;
+  }
+
+  html:is(.dark, :not(.dark)) body .app-sidebar .sidebar-nav-primary {
+    margin-top: 1.75rem;
+  }
+
+  html:is(.dark, :not(.dark)) body .app-sidebar .sidebar-nav-utility {
+    margin-top: 6px;
+    padding-top: 0;
+    border-top: 0;
+  }
+
+  html:is(.dark, :not(.dark)) body .app-sidebar .sidebar-nav-link {
+    width: 72px;
+    min-height: 0;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+    padding: 12px 0;
+    border-radius: 14px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0;
+  }
+
+  html:is(.dark, :not(.dark)) body .app-sidebar .sidebar-nav-link:hover {
+    background: var(--surface-raised);
+    color: var(--foreground);
+  }
+
+  html:is(.dark, :not(.dark)) body .app-sidebar .sidebar-nav-link-active {
+    background: var(--surface-raised);
+    color: var(--foreground);
+    font-weight: 600;
+  }
+
+  html:is(.dark, :not(.dark)) body .app-sidebar .sidebar-nav-link .sidebar-nav-glyph {
+    width: 22px;
+    height: 22px;
+    color: inherit;
+    opacity: 1;
+  }
+
+  html:is(.dark, :not(.dark)) body .app-sidebar .sidebar-account {
+    justify-content: center;
+    padding: 0;
+    border-top: 0;
+  }
+
+  html:is(.dark, :not(.dark)) body .app-sidebar .sidebar-sign-out {
+    font-size: 11px;
+  }
+
+  /* The fixed top bar starts where the rail ends. */
+  html:is(.dark, :not(.dark)) body .app-topbar {
+    left: 96px;
+    border-bottom: 1px solid var(--border);
+    background: var(--background);
+  }
+}
+
+/* ------------------------------------------------------ mobile tab bar */
+
+@media (max-width: 1023px) {
+  html:is(.dark, :not(.dark)) body .mobile-dock .nav-pill {
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    background: var(--surface-raised);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  }
+
+  html:not(.dark) body .mobile-dock .nav-pill {
+    background: var(--surface);
+    box-shadow: 0 6px 20px rgba(20, 22, 18, 0.12);
+  }
+
+  /* Five tabs (Markets joined the dock); the lens is one fifth of the pill
+     inside its 7px padding. */
+  html:is(.dark, :not(.dark)) body .mobile-dock .nav-liquid-lens-track {
+    width: calc((100% - 14px) / 5);
+  }
+
+  /* The sliding selection becomes a solid lime tile. */
+  html:is(.dark, :not(.dark)) body .mobile-dock .nav-liquid-lens {
+    border-radius: 16px;
+    background: var(--accent-fill);
+    box-shadow: none;
+  }
+
+  html:is(.dark, :not(.dark)) body .mobile-dock .nav-mobile-link.nav-mobile-link-active {
+    color: var(--on-accent);
+  }
+}
+
+/* ================================================================== HOME */
+
+/*
+ * Home, 1:1 with the canvas artboards "Portfolio — Desktop / Mobile / Mobile,
+ * scrolled". Markup: components/dashboard/ledger-home.tsx. Measurements are
+ * the canvas's own (px where the canvas uses px), so the two can be compared
+ * side by side.
+ */
+
+:root {
+  /* The quieter tone used for the balance's cents. */
+  --muted-2: #9a9f92;
+  /* Loss fill for chips and the losing-day Today card: always the light
+     orange with ink on top, so it reads the same in both themes. */
+  --loss-fill: #ff8a5b;
+}
+
+.dark {
+  --muted-2: #6e7368;
+}
+
+.nl-home {
+  min-height: 100dvh;
+  background: var(--background);
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Loading follows the real Home grid without implying a gain or loss. */
+.nl-home-skeleton .nl-today {
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.nl-home-skeleton .nl-today-meta {
+  border-color: var(--border);
+}
+
+@media (min-width: 1280px) {
+  .nl-home-skeleton .nl-pos-head,
+  .nl-home-skeleton .nl-pos {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 0.5fr) minmax(0, 0.5fr) minmax(0, 0.8fr);
+  }
+}
+
+.nl-overline {
+  color: var(--muted);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.nl-wide-only { display: inline; }
+.nl-narrow-only { display: none; }
+
+/* ---------------------------------------------------------------- header */
+
+.nl-home-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 40px;
+  border-bottom: 1px solid var(--border);
+}
+
+.nl-home-greet {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nl-home-hello {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.nl-home-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+html:is(.dark, :not(.dark)) body .nl-home-tools .app-topbar-search-field {
+  width: 240px;
+  height: 44px;
+  gap: 10px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: 14px;
+}
+
+html:is(.dark, :not(.dark)) body .nl-home-tools .app-topbar-search-field input {
+  font-size: 14px;
+}
+
+html:is(.dark, :not(.dark)) body .nl-home-tools .app-topbar-search-menu {
+  width: 240px;
+  border-radius: 12px;
+}
+
+.nl-session-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.nl-session-clock {
+  color: var(--muted);
+}
+
+.nl-session-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--accent-fill);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-fill) 15%, transparent);
+}
+
+.nl-session-pill.is-closed .nl-session-dot,
+.nl-session-dot.is-closed {
+  background: var(--muted);
+  box-shadow: none;
+}
+
+html:is(.dark, :not(.dark)) body .nl-home-top .nl-bell {
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--foreground);
+}
+
+/* --------------------------------------------------------------- ticker */
+
+.nl-ticker {
+  display: flex;
+  gap: 36px;
+  padding: 12px 40px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.nl-ticker-item {
+  display: inline-flex;
+  gap: 8px;
+  color: var(--foreground);
+  text-decoration: none;
+}
+
+.nl-ticker-item .metric-number {
+  letter-spacing: 0;
+}
+
+.nl-ticker-pair {
+  color: var(--muted);
+}
+
+/* Tone colours shared across the page. */
+.nl-home .is-up { color: var(--accent); }
+.nl-home .is-down { color: var(--danger); }
+
+/* ----------------------------------------------------------------- body */
+
+.nl-home-body {
+  display: flex;
+  flex-direction: column;
+  gap: 56px;
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 44px 40px 64px;
+}
+
+/* ----------------------------------------------------------------- hero */
+
+.nl-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "copy range"
+    "chart chart"
+    "stats stats";
+  align-items: end;
+  gap: 28px 24px;
+}
+
+.nl-hero-copy {
+  grid-area: copy;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.nl-hero-copy .nl-overline {
+  letter-spacing: 0.12em;
+}
+
+.nl-hero-balance {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(4rem, 7.2vw, 6.5rem);
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 0.9;
+}
+
+.nl-hero-cents {
+  color: var(--muted-2);
+}
+
+.nl-hero-change {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.nl-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--foreground);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.nl-home .nl-chip.is-up {
+  background: var(--accent-fill);
+  color: var(--on-accent);
+}
+
+.nl-home .nl-chip.is-down {
+  background: var(--loss-fill);
+  color: var(--on-accent);
+}
+
+.nl-chip-arrow {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2.4;
+}
+
+.nl-home .nl-chip-arrow.is-up,
+.nl-home .nl-chip-arrow.is-down {
+  color: inherit;
+}
+
+.nl-chip-arrow.is-down {
+  transform: rotate(90deg);
+}
+
+.nl-hero-pct {
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.nl-hero-open {
+  color: var(--muted);
+}
+
+/* Range tabs: the selected one is an inverted pill. */
+html:is(.dark, :not(.dark)) body .nl-hero .nl-range-tabs {
+  grid-area: range;
+  display: flex;
+  gap: 4px;
+  width: auto;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+html:is(.dark, :not(.dark)) body .nl-hero .nl-range-tabs .account-range-btn {
+  min-width: 52px;
+  height: 40px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+html:is(.dark, :not(.dark)) body .nl-hero .nl-range-tabs .account-range-btn.is-active {
+  background: var(--foreground);
+  color: var(--background);
+  font-weight: 600;
+}
+
+html:is(.dark, :not(.dark)) body .nl-hero .nl-range-tabs .account-range-btn::after {
+  display: none;
+}
+
+/* Chart card: dashed guides, right-hand scale, flat fill. */
+.nl-chart-card {
+  --hero-surface: var(--surface);
+  grid-area: chart;
+  height: 260px;
+  padding: 16px 16px 6px 24px;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+html:is(.dark, :not(.dark)) body .nl-chart-card .account-chart {
+  height: 100%;
+}
+
+html:is(.dark, :not(.dark)) body .nl-chart-card .account-chart-canvas {
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-value {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+}
+
+/* Stats strip. */
+.nl-stats {
+  grid-area: stats;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+}
+
+.nl-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 20px 24px;
+}
+
+.nl-stats > div + div {
+  border-left: 1px solid var(--border);
+}
+
+.nl-stats dt {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.nl-stats dd {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.nl-stat-margin {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.nl-meter {
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--border-strong);
+}
+
+.nl-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--foreground);
+}
+
+/* The phone's pinned balance bar; hidden on desktop. */
+.nl-mbar,
+.nl-home-mtop {
+  display: none;
+}
+
+/* --------------------------------------------------------------- columns */
+
+.nl-home-cols {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 32px;
+}
+
+.nl-home-main {
+  /* 560 rather than the canvas 620 keeps both columns side by side down to a
+     ~1100px window, where the canvas would already have wrapped. */
+  flex: 999 1 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 56px;
+  min-width: 0;
+}
+
+.nl-home-aside {
+  flex: 1 1 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+/* Numbered section headings. */
+.nl-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.nl-sec-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.nl-sec-title {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+
+.nl-sec-num {
+  color: var(--muted);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12px;
+}
+
+.nl-sec-title h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.nl-count {
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12px;
+}
+
+.nl-sec-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.nl-sec-link svg {
+  width: 16px;
+  height: 16px;
+}
+
+.nl-empty {
+  margin: 0;
+  padding: 28px 24px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 20px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* ------------------------------------------------------------ positions */
+
+.nl-pos-head,
+.nl-pos {
+  display: grid;
+  grid-template-columns: 170px 150px minmax(220px, 1fr) 84px 72px 112px;
+  align-items: center;
+  gap: 20px;
+}
+
+.nl-pos-head {
+  padding: 0 24px;
+  color: var(--muted);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.nl-pos-head > :nth-child(n + 4) {
+  text-align: right;
+}
+
+.nl-pos {
+  padding: 20px 24px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--foreground);
+  text-decoration: none;
+  transition: border-color 140ms ease;
+}
+
+.nl-pos:hover {
+  border-color: var(--border-strong);
+}
+
+.nl-pos:focus-visible,
+.nl-setup:focus-visible,
+.nl-news-row:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.nl-pos-pair {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.nl-pos-pair b {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.nl-side {
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.nl-home .nl-side.is-up { background: var(--accent-soft); color: var(--accent); }
+.nl-home .nl-side.is-down { background: var(--danger-soft); color: var(--danger); }
+
+.nl-pos-prices {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+.nl-pos-entry {
+  color: var(--muted);
+}
+
+.nl-pos-track {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.nl-track {
+  position: relative;
+  display: block;
+  height: 20px;
+}
+
+.nl-track::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 8px;
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--foreground) 10%, transparent);
+}
+
+.nl-track-fill {
+  position: absolute;
+  top: 8px;
+  height: 4px;
+  background: var(--muted);
+}
+
+.nl-home .nl-track-fill.is-up { background: var(--accent); }
+.nl-home .nl-track-fill.is-down { background: var(--danger); }
+
+.nl-track-entry {
+  position: absolute;
+  top: 2px;
+  width: 2px;
+  height: 16px;
+  margin-left: -1px;
+  background: var(--muted);
+}
+
+.nl-track-mark {
+  position: absolute;
+  top: 3px;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  box-sizing: border-box;
+  border: 3px solid var(--surface);
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.nl-home .nl-track-mark.is-up { background: var(--accent); }
+.nl-home .nl-track-mark.is-down { background: var(--danger); }
+
+.nl-track-labels {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+.nl-track-note {
+  color: var(--muted);
+}
+
+.nl-pos-size,
+.nl-pos-r,
+.nl-pos-pl {
+  text-align: right;
+  letter-spacing: 0;
+}
+
+.nl-pos-size,
+.nl-pos-r {
+  font-size: 14px;
+}
+
+.nl-pos-pl {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+@media (max-width: 1279px) and (min-width: 1024px) {
+  .nl-pos {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .nl-pos-track {
+    order: 9;
+    grid-column: 1 / -1;
+  }
+
+  .nl-pos-head {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------- setups */
+
+.nl-setup-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.nl-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--foreground);
+  text-decoration: none;
+}
+
+.nl-setup:hover {
+  border-color: var(--border-strong);
+}
+
+.nl-setup-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nl-setup-top b {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.nl-setup-time {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.nl-levels {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.nl-levels dt {
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.nl-levels dd {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+/* -------------------------------------------------------------- activity */
+
+.nl-activity-list {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+}
+
+.nl-activity-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 0.7fr) minmax(0, 0.8fr);
+  align-items: center;
+  gap: 16px;
+  min-height: 52px;
+  border-bottom: 1px solid var(--border);
+  color: var(--foreground);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.nl-activity-row b {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.nl-activity-label {
+  color: var(--muted);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+.nl-activity-row > .metric-number,
+.nl-activity-time {
+  text-align: right;
+  letter-spacing: 0;
+}
+
+.nl-activity-time {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* ------------------------------------------------------------------ today */
+
+.nl-today {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px;
+  border-radius: 24px;
+  background: var(--accent-fill);
+  color: #0b0c0a;
+}
+
+.nl-today.is-loss {
+  background: var(--loss-fill);
+}
+
+.nl-today-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nl-today-head h2 {
+  margin: 0;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.nl-today-head span {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.nl-today-main {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.nl-today-net {
+  font-family: var(--font-display);
+  font-size: clamp(2.75rem, 4.4vw, 4rem);
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 0.9;
+}
+
+.nl-today-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 40px;
+}
+
+.nl-today-bars > span {
+  flex: 1;
+  max-width: 44px;
+  border-radius: 6px;
+  background: #0b0c0a;
+}
+
+.nl-today-bars > span.is-loss {
+  box-sizing: border-box;
+  border: 2px solid #0b0c0a;
+  background: transparent;
+}
+
+.nl-today-empty {
+  margin: 0;
+  font-size: 13px;
+  opacity: 0.72;
+}
+
+.nl-today-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding-top: 16px;
+  border-top: 1.5px solid rgba(11, 12, 10, 0.2);
+}
+
+.nl-today-meta dt {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.nl-today-meta dd {
+  margin: 4px 0 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+/* ------------------------------------------------------------ rail cards */
+
+.nl-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: var(--surface);
+}
+
+.nl-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.nl-card-head h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.nl-card-meta {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.nl-card-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.nl-card-empty.is-warn {
+  color: var(--danger);
+}
+
+.nl-news-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 26rem;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.nl-news-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--surface-raised);
+  color: var(--foreground);
+  text-align: left;
+  cursor: pointer;
+}
+
+.nl-news-row.is-released {
+  opacity: 0.62;
+}
+
+.nl-news-when {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: 56px;
+  text-align: center;
+  letter-spacing: 0;
+}
+
+.nl-news-when span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.nl-news-when b {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.nl-news-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* Real event titles run longer than a single line in the rail; two lines
+   keep "President Trump Speaks" readable without growing the row much. */
+.nl-news-copy b {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.nl-news-copy span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.nl-news-row.is-live .nl-news-copy span {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.nl-impact {
+  flex: none;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.nl-impact.is-high {
+  background: var(--loss-fill);
+  color: #0b0c0a;
+}
+
+.nl-impact.is-medium {
+  border: 1px solid var(--muted);
+  color: var(--foreground);
+}
+
+/* Pending: the dashed card. */
+.nl-pending {
+  gap: 14px;
+  border: 1px dashed var(--border-strong);
+  background: transparent;
+}
+
+.nl-pending-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.nl-pending-entry + .nl-pending-entry {
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.nl-pending-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--foreground);
+  text-decoration: none;
+}
+
+.nl-pending-top b {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.nl-pending-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.nl-ghost-btn {
+  flex: none;
+  height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.nl-ghost-btn:disabled {
+  opacity: 0.5;
+}
+
+/* =============================================================== PHONE */
+
+@media (max-width: 1023px) {
+  .nl-wide-only { display: none; }
+  .nl-narrow-only { display: inline; }
+
+  .nl-home-top,
+  .nl-ticker {
+    display: none;
+  }
+
+  .nl-home-body {
+    gap: 22px;
+    max-width: none;
+    padding: 20px 16px 0;
+  }
+
+  /* Header: GX tile, greeting, session line, bell. */
+  .nl-home-mtop {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .nl-home-mtop-ident {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .nl-gx-tile {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    place-items: center;
+    border-radius: 13px;
+    background: var(--accent-fill);
+    color: var(--on-accent);
+    font-family: var(--font-display);
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+  }
+
+  .nl-home-mtop-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .nl-home-mtop .nl-home-hello {
+    font-size: 18px;
+  }
+
+  .nl-home-mtop-session {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .nl-home-mtop-session .nl-session-dot {
+    width: 7px;
+    height: 7px;
+    box-shadow: none;
+  }
+
+  html:is(.dark, :not(.dark)) body .nl-home-mtop .nl-bell {
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--border);
+    border-radius: 13px;
+    background: var(--surface);
+    color: var(--foreground);
+  }
+
+  /* Hero: balance, edge-to-edge line, range, 2×2 stats. */
+  .nl-hero {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "copy"
+      "chart"
+      "range"
+      "stats";
+    gap: 22px;
+  }
+
+  .nl-hero-copy {
+    gap: 12px;
+  }
+
+  .nl-hero-copy .nl-overline {
+    font-size: 11px;
+  }
+
+  .nl-hero-balance {
+    font-size: 60px;
+  }
+
+  .nl-hero-change {
+    gap: 8px;
+    font-size: 13px;
+  }
+
+  .nl-chip {
+    gap: 5px;
+    padding: 5px 10px;
+  }
+
+  .nl-chip-arrow {
+    width: 12px;
+    height: 12px;
+  }
+
+  .nl-hero-open {
+    display: none;
+  }
+
+  .nl-chart-card {
+    height: 150px;
+    margin: 0 -16px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  html:is(.dark, :not(.dark)) body .nl-hero .nl-range-tabs {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  html:is(.dark, :not(.dark)) body .nl-hero .nl-range-tabs .account-range-btn {
+    min-width: 0;
+  }
+
+  .nl-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-radius: 18px;
+  }
+
+  .nl-stats > div {
+    gap: 6px;
+    padding: 14px 16px;
+  }
+
+  .nl-stats > div + div {
+    border-left: 0;
+  }
+
+  .nl-stats > div:nth-child(odd) {
+    border-right: 1px solid var(--border);
+  }
+
+  .nl-stats > div:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .nl-stats dt {
+    font-size: 12px;
+  }
+
+  .nl-stats dd {
+    font-size: 18px;
+  }
+
+  /* One column, in the canvas order: positions, Today, news, pending. */
+  .nl-home-cols {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 22px;
+  }
+
+  .nl-home-main,
+  .nl-home-aside {
+    display: contents;
+  }
+
+  .nl-positions { order: 1; }
+  .nl-today { order: 2; }
+  .nl-news { order: 3; }
+  .nl-pending { order: 4; }
+  .nl-setups { order: 5; }
+  .nl-activity { order: 6; }
+
+  .nl-sec {
+    gap: 12px;
+  }
+
+  .nl-sec-head {
+    align-items: center;
+  }
+
+  .nl-sec-num {
+    display: none;
+  }
+
+  .nl-sec-title {
+    gap: 10px;
+  }
+
+  .nl-sec-title h2 {
+    font-size: 24px;
+  }
+
+  .nl-count {
+    padding: 0;
+    border: 0;
+    color: var(--muted);
+  }
+
+  .nl-sec-link {
+    font-size: 13px;
+  }
+
+  .nl-pos-head {
+    display: none;
+  }
+
+  /* Position card: pair + P/L, then the stop → target track. */
+  .nl-pos {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "pair pl"
+      "pair r"
+      "track track";
+    gap: 4px 14px;
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .nl-pos-pair { grid-area: pair; }
+  .nl-pos-pl { grid-area: pl; }
+  .nl-pos-r { grid-area: r; font-size: 12px; }
+  .nl-pos-track { grid-area: track; margin-top: 10px; }
+
+  .nl-pos-prices,
+  .nl-pos-size {
+    display: none;
+  }
+
+  .nl-pos-pair b {
+    font-size: 20px;
+  }
+
+  .nl-side {
+    font-size: 11px;
+  }
+
+  .nl-setup-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .nl-activity-row {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .nl-activity-label,
+  .nl-activity-time {
+    display: none;
+  }
+
+  /* Today: net and bars on one row. */
+  .nl-today {
+    gap: 14px;
+    padding: 20px;
+    border-radius: 22px;
+  }
+
+  .nl-today-head h2 {
+    font-size: 11px;
+  }
+
+  .nl-today-main {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .nl-today-net {
+    font-size: 48px;
+  }
+
+  .nl-today-bars {
+    flex: none;
+    width: 72px;
+    height: 36px;
+    gap: 4px;
+  }
+
+  .nl-today-bars > span {
+    border-radius: 4px;
+  }
+
+  .nl-today-meta {
+    padding-top: 12px;
+  }
+
+  .nl-today-meta dt {
+    font-size: 11px;
+  }
+
+  .nl-today-meta dd {
+    margin-top: 2px;
+    font-size: 17px;
+  }
+
+  /* News: a titled list of cards rather than one card. */
+  .nl-news {
+    gap: 10px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .nl-news .nl-card-meta {
+    display: none;
+  }
+
+  .nl-news-list {
+    gap: 10px;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .nl-news-row {
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .nl-news-when {
+    width: 48px;
+  }
+
+  .nl-news-when span {
+    font-size: 10px;
+  }
+
+  .nl-news-when b {
+    font-size: 15px;
+  }
+
+  .nl-impact {
+    padding: 3px 7px;
+    font-size: 10px;
+  }
+
+  .nl-pending {
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .nl-pending-top b {
+    font-size: 18px;
+  }
+
+  /* Pinned balance once the hero scrolls away. */
+  .nl-mbar {
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: calc(64px + env(safe-area-inset-top));
+    padding: env(safe-area-inset-top) 16px 0;
+    border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--background) 92%, transparent);
+    backdrop-filter: blur(12px);
+    transform: translateY(-100%);
+    visibility: hidden;
+    transition:
+      transform 200ms ease,
+      visibility 0s linear 200ms;
+  }
+
+  .nl-mbar.is-visible {
+    transform: translateY(0);
+    visibility: visible;
+    transition: transform 200ms ease;
+  }
+
+  .nl-mbar-balance {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+  }
+
+  .nl-mbar .nl-chip {
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nl-mbar,
+  .nl-mbar.is-visible {
+    transition: none;
+  }
+}
+
+/* ======================================================= PHONE TOKENS */
+
+/* The phone screens read a second token set (--gx-*) that globals.css pins to
+   the old palette per theme. Point it at the Night Ledger tokens instead, so
+   every phone surface follows them without per-component overrides. */
+@media (max-width: 1023px) {
+  html:is(.dark, :not(.dark)) {
+    --gx-surface: var(--surface);
+    --gx-surface-raised: var(--surface-raised);
+    --gx-card-border: var(--border);
+    --gx-border: var(--border);
+    --gx-primary: var(--accent);
+    --gx-primary-soft: var(--accent-soft);
+    --gx-primary-muted: var(--accent-soft);
+    --gx-primary-tint: color-mix(in srgb, var(--accent) 5%, transparent);
+    --gx-danger: var(--danger);
+    --gx-warning: var(--pending);
+    --gx-text: var(--foreground);
+    --gx-text-2: var(--muted-strong);
+    --gx-muted: var(--muted);
+    --gx-pill-open-bg: var(--accent-soft);
+    --gx-pill-open-border: color-mix(in srgb, var(--accent) 30%, transparent);
+    --gx-pill-closed-bg: var(--surface-raised);
+    --gx-pill-closed-border: var(--border);
+  }
+}
+
+/* The dock keeps its own variable set; point it at the same lime tab. */
+@media (max-width: 1023px) {
+  html:is(.dark, :not(.dark)) body .mobile-dock {
+    --dock-pill-bg: var(--surface-raised);
+    --dock-pill-edge: var(--border);
+    --dock-pill-top: transparent;
+    --dock-lens-bg: var(--accent-fill);
+    --dock-lens-ring: transparent;
+    --dock-icon: var(--muted);
+    --dock-icon-active: var(--on-accent);
+  }
+
+  html:not(.dark) body .mobile-dock {
+    --dock-pill-bg: var(--surface);
+  }
+}
+
+/* ================================================================ TRADES */
+
+/*
+ * Trades, 1:1 with the canvas artboards "Trades — Desktop / Mobile / Mobile,
+ * trade detail". Markup: components/trades/trades-view.tsx (`nl-tr-*`).
+ */
+
+.nl-tr {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  max-width: 1344px;
+  margin: 0 auto;
+  padding: 36px 40px 56px;
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+:is(.nl-tr, .nl-tr-sheet) .is-up { color: var(--accent); }
+:is(.nl-tr, .nl-tr-sheet) .is-down { color: var(--danger); }
+.nl-tr-muted { color: var(--muted); }
+
+/* ---------------------------------------------------------------- header */
+
+.nl-tr-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.nl-tr-title {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nl-tr-title .nl-overline {
+  letter-spacing: 0.12em;
+}
+
+.nl-tr-title h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 72px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 0.9;
+}
+
+html:is(.dark, :not(.dark)) body .nl-tr-bell {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--surface);
+  color: var(--foreground);
+}
+
+.nl-tr-bell svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* --------------------------------------------------------------- summary */
+
+.nl-tr-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.nl-tr-hero {
+  position: relative;
+  display: flex;
+  flex: 1 1 300px;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 168px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: var(--surface);
+}
+
+.nl-tr-hero-label {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.nl-tr-hero-value {
+  font-family: var(--font-display);
+  font-size: 60px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 0.9;
+}
+
+.nl-tr-hero-sub {
+  color: var(--muted);
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+.nl-tr-hero-bars {
+  display: none;
+}
+
+.nl-tr-barcard {
+  display: flex;
+  flex: 2 1 420px;
+  flex-direction: column;
+  gap: 14px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+}
+
+.nl-tr-barcard-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.nl-tr-barcard-head .metric-number {
+  letter-spacing: 0;
+}
+
+/* R bars: wins rise from a midline, losses hang below it. */
+.nl-tr-bars {
+  position: relative;
+  display: flex;
+  flex: 1;
+  gap: 8px;
+  min-height: 104px;
+}
+
+.nl-tr-bars::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 50%;
+  border-top: 1px solid var(--border-strong);
+}
+
+.nl-tr-bars > span {
+  position: relative;
+  flex: 1;
+}
+
+.nl-tr-bars > span::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  height: calc(var(--r) * 22%);
+  min-height: 2px;
+  border-radius: 4px;
+}
+
+.nl-tr-bars > .is-win::before {
+  bottom: 50%;
+  background: var(--accent);
+}
+
+.nl-tr-bars > .is-loss::before {
+  top: 50%;
+  background: var(--danger);
+}
+
+.nl-tr-bars.is-compact {
+  gap: 4px;
+  min-height: 0;
+  height: 100%;
+}
+
+.nl-tr-bars.is-compact > span::before {
+  border-radius: 3px;
+}
+
+.nl-tr-stats {
+  display: grid;
+  flex: 1 1 260px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: center;
+  margin: 0;
+  padding: 8px 24px;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+}
+
+.nl-tr-stats > div {
+  padding: 12px 0;
+}
+
+.nl-tr-stats > div:nth-child(n + 3) {
+  border-top: 1px solid var(--border);
+}
+
+.nl-tr-stats dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.nl-tr-stats dd {
+  margin: 4px 0 0;
+  font-size: 22px;
+  letter-spacing: 0;
+}
+
+/* --------------------------------------------------------------- toolbar */
+
+.nl-tr-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.nl-tr-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.nl-tr-tabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nl-tr-tabs button .metric-number {
+  font-size: 12px;
+  letter-spacing: 0;
+  opacity: 0.7;
+}
+
+.nl-tr-tabs button.is-active {
+  background: var(--foreground);
+  color: var(--background);
+}
+
+.nl-tr-filters {
+  display: flex;
+  gap: 6px;
+}
+
+.nl-tr-filters button {
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.nl-tr-filters button.is-active {
+  border-color: var(--border-strong);
+  background: var(--surface-raised);
+  color: var(--foreground);
+}
+
+.nl-tr-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 260px;
+  max-width: 100%;
+  height: 44px;
+  margin-left: auto;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.nl-tr-search svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+.nl-tr-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 14px;
+}
+
+/* ------------------------------------------------------------ list + panel */
+
+.nl-tr-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.nl-tr-list {
+  display: flex;
+  flex: 999 1 620px;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.nl-tr-rowhead,
+.nl-tr-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 1.3fr) minmax(110px, 1.1fr) 1fr 1fr 88px 104px 80px minmax(96px, 1fr);
+  align-items: center;
+  gap: 16px;
+}
+
+.nl-tr-rowhead {
+  padding: 0 16px 6px;
+  color: var(--muted);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.nl-tr-rowhead .is-end {
+  text-align: right;
+}
+
+.nl-tr-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nl-tr-row {
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 16px;
+  border: 1px solid var(--surface-raised);
+  border-radius: 16px;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nl-tr-row:hover {
+  background: color-mix(in srgb, var(--surface) 70%, var(--surface-raised));
+}
+
+.nl-tr-row.is-selected {
+  border-color: var(--border-strong);
+  background: var(--surface-raised);
+}
+
+.nl-tr-row:focus-visible,
+.nl-tr-card:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.nl-tr-row > :nth-child(n + 5) {
+  justify-self: end;
+  text-align: right;
+}
+
+.nl-tr-row .metric-number {
+  letter-spacing: 0;
+}
+
+.nl-tr-pair {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.nl-tr-pair b {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.nl-tr-side {
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+:is(.nl-tr, .nl-tr-sheet) .nl-tr-side.is-up { background: var(--accent-soft); color: var(--accent); }
+:is(.nl-tr, .nl-tr-sheet) .nl-tr-side.is-down { background: var(--danger-soft); color: var(--danger); }
+
+.nl-tr-rpill {
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: var(--surface-raised);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+:is(.nl-tr, .nl-tr-sheet) .nl-tr-rpill.is-up { background: var(--accent-soft); }
+:is(.nl-tr, .nl-tr-sheet) .nl-tr-rpill.is-down { background: var(--danger-soft); }
+
+.nl-tr-money {
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.nl-tr-cards {
+  display: none;
+}
+
+.nl-tr-more {
+  align-self: center;
+  height: 44px;
+  margin-top: 8px;
+  padding: 0 20px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nl-tr-empty {
+  margin: 0;
+  padding: 40px 16px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 16px;
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.nl-tr-panel {
+  flex: 1 1 360px;
+  min-width: 0;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: var(--surface);
+}
+
+.nl-tr-panel .nl-tr-empty {
+  border: 0;
+}
+
+@media (min-width: 1024px) {
+  .nl-tr-panel {
+    position: sticky;
+    top: 24px;
+  }
+}
+
+/* ---------------------------------------------------------------- detail */
+
+.nl-tr-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.nl-tr-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.nl-tr-detail-ident {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nl-tr-detail-ident b {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.nl-tr-detail-ident .nl-tr-side {
+  padding: 3px 8px;
+  font-size: 12px;
+}
+
+.nl-tr-badge {
+  padding: 5px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.nl-tr-close {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 0;
+  border-radius: 13px;
+  background: var(--surface-raised);
+  color: var(--foreground);
+}
+
+.nl-tr-close svg {
+  width: 18px;
+  height: 18px;
+}
+
+.nl-tr-result-row {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+
+.nl-tr-result-money {
+  font-family: var(--font-display);
+  font-size: 56px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 0.9;
+}
+
+.nl-tr-result-r {
+  font-size: 16px;
+  letter-spacing: 0;
+}
+
+.nl-tr-result-label {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.nl-tr-track-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nl-tr-track {
+  position: relative;
+  display: block;
+  height: 22px;
+}
+
+.nl-tr-track::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 9px;
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--foreground) 10%, transparent);
+}
+
+.nl-tr-track-fill {
+  position: absolute;
+  top: 9px;
+  height: 4px;
+  background: var(--muted);
+}
+
+:is(.nl-tr, .nl-tr-sheet) .nl-tr-track-fill.is-up { background: var(--accent); }
+:is(.nl-tr, .nl-tr-sheet) .nl-tr-track-fill.is-down { background: var(--danger); }
+
+.nl-tr-track-entry {
+  position: absolute;
+  top: 3px;
+  width: 2px;
+  height: 16px;
+  margin-left: -1px;
+  background: var(--muted);
+}
+
+.nl-tr-track-mark {
+  position: absolute;
+  top: 4px;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  box-sizing: border-box;
+  border: 3px solid var(--surface);
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+:is(.nl-tr, .nl-tr-sheet) .nl-tr-track-mark.is-up { background: var(--accent); }
+:is(.nl-tr, .nl-tr-sheet) .nl-tr-track-mark.is-down { background: var(--danger); }
+
+.nl-tr-track-labels {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+.nl-tr-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  border-top: 1px solid var(--border);
+}
+
+.nl-tr-grid > div {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.nl-tr-grid > div.is-wide {
+  grid-column: 1 / -1;
+}
+
+.nl-tr-grid dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.nl-tr-grid dd {
+  margin: 4px 0 0;
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+.nl-tr-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.nl-tr-notes > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nl-tr-notes-label {
+  color: var(--muted);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.nl-tr-notes-value {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.nl-tr-notes-text {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.nl-tr-notes-text.is-empty {
+  color: var(--muted);
+}
+
+.nl-tr-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.nl-tr-primary {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--accent-fill);
+  color: var(--on-accent);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.nl-tr-primary svg {
+  width: 16px;
+  height: 16px;
+}
+
+.nl-tr-primary.is-disabled {
+  background: var(--surface-raised);
+  color: var(--muted);
+}
+
+/* Narrow desktop: fewer columns. */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .nl-tr-rowhead,
+  .nl-tr-row {
+    grid-template-columns: minmax(130px, 1.3fr) 1fr 1fr 80px 100px;
+  }
+
+  .nl-tr-hide-md {
+    display: none;
+  }
+
+  .nl-tr-row > :nth-child(n + 5) {
+    justify-self: end;
+  }
+}
+
+/* ----------------------------------------------------------------- phone */
+
+@media (max-width: 1023px) {
+  .nl-tr {
+    gap: 16px;
+    padding: 20px 16px 0;
+  }
+
+  .nl-tr-hide-sm {
+    display: none;
+  }
+
+  .nl-tr-head {
+    align-items: flex-end;
+  }
+
+  .nl-tr-title .nl-overline {
+    display: none;
+  }
+
+  .nl-tr-title h1 {
+    font-size: 48px;
+  }
+
+  /* One summary card: figure on the left, recent bars on the right. */
+  .nl-tr-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 112px;
+    grid-template-areas:
+      "label bars"
+      "value bars"
+      "sub bars";
+    gap: 8px 16px;
+    min-height: 0;
+    padding: 18px;
+    border-radius: 22px;
+  }
+
+  .nl-tr-hero-label { grid-area: label; font-size: 12px; }
+  .nl-tr-hero-value { grid-area: value; font-size: 40px; }
+  .nl-tr-hero-sub { grid-area: sub; font-size: 12px; }
+
+  .nl-tr-hero-bars {
+    display: flex;
+    grid-area: bars;
+  }
+
+  .nl-tr-barcard,
+  .nl-tr-stats {
+    display: none;
+  }
+
+  .nl-tr-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .nl-tr-tabs button {
+    padding: 0;
+  }
+
+  .nl-tr-search {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .nl-tr-rowhead,
+  .nl-tr-rows,
+  .nl-tr-panel {
+    display: none;
+  }
+
+  .nl-tr-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .nl-tr-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--surface);
+    color: var(--foreground);
+    font: inherit;
+    text-align: left;
+  }
+
+  .nl-tr-card-top,
+  .nl-tr-card-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .nl-tr-card .nl-tr-pair b {
+    font-size: 18px;
+  }
+
+  .nl-tr-card .nl-tr-money {
+    font-size: 16px;
+    letter-spacing: 0;
+  }
+
+  .nl-tr-card-meta {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .nl-tr-card-meta > span:first-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .nl-tr-card .nl-tr-rpill {
+    font-size: 11px;
+  }
+}
+
+/* Phone sheet: the trade detail artboard. */
+.nl-tr-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(11, 12, 10, 0.55);
+}
+
+.nl-tr-sheet {
+  position: absolute;
+  inset: auto 0 0;
+  max-height: 90dvh;
+  overflow-y: auto;
+  padding: 10px 16px calc(28px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
+  border-radius: 28px 28px 0 0;
+  background: var(--background);
+  color: var(--foreground);
+  box-shadow: 0 -16px 40px rgba(0, 0, 0, 0.5);
+}
+
+.nl-tr-grip {
+  width: 40px;
+  height: 5px;
+  margin: 0 auto 12px;
+  border-radius: 3px;
+  background: var(--border-strong);
+}
+
+.nl-tr-sheet .nl-tr-detail-ident b {
+  font-size: 32px;
+}
+
+/* The result as a filled block: lime for a gain, orange for a loss. */
+.nl-tr-detail.is-sheet .nl-tr-result {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 20px;
+  border-radius: 22px;
+  background: var(--surface-raised);
+}
+
+.nl-tr-detail.is-sheet .nl-tr-result.is-up {
+  background: var(--accent-fill);
+  color: var(--on-accent);
+}
+
+.nl-tr-detail.is-sheet .nl-tr-result.is-down {
+  background: var(--loss-fill);
+  color: var(--on-accent);
+}
+
+.nl-tr-detail.is-sheet .nl-tr-result-row {
+  justify-content: space-between;
+}
+
+.nl-tr-detail.is-sheet .nl-tr-result-r {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.nl-tr-detail.is-sheet .nl-tr-grid {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+}
+
+.nl-tr-detail.is-sheet .nl-tr-grid > div {
+  padding: 14px 16px;
+}
+
+.nl-tr-detail.is-sheet .nl-tr-grid > div:nth-child(odd):not(.is-wide) {
+  border-right: 1px solid var(--border);
+}
+
+.nl-tr-detail.is-sheet .nl-tr-grid dd {
+  font-size: 15px;
+}
+
+.nl-tr-detail.is-sheet .nl-tr-track-mark {
+  border-color: var(--background);
+}
+
+.nl-tr-detail.is-sheet .nl-tr-primary {
+  height: 52px;
+  border-radius: 16px;
+  font-size: 15px;
+}
+
+/* =============================================================== MARKETS */
+
+/*
+ * Markets, 1:1 with the canvas artboards "Markets — Desktop / Mobile".
+ * Markup: components/watchlist/watchlist-view.tsx (`nl-mk-*`) and
+ * components/watchlist/session-strip.tsx (`nl-session-*`).
+ */
+
+.nl-mk {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  max-width: 1344px;
+  margin: 0 auto;
+  padding: 36px 40px 64px;
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.nl-mk .is-up { color: var(--accent); }
+.nl-mk .is-down { color: var(--danger); }
+.nl-mk-muted { color: var(--muted); }
+
+.nl-mk-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 13px;
+}
+
+/* ---------------------------------------------------------------- header */
+
+.nl-mk-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.nl-mk-title {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nl-mk-title .nl-overline {
+  letter-spacing: 0.12em;
+}
+
+.nl-mk-title h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 72px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 0.9;
+}
+
+.nl-mk-bell {
+  display: none;
+}
+
+/* Session strip: three lanes on a 24h ET ruler, orange "now" marker. */
+.nl-session-strip {
+  display: grid;
+  flex: 0 1 520px;
+  gap: 10px;
+  min-width: min(100%, 300px);
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+}
+
+.nl-session-strip-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.nl-session-swatches {
+  display: none;
+}
+
+.nl-session-strip-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.nl-session-strip-clock {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+.nl-session-strip-lanes {
+  position: relative;
+  display: grid;
+  gap: 6px;
+}
+
+.nl-session-lane {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: center;
+}
+
+.nl-session-lane-label {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.nl-session-lane-track {
+  position: relative;
+  height: 10px;
+}
+
+.nl-session-lane-span {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-radius: 4px;
+}
+
+.nl-session-lane-span.is-asia,
+.nl-session-swatches .is-asia { background: var(--border-strong); }
+.nl-session-lane-span.is-london,
+.nl-session-swatches .is-london { background: var(--foreground); }
+.nl-session-lane-span.is-new-york,
+.nl-session-swatches .is-new-york { background: var(--accent-fill); }
+
+.nl-session-now {
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  /* --now is the fraction of the ET day elapsed; the track starts after the
+     lane labels, so offset by their column before scaling. */
+  left: calc(72px + (100% - 72px) * var(--now, 0));
+  width: 2px;
+  margin-left: -1px;
+  background: #ff8a5b;
+}
+
+.nl-session-strip-scale {
+  display: flex;
+  justify-content: space-between;
+  padding-left: 72px;
+  color: var(--muted);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 10px;
+}
+
+/* ---------------------------------------------------------------- movers */
+
+.nl-mk-movers {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.nl-mk-sec-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.nl-mk-sec-head h2,
+.nl-mk-toolbar h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.nl-mk-sec-head span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.nl-mk-movers-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.nl-mk-mover {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: var(--surface);
+  color: var(--foreground);
+  text-decoration: none;
+  transition: border-color 140ms ease;
+}
+
+.nl-mk-mover:hover {
+  border-color: var(--border-strong);
+}
+
+.nl-mk-mover:focus-visible,
+.nl-mk-pair:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.nl-mk-mover-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.nl-mk-mover-top b {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.nl-mk-mover-spark {
+  display: block;
+  width: 100%;
+  height: 48px;
+  overflow: visible;
+}
+
+.nl-mk-mover-price {
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+/* Sparkline strokes follow the day's direction. */
+.nl-mk polyline.is-up { stroke: var(--accent); }
+.nl-mk polyline.is-down { stroke: var(--danger); }
+
+.nl-mk-pill {
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.nl-mk .nl-mk-pill.is-up { background: var(--accent-soft); }
+.nl-mk .nl-mk-pill.is-down { background: var(--danger-soft); }
+
+/* ------------------------------------------------------------- all pairs */
+
+.nl-mk-all {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.nl-mk-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.nl-mk-toolbar h2 {
+  margin-right: 12px;
+}
+
+.nl-mk-groups {
+  display: flex;
+  gap: 6px;
+}
+
+.nl-mk-groups button {
+  flex: none;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.nl-mk-groups button.is-active {
+  border-color: var(--foreground);
+  background: var(--foreground);
+  color: var(--background);
+}
+
+.nl-mk-sorts {
+  display: flex;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.nl-mk-sorts button {
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nl-mk-sorts button.is-active {
+  background: var(--surface-raised);
+  color: var(--foreground);
+}
+
+.nl-mk-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 260px;
+  max-width: 100%;
+  height: 44px;
+  margin-left: auto;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.nl-mk-search svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+.nl-mk-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 14px;
+}
+
+.nl-mk-rowhead,
+.nl-mk-row {
+  display: grid;
+  grid-template-columns: minmax(200px, 1.6fr) 120px 112px 96px minmax(150px, 1fr) 64px 112px;
+  align-items: center;
+  gap: 20px;
+}
+
+.nl-mk-rowhead {
+  padding: 0 16px;
+  color: var(--muted);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.nl-mk-rowhead .is-end {
+  text-align: right;
+}
+
+.nl-mk-rows {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+}
+
+.nl-mk-row {
+  min-height: 64px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.nl-mk-row:hover {
+  background: var(--surface);
+}
+
+.nl-mk-pair {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  color: var(--foreground);
+  text-decoration: none;
+}
+
+.nl-mk-coins {
+  display: flex;
+  flex: none;
+}
+
+.nl-mk-coins > span {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--foreground);
+  color: var(--background);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.nl-mk-coins > span + span {
+  margin-left: -9px;
+  box-sizing: border-box;
+  border: 2px solid var(--background);
+  background: var(--surface-raised);
+  color: var(--foreground);
+}
+
+.nl-mk-pair-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.nl-mk-pair-copy b {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.nl-mk-pair-copy small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nl-mk-row-spark {
+  display: block;
+  width: 100%;
+  height: 32px;
+  overflow: visible;
+}
+
+.nl-mk-price {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  font-size: 15px;
+  letter-spacing: 0;
+  text-align: right;
+}
+
+.nl-mk-narrow-change {
+  display: none;
+}
+
+.nl-mk-change-cell {
+  justify-self: end;
+}
+
+.nl-mk-range {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nl-mk-range-bar {
+  position: relative;
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-strong);
+}
+
+.nl-mk-range-bar > span {
+  position: absolute;
+  top: -4px;
+  width: 2px;
+  height: 12px;
+  margin-left: -1px;
+  background: var(--foreground);
+}
+
+.nl-mk-range-ends {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0;
+}
+
+.nl-mk-spread {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0;
+  text-align: right;
+}
+
+.nl-mk-analyze {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: end;
+  gap: 6px;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nl-mk-analyze:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.nl-mk-analyze:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.nl-mk-empty,
+.nl-mk-more {
+  margin: 0;
+  padding: 32px 16px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .nl-mk-rowhead,
+  .nl-mk-row {
+    grid-template-columns: minmax(180px, 1.6fr) 112px 96px minmax(140px, 1fr) 112px;
+  }
+
+  .nl-mk-hide-md {
+    display: none;
+  }
+
+  .nl-mk-movers-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ----------------------------------------------------------------- phone */
+
+@media (max-width: 1023px) {
+  .nl-mk {
+    gap: 16px;
+    padding: 20px 0 0;
+  }
+
+  .nl-mk > :not(.nl-mk-movers) {
+    margin-inline: 16px;
+  }
+
+  .nl-mk-head {
+    gap: 16px;
+  }
+
+  .nl-mk-title .nl-overline {
+    display: none;
+  }
+
+  .nl-mk-title h1 {
+    font-size: 48px;
+  }
+
+  .nl-mk-bell {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    place-items: center;
+    border: 1px solid var(--border);
+    border-radius: 13px;
+    background: var(--surface);
+    color: var(--foreground);
+  }
+
+  .nl-mk-bell svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* Session strip collapses to one line: swatches, headline, clock. */
+  .nl-session-strip {
+    flex-basis: 100%;
+    padding: 10px 14px;
+    border-radius: 14px;
+  }
+
+  .nl-session-strip-head {
+    align-items: center;
+    gap: 10px;
+  }
+
+  .nl-session-swatches {
+    display: flex;
+    gap: 3px;
+  }
+
+  .nl-session-swatches > span {
+    width: 6px;
+    height: 16px;
+    border-radius: 2px;
+  }
+
+  .nl-session-strip-title {
+    flex: 1;
+  }
+
+  .nl-session-strip-lanes,
+  .nl-session-strip-scale {
+    display: none;
+  }
+
+  .nl-mk-sec-head {
+    padding: 0 16px;
+  }
+
+  .nl-mk-sec-head h2 {
+    color: var(--muted);
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .nl-mk-sec-head span {
+    display: none;
+  }
+
+  .nl-mk-movers-grid {
+    display: flex;
+    gap: 10px;
+    padding: 0 16px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    /* Keep the sideways swipe inside the strip: no page bounce or back-swipe,
+       and cards settle on a clean edge. */
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: 16px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .nl-mk-movers-grid::-webkit-scrollbar,
+  .nl-mk-groups::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nl-mk-mover {
+    flex: 0 0 148px;
+    scroll-snap-align: start;
+    gap: 10px;
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .nl-mk-mover-top b {
+    font-size: 16px;
+  }
+
+  .nl-mk-mover-top .nl-mk-pill {
+    padding: 2px 6px;
+    font-size: 11px;
+  }
+
+  .nl-mk-mover-spark {
+    height: 32px;
+  }
+
+  .nl-mk-mover-price {
+    font-size: 14px;
+  }
+
+  .nl-mk-toolbar h2,
+  .nl-mk-sorts {
+    display: none;
+  }
+
+  .nl-mk-groups {
+    width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .nl-mk-search {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .nl-mk-rowhead,
+  .nl-mk-hide-sm,
+  .nl-mk-spread,
+  .nl-mk-coins {
+    display: none;
+  }
+
+  .nl-mk-rows {
+    border-top: 0;
+  }
+
+  .nl-mk-row {
+    grid-template-columns: minmax(0, 1fr) 56px 92px 44px;
+    gap: 10px;
+    padding: 0;
+    border-bottom-color: var(--surface-raised);
+  }
+
+  .nl-mk-row:hover {
+    background: transparent;
+  }
+
+  .nl-mk-row-spark.nl-mk-hide-md {
+    display: block;
+    height: 24px;
+  }
+
+  .nl-mk-pair-copy b {
+    font-size: 16px;
+  }
+
+  .nl-mk-pair-copy small {
+    font-size: 11px;
+  }
+
+  .nl-mk-price {
+    font-size: 14px;
+  }
+
+  .nl-mk-narrow-change {
+    display: block;
+  }
+
+  .nl-mk-narrow-change .nl-mk-pill {
+    padding: 1px 6px;
+    font-size: 11px;
+  }
+
+  .nl-mk-analyze {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+  }
+
+  .nl-mk-analyze-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+}
+
+/* ============================================================== SETTINGS */
+
+/*
+ * Settings, 1:1 with the canvas artboards "Settings — Desktop / Mobile /
+ * Mobile, risk sheet". Markup: components/settings/settings-panel.tsx and
+ * components/risk/risk-workspace.tsx (`nl-st-*`). Risk limits auto-save, so
+ * the card shows the save status where the drawing had a Save bar.
+ */
+
+.nl-st {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  max-width: 1344px;
+  margin: 0 auto;
+  padding: 36px 40px 64px;
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.nl-st-phone { display: none; }
+
+.nl-st-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nl-st-head .nl-overline {
+  letter-spacing: 0.12em;
+}
+
+.nl-st-head h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 72px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 0.9;
+}
+
+.nl-st-layout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 40px;
+}
+
+/* Section index. */
+.nl-st-index {
+  position: sticky;
+  top: 24px;
+  display: flex;
+  flex: 0 0 200px;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nl-st-index a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.nl-st-index a:hover {
+  background: var(--surface);
+  color: var(--foreground);
+}
+
+.nl-st-index a.is-active {
+  background: var(--surface-raised);
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.nl-st-index-num {
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+.nl-st-index a.is-active .nl-st-index-num {
+  color: var(--accent);
+}
+
+.nl-st-content {
+  display: flex;
+  flex: 999 1 560px;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+  max-width: 880px;
+}
+
+/* ----------------------------------------------------------------- cards */
+
+.nl-st-card {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 32px;
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  scroll-margin-top: 24px;
+}
+
+.nl-st-card.is-risk {
+  gap: 28px;
+  background: var(--surface);
+}
+
+.nl-st-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.nl-st-card-head h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.nl-st-card-head p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.nl-st-batch {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+.nl-st-field-label {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.nl-st-note {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.nl-st-optional {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.nl-st-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.nl-st-block-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* Risk per trade: big stepper with presets. */
+.nl-st-risk-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px;
+  border-radius: 22px;
+  background: var(--background);
+}
+
+.nl-st-risk-main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nl-st-risk-label {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.nl-st-stepper {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.nl-st-step {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 16px;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.nl-st-step:hover {
+  background: var(--surface-raised);
+}
+
+.nl-st-risk-value {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  min-width: 220px;
+  font-family: var(--font-display);
+  font-size: 88px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 0.9;
+}
+
+.nl-st-risk-input {
+  width: 3.4ch;
+  field-sizing: content;
+  min-width: 1.5ch;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: right;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.nl-st-risk-input::-webkit-inner-spin-button,
+.nl-st-risk-input::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
+.nl-st-risk-input:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 4px;
+}
+
+.nl-st-risk-money {
+  min-height: 1.2em;
+  color: var(--accent);
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+.nl-st-presets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.nl-st-pill {
+  min-width: 48px;
+  height: 48px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  background: transparent;
+  color: var(--foreground);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.nl-st-presets .nl-st-pill {
+  min-width: 88px;
+}
+
+.nl-st-pill.is-active {
+  border-color: var(--foreground);
+  background: var(--foreground);
+  color: var(--background);
+  font-weight: 600;
+}
+
+.nl-st-positions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.nl-st-split {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 20px;
+}
+
+.nl-st-exposure {
+  display: flex;
+  flex: 1 1 240px;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.nl-st-input {
+  display: flex;
+  align-items: center;
+  height: 52px;
+  padding: 0 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  background: var(--background);
+}
+
+.nl-st-input input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--foreground);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 18px;
+}
+
+.nl-st-input input::placeholder {
+  color: var(--muted);
+}
+
+.nl-st-input > span {
+  color: var(--muted);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 13px;
+}
+
+.nl-st-input:focus-within {
+  border-color: var(--accent);
+}
+
+.nl-st-help {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.nl-st-allow {
+  display: flex;
+  flex: 1 1 240px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+.nl-st-allow-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Switch: lime track and ink knob when on. */
+.nl-st-switch {
+  position: relative;
+  flex: none;
+  width: 56px;
+  height: 32px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+
+.nl-st-switch > span {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 160ms ease, background 160ms ease;
+}
+
+.nl-st-switch.is-on {
+  background: var(--accent-fill);
+}
+
+.nl-st-switch.is-on > span {
+  background: var(--on-accent);
+  transform: translateX(24px);
+}
+
+.nl-st-switch:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.nl-st-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.nl-st-state {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.nl-st-state.is-paused {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.nl-st-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 13px;
+}
+
+/* --------------------------------------------------------- notifications */
+
+.nl-st-sounds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.nl-st-sound {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 48px;
+  padding: 0 16px 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.nl-st-sound-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--surface-raised);
+}
+
+.nl-st-sound-icon svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+
+.nl-st-sound.is-active {
+  border-color: var(--accent);
+  background: var(--surface-raised);
+}
+
+.nl-st-sound.is-active .nl-st-sound-icon {
+  background: var(--accent-fill);
+  color: var(--on-accent);
+}
+
+.nl-st-volume {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
+.nl-st-volume .nl-st-field-label {
+  width: 80px;
+}
+
+.nl-st-volume-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--muted);
+}
+
+.nl-st-volume input {
+  flex: 1;
+  min-width: 200px;
+  height: 28px;
+  accent-color: var(--accent-fill);
+}
+
+.nl-st-volume output {
+  width: 48px;
+  font-size: 14px;
+  letter-spacing: 0;
+  text-align: right;
+}
+
+.nl-st-rows {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+}
+
+.nl-st-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 72px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.nl-st-row-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+}
+
+.nl-st-row-copy b {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.nl-st-row-copy span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.nl-st-ghost {
+  flex: none;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nl-st-ghost:disabled {
+  opacity: 0.5;
+}
+
+/* ------------------------------------------------------------ appearance */
+
+.nl-st-themes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.nl-st-theme {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border: 2px solid var(--border);
+  border-radius: 20px;
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.nl-st-theme.is-active {
+  border-color: var(--accent-fill);
+}
+
+.nl-st-theme-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 96px;
+  padding: 14px;
+  border-radius: 12px;
+  box-sizing: border-box;
+}
+
+.nl-st-theme.is-dark .nl-st-theme-preview { background: #0b0c0a; }
+.nl-st-theme.is-light .nl-st-theme-preview { background: #f4f4ef; }
+
+.nl-st-theme-preview > span {
+  display: block;
+  border-radius: 4px;
+}
+
+.nl-st-theme-preview > span:nth-child(1) { width: 40%; height: 10px; }
+.nl-st-theme-preview > span:nth-child(2) { width: 70%; height: 22px; border-radius: 6px; }
+.nl-st-theme-preview > span:nth-child(3) { width: 30%; height: 10px; background: #c8f560; }
+
+.nl-st-theme.is-dark .nl-st-theme-preview > span:not(:nth-child(3)) { background: #262a23; }
+.nl-st-theme.is-light .nl-st-theme-preview > span:not(:nth-child(3)) { background: #d9dbd2; }
+
+.nl-st-theme-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
+}
+
+.nl-st-radio {
+  width: 20px;
+  height: 20px;
+  box-sizing: border-box;
+  border: 2px solid var(--border-strong);
+  border-radius: 50%;
+}
+
+.nl-st-theme.is-active .nl-st-radio {
+  border-color: var(--accent-fill);
+  background: var(--accent-fill);
+}
+
+.nl-st-sizes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.nl-st-size {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.nl-st-size.is-active {
+  border-color: var(--accent-fill);
+  background: var(--surface-raised);
+}
+
+.nl-st-size-aa {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.nl-st-size.is-small .nl-st-size-aa { font-size: 20px; }
+.nl-st-size.is-medium .nl-st-size-aa { font-size: 28px; }
+.nl-st-size.is-large .nl-st-size-aa { font-size: 36px; }
+
+/* --------------------------------------------------------------- account */
+
+.nl-st-account {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.nl-st-account > div {
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.nl-st-account dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.nl-st-account dd {
+  margin: 6px 0 0;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+}
+
+.nl-st-signout {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 20px;
+  border: 1px solid var(--danger);
+  border-radius: 14px;
+  background: transparent;
+  color: var(--danger);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nl-st-signout svg {
+  width: 16px;
+  height: 16px;
+}
+
+.nl-st-primary {
+  height: 52px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--accent-fill);
+  color: var(--on-accent);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+/* ----------------------------------------------------------------- phone */
+
+@media (max-width: 1023px) {
+  .nl-st {
+    gap: 18px;
+    padding: 20px 16px 0;
+  }
+
+  .nl-st-desk { display: none; }
+  .nl-st-phone { display: block; }
+
+  .nl-st-head .nl-overline {
+    display: none;
+  }
+
+  .nl-st-head h1 {
+    font-size: 48px;
+  }
+
+  .nl-st-layout {
+    gap: 18px;
+  }
+
+  .nl-st-content {
+    flex-basis: 100%;
+    gap: 18px;
+  }
+
+  .nl-st-mcard {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    background: var(--surface);
+  }
+
+  .nl-st-mcard-title {
+    margin: 0;
+    padding: 14px 16px 4px;
+    color: var(--muted);
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .nl-st-mrisk {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 10px 16px 16px;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    background: transparent;
+    color: var(--foreground);
+    text-align: left;
+  }
+
+  .nl-st-mrisk-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .nl-st-mrisk-value {
+    font-family: var(--font-display);
+    font-size: 44px;
+    font-weight: 800;
+    letter-spacing: -0.05em;
+    line-height: 0.95;
+  }
+
+  .nl-st-mrisk-money {
+    color: var(--accent);
+    font-size: 12px;
+    letter-spacing: 0;
+  }
+
+  .nl-st-mrisk svg,
+  .nl-st-mrow-end svg {
+    width: 16px;
+    height: 16px;
+    color: var(--muted);
+  }
+
+  .nl-st-mrow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    min-height: 52px;
+    padding: 0 16px;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    background: transparent;
+    color: var(--foreground);
+    font-size: 15px;
+    text-align: left;
+  }
+
+  .nl-st-mrow:last-child {
+    border-bottom: 0;
+  }
+
+  .nl-st-mrow .nl-st-allow-copy {
+    padding: 10px 0;
+  }
+
+  .nl-st-mrow .nl-st-note {
+    font-size: 12px;
+  }
+
+  .nl-st-mrow-end {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    color: var(--muted);
+    font-size: 15px;
+  }
+
+  .nl-st-mrow-end.is-accent {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .nl-st-email {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .nl-st-mrow.is-danger {
+    color: var(--danger);
+    font-weight: 600;
+  }
+
+  .nl-st-mcard .nl-st-error {
+    padding: 0 16px 14px;
+  }
+}
+
+/* Phone risk sheet (inside MobileSheet). */
+.nl-st-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  color: var(--foreground);
+}
+
+.nl-st-sheet-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 16px;
+  border-radius: 22px;
+  background: var(--background);
+}
+
+.nl-st-sheet .nl-st-risk-value {
+  min-width: 170px;
+  font-size: 64px;
+}
+
+.nl-st-sheet .nl-st-presets {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: 100%;
+  margin-top: 6px;
+}
+
+.nl-st-sheet .nl-st-presets .nl-st-pill {
+  min-width: 0;
+  height: 44px;
+  border-radius: 12px;
+  font-size: 14px;
+}
+
+.nl-st-sheet .nl-st-positions {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.nl-st-sheet .nl-st-positions .nl-st-pill {
+  min-width: 0;
+  height: 44px;
+  padding: 0;
+  border-radius: 12px;
+  font-size: 14px;
+}
+
+.nl-st-sheet .nl-st-positions .nl-st-pill.is-wide {
+  grid-column: span 2;
+}
+
+.nl-st-sheet-note {
+  margin: 0;
+  text-align: center;
+}
+
+/* ================================================================= CHART */
+
+/*
+ * Chart, 1:1 with the canvas artboard "Chart — Desktop". Markup: the desktop
+ * terminal in components/signals/signal-workspace.tsx (`nl-terminal`) and
+ * components/charts/chart-ledger-parts.tsx. The page fills the window: the
+ * chart card takes whatever height the header and toolbar leave, and the side
+ * column scrolls on its own.
+ */
+
+@media (min-width: 1024px) {
+  /* The route re-declares its ground; keep it on the Night Ledger palette. */
+  .dark .signals-route {
+    --background: #0b0c0a;
+    --surface: #141612;
+    --chart-background: #141612;
+    --border: rgba(241, 242, 236, 0.09);
+    background-color: #0b0c0a;
+  }
+
+  .signals-route {
+    --chart-background: #ffffff;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-view .gx-chart-terminal.nl-terminal {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    height: 100dvh;
+    min-height: 0;
+    padding: 24px 32px 28px;
+    overflow: hidden;
+    border: 0;
+    background: var(--background);
+  }
+
+  /* ---------------------------------------------------------- header */
+
+  .nl-chart-head {
+    position: relative;
+    z-index: 30;
+    display: flex;
+    flex: none;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+  }
+
+  .nl-chart-head-main {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 24px;
+    min-width: 0;
+  }
+
+  /* Pair picker: two currency coins and the pair name in one bordered pill;
+     the existing searchable picker is the button inside it. */
+  .nl-pair {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 56px;
+    padding: 6px 6px 6px 6px;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--surface);
+  }
+
+  .nl-pair-coins {
+    display: flex;
+    pointer-events: none;
+  }
+
+  .nl-pair-coins > span {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--foreground);
+    color: var(--background);
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .nl-pair-coins > span + span {
+    margin-left: -10px;
+    box-sizing: border-box;
+    border: 2px solid var(--surface);
+    background: var(--surface-raised);
+    color: var(--foreground);
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-view .nl-terminal .nl-pair .gx-pair-search .signals-tool-btn {
+    min-height: 44px;
+    padding: 0 8px 0 0;
+    border: 0;
+    background: transparent;
+    color: var(--foreground);
+    box-shadow: none;
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
+  .nl-chart-quote {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+
+  .nl-chart-price {
+    font-size: 36px;
+    font-weight: 500;
+    letter-spacing: -0.03em;
+  }
+
+  .nl-chart-change {
+    font-size: 14px;
+    letter-spacing: 0;
+  }
+
+  .nl-terminal .is-up { color: var(--accent); }
+  .nl-terminal .is-down { color: var(--danger); }
+
+  .nl-chart-facts {
+    display: flex;
+    gap: 20px;
+    margin: 0;
+  }
+
+  .nl-chart-facts dt {
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  .nl-chart-facts dd {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 2px 0 0;
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: 13px;
+    letter-spacing: 0;
+    white-space: nowrap;
+  }
+
+  .nl-spread-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--muted);
+  }
+
+  .nl-spread-dot.is-cheap { background: var(--accent-fill); }
+  .nl-spread-dot.is-pricey { background: var(--pending); }
+  .nl-spread-dot.is-expensive { background: var(--danger); }
+
+  .nl-chart-head-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .nl-analyze {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 48px;
+    padding: 0 20px;
+    border: 0;
+    border-radius: 14px;
+    background: var(--accent-fill);
+    color: var(--on-accent);
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .nl-analyze:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent-fill) 88%, white);
+  }
+
+  .nl-analyze:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+
+  html:is(.dark, :not(.dark)) body .nl-chart-head .signals-analyze-desktop {
+    height: 48px;
+    padding: 0 18px;
+    border-radius: 14px;
+  }
+
+  html:is(.dark, :not(.dark)) body .nl-chart-head .nl-chart-bell {
+    display: grid;
+    width: 48px;
+    height: 48px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+    color: var(--foreground);
+  }
+
+  .nl-chart-error {
+    flex-basis: 100%;
+    text-align: right;
+  }
+
+  /* ------------------------------------------------------------ body */
+
+  .nl-chart-body {
+    display: flex;
+    flex: 1 1 auto;
+    gap: 24px;
+    min-height: 0;
+  }
+
+  .nl-chart-main {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .nl-chart-side {
+    display: flex;
+    flex: 0 0 340px;
+    flex-direction: column;
+    gap: 16px;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+
+  /* --------------------------------------------------------- toolbar */
+
+  .nl-chart-toolbar {
+    position: relative;
+    z-index: 20;
+    display: flex;
+    flex: none;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .nl-toolbar-rule {
+    width: 1px;
+    height: 28px;
+    background: var(--border);
+  }
+
+  .nl-toolbar-end {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+  }
+
+  .nl-replay-tag {
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: var(--pending-soft);
+    color: var(--pending);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  /* Timeframes: one pill group, inverted selection. */
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .workspace-tabs {
+    flex: none;
+    gap: 2px;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .workspace-tab-btn {
+    min-width: 48px;
+    height: 36px;
+    min-height: 0;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: 13px;
+    font-weight: 400;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .workspace-tab-btn.workspace-tab-btn-active {
+    background: var(--foreground);
+    color: var(--background);
+    font-weight: 600;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .workspace-tab-btn-active::after {
+    display: none;
+  }
+
+  /* Dropdown triggers (Range, Candles, Indicators, trade picker). */
+  html:is(.dark, :not(.dark)) body .signals-view .nl-terminal .nl-chart-toolbar .gx-toolbar-btn {
+    height: 44px;
+    min-height: 0;
+    padding: 0 14px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--foreground);
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-view .nl-terminal .nl-chart-toolbar .gx-toolbar-btn.is-active {
+    border-color: var(--border-strong);
+    background: var(--surface-raised);
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-view .nl-terminal .nl-chart-toolbar .gx-toolbar-icon-btn {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    min-height: 0;
+    place-items: center;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--foreground);
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-view .nl-terminal .nl-chart-toolbar :is(.gx-toolbar-btn, .gx-toolbar-icon-btn):hover:not(:disabled) {
+    background: var(--surface-raised);
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-view .nl-terminal .nl-chart-toolbar .gx-toolbar-icon-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* ------------------------------------------------------- chart card */
+
+  html:is(.dark, :not(.dark)) body .signals-view .nl-terminal .nl-chart-card {
+    position: relative;
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    background: var(--chart-background);
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-view .nl-terminal .nl-chart-card > .signals-chart-canvas {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .nl-ohlc {
+    position: absolute;
+    top: 14px;
+    left: 18px;
+    z-index: 3;
+    display: flex;
+    gap: 14px;
+    font-size: 12px;
+    letter-spacing: 0;
+    pointer-events: none;
+  }
+
+  .nl-ohlc-pair,
+  .nl-ohlc i {
+    color: var(--muted);
+    font-style: normal;
+  }
+
+  /* ------------------------------------------------------ side column */
+
+  .nl-cside-card,
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-side .gx-chart-context {
+    flex: none;
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    background: var(--surface);
+  }
+
+  .nl-cside-card {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 22px;
+  }
+
+  /* The entry composer keeps its own internals; the card is its frame. */
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-side .gx-chart-context {
+    min-height: 0;
+    overflow: hidden;
+    border-left: 1px solid var(--border);
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-side .gx-chart-context .pending-entry-dialog.is-panel {
+    height: auto;
+    max-height: none;
+    border: 0;
+    background: transparent;
+  }
+
+  .nl-cside-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .nl-cside-head h2 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .nl-cside-head > span {
+    font-size: 12px;
+    letter-spacing: 0;
+  }
+
+  .nl-cside-empty {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .nl-cpos-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .nl-cpos-grid > div {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px;
+    border-radius: 14px;
+    background: var(--surface-raised);
+  }
+
+  .nl-cpos-grid span {
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  .nl-cpos-grid b {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0;
+  }
+
+  .nl-cpos-foot {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    letter-spacing: 0;
+  }
+
+  .nl-cwatch {
+    gap: 6px;
+  }
+
+  .nl-cwatch .nl-cside-head {
+    margin-bottom: 8px;
+  }
+
+  .nl-cwatch-list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .nl-cwatch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 44px;
+    margin: 0 -12px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--foreground);
+    font-size: 14px;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .nl-cwatch-row:hover,
+  .nl-cwatch-row.is-active {
+    background: var(--surface-raised);
+  }
+
+  .nl-cwatch-row b {
+    font-weight: 600;
+  }
+
+  .nl-cwatch-row .metric-number {
+    letter-spacing: 0;
+  }
+}
+
+/* Selected timeframe elsewhere (phone strip): inverted pill. */
+html:is(.dark, :not(.dark)) body .signals-view .workspace-tab-btn.workspace-tab-btn-active {
+  background: var(--foreground);
+  color: var(--background);
+  box-shadow: none;
+}
+
+/* Entry composer in the chart's side column, drawn like the canvas Analyze
+   card: pill segments, big Long/Short, recessed fields, lime primary. */
+@media (min-width: 1024px) {
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-side .pending-entry-dialog .pending-entry-presets {
+    gap: 2px;
+    padding: 3px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--background);
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-side .pending-entry-dialog .pending-entry-presets button {
+    min-height: 32px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    box-shadow: none;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-side .pending-entry-dialog .pending-entry-presets button.is-active {
+    background: var(--surface-raised);
+    color: var(--foreground);
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-side .pending-entry-dialog .pending-entry-direction {
+    gap: 8px;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-side .pending-entry-dialog .pending-entry-direction button {
+    min-height: 52px;
+    border: 1px solid var(--border-strong);
+    border-radius: 14px;
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    text-transform: none;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-side .pending-entry-dialog .pending-entry-direction button.is-long.is-active {
+    border-color: transparent;
+    background: var(--accent-fill);
+    color: var(--on-accent);
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-side .pending-entry-dialog .pending-entry-direction button.is-short.is-active {
+    border-color: transparent;
+    background: var(--loss-fill);
+    color: var(--on-accent);
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-side .pending-entry-dialog input {
+    min-height: 44px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--background);
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-side .pending-entry-dialog .pending-entry-summary {
+    border-radius: 16px;
+    background: var(--background);
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-side .pending-entry-dialog .pending-entry-primary {
+    min-height: 48px;
+    border: 0;
+    border-radius: 14px;
+    background: var(--accent-fill);
+    color: var(--on-accent);
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-side .pending-entry-dialog .pending-entry-primary:disabled {
+    background: var(--surface-raised);
+    color: var(--muted);
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-side .pending-entry-dialog .pending-entry-actions {
+    border-top: 1px solid var(--border);
+    background: transparent;
+  }
+
+  /* Coins: a touch less overlap so the base code stays readable. */
+  .nl-pair-coins > span + span {
+    margin-left: -8px;
+  }
+}
+
+/* Laptop widths: the artboard is 1440 wide. Below ~1360 the header keeps to
+   one row by easing the type, dropping the Session fact (the side column and
+   the market pill already carry it) and narrowing the side column. */
+@media (min-width: 1024px) and (max-width: 1359px) {
+  html:is(.dark, :not(.dark)) body .signals-view .gx-chart-terminal.nl-terminal {
+    padding: 20px 24px 24px;
+  }
+
+  .nl-chart-head-main {
+    gap: 16px;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-view .nl-terminal .nl-pair .gx-pair-search .signals-tool-btn {
+    font-size: 22px;
+  }
+
+  .nl-chart-price {
+    font-size: 28px;
+  }
+
+  .nl-chart-facts {
+    gap: 14px;
+  }
+
+  .nl-chart-facts > div:last-child {
+    display: none;
+  }
+
+  .nl-chart-side {
+    flex-basis: 300px;
+  }
+}
+
+/* ============================================================ CHART PHONE */
+
+/* "Chart — Mobile" artboard: coin pill + Analyze pill + bell, price with
+   change · session, Bid/Ask/Spread, an inverted timeframe strip, the chart
+   edge to edge, a row of 44px tool buttons and the full-width Trade action. */
+@media (max-width: 1023px) {
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mhead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .signals-chart-mobile .nl-pair {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    height: 48px;
+    padding: 0 4px 0 6px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
+  }
+
+  .signals-chart-mobile .nl-pair-coins {
+    display: flex;
+    flex: none;
+    pointer-events: none;
+  }
+
+  .signals-chart-mobile .nl-pair-coins > span {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--foreground);
+    color: var(--background);
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: 9px;
+    font-weight: 600;
+  }
+
+  .signals-chart-mobile .nl-pair-coins > span + span {
+    margin-left: -9px;
+    box-sizing: border-box;
+    border: 2px solid var(--surface);
+    background: var(--surface-raised);
+    color: var(--foreground);
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-pair .gx-pair-search .signals-tool-btn {
+    min-height: 44px;
+    padding: 0 6px 0 0;
+    border: 0;
+    background: transparent;
+    color: var(--foreground);
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
+  .nl-mhead-actions {
+    display: flex;
+    flex: none;
+    gap: 8px;
+  }
+
+  .nl-analyze {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 0;
+    background: var(--accent-fill);
+    color: var(--on-accent);
+    font-weight: 700;
+  }
+
+  .nl-analyze-sm {
+    height: 48px;
+    padding: 0 14px;
+    border-radius: 16px;
+    font-size: 14px;
+  }
+
+  .nl-analyze:disabled {
+    opacity: 0.55;
+  }
+
+  /* Qualified with the header classes: globals.css styles .mobile-icon-btn here
+     at one class more, which kept the old 40px round bell. */
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .signals-mobile-header-actions .mobile-icon-btn.nl-mbell {
+    display: grid;
+    width: 48px;
+    height: 48px;
+    place-items: center;
+    /* !important answers the .signals-fullscreen-reserve rule in globals.css,
+       which forces a borderless pill with !important. */
+    border: 1px solid var(--border) !important;
+    border-radius: 16px !important;
+    background: var(--surface);
+    color: var(--foreground);
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .signals-mobile-header-actions .mobile-icon-btn.nl-mbell svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* Quote row. */
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mquote {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 4px 12px;
+    margin-top: 14px;
+  }
+
+  .nl-mquote-main {
+    display: contents;
+  }
+
+  .nl-mquote-price {
+    grid-column: 1;
+    grid-row: 1;
+    font-size: 34px;
+    font-weight: 500;
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+
+  .nl-mquote-meta {
+    grid-column: 1;
+    grid-row: 2;
+    display: flex;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+    align-items: center;
+    gap: 2px 4px;
+    color: var(--muted);
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: 13px;
+  }
+
+  .nl-mquote-meta .is-up { color: var(--accent); }
+  .nl-mquote-meta .is-down { color: var(--danger); }
+
+  .nl-mquote-facts {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    display: flex;
+    flex: none;
+    gap: clamp(6px, 2vw, 14px);
+    margin: 0;
+    text-align: right;
+  }
+
+  .nl-mquote-facts dt {
+    color: var(--muted);
+    font-size: 10px;
+  }
+
+  .nl-mquote-facts dd {
+    margin: 2px 0 0;
+    font-size: 12px;
+    letter-spacing: 0;
+  }
+
+  .nl-spread.is-cheap { color: var(--accent); }
+  .nl-spread.is-pricey { color: var(--pending); }
+  .nl-spread.is-expensive { color: var(--danger); }
+
+  /* Timeframes: equal pills, inverted selection. */
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-timeframes .workspace-tabs,
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-timeframes [role="tablist"],
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-timeframes > div {
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-timeframes button {
+    height: 38px;
+    min-height: 0;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted);
+    box-shadow: none;
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: 13px;
+  }
+
+  /* The sliding lens stays (it animates between timeframes); it becomes the
+     inverted pill, and the selected label turns to the page ground. */
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-timeframes .workspace-segment::before {
+    top: 4px;
+    bottom: 4px;
+    left: 4px;
+    width: calc((100% - 8px) / 5);
+    border-radius: 10px;
+    background: var(--foreground);
+    box-shadow: none;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-timeframes .workspace-segment-btn.workspace-segment-btn-active.pressable {
+    background: transparent;
+    color: var(--background);
+    font-weight: 600;
+  }
+
+  /* Tool row: six bordered 44px buttons. */
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-toolbar {
+    display: flex;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 10px 16px;
+    border: 0;
+    background: transparent;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-toolbar > * {
+    flex: 1 1 0;
+    max-width: 52px;
+  }
+
+  /* Class-qualified to outrank the phone toolbar rules in globals.css. */
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-toolbar :is(.sheet-trigger, .gx-mobile-tool-button) {
+    display: grid;
+    width: 100%;
+    height: 44px;
+    min-height: 0;
+    place-items: center;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--foreground);
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-toolbar :is(.sheet-trigger.has-active, .gx-mobile-tool-button.is-active) {
+    border-color: transparent;
+    background: var(--foreground);
+    color: var(--background);
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-toolbar :is(.sheet-trigger, .gx-mobile-tool-button) svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* Trade action: full width lime, like the artboard's Review card button. */
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-analyze {
+    height: 52px;
+    border: 0;
+    border-radius: 16px;
+    background: var(--accent-fill);
+    color: var(--on-accent);
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-analyze.is-close,
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-analyze.is-cancel {
+    background: var(--loss-fill);
+  }
+}
+
+/* ============================================================== ANALYZE */
+
+/* Analyze result: the first card in the chart's side column on desktop, a
+   bottom sheet on phones. Markup: components/analysis/analyze-card.tsx. */
+.nl-an-card {
+  flex: none;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: var(--surface);
+}
+
+.nl-an-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  color: var(--foreground);
+}
+
+.nl-an-body .is-up { color: var(--accent); }
+.nl-an-body .is-down { color: var(--danger); }
+
+.nl-an-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.nl-an-top-end {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nl-an-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.nl-an-modes {
+  display: flex;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--background);
+}
+
+.nl-an-modes button {
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nl-an-modes button.is-active {
+  background: var(--surface-raised);
+  color: var(--foreground);
+}
+
+.nl-an-modes button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.nl-an-close {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 0;
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.nl-an-close svg {
+  width: 16px;
+  height: 16px;
+}
+
+.nl-an-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.nl-an-decision,
+.nl-an-ratio {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.nl-an-ratio {
+  color: var(--accent);
+}
+
+.nl-an-regime {
+  margin: -8px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.nl-an-levels {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+.nl-an-levels > div {
+  padding: 12px;
+}
+
+.nl-an-levels > div + div {
+  border-left: 1px solid var(--border);
+}
+
+.nl-an-levels dt {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.nl-an-levels dd {
+  margin: 4px 0 0;
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+.nl-an-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.nl-an-rows > div {
+  display: flex;
+  justify-content: space-between;
+}
+
+.nl-an-rows dt {
+  color: var(--muted);
+}
+
+.nl-an-rows dd {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.nl-an-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.nl-an-notes p,
+.nl-an-notes ul {
+  margin: 0;
+}
+
+.nl-an-notes ul {
+  padding-left: 1.1em;
+}
+
+.nl-an-notes span {
+  color: var(--muted);
+}
+
+.nl-an-notes .is-caution {
+  color: var(--pending);
+}
+
+.nl-an-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.nl-an-secondary,
+.nl-an-primary {
+  height: 48px;
+  border-radius: 14px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.nl-an-secondary {
+  flex: 1;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.nl-an-primary {
+  flex: 1.4;
+  border: 0;
+  background: var(--accent-fill);
+  color: var(--on-accent);
+  font-weight: 700;
+}
+
+/* Loading placeholders while the analysis runs. */
+.nl-an-skel {
+  display: block;
+  border-radius: 10px;
+  background: linear-gradient(
+    90deg,
+    var(--surface-raised),
+    color-mix(in srgb, var(--surface-raised) 60%, var(--foreground) 6%),
+    var(--surface-raised)
+  );
+  background-size: 200% 100%;
+  animation: nl-an-shimmer 1.4s ease infinite;
+}
+
+.nl-an-skel-title { width: 60%; height: 40px; }
+.nl-an-skel-grid { height: 64px; border-radius: 16px; }
+.nl-an-skel-line { height: 14px; }
+.nl-an-skel-line.is-short { width: 70%; }
+
+@keyframes nl-an-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nl-an-skel { animation: none; }
+}
+
+/* Phone sheet. */
+.nl-an-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(11, 12, 10, 0.55);
+}
+
+.nl-an-sheet {
+  position: absolute;
+  inset: auto 0 0;
+  max-height: 82dvh;
+  overflow-y: auto;
+  padding: 10px 20px calc(28px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
+  border-radius: 28px 28px 0 0;
+  background: var(--surface);
+  box-shadow: 0 -16px 40px rgba(0, 0, 0, 0.5);
+}
+
+.nl-an-grip {
+  width: 40px;
+  height: 5px;
+  margin: 0 auto 14px;
+  border-radius: 3px;
+  background: var(--border-strong);
+}
+
+.nl-an-sheet .nl-an-decision,
+.nl-an-sheet .nl-an-ratio {
+  font-size: 44px;
+}
+
+.nl-an-sheet .nl-an-levels {
+  border: 0;
+  gap: 8px;
+}
+
+.nl-an-sheet .nl-an-levels > div {
+  border: 0;
+  border-radius: 14px;
+  background: var(--surface-raised);
+}
+
+.nl-an-sheet .nl-an-notes {
+  font-size: 14px;
+}
+
+.nl-an-sheet .nl-an-secondary,
+.nl-an-sheet .nl-an-primary {
+  height: 52px;
+  border-radius: 16px;
+  font-size: 15px;
+}
+
+/* Phone switches: solid lime track, ink knob, as on desktop. */
+html:is(.dark, :not(.dark)) body .phone-settings-switch.is-on {
+  background: var(--accent-fill);
+}
+
+html:is(.dark, :not(.dark)) body .phone-settings-switch.is-on > span {
+  background: var(--on-accent);
+}
+
+/* Markets / chart AI proposal, drawn with the Analyze parts above: a sheet on
+   phones, a centred card on desktop. Markup: components/analysis/manual-proposal.tsx. */
+.nl-mp-title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nl-mp-pair {
+  color: var(--muted);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 13px;
+}
+
+.nl-mp .is-up { color: var(--accent); }
+.nl-mp .is-down { color: var(--danger); }
+
+.nl-mp-accept {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+@media (min-width: 1024px) {
+  .nl-mp-backdrop {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(11, 12, 10, 0.72);
+  }
+
+  .nl-an-sheet.nl-mp {
+    position: relative;
+    inset: auto;
+    width: min(480px, 100%);
+    max-height: 90dvh;
+    padding: 24px;
+    border: 1px solid var(--border-strong);
+    border-radius: 28px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  }
+
+  .nl-mp .nl-an-grip {
+    display: none;
+  }
+
+  .nl-mp .nl-an-decision,
+  .nl-mp .nl-an-ratio {
+    font-size: 44px;
+  }
+}
+
+/* ======================================================= CHART SIDE 1:1 */
+
+/* Canvas "Chart" artboard, right column: Analyze is the filled card; Trade
+   health and Watchlist are outlined cards with filled tiles and rows. */
+@media (min-width: 1024px) {
+  .nl-chart-side .nl-cside-card {
+    background: transparent;
+  }
+
+  .nl-chart-side .nl-cpos-grid > div {
+    background: var(--surface);
+  }
+
+  .nl-chart-side .nl-an-body {
+    gap: 18px;
+  }
+
+  .nl-chart-side .nl-an-notes {
+    gap: 10px;
+  }
+}
+
+/* Card actions sit primary-first, at equal widths. */
+.nl-an-actions.is-card .nl-an-primary {
+  order: -1;
+  flex: 1;
+}
+
+.nl-an-actions.is-card button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.nl-an-idle {
+  margin: -6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Loading placeholders inherit the current page geometry, without live controls. */
+.nl-st-title { display: flex; flex-direction: column; gap: 8px; }
+.nl-skeleton-toolbar .gx-skel { flex-shrink: 0; }
+.nl-skeleton-market-action { width: 100px; }
+.nl-skeleton-index { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 14px; }
+.nl-skeleton-timeframes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+.signals-loading-skeleton .nl-an-actions > .gx-skel { flex: 1 1 0; min-width: 0; }
+.signals-loading-skeleton .nl-mhead > .gx-skel { flex-shrink: 1; min-width: 0; }
+@media (max-width: 1023px) {
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-timeframes > .nl-skeleton-timeframes {
+    padding: 3px;
+    border: 0;
+    gap: 0;
+  }
+  .nl-skeleton-toolbar .nl-tr-tabs > .gx-skel { width: 100% !important; }
+  .nl-skeleton-market-action { width: 44px; }
+  .nl-skeleton-chart-tool { flex: 1 1 0; max-width: 52px; min-width: 0; }
+}
+
+/* Markets runs Analyze in place: on desktop the sheet is a centred card in the
+   Analyze-card style (the chart page uses the side-column card instead). */
+@media (min-width: 1024px) {
+  .nl-an-backdrop {
+    display: grid;
+    place-items: center;
+    padding: 24px;
+  }
+
+  .nl-an-sheet {
+    position: relative;
+    inset: auto;
+    width: min(420px, 100%);
+    max-height: calc(100dvh - 48px);
+    padding: 22px;
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  }
+
+  .nl-an-sheet .nl-an-grip {
+    display: none;
+  }
+}
+
+/* ======================================================= ENTRY FROM A PLAN */
+
+/* An Analyze plan's order, reviewed in the plan's own layout: the Analyze
+   card's head, levels box and rows, with the levels still editable.
+   Markup: pending-entry-dialog.tsx (isPlan). */
+html:is(.dark, :not(.dark)) body .pending-entry-dialog.is-plan {
+  width: min(420px, 100%);
+  padding: 22px;
+  gap: 16px;
+  overflow-y: auto;
+  border-radius: 24px;
+  background: var(--surface);
+  color: var(--foreground);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+}
+
+html:is(.dark, :not(.dark)) body .pending-entry-dialog.is-plan > header.nl-an-top {
+  position: static;
+  display: flex;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+html:is(.dark, :not(.dark)) body .pending-entry-dialog.is-plan .pending-entry-grip {
+  display: none;
+}
+
+.nl-pe-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.nl-pe-plan .is-up { color: var(--accent); }
+.nl-pe-plan .is-down { color: var(--danger); }
+.nl-pe-plan .is-caution { color: var(--pending); }
+
+.nl-pe-levels {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+.nl-pe-levels label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  cursor: text;
+}
+
+.nl-pe-levels label + label {
+  border-left: 1px solid var(--border);
+}
+
+.nl-pe-levels label:focus-within {
+  background: var(--surface-raised);
+}
+
+.nl-pe-levels span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+html:is(.dark, :not(.dark)) body .nl-pe-levels input {
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 14px;
+  letter-spacing: 0;
+  outline: none;
+}
+
+.nl-pe-levels input:not(.is-up):not(.is-down) {
+  color: var(--foreground);
+}
+
+.nl-pe-submit {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.nl-pe-submit > span {
+  color: var(--muted);
+}
+
+
+.nl-pe-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.nl-pe-actions {
+  flex: none;
+}
+
+/* Phones: a bottom sheet with the grip, like the Analyze sheet. */
+@media (max-width: 1023px) {
+  html:is(.dark, :not(.dark)) body .pending-entry-dialog.is-plan {
+    width: 100%;
+    max-height: 88dvh;
+    padding: 10px 20px calc(24px + env(safe-area-inset-bottom));
+    border-radius: 28px 28px 0 0;
+  }
+
+  html:is(.dark, :not(.dark)) body .pending-entry-dialog.is-plan .pending-entry-grip {
+    display: block;
+  }
+}

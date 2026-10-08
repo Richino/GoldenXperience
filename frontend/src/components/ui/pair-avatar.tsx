@@ -13,21 +13,25 @@ export function PairAvatar({
   instrument,
   pair,
   size = 40,
+  horizontal = false,
   className = "",
 }: {
   instrument?: MajorInstrument;
   pair?: string;
   size?: number;
+  horizontal?: boolean;
   className?: string;
 }) {
   const { base, quote } = instrument
     ? currenciesFromInstrument(instrument)
     : currenciesFromPair(pair ?? "");
-  const baseFlag = flagImageUrl(base);
-  const quoteFlag = flagImageUrl(quote);
+  const baseFlag = flagImageUrl(base, 160);
+  const quoteFlag = flagImageUrl(quote, 160);
   const [failed, setFailed] = useState(false);
 
-  const badgeSize = Math.round(size * 0.66);
+  const badgeSize = horizontal ? size : Math.round(size * 0.66);
+  const quoteBadgeSize = horizontal ? Math.round(size * 0.87) : badgeSize;
+  const avatarWidth = horizontal ? size * 2 - Math.round(size * 0.3) : size;
   const showFlags = baseFlag && quoteFlag && !failed;
 
   if (!showFlags) {
@@ -45,7 +49,7 @@ export function PairAvatar({
   return (
     <div
       className={`relative shrink-0 ${className}`}
-      style={{ width: size, height: size }}
+      style={{ width: avatarWidth, height: size }}
       aria-hidden
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -62,15 +66,15 @@ export function PairAvatar({
       <img
         alt=""
         src={quoteFlag}
-        width={badgeSize}
-        height={badgeSize}
+        width={quoteBadgeSize}
+        height={quoteBadgeSize}
         onError={() => setFailed(true)}
         className="absolute rounded-full object-cover ring-2 ring-[color:var(--background)]"
         style={{
-          width: badgeSize,
-          height: badgeSize,
+          width: quoteBadgeSize,
+          height: quoteBadgeSize,
           right: 0,
-          bottom: 0,
+          bottom: horizontal ? (size - quoteBadgeSize) / 2 : 0,
         }}
       />
     </div>

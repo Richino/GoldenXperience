@@ -51,7 +51,7 @@ assert.deepEqual(practiceTradeStateFromTransactions("1517", [
   },
 ]), {
   state: "CLOSED", closed: true, averageClosePrice: 154.41, realizedPL: 410.3135,
-  closeTime: "2026-09-14T07:51:47.498755197Z", entryPrice: null, initialUnits: null, openTime: null, financing: 0,
+  closeTime: "2026-09-14T07:51:47.498755197Z", entryPrice: null, initialUnits: null, openTime: null, openTransactionId: null, financing: 0,
 });
 assert.equal(practiceTradeStateFromTransactions("1517", [
   { id: "1528", time: tickTime.toISOString(), type: "ORDER_FILL", tradesClosed: [{ tradeID: "other-trade" }] },

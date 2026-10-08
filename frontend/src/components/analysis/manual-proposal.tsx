@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { LoaderCircle } from "lucide-react";
+import { LoaderCircle, X } from "lucide-react";
+import { AnalyzeIcon } from "@/components/icons/analyze-icon";
 import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { displayNameFor, pipSizeFor } from "@/lib/instruments/catalog";
@@ -59,7 +60,7 @@ export function useManualProposal() {
       const currentY = event.touches[0]?.clientY;
       if (touchStartY === null || currentY === undefined) return;
       const modal = event.target instanceof Element
-        ? event.target.closest<HTMLElement>(".manual-proposal")
+        ? event.target.closest<HTMLElement>(".nl-mp")
         : null;
       if (!modal) {
         event.preventDefault();
@@ -213,48 +214,85 @@ export function ManualProposalModal({
     setOpening(true);
   }
 
+  const tone = proposal.direction === "long" ? "is-up" : "is-down";
+  const ratio = Number(proposal.riskReward.toFixed(1));
+
+  // Drawn with the Night Ledger Analyze parts (nl-an-*): a centred card on
+  // desktop, a bottom sheet on phones. Accepting still only opens a draft.
   return createPortal(
     (
       <div
-        className="manual-proposal-backdrop"
+        className="nl-an-backdrop nl-mp-backdrop"
         role="presentation"
         data-pull-to-refresh-ignore="true"
         onMouseDown={(event) => event.target === event.currentTarget && dismiss()}
       >
-        <section className="manual-proposal" role="dialog" aria-modal="true" aria-labelledby="manual-proposal-title">
-          <header>
-            <div>
-              <h2 id="manual-proposal-title">{displayNameFor(proposal.instrument)} · {proposal.direction.toUpperCase()}</h2>
+        <section className="nl-an-sheet nl-mp" role="dialog" aria-modal="true" aria-labelledby="manual-proposal-title">
+          <div className="nl-an-grip" aria-hidden="true" />
+          <div className="nl-an-body">
+            <div className="nl-an-top">
+              <span className="nl-an-eyebrow">
+                <AnalyzeIcon className="size-3.5" />
+                Analyze · {proposal.confidence}% confidence
+              </span>
+              <button type="button" className="nl-an-close" onClick={dismiss} aria-label="Close analysis">
+                <X aria-hidden="true" />
+              </button>
             </div>
-            <strong>{proposal.confidence}% <small>confidence</small></strong>
-          </header>
-          <div className="manual-proposal-quote" aria-label={`Live ${executableSide} price`}>
-            <span>Live {executableSide}</span>
-            <strong>{currentPriceIsValid ? formatChartPrice(currentPrice, proposal.instrument) : "—"}</strong>
-            <small>{entryDistanceLabel}</small>
+
+            <div className="nl-an-head">
+              <div className="nl-mp-title">
+                <span className="nl-mp-pair">{displayNameFor(proposal.instrument)}</span>
+                <h2 id="manual-proposal-title" className={`nl-an-decision ${tone}`}>
+                  {proposal.direction === "long" ? "Long" : "Short"}
+                </h2>
+              </div>
+              <span className="nl-an-ratio">1:{Number.isInteger(ratio) ? ratio.toFixed(0) : ratio}</span>
+            </div>
+
+            <p className="nl-an-regime" aria-label={`Live ${executableSide} price`}>
+              Live {executableSide}{" "}
+              <span className="metric-number">{currentPriceIsValid ? formatChartPrice(currentPrice, proposal.instrument) : "—"}</span>
+              {" · "}
+              {entryDistanceLabel}
+            </p>
+
+            <dl className="nl-an-levels">
+              <div>
+                <dt>Entry</dt>
+                <dd className="metric-number">{formatChartPrice(proposal.entry, proposal.instrument)}</dd>
+              </div>
+              <div>
+                <dt>Stop</dt>
+                <dd className="metric-number is-down">{formatChartPrice(proposal.stop, proposal.instrument)}</dd>
+              </div>
+              <div>
+                <dt>Target</dt>
+                <dd className="metric-number is-up">{formatChartPrice(proposal.target, proposal.instrument)}</dd>
+              </div>
+            </dl>
+
+            <div className="nl-an-notes">
+              <p><span>Preferred entry · </span>{proposal.preferredEntryTime}</p>
+              <p><span>Why · </span>{proposal.rationale}</p>
+              <p><span>News · </span>{proposal.newsSummary}</p>
+            </div>
+
+            <div className="nl-an-actions">
+              <button type="button" className="nl-an-secondary pressable" onClick={dismiss}>
+                {opening ? "Cancel" : "Dismiss"}
+              </button>
+              <button
+                type="button"
+                className="nl-an-primary nl-mp-accept pressable"
+                onClick={accept}
+                disabled={opening}
+                aria-live="polite"
+              >
+                {opening ? <><LoaderCircle className="size-3.5 animate-spin" /> Opening chart…</> : acceptLabel}
+              </button>
+            </div>
           </div>
-          <dl>
-            <div><dt>Entry</dt><dd>{formatChartPrice(proposal.entry, proposal.instrument)}</dd></div>
-            <div><dt>Stop</dt><dd>{formatChartPrice(proposal.stop, proposal.instrument)}</dd></div>
-            <div><dt>Target</dt><dd>{formatChartPrice(proposal.target, proposal.instrument)} · {proposal.riskReward}:1</dd></div>
-          </dl>
-          <p className="manual-proposal-entry-time"><b>Preferred entry:</b> {proposal.preferredEntryTime}</p>
-          <p><b>Why:</b> {proposal.rationale}</p>
-          <p><b>News:</b> {proposal.newsSummary}</p>
-          <footer>
-            <button type="button" className="manual-proposal-dismiss pressable" onClick={dismiss}>
-              {opening ? "Cancel" : "Dismiss"}
-            </button>
-            <button
-              type="button"
-              className="manual-proposal-accept pressable"
-              onClick={accept}
-              disabled={opening}
-              aria-live="polite"
-            >
-              {opening ? <><LoaderCircle className="size-3.5 animate-spin" /> Opening chart…</> : acceptLabel}
-            </button>
-          </footer>
         </section>
       </div>
     ),

@@ -51,6 +51,7 @@ export function PwaPullToRefresh({ children }: { children: ReactNode }) {
   const indicatorRef = useRef<HTMLDivElement>(null);
   const gapRef = useRef<HTMLDivElement>(null);
   const startYRef = useRef<number | null>(null);
+  const startXRef = useRef<number | null>(null);
   const pullDistanceRef = useRef(0);
   const frameRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
@@ -153,6 +154,7 @@ export function PwaPullToRefresh({ children }: { children: ReactNode }) {
         return;
       }
       startYRef.current = event.touches[0]?.clientY ?? null;
+      startXRef.current = event.touches[0]?.clientX ?? null;
     }
 
     function onMove(event: TouchEvent) {
@@ -166,6 +168,15 @@ export function PwaPullToRefresh({ children }: { children: ReactNode }) {
       }
 
       const downwardDistance = touch.clientY - startY;
+      // A sideways swipe (the movers strip, filter chips) is not a pull. Drop
+      // it before any preventDefault, or the horizontal scroll is cancelled
+      // the moment the finger drifts a few pixels down. Past 24px of real pull
+      // the gesture is committed and sideways drift no longer cancels it.
+      const sideways = Math.abs(touch.clientX - (startXRef.current ?? touch.clientX));
+      if (sideways > Math.abs(downwardDistance) && downwardDistance < 24) {
+        startYRef.current = null;
+        return;
+      }
       if (downwardDistance <= 0) {
         // Finger went back up past the start: collapse, but keep tracking so
         // pulling down again in the same gesture still works.

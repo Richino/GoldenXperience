@@ -1,9 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import { AppProviders } from "@/components/providers/app-providers";
+import { SPLASH_DEVICES } from "@/lib/pwa/splash-devices";
 import { TEXT_SIZE_STORAGE_KEY } from "@/lib/text-size";
 import "./globals.css";
+// The redesign layer must load after globals.css: it wins ties on source order.
+import "./night-ledger.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,6 +16,13 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+// Display face for page titles and hero numbers only; body copy stays Geist.
+const bricolage = Bricolage_Grotesque({
+  variable: "--font-bricolage",
+  subsets: ["latin"],
+  axes: ["opsz"],
 });
 
 export const metadata: Metadata = {
@@ -31,6 +41,12 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "GoldenXperience",
+    // iOS launch screens, one per portrait screen size; rendered by
+    // scripts/generate-splash.mjs. Android builds its own from manifest.json.
+    startupImage: SPLASH_DEVICES.map(({ width, height, ratio }) => ({
+      url: `/splash/${width * ratio}x${height * ratio}.png`,
+      media: `(device-width: ${width}px) and (device-height: ${height}px) and (-webkit-device-pixel-ratio: ${ratio}) and (orientation: portrait)`,
+    })),
   },
   formatDetection: {
     telephone: false,
@@ -53,7 +69,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable}`}
+      className={`${geistSans.variable} ${geistMono.variable} ${bricolage.variable}`}
       suppressHydrationWarning
     >
       <head>
@@ -61,8 +77,8 @@ export default function RootLayout({
             adds a candidate that matches in light mode too. iOS has shipped
             versions that take the first match rather than the last, which
             paints the home-indicator strip dark on a light page. */}
-        <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-        <meta name="theme-color" content="#09090b" media="(prefers-color-scheme: dark)" />
+        <meta name="theme-color" content="#f5f5f0" media="(prefers-color-scheme: light)" />
+        <meta name="theme-color" content="#0b0c0a" media="(prefers-color-scheme: dark)" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />

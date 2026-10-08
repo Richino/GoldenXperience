@@ -38,9 +38,9 @@ export function computeAmdSessionBoxes(candles: Candle[]): ChartBox[] {
     const newYork = sessionHour(dayMs, 8, NEW_YORK_TIME_ZONE);
     const noon = sessionHour(dayMs, 12, NEW_YORK_TIME_ZONE);
     const windows = [
-      { phase: "A", label: "A · Asia", start: dayMs, end: london, color: "#ff6370" },
-      { phase: "M", label: "M · London", start: london, end: newYork, color: "#d98324" },
-      { phase: "D", label: "D · NY", start: newYork, end: noon, color: "#00e59b" },
+      { phase: "A", label: "A · Asia", start: dayMs, end: london, color: "#ff8a5b" },
+      { phase: "M", label: "M · London", start: london, end: newYork, color: "#ffc14d" },
+      { phase: "D", label: "D · NY", start: newYork, end: noon, color: "#c8f560" },
     ];
     for (const window of windows) {
       const session = bars.filter(({ ms }) => ms >= window.start && ms < window.end);

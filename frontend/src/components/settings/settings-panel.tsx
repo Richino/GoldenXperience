@@ -3,13 +3,11 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { LogOut, Volume1, Volume2, VolumeX } from "lucide-react";
-import { PhoneSettingsPicker, PhoneSettingsRow } from "@/components/settings/phone-settings-ui";
+import { ChevronRight, LogOut, Play, Volume1, Volume2, VolumeX } from "lucide-react";
+import { PhoneSettingsPicker } from "@/components/settings/phone-settings-ui";
 import { MobileSheet } from "@/components/ui/mobile-sheet";
 import { apiUrl } from "@/lib/api/url";
 import { RiskWorkspace, type PaperRiskPolicy } from "@/components/risk/risk-workspace";
-import { SelectMenu } from "@/components/ui/select-menu";
-import { SignOutButton } from "@/components/ui/sign-out-button";
 import { useTextSize } from "@/components/providers/text-size-provider";
 import { DEFAULT_NOTIFICATION_VOLUME, NOTIFICATION_SOUND_KEY, NOTIFICATION_VOLUME_KEY, notificationSounds, notificationVolume, type NotificationSound } from "@/lib/notifications/sounds";
 import { currentPushStatus, subscribeThisDeviceToPush, type PushUiStatus } from "@/lib/notifications/push";
@@ -36,43 +34,14 @@ const phoneSoundOptions = notificationSounds.map((sound) => ({
 
 type PhonePicker = "theme" | "text" | "sound" | null;
 
-const textSizeOptions: { value: TextSize; label: string }[] = [
-  { value: "small", label: "S" },
-  { value: "medium", label: "M" },
-  { value: "large", label: "L" },
-];
+/** Section index on desktop, in page order. */
+const SECTIONS = [
+  { id: "risk", label: "Risk" },
+  { id: "notifications", label: "Notifications" },
+  { id: "appearance", label: "Appearance" },
+  { id: "account", label: "Account" },
+] as const;
 
-function SegmentControl<T extends string>({
-  options,
-  value,
-  onChange,
-  ariaLabel,
-}: {
-  options: { value: T; label: string }[];
-  value: T;
-  onChange: (next: T) => void;
-  ariaLabel: string;
-}) {
-  return (
-    <div className="settings-segment" role="group" aria-label={ariaLabel}>
-      {options.map((option) => {
-        const selected = value === option.value;
-        return (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => onChange(option.value)}
-            className={`settings-segment-btn pressable ${
-              selected ? "settings-segment-btn-active" : ""
-            }`}
-          >
-            {option.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 function browserAlertDetail(permission: NotificationPermission | "unsupported") {
   switch (permission) {
@@ -142,6 +111,23 @@ export function SettingsPanel({
   const [pushError, setPushError] = useState<string | null>(null);
   const { previewToast } = useNotificationContext();
   const notificationAudio = useRef<HTMLAudioElement | null>(null);
+  const [activeSection, setActiveSection] = useState<string>(SECTIONS[0].id);
+
+  useEffect(() => {
+    const targets = SECTIONS.map((section) => document.getElementById(section.id)).filter(
+      (element): element is HTMLElement => element !== null,
+    );
+    if (!targets.length) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible[0]) setActiveSection(visible[0].target.id);
+      },
+      { rootMargin: "-20% 0px -60% 0px" },
+    );
+    targets.forEach((target) => observer.observe(target));
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const stored = window.localStorage.getItem(NOTIFICATION_SOUND_KEY) as NotificationSound | null;
@@ -156,15 +142,6 @@ export function SettingsPanel({
   function selectNotificationSound(value: NotificationSound) {
     setNotificationSound(value);
     window.localStorage.setItem(NOTIFICATION_SOUND_KEY, value);
-  }
-
-  function previewNotificationSound() {
-    const selected = notificationSounds.find((sound) => sound.value === notificationSound);
-    if (!selected || !notificationAudio.current) return;
-    notificationAudio.current.src = selected.path;
-    notificationAudio.current.volume = notificationVolume(String(notificationVolumePercent));
-    notificationAudio.current.currentTime = 0;
-    void notificationAudio.current.play().catch(() => undefined);
   }
 
   async function requestBrowserNotifications() {
@@ -213,40 +190,258 @@ export function SettingsPanel({
   }
 
   const pushActionable = pushStatus === "available" || pushStatus === "unavailable" || pushStatus === "error";
+  const soundLabel = notificationSounds.find((sound) => sound.value === notificationSound)?.label ?? "Soft Whistle";
 
   return (
-    <div className="settings-view settings-minimal space-y-8 lg:space-y-10">
-      <header>
-        <h1 className="text-display">Settings</h1>
-        <p className="mt-1 text-sm text-[color:var(--muted)]">
-          Appearance, alerts, and account
-        </p>
+    <div className="nl-st">
+      <header className="nl-st-head">
+        <span className="nl-overline">Workspace</span>
+        <h1>Settings</h1>
       </header>
 
-      {/* Phone layout: the app's Settings tab (rows that open drawers). */}
-      <section className="phone-settings-card settings-phone-only" aria-label="Appearance">
-        <h2 className="phone-settings-section">Appearance</h2>
-        <PhoneSettingsRow label="Theme" value={themeValue === "light" ? "Light" : "Dark"} onClick={() => setPhonePicker("theme")} />
-        <PhoneSettingsRow
-          label="Text size"
-          value={phoneTextSizeOptions.find((option) => option.value === textSizeValue)?.label ?? "Standard"}
-          onClick={() => setPhonePicker("text")}
-        />
-      </section>
+      <div className="nl-st-layout">
+        <nav className="nl-st-index nl-st-desk" aria-label="Settings sections">
+          {SECTIONS.map((section, index) => (
+            <a
+              key={section.id}
+              href={`#${section.id}`}
+              className={activeSection === section.id ? "is-active" : ""}
+              aria-current={activeSection === section.id ? "true" : undefined}
+            >
+              <span className="nl-st-index-num metric-number">{String(index + 1).padStart(2, "0")}</span>
+              {section.label}
+            </a>
+          ))}
+        </nav>
 
-      <section className="phone-settings-card settings-phone-only" aria-label="Notifications">
-        <h2 className="phone-settings-section">Notifications</h2>
-        <PhoneSettingsRow
-          label="Notification sound"
-          value={notificationSounds.find((sound) => sound.value === notificationSound)?.label ?? "Soft Whistle"}
-          onClick={() => setPhonePicker("sound")}
-        />
-        <PhoneSettingsRow
-          label="Push alerts"
-          value={pushBusy ? "Enabling…" : pushActionable ? "Enable" : pushDetail(pushStatus, pushError)}
-          onClick={pushActionable && !pushBusy ? () => void enablePushNotifications() : undefined}
-        />
-      </section>
+        <div className="nl-st-content">
+          <RiskWorkspace initialPolicy={initialPolicy} />
+
+          {/* ------------------------------------------------ desktop cards */}
+          <section id="notifications" className="nl-st-card nl-st-desk" aria-labelledby="nl-st-notif-title">
+            <div className="nl-st-card-head">
+              <h2 id="nl-st-notif-title">Notifications</h2>
+            </div>
+            <div className="nl-st-block">
+              <span className="nl-st-field-label">Sound</span>
+              <div className="nl-st-sounds" role="radiogroup" aria-label="Notification sound">
+                {notificationSounds.map((sound) => {
+                  const active = notificationSound === sound.value;
+                  return (
+                    <button
+                      key={sound.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      className={`nl-st-sound${active ? " is-active" : ""}`}
+                      onClick={() => {
+                        selectNotificationSound(sound.value);
+                        playSound(sound.value);
+                      }}
+                    >
+                      <span className="nl-st-sound-icon" aria-hidden="true">
+                        <Play />
+                      </span>
+                      {sound.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <label className="nl-st-volume" htmlFor="notification-volume">
+              <span className="nl-st-field-label">Volume</span>
+              {notificationVolumePercent === 0 ? (
+                <VolumeX aria-hidden="true" className="nl-st-volume-icon" />
+              ) : notificationVolumePercent < 50 ? (
+                <Volume1 aria-hidden="true" className="nl-st-volume-icon" />
+              ) : (
+                <Volume2 aria-hidden="true" className="nl-st-volume-icon" />
+              )}
+              <input
+                id="notification-volume"
+                type="range"
+                min="0"
+                max="100"
+                step="5"
+                value={notificationVolumePercent}
+                onChange={(event) => {
+                  const value = Number(event.target.value);
+                  setNotificationVolumePercent(value);
+                  window.localStorage.setItem(NOTIFICATION_VOLUME_KEY, String(value));
+                }}
+                aria-label="Notification volume"
+              />
+              <output htmlFor="notification-volume" className="metric-number">
+                {notificationVolumePercent}%
+              </output>
+            </label>
+            <div className="nl-st-rows">
+              <div className="nl-st-row">
+                <span className="nl-st-row-copy">
+                  <b>Alert sound</b>
+                  <span>Play the selected sound as an in-app alert</span>
+                </span>
+                <button type="button" className="nl-st-ghost pressable" onClick={previewToast}>
+                  Test
+                </button>
+              </div>
+              <div className="nl-st-row">
+                <span className="nl-st-row-copy">
+                  <b>Browser alerts</b>
+                  <span>{browserAlertDetail(browserNotificationPermission)}</span>
+                </span>
+                {browserNotificationPermission === "default" ? (
+                  <button type="button" className="nl-st-ghost pressable" onClick={() => void requestBrowserNotifications()}>
+                    Allow
+                  </button>
+                ) : null}
+              </div>
+              <div className="nl-st-row">
+                <span className="nl-st-row-copy">
+                  <b>Push</b>
+                  <span>{pushDetail(pushStatus, pushError)}</span>
+                </span>
+                {pushActionable ? (
+                  <button type="button" className="nl-st-ghost pressable" disabled={pushBusy} onClick={() => void enablePushNotifications()}>
+                    {pushBusy ? "Enabling…" : "Enable"}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </section>
+
+          <section id="appearance" className="nl-st-card nl-st-desk" aria-labelledby="nl-st-app-title">
+            <div className="nl-st-card-head">
+              <h2 id="nl-st-app-title">Appearance</h2>
+            </div>
+            <div className="nl-st-block">
+              <span className="nl-st-field-label">Theme</span>
+              <div className="nl-st-themes" role="radiogroup" aria-label="Theme">
+                {phoneThemeOptions.map((option) => {
+                  const active = themeValue === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      className={`nl-st-theme is-${option.value}${active ? " is-active" : ""}`}
+                      onClick={() => setTheme(option.value)}
+                    >
+                      <span className="nl-st-theme-preview" aria-hidden="true">
+                        <span />
+                        <span />
+                        <span />
+                      </span>
+                      <span className="nl-st-theme-foot">
+                        <span className="nl-st-row-copy">
+                          <b>{option.label}</b>
+                          <span>{option.detail}</span>
+                        </span>
+                        <span className="nl-st-radio" aria-hidden="true" />
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="nl-st-block">
+              <span className="nl-st-field-label">Text size</span>
+              <div className="nl-st-sizes" role="radiogroup" aria-label="Text size">
+                {phoneTextSizeOptions.map((option) => {
+                  const active = textSizeValue === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      className={`nl-st-size is-${option.value}${active ? " is-active" : ""}`}
+                      onClick={() => setTextSize(option.value)}
+                    >
+                      <span className="nl-st-size-aa" aria-hidden="true">Aa</span>
+                      <span className="nl-st-row-copy">
+                        <b>{option.label}</b>
+                        <span>{option.detail}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+
+          <section id="account" className="nl-st-card nl-st-desk" aria-labelledby="nl-st-acct-title">
+            <div className="nl-st-card-head">
+              <h2 id="nl-st-acct-title">Account</h2>
+            </div>
+            <dl className="nl-st-account">
+              <div>
+                <dt>Signed in as</dt>
+                <dd>{email ?? "—"}</dd>
+              </div>
+            </dl>
+            <button type="button" className="nl-st-signout pressable" onClick={() => void signOut()} disabled={signingOut}>
+              <LogOut aria-hidden="true" />
+              {signingOut ? "Signing out…" : "Sign out"}
+            </button>
+          </section>
+
+          {/* -------------------------------------------------- phone rows */}
+          <section className="nl-st-mcard nl-st-phone" aria-labelledby="nl-st-mnotif-title">
+            <h2 id="nl-st-mnotif-title" className="nl-st-mcard-title">Notifications</h2>
+            <button type="button" className="nl-st-mrow pressable" onClick={() => setPhonePicker("sound")}>
+              <span>Sound</span>
+              <span className="nl-st-mrow-end">
+                {soundLabel}
+                <ChevronRight aria-hidden="true" />
+              </span>
+            </button>
+            {pushActionable && !pushBusy ? (
+              <button type="button" className="nl-st-mrow pressable" onClick={() => void enablePushNotifications()}>
+                <span>Push alerts</span>
+                <span className="nl-st-mrow-end is-accent">Enable</span>
+              </button>
+            ) : (
+              <div className="nl-st-mrow is-static">
+                <span>Push alerts</span>
+                <span className="nl-st-mrow-end">{pushBusy ? "Enabling…" : pushDetail(pushStatus, pushError)}</span>
+              </div>
+            )}
+          </section>
+
+          <section className="nl-st-mcard nl-st-phone" aria-labelledby="nl-st-mapp-title">
+            <h2 id="nl-st-mapp-title" className="nl-st-mcard-title">Appearance</h2>
+            <button type="button" className="nl-st-mrow pressable" onClick={() => setPhonePicker("theme")}>
+              <span>Theme</span>
+              <span className="nl-st-mrow-end">
+                {themeValue === "light" ? "Light" : "Dark"}
+                <ChevronRight aria-hidden="true" />
+              </span>
+            </button>
+            <button type="button" className="nl-st-mrow pressable" onClick={() => setPhonePicker("text")}>
+              <span>Text size</span>
+              <span className="nl-st-mrow-end">
+                {phoneTextSizeOptions.find((option) => option.value === textSizeValue)?.label ?? "Standard"}
+                <ChevronRight aria-hidden="true" />
+              </span>
+            </button>
+          </section>
+
+          <section className="nl-st-mcard nl-st-phone" aria-labelledby="nl-st-macct-title">
+            <h2 id="nl-st-macct-title" className="nl-st-mcard-title">Account</h2>
+            <div className="nl-st-mrow is-static">
+              <span>Signed in as</span>
+              <span className="nl-st-mrow-end nl-st-email">{email ?? "—"}</span>
+            </div>
+            <button type="button" className="nl-st-mrow is-danger pressable" onClick={() => setSignOutOpen(true)}>
+              <span>Sign out</span>
+            </button>
+          </section>
+        </div>
+      </div>
+
+      <audio ref={notificationAudio} preload="none" aria-hidden="true" />
 
       <PhoneSettingsPicker
         open={phonePicker === "theme"}
@@ -286,140 +481,6 @@ export function SettingsPanel({
           setPhonePicker(null);
         }}
       />
-
-      <section className="settings-minimal-section settings-desktop-only" aria-label="Appearance">
-        <h2 className="text-sm font-semibold tracking-[-0.01em]">Appearance</h2>
-        <div className="mt-4 space-y-4">
-          <div className="settings-row">
-            <span className="settings-row-label">Theme</span>
-            <SegmentControl
-              ariaLabel="Theme"
-              value={themeValue}
-              onChange={setTheme}
-              options={[
-                { value: "light", label: "Light" },
-                { value: "dark", label: "Dark" },
-              ]}
-            />
-          </div>
-          <div className="settings-row">
-            <span className="settings-row-label">Text size</span>
-            <SegmentControl
-              ariaLabel="Text size"
-              value={textSizeMounted ? textSize : "medium"}
-              onChange={setTextSize}
-              options={textSizeOptions}
-            />
-          </div>
-        </div>
-      </section>
-
-      <section className="settings-minimal-section settings-desktop-only" aria-label="Notifications">
-        <h2 className="text-sm font-semibold tracking-[-0.01em]">Notifications</h2>
-        <div className="mt-4 space-y-4">
-          <div className="settings-row items-end">
-            <span className="settings-row-label">Sound</span>
-            <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
-              <SelectMenu
-                ariaLabel="Notification sound"
-                value={notificationSound}
-                onChange={selectNotificationSound}
-                options={notificationSounds}
-                size="control"
-                className="w-full sm:w-56"
-                fullWidth
-              />
-              <button type="button" className="secondary-button pressable h-11 shrink-0" onClick={previewNotificationSound}>
-                Preview
-              </button>
-            </div>
-          </div>
-
-          <div className="settings-row items-center">
-            <label className="settings-row-label" htmlFor="notification-volume">Volume</label>
-            <div className="flex w-full items-center gap-3 sm:w-80">
-              {notificationVolumePercent === 0 ? (
-                <VolumeX aria-hidden="true" className="size-5 shrink-0 text-[color:var(--muted)]" />
-              ) : notificationVolumePercent < 50 ? (
-                <Volume1 aria-hidden="true" className="size-5 shrink-0 text-[color:var(--accent)]" />
-              ) : (
-                <Volume2 aria-hidden="true" className="size-5 shrink-0 text-[color:var(--accent)]" />
-              )}
-              <input
-                id="notification-volume"
-                type="range"
-                min="0"
-                max="100"
-                step="5"
-                value={notificationVolumePercent}
-                onChange={(event) => {
-                  const value = Number(event.target.value);
-                  setNotificationVolumePercent(value);
-                  window.localStorage.setItem(NOTIFICATION_VOLUME_KEY, String(value));
-                }}
-                className="h-2 w-full cursor-pointer appearance-none rounded-full accent-[color:var(--accent)]"
-                style={{ background: `linear-gradient(to right, var(--accent) 0% ${notificationVolumePercent}%, var(--surface-raised) ${notificationVolumePercent}% 100%)` }}
-                aria-label="Notification volume"
-              />
-              <output htmlFor="notification-volume" className="w-12 text-right text-sm font-semibold tabular-nums text-[color:var(--foreground)]">
-                {notificationVolumePercent}%
-              </output>
-            </div>
-          </div>
-
-          <div className="settings-row">
-            <div className="min-w-0">
-              <p className="text-sm font-medium">Alert sound</p>
-              <p className="mt-0.5 text-xs text-[color:var(--muted)]">Play the selected sound</p>
-            </div>
-            <button type="button" className="secondary-button pressable" onClick={previewToast}>
-              Test
-            </button>
-          </div>
-
-          <div className="settings-row">
-            <div className="min-w-0">
-              <p className="text-sm font-medium">Browser alerts</p>
-              <p className="mt-0.5 text-xs text-[color:var(--muted)]">{browserAlertDetail(browserNotificationPermission)}</p>
-            </div>
-            {browserNotificationPermission === "default" ? (
-              <button type="button" className="secondary-button pressable" onClick={() => void requestBrowserNotifications()}>
-                Allow
-              </button>
-            ) : null}
-          </div>
-
-          <div className="settings-row">
-            <div className="min-w-0">
-              <p className="text-sm font-medium">Push</p>
-              <p className="mt-0.5 text-xs text-[color:var(--muted)]">{pushDetail(pushStatus, pushError)}</p>
-            </div>
-            {pushStatus === "available" || pushStatus === "unavailable" || pushStatus === "error" ? (
-              <button type="button" className="secondary-button pressable" disabled={pushBusy} onClick={() => void enablePushNotifications()}>
-                {pushBusy ? "Enabling…" : "Enable"}
-              </button>
-            ) : null}
-          </div>
-        </div>
-      </section>
-      <audio ref={notificationAudio} preload="none" aria-hidden="true" />
-
-      <section id="risk" className="settings-minimal-section scroll-mt-6" aria-label="Risk">
-        <RiskWorkspace initialPolicy={initialPolicy} />
-      </section>
-
-      <section className="settings-minimal-section settings-desktop-only" aria-label="Account actions">
-        <SignOutButton />
-      </section>
-
-      <section className="phone-settings-card settings-phone-only" aria-label="Account">
-        <h2 className="phone-settings-section">Account</h2>
-        <PhoneSettingsRow label="Signed in as" value={email ?? "—"} />
-        <button type="button" className="phone-settings-sign-out pressable" onClick={() => setSignOutOpen(true)}>
-          <LogOut className="size-4" strokeWidth={2} aria-hidden="true" />
-          Sign out
-        </button>
-      </section>
 
       <MobileSheet open={signOutOpen} onClose={() => setSignOutOpen(false)} title="Sign out?">
         <p className="phone-settings-confirm-copy">You will need to sign in again to access your workspace.</p>

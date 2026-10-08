@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
-import { ArrowRight, Search } from "lucide-react";
-import type { ConnectionStatus, JournalTrade } from "@/types/forex";
+import { ArrowRight, Search, X } from "lucide-react";
+import type { JournalTrade } from "@/types/forex";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { apiUrl } from "@/lib/api/url";
-import { formatClockTime, formatDayAndTime, formatShortDay } from "@/lib/format/datetime";
+import { formatClockTime, formatShortDay } from "@/lib/format/datetime";
 import {
   openTradeProgress,
   quoteToUsdRateFromQuotes,
@@ -18,6 +20,7 @@ import {
 } from "@/lib/market-stream/use-open-positions";
 import { useSupplementalQuotes } from "@/lib/market-stream/use-supplemental-quotes";
 import { strategyTypeLabel } from "@/lib/strategy/family-label";
+import { useDragToDismiss } from "@/lib/use-drag-to-dismiss";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { TradesSkeleton, TradesSummarySkeleton, TradesToolbarSkeleton } from "@/components/ui/phone-skeletons";
 
@@ -30,6 +33,7 @@ type Quotes = Record<string, { bid: number; ask: number } | undefined>;
 type Summary = {
   total: number;
   winRate: number | null;
+  avgR?: number;
   today?: { wins: number; losses: number; realizedPL: number | null };
   openTrades?: JournalTrade[];
 };
@@ -141,20 +145,6 @@ function strategyLabel(trade: JournalTrade) {
     : null;
 }
 
-function activityLabel(trade: JournalTrade) {
-  if (trade.brokerExecutionStatus === "rejected") return "BROKER REJECTED";
-  switch (trade.outcome) {
-    case "target_first":
-      return "TARGET FIRST";
-    case "stop_first":
-      return "STOP FIRST";
-    case "forced_close":
-      return "FORCED CLOSED";
-    default:
-      return "CLOSED";
-  }
-}
-
 function chartHrefForTrade(trade: JournalTrade) {
   if (!trade.instrument) return null;
   const focusId = trade.chartTradeId ?? trade.id;
@@ -163,453 +153,421 @@ function chartHrefForTrade(trade: JournalTrade) {
 
 /* ---------------------------------------------------------------- primitives */
 
-function SideBadge({ direction }: { direction: "long" | "short" }) {
-  return (
-    <span className={`trade-side is-${direction}`}>{direction === "long" ? "LONG" : "SHORT"}</span>
-  );
+/* ----------------------------------------------------------- night ledger */
+/*
+ * Trades, 1:1 with the canvas artboards "Trades — Desktop / Mobile / Mobile,
+ * trade detail". Layout lives in night-ledger.css (`nl-tr-*`). Rows select a
+ * trade into the detail panel (desktop) or a bottom sheet (phone); the chart
+ * is one tap further, from the panel's Open chart.
+ */
+
+type Live = ReturnType<typeof liveMetrics>;
+
+function toneOf(value: number | null | undefined, flat = 0.005) {
+  if (value === null || value === undefined || !Number.isFinite(value) || Math.abs(value) < flat) return "";
+  return value > 0 ? "is-up" : "is-down";
 }
 
-function ResultBadge({ trade }: { trade: JournalTrade }) {
-  if (trade.brokerExecutionStatus === "rejected") {
-    return <span className="trade-result is-be">NOT EXECUTED</span>;
+/** Plain words for how a closed trade ended. */
+function exitLabel(trade: JournalTrade) {
+  if (trade.brokerExecutionStatus === "rejected") return "Not executed";
+  switch (trade.outcome) {
+    case "target_first":
+      return "Take profit";
+    case "stop_first":
+      return "Stop loss";
+    case "forced_close":
+      return "Forced close";
+    default:
+      return "Closed";
   }
-  const map = { win: "WIN", loss: "LOSS", breakeven: "BE", open: "OPEN" } as const;
-  const tone = trade.result === "win" ? "is-win" : trade.result === "loss" ? "is-loss" : "is-be";
-  return <span className={`trade-result ${tone}`}>{map[trade.result]}</span>;
 }
 
-/* ------------------------------------------------------------ summary strips */
-
-function OpenSummary({
-  count,
-  pnl,
-  realized,
-}: {
-  count: number;
-  pnl: number | null;
-  realized: number | null;
-}) {
-  const pnlTone = pnl === null ? "" : pnl >= 0 ? "is-positive" : "is-negative";
-  const realizedTone = realized === null ? "" : realized >= 0 ? "is-positive" : "is-negative";
+function SideChip({ direction }: { direction: "long" | "short" }) {
   return (
-    <div className="trades-summary" role="group" aria-label="Open trades summary">
-      <span className="trades-summary-item">
-        <b>{count}</b> <i>open {count === 1 ? "trade" : "trades"}</i>
-      </span>
-      <span className="trades-summary-item">
-        <b className={pnlTone}>{fmtMoney(pnl, true) ?? "—"}</b> <i>unrealized P&amp;L</i>
-      </span>
-      <span className="trades-summary-item">
-        <b className={realizedTone}>{fmtMoney(realized, true) ?? "—"}</b> <i>realized P&amp;L</i>
-      </span>
-    </div>
+    <span className={`nl-tr-side ${direction === "long" ? "is-up" : "is-down"}`}>
+      {direction === "long" ? "Long" : "Short"}
+    </span>
   );
 }
 
-function ClosedSummary({
-  closed,
+function RPill({ value }: { value: number | null | undefined }) {
+  return <span className={`nl-tr-rpill metric-number ${toneOf(value)}`}>{fmtR(value)}</span>;
+}
+
+/** Bars for recent closed trades in R, oldest to newest, from a midline. */
+function RBars({ results, compact = false }: { results: number[]; compact?: boolean }) {
+  const wins = results.filter((r) => r > 0).length;
+  const losses = results.filter((r) => r < 0).length;
+  return (
+    <span
+      className={`nl-tr-bars${compact ? " is-compact" : ""}`}
+      role="img"
+      aria-label={`Last ${results.length} closed trades in R: ${wins} wins, ${losses} losses`}
+    >
+      {results.map((r, index) => (
+        <span
+          key={index}
+          className={r >= 0 ? "is-win" : "is-loss"}
+          style={{ "--r": Math.min(Math.abs(r), 2.2) } as React.CSSProperties}
+        />
+      ))}
+    </span>
+  );
+}
+
+function TradesSummaryRow({
+  tab,
+  openCount,
+  openPnl,
+  realizedToday,
+  closedCount,
   wins,
   losses,
   winRate,
+  avgR,
+  recentClosed,
+  recentR,
 }: {
-  closed: number;
+  tab: Tab;
+  openCount: number;
+  openPnl: number | null;
+  realizedToday: number | null;
+  closedCount: number;
   wins: number;
   losses: number;
   winRate: number | null;
+  avgR: number | null;
+  /** Loaded closed trades, newest first: the page on screen, not all history. */
+  recentClosed: JournalTrade[];
+  recentR: number[];
 }) {
-  return (
-    <div className="trades-summary" role="group" aria-label="Closed trades summary">
-      <span className="trades-summary-item">
-        <b>{closed}</b> <i>closed {closed === 1 ? "trade" : "trades"}</i>
-      </span>
-      <span className="trades-summary-item">
-        <b className="is-positive">{wins}</b> <i>wins</i>
-      </span>
-      <span className="trades-summary-item">
-        <b className="is-negative">{losses}</b> <i>losses</i>
-      </span>
-      <span className="trades-summary-item">
-        <b>{winRate === null ? "—" : `${Math.round(winRate * 100)}%`}</b> <i>win rate</i>
-      </span>
-    </div>
-  );
-}
+  const withPl = recentClosed.filter((t) => t.paperPl !== null && t.paperPl !== undefined);
+  const net = withPl.reduce((sum, t) => sum + (t.paperPl ?? 0), 0);
+  const withR = recentClosed.filter((t) => t.resultR !== null && Number.isFinite(t.resultR));
+  const netR = withR.reduce((sum, t) => sum + (t.resultR ?? 0), 0);
+  const hero =
+    tab === "open"
+      ? {
+          label: `Unrealized P&L · ${openCount} open`,
+          value: openPnl,
+          sub: realizedToday === null ? "Nothing realized today" : `Realized today ${fmtMoney(realizedToday, true)}`,
+        }
+      : {
+          // Only the loaded page is known here, so the label says how many.
+          label: `Net realized · last ${withPl.length} closed`,
+          value: withPl.length ? net : null,
+          sub: withR.length ? `${fmtR(netR)} across ${withR.length} trades` : "No closed trades yet",
+        };
 
-/* --------------------------------------------------------------- level graph */
-
-function LevelProgress({
-  trade,
-  current,
-}: {
-  trade: JournalTrade;
-  current: number | null;
-}) {
-  const span = trade.target - trade.stop;
-  const frac = (v: number) => {
-    if (!span) return 0;
-    return Math.min(1, Math.max(0, (v - trade.stop) / span));
-  };
-  const entryF = frac(trade.entry);
-  const nowF = current === null ? entryF : frac(current);
   return (
-    <div className="trade-level">
-      <div className="trade-level-marks">
-        <span className="trade-level-mark is-start">
-          <i>SL</i>
-          <b className="metric-number">{fmtPrice(trade.stop, trade.pair)}</b>
-        </span>
-        <span className="trade-level-mark is-mid">
-          <i>ENTRY</i>
-          <b className="metric-number">{fmtPrice(trade.entry, trade.pair)}</b>
-        </span>
-        <span className="trade-level-mark is-end">
-          <i>TP</i>
-          <b className="metric-number">{fmtPrice(trade.target, trade.pair)}</b>
-        </span>
+    <section className="nl-tr-summary" aria-label="Summary">
+      <div className="nl-tr-hero">
+        <span className="nl-tr-hero-label">{hero.label}</span>
+        <span className={`nl-tr-hero-value ${toneOf(hero.value)}`}>{fmtMoney(hero.value, true) ?? "—"}</span>
+        <span className="nl-tr-hero-sub metric-number">{hero.sub}</span>
+        {recentR.length ? (
+          <span className="nl-tr-hero-bars">
+            <RBars results={recentR.slice(-10)} compact />
+          </span>
+        ) : null}
       </div>
-      <div className="trade-level-track">
-        <span className="trade-level-fill" style={{ width: `${nowF * 100}%` }} />
-        <span className="trade-level-tick" style={{ left: `${entryF * 100}%` }} />
-        <span className="trade-level-knob" style={{ left: `${nowF * 100}%` }} />
-      </div>
-      {current !== null ? (
-        <p className="trade-level-current" style={{ left: `${nowF * 100}%` }}>
-          <i>CURRENT</i>
-          <b className="metric-number">{fmtPrice(current, trade.pair)}</b>
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------- detail panel */
-
-function DetailRow({ label, value, className }: { label: string; value: ReactNode; className?: string }) {
-  return (
-    <div className="trade-detail-cell">
-      <dt>{label}</dt>
-      <dd className={`metric-number ${className ?? ""}`}>{value}</dd>
-    </div>
-  );
-}
-
-function SelectedTradePanel({
-  trade,
-  live,
-}: {
-  trade: JournalTrade;
-  live: ReturnType<typeof liveMetrics> | null;
-}) {
-  const isOpen = trade.status === "open";
-  const money = isOpen ? live?.money ?? null : trade.paperPl ?? null;
-  const rValue = isOpen ? live?.openR ?? null : trade.resultR;
-  const moneyTone = money === null ? "" : money >= 0 ? "is-positive" : "is-negative";
-  const notes = trade.notes?.trim();
-  const exitReason = trade.brokerFailureReason?.trim() || trade.reason?.trim() || (trade.outcome ? trade.outcome.replace(/_/g, " ") : null);
-  const lots = isOpen ? live?.lots ?? null : null;
-
-  return (
-    <aside className="trades-panel" aria-label="Selected trade">
-      <div className="trades-panel-head">
-        <div className="trades-panel-ident">
-          <span className="trades-panel-pair">{trade.pair}</span>
-          <SideBadge direction={trade.direction} />
+      {recentR.length ? (
+        <div className="nl-tr-barcard">
+          <div className="nl-tr-barcard-head">
+            <span>R per closed trade, oldest to newest · last {recentR.length}</span>
+            <span className={`metric-number ${toneOf(recentR.reduce((a, b) => a + b, 0))}`}>
+              {fmtR(recentR.reduce((a, b) => a + b, 0))}
+            </span>
+          </div>
+          <RBars results={recentR} />
         </div>
-        {isOpen ? (
-          <span className="trades-panel-tag">OPEN POSITION</span>
-        ) : (
-          <ResultBadge trade={trade} />
-        )}
-      </div>
-
-      <p className={`trades-panel-pnl metric-number ${moneyTone}`}>
-        {money === null ? "—" : fmtMoney(money, true)}
-        <span className="trades-panel-r">{fmtR(rValue)}</span>
-      </p>
-
-      {isOpen ? <LevelProgress trade={trade} current={live?.current ?? null} /> : null}
-
-      <dl className="trade-detail-grid">
-        <DetailRow label="Entry" value={fmtPrice(trade.entry, trade.pair)} />
-        <DetailRow
-          label={isOpen ? "Current" : "Exit"}
-          value={fmtPrice(isOpen ? live?.current ?? null : trade.exit, trade.pair)}
-        />
-        <DetailRow label="Stop loss" value={fmtPrice(trade.stop, trade.pair)} className="is-negative" />
-        <DetailRow label="Take profit" value={fmtPrice(trade.target, trade.pair)} className="is-positive" />
-        <DetailRow label="R:R" value={rrLabel(trade)} />
-        <DetailRow label="Size" value={lots === null ? "—" : `${lots.toFixed(2)} lot`} />
-        <DetailRow label="Opened" value={dayAndTime(trade.openedAt)} />
-        <DetailRow
-          label={isOpen ? "Duration" : "Closed"}
-          value={isOpen ? durationLabel(trade.openedAt, null) : dayAndTime(trade.closedAt)}
-        />
+      ) : null}
+      <dl className="nl-tr-stats">
+        <div>
+          <dt>Wins</dt>
+          <dd className="metric-number is-up">{wins}</dd>
+        </div>
+        <div>
+          <dt>Losses</dt>
+          <dd className="metric-number is-down">{losses}</dd>
+        </div>
+        <div>
+          <dt>Win rate</dt>
+          <dd className="metric-number">{winRate === null ? "—" : `${Math.round(winRate * 100)}%`}</dd>
+        </div>
+        <div>
+          <dt>{avgR === null ? "Closed" : "Avg R"}</dt>
+          <dd className="metric-number">{avgR === null ? closedCount : fmtR(avgR)}</dd>
+        </div>
       </dl>
-
-      {!isOpen && exitReason ? (
-        <section className="trade-panel-section trade-panel-exit">
-          <p className="trade-panel-label">Exit reason</p>
-          <p className="trade-panel-exit-value">
-            {exitReason}
-            <span> · {durationLabel(trade.openedAt, trade.closedAt)}</span>
-          </p>
-        </section>
-      ) : null}
-
-      {!isOpen ? (
-        <section className="trade-panel-section">
-          <p className="trade-panel-label">Trade notes</p>
-          <p className="trade-panel-notes">{notes ? notes : "No trade notes."}</p>
-        </section>
-      ) : null}
-
-      <div className="trades-panel-actions">
-        {trade.instrument ? (
-          <Link href={`/chart?instrument=${trade.instrument}&trade=${trade.id}`} className="trade-btn-primary">
-            Open Chart <ArrowRight aria-hidden />
-          </Link>
-        ) : (
-          <span className="trade-btn-primary is-disabled">No chart</span>
-        )}
-      </div>
-    </aside>
+    </section>
   );
 }
 
-/* ----------------------------------------------------------------- table rows */
-
-function OpenRow({
+function TradeRow({
   trade,
   live,
   selected,
   onSelect,
 }: {
   trade: JournalTrade;
-  live: ReturnType<typeof liveMetrics>;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  const rTone = live.openR === null ? "" : live.openR >= 0 ? "is-positive" : "is-negative";
-  const pnlTone = live.money === null ? "" : live.money >= 0 ? "is-positive" : "is-negative";
-  const strategy = strategyLabel(trade);
-  const href = chartHrefForTrade(trade);
-  const body = (
-    <>
-      <span className="trades-cell-pair">
-        <b>{trade.pair}</b>
-        {strategy ? <small>{strategy}</small> : null}
-      </span>
-      <span><SideBadge direction={trade.direction} /></span>
-      <span className="metric-number">{fmtPrice(trade.entry, trade.pair)}</span>
-      <span className="metric-number">{fmtPrice(live.current, trade.pair)}</span>
-      <span className="metric-number is-negative">{fmtPrice(trade.stop, trade.pair)}</span>
-      <span className="metric-number is-positive">{fmtPrice(trade.target, trade.pair)}</span>
-      <span className="metric-number trades-hide-md">{rrLabel(trade)}</span>
-      <span className="metric-number trades-hide-md">{live.lots === null ? "—" : live.lots.toFixed(2)}</span>
-      <span className={`metric-number ${rTone}`}>{fmtR(live.openR)}</span>
-      <span className={`metric-number ${pnlTone}`}>{fmtMoney(live.money, true) ?? "—"}</span>
-      <span className="metric-number trades-muted trades-hide-sm">{durationLabel(trade.openedAt, null)}</span>
-    </>
-  );
-  return href ? (
-    <Link href={href} className="trades-row is-open">
-      {body}
-    </Link>
-  ) : (
-    <button type="button" className={`trades-row is-open ${selected ? "is-selected" : ""}`} onClick={onSelect}>
-      {body}
-    </button>
-  );
-}
-
-function ClosedRow({
-  trade,
-  selected,
-  onSelect,
-}: {
-  trade: JournalTrade;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  const rTone = trade.resultR === null ? "" : trade.resultR >= 0 ? "is-positive" : "is-negative";
-  const pnlTone = trade.paperPl == null ? "" : trade.paperPl >= 0 ? "is-positive" : "is-negative";
-  const strategy = strategyLabel(trade) ?? "—";
-  const href = chartHrefForTrade(trade);
-  const body = (
-    <>
-      <span className="trades-cell-pair">
-        <b>{trade.pair}</b>
-      </span>
-      <span><SideBadge direction={trade.direction} /></span>
-      <span className="trades-muted trades-hide-md">{strategy}</span>
-      <span className="metric-number">{fmtPrice(trade.entry, trade.pair)}</span>
-      <span className="metric-number">{fmtPrice(trade.exit, trade.pair)}</span>
-      <span><ResultBadge trade={trade} /></span>
-      <span className={`metric-number ${rTone}`}>{fmtR(trade.resultR)}</span>
-      <span className={`metric-number ${pnlTone} trades-hide-sm`}>{fmtMoney(trade.paperPl, true) ?? "—"}</span>
-      <span className="metric-number trades-muted trades-hide-md">
-        {durationLabel(trade.openedAt, trade.closedAt)}
-      </span>
-      <span className="metric-number trades-muted trades-hide-sm">{dayAndTime(trade.closedAt)}</span>
-    </>
-  );
-  return href ? (
-    <Link href={href} className="trades-row is-closed">
-      {body}
-    </Link>
-  ) : (
-    <button type="button" className={`trades-row is-closed ${selected ? "is-selected" : ""}`} onClick={onSelect}>
-      {body}
-    </button>
-  );
-}
-
-/* Phone-friendly stacked card (shown below 768px in place of the table). Each
-   card is self-contained — it carries every figure the row's columns would, so
-   the list reads without a drill-down. Selecting it still drives the detail
-   panel for anyone on a wider split. */
-function MobileTradeCard({
-  trade,
-  live,
-  selected,
-  onSelect,
-}: {
-  trade: JournalTrade;
-  live: ReturnType<typeof liveMetrics> | null;
+  live: Live | null;
   selected: boolean;
   onSelect: () => void;
 }) {
   const isOpen = trade.status === "open";
-  const strategy = strategyLabel(trade);
-  const rValue = isOpen ? live?.openR ?? null : trade.resultR;
+  const r = isOpen ? live?.openR ?? null : trade.resultR;
   const money = isOpen ? live?.money ?? null : trade.paperPl ?? null;
-  const rTone = rValue === null ? "" : rValue >= 0 ? "is-positive" : "is-negative";
-  const pnlTone = money === null ? "" : money >= 0 ? "is-positive" : "is-negative";
-  const accent = isOpen
-    ? money != null && money < 0
-      ? "is-down"
-      : "is-up"
-    : `is-${trade.result}`;
-  const href = chartHrefForTrade(trade);
-  const body = (
-    <>
-      <div className="trade-card-top">
-        <span className="trade-card-pair">{trade.pair}</span>
-        <span className={`trade-card-r metric-number ${rTone}`}>
-          {isOpen ? <span className="trade-card-r-label">Open R</span> : null}
-          {fmtR(rValue)}
-        </span>
-      </div>
-      <div className="trade-card-sub">
-        {isOpen ? (
-          <SideBadge direction={trade.direction} />
-        ) : (
-          <span className="trade-card-meta">
-            <span className={`trade-card-side is-${trade.direction}`}>
-              {trade.direction === "long" ? "LONG" : "SHORT"}
-            </span>
-            {` · ${activityLabel(trade)}`}
-          </span>
-        )}
-        {isOpen ? (
-          <span className={`trade-card-money metric-number ${pnlTone}`}>
-            <span className="trade-card-money-label">
-              {money === null ? "Updating" : money >= 0 ? "Currently up" : "Currently down"}
-            </span>
-            <span>{fmtMoney(money, true) ?? "—"}</span>
-          </span>
-        ) : (
-          <ResultBadge trade={trade} />
-        )}
-      </div>
-
-      {isOpen ? (
-        <dl className="trade-card-levels">
-          <div>
-            <dt>Entry</dt>
-            <dd>{fmtPrice(trade.entry, trade.pair)}</dd>
-          </div>
-          <div>
-            <dt>Current</dt>
-            <dd>{fmtPrice(live?.current ?? null, trade.pair)}</dd>
-          </div>
-          <div>
-            <dt>SL</dt>
-            <dd className="is-negative">{fmtPrice(trade.stop, trade.pair)}</dd>
-          </div>
-          <div>
-            <dt>TP</dt>
-            <dd className="is-positive">{fmtPrice(trade.target, trade.pair)}</dd>
-          </div>
-        </dl>
-      ) : (
-        <p className="trade-card-flow metric-number">
-          {fmtPrice(trade.entry, trade.pair)} → {fmtPrice(trade.exit, trade.pair)}
-        </p>
-      )}
-
-      {trade.brokerTradeId ? (
-        <div className="trade-card-broker-cost">
-          <span>OANDA entry spread</span>
-          <strong className="metric-number">
-            {trade.oandaEntryHalfSpreadCost !== null && trade.oandaEntryHalfSpreadCost !== undefined
-              ? fmtMoney(-Math.abs(trade.oandaEntryHalfSpreadCost))
-              : "Waiting for OANDA"}
-          </strong>
-        </div>
-      ) : null}
-
-      {/* Eastern time, like every other clock in the app. */}
-      <dl className="trade-card-times">
-        <div>
-          <dt>Entered</dt>
-          <dd className="metric-number">{formatDayAndTime(trade.openedAt)} ET</dd>
-        </div>
-        <div>
-          <dt>Exited</dt>
-          <dd className="metric-number">
-            {trade.closedAt ? `${formatDayAndTime(trade.closedAt)} ET` : "Still open"}
-          </dd>
-        </div>
-      </dl>
-
-      <div className="trade-card-foot">
-        {isOpen ? (
-          <>
-            <span>{strategy ?? ""}</span>
-            <span>{durationLabel(trade.openedAt, null)}</span>
-          </>
-        ) : (
-          <>
-            <span>
-              {trade.closedAt ? formatShortDay(trade.closedAt) : "—"} ·{" "}
-              {durationLabel(trade.openedAt, trade.closedAt)}
-            </span>
-            <span className={`trade-card-money metric-number ${pnlTone}`}>
-              {fmtMoney(money, true) ?? "—"}
-            </span>
-          </>
-        )}
-      </div>
-    </>
-  );
-
-  return href ? (
-    <Link
-      href={href}
-      className={`trade-card ${isOpen ? "is-open" : "is-closed"} ${accent}`}
-      aria-label={`Open ${trade.pair} trade on chart`}
-    >
-      {body}
-    </Link>
-  ) : (
+  return (
     <button
       type="button"
-      className={`trade-card ${isOpen ? "is-open" : "is-closed"} ${accent} ${selected ? "is-selected" : ""}`}
+      className={`nl-tr-row${selected ? " is-selected" : ""}`}
+      aria-pressed={selected}
       onClick={onSelect}
     >
-      {body}
+      <span className="nl-tr-pair">
+        <b>{trade.pair}</b>
+        <SideChip direction={trade.direction} />
+      </span>
+      <span className="nl-tr-muted nl-tr-hide-md">{strategyLabel(trade) ?? (trade.origin === "manual" ? "Manual" : "—")}</span>
+      <span className="metric-number nl-tr-hide-sm">{fmtPrice(trade.entry, trade.pair)}</span>
+      <span className="metric-number nl-tr-hide-sm">{fmtPrice(isOpen ? live?.current ?? null : trade.exit, trade.pair)}</span>
+      <RPill value={r} />
+      <span className={`nl-tr-money metric-number ${toneOf(money)}`}>{fmtMoney(money, true) ?? "—"}</span>
+      <span className="nl-tr-muted metric-number nl-tr-hide-md">
+        {durationLabel(trade.openedAt, isOpen ? null : trade.closedAt)}
+      </span>
+      <span className="nl-tr-muted nl-tr-hide-md nl-tr-hide-sm">{dayAndTime(isOpen ? trade.openedAt : trade.closedAt)}</span>
     </button>
+  );
+}
+
+function TradeCard({
+  trade,
+  live,
+  onSelect,
+}: {
+  trade: JournalTrade;
+  live: Live | null;
+  onSelect: () => void;
+}) {
+  const isOpen = trade.status === "open";
+  const r = isOpen ? live?.openR ?? null : trade.resultR;
+  const money = isOpen ? live?.money ?? null : trade.paperPl ?? null;
+  const strategy = strategyLabel(trade) ?? (trade.origin === "manual" ? "Manual" : null);
+  const when = isOpen ? `opened ${dayAndTime(trade.openedAt)}` : dayAndTime(trade.closedAt);
+  return (
+    <button type="button" className="nl-tr-card" onClick={onSelect} aria-label={`${trade.pair} trade details`}>
+      <span className="nl-tr-card-top">
+        <span className="nl-tr-pair">
+          <b>{trade.pair}</b>
+          <SideChip direction={trade.direction} />
+        </span>
+        <span className={`nl-tr-money metric-number ${toneOf(money)}`}>{fmtMoney(money, true) ?? "—"}</span>
+      </span>
+      <span className="nl-tr-card-meta">
+        <span>{strategy ? `${strategy} · ${when}` : when}</span>
+        <RPill value={r} />
+      </span>
+    </button>
+  );
+}
+
+function TradeDetail({
+  trade,
+  live,
+  variant,
+  onClose,
+}: {
+  trade: JournalTrade;
+  live: Live | null;
+  variant: "panel" | "sheet";
+  onClose?: () => void;
+}) {
+  const isOpen = trade.status === "open";
+  const money = isOpen ? live?.money ?? null : trade.paperPl ?? null;
+  const r = isOpen ? live?.openR ?? null : trade.resultR;
+  const shownExit = isOpen ? live?.current ?? null : trade.exit;
+  const notes = trade.notes?.trim();
+  const reason = trade.brokerFailureReason?.trim() || trade.reason?.trim() || null;
+  const lots = isOpen ? live?.lots ?? null : null;
+  const href = chartHrefForTrade(trade);
+  // Position on the stop → target line, 0–100. A short's span is negative,
+  // so the same formula serves both sides.
+  const span = trade.target - trade.stop;
+  const at = (value: number | null | undefined) =>
+    value === null || value === undefined || !span ? null : Math.min(100, Math.max(0, ((value - trade.stop) / span) * 100));
+  const entryAt = at(trade.entry);
+  const exitAt = at(shownExit);
+  const tone = toneOf(r);
+  const badge = isOpen ? "Open position" : exitLabel(trade);
+
+  return (
+    <div className={`nl-tr-detail is-${variant}`}>
+      <div className="nl-tr-detail-head">
+        <span className="nl-tr-detail-ident">
+          <b>{trade.pair}</b>
+          <SideChip direction={trade.direction} />
+        </span>
+        {variant === "sheet" && onClose ? (
+          <button type="button" className="nl-tr-close" onClick={onClose} aria-label="Close trade details">
+            <X aria-hidden="true" />
+          </button>
+        ) : (
+          <span className="nl-tr-badge">{badge}</span>
+        )}
+      </div>
+
+      <div className={`nl-tr-result ${tone}`}>
+        {variant === "sheet" ? (
+          <span className="nl-tr-result-label">
+            {badge}
+            {isOpen ? "" : ` · held ${durationLabel(trade.openedAt, trade.closedAt)}`}
+          </span>
+        ) : null}
+        <span className="nl-tr-result-row">
+          <span className="nl-tr-result-money">{fmtMoney(money, true) ?? "—"}</span>
+          <span className="nl-tr-result-r metric-number">{fmtR(r)}</span>
+        </span>
+      </div>
+
+      <div className="nl-tr-track-wrap">
+        <span className="nl-tr-track" aria-hidden="true">
+          {entryAt !== null && exitAt !== null ? (
+            <span
+              className={`nl-tr-track-fill ${tone}`}
+              style={{ left: `${Math.min(entryAt, exitAt)}%`, width: `${Math.abs(exitAt - entryAt)}%` }}
+            />
+          ) : null}
+          {entryAt !== null ? <span className="nl-tr-track-entry" style={{ left: `${entryAt}%` }} /> : null}
+          {exitAt !== null ? <span className={`nl-tr-track-mark ${tone}`} style={{ left: `${exitAt}%` }} /> : null}
+        </span>
+        <span className="nl-tr-track-labels metric-number">
+          <span className="is-down">SL {fmtPrice(trade.stop, trade.pair)}</span>
+          <span className="nl-tr-muted">
+            {isOpen ? "now" : "exit"} {fmtPrice(shownExit, trade.pair)}
+          </span>
+          <span className="is-up">TP {fmtPrice(trade.target, trade.pair)}</span>
+        </span>
+      </div>
+
+      <dl className="nl-tr-grid">
+        <div>
+          <dt>Entry</dt>
+          <dd className="metric-number">{fmtPrice(trade.entry, trade.pair)}</dd>
+        </div>
+        <div>
+          <dt>{isOpen ? "Current" : "Exit"}</dt>
+          <dd className="metric-number">{fmtPrice(shownExit, trade.pair)}</dd>
+        </div>
+        <div>
+          <dt>Stop loss</dt>
+          <dd className="metric-number is-down">{fmtPrice(trade.stop, trade.pair)}</dd>
+        </div>
+        <div>
+          <dt>Take profit</dt>
+          <dd className="metric-number is-up">{fmtPrice(trade.target, trade.pair)}</dd>
+        </div>
+        <div>
+          <dt>R:R</dt>
+          <dd className="metric-number">{rrLabel(trade)}</dd>
+        </div>
+        <div>
+          <dt>Size</dt>
+          <dd className="metric-number">{lots === null ? "—" : `${lots.toFixed(2)} lot`}</dd>
+        </div>
+        <div>
+          <dt>Opened</dt>
+          <dd className="metric-number">{dayAndTime(trade.openedAt)}</dd>
+        </div>
+        <div>
+          <dt>{isOpen ? "Held" : "Closed"}</dt>
+          <dd className="metric-number">{isOpen ? durationLabel(trade.openedAt, null) : dayAndTime(trade.closedAt)}</dd>
+        </div>
+        {trade.brokerTradeId ? (
+          <div className="is-wide">
+            <dt>OANDA entry spread</dt>
+            <dd className="metric-number">
+              {trade.oandaEntryHalfSpreadCost !== null && trade.oandaEntryHalfSpreadCost !== undefined
+                ? fmtMoney(-Math.abs(trade.oandaEntryHalfSpreadCost))
+                : "Waiting for OANDA"}
+            </dd>
+          </div>
+        ) : null}
+      </dl>
+
+      {!isOpen ? (
+        <div className="nl-tr-notes">
+          <div>
+            <span className="nl-tr-notes-label">Exit reason</span>
+            <span className="nl-tr-notes-value">
+              {reason ?? exitLabel(trade)} · held {durationLabel(trade.openedAt, trade.closedAt)}
+            </span>
+          </div>
+          <div>
+            <span className="nl-tr-notes-label">Trade notes</span>
+            <span className={`nl-tr-notes-text${notes ? "" : " is-empty"}`}>{notes ? notes : "No trade notes."}</span>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="nl-tr-actions">
+        {href ? (
+          <Link href={href} className="nl-tr-primary">
+            Open chart <ArrowRight aria-hidden="true" />
+          </Link>
+        ) : (
+          <span className="nl-tr-primary is-disabled">No chart for this trade</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Phone: the selected trade as a bottom sheet (the "trade detail" artboard). */
+function TradeDetailSheet({
+  trade,
+  live,
+  onClose,
+}: {
+  trade: JournalTrade | null;
+  live: Live | null;
+  onClose: () => void;
+}) {
+  const { setSheet, setBackdrop, handlers, requestClose } = useDragToDismiss({
+    open: trade !== null,
+    onDismiss: onClose,
+    handleSelector: ".nl-tr-grip, .nl-tr-detail-head",
+  });
+  if (!trade) return null;
+  return createPortal(
+    <div
+      ref={setBackdrop}
+      className="nl-tr-backdrop"
+      data-pull-to-refresh-ignore="true"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) requestClose();
+      }}
+    >
+      <section ref={setSheet} className="nl-tr-sheet" role="dialog" aria-modal="true" aria-label={`${trade.pair} trade`} {...handlers}>
+        <div className="nl-tr-grip" aria-hidden="true" />
+        <TradeDetail trade={trade} live={live} variant="sheet" onClose={requestClose} />
+      </section>
+    </div>,
+    document.body,
+  );
+}
+
+function useWideLayout() {
+  return useSyncExternalStore(
+    (onChange) => {
+      const query = window.matchMedia("(min-width: 1024px)");
+      query.addEventListener("change", onChange);
+      return () => query.removeEventListener("change", onChange);
+    },
+    () => window.matchMedia("(min-width: 1024px)").matches,
+    () => false,
   );
 }
 
@@ -622,10 +580,12 @@ export function TradesView() {
   const [records, setRecords] = useState<JournalTrade[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Phone only: the selected trade opens as a sheet when a card is tapped.
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const wide = useWideLayout();
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [connection, setConnection] = useState<ConnectionStatus | null>(null);
   const offsetRef = useRef(0);
   const seqRef = useRef(0);
   const initialTabResolvedRef = useRef(false);
@@ -698,16 +658,9 @@ export function TradesView() {
   }, [loadSummary, loadPage]);
 
   useEffect(() => {
-    // Kick the first load and the one-time connection probe. Both settle their
-    // state inside async callbacks, not synchronously.
+    // The first load settles its state inside async callbacks.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void refreshAll();
-    fetch(apiUrl("/api/oanda/account-summary"), { credentials: "include", cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((p: { status?: ConnectionStatus } | null) => {
-        if (p?.status) setConnection(p.status);
-      })
-      .catch(() => {});
   }, [refreshAll]);
 
   useEffect(() => {
@@ -718,6 +671,16 @@ export function TradesView() {
 
   const openTrades = useMemo(() => summary?.openTrades ?? [], [summary?.openTrades]);
   const closedTrades = useMemo(() => records.filter((t) => t.status === "closed"), [records]);
+  // Newest-first from the API; the strip reads left to right, oldest to newest.
+  const recentR = useMemo(
+    () =>
+      closedTrades
+        .slice(0, 20)
+        .map((t) => t.resultR)
+        .filter((r): r is number => r !== null && Number.isFinite(r))
+        .reverse(),
+    [closedTrades],
+  );
 
   // A link can ask for a tab (Home's Recent activity opens ?tab=closed). It
   // wins over the no-open-position default below, which then never runs.
@@ -826,10 +789,6 @@ export function TradesView() {
     );
   }, [selected, quotes, fills]);
 
-  const oandaConnected = connection
-    ? connection.state === "connected" && connection.source === "oanda"
-    : null;
-
   const tabs: { id: Tab; label: string; count: number }[] = [
     { id: "open", label: "Open", count: openCount },
     { id: "closed", label: "Closed", count: closedCount },
@@ -837,197 +796,148 @@ export function TradesView() {
   ];
   const initialTabLoading = loading && summary === null;
 
+  const liveFor = (trade: JournalTrade) =>
+    trade.status === "open"
+      ? liveMetrics(trade, trade.instrument ? quotes[trade.instrument] : undefined, quotes, fillForTrade(trade, fills))
+      : null;
+
   return (
-    <div className="trades-view">
-      <section className="trades-overview" aria-label="Trade overview">
-        <header className="trades-header">
-          <div className="trades-header-title">
-            <h1>Trades</h1>
+    <div className="nl-tr">
+      <header className="nl-tr-head">
+        <div className="nl-tr-title">
+          <span className="nl-overline">
+            {openCount} open · {closedCount} closed
+          </span>
+          <h1>Trades</h1>
+        </div>
+        <NotificationBell compact={!wide} className="nl-tr-bell" />
+      </header>
+
+      {initialTabLoading ? (
+        <TradesSummarySkeleton />
+      ) : (
+        <TradesSummaryRow
+          tab={tab}
+          openCount={openCount}
+          openPnl={openAgg.pnl}
+          realizedToday={summary?.today?.realizedPL ?? null}
+          closedCount={closedCount}
+          wins={closedAgg.wins}
+          losses={closedAgg.losses}
+          winRate={closedAgg.winRate}
+          avgR={summary?.avgR ?? null}
+          recentClosed={closedTrades}
+          recentR={recentR}
+        />
+      )}
+
+      {initialTabLoading ? (
+        <TradesToolbarSkeleton showFilters={tab !== "open"} />
+      ) : (
+        <div className="nl-tr-toolbar">
+          <div className="nl-tr-tabs" role="tablist" aria-label="Trade state">
+            {tabs.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.id}
+                className={tab === t.id ? "is-active" : ""}
+                onClick={() => setTab(t.id)}
+              >
+                {t.label} <span className="metric-number">{t.count}</span>
+              </button>
+            ))}
           </div>
-          {oandaConnected !== null ? (
-            <span className={`trades-connection ${oandaConnected ? "is-connected" : "is-off"}`}>
-              <i aria-hidden />
-              OANDA {connection?.environment === "live" ? "LIVE" : "PRACTICE"} ·{" "}
-              {oandaConnected ? "CONNECTED" : (connection?.label ?? "OFFLINE")}
-            </span>
-          ) : null}
-        </header>
-
-        {initialTabLoading ? <TradesSummarySkeleton /> : tab === "open" ? (
-          <OpenSummary count={openCount} pnl={openAgg.pnl} realized={summary?.today?.realizedPL ?? null} />
-        ) : (
-          <ClosedSummary
-            closed={closedCount}
-            wins={closedAgg.wins}
-            losses={closedAgg.losses}
-            winRate={closedAgg.winRate}
-          />
-        )}
-      </section>
-
-      <div className="trades-body">
-        <div className="trades-workspace">
-          {initialTabLoading ? <TradesToolbarSkeleton /> : <>
-          <div className="trades-toolbar">
-            <nav className="trades-tabs" aria-label="Trade state">
-              {tabs.map((t) => (
+          {tab !== "open" ? (
+            <div className="nl-tr-filters" role="group" aria-label="Result filter">
+              {(["all", "wins", "losses"] as ClosedFilter[]).map((f) => (
                 <button
-                  key={t.id}
+                  key={f}
                   type="button"
-                  className={tab === t.id ? "is-active" : ""}
-                  onClick={() => setTab(t.id)}
+                  aria-pressed={closedFilter === f}
+                  className={closedFilter === f ? "is-active" : ""}
+                  onClick={() => setClosedFilter(f)}
                 >
-                  {t.label} <span className="trades-tab-count">{t.count}</span>
+                  {f === "all" ? "All" : f === "wins" ? "Wins" : "Losses"}
                 </button>
               ))}
-            </nav>
+            </div>
+          ) : null}
+          <label className="nl-tr-search">
+            <Search aria-hidden="true" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search pair" aria-label="Search trades" />
+          </label>
+        </div>
+      )}
 
-            <label className="trades-search">
-              <Search aria-hidden />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search trades..."
-                aria-label="Search trades"
-              />
-            </label>
-
-            {tab === "closed" ? (
-              <nav className="trades-subfilter" aria-label="Result filter">
-                {(["all", "wins", "losses"] as ClosedFilter[]).map((f) => (
-                  <button
-                    key={f}
-                    type="button"
-                    className={closedFilter === f ? "is-active" : ""}
-                    onClick={() => setClosedFilter(f)}
-                  >
-                    {f === "all" ? "All" : f === "wins" ? "Wins" : "Losses"}
-                  </button>
-                ))}
-              </nav>
-            ) : null}
-
-          </div>
-          </>}
-
+      <div className="nl-tr-body">
+        <section className="nl-tr-list" aria-label="Trade list">
           {loading ? (
             <TradesSkeleton />
           ) : rows.length ? (
             <>
-            <div className={`trades-table ${tab === "closed" ? "is-closed" : "is-open"}`}>
-              <div className="trades-head" aria-hidden>
-                {tab === "closed" ? (
-                  <>
-                    <span>Pair</span>
-                    <span>Side</span>
-                    <span className="trades-hide-md">Strategy</span>
-                    <span>Entry</span>
-                    <span>Exit</span>
-                    <span>Result</span>
-                    <span>R</span>
-                    <span className="trades-hide-sm">P&amp;L</span>
-                    <span className="trades-hide-md">Duration</span>
-                    <span className="trades-hide-sm">Closed</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Pair</span>
-                    <span>Side</span>
-                    <span>Entry</span>
-                    <span>Current</span>
-                    <span>SL</span>
-                    <span>TP</span>
-                    <span className="trades-hide-md">R:R</span>
-                    <span className="trades-hide-md">Size</span>
-                    <span>Open R</span>
-                    <span>P&amp;L</span>
-                    <span className="trades-hide-sm">Age</span>
-                  </>
-                )}
+              <div className="nl-tr-rowhead" aria-hidden="true">
+                <span>Pair</span>
+                <span className="nl-tr-hide-md">Strategy</span>
+                <span className="nl-tr-hide-sm">Entry</span>
+                <span className="nl-tr-hide-sm">{tab === "open" ? "Current" : "Exit"}</span>
+                <span className="is-end">R</span>
+                <span className="is-end">P/L</span>
+                <span className="is-end nl-tr-hide-md">Held</span>
+                <span className="is-end nl-tr-hide-md nl-tr-hide-sm">{tab === "open" ? "Opened" : "Closed"}</span>
               </div>
-
-              {rows.map((trade) =>
-                tab === "closed" || (tab === "all" && trade.status === "closed") ? (
-                  <ClosedRow
+              <div className="nl-tr-rows">
+                {rows.map((trade) => (
+                  <TradeRow
                     key={trade.id}
                     trade={trade}
+                    live={liveFor(trade)}
                     selected={trade.id === selectedId}
                     onSelect={() => setSelectedId(trade.id)}
                   />
-                ) : (
-                  <OpenRow
+                ))}
+              </div>
+              <div className="nl-tr-cards">
+                {rows.map((trade) => (
+                  <TradeCard
                     key={trade.id}
                     trade={trade}
-                    live={liveMetrics(
-                      trade,
-                      trade.instrument ? quotes[trade.instrument] : undefined,
-                      quotes,
-                      fillForTrade(trade, fills),
-                    )}
-                    selected={trade.id === selectedId}
-                    onSelect={() => setSelectedId(trade.id)}
+                    live={liveFor(trade)}
+                    onSelect={() => {
+                      setSelectedId(trade.id);
+                      setSheetOpen(true);
+                    }}
                   />
-                ),
-              )}
-
+                ))}
+              </div>
               {tab !== "open" && hasMore ? (
-                <button
-                  type="button"
-                  className="trades-load-more"
-                  onClick={() => void loadPage(false)}
-                  disabled={loadingMore}
-                >
+                <button type="button" className="nl-tr-more" onClick={() => void loadPage(false)} disabled={loadingMore}>
                   {loadingMore ? "Loading…" : "Load more"}
                 </button>
               ) : null}
-            </div>
-
-            <div className="trades-cards">
-              {rows.map((trade) => (
-                <MobileTradeCard
-                  key={trade.id}
-                  trade={trade}
-                  live={
-                    trade.status === "open"
-                      ? liveMetrics(
-                          trade,
-                          trade.instrument ? quotes[trade.instrument] : undefined,
-                          quotes,
-                          fillForTrade(trade, fills),
-                        )
-                      : null
-                  }
-                  selected={trade.id === selectedId}
-                  onSelect={() => setSelectedId(trade.id)}
-                />
-              ))}
-              {tab !== "open" && hasMore ? (
-                <button
-                  type="button"
-                  className="trades-load-more"
-                  onClick={() => void loadPage(false)}
-                  disabled={loadingMore}
-                >
-                  {loadingMore ? "Loading…" : "Load more"}
-                </button>
-              ) : null}
-            </div>
             </>
           ) : (
-            <p className="trades-empty">
-              {tab === "open" ? "No open positions right now." : "No trades in this view."}
-            </p>
+            <p className="nl-tr-empty">{tab === "open" ? "No open positions right now." : "No trades in this view."}</p>
           )}
-        </div>
+        </section>
 
-        {selected ? (
-          <SelectedTradePanel trade={selected} live={selectedLive} />
-        ) : (
-          <aside className="trades-panel is-empty" aria-label="Selected trade">
-            <p className="trades-empty">Select a trade to see its details.</p>
-          </aside>
-        )}
+        <aside className="nl-tr-panel" aria-label="Selected trade">
+          {selected ? (
+            <TradeDetail trade={selected} live={selectedLive} variant="panel" />
+          ) : (
+            <p className="nl-tr-empty">Select a trade to see its details.</p>
+          )}
+        </aside>
       </div>
+
+      {wide ? null : (
+        <TradeDetailSheet
+          trade={sheetOpen ? selected : null}
+          live={selectedLive}
+          onClose={() => setSheetOpen(false)}
+        />
+      )}
     </div>
   );
 }

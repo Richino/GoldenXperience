@@ -80,14 +80,14 @@ function check(name: string, run: () => void) {
 
 check("phase follows the New York clock across DST", () => {
   // EDT (UTC-4)
-  assert.equal(tradabilityPhase(new Date("2026-10-07T11:29:00Z")), "outside");
-  assert.equal(tradabilityPhase(new Date("2026-10-07T11:30:00Z")), "pre_session");
+  assert.equal(tradabilityPhase(new Date("2026-10-07T10:29:00Z")), "outside");
+  assert.equal(tradabilityPhase(new Date("2026-10-07T10:30:00Z")), "pre_session");
   assert.equal(tradabilityPhase(new Date("2026-10-07T12:00:00Z")), "active");
   assert.equal(tradabilityPhase(new Date("2026-10-07T14:59:00Z")), "active");
   assert.equal(tradabilityPhase(new Date("2026-10-07T15:00:00Z")), "outside");
   // EST (UTC-5): the same wall-clock window is an hour later in UTC.
-  assert.equal(tradabilityPhase(new Date("2026-12-09T12:00:00Z")), "outside");
-  assert.equal(tradabilityPhase(new Date("2026-12-09T12:30:00Z")), "pre_session");
+  assert.equal(tradabilityPhase(new Date("2026-12-09T11:29:00Z")), "outside");
+  assert.equal(tradabilityPhase(new Date("2026-12-09T11:30:00Z")), "pre_session");
   assert.equal(tradabilityPhase(new Date("2026-12-09T13:00:00Z")), "active");
   // Saturday is closed.
   assert.equal(tradabilityPhase(new Date("2026-10-10T13:00:00Z")), "outside");

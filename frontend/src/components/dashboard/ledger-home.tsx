@@ -20,6 +20,8 @@ import {
   type AccountChartRange,
 } from "@/components/dashboard/account-amount-chart";
 import { NewsImpactSheet } from "@/components/dashboard/news-impact-sheet";
+import { MorningMarketPicks } from "@/components/dashboard/morning-market-picks";
+import type { MorningPicksSnapshot } from "@/lib/strategy/morning-scan";
 import { RelativeTime } from "@/components/dashboard/relative-time";
 import type { HomeCurrentPosition } from "@/components/dashboard/home-rail";
 import { TopPairSearch } from "@/components/layout/top-pair-search";
@@ -754,6 +756,7 @@ function LedgerPending({
 /* --------------------------------------------------------------- page */
 
 export function LedgerHome({
+  morningPicks,
   account,
   history,
   todayKey,
@@ -772,6 +775,7 @@ export function LedgerHome({
   activity,
   error,
 }: {
+  morningPicks: MorningPicksSnapshot | null;
   account: AccountSummary;
   history: AccountBalanceHistoryPoint[];
   todayKey: string;
@@ -808,6 +812,7 @@ export function LedgerHome({
         {error ? <p className="nl-card-empty is-warn">{error}</p> : null}
         <div className="nl-home-cols">
           <div className="nl-home-main">
+            <MorningMarketPicks initial={morningPicks} />
             <LedgerPositions positions={positions} currency={account.currency} />
             <LedgerSetups setups={setups} />
             <LedgerActivity items={activity} currency={account.currency} />

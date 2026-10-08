@@ -1,0 +1,63 @@
+{
+  "label": "SYNTHETIC FIXTURE — not a live scan or historical performance claim",
+  "at": "2026-10-07T10:35:00.000Z",
+  "qualified": [
+    {
+      "instrument": "EUR_USD",
+      "status": "QUALIFIED",
+      "direction": "UPTREND",
+      "suitabilityPoints": 79,
+      "spreadPips": 0.5999999999994898,
+      "atrPips": 16.753458002364315,
+      "reasons": [],
+      "explanation": "M15 higher highs / higher lows; H1 uptrend. Movement and costs pass."
+    },
+    {
+      "instrument": "GBP_USD",
+      "status": "QUALIFIED",
+      "direction": "UPTREND",
+      "suitabilityPoints": 79,
+      "spreadPips": 0.5999999999994898,
+      "atrPips": 16.753458002364315,
+      "reasons": [],
+      "explanation": "M15 higher highs / higher lows; H1 uptrend. Movement and costs pass."
+    },
+    {
+      "instrument": "USD_JPY",
+      "status": "QUALIFIED",
+      "direction": "UPTREND",
+      "suitabilityPoints": 79,
+      "spreadPips": 0.5999999999971806,
+      "atrPips": 16.753458002361374,
+      "reasons": [],
+      "explanation": "M15 higher highs / higher lows; H1 uptrend. Movement and costs pass."
+    }
+  ],
+  "rejected": [
+    {
+      "instrument": "NZD_USD",
+      "status": "REJECTED",
+      "direction": "UPTREND",
+      "suitabilityPoints": 79,
+      "spreadPips": 0.5999999999994898,
+      "atrPips": 16.753458002364315,
+      "reasons": [
+        "High-impact NZD news: Synthetic high-impact release at 6:45 AM ET."
+      ],
+      "explanation": "High-impact NZD news: Synthetic high-impact release at 6:45 AM ET."
+    },
+    {
+      "instrument": "EUR_GBP",
+      "status": "REJECTED",
+      "direction": "UPTREND",
+      "suitabilityPoints": 55,
+      "spreadPips": 20.599999999999508,
+      "atrPips": 16.753458002364315,
+      "reasons": [
+        "Spread 20.6 pips is too wide for current movement.",
+        "Execution cost exceeds the configured fraction of the objective."
+      ],
+      "explanation": "Spread 20.6 pips is too wide for current movement."
+    }
+  ]
+}

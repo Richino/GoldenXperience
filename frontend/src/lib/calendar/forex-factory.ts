@@ -3,6 +3,7 @@ import {
   createMockCalendarEvents,
   type EconomicCalendarEvent,
   type EconomicCalendarSnapshot,
+  startOfNewYorkDay,
 } from "@/lib/oanda/calendar";
 import { normalizeForexFactoryEvents } from "@/lib/calendar/normalize";
 import { withActuals } from "@/lib/calendar/forex-factory-actuals";
@@ -71,6 +72,24 @@ async function fetchFeed(url: string): Promise<EconomicCalendarEvent[]> {
  */
 export async function getAllCalendarEvents(): Promise<EconomicCalendarEvent[]> {
   return withActuals(await loadEvents());
+}
+
+/** Selection requires a current feed, rather than loadEvents' stale UI fallback. */
+export async function getMarketSelectionCalendar() {
+  const events = await loadEvents();
+  const now = Date.now();
+  const today = startOfNewYorkDay(now);
+  const weekday = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short" }).format(new Date(now));
+  const daysSinceSunday = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(weekday);
+  // Anchor to local midnight after crossing DST; current-week is the feed's
+  // coverage period, rather than the time of its last scheduled event.
+  const weekStart = startOfNewYorkDay(today - daysSinceSunday * 86_400_000 + 6 * 3_600_000);
+  const weekEnd = startOfNewYorkDay(weekStart + 7 * 86_400_000 + 6 * 3_600_000);
+  const timestamps = events.map(e => Date.parse(e.timestamp));
+  if (!cache || now - cache.fetchedAt >= CACHE_TTL_MS || !timestamps.some(at => at >= weekStart && at < weekEnd)) {
+    throw new Error("Current calendar coverage is unavailable; news risk is UNKNOWN.");
+  }
+  return { events, fetchedAt: new Date(cache.fetchedAt).toISOString(), coverageUntil: new Date(weekEnd).toISOString() };
 }
 
 async function loadEvents(): Promise<EconomicCalendarEvent[]> {

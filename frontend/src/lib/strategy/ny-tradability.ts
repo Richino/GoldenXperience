@@ -16,11 +16,11 @@ import type { Candle } from "@/types/forex";
  * Session tradability: which pairs are worth LOOKING AT in a session window.
  *
  * A pair-selection aid for the Chart pair picker and the Markets list. It
- * never picks a direction, an entry or a stop, and it does not feed Analyze or
+ * reports a directional bias, never an entry or a stop, and it does not feed Analyze or
  * any strategy. It scores how workable each pair's conditions are right now,
  * out of 100:
  *
- *   structure clarity   20  1H swing structure, and whether 15m agrees
+ *   structure clarity   20  confirmed M15 swing structure, with H1 context
  *   volatility          20  last 2h of 15m ranges vs the same clock slots on
  *                           prior days, per pair (so a quiet pair is judged
  *                           against itself, not against GBP/JPY)
@@ -38,7 +38,8 @@ import type { Candle } from "@/types/forex";
  * than being awarded points. Only completed candles whose close is at or
  * before `now` are read, so nothing from the future can enter.
  *
- * Thresholds are provisional, configurable cut-offs, not validated
+ * Normal qualification and ranking below reuse these factor readings, with
+ * explicit hard gates and caution states. Thresholds are provisional, configurable cut-offs, not validated
  * probabilities of a profitable trade. The window config is generic so London
  * or Asia detectors can reuse the engine later; V1 ships New York only.
  */
@@ -75,6 +76,7 @@ export interface TradabilityNews {
 }
 
 export interface PairTradability {
+  selection?: MarketQualification;
   instrument: string;
   status: TradabilityStatus;
   phase: TradabilityPhase;
@@ -114,7 +116,7 @@ export const NY_TRADABILITY_CONFIG: SessionTradabilityConfig = {
   outsideStatus: "OUTSIDE_NY_WINDOW",
   sessionLabel: "New York",
   timeZone: NEW_YORK_TIME_ZONE,
-  preSessionStart: 7 * 60 + 30,
+  preSessionStart: 6 * 60 + 30,
   activeStart: 8 * 60,
   activeEnd: 11 * 60,
   thresholds: { high: 80, moderate: 60 },
@@ -166,7 +168,7 @@ function completedBefore(candles: Candle[], now: number, durationMs: number) {
   return candles.filter((candle) => {
     const open = Date.parse(candle.time);
     return candle.complete !== false && Number.isFinite(open) && open + durationMs <= now;
-  });
+  }).sort((a, b) => Date.parse(a.time) - Date.parse(b.time));
 }
 
 function trueRanges(candles: Candle[]) {
@@ -227,7 +229,7 @@ function base(input: TradabilityInput, phase: TradabilityPhase, now: Date): Pair
   };
 }
 
-export function computeSessionTradability(
+function readSessionFactors(
   input: TradabilityInput,
   config: SessionTradabilityConfig = NY_TRADABILITY_CONFIG,
 ): PairTradability {
@@ -253,12 +255,17 @@ export function computeSessionTradability(
   if (!input.m15 || !input.h1 || m15.length < 120 || h1.length < 30) {
     return { ...result, summary: "Not enough live candle history to score this pair." };
   }
-  if (!candlesAsOf || nowMs - Date.parse(candlesAsOf) > config.freshness.candleMaxLagMs) {
+  if ([...m15, ...h1].some(b => ![b.open, b.high, b.low, b.close].every(v => Number.isFinite(v) && v > 0) || b.high < Math.max(b.open, b.close, b.low) || b.low > Math.min(b.open, b.close))) {
+    return { ...result, summary: "Invalid broker candle values." };
+  }
+  const lastH1 = h1.at(-1);
+  if (!candlesAsOf || nowMs - Date.parse(candlesAsOf) > config.freshness.candleMaxLagMs
+    || !lastH1 || nowMs - Date.parse(lastH1.time) - H1_MS > H1_MS + config.freshness.candleMaxLagMs) {
     return { ...result, summary: "The latest 15m candles are stale." };
   }
   const quote = input.quote;
   const quoteAge = quote ? nowMs - Date.parse(quote.time) : Number.POSITIVE_INFINITY;
-  if (!quote || !quote.tradeable || !(quote.ask > quote.bid) || !(quoteAge <= config.freshness.quoteMaxAgeMs)) {
+  if (!quote || !quote.tradeable || !(quote.bid > 0) || !(quote.ask > quote.bid) || !(quoteAge >= -5_000 && quoteAge <= config.freshness.quoteMaxAgeMs)) {
     return { ...result, summary: quote && !quote.tradeable ? "The broker shows this pair as not tradeable." : "No current bid/ask quote." };
   }
 
@@ -282,7 +289,7 @@ export function computeSessionTradability(
   const m15Read = classifyH1Structure(m15.slice(-64));
   const h1Direction = structureDirection(h1Read);
   const m15Direction = structureDirection(m15Read);
-  const structurePoints = (h1Direction ? 10 : 0) + (m15Direction ? 6 : 0) + (h1Direction && m15Direction === h1Direction ? 4 : 0);
+  const structurePoints = (h1Direction ? 4 : 0) + (m15Direction ? 12 : 0) + (h1Direction && m15Direction === h1Direction ? 4 : 0);
   const structure: TradabilityFactor = {
     key: "structure",
     label: "Structure",
@@ -333,14 +340,14 @@ export function computeSessionTradability(
   const below = levels.filter((level) => level < price).map((level) => price - level);
   const roomUp = above.length ? Math.min(...above) / atrH1 : null;
   const roomDown = below.length ? Math.min(...below) / atrH1 : null;
-  const roomPoints = (atrs: number | null) => (atrs === null ? 25 : atrs >= 1.5 ? 25 : atrs >= 1 ? 18 : atrs >= 0.6 ? 10 : atrs >= 0.3 ? 4 : 0);
+  const roomPoints = (atrs: number | null) => (atrs === null ? 10 : atrs >= 1.5 ? 25 : atrs >= 1 ? 18 : atrs >= 0.6 ? 10 : atrs >= 0.3 ? 4 : 0);
   const describeRoom = (atrs: number | null, side: string) => (atrs === null ? `no mapped level ${side}` : `${atrs.toFixed(1)} 1H ATR ${side}`);
   const room: TradabilityFactor = !srM15 && !srH1
     ? { key: "room", label: "Room", points: 0, max: 25, verified: false, note: "Support/resistance could not be read" }
-    : h1Direction
+    : m15Direction
       ? (() => {
-          const atrs = h1Direction === "bullish" ? roomUp : roomDown;
-          return { key: "room", label: "Room", points: roomPoints(atrs), max: 25, verified: true, note: describeRoom(atrs, h1Direction === "bullish" ? "above" : "below") };
+          const atrs = m15Direction === "bullish" ? roomUp : roomDown;
+          return { key: "room", label: "Room", points: roomPoints(atrs), max: 25, verified: true, note: describeRoom(atrs, m15Direction === "bullish" ? "above" : "below") };
         })()
       : (() => {
           const upPoints = roomPoints(roomUp);
@@ -368,7 +375,8 @@ export function computeSessionTradability(
   const situations: string[] = [];
   if (h1Direction === "bullish" && recentMove <= -0.5 * atrM15) situations.push("pullback in a 1H uptrend");
   if (h1Direction === "bearish" && recentMove >= 0.5 * atrM15) situations.push("pullback in a 1H downtrend");
-  for (const [name, range] of [["London", london], ["Asian", asia]] as const) {
+  const priorLondon = rangeOf(m15, londonOpen, Math.min(newYorkOpen, Date.parse(recent[0]!.time)));
+  for (const [name, range] of [["London", priorLondon], ["Asian", asia]] as const) {
     if (!range) continue;
     if (name === "London" && close > range.high && recent.some((bar) => bar.close > range.high)) situations.push("holding above the London high");
     if (name === "London" && close < range.low && recent.some((bar) => bar.close < range.low)) situations.push("holding below the London low");
@@ -471,8 +479,167 @@ export interface TradabilitySnapshot {
 /** Sort rank for "Most tradable": scored pairs by score, then blocked, then the rest. */
 export function tradabilitySortKey(item: PairTradability | undefined) {
   if (!item) return { group: 4, score: 0 };
+  if (item.selection) return { group: item.selection.status === "QUALIFIED" ? 0 : item.selection.status === "CAUTION" ? 1 : 2, score: item.selection.rankScore };
   if (item.score !== null) return { group: 0, score: item.score };
   if (item.status === "BLOCKED") return { group: 1, score: item.rawScore ?? 0 };
   if (item.status === "UNAVAILABLE") return { group: 2, score: 0 };
   return { group: 3, score: 0 };
+}
+
+export const MARKET_SELECTION_VERSION = "normal-morning-v1";
+export type MarketDirection = "UPTREND" | "DOWNTREND" | "RANGE" | "TRANSITION" | "UNCLEAR";
+export interface MarketSelectionPolicy {
+  objectivePips: number;
+  minAtrObjectiveRatio: number;
+  minRecentRangeObjectiveRatio: number;
+  maxVolatilityRatio: number;
+  maxSpreadObjectiveRatio: number;
+  cautionSpreadAtrRatio: number;
+  minOpposingRoomObjectiveRatio: number;
+  requireNews: boolean;
+  cautionNewsMinutes: number;
+  minRankScore: number;
+  weights: Record<TradabilityFactorKey, number>;
+}
+export const MARKET_SELECTION_POLICY: MarketSelectionPolicy = {
+  objectivePips: 15,
+  minAtrObjectiveRatio: 0.15,
+  minRecentRangeObjectiveRatio: 0.6,
+  maxVolatilityRatio: 3,
+  maxSpreadObjectiveRatio: 0.15,
+  cautionSpreadAtrRatio: 0.2,
+  minOpposingRoomObjectiveRatio: 0.5,
+  requireNews: true,
+  cautionNewsMinutes: 60,
+  minRankScore: 55,
+  // One weight per existing factor; correlated volatility measurements are
+  // gates/context, not additional independent points.
+  weights: { structure: 30, volatility: 20, room: 25, spread: 20, setup: 5 },
+};
+export interface MarketLevel {
+  name: string;
+  price: number;
+  context: "approaching" | "swept/rejected" | "accepted beyond" | "reference";
+}
+export interface MarketQualification {
+  referencePrice: number | null;
+  status: "QUALIFIED" | "CAUTION" | "REJECTED";
+  dataFailure: boolean;
+  direction: MarketDirection;
+  h1Direction: MarketDirection;
+  primaryTimeframe: "M15";
+  rankScore: number;
+  reasons: string[];
+  cautions: string[];
+  atrPips: number | null;
+  recentRangePips: number | null;
+  realizedVolatilityPips: number | null;
+  sessionRangePips: number | null;
+  opposingRoomPips: number | null;
+  levels: MarketLevel[];
+  h1AsOf: string | null;
+  news: { state: "KNOWN" | "UNKNOWN"; events: Array<{ title: string; currency: string; impact: number; at: string; minutesAway: number; overlapsWindow: boolean }> };
+  explanation: string;
+  policy: MarketSelectionPolicy;
+}
+
+export function classifySelectionStructure(candles: Candle[]): MarketDirection {
+  const read = classifyH1Structure(candles);
+  if (read.intact && read.direction === "bullish") return "UPTREND";
+  if (read.intact && read.direction === "bearish") return "DOWNTREND";
+  const highs = read.swings.highs.slice(-2);
+  const lows = read.swings.lows.slice(-2);
+  if (highs.length < 2 || lows.length < 2) return "UNCLEAR";
+  const close = candles.at(-1)?.close ?? 0;
+  return highs[1]!.price <= highs[0]!.price && lows[1]!.price >= lows[0]!.price && close <= highs[1]!.price && close >= lows[1]!.price ? "RANGE" : "TRANSITION";
+}
+
+/** Shared by Home, Markets and the pair picker. Normal uses M15, with H1 context. */
+export function computeSessionTradability(
+  input: TradabilityInput,
+  config: SessionTradabilityConfig = NY_TRADABILITY_CONFIG,
+  policy: MarketSelectionPolicy = MARKET_SELECTION_POLICY,
+): PairTradability {
+  const read = readSessionFactors(input, config);
+  const now = input.now.getTime();
+  const m15 = completedBefore(input.m15 ?? [], now, M15_MS).sort((a, b) => Date.parse(a.time) - Date.parse(b.time));
+  const h1 = completedBefore(input.h1 ?? [], now, H1_MS).sort((a, b) => Date.parse(a.time) - Date.parse(b.time));
+  const direction = classifySelectionStructure(m15.slice(-64));
+  const h1Direction = classifySelectionStructure(h1);
+  const pip = pipSizeFor(input.instrument);
+  const atr = lastAtr(m15);
+  const recent = m15.slice(-RECENT_BARS);
+  const recentRange = recent.length ? Math.max(...recent.map(b => b.high)) - Math.min(...recent.map(b => b.low)) : null;
+  const realized = recent.length > 1 ? Math.sqrt(recent.slice(1).reduce((sum, b, i) => sum + (b.close - recent[i]!.close) ** 2, 0)) / pip : null;
+  const levels: MarketLevel[] = [];
+  const price = input.quote ? (input.quote.bid + input.quote.ask) / 2 : m15.at(-1)?.close ?? 0;
+  const day = now - now % DAY_MS;
+  const londonOpen = sessionHour(day, 8, LONDON_TIME_ZONE);
+  const asia = rangeOf(m15, day, Math.min(londonOpen, now));
+  const london = rangeOf(m15, londonOpen, Math.min(sessionHour(day, 8, NEW_YORK_TIME_ZONE), now));
+  const previous = rangeOf(m15, day - DAY_MS, day);
+  for (const [name, range] of [["Asia", asia], ["London so far", london], ["Previous UTC day", previous]] as const) {
+    if (range) for (const [side, level] of [["high", range.high], ["low", range.low]] as const) levels.push({ name: `${name} ${side}`, price: level, context: "reference" });
+  }
+  for (const [tf, bars] of [["M15", m15], ["H1", h1]] as const) {
+    const sr = computeSupportResistanceLevels(bars, input.instrument);
+    if (sr) for (const [name, level] of Object.entries(sr)) if (name !== "current" && level !== null) levels.push({ name: `${tf} ${name}`, price: level, context: "reference" });
+  }
+  const swings = classifyH1Structure(m15.slice(-64)).swings;
+  for (const [side, points] of [["highs", swings.highs], ["lows", swings.lows]] as const) {
+    const last = points.at(-1);
+    if (last && points.slice(0, -1).some(p => Math.abs(p.price - last.price) <= (atr ?? pip) * 0.1)) levels.push({ name: `Equal ${side} (0.1 ATR tolerance)`, price: last.price, context: "reference" });
+  }
+  // Event tests compare the last completed bar to PRE-EXISTING levels. A London
+  // extreme including that same bar cannot count as its own sweep/breakout.
+  const last = m15.at(-1);
+  if (last && atr) for (const level of levels) {
+    if (level.name.startsWith("London")) continue;
+    const upper = /high|High/.test(level.name);
+    if (upper && last.high > level.price && last.close < level.price || !upper && last.low < level.price && last.close > level.price) level.context = "swept/rejected";
+    else if (upper && last.close > level.price + atr * 0.1 && (m15.at(-2)?.close ?? 0) > level.price || !upper && last.close < level.price - atr * 0.1 && (m15.at(-2)?.close ?? Infinity) < level.price) level.context = "accepted beyond";
+    else if (Math.abs(price - level.price) <= atr * 0.5) level.context = "approaching";
+  }
+  const opposing = levels.filter(l => direction === "UPTREND" ? l.price > price : direction === "DOWNTREND" ? l.price < price : false).map(l => Math.abs(l.price - price) / pip);
+  const room = opposing.length ? Math.min(...opposing) : null;
+  const currencies = Object.values(currenciesOf(input.instrument));
+  const events = (input.news ?? []).filter(e => e.impact >= config.news.minImpact && currencies.includes(e.currency) && Number.isFinite(Date.parse(e.timestamp)))
+    .map(e => ({ title: e.title, currency: e.currency, impact: e.impact, at: e.timestamp, minutesAway: (Date.parse(e.timestamp) - now) / 60_000,
+      overlapsWindow: Date.parse(e.timestamp) >= sessionHour(day, 8, NEW_YORK_TIME_ZONE) && Date.parse(e.timestamp) < sessionHour(day, 11, NEW_YORK_TIME_ZONE) }))
+    .filter(e => e.minutesAway >= -30 && e.minutesAway <= 6 * 60).sort((a, b) => a.minutesAway - b.minutesAway);
+  const reasons: string[] = [];
+  const cautions: string[] = [];
+  const dataFailure = read.status === "UNAVAILABLE" || (input.news === null && policy.requireNews);
+  if (read.status === "UNAVAILABLE" || read.status === "BLOCKED" || read.phase === "outside") reasons.push(read.summary);
+  if (input.news === null && policy.requireNews) reasons.push("Required news risk data is UNKNOWN.");
+  if (input.news === null && !policy.requireNews) cautions.push("News risk is UNKNOWN under the configured optional-calendar policy.");
+  if (!reasons.length || read.factors.length) {
+    if (direction === "UNCLEAR" || direction === "RANGE") reasons.push(`Normal trend mode requires confirmed M15 swings; structure is ${direction}.`);
+    if (direction === "TRANSITION") cautions.push("M15 structure is transitioning.");
+    if ((direction === "UPTREND" && h1Direction === "DOWNTREND") || (direction === "DOWNTREND" && h1Direction === "UPTREND")) cautions.push("H1 structure opposes M15.");
+    if (!atr || atr / pip < policy.objectivePips * policy.minAtrObjectiveRatio || recentRange === null || recentRange / pip < policy.objectivePips * policy.minRecentRangeObjectiveRatio) reasons.push("Insufficient observed movement relative to the 15-pip objective.");
+    const volatility = read.factors.find(f => f.key === "volatility");
+    if (volatility && !volatility.verified) reasons.push("Same-hour volatility baseline is unavailable.");
+    const volRatio = volatility ? Number.parseFloat(volatility.note) : NaN;
+    if (volRatio > policy.maxVolatilityRatio) cautions.push("Movement is unusually unstable relative to this instrument's history.");
+    if (read.spreadPips !== null && read.spreadPips > policy.objectivePips * policy.maxSpreadObjectiveRatio) reasons.push("Execution cost exceeds the configured fraction of the objective.");
+    if (read.spreadPips !== null && atr && read.spreadPips / (atr / pip) > policy.cautionSpreadAtrRatio) cautions.push("Spread consumes a large share of current M15 movement.");
+    if (room !== null && room < policy.objectivePips * policy.minOpposingRoomObjectiveRatio) cautions.push("Nearby opposing structure leaves limited measured room.");
+    if (room === null) cautions.push("No opposing level is mapped; available room is unverified.");
+    if (events.some(e => e.minutesAway > config.news.blockBeforeMinutes && e.minutesAway <= policy.cautionNewsMinutes)) cautions.push("Upcoming high-impact news within the caution window.");
+  }
+  const rankScore = Math.round(read.factors.reduce((sum, f) => sum + (f.verified ? f.points / f.max * policy.weights[f.key] : 0), 0) * 100) / 100;
+  if (!reasons.length && rankScore < policy.minRankScore) cautions.push("Suitability score is below the configured shortlist minimum.");
+  const status = reasons.length ? "REJECTED" : cautions.length ? "CAUTION" : "QUALIFIED";
+  const explanation = reasons[0] ?? cautions[0] ?? `M15 ${direction === "UPTREND" ? "higher highs / higher lows" : "lower highs / lower lows"}; H1 ${h1Direction.toLowerCase()}. Movement and costs pass.`;
+  return { ...read, selection: { referencePrice: input.quote ? price : null, status, dataFailure, direction, h1Direction, primaryTimeframe: "M15", rankScore, reasons, cautions,
+    atrPips: atr ? atr / pip : null, recentRangePips: recentRange === null ? null : recentRange / pip, realizedVolatilityPips: realized,
+    sessionRangePips: london ? (london.high - london.low) / pip : null, opposingRoomPips: room, levels,
+    h1AsOf: h1.at(-1) ? new Date(Date.parse(h1.at(-1)!.time) + H1_MS).toISOString() : null,
+    news: { state: input.news === null ? "UNKNOWN" : "KNOWN", events }, explanation, policy } };
+}
+
+export function rankQualifiedMarkets(pairs: PairTradability[], limit = 5) {
+  return [...new Map(pairs.map(p => [p.instrument, p])).values()].filter(p => p.selection?.status === "QUALIFIED")
+    .sort((a, b) => b.selection!.rankScore - a.selection!.rankScore || a.instrument.localeCompare(b.instrument)).slice(0, Math.min(5, Math.max(0, limit)));
 }

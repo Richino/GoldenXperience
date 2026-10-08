@@ -29,17 +29,11 @@ import {
 import { getStrategySnapshot } from "../../frontend/src/lib/strategy/strategy-service.js";
 import { getForexSessionStatus } from "../../frontend/src/lib/strategy/session.js";
 import { computePairStrength, STRENGTH_PAIRS, type PairStrengthSnapshot } from "../../frontend/src/lib/strategy/pair-strength.js";
-import {
-  computeSessionTradability,
-  NY_TRADABILITY_CONFIG,
-  TRADABILITY_H1_CANDLES,
-  TRADABILITY_M15_CANDLES,
-  tradabilityPhase,
-  type TradabilityQuote,
-  type TradabilitySnapshot,
-} from "../../frontend/src/lib/strategy/ny-tradability.js";
+
 import type { Candle } from "../../frontend/src/types/forex.js";
 import { databaseConfigured, query } from "./database.js";
+import { nyTradability } from "./market-selection-service.js";
+import { morningPicksSnapshot, runMorningScan, startMorningScanner, scheduledScanAuthorized, MorningRefreshLimited } from "./morning-market-scanner.js";
 import { cookieName, login, logout, sessionUser } from "./auth.js";
 import { decideResearchExperiment, forwardResearchSummary, latestDayTradingValidation, latestResearchExperiment, latestResearchHoldout, latestResearchRun, latestWalkForwardResearch, processNextResearchJob, researchDiagnostics, researchExperimentDiagnostics, researchSummary, runDayTradingValidation, runResearchExperiment, runWalkForwardResearch, startLockedResearchHoldout, startStrictHistoricalBackfill, stopResearchRun } from "./research.js";
 import { collectMultiStrategyCycle, collectPaperCycle, decidePaperBatch, fastResolveFilledTrades, liveResolvePaperTrades, journalTradeLog, journalTradeSummary, multiStrategyOverview, multiStrategyWatchlist, paperCycleOverview, paperRiskExposure, paperRiskPolicy, paperTradesForInstrument, parsePaperRiskConfiguration, reviewPaperTrade, savedExecutableSetups, syncPracticeBrokerHistory, updatePaperRiskPolicy, watchlistSnapshot } from "./paper-cycle.js";
@@ -257,8 +251,20 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     const user = await requireOwner(request, response); if (!user) return;
     return json(request, response, { user });
   }
+  if (url.pathname === "/api/morning-picks/scheduled" && request.method === "POST") {
+    if (!scheduledScanAuthorized(request.headers.authorization)) return json(request, response, { error: "Scheduled job authentication required." }, 401);
+    return json(request, response, await runMorningScan("scheduled"));
+  }
   if (url.pathname.startsWith("/api/")) {
     const user = await requireOwner(request, response); if (!user) return;
+    if (url.pathname === "/api/morning-picks" && request.method === "GET") return json(request, response, await morningPicksSnapshot());
+    if (url.pathname === "/api/morning-picks/refresh" && request.method === "POST") {
+      try { return json(request, response, await runMorningScan("manual")); }
+      catch (error) {
+        if (error instanceof MorningRefreshLimited) { response.setHeader("Retry-After", "60"); return json(request, response, { error: error.message }, 429); }
+        throw error;
+      }
+    }
     if (url.pathname === "/api/watchlist" && request.method === "GET") {
       return json(request, response, { watchlist: await watchlistSnapshot() });
     }
@@ -807,93 +813,7 @@ function cachedPairStrength() {
   return result;
 }
 
-// NY session tradability (pair selection only; never feeds Analyze). The
-// structural factors only move when a 15m bar closes, so each pair's candles
-// are kept until the next close plus a few seconds for OANDA to publish it.
-// Quotes drive the spread check and are re-read every few seconds, in one
-// pricing call per batch. Generated (mock) data is never scored.
 const TRADABILITY_MAX_BATCH = 40;
-const TRADABILITY_CANDLE_SETTLE_MS = 5_000;
-const TRADABILITY_QUOTE_CACHE_MS = 5_000;
-const M15_INTERVAL_MS = 15 * 60_000;
-type TradabilityCandles = { m15: Candle[] | null; h1: Candle[] | null };
-const tradabilityCandleCache = new Map<string, { expiresAt: number; result: Promise<TradabilityCandles> }>();
-const tradabilityQuoteCache = new Map<string, { expiresAt: number; quote: TradabilityQuote | null }>();
-
-function nextCandleRefresh(now: number) {
-  const boundary = now - (now % M15_INTERVAL_MS);
-  return now < boundary + TRADABILITY_CANDLE_SETTLE_MS
-    ? boundary + TRADABILITY_CANDLE_SETTLE_MS
-    : boundary + M15_INTERVAL_MS + TRADABILITY_CANDLE_SETTLE_MS;
-}
-
-function tradabilityCandles(instrument: string, now: number) {
-  const hit = tradabilityCandleCache.get(instrument);
-  if (hit && hit.expiresAt > now) return hit.result;
-  const result = Promise.all([
-    getCandles(instrument as MajorInstrument, "M15", TRADABILITY_M15_CANDLES),
-    getCandles(instrument as MajorInstrument, "H1", TRADABILITY_H1_CANDLES),
-  ]).then(([m15, h1]) => ({
-    m15: m15.status.state === "connected" ? m15.data.candles : null,
-    h1: h1.status.state === "connected" ? h1.data.candles : null,
-  }));
-  tradabilityCandleCache.set(instrument, { expiresAt: nextCandleRefresh(now), result });
-  result.then(
-    (value) => { if (!value.m15 || !value.h1) tradabilityCandleCache.delete(instrument); },
-    () => tradabilityCandleCache.delete(instrument),
-  );
-  return result;
-}
-
-async function tradabilityQuotes(instruments: string[], now: number) {
-  const missing = instruments.filter((instrument) => !((tradabilityQuoteCache.get(instrument)?.expiresAt ?? 0) > now));
-  if (missing.length) {
-    const pricing = await getPricing(missing as MajorInstrument[]).catch(() => null);
-    const live = pricing?.status.state === "connected";
-    const byInstrument = new Map((live ? pricing.data : []).map((quote) => [quote.instrument, quote]));
-    for (const instrument of missing) {
-      const quote = byInstrument.get(instrument);
-      tradabilityQuoteCache.set(instrument, {
-        // A failed read is retried on the next request rather than cached.
-        expiresAt: live ? now + TRADABILITY_QUOTE_CACHE_MS : 0,
-        quote: quote && Number.isFinite(quote.bid) && Number.isFinite(quote.ask)
-          ? { bid: quote.bid, ask: quote.ask, time: quote.time, tradeable: quote.status === "tradeable" }
-          : null,
-      });
-    }
-  }
-  return new Map(instruments.map((instrument) => [instrument, tradabilityQuoteCache.get(instrument)?.quote ?? null]));
-}
-
-async function nyTradability(instruments: string[]): Promise<TradabilitySnapshot> {
-  const nowMs = Date.now();
-  const now = new Date(nowMs);
-  const phase = tradabilityPhase(now, NY_TRADABILITY_CONFIG);
-  if (phase === "outside") {
-    // Nothing is scored outside the window, so nothing is fetched either.
-    return {
-      evaluatedAt: now.toISOString(),
-      phase,
-      session: NY_TRADABILITY_CONFIG.sessionLabel,
-      newsAvailable: false,
-      pairs: instruments.map((instrument) => computeSessionTradability({ instrument, now, m15: null, h1: null, quote: null, news: null })),
-    };
-  }
-  // An unreadable calendar is reported as unknown, never as a clear one.
-  const [news, quotes, candles] = await Promise.all([
-    getAllCalendarEvents().catch(() => null),
-    tradabilityQuotes(instruments, nowMs),
-    Promise.all(instruments.map((instrument) => tradabilityCandles(instrument, nowMs).catch(() => ({ m15: null, h1: null })))),
-  ]);
-  return {
-    evaluatedAt: now.toISOString(),
-    phase,
-    session: NY_TRADABILITY_CONFIG.sessionLabel,
-    newsAvailable: news !== null,
-    pairs: instruments.map((instrument, index) =>
-      computeSessionTradability({ instrument, now, ...candles[index]!, quote: quotes.get(instrument) ?? null, news })),
-  };
-}
 
 function serialize(message: MarketStreamMessage) {
   return JSON.stringify(message);
@@ -1027,6 +947,7 @@ let breakoutM5Collector: NodeJS.Timeout | null = null;
 // prices and candles, but starts none of the mutating loops. Unset — or any
 // value other than "false" — keeps them on, so the deployed server is unchanged.
 const schedulersEnabled = process.env.ENABLE_SCHEDULERS !== "false";
+const morningScanner = databaseConfigured() && schedulersEnabled && process.env.MORNING_SCAN_ENABLED !== "false" ? startMorningScanner() : null;
 if (databaseConfigured() && !schedulersEnabled) {
   console.log("[schedulers] ENABLE_SCHEDULERS=false — background trade, research and binary loops are OFF (read-only database mode)");
 }
@@ -1387,6 +1308,7 @@ function shutdown() {
   if (shuttingDown) return; // SIGTERM can arrive twice during a dev reload.
   shuttingDown = true;
   clearInterval(heartbeat);
+  if (morningScanner) clearInterval(morningScanner);
   if (researchWorker) clearInterval(researchWorker);
   if (paperCollector) clearInterval(paperCollector);
   if (fastResolver) clearInterval(fastResolver);

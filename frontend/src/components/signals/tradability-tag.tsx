@@ -82,6 +82,7 @@ export function useNyTradability(instruments: readonly string[], enabled: boolea
 }
 
 function label(item: PairTradability) {
+  if (item.phase !== "outside" && item.selection) return `${item.selection.status === "QUALIFIED" ? "Qualified" : item.selection.status === "CAUTION" ? "Caution" : "Rejected"} · ${item.selection.rankScore}/100 suitability`;
   switch (item.status) {
     case "HIGHLY_TRADABLE":
       return `Highly tradable · ${item.score}/100`;
@@ -100,6 +101,7 @@ function label(item: PairTradability) {
 
 /** The same read in a few characters, for narrow rows (Markets on a phone). */
 function shortLabel(item: PairTradability) {
+  if (item.phase !== "outside" && item.selection) return `${item.selection.status === "QUALIFIED" ? "Qualified" : item.selection.status === "CAUTION" ? "Caution" : "Rejected"} · ${item.selection.rankScore}`;
   switch (item.status) {
     case "HIGHLY_TRADABLE":
       return `High · ${item.score}`;
@@ -151,6 +153,9 @@ export function TradabilityTag({ item }: { item: PairTradability | undefined }) 
     ? item.factors.map((factor) => `${factor.label} ${factor.points}/${factor.max}${factor.verified ? "" : " (unverified)"}: ${factor.note}`).join("\n")
     : "";
   const title = [
+    item.selection?.explanation,
+    ...(item.selection?.reasons ?? []),
+    ...(item.selection?.cautions ?? []),
     item.summary,
     breakdown,
     item.phase === "outside" ? null : `Evaluated ${clockEt(item.evaluatedAt)} ET.`,
@@ -159,7 +164,7 @@ export function TradabilityTag({ item }: { item: PairTradability | undefined }) 
 
   return (
     <span className="pair-strength tradability" title={title}>
-      <span className="pair-strength-chip" data-tone={`tradability-${TONE[item.status]}`}>
+      <span className="pair-strength-chip" data-tone={`tradability-${item.phase === "outside" ? "unavailable" : item.selection?.status === "REJECTED" ? "blocked" : item.selection?.status === "CAUTION" ? "moderate" : TONE[item.status]}`}>
         <span className="tradability-dot" aria-hidden="true" />
         <span className="pair-strength-label tradability-long">{text}</span>
         <span className="pair-strength-label tradability-short" aria-hidden="true">{short}</span>

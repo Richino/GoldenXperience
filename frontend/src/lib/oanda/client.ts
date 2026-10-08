@@ -194,7 +194,7 @@ function getConfig(): OandaConfig | null {
   };
 }
 
-async function requestOanda<T>(path: string, options: { method?: "GET" | "POST" | "PUT"; body?: unknown } = {}): Promise<T> {
+async function requestOanda<T>(path: string, options: { method?: "GET" | "POST" | "PUT"; body?: unknown; signal?: AbortSignal } = {}): Promise<T> {
   const config = getConfig();
 
   if (!config) {
@@ -213,7 +213,7 @@ async function requestOanda<T>(path: string, options: { method?: "GET" | "POST" 
       },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
       cache: "no-store",
-      signal: controller.signal,
+      signal: options.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal,
     });
 
     if (!response.ok) {
@@ -651,6 +651,16 @@ export function isOandaConfigured() {
   return getConfig() !== null;
 }
 
+/** Live account discovery; never substitute the static demo universe on failure. */
+export async function getSupportedForexInstruments(signal?: AbortSignal) {
+  const config = getConfig();
+  if (!config) throw new OandaRequestError("OANDA credentials are not configured.");
+  const response = await requestOanda<{ instruments: Array<{ name: string; type: string; pipLocation: number; displayPrecision: number }> }>(
+    `/v3/accounts/${encodeURIComponent(config.accountId)}/instruments`, { signal },
+  );
+  return response.instruments.filter(i => i.type === "CURRENCY" && /^[A-Z]{3}_[A-Z]{3}$/.test(i.name));
+}
+
 export async function getAccountSummary(): Promise<{
   data: AccountSummary;
   status: ConnectionStatus;
@@ -810,6 +820,7 @@ export async function getClosedPracticeTrades(): Promise<ClosedPracticeTrade[]> 
 
 export async function getPricing(
   instruments: MajorInstrument[],
+  options: { signal?: AbortSignal } = {},
 ): Promise<{
   data: PriceQuote[];
   status: ConnectionStatus;
@@ -828,7 +839,7 @@ export async function getPricing(
 
   try {
     const response = await requestOanda<OandaPricingResponse>(
-      `/v3/accounts/${encodeURIComponent(config.accountId)}/pricing?instruments=${instruments.join(",")}`,
+      `/v3/accounts/${encodeURIComponent(config.accountId)}/pricing?instruments=${instruments.join(",")}`, options,
     );
 
     return {
@@ -862,7 +873,7 @@ export async function getCandles(
   instrument: MajorInstrument,
   granularity = "M15",
   count = 64,
-  options: { to?: string } = {},
+  options: { to?: string; signal?: AbortSignal } = {},
 ): Promise<{
   data: CandleSeries;
   status: ConnectionStatus;
@@ -889,7 +900,7 @@ export async function getCandles(
     }
 
     const response = await requestOanda<OandaCandlesResponse>(
-      `/v3/instruments/${instrument}/candles?${params.toString()}`,
+      `/v3/instruments/${instrument}/candles?${params.toString()}`, { signal: options.signal },
     );
 
     const candles = response.candles.flatMap((candle) =>

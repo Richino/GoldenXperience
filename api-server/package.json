@@ -29,6 +29,7 @@
     "evaluations:test": "tsx scripts/test-evaluation-upsert.ts",
     "momentum-inversion:test": "tsx scripts/test-momentum-short-inversion.ts",
     "momentum-flip:test": "tsx scripts/test-momentum-inversion.ts",
+    "ny-tradability:test": "tsx scripts/test-ny-tradability.ts",
     "breakout-m5:counterfactual-audit": "tsx scripts/audit-breakout-m5-confidence-counterfactual.ts",
     "trend-v1:simulate-august": "tsx scripts/simulate-trend-direction-v1-august.ts",
     "trend-v1:simulate-august-inverse": "set TREND_V1_INVERT=true&& tsx scripts/simulate-trend-direction-v1-august.ts",

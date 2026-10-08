@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import {
   CandlestickChart,
@@ -29,20 +29,6 @@ interface NavItem {
   label: string;
   href: string;
   icon: LucideIcon | ((props: { className?: string; strokeWidth?: number }) => React.ReactNode);
-}
-
-function replayNavClick(event: React.PointerEvent<HTMLElement>) {
-  const target = event.currentTarget;
-  target.classList.remove("nav-mobile-link-click");
-  void target.offsetWidth;
-  target.classList.add("nav-mobile-link-click");
-}
-
-function clearNavClick(event: React.AnimationEvent<HTMLElement>) {
-  if (event.animationName !== "nav-mobile-click") {
-    return;
-  }
-  event.currentTarget.classList.remove("nav-mobile-link-click");
 }
 
 const navItems: NavItem[] = [
@@ -112,13 +98,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const ownsHeader = isDashboard || isChart || isTrades || isMarkets || isSettings;
   // Bottom-dock tabs have no "back"; their bell shares the title row.
   const isTabPage = isTrades || pathname === "/settings" || pathname === "/watchlist";
-  const activeMobileIndex = Math.max(
-    0,
-    mobileNavItems.findIndex((item) => isActive(pathname, item.href)),
-  );
-  const [previousMobileIndex, setPreviousMobileIndex] = useState(activeMobileIndex);
-
-  // Publish the floating dock's real height so pages can reserve exactly that
+  // Publish the dock's real height so pages can reserve exactly that
   // much space beneath their content. The measured value already includes the
   // pill and its home-indicator safe-area padding, so consumers add nothing
   // extra — no double-counted inset, no hardcoded guess drifting per device.
@@ -180,53 +160,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const mobileDock = (
     <nav
       ref={dockRef}
-      className="mobile-dock fixed inset-x-0 bottom-0 z-40 px-4 lg:hidden"
+      className="mobile-dock ink-dock fixed inset-x-0 bottom-0 z-40 lg:hidden"
       aria-label="Mobile navigation"
     >
-      <svg className="liquid-glass-filter-defs" aria-hidden="true" focusable="false">
-        <defs>
-          <filter
-            id="nav-liquid-glass-lens"
-            x="-8%"
-            y="-35%"
-            width="116%"
-            height="170%"
-            colorInterpolationFilters="sRGB"
-          >
-            <feTurbulence
-              type="fractalNoise"
-              baseFrequency="0.009 0.075"
-              numOctaves="1"
-              seed="8"
-              result="lensNoise"
-            />
-            <feGaussianBlur in="lensNoise" stdDeviation="0.35" result="softLensNoise" />
-            <feDisplacementMap
-              in="SourceGraphic"
-              in2="softLensNoise"
-              scale="3.2"
-              xChannelSelector="R"
-              yChannelSelector="G"
-            />
-          </filter>
-        </defs>
-      </svg>
-      <div className="nav-pill mx-auto grid w-full max-w-[26rem] grid-cols-5 items-center p-2">
-        <span
-          key={`${previousMobileIndex}-${activeMobileIndex}-${pathname}`}
-          className="nav-liquid-lens-track"
-          data-direction={activeMobileIndex >= previousMobileIndex ? "forward" : "backward"}
-          data-moved={activeMobileIndex !== previousMobileIndex}
-          style={
-            {
-              "--nav-active-offset": `${activeMobileIndex * 100}%`,
-              "--nav-previous-offset": `${previousMobileIndex * 100}%`,
-            } as React.CSSProperties
-          }
-          aria-hidden="true"
-        >
-          <span className="nav-liquid-lens" />
-        </span>
+      {/* Ink sheet: a dark sheet pinned to the screen edge in both themes; the
+          active tab grows into a lime tile that reveals its label. */}
+      <div className="ink-dock-sheet">
         {mobileNavItems.map((item) => {
           const active = isActive(pathname, item.href);
           const Icon = item.icon;
@@ -235,18 +174,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Link
               key={item.href}
               href={item.href}
-              className={`nav-mobile-link pressable ${
-                active ? "nav-mobile-link-active" : ""
-              }`}
+              className={`ink-dock-tab${active ? " is-active" : ""}`}
               aria-current={active ? "page" : undefined}
               aria-label={item.label}
-              onClick={() => setPreviousMobileIndex(activeMobileIndex)}
-              onPointerDown={replayNavClick}
-              onAnimationEnd={clearNavClick}
             >
-              <span className="nav-mobile-icon">
-                <Icon className="size-[1.55rem]" strokeWidth={1.7} />
-              </span>
+              <Icon className="ink-dock-icon" strokeWidth={1.9} />
+              <span className="ink-dock-label">{item.label}</span>
             </Link>
           );
         })}

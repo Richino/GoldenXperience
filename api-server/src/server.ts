@@ -29,6 +29,16 @@ import {
 import { getStrategySnapshot } from "../../frontend/src/lib/strategy/strategy-service.js";
 import { getForexSessionStatus } from "../../frontend/src/lib/strategy/session.js";
 import { computePairStrength, STRENGTH_PAIRS, type PairStrengthSnapshot } from "../../frontend/src/lib/strategy/pair-strength.js";
+import {
+  computeSessionTradability,
+  NY_TRADABILITY_CONFIG,
+  TRADABILITY_H1_CANDLES,
+  TRADABILITY_M15_CANDLES,
+  tradabilityPhase,
+  type TradabilityQuote,
+  type TradabilitySnapshot,
+} from "../../frontend/src/lib/strategy/ny-tradability.js";
+import type { Candle } from "../../frontend/src/types/forex.js";
 import { databaseConfigured, query } from "./database.js";
 import { cookieName, login, logout, sessionUser } from "./auth.js";
 import { decideResearchExperiment, forwardResearchSummary, latestDayTradingValidation, latestResearchExperiment, latestResearchHoldout, latestResearchRun, latestWalkForwardResearch, processNextResearchJob, researchDiagnostics, researchExperimentDiagnostics, researchSummary, runDayTradingValidation, runResearchExperiment, runWalkForwardResearch, startLockedResearchHoldout, startStrictHistoricalBackfill, stopResearchRun } from "./research.js";
@@ -257,6 +267,21 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
         return json(request, response, await cachedPairStrength());
       } catch (error) {
         return json(request, response, { error: error instanceof Error ? error.message : "Pair strength could not be read." }, 502);
+      }
+    }
+    if (url.pathname === "/api/ny-tradability" && request.method === "GET") {
+      // One batched read for the rows on screen (Chart pair picker, Markets).
+      const requested = [...new Set(
+        (url.searchParams.get("instruments") ?? "")
+          .split(",")
+          .map((value) => value.trim().toUpperCase())
+          .filter((value) => isKnownInstrument(value)),
+      )].slice(0, TRADABILITY_MAX_BATCH);
+      if (!requested.length) return json(request, response, { error: "Choose supported currency pairs." }, 400);
+      try {
+        return json(request, response, await nyTradability(requested));
+      } catch (error) {
+        return json(request, response, { error: error instanceof Error ? error.message : "Tradability could not be read." }, 502);
       }
     }
     if (url.pathname === "/api/manual-analysis" && request.method === "POST") {
@@ -780,6 +805,94 @@ function cachedPairStrength() {
     if (pairStrengthCache?.result === result) pairStrengthCache = null;
   });
   return result;
+}
+
+// NY session tradability (pair selection only; never feeds Analyze). The
+// structural factors only move when a 15m bar closes, so each pair's candles
+// are kept until the next close plus a few seconds for OANDA to publish it.
+// Quotes drive the spread check and are re-read every few seconds, in one
+// pricing call per batch. Generated (mock) data is never scored.
+const TRADABILITY_MAX_BATCH = 40;
+const TRADABILITY_CANDLE_SETTLE_MS = 5_000;
+const TRADABILITY_QUOTE_CACHE_MS = 5_000;
+const M15_INTERVAL_MS = 15 * 60_000;
+type TradabilityCandles = { m15: Candle[] | null; h1: Candle[] | null };
+const tradabilityCandleCache = new Map<string, { expiresAt: number; result: Promise<TradabilityCandles> }>();
+const tradabilityQuoteCache = new Map<string, { expiresAt: number; quote: TradabilityQuote | null }>();
+
+function nextCandleRefresh(now: number) {
+  const boundary = now - (now % M15_INTERVAL_MS);
+  return now < boundary + TRADABILITY_CANDLE_SETTLE_MS
+    ? boundary + TRADABILITY_CANDLE_SETTLE_MS
+    : boundary + M15_INTERVAL_MS + TRADABILITY_CANDLE_SETTLE_MS;
+}
+
+function tradabilityCandles(instrument: string, now: number) {
+  const hit = tradabilityCandleCache.get(instrument);
+  if (hit && hit.expiresAt > now) return hit.result;
+  const result = Promise.all([
+    getCandles(instrument as MajorInstrument, "M15", TRADABILITY_M15_CANDLES),
+    getCandles(instrument as MajorInstrument, "H1", TRADABILITY_H1_CANDLES),
+  ]).then(([m15, h1]) => ({
+    m15: m15.status.state === "connected" ? m15.data.candles : null,
+    h1: h1.status.state === "connected" ? h1.data.candles : null,
+  }));
+  tradabilityCandleCache.set(instrument, { expiresAt: nextCandleRefresh(now), result });
+  result.then(
+    (value) => { if (!value.m15 || !value.h1) tradabilityCandleCache.delete(instrument); },
+    () => tradabilityCandleCache.delete(instrument),
+  );
+  return result;
+}
+
+async function tradabilityQuotes(instruments: string[], now: number) {
+  const missing = instruments.filter((instrument) => !((tradabilityQuoteCache.get(instrument)?.expiresAt ?? 0) > now));
+  if (missing.length) {
+    const pricing = await getPricing(missing as MajorInstrument[]).catch(() => null);
+    const live = pricing?.status.state === "connected";
+    const byInstrument = new Map((live ? pricing.data : []).map((quote) => [quote.instrument, quote]));
+    for (const instrument of missing) {
+      const quote = byInstrument.get(instrument);
+      tradabilityQuoteCache.set(instrument, {
+        // A failed read is retried on the next request rather than cached.
+        expiresAt: live ? now + TRADABILITY_QUOTE_CACHE_MS : 0,
+        quote: quote && Number.isFinite(quote.bid) && Number.isFinite(quote.ask)
+          ? { bid: quote.bid, ask: quote.ask, time: quote.time, tradeable: quote.status === "tradeable" }
+          : null,
+      });
+    }
+  }
+  return new Map(instruments.map((instrument) => [instrument, tradabilityQuoteCache.get(instrument)?.quote ?? null]));
+}
+
+async function nyTradability(instruments: string[]): Promise<TradabilitySnapshot> {
+  const nowMs = Date.now();
+  const now = new Date(nowMs);
+  const phase = tradabilityPhase(now, NY_TRADABILITY_CONFIG);
+  if (phase === "outside") {
+    // Nothing is scored outside the window, so nothing is fetched either.
+    return {
+      evaluatedAt: now.toISOString(),
+      phase,
+      session: NY_TRADABILITY_CONFIG.sessionLabel,
+      newsAvailable: false,
+      pairs: instruments.map((instrument) => computeSessionTradability({ instrument, now, m15: null, h1: null, quote: null, news: null })),
+    };
+  }
+  // An unreadable calendar is reported as unknown, never as a clear one.
+  const [news, quotes, candles] = await Promise.all([
+    getAllCalendarEvents().catch(() => null),
+    tradabilityQuotes(instruments, nowMs),
+    Promise.all(instruments.map((instrument) => tradabilityCandles(instrument, nowMs).catch(() => ({ m15: null, h1: null })))),
+  ]);
+  return {
+    evaluatedAt: now.toISOString(),
+    phase,
+    session: NY_TRADABILITY_CONFIG.sessionLabel,
+    newsAvailable: news !== null,
+    pairs: instruments.map((instrument, index) =>
+      computeSessionTradability({ instrument, now, ...candles[index]!, quote: quotes.get(instrument) ?? null, news })),
+  };
 }
 
 function serialize(message: MarketStreamMessage) {

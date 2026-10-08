@@ -210,34 +210,129 @@ html:is(.dark, :not(.dark)) body :is(
 
 /* ------------------------------------------------------ mobile tab bar */
 
+/*
+ * "Ink sheet" (canvas board D): a sheet pinned to the screen edge instead of a
+ * floating pill. Light: a white sheet with a hairline edge, the same plane as
+ * the page's cards. Dark: a raised graphite step above the page. In both the
+ * active tab grows into a lime tile that reveals its label; the rest are
+ * icon-only.
+ *
+ * The nav keeps .mobile-dock so the shared hide/blur rules in globals.css still
+ * apply; the selectors below only need to out-rank its padding and fade scrim.
+ * --app-dock-height is measured from the nav, so it already includes the sheet
+ * and its safe-area padding.
+ */
 @media (max-width: 1023px) {
-  html:is(.dark, :not(.dark)) body .mobile-dock .nav-pill {
-    border: 1px solid var(--border);
-    border-radius: 24px;
-    background: var(--surface-raised);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  html:is(.dark, :not(.dark)) body .mobile-dock.ink-dock {
+    --ink-dock-bg: var(--surface);
+    --ink-dock-edge: var(--border);
+    --ink-dock-shadow: 0 -6px 22px rgba(20, 22, 18, 0.06);
+    --ink-dock-icon: var(--muted);
+    /* Lime on white is light-on-light; a faint olive ring gives the tile an
+       edge without darkening it. */
+    --ink-dock-tile-ring: rgba(78, 122, 0, 0.22);
+    padding: 0;
+    background: transparent;
+    border-top: 0;
   }
 
-  html:not(.dark) body .mobile-dock .nav-pill {
-    background: var(--surface);
-    box-shadow: 0 6px 20px rgba(20, 22, 18, 0.12);
+  html.dark body .mobile-dock.ink-dock {
+    --ink-dock-bg: var(--surface-raised);
+    --ink-dock-edge: rgba(241, 242, 236, 0.1);
+    --ink-dock-shadow: 0 -10px 30px rgba(0, 0, 0, 0.55);
+    --ink-dock-tile-ring: transparent;
   }
 
-  /* Five tabs (Markets joined the dock); the lens is one fifth of the pill
-     inside its 7px padding. */
-  html:is(.dark, :not(.dark)) body .mobile-dock .nav-liquid-lens-track {
-    width: calc((100% - 14px) / 5);
+  /* The sheet is opaque, so the old content fade above the pill goes. */
+  html:is(.dark, :not(.dark)) body .mobile-dock.ink-dock::before {
+    display: none;
   }
 
-  /* The sliding selection becomes a solid lime tile. */
-  html:is(.dark, :not(.dark)) body .mobile-dock .nav-liquid-lens {
+  .ink-dock-sheet {
+    display: flex;
+    gap: 4px;
+    padding: 12px 12px max(env(safe-area-inset-bottom, 0px), 14px);
+    /* A real border (not an inset shadow) so the edge follows the rounded
+       corners down the sides. */
+    border: 1px solid var(--ink-dock-edge);
+    border-bottom: 0;
+    border-radius: 26px 26px 0 0;
+    background: var(--ink-dock-bg);
+    box-shadow: var(--ink-dock-shadow);
+  }
+
+  .ink-dock-tab {
+    display: flex;
+    flex: 1 1 0;
+    min-width: 0;
+    height: 48px;
+    align-items: center;
+    justify-content: center;
+    /* No inline padding: with flex-basis 0 it would be added to every tab and
+       squeeze the active tile's share of the row. */
+    padding: 0;
+    overflow: hidden;
     border-radius: 16px;
-    background: var(--accent-fill);
-    box-shadow: none;
+    color: var(--ink-dock-icon);
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      flex-grow 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+      color 0.3s ease,
+      transform 0.12s ease-out;
   }
 
-  html:is(.dark, :not(.dark)) body .mobile-dock .nav-mobile-link.nav-mobile-link-active {
+  .ink-dock-tab.is-active {
+    flex-grow: 2.6;
+    background: var(--accent-fill);
+    box-shadow: inset 0 0 0 1px var(--ink-dock-tile-ring);
     color: var(--on-accent);
+  }
+
+  .ink-dock-tab:active {
+    transform: scale(0.94);
+  }
+
+  .ink-dock-tab:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  .ink-dock-icon {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+  }
+
+  /* Rendered on every tab so it can animate open; only the active tab shows it.
+     The link's aria-label carries the name either way. */
+  .ink-dock-label {
+    max-width: 0;
+    margin-left: 0;
+    overflow: hidden;
+    opacity: 0;
+    font-size: 14px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    transition:
+      max-width 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+      margin-left 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 0.2s ease;
+  }
+
+  .ink-dock-tab.is-active .ink-dock-label {
+    max-width: 6rem;
+    margin-left: 7px;
+    opacity: 1;
+    transition-delay: 0s, 0s, 0.08s;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ink-dock-tab,
+    .ink-dock-label {
+      transition: none;
+    }
   }
 }
 
@@ -1758,23 +1853,6 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-va
     --gx-pill-open-border: color-mix(in srgb, var(--accent) 30%, transparent);
     --gx-pill-closed-bg: var(--surface-raised);
     --gx-pill-closed-border: var(--border);
-  }
-}
-
-/* The dock keeps its own variable set; point it at the same lime tab. */
-@media (max-width: 1023px) {
-  html:is(.dark, :not(.dark)) body .mobile-dock {
-    --dock-pill-bg: var(--surface-raised);
-    --dock-pill-edge: var(--border);
-    --dock-pill-top: transparent;
-    --dock-lens-bg: var(--accent-fill);
-    --dock-lens-ring: transparent;
-    --dock-icon: var(--muted);
-    --dock-icon-active: var(--on-accent);
-  }
-
-  html:not(.dark) body .mobile-dock {
-    --dock-pill-bg: var(--surface);
   }
 }
 
@@ -3432,8 +3510,12 @@ html:is(.dark, :not(.dark)) body .nl-tr-bell {
     font-size: 14px;
   }
 
-  .nl-mk-toolbar h2,
-  .nl-mk-sorts {
+  .nl-mk-toolbar h2 {
+    display: none;
+  }
+
+  /* Phones keep two sorts: the default order and Most tradable. */
+  .nl-mk-sorts .nl-mk-sort-wide {
     display: none;
   }
 
@@ -3463,7 +3545,7 @@ html:is(.dark, :not(.dark)) body .nl-tr-bell {
   .nl-mk-row {
     grid-template-columns: minmax(0, 1fr) 56px 92px 44px;
     gap: 10px;
-    padding: 0;
+    padding: 0 0 8px;
     border-bottom-color: var(--surface-raised);
   }
 
@@ -5353,14 +5435,15 @@ html:is(.dark, :not(.dark)) body .signals-view .workspace-tab-btn.workspace-tab-
     height: 44px;
     min-height: 0;
     place-items: center;
-    border: 1px solid var(--border);
+    /* Keep the border box stable without outlining idle tools. */
+    border: 1px solid transparent;
     border-radius: 12px;
     background: var(--surface);
     color: var(--foreground);
   }
 
   html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-toolbar :is(.sheet-trigger.has-active, .gx-mobile-tool-button.is-active) {
-    border-color: transparent;
+    border-color: var(--border);
     background: var(--foreground);
     color: var(--background);
   }
@@ -5370,11 +5453,15 @@ html:is(.dark, :not(.dark)) body .signals-view .workspace-tab-btn.workspace-tab-
     height: 18px;
   }
 
+  /* Keep the loading placeholder identical in size to the Trade action. */
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile :is(.gx-mobile-analyze, .gx-mobile-trade-action-skeleton) {
+    height: 52px;
+    border-radius: 16px;
+  }
+
   /* Trade action: full width lime, like the artboard's Review card button. */
   html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-analyze {
-    height: 52px;
     border: 0;
-    border-radius: 16px;
     background: var(--accent-fill);
     color: var(--on-accent);
     font-size: 15px;

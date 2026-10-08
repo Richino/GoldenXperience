@@ -9,6 +9,8 @@ import { MarketRowSkeleton } from "@/components/ui/ledger-loading-skeletons";
 import { AnalyzeSheet } from "@/components/analysis/analyze-card";
 import { AnalyzeIcon } from "@/components/icons/analyze-icon";
 import { SessionStrip } from "@/components/watchlist/session-strip";
+import { TradabilityTag, useNyTradability } from "@/components/signals/tradability-tag";
+import { tradabilitySortKey } from "@/lib/strategy/ny-tradability";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
@@ -170,29 +172,45 @@ export function WatchlistView() {
     const change = finiteOrNull(daily[instrument]?.change);
     return change === null ? -1 : Math.abs(change);
   };
-  const matched = rows
+  const filtered = rows
     .filter((row) =>
       !needle
       || compact(row.instrument).includes(needle)
       || description(row.instrument).toLowerCase().includes(query.trim().toLowerCase()))
-    .filter((row) => group === "all" || groupOf(row.instrument) === group)
-    .sort(
-      (left, right) =>
-        sort === "name"
-          ? left.instrument.localeCompare(right.instrument)
-          : sort === "move"
-            ? // Pairs without daily data yet sort last.
-              changeOf(right.instrument) - changeOf(left.instrument) || left.instrument.localeCompare(right.instrument)
-            :
-        // Valid setups first, then pairs the backend actually evaluates
-        // (the featured ones), then the rest of the catalog alphabetically.
-        Number(right.setupStatus === "valid") -
-          Number(left.setupStatus === "valid") ||
-        Number(right.dataStatus !== "unavailable") -
-          Number(left.dataStatus !== "unavailable") ||
-        left.instrument.localeCompare(right.instrument),
-    );
+    .filter((row) => group === "all" || groupOf(row.instrument) === group);
+  // Valid setups first, then pairs the backend actually evaluates
+  // (the featured ones), then the rest of the catalog alphabetically.
+  const bySetups = (left: (typeof rows)[number], right: (typeof rows)[number]) =>
+    Number(right.setupStatus === "valid") -
+      Number(left.setupStatus === "valid") ||
+    Number(right.dataStatus !== "unavailable") -
+      Number(left.dataStatus !== "unavailable") ||
+    left.instrument.localeCompare(right.instrument);
+  const byChosenSort = (left: (typeof rows)[number], right: (typeof rows)[number]) =>
+    sort === "name"
+      ? left.instrument.localeCompare(right.instrument)
+      : sort === "move"
+        ? // Pairs without daily data yet sort last.
+          changeOf(right.instrument) - changeOf(left.instrument) || left.instrument.localeCompare(right.instrument)
+        : bySetups(left, right);
   const [visibleCount, setVisibleCount] = useState(WATCHLIST_PAGE_SIZE);
+  // NY session tradability for the rows on screen, in batched requests. Sorting
+  // by it needs every filtered pair scored, so that sort asks for all of them.
+  const tradability = useNyTradability(
+    (sort === "tradability" ? filtered : [...filtered].sort(byChosenSort).slice(0, visibleCount)).map((row) => row.instrument),
+    !loading,
+  );
+  const matched = [...filtered].sort(
+    sort === "tradability"
+      ? (left, right) => {
+          // Scored pairs by score, then blocked, then unavailable; ties keep
+          // the default order.
+          const a = tradabilitySortKey(tradability.get(left.instrument));
+          const b = tradabilitySortKey(tradability.get(right.instrument));
+          return a.group - b.group || b.score - a.score || bySetups(left, right);
+        }
+      : byChosenSort,
+  );
   // A new search resets paging so results start from the top of the filtered set.
   useEffect(() => {
     setVisibleCount(WATCHLIST_PAGE_SIZE);
@@ -367,6 +385,7 @@ export function WatchlistView() {
     { id: "setups", label: "Setups first" },
     { id: "move", label: "Biggest move" },
     { id: "name", label: "A–Z" },
+    { id: "tradability", label: "Most tradable" },
   ];
 
   return (
@@ -430,7 +449,7 @@ export function WatchlistView() {
                 key={option.id}
                 type="button"
                 aria-pressed={sort === option.id}
-                className={sort === option.id ? "is-active" : ""}
+                className={`${sort === option.id ? "is-active" : ""}${option.id === "move" || option.id === "name" ? " nl-mk-sort-wide" : ""}`}
                 onClick={() => setSort(option.id)}
               >
                 {option.label}
@@ -486,6 +505,7 @@ export function WatchlistView() {
                       <span className="nl-mk-pair-copy">
                         <b>{name}</b>
                         <small>{description(row.instrument)}</small>
+                        <TradabilityTag item={tradability.get(row.instrument)} />
                       </span>
                     </Link>
                     <Spark points={day?.spark ?? null} up={(change ?? 0) >= 0} className="nl-mk-row-spark nl-mk-hide-md" />
@@ -557,7 +577,7 @@ export function WatchlistView() {
 /* ------------------------------------------------------------- night ledger */
 
 type PairGroup = "all" | "major" | "yen" | "cross";
-type PairSort = "setups" | "move" | "name";
+type PairSort = "setups" | "move" | "name" | "tradability";
 
 const MAJOR_CURRENCIES = new Set(["EUR", "GBP", "AUD", "NZD", "CAD", "CHF", "JPY"]);
 

@@ -23,6 +23,16 @@ export function localMinutes(at: Date, timeZone: string) {
   return hour * 60 + minute;
 }
 
+/**
+ * The UTC instant of `hour`:00 local time in `timeZone` on the UTC day that
+ * starts at `dayMs`. Session boundaries are in the daytime, after either
+ * zone's DST change, so the offset at UTC noon also applies at the boundary.
+ */
+export function sessionHour(dayMs: number, hour: number, timeZone: string) {
+  const offsetMinutes = localMinutes(new Date(dayMs + 12 * 3_600_000), timeZone) - 12 * 60;
+  return dayMs + (hour * 60 - offsetMinutes) * 60_000;
+}
+
 function centreOpen(at: Date, timeZone: string) {
   const minutes = localMinutes(at, timeZone);
   return minutes >= SESSION_OPEN_MINUTES && minutes < SESSION_CLOSE_MINUTES;

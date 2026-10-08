@@ -1,17 +1,10 @@
 import type { ChartBox } from "@/components/charts/chart-box-primitive";
-import { localMinutes, LONDON_TIME_ZONE, NEW_YORK_TIME_ZONE } from "@/lib/strategy/session";
+import { LONDON_TIME_ZONE, NEW_YORK_TIME_ZONE, sessionHour } from "@/lib/strategy/session";
 import type { Candle } from "@/types/forex";
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
 const M15_MS = 15 * 60_000;
-
-// These session boundaries are in the daytime, after either zone's DST change.
-// The offset at UTC noon therefore also applies at the local 08:00/12:00 boundary.
-function sessionHour(dayMs: number, hour: number, timeZone: string) {
-  const offsetMinutes = localMinutes(new Date(dayMs + 12 * HOUR_MS), timeZone) - 12 * 60;
-  return dayMs + (hour * 60 - offsetMinutes) * 60_000;
-}
 
 /**
  * Scheduled AMD shading, independent of sweeps, reclaims or trade outcomes:

@@ -133,9 +133,6 @@ type MobileTab = "Overview" | "Setup";
 
 /** Bars of breathing room kept on each side of a focused trade. */
 const FOCUS_PADDING_BARS = 30;
-const DEFAULT_CHART_TIMEFRAME: ChartTimeframe = "15m";
-const DEFAULT_CHART_HISTORY_RANGE: ChartRange = "1D";
-
 /** Height of the desktop chart canvas before it is measured. */
 const DESKTOP_CHART_HEIGHT = 680;
 
@@ -2263,6 +2260,10 @@ export function SignalWorkspace({
       chartVariant,
       enabledIndicators,
     };
+    // Server-render the same timeframe/history on the next visit instead of
+    // painting M15 before localStorage preferences hydrate.
+    document.cookie = `gx-chart-timeframe=${timeframe}; Path=/; Max-Age=31536000; SameSite=Lax`;
+    document.cookie = `gx-chart-range=${range}; Path=/; Max-Age=31536000; SameSite=Lax`;
     try {
       window.localStorage.setItem(
         CHART_PREFERENCES_STORAGE_KEY,
@@ -2860,21 +2861,13 @@ export function SignalWorkspace({
   const refreshChart = useCallback(async () => {
     setRefreshingChart(true);
     try {
-      const alreadyAtDefault =
-        timeframe === DEFAULT_CHART_TIMEFRAME &&
-        range === DEFAULT_CHART_HISTORY_RANGE;
-      hasExplicitRangeSelectionRef.current = false;
       setLiveCandle(null);
-      setTimeframe(DEFAULT_CHART_TIMEFRAME);
-      setRange(DEFAULT_CHART_HISTORY_RANGE);
-      // Any non-default selection triggers the market-data effect with these
-      // values. When already there, explicitly refetch the default view.
-      if (alreadyAtDefault) await refreshMarketQuietly();
+      await refreshMarketQuietly();
       setScrollToLatestRevision((revision) => revision + 1);
     } finally {
       setRefreshingChart(false);
     }
-  }, [range, refreshMarketQuietly, timeframe]);
+  }, [refreshMarketQuietly]);
 
   useForegroundRefresh(
     useCallback(async () => {

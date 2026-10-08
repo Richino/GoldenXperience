@@ -5250,7 +5250,7 @@ html:is(.dark, :not(.dark)) body .signals-view .workspace-tab-btn.workspace-tab-
     background: transparent;
     color: var(--foreground);
     font-family: var(--font-display);
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 800;
     letter-spacing: -0.03em;
   }

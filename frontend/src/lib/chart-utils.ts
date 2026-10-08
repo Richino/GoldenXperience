@@ -1014,7 +1014,7 @@ export const LATEST_CANDLE_POSITION = 0.8;
 export function getLatestVisibleLogicalRange(
   candles: Candle[],
   range: ChartRange,
-  options?: { maxVisibleBars?: number; minVisibleBars?: number },
+  options?: { maxVisibleBars?: number; minVisibleBars?: number; latestCandlePosition?: number },
 ) {
   const count = candles.length;
   if (!count) return null;
@@ -1036,10 +1036,10 @@ export function getLatestVisibleLogicalRange(
     count,
     Math.max(minVisibleBars, Math.min(spanBars, maxVisibleBars)),
   );
-  // `visible` bars fill LATEST_CANDLE_POSITION of the pane; the remainder is
-  // empty logical space to the right of the newest candle.
+  // Mobile keeps less empty space ahead of price than the desktop view.
+  const latestCandlePosition = options?.latestCandlePosition ?? LATEST_CANDLE_POSITION;
   const rightPadding =
-    (visible * (1 - LATEST_CANDLE_POSITION)) / LATEST_CANDLE_POSITION;
+    (visible * (1 - latestCandlePosition)) / latestCandlePosition;
   const from = count - visible;
 
   return {

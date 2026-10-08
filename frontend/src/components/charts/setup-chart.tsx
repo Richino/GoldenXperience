@@ -717,8 +717,10 @@ function chartTheme(
       borderColor: "transparent",
       textColor: scaleText,
       scaleMargins: {
-        top: embedded ? 0.08 : 0.1,
-        bottom: embedded ? 0.08 : 0.06,
+        // Keep mobile candles below the floating trade card, with the compact
+        // vertical fit used by the opening reference on every timeframe.
+        top: embedded ? 0.4 : 0.1,
+        bottom: embedded ? 0.14 : 0.06,
       },
       // Fit labels tightly: minimumWidth is a floor only; the scale grows when
       // needed (entireTextOnly off) instead of reserving a wide empty gutter.
@@ -801,6 +803,10 @@ function scrollChartToLatest(
 ) {
   if (!series.candles.length) return;
 
+  // A prior manual price zoom must not leak into a new timeframe/range.
+  // Reframing is intentional; quiet tick/foreground updates preserve gestures.
+  chart.priceScale("right").setAutoScale(true);
+
   // Bar-index range pins the newest candle near the right whatever timeframe
   // just loaded. Mobile has a fixed, readable candle density so an H4 switch
   // looks like the M15 opening frame instead of becoming either huge or tiny.
@@ -821,6 +827,7 @@ function scrollChartToLatest(
         ? Math.min(preferredMax, drawableBars)
         : preferredMax,
     minVisibleBars: embedded ? MOBILE_CHART_FRAME_BARS : undefined,
+    latestCandlePosition: embedded ? 0.9 : LATEST_CANDLE_POSITION,
   });
   if (logicalRange) {
     const applyRange = () => {

@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { SignalWorkspace } from "@/components/signals/signal-workspace";
 import { getApiData } from "@/lib/api/server";
 import { isStrategyInstrument } from "@/lib/strategy/strategy-service";
-import { TIMEFRAME_TO_GRANULARITY, candleCountForChartViewport, type ChartRange, type ChartTimeframe } from "@/lib/chart-utils";
+import { CHART_TIMEFRAMES, CHART_RANGES, TIMEFRAME_TO_GRANULARITY, candleCountForChartViewport, type ChartRange, type ChartTimeframe } from "@/lib/chart-utils";
 import type { CandleSeries, ConnectionStatus, PaperChartTrade } from "@/types/forex";
 import type { BinaryPrediction } from "@/types/binary";
 
@@ -31,10 +31,12 @@ export default async function ChartPage({ searchParams }: { searchParams: Promis
       .catch(() => null);
   const requested = requestedInstrument ?? (savedInstrumentIsValid ? savedInstrument : null) ?? activeTrade?.instrument ?? "EUR_USD";
   const instrument = isStrategyInstrument(requested) ? requested : "EUR_USD";
-  // First paint is intentionally a compact, exact range. Strategy evaluation,
-  // plans and trade markers are all hydrated client-side after the chart draws.
-  const initialTimeframe: ChartTimeframe = "15m";
-  const initialRange: ChartRange = "1D";
+  // Start with the saved selection, including the server's initial candle
+  // fetch. Client-only preferences otherwise flash M15 on every chart visit.
+  const savedTimeframe = cookieStore.get("gx-chart-timeframe")?.value as ChartTimeframe;
+  const savedRange = cookieStore.get("gx-chart-range")?.value as ChartRange;
+  const initialTimeframe: ChartTimeframe = CHART_TIMEFRAMES.includes(savedTimeframe) ? savedTimeframe : "15m";
+  const initialRange: ChartRange = CHART_RANGES.includes(savedRange) ? savedRange : "1D";
   const focusTradeId = params.trade && /^[0-9a-f-]{36}$/i.test(params.trade)
     ? params.trade
     : activeTrade?.id ?? null;

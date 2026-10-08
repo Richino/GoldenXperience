@@ -28,6 +28,7 @@ import {
   settleChartLoad,
 } from "@/components/charts/chart-loading-overlay";
 import { IndicatorSelect } from "@/components/charts/indicator-select";
+import { ChartLoadingSkeleton } from "@/components/ui/chart-loading-skeleton";
 import {
   SetupChart,
   createFixedTenPipSetup,
@@ -2223,6 +2224,13 @@ export function SignalWorkspace({
     DEFAULT_CHART_INDICATORS,
   );
   const [chartPreferencesReady, setChartPreferencesReady] = useState(false);
+  // Wait for the real viewport before mounting a chart engine. CSS-hiding
+  // the other layout still initialized a second live chart during hydration.
+  const chartDesktopViewport = useSyncExternalStore(
+    subscribeDesktopChartViewport,
+    getDesktopChartViewport,
+    () => null,
+  );
 
   useEffect(() => {
     if (embeddedSurfaceOnly) {
@@ -2745,8 +2753,8 @@ export function SignalWorkspace({
     const mobileShell = mobileChartShellRef.current;
     const desktopShell = desktopChartShellRef.current;
 
-    // The hidden breakpoint's shell reports a zero box, which is why an empty
-    // measurement is dropped rather than pushed into the chart.
+    // Reattach after preferences hydrate or the active layout changes; only
+    // that layout's shell is mounted. Ignore transient empty measurements.
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const measured = Math.round(entry.contentRect.height);
@@ -2763,7 +2771,7 @@ export function SignalWorkspace({
     if (mobileShell) observer.observe(mobileShell);
     if (desktopShell) observer.observe(desktopShell);
     return () => observer.disconnect();
-  }, []);
+  }, [chartDesktopViewport, chartPreferencesReady, embeddedSurfaceOnly]);
 
   useEffect(() => {
     if (!fullscreen) return;
@@ -4115,16 +4123,7 @@ export function SignalWorkspace({
   }
 
   const sessionLabel = marketSessionCaption();
-  // Desktop layout or not; decides card vs sheet for the Analyze result.
-  const wideChart = useSyncExternalStore(
-    (onChange) => {
-      const query = window.matchMedia("(min-width: 1024px)");
-      query.addEventListener("change", onChange);
-      return () => query.removeEventListener("change", onChange);
-    },
-    () => window.matchMedia("(min-width: 1024px)").matches,
-    () => false,
-  );
+  const wideChart = chartDesktopViewport === true;
   const watchlistInstruments = Array.from(
     new Set([instrument, ...signals.map((signal) => signal.instrument)]),
   ).slice(0, 6);
@@ -4245,6 +4244,10 @@ export function SignalWorkspace({
     );
   }
 
+  if (chartDesktopViewport === null || !chartPreferencesReady) {
+    return <ChartLoadingSkeleton />;
+  }
+
   return (
     <div
       className={`signals-view signals-minimal grid w-full gap-5${
@@ -4253,7 +4256,7 @@ export function SignalWorkspace({
     >
       <div className="signals-chart-slot min-w-0">
         <section className="app-card signals-chart-card min-w-0 w-full">
-        <div className="signals-chart-mobile lg:hidden">
+        {!wideChart ? <div className="signals-chart-mobile lg:hidden">
           <div className="signals-mobile-content">
             {/* Phone header and quote, as the "Chart — Mobile" artboard. */}
             <div className="signals-mobile-actions nl-mhead">
@@ -4464,13 +4467,7 @@ export function SignalWorkspace({
               <div className="gx-mobile-trade-action-skeleton" aria-hidden="true" />
             </div>
           )}
-        </div>
-
-        {/* Desktop terminal, laid out as the Night Ledger "Chart — Desktop"
-            artboard: header (pair, quote, Analyze, bell), toolbar, the chart
-            in a card, and a column of cards beside it. Every control is the
-            same component as before; only the arrangement changed. */}
-        <div className="hidden lg:flex signals-chart-desktop gx-chart-terminal nl-terminal">
+        </div> : <div className="hidden lg:flex signals-chart-desktop gx-chart-terminal nl-terminal">
           <header className="nl-chart-head">
             <div className="nl-chart-head-main">
               <div className="nl-pair">
@@ -4683,7 +4680,7 @@ export function SignalWorkspace({
               />
             </div>
           </div>
-        </div>
+        </div>}
         </section>
       </div>
 

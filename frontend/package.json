@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "npm run generate:icons && next build",
+    "generate:splash": "node scripts/generate-splash.mjs",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",

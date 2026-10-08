@@ -251,7 +251,7 @@ html:is(.dark, :not(.dark)) body :is(
   .ink-dock-sheet {
     display: flex;
     gap: 4px;
-    padding: 12px 12px max(env(safe-area-inset-bottom, 0px), 14px);
+    padding: 10px 10px max(env(safe-area-inset-bottom, 0px), 12px);
     /* A real border (not an inset shadow) so the edge follows the rounded
        corners down the sides. */
     border: 1px solid var(--ink-dock-edge);
@@ -265,14 +265,14 @@ html:is(.dark, :not(.dark)) body :is(
     display: flex;
     flex: 1 1 0;
     min-width: 0;
-    height: 48px;
+    height: 56px;
     align-items: center;
     justify-content: center;
     /* No inline padding: with flex-basis 0 it would be added to every tab and
        squeeze the active tile's share of the row. */
     padding: 0;
     overflow: hidden;
-    border-radius: 16px;
+    border-radius: 18px;
     color: var(--ink-dock-icon);
     -webkit-tap-highlight-color: transparent;
     transition:
@@ -299,8 +299,8 @@ html:is(.dark, :not(.dark)) body :is(
   }
 
   .ink-dock-icon {
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     flex-shrink: 0;
   }
 
@@ -311,7 +311,7 @@ html:is(.dark, :not(.dark)) body :is(
     margin-left: 0;
     overflow: hidden;
     opacity: 0;
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 650;
     letter-spacing: -0.01em;
     white-space: nowrap;
@@ -323,7 +323,7 @@ html:is(.dark, :not(.dark)) body :is(
 
   .ink-dock-tab.is-active .ink-dock-label {
     max-width: 6rem;
-    margin-left: 7px;
+    margin-left: 8px;
     opacity: 1;
     transition-delay: 0s, 0s, 0.08s;
   }

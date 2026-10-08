@@ -44,7 +44,7 @@ export const metadata: Metadata = {
     // iOS launch screens, one per portrait screen size; rendered by
     // scripts/generate-splash.mjs. Android builds its own from manifest.json.
     startupImage: SPLASH_DEVICES.map(({ width, height, ratio }) => ({
-      url: `/splash/${width * ratio}x${height * ratio}.png`,
+      url: `/splash/gx-${width * ratio}x${height * ratio}.png`,
       media: `(device-width: ${width}px) and (device-height: ${height}px) and (-webkit-device-pixel-ratio: ${ratio}) and (orientation: portrait)`,
     })),
   },

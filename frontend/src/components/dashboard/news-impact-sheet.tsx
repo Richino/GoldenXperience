@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { MobileSheet } from "@/components/ui/mobile-sheet";
+import { PairAvatar } from "@/components/ui/pair-avatar";
 import { apiUrl } from "@/lib/api/url";
 import { currenciesOf, displayNameFor, isKnownInstrument, pipSizeFor } from "@/lib/instruments/catalog";
 import type { CandleSeries } from "@/types/forex";
@@ -29,10 +31,17 @@ function pairDirection(instrument: string, currency: string, currencyMove: Trend
   return currencyMove === "up" ? "down" : "up";
 }
 
-function Arrow({ direction }: { direction: TrendDirection }) {
+function DirectionIcon({ direction }: { direction: TrendDirection }) {
+  const Icon = direction === "up" ? ArrowUpRight : ArrowDownRight;
+  return <Icon className="news-impact-icon" strokeWidth={2.4} aria-hidden="true" />;
+}
+
+/** The expected move before a release, as a tinted chip. */
+function DirectionChip({ direction }: { direction: TrendDirection }) {
   return (
-    <span className={`news-impact-move is-${direction}`}>
-      {direction === "up" ? "▲ Up" : "▼ Down"}
+    <span className={`news-impact-dir is-${direction}`}>
+      <DirectionIcon direction={direction} />
+      {direction === "up" ? "Up" : "Down"}
     </span>
   );
 }
@@ -202,25 +211,36 @@ export function NewsImpactSheet({
     >
       {event && hint ? (
         <div className="news-impact-drawer">
+          {/* Forecast · Previous · Actual as one strip; Actual lights up once it is out. */}
           <dl className="news-impact-values">
             <div><dt>Forecast</dt><dd className="metric-number">{event.forecast || "—"}</dd></div>
             <div><dt>Previous</dt><dd className="metric-number">{event.previous || "—"}</dd></div>
-            <div><dt>Actual</dt><dd className="metric-number">{event.actual || "—"}</dd></div>
+            <div className={`is-actual${event.actual ? " is-in" : ""}`}>
+              <dt>Actual</dt>
+              {event.actual
+                ? <dd className="metric-number">{event.actual}</dd>
+                : <dd className="is-pending">Pending</dd>}
+            </div>
           </dl>
 
           {journal && journal.record.calls > 0 ? (
-            <p className="news-impact-note">
-              Prediction record: {journal.record.correct} of {journal.record.calls} right
-              ({Math.round((journal.record.correct / journal.record.calls) * 100)}%)
-            </p>
+            <div className="news-impact-record">
+              <span>Prediction record</span>
+              <span className="news-impact-record-bar" aria-hidden="true">
+                <i style={{ width: `${(journal.record.correct / journal.record.calls) * 100}%` }} />
+              </span>
+              <b className="metric-number">
+                {journal.record.correct}/{journal.record.calls} · {Math.round((journal.record.correct / journal.record.calls) * 100)}%
+              </b>
+            </div>
           ) : null}
 
           {releasedAt !== null ? (
             // A short summary: one line of context, then up to three figures.
             <div className="news-impact-outcome">
-              <p>
-                Released {sinceText(now - releasedAt)} ago ·{" "}
-                {windowClosed ? "final, first hour only" : "live for the first hour"}
+              <p className="news-impact-outcome-head">
+                <span className={`news-impact-status${windowClosed ? "" : " is-live"}`}>{windowClosed ? "Final" : "Live"}</span>
+                Released {sinceText(now - releasedAt)} ago · {windowClosed ? "first hour only" : "tracking the first hour"}
               </p>
               <dl className="news-impact-summary">
                 {heldResults.length ? (
@@ -256,6 +276,11 @@ export function NewsImpactSheet({
               {` ${currency}`} pairs can&apos;t be called in advance.
             </p>
           ) : (
+            <>
+            <h3 className="news-impact-section">
+              {releasedAt === null ? "Expected move" : windowClosed ? "First hour after release" : "Since release"}
+              <span>{pairs.length} pairs</span>
+            </h3>
             <ul className="news-impact-pairs">
               {pairs.map((instrument) => {
                 const position = held.get(instrument);
@@ -268,6 +293,7 @@ export function NewsImpactSheet({
                   <li key={instrument} className={position ? "is-held" : undefined}>
                     <Link href={`/chart?instrument=${instrument}`} onClick={onClose} className="news-impact-pair">
                       <span className="news-impact-pair-name">
+                        <PairAvatar instrument={instrument} size={22} horizontal />
                         {displayNameFor(instrument)}
                         {position ? (
                           <small className={`home-side is-${position}`}>{position === "long" ? "LONG" : "SHORT"}</small>
@@ -286,11 +312,19 @@ export function NewsImpactSheet({
                             </strong>
                           ) : null}
                           {actual ? (
-                            <span className={`news-impact-move${result !== null ? " is-plain" : ` is-${actual.sinceRelease >= 0 ? "up" : "down"}`}`}>
-                              Price {actual.sinceRelease >= 0 ? "▲ up" : "▼ down"} {Math.abs(actual.sinceRelease).toFixed(1)} pips
-                              {windowClosed ? " in 1st hour" : ""}
-                            </span>
-                          ) : <span>Loading…</span>}
+                            result !== null ? (
+                              <span className="news-impact-move is-plain">
+                                Price {actual.sinceRelease >= 0 ? "up" : "down"} {Math.abs(actual.sinceRelease).toFixed(1)} pips
+                              </span>
+                            ) : (
+                              // Not held: the pip move is the headline number.
+                              <span className={`news-impact-pips is-${actual.sinceRelease >= 0 ? "up" : "down"}`}>
+                                <DirectionIcon direction={actual.sinceRelease >= 0 ? "up" : "down"} />
+                                <span className="metric-number">{Math.abs(actual.sinceRelease).toFixed(1)}</span>
+                                <small>pips</small>
+                              </span>
+                            )
+                          ) : <span className="news-impact-loading">Loading…</span>}
                           <span className="news-impact-tags">
                             {move ? (
                               <span
@@ -300,20 +334,20 @@ export function NewsImpactSheet({
                               >
                                 Forecast {move}
                                 {actual && actual.sinceRelease !== 0
-                                  ? (actual.sinceRelease > 0) === (move === "up") ? " ✓ right" : " ✗ wrong"
+                                  ? (actual.sinceRelease > 0) === (move === "up") ? " ✓" : " ✗"
                                   : ""}
                               </span>
                             ) : <span className="news-impact-call">No forecast</span>}
                             {actual && actual.firstReaction !== null ? (
-                              <span className="news-impact-first">
-                                First {FIRST_REACTION_MINUTES} min: {signedPips(actual.firstReaction)} pips
+                              <span className="news-impact-first metric-number">
+                                {FIRST_REACTION_MINUTES}m {signedPips(actual.firstReaction)}
                               </span>
                             ) : null}
                           </span>
                         </span>
                       ) : (
                         <span className="news-impact-legs">
-                          {move ? <Arrow direction={move} /> : <span>No call</span>}
+                          {move ? <DirectionChip direction={move} /> : <span className="news-impact-dir">No call</span>}
                           {helpsByCall !== null ? (
                             <em className={helpsByCall ? "is-up" : "is-down"}>
                               {helpsByCall ? "Helps you" : "Hurts you"}
@@ -326,6 +360,7 @@ export function NewsImpactSheet({
                 );
               })}
             </ul>
+            </>
           )}
         </div>
       ) : null}

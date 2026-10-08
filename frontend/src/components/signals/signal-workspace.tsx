@@ -2301,7 +2301,8 @@ export function SignalWorkspace({
   const [dataNotice, setDataNotice] = useState<string | null>(
     initialStatus.state === "connected" ? null : initialStatus.message,
   );
-  const [loading, setLoading] = useState(false);
+  // Cover the plot from its first paint, before effects start data loading.
+  const [loading, setLoading] = useState(true);
   const chartLoadingVisible = loading || forceChartSkeleton;
   const [refreshingChart, setRefreshingChart] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -3723,7 +3724,11 @@ export function SignalWorkspace({
         seriesRef.current.granularity === TIMEFRAME_TO_GRANULARITY[timeframe] &&
         primarySeriesRange === range
       ) {
-        // Candles are already on screen; only the quote is missing.
+        // Reuse server candles, but reveal them only after the chart's initial
+        // sizing and range have settled. Only the quote needs a network read.
+        void settleChartLoad(Date.now()).then(() => {
+          if (!controller.signal.aborted) setLoading(false);
+        });
         void fetch(apiUrl(`/api/oanda/pricing?instruments=${instrument}`), {
           credentials: "include",
           signal: controller.signal,

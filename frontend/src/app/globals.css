@@ -3331,7 +3331,15 @@ html.mobile-sheet-open body {
     filter 360ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.chart-data-shell-loading > .setup-chart-root { opacity: 1; }
+.chart-data-shell-loading > .setup-chart-root { visibility: hidden; }
+
+/* Cover stale or not-yet-sized candles on the same paint that starts loading.
+   A delayed overlay fade-in otherwise flashes a preliminary chart first. */
+.chart-data-shell-loading > .chart-loading-overlay {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
 
 /* The mobile chart owns all touch gestures (see useChartTouchGestures), so the
    browser must not also pan, zoom, pull-to-refresh or back-navigate from a

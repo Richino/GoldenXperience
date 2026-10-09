@@ -2,8 +2,7 @@
 .header,.row { display: flex; align-items: center; gap: 12px; }
 .header { justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
 .header h2 { font-family: var(--font-display); font-size: 20px; font-weight: 650; margin: 0; }
-.header p,.meta,.metrics { color: var(--muted); font-size: 12px; line-height: 1.6; }
-.header p { margin: 4px 0 0; }
+.meta,.metrics { color: var(--muted); font-size: 12px; line-height: 1.6; }
 .refresh { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--border-strong); border-radius: 12px; padding: 9px 12px; font-size: 12px; flex-shrink: 0; }
 .refresh:disabled { opacity: .55; }
 .refresh:focus-visible,.chart:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
@@ -20,8 +19,7 @@
 .card summary { cursor: pointer; color: var(--muted-strong); }
 .card .context { border-top: 0; padding: 6px 0 0; }
 .rejected { padding: 10px 0; border-top: 1px solid var(--border); }
-.card footer { border-top: 1px solid var(--border); padding-top: 10px; margin-top: 10px; }
 .spin { animation: rotate 1s linear infinite; }
 @keyframes rotate { to { transform: rotate(360deg); } }
-@media(max-width:600px) { .card { padding: 17px; } .header { gap: 8px; } .header h2 { font-size: 18px; } .header p { font-size: 11px; } .refresh { padding: 8px; font-size: 11px; } .row { gap: 8px; } }
+@media(max-width:600px) { .card { padding: 17px; } .header { gap: 8px; } .header h2 { font-size: 18px; } .refresh { padding: 8px; font-size: 11px; } .row { gap: 8px; } }
 @media(prefers-reduced-motion:reduce) { .spin { animation: none; } }

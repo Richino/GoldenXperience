@@ -91,10 +91,9 @@ export function MorningPicksDisplay({ snapshot, busy = false, error = null, now,
   const caution = run?.pairs.filter(p => p.selection?.status === "CAUTION") ?? [];
   const rejected = run?.pairs.filter(p => p.selection?.status === "REJECTED") ?? [];
   return <section className={styles.card} aria-labelledby="morning-picks-title" aria-busy={busy || snapshot?.refreshing}>
-    <header className={styles.header}><div><h2 id="morning-picks-title">Morning Market Picks</h2><p>Best markets to watch for the New York morning session.</p></div>
+    <header className={styles.header}><div><h2 id="morning-picks-title">Morning Market Picks</h2></div>
       <button className={styles.refresh} onClick={onRefresh} disabled={busy || snapshot?.refreshing || closed || outside} aria-label="Refresh morning market picks"><RefreshCw size={16} aria-hidden="true" className={busy ? styles.spin : undefined} />{busy || snapshot?.refreshing ? "Scanning…" : "Refresh"}</button>
     </header>
-    <div className={styles.meta}>Normal · M15 / H1 · {run ? `Scanned ${clock(run.evaluatedAt)} ET` : "Weekdays from 6:30 AM ET, rechecked every 5 minutes until 11 AM."}</div>
     <div role="status">
       {error || snapshot?.lastAttempt?.status === "FAILED" ? <p className={styles.warning}>Morning scan unavailable. {error && error !== "Morning scan unavailable." ? error : snapshot?.lastAttempt?.error}</p> : null}
       {closed ? <p className={styles.warning}>Forex market closed. Saved picks are not currently tradable.</p> : outside ? <p>The morning scan window runs weekdays, 6:30–11 AM ET.</p> : null}
@@ -107,6 +106,5 @@ export function MorningPicksDisplay({ snapshot, busy = false, error = null, now,
       {caution.length ? <details><summary>{caution.length} caution candidates</summary>{caution.map(p => <PairRow key={p.instrument} pair={p} />)}</details> : null}
       {rejected.length ? <details><summary>{rejected.length} rejected or unavailable markets</summary>{rejected.map(p => <div className={styles.rejected} key={p.instrument}><strong>{displayNameFor(p.instrument)}</strong> · {p.selection!.dataFailure ? "Data unavailable" : "Rejected"}<p>{p.selection!.reasons.join(" ")}</p></div>)}</details> : null}
     </> : null}
-    <footer className={styles.meta}>Watchlist candidates for further review. Open a chart to inspect it and run Analyze.</footer>
   </section>;
 }

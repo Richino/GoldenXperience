@@ -1,0 +1,71 @@
+
+Analyze V2 replay · 365 days from 2025-10-09 · EUR_USD, GBP_USD, USD_JPY, AUD_USD, USD_CAD, USD_CHF, NZD_USD · bid/ask fills · no news filter · no commission/slippage
+NOTE: includes data seen before v2.1 was chosen (frozen 2026-10-09); v2.1 results here are in-sample, not evidence.
+
+== NORMAL funnel (v2.1): 168571 evaluations, 72552 trending (43.0%), 15361 confirmed triggers, 446 qualified
+   pullback states: NOT_APPLICABLE 96019, AT_ZONE 22064, NO_PULLBACK 21595, TRIGGERED 15361, DEVELOPING 7818, INVALIDATED 3089, EXPIRED 2625
+   first blocker: structure 95274, pullback 26859, trigger 20085, higher 12813, target 11423, data 1100, spread 337, stop 225, liquidity 6, reward-risk 3
+   confirmed triggers rejected by: target 14146, higher 2879, spread 2531, stop 263, data 57, liquidity 49, reward-risk 3
+
+NORMAL V2_1      all    446 tr  WR  28.5% (b/e 38%)  avg -0.252R ±0.111  gross -0.085R  PF 0.65  DD 120.8R  stop 72%  spread 17%R  hold 5.3h
+NORMAL V2_1      long   193 tr  WR  26.4% (b/e 38%)  avg -0.311R ±0.164  gross -0.140R  PF 0.58  DD 63.5R  stop 74%  spread 17%R  hold 6.2h
+NORMAL V2_1      short  253 tr  WR  30.0% (b/e 38%)  avg -0.208R ±0.150  gross -0.043R  PF 0.70  DD 65.5R  stop 70%  spread 17%R  hold 4.5h
+NORMAL V2_1      devel  242 tr  WR  28.5% (b/e 38%)  avg -0.255R ±0.150  gross -0.090R  PF 0.64  DD 66.8R  stop 71%  spread 17%R  hold 4.9h
+NORMAL V2_1      valid   97 tr  WR  17.5% (b/e 38%)  avg -0.536R ±0.202  gross -0.364R  PF 0.35  DD 52.0R  stop 82%  spread 17%R  hold 4.4h
+NORMAL V2_1      test   107 tr  WR  38.3% (b/e 38%)  avg +0.012R ±0.247  gross +0.181R  PF 1.02  DD 9.8R  stop 62%  spread 17%R  hold 6.8h
+NORMAL V2_1 sweep-confirmed      19 tr  WR  31.6% (b/e 39%)  avg -0.184R ±0.555  gross -0.018R  PF 0.73  DD 8.4R  stop 68%  spread 17%R  hold 2.5h
+NORMAL V2_1 EUR_USD             61 tr  WR  26.2% (b/e 38%)  avg -0.311R ±0.294  gross -0.134R  PF 0.58  DD 21.7R  stop 74%  spread 18%R  hold 7.2h
+NORMAL V2_1 GBP_USD             65 tr  WR  24.6% (b/e 39%)  avg -0.369R ±0.271  gross -0.198R  PF 0.51  DD 24.4R  stop 75%  spread 17%R  hold 4.4h
+NORMAL V2_1 USD_JPY             90 tr  WR  25.6% (b/e 38%)  avg -0.333R ±0.238  gross -0.183R  PF 0.55  DD 34.3R  stop 74%  spread 15%R  hold 2.2h
+NORMAL V2_1 AUD_USD             79 tr  WR  35.4% (b/e 36%)  avg -0.025R ±0.295  gross +0.136R  PF 0.96  DD 16.6R  stop 65%  spread 16%R  hold 5.2h
+NORMAL V2_1 USD_CAD             51 tr  WR  39.2% (b/e 39%)  avg +0.013R ±0.350  gross +0.196R  PF 1.02  DD 10.3R  stop 61%  spread 18%R  hold 9.5h
+NORMAL V2_1 USD_CHF             53 tr  WR  22.6% (b/e 39%)  avg -0.414R ±0.294  gross -0.246R  PF 0.46  DD 22.0R  stop 77%  spread 17%R  hold 5.1h
+NORMAL V2_1 NZD_USD             47 tr  WR  25.5% (b/e 39%)  avg -0.351R ±0.323  gross -0.170R  PF 0.53  DD 21.6R  stop 74%  spread 18%R  hold 5.4h
+
+NORMAL V2_0      all    501 tr  WR  27.7% (b/e 38%)  avg -0.271R ±0.104  gross -0.099R  PF 0.62  DD 141.8R  stop 72%  spread 17%R  hold 5.1h
+NORMAL V2_0      long   216 tr  WR  25.0% (b/e 38%)  avg -0.347R ±0.152  gross -0.170R  PF 0.54  DD 77.1R  stop 75%  spread 18%R  hold 6.2h
+NORMAL V2_0      short  285 tr  WR  29.8% (b/e 38%)  avg -0.214R ±0.141  gross -0.046R  PF 0.69  DD 71.9R  stop 70%  spread 17%R  hold 4.3h
+NORMAL V2_0      devel  268 tr  WR  27.6% (b/e 38%)  avg -0.277R ±0.141  gross -0.107R  PF 0.62  DD 78.3R  stop 72%  spread 17%R  hold 4.6h
+NORMAL V2_0      valid  112 tr  WR  17.0% (b/e 38%)  avg -0.550R ±0.186  gross -0.375R  PF 0.34  DD 61.6R  stop 83%  spread 17%R  hold 4.4h
+NORMAL V2_0      test   121 tr  WR  38.0% (b/e 38%)  avg -0.001R ±0.230  gross +0.174R  PF 1.00  DD 12.5R  stop 62%  spread 18%R  hold 6.8h
+
+NORMAL OLD       all   1501 tr  WR  30.9% (b/e 34%)  avg -0.088R ±0.069  gross -0.010R  PF 0.87  DD 190.5R  stop 69%  spread 8%R  hold 30.9h
+NORMAL OLD       long   741 tr  WR  31.3% (b/e 34%)  avg -0.081R ±0.099  gross -0.002R  PF 0.88  DD 94.2R  stop 69%  spread 8%R  hold 34.8h
+NORMAL OLD       short  760 tr  WR  30.5% (b/e 34%)  avg -0.094R ±0.097  gross -0.018R  PF 0.86  DD 109.8R  stop 69%  spread 8%R  hold 27.1h
+NORMAL OLD       devel  793 tr  WR  33.3% (b/e 34%)  avg -0.012R ±0.097  gross +0.063R  PF 0.98  DD 74.9R  stop 67%  spread 8%R  hold 29.5h
+NORMAL OLD       valid  370 tr  WR  25.9% (b/e 34%)  avg -0.233R ±0.132  gross -0.154R  PF 0.69  DD 112.1R  stop 74%  spread 8%R  hold 31.9h
+NORMAL OLD       test   338 tr  WR  30.8% (b/e 35%)  avg -0.107R ±0.144  gross -0.025R  PF 0.85  DD 48.0R  stop 69%  spread 8%R  hold 33.3h
+
+== SWING funnel (v2.1): 10567 evaluations, 5170 trending (48.9%), 867 confirmed triggers, 52 qualified
+   pullback states: NOT_APPLICABLE 5397, AT_ZONE 1700, NO_PULLBACK 1652, TRIGGERED 867, DEVELOPING 526, EXPIRED 246, INVALIDATED 179
+   first blocker: structure 5397, pullback 1846, trigger 1474, higher 1179, target 608, stop 9, spread 1, liquidity 1
+   confirmed triggers rejected by: target 788, higher 196, stop 10, spread 4, liquidity 2
+
+SWING V2_1      all     52 tr  WR  17.3% (b/e 35%)  avg -0.507R ±0.297  gross -0.416R  PF 0.39  DD 27.1R  stop 83%  spread 9%R  hold 33.1h
+SWING V2_1      long    24 tr  WR  16.7% (b/e 35%)  avg -0.517R ±0.443  gross -0.410R  PF 0.38  DD 12.4R  stop 83%  spread 11%R  hold 29.2h
+SWING V2_1      short   28 tr  WR  17.9% (b/e 36%)  avg -0.498R ±0.407  gross -0.421R  PF 0.39  DD 15.5R  stop 82%  spread 8%R  hold 36.4h
+SWING V2_1      devel   23 tr  WR  17.4% (b/e 38%)  avg -0.537R ±0.422  gross -0.472R  PF 0.35  DD 13.6R  stop 83%  spread 6%R  hold 49.0h
+SWING V2_1      valid   11 tr  WR  18.2% (b/e 33%)  avg -0.448R ±0.726  gross -0.352R  PF 0.45  DD 7.1R  stop 82%  spread 10%R  hold 21.7h
+SWING V2_1      test    18 tr  WR  16.7% (b/e 34%)  avg -0.505R ±0.527  gross -0.383R  PF 0.39  DD 9.1R  stop 83%  spread 12%R  hold 19.8h
+SWING V2_1 sweep-confirmed       1 tr  WR   0.0%  avg -1.000R  gross -0.905R  PF 0.00  DD 1.0R  stop 100%  spread 10%R  hold 9.3h
+SWING V2_1 EUR_USD             10 tr  WR  20.0% (b/e 36%)  avg -0.441R ±0.732  gross -0.366R  PF 0.45  DD 6.4R  stop 80%  spread 8%R  hold 34.7h
+SWING V2_1 GBP_USD              9 tr  WR  22.2% (b/e 38%)  avg -0.410R ±0.766  gross -0.328R  PF 0.47  DD 5.5R  stop 78%  spread 8%R  hold 39.4h
+SWING V2_1 USD_JPY              9 tr  WR  11.1% (b/e 36%)  avg -0.692R ±0.604  gross -0.632R  PF 0.22  DD 6.2R  stop 89%  spread 6%R  hold 27.1h
+SWING V2_1 AUD_USD              7 tr  WR  14.3% (b/e 36%)  avg -0.608R ±0.769  gross -0.521R  PF 0.29  DD 6.0R  stop 86%  spread 9%R  hold 65.0h
+SWING V2_1 USD_CAD              5 tr  WR   0.0%  avg -1.000R ±0.000  gross -0.858R  PF 0.00  DD 5.0R  stop 100%  spread 14%R  hold 9.4h
+SWING V2_1 USD_CHF              5 tr  WR  20.0% (b/e 34%)  avg -0.413R ±1.150  gross -0.316R  PF 0.48  DD 2.1R  stop 80%  spread 10%R  hold 26.8h
+SWING V2_1 NZD_USD              7 tr  WR  28.6% (b/e 32%)  avg -0.103R ±1.135  gross +0.025R  PF 0.86  DD 3.0R  stop 71%  spread 13%R  hold 19.9h
+
+SWING V2_0      all     61 tr  WR  18.0% (b/e 36%)  avg -0.499R ±0.272  gross -0.412R  PF 0.39  DD 31.6R  stop 82%  spread 9%R  hold 37.3h
+SWING V2_0      long    29 tr  WR  20.7% (b/e 35%)  avg -0.412R ±0.428  gross -0.309R  PF 0.48  DD 12.0R  stop 79%  spread 10%R  hold 32.3h
+SWING V2_0      short   32 tr  WR  15.6% (b/e 37%)  avg -0.578R ±0.348  gross -0.505R  PF 0.32  DD 20.5R  stop 84%  spread 7%R  hold 41.8h
+SWING V2_0      devel   29 tr  WR  20.7% (b/e 38%)  avg -0.462R ±0.391  gross -0.401R  PF 0.42  DD 15.2R  stop 79%  spread 6%R  hold 51.8h
+SWING V2_0      valid   13 tr  WR  15.4% (b/e 33%)  avg -0.533R ±0.620  gross -0.443R  PF 0.37  DD 9.1R  stop 85%  spread 9%R  hold 31.1h
+SWING V2_0      test    19 tr  WR  15.8% (b/e 34%)  avg -0.531R ±0.501  gross -0.407R  PF 0.37  DD 10.1R  stop 84%  spread 12%R  hold 19.2h
+
+SWING OLD       all    224 tr  WR  34.8% (b/e 35%)  avg +0.001R ±0.182  gross +0.026R  PF 1.00  DD 32.4R  stop 65%  spread 3%R  hold 201.9h
+SWING OLD       long   110 tr  WR  34.5% (b/e 34%)  avg +0.009R ±0.263  gross +0.035R  PF 1.01  DD 14.0R  stop 65%  spread 3%R  hold 207.3h
+SWING OLD       short  114 tr  WR  35.1% (b/e 36%)  avg -0.008R ±0.254  gross +0.018R  PF 0.99  DD 22.5R  stop 64%  spread 3%R  hold 196.6h
+SWING OLD       devel  125 tr  WR  28.0% (b/e 33%)  avg -0.164R ±0.236  gross -0.138R  PF 0.77  DD 32.4R  stop 72%  spread 3%R  hold 178.8h
+SWING OLD       valid   45 tr  WR  31.1% (b/e 33%)  avg -0.069R ±0.409  gross -0.045R  PF 0.90  DD 12.0R  stop 69%  spread 2%R  hold 292.6h
+SWING OLD       test    54 tr  WR  53.7% (b/e 38%)  avg +0.438R ±0.378  gross +0.465R  PF 1.97  DD 11.0R  stop 44%  spread 3%R  hold 179.5h

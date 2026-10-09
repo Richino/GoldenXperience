@@ -26,7 +26,6 @@ import { RelativeTime } from "@/components/dashboard/relative-time";
 import type { HomeCurrentPosition } from "@/components/dashboard/home-rail";
 import { TopPairSearch } from "@/components/layout/top-pair-search";
 import { NotificationBell } from "@/components/notifications/notification-bell";
-import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { formatEtClock, formatShortDay, tradingDayKey } from "@/lib/format/datetime";
 import type { HomeActivityItem } from "@/lib/home/idle";
@@ -36,7 +35,7 @@ import { useEconomicCalendar } from "@/lib/oanda/use-economic-calendar";
 import { pendingLevelPrice, pendingStatusLabel, pendingTimingNote } from "@/lib/pending-entry/plain-language";
 import { getMarketCondition } from "@/lib/strategy/session";
 import { useScrolledPast } from "@/lib/use-scrolled-past";
-import type { AccountBalanceHistoryPoint, AccountSummary, CandleSeries } from "@/types/forex";
+import type { AccountBalanceHistoryPoint, AccountSummary } from "@/types/forex";
 import type { PendingManualEntry } from "@/types/pending-entry";
 
 /* ------------------------------------------------------------------ types */
@@ -82,8 +81,6 @@ export type LedgerToday = {
   /** R of each trade closed today, oldest first, for the bar strip. */
   results: number[];
 };
-
-export type LedgerTicker = { instrument: string; mid: number | null };
 
 /* ---------------------------------------------------------------- helpers */
 
@@ -226,64 +223,6 @@ function LedgerMobileHeader({ greeting }: { greeting: string }) {
       </div>
       <NotificationBell compact className="nl-bell" />
     </header>
-  );
-}
-
-/* ------------------------------------------------------------- ticker */
-
-/**
- * Prices across the top. Daily change comes from the last two daily candles,
- * fetched once per pair; the price itself follows the live quote.
- */
-function LedgerTickerStrip({ tickers }: { tickers: LedgerTicker[] }) {
-  const [changes, setChanges] = useState<Record<string, number | null>>({});
-  const key = tickers.map((ticker) => ticker.instrument).join(",");
-
-  useEffect(() => {
-    let cancelled = false;
-    const instruments = key ? key.split(",") : [];
-    void Promise.all(
-      instruments.map(async (instrument) => {
-        try {
-          const response = await fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=D&count=2`), {
-            credentials: "include",
-            cache: "no-store",
-          });
-          const payload = (await response.json()) as { data?: CandleSeries };
-          const current = payload.data?.candles.at(-1);
-          const previous = payload.data?.candles.at(-2);
-          return [instrument, current && previous ? ((current.close - previous.close) / previous.close) * 100 : null] as const;
-        } catch {
-          return [instrument, null] as const;
-        }
-      }),
-    ).then((entries) => {
-      if (!cancelled) setChanges(Object.fromEntries(entries));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [key]);
-
-  if (!tickers.length) return null;
-  return (
-    <div className="nl-ticker" aria-label="Prices">
-      {tickers.map((ticker) => {
-        const change = changes[ticker.instrument] ?? null;
-        return (
-          <Link key={ticker.instrument} href={`/chart?instrument=${ticker.instrument}`} className="nl-ticker-item">
-            <span className="nl-ticker-pair">{displayNameFor(ticker.instrument)}</span>
-            <span className="metric-number">{ticker.mid === null ? "—" : formatChartPrice(ticker.mid, ticker.instrument)}</span>
-            {change !== null ? (
-              <span className={`metric-number ${tone(change, 0.0005)}`}>
-                {change >= 0 ? "+" : "−"}
-                {Math.abs(change).toFixed(2)}%
-              </span>
-            ) : null}
-          </Link>
-        );
-      })}
-    </div>
   );
 }
 
@@ -766,7 +705,6 @@ export function LedgerHome({
   openPL,
   openRisk,
   greeting,
-  tickers,
   positions,
   setups,
   newsPositions,
@@ -785,7 +723,6 @@ export function LedgerHome({
   openPL: number;
   openRisk: number | null;
   greeting: string;
-  tickers: LedgerTicker[];
   positions: LedgerPosition[];
   setups: LedgerSetup[];
   newsPositions: HomeCurrentPosition[];
@@ -808,7 +745,6 @@ export function LedgerHome({
   return (
     <div className="nl-home">
       <LedgerHeader dateLabel={dateLabel} greeting={greeting} />
-      <LedgerTickerStrip tickers={tickers} />
       <div className="nl-home-body">
         <LedgerMobileHeader greeting={greeting} />
         <LedgerHero account={account} history={history} todayKey={todayKey} openPL={openPL} openRisk={openRisk} />
@@ -818,17 +754,17 @@ export function LedgerHome({
             <MorningMarketPicks initial={morningPicks} />
             <LedgerPositions positions={positions} currency={account.currency} />
             <LedgerSetups setups={setups} />
-            <LedgerActivity items={activity} currency={account.currency} />
-          </div>
-          <aside className="nl-home-aside" aria-label="Today and upcoming">
-            <LedgerTodayCard today={today} currency={account.currency} />
-            <LedgerNews positions={newsPositions} />
             <LedgerPending
               entries={pending}
               cancellingId={cancellingPendingId}
               error={pendingError}
               onCancel={onCancelPending}
             />
+            <LedgerActivity items={activity} currency={account.currency} />
+          </div>
+          <aside className="nl-home-aside" aria-label="Today and upcoming">
+            <LedgerTodayCard today={today} currency={account.currency} />
+            <LedgerNews positions={newsPositions} />
           </aside>
         </div>
       </div>

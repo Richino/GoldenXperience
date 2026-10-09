@@ -14,6 +14,12 @@
       "port": 8787
     },
     {
+      "name": "api-server-readonly",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "set ENABLE_SCHEDULERS=false&& npm --workspace api-server run dev"],
+      "port": 8787
+    },
+    {
       "name": "gx-mobile-web",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["expo", "start", "--web", "--port", "8082"],

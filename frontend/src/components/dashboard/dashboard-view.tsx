@@ -6,7 +6,6 @@ import {
   LedgerHome,
   type LedgerPosition,
   type LedgerSetup,
-  type LedgerTicker,
   type LedgerToday,
 } from "@/components/dashboard/ledger-home";
 import { PendingCancelConfirmation } from "@/components/dashboard/pending-cancel-confirmation";
@@ -517,14 +516,6 @@ export function DashboardView({
     decisionTime: row.decisionTime,
   }));
 
-  // The ticker follows the pairs the backend evaluates, priced off the stream.
-  const tickers: LedgerTicker[] = watchlist.slice(0, 10).map((row) => {
-    const live = quotes[row.instrument];
-    const bid = live?.bid ?? row.bid;
-    const ask = live?.ask ?? row.ask;
-    return { instrument: row.instrument, mid: bid != null && ask != null ? (bid + ask) / 2 : (bid ?? ask ?? null) };
-  });
-
   const recentActivity = recentActivityFromTrades(journalTrades, 10);
   const todayFromList = todayClosedStats(journalTrades, todayKey);
   // The API summary is authoritative when present; the list-derived figures are
@@ -568,7 +559,6 @@ export function DashboardView({
         openPL={heroOpenPL}
         openRisk={openRisk}
         greeting={greeting}
-        tickers={tickers}
         positions={ledgerPositions}
         setups={ledgerSetups}
         newsPositions={currentPositions}

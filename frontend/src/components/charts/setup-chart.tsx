@@ -77,7 +77,7 @@ import {
   formatTradingZoneMonth,
   formatTradingZoneYear,
 } from "@/lib/format/datetime";
-import { pipSizeFor } from "@/lib/instruments/catalog";
+import { pipSizeFor, precisionFor } from "@/lib/instruments/catalog";
 import { chartColors } from "@/lib/theme/chart-colors";
 import type { BinaryPrediction } from "@/types/binary";
 import type { Candle, CandleSeries, PaperChartTrade } from "@/types/forex";
@@ -179,6 +179,20 @@ export function createFixedTenPipSetup(
     fromLogical: left,
     toLogical: right,
   };
+}
+
+/**
+ * Draft stop / target for an open trade, dragged on the chart before it is
+ * saved. A null level has no line.
+ */
+export interface ChartLevelEdit {
+  instrument: string;
+  direction: "long" | "short";
+  entry: number;
+  stop: number | null;
+  target: number | null;
+  /** The price the trade would close at now; a level past it is invalid. */
+  exitPrice: number | null;
 }
 
 /** A single externally focused price, such as an active binary prediction entry. */
@@ -660,6 +674,180 @@ function PositionToolOverlay({
           <span>Entry</span>
         </button>
       </div>
+    </div>
+  );
+}
+
+type EditLevelKey = "stop" | "target";
+const EDIT_LEVEL_KEYS: EditLevelKey[] = ["stop", "target"];
+
+/** Whether a draft level sits on the wrong side of the closing price. */
+export function chartLevelInvalid(edit: ChartLevelEdit, key: EditLevelKey) {
+  const price = edit[key];
+  if (price === null || edit.exitPrice === null) return false;
+  const below = price < edit.exitPrice;
+  const long = edit.direction === "long";
+  return key === "stop" ? (long ? !below : below) : (long ? below : !below);
+}
+
+/**
+ * The stop and target of an open trade as full-width lines with a handle by
+ * the price axis: drag either one to a new price. A line past the visible
+ * range pins to the edge so it can always be grabbed back.
+ */
+function LevelEditOverlay({
+  chartRef,
+  mainSeriesRef,
+  chartEpoch,
+  edit,
+  onChange,
+}: {
+  chartRef: { current: IChartApi | null };
+  mainSeriesRef: { current: ISeriesApi<SeriesType> | null };
+  chartEpoch: number;
+  edit: ChartLevelEdit;
+  onChange: (next: ChartLevelEdit) => void;
+}) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const lineRefs = useRef<Record<EditLevelKey, HTMLDivElement | null>>({ stop: null, target: null });
+  const editRef = useRef(edit);
+  const onChangeRef = useRef(onChange);
+  const dragRef = useRef<EditLevelKey | null>(null);
+  useLayoutEffect(() => {
+    editRef.current = edit;
+    onChangeRef.current = onChange;
+  }, [edit, onChange]);
+
+  const paint = useCallback(() => {
+    const chart = chartRef.current;
+    const series = liveSeries(mainSeriesRef.current);
+    const root = rootRef.current;
+    if (!chart || !series || !root) return;
+    let axisWidth = 0;
+    let timeHeight = 0;
+    try {
+      axisWidth = chart.priceScale("right").width();
+      timeHeight = chart.timeScale().height();
+    } catch (error) {
+      if (isRemovedChartError(error)) return;
+      throw error;
+    }
+    const bottom = root.clientHeight - timeHeight;
+    for (const key of EDIT_LEVEL_KEYS) {
+      const line = lineRefs.current[key];
+      const price = editRef.current[key];
+      if (!line || price === null) continue;
+      let y: number | null;
+      try {
+        y = series.priceToCoordinate(price);
+      } catch (error) {
+        if (isRemovedChartError(error)) return;
+        throw error;
+      }
+      // Off the scale entirely: pin to whichever edge the price lies past.
+      const range = chart.priceScale("right").getVisibleRange();
+      const raw = y ?? (range && price > range.to ? -Infinity : Infinity);
+      const pinned = Math.min(Math.max(raw, 12), bottom - 12);
+      line.style.transform = `translateY(${Math.round(pinned)}px)`;
+      line.style.right = `${axisWidth}px`;
+      line.classList.toggle("is-pinned", pinned !== raw);
+    }
+  }, [chartRef, mainSeriesRef]);
+
+  useEffect(() => {
+    paint();
+    const chart = chartRef.current;
+    if (!chart) return;
+    const onView = () => paint();
+    chart.timeScale().subscribeVisibleLogicalRangeChange(onView);
+    chart.subscribeCrosshairMove(onView);
+    const root = rootRef.current;
+    const resizeObserver = root ? new ResizeObserver(onView) : null;
+    if (root) resizeObserver?.observe(root);
+    return () => {
+      chart.timeScale().unsubscribeVisibleLogicalRangeChange(onView);
+      chart.unsubscribeCrosshairMove(onView);
+      resizeObserver?.disconnect();
+    };
+  }, [chartEpoch, chartRef, paint]);
+
+  useLayoutEffect(() => {
+    paint();
+  }, [paint, edit.stop, edit.target]);
+
+  useEffect(() => {
+    const onMove = (event: PointerEvent) => {
+      const key = dragRef.current;
+      const series = liveSeries(mainSeriesRef.current);
+      const root = rootRef.current;
+      if (!key || !series || !root) return;
+      event.preventDefault();
+      const price = series.coordinateToPrice(event.clientY - root.getBoundingClientRect().top);
+      if (price === null || !Number.isFinite(price) || price <= 0) return;
+      const next = { ...editRef.current, [key]: Number(price.toFixed(precisionFor(editRef.current.instrument))) };
+      editRef.current = next;
+      onChangeRef.current(next);
+      paint();
+    };
+    const onUp = () => {
+      if (!dragRef.current) return;
+      dragRef.current = null;
+      document.body.classList.remove("is-dragging-position-tool");
+    };
+    window.addEventListener("pointermove", onMove, { passive: false });
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      document.body.classList.remove("is-dragging-position-tool");
+    };
+  }, [mainSeriesRef, paint]);
+
+  const beginDrag = (key: EditLevelKey) => (event: ReactPointerEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Capture is best-effort; window listeners still drive the drag.
+    }
+    dragRef.current = key;
+    document.body.classList.add("is-dragging-position-tool");
+  };
+
+  const pip = pipSizeFor(edit.instrument);
+  // R only means something while the stop is on the losing side of entry.
+  const risk = edit.stop === null ? null : edit.direction === "long" ? edit.entry - edit.stop : edit.stop - edit.entry;
+  const label = (key: EditLevelKey, price: number) => {
+    const fromEntry = (edit.direction === "long" ? price - edit.entry : edit.entry - price) / pip;
+    const pips = `${fromEntry >= 0 ? "+" : "−"}${Math.abs(fromEntry).toFixed(1)}p`;
+    const reward = key === "target" && risk !== null && risk > 0 ? ` · ${(Math.abs(price - edit.entry) / risk).toFixed(1)}R` : "";
+    return `${key === "stop" ? "SL" : "TP"} ${formatChartPrice(price, edit.instrument)} · ${pips}${reward}`;
+  };
+
+  return (
+    <div ref={rootRef} className="setup-chart-level-edit">
+      {EDIT_LEVEL_KEYS.map((key) => {
+        const price = edit[key];
+        if (price === null) return null;
+        return (
+          <div
+            key={key}
+            ref={(node) => {
+              lineRefs.current[key] = node;
+            }}
+            className={`setup-chart-level-edit-line is-${key}${chartLevelInvalid(edit, key) ? " is-invalid" : ""}`}
+            onPointerDown={beginDrag(key)}
+          >
+            <span className="setup-chart-level-edit-handle metric-number">
+              <i aria-hidden="true" />
+              {label(key, price)}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1429,6 +1617,8 @@ export function SetupChart({
   positionTool = null,
   onPositionToolChange,
   onPositionToolSubmit,
+  levelEdit = null,
+  onLevelEditChange,
 }: {
   series: CandleSeries;
   levels: SetupLevels | null;
@@ -1460,6 +1650,9 @@ export function SetupChart({
   positionTool?: ChartPositionTool | null;
   onPositionToolChange?: (next: ChartPositionTool | null) => void;
   onPositionToolSubmit?: (tool: ChartPositionTool) => void;
+  /** Draggable stop / target lines for an open trade. */
+  levelEdit?: ChartLevelEdit | null;
+  onLevelEditChange?: (next: ChartLevelEdit) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -1832,7 +2025,7 @@ export function SetupChart({
       priceLineVisible: false,
       lastValueVisible: false,
       crosshairMarkerVisible: false,
-      pointMarkersVisible: true,
+      pointMarkersVisible: false,
       priceFormat,
     });
     const initialCandleTimes = chartTimesOf(chartData);
@@ -2394,7 +2587,7 @@ export function SetupChart({
           trades ?? [],
           focusTradeId,
           palette,
-        );
+        ).filter((marker) => !marker.id?.startsWith("entry:"));
     const markerOutlines = markers.map((marker) => ({
       ...marker,
       id: marker.id ? `outline:${marker.id}` : undefined,
@@ -2450,6 +2643,23 @@ export function SetupChart({
       throw error;
     }
   }, [chartEpoch, downColor, focusPrediction, focusTradeId, isDark, lossPathColor, series.candles, showTradeMarkers, showTradePath, surfaceColor, trades, upColor, winPathColor]);
+
+  useEffect(() => {
+    const mainSeries = liveSeries(mainSeriesRef.current);
+    const trade = trades?.find((item) => item.id === focusTradeId);
+    if (!mainSeries || !trade || !showTradeMarkers || focusPrediction) return;
+    const line = mainSeries.createPriceLine({
+      price: trade.entry,
+      color: trade.direction === "long" ? (isDark ? "#60a5fa" : "#2563eb") : (isDark ? "#e879f9" : "#a21caf"),
+      lineWidth: 2,
+      lineStyle: LineStyle.Dashed,
+      axisLabelVisible: true,
+      title: "",
+    });
+    return () => {
+      if (liveSeries(mainSeriesRef.current) === mainSeries) mainSeries.removePriceLine(line);
+    };
+  }, [chartEpoch, focusPrediction, focusTradeId, isDark, showTradeMarkers, trades]);
 
   useEffect(() => {
     const mainSeries = liveSeries(mainSeriesRef.current);
@@ -2658,7 +2868,13 @@ export function SetupChart({
   // their positions are re-read each frame and only written back to React when
   // something actually moved.
   useEffect(() => {
+    const entryTrade = showTradeMarkers && !focusPrediction ? trades?.find((trade) => trade.id === focusTradeId) : null;
     const tags = [
+      ...(entryTrade ? [{
+        key: "focused-trade-entry", label: "ENTRY", price: entryTrade.entry,
+        color: entryTrade.direction === "long" ? (isDark ? "#60a5fa" : "#2563eb") : (isDark ? "#e879f9" : "#a21caf"),
+        textColor: isDark ? "#090a08" : "#ffffff", dashed: true,
+      }] : []),
       ...overlayLevelTags(
         levels,
         referenceLine,
@@ -2732,7 +2948,7 @@ export function SetupChart({
     return () => cancelAnimationFrame(frame);
     // overlayTagFingerprint stands in for levels + referenceLine field values.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chartEpoch, isDark, overlayTagFingerprint]);
+  }, [chartEpoch, isDark, overlayTagFingerprint, showTradeMarkers, focusPrediction, focusTradeId, trades]);
 
   // Positions are written straight to the DOM — React setState lagged a frame
   // behind the canvas whenever the user panned.
@@ -2798,6 +3014,43 @@ export function SetupChart({
       resizeObserver?.disconnect();
     };
   }, [chartEpoch, showBeacon]);
+
+  // Desktop: keep the crosshair under the pointer while dragging to pan. The
+  // library sometimes drops crosshair updates during pressedMouseMove; syncing
+  // from pointer events keeps OHLC overlays and the cursor aligned.
+  useEffect(() => {
+    if (embedded) return;
+    const container = containerRef.current;
+    const chart = chartRef.current;
+    if (!container || !chart) return;
+
+    const syncCrosshair = (event: PointerEvent) => {
+      const series = liveSeries(mainSeriesRef.current);
+      if (!series) return;
+      const rect = container.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      if (x < 0 || y < 0 || x > rect.width || y > rect.height) return;
+      const time = chart.timeScale().coordinateToTime(x);
+      const price = series.coordinateToPrice(y);
+      if (time !== null && price !== null) {
+        chart.setCrosshairPosition(price, time, series);
+      }
+    };
+
+    const clearCrosshair = () => {
+      chart.clearCrosshairPosition();
+    };
+
+    container.addEventListener("pointermove", syncCrosshair);
+    container.addEventListener("pointerdown", syncCrosshair);
+    container.addEventListener("pointerleave", clearCrosshair);
+    return () => {
+      container.removeEventListener("pointermove", syncCrosshair);
+      container.removeEventListener("pointerdown", syncCrosshair);
+      container.removeEventListener("pointerleave", clearCrosshair);
+    };
+  }, [chartEpoch, embedded]);
 
   // Mobile supports history panning and X-axis pinch scaling. Desktop input is
   // untouched. Re-binds to the freshly built chart via `chartEpoch`.
@@ -2909,6 +3162,15 @@ export function SetupChart({
           onChange={onPositionToolChange}
           onClear={() => onPositionToolChange(null)}
           onSubmit={onPositionToolSubmit}
+        />
+      ) : null}
+      {levelEdit && onLevelEditChange ? (
+        <LevelEditOverlay
+          chartRef={chartRef}
+          mainSeriesRef={mainSeriesRef}
+          chartEpoch={chartEpoch}
+          edit={levelEdit}
+          onChange={onLevelEditChange}
         />
       ) : null}
       <ChartPriceScaleRail

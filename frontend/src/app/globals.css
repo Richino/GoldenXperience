@@ -154,8 +154,10 @@
 .brand-mark-sidebar {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 0.35rem;
   padding: 0;
+  color: inherit;
 }
 
 .brand-gx {

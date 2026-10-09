@@ -1,0 +1,284 @@
+{
+  "name": "TREND_PULLBACK_BASELINE",
+  "period": [
+    "2008-01-01T00:00:00.000Z",
+    "2024-01-01T00:00:00.000Z"
+  ],
+  "stats": {
+    "decisions": 24039,
+    "plans": 24039,
+    "market": 1053,
+    "limitPlaced": 22986,
+    "noFill": 17041,
+    "cancelledAtTarget": 12263
+  },
+  "summary": {
+    "n": 6995,
+    "wins": 2487,
+    "losses": 4508,
+    "winPct": 35.6,
+    "avgWin": 1.611,
+    "avgLoss": -1.011,
+    "expR": -0.0787,
+    "pf": 0.879,
+    "totalR": -550.2,
+    "maxDD": 596.2,
+    "maxLoseStreak": 18,
+    "perYear": 437.2,
+    "ci95lo": -0.1089,
+    "tstat": -5.1
+  },
+  "exits": {
+    "SL": 4508,
+    "TP": 2486,
+    "time": 1
+  },
+  "medianRiskPips": 23.3,
+  "medianSpreadPips": 1.3,
+  "medianHoldH": 4.1,
+  "byYear": [
+    {
+      "year": 2008,
+      "n": 445,
+      "winPct": 40,
+      "expR": 0.0673,
+      "totalR": 29.9,
+      "pf": 1.111,
+      "maxDD": 16.2
+    },
+    {
+      "year": 2009,
+      "n": 440,
+      "winPct": 30.2,
+      "expR": -0.1936,
+      "totalR": -85.2,
+      "pf": 0.724,
+      "maxDD": 94.7
+    },
+    {
+      "year": 2010,
+      "n": 447,
+      "winPct": 37.8,
+      "expR": -0.0029,
+      "totalR": -1.3,
+      "pf": 0.995,
+      "maxDD": 33.8
+    },
+    {
+      "year": 2011,
+      "n": 495,
+      "winPct": 33.3,
+      "expR": -0.115,
+      "totalR": -56.9,
+      "pf": 0.829,
+      "maxDD": 72.8
+    },
+    {
+      "year": 2012,
+      "n": 483,
+      "winPct": 35.6,
+      "expR": -0.0716,
+      "totalR": -34.6,
+      "pf": 0.89,
+      "maxDD": 43.5
+    },
+    {
+      "year": 2013,
+      "n": 425,
+      "winPct": 32,
+      "expR": -0.1783,
+      "totalR": -75.8,
+      "pf": 0.743,
+      "maxDD": 76.3
+    },
+    {
+      "year": 2014,
+      "n": 449,
+      "winPct": 36.1,
+      "expR": -0.0992,
+      "totalR": -44.6,
+      "pf": 0.847,
+      "maxDD": 51
+    },
+    {
+      "year": 2015,
+      "n": 401,
+      "winPct": 36.7,
+      "expR": -0.0565,
+      "totalR": -22.6,
+      "pf": 0.912,
+      "maxDD": 30.8
+    },
+    {
+      "year": 2016,
+      "n": 395,
+      "winPct": 35.2,
+      "expR": -0.0936,
+      "totalR": -37,
+      "pf": 0.857,
+      "maxDD": 44.7
+    },
+    {
+      "year": 2017,
+      "n": 438,
+      "winPct": 34.7,
+      "expR": -0.1349,
+      "totalR": -59.1,
+      "pf": 0.796,
+      "maxDD": 70.8
+    },
+    {
+      "year": 2018,
+      "n": 449,
+      "winPct": 33.4,
+      "expR": -0.1036,
+      "totalR": -46.5,
+      "pf": 0.846,
+      "maxDD": 66
+    },
+    {
+      "year": 2019,
+      "n": 418,
+      "winPct": 36.6,
+      "expR": -0.0686,
+      "totalR": -28.7,
+      "pf": 0.893,
+      "maxDD": 46.5
+    },
+    {
+      "year": 2020,
+      "n": 410,
+      "winPct": 40.7,
+      "expR": 0.0572,
+      "totalR": 23.4,
+      "pf": 1.095,
+      "maxDD": 25.4
+    },
+    {
+      "year": 2021,
+      "n": 408,
+      "winPct": 35.3,
+      "expR": -0.1061,
+      "totalR": -43.3,
+      "pf": 0.838,
+      "maxDD": 57.2
+    },
+    {
+      "year": 2022,
+      "n": 451,
+      "winPct": 35.5,
+      "expR": -0.0772,
+      "totalR": -34.8,
+      "pf": 0.882,
+      "maxDD": 55.1
+    },
+    {
+      "year": 2023,
+      "n": 441,
+      "winPct": 36.3,
+      "expR": -0.0754,
+      "totalR": -33.3,
+      "pf": 0.883,
+      "maxDD": 48.8
+    }
+  ],
+  "splits": {
+    "withTrend": {
+      "n": 5220,
+      "wins": 1632,
+      "losses": 3588,
+      "winPct": 31.3,
+      "avgWin": 1.95,
+      "avgLoss": -1.011,
+      "expR": -0.0852,
+      "pf": 0.877,
+      "totalR": -444.5,
+      "maxDD": 494.5,
+      "maxLoseStreak": 20,
+      "perYear": 326.5,
+      "ci95lo": -0.1225,
+      "tstat": -4.47
+    },
+    "counterTrend": {
+      "n": 1775,
+      "wins": 855,
+      "losses": 920,
+      "winPct": 48.2,
+      "avgWin": 0.963,
+      "avgLoss": -1.01,
+      "expR": -0.0595,
+      "pf": 0.886,
+      "totalR": -105.6,
+      "maxDD": 117.2,
+      "maxLoseStreak": 10,
+      "perYear": 111,
+      "ci95lo": -0.1056,
+      "tstat": -2.53
+    },
+    "market": {
+      "n": 1052,
+      "wins": 426,
+      "losses": 626,
+      "winPct": 40.5,
+      "avgWin": 1.351,
+      "avgLoss": -1.012,
+      "expR": -0.055,
+      "pf": 0.909,
+      "totalR": -57.9,
+      "maxDD": 73.1,
+      "maxLoseStreak": 12,
+      "perYear": 65.8,
+      "ci95lo": -0.1274,
+      "tstat": -1.49
+    },
+    "limit": {
+      "n": 5943,
+      "wins": 2061,
+      "losses": 3882,
+      "winPct": 34.7,
+      "avgWin": 1.665,
+      "avgLoss": -1.011,
+      "expR": -0.0828,
+      "pf": 0.875,
+      "totalR": -492.3,
+      "maxDD": 535.9,
+      "maxLoseStreak": 24,
+      "perYear": 371.7,
+      "ci95lo": -0.116,
+      "tstat": -4.89
+    },
+    "long": {
+      "n": 3565,
+      "wins": 1292,
+      "losses": 2273,
+      "winPct": 36.2,
+      "avgWin": 1.586,
+      "avgLoss": -1.012,
+      "expR": -0.0702,
+      "pf": 0.891,
+      "totalR": -250.1,
+      "maxDD": 289.1,
+      "maxLoseStreak": 16,
+      "perYear": 223,
+      "ci95lo": -0.1123,
+      "tstat": -3.26
+    },
+    "short": {
+      "n": 3430,
+      "wins": 1195,
+      "losses": 2235,
+      "winPct": 34.8,
+      "avgWin": 1.637,
+      "avgLoss": -1.01,
+      "expR": -0.0875,
+      "pf": 0.867,
+      "totalR": -300.1,
+      "maxDD": 321.4,
+      "maxLoseStreak": 14,
+      "perYear": 214.5,
+      "ci95lo": -0.1308,
+      "tstat": -3.96
+    }
+  },
+  "runtimeSec": 26.915
+}

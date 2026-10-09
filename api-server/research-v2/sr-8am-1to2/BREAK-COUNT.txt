@@ -1,0 +1,47 @@
+EUR/USD — what price does at FROZEN app S/R lines, 08:00–12:00 New York (3493 weekdays, 2013 → 2026-09)
+Lines: production computeSupportResistanceLevels at 08:00 NY (range high/low + nearest swing high/low), never recalculated in the window.
+"Poke through" = ≥1 pip past the line. "Broke" = a 15-minute candle CLOSES past the line. Mid prices.
+
+=== M15 S/R lines: 12726 lines (3.6 per morning), median distance from 08:00 price 14.0 pips
+  outcome                                   of all lines  of lines reached
+  not reached                                5551  43.6% 
+  held (no poke through)                      233   1.8%              3.2%
+  swept, came back (no 15m close past)        932   7.3%             13.0%
+  broke, kept going 15p+                     3792  29.8%             52.9%
+  broke, stalled (<15p, stayed past)          277   2.2%              3.9%
+  broke, failed (came back)                  1941  15.3%             27.1%
+  → reached lines that BROKE (15m close past): 83.8%   held or only swept: 16.2%
+  → reached lines with price still past the line at 12:00: 50.3%
+  → times price crossed back and forth over a reached line (5m closes): avg 3.0  | 0: 20.7%  1: 17.9%  2: 15.0%  3+: 46.4%
+  Breaks by line type (of lines reached):
+    support · swing      reached  2211  broke  85.3%  kept going 15p+  53.8%  held/swept  14.7%
+    support · range      reached  1366  broke  82.4%  kept going 15p+  51.2%  held/swept  17.6%
+    resistance · swing   reached  2283  broke  84.7%  kept going 15p+  53.7%  held/swept  15.3%
+    resistance · range   reached  1315  broke  80.9%  kept going 15p+  51.5%  held/swept  19.1%
+  2021+ news split (of lines reached):
+    USD high-impact news 8–12    n= 1505  broke  84.5%  kept going 15p+  56.8%
+    no high-impact news          n= 1509  broke  82.8%  kept going 15p+  44.6%
+  By year — broke % of lines reached:
+    2013 82.8%  2014 81.3%  2015 81.2%  2016 87.5%  2017 82.0%  2018 83.6%  2019 84.6%  2020 87.6%  2021 84.7%  2022 84.6%  2023 82.8%  2024 83.0%  2025 83.6%  2026 83.0%
+
+=== M5 S/R lines: 12762 lines (3.7 per morning), median distance from 08:00 price 9.9 pips
+  outcome                                   of all lines  of lines reached
+  not reached                                4500  35.3% 
+  held (no poke through)                      270   2.1%              3.3%
+  swept, came back (no 15m close past)       1041   8.2%             12.6%
+  broke, kept going 15p+                     4425  34.7%             53.6%
+  broke, stalled (<15p, stayed past)          302   2.4%              3.7%
+  broke, failed (came back)                  2224  17.4%             26.9%
+  → reached lines that BROKE (15m close past): 84.1%   held or only swept: 15.9%
+  → reached lines with price still past the line at 12:00: 50.8%
+  → times price crossed back and forth over a reached line (5m closes): avg 3.1  | 0: 19.9%  1: 17.3%  2: 14.5%  3+: 48.3%
+  Breaks by line type (of lines reached):
+    support · swing      reached  2478  broke  84.5%  kept going 15p+  52.9%  held/swept  15.5%
+    support · range      reached  1613  broke  82.5%  kept going 15p+  52.3%  held/swept  17.5%
+    resistance · swing   reached  2599  broke  85.7%  kept going 15p+  55.7%  held/swept  14.3%
+    resistance · range   reached  1572  broke  82.6%  kept going 15p+  52.5%  held/swept  17.4%
+  2021+ news split (of lines reached):
+    USD high-impact news 8–12    n= 1704  broke  84.3%  kept going 15p+  57.2%
+    no high-impact news          n= 1738  broke  83.7%  kept going 15p+  46.9%
+  By year — broke % of lines reached:
+    2013 83.0%  2014 83.1%  2015 84.2%  2016 87.1%  2017 81.3%  2018 81.3%  2019 85.2%  2020 88.7%  2021 84.6%  2022 84.0%  2023 83.0%  2024 85.8%  2025 82.6%  2026 84.0%

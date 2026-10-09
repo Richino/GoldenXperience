@@ -1,0 +1,32 @@
+import fs from 'fs';
+const T = JSON.parse(fs.readFileSync(new URL('./trades.json', import.meta.url)));
+const sum = (a) => a.reduce((x, y) => x + y, 0);
+const f = (x, d = 2) => (x >= 0 ? '+' : '') + x.toFixed(d);
+function stats(ts) {
+  const w = ts.filter((t) => t.resultR > 0), l = ts.filter((t) => t.resultR <= 0);
+  const gp = sum(w.map((t) => t.resultR)), gl = -sum(l.map((t) => t.resultR));
+  return { n: ts.length, wr: (100 * w.length / (ts.length || 1)).toFixed(0) + '%', net: f(sum(ts.map((t) => t.resultR)), 1) + 'R', avg: f(sum(ts.map((t) => t.resultR)) / (ts.length || 1)), pf: gl ? (gp / gl).toFixed(2) : '-' };
+}
+const line = (k, ts) => { const s = stats(ts); console.log(k.padEnd(28), `n=${String(s.n).padStart(3)}  WR ${s.wr.padStart(4)}  net ${s.net.padStart(7)}  avg ${s.avg}R  PF ${s.pf}`); };
+console.log('=== OVERALL'); line('all', T);
+const gross = T.map((t) => t.resultR + t.spreadR);
+console.log('spread cost per trade', f(sum(T.map((t) => t.spreadR)) / T.length), 'R | result with zero spread', f(sum(gross) / T.length), 'R/trade');
+console.log('exits:', ['target', 'stop', 'time', 'friday'].map((h) => `${h} ${T.filter((t) => t.how === h).length}`).join(', '));
+console.log('median stop', [...T.map((t) => t.stopPips)].sort((a, b) => a - b)[Math.floor(T.length / 2)].toFixed(1), 'pips; median hold', [...T.map((t) => t.holdHours)].sort((a, b) => a - b)[Math.floor(T.length / 2)].toFixed(1), 'h');
+console.log('\n=== BY PAIR'); for (const p of [...new Set(T.map((t) => t.pair))]) line(p, T.filter((t) => t.pair === p));
+console.log('\n=== BY DIRECTION'); for (const d of ['long', 'short']) line(d, T.filter((t) => t.dir === d));
+console.log('\n=== BY MONTH'); for (const mo of [...new Set(T.map((t) => t.entryTime.slice(0, 7)))].sort()) line(mo, T.filter((t) => t.entryTime.startsWith(mo)));
+console.log('\n=== BY ENTRY HOUR (UTC)'); line('07-10 London', T.filter((t) => t.hour < 11)); line('11-13 overlap', T.filter((t) => t.hour >= 11 && t.hour < 14)); line('14-17 NY', T.filter((t) => t.hour >= 14));
+console.log('\n=== WHY LOSERS LOST'); const L = T.filter((t) => t.resultR <= 0);
+const never = L.filter((t) => t.mfe < 0.5), gave = L.filter((t) => t.mfe >= 1), mid = L.filter((t) => t.mfe >= 0.5 && t.mfe < 1);
+console.log(`never got going (<+0.5R before stop): ${never.length}`); console.log(`got +0.5R to +1R then reversed: ${mid.length}`); console.log(`got +1R or more, then reversed: ${gave.length}`);
+console.log(`trend (H4) broken by the time it closed: ${L.filter((t) => !t.trendIntact).length} of ${L.length} losers vs ${T.filter((t) => t.resultR > 0 && !t.trendIntact).length} of ${T.length - L.length} winners`);
+console.log(`news released while open: losers ${L.filter((t) => t.newsDuring).length}/${L.length}, winners ${T.filter((t) => t.resultR > 0 && t.newsDuring).length}/${T.length - L.length}`);
+line('trades with news while open', T.filter((t) => t.newsDuring)); line('trades with no news', T.filter((t) => !t.newsDuring));
+console.log('\n=== WHAT THE SETUP LOOKED LIKE');
+line('shallow pullback 0.6-1 ATR', T.filter((t) => t.depthAtr < 1)); line('deep pullback 1-2 ATR', T.filter((t) => t.depthAtr >= 1));
+const gm = [...T.map((t) => t.trendGapAtr)].sort((a, b) => a - b)[Math.floor(T.length / 2)];
+line('weaker H4 trend', T.filter((t) => t.trendGapAtr < gm)); line('stronger H4 trend', T.filter((t) => t.trendGapAtr >= gm));
+line('stop < 10 pips (JPY<10)', T.filter((t) => t.stopPips < 10)); line('stop >= 10 pips', T.filter((t) => t.stopPips >= 10));
+console.log('\n=== FIRST MOVE AFTER ENTRY'); line('went +1R before -0.5R', T.filter((t) => t.firstMove === true)); line('went -0.5R first', T.filter((t) => t.firstMove === false));
+console.log('\n=== MFE: how far winners/losers got'); console.log('trades that reached +1R:', T.filter((t) => t.hit1R).length, 'of', T.length, '| of those, reached 2R target:', T.filter((t) => t.how === 'target').length);

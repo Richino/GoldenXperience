@@ -231,6 +231,9 @@ export function NewsImpactSheet({
         <NewsImpactSkeleton pairs={pairs.length} released={releasedAt !== null} />
       ) : (
         <div className="news-impact-drawer">
+          {/* Desktop shows two columns (the numbers and call, then the pairs);
+              on phones both wrappers are display: contents. */}
+          <div className="news-impact-main">
           {/* Forecast · Previous · Actual as one strip; Actual lights up once it is out. */}
           <dl className="news-impact-values">
             <div><dt>Forecast</dt><dd className="metric-number">{event.forecast || "—"}</dd></div>
@@ -289,7 +292,9 @@ export function NewsImpactSheet({
               </dl>
             </div>
           ) : null}
+          </div>
 
+          <div className="news-impact-side">
           {hint.kind === "unknown" && releasedAt === null ? (
             <p className="news-impact-note">
               No clear better/worse reading for this event (speeches and similar), so its effect on
@@ -382,6 +387,7 @@ export function NewsImpactSheet({
             </ul>
             </>
           )}
+          </div>
         </div>
       ) : null}
     </MobileSheet>

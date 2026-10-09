@@ -433,6 +433,32 @@ export async function closePracticeTrade(brokerTradeId: string) {
   return response.orderFillTransaction?.id ?? response.orderCreateTransaction?.id ?? null;
 }
 
+/**
+ * Set, move or remove the stop-loss / take-profit on an open practice trade.
+ * A price places or replaces that order, null cancels it, and a key left out
+ * is not touched (OANDA rejects cancelling an order the trade does not have).
+ */
+export async function setPracticeTradeLevels(
+  brokerTradeId: string,
+  instrument: MajorInstrument,
+  levels: { stop?: number | null; target?: number | null },
+) {
+  const config = getConfig();
+  if (!config) throw new OandaRequestError("OANDA credentials are not configured.");
+  if (config.environment !== "practice") throw new OandaRequestError("Automatic execution is locked to OANDA practice accounts.");
+  if (!brokerTradeId) throw new OandaRequestError("Broker trade identifier is unavailable.");
+  const precision = precisionFor(instrument);
+  const order = (price: number | null) => (price === null ? null : { price: price.toFixed(precision), timeInForce: "GTC" });
+  const body: Record<string, unknown> = {};
+  if (levels.stop !== undefined) body.stopLoss = order(levels.stop);
+  if (levels.target !== undefined) body.takeProfit = order(levels.target);
+  if (Object.keys(body).length === 0) return;
+  await requestOanda<unknown>(`/v3/accounts/${encodeURIComponent(config.accountId)}/trades/${encodeURIComponent(brokerTradeId)}/orders`, {
+    method: "PUT",
+    body,
+  });
+}
+
 export interface PracticeTradeState {
   /** OANDA reports OPEN, CLOSED or CLOSE_WHEN_TRADEABLE. */
   state: string;

@@ -113,19 +113,61 @@ html:is(.dark, :not(.dark)) body :is(
   }
 
   .app-sidebar .brand-mark-sidebar {
-    display: grid;
-    width: 48px;
-    height: 48px;
-    place-items: center;
-    border-radius: 14px;
-    background: transparent;
+    display: flex;
+    justify-content: center;
+    width: auto;
+    height: auto;
+    text-decoration: none;
+    border-radius: 16px;
   }
 
-  /* The app icon itself: lime mark on the dark tile (white tile in light). */
+  .app-sidebar .brand-mark-sidebar-tile {
+    display: grid;
+    place-items: center;
+    width: 52px;
+    height: 52px;
+    padding: 3px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
+    box-shadow:
+      0 1px 0 color-mix(in srgb, var(--foreground) 6%, transparent) inset,
+      0 6px 18px rgba(20, 22, 18, 0.08);
+    transition:
+      transform 160ms ease,
+      border-color 160ms ease,
+      box-shadow 160ms ease;
+  }
+
+  html.dark body .app-sidebar .brand-mark-sidebar-tile {
+    background: var(--surface-raised);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.05) inset,
+      0 10px 24px rgba(0, 0, 0, 0.38);
+  }
+
+  .app-sidebar .brand-mark-sidebar:hover .brand-mark-sidebar-tile,
+  .app-sidebar .brand-mark-sidebar:focus-visible .brand-mark-sidebar-tile {
+    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+    box-shadow:
+      0 1px 0 color-mix(in srgb, var(--foreground) 6%, transparent) inset,
+      0 8px 22px rgba(20, 22, 18, 0.11),
+      0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+    transform: translateY(-1px);
+  }
+
+  html.dark body .app-sidebar .brand-mark-sidebar:hover .brand-mark-sidebar-tile,
+  html.dark body .app-sidebar .brand-mark-sidebar:focus-visible .brand-mark-sidebar-tile {
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.06) inset,
+      0 12px 28px rgba(0, 0, 0, 0.45),
+      0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+
   .app-sidebar .brand-mark-sidebar-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 14px;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
   }
 
   .app-sidebar .brand-gx {
@@ -276,21 +318,19 @@ html:is(.dark, :not(.dark)) body :is(
     color: var(--ink-dock-icon);
     -webkit-tap-highlight-color: transparent;
     transition:
-      flex-grow 0.38s cubic-bezier(0.22, 1, 0.36, 1),
       background-color 0.3s cubic-bezier(0.22, 1, 0.36, 1),
-      color 0.3s ease,
-      transform 0.12s ease-out;
+      color 0.3s ease;
   }
 
   .ink-dock-tab.is-active {
-    flex-grow: 2.6;
+    flex-grow: 1;
     background: var(--accent-fill);
     box-shadow: inset 0 0 0 1px var(--ink-dock-tile-ring);
     color: var(--on-accent);
   }
 
   .ink-dock-tab:active {
-    transform: scale(0.94);
+    transform: none;
   }
 
   .ink-dock-tab:focus-visible {
@@ -523,7 +563,7 @@ html:is(.dark, :not(.dark)) body .nl-home-top .nl-bell {
   display: flex;
   flex-direction: column;
   gap: 56px;
-  max-width: 1320px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 44px 40px 64px;
 }
@@ -759,9 +799,8 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-va
 }
 
 .nl-home-main {
-  /* 560 rather than the canvas 620 keeps both columns side by side down to a
-     ~1100px window, where the canvas would already have wrapped. */
-  flex: 999 1 560px;
+  /* 520 + a ~400px rail keeps both columns side by side down to ~1100px. */
+  flex: 1 1 520px;
   display: flex;
   flex-direction: column;
   gap: 56px;
@@ -769,11 +808,13 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-va
 }
 
 .nl-home-aside {
-  flex: 1 1 340px;
+  flex: 0 1 420px;
+  width: 100%;
+  min-width: 380px;
+  max-width: 440px;
   display: flex;
   flex-direction: column;
   gap: 20px;
-  min-width: 0;
 }
 
 /* Numbered section headings. */
@@ -844,6 +885,10 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-va
 }
 
 /* ------------------------------------------------------------ positions */
+
+.nl-positions {
+  container-type: inline-size;
+}
 
 .nl-pos-head,
 .nl-pos {
@@ -1023,6 +1068,23 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-va
 
   .nl-pos-head {
     display: none;
+  }
+}
+
+@media (min-width: 1024px) {
+  @container (max-width: 980px) {
+    .nl-pos-head { display: none; }
+    .nl-pos {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-areas: "pair prices size" "track track track" "r pl pl";
+      gap: 14px 20px;
+    }
+    .nl-pos-pair { grid-area: pair; }
+    .nl-pos-prices { grid-area: prices; }
+    .nl-pos-size { grid-area: size; }
+    .nl-pos-track { grid-area: track; }
+    .nl-pos-r { grid-area: r; text-align: left; }
+    .nl-pos-pl { grid-area: pl; }
   }
 }
 
@@ -1273,9 +1335,6 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-va
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-height: 26rem;
-  overflow-y: auto;
-  scrollbar-width: thin;
 }
 
 .nl-news-row {
@@ -5483,6 +5542,12 @@ html:is(.dark, :not(.dark)) body .signals-view .workspace-tab-btn.workspace-tab-
     color: var(--background);
   }
 
+  html.dark body .signals-chart-mobile .gx-mobile-chart-toolbar :is(.sheet-trigger, .gx-mobile-tool-button):not(.has-active):not(.is-active) {
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+  }
+
   html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-toolbar :is(.sheet-trigger, .gx-mobile-tool-button) svg {
     width: 18px;
     height: 18px;
@@ -6190,6 +6255,12 @@ html:is(.dark, :not(.dark)) body .signals-pair-dropdown .signals-search-current 
   color: var(--on-accent);
 }
 
+/* globals.css tints the active badge with --accent; keep the check dark on the lime fill. */
+html:is(.dark, :not(.dark)) body .signals-pair-dropdown .signals-search-result.is-active .signals-search-current,
+html:is(.dark, :not(.dark)) body .signals-pair-dropdown .signals-search-current svg {
+  color: var(--on-accent);
+}
+
 html:is(.dark, :not(.dark)) body .signals-pair-dropdown .signals-search-trading-badge {
   flex: none;
   padding: 4px 8px;
@@ -6287,6 +6358,11 @@ html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search-curr
   place-items: center;
   border-radius: 999px;
   background: var(--accent-fill);
+  color: var(--on-accent);
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search-result.is-active .signals-search-current,
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search-current svg {
   color: var(--on-accent);
 }
 
@@ -6917,4 +6993,483 @@ html:is(.dark, :not(.dark)):is(
   :has(.tp-backdrop)
 ) body :is(.pwa-pull-refresh, .mobile-dock) {
   filter: none;
+}
+
+/* Desktop: the entry form and the Markets analysis are centred dialogs, not
+   bottom sheets, so their shadow falls evenly around them. */
+:root { --overlay-dialog-shadow: 0 24px 64px rgba(20, 22, 18, 0.14); }
+.dark { --overlay-dialog-shadow: 0 24px 64px rgba(0, 0, 0, 0.5); }
+
+@media (min-width: 1024px) {
+  html:is(.dark, :not(.dark)) body :is(.nl-an-sheet, .pending-entry-dialog:not(.is-panel), .tp-sheet) {
+    box-shadow: var(--overlay-dialog-shadow);
+  }
+}
+
+/* Mobile dock: icon only. The active tab keeps an equal-width lime pill but no
+   label; each link's aria-label still names it for screen readers. */
+.ink-dock-tab.is-active {
+  flex-grow: 1;
+}
+
+.ink-dock-tab.is-active .ink-dock-label {
+  max-width: 0;
+  margin-left: 0;
+  opacity: 0;
+}
+
+/* ======================================================= NEWS IMPACT (desktop) */
+
+/* Phones keep the single-column sheet: the two wrappers are transparent. */
+.news-impact-main,
+.news-impact-side {
+  display: contents;
+}
+
+/* Desktop: a centred dialog, two columns: the numbers, record and call on
+   the left; the pairs since release on the right. */
+@media (min-width: 1024px) {
+  html:is(.dark, :not(.dark)) body .mobile-sheet.news-impact-sheet {
+    inset: 50% auto auto 50%;
+    width: min(56rem, calc(100vw - 3rem));
+    height: auto;
+    max-height: min(86dvh, 46rem);
+    translate: -50% -50%;
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    box-shadow: var(--overlay-dialog-shadow);
+  }
+
+  html:is(.dark, :not(.dark)) body .news-impact-sheet .mobile-sheet-handle {
+    display: none;
+  }
+
+  html:is(.dark, :not(.dark)) body .news-impact-sheet .mobile-sheet-grip {
+    padding-top: 10px;
+    cursor: default;
+  }
+
+  .news-impact-drawer {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    column-gap: 24px;
+    align-items: start;
+  }
+
+  .news-impact-main,
+  .news-impact-side {
+    display: grid;
+    min-width: 0;
+    gap: 1rem;
+    align-content: start;
+  }
+
+  .news-impact-side .news-impact-section {
+    margin-top: 0;
+  }
+}
+
+/* ======================================================= CHART TRADE BAR */
+
+/* The focused trade over the chart (TradeFocusBar): side and hold time, the
+   entry → exit path, and the result as a filled block. */
+html:is(.dark, :not(.dark)) body .trade-focus-bar.nl-tfb {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: 12px 12px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface-raised);
+  box-shadow: none;
+}
+
+html:is(.dark, :not(.dark)) body .trade-focus-bar.nl-tfb::before {
+  display: none;
+}
+
+.nl-tfb-id {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.nl-tfb-side {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.nl-tfb-side.is-up { background: var(--accent-soft); color: var(--accent); }
+.nl-tfb-side.is-down { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+
+.nl-tfb-meta {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.nl-tfb-path {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 16px;
+  padding-left: 18px;
+  border-left: 1px solid var(--border);
+}
+
+.nl-tfb-leg {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nl-tfb-leg > span {
+  color: var(--muted);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.nl-tfb-leg > b {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.nl-tfb-leg > b.is-open {
+  color: var(--pending);
+}
+
+.nl-tfb-leg > small {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.nl-tfb-arrow {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+}
+
+.nl-tfb-end {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.nl-tfb-result {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  color: var(--on-accent);
+}
+
+.nl-tfb-result.is-won { background: var(--accent-fill); }
+.nl-tfb-result.is-lost { background: var(--loss-fill); }
+
+.nl-tfb-result b {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.1;
+}
+
+.nl-tfb-result small {
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+.nl-tfb-clear {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.nl-tfb-clear:hover {
+  color: var(--foreground);
+  border-color: var(--border-strong);
+}
+
+.nl-tfb-clear svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* Phones: side + result on one row, the entry → exit path below. */
+@media (max-width: 1023px) {
+  html:is(.dark, :not(.dark)) body .trade-focus-bar.nl-tfb {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "id end"
+      "path path";
+    gap: 10px;
+    margin: 8px 12px 0;
+    padding: 10px 12px;
+    background: color-mix(in srgb, var(--surface) 88%, transparent);
+  }
+
+  .nl-tfb-id { grid-area: id; flex-direction: row; align-items: center; gap: 8px; }
+  .nl-tfb-end { grid-area: end; }
+  .nl-tfb-path {
+    grid-area: path;
+    padding: 10px 0 0;
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+  .nl-tfb-path .nl-tfb-leg:last-child { margin-left: auto; text-align: right; align-items: flex-end; }
+}
+
+/* ============================================================ CHART TRADE ACTIONS
+   Close / Cancel in the desktop chart header: a soft tinted button with an
+   icon, the same height as the bell, that fills on hover. Health card notes. */
+html:is(.dark, :not(.dark)) body .nl-chart-head .signals-analyze-desktop.nl-trade-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 18px 0 15px;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.005em;
+  filter: none;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+}
+html:is(.dark, :not(.dark)) body .nl-chart-head .signals-analyze-desktop.nl-trade-action svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+}
+html:is(.dark, :not(.dark)) body .nl-chart-head .signals-analyze-desktop.nl-trade-action.is-close {
+  border: 1px solid color-mix(in srgb, var(--danger) 42%, var(--border));
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  color: var(--danger);
+}
+html:is(.dark, :not(.dark)) body .nl-chart-head .signals-analyze-desktop.nl-trade-action.is-close:hover:not(:disabled) {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 22%, var(--surface));
+  color: var(--danger);
+}
+html:is(.dark, :not(.dark)) body .nl-chart-head .signals-analyze-desktop.nl-trade-action.is-cancel {
+  border: 1px solid color-mix(in srgb, var(--pending) 42%, var(--border));
+  background: color-mix(in srgb, var(--pending) 12%, var(--surface));
+  color: var(--pending);
+}
+html:is(.dark, :not(.dark)) body .nl-chart-head .signals-analyze-desktop.nl-trade-action.is-cancel:hover:not(:disabled) {
+  border-color: var(--pending);
+  background: color-mix(in srgb, var(--pending) 22%, var(--surface));
+  color: var(--pending);
+}
+html:is(.dark, :not(.dark)) body .nl-chart-head .signals-analyze-desktop.nl-trade-action:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.nl-cpos-grid b.is-caution { color: var(--pending); }
+.nl-cside-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.nl-cside-note.is-caution {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--pending) 12%, transparent);
+  color: var(--pending);
+  font-weight: 550;
+}
+
+/* ============================================================ STOP / TARGET EDITOR
+   Draggable SL / TP lines on the chart (setup-chart LevelEditOverlay) and the
+   Trade health card's draft panel. The line is a 14px grab band with a 1px
+   dashed rule through it; the pill sits by the price axis. */
+.setup-chart-level-edit {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  overflow: hidden;
+}
+.setup-chart-level-edit-line {
+  --level: var(--danger);
+  position: absolute;
+  top: -7px;
+  left: 0;
+  right: 0;
+  height: 14px;
+  cursor: ns-resize;
+  pointer-events: auto;
+  touch-action: none;
+}
+.setup-chart-level-edit-line.is-target { --level: var(--success); }
+.setup-chart-level-edit-line::before {
+  content: "";
+  position: absolute;
+  inset: 6px 0 auto;
+  border-top: 1.5px dashed var(--level);
+}
+.setup-chart-level-edit-line:hover::before,
+body.is-dragging-position-tool .setup-chart-level-edit-line::before {
+  border-top-style: solid;
+}
+.setup-chart-level-edit-line.is-pinned::before { opacity: 0.35; }
+.setup-chart-level-edit-handle {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 24px;
+  padding: 0 10px 0 8px;
+  border-radius: 8px;
+  background: var(--level);
+  color: var(--surface);
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0;
+  white-space: nowrap;
+  transform: translateY(-50%);
+  box-shadow: 0 4px 14px -6px color-mix(in srgb, var(--level) 70%, transparent);
+  user-select: none;
+}
+/* Grip: two short bars, the universal "drag me" mark. */
+.setup-chart-level-edit-handle i {
+  width: 9px;
+  height: 6px;
+  border-block: 1.5px solid currentColor;
+  opacity: 0.75;
+}
+.setup-chart-level-edit-line.is-invalid .setup-chart-level-edit-handle {
+  background: var(--pending);
+}
+.setup-chart-level-edit-line.is-invalid::before { border-top-color: var(--pending); }
+
+.nl-clevels-start {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.nl-clevels-start:hover { background: var(--surface-raised); }
+.nl-clevels-start svg { width: 16px; height: 16px; color: var(--muted); }
+
+.nl-clevels {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.nl-clevels-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.nl-clevels-row {
+  --level: var(--danger);
+  display: grid;
+  grid-template-columns: 4px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px 10px 12px;
+  border-radius: 14px;
+  background: var(--surface-raised);
+}
+.nl-clevels-row.is-target { --level: var(--success); }
+.nl-clevels-row.is-invalid { --level: var(--pending); }
+.nl-clevels-row > i {
+  align-self: stretch;
+  border-radius: 4px;
+  background: var(--level);
+}
+.nl-clevels-row > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.nl-clevels-row span { color: var(--muted); font-size: 11px; }
+.nl-clevels-row b { font-size: 13px; font-weight: 600; letter-spacing: 0; }
+.nl-clevels-row small { color: var(--pending); font-size: 11px; font-weight: 550; }
+.nl-clevels-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--muted-strong);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.nl-clevels-toggle svg { width: 13px; height: 13px; }
+.nl-clevels-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 550;
+}
+.nl-clevels-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 8px;
+  margin-top: 2px;
+}
+.nl-clevels-cancel,
+.nl-clevels-save {
+  height: 40px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.nl-clevels-cancel {
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--foreground);
+}
+.nl-clevels-save {
+  border: 0;
+  background: var(--accent-fill, var(--accent));
+  color: var(--on-accent, #10140a);
+}
+.nl-clevels-save:disabled,
+.nl-clevels-cancel:disabled {
+  opacity: 0.45;
+  cursor: default;
 }

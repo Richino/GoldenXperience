@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export function BrandMark({
   compact = false,
   variant = "default",
@@ -7,13 +9,14 @@ export function BrandMark({
 }) {
   if (variant === "sidebar") {
     return (
-      <div className="brand-mark-sidebar" aria-label="GoldenXperience">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img alt="" aria-hidden="true" className="brand-icon-light brand-mark-sidebar-icon" src="/brand-icon-light.svg" />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img alt="" aria-hidden="true" className="brand-icon-dark brand-mark-sidebar-icon" src="/brand-icon.svg" />
-        <span className="brand-gx-sub">GoldenXperience</span>
-      </div>
+      <Link href="/" className="brand-mark-sidebar pressable" aria-label="GoldenXperience home">
+        <span className="brand-mark-sidebar-tile" aria-hidden="true">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img alt="" aria-hidden="true" className="brand-icon-light brand-mark-sidebar-icon" src="/brand-icon-light.svg" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img alt="" aria-hidden="true" className="brand-icon-dark brand-mark-sidebar-icon" src="/brand-icon.svg" />
+        </span>
+      </Link>
     );
   }
 

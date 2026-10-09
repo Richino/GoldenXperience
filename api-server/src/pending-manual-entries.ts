@@ -1,4 +1,4 @@
-import { getCandles, getAccountSummary, submitPracticeEntryOrder, cancelPracticeOrder, closePracticeTrade, getPracticeOrderState, getPracticeTradeState } from "../../frontend/src/lib/oanda/client.js";
+import { getCandles, getAccountSummary, submitPracticeEntryOrder, cancelPracticeOrder, closePracticeTrade, getPracticeOrderState, getPracticeTradeState, setPracticeTradeLevels } from "../../frontend/src/lib/oanda/client.js";
 import { precisionFor } from "../../frontend/src/lib/instruments/catalog.js";
 import { calculateAtrValues } from "../../frontend/src/lib/strategy/indicators.js";
 import { calculatePositionSize, DEFAULT_RISK_POLICY } from "../../frontend/src/lib/risk/engine.js";
@@ -734,6 +734,86 @@ export async function closeActiveManualTrade(userId: string, id: string, tick: M
     await notifyManualEntry({ userId, entryId: entry.id, instrument: entry.instrument, event: result === "win" ? "won" : result === "loss" ? "lost" : "breakeven", paperTradeId: entry.paper_trade_id });
   }
   return { closed: true };
+}
+
+/**
+ * Move, add or remove the stop and target on an active manual trade (dragged
+ * on the chart). `undefined` keeps a level, null removes it. Each level must
+ * sit on its own side of the price the trade would close at now. OANDA-backed
+ * trades change the broker's own SL/TP first, so the app never shows a level
+ * the broker does not hold. paper_trades.stop stays the original risk
+ * reference for R; a paper-only trade has no broker, so its paper row carries
+ * the live levels its resolver closes on, and needs both or neither.
+ */
+export async function updateActiveManualTradeLevels(userId: string, id: string, payload: Record<string, unknown>, tick: MarketPriceTick) {
+  validateTick(tick);
+  const found = await query<EntryRow>(`SELECT ${SELECT_FIELDS} FROM pending_manual_entries WHERE id=$1 AND user_id=$2`, [id, userId]);
+  const entry = found.rows[0];
+  if (!entry) throw new Error("Trade not found.");
+  if (entry.status !== "TRIGGERED" || !entry.paper_trade_id) throw new Error("This entry is not an active trade.");
+  if (entry.instrument !== tick.instrument) throw new Error("No fresh quote is available for this trade.");
+  const tradeRow = await query<{ status: string }>("SELECT status FROM paper_trades WHERE id=$1", [entry.paper_trade_id]);
+  if (tradeRow.rows[0]?.status !== "open") throw new Error("This trade has already been closed.");
+
+  const precision = precisionFor(entry.instrument);
+  const read = (raw: unknown, label: string): number | null | undefined => {
+    if (raw === undefined) return undefined;
+    if (raw === null || raw === "") return null;
+    const price = finitePrice(raw);
+    if (price === null) throw new Error(`Enter a valid ${label} price.`);
+    return Number(price.toFixed(precision));
+  };
+  const currentStop = numberOrNull(entry.stop_price);
+  const currentTarget = numberOrNull(entry.target_price);
+  const requestedStop = read(payload.stopPrice, "stop");
+  const requestedTarget = read(payload.targetPrice, "target");
+  const stop = requestedStop === undefined ? currentStop : requestedStop;
+  const target = requestedTarget === undefined ? currentTarget : requestedTarget;
+
+  // The price this trade would close at right now: bid for a long, ask for a short.
+  const exit = entry.direction === "long" ? tick.bid : tick.ask;
+  if (stop !== null && (entry.direction === "long" ? stop >= exit : stop <= exit)) {
+    throw new Error(`The stop must be ${entry.direction === "long" ? "below" : "above"} the current price.`);
+  }
+  if (target !== null && (entry.direction === "long" ? target <= exit : target >= exit)) {
+    throw new Error(`The target must be ${entry.direction === "long" ? "above" : "below"} the current price.`);
+  }
+
+  const brokerTradeId = brokerTradeIdOf(entry);
+  if (brokerTradeId) {
+    const state = await getPracticeTradeState(brokerTradeId).catch(() => null);
+    if (!state || state.closed) {
+      await reconcileManualOandaOrders().catch(() => undefined);
+      throw new Error("This trade has already been closed.");
+    }
+    // Send only what changed; cancelling an order the trade lacks is rejected.
+    await setPracticeTradeLevels(brokerTradeId, entry.instrument, {
+      ...(stop !== currentStop ? { stop } : {}),
+      ...(target !== currentTarget ? { target } : {}),
+    });
+  } else if ((stop === null) !== (target === null)) {
+    throw new Error("A paper trade needs both a stop and a target, or neither.");
+  }
+
+  const noLevels = stop === null && target === null;
+  const updated = await transaction(async (client) => {
+    const result = await client.query<EntryRow>(
+      `UPDATE pending_manual_entries SET stop_price=$3,target_price=$4,
+         metadata = metadata || jsonb_build_object('noLevels', $5::boolean, 'levelsEditedAt', now()),
+         updated_at=now()
+       WHERE id=$1 AND user_id=$2 AND status='TRIGGERED' RETURNING ${SELECT_FIELDS}`,
+      [id, userId, stop, target, noLevels],
+    );
+    if (!brokerTradeId && !noLevels) {
+      await client.query(
+        "UPDATE paper_trades SET stop=$2,target=$3,updated_at=now() WHERE id=$1 AND status='open'",
+        [entry.paper_trade_id, stop, target],
+      );
+    }
+    return result.rows[0];
+  });
+  if (!updated) throw new Error("The trade changed state while saving. Refresh and try again.");
+  return serialize(updated);
 }
 
 /** Result R from the actual broker exit against the manual entry/stop geometry. */

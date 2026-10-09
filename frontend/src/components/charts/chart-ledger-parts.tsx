@@ -2,18 +2,18 @@
 
 /**
  * Pieces the Night Ledger chart page adds around the existing chart: the OHLC
- * readout over the plot, the trade-health card and the watchlist card in
- * the side column. Layout lives in night-ledger.css (`nl-chart-*`).
+ * readout over the plot and the trade-health card in the side column.
+ * Layout lives in night-ledger.css (`nl-chart-*`).
  */
 
 import { useEffect, useState } from "react";
+import { MoveVertical, Plus, X } from "lucide-react";
 import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { displayNameFor, pipSizeFor } from "@/lib/instruments/catalog";
-import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import { openRFromLevels } from "@/lib/open-trade-progress";
 import type { TradeMonitorDebug } from "@/lib/strategy/trade-monitor";
-import type { Candle, CandleSeries } from "@/types/forex";
+import type { Candle } from "@/types/forex";
 
 /** "EUR/USD · 15m  O … H … L … C …" over the top-left of the plot. */
 export function ChartOhlcReadout({
@@ -44,9 +44,31 @@ export type ChartPositionCardSignal = {
   instrument: string;
   direction: "long" | "short";
   entry: number;
-  stop: number;
-  target: number;
+  /** Null for a trade placed without a stop or target. */
+  stop: number | null;
+  target: number | null;
   riskReward: number;
+  /** When the trade opened, for the time held. */
+  openedAt?: string | null;
+};
+
+/**
+ * Stop / target editing for a manual trade: the levels are dragged as lines on
+ * the chart; the card shows the draft and saves it.
+ */
+export type ChartHealthLevels = {
+  editing: boolean;
+  stop: number | null;
+  target: number | null;
+  /** Which draft levels sit on the wrong side of the price. */
+  invalid: { stop: boolean; target: boolean };
+  dirty: boolean;
+  saving: boolean;
+  error: string | null;
+  onStart: () => void;
+  onCancel: () => void;
+  onSave: () => void;
+  onToggle: (key: "stop" | "target") => void;
 };
 
 type MonitorRead = {
@@ -73,13 +95,22 @@ export function ChartHealthCard({
   signal,
   currentPrice,
   pairLabel,
+  levels = null,
 }: {
   signal: ChartPositionCardSignal | null;
   currentPrice: number | null;
   pairLabel: string;
+  /** Present when this trade's stop and target can be changed. */
+  levels?: ChartHealthLevels | null;
 }) {
   const instrument = signal?.instrument ?? null;
   const [read, setRead] = useState<{ instrument: string; value: MonitorRead | null } | null>(null);
+  // A ticking clock for the time held (render stays pure).
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!instrument) return;
@@ -133,30 +164,44 @@ export function ChartHealthCard({
     );
   }
 
-  const openR = openRFromLevels({
-    direction: signal.direction,
-    entry: signal.entry,
-    stop: signal.stop,
-    current: currentPrice,
-  });
+  const long = signal.direction === "long";
   const pip = pipSizeFor(signal.instrument);
-  const toStop = currentPrice === null ? null : Math.abs(currentPrice - signal.stop) / pip;
-  const toTarget = currentPrice === null ? null : Math.abs(signal.target - currentPrice) / pip;
-  const rTone = openR === null || Math.abs(openR) < 0.005 ? "" : openR > 0 ? "is-up" : "is-down";
+  const openR = signal.stop !== null
+    ? openRFromLevels({ direction: signal.direction, entry: signal.entry, stop: signal.stop, current: currentPrice })
+    : null;
+  const openPips = currentPrice === null ? null : ((long ? currentPrice - signal.entry : signal.entry - currentPrice) / pip);
+  const toStop = currentPrice === null || signal.stop === null ? null : Math.abs(currentPrice - signal.stop) / pip;
+  const toTarget = currentPrice === null || signal.target === null ? null : Math.abs(signal.target - currentPrice) / pip;
+  const tone = (value: number | null) => (value === null || Math.abs(value) < 0.005 ? "" : value > 0 ? "is-up" : "is-down");
+  const signed = (value: number, digits: number) => `${value >= 0 ? "+" : "−"}${Math.abs(value).toFixed(digits)}`;
   const monitor = read && read.instrument === signal.instrument ? read.value : null;
-  const tiles = [
-    { label: "Structure", value: monitor?.structure ?? "—", tone: monitor?.structureTone ?? "" },
-    { label: "Momentum", value: monitor?.momentum ?? "—", tone: "" },
-    { label: "New S/R", value: monitor?.newSr ?? "—", tone: "" },
-  ];
+  const monitorChecked = read !== null && read.instrument === signal.instrument;
+  const heldMinutes = signal.openedAt ? Math.max(0, Math.round((now - Date.parse(signal.openedAt)) / 60_000)) : null;
+  const held = heldMinutes === null ? "—"
+    : heldMinutes < 60 ? `${heldMinutes}m`
+      : heldMinutes < 1440 ? `${Math.floor(heldMinutes / 60)}h ${heldMinutes % 60}m`
+        : `${Math.floor(heldMinutes / 1440)}d ${Math.floor((heldMinutes % 1440) / 60)}h`;
+  // Structure reads exist for trades placed from Analyze (they carry the
+  // analysis); any other trade still gets its live numbers.
+  const tiles = monitor
+    ? [
+        { label: "Structure", value: monitor.structure, tone: monitor.structureTone },
+        { label: "Momentum", value: monitor.momentum, tone: "" },
+        { label: "New S/R", value: monitor.newSr, tone: "" },
+      ]
+    : [
+        { label: "Open P/L", value: openPips === null ? "—" : `${signed(openPips, 1)}p`, tone: tone(openPips) },
+        { label: "Held", value: held, tone: "" },
+        { label: "Stop", value: signal.stop === null ? "None" : formatChartPrice(signal.stop, signal.instrument), tone: signal.stop === null ? "is-caution" : "" },
+      ];
 
   return (
     <section className="nl-cside-card" aria-labelledby="nl-chealth-title">
       <div className="nl-cside-head">
         <h2 id="nl-chealth-title">Trade health</h2>
-        <span className={`metric-number ${rTone}`}>
-          {signal.direction === "long" ? "Long" : "Short"} ·{" "}
-          {openR === null ? "—" : `${openR >= 0 ? "+" : "−"}${Math.abs(openR).toFixed(2)}R`}
+        <span className={`metric-number ${tone(openR ?? openPips)}`}>
+          {long ? "Long" : "Short"} ·{" "}
+          {openR !== null ? `${signed(openR, 2)}R` : openPips !== null ? `${signed(openPips, 1)} pips` : "—"}
         </span>
       </div>
       <div className="nl-cpos-grid">
@@ -167,98 +212,85 @@ export function ChartHealthCard({
           </div>
         ))}
       </div>
-      <div className="nl-cpos-foot metric-number">
-        <span className="is-down">{toStop === null ? "—" : `${toStop.toFixed(1)} pips to stop`}</span>
-        <span className="is-up">{toTarget === null ? "—" : `${toTarget.toFixed(1)} pips to target`}</span>
-      </div>
+      {levels?.editing ? (
+        <LevelEditor levels={levels} signal={signal} />
+      ) : (
+        <>
+          {signal.stop === null && signal.target === null ? (
+            <p className="nl-cside-note is-caution">No stop or target set: the risk on this trade is not capped.</p>
+          ) : (
+            <div className="nl-cpos-foot metric-number">
+              <span className="is-down">{signal.stop === null ? "No stop" : toStop === null ? "—" : `${toStop.toFixed(1)} pips to stop`}</span>
+              <span className="is-up">{signal.target === null ? "No target" : toTarget === null ? "—" : `${toTarget.toFixed(1)} pips to target`}</span>
+            </div>
+          )}
+          {levels ? (
+            <button type="button" className="nl-clevels-start pressable" onClick={levels.onStart}>
+              <MoveVertical aria-hidden="true" />
+              {signal.stop === null && signal.target === null ? "Set stop & target" : "Move stop & target"}
+            </button>
+          ) : null}
+        </>
+      )}
+      {monitorChecked && !monitor && !levels?.editing ? (
+        <p className="nl-cside-note">Structure checks run on trades placed from Analyze.</p>
+      ) : null}
     </section>
   );
 }
 
-/**
- * A short list of pairs with live prices and today's change; choosing one
- * switches the chart. Daily change comes from the last two daily candles.
- */
-export function ChartWatchlistCard({
-  instruments,
-  activeInstrument,
-  onSelect,
-}: {
-  instruments: string[];
-  activeInstrument: string;
-  onSelect: (instrument: string) => void;
-}) {
-  const quotes = useLiveQuotes();
-  // Daily change, plus the latest close as the price until a live quote arrives.
-  const [changes, setChanges] = useState<Record<string, { change: number | null; last: number | null }>>({});
-  const key = instruments.join(",");
-
-  useEffect(() => {
-    let cancelled = false;
-    const list = key ? key.split(",") : [];
-    void Promise.all(
-      list.map(async (instrument) => {
-        try {
-          const response = await fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=D&count=2`), {
-            credentials: "include",
-            cache: "no-store",
-          });
-          const payload = (await response.json()) as { data?: CandleSeries };
-          const current = payload.data?.candles.at(-1);
-          const previous = payload.data?.candles.at(-2);
-          return [
-            instrument,
-            {
-              change: current && previous ? ((current.close - previous.close) / previous.close) * 100 : null,
-              last: current?.close ?? null,
-            },
-          ] as const;
-        } catch {
-          return [instrument, { change: null, last: null }] as const;
-        }
-      }),
-    ).then((entries) => {
-      if (!cancelled) setChanges(Object.fromEntries(entries));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [key]);
-
-  if (!instruments.length) return null;
+/** The draft stop and target while their lines are being dragged on the chart. */
+function LevelEditor({ levels, signal }: { levels: ChartHealthLevels; signal: ChartPositionCardSignal }) {
+  const pip = pipSizeFor(signal.instrument);
+  const long = signal.direction === "long";
+  // R only means something while the stop is on the losing side of entry.
+  const risk = levels.stop === null ? null : long ? signal.entry - levels.stop : levels.stop - signal.entry;
+  const rows = [
+    { key: "stop" as const, label: "Stop loss", price: levels.stop, invalid: levels.invalid.stop, hint: long ? "below" : "above" },
+    { key: "target" as const, label: "Take profit", price: levels.target, invalid: levels.invalid.target, hint: long ? "above" : "below" },
+  ];
+  const anyInvalid = levels.invalid.stop || levels.invalid.target;
   return (
-    <section className="nl-cside-card nl-cwatch" aria-labelledby="nl-cwatch-title">
-      <div className="nl-cside-head">
-        <h2 id="nl-cwatch-title">Watchlist</h2>
-      </div>
-      <div className="nl-cwatch-list">
-        {instruments.map((instrument) => {
-          const quote = quotes[instrument];
-          const mid = quote ? (quote.bid + quote.ask) / 2 : (changes[instrument]?.last ?? null);
-          const change = changes[instrument]?.change ?? null;
-          const active = instrument === activeInstrument;
-          return (
-            <button
-              key={instrument}
-              type="button"
-              className={`nl-cwatch-row${active ? " is-active" : ""}`}
-              aria-current={active ? "true" : undefined}
-              onClick={() => onSelect(instrument)}
-            >
-              <b>{displayNameFor(instrument)}</b>
-              <span className="metric-number">
-                {mid === null ? "—" : formatChartPrice(mid, instrument)}{" "}
-                {change !== null ? (
-                  <span className={change >= 0 ? "is-up" : "is-down"}>
-                    {change >= 0 ? "+" : "−"}
-                    {Math.abs(change).toFixed(2)}%
-                  </span>
-                ) : null}
-              </span>
+    <div className="nl-clevels">
+      <p className="nl-clevels-hint">Drag the lines on the chart to place them.</p>
+      {rows.map((row) => {
+        const fromEntry = row.price === null ? null : ((long ? row.price - signal.entry : signal.entry - row.price) / pip);
+        const reward = row.key === "target" && row.price !== null && risk !== null && risk > 0
+          ? ` · ${(Math.abs(row.price - signal.entry) / risk).toFixed(1)}R`
+          : "";
+        return (
+          <div key={row.key} className={`nl-clevels-row is-${row.key}${row.invalid ? " is-invalid" : ""}`}>
+            <i aria-hidden="true" />
+            <div>
+              <span>{row.label}</span>
+              <b className="metric-number">
+                {row.price === null
+                  ? "None"
+                  : `${formatChartPrice(row.price, signal.instrument)} · ${fromEntry! >= 0 ? "+" : "−"}${Math.abs(fromEntry!).toFixed(1)}p${reward}`}
+              </b>
+              {row.invalid ? <small>Must be {row.hint} the current price.</small> : null}
+            </div>
+            <button type="button" className="nl-clevels-toggle pressable" onClick={() => levels.onToggle(row.key)}>
+              {row.price === null ? <Plus aria-hidden="true" /> : <X aria-hidden="true" />}
+              {row.price === null ? "Add" : "Remove"}
             </button>
-          );
-        })}
+          </div>
+        );
+      })}
+      {levels.error ? <p className="nl-clevels-error" role="alert">{levels.error}</p> : null}
+      <div className="nl-clevels-actions">
+        <button type="button" className="nl-clevels-cancel pressable" onClick={levels.onCancel} disabled={levels.saving}>
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="nl-clevels-save pressable"
+          onClick={levels.onSave}
+          disabled={levels.saving || !levels.dirty || anyInvalid}
+        >
+          {levels.saving ? "Saving…" : "Save levels"}
+        </button>
       </div>
-    </section>
+    </div>
   );
 }

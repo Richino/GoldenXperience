@@ -1,0 +1,7 @@
+{
+ "name": "TREND_PULLBACK_V2_FROZEN",
+ "frozenAt": "2026-10-02",
+ "developmentData": "EUR_USD 2008-01-01 to 2023-12-31 only",
+ "engine": "frontend/scripts/tp-v2/engine.mts + lib.mts (unchanged after freeze)",
+ "config": {"base":"H4","trend":"REG","trendTf":"higher","regN":100,"regR2":0.3,"swingReach":3,"zz":2,"minImp":1.5,"pbMode":"FRACTION","depth":0.66,"entry":"LIMIT","stop":"PIPS","stopVal":40,"tp":"RR","tpVal":1.5,"filters":{"newsBeforeMin":240}}
+}

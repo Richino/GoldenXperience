@@ -43,15 +43,6 @@ export function HomeLoadingSkeleton() {
           <Placeholder className="size-11 rounded-xl" />
         </div>
       </header>
-      <div className="nl-ticker" aria-hidden="true">
-        {Array.from({ length: 5 }, (_, index) => (
-          <div key={index} className="nl-ticker-item">
-            <Placeholder className="h-4 w-14" />
-            <Placeholder className="h-4 w-16" />
-            <Placeholder className="h-4 w-12" />
-          </div>
-        ))}
-      </div>
       <div className="nl-home-body" aria-hidden="true">
         <header className="nl-home-mtop">
           <div className="nl-home-mtop-ident">
@@ -124,6 +115,14 @@ export function HomeLoadingSkeleton() {
                 ))}
               </div>
             </section>
+            <section className="nl-card nl-pending">
+              <div className="nl-card-head"><Placeholder className="h-6 w-24" /><Placeholder className="h-3 w-12" /></div>
+              <div className="nl-pending-entry">
+                <div className="nl-pending-top"><Placeholder className="h-6 w-24" /><Placeholder className="h-5 w-12" /></div>
+                <Levels />
+                <div className="nl-pending-foot"><Placeholder className="h-3 w-20" /><Placeholder className="h-8 w-16 rounded-full" /></div>
+              </div>
+            </section>
             <section className="nl-sec nl-activity">
               <SectionHeading />
               <div className="nl-activity-list">
@@ -162,14 +161,6 @@ export function HomeLoadingSkeleton() {
                     <Placeholder className="h-5 w-8" />
                   </div>
                 ))}
-              </div>
-            </section>
-            <section className="nl-card nl-pending">
-              <div className="nl-card-head"><Placeholder className="h-6 w-24" /><Placeholder className="h-3 w-12" /></div>
-              <div className="nl-pending-entry">
-                <div className="nl-pending-top"><Placeholder className="h-6 w-24" /><Placeholder className="h-5 w-12" /></div>
-                <Levels />
-                <div className="nl-pending-foot"><Placeholder className="h-3 w-20" /><Placeholder className="h-8 w-16 rounded-full" /></div>
               </div>
             </section>
           </aside>

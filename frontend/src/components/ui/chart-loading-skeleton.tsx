@@ -34,7 +34,6 @@ export function ChartLoadingSkeleton() {
               <aside className="nl-chart-side">
                 <section className="nl-an-card"><div className="nl-an-body"><div className="nl-an-top"><Block width={150} height={20} /></div><h2 className="nl-an-decision"><Block width="5em" height="1em" /></h2><div className="nl-an-idle space-y-2"><Block height={18} /><Block width="92%" height={18} /><Block width="65%" height={18} /></div><div className="nl-an-actions is-card"><Block height={48} /><Block height={48} /></div></div></section>
                 <section className="nl-cside-card"><div className="nl-cside-head"><Block width={130} height={24} /></div><div className="nl-cside-empty"><Block width={220} height={20} /></div></section>
-                <section className="nl-cside-card nl-cwatch"><div className="nl-cside-head"><Block width={100} height={24} /></div><div className="nl-cwatch-list">{Array.from({ length: 6 }, (_, i) => <div className="nl-cwatch-row" key={i}><Block width={72} height={20} /><Block width={70} /><Block width={48} /></div>)}</div></section>
               </aside>
             </div>
           </div>

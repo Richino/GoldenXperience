@@ -94,7 +94,7 @@ export function MorningPicksDisplay({ snapshot, error = null, now }: {
   return <section className={styles.card} aria-labelledby="morning-picks-title" aria-busy={snapshot?.refreshing}>
     <header className={styles.header}>
       <div>
-        <span className={styles.eyebrow}>New York session · 6:30–11 ET</span>
+        <span className={styles.eyebrow}>New York session</span>
         <h2 id="morning-picks-title">Morning Market Picks</h2>
       </div>
       {run ? <span className={styles.scanned}>{picks.length} pick{picks.length === 1 ? "" : "s"} · scanned {clock(run.evaluatedAt)} ET</span> : null}

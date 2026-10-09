@@ -57,6 +57,7 @@ import {
   activateDuePendingManualEntries,
   cancelPendingManualEntry,
   closeActiveManualTrade,
+  updateActiveManualTradeLevels,
   createPendingManualEntry,
   editPendingManualEntry,
   evaluatePendingManualEntries,
@@ -436,6 +437,20 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
         return json(request, response, { entry: await cancelPendingManualEntry(user.id, pendingEntryMatch[1]!) });
       } catch (error) {
         return json(request, response, { error: error instanceof Error ? error.message : "Could not cancel the pending entry." }, 409);
+      }
+    }
+    const pendingEntryLevelsMatch = url.pathname.match(/^\/api\/pending-entries\/([0-9a-f-]{36})\/levels$/i);
+    if (pendingEntryLevelsMatch && request.method === "PATCH") {
+      if (!pendingEntryMonitoringEnabled) return json(request, response, { error: "Pending-entry monitoring is disabled on this API instance." }, 503);
+      const payload = await body(request);
+      const instrument = typeof payload?.instrument === "string" ? payload.instrument.toUpperCase() : "";
+      if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
+      const tick = await executableTick(instrument);
+      if (!tick) return json(request, response, { error: "A fresh market quote is not available yet." }, 409);
+      try {
+        return json(request, response, { entry: await updateActiveManualTradeLevels(user.id, pendingEntryLevelsMatch[1]!, payload ?? {}, tick) });
+      } catch (error) {
+        return json(request, response, { error: error instanceof Error ? error.message : "Could not update the stop and target." }, 409);
       }
     }
     const pendingEntryCloseMatch = url.pathname.match(/^\/api\/pending-entries\/([0-9a-f-]{36})\/close$/i);

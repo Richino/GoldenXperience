@@ -1,0 +1,74 @@
+
+Analyze V2 replay · 365 days · EUR_USD, GBP_USD, USD_JPY, AUD_USD, USD_CAD, USD_CHF, NZD_USD · bid/ask fills · no news filter · no commission/slippage
+
+== NORMAL funnel: 169102 evaluations, 72777 trending (43.0%), 15336 confirmed triggers, 474 qualified
+   pullback states: NOT_APPLICABLE 96325, AT_ZONE 22113, NO_PULLBACK 21725, TRIGGERED 15336, DEVELOPING 7864, INVALIDATED 3108, EXPIRED 2631
+   first blocker: structure 95579, pullback 27040, trigger 20139, higher 12858, target 10782, data 1097, stop 669, spread 373, reward-risk 85, liquidity 6
+   confirmed triggers rejected by: target 13359, spread 3188, higher 2906, stop 857, reward-risk 99, liquidity 56, data 56
+
+NORMAL V2        all    474 tr  WR  27.4%  avg -0.274R ±0.107  PF 0.62  DD 140.9R  stop 73%  spread 18%R  hold 5.0h
+NORMAL V2        long   208 tr  WR  23.6%  avg -0.376R ±0.154  PF 0.51  DD 78.1R  stop 76%  spread 18%R  hold 6.2h
+NORMAL V2        short  266 tr  WR  30.5%  avg -0.194R ±0.147  PF 0.72  DD 67.7R  stop 70%  spread 17%R  hold 4.0h
+NORMAL V2        devel  253 tr  WR  26.9%  avg -0.291R ±0.145  PF 0.60  DD 76.1R  stop 73%  spread 17%R  hold 4.3h
+NORMAL V2        valid  107 tr  WR  15.9%  avg -0.573R ±0.188  PF 0.32  DD 61.3R  stop 84%  spread 18%R  hold 4.4h
+NORMAL V2        test   114 tr  WR  39.5%  avg +0.045R ±0.240  PF 1.07  DD 12.5R  stop 61%  spread 18%R  hold 6.9h
+NORMAL V2 sweep-confirmed        18 tr  WR  33.3%  avg -0.137R ±0.581  PF 0.79  DD 7.4R  stop 67%  spread 16%R  hold 2.2h
+NORMAL V2 liquidity CAUTION     280 tr  WR  27.9%  avg -0.255R ±0.141  PF 0.65  DD 74.9R  stop 72%  spread 17%R  hold 5.1h
+NORMAL V2 liquidity CLEAR       194 tr  WR  26.8%  avg -0.301R ±0.163  PF 0.59  DD 69.7R  stop 73%  spread 19%R  hold 4.8h
+NORMAL V2 EUR_USD          68 tr  WR  22.1%  avg -0.411R ±0.266  PF 0.47  DD 28.0R  stop 78%  spread 18%R  hold 6.3h
+NORMAL V2 GBP_USD          68 tr  WR  20.6%  avg -0.466R ±0.251  PF 0.41  DD 32.1R  stop 79%  spread 18%R  hold 4.8h
+NORMAL V2 USD_JPY          93 tr  WR  31.2%  avg -0.181R ±0.250  PF 0.74  DD 25.9R  stop 69%  spread 15%R  hold 2.7h
+NORMAL V2 AUD_USD          85 tr  WR  30.6%  avg -0.160R ±0.273  PF 0.77  DD 19.6R  stop 69%  spread 17%R  hold 4.4h
+NORMAL V2 USD_CAD          49 tr  WR  34.7%  avg -0.094R ±0.352  PF 0.86  DD 14.4R  stop 65%  spread 19%R  hold 9.0h
+NORMAL V2 USD_CHF          61 tr  WR  27.9%  avg -0.267R ±0.299  PF 0.63  DD 18.0R  stop 72%  spread 18%R  hold 4.5h
+NORMAL V2 NZD_USD          50 tr  WR  24.0%  avg -0.374R ±0.313  PF 0.51  DD 23.0R  stop 76%  spread 19%R  hold 5.3h
+
+NORMAL V2_NO_LIQ all    479 tr  WR  27.6%  avg -0.271R ±0.106  PF 0.63  DD 142.3R  stop 72%  spread 18%R  hold 5.1h
+NORMAL V2_NO_LIQ long   208 tr  WR  23.6%  avg -0.376R ±0.154  PF 0.51  DD 78.1R  stop 76%  spread 18%R  hold 6.2h
+NORMAL V2_NO_LIQ short  271 tr  WR  30.6%  avg -0.190R ±0.146  PF 0.73  DD 69.1R  stop 69%  spread 17%R  hold 4.2h
+NORMAL V2_NO_LIQ devel  256 tr  WR  26.6%  avg -0.299R ±0.144  PF 0.59  DD 79.1R  stop 73%  spread 17%R  hold 4.3h
+NORMAL V2_NO_LIQ valid  108 tr  WR  16.7%  avg -0.553R ±0.190  PF 0.34  DD 59.7R  stop 83%  spread 18%R  hold 4.5h
+NORMAL V2_NO_LIQ test   115 tr  WR  40.0%  avg +0.057R ±0.239  PF 1.10  DD 12.5R  stop 60%  spread 18%R  hold 7.5h
+
+NORMAL OLD       all   1501 tr  WR  30.9%  avg -0.088R ±0.069  PF 0.87  DD 190.5R  stop 69%  spread 8%R  hold 30.9h
+NORMAL OLD       long   741 tr  WR  31.3%  avg -0.081R ±0.098  PF 0.88  DD 94.2R  stop 69%  spread 8%R  hold 34.8h
+NORMAL OLD       short  760 tr  WR  30.5%  avg -0.094R ±0.097  PF 0.86  DD 109.8R  stop 69%  spread 8%R  hold 27.1h
+NORMAL OLD       devel  793 tr  WR  33.3%  avg -0.012R ±0.097  PF 0.98  DD 74.9R  stop 67%  spread 8%R  hold 29.5h
+NORMAL OLD       valid  370 tr  WR  25.9%  avg -0.233R ±0.132  PF 0.69  DD 112.1R  stop 74%  spread 8%R  hold 31.9h
+NORMAL OLD       test   338 tr  WR  30.8%  avg -0.107R ±0.144  PF 0.84  DD 48.0R  stop 69%  spread 8%R  hold 33.3h
+
+== SWING funnel: 10468 evaluations, 5131 trending (49.0%), 852 confirmed triggers, 61 qualified
+   pullback states: NOT_APPLICABLE 5337, AT_ZONE 1698, NO_PULLBACK 1652, TRIGGERED 852, DEVELOPING 524, EXPIRED 228, INVALIDATED 177
+   first blocker: structure 5337, pullback 1842, trigger 1454, higher 1179, target 589, liquidity 3, stop 2, spread 1
+   confirmed triggers rejected by: target 762, higher 196, spread 6, liquidity 5, stop 5
+
+SWING V2        all     61 tr  WR  18.0%  avg -0.499R ±0.272  PF 0.39  DD 31.6R  stop 82%  spread 9%R  hold 37.3h
+SWING V2        long    29 tr  WR  20.7%  avg -0.412R ±0.428  PF 0.48  DD 12.0R  stop 79%  spread 10%R  hold 32.3h
+SWING V2        short   32 tr  WR  15.6%  avg -0.578R ±0.348  PF 0.32  DD 20.5R  stop 84%  spread 7%R  hold 41.8h
+SWING V2        devel   29 tr  WR  20.7%  avg -0.462R ±0.391  PF 0.42  DD 15.2R  stop 79%  spread 6%R  hold 51.8h
+SWING V2        valid   13 tr  WR  15.4%  avg -0.533R ±0.620  PF 0.37  DD 9.1R  stop 85%  spread 9%R  hold 31.1h
+SWING V2        test    19 tr  WR  15.8%  avg -0.531R ±0.501  PF 0.37  DD 10.1R  stop 84%  spread 12%R  hold 19.2h
+SWING V2 sweep-confirmed         6 tr  WR  16.7%  avg -0.564R ±0.854  PF 0.32  DD 3.4R  stop 83%  spread 5%R  hold 90.0h
+SWING V2 liquidity CAUTION      55 tr  WR  18.2%  avg -0.492R ±0.289  PF 0.40  DD 28.3R  stop 82%  spread 9%R  hold 35.3h
+SWING V2 liquidity CLEAR         6 tr  WR  16.7%  avg -0.564R ±0.854  PF 0.32  DD 3.4R  stop 83%  spread 5%R  hold 54.8h
+SWING V2 EUR_USD          10 tr  WR  20.0%  avg -0.441R ±0.732  PF 0.45  DD 6.4R  stop 80%  spread 8%R  hold 35.9h
+SWING V2 GBP_USD           9 tr  WR  22.2%  avg -0.410R ±0.766  PF 0.47  DD 5.5R  stop 78%  spread 9%R  hold 39.4h
+SWING V2 USD_JPY          10 tr  WR  20.0%  avg -0.461R ±0.705  PF 0.42  DD 5.0R  stop 80%  spread 6%R  hold 26.7h
+SWING V2 AUD_USD          13 tr  WR   7.7%  avg -0.830R ±0.334  PF 0.10  DD 12.0R  stop 92%  spread 7%R  hold 72.2h
+SWING V2 USD_CAD           5 tr  WR   0.0%  avg -1.000R ±0.000  PF 0.00  DD 5.0R  stop 100%  spread 14%R  hold 9.4h
+SWING V2 USD_CHF           6 tr  WR  33.3%  avg -0.037R ±1.194  PF 0.94  DD 2.0R  stop 67%  spread 10%R  hold 27.1h
+SWING V2 NZD_USD           8 tr  WR  25.0%  avg -0.215R ±1.007  PF 0.71  DD 3.0R  stop 75%  spread 12%R  hold 17.8h
+
+SWING V2_NO_LIQ all     62 tr  WR  19.4%  avg -0.465R ±0.275  PF 0.42  DD 30.1R  stop 81%  spread 9%R  hold 37.0h
+SWING V2_NO_LIQ long    29 tr  WR  20.7%  avg -0.412R ±0.428  PF 0.48  DD 12.0R  stop 79%  spread 10%R  hold 32.5h
+SWING V2_NO_LIQ short   33 tr  WR  18.2%  avg -0.512R ±0.361  PF 0.37  DD 18.9R  stop 82%  spread 7%R  hold 40.9h
+SWING V2_NO_LIQ devel   29 tr  WR  20.7%  avg -0.462R ±0.391  PF 0.42  DD 15.2R  stop 79%  spread 6%R  hold 52.1h
+SWING V2_NO_LIQ valid   14 tr  WR  21.4%  avg -0.382R ±0.646  PF 0.51  DD 9.1R  stop 79%  spread 9%R  hold 29.8h
+SWING V2_NO_LIQ test    19 tr  WR  15.8%  avg -0.531R ±0.501  PF 0.37  DD 10.1R  stop 84%  spread 12%R  hold 19.2h
+
+SWING OLD       all    224 tr  WR  34.8%  avg +0.001R ±0.182  PF 1.00  DD 32.4R  stop 65%  spread 3%R  hold 201.8h
+SWING OLD       long   110 tr  WR  34.5%  avg +0.010R ±0.263  PF 1.01  DD 14.0R  stop 65%  spread 3%R  hold 207.3h
+SWING OLD       short  114 tr  WR  35.1%  avg -0.007R ±0.253  PF 0.99  DD 22.5R  stop 64%  spread 3%R  hold 196.6h
+SWING OLD       devel  125 tr  WR  28.0%  avg -0.164R ±0.236  PF 0.77  DD 32.4R  stop 72%  spread 3%R  hold 178.8h
+SWING OLD       valid   45 tr  WR  31.1%  avg -0.069R ±0.409  PF 0.90  DD 12.0R  stop 69%  spread 2%R  hold 292.6h
+SWING OLD       test    54 tr  WR  53.7%  avg +0.440R ±0.378  PF 1.98  DD 11.0R  stop 44%  spread 3%R  hold 179.4h

@@ -5,9 +5,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { createPortal } from "react-dom";
 import { useTheme } from "next-themes";
 import {
+  ArrowRight,
   CalendarRange,
   Check,
   ChevronDown,
+  CircleStop,
   Clock3,
   History,
   Maximize,
@@ -32,13 +34,15 @@ import { IndicatorSelect } from "@/components/charts/indicator-select";
 import { ChartLoadingSkeleton } from "@/components/ui/chart-loading-skeleton";
 import {
   SetupChart,
+  chartLevelInvalid,
   createFixedTenPipSetup,
+  type ChartLevelEdit,
   type ChartPatternLine,
   type ChartPositionTool,
   type ChartReferenceLine,
 } from "@/components/charts/setup-chart";
 import { PendingEntryDialog } from "@/components/charts/pending-entry-dialog";
-import { ChartHealthCard, ChartOhlcReadout, ChartWatchlistCard } from "@/components/charts/chart-ledger-parts";
+import { ChartHealthCard, ChartOhlcReadout, type ChartHealthLevels, type ChartPositionCardSignal } from "@/components/charts/chart-ledger-parts";
 import {
   ManualProposalModal,
   useManualProposal,
@@ -223,7 +227,8 @@ export type SignalPaperPlan = WatchlistStatusInput & {
 /** " · +0.5R" for a filled manual trade's target, from its own entry and stop. */
 function triggeredRewardR(entry: PendingManualEntry) {
   if (entry.triggerPrice === null || entry.stopPrice === null || entry.targetPrice === null) return "";
-  const risk = Math.abs(entry.triggerPrice - entry.stopPrice);
+  // No R once the stop has been moved past entry: there is no risk left to measure against.
+  const risk = entry.direction === "long" ? entry.triggerPrice - entry.stopPrice : entry.stopPrice - entry.triggerPrice;
   if (!(risk > 0)) return "";
   const reward = Math.abs(entry.targetPrice - entry.triggerPrice) / risk;
   return ` · +${reward.toFixed(reward >= 10 ? 0 : 1)}R`;
@@ -1873,6 +1878,15 @@ function tradeMoment(value: string) {
   return formatDayAndTime(value);
 }
 
+/** "46m", "3h 12m", "2d 4h": how long a trade was held. */
+function heldFor(fromIso: string, toIso: string) {
+  const minutes = Math.max(0, Math.round((Date.parse(toIso) - Date.parse(fromIso)) / 60_000));
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h${minutes % 60 ? ` ${minutes % 60}m` : ""}`;
+  return `${Math.floor(hours / 24)}d${hours % 24 ? ` ${hours % 24}h` : ""}`;
+}
+
 function TradeFocusBar({
   trade,
   onClear,
@@ -1883,61 +1897,57 @@ function TradeFocusBar({
   const long = trade.direction === "long";
   const closed = trade.closedAt !== null && trade.exit !== null;
   const won = (trade.resultR ?? 0) >= 0;
+  const label = /^\d+$/.test(String(trade.tradeSequence)) ? `#${trade.tradeSequence}` : String(trade.tradeSequence);
+  const pips = closed
+    ? ((long ? trade.exit! - trade.entry : trade.entry - trade.exit!) / pipSizeFor(trade.instrument))
+    : null;
 
   return (
     <div
-      className="trade-focus-bar"
+      className="trade-focus-bar nl-tfb"
       data-side={long ? "buy" : "sell"}
       aria-label={`Focused ${long ? "buy" : "sell"} trade ${trade.tradeSequence}`}
     >
-      <div className="trade-focus-bar-id">
-        <span className="trade-focus-bar-side">{long ? "Buy" : "Sell"}</span>
-        <span className="trade-focus-bar-seq">#{trade.tradeSequence}</span>
+      <div className="nl-tfb-id">
+        <span className={`nl-tfb-side ${long ? "is-up" : "is-down"}`}>{long ? "Long" : "Short"}</span>
+        <span className="nl-tfb-meta">
+          {label} · {closed ? `held ${heldFor(trade.openedAt, trade.closedAt!)}` : "open"}
+        </span>
       </div>
 
-      <div className="trade-focus-bar-end">
-        {trade.resultR !== null ? (
-          <span
-            className={`trade-focus-bar-r metric-number ${won ? "is-won" : "is-lost"}`}
-          >
-            {formatResultR(trade.resultR)}
-          </span>
-        ) : null}
-        <button
-          type="button"
-          onClick={onClear}
-          className="trade-focus-bar-clear pressable"
-          aria-label="Clear trade"
-        >
-          <X className="size-3.5" strokeWidth={2} />
-          <span className="trade-focus-bar-clear-label">Clear</span>
-        </button>
-      </div>
-
-      <div className="trade-focus-bar-legs">
-        <div className="trade-focus-bar-leg">
-          <span className="trade-focus-bar-label">Entry</span>
-          <span className="trade-focus-bar-price metric-number">
-            {formatChartPrice(trade.entry, trade.instrument)}
-          </span>
-          <span className="trade-focus-bar-time">{tradeMoment(trade.openedAt)}</span>
+      <div className="nl-tfb-path">
+        <div className="nl-tfb-leg">
+          <span>Entry</span>
+          <b className="metric-number">{formatChartPrice(trade.entry, trade.instrument)}</b>
+          <small>{tradeMoment(trade.openedAt)}</small>
         </div>
-        <div className="trade-focus-bar-leg">
-          <span className="trade-focus-bar-label">Exit</span>
+        <ArrowRight className="nl-tfb-arrow" aria-hidden="true" />
+        <div className="nl-tfb-leg">
+          <span>Exit</span>
           {closed ? (
             <>
-              <span className="trade-focus-bar-price metric-number">
-                {formatChartPrice(trade.exit!, trade.instrument)}
-              </span>
-              <span className="trade-focus-bar-time">{tradeMoment(trade.closedAt!)}</span>
+              <b className="metric-number">{formatChartPrice(trade.exit!, trade.instrument)}</b>
+              <small>{tradeMoment(trade.closedAt!)}</small>
             </>
           ) : (
             <>
-              <span className="trade-focus-bar-price is-open">Open</span>
-              <span className="trade-focus-bar-time">Still open</span>
+              <b className="is-open">Open</b>
+              <small>Still running</small>
             </>
           )}
         </div>
+      </div>
+
+      <div className="nl-tfb-end">
+        {trade.resultR !== null ? (
+          <span className={`nl-tfb-result ${won ? "is-won" : "is-lost"}`}>
+            <b className="metric-number">{formatResultR(trade.resultR)}</b>
+            {pips !== null ? <small className="metric-number">{pips >= 0 ? "+" : "−"}{Math.abs(pips).toFixed(1)} pips</small> : null}
+          </span>
+        ) : null}
+        <button type="button" onClick={onClear} className="nl-tfb-clear pressable" aria-label="Clear trade">
+          <X aria-hidden="true" />
+        </button>
       </div>
     </div>
   );
@@ -2963,12 +2973,11 @@ export function SignalWorkspace({
     trackPrice: false,
   });
 
-  const activeSetup =
-    strategySetups.find((setup) => setup.instrument === instrument) ??
-    strategySetups[0] ??
-    null;
+  // Only this pair's own setup. Falling back to the first setup put another
+  // pair's name (and levels) on charts without one, e.g. EUR/GBP on EUR/CAD.
+  const activeSetup = strategySetups.find((setup) => setup.instrument === instrument) ?? null;
   const activeCandidate = activeSetup ? toDisplaySignal(activeSetup)[0] ?? null : null;
-  const activePair = activeSetup?.pair ?? instrument.replace("_", "/");
+  const activePair = instrument.replace("_", "/");
   const selectedPlan = livePaperPlans.find((plan) => plan.instrument === instrument) ?? null;
   const paperPlan = selectedPlan?.openTradeId ? selectedPlan : null;
   // Memoised because this feeds the chart's `levels` prop through `active`.
@@ -3231,6 +3240,114 @@ export function SignalWorkspace({
     return openSignal;
   }, [activePair, instrument, openPaperTrade, openSignal, triggeredManualEntry]);
 
+  // Trade health also reads a filled manual trade placed without a stop or
+  // target, which Active Position leaves out.
+  const healthSignal = useMemo<ChartPositionCardSignal | null>(() => {
+    if (positionSignal) return positionSignal;
+    if (!activeManualTrade) return null;
+    return {
+      instrument,
+      pair: activePair,
+      direction: activeManualTrade.direction,
+      entry: activeManualTrade.triggerPrice ?? activeManualTrade.entryPrice,
+      stop: activeManualTrade.stopPrice,
+      target: activeManualTrade.targetPrice,
+      riskReward: 0,
+      openedAt: activeManualTrade.triggeredAt ?? activeManualTrade.createdAt,
+    };
+  }, [activeManualTrade, activePair, instrument, positionSignal]);
+
+  // Moving the stop / target of a manual trade: the card starts a draft, the
+  // chart draws it as two draggable lines, and Save sends it to the trade
+  // (OANDA's own SL/TP for a broker-backed trade).
+  const [levelDraft, setLevelDraft] = useState<{ entryId: string; stop: number | null; target: number | null } | null>(null);
+  const [levelSaving, setLevelSaving] = useState(false);
+  const [levelError, setLevelError] = useState<string | null>(null);
+  const levelTrade = !replayActive && !openPaperTrade ? activeManualTrade : null;
+  const levelDraftEntryId = levelDraft && levelTrade && levelDraft.entryId === levelTrade.id ? levelDraft.entryId : null;
+  const levelExitPrice = quote && levelTrade ? (levelTrade.direction === "long" ? quote.bid : quote.ask) : null;
+  const levelEdit = useMemo<ChartLevelEdit | null>(() => {
+    if (!levelTrade || !levelDraft || levelDraft.entryId !== levelTrade.id) return null;
+    return {
+      instrument,
+      direction: levelTrade.direction,
+      entry: levelTrade.triggerPrice ?? levelTrade.entryPrice,
+      stop: levelDraft.stop,
+      target: levelDraft.target,
+      exitPrice: levelExitPrice,
+    };
+  }, [instrument, levelDraft, levelExitPrice, levelTrade]);
+  const onLevelEditChange = useCallback((next: ChartLevelEdit) => {
+    setLevelError(null);
+    setLevelDraft((draft) => (draft ? { ...draft, stop: next.stop, target: next.target } : draft));
+  }, []);
+  /** A fresh line 15 pips (stop) or 30 pips (target) from where the trade would close. */
+  const seedLevel = useCallback((key: "stop" | "target") => {
+    if (!levelTrade) return null;
+    const from = levelExitPrice ?? levelTrade.triggerPrice ?? levelTrade.entryPrice;
+    const pips = key === "stop" ? -15 : 30;
+    const sign = levelTrade.direction === "long" ? 1 : -1;
+    return Number((from + sign * pips * pipSizeFor(instrument)).toFixed(precisionFor(instrument)));
+  }, [instrument, levelExitPrice, levelTrade]);
+  const saveLevels = useCallback(async () => {
+    if (!levelTrade || !levelEdit) return;
+    setLevelSaving(true);
+    setLevelError(null);
+    try {
+      const res = await fetch(apiUrl(`/api/pending-entries/${levelTrade.id}/levels`), {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          instrument,
+          ...(levelEdit.stop !== levelTrade.stopPrice ? { stopPrice: levelEdit.stop } : {}),
+          ...(levelEdit.target !== levelTrade.targetPrice ? { targetPrice: levelEdit.target } : {}),
+        }),
+      });
+      const payload = await res.json() as { error?: string };
+      if (!res.ok) throw new Error(payload.error ?? "Could not save the stop and target.");
+      await refreshPendingEntries();
+      setLevelDraft(null);
+    } catch (error) {
+      setLevelError(error instanceof Error ? error.message : "Could not save the stop and target.");
+    } finally {
+      setLevelSaving(false);
+    }
+  }, [instrument, levelEdit, levelTrade, refreshPendingEntries]);
+  const healthLevels = useMemo<ChartHealthLevels | null>(() => {
+    if (!levelTrade) return null;
+    return {
+      editing: levelEdit !== null,
+      stop: levelEdit?.stop ?? null,
+      target: levelEdit?.target ?? null,
+      invalid: {
+        stop: levelEdit ? chartLevelInvalid(levelEdit, "stop") : false,
+        target: levelEdit ? chartLevelInvalid(levelEdit, "target") : false,
+      },
+      dirty: levelEdit !== null && (levelEdit.stop !== levelTrade.stopPrice || levelEdit.target !== levelTrade.targetPrice),
+      saving: levelSaving,
+      error: levelError,
+      onStart: () => {
+        setLevelError(null);
+        const none = levelTrade.stopPrice === null && levelTrade.targetPrice === null;
+        setLevelDraft({
+          entryId: levelTrade.id,
+          stop: none ? seedLevel("stop") : levelTrade.stopPrice,
+          target: none ? seedLevel("target") : levelTrade.targetPrice,
+        });
+      },
+      onCancel: () => {
+        setLevelError(null);
+        setLevelDraft(null);
+      },
+      onSave: () => void saveLevels(),
+      onToggle: (key) => {
+        setLevelError(null);
+        setLevelDraft((draft) => (draft ? { ...draft, [key]: draft[key] === null ? seedLevel(key) : null } : draft));
+      },
+    };
+  }, [levelEdit, levelError, levelSaving, levelTrade, saveLevels, seedLevel]);
+
   const startPositionTool = useCallback((direction: "long" | "short") => {
     const candles = series.candles;
     const entry =
@@ -3338,16 +3455,21 @@ export function SignalWorkspace({
       // resulting trade is still active. Draw its plan only while the linked
       // paper trade is open, otherwise every completed manual trade accumulates
       // another Entry / SL / TP set on the chart.
-      if (entry.status === "TRIGGERED" && entry.paperTradeStatus === "open" && entry.triggerPrice !== null && entry.stopPrice !== null && entry.targetPrice !== null) {
-        return [
+      // Each level is drawn on its own (a trade can hold a stop without a
+      // target), and while they are being dragged the editor draws them.
+      if (entry.status === "TRIGGERED" && entry.paperTradeStatus === "open" && entry.triggerPrice !== null) {
+        const editing = levelDraftEntryId === entry.id;
+        const lines: ChartReferenceLine[] = [
           { key: `manual-entry-${entry.id}`, price: entry.triggerPrice, label: `ENTRY ${formatChartPrice(entry.triggerPrice, instrument)}`, color: "#00a06a", textColor: "#ffffff", dashed: false, lineWidth: 2 as const, onSelect: () => openManager(entry) },
-          { key: `manual-stop-${entry.id}`, price: entry.stopPrice, label: `SL ${formatChartPrice(entry.stopPrice, instrument)} · -1R`, color: "#e74c3c", textColor: "#ffffff", dashed: true, lineWidth: 1 as const, onSelect: () => openManager(entry) },
-          { key: `manual-target-${entry.id}`, price: entry.targetPrice, label: `TP ${formatChartPrice(entry.targetPrice, instrument)}${triggeredRewardR(entry)}`, color: "#00b377", textColor: "#ffffff", dashed: true, lineWidth: 1 as const, onSelect: () => openManager(entry) },
         ];
+        const stopAtRisk = entry.stopPrice !== null && (entry.direction === "long" ? entry.stopPrice < entry.triggerPrice : entry.stopPrice > entry.triggerPrice);
+        if (entry.stopPrice !== null && !editing) lines.push({ key: `manual-stop-${entry.id}`, price: entry.stopPrice, label: `SL ${formatChartPrice(entry.stopPrice, instrument)}${stopAtRisk ? " · -1R" : ""}`, color: "#e74c3c", textColor: "#ffffff", dashed: true, lineWidth: 1 as const, onSelect: () => openManager(entry) });
+        if (entry.targetPrice !== null && !editing) lines.push({ key: `manual-target-${entry.id}`, price: entry.targetPrice, label: `TP ${formatChartPrice(entry.targetPrice, instrument)}${triggeredRewardR(entry)}`, color: "#00b377", textColor: "#ffffff", dashed: true, lineWidth: 1 as const, onSelect: () => openManager(entry) });
+        return lines;
       }
       return [];
     });
-  }, [instrument, pendingEntries, pendingEntryClock, selectedPairTrade?.id]);
+  }, [instrument, levelDraftEntryId, pendingEntries, pendingEntryClock, selectedPairTrade?.id]);
   const supportResistanceReferenceLines = useMemo(
     () => isChartIndicatorEnabled(enabledIndicators, "support-resistance")
       ? supportResistanceLines(chartIndicatorCandles, instrument)
@@ -4150,9 +4272,6 @@ export function SignalWorkspace({
 
   const sessionLabel = marketSessionCaption();
   const wideChart = chartDesktopViewport === true;
-  const watchlistInstruments = Array.from(
-    new Set([instrument, ...signals.map((signal) => signal.instrument)]),
-  ).slice(0, 6);
   const mobileTradeAction = manualTradeMode === "close"
     ? {
         label: tradeActionBusy ? "Closing…" : "Close Trade",
@@ -4543,12 +4662,14 @@ export function SignalWorkspace({
             </div>
             <div className="nl-chart-head-actions">
               {!replayActive && manualTradeMode === "close" ? (
-                <button type="button" className="signals-analyze-desktop pressable is-close" onClick={() => setTradeConfirm("close")} disabled={tradeActionBusy}>
-                  {tradeActionBusy ? "Closing…" : "Close Trade"}
+                <button type="button" className="signals-analyze-desktop pressable is-close nl-trade-action" onClick={() => setTradeConfirm("close")} disabled={tradeActionBusy}>
+                  <CircleStop aria-hidden="true" />
+                  {tradeActionBusy ? "Closing…" : "Close trade"}
                 </button>
               ) : !replayActive && manualTradeMode === "cancel" ? (
-                <button type="button" className="signals-analyze-desktop pressable is-cancel" onClick={() => setTradeConfirm("cancel")} disabled={tradeActionBusy}>
-                  {tradeActionBusy ? "Cancelling…" : "Cancel Trade"}
+                <button type="button" className="signals-analyze-desktop pressable is-cancel nl-trade-action" onClick={() => setTradeConfirm("cancel")} disabled={tradeActionBusy}>
+                  <X aria-hidden="true" />
+                  {tradeActionBusy ? "Cancelling…" : "Cancel order"}
                 </button>
               ) : null}
               {/* Analyze lives in the side column card on desktop. */}
@@ -4664,6 +4785,8 @@ export function SignalWorkspace({
                     positionTool={replayActive ? null : positionTool}
                     onPositionToolChange={setPositionTool}
                     onPositionToolSubmit={submitPositionTool}
+                    levelEdit={replayActive ? null : levelEdit}
+                    onLevelEditChange={onLevelEditChange}
                   />
                   <ChartLoadingOverlay visible={chartLoadingVisible} />
                 </div>
@@ -4688,21 +4811,10 @@ export function SignalWorkspace({
                 analyzeDisabled={trendPullbackBusy || replayActive}
               />
               <ChartHealthCard
-                signal={positionSignal}
+                signal={healthSignal}
                 currentPrice={quote?.mid ?? null}
                 pairLabel={activePair}
-              />
-              <ChartWatchlistCard
-                instruments={watchlistInstruments}
-                activeInstrument={instrument}
-                onSelect={(next) =>
-                  selectSearchResult({
-                    instrument: next,
-                    displayName: next.replace("_", "/"),
-                    signal: signals.find((signal) => signal.instrument === next),
-                    searchText: "",
-                  })
-                }
+                levels={healthLevels}
               />
             </div>
           </div>

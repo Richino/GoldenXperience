@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useLayoutEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import {
   DISMISS_DISTANCE,
   DISMISS_VELOCITY,
@@ -79,31 +79,29 @@ export function useDragToDismiss({
 
   const requestClose = useCallback(() => closeFrom(0), [closeFrom]);
 
-  const onPointerDown = (event: React.PointerEvent<HTMLElement>) => {
-    if (!enabled || closing.current || !isPhoneLayout() || !sheetRef.current) return;
-    const target = event.target as HTMLElement;
-    if (!target.closest(handleSelector) || target.closest("button, input, a")) return;
-    start.current = event.clientY;
+  const isHandle = useCallback((target: EventTarget | null) => {
+    if (!(target instanceof Element)) return false;
+    return Boolean(target.closest(handleSelector)) && !target.closest("button, input, a");
+  }, [handleSelector]);
+
+  const beginDrag = useCallback((y: number, time: number) => {
+    if (!sheetRef.current) return;
+    start.current = y;
     follower.current = createDragFollower(sheetRef.current, backdropRef.current);
     velocity.current = createVelocityTracker();
-    velocity.current.add(event.clientY, event.timeStamp);
-    try {
-      event.currentTarget.setPointerCapture(event.pointerId);
-    } catch {
-      // Capture is best-effort; moves still arrive while the finger stays on the drawer.
-    }
-  };
+    velocity.current.add(y, time);
+  }, []);
 
-  const onPointerMove = (event: React.PointerEvent<HTMLElement>) => {
+  const moveDrag = useCallback((y: number, time: number) => {
     if (start.current === null) return;
-    velocity.current?.add(event.clientY, event.timeStamp);
-    follower.current?.move(event.clientY - start.current);
-  };
+    velocity.current?.add(y, time);
+    follower.current?.move(y - start.current);
+  }, []);
 
-  const onPointerEnd = (event: React.PointerEvent<HTMLElement>) => {
+  const finishDrag = useCallback((y: number, time: number) => {
     if (start.current === null) return;
-    velocity.current?.add(event.clientY, event.timeStamp);
-    const distance = Math.max(0, event.clientY - start.current);
+    velocity.current?.add(y, time);
+    const distance = Math.max(0, y - start.current);
     const speed = velocity.current?.velocity() ?? 0;
     const at = follower.current?.stop() ?? distance;
     start.current = null;
@@ -115,6 +113,74 @@ export function useDragToDismiss({
       return;
     }
     if (sheetRef.current) void animateSheetBack(sheetRef.current, backdropRef.current, at);
+  }, [closeFrom]);
+
+  /*
+   * Touch is bound natively, as in MobileSheet: the listener must be
+   * non-passive so cancelling iOS's own scroll lets the sheet follow the
+   * finger instead of the page or the gesture being stolen mid-drag.
+   */
+  useEffect(() => {
+    const sheet = sheetRef.current;
+    if (!open || !enabled || !sheet) return;
+    let touchStartY: number | null = null;
+
+    function onTouchStart(event: TouchEvent) {
+      const touch = event.touches[0];
+      touchStartY = null;
+      if (!touch || closing.current || !isPhoneLayout() || !isHandle(event.target)) return;
+      touchStartY = touch.clientY;
+    }
+
+    function onTouchMove(event: TouchEvent) {
+      const touch = event.touches[0];
+      if (!touch || touchStartY === null) return;
+      if (start.current === null) {
+        if (touch.clientY - touchStartY <= 0) return;
+        beginDrag(touchStartY, event.timeStamp);
+      }
+      if (event.cancelable) event.preventDefault();
+      moveDrag(touch.clientY, event.timeStamp);
+    }
+
+    function onTouchEnd(event: TouchEvent) {
+      const touch = event.changedTouches[0];
+      touchStartY = null;
+      if (touch) finishDrag(touch.clientY, event.timeStamp);
+    }
+
+    sheet.addEventListener("touchstart", onTouchStart, { passive: true });
+    sheet.addEventListener("touchmove", onTouchMove, { passive: false });
+    sheet.addEventListener("touchend", onTouchEnd);
+    sheet.addEventListener("touchcancel", onTouchEnd);
+    return () => {
+      sheet.removeEventListener("touchstart", onTouchStart);
+      sheet.removeEventListener("touchmove", onTouchMove);
+      sheet.removeEventListener("touchend", onTouchEnd);
+      sheet.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, [beginDrag, enabled, finishDrag, isHandle, moveDrag, open]);
+
+  // Mouse and pen only; touch goes through the native listeners above.
+  const onPointerDown = (event: React.PointerEvent<HTMLElement>) => {
+    if (event.pointerType === "touch") return;
+    if (!enabled || closing.current || !isPhoneLayout() || !isHandle(event.target)) return;
+    beginDrag(event.clientY, event.timeStamp);
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Capture is best-effort; moves still arrive while the pointer stays on the drawer.
+    }
+  };
+
+  const onPointerMove = (event: React.PointerEvent<HTMLElement>) => {
+    if (event.pointerType === "touch") return;
+    moveDrag(event.clientY, event.timeStamp);
+  };
+
+  const onPointerEnd = (event: React.PointerEvent<HTMLElement>) => {
+    if (event.pointerType === "touch") return;
+    finishDrag(event.clientY, event.timeStamp);
   };
 
   return {

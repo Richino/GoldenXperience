@@ -81,6 +81,7 @@ import { ANALYZE_HANDOFF_KEY, runMarketAnalysis, type AnalyzeHandoff } from "@/l
 import {
   INSTRUMENT_CATALOG,
   currenciesOf,
+  isKnownInstrument,
   pipSizeFor,
   precisionFor,
 } from "@/lib/instruments/catalog";
@@ -2396,6 +2397,23 @@ export function SignalWorkspace({
   const [pendingEntries, setPendingEntries] = useState<PendingManualEntry[]>([]);
   const [allPendingEntries, setAllPendingEntries] = useState<PendingManualEntry[]>([]);
   const [pendingEntriesHydrated, setPendingEntriesHydrated] = useState(false);
+  // The address names the pair. The iOS home-screen app can hand back a chart
+  // that kept the pair it was first rendered with, so a link to another pair
+  // must still switch to it.
+  const urlInstrument = searchParams.get("instrument")?.toUpperCase() ?? null;
+  const [followedUrlInstrument, setFollowedUrlInstrument] = useState(urlInstrument);
+  if (urlInstrument !== followedUrlInstrument) {
+    setFollowedUrlInstrument(urlInstrument);
+    if (urlInstrument && isKnownInstrument(urlInstrument) && urlInstrument !== instrument) {
+      const urlTrade = searchParams.get("trade");
+      setLiveCandle(null);
+      setFocusTradeId(urlTrade && /^[0-9a-f-]{36}$/i.test(urlTrade) ? urlTrade : null);
+      setPaperTradesHydrated(false);
+      setPendingEntriesHydrated(false);
+      setScrollToLatestRevision((revision) => revision + 1);
+      setSelectedInstrument(urlInstrument);
+    }
+  }
   // Which of the pair's trades the chart shows: a trade id, NEW_TRADE while
   // setting up another one, or null to follow the default (newest).
   const [pickedPairTrade, setPickedPairTrade] = useState<string | null>(null);

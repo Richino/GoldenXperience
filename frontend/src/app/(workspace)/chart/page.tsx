@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { SignalWorkspace } from "@/components/signals/signal-workspace";
 import { getApiData } from "@/lib/api/server";
-import { isStrategyInstrument } from "@/lib/strategy/strategy-service";
+import { isKnownInstrument } from "@/lib/instruments/catalog";
 import { CHART_TIMEFRAMES, CHART_RANGES, TIMEFRAME_TO_GRANULARITY, candleCountForChartViewport, type ChartRange, type ChartTimeframe } from "@/lib/chart-utils";
 import type { CandleSeries, ConnectionStatus, PaperChartTrade } from "@/types/forex";
 import type { BinaryPrediction } from "@/types/binary";
@@ -21,7 +21,7 @@ export default async function ChartPage({ searchParams }: { searchParams: Promis
   const cookieStore = await cookies();
   const savedInstrument = cookieStore.get("gx-last-chart-instrument")?.value?.toUpperCase();
   const requestedInstrument = params.instrument?.toUpperCase();
-  const savedInstrumentIsValid = savedInstrument !== undefined && isStrategyInstrument(savedInstrument);
+  const savedInstrumentIsValid = savedInstrument !== undefined && isKnownInstrument(savedInstrument);
   // Explicit links win, then the last chart the user chose. We only consult an
   // active paper trade when neither is available.
   const activeTrade = requestedInstrument || savedInstrumentIsValid
@@ -30,7 +30,7 @@ export default async function ChartPage({ searchParams }: { searchParams: Promis
       .then((payload) => payload.openTrades?.find((trade) => trade.status === "open" && trade.closedAt === null) ?? null)
       .catch(() => null);
   const requested = requestedInstrument ?? (savedInstrumentIsValid ? savedInstrument : null) ?? activeTrade?.instrument ?? "EUR_USD";
-  const instrument = isStrategyInstrument(requested) ? requested : "EUR_USD";
+  const instrument = isKnownInstrument(requested) ? requested : "EUR_USD";
   // Start with the saved selection, including the server's initial candle
   // fetch. Client-only preferences otherwise flash M15 on every chart visit.
   const savedTimeframe = cookieStore.get("gx-chart-timeframe")?.value as ChartTimeframe;

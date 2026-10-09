@@ -12,7 +12,7 @@ import {
   type ChartTimeframe,
   type ChartVariant,
 } from "@/lib/chart-utils";
-import { isStrategyInstrument } from "@/lib/strategy/strategy-service";
+import { isKnownInstrument } from "@/lib/instruments/catalog";
 import type { CandleSeries, ConnectionStatus, PaperChartTrade } from "@/types/forex";
 
 export const metadata: Metadata = {
@@ -41,7 +41,7 @@ export default async function EmbeddedChartPage({
 }) {
   const params = await searchParams;
   const requested = params.instrument?.toUpperCase() ?? "EUR_USD";
-  const instrument = isStrategyInstrument(requested) ? requested : "EUR_USD";
+  const instrument = isKnownInstrument(requested) ? requested : "EUR_USD";
   const timeframe: ChartTimeframe = pick(params.tf?.toLowerCase(), CHART_TIMEFRAMES) ?? "15m";
   const range: ChartRange = pick(params.range, CHART_RANGES) ?? "1D";
   const variant: ChartVariant | undefined = pick(

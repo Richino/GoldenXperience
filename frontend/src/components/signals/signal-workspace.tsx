@@ -10,6 +10,7 @@ import {
   Check,
   ChevronDown,
   CircleStop,
+  MoveVertical,
   Clock3,
   History,
   Maximize,
@@ -42,7 +43,7 @@ import {
   type ChartReferenceLine,
 } from "@/components/charts/setup-chart";
 import { PendingEntryDialog } from "@/components/charts/pending-entry-dialog";
-import { ChartHealthCard, ChartOhlcReadout, type ChartHealthLevels, type ChartPositionCardSignal } from "@/components/charts/chart-ledger-parts";
+import { ChartHealthCard, ChartLevelEditor, ChartNewsCard, ChartOhlcReadout, type ChartHealthLevels, type ChartPositionCardSignal } from "@/components/charts/chart-ledger-parts";
 import {
   ManualProposalModal,
   useManualProposal,
@@ -4530,6 +4531,8 @@ export function SignalWorkspace({
               positionTool={replayActive ? null : positionTool}
               onPositionToolChange={setPositionTool}
               onPositionToolSubmit={submitPositionTool}
+              levelEdit={replayActive ? null : levelEdit}
+              onLevelEditChange={onLevelEditChange}
             />
             {focusTrade && focusTrade.closedAt !== null && !fullscreen ? (
               <div className="trade-focus-overlay">
@@ -4590,19 +4593,33 @@ export function SignalWorkspace({
                 <button type="button" className="gx-mobile-replay-step pressable" onClick={() => stepReplay(60)} disabled={replayAtLatest} aria-label="Forward one hour">1h ›</button>
               </div>
             </div>
+          ) : levelEdit && healthLevels && healthSignal ? (
+            // Moving SL / TP: the lines are dragged on the chart above; this
+            // is the same draft panel as the desktop Trade health card.
+            <div className="gx-mobile-analyze-section nl-mlevels">
+              <ChartLevelEditor levels={healthLevels} signal={healthSignal} />
+            </div>
           ) : mobileTradeActionReady ? (
             <div className="gx-mobile-analyze-section">
               <PairTradePicker trades={pairTrades} selectedId={settingUpNewTrade ? NEW_PAIR_TRADE : selectedPairTrade?.id ?? null} instrument={instrument} onSelect={setPickedPairTrade} />
-              <button
-                key={manualTradeMode}
-                type="button"
-                className={`gx-mobile-analyze pressable${mobileTradeAction.className}`}
-                onClick={mobileTradeAction.onClick}
-                disabled={mobileTradeAction.disabled}
-                title={mobileTradeAction.title}
-              >
-                {mobileTradeAction.label}
-              </button>
+              <div className="nl-mtrade-row">
+                {healthLevels && manualTradeMode === "close" ? (
+                  <button type="button" className="nl-mlevels-start pressable" onClick={healthLevels.onStart} aria-label="Adjust stop loss and take profit">
+                    <MoveVertical aria-hidden="true" />
+                    SL / TP
+                  </button>
+                ) : null}
+                <button
+                  key={manualTradeMode}
+                  type="button"
+                  className={`gx-mobile-analyze pressable${mobileTradeAction.className}`}
+                  onClick={mobileTradeAction.onClick}
+                  disabled={mobileTradeAction.disabled}
+                  title={mobileTradeAction.title}
+                >
+                  {mobileTradeAction.label}
+                </button>
+              </div>
               {(tradeActionError || trendPullbackError) ? (
                 <p className="gx-mobile-analyze-error" role="alert">{tradeActionError ?? trendPullbackError}</p>
               ) : null}
@@ -4815,6 +4832,10 @@ export function SignalWorkspace({
                 currentPrice={quote?.mid ?? null}
                 pairLabel={activePair}
                 levels={healthLevels}
+              />
+              <ChartNewsCard
+                instrument={instrument}
+                position={healthSignal ? { instrument, direction: healthSignal.direction, openedAt: healthSignal.openedAt ?? undefined } : null}
               />
             </div>
           </div>

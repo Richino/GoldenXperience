@@ -10,6 +10,23 @@ import { usdPerUnitOfCurrency } from "@/lib/risk/engine";
  * out on the bid and a short on the ask, because that is the side the position
  * would actually close against.
  */
+/**
+ * The stop and target a journal trade holds now (null = none), falling back to
+ * its stored levels on rows from an older API. Display these; R still runs off
+ * the stored `stop`, the trade's 1R reference.
+ */
+export function currentTradeLevels(trade: {
+  stop?: number | null;
+  target?: number | null;
+  slPrice?: number | null;
+  tpPrice?: number | null;
+}) {
+  return {
+    sl: trade.slPrice === undefined ? trade.stop ?? null : trade.slPrice,
+    tp: trade.tpPrice === undefined ? trade.target ?? null : trade.tpPrice,
+  };
+}
+
 export interface OpenTradeQuote {
   bid: number | null | undefined;
   ask: number | null | undefined;

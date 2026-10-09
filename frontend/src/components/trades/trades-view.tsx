@@ -9,6 +9,7 @@ import { NotificationBell } from "@/components/notifications/notification-bell";
 import { apiUrl } from "@/lib/api/url";
 import { formatClockTime, formatShortDay } from "@/lib/format/datetime";
 import {
+  currentTradeLevels,
   openTradeProgress,
   quoteToUsdRateFromQuotes,
   resolveOpenTradeQuote,
@@ -67,11 +68,14 @@ function fmtR(value: number | null | undefined) {
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}R`;
 }
 
-/** R:R as `1:2` from the trade's own geometry. */
+/** R:R as `1:2` from the stop and target the trade holds now. */
 function rrLabel(trade: JournalTrade) {
-  const risk = Math.abs(trade.entry - trade.stop);
-  const reward = Math.abs(trade.target - trade.entry);
-  if (!risk || !Number.isFinite(risk) || !Number.isFinite(reward)) return "—";
+  const { sl, tp } = currentTradeLevels(trade);
+  if (sl === null || tp === null) return "—";
+  // No ratio once the stop sits past entry: nothing is at risk to compare to.
+  const risk = trade.direction === "long" ? trade.entry - sl : sl - trade.entry;
+  const reward = Math.abs(tp - trade.entry);
+  if (!(risk > 0) || !Number.isFinite(risk) || !Number.isFinite(reward)) return "—";
   const ratio = reward / risk;
   const rounded = Math.round(ratio * 10) / 10;
   return `1:${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)}`;
@@ -393,10 +397,11 @@ function TradeDetail({
   const lots = isOpen ? live?.lots ?? null : null;
   const href = chartHrefForTrade(trade);
   // Position on the stop → target line, 0–100. A short's span is negative,
-  // so the same formula serves both sides.
-  const span = trade.target - trade.stop;
+  // so the same formula serves both sides. The line needs both levels.
+  const { sl, tp } = currentTradeLevels(trade);
+  const span = sl !== null && tp !== null ? tp - sl : 0;
   const at = (value: number | null | undefined) =>
-    value === null || value === undefined || !span ? null : Math.min(100, Math.max(0, ((value - trade.stop) / span) * 100));
+    value === null || value === undefined || !span || sl === null ? null : Math.min(100, Math.max(0, ((value - sl) / span) * 100));
   const entryAt = at(trade.entry);
   const exitAt = at(shownExit);
   const tone = toneOf(r);
@@ -443,11 +448,11 @@ function TradeDetail({
           {exitAt !== null ? <span className={`nl-tr-track-mark ${tone}`} style={{ left: `${exitAt}%` }} /> : null}
         </span>
         <span className="nl-tr-track-labels metric-number">
-          <span className="is-down">SL {fmtPrice(trade.stop, trade.pair)}</span>
+          <span className="is-down">SL {sl === null ? "none" : fmtPrice(sl, trade.pair)}</span>
           <span className="nl-tr-muted">
             {isOpen ? "now" : "exit"} {fmtPrice(shownExit, trade.pair)}
           </span>
-          <span className="is-up">TP {fmtPrice(trade.target, trade.pair)}</span>
+          <span className="is-up">TP {tp === null ? "none" : fmtPrice(tp, trade.pair)}</span>
         </span>
       </div>
 
@@ -462,11 +467,11 @@ function TradeDetail({
         </div>
         <div>
           <dt>Stop loss</dt>
-          <dd className="metric-number is-down">{fmtPrice(trade.stop, trade.pair)}</dd>
+          <dd className={`metric-number ${sl === null ? "nl-tr-muted" : "is-down"}`}>{sl === null ? "None" : fmtPrice(sl, trade.pair)}</dd>
         </div>
         <div>
           <dt>Take profit</dt>
-          <dd className="metric-number is-up">{fmtPrice(trade.target, trade.pair)}</dd>
+          <dd className={`metric-number ${tp === null ? "nl-tr-muted" : "is-up"}`}>{tp === null ? "None" : fmtPrice(tp, trade.pair)}</dd>
         </div>
         <div>
           <dt>R:R</dt>

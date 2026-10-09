@@ -121,12 +121,13 @@ html:is(.dark, :not(.dark)) body :is(
     border-radius: 16px;
   }
 
+  /* The tile is the mark's only frame (the glyph art has no tile of its own). */
   .app-sidebar .brand-mark-sidebar-tile {
     display: grid;
     place-items: center;
     width: 52px;
     height: 52px;
-    padding: 3px;
+    padding: 0;
     border: 1px solid var(--border);
     border-radius: 16px;
     background: var(--surface);
@@ -165,9 +166,8 @@ html:is(.dark, :not(.dark)) body :is(
   }
 
   .app-sidebar .brand-mark-sidebar-icon {
-    width: 44px;
-    height: 44px;
-    border-radius: 12px;
+    width: 38px;
+    height: 38px;
   }
 
   .app-sidebar .brand-gx {
@@ -7472,4 +7472,475 @@ body.is-dragging-position-tool .setup-chart-level-edit-line::before {
 .nl-clevels-cancel:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+/* ============================================================ CHART NEWS CARD
+   Upcoming releases for the chart's pair in the desktop side column; rows are
+   Home's .nl-news-row. */
+.nl-cnews-meta { color: var(--muted); }
+.nl-cnews .nl-news-list { margin: 0 -8px; }
+
+/* ============================================================ MANUAL TRADE TICKET
+   The New trade / Edit entry form in the plan's shell (pending-entry-dialog,
+   isTicket): a Long / Short switch over the plan's levels box and rows. */
+.nl-pe-dir {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--background);
+}
+.nl-pe-dir button {
+  height: 44px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.nl-pe-dir button:not(.is-active):hover {
+  background: var(--surface-raised);
+  color: var(--foreground);
+}
+.nl-pe-dir button.is-long.is-active {
+  background: var(--accent-fill, var(--accent));
+  color: var(--on-accent, #10140a);
+}
+.nl-pe-dir button.is-short.is-active {
+  background: var(--danger);
+  color: var(--surface);
+}
+.nl-pe-ticket .nl-an-regime { margin: -4px 0 0; }
+.nl-pe-ticket .nl-pe-levels input::placeholder { color: var(--muted); opacity: 0.7; }
+
+/* ============================================================ CHART TRADE PICKER
+   The pair's trades (pair-trade-picker.tsx) in the plan / ticket sheet style,
+   on theme tokens so light and dark both follow the app. Centred on desktop,
+   a bottom sheet with the grip on phones. */
+html:is(.dark, :not(.dark)) body .tp-sheet.nl-pt-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(440px, 100%);
+  max-width: none;
+  max-height: 90dvh;
+  overflow-y: auto;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: var(--surface);
+  color: var(--foreground);
+  text-align: left;
+}
+html:is(.dark, :not(.dark)) body .nl-pt-sheet .tp-grip { display: none; }
+html:is(.dark, :not(.dark)) body .nl-pt-sheet > header.nl-an-top {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.nl-pt-title {
+  margin: -2px 0 2px;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.nl-pt-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.nl-pt-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 14px 14px 12px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background: var(--surface-raised);
+  color: var(--foreground);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+.nl-pt-row:hover { border-color: var(--border-strong); }
+.nl-pt-row.is-selected { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.nl-pt-row.is-new {
+  border: 1px dashed var(--border-strong);
+  background: transparent;
+}
+.nl-pt-row.is-new:hover { background: var(--surface-raised); }
+.nl-pt-side {
+  align-self: stretch;
+  width: 4px;
+  flex: none;
+  border-radius: 4px;
+}
+.nl-pt-side.is-long { background: var(--accent); }
+.nl-pt-side.is-short { background: var(--danger); }
+.nl-pt-main {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 5px;
+}
+.nl-pt-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 650;
+}
+.nl-pt-status {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+}
+.nl-pt-status.is-open { background: var(--accent-soft); color: var(--accent); }
+.nl-pt-status.is-pending { background: var(--pending-soft); color: var(--pending); }
+.nl-pt-levels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0;
+}
+.nl-pt-levels .is-down { color: var(--danger); }
+.nl-pt-levels .is-up { color: var(--accent); }
+.nl-pt-check {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--accent);
+}
+.nl-pt-plus {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: var(--foreground);
+}
+.nl-pt-plus svg { width: 16px; height: 16px; }
+
+/* The trigger above the chart, on the same tokens. */
+html:is(.dark, :not(.dark)) body .gx-pair-trade-trigger { color: var(--foreground); }
+html:is(.dark, :not(.dark)) body .gx-pair-trade-trigger-text span { color: var(--muted); }
+html:is(.dark, :not(.dark)) body .gx-pair-trade-trigger b.is-long { color: var(--accent); }
+html:is(.dark, :not(.dark)) body .gx-pair-trade-trigger b.is-short { color: var(--danger); }
+html:is(.dark, :not(.dark)) body .gx-pair-trade-count {
+  background: var(--surface-raised);
+  color: var(--muted);
+}
+
+@media (max-width: 1023px) {
+  html:is(.dark, :not(.dark)) body .tp-sheet.nl-pt-sheet {
+    width: 100%;
+    padding: 6px 20px calc(24px + env(safe-area-inset-bottom));
+    border-width: 1px 0 0;
+    border-radius: 28px 28px 0 0;
+  }
+  html:is(.dark, :not(.dark)) body .nl-pt-sheet .tp-grip {
+    display: block;
+    background: var(--border-strong) content-box;
+  }
+}
+
+/* ============================================================ CHART SIDE COLUMN FIT
+   The side column fits the chart's height with no visible scrollbar: the
+   Analyze and Trade health cards keep their size, and Upcoming news takes the
+   rest, its list scrolling inside the card and fading out at the bottom. The
+   column itself can still scroll (scrollbar hidden) when a long Analyze plan
+   needs the room. */
+@media (min-width: 1024px) {
+  html:is(.dark, :not(.dark)) body .nl-chart-side {
+    scrollbar-width: none;
+  }
+  html:is(.dark, :not(.dark)) body .nl-chart-side::-webkit-scrollbar { display: none; }
+
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-cside-card.nl-cnews {
+    flex: 1 1 0;
+    min-height: 196px;
+    overflow: hidden;
+  }
+  .nl-cnews .nl-news-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-bottom: 22px;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), transparent);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), transparent);
+  }
+  .nl-cnews .nl-news-list::-webkit-scrollbar { display: none; }
+}
+
+/* ============================================================ CHART SIDE COLUMN COMPACT
+   Analyze, Trade health and Upcoming news all hold beside the chart without
+   the page scrolling: tighter card padding, a smaller Analyze headline and
+   one-line news rows, so the news card has room for several releases. */
+@media (min-width: 1024px) {
+  html:is(.dark, :not(.dark)) body .nl-chart-side { gap: 12px; }
+
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-an-card { padding: 18px 20px; }
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-an-body { gap: 12px; }
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-an-decision { font-size: 30px; }
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-an-ratio { font-size: 30px; }
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-an-idle {
+    margin: -4px 0 0;
+    font-size: 12.5px;
+    line-height: 1.45;
+  }
+  html:is(.dark, :not(.dark)) body .nl-chart-side :is(.nl-an-primary, .nl-an-secondary) {
+    height: 40px;
+    border-radius: 12px;
+    font-size: 13px;
+  }
+
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-cside-card {
+    gap: 12px;
+    padding: 18px 20px;
+  }
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-cside-head h2 { font-size: 18px; }
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-cpos-grid > div {
+    gap: 4px;
+    padding: 9px 10px;
+    border-radius: 12px;
+  }
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-cpos-foot { white-space: nowrap; }
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-clevels-start {
+    height: 36px;
+    border-radius: 11px;
+  }
+
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-cside-card.nl-cnews { min-height: 150px; }
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-cnews .nl-news-list {
+    gap: 6px;
+    margin: 0;
+  }
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-cnews .nl-news-row {
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 12px;
+  }
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-cnews .nl-news-when { width: 40px; }
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-cnews .nl-news-when span { font-size: 10px; }
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-cnews .nl-news-when b { font-size: 14px; }
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-cnews .nl-news-copy { gap: 2px; }
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-cnews .nl-news-copy b {
+    font-size: 13px;
+    -webkit-line-clamp: 1;
+  }
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-cnews .nl-news-copy span { font-size: 11px; }
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-cnews .nl-impact {
+    padding: 2px 6px;
+    font-size: 10px;
+  }
+}
+
+/* Open position row: OANDA's entry spread under the P/L, so a trade above
+   entry that is still red reads why. */
+.nl-pos-pl {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.nl-pos-spread {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+/* ============================================================ OPEN POSITION · SLIM
+   Home's main column (desktop, under 980px wide) shows each open trade in two
+   lines instead of three: pair and side, entry → now, size, R and P/L on one
+   row, then the stop → target track. */
+@media (min-width: 1024px) {
+  @container (max-width: 980px) {
+    .nl-positions .nl-pos {
+      grid-template-columns: minmax(0, 1fr) auto auto auto auto;
+      grid-template-areas:
+        "pair prices size r pl"
+        "track track track track track";
+      align-items: center;
+      gap: 12px 22px;
+      padding: 16px 20px 14px;
+      border-radius: 18px;
+    }
+    .nl-positions .nl-pos-pair {
+      flex-direction: row;
+      align-items: center;
+      gap: 10px;
+    }
+    .nl-positions .nl-pos-pair b { font-size: 18px; }
+    .nl-positions .nl-side { align-self: center; font-size: 11px; }
+    .nl-positions .nl-pos-prices {
+      flex-direction: row;
+      align-items: baseline;
+      gap: 6px;
+      font-size: 13px;
+    }
+    .nl-positions .nl-pos-prices > :last-child::before {
+      content: "→ ";
+      color: var(--muted);
+    }
+    .nl-positions .nl-pos-size {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .nl-positions .nl-pos-r {
+      font-size: 13px;
+      text-align: right;
+    }
+    .nl-positions .nl-pos-pl {
+      min-width: 84px;
+      font-size: 16px;
+    }
+    .nl-positions .nl-pos-spread { font-size: 10.5px; }
+    .nl-positions .nl-pos-track { gap: 4px; }
+    .nl-positions .nl-track { height: 16px; }
+    .nl-positions .nl-track::before,
+    .nl-positions .nl-track-fill { top: 6px; height: 4px; }
+    .nl-positions .nl-track-entry { top: 1px; height: 14px; }
+    .nl-positions .nl-track-mark { top: 1px; }
+  }
+}
+
+/* ============================================================ CHART TOOLBAR · ONE LINE
+   Timeframes, range, chart type, indicators, the trade picker and the chart
+   actions share one row on desktop. The trade picker is the part that gives:
+   it shrinks and ellipsises its "Open · price" note; the trade count chip is
+   dropped (the list shows it). */
+@media (min-width: 1024px) {
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar {
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar > * { flex-shrink: 0; }
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .workspace-tab-btn {
+    min-width: 40px;
+    padding: 0 8px;
+  }
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .gx-pair-trade-trigger {
+    flex: 0 1 auto;
+    width: auto;
+    min-width: 0;
+    height: 44px;
+    min-height: 0;
+    gap: 8px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+  }
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .gx-pair-trade-trigger:hover { background: var(--surface-raised); }
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .gx-pair-trade-trigger-text {
+    align-items: baseline;
+    min-width: 0;
+    overflow: hidden;
+  }
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .gx-pair-trade-trigger-text b {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .gx-pair-trade-count { display: none; }
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .gx-pair-trade-trigger > svg { flex: none; }
+}
+@media (min-width: 1024px) {
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar { container-type: inline-size; }
+  /* Under ~880px of toolbar, Candles and Indicators go icon-only (their
+     aria-labels still name them) so the trade picker keeps room to read. */
+  @container (max-width: 880px) {
+    html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .gx-toolbar-btn:is([aria-label="Chart type"], [aria-label="Chart indicators"]) span { display: none; }
+    html:is(.dark, :not(.dark)) body .signals-view .nl-terminal .nl-chart-toolbar .gx-toolbar-btn:is([aria-label="Chart type"], [aria-label="Chart indicators"]) {
+      width: 44px;
+      padding: 0;
+      justify-content: center;
+    }
+    html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .nl-toolbar-rule { display: none; }
+    html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .nl-toolbar-end { gap: 4px; }
+  }
+}
+
+/* ============================================================ PHONE · SL / TP
+   An open manual trade gets an "SL / TP" button beside Close trade. It puts
+   the draggable lines on the chart and swaps the action bar for the same
+   draft panel as the desktop Trade health card (ChartLevelEditor). */
+.nl-mtrade-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+.nl-mtrade-row > .gx-mobile-analyze { flex: 1; min-width: 0; }
+.nl-mlevels-start {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 2.8rem;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.7rem;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.nl-mlevels-start svg { width: 16px; height: 16px; color: var(--muted); }
+/* Compact on phones so the chart above stays visible while dragging: stop
+   and target side by side, icon-only add / remove, then Cancel / Save. */
+.nl-mlevels .nl-clevels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  width: 100%;
+}
+.nl-mlevels .nl-clevels-hint,
+.nl-mlevels .nl-clevels-row small { display: none; }
+.nl-mlevels .nl-clevels-error,
+.nl-mlevels .nl-clevels-actions { grid-column: 1 / -1; }
+.nl-mlevels .nl-clevels-actions { margin-top: 0; }
+.nl-mlevels .nl-clevels-row {
+  grid-template-columns: 3px minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 8px 6px 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.nl-mlevels .nl-clevels-row.is-invalid { border-color: color-mix(in srgb, var(--pending) 60%, var(--border)); }
+.nl-mlevels .nl-clevels-row.is-invalid b { color: var(--pending); }
+.nl-mlevels .nl-clevels-row span { font-size: 10.5px; }
+.nl-mlevels .nl-clevels-row b { font-size: 12px; }
+.nl-mlevels .nl-clevels-toggle {
+  width: 30px;
+  height: 30px;
+  justify-content: center;
+  padding: 0;
+  font-size: 0;
+}
+.nl-mlevels .nl-clevels-toggle svg { width: 14px; height: 14px; }
+.nl-mlevels .nl-clevels-actions button { height: 44px; }
+
+/* Fingers need a taller grab band than a mouse. */
+@media (pointer: coarse) {
+  .setup-chart-level-edit-line { top: -14px; height: 28px; }
+  .setup-chart-level-edit-line::before { inset: 13px 0 auto; }
+  .setup-chart-level-edit-handle { height: 28px; font-size: 12px; }
 }

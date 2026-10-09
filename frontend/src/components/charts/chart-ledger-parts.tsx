@@ -8,9 +8,12 @@
 
 import { useEffect, useState } from "react";
 import { MoveVertical, Plus, X } from "lucide-react";
+import { NewsImpactSheet, type NewsImpactPosition } from "@/components/dashboard/news-impact-sheet";
 import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
-import { displayNameFor, pipSizeFor } from "@/lib/instruments/catalog";
+import { currenciesOf, displayNameFor, pipSizeFor } from "@/lib/instruments/catalog";
+import { homeCalendarImpactTier, homeCalendarRows } from "@/lib/news/home-calendar";
+import { useEconomicCalendar } from "@/lib/oanda/use-economic-calendar";
 import { openRFromLevels } from "@/lib/open-trade-progress";
 import type { TradeMonitorDebug } from "@/lib/strategy/trade-monitor";
 import type { Candle } from "@/types/forex";
@@ -175,7 +178,6 @@ export function ChartHealthCard({
   const tone = (value: number | null) => (value === null || Math.abs(value) < 0.005 ? "" : value > 0 ? "is-up" : "is-down");
   const signed = (value: number, digits: number) => `${value >= 0 ? "+" : "−"}${Math.abs(value).toFixed(digits)}`;
   const monitor = read && read.instrument === signal.instrument ? read.value : null;
-  const monitorChecked = read !== null && read.instrument === signal.instrument;
   const heldMinutes = signal.openedAt ? Math.max(0, Math.round((now - Date.parse(signal.openedAt)) / 60_000)) : null;
   const held = heldMinutes === null ? "—"
     : heldMinutes < 60 ? `${heldMinutes}m`
@@ -213,15 +215,15 @@ export function ChartHealthCard({
         ))}
       </div>
       {levels?.editing ? (
-        <LevelEditor levels={levels} signal={signal} />
+        <ChartLevelEditor levels={levels} signal={signal} />
       ) : (
         <>
           {signal.stop === null && signal.target === null ? (
             <p className="nl-cside-note is-caution">No stop or target set: the risk on this trade is not capped.</p>
           ) : (
             <div className="nl-cpos-foot metric-number">
-              <span className="is-down">{signal.stop === null ? "No stop" : toStop === null ? "—" : `${toStop.toFixed(1)} pips to stop`}</span>
-              <span className="is-up">{signal.target === null ? "No target" : toTarget === null ? "—" : `${toTarget.toFixed(1)} pips to target`}</span>
+              <span className="is-down">{signal.stop === null ? "No stop" : toStop === null ? "—" : `${toStop.toFixed(1)}p to stop`}</span>
+              <span className="is-up">{signal.target === null ? "No target" : toTarget === null ? "—" : `${toTarget.toFixed(1)}p to target`}</span>
             </div>
           )}
           {levels ? (
@@ -232,15 +234,12 @@ export function ChartHealthCard({
           ) : null}
         </>
       )}
-      {monitorChecked && !monitor && !levels?.editing ? (
-        <p className="nl-cside-note">Structure checks run on trades placed from Analyze.</p>
-      ) : null}
     </section>
   );
 }
 
 /** The draft stop and target while their lines are being dragged on the chart. */
-function LevelEditor({ levels, signal }: { levels: ChartHealthLevels; signal: ChartPositionCardSignal }) {
+export function ChartLevelEditor({ levels, signal }: { levels: ChartHealthLevels; signal: ChartPositionCardSignal }) {
   const pip = pipSizeFor(signal.instrument);
   const long = signal.direction === "long";
   // R only means something while the stop is on the losing side of entry.
@@ -292,5 +291,95 @@ function LevelEditor({ levels, signal }: { levels: ChartHealthLevels; signal: Ch
         </button>
       </div>
     </div>
+  );
+}
+
+const newsDay = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "America/New_York" });
+const newsTime = new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "America/New_York" });
+
+function newsCountdown(timestamp: string, now: number) {
+  const minutes = Math.max(0, Math.round((Date.parse(timestamp) - now) / 60_000));
+  if (minutes < 60) return `in ${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `in ${hours}h ${minutes % 60}m`;
+  return `in ${Math.floor(hours / 24)}d ${hours % 24}h`;
+}
+
+/**
+ * Medium and high-impact releases for this pair's two currencies, in the same
+ * rows as Home's news card: today's releases first, then what is coming. A
+ * row opens the impact drawer for that release.
+ */
+export function ChartNewsCard({
+  instrument,
+  position = null,
+}: {
+  instrument: string;
+  /** The open trade on this pair, so the impact drawer lists it first. */
+  position?: NewsImpactPosition | null;
+}) {
+  const { snapshot: calendar, loading } = useEconomicCalendar();
+  const [openId, setOpenId] = useState<string | null>(null);
+  // A clock that only exists after mount, so SSR and hydration agree.
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const { base, quote } = currenciesOf(instrument);
+  const forPair = <T extends { currency: string }>(events: T[]) =>
+    events.filter((event) => event.currency === base || event.currency === quote);
+  const rows = now === null ? [] : homeCalendarRows(forPair(calendar.recentEvents ?? []), forPair(calendar.events), now);
+  const openEvent = rows.find((row) => row.id === openId) ?? null;
+
+  return (
+    <section className="nl-cside-card nl-cnews" aria-labelledby="nl-cnews-title">
+      <div className="nl-cside-head">
+        <h2 id="nl-cnews-title">Upcoming news</h2>
+        <span className="metric-number nl-cnews-meta">{base} · {quote} · ET</span>
+      </div>
+      {loading || now === null ? (
+        <p className="nl-cside-empty">Loading calendar…</p>
+      ) : !calendar.connected ? (
+        <p className="nl-cside-note is-caution">Calendar unavailable: check the news yourself before trading.</p>
+      ) : rows.length ? (
+        <div className="nl-news-list">
+          {rows.map((event) => {
+            const high = homeCalendarImpactTier(event.impact) === "high";
+            const status = event.state === "live" ? "Now" : event.state === "released" ? "Released" : newsCountdown(event.timestamp, now);
+            return (
+              <button
+                key={event.id}
+                type="button"
+                className={`nl-news-row is-${event.state}`}
+                onClick={() => setOpenId(event.id)}
+                aria-label={`${event.currency} ${event.title}, ${status}, ${high ? "high" : "medium"} impact: see how it affects ${event.currency} pairs`}
+              >
+                <span className="nl-news-when metric-number">
+                  <span>{newsDay.format(new Date(event.timestamp)).toUpperCase()}</span>
+                  <b>{newsTime.format(new Date(event.timestamp))}</b>
+                </span>
+                <span className="nl-news-copy">
+                  <b>{event.currency} · {event.title}</b>
+                  <span>{status}</span>
+                </span>
+                <span className={`nl-impact ${high ? "is-high" : "is-medium"}`}>{high ? "HIGH" : "MED"}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="nl-cside-empty">No medium or high-impact {base} or {quote} news this week.</p>
+      )}
+      <NewsImpactSheet
+        event={openEvent}
+        positions={position ? [position] : []}
+        onClose={() => setOpenId(null)}
+        now={now ?? 0}
+      />
+    </section>
   );
 }

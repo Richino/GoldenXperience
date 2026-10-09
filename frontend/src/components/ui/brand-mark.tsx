@@ -12,9 +12,9 @@ export function BrandMark({
       <Link href="/" className="brand-mark-sidebar pressable" aria-label="GoldenXperience home">
         <span className="brand-mark-sidebar-tile" aria-hidden="true">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img alt="" aria-hidden="true" className="brand-icon-light brand-mark-sidebar-icon" src="/brand-icon-light.svg" />
+          <img alt="" aria-hidden="true" className="brand-icon-light brand-mark-sidebar-icon" src="/brand-glyph-light.svg" />
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img alt="" aria-hidden="true" className="brand-icon-dark brand-mark-sidebar-icon" src="/brand-icon.svg" />
+          <img alt="" aria-hidden="true" className="brand-icon-dark brand-mark-sidebar-icon" src="/brand-glyph.svg" />
         </span>
       </Link>
     );

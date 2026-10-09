@@ -194,4 +194,11 @@ export interface JournalTrade {
   brokerExecutionStatus?: "rejected" | null;
   /** OANDA's rejection detail, retained separately from the simulated trade outcome. */
   brokerFailureReason?: string | null;
+  /**
+   * The stop-loss / take-profit the trade holds now; null when it has none.
+   * A manual trade's levels can be moved on the chart, while `stop` stays the
+   * 1R reference its R is measured against and `target` may be a placeholder.
+   */
+  slPrice?: number | null;
+  tpPrice?: number | null;
 }

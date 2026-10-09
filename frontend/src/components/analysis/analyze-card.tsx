@@ -315,10 +315,6 @@ export function AnalyzeCard({
           <h2 id="nl-an-card-title" className="nl-an-decision">
             No plan yet
           </h2>
-          <p className="nl-an-idle">
-            Read {instrumentLabel(props.instrument)}&apos;s structure for a 1:2 plan with entry, stop and target. Nothing
-            is placed until you review it.
-          </p>
           <div className="nl-an-actions is-card">
             <button type="button" className="nl-an-secondary pressable" onClick={onNewEntry} disabled={analyzeDisabled}>
               New entry
@@ -336,10 +332,6 @@ export function AnalyzeCard({
       <AnalyzeBody {...props} titleId="nl-an-card-title" stamp={stamp} />
     </section>
   );
-}
-
-function instrumentLabel(instrument: string) {
-  return instrument.replace("_", "/");
 }
 
 /** Phone: a bottom sheet over the dimmed chart; drag the grip to dismiss. */

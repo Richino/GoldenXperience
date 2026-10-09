@@ -2036,7 +2036,8 @@ export async function journalTradeLog(
             entry_guaranteed_execution_fee AS "oandaEntryGuaranteedExecutionFee",
             max_hold_bars AS "maxHoldBars", bars_held AS "barsHeld",
             strategy_family AS "strategyFamily", batch_number AS "batchNumber",
-            "brokerExecutionStatus", "brokerFailureReason"
+            "brokerExecutionStatus", "brokerFailureReason",
+            sl_price AS "slPrice", tp_price AS "tpPrice"
      FROM (
        SELECT manual.id::text, manual.origin,
               CASE WHEN pending.paper_trade_id IS NOT NULL THEN manual.id::text ELSE NULL END AS chart_trade_id,
@@ -2050,10 +2051,15 @@ export async function journalTradeLog(
                NULLIF(pending.metadata->>'oandaEntryGuaranteedExecutionFee','')::float AS entry_guaranteed_execution_fee,
                NULL::int AS max_hold_bars, NULL::int AS bars_held,
                NULL::text AS strategy_family, NULL::int AS batch_number,
-               NULL::text AS "brokerExecutionStatus", NULL::text AS "brokerFailureReason"
+               NULL::text AS "brokerExecutionStatus", NULL::text AS "brokerFailureReason",
+               -- The stop / target the trade holds now. A manual entry's own
+               -- levels can be moved (or be none) while paper_trades.stop
+               -- stays the 1R reference and its target a placeholder.
+               CASE WHEN pending.paper_trade_id IS NOT NULL THEN pending.stop_price::float ELSE manual.stop::float END AS sl_price,
+               CASE WHEN pending.paper_trade_id IS NOT NULL THEN pending.target_price::float ELSE manual.target::float END AS tp_price
        FROM paper_trades manual
        LEFT JOIN LATERAL (
-         SELECT entry.instrument, entry.paper_trade_id, entry.metadata,
+         SELECT entry.instrument, entry.paper_trade_id, entry.metadata, entry.stop_price, entry.target_price,
                 entry.metadata->>'brokerTradeId' AS broker_trade_id
            FROM pending_manual_entries entry
           WHERE entry.paper_trade_id=manual.id
@@ -2098,7 +2104,8 @@ export async function journalTradeLog(
                trade.max_hold_bars, trade.bars_held,
                trade.strategy_family, batch.batch_number,
                CASE WHEN intent.status='rejected' THEN 'rejected' ELSE NULL END,
-               CASE WHEN intent.status='rejected' THEN intent.failure_reason ELSE NULL END
+               CASE WHEN intent.status='rejected' THEN intent.failure_reason ELSE NULL END,
+               trade.stop::float, trade.target::float
        FROM paper_strategy_trades trade
        JOIN instruments instrument ON instrument.code = trade.instrument
        JOIN paper_strategy_batches batch ON batch.id = trade.batch_id

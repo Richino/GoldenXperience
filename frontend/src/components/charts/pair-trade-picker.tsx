@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown, Plus } from "lucide-react";
+import { Check, ChevronDown, Plus, X } from "lucide-react";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { useDragToDismiss } from "@/lib/use-drag-to-dismiss";
 import type { PendingManualEntry } from "@/types/pending-entry";
@@ -68,42 +68,47 @@ export function PairTradePicker({ trades, selectedId, instrument, onSelect }: {
 
       {open ? createPortal(
         <div ref={setBackdrop} className="tp-backdrop fixed inset-0 z-[10000] flex items-center justify-center p-4" data-pull-to-refresh-ignore="true" onMouseDown={(event) => { if (event.target === event.currentTarget) requestClose(); }}>
-          <section ref={setSheet} {...handlers} className="tp-sheet gx-pair-trade-sheet max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-5 text-zinc-900 shadow-2xl dark:bg-zinc-950 dark:text-zinc-100" role="dialog" aria-modal="true" aria-labelledby="pair-trade-title">
+          <section ref={setSheet} {...handlers} className="tp-sheet nl-pt-sheet" role="dialog" aria-modal="true" aria-labelledby="pair-trade-title">
             <div className="tp-grip" aria-hidden="true" />
-            <header className="tp-head flex items-start justify-between gap-4">
-              <h2 id="pair-trade-title" className="tp-title text-xl font-semibold">Trades on {instrument.replace("_", "/")}</h2>
-              <button type="button" onClick={requestClose} className="tp-close rounded-lg px-2 py-1 text-xl" aria-label="Close trade list">×</button>
+            <header className="tp-head nl-an-top">
+              <span className="nl-an-eyebrow">Chart · {instrument.replace("_", "/")}</span>
+              <button type="button" onClick={requestClose} className="nl-an-close" aria-label="Close trade list">
+                <X aria-hidden="true" />
+              </button>
             </header>
-            <ul className="gx-pair-trade-list">
+            <h2 id="pair-trade-title" className="nl-pt-title">Trades on this pair</h2>
+            <ul className="nl-pt-list">
               {trades.map((entry, index) => {
                 const filled = entry.status === "TRIGGERED";
                 const isSelected = entry.id === selectedId;
                 return (
                   <li key={entry.id}>
-                    <button type="button" className={`gx-pair-trade-row pressable${isSelected ? " is-selected" : ""}`} onClick={() => pick(entry.id)} aria-pressed={isSelected}>
-                      <span className={`gx-pair-trade-side ${entry.direction === "long" ? "is-long" : "is-short"}`} aria-hidden="true" />
-                      <span className="gx-pair-trade-main">
-                        <span className="gx-pair-trade-name">
+                    <button type="button" className={`nl-pt-row pressable${isSelected ? " is-selected" : ""}`} onClick={() => pick(entry.id)} aria-pressed={isSelected}>
+                      <span className={`nl-pt-side ${entry.direction === "long" ? "is-long" : "is-short"}`} aria-hidden="true" />
+                      <span className="nl-pt-main">
+                        <span className="nl-pt-name">
                           {tradeTitle(entry, index)}
-                          <span className={`gx-pair-trade-status ${filled ? "is-open" : "is-pending"}`}>{filled ? "Open" : "Pending"}</span>
+                          <span className={`nl-pt-status ${filled ? "is-open" : "is-pending"}`}>{filled ? "Open" : "Pending"}</span>
                         </span>
-                        <span className="gx-pair-trade-levels metric-number">
-                          Entry {price(filled ? entry.triggerPrice : entry.entryPrice)} · SL {price(entry.stopPrice)} · TP {price(entry.targetPrice)}
+                        <span className="nl-pt-levels metric-number">
+                          <span>Entry {price(filled ? entry.triggerPrice : entry.entryPrice)}</span>
+                          <span className="is-down">SL {price(entry.stopPrice)}</span>
+                          <span className="is-up">TP {price(entry.targetPrice)}</span>
                         </span>
                       </span>
-                      {isSelected ? <Check className="gx-pair-trade-check size-5" aria-label="Shown on the chart" /> : null}
+                      {isSelected ? <Check className="nl-pt-check" aria-label="Shown on the chart" /> : null}
                     </button>
                   </li>
                 );
               })}
               <li>
-                <button type="button" className={`gx-pair-trade-row is-new pressable${selectedId === NEW_PAIR_TRADE ? " is-selected" : ""}`} onClick={() => pick(NEW_PAIR_TRADE)}>
-                  <Plus className="size-5" aria-hidden="true" />
-                  <span className="gx-pair-trade-main">
-                    <span className="gx-pair-trade-name">New trade</span>
-                    <span className="gx-pair-trade-levels">Clear the chart to place another trade</span>
+                <button type="button" className={`nl-pt-row is-new pressable${selectedId === NEW_PAIR_TRADE ? " is-selected" : ""}`} onClick={() => pick(NEW_PAIR_TRADE)}>
+                  <span className="nl-pt-plus" aria-hidden="true"><Plus /></span>
+                  <span className="nl-pt-main">
+                    <span className="nl-pt-name">New trade</span>
+                    <span className="nl-pt-levels">Clear the chart to place another trade</span>
                   </span>
-                  {selectedId === NEW_PAIR_TRADE ? <Check className="gx-pair-trade-check size-5" aria-label="Selected" /> : null}
+                  {selectedId === NEW_PAIR_TRADE ? <Check className="nl-pt-check" aria-label="Selected" /> : null}
                 </button>
               </li>
             </ul>

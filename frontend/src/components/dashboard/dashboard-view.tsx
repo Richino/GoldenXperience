@@ -17,6 +17,7 @@ import { apiUrl } from "@/lib/api/url";
 import { tradingDayKey } from "@/lib/format/datetime";
 import { pipSizeFor } from "@/lib/instruments/catalog";
 import {
+  currentTradeLevels,
   openRFromLevels,
   openTradeProgress,
   quoteToUsdRateFromQuotes,
@@ -127,6 +128,9 @@ type Trade = {
   entry?: number | null;
   stop?: number | null;
   target?: number | null;
+  /** The stop / target the trade holds now (null = none); `stop` stays the 1R reference. */
+  slPrice?: number | null;
+  tpPrice?: number | null;
   nominalRiskAmount?: number | null;
   brokerTradeId?: string | null;
   strategyFamily?: string | null;
@@ -285,6 +289,8 @@ export function DashboardView({
       entry: trade.entry,
       stop: trade.stop,
       target: trade.target,
+      slPrice: trade.slPrice,
+      tpPrice: trade.tpPrice,
       // Paper manual trades carry no position size, so value them against a
       // nominal 1% risk to show a simulated live P&L that moves with price.
       // Real OANDA-backed trades ignore this — markedOpenMoney prefers the
@@ -458,6 +464,9 @@ export function DashboardView({
 
   // One finished row per open trade. The figures are the ones the old rows
   // showed (mark, Open R, P/L, lots); only the presentation moved.
+  // OANDA's booked entry spread per trade, from the journal (which lists both
+  // manual and strategy trades), so a row can show what the fill cost.
+  const entrySpreadById = new Map(journalTrades.map((row) => [row.id, row.oandaEntryHalfSpreadCost ?? null]));
   const ledgerPositions: LedgerPosition[] = openTrades.slice(0, 6).map((trade) => {
     const shown = markedOpenMoney(trade, quotes, fills, watchlist);
     const live = liveOpenProgress(trade, quotes, fills, watchlist);
@@ -472,15 +481,18 @@ export function DashboardView({
       live?.unrealizedR ??
       (shown !== null && trade.nominalRiskAmount ? shown / trade.nominalRiskAmount : null);
     const r = rMultiple === null ? null : Number(rMultiple.toFixed(2)) || 0;
+    // Shown levels are the ones the trade holds now (a manual trade's can be
+    // moved on the chart or be none); R above still runs off the 1R stop.
+    const { sl, tp } = currentTradeLevels(trade);
     // Position on the stop → target line, 0–100%. For a short the span is
     // negative and the signs cancel, so one formula serves both sides.
-    const span = trade.stop != null && trade.target != null ? trade.target - trade.stop : 0;
+    const span = sl != null && tp != null ? tp - sl : 0;
     const trackAt = (price: number | null | undefined) =>
-      price == null || span === 0 ? null : Math.min(100, Math.max(0, ((price - (trade.stop as number)) / span) * 100));
+      price == null || span === 0 || sl == null ? null : Math.min(100, Math.max(0, ((price - sl) / span) * 100));
     // Progress from entry toward the target, or how far price sits against it.
     let progress: string | null = null;
-    if (mark !== null && trade.entry != null && trade.target != null && trade.target !== trade.entry) {
-      const toward = (mark - trade.entry) / (trade.target - trade.entry);
+    if (mark !== null && trade.entry != null && tp != null && tp !== trade.entry) {
+      const toward = (mark - trade.entry) / (tp - trade.entry);
       progress =
         toward >= 0
           ? `${Math.round(Math.min(1, toward) * 100)}% to target`
@@ -494,14 +506,15 @@ export function DashboardView({
       openedAt: trade.openedAt,
       entry: trade.entry ?? null,
       mark,
-      stop: trade.stop ?? null,
-      target: trade.target ?? null,
+      stop: sl,
+      target: tp,
       entryAt: trackAt(trade.entry),
       markAt: trackAt(mark),
       r,
       money: shown,
       lots,
       progress,
+      spreadCost: entrySpreadById.get(trade.id) ?? null,
     };
   });
 
@@ -541,10 +554,22 @@ export function DashboardView({
     losses: journalSummary?.today?.losses ?? todayFromList.losses,
     results: todayResults,
   };
-  const riskedTrades = openTrades.filter((trade) => trade.nominalRiskAmount != null);
-  const openRisk = riskedTrades.length
-    ? riskedTrades.reduce((sum, trade) => sum + (trade.nominalRiskAmount as number), 0)
-    : null;
+  // What each open trade loses if its stop is hit now: the broker fill's size
+  // against the stop it holds (moved on the chart or not), in account dollars.
+  // A stop past entry risks nothing. Trades without a fill or a stop fall back
+  // to their nominal 1% risk.
+  const tradeRisk = (trade: Trade) => {
+    const fill = trade.brokerTradeId ? fills[`broker:${trade.brokerTradeId}`] : undefined;
+    const sl = currentTradeLevels(trade).sl ?? fill?.stopPrice ?? null;
+    const usdPerQuote = quoteToUsdRateFromQuotes(trade.instrument, quotes);
+    if (fill && fill.units && sl !== null && usdPerQuote !== null) {
+      const perUnit = trade.direction === "long" ? fill.price - sl : sl - fill.price;
+      return Math.max(0, perUnit) * Math.abs(fill.units) * usdPerQuote;
+    }
+    return trade.nominalRiskAmount ?? null;
+  };
+  const tradeRisks = openTrades.map(tradeRisk).filter((risk): risk is number => risk !== null);
+  const openRisk = tradeRisks.length ? tradeRisks.reduce((sum, risk) => sum + risk, 0) : null;
 
   return (
     <>

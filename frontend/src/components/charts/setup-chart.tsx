@@ -1710,6 +1710,15 @@ export function SetupChart({
       ? 0
       : (spreadPips * pipSizeFor(series.instrument)) / 2;
   const halfSpreadRef = useRef(halfSpread);
+  // The focused trade's own dashed entry line is only needed when nothing
+  // else marks that entry: an open trade already carries its ENTRY level
+  // (setup levels or a reference line), and a second line there is clutter.
+  const focusedEntry = trades?.find((item) => item.id === focusTradeId)?.entry ?? null;
+  const focusEntryCovered = focusedEntry !== null && (() => {
+    const tolerance = pipSizeFor(series.instrument) / 2;
+    const near = (price: number | null | undefined) => price != null && Math.abs(price - focusedEntry) < tolerance;
+    return near(levels?.entry) || referenceLines.some((line) => near(line.price));
+  })();
   const loadingOlderRef = useRef(loadingOlder);
   const onLoadOlderRef = useRef(onLoadOlder);
   // A foreground snapshot or a soft chart rebuild can briefly report an
@@ -2647,7 +2656,7 @@ export function SetupChart({
   useEffect(() => {
     const mainSeries = liveSeries(mainSeriesRef.current);
     const trade = trades?.find((item) => item.id === focusTradeId);
-    if (!mainSeries || !trade || !showTradeMarkers || focusPrediction) return;
+    if (!mainSeries || !trade || !showTradeMarkers || focusPrediction || focusEntryCovered) return;
     const line = mainSeries.createPriceLine({
       price: trade.entry,
       color: trade.direction === "long" ? (isDark ? "#60a5fa" : "#2563eb") : (isDark ? "#e879f9" : "#a21caf"),
@@ -2659,7 +2668,7 @@ export function SetupChart({
     return () => {
       if (liveSeries(mainSeriesRef.current) === mainSeries) mainSeries.removePriceLine(line);
     };
-  }, [chartEpoch, focusPrediction, focusTradeId, isDark, showTradeMarkers, trades]);
+  }, [chartEpoch, focusEntryCovered, focusPrediction, focusTradeId, isDark, showTradeMarkers, trades]);
 
   useEffect(() => {
     const mainSeries = liveSeries(mainSeriesRef.current);
@@ -2868,7 +2877,7 @@ export function SetupChart({
   // their positions are re-read each frame and only written back to React when
   // something actually moved.
   useEffect(() => {
-    const entryTrade = showTradeMarkers && !focusPrediction ? trades?.find((trade) => trade.id === focusTradeId) : null;
+    const entryTrade = showTradeMarkers && !focusPrediction && !focusEntryCovered ? trades?.find((trade) => trade.id === focusTradeId) : null;
     const tags = [
       ...(entryTrade ? [{
         key: "focused-trade-entry", label: "ENTRY", price: entryTrade.entry,
@@ -2948,7 +2957,7 @@ export function SetupChart({
     return () => cancelAnimationFrame(frame);
     // overlayTagFingerprint stands in for levels + referenceLine field values.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chartEpoch, isDark, overlayTagFingerprint, showTradeMarkers, focusPrediction, focusTradeId, trades]);
+  }, [chartEpoch, isDark, overlayTagFingerprint, showTradeMarkers, focusEntryCovered, focusPrediction, focusTradeId, trades]);
 
   // Positions are written straight to the DOM — React setState lagged a frame
   // behind the canvas whenever the user panned.

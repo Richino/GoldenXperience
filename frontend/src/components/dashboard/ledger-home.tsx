@@ -59,6 +59,8 @@ export type LedgerPosition = {
   lots: number | null;
   /** "52% to target" / "1.2 pips against", or null when unpriced. */
   progress: string | null;
+  /** What OANDA booked for the entry spread, account currency; null when unknown. */
+  spreadCost: number | null;
 };
 
 export type LedgerSetup = {
@@ -420,20 +422,23 @@ function LedgerPositions({ positions, currency }: { positions: LedgerPosition[];
                     {position.markAt !== null ? <span className={`nl-track-mark ${rTone}`} style={{ left: `${position.markAt}%` }} /> : null}
                   </span>
                   <span className="nl-track-labels metric-number">
-                    <span className="is-down">{position.stop === null ? "—" : formatChartPrice(position.stop, position.instrument)}</span>
+                    <span className="is-down">{position.stop === null ? "No stop" : formatChartPrice(position.stop, position.instrument)}</span>
                     <span className="nl-track-note">
                       <span className="nl-wide-only">{position.progress ?? ""}</span>
                       <span className="nl-narrow-only">
                         {position.mark === null ? "" : formatChartPrice(position.mark, position.instrument)}
                       </span>
                     </span>
-                    <span className="is-up">{position.target === null ? "—" : formatChartPrice(position.target, position.instrument)}</span>
+                    <span className="is-up">{position.target === null ? "No target" : formatChartPrice(position.target, position.instrument)}</span>
                   </span>
                 </span>
                 <span className="nl-pos-size metric-number">{position.lots === null ? "—" : `${position.lots.toFixed(2)} lot`}</span>
                 <span className={`nl-pos-r metric-number ${rTone}`}>{signedR(position.r)}</span>
-                <span className={`nl-pos-pl metric-number ${tone(position.money)}`}>
-                  {position.money === null ? "Open" : signedMoney(position.money, currency)}
+                <span className="nl-pos-pl metric-number">
+                  <span className={tone(position.money)}>{position.money === null ? "Open" : signedMoney(position.money, currency)}</span>
+                  {position.spreadCost !== null ? (
+                    <small className="nl-pos-spread">spread {signedMoney(-Math.abs(position.spreadCost), currency)}</small>
+                  ) : null}
                 </span>
               </Link>
             );

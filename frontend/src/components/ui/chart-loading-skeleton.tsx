@@ -32,7 +32,7 @@ export function ChartLoadingSkeleton() {
                 <div className="gx-chart-stage nl-chart-card"><div className="signals-chart-canvas chart-loading-static min-h-0 flex-1"><Plot /></div></div>
               </div>
               <aside className="nl-chart-side">
-                <section className="nl-an-card"><div className="nl-an-body"><div className="nl-an-top"><Block width={150} height={20} /></div><h2 className="nl-an-decision"><Block width="5em" height="1em" /></h2><div className="nl-an-idle space-y-2"><Block height={18} /><Block width="92%" height={18} /><Block width="65%" height={18} /></div><div className="nl-an-actions is-card"><Block height={48} /><Block height={48} /></div></div></section>
+                <section className="nl-an-card"><div className="nl-an-body"><div className="nl-an-top"><Block width={150} height={20} /></div><h2 className="nl-an-decision"><Block width="5em" height="1em" /></h2><div className="nl-an-actions is-card"><Block height={48} /><Block height={48} /></div></div></section>
                 <section className="nl-cside-card"><div className="nl-cside-head"><Block width={130} height={24} /></div><div className="nl-cside-empty"><Block width={220} height={20} /></div></section>
               </aside>
             </div>

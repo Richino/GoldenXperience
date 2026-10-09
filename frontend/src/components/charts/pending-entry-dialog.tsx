@@ -5,55 +5,11 @@ import { createPortal } from "react-dom";
 import { AnalyzeIcon } from "@/components/icons/analyze-icon";
 import { X } from "lucide-react";
 import { apiUrl } from "@/lib/api/url";
-import { calculateAtr } from "@/lib/chart-utils";
 import { useDragToDismiss } from "@/lib/use-drag-to-dismiss";
 import { displayNameFor, pipSizeFor, precisionFor } from "@/lib/instruments/catalog";
-import type { Candle } from "@/types/forex";
 import type { PendingManualEntry } from "@/types/pending-entry";
 
 type ExpirationPreset = "none" | "30m" | "1h" | "4h" | "custom";
-
-/**
- * Breakout V1 (forward test only, never backtested as the user trades it): a
- * stop order just past a level the trader picks, stop at least one average
- * 1-hour candle, 2R target, 4h expiry, cancelled if price turns away first.
- */
-const BREAKOUT_V1 = { bufferPips: 3, minStopPips: 10, rewardRisk: 2, cancelBeyondStopPips: 3 } as const;
-
-type BreakoutPlan = {
-  direction: "long" | "short";
-  level: number;
-  entry: number;
-  stop: number;
-  target: number;
-  invalidation: number;
-  stopPips: number;
-  h1AtrPips: number;
-};
-
-function breakoutPlan(level: number, bid: number, ask: number, h1Atr: number, instrument: string): BreakoutPlan | string {
-  const pip = pipSizeFor(instrument);
-  const mid = (bid + ask) / 2;
-  const direction = level > mid ? "long" : "short";
-  const sign = direction === "long" ? 1 : -1;
-  const entry = level + sign * BREAKOUT_V1.bufferPips * pip;
-  // A stop order must still be ahead of price; otherwise the break already happened.
-  if (direction === "long" ? entry <= ask : entry >= bid) {
-    return "Price is already past this level, so the breakout has already happened.";
-  }
-  const stopDistance = Math.max(h1Atr, BREAKOUT_V1.minStopPips * pip);
-  const stop = entry - sign * stopDistance;
-  return {
-    direction,
-    level,
-    entry,
-    stop,
-    target: entry + sign * BREAKOUT_V1.rewardRisk * stopDistance,
-    invalidation: stop - sign * BREAKOUT_V1.cancelBeyondStopPips * pip,
-    stopPips: stopDistance / pip,
-    h1AtrPips: h1Atr / pip,
-  };
-}
 
 function localDateTimeValue(value: string | null) {
   if (!value) return "";
@@ -153,57 +109,8 @@ export function PendingEntryDialog({
   const [activateError, setActivateError] = useState<string | null>(null);
   const [expiration, setExpiration] = useState<ExpirationPreset>(selectedEntry?.expiresAt ? "custom" : "none");
   const [customExpiration, setCustomExpiration] = useState(localDateTimeValue(selectedEntry?.expiresAt ?? null));
-  const [customExpirationPickerOpen, setCustomExpirationPickerOpen] = useState(false);
-  const initialExpirationFields = splitLocal(selectedEntry?.expiresAt ?? null);
-  const [customDate, setCustomDate] = useState(initialExpirationFields.date);
-  const [customTime, setCustomTime] = useState(initialExpirationFields.time);
-  const [customExpirationError, setCustomExpirationError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [mode, setMode] = useState<"manual" | "breakout">("manual");
-  const [breakoutLevel, setBreakoutLevel] = useState("");
-  // Keyed by instrument so a pair switch never sizes a stop from another pair's candles.
-  const [h1AtrRead, setH1AtrRead] = useState<{ instrument: string; atr: number | null; error: string | null } | null>(null);
-  const h1Atr = h1AtrRead?.instrument === instrument ? h1AtrRead.atr : null;
-  const h1AtrError = h1AtrRead?.instrument === instrument ? h1AtrRead.error : null;
-  const [breakout, setBreakout] = useState<BreakoutPlan | null>(null);
-
-  // The breakout stop is sized from the pair's current average 1-hour candle.
-  useEffect(() => {
-    if (!open || mode !== "breakout") return;
-    let cancelled = false;
-    void fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=H1&count=60`), { credentials: "include", cache: "no-store" })
-      .then(async (response) => {
-        const payload = await response.json() as { data?: { candles?: Candle[] }; error?: string };
-        if (!response.ok || !payload.data?.candles) throw new Error(payload.error ?? "1-hour candles are unavailable.");
-        const atr = calculateAtr(payload.data.candles.filter((candle) => candle.complete !== false), 14).at(-1) ?? null;
-        if (!atr || !(atr > 0)) throw new Error("Not enough 1-hour candles to size the stop.");
-        if (!cancelled) setH1AtrRead({ instrument, atr, error: null });
-      })
-      .catch((reason) => {
-        if (!cancelled) setH1AtrRead({ instrument, atr: null, error: reason instanceof Error ? reason.message : "1-hour candles are unavailable." });
-      });
-    return () => { cancelled = true; };
-  }, [instrument, mode, open]);
-
-  function fillBreakout() {
-    setError(null);
-    const level = Number(breakoutLevel);
-    if (!Number.isFinite(level) || level <= 0) return setError("Enter the level price.");
-    if (bid === null || ask === null) return setError("Wait for a fresh executable market quote.");
-    if (h1Atr === null) return setError(h1AtrError ?? "Still loading the 1-hour candle size.");
-    const plan = breakoutPlan(level, bid, ask, h1Atr, instrument);
-    if (typeof plan === "string") return setError(plan);
-    setBreakout(plan);
-    setDirection(plan.direction);
-    setOrderReferencePrice(plan.direction === "long" ? ask : bid);
-    setEntryPrice(plan.entry.toFixed(precision));
-    setStopPrice(plan.stop.toFixed(precision));
-    setTargetPrice(plan.target.toFixed(precision));
-    setInvalidationPrice(plan.invalidation.toFixed(precision));
-    setExpiration("4h");
-  }
-
   useEffect(() => {
     if (!open || isPanel) return;
     const previousBodyOverflow = document.body.style.overflow;
@@ -231,7 +138,7 @@ export function PendingEntryDialog({
       // is always 0 — made the handler treat every swipe as an at-edge
       // overscroll and preventDefault it, blocking all touch scrolling.
       const scroller = event.target instanceof Element
-        ? event.target.closest<HTMLElement>(".pending-entry-form, .pending-entry-detail")
+        ? event.target.closest<HTMLElement>(".pending-entry-form, .pending-entry-detail, .pending-entry-dialog.is-plan")
         : null;
       if (!scroller) {
         event.preventDefault();
@@ -275,7 +182,7 @@ export function PendingEntryDialog({
   // at the target), so those two are shown as facts rather than choices.
   const analyzeContext = selectedEntry
     ? (selectedEntry.metadata?.frozenContext as { setup?: unknown } | undefined)
-    : mode === "manual" ? (initialProposal?.analysisContext as { setup?: unknown } | undefined) : undefined;
+    : (initialProposal?.analysisContext as { setup?: unknown } | undefined);
   const AUTOMATIC_LIFETIME_HOURS: Record<string, number> = {
     "trend-pullback-loose-v1": 4, "trend-pullback-swing-v1": 24,
     "market-regime-normal-v1": 4, "market-regime-swing-v1": 48,
@@ -306,6 +213,8 @@ export function PendingEntryDialog({
   // A new order from an Analyze plan is reviewed in the plan's own layout
   // (the Analyze card's head, levels and rows); everything else is the form.
   const isPlan = !selectedEntry && !isPanel && automaticLifetime && direction !== null;
+  // Every other create / edit form is the manual ticket, in the same shell.
+  const isTicket = !isPlan && !isDetail;
   const planRatio = Number.isFinite(parsedEntry) && parsedStop && parsedTarget && parsedEntry !== parsedStop
     ? Math.abs(parsedTarget - parsedEntry) / Math.abs(parsedEntry - parsedStop)
     : null;
@@ -350,13 +259,7 @@ export function PendingEntryDialog({
     setActivateError(null);
     setExpiration("none");
     setCustomExpiration("");
-    setCustomExpirationPickerOpen(false);
-    setCustomDate("");
-    setCustomTime("");
-    setCustomExpirationError(null);
     setError(null);
-    setBreakoutLevel("");
-    setBreakout(null);
   }
 
   function dismissCreateOrClose() {
@@ -369,23 +272,6 @@ export function PendingEntryDialog({
       return;
     }
     onClose();
-  }
-
-  function openCustomExpirationPicker() {
-    const fields = splitLocal(customExpiration || new Date(Date.now() + 60 * 60_000).toISOString());
-    setCustomDate(fields.date);
-    setCustomTime(fields.time);
-    setCustomExpirationError(null);
-    setExpiration("custom");
-    setCustomExpirationPickerOpen(true);
-  }
-
-  function applyCustomExpiration() {
-    const iso = combineLocalToIso(customDate, customTime);
-    if (!iso) { setCustomExpirationError("Pick both a date and a time."); return; }
-    if (Date.parse(iso) <= Date.now()) { setCustomExpirationError("Choose a date and time in the future."); return; }
-    setCustomExpiration(localDateTimeValue(iso));
-    setCustomExpirationPickerOpen(false);
   }
 
   function openActivatePicker() {
@@ -446,22 +332,7 @@ export function PendingEntryDialog({
         body: JSON.stringify({
           instrument, direction, entryPrice: parsedEntry, stopPrice: parsedStop, targetPrice: parsedTarget, expiresAt, activateAt: activateAtIso, invalidationPrice: parsedInvalidation, orderReferencePrice,
           // Tags forward-test trades so they can be scored separately later.
-          analysisContext: !selectedEntry && mode === "breakout" && breakout
-            ? {
-              version: 1,
-              direction,
-              setup: "breakout-v1",
-              frozen: {
-                level: breakout.level,
-                h1AtrPips: Number(breakout.h1AtrPips.toFixed(1)),
-                planned: { entry: breakout.entry, stop: breakout.stop, target: breakout.target, invalidation: breakout.invalidation },
-                editedAfterFill: direction !== breakout.direction
-                  || parsedEntry.toFixed(precision) !== breakout.entry.toFixed(precision)
-                  || parsedStop?.toFixed(precision) !== breakout.stop.toFixed(precision)
-                  || parsedTarget?.toFixed(precision) !== breakout.target.toFixed(precision),
-              },
-            }
-            : !selectedEntry && mode === "manual" && initialProposal?.analysisContext
+          analysisContext: !selectedEntry && initialProposal?.analysisContext
               ? {
                 ...initialProposal.analysisContext,
                 direction,
@@ -517,7 +388,7 @@ export function PendingEntryDialog({
 
   const shell = (
     <section
-      className={`pending-entry-dialog${isPanel ? " is-panel" : ""}${initialProposal ? " is-proposal" : ""}${isPlan ? " is-plan" : ""}`}
+      className={`pending-entry-dialog${isPanel ? " is-panel" : ""}${initialProposal ? " is-proposal" : ""}${isPlan || (isTicket && !isPanel) ? " is-plan" : ""}`}
       role={isPanel ? "region" : "dialog"}
       aria-modal={isPanel ? undefined : true}
       aria-labelledby={isPanel && !selectedEntry ? undefined : "pending-entry-title"}
@@ -527,11 +398,11 @@ export function PendingEntryDialog({
       {...dragHandlers}
     >
       {isPanel ? null : <div className="pending-entry-grip" aria-hidden="true" />}
-      {isPlan ? (
+      {isPlan || (isTicket && !isPanel) ? (
         <header className="nl-an-top">
           <span className="nl-an-eyebrow">
-            <AnalyzeIcon className="size-3.5" />
-            Review entry · {displayNameFor(instrument)}
+            {isPlan ? <AnalyzeIcon className="size-3.5" /> : null}
+            {isPlan ? "Review entry" : selectedEntry ? "Edit entry" : "New trade"} · {displayNameFor(instrument)}
           </span>
           <button type="button" className="nl-an-close" onClick={requestDrawerClose} aria-label="Close pending entry">
             <X aria-hidden="true" />
@@ -658,141 +529,84 @@ export function PendingEntryDialog({
         </>
       ) : (
         <>
-          <div className="pending-entry-form">
-            {selectedEntry ? null : (
-              <fieldset className="pending-entry-advanced">
-                <legend>Mode</legend>
-                <div className="pending-entry-presets" role="group" aria-label="Entry mode">
-                  {(["manual", "breakout"] as const).map((option) => (
-                    <button key={option} type="button" className={mode === option ? "is-active" : ""} onClick={() => {
-                      setMode(option);
-                      setBreakout(null);
-                      setError(null);
-                    }}>
-                      {option === "manual" ? "Manual" : "Breakout"}
-                    </button>
-                  ))}
-                </div>
-              </fieldset>
-            )}
-            {!selectedEntry && mode === "breakout" ? (
-              <div className="pending-entry-breakout pending-entry-advanced">
-                <label>
-                  <span>Level price</span>
-                  <input inputMode="decimal" value={breakoutLevel} onChange={(event) => { setBreakoutLevel(event.target.value); setBreakout(null); }} placeholder="Support or resistance you picked" />
-                  <small>
-                    {h1AtrError
-                      ? h1AtrError
-                      : h1Atr === null
-                        ? "Loading 1-hour candle size…"
-                        : `Average 1-hour candle: ${(h1Atr / pipSizeFor(instrument)).toFixed(1)} pips · Above price = buy stop, below = sell stop`}
-                  </small>
-                </label>
-                <button type="button" className="pending-entry-secondary pressable" disabled={h1Atr === null || !breakoutLevel.trim()} onClick={fillBreakout}>
-                  Fill breakout order
-                </button>
-                {breakout ? (
-                  <small>
-                    {breakout.direction === "long" ? "Buy" : "Sell"} stop {BREAKOUT_V1.bufferPips} pips past the level · stop {breakout.stopPips.toFixed(1)} pips · target {BREAKOUT_V1.rewardRisk}:1 · expires in 4h · cancels if price reaches {breakout.invalidation.toFixed(precision)} first. Once filled, let it hit target or stop.
-                  </small>
-                ) : null}
-              </div>
-            ) : null}
-            <div className="pending-entry-direction" role="group" aria-label="Direction">
+          {/* The manual ticket in the plan's layout: side, the three levels in
+              one box, then the order read. Expiry, delayed submit and a
+              cancel level are not offered (none / now / none); an entry being
+              edited keeps whatever it already had. */}
+          <div className="nl-pe-plan nl-pe-ticket">
+            <div className="nl-pe-dir" role="radiogroup" aria-label="Direction">
               {(["long", "short"] as const).map((option) => (
-                <button key={option} type="button" className={`is-${option}${direction === option ? " is-active" : ""}`} onClick={() => {
-                  const reference = option === "long" ? ask : bid;
-                  setDirection(option);
-                  setOrderReferencePrice(reference);
-                  // Phone drawer: start from the live price so Order and Distance read immediately.
-                  if (!isPanel && entryPrice.trim() === "" && reference !== null) setEntryPrice(reference.toFixed(precision));
-                }}>{option.toUpperCase()}</button>
+                <button
+                  key={option}
+                  type="button"
+                  role="radio"
+                  aria-checked={direction === option}
+                  className={`is-${option}${direction === option ? " is-active" : ""}`}
+                  onClick={() => {
+                    const reference = option === "long" ? ask : bid;
+                    setDirection(option);
+                    setOrderReferencePrice(reference);
+                    // Start from the live price so the order read fills in at once.
+                    if (entryPrice.trim() === "" && reference !== null) setEntryPrice(reference.toFixed(precision));
+                  }}
+                >
+                  {option === "long" ? "Long" : "Short"}
+                </button>
               ))}
             </div>
-            <label>
-              <span>Entry price</span>
-              <input inputMode="decimal" value={entryPrice} onChange={(event) => {
-                if (entryPrice.trim() === "") setOrderReferencePrice(current);
-                setEntryPrice(event.target.value);
-              }} placeholder={current?.toFixed(precision) ?? "0.00000"} />
-              <small>{direction === null ? "Choose LONG or SHORT" : current === null ? "Waiting for quote…" : `Current ${current.toFixed(precision)}${distancePips !== null ? ` · ${distancePips.toFixed(1)} pips away` : ""}`}</small>
-            </label>
-            <div className="pending-entry-levels">
+            <p className="nl-an-regime">
+              {direction === null
+                ? "Choose long or short to start."
+                : `${planOrder ?? "Order"} · ${current === null ? "waiting for quote" : `now ${current.toFixed(precision)}${distancePips === null ? "" : `, ${distancePips.toFixed(1)} pips away`}`}`}
+            </p>
+
+            <div className="nl-pe-levels">
               <label>
-                <span>Stop loss</span>
-                <input inputMode="decimal" value={stopPrice} onChange={(event) => setStopPrice(event.target.value)} placeholder="Optional" />
+                <span>Entry</span>
+                <input className="metric-number" inputMode="decimal" value={entryPrice} onChange={(event) => {
+                  if (entryPrice.trim() === "") setOrderReferencePrice(current);
+                  setEntryPrice(event.target.value);
+                }} placeholder={current?.toFixed(precision) ?? "0.00000"} aria-label="Entry price" />
               </label>
               <label>
-                <span>Take profit</span>
-                <input inputMode="decimal" value={targetPrice} onChange={(event) => setTargetPrice(event.target.value)} placeholder="Optional" />
+                <span>Stop</span>
+                <input className="metric-number is-down" inputMode="decimal" value={stopPrice} onChange={(event) => setStopPrice(event.target.value)} placeholder="None" aria-label="Stop loss" />
+              </label>
+              <label>
+                <span>Target</span>
+                <input className="metric-number is-up" inputMode="decimal" value={targetPrice} onChange={(event) => setTargetPrice(event.target.value)} placeholder="None" aria-label="Take profit" />
               </label>
             </div>
-            {automaticLifetime ? (
-              <p className="pending-entry-automatic">
-                {analyzeContext?.setup === "market-regime-swing-v1" || analyzeContext?.setup === "trend-pullback-swing-v1" || analyzeContext?.setup === "analyze-v2-swing" ? "Swing plan" : "Analyze plan"}: this order cancels itself {automaticLifetimeHours} hours after it starts watching, or sooner if price reaches the target before it fills.
-              </p>
-            ) : null}
-            {automaticLifetime ? null : <fieldset className="pending-entry-advanced">
-              <legend>Expiration</legend>
-              <div className="pending-entry-presets">
-                {(["none", "30m", "1h", "4h", "custom"] as const).map((option) => (
-                  <button key={option} type="button" className={expiration === option ? "is-active" : ""} onClick={() => option === "custom" ? openCustomExpirationPicker() : setExpiration(option)}>
-                    {option === "none" ? "No expiration" : option === "custom" ? "Custom" : option}
-                  </button>
-                ))}
-              </div>
-              {expiration === "custom" ? <button type="button" className="pending-entry-custom-expiration" onClick={openCustomExpirationPicker}>{customExpiration ? new Date(customExpiration).toLocaleString() : "Choose date and time"}</button> : null}
-            </fieldset>}
-            <fieldset className="pending-entry-advanced">
-              <legend>Submit after</legend>
-              <div className="pending-entry-presets">
-                <button type="button" className={!activateAt ? "is-active" : ""} onClick={() => { setActivateAt(""); setActivateError(null); }}>Submit now</button>
-                <button type="button" className={activateAt ? "is-active" : ""} onClick={openActivatePicker}>Choose time</button>
-              </div>
-              {activateAt ? <button type="button" className="pending-entry-custom-expiration" onClick={openActivatePicker}>{new Date(activateAt).toLocaleString()}</button> : null}
-            </fieldset>
-            {automaticLifetime ? null : <label className="pending-entry-advanced">
-              <span>Cancel if price reaches <em>Optional</em></span>
-              <input inputMode="decimal" value={invalidationPrice} onChange={(event) => setInvalidationPrice(event.target.value)} placeholder="Exact price" />
-            </label>}
-            <div className="pending-entry-summary">
-              <strong>{direction === null ? "Choose direction ·" : direction.toUpperCase()} {displayNameFor(instrument)}</strong>
-              <span>Order: {inferredOrder ?? "—"}</span>
-              <span>Entry: {Number.isFinite(parsedEntry) ? parsedEntry.toFixed(precision) : "—"}</span>
-              <span className="pending-entry-advanced">Stop: {parsedStop && Number.isFinite(parsedStop) ? parsedStop.toFixed(precision) : "—"}</span>
-              <span className="pending-entry-advanced">Target: {parsedTarget && Number.isFinite(parsedTarget) ? parsedTarget.toFixed(precision) : "—"}</span>
-              <span>Current: {current?.toFixed(precision) ?? "—"}</span>
-              <span>Distance: {distancePips === null ? "—" : `${distancePips.toFixed(1)} pips`}</span>
-              <span className="pending-entry-advanced">Submit: {activateAt ? new Date(activateAt).toLocaleString() : "Now"}</span>
-              <span className="pending-entry-advanced">Expires: {automaticLifetime ? `${automaticLifetimeHours}h after it starts watching` : expiration === "none" ? "No expiration" : expiration === "custom" ? customExpiration || "Choose time" : expiration}</span>
-              <span className="pending-entry-advanced">Invalidation: {automaticLifetime ? "At target" : parsedInvalidation && Number.isFinite(parsedInvalidation) ? parsedInvalidation.toFixed(precision) : "None"}</span>
-              <span className={`pending-entry-summary-spread${spreadIsWide ? " is-wide" : ""}`}>
-                Spread: {spreadPips === null ? "—" : `${spreadPips.toFixed(1)} pips`}
-                <span className="pending-entry-advanced">{spreadIsWide ? " · Wide — may be expensive" : " · Normal"}</span>
-              </span>
-              {error ? <span className="pending-entry-summary-error" role="alert">{error}</span> : null}
-            </div>
+
+            <dl className="nl-an-rows">
+              <div><dt>Stop distance</dt><dd className="metric-number">{pipsBetween(parsedEntry, parsedStop)}</dd></div>
+              <div><dt>Target distance</dt><dd className="metric-number">{pipsBetween(parsedEntry, parsedTarget)}</dd></div>
+              <div><dt>Reward : risk</dt><dd className="metric-number">{planRatio === null ? "—" : `${Number(planRatio.toFixed(1))} : 1`}</dd></div>
+              <div><dt>Spread</dt><dd className={`metric-number${spreadIsWide ? " is-caution" : ""}`}>{spreadPips === null ? "—" : `${spreadPips.toFixed(1)} pips${spreadIsWide ? " · wide" : ""}`}</dd></div>
+              {automaticLifetime ? <div><dt>Expires</dt><dd>{automaticLifetimeHours}h after it starts watching</dd></div> : null}
+            </dl>
+
+            {error ? <p className="nl-pe-error" role="alert">{error}</p> : null}
           </div>
-          <footer className="pending-entry-actions">
+          <footer className="nl-an-actions is-card nl-pe-actions">
             {(!isPanel || selectedEntry) ? (
-              <button type="button" className="pending-entry-secondary pressable" onClick={dismissCreateOrClose}>
+              <button type="button" className="nl-an-secondary pressable" onClick={dismissCreateOrClose}>
                 {selectedEntry ? "Back" : "Cancel"}
               </button>
             ) : null}
             <button
               type="button"
-              className="pending-entry-primary pressable"
+              className="nl-an-primary pressable"
               disabled={saving || creationBlocked || direction === null || !Number.isFinite(parsedEntry) || parsedEntry <= 0}
               onClick={() => void save()}
             >
-              {saving ? "Saving…" : selectedEntry ? "Save Changes" : "Create entry"}
+              {saving ? "Saving…" : selectedEntry ? "Save changes" : "Create entry"}
             </button>
           </footer>
         </>
       )}
     </section>
   );
-
   return (
     <>
       {isPanel ? shell : createPortal((
@@ -800,21 +614,6 @@ export function PendingEntryDialog({
           {shell}
         </div>
       ), document.body)}
-      {customExpirationPickerOpen ? createPortal(
-        <div className="custom-expiration-backdrop" data-pull-to-refresh-ignore="true" onMouseDown={(event) => event.target === event.currentTarget && setCustomExpirationPickerOpen(false)}>
-          <section className="custom-expiration-dialog" role="dialog" aria-modal="true" aria-labelledby="custom-expiration-title">
-            <header><div><span>Pending entry</span><h3 id="custom-expiration-title">Custom expiration</h3></div></header>
-            <p>Choose when this pending entry should expire.</p>
-            <div className="custom-expiration-fields">
-              <label><span>Date</span><input type="date" value={customDate} min={todayLocalDate()} onChange={(event) => setCustomDate(event.target.value)} /></label>
-              <label><span>Time</span><input type="time" value={customTime} onChange={(event) => setCustomTime(event.target.value)} /></label>
-            </div>
-            {customExpirationError ? <p className="custom-expiration-error">{customExpirationError}</p> : null}
-            <footer><button type="button" onClick={() => setCustomExpirationPickerOpen(false)}>Cancel</button><button type="button" onClick={applyCustomExpiration}>Apply time</button></footer>
-          </section>
-        </div>,
-        document.body,
-      ) : null}
       {activatePickerOpen ? createPortal(
         <div className="custom-expiration-backdrop" data-pull-to-refresh-ignore="true" onMouseDown={(event) => event.target === event.currentTarget && setActivatePickerOpen(false)}>
           <section className="custom-expiration-dialog" role="dialog" aria-modal="true" aria-labelledby="submit-after-title">

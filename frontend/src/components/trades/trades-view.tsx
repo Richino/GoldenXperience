@@ -21,6 +21,7 @@ import {
 import { useSupplementalQuotes } from "@/lib/market-stream/use-supplemental-quotes";
 import { strategyTypeLabel } from "@/lib/strategy/family-label";
 import { useDragToDismiss } from "@/lib/use-drag-to-dismiss";
+import { usePageScrollLock } from "@/lib/use-page-scroll-lock";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { TradesSkeleton, TradesSummarySkeleton, TradesToolbarSkeleton } from "@/components/ui/phone-skeletons";
 
@@ -389,8 +390,6 @@ function TradeDetail({
   const money = isOpen ? live?.money ?? null : trade.paperPl ?? null;
   const r = isOpen ? live?.openR ?? null : trade.resultR;
   const shownExit = isOpen ? live?.current ?? null : trade.exit;
-  const notes = trade.notes?.trim();
-  const reason = trade.brokerFailureReason?.trim() || trade.reason?.trim() || null;
   const lots = isOpen ? live?.lots ?? null : null;
   const href = chartHrefForTrade(trade);
   // Position on the stop → target line, 0–100. A short's span is negative,
@@ -497,21 +496,6 @@ function TradeDetail({
         ) : null}
       </dl>
 
-      {!isOpen ? (
-        <div className="nl-tr-notes">
-          <div>
-            <span className="nl-tr-notes-label">Exit reason</span>
-            <span className="nl-tr-notes-value">
-              {reason ?? exitLabel(trade)} · held {durationLabel(trade.openedAt, trade.closedAt)}
-            </span>
-          </div>
-          <div>
-            <span className="nl-tr-notes-label">Trade notes</span>
-            <span className={`nl-tr-notes-text${notes ? "" : " is-empty"}`}>{notes ? notes : "No trade notes."}</span>
-          </div>
-        </div>
-      ) : null}
-
       <div className="nl-tr-actions">
         {href ? (
           <Link href={href} className="nl-tr-primary">
@@ -540,6 +524,8 @@ function TradeDetailSheet({
     onDismiss: onClose,
     handleSelector: ".nl-tr-grip, .nl-tr-detail-head",
   });
+  // The page behind stays still while the drawer is open.
+  usePageScrollLock(trade !== null);
   if (!trade) return null;
   return createPortal(
     <div

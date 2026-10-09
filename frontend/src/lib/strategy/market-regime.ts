@@ -23,6 +23,11 @@ export interface Swing {
   /** Index into the completed candles the read was made on. */
   index: number;
   time: string;
+  /**
+   * Open time of the candle that confirmed the pivot (`reach` candles later).
+   * The pivot was knowable only once that candle had closed.
+   */
+  confirmedAt: string;
 }
 
 /** A support/resistance area: repeated reactions grouped into a price band. */
@@ -70,8 +75,18 @@ export const DEFAULT_REGIME_SETTINGS: RegimeSettings = {
   lookback: 200,
 };
 
+/**
+ * Why a read is TRANSITION: structure broke without a new direction, the
+ * latest swings conflict, or there is not enough data to read at all.
+ */
+export type TransitionKind = "BREAK" | "CONFLICT" | "INSUFFICIENT";
+
 export interface RegimeRead {
   regime: Regime;
+  /** False when there were too few candles or swings to read structure. */
+  sufficient: boolean;
+  /** Set for TRANSITION reads; null otherwise. */
+  transitionKind: TransitionKind | null;
   confidence: Confidence;
   /** Last completed close the read was made against. */
   close: number;
@@ -103,8 +118,9 @@ export function confirmedPivots(candles: Candle[], reach: number): Swing[] {
       high &&= candle.high > before.high && candle.high >= after.high;
       low &&= candle.low < before.low && candle.low <= after.low;
     }
-    if (high) pivots.push({ type: "high", price: candle.high, index, time: candle.time });
-    if (low) pivots.push({ type: "low", price: candle.low, index, time: candle.time });
+    const confirmedAt = candles[index + reach]!.time;
+    if (high) pivots.push({ type: "high", price: candle.high, index, time: candle.time, confirmedAt });
+    if (low) pivots.push({ type: "low", price: candle.low, index, time: candle.time, confirmedAt });
   }
   return pivots;
 }
@@ -174,13 +190,16 @@ function brokeBeyond(candles: Candle[], sinceIndex: number, level: number, above
 }
 
 const empty = (close: number, atr: number, reason: string): RegimeRead => ({
-  regime: "TRANSITION", confidence: "LOW", close, atr, swings: [], latestSwingHigh: null, latestSwingLow: null,
+  regime: "TRANSITION", sufficient: false, transitionKind: "INSUFFICIENT", confidence: "LOW", close, atr, swings: [], latestSwingHigh: null, latestSwingLow: null,
   impulse: null, range: null, transition: { previous: "TRANSITION", broken: "None yet", potential: "Unknown" }, zones: [],
   interpretation: reason,
 });
 
-/** Classify the regime of `candles` (any timeframe) from completed candles only. */
-export function classifyMarketRegime(candlesInput: Candle[], settings: RegimeSettings = DEFAULT_REGIME_SETTINGS): RegimeRead {
+/**
+ * Classify the regime of `candles` (any timeframe) from completed candles only.
+ * `digits` is the instrument's display precision for the plain-English text.
+ */
+export function classifyMarketRegime(candlesInput: Candle[], settings: RegimeSettings = DEFAULT_REGIME_SETTINGS, digits = 5): RegimeRead {
   const candles = candlesInput.filter((candle) => candle.complete !== false).slice(-settings.lookback);
   const close = candles.at(-1)?.close ?? 0;
   const atr = calculateAtrValues(candles, settings.atrPeriod).at(-1) ?? 0;
@@ -195,9 +214,9 @@ export function classifyMarketRegime(candlesInput: Candle[], settings: RegimeSet
   const lows = lastOf(swings, "low", 3);
   const latestSwingHigh = highs.at(-1) ?? null;
   const latestSwingLow = lows.at(-1) ?? null;
-  const base = { close, atr, swings, latestSwingHigh, latestSwingLow, zones };
+  const base = { close, atr, swings, latestSwingHigh, latestSwingLow, zones, sufficient: true };
   if (highs.length < 2 || lows.length < 2) {
-    return { ...empty(close, atr, "Too few meaningful swings to confirm a regime."), ...base };
+    return { ...empty(close, atr, "Too few meaningful swings to confirm a regime."), ...base, sufficient: false };
   }
 
   const tolerance = settings.boundaryToleranceAtr * atr;
@@ -226,13 +245,13 @@ export function classifyMarketRegime(candlesInput: Candle[], settings: RegimeSet
       if (breakNow) {
         const up = breakNow === upBreak;
         return {
-          ...base, regime: "TRANSITION", confidence: "MEDIUM", impulse: null, range: null,
+          ...base, regime: "TRANSITION", transitionKind: "BREAK", confidence: "MEDIUM", impulse: null, range: null,
           transition: {
             previous: "RANGE",
-            broken: `Closed ${up ? "above range high" : "below range low"} ${(up ? high : low).toFixed(5)}`,
+            broken: `Closed ${up ? "above range high" : "below range low"} ${(up ? high : low).toFixed(digits)}`,
             potential: up ? "UPTREND, if a higher low holds above the old range" : "DOWNTREND, if a lower high holds below the old range",
           },
-          interpretation: `The range ${low.toFixed(5)}–${high.toFixed(5)} failed with a close ${up ? "above" : "below"} it; the breakout is not yet confirmed as a trend.`,
+          interpretation: `The range ${low.toFixed(digits)}–${high.toFixed(digits)} failed with a close ${up ? "above" : "below"} it; the breakout is not yet confirmed as a trend.`,
         };
       }
       const highZone = zoneAround(zones, high, tolerance) ?? { low: high - 0.15 * atr, high, touches: 2, lastTime: h2.time };
@@ -240,9 +259,9 @@ export function classifyMarketRegime(candlesInput: Candle[], settings: RegimeSet
       const touches = swings.filter((swing) => swing.index >= sinceIndex
         && (swing.type === "high" ? Math.abs(swing.price - high) <= boundaryTolerance : Math.abs(swing.price - low) <= boundaryTolerance)).length;
       return {
-        ...base, regime: "RANGE", confidence: touches >= 5 ? "HIGH" : touches >= 4 ? "MEDIUM" : "LOW", impulse: null,
+        ...base, regime: "RANGE", transitionKind: null, confidence: touches >= 5 ? "HIGH" : touches >= 4 ? "MEDIUM" : "LOW", impulse: null,
         range: { high, low, mid: (high + low) / 2, highZone, lowZone }, transition: null,
-        interpretation: `Swing highs near ${high.toFixed(5)} and lows near ${low.toFixed(5)} repeat; price is oscillating inside that box.`,
+        interpretation: `Swing highs near ${high.toFixed(digits)} and lows near ${low.toFixed(digits)} repeat; price is oscillating inside that box.`,
       };
     }
   }
@@ -258,13 +277,13 @@ export function classifyMarketRegime(candlesInput: Candle[], settings: RegimeSet
     const broke = brokeBeyond(candles, structure.index, structure.price, !up, atr, settings);
     if (broke) {
       return {
-        ...base, regime: "TRANSITION", confidence: "MEDIUM", impulse: null, range: null,
+        ...base, regime: "TRANSITION", transitionKind: "BREAK", confidence: "MEDIUM", impulse: null, range: null,
         transition: {
           previous: up ? "UPTREND" : "DOWNTREND",
-          broken: `Closed ${up ? "below the higher low" : "above the lower high"} at ${structure.price.toFixed(5)}`,
+          broken: `Closed ${up ? "below the higher low" : "above the lower high"} at ${structure.price.toFixed(digits)}`,
           potential: up ? "RANGE or DOWNTREND" : "RANGE or UPTREND",
         },
-        interpretation: `${up ? "Higher highs and higher lows" : "Lower highs and lower lows"} held until price closed through ${structure.price.toFixed(5)}; the old trend is no longer reliable.`,
+        interpretation: `${up ? "Higher highs and higher lows" : "Lower highs and lower lows"} held until price closed through ${structure.price.toFixed(digits)}; the old trend is no longer reliable.`,
       };
     }
     // Impulse: the latest leg in the trend's direction.
@@ -280,8 +299,8 @@ export function classifyMarketRegime(candlesInput: Candle[], settings: RegimeSet
       : h0 !== null && lo0 !== null && h1.price < h0.price && l1.price < lo0.price;
     const confidence: Confidence = legAtr < settings.displacementAtr ? "LOW" : third ? "HIGH" : "MEDIUM";
     return {
-      ...base, regime: up ? "UPTREND" : "DOWNTREND", confidence, impulse, range: null, transition: null,
-      interpretation: `${up ? "Higher highs and higher lows" : "Lower highs and lower lows"}${third ? " for three swings" : ""}; latest impulse ${legAtr.toFixed(1)} ATR${legAtr < settings.displacementAtr ? " (weak displacement)" : ""}. Structure holds while price stays ${up ? "above" : "below"} ${structure.price.toFixed(5)}.`,
+      ...base, regime: up ? "UPTREND" : "DOWNTREND", transitionKind: null, confidence, impulse, range: null, transition: null,
+      interpretation: `${up ? "Higher highs and higher lows" : "Lower highs and lower lows"}${third ? " for three swings" : ""}; latest impulse ${legAtr.toFixed(1)} ATR${legAtr < settings.displacementAtr ? " (weak displacement)" : ""}. Structure holds while price stays ${up ? "above" : "below"} ${structure.price.toFixed(digits)}.`,
     };
   }
 
@@ -289,7 +308,7 @@ export function classifyMarketRegime(candlesInput: Candle[], settings: RegimeSet
   // (lower high + higher low) without a clean box.
   const expanding = h2.price > h1.price && l2.price < l1.price;
   return {
-    ...base, regime: "TRANSITION", confidence: "LOW", impulse: null, range: null,
+    ...base, regime: "TRANSITION", transitionKind: "CONFLICT", confidence: "LOW", impulse: null, range: null,
     transition: {
       previous: lastSwing.type === "high" ? "UPTREND" : "DOWNTREND",
       broken: expanding ? "Swings are expanding (higher high and lower low)" : "Swings are contracting (lower high and higher low)",

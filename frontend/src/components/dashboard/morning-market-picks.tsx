@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowUpRight } from "lucide-react";
+import { PairAvatar } from "@/components/ui/pair-avatar";
 import { apiUrl } from "@/lib/api/url";
 import { displayNameFor, precisionFor } from "@/lib/instruments/catalog";
 import { morningChartHref, MORNING_SCAN_STALE_MS, type MorningPicksSnapshot } from "@/lib/strategy/morning-scan";
@@ -18,25 +19,41 @@ function PairRow({ pair, rank }: { pair: PairTradability; rank?: number }) {
     const mark = read.referencePrice ?? 0;
     return Math.abs(a.price - mark) - Math.abs(b.price - mark);
   }).slice(0, 2);
+  const news = read.news.state === "UNKNOWN"
+    ? { tone: "unknown", text: "Calendar not verified" }
+    : read.news.events.length
+      ? { tone: "caution", text: `${read.news.events[0]!.currency} high impact · ${clock(read.news.events[0]!.at)} ET` }
+      : { tone: "clear", text: "No blocking event in verified coverage" };
+  const pips = (value: number | null | undefined) => (typeof value === "number" ? value.toFixed(1) : "—");
   return <article className={styles.pair}>
     <div className={styles.row}>
-      <strong>{rank ? <span className={styles.rank}>#{rank} </span> : null}{displayNameFor(pair.instrument)}</strong>
-      <span className={styles.status} data-status={read.status}>{read.status}</span>
-      <Link className={styles.chart} href={morningChartHref(pair.instrument)} aria-label={`View ${displayNameFor(pair.instrument)} chart`}>View Chart <ArrowUpRight size={14} aria-hidden="true" /></Link>
+      {rank ? <span className={styles.rank} aria-label={`Rank ${rank}`}>{String(rank).padStart(2, "0")}</span> : null}
+      <PairAvatar instrument={pair.instrument} size={34} />
+      <div className={styles.identity}>
+        <strong>{displayNameFor(pair.instrument)}</strong>
+        <span className={styles.trend}>
+          <span data-direction={read.direction}>{read.direction.toLowerCase()}</span> · M15 · H1 {read.h1Direction.toLowerCase()}
+        </span>
+      </div>
+      <span className={styles.status} data-status={read.status}>{read.status.toLowerCase()}</span>
+      <Link className={styles.chart} href={morningChartHref(pair.instrument)} aria-label={`View ${displayNameFor(pair.instrument)} chart`}>Chart <ArrowUpRight size={14} aria-hidden="true" /></Link>
     </div>
-    <div className={styles.metrics}>{read.direction.toLowerCase()} · M15 primary · H1 {read.h1Direction.toLowerCase()}</div>
-    <p>{read.explanation}</p>
-    <div className={styles.metrics}>
-      Spread {pair.spreadPips?.toFixed(1) ?? "unknown"}p · ATR(14) {read.atrPips?.toFixed(1) ?? "unknown"}p · Last 2h range {read.recentRangePips?.toFixed(1) ?? "unknown"}p
-    </div>
-    <div className={styles.metrics}>News: {read.news.state === "UNKNOWN" ? "UNKNOWN — calendar not verified" : read.news.events.length ? `${read.news.events[0]!.currency} high impact, ${clock(read.news.events[0]!.at)} ET` : "No blocking event in verified coverage."}</div>
+    <p className={styles.explanation}>{read.explanation}</p>
+    <dl className={styles.tiles}>
+      <div><dt>Spread</dt><dd>{pips(pair.spreadPips)}p</dd></div>
+      <div><dt>ATR (14)</dt><dd>{pips(read.atrPips)}p</dd></div>
+      <div><dt>Last 2h</dt><dd>{pips(read.recentRangePips)}p</dd></div>
+    </dl>
+    <p className={styles.news} data-tone={news.tone}><span aria-hidden="true" />News · {news.text}</p>
     <details className={styles.context}><summary>Levels &amp; news details</summary>
-      {near.length ? <div className={styles.metrics}>{near.map(l => `${l.name}: ${l.price.toFixed(precisionFor(pair.instrument))} (${l.context})`).join(" · ")}</div> : <p>No nearby mapped levels.</p>}
-      <div className={styles.metrics}>Room before opposing structure: {read.opposingRoomPips?.toFixed(1) ?? "unverified"}p · Realized 2h movement: {read.realizedVolatilityPips?.toFixed(1) ?? "unknown"}p · London so far: {read.sessionRangePips?.toFixed(1) ?? "unknown"}p</div>
-      {read.news.events.map(e => <p key={`${e.currency}-${e.at}-${e.title}`}>{e.currency} · {e.title} · High impact · {clock(e.at)} ET · {Math.round(e.minutesAway)}m from scan{e.overlapsWindow ? " · Morning window" : ""}</p>)}
-      <div className={styles.metrics}>Relative suitability: {read.rankScore}/100 points · M15 through {pair.candlesAsOf ? clock(pair.candlesAsOf) : "unknown"} ET · Quote {pair.quoteAsOf ? clock(pair.quoteAsOf) : "unknown"} ET</div>
+      <div className={styles.contextBody}>
+        {near.length ? <div className={styles.metrics}>{near.map(l => `${l.name}: ${l.price.toFixed(precisionFor(pair.instrument))} (${l.context})`).join(" · ")}</div> : <p className={styles.metrics}>No nearby mapped levels.</p>}
+        <div className={styles.metrics}>Room before opposing structure: {read.opposingRoomPips?.toFixed(1) ?? "unverified"}p · Realized 2h movement: {read.realizedVolatilityPips?.toFixed(1) ?? "unknown"}p · London so far: {read.sessionRangePips?.toFixed(1) ?? "unknown"}p</div>
+        {read.news.events.map(e => <p className={styles.metrics} key={`${e.currency}-${e.at}-${e.title}`}>{e.currency} · {e.title} · High impact · {clock(e.at)} ET · {Math.round(e.minutesAway)}m from scan{e.overlapsWindow ? " · Morning window" : ""}</p>)}
+        <div className={styles.metrics}>Relative suitability: {read.rankScore}/100 points · M15 through {pair.candlesAsOf ? clock(pair.candlesAsOf) : "unknown"} ET · Quote {pair.quoteAsOf ? clock(pair.quoteAsOf) : "unknown"} ET</div>
+      </div>
     </details>
-    {!rank ? <ul>{[...read.reasons, ...read.cautions].map(reason => <li key={reason}>{reason}</li>)}</ul> : null}
+    {!rank ? <ul className={styles.reasons}>{[...read.reasons, ...read.cautions].map(reason => <li key={reason}>{reason}</li>)}</ul> : null}
   </article>;
 }
 
@@ -75,11 +92,16 @@ export function MorningPicksDisplay({ snapshot, error = null, now }: {
   const caution = run?.pairs.filter(p => p.selection?.status === "CAUTION") ?? [];
   const rejected = run?.pairs.filter(p => p.selection?.status === "REJECTED") ?? [];
   return <section className={styles.card} aria-labelledby="morning-picks-title" aria-busy={snapshot?.refreshing}>
-    <header className={styles.header}><div><h2 id="morning-picks-title">Morning Market Picks</h2></div>
+    <header className={styles.header}>
+      <div>
+        <span className={styles.eyebrow}>New York session · 6:30–11 ET</span>
+        <h2 id="morning-picks-title">Morning Market Picks</h2>
+      </div>
+      {run ? <span className={styles.scanned}>{picks.length} pick{picks.length === 1 ? "" : "s"} · scanned {clock(run.evaluatedAt)} ET</span> : null}
     </header>
     <div role="status">
       {error || snapshot?.lastAttempt?.status === "FAILED" ? <p className={styles.warning}>Morning scan unavailable. {error && error !== "Morning scan unavailable." ? error : snapshot?.lastAttempt?.error}</p> : null}
-      {closed ? <p className={styles.warning}>Forex market closed. Saved picks are not currently tradable.</p> : outside ? <p>The morning scan window runs weekdays, 6:30–11 AM ET.</p> : null}
+      {closed ? <p className={styles.warning}>Forex market closed. Saved picks are not currently tradable.</p> : outside ? <p>Morning picks drop weekdays, 6:30–11 AM ET.</p> : null}
       {stale && !closed ? <p className={styles.warning}>Outdated saved results — current conditions have not been verified.</p> : null}
       {!snapshot && !error ? <p>Morning scan unavailable.</p> : !run && !closed && !outside && snapshot ? <p>{snapshot.refreshing ? "The server is preparing the morning shortlist…" : "Morning scan unavailable. No completed scan is available yet."}</p> : null}
     </div>

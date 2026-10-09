@@ -19,6 +19,7 @@
     "fibonacci:test": "tsx scripts/test-fibonacci-retracement.ts",
     "adaptive-trendlines:test": "tsx scripts/test-adaptive-swing-trendlines.ts",
     "trend-pullback-v1:test": "tsx scripts/test-trend-pullback-v1.ts",
+    "analyze-v2:test": "tsx scripts/test-analyze-v2.ts",
     "strategy:test": "tsx scripts/test-strategy.ts",
     "liquidity:test": "tsx scripts/test-liquidity.ts",
     "asia-amd:test": "tsx scripts/test-asia-amd.ts",

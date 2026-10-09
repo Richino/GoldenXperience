@@ -10,10 +10,13 @@
 
 import { useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { Sparkles, X } from "lucide-react";
 import { AnalyzeIcon } from "@/components/icons/analyze-icon";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { NO_NEWS, type AnalysisMode, type MarketAnalysis } from "@/lib/strategy/market-analysis";
+import type { AnalysisResult } from "@/lib/strategy/analyze-v2/decide";
+import { useExplanation } from "@/lib/strategy/analyze-v2/explain-client";
+import { AnalyzeV2Content } from "@/components/analysis/analyze-v2-panel";
 import { useDragToDismiss } from "@/lib/use-drag-to-dismiss";
 import type { MajorInstrument } from "@/types/forex";
 
@@ -98,41 +101,73 @@ function AnalyzeBody({
     value === null || value === undefined ? "—" : formatChartPrice(value, instrument);
   const news = analysis.risk.news !== NO_NEWS ? analysis.risk.news : null;
   const tone = analysis.decision === "LONG" ? "is-up" : analysis.decision === "SHORT" ? "is-down" : "";
+  // Legacy reads: the card explains itself; the sheet shows the plan alone.
+  const showWhy = Boolean(analysis.reason) && card;
   const heading = analysis.decision === "LONG" ? "Long" : analysis.decision === "SHORT" ? "Short" : "No trade";
+
+  const top = (
+    <div className="nl-an-top">
+      <span className="nl-an-eyebrow">
+        <AnalyzeIcon className="size-3.5" />
+        {card ? `Analyze${stamp ? ` · ${stamp} ET` : ""}` : "Trade plan"}
+      </span>
+      <div className="nl-an-top-end">
+        <div className="nl-an-modes" role="radiogroup" aria-label="Stop mode">
+          {(["NORMAL", "SWING"] as const).map((option) => {
+            const read = option === "SWING" ? swing : normal;
+            return (
+              <button
+                key={option}
+                type="button"
+                role="radio"
+                aria-checked={mode === option}
+                disabled={!read}
+                className={mode === option ? "is-active" : ""}
+                onClick={() => setPicked({ analysis: normal, mode: option })}
+              >
+                {option === "NORMAL" ? "Normal" : "Swing"}
+              </button>
+            );
+          })}
+        </div>
+        {card ? null : (
+          <button type="button" className="nl-an-close" onClick={onClose} aria-label="Close analysis">
+            <X aria-hidden="true" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+  const actions = (
+    <div className={`nl-an-actions${card ? " is-card" : ""}`}>
+      <button type="button" className="nl-an-secondary pressable" onClick={onClose}>
+        {trade ? "Dismiss" : "Close"}
+      </button>
+      {trade ? (
+        <button type="button" className="nl-an-primary pressable" onClick={() => onReview(analysis.mode)}>
+          Review entry
+        </button>
+      ) : null}
+    </div>
+  );
+
+  if (analysis.v2) {
+    return (
+      <div className="nl-an-body">
+        {top}
+        {/* Only this part scrolls in the sheet; the top bar and buttons stay put. */}
+        <div className="nl-an-scroll">
+          <AnalyzeV2Content result={analysis.v2} titleId={titleId} />
+          <AnalyzeExplanation result={analysis.v2} />
+        </div>
+        {actions}
+      </div>
+    );
+  }
 
   return (
     <div className="nl-an-body">
-      <div className="nl-an-top">
-        <span className="nl-an-eyebrow">
-          <AnalyzeIcon className="size-3.5" />
-          {card ? `Analyze${stamp ? ` · ${stamp} ET` : ""}` : "Trade plan"}
-        </span>
-        <div className="nl-an-top-end">
-          <div className="nl-an-modes" role="radiogroup" aria-label="Stop mode">
-            {(["NORMAL", "SWING"] as const).map((option) => {
-              const read = option === "SWING" ? swing : normal;
-              return (
-                <button
-                  key={option}
-                  type="button"
-                  role="radio"
-                  aria-checked={mode === option}
-                  disabled={!read}
-                  className={mode === option ? "is-active" : ""}
-                  onClick={() => setPicked({ analysis: normal, mode: option })}
-                >
-                  {option === "NORMAL" ? "Normal" : "Swing"}
-                </button>
-              );
-            })}
-          </div>
-          {card ? null : (
-            <button type="button" className="nl-an-close" onClick={onClose} aria-label="Close analysis">
-              <X aria-hidden="true" />
-            </button>
-          )}
-        </div>
-      </div>
+      {top}
 
       <div className="nl-an-head">
         <h2 id={titleId} className={`nl-an-decision ${tone}`}>
@@ -181,9 +216,9 @@ function AnalyzeBody({
         </>
       ) : null}
 
-      {(card && analysis.reason) || news || (trade && analysis.warnings.length > 0) ? (
+      {showWhy || news || (trade && analysis.warnings.length > 0) ? (
         <div className="nl-an-notes">
-          {card && analysis.reason ? (
+          {showWhy ? (
             <p>
               <span>Why · </span>
               {analysis.reason}
@@ -205,16 +240,47 @@ function AnalyzeBody({
         </div>
       ) : null}
 
-      <div className={`nl-an-actions${card ? " is-card" : ""}`}>
-        <button type="button" className="nl-an-secondary pressable" onClick={onClose}>
-          {trade ? "Dismiss" : "Close"}
-        </button>
-        {trade ? (
-          <button type="button" className="nl-an-primary pressable" onClick={() => onReview(analysis.mode)}>
-            Review entry
-          </button>
-        ) : null}
-      </div>
+      {actions}
+    </div>
+  );
+}
+
+/**
+ * The AI explanation of a V2 result. It loads after the analysis is already
+ * on screen, and when it is unavailable or rejected the analysis stands alone.
+ */
+function AnalyzeExplanation({ result }: { result: AnalysisResult }) {
+  const state = useExplanation(result);
+  if (!state) return null;
+  if (state.status === "loading") return <p className="nl-an-explain is-muted" aria-live="polite">Writing the explanation…</p>;
+  if (state.status === "unavailable") return <p className="nl-an-explain is-muted">Explanation unavailable; the analysis above is complete.</p>;
+  const { explanation } = state;
+  const parts = [
+    ["Direction", explanation.direction],
+    ["Location", explanation.location],
+    ["Support", explanation.support],
+    ["Risks", explanation.risks],
+    [result.decision === "NO_TRADE" ? "Watch" : "Stop and target", explanation.levels],
+  ] as const;
+  return (
+    <div className="nl-an-explain" aria-live="polite">
+      <span className="nl-an-explain-head">
+        <Sparkles aria-hidden="true" />
+        AI explanation
+      </span>
+      <p>{explanation.summary}</p>
+      <details>
+        <summary>More detail</summary>
+        <dl>
+          {parts.map(([label, text]) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd>{text}</dd>
+            </div>
+          ))}
+        </dl>
+      </details>
+      <span className="nl-an-explain-note">Written by AI from the checks above; it cannot change them.</span>
     </div>
   );
 }

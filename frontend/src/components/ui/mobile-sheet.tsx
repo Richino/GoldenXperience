@@ -56,6 +56,14 @@ export function MobileSheet({
   // a pick, or a drag) slides the sheet away instead of cutting it.
   const [present, setPresent] = useState(open);
   if (open && !present) setPresent(true);
+  // Parents often clear the selected item on close. Keep the last open
+  // content through the exit, so the drawer does not collapse mid-animation.
+  const [lastContent, setLastContent] = useState({ title, eyebrow, headerAction, children });
+  if (open && (lastContent.title !== title || lastContent.eyebrow !== eyebrow
+    || lastContent.headerAction !== headerAction || lastContent.children !== children)) {
+    setLastContent({ title, eyebrow, headerAction, children });
+  }
+  const content = open ? { title, eyebrow, headerAction, children } : lastContent;
   const sheetRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -90,7 +98,7 @@ export function MobileSheet({
     }
 
     document.addEventListener("keydown", handleEscape);
-    sheetRef.current?.focus();
+    sheetRef.current?.focus({ preventScroll: true });
     return () => document.removeEventListener("keydown", handleEscape);
   }, [open]);
 
@@ -101,7 +109,7 @@ export function MobileSheet({
    * this lock as soon as `open` flips false reflows the fixed chart behind a
    * still-visible drawer, producing a flash on every close button tap.
    */
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!present || !lockPageScroll) return;
 
     const { body } = document;
@@ -328,7 +336,7 @@ export function MobileSheet({
         ref={sheetRef}
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-label={content.title}
         tabIndex={-1}
         data-pull-to-refresh-ignore="true"
         className={`mobile-sheet${className ? ` ${className}` : ""}`}
@@ -343,15 +351,15 @@ export function MobileSheet({
           <div className="mobile-sheet-handle" aria-hidden />
           <div className="mobile-sheet-head">
             <div className="mobile-sheet-heading">
-              {eyebrow ? <p className="mobile-sheet-eyebrow">{eyebrow}</p> : null}
-              <p className="mobile-sheet-title">{title}</p>
+              {content.eyebrow ? <p className="mobile-sheet-eyebrow">{content.eyebrow}</p> : null}
+              <p className="mobile-sheet-title">{content.title}</p>
             </div>
             <div className="mobile-sheet-actions">
-              {headerAction}
+              {content.headerAction}
               <button
                 type="button"
                 onClick={onClose}
-                aria-label={`Close ${title.toLowerCase()}`}
+                aria-label={`Close ${content.title.toLowerCase()}`}
                 className="mobile-sheet-close pressable"
               >
                 <X className="size-4" strokeWidth={2} />
@@ -361,7 +369,7 @@ export function MobileSheet({
         </div>
 
         <div ref={bodyRef} className="mobile-sheet-body">
-          {children}
+          {content.children}
         </div>
       </div>
     </>,

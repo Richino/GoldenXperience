@@ -1,20 +1,58 @@
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 22px; color: var(--foreground); min-width: 0; }
-.header,.row { display: flex; align-items: center; gap: 12px; }
-.header { justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
-.header h2 { font-family: var(--font-display); font-size: 20px; font-weight: 650; margin: 0; }
-.meta,.metrics { color: var(--muted); font-size: 12px; line-height: 1.6; }
+/* Morning Market Picks in the Night Ledger card style (Home). */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 22px; color: var(--foreground); min-width: 0; }
+.header { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.header h2 { font-family: var(--font-display); font-size: 22px; font-weight: 700; letter-spacing: -0.02em; margin: 4px 0 0; }
+.eyebrow { color: var(--muted); font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; }
+.scanned { color: var(--muted); font-size: 12px; white-space: nowrap; }
+
+.pair { display: flex; flex-direction: column; gap: 12px; padding: 18px 0; border-top: 1px solid var(--border); margin-top: 12px; }
+.row { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.rank { flex: none; width: 26px; color: var(--muted); font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 13px; font-weight: 600; }
+.identity { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 2px; }
+.identity strong { font-size: 16px; font-weight: 650; letter-spacing: -0.01em; }
+.trend { color: var(--muted); font-size: 12px; }
+.trend [data-direction="UPTREND"] { color: var(--accent); }
+.trend [data-direction="DOWNTREND"] { color: var(--danger); }
+.status { flex: none; padding: 5px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 650; text-transform: capitalize; }
+.status[data-status="CAUTION"] { background: var(--pending-soft); color: var(--pending); }
+.status[data-status="REJECTED"] { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+.chart { display: inline-flex; flex: none; align-items: center; gap: 4px; height: 32px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: 999px; color: var(--foreground); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.chart:hover { border-color: var(--accent); color: var(--accent); }
 .chart:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
-.pair { padding: 15px 0; border-top: 1px solid var(--border); margin-top: 12px; }
-.pair p,.rejected p { margin: 6px 0; font-size: 13px; line-height: 1.5; }
-.row strong { font-size: 15px; }
-.rank { color: var(--muted); font-weight: 500; }
-.status { font-size: 9px; font-weight: 700; color: var(--accent); background: var(--accent-soft); padding: 3px 7px; border-radius: 6px; }
-.status[data-status="CAUTION"] { color: var(--pending); background: var(--pending-soft); }
-.chart { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; color: var(--accent); margin-left: auto; white-space: nowrap; }
-.metrics { overflow-wrap: anywhere; margin-top: 4px; }
+
+.explanation { margin: 0; font-size: 14px; line-height: 1.5; }
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.tiles > div { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 14px; background: var(--surface-raised); }
+.tiles dt { color: var(--muted); font-size: 11px; }
+.tiles dd { margin: 0; font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 14px; font-weight: 600; }
+
+.news { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.news > span { flex: none; width: 7px; height: 7px; border-radius: 999px; background: var(--accent); }
+.news[data-tone="caution"] { color: var(--pending); }
+.news[data-tone="caution"] > span { background: var(--pending); }
+.news[data-tone="unknown"] > span { background: transparent; box-shadow: inset 0 0 0 1.5px var(--muted); }
+
+.metrics { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
 .warning { color: var(--pending); font-size: 12px; line-height: 1.6; }
-.card details { border-top: 1px solid var(--border); padding: 12px 0; font-size: 12px; }
-.card summary { cursor: pointer; color: var(--muted-strong); }
-.card .context { border-top: 0; padding: 6px 0 0; }
-.rejected { padding: 10px 0; border-top: 1px solid var(--border); }
-@media(max-width:600px) { .card { padding: 17px; } .header { gap: 8px; } .header h2 { font-size: 18px; } .row { gap: 8px; } }
+.card [role="status"] p { margin: 8px 0 0; font-size: 13px; }
+
+.card details { border-top: 1px solid var(--border); padding: 0; font-size: 12px; }
+.card details > summary { display: flex; align-items: center; justify-content: space-between; min-height: 44px; color: var(--foreground); font-size: 13px; font-weight: 600; list-style: none; cursor: pointer; }
+.card details > summary::-webkit-details-marker { display: none; }
+.card details > summary::after { content: ""; width: 7px; height: 7px; margin: -3px 2px 0 0; border: solid var(--muted); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); transition: transform 160ms ease; }
+.card details[open] > summary::after { margin-top: 3px; transform: rotate(-135deg); }
+.card .context { border-top: 0; }
+.card .context > summary { min-height: 30px; color: var(--muted); font-size: 12px; font-weight: 500; justify-content: flex-start; gap: 8px; }
+.contextBody { display: flex; flex-direction: column; gap: 6px; padding: 2px 0 6px; }
+.reasons { margin: 0; padding-left: 18px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.rejected { padding: 10px 0; border-top: 1px solid var(--border); font-size: 13px; }
+.rejected p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+
+@media (max-width: 600px) {
+  .card { padding: 18px; }
+  .header { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .header h2 { font-size: 20px; }
+  .row { gap: 10px; }
+  .rank { width: auto; }
+  .chart { padding: 0 10px; }
+}

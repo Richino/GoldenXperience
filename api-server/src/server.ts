@@ -48,6 +48,8 @@ import { collectLegacyConfidenceV2Cycle } from "./legacy-confidence-v2-collector
 import { collectBreakoutConfidenceV1Cycle } from "./breakout-confidence-v1-collector.js";
 import { collectBreakoutM5Cycle } from "./breakout-m5-confidence-v1-collector.js";
 import { createManualTradeProposal } from "./manual-analysis.js";
+import { explainAnalysis } from "./analyze-explain.js";
+import { parseExplanationFacts } from "../../frontend/src/lib/strategy/analyze-v2/explain.js";
 import { runTradeMonitor } from "./trade-monitor-service.js";
 import { acceptPullbackSignal, pullbackAutomationForUser, rejectPullbackSignal, runPullbackAutomations, setPullbackAutomation } from "./pullback-automation.js";
 import { createPlannedSetup, evaluatePlannedSetup, evaluateActivePlannedSetups } from "./planned-setup-service.js";
@@ -298,6 +300,19 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
         return json(request, response, { proposal: await createManualTradeProposal(instrument) });
       } catch (error) {
         return json(request, response, { error: error instanceof Error ? error.message : "Manual analysis could not run." }, 502);
+      }
+    }
+    if (url.pathname === "/api/analyze/explain" && request.method === "POST") {
+      // Prose about an Analyze V2 result the app already calculated. It never
+      // changes the decision or the numbers; on any failure the app shows the
+      // analysis without it.
+      const payload = await body(request);
+      const facts = parseExplanationFacts(payload?.facts);
+      if (!facts) return json(request, response, { error: "Send the analysis facts to explain." }, 400);
+      try {
+        return json(request, response, await explainAnalysis(facts));
+      } catch (error) {
+        return json(request, response, { error: error instanceof Error ? error.message : "The explanation could not be written." }, 502);
       }
     }
     if (url.pathname === "/api/saved-setups" && request.method === "GET") {

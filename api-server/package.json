@@ -23,6 +23,7 @@
     "research:run-experiment": "tsx scripts/run-research-experiment.ts",
     "research:test-gbp-candidate": "tsx scripts/test-gbp-candidate.ts",
     "analyze:test": "tsx scripts/test-analyze-pipeline.ts",
+    "analyze-explain:test": "tsx scripts/test-analyze-explain.ts",
     "analyze:compare-normal": "tsx scripts/compare-normal-hierarchy.ts",
     "paper-cycle:test": "tsx scripts/test-paper-cycle.ts",
     "pending-entry:test": "tsx scripts/test-pending-manual-entries.ts",

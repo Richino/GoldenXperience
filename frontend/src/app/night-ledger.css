@@ -1816,9 +1816,25 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-va
     letter-spacing: -0.04em;
   }
 
+  .nl-mbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
   .nl-mbar .nl-chip {
     padding: 5px 10px;
     font-size: 12px;
+  }
+
+  html:is(.dark, :not(.dark)) body .nl-mbar .nl-mbar-bell {
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--border);
+    border-radius: 13px;
+    background: var(--surface);
+    color: var(--foreground);
   }
 }
 
@@ -2743,12 +2759,13 @@ html:is(.dark, :not(.dark)) body .nl-tr-bell {
   inset: auto 0 0;
   max-height: 90dvh;
   overflow-y: auto;
+  overscroll-behavior-y: contain;
   padding: 10px 16px calc(28px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--border);
   border-radius: 28px 28px 0 0;
   background: var(--background);
   color: var(--foreground);
-  box-shadow: 0 -16px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.16);
 }
 
 .nl-tr-grip {
@@ -2761,6 +2778,12 @@ html:is(.dark, :not(.dark)) body .nl-tr-bell {
 
 .nl-tr-sheet .nl-tr-detail-ident b {
   font-size: 32px;
+}
+
+.nl-tr-sheet .nl-tr-grip,
+.nl-tr-sheet .nl-tr-detail-head {
+  touch-action: none;
+  user-select: none;
 }
 
 /* The result as a filled block: lime for a gain, orange for a loss. */
@@ -6050,4 +6073,835 @@ html:is(.dark, :not(.dark)) body .nl-pe-levels input {
   html:is(.dark, :not(.dark)) body .pending-entry-dialog.is-plan .pending-entry-grip {
     display: block;
   }
+}
+
+/* ======================================================= PAIR PICKER (desktop) */
+
+/* The chart's pair dropdown in the Night Ledger card style: flag coins,
+   name over a quiet NY-status line, the current pair marked with a check. */
+html:is(.dark, :not(.dark)) body .signals-pair-dropdown.menu-popover {
+  width: min(340px, calc(100vw - 24px));
+  max-height: min(520px, calc(100dvh - 120px));
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-dropdown .signals-pair-sheet {
+  gap: 8px;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-dropdown .signals-search {
+  flex: none;
+  height: 44px;
+  gap: 10px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--background);
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-dropdown .signals-search:focus-within {
+  border-color: var(--border-strong);
+  box-shadow: none;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-dropdown .signals-search input {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-dropdown-results {
+  gap: 2px;
+  padding: 0;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-dropdown .signals-search-result {
+  min-height: 56px;
+  flex: none;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  color: var(--foreground);
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-dropdown .signals-search-result:hover {
+  background: var(--surface-raised);
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-dropdown .signals-search-result.is-active {
+  background: var(--surface-raised);
+  color: var(--foreground);
+}
+
+.signals-pair-dropdown .signals-search-result > .min-w-0 {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-dropdown .signals-search-result > .min-w-0 > .block {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+/* NY status as a dot and a muted line, not a boxed chip. */
+html:is(.dark, :not(.dark)) body .signals-pair-dropdown .tradability .pair-strength-chip {
+  height: auto;
+  padding: 0;
+  gap: 6px;
+  background: transparent;
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-dropdown .tradability .pair-strength-chip[data-tone="tradability-unavailable"],
+html:is(.dark, :not(.dark)) body .signals-pair-dropdown .tradability .pair-strength-chip[data-tone="checking"] {
+  color: var(--muted);
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-dropdown .signals-search-current {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--accent-fill);
+  color: var(--on-accent);
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-dropdown .signals-search-trading-badge {
+  flex: none;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ======================================================= PAIR PICKER (phone) */
+
+/* Same rows as the desktop dropdown, in the bottom sheet. */
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search {
+  height: 48px;
+  min-height: 48px;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--background);
+  color: var(--muted);
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search input {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-pair-sheet .mt-2 {
+  gap: 2px;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search-result {
+  min-height: 60px;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--foreground);
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search-result > div:first-child {
+  display: block;
+  flex: none;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search-result.is-active {
+  border-radius: 14px;
+  background: var(--surface-raised);
+  box-shadow: none;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search-result.is-active::after {
+  content: none;
+}
+
+.signals-pair-mobile-sheet .signals-search-result > .min-w-0 {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search-result > .min-w-0 > .block {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .tradability .pair-strength-chip {
+  height: auto;
+  padding: 0;
+  gap: 6px;
+  background: transparent;
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .tradability .pair-strength-chip[data-tone="tradability-unavailable"],
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .tradability .pair-strength-chip[data-tone="checking"] {
+  color: var(--muted);
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search-current {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--accent-fill);
+  color: var(--on-accent);
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search-trading-badge {
+  flex: none;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Analyze V2 AI explanation (analyze-card.tsx · AnalyzeExplanation). */
+.nl-an-explain {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--surface-raised);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.nl-an-explain.is-muted {
+  color: var(--muted);
+}
+
+.nl-an-explain > p {
+  margin: 0;
+}
+
+.nl-an-explain details summary {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nl-an-explain dl {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0 0;
+}
+
+.nl-an-explain dt {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.nl-an-explain dd {
+  margin: 2px 0 0;
+}
+
+.nl-an-explain-note {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* ======================================================= ANALYZE V2 PANEL */
+
+/* analyze-v2-panel.tsx: decision line, why-not list, checklist and the
+   collapsible structure / risk / liquidity sections. Card and sheet alike. */
+.nl-v2-headline {
+  margin: -8px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.nl-v2-headline b {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.nl-v2-headline b.is-up { color: var(--accent); }
+.nl-v2-headline b.is-down { color: var(--danger); }
+
+.nl-v2-chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.nl-v2-chip.is-pass { background: var(--accent-soft); color: var(--accent); }
+.nl-v2-chip.is-caution { background: color-mix(in srgb, var(--pending) 15%, transparent); color: var(--pending); }
+.nl-v2-chip.is-fail { background: color-mix(in srgb, var(--danger) 15%, transparent); color: var(--danger); }
+.nl-v2-chip.is-unknown { box-shadow: inset 0 0 0 1px var(--border-strong); color: var(--muted); }
+.nl-v2-chip.is-skipped { color: var(--muted); }
+
+.nl-v2-label {
+  color: var(--muted);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.nl-v2-why {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.nl-v2-why ul,
+.nl-v2-checks ul,
+.nl-v2-events {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nl-v2-why li,
+.nl-v2-checks li,
+.nl-v2-events li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.nl-v2-why li {
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nl-v2-checks li b {
+  font-weight: 600;
+}
+
+.nl-v2-checks li.is-skipped {
+  color: var(--muted);
+}
+
+.nl-v2-watch {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.nl-v2-watch span {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.nl-v2-watch.is-empty {
+  border-color: var(--border);
+  color: var(--muted);
+}
+
+.nl-v2-watch.is-empty span {
+  color: var(--muted);
+}
+
+.nl-v2-section {
+  border-top: 1px solid var(--border);
+}
+
+.nl-v2-section > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 44px;
+  font-size: 14px;
+  font-weight: 600;
+  list-style: none;
+  cursor: pointer;
+}
+
+.nl-v2-section > summary::-webkit-details-marker {
+  display: none;
+}
+
+.nl-v2-section > summary::after {
+  content: "";
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin: -3px 2px 0 0;
+  border: solid var(--muted);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+  transition: transform 160ms ease;
+}
+
+.nl-v2-section[open] > summary::after {
+  margin-top: 3px;
+  transform: rotate(-135deg);
+}
+
+.nl-v2-section > summary > span:first-child {
+  flex: 1;
+}
+
+.nl-v2-counts {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.nl-v2-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 2px 0 14px;
+}
+
+.nl-v2-rows > div {
+  gap: 12px;
+}
+
+.nl-v2-rows dd {
+  text-align: right;
+}
+
+.nl-v2-small {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.nl-v2-small.is-caution { color: var(--pending); }
+.nl-v2-small.is-muted { opacity: 0.8; }
+
+.nl-v2-events li.is-blocking {
+  color: var(--danger);
+}
+
+.nl-v2-events .metric-number {
+  flex: none;
+  color: var(--muted);
+}
+
+/* ======================================================= ANALYZE V2 PANEL · upgrade */
+
+/* Decision: the canvas head (decision + ratio), its reason, and a slim
+   13-check meter. No box: it reads like the rest of the card. */
+.nl-v2-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.nl-v2-hero .nl-v2-headline {
+  margin: 0;
+}
+
+.nl-v2-meter {
+  display: grid;
+  grid-template-columns: repeat(13, minmax(0, 1fr));
+  gap: 3px;
+  margin-top: 2px;
+}
+
+.nl-v2-meter > span {
+  height: 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+
+.nl-v2-meter > .is-pass { background: var(--accent); }
+.nl-v2-meter > .is-caution { background: var(--pending); }
+.nl-v2-meter > .is-fail { background: var(--danger); }
+.nl-v2-meter > .is-unknown { background: var(--muted); }
+
+/* Why not: one card per blocking check. */
+.nl-v2-why > ul {
+  gap: 8px;
+}
+
+.nl-v2-why-item {
+  display: flex;
+  flex-direction: row !important;
+  align-items: flex-start;
+  gap: 12px !important;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--background);
+}
+
+.nl-v2-why-icon {
+  display: grid;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.nl-v2-why-icon.is-fail { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
+.nl-v2-why-icon.is-unknown { box-shadow: inset 0 0 0 1px var(--border-strong); color: var(--muted); }
+
+.nl-v2-why-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.nl-v2-why-copy b {
+  font-weight: 600;
+}
+
+.nl-v2-why-copy span {
+  color: var(--muted);
+}
+
+/* Watch box with an icon. */
+.nl-v2-watch {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+}
+
+.nl-v2-watch p {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+}
+
+.nl-v2-watch b {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.nl-v2-watch.is-empty b {
+  color: var(--foreground);
+}
+
+.nl-v2-watch p span {
+  color: var(--muted);
+}
+
+.nl-v2-watch-icon {
+  display: grid;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.nl-v2-watch.is-empty .nl-v2-watch-icon {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  color: var(--muted);
+}
+
+.nl-v2-watch-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* Section headers: icon, title over a one-line preview, status, chevron. */
+.nl-v2-section > summary {
+  gap: 12px;
+  min-height: 60px;
+}
+
+.nl-v2-section > summary > span:first-child {
+  flex: none;
+}
+
+.nl-v2-sum-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: var(--muted);
+}
+
+.nl-v2-section[open] .nl-v2-sum-icon {
+  color: var(--foreground);
+}
+
+.nl-v2-sum-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.nl-v2-sum-text {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nl-v2-sum-text b {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.nl-v2-sum-text small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nl-v2-section-body {
+  padding-left: 44px;
+}
+
+.nl-v2-checks .nl-v2-section-body {
+  padding-left: 0;
+}
+
+/* AI explanation header. */
+.nl-an-explain-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.nl-an-explain-head svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* Wide sheets (tablets): keep the content at a readable width. */
+.nl-an-sheet .nl-an-body,
+.nl-an-sheet .nl-an-grip {
+  max-width: 560px;
+  margin-inline: auto;
+}
+
+@media (max-width: 420px) {
+  .nl-v2-section-body { padding-left: 0; }
+  .nl-v2-hero { padding: 16px; }
+}
+
+/* Analyze sheet layout: grip, top bar and buttons are fixed rows; only the
+   content between them scrolls (overscroll contained), so nothing pinned can
+   bounce with iOS/Android rubber-banding. In the desktop card the wrapper is
+   transparent to layout. */
+.nl-an-scroll {
+  display: contents;
+}
+
+.nl-an-sheet {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom));
+}
+
+.nl-an-sheet .nl-an-grip,
+.nl-an-sheet .nl-an-top,
+.nl-an-sheet .nl-an-actions {
+  flex: none;
+}
+
+.nl-an-sheet .nl-an-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+}
+
+.nl-an-sheet .nl-an-scroll {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  gap: 16px;
+  margin: 0 -20px;
+  padding: 0 20px 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.nl-an-sheet .nl-an-actions {
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+@media (min-width: 1024px) {
+  .nl-an-sheet { padding-bottom: 22px; }
+  .nl-an-sheet .nl-an-scroll { margin: 0 -22px; padding: 0 22px 6px; }
+}
+
+/* Trade drawer (phone): everything fits without scrolling. The drawer does
+   not scroll and the page behind is locked (usePageScrollLock). */
+.nl-tr-sheet {
+  overflow: hidden;
+  touch-action: none;
+  padding-bottom: calc(18px + env(safe-area-inset-bottom));
+}
+
+.nl-tr-detail.is-sheet {
+  gap: 14px;
+}
+
+.nl-tr-sheet .nl-tr-detail-ident b {
+  font-size: 26px;
+}
+
+.nl-tr-sheet .nl-tr-close {
+  width: 40px;
+  height: 40px;
+}
+
+.nl-tr-detail.is-sheet .nl-tr-result {
+  gap: 4px;
+  padding: 14px 18px;
+  border-radius: 20px;
+}
+
+.nl-tr-detail.is-sheet .nl-tr-result-money {
+  font-size: 42px;
+}
+
+.nl-tr-detail.is-sheet .nl-tr-track-wrap {
+  gap: 4px;
+}
+
+.nl-tr-detail.is-sheet .nl-tr-grid > div {
+  padding: 9px 14px;
+}
+
+.nl-tr-detail.is-sheet .nl-tr-grid dt {
+  font-size: 11px;
+}
+
+.nl-tr-detail.is-sheet .nl-tr-grid dd {
+  margin-top: 2px;
+  font-size: 14px;
+}
+
+.nl-tr-detail.is-sheet .nl-tr-primary {
+  height: 48px;
+}
+
+/* Short phones (SE, small Androids): tighter still. */
+@media (max-height: 700px) {
+  .nl-tr-detail.is-sheet { gap: 10px; }
+  .nl-tr-detail.is-sheet .nl-tr-result { padding: 12px 16px; }
+  .nl-tr-detail.is-sheet .nl-tr-result-money { font-size: 34px; }
+  .nl-tr-detail.is-sheet .nl-tr-grid > div { padding: 7px 12px; }
+  .nl-tr-detail.is-sheet .nl-tr-grid dd { font-size: 13px; }
+  .nl-tr-detail.is-sheet .nl-tr-primary { height: 44px; }
+}
+
+
+/* ======================================================= OVERLAYS (all drawers) */
+
+/* One scrim and one sheet shadow for every drawer and dialog: Analyze sheet,
+   trade drawer, entry form, MobileSheet drawers (settings pickers, pair
+   picker, notifications), confirm dialogs and the older analysis modals.
+   No page blur anywhere, so every overlay looks the same. */
+:root {
+  --overlay-scrim: rgba(20, 22, 18, 0.22);
+  --overlay-sheet-shadow: 0 -8px 32px rgba(20, 22, 18, 0.1);
+}
+
+.dark {
+  --overlay-scrim: rgba(0, 0, 0, 0.6);
+  --overlay-sheet-shadow: 0 -16px 40px rgba(0, 0, 0, 0.45);
+}
+
+html:is(.dark, :not(.dark)) body :is(
+  .nl-an-backdrop,
+  .nl-tr-backdrop,
+  .mobile-sheet-backdrop,
+  .pending-entry-backdrop,
+  .manual-proposal-backdrop,
+  .custom-expiration-backdrop,
+  .tp-backdrop
+) {
+  background: var(--overlay-scrim);
+}
+
+html:is(.dark, :not(.dark)) body :is(
+  .nl-an-sheet,
+  .nl-tr-sheet,
+  .mobile-sheet,
+  .pending-entry-dialog:not(.is-panel),
+  .tp-sheet
+) {
+  box-shadow: var(--overlay-sheet-shadow);
+}
+
+html:is(.dark, :not(.dark)):is(
+  .mobile-sheet-open,
+  :has(.mobile-sheet-backdrop),
+  :has(.pending-entry-backdrop),
+  :has(.manual-proposal-backdrop),
+  :has(.custom-expiration-backdrop),
+  :has(.tp-backdrop)
+) body :is(.pwa-pull-refresh, .mobile-dock) {
+  filter: none;
 }

@@ -259,6 +259,10 @@ const ANALYZE_PLAN_LIFETIME_MS: Record<string, number> = {
   // pullbacks take longer to arrive.
   "market-regime-normal-v1": 4 * 60 * 60_000,
   "market-regime-swing-v1": 48 * 60 * 60_000,
+  // Analyze V2 enters at a confirmed trigger; an order lives as long as the
+  // trigger stays valid (8 M15 candles normal, 4 H4 candles swing).
+  "analyze-v2-normal": 2 * 60 * 60_000,
+  "analyze-v2-swing": 16 * 60 * 60_000,
 };
 
 /** The order lifetime for an Analyze plan's context, or null when it is not one. */

@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { MobileSheet } from "@/components/ui/mobile-sheet";
 import { PairAvatar } from "@/components/ui/pair-avatar";
+import { NewsImpactSkeleton } from "@/components/dashboard/news-impact-skeleton";
+import { createImpactCache } from "@/lib/news/impact-cache";
 import { apiUrl } from "@/lib/api/url";
 import { currenciesOf, displayNameFor, isKnownInstrument, pipSizeFor } from "@/lib/instruments/catalog";
 import type { CandleSeries } from "@/types/forex";
@@ -67,40 +69,49 @@ const NEWS_WINDOW_MINUTES = 60;
  * inside the news window. Refreshes while the window is open, then stops.
  */
 function useReleaseMoves(pairs: string[], releasedAt: number | null) {
-  const [moves, setMoves] = useState<Record<string, ReleaseMove>>({});
-  const key = pairs.join(",");
+  const [cache] = useState(() => createImpactCache<Record<string, ReleaseMove>>());
+  const [result, setResult] = useState<{ key: string; moves: Record<string, ReleaseMove> } | null>(null);
+  const key = [...pairs].sort().join(",");
+  const resultKey = `${releasedAt}|${key}`;
   useEffect(() => {
     if (releasedAt === null || !key) return;
     const release = releasedAt;
     let cancelled = false;
     async function load() {
-      const count = Math.min(5_000, Math.ceil((Date.now() - release) / 300_000) + 3);
-      const entries = await Promise.all(key.split(",").map(async (instrument) => {
-        try {
-          const response = await fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=M5&count=${count}`), { credentials: "include", cache: "no-store" });
-          const series = response.ok ? (await response.json() as { data?: CandleSeries }).data : undefined;
-          const candles = series?.source === "oanda" ? series.candles : [];
-          const start = candles.findIndex((candle) => Date.parse(candle.time) >= release - 60_000);
-          if (start < 0) return null;
-          const pip = pipSizeFor(instrument);
-          const reference = candles[start]!.open;
-          const closedBy = (end: number) =>
-            candles.slice(start).filter((candle) => Date.parse(candle.time) + 300_000 <= end).at(-1);
-          const reactionEnd = release + FIRST_REACTION_MINUTES * 60_000;
-          const reaction = closedBy(reactionEnd);
-          const windowEnd = release + NEWS_WINDOW_MINUTES * 60_000;
-          // Inside the window the latest candle; after it, the last one that closed by its end.
-          const last = Date.now() >= windowEnd ? closedBy(windowEnd) ?? candles.at(-1)! : candles.at(-1)!;
-          const move: ReleaseMove = {
-            firstReaction: Date.now() >= reactionEnd && reaction ? (reaction.close - reference) / pip : null,
-            sinceRelease: (last.close - reference) / pip,
-          };
-          return [instrument, move] as const;
-        } catch {
-          return null;
-        }
-      }));
-      if (!cancelled) setMoves(Object.fromEntries(entries.filter((entry) => entry !== null)));
+      const moves = await cache.load(resultKey, async () => {
+        const count = Math.min(5_000, Math.ceil((Date.now() - release) / 300_000) + 3);
+        const entries = await Promise.all(key.split(",").map(async (instrument) => {
+          try {
+            const response = await fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=M5&count=${count}`), { credentials: "include", cache: "no-store" });
+            const series = response.ok ? (await response.json() as { data?: CandleSeries }).data : undefined;
+            if (series?.instrument !== instrument || series.granularity !== "M5") return null;
+            const candles = series?.source === "oanda" ? series.candles : [];
+            const start = candles.findIndex((candle) => Date.parse(candle.time) >= release - 60_000);
+            if (start < 0) return null;
+            const pip = pipSizeFor(instrument);
+            const reference = candles[start]!.open;
+            const closedBy = (end: number) =>
+              candles.slice(start).filter((candle) => Date.parse(candle.time) + 300_000 <= end).at(-1);
+            const reactionEnd = release + FIRST_REACTION_MINUTES * 60_000;
+            const reaction = closedBy(reactionEnd);
+            const windowEnd = release + NEWS_WINDOW_MINUTES * 60_000;
+            // Inside the window the latest candle; after it, the last one that closed by its end.
+            const last = Date.now() >= windowEnd ? closedBy(windowEnd) : candles.at(-1);
+            if (!last) return null;
+            const move: ReleaseMove = {
+              firstReaction: Date.now() >= reactionEnd && reaction ? (reaction.close - reference) / pip : null,
+              sinceRelease: (last.close - reference) / pip,
+            };
+            return [instrument, move] as const;
+          } catch {
+            return null;
+          }
+        }));
+        return Object.fromEntries(entries.filter((entry) => entry !== null));
+      }, (value) => Object.keys(value).length === key.split(",").length
+        && Date.now() >= release + (NEWS_WINDOW_MINUTES + 5) * 60_000
+        ? 24 * 60 * 60_000 : MOVE_REFRESH_MS);
+      if (!cancelled) setResult({ key: resultKey, moves });
     }
     void load();
     // Once the window has closed the numbers are final: one read, no polling.
@@ -115,8 +126,11 @@ function useReleaseMoves(pairs: string[], releasedAt: number | null) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [key, releasedAt]);
-  return releasedAt === null ? {} : moves;
+  }, [cache, key, releasedAt, resultKey]);
+  return {
+    moves: releasedAt !== null && result?.key === resultKey ? result.moves : {},
+    loading: releasedAt !== null && !!key && result?.key !== resultKey,
+  };
 }
 
 type SavedPrediction = { event_key: string; call: "beat" | "miss" | null; chosen_signal: string | null };
@@ -129,17 +143,21 @@ function eventKey(event: { currency: string; title: string; timestamp: string })
 
 /** The server's frozen calls and their live track record, loaded when the sheet opens. */
 function usePredictionJournal(open: boolean) {
-  const [journal, setJournal] = useState<PredictionJournal | null>(null);
+  const [cache] = useState(() => createImpactCache<PredictionJournal>(1));
+  const [result, setResult] = useState<{ journal: PredictionJournal | null } | null>(null);
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    fetch(apiUrl("/api/news/predictions"), { credentials: "include", cache: "no-store" })
-      .then((response) => (response.ok ? response.json() as Promise<PredictionJournal> : null))
-      .then((payload) => { if (!cancelled && payload) setJournal(payload); })
-      .catch(() => {});
+    cache.load("journal", async () => {
+      const response = await fetch(apiUrl("/api/news/predictions"), { credentials: "include", cache: "no-store" });
+      if (!response.ok) throw new Error("Prediction journal unavailable");
+      return response.json() as Promise<PredictionJournal>;
+    }, () => MOVE_REFRESH_MS)
+      .then((journal) => { if (!cancelled) setResult({ journal }); })
+      .catch(() => { if (!cancelled) setResult({ journal: null }); });
     return () => { cancelled = true; };
-  }, [open]);
-  return journal;
+  }, [cache, open]);
+  return { journal: result?.journal ?? null, loading: open && result === null };
 }
 
 function signedPips(value: number) {
@@ -164,7 +182,7 @@ export function NewsImpactSheet({
   now: number;
 }) {
   const hint = event ? newsSurpriseHint(event) : null;
-  const journal = usePredictionJournal(event !== null);
+  const { journal, loading: journalLoading } = usePredictionJournal(event !== null);
   const saved = event ? journal?.predictions.find((row) => row.event_key === eventKey(event)) : undefined;
   // The journal's frozen call wins; the simple local rule covers events it has
   // not seen (e.g. before its first run).
@@ -186,7 +204,7 @@ export function NewsImpactSheet({
     .map((p) => [p.instrument, p.direction]));
   pairs.sort((a, b) => Number(held.has(b)) - Number(held.has(a)));
   const releasedAt = event && Date.parse(event.timestamp) <= now ? Date.parse(event.timestamp) : null;
-  const moves = useReleaseMoves(pairs, releasedAt);
+  const { moves, loading: movesLoading } = useReleaseMoves(pairs, releasedAt);
   const windowClosed = releasedAt !== null && now >= releasedAt + NEWS_WINDOW_MINUTES * 60_000;
   // How the currency itself reacted: against how many others it gained.
   const measured = pairs.filter((instrument) => moves[instrument]);
@@ -209,7 +227,9 @@ export function NewsImpactSheet({
       eyebrow={currency ? `${currency} news impact` : undefined}
       className="news-impact-sheet"
     >
-      {event && hint ? (
+      {event && hint ? journalLoading || movesLoading ? (
+        <NewsImpactSkeleton pairs={pairs.length} released={releasedAt !== null} />
+      ) : (
         <div className="news-impact-drawer">
           {/* Forecast · Previous · Actual as one strip; Actual lights up once it is out. */}
           <dl className="news-impact-values">
@@ -324,7 +344,7 @@ export function NewsImpactSheet({
                                 <small>pips</small>
                               </span>
                             )
-                          ) : <span className="news-impact-loading">Loading…</span>}
+                          ) : <span className="news-impact-loading">Unavailable</span>}
                           <span className="news-impact-tags">
                             {move ? (
                               <span

@@ -3,6 +3,8 @@ import { pipSizeFor, precisionFor } from "@/lib/instruments/catalog";
 import { classifyMarketRegime, DEFAULT_REGIME_SETTINGS, type Confidence, type Regime, type RegimeRead } from "@/lib/strategy/market-regime";
 import { rolesFor, type AnalysisMode, type NormalHierarchy, type RoleTimeframe, type TimeframeRoles } from "@/lib/strategy/timeframe-roles";
 import { newsCheck, type NewsEvent } from "@/lib/strategy/trend-pullback-v1";
+import { analyzeV2Context } from "@/lib/strategy/analyze-v2/context";
+import type { AnalysisResult } from "@/lib/strategy/analyze-v2/decide";
 import type { Candle, MajorInstrument } from "@/types/forex";
 
 /**
@@ -189,6 +191,8 @@ export interface MarketAnalysis {
   /** Hold the order until after imminent high-impact news (ISO), else null. */
   activateAfter: string | null;
   reason: string;
+  /** Set when this read came from Analyze V2 (analyze-v2/), which is now the live engine. */
+  v2?: AnalysisResult;
 }
 
 /**
@@ -337,9 +341,9 @@ export function analyzeMarket(input: MarketAnalysisInput): MarketAnalysis {
   const round = (value: number) => Number(value.toFixed(digits));
   const regimeOf = (timeframe: RoleTimeframe | null) => {
     const candles = timeframe === null ? [] : input.candles[timeframe] ?? [];
-    return candles.length ? classifyMarketRegime(candles, DEFAULT_REGIME_SETTINGS) : null;
+    return candles.length ? classifyMarketRegime(candles, DEFAULT_REGIME_SETTINGS, digits) : null;
   };
-  const read = classifyMarketRegime(input.candles[config.primary] ?? [], DEFAULT_REGIME_SETTINGS);
+  const read = classifyMarketRegime(input.candles[config.primary] ?? [], DEFAULT_REGIME_SETTINGS, digits);
   const contextRead = regimeOf(config.context);
   const setupRead = regimeOf(config.setup);
   const executionRead = regimeOf(config.execution);
@@ -688,6 +692,7 @@ export const MARKET_ANALYSIS_SETUP: Record<AnalysisMode, string> = {
  * by mode, regime and setup later.
  */
 export function marketAnalysisContext(analysis: MarketAnalysis) {
+  if (analysis.v2) return analyzeV2Context(analysis.v2);
   return {
     version: 1,
     direction: analysis.decision === "LONG" ? "long" : "short",

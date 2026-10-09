@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { useTheme } from "next-themes";
 import {
   CalendarRange,
+  Check,
   ChevronDown,
   Clock3,
   History,
@@ -1452,13 +1453,13 @@ function SignalSearch({
                     onSelect(result);
                     closePicker();
                   }}
+                  role={useDesktopDropdown ? "option" : undefined}
+                  aria-selected={useDesktopDropdown ? active : undefined}
                   className={`signals-search-result pressable flex w-full items-center gap-2.5 text-left ${
                     useDesktopDropdown ? "px-2.5 py-2" : "px-2 py-2"
                   } ${active ? "is-active" : ""}`}
                 >
-                  {useDesktopDropdown ? null : (
-                    <PairAvatar instrument={result.instrument} size={26} />
-                  )}
+                  <PairAvatar instrument={result.instrument} size={30} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium tracking-[-0.02em]">
                       {result.displayName}
@@ -1468,8 +1469,10 @@ function SignalSearch({
                   {isTrading ? (
                     <span className="signals-search-trading-badge">Trading</span>
                   ) : null}
-                  {active && useDesktopDropdown ? (
-                    <span className="signals-search-current">Current</span>
+                  {active ? (
+                    <span className="signals-search-current" aria-label="Current pair">
+                      <Check className="size-4" strokeWidth={2.4} aria-hidden="true" />
+                    </span>
                   ) : null}
                 </button>
               );

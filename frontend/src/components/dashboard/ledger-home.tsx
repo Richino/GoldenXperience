@@ -329,7 +329,10 @@ function LedgerHero({
       {/* Phone: the balance stays pinned once the hero scrolls away. */}
       <div className={`nl-mbar${scrolledPast ? " is-visible" : ""}`} aria-hidden={!scrolledPast}>
         <span className="nl-mbar-balance">{money(account.nav, account.currency)}</span>
-        <span className={`nl-chip ${dayTone}`}>{percentLabel}</span>
+        <div className="nl-mbar-actions">
+          <span className={`nl-chip ${dayTone}`}>{percentLabel}</span>
+          <NotificationBell compact className="nl-bell nl-mbar-bell" />
+        </div>
       </div>
 
       <div className="nl-hero-copy">

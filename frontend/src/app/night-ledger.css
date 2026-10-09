@@ -285,6 +285,12 @@ html:is(.dark, :not(.dark)) body :is(
     --ink-dock-tile-ring: transparent;
   }
 
+  /* The chart's Trade action sits just above the dock. An upward shadow
+     darkens its solid fill, so use the dock border for separation here. */
+  html:is(.dark, :not(.dark)):has(.signals-route) body .mobile-dock.ink-dock {
+    --ink-dock-shadow: none;
+  }
+
   /* The sheet is opaque, so the old content fade above the pill goes. */
   html:is(.dark, :not(.dark)) body .mobile-dock.ink-dock::before {
     display: none;

@@ -14,6 +14,7 @@ import {
   todayClosedStats,
 } from "@/lib/home/idle";
 import { apiUrl } from "@/lib/api/url";
+import { verifiedAccountSummary, ACCOUNT_UNAVAILABLE_MESSAGE } from "@/lib/account-summary";
 import { tradingDayKey } from "@/lib/format/datetime";
 import { pipSizeFor } from "@/lib/instruments/catalog";
 import {
@@ -26,7 +27,7 @@ import {
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import { useOpenPositionFills, type OpenPositionFill } from "@/lib/market-stream/use-open-positions";
-import type { AccountBalanceHistoryPoint, AccountSummary, JournalTrade, MajorInstrument } from "@/types/forex";
+import type { AccountBalanceHistoryPoint, AccountSummary, ConnectionStatus, JournalTrade, MajorInstrument } from "@/types/forex";
 import type { PendingManualEntry } from "@/types/pending-entry";
 
 export type DashboardWatchRow = {
@@ -234,7 +235,7 @@ export function DashboardView({
   todayKey,
 }: {
   initialMorningPicks: import("@/lib/strategy/morning-scan").MorningPicksSnapshot | null;
-  initialAccount: AccountSummary;
+  initialAccount: AccountSummary | null;
   initialAccountHistory: AccountBalanceHistoryPoint[];
   initialWatchlist: DashboardWatchRow[];
   initialSavedSetups: DashboardSavedSetup[];
@@ -245,7 +246,8 @@ export function DashboardView({
   greeting: string;
   todayKey: string;
 }) {
-  const [account, setAccount] = useState(initialAccount);
+  const [account, setAccount] = useState(() => verifiedAccountSummary({ data: initialAccount }));
+  const [accountError, setAccountError] = useState<string | null>(() => verifiedAccountSummary({ data: initialAccount }) ? null : ACCOUNT_UNAVAILABLE_MESSAGE);
   const [accountHistory, setAccountHistory] = useState(initialAccountHistory);
   const [journalTrades, setJournalTrades] = useState(initialJournal.trades);
   const [journalSummary, setJournalSummary] = useState(initialJournal.summary ?? null);
@@ -297,13 +299,13 @@ export function DashboardView({
       // broker position's actual unrealized P&L when a fill exists.
       nominalRiskAmount:
         trade.nominalRiskAmount ??
-        (account.balance > 0 ? Number((account.balance * 0.01).toFixed(2)) : null),
+        (account && account.balance > 0 ? Number((account.balance * 0.01).toFixed(2)) : null),
       brokerTradeId: trade.brokerTradeId ?? null,
     }));
   const openTrades = [...overviewOpen, ...manualOpen];
 
   // Every broker position (tracked or not), plus paper-only open rows.
-  let heroOpenPL: number = account.unrealizedPL;
+  let heroOpenPL: number = account?.unrealizedPL ?? 0;
   {
     let total = 0;
     let seen = false;
@@ -326,25 +328,22 @@ export function DashboardView({
 
   const refresh = useCallback(async () => {
     try {
-      const [accountResponse, historyResponse, watchlistResponse, savedSetupsResponse, cycleResponse, journalResponse] = await Promise.all([
-        fetch(apiUrl("/api/oanda/account-summary"), { credentials: "include", cache: "no-store" }),
+      const [historyResponse, watchlistResponse, savedSetupsResponse, cycleResponse, journalResponse] = await Promise.all([
         fetch(apiUrl("/api/oanda/account-history"), { credentials: "include", cache: "no-store" }),
         fetch(apiUrl("/api/watchlist"), { credentials: "include", cache: "no-store" }),
         fetch(apiUrl("/api/saved-setups"), { credentials: "include", cache: "no-store" }),
         fetch(apiUrl("/api/paper-cycle"), { credentials: "include", cache: "no-store" }),
         fetch(apiUrl("/api/journal/trades?limit=50&filter=all"), { credentials: "include", cache: "no-store" }),
       ]);
-      if (![accountResponse, historyResponse, watchlistResponse, savedSetupsResponse, cycleResponse].every((response) => response.ok)) {
+      if (![historyResponse, watchlistResponse, savedSetupsResponse, cycleResponse].every((response) => response.ok)) {
         throw new Error("Dashboard data is temporarily unavailable.");
       }
-      const [accountPayload, historyPayload, watchlistPayload, savedSetupsPayload, cyclePayload] = await Promise.all([
-        accountResponse.json() as Promise<{ data: AccountSummary }>,
+      const [historyPayload, watchlistPayload, savedSetupsPayload, cyclePayload] = await Promise.all([
         historyResponse.json() as Promise<{ data: AccountBalanceHistoryPoint[] }>,
         watchlistResponse.json() as Promise<{ watchlist: DashboardWatchRow[] }>,
         savedSetupsResponse.json() as Promise<{ setups: DashboardSavedSetup[] }>,
         cycleResponse.json() as Promise<DashboardOverview>,
       ]);
-      setAccount(accountPayload.data);
       setAccountHistory(historyPayload.data);
       setWatchlist(watchlistPayload.watchlist);
       setSavedSetups(Array.isArray(savedSetupsPayload.setups) ? savedSetupsPayload.setups : []);
@@ -372,11 +371,15 @@ export function DashboardView({
   const refreshAccount = useCallback(async () => {
     try {
       const response = await fetch(apiUrl("/api/oanda/account-summary"), { credentials: "include", cache: "no-store" });
-      if (!response.ok) return;
-      const payload = await response.json() as { data: AccountSummary };
-      setAccount(payload.data);
+      if (!response.ok) throw new Error(ACCOUNT_UNAVAILABLE_MESSAGE);
+      const payload = await response.json() as { data: AccountSummary; status?: ConnectionStatus };
+      const verified = verifiedAccountSummary(payload);
+      if (!verified) throw new Error(ACCOUNT_UNAVAILABLE_MESSAGE);
+      setAccount(verified);
+      setAccountError(null);
     } catch {
-      // The slow refresh below reports the outage.
+      // Preserve the verified snapshot; an outage must never replace it with demo money.
+      setAccountError(ACCOUNT_UNAVAILABLE_MESSAGE);
     }
   }, []);
 
@@ -576,6 +579,7 @@ export function DashboardView({
       <LedgerHome
         morningPicks={initialMorningPicks}
         account={account}
+        accountError={accountError}
         history={accountHistory}
         todayKey={todayKey}
         // Built from the same per-position figures the rows show, so the hero

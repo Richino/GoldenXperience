@@ -6,8 +6,9 @@ import {
   type DashboardWatchRow,
 } from "@/components/dashboard/dashboard-view";
 import { getApiData } from "@/lib/api/server";
+import { verifiedAccountSummary } from "@/lib/account-summary";
 import { currentTradingDayKey } from "@/lib/format/datetime";
-import type { AccountBalanceHistoryPoint, AccountSummary } from "@/types/forex";
+import type { AccountBalanceHistoryPoint, AccountSummary, ConnectionStatus } from "@/types/forex";
 import type { PendingManualEntry } from "@/types/pending-entry";
 import type { MorningPicksSnapshot } from "@/lib/strategy/morning-scan";
 
@@ -28,7 +29,7 @@ export default async function DashboardPage() {
   // endpoint. Fetch them with the rest of Home so these cards do not arrive a
   // beat after the overview snapshot during client hydration.
   const [account, accountHistory, watchlist, savedSetups, overview, journal, pendingEntries, morningPicks] = await Promise.all([
-    getApiData<{ data: AccountSummary }>("/api/oanda/account-summary"),
+    getApiData<{ data: AccountSummary; status?: ConnectionStatus }>("/api/oanda/account-summary").catch(() => ({ data: null })),
     getApiData<{ data: AccountBalanceHistoryPoint[] }>("/api/oanda/account-history"),
     getApiData<{ watchlist: DashboardWatchRow[] }>("/api/watchlist"),
     getApiData<{ setups: DashboardSavedSetup[] }>("/api/saved-setups"),
@@ -46,7 +47,7 @@ export default async function DashboardPage() {
 
   return (
     <DashboardView
-      initialAccount={account.data}
+      initialAccount={verifiedAccountSummary(account)}
       initialAccountHistory={accountHistory.data}
       initialWatchlist={watchlist.watchlist}
       initialSavedSetups={savedSetups.setups ?? []}

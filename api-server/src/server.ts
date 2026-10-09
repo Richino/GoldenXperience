@@ -14,6 +14,7 @@ import type {
   MarketStreamStatus,
 } from "./market-stream-types.js";
 import { MAJOR_INSTRUMENTS } from "../../frontend/src/types/forex.js";
+import { verifiedAccountSummary, ACCOUNT_UNAVAILABLE_MESSAGE } from "../../frontend/src/lib/account-summary.js";
 import { getAllCalendarEvents, getEconomicCalendar } from "../../frontend/src/lib/calendar/forex-factory.js";
 import { ingestCalendarEvents, nightlyNewsRetagIfDue } from "./news-tagging.js";
 import { newsPredictionsSnapshot, runNewsPredictionJournal } from "./news-predictions.js";
@@ -714,8 +715,13 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
   switch (url.pathname) {
     case "/health":
       return json(request, response, { ok: true, service: "goldenxperience-api", checkedAt: new Date().toISOString() });
-    case "/api/oanda/account-summary":
-      return json(request, response, await getAccountSummary());
+    case "/api/oanda/account-summary": {
+      const result = await getAccountSummary();
+      if (!verifiedAccountSummary(result)) {
+        return json(request, response, { error: ACCOUNT_UNAVAILABLE_MESSAGE, data: null, status: result.status }, 503);
+      }
+      return json(request, response, result);
+    }
     case "/api/oanda/account-history":
       return json(request, response, await cachedAccountBalanceHistory());
     case "/api/oanda/open-positions":

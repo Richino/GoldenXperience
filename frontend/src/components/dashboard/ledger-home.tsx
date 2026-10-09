@@ -26,6 +26,7 @@ import { RelativeTime } from "@/components/dashboard/relative-time";
 import type { HomeCurrentPosition } from "@/components/dashboard/home-rail";
 import { TopPairSearch } from "@/components/layout/top-pair-search";
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { ServiceNotice } from "@/components/ui/service-notice";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { formatEtClock, formatShortDay, tradingDayKey } from "@/lib/format/datetime";
 import type { HomeActivityItem } from "@/lib/home/idle";
@@ -277,7 +278,7 @@ function LedgerHero({
       </div>
 
       <div className="nl-hero-copy">
-        <span className="nl-overline">Total balance</span>
+        <span className="nl-overline">Total equity</span>
         <h1 ref={balanceRef} className="nl-hero-balance">
           {dollars}
           <span className="nl-hero-cents">{cents}</span>
@@ -705,6 +706,7 @@ function LedgerPending({
 export function LedgerHome({
   morningPicks,
   account,
+  accountError,
   history,
   todayKey,
   openPL,
@@ -722,7 +724,8 @@ export function LedgerHome({
   error,
 }: {
   morningPicks: MorningPicksSnapshot | null;
-  account: AccountSummary;
+  account: AccountSummary | null;
+  accountError: string | null;
   history: AccountBalanceHistoryPoint[];
   todayKey: string;
   openPL: number;
@@ -752,12 +755,30 @@ export function LedgerHome({
       <LedgerHeader dateLabel={dateLabel} greeting={greeting} />
       <div className="nl-home-body">
         <LedgerMobileHeader greeting={greeting} />
-        <LedgerHero account={account} history={history} todayKey={todayKey} openPL={openPL} openRisk={openRisk} />
+        {accountError ? (
+          <ServiceNotice
+            className="account-data-notice"
+            title="OANDA connection unavailable"
+            description={account
+              ? "Showing your last verified balance. It may be outdated."
+              : "Your balance will appear when the connection is restored."}
+          />
+        ) : null}
+        {account ? (
+          <LedgerHero account={account} history={history} todayKey={todayKey} openPL={openPL} openRisk={openRisk} />
+        ) : (
+          <section className="nl-hero" aria-label="Account overview">
+            <div className="nl-hero-copy">
+              <span className="nl-overline">Total equity</span>
+              <h1 className="nl-home-hello">Balance unavailable</h1>
+            </div>
+          </section>
+        )}
         {error ? <p className="nl-card-empty is-warn">{error}</p> : null}
         <div className="nl-home-cols">
           <div className="nl-home-main">
             <MorningMarketPicks initial={morningPicks} />
-            <LedgerPositions positions={positions} currency={account.currency} />
+            <LedgerPositions positions={positions} currency={account?.currency ?? "USD"} />
             <LedgerSetups setups={setups} />
             <LedgerPending
               entries={pending}
@@ -765,10 +786,10 @@ export function LedgerHome({
               error={pendingError}
               onCancel={onCancelPending}
             />
-            <LedgerActivity items={activity} currency={account.currency} />
+            <LedgerActivity items={activity} currency={account?.currency ?? "USD"} />
           </div>
           <aside className="nl-home-aside" aria-label="Today and upcoming">
-            <LedgerTodayCard today={today} currency={account.currency} />
+            <LedgerTodayCard today={today} currency={account?.currency ?? "USD"} />
             <LedgerNews positions={newsPositions} />
           </aside>
         </div>

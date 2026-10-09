@@ -5,6 +5,7 @@ import Animated, { FadeInDown, FadeOutUp } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BalancePerformanceCard } from '@/components/home/BalancePerformanceCard';
+import { HomeCard } from '@/components/home/HomeCard';
 import { HighImpactNewsCard } from '@/components/home/HighImpactNewsCard';
 import { OpenPositionsCard } from '@/components/home/OpenPositionsCard';
 import { NotificationDrawer } from '@/components/home/NotificationDrawer';
@@ -68,7 +69,12 @@ export default function HomeScreen() {
         refreshControl={pullRefresh.refreshControl}
       >
         {error ? <Text style={styles.error}>{error}</Text> : null}
-        {account ? <BalancePerformanceCard account={account} history={accountHistory} todayKey={todayKey} onNotificationsPress={() => setNotificationsOpen(true)} /> : null}
+        {account ? <BalancePerformanceCard account={account} history={accountHistory} todayKey={todayKey} onNotificationsPress={() => setNotificationsOpen(true)} /> : (
+          <HomeCard accessibilityLabel="Account overview">
+            <Text>Total equity</Text>
+            <Text>Balance unavailable</Text>
+          </HomeCard>
+        )}
         <OpenPositionsCard positions={openPositions} currency={account?.currency ?? 'USD'} />
         <PendingTradesCard entries={pendingEntries} onCancelled={() => void refresh()} />
         <RecentActivityCard items={recentActivity} currency={account?.currency ?? 'USD'} />

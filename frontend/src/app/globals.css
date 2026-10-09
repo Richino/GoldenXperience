@@ -5642,6 +5642,47 @@ body.is-dragging-position-tool .setup-chart-position-band {
   }
 }
 
+.service-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid color-mix(in srgb, #c48628 22%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, #c48628 7%, var(--surface));
+  color: var(--muted-strong);
+  font-family: var(--font-sans), sans-serif;
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.service-notice > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #c48628;
+}
+
+.service-notice strong {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--foreground);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.service-notice p {
+  margin: 0;
+}
+
+.signals-view .market-data-notice {
+  margin: 0.75rem 1rem 0.25rem;
+}
+
+.nl-home .account-data-notice {
+  margin-bottom: 1rem;
+}
+
 .signals-view .signals-notice {
   border-radius: 10px;
   padding: 0.5rem 0.75rem;

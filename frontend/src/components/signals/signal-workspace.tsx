@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { AnalyzeIcon } from "@/components/icons/analyze-icon";
+import { MarketDataNotice } from "@/components/signals/market-data-notice";
 import { NEW_PAIR_TRADE, PairTradePicker } from "@/components/charts/pair-trade-picker";
 import { ChartTypeSelect } from "@/components/charts/chart-type-select";
 import {
@@ -4468,10 +4469,7 @@ export function SignalWorkspace({
               />
             </div>
             {dataNotice ? (
-              <p className="signals-notice mt-2">
-                {series.source === "mock" ? "Demo data · " : ""}
-                {dataNotice}
-              </p>
+              <MarketDataNotice message={dataNotice} demo={series.source === "mock"} />
             ) : null}
           </div>
 
@@ -4748,10 +4746,7 @@ export function SignalWorkspace({
 
               <div className="gx-chart-stage nl-chart-card">
                 {dataNotice ? (
-                  <p className="signals-notice signals-chart-notice">
-                    {series.source === "mock" ? "Demo data · " : ""}
-                    {dataNotice}
-                  </p>
+                  <MarketDataNotice message={dataNotice} demo={series.source === "mock"} className="signals-chart-notice" />
                 ) : null}
 
                 {focusTrade && focusTrade.closedAt !== null && !fullscreen ? (

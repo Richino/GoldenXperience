@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "generate:icons": "node scripts/generate-icons.mjs",
     "oanda:test": "tsx scripts/test-oanda.ts",
+    "account-summary:test": "tsx scripts/test-account-summary.ts",
     "risk:test": "tsx scripts/test-risk.ts",
     "calendar:test": "tsx scripts/test-calendar.ts",
     "instruments:test": "tsx scripts/test-instruments.ts",

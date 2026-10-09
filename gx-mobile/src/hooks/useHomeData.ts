@@ -38,14 +38,19 @@ export function useHomeData(): HomeData {
   const [positionsLoaded, setPositionsLoaded] = useState(false);
   const [pendingLoaded, setPendingLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [accountError, setAccountError] = useState<string | null>(null);
   const todayKey = useRef(currentTradingDayKey()).current;
 
   const refreshAccount = useCallback(async () => {
     try {
-      const payload = await apiGet<{ data: AccountSummary }>('/api/oanda/account-summary');
+      const payload = await apiGet<{ data: AccountSummary; status?: { state: string } }>('/api/oanda/account-summary');
+      if (!payload.data || payload.data.source !== 'oanda' || (payload.status && payload.status.state !== 'connected') || ![payload.data.balance, payload.data.nav, payload.data.unrealizedPL, payload.data.marginUsed, payload.data.marginAvailable].every(Number.isFinite)) {
+        throw new Error('Unverified account balance');
+      }
       setAccount(payload.data);
+      setAccountError(null);
     } catch {
-      // The slow refresh below reports the outage.
+      setAccountError('OANDA balance unavailable. Any displayed amount is the last verified value and may be outdated.');
     }
   }, []);
 
@@ -62,12 +67,11 @@ export function useHomeData(): HomeData {
 
   const refresh = useCallback(async () => {
     try {
-      const [accountPayload, historyPayload, journalPayload] = await Promise.all([
-        apiGet<{ data: AccountSummary }>('/api/oanda/account-summary'),
+      const [, historyPayload, journalPayload] = await Promise.all([
+        refreshAccount(),
         apiGet<{ data: AccountBalanceHistoryPoint[] }>('/api/oanda/account-history'),
         apiGet<{ trades: JournalTrade[] }>('/api/journal/trades?limit=50&filter=all'),
       ]);
-      setAccount(accountPayload.data);
       setAccountHistory(historyPayload.data);
       setJournalTrades(journalPayload.trades);
       setError(null);
@@ -76,7 +80,7 @@ export function useHomeData(): HomeData {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [refreshAccount]);
 
   const refreshPendingEntries = useCallback(async () => {
     try {
@@ -153,7 +157,7 @@ export function useHomeData(): HomeData {
     calendarLoading,
     loading,
     ready: !loading && positionsLoaded && pendingLoaded,
-    error,
+    error: accountError ?? error,
     todayKey,
     refresh,
   };

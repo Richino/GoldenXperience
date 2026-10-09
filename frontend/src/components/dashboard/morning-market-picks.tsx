@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { RefreshCw, ArrowUpRight } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowUpRight } from "lucide-react";
 import { apiUrl } from "@/lib/api/url";
 import { displayNameFor, precisionFor } from "@/lib/instruments/catalog";
 import { morningChartHref, MORNING_SCAN_STALE_MS, type MorningPicksSnapshot } from "@/lib/strategy/morning-scan";
@@ -42,11 +42,8 @@ function PairRow({ pair, rank }: { pair: PairTradability; rank?: number }) {
 
 export function MorningMarketPicks({ initial }: { initial: MorningPicksSnapshot | null }) {
   const [snapshot, setSnapshot] = useState(initial);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => initial ? Date.parse(initial.checkedAt) : 0);
-  const controller = useRef<AbortController | null>(null);
-  const refreshing = useRef(false);
   useEffect(() => {
     const readController = new AbortController();
     const read = async () => {
@@ -60,28 +57,15 @@ export function MorningMarketPicks({ initial }: { initial: MorningPicksSnapshot 
     void read();
     // Reads persisted results only. The API server owns all scanning.
     const timer = window.setInterval(() => { setNow(Date.now()); void read(); }, 30_000);
-    return () => { readController.abort(); controller.current?.abort(); window.clearInterval(timer); };
+    return () => { readController.abort(); window.clearInterval(timer); };
   }, []);
-  async function refresh() {
-    if (refreshing.current) return;
-    refreshing.current = true;
-    setBusy(true); setError(null);
-    controller.current = new AbortController();
-    try {
-      const response = await fetch(apiUrl("/api/morning-picks/refresh"), { method: "POST", credentials: "include", cache: "no-store", signal: controller.current.signal });
-      const next = await response.json() as MorningPicksSnapshot & { error?: string };
-      if (!response.ok) throw new Error(next.error ?? "Morning scan unavailable.");
-      setSnapshot(next); setNow(Date.now());
-    } catch (cause) { if (!controller.current.signal.aborted) setError(cause instanceof Error ? cause.message : "Morning scan unavailable."); }
-    finally { refreshing.current = false; setBusy(false); }
-  }
-  return <MorningPicksDisplay snapshot={snapshot} busy={busy} error={error} now={now} onRefresh={refresh} />;
+  return <MorningPicksDisplay snapshot={snapshot} error={error} now={now} />;
 }
 
 /** Pure view allows realistic fixture rendering without starting a scan or
  * persisting synthetic recommendations in the live application. */
-export function MorningPicksDisplay({ snapshot, busy = false, error = null, now, onRefresh }: {
-  snapshot: MorningPicksSnapshot | null; busy?: boolean; error?: string | null; now: number; onRefresh: () => void;
+export function MorningPicksDisplay({ snapshot, error = null, now }: {
+  snapshot: MorningPicksSnapshot | null; error?: string | null; now: number;
 }) {
   const run = snapshot?.current;
   const stale = Boolean(run && (snapshot?.state === "STALE" || now - Date.parse(run.evaluatedAt) > MORNING_SCAN_STALE_MS || error));
@@ -90,9 +74,8 @@ export function MorningPicksDisplay({ snapshot, busy = false, error = null, now,
   const picks = run?.shortlist.map(i => run.pairs.find(p => p.instrument === i)).filter((p): p is PairTradability => Boolean(p?.selection)) ?? [];
   const caution = run?.pairs.filter(p => p.selection?.status === "CAUTION") ?? [];
   const rejected = run?.pairs.filter(p => p.selection?.status === "REJECTED") ?? [];
-  return <section className={styles.card} aria-labelledby="morning-picks-title" aria-busy={busy || snapshot?.refreshing}>
+  return <section className={styles.card} aria-labelledby="morning-picks-title" aria-busy={snapshot?.refreshing}>
     <header className={styles.header}><div><h2 id="morning-picks-title">Morning Market Picks</h2></div>
-      <button className={styles.refresh} onClick={onRefresh} disabled={busy || snapshot?.refreshing || closed || outside} aria-label="Refresh morning market picks"><RefreshCw size={16} aria-hidden="true" className={busy ? styles.spin : undefined} />{busy || snapshot?.refreshing ? "Scanning…" : "Refresh"}</button>
     </header>
     <div role="status">
       {error || snapshot?.lastAttempt?.status === "FAILED" ? <p className={styles.warning}>Morning scan unavailable. {error && error !== "Morning scan unavailable." ? error : snapshot?.lastAttempt?.error}</p> : null}

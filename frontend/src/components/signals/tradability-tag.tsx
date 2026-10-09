@@ -72,7 +72,7 @@ export function useNyTradability(instruments: readonly string[], enabled: boolea
       if (phaseNow === "outside" && item.phase !== "outside") {
         current.set(instrument, { ...item, status: "OUTSIDE_NY_WINDOW", phase: "outside", score: null, summary: "The New York window has closed." });
       } else if (now - Date.parse(item.evaluatedAt) > STALE_AFTER_MS) {
-        current.set(instrument, { ...item, status: "UNAVAILABLE", score: null, summary: "The last read is out of date; refreshing." });
+        current.set(instrument, { ...item, selection: undefined, status: "UNAVAILABLE", score: null, summary: "The last read is out of date; refreshing." });
       } else {
         current.set(instrument, item);
       }

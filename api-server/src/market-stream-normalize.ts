@@ -1,10 +1,5 @@
 import type { MajorInstrument, MarketPriceTick } from "./market-stream-types.js";
-
-const displayNames: Record<MajorInstrument, string> = {
-  EUR_USD: "EUR/USD",
-  GBP_USD: "GBP/USD",
-  USD_JPY: "USD/JPY",
-};
+import { displayNameFor, isKnownInstrument } from "../../frontend/src/lib/instruments/catalog.js";
 
 interface OandaPriceBucket {
   price: string;
@@ -22,20 +17,20 @@ export interface OandaStreamPrice {
 }
 
 export function formatInstrument(instrument: MajorInstrument) {
-  return displayNames[instrument];
+  return displayNameFor(instrument);
 }
 
 export function normalizeOandaPrice(
   price: OandaStreamPrice,
   sequence: number,
 ): MarketPriceTick | null {
-  if (!price.instrument || !(price.instrument in displayNames)) return null;
+  if (!price.instrument || !isKnownInstrument(price.instrument)) return null;
 
   const instrument = price.instrument as MajorInstrument;
   const bid = Number(price.bids?.[0]?.price ?? price.closeoutBid);
   const ask = Number(price.asks?.[0]?.price ?? price.closeoutAsk);
 
-  if (!Number.isFinite(bid) || !Number.isFinite(ask)) return null;
+  if (!Number.isFinite(bid) || !Number.isFinite(ask) || bid <= 0 || ask < bid) return null;
 
   return {
     type: "price",

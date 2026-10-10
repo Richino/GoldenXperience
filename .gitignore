@@ -1,5 +1,6 @@
 # dependencies
 node_modules/
+data/market-recordings/
 */node_modules/
 
 # Local codebase graph and extraction cache — never ship or commit this data.

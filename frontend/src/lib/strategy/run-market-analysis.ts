@@ -25,6 +25,17 @@ export async function runMarketAnalysis({
   /** Open trades and resting orders on every pair, for the same-currency warning. */
   exposure?: Array<{ instrument: string; direction: "long" | "short" }>;
 }): Promise<{ normal: MarketAnalysis; swing: MarketAnalysis | null }> {
+  // With the live observer enabled, Analyze freezes a server-generated plan.
+  // Older/disabled APIs retain the existing standalone read.
+  const observerResponse = await fetch(apiUrl("/api/market-observer/analyze"), {
+    method: "POST", credentials: "include", cache: "no-store", signal,
+    headers: { "Content-Type": "application/json" }, body: JSON.stringify({ instrument, mode: "NORMAL" }),
+  });
+  if (observerResponse.status !== 404) {
+    const observer = await observerResponse.json() as { enabled?: boolean; error?: string; normal?: MarketAnalysis; swing?: MarketAnalysis };
+    if (observerResponse.ok && observer.normal) return { normal: observer.normal, swing: observer.swing ?? null };
+    if (observer.enabled !== false) throw new Error(observer.error || "The live analysis could not be saved.");
+  }
   const candlesFor = (granularity: "M15" | "H1" | "H4" | "D", count: number) => fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=${granularity}&count=${count}`), { credentials: "include", cache: "no-store", signal })
     .then(async (response) => response.ok ? (await response.json() as { data?: CandleSeries }).data : undefined)
     // Demo/generated candles are never analyzed.

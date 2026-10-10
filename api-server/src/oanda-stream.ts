@@ -8,8 +8,10 @@ import type {
 
 interface StreamHandlers {
   onPrice: (tick: MarketPriceTick) => void;
-  onHeartbeat: (heartbeat: MarketStreamHeartbeat) => void;
+  onHeartbeat: (heartbeat: MarketStreamHeartbeat, receivedAt: string) => void;
   onStatus: (status: Omit<MarketStreamStatus, "connectedClients">) => void;
+  onObservation?: (price: OandaStreamPrice, receivedAt: string) => void;
+  onIssue?: (reason: string, receivedAt: string) => void;
 }
 
 const MAX_RECONNECT_DELAY_MS = 30_000;
@@ -150,13 +152,18 @@ export class OandaPricingStream {
       `[market-stream] Opening OANDA ${this.config.environment} stream for ${this.config.instruments.join(", ")}`,
     );
 
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Accept-Datetime-Format": "RFC3339",
-      },
-      signal,
-    });
+    const connectionTimeout = new AbortController();
+    const deadline = setTimeout(() => connectionTimeout.abort(), STREAM_READ_TIMEOUT_MS);
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Accept-Datetime-Format": "RFC3339",
+        },
+        signal: AbortSignal.any([signal, connectionTimeout.signal]),
+      });
+    } finally { clearTimeout(deadline); }
 
     if (!response.ok || !response.body) {
       const body = (await response.text()).slice(0, 240);
@@ -174,6 +181,7 @@ export class OandaPricingStream {
     try {
       while (!signal.aborted) {
         const { done, value } = await readStreamChunk(reader, signal);
+        const receivedAt = new Date().toISOString();
 
         if (done) {
           throw new Error("OANDA pricing stream ended.");
@@ -188,16 +196,22 @@ export class OandaPricingStream {
           if (!trimmed) continue;
 
           const parsed = parseStreamLine(trimmed);
-          if (!parsed) continue;
+          if (!parsed) {
+            this.handlers.onIssue?.("malformed_stream_message", receivedAt);
+            continue;
+          }
 
           if (parsed.type === "HEARTBEAT") {
             this.handlers.onHeartbeat({
               type: "heartbeat",
               source: "oanda",
               time: parsed.time ?? new Date().toISOString(),
-            });
+            }, receivedAt);
             continue;
           }
+
+          if (parsed.type !== "PRICE") continue;
+          this.handlers.onObservation?.(parsed as OandaStreamPrice, receivedAt);
 
           const tick = normalizeOandaPrice(
             parsed as OandaStreamPrice,

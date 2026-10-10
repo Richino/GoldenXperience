@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { AnalyzeIcon } from "@/components/icons/analyze-icon";
 import { MarketDataNotice } from "@/components/signals/market-data-notice";
+import { MarketObserverBubble } from "@/components/analysis/market-observer-bubble";
 import { NEW_PAIR_TRADE, PairTradePicker } from "@/components/charts/pair-trade-picker";
 import { ChartTypeSelect } from "@/components/charts/chart-type-select";
 import {
@@ -4401,6 +4402,7 @@ export function SignalWorkspace({
         fullscreen ? " signals-view-fullscreen" : ""
       }`}
     >
+      <MarketObserverBubble key={instrument} instrument={instrument} replayActive={replayActive} />
       <div className="signals-chart-slot min-w-0">
         <section className="app-card signals-chart-card min-w-0 w-full">
         {!wideChart ? <div className="signals-chart-mobile lg:hidden">
@@ -4422,7 +4424,7 @@ export function SignalWorkspace({
                 />
               </div>
               <div className="signals-mobile-header-actions nl-mhead-actions">
-                <button type="button" className="nl-analyze nl-analyze-sm pressable" onClick={() => void runTrendPullback()} disabled={trendPullbackBusy || replayActive} title="Analyze with TrendPullbackV1">
+                <button type="button" className="nl-analyze nl-analyze-sm pressable" onClick={() => void runTrendPullback()} disabled={trendPullbackBusy || replayActive} title="Analyze the market and monitor its conditions">
                   <AnalyzeIcon className="size-4" />
                   {trendPullbackBusy ? "Analyzing…" : "Analyze"}
                 </button>

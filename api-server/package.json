@@ -4,6 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "market-recording": "tsx scripts/market-recording.ts",
+    "market-recording:test": "tsx scripts/test-market-recording.ts",
+    "market-movement:test": "tsx scripts/test-market-movement.ts",
+    "market-patterns:test": "tsx scripts/test-market-patterns.ts",
+    "market-observer:test": "tsx scripts/test-market-observer.ts",
+    "market-observer:db-test": "tsx scripts/test-market-observer-db.ts",
+    "market-observer:ai-check": "tsx scripts/check-market-observer-ai.ts",
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",

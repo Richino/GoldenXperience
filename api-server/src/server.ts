@@ -1,11 +1,16 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { URL } from "node:url";
+import { URL, fileURLToPath } from "node:url";
 import fs from "node:fs";
 import path from "node:path";
 import { config as loadDotenv } from "dotenv";
 import { WebSocket, WebSocketServer } from "ws";
 
 import { OandaPricingStream } from "./oanda-stream.js";
+import { MarketRecorder } from "./market-recording.js";
+import { MarketMovementEngine } from "./market-movement.js";
+import { MarketPatternEngine } from "./market-patterns.js";
+import { MarketObserverService, ObserverServiceError } from "./market-observer-service.js";
+import { startRecordingContext } from "./market-recording-context.js";
 import { createMockTick, getDefaultMockInstruments } from "./mock-stream.js";
 import type {
   MajorInstrument,
@@ -88,16 +93,37 @@ const configuredInstruments = (process.env.MARKET_STREAM_INSTRUMENTS || "")
   .split(",")
   .map((instrument) => instrument.trim())
   .filter((instrument): instrument is MajorInstrument => STREAM_INSTRUMENTS.includes(instrument as MajorInstrument));
+const observerRequested = process.env.MARKET_OBSERVER_ENABLED !== "false";
 const config = {
   accountId,
   apiKey,
   environment,
   streamBaseUrl: environment === "practice" ? "https://stream-fxpractice.oanda.com" : "https://stream-fxtrade.oanda.com",
   port: Number(process.env.MARKET_STREAM_WS_PORT) || 8787,
-  instruments: configuredInstruments.length ? configuredInstruments : STREAM_INSTRUMENTS,
+  instruments: observerRequested ? [...new Set([...configuredInstruments, ...STREAM_INSTRUMENTS])] : configuredInstruments.length ? configuredInstruments : STREAM_INSTRUMENTS,
   isConfigured: Boolean(accountId && apiKey),
 };
 const PORT = Number(process.env.PORT) || config.port;
+const recordingRequested = process.env.MARKET_RECORDING_ENABLED === "true";
+const recordingInstruments = (process.env.MARKET_RECORDING_INSTRUMENTS || "EUR_USD")
+  .split(",").map(value => value.trim().toUpperCase()).filter(value => config.instruments.includes(value));
+const marketRecorder = recordingRequested && config.isConfigured && config.environment === "practice" && recordingInstruments.length
+  ? new MarketRecorder({ directory: process.env.MARKET_RECORDING_DIR || fileURLToPath(new URL("../../data/market-recordings/", import.meta.url)), instruments: recordingInstruments, environment: "practice" })
+  : null;
+const movementRequested = process.env.MARKET_MOVEMENT_ENABLED === "true" || observerRequested;
+const patternsRequested = process.env.MARKET_PATTERNS_ENABLED === "true" || observerRequested;
+const marketMovement = (movementRequested || patternsRequested) && config.isConfigured && config.environment === "practice"
+  ? new MarketMovementEngine(config.instruments) : null;
+const marketPatterns = patternsRequested && marketMovement ? new MarketPatternEngine(config.instruments, marketMovement) : null;
+const marketObserver = observerRequested && marketPatterns ? new MarketObserverService(marketPatterns, Boolean(process.env.OPENAI_API_KEY?.trim()) && process.env.MARKET_OBSERVER_AI_ENABLED !== "false") : null;
+const observerAnalysisBusy = new Set<string>();
+const contextInstruments = marketPatterns ? [...new Set([...recordingInstruments, ...config.instruments])] : recordingInstruments;
+const stopRecordingContext = marketRecorder || marketPatterns ? startRecordingContext(marketRecorder, contextInstruments, undefined, marketPatterns ? (kind, data, receivedAt) => {
+  if (kind === "candles") marketPatterns?.context(data, receivedAt);
+  if (kind === "context-error") marketPatterns?.contextError(data);
+  marketObserver?.context(kind, data, receivedAt);
+} : undefined, recordingInstruments) : null;
+let pricingStream: OandaPricingStream | null = null;
 const GRANULARITIES = new Set(["M1", "M5", "M15", "M30", "H1", "H4", "D"]);
 function normalizeOrigin(value: string) {
   try {
@@ -261,6 +287,29 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
   }
   if (url.pathname.startsWith("/api/")) {
     const user = await requireOwner(request, response); if (!user) return;
+    if (url.pathname.startsWith("/api/market-observer")) {
+      const payload = request.method === "POST" ? await body(request) : null;
+      const instrument = String(payload?.instrument ?? url.searchParams.get("instrument") ?? "EUR_USD").toUpperCase();
+      if (!config.instruments.includes(instrument)) return json(request, response, { error: "Choose a subscribed currency pair." }, 400);
+      if (!marketObserver) return json(request, response, { enabled: false, reason: "Live observer requires OANDA practice credentials.", plan: null, history: [], storage: "unavailable" });
+      if (url.pathname === "/api/market-observer" && request.method === "GET") return json(request, response, await marketObserver.snapshot(user.id, instrument));
+      if (url.pathname === "/api/market-observer/analyze" && request.method === "POST") {
+        const key = `${user.id}:${instrument}`;
+        if (observerAnalysisBusy.has(key)) return json(request, response, { error: "Analysis is already running on this pair." }, 409);
+        observerAnalysisBusy.add(key);
+        try { return json(request, response, await marketObserver.analyze(user.id, instrument, payload?.mode === "SWING" ? "SWING" : "NORMAL")); }
+        catch (error) {
+          console.error("[observer] analysis failed", error);
+          return json(request, response, { error: error instanceof ObserverServiceError ? error.message : "Analysis could not be saved. Please try again when the connection recovers." }, 502);
+        }
+        finally { observerAnalysisBusy.delete(key); }
+      }
+      if (url.pathname === "/api/market-observer/plan" && request.method === "DELETE") {
+        try { await marketObserver.cancel(user.id, instrument); return json(request, response, await marketObserver.snapshot(user.id, instrument)); }
+        catch (error) { console.error("[observer] stop monitoring failed", error); return json(request, response, { error: "Monitoring could not be stopped. Please try again." }, 502); }
+      }
+      return json(request, response, { error: "Observer route not found." }, 404);
+    }
     if (url.pathname === "/api/morning-picks" && request.method === "GET") return json(request, response, await morningPicksSnapshot());
     if (url.pathname === "/api/morning-picks/refresh" && request.method === "POST") {
       try { return json(request, response, await runMorningScan("manual")); }
@@ -713,8 +762,26 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "GET") return json(request, response, { error: "Method not allowed." }, 405);
 
   switch (url.pathname) {
+    case "/api/market-patterns": {
+      if (!(await requireOwner(request, response))) return;
+      if (!marketPatterns) return json(request, response, { state: "disabled", requested: patternsRequested, reason: "Requires MARKET_PATTERNS_ENABLED=true and OANDA practice credentials." });
+      const instrument = (url.searchParams.get("instrument") ?? "EUR_USD").toUpperCase();
+      if (!config.instruments.includes(instrument)) return json(request, response, { error: "Choose a subscribed pattern instrument." }, 400);
+      return json(request, response, marketPatterns.snapshot(instrument));
+    }
+    case "/api/market-movement": {
+      if (!(await requireOwner(request, response))) return;
+      if (!marketMovement) return json(request, response, { state: "disabled", requested: movementRequested, reason: "Requires MARKET_MOVEMENT_ENABLED=true and OANDA practice credentials." });
+      const instrument = (url.searchParams.get("instrument") ?? "EUR_USD").toUpperCase();
+      if (!config.instruments.includes(instrument)) return json(request, response, { error: "Choose a subscribed movement instrument." }, 400);
+      return json(request, response, marketMovement.snapshot(instrument));
+    }
+    case "/api/market-recording/status": {
+      if (!(await requireOwner(request, response))) return;
+      return json(request, response, marketRecorder?.status() ?? { state: "disabled", requested: recordingRequested, reason: "Requires MARKET_RECORDING_ENABLED=true, practice credentials, and a subscribed recording pair." });
+    }
     case "/health":
-      return json(request, response, { ok: true, service: "goldenxperience-api", checkedAt: new Date().toISOString() });
+      return json(request, response, { ok: true, service: "goldenxperience-api", checkedAt: new Date().toISOString(), observer: marketObserver?.health() ?? { enabled: false } });
     case "/api/oanda/account-summary": {
       const result = await getAccountSummary();
       if (!verifiedAccountSummary(result)) {
@@ -876,6 +943,9 @@ function setStatus(state: MarketStreamStatus["state"], source: MarketStreamStatu
     instruments: config.instruments, connectedClients: wss.clients.size, checkedAt: new Date().toISOString(),
   };
   broadcast(currentStatus);
+  marketRecorder?.record("connection", { state, source });
+  if (marketPatterns) marketPatterns.setConnection(state, source, currentStatus.checkedAt);
+  else marketMovement?.setConnection(state, source);
 }
 
 function parseSubscribeMessage(value: WebSocket.RawData): MajorInstrument[] | null {
@@ -951,10 +1021,24 @@ function handlePrice(tick: MarketPriceTick) {
 
 if (config.isConfigured) {
   const stream = new OandaPricingStream(config, {
+    onIssue: (reason, receivedAt) => {
+      marketRecorder?.record("stream-error", { reason }, receivedAt);
+      if (marketPatterns) marketPatterns.breakContinuity("stream_message_error", receivedAt);
+      else marketMovement?.breakContinuity("stream_message_error");
+    },
+    onObservation: (raw, receivedAt) => {
+      if (raw.instrument && recordingInstruments.includes(raw.instrument)) marketRecorder?.quote(raw, receivedAt);
+      if (marketPatterns) marketPatterns.observe(raw, receivedAt);
+      else marketMovement?.observe(raw, receivedAt);
+    },
     onStatus: (status) => setStatus(status.state, status.source, status.message),
     onPrice: handlePrice,
-    onHeartbeat: (heartbeat) => broadcast(heartbeat),
+    onHeartbeat: (heartbeat, receivedAt) => {
+      marketRecorder?.record("heartbeat", { brokerTime: heartbeat.time }, receivedAt);
+      broadcast(heartbeat);
+    },
   });
+  pricingStream = stream;
   void stream.start();
 } else {
   const instruments = getDefaultMockInstruments();
@@ -1343,6 +1427,10 @@ let shuttingDown = false;
 function shutdown() {
   if (shuttingDown) return; // SIGTERM can arrive twice during a dev reload.
   shuttingDown = true;
+  pricingStream?.stop();
+  stopRecordingContext?.();
+  const recordingClosed = marketRecorder?.close() ?? Promise.resolve();
+  const observerClosed = marketObserver?.stop() ?? Promise.resolve();
   clearInterval(heartbeat);
   if (morningScanner) clearInterval(morningScanner);
   if (researchWorker) clearInterval(researchWorker);
@@ -1362,10 +1450,10 @@ function shutdown() {
   // terminate() drops them immediately; clients simply reconnect.
   wss.clients.forEach((socket) => socket.terminate());
   wss.close();
-  server.close(() => process.exit(0));
+  server.close(() => { void Promise.allSettled([recordingClosed, observerClosed]).finally(() => process.exit(0)); });
   // Fallback: exit even if a handle is still open, so the port is always freed
   // promptly for the next boot. unref() so it never itself keeps us alive.
-  setTimeout(() => process.exit(0), 1000).unref();
+  setTimeout(() => process.exit(0), 5000).unref();
 }
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);

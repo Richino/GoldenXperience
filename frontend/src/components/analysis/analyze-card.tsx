@@ -313,7 +313,7 @@ export function AnalyzeCard({
             </span>
           </div>
           <h2 id="nl-an-card-title" className="nl-an-decision">
-            No plan yet
+            Analyze this market
           </h2>
           <div className="nl-an-actions is-card">
             <button type="button" className="nl-an-secondary pressable" onClick={onNewEntry} disabled={analyzeDisabled}>

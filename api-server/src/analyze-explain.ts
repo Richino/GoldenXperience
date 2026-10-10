@@ -18,7 +18,7 @@ import {
 
 const TIMEOUT_MS = 20_000;
 
-function responseText(value: unknown): string {
+export function responseText(value: unknown): string {
   if (!value || typeof value !== "object") return "";
   const response = value as { output_text?: unknown; output?: unknown };
   if (typeof response.output_text === "string") return response.output_text;

@@ -1,14 +1,16 @@
 import type { MarketAnalysis } from "../../frontend/src/lib/strategy/market-analysis.js";
-import type { ObserverPlan, ObserverRead, ObserverSnapshot } from "../../frontend/src/lib/market-observer-types.js";
+import type { ObserverPlan, ObserverRead, ObserverSnapshot, ObserverJournal, ObserverEvaluation } from "../../frontend/src/lib/market-observer-types.js";
+import type { PoolClient } from "pg";
 import { analyzeV2 } from "../../frontend/src/lib/strategy/analyze-v2/decide.js";
 import { toMarketAnalysis } from "../../frontend/src/lib/strategy/analyze-v2/adapter.js";
 import { getCandles, getPricing } from "../../frontend/src/lib/oanda/client.js";
 import { getEconomicCalendar } from "../../frontend/src/lib/calendar/forex-factory.js";
 import { databaseConfigured, query, transaction } from "./database.js";
 import { MarketPatternEngine } from "./market-patterns.js";
-import { MarketStateEngine } from "./market-state.js";
+import { MARKET_STATE_VERSION, MarketStateEngine } from "./market-state.js";
 import { ObserverAiGate } from "./market-observer-ai.js";
-import { createObserverPlan, evaluateObserverPlan, TERMINAL_PLAN_STATES } from "./market-observer-plan.js";
+import { createObserverPlan, observerPlanChecks, resumeObserverPlan, stopObserverPlan, TERMINAL_PLAN_STATES } from "./market-observer-plan.js";
+import { evaluateMeasuredPlan, summarizeObserverPlans } from "./market-observer-evaluation.js";
 
 interface CachedPlan { userId: string; plan: ObserverPlan; persisted: ObserverPlan; events: ObserverPlan[] }
 export class ObserverServiceError extends Error {}
@@ -27,6 +29,7 @@ export class MarketObserverService {
   private retryAfter = 0;
   private snapshots = new Map<string, { at: number; value: Pick<ObserverSnapshot, "plan" | "history"> }>();
   private retired = new Set<string>();
+  private mutating = new Set<string>();
   private retire(id: string) {
     this.retired.add(id); this.plans.delete(id); this.writes.delete(id);
     if (this.retired.size > 2000) this.retired.delete(this.retired.values().next().value!);
@@ -53,7 +56,23 @@ export class MarketObserverService {
       catch (error) { console.error(`[observer] ${instrument} calculation failed`, error); }
     }
     this.lastTickAt = asOf; this.livePairs = [...reads.values()].filter(r => r.state === "live").length;
+    this.evaluatePlans(reads, asOf);
+    if (this.aiEnabled) for (const [instrument, at] of this.interested) {
+      if (Date.now() - at > 600_000) { this.interested.delete(instrument); continue; }
+      const read = reads.get(instrument);
+      if (read) void this.ai.request(read, pending => this.state.attachExplanation(instrument, read.revision, pending))
+        .then(ai => { if (ai && !this.stopped) this.state.attachExplanation(instrument, read.revision, ai); });
+    }
+  }
+  /** Preserve brief quote crossings even if price recovers before the next timer pass. */
+  observe(instrument: string, receivedAt: string) {
+    if (this.stopped || ![...this.plans.values()].some(c => c.plan.instrument === instrument && !TERMINAL_PLAN_STATES.has(c.plan.status))) return;
+    try { this.evaluatePlans(new Map([[instrument, this.state.update(instrument, receivedAt)]]), receivedAt); }
+    catch (error) { console.error(`[observer] ${instrument} quote evaluation failed`, error); }
+  }
+  private evaluatePlans(reads: Map<string, ObserverRead>, asOf: string) {
     for (const [id, cached] of this.plans) {
+      if (this.mutating.has(`${cached.userId}:${cached.plan.instrument}`)) continue;
       if (TERMINAL_PLAN_STATES.has(cached.plan.status)) continue;
       if (cached.events.length >= 256) {
         if (cached.plan.reason !== "Journal backlog reached its limit. Monitoring is paused until storage recovers.") {
@@ -64,17 +83,12 @@ export class MarketObserverService {
       }
       const read = reads.get(cached.plan.instrument); if (!read) continue;
       const planRead = this.storageReady ? read : { ...read, blockers: ["Plan journal is unavailable.", ...read.blockers] };
-      const next = evaluateObserverPlan(cached.plan, planRead, this.patterns.history(cached.plan.instrument, cached.plan.trigger?.timeframe ?? "M5"));
+      const next = evaluateMeasuredPlan(cached.plan, planRead, this.patterns.history(cached.plan.instrument, cached.plan.trigger?.timeframe ?? "M5"));
       if (JSON.stringify(next) !== JSON.stringify(cached.plan)) {
-        if (next.status !== cached.plan.status || next.reason !== cached.plan.reason) cached.events.push(structuredClone(next));
+        if (next.status !== cached.plan.status || next.reason !== cached.plan.reason || next.confirmationCandle !== cached.plan.confirmationCandle) cached.events.push(structuredClone(next));
         cached.plan = next; this.writes.set(id, cached);
       }
       this.interested.set(next.instrument, Date.now());
-    }
-    if (this.aiEnabled) for (const [instrument, at] of this.interested) {
-      if (Date.now() - at > 600_000) { this.interested.delete(instrument); continue; }
-      const read = reads.get(instrument);
-      if (read) void this.ai.request(read).then(ai => { if (ai && !this.stopped) this.state.attachExplanation(instrument, read.revision, ai); });
     }
   }
   private flush() {
@@ -102,15 +116,10 @@ export class MarketObserverService {
       if (Date.now() - this.lastRefresh > 30_000) {
         const rows = await query<{ user_id: string; plan: ObserverPlan }>("SELECT user_id,plan FROM market_observer_plans WHERE status IN ('WATCHING','READY','TRIGGERED','PAUSED') ORDER BY created_at LIMIT 500");
         for (const row of rows.rows) if (!this.plans.has(row.plan.id) && !this.retired.has(row.plan.id)) {
-          const plan = structuredClone(row.plan);
-          // No tick path is recoverable through a server restart.
-          if (plan.status === "TRIGGERED" || plan.status === "PAUSED" && plan.resumeStatus === "TRIGGERED") {
-            plan.status = "CLOSED"; plan.updatedAt = new Date().toISOString(); plan.reason = "Server restarted after the signal triggered; intervening price path is unknown.";
-            plan.outcome = { kind: "unknown_after_gap", at: plan.updatedAt, price: null };
-          }
-          const cached = { userId: row.user_id, plan, persisted: structuredClone(row.plan), events: plan.status === "CLOSED" ? [structuredClone(plan)] : [] };
+          const plan = resumeObserverPlan(row.plan, new Date().toISOString());
+          const cached = { userId: row.user_id, plan, persisted: structuredClone(row.plan), events: [structuredClone(plan)] };
           this.plans.set(plan.id, cached);
-          if (plan.status === "CLOSED") this.writes.set(plan.id, cached);
+          this.writes.set(plan.id, cached);
         }
         this.lastRefresh = Date.now();
       }
@@ -125,7 +134,8 @@ export class MarketObserverService {
       const key = `${userId}:${instrument}`, cachedSnapshot = this.snapshots.get(key);
       if (cachedSnapshot && Date.now() - cachedSnapshot.at < 5000) {
         const saved = cachedSnapshot.value.plan;
-        return { enabled: true, read, ...cachedSnapshot.value, plan: saved ? structuredClone(this.plans.get(saved.id)?.plan ?? saved) : null, storage: this.storageReady ? "ready" : "unavailable" };
+        const plan = saved ? structuredClone(this.plans.get(saved.id)?.plan ?? saved) : null;
+        return { enabled: true, read, ...cachedSnapshot.value, plan, checks: observerPlanChecks(plan, this.storageReady ? read : { ...read, blockers: ["Plan journal is unavailable.", ...read.blockers] }), storage: this.storageReady ? "ready" : "unavailable" };
       }
       const result = await query<{ plan: ObserverPlan }>("SELECT plan FROM market_observer_plans WHERE user_id=$1 AND instrument=$2 ORDER BY version DESC LIMIT 1", [userId, instrument]);
       const saved = result.rows[0]?.plan ?? null;
@@ -134,8 +144,50 @@ export class MarketObserverService {
       const value = { plan: plan ? structuredClone(plan) : null, history };
       this.snapshots.set(key, { at: Date.now(), value });
       if (this.snapshots.size > 500) this.snapshots.delete(this.snapshots.keys().next().value!);
-      return { enabled: true, read, ...value, storage: this.storageReady ? "ready" : "unavailable" };
+      return { enabled: true, read, ...value, checks: observerPlanChecks(plan, this.storageReady ? read : { ...read, blockers: ["Plan journal is unavailable.", ...read.blockers] }), storage: this.storageReady ? "ready" : "unavailable" };
     } catch { return { enabled: true, read, plan: null, history: [], storage: "unavailable" }; }
+  }
+  /** Bounded archive fetched on demand, scoped to the authenticated owner and selected pair. */
+  async journal(userId: string, instrument: string): Promise<ObserverJournal> {
+    const rows = await query<{ plan: ObserverPlan }>("SELECT plan FROM market_observer_plans WHERE user_id=$1 AND instrument=$2 ORDER BY version DESC LIMIT 10", [userId, instrument]);
+    const events = await query<{ id: string; at: Date; status: ObserverPlan["status"]; reason: string; planId: string; version: number; snapshot: ObserverPlan | null }>(
+      `SELECT e.id::text,e.at,e.status,e.reason,e.plan_id AS "planId",p.version,
+        CASE WHEN e.snapshot ? 'id' THEN e.snapshot ELSE NULL END AS snapshot
+       FROM market_observer_events e JOIN market_observer_plans p ON p.id=e.plan_id
+       WHERE p.user_id=$1 AND p.instrument=$2 ORDER BY e.id DESC LIMIT 60`, [userId, instrument]);
+    return { plans: rows.rows.map(r => r.plan), events: events.rows.map(e => ({ ...e, at: e.at.toISOString() })) };
+  }
+  async evaluation(userId: string, instrument: string): Promise<ObserverEvaluation> {
+    const rows = await query<{ plan: ObserverPlan }>("SELECT plan FROM market_observer_plans WHERE user_id=$1 AND instrument=$2 ORDER BY version DESC LIMIT 1001", [userId, instrument]);
+    const plans = rows.rows.slice(0, 1000).map(r => TERMINAL_PLAN_STATES.has(r.plan.status) ? r.plan : this.plans.get(r.plan.id)?.plan ?? r.plan);
+    return summarizeObserverPlans(plans, instrument, new Date().toISOString(), rows.rows.length > 1000);
+  }
+  private async endActive(client: PoolClient, userId: string, instrument: string, now: string, reason: string) {
+    const rows = await client.query<{ plan: ObserverPlan }>("SELECT plan FROM market_observer_plans WHERE user_id=$1 AND instrument=$2 AND status IN ('WATCHING','READY','TRIGGERED','PAUSED') FOR UPDATE", [userId, instrument]);
+    for (const row of rows.rows) {
+      const ended = stopObserverPlan(row.plan, now, reason);
+      await client.query("UPDATE market_observer_plans SET status=$2,plan=$3::jsonb,updated_at=$4 WHERE id=$1", [ended.id, ended.status, JSON.stringify(ended), now]);
+      await client.query("INSERT INTO market_observer_events(plan_id,at,status,reason,snapshot) VALUES($1,$2,$3,$4,$5::jsonb)", [ended.id, now, ended.status, ended.reason, JSON.stringify(ended)]);
+    }
+    return rows.rows.map(r => r.plan.id);
+  }
+  private async flushBeforeMutation(userId: string, instrument: string) {
+    const pending = () => [...this.writes.values()].some(c => c.userId === userId && c.plan.instrument === instrument);
+    await this.flush();
+    // The first flush may load restart events, or finish a write already in flight.
+    if (pending()) await this.flush();
+    if (!this.storageReady || pending()) throw new ObserverServiceError("The plan journal is temporarily unavailable. Existing monitoring was preserved.");
+  }
+  private pauseAfterFailedMutation(userId: string, instrument: string) {
+    // Evaluation is suspended while the final journal snapshot is committed. If that
+    // change fails, its missing path must not become a fabricated signal outcome.
+    for (const [id, cached] of this.plans) {
+      if (cached.userId !== userId || cached.plan.instrument !== instrument || TERMINAL_PLAN_STATES.has(cached.plan.status)) continue;
+      cached.plan = resumeObserverPlan(cached.plan, new Date().toISOString());
+      cached.plan.reason = cached.plan.status === "CLOSED" ? "A failed plan change interrupted observation; intervening price path is unknown." : "Plan change could not be saved. Fresh checks and a new full execution candle are required.";
+      cached.events.push(structuredClone(cached.plan)); this.writes.set(id, cached);
+    }
+    this.snapshots.delete(`${userId}:${instrument}`);
   }
   async analyze(userId: string, instrument: string, mode: "NORMAL" | "SWING") {
     if (!this.storageReady) throw new ObserverServiceError("The plan journal is temporarily unavailable. Monitoring cannot be saved yet.");
@@ -154,35 +206,47 @@ export class MarketObserverService {
     const swing = toMarketAnalysis(analyzeV2({ ...input, mode: "SWING" }));
     let plan!: ObserverPlan;
     const retiredIds: string[] = [];
-    await transaction(async client => {
-      await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`observer:${userId}:${instrument}`]);
-      const versions = await client.query<{ version: number }>("SELECT coalesce(max(version),0)::integer+1 AS version FROM market_observer_plans WHERE user_id=$1 AND instrument=$2", [userId, instrument]);
-      plan = createObserverPlan(mode === "NORMAL" ? normal : swing, genuine(execution) ?? [], now, versions.rows[0]!.version);
-      const retired = await client.query<{ id: string }>("UPDATE market_observer_plans SET status='EXPIRED',plan=plan || jsonb_build_object('status','EXPIRED','reason','Replaced by a new version.','updatedAt',$3::text),updated_at=$3::timestamptz WHERE user_id=$1 AND instrument=$2 AND status IN ('WATCHING','READY','TRIGGERED','PAUSED') RETURNING id", [userId, instrument, now]);
-      retiredIds.push(...retired.rows.map(row => row.id));
-      for (const row of retired.rows) await client.query("INSERT INTO market_observer_events(plan_id,at,status,reason,snapshot) VALUES($1,$2,'EXPIRED','Replaced by a new version.','{}')", [row.id, now]);
-      await client.query("INSERT INTO market_observer_plans(id,user_id,instrument,version,status,plan,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$7)", [plan.id, userId, instrument, plan.version, plan.status, JSON.stringify(plan), now]);
-      await client.query("INSERT INTO market_observer_events(plan_id,at,status,reason,snapshot) VALUES($1,$2,$3,$4,$5::jsonb)", [plan.id, now, plan.status, plan.reason, JSON.stringify(plan)]);
-    });
-    for (const id of retiredIds) this.retire(id);
-    for (const [id, cached] of this.plans) if (cached.userId === userId && cached.plan.instrument === instrument) this.retire(id);
-    this.plans.set(plan.id, { userId, plan, persisted: structuredClone(plan), events: [] });
-    this.snapshots.delete(`${userId}:${instrument}`);
-    this.interested.set(instrument, Date.now());
-    return { normal, swing, plan };
+    const mutationKey = `${userId}:${instrument}`;
+    if (this.mutating.has(mutationKey)) throw new ObserverServiceError("A plan change is already being saved. Try again shortly.");
+    this.mutating.add(mutationKey);
+    let completed = false;
+    try {
+      await this.flushBeforeMutation(userId, instrument);
+      await transaction(async client => {
+        await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`observer:${userId}:${instrument}`]);
+        const versions = await client.query<{ version: number }>("SELECT coalesce(max(version),0)::integer+1 AS version FROM market_observer_plans WHERE user_id=$1 AND instrument=$2", [userId, instrument]);
+        plan = createObserverPlan(mode === "NORMAL" ? normal : swing, genuine(execution) ?? [], now, versions.rows[0]!.version);
+        retiredIds.push(...await this.endActive(client, userId, instrument, new Date().toISOString(), "Replaced by a new version."));
+        await client.query("INSERT INTO market_observer_plans(id,user_id,instrument,version,status,plan,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$7)", [plan.id, userId, instrument, plan.version, plan.status, JSON.stringify(plan), now]);
+        await client.query("INSERT INTO market_observer_events(plan_id,at,status,reason,snapshot) VALUES($1,$2,$3,$4,$5::jsonb)", [plan.id, now, plan.status, plan.reason, JSON.stringify(plan)]);
+      });
+      for (const id of retiredIds) this.retire(id);
+      for (const [id, cached] of this.plans) if (cached.userId === userId && cached.plan.instrument === instrument) this.retire(id);
+      this.plans.set(plan.id, { userId, plan, persisted: structuredClone(plan), events: [] });
+      this.snapshots.delete(`${userId}:${instrument}`);
+      this.interested.set(instrument, Date.now());
+      completed = true;
+      return { normal, swing, plan };
+    } finally { if (!completed) this.pauseAfterFailedMutation(userId, instrument); this.mutating.delete(mutationKey); }
   }
   async cancel(userId: string, instrument: string) {
-    const now = new Date().toISOString();
     const retiredIds: string[] = [];
-    await transaction(async client => {
-      const rows = await client.query<{ id: string }>("UPDATE market_observer_plans SET status='EXPIRED',plan=plan || jsonb_build_object('status','EXPIRED','reason','Monitoring stopped by you.','updatedAt',$3::text),updated_at=$3::timestamptz WHERE user_id=$1 AND instrument=$2 AND status IN ('WATCHING','READY','TRIGGERED','PAUSED') RETURNING id", [userId, instrument, now]);
-      retiredIds.push(...rows.rows.map(row => row.id));
-      for (const row of rows.rows) await client.query("INSERT INTO market_observer_events(plan_id,at,status,reason,snapshot) VALUES($1,$2,'EXPIRED','Monitoring stopped by you.','{}')", [row.id, now]);
-    });
-    for (const id of retiredIds) this.retire(id);
-    for (const [id, cached] of this.plans) if (cached.userId === userId && cached.plan.instrument === instrument) this.retire(id);
-    this.snapshots.delete(`${userId}:${instrument}`);
+    const mutationKey = `${userId}:${instrument}`;
+    if (this.mutating.has(mutationKey)) throw new ObserverServiceError("A plan change is already being saved. Try again shortly.");
+    this.mutating.add(mutationKey);
+    let completed = false;
+    try {
+      await this.flushBeforeMutation(userId, instrument);
+      await transaction(async client => {
+        await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`observer:${userId}:${instrument}`]);
+        retiredIds.push(...await this.endActive(client, userId, instrument, new Date().toISOString(), "Monitoring stopped by you."));
+      });
+      for (const id of retiredIds) this.retire(id);
+      for (const [id, cached] of this.plans) if (cached.userId === userId && cached.plan.instrument === instrument) this.retire(id);
+      this.snapshots.delete(`${userId}:${instrument}`);
+      completed = true;
+    } finally { if (!completed) this.pauseAfterFailedMutation(userId, instrument); this.mutating.delete(mutationKey); }
   }
   async stop() { clearInterval(this.timer); clearInterval(this.storageTimer); await this.flush(); this.stopped = true; }
-  health() { return { enabled: true, version: "market-observer@1", storageReady: this.storageReady, aiEnabled: this.aiEnabled, subscribedPairs: this.patterns.instruments.length, livePairs: this.livePairs, lastTickAt: this.lastTickAt }; }
+  health() { return { enabled: true, version: MARKET_STATE_VERSION, storageReady: this.storageReady, aiEnabled: this.aiEnabled, subscribedPairs: this.patterns.instruments.length, livePairs: this.livePairs, lastTickAt: this.lastTickAt }; }
 }

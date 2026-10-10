@@ -20,6 +20,7 @@ import {
   type AccountChartRange,
 } from "@/components/dashboard/account-amount-chart";
 import { NewsImpactSheet } from "@/components/dashboard/news-impact-sheet";
+import { WeeklyReview } from "@/components/dashboard/weekly-review";
 import { MorningMarketPicks } from "@/components/dashboard/morning-market-picks";
 import type { MorningPicksSnapshot } from "@/lib/strategy/morning-scan";
 import { RelativeTime } from "@/components/dashboard/relative-time";
@@ -31,7 +32,7 @@ import { formatChartPrice } from "@/lib/chart-utils";
 import { formatEtClock, formatShortDay, tradingDayKey } from "@/lib/format/datetime";
 import type { HomeActivityItem } from "@/lib/home/idle";
 import { displayNameFor } from "@/lib/instruments/catalog";
-import { homeCalendarImpactTier, homeCalendarRows } from "@/lib/news/home-calendar";
+import { homeCalendarEmptyMessage, homeCalendarImpactTier, homeCalendarRows } from "@/lib/news/home-calendar";
 import { useEconomicCalendar } from "@/lib/oanda/use-economic-calendar";
 import { pendingLevelPrice, pendingStatusLabel, pendingTimingNote } from "@/lib/pending-entry/plain-language";
 import { getMarketCondition } from "@/lib/strategy/session";
@@ -623,7 +624,7 @@ function LedgerNews({ positions }: { positions: HomeCurrentPosition[] }) {
           })}
         </div>
       ) : (
-        <p className="nl-card-empty">{calendar.warnings[0]?.tone !== "success" && calendar.warnings[0]?.message ? calendar.warnings[0].message : "No high or medium impact events this week."}</p>
+        <p className="nl-card-empty">{homeCalendarEmptyMessage(calendar, now)}</p>
       )}
       <NewsImpactSheet event={openEvent} positions={positions} onClose={() => setOpenId(null)} now={now ?? 0} />
     </section>
@@ -792,6 +793,7 @@ export function LedgerHome({
             <LedgerTodayCard today={today} currency={account?.currency ?? "USD"} />
             <LedgerNews positions={newsPositions} />
           </aside>
+          <WeeklyReview currency={account?.currency ?? "USD"} />
         </div>
       </div>
     </div>

@@ -1,12 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Search } from "lucide-react";
+import { CircleStop, LoaderCircle, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { WatchlistPairsSkeleton } from "@/components/ui/page-skeletons";
 import { MarketRowSkeleton } from "@/components/ui/ledger-loading-skeletons";
-import { AnalyzeSheet } from "@/components/analysis/analyze-card";
+import { useMarketObserver } from "@/components/analysis/market-observer-provider";
 import { AnalyzeIcon } from "@/components/icons/analyze-icon";
 import { SessionStrip } from "@/components/watchlist/session-strip";
 import { TradabilityTag, useNyTradability } from "@/components/signals/tradability-tag";
@@ -18,10 +17,7 @@ import { INSTRUMENT_CATALOG, displayNameFor, pipSizeFor } from "@/lib/instrument
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import type { WatchlistCondition } from "@/lib/watchlist-status";
-import { marketAnalysisContext, type AnalysisMode, type MarketAnalysis } from "@/lib/strategy/market-analysis";
-import { ANALYZE_HANDOFF_KEY, runMarketAnalysis, type AnalyzeHandoff } from "@/lib/strategy/run-market-analysis";
-import type { CandleSeries, MajorInstrument } from "@/types/forex";
-import type { PendingManualEntry } from "@/types/pending-entry";
+import type { CandleSeries } from "@/types/forex";
 
 type Row = {
   instrument: string;
@@ -82,7 +78,7 @@ const description = (instrument: string) => {
   return `${names[base ?? ""] ?? base} / ${names[quote ?? ""] ?? quote}`;
 };
 export function WatchlistView() {
-  const router = useRouter();
+  const observer = useMarketObserver();
   const [snapshot, setSnapshot] = useState<Row[]>([]);
   const [daily, setDaily] = useState<Record<string, Day>>({});
   const [query, setQuery] = useState("");
@@ -90,14 +86,6 @@ export function WatchlistView() {
   const [sort, setSort] = useState<PairSort>("setups");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Analyze runs here; normal is null while it is still reading.
-  const [analysis, setAnalysis] = useState<{
-    instrument: MajorInstrument;
-    normal: MarketAnalysis | null;
-    swing: MarketAnalysis | null;
-  } | null>(null);
-  const [analysisError, setAnalysisError] = useState<string | null>(null);
-  const analysisAbortRef = useRef<AbortController | null>(null);
   const quotes = useLiveQuotes();
   const load = useCallback(async () => {
     try {
@@ -315,66 +303,6 @@ export function WatchlistView() {
       setDaily((previous) => ({ ...previous, ...Object.fromEntries(entries) }));
     });
   }, [shownInstrumentsKey]);
-  // Analyze reads the pair in place (the same Normal/Swing plan as the
-  // chart). Only accepting the plan leaves Markets: the chart opens with the
-  // entry form filled in for review.
-  const analyze = useCallback(async (instrument: MajorInstrument) => {
-    analysisAbortRef.current?.abort();
-    const controller = new AbortController();
-    analysisAbortRef.current = controller;
-    setAnalysisError(null);
-    setAnalysis({ instrument, normal: null, swing: null });
-    try {
-      // Open trades and resting orders, for the same-currency warning.
-      const exposure = await fetch(apiUrl("/api/pending-entries"), { credentials: "include", cache: "no-store", signal: controller.signal })
-        .then(async (response) => response.ok ? ((await response.json()) as { entries?: PendingManualEntry[] }).entries ?? [] : [])
-        .then((entries) => entries
-          .filter((entry) => entry.status === "PENDING" || entry.status === "TRIGGERING" || (entry.status === "TRIGGERED" && entry.paperTradeStatus === "open"))
-          .map((entry) => ({ instrument: entry.instrument, direction: entry.direction })))
-        .catch(() => []);
-      const { normal, swing } = await runMarketAnalysis({ instrument, signal: controller.signal, exposure });
-      if (analysisAbortRef.current !== controller) return;
-      setAnalysis({ instrument, normal, swing });
-    } catch (reason) {
-      if (controller.signal.aborted) return;
-      setAnalysis(null);
-      setAnalysisError(reason instanceof Error ? reason.message : "Analysis could not run.");
-    } finally {
-      if (analysisAbortRef.current === controller) analysisAbortRef.current = null;
-    }
-  }, []);
-  const closeAnalysis = useCallback(() => {
-    analysisAbortRef.current?.abort();
-    analysisAbortRef.current = null;
-    setAnalysis(null);
-  }, []);
-  const reviewPlan = useCallback((mode: AnalysisMode) => {
-    if (!analysis?.normal) return;
-    const plan = mode === "SWING" && analysis.swing ? analysis.swing : analysis.normal;
-    if (!plan.trade || plan.decision === "NO TRADE") return;
-    const handoff: AnalyzeHandoff = {
-      instrument: analysis.instrument,
-      proposal: {
-        direction: plan.decision === "LONG" ? "long" : "short",
-        entry: plan.trade.entry,
-        stop: plan.trade.stopLoss,
-        target: plan.trade.takeProfit,
-        confidence: null,
-        rationale: plan.reason,
-        preferredEntryTime: new Date().toISOString(),
-        activateAt: plan.activateAfter,
-        analysisContext: marketAnalysisContext(plan),
-      },
-    };
-    try {
-      window.sessionStorage.setItem(ANALYZE_HANDOFF_KEY, JSON.stringify(handoff));
-    } catch {
-      setAnalysisError("Could not hand the plan to the chart.");
-      return;
-    }
-    setAnalysis(null);
-    router.push(`/chart?instrument=${analysis.instrument}&plan=analyze`);
-  }, [analysis, router]);
   const groups: Array<{ id: PairGroup; label: string }> = [
     { id: "all", label: "All" },
     { id: "major", label: "Majors" },
@@ -497,7 +425,9 @@ export function WatchlistView() {
                     ? Math.min(100, Math.max(0, ((price - low) / (high - low)) * 100))
                     : null;
                 const name = displayNameFor(row.instrument);
-                const busy = analysis?.instrument === row.instrument && analysis.normal === null;
+                const enabled = Boolean(observer?.tracked.includes(row.instrument));
+                const busy = Boolean(observer?.busyPairs[row.instrument]);
+                const action = busy ? (enabled ? "Stopping…" : "Starting…") : enabled ? "Stop" : "Analyze";
                 return (
                   <div key={row.instrument} className="nl-mk-row">
                     <Link href={`/chart?instrument=${row.instrument}`} className="nl-mk-pair" aria-label={`View ${name} chart`}>
@@ -505,7 +435,10 @@ export function WatchlistView() {
                       <span className="nl-mk-pair-copy">
                         <b>{name}</b>
                         <small>{description(row.instrument)}</small>
-                        <TradabilityTag item={tradability.get(row.instrument)} />
+                        <span className="nl-mk-pair-status">
+                          <TradabilityTag item={tradability.get(row.instrument)} />
+                          {enabled ? <span className="nl-mk-observer-on">Observer on</span> : null}
+                        </span>
                       </span>
                     </Link>
                     <Spark points={day?.spark ?? null} up={(change ?? 0) >= 0} className="nl-mk-row-spark nl-mk-hide-md" />
@@ -538,13 +471,18 @@ export function WatchlistView() {
                     </span>
                     <button
                       type="button"
-                      className="nl-mk-analyze pressable"
-                      disabled={busy}
-                      onClick={() => void analyze(row.instrument as MajorInstrument)}
-                      aria-label={`Analyze ${name}`}
+                      className={`nl-mk-analyze pressable${enabled ? " is-observing" : ""}`}
+                      disabled={busy || !observer}
+                      onClick={() => void (enabled ? observer?.stop(row.instrument) : observer?.analyze(row.instrument))}
+                      aria-label={`${action} ${name}${enabled ? " observer" : ""}`}
+                      aria-pressed={enabled}
+                      aria-busy={busy}
+                      title={enabled ? `Stop ${name} · Observer enabled` : `Analyze ${name} · Start observer`}
                     >
-                      <AnalyzeIcon className="size-[14px]" />
-                      <span className="nl-mk-analyze-label">{busy ? "Analyzing…" : "Analyze"}</span>
+                      {busy ? <LoaderCircle className="size-[14px] animate-spin" aria-hidden="true" />
+                        : enabled ? <CircleStop className="size-[14px]" aria-hidden="true" />
+                          : <AnalyzeIcon className="size-[14px]" />}
+                      <span className="nl-mk-analyze-label">{action}</span>
                     </button>
                   </div>
                 );
@@ -559,17 +497,6 @@ export function WatchlistView() {
           </>
         )}
       </section>
-
-      <AnalyzeSheet
-        normal={analysis?.normal ?? null}
-        swing={analysis?.swing ?? null}
-        analyzing={analysis !== null && analysis.normal === null}
-        instrument={analysis?.instrument ?? "EUR_USD"}
-        onClose={closeAnalysis}
-        onCancel={closeAnalysis}
-        onReview={reviewPlan}
-      />
-      {analysisError ? <div className="manual-analysis-error" role="alert">{analysisError}</div> : null}
     </div>
   );
 }

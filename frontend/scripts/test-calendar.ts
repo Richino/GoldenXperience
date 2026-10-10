@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { buildCalendarSnapshot } from "../src/lib/oanda/calendar";
 import { normalizeForexFactoryEvents } from "../src/lib/calendar/normalize";
+import { homeCalendarEmptyMessage } from "../src/lib/news/home-calendar";
 
 // Verbatim records from https://nfs.faireconomy.media/ff_calendar_thisweek.json,
 // kept as a fixture because the live feed rate-limits aggressively.
@@ -64,6 +65,16 @@ const sample = [
 ];
 
 const events = normalizeForexFactoryEvents(sample);
+
+const weekendCalendar = buildCalendarSnapshot({
+  events: [], source: "forex_factory", connected: true,
+  coverageUntil: "2026-10-09T20:00:00.000Z", now: new Date("2026-10-10T21:00:00.000Z"),
+});
+assert.equal(homeCalendarEmptyMessage(weekendCalendar, Date.parse("2026-10-10T21:00:00.000Z")), "Calendar update expected on Sunday, Oct 11.");
+assert.equal(homeCalendarEmptyMessage(weekendCalendar, Date.parse("2026-10-11T21:00:00.000Z")), "Calendar update expected today, Sunday, Oct 11.");
+assert.equal(homeCalendarEmptyMessage(weekendCalendar, Date.parse("2026-10-12T21:00:00.000Z")), "Calendar update pending.", "do not promise next Sunday for an overdue weekday feed");
+assert.equal(homeCalendarEmptyMessage({ ...weekendCalendar, coverageUntil: "2026-10-02T20:00:00.000Z" }, Date.parse("2026-10-10T21:00:00.000Z")), "Calendar update pending.", "old cached data cannot support a publication date");
+assert.equal(homeCalendarEmptyMessage({ ...weekendCalendar, coverageUntil: "2026-10-30T20:00:00.000Z" }, Date.parse("2026-11-01T02:00:00.000Z")), "Calendar update expected on Sunday, Nov 1.", "use New York date across the DST weekend");
 
 // Every currency in the traded catalog is kept, so an RBNZ or BoC release
 // reaches the app and the news impact tagger. Only currencies nothing is

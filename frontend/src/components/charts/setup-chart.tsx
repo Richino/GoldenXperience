@@ -15,7 +15,6 @@ import {
   AreaSeries,
   BarSeries,
   BaselineSeries,
-  CandlestickSeries,
   ColorType,
   CrosshairMode,
   LineSeries,
@@ -71,6 +70,7 @@ import {
 import { ChartHistoryLoader } from "@/components/charts/chart-loading-overlay";
 import { useChartTouchGestures } from "@/components/charts/use-chart-touch-gestures";
 import { ChartBoxPrimitive, type ChartBox } from "@/components/charts/chart-box-primitive";
+import { RoundedCandleSeries } from "@/components/charts/rounded-candle-series";
 import {
   formatClockTime,
   formatTradingZoneDayOfMonth,
@@ -87,6 +87,8 @@ import type { Candle, CandleSeries, PaperChartTrade } from "@/types/forex";
  * focused trade into view before it stops chasing it.
  */
 const MAX_FOCUS_HISTORY_PAGES = 8;
+/** Corner radius of candle bodies, in CSS pixels (see rounded-candle-series). */
+const CANDLE_RADIUS = 2;
 
 function chartTimeToMs(time: Time): number {
   if (typeof time === "number") {
@@ -1903,22 +1905,24 @@ export function SetupChart({
 
     switch (variant) {
       case "candle": {
-        mainSeries = chart.addSeries(CandlestickSeries, {
-          upColor,
-          downColor,
+        mainSeries = chart.addCustomSeries(new RoundedCandleSeries(), {
+          upColor: upColor,
+          downColor: downColor,
           borderVisible: true,
           borderUpColor: upColor,
           borderDownColor: downColor,
           wickUpColor,
           wickDownColor,
+          radius: CANDLE_RADIUS,
+          color: livePriceLineColor,
           ...displayOptions,
-        });
+        }) as unknown as ISeriesApi<SeriesType>;
         mainSeries.setData(chartData);
         mainSeriesRef.current = mainSeries;
         break;
       }
       case "hollow": {
-        mainSeries = chart.addSeries(CandlestickSeries, {
+        mainSeries = chart.addCustomSeries(new RoundedCandleSeries(), {
           upColor: surfaceColor,
           downColor: surfaceColor,
           borderVisible: true,
@@ -1926,23 +1930,27 @@ export function SetupChart({
           borderDownColor: downColor,
           wickUpColor,
           wickDownColor,
+          radius: CANDLE_RADIUS,
+          color: livePriceLineColor,
           ...displayOptions,
-        });
+        }) as unknown as ISeriesApi<SeriesType>;
         mainSeries.setData(chartData);
         mainSeriesRef.current = mainSeries;
         break;
       }
       case "heikin": {
-        mainSeries = chart.addSeries(CandlestickSeries, {
-          upColor,
-          downColor,
+        mainSeries = chart.addCustomSeries(new RoundedCandleSeries(), {
+          upColor: upColor,
+          downColor: downColor,
           borderVisible: true,
           borderUpColor: upColor,
           borderDownColor: downColor,
           wickUpColor,
           wickDownColor,
+          radius: CANDLE_RADIUS,
+          color: livePriceLineColor,
           ...displayOptions,
-        });
+        }) as unknown as ISeriesApi<SeriesType>;
         mainSeries.setData(toHeikinAshiCandles(series.candles));
         mainSeriesRef.current = mainSeries;
         break;
@@ -2803,6 +2811,8 @@ export function SetupChart({
           priceLineVisible: true,
           priceLineColor: livePriceLineColor,
           priceLineStyle: LineStyle.Dashed,
+          // Rounded candles are a custom series: its price-scale label takes `color`.
+          ...(variant === "candle" || variant === "hollow" || variant === "heikin" ? { color: livePriceLineColor } : {}),
         });
       }
     } catch (error) {

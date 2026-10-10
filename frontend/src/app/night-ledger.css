@@ -3453,6 +3453,42 @@ html:is(.dark, :not(.dark)) body .nl-tr-bell {
   cursor: default;
 }
 
+.nl-mk-analyze.is-observing,
+.nl-mk-analyze.is-observing:hover:not(:disabled) {
+  border-color: var(--accent-fill);
+  background: var(--accent-fill);
+  color: var(--on-accent);
+}
+
+.nl-mk-pair-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.nl-mk-observer-on {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--accent-fill);
+  color: var(--on-accent);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.nl-mk-observer-on::before {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+}
+
 .nl-mk-empty,
 .nl-mk-more {
   margin: 0;
@@ -7949,4 +7985,261 @@ html:is(.dark, :not(.dark)) body .gx-pair-trade-count {
   .setup-chart-level-edit-line { top: -14px; height: 28px; }
   .setup-chart-level-edit-line::before { inset: 13px 0 auto; }
   .setup-chart-level-edit-handle { height: 28px; font-size: 12px; }
+}
+
+/* ============================================================ WELCOME SCREEN
+   welcome-screen.tsx: the robot art (941 × 1670) with the app name on top,
+   nothing else. The art box keeps the image's ratio and sizes the title in
+   cqw. Installed iOS / Android app only (or ?splash=1); a tap skips it. Phones fit its width (dark bands fade in above and below);
+   desktop fits its height over a blurred copy. */
+.gx-welcome {
+  cursor: pointer;
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #0b0c0a;
+  color: #f1f2ec;
+  animation: gx-welcome-in 320ms ease both;
+}
+.gx-welcome.is-leaving { animation: gx-welcome-out 260ms ease both; }
+@keyframes gx-welcome-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes gx-welcome-out { to { opacity: 0; transform: scale(1.02); } }
+@media (prefers-reduced-motion: reduce) {
+  .gx-welcome, .gx-welcome.is-leaving { animation-duration: 1ms; }
+}
+.gx-welcome::before {
+  content: "";
+  position: absolute;
+  inset: -8%;
+  background: url("/welcome-robot.webp") center / cover;
+  filter: blur(48px) brightness(0.35);
+}
+.gx-welcome-art {
+  position: relative;
+  width: min(100vw, calc(100dvh * 941 / 1670));
+  aspect-ratio: 941 / 1670;
+  container-type: inline-size;
+  background: url("/welcome-robot.webp") center / 100% 100% no-repeat;
+}
+/* Fade the art's top and bottom into the page so phone bands don't show an edge. */
+.gx-welcome-art::before,
+.gx-welcome-art::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  height: 9%;
+  pointer-events: none;
+}
+.gx-welcome-art::before { top: 0; background: linear-gradient(#0b0c0a, transparent); }
+.gx-welcome-art::after { bottom: 0; background: linear-gradient(transparent, #0b0c0a); }
+
+.gx-welcome-title {
+  position: absolute;
+  top: 5.5%;
+  inset-inline: 0;
+  z-index: 2;
+  text-align: center;
+}
+.gx-welcome-title h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 8.4cqw;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+.gx-welcome-title h1 span { color: #c8f560; }
+
+
+/* ============================================================ WEEKLY REVIEW
+   Home: the last 7 days of the trader's own trades (weekly-review.tsx): a
+   stat strip, the AI coach's summary with "where it went wrong" and "what to
+   do next", and session / pair breakdowns. */
+.nl-wr-window { color: var(--muted); font-size: 12px; }
+@media (min-width: 1024px) {
+  .nl-home-cols > .nl-wr {
+    flex: 0 0 100%;
+    margin-top: 24px;
+  }
+}
+.nl-wr-card {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 22px 24px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface);
+}
+.nl-wr-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 16px;
+  margin: 0;
+}
+.nl-wr-stats div { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.nl-wr-stats dt { color: var(--muted); font-size: 11px; }
+.nl-wr-stats dd { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: 0; overflow-wrap: anywhere; }
+.nl-wr-stats dd small { color: var(--muted); font-size: 11px; font-weight: 500; }
+.nl-wr-stats dd:has(.is-up) { display: flex; flex-wrap: wrap; column-gap: 4px; font-size: 15px; }
+
+.nl-wr-ai {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px;
+  border-radius: 16px;
+  background: var(--surface-raised);
+}
+.nl-wr-ai-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.nl-wr-ai-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.nl-wr-ai-label svg { width: 14px; height: 14px; color: var(--accent); }
+.nl-wr-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.nl-wr-retry svg { width: 13px; height: 13px; }
+.nl-wr-summary { margin: 0; font-size: 15px; line-height: 1.6; }
+.nl-wr-focus {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.nl-wr-focus span {
+  color: var(--accent);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.nl-wr-check {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.nl-wr-check span,
+.nl-wr-history em {
+  color: var(--muted);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 10px;
+  font-style: normal;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.nl-wr-list.is-again li::before { background: var(--pending-soft); color: var(--pending); }
+.nl-wr-history h3 { margin: 0 0 10px; font-size: 13px; font-weight: 700; }
+.nl-wr-history ul { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.nl-wr-history li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+.nl-wr-history li small { color: var(--muted); font-size: 11px; }
+.nl-wr-history li b { min-width: 84px; font-weight: 600; text-align: right; }
+.nl-wr-history li em { grid-column: 1 / -1; letter-spacing: 0.04em; text-transform: none; font-family: inherit; font-size: 12px; }
+.nl-wr-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.nl-wr-cols h3,
+.nl-wr-breakdown h3 { margin: 0 0 10px; font-size: 13px; font-weight: 700; }
+.nl-wr-list { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; counter-reset: wr; }
+.nl-wr-list li {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-left: 30px;
+  counter-increment: wr;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.nl-wr-list li::before {
+  content: counter(wr);
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 6px;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 600;
+}
+.nl-wr-list.is-wrong li::before { background: var(--danger-soft); color: var(--danger); }
+.nl-wr-list.is-do li::before { background: var(--accent-soft); color: var(--accent); }
+.nl-wr-list b { font-weight: 650; }
+.nl-wr-list span { color: var(--muted); }
+.nl-wr-ai-loading { display: flex; flex-direction: column; gap: 8px; }
+.nl-wr-ai-note { margin: 0; color: var(--muted); font-size: 12px; }
+.nl-wr-ai-note.is-warn { color: var(--pending); }
+.nl-wr-skel-line { display: block; height: 14px; border-radius: 6px; }
+.nl-wr-skel-line.is-short { width: 60%; }
+
+.nl-wr-breakdown { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.nl-wr-breakdown ul { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.nl-wr-breakdown li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+.nl-wr-breakdown li small { color: var(--muted); font-size: 11px; }
+.nl-wr-breakdown li b { min-width: 84px; font-weight: 600; text-align: right; }
+.nl-wr-foot { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .nl-wr-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 767px) {
+  .nl-home-cols > .nl-wr { order: 10; }
+  .nl-wr-card { padding: 16px; gap: 16px; border-radius: 18px; }
+  .nl-wr-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .nl-wr-stats dd { font-size: 16px; }
+  .nl-wr-ai { padding: 14px; }
+  .nl-wr-cols,
+  .nl-wr-breakdown { grid-template-columns: minmax(0, 1fr); }
 }

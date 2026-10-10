@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { AnalyzeIcon } from "@/components/icons/analyze-icon";
 import { MarketDataNotice } from "@/components/signals/market-data-notice";
-import { MarketObserverBubble } from "@/components/analysis/market-observer-bubble";
+import { useMarketObserver } from "@/components/analysis/market-observer-provider";
 import { NEW_PAIR_TRADE, PairTradePicker } from "@/components/charts/pair-trade-picker";
 import { ChartTypeSelect } from "@/components/charts/chart-type-select";
 import {
@@ -2498,6 +2498,17 @@ export function SignalWorkspace({
   const [trendPullbackSwing, setTrendPullbackSwing] = useState<MarketAnalysis | null>(null);
   const [trendPullbackDialogOpen, setTrendPullbackDialogOpen] = useState(false);
   const [trendPullbackBusy, setTrendPullbackBusy] = useState(false);
+  const observer = useMarketObserver();
+  const analyzeObserver = observer?.analyze;
+  const stopObserver = observer?.stop;
+  const setObserverChartContext = observer?.setChartContext;
+  const chartPairMonitored = !embeddedSurfaceOnly && Boolean(observer?.tracked.includes(instrument));
+  const chartAnalysisBusy = embeddedSurfaceOnly ? trendPullbackBusy : Boolean(observer?.busyPairs[instrument]);
+  useEffect(() => {
+    if (embeddedSurfaceOnly || !setObserverChartContext) return;
+    setObserverChartContext({ instrument, replayActive });
+    return () => setObserverChartContext(null);
+  }, [embeddedSurfaceOnly, instrument, replayActive, setObserverChartContext]);
   const [trendPullbackError, setTrendPullbackError] = useState<string | null>(null);
   const trendPullbackRequestRef = useRef(0);
   const trendPullbackAbortRef = useRef<AbortController | null>(null);
@@ -2520,6 +2531,14 @@ export function SignalWorkspace({
   const runTrendPullback = useCallback(async () => {
     if (replayActive) {
       setTrendPullbackError("Exit chart replay before running live analysis.");
+      return;
+    }
+    if (!embeddedSurfaceOnly) {
+      const request = ++trendPullbackRequestRef.current;
+      setTrendPullbackDialogOpen(false);
+      setTrendPullbackBusy(true);
+      try { await analyzeObserver?.(instrument); }
+      finally { if (request === trendPullbackRequestRef.current) setTrendPullbackBusy(false); }
       return;
     }
     trendPullbackAbortRef.current?.abort();
@@ -2555,7 +2574,7 @@ export function SignalWorkspace({
       if (request === trendPullbackRequestRef.current) setTrendPullbackBusy(false);
       if (trendPullbackAbortRef.current === controller) trendPullbackAbortRef.current = null;
     }
-  }, [allPendingEntries, embeddedSurfaceOnly, instrument, postTrendPullbackToNative, replayActive]);
+  }, [allPendingEntries, analyzeObserver, embeddedSurfaceOnly, instrument, postTrendPullbackToNative, replayActive]);
 
   const planHandoffRef = useRef(false);
   useEffect(() => {
@@ -4402,7 +4421,6 @@ export function SignalWorkspace({
         fullscreen ? " signals-view-fullscreen" : ""
       }`}
     >
-      <MarketObserverBubble key={instrument} instrument={instrument} replayActive={replayActive} />
       <div className="signals-chart-slot min-w-0">
         <section className="app-card signals-chart-card min-w-0 w-full">
         {!wideChart ? <div className="signals-chart-mobile lg:hidden">
@@ -4424,9 +4442,9 @@ export function SignalWorkspace({
                 />
               </div>
               <div className="signals-mobile-header-actions nl-mhead-actions">
-                <button type="button" className="nl-analyze nl-analyze-sm pressable" onClick={() => void runTrendPullback()} disabled={trendPullbackBusy || replayActive} title="Analyze the market and monitor its conditions">
-                  <AnalyzeIcon className="size-4" />
-                  {trendPullbackBusy ? "Analyzing…" : "Analyze"}
+                <button type="button" className="nl-analyze nl-analyze-sm pressable" onClick={() => void (chartPairMonitored ? stopObserver?.(instrument) : runTrendPullback())} disabled={chartAnalysisBusy || replayActive} title={chartPairMonitored ? `Stop monitoring ${activePair}` : "Analyze the market and monitor its conditions"}>
+                  {chartPairMonitored ? <CircleStop className="size-4" /> : <AnalyzeIcon className="size-4" />}
+                  {chartAnalysisBusy ? chartPairMonitored ? "Stopping…" : "Analyzing…" : chartPairMonitored ? "Stop" : "Analyze"}
                 </button>
                 <NotificationBell compact className="signals-icon-btn signals-fullscreen-reserve nl-mbell" />
               </div>

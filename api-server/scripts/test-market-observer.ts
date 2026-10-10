@@ -71,9 +71,11 @@ assert.equal((await gate.request({ ...read, revision: read.revision + 2, asOf: i
 assert.equal(calls, 2);
 const oldKey = process.env.OPENAI_API_KEY; process.env.OPENAI_API_KEY = "test-only-key";
 try {
-  const fake = (factIds: string[]) => (async () => new Response(JSON.stringify({ output_text: JSON.stringify({ factIds }) }))) as typeof fetch;
-  const result = await explainObserver(read, fake([read.facts[0].id]));
-  assert.equal(result.text, read.facts[0].text, "AI cannot rewrite facts, levels, or probabilities");
+  const fake = (factIds: string[]) => (async () => new Response(JSON.stringify({ output_text: JSON.stringify({ lean: read.lean, pressure: read.pressure.direction, summary: "Hourly context leans up and short-term quotes align with that observation.", factIds, watchIndex: 0 }) }))) as typeof fetch;
+  const ids = ["structure-H1", "quote-pressure"];
+  const result = await explainObserver(read, fake(ids));
+  assert.equal(result.source, "model");
+  assert.deepEqual(result.evidence, ids.map(id => ({ id, text: read.facts.find(f => f.id === id)!.text })), "Generated prose links to original measured facts");
   await assert.rejects(explainObserver(read, fake(["invented-price"])), /unsupported evidence/);
 } finally { if (oldKey === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = oldKey; }
 console.log("Market observer tests passed: live facts, quality gates, causal executable triggers, immutable plans, gaps, expiry and AI budgets/validation.");

@@ -2,6 +2,7 @@ import { config as loadDotenv } from "dotenv";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { once } from "node:events";
+import { readFile, writeFile } from "node:fs/promises";
 import { OandaPricingStream } from "../src/oanda-stream.js";
 import { MarketRecorder, auditMarketRecording, replayMarketRecording } from "../src/market-recording.js";
 import { startRecordingContext } from "../src/market-recording-context.js";
@@ -10,6 +11,7 @@ import { MarketPatternEngine, type PatternEvent } from "../src/market-patterns.j
 import { MarketStateEngine } from "../src/market-state.js";
 import { PATTERN_RULES_VERSION } from "../src/market-pattern-definitions.js";
 import { isKnownInstrument } from "../../frontend/src/lib/instruments/catalog.js";
+import { replayObserverPlan } from "../src/market-observer-replay.js";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 loadDotenv({ path: path.join(root, "frontend/.env.local"), quiet: true });
@@ -19,6 +21,17 @@ loadDotenv({ path: path.join(root, "api-server/.env"), quiet: true });
 async function main() {
   const [command, file, ...args] = process.argv.slice(2);
   if (command === "audit" && file) { console.log(JSON.stringify(await auditMarketRecording(path.resolve(root, file)), null, 2)); return; }
+  if (command === "evaluate" && file) {
+    const planFile = args.find(x => x.startsWith("--plan="))?.slice(7), until = args.find(x => x.startsWith("--until="))?.slice(8);
+    const output = args.find(x => x.startsWith("--output="))?.slice(9);
+    if (!planFile) throw new Error("Use evaluate FILE --plan=FROZEN_PLAN.json [--until=ISO] [--output=REPORT.json].");
+    const seed: unknown = JSON.parse(await readFile(path.resolve(root, planFile), "utf8"));
+    // Never filter out other pairs' records: their sequence numbers preserve continuity.
+    const report = await replayObserverPlan(replayMarketRecording(path.resolve(root, file)), seed, { until });
+    const json = JSON.stringify(report, null, 2);
+    if (output) await writeFile(path.resolve(root, output), json + "\n", "utf8");
+    console.log(json); return;
+  }
   if (command === "observer" && file) {
     const instrument = (args.find(x => x.startsWith("--instrument="))?.slice(13) ?? "EUR_USD").toUpperCase();
     const until = args.find(x => x.startsWith("--until="))?.slice(8);
@@ -69,7 +82,7 @@ async function main() {
     }
     return;
   }
-  if (command !== "capture") throw new Error("Usage: market-recording.ts capture [PAIR,PAIR] [--seconds=N] | audit FILE | replay FILE | movement FILE | patterns FILE [--until=ISO] [--instrument=PAIR]");
+  if (command !== "capture") throw new Error("Usage: market-recording.ts capture [PAIR,PAIR] [--seconds=N] | audit FILE | replay FILE | movement FILE | patterns FILE | observer FILE [--until=ISO] [--instrument=PAIR] | evaluate FILE --plan=PLAN.json [--until=ISO] [--output=REPORT.json]");
   if ((process.env.OANDA_ENVIRONMENT ?? "practice").toLowerCase() !== "practice") throw new Error("Recording is practice-only.");
   const instruments = (file && !file.startsWith("--") ? file : "EUR_USD").split(",").map(value => value.trim().toUpperCase());
   if (!instruments.every(isKnownInstrument)) throw new Error("Unknown recording instrument.");

@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { weeklyReview, weeklySummary } from "./weekly-review.js";
 import { URL, fileURLToPath } from "node:url";
 import fs from "node:fs";
 import path from "node:path";
@@ -294,6 +295,14 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       if (!marketObserver) return json(request, response, { enabled: false, reason: "Live observer requires OANDA practice credentials.", plan: null, history: [], storage: "unavailable" });
       if (!config.instruments.includes(instrument)) return json(request, response, { enabled: false, reason: "Live monitoring is available for the featured pairs. Analyze still works for this pair.", plan: null, history: [], storage: "unavailable" });
       if (url.pathname === "/api/market-observer" && request.method === "GET") return json(request, response, await marketObserver.snapshot(user.id, instrument));
+      if (url.pathname === "/api/market-observer/journal" && request.method === "GET") {
+        try { return json(request, response, await marketObserver.journal(user.id, instrument)); }
+        catch (error) { console.error("[observer] journal read failed", error); return json(request, response, { error: "Plan history is temporarily unavailable." }, 502); }
+      }
+      if (url.pathname === "/api/market-observer/evaluation" && request.method === "GET") {
+        try { return json(request, response, await marketObserver.evaluation(user.id, instrument)); }
+        catch (error) { console.error("[observer] evaluation read failed", error); return json(request, response, { error: "Signal evaluation is temporarily unavailable." }, 502); }
+      }
       if (url.pathname === "/api/market-observer/analyze" && request.method === "POST") {
         const key = `${user.id}:${instrument}`;
         if (observerAnalysisBusy.has(key)) return json(request, response, { error: "Analysis is already running on this pair." }, 409);
@@ -352,6 +361,20 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
         return json(request, response, { proposal: await createManualTradeProposal(instrument) });
       } catch (error) {
         return json(request, response, { error: error instanceof Error ? error.message : "Manual analysis could not run." }, 502);
+      }
+    }
+    // Home's weekly review: the numbers (fast, rule-based), then the AI coach's
+    // summary of them (slow, cached per set of trades). Both read-only.
+    if (url.pathname === "/api/review/weekly" && request.method === "GET") {
+      return json(request, response, await weeklyReview(user.id));
+    }
+    if (url.pathname === "/api/review/weekly/summary" && request.method === "POST") {
+      const review = await weeklyReview(user.id);
+      if (!review.stats.trades) return json(request, response, { error: "No closed trades in the last 7 days." }, 409);
+      try {
+        return json(request, response, await weeklySummary(user.id, review));
+      } catch (error) {
+        return json(request, response, { error: error instanceof Error ? error.message : "The summary could not be written." }, 502);
       }
     }
     if (url.pathname === "/api/analyze/explain" && request.method === "POST") {
@@ -1030,6 +1053,7 @@ if (config.isConfigured) {
     onObservation: (raw, receivedAt) => {
       if (raw.instrument && recordingInstruments.includes(raw.instrument)) marketRecorder?.quote(raw, receivedAt);
       if (marketPatterns) marketPatterns.observe(raw, receivedAt);
+      if (marketObserver && typeof raw.instrument === "string") marketObserver.observe(raw.instrument, receivedAt);
       else marketMovement?.observe(raw, receivedAt);
     },
     onStatus: (status) => setStatus(status.state, status.source, status.message),

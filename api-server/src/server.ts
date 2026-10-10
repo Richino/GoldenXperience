@@ -290,8 +290,9 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     if (url.pathname.startsWith("/api/market-observer")) {
       const payload = request.method === "POST" ? await body(request) : null;
       const instrument = String(payload?.instrument ?? url.searchParams.get("instrument") ?? "EUR_USD").toUpperCase();
-      if (!config.instruments.includes(instrument)) return json(request, response, { error: "Choose a subscribed currency pair." }, 400);
+      if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
       if (!marketObserver) return json(request, response, { enabled: false, reason: "Live observer requires OANDA practice credentials.", plan: null, history: [], storage: "unavailable" });
+      if (!config.instruments.includes(instrument)) return json(request, response, { enabled: false, reason: "Live monitoring is available for the featured pairs. Analyze still works for this pair.", plan: null, history: [], storage: "unavailable" });
       if (url.pathname === "/api/market-observer" && request.method === "GET") return json(request, response, await marketObserver.snapshot(user.id, instrument));
       if (url.pathname === "/api/market-observer/analyze" && request.method === "POST") {
         const key = `${user.id}:${instrument}`;

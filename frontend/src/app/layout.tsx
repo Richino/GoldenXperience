@@ -4,6 +4,7 @@ import Script from "next/script";
 import { AppProviders } from "@/components/providers/app-providers";
 import { SPLASH_DEVICES } from "@/lib/pwa/splash-devices";
 import { TEXT_SIZE_STORAGE_KEY } from "@/lib/text-size";
+import splash from "@/components/welcome/welcome-screen.module.css";
 import "./globals.css";
 // The redesign layer must load after globals.css: it wins ties on source order.
 import "./night-ledger.css";
@@ -87,6 +88,16 @@ export default function RootLayout({
             are file conventions Next emits the link tags for, and the Android
             launcher icons are declared in manifest.json. Adding them again here
             only produces duplicate tags that can win over the generated ones. */}
+        {/* First paint of the launch splash: before any app code runs, show the
+            static copy below on a first launch (same key as WelcomeScreen), so
+            the app opens straight onto the splash instead of a blank screen.
+            WelcomeScreen fades its animated copy in on top, then removes the
+            class. Signed-in workspace pages only; login and embeds have none. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var p=location.pathname;if(!/^\\/(?:$|chart|journal|watchlist|settings|risk|signals|research|morning-preview)/.test(p))return;if(location.search.indexOf('splash')<0&&sessionStorage.getItem('gx-launch-screen-v2')==='1')return;document.documentElement.classList.add('gx-boot-splash');}catch(e){}})();`,
+          }}
+        />
       </head>
       <body>
         <Script
@@ -98,6 +109,23 @@ export default function RootLayout({
             ? `if('serviceWorker'in navigator){navigator.serviceWorker.register('/sw.js').catch(function(e){console.info('[PWA] Service worker registration failed:',e);});}`
             : `if('serviceWorker'in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister();});}).catch(function(){});if(window.caches){caches.keys().then(function(ks){ks.forEach(function(k){if(k.indexOf('goldenxperience')===0)caches.delete(k);});}).catch(function(){});}}`}
         </Script>
+        <div id="gx-boot-splash" className={splash.screen} aria-hidden="true">
+          <div className={splash.grid} />
+          <div className={splash.center}>
+            <div className={splash.character}>
+              <div className={splash.orbit}><span /><span /></div>
+              {/* eslint-disable-next-line @next/next/no-img-element -- static first-paint copy, no loader. */}
+              <img src="/splash/gx-mascot-loop.webp" alt="" width={256} height={256} />
+              <span className={splash.spark}>✦</span>
+            </div>
+            <p className={splash.eyebrow}>YOUR TRADING WORKSPACE</p>
+            <h1>Golden<span>X</span>perience<span className={splash.period}>.</span></h1>
+            <p className={splash.tagline}>See the market clearly.</p>
+          </div>
+          <div className={splash.footer}>
+            <div className={splash.pulse}><span /><span /><span /><span /><span /></div>
+          </div>
+        </div>
         <AppProviders>{children}</AppProviders>
       </body>
     </html>

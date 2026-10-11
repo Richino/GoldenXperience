@@ -37,11 +37,17 @@ export function WelcomeScreen() {
         seen = false;
       }
     }
+    // The static first-paint copy (layout.tsx, #gx-boot-splash) stays until
+    // this animated one has faded in on top of it, then steps aside.
+    const releaseBootSplash = () => document.documentElement.classList.remove("gx-boot-splash");
     if (!seen) {
       previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Browser launch mode is unavailable during SSR.
       setOpen(true);
+      const timer = window.setTimeout(releaseBootSplash, 400);
+      return () => window.clearTimeout(timer);
     }
+    releaseBootSplash();
   }, []);
 
   const dismiss = useCallback(() => {

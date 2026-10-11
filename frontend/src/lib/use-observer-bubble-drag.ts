@@ -89,6 +89,11 @@ export function useObserverBubbleDrag(enabled: boolean) {
       event.preventDefault(); event.stopPropagation(); suppressClickUntil.current = 0;
     }
   };
+  const onLostPointerCapture = (event: PointerEvent<HTMLDivElement>) => {
+    // Touch initially captures on the child button. Transferring capture to the
+    // row fires a bubbling loss from that button; the row still owns the drag.
+    if (event.target === event.currentTarget) finish(event);
+  };
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (!(event.target as Element).closest("[data-observer-drag-icon]")) return;
     const direction = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
@@ -137,6 +142,6 @@ export function useObserverBubbleDrag(enabled: boolean) {
   const panelStyle = panel ? { "--scout-panel-left": `${panel.left}px`, "--scout-panel-top": panel.above ? "auto" : `${panel.edge}px`,
     "--scout-panel-bottom": panel.above ? `${window.innerHeight - panel.edge}px` : "auto", "--scout-panel-height": `${panel.height}px` } as CSSProperties : undefined;
   return { setRow, rowStyle: position ? rowStyle(position) : undefined, panelStyle, side: position?.side ?? "right", positioned: !!position, dragging,
-    handlers: { onPointerDown, onLostPointerCapture: finish, onClickCapture, onKeyDown,
+    handlers: { onPointerDown, onLostPointerCapture, onClickCapture, onKeyDown,
       onDragStart: (event: DragEvent<HTMLDivElement>) => event.preventDefault() } };
 }

@@ -10,6 +10,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "observer-chat:test": "tsx scripts/test-observer-conversation.ts && tsx scripts/test-observer-pair-chats.ts",
+    "observer-drag:test": "tsx scripts/test-observer-bubble-drag.ts && tsx scripts/test-observer-bubble-position.ts",
     "generate:icons": "node scripts/generate-icons.mjs",
     "oanda:test": "tsx scripts/test-oanda.ts",
     "account-summary:test": "tsx scripts/test-account-summary.ts",

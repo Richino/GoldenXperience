@@ -8414,7 +8414,15 @@ html.dark .gx-fs {
   /* Clear the notch and the home indicator; the candles still run edge to edge. */
   padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
   box-sizing: border-box;
+  /* Its own stacking layer: the chart's touch rails (price-scale rail is
+     z-index 5) must stay under the floating controls, or they eat their taps. */
+  z-index: 0;
+  isolation: isolate;
 }
+/* A finger-sized hit area around the small exit button. */
+.gx-fs-exit { position: relative; touch-action: manipulation; }
+.gx-fs-exit::after { content: ""; position: absolute; inset: -8px; }
+.gx-fs-corner, .gx-fs-pair, .gx-fs-dock { touch-action: manipulation; }
 
 .gx-fs-pair-modal {
   width: min(440px, calc(100vw - 32px));

@@ -3385,7 +3385,7 @@ html.mobile-sheet-open body {
   transition: none;
 }
 
-/* The mobile chart owns all touch gestures (see useChartTouchGestures), so the
+/* The chart owns touch gestures at every screen size (useChartTouchGestures), so the
    browser must not also pan, zoom, pull-to-refresh or back-navigate from a
    touch that starts on it. Scoped to the chart surface only. */
 .setup-chart-touch {

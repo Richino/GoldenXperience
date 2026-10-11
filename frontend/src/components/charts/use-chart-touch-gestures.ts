@@ -5,12 +5,14 @@ import type {
   IChartApi,
   Logical,
 } from "lightweight-charts";
+import { CrosshairMode } from "lightweight-charts";
 
 /**
- * A self-contained touch/gesture layer for the mobile (`embedded`) chart. It
+ * A self-contained touch/gesture layer for every chart layout. It
  * owns finger input and drives Lightweight Charts through its native APIs only
  * — `timeScale().setVisibleLogicalRange` — never DOM-pixel manipulation. Desktop mouse,
- * wheel, axis drag and crosshair are left to the library untouched.
+ * axis drag and mouse crosshair remain available. Trackpad pinch is handled
+ * here before the browser or chart library can consume the same wheel event.
  *
  * Gestures:
  *   1 finger  → free pan through both history and price, with restrained
@@ -104,6 +106,7 @@ export function useChartTouchGestures({
     let lastMoveX = 0;
     let lastMoveY = 0;
     let lastMoveT = 0;
+    let mousePanY: number | null = null;
 
     // --- two-finger baseline, captured when the second finger lands ---
     let baseDistance = 0;
@@ -161,6 +164,7 @@ export function useChartTouchGestures({
 
     function shiftPriceByPixels(dyPx: number) {
       if (disposed) return false;
+      if (!dyPx) return true;
       try {
         const priceScale = chart.priceScale("right");
         const range = priceScale.getVisibleRange();
@@ -316,7 +320,17 @@ export function useChartTouchGestures({
 
     // --- pointer handlers ---
     function onPointerDown(event: PointerEvent) {
-      if (event.pointerType === "mouse") return;
+      if (event.pointerType === "mouse") {
+        const rect = container.getBoundingClientRect();
+        // Keep price/time-axis drags with the library; free-pan only the plot.
+        mousePanY = event.button === 0 &&
+          event.clientX - rect.left < width() &&
+          event.clientY - rect.top < height() ? event.clientY : null;
+        stopInertia();
+        return;
+      }
+      chart.applyOptions({ crosshair: { mode: CrosshairMode.Hidden } });
+      chart.clearCrosshairPosition();
       stopInertia();
       if (pointers.size === 0) {
         const rect = container.getBoundingClientRect();
@@ -341,7 +355,16 @@ export function useChartTouchGestures({
     }
 
     function onPointerMove(event: PointerEvent) {
-      if (event.pointerType === "mouse") return;
+      if (event.pointerType === "mouse") {
+        if (mousePanY !== null && (event.buttons & 1)) {
+          shiftPriceByPixels(event.clientY - mousePanY);
+          mousePanY = event.clientY;
+          onViewChangeRef.current?.();
+        } else {
+          mousePanY = null;
+        }
+        return;
+      }
       if (!pointers.has(event.pointerId)) return;
       const point = relativePoint(event);
       pointers.set(event.pointerId, point);
@@ -362,7 +385,10 @@ export function useChartTouchGestures({
     }
 
     function endPointer(event: PointerEvent) {
-      if (event.pointerType === "mouse") return;
+      if (event.pointerType === "mouse") {
+        mousePanY = null;
+        return;
+      }
       if (!pointers.has(event.pointerId)) return;
       pointers.delete(event.pointerId);
       try {
@@ -381,6 +407,48 @@ export function useChartTouchGestures({
       }
     }
 
+    // Stop the library's long-press tracking mode from taking over a finger pan.
+    // Pointer events above still reach our controller; mouse events stay native.
+    function ownTouch(event: TouchEvent) {
+      event.stopPropagation();
+    }
+
+    function onWheel(event: WheelEvent) {
+      if (!event.ctrlKey && !event.deltaX) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      stopInertia();
+      if (event.ctrlKey) {
+        // Windows precision-trackpad pinch arrives as Ctrl+wheel. Zoom candles
+        // around the cursor instead of changing the browser's page scale.
+        const timeScale = chart.timeScale();
+        const range = timeScale.getVisibleLogicalRange();
+        if (!range) return;
+        const plotWidth = width();
+        const x = clamp(event.clientX - container.getBoundingClientRect().left, 0, plotWidth);
+        const fraction = x / plotWidth;
+        const bars = range.to - range.from;
+        if (bars <= 0) return;
+        const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? height() : 1);
+        const spacing = clamp(plotWidth / bars * Math.exp(-clamp(delta, -100, 100) * 0.01), MIN_BAR_SPACING, MAX_BAR_SPACING);
+        const newBars = plotWidth / spacing;
+        const anchor = timeScale.coordinateToLogical(x) ?? range.from + fraction * bars;
+        const from = anchor - fraction * newBars;
+        timeScale.setVisibleLogicalRange({ from: from as Logical, to: (from + newBars) as Logical });
+      } else {
+        // Two-dimensional trackpad scroll pans the chart in both directions.
+        const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? height() : 1;
+        shiftTimeByPixels(-event.deltaX * unit);
+        shiftPriceByPixels(-event.deltaY * unit);
+      }
+      onViewChangeRef.current?.();
+    }
+
+    container.addEventListener("touchstart", ownTouch, { capture: true, passive: true });
+    container.addEventListener("touchmove", ownTouch, { capture: true, passive: true });
+    container.addEventListener("touchend", ownTouch, { capture: true, passive: true });
+    container.addEventListener("touchcancel", ownTouch, { capture: true, passive: true });
+    container.addEventListener("wheel", onWheel, { capture: true, passive: false });
     container.addEventListener("pointerdown", onPointerDown);
     container.addEventListener("pointermove", onPointerMove);
     container.addEventListener("pointerup", endPointer);
@@ -388,6 +456,11 @@ export function useChartTouchGestures({
 
     return () => {
       disposed = true;
+      container.removeEventListener("touchstart", ownTouch, true);
+      container.removeEventListener("touchmove", ownTouch, true);
+      container.removeEventListener("touchend", ownTouch, true);
+      container.removeEventListener("touchcancel", ownTouch, true);
+      container.removeEventListener("wheel", onWheel, true);
       container.removeEventListener("pointerdown", onPointerDown);
       container.removeEventListener("pointermove", onPointerMove);
       container.removeEventListener("pointerup", endPointer);

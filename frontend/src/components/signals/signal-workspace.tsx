@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useTheme } from "next-themes";
 import {
@@ -1251,6 +1251,33 @@ function useDesktopChartViewport() {
   );
 }
 
+function FullscreenPairModal({ onClose, children }: { onClose: () => void; children: ReactNode }) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    dialog?.showModal();
+    return () => dialog?.close();
+  }, []);
+
+  return createPortal(
+    <dialog ref={dialogRef} className="gx-fs-pair-modal" aria-labelledby="gx-fs-pair-modal-title"
+      onCancel={(event) => { event.preventDefault(); onClose(); }}
+      onClick={(event) => {
+        if (event.target !== event.currentTarget) return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) onClose();
+      }}>
+      <header>
+        <h2 id="gx-fs-pair-modal-title">Select pair</h2>
+        <button type="button" className="signals-icon-btn pressable" aria-label="Close pair picker" onClick={onClose}>
+          <X className="size-4" strokeWidth={2} />
+        </button>
+      </header>
+      {children}
+    </dialog>, document.body,
+  );
+}
+
 function SignalSearch({
   signals,
   activeInstrument,
@@ -1260,6 +1287,7 @@ function SignalSearch({
   onSelect,
   className = "",
   compact = false,
+  modal = false,
   pairLabel,
 }: {
   signals: TradeSignal[];
@@ -1271,6 +1299,7 @@ function SignalSearch({
   onSelect: (result: SearchResult) => void;
   className?: string;
   compact?: boolean;
+  modal?: boolean;
   pairLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -1324,7 +1353,7 @@ function SignalSearch({
     open && compact,
   );
   const showResults = open;
-  const useDesktopDropdown = compact && isDesktop;
+  const useDesktopDropdown = compact && isDesktop && !modal;
 
   useEffect(() => {
     if (!open) return;
@@ -1502,7 +1531,7 @@ function SignalSearch({
             type="button"
             aria-label="Search pairs"
             aria-expanded={open}
-            aria-haspopup={useDesktopDropdown ? "listbox" : undefined}
+            aria-haspopup={modal ? "dialog" : useDesktopDropdown ? "listbox" : undefined}
             onClick={() => setOpen((current) => {
               if (current) onQueryChange("");
               return !current;
@@ -1530,7 +1559,9 @@ function SignalSearch({
             )
           : null}
 
-        {!useDesktopDropdown ? (
+        {modal && open ? <FullscreenPairModal onClose={closePicker}>{pairList}</FullscreenPairModal> : null}
+
+        {!useDesktopDropdown && !modal ? (
           <MobileSheet
             open={open}
             onClose={closePicker}
@@ -1722,6 +1753,186 @@ function FullscreenToggle({
     >
       <Icon className="size-3.5" strokeWidth={2} />
     </button>
+  );
+}
+
+/**
+ * Fullscreen chart, as the "Chart fullscreen" artboards: the candles cover the
+ * whole screen and everything else floats over them. Portalled to <body> so no
+ * transformed ancestor (PageTransition) can box it in, and where the browser
+ * allows it the Fullscreen API hides the browser chrome too. iOS refuses that
+ * API outside <video>, so there the layer simply covers the viewport.
+ */
+function ChartFullscreenView({
+  onExit,
+  chart,
+  instrument,
+  pair,
+  pairSelector,
+  actions,
+  caption,
+  price,
+  changeLabel,
+  positive,
+  position,
+  timeframe,
+  onTimeframe,
+  tools,
+  closeAction,
+  lockHud,
+}: {
+  onExit: () => void;
+  chart: (height: number) => ReactNode;
+  instrument: string;
+  pair: string;
+  pairSelector: ReactNode;
+  actions: ReactNode;
+  caption: string;
+  price: string;
+  changeLabel: string;
+  positive: boolean;
+  position: { label: string; r: number | null } | null;
+  timeframe: ChartTimeframe;
+  onTimeframe: (value: ChartTimeframe) => void;
+  tools: ReactNode;
+  closeAction: ReactNode;
+  /** Keep the controls up while a stop/target drag or position tool is live. */
+  lockHud: boolean;
+}) {
+  const shellRef = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState(0);
+  const [hud, setHud] = useState(true);
+  const press = useRef<{ x: number; y: number; at: number } | null>(null);
+  const exitRef = useRef(onExit);
+  useEffect(() => {
+    exitRef.current = onExit;
+  }, [onExit]);
+
+  useEffect(() => {
+    const shell = shellRef.current;
+    if (!shell) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const measured = Math.round(entry?.contentRect.height ?? 0);
+      if (measured > 0) setHeight(measured);
+    });
+    observer.observe(shell);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    let entered = false;
+    const onChange = () => {
+      if (document.fullscreenElement) {
+        entered = true;
+      } else if (entered) {
+        // Esc (or the system gesture) left browser fullscreen: leave ours too.
+        exitRef.current();
+      }
+    };
+    document.addEventListener("fullscreenchange", onChange);
+    if (root.requestFullscreen && !document.fullscreenElement) {
+      root.requestFullscreen({ navigationUI: "hide" }).then(() => {
+        if (window.matchMedia("(pointer: coarse)").matches) {
+          const orientation = screen.orientation as ScreenOrientation & { lock?: (value: string) => Promise<void> };
+          orientation.lock?.("landscape").catch(() => {});
+        }
+      }, () => {});
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !document.fullscreenElement) exitRef.current();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("fullscreenchange", onChange);
+      document.removeEventListener("keydown", onKey);
+      try {
+        screen.orientation?.unlock?.();
+      } catch {
+        // Not supported: nothing was locked.
+      }
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    };
+  }, []);
+
+  const showHud = hud || lockHud;
+
+  return createPortal(
+    <div className={`gx-fs${showHud ? "" : " is-bare"}`} role="dialog" aria-modal="true" aria-label={`${pair} chart, fullscreen`}>
+      <div
+        ref={shellRef}
+        className="gx-fs-chart"
+        onPointerDownCapture={(event) => {
+          press.current = { x: event.clientX, y: event.clientY, at: event.timeStamp };
+        }}
+        onPointerUpCapture={(event) => {
+          const start = press.current;
+          press.current = null;
+          if (!start || lockHud) return;
+          // A tap, not a pan or a pinch: show or hide the controls.
+          const moved = Math.hypot(event.clientX - start.x, event.clientY - start.y);
+          if (moved < 6 && event.timeStamp - start.at < 350) setHud((open) => !open);
+        }}
+      >
+        {height > 0 ? chart(height) : null}
+      </div>
+
+      <div className="gx-fs-pair" aria-hidden={!showHud}>
+        <PairAvatar instrument={instrument} size={30} horizontal />
+        <span className="gx-fs-pair-name">
+          {pairSelector}
+          <small>{caption}</small>
+        </span>
+        <span className="gx-fs-rule" aria-hidden="true" />
+        <span className="gx-fs-quote">
+          <strong className="metric-number">{price}</strong>
+          <small className={`metric-number ${positive ? "is-up" : "is-down"}`}>{changeLabel}</small>
+        </span>
+        {position ? (
+          <>
+            <span className="gx-fs-rule gx-fs-wide" aria-hidden="true" />
+            <span className={`gx-fs-position metric-number${position.r !== null && position.r < 0 ? " is-down" : ""}`}>
+              {position.label}
+              {position.r !== null ? ` · ${position.r >= 0 ? "+" : "−"}${Math.abs(position.r).toFixed(2)}R` : ""}
+            </span>
+          </>
+        ) : null}
+      </div>
+
+      <div className="gx-fs-corner" aria-hidden={!showHud}>
+        {actions}
+        <button type="button" className="gx-fs-exit pressable" onClick={onExit} aria-label="Exit fullscreen chart">
+          <Minimize aria-hidden="true" />
+        </button>
+      </div>
+
+      <div className="gx-fs-dock" role="toolbar" aria-label="Chart controls" aria-hidden={!showHud}>
+        <div className="gx-fs-tfs" role="group" aria-label="Timeframe">
+          {CHART_TIMEFRAMES.map((value) => (
+            <button
+              key={value}
+              type="button"
+              className={`gx-fs-tf pressable${value === timeframe ? " is-active" : ""}`}
+              aria-pressed={value === timeframe}
+              onClick={() => onTimeframe(value)}
+            >
+              {CHART_TIMEFRAME_LABELS[value]}
+            </button>
+          ))}
+        </div>
+        <span className="gx-fs-rule" aria-hidden="true" />
+        {tools}
+        {closeAction ? (
+          <>
+            <span className="gx-fs-rule" aria-hidden="true" />
+            {closeAction}
+          </>
+        ) : null}
+      </div>
+
+      <span className="gx-fs-hint" aria-hidden={showHud}>Tap the chart to show controls</span>
+    </div>,
+    document.body,
   );
 }
 
@@ -2338,6 +2549,7 @@ export function SignalWorkspace({
   const [mobileChartHeight, setMobileChartHeight] = useState(320);
   const [desktopChartHeight, setDesktopChartHeight] = useState(DESKTOP_CHART_HEIGHT);
   const [fullscreen, setFullscreen] = useState(false);
+  const exitFullscreen = useCallback(() => setFullscreen(false), []);
   const mobileChartShellRef = useRef<HTMLDivElement>(null);
   const desktopChartShellRef = useRef<HTMLDivElement>(null);
   const [paperTrades, setPaperTrades] = useState<PaperChartTrade[]>(initialPaperTrades);
@@ -4293,6 +4505,15 @@ export function SignalWorkspace({
 
   const sessionLabel = marketSessionCaption();
   const wideChart = chartDesktopViewport === true;
+  // The open trade's side and live R for the fullscreen pair card.
+  const fullscreenPosition = (() => {
+    if (!healthSignal) return null;
+    const risk = healthSignal.stop === null ? 0 : healthSignal.entry - healthSignal.stop;
+    const r = risk !== 0 && Number.isFinite(priceStats.displayPrice)
+      ? (priceStats.displayPrice - healthSignal.entry) / risk
+      : null;
+    return { label: healthSignal.direction === "long" ? "Long" : "Short", r };
+  })();
   const mobileTradeAction = manualTradeMode === "close"
     ? {
         label: tradeActionBusy ? "Closing…" : "Close Trade",
@@ -4415,11 +4636,9 @@ export function SignalWorkspace({
   }
 
   return (
-    <div
-      className={`signals-view signals-minimal grid w-full gap-5${
-        fullscreen ? " signals-view-fullscreen" : ""
-      }`}
-    >
+    // Fullscreen is its own layer (ChartFullscreenView below); the workspace
+    // stays as it is underneath.
+    <div className="signals-view signals-minimal grid w-full gap-5">
       <div className="signals-chart-slot min-w-0">
         <section className="app-card signals-chart-card min-w-0 w-full">
         {!wideChart ? <div className="signals-chart-mobile lg:hidden">
@@ -4892,6 +5111,102 @@ export function SignalWorkspace({
           onReview={reviewTrendPullback}
         />
       )}
+
+      {fullscreen ? (
+        <ChartFullscreenView
+          onExit={exitFullscreen}
+          instrument={instrument}
+          pair={activePair}
+          pairSelector={
+            <SignalSearch
+              compact
+              pairLabel={activePair}
+              signals={signals}
+              activeInstrument={instrument}
+              tradingInstruments={tradingInstruments}
+              query={searchQuery}
+              onQueryChange={setSearchQuery}
+              onSelect={selectSearchResult}
+              className="gx-fs-pair-search"
+              modal
+            />
+          }
+          actions={
+            <>
+              <button type="button" className="gx-fs-action is-analyze pressable" onClick={() => void runTrendPullback()} disabled={chartAnalysisBusy || replayActive}>
+                {chartAnalysisBusy ? "Updating…" : chartPairMonitored ? "Manage analysis" : "Analyze market"}
+              </button>
+              <button type="button" className="gx-fs-action pressable" onClick={() => {
+                setEntryDraftProposal(null);
+                openPendingEntryManager(null);
+              }} disabled={replayActive || !mobileTradeActionReady || hasActivePosition} title={hasActivePosition ? "Close this pair’s active position before creating another entry" : "Create a new entry"}>
+                New entry
+              </button>
+            </>
+          }
+          caption={`${CHART_TIMEFRAME_LABELS[timeframe]} · ${sessionLabel.replace(/ session$/, "")}`}
+          price={formatChartPrice(priceStats.displayPrice, instrument)}
+          changeLabel={`${priceStats.positive ? "+" : "−"}${Math.abs(priceStats.changePercent).toFixed(2)}%`}
+          positive={priceStats.positive}
+          position={fullscreenPosition}
+          timeframe={timeframe}
+          onTimeframe={selectTimeframe}
+          lockHud={levelEdit !== null || positionTool !== null}
+          tools={
+            <>
+              <ChartTypeSelect toolbar value={chartVariant} onChange={setChartVariant} />
+              <IndicatorSelect toolbar enabled={enabledIndicators} onChange={setEnabledIndicators} />
+              <ResetViewButton
+                className="gx-fs-icon"
+                onReset={() => setScrollToLatestRevision((revision) => revision + 1)}
+              />
+            </>
+          }
+          closeAction={
+            !replayActive && manualTradeMode === "close" ? (
+              <button type="button" className="gx-fs-close pressable" onClick={() => setTradeConfirm("close")} disabled={tradeActionBusy}>
+                {tradeActionBusy ? "Closing…" : "Close trade"}
+              </button>
+            ) : !replayActive && manualTradeMode === "cancel" ? (
+              <button type="button" className="gx-fs-close pressable" onClick={() => setTradeConfirm("cancel")} disabled={tradeActionBusy}>
+                {tradeActionBusy ? "Cancelling…" : "Cancel order"}
+              </button>
+            ) : null
+          }
+          chart={(height) => (
+            <SetupChart
+              key={`fullscreen-chart:${instrument}:${timeframe}:${range}`}
+              series={replaySeries}
+              levels={!replayActive && overlayPreferences.levels ? setupLevels : null}
+              enabledIndicators={enabledIndicators}
+              liveCandle={replayActive ? null : liveCandle}
+              variant={chartVariant}
+              range={range}
+              height={height}
+              spreadPips={spreadPips}
+              scrollToLatestRevision={scrollToLatestRevision}
+              preserveViewportRevision={preserveViewportRevision}
+              loadingOlder={loadingOlder}
+              onLoadOlder={loadOlderCandles}
+              trades={replayActive ? [] : chartTrades}
+              showTradeMarkers={!replayActive && overlayPreferences.signalMarkers}
+              showTradePath={!replayActive && overlayPreferences.positionMarkers}
+              focusTradeId={replayActive ? null : chartFocusId}
+              focusPrediction={replayActive ? null : focusedPrediction}
+              focusRange={replayActive ? null : focusRange}
+              referenceLine={replayActive ? null : predictionReferenceLine}
+              referenceLines={chartReferenceLines}
+              patternLines={chartPatternLines}
+              boxes={chartBoxes}
+              positionTool={replayActive ? null : positionTool}
+              onPositionToolChange={setPositionTool}
+              onPositionToolSubmit={submitPositionTool}
+              levelEdit={replayActive ? null : levelEdit}
+              onLevelEditChange={onLevelEditChange}
+            />
+          )}
+        />
+      ) : null}
 
       <TradeConfirmDialog
         mode={tradeConfirm}

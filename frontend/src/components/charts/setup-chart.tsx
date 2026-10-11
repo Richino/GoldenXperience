@@ -1863,32 +1863,21 @@ export function SetupChart({
       ...chartTheme(isDark, embedded),
       width: container.clientWidth,
       height: chartHeightRef.current,
-      handleScroll: embedded
-        ? {
-            // The mobile chart runs its own touch gesture layer
-            // (`useChartTouchGestures`), so the library's touch panning is off;
-            // mouse scrolling stays on for touch-laptop edge cases.
-            mouseWheel: true,
-            pressedMouseMove: true,
-            horzTouchDrag: false,
-            vertTouchDrag: false,
-          }
-        : {
-            mouseWheel: true,
-            pressedMouseMove: true,
-            horzTouchDrag: true,
-            // Flipped on per gesture for drags that start on the price axis, so
-            // the page still scrolls when a finger drags across the candles.
-            vertTouchDrag: false,
-          },
+      // Finger gestures use the same free-pan controller on every layout.
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: false,
+        vertTouchDrag: false,
+      },
       handleScale: {
         axisPressedMouseMove: { time: true, price: true },
         axisDoubleClickReset: { time: true, price: true },
         mouseWheel: true,
-        // Mobile owns two-finger X-axis scaling in the gesture hook, anchored
+        // The gesture hook owns two-finger X-axis scaling, anchored
         // under the pinch midpoint. Disable the library gesture to avoid both
         // handlers changing the viewport at once.
-        pinch: !embedded,
+        pinch: false,
       },
     });
 
@@ -2230,48 +2219,6 @@ export function SetupChart({
     };
     chart.timeScale().subscribeVisibleLogicalRangeChange(handleVisibleRangeChange);
 
-    // Lightweight Charts gates price-axis touch scaling on the same
-    // `vertTouchDrag` flag that decides whether a vertical drag anywhere on the
-    // chart swallows the page scroll. The page has to keep scrolling, so the
-    // flag is turned on only while a gesture that began on the axis is running.
-    // The flag is read during touchmove, so setting it on touchstart is in time.
-    const enableAxisDragIfOnAxis = (event: TouchEvent) => {
-      // Two fingers is a pinch/scale gesture the chart handles natively. Arming
-      // the price-axis vertical drag underneath it makes the pinch fight a
-      // simultaneous price rescale, so the axis drag is only ever armed for a
-      // single finger and is released the moment a second one lands.
-      if (event.touches.length !== 1) {
-        chart.applyOptions({ handleScroll: { vertTouchDrag: false } });
-        return;
-      }
-
-      const touch = event.touches[0];
-      if (!touch) return;
-
-      const onAxis =
-        touch.clientX >=
-        container.getBoundingClientRect().right -
-          chart.priceScale("right").width();
-
-      chart.applyOptions({ handleScroll: { vertTouchDrag: onAxis } });
-    };
-    const disableAxisDrag = () => {
-      chart.applyOptions({ handleScroll: { vertTouchDrag: false } });
-    };
-
-    // Desktop / touch-laptop only: on mobile the gesture hook handles price
-    // scaling, so this axis-drag arming is skipped there.
-    if (!embedded) {
-      container.addEventListener("touchstart", enableAxisDragIfOnAxis, {
-        capture: true,
-        passive: true,
-      });
-      container.addEventListener("touchend", disableAxisDrag, { capture: true });
-      container.addEventListener("touchcancel", disableAxisDrag, {
-        capture: true,
-      });
-    }
-
     const resizeObserver = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (!entry) return;
@@ -2318,15 +2265,6 @@ export function SetupChart({
       chart
         .timeScale()
         .unsubscribeVisibleLogicalRangeChange(handleVisibleRangeChange);
-      container.removeEventListener("touchstart", enableAxisDragIfOnAxis, {
-        capture: true,
-      });
-      container.removeEventListener("touchend", disableAxisDrag, {
-        capture: true,
-      });
-      container.removeEventListener("touchcancel", disableAxisDrag, {
-        capture: true,
-      });
       resizeObserver.disconnect();
       chart.remove();
     };
@@ -3044,6 +2982,10 @@ export function SetupChart({
     if (!container || !chart) return;
 
     const syncCrosshair = (event: PointerEvent) => {
+      if (event.pointerType !== "mouse") return;
+      if (chart.options().crosshair.mode !== CrosshairMode.Normal) {
+        chart.applyOptions({ crosshair: { mode: CrosshairMode.Normal } });
+      }
       const series = liveSeries(mainSeriesRef.current);
       if (!series) return;
       const rect = container.getBoundingClientRect();
@@ -3071,12 +3013,12 @@ export function SetupChart({
     };
   }, [chartEpoch, embedded]);
 
-  // Mobile supports history panning and X-axis pinch scaling. Desktop input is
-  // untouched. Re-binds to the freshly built chart via `chartEpoch`.
+  // Touchscreen and trackpad gestures work at every viewport size.
+  // Re-binds to the freshly built chart via `chartEpoch`.
   useChartTouchGestures({
     containerRef,
     chartRef,
-    enabled: embedded,
+    enabled: true,
     epoch: chartEpoch,
     onViewChange: () => paintLastPriceRef.current(),
   });
@@ -3126,9 +3068,9 @@ export function SetupChart({
     >
       <div
         ref={containerRef}
-        className={`w-full overflow-visible ${
+        className={`setup-chart-touch w-full overflow-visible ${
           embedded
-            ? "setup-chart-touch bg-[color:var(--signals-mobile-page-bg)] dark:bg-[#0b0b0d] lg:bg-[color:var(--background)]"
+            ? "bg-[color:var(--signals-mobile-page-bg)] dark:bg-[#0b0b0d] lg:bg-[color:var(--background)]"
             : "bg-transparent"
         }`}
         style={{ height: chartHeight }}

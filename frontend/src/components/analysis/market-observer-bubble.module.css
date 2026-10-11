@@ -1,4 +1,5 @@
 .scout { --scout-ink: var(--on-accent); position: fixed; z-index: 45; right: 20px; bottom: 24px; width: min(360px, calc(100vw - 32px)); color: var(--foreground); font-size: 12px; }
+:global(.signals-fullscreen-active) .scout { z-index: 65; }
 .bubbleRow { position: relative; }
 .bubble { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 24px 12px 10px; border: 1px solid var(--border-strong); border-radius: 20px; background: var(--surface-raised); color: inherit; box-shadow: 0 6px 24px rgba(0, 0, 0, .14); text-align: left; cursor: pointer; }
 .bubble > span { flex: 1; min-width: 0; }

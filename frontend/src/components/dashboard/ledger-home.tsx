@@ -29,7 +29,7 @@ import { TopPairSearch } from "@/components/layout/top-pair-search";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { ServiceNotice } from "@/components/ui/service-notice";
 import { formatChartPrice } from "@/lib/chart-utils";
-import { formatEtClock, formatShortDay, tradingDayKey } from "@/lib/format/datetime";
+import { formatClockTime, formatShortDay, tradingDayKey } from "@/lib/format/datetime";
 import type { HomeActivityItem } from "@/lib/home/idle";
 import { displayNameFor } from "@/lib/instruments/catalog";
 import { homeCalendarEmptyMessage, homeCalendarImpactTier, homeCalendarRows } from "@/lib/news/home-calendar";
@@ -180,7 +180,7 @@ function useMarketSession() {
     : condition.label === "London / New York"
       ? "London + New York open"
       : `${condition.label} open`;
-  return { open: condition.marketOpen, label, clock: formatEtClock(now) };
+  return { open: condition.marketOpen, label, clock: `${formatClockTime(now)} ET` };
 }
 
 /* ------------------------------------------------------------- icons */
@@ -279,7 +279,6 @@ function LedgerHero({
       </div>
 
       <div className="nl-hero-copy">
-        <span className="nl-overline">Total equity</span>
         <h1 ref={balanceRef} className="nl-hero-balance">
           {dollars}
           <span className="nl-hero-cents">{cents}</span>
@@ -770,7 +769,6 @@ export function LedgerHome({
         ) : (
           <section className="nl-hero" aria-label="Account overview">
             <div className="nl-hero-copy">
-              <span className="nl-overline">Total equity</span>
               <h1 className="nl-home-hello">Balance unavailable</h1>
             </div>
           </section>

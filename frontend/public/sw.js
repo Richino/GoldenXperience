@@ -1,7 +1,9 @@
-const CACHE_NAME = 'goldenxperience-v3';
+const CACHE_NAME = 'goldenxperience-v4';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
+  // The launch splash's animated mascot, so it is ready the moment the app opens.
+  '/splash/gx-mascot-loop.webp',
 ];
 
 self.addEventListener('install', (event) => {
@@ -40,6 +42,9 @@ self.addEventListener('fetch', (event) => {
 
   if (url.pathname.startsWith('/api/')) {
     return;
+  } else if (url.pathname === '/splash/gx-mascot-loop.webp') {
+    // The launch splash needs it instantly; it changes only with CACHE_NAME.
+    event.respondWith(cacheFirst(request));
   } else if (
     url.pathname.match(/\.(js|css|woff2?|png|jpg|jpeg|svg|ico)$/i) ||
     url.pathname === '/' ||
@@ -75,6 +80,17 @@ self.addEventListener('notificationclick', (event) => {
     await clients.openWindow(targetUrl);
   })());
 });
+
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+  const response = await fetch(request);
+  if (response.ok) {
+    const cache = await caches.open(CACHE_NAME);
+    cache.put(request, response.clone());
+  }
+  return response;
+}
 
 async function networkFirst(request) {
   try {

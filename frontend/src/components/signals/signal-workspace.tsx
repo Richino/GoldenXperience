@@ -17,7 +17,6 @@ import {
   Minimize,
   RotateCcw,
   Search,
-  SlidersHorizontal,
   X,
 } from "lucide-react";
 import { AnalyzeIcon } from "@/components/icons/analyze-icon";
@@ -4443,7 +4442,6 @@ export function SignalWorkspace({
               </div>
               <div className="signals-mobile-header-actions nl-mhead-actions">
                 <button type="button" className="nl-analyze nl-analyze-sm pressable" onClick={() => void runTrendPullback()} disabled={chartAnalysisBusy || replayActive} title={chartPairMonitored ? `Manage analysis for ${activePair}` : "Analyze the market and monitor its conditions"}>
-                  {chartPairMonitored ? <SlidersHorizontal className="size-4" /> : <AnalyzeIcon className="size-4" />}
                   {chartAnalysisBusy ? "Updating…" : chartPairMonitored ? "Manage" : "Analyze"}
                 </button>
                 <NotificationBell compact className="signals-icon-btn signals-fullscreen-reserve nl-mbell" />

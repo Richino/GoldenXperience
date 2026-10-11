@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getMarketCondition, localMinutes, NEW_YORK_TIME_ZONE } from "@/lib/strategy/session";
+import { formatClockTime } from "@/lib/format/datetime";
 
 /**
  * A 24-hour Eastern Time ruler with the three trading sessions as lanes and a
@@ -17,7 +18,7 @@ const LANES: Array<{ label: string; spans: Array<[number, number]>; tone: string
 
 function readNow() {
   const now = new Date();
-  return { minutes: localMinutes(now, NEW_YORK_TIME_ZONE), condition: getMarketCondition(now) };
+  return { minutes: localMinutes(now, NEW_YORK_TIME_ZONE), condition: getMarketCondition(now), clock: `${formatClockTime(now)} ET` };
 }
 
 export function SessionStrip() {
@@ -38,9 +39,7 @@ export function SessionStrip() {
       : state.condition.label === "London / New York"
         ? "London + New York overlap"
         : `${state.condition.label} session`;
-  const clock = state
-    ? `${String(Math.floor(state.minutes / 60)).padStart(2, "0")}:${String(state.minutes % 60).padStart(2, "0")} ET`
-    : "— ET";
+  const clock = state?.clock ?? "— ET";
 
   return (
     <section className="nl-session-strip" aria-label={`Trading sessions, Eastern Time. ${headline}.`}>

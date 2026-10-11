@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { ChevronRight, LogOut, Play, Volume1, Volume2, VolumeX } from "lucide-react";
@@ -9,6 +9,7 @@ import { MobileSheet } from "@/components/ui/mobile-sheet";
 import { apiUrl } from "@/lib/api/url";
 import { RiskWorkspace, type PaperRiskPolicy } from "@/components/risk/risk-workspace";
 import { useTextSize } from "@/components/providers/text-size-provider";
+import { playNotificationSound } from "@/lib/notifications/play";
 import { DEFAULT_NOTIFICATION_VOLUME, NOTIFICATION_SOUND_KEY, NOTIFICATION_VOLUME_KEY, notificationSounds, notificationVolume, type NotificationSound } from "@/lib/notifications/sounds";
 import { currentPushStatus, subscribeThisDeviceToPush, type PushUiStatus } from "@/lib/notifications/push";
 import { useNotificationContext } from "@/components/notifications/notification-provider";
@@ -110,7 +111,6 @@ export function SettingsPanel({
   const [pushBusy, setPushBusy] = useState(false);
   const [pushError, setPushError] = useState<string | null>(null);
   const { previewToast } = useNotificationContext();
-  const notificationAudio = useRef<HTMLAudioElement | null>(null);
   const [activeSection, setActiveSection] = useState<string>(SECTIONS[0].id);
 
   useEffect(() => {
@@ -171,11 +171,9 @@ export function SettingsPanel({
 
   function playSound(value: NotificationSound) {
     const selected = notificationSounds.find((sound) => sound.value === value);
-    if (!selected || !notificationAudio.current) return;
-    notificationAudio.current.src = selected.path;
-    notificationAudio.current.volume = notificationVolume(String(notificationVolumePercent));
-    notificationAudio.current.currentTime = 0;
-    void notificationAudio.current.play().catch(() => undefined);
+    if (!selected) return;
+    // Mixed with other audio, so previewing a sound never pauses music.
+    void playNotificationSound(selected.path, notificationVolume(String(notificationVolumePercent)));
   }
 
   async function signOut() {
@@ -408,6 +406,14 @@ export function SettingsPanel({
                 <span className="nl-st-mrow-end">{pushBusy ? "Enabling…" : pushDetail(pushStatus, pushError)}</span>
               </div>
             )}
+            {/* Hear the chosen sound at the current volume without opening the picker. */}
+            <button type="button" className="nl-st-mrow pressable" onClick={() => playSound(notificationSound)} aria-label={`Play ${soundLabel}`}>
+              <span>Play sound</span>
+              <span className="nl-st-mrow-end is-accent nl-st-mplay">
+                <Play aria-hidden="true" />
+                Play
+              </span>
+            </button>
           </section>
 
           <section className="nl-st-mcard nl-st-phone" aria-labelledby="nl-st-mapp-title">
@@ -441,7 +447,6 @@ export function SettingsPanel({
         </div>
       </div>
 
-      <audio ref={notificationAudio} preload="none" aria-hidden="true" />
 
       <PhoneSettingsPicker
         open={phonePicker === "theme"}

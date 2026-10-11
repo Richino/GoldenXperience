@@ -114,8 +114,9 @@ export default function RootLayout({
           <div className={splash.center}>
             <div className={splash.character}>
               <div className={splash.orbit}><span /><span /></div>
-              {/* eslint-disable-next-line @next/next/no-img-element -- static first-paint copy, no loader. */}
-              <img src="/splash/gx-mascot-loop.webp" alt="" width={256} height={256} />
+              {/* The mascot's first frame is embedded in night-ledger.css, so it is
+                  in the very first paint, like the iOS launch image. */}
+              <span className="gx-boot-mascot" />
               <span className={splash.spark}>✦</span>
             </div>
             <p className={splash.eyebrow}>YOUR TRADING WORKSPACE</p>

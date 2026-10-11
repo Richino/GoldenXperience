@@ -44,8 +44,17 @@ export function WelcomeScreen() {
       previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Browser launch mode is unavailable during SSR.
       setOpen(true);
-      const timer = window.setTimeout(releaseBootSplash, 400);
-      return () => window.clearTimeout(timer);
+      // Hand over only once the animated mascot is decoded (after the 300ms
+      // fade-in), so there is never a frame without it; never later than 1.5s.
+      let released = false;
+      const release = () => { if (!released) { released = true; releaseBootSplash(); } };
+      const cap = window.setTimeout(release, 1500);
+      const handover = window.setTimeout(() => {
+        const mascot = document.querySelector<HTMLImageElement>('[aria-label="Welcome to GoldenXperience"] img');
+        if (!mascot) return release();
+        mascot.decode().then(release, release);
+      }, 350);
+      return () => { window.clearTimeout(cap); window.clearTimeout(handover); };
     }
     releaseBootSplash();
   }, []);

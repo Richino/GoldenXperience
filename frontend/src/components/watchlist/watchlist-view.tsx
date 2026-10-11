@@ -1,15 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { CircleStop, LoaderCircle, Search } from "lucide-react";
+import { LoaderCircle, Radar, Search, Square } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { WatchlistPairsSkeleton } from "@/components/ui/page-skeletons";
 import { MarketRowSkeleton } from "@/components/ui/ledger-loading-skeletons";
 import { useMarketObserver } from "@/components/analysis/market-observer-provider";
-import { AnalyzeIcon } from "@/components/icons/analyze-icon";
 import { SessionStrip } from "@/components/watchlist/session-strip";
 import { TradabilityTag, useNyTradability } from "@/components/signals/tradability-tag";
 import { tradabilitySortKey } from "@/lib/strategy/ny-tradability";
+import { getMarketCondition } from "@/lib/strategy/session";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
@@ -85,9 +85,11 @@ export function WatchlistView() {
   const [group, setGroup] = useState<PairGroup>("all");
   const [sort, setSort] = useState<PairSort>("setups");
   const [loading, setLoading] = useState(true);
+  const [marketOpen, setMarketOpen] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const quotes = useLiveQuotes();
   const load = useCallback(async () => {
+    setMarketOpen(getMarketCondition().marketOpen);
     try {
       const response = await fetch(apiUrl("/api/watchlist"), {
         credentials: "include",
@@ -331,7 +333,7 @@ export function WatchlistView() {
       {movers.length && !needle ? (
         <section className="nl-mk-movers" aria-labelledby="nl-mk-movers-title">
           <div className="nl-mk-sec-head">
-            <h2 id="nl-mk-movers-title">Biggest moves today</h2>
+            <h2 id="nl-mk-movers-title">{marketOpen === null ? "Biggest session moves" : marketOpen ? "Biggest moves today" : "Biggest moves last session"}</h2>
             {/* Daily data loads per page of rows, so say what was ranked. */}
             <span>of {loadedDailyCount} pairs loaded</span>
           </div>
@@ -479,9 +481,10 @@ export function WatchlistView() {
                       aria-busy={busy}
                       title={enabled ? `Stop ${name} · Observer enabled` : `Analyze ${name} · Start observer`}
                     >
-                      {busy ? <LoaderCircle className="size-[14px] animate-spin" aria-hidden="true" />
-                        : enabled ? <CircleStop className="size-[14px]" aria-hidden="true" />
-                          : <AnalyzeIcon className="size-[14px]" />}
+                      {/* Radar: Analyze starts the observer that keeps watching the pair. */}
+                      {busy ? <LoaderCircle className="nl-mk-analyze-icon animate-spin" aria-hidden="true" />
+                        : enabled ? <Square className="nl-mk-analyze-icon is-stop" aria-hidden="true" />
+                          : <Radar className="nl-mk-analyze-icon" aria-hidden="true" />}
                       <span className="nl-mk-analyze-label">{action}</span>
                     </button>
                   </div>

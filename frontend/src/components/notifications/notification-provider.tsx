@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { apiUrl } from "@/lib/api/url";
 import { sampleToastNotification } from "@/lib/notifications/display";
+import { playNotificationSound, unlockNotificationAudio } from "@/lib/notifications/play";
 import { NOTIFICATION_SOUND_KEY, NOTIFICATION_VOLUME_KEY, notificationSoundPath, notificationVolume } from "@/lib/notifications/sounds";
 import type { AppNotification, NotificationToast } from "@/lib/notifications/types";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
@@ -24,12 +25,12 @@ function useNotificationContext() {
   return value;
 }
 
-function playSelectedSound(audio: HTMLAudioElement | null) {
-  if (!audio) return;
-  audio.src = notificationSoundPath(window.localStorage.getItem(NOTIFICATION_SOUND_KEY));
-  audio.volume = notificationVolume(window.localStorage.getItem(NOTIFICATION_VOLUME_KEY));
-  audio.currentTime = 0;
-  void audio.play().catch(() => undefined);
+/** The chosen sound at the chosen volume, mixed with other audio (lib/notifications/play). */
+function playSelectedSound() {
+  void playNotificationSound(
+    notificationSoundPath(window.localStorage.getItem(NOTIFICATION_SOUND_KEY)),
+    notificationVolume(window.localStorage.getItem(NOTIFICATION_VOLUME_KEY)),
+  );
 }
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
@@ -38,18 +39,29 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const [cursor, setCursor] = useState<string | null>(null);
   const initialized = useRef(false);
   const seenIds = useRef(new Set<string>());
-  const audio = useRef<HTMLAudioElement | null>(null);
 
   // No in-app toast: new notifications play the sound, land in the bell's
   // inbox, and raise a system notification only while the tab is hidden.
   const present = useCallback((events: NotificationToast[]) => {
     if (!events.length) return;
-    playSelectedSound(audio.current);
+    playSelectedSound();
     const hidden = document.visibilityState !== "visible";
     const latest = events[0]!;
     if (hidden && !latest.preview && typeof Notification !== "undefined" && Notification.permission === "granted") {
       new Notification(latest.title, { body: latest.message, tag: latest.id });
     }
+  }, []);
+
+  // iOS starts web audio only after a gesture; the first tap or key press
+  // unlocks it so later notifications can play their sound.
+  useEffect(() => {
+    const unlock = () => unlockNotificationAudio();
+    window.addEventListener("pointerdown", unlock, { once: true, passive: true });
+    window.addEventListener("keydown", unlock, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
   }, []);
 
   const previewToast = useCallback(() => {
@@ -105,7 +117,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   );
   return (
     <NotificationContext.Provider value={value}>
-      <audio ref={audio} preload="auto" aria-hidden="true" />
       {children}
     </NotificationContext.Provider>
   );

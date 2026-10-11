@@ -8396,7 +8396,8 @@ html:is(.dark, :not(.dark)) body .nl-mk-analyze.is-observing::after {
   position: fixed;
   inset: 0;
   z-index: 60;
-  background: var(--background);
+  /* The chart canvas colour, so the notch and home-indicator bands match it. */
+  background: var(--surface);
   color: var(--foreground);
   overscroll-behavior: none;
   touch-action: none;
@@ -8528,6 +8529,7 @@ html.dark .gx-fs {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
+.gx-fs-action svg { width: 16px; height: 16px; flex: none; }
 .gx-fs-action.is-analyze { background: var(--accent-fill); border-color: transparent; color: var(--on-accent); }
 .gx-fs-action:disabled { opacity: .55; cursor: default; }
 .gx-fs-pair-search .signals-tool-btn {
@@ -8685,19 +8687,21 @@ html:is(.dark, :not(.dark)) body .gx-fs-dock .menu-popover {
   .gx-fs-close { height: 34px; padding: 0 12px; border-radius: 10px; font-size: 12px; }
   .gx-fs-hint { bottom: calc(env(safe-area-inset-bottom, 0px) + 34px); font-size: 11px; }
 }
-/* Phone portrait: pair, price and the actions all share one line along the top. */
+/* Phone portrait: pair and price on the left, icon buttons on the right, one line. */
 @media (max-width: 600px) {
   .gx-fs-pair .gx-fs-rule,
   .gx-fs-position,
   .gx-fs-quote small,
-  .gx-fs-more,
+  .gx-fs-label,
   .gx-fs-dock .gx-fs-rule { display: none; }
   .gx-fs-pair {
     top: calc(env(safe-area-inset-top, 0px) + 10px);
     left: calc(env(safe-area-inset-left, 0px) + 10px);
+    height: 42px;
+    box-sizing: border-box;
     gap: 8px;
-    padding: 4px 10px 4px 4px;
-    border-radius: 12px;
+    padding: 0 12px 0 6px;
+    border-radius: 13px;
     white-space: nowrap;
   }
   .gx-fs-pair-search .signals-tool-btn { font-size: 14px; min-height: 28px; }
@@ -8708,15 +8712,21 @@ html:is(.dark, :not(.dark)) body .gx-fs-dock .menu-popover {
     left: auto;
     gap: 6px;
   }
-  .gx-fs-action { height: 36px; padding: 0 11px; font-size: 12px; border-radius: 11px; }
-  .gx-fs-exit { width: 36px; height: 36px; border-radius: 11px; }
-  .gx-fs-exit svg { width: 16px; height: 16px; }
+  /* Square icon buttons, the same height as the pair card. */
+  .gx-fs-action,
+  .gx-fs-exit {
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 13px;
+  }
+  .gx-fs-action svg,
+  .gx-fs-exit svg { width: 18px; height: 18px; }
 }
-/* Narrow phones: the flags go (the pair name stays) so the row still fits. */
-@media (max-width: 420px) {
+/* Very narrow phones: the flags go (the pair name stays) so the row still fits. */
+@media (max-width: 389px) {
   .gx-fs-pair > :first-child { display: none; }
-  .gx-fs-pair { gap: 6px; padding: 4px 10px; }
-  .gx-fs-corner { gap: 4px; }
-  .gx-fs-action { padding: 0 8px; }
+  .gx-fs-pair { padding: 0 10px; }
 }
 

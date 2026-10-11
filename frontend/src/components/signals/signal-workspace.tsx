@@ -15,6 +15,8 @@ import {
   History,
   Maximize,
   Minimize,
+  Plus,
+  Radar,
   RotateCcw,
   Search,
   X,
@@ -5133,15 +5135,17 @@ export function SignalWorkspace({
           }
           actions={
             <>
-              <button type="button" className="gx-fs-action is-analyze pressable" onClick={() => void runTrendPullback()} disabled={chartAnalysisBusy || replayActive}>
-                {/* The second word drops on phones so the top row stays on one line. */}
-                {chartAnalysisBusy ? "Updating…" : chartPairMonitored ? <>Manage<span className="gx-fs-more"> analysis</span></> : <>Analyze<span className="gx-fs-more"> market</span></>}
+              <button type="button" className="gx-fs-action is-analyze pressable" onClick={() => void runTrendPullback()} disabled={chartAnalysisBusy || replayActive} aria-label={chartAnalysisBusy ? "Updating analysis" : chartPairMonitored ? "Manage analysis" : "Analyze market"}>
+                {/* Phones show the icon only, so the top row stays on one line. */}
+                <Radar aria-hidden="true" />
+                <span className="gx-fs-label">{chartAnalysisBusy ? "Updating…" : chartPairMonitored ? "Manage analysis" : "Analyze market"}</span>
               </button>
               <button type="button" className="gx-fs-action pressable" onClick={() => {
                 setEntryDraftProposal(null);
                 openPendingEntryManager(null);
-              }} disabled={replayActive || !mobileTradeActionReady || hasActivePosition} title={hasActivePosition ? "Close this pair’s active position before creating another entry" : "Create a new entry"}>
-                New entry
+              }} disabled={replayActive || !mobileTradeActionReady || hasActivePosition} title={hasActivePosition ? "Close this pair’s active position before creating another entry" : "Create a new entry"} aria-label="New entry">
+                <Plus aria-hidden="true" />
+                <span className="gx-fs-label">New entry</span>
               </button>
             </>
           }

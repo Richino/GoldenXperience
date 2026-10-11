@@ -1,0 +1,35 @@
+EUR/USD — 08:00 NY session direction + nearest S/R bounce (2013 → 2026-09, 3552 weekdays)
+Session window: 08:00–16:00 New York, mid prices on M5.
+One-way day: net move ≥8 pips, range ≥18 pips, ≤1 close cross back through 08:00 open,
+  and pullback leg ≤35% of impulse leg (up: downLeg≤0.35×upLeg; down: symmetric).
+Nearest S/R: closest M15 production level frozen at 08:00 (min 2 pips away); touch = price reaches level 08:00–16:00.
+Bounce = held or swept without 15m close past, or broke then came back inside.
+
+=== Full-day shape (08:00 → 16:00)
+  one-way up       421  11.9%
+  one-way down     348  9.8%
+  two-sided       2783  78.4%
+  median range 50.8 pips  |  median |net| 21.1 pips
+  strict: never re-cross 08:00 open (0 crosses): 13.5% of days
+
+=== First hour (08:00–09:00) vs rest of day (09:00 → 16:00 close)
+  |1st hour| ≥ 3 pips: n=2875  same sign 08:00→16:00 & |day|≥3p: 63.2% (1818)
+  |1st hour| ≥ 5 pips: n=2472  same sign 08:00→16:00 & |day|≥5p: 62.7% (1550)
+  |1st hour| ≥ 8 pips: n=1928  same sign 08:00→16:00 & |day|≥8p: 61.3% (1181)
+  Of one-way UP days: 1st hour also up (≥3p): 93.3%
+  Of one-way DOWN days: 1st hour also down (≤-3p): 93.7%
+
+=== Nearest frozen S/R level (08:00 M15, ≥2 pips away)
+  days with a level in range: 2291  |  level touched 08:00–16:00: 1859 (81.1% of those days)
+  of touches: bounce (hold/sweep/failed break) 78.3%  |  broke & stayed 21.7%
+  by level side (of touches): support bounce 78.8%  resistance bounce 77.6%
+
+=== S/R bounce when the day is one-way vs two-sided (level touched only)
+  one-way UP     touches= 165  bounce 45.5%  broke 54.5%
+  one-way DOWN   touches= 143  bounce 43.4%  broke 56.6%
+  two-sided      touches=1551  bounce 85.0%  broke 15.0%
+
+=== One-way days that also touched nearest S/R
+  one-way days: 769  touched nearest S/R: 308 (40.1%)
+  when both: bounce 44.5%  (fade-the-level days)
+  when both: broke 55.5%  (breakout-with-trend days)

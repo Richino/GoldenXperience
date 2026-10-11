@@ -20,7 +20,6 @@ import { PwaPullToRefresh } from "@/components/ui/pwa-pull-to-refresh";
 import { SignOutButton } from "@/components/ui/sign-out-button";
 import { NotificationProvider } from "@/components/notifications/notification-provider";
 import { Toaster } from "@/components/ui/toaster";
-import { WelcomeScreen } from "@/components/welcome/welcome-screen";
 import { MarketObserverProvider } from "@/components/analysis/market-observer-provider";
 
 function subscribe() {
@@ -193,7 +192,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <NotificationProvider>
     <MarketObserverProvider>
     <Toaster />
-    <WelcomeScreen />
     <PwaPullToRefresh>
       <NavigationProgress />
       <div

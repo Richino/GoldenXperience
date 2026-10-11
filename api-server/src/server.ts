@@ -289,6 +289,11 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
   if (url.pathname.startsWith("/api/")) {
     const user = await requireOwner(request, response); if (!user) return;
     if (url.pathname.startsWith("/api/market-observer")) {
+      if (url.pathname === "/api/market-observer/active" && request.method === "GET") {
+        if (!marketObserver) return json(request, response, { instruments: [] });
+        try { return json(request, response, { instruments: await marketObserver.activeInstruments(user.id) }); }
+        catch (error) { console.error("[observer] active plans read failed", error); return json(request, response, { error: "Active monitoring is temporarily unavailable." }, 502); }
+      }
       const payload = request.method === "POST" ? await body(request) : null;
       const instrument = String(payload?.instrument ?? url.searchParams.get("instrument") ?? "EUR_USD").toUpperCase();
       if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type Ref } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { BarChart3, X } from "lucide-react";
 import { apiUrl } from "@/lib/api/url";
 import { toast } from "@/hooks/use-toast";
 import { isPhoneLayout } from "@/lib/sheet-motion";
@@ -22,7 +22,7 @@ import { appendObserverPairMessages, markObserverPairRead, type ObserverPairChat
 const NO_MESSAGES: ObserverChatMessage[] = [];
 
 export interface MarketObserverControl {
-  analyze: (instrument: string) => Promise<void>;
+  analyze: (instrument: string, mode?: "NORMAL" | "SWING") => Promise<void>;
   stop: (instrument: string) => Promise<void>;
 }
 export interface MarketObserverMonitoring { tracked: string[]; busyPairs: Record<string, boolean> }
@@ -41,18 +41,20 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
   const checkingPairs = Object.keys(busyPairs).filter(pair => busyPairs[pair]);
   const monitoringActive = tracked.length > 0 || checkingPairs.length > 0;
   const instrument = selected && (tracked.includes(selected) || busyPairs[selected])
-    ? selected : tracked[0] ?? checkingPairs[0] ?? chartInstrument;
+    ? selected : tracked.includes(chartInstrument) ? chartInstrument : tracked[0] ?? checkingPairs[0] ?? chartInstrument;
   const messages = chats[instrument]?.messages ?? NO_MESSAGES;
   const unread = chats[instrument]?.unread ?? 0;
   const totalUnread = [...new Set([...tracked, ...checkingPairs])].reduce((count, pair) => count + (chats[pair]?.unread ?? 0), 0);
   useEffect(() => { onMonitoringChange?.({ tracked, busyPairs }); }, [tracked, busyPairs, onMonitoringChange]);
   const mutations = useRef(new Set<string>());
+  const membershipRevision = useRef(0);
   const conversation = useRef(new ObserverConversation());
   const nextMessage = useRef(0);
   const mounted = useRef(true);
   const actionRefs = useRef(new Map<string, AbortController>());
   const chatLog = useRef<HTMLDivElement | null>(null);
-  const panelRef = useRef<HTMLElement | null>(null);
+  const resultsDialog = useRef<HTMLDialogElement | null>(null);
+  const resultsLauncher = useRef<HTMLButtonElement | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const chatViews = useRef<Record<string, { following: boolean; scrollTop: number }>>({});
   const visibleChat = useRef<string | null>(null);
@@ -93,6 +95,42 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
     const controllers = actionRefs.current;
     return () => { mounted.current = false; for (const controller of controllers.values()) controller.abort(); journalRef.current?.abort(); };
   }, []);
+  // The saved account plans own membership, not this tab's Analyze clicks.
+  // Reconcile even when no pairs are tracked so starts in another tab appear.
+  useEffect(() => {
+    if (replayActive) return;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    let running = false;
+    const sync = async () => {
+      if (running || controller.signal.aborted || document.visibilityState === "hidden") return;
+      running = true;
+      const revision = membershipRevision.current;
+      try {
+        const response = await fetch(apiUrl("/api/market-observer/active"), { credentials: "include", cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
+        if (!response.ok) return;
+        const result = await response.json() as { instruments?: unknown };
+        if (!Array.isArray(result.instruments) || !result.instruments.every(pair => typeof pair === "string")) return;
+        // A response that overlaps a local start/stop may predate its commit.
+        if (controller.signal.aborted || mutations.current.size || revision !== membershipRevision.current) return;
+        const next = [...new Set(result.instruments as string[])];
+        if (next.length !== trackedRef.current.length || next.some(pair => !trackedRef.current.includes(pair))) {
+          trackedRef.current = next;
+          setTracked(next);
+        }
+      } catch { /* Keep the last known membership during a connection failure. */ }
+      finally { running = false; }
+    };
+    const poll = async () => {
+      await sync();
+      if (!controller.signal.aborted) timer = setTimeout(poll, 5000);
+    };
+    const onResume = () => { void sync(); };
+    void poll();
+    window.addEventListener("focus", onResume);
+    document.addEventListener("visibilitychange", onResume);
+    return () => { controller.abort(); clearTimeout(timer); window.removeEventListener("focus", onResume); document.removeEventListener("visibilitychange", onResume); };
+  }, [replayActive]);
   useEffect(() => {
     if (replayActive || !tracked.length) return;
     const controller = new AbortController();
@@ -119,12 +157,23 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
     return () => { controller.abort(); clearTimeout(timer); };
   }, [tracked, replayActive, getSnapshot, push]);
   useLayoutEffect(() => {
-    visibleChat.current = open && monitoringActive && !replayActive ? instrument : null;
+    visibleChat.current = open && !detailsOpen && monitoringActive && !replayActive ? instrument : null;
     if (visibleChat.current && chatLog.current) {
       const view = chatViews.current[instrument] ?? { following: true, scrollTop: 0 };
       chatLog.current.scrollTop = view.following ? chatLog.current.scrollHeight : view.scrollTop;
     }
-  }, [messages, instrument, open, monitoringActive, replayActive]);
+  }, [messages, instrument, open, detailsOpen, monitoringActive, replayActive]);
+  useLayoutEffect(() => {
+    const dialog = resultsDialog.current;
+    const launcher = resultsLauncher.current;
+    if (!dialog || !detailsOpen || !open || !monitoringActive || replayActive) return;
+    // Native modal behavior keeps focus inside and returns it to the opener.
+    dialog.showModal();
+    return () => {
+      dialog.close();
+      launcher?.focus({ preventScroll: true });
+    };
+  }, [detailsOpen, open, monitoringActive, replayActive, instrument]);
   const readPair = useCallback((pair: string) => setChats(previous => markObserverPairRead(previous, pair)), []);
   const selectChat = (pair: string) => {
     if (chatLog.current) {
@@ -145,11 +194,13 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
     document.addEventListener("visibilitychange", update);
     return () => { clearInterval(timer); document.removeEventListener("visibilitychange", update); };
   }, [monitoringActive]);
-  const monitorPair = useCallback(async (pair: string, mode: "NORMAL" | "SWING" = "NORMAL", showChat = false) => {
-    setSelected(pair); setOpen(showChat); setMinimized(false); setDetailsOpen(false);
-    chatViews.current[pair] = { following: true, scrollTop: 0 };
-    readPair(pair);
-    if (panelRef.current) panelRef.current.scrollTop = 0;
+  const monitorPair = useCallback(async (pair: string, mode: "NORMAL" | "SWING" = "NORMAL", showChat = false, keepResults = false) => {
+    setSelected(pair); setOpen(showChat); setMinimized(false); setDetailsOpen(keepResults);
+    if (!keepResults) {
+      chatViews.current[pair] = { following: true, scrollTop: 0 };
+      readPair(pair);
+      if (chatLog.current) chatLog.current.scrollTop = 0;
+    }
     if (mutations.current.has(pair)) return;
     if (!trackedRef.current.includes(pair) && new Set([...trackedRef.current, ...mutations.current]).size >= 12) {
       const text = "The chat can monitor 12 pairs at once. Stop one pair before adding another.";
@@ -157,6 +208,7 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
       toast({ title: "Monitoring limit reached", description: text }); return;
     }
     push([{ instrument: pair, at: new Date().toISOString(), role: "user", kind: "request", text: `Analyze ${observerPairLabel(pair)} · ${mode === "SWING" ? "swing" : "normal"}.` }]);
+    membershipRevision.current += 1;
     mutations.current.add(pair); setBusyPairs(previous => ({ ...previous, [pair]: true })); setActionErrors(previous => ({ ...previous, [pair]: null }));
     const controller = new AbortController(); actionRefs.current.set(pair, controller);
     const timeout = setTimeout(() => controller.abort(), 60_000);
@@ -206,10 +258,17 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
     } catch (e) { if (!controller.signal.aborted) setJournalError({ instrument, text: e instanceof Error ? e.message : "History unavailable." }); }
     finally { if (journalRef.current === controller) setJournalBusy(false); }
   };
-  const monitor = (mode: "NORMAL" | "SWING") => monitorPair(instrument, mode, true);
+  const monitor = (mode: "NORMAL" | "SWING") => monitorPair(instrument, mode, true, true);
+  const planMode = plan?.mode ?? "NORMAL";
+  const modeLabel = planMode === "NORMAL" ? "Intraday" : "Swing";
+  const currentSetup = active && plan?.status !== "PAUSED" && !paused;
+  const decisionLabel = paused ? "No live decision" : currentSetup && plan?.direction === "long" ? "Long setup" : currentSetup && plan?.direction === "short" ? "Short setup"
+    : read?.lean === "up" ? "Leaning up" : read?.lean === "down" ? "Leaning down" : read?.lean === "range" ? "Ranging" : "No clear direction";
+  const supportingReasons = (paused || currentSetup) && plan?.facts.length ? plan.facts.slice(0, 2) : read?.facts.filter(f => f.category === "structure").slice(0, 2).map(f => f.text) ?? [];
   const cancelPair = useCallback(async (pair: string) => {
     journalRef.current?.abort(); setJournalBusy(false); setArchive(null);
     if (mutations.current.has(pair)) return;
+    membershipRevision.current += 1;
     mutations.current.add(pair); setBusyPairs(previous => ({ ...previous, [pair]: true }));
     const controller = new AbortController(); actionRefs.current.set(pair, controller); setActionErrors(previous => ({ ...previous, [pair]: null }));
     const timeout = setTimeout(() => controller.abort(), 15_000);
@@ -230,8 +289,8 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
   // Phones: the same drawer as the other sheets (slide in, drag the grip or
   // header down to dismiss, slide out, page frozen behind). Desktop: a panel.
   const { setSheet, setBackdrop, handlers: dragHandlers, requestClose } = useDragToDismiss({ open, onDismiss: () => setOpen(false), handleSelector: `.${styles.grip}, .${styles.panelHead}` });
-  usePageScrollLock(open && !replayActive && monitoringActive && isPhoneLayout());
-  useImperativeHandle(controlRef, () => ({ analyze: pair => monitorPair(pair), stop: cancelPair }), [monitorPair, cancelPair]);
+  usePageScrollLock(open && !replayActive && monitoringActive && (detailsOpen || isPhoneLayout()));
+  useImperativeHandle(controlRef, () => ({ analyze: (pair, mode) => monitorPair(pair, mode), stop: cancelPair }), [monitorPair, cancelPair]);
   if (replayActive || !monitoringActive) return null;
   const statusLine = `${observerPairLabel(instrument)} · ${busy ? "checking" : marketClosed ? "market closed" : paused ? "paused" : expression === "alert" ? "update" : "watching"}`;
   const tone = busy ? "busy" : paused ? "paused" : expression === "alert" || expression === "cautious" ? "alert" : "live";
@@ -240,31 +299,86 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
   // the phone sheet could never cover the bottom nav.
   return createPortal(<aside className={`${styles.scout} ${minimized ? styles.minimized : ""}`} style={bubblePanelStyle} data-market-observer data-state={paused ? "paused" : "live"} data-expression={expression} data-side={bubbleSide} data-positioned={bubblePositioned} data-dragging={bubbleDragging}>
     {open && <div ref={setBackdrop} className={styles.backdrop} aria-hidden="true" onClick={requestClose} />}
-    {open && <section ref={element => { panelRef.current = element; setSheet(element); }} {...dragHandlers} className={styles.panel} aria-label={`${observerPairLabel(instrument)} analysis chat`}>
+    {open && <section ref={setSheet} {...dragHandlers} className={styles.panel} aria-label={`${observerPairLabel(instrument)} analysis chat`}>
       <div className={styles.grip} aria-hidden="true" />
       <header className={styles.panelHead}>
         <span className={styles.headIcon} aria-hidden="true"><ObserverMascot expression={expression} /></span>
         <div><h3>{observerPairLabel(instrument)} chat</h3><small><i className={styles.dot} data-tone={tone} />{statusLine} · paper</small></div>
         <button aria-label="Close analysis chat" onClick={requestClose}><X size={18} /></button>
       </header>
-      <div className={styles.pairTabs} aria-label="Pair chats">{[...new Set([...tracked, ...checkingPairs, instrument])].map(pair => <button key={pair} aria-pressed={pair === instrument} onClick={() => selectChat(pair)}>{observerPairLabel(pair)}{busyPairs[pair] ? " · checking" : !tracked.includes(pair) ? " · stopped" : marketClosed ? " · closed" : failures[pair] || snapshots[pair]?.read?.state === "paused" ? " · paused" : snapshots[pair]?.read?.state === "warming" ? " · warming" : " · watching"}{chats[pair]?.unread > 0 && <span className={styles.unreadCount} aria-label={`${chats[pair].unread} unread updates`}>{chats[pair].unread}</span>}</button>)}</div>
-      <p className={styles.caption}>Updates on meaningful changes · latest 120 messages for {observerPairLabel(instrument)}.</p>
-      <div key={`chat-${instrument}`} ref={chatLog} className={styles.conversationLog} role="log" aria-label={`${observerPairLabel(instrument)} messages`} aria-live="polite" aria-relevant="additions" onScroll={event => {
+      <div key={`chat-${instrument}`} ref={chatLog} className={styles.panelBody} onScroll={event => {
         const element = event.currentTarget;
         const following = element.scrollHeight - element.scrollTop - element.clientHeight < 40;
         chatViews.current[instrument] = { following, scrollTop: element.scrollTop };
         if (following) readPair(instrument);
-      }}>{messages.map(message => <article className={styles.chatMessage} data-role={message.role} key={message.id}>
-        <div className={styles.messageHead}><strong>{observerPairLabel(message.instrument)}</strong><time dateTime={message.at}>{new Date(message.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</time></div>
-        <p>{message.text}</p>
-        {message.role === "observer" && <small>{message.source === "model" ? "AI interpretation" : "Measured update"}</small>}
-        {message.evidence?.length ? <details><summary>Evidence at this update</summary><ul>{message.evidence.map(f => <li key={f.id}>{f.text}</li>)}</ul></details> : null}
-      </article>)}{busy && <p className={styles.checking} role="status">{observerPairLabel(instrument)}: updating analysis and monitoring…</p>}</div>
-      {unread > 0 && <button className={styles.newMessages} onClick={() => { chatViews.current[instrument] = { following: true, scrollTop: 0 }; readPair(instrument); if (chatLog.current) chatLog.current.scrollTop = chatLog.current.scrollHeight; }}>{unread} new updates ↓</button>}
-      <div className={styles.actions}><button disabled={busy} onClick={() => void (tracked.includes(instrument) ? cancel() : monitorPair(instrument, "NORMAL", true))}>{tracked.includes(instrument) ? "Stop" : "Analyze"} {observerPairLabel(instrument)}</button></div>
+      }}>
+      <div className={styles.pairTabs} aria-label="Pair chats">{[...new Set([...tracked, ...checkingPairs, instrument])].map(pair => <button key={pair} aria-pressed={pair === instrument} onClick={() => selectChat(pair)}>{observerPairLabel(pair)}{busyPairs[pair] ? " · checking" : !tracked.includes(pair) ? " · stopped" : marketClosed ? " · closed" : failures[pair] || snapshots[pair]?.read?.state === "paused" ? " · paused" : snapshots[pair]?.read?.state === "warming" ? " · warming" : " · watching"}{chats[pair]?.unread > 0 && <span className={styles.unreadCount} aria-label={`${chats[pair].unread} unread updates`}>{chats[pair].unread}</span>}</button>)}</div>
+      <p className={styles.caption}>Updates on meaningful changes · latest 120 messages for {observerPairLabel(instrument)}.</p>
+      <div className={styles.conversationLog} role="log" aria-label={`${observerPairLabel(instrument)} messages`} aria-live="polite" aria-relevant="additions">{messages.map(message => {
+        const time = new Date(message.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        if (message.role !== "observer") return <article className={styles.chatMessage} data-role={message.role} key={message.id}>
+          <p>{message.text}</p>
+          <time dateTime={message.at}>{time}</time>
+        </article>;
+        // The first sentence is the headline; the rest reads under it.
+        const [lead, ...rest] = message.text.split(/(?<=[.!?])\s+/);
+        return <article className={styles.chatMessage} data-role="observer" key={message.id}>
+          <span className={styles.chatAvatar} aria-hidden="true"><ObserverMascot expression={expression} /></span>
+          <div className={styles.chatBody}>
+            <p className={styles.chatLead}>{lead}</p>
+            {rest.length ? <p className={styles.chatRest}>{rest.join(" ")}</p> : null}
+            {message.evidence?.length ? <details className={styles.chatEvidence}><summary>Evidence<span>{message.evidence.length}</span></summary><ul>{message.evidence.map(f => <li key={f.id}>{f.text}</li>)}</ul></details> : null}
+            <div className={styles.chatMeta}><span className={styles.chatSource} data-source={message.source === "model" ? "ai" : "measured"}>{message.source === "model" ? "AI" : "Measured"}</span><time dateTime={message.at}>{time}</time></div>
+          </div>
+        </article>;
+      })}{busy && <p className={styles.checking} role="status">{observerPairLabel(instrument)}: updating analysis and monitoring…</p>}</div>
+      {unread > 0 && <button className={styles.newMessages} onClick={() => { setDetailsOpen(false); chatViews.current[instrument] = { following: true, scrollTop: 0 }; readPair(instrument); if (chatLog.current) chatLog.current.scrollTop = chatLog.current.scrollHeight; }}>{unread} new updates ↓</button>}
       {error && <p className={styles.notice} role="status">{error}</p>}
       {actionError && <p className={styles.notice} role="status">{actionError}</p>}
-      <details className={styles.savedVersion} key={instrument} open={detailsOpen} onToggle={event => setDetailsOpen(event.currentTarget.open)}><summary>Patterns, plan & results · {observerPairLabel(instrument)}</summary>
+      </div>
+      {/* Pinned under the chat: the pair's plan & results beside Stop / Analyze. */}
+      <div className={`${styles.actions} ${styles.panelFooter}`}>
+        <button disabled={busy} onClick={() => void (tracked.includes(instrument) ? cancel() : monitorPair(instrument, "NORMAL", true))}>{tracked.includes(instrument) ? "Stop" : "Analyze"} {observerPairLabel(instrument)}</button>
+        <button ref={resultsLauncher} type="button" className={styles.resultsLauncher} aria-haspopup="dialog" aria-label={`Patterns, plan and results for ${observerPairLabel(instrument)}`} onClick={() => {
+          if (chatLog.current) chatViews.current[instrument] = { following: false, scrollTop: chatLog.current.scrollTop };
+          setDetailsOpen(true);
+        }}><BarChart3 aria-hidden="true" />Plan &amp; results</button>
+      </div>
+    </section>}
+    {open && detailsOpen && <dialog ref={resultsDialog} className={styles.resultsModal} aria-labelledby="observer-results-title" onCancel={event => { event.preventDefault(); setDetailsOpen(false); }} onClick={event => {
+      if (event.target !== event.currentTarget) return;
+      const bounds = event.currentTarget.getBoundingClientRect();
+      if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) setDetailsOpen(false);
+    }}>
+      <header className={styles.resultsHead}>
+        <div><h3 id="observer-results-title">{observerPairLabel(instrument)} analysis</h3><p>{statusLine} · paper</p></div>
+        <button type="button" aria-label="Close patterns, plan and results" onClick={() => setDetailsOpen(false)}><X size={18} /></button>
+      </header>
+      <div className={styles.resultsBody}>
+      <div className={styles.modeSummary}>
+        <span className={styles.modeBadge}>{modeLabel} · {planMode === "NORMAL" ? "5m" : "1h"} confirmation</span>
+        <button type="button" disabled={busy || snapshot?.storage !== "ready"} onClick={() => void monitor(planMode === "NORMAL" ? "SWING" : "NORMAL")}>Switch to {planMode === "NORMAL" ? "Swing" : "Intraday"} and replace plan</button>
+      </div>
+      {(marketClosed || paused) && <div className={styles.statusNotice} role="status"><strong>{marketClosed ? "Market closed" : "Live analysis paused"}</strong><p>{marketClosed ? "Live analysis resumes after reopening with fresh prices. The saved context below is historical." : error ?? "Fresh price, candle and news checks are needed. Saved context is not a current entry signal."}</p></div>}
+      {busy && <p className={styles.notice} role="status">Updating this pair’s plan…</p>}
+      {actionError && <p className={styles.notice} role="status">{actionError}</p>}
+      <section className={styles.decisionCard} aria-label="Current decision">
+        <div className={styles.decisionHead}><span>{paused ? "Saved context" : "Current lean"}</span><small>{modeLabel}{plan ? ` · ${plan.status.toLowerCase()}` : ""}</small></div>
+        <h4>{decisionLabel}</h4>
+        <p>{paused ? "Wait for fresh market checks before considering an entry." : currentSetup ? plan?.thesis : read?.headline ?? "Analysis is being prepared."}</p>
+        {supportingReasons.length > 0 && <><h5>{paused ? "Saved reasons" : "Why"}</h5><ul>{supportingReasons.map((reason, index) => <li key={`${index}-${reason}`}>{reason}</li>)}</ul></>}
+      </section>
+      <section className={styles.setupSummary} aria-label="Entry and invalidation">
+        <div><h4>{paused ? "Saved entry trigger" : "Entry trigger"}</h4><p>{!active && plan ? "This plan has ended. Refresh the analysis for a new setup." : plan?.trigger ? `A new ${plan.trigger.timeframe === "M5" ? "5-minute" : "1-hour"} candle must close ${plan.direction === "long" ? "above" : "below"} ${price(plan.trigger.boundary)}, with executable price inside the entry zone.` : "No entry trigger is available. Fresh analysis must produce a valid setup."}</p></div>
+        {active && plan?.entry != null && <div className={styles.setupLevels}><span>Entry<strong>{price(plan.entry)}</strong></span><span>Stop<strong>{price(plan.stop)}</strong></span><span>Target<strong>{price(plan.target)}</strong></span></div>}
+        {active && plan?.trigger && plan.zone && <p className={styles.caption}>Entry zone {price(plan.zone.low)} – {price(plan.zone.high)}</p>}
+        <div><h4>{paused || !active ? "Saved invalidation" : "Invalidation"}</h4><p>{plan?.invalidation ?? "No monitored plan yet."}</p></div>
+        {plan && <p className={styles.caption}>Entry expires {new Date(plan.expiresAt).toLocaleString()}</p>}
+      </section>
+      <div className={styles.actions}><button disabled={busy || snapshot?.storage !== "ready"} onClick={() => void monitor(planMode)}>{busy ? "Updating…" : `Refresh ${modeLabel.toLowerCase()} plan`}</button></div>
+      {snapshot?.storage === "unavailable" && <p className={styles.notice}>Plan journal is unavailable. Monitoring cannot be saved.</p>}
+      <details className={styles.savedVersion}><summary>Evidence & patterns{paused ? " · historical" : ""}</summary>
+      {error && <p className={styles.notice} role="status">{error}</p>}
       {!error && read && <>
         <p className={styles.timestamp}>Read {new Date(read.asOf).toLocaleTimeString()} · {read.state}</p>
         {read.movement.length > 0 && <div className={styles.metrics}>{read.movement.map(w => <div key={w.seconds}><small>{w.seconds}s net</small><strong>{w.netPips > 0 ? "+" : ""}{w.netPips.toFixed(2)}p</strong><span>{w.ready ? `${Math.round(w.efficiency * 100)}% retained` : "warming"}</span></div>)}</div>}
@@ -283,7 +397,8 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
         {read.ai.state !== "ready" && <p className={styles.caption}>{read.ai.state === "limited" ? "AI explanation budget reached. The measured read continues." : read.ai.state === "error" ? "AI explanation unavailable. The measured read continues." : read.ai.state === "pending" ? "AI interpretation is being prepared. The measured read is shown above." : "Measured evidence continues without an AI explanation."}</p>}
         <h4>What would change the read</h4><ul>{read.changeConditions.map(c => <li key={c}>{c}</li>)}</ul>
       </>}
-      <h4>Monitored Analyze plan</h4>
+      </details>
+      <details className={styles.savedVersion}><summary>Full plan & entry checks</summary>
       {plan ? <div className={styles.plan}>
         <div className={styles.planHead}><strong>{plan.direction?.toUpperCase() ?? "WATCH CONDITION"} · {plan.mode}</strong><span>{plan.status}</span></div>
         <p>{plan.reason}</p>
@@ -296,8 +411,8 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
         {active && snapshot?.checks?.length ? <><h4>Entry conditions</h4><ul className={styles.checks}>{snapshot.checks.map(check => <li key={check.id} data-check-state={error ? "unknown" : check.state}><div><strong>{check.label}</strong><span>{error ? "unknown" : check.state}</span></div><small>{error ? "Connection interrupted. Check cannot be verified." : check.detail}</small></li>)}</ul></> : null}
         <p className={styles.caption}>Monitoring a hypothesis. Triggered means the condition was observed; no order was placed.</p>
       </div> : <p>Analyze creates a versioned plan. Missing checks produce a watch condition with no entry signal.</p>}
-      {snapshot?.storage === "unavailable" && <p className={styles.notice}>Plan journal is unavailable. Monitoring cannot be saved.</p>}
-      <div className={styles.actions}><button disabled={busy || snapshot?.storage !== "ready"} onClick={() => void monitor("NORMAL")}>{busy ? "Saving…" : "Analyze & monitor"}</button><button disabled={busy || snapshot?.storage !== "ready"} onClick={() => void monitor("SWING")}>Swing plan</button></div>
+      </details>
+      <details className={styles.savedVersion}><summary>History & results</summary>
       {snapshot?.history.length ? <><h4>Plan history</h4><ul>{snapshot.history.slice(0, 8).map(e => <li key={e.id}><strong>{e.status}</strong> · {new Date(e.at).toLocaleTimeString()}<br />{e.reason}</li>)}</ul></> : null}
       <div className={styles.actions}><button disabled={journalBusy} onClick={() => void loadJournal()}>{journalBusy ? "Loading history…" : journal ? "Refresh saved versions" : "View saved versions"}</button></div>
       <ObserverEvaluationPanel key={instrument} instrument={instrument} />
@@ -311,7 +426,8 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
         </li>)}</ul>
       </details>) : <p>No saved versions for this pair.</p>}<p className={styles.caption}>Latest 60 saved events across this pair. Hypothetical signals are separate from broker trades.</p></section>}
       </details>
-    </section>}
+      </div>
+    </dialog>}
     <div ref={setBubbleRow} style={bubbleRowStyle} {...bubbleDragHandlers} className={styles.bubbleRow}>
       {!open && !minimized && <div className={styles.cloudWrap}>
         <button className={styles.cloud} aria-label={`${headline}. ${cloudText}. Open the analysis chat`} onClick={openChat}>

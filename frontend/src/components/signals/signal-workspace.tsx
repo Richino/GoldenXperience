@@ -17,6 +17,7 @@ import {
   Minimize,
   RotateCcw,
   Search,
+  SlidersHorizontal,
   X,
 } from "lucide-react";
 import { AnalyzeIcon } from "@/components/icons/analyze-icon";
@@ -2500,7 +2501,6 @@ export function SignalWorkspace({
   const [trendPullbackBusy, setTrendPullbackBusy] = useState(false);
   const observer = useMarketObserver();
   const analyzeObserver = observer?.analyze;
-  const stopObserver = observer?.stop;
   const setObserverChartContext = observer?.setChartContext;
   const chartPairMonitored = !embeddedSurfaceOnly && Boolean(observer?.tracked.includes(instrument));
   const chartAnalysisBusy = embeddedSurfaceOnly ? trendPullbackBusy : Boolean(observer?.busyPairs[instrument]);
@@ -4442,9 +4442,9 @@ export function SignalWorkspace({
                 />
               </div>
               <div className="signals-mobile-header-actions nl-mhead-actions">
-                <button type="button" className="nl-analyze nl-analyze-sm pressable" onClick={() => void (chartPairMonitored ? stopObserver?.(instrument) : runTrendPullback())} disabled={chartAnalysisBusy || replayActive} title={chartPairMonitored ? `Stop monitoring ${activePair}` : "Analyze the market and monitor its conditions"}>
-                  {chartPairMonitored ? <CircleStop className="size-4" /> : <AnalyzeIcon className="size-4" />}
-                  {chartAnalysisBusy ? chartPairMonitored ? "Stopping…" : "Analyzing…" : chartPairMonitored ? "Stop" : "Analyze"}
+                <button type="button" className="nl-analyze nl-analyze-sm pressable" onClick={() => void runTrendPullback()} disabled={chartAnalysisBusy || replayActive} title={chartPairMonitored ? `Manage analysis for ${activePair}` : "Analyze the market and monitor its conditions"}>
+                  {chartPairMonitored ? <SlidersHorizontal className="size-4" /> : <AnalyzeIcon className="size-4" />}
+                  {chartAnalysisBusy ? "Updating…" : chartPairMonitored ? "Manage" : "Analyze"}
                 </button>
                 <NotificationBell compact className="signals-icon-btn signals-fullscreen-reserve nl-mbell" />
               </div>
@@ -4835,12 +4835,13 @@ export function SignalWorkspace({
                 onCancel={cancelTrendPullback}
                 onReview={reviewTrendPullback}
                 onAnalyze={() => void runTrendPullback()}
+                monitoring={chartPairMonitored}
                 onNewEntry={() => {
                   setEntryDraftProposal(null);
                   openPendingEntryManager(null);
                   setEntryComposerRevision((revision) => revision + 1);
                 }}
-                analyzeDisabled={trendPullbackBusy || replayActive}
+                analyzeDisabled={chartAnalysisBusy || replayActive}
               />
               <ChartHealthCard
                 signal={healthSignal}

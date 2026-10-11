@@ -1,0 +1,87 @@
+=== EUR/USD  (2021-01-04 → 2026-08-04, M15 mid, NY 08:00–16:00)
+Best → worst: Thu > Wed > Fri > Tue > Mon
+  #1 Thu: med range 54.2 pips, |net| 23.5, 1-way 47.4%, 1hr→day 64.9%, spread 1.57 pips
+  Mon range 41.1 pips vs Thu 54.2 pips
+
+=== GBP/USD  (2021-06-02 → 2026-08-04, M15 mid, NY 08:00–16:00)
+Best → worst: Thu > Wed > Fri > Tue > Mon
+  #1 Thu: med range 67.9 pips, |net| 31.3, 1-way 42.9%, 1hr→day 68.3%, spread 1.92 pips
+  Mon range 52.0 pips vs Thu 67.9 pips
+
+=== USD/JPY  (2021-06-02 → 2026-08-04, M15 mid, NY 08:00–16:00)
+Best → worst: Wed > Thu > Fri > Tue > Mon
+  #1 Wed: med range 70.7 pips, |net| 31.3, 1-way 42.7%, 1hr→day 67.5%, spread 1.68 pips
+  Mon range 53.7 pips vs Wed 70.7 pips
+
+=== AUD/USD  (2021-01-04 → 2026-08-04, M15 mid, NY 08:00–16:00)
+Best → worst: Thu > Wed > Fri > Tue > Mon
+  #1 Thu: med range 43.3 pips, |net| 18.6, 1-way 40.1%, 1hr→day 68.3%, spread 1.36 pips
+  Mon range 33.4 pips vs Thu 43.3 pips
+
+=== NZD/USD  (2021-01-04 → 2026-08-04, M15 mid, NY 08:00–16:00)
+Best → worst: Thu > Wed > Tue > Fri > Mon
+  #1 Thu: med range 40.1 pips, |net| 18.4, 1-way 40.8%, 1hr→day 68.6%, spread 1.58 pips
+  Mon range 29.5 pips vs Thu 40.1 pips
+
+=== USD/CAD  (2021-01-04 → 2026-08-04, M15 mid, NY 08:00–16:00)
+Best → worst: Fri > Wed > Thu > Tue > Mon
+  #1 Fri: med range 59.4 pips, |net| 23.4, 1-way 44.0%, 1hr→day 62.3%, spread 1.91 pips
+  Mon range 46.8 pips vs Fri 59.4 pips
+
+=== USD/CHF  (2021-01-04 → 2026-08-04, M15 mid, NY 08:00–16:00)
+Best → worst: Thu > Mon > Wed > Fri > Tue
+  #1 Thu: med range 44.2 pips, |net| 20.5, 1-way 46.0%, 1hr→day 70.0%, spread 1.61 pips
+  Mon range 35.5 pips vs Thu 44.2 pips
+
+=== EUR/GBP  (2021-01-04 → 2026-08-04, M15 mid, NY 08:00–16:00)
+Best → worst: Thu > Fri > Wed > Tue > Mon
+  #1 Thu: med range 28.1 pips, |net| 11.7, 1-way 34.6%, 1hr→day 61.4%, spread 1.52 pips
+  Mon range 22.7 pips vs Thu 28.1 pips
+
+=== EUR/JPY  (2021-01-04 → 2026-08-04, M15 mid, NY 08:00–16:00)
+Best → worst: Thu > Wed > Mon > Fri > Tue
+  #1 Thu: med range 73.5 pips, |net| 30.8, 1-way 39.2%, 1hr→day 64.4%, spread 2.35 pips
+  Mon range 57.9 pips vs Thu 73.5 pips
+
+=== CAD/JPY  (2021-01-04 → 2026-08-04, M15 mid, NY 08:00–16:00)
+Best → worst: Thu > Fri > Wed > Tue > Mon
+  #1 Thu: med range 58.0 pips, |net| 27.5, 1-way 40.5%, 1hr→day 66.7%, spread 2.32 pips
+  Mon range 47.6 pips vs Thu 58.0 pips
+
+=== NZD/JPY  (2021-01-04 → 2026-08-04, M15 mid, NY 08:00–16:00)
+Best → worst: Wed > Fri > Thu > Mon > Tue
+  #1 Wed: med range 46.2 pips, |net| 19.3, 1-way 33.6%, 1hr→day 63.7%, spread 2.53 pips
+  Mon range 39.4 pips vs Wed 46.2 pips
+
+=== GBP/JPY  (2021-01-04 → 2026-08-04, M15 mid, NY 08:00–16:00)
+Best → worst: Wed > Thu > Fri > Tue > Mon
+  #1 Wed: med range 85.0 pips, |net| 33.7, 1-way 40.1%, 1hr→day 62.8%, spread 3.16 pips
+  Mon range 73.0 pips vs Wed 85.0 pips
+
+=== AUD/JPY  (2021-01-04 → 2026-08-04, M15 mid, NY 08:00–16:00)
+Best → worst: Thu > Wed > Fri > Mon > Tue
+  #1 Thu: med range 54.5 pips, |net| 24.0, 1-way 37.4%, 1hr→day 62.4%, spread 2.10 pips
+  Mon range 44.8 pips vs Thu 54.5 pips
+
+=== EUR/AUD  (2021-01-04 → 2026-08-04, M15 mid, NY 08:00–16:00)
+Best → worst: Thu > Wed > Mon > Fri > Tue
+  #1 Thu: med range 72.7 pips, |net| 34.4, 1-way 48.1%, 1hr→day 65.2%, spread 2.79 pips
+  Mon range 61.0 pips vs Thu 72.7 pips
+
+=== SUMMARY — best NY weekday per pair ===
+  AUD/JPY  → Thu  (Thu>Wed>Fri>Mon>Tue)
+  AUD/USD  → Thu  (Thu>Wed>Fri>Tue>Mon)
+  CAD/JPY  → Thu  (Thu>Fri>Wed>Tue>Mon)
+  EUR/AUD  → Thu  (Thu>Wed>Mon>Fri>Tue)
+  EUR/GBP  → Thu  (Thu>Fri>Wed>Tue>Mon)
+  EUR/JPY  → Thu  (Thu>Wed>Mon>Fri>Tue)
+  EUR/USD  → Thu  (Thu>Wed>Fri>Tue>Mon)
+  GBP/JPY  → Wed  (Wed>Thu>Fri>Tue>Mon)
+  GBP/USD  → Thu  (Thu>Wed>Fri>Tue>Mon)
+  NZD/JPY  → Wed  (Wed>Fri>Thu>Mon>Tue)
+  NZD/USD  → Thu  (Thu>Wed>Tue>Fri>Mon)
+  USD/CAD  → Fri  (Fri>Wed>Thu>Tue>Mon)
+  USD/CHF  → Thu  (Thu>Mon>Wed>Fri>Tue)
+  USD/JPY  → Wed  (Wed>Thu>Fri>Tue>Mon)
+
+Vote count (#1 rank across pairs): Thu=10, Wed=3, Fri=1

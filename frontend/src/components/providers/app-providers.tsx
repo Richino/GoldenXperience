@@ -3,12 +3,13 @@
 import { TextSizeProvider } from "@/components/providers/text-size-provider";
 import { ThemeColorSync } from "@/components/providers/theme-color-sync";
 import { ThemeProvider } from "@/components/providers/theme-provider";
+import { WelcomeScreen } from "@/components/welcome/welcome-screen";
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
       <ThemeColorSync />
-      <TextSizeProvider>{children}</TextSizeProvider>
+      <TextSizeProvider><WelcomeScreen />{children}</TextSizeProvider>
     </ThemeProvider>
   );
 }

@@ -1068,9 +1068,8 @@ html.mobile-sheet-open body {
   overscroll-behavior: contain;
 }
 
-/* Pair selection owns its own scrolling surface. While the software keyboard
-   is visible, move the drawer above it but keep its body as the
-   scroll container; the page behind it stays locked. */
+/* Pair selection owns its own scrolling surface. Keep the background behind
+   the keyboard/accessory bar, with the list in the unobscured viewport. */
 @media (max-width: 1023px) {
   .mobile-sheet.signals-pair-mobile-sheet {
     height: min(86dvh, 42rem);
@@ -1082,15 +1081,45 @@ html.mobile-sheet-open body {
   }
 
   .mobile-sheet.signals-pair-mobile-sheet .mobile-sheet-body {
+    display: flex;
+    overflow: hidden;
+  }
+
+  .mobile-sheet.signals-pair-mobile-sheet .signals-pair-sheet {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .mobile-sheet.signals-pair-mobile-sheet .signals-search {
+    flex-shrink: 0;
+  }
+
+  .mobile-sheet.signals-pair-mobile-sheet .signals-pair-sheet > .mt-2 {
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
+    overscroll-behavior: contain;
   }
 
   .mobile-sheet.signals-pair-mobile-sheet[data-keyboard-open="true"] {
-    bottom: var(--mobile-sheet-keyboard-offset, 0px);
-    height: var(--mobile-sheet-visible-height, 86dvh);
-    max-height: var(--mobile-sheet-visible-height, 86dvh);
+    --mobile-sheet-keyboard-height: calc(var(--mobile-sheet-visible-height, 86dvh) + var(--mobile-sheet-keyboard-offset, 0px) - max(3rem, calc(env(safe-area-inset-top, 0px) + 0.75rem)));
+    bottom: 0;
+    /* Keep the drawer below the status bar even in standalone iPhone mode. */
+    height: var(--mobile-sheet-keyboard-height);
+    max-height: var(--mobile-sheet-keyboard-height);
+    min-height: 0;
+    padding-bottom: calc(max(0px, calc(var(--mobile-sheet-keyboard-offset, 0px) - 2.75rem)) + 0.5rem);
+  }
+
+  /* Let rows continue behind the accessory bar while scrolling, then give
+     the final row enough trailing space to finish above it. */
+  .mobile-sheet.signals-pair-mobile-sheet[data-keyboard-open="true"] .signals-pair-sheet > .mt-2 {
+    padding-bottom: 2.75rem;
   }
 }
 
@@ -1098,6 +1127,19 @@ html.mobile-sheet-open body {
   flex-shrink: 0;
   touch-action: none;
   cursor: grab;
+}
+
+.analysis-mode-choices { display: grid; gap: 10px; }
+.analysis-mode-choices button { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; min-height: 76px; padding: 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-raised); color: var(--foreground); text-align: left; cursor: pointer; }
+.analysis-mode-choices button strong { font-size: 16px; }
+.analysis-mode-choices button span { color: var(--muted); font-size: 13px; }
+.analysis-mode-choices button:hover { border-color: var(--accent); }
+.analysis-mode-choices button:disabled { opacity: .6; cursor: default; }
+.analysis-mode-choices .analysis-mode-stop { background: transparent; }
+.analysis-mode-choices .analysis-mode-stop strong { color: var(--danger); }
+@media (min-width: 1024px) {
+  .mobile-sheet.analysis-mode-sheet { display: flex; inset-inline: auto; top: 50%; bottom: auto; left: 50%; width: min(420px, calc(100vw - 32px)); translate: -50% -50%; padding-bottom: 16px; border: 1px solid var(--border); border-radius: 20px; }
+  .mobile-sheet-backdrop:has(+ .analysis-mode-sheet) { display: block; background: color-mix(in srgb, var(--background) 50%, transparent); }
 }
 
 .mobile-sheet-handle {
@@ -18162,6 +18204,16 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
   html:is(.dark, :not(.dark)) .mobile-sheet.signals-pair-mobile-sheet {
     height: auto;
     max-height: 72dvh;
+  }
+
+  /* Preserve keyboard clearance over the themed drawer's height override. */
+  html:is(.dark, :not(.dark)) .mobile-sheet.signals-pair-mobile-sheet[data-keyboard-open="true"] {
+    height: var(--mobile-sheet-keyboard-height);
+    max-height: var(--mobile-sheet-keyboard-height);
+    min-height: 0;
+    /* Reserve the occluded area inside the sheet, rather than leaving an
+       exposed strip outside it. The last pair can scroll above the bar. */
+    padding-bottom: calc(max(0px, calc(var(--mobile-sheet-keyboard-offset, 0px) - 2.75rem)) + 0.5rem);
   }
 
   html:is(.dark, :not(.dark)) .mobile-sheet-handle {

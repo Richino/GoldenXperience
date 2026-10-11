@@ -127,6 +127,14 @@ export class MarketObserverService {
     } catch (error) { this.storageReady = false; this.retryAfter = Date.now() + 10_000; console.error("[observer] journal unavailable", error instanceof Error ? error.message : error); }
     finally { this.busy = false; }
   }
+  async activeInstruments(userId: string): Promise<string[]> {
+    if (!this.storageReady) throw new ObserverServiceError("The plan journal is temporarily unavailable.");
+    const result = await query<{ instrument: string }>(
+      "SELECT DISTINCT instrument FROM market_observer_plans WHERE user_id=$1 AND status IN ('WATCHING','READY','TRIGGERED','PAUSED') ORDER BY instrument",
+      [userId],
+    );
+    return result.rows.map(row => row.instrument);
+  }
   async snapshot(userId: string, instrument: string): Promise<ObserverSnapshot> {
     this.interested.set(instrument, Date.now());
     const read = this.state.update(instrument);

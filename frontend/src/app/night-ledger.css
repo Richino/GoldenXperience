@@ -8243,3 +8243,74 @@ html:is(.dark, :not(.dark)) body .gx-pair-trade-count {
   .nl-wr-cols,
   .nl-wr-breakdown { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ============================================================ ANALYSIS MODE SHEET
+   "Manage <pair>": Intraday and Swing as one grouped list (a timeframe tile,
+   title, subtitle), Stop monitoring as its own danger row, and the
+   replacement note as a quiet info line. Markup: MarketObserverProvider. */
+html:is(.dark, :not(.dark)) body .analysis-mode-choices { gap: 0; }
+html:is(.dark, :not(.dark)) body .analysis-mode-choices button {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-areas: "icon title" "icon sub";
+  align-items: center;
+  column-gap: 14px;
+  row-gap: 2px;
+  min-height: 72px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 0;
+  background: var(--surface);
+  transition: background-color 140ms ease;
+}
+html:is(.dark, :not(.dark)) body .analysis-mode-choices button:hover:not(:disabled) { border-color: var(--border); background: var(--surface-raised); }
+html:is(.dark, :not(.dark)) body .analysis-mode-choices button:first-child { border-radius: 16px 16px 0 0; }
+html:is(.dark, :not(.dark)) body .analysis-mode-choices button:nth-child(2) { border-top: 0; border-radius: 0 0 16px 16px; }
+html:is(.dark, :not(.dark)) body .analysis-mode-choices button strong { grid-area: title; align-self: end; font-size: 15px; font-weight: 700; }
+html:is(.dark, :not(.dark)) body .analysis-mode-choices button span { grid-area: sub; align-self: start; font-size: 12.5px; }
+html:is(.dark, :not(.dark)) body .analysis-mode-choices button::before {
+  grid-area: icon;
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 13px;
+  font-weight: 600;
+}
+html:is(.dark, :not(.dark)) body .analysis-mode-choices button:nth-child(1)::before { content: "5m"; }
+html:is(.dark, :not(.dark)) body .analysis-mode-choices button:nth-child(2)::before { content: "1h"; }
+html:is(.dark, :not(.dark)) body .analysis-mode-choices .analysis-mode-stop {
+  margin-top: 12px;
+  border-radius: 16px;
+  background: var(--surface);
+}
+html:is(.dark, :not(.dark)) body .analysis-mode-choices .analysis-mode-stop:hover:not(:disabled) { background: var(--danger-soft); }
+html:is(.dark, :not(.dark)) body .analysis-mode-choices .analysis-mode-stop::before {
+  content: "";
+  background: linear-gradient(var(--danger), var(--danger)) center / 12px 12px no-repeat, var(--danger-soft);
+  border-radius: 12px;
+}
+html:is(.dark, :not(.dark)) body .analysis-mode-replacement {
+  display: flex;
+  gap: 8px;
+  margin: 14px 2px 0;
+  line-height: 1.45;
+}
+html:is(.dark, :not(.dark)) body .analysis-mode-replacement::before {
+  content: "i";
+  display: grid;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  margin-top: 1px;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 10px;
+  font-style: normal;
+}

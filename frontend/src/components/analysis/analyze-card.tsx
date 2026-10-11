@@ -294,8 +294,9 @@ export function AnalyzeCard({
   onAnalyze,
   onNewEntry,
   analyzeDisabled = false,
+  monitoring = false,
   ...props
-}: Props & { onAnalyze: () => void; onNewEntry: () => void; analyzeDisabled?: boolean }) {
+}: Props & { onAnalyze: () => void; onNewEntry: () => void; analyzeDisabled?: boolean; monitoring?: boolean }) {
   const clock = useEtClock();
   // Stamp each new result with the clock at the render it arrived on.
   const [stamped, setStamped] = useState<{ analysis: MarketAnalysis | null; at: string }>({ analysis: null, at: "" });
@@ -313,14 +314,14 @@ export function AnalyzeCard({
             </span>
           </div>
           <h2 id="nl-an-card-title" className="nl-an-decision">
-            Analyze this market
+            {monitoring ? "Manage analysis" : "Analyze this market"}
           </h2>
           <div className="nl-an-actions is-card">
             <button type="button" className="nl-an-secondary pressable" onClick={onNewEntry} disabled={analyzeDisabled}>
               New entry
             </button>
             <button type="button" className="nl-an-primary pressable" onClick={onAnalyze} disabled={analyzeDisabled}>
-              Analyze
+              {monitoring ? "Manage" : "Analyze"}
             </button>
           </div>
         </div>

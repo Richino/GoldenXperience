@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GX mascot · Paused loop</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100dvh;background:#0c0e0a;color:#eef2e8;font:15px system-ui;padding:36px 20px}main{max-width:680px;margin:auto}h1{font-size:26px;margin:0 0 10px}p{color:#aab39e;line-height:1.5}.stage{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}.card{padding:20px;border:1px solid #6b795440;border-radius:20px;background:#151a11}.light{background:#f1f2e9;color:#161b11}.card>img{display:block;width:200px;max-width:100%;margin:auto}.caption{font-size:12px;color:#8d987e;margin-top:10px}.bubble{display:flex;align-items:center;gap:10px;border:1px solid #91ad4144;border-radius:20px;padding:12px;background:#1c2018;min-height:78px}.bubble img{width:40px;height:40px;flex-shrink:0}.bubble strong{font-size:13px}.bubble p{font-size:12px;margin:4px 0 0}.sizes{display:flex;gap:20px;align-items:center;margin:18px 0}.sizes img{vertical-align:middle}.still{display:none!important}button{padding:10px 16px;border:0;border-radius:12px;background:#c7f464;color:#12170b;cursor:pointer;font:600 14px system-ui}.paused .animated{display:none!important}.paused .still{display:block!important}@media(prefers-reduced-motion:reduce){.animated{display:none!important}.still{display:block!important}}@media(max-width:440px){.stage{gap:10px}.card{padding:10px}}
+</style>
+<style>
+.animated{animation:none;transform-origin:50% 60%}
+@keyframes gx-head-tilt{0%,100%{transform:rotate(0)}50%{transform:rotate(-0.8deg)}}
+@media(prefers-reduced-motion:reduce){.animated{animation:none}}
+</style>
+<main>
+<h1>GX · Paused</h1>
+<p>Relaxed eyelids, gentle eyebrow movement, and a small breathing smile. Fixed lighting. Head and headphones only.</p>
+<div class="stage">
+<div class="card"><img class="animated" src="gx-paused-preview.webp" alt="GX robot paused"><img class="still" src="gx-paused.png" alt="GX robot"><div class="caption">Dark surface</div></div>
+<div class="card light"><img class="animated" src="gx-paused-preview.webp" alt="GX robot paused"><img class="still" src="gx-paused.png" alt="GX robot"><div class="caption">Light surface</div></div>
+</div>
+<div class="bubble"><img class="animated" src="gx-paused-loop.webp" alt=""><img class="still" src="gx-paused.png" alt=""><div><strong>AUD/JPY · Updates paused</strong><p>Market closed. Monitoring resumes when fresh prices return.</p></div></div>
+<p class="caption">Bubble preview at 40px · demonstration copy</p>
+<div class="sizes"><img class="animated" src="gx-paused-loop.webp" width="28" height="28" alt="28px icon"><img class="still" src="gx-paused.png" width="28" height="28" alt="28px icon"><span>28px</span><img class="animated" src="gx-paused-loop.webp" width="40" height="40" alt="40px icon"><img class="still" src="gx-paused.png" width="40" height="40" alt="40px icon"><span>40px</span><img class="animated" src="gx-paused-loop.webp" width="64" height="64" alt="64px icon"><img class="still" src="gx-paused.png" width="64" height="64" alt="64px icon"><span>64px</span></div>
+<button id="motion" type="button" aria-pressed="false">Pause animation</button>
+<p class="caption">Preview only. For closed markets, stale prices, or a disconnected feed. Reduced-motion preferences use the still image.</p>
+</main>
+<script>document.querySelector('#motion').addEventListener('click',function(){const paused=document.body.classList.toggle('paused');this.textContent=paused?'Play animation':'Pause animation';this.setAttribute('aria-pressed',String(paused));});</script>
+</html>
+
+
+

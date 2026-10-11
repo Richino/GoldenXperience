@@ -8677,27 +8677,38 @@ html:is(.dark, :not(.dark)) body .gx-fs-dock .menu-popover {
   .gx-fs-close { height: 34px; padding: 0 12px; border-radius: 10px; font-size: 12px; }
   .gx-fs-hint { bottom: calc(env(safe-area-inset-bottom, 0px) + 34px); font-size: 11px; }
 }
-/* Portrait phone: keep the card to the pair and price so it clears the exit button. */
-@media (max-width: 520px) {
+/* Phone portrait: pair, price and the actions all share one line along the top. */
+@media (max-width: 600px) {
   .gx-fs-pair .gx-fs-rule,
   .gx-fs-position,
-  .gx-fs-quote small { display: none; }
+  .gx-fs-quote small,
+  .gx-fs-more,
   .gx-fs-dock .gx-fs-rule { display: none; }
-  /* Analyze / New entry / exit don't fit beside the pair card: second row. */
-  .gx-fs-corner {
-    top: calc(env(safe-area-inset-top, 0px) + 66px);
-    right: calc(env(safe-area-inset-right, 0px) + 12px);
-    left: calc(env(safe-area-inset-left, 0px) + 12px);
-    justify-content: flex-end;
+  .gx-fs-pair {
+    top: calc(env(safe-area-inset-top, 0px) + 10px);
+    left: calc(env(safe-area-inset-left, 0px) + 10px);
     gap: 8px;
+    padding: 4px 10px 4px 4px;
+    border-radius: 12px;
+    white-space: nowrap;
   }
-  .gx-fs-action { height: 36px; padding: 0 12px; font-size: 12px; }
-  .gx-fs-exit { width: 36px; height: 36px; }
-}
-@media (max-width: 600px) {
+  .gx-fs-pair-search .signals-tool-btn { font-size: 14px; min-height: 28px; }
+  .gx-fs-quote strong { font-size: 13px; }
   .gx-fs-corner {
-    top: calc(env(safe-area-inset-top, 0px) + 70px);
-    right: calc(env(safe-area-inset-right, 0px) + 12px);
+    top: calc(env(safe-area-inset-top, 0px) + 10px);
+    right: calc(env(safe-area-inset-right, 0px) + 10px);
+    left: auto;
     gap: 6px;
   }
+  .gx-fs-action { height: 36px; padding: 0 11px; font-size: 12px; border-radius: 11px; }
+  .gx-fs-exit { width: 36px; height: 36px; border-radius: 11px; }
+  .gx-fs-exit svg { width: 16px; height: 16px; }
 }
+/* Narrow phones: the flags go (the pair name stays) so the row still fits. */
+@media (max-width: 420px) {
+  .gx-fs-pair > :first-child { display: none; }
+  .gx-fs-pair { gap: 6px; padding: 4px 10px; }
+  .gx-fs-corner { gap: 4px; }
+  .gx-fs-action { padding: 0 8px; }
+}
+

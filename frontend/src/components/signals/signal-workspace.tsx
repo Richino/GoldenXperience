@@ -5134,7 +5134,8 @@ export function SignalWorkspace({
           actions={
             <>
               <button type="button" className="gx-fs-action is-analyze pressable" onClick={() => void runTrendPullback()} disabled={chartAnalysisBusy || replayActive}>
-                {chartAnalysisBusy ? "Updating…" : chartPairMonitored ? "Manage analysis" : "Analyze market"}
+                {/* The second word drops on phones so the top row stays on one line. */}
+                {chartAnalysisBusy ? "Updating…" : chartPairMonitored ? <>Manage<span className="gx-fs-more"> analysis</span></> : <>Analyze<span className="gx-fs-more"> market</span></>}
               </button>
               <button type="button" className="gx-fs-action pressable" onClick={() => {
                 setEntryDraftProposal(null);

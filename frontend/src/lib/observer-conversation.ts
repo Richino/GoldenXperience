@@ -31,12 +31,15 @@ const planKey = (plan: ObserverPlan | null) => plan ? JSON.stringify([plan.id, [
  * Short rule-based chat updates, written the way a person watching the chart
  * would say them: the first sentence is the headline, the rest is the plain
  * follow-up. They describe what price is doing now, never what it will do.
- * Full reasoning belongs in Plan & results.
+ * `variant` rotates the wording when the same situation is reported again
+ * ("Still waiting…"), so a long wait doesn't read as the same line over and
+ * over; variant 0 is the standard phrasing. Full reasoning belongs in Plan & results.
  */
-export function observerChatText(snapshot: ObserverSnapshot, instrument: string): string {
+export function observerChatText(snapshot: ObserverSnapshot, instrument: string, variant = 0): string {
   const read = snapshot.read, plan = snapshot.plan;
   const price = (n: number) => n.toFixed(precisionFor(instrument));
   const side = plan?.direction === "long" ? "buy" : "sell";
+  const say = (...lines: string[]) => lines[Math.abs(variant) % lines.length];
   if (!snapshot.enabled || !read) return "I can't watch this pair right now. Open Plan & results to see why.";
   if (plan?.outcome) return ({
     target_observed: "Target hit. Price reached the profit target on this paper plan.",
@@ -50,37 +53,91 @@ export function observerChatText(snapshot: ObserverSnapshot, instrument: string)
       ? "This setup ran out of time without an entry. Run Analyze when you want a new one."
       : "This plan is finished.";
   if (plan?.triggeredAt) return `Entry conditions met${plan.observedEntry !== null ? ` at ${price(plan.observedEntry)}` : ""}. This is a paper ${side} signal, not a real order.`;
-  if (!getForexSessionStatus(new Date(read.asOf)).marketOpen) return "The market's closed. I'll pick this back up when it reopens.";
-  if (read.state === "paused") return "Prices stopped coming in. Your plan is safe; I'm waiting for fresh prices.";
-  if (read.state === "warming") return "Getting fresh prices. Give me a moment; your plan stays as it is.";
-  if (snapshot.checks?.some(c => c.id === "confirmation" && c.state === "met")) return "The candle confirmed. A few entry checks still need to pass before it counts.";
+  if (!getForexSessionStatus(new Date(read.asOf)).marketOpen) return say(
+    "The market's closed. I'll pick this back up when it reopens.",
+    "Still closed. I'll jump back in as soon as prices start moving.",
+    "Market's still shut. Nothing to watch until it opens.",
+  );
+  if (read.state === "paused") return say(
+    "Prices stopped coming in. Your plan is safe; I'm waiting for fresh prices.",
+    "Still no fresh prices. Your plan hasn't changed while I wait.",
+    "The price feed's still quiet. I'll pick it up the moment it's back.",
+    "Still waiting on live prices. Nothing about your plan has moved.",
+  );
+  if (read.state === "warming") return say(
+    "Getting fresh prices. Give me a moment; your plan stays as it is.",
+    "Almost there. Still gathering a few seconds of live prices.",
+    "Still warming up on live prices. Your plan is unchanged.",
+  );
+  if (snapshot.checks?.some(c => c.id === "confirmation" && c.state === "met")) return say(
+    "The candle confirmed. A few entry checks still need to pass before it counts.",
+    "Candle's confirmed. Still waiting on the last entry checks.",
+    "Still just the candle confirmation. The entry checks still need to pass before it counts.",
+  );
   const attempt = plan?.consolidation?.attempts.at(-1);
   if (attempt && !attempt.endedAt) {
     const edge = attempt.side === "up" ? "top" : "bottom";
     if (attempt.candle.at) return `A 5-minute candle just closed past the ${edge} of the range. ${attempt.candle.blockers.length ? "The entry checks still say no, though." : "That's a paper breakout; take a look at the plan."}`;
-    if (attempt.hold.at) return `Price is holding past the ${edge} of the range. I'm waiting for the 5-minute candle to close there.`;
-    return `Price is pushing at the ${edge} of the range. It hasn't broken out yet.`;
+    if (attempt.hold.at) return say(
+      `Price is holding past the ${edge} of the range. I'm waiting for the 5-minute candle to close there.`,
+      `Still holding past the ${edge} edge. The 5-minute close will settle it.`,
+      `Price is staying outside the ${edge} of the range. Still waiting on the candle close.`,
+    );
+    return say(
+      `Price is pushing at the ${edge} of the range. It hasn't broken out yet.`,
+      `Still testing the ${edge} edge. No breakout so far.`,
+      `Price keeps leaning on the ${edge} of the range. It hasn't cleared it.`,
+    );
   }
   if (attempt?.endedAt && [attempt.hold.outcome, attempt.candle.outcome].includes("returned_inside")) return "That breakout didn't hold. Price slipped back inside the range.";
   if (plan?.pullback && plan.direction) {
     const zone = `${price(plan.pullback.zone.low)}–${price(plan.pullback.zone.high)}`;
-    if (plan.pullback.phase === "testing") return `Price is in the ${side} area (${zone}) now. I'm watching how it reacts before anything counts.`;
-    if (plan.pullback.phase === "rebounding") return `Price is bouncing off the ${side} area. I'm waiting for a candle to close and confirm it.`;
-    if (plan.consolidation?.state === "inside") return `Price is still boxed in between ${price(plan.consolidation.low)} and ${price(plan.consolidation.high)}. I'm waiting for it to break out of that range.`;
-    return `Waiting for price to ${plan.direction === "long" ? "dip" : "rise"} into the ${side} area at ${zone}. Nothing to do yet.`;
+    const toward = plan.direction === "long" ? "dip" : "rise";
+    if (plan.pullback.phase === "testing") return say(
+      `Price is in the ${side} area (${zone}) now. I'm watching how it reacts before anything counts.`,
+      `Still inside the ${side} area. Waiting to see whether it turns.`,
+      `Price is still sitting in the ${side} area at ${zone}. No reaction worth acting on yet.`,
+      `Still in the zone. I want to see it turn before anything counts.`,
+    );
+    if (plan.pullback.phase === "rebounding") return say(
+      `Price is bouncing off the ${side} area. I'm waiting for a candle to close and confirm it.`,
+      `The bounce is still going. A candle close will tell us if it's real.`,
+      `Price is still moving away from the ${side} area. Waiting on the candle to confirm.`,
+    );
+    if (plan.consolidation?.state === "inside") return say(
+      `Price is still boxed in between ${price(plan.consolidation.low)} and ${price(plan.consolidation.high)}. I'm waiting for it to break out of that range.`,
+      `Still stuck in the ${price(plan.consolidation.low)}–${price(plan.consolidation.high)} range. No breakout yet.`,
+      `Same tight range as before. I'm watching both edges.`,
+      `Price keeps drifting inside the range. Nothing has broken out.`,
+    );
+    return say(
+      `Waiting for price to ${toward} into the ${side} area at ${zone}. Nothing to do yet.`,
+      `Still waiting for that ${toward} into ${zone}. Nothing to do yet.`,
+      `No change. The ${side} area at ${zone} is still untouched.`,
+      `Still a way off the ${side} area. I'll let you know when price gets there.`,
+      `Price hasn't made it to ${zone} yet. Still watching.`,
+    );
   }
   if (plan?.consolidation) {
     if (plan.consolidation.state === "unavailable") return "I'm missing some price updates. The range stays as it was; nothing is confirmed.";
     if (plan.consolidation.state === "expired") return "The range check timed out with no breakout. Run Analyze for a new setup.";
-    return `Price is moving sideways between ${price(plan.consolidation.low)} and ${price(plan.consolidation.high)}. I'm watching both edges.`;
+    return say(
+      `Price is moving sideways between ${price(plan.consolidation.low)} and ${price(plan.consolidation.high)}. I'm watching both edges.`,
+      `Still ranging between ${price(plan.consolidation.low)} and ${price(plan.consolidation.high)}. No break either way.`,
+      `Still sideways. Both edges of the range are holding.`,
+    );
   }
-  if (read.pressure.relation === "opposed") return "The short-term move is going against the bigger trend. It could be a pullback or a turn; nothing is confirmed.";
+  if (read.pressure.relation === "opposed") return say(
+    "The short-term move is going against the bigger trend. It could be a pullback or a turn; nothing is confirmed.",
+    "Price is still pushing against the bigger trend. Nothing is confirmed either way.",
+    "The short-term move still disagrees with the trend. I'm not reading anything into it yet.",
+  );
   const patterns = activePatterns(read).filter(p => p.state === "confirmed");
   if (patterns.length) return `I spotted a ${patterns[0].timeframe} ${patterns[0].kind.replaceAll("_", " ")}. On its own, that isn't a reason to enter.`;
-  return read.lean === "up" ? "Price is leaning up. No setup worth taking yet."
-    : read.lean === "down" ? "Price is leaning down. No setup worth taking yet."
-    : read.lean === "range" ? "Price is moving sideways. I'm waiting for it to pick a direction."
-    : "There's no clear direction right now. Nothing to act on yet.";
+  if (read.lean === "up") return say("Price is leaning up. No setup worth taking yet.", "Still leaning up. Nothing worth taking so far.", "The lean is still upward, but there's no setup yet.");
+  if (read.lean === "down") return say("Price is leaning down. No setup worth taking yet.", "Still leaning down. Nothing worth taking so far.", "The lean is still downward, but there's no setup yet.");
+  if (read.lean === "range") return say("Price is moving sideways. I'm waiting for it to pick a direction.", "Still sideways. No direction yet.", "Price is still drifting without a direction. Nothing to act on.");
+  return say("There's no clear direction right now. Nothing to act on yet.", "Still no clear direction. I'm keeping watch.", "The picture is still mixed. Nothing worth acting on.");
 }
 
 /** Keep legacy session messages compact without deleting their captured evidence. */
@@ -145,14 +202,14 @@ export function observerDecisionText(snapshot: ObserverSnapshot, instrument: str
   return parts.join(" ");
 }
 
-interface PairCursor { snapshot: ObserverSnapshot | null; failed: boolean; lastReadAt: number; pending: boolean; seenEvents: Set<string>; recent: Map<string, number> }
+interface PairCursor { snapshot: ObserverSnapshot | null; failed: boolean; lastReadAt: number; pending: boolean; seenEvents: Set<string>; recent: Map<string, number>; lastSituation: string; repeats: number }
 /** Bounded session cursors suppress repeated polls; important lifecycle events bypass chatter cooldown. */
 export class ObserverConversation {
   private pairs = new Map<string, PairCursor>();
   reset(instrument: string) { this.pairs.delete(instrument); }
   private cursor(instrument: string) {
     let cursor = this.pairs.get(instrument);
-    if (!cursor) { cursor = { snapshot: null, failed: false, lastReadAt: -Infinity, pending: false, seenEvents: new Set(), recent: new Map() }; this.pairs.set(instrument, cursor); }
+    if (!cursor) { cursor = { snapshot: null, failed: false, lastReadAt: -Infinity, pending: false, seenEvents: new Set(), recent: new Map(), lastSituation: "", repeats: 0 }; this.pairs.set(instrument, cursor); }
     return cursor;
   }
   failure(instrument: string, at: string): Draft[] {
@@ -191,10 +248,21 @@ export class ObserverConversation {
       if (summary && event === events.at(-1) && event.status === next.plan?.status && event.reason === next.plan.reason) continue;
       drafts.push({ instrument, at: event.at, kind: "plan", source: "rules", text: compactObserverChatMessage(`Plan ${event.status.toLowerCase()}. ${event.reason}`) });
     }
+    // The standard wording names the situation; a repeat of it gets the next
+    // phrasing ("Still waiting…") but still counts as the same message for
+    // duplicate suppression, so it doesn't post any more often than before.
+    const situations = new Map<Draft, string>();
+    let summaryDraft: Draft | null = null;
     if (summary) {
-      const text = observerChatText(next, instrument);
+      const situation = observerChatText(next, instrument);
+      const variant = situation === cursor.lastSituation ? cursor.repeats + 1 : 0;
+      const text = observerChatText(next, instrument, variant);
       const important = lifecycleChanged || !previous;
-      if (important || now - cursor.lastReadAt >= 30_000) drafts.push({ instrument, at, kind: lifecycleChanged && previous ? "plan" : "read", text, source: "rules", evidence: next.read?.facts.map(f => ({ id: f.id, text: f.text })) });
+      if (important || now - cursor.lastReadAt >= 30_000) {
+        summaryDraft = { instrument, at, kind: lifecycleChanged && previous ? "plan" : "read", text, source: "rules", evidence: next.read?.facts.map(f => ({ id: f.id, text: f.text })) };
+        situations.set(summaryDraft, situation);
+        drafts.push(summaryDraft);
+      }
       if (important || now - cursor.lastReadAt >= 30_000) { cursor.lastReadAt = now; cursor.pending = false; }
     }
     cursor.snapshot = structuredClone(next);
@@ -202,8 +270,14 @@ export class ObserverConversation {
     return drafts.filter(draft => {
       const newPlan = next.plan?.id !== previous?.plan?.id;
       const critical = draft.kind === "plan" && (newPlan || Boolean(next.plan?.triggeredAt) || Boolean(next.plan && ["INVALIDATED", "EXPIRED", "CLOSED"].includes(next.plan.status)));
-      if (!critical && cursor.recent.has(draft.text)) return false;
-      cursor.recent.set(draft.text, now); return true;
+      const key = situations.get(draft) ?? draft.text;
+      if (!critical && cursor.recent.has(key)) return false;
+      cursor.recent.set(key, now);
+      if (draft === summaryDraft) {
+        cursor.repeats = key === cursor.lastSituation ? cursor.repeats + 1 : 0;
+        cursor.lastSituation = key;
+      }
+      return true;
     });
   }
 }

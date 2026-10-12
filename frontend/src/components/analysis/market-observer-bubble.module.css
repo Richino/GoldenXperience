@@ -177,7 +177,12 @@
 .cloud::before { right: -10px; bottom: 14px; width: 10px; height: 10px; }
 .cloud::after { right: -18px; bottom: 6px; width: 6px; height: 6px; }
 .cloudTag { display: flex; align-items: center; gap: 6px; font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; opacity: .7; }
-.cloudText { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 13px; font-weight: 600; line-height: 1.35; }
+/* Whole message when there is room above the mascot (lines measured in
+   observer-bubble-position.ts); the default spot has plenty, so up to 6. */
+.cloudText { display: -webkit-box; -webkit-line-clamp: var(--scout-cloud-lines, 6); -webkit-box-orient: vertical; overflow: hidden; font-size: 13px; font-weight: 600; line-height: 1.35; }
+.cloudTextEnter { animation: cloud-text-in 280ms cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes cloud-text-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .cloudTextEnter { animation: none; } }
 .cloudWrap .minimize { top: 6px; right: 6px; width: 18px; height: 18px; color: var(--foreground); opacity: .5; }
 .minimized { width: fit-content; }
 

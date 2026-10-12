@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent, type MouseEvent, type KeyboardEvent, type DragEvent } from "react";
-import { observerBubbleCloudRoom, observerBubblePanel, observerBubblePosition, type ObserverBubblePosition } from "./observer-bubble-position";
+import { observerBubbleCloudLines, observerBubbleCloudRoom, observerBubblePanel, observerBubblePosition, type ObserverBubblePosition } from "./observer-bubble-position";
 
 type Drag = { id: number; startX: number; startY: number; origin: ObserverBubblePosition; current: ObserverBubblePosition; moved: boolean };
 const viewport = () => ({ left: window.visualViewport?.offsetLeft ?? 0, top: window.visualViewport?.offsetTop ?? 0,
@@ -9,7 +9,7 @@ const viewport = () => ({ left: window.visualViewport?.offsetLeft ?? 0, top: win
 function rowStyle(position: ObserverBubblePosition): CSSProperties {
   return { position: "fixed", left: position.side === "left" ? position.x : position.x + position.iconSize,
     top: position.y + position.iconSize, transform: position.side === "left" ? "translateY(-100%)" : "translate(-100%, -100%)",
-    "--scout-cloud-room": `${observerBubbleCloudRoom(position)}px` } as CSSProperties;
+    "--scout-cloud-room": `${observerBubbleCloudRoom(position)}px`, "--scout-cloud-lines": observerBubbleCloudLines(position) } as CSSProperties;
 }
 
 export function useObserverBubbleDrag(enabled: boolean) {
@@ -42,7 +42,10 @@ export function useObserverBubbleDrag(enabled: boolean) {
     row.style.top = `${style.top}px`;
     row.style.transform = String(style.transform);
     // Keep the message width stable during dragging; fit it inward after release.
-    if (settled) row.style.setProperty("--scout-cloud-room", `${observerBubbleCloudRoom(next)}px`);
+    if (settled) {
+      row.style.setProperty("--scout-cloud-room", `${observerBubbleCloudRoom(next)}px`);
+      row.style.setProperty("--scout-cloud-lines", String(observerBubbleCloudLines(next)));
+    }
   }, []);
   const finish = useCallback((event: { pointerId: number }) => {
     const active = drag.current;

@@ -27,6 +27,27 @@ export interface MarketObserverControl {
 }
 export interface MarketObserverMonitoring { tracked: string[]; busyPairs: Record<string, boolean> }
 /** Dedicated chats per pair; Analyze explicitly adds pairs to server monitoring. */
+/**
+ * The speech bubble's message. A new message fades and slides in, and the
+ * bubble eases to its new height instead of jumping (it grows upward, since
+ * it is anchored to the mascot's bottom edge).
+ */
+function CloudText({ text }: { text: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const previousHeight = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const cloud = ref.current?.parentElement;
+    if (!cloud) return;
+    const height = cloud.getBoundingClientRect().height;
+    const previous = previousHeight.current;
+    previousHeight.current = height;
+    if (previous === null || Math.abs(previous - height) < 1) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    cloud.animate([{ height: `${previous}px` }, { height: `${height}px` }], { duration: 260, easing: "cubic-bezier(.2, .8, .2, 1)" });
+  }, [text]);
+  return <span ref={ref} key={text} className={`${styles.cloudText} ${styles.cloudTextEnter}`}>{text}</span>;
+}
+
 export function MarketObserverBubble({ instrument: chartInstrument, replayActive = false, controlRef, onMonitoringChange }: { instrument: string; replayActive?: boolean; controlRef?: Ref<MarketObserverControl>; onMonitoringChange?: (state: MarketObserverMonitoring) => void }) {
   const [tracked, setTracked] = useState<string[]>([]);
   const trackedRef = useRef<string[]>([]);
@@ -482,7 +503,7 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
       {!open && !minimized && <div className={styles.cloudWrap}>
         <button className={styles.cloud} aria-label={`${headline}. ${cloudText}. Open the analysis chat`} onClick={openChat}>
           <span className={styles.cloudTag}><i className={styles.dot} data-tone={tone} />{statusLine}</span>
-          <span className={styles.cloudText}>{cloudText}</span>
+          <CloudText text={cloudText} />
         </button>
         <button data-no-observer-drag className={styles.minimize} aria-label="Hide the message, keep the icon" onClick={() => setMinimized(true)}><X size={12} /></button>
       </div>}

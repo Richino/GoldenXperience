@@ -19,6 +19,18 @@ export function observerBubbleCloudRoom(position: ObserverBubblePosition) {
   return Math.max(0, side === "left" ? viewport.left + viewport.width - MARGIN - x - iconSize - 10 : x - viewport.left - MARGIN - 10);
 }
 
+/**
+ * How many lines of the message fit above the mascot. The bubble grows upward
+ * from the icon's bottom edge, so away from the top of the screen it can show
+ * the whole message; close to the top it falls back to a two-line preview.
+ */
+export function observerBubbleCloudLines(position: ObserverBubblePosition) {
+  const { y, iconSize, viewport } = position;
+  // Cloud sits 26px above the icon's bottom; its tag row, padding and border take ~44px.
+  const room = y + iconSize - viewport.top - MARGIN - 26 - 44;
+  return Math.max(2, Math.min(8, Math.floor(room / 18)));
+}
+
 /** Desktop chat stays beside the moved bubble; phone chat keeps its bottom-sheet layout. */
 export function observerBubblePanel(position: ObserverBubblePosition) {
   const { x, y, iconSize, rowHeight, side, viewport } = position;

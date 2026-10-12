@@ -83,6 +83,40 @@ export function PendingEntryDialog({
     handleSelector: ".pending-entry-grip, .pending-entry-dialog > header",
     enabled: !isPanel,
   });
+  // iOS keeps the layout viewport at full height when the keyboard opens, so
+  // this bottom-anchored drawer stayed under the keyboard while typing a price.
+  // Lift it to the visible bottom and keep the focused field in view.
+  useEffect(() => {
+    if (!open || isPanel) return;
+    const viewport = window.visualViewport;
+    const backdrop = document.querySelector<HTMLElement>(".pending-entry-backdrop");
+    if (!viewport || !backdrop) return;
+    const sync = () => {
+      const layoutHeight = Math.max(window.innerHeight, document.documentElement.clientHeight);
+      const offset = Math.max(0, layoutHeight - viewport.height - viewport.offsetTop);
+      const keyboardOpen = viewport.height < layoutHeight - 120;
+      backdrop.style.setProperty("--pe-keyboard-offset", `${Math.round(offset)}px`);
+      backdrop.style.setProperty("--pe-visible-height", `${Math.round(viewport.height)}px`);
+      backdrop.dataset.keyboardOpen = keyboardOpen ? "true" : "false";
+      const field = document.activeElement;
+      if (keyboardOpen && field instanceof HTMLInputElement && backdrop.contains(field)) {
+        field.scrollIntoView({ block: "nearest" });
+      }
+    };
+    const onFocus = (event: FocusEvent) => {
+      // The keyboard animates in after focus; re-check once it has settled.
+      if (event.target instanceof HTMLInputElement) window.setTimeout(sync, 350);
+    };
+    sync();
+    viewport.addEventListener("resize", sync);
+    viewport.addEventListener("scroll", sync);
+    backdrop.addEventListener("focusin", onFocus);
+    return () => {
+      viewport.removeEventListener("resize", sync);
+      viewport.removeEventListener("scroll", sync);
+      backdrop.removeEventListener("focusin", onFocus);
+    };
+  }, [isPanel, open]);
   const [editing, setEditing] = useState(false);
   // A blank entry has no direction until the user picks one, so a form that
   // lost its Analyze plan (e.g. a reload) can never submit a default LONG.

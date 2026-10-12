@@ -190,6 +190,13 @@ html {
   font-size: 100%;
 }
 
+/* Until next-themes has set "light" or "dark", :root's light colours would paint
+   for a frame — a white flick on launch between the dark iOS launch image and
+   the splash. Hold the launch colour until the theme is known. */
+html:not(.light):not(.dark) {
+  background: #0b0c0a;
+}
+
 html.text-size-small {
   font-size: 87.5%;
 }

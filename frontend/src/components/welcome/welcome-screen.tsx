@@ -39,7 +39,11 @@ export function WelcomeScreen() {
     }
     // The static first-paint copy (layout.tsx, #gx-boot-splash) stays until
     // this animated one has faded in on top of it, then steps aside.
-    const releaseBootSplash = () => document.documentElement.classList.remove("gx-boot-splash");
+    const releaseBootSplash = () => {
+      document.documentElement.classList.remove("gx-boot-splash");
+      // The head script painted <html> dark for the gap before the body arrived.
+      document.documentElement.style.removeProperty("background-color");
+    };
     if (!seen) {
       previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Browser launch mode is unavailable during SSR.

@@ -92,10 +92,13 @@ export default function RootLayout({
             static copy below on a first launch (same key as WelcomeScreen), so
             the app opens straight onto the splash instead of a blank screen.
             WelcomeScreen fades its animated copy in on top, then removes the
-            class. Signed-in workspace pages only; login and embeds have none. */}
+            class. Signed-in workspace pages only; login and embeds have none.
+            It also paints <html> dark at once: the head arrives before the body
+            that holds the splash, and in that gap phones painted the light
+            theme background, a white flick between the launch image and splash. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var p=location.pathname;if(!/^\\/(?:$|chart|journal|watchlist|settings|risk|signals|research|morning-preview)/.test(p))return;if(location.search.indexOf('splash')<0&&sessionStorage.getItem('gx-launch-screen-v2')==='1')return;document.documentElement.classList.add('gx-boot-splash');}catch(e){}})();`,
+            __html: `(function(){try{var p=location.pathname;if(!/^\\/(?:$|chart|journal|watchlist|settings|risk|signals|research|morning-preview)/.test(p))return;if(location.search.indexOf('splash')<0&&sessionStorage.getItem('gx-launch-screen-v2')==='1')return;var d=document.documentElement;d.classList.add('gx-boot-splash');d.style.backgroundColor='#0b0c0a';}catch(e){}})();`,
           }}
         />
       </head>

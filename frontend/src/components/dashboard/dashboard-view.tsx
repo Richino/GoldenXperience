@@ -530,6 +530,14 @@ export function DashboardView({
           ? `${Math.round(Math.min(1, toward) * 100)}% to target`
           : `${(Math.abs(mark - trade.entry) / pipSizeFor(trade.instrument)).toFixed(1)} pips against`;
     }
+    // The spread in R, against the same 1R (planned entry to stop) that Open R
+    // uses, in account dollars; nominal 1% risk when there is no fill.
+    const spreadCost = entrySpreadById.get(trade.id) ?? null;
+    const usdPerQuote = quoteToUsdRateFromQuotes(trade.instrument, quotes);
+    const oneR = fill?.units && trade.entry != null && trade.stop != null && usdPerQuote !== null
+      ? Math.abs(trade.entry - trade.stop) * Math.abs(fill.units) * usdPerQuote
+      : trade.nominalRiskAmount ?? null;
+    const spreadR = spreadCost !== null && oneR ? -Math.abs(spreadCost) / oneR : null;
     return {
       id: trade.id,
       href: `/chart?instrument=${trade.instrument}&trade=${trade.id}`,
@@ -546,7 +554,8 @@ export function DashboardView({
       money: shown,
       lots,
       progress,
-      spreadCost: entrySpreadById.get(trade.id) ?? null,
+      spreadCost,
+      spreadR,
     };
   });
 

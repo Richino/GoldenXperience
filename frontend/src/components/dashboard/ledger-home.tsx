@@ -63,6 +63,8 @@ export type LedgerPosition = {
   progress: string | null;
   /** What OANDA booked for the entry spread, account currency; null when unknown. */
   spreadCost: number | null;
+  /** That spread as a share of the trade's 1R (negative); null when unknown. */
+  spreadR: number | null;
 };
 
 export type LedgerSetup = {
@@ -438,7 +440,7 @@ function LedgerPositions({ positions, currency }: { positions: LedgerPosition[];
                 <span className="nl-pos-pl metric-number">
                   <span className={tone(position.money)}>{position.money === null ? "Open" : signedMoney(position.money, currency)}</span>
                   {position.spreadCost !== null ? (
-                    <small className="nl-pos-spread">spread {signedMoney(-Math.abs(position.spreadCost), currency)}</small>
+                    <small className="nl-pos-spread">spread {signedMoney(-Math.abs(position.spreadCost), currency)}{position.spreadR !== null ? ` · ${signedR(position.spreadR)}` : ""}</small>
                   ) : null}
                 </span>
               </Link>

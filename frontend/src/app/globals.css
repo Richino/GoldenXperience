@@ -15094,11 +15094,15 @@ html:has(.custom-expiration-backdrop) .mobile-dock {
 .custom-expiration-error { color: var(--danger)!important; }
 .custom-expiration-dialog footer { display: flex; justify-content: flex-end; gap: .55rem; margin-top: 1rem; }
 .custom-expiration-dialog footer button { min-height: 2.5rem; border-radius: .65rem; padding: 0 .85rem; border: 1px solid var(--border); background: var(--surface-raised); color: var(--foreground); font-size: .76rem; font-weight: 800; }
-.custom-expiration-dialog footer button:last-child:not(:only-child) { border-color: transparent; background: var(--accent); color: var(--accent-contrast, #fff); }
+.custom-expiration-dialog footer button:last-child:not(:only-child) { border-color: transparent; background: var(--accent); color: var(--on-accent, #0b0c0a); }
 /* Trade-confirm actions: red for Close, amber for Cancel — override the accent
    last-child default (placed after it to win the equal-specificity tie). */
-.custom-expiration-dialog footer button.is-danger { border-color: transparent; background: var(--danger); color: #fff; }
-.custom-expiration-dialog footer button.is-warning { border-color: transparent; background: #f59e0b; color: #1a1205; }
+/* Danger / warning confirms must beat the generic lime "last button" rule above
+   (it is more specific); that left Close Trade white on lime and unreadable. */
+.custom-expiration-dialog footer button.is-danger,
+.custom-expiration-dialog footer button.is-danger:last-child:not(:only-child) { border-color: transparent; background: var(--loss-fill, var(--danger)); color: #0b0c0a; }
+.custom-expiration-dialog footer button.is-warning,
+.custom-expiration-dialog footer button.is-warning:last-child:not(:only-child) { border-color: transparent; background: #f59e0b; color: #1a1205; }
 .custom-expiration-dialog footer button.is-danger:hover,
 .custom-expiration-dialog footer button.is-warning:hover { filter: brightness(1.06); }
 

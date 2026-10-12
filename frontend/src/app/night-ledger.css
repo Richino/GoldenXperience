@@ -5622,6 +5622,30 @@ html:is(.dark, :not(.dark)) body .signals-view .workspace-tab-btn.workspace-tab-
   }
 }
 
+/* Touch screens: no hover look on the chart's action row. A tap leaves
+   :hover stuck on phones, which swapped these buttons' colours (older
+   globals.css hover rules) until you tapped elsewhere. Pressing still gives
+   the .pressable scale feedback. */
+@media (hover: none), (pointer: coarse) {
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-analyze:hover:not(:disabled) {
+    border-color: transparent;
+    background: var(--accent-fill);
+    color: var(--on-accent);
+    filter: none;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-analyze:is(.is-close, .is-cancel):hover:not(:disabled) {
+    background: var(--loss-fill);
+    color: var(--on-accent);
+    filter: none;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mlevels-start:hover {
+    border-color: var(--border-strong);
+    background: var(--surface);
+    color: var(--foreground);
+    filter: none;
+  }
+}
+
 /* ============================================================== ANALYZE */
 
 /* Analyze result: the first card in the chart's side column on desktop, a
@@ -6094,16 +6118,18 @@ html:is(.dark, :not(.dark)) body .pending-entry-dialog.is-plan {
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
 }
 
-/* Keyboard open (phones): sit on top of the keyboard instead of under it, and
-   fit the visible area so the focused price field can scroll into view.
+/* Keyboard open (phones): behave like the pair-search drawer. The sheet stays
+   attached to the bottom and grows to just under the status bar, the keyboard
+   covers its lower part, and the occluded area is reserved inside it so every
+   field and the buttons can scroll above the keyboard.
    Values come from visualViewport in pending-entry-dialog.tsx. */
-html:is(.dark, :not(.dark)) body .pending-entry-backdrop[data-keyboard-open="true"] {
-  padding-bottom: var(--pe-keyboard-offset, 0px);
-}
 html:is(.dark, :not(.dark)) body .pending-entry-backdrop[data-keyboard-open="true"] .pending-entry-dialog {
-  max-height: calc(var(--pe-visible-height, 88dvh) - max(0.75rem, env(safe-area-inset-top, 0px)));
+  --pe-keyboard-height: calc(var(--pe-visible-height, 86dvh) + var(--pe-keyboard-offset, 0px) - max(3rem, calc(env(safe-area-inset-top, 0px) + 0.75rem)));
+  height: var(--pe-keyboard-height);
+  max-height: var(--pe-keyboard-height);
   overflow-y: auto;
-  border-radius: 24px;
+  overscroll-behavior: contain;
+  padding-bottom: calc(var(--pe-keyboard-offset, 0px) + 16px);
 }
 
 html:is(.dark, :not(.dark)) body .pending-entry-dialog.is-plan > header.nl-an-top {
@@ -6174,6 +6200,77 @@ html:is(.dark, :not(.dark)) body .nl-pe-levels input {
 
 .nl-pe-levels input:not(.is-up):not(.is-down) {
   color: var(--foreground);
+}
+
+/* Entry in pips: below or above the live price (no minus key on the iPhone
+   decimal keypad, so the direction is a switch rather than a sign). */
+.nl-pe-levels .nl-pe-where {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--surface-raised);
+}
+.nl-pe-levels .nl-pe-where button {
+  padding: 2px 7px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.nl-pe-levels .nl-pe-where button.is-active {
+  background: var(--foreground);
+  color: var(--background);
+}
+
+/* Phones: one row per level instead of three cramped columns. Name and hint
+   on the left, a large boxed field on the right (16px+ so iOS doesn't zoom
+   the page on focus), and a thumb-sized Below / Above switch for the entry. */
+@media (max-width: 639px) {
+  .nl-pe-levels { grid-template-columns: minmax(0, 1fr); }
+  .nl-pe-levels label {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(7.5rem, 46%);
+    grid-template-areas: "name field" "hint where";
+    align-items: center;
+    column-gap: 12px;
+    row-gap: 6px;
+    padding: 12px 14px;
+  }
+  .nl-pe-levels label + label { border-left: 0; border-top: 1px solid var(--border); }
+  .nl-pe-levels label > span:first-child { grid-area: name; font-size: 13px; color: var(--foreground); font-weight: 600; }
+  .nl-pe-levels label > input { grid-area: field; }
+  .nl-pe-levels label > .nl-pe-where { grid-area: where; justify-self: end; }
+  .nl-pe-levels label > .nl-pe-hint { grid-area: hint; font-size: 12px; }
+  html:is(.dark, :not(.dark)) body .nl-pe-levels input {
+    height: 44px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface-raised);
+    font-size: 17px;
+    text-align: right;
+  }
+  html:is(.dark, :not(.dark)) body .nl-pe-levels input:focus { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
+  .nl-pe-levels label:focus-within { background: transparent; }
+  .nl-pe-levels .nl-pe-where { padding: 3px; border-radius: 10px; }
+  .nl-pe-levels .nl-pe-where button { min-height: 32px; padding: 0 14px; border-radius: 8px; font-size: 13px; }
+}
+
+/* Under each level: where it goes (before a value), then the price a pip
+   distance lands on or the pips a price sits from entry, plus R:R on target. */
+.nl-pe-levels .nl-pe-hint {
+  min-height: 1.2em;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .nl-pe-submit {
@@ -8741,6 +8838,24 @@ html:is(.dark, :not(.dark)) body .gx-fs-dock .menu-popover {
   }
   .gx-fs-action svg,
   .gx-fs-exit svg { width: 18px; height: 18px; }
+  /* With a trade open the one-line dock overflowed a phone and squeezed Close
+     trade against the edge. Two rows instead: timeframes and tools on top,
+     Close trade full width underneath, like the chart screen's own button. */
+  .gx-fs-dock:has(.gx-fs-close) {
+    flex-wrap: wrap;
+    justify-content: space-between;
+    row-gap: 6px;
+    width: calc(100vw - 32px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
+    box-sizing: border-box;
+  }
+  .gx-fs-dock .gx-fs-close {
+    flex: 1 0 100%;
+    order: 10;
+    height: 40px;
+    border-radius: 11px;
+    background: var(--loss-fill, var(--danger));
+    font-size: 14px;
+  }
 }
 /* Very narrow phones: the flags go (the pair name stays) so the row still fits. */
 @media (max-width: 389px) {

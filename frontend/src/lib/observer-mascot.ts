@@ -46,14 +46,19 @@ export function observerMascotExpression({ busy, monitored, snapshot, error, rea
   const read = snapshot?.read;
   const readTime = Date.parse(read?.asOf ?? "");
   if (!monitored || error || !snapshot?.enabled || !read || read.state === "paused"
-    || !Number.isFinite(readTime) || now - readTime > 5000 || snapshot.plan?.status === "PAUSED") return "paused";
-  if (read.state === "warming") return "analyzing";
+    || !Number.isFinite(readTime) || now - readTime > 5000) return "paused";
+  // Match the bubble's collecting-data state even when candle context is live
+  // but the short price-movement window is not covered yet.
+  if (read.state === "warming" || !read.pressure.covered) return "analyzing";
   if (read.lean === "conflicting" || read.pressure.relation === "opposed" || read.blockers.length
     || snapshot.storage === "unavailable" || snapshot.checks?.some(check => check.state === "blocked")
-    || ["INVALIDATED", "EXPIRED"].includes(snapshot.plan?.status ?? "")) return "cautious";
+    || ["PAUSED", "INVALIDATED", "EXPIRED"].includes(snapshot.plan?.status ?? "")) return "cautious";
   if (reaction && now < reaction.until) {
     // An intervening close/outcome must immediately replace a trigger reaction.
     if (reaction.expression !== "confirmed" || snapshot.plan?.status === "TRIGGERED" && !snapshot.plan.outcome) return reaction.expression;
   }
+  if (snapshot.plan?.pullback && ["testing", "rebounding"].includes(snapshot.plan.pullback.phase)
+    && !snapshot.plan.triggeredAt && !snapshot.plan.outcome
+    || snapshot.plan?.consolidation?.state === "attempt" && !snapshot.plan.outcome) return "analyzing";
   return "neutral";
 }

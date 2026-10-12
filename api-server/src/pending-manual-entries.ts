@@ -1,4 +1,4 @@
-import { getCandles, getAccountSummary, submitPracticeEntryOrder, cancelPracticeOrder, closePracticeTrade, getPracticeOrderState, getPracticeTradeState, setPracticeTradeLevels } from "../../frontend/src/lib/oanda/client.js";
+import { getCandles, getAccountSummary, submitPracticeEntryOrder, replacePracticeEntryOrder, cancelPracticeOrder, closePracticeTrade, getPracticeOrderState, getPracticeTradeState, setPracticeTradeLevels } from "../../frontend/src/lib/oanda/client.js";
 import { precisionFor } from "../../frontend/src/lib/instruments/catalog.js";
 import { calculateAtrValues } from "../../frontend/src/lib/strategy/indicators.js";
 import { calculatePositionSize, DEFAULT_RISK_POLICY } from "../../frontend/src/lib/risk/engine.js";
@@ -74,20 +74,7 @@ async function submitManualEntryToOanda(params: {
   sizingStop: number;
   gtdTime: string | null;
 }) {
-  const summary = await getAccountSummary();
-  const balance = Number(summary.data?.balance);
-  if (!Number.isFinite(balance) || balance <= 0) {
-    throw new Error("OANDA account balance is unavailable, so the order could not be sized.");
-  }
-  const sized = calculatePositionSize({
-    instrument: params.instrument,
-    accountBalance: balance,
-    riskPercent: DEFAULT_RISK_POLICY.riskPercent,
-    entry: params.entryPrice,
-    stop: params.sizingStop,
-  });
-  const units = sized?.units ?? 0;
-  if (!(units >= 1)) throw new Error("Risk-based position size came out below one unit; widen the stop or raise risk.");
+  const units = await riskSizedUnits(params.instrument, params.entryPrice, params.sizingStop);
   const result = await submitPracticeEntryOrder({
     instrument: params.instrument,
     direction: params.direction,
@@ -102,6 +89,115 @@ async function submitManualEntryToOanda(params: {
   if (result.cancelReason) throw new Error(`OANDA rejected the entry order (${result.cancelReason}).`);
   if (!result.orderId) throw new Error("OANDA accepted the request without an order identifier.");
   return { orderId: result.orderId, units, riskPercent: DEFAULT_RISK_POLICY.riskPercent };
+}
+
+/** Units that risk the policy % of the account between entry and the sizing stop. */
+async function riskSizedUnits(instrument: MajorInstrument, entryPrice: number, sizingStop: number) {
+  const summary = await getAccountSummary();
+  const balance = Number(summary.data?.balance);
+  if (!Number.isFinite(balance) || balance <= 0) {
+    throw new Error("OANDA account balance is unavailable, so the order could not be sized.");
+  }
+  const sized = calculatePositionSize({
+    instrument,
+    accountBalance: balance,
+    riskPercent: DEFAULT_RISK_POLICY.riskPercent,
+    entry: entryPrice,
+    stop: sizingStop,
+  });
+  const units = sized?.units ?? 0;
+  if (!(units >= 1)) throw new Error("Risk-based position size came out below one unit; widen the stop or raise risk.");
+  return units;
+}
+
+/**
+ * Swap a broker-backed pending entry's resting OANDA order for one with the new
+ * entry/levels/expiry, re-sized so it still risks the policy %. Returns the
+ * metadata to merge (new order id and units), or null for an entry that has no
+ * resting order yet (scheduled), which just picks the new values up when it
+ * activates. Call it while holding the row lock: the replace cancels the old
+ * order id, and the reconciler must not see that before the new id is saved.
+ */
+async function replaceRestingBrokerOrder(row: EntryRow, next: {
+  entryOrderType: string;
+  entryPrice: number;
+  stop: number | null;
+  target: number | null;
+  expiresAt: string | null;
+}) {
+  const orderId = brokerOrderIdOf(row);
+  if (!orderId) return null;
+  const meta = row.metadata as Record<string, unknown> | null;
+  const savedSizingStop = meta?.sizingStop === undefined || meta.sizingStop === null ? null : numberOrNull(String(meta.sizingStop));
+  const sizingStop = next.stop
+    ?? (savedSizingStop !== null && next.entryPrice === Number(row.entry_price) ? savedSizingStop : null)
+    ?? (await calculateManualTradeRisk(row.instrument, row.direction, next.entryPrice)).stop;
+  const units = await riskSizedUnits(row.instrument, next.entryPrice, sizingStop);
+  let result: Awaited<ReturnType<typeof replacePracticeEntryOrder>>;
+  try {
+    result = await replacePracticeEntryOrder(orderId, {
+      instrument: row.instrument,
+      direction: row.direction,
+      kind: oandaOrderKind(next.entryOrderType),
+      entryPrice: next.entryPrice,
+      units,
+      stop: next.stop,
+      target: next.target,
+      // OANDA client order ids must be unique, so each replacement gets its own.
+      clientRequestId: `${row.id}-r${Date.now()}`,
+      gtdTime: next.expiresAt ? new Date(next.expiresAt).toISOString() : null,
+    });
+  } catch (error) {
+    console.error(`[pending-entry] ${row.id} broker order replace failed`, error);
+    throw new Error("OANDA did not accept the change. The order may have just filled — refresh and try again.");
+  }
+  if (result.cancelReason) throw new Error(`OANDA rejected the changed order (${result.cancelReason}).`);
+  if (!result.orderId) throw new Error("OANDA accepted the change without an order identifier.");
+  return { brokerOrderId: result.orderId, units, sizingStop, noLevels: next.stop === null };
+}
+
+/**
+ * Change the stop-loss / take-profit on a waiting entry without touching its
+ * entry price, order type or expiry. Both or neither, each on its own side of
+ * entry. A broker-backed entry has its resting OANDA order replaced first, so
+ * the app never shows levels the broker does not hold.
+ */
+export async function updatePendingEntryLevels(userId: string, id: string, payload: Record<string, unknown>) {
+  return transaction(async (client) => {
+    const found = await client.query<EntryRow>(`SELECT ${SELECT_FIELDS} FROM pending_manual_entries WHERE id=$1 AND user_id=$2 FOR UPDATE`, [id, userId]);
+    const existing = found.rows[0];
+    if (!existing) throw new Error("Pending entry not found.");
+    if (existing.status !== "PENDING") throw new Error("This entry is no longer waiting. Refresh and try again.");
+    const entryPrice = Number(existing.entry_price);
+    const precision = precisionFor(existing.instrument);
+    const levels = optionalTradeLevels(payload, existing.direction, entryPrice);
+    const stop = levels.stop === null ? null : Number(levels.stop.toFixed(precision));
+    const target = levels.target === null ? null : Number(levels.target.toFixed(precision));
+    if (stop === numberOrNull(existing.stop_price) && target === numberOrNull(existing.target_price)) return serialize(existing);
+    const broker = await replaceRestingBrokerOrder(existing, {
+      entryOrderType: existing.entry_order_type,
+      entryPrice,
+      stop,
+      target,
+      expiresAt: existing.expires_at,
+    });
+    // An Analyze plan is pulled when price reaches its target first, so its
+    // cancellation level follows the target.
+    const analyzePlan = isAnalyzePlan((existing.metadata as Record<string, unknown> | null)?.frozenContext);
+    const invalidationPrice = analyzePlan ? target : numberOrNull(existing.invalidation_price);
+    const side = analyzePlan
+      ? (target === null ? null : existing.direction === "long" ? "above" : "below")
+      : existing.invalidation_side;
+    const updated = await client.query<EntryRow>(
+      `UPDATE pending_manual_entries SET stop_price=$3,target_price=$4,invalidation_price=$5,invalidation_side=$6,
+         metadata = metadata || $7::jsonb || jsonb_build_object('levelsEditedAt', now()),
+         updated_at=now()
+       WHERE id=$1 AND user_id=$2 AND status='PENDING' RETURNING ${SELECT_FIELDS}`,
+      [id, userId, stop, target, invalidationPrice, side, JSON.stringify(broker ?? { noLevels: stop === null })],
+    );
+    if (!updated.rows[0]) throw new Error("The entry changed state while saving. Refresh and try again.");
+    return serialize(updated.rows[0]);
+  });
 }
 
 export type PendingManualEntryStatus = "PENDING" | "TRIGGERING" | "TRIGGERED" | "EXPIRED" | "INVALIDATED" | "CANCELLED" | "FAILED";
@@ -584,13 +680,28 @@ export async function editPendingManualEntry(userId: string, id: string, payload
       ? levels.target ?? numberOrNull(existing.target_price)
       : requestedInvalidation;
     if (invalidationPrice !== null && (invalidationPrice === currentPrice || invalidationPrice === entryPrice)) throw new Error("Cancellation must differ from the current and entry prices.");
+    const entryOrderType = inferPendingOrderType(direction, entryPrice, orderReferencePrice);
+    // A resting OANDA order must change with the app, or it fills at the old levels.
+    if (brokerOrderIdOf(existing) && direction !== existing.direction) {
+      throw new Error("Cancel this order and place a new one to switch direction.");
+    }
+    const brokerChanged = entryPrice !== Number(existing.entry_price)
+      || entryOrderType !== existing.entry_order_type
+      || levels.stop !== numberOrNull(existing.stop_price)
+      || levels.target !== numberOrNull(existing.target_price)
+      || (expiresAt === null ? null : Date.parse(expiresAt)) !== (existing.expires_at === null ? null : Date.parse(existing.expires_at));
+    const broker = brokerChanged
+      ? await replaceRestingBrokerOrder(existing, { entryOrderType, entryPrice, stop: levels.stop, target: levels.target, expiresAt })
+      : null;
     const updated = await client.query<EntryRow>(
       `UPDATE pending_manual_entries SET direction=$3,entry_price=$4,entry_order_type=$5,
          expiration_type=$6,expires_at=$7,invalidation_price=$8,invalidation_side=$9,
-         last_observed_price=$10,last_observed_at=$11,stop_price=$12,target_price=$13,activate_at=$14,updated_at=now()
+         last_observed_price=$10,last_observed_at=$11,stop_price=$12,target_price=$13,activate_at=$14,
+         metadata = metadata || $15::jsonb,updated_at=now()
        WHERE id=$1 AND user_id=$2 AND status='PENDING' RETURNING ${SELECT_FIELDS}`,
-      [id, userId, direction, entryPrice, inferPendingOrderType(direction, entryPrice, orderReferencePrice), expiresAt ? "time" : "none", expiresAt,
-        invalidationPrice, invalidationPrice === null ? null : invalidationSide(invalidationPrice, orderReferencePrice), orderReferencePrice, tick.time, levels.stop, levels.target, activateAt],
+      [id, userId, direction, entryPrice, entryOrderType, expiresAt ? "time" : "none", expiresAt,
+        invalidationPrice, invalidationPrice === null ? null : invalidationSide(invalidationPrice, orderReferencePrice), orderReferencePrice, tick.time, levels.stop, levels.target, activateAt,
+        JSON.stringify(broker ?? {})],
     );
     return serialize(updated.rows[0]!);
   });
@@ -1141,8 +1252,10 @@ export async function reconcileManualOandaOrders() {
         filled += 1;
       } else if (state.state === "CANCELLED") {
         const cancelledEntry = await query<{ id: string }>(
-          "UPDATE pending_manual_entries SET status='CANCELLED',cancelled_at=now(),updated_at=now() WHERE id=$1 AND status='PENDING' RETURNING id",
-          [entry.id],
+          // Only if this is still the entry's order: an edit replaces the order
+          // (cancelling the old id) and stores the new id under the same row lock.
+          "UPDATE pending_manual_entries SET status='CANCELLED',cancelled_at=now(),updated_at=now() WHERE id=$1 AND status='PENDING' AND metadata->>'brokerOrderId'=$2 RETURNING id",
+          [entry.id, orderId],
         );
         if (cancelledEntry.rows[0]) {
           cancelled += 1;

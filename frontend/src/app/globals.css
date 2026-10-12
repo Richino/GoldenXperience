@@ -8273,7 +8273,7 @@ html:has(.pending-entry-backdrop) .mobile-dock {
   border-radius: 0.75rem;
   background: var(--surface);
   color: var(--foreground);
-  box-shadow: 0 12px 40px color-mix(in srgb, var(--foreground) 15%, transparent);
+  box-shadow: 0 12px 32px color-mix(in srgb, #000 35%, transparent);
   font-size: 0.78rem;
   font-weight: 650;
 }
@@ -14975,6 +14975,20 @@ html:has(.manual-proposal-backdrop) .mobile-dock {
     font-size: 0.75rem;
   }
 }
+.manual-proposal-backdrop.pending-cancel-backdrop .pending-levels-dialog { max-height: min(90dvh, 30rem); overflow-y: auto; }
+.pending-levels-dialog form { display: grid; gap: .75rem; margin-top: .85rem; }
+.pending-levels-dialog form > p { margin: 0; color: var(--muted-strong); font-size: .75rem; line-height: 1.45; }
+.pending-levels-dialog .pending-levels-entry b { color: var(--foreground); }
+.pending-levels-dialog .pending-levels-hint { color: var(--muted); font-size: .7rem; }
+.pending-levels-dialog .pending-levels-error { color: var(--danger); font-weight: 600; }
+.pending-levels-fields { display: grid; grid-template-columns: 1fr 1fr; gap: .65rem; }
+.pending-levels-fields label { display: grid; gap: .4rem; min-width: 0; }
+.pending-levels-fields label > span { color: var(--muted); font-size: .62rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.pending-levels-fields input { width: 100%; min-height: 2.65rem; border: 1px solid var(--border); border-radius: .7rem; background: var(--surface-raised); padding: 0 .8rem; color: var(--foreground); font: 600 .875rem var(--font-mono, monospace); outline: none; }
+.pending-levels-fields input:focus { border-color: color-mix(in srgb, var(--accent) 65%, var(--border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); }
+.pending-levels-dialog footer { margin-top: .35rem; }
+.pending-levels-save { border: 0; background: var(--accent); color: var(--on-accent, #fff); }
+.pending-levels-save:disabled { cursor: wait; opacity: .7; }
 .manual-analysis-error { position: fixed; z-index: 91; right: 1rem; bottom: 1rem; max-width: min(26rem, calc(100vw - 2rem)); border: 1px solid color-mix(in srgb, var(--danger) 50%, var(--border)); border-radius: .65rem; padding: .75rem; background: var(--surface); color: var(--danger); font-size: .75rem; box-shadow: 0 .8rem 2rem color-mix(in srgb, #000 30%, transparent); }
 @media (max-width: 1023px) { .markets-row-plan { width: 100%; } .markets-row-analyze { margin-left: auto; padding: .3rem .6rem; } .manual-proposal-backdrop { align-items: end; min-height: 100dvh; padding: .75rem .75rem calc(var(--app-dock-height, 5rem) + .75rem + env(safe-area-inset-bottom, 0px)); } .manual-proposal-backdrop::after { position: absolute; right: 0; bottom: calc(-1 * env(safe-area-inset-bottom, 0px)); left: 0; height: env(safe-area-inset-bottom, 0px); background: inherit; content: ""; pointer-events: none; } .manual-proposal { align-self: end; max-height: calc(100dvh - var(--app-dock-height, 5rem) - 1.5rem); overflow-y: auto; border-radius: 1rem; padding: .95rem; transform-origin: bottom center; } .manual-proposal-quote { grid-template-columns: auto 1fr; } .manual-proposal-quote small { grid-column: 1 / -1; text-align: left; } .manual-proposal dl { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .4rem; } .manual-proposal dl div { min-width: 0; padding: .48rem; } .manual-proposal dd { overflow: hidden; font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; } .manual-proposal footer { position: sticky; bottom: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; margin-top: 1.25rem; padding: .8rem 0 .1rem; background: var(--surface); } .manual-proposal footer button { min-height: 3rem; padding: 0 1rem; font-size: .8rem; } }
 @media (prefers-reduced-motion: reduce) { .manual-proposal-backdrop, .manual-proposal { animation: none; } }

@@ -19,6 +19,12 @@ for (const [tf, interval] of Object.entries({ M1: 60_000, M5: 300_000, M15: 900_
   engine.context({ instrument: "EUR_USD", granularity: tf, source: "oanda", snapshot: { instrument: "EUR_USD", granularity: tf, source: "oanda", candles: bars(tf, interval) } }, iso());
 }
 state.calendarContext({ snapshot: { source: "forex_factory", connected: true, events: [], coverageUntil: iso(86_400_000) } }, iso());
+engine.observe({ instrument: "EUR_USD", time: iso(), status: "tradeable", bids: [{ price: "1.102875" }], asks: [{ price: "1.102925" }] }, iso());
+const firstRead = state.update("EUR_USD", iso());
+assert.equal(firstRead.state, "live", "Fresh candle analysis starts before the quote window is covered");
+assert.equal(firstRead.lean, "up");
+assert.equal(firstRead.pressure.covered, false);
+assert.ok(firstRead.blockers.some(b => b.includes("still warming")), "Entry pressure checks remain gated");
 for (let i = 0; i <= 120; i++) {
   const mid = 1.1029 + i * 0.000001;
   engine.observe({ instrument: "EUR_USD", time: iso(i * 250), status: "tradeable", bids: [{ price: String(mid - 0.000025) }], asks: [{ price: String(mid + 0.000025) }] }, iso(i * 250));
@@ -30,7 +36,21 @@ assert.equal(read.quote!.spreadPips.toFixed(1), "0.5");
 assert.equal(state.update("EUR_USD", iso(30_001)).revision, read.revision, "Unchanged state cannot manufacture an event");
 state.contextError({ context: "calendar" });
 assert.ok(state.update("EUR_USD", iso(30_001)).blockers.some(b => b.includes("News")));
-assert.equal(state.update("EUR_USD", iso(40_000)).state, "paused", "Heartbeats/old contexts cannot refresh quotes");
+const quietRead = state.update("EUR_USD", iso(40_000));
+assert.equal(quietRead.state, "live", "Fresh closed-candle analysis continues through a quiet connected feed");
+assert.equal(quietRead.quote, null, "Candle context cannot refresh an executable quote");
+assert.ok(quietRead.blockers.some(b => b.includes("stale")));
+engine.observe({ instrument: "EUR_USD", time: iso(41_000), status: "tradeable", bids: [{ price: "1.103" }], asks: [{ price: "1.10305" }] }, iso(41_000));
+const recovered = state.update("EUR_USD", iso(41_000));
+assert.equal(recovered.state, "live"); assert.equal(recovered.lean, "up");
+assert.ok(recovered.facts.some(f => f.id === "structure-H4"), "Quote gaps do not discard fresh broker candle context");
+assert.ok(recovered.blockers.some(b => b.includes("still warming")));
+assert.equal(engine.snapshot("EUR_USD", iso(41_000)).frames.find(f => f.granularity === "M5")!.dataState, "paused", "Quote previews still require broker resynchronization");
+engine.contextError({ instrument: "EUR_USD", granularity: "H4", context: "candles" });
+engine.breakContinuity("test_gap", iso(42_000));
+assert.equal(engine.snapshot("EUR_USD", iso(42_000)).frames.find(f => f.granularity === "H4")!.contextDataState, "paused", "A quote gap cannot erase a failed candle fetch");
+engine.setConnection("error", "oanda", iso(43_000));
+assert.equal(state.update("EUR_USD", iso(43_000)).state, "paused", "Actual feed errors still pause analysis");
 const beforeGap = engine.contextHistory("EUR_USD", "M1");
 const gapBar = { ...beforeGap.at(-1)!, time: iso(60_000), complete: true };
 engine.context({ instrument: "EUR_USD", granularity: "M1", source: "oanda", snapshot: { instrument: "EUR_USD", granularity: "M1", source: "oanda", candles: [gapBar] } }, iso(120_000));
@@ -43,6 +63,11 @@ const base: ObserverPlan = { id: "test", version: 1, instrument: "EUR_USD", mode
   triggeredAt: null, observedEntry: null, outcome: null, facts: [] };
 const live = (at: number, bid = 1.10005, ask = 1.1001): ObserverRead => ({ ...read, asOf: iso(at), blockers: [], state: "live", quote: { bid, ask, time: iso(at), spreadPips: (ask - bid) / 0.0001 } });
 const candle = (time: number, close: number, complete = true): Candle => ({ time: iso(time), open: 1.1, high: Math.max(1.1004, close), low: Math.min(1.0999, close), close, complete, volume: 0 });
+const noQuotePlan = evaluateObserverPlan(base, { ...live(301_000), quote: null, blockers: ["The latest quote is stale."] }, [candle(0, 1.1004)]);
+assert.equal(noQuotePlan.status, "PAUSED", "Live candle analysis cannot trigger an entry without a fresh executable quote");
+assert.equal(noQuotePlan.triggeredAt, null);
+const warmingPlan = evaluateObserverPlan(base, { ...live(301_000), pressure: firstRead.pressure, blockers: firstRead.blockers }, [candle(0, 1.1004)]);
+assert.equal(warmingPlan.status, "PAUSED", "Live analysis cannot bypass the warming pressure gate");
 assert.equal(evaluateObserverPlan(base, live(301_000), [candle(-300_000, 1.1004)]).status, "READY", "Pre-plan closes cannot trigger a new plan");
 assert.equal(evaluateObserverPlan(base, live(301_000), [candle(0, 1.1004, false)]).status, "READY", "Forming candles cannot trigger");
 let triggered = evaluateObserverPlan(base, live(301_000), [candle(0, 1.1004)]);
@@ -72,7 +97,7 @@ assert.equal(calls, 2);
 const oldKey = process.env.OPENAI_API_KEY; process.env.OPENAI_API_KEY = "test-only-key";
 try {
   const fake = (factIds: string[]) => (async () => new Response(JSON.stringify({ output_text: JSON.stringify({ lean: read.lean, pressure: read.pressure.direction, summary: "Hourly context leans up and short-term quotes align with that observation.", factIds, watchIndex: 0 }) }))) as typeof fetch;
-  const ids = ["structure-H1", "quote-pressure"];
+  const ids = ["story-broader", "story-recent", "story-current", "quote-pressure", ...read.facts.filter(f => read.blockers.includes(f.text)).slice(0, 1).map(f => f.id)];
   const result = await explainObserver(read, fake(ids));
   assert.equal(result.source, "model");
   assert.deepEqual(result.evidence, ids.map(id => ({ id, text: read.facts.find(f => f.id === id)!.text })), "Generated prose links to original measured facts");

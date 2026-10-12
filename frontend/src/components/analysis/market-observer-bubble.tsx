@@ -14,7 +14,7 @@ import { getForexSessionStatus } from "@/lib/strategy/session";
 import type { ObserverSnapshot, ObserverJournal } from "@/lib/market-observer-types";
 import styles from "./market-observer-bubble.module.css";
 import { ObserverEvaluationPanel } from "./observer-evaluation-panel";
-import { ObserverConversation, observerPairLabel, observerSnapshotCanReplace, type ObserverChatMessage } from "@/lib/observer-conversation";
+import { ObserverConversation, compactObserverChatMessage, observerPairLabel, observerSnapshotCanReplace, type ObserverChatMessage } from "@/lib/observer-conversation";
 import { observerMascotExpression, observerMascotReaction, type ObserverMascotReaction } from "@/lib/observer-mascot";
 import { ObserverMascot } from "./observer-mascot";
 import { appendObserverPairMessages, markObserverPairRead, type ObserverPairChats } from "@/lib/observer-pair-chats";
@@ -239,11 +239,24 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
   const error = failures[instrument] ?? (!marketClosed && snapshot?.read && clock - Date.parse(snapshot.read.asOf) > 5000 ? "Last live read is out of date. Checking the latest state." : null);
   const busy = busyPairs[instrument] ?? false;
   const read = snapshot?.read, plan = snapshot?.plan;
-  const paused = marketClosed || Boolean(error) || read?.state !== "live";
+  const paused = marketClosed || Boolean(error) || !read || read.state === "paused";
+  const warming = !paused && read?.state === "warming";
+  const collectingData = !paused && (warming || Boolean(read && !read.pressure.covered));
   const latest = [...messages].reverse().find(m => m.role === "observer");
   const expression = observerMascotExpression({ busy, monitored: tracked.includes(instrument), snapshot, error: marketClosed ? "Market closed" : error, reaction: reactions[instrument], now: clock });
   const headline = busy ? `Updating ${observerPairLabel(instrument)}` : marketClosed ? "Market closed" : error ? "Chat updates paused" : tracked.length > 1 ? `Watching ${tracked.length} pairs` : read?.headline ?? "Analysis chat";
   const price = (n: number | null | undefined) => n === null || n === undefined ? "—" : n.toFixed(precisionFor(instrument));
+  const plainReason = (text: string) => text
+    .replace(/M15: overlapping movement across the last (\d+) closed candles \([^)]*\)\.?/g, "15-minute chart: price moved back and forth over the last $1 completed periods, without a clear direction.")
+    .replace(/H1: overlapping movement across the last (\d+) closed candles \([^)]*\)\.?/g, "1-hour chart: price moved back and forth over the last $1 completed periods, without a clear direction.")
+    .replace("The latest quote is stale. Entry monitoring waits for fresh prices.", "The latest price is too old to use. Waiting for a fresh price before checking an entry.")
+    .replace("The 30-second pressure window is still warming. Entry monitoring resumes when it is covered.", "Collecting 30 seconds of recent price movement before checking an entry.")
+    .replace("Execution candle context is not current.", "Waiting for the latest completed price period.");
+  const levelStateLabel = (role: "support" | "resistance", state: string) => state === "holding" ? "not crossed yet"
+    : state === "testing" ? "price is touching this area" : state === "broken" ? `price passed ${role === "support" ? "below" : "above"}`
+    : `price moved back ${role === "support" ? "above" : "below"}`;
+  const pullbackPhaseLabel = (phase: string) => phase === "approaching" ? "waiting for price to reach the area" : phase === "testing" ? "price is in the area"
+    : phase === "rebounding" ? "price is moving away from the area" : phase === "confirmed" ? "entry conditions met" : "waiting for fresh prices";
   const active = plan && !["CLOSED", "EXPIRED", "INVALIDATED"].includes(plan.status);
   const journal = archive?.instrument === instrument ? archive.journal : null;
   const loadJournal = async () => {
@@ -261,8 +274,12 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
   const monitor = (mode: "NORMAL" | "SWING") => monitorPair(instrument, mode, true, true);
   const planMode = plan?.mode ?? "NORMAL";
   const modeLabel = planMode === "NORMAL" ? "Intraday" : "Swing";
-  const currentSetup = active && plan?.status !== "PAUSED" && !paused;
-  const decisionLabel = paused ? "No live decision" : currentSetup && plan?.direction === "long" ? "Long setup" : currentSetup && plan?.direction === "short" ? "Short setup"
+  const entryStatusLabel = active ? busy ? "checking" : marketClosed ? "market closed" : paused || plan?.pullback?.phase === "unavailable" ? "paused"
+    : collectingData ? "collecting data"
+    : plan?.status === "PAUSED" ? "entry checks blocked" : plan?.status.toLowerCase() : plan?.status.toLowerCase();
+  const currentSetup = active && plan?.status !== "PAUSED" && !paused && !warming;
+  const decisionLabel = plan?.pullback && !plan.triggeredAt && active ? "Entry condition pending" : paused ? "No live decision" : currentSetup && plan?.direction === "long" ? "Long setup" : currentSetup && plan?.direction === "short" ? "Short setup"
+    : read?.story ? "No confirmed entry"
     : read?.lean === "up" ? "Leaning up" : read?.lean === "down" ? "Leaning down" : read?.lean === "range" ? "Ranging" : "No clear direction";
   const supportingReasons = (paused || currentSetup) && plan?.facts.length ? plan.facts.slice(0, 2) : read?.facts.filter(f => f.category === "structure").slice(0, 2).map(f => f.text) ?? [];
   const cancelPair = useCallback(async (pair: string) => {
@@ -292,8 +309,9 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
   usePageScrollLock(open && !replayActive && monitoringActive && (detailsOpen || isPhoneLayout()));
   useImperativeHandle(controlRef, () => ({ analyze: (pair, mode) => monitorPair(pair, mode), stop: cancelPair }), [monitorPair, cancelPair]);
   if (replayActive || !monitoringActive) return null;
-  const statusLine = `${observerPairLabel(instrument)} · ${busy ? "checking" : marketClosed ? "market closed" : paused ? "paused" : expression === "alert" ? "update" : "watching"}`;
-  const tone = busy ? "busy" : paused ? "paused" : expression === "alert" || expression === "cautious" ? "alert" : "live";
+  const statusLabel = busy ? "checking" : marketClosed ? "market closed" : paused ? "paused" : collectingData ? "collecting data" : "watching";
+  const statusLine = `${observerPairLabel(instrument)} · ${statusLabel}`;
+  const tone = busy || collectingData ? "collecting" : marketClosed ? "closed" : paused ? "paused" : "live";
   const cloudText = busy ? "Checking market status, quotes, candles, patterns and news…" : marketClosed ? "Forex market closed. Watching resumes after reopening with fresh prices." : error ?? latest?.text ?? "Checking quotes, candles, patterns and news…";
   // Portalled to <body>: the page wrapper keeps its own layer, so inside it
   // the phone sheet could never cover the bottom nav.
@@ -303,7 +321,7 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
       <div className={styles.grip} aria-hidden="true" />
       <header className={styles.panelHead}>
         <span className={styles.headIcon} aria-hidden="true"><ObserverMascot expression={expression} /></span>
-        <div><h3>{observerPairLabel(instrument)} chat</h3><small><i className={styles.dot} data-tone={tone} />{statusLine} · paper</small></div>
+        <div><h3>{observerPairLabel(instrument)} chat</h3><small><i className={styles.dot} data-tone={tone} />{statusLine}</small></div>
         <button aria-label="Close analysis chat" onClick={requestClose}><X size={18} /></button>
       </header>
       <div key={`chat-${instrument}`} ref={chatLog} className={styles.panelBody} onScroll={event => {
@@ -321,7 +339,7 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
           <time dateTime={message.at}>{time}</time>
         </article>;
         // The first sentence is the headline; the rest reads under it.
-        const [lead, ...rest] = message.text.split(/(?<=[.!?])\s+/);
+        const [lead, ...rest] = compactObserverChatMessage(message.text).split(/(?<=[.!?])\s+/);
         return <article className={styles.chatMessage} data-role="observer" key={message.id}>
           <span className={styles.chatAvatar} aria-hidden="true"><ObserverMascot expression={expression} /></span>
           <div className={styles.chatBody}>
@@ -335,6 +353,7 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
       {unread > 0 && <button className={styles.newMessages} onClick={() => { setDetailsOpen(false); chatViews.current[instrument] = { following: true, scrollTop: 0 }; readPair(instrument); if (chatLog.current) chatLog.current.scrollTop = chatLog.current.scrollHeight; }}>{unread} new updates ↓</button>}
       {error && <p className={styles.notice} role="status">{error}</p>}
       {actionError && <p className={styles.notice} role="status">{actionError}</p>}
+
       </div>
       {/* Pinned under the chat: the pair's plan & results beside Stop / Analyze. */}
       <div className={`${styles.actions} ${styles.panelFooter}`}>
@@ -362,18 +381,49 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
       {(marketClosed || paused) && <div className={styles.statusNotice} role="status"><strong>{marketClosed ? "Market closed" : "Live analysis paused"}</strong><p>{marketClosed ? "Live analysis resumes after reopening with fresh prices. The saved context below is historical." : error ?? "Fresh price, candle and news checks are needed. Saved context is not a current entry signal."}</p></div>}
       {busy && <p className={styles.notice} role="status">Updating this pair’s plan…</p>}
       {actionError && <p className={styles.notice} role="status">{actionError}</p>}
+      {read?.story && <section className={styles.decisionCard} aria-label="Three-part chart read">
+        <h4>1. Bigger picture</h4><p>{read.story.broader.summary}</p>
+        <p className={styles.caption}>Based on {read.story.broader.bars} completed 4-hour price periods{read.story.broader.from && read.story.broader.to ? ` · ${new Date(read.story.broader.from).toLocaleDateString()} to ${new Date(read.story.broader.to).toLocaleDateString()}` : " · history unavailable"}</p>
+        <h4>2. Recent movement</h4><p>{read.story.recent.summary}</p>
+        <p className={styles.caption}>Based on {read.story.recent.bars} completed 1-hour price periods · turning points checked against later completed periods</p>
+        <h4>3. What is happening now</h4><p>{read.story.current.summary}</p>
+        {read.story.current.levels.map(level => <div key={`${level.role}-${level.time}`}><h5>{level.role === "support" ? "Possible price floor" : "Possible price ceiling"} · {levelStateLabel(level.role, level.state)}</h5><p>{price(level.low)} – {price(level.high)}. {level.role === "support" ? "An area where a fall may slow or turn upward." : "An area where a rise may slow or turn downward."}</p><p>{level.condition}</p><p className={styles.caption}>Turning point: {new Date(level.time).toLocaleString()} · enough evidence to identify it after {new Date(level.knownAt).toLocaleString()}</p></div>)}
+        <p>{read.story.current.watch}</p>
+        <p className={styles.caption}>This describes what price has done. It does not guarantee what happens next.</p>
+      </section>}
       <section className={styles.decisionCard} aria-label="Current decision">
-        <div className={styles.decisionHead}><span>{paused ? "Saved context" : "Current lean"}</span><small>{modeLabel}{plan ? ` · ${plan.status.toLowerCase()}` : ""}</small></div>
-        <h4>{decisionLabel}</h4>
-        <p>{paused ? "Wait for fresh market checks before considering an entry." : currentSetup ? plan?.thesis : read?.headline ?? "Analysis is being prepared."}</p>
-        {supportingReasons.length > 0 && <><h5>{paused ? "Saved reasons" : "Why"}</h5><ul>{supportingReasons.map((reason, index) => <li key={`${index}-${reason}`}>{reason}</li>)}</ul></>}
+        <div className={styles.decisionHead}><span>{paused ? "Saved entry checks" : read?.story ? "Checks before entering" : "Current direction"}</span><small>{modeLabel}{entryStatusLabel ? ` · ${entryStatusLabel}` : ""}</small></div>
+        <h4>{decisionLabel === "Entry condition pending" ? "Not ready to enter yet" : decisionLabel}</h4>
+        <p>{plan && !plan.direction ? plainReason(plan.thesis) : plan?.pullback && read?.blockers.length ? `Your plan is saved. ${plainReason(read.blockers[0])}` : paused ? "Wait for fresh prices and checks before considering an entry." : currentSetup ? plainReason(plan?.thesis ?? "") : read?.headline ?? "Analysis is being prepared."}</p>
+        {plan && !plan.direction && <p className={styles.caption}>{plan.consolidation ? "The consolidation comparison watches developing breaks separately from the trend-pullback entry model." : "Analyze did not find sufficient trend, pullback-zone and target evidence for a priced plan."} {read?.blockers.length ? `Live entry checks also report: ${read.blockers[0]}` : "A fresh analysis is needed after the structure changes."}</p>}
+        {supportingReasons.length > 0 && <><h5>{paused ? "What the saved data showed" : "What the data shows"}</h5><ul>{supportingReasons.map((reason, index) => <li key={`${index}-${reason}`}>{plainReason(reason)}</li>)}</ul></>}
+        {active && plan?.pullback && <div className={styles.planBlock}>
+          <h4>Possible {plan.direction === "long" ? "buy" : "sell"} · {pullbackPhaseLabel(plan.pullback.phase)}</h4>
+          <p>{plan.direction === "long" ? "Watch for a small drop into the area below, followed by a move upward." : "Watch for a small rise into the area below, followed by a move downward."} Reaching the area alone is not enough to enter.</p>
+          <p>Area to watch: {price(plan.pullback.zone.low)} – {price(plan.pullback.zone.high)}. Planned entry {price(plan.entry)} · stop-loss {price(plan.stop)} · profit target {price(plan.target)}.</p>
+          <p>{plan.pullback.phase === "unavailable" ? "Live prices are interrupted. The plan is saved; waiting for fresh prices." : plan.pullback.phase === "testing" ? "Price reached the area. Checking each new price to see whether it turns back or keeps going through." : plan.pullback.phase === "rebounding" ? "Price moved away from the area in the planned direction. It must still finish a full price period beyond the level below and pass the entry checks." : plan.pullback.phase === "confirmed" ? "Entry conditions were met. Following the paper result; no order was placed." : "Checking each new price while waiting for it to reach the area."}</p>
+          <p className={`${styles.caption} ${styles.liveCaption}`}>{plan.pullback.receivedQuotes} new price updates checked · latest move {plan.pullback.move === "unknown" ? "not known" : plan.pullback.move}{plan.pullback.lastQuoteAt ? ` · ${new Date(plan.pullback.lastQuoteAt).toLocaleTimeString()}` : ""}. Refresh creates a new plan; these prices stay fixed until then.</p>
+        </div>}
+        {plan?.consolidation && <details className={styles.sideCheck} aria-label="Consolidation confirmation comparison">
+          <summary>Sideways-price check · {plan.consolidation.state === "inside" ? "inside the range" : plan.consolidation.state === "attempt" ? "testing a move out" : plan.consolidation.state === "unavailable" ? "waiting for fresh prices" : "ended"}</summary>
+          <p>Price range: {price(plan.consolidation.low)} – {price(plan.consolidation.high)}. These edges stay fixed while we watch.</p>
+          <p>Comparing two checks: price stays beyond an edge for {plan.consolidation.holdSeconds} seconds, with at least three updates and some further movement; or a full new 5-minute period ends beyond the edge.</p>
+          <p className={styles.caption}>To ignore tiny crossings, price must pass the edge by {price(plan.consolidation.buffer)}. The hold check also needs {price(plan.consolidation.followThrough)} of further movement. Watching until {new Date(plan.consolidation.expiresAt).toLocaleTimeString()}. This is a paper test; it does not place an order.</p>
+          {(["hold", "candle"] as const).map(method => <p key={method}>{method === "hold" ? "Hold" : "M5 close"}: {plan.consolidation!.attempts.filter(a => a[method].at).length} confirmations · {plan.consolidation!.attempts.filter(a => a[method].at && a[method].outcome === "returned_inside").length} returned inside · {plan.consolidation!.attempts.filter(a => a[method].at && a[method].outcome === "extended").length} extended · {plan.consolidation!.attempts.filter(a => a[method].at && ["pending", "unknown"].includes(a[method].outcome)).length} unresolved.</p>)}
+          {plan.consolidation.attempts.length ? plan.consolidation.attempts.slice(-4).reverse().map(attempt => <div key={attempt.startedAt}><h5>{attempt.side === "up" ? "Upward" : "Downward"} breakout attempt · {new Date(attempt.startedAt).toLocaleTimeString()}</h5>
+            <p>Hold: {attempt.hold.at ? `observed after ${Math.round((Date.parse(attempt.hold.at) - Date.parse(attempt.startedAt)) / 1000)}s · ${attempt.hold.outcome.replaceAll("_", " ")}` : attempt.endedAt ? "not confirmed before attempt ended" : "pending"}.</p>
+            <p>M5 close: {attempt.candle.at ? `observed after ${Math.round((Date.parse(attempt.candle.at) - Date.parse(attempt.startedAt)) / 1000)}s · ${attempt.candle.outcome.replaceAll("_", " ")}` : attempt.endedAt ? "not confirmed before attempt ended" : "pending"}.</p>
+            {(attempt.hold.blockers.length > 0 || attempt.candle.blockers.length > 0) && <p className={styles.caption}>Rule evidence was observed with entry checks blocked. It is not permission to enter.</p>}
+          </div>) : <p>{plan.consolidation.state === "unavailable" ? "Fresh price observations are unavailable. The frozen box is retained; unseen movement is unknown." : plan.consolidation.state === "expired" ? "The comparison expired without an observed breakout attempt." : "Consolidating. No breakout attempt observed since this box was frozen."}</p>}
+          <p className={styles.caption}>After either check passes, we watch whether price returns inside or travels farther by half the width of the range. Missing prices leave the result unknown.</p>
+        </details>}
       </section>
       <section className={styles.setupSummary} aria-label="Entry and invalidation">
-        <div><h4>{paused ? "Saved entry trigger" : "Entry trigger"}</h4><p>{!active && plan ? "This plan has ended. Refresh the analysis for a new setup." : plan?.trigger ? `A new ${plan.trigger.timeframe === "M5" ? "5-minute" : "1-hour"} candle must close ${plan.direction === "long" ? "above" : "below"} ${price(plan.trigger.boundary)}, with executable price inside the entry zone.` : "No entry trigger is available. Fresh analysis must produce a valid setup."}</p></div>
-        {active && plan?.entry != null && <div className={styles.setupLevels}><span>Entry<strong>{price(plan.entry)}</strong></span><span>Stop<strong>{price(plan.stop)}</strong></span><span>Target<strong>{price(plan.target)}</strong></span></div>}
-        {active && plan?.trigger && plan.zone && <p className={styles.caption}>Entry zone {price(plan.zone.low)} – {price(plan.zone.high)}</p>}
-        <div><h4>{paused || !active ? "Saved invalidation" : "Invalidation"}</h4><p>{plan?.invalidation ?? "No monitored plan yet."}</p></div>
-        {plan && <p className={styles.caption}>Entry expires {new Date(plan.expiresAt).toLocaleString()}</p>}
+        <div><h4>{paused ? "Saved rules for a possible entry" : "What must happen before entering"}</h4><p>{!active && plan ? "This plan has ended. Refresh the analysis for a new setup." : plan?.trigger ? `${plan.pullback ? "Price must first reach the area to watch. Then wait for a full new " : "Wait for a full new "}${plan.trigger.timeframe === "M5" ? "5-minute" : "1-hour"} period to end ${plan.direction === "long" ? "above" : "below"} ${price(plan.trigger.boundary)}. The available ${plan.direction === "long" ? "buy" : "sell"} price must also be inside the entry range below, and all entry checks must pass.` : "No entry rules are available yet. Run Analyze again to look for a setup."}</p></div>
+        {active && plan?.entry != null && <><div className={styles.setupLevels}><span>Entry<strong>{price(plan.entry)}</strong></span><span>Stop-loss<strong>{price(plan.stop)}</strong></span><span>Profit target<strong>{price(plan.target)}</strong></span></div><p className={styles.caption}>Entry is the planned opening price. Stop-loss is the planned exit price to limit a loss. The target is the planned exit price for a profit.</p></>}
+        {active && plan?.trigger && plan.zone && <p className={styles.caption}>Allowed entry price: {price(plan.zone.low)} – {price(plan.zone.high)}</p>}
+        <div><h4>When to cancel this idea</h4><p>{plan?.direction && plan.stop !== null ? `Cancel before entry if the ${plan.direction === "long" ? "sell" : "buy"} price reaches ${price(plan.stop)} or moves ${plan.direction === "long" ? "below" : "above"} it. Do not enter after the deadline below.` : plan?.invalidation ?? "No plan is being watched yet."}</p></div>
+        {plan && <p className={styles.caption}>Deadline for a new entry: {new Date(plan.expiresAt).toLocaleString()}</p>}
       </section>
       <div className={styles.actions}><button disabled={busy || snapshot?.storage !== "ready"} onClick={() => void monitor(planMode)}>{busy ? "Updating…" : `Refresh ${modeLabel.toLowerCase()} plan`}</button></div>
       {snapshot?.storage === "unavailable" && <p className={styles.notice}>Plan journal is unavailable. Monitoring cannot be saved.</p>}
@@ -403,7 +453,7 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
         <div className={styles.planHead}><strong>{plan.direction?.toUpperCase() ?? "WATCH CONDITION"} · {plan.mode}</strong><span>{plan.status}</span></div>
         <p>{plan.reason}</p>
         {plan.zone && <p>Entry zone {price(plan.zone.low)} – {price(plan.zone.high)}</p>}
-        {plan.trigger && <p>Trigger: a new {plan.trigger.timeframe} close {plan.direction === "long" ? "above" : "below"} {price(plan.trigger.boundary)}, with executable price in the zone.</p>}
+        {plan.trigger && <p>Trigger: {plan.pullback ? "first observe price inside the pullback area, then " : ""}a new {plan.trigger.timeframe} close {plan.direction === "long" ? "above" : "below"} {price(plan.trigger.boundary)}, with executable price in the entry zone.</p>}
         {plan.entry !== null && <p>Entry reference {price(plan.entry)} · stop {price(plan.stop)} · target {price(plan.target)}</p>}
         <p>{plan.invalidation}</p><small>Version {plan.version} · entry expires {new Date(plan.expiresAt).toLocaleString()}</small>
         {plan.triggeredAt && <p>Signal observed {new Date(plan.triggeredAt).toLocaleString()} at {price(plan.observedEntry)}.</p>}
@@ -438,7 +488,7 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
       </div>}
       <button data-observer-drag-icon className={styles.icon} title="Drag to move. Use arrow keys when focused." aria-expanded={open} aria-label={open ? "Close analysis chat" : `${headline}. Open the analysis chat`} onClick={() => { if (open) requestClose(); else openChat(); }}>
         <ObserverMascot expression={expression} reactionKey={expression === reactions[instrument]?.expression ? reactions[instrument].key : undefined} />
-        {(totalUnread > 0 || tone !== "live") && <i className={styles.badge} data-tone={totalUnread > 0 ? "alert" : tone} aria-hidden="true" />}
+        <i className={styles.badge} data-tone={tone} role="img" aria-label={`Monitoring status: ${statusLabel}${totalUnread > 0 ? `; ${totalUnread} unread updates` : ""}`} />
       </button>
     </div>
   </aside>, document.body);

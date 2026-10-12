@@ -1469,6 +1469,12 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-va
   font-size: 12px;
 }
 
+.nl-pending-actions {
+  display: flex;
+  flex: none;
+  gap: 8px;
+}
+
 .nl-ghost-btn {
   flex: none;
   height: 44px;

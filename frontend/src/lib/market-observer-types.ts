@@ -2,11 +2,21 @@
 export type MarketLean = "up" | "down" | "range" | "conflicting" | "unknown";
 export type QuotePressure = Exclude<MarketLean, "conflicting">;
 export interface ObserverFact { id: string; text: string; category: "movement" | "structure" | "pattern" | "risk" }
+export interface ObserverStory {
+  version: "market-story@1";
+  broader: { summary: string; direction: QuotePressure; timeframe: "H4"; bars: number; from: string | null; to: string | null };
+  recent: { summary: string; direction: QuotePressure; timeframe: "H1"; bars: number; from: string | null; to: string | null };
+  current: { summary: string; timeframe: "M15"; bars: number; from: string | null; to: string | null;
+    levels: Array<{ role: "support" | "resistance"; price: number; low: number; high: number; time: string; knownAt: string;
+      state: "holding" | "testing" | "broken" | "reclaimed"; condition: string }>;
+    watch: string };
+}
 export interface ObserverRead {
   version: string; instrument: string; asOf: string;
   state: "live" | "warming" | "paused"; lean: MarketLean; headline: string;
   changedAt: string; revision: number; facts: ObserverFact[]; blockers: string[];
   changeConditions: string[];
+  story?: ObserverStory;
   pressure: { direction: QuotePressure; observedDirection: QuotePressure; covered: boolean; pending: boolean; relation: "aligned" | "opposed" | "neutral" | "unknown" };
   quote: { bid: number; ask: number; time: string; spreadPips: number } | null;
   movement: Array<{ seconds: number; netPips: number; efficiency: number; velocity: number | null; samples: number; ready: boolean }>;
@@ -15,6 +25,15 @@ export interface ObserverRead {
     source?: "model" | "rules"; evidence?: Array<{ id: string; text: string }>; watch?: string };
 }
 export type ObserverPlanStatus = "WATCHING" | "READY" | "TRIGGERED" | "PAUSED" | "INVALIDATED" | "EXPIRED" | "CLOSED";
+export interface ConsolidationComparison {
+  rules: "consolidation-comparison@1"; low: number; high: number; buffer: number; followThrough: number;
+  holdSeconds: number; createdAt: string; expiresAt: string; lastQuoteAt: string | null; lastQuoteKey: string | null;
+  state: "inside" | "attempt" | "unavailable" | "expired"; attempts: Array<{ side: "up" | "down"; startedAt: string;
+    endedAt: string | null; continuousSince: string | null; samples: number;
+    hold: { at: string | null; blockers: string[]; outcome: "pending" | "returned_inside" | "extended" | "unknown" };
+    candle: { at: string | null; blockers: string[]; outcome: "pending" | "returned_inside" | "extended" | "unknown" } }>;
+  truncated: boolean;
+}
 export interface ObserverPlan {
   id: string; version: number; instrument: string; mode: "NORMAL" | "SWING";
   createdAt: string; expiresAt: string; updatedAt: string; status: ObserverPlanStatus;
@@ -32,6 +51,11 @@ export interface ObserverPlan {
   outcome: { kind: "stop_observed" | "target_observed" | "unknown_after_gap" | "monitoring_stopped"; at: string; price: number | null } | null;
   facts: string[];
   measurements?: ObserverSignalMeasurements;
+  consolidation?: ConsolidationComparison;
+  pullback?: { rules: "pullback-monitor@1"; zone: { low: number; high: number };
+    phase: "approaching" | "testing" | "rebounding" | "confirmed" | "unavailable";
+    touchedAt: string | null; lastQuoteKey: string | null; lastQuoteAt: string | null;
+    receivedQuotes: number; lastEntry: number | null; move: "up" | "down" | "unchanged" | "unknown" };
 }
 export interface ObserverSignalMeasurements {
   version: "observer-evaluation@1"; engineVersion: string; planRulesVersion: string; patternRulesVersion: string;

@@ -26,6 +26,7 @@ interface Frame {
   contextCandles: Candle[];
   bucketOffsetMs: number;
   contextAt: string | null;
+  contextAvailable: boolean;
   reason: string | null;
   locked: boolean;
   patterns: Map<string, PatternObservation>;
@@ -47,7 +48,7 @@ export class MarketPatternEngine {
   private frame(instrument: string, granularity: string) {
     const key = `${instrument}:${granularity}`;
     let frame = this.frames.get(key);
-    if (!frame) { frame = { candles: [], contextCandles: [], bucketOffsetMs: 0, contextAt: null, reason: "waiting_for_candles", locked: false, patterns: new Map() }; this.frames.set(key, frame); }
+    if (!frame) { frame = { candles: [], contextCandles: [], bucketOffsetMs: 0, contextAt: null, contextAvailable: false, reason: "waiting_for_candles", locked: false, patterns: new Map() }; this.frames.set(key, frame); }
     return frame;
   }
   private emit(frame: Frame, pattern: PatternObservation) {
@@ -115,6 +116,7 @@ export class MarketPatternEngine {
     if (!this.instruments.includes(instrument) || !PATTERN_INTERVALS[granularity]) return;
     const frame = this.frame(instrument, granularity), interval = PATTERN_INTERVALS[granularity], received = timestampNs(receivedAt);
     if (frame.locked) return;
+    frame.contextAvailable = false;
     const series = data.snapshot as { source?: string; instrument?: string; granularity?: string; candles?: Candle[] } | undefined;
     const incoming = series?.candles;
     const invalid = !received || data.source !== "oanda" || series?.source !== "oanda" || series.instrument !== instrument || series.granularity !== granularity || !Array.isArray(incoming) || !incoming.length || incoming.length > 1024;
@@ -147,7 +149,7 @@ export class MarketPatternEngine {
     // A missing/incomplete historical bar separates segments. No patterns bridge it.
     let start = 0;
     for (let i = 1; i < all.length; i++) if (!all[i - 1].complete || Date.parse(all[i].time) - Date.parse(all[i - 1].time) !== interval) start = i;
-    frame.candles = all.slice(start); frame.contextAt = receivedAt; frame.reason = null;
+    frame.candles = all.slice(start); frame.contextAt = receivedAt; frame.contextAvailable = true; frame.reason = null;
     // H4 is broker-session aligned, which need not be midnight UTC.
     frame.bucketOffsetMs = Date.parse(frame.candles.at(-1)!.time) % interval;
     if (start) for (const p of [...frame.patterns.values()]) if (p.state === "forming" || p.state === "confirmed") this.change(frame, p, "invalidated", receivedAt, "candle_history_gap");
@@ -170,7 +172,7 @@ export class MarketPatternEngine {
   }
   contextError(data: Record<string, unknown>) {
     if (typeof data.instrument === "string" && this.instruments.includes(data.instrument) && typeof data.granularity === "string" && PATTERN_INTERVALS[data.granularity]) this.frame(data.instrument, data.granularity);
-    for (const [key, frame] of this.frames) if ((!data.instrument || key.startsWith(`${data.instrument}:`)) && (!data.granularity || key.endsWith(`:${data.granularity}`)) && data.context !== "calendar") frame.reason = "context_unavailable";
+    for (const [key, frame] of this.frames) if ((!data.instrument || key.startsWith(`${data.instrument}:`)) && (!data.granularity || key.endsWith(`:${data.granularity}`)) && data.context !== "calendar") { frame.reason = "context_unavailable"; frame.contextAvailable = false; }
   }
   private pauseFrames(receivedAt: string, instrument?: string) {
     for (const [key, frame] of this.frames) {
@@ -229,11 +231,17 @@ export class MarketPatternEngine {
       const age = frame?.contextAt ? Date.parse(asOf) - Date.parse(frame.contextAt) : null;
       const last = frame?.candles.at(-1);
       const reason = frame?.reason ?? (!frame ? "waiting_for_candles" : age! < 0 ? "as_of_before_context" : age! > (granularity === "M1" ? 150_000 : 600_000) ? "stale_context" : last && Date.parse(last.time) + interval * 2 < Date.parse(asOf) ? "historical_candles" : null);
+      // Quote previews need resynchronization after a gap. The independently
+      // fetched, closed broker candles can still support a measured trend read.
+      const contextLast = frame?.contextCandles.at(-1);
+      const contextCurrent = Boolean(frame?.contextAvailable && !frame.locked
+        && age !== null && age >= 0 && age <= (granularity === "M1" ? 150_000 : 600_000)
+        && contextLast && Date.parse(contextLast.time) + interval * 2 >= Date.parse(asOf));
       const ordered = frame ? [...frame.patterns.values()].sort((a, b) => {
         const priority = (p: PatternObservation) => p.state === "forming" || p.state === "confirmed" ? p.family === "structure" ? 2 : 1 : 0;
         return priority(b) - priority(a) || Date.parse(b.endTime) - Date.parse(a.endTime);
       }) : [];
-      return { granularity, dataState: reason || movement.state === "paused" ? "paused" : "current", reason: reason ?? movement.reason, contextAt: frame?.contextAt ?? null, contextAgeMs: age,
+      return { granularity, dataState: reason || movement.state === "paused" ? "paused" : "current", contextDataState: contextCurrent ? "current" : "paused", reason: reason ?? movement.reason, contextAt: frame?.contextAt ?? null, contextAgeMs: age,
         retainedCandles: frame?.candles.length ?? 0, completedCandles: frame?.candles.filter(c => c.complete).length ?? 0, formingCandleTime: last && !last.complete ? last.time : null,
         totalPatterns: ordered.length, omittedPatterns: Math.max(0, ordered.length - 32),
         patterns: ordered.slice(0, 32).map(p => ({ ...structuredClone(p),

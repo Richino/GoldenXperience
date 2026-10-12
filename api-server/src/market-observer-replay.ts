@@ -23,6 +23,8 @@ export function observerReplaySeed(value: unknown): ObserverPlan {
   seed.status = "WATCHING"; seed.resumeStatus = "WATCHING"; seed.updatedAt = seed.createdAt; seed.lastEvaluatedCandle = null;
   seed.confirmationCandle = null; seed.confirmationAfter = seed.createdAt; seed.priceInterrupted = false; seed.triggeredAt = null; seed.observedEntry = null; seed.outcome = null;
   delete seed.measurements;
+  if (seed.consolidation) { seed.consolidation.attempts = []; seed.consolidation.state = "inside"; seed.consolidation.lastQuoteAt = null; seed.consolidation.lastQuoteKey = null; seed.consolidation.truncated = false; }
+  if (seed.pullback) { seed.pullback.touchedAt = null; seed.pullback.phase = "approaching"; seed.pullback.lastQuoteKey = null; seed.pullback.lastQuoteAt = null; seed.pullback.receivedQuotes = 0; seed.pullback.lastEntry = null; seed.pullback.move = "unknown"; }
   seed.reason = "Replaying the original frozen hypothesis from its creation time.";
   return seed;
 }

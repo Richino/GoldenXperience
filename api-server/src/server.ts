@@ -65,6 +65,7 @@ import {
   cancelPendingManualEntry,
   closeActiveManualTrade,
   updateActiveManualTradeLevels,
+  updatePendingEntryLevels,
   createPendingManualEntry,
   editPendingManualEntry,
   evaluatePendingManualEntries,
@@ -524,9 +525,13 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       const payload = await body(request);
       const instrument = typeof payload?.instrument === "string" ? payload.instrument.toUpperCase() : "";
       if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
-      const tick = await executableTick(instrument);
-      if (!tick) return json(request, response, { error: "A fresh market quote is not available yet." }, 409);
       try {
+        // A waiting order's levels are checked against its entry, not the market.
+        if (payload?.pending === true) {
+          return json(request, response, { entry: await updatePendingEntryLevels(user.id, pendingEntryLevelsMatch[1]!, payload) });
+        }
+        const tick = await executableTick(instrument);
+        if (!tick) return json(request, response, { error: "A fresh market quote is not available yet." }, 409);
         return json(request, response, { entry: await updateActiveManualTradeLevels(user.id, pendingEntryLevelsMatch[1]!, payload ?? {}, tick) });
       } catch (error) {
         return json(request, response, { error: error instanceof Error ? error.message : "Could not update the stop and target." }, 409);

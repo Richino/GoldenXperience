@@ -85,7 +85,7 @@ export class MarketObserverService {
       const planRead = this.storageReady ? read : { ...read, blockers: ["Plan journal is unavailable.", ...read.blockers] };
       const next = evaluateMeasuredPlan(cached.plan, planRead, this.patterns.history(cached.plan.instrument, cached.plan.trigger?.timeframe ?? "M5"));
       if (JSON.stringify(next) !== JSON.stringify(cached.plan)) {
-        if (next.status !== cached.plan.status || next.reason !== cached.plan.reason || next.confirmationCandle !== cached.plan.confirmationCandle) cached.events.push(structuredClone(next));
+        if (next.status !== cached.plan.status || next.reason !== cached.plan.reason || next.confirmationCandle !== cached.plan.confirmationCandle || next.pullback?.touchedAt && !cached.plan.pullback?.touchedAt) cached.events.push(structuredClone(next));
         cached.plan = next; this.writes.set(id, cached);
       }
       this.interested.set(next.instrument, Date.now());
@@ -207,6 +207,15 @@ export class MarketObserverService {
     ]);
     const genuine = (r: typeof m15) => r.status.state === "connected" && r.data.source === "oanda" ? r.data.candles : undefined;
     const now = new Date().toISOString(), quote = pricing.status.state === "connected" && pricing.status.source === "oanda" ? pricing.data.find(q => q.instrument === instrument && q.source === "oanda" && q.status.toLowerCase() === "tradeable") ?? null : null;
+    for (const [granularity, result] of [["M15", m15], ["H1", h1], ["H4", h4]] as const) {
+      if (genuine(result)) this.patterns.context({ instrument, granularity, source: "oanda", snapshot: result.data }, now);
+      else this.patterns.contextError({ instrument, granularity, context: "candles" });
+    }
+    if (mode === "NORMAL") {
+      if (genuine(execution)) this.patterns.context({ instrument, granularity: "M5", source: "oanda", snapshot: execution.data }, now);
+      else this.patterns.contextError({ instrument, granularity: "M5", context: "candles" });
+    }
+    this.state.calendarContext({ snapshot: calendar.data }, now);
     const news = calendar.status.state === "connected" && calendar.data.connected && calendar.data.source !== "mock"
       && calendar.data.coverageUntil && Date.parse(calendar.data.coverageUntil) >= Date.parse(now) + 30 * 60_000 ? [...calendar.data.events, ...(calendar.data.recentEvents ?? [])] : null;
     const input = { instrument, candles: { M15: genuine(m15), H1: genuine(h1), H4: genuine(h4), D1: genuine(daily) }, quote, now: Date.parse(now), news, exposure: exposure.rows };

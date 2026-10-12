@@ -27,6 +27,9 @@ assert.equal(expression(closedMarket), "paused");
 assert.equal(expression(closedMarket, { busy: true }), "analyzing", "Analyze gives immediate feedback before its result arrives");
 const warming = snapshot(); warming.read!.state = "warming";
 assert.equal(expression(warming), "analyzing");
+const collecting = snapshot(); collecting.read!.pressure.covered = false;
+collecting.read!.blockers = ["The 30-second pressure window is still warming."];
+assert.equal(expression(collecting), "analyzing", "Collecting-data label and mascot agree even with live candle context");
 const plan: ObserverPlan = {
   id: "p1", version: 1, instrument: "AUD_JPY", mode: "NORMAL", status: "TRIGGERED", resumeStatus: "TRIGGERED",
   createdAt: at(-60000), expiresAt: at(60000), updatedAt: at(), triggeredAt: at(), observedEntry: 110.5,
@@ -35,6 +38,22 @@ const plan: ObserverPlan = {
   lastEvaluatedCandle: at(), confirmationCandle: at(), outcome: null, facts: [],
 };
 const triggered = snapshot(); triggered.plan = plan;
+const entryPaused = snapshot(); entryPaused.plan = { ...plan, status: "PAUSED", triggeredAt: null };
+assert.equal(expression(entryPaused), "cautious", "Blocked entry monitoring must not mark live candle analysis as paused");
+const testing = snapshot(); testing.plan = { ...plan, status: "WATCHING", triggeredAt: null,
+  pullback: { rules: "pullback-monitor@1", zone: { low: 110.4, high: 110.6 }, phase: "testing", touchedAt: at(),
+    lastQuoteKey: null, lastQuoteAt: at(), receivedQuotes: 1, lastEntry: 110.5, move: "unchanged" } };
+assert.equal(expression(testing), "analyzing", "Testing the pullback area uses the active analysis animation");
+testing.plan!.pullback!.phase = "rebounding";
+assert.equal(expression(testing), "analyzing");
+testing.plan!.pullback!.phase = "approaching";
+assert.equal(expression(testing), "neutral", "Approaching the area is ordinary watching");
+const rangeAttempt = snapshot(); rangeAttempt.plan = { ...testing.plan!, pullback: undefined,
+  consolidation: { rules: "consolidation-comparison@1", low: 110.4, high: 110.6, buffer: 0.01, followThrough: 0.02,
+    holdSeconds: 10, createdAt: at(), expiresAt: at(60000), lastQuoteAt: at(), lastQuoteKey: null, state: "attempt", attempts: [], truncated: false } };
+assert.equal(expression(rangeAttempt), "analyzing", "A breakout attempt is actively analyzed");
+rangeAttempt.read!.state = "paused";
+assert.equal(expression(rangeAttempt), "paused", "An interrupted feed overrides active setup testing");
 const confirmed = observerMascotReaction(live, triggered, now)!;
 assert.equal(confirmed.expression, "confirmed");
 assert.equal(expression(triggered, { reaction: confirmed }), "confirmed");

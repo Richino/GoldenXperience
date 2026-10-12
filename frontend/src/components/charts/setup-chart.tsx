@@ -825,7 +825,10 @@ function LevelEditOverlay({
   const label = (key: EditLevelKey, price: number) => {
     const fromEntry = (edit.direction === "long" ? price - edit.entry : edit.entry - price) / pip;
     const pips = `${fromEntry >= 0 ? "+" : "−"}${Math.abs(fromEntry).toFixed(1)}p`;
-    const reward = key === "target" && risk !== null && risk > 0 ? ` · ${(Math.abs(price - edit.entry) / risk).toFixed(1)}R` : "";
+    // The stop is the 1R the trade risks; the target is measured in those R.
+    const reward = risk === null || risk <= 0 ? ""
+      : key === "stop" ? " · −1.0R"
+        : ` · ${(Math.abs(price - edit.entry) / risk).toFixed(1)}R`;
     return `${key === "stop" ? "SL" : "TP"} ${formatChartPrice(price, edit.instrument)} · ${pips}${reward}`;
   };
 

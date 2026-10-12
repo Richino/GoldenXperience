@@ -5,8 +5,9 @@ import { pipSizeFor } from "../../frontend/src/lib/instruments/catalog.js";
 import { MarketPatternEngine } from "./market-patterns.js";
 import { observerRuleExplanation } from "./market-observer-explanation.js";
 import { getForexSessionStatus } from "../../frontend/src/lib/strategy/session.js";
+import { marketStory } from "./market-story.js";
 
-export const MARKET_STATE_VERSION = "market-observer@2";
+export const MARKET_STATE_VERSION = "market-observer@3";
 const DIRECTION_PERSISTENCE_MS = 3000;
 
 function validCalendarEvent(value: unknown): value is EconomicCalendarEvent {
@@ -56,11 +57,16 @@ export class MarketStateEngine {
     for (const w of windows) add(`movement-${w.windowSeconds}`, "movement", `${w.windowSeconds}s: ${w.netPips.toFixed(2)} pips net, ${(w.directionalEfficiency * 100).toFixed(0)}% of observed movement retained; ${w.state === "ready" ? "window covered" : "still warming"}.`);
     const structures = ["M15", "H1", "H4"].map(tf => {
       const frame = snapshot.frames.find(f => f.granularity === tf)!;
-      const read = frame.dataState === "current" ? candleRead(this.patterns.contextHistory(instrument, tf), pip) : null;
+      const read = frame.contextDataState === "current" ? candleRead(this.patterns.contextHistory(instrument, tf), pip) : null;
       if (read) add(`structure-${tf}`, "structure", `${tf}: ${read.direction === "range" ? "overlapping movement" : `leaning ${read.direction}`} across the last 20 closed candles (${read.netPips.toFixed(1)} pips net).`);
       return { tf, read };
     });
     const primary = structures.find(s => s.tf === "H1")?.read?.direction ?? "unknown";
+    const story = marketStory(instrument, Object.fromEntries(["H4", "H1", "M15"].map(tf => [tf,
+      snapshot.frames.find(f => f.granularity === tf)?.contextDataState === "current" ? this.patterns.contextHistory(instrument, tf) : []])), asOf);
+    add("story-broader", "structure", story.broader.summary);
+    add("story-recent", "pattern", story.recent.summary);
+    add("story-current", "structure", story.current.summary);
     const context = structures.find(s => s.tf === "H4")?.read?.direction ?? "unknown";
     const pressureWindow = windows.find(w => w.windowSeconds === 30 && w.state === "ready");
     const observedPressure: QuotePressure = !pressureWindow ? "unknown" : pressureWindow.directionalEfficiency >= 0.35 && Math.abs(pressureWindow.netPips) >= 0.5
@@ -74,10 +80,11 @@ export class MarketStateEngine {
     const pressureRelation = pressure === "unknown" || primary === "unknown" ? "unknown"
       : pressure === "range" || primary === "range" ? "neutral" : primary === pressure ? "aligned" : "opposed";
     add("quote-pressure", "movement", pressure === "unknown"
-      ? pressureWindow ? "30s quote pressure is being checked for persistence." : movement.state === "paused" ? "30s quote pressure is unavailable while the price feed is paused." : "30s quote pressure is not known yet; the observation window is still warming."
+      ? pressureWindow ? "30s quote pressure is being checked for persistence." : movement.state === "paused" ? "30s quote pressure is unavailable until fresh price observations return." : "30s quote pressure is not known yet; the observation window is still warming."
       : `30s quote pressure: ${pressure === "range" ? "no persistent direction" : `leaning ${pressure}`}${pressureRelation === "aligned" ? "; aligned with H1" : pressureRelation === "opposed" ? "; opposing H1" : ""}.${pressurePending ? " A possible change is being checked for persistence." : ""}`);
     let lean: MarketLean = primary === "unknown" ? "unknown" : primary;
     if ((primary === "up" || primary === "down") && (context === "up" || context === "down") && primary !== context) lean = "conflicting";
+    if (movement.connection !== "connected") lean = "unknown";
     if (pressureRelation === "opposed") add("pressure-opposed", "risk", `Short-term quote pressure opposes the ${primary} hourly lean; this can be a pullback or an emerging reversal.`);
     const byFrame = snapshot.frames.map(frame => frame.patterns.filter(p => p.state === "forming" || p.state === "confirmed")
       .sort((a, b) => Number(b.family === "structure") - Number(a.family === "structure") || Date.parse(b.endTime) - Date.parse(a.endTime)).map(p => ({ p, frame })));
@@ -88,6 +95,7 @@ export class MarketStateEngine {
     else if (movement.state === "paused") blockers.push(movement.reason === "nontradeable_quote" ? "Prices are not tradeable. Entry monitoring is paused."
       : movement.reason === "stream_connecting" ? "Connecting to live prices."
       : movement.reason === "stream_error" ? "Live prices are unavailable. Reconnecting automatically."
+      : movement.reason === "stale_quote" ? "The latest quote is stale. Entry monitoring waits for fresh prices."
       : "Fresh price observations are unavailable. Monitoring resumes when the feed recovers.");
     if (movement.state !== "paused" && !pressureWindow) blockers.push("The 30-second pressure window is still warming. Entry monitoring resumes when it is covered.");
     if (!structures.find(s => s.tf === "H1")?.read || !structures.find(s => s.tf === "H4")?.read) blockers.push("Fresh H1 and H4 context is required.");
@@ -108,13 +116,18 @@ export class MarketStateEngine {
     const candidate = lean;
     // Direction changes persist for three seconds. Feed/quality failures apply immediately.
     if (previous && lean !== "unknown" && lean !== previous.read.lean && now - since < DIRECTION_PERSISTENCE_MS) lean = previous.read.lean;
-    const state = !marketOpen || movement.state === "paused" ? "paused" : movement.state === "warming" ? "warming" : "live";
-    const headline = !marketOpen ? "Market closed" : state === "paused" ? "Live analysis paused" : state === "warming" ? "Building a fresh movement window" : lean === "up" ? "Leaning up" : lean === "down" ? "Leaning down" : lean === "range" ? "Range / overlapping movement" : lean === "conflicting" ? "Timeframes disagree" : "Direction is unclear";
+    // Analysis of fresh closed candles does not require a covered tick window.
+    // A quiet connected feed can retain that analysis, but provides no executable
+    // quote and cannot trigger entries. Actual connection/quote failures pause it.
+    const candleAnalysisAvailable = movement.connection === "connected" && movement.reason === "stale_quote"
+      && structures.some(s => s.tf === "H1" && s.read) && structures.some(s => s.tf === "H4" && s.read);
+    const state = !marketOpen || movement.state === "paused" && !candleAnalysisAvailable ? "paused" : "live";
+    const headline = !marketOpen ? "Market closed" : state === "paused" ? "Live analysis paused" : lean === "up" ? "Leaning up" : lean === "down" ? "Leaning down" : lean === "range" ? "Range / overlapping movement" : lean === "conflicting" ? "Timeframes disagree" : "Direction is unclear";
     // Geometry revisions on every tick do not create a new meaningful event.
-    const signature = JSON.stringify([state, lean, pressure, blockers, active.filter(x => !x.p.historicalOnDiscovery).map(x => [x.p.id, x.p.state, x.frame.dataState]).sort()]);
+    const signature = JSON.stringify([state, lean, pressure, blockers, story, active.filter(x => !x.p.historicalOnDiscovery).map(x => [x.p.id, x.p.state, x.frame.dataState]).sort()]);
     const changed = signature !== previous?.signature;
     const read: ObserverRead = { version: MARKET_STATE_VERSION, instrument, asOf, state, lean, headline,
-      changedAt: changed ? asOf : previous.read.changedAt, revision: (previous?.read.revision ?? 0) + Number(changed), facts, blockers,
+      changedAt: changed ? asOf : previous.read.changedAt, revision: (previous?.read.revision ?? 0) + Number(changed), facts, blockers, story,
       changeConditions: ["The H1 closed-candle movement changes direction or loses its persistence.", "H4 context changes alignment with H1.", "The 30-second quote pressure changes direction and persists for three seconds.", "Price, candle, news or spread checks lose or regain valid coverage.", "A monitored plan's frozen trigger, invalidation, or expiry is reached."], quote,
       pressure: { direction: pressure, observedDirection: observedPressure, covered: Boolean(pressureWindow), pending: pressurePending, relation: pressureRelation },
       movement: windows.map(w => ({ seconds: w.windowSeconds, netPips: w.netPips, efficiency: w.directionalEfficiency, velocity: w.velocityPipsPerSecond, samples: w.samples, ready: w.state === "ready" })),

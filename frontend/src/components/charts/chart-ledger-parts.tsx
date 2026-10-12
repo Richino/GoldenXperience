@@ -72,6 +72,8 @@ export type ChartHealthLevels = {
   onCancel: () => void;
   onSave: () => void;
   onToggle: (key: "stop" | "target") => void;
+  /** What each level must sit beyond: a waiting order checks against its entry. */
+  relativeTo?: "entry" | "current price";
 };
 
 type MonitorRead = {
@@ -238,6 +240,52 @@ export function ChartHealthCard({
   );
 }
 
+/**
+ * A waiting order on this pair in the side column: its entry, stop and target,
+ * and the same drag-the-lines editor an open trade gets.
+ */
+export function ChartPendingLevelsCard({
+  signal,
+  orderLabel,
+  levels,
+}: {
+  signal: ChartPositionCardSignal;
+  orderLabel: string;
+  levels: ChartHealthLevels;
+}) {
+  const level = (price: number | null) => (price === null ? "None" : formatChartPrice(price, signal.instrument));
+  return (
+    <section className="nl-cside-card" aria-labelledby="nl-cpending-title">
+      <div className="nl-cside-head">
+        <h2 id="nl-cpending-title">Pending order</h2>
+        <span className="metric-number">{signal.direction === "long" ? "Long" : "Short"} · {orderLabel}</span>
+      </div>
+      <div className="nl-cpos-grid">
+        <div>
+          <span>Entry</span>
+          <b>{level(signal.entry)}</b>
+        </div>
+        <div>
+          <span>Stop</span>
+          <b className={signal.stop === null ? "is-caution" : ""}>{level(signal.stop)}</b>
+        </div>
+        <div>
+          <span>Target</span>
+          <b>{level(signal.target)}</b>
+        </div>
+      </div>
+      {levels.editing ? (
+        <ChartLevelEditor levels={levels} signal={signal} />
+      ) : (
+        <button type="button" className="nl-clevels-start pressable" onClick={levels.onStart}>
+          <MoveVertical aria-hidden="true" />
+          {signal.stop === null && signal.target === null ? "Set stop & target" : "Move stop & target"}
+        </button>
+      )}
+    </section>
+  );
+}
+
 /** The draft stop and target while their lines are being dragged on the chart. */
 export function ChartLevelEditor({ levels, signal }: { levels: ChartHealthLevels; signal: ChartPositionCardSignal }) {
   const pip = pipSizeFor(signal.instrument);
@@ -254,9 +302,9 @@ export function ChartLevelEditor({ levels, signal }: { levels: ChartHealthLevels
       <p className="nl-clevels-hint">Drag the lines on the chart to place them.</p>
       {rows.map((row) => {
         const fromEntry = row.price === null ? null : ((long ? row.price - signal.entry : signal.entry - row.price) / pip);
-        const reward = row.key === "target" && row.price !== null && risk !== null && risk > 0
-          ? ` · ${(Math.abs(row.price - signal.entry) / risk).toFixed(1)}R`
-          : "";
+        const reward = row.price === null || risk === null || risk <= 0 ? ""
+          : row.key === "stop" ? " · −1.0R"
+            : ` · ${(Math.abs(row.price - signal.entry) / risk).toFixed(1)}R`;
         return (
           <div key={row.key} className={`nl-clevels-row is-${row.key}${row.invalid ? " is-invalid" : ""}`}>
             <i aria-hidden="true" />
@@ -267,7 +315,7 @@ export function ChartLevelEditor({ levels, signal }: { levels: ChartHealthLevels
                   ? "None"
                   : `${formatChartPrice(row.price, signal.instrument)} · ${fromEntry! >= 0 ? "+" : "−"}${Math.abs(fromEntry!).toFixed(1)}p${reward}`}
               </b>
-              {row.invalid ? <small>Must be {row.hint} the current price.</small> : null}
+              {row.invalid ? <small>Must be {row.hint} the {levels.relativeTo ?? "current price"}.</small> : null}
             </div>
             <button type="button" className="nl-clevels-toggle pressable" onClick={() => levels.onToggle(row.key)}>
               {row.price === null ? <Plus aria-hidden="true" /> : <X aria-hidden="true" />}

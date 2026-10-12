@@ -47,7 +47,7 @@ import {
   type ChartReferenceLine,
 } from "@/components/charts/setup-chart";
 import { PendingEntryDialog } from "@/components/charts/pending-entry-dialog";
-import { ChartHealthCard, ChartLevelEditor, ChartNewsCard, ChartOhlcReadout, type ChartHealthLevels, type ChartPositionCardSignal } from "@/components/charts/chart-ledger-parts";
+import { ChartHealthCard, ChartLevelEditor, ChartNewsCard, ChartPendingLevelsCard, ChartOhlcReadout, type ChartHealthLevels, type ChartPositionCardSignal } from "@/components/charts/chart-ledger-parts";
 import {
   ManualProposalModal,
   useManualProposal,
@@ -1744,11 +1744,21 @@ function FullscreenToggle({
   className?: string;
 }) {
   const Icon = fullscreen ? Minimize : Maximize;
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  // Leaving fullscreen hands focus back to this button, which then shows a
+  // focus ring on the chart toolbar. It is a one-tap toggle; let focus go.
+  useEffect(() => {
+    if (!fullscreen && document.activeElement === buttonRef.current) buttonRef.current?.blur();
+  }, [fullscreen]);
 
   return (
     <button
+      ref={buttonRef}
       type="button"
-      onClick={onToggle}
+      onClick={(event) => {
+        event.currentTarget.blur();
+        onToggle();
+      }}
       aria-pressed={fullscreen}
       aria-label={fullscreen ? "Exit fullscreen chart" : "Fullscreen chart"}
       className={`${className} pressable ${fullscreen ? "is-active" : ""}`}
@@ -3492,15 +3502,22 @@ export function SignalWorkspace({
     };
   }, [activeManualTrade, activePair, instrument, positionSignal]);
 
-  // Moving the stop / target of a manual trade: the card starts a draft, the
-  // chart draws it as two draggable lines, and Save sends it to the trade
-  // (OANDA's own SL/TP for a broker-backed trade).
+  // Moving the stop / target of a manual trade or a waiting order: the card
+  // starts a draft, the chart draws it as two draggable lines, and Save sends
+  // it to the trade (OANDA's own SL/TP) or replaces the resting OANDA order.
   const [levelDraft, setLevelDraft] = useState<{ entryId: string; stop: number | null; target: number | null } | null>(null);
   const [levelSaving, setLevelSaving] = useState(false);
   const [levelError, setLevelError] = useState<string | null>(null);
-  const levelTrade = !replayActive && !openPaperTrade ? activeManualTrade : null;
+  const levelTrade = !replayActive && !openPaperTrade
+    ? activeManualTrade ?? (pendingManualEntry?.status === "PENDING" ? pendingManualEntry : null)
+    : null;
+  // A waiting order has no fill yet: its levels are judged against its entry,
+  // and it holds both a stop and a target or neither.
+  const levelPending = levelTrade?.status === "PENDING";
   const levelDraftEntryId = levelDraft && levelTrade && levelDraft.entryId === levelTrade.id ? levelDraft.entryId : null;
-  const levelExitPrice = quote && levelTrade ? (levelTrade.direction === "long" ? quote.bid : quote.ask) : null;
+  const levelExitPrice = levelTrade && levelPending
+    ? levelTrade.entryPrice
+    : quote && levelTrade ? (levelTrade.direction === "long" ? quote.bid : quote.ask) : null;
   const levelEdit = useMemo<ChartLevelEdit | null>(() => {
     if (!levelTrade || !levelDraft || levelDraft.entryId !== levelTrade.id) return null;
     return {
@@ -3516,7 +3533,7 @@ export function SignalWorkspace({
     setLevelError(null);
     setLevelDraft((draft) => (draft ? { ...draft, stop: next.stop, target: next.target } : draft));
   }, []);
-  /** A fresh line 15 pips (stop) or 30 pips (target) from where the trade would close. */
+  /** A fresh line 15 pips (stop) or 30 pips (target) from where the trade would close (a waiting order: its entry). */
   const seedLevel = useCallback((key: "stop" | "target") => {
     if (!levelTrade) return null;
     const from = levelExitPrice ?? levelTrade.triggerPrice ?? levelTrade.entryPrice;
@@ -3533,11 +3550,13 @@ export function SignalWorkspace({
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          instrument,
-          ...(levelEdit.stop !== levelTrade.stopPrice ? { stopPrice: levelEdit.stop } : {}),
-          ...(levelEdit.target !== levelTrade.targetPrice ? { targetPrice: levelEdit.target } : {}),
-        }),
+        body: JSON.stringify(levelPending
+          ? { instrument, pending: true, stopPrice: levelEdit.stop, targetPrice: levelEdit.target }
+          : {
+            instrument,
+            ...(levelEdit.stop !== levelTrade.stopPrice ? { stopPrice: levelEdit.stop } : {}),
+            ...(levelEdit.target !== levelTrade.targetPrice ? { targetPrice: levelEdit.target } : {}),
+          }),
       });
       const payload = await res.json() as { error?: string };
       if (!res.ok) throw new Error(payload.error ?? "Could not save the stop and target.");
@@ -3548,7 +3567,7 @@ export function SignalWorkspace({
     } finally {
       setLevelSaving(false);
     }
-  }, [instrument, levelEdit, levelTrade, refreshPendingEntries]);
+  }, [instrument, levelEdit, levelPending, levelTrade, refreshPendingEntries]);
   const healthLevels = useMemo<ChartHealthLevels | null>(() => {
     if (!levelTrade) return null;
     return {
@@ -3578,10 +3597,35 @@ export function SignalWorkspace({
       onSave: () => void saveLevels(),
       onToggle: (key) => {
         setLevelError(null);
-        setLevelDraft((draft) => (draft ? { ...draft, [key]: draft[key] === null ? seedLevel(key) : null } : draft));
+        setLevelDraft((draft) => {
+          if (!draft) return draft;
+          const adding = draft[key] === null;
+          // A waiting order adds or removes the pair together.
+          if (levelPending) {
+            return adding
+              ? { ...draft, stop: draft.stop ?? seedLevel("stop"), target: draft.target ?? seedLevel("target") }
+              : { ...draft, stop: null, target: null };
+          }
+          return { ...draft, [key]: adding ? seedLevel(key) : null };
+        });
       },
+      relativeTo: levelPending ? "entry" : "current price",
     };
-  }, [levelEdit, levelError, levelSaving, levelTrade, saveLevels, seedLevel]);
+  }, [levelEdit, levelError, levelPending, levelSaving, levelTrade, saveLevels, seedLevel]);
+  /** The waiting order as a card signal, for the level editor and side card. */
+  const pendingLevelSignal = useMemo<ChartPositionCardSignal | null>(() => {
+    if (!levelTrade || !levelPending) return null;
+    return {
+      instrument,
+      pair: activePair,
+      direction: levelTrade.direction,
+      entry: levelTrade.entryPrice,
+      stop: levelTrade.stopPrice,
+      target: levelTrade.targetPrice,
+      riskReward: 0,
+    };
+  }, [activePair, instrument, levelPending, levelTrade]);
+  const levelSignal = healthSignal ?? pendingLevelSignal;
 
   const startPositionTool = useCallback((direction: "long" | "short") => {
     const candles = series.candles;
@@ -3626,6 +3670,7 @@ export function SignalWorkspace({
     };
     return pendingEntries.filter((entry) => entry.id === selectedPairTrade?.id).flatMap((entry) => {
       if (entry.status === "PENDING" || entry.status === "TRIGGERING") {
+        const editingLevels = levelDraftEntryId === entry.id;
         const remaining = entry.expiresAt
           ? Math.max(0, Date.parse(entry.expiresAt) - pendingEntryClock)
           : null;
@@ -3646,7 +3691,7 @@ export function SignalWorkspace({
         // A pending manual entry is a complete trade plan, not merely a price
         // alert. Keep its protective stop and profit objective visible from
         // the moment it is created, just as we do after it has triggered.
-        if (entry.stopPrice !== null && entry.targetPrice !== null) {
+        if (entry.stopPrice !== null && entry.targetPrice !== null && !editingLevels) {
           const risk = Math.abs(entry.entryPrice - entry.stopPrice);
           const rewardR = risk > 0
             ? Math.abs(entry.targetPrice - entry.entryPrice) / risk
@@ -4682,13 +4727,13 @@ export function SignalWorkspace({
                 </span>
               </div>
               <span className="nl-mquote-session">{sessionLabel.replace(/ session$/, "")}</span>
-              <dl className="nl-mquote-facts" aria-label="Live bid, ask and spread">
+              <dl className="nl-mquote-facts" aria-label="Live sell price, buy price and spread">
                 <div>
-                  <dt>Bid</dt>
+                  <dt>Sell</dt>
                   <dd className="metric-number">{quote?.instrument === instrument && Number.isFinite(quote.bid) ? formatChartPrice(quote.bid, instrument) : "—"}</dd>
                 </div>
                 <div>
-                  <dt>Ask</dt>
+                  <dt>Buy</dt>
                   <dd className="metric-number">{quote?.instrument === instrument && Number.isFinite(quote.ask) ? formatChartPrice(quote.ask, instrument) : "—"}</dd>
                 </div>
                 <div>
@@ -4830,17 +4875,17 @@ export function SignalWorkspace({
                 <button type="button" className="gx-mobile-replay-step pressable" onClick={() => stepReplay(60)} disabled={replayAtLatest} aria-label="Forward one hour">1h ›</button>
               </div>
             </div>
-          ) : levelEdit && healthLevels && healthSignal ? (
+          ) : levelEdit && healthLevels && levelSignal ? (
             // Moving SL / TP: the lines are dragged on the chart above; this
             // is the same draft panel as the desktop Trade health card.
             <div className="gx-mobile-analyze-section nl-mlevels">
-              <ChartLevelEditor levels={healthLevels} signal={healthSignal} />
+              <ChartLevelEditor levels={healthLevels} signal={levelSignal} />
             </div>
           ) : mobileTradeActionReady ? (
             <div className="gx-mobile-analyze-section">
               <PairTradePicker trades={pairTrades} selectedId={settingUpNewTrade ? NEW_PAIR_TRADE : selectedPairTrade?.id ?? null} instrument={instrument} onSelect={setPickedPairTrade} />
               <div className="nl-mtrade-row">
-                {healthLevels && manualTradeMode === "close" ? (
+                {healthLevels ? (
                   <button type="button" className="nl-mlevels-start pressable" onClick={healthLevels.onStart} aria-label="Adjust stop loss and take profit">
                     <MoveVertical aria-hidden="true" />
                     SL / TP
@@ -4894,11 +4939,11 @@ export function SignalWorkspace({
               </div>
               <dl className="nl-chart-facts">
                 <div>
-                  <dt>Bid</dt>
+                  <dt>Sell</dt>
                   <dd className="metric-number">{quote?.instrument === instrument ? formatChartPrice(quote.bid, instrument) : "—"}</dd>
                 </div>
                 <div>
-                  <dt>Ask</dt>
+                  <dt>Buy</dt>
                   <dd className="metric-number">{quote?.instrument === instrument ? formatChartPrice(quote.ask, instrument) : "—"}</dd>
                 </div>
                 <div>
@@ -5062,6 +5107,13 @@ export function SignalWorkspace({
                 }}
                 analyzeDisabled={chartAnalysisBusy || replayActive}
               />
+              {pendingLevelSignal && healthLevels && levelTrade ? (
+                <ChartPendingLevelsCard
+                  signal={pendingLevelSignal}
+                  orderLabel={levelTrade.entryOrderType.replace("_", " ")}
+                  levels={healthLevels}
+                />
+              ) : null}
               <ChartHealthCard
                 signal={healthSignal}
                 currentPrice={quote?.mid ?? null}

@@ -86,7 +86,8 @@
 .resultCounts strong { font-size: 18px; font-variant-numeric: tabular-nums; }
 .resultCounts span { font-size: 10px; opacity: .75; }
 .scout button:focus-visible { outline: 2px solid var(--accent-fill); outline-offset: 3px; }
-.pairTabs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+/* Pinned to the top of the scrolling chat body; the solid panel background keeps messages from showing through. */
+.pairTabs { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 0; padding: 12px 0 8px; background: var(--surface); }
 .pairTabs button { border: 1px solid var(--border-strong); border-radius: 20px; color: inherit; background: transparent; font-size: 10px; padding: 6px 9px; cursor: pointer; }
 .pairTabs button[aria-pressed="true"] { background: var(--accent-fill); color: var(--on-accent); border-color: transparent; }
 .unreadCount { display: inline-grid; place-items: center; min-width: 17px; height: 17px; margin-left: 6px; padding: 0 4px; border-radius: 9px; background: var(--foreground); color: var(--surface-raised); font-size: 10px; font-weight: 700; }
@@ -132,7 +133,7 @@
 .icon {
   position: relative; flex: none; width: 64px; height: 64px; padding: 0; display: grid; place-items: center;
   border: 0; border-radius: 50%; background: var(--surface); cursor: pointer;
-  box-shadow: 0 0 0 2px var(--accent), 0 12px 28px rgba(0, 0, 0, .28);
+  box-shadow: 0 0 0 2px var(--mood, var(--accent)), 0 12px 28px rgba(0, 0, 0, .28);
   transition: transform 160ms ease;
 }
 .icon:hover { transform: translateY(-2px); }
@@ -141,8 +142,29 @@
 .dot { display: inline-block; width: 7px; height: 7px; flex: none; border-radius: 50%; }
 :is(.badge, .dot)[data-tone="live"] { background: var(--accent); }
 :is(.badge, .dot)[data-tone="busy"] { background: var(--muted); }
-:is(.badge, .dot)[data-tone="paused"] { background: var(--pending); }
+:is(.badge, .dot)[data-tone="collecting"] { background: var(--pending); }
+:is(.badge, .dot)[data-tone="closed"] { background: var(--muted); }
+:is(.badge, .dot)[data-tone="paused"] { background: var(--danger); }
 :is(.badge, .dot)[data-tone="alert"] { background: var(--danger); }
+/* Mood colours: the badge, the ring and the status dots all follow the face the
+   mascot is actually showing, so colour and expression never disagree.
+   neutral = calm watching · analyzing = checking/collecting · cautious = a check is blocking
+   alert = something just changed · confirmed = entry conditions met · paused = not live. */
+.scout { --mood: var(--accent); --mood-thinking: #2f7fd6; }
+:global(html.dark) .scout { --mood-thinking: #6cb4ff; }
+.scout[data-expression="neutral"] { --mood: var(--accent); }
+.scout[data-expression="analyzing"] { --mood: var(--mood-thinking); }
+.scout[data-expression="cautious"] { --mood: var(--pending); }
+.scout[data-expression="alert"] { --mood: var(--danger); }
+.scout[data-expression="confirmed"] { --mood: var(--success); }
+.scout[data-expression="paused"] { --mood: var(--muted); }
+.scout .badge, .scout .dot { background: var(--mood); }
+.scout[data-expression="alert"] .badge, .scout[data-expression="confirmed"] .badge { animation: mood-pulse 1.4s ease-out infinite; }
+@keyframes mood-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--mood) 60%, transparent); }
+  100% { box-shadow: 0 0 0 8px transparent; }
+}
+@media (prefers-reduced-motion: reduce) { .scout .badge { animation: none !important; } }
 
 .cloudWrap { position: relative; min-width: 0; max-width: 250px; margin-bottom: 26px; }
 .cloud {
@@ -166,8 +188,11 @@
 .panelHead h3 { margin: 0; font-family: var(--font-display); font-size: 20px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; }
 .panelHead small { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 12px; letter-spacing: 0; opacity: .7; }
 .panelHead button { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; background: var(--surface-raised); }
-.headIcon { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--surface-raised); box-shadow: 0 0 0 1.5px var(--accent); }
+.headIcon { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--surface-raised); box-shadow: 0 0 0 1.5px var(--mood, var(--accent)); }
 .headIcon .face { width: 34px; height: 34px; }
+/* Only the floating bubble turns to face the screen; inside the sheet and the
+   modal the mascot always looks right, whichever side the bubble is docked on. */
+.panel .face img, .resultsModal .face img { transform: none; }
 .chatMessage { max-width: 86%; border: 1px solid var(--border); border-radius: 18px 18px 18px 6px; background: var(--surface-raised); color: var(--foreground); }
 .chatMessage[data-role="user"] { margin-left: auto; border: 0; border-radius: 18px 18px 6px 18px; background: var(--accent-fill); color: var(--on-accent); }
 .chatMessage[data-role="user"] .messageHead strong { display: none; }
@@ -292,12 +317,31 @@
 .decisionCard ul { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .decisionCard li { position: relative; margin: 0; padding-left: 14px; font-size: 13px; line-height: 1.5; }
 .decisionCard li::before { content: ""; position: absolute; left: 0; top: .55em; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+/* The decision leads; the plan and the sideways check sit under hairlines in
+   quieter type so live updates don't make the card jump around. */
+.decisionCard .planBlock, .decisionCard .sideCheck { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+.decisionCard .planBlock h4 { margin: 0 0 6px; font-family: inherit; font-size: 15px; font-weight: 700; letter-spacing: 0; line-height: 1.35; }
+.decisionCard .planBlock p, .decisionCard .sideCheck p { margin: 6px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.decisionCard .planBlock p.caption, .decisionCard .sideCheck p.caption { font-size: 11px; }
+.decisionCard .liveCaption { font-variant-numeric: tabular-nums; }
+.decisionCard .sideCheck > summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; list-style: none; cursor: pointer; color: var(--foreground); font-size: 13px; font-weight: 600; }
+.decisionCard .sideCheck > summary::-webkit-details-marker { display: none; }
+.decisionCard .sideCheck > summary::after { content: "›"; color: var(--muted); font-size: 18px; line-height: 1; transition: transform 140ms ease; }
+.decisionCard .sideCheck[open] > summary::after { transform: rotate(90deg); }
+.decisionCard .sideCheck h5 { margin-top: 12px; padding-top: 10px; }
 
 .setupSummary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 0; }
 .setupSummary > div { display: flex; flex-direction: column; gap: 6px; padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
 .setupSummary h4 { margin: 0; color: var(--muted); font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 10px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; }
 .setupSummary > div p { margin: 0; font-size: 13px; line-height: 1.5; }
 .setupSummary > .caption { grid-column: 1 / -1; margin: 0 2px; }
+/* Entry / Stop / Target: one card, one row, hairline dividers instead of a box per level. */
+.setupSummary > .setupLevels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-column: 1 / -1; gap: 0; margin: 0; padding: 0; }
+.setupSummary > .setupLevels span { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 14px; border: 0; border-radius: 0; color: var(--muted); font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 10px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; }
+.setupSummary > .setupLevels span + span { border-left: 1px solid var(--border); }
+.setupSummary > .setupLevels strong { margin: 0; overflow: hidden; color: var(--foreground); font-size: 15px; font-weight: 700; letter-spacing: 0; text-overflow: ellipsis; white-space: nowrap; }
+.setupSummary > .setupLevels span:nth-child(2) strong { color: var(--danger); }
+.setupSummary > .setupLevels span:nth-child(3) strong { color: var(--success); }
 
 .resultsBody > .actions { margin: 0; }
 .resultsBody > .actions button { flex: 1; min-height: 48px; border-radius: 14px; font-size: 14px; }

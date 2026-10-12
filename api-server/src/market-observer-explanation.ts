@@ -8,6 +8,11 @@ export function requiredObserverEvidence(read: ObserverRead): string[] {
   if (read.facts.some(f => f.id === "structure-H1")) ids.add("structure-H1");
   if (read.lean === "conflicting" && read.facts.some(f => f.id === "structure-H4")) ids.add("structure-H4");
   if (read.facts.some(f => f.id === "quote-pressure")) ids.add("quote-pressure");
+  if (read.story) {
+    // Three story facts plus pressure and the first blocker fit the six-fact contract.
+    ids.delete("structure-H1"); ids.delete("structure-H4");
+    for (const id of ["story-broader", "story-recent", "story-current"]) if (read.facts.some(f => f.id === id)) ids.add(id);
+  }
   return [...ids];
 }
 
@@ -57,8 +62,9 @@ export function observerRuleExplanation(read: ObserverRead, state: ObserverRead[
     : read.pressure.direction === "range" ? "Short-term quotes have no persistent direction." : `Short-term quote pressure leans ${read.pressure.direction}.`;
   const factIds = requiredObserverEvidence(read);
   const text = read.state === "paused" ? `${read.headline}. ${read.blockers[0] ?? "Fresh observations are required."}`
+    : read.story ? `${read.blockers.length ? `Entry checks are blocked: ${read.blockers[0]} ` : ""}H4 swing structure: ${read.story.broader.direction}. ${read.story.recent.summary} ${read.story.current.summary}`
     : `${direction} ${pressure}${read.blockers.length ? ` Entry checks are blocked: ${read.blockers[0]}` : ""}`;
   return { state, source: "rules", text: text.slice(0, 420), at: read.asOf, factIds,
     evidence: factIds.map(id => ({ id, text: read.facts.find(f => f.id === id)!.text })),
-    watch: read.changeConditions[read.state === "paused" || read.blockers.length ? 3 : read.pressure.relation === "opposed" ? 2 : 0] ?? read.changeConditions[0] };
+    watch: read.story && read.state === "live" ? read.story.current.watch : read.changeConditions[read.state === "paused" || read.blockers.length ? 3 : read.pressure.relation === "opposed" ? 2 : 0] ?? read.changeConditions[0] };
 }

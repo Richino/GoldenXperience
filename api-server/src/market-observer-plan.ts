@@ -2,10 +2,11 @@ import { randomUUID } from "node:crypto";
 import type { Candle } from "../../frontend/src/types/forex.js";
 import type { MarketAnalysis } from "../../frontend/src/lib/strategy/market-analysis.js";
 import type { ObserverPlan, ObserverRead, ObserverPlanCheck } from "../../frontend/src/lib/market-observer-types.js";
-import { pipSizeFor } from "../../frontend/src/lib/instruments/catalog.js";
+import { pipSizeFor, precisionFor } from "../../frontend/src/lib/instruments/catalog.js";
+import { evaluateConsolidation, freezeConsolidation, interruptConsolidation } from "./consolidation-comparison.js";
 
 export const TERMINAL_PLAN_STATES = new Set(["INVALIDATED", "EXPIRED", "CLOSED"]);
-export const OBSERVER_PLAN_VERSION = "observer-plan@2";
+export const OBSERVER_PLAN_VERSION = "observer-plan@3";
 const intervalFor = (plan: ObserverPlan) => plan.trigger?.timeframe === "H1" ? 3_600_000 : 300_000;
 const tracked = (plan: ObserverPlan) => (plan.status === "PAUSED" ? plan.resumeStatus : plan.status) === "TRIGGERED";
 const confirmationValid = (plan: ObserverPlan, now: string) => Boolean(plan.confirmationCandle
@@ -17,6 +18,7 @@ const confirmationValid = (plan: ObserverPlan, now: string) => Boolean(plan.conf
 export function stopObserverPlan(plan: ObserverPlan, now: string, reason: string): ObserverPlan {
   if (TERMINAL_PLAN_STATES.has(plan.status)) return plan;
   return { ...structuredClone(plan), status: tracked(plan) ? "CLOSED" : "EXPIRED", updatedAt: now, reason,
+    ...(plan.consolidation ? { consolidation: interruptConsolidation(plan.consolidation, now) } : {}),
     outcome: tracked(plan) ? { kind: "monitoring_stopped", at: now, price: null } : plan.outcome };
 }
 
@@ -27,6 +29,8 @@ export function resumeObserverPlan(plan: ObserverPlan, now: string): ObserverPla
     reason: "Server restarted after the signal triggered; intervening price path is unknown.",
     outcome: { kind: "unknown_after_gap", at: now, price: null } };
   return { ...structuredClone(plan), status: "PAUSED", resumeStatus: plan.status === "PAUSED" ? plan.resumeStatus : plan.status as ObserverPlan["resumeStatus"],
+    ...(plan.consolidation ? { consolidation: interruptConsolidation(plan.consolidation, now) } : {}),
+    ...(plan.pullback ? { pullback: { ...plan.pullback, phase: "unavailable" as const, touchedAt: null, lastEntry: null, lastQuoteKey: null, move: "unknown" as const } } : {}),
     confirmationCandle: null, confirmationAfter: now, priceInterrupted: true, updatedAt: now, reason: "Observer restarted. Awaiting fresh checks and a new full execution candle." };
 }
 export function createObserverPlan(analysis: MarketAnalysis, candles: Candle[], now: string, version: number): ObserverPlan {
@@ -39,7 +43,7 @@ export function createObserverPlan(analysis: MarketAnalysis, candles: Candle[], 
   const zone = v2.setup.zoneLow !== null && v2.setup.zoneHigh !== null ? { low: v2.setup.zoneLow, high: v2.setup.zoneHigh } : v2.watch ? { low: v2.watch.zoneLow, high: v2.watch.zoneHigh } : null;
   if (execution && (!direction || !zone || !last || ![execution.entry, execution.stop, execution.target, zone.low, zone.high].every(x => Number.isFinite(x) && x > 0)
     || zone.high < zone.low || (direction === "long" ? !(execution.stop < execution.entry && execution.entry < execution.target) : !(execution.target < execution.entry && execution.entry < execution.stop)))) throw new Error("The analysis has no usable plan geometry.");
-  return { id: randomUUID(), version, instrument: analysis.pair, mode: analysis.mode, createdAt: now, updatedAt: now,
+  const plan: ObserverPlan = { id: randomUUID(), version, instrument: analysis.pair, mode: analysis.mode, createdAt: now, updatedAt: now,
     expiresAt: new Date(Date.parse(now) + (execution?.orderLifetimeHours ?? (analysis.mode === "NORMAL" ? 4 : 48)) * 3_600_000).toISOString(),
     status: "WATCHING", resumeStatus: "WATCHING", direction, reason: execution ? "Watching the frozen entry zone and a new execution candle." : v2.headline,
     thesis: v2.headline, zone, entry: execution?.entry ?? null, stop: execution?.stop ?? null, target: execution?.target ?? null,
@@ -47,6 +51,71 @@ export function createObserverPlan(analysis: MarketAnalysis, candles: Candle[], 
     invalidation: execution ? `${direction === "long" ? "Bid at or below" : "Ask at or above"} the frozen stop; no entry after expiry.` : v2.invalidation,
     lastEvaluatedCandle: last?.time ?? null, confirmationCandle: null, triggeredAt: null, observedEntry: null, outcome: null,
     facts: [...v2.reasoning, ...v2.warnings].slice(0, 20) };
+  const consolidation = analysis.mode === "NORMAL" ? freezeConsolidation(analysis.pair, candles, now) : null;
+  if (consolidation) plan.consolidation = consolidation;
+  if (execution && zone) return withPullbackMonitor(plan, zone);
+  const conditional = conditionalPullbackPlan(analysis, plan);
+  if (conditional) return conditional;
+  return consolidation ? { ...plan, consolidation, expiresAt: consolidation.expiresAt,
+    thesis: "Consolidation detected. Comparing a short hold with follow-through against a new M5 close outside the frozen box. Paper observations only.",
+    reason: "Watching both frozen consolidation boundaries for breakout attempts." } : plan;
+}
+
+function withPullbackMonitor(plan: ObserverPlan, zone: { low: number; high: number }): ObserverPlan {
+  return { ...plan, pullback: { rules: "pullback-monitor@1", zone: { ...zone }, phase: "approaching", touchedAt: null,
+    lastQuoteKey: null, lastQuoteAt: null, receivedQuotes: 0, lastEntry: null, move: "unknown" } };
+}
+
+/** Price a hypothesis from existing confirmed structure, independently of live entry readiness. */
+export function conditionalPullbackPlan(analysis: MarketAnalysis, base: ObserverPlan): ObserverPlan | null {
+  const v2 = analysis.v2, f = v2?.foundation, trend = f?.primary;
+  if (!v2 || !f || !trend?.sufficient || !["UPTREND", "DOWNTREND"].includes(trend.direction)
+    || ["UNKNOWN", "OPPOSED"].includes(f.alignment) || !Number.isFinite(trend.atr) || trend.atr <= 0
+    || f.data.checks.some(c => c.id !== "quote" && (c.status === "FAIL" || c.status === "UNKNOWN"))
+    || f.pullback?.state === "INVALIDATED" || f.pullback?.state === "EXPIRED" || trend.structureLevel === null) return null;
+  const long = trend.direction === "UPTREND", pip = pipSizeFor(analysis.pair);
+  const round = (n: number) => Number(n.toFixed(precisionFor(analysis.pair)));
+  const reference = f.referencePrice ?? trend.close;
+  const candidates = [f.pullback?.zone, f.pullback?.nextZone, ...f.zones].filter(z => z && z.status === "ACTIVE"
+    && (long ? z.high >= trend.structureLevel! && z.low <= reference : z.low <= trend.structureLevel! && z.high >= reference));
+  const zone = candidates[0]; if (!zone) return null;
+  const boundary = round(long ? zone.high + pip : zone.low - pip);
+  const stop = round(long ? Math.min(zone.low, trend.structureLevel) - Math.max(pip, trend.atr * 0.15)
+    : Math.max(zone.high, trend.structureLevel) + Math.max(pip, trend.atr * 0.15));
+  const risk = Math.abs(boundary - stop);
+  const targets = [long ? trend.lastSwingHigh?.price : trend.lastSwingLow?.price,
+    ...f.zones.filter(z => z.status === "ACTIVE").map(z => long ? z.low : z.high)]
+    .filter((n): n is number => typeof n === "number" && Number.isFinite(n) && (long ? n > boundary : n < boundary))
+    .sort((a, b) => Math.abs(a - boundary) - Math.abs(b - boundary));
+  // The nearest obstacle must offer room. Never replace it with an invented R-multiple target.
+  const target = targets[0];
+  if (!target || risk < pip * 2 || Math.abs(target - boundary) / risk < 1.5) return null;
+  const entryZone = { low: round(boundary - risk * 0.25), high: round(boundary + risk * 0.25) };
+  const direction = long ? "long" : "short";
+  return withPullbackMonitor({ ...base, direction, zone: entryZone, entry: boundary, stop, target: round(target),
+    trigger: { timeframe: base.mode === "NORMAL" ? "M5" : "H1", boundary, after: base.createdAt },
+    thesis: `Conditional ${direction} pullback: ${trend.timeframe} ${trend.direction.toLowerCase()}. Watch the frozen pullback area; touching it is not confirmation.`,
+    reason: "Plan saved. Watching each received quote for a pullback-area test; confirmation and entry checks remain required.",
+    invalidation: `${long ? "Bid at or below" : "Ask at or above"} ${stop.toFixed(precisionFor(base.instrument))} cancels this idea before entry. No entry after expiry.`,
+    facts: [...base.facts, `Provisional geometry: nearest observed target offers ${(Math.abs(target - boundary) / risk).toFixed(2)}R before spread; this is not a validated trade.`] },
+    { low: round(zone.low), high: round(zone.high) });
+}
+
+/** Runs before entry gates: blocked confirmation must not hide observed zone behavior. */
+function monitorPullback(next: ObserverPlan, read: ObserverRead) {
+  const monitor = next.pullback; if (!monitor || !next.direction || tracked(next)) return;
+  const q = read.state === "paused" ? null : read.quote;
+  if (!q || Date.parse(q.time) < Math.max(Date.parse(next.createdAt), Date.parse(next.confirmationAfter ?? next.createdAt))) {
+    monitor.phase = "unavailable"; monitor.touchedAt = null; monitor.lastEntry = null; monitor.move = "unknown"; return;
+  }
+  const key = `${q.time}:${q.bid}:${q.ask}`;
+  if (key === monitor.lastQuoteKey || monitor.lastQuoteAt && Date.parse(q.time) < Date.parse(monitor.lastQuoteAt)) return;
+  const entry = next.direction === "long" ? q.ask : q.bid;
+  monitor.move = monitor.lastEntry === null ? "unknown" : entry > monitor.lastEntry ? "up" : entry < monitor.lastEntry ? "down" : "unchanged";
+  monitor.lastQuoteKey = key; monitor.lastQuoteAt = q.time; monitor.receivedQuotes++; monitor.lastEntry = entry;
+  const inside = entry >= monitor.zone.low && entry <= monitor.zone.high;
+  if (inside && !monitor.touchedAt) { monitor.touchedAt = read.asOf; next.confirmationCandle = null; next.confirmationAfter = read.asOf; }
+  monitor.phase = inside ? "testing" : monitor.touchedAt && (next.direction === "long" ? entry > monitor.zone.high : entry < monitor.zone.low) ? "rebounding" : "approaching";
 }
 
 /** Signal lifecycle only. TRIGGERED is an observed condition, never an order/fill. */
@@ -55,12 +124,14 @@ export function evaluateObserverPlan(plan: ObserverPlan, read: ObserverRead, can
   const now = read.asOf;
   if (!Number.isFinite(Date.parse(now)) || Date.parse(now) < Date.parse(plan.updatedAt)) return plan;
   const next = structuredClone(plan);
+  if (next.consolidation) next.consolidation = evaluateConsolidation(next.consolidation, read, candles);
   const set = (status: ObserverPlan["status"], reason: string) => {
     next.status = status; next.reason = reason;
     if (JSON.stringify(next) !== JSON.stringify(plan)) next.updatedAt = now;
     return next;
   };
   const trackedSignal = tracked(plan);
+  monitorPullback(next, read);
   if (!trackedSignal && Date.parse(now) >= Date.parse(plan.expiresAt)) return set("EXPIRED", "The frozen plan reached its entry expiry without a trigger.");
   // Entry restrictions (news, spread, context, storage) cannot hide an observed invalidation.
   if (!trackedSignal && read.state !== "paused" && read.quote && plan.direction && plan.stop !== null
@@ -100,12 +171,13 @@ export function evaluateObserverPlan(plan: ObserverPlan, read: ObserverRead, can
   if (last && (!plan.lastEvaluatedCandle || Date.parse(last.time) > Date.parse(plan.lastEvaluatedCandle))) {
     next.lastEvaluatedCandle = last.time;
     // Entire confirmation candle must follow plan creation; pre-plan history cannot trigger it.
-    const confirms = Date.parse(last.time) >= Math.max(Date.parse(plan.trigger.after), Date.parse(next.confirmationAfter ?? plan.createdAt)) && (isLong ? last.close > plan.trigger.boundary : last.close < plan.trigger.boundary);
+    const confirms = (!next.pullback || Boolean(next.pullback.touchedAt)) && Date.parse(last.time) >= Math.max(Date.parse(plan.trigger.after), Date.parse(next.confirmationAfter ?? plan.createdAt)) && (isLong ? last.close > plan.trigger.boundary : last.close < plan.trigger.boundary);
     next.confirmationCandle = confirms ? last.time : null;
   }
   const validConfirmation = confirmationValid(next, now);
   if (validConfirmation && inZone && Math.abs(entry - plan.entry) <= Math.abs(plan.entry - plan.stop) * 0.25 && (isLong ? entry < plan.target : entry > plan.target)) {
     next.triggeredAt = now; next.observedEntry = entry;
+    if (next.pullback) next.pullback.phase = "confirmed";
     return set("TRIGGERED", "A new closed execution candle crossed the frozen trigger, followed by executable price in the entry zone. No order placed.");
   }
   if (!validConfirmation) next.confirmationCandle = null;
@@ -120,6 +192,8 @@ export function observerPlanChecks(plan: ObserverPlan | null, read: ObserverRead
   if (!plan.direction || !plan.zone || !plan.trigger || plan.entry === null || plan.stop === null || plan.target === null) {
     return [...checks, { id: "geometry", label: "Priced setup", state: "blocked", detail: "This is a watch condition. Run Analyze again to obtain fresh levels when its missing checks resolve." }];
   }
+  if (plan.pullback) checks.push({ id: "pullback", label: "Observed pullback-area test", state: plan.pullback.touchedAt ? "met" : plan.pullback.phase === "unavailable" ? "unknown" : "waiting",
+    detail: plan.pullback.touchedAt ? `Observed ${plan.pullback.touchedAt}. Full confirmation candle must start after that test and any price interruption.` : "Each received quote is checked; a pre-plan or unobserved area touch cannot confirm this plan." });
   const quote = read.state === "paused" ? null : read.quote, entry = quote ? plan.direction === "long" ? quote.ask : quote.bid : null;
   const confirmed = confirmationValid(plan, read.asOf);
   checks.push({ id: "zone", label: "Executable price in zone", state: entry === null ? "unknown" : entry >= plan.zone.low && entry <= plan.zone.high ? "met" : "waiting", detail: `Uses the ${plan.direction === "long" ? "ask" : "bid"}, not the chart midpoint.` },

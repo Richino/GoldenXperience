@@ -635,11 +635,13 @@ function LedgerPending({
   cancellingId,
   error,
   onCancel,
+  onEdit,
 }: {
   entries: PendingManualEntry[];
   cancellingId: string | null;
   error: string | null;
   onCancel: (entry: PendingManualEntry) => void;
+  onEdit: (entry: PendingManualEntry) => void;
 }) {
   return (
     <section className="nl-card nl-pending" aria-labelledby="nl-pending-title">
@@ -676,15 +678,26 @@ function LedgerPending({
               </dl>
               <div className="nl-pending-foot">
                 <span>{note ?? pendingStatusLabel(entry.status)}</span>
-                <button
-                  type="button"
-                  className="nl-ghost-btn pressable"
-                  disabled={!canCancel || cancellingId === entry.id}
-                  onClick={() => onCancel(entry)}
-                  aria-label={`Cancel waiting order for ${displayNameFor(entry.instrument)}`}
-                >
-                  {cancellingId === entry.id ? "Cancelling…" : canCancel ? "Cancel" : "Processing"}
-                </button>
+                <span className="nl-pending-actions">
+                  <button
+                    type="button"
+                    className="nl-ghost-btn pressable"
+                    disabled={!canCancel || cancellingId === entry.id}
+                    onClick={() => onEdit(entry)}
+                    aria-label={`Edit stop loss and take profit for ${displayNameFor(entry.instrument)}`}
+                  >
+                    Edit SL/TP
+                  </button>
+                  <button
+                    type="button"
+                    className="nl-ghost-btn pressable"
+                    disabled={!canCancel || cancellingId === entry.id}
+                    onClick={() => onCancel(entry)}
+                    aria-label={`Cancel waiting order for ${displayNameFor(entry.instrument)}`}
+                  >
+                    {cancellingId === entry.id ? "Cancelling…" : canCancel ? "Cancel" : "Processing"}
+                  </button>
+                </span>
               </div>
             </div>
           );
@@ -720,6 +733,7 @@ export function LedgerHome({
   cancellingPendingId,
   pendingError,
   onCancelPending,
+  onEditPending,
   activity,
   error,
 }: {
@@ -739,6 +753,7 @@ export function LedgerHome({
   cancellingPendingId: string | null;
   pendingError: string | null;
   onCancelPending: (entry: PendingManualEntry) => void;
+  onEditPending: (entry: PendingManualEntry) => void;
   activity: HomeActivityItem[];
   error: string | null;
 }) {
@@ -784,6 +799,7 @@ export function LedgerHome({
               cancellingId={cancellingPendingId}
               error={pendingError}
               onCancel={onCancelPending}
+              onEdit={onEditPending}
             />
             <LedgerActivity items={activity} currency={account?.currency ?? "USD"} />
           </div>

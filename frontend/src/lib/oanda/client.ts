@@ -142,6 +142,8 @@ type OandaOrderResponse = {
   // transaction. Reading only the create/fill transactions made a rejected
   // order indistinguishable from a filled one.
   orderCancelTransaction?: { id?: string; reason?: string };
+  /** On a replace, the broker accepted then cancelled the replacement itself. */
+  replacingOrderCancelTransaction?: { id?: string; reason?: string };
 };
 
 interface OandaCandlesResponse {
@@ -377,25 +379,9 @@ export async function submitPracticeEntryOrder(order: PracticeEntryOrder) {
   const config = getConfig();
   if (!config) throw new OandaRequestError("OANDA credentials are not configured.");
   if (config.environment !== "practice") throw new OandaRequestError("Automatic execution is locked to OANDA practice accounts.");
-  const units = Math.floor(Math.abs(order.units));
-  if (!Number.isFinite(units) || units < 1) throw new OandaRequestError("Calculated practice order size is invalid.");
-  const precision = precisionFor(order.instrument);
   const response = await requestOanda<OandaOrderResponse>(`/v3/accounts/${encodeURIComponent(config.accountId)}/orders`, {
     method: "POST",
-    body: {
-      order: {
-        type: order.kind,
-        instrument: order.instrument,
-        units: String(signedPracticeUnits(order.direction, units)),
-        price: order.entryPrice.toFixed(precision),
-        timeInForce: order.gtdTime ? "GTD" : "GTC",
-        ...(order.gtdTime ? { gtdTime: order.gtdTime } : {}),
-        positionFill: "DEFAULT",
-        ...(order.stop !== null ? { stopLossOnFill: { price: order.stop.toFixed(precision), timeInForce: "GTC" } } : {}),
-        ...(order.target !== null ? { takeProfitOnFill: { price: order.target.toFixed(precision), timeInForce: "GTC" } } : {}),
-        clientExtensions: { id: `gx-${order.clientRequestId}`.slice(0, 127), tag: "goldenxperience-manual" },
-      },
-    },
+    body: { order: practiceEntryOrderBody(order) },
   });
   return {
     /** The resting order's id — cancel it with cancelPracticeOrder. */
@@ -405,6 +391,48 @@ export async function submitPracticeEntryOrder(order: PracticeEntryOrder) {
     fillPrice: response.orderFillTransaction?.price ? Number(response.orderFillTransaction.price) : null,
     /** Set when the broker refused or cancelled the order. */
     cancelReason: response.orderCancelTransaction?.reason ?? null,
+  };
+}
+
+/**
+ * Replace a resting practice entry order: OANDA cancels it and creates the new
+ * one in a single request. The replacement has a NEW order id, which the caller
+ * must store. A rejected replacement throws and leaves the original resting.
+ */
+export async function replacePracticeEntryOrder(orderId: string, order: PracticeEntryOrder) {
+  const config = getConfig();
+  if (!config) throw new OandaRequestError("OANDA credentials are not configured.");
+  if (config.environment !== "practice") throw new OandaRequestError("Automatic execution is locked to OANDA practice accounts.");
+  if (!orderId) throw new OandaRequestError("Broker order identifier is unavailable.");
+  const response = await requestOanda<OandaOrderResponse>(
+    `/v3/accounts/${encodeURIComponent(config.accountId)}/orders/${encodeURIComponent(orderId)}`,
+    { method: "PUT", body: { order: practiceEntryOrderBody(order) } },
+  );
+  return {
+    orderId: response.orderCreateTransaction?.id ?? null,
+    tradeId: response.orderFillTransaction?.tradeOpened?.tradeID ?? null,
+    fillPrice: response.orderFillTransaction?.price ? Number(response.orderFillTransaction.price) : null,
+    // orderCancelTransaction here is the ORIGINAL order being replaced; only a
+    // cancel of the replacement itself means the broker refused the change.
+    cancelReason: response.replacingOrderCancelTransaction?.reason ?? null,
+  };
+}
+
+function practiceEntryOrderBody(order: PracticeEntryOrder) {
+  const units = Math.floor(Math.abs(order.units));
+  if (!Number.isFinite(units) || units < 1) throw new OandaRequestError("Calculated practice order size is invalid.");
+  const precision = precisionFor(order.instrument);
+  return {
+    type: order.kind,
+    instrument: order.instrument,
+    units: String(signedPracticeUnits(order.direction, units)),
+    price: order.entryPrice.toFixed(precision),
+    timeInForce: order.gtdTime ? "GTD" : "GTC",
+    ...(order.gtdTime ? { gtdTime: order.gtdTime } : {}),
+    positionFill: "DEFAULT",
+    ...(order.stop !== null ? { stopLossOnFill: { price: order.stop.toFixed(precision), timeInForce: "GTC" } } : {}),
+    ...(order.target !== null ? { takeProfitOnFill: { price: order.target.toFixed(precision), timeInForce: "GTC" } } : {}),
+    clientExtensions: { id: `gx-${order.clientRequestId}`.slice(0, 127), tag: "goldenxperience-manual" },
   };
 }
 

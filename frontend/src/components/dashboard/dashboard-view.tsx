@@ -9,6 +9,7 @@ import {
   type LedgerToday,
 } from "@/components/dashboard/ledger-home";
 import { PendingCancelConfirmation } from "@/components/dashboard/pending-cancel-confirmation";
+import { PendingLevelsDialog } from "@/components/dashboard/pending-levels-dialog";
 import {
   recentActivityFromTrades,
   todayClosedStats,
@@ -263,6 +264,8 @@ export function DashboardView({
   const [pendingEntryError, setPendingEntryError] = useState<string | null>(null);
   const [cancellingPendingId, setCancellingPendingId] = useState<string | null>(null);
   const [pendingCancellation, setPendingCancellation] = useState<PendingManualEntry | null>(null);
+  const [pendingLevelsEntry, setPendingLevelsEntry] = useState<PendingManualEntry | null>(null);
+  const [savingPendingLevels, setSavingPendingLevels] = useState(false);
   // Ticks rather than the 60s refresh below, so an open trade's value moves
   // with the market instead of jumping once a minute.
   const quotes = useLiveQuotes();
@@ -415,6 +418,32 @@ export function DashboardView({
       return false;
     } finally {
       setCancellingPendingId(null);
+    }
+  }, [refreshPendingEntries]);
+
+  /** Returns an error to show in the dialog, or null once saved. */
+  const savePendingLevels = useCallback(async (
+    entry: PendingManualEntry,
+    levels: { stopPrice: number | null; targetPrice: number | null },
+  ): Promise<string | null> => {
+    setSavingPendingLevels(true);
+    try {
+      const response = await fetch(apiUrl(`/api/pending-entries/${entry.id}/levels`), {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instrument: entry.instrument, pending: true, ...levels }),
+      });
+      const payload = await response.json() as { entry?: PendingManualEntry; error?: string };
+      if (!response.ok || !payload.entry) throw new Error(payload.error ?? "Could not change the stop and target.");
+      const updated = payload.entry;
+      setPendingEntries((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      return null;
+    } catch (reason) {
+      await refreshPendingEntries();
+      return reason instanceof Error ? reason.message : "Could not change the stop and target.";
+    } finally {
+      setSavingPendingLevels(false);
     }
   }, [refreshPendingEntries]);
 
@@ -596,6 +625,7 @@ export function DashboardView({
         cancellingPendingId={cancellingPendingId}
         pendingError={pendingEntryError}
         onCancelPending={setPendingCancellation}
+        onEditPending={setPendingLevelsEntry}
         activity={recentActivity}
         error={error}
       />
@@ -604,6 +634,12 @@ export function DashboardView({
         confirming={Boolean(cancellingPendingId)}
         onDismiss={() => setPendingCancellation(null)}
         onConfirm={cancelPendingEntry}
+      />
+      <PendingLevelsDialog
+        entry={pendingLevelsEntry}
+        saving={savingPendingLevels}
+        onDismiss={() => setPendingLevelsEntry(null)}
+        onSave={savePendingLevels}
       />
     </>
   );

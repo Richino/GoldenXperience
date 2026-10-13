@@ -100,14 +100,14 @@ export function candleTime(time: string): number {
  * How close to the oldest loaded candle the viewport must get before the chart
  * requests another page of history.
  */
-export const HISTORY_LOAD_THRESHOLD = 150;
-export const HISTORY_MAX_PREFETCH_BARS = 400;
+export const HISTORY_LOAD_THRESHOLD = 500;
+export const HISTORY_MAX_PREFETCH_BARS = 2000;
 
 export function historyPrefetchThreshold(range: { from: number; to: number }) {
   const visibleBars = Math.max(0, range.to - range.from);
   return Math.min(
     HISTORY_MAX_PREFETCH_BARS,
-    Math.max(HISTORY_LOAD_THRESHOLD, visibleBars * 0.5),
+    Math.max(HISTORY_LOAD_THRESHOLD, visibleBars * 3),
   );
 }
 

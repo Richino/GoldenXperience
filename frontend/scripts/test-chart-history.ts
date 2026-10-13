@@ -123,10 +123,11 @@ assert.ok(shouldLoadOlderHistory({ from: 0, to: 80 }));
 assert.ok(shouldLoadOlderHistory({ from: -40, to: 40 }), "scrolled past the first bar");
 assert.ok(shouldLoadOlderHistory({ from: HISTORY_LOAD_THRESHOLD - 1, to: HISTORY_LOAD_THRESHOLD + 79 }));
 assert.ok(!shouldLoadOlderHistory({ from: HISTORY_LOAD_THRESHOLD, to: HISTORY_LOAD_THRESHOLD + 80 }));
-assert.ok(!shouldLoadOlderHistory({ from: 400, to: 480 }));
+assert.ok(shouldLoadOlderHistory({ from: 400, to: 480 }), "prefetch before a fast pan reaches the loaded edge");
+assert.ok(!shouldLoadOlderHistory({ from: 1600, to: 2100 }), "a three-screen reserve is already loaded");
 assert.ok(!shouldLoadOlderHistory(null));
 assert.equal(historyPrefetchThreshold({ from: 0, to: 80 }), HISTORY_LOAD_THRESHOLD);
-assert.equal(historyPrefetchThreshold({ from: 0, to: 500 }), 250);
+assert.equal(historyPrefetchThreshold({ from: 0, to: 500 }), 1500);
 assert.equal(historyPrefetchThreshold({ from: 0, to: 1_000 }), HISTORY_MAX_PREFETCH_BARS);
 
 // Anchoring keeps the same bars under the viewport after a page is prepended.

@@ -2867,6 +2867,7 @@ export function SignalWorkspace({
     setEntryComposerRevision((revision) => revision + 1);
   }, [initialManualProposal, setManualProposal]);
   const olderRequestInFlightRef = useRef(false);
+  const olderRetryAfterRef = useRef(0);
   const pendingTickRef = useRef<MarketPriceTick | null>(null);
   const marketFrameRef = useRef<number | null>(null);
 
@@ -4243,6 +4244,7 @@ export function SignalWorkspace({
 
     if (
       olderRequestInFlightRef.current ||
+      Date.now() < olderRetryAfterRef.current ||
       loadingOlder ||
       historyExhausted ||
       currentSeries.instrument !== instrument ||
@@ -4258,11 +4260,11 @@ export function SignalWorkspace({
     try {
       const firstCandle = currentSeries.candles[0]!;
       const response = await fetch(
-        apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=${TIMEFRAME_TO_GRANULARITY[timeframe]}&count=500&to=${encodeURIComponent(firstCandle.time)}`),
-        { credentials: "include" },
+        apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=${TIMEFRAME_TO_GRANULARITY[timeframe]}&count=1500&to=${encodeURIComponent(firstCandle.time)}`),
+        { credentials: "include", signal: AbortSignal.timeout(15_000) },
       );
 
-      if (!response.ok) return;
+      if (!response.ok) throw new Error("Older candle request failed.");
 
       const payload = (await response.json()) as {
         data: CandleSeries;
@@ -4270,8 +4272,16 @@ export function SignalWorkspace({
       };
 
       const latestSeries = seriesRef.current;
-      if (latestSeries.instrument !== payload.data.instrument) {
+      if (
+        latestSeries.instrument !== currentSeries.instrument ||
+        latestSeries.granularity !== currentSeries.granularity ||
+        payload.data.instrument !== latestSeries.instrument ||
+        payload.data.granularity !== latestSeries.granularity
+      ) {
         return;
+      }
+      if (payload.status.state !== "connected" || payload.data.source !== "oanda") {
+        throw new Error("Older candle history is unavailable.");
       }
 
       const merged = mergeCandles(latestSeries.candles, payload.data.candles);
@@ -4286,6 +4296,7 @@ export function SignalWorkspace({
         candles: merged,
       });
     } catch {
+      olderRetryAfterRef.current = Date.now() + 5000;
       setDataNotice(
         "Could not load older candles. Keep the current range and retry.",
       );

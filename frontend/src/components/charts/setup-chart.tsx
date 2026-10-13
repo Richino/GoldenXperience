@@ -930,8 +930,8 @@ function chartTheme(
       timeVisible: true,
       secondsVisible: false,
       tickMarkFormatter: formatChartAxisTime,
-      // Let gestures move beyond loaded candles while older history arrives.
-      fixLeftEdge: false,
+      // Keep real candles visible while the next page is prefetched well before the edge.
+      fixLeftEdge: true,
       rightOffset: embedded ? 4 : 6,
       // A selected short range (notably 1D at M1) must be able to fit in a
       // phone viewport. The default floor would cap it before all candles fit.
@@ -1727,6 +1727,7 @@ export function SetupChart({
   })();
   const loadingOlderRef = useRef(loadingOlder);
   const onLoadOlderRef = useRef(onLoadOlder);
+  const lastHistoryRequestRef = useRef(0);
   // A foreground snapshot or a soft chart rebuild can briefly report an
   // empty/leftmost logical range before its saved range is reapplied. That
   // transient range must not be treated as a deliberate user pan to the
@@ -2215,13 +2216,20 @@ export function SetupChart({
       if (
         shouldLoadOlderHistory(logicalRange) &&
         !loadingOlderRef.current &&
-        !suppressHistoryLoadRef.current
+        !suppressHistoryLoadRef.current &&
+        Date.now() - lastHistoryRequestRef.current >= 1000
       ) {
+        lastHistoryRequestRef.current = Date.now();
         onLoadOlderRef.current?.();
       }
 
     };
     chart.timeScale().subscribeVisibleLogicalRangeChange(handleVisibleRangeChange);
+    // A stationary view still needs to refill its history buffer after a page
+    // arrives, or retry after a temporary fetch failure. No gesture is required.
+    const historyPrefetchTimer = window.setInterval(() => {
+      handleVisibleRangeChange(chart.timeScale().getVisibleLogicalRange());
+    }, 1500);
 
     const resizeObserver = new ResizeObserver((entries) => {
       const entry = entries[0];
@@ -2269,6 +2277,7 @@ export function SetupChart({
       chart
         .timeScale()
         .unsubscribeVisibleLogicalRangeChange(handleVisibleRangeChange);
+      window.clearInterval(historyPrefetchTimer);
       resizeObserver.disconnect();
       chart.remove();
     };

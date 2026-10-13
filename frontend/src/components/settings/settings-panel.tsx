@@ -65,6 +65,8 @@ function pushDetail(status: PushUiStatus, errorMessage: string | null) {
   switch (status) {
     case "enabled":
       return "Enabled on this device";
+    case "blocked":
+      return "Blocked in browser settings";
     case "unavailable":
       return "Server not configured";
     case "unsupported":

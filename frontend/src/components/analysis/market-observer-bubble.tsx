@@ -4,7 +4,7 @@ import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, u
 import { createPortal } from "react-dom";
 import { BarChart3, X } from "lucide-react";
 import { apiUrl } from "@/lib/api/url";
-import { subscribeThisDeviceToPush } from "@/lib/notifications/push";
+import { currentPushStatus, subscribeThisDeviceToPush, type PushUiStatus } from "@/lib/notifications/push";
 import { toast } from "@/hooks/use-toast";
 import { isPhoneLayout } from "@/lib/sheet-motion";
 import { useDragToDismiss } from "@/lib/use-drag-to-dismiss";
@@ -90,6 +90,22 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
   const [journalBusy, setJournalBusy] = useState(false);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [pushMessage, setPushMessage] = useState<string | null>(null);
+  const [pushStatus, setPushStatus] = useState<PushUiStatus>("checking");
+  const pushCheckRevision = useRef(0);
+  useEffect(() => {
+    if (!open || !detailsOpen) return;
+    let active = true;
+    const check = async () => {
+      const revision = ++pushCheckRevision.current;
+      const status = await currentPushStatus();
+      if (active && revision === pushCheckRevision.current) setPushStatus(status);
+    };
+    void check();
+    const resume = () => { if (document.visibilityState === "visible") void check(); };
+    window.addEventListener("focus", resume);
+    document.addEventListener("visibilitychange", resume);
+    return () => { active = false; window.removeEventListener("focus", resume); document.removeEventListener("visibilitychange", resume); };
+  }, [open, detailsOpen]);
   const openedReview = useRef(false);
   const [linkedPlanId, setLinkedPlanId] = useState<string | null>(null);
   const [journalError, setJournalError] = useState<{ instrument: string; text: string } | null>(null);
@@ -295,11 +311,15 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
     } finally { setReviewBusy(false); }
   };
   const enableNotifications = async () => {
+    ++pushCheckRevision.current;
+    setPushStatus("checking");
     setReviewBusy(true);
     try {
       const result = await subscribeThisDeviceToPush();
+      ++pushCheckRevision.current;
+      setPushStatus(result.status);
       setPushMessage(result.status === "enabled" ? "Notifications enabled on this device." : result.status === "install_required" ? "On iPhone, add this app to your Home Screen, open it there, then enable notifications." : result.status === "unavailable" ? "Push notifications need to be configured on the server. Plans still appear in your inbox." : "Notifications could not be enabled. Check this device’s notification permissions and use a secure connection.");
-    } catch { setPushMessage("Notifications could not be enabled. Try again when the connection recovers."); }
+    } catch { ++pushCheckRevision.current; setPushStatus("error"); setPushMessage("Notifications could not be enabled. Try again when the connection recovers."); }
     finally { setReviewBusy(false); }
   };
   const marketClosed = !getForexSessionStatus(new Date(clock)).marketOpen;
@@ -450,9 +470,13 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
         <p>{snapshot?.background?.enabled ? "Background search is on for this pair. Accepted plans keep monitoring while you’re away." : "Turn on background search for this pair to receive new plans to review."} Accept starts monitoring. Placing a trade stays separate.</p>
         <div className={styles.actions}>
           <button type="button" disabled={reviewBusy || busy || snapshot?.storage !== "ready"} aria-pressed={Boolean(snapshot?.background?.enabled)} onClick={() => void changeBackground()}>{snapshot?.background?.enabled ? "Turn off background search" : "Turn on background search"}</button>
-          <button type="button" disabled={reviewBusy} onClick={() => void enableNotifications()}>Enable notifications</button>
+          <button type="button" disabled={reviewBusy || pushStatus === "checking" || pushStatus === "enabled" || pushStatus === "blocked" || pushStatus === "install_required" || pushStatus === "unsupported" || pushStatus === "insecure"} onClick={() => void enableNotifications()}>{pushStatus === "enabled" ? "✓ Notifications on" : pushStatus === "checking" ? "Checking notifications…" : pushStatus === "blocked" ? "Notifications blocked" : "Enable notifications"}</button>
         </div>
-        {pushMessage && <p role="status">{pushMessage}</p>}
+        <div className={styles.pushStatus} data-status={pushStatus} role="status">
+          <span aria-hidden="true" className={styles.pushStatusDot} />
+          <div><strong>{pushStatus === "enabled" ? "Notifications ON on this device" : pushStatus === "available" ? "Notifications OFF on this device" : pushStatus === "blocked" ? "Notifications BLOCKED" : pushStatus === "checking" ? "Checking notification status…" : pushStatus === "install_required" ? "Home Screen installation required" : pushStatus === "unsupported" ? "Notifications unsupported here" : pushStatus === "insecure" ? "Notifications need HTTPS" : pushStatus === "unavailable" ? "Notifications unavailable" : "Notification status could not be verified"}</strong>
+          <p>{pushStatus === "enabled" ? "This device is registered for plan alerts, including while the app is closed." : pushStatus === "available" ? "Enable notifications above to receive plan alerts while you’re away." : pushStatus === "blocked" ? "Allow notifications for this site in your browser settings, then return here." : pushStatus === "install_required" ? "On iPhone, add the app to your Home Screen and open it there to enable notifications." : pushStatus === "checking" ? "Checking this device’s permission and saved subscription." : pushMessage ?? "Plans remain available in your inbox. Check your connection or use a supported browser."}</p></div>
+        </div>
       </section>
       {active && plan?.review?.decision === "pending" && <section className={styles.backgroundControls} aria-label="Review proposed plan">
         <h4>New plan — your decision</h4>

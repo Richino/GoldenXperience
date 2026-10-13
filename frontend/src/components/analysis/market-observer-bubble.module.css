@@ -479,6 +479,13 @@
 .backgroundControls { padding: 14px; border: 1px solid var(--border); border-radius: 14px; overflow-wrap: anywhere; }
 .backgroundControls .actions { flex-wrap: wrap; }
 .backgroundControls button { min-height: 44px; }
+.pushStatus { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; padding: 12px; border-radius: 10px; background: var(--surface-raised); border: 1px solid var(--border); }
+.pushStatus strong { display: block; }
+.pushStatus p { margin: 4px 0 0; }
+.pushStatusDot { flex: 0 0 9px; width: 9px; height: 9px; margin-top: 5px; border-radius: 50%; background: var(--muted); }
+.pushStatus[data-status="enabled"] { border-color: #4ade80; }
+.pushStatus[data-status="enabled"] .pushStatusDot { background: #4ade80; }
+.pushStatus[data-status="blocked"] .pushStatusDot, .pushStatus[data-status="error"] .pushStatusDot { background: #fb923c; }
 
 /* ---- Refresh plan: pinned to the bottom of the analysis window, always in
    view while the content scrolls behind it. (Moved to the end of the column

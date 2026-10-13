@@ -4,6 +4,7 @@ export type PushUiStatus =
   | "checking"
   | "available"
   | "enabled"
+  | "blocked"
   | "unsupported"
   | "unavailable"
   | "insecure"
@@ -49,12 +50,20 @@ export async function currentPushStatus(): Promise<PushUiStatus> {
   if (!window.isSecureContext) return "insecure";
   if (!pushApisPresent()) return "unsupported";
   if (applePushNeedsHomeScreen()) return "install_required";
+  if (Notification.permission === "denied") return "blocked";
   try {
     const registration = await navigator.serviceWorker.getRegistration("/");
     const subscription = await registration?.pushManager.getSubscription();
-    const response = await fetch(apiUrl("/api/push/vapid-key"), { credentials: "include", cache: "no-store" });
+    const response = await fetch(apiUrl("/api/push/vapid-key"), { credentials: "include", cache: "no-store", signal: AbortSignal.timeout(10_000) });
     if (!response.ok) return "unavailable";
-    return subscription ? "enabled" : "available";
+    if (!subscription || Notification.permission !== "granted") return "available";
+    const saved = await fetch(apiUrl("/api/push/status"), {
+      method: "POST", credentials: "include", cache: "no-store", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ endpoint: subscription.endpoint }), signal: AbortSignal.timeout(10_000),
+    });
+    if (!saved.ok) return "error";
+    const result = await saved.json() as { registered?: boolean };
+    return result.registered === true ? "enabled" : "available";
   } catch {
     return "error";
   }
@@ -67,7 +76,7 @@ export async function subscribeThisDeviceToPush() {
 
   const permission = await Notification.requestPermission();
   if (permission !== "granted") {
-    return { status: "error" as const, permission, message: permission === "denied" ? "Notifications are blocked for this site." : "Notification permission was not granted." };
+    return { status: permission === "denied" ? "blocked" as const : "error" as const, permission, message: permission === "denied" ? "Notifications are blocked for this site." : "Notification permission was not granted." };
   }
 
   const keyResponse = await fetch(apiUrl("/api/push/vapid-key"), { credentials: "include", cache: "no-store" });

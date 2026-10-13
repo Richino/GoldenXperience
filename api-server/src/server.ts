@@ -576,6 +576,12 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       const publicKey = pushPublicKey();
       return publicKey ? json(request, response, { publicKey }) : json(request, response, { error: "Push notifications are not configured on the server." }, 503);
     }
+    if (url.pathname === "/api/push/status" && request.method === "POST") {
+      const payload = await body(request);
+      if (typeof payload?.endpoint !== "string" || payload.endpoint.length > 4096) return json(request, response, { error: "A valid subscription endpoint is required." }, 400);
+      const saved = await query("SELECT 1 FROM push_subscriptions WHERE user_id=$1 AND endpoint=$2", [user.id, payload.endpoint]);
+      return json(request, response, { registered: Boolean(saved.rowCount) });
+    }
     if (url.pathname === "/api/push/subscribe" && request.method === "POST") {
       const payload = await body(request);
       const subscription = payload?.subscription;

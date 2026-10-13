@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { apiUrl } from "@/lib/api/url";
+import { currentPushStatus } from "@/lib/notifications/push";
 import { sampleToastNotification } from "@/lib/notifications/display";
 import { playNotificationSound, unlockNotificationAudio } from "@/lib/notifications/play";
 import { NOTIFICATION_SOUND_KEY, NOTIFICATION_VOLUME_KEY, notificationSoundPath, notificationVolume } from "@/lib/notifications/sounds";
@@ -48,7 +49,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     const hidden = document.visibilityState !== "visible";
     const latest = events[0]!;
     if (hidden && !latest.preview && typeof Notification !== "undefined" && Notification.permission === "granted") {
-      new Notification(latest.title, { body: latest.message, tag: latest.id });
+      void currentPushStatus().then(status => {
+        if (status === "enabled" && document.visibilityState !== "visible") new Notification(latest.title, { body: latest.message, tag: latest.id });
+      }).catch(() => { /* A disabled or unverifiable device must not show system alerts. */ });
     }
   }, []);
 

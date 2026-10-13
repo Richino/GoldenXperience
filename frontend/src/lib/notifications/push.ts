@@ -98,3 +98,20 @@ export async function subscribeThisDeviceToPush() {
   if (!response.ok) return { status: "error" as const, permission, message: "The server could not save this device." };
   return { status: "enabled" as const, permission };
 }
+
+/** Remove only this device's subscription; keep the worker and other devices intact. */
+export async function unsubscribeThisDeviceFromPush() {
+  if (!pushApisPresent()) return { status: "unsupported" as const };
+  const registration = await navigator.serviceWorker.getRegistration("/");
+  const subscription = await registration?.pushManager.getSubscription();
+  if (subscription) {
+    const response = await fetch(apiUrl("/api/push/subscribe"), {
+      method: "DELETE", credentials: "include", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ endpoint: subscription.endpoint }), signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) throw new Error("Notifications could not be disabled on the server. Try again.");
+    const removed = await subscription.unsubscribe();
+    if (!removed && await registration?.pushManager.getSubscription()) throw new Error("The server stopped alerts, but this browser could not remove its subscription. Try again.");
+  }
+  return { status: "available" as const };
+}

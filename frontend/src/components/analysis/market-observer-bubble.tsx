@@ -4,7 +4,7 @@ import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, u
 import { createPortal } from "react-dom";
 import { BarChart3, X } from "lucide-react";
 import { apiUrl } from "@/lib/api/url";
-import { currentPushStatus, subscribeThisDeviceToPush, type PushUiStatus } from "@/lib/notifications/push";
+import { currentPushStatus, subscribeThisDeviceToPush, unsubscribeThisDeviceFromPush, type PushUiStatus } from "@/lib/notifications/push";
 import { toast } from "@/hooks/use-toast";
 import { isPhoneLayout } from "@/lib/sheet-motion";
 import { useDragToDismiss } from "@/lib/use-drag-to-dismiss";
@@ -311,15 +311,16 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
     } finally { setReviewBusy(false); }
   };
   const enableNotifications = async () => {
+    const disable = pushStatus === "enabled";
     ++pushCheckRevision.current;
     setPushStatus("checking");
     setReviewBusy(true);
     try {
-      const result = await subscribeThisDeviceToPush();
+      const result = disable ? await unsubscribeThisDeviceFromPush() : await subscribeThisDeviceToPush();
       ++pushCheckRevision.current;
       setPushStatus(result.status);
-      setPushMessage(result.status === "enabled" ? "Notifications enabled on this device." : result.status === "install_required" ? "On iPhone, add this app to your Home Screen, open it there, then enable notifications." : result.status === "unavailable" ? "Push notifications need to be configured on the server. Plans still appear in your inbox." : "Notifications could not be enabled. Check this device’s notification permissions and use a secure connection.");
-    } catch { ++pushCheckRevision.current; setPushStatus("error"); setPushMessage("Notifications could not be enabled. Try again when the connection recovers."); }
+      setPushMessage(disable && result.status === "available" ? "Notifications disabled on this device." : result.status === "enabled" ? "Notifications enabled on this device." : result.status === "install_required" ? "On iPhone, add this app to your Home Screen, open it there, then enable notifications." : result.status === "unavailable" ? "Push notifications need to be configured on the server. Plans still appear in your inbox." : "Notifications could not be enabled. Check this device’s notification permissions and use a secure connection.");
+    } catch (error) { ++pushCheckRevision.current; setPushStatus("error"); setPushMessage(error instanceof Error ? error.message : "Notifications could not be changed. Try again when the connection recovers."); }
     finally { setReviewBusy(false); }
   };
   const marketClosed = !getForexSessionStatus(new Date(clock)).marketOpen;
@@ -470,7 +471,7 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
         <p>{snapshot?.background?.enabled ? "Background search is on for this pair. Accepted plans keep monitoring while you’re away." : "Turn on background search for this pair to receive new plans to review."} Accept starts monitoring. Placing a trade stays separate.</p>
         <div className={styles.actions}>
           <button type="button" disabled={reviewBusy || busy || snapshot?.storage !== "ready"} aria-pressed={Boolean(snapshot?.background?.enabled)} onClick={() => void changeBackground()}>{snapshot?.background?.enabled ? "Turn off background search" : "Turn on background search"}</button>
-          <button type="button" disabled={reviewBusy || pushStatus === "checking" || pushStatus === "enabled" || pushStatus === "blocked" || pushStatus === "install_required" || pushStatus === "unsupported" || pushStatus === "insecure"} onClick={() => void enableNotifications()}>{pushStatus === "enabled" ? "✓ Notifications on" : pushStatus === "checking" ? "Checking notifications…" : pushStatus === "blocked" ? "Notifications blocked" : "Enable notifications"}</button>
+          <button type="button" disabled={reviewBusy || pushStatus === "checking" || pushStatus === "blocked" || pushStatus === "install_required" || pushStatus === "unsupported" || pushStatus === "insecure"} onClick={() => void enableNotifications()}>{pushStatus === "enabled" ? "Disable notifications" : pushStatus === "checking" ? "Checking notifications…" : pushStatus === "blocked" ? "Notifications blocked" : "Enable notifications"}</button>
         </div>
         <div className={styles.pushStatus} data-status={pushStatus} role="status">
           <span aria-hidden="true" className={styles.pushStatusDot} />

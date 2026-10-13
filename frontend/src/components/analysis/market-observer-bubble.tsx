@@ -4,6 +4,7 @@ import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, u
 import { createPortal } from "react-dom";
 import { BarChart3, X } from "lucide-react";
 import { apiUrl } from "@/lib/api/url";
+import { subscribeThisDeviceToPush } from "@/lib/notifications/push";
 import { toast } from "@/hooks/use-toast";
 import { isPhoneLayout } from "@/lib/sheet-motion";
 import { useDragToDismiss } from "@/lib/use-drag-to-dismiss";
@@ -87,6 +88,10 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
   const journalRef = useRef<AbortController | null>(null);
   const [archive, setArchive] = useState<{ instrument: string; journal: ObserverJournal } | null>(null);
   const [journalBusy, setJournalBusy] = useState(false);
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [pushMessage, setPushMessage] = useState<string | null>(null);
+  const openedReview = useRef(false);
+  const [linkedPlanId, setLinkedPlanId] = useState<string | null>(null);
   const [journalError, setJournalError] = useState<{ instrument: string; text: string } | null>(null);
   const push = useCallback((drafts: Array<Omit<ObserverChatMessage, "id">>) => {
     if (!mounted.current || !drafts.length) return;
@@ -256,6 +261,47 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
     }
   }, [getSnapshot, push, readPair]);
   const snapshot = !replayActive ? snapshots[instrument] ?? null : null;
+  useEffect(() => {
+    if (replayActive || openedReview.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const pair = params.get("instrument");
+    if (params.get("observer") !== "review" || !pair || !tracked.includes(pair)) return;
+    openedReview.current = true;
+    setLinkedPlanId(params.get("plan"));
+    setSelected(pair); setOpen(true); setMinimized(false); setDetailsOpen(true);
+  }, [tracked, replayActive]);
+  const changeBackground = async () => {
+    setReviewBusy(true); setActionErrors(previous => ({ ...previous, [instrument]: null }));
+    try {
+      const response = await fetch(apiUrl("/api/market-observer/background"), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ instrument, mode: snapshot?.plan?.mode ?? snapshot?.background?.mode ?? "NORMAL", enabled: !snapshot?.background?.enabled }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "Background monitoring could not be saved.");
+      publish(instrument, result as ObserverSnapshot);
+    } catch (error) { setActionErrors(previous => ({ ...previous, [instrument]: error instanceof Error ? error.message : "Background monitoring could not be saved." })); }
+    finally { setReviewBusy(false); }
+  };
+  const reviewPlan = async (decision: "accepted" | "rejected") => {
+    const planId = snapshot?.plan?.id;
+    if (!planId) return;
+    setReviewBusy(true); setActionErrors(previous => ({ ...previous, [instrument]: null }));
+    try {
+      const response = await fetch(apiUrl("/api/market-observer/review"), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ instrument, planId, decision }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "The plan could not be reviewed.");
+      publish(instrument, result as ObserverSnapshot); setArchive(null);
+    } catch (error) {
+      setActionErrors(previous => ({ ...previous, [instrument]: error instanceof Error ? error.message : "The plan could not be reviewed." }));
+      await getSnapshot(instrument, AbortSignal.timeout(15_000)).catch(() => {});
+    } finally { setReviewBusy(false); }
+  };
+  const enableNotifications = async () => {
+    setReviewBusy(true);
+    try {
+      const result = await subscribeThisDeviceToPush();
+      setPushMessage(result.status === "enabled" ? "Notifications enabled on this device." : result.status === "install_required" ? "On iPhone, add this app to your Home Screen, open it there, then enable notifications." : result.status === "unavailable" ? "Push notifications need to be configured on the server. Plans still appear in your inbox." : "Notifications could not be enabled. Check this device’s notification permissions and use a secure connection.");
+    } catch { setPushMessage("Notifications could not be enabled. Try again when the connection recovers."); }
+    finally { setReviewBusy(false); }
+  };
   const marketClosed = !getForexSessionStatus(new Date(clock)).marketOpen;
   const error = failures[instrument] ?? (!marketClosed && snapshot?.read && clock - Date.parse(snapshot.read.asOf) > 5000 ? "Last live read is out of date. Checking the latest state." : null);
   const busy = busyPairs[instrument] ?? false;
@@ -395,6 +441,27 @@ export function MarketObserverBubble({ instrument: chartInstrument, replayActive
         <button type="button" aria-label="Close patterns, plan and results" onClick={() => setDetailsOpen(false)}><X size={18} /></button>
       </header>
       <div className={styles.resultsBody}>
+      {linkedPlanId && plan?.id !== linkedPlanId && <section className={styles.backgroundControls} role="status">
+        <p>This notification refers to an older plan. The latest saved plan is shown below.</p>
+        <button type="button" onClick={() => setLinkedPlanId(null)}>Review the latest plan</button>
+      </section>}
+      <section className={styles.backgroundControls} aria-label="Background plan monitoring">
+        <h4>Find plans while I’m away</h4>
+        <p>{snapshot?.background?.enabled ? "Background search is on for this pair. Accepted plans keep monitoring while you’re away." : "Turn on background search for this pair to receive new plans to review."} Accept starts monitoring. Placing a trade stays separate.</p>
+        <div className={styles.actions}>
+          <button type="button" disabled={reviewBusy || busy || snapshot?.storage !== "ready"} aria-pressed={Boolean(snapshot?.background?.enabled)} onClick={() => void changeBackground()}>{snapshot?.background?.enabled ? "Turn off background search" : "Turn on background search"}</button>
+          <button type="button" disabled={reviewBusy} onClick={() => void enableNotifications()}>Enable notifications</button>
+        </div>
+        {pushMessage && <p role="status">{pushMessage}</p>}
+      </section>
+      {active && plan?.review?.decision === "pending" && <section className={styles.backgroundControls} aria-label="Review proposed plan">
+        <h4>New plan — your decision</h4>
+        <p>{plan.direction === "short" ? "Sell" : "Buy"} · entry {price(plan.entry)} · stop-loss {price(plan.stop)} · target {price(plan.target)}. Valid until {new Date(plan.expiresAt).toLocaleString()}. Acceptance starts fresh entry checks and does not place a trade.</p>
+        <div className={styles.actions}>
+          <button type="button" disabled={reviewBusy || busy || snapshot?.storage !== "ready" || Date.parse(plan.expiresAt) <= clock || Boolean(linkedPlanId && linkedPlanId !== plan.id)} onClick={() => void reviewPlan("accepted")}>Accept &amp; monitor</button>
+          <button type="button" disabled={reviewBusy || busy || snapshot?.storage !== "ready"} onClick={() => void reviewPlan("rejected")}>Reject plan</button>
+        </div>
+      </section>}
       <div className={styles.modeSummary}>
         <span className={styles.modeBadge}>{modeLabel} · {planMode === "NORMAL" ? "5m" : "1h"} confirmation</span>
         <button type="button" disabled={busy || snapshot?.storage !== "ready"} onClick={() => void monitor(planMode === "NORMAL" ? "SWING" : "NORMAL")}>Switch to {planMode === "NORMAL" ? "Swing" : "Intraday"} and replace plan</button>

@@ -42,6 +42,9 @@ export interface ModeConfig {
     maxDistanceAtr: number;
   };
   pullback: {
+    /** Conditional entry areas beyond this many primary ATRs are watch-only.
+     * Initial operating limit, not a calibrated fill probability. */
+    maxEntryDistanceAtr: number;
     /**
      * Retracement (share of the impulse) below which the pullback has not
      * started. Context only: no retracement depth is treated as proof.
@@ -100,7 +103,7 @@ export const ANALYZE_V2: Record<AnalyzeMode, ModeConfig> = {
     execution: "M5",
     regime: { ...DEFAULT_REGIME_SETTINGS, lookback: 200 },
     zones: { mergeAtr: 0.35, maxWidthAtr: 0.8, minWidthAtr: 0.15, breakCloseAtr: 0.15, maxDistanceAtr: 15 },
-    pullback: { minRetrace: 0.2, minBarsSinceExtreme: 2, nearZoneAtr: 0.25, expireBars: 8, expireAtr: 0.75 },
+    pullback: { maxEntryDistanceAtr: 2, minRetrace: 0.2, minBarsSinceExtreme: 2, nearZoneAtr: 0.25, expireBars: 8, expireAtr: 0.75 },
     data: { maxQuoteAgeMs: 2 * 60_000, maxCandleLagBars: 2, minPrimaryBars: 60, maxGapShare: 0.05 },
     plan: {
       minRewardRisk: 1.5, targetPreferencePips: 15, maxTargetPips: 30, stopAnchor: "STRUCTURE_LEVEL", stopBufferAtr: 0.1, maxStopAtr: 6,
@@ -113,7 +116,7 @@ export const ANALYZE_V2: Record<AnalyzeMode, ModeConfig> = {
     execution: "H1",
     regime: { ...DEFAULT_REGIME_SETTINGS, lookback: 200 },
     zones: { mergeAtr: 0.35, maxWidthAtr: 0.8, minWidthAtr: 0.15, breakCloseAtr: 0.15, maxDistanceAtr: 15 },
-    pullback: { minRetrace: 0.2, minBarsSinceExtreme: 2, nearZoneAtr: 0.25, expireBars: 4, expireAtr: 0.75 },
+    pullback: { maxEntryDistanceAtr: 3, minRetrace: 0.2, minBarsSinceExtreme: 2, nearZoneAtr: 0.25, expireBars: 4, expireAtr: 0.75 },
     data: { maxQuoteAgeMs: 2 * 60_000, maxCandleLagBars: 2, minPrimaryBars: 60, maxGapShare: 0.05 },
     plan: {
       minRewardRisk: 1.5, targetPreferencePips: null, maxTargetPips: null, stopAnchor: "STRUCTURE_LEVEL", stopBufferAtr: 0.1, maxStopAtr: 6,

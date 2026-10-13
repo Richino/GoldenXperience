@@ -300,6 +300,20 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
       if (!marketObserver) return json(request, response, { enabled: false, reason: "Live observer requires OANDA practice credentials.", plan: null, history: [], storage: "unavailable" });
       if (!config.instruments.includes(instrument)) return json(request, response, { enabled: false, reason: "Live monitoring is available for the featured pairs. Analyze still works for this pair.", plan: null, history: [], storage: "unavailable" });
+      if (url.pathname === "/api/market-observer/background" && request.method === "POST") {
+        if (typeof payload?.enabled !== "boolean") return json(request, response, { error: "Choose whether background monitoring is enabled." }, 400);
+        try {
+          await marketObserver.setBackground(user.id, instrument, payload?.mode === "SWING" ? "SWING" : "NORMAL", payload.enabled);
+          return json(request, response, await marketObserver.snapshot(user.id, instrument));
+        } catch (error) { return json(request, response, { error: error instanceof ObserverServiceError ? error.message : "Background monitoring could not be saved." }, 502); }
+      }
+      if (url.pathname === "/api/market-observer/review" && request.method === "POST") {
+        if (!/^[0-9a-f-]{36}$/i.test(String(payload?.planId ?? "")) || !["accepted", "rejected"].includes(String(payload?.decision))) return json(request, response, { error: "Choose a valid plan and decision." }, 400);
+        try {
+          await marketObserver.review(user.id, instrument, String(payload?.planId), payload?.decision as "accepted" | "rejected");
+          return json(request, response, await marketObserver.snapshot(user.id, instrument));
+        } catch (error) { return json(request, response, { error: error instanceof ObserverServiceError ? error.message : "This plan could not be reviewed." }, 409); }
+      }
       if (url.pathname === "/api/market-observer" && request.method === "GET") return json(request, response, await marketObserver.snapshot(user.id, instrument));
       if (url.pathname === "/api/market-observer/journal" && request.method === "GET") {
         try { return json(request, response, await marketObserver.journal(user.id, instrument)); }

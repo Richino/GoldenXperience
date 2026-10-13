@@ -930,7 +930,8 @@ function chartTheme(
       timeVisible: true,
       secondsVisible: false,
       tickMarkFormatter: formatChartAxisTime,
-      fixLeftEdge: true,
+      // Let gestures move beyond loaded candles while older history arrives.
+      fixLeftEdge: false,
       rightOffset: embedded ? 4 : 6,
       // A selected short range (notably 1D at M1) must be able to fit in a
       // phone viewport. The default floor would cap it before all candles fit.

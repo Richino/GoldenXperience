@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import type { ObserverPlan, ObserverRead } from "../../frontend/src/lib/market-observer-types.js";
 import type { MarketAnalysis } from "../../frontend/src/lib/strategy/market-analysis.js";
 import type { Candle } from "../../frontend/src/types/forex.js";
-import { conditionalPullbackPlan, evaluateObserverPlan, resumeObserverPlan } from "../src/market-observer-plan.js";
+import type { SrZone } from "../../frontend/src/lib/strategy/analyze-v2/zones.js";
+import { conditionalPullbackPlan, evaluateObserverPlan, resumeObserverPlan, observerPlanChecks } from "../src/market-observer-plan.js";
 const start = Date.parse("2026-10-05T16:00:00Z"), iso = (ms = 0) => new Date(start + ms).toISOString();
 const base: ObserverPlan = { id: "test", version: 1, instrument: "EUR_USD", mode: "NORMAL", createdAt: iso(), updatedAt: iso(), expiresAt: iso(3_600_000), status: "WATCHING", resumeStatus: "WATCHING",
   direction: null, reason: "Unconfirmed", thesis: "Unconfirmed", zone: null, entry: null, stop: null, target: null, trigger: null, invalidation: "Unknown", lastEvaluatedCandle: null, confirmationCandle: null, triggeredAt: null, observedEntry: null, outcome: null, facts: [] };
@@ -57,4 +58,40 @@ const unsafe = structuredClone(analysis); unsafe.v2!.foundation.alignment = "OPP
 assert.equal(conditionalPullbackPlan(unsafe, base), null);
 unsafe.v2!.foundation.alignment = "ALIGNED"; unsafe.v2!.foundation.data.checks[0].status = "FAIL";
 assert.equal(conditionalPullbackPlan(unsafe, base), null);
+// A distant area is context, not a priced entry. Live updates cannot silently arm it.
+const far = structuredClone(analysis);
+far.v2!.foundation.referencePrice = 1.104;
+const watchOnly = conditionalPullbackPlan(far, base)!;
+assert.match(watchOnly.reason, /too far away.*Watch only/);
+assert.equal(watchOnly.entry, null); assert.equal(watchOnly.trigger, null);
+assert.equal(watchOnly.direction, null); assert.equal(watchOnly.pullback, undefined);
+assert.deepEqual(watchOnly.zone, { low: zone.low, high: zone.high });
+const watchedAtZone = evaluateObserverPlan(watchOnly, read(100, 1.1002), [bar(0)]);
+assert.equal(watchedAtZone.status, "WATCHING"); assert.equal(watchedAtZone.triggeredAt, null);
+assert.equal(watchedAtZone.reason, watchOnly.reason);
+assert.equal(observerPlanChecks(watchedAtZone, read(100, 1.1002)).find(c => c.id === "geometry")?.detail, watchOnly.reason);
+const afterPause = evaluateObserverPlan(evaluateObserverPlan(watchOnly, { ...read(100, 1.1002), state: "paused" }, []), read(200, 1.1002), []);
+assert.equal(afterPause.reason, watchOnly.reason);
+const boundary = structuredClone(analysis);
+boundary.v2!.foundation.referencePrice = 1.1013; // exactly two 5-pip M15 ATRs to the near edge
+assert.ok(conditionalPullbackPlan(boundary, base)!.entry !== null);
+boundary.v2!.foundation.referencePrice = 1.10131;
+assert.equal(conditionalPullbackPlan(boundary, base)!.entry, null);
+// Swing can allow more room, measured in its own primary ATR, without changing old plans.
+boundary.v2!.foundation.primary!.timeframe = "H4";
+assert.ok(conditionalPullbackPlan(boundary, { ...base, mode: "SWING" })!.entry !== null);
+assert.deepEqual(geometry(plan), geometry(conditionalPullbackPlan(analysis, base)!));
+// Do not take a deep preferred/list-first zone when a nearer valid area exists.
+const multiple = structuredClone(analysis);
+const deep = { ...zone, low: 1.0999, high: 1.1001 } as SrZone;
+multiple.v2!.foundation.zones = [deep, zone as SrZone];
+multiple.v2!.foundation.pullback!.nextZone = deep;
+assert.deepEqual(conditionalPullbackPlan(multiple, base)!.pullback!.zone, { low: zone.low, high: zone.high });
+// Short distance is measured toward resistance, with the same mode limit.
+const shortAnalysis = structuredClone(analysis);
+Object.assign(shortAnalysis.v2!.foundation.primary!, { direction: "DOWNTREND", structureLevel: 1.1005, close: 1.099,
+  lastSwingLow: { price: 1.098 } });
+shortAnalysis.v2!.foundation.referencePrice = 1.098;
+shortAnalysis.v2!.foundation.pullback!.nextZone = zone as SrZone;
+assert.equal(conditionalPullbackPlan(shortAnalysis, base)!.entry, null);
 console.log("Pullback monitor passed: provisional planning without ticks, frozen prices, per-quote area tests, duplicate suppression, post-touch confirmation, blockers, invalidation, expiry and interruptions.");

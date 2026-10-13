@@ -35,6 +35,9 @@ export interface ConsolidationComparison {
   truncated: boolean;
 }
 export interface ObserverPlan {
+  review?: { decision: "pending" | "accepted" | "rejected"; decidedAt: string | null };
+  /** A frozen non-executable watch condition, preserved across live checks. */
+  watchOnlyReason?: string;
   id: string; version: number; instrument: string; mode: "NORMAL" | "SWING";
   createdAt: string; expiresAt: string; updatedAt: string; status: ObserverPlanStatus;
   resumeStatus: "WATCHING" | "READY" | "TRIGGERED";
@@ -85,6 +88,7 @@ export interface ObserverPlanEvent { id: string; at: string; status: ObserverPla
 export interface ObserverPlanCheck { id: string; label: string; state: "met" | "waiting" | "blocked" | "unknown"; detail: string }
 export interface ObserverJournal { plans: ObserverPlan[]; events: Array<ObserverPlanEvent & { planId: string; version: number; snapshot: ObserverPlan | null }> }
 export interface ObserverSnapshot {
+  background?: { enabled: boolean; mode: "NORMAL" | "SWING" };
   enabled: boolean; reason?: string; read?: ObserverRead;
   plan: ObserverPlan | null; history: ObserverPlanEvent[];
   checks?: ObserverPlanCheck[];

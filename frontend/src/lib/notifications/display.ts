@@ -4,6 +4,7 @@ const TECHNICAL_NOISE =
   /insert or update on table|violates\s+(?:foreign key |unique |check |exclusion )?constraint|duplicate key value|relation "[^"]+" does not exist|column "[^"]+" (?:of relation|does not exist)|null value in column|invalid input syntax|permission denied for (?:table|relation|schema)|deadlock detected|could not serialize|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|password authentication failed/i;
 
 export function notificationHref(item: AppNotification) {
+  if (item.instrument && /plan to review|entry conditions met/i.test(item.title)) return `/chart?instrument=${encodeURIComponent(item.instrument)}&observer=review`;
   return item.instrument ? `/chart?instrument=${item.instrument}` : "/watchlist";
 }
 

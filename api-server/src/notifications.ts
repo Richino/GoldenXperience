@@ -14,7 +14,7 @@ export type NotificationEvent = {
   createdAt: string;
 };
 
-type QueueNotification = Omit<NotificationEvent, "id" | "readAt" | "createdAt"> & { userId: string; dedupeKey: string };
+type QueueNotification = Omit<NotificationEvent, "id" | "readAt" | "createdAt"> & { userId: string; dedupeKey: string; url?: string };
 
 function pushConfig() {
   const rawSubject = process.env.VAPID_SUBJECT?.trim();
@@ -53,7 +53,7 @@ export async function removePushSubscription(userId: string, endpoint: string) {
 export async function sendPushNotification(event: QueueNotification) {
   if (!pushConfig()) return;
   const subscriptions = await query<{ endpoint: string; p256dh: string; auth: string }>("SELECT endpoint,p256dh,auth FROM push_subscriptions WHERE user_id=$1", [event.userId]);
-  const payload = JSON.stringify({ title: event.title, body: event.message, url: "/", tag: event.dedupeKey });
+  const payload = JSON.stringify({ title: event.title, body: event.message, url: event.url ?? (event.instrument ? `/chart?instrument=${encodeURIComponent(event.instrument)}` : "/"), tag: event.dedupeKey });
   await Promise.all(subscriptions.rows.map(async (subscription) => {
     try {
       await webpush.sendNotification({ endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } }, payload);

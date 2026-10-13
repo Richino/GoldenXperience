@@ -1,0 +1,31 @@
+import assert from "node:assert/strict";
+import { observerReplayFixture } from "./observer-replay-fixture.js";
+import { evaluateObserverPlan, resumeObserverPlan } from "../src/market-observer-plan.js";
+import { reviewObserverPlan, proposalCanNotify } from "../src/observer-review.js";
+import type { ObserverRead } from "../../frontend/src/lib/market-observer-types.js";
+const { plan } = observerReplayFixture();
+const proposal = { ...plan, review: { decision: "pending" as const, decidedAt: null } };
+const now = new Date(Date.parse(plan.createdAt) + 1000).toISOString();
+assert.ok(proposalCanNotify(proposal, now));
+assert.equal(proposalCanNotify({ ...proposal, entry: null }, now), false);
+assert.equal(proposalCanNotify(proposal, proposal.expiresAt), false);
+const accepted = reviewObserverPlan(proposal, "accepted", now);
+assert.equal(accepted.review?.decision, "accepted");
+assert.equal(accepted.confirmationCandle, null);
+assert.equal(accepted.confirmationAfter, now);
+assert.equal(accepted.triggeredAt, null);
+assert.deepEqual([accepted.entry, accepted.stop, accepted.target], [plan.entry, plan.stop, plan.target]);
+assert.throws(() => reviewObserverPlan(accepted, "accepted", now));
+assert.throws(() => reviewObserverPlan(proposal, "accepted", proposal.expiresAt));
+const rejected = reviewObserverPlan(proposal, "rejected", now);
+assert.equal(rejected.status, "EXPIRED");
+assert.equal(rejected.review?.decision, "rejected");
+assert.equal(proposalCanNotify(rejected, now), false);
+assert.equal(resumeObserverPlan(proposal, now).review?.decision, "pending");
+const read: ObserverRead = { version: "test", instrument: "EUR_USD", asOf: now, state: "live", lean: "up", headline: "Synthetic", changedAt: now, revision: 1, facts: [], blockers: [], changeConditions: [], quote: { bid: 1.10005, ask: 1.1001, time: now, spreadPips: 0.5 }, pressure: { direction: "up", observedDirection: "up", covered: true, pending: false, relation: "aligned" }, movement: [], patterns: [], ai: { state: "disabled", text: null, at: null, factIds: [] } };
+for (const ms of [1000, 301000, 601000]) {
+  const result = evaluateObserverPlan(proposal, { ...read, asOf: new Date(Date.parse(plan.createdAt) + ms).toISOString() }, [{ time: plan.createdAt, open: 1.1, high: 1.1005, low: 1.1, close: 1.1004, complete: true, volume: 1 }]);
+  assert.equal(result.triggeredAt, null, "Pending proposals must never trigger");
+}
+assert.equal(evaluateObserverPlan(proposal, { ...read, quote: { ...read.quote!, bid: 1.098, ask: 1.09805 } }, []).status, "INVALIDATED", "Unaccepted plans still cancel if their stop is crossed");
+console.log("Observer review checks passed: approval gate, expiry, duplicate review, rejection, frozen prices and restart preservation.");

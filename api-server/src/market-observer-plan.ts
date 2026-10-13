@@ -3,10 +3,11 @@ import type { Candle } from "../../frontend/src/types/forex.js";
 import type { MarketAnalysis } from "../../frontend/src/lib/strategy/market-analysis.js";
 import type { ObserverPlan, ObserverRead, ObserverPlanCheck } from "../../frontend/src/lib/market-observer-types.js";
 import { pipSizeFor, precisionFor } from "../../frontend/src/lib/instruments/catalog.js";
+import { ANALYZE_V2 } from "../../frontend/src/lib/strategy/analyze-v2/config.js";
 import { evaluateConsolidation, freezeConsolidation, interruptConsolidation } from "./consolidation-comparison.js";
 
 export const TERMINAL_PLAN_STATES = new Set(["INVALIDATED", "EXPIRED", "CLOSED"]);
-export const OBSERVER_PLAN_VERSION = "observer-plan@3";
+export const OBSERVER_PLAN_VERSION = "observer-plan@4";
 const intervalFor = (plan: ObserverPlan) => plan.trigger?.timeframe === "H1" ? 3_600_000 : 300_000;
 const tracked = (plan: ObserverPlan) => (plan.status === "PAUSED" ? plan.resumeStatus : plan.status) === "TRIGGERED";
 const confirmationValid = (plan: ObserverPlan, now: string) => Boolean(plan.confirmationCandle
@@ -76,9 +77,18 @@ export function conditionalPullbackPlan(analysis: MarketAnalysis, base: Observer
   const long = trend.direction === "UPTREND", pip = pipSizeFor(analysis.pair);
   const round = (n: number) => Number(n.toFixed(precisionFor(analysis.pair)));
   const reference = f.referencePrice ?? trend.close;
+  const distanceToZone = (zone: { low: number; high: number }) => Math.max(zone.low - reference, reference - zone.high, 0);
   const candidates = [f.pullback?.zone, f.pullback?.nextZone, ...f.zones].filter(z => z && z.status === "ACTIVE"
-    && (long ? z.high >= trend.structureLevel! && z.low <= reference : z.low <= trend.structureLevel! && z.high >= reference));
+    && (long ? z.high >= trend.structureLevel! && z.low <= reference : z.low <= trend.structureLevel! && z.high >= reference))
+    .sort((a, b) => distanceToZone(a!) - distanceToZone(b!));
   const zone = candidates[0]; if (!zone) return null;
+  const maxDistance = ANALYZE_V2[base.mode].pullback.maxEntryDistanceAtr * trend.atr;
+  if (distanceToZone(zone) > maxDistance + pip * 1e-6) {
+    const reason = `Pullback area is too far away (${(distanceToZone(zone) / pip).toFixed(1)} pips; ${base.mode === "NORMAL" ? "Normal" : "Swing"} entry limit ${(maxDistance / pip).toFixed(1)} pips). Watch only. Run Analyze again if price approaches the area.`;
+    return { ...base, direction: null, entry: null, stop: null, target: null, trigger: null, pullback: undefined,
+      zone: { low: round(zone.low), high: round(zone.high) }, watchOnlyReason: reason, reason, thesis: reason,
+      invalidation: "No entry signal is armed for this distant area.", facts: [...base.facts, reason] };
+  }
   const boundary = round(long ? zone.high + pip : zone.low - pip);
   const stop = round(long ? Math.min(zone.low, trend.structureLevel) - Math.max(pip, trend.atr * 0.15)
     : Math.max(zone.high, trend.structureLevel) + Math.max(pip, trend.atr * 0.15));
@@ -139,6 +149,10 @@ export function evaluateObserverPlan(plan: ObserverPlan, read: ObserverRead, can
     next.confirmationCandle = null;
     return set("INVALIDATED", "The executable quote crossed the frozen price invalidation before a trigger.");
   }
+  if (plan.review?.decision === "pending") {
+    next.confirmationCandle = null;
+    return set("WATCHING", "New plan awaiting your review. Accept to start entry monitoring; no order will be placed.");
+  }
   if (read.state !== "live" || (!trackedSignal && read.blockers.length) || !read.quote) {
     if (plan.status !== "PAUSED") { next.resumeStatus = plan.status as ObserverPlan["resumeStatus"]; if (!trackedSignal) next.confirmationCandle = null; }
     // Context/news/spread gates block entry without claiming that observed prices
@@ -153,7 +167,7 @@ export function evaluateObserverPlan(plan: ObserverPlan, read: ObserverRead, can
     next.outcome = { kind: "unknown_after_gap", at: now, price: null };
     return set("CLOSED", "Observation was interrupted after the trigger; the path and outcome are unknown.");
   }
-  if (!plan.direction || !plan.trigger || !plan.zone || plan.stop === null || plan.target === null || plan.entry === null) return set("WATCHING", "Watch condition only. Run Analyze again when its missing checks become available.");
+  if (!plan.direction || !plan.trigger || !plan.zone || plan.stop === null || plan.target === null || plan.entry === null) return set("WATCHING", plan.watchOnlyReason ?? "Watch condition only. Run Analyze again when its missing checks become available.");
   if (plan.status === "PAUSED") { next.confirmationCandle = null; if (plan.priceInterrupted) next.confirmationAfter = now; next.priceInterrupted = false; }
   const quote = read.quote, isLong = plan.direction === "long", exit = isLong ? quote.bid : quote.ask, entry = isLong ? quote.ask : quote.bid;
   const stopHit = isLong ? exit <= plan.stop : exit >= plan.stop;
@@ -190,7 +204,7 @@ export function observerPlanChecks(plan: ObserverPlan | null, read: ObserverRead
   const checks: ObserverPlanCheck[] = [{ id: "coverage", label: "Live entry checks", state: read.state === "live" && !read.blockers.length ? "met" : "blocked",
     detail: read.blockers[0] ?? (read.state === "live" ? "Data, spread and news checks are covered." : "Awaiting a fresh covered movement window.") }];
   if (!plan.direction || !plan.zone || !plan.trigger || plan.entry === null || plan.stop === null || plan.target === null) {
-    return [...checks, { id: "geometry", label: "Priced setup", state: "blocked", detail: "This is a watch condition. Run Analyze again to obtain fresh levels when its missing checks resolve." }];
+    return [...checks, { id: "geometry", label: "Priced setup", state: "blocked", detail: plan.watchOnlyReason ?? "This is a watch condition. Run Analyze again to obtain fresh levels when its missing checks resolve." }];
   }
   if (plan.pullback) checks.push({ id: "pullback", label: "Observed pullback-area test", state: plan.pullback.touchedAt ? "met" : plan.pullback.phase === "unavailable" ? "unknown" : "waiting",
     detail: plan.pullback.touchedAt ? `Observed ${plan.pullback.touchedAt}. Full confirmation candle must start after that test and any price interruption.` : "Each received quote is checked; a pre-plan or unobserved area touch cannot confirm this plan." });

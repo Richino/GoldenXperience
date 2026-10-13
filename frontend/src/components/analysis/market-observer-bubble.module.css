@@ -476,6 +476,9 @@
 
 /* No trailing thought-dots on the speech cloud; its tucked corner points at the mascot. */
 .cloud::before, .cloud::after { display: none; }
+.backgroundControls { padding: 14px; border: 1px solid var(--border); border-radius: 14px; overflow-wrap: anywhere; }
+.backgroundControls .actions { flex-wrap: wrap; }
+.backgroundControls button { min-height: 44px; }
 
 /* ---- Refresh plan: pinned to the bottom of the analysis window, always in
    view while the content scrolls behind it. (Moved to the end of the column

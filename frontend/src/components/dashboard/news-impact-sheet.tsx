@@ -169,13 +169,22 @@ function sinceText(ms: number) {
   return minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }
 
+type ImpactEvent = CalendarValueFields & { id: string; timestamp: string };
+
 export function NewsImpactSheet({
   event,
+  related = [],
   positions,
   onClose,
   now,
 }: {
-  event: (CalendarValueFields & { id: string; timestamp: string }) | null;
+  event: ImpactEvent | null;
+  /**
+   * Other releases for the same currency at the same moment. The currency
+   * moves once on all of them, so their calls are combined into one expected
+   * move, and conflicting calls read as "mixed" rather than as two answers.
+   */
+  related?: ImpactEvent[];
   positions: NewsImpactPosition[];
   onClose: () => void;
   /** The page clock, ticking; decides whether the event has been released. */
@@ -189,11 +198,24 @@ export function NewsImpactSheet({
   const predicted = saved ? saved.call : event ? predictSurprise(event) : null;
   // The expected move is the pre-release call and never changes: it comes only
   // from forecast vs previous, so the actual cannot rewrite it after the fact.
+  // Each release in the group gets its own pre-release call (journal first),
+  // then they are combined: one direction if they agree, none if they clash.
+  const expectedMove = (item: ImpactEvent): { call: "beat" | "miss" | null; move: TrendDirection | null } => {
+    const row = journal?.predictions.find((entry) => entry.event_key === eventKey(item));
+    const call = row ? row.call : predictSurprise(item);
+    const hint = newsSurpriseHint({ ...item, actual: null });
+    return { call, move: hint.kind === "before" && call ? (call === "beat" ? hint.beatDirection : hint.missDirection) : null };
+  };
+  const group = event ? [event, ...related] : [];
+  const groupCalls = group.map((item) => ({ item, ...expectedMove(item) }));
+  const calledMoves = groupCalls.map((entry) => entry.move).filter((move): move is TrendDirection => move !== null);
+  const mixed = calledMoves.length > 1 && calledMoves.some((move) => move !== calledMoves[0]);
   const preRelease = event ? newsSurpriseHint({ ...event, actual: null }) : null;
-  const currencyMove: TrendDirection | null =
+  const singleMove: TrendDirection | null =
     preRelease?.kind === "before" && predicted
       ? predicted === "beat" ? preRelease.beatDirection : preRelease.missDirection
       : null;
+  const currencyMove: TrendDirection | null = related.length === 0 ? singleMove : mixed ? null : calledMoves[0] ?? null;
   const currency = event?.currency ?? "";
   const pairs = event ? pairsFor(currency) : [];
   // Pairs you hold come first, so the answer you care about is at the top. A
@@ -223,7 +245,7 @@ export function NewsImpactSheet({
     <MobileSheet
       open={event !== null}
       onClose={onClose}
-      title={event?.title ?? "News"}
+      title={event ? [event, ...related].map((item) => item.title).join(" + ") : "News"}
       eyebrow={currency ? `${currency} news impact` : undefined}
       className="news-impact-sheet"
     >
@@ -235,7 +257,29 @@ export function NewsImpactSheet({
               on phones both wrappers are display: contents. */}
           <div className="news-impact-main">
           {/* Forecast · Previous · Actual as one strip; Actual lights up once it is out. */}
-          <dl className="news-impact-values">
+          {related.length ? (
+            // Several releases at once: one line each with its own call, then
+            // the combined read the pairs below use.
+            <div className="news-impact-group">
+              {groupCalls.map(({ item, move }) => (
+                <div key={item.id} className="news-impact-group-row">
+                  <b>{item.title}</b>
+                  <span className="metric-number">
+                    F {item.forecast || "—"} · P {item.previous || "—"}{item.actual ? ` · A ${item.actual}` : ""}
+                  </span>
+                  {move ? <DirectionChip direction={move} /> : <span className="news-impact-dir">No call</span>}
+                </div>
+              ))}
+              <p className={`news-impact-combined${mixed ? " is-mixed" : ""}`}>
+                {mixed
+                  ? `Mixed: these releases point different ways, so there is no expected ${currency} direction. ${currency} moves once, on all of them together.`
+                  : currencyMove
+                    ? `Calls agree: ${currency} expected ${currencyMove}.`
+                    : `No call for ${currency} from these releases.`}
+              </p>
+            </div>
+          ) : null}
+          <dl className="news-impact-values" hidden={related.length > 0}>
             <div><dt>Forecast</dt><dd className="metric-number">{event.forecast || "—"}</dd></div>
             <div><dt>Previous</dt><dd className="metric-number">{event.previous || "—"}</dd></div>
             <div className={`is-actual${event.actual ? " is-in" : ""}`}>
@@ -362,7 +406,7 @@ export function NewsImpactSheet({
                                   ? (actual.sinceRelease > 0) === (move === "up") ? " ✓" : " ✗"
                                   : ""}
                               </span>
-                            ) : <span className="news-impact-call">No forecast</span>}
+                            ) : <span className="news-impact-call">{mixed ? "Mixed forecast" : "No forecast"}</span>}
                             {actual && actual.firstReaction !== null ? (
                               <span className="news-impact-first metric-number">
                                 {FIRST_REACTION_MINUTES}m {signedPips(actual.firstReaction)}
@@ -372,7 +416,7 @@ export function NewsImpactSheet({
                         </span>
                       ) : (
                         <span className="news-impact-legs">
-                          {move ? <DirectionChip direction={move} /> : <span className="news-impact-dir">No call</span>}
+                          {move ? <DirectionChip direction={move} /> : <span className="news-impact-dir">{mixed ? "Mixed" : "No call"}</span>}
                           {helpsByCall !== null ? (
                             <em className={helpsByCall ? "is-up" : "is-down"}>
                               {helpsByCall ? "Helps you" : "Hurts you"}

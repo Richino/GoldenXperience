@@ -12,7 +12,7 @@ import { NewsImpactSheet, type NewsImpactPosition } from "@/components/dashboard
 import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { currenciesOf, displayNameFor, pipSizeFor } from "@/lib/instruments/catalog";
-import { homeCalendarImpactTier, homeCalendarRows } from "@/lib/news/home-calendar";
+import { groupedCalendarTitle, groupSimultaneousRows, homeCalendarImpactTier, homeCalendarRows } from "@/lib/news/home-calendar";
 import { useEconomicCalendar } from "@/lib/oanda/use-economic-calendar";
 import { openRFromLevels } from "@/lib/open-trade-progress";
 import type { TradeMonitorDebug } from "@/lib/strategy/trade-monitor";
@@ -380,8 +380,10 @@ export function ChartNewsCard({
   const { base, quote } = currenciesOf(instrument);
   const forPair = <T extends { currency: string }>(events: T[]) =>
     events.filter((event) => event.currency === base || event.currency === quote);
-  const rows = now === null ? [] : homeCalendarRows(forPair(calendar.recentEvents ?? []), forPair(calendar.events), now);
-  const openEvent = rows.find((row) => row.id === openId) ?? null;
+  // Same-currency releases at the same moment are one row and one sheet.
+  const rows = now === null ? [] : groupSimultaneousRows(homeCalendarRows(forPair(calendar.recentEvents ?? []), forPair(calendar.events), now));
+  const openRow = rows.find((row) => row.id === openId) ?? null;
+  const openEvent = openRow ? openRow.events[0]! : null;
 
   return (
     <section className="nl-cside-card nl-cnews" aria-labelledby="nl-cnews-title">
@@ -404,14 +406,14 @@ export function ChartNewsCard({
                 type="button"
                 className={`nl-news-row is-${event.state}`}
                 onClick={() => setOpenId(event.id)}
-                aria-label={`${event.currency} ${event.title}, ${status}, ${high ? "high" : "medium"} impact: see how it affects ${event.currency} pairs`}
+                aria-label={`${event.currency} ${groupedCalendarTitle(event.events)}, ${status}, ${high ? "high" : "medium"} impact: see how it affects ${event.currency} pairs`}
               >
                 <span className="nl-news-when metric-number">
                   <span>{newsDay.format(new Date(event.timestamp)).toUpperCase()}</span>
                   <b>{newsTime.format(new Date(event.timestamp))}</b>
                 </span>
                 <span className="nl-news-copy">
-                  <b>{event.currency} · {event.title}</b>
+                  <b>{event.currency} · {groupedCalendarTitle(event.events)}</b>
                   <span>{status}</span>
                 </span>
                 <span className={`nl-impact ${high ? "is-high" : "is-medium"}`}>{high ? "HIGH" : "MED"}</span>
@@ -424,6 +426,7 @@ export function ChartNewsCard({
       )}
       <NewsImpactSheet
         event={openEvent}
+        related={openRow ? openRow.events.slice(1) : []}
         positions={position ? [position] : []}
         onClose={() => setOpenId(null)}
         now={now ?? 0}

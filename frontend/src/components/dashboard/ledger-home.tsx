@@ -32,7 +32,7 @@ import { formatChartPrice } from "@/lib/chart-utils";
 import { formatClockTime, formatShortDay, tradingDayKey } from "@/lib/format/datetime";
 import type { HomeActivityItem } from "@/lib/home/idle";
 import { displayNameFor } from "@/lib/instruments/catalog";
-import { homeCalendarEmptyMessage, homeCalendarImpactTier, homeCalendarRows } from "@/lib/news/home-calendar";
+import { groupedCalendarTitle, groupSimultaneousRows, homeCalendarEmptyMessage, homeCalendarImpactTier, homeCalendarRows } from "@/lib/news/home-calendar";
 import { useEconomicCalendar } from "@/lib/oanda/use-economic-calendar";
 import { pendingLevelPrice, pendingStatusLabel, pendingTimingNote } from "@/lib/pending-entry/plain-language";
 import { getMarketCondition } from "@/lib/strategy/session";
@@ -583,8 +583,10 @@ function LedgerNews({ positions }: { positions: HomeCurrentPosition[] }) {
   const { snapshot: calendar, loading } = useEconomicCalendar();
   const now = useNow(30_000);
   const [openId, setOpenId] = useState<string | null>(null);
-  const rows = now === null ? [] : homeCalendarRows(calendar.recentEvents ?? [], calendar.events, now);
-  const openEvent = rows.find((row) => row.id === openId) ?? null;
+  // Same-currency releases at the same moment are one row and one sheet.
+  const rows = now === null ? [] : groupSimultaneousRows(homeCalendarRows(calendar.recentEvents ?? [], calendar.events, now));
+  const openRow = rows.find((row) => row.id === openId) ?? null;
+  const openEvent = openRow ? openRow.events[0]! : null;
 
   return (
     <section className="nl-card nl-news" aria-labelledby="nl-news-title">
@@ -607,7 +609,7 @@ function LedgerNews({ positions }: { positions: HomeCurrentPosition[] }) {
                 type="button"
                 className={`nl-news-row is-${event.state}`}
                 onClick={() => setOpenId(event.id)}
-                aria-label={`${event.currency} ${event.title}, ${status}, ${high ? "high" : "medium"} impact: see how it affects ${event.currency} pairs`}
+                aria-label={`${event.currency} ${groupedCalendarTitle(event.events)}, ${status}, ${high ? "high" : "medium"} impact: see how it affects ${event.currency} pairs`}
               >
                 <span className="nl-news-when metric-number">
                   <span>{etDay.format(new Date(event.timestamp)).toUpperCase()}</span>
@@ -615,7 +617,7 @@ function LedgerNews({ positions }: { positions: HomeCurrentPosition[] }) {
                 </span>
                 <span className="nl-news-copy">
                   <b>
-                    {event.currency} · {event.title}
+                    {event.currency} · {groupedCalendarTitle(event.events)}
                   </b>
                   <span>{status}</span>
                 </span>
@@ -627,7 +629,7 @@ function LedgerNews({ positions }: { positions: HomeCurrentPosition[] }) {
       ) : (
         <p className="nl-card-empty">{homeCalendarEmptyMessage(calendar, now)}</p>
       )}
-      <NewsImpactSheet event={openEvent} positions={positions} onClose={() => setOpenId(null)} now={now ?? 0} />
+      <NewsImpactSheet event={openEvent} related={openRow ? openRow.events.slice(1) : []} positions={positions} onClose={() => setOpenId(null)} now={now ?? 0} />
     </section>
   );
 }

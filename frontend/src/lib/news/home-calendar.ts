@@ -71,6 +71,33 @@ export function homeCalendarRows<T extends { id: string; impact: number; timesta
   return [...released, ...rows.filter((row) => row.state === "upcoming").slice(0, HOME_CALENDAR_MAX_EVENTS)];
 }
 
+/**
+ * Releases for the same currency at the same moment (AUD Employment Change and
+ * Unemployment Rate, US CPI m/m and y/y) hit the market as one event: the
+ * currency moves once, on the combined numbers. Group them into one row so the
+ * news card never shows two separate, possibly contradictory, reads for one
+ * moment. The highest-impact release leads; `events` holds all of them.
+ */
+export function groupSimultaneousRows<T extends { currency: string; timestamp: string; impact: number }>(rows: T[]): (T & { events: T[] })[] {
+  const groups = new Map<string, T[]>();
+  const order: string[] = [];
+  for (const row of rows) {
+    const key = `${row.currency}|${Date.parse(row.timestamp)}`;
+    if (!groups.has(key)) { groups.set(key, []); order.push(key); }
+    groups.get(key)!.push(row);
+  }
+  return order.map((key) => {
+    const events = [...groups.get(key)!].sort((a, b) => b.impact - a.impact);
+    return { ...events[0]!, events };
+  });
+}
+
+/** One label for a group: "Employment Change + Unemployment Rate", "CPI m/m + 3 more". */
+export function groupedCalendarTitle(events: { title: string }[]): string {
+  if (events.length <= 2) return events.map((event) => event.title).join(" + ");
+  return `${events[0]!.title} + ${events.length - 1} more`;
+}
+
 /** Headline releases that routinely move FX hard, beyond an ordinary "high". */
 const MASSIVE_EVENT =
   /non-?farm|\bNFP\b|\bCPI\b|consumer price|rate (decision|statement)|cash rate|interest rate|monetary policy|FOMC|press conference|employment change|unemployment rate|\bGDP\b|core PCE/i;

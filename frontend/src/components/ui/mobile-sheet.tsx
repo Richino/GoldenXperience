@@ -138,7 +138,14 @@ export function MobileSheet({
     return () => {
       Object.assign(body.style, previous);
       root.classList.remove("mobile-sheet-open");
-      window.scrollTo(0, scrollY);
+      // Restore in the same frame the body is released, on both scrolling
+      // elements, and re-assert next frame: iOS/Android could otherwise paint
+      // one frame at the top of the page before the jump back (a flicker).
+      window.scrollTo({ top: scrollY, left: 0, behavior: "instant" as ScrollBehavior });
+      root.scrollTop = scrollY;
+      if (Math.abs(window.scrollY - scrollY) > 1) {
+        window.requestAnimationFrame(() => window.scrollTo({ top: scrollY, left: 0, behavior: "instant" as ScrollBehavior }));
+      }
     };
   }, [lockPageScroll, present, resetDocumentScroll, resetPageScrollOnOpen]);
 

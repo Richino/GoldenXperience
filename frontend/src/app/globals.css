@@ -188,6 +188,11 @@ html {
   background: var(--background);
   min-height: 100%;
   font-size: 100%;
+  /* Keep the scrollbar's space reserved when a sheet locks the page (which
+     hides the scrollbar). Without it the page got ~10px wider while a sheet was
+     open, text re-wrapped, and everything jumped back when it closed. Overlay
+     scrollbars (most phones) take no space, so this costs nothing there. */
+  scrollbar-gutter: stable;
 }
 
 /* Until next-themes has set "light" or "dark", :root's light colours would paint
@@ -20050,6 +20055,40 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
   background: color-mix(in srgb, var(--foreground) 2.5%, transparent);
 }
 .news-impact-values > div { min-width: 0; padding: 0.8rem 0.95rem; }
+.news-impact-values[hidden] { display: none; }
+
+/* Several releases at one moment (e.g. AUD Employment Change + Unemployment
+   Rate): a line per release with its own call, then the combined read. */
+.news-impact-group {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--foreground) 2.5%, transparent);
+}
+.news-impact-group-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "title call" "values call";
+  align-items: center;
+  column-gap: 0.75rem;
+  row-gap: 0.15rem;
+  padding: 0.75rem 0.95rem;
+}
+.news-impact-group-row + .news-impact-group-row { border-top: 1px solid var(--border); }
+.news-impact-group-row > b { grid-area: title; font-size: 0.85rem; }
+.news-impact-group-row > span.metric-number { grid-area: values; color: var(--muted); font-size: 0.75rem; }
+.news-impact-group-row > .news-impact-dir { grid-area: call; }
+.news-impact-combined {
+  margin: 0;
+  padding: 0.75rem 0.95rem;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.news-impact-combined.is-mixed { color: var(--pending, #f5a524); }
 .news-impact-values > div + div { border-left: 1px solid var(--border); }
 .news-impact-values dt {
   color: var(--muted);

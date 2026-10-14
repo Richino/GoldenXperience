@@ -283,14 +283,12 @@ export type AccountSeriesTone = "up" | "down" | "flat";
 const FLAT_CASH = 1;
 
 /**
- * Colour the full selected-period curve. Any time the account sits below the
- * period's high it reads as down, even if it is still above the opening.
+ * Colour the full selected-period curve by its net movement from the opening.
+ * A pullback from an intraperiod high does not make a profitable period a loss.
  */
 export function accountSeriesTone(series: AccountChartPoint[]): AccountSeriesTone {
   const opening = series[0]?.value ?? 0;
   const latest = series.at(-1)?.value ?? opening;
-  const high = series.reduce((max, point) => Math.max(max, point.value), opening);
-  if (high - latest >= FLAT_CASH) return "down";
   const net = latest - opening;
   if (Math.abs(net) < FLAT_CASH) return "flat";
   return net > 0 ? "up" : "down";

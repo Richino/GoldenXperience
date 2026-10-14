@@ -541,10 +541,9 @@ assert.equal(
 );
 assert.equal(withOpen.at(-1)!.includesOpenPL, true, "the tooltip discloses that open P/L is included");
 
-// The card tint follows drawdown from the selected period's high. This week
-// is profitable overall, but its $25 drawdown from the high still reads down.
-assert.equal(accountSeriesRose(week), false, "a profitable week below its high reads down");
-assert.equal(accountSeriesTone(week), "down");
+// The card and chart follow net selected-period P/L, even after a pullback.
+assert.equal(accountSeriesRose(week), true, "a profitable week stays up after a pullback from its high");
+assert.equal(accountSeriesTone(week), "up");
 const risen = buildAccountAmountSeries({
   nav: 10_200,
   unrealizedPL: 0,
@@ -554,6 +553,17 @@ const risen = buildAccountAmountSeries({
 });
 assert.equal(accountSeriesRose(risen), true, "a profitable period at its high reads up");
 assert.equal(accountSeriesTone(risen), "up");
+const dayPullback = buildAccountAmountSeries({
+  nav: 83_155.14,
+  unrealizedPL: 0,
+  history: brokerHistory([
+    { hoursAgo: 3, change: 3_600 },
+    { hoursAgo: 1, change: -44.77 },
+  ]),
+  range: "1d",
+  now: NOW,
+});
+assert.equal(accountSeriesTone(dayPullback), "up", "a profitable day remains green below its intraday high");
 const fell = buildAccountAmountSeries({
   nav: 9_800,
   unrealizedPL: 0,

@@ -325,7 +325,8 @@ html:is(.dark, :not(.dark)) body :is(
     -webkit-tap-highlight-color: transparent;
     transition:
       background-color 0.3s cubic-bezier(0.22, 1, 0.36, 1),
-      color 0.3s ease;
+      color 0.3s ease,
+      transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .ink-dock-tab.is-active {
@@ -336,7 +337,8 @@ html:is(.dark, :not(.dark)) body :is(
   }
 
   .ink-dock-tab:active {
-    transform: none;
+    transform: translateY(2px) scale(0.92);
+    transition-duration: 0.09s;
   }
 
   .ink-dock-tab:focus-visible {
@@ -348,6 +350,22 @@ html:is(.dark, :not(.dark)) body :is(
     width: 24px;
     height: 24px;
     flex-shrink: 0;
+    transform-origin: center;
+    transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .ink-dock-tab:active .ink-dock-icon {
+    transform: scale(0.9);
+  }
+
+  .ink-dock-tab.is-active .ink-dock-icon {
+    animation: ink-dock-select 0.44s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  @keyframes ink-dock-select {
+    0% { transform: translateY(2px) scale(0.88); }
+    45% { transform: translateY(-3px) scale(1.1); }
+    100% { transform: translateY(0) scale(1); }
   }
 
   /* Rendered on every tab so it can animate open; only the active tab shows it.
@@ -376,8 +394,15 @@ html:is(.dark, :not(.dark)) body :is(
 
   @media (prefers-reduced-motion: reduce) {
     .ink-dock-tab,
+    .ink-dock-icon,
     .ink-dock-label {
       transition: none;
+      animation: none;
+    }
+
+    .ink-dock-tab:active,
+    .ink-dock-tab:active .ink-dock-icon {
+      transform: none;
     }
   }
 }
@@ -721,6 +746,8 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .account-chart {
 
 html:is(.dark, :not(.dark)) body .nl-chart-card .account-chart-canvas {
   height: 100%;
+  /* The card already spans the mobile gutter; another bleed clips live NAV. */
+  width: 100%;
   min-height: 0;
   margin: 0;
   padding: 0;
@@ -8863,3 +8890,20 @@ html:is(.dark, :not(.dark)) body .gx-fs-dock .menu-popover {
   .gx-fs-pair { padding: 0 10px; }
 }
 
+
+/* Chart (phones): the Trade / SL·TP row sits just above the dock, and the
+   dock's 96px white fade + top shadow (z 40) painted across the button's lower
+   edge, so it looked cut off. Lift the row one layer above the dock: the fade
+   and shadow now pass behind the solid button instead of over it. iPhone keeps
+   the row in normal flow (Android pins it), so it needs a position for the
+   z-index to apply. */
+@media (max-width: 1023px) {
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-analyze-section {
+    z-index: 41;
+  }
+  @supports (-webkit-touch-callout: none) {
+    html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-analyze-section {
+      position: relative;
+    }
+  }
+}

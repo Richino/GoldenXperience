@@ -799,15 +799,26 @@ export async function getAccountBalanceHistory(): Promise<{
 
   try {
     const accountPath = `/v3/accounts/${encodeURIComponent(config.accountId)}`;
-    const index = await requestOanda<OandaTransactionsResponse>(`${accountPath}/transactions?pageSize=1000`);
-    const pagePaths = (index.pages ?? []).slice(-5).map((page) => {
+    // OANDA can default to a recent window; request the full chart horizon.
+    const historyEnd = Date.now();
+    const query = new URLSearchParams({
+      pageSize: "1000",
+      from: new Date(historyEnd - 365 * 24 * 60 * 60_000).toISOString(),
+      to: new Date(historyEnd).toISOString(),
+    });
+    const index = await requestOanda<OandaTransactionsResponse>(`${accountPath}/transactions?${query}`);
+    const pagePaths = (index.pages ?? []).map((page) => {
       const url = new URL(page, config.baseUrl);
       if (url.origin !== config.baseUrl) throw new OandaRequestError("OANDA returned an unexpected transaction page.");
       return `${url.pathname}${url.search}`;
     });
-    const pages = pagePaths.length
-      ? await Promise.all(pagePaths.map((page) => requestOanda<OandaTransactionsResponse>(page)))
-      : [index];
+    const pages: OandaTransactionsResponse[] = [];
+    for (let offset = 0; offset < pagePaths.length; offset += 5) {
+      pages.push(...await Promise.all(
+        pagePaths.slice(offset, offset + 5).map((page) => requestOanda<OandaTransactionsResponse>(page)),
+      ));
+    }
+    if (!pagePaths.length) pages.push(index);
     const transactions = pages
       .flatMap((page) => page.transactions ?? [])
       .map((transaction) => ({ ...transaction, balance: Number(transaction.accountBalance) }))

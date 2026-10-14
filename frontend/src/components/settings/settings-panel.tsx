@@ -134,9 +134,13 @@ export function SettingsPanel({
   useEffect(() => {
     const stored = window.localStorage.getItem(NOTIFICATION_SOUND_KEY) as NotificationSound | null;
     if (stored && notificationSounds.some((sound) => sound.value === stored)) setNotificationSound(stored);
+    // Only a saved value overrides the default; Number(null) is 0, which used to
+    // show the slider at 0% and make Play silent when nothing had been saved.
     const storedVolume = window.localStorage.getItem(NOTIFICATION_VOLUME_KEY);
-    const parsedVolume = Number(storedVolume);
-    if (Number.isFinite(parsedVolume)) setNotificationVolumePercent(Math.min(100, Math.max(0, parsedVolume)));
+    if (storedVolume !== null && storedVolume.trim() !== "") {
+      const parsedVolume = Number(storedVolume);
+      if (Number.isFinite(parsedVolume)) setNotificationVolumePercent(Math.min(100, Math.max(0, parsedVolume)));
+    }
     setBrowserNotificationPermission(typeof Notification === "undefined" ? "unsupported" : Notification.permission);
     void currentPushStatus().then(setPushStatus);
   }, []);

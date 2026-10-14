@@ -118,6 +118,23 @@ export function MobileSheet({
     if (resetPageScrollOnOpen && window.scrollY !== 0) {
       resetDocumentScroll();
     }
+    // Modern engines (iOS 16+, the release that also added overscroll-behavior,
+    // and Android Chrome) honour overflow:hidden for touch scrolling. Locking
+    // that way never moves the page, so closing a sheet has no scroll reset to
+    // undo — the fixed-body lock below made the page behind flash its top for a
+    // frame on close, which looked like the content refreshing.
+    if (typeof CSS !== "undefined" && CSS.supports("overscroll-behavior", "contain")) {
+      const previousOverflow = { root: root.style.overflow, body: body.style.overflow };
+      root.style.overflow = "hidden";
+      body.style.overflow = "hidden";
+      root.classList.add("mobile-sheet-open", "mobile-sheet-overflow-lock");
+      return () => {
+        root.style.overflow = previousOverflow.root;
+        body.style.overflow = previousOverflow.body;
+        root.classList.remove("mobile-sheet-open", "mobile-sheet-overflow-lock");
+      };
+    }
+
     const previous = {
       position: body.style.position,
       top: body.style.top,

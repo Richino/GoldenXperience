@@ -17,6 +17,9 @@ export function notificationSoundPath(value: string | null | undefined) {
 }
 
 export function notificationVolume(value: string | null | undefined) {
+  // Nothing saved means the default, not silence: Number(null) and Number("")
+  // are both 0, which muted every sound for anyone who never moved the slider.
+  if (value == null || value.trim() === "") return DEFAULT_NOTIFICATION_VOLUME;
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return DEFAULT_NOTIFICATION_VOLUME;
   return Math.min(1, Math.max(0, parsed / 100));

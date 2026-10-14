@@ -1,0 +1,448 @@
+[
+  {
+    "pair": "EUR_USD",
+    "mode": "SWING",
+    "direction": "short",
+    "createdAt": "2026-10-13T10:51:31.485Z",
+    "status": "PAUSED",
+    "referenceApprox": 1.11887,
+    "entry": 1.12402,
+    "pullbackZone": {
+      "low": 1.12412,
+      "high": 1.12444
+    },
+    "entryDistancePips": 51.49999999999988,
+    "distanceToZonePips": 52.499999999999766,
+    "maxRetraceTowardZonePips": 1.5999999999993797,
+    "maxTrendContinuationPips": 5.800000000000249,
+    "zoneTouchedByCandle": false,
+    "touchedAt": null,
+    "observedTouchRecorded": null,
+    "fullNaturalLifetimeElapsed": false,
+    "observationHours": 0.3429072222222222,
+    "monitorTerminalReason": "The 30-second pressure window is still warming. Entry monitoring resumes when it is covered.",
+    "notes": "Subsequent market path to natural expiry, even when monitoring was stopped/replaced early. M1 overlap is a possible touch, not proof of an observed quote, confirmation or executable fill. Creation price approximated by previous complete M1 close.",
+    "primaryAtr": 0.002153354091280999,
+    "distanceToZoneAtr": 2.4380569926968345,
+    "reconstructedPullbackState": "DEVELOPING",
+    "preferredZone": {
+      "low": 1.121358498443154,
+      "high": 1.1216815015568462,
+      "type": "RESISTANCE",
+      "status": "BROKEN",
+      "flipped": true,
+      "relevance": "MINOR",
+      "sources": [
+        "H4"
+      ],
+      "createdAt": "2026-10-02T05:00:00.000000000Z",
+      "lastReactionAt": "2026-10-02T05:00:00.000000000Z",
+      "reactions": 1,
+      "highs": 0,
+      "lows": 1,
+      "distanceAtr": 1.4900003934073254
+    },
+    "fallbackFirst": {
+      "low": 1.1241184984431538,
+      "high": 1.124441501556846,
+      "type": "RESISTANCE",
+      "status": "ACTIVE",
+      "flipped": false,
+      "relevance": "STRUCTURAL",
+      "sources": [
+        "H4"
+      ],
+      "createdAt": "2026-10-09T17:00:00.000000000Z",
+      "lastReactionAt": "2026-10-09T17:00:00.000000000Z",
+      "reactions": 1,
+      "highs": 1,
+      "lows": 0,
+      "distanceAtr": 2.771721783853608
+    },
+    "nearestEligible": {
+      "low": 1.1241184984431538,
+      "high": 1.124441501556846,
+      "type": "RESISTANCE",
+      "status": "ACTIVE",
+      "flipped": false,
+      "relevance": "STRUCTURAL",
+      "sources": [
+        "H4"
+      ],
+      "createdAt": "2026-10-09T17:00:00.000000000Z",
+      "lastReactionAt": "2026-10-09T17:00:00.000000000Z",
+      "reactions": 1,
+      "highs": 1,
+      "lows": 0,
+      "distanceAtr": 2.771721783853608
+    },
+    "candidateCount": 1
+  },
+  {
+    "pair": "USD_JPY",
+    "mode": "SWING",
+    "direction": "long",
+    "createdAt": "2026-10-12T23:34:44.648Z",
+    "status": "EXPIRED",
+    "referenceApprox": 158.541,
+    "entry": 158.088,
+    "pullbackZone": {
+      "low": 158.029,
+      "high": 158.078
+    },
+    "entryDistancePips": 45.300000000000296,
+    "distanceToZonePips": 46.299999999999386,
+    "maxRetraceTowardZonePips": 70.09999999999934,
+    "maxTrendContinuationPips": 0.30000000000143245,
+    "zoneTouchedByCandle": true,
+    "touchedAt": "2026-10-13T08:31:00.000000000Z",
+    "observedTouchRecorded": null,
+    "fullNaturalLifetimeElapsed": false,
+    "observationHours": 11.622584166666666,
+    "monitorTerminalReason": "Monitoring stopped by you.",
+    "notes": "Subsequent market path to natural expiry, even when monitoring was stopped/replaced early. M1 overlap is a possible touch, not proof of an observed quote, confirmation or executable fill. Creation price approximated by previous complete M1 close.",
+    "primaryAtr": 0.29008387981074424,
+    "distanceToZoneAtr": 1.5960900698862106,
+    "reconstructedPullbackState": "NO_PULLBACK",
+    "preferredZone": null,
+    "fallbackFirst": {
+      "low": 158.029,
+      "high": 158.078,
+      "type": "SUPPORT",
+      "status": "ACTIVE",
+      "flipped": false,
+      "relevance": "STRUCTURAL",
+      "sources": [
+        "D1",
+        "H4"
+      ],
+      "createdAt": "2026-08-24T21:00:00.000000000Z",
+      "lastReactionAt": "2026-10-12T13:00:00.000000000Z",
+      "reactions": 3,
+      "highs": 1,
+      "lows": 2,
+      "distanceAtr": 1.944265225520137
+    },
+    "nearestEligible": {
+      "low": 158.029,
+      "high": 158.078,
+      "type": "SUPPORT",
+      "status": "ACTIVE",
+      "flipped": false,
+      "relevance": "STRUCTURAL",
+      "sources": [
+        "D1",
+        "H4"
+      ],
+      "createdAt": "2026-08-24T21:00:00.000000000Z",
+      "lastReactionAt": "2026-10-12T13:00:00.000000000Z",
+      "reactions": 3,
+      "highs": 1,
+      "lows": 2,
+      "distanceAtr": 1.944265225520137
+    },
+    "candidateCount": 1
+  },
+  {
+    "pair": "USD_JPY",
+    "mode": "NORMAL",
+    "direction": "short",
+    "createdAt": "2026-10-12T23:33:28.264Z",
+    "status": "EXPIRED",
+    "referenceApprox": 158.518,
+    "entry": 158.676,
+    "pullbackZone": {
+      "low": 158.686,
+      "high": 158.695
+    },
+    "entryDistancePips": 15.799999999998704,
+    "distanceToZonePips": 16.800000000000637,
+    "maxRetraceTowardZonePips": 1.099999999999568,
+    "maxTrendContinuationPips": 33.60000000000127,
+    "zoneTouchedByCandle": false,
+    "touchedAt": null,
+    "observedTouchRecorded": null,
+    "fullNaturalLifetimeElapsed": true,
+    "observationHours": 4,
+    "monitorTerminalReason": "Replaced by a new version.",
+    "notes": "Subsequent market path to natural expiry, even when monitoring was stopped/replaced early. M1 overlap is a possible touch, not proof of an observed quote, confirmation or executable fill. Creation price approximated by previous complete M1 close.",
+    "primaryAtr": 0.0389115759895717,
+    "distanceToZoneAtr": 4.317481256606784,
+    "reconstructedPullbackState": "NO_PULLBACK",
+    "preferredZone": null,
+    "fallbackFirst": {
+      "low": 158.686,
+      "high": 158.695,
+      "type": "RESISTANCE",
+      "status": "ACTIVE",
+      "flipped": false,
+      "relevance": "STRUCTURAL",
+      "sources": [
+        "M15"
+      ],
+      "createdAt": "2026-10-12T19:30:00.000000000Z",
+      "lastReactionAt": "2026-10-12T21:45:00.000000000Z",
+      "reactions": 2,
+      "highs": 2,
+      "lows": 0,
+      "distanceAtr": 3.674998926754462
+    },
+    "nearestEligible": {
+      "low": 158.686,
+      "high": 158.695,
+      "type": "RESISTANCE",
+      "status": "ACTIVE",
+      "flipped": false,
+      "relevance": "STRUCTURAL",
+      "sources": [
+        "M15"
+      ],
+      "createdAt": "2026-10-12T19:30:00.000000000Z",
+      "lastReactionAt": "2026-10-12T21:45:00.000000000Z",
+      "reactions": 2,
+      "highs": 2,
+      "lows": 0,
+      "distanceAtr": 3.674998926754462
+    },
+    "candidateCount": 1
+  },
+  {
+    "pair": "EUR_USD",
+    "mode": "NORMAL",
+    "direction": "short",
+    "createdAt": "2026-10-12T12:23:15.947Z",
+    "status": "EXPIRED",
+    "referenceApprox": 1.11775,
+    "entry": 1.12089,
+    "pullbackZone": {
+      "low": 1.12099,
+      "high": 1.12118
+    },
+    "entryDistancePips": 31.399999999999206,
+    "distanceToZonePips": 32.399999999999096,
+    "maxRetraceTowardZonePips": 4.500000000000615,
+    "maxTrendContinuationPips": 23.200000000000998,
+    "zoneTouchedByCandle": false,
+    "touchedAt": null,
+    "observedTouchRecorded": null,
+    "fullNaturalLifetimeElapsed": true,
+    "observationHours": 4,
+    "monitorTerminalReason": "Monitoring stopped by you.",
+    "notes": "Subsequent market path to natural expiry, even when monitoring was stopped/replaced early. M1 overlap is a possible touch, not proof of an observed quote, confirmation or executable fill. Creation price approximated by previous complete M1 close.",
+    "primaryAtr": 0.00045462095356215267,
+    "distanceToZoneAtr": 7.126816251237656,
+    "reconstructedPullbackState": "AT_ZONE",
+    "preferredZone": {
+      "low": 1.118425903428483,
+      "high": 1.118494096571517,
+      "type": "RESISTANCE",
+      "status": "BROKEN",
+      "flipped": true,
+      "relevance": "MINOR",
+      "sources": [
+        "M15"
+      ],
+      "createdAt": "2026-10-08T16:45:00.000000000Z",
+      "lastReactionAt": "2026-10-08T16:45:00.000000000Z",
+      "reactions": 1,
+      "highs": 0,
+      "lows": 1,
+      "distanceAtr": 0.14496346454450043
+    },
+    "fallbackFirst": {
+      "low": 1.12099,
+      "high": 1.12118,
+      "type": "RESISTANCE",
+      "status": "ACTIVE",
+      "flipped": false,
+      "relevance": "STRUCTURAL",
+      "sources": [
+        "M15"
+      ],
+      "createdAt": "2026-10-08T21:15:00.000000000Z",
+      "lastReactionAt": "2026-10-12T07:15:00.000000000Z",
+      "reactions": 4,
+      "highs": 2,
+      "lows": 2,
+      "distanceAtr": 5.78503911751695
+    },
+    "nearestEligible": {
+      "low": 1.12099,
+      "high": 1.12118,
+      "type": "RESISTANCE",
+      "status": "ACTIVE",
+      "flipped": false,
+      "relevance": "STRUCTURAL",
+      "sources": [
+        "M15"
+      ],
+      "createdAt": "2026-10-08T21:15:00.000000000Z",
+      "lastReactionAt": "2026-10-12T07:15:00.000000000Z",
+      "reactions": 4,
+      "highs": 2,
+      "lows": 2,
+      "distanceAtr": 5.78503911751695
+    },
+    "candidateCount": 1
+  },
+  {
+    "pair": "GBP_USD",
+    "mode": "NORMAL",
+    "direction": "long",
+    "createdAt": "2026-10-12T05:09:55.228Z",
+    "status": "EXPIRED",
+    "referenceApprox": 1.32435,
+    "entry": 1.32414,
+    "pullbackZone": {
+      "low": 1.32392,
+      "high": 1.32404
+    },
+    "entryDistancePips": 2.0999999999982144,
+    "distanceToZonePips": 3.0999999999981043,
+    "maxRetraceTowardZonePips": 7.399999999999629,
+    "maxTrendContinuationPips": 19.100000000000783,
+    "zoneTouchedByCandle": true,
+    "touchedAt": "2026-10-12T05:18:00.000000000Z",
+    "observedTouchRecorded": null,
+    "fullNaturalLifetimeElapsed": true,
+    "observationHours": 4,
+    "monitorTerminalReason": "Monitoring stopped by you.",
+    "notes": "Subsequent market path to natural expiry, even when monitoring was stopped/replaced early. M1 overlap is a possible touch, not proof of an observed quote, confirmation or executable fill. Creation price approximated by previous complete M1 close.",
+    "primaryAtr": 0.0003521932685352877,
+    "distanceToZoneAtr": 0.8801985378342069,
+    "reconstructedPullbackState": "TRIGGERED",
+    "preferredZone": {
+      "low": 1.32421358550486,
+      "high": 1.3242664144951402,
+      "type": "SUPPORT",
+      "status": "BROKEN",
+      "flipped": true,
+      "relevance": "MINOR",
+      "sources": [
+        "M15"
+      ],
+      "createdAt": "2026-10-09T10:30:00.000000000Z",
+      "lastReactionAt": "2026-10-09T10:30:00.000000000Z",
+      "reactions": 1,
+      "highs": 1,
+      "lows": 0,
+      "distanceAtr": 0.15214800976361872
+    },
+    "fallbackFirst": {
+      "low": 1.32392,
+      "high": 1.32404,
+      "type": "SUPPORT",
+      "status": "ACTIVE",
+      "flipped": false,
+      "relevance": "STRUCTURAL",
+      "sources": [
+        "H1",
+        "M15"
+      ],
+      "createdAt": "2026-10-05T12:00:00.000000000Z",
+      "lastReactionAt": "2026-10-12T03:30:00.000000000Z",
+      "reactions": 2,
+      "highs": 1,
+      "lows": 1,
+      "distanceAtr": 0.7950180341728524
+    },
+    "nearestEligible": {
+      "low": 1.32392,
+      "high": 1.32404,
+      "type": "SUPPORT",
+      "status": "ACTIVE",
+      "flipped": false,
+      "relevance": "STRUCTURAL",
+      "sources": [
+        "H1",
+        "M15"
+      ],
+      "createdAt": "2026-10-05T12:00:00.000000000Z",
+      "lastReactionAt": "2026-10-12T03:30:00.000000000Z",
+      "reactions": 2,
+      "highs": 1,
+      "lows": 1,
+      "distanceAtr": 0.7950180341728524
+    },
+    "candidateCount": 1
+  },
+  {
+    "pair": "EUR_USD",
+    "mode": "NORMAL",
+    "direction": "long",
+    "createdAt": "2026-10-12T04:34:20.642Z",
+    "status": "EXPIRED",
+    "referenceApprox": 1.12107,
+    "entry": 1.1207,
+    "pullbackZone": {
+      "low": 1.12055,
+      "high": 1.1206
+    },
+    "entryDistancePips": 3.6999999999998145,
+    "distanceToZonePips": 4.699999999999704,
+    "maxRetraceTowardZonePips": 19.700000000000273,
+    "maxTrendContinuationPips": 0.4999999999988347,
+    "zoneTouchedByCandle": true,
+    "touchedAt": "2026-10-12T05:07:00.000000000Z",
+    "observedTouchRecorded": null,
+    "fullNaturalLifetimeElapsed": true,
+    "observationHours": 4,
+    "monitorTerminalReason": "Monitoring stopped by you.",
+    "notes": "Subsequent market path to natural expiry, even when monitoring was stopped/replaced early. M1 overlap is a possible touch, not proof of an observed quote, confirmation or executable fill. Creation price approximated by previous complete M1 close.",
+    "primaryAtr": 0.00032569122669758727,
+    "distanceToZoneAtr": 1.4430846196430633,
+    "reconstructedPullbackState": "TRIGGERED",
+    "preferredZone": {
+      "low": 1.1207355731579978,
+      "high": 1.1207844268420022,
+      "type": "SUPPORT",
+      "status": "BROKEN",
+      "flipped": true,
+      "relevance": "MINOR",
+      "sources": [
+        "M15"
+      ],
+      "createdAt": "2026-10-08T05:45:00.000000000Z",
+      "lastReactionAt": "2026-10-08T05:45:00.000000000Z",
+      "reactions": 1,
+      "highs": 1,
+      "lows": 0,
+      "distanceAtr": 0.9689335546358232
+    },
+    "fallbackFirst": {
+      "low": 1.12055,
+      "high": 1.1206,
+      "type": "SUPPORT",
+      "status": "ACTIVE",
+      "flipped": false,
+      "relevance": "STRUCTURAL",
+      "sources": [
+        "M15"
+      ],
+      "createdAt": "2026-10-09T11:45:00.000000000Z",
+      "lastReactionAt": "2026-10-12T03:30:00.000000000Z",
+      "reactions": 2,
+      "highs": 0,
+      "lows": 2,
+      "distanceAtr": 1.5351964038755268
+    },
+    "nearestEligible": {
+      "low": 1.12055,
+      "high": 1.1206,
+      "type": "SUPPORT",
+      "status": "ACTIVE",
+      "flipped": false,
+      "relevance": "STRUCTURAL",
+      "sources": [
+        "M15"
+      ],
+      "createdAt": "2026-10-09T11:45:00.000000000Z",
+      "lastReactionAt": "2026-10-12T03:30:00.000000000Z",
+      "reactions": 2,
+      "highs": 0,
+      "lows": 2,
+      "distanceAtr": 1.5351964038755268
+    },
+    "candidateCount": 1
+  }
+]

@@ -1028,10 +1028,12 @@ input[type="number"] {
    sheet and its backdrop short of the physical screen. The chart route already
    supplies this; all other routes need the same viewport lock while a sheet is
    open. */
-html.mobile-sheet-open {
+html.mobile-sheet-open:not(.mobile-sheet-overflow-lock) {
   height: 100dvh;
   min-height: 100dvh;
 }
+/* The overflow lock keeps the page where it is; capping <html> at one screen
+   there would clamp the scroll position to the top. */
 
 /* Blur the frozen page behind the sheet by filtering the real content rather
    than the scrim. `filter: blur` is composited reliably on both iOS and

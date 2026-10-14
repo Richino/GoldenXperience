@@ -1,0 +1,140 @@
+{
+  "valuedAt": "2026-10-13T11:21:27.093537398Z",
+  "startInclusive": "2026-09-28T20:17:27.914Z",
+  "closingAsk": 1.11887,
+  "closedShortCount": 10,
+  "winnersNow": 9,
+  "totalPricePnlIfHeld": 8660.489159999957,
+  "originalRealizedPricePnl": -959.3065,
+  "included": [
+    {
+      "brokerId": "1952",
+      "openedAt": "2026-09-30T10:59:04.009Z",
+      "closedAt": "2026-09-30T12:30:09.384Z",
+      "entry": 1.13573,
+      "units": 200000,
+      "originalPricePnl": -210,
+      "currentClosingAsk": 1.11887,
+      "pipsIfHeld": 168.59999999999874,
+      "pricePnlIfHeld": 3371.999999999975,
+      "wouldBeWinningNow": true
+    },
+    {
+      "brokerId": "1981",
+      "openedAt": "2026-10-01T18:36:54.881Z",
+      "closedAt": "2026-10-02T14:48:51.389Z",
+      "entry": 1.12328,
+      "units": 200000,
+      "originalPricePnl": -956,
+      "currentClosingAsk": 1.11887,
+      "pipsIfHeld": 44.10000000000025,
+      "pricePnlIfHeld": 882.000000000005,
+      "wouldBeWinningNow": true
+    },
+    {
+      "brokerId": "2003",
+      "openedAt": "2026-10-02T15:11:03.847Z",
+      "closedAt": "2026-10-02T15:32:33.351Z",
+      "entry": 1.12643,
+      "units": 200000,
+      "originalPricePnl": 72,
+      "currentClosingAsk": 1.11887,
+      "pipsIfHeld": 75.60000000000011,
+      "pricePnlIfHeld": 1512.0000000000023,
+      "wouldBeWinningNow": true
+    },
+    {
+      "brokerId": "2007",
+      "openedAt": "2026-10-02T16:04:48.346Z",
+      "closedAt": "2026-10-02T18:27:20.234Z",
+      "entry": 1.12552,
+      "units": 200000,
+      "originalPricePnl": 76,
+      "currentClosingAsk": 1.11887,
+      "pipsIfHeld": 66.50000000000045,
+      "pricePnlIfHeld": 1330.0000000000089,
+      "wouldBeWinningNow": true
+    },
+    {
+      "brokerId": "2019",
+      "openedAt": "2026-10-05T01:25:26.782Z",
+      "closedAt": "2026-10-05T02:51:46.188Z",
+      "entry": 1.12358,
+      "units": 200000,
+      "originalPricePnl": 858,
+      "currentClosingAsk": 1.11887,
+      "pipsIfHeld": 47.09999999999992,
+      "pricePnlIfHeld": 941.9999999999984,
+      "wouldBeWinningNow": true
+    },
+    {
+      "brokerId": "2040",
+      "openedAt": "2026-10-05T07:41:11.394Z",
+      "closedAt": "2026-10-06T11:54:44.798Z",
+      "entry": 1.12019,
+      "units": 74613,
+      "originalPricePnl": -519.3065,
+      "currentClosingAsk": 1.11887,
+      "pipsIfHeld": 13.199999999999878,
+      "pricePnlIfHeld": 98.48915999999909,
+      "wouldBeWinningNow": true
+    },
+    {
+      "brokerId": "2113",
+      "openedAt": "2026-10-09T12:11:58.582Z",
+      "closedAt": "2026-10-09T12:57:56.969Z",
+      "entry": 1.12022,
+      "units": 200000,
+      "originalPricePnl": 124,
+      "currentClosingAsk": 1.11887,
+      "pipsIfHeld": 13.499999999999623,
+      "pricePnlIfHeld": 269.9999999999925,
+      "wouldBeWinningNow": true
+    },
+    {
+      "brokerId": "2129",
+      "openedAt": "2026-10-09T16:42:07.348Z",
+      "closedAt": "2026-10-09T17:23:01.777Z",
+      "entry": 1.11884,
+      "units": 200000,
+      "originalPricePnl": -208,
+      "currentClosingAsk": 1.11887,
+      "pipsIfHeld": -0.2999999999997449,
+      "pricePnlIfHeld": -5.999999999994898,
+      "wouldBeWinningNow": false
+    },
+    {
+      "brokerId": "2135",
+      "openedAt": "2026-10-09T17:27:30.918Z",
+      "closedAt": "2026-10-09T18:41:20.413Z",
+      "entry": 1.11923,
+      "units": 200000,
+      "originalPricePnl": -156,
+      "currentClosingAsk": 1.11887,
+      "pipsIfHeld": 3.5999999999991594,
+      "pricePnlIfHeld": 71.99999999998319,
+      "wouldBeWinningNow": true
+    },
+    {
+      "brokerId": "2137",
+      "openedAt": "2026-10-09T18:05:41.266Z",
+      "closedAt": "2026-10-09T18:41:22.720Z",
+      "entry": 1.11981,
+      "units": 200000,
+      "originalPricePnl": -40,
+      "currentClosingAsk": 1.11887,
+      "pipsIfHeld": 9.399999999999409,
+      "pricePnlIfHeld": 187.99999999998818,
+      "wouldBeWinningNow": true
+    }
+  ],
+  "excluded": [
+    {
+      "openedAt": "2026-10-12T15:46:33.221Z",
+      "status": "open",
+      "brokerId": "2177",
+      "reason": "Not a verified closed short"
+    }
+  ],
+  "method": "Actual OANDA broker entry prices and initial units. Hypothetically ignore every exit, stop and target and hold each closed short to the current ask. Excludes currently open EUR_USD trades confirmed by OANDA. Price P/L includes entry/exit bid-ask execution prices but excludes hypothetical financing, extra slippage and account-wide margin feasibility. Winning at valuation does not mean winning throughout the holding period."
+}

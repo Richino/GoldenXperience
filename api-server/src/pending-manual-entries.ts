@@ -821,14 +821,13 @@ export async function closeActiveManualTrade(userId: string, id: string, tick: M
     }
     await closePracticeTrade(brokerTradeId); // throws on broker rejection
     const after = await getPracticeTradeState(brokerTradeId).catch(() => null);
-    const exit = after?.averageClosePrice ?? entryPrice;
-    const pl = after?.realizedPL ?? null;
-    const result = pl != null ? (pl > 0 ? "win" : pl < 0 ? "loss" : "breakeven") : "breakeven";
+    const { exit, pl, closedAt } = confirmedManualBrokerClose(after);
+    const result = pl > 0 ? "win" : pl < 0 ? "loss" : "breakeven";
     const resultR = manualBrokerCloseResultR({ direction: trade.direction, entry: entryPrice, stop: stopPrice, exit });
     await query(
       `UPDATE paper_trades SET status='closed', result=$2, exit=$3, result_r=$4, paper_pl=$5, closed_at=$6, updated_at=now()
         WHERE id=$1 AND status='open'`,
-      [entry.paper_trade_id, result, exit, resultR, pl, after?.closeTime ?? new Date().toISOString()],
+      [entry.paper_trade_id, result, exit, resultR, pl, closedAt],
     );
     await notifyManualEntry({ userId, entryId: entry.id, instrument: entry.instrument, event: result === "win" ? "won" : result === "loss" ? "lost" : "breakeven", paperTradeId: entry.paper_trade_id });
   } else {
@@ -845,6 +844,15 @@ export async function closeActiveManualTrade(userId: string, id: string, tick: M
     await notifyManualEntry({ userId, entryId: entry.id, instrument: entry.instrument, event: result === "win" ? "won" : result === "loss" ? "lost" : "breakeven", paperTradeId: entry.paper_trade_id });
   }
   return { closed: true };
+}
+
+export function confirmedManualBrokerClose(state: Awaited<ReturnType<typeof getPracticeTradeState>>) {
+  if (!state?.closed || state.averageClosePrice == null || !Number.isFinite(state.averageClosePrice)
+    || state.realizedPL == null || !Number.isFinite(state.realizedPL) || !state.closeTime
+    || !Number.isFinite(Date.parse(state.closeTime))) {
+    throw new Error("OANDA closure details are not confirmed yet. Refresh the position; the journal will update after broker confirmation.");
+  }
+  return { exit: state.averageClosePrice, pl: state.realizedPL, closedAt: state.closeTime };
 }
 
 /**

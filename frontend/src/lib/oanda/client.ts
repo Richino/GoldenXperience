@@ -449,16 +449,32 @@ export async function cancelPracticeOrder(orderId: string) {
   return response.orderCancelTransaction?.id ?? null;
 }
 
+export function confirmedPracticeCloseFill(response: {
+  orderFillTransaction?: { id?: string };
+  orderCreateTransaction?: { id?: string };
+  orderCancelTransaction?: { reason?: string };
+  orderRejectTransaction?: { rejectReason?: string };
+}) {
+  const reason = response.orderCancelTransaction?.reason ?? response.orderRejectTransaction?.rejectReason;
+  if (reason === "FIFO_VIOLATION") {
+    throw new OandaRequestError("OANDA rejected this close: close the oldest position for this pair first (FIFO). The position remains open.");
+  }
+  if (response.orderCancelTransaction || response.orderRejectTransaction || !response.orderFillTransaction?.id) {
+    throw new OandaRequestError(`OANDA did not confirm a closing fill${reason ? `: ${reason}` : ""}. Refresh the position before retrying.`);
+  }
+  return response.orderFillTransaction.id;
+}
+
 export async function closePracticeTrade(brokerTradeId: string) {
   const config = getConfig();
   if (!config) throw new OandaRequestError("OANDA credentials are not configured.");
   if (config.environment !== "practice") throw new OandaRequestError("Automatic execution is locked to OANDA practice accounts.");
   if (!brokerTradeId) throw new OandaRequestError("Broker trade identifier is unavailable.");
-  const response = await requestOanda<{ orderFillTransaction?: { id?: string }; orderCreateTransaction?: { id?: string } }>(`/v3/accounts/${encodeURIComponent(config.accountId)}/trades/${encodeURIComponent(brokerTradeId)}/close`, {
+  const response = await requestOanda<Parameters<typeof confirmedPracticeCloseFill>[0]>(`/v3/accounts/${encodeURIComponent(config.accountId)}/trades/${encodeURIComponent(brokerTradeId)}/close`, {
     method: "PUT",
     body: { units: "ALL" },
   });
-  return response.orderFillTransaction?.id ?? response.orderCreateTransaction?.id ?? null;
+  return confirmedPracticeCloseFill(response);
 }
 
 /**

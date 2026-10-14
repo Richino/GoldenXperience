@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { decidePendingManualEntryEvent, inferPendingOrderType, manualBrokerCloseResultR } from "../src/pending-manual-entries.js";
+import { confirmedManualBrokerClose, decidePendingManualEntryEvent, inferPendingOrderType, manualBrokerCloseResultR } from "../src/pending-manual-entries.js";
 import { pipSizeFor } from "../../frontend/src/lib/instruments/catalog.js";
-import { practiceOrderStateFromTransactions, practiceTradeStateFromTransactions } from "../../frontend/src/lib/oanda/client.js";
+import { confirmedPracticeCloseFill, practiceOrderStateFromTransactions, practiceTradeStateFromTransactions } from "../../frontend/src/lib/oanda/client.js";
 
 assert.equal(inferPendingOrderType("long", 0.582, 0.58129), "buy_stop");
 assert.equal(inferPendingOrderType("long", 0.5805, 0.58129), "buy_limit");
@@ -60,5 +60,27 @@ assert.equal(practiceTradeStateFromTransactions("1517", [
 assert.equal(manualBrokerCloseResultR({ direction: "long", entry: 154.09, stop: 153.93, exit: 154.41 }), 2);
 assert.equal(manualBrokerCloseResultR({ direction: "short", entry: 1.35044, stop: 1.35165, exit: 1.34805 }), 1.9752);
 assert.equal(manualBrokerCloseResultR({ direction: "long", entry: 1.2, stop: 1.2, exit: 1.21 }), null);
+
+// A successful HTTP response can contain a cancelled close instead of a fill.
+assert.throws(() => confirmedPracticeCloseFill({
+  orderCreateTransaction: { id: "2190" },
+  orderCancelTransaction: { reason: "FIFO_VIOLATION" },
+}), /oldest position.*FIFO/);
+assert.throws(() => confirmedPracticeCloseFill({ orderCreateTransaction: { id: "2190" } }), /did not confirm/);
+assert.throws(() => confirmedPracticeCloseFill({ orderRejectTransaction: { rejectReason: "TRADE_DOESNT_EXIST" } }), /TRADE_DOESNT_EXIST/);
+assert.equal(confirmedPracticeCloseFill({ orderFillTransaction: { id: "2199" } }), "2199");
+
+const closedState = practiceTradeStateFromTransactions("2184", [{
+  id: "2199", time: tickTime.toISOString(), type: "ORDER_FILL",
+  tradesClosed: [{ tradeID: "2184", price: "1.11411", realizedPL: "1036" }],
+}]);
+assert.ok(closedState);
+assert.deepEqual(confirmedManualBrokerClose(closedState), { exit: 1.11411, pl: 1036, closedAt: tickTime.toISOString() });
+assert.throws(() => confirmedManualBrokerClose(null), /not confirmed/);
+assert.throws(() => confirmedManualBrokerClose({ ...closedState, state: "OPEN", closed: false, realizedPL: 0 }), /not confirmed/);
+assert.throws(() => confirmedManualBrokerClose({ ...closedState, averageClosePrice: null }), /not confirmed/);
+assert.throws(() => confirmedManualBrokerClose({ ...closedState, realizedPL: null }), /not confirmed/);
+assert.throws(() => confirmedManualBrokerClose({ ...closedState, closeTime: null }), /not confirmed/);
+assert.deepEqual(confirmedManualBrokerClose({ ...closedState, realizedPL: 0 }), { exit: 1.11411, pl: 0, closedAt: tickTime.toISOString() });
 
 console.log("Pending manual entry checks passed.");

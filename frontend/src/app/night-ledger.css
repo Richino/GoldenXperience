@@ -5351,7 +5351,8 @@ html:is(.dark, :not(.dark)) body .signals-view .workspace-tab-btn.workspace-tab-
     gap: 14px;
   }
 
-  .nl-chart-facts > div:last-child {
+  /* Mid-width desktops drop the session name to make room; the trend stays. */
+  .nl-chart-facts > .nl-fact-session {
     display: none;
   }
 
@@ -9135,3 +9136,26 @@ html:is(.dark, :not(.dark)) body .gx-fs-dock .menu-popover {
 }
 .nl-pe-swing-apply:disabled { opacity: 0.55; cursor: default; }
 .nl-pe-swing p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+
+/* Trend label (4H + daily structure): chart header on desktop, quote row on phones.
+   Markup: components/charts/trend-label.tsx. */
+.nl-trend { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.nl-trend.is-loading { color: var(--muted); font-size: 12px; }
+.nl-trend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 7%, transparent);
+  color: var(--muted-strong);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.nl-trend-chip b { color: var(--muted); font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 10.5px; font-weight: 600; }
+.nl-trend-chip.is-up { background: var(--accent-soft); color: var(--success); }
+.nl-trend-chip.is-down { background: var(--danger-soft, color-mix(in srgb, var(--danger) 14%, transparent)); color: var(--danger); }
+.nl-trend-note { color: var(--muted); font-size: 12px; }
+/* Phone quote row: its own full-width line under the price. */
+.nl-mquote .nl-mquote-trend { grid-column: 1 / -1; flex-basis: 100%; margin-top: 2px; }

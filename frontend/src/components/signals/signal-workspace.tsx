@@ -47,6 +47,7 @@ import {
   type ChartReferenceLine,
 } from "@/components/charts/setup-chart";
 import { PendingEntryDialog } from "@/components/charts/pending-entry-dialog";
+import { TrendLabel } from "@/components/charts/trend-label";
 import { ChartHealthCard, ChartLevelEditor, ChartNewsCard, ChartPendingLevelsCard, ChartOhlcReadout, type ChartHealthLevels, type ChartPositionCardSignal } from "@/components/charts/chart-ledger-parts";
 import {
   ManualProposalModal,
@@ -4758,6 +4759,7 @@ export function SignalWorkspace({
                 </span>
               </div>
               <span className="nl-mquote-session">{sessionLabel.replace(/ session$/, "")}</span>
+              <TrendLabel instrument={instrument} className="nl-mquote-trend" showNote />
               <dl className="nl-mquote-facts" aria-label="Live sell price, buy price and spread">
                 <div>
                   <dt>Sell</dt>
@@ -4984,9 +4986,13 @@ export function SignalWorkspace({
                     {spreadPips !== null && Number.isFinite(spreadPips) ? `${spreadPips.toFixed(1)} pips` : "—"}
                   </dd>
                 </div>
-                <div>
+                <div className="nl-fact-session">
                   <dt>Session</dt>
                   <dd>{sessionLabel}</dd>
+                </div>
+                <div className="nl-fact-trend">
+                  <dt>Trend</dt>
+                  <dd><TrendLabel instrument={instrument} /></dd>
                 </div>
               </dl>
             </div>

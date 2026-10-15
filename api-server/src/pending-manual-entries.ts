@@ -927,9 +927,10 @@ export function confirmedManualBrokerClose(state: Awaited<ReturnType<typeof getP
  * on the chart). `undefined` keeps a level, null removes it. Each level must
  * sit on its own side of the price the trade would close at now. OANDA-backed
  * trades change the broker's own SL/TP first, so the app never shows a level
- * the broker does not hold. paper_trades.stop stays the original risk
- * reference for R; a paper-only trade has no broker, so its paper row carries
- * the live levels its resolver closes on, and needs both or neither.
+ * the broker does not hold. paper_trades.stop is the 1R reference and follows
+ * the stop while it still sits on the losing side of entry; a paper-only trade
+ * has no broker, so its paper row carries the live levels its resolver closes
+ * on, and needs both or neither.
  */
 export async function updateActiveManualTradeLevels(userId: string, id: string, payload: Record<string, unknown>, tick: MarketPriceTick) {
   validateTick(tick);
@@ -997,6 +998,16 @@ export async function updateActiveManualTradeLevels(userId: string, id: string, 
       await client.query(
         "UPDATE paper_trades SET stop=$2,target=$3,updated_at=now() WHERE id=$1 AND status='open'",
         [entry.paper_trade_id, stop, target],
+      );
+    } else if (brokerTradeId && stop !== null) {
+      // R follows the stop the trade holds now, so a stop moved further out
+      // is measured as the bigger risk it is. A stop at or past entry risks
+      // nothing, so the last stop that did stays the 1R reference.
+      await client.query(
+        `UPDATE paper_trades SET stop=$2,updated_at=now()
+          WHERE id=$1 AND status='open'
+            AND CASE direction WHEN 'long' THEN $2::numeric < entry ELSE $2::numeric > entry END`,
+        [entry.paper_trade_id, stop],
       );
     }
     return result.rows[0];

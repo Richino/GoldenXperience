@@ -8,8 +8,8 @@ import { apiUrl } from "@/lib/api/url";
 import { useDragToDismiss } from "@/lib/use-drag-to-dismiss";
 import { displayNameFor, pipSizeFor, precisionFor } from "@/lib/instruments/catalog";
 import type { PendingManualEntry } from "@/types/pending-entry";
-import { calculatePositionSize, DEFAULT_RISK_POLICY } from "@/lib/risk/engine";
-import type { CandleSeries, MajorInstrument } from "@/types/forex";
+import { NewsWarning } from "@/components/charts/news-warning";
+import { usePairTrend } from "@/components/charts/trend-label";
 
 type ExpirationPreset = "none" | "30m" | "1h" | "4h" | "custom";
 
@@ -82,7 +82,7 @@ export function PendingEntryDialog({
   const { setSheet, setBackdrop, handlers: dragHandlers, requestClose: requestDrawerClose } = useDragToDismiss({
     open,
     onDismiss: onClose,
-    handleSelector: ".pending-entry-grip, .pending-entry-dialog > header",
+    handleSelector: ".pending-entry-grip, .pending-entry-dialog > header, .nl-pe-stickyhead",
     enabled: !isPanel,
   });
   // iOS keeps the layout viewport at full height when the keyboard opens, so
@@ -185,67 +185,48 @@ export function PendingEntryDialog({
     }
     return nextEntry;
   };
-  // Day or swing. Swing trades are held for days: the stop goes beyond 4-hour
-  // structure, the target defaults to 2R, and the size comes from that stop.
-  const [tradeStyle, setTradeStyle] = useState<"day" | "swing">(
-    (selectedEntry?.metadata as { tradeStyle?: string } | undefined)?.tradeStyle === "swing" ? "swing" : "day",
-  );
-  const [accountBalance, setAccountBalance] = useState<number | null>(null);
-  const [h4Candles, setH4Candles] = useState<{ high: number; low: number }[] | null>(null);
+  // Every new trade is a swing trade (held for days): the stop goes beyond
+  // 4-hour structure, the target defaults to 2R, and the size comes from that
+  // stop. An existing day entry being edited keeps its saved style.
+  const tradeStyle: "day" | "swing" =
+    selectedEntry && (selectedEntry.metadata as { tradeStyle?: string } | undefined)?.tradeStyle !== "swing" ? "day" : "swing";
+  // What this order would be sized to, from the server's own sizing (your
+  // Settings risk %, live conversion rate, no lot cap), so the preview and the
+  // OANDA order always match. Asked after typing settles.
+  const [positionSize, setPositionSize] = useState<{ key: string; lots: number; riskAmount: number; riskPercent: number; balance: number } | null>(null);
+  const sizeEntry = Number(entryPrice), sizeStop = stopPrice.trim() ? Number(stopPrice) : NaN;
+  const sizeKey = Number.isFinite(sizeEntry) && sizeEntry > 0 && Number.isFinite(sizeStop) && sizeStop > 0 && sizeEntry !== sizeStop
+    ? `${instrument}|${sizeEntry}|${sizeStop}` : null;
   useEffect(() => {
-    if (!open) return;
+    if (!open || !sizeKey) return;
     let cancelled = false;
-    fetch(apiUrl("/api/oanda/account-summary"), { credentials: "include", cache: "no-store" })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((payload: { data?: { balance?: number } } | null) => {
-        const balance = Number(payload?.data?.balance);
-        if (!cancelled && Number.isFinite(balance) && balance > 0) setAccountBalance(balance);
-      })
-      .catch(() => undefined);
-    return () => { cancelled = true; };
-  }, [open]);
-  useEffect(() => {
-    if (!open || tradeStyle !== "swing") return;
-    let cancelled = false;
-    fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=H4&count=60`), { credentials: "include", cache: "no-store" })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((payload: { data?: CandleSeries } | null) => {
-        const candles = payload?.data?.granularity === "H4" ? payload.data.candles.filter((candle) => candle.complete !== false) : [];
-        if (!cancelled) setH4Candles(candles.map((candle) => ({ high: candle.high, low: candle.low })));
-      })
-      .catch(() => { if (!cancelled) setH4Candles([]); });
-    return () => { cancelled = true; };
-  }, [instrument, open, tradeStyle]);
-  /**
-   * Swing stop: just beyond the last ~2 days of 4-hour structure (lowest low of
-   * the last 12 candles for a long, highest high for a short), padded by a
-   * quarter of the 4-hour average range. Falls back to one average range from
-   * entry if price is already past that structure.
-   */
-  const structureStop = (entry: number, side: "long" | "short") => {
-    if (!h4Candles || h4Candles.length < 14) return null;
-    const recent = h4Candles.slice(-12);
-    const range = h4Candles.slice(-14).reduce((sum, candle) => sum + (candle.high - candle.low), 0) / 14;
-    const buffer = range * 0.25;
-    const stop = side === "long"
-      ? Math.min(...recent.map((candle) => candle.low)) - buffer
-      : Math.max(...recent.map((candle) => candle.high)) + buffer;
-    const valid = side === "long" ? stop < entry : stop > entry;
-    return valid ? stop : side === "long" ? entry - range : entry + range;
-  };
-  /** Place the 4-hour structure stop and a 2R target, in whichever unit the ticket uses. */
-  const applySwingLevels = () => {
-    const entry = Number(entryPrice);
-    if (direction === null || !Number.isFinite(entry) || entry <= 0) return;
-    const stop = structureStop(entry, direction);
-    if (stop === null) return;
-    const target = entry + (entry - stop) * 2;
-    const fixed = (value: number) => value.toFixed(precisionFor(instrument));
-    setStopPrice(fixed(stop));
-    setTargetPrice(fixed(target));
-    setStopPips(pipDistanceText(fixed(stop), entryPrice));
-    setTargetPips(pipDistanceText(fixed(target), entryPrice));
-  };
+    const timer = window.setTimeout(() => {
+      const [, entry, stop] = sizeKey.split("|");
+      fetch(apiUrl(`/api/pending-entries/size?instrument=${instrument}&entry=${entry}&stop=${stop}`), { credentials: "include", cache: "no-store" })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((payload: { lots?: number; riskAmount?: number; riskPercent?: number; balance?: number } | null) => {
+          if (cancelled || !payload || typeof payload.lots !== "number") return;
+          setPositionSize({ key: sizeKey, lots: payload.lots, riskAmount: payload.riskAmount ?? 0, riskPercent: payload.riskPercent ?? 0, balance: payload.balance ?? 0 });
+        })
+        .catch(() => undefined);
+    }, 350);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [instrument, open, sizeKey]);
+  const currentSize = positionSize && positionSize.key === sizeKey ? positionSize : null;
+  // Plan check (journal tags): trend / news view / entry level. Trend is
+  // pre-filled from the 4H + daily read against the chosen side until changed.
+  const pairTrend = usePairTrend(instrument);
+  const [planNews, setPlanNews] = useState<"supports" | "against" | "none" | null>(null);
+  const [planLevel, setPlanLevel] = useState<"at" | "none" | null>(null);
+  const [planTrendChoice, setPlanTrendChoice] = useState<"with" | "against" | "none" | null>(null);
+  const suggestedTrend = (() => {
+    const h4 = pairTrend?.h4?.direction, d1 = pairTrend?.d1?.direction;
+    if (!direction || !h4 || !d1) return null;
+    const trending = (value: string) => value === "UPTREND" || value === "DOWNTREND";
+    if (!trending(h4) || h4 !== d1) return "none" as const;
+    return (h4 === "UPTREND") === (direction === "long") ? "with" as const : "against" as const;
+  })();
+  const planTrend = planTrendChoice ?? suggestedTrend;
   /** In pips mode, keep the stop and target prices following entry and side. */
   const syncPipLevels = (entry: string, side: "long" | "short" | null) => {
     if (levelUnit !== "pips") return;
@@ -371,12 +352,6 @@ export function PendingEntryDialog({
   const planRatio = Number.isFinite(parsedEntry) && parsedStop && parsedTarget && parsedEntry !== parsedStop
     ? Math.abs(parsedTarget - parsedEntry) / Math.abs(parsedEntry - parsedStop)
     : null;
-  // What this order risks: the server sizes to the policy % from the stop and
-  // caps it (2 lots on paper), so the ticket shows exactly that before you submit.
-  const positionSize = accountBalance !== null && parsedStop !== null && Number.isFinite(parsedStop) && parsedStop > 0
-    && Number.isFinite(parsedEntry) && parsedEntry > 0 && parsedStop !== parsedEntry
-    ? calculatePositionSize({ instrument: instrument as MajorInstrument, accountBalance, riskPercent: DEFAULT_RISK_POLICY.riskPercent, entry: parsedEntry, stop: parsedStop })
-    : null;
   // Until the entry is edited there is no reference price, so read the order
   // type against the live quote.
   const planOrder = inferredOrder ?? (direction !== null && current !== null && Number.isFinite(parsedEntry)
@@ -491,6 +466,7 @@ export function PendingEntryDialog({
         body: JSON.stringify({
           instrument, direction, entryPrice: parsedEntry, stopPrice: parsedStop, targetPrice: parsedTarget, expiresAt, activateAt: activateAtIso, invalidationPrice: parsedInvalidation, orderReferencePrice,
           tradeStyle,
+          planTags: !selectedEntry ? { trend: planTrend, news: planNews, level: planLevel } : undefined,
           // Tags forward-test trades so they can be scored separately later.
           analysisContext: !selectedEntry && initialProposal?.analysisContext
               ? {
@@ -557,8 +533,10 @@ export function PendingEntryDialog({
       ref={setSheet}
       {...dragHandlers}
     >
-      {isPanel ? null : <div className="pending-entry-grip" aria-hidden="true" />}
       {isPlan || (isTicket && !isPanel) ? (
+        // Grip + header pinned as one bar while the form scrolls underneath.
+        <div className="nl-pe-stickyhead">
+        <div className="pending-entry-grip" aria-hidden="true" />
         <header className="nl-an-top">
           <span className="nl-an-eyebrow">
             {isPlan ? <AnalyzeIcon className="size-3.5" /> : null}
@@ -568,7 +546,10 @@ export function PendingEntryDialog({
             <X aria-hidden="true" />
           </button>
         </header>
+        </div>
       ) : isPanel && !selectedEntry ? null : (
+        <>
+        {isPanel ? null : <div className="pending-entry-grip" aria-hidden="true" />}
         <header>
           <div>
             <span>{headerEyebrow}</span>
@@ -583,6 +564,7 @@ export function PendingEntryDialog({
             <X className="size-4" />
           </button>
         </header>
+        </>
       )}
 
       {isDetail && selectedEntry ? (
@@ -639,6 +621,7 @@ export function PendingEntryDialog({
             <p className="nl-an-regime">
               {planOrder ?? "Order"} · {current === null ? "waiting for quote" : `now ${current.toFixed(precision)}, ${distancePips === null ? "—" : `${distancePips.toFixed(1)} pips away`}`}
             </p>
+            <NewsWarning instrument={instrument} />
 
             <div className="nl-pe-levels">
               <label>
@@ -722,29 +705,12 @@ export function PendingEntryDialog({
                 </button>
               ))}
             </div>
-            <p className="nl-an-regime">
-              {direction === null
-                ? "Choose long or short to start."
-                : `${planOrder ?? "Order"} · ${current === null ? "waiting for quote" : `now ${current.toFixed(precision)}${distancePips === null ? "" : `, ${distancePips.toFixed(1)} pips away`}`}`}
-            </p>
-
-            <div className="nl-pe-submit">
-              <span>Style</span>
-              <div className="nl-an-modes" role="radiogroup" aria-label="Trade style">
-                {(["day", "swing"] as const).map((style) => (
-                  <button
-                    key={style}
-                    type="button"
-                    role="radio"
-                    aria-checked={tradeStyle === style}
-                    className={tradeStyle === style ? "is-active" : ""}
-                    onClick={() => setTradeStyle(style)}
-                  >
-                    {style === "day" ? "Day" : "Swing"}
-                  </button>
-                ))}
-              </div>
-            </div>
+            {direction === null ? null : (
+              <p className="nl-an-regime">
+                {`${planOrder ?? "Order"} · ${current === null ? "waiting for quote" : `now ${current.toFixed(precision)}${distancePips === null ? "" : `, ${distancePips.toFixed(1)} pips away`}`}`}
+              </p>
+            )}
+            <NewsWarning instrument={instrument} tradeStyle={tradeStyle} />
 
             <div className="nl-pe-submit">
               <span>Enter levels in</span>
@@ -857,22 +823,25 @@ export function PendingEntryDialog({
               </label>
             </div>
 
-            {tradeStyle === "swing" ? (
-              <div className="nl-pe-swing">
-                <button
-                  type="button"
-                  className="nl-pe-swing-apply pressable"
-                  disabled={direction === null || !h4Candles || h4Candles.length < 14 || !Number.isFinite(parsedEntry)}
-                  onClick={applySwingLevels}
-                >
-                  {h4Candles === null ? "Loading 4H structure…" : "Use 4H structure stop · 2R target"}
-                </button>
-                <p>
-                  Held for days: overnight financing is charged each day the trade stays open, and a weekend gap can
-                  open past your stop.
-                </p>
-              </div>
-            ) : null}
+            <div className="nl-pe-plancheck" aria-label="Plan check">
+              <span className="nl-pe-plancheck-title">Plan check <small>for your journal</small></span>
+              {([
+                ["Trend", planTrend, (value: string) => setPlanTrendChoice(value as "with" | "against" | "none"), [["with", "With"], ["against", "Against"], ["none", "No trend"]]],
+                ["News view", planNews, (value: string) => setPlanNews(value as "supports" | "against" | "none"), [["supports", "Supports"], ["against", "Against"], ["none", "None"]]],
+                ["Entry", planLevel, (value: string) => setPlanLevel(value as "at" | "none"), [["at", "At a level"], ["none", "No level"]]],
+              ] as const).map(([name, current, choose, options]) => (
+                <div key={name} className="nl-pe-plancheck-row">
+                  <span>{name}{name === "Trend" && planTrendChoice === null && suggestedTrend ? <em> · from 4H + D</em> : null}</span>
+                  <div className="nl-an-modes" role="radiogroup" aria-label={name}>
+                    {options.map(([value, label]) => (
+                      <button key={value} type="button" role="radio" aria-checked={current === value} className={current === value ? "is-active" : ""} onClick={() => choose(value)}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
 
             <dl className="nl-an-rows">
               <div><dt>Stop distance</dt><dd className="metric-number">{pipsBetween(parsedEntry, parsedStop)}</dd></div>
@@ -882,9 +851,9 @@ export function PendingEntryDialog({
                 <dd className="metric-number">
                   {parsedStop === null
                     ? "No stop: sized from the hourly range"
-                    : positionSize
-                      ? `${positionSize.standardLots.toFixed(2)} lots · risks $${positionSize.estimatedRisk.toFixed(0)}${accountBalance ? ` (${((positionSize.estimatedRisk / accountBalance) * 100).toFixed(1)}%)` : ""}${positionSize.capped ? ` · capped (1% = ${positionSize.calculatedStandardLots.toFixed(2)})` : ""}`
-                      : "—"}
+                    : currentSize
+                      ? `${currentSize.lots.toFixed(2)} lots · risks $${currentSize.riskAmount.toFixed(0)} (${currentSize.riskPercent}%)`
+                      : sizeKey ? "Sizing…" : "—"}
                 </dd>
               </div>
               <div><dt>Risk : reward</dt><dd className={`metric-number${planRatio !== null ? " is-up" : ""}`}>{planRatio === null ? "—" : `1 : ${Number(planRatio.toFixed(1))}`}</dd></div>

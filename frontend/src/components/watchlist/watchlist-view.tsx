@@ -7,7 +7,8 @@ import { WatchlistPairsSkeleton } from "@/components/ui/page-skeletons";
 import { MarketRowSkeleton } from "@/components/ui/ledger-loading-skeletons";
 import { useMarketObserver } from "@/components/analysis/market-observer-provider";
 import { SessionStrip } from "@/components/watchlist/session-strip";
-import { TradabilityTag, useNyTradability } from "@/components/signals/tradability-tag";
+import { TrendLabel } from "@/components/charts/trend-label";
+import { useNyTradability } from "@/components/signals/tradability-tag";
 import { tradabilitySortKey } from "@/lib/strategy/ny-tradability";
 import { getMarketCondition } from "@/lib/strategy/session";
 import { NotificationBell } from "@/components/notifications/notification-bell";
@@ -438,7 +439,7 @@ export function WatchlistView() {
                         <b>{name}</b>
                         <small>{description(row.instrument)}</small>
                         <span className="nl-mk-pair-status">
-                          <TradabilityTag item={tradability.get(row.instrument)} />
+                          <TrendLabel instrument={row.instrument} className="nl-trend-compact" />
                           {enabled ? <span className="nl-mk-observer-on">Observer on</span> : null}
                         </span>
                       </span>

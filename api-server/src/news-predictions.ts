@@ -226,7 +226,7 @@ export async function newsPredictionsSnapshot() {
   if (!databaseConfigured()) return { predictions: [], record: { calls: 0, correct: 0 } };
   const [rows, record] = await Promise.all([
     query(
-      `SELECT event_key, series_key, title, currency, event_time, chosen_signal, call, currency_call, actual, outcome, correct
+      `SELECT event_key, series_key, title, currency, impact, event_time, chosen_signal, call, currency_call, actual, outcome, correct
        FROM news_predictions WHERE source = 'live' AND event_time >= now() - interval '8 days' ORDER BY event_time`,
     ),
     query<{ calls: string; correct: string }>(

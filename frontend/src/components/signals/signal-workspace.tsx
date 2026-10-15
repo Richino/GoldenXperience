@@ -60,7 +60,6 @@ import { PairAvatar } from "@/components/ui/pair-avatar";
 import { MobileSheet } from "@/components/ui/mobile-sheet";
 import { apiUrl } from "@/lib/api/url";
 import { PairStrengthTag, usePairStrength } from "@/components/signals/pair-strength-tag";
-import { TradabilityTag, useNyTradability } from "@/components/signals/tradability-tag";
 import { formatClockTime, formatDayAndTime } from "@/lib/format/datetime";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import {
@@ -1364,13 +1363,6 @@ function SignalSearch({
       });
   }, [index, normalizedQuery, pairStrength]);
   const visibleMatches = compact ? matches : matches.slice(0, 5);
-  // The chart's Select pair picker (the compact one) shows NY session
-  // tradability in place of the strength read; one batched request covers
-  // the listed pairs. The strength read still orders the default list.
-  const tradability = useNyTradability(
-    compact ? visibleMatches.map((result) => result.instrument) : [],
-    open && compact,
-  );
   const showResults = open;
   const useDesktopDropdown = compact && isDesktop && !modal;
 
@@ -1521,7 +1513,7 @@ function SignalSearch({
                     <span className="block truncate text-sm font-medium tracking-[-0.02em]">
                       {result.displayName}
                     </span>
-                    <TradabilityTag item={tradability.get(result.instrument)} />
+                    <TrendLabel instrument={result.instrument} className="nl-trend-compact" />
                   </span>
                   {isTrading ? (
                     <span className="signals-search-trading-badge">Trading</span>

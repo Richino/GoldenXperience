@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { PlanReview } from "@/components/journal/plan-review";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ArrowRight, Search, X } from "lucide-react";
@@ -821,6 +822,9 @@ export function TradesView() {
           recentR={recentR}
         />
       )}
+
+      {/* The swing plan's checklist tags, scored (after a few tagged trades). */}
+      <PlanReview />
 
       {initialTabLoading ? (
         <TradesToolbarSkeleton showFilters={tab !== "open"} />

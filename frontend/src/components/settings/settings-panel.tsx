@@ -401,6 +401,25 @@ export function SettingsPanel({
                 <ChevronRight aria-hidden="true" />
               </span>
             </button>
+            {/* Same volume as the desktop card (one saved value). */}
+            <label className="nl-st-mrow nl-st-mvolume" htmlFor="notification-volume-phone">
+              <span>Volume</span>
+              <input
+                id="notification-volume-phone"
+                type="range"
+                min="0"
+                max="100"
+                step="5"
+                value={notificationVolumePercent}
+                onChange={(event) => {
+                  const value = Number(event.target.value);
+                  setNotificationVolumePercent(value);
+                  window.localStorage.setItem(NOTIFICATION_VOLUME_KEY, String(value));
+                }}
+                aria-label="Notification volume"
+              />
+              <output htmlFor="notification-volume-phone" className="metric-number">{notificationVolumePercent}%</output>
+            </label>
             {pushActionable && !pushBusy ? (
               <button type="button" className="nl-st-mrow pressable" onClick={() => void enablePushNotifications()}>
                 <span>Push alerts</span>

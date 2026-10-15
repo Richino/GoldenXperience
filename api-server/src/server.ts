@@ -1,5 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { weeklyReview, weeklySummary } from "./weekly-review.js";
+import { planReview } from "./plan-review.js";
+import { pairTrends } from "./pair-trends.js";
 import { URL, fileURLToPath } from "node:url";
 import fs from "node:fs";
 import path from "node:path";
@@ -66,6 +68,7 @@ import {
   closeActiveManualTrade,
   updateActiveManualTradeLevels,
   updatePendingEntryLevels,
+  manualPositionSize,
   createPendingManualEntry,
   editPendingManualEntry,
   evaluatePendingManualEntries,
@@ -341,6 +344,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       return json(request, response, { error: "Observer route not found." }, 404);
     }
     if (url.pathname === "/api/morning-picks" && request.method === "GET") return json(request, response, await morningPicksSnapshot());
+    if (url.pathname === "/api/pair-trends" && request.method === "GET") return json(request, response, await pairTrends());
     if (url.pathname === "/api/morning-picks/refresh" && request.method === "POST") {
       try { return json(request, response, await runMorningScan("manual")); }
       catch (error) {
@@ -385,6 +389,10 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     }
     // Home's weekly review: the numbers (fast, rule-based), then the AI coach's
     // summary of them (slow, cached per set of trades). Both read-only.
+    // The swing plan's checklist tags (trend / news / level / style), scored.
+    if (url.pathname === "/api/review/plan" && request.method === "GET") {
+      return json(request, response, await planReview(user.id));
+    }
     if (url.pathname === "/api/review/weekly" && request.method === "GET") {
       return json(request, response, await weeklyReview(user.id));
     }
@@ -504,6 +512,20 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
         return json(request, response, { entry }, 201);
       } catch (error) {
         return json(request, response, { error: error instanceof Error ? error.message : "Could not create the pending entry." }, 400);
+      }
+    }
+    // The ticket's size preview: exactly what an order would be sized to.
+    if (url.pathname === "/api/pending-entries/size" && request.method === "GET") {
+      const instrument = (url.searchParams.get("instrument") ?? "").toUpperCase();
+      const entry = Number(url.searchParams.get("entry"));
+      const stop = Number(url.searchParams.get("stop"));
+      if (!isKnownInstrument(instrument) || !(entry > 0) || !(stop > 0) || entry === stop) {
+        return json(request, response, { error: "Choose a pair, an entry and a stop." }, 400);
+      }
+      try {
+        return json(request, response, await manualPositionSize(user.id, instrument, entry, stop));
+      } catch (error) {
+        return json(request, response, { error: error instanceof Error ? error.message : "Could not size the trade." }, 409);
       }
     }
     const pendingEntryMatch = url.pathname.match(/^\/api\/pending-entries\/([0-9a-f-]{36})$/i);

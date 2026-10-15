@@ -56,3 +56,18 @@
   .rank { width: auto; }
   .chart { padding: 0 10px; }
 }
+
+/* Good trends: pairs whose 4H and daily structure agree. */
+.trends { border-top: 1px solid var(--border); margin-top: 12px; padding-top: 12px; }
+.trends h3 { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin: 0 0 4px; font-size: 13px; font-weight: 600; }
+.trends h3 span { color: var(--muted); font-size: 12px; font-weight: 500; }
+.trends details { margin-top: 4px; }
+.trendRow { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 10px 0; }
+.trendRow + .trendRow, .trends details .trendRow { border-top: 1px solid var(--border); }
+.trendRow .identity strong { font-size: 14px; }
+.trendRow .trend { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 600px) {
+  .trendRow .chart { width: 32px; justify-content: center; padding: 0; }
+  .trendRow .chart span { display: none; }
+}
+.trendRow .status { text-transform: none; }

@@ -9120,23 +9120,6 @@ html:is(.dark, :not(.dark)) body .gx-fs-dock .menu-popover {
   line-height: 1.4;
 }
 
-/* Swing ticket: the 4H structure-stop button and the holding note. */
-.nl-pe-swing { display: flex; flex-direction: column; gap: 8px; }
-.nl-pe-swing-apply {
-  align-self: flex-start;
-  min-height: 36px;
-  padding: 0 14px;
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
-  border-radius: 10px;
-  background: var(--accent-soft);
-  color: var(--foreground);
-  font-size: 13px;
-  font-weight: 650;
-  cursor: pointer;
-}
-.nl-pe-swing-apply:disabled { opacity: 0.55; cursor: default; }
-.nl-pe-swing p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
-
 /* Trend label (4H + daily structure): chart header on desktop, quote row on phones.
    Markup: components/charts/trend-label.tsx. */
 .nl-trend { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
@@ -9159,3 +9142,110 @@ html:is(.dark, :not(.dark)) body .gx-fs-dock .menu-popover {
 .nl-trend-note { color: var(--muted); font-size: 12px; }
 /* Phone quote row: its own full-width line under the price. */
 .nl-mquote .nl-mquote-trend { grid-column: 1 / -1; flex-basis: 100%; margin-top: 2px; }
+
+/* New-trade ticket: high-impact news heads-up (components/charts/news-warning.tsx). */
+.nl-news-warning {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--foreground);
+}
+.nl-news-warning b { font-weight: 700; }
+.nl-news-warning.is-danger { background: var(--danger-soft, color-mix(in srgb, var(--danger) 14%, transparent)); border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent); }
+.nl-news-warning.is-caution { background: var(--pending-soft, color-mix(in srgb, #f5a524 14%, transparent)); }
+.nl-news-warning.is-info { background: color-mix(in srgb, var(--foreground) 5%, transparent); color: var(--muted-strong); }
+
+/* New-trade ticket: Plan check (journal tags). */
+.nl-pe-plancheck { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--border); border-radius: 14px; }
+.nl-pe-plancheck-title { font-size: 13px; font-weight: 700; }
+.nl-pe-plancheck-title small { margin-left: 4px; color: var(--muted); font-size: 11.5px; font-weight: 500; }
+.nl-pe-plancheck-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted-strong); }
+.nl-pe-plancheck-row em { color: var(--muted); font-style: normal; font-size: 11px; }
+.nl-pe-plancheck-row .nl-an-modes button { padding-inline: 10px; font-size: 12px; }
+
+/* Journal: Plan review (components/journal/plan-review.tsx). */
+.plan-review { display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); }
+.plan-review-skel { display: block; height: 64px; border-radius: 12px; }
+.plan-review-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.plan-review-head h2 { margin: 0; font-family: var(--font-display); font-size: 20px; font-weight: 700; }
+.plan-review-head p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.plan-review-head > span { flex: none; color: var(--muted-strong); font-size: 13px; font-weight: 600; }
+.plan-review-bar { height: 6px; overflow: hidden; border-radius: 999px; background: color-mix(in srgb, var(--foreground) 8%, transparent); }
+.plan-review-bar i { display: block; height: 100%; border-radius: inherit; background: var(--accent-fill); }
+.plan-review-empty, .plan-review-note { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.plan-review-note { padding: 8px 10px; border-radius: 10px; background: var(--pending-soft, color-mix(in srgb, #f5a524 14%, transparent)); color: var(--foreground); }
+.plan-review-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.plan-review-group h3 { margin: 0 0 6px; color: var(--muted); font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 10.5px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; }
+.plan-review-group table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.plan-review-group th, .plan-review-group td { padding: 6px 4px; border-top: 1px solid var(--border); text-align: right; }
+.plan-review-group thead th { border-top: 0; color: var(--muted); font-size: 11px; font-weight: 600; }
+.plan-review-group th[scope="row"], .plan-review-group thead th:first-child { text-align: left; font-weight: 600; }
+.plan-review-group .is-up { color: var(--success); }
+.plan-review-group .is-down { color: var(--danger); }
+/* Phones: each question's label above a full-width row of equal, thumb-sized options. */
+@media (max-width: 639px) {
+  .nl-pe-plancheck { gap: 12px; padding: 14px; }
+  .nl-pe-plancheck-row { flex-direction: column; align-items: stretch; gap: 6px; }
+  .nl-pe-plancheck-row > span { font-size: 13px; font-weight: 600; color: var(--foreground); }
+  .nl-pe-plancheck-row .nl-an-modes { display: flex; width: 100%; }
+  .nl-pe-plancheck-row .nl-an-modes button { flex: 1 1 0; min-height: 38px; padding-inline: 6px; font-size: 13px; }
+}
+
+/* New-trade sheet: the grip + header bar and the Create / Cancel buttons stay
+   on screen while the form scrolls between them. The sheet itself is the
+   scroll area, so both are sticky inside it with a solid background. */
+html:is(.dark, :not(.dark)) body .pending-entry-dialog.is-plan {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+html:is(.dark, :not(.dark)) body .pending-entry-dialog.is-plan .nl-pe-stickyhead {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  margin-inline: -22px;
+  padding: 18px 22px 10px;
+  background: var(--surface);
+}
+html:is(.dark, :not(.dark)) body .pending-entry-dialog.is-plan > footer.nl-pe-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  margin-inline: -22px;
+  padding: 12px 22px calc(18px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+@media (max-width: 639px) {
+  html:is(.dark, :not(.dark)) body .pending-entry-dialog.is-plan .nl-pe-stickyhead {
+    margin-inline: -20px;
+    padding: 10px 20px 8px;
+  }
+  html:is(.dark, :not(.dark)) body .pending-entry-dialog.is-plan .nl-pe-stickyhead .pending-entry-grip { display: block; margin-bottom: 8px; }
+  html:is(.dark, :not(.dark)) body .pending-entry-dialog.is-plan > footer.nl-pe-actions {
+    margin-inline: -20px;
+    padding: 12px 20px calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+}
+/* Keyboard open: the sheet's bottom padding already equals the keyboard
+   height, and sticky offsets count from inside that padding, so bottom: 0
+   already sits the buttons just above the keyboard. */
+html:is(.dark, :not(.dark)) body .pending-entry-backdrop[data-keyboard-open="true"] .pending-entry-dialog.is-plan > footer.nl-pe-actions {
+  padding-bottom: 12px;
+}
+
+/* Settings (phone layout): volume row — label, slider, value on one line. */
+.nl-st-mrow.nl-st-mvolume { gap: 14px; cursor: default; }
+.nl-st-mrow.nl-st-mvolume input { flex: 1; min-width: 0; height: 28px; accent-color: var(--accent-fill); }
+.nl-st-mrow.nl-st-mvolume output { flex: none; width: 44px; color: var(--muted-strong); font-size: 14px; text-align: right; }
+/* Trend label stays on one line; the short note trims rather than wrapping. */
+.nl-trend { flex-wrap: nowrap; min-width: 0; max-width: 100%; }
+.nl-trend-chip { flex: none; }
+.nl-trend-note { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Trend chips in place of the tradability tag in pair lists. */
+.nl-trend.nl-trend-compact { gap: 4px; margin-top: 3px; }
+.nl-trend-compact .nl-trend-chip { font-size: 11px; padding-block: 1px; }

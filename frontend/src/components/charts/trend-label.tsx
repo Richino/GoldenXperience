@@ -45,17 +45,30 @@ async function loadRead(instrument: string, granularity: "H4" | "D", label: stri
   return readTrend(instrument, label, series.candles, SETTINGS);
 }
 
-function usePairTrend(instrument: string) {
+// Shared across every label on the page, so a pair on the chart, in search and
+// in the watchlist is read once per refresh window rather than once per label.
+const cache = new Map<string, { at: number; promise: Promise<PairTrend> }>();
+
+function readPair(instrument: string): Promise<PairTrend> {
+  const hit = cache.get(instrument);
+  if (hit && Date.now() - hit.at < REFRESH_MS) return hit.promise;
+  const promise = Promise.all([loadRead(instrument, "H4", "4H"), loadRead(instrument, "D", "Daily")])
+    .then(([h4, d1]) => ({ h4, d1 }))
+    .catch(() => {
+      cache.delete(instrument);
+      return { h4: null, d1: null };
+    });
+  cache.set(instrument, { at: Date.now(), promise });
+  return promise;
+}
+
+export function usePairTrend(instrument: string) {
   const [state, setState] = useState<{ instrument: string; trend: PairTrend } | null>(null);
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      try {
-        const [h4, d1] = await Promise.all([loadRead(instrument, "H4", "4H"), loadRead(instrument, "D", "Daily")]);
-        if (!cancelled) setState({ instrument, trend: { h4, d1 } });
-      } catch {
-        if (!cancelled) setState({ instrument, trend: { h4: null, d1: null } });
-      }
+      const trend = await readPair(instrument);
+      if (!cancelled) setState({ instrument, trend });
     };
     void load();
     const timer = window.setInterval(load, REFRESH_MS);
@@ -71,10 +84,10 @@ function usePairTrend(instrument: string) {
 function summary(h4: TrendRead | null, d1: TrendRead | null) {
   if (!h4 || !d1) return null;
   const trending = (read: TrendRead) => read.direction === "UPTREND" || read.direction === "DOWNTREND";
-  if (trending(h4) && h4.direction === d1.direction) return `Both trend ${LABEL[h4.direction].toLowerCase()}: favour ${h4.direction === "UPTREND" ? "buys" : "sells"}.`;
-  if (trending(h4) && trending(d1)) return "4H and daily disagree: a pullback or a turn, not settled.";
-  if (!trending(h4) && !trending(d1)) return "No clear trend on either: wait for direction.";
-  return trending(d1) ? "Daily trends, 4H does not: wait for the 4H to line up." : "4H trends inside a daily that does not.";
+  if (trending(h4) && h4.direction === d1.direction) return h4.direction === "UPTREND" ? "Aligned · favour buys" : "Aligned · favour sells";
+  if (trending(h4) && trending(d1)) return "Mixed · wait";
+  if (!trending(h4) && !trending(d1)) return "No trend · wait";
+  return trending(d1) ? "Wait for 4H" : "Daily unclear · wait";
 }
 
 export function TrendLabel({ instrument, className = "", showNote = false }: { instrument: string; className?: string; showNote?: boolean }) {

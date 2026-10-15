@@ -593,7 +593,7 @@ export async function createPendingManualEntry(userId: string, payload: Record<s
     `INSERT INTO pending_manual_entries(
        user_id,instrument,direction,entry_price,entry_order_type,current_price_at_creation,
        expiration_type,expires_at,activate_at,invalidation_price,invalidation_side,last_observed_price,last_observed_at,stop_price,target_price,metadata
-     ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$16,$9,$10,$11,$12,$13,$14,jsonb_build_object('priceSource',$15::text,'createdFrom','chart','orderReferencePrice',$11::numeric,'frozenContext',$17::jsonb,'noLevels',$18::boolean,'sizingStop',$19::numeric))
+     ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$16,$9,$10,$11,$12,$13,$14,jsonb_build_object('priceSource',$15::text,'createdFrom','chart','orderReferencePrice',$11::numeric,'frozenContext',$17::jsonb,'noLevels',$18::boolean,'sizingStop',$19::numeric,'execution',CASE WHEN $16::timestamptz IS NULL THEN 'submitting' ELSE 'scheduled' END))
      RETURNING ${SELECT_FIELDS}`,
     [userId, tick.instrument, direction, entryPrice, inferPendingOrderType(direction, entryPrice, orderReferencePrice), currentPrice,
       orderExpiresAt ? "time" : "none", orderExpiresAt, cancelPrice,
@@ -707,6 +707,12 @@ export async function editPendingManualEntry(userId: string, id: string, payload
   });
 }
 
+export function manualEntryUsesBroker(metadata: Record<string, unknown> | null): boolean {
+  return Boolean(metadata?.brokerOrderId || metadata?.brokerTradeId ||
+    metadata?.execution === "submitting" || metadata?.execution === "scheduled" ||
+    (typeof metadata?.execution === "string" && metadata.execution.startsWith("oanda_")));
+}
+
 function brokerOrderIdOf(row: EntryRow): string | null {
   const meta = row.metadata as Record<string, unknown> | null | undefined;
   const id = meta && typeof meta === "object" ? meta.brokerOrderId : null;
@@ -812,6 +818,9 @@ export async function closeActiveManualTrade(userId: string, id: string, tick: M
   const stopPrice = Number(trade.stop);
 
   const brokerTradeId = brokerTradeIdOf(entry);
+  if (!brokerTradeId && manualEntryUsesBroker(entry.metadata)) {
+    throw new Error("Broker trade confirmation is pending. Refresh before closing this trade.");
+  }
   if (brokerTradeId) {
     // Confirm it is still open at OANDA before acting on possibly-stale app state.
     const state = await getPracticeTradeState(brokerTradeId).catch(() => null);
@@ -899,6 +908,9 @@ export async function updateActiveManualTradeLevels(userId: string, id: string, 
   }
 
   const brokerTradeId = brokerTradeIdOf(entry);
+  if (!brokerTradeId && manualEntryUsesBroker(entry.metadata)) {
+    throw new Error("Broker trade confirmation is pending. Refresh before changing protection.");
+  }
   if (brokerTradeId) {
     const state = await getPracticeTradeState(brokerTradeId).catch(() => null);
     if (!state || state.closed) {
@@ -974,6 +986,7 @@ async function finalizeTriggeredEntry(id: string) {
     const found = await query<EntryRow>(`SELECT ${SELECT_FIELDS} FROM pending_manual_entries WHERE id=$1 AND status='TRIGGERING'`, [id]);
     const entry = found.rows[0];
     if (!entry || entry.trigger_price === null) return;
+    if (manualEntryUsesBroker(entry.metadata)) return;
     const triggerPrice = Number(entry.trigger_price);
     const storedStop = numberOrNull(entry.stop_price);
     const storedTarget = numberOrNull(entry.target_price);
@@ -1081,7 +1094,7 @@ export async function evaluatePendingManualEntries(tick: MarketPriceTick) {
         await client.query("UPDATE pending_manual_entries SET status='INVALIDATED',cancelled_at=$2,last_observed_price=$3,last_observed_at=$2,updated_at=now() WHERE id=$1 AND status='PENDING'", [row.id, tickTime, price]);
         if (brokerOrderId) toCancel.push(brokerOrderId);
         terminal.push({ entry: row, event: "invalidated" });
-      } else if (event === "entry" && !brokerOrderId) {
+      } else if (event === "entry" && !brokerOrderId && !manualEntryUsesBroker(row.metadata)) {
         const updated = await client.query("UPDATE pending_manual_entries SET status='TRIGGERING',trigger_price=$2,triggered_at=$3,last_observed_price=$2,last_observed_at=$3,updated_at=now() WHERE id=$1 AND status='PENDING' RETURNING id", [row.id, price, tickTime]);
         if (updated.rows[0]) claimed.push(row.id);
       } else if (event === "entry" && brokerOrderId && !entryTouched) {
@@ -1147,6 +1160,8 @@ export async function resolveOpenManualTrades(tick: MarketPriceTick) {
         WHERE t.origin='manual' AND t.status='open' AND t.pair=$1
           AND t.entry IS NOT NULL AND t.stop IS NOT NULL AND t.target IS NOT NULL
           AND (e.metadata->>'brokerTradeId') IS NULL
+          AND (e.metadata->>'brokerOrderId') IS NULL
+          AND COALESCE(e.metadata->>'execution','') IN ('','simulated_paper')
           -- No SL/TP chosen: its stored levels are only a sizing reference.
           AND COALESCE(e.metadata->>'noLevels','false') <> 'true'
         FOR UPDATE OF t SKIP LOCKED`,

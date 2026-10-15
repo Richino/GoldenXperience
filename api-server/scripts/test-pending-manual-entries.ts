@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
-import { confirmedManualBrokerClose, decidePendingManualEntryEvent, inferPendingOrderType, manualBrokerCloseResultR } from "../src/pending-manual-entries.js";
+import { confirmedManualBrokerClose, decidePendingManualEntryEvent, inferPendingOrderType, manualBrokerCloseResultR, manualEntryUsesBroker } from "../src/pending-manual-entries.js";
 import { pipSizeFor } from "../../frontend/src/lib/instruments/catalog.js";
 import { confirmedPracticeCloseFill, practiceOrderStateFromTransactions, practiceTradeStateFromTransactions } from "../../frontend/src/lib/oanda/client.js";
+
+// A submission has no broker ID yet, but must never fall back to a paper fill.
+for (const metadata of [
+  { execution: "submitting" }, { execution: "scheduled" },
+  { execution: "oanda_entry_order" }, { brokerOrderId: "2213" },
+  { brokerTradeId: "2214" }, { execution: "oanda_rejected" },
+]) assert.equal(manualEntryUsesBroker(metadata), true);
+assert.equal(manualEntryUsesBroker({ execution: "simulated_paper" }), false);
+assert.equal(manualEntryUsesBroker(null), false);
 
 assert.equal(inferPendingOrderType("long", 0.582, 0.58129), "buy_stop");
 assert.equal(inferPendingOrderType("long", 0.5805, 0.58129), "buy_limit");

@@ -593,12 +593,15 @@ export async function createPendingManualEntry(userId: string, payload: Record<s
     `INSERT INTO pending_manual_entries(
        user_id,instrument,direction,entry_price,entry_order_type,current_price_at_creation,
        expiration_type,expires_at,activate_at,invalidation_price,invalidation_side,last_observed_price,last_observed_at,stop_price,target_price,metadata
-     ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$16,$9,$10,$11,$12,$13,$14,jsonb_build_object('priceSource',$15::text,'createdFrom','chart','orderReferencePrice',$11::numeric,'frozenContext',$17::jsonb,'noLevels',$18::boolean,'sizingStop',$19::numeric,'execution',CASE WHEN $16::timestamptz IS NULL THEN 'submitting' ELSE 'scheduled' END))
+     ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$16,$9,$10,$11,$12,$13,$14,jsonb_build_object('priceSource',$15::text,'createdFrom','chart','orderReferencePrice',$11::numeric,'frozenContext',$17::jsonb,'noLevels',$18::boolean,'sizingStop',$19::numeric,'execution',CASE WHEN $16::timestamptz IS NULL THEN 'submitting' ELSE 'scheduled' END,'tradeStyle',$20::text))
      RETURNING ${SELECT_FIELDS}`,
     [userId, tick.instrument, direction, entryPrice, inferPendingOrderType(direction, entryPrice, orderReferencePrice), currentPrice,
       orderExpiresAt ? "time" : "none", orderExpiresAt, cancelPrice,
       cancelPrice === null ? null : invalidationSide(cancelPrice, orderReferencePrice), orderReferencePrice, tick.time, risk.stop, risk.target, tick.source, activateAt, frozenContext,
-      risk.model === "NO_LEVELS", risk.sizingStop],
+      risk.model === "NO_LEVELS", risk.sizingStop,
+      // Day or swing (held for days), chosen on the ticket; lets the journal and
+      // weekly review score the two styles separately.
+      payload.tradeStyle === "swing" ? "swing" : "day"],
   );
   const entryRow = result.rows[0]!;
   // Scheduled ("submit after") entry: stay dormant until the activation job runs

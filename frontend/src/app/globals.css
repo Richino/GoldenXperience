@@ -20839,3 +20839,9 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
     gap: 0.75rem;
   }
 }
+/* After release: the group's verdict from actual vs forecast. */
+.news-impact-combined.is-result.is-up { color: var(--success); }
+.news-impact-combined.is-result.is-down { color: var(--danger); }
+.news-impact-combined.is-result.is-mixed { color: var(--pending, #f5a524); }
+/* Disagreeing calls with a clear record leader: a lean, not a verdict. */
+.news-impact-combined.is-lean { color: var(--foreground); }

@@ -390,7 +390,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     }
     if (url.pathname === "/api/review/weekly/summary" && request.method === "POST") {
       const review = await weeklyReview(user.id);
-      if (!review.stats.trades) return json(request, response, { error: "No closed trades in the last 7 days." }, 409);
+      if (!review.stats.trades) return json(request, response, { error: "No closed trades last week." }, 409);
       try {
         return json(request, response, await weeklySummary(user.id, review));
       } catch (error) {

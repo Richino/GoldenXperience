@@ -5,14 +5,14 @@ import { journalTradeLog } from "./paper-cycle.js";
 
 /**
  * Home's weekly review: what the trader's own (manual) trades did over the
- * last 7 days, the rule-based findings behind the losses, and an AI coach's
+ * last completed forex week (Sunday 17:00 to Friday 17:00 New York), so it only
+ * changes once a week, after the Friday close, the rule-based findings behind the losses, and an AI coach's
  * summary written only from those numbers. Each week's review is saved
  * (weekly_reviews, one row per user per New York week), the saved summary is
  * reused while the week's trades are unchanged, and past weeks are handed to
  * the next summary so mistakes that keep coming back are called out.
  */
 
-const WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const HISTORY_WEEKS = 8;
 const TIMEOUT_MS = 30_000;
 
@@ -286,17 +286,6 @@ function findingsOf(trades: Trade[], stats: WeeklyStats): WeeklyFinding[] {
   return findings.sort((a, b) => (a.impact ?? 0) - (b.impact ?? 0));
 }
 
-const etDate = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "America/New_York" });
-
-/** Monday of the New York week containing now, as YYYY-MM-DD. */
-function weekStartEt(now: number) {
-  const [year, month, day] = etDate.format(new Date(now)).split("-").map(Number);
-  const date = new Date(Date.UTC(year!, month! - 1, day!));
-  const sinceMonday = (date.getUTCDay() + 6) % 7;
-  date.setUTCDate(date.getUTCDate() - sinceMonday);
-  return date.toISOString().slice(0, 10);
-}
-
 const isMissingTable = (error: unknown) => (error as { code?: string } | null)?.code === "42P01";
 
 async function savedHistory(userId: string, weekStart: string): Promise<WeeklyHistoryItem[]> {
@@ -328,21 +317,58 @@ async function savedHistory(userId: string, weekStart: string): Promise<WeeklyHi
   }
 }
 
+const etParts = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23", weekday: "short",
+});
+
+function partsEt(time: number) {
+  const parts = Object.fromEntries(etParts.formatToParts(new Date(time)).map((part) => [part.type, part.value]));
+  return { year: Number(parts.year), month: Number(parts.month), day: Number(parts.day), hour: Number(parts.hour), minute: Number(parts.minute), weekday: parts.weekday as string };
+}
+
+/** A New York wall-clock time as a UTC timestamp (DST-aware). */
+function etWallTime(year: number, month: number, day: number, hour: number) {
+  let guess = Date.UTC(year, month - 1, day, hour);
+  for (let i = 0; i < 3; i += 1) {
+    const seen = partsEt(guess);
+    const seenAsUtc = Date.UTC(seen.year, seen.month - 1, seen.day, seen.hour, seen.minute);
+    guess += Date.UTC(year, month - 1, day, hour) - seenAsUtc;
+  }
+  return guess;
+}
+
+/**
+ * The last completed forex week: Sunday 17:00 to Friday 17:00 New York, ending
+ * at the most recent Friday close. Before this Friday's close it is the week
+ * before, so the review holds still all week and refreshes once, after Friday.
+ */
+export function completedTradingWeek(now: number) {
+  const today = partsEt(now);
+  const weekdayIndex = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(today.weekday); // Mon = 0
+  let daysBack = (weekdayIndex - 4 + 7) % 7; // back to Friday
+  if (daysBack === 0 && today.hour < 17) daysBack = 7; // Friday before the close: last week
+  const friday = new Date(Date.UTC(today.year, today.month - 1, today.day - daysBack));
+  const [y, m, d] = [friday.getUTCFullYear(), friday.getUTCMonth() + 1, friday.getUTCDate()];
+  const to = etWallTime(y, m, d, 17);
+  const from = etWallTime(y, m, d - 5, 17);
+  const monday = new Date(Date.UTC(y, m - 1, d - 4)).toISOString().slice(0, 10);
+  return { from, to, weekStart: monday };
+}
+
 export async function weeklyReview(userId: string, now = Date.now()): Promise<WeeklyReview> {
   const rows = (await journalTradeLog(userId, { limit: 500, filter: "all" })) as unknown as JournalRow[];
-  const from = now - WINDOW_MS;
+  const { from, to, weekStart } = completedTradingWeek(now);
   const trades = rows
     .filter((row) => row.origin === "manual")
     .map(toTrade)
-    .filter((trade): trade is Trade => trade !== null && trade.closedAt >= from && trade.closedAt <= now)
+    .filter((trade): trade is Trade => trade !== null && trade.closedAt >= from && trade.closedAt < to)
     .sort((a, b) => a.closedAt - b.closedAt);
   const stats = statsOf(trades);
-  const weekStart = weekStartEt(now);
   return {
     weekStart,
     history: await savedHistory(userId, weekStart),
     from: new Date(from).toISOString(),
-    to: new Date(now).toISOString(),
+    to: new Date(to).toISOString(),
     stats,
     findings: findingsOf(trades, stats),
     fingerprint: trades.map((trade) => `${trade.id}:${trade.r ?? ""}:${trade.pl ?? ""}`).join("|"),
@@ -490,7 +516,7 @@ export async function weeklySummary(userId: string, review: WeeklyReview): Promi
         model,
         reasoning: { effort: "low" },
         input: JSON.stringify({
-          task: "You are a trading coach reviewing one trader's own forex trades from the last 7 days, with their earlier saved weeks for context. Explain where they went wrong, which mistakes keep repeating, and what to do to improve, from these measured facts only.",
+          task: "You are a trading coach reviewing one trader's own forex trades from their last completed trading week (Sunday to Friday close), with their earlier saved weeks for context. Explain where they went wrong, which mistakes keep repeating, and what to do to improve, from these measured facts only.",
           rules: RULES,
           fieldMeanings: FIELD_MEANINGS,
           facts,

@@ -5,7 +5,8 @@ import { RotateCcw, Sparkles } from "lucide-react";
 import { apiUrl } from "@/lib/api/url";
 
 /**
- * Home's weekly review: the last 7 days of the trader's own trades, measured
+ * Home's weekly review: the last completed trading week (Sunday to the Friday
+ * close, New York) of the trader's own trades — it changes once a week — measured
  * by the server, with the rule-based findings and an AI coach's summary of
  * where it went wrong and what to change. The summary is written only from
  * the measured facts (the server rejects any number it cannot trace). Each
@@ -115,7 +116,7 @@ export function WeeklyReview({ currency }: { currency: string }) {
           <span className="nl-sec-num" aria-hidden="true">04</span>
           <h2 id="nl-wr-title">Last week review</h2>
         </div>
-        <span className="nl-wr-window metric-number">Last 7 days</span>
+        <span className="nl-wr-window metric-number">{review ? `Week of ${weekLabel(review.weekStart)} · updates after Friday close` : "Last week"}</span>
       </div>
 
       {reviewError ? (
@@ -126,7 +127,7 @@ export function WeeklyReview({ currency }: { currency: string }) {
           <span className="gx-skel nl-wr-skel-line is-short" />
         </div>
       ) : stats.trades === 0 ? (
-        <p className="nl-empty">No closed trades in the last 7 days. Your review appears here once you have some.</p>
+        <p className="nl-empty">No closed trades last week. Your review appears here after a week with some.</p>
       ) : (
         <div className="nl-wr-card">
           <dl className="nl-wr-stats">

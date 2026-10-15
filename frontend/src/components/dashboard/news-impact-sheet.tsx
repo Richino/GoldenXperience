@@ -10,7 +10,7 @@ import { createImpactCache } from "@/lib/news/impact-cache";
 import { apiUrl } from "@/lib/api/url";
 import { currenciesOf, displayNameFor, isKnownInstrument, pipSizeFor } from "@/lib/instruments/catalog";
 import type { CandleSeries } from "@/types/forex";
-import { newsSurpriseHint, predictSurprise, type CalendarValueFields, type TrendDirection } from "@/lib/news/surprise-hint";
+import { newsSurpriseHint, type CalendarValueFields, type TrendDirection } from "@/lib/news/surprise-hint";
 
 /** The eight majors; every pair between them that OANDA lists is shown. */
 const MAJOR_CURRENCIES = ["EUR", "GBP", "AUD", "NZD", "USD", "CAD", "CHF", "JPY"];
@@ -133,7 +133,14 @@ function useReleaseMoves(pairs: string[], releasedAt: number | null) {
   };
 }
 
-type SavedPrediction = { event_key: string; call: "beat" | "miss" | null; chosen_signal: string | null };
+/** How the chosen signal had scored on earlier releases when the call was made. */
+type SignalRecord = { n: number; hits: number; scope: "series" | "overall" };
+type SavedPrediction = { event_key: string; call: "beat" | "miss" | null; chosen_signal: string | null; signal_record?: SignalRecord | null };
+
+/** Smoothed hit rate, so a 1/1 record does not outrank 8/10. */
+const recordScore = (record: SignalRecord | null | undefined) => (record ? (record.hits + 1) / (record.n + 2) : 0);
+const recordText = (record: SignalRecord | null | undefined) =>
+  record && record.n > 0 ? `${record.hits}/${record.n}${record.scope === "series" ? " on this release" : " overall"}` : null;
 type PredictionJournal = { predictions: SavedPrediction[]; record: { calls: number; correct: number } };
 
 /** Same key the server journal stores each call under. */
@@ -195,27 +202,58 @@ export function NewsImpactSheet({
   const saved = event ? journal?.predictions.find((row) => row.event_key === eventKey(event)) : undefined;
   // The journal's frozen call wins; the simple local rule covers events it has
   // not seen (e.g. before its first run).
-  const predicted = saved ? saved.call : event ? predictSurprise(event) : null;
+  // Only the journal's frozen call is shown. A local forecast-vs-previous
+  // fallback used to fill in before the journal locked its call, and could then
+  // flip (AUD Employment Change showed "Up", then the frozen call was "Down").
+  const predicted = saved ? saved.call : null;
   // The expected move is the pre-release call and never changes: it comes only
   // from forecast vs previous, so the actual cannot rewrite it after the fact.
   // Each release in the group gets its own pre-release call (journal first),
   // then they are combined: one direction if they agree, none if they clash.
-  const expectedMove = (item: ImpactEvent): { call: "beat" | "miss" | null; move: TrendDirection | null } => {
+  const expectedMove = (item: ImpactEvent): { call: "beat" | "miss" | null; move: TrendDirection | null; frozen: boolean; record: SignalRecord | null } => {
     const row = journal?.predictions.find((entry) => entry.event_key === eventKey(item));
-    const call = row ? row.call : predictSurprise(item);
+    const call = row ? row.call : null;
     const hint = newsSurpriseHint({ ...item, actual: null });
-    return { call, move: hint.kind === "before" && call ? (call === "beat" ? hint.beatDirection : hint.missDirection) : null };
+    return { call, frozen: Boolean(row), record: row?.signal_record ?? null, move: hint.kind === "before" && call ? (call === "beat" ? hint.beatDirection : hint.missDirection) : null };
   };
   const group = event ? [event, ...related] : [];
   const groupCalls = group.map((item) => ({ item, ...expectedMove(item) }));
   const calledMoves = groupCalls.map((entry) => entry.move).filter((move): move is TrendDirection => move !== null);
   const mixed = calledMoves.length > 1 && calledMoves.some((move) => move !== calledMoves[0]);
+  // Once every release in the group is out, judge it on actual vs forecast:
+  // the pre-release "mixed" no longer applies, the numbers decide.
+  const groupCurrency = event?.currency ?? "";
+  const results = groupCalls.map(({ item }) => {
+    const hint = newsSurpriseHint(item);
+    return hint.kind === "after" ? hint.direction : null;
+  });
+  const allReleased = group.length > 0 && group.every((item) => Boolean(item.actual)) && results.every((result) => result !== null);
+  const movingResults = results.filter((result): result is TrendDirection => result === "up" || result === "down");
+  const resultVerdict: { tone: "up" | "down" | "mixed" | "flat"; text: string } | null = !allReleased || related.length === 0 ? null
+    : movingResults.length === 0
+      ? { tone: "flat", text: `In line with forecasts: no surprise for ${groupCurrency}.` }
+      : movingResults.every((result) => result === movingResults[0])
+        ? movingResults[0] === "up"
+          ? { tone: "up", text: `${movingResults.length === group.length ? (group.length === 2 ? "Both" : "All") : "The surprises came out"} better than forecast: ${groupCurrency}-positive.` }
+          : { tone: "down", text: `${movingResults.length === group.length ? (group.length === 2 ? "Both" : "All") : "The surprises came out"} worse than forecast: ${groupCurrency}-negative.` }
+        : { tone: "mixed", text: `Mixed result: some better, some worse than forecast. No clear read for ${groupCurrency} from the numbers.` };
   const preRelease = event ? newsSurpriseHint({ ...event, actual: null }) : null;
   const singleMove: TrendDirection | null =
     preRelease?.kind === "before" && predicted
       ? predicted === "beat" ? preRelease.beatDirection : preRelease.missDirection
       : null;
-  const currencyMove: TrendDirection | null = related.length === 0 ? singleMove : mixed ? null : calledMoves[0] ?? null;
+  // Disagreeing calls: lean with the call whose signal has the clearly better
+  // record (smoothed, so small samples count for less). Too close to separate,
+  // or not enough history, stays "mixed" with no expected direction.
+  const rankedCalls = groupCalls
+    .filter((entry) => entry.move !== null)
+    .sort((a, b) => recordScore(b.record) - recordScore(a.record));
+  const leader = mixed ? rankedCalls[0] ?? null : null;
+  const runnerUp = mixed ? rankedCalls.find((entry) => entry.move !== leader?.move) ?? null : null;
+  const lean = leader && runnerUp && leader.record && leader.record.n >= 8
+    && recordScore(leader.record) - recordScore(runnerUp.record) >= 0.05 ? leader : null;
+  const currencyMove: TrendDirection | null = related.length === 0 ? singleMove
+    : mixed ? lean?.move ?? null : calledMoves[0] ?? null;
   const currency = event?.currency ?? "";
   const pairs = event ? pairsFor(currency) : [];
   // Pairs you hold come first, so the answer you care about is at the top. A
@@ -261,17 +299,25 @@ export function NewsImpactSheet({
             // Several releases at once: one line each with its own call, then
             // the combined read the pairs below use.
             <div className="news-impact-group">
-              {groupCalls.map(({ item, move }) => (
+              {groupCalls.map(({ item, move, frozen }, index) => (
                 <div key={item.id} className="news-impact-group-row">
                   <b>{item.title}</b>
                   <span className="metric-number">
                     F {item.forecast || "—"} · P {item.previous || "—"}{item.actual ? ` · A ${item.actual}` : ""}
+                    {recordText(groupCalls[index]?.record) ? ` · call record ${recordText(groupCalls[index]?.record)}` : ""}
                   </span>
-                  {move ? <DirectionChip direction={move} /> : <span className="news-impact-dir">No call</span>}
+                  {allReleased
+                    // Released: the chip is the result (actual vs forecast), not the old call.
+                    ? results[index] === "up" || results[index] === "down"
+                      ? <span className={`news-impact-dir is-${results[index]}`} title="Actual vs forecast">{results[index] === "up" ? "Better" : "Worse"}</span>
+                      : <span className="news-impact-dir">In line</span>
+                    : move ? <DirectionChip direction={move} /> : <span className="news-impact-dir">{frozen ? "No call" : "Not called yet"}</span>}
                 </div>
               ))}
-              <p className={`news-impact-combined${mixed ? " is-mixed" : ""}`}>
-                {mixed
+              <p className={`news-impact-combined${resultVerdict ? ` is-result is-${resultVerdict.tone}` : mixed && lean ? " is-lean" : mixed ? " is-mixed" : ""}`}>
+                {resultVerdict ? resultVerdict.text : mixed && lean
+                  ? `Calls disagree. Leans ${currency} ${lean.move}: ${lean.item.title}'s call has been right ${recordText(lean.record)}, against ${runnerUp?.item.title}'s ${recordText(runnerUp?.record) ?? "no record"}.`
+                  : mixed
                   ? `Mixed: these releases point different ways, so there is no expected ${currency} direction. ${currency} moves once, on all of them together.`
                   : currencyMove
                     ? `Calls agree: ${currency} expected ${currencyMove}.`
@@ -416,7 +462,7 @@ export function NewsImpactSheet({
                         </span>
                       ) : (
                         <span className="news-impact-legs">
-                          {move ? <DirectionChip direction={move} /> : <span className="news-impact-dir">{mixed ? "Mixed" : "No call"}</span>}
+                          {move ? <DirectionChip direction={move} /> : <span className="news-impact-dir">{mixed ? "Mixed" : saved || related.length ? "No call" : "Not called yet"}</span>}
                           {helpsByCall !== null ? (
                             <em className={helpsByCall ? "is-up" : "is-down"}>
                               {helpsByCall ? "Helps you" : "Hurts you"}

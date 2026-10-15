@@ -226,15 +226,45 @@ export async function newsPredictionsSnapshot() {
   if (!databaseConfigured()) return { predictions: [], record: { calls: 0, correct: 0 } };
   const [rows, record] = await Promise.all([
     query(
-      `SELECT event_key, title, currency, event_time, chosen_signal, call, currency_call, actual, outcome, correct
+      `SELECT event_key, series_key, title, currency, event_time, chosen_signal, call, currency_call, actual, outcome, correct
        FROM news_predictions WHERE source = 'live' AND event_time >= now() - interval '8 days' ORDER BY event_time`,
     ),
     query<{ calls: string; correct: string }>(
       "SELECT count(*) FILTER (WHERE correct IS NOT NULL) AS calls, count(*) FILTER (WHERE correct) AS correct FROM news_predictions WHERE source = 'live'",
     ),
   ]);
+  // Each call's track record as it stood when it was made: the chosen signal's
+  // hits on earlier releases only (that series once it has enough samples, else
+  // overall — the same rule chooseCall used). Lets the Home drawer lean on the
+  // better-proven call when simultaneous releases disagree, without counting
+  // the release's own result.
+  const scored = await query<{ series_key: string; event_time: string; signals: SignalVotes; outcome: "beat" | "miss" }>(
+    "SELECT series_key, event_time, signals, outcome FROM news_predictions WHERE outcome IN ('beat', 'miss')",
+  );
+  const signalRecord = (chosen: string | null, seriesKey: string, before: string) => {
+    if (!chosen) return null;
+    const [signal, inverse] = chosen.split(":") as [SignalName, string | undefined];
+    const cutoff = Date.parse(before);
+    const tally = (sameSeries: boolean) => {
+      let n = 0, hits = 0;
+      for (const row of scored.rows) {
+        if (Date.parse(row.event_time) >= cutoff || (sameSeries && row.series_key !== seriesKey)) continue;
+        const vote = row.signals?.[signal] ?? 0;
+        if (!vote) continue;
+        const right = (vote > 0) === (row.outcome === "beat");
+        n += 1;
+        if (inverse ? !right : right) hits += 1;
+      }
+      return { n, hits };
+    };
+    const series = tally(true);
+    return series.n >= MIN_SERIES_SAMPLES ? { ...series, scope: "series" as const } : { ...tally(false), scope: "overall" as const };
+  };
   return {
-    predictions: rows.rows,
+    predictions: rows.rows.map((row) => ({
+      ...row,
+      signal_record: signalRecord(row.chosen_signal as string | null, row.series_key as string, row.event_time as string),
+    })),
     record: { calls: Number(record.rows[0]?.calls ?? 0), correct: Number(record.rows[0]?.correct ?? 0) },
   };
 }

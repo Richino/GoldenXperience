@@ -5,6 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   BarChart3,
   CandlestickChart,
+  Check,
   ChevronDown,
   Circle,
   Layers,
@@ -23,6 +24,17 @@ export const VARIANT_ICONS: Record<ChartVariant, LucideIcon> = {
   line: LineChart,
   area: TrendingUp,
   baseline: Waves,
+};
+
+/** One line on what each style shows, so the menu explains itself. */
+const VARIANT_DESCRIPTIONS: Record<ChartVariant, string> = {
+  candle: "Open, high, low and close",
+  hollow: "Hollow when price closed up",
+  heikin: "Averaged candles, smoother trend",
+  bar: "Open, high, low, close as bars",
+  line: "Closing prices only",
+  area: "Line with a shaded fill",
+  baseline: "Above or below a set price",
 };
 
 export function ChartTypeSelect({
@@ -126,42 +138,44 @@ export function ChartTypeSelect({
                 : { opacity: 0, scale: 0.98, y: -4 }
             }
             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-            className={`menu-popover absolute top-[calc(100%+6px)] z-50 min-w-[188px] overflow-hidden rounded-2xl p-1.5 ${
+            className={`menu-popover opt-menu absolute top-[calc(100%+6px)] z-50 overflow-hidden rounded-2xl ${
               compact || toolbar ? "right-0 left-auto origin-top-right" : "left-0 origin-top-left"
             }`}
           >
-            {CHART_VARIANTS.map((option, index) => {
-              const Icon = VARIANT_ICONS[option.value];
-              const selected = option.value === value;
-
-              return (
-                <motion.button
-                  key={option.value}
-                  type="button"
-                  role="option"
-                  aria-selected={selected}
-                  initial={reducedMotion ? false : { opacity: 0, x: -4 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{
-                    duration: 0.18,
-                    delay: reducedMotion ? 0 : index * 0.025,
-                    ease: [0.22, 1, 0.36, 1],
-                  }}
-                  onClick={() => {
-                    onChange(option.value);
-                    setOpen(false);
-                  }}
-                  className={`pressable flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-medium ${
-                    selected
-                      ? "menu-item-active"
-                      : "text-[color:var(--muted-strong)] hover:bg-[color:var(--surface-raised)] hover:text-[color:var(--foreground)]"
-                  }`}
-                >
-                  <Icon className="size-3.5 shrink-0" strokeWidth={selected ? 2.1 : 1.8} />
-                  {option.label}
-                </motion.button>
-              );
-            })}
+            <header className="ind-head">
+              <div>
+                <b>Chart type</b>
+                <span>{active.label}</span>
+              </div>
+            </header>
+            <div className="ind-scroll">
+              {CHART_VARIANTS.map((option) => {
+                const Icon = VARIANT_ICONS[option.value];
+                const selected = option.value === value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="option"
+                    aria-selected={selected}
+                    onClick={() => {
+                      onChange(option.value);
+                      setOpen(false);
+                    }}
+                    className={`opt-row pressable${selected ? " is-on" : ""}`}
+                  >
+                    <span className="opt-icon" aria-hidden="true">
+                      <Icon strokeWidth={2} />
+                    </span>
+                    <span className="ind-copy">
+                      <b>{option.label}</b>
+                      <small>{VARIANT_DESCRIPTIONS[option.value]}</small>
+                    </span>
+                    {selected ? <Check className="opt-check" aria-hidden="true" /> : null}
+                  </button>
+                );
+              })}
+            </div>
           </motion.div>
         ) : null}
       </AnimatePresence>

@@ -72,6 +72,8 @@ export type ChartHealthLevels = {
   onCancel: () => void;
   onSave: () => void;
   onToggle: (key: "stop" | "target") => void;
+  /** Remove both levels at once: run the trade with no stop or target. */
+  onClear: () => void;
   /** What each level must sit beyond: a waiting order checks against its entry. */
   relativeTo?: "entry" | "current price";
 };
@@ -324,6 +326,21 @@ export function ChartLevelEditor({ levels, signal }: { levels: ChartHealthLevels
           </div>
         );
       })}
+      {levels.stop === null ? (
+        <p className="nl-clevels-warning" role="note">
+          No stop loss: this trade's loss isn't capped until you close it.
+        </p>
+      ) : null}
+      {levels.stop !== null || levels.target !== null ? (
+        // One tap to run the trade with neither level (then Save).
+        <button
+          type="button"
+          className="nl-clevels-none pressable"
+          onClick={levels.onClear}
+        >
+          No stop or target
+        </button>
+      ) : null}
       {levels.error ? <p className="nl-clevels-error" role="alert">{levels.error}</p> : null}
       <div className="nl-clevels-actions">
         <button type="button" className="nl-clevels-cancel pressable" onClick={levels.onCancel} disabled={levels.saving}>

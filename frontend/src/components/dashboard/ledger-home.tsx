@@ -320,7 +320,7 @@ function LedgerHero({
         </div>
         <div>
           <dt>
-            Open risk{riskShare !== null ? <span> · {riskShare.toFixed(1)}%<span className="nl-wide-only"> of balance</span></span> : null}
+            Max loss{riskShare !== null ? <span> · {riskShare.toFixed(1)}%<span className="nl-wide-only"> of balance</span></span> : null}
           </dt>
           <dd className="metric-number">{openRisk === null ? "—" : money(openRisk, account.currency)}</dd>
         </div>

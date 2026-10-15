@@ -8,70 +8,102 @@ import {
   type ChartIndicator,
 } from "@/lib/chart-utils";
 
-const OVERLAY_INDICATORS = CHART_INDICATORS.filter(
-  (indicator) => indicator.group === "overlay",
-);
-const FILTER_INDICATORS = CHART_INDICATORS.filter(
-  (indicator) => indicator.group === "filter",
-);
+type IndicatorOption = (typeof CHART_INDICATORS)[number];
+const byValue = new Map<string, IndicatorOption>(CHART_INDICATORS.map((indicator) => [indicator.value, indicator]));
 
-function IndicatorGroup({
-  title,
-  options,
+/** What each one draws, in a line, so the menu explains itself. */
+const DESCRIPTIONS: Partial<Record<ChartIndicator, string>> = {
+  "support-resistance": "Key price levels from past turns",
+  "swing-trend-lines": "Lines through swing highs and lows",
+  "fibonacci-retracement": "Retracement levels of the last swing",
+  amd: "Asia, London and New York to noon",
+  "amd-range": "Accumulation box on any range",
+  "amd-fvg": "Fair value gaps",
+  atr14: "Average candle range, 14 bars",
+  rsi14: "Momentum, 14 bars",
+  "spread-filter": "Badge when the spread is over 2 pips",
+  "session-filter": "Session reminder badge on the chart",
+  "news-filter": "News reminder badge on the chart",
+};
+
+/** Short chip labels for the moving averages row. */
+const CHIP_LABELS: Partial<Record<ChartIndicator, string>> = {
+  ema21: "21",
+  ema50: "50",
+  "ema-50-100-200": "50/100/200",
+  ema200: "200",
+};
+
+const SECTIONS: { title: string; chips?: boolean; items: ChartIndicator[] }[] = [
+  { title: "Levels", items: ["support-resistance", "swing-trend-lines", "fibonacci-retracement"] },
+  { title: "Sessions", items: ["amd", "amd-range", "amd-fvg"] },
+  { title: "Moving averages · EMA", chips: true, items: ["ema21", "ema50", "ema-50-100-200", "ema200"] },
+  { title: "Momentum & volatility", items: ["atr14", "rsi14"] },
+  { title: "Filters", items: ["spread-filter", "session-filter", "news-filter"] },
+];
+
+function IndicatorSection({
+  section,
   enabled,
   onToggle,
-  reducedMotion,
 }: {
-  title: string;
-  options: ReadonlyArray<(typeof CHART_INDICATORS)[number]>;
+  section: (typeof SECTIONS)[number];
   enabled: ChartIndicator[];
   onToggle: (indicator: ChartIndicator) => void;
-  reducedMotion: boolean | null;
 }) {
+  const options = section.items.map((value) => byValue.get(value)).filter((option): option is IndicatorOption => Boolean(option));
+  if (!options.length) return null;
+  const onCount = options.filter((option) => enabled.includes(option.value)).length;
   return (
-    <div className="px-1">
-      <div className="px-2 pb-2 pt-1 text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--muted)]">
-        {title}
-      </div>
-      <div className="flex flex-col gap-1">
-        {options.map((option, index) => {
-          const selected = enabled.includes(option.value);
-
-          return (
-            <motion.button
-              key={option.value}
-              type="button"
-              role="menuitemcheckbox"
-              aria-checked={selected}
-              initial={reducedMotion ? false : { opacity: 0, x: -4 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{
-                duration: 0.18,
-                delay: reducedMotion ? 0 : index * 0.02,
-                ease: [0.22, 1, 0.36, 1],
-              }}
-              onClick={() => onToggle(option.value)}
-              className={`pressable flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left text-xs font-medium ${
-                selected
-                  ? "menu-item-active"
-                  : "text-[color:var(--muted-strong)] hover:bg-[color:var(--surface-raised)] hover:text-[color:var(--foreground)]"
-              }`}
-            >
-              <span
-                className={`grid size-4 shrink-0 place-items-center rounded-md border ${
-                  selected
-                    ? "border-[color:var(--accent)] bg-[color:var(--accent)] text-[color:var(--background)]"
-                    : "border-[color:var(--border-strong)] bg-[color:var(--surface)]"
-                }`}
+    <section className="ind-section">
+      <h4 className="ind-section-title">
+        {section.title}
+        {onCount > 0 ? <span className="metric-number">{onCount} on</span> : null}
+      </h4>
+      {section.chips ? (
+        <div className="ind-chips">
+          {options.map((option) => {
+            const selected = enabled.includes(option.value);
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={selected}
+                aria-label={option.label}
+                className={`ind-chip pressable${selected ? " is-on" : ""}`}
+                onClick={() => onToggle(option.value)}
               >
-                {selected ? <Check className="size-2.5" strokeWidth={3} /> : null}
-              </span>
-              {option.label}
-            </motion.button>
-          );
-        })}
-      </div>
-    </div>
+                {selected ? <Check aria-hidden="true" /> : null}
+                {CHIP_LABELS[option.value] ?? option.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="ind-rows">
+          {options.map((option) => {
+            const selected = enabled.includes(option.value);
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={selected}
+                className={`ind-row pressable${selected ? " is-on" : ""}`}
+                onClick={() => onToggle(option.value)}
+              >
+                <span className="ind-copy">
+                  <b>{option.label}</b>
+                  {DESCRIPTIONS[option.value] ? <small>{DESCRIPTIONS[option.value]}</small> : null}
+                </span>
+                <span className="ind-switch" aria-hidden="true" />
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -191,23 +223,24 @@ export function IndicatorSelect({
               reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.98, y: -4 }
             }
             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-            className="menu-popover absolute right-0 left-auto top-[calc(100%+6px)] z-50 min-w-[220px] origin-top-right overflow-hidden rounded-2xl p-2"
+            className="menu-popover ind-menu absolute right-0 left-auto top-[calc(100%+6px)] z-50 origin-top-right overflow-hidden rounded-2xl"
           >
-            <IndicatorGroup
-              title="Overlays"
-              options={OVERLAY_INDICATORS}
-              enabled={enabled}
-              onToggle={toggleIndicator}
-              reducedMotion={reducedMotion}
-            />
-            <div className="my-2 h-px bg-[color:var(--border)]" />
-            <IndicatorGroup
-              title="Filters"
-              options={FILTER_INDICATORS}
-              enabled={enabled}
-              onToggle={toggleIndicator}
-              reducedMotion={reducedMotion}
-            />
+            <header className="ind-head">
+              <div>
+                <b>Indicators</b>
+                <span>{activeCount > 0 ? `${activeCount} on` : "None on"}</span>
+              </div>
+              {activeCount > 0 ? (
+                <button type="button" className="ind-clear pressable" onClick={() => onChange([])}>
+                  Clear all
+                </button>
+              ) : null}
+            </header>
+            <div className="ind-scroll">
+              {SECTIONS.map((section) => (
+                <IndicatorSection key={section.title} section={section} enabled={enabled} onToggle={toggleIndicator} />
+              ))}
+            </div>
           </motion.div>
         ) : null}
       </AnimatePresence>

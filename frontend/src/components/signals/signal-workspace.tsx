@@ -1154,6 +1154,17 @@ function SegmentControl<T extends string>({
   );
 }
 
+/** What each history range covers, shown under its label. */
+const RANGE_DESCRIPTIONS: Record<ChartRange, string> = {
+  "1D": "Last day",
+  "1W": "Last week",
+  "1M": "Last month",
+  "3M": "3 months",
+  "6M": "6 months",
+  "1Y": "Last year",
+  All: "All history",
+};
+
 function RangeSelect({
   value,
   onChange,
@@ -1205,30 +1216,35 @@ function RangeSelect({
         <div
           role="listbox"
           aria-label="Chart history range"
-          className="menu-popover absolute right-0 top-[calc(100%+6px)] z-50 min-w-[7.5rem] origin-top-right overflow-hidden rounded-lg p-1"
+          className="menu-popover opt-menu is-range absolute right-0 top-[calc(100%+6px)] z-50 origin-top-right overflow-hidden rounded-2xl"
         >
-          {CHART_RANGES.map((option) => {
-            const selected = option === value;
-            return (
-              <button
-                key={option}
-                type="button"
-                role="option"
-                aria-selected={selected}
-                className={`pressable flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-[length:var(--text-sm)] font-medium ${
-                  selected
-                    ? "menu-item-active"
-                    : "text-[color:var(--muted-strong)] hover:bg-[color:var(--surface-raised)] hover:text-[color:var(--foreground)]"
-                }`}
-                onClick={() => {
-                  onChange(option);
-                  setOpen(false);
-                }}
-              >
-                {option}
-              </button>
-            );
-          })}
+          <header className="ind-head">
+            <div>
+              <b>History</b>
+              <span>{RANGE_DESCRIPTIONS[value]}</span>
+            </div>
+          </header>
+          <div className="range-grid">
+            {CHART_RANGES.map((option) => {
+              const selected = option === value;
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  className={`range-tile pressable${selected ? " is-on" : ""}`}
+                  onClick={() => {
+                    onChange(option);
+                    setOpen(false);
+                  }}
+                >
+                  <b className="metric-number">{option}</b>
+                  <small>{RANGE_DESCRIPTIONS[option]}</small>
+                </button>
+              );
+            })}
+          </div>
         </div>
       ) : null}
     </div>
@@ -3609,6 +3625,10 @@ export function SignalWorkspace({
           }
           return { ...draft, [key]: adding ? seedLevel(key) : null };
         });
+      },
+      onClear: () => {
+        setLevelError(null);
+        setLevelDraft((draft) => (draft ? { ...draft, stop: null, target: null } : draft));
       },
       relativeTo: levelPending ? "entry" : "current price",
     };

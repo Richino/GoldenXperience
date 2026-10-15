@@ -8,6 +8,8 @@ import { apiUrl } from "@/lib/api/url";
 import { useDragToDismiss } from "@/lib/use-drag-to-dismiss";
 import { displayNameFor, pipSizeFor, precisionFor } from "@/lib/instruments/catalog";
 import type { PendingManualEntry } from "@/types/pending-entry";
+import { calculatePositionSize, DEFAULT_RISK_POLICY } from "@/lib/risk/engine";
+import type { CandleSeries, MajorInstrument } from "@/types/forex";
 
 type ExpirationPreset = "none" | "30m" | "1h" | "4h" | "custom";
 
@@ -183,6 +185,67 @@ export function PendingEntryDialog({
     }
     return nextEntry;
   };
+  // Day or swing. Swing trades are held for days: the stop goes beyond 4-hour
+  // structure, the target defaults to 2R, and the size comes from that stop.
+  const [tradeStyle, setTradeStyle] = useState<"day" | "swing">(
+    (selectedEntry?.metadata as { tradeStyle?: string } | undefined)?.tradeStyle === "swing" ? "swing" : "day",
+  );
+  const [accountBalance, setAccountBalance] = useState<number | null>(null);
+  const [h4Candles, setH4Candles] = useState<{ high: number; low: number }[] | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    fetch(apiUrl("/api/oanda/account-summary"), { credentials: "include", cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: { data?: { balance?: number } } | null) => {
+        const balance = Number(payload?.data?.balance);
+        if (!cancelled && Number.isFinite(balance) && balance > 0) setAccountBalance(balance);
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [open]);
+  useEffect(() => {
+    if (!open || tradeStyle !== "swing") return;
+    let cancelled = false;
+    fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=H4&count=60`), { credentials: "include", cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: { data?: CandleSeries } | null) => {
+        const candles = payload?.data?.granularity === "H4" ? payload.data.candles.filter((candle) => candle.complete !== false) : [];
+        if (!cancelled) setH4Candles(candles.map((candle) => ({ high: candle.high, low: candle.low })));
+      })
+      .catch(() => { if (!cancelled) setH4Candles([]); });
+    return () => { cancelled = true; };
+  }, [instrument, open, tradeStyle]);
+  /**
+   * Swing stop: just beyond the last ~2 days of 4-hour structure (lowest low of
+   * the last 12 candles for a long, highest high for a short), padded by a
+   * quarter of the 4-hour average range. Falls back to one average range from
+   * entry if price is already past that structure.
+   */
+  const structureStop = (entry: number, side: "long" | "short") => {
+    if (!h4Candles || h4Candles.length < 14) return null;
+    const recent = h4Candles.slice(-12);
+    const range = h4Candles.slice(-14).reduce((sum, candle) => sum + (candle.high - candle.low), 0) / 14;
+    const buffer = range * 0.25;
+    const stop = side === "long"
+      ? Math.min(...recent.map((candle) => candle.low)) - buffer
+      : Math.max(...recent.map((candle) => candle.high)) + buffer;
+    const valid = side === "long" ? stop < entry : stop > entry;
+    return valid ? stop : side === "long" ? entry - range : entry + range;
+  };
+  /** Place the 4-hour structure stop and a 2R target, in whichever unit the ticket uses. */
+  const applySwingLevels = () => {
+    const entry = Number(entryPrice);
+    if (direction === null || !Number.isFinite(entry) || entry <= 0) return;
+    const stop = structureStop(entry, direction);
+    if (stop === null) return;
+    const target = entry + (entry - stop) * 2;
+    const fixed = (value: number) => value.toFixed(precisionFor(instrument));
+    setStopPrice(fixed(stop));
+    setTargetPrice(fixed(target));
+    setStopPips(pipDistanceText(fixed(stop), entryPrice));
+    setTargetPips(pipDistanceText(fixed(target), entryPrice));
+  };
   /** In pips mode, keep the stop and target prices following entry and side. */
   const syncPipLevels = (entry: string, side: "long" | "short" | null) => {
     if (levelUnit !== "pips") return;
@@ -308,6 +371,12 @@ export function PendingEntryDialog({
   const planRatio = Number.isFinite(parsedEntry) && parsedStop && parsedTarget && parsedEntry !== parsedStop
     ? Math.abs(parsedTarget - parsedEntry) / Math.abs(parsedEntry - parsedStop)
     : null;
+  // What this order risks: the server sizes to the policy % from the stop and
+  // caps it (2 lots on paper), so the ticket shows exactly that before you submit.
+  const positionSize = accountBalance !== null && parsedStop !== null && Number.isFinite(parsedStop) && parsedStop > 0
+    && Number.isFinite(parsedEntry) && parsedEntry > 0 && parsedStop !== parsedEntry
+    ? calculatePositionSize({ instrument: instrument as MajorInstrument, accountBalance, riskPercent: DEFAULT_RISK_POLICY.riskPercent, entry: parsedEntry, stop: parsedStop })
+    : null;
   // Until the entry is edited there is no reference price, so read the order
   // type against the live quote.
   const planOrder = inferredOrder ?? (direction !== null && current !== null && Number.isFinite(parsedEntry)
@@ -421,6 +490,7 @@ export function PendingEntryDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           instrument, direction, entryPrice: parsedEntry, stopPrice: parsedStop, targetPrice: parsedTarget, expiresAt, activateAt: activateAtIso, invalidationPrice: parsedInvalidation, orderReferencePrice,
+          tradeStyle,
           // Tags forward-test trades so they can be scored separately later.
           analysisContext: !selectedEntry && initialProposal?.analysisContext
               ? {
@@ -659,6 +729,24 @@ export function PendingEntryDialog({
             </p>
 
             <div className="nl-pe-submit">
+              <span>Style</span>
+              <div className="nl-an-modes" role="radiogroup" aria-label="Trade style">
+                {(["day", "swing"] as const).map((style) => (
+                  <button
+                    key={style}
+                    type="button"
+                    role="radio"
+                    aria-checked={tradeStyle === style}
+                    className={tradeStyle === style ? "is-active" : ""}
+                    onClick={() => setTradeStyle(style)}
+                  >
+                    {style === "day" ? "Day" : "Swing"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="nl-pe-submit">
               <span>Enter levels in</span>
               <div className="nl-an-modes" role="radiogroup" aria-label="Entry, stop and target units">
                 {(["pips", "price"] as const).map((unit) => (
@@ -769,9 +857,36 @@ export function PendingEntryDialog({
               </label>
             </div>
 
+            {tradeStyle === "swing" ? (
+              <div className="nl-pe-swing">
+                <button
+                  type="button"
+                  className="nl-pe-swing-apply pressable"
+                  disabled={direction === null || !h4Candles || h4Candles.length < 14 || !Number.isFinite(parsedEntry)}
+                  onClick={applySwingLevels}
+                >
+                  {h4Candles === null ? "Loading 4H structure…" : "Use 4H structure stop · 2R target"}
+                </button>
+                <p>
+                  Held for days: overnight financing is charged each day the trade stays open, and a weekend gap can
+                  open past your stop.
+                </p>
+              </div>
+            ) : null}
+
             <dl className="nl-an-rows">
               <div><dt>Stop distance</dt><dd className="metric-number">{pipsBetween(parsedEntry, parsedStop)}</dd></div>
               <div><dt>Target distance</dt><dd className="metric-number">{pipsBetween(parsedEntry, parsedTarget)}</dd></div>
+              <div>
+                <dt>Size</dt>
+                <dd className="metric-number">
+                  {parsedStop === null
+                    ? "No stop: sized from the hourly range"
+                    : positionSize
+                      ? `${positionSize.standardLots.toFixed(2)} lots · risks $${positionSize.estimatedRisk.toFixed(0)}${accountBalance ? ` (${((positionSize.estimatedRisk / accountBalance) * 100).toFixed(1)}%)` : ""}${positionSize.capped ? ` · capped (1% = ${positionSize.calculatedStandardLots.toFixed(2)})` : ""}`
+                      : "—"}
+                </dd>
+              </div>
               <div><dt>Risk : reward</dt><dd className={`metric-number${planRatio !== null ? " is-up" : ""}`}>{planRatio === null ? "—" : `1 : ${Number(planRatio.toFixed(1))}`}</dd></div>
               <div><dt>Spread</dt><dd className={`metric-number${spreadIsWide ? " is-caution" : ""}`}>{spreadPips === null ? "—" : `${spreadPips.toFixed(1)} pips${spreadIsWide ? " · wide" : ""}`}</dd></div>
               {automaticLifetime ? <div><dt>Expires</dt><dd>{automaticLifetimeHours}h after it starts watching</dd></div> : null}

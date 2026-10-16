@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { config as loadDotenv } from "dotenv";
 import { db } from "../src/database.js";
 import { TradePlanError, transitionInTx } from "../src/trade-plans.js";
+import { CLAIM_SQL } from "../src/trade-plan-monitor.js";
 
 /**
  * Checks the database guards of migration 057 against the configured
@@ -78,6 +79,30 @@ try {
   const events = await client.query("SELECT from_status,to_status FROM trade_plan_events WHERE plan_id=$1 ORDER BY id", [plan.id]);
   assert.deepEqual(events.rows.map((row) => `${row.from_status}>${row.to_status}`),
     ["DRAFT>PENDING_APPROVAL", "PENDING_APPROVAL>APPROVED", "APPROVED>MONITORING", "MONITORING>CONFIRMED", "CONFIRMED>NOTIFIED"]);
+  // Monitor leases: one worker holds a plan until its lease expires; paused plans are never claimed.
+  const watched = (await client.query<{ id: string }>(
+    `INSERT INTO trade_plans(user_id,analysis_id,instrument,direction,setup_type,status,plan_hash,timeframe,market_bias,trend_classification,
+                             entry_zone_low,entry_zone_high,stop_loss,take_profit,max_risk_percent,plan,strategy_version,expires_at,monitoring_mode)
+     VALUES($1,gen_random_uuid(),'EUR_USD','SELL','SR_REVERSAL','DRAFT','h2','H1','Bearish','DOWN',1.1235,1.124,1.13,1.12,1,'{}','db-check',now()+interval '1 day','NOTIFY')
+     RETURNING id`, [owner.id],
+  )).rows[0]!;
+  const w = { userId: owner.id, planId: watched.id };
+  await transitionInTx(client, { ...w, to: "PENDING_APPROVAL", actor: "system", reason: "db-check" });
+  await client.query("INSERT INTO trade_plan_approvals(plan_id,user_id,plan_version,plan_hash,monitoring_mode) VALUES($1,$2,1,'h2','NOTIFY')", [watched.id, owner.id]);
+  await transitionInTx(client, { ...w, to: "APPROVED", actor: "user", reason: "db-check" });
+  await transitionInTx(client, { ...w, to: "MONITORING", actor: "system", reason: "db-check" });
+  await client.query("INSERT INTO trade_plan_monitoring_state(plan_id) VALUES($1)", [watched.id]);
+  const claim = async (worker: string) => (await client.query<{ plan_id: string }>(CLAIM_SQL, [worker, 120])).rows.map((row) => row.plan_id);
+  assert.ok((await claim("worker-a")).includes(watched.id), "worker A claims the due plan");
+  assert.ok(!(await claim("worker-b")).includes(watched.id), "worker B cannot take a leased plan");
+  assert.ok((await claim("worker-a")).includes(watched.id), "worker A may renew its own lease");
+  await client.query("UPDATE trade_plan_monitoring_state SET lease_expires_at=now()-interval '1 second' WHERE plan_id=$1", [watched.id]);
+  assert.ok((await claim("worker-b")).includes(watched.id), "an expired lease (crashed worker) is taken over");
+  await client.query("UPDATE trade_plan_monitoring_state SET lease_owner=NULL,lease_expires_at=NULL WHERE plan_id=$1", [watched.id]);
+  await client.query("UPDATE trade_plans SET paused_at=now() WHERE id=$1", [watched.id]);
+  assert.ok(!(await claim("worker-a")).includes(watched.id), "a paused plan is not monitored");
+  console.log("  monitor leases behave");
+
   // Deleting the plan cascades through the append-only events.
   await client.query("DELETE FROM trade_plans WHERE id=$1", [plan.id]);
   console.log("trade plans DB guards: all checks passed (rolled back)");

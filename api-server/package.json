@@ -43,7 +43,7 @@
     "analyze:compare-normal": "tsx scripts/compare-normal-hierarchy.ts",
     "paper-cycle:test": "tsx scripts/test-paper-cycle.ts",
     "pending-entry:test": "tsx scripts/test-pending-manual-entries.ts",
-    "trade-plans:test": "tsx scripts/test-trade-plan-state.ts && tsx scripts/test-trade-plan-generator.ts && tsx scripts/test-trade-plan-confirmation.ts",
+    "trade-plans:test": "tsx scripts/test-trade-plan-state.ts && tsx scripts/test-trade-plan-generator.ts && tsx scripts/test-trade-plan-confirmation.ts && tsx scripts/test-trade-plan-monitor.ts",
     "trade-plans:live-dry-run": "tsx scripts/dry-run-trade-plans.ts",
     "trade-plans:db-check": "tsx scripts/check-trade-plans-db.ts",
     "evaluations:test": "tsx scripts/test-evaluation-upsert.ts",

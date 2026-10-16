@@ -63,6 +63,7 @@ import { runTradeMonitor } from "./trade-monitor-service.js";
 import { acceptPullbackSignal, pullbackAutomationForUser, rejectPullbackSignal, runPullbackAutomations, setPullbackAutomation } from "./pullback-automation.js";
 import { createPlannedSetup, evaluatePlannedSetup, evaluateActivePlannedSetups } from "./planned-setup-service.js";
 import { confirmationProgress, editTradePlan, generateAndStoreTradePlans } from "./trade-plan-service.js";
+import { startTradePlanMonitor } from "./trade-plan-monitor.js";
 import { TradePlanError, approveTradePlan, cancelTradePlan, getTradePlan, listTradePlans, pauseTradePlan, rejectTradePlan, resumeTradePlan } from "./trade-plans.js";
 import {
   activateDuePendingManualEntries,
@@ -1228,6 +1229,9 @@ if (databaseConfigured() && schedulersEnabled) {
   } else {
     console.log("[pending-entry] monitoring disabled because OANDA pricing is not configured");
   }
+  // Approved trade plans: confirmation, status and notifications. Places no orders.
+  if (config.isConfigured && process.env.TRADE_PLAN_MONITOR_ENABLED !== "false") startTradePlanMonitor();
+  else console.log("[trade-plan-monitor] off (OANDA not configured or TRADE_PLAN_MONITOR_ENABLED=false)");
   let collectionBusy = false;
   // Forex is shut Friday 17:00 ET to Sunday 17:00 ET. The loop keeps ticking so
   // the process stays warm on Railway, but while the market is closed it skips

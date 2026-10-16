@@ -337,6 +337,8 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
             <ul className={styles.rejected}>
               {result.rejected.map((item) => <li key={`${item.direction}-${item.setupType}`}><strong>{item.direction}</strong> {item.reason}</li>)}
             </ul>
+            {/* No setup to trade, but the market context is still worth reading. */}
+            <MarketRead state={state.research} onRefresh={state.refreshResearch} />
           </div>
           <div className={styles.dock}>
             <div className={styles.footer}>

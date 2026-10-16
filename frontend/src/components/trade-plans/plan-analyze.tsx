@@ -17,7 +17,7 @@ import {
 import styles from "./plan-analyze.module.css";
 
 /**
- * The chart's Analyze: one press reads D1/H4/H1/M15 and returns a BUY and a
+ * The chart's Analyze (swing trades, 2–5 day holds): one press reads D1/H4/H1 and returns a BUY and a
  * SELL plan (or no valid setup). One Accept approves both at the versions
  * shown; the server then watches both zones and, when one side confirms,
  * cancels the other — one trade per pair. Afterwards Analyze shows the
@@ -136,9 +136,12 @@ function setupName(plan: TradePlan) {
 
 /** What has to happen before the entry, in one line. */
 function triggerLine(plan: TradePlan) {
+  // Timeframes come from the plan itself: H4/H1 for swing plans, H1/M15 for plans made before swing mode.
+  const rules = (plan.plan.rules ?? {}) as Record<string, unknown>;
+  const tf = (value: unknown, fallback: string) => (typeof value === "string" ? value : fallback);
   return plan.setupType === "SR_REVERSAL"
-    ? `Enters after a rejection (or a sweep that is reclaimed) and an M15 break ${plan.direction === "BUY" ? "up" : "down"}.`
-    : "Enters after an H1 close through the zone, a retest that holds, and an M15 continuation.";
+    ? `Enters after a rejection (or a sweep that is reclaimed) and an ${tf(rules.confirmTimeframe, "M15")} break ${plan.direction === "BUY" ? "up" : "down"}.`
+    : `Enters after an ${tf(rules.breakoutTimeframe, "H1")} close through the zone, a retest that holds, and an ${tf(rules.retestTimeframe, "M15")} continuation.`;
 }
 
 /** Highest zone first, so the stack reads like the chart's price axis. */
@@ -219,7 +222,8 @@ export function PlanBlock({ plan, watching, price = null }: { plan: TradePlan; w
               <dd><ul>{plan.plan.invalidation.rules.map((rule) => <li key={rule}>{rule}</li>)}</ul></dd>
             </div>
           ) : null}
-          <div><dt>Valid until</dt><dd>{clock(plan.expiresAt)} · risks {plan.maxRiskPercent}% of the account</dd></div>
+          {typeof plan.plan.maxHoldTradingDays === "number" ? <div><dt>Hold</dt><dd>Up to {plan.plan.maxHoldTradingDays} trading days once you are in</dd></div> : null}
+          <div><dt>Watching until</dt><dd>{clock(plan.expiresAt)} · risks {plan.maxRiskPercent}% of the account</dd></div>
         </dl>
       </details>
     </section>
@@ -366,7 +370,7 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
       {top("Analyze")}
       <h2 id={titleId} className="nl-an-decision">{phase.kind === "error" ? "Analysis failed" : "Analyze this market"}</h2>
       {phase.kind === "error" ? <p className={styles.error} role="alert">{phase.message}</p> : (
-        <p className={styles.lede}>Get a BUY and a SELL plan for {pair}. Nothing is watched until you accept.</p>
+        <p className={styles.lede}>Get swing plans for {pair}, held 2–5 days: a BUY and a SELL. Nothing is watched until you accept.</p>
       )}
       <div className="nl-an-actions is-card">
         {onNewEntry ? <button type="button" className="nl-an-secondary pressable" onClick={onNewEntry}>New entry</button> : null}

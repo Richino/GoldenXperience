@@ -8,7 +8,8 @@ import type { TradePlanDirection, TradePlanSetupType } from "./trade-plans.js";
  * Confirmation engine: judges one approved plan against the completed
  * candles formed since it was created.
  *
- * Stateless by design. Each evaluation replays every closed H1/M15 candle
+ * Stateless by design. Each evaluation replays every closed candle (of the
+ * timeframes the plan names: H4/H1 for swing plans, H1/M15 for older ones)
  * from the plan's creation to now, so a restarted worker reaches exactly the
  * same answer without stored progress, and repeating an evaluation is
  * harmless. Only candles that are complete AND whose close time has passed
@@ -64,7 +65,8 @@ export type SafetyLimits = {
 
 export type ConfirmationInput = {
   plan: PlanForConfirmation;
-  candles: { H1: Candle[]; M15: Candle[] };
+  /** Candles by timeframe; the plan's rules say which ones it is judged on. */
+  candles: Partial<Record<Tf, Candle[]>>;
   quote: { bid: number; ask: number; time: string } | null;
   /** null when the calendar could not be read. */
   news: NewsItem[] | null;
@@ -92,10 +94,12 @@ export type Confirmation = {
     quoteTime: string | null;
   } | null;
   /** Latest closed candle the evaluation read (ISO open time). */
-  evaluatedThrough: { H1: string | null; M15: string | null };
+  evaluatedThrough: Partial<Record<Tf, string | null>>;
 };
 
-const STEP = { H1: 3_600_000, M15: 900_000 } as const;
+export type Tf = "H4" | "H1" | "M15";
+const STEP: Record<Tf, number> = { H4: 4 * 3_600_000, H1: 3_600_000, M15: 900_000 };
+const tfOf = (value: unknown, fallback: Tf): Tf => (value === "H4" || value === "H1" || value === "M15" ? value : fallback);
 
 /** A closed candle in BUY-normalised prices (SELL plans negate). */
 type Bar = { index: number; open: number; close: number; o: number; h: number; l: number; c: number; time: string };
@@ -112,6 +116,14 @@ function bars(candles: Candle[], step: number, now: number, sign: 1 | -1): Bar[]
     });
 }
 
+/** The candle timeframes a plan is judged on (from its frozen rules). */
+export function planTimeframes(plan: Pick<PlanForConfirmation, "setupType" | "plan">): Tf[] {
+  const rules = (plan.plan.rules ?? {}) as Record<string, unknown>;
+  return plan.setupType === "BREAKOUT_RETEST"
+    ? [...new Set([tfOf(rules.breakoutTimeframe, "H1"), tfOf(rules.retestTimeframe, "M15")])]
+    : [tfOf(rules.confirmTimeframe, "M15")];
+}
+
 const num = (value: unknown, fallback: number) => (typeof value === "number" && Number.isFinite(value) ? value : fallback);
 
 export function evaluateConfirmation(input: ConfirmationInput): Confirmation {
@@ -126,15 +138,20 @@ export function evaluateConfirmation(input: ConfirmationInput): Confirmation {
   const over = sign === 1 ? "above" : "below";
   const createdAt = Date.parse(plan.createdAt);
   const rules = (plan.plan.rules ?? {}) as Record<string, unknown>;
-  const atr = num(rules.atrH1, NaN);
+  // Swing plans freeze an H4 ATR as `atr`; plans made before swing mode froze `atrH1`.
+  const atr = num(rules.atr ?? rules.atrH1, NaN);
+  const atrTf = typeof rules.atrTimeframe === "string" ? rules.atrTimeframe : "H1";
+  // Breakout: the breakout candle's timeframe, then the retest timeframe. Reversal: one confirmation timeframe.
+  const entryTf = plan.setupType === "BREAKOUT_RETEST" ? tfOf(rules.retestTimeframe, "M15") : tfOf(rules.confirmTimeframe, "M15");
+  const signalTf = plan.setupType === "BREAKOUT_RETEST" ? tfOf(rules.breakoutTimeframe, "H1") : entryTf;
   const minRewardRisk = num(rules.minRewardRisk, 1.5);
   const validMs = num(rules.confirmationValidMinutes, 60) * 60_000;
 
-  const h1All = bars(input.candles.H1, STEP.H1, now, sign);
-  const m15All = bars(input.candles.M15, STEP.M15, now, sign);
-  const h1 = h1All.filter((bar) => bar.open >= createdAt);
-  const m15 = m15All.filter((bar) => bar.open >= createdAt);
-  const evaluatedThrough = { H1: h1All.at(-1)?.time ?? null, M15: m15All.at(-1)?.time ?? null };
+  const signalAll = bars(input.candles[signalTf] ?? [], STEP[signalTf], now, sign);
+  const entryAll = bars(input.candles[entryTf] ?? [], STEP[entryTf], now, sign);
+  const signalBars = signalAll.filter((bar) => bar.open >= createdAt);
+  const entryBars = entryAll.filter((bar) => bar.open >= createdAt);
+  const evaluatedThrough = { [signalTf]: signalAll.at(-1)?.time ?? null, [entryTf]: entryAll.at(-1)?.time ?? null };
 
   const conditions = new Map<string, ConditionResult>();
   const set = (key: string, status: ConditionStatus, detail: string, at: string | null = null, evidence?: Record<string, unknown>) =>
@@ -163,7 +180,7 @@ export function evaluateConfirmation(input: ConfirmationInput): Confirmation {
     return finish("INVALIDATED", "INVALIDATED", reason);
   };
 
-  if (!(atr > 0)) return invalidate(null, keys[0]!, "The plan has no frozen H1 ATR; it cannot be judged.");
+  if (!(atr > 0)) return invalidate(null, keys[0]!, "The plan has no frozen ATR; it cannot be judged.");
 
   // ── Technical sequence. Returns the bar that completed it, or a terminal result.
   let completed: Bar | null = null;
@@ -174,51 +191,51 @@ export function evaluateConfirmation(input: ConfirmationInput): Confirmation {
     const invalidation = (plan.plan.invalidation ?? {}) as Record<string, unknown>;
     const failLevel = sign * num(invalidation.failLevel, NaN);
     const farEdge = sign * num(invalidation.zoneFarEdge, NaN);
-    const threshold = num(rules.breakoutCloseH1Atr, 0.25) * atr;
-    const tolerance = num(rules.retestToleranceH1Atr, 0.3) * atr;
+    const threshold = num(rules.breakoutCloseAtr ?? rules.breakoutCloseH1Atr, 0.25) * atr;
+    const tolerance = num(rules.retestToleranceAtr ?? rules.retestToleranceH1Atr, 0.3) * atr;
     if (![level, failLevel, farEdge].every(Number.isFinite)) return invalidate(null, "breakout_close", "The plan is missing its breakout levels.");
 
-    // 1–2. Breakout: a completed H1 close beyond the level by the noise threshold.
+    // 1–2. Breakout: a completed close (signal timeframe) beyond the level by the noise threshold.
     let breakoutAt: number | null = plan.plan.breakoutAlreadyClosed === true ? createdAt : null;
     let firstClose: Bar | null = null;
     if (breakoutAt !== null) {
       set("breakout_close", "PASSED", `Price had already closed through ${fmt(level)} when the plan was made.`, plan.createdAt);
       set("breakout_size", "PASSED", "The breakout was already established at generation.", plan.createdAt);
     } else {
-      for (const bar of h1) {
-        if (bar.c < farEdge) return invalidate(bar, "breakout_close", `An H1 close at ${fmt(bar.c)} went through the far side of the zone (${fmt(farEdge)}) before any breakout.`);
+      for (const bar of signalBars) {
+        if (bar.c < farEdge) return invalidate(bar, "breakout_close", `An ${signalTf} close at ${fmt(bar.c)} went through the far side of the zone (${fmt(farEdge)}) before any breakout.`);
         if (bar.c > level && !firstClose) firstClose = bar;
         if (bar.c > level + threshold) {
           breakoutAt = bar.close;
-          set("breakout_close", "PASSED", `H1 closed at ${fmt(bar.c)}, beyond ${fmt(level)}.`, bar.time, { close: sign * bar.c });
-          set("breakout_size", "PASSED", `The close cleared the level by ${((bar.c - level) / atr).toFixed(2)} H1 ATR (needs ${(threshold / atr).toFixed(2)}).`, bar.time);
-          events.push({ type: "BREAKOUT_DETECTED", at: new Date(bar.close).toISOString(), detail: `H1 closed at ${fmt(bar.c)} through ${fmt(level)}.` });
+          set("breakout_close", "PASSED", `${signalTf} closed at ${fmt(bar.c)}, beyond ${fmt(level)}.`, bar.time, { close: sign * bar.c });
+          set("breakout_size", "PASSED", `The close cleared the level by ${((bar.c - level) / atr).toFixed(2)} ${atrTf} ATR (needs ${(threshold / atr).toFixed(2)}).`, bar.time);
+          events.push({ type: "BREAKOUT_DETECTED", at: new Date(bar.close).toISOString(), detail: `${signalTf} closed at ${fmt(bar.c)} through ${fmt(level)}.` });
           break;
         }
       }
     }
     if (breakoutAt === null) {
       if (firstClose) {
-        set("breakout_close", "PASSED", `H1 closed at ${fmt(firstClose.c)} beyond ${fmt(level)}, but not by enough.`, firstClose.time);
-        set("breakout_size", "PENDING", `No H1 close beyond ${fmt(level + threshold)} yet (${(threshold / atr).toFixed(2)} H1 ATR past the level).`);
+        set("breakout_close", "PASSED", `${signalTf} closed at ${fmt(firstClose.c)} beyond ${fmt(level)}, but not by enough.`, firstClose.time);
+        set("breakout_size", "PENDING", `No ${signalTf} close beyond ${fmt(level + threshold)} yet (${(threshold / atr).toFixed(2)} ${atrTf} ATR past the level).`);
       } else {
-        set("breakout_close", "PENDING", `No completed H1 close beyond ${fmt(level)} yet.`);
+        set("breakout_close", "PENDING", `No completed ${signalTf} close beyond ${fmt(level)} yet.`);
       }
-      waiting = { stage: "WAITING_FOR_BREAKOUT", reason: `Waiting for an H1 close beyond ${fmt(level + threshold)}.` };
+      waiting = { stage: "WAITING_FOR_BREAKOUT", reason: `Waiting for a ${signalTf} close beyond ${fmt(level + threshold)}.` };
     } else {
       // 3–5. Retest within tolerance, hold above the fail level, then a continuation close.
       let retest: Bar | null = null;
       let deepest: Bar | null = null;
-      for (const bar of m15.filter((item) => item.open >= breakoutAt!)) {
+      for (const bar of entryBars.filter((item) => item.open >= breakoutAt!)) {
         if (bar.c < failLevel) {
-          return invalidate(bar, retest ? "retest_holds" : "retest", `M15 closed at ${fmt(bar.c)}, back through ${fmt(failLevel)}: the breakout failed.`);
+          return invalidate(bar, retest ? "retest_holds" : "retest", `${entryTf} closed at ${fmt(bar.c)}, back through ${fmt(failLevel)}: the breakout failed.`);
         }
         if (bar.l <= stop) return invalidate(bar, "retest_holds", `Price traded to ${fmt(bar.l)}, through the approved stop ${fmt(stop)}.`);
         if (!retest) {
           if (bar.l <= level + tolerance) {
             retest = bar;
             deepest = bar;
-            set("retest", "PASSED", `Price came back to ${fmt(bar.l)}, within ${(tolerance / atr).toFixed(2)} H1 ATR of ${fmt(level)}.`, bar.time);
+            set("retest", "PASSED", `Price came back to ${fmt(bar.l)}, within ${(tolerance / atr).toFixed(2)} ${atrTf} ATR of ${fmt(level)}.`, bar.time);
             events.push({ type: "RETEST_DETECTED", at: new Date(bar.close).toISOString(), detail: `Retest of ${fmt(level)} reached ${fmt(bar.l)}.` });
           }
           continue;
@@ -226,19 +243,19 @@ export function evaluateConfirmation(input: ConfirmationInput): Confirmation {
         if (bar.l < deepest!.l) deepest = bar;
         if (bar.c > deepest!.h && bar.c > level) {
           completed = bar;
-          set("retest_holds", "PASSED", `No M15 close back through ${fmt(failLevel)}; the retest's extreme was ${fmt(deepest!.l)}.`, deepest!.time);
-          set("continuation", "PASSED", `M15 closed at ${fmt(bar.c)}, beyond the retest candle's ${sign === 1 ? "high" : "low"} ${fmt(deepest!.h)}.`, bar.time);
+          set("retest_holds", "PASSED", `No ${entryTf} close back through ${fmt(failLevel)}; the retest's extreme was ${fmt(deepest!.l)}.`, deepest!.time);
+          set("continuation", "PASSED", `${entryTf} closed at ${fmt(bar.c)}, beyond the retest candle's ${sign === 1 ? "high" : "low"} ${fmt(deepest!.h)}.`, bar.time);
           break;
         }
       }
       if (!completed) {
         if (!retest) {
-          set("retest", "PENDING", `Waiting for price to come back within ${(tolerance / atr).toFixed(2)} H1 ATR of ${fmt(level)}.`);
+          set("retest", "PENDING", `Waiting for price to come back within ${(tolerance / atr).toFixed(2)} ${atrTf} ATR of ${fmt(level)}.`);
           waiting = { stage: "WAITING_FOR_RETEST", reason: `Breakout confirmed; waiting for a retest of ${fmt(level)}.` };
         } else {
-          set("retest_holds", "PENDING", `Holding so far: no M15 close through ${fmt(failLevel)}.`);
-          set("continuation", "PENDING", `Waiting for an M15 close beyond ${fmt(deepest!.h)}.`);
-          waiting = { stage: "WAITING_FOR_CONTINUATION", reason: `Retest holding; waiting for an M15 close beyond ${fmt(deepest!.h)}.` };
+          set("retest_holds", "PENDING", `Holding so far: no ${entryTf} close through ${fmt(failLevel)}.`);
+          set("continuation", "PENDING", `Waiting for an ${entryTf} close beyond ${fmt(deepest!.h)}.`);
+          waiting = { stage: "WAITING_FOR_CONTINUATION", reason: `Retest holding; waiting for an ${entryTf} close beyond ${fmt(deepest!.h)}.` };
         }
       }
     }
@@ -261,16 +278,16 @@ export function evaluateConfirmation(input: ConfirmationInput): Confirmation {
     let pendingSweep: { bar: Bar; low: number } | null = null;
     let turn: { kind: "SWEEP" | "REJECTION"; bar: Bar; low: number; pivot: number } | null = null;
     const pivotBefore = (bar: Bar) => {
-      const before = m15All.slice(Math.max(0, bar.index - lookback), bar.index);
+      const before = entryAll.slice(Math.max(0, bar.index - lookback), bar.index);
       return before.length ? Math.max(...before.map((item) => item.h)) : bar.h;
     };
-    for (const bar of m15) {
+    for (const bar of entryBars) {
       if (!approach) {
         if (bar.l > zh) continue;
         approach = bar;
         set("approach", "PASSED", `Price reached the zone at ${fmt(bar.l)}.`, bar.time);
       }
-      if (bar.c < failLevel) return invalidate(bar, "rejection_or_sweep", `M15 closed at ${fmt(bar.c)}, through ${fmt(failLevel)}: the zone gave way.`);
+      if (bar.c < failLevel) return invalidate(bar, "rejection_or_sweep", `${entryTf} closed at ${fmt(bar.c)}, through ${fmt(failLevel)}: the zone gave way.`);
       if (bar.l < sweepLimit) return invalidate(bar, "rejection_or_sweep", `Price ran to ${fmt(bar.l)}, past the deepest allowed sweep ${fmt(sweepLimit)}.`);
       if (bar.l <= stop) return invalidate(bar, "stop_placement", `Price traded to ${fmt(bar.l)}, through the approved stop ${fmt(stop)}.`);
 
@@ -280,9 +297,9 @@ export function evaluateConfirmation(input: ConfirmationInput): Confirmation {
           turn = null;
         } else if (bar.c > turn.pivot) {
           completed = bar;
-          set("local_structure", "PASSED", `M15 closed at ${fmt(bar.c)}, beyond the local ${sign === 1 ? "high" : "low"} ${fmt(turn.pivot)}.`, bar.time);
+          set("local_structure", "PASSED", `${entryTf} closed at ${fmt(bar.c)}, beyond the local ${sign === 1 ? "high" : "low"} ${fmt(turn.pivot)}.`, bar.time);
           set("stop_placement", "PASSED", `The approved stop ${fmt(stop)} is beyond the ${turn.kind === "SWEEP" ? "sweep" : "rejection"} extreme ${fmt(turn.low)}.`, turn.bar.time);
-          events.push({ type: "STRUCTURE_BREAK", at: new Date(bar.close).toISOString(), detail: `M15 broke ${fmt(turn.pivot)}.` });
+          events.push({ type: "STRUCTURE_BREAK", at: new Date(bar.close).toISOString(), detail: `${entryTf} broke ${fmt(turn.pivot)}.` });
           break;
         } else {
           continue;
@@ -293,7 +310,7 @@ export function evaluateConfirmation(input: ConfirmationInput): Confirmation {
         if (bar.c >= zl) {
           turn = { kind: "SWEEP", bar, low: pendingSweep.low, pivot: pivotBefore(pendingSweep.bar) };
           set("rejection_or_sweep", "PASSED", `Liquidity sweep to ${fmt(pendingSweep.low)}, past ${fmt(zl)}.`, pendingSweep.bar.time);
-          set("reclaim", "PASSED", `An M15 close at ${fmt(bar.c)} reclaimed the zone.`, bar.time);
+          set("reclaim", "PASSED", `An ${entryTf} close at ${fmt(bar.c)} reclaimed the zone.`, bar.time);
           events.push({ type: "SWEEP_DETECTED", at: new Date(bar.close).toISOString(), detail: `Swept to ${fmt(pendingSweep.low)} and reclaimed ${fmt(zl)}.` });
           pendingSweep = null;
         } else if (bar.index - pendingSweep.bar.index >= reclaimBars) {
@@ -316,7 +333,7 @@ export function evaluateConfirmation(input: ConfirmationInput): Confirmation {
       const wick = Math.min(bar.o, bar.c) - bar.l;
       if (bar.l <= zh && range > 0 && wick / range >= wickShare && bar.c >= (zl + zh) / 2) {
         turn = { kind: "REJECTION", bar, low: bar.l, pivot: pivotBefore(bar) };
-        set("rejection_or_sweep", "PASSED", `M15 rejected the zone: ${Math.round((wick / range) * 100)}% wick, close ${fmt(bar.c)}.`, bar.time);
+        set("rejection_or_sweep", "PASSED", `${entryTf} rejected the zone: ${Math.round((wick / range) * 100)}% wick, close ${fmt(bar.c)}.`, bar.time);
         set("reclaim", "PASSED", "No sweep: the zone held on a rejection.", bar.time);
         events.push({ type: "REJECTION_DETECTED", at: new Date(bar.close).toISOString(), detail: `Rejection at ${fmt(bar.l)}.` });
       }
@@ -327,11 +344,11 @@ export function evaluateConfirmation(input: ConfirmationInput): Confirmation {
         waiting = { stage: "WAITING_FOR_ZONE", reason: `Waiting for price to reach the zone ${span(zl, zh)}.` };
       } else if (pendingSweep) {
         set("rejection_or_sweep", "PASSED", `Price swept to ${fmt(pendingSweep.low)}, past ${fmt(zl)}.`, pendingSweep.bar.time);
-        set("reclaim", "PENDING", `A sweep alone is not a trigger: waiting for an M15 close back ${over} ${fmt(zl)}.`);
+        set("reclaim", "PENDING", `A sweep alone is not a trigger: waiting for an ${entryTf} close back ${over} ${fmt(zl)}.`);
         waiting = { stage: "WAITING_FOR_RECLAIM", reason: `Swept ${under} ${fmt(zl)}; waiting for a close back inside the zone.` };
       } else if (turn) {
-        set("local_structure", "PENDING", `Waiting for an M15 close beyond ${fmt(turn.pivot)}.`);
-        waiting = { stage: "WAITING_FOR_STRUCTURE", reason: `${turn.kind === "SWEEP" ? "Sweep reclaimed" : "Rejection seen"}; waiting for M15 to break ${fmt(turn.pivot)}.` };
+        set("local_structure", "PENDING", `Waiting for an ${entryTf} close beyond ${fmt(turn.pivot)}.`);
+        waiting = { stage: "WAITING_FOR_STRUCTURE", reason: `${turn.kind === "SWEEP" ? "Sweep reclaimed" : "Rejection seen"}; waiting for ${entryTf} to break ${fmt(turn.pivot)}.` };
       } else {
         set("rejection_or_sweep", "PENDING", "In the zone; no rejection or sweep yet.");
         waiting = { stage: "WAITING_FOR_REJECTION", reason: "Price is at the zone; waiting for a rejection or a sweep and reclaim." };

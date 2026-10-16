@@ -3,10 +3,10 @@ import { randomBytes } from "node:crypto";
 import { getCandles, getPricing } from "../../frontend/src/lib/oanda/client.js";
 import { getEconomicCalendar } from "../../frontend/src/lib/calendar/forex-factory.js";
 import { getForexSessionStatus } from "../../frontend/src/lib/strategy/session.js";
-import type { MajorInstrument } from "../../frontend/src/types/forex.js";
+import type { Candle, MajorInstrument } from "../../frontend/src/types/forex.js";
 import { query, transaction } from "./database.js";
 import { displayPair, queueNotification, type NotificationKind } from "./notifications.js";
-import { evaluateConfirmation, type Confirmation, type ConfirmationEventType } from "./trade-plan-confirmation.js";
+import { evaluateConfirmation, planTimeframes, type Confirmation, type ConfirmationEventType, type Tf } from "./trade-plan-confirmation.js";
 import { confirmationLimits, recordConfirmation, toConfirmable } from "./trade-plan-service.js";
 import type { MonitoringMode, TradePlanStatus } from "./trade-plan-state.js";
 import { TradePlanError, expireDueTradePlans, transitionInTx } from "./trade-plans.js";
@@ -34,9 +34,12 @@ import { TradePlanError, expireDueTradePlans, transitionInTx } from "./trade-pla
 
 export const MONITOR_INTERVAL_MS = 60_000;
 const LEASE_SECONDS = 120;
-/** M15 candles fetched per pair: covers the longest plan lifetime (48h) plus the structure lookback. */
-const M15_COUNT = 220;
-const H1_COUNT = 72;
+/**
+ * Candles fetched per timeframe: enough to cover a plan's whole trigger window
+ * (72 open-market hours for swing plans) plus the structure lookback.
+ */
+const CANDLE_COUNT: Record<Tf, number> = { H4: 80, H1: 160, M15: 220 };
+const TF_MS: Record<Tf, number> = { H4: 4 * 3_600_000, H1: 3_600_000, M15: 900_000 };
 /** Market-data failures in a row before the user hears about it. */
 const ERROR_ALERT_AFTER = 5;
 
@@ -167,14 +170,21 @@ async function releaseLease(planId: string, workerId = WORKER_ID) {
   await query("UPDATE trade_plan_monitoring_state SET lease_owner=NULL,lease_expires_at=NULL WHERE plan_id=$1 AND lease_owner=$2", [planId, workerId]);
 }
 
-/** One market snapshot per pair per tick, shared by every plan on that pair. */
-async function loadMonitorMarket(instrument: MajorInstrument) {
-  const [h1, m15, pricing] = await Promise.all([getCandles(instrument, "H1", H1_COUNT), getCandles(instrument, "M15", M15_COUNT), getPricing([instrument])]);
-  const genuine = (result: typeof h1) => result.status.state === "connected" && result.data.source === "oanda" ? result.data.candles : null;
+/**
+ * One market snapshot per pair per tick, shared by every plan on that pair.
+ * Only the timeframes those plans are judged on are fetched.
+ */
+async function loadMonitorMarket(instrument: MajorInstrument, timeframes: Tf[]) {
+  const [pricing, ...series] = await Promise.all([getPricing([instrument]), ...timeframes.map((tf) => getCandles(instrument, tf, CANDLE_COUNT[tf]))]);
+  const candles: Partial<Record<Tf, Candle[]>> = {};
+  timeframes.forEach((tf, index) => {
+    const result = series[index]!;
+    if (result.status.state === "connected" && result.data.source === "oanda") candles[tf] = result.data.candles;
+  });
   const live = pricing.status.state === "connected" && pricing.status.source === "oanda"
     ? pricing.data.find((quote) => quote.instrument === instrument && quote.source === "oanda" && quote.status.toLowerCase() === "tradeable") ?? null
     : null;
-  return { H1: genuine(h1), M15: genuine(m15), quote: live ? { bid: live.bid, ask: live.ask, time: live.time } : null };
+  return { candles, quote: live ? { bid: live.bid, ask: live.ask, time: live.time } : null };
 }
 
 async function loadNews(now: number) {
@@ -185,11 +195,11 @@ async function loadNews(now: number) {
     : null;
 }
 
-/** Newest closed M15 candle is too old while the market is open: the feed has stalled. */
-export function candlesStale(m15: Array<{ time: string; complete?: boolean }>, now: number) {
+/** The newest closed candle is more than three candles old while the market is open: the feed has stalled. */
+export function candlesStale(candles: Array<{ time: string; complete?: boolean }>, now: number, step = 900_000) {
   if (!getForexSessionStatus(new Date(now)).marketOpen) return false;
-  const last = m15.filter((candle) => candle.complete !== false).at(-1);
-  return !last || now - (Date.parse(last.time) + 900_000) > 3 * 900_000;
+  const last = candles.filter((candle) => candle.complete !== false).at(-1);
+  return !last || now - (Date.parse(last.time) + step) > 3 * step;
 }
 
 /** Notify once per plan and event: the trade_plan_notifications row is the gate. */
@@ -269,16 +279,18 @@ export async function runTradePlanMonitorTick(now = Date.now()): Promise<TickSum
   for (const [instrument, pairPlans] of byPair) {
     let market: Awaited<ReturnType<typeof loadMonitorMarket>> | null = null;
     let marketError: string | null = null;
+    const timeframes = [...new Set(pairPlans.flatMap((plan) => planTimeframes({ setupType: plan.setup_type, plan: plan.plan })))];
     try {
-      market = await loadMonitorMarket(instrument);
-      if (!market.H1 || !market.M15) marketError = "Live OANDA candles unavailable.";
-      else if (candlesStale(market.M15, now)) marketError = "OANDA candles are stale; waiting for fresh data.";
+      market = await loadMonitorMarket(instrument, timeframes);
+      const missing = timeframes.filter((tf) => !market!.candles[tf]);
+      if (missing.length) marketError = `Live OANDA ${missing.join("/")} candles unavailable.`;
+      else if (timeframes.some((tf) => candlesStale(market!.candles[tf]!, now, TF_MS[tf]))) marketError = "OANDA candles are stale; waiting for fresh data.";
     } catch (error) {
       marketError = error instanceof Error ? error.message : "Market data request failed.";
     }
     for (const plan of pairPlans) {
       try {
-        if (marketError || !market?.H1 || !market.M15) {
+        if (marketError || !market) {
           // Never judge a plan on missing or stale data: keep it as it is and say why.
           summary.errors += 1;
           const count = await recordError(plan.id, marketError ?? "Market data unavailable.");
@@ -291,7 +303,7 @@ export async function runTradePlanMonitorTick(now = Date.now()): Promise<TickSum
         limitsByUser.set(plan.user_id, limits);
         const confirmation = evaluateConfirmation({
           plan: toConfirmable({ ...plan }),
-          candles: { H1: market.H1, M15: market.M15 },
+          candles: market.candles,
           quote: market.quote,
           news,
           now,

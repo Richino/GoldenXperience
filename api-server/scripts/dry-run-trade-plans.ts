@@ -21,7 +21,7 @@ for (const instrument of pairs) {
   const market = await loadGeneratorMarket(instrument as never);
   const result = generateTradePlans({ instrument, ...market, maxRiskPercent: 1 });
   const c = result.context;
-  console.log(`\n${instrument}: ${result.result}${c ? ` · price ${c.price} (${c.priceSource}) · D1 ${c.trend.D1} H4 ${c.trend.H4} H1 ${c.trend.H1} M15 ${c.trend.M15} · news ${c.news.state}` : ""}`);
+  console.log(`\n${instrument}: ${result.result}${c ? ` · price ${c.price} (${c.priceSource}) · D1 ${c.trend.D1} H4 ${c.trend.H4} H1 ${c.trend.H1} · news ${c.news.state}` : ""}`);
   if (!result.plans.length) console.log(`  ${result.reason}`);
   for (const plan of result.plans) {
     console.log(`  ${plan.direction} ${plan.setupType} entry ${plan.entryZoneLow}–${plan.entryZoneHigh} SL ${plan.stopLoss} TP ${plan.takeProfit} RR ${plan.rewardRisk} expires ${plan.expiresAt}`);
@@ -29,7 +29,7 @@ for (const instrument of pairs) {
     // As if approved now: nothing has closed since, so it should be waiting, with a reason.
     const check = evaluateConfirmation({
       plan: { ...plan, stopLoss: plan.stopLoss!, takeProfit: plan.takeProfit!, createdAt: new Date(market.now).toISOString() },
-      candles: { H1: market.candles.H1 ?? [], M15: market.candles.M15 ?? [] }, quote: market.quote, news: market.news, now: market.now, limits,
+      candles: market.candles, quote: market.quote, news: market.news, now: market.now, limits,
     });
     console.log(`    confirmation: ${check.outcome} / ${check.stage} — ${check.notTriggeredReason}`);
   }

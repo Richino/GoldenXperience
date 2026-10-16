@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { evaluateConfirmation, type Confirmation, type ConfirmationInput, type PlanForConfirmation } from "../src/trade-plan-confirmation.js";
+import { evaluateConfirmation, planTimeframes, type Confirmation, type ConfirmationInput, type PlanForConfirmation } from "../src/trade-plan-confirmation.js";
 import type { Candle } from "../../frontend/src/types/forex.js";
 
 /**
@@ -307,6 +307,71 @@ test("a SELL reversal is the exact mirror of the BUY", () => {
 test("a plan with no frozen ATR is refused rather than guessed", () => {
   const result = run({ ...breakoutPlan, plan: { ...breakoutPlan.plan, rules: {} } }, [...BREAKOUT]);
   assert.equal(result.outcome, "INVALIDATED");
+});
+
+// ── Swing plans: H4 breakout candles, H1 retest/continuation, H4 ATR ──
+const H1 = 3_600_000;
+/** 08:00 UTC Wednesday: an H4 boundary, market open. */
+const S0 = Date.parse("2026-10-14T08:00:00Z");
+function hourly(rows: Ohlc[], incompleteLast = false): Candle[] {
+  return rows.map(([open, high, low, close], i) => ({
+    time: new Date(S0 + i * H1).toISOString(), open, high, low, close, volume: 1, complete: !(incompleteLast && i === rows.length - 1),
+  }));
+}
+function fourHourly(candles: Candle[]): Candle[] {
+  const out: Candle[] = [];
+  for (let i = 0; i + 3 < candles.length; i += 4) {
+    const group = candles.slice(i, i + 4);
+    if (group.some((c) => !c.complete)) continue;
+    out.push({ time: group[0]!.time, open: group[0]!.open, close: group[3]!.close, high: Math.max(...group.map((c) => c.high)), low: Math.min(...group.map((c) => c.low)), volume: 4, complete: true });
+  }
+  return out;
+}
+const swingPlan: PlanForConfirmation = {
+  ...breakoutPlan,
+  createdAt: new Date(S0).toISOString(),
+  expiresAt: new Date(S0 + 72 * H1).toISOString(),
+  plan: {
+    ...breakoutPlan.plan,
+    rules: { atr: 0.001, atrTimeframe: "H4", minRewardRisk: 1.5, confirmationValidMinutes: 240, breakoutTimeframe: "H4", breakoutCloseAtr: 0.25, retestTimeframe: "H1", retestToleranceAtr: 0.3, retestFailAtr: 0.3 },
+  },
+};
+function runSwing(rows: Ohlc[], patch: Partial<ConfirmationInput> = {}, incompleteLast = false): Confirmation {
+  const h1 = hourly(rows, incompleteLast);
+  const now = patch.now ?? Date.parse(h1.at(-1)!.time) + H1 + 1000;
+  return evaluateConfirmation({
+    plan: swingPlan,
+    candles: { H4: fourHourly(h1), H1: h1 },
+    quote: { bid: 1.1008, ask: 1.1009, time: new Date(now - 1000).toISOString() },
+    news: [], now, limits, ...patch,
+  });
+}
+
+test("swing: an H4 close breaks out, then an H1 retest and continuation confirm", () => {
+  const result = runSwing([...BREAKOUT, ...RETEST, CONTINUATION]);
+  assert.equal(result.outcome, "CONFIRMED", result.notTriggeredReason ?? "");
+  assert.match(condition(result, "breakout_close").detail, /^H4 closed at/);
+  assert.match(condition(result, "continuation").detail, /^H1 closed at/);
+  assert.ok(result.evaluatedThrough.H4 && result.evaluatedThrough.H1);
+});
+
+test("swing: hourly closes above the level are not a breakout until the H4 candle closes", () => {
+  const result = runSwing(BREAKOUT.slice(0, 3));
+  assert.equal(result.stage, "WAITING_FOR_BREAKOUT");
+  assert.match(result.notTriggeredReason ?? "", /H4 close/);
+});
+
+test("swing: an H1 close back through the fail level after the H4 breakout fails it", () => {
+  const result = runSwing([...BREAKOUT, [1.1004, 1.1005, 1.0995, 1.0996]]);
+  assert.equal(result.outcome, "INVALIDATED");
+  assert.match(result.notTriggeredReason ?? "", /^H1 closed at/);
+});
+
+test("each plan names the candles it is judged on", () => {
+  assert.deepEqual(planTimeframes(swingPlan), ["H4", "H1"]);
+  assert.deepEqual(planTimeframes(breakoutPlan), ["H1", "M15"], "plans made before swing mode keep H1/M15");
+  assert.deepEqual(planTimeframes({ ...reversalPlan, plan: { ...reversalPlan.plan, rules: { confirmTimeframe: "H1" } } }), ["H1"]);
+  assert.deepEqual(planTimeframes(reversalPlan), ["M15"]);
 });
 
 console.log(`trade plan confirmation: ${passed} checks passed`);

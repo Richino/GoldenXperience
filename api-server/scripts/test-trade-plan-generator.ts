@@ -98,9 +98,22 @@ test("every plan validates and has its levels on the right side", () => {
     else assert.ok(plan.stopLoss! > plan.entryZoneHigh && plan.takeProfit! < plan.entryZoneLow);
     assert.ok((plan.rewardRisk ?? 0) >= TRADE_PLAN_CONFIG.minRewardRisk);
     const mid = (plan.entryZoneLow + plan.entryZoneHigh) / 2;
-    const h4Atr = result.context!.atr.H4;
-    assert.ok(Math.abs(plan.takeProfit! - mid) <= TRADE_PLAN_CONFIG.maxTargetH4Atr * h4Atr + 1e-5, "target within the holding-horizon cap");
-    assert.ok(Math.abs(mid - plan.stopLoss!) >= TRADE_PLAN_CONFIG.minStopH1Atr * result.context!.atr.H1 - 1e-5, "stop outside H1 noise");
+    const atr = result.context!.atr;
+    assert.ok(Math.abs(plan.takeProfit! - mid) <= TRADE_PLAN_CONFIG.maxTargetD1Atr * atr.D1 + 1e-5, "target within a 2–5 day reach");
+    assert.ok(Math.abs(mid - plan.stopLoss!) >= TRADE_PLAN_CONFIG.minStopAtr * atr.H4 - 1e-5, "stop outside H4 noise");
+  }
+});
+
+test("plans are swing plans: H4 setup, H4 breakouts, H1 confirmation, 72h to trigger, 5-day hold", () => {
+  for (const plan of result.plans) {
+    assert.equal(plan.timeframe, "H4");
+    const rules = plan.plan.rules as Record<string, unknown>;
+    assert.equal(rules.atrTimeframe, "H4");
+    assert.equal(rules.atr, result.context!.atr.H4);
+    if (plan.setupType === "BREAKOUT_RETEST") { assert.equal(rules.breakoutTimeframe, "H4"); assert.equal(rules.retestTimeframe, "H1"); }
+    else assert.equal(rules.confirmTimeframe, "H1");
+    assert.equal(plan.plan.maxHoldTradingDays, 5);
+    assert.equal(plan.expiresAt, new Date(addTradingHours(NOW, 72)).toISOString());
   }
 });
 
@@ -238,7 +251,7 @@ test("generated plans carry everything the confirmation engine needs", () => {
   for (const plan of result.plans) {
     const evaluation = evaluateConfirmation({
       plan: { ...plan, stopLoss: plan.stopLoss!, takeProfit: plan.takeProfit!, createdAt: new Date(NOW).toISOString() },
-      candles: { H1: input.candles.H1!, M15: input.candles.M15! },
+      candles: { H4: input.candles.H4!, H1: input.candles.H1!, M15: input.candles.M15! },
       quote: input.quote, news: [], now: NOW,
       limits: { maxSpreadStopFraction: 0.15, maxDataAgeSeconds: 10, newsBlackoutBeforeMinutes: 30, newsBlackoutAfterMinutes: 30 },
     });

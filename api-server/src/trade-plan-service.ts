@@ -2,7 +2,7 @@ import { getCandles, getPricing } from "../../frontend/src/lib/oanda/client.js";
 import { getEconomicCalendar } from "../../frontend/src/lib/calendar/forex-factory.js";
 import type { MajorInstrument } from "../../frontend/src/types/forex.js";
 import { query, transaction } from "./database.js";
-import { evaluateConfirmation, type Confirmation, type PlanForConfirmation, type SafetyLimits } from "./trade-plan-confirmation.js";
+import { evaluateConfirmation, planTimeframes, type Confirmation, type PlanForConfirmation, type SafetyLimits } from "./trade-plan-confirmation.js";
 import { generateTradePlans, type GeneratorResult } from "./trade-plan-generator.js";
 import { TradePlanError, createTradePlan, listTradePlans, reviseTradePlan, transitionInTx, validateTradePlanInput, type TradePlanInput } from "./trade-plans.js";
 
@@ -213,7 +213,7 @@ export function toConfirmable(row: ConfirmablePlanRow): PlanForConfirmation {
 /** Live H1/M15 candles, quote and calendar for confirmation; demo data is never used. */
 export async function loadConfirmationMarket(instrument: MajorInstrument) {
   const market = await loadGeneratorMarket(instrument);
-  return { candles: { H1: market.candles.H1 ?? [], M15: market.candles.M15 ?? [] }, quote: market.quote, news: market.news, now: market.now };
+  return { candles: { H4: market.candles.H4, H1: market.candles.H1, M15: market.candles.M15 }, quote: market.quote, news: market.news, now: market.now };
 }
 
 /**
@@ -229,8 +229,9 @@ export async function confirmationProgress(userId: string, planId: string) {
   const row = found.rows[0];
   if (!row) throw new TradePlanError("Trade plan not found.", 404);
   const [market, limits] = await Promise.all([loadConfirmationMarket(row.instrument), confirmationLimits(userId)]);
-  if (!market.candles.H1.length || !market.candles.M15.length) throw new TradePlanError("Live OANDA candles are unavailable.", 503);
-  return { planId, planVersion: row.plan_version, confirmation: evaluateConfirmation({ plan: toConfirmable(row), ...market, limits }) };
+  const confirmable = toConfirmable(row);
+  if (planTimeframes(confirmable).some((tf) => !market.candles[tf]?.length)) throw new TradePlanError("Live OANDA candles are unavailable.", 503);
+  return { planId, planVersion: row.plan_version, confirmation: evaluateConfirmation({ plan: confirmable, ...market, limits }) };
 }
 
 /** Persist one evaluation: condition rows for the plan's version and the monitoring snapshot. */

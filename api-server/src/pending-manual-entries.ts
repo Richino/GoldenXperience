@@ -109,7 +109,7 @@ async function userRiskPercent(userId: string) {
 }
 
 /** USD value of one unit of the pair's quote currency, from a live USD pair. */
-async function quoteToUsdRate(instrument: MajorInstrument) {
+export async function quoteToUsdRate(instrument: MajorInstrument) {
   const { quote } = currenciesOf(instrument);
   if (quote === "USD") return 1;
   const candidates = [`${quote}_USD`, `USD_${quote}`].filter((name) => isKnownInstrument(name)) as MajorInstrument[];

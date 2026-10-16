@@ -389,7 +389,7 @@ export const TRADE_PLAN_FILTERS: Record<string, readonly TradePlanStatus[] | nul
   awaiting: ["PENDING_APPROVAL"],
   monitoring: ["APPROVED", "MONITORING"],
   /** Everything the chart and the mascot follow: accepted and not finished. */
-  active: ["APPROVED", "MONITORING", "CONFIRMED", "NOTIFIED", "EXECUTION_PENDING", "ORDER_SUBMITTED", "PARTIALLY_FILLED"],
+  active: ["APPROVED", "MONITORING", "CONFIRMED", "NOTIFIED", "EXECUTION_PENDING", "ORDER_SUBMITTED", "PARTIALLY_FILLED", "FILLED"],
   confirmed: ["CONFIRMED", "NOTIFIED"],
   executed: ["EXECUTION_PENDING", "ORDER_SUBMITTED", "PARTIALLY_FILLED", "FILLED", "EXECUTION_FAILED", "CLOSED"],
   invalidated: ["INVALIDATED"],

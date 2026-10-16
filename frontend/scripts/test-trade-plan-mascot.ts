@@ -54,7 +54,15 @@ test("a confirmed plan wins and gives the levels", () => {
   assert.equal(line.expression, "confirmed");
   assert.equal(line.text, "SELL confirmed — your call. Entry near 1.12401, stop 1.12537, target 1.12166.");
   const auto = mascotLine([{ ...sell, monitoringMode: "AUTO", status: "CONFIRMED" }])!;
-  assert.match(auto.text, /no order was placed/);
+  assert.match(auto.text, /Placing it on your practice account/);
+});
+
+test("an Auto trade being placed, then in the trade", () => {
+  const sell = fixturePlan("SELL", { monitoringMode: "AUTO", status: "ORDER_SUBMITTED" });
+  assert.match(mascotLine([sell])!.text, /placing the order/);
+  const filled = mascotLine([{ ...sell, status: "FILLED" }])!;
+  assert.equal(filled.expression, "confirmed");
+  assert.equal(filled.text, "SELL is in the trade (Auto trade). Stop 1.12537 and target 1.12166 are held by OANDA.");
 });
 
 test("it follows the chart's pair when that pair has plans", () => {

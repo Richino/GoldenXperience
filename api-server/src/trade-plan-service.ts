@@ -62,6 +62,19 @@ export async function loadGeneratorMarket(instrument: MajorInstrument) {
   };
 }
 
+/**
+ * Calendar events for news checks; null when the calendar could not be read
+ * or does not cover the next 30 minutes (callers treat that as unknown, which
+ * blocks entries).
+ */
+export async function loadNewsEvents(now: number) {
+  const calendar = await getEconomicCalendar();
+  return calendar.status.state === "connected" && calendar.data.connected && calendar.data.source !== "mock"
+    && calendar.data.coverageUntil && Date.parse(calendar.data.coverageUntil) >= now + 30 * 60_000
+    ? [...calendar.data.events, ...(calendar.data.recentEvents ?? [])]
+    : null;
+}
+
 const lastGenerate = new Map<string, number>();
 const GENERATE_COOLDOWN_MS = 15_000;
 

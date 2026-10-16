@@ -60,8 +60,8 @@ export async function autoTradeSettings(userId: string) {
     killSwitch: row.kill_switch,
     suspended: row.suspended_at ? { at: row.suspended_at, reason: row.suspended_reason } : null,
     broker: brokerStatus(),
-    /** Order placement for confirmed Auto plans is not built yet: they alert and place nothing. */
-    executorAvailable: false,
+    /** Confirmed Auto plans are placed by trade-plan-executor.ts. */
+    executorAvailable: true,
   };
 }
 

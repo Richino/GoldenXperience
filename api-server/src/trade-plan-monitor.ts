@@ -1,13 +1,14 @@
 import { hostname } from "node:os";
 import { randomBytes } from "node:crypto";
 import { getCandles, getPricing } from "../../frontend/src/lib/oanda/client.js";
-import { getEconomicCalendar } from "../../frontend/src/lib/calendar/forex-factory.js";
 import { getForexSessionStatus } from "../../frontend/src/lib/strategy/session.js";
 import type { Candle, MajorInstrument } from "../../frontend/src/types/forex.js";
 import { query, transaction } from "./database.js";
-import { displayPair, queueNotification, type NotificationKind } from "./notifications.js";
+import { displayPair, type NotificationKind } from "./notifications.js";
+import { notifyOnce } from "./trade-plan-notify.js";
+import { executeAutoPlan, reconcileAutoPlan } from "./trade-plan-executor.js";
 import { evaluateConfirmation, planTimeframes, type Confirmation, type ConfirmationEventType, type Tf } from "./trade-plan-confirmation.js";
-import { confirmationLimits, recordConfirmation, toConfirmable } from "./trade-plan-service.js";
+import { confirmationLimits, loadNewsEvents, recordConfirmation, toConfirmable } from "./trade-plan-service.js";
 import type { MonitoringMode, TradePlanStatus } from "./trade-plan-state.js";
 import { TradePlanError, expireDueTradePlans, transitionInTx } from "./trade-plans.js";
 
@@ -51,6 +52,8 @@ export type MonitorAction =
   | { kind: "transition"; to: TradePlanStatus; reason: string }
   /** One trade per pair: the other plans of the same Analyze run stop once this one confirms. */
   | { kind: "cancelSiblings"; reason: string }
+  /** Auto trade: hand the plan (now EXECUTION_PENDING) to the executor. */
+  | { kind: "execute" }
   | { kind: "notify"; event: string; title: string; message: string; notificationKind: NotificationKind };
 
 const DETECTION_COPY: Partial<Record<ConfirmationEventType, string>> = {
@@ -122,12 +125,9 @@ export function decideMonitorActions(input: {
       message: `Confirmed. Entry near ${p.entry}, stop ${p.stopLoss}, target ${p.takeProfit} (reward/risk ${p.rewardRisk}${p.spread !== null ? `, spread ${p.spread.toFixed(5).replace(/0+$/, "")}` : ""}). No order was placed.`,
     });
   } else {
-    // Auto execution is not built: hold at CONFIRMED and say so, never fall back to a silent Notify.
-    actions.push({
-      kind: "notify", event: "AUTO_UNAVAILABLE", notificationKind: "system_issue",
-      title: `${label} confirmed — auto execution unavailable`,
-      message: "The setup confirmed, but automatic execution is not enabled, so no order was placed. Review it in Plans.",
-    });
+    // Auto trade: the executor re-checks everything on fresh data before any order.
+    actions.push({ kind: "transition", to: "EXECUTION_PENDING", reason: "Confirmed; placing the Auto trade after the final safety checks." });
+    actions.push({ kind: "execute" });
   }
   return actions;
 }
@@ -154,7 +154,7 @@ export const CLAIM_SQL = `
    WHERE m.plan_id IN (
      SELECT s.plan_id FROM trade_plan_monitoring_state s
        JOIN trade_plans p ON p.id=s.plan_id
-      WHERE p.status IN ('MONITORING','CONFIRMED') AND p.paused_at IS NULL
+      WHERE p.status IN ('MONITORING','CONFIRMED','EXECUTION_PENDING','ORDER_SUBMITTED','PARTIALLY_FILLED','FILLED') AND p.paused_at IS NULL
         AND (s.lease_expires_at IS NULL OR s.lease_expires_at < now() OR s.lease_owner=$1)
       ORDER BY s.last_evaluated_at NULLS FIRST
       LIMIT 200
@@ -187,39 +187,11 @@ async function loadMonitorMarket(instrument: MajorInstrument, timeframes: Tf[]) 
   return { candles, quote: live ? { bid: live.bid, ask: live.ask, time: live.time } : null };
 }
 
-async function loadNews(now: number) {
-  const calendar = await getEconomicCalendar();
-  return calendar.status.state === "connected" && calendar.data.connected && calendar.data.source !== "mock"
-    && calendar.data.coverageUntil && Date.parse(calendar.data.coverageUntil) >= now + 30 * 60_000
-    ? [...calendar.data.events, ...(calendar.data.recentEvents ?? [])]
-    : null;
-}
-
 /** The newest closed candle is more than three candles old while the market is open: the feed has stalled. */
 export function candlesStale(candles: Array<{ time: string; complete?: boolean }>, now: number, step = 900_000) {
   if (!getForexSessionStatus(new Date(now)).marketOpen) return false;
   const last = candles.filter((candle) => candle.complete !== false).at(-1);
   return !last || now - (Date.parse(last.time) + step) > 3 * step;
-}
-
-/** Notify once per plan and event: the trade_plan_notifications row is the gate. */
-async function notifyOnce(plan: ClaimedPlan, action: Extract<MonitorAction, { kind: "notify" }>) {
-  const gate = await query<{ id: string }>(
-    `INSERT INTO trade_plan_notifications(plan_id,event_type,monitoring_mode) VALUES($1,$2,$3)
-     ON CONFLICT(plan_id,event_type) DO NOTHING RETURNING id`,
-    [plan.id, `${action.event}:v${plan.plan_version}`, plan.monitoring_mode],
-  );
-  if (!gate.rows[0]) return;
-  await query(
-    `INSERT INTO trade_plan_events(plan_id,user_id,plan_version,event_type,actor,reason) VALUES($1,$2,$3,$4,'monitor',$5)`,
-    [plan.id, plan.user_id, plan.plan_version, action.event, action.message],
-  );
-  await queueNotification({
-    userId: plan.user_id, kind: action.notificationKind, title: action.title, message: action.message,
-    instrument: plan.instrument, paperTradeId: null, dedupeKey: `trade-plan:${plan.id}:v${plan.plan_version}:${action.event}`, url: "/plans",
-  });
-  const notification = await query<{ id: string }>("SELECT id FROM notification_events WHERE user_id=$1 AND dedupe_key=$2", [plan.user_id, `trade-plan:${plan.id}:v${plan.plan_version}:${action.event}`]);
-  if (notification.rows[0]) await query("UPDATE trade_plan_notifications SET notification_id=$2 WHERE id=$1", [gate.rows[0].id, notification.rows[0].id]);
 }
 
 async function recordError(planId: string, message: string) {
@@ -271,9 +243,24 @@ export async function runTradePlanMonitorTick(now = Date.now()): Promise<TickSum
     [ids, WORKER_ID],
   )).rows;
 
-  const news = await loadNews(now).catch(() => null);
+  // Plans already executing or in a trade are followed at the broker, not re-judged on candles.
+  const executing = new Set<TradePlanStatus>(["EXECUTION_PENDING", "ORDER_SUBMITTED", "PARTIALLY_FILLED", "FILLED"]);
+  for (const plan of plans.filter((item) => executing.has(item.status))) {
+    try {
+      await reconcileAutoPlan(plan.id, now);
+    } catch (error) {
+      summary.errors += 1;
+      console.error(`[trade-plan-monitor] reconcile ${plan.id} failed`, error);
+    } finally {
+      await releaseLease(plan.id).catch(() => undefined);
+    }
+  }
+  const watched = plans.filter((item) => !executing.has(item.status));
+  if (!watched.length) return summary;
+
+  const news = await loadNewsEvents(now).catch(() => null);
   const byPair = new Map<MajorInstrument, ClaimedPlan[]>();
-  for (const plan of plans) byPair.set(plan.instrument, [...(byPair.get(plan.instrument) ?? []), plan]);
+  for (const plan of watched) byPair.set(plan.instrument, [...(byPair.get(plan.instrument) ?? []), plan]);
   const limitsByUser = new Map<string, Awaited<ReturnType<typeof confirmationLimits>>>();
 
   for (const [instrument, pairPlans] of byPair) {
@@ -320,6 +307,10 @@ export async function runTradePlanMonitorTick(now = Date.now()): Promise<TickSum
         for (const action of decideMonitorActions({ status: plan.status, mode: plan.monitoring_mode, instrument, direction: plan.direction, confirmation })) {
           if (action.kind === "notify") {
             await notifyOnce(plan, action);
+            continue;
+          }
+          if (action.kind === "execute") {
+            await executeAutoPlan(plan.id, now);
             continue;
           }
           if (action.kind === "cancelSiblings") {

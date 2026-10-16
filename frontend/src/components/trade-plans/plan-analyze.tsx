@@ -109,7 +109,8 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
     void act(() => Promise.all(plans.map((plan) => tradePlansApi.reject(plan.id, "Not now"))), () => { setPhase({ kind: "idle" }); setOpen(false); });
   };
   const stopWatching = () => {
-    const live = active.filter((plan) => plan.status !== "EXECUTION_PENDING" && plan.status !== "ORDER_SUBMITTED" && plan.status !== "PARTIALLY_FILLED");
+    // Trades being placed or already open are left alone; stopping only ends the watching.
+    const live = active.filter((plan) => ["APPROVED", "MONITORING", "CONFIRMED", "NOTIFIED"].includes(plan.status));
     void act(() => Promise.all(live.map((plan) => tradePlansApi.cancel(plan.id, "Stopped watching from Analyze"))), () => setOpen(false));
   };
   const cancel = () => { request.current += 1; setPhase({ kind: "idle" }); setOpen(false); };
@@ -191,7 +192,11 @@ export function PlanBlock({ plan, watching, price = null }: { plan: TradePlan; w
         <div><dt>Stop</dt><dd>{fmt(plan.stopLoss)}</dd></div>
         <div><dt>Target</dt><dd>{fmt(plan.takeProfit)}</dd></div>
       </dl>
-      {watching && confirmed && proposal ? (
+      {watching && plan.status === "FILLED" ? (
+        <p className={styles.ready}>In the trade (Auto trade). OANDA holds the stop and target.</p>
+      ) : watching && (plan.status === "EXECUTION_PENDING" || plan.status === "ORDER_SUBMITTED" || plan.status === "PARTIALLY_FILLED") ? (
+        <p className={styles.ready}>Confirmed. Placing the order on your practice account…</p>
+      ) : watching && confirmed && proposal ? (
         <p className={styles.ready}>Confirmed. Enter near {fmt(proposal.entry)}.</p>
       ) : watching ? (
         <p className={styles.note}>

@@ -166,6 +166,12 @@ export function AutoTradeSettingsCard() {
         </div>
       ) : null}
 
+      {settings.autoTrade && settings.executorAvailable ? (
+        <p className={styles.note}>
+          When an Auto trade plan confirms, GX re-checks everything on fresh prices, then places a market order with the stop and target
+          attached. If any check fails, nothing is sent and you are told why.
+        </p>
+      ) : null}
       {settings.autoTrade && !settings.executorAvailable ? (
         <p className={styles.note}>
           Placing the order is the next part being built. Until it ships, an Auto trade plan that confirms alerts you and places nothing.

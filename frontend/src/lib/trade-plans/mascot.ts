@@ -27,6 +27,20 @@ export function mascotLine(plans: TradePlan[]): MascotLine | null {
   const fmt = (value: number) => value.toFixed(digits);
   const status = `${pair} · ${plans.length === 2 ? "BUY & SELL" : plans[0]!.direction}`;
 
+  const inTrade = plans.find((plan) => plan.status === "FILLED");
+  if (inTrade) {
+    return {
+      expression: "confirmed",
+      tone: "live",
+      status,
+      text: `${inTrade.direction} is in the trade (Auto trade). Stop ${fmt(inTrade.stopLoss ?? 0)} and target ${fmt(inTrade.takeProfit ?? 0)} are held by OANDA.`,
+    };
+  }
+  const placing = plans.find((plan) => plan.status === "EXECUTION_PENDING" || plan.status === "ORDER_SUBMITTED" || plan.status === "PARTIALLY_FILLED");
+  if (placing) {
+    return { expression: "alert", tone: "collecting", status, text: `${placing.direction} confirmed. Running the final checks and placing the order on your practice account…` };
+  }
+
   const confirmed = plans.find((plan) => plan.status === "CONFIRMED" || plan.status === "NOTIFIED");
   if (confirmed) {
     const p = confirmed.monitorState?.proposal;
@@ -36,7 +50,7 @@ export function mascotLine(plans: TradePlan[]): MascotLine | null {
       tone: "live",
       status,
       text: confirmed.monitoringMode === "AUTO"
-        ? `${confirmed.direction} confirmed. ${levels} Automatic execution isn't set up yet, so no order was placed.`
+        ? `${confirmed.direction} confirmed. ${levels} Placing it on your practice account.`
         : `${confirmed.direction} confirmed — your call. ${levels}`,
     };
   }

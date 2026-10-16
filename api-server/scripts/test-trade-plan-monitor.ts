@@ -43,13 +43,17 @@ test("Notify: confirmed goes MONITORING → CONFIRMED → NOTIFIED with a ready 
   assert.match(ready.message, /1\.1009/);
 });
 
-test("Auto: confirmed stops at CONFIRMED and never turns into Notify", () => {
+test("Auto: confirmed goes to the executor, never to a Notify alert", () => {
   const actions = decide({ outcome: "CONFIRMED", stage: "CONFIRMED", proposal, notTriggeredReason: null }, "MONITORING", "AUTO");
-  assert.deepEqual(transitions(actions), ["CONFIRMED"]);
+  assert.deepEqual(actions.map((a) => a.kind === "transition" ? `to:${a.to}` : a.kind), ["to:CONFIRMED", "cancelSiblings", "to:EXECUTION_PENDING", "execute"]);
   assert.ok(!transitions(actions).includes("NOTIFIED"));
-  assert.deepEqual(notices(actions), ["AUTO_UNAVAILABLE"]);
-  // Re-evaluating an Auto plan that is already CONFIRMED moves nothing.
-  assert.deepEqual(transitions(decide({ outcome: "CONFIRMED", stage: "CONFIRMED", proposal }, "CONFIRMED", "AUTO")), []);
+  assert.deepEqual(notices(actions), []);
+  // A restart after CONFIRMED resumes at the hand-off, not before it.
+  const resumed = decide({ outcome: "CONFIRMED", stage: "CONFIRMED", proposal }, "CONFIRMED", "AUTO");
+  assert.deepEqual(resumed.map((a) => a.kind === "transition" ? `to:${a.to}` : a.kind), ["cancelSiblings", "to:EXECUTION_PENDING", "execute"]);
+  // A blocked Auto confirmation never executes.
+  assert.ok(!decide({ outcome: "WAITING", stage: "CONFIRMED_BLOCKED", proposal }, "CONFIRMED", "AUTO").some((a) => a.kind === "execute"));
+  assert.ok(!decide({ outcome: "WAITING", stage: "CONFIRMED_BLOCKED", proposal }, "MONITORING", "AUTO").some((a) => a.kind === "execute"));
 });
 
 test("restart between CONFIRMED and NOTIFIED is finished on the next tick", () => {

@@ -249,6 +249,10 @@ export type PracticeMarketOrder = {
   stop: number;
   target: number;
   clientRequestId: string;
+  /** Worst acceptable fill price; the order is cancelled rather than filled beyond it (slippage cap). */
+  priceBound?: number;
+  /** Client id set on the trade the order opens, so it can be found again by that id. */
+  tradeClientId?: string;
 };
 
 export function signedPracticeUnits(direction: "long" | "short", units: number) {
@@ -275,6 +279,8 @@ export async function submitPracticeMarketOrder(order: PracticeMarketOrder) {
         stopLossOnFill: { price: order.stop.toFixed(precision), timeInForce: "GTC" },
         takeProfitOnFill: { price: order.target.toFixed(precision), timeInForce: "GTC" },
         clientExtensions: { id: `gx-${order.clientRequestId}`, tag: "goldenxperience-practice" },
+        ...(order.priceBound !== undefined ? { priceBound: order.priceBound.toFixed(precision) } : {}),
+        ...(order.tradeClientId ? { tradeClientExtensions: { id: order.tradeClientId, tag: "goldenxperience-practice" } } : {}),
       },
     },
   });
@@ -689,6 +695,88 @@ export async function getPracticeOrderState(orderId: string): Promise<PracticeOr
     tradeId: order.tradeOpenedID ?? null,
     fillPrice,
   };
+}
+
+/**
+ * Look an order up by the client id GX gave it ("gx-…"). Used after a lost
+ * response: the order either exists (and says whether it filled) or the
+ * broker never received it (null). Never used to decide to resend.
+ */
+export async function getPracticeOrderByClientId(clientId: string): Promise<(PracticeOrderState & { cancelReason: string | null }) | null> {
+  const config = getConfig();
+  if (!config || !clientId) return null;
+  try {
+    const response = await requestOanda<{ order?: { state?: string; tradeOpenedID?: string; price?: string; cancellingTransactionID?: string } }>(
+      `/v3/accounts/${encodeURIComponent(config.accountId)}/orders/@${encodeURIComponent(clientId)}`,
+    );
+    const order = response.order;
+    if (!order?.state) return null;
+    return {
+      state: order.state,
+      tradeId: order.tradeOpenedID ?? null,
+      fillPrice: transactionNumberOrNull(order.price),
+      cancelReason: order.state === "CANCELLED" ? "CANCELLED" : null,
+    };
+  } catch (error) {
+    if (error instanceof OandaRequestError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+export interface PracticeTradeProtection {
+  state: string;
+  instrument: string | null;
+  currentUnits: number | null;
+  entryPrice: number | null;
+  openTime: string | null;
+  /** Resting stop-loss price, null when the broker holds none. */
+  stopLoss: number | null;
+  takeProfit: number | null;
+  realizedPL: number | null;
+  averageClosePrice: number | null;
+  closeTime: string | null;
+}
+
+/** A trade with the protective orders the broker actually holds on it. */
+export async function getPracticeTradeProtection(tradeSpecifier: string): Promise<PracticeTradeProtection | null> {
+  const config = getConfig();
+  if (!config || !tradeSpecifier) return null;
+  type Order = { price?: string; state?: string };
+  let response: { trade?: { state?: string; instrument?: string; currentUnits?: string; price?: string; openTime?: string; realizedPL?: string; averageClosePrice?: string; closeTime?: string; stopLossOrder?: Order; takeProfitOrder?: Order } };
+  try {
+    response = await requestOanda<typeof response>(`/v3/accounts/${encodeURIComponent(config.accountId)}/trades/${encodeURIComponent(tradeSpecifier).replace(/^%40/, "@")}`);
+  } catch (error) {
+    if (error instanceof OandaRequestError && error.status === 404) return null;
+    throw error;
+  }
+  const trade = response.trade;
+  if (!trade?.state) return null;
+  const resting = (order?: Order) => (order && (order.state === undefined || order.state === "PENDING") ? transactionNumberOrNull(order.price) : null);
+  return {
+    state: trade.state,
+    instrument: trade.instrument ?? null,
+    currentUnits: transactionNumberOrNull(trade.currentUnits),
+    entryPrice: transactionNumberOrNull(trade.price),
+    openTime: trade.openTime ?? null,
+    stopLoss: resting(trade.stopLossOrder),
+    takeProfit: resting(trade.takeProfitOrder),
+    realizedPL: transactionNumberOrNull(trade.realizedPL),
+    averageClosePrice: transactionNumberOrNull(trade.averageClosePrice),
+    closeTime: trade.closeTime ?? null,
+  };
+}
+
+/** Instruments with an open trade on the account, straight from the broker (no demo fallback). */
+export async function getPracticeOpenTradeInstruments(): Promise<string[]> {
+  const config = getConfig();
+  if (!config) throw new OandaRequestError("OANDA credentials are not configured.");
+  const response = await requestOanda<OandaOpenTradesResponse>(`/v3/accounts/${encodeURIComponent(config.accountId)}/openTrades`);
+  return [...new Set(response.trades.map((trade) => trade.instrument))];
+}
+
+/** "practice", "live", or null when OANDA is not configured. */
+export function oandaEnvironment() {
+  return getConfig()?.environment ?? null;
 }
 
 function buildStatus(

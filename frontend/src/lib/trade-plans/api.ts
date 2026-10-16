@@ -1,0 +1,189 @@
+import { apiUrl } from "@/lib/api/url";
+
+/**
+ * Typed client for /api/trade-plans. The server is authoritative: the client
+ * sends a pair to analyze, the plan version it reviewed and the mode it chose
+ * — never levels, sizes or a status.
+ */
+
+export type TradePlanStatus =
+  | "DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "MONITORING" | "CONFIRMED" | "NOTIFIED"
+  | "EXECUTION_PENDING" | "ORDER_SUBMITTED" | "PARTIALLY_FILLED" | "FILLED" | "EXECUTION_FAILED"
+  | "CLOSED" | "REJECTED" | "CANCELLED" | "INVALIDATED" | "EXPIRED";
+
+export type MonitoringMode = "NOTIFY" | "AUTO";
+export type PlanFilter = "all" | "awaiting" | "monitoring" | "confirmed" | "executed" | "invalidated" | "expired" | "rejected";
+export type ConditionStatus = "PENDING" | "PASSED" | "FAILED" | "BLOCKED";
+
+export interface PlanCondition {
+  key: string;
+  label: string;
+  status: ConditionStatus;
+  detail: string | null;
+}
+
+export interface PlanBody {
+  entryTrigger?: string;
+  confirmation?: string[];
+  stopLossRule?: string;
+  takeProfitRule?: string;
+  positionSizingRule?: string;
+  spreadSlippage?: { rule?: string };
+  newsRestrictions?: { rule?: string; upcomingHighImpact?: Array<{ title: string; currency: string; at: string }> };
+  invalidation?: { rules?: string[] };
+  expiryRule?: string;
+  explanation?: string[];
+  zone?: { low: number; high: number };
+  [key: string]: unknown;
+}
+
+export interface MonitorProposal {
+  confirmedAt: string;
+  side: "BUY" | "SELL";
+  entry: number;
+  stopLoss: number;
+  takeProfit: number;
+  rewardRisk: number;
+  spread: number | null;
+  quoteTime: string | null;
+}
+
+export interface TradePlan {
+  id: string;
+  analysisId: string;
+  instrument: string;
+  direction: "BUY" | "SELL";
+  setupType: "BREAKOUT_RETEST" | "SR_REVERSAL";
+  status: TradePlanStatus;
+  planVersion: number;
+  stateVersion: string;
+  monitoringMode: MonitoringMode | null;
+  pausedAt: string | null;
+  timeframe: string;
+  marketBias: string;
+  trendClassification: string;
+  entryZoneLow: number;
+  entryZoneHigh: number;
+  stopLoss: number | null;
+  takeProfit: number | null;
+  rewardRisk: number | null;
+  maxRiskPercent: number;
+  plan: PlanBody;
+  strategyVersion: string;
+  marketDataAt: string | null;
+  expiresAt: string;
+  createdAt: string;
+  updatedAt: string;
+  monitorStage: string | null;
+  lastEvaluatedAt: string | null;
+  lastPrice: number | null;
+  notTriggeredReason: string | null;
+  monitorState: { outcome?: string; proposal?: MonitorProposal | null } | null;
+  conditions: PlanCondition[];
+}
+
+export interface PlanEvent {
+  id: string;
+  planVersion: number;
+  type: string;
+  from: TradePlanStatus | null;
+  to: TradePlanStatus | null;
+  actor: "user" | "monitor" | "executor" | "system";
+  reason: string;
+  createdAt: string;
+}
+
+export interface PlanDetail {
+  plan: TradePlan;
+  conditions: Array<PlanCondition & { evaluatedAt: string | null }>;
+  approvals: Array<{ planVersion: number; monitoringMode: MonitoringMode; approvedAt: string; revokedAt: string | null; revokeReason: string | null }>;
+  events: PlanEvent[];
+  executionAttempts: Array<{ id: string; status: string; error: string | null; createdAt: string }>;
+}
+
+export interface GenerateResult {
+  analysisId: string;
+  result: "PLANS" | "NO_VALID_SETUP";
+  reason: string | null;
+  planIds: string[];
+  rejected: Array<{ direction: "BUY" | "SELL"; setupType: string; reason: string }>;
+}
+
+export interface ProgressResult {
+  planId: string;
+  planVersion: number;
+  confirmation: {
+    outcome: "WAITING" | "CONFIRMED" | "INVALIDATED" | "EXPIRED";
+    stage: string;
+    conditions: Array<{ key: string; status: ConditionStatus; detail: string; at: string | null }>;
+    notTriggeredReason: string | null;
+    proposal: MonitorProposal | null;
+  };
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(apiUrl(path), {
+    credentials: "include",
+    cache: "no-store",
+    ...init,
+    headers: init?.body ? { "Content-Type": "application/json", ...init.headers } : init?.headers,
+  });
+  const payload = await response.json().catch(() => null) as (T & { error?: string }) | null;
+  if (!response.ok) throw new Error(payload?.error || `Request failed (${response.status}).`);
+  return payload as T;
+}
+
+const post = <T>(path: string, body: unknown = {}) => request<T>(path, { method: "POST", body: JSON.stringify(body) });
+
+export const tradePlansApi = {
+  list: (filter: PlanFilter = "all", instrument?: string) =>
+    request<{ plans: TradePlan[] }>(`/api/trade-plans?filter=${filter}${instrument ? `&instrument=${instrument}` : ""}`).then((r) => r.plans),
+  get: (id: string) => request<PlanDetail>(`/api/trade-plans/${id}`),
+  progress: (id: string) => request<ProgressResult>(`/api/trade-plans/${id}/progress`),
+  generate: (instrument: string) => post<GenerateResult>("/api/trade-plans/generate", { instrument }),
+  approve: (id: string, planVersion: number, mode: MonitoringMode) => post(`/api/trade-plans/${id}/approve`, { planVersion, mode }),
+  reject: (id: string, reason?: string) => post(`/api/trade-plans/${id}/reject`, { reason }),
+  cancel: (id: string, reason?: string) => post(`/api/trade-plans/${id}/cancel`, { reason }),
+  pause: (id: string) => post(`/api/trade-plans/${id}/pause`),
+  resume: (id: string) => post(`/api/trade-plans/${id}/resume`),
+  edit: (id: string, changes: { maxRiskPercent?: number; expiresAt?: string; reason?: string }) => post(`/api/trade-plans/${id}/edit`, changes),
+};
+
+/** Statuses a user can still cancel from (execution states go through the executor). */
+export const CANCELLABLE: ReadonlySet<TradePlanStatus> = new Set(["APPROVED", "MONITORING", "CONFIRMED", "NOTIFIED"]);
+export const EDITABLE: ReadonlySet<TradePlanStatus> = new Set(["PENDING_APPROVAL", "APPROVED", "MONITORING"]);
+
+export const STATUS_LABEL: Record<TradePlanStatus, string> = {
+  DRAFT: "Draft",
+  PENDING_APPROVAL: "Awaiting approval",
+  APPROVED: "Approved",
+  MONITORING: "Monitoring",
+  CONFIRMED: "Confirmed",
+  NOTIFIED: "Ready — you decide",
+  EXECUTION_PENDING: "Executing",
+  ORDER_SUBMITTED: "Order sent",
+  PARTIALLY_FILLED: "Partly filled",
+  FILLED: "Filled",
+  EXECUTION_FAILED: "Execution failed",
+  CLOSED: "Closed",
+  REJECTED: "Rejected",
+  CANCELLED: "Cancelled",
+  INVALIDATED: "Invalidated",
+  EXPIRED: "Expired",
+};
+
+export const SETUP_LABEL: Record<TradePlan["setupType"], string> = {
+  BREAKOUT_RETEST: "Breakout and retest",
+  SR_REVERSAL: "Support/resistance reversal",
+};
+
+export const FILTERS: Array<{ id: PlanFilter; label: string }> = [
+  { id: "all", label: "All" },
+  { id: "awaiting", label: "Awaiting approval" },
+  { id: "monitoring", label: "Monitoring" },
+  { id: "confirmed", label: "Confirmed" },
+  { id: "executed", label: "Executed" },
+  { id: "invalidated", label: "Invalidated" },
+  { id: "expired", label: "Expired" },
+  { id: "rejected", label: "Rejected" },
+];

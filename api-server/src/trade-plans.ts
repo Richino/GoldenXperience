@@ -366,7 +366,9 @@ const PLAN_COLUMNS = `p.id,p.analysis_id AS "analysisId",p.instrument,p.directio
   p.plan,p.strategy_version AS "strategyVersion",p.market_data_at AS "marketDataAt",p.expires_at AS "expiresAt",
   p.created_at AS "createdAt",p.updated_at AS "updatedAt",
   m.stage AS "monitorStage",m.last_evaluated_at AS "lastEvaluatedAt",m.last_price::float AS "lastPrice",
-  m.not_triggered_reason AS "notTriggeredReason"`;
+  m.not_triggered_reason AS "notTriggeredReason",m.state AS "monitorState",
+  (SELECT coalesce(json_agg(json_build_object('key',c.condition_key,'label',c.label,'status',c.status,'detail',c.detail) ORDER BY c.ordinal),'[]'::json)
+     FROM trade_plan_conditions c WHERE c.plan_id=p.id AND c.plan_version=p.plan_version) AS conditions`;
 
 export async function listTradePlans(userId: string, filter = "all", instrument?: string) {
   if (!(filter in TRADE_PLAN_FILTERS)) throw new TradePlanError("Unknown filter.", 400);

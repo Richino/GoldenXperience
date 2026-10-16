@@ -8,6 +8,7 @@ import {
   CandlestickChart,
   BookOpen,
   ChartNoAxesCombined,
+  ClipboardList,
   House,
   Settings,
   type LucideIcon,
@@ -35,12 +36,13 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: "Home", href: "/", icon: House },
   { label: "Chart", href: "/chart", icon: CandlestickChart },
+  { label: "Plans", href: "/plans", icon: ClipboardList },
   { label: "Trades", href: "/journal", icon: BookOpen },
   { label: "Markets", href: "/watchlist", icon: ChartNoAxesCombined },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
-const mobilePrimaryHrefs = ["/", "/chart", "/journal", "/watchlist", "/settings"] as const;
+const mobilePrimaryHrefs = ["/", "/chart", "/plans", "/journal", "/watchlist", "/settings"] as const;
 
 function isActive(pathname: string, href: string) {
   if (href === "/settings") {

@@ -247,7 +247,7 @@ function ModeSwitch({ mode, onChange, name }: { mode: MonitoringMode; onChange: 
     <fieldset className={styles.modeField}>
       <legend className="sr-only">When a plan confirms</legend>
       <div className={styles.segmented}>
-        {([["NOTIFY", "Alert me"], ["AUTO", "GX places it"]] as const).map(([value, label]) => (
+        {([["NOTIFY", "Alert me"], ["AUTO", "Auto trade"]] as const).map(([value, label]) => (
           <label key={value} className={styles.segment}>
             <input type="radio" name={name} value={value} checked={mode === value} onChange={() => onChange(value)} />
             <span>{label}</span>

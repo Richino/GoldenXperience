@@ -108,3 +108,24 @@ export function buildCalendarSnapshot(input: {
     .map((row) => ({ ...row, surprise: row.actual === null ? { side: "UNKNOWN" as const, difference: null, unit: null } : surpriseOf(row.actual, row.forecast) }));
   return { ...base, available: true, upcoming, released, note: null };
 }
+
+/** The verified events as contract references with stable ids the model can cite (e1, e2, ...). */
+export function calendarRefs(snapshot: CalendarSnapshot) {
+  const rows = [
+    ...snapshot.released.map((row) => ({ ...row, status: "released" as const })),
+    ...snapshot.upcoming.map((row) => ({ ...row, status: "scheduled" as const })),
+  ];
+  return rows.map((row, index) => ({
+    id: `e${index + 1}`,
+    title: row.title,
+    currency: row.currency,
+    impact: row.impact,
+    at: row.at,
+    actual: row.actual,
+    forecast: row.forecast,
+    previous: row.previous,
+    revised: null,
+    status: row.status,
+    source: snapshot.source,
+  }));
+}

@@ -2,8 +2,9 @@ import { getCandles, getPricing } from "../../frontend/src/lib/oanda/client.js";
 import { getEconomicCalendar } from "../../frontend/src/lib/calendar/forex-factory.js";
 import type { MajorInstrument } from "../../frontend/src/types/forex.js";
 import { query, transaction } from "./database.js";
-import { freshResearchFor } from "./intelligence/research-service.js";
-import type { IntelligenceReport } from "./intelligence/research-report.js";
+import { latestResearch } from "./intelligence/research-service.js";
+import type { MarketIntelligence } from "./intelligence/research-contract.js";
+import { researchContextForPlan } from "./intelligence/plan-research.js";
 import { evaluateConfirmation, planTimeframes, type Confirmation, type PlanForConfirmation, type SafetyLimits } from "./trade-plan-confirmation.js";
 import { generateTradePlans, type GeneratorResult } from "./trade-plan-generator.js";
 import { TradePlanError, createTradePlan, listTradePlans, reviseTradePlan, transitionInTx, validateTradePlanInput, type TradePlanInput } from "./trade-plans.js";
@@ -78,22 +79,16 @@ export async function loadNewsEvents(now: number) {
 }
 
 /**
- * Freeze the research a plan was made against into the plan, as context:
- * the evidence for its side and against it. Entry, stop, target and
- * confirmation rules are untouched (they come only from the technical engine).
+ * Freeze the validated research each plan was made against into the plan:
+ * its alignment with that side, the cited factors for and against, the side's
+ * research thesis, and verified releases inside the plan's window. Entry,
+ * stop, target and confirmation rules are untouched (they come only from the
+ * technical engine), and a plan is made whatever the research says.
  */
-export function attachIntelligence(plans: TradePlanInput[], research: { id: string; createdAt: string; report: IntelligenceReport }) {
+export function attachIntelligence(plans: TradePlanInput[], intelligence: MarketIntelligence | null, options: { fresh: boolean; staleReason: string | null; technicalReadAt: string | null; now: number }) {
   for (const plan of plans) {
-    const buy = plan.direction === "BUY";
-    plan.plan.intelligence = {
-      researchId: research.id,
-      researchedAt: research.createdAt,
-      overallBias: research.report.overallBias,
-      confidence: research.report.confidence,
-      supporting: (buy ? research.report.bullishEvidence : research.report.bearishEvidence).slice(0, 4),
-      opposing: (buy ? research.report.bearishEvidence : research.report.bullishEvidence).slice(0, 3),
-      note: "Context from market research at the time the plan was made. It does not change the entry, stop, target or confirmation rules.",
-    };
+    plan.plan.intelligence = researchContextForPlan({ instrument: plan.instrument, direction: plan.direction, expiresAt: plan.expiresAt }, intelligence, options);
+    if (plan.analysisInputs) plan.analysisInputs.researchId = intelligence?.research.id ?? null;
   }
   return plans;
 }
@@ -112,9 +107,16 @@ export async function generateAndStoreTradePlans(userId: string, instrument: Maj
     throw new TradePlanError("Live OANDA candles are unavailable; no plans were generated.", 503);
   }
   const result: GeneratorResult = generateTradePlans({ instrument, ...market, maxRiskPercent: risk.maxRiskPercent, limits: risk.limits });
-  // Fresh market intelligence, if any, is frozen into each plan as context. It never changes entry rules.
-  const research = await freshResearchFor(instrument, market.now).catch(() => null);
-  if (research?.report) attachIntelligence(result.plans, { id: research.id, createdAt: research.createdAt, report: research.report });
+  // The latest validated research (fresh or not, labelled as such) is frozen into each plan as context.
+  // Research never decides whether a plan is made or what its rules are.
+  const latest = await latestResearch(instrument, market.now).catch(() => null);
+  const research = latest?.research?.report?.schemaVersion ? latest.research : null;
+  attachIntelligence(result.plans, research?.report ?? null, {
+    fresh: Boolean(research?.fresh),
+    staleReason: research ? research.staleReason : "No research yet for this pair.",
+    technicalReadAt: result.context?.candleTimes.H1 ?? null,
+    now: market.now,
+  });
 
   // Retire unreviewed plans from earlier analyses of this pair.
   const stale = await query<{ id: string }>(

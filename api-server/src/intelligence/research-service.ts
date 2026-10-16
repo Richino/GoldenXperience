@@ -5,9 +5,13 @@ import type { MajorInstrument } from "../../../frontend/src/types/forex.js";
 import { databaseConfigured, query } from "../database.js";
 import { generateTradePlans } from "../trade-plan-generator.js";
 import { loadGeneratorMarket } from "../trade-plan-service.js";
-import { buildCalendarSnapshot, type CalendarSnapshot } from "./calendar-snapshot.js";
+import { randomUUID } from "node:crypto";
+import { buildCalendarSnapshot, calendarRefs, type CalendarSnapshot } from "./calendar-snapshot.js";
 import { researchConfig, runResearch, type TechnicalSummary } from "./openai-research.js";
-import type { IntelligenceReport } from "./research-report.js";
+import { RESEARCH_SCHEMA_VERSION, type MarketIntelligence } from "./research-contract.js";
+import { researchContextForPlan } from "./plan-research.js";
+import { notifyOnce } from "../trade-plan-notify.js";
+import { displayPair } from "../notifications.js";
 
 /**
  * Market intelligence orchestration: cache, freshness, budget and schedule.
@@ -32,7 +36,8 @@ type ResearchRow = {
   trigger: Trigger;
   status: "COMPLETE" | "FAILED" | "BUDGET_BLOCKED";
   model: string | null;
-  report: IntelligenceReport | null;
+  /** Validated MarketIntelligence (schema v2); older rows hold the v1 report and count as stale. */
+  report: MarketIntelligence | null;
   sources: Array<{ url: string; title: string | null }>;
   calendar_snapshot: CalendarSnapshot;
   technical_summary: TechnicalSummary;
@@ -58,12 +63,17 @@ export function researchSettings(env: NodeJS.ProcessEnv = process.env) {
     monthlyBudgetUsd: env.RESEARCH_MONTHLY_BUDGET_USD?.trim() ? num(env.RESEARCH_MONTHLY_BUDGET_USD, 0) : null,
     scheduleEnabled: env.RESEARCH_SCHEDULE_ENABLED !== "false",
     requiredForAuto: env.RESEARCH_REQUIRED_FOR_AUTO === "true",
+    /** Off by default: research is context, not a filter, unless the user opts in. */
+    blockAutoWhenOpposed: env.RESEARCH_BLOCK_AUTO_WHEN_OPPOSED === "true",
   };
 }
 
 /** Freshness of a research row against the clock and the calendar. Pure. */
-export function researchFreshness(row: { created_at: Date | string; expires_at: Date | string | null; currencies: string[] } | null, released: Array<{ currency: string; impact: number; at: string }>, now: number) {
+export function researchFreshness(row: { created_at: Date | string; expires_at: Date | string | null; currencies: string[]; report?: unknown } | null, released: Array<{ currency: string; impact: number; at: string }>, now: number) {
   if (!row) return { fresh: false, reason: "No research yet." };
+  if (row.report !== undefined && (row.report as { schemaVersion?: string } | null)?.schemaVersion !== RESEARCH_SCHEMA_VERSION) {
+    return { fresh: false, reason: "Research is in an older format." };
+  }
   const created = new Date(row.created_at).getTime();
   if (row.expires_at && now >= new Date(row.expires_at).getTime()) return { fresh: false, reason: "Research is older than its refresh window." };
   const newer = released.find((event) => event.impact >= 3 && row.currencies.includes(event.currency) && Date.parse(event.at) > created && Date.parse(event.at) <= now);
@@ -98,7 +108,8 @@ export async function researchUsage(now = Date.now()) {
     unknownCostRuns: Number(r.unknown_cost), monthInputTokens: Number(r.tokens_in ?? 0), monthOutputTokens: Number(r.tokens_out ?? 0), monthWebSearches: Number(r.searches ?? 0),
   };
   const settings = researchSettings();
-  return { ...usage, settings, verdict: budgetVerdict(usage, settings), pricesConfigured: researchConfig().prices.inputPerMTok !== null };
+  const config = researchConfig();
+  return { ...usage, cacheHitsSinceRestart: cacheHits, model: config.model, effort: config.effort, settings, verdict: budgetVerdict(usage, settings), pricesConfigured: config.prices.inputPerMTok !== null };
 }
 
 async function calendarEvents(): Promise<EconomicCalendarEvent[] | null> {
@@ -166,6 +177,8 @@ export async function latestResearch(instrument: string, now = Date.now()) {
 }
 
 const inFlight = new Map<string, Promise<unknown>>();
+/** Research served from cache since this server started (Analyze presses that cost nothing). */
+const cacheHits = { count: 0, since: new Date().toISOString() };
 
 /**
  * Start research and wait up to `waitMs` for it. Research can take minutes
@@ -201,7 +214,10 @@ async function doRefresh(instrument: MajorInstrument, trigger: Trigger, options:
   const { base, quote } = currenciesOf(instrument);
   const [row, events] = await Promise.all([latestComplete(instrument), calendarEvents()]);
   const freshness = researchFreshness(row, releasedOf(events, now), now);
-  if (row && freshness.fresh && !options.force) return { cached: true, research: rowView(row, freshness)!, budget: null };
+  if (row && freshness.fresh && !options.force) {
+    cacheHits.count += 1;
+    return { cached: true, research: rowView(row, freshness)!, budget: null };
+  }
 
   const settings = researchSettings();
   const usage = await researchUsage(now);
@@ -215,22 +231,24 @@ async function doRefresh(instrument: MajorInstrument, trigger: Trigger, options:
   }
 
   const technical = await technicalSummaryFor(instrument);
-  const outcome = await runResearch({ instrument, currencies: [base, quote], technical, calendar, now });
+  const researchId = randomUUID();
+  const outcome = await runResearch({ instrument, currencies: [base, quote], technical, calendar: calendarRefs(calendar), calendarNote: calendar.note, researchId, now });
   const inserted = await query<ResearchRow>(
-    `INSERT INTO market_research(instrument,currencies,trigger,status,model,report,sources,calendar_snapshot,technical_summary,dropped,
+    `INSERT INTO market_research(id,instrument,currencies,trigger,status,model,report,sources,calendar_snapshot,technical_summary,dropped,
                                  input_tokens,output_tokens,web_search_calls,cost_usd,error,expires_at)
-     VALUES($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8::jsonb,$9::jsonb,$10::jsonb,$11,$12,$13,$14,$15,$16)
+     VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9::jsonb,$10::jsonb,$11::jsonb,$12,$13,$14,$15,$16,$17)
      RETURNING ${COLUMNS}`,
-    [instrument, [base, quote], trigger, outcome.ok ? "COMPLETE" : "FAILED", outcome.model,
-     outcome.ok ? JSON.stringify(outcome.report) : null, JSON.stringify(outcome.sources), JSON.stringify(calendar), JSON.stringify(technical),
-     JSON.stringify(outcome.ok ? outcome.dropped : []), outcome.usage.inputTokens, outcome.usage.outputTokens, outcome.usage.webSearchCalls,
+    [researchId, instrument, [base, quote], trigger, outcome.ok ? "COMPLETE" : "FAILED", outcome.model,
+     outcome.ok ? JSON.stringify(outcome.intelligence) : null, JSON.stringify(outcome.sources), JSON.stringify(calendar), JSON.stringify(technical),
+     JSON.stringify(outcome.drops), outcome.usage.inputTokens, outcome.usage.outputTokens, outcome.usage.webSearchCalls,
      outcome.usage.costUsd, outcome.ok ? null : outcome.error, new Date(now + settings.ttlHours * 3_600_000).toISOString()],
   );
   const fresh = inserted.rows[0]!;
   if (!outcome.ok) {
-    // Keep showing the last good research (marked stale) with the reason this run failed.
+    // Invalid output never reaches plans; keep showing the last good research (marked stale) with the reason.
     return { cached: Boolean(row), research: rowView(row, freshness), budget: null, error: outcome.error };
   }
+  await warnActivePlans(instrument, outcome.intelligence, now).catch((error) => console.error("[research] plan warnings failed", error));
   return { cached: false, research: rowView(fresh, { fresh: true, reason: null })!, budget: null };
 }
 
@@ -261,5 +279,33 @@ export async function refreshDueResearch(now = Date.now()) {
 /** The research a new plan is generated against, if fresh: frozen into the plan. */
 export async function freshResearchFor(instrument: string, now = Date.now()) {
   const { research } = await latestResearch(instrument, now);
-  return research && research.fresh && research.report ? research : null;
+  return research && research.fresh && research.report?.schemaVersion === RESEARCH_SCHEMA_VERSION ? research : null;
+}
+
+/**
+ * New research never rewrites an accepted plan. When it leans against an
+ * active plan's side, the user is warned once per research run; the plan,
+ * its rules and its approval stay exactly as they are, and nothing is placed
+ * or cancelled because of research.
+ */
+export async function warnActivePlans(instrument: string, intelligence: MarketIntelligence, now = Date.now()) {
+  const plans = await query<{ id: string; user_id: string; plan_version: number; monitoring_mode: string | null; instrument: string; direction: "BUY" | "SELL"; expires_at: Date }>(
+    `SELECT id,user_id,plan_version,monitoring_mode,instrument,direction,expires_at FROM trade_plans
+      WHERE instrument=$1 AND status IN ('APPROVED','MONITORING','CONFIRMED','NOTIFIED')`,
+    [instrument],
+  );
+  let warned = 0;
+  for (const plan of plans.rows) {
+    const context = researchContextForPlan({ instrument: plan.instrument, direction: plan.direction, expiresAt: new Date(plan.expires_at).toISOString() }, intelligence, { fresh: true, staleReason: null, technicalReadAt: null, now });
+    if (context.alignment !== "opposes") continue;
+    const lead = context.opposing.slice(0, 2).map((factor) => factor.factor).join("; ");
+    const sent = await notifyOnce(plan, {
+      event: `RESEARCH_OPPOSES_${intelligence.research.id.slice(0, 8)}`,
+      notificationKind: "trade_update",
+      title: `${displayPair(instrument)} research now leans against your ${plan.direction}`,
+      message: `New research weighs against the ${plan.direction} plan (${lead || "see Analyze"}). Your plan, its rules and approval are unchanged; nothing is placed or cancelled because of research. Review it in Analyze.`,
+    });
+    if (sent) warned += 1;
+  }
+  return warned;
 }

@@ -19,6 +19,7 @@ import { addTradingHours } from "./trade-plan-generator.js";
 import { notifyOnce, type NotifiablePlan } from "./trade-plan-notify.js";
 import { loadNewsEvents } from "./trade-plan-service.js";
 import { latestResearch, researchSettings } from "./intelligence/research-service.js";
+import { researchContextForPlan } from "./intelligence/plan-research.js";
 import type { TradePlanStatus } from "./trade-plan-state.js";
 import { TradePlanError, transitionInTx } from "./trade-plans.js";
 
@@ -173,8 +174,12 @@ export async function executeAutoPlan(planId: string, now = Date.now()) {
   if (!attemptId) return { kind: "exists" as const };
 
   const instrument = plan.instrument as MajorInstrument;
-  const researchRequired = researchSettings().requiredForAuto;
-  const research = researchRequired ? await latestResearch(plan.instrument, now).catch(() => null) : null;
+  const researchConfig = researchSettings();
+  const researchRequired = researchConfig.requiredForAuto;
+  const research = researchRequired || researchConfig.blockAutoWhenOpposed ? await latestResearch(plan.instrument, now).catch(() => null) : null;
+  const researchAlignment = research?.research?.report?.schemaVersion
+    ? researchContextForPlan({ instrument: plan.instrument, direction: plan.direction, expiresAt: new Date(plan.expires_at).toISOString() }, research.research.report, { fresh: research.research.fresh, staleReason: research.research.staleReason, technicalReadAt: null, now }).alignment
+    : null;
   const [settings, pricing, news, account, rate, openInstruments, openAuto, realized, monitor] = await Promise.all([
     settingsFor(plan.user_id),
     getPricing([instrument]).catch(() => null),
@@ -235,7 +240,7 @@ export async function executeAutoPlan(planId: string, now = Date.now()) {
     openInstruments,
     openAutoTrades: { count: Number(openAuto.rows[0]?.count ?? 0), riskPercent: Number(openAuto.rows[0]?.risk ?? 0) },
     realizedTodayPL: Number(realized.rows[0]?.pl ?? 0),
-    research: { required: researchRequired, fresh: Boolean(research?.research?.fresh), reason: research?.research?.staleReason ?? (research ? null : "research unavailable") },
+    research: { required: researchRequired, fresh: Boolean(research?.research?.fresh), reason: research?.research?.staleReason ?? (research ? null : "research unavailable"), blockWhenOpposed: researchConfig.blockAutoWhenOpposed, alignment: researchAlignment },
   });
 
   if (!verdict.ok || !verdict.order) {

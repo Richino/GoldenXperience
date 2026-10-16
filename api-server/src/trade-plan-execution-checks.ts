@@ -57,7 +57,7 @@ export type ExecutionInput = {
   /** Realised P/L of Auto trades closed today (account currency; negative is a loss). */
   realizedTodayPL: number;
   /** When fresh market research is required for Auto trade (RESEARCH_REQUIRED_FOR_AUTO). */
-  research?: { required: boolean; fresh: boolean; reason: string | null };
+  research?: { required: boolean; fresh: boolean; reason: string | null; blockWhenOpposed?: boolean; alignment?: string | null };
 };
 
 export type ExecutionOrder = {
@@ -113,6 +113,10 @@ export function executionChecks(input: ExecutionInput): { ok: boolean; checks: E
     check("no_open_position", !open, open ? `A trade is already open on ${plan.instrument.replace("_", "/")}; Auto trade will not net against it.` : "No open trade on this pair.");
   }
 
+  if (input.research?.blockWhenOpposed && input.research.alignment) {
+    const opposed = input.research.alignment === "opposes";
+    check("research_alignment", !opposed, opposed ? "The latest research weighs against this side (RESEARCH_BLOCK_AUTO_WHEN_OPPOSED is on)." : `Research alignment: ${input.research.alignment.replace("_", " ")}.`);
+  }
   if (input.research?.required) {
     check("research", input.research.fresh, input.research.fresh ? "Market research is fresh." : `Fresh market research is required and unavailable: ${input.research.reason ?? "stale"}.`);
   }

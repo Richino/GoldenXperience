@@ -141,24 +141,81 @@ export interface AutoTradeSettings {
   executorAvailable: boolean;
 }
 
-export interface EvidencePoint { point: string; urls: string[] }
+/** Market Intelligence contract v2 (mirrors api-server/src/intelligence/research-contract.ts). */
+export type Bias = "bullish" | "bearish" | "mixed" | "neutral" | "unknown";
+export type Quality = "high" | "medium" | "low";
 
-export interface IntelligenceReport {
-  overallBias: "BULLISH" | "BEARISH" | "MIXED" | "UNCLEAR";
-  confidence: "LOW" | "MEDIUM" | "HIGH";
+export interface ResearchSource {
+  id: string;
+  url: string;
+  publisher: string;
+  title: string | null;
+  retrievedAt: string;
+  publishedAt: string | null;
+  type: "official" | "news" | "analysis" | "forum" | "other";
+}
+
+export interface ResearchFactor {
+  id: string;
+  factor: string;
+  currency: string;
+  effectOnCurrency: "strengthens" | "weakens" | "mixed" | "unclear";
+  impactOnPair: Bias;
+  importance: Quality;
+  evidenceType: "verified_data" | "attributed_analysis" | "hypothesis";
+  description: string;
+  observedAt: string | null;
+  uncertainty: string | null;
+  sourceIds: string[];
+}
+
+export interface ResearchEvent {
+  id: string;
+  title: string;
+  currency: string;
+  impact: number;
+  at: string;
+  actual: string | null;
+  forecast: string | null;
+  previous: string | null;
+  status: "released" | "scheduled";
+  source: string;
+  implication: string | null;
+}
+
+export interface ResearchObservation { text: string; stance: "bullish" | "bearish" | "neutral" | "mixed"; sourceIds: string[] }
+
+export interface ResearchThesis {
+  hypothesis: string;
+  supportingFactorIds: string[];
+  opposingFactorIds: string[];
+  catalysts: string[];
+  strengthensIf: string[];
+  weakensIf: string[];
+}
+
+export interface MarketIntelligence {
+  schemaVersion: string;
+  pair: string;
+  base: string;
+  quote: string;
+  research: { id: string; createdAt: string; cutoffAt: string; horizon: string; status: "complete" | "partial"; quality: Quality; missingData: string[]; model: string; effort: string; durationMs: number };
+  outlook: { overall: Bias; shortTerm: Bias; swingTerm: Bias; fundamental: Bias; technical: Bias; explanation: string };
+  factors: ResearchFactor[];
+  events: ResearchEvent[];
+  sentiment: { professional: ResearchObservation[]; retail: ResearchObservation[]; positioning: ResearchObservation[]; expectations: string; limitations: string };
+  bullishThesis: ResearchThesis;
+  bearishThesis: ResearchThesis;
+  sources: ResearchSource[];
   summary: string;
-  baseCurrency: { label: string; summary: string };
-  quoteCurrency: { label: string; summary: string };
-  ratesAndYields: string;
-  riskSentiment: string;
-  technicalVsFundamental: string;
-  news: Array<{ headline: string; publisher: string; publishedAt: string | null; url: string; currencies: string[]; topic: string; kind: "FACT" | "ANALYSIS"; implication: string; summary: string }>;
-  sentiment: { summary: string; observations: Array<{ source: string; url: string; stance: string; text: string }>; limitations: string };
-  bullishEvidence: EvidencePoint[];
-  bearishEvidence: EvidencePoint[];
-  catalysts: Array<{ event: string; why: string }>;
-  uncertainties: string[];
-  conclusion: { supports: string; invalidatedBy: string; needsPriceConfirmation: string };
+}
+
+/** The research context frozen into a plan when it was made. */
+export interface PlanResearchContext {
+  researchId: string | null;
+  researchedAt: string | null;
+  fresh: boolean;
+  alignment: "supports" | "opposes" | "mixed" | "no_evidence" | "no_research";
 }
 
 export interface CalendarRow { title: string; currency: string; impact: number; at: string; forecast: string | null; previous: string | null; actual: string | null }
@@ -168,7 +225,8 @@ export interface ResearchView {
   instrument: string;
   status: string;
   model: string | null;
-  report: IntelligenceReport | null;
+  /** v2 contract; null (or an older format) when there is none. */
+  report: MarketIntelligence | null;
   sourceCount: number;
   calendar: { available: boolean; readAt: string; source: string; upcoming: CalendarRow[]; released: Array<CalendarRow & { surprise: { side: string; difference: number | null; unit: string | null } }>; note: string | null };
   usage: { inputTokens: number | null; outputTokens: number | null; webSearchCalls: number | null; costUsd: number | null };

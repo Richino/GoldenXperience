@@ -12,7 +12,7 @@ import {
   tradePlansApi,
   type ConditionStatus,
   type GenerateResult,
-  type IntelligenceReport,
+  type MarketIntelligence,
   type MonitoringMode,
   type TradePlan,
 } from "@/lib/trade-plans/api";
@@ -184,7 +184,7 @@ function distance(plan: TradePlan, price: number | null) {
   return `${pips} pips ${above ? "above" : "below"}`;
 }
 
-export function PlanBlock({ plan, watching, price = null, report = null }: { plan: TradePlan; watching: boolean; price?: number | null; report?: IntelligenceReport | null }) {
+export function PlanBlock({ plan, watching, price = null, report = null }: { plan: TradePlan; watching: boolean; price?: number | null; report?: MarketIntelligence | null }) {
   const digits = precisionFor(plan.instrument);
   const fmt = (value: number | null) => (value === null ? "—" : value.toFixed(digits));
   const proposal = plan.monitorState?.proposal ?? null;
@@ -234,7 +234,7 @@ export function PlanBlock({ plan, watching, price = null, report = null }: { pla
       ) : (
         <p className={styles.note}>{triggerLine(plan)}</p>
       )}
-      <PlanEvidence plan={plan} report={report} />
+      <PlanEvidence plan={plan} intel={report} />
       <details className={styles.details}>
         <summary>
           <span>Conditions</span>
@@ -265,7 +265,7 @@ export function PlanBlock({ plan, watching, price = null, report = null }: { pla
 }
 
 /** The plans stacked like a price axis, with today's price as a line between the zones. */
-function Ladder({ plans, price, watching, report = null }: { plans: TradePlan[]; price: number | null; watching: boolean; report?: IntelligenceReport | null }) {
+function Ladder({ plans, price, watching, report = null }: { plans: TradePlan[]; price: number | null; watching: boolean; report?: MarketIntelligence | null }) {
   const ordered = byZone(plans);
   const now = price ?? plans.find((plan) => plan.lastPrice !== null)?.lastPrice ?? null;
   const digits = precisionFor(plans[0]!.instrument);
@@ -361,7 +361,7 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
         {/* Only the plans scroll; the mode choice and the buttons stay pinned under them. */}
         <div className="nl-an-scroll">
           <MarketRead state={state.research} onRefresh={state.refreshResearch} />
-          <Ladder plans={plans} price={price} watching={false} report={state.research.result?.research?.report ?? null} />
+          <Ladder plans={plans} price={price} watching={false} report={state.research.result?.research?.report?.schemaVersion ? state.research.result.research.report : null} />
         </div>
         <div className={styles.dock}>
           <ModeSwitch mode={mode} onChange={setMode} name={`plan-mode-${titleId}`} />
@@ -390,7 +390,7 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
         <h2 id={titleId} className="sr-only">Watching {pair}</h2>
         <div className="nl-an-scroll">
           <MarketRead state={state.research} onRefresh={state.refreshResearch} />
-          <Ladder plans={active} price={price} watching report={state.research.result?.research?.report ?? null} />
+          <Ladder plans={active} price={price} watching report={state.research.result?.research?.report?.schemaVersion ? state.research.result.research.report : null} />
           <p className={styles.footnote}>
             {auto ? "GX places the trade on your practice account when a plan confirms." : "You get an alert when a plan confirms."}
             {active.length === 2 ? " The first side to confirm cancels the other." : ""}

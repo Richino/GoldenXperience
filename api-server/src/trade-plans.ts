@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { isKnownInstrument } from "../../frontend/src/lib/instruments/catalog.js";
 import { query, transaction } from "./database.js";
+import { RESEARCH_SCHEMA_VERSION, type MarketIntelligence } from "./intelligence/research-contract.js";
+import { researchContextForPlan } from "./intelligence/plan-research.js";
 import {
   checkTransition,
   planHash,
@@ -236,7 +238,22 @@ async function approveInTx(client: PoolClient, userId: string, planId: string, p
     [row.id, userId, row.plan_version, row.plan_hash, mode],
   );
   await client.query("UPDATE trade_plans SET monitoring_mode=$2 WHERE id=$1", [row.id, mode]);
-  await transitionInTx(client, { userId, planId, to: "APPROVED", actor: "user", reason: `Approved version ${row.plan_version} for ${mode}.`, data: { mode } });
+  // Record which research snapshot the user saw when approving (the plan itself is unchanged).
+  const research = (await client.query<{ id: string; report: MarketIntelligence | null; created_at: Date; expires_at: Date | null }>(
+    "SELECT id,report,created_at,expires_at FROM market_research WHERE instrument=$1 AND status='COMPLETE' ORDER BY created_at DESC LIMIT 1",
+    [row.instrument],
+  )).rows[0];
+  const intelligence = research?.report?.schemaVersion === RESEARCH_SCHEMA_VERSION ? research.report : null;
+  const context = researchContextForPlan({ instrument: row.instrument, direction: row.direction, expiresAt: new Date(row.expires_at).toISOString() }, intelligence, {
+    fresh: Boolean(research?.expires_at && research.expires_at.getTime() > Date.now()),
+    staleReason: research ? null : "No research at approval.",
+    technicalReadAt: null,
+    now: Date.now(),
+  });
+  await transitionInTx(client, {
+    userId, planId, to: "APPROVED", actor: "user", reason: `Approved version ${row.plan_version} for ${mode}.`,
+    data: { mode, research: { researchId: context.researchId, researchedAt: context.researchedAt, fresh: context.fresh, alignment: context.alignment, weights: context.weights } },
+  });
   await client.query(
     `INSERT INTO trade_plan_monitoring_state(plan_id,stage) VALUES($1,'WAITING')
      ON CONFLICT(plan_id) DO UPDATE SET stage='WAITING',state='{}'::jsonb,consecutive_errors=0,last_error=NULL,updated_at=now()`,

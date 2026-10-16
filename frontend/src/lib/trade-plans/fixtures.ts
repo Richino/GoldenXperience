@@ -71,34 +71,41 @@ export function watchingPair(price = 1.12296): TradePlan[] {
   ];
 }
 
-/** Synthetic research for the dev preview only. example.com links; not real reporting. */
+/** Synthetic research (contract v2) for the dev preview only. example.com links; not real reporting. */
 export function fixtureResearch(): import("@/lib/trade-plans/api").ResearchResult {
   const at = new Date(Date.parse("2026-10-16T09:00:00Z")).toISOString();
+  const source = (id: string, path: string, publisher: string, type: "official" | "news" | "analysis" | "forum") =>
+    ({ id, url: `https://example.com/${path}`, publisher, title: `Fixture ${publisher}`, retrievedAt: at, publishedAt: at, type });
   return {
     cached: true,
     research: {
-      id: "00000000-0000-4000-8000-0000000000cc", instrument: "EUR_USD", status: "COMPLETE", model: "fixture", sourceCount: 6,
+      id: "00000000-0000-4000-8000-0000000000cc", instrument: "EUR_USD", status: "COMPLETE", model: "fixture", sourceCount: 4,
       createdAt: at, expiresAt: hours(5), fresh: true, staleReason: null,
       usage: { inputTokens: 9000, outputTokens: 1800, webSearchCalls: 4, costUsd: null },
-      calendar: {
-        available: true, readAt: at, source: "Fixture calendar", note: null,
-        released: [{ title: "Fixture CPI m/m", currency: "USD", impact: 3, at: hours(-20), forecast: "0.3%", previous: "0.2%", actual: "0.4%", surprise: { side: "ABOVE", difference: 0.1, unit: "%" } }],
-        upcoming: [{ title: "Fixture ECB rate decision", currency: "EUR", impact: 3, at: hours(30), forecast: "2.00%", previous: "2.00%", actual: null }],
-      },
+      calendar: { available: true, readAt: at, source: "Fixture calendar", note: null, released: [], upcoming: [] },
       report: {
-        overallBias: "MIXED", confidence: "LOW",
-        summary: "Fixture: the technical structure leans bearish while the example fundamentals point to a possible recovery; the evidence conflicts.",
-        baseCurrency: { label: "Neutral", summary: "Fixture euro outlook." },
-        quoteCurrency: { label: "Softening", summary: "Fixture dollar outlook." },
-        ratesAndYields: "Fixture rates text.", riskSentiment: "Fixture risk mood.",
-        technicalVsFundamental: "Fixture: H4/D1 structure bearish; fundamentals mixed-to-supportive.",
-        news: [{ headline: "Fixture headline about inflation", publisher: "Example Wire", publishedAt: hours(-18), url: "https://example.com/news/1", currencies: ["USD"], topic: "inflation", kind: "FACT", implication: "MIXED", summary: "Fixture summary." }],
-        sentiment: { summary: "Fixture: a handful of public comments, split.", observations: [{ source: "example forum", url: "https://example.com/forum/1", stance: "SPECULATION", text: "Fixture comment." }], limitations: "Fixture limitation." },
-        bullishEvidence: [{ point: "Fixture: softer dollar data could support a recovery.", urls: ["https://example.com/news/1"] }],
-        bearishEvidence: [{ point: "Fixture: the H4 lower highs are intact.", urls: ["https://example.com/news/2"] }],
-        catalysts: [{ event: "Fixture ECB decision", why: "Fixture reason." }],
-        uncertainties: ["Fixture uncertainty."],
-        conclusion: { supports: "Fixture: no clear direction.", invalidatedBy: "Fixture.", needsPriceConfirmation: "Fixture: a confirmed break of either zone." },
+        schemaVersion: "2.0", pair: "EUR_USD", base: "EUR", quote: "USD",
+        research: { id: "00000000-0000-4000-8000-0000000000cc", createdAt: at, cutoffAt: at, horizon: "2-5 trading days", status: "complete", quality: "medium", missingData: ["Fixture: verified relative bond yields"], model: "fixture", effort: "high", durationMs: 160000 },
+        outlook: { overall: "mixed", shortTerm: "bullish", swingTerm: "bearish", fundamental: "bullish", technical: "bearish", explanation: "Fixture: a short-term recovery within a broader downtrend." },
+        factors: [
+          { id: "F1", factor: "Fixture: Fed hike bets fade", currency: "USD", effectOnCurrency: "weakens", impactOnPair: "bullish", importance: "high", evidenceType: "verified_data", description: "Fixture description.", observedAt: at, uncertainty: null, sourceIds: ["src_001"] },
+          { id: "F2", factor: "Fixture: French fiscal risk", currency: "EUR", effectOnCurrency: "weakens", impactOnPair: "bearish", importance: "medium", evidenceType: "attributed_analysis", description: "Fixture description.", observedAt: null, uncertainty: "Fixture uncertainty.", sourceIds: ["src_002"] },
+        ],
+        events: [
+          { id: "e1", title: "Fixture CPI m/m", currency: "USD", impact: 3, at: hours(-20), actual: "0.4%", forecast: "0.3%", previous: "0.2%", status: "released", source: "Fixture calendar", implication: "Fixture: hot print but the dollar fell." },
+          { id: "e2", title: "Fixture ECB decision", currency: "EUR", impact: 3, at: hours(30), actual: null, forecast: "2.00%", previous: "2.00%", status: "scheduled", source: "Fixture calendar", implication: null },
+        ],
+        sentiment: {
+          professional: [{ text: "Fixture analyst expects a bounce toward resistance.", stance: "bullish", sourceIds: ["src_003"] }],
+          retail: [{ text: "Fixture forum thread split.", stance: "mixed", sourceIds: ["src_004"] }],
+          positioning: [],
+          expectations: "Fixture: markets price no further Fed hike this month.",
+          limitations: "Fixture: a handful of public comments; no positioning data found.",
+        },
+        bullishThesis: { hypothesis: "Fixture: a recovery if dollar weakness continues.", supportingFactorIds: ["F1"], opposingFactorIds: ["F2"], catalysts: ["Fixture ECB decision"], strengthensIf: ["Fixture: softer US data"], weakensIf: ["Fixture: a hawkish Fed surprise"] },
+        bearishThesis: { hypothesis: "Fixture: the downtrend resumes if the bounce fades.", supportingFactorIds: ["F2"], opposingFactorIds: ["F1"], catalysts: [], strengthensIf: ["Fixture: wider fiscal stress"], weakensIf: ["Fixture: firmer euro data"] },
+        sources: [source("src_001", "news/1", "Example Wire", "news"), source("src_002", "news/2", "Example Times", "news"), source("src_003", "analysis/1", "Example FX", "analysis"), source("src_004", "forum/1", "Example Forum", "forum")],
+        summary: "Fixture: technicals lean bearish while near-term fundamentals favour a recovery; the evidence conflicts.",
       },
     },
   };

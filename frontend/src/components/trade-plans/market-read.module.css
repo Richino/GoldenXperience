@@ -284,3 +284,51 @@
   margin: 0 -0.3rem;
   padding: 0 0.3rem;
 }
+
+/* Outlook by horizon: five labels, never one blended score. */
+.outlook {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.35rem;
+  margin: 0;
+}
+
+@media (max-width: 420px) {
+  .outlook { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.outlook div {
+  padding: 0.35rem 0.45rem;
+  border-radius: 0.55rem;
+  background: var(--surface);
+}
+
+.outlook dt {
+  color: var(--muted);
+  font-size: 0.625rem;
+  letter-spacing: 0.04em;
+}
+
+.outlook dd {
+  margin: 0.1rem 0 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.outlook dd[data-bias="bullish"] { color: var(--success); }
+.outlook dd[data-bias="bearish"] { color: var(--danger); }
+.outlook dd[data-bias="mixed"] { color: var(--pending); }
+.outlook dd[data-bias="unknown"] { color: var(--muted); }
+
+.bias[data-bias="NEUTRAL"],
+.bias[data-bias="UNKNOWN"] { color: var(--muted-strong); }
+
+.align {
+  margin: 0.2rem 0 0.4rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.align[data-alignment="supports"] { color: var(--success); }
+.align[data-alignment="opposes"] { color: var(--danger); }
+.align[data-alignment="mixed"] { color: var(--pending); }

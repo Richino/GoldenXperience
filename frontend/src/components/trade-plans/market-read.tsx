@@ -1,20 +1,20 @@
 "use client";
 
 import { ExternalLink, RefreshCw } from "lucide-react";
-import type { EvidencePoint, IntelligenceReport, ResearchResult, TradePlan } from "@/lib/trade-plans/api";
+import type { Bias, MarketIntelligence, PlanResearchContext, ResearchFactor, ResearchObservation, ResearchResult, TradePlan } from "@/lib/trade-plans/api";
 import styles from "./market-read.module.css";
 
 /**
- * Market intelligence in the Analyze sheet: a compact read (bias, confidence,
- * freshness, one-line summary) that opens into the full report — news,
- * verified calendar, sentiment, catalysts, uncertainties — with sources.
- * Research is context for the plans; it never changes their rules.
+ * Market intelligence in the Analyze sheet (contract v2): the outlook by
+ * horizon, the cited drivers for and against the pair, verified releases,
+ * sentiment by source type, and gaps. Each plan shows the factors for and
+ * against its own side. Research is context: it never changes plan rules.
  */
 
 export type ResearchState = { loading: boolean; result: ResearchResult | null; error: string | null };
 
-const BIAS: Record<IntelligenceReport["overallBias"], string> = { BULLISH: "Bullish", BEARISH: "Bearish", MIXED: "Mixed", UNCLEAR: "Unclear" };
-const STANCE: Record<string, string> = { POSITIONING: "Positioning", BULLISH_CALL: "Bullish call", BEARISH_CALL: "Bearish call", NEUTRAL: "Neutral", SPECULATION: "Speculation" };
+const BIAS_LABEL: Record<Bias, string> = { bullish: "Bullish", bearish: "Bearish", mixed: "Mixed", neutral: "Neutral", unknown: "Unknown" };
+const EVIDENCE: Record<ResearchFactor["evidenceType"], string> = { verified_data: "Data", attributed_analysis: "Analysis", hypothesis: "Inference" };
 
 function ago(iso: string) {
   const minutes = Math.round((Date.now() - Date.parse(iso)) / 60_000);
@@ -24,28 +24,54 @@ function ago(iso: string) {
   return hours < 48 ? `${hours} h ago` : `${Math.round(hours / 24)} days ago`;
 }
 const local = (iso: string) => new Date(iso).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" });
-const host = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return "source"; } };
 
-function Sources({ urls }: { urls: string[] }) {
+function Sources({ ids, intel }: { ids: string[]; intel: MarketIntelligence }) {
+  const sources = ids.map((id) => intel.sources.find((source) => source.id === id)).filter((source): source is NonNullable<typeof source> => Boolean(source));
   return (
     <span className={styles.sources}>
-      {urls.slice(0, 3).map((url) => (
-        <a key={url} href={url} target="_blank" rel="noopener noreferrer">{host(url)}<ExternalLink aria-hidden="true" /></a>
+      {sources.slice(0, 3).map((source) => (
+        <a key={source.id} href={source.url} target="_blank" rel="noopener noreferrer" title={source.title ?? source.url}>
+          {source.publisher}<ExternalLink aria-hidden="true" />
+        </a>
       ))}
     </span>
   );
 }
 
-function Points({ items }: { items: EvidencePoint[] }) {
-  return <ul className={styles.points}>{items.map((item) => <li key={item.point}>{item.point} <Sources urls={item.urls} /></li>)}</ul>;
+function Factors({ items, intel }: { items: ResearchFactor[]; intel: MarketIntelligence }) {
+  return (
+    <ul className={styles.points}>
+      {items.map((factor) => (
+        <li key={factor.id}>
+          <strong>{factor.factor}</strong> <span className={styles.tag}>{factor.currency} {factor.effectOnCurrency}</span>{" "}
+          <span className={styles.tag} data-kind={factor.evidenceType === "verified_data" ? "FACT" : undefined}>{EVIDENCE[factor.evidenceType]}</span>
+          {factor.description ? <span className={styles.newsText}> {factor.description}</span> : null}
+          {factor.uncertainty ? <span className={styles.meta}> Uncertain: {factor.uncertainty}</span> : null}
+          <Sources ids={factor.sourceIds} intel={intel} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Observations({ title, items, intel }: { title: string; items: ResearchObservation[]; intel: MarketIntelligence }) {
+  if (!items.length) return null;
+  return (
+    <>
+      <h5 className={styles.evHead}>{title}</h5>
+      <ul className={styles.points}>
+        {items.map((item) => <li key={item.text}><span className={styles.tag}>{item.stance}</span> {item.text} <Sources ids={item.sourceIds} intel={intel} /></li>)}
+      </ul>
+    </>
+  );
 }
 
 export function MarketRead({ state, onRefresh }: { state: ResearchState; onRefresh: () => void }) {
   const research = state.result?.research ?? null;
-  const report = research?.report ?? null;
+  const intel = research?.report?.schemaVersion ? research.report : null;
   const notice = state.result?.budget ?? state.result?.error ?? state.error ?? null;
 
-  if (state.loading && !report) {
+  if (state.loading && !intel) {
     return (
       <section className={styles.card} aria-busy="true" aria-label="Market read">
         <div className={styles.head}><span className={styles.label}>Market read</span><span className={styles.muted}>Researching news, central banks, data and sentiment…</span></div>
@@ -54,7 +80,7 @@ export function MarketRead({ state, onRefresh }: { state: ResearchState; onRefre
       </section>
     );
   }
-  if (!report) {
+  if (!intel || !research) {
     return (
       <section className={styles.card} aria-label="Market read">
         <div className={styles.head}>
@@ -66,126 +92,112 @@ export function MarketRead({ state, onRefresh }: { state: ResearchState; onRefre
     );
   }
 
+  const o = intel.outlook;
+  const forPair = intel.factors.filter((factor) => factor.impactOnPair === "bullish");
+  const againstPair = intel.factors.filter((factor) => factor.impactOnPair === "bearish");
+  const otherFactors = intel.factors.filter((factor) => factor.impactOnPair !== "bullish" && factor.impactOnPair !== "bearish");
+
   return (
     <section className={styles.card} aria-label="Market read">
       <div className={styles.head}>
         <span className={styles.label}>Market read</span>
-        <span className={styles.bias} data-bias={report.overallBias}>{BIAS[report.overallBias]}</span>
-        <span className={styles.muted}>{report.confidence.toLowerCase()} confidence</span>
+        <span className={styles.bias} data-bias={o.overall.toUpperCase()}>{BIAS_LABEL[o.overall]}</span>
+        <span className={styles.muted}>{intel.research.quality} quality evidence</span>
         <button type="button" className={styles.refresh} onClick={onRefresh} disabled={state.loading} aria-label="Refresh research">
           <RefreshCw aria-hidden="true" className={state.loading ? styles.spin : undefined} />
         </button>
       </div>
-      <p className={styles.summary}>{report.summary}</p>
-      <p className={styles.fresh} data-stale={!research!.fresh}>
-        {research!.fresh ? `Researched ${ago(research!.createdAt)}` : `Stale — ${research!.staleReason ?? "older than its refresh window"} (researched ${ago(research!.createdAt)})`}
+      <dl className={styles.outlook}>
+        {([["Short term", o.shortTerm], ["Swing 2–5 days", o.swingTerm], ["Fundamental", o.fundamental], ["Technical", o.technical]] as const).map(([label, value]) => (
+          <div key={label}><dt>{label}</dt><dd data-bias={value}>{BIAS_LABEL[value]}</dd></div>
+        ))}
+      </dl>
+      <p className={styles.summary}>{intel.summary}</p>
+      <p className={styles.fresh} data-stale={!research.fresh}>
+        {research.fresh ? `Researched ${ago(research.createdAt)}` : `Stale — ${research.staleReason ?? "older than its refresh window"} (researched ${ago(research.createdAt)})`}
+        {intel.research.status === "partial" ? " · partial" : ""}
         {notice ? ` · ${notice}` : ""}
       </p>
 
       <details className={styles.more}>
-        <summary>Full market read</summary>
-        <dl className={styles.facts}>
-          <div><dt>{report.baseCurrency.label ? `Base · ${report.baseCurrency.label}` : "Base currency"}</dt><dd>{report.baseCurrency.summary}</dd></div>
-          <div><dt>{report.quoteCurrency.label ? `Quote · ${report.quoteCurrency.label}` : "Quote currency"}</dt><dd>{report.quoteCurrency.summary}</dd></div>
-          {report.ratesAndYields ? <div><dt>Rates and yields</dt><dd>{report.ratesAndYields}</dd></div> : null}
-          {report.riskSentiment ? <div><dt>Risk mood</dt><dd>{report.riskSentiment}</dd></div> : null}
-          {report.technicalVsFundamental ? <div><dt>Technical vs fundamental</dt><dd>{report.technicalVsFundamental}</dd></div> : null}
-        </dl>
+        <summary>Drivers, calendar and sentiment</summary>
+        {o.explanation ? <p className={styles.text}>{o.explanation}</p> : null}
 
-        {report.news.length ? (
-          <>
-            <h4 className={styles.sub}>News</h4>
-            <ul className={styles.news}>
-              {report.news.map((item) => (
-                <li key={item.url}>
-                  <a href={item.url} target="_blank" rel="noopener noreferrer">{item.headline}</a>
-                  <span className={styles.meta}>
-                    {item.publisher}{item.publishedAt ? ` · ${local(item.publishedAt)}` : ""} · <span className={styles.tag} data-kind={item.kind}>{item.kind === "FACT" ? "Report" : "Analysis"}</span>
-                  </span>
-                  <span className={styles.newsText}>{item.summary}</span>
-                </li>
-              ))}
-            </ul>
-          </>
-        ) : null}
+        {forPair.length ? <><h4 className={styles.sub}>For {intel.pair.replace("_", "/")} rising</h4><Factors items={forPair} intel={intel} /></> : null}
+        {againstPair.length ? <><h4 className={styles.sub}>For {intel.pair.replace("_", "/")} falling</h4><Factors items={againstPair} intel={intel} /></> : null}
+        {otherFactors.length ? <><h4 className={styles.sub}>Mixed or unclear</h4><Factors items={otherFactors} intel={intel} /></> : null}
 
-        {research!.calendar.available ? (
-          <>
-            <h4 className={styles.sub}>Calendar</h4>
-            <ul className={styles.calendar}>
-              {research!.calendar.released.slice(-4).map((row) => (
-                <li key={`${row.currency}${row.title}${row.at}`}>
-                  <span className={styles.cal}>{row.currency} {row.title}</span>
-                  <span className={styles.meta}>
-                    {local(row.at)} · actual {row.actual ?? "—"} vs forecast {row.forecast ?? "—"}
-                    {row.surprise.side !== "UNKNOWN" ? ` (${row.surprise.side === "IN_LINE" ? "in line" : row.surprise.side.toLowerCase() + " forecast"})` : ""}
-                  </span>
-                </li>
-              ))}
-              {research!.calendar.upcoming.slice(0, 5).map((row) => (
-                <li key={`${row.currency}${row.title}${row.at}`}>
-                  <span className={styles.cal}>{row.impact >= 3 ? "● " : ""}{row.currency} {row.title}</span>
-                  <span className={styles.meta}>{local(row.at)} · forecast {row.forecast ?? "—"}, previous {row.previous ?? "—"}</span>
-                </li>
-              ))}
-            </ul>
-            <p className={styles.fine}>From {research!.calendar.source}. Revisions are not available from this feed.</p>
-          </>
-        ) : <p className={styles.fine}>{research!.calendar.note ?? "The calendar was unavailable."}</p>}
-
-        <h4 className={styles.sub}>Sentiment</h4>
-        {report.sentiment.summary ? <p className={styles.text}>{report.sentiment.summary}</p> : null}
-        {report.sentiment.observations.length ? (
-          <ul className={styles.points}>
-            {report.sentiment.observations.map((item) => (
-              <li key={item.url + item.text}><span className={styles.tag}>{STANCE[item.stance] ?? item.stance}</span> {item.text} <Sources urls={[item.url]} /></li>
+        <h4 className={styles.sub}>Calendar</h4>
+        {intel.events.length ? (
+          <ul className={styles.calendar}>
+            {intel.events.slice(0, 8).map((event) => (
+              <li key={event.id}>
+                <span className={styles.cal}>{event.impact >= 3 ? "● " : ""}{event.currency} {event.title}</span>
+                <span className={styles.meta}>
+                  {local(event.at)} · {event.status === "released" ? `actual ${event.actual ?? "—"} vs forecast ${event.forecast ?? "—"}` : `forecast ${event.forecast ?? "—"}, previous ${event.previous ?? "—"}`}
+                </span>
+                {event.implication ? <span className={styles.newsText}>{event.implication}</span> : null}
+              </li>
             ))}
           </ul>
-        ) : null}
-        <p className={styles.fine}>{report.sentiment.limitations}</p>
+        ) : <p className={styles.fine}>No verified releases for these currencies in the window (or the calendar was unavailable).</p>}
 
-        {report.catalysts.length ? (
+        <h4 className={styles.sub}>Sentiment</h4>
+        <Observations title="Analysts" items={intel.sentiment.professional} intel={intel} />
+        <Observations title="Positioning data" items={intel.sentiment.positioning} intel={intel} />
+        <Observations title="Retail forums" items={intel.sentiment.retail} intel={intel} />
+        {intel.sentiment.expectations ? <p className={styles.text}>{intel.sentiment.expectations}</p> : null}
+        <p className={styles.fine}>{intel.sentiment.limitations}</p>
+
+        {intel.research.missingData.length ? (
           <>
-            <h4 className={styles.sub}>Catalysts</h4>
-            <ul className={styles.points}>{report.catalysts.map((item) => <li key={item.event}><strong>{item.event}</strong> — {item.why}</li>)}</ul>
+            <h4 className={styles.sub}>Could not verify</h4>
+            <ul className={styles.points}>{intel.research.missingData.map((item) => <li key={item}>{item}</li>)}</ul>
           </>
         ) : null}
-        {report.uncertainties.length ? (
-          <>
-            <h4 className={styles.sub}>Uncertainties</h4>
-            <ul className={styles.points}>{report.uncertainties.map((item) => <li key={item}>{item}</li>)}</ul>
-          </>
-        ) : null}
-        <h4 className={styles.sub}>Conclusion</h4>
-        <dl className={styles.facts}>
-          <div><dt>Evidence supports</dt><dd>{report.conclusion.supports}</dd></div>
-          <div><dt>Invalidated by</dt><dd>{report.conclusion.invalidatedBy}</dd></div>
-          <div><dt>Price must still confirm</dt><dd>{report.conclusion.needsPriceConfirmation}</dd></div>
-        </dl>
         <p className={styles.fine}>
-          {research!.sourceCount} sources searched · {research!.model ?? "model"} · {research!.usage.webSearchCalls ?? 0} searches
-          {research!.usage.costUsd !== null ? ` · about $${research!.usage.costUsd.toFixed(3)}` : ""}. Research is context only: it does not change any plan&apos;s rules.
+          {intel.sources.length} sources · {intel.research.model} ({intel.research.effort}) · {research.usage.webSearchCalls ?? 0} searches · {Math.round(intel.research.durationMs / 1000)}s
+          {research.usage.costUsd !== null ? ` · about $${research.usage.costUsd.toFixed(3)}` : ""}. Research is context only: it never changes a plan&apos;s rules.
         </p>
       </details>
     </section>
   );
 }
 
-/** The research points for and against one plan's side, with sources. */
-export function PlanEvidence({ plan, report }: { plan: TradePlan; report: IntelligenceReport | null }) {
-  if (!report) return null;
-  const buy = plan.direction === "BUY";
-  const forSide = buy ? report.bullishEvidence : report.bearishEvidence;
-  const against = buy ? report.bearishEvidence : report.bullishEvidence;
-  if (!forSide.length && !against.length) return null;
+const ALIGNMENT: Record<PlanResearchContext["alignment"], string> = {
+  supports: "Research supports this side",
+  opposes: "Research weighs against this side",
+  mixed: "Research is mixed for this side",
+  no_evidence: "No directional research",
+  no_research: "No research",
+};
+
+/** The research for and against one plan's side, its thesis, and how it looked when the plan was made. */
+export function PlanEvidence({ plan, intel }: { plan: TradePlan; intel: MarketIntelligence | null }) {
+  const frozen = (plan.plan.intelligence ?? null) as PlanResearchContext | null;
+  if (!intel && !frozen) return null;
+  const side: Bias = plan.direction === "BUY" ? "bullish" : "bearish";
+  const other: Bias = plan.direction === "BUY" ? "bearish" : "bullish";
+  const supporting = intel?.factors.filter((factor) => factor.impactOnPair === side) ?? [];
+  const opposing = intel?.factors.filter((factor) => factor.impactOnPair === other) ?? [];
+  const thesis = intel ? (plan.direction === "BUY" ? intel.bullishThesis : intel.bearishThesis) : null;
+  const alignment = frozen?.researchId && frozen.researchId === intel?.research.id ? frozen.alignment : null;
   return (
     <details className={styles.evidence}>
       <summary>
-        <span>Evidence</span>
-        <span className={styles.count}>{forSide.length} for · {against.length} against</span>
+        <span>Research</span>
+        <span className={styles.count}>{supporting.length} for · {opposing.length} against</span>
       </summary>
-      {forSide.length ? <><h5 className={styles.evHead}>For the {plan.direction}</h5><Points items={forSide.slice(0, 4)} /></> : null}
-      {against.length ? <><h5 className={styles.evHead}>Against it</h5><Points items={against.slice(0, 3)} /></> : null}
+      {alignment ? <p className={styles.align} data-alignment={alignment}>{ALIGNMENT[alignment]}</p> : null}
+      {frozen && frozen.researchId !== (intel?.research.id ?? null) ? (
+        <p className={styles.fine}>When this plan was made: {ALIGNMENT[frozen.alignment].toLowerCase()}{frozen.researchedAt ? ` (research ${ago(frozen.researchedAt)})` : ""}.</p>
+      ) : null}
+      {thesis?.hypothesis ? <p className={styles.text}>{thesis.hypothesis}</p> : null}
+      {intel && supporting.length ? <><h5 className={styles.evHead}>For the {plan.direction}</h5><Factors items={supporting.slice(0, 4)} intel={intel} /></> : null}
+      {intel && opposing.length ? <><h5 className={styles.evHead}>Against it</h5><Factors items={opposing.slice(0, 3)} intel={intel} /></> : null}
+      {thesis?.strengthensIf.length ? <><h5 className={styles.evHead}>Strengthens if</h5><ul className={styles.points}>{thesis.strengthensIf.map((item) => <li key={item}>{item}</li>)}</ul></> : null}
+      {thesis?.weakensIf.length ? <><h5 className={styles.evHead}>Weakens if</h5><ul className={styles.points}>{thesis.weakensIf.map((item) => <li key={item}>{item}</li>)}</ul></> : null}
+      <p className={styles.fine}>Context only. The plan enters only when its own price conditions confirm.</p>
     </details>
   );
 }

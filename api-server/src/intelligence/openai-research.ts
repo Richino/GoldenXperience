@@ -11,6 +11,7 @@ import type { CalendarSnapshot } from "./calendar-snapshot.js";
  * Configuration (no model id is hardcoded beyond the app's existing default):
  *   OPENAI_RESEARCH_MODEL        model for research (falls back to OPENAI_ANALYSIS_MODEL, then gpt-5-mini)
  *   OPENAI_RESEARCH_EFFORT       reasoning effort (default low)
+ *   OPENAI_RESEARCH_TIMEOUT_MS   request time limit (default 300000)
  *   OPENAI_WEB_SEARCH_TOOL       tool type (default "web_search")
  *   OPENAI_PRICE_INPUT_PER_MTOK / OPENAI_PRICE_OUTPUT_PER_MTOK / OPENAI_PRICE_WEB_SEARCH_CALL
  *                                USD prices for the cost estimate; unset means "cost unknown"
@@ -34,7 +35,8 @@ export type ResearchOutcome =
 
 type Fetcher = (url: string, init: RequestInit) => Promise<Response>;
 
-const TIMEOUT_MS = 150_000;
+/** High reasoning effort with web search can take minutes; OPENAI_RESEARCH_TIMEOUT_MS overrides. */
+const DEFAULT_TIMEOUT_MS = 300_000;
 
 export function researchConfig(env: NodeJS.ProcessEnv = process.env) {
   const price = (name: string) => {
@@ -45,6 +47,7 @@ export function researchConfig(env: NodeJS.ProcessEnv = process.env) {
     apiKey: env.OPENAI_API_KEY?.trim() || null,
     model: env.OPENAI_RESEARCH_MODEL?.trim() || env.OPENAI_ANALYSIS_MODEL?.trim() || "gpt-5-mini",
     effort: env.OPENAI_RESEARCH_EFFORT?.trim() || "low",
+    timeoutMs: Number(env.OPENAI_RESEARCH_TIMEOUT_MS) > 0 ? Number(env.OPENAI_RESEARCH_TIMEOUT_MS) : DEFAULT_TIMEOUT_MS,
     webSearchTool: env.OPENAI_WEB_SEARCH_TOOL?.trim() || "web_search",
     prices: { inputPerMTok: price("OPENAI_PRICE_INPUT_PER_MTOK"), outputPerMTok: price("OPENAI_PRICE_OUTPUT_PER_MTOK"), perSearch: price("OPENAI_PRICE_WEB_SEARCH_CALL") },
   };
@@ -130,7 +133,7 @@ export async function runResearch(input: {
     response = await fetcher("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" },
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: AbortSignal.timeout(config.timeoutMs),
       body: JSON.stringify({
         model: config.model,
         reasoning: { effort: config.effort },

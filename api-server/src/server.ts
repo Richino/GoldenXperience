@@ -65,7 +65,7 @@ import { createPlannedSetup, evaluatePlannedSetup, evaluateActivePlannedSetups }
 import { confirmationProgress, editTradePlan, generateAndStoreTradePlans } from "./trade-plan-service.js";
 import { startTradePlanMonitor } from "./trade-plan-monitor.js";
 import { autoTradeSettings, saveAutoTradeSettings } from "./trade-plan-settings.js";
-import { latestResearch, refreshDueResearch, refreshResearch, researchUsage } from "./intelligence/research-service.js";
+import { latestResearch, refreshDueResearch, refreshResearchWithin, researchUsage } from "./intelligence/research-service.js";
 import { TradePlanError, approveAnalysis, approveTradePlan, cancelTradePlan, getTradePlan, listTradePlans, pauseTradePlan, rejectTradePlan, resumeTradePlan } from "./trade-plans.js";
 import {
   activateDuePendingManualEntries,
@@ -488,7 +488,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
       const payload = await body(request);
       // Analyze: reuses fresh research; runs one research call only when stale (or forced) and within budget.
-      return tradePlanResponse(request, response, () => refreshResearch(instrument, "MANUAL", { force: payload?.force === true }));
+      return tradePlanResponse(request, response, () => refreshResearchWithin(instrument, "MANUAL", { force: payload?.force === true }));
     }
     if (url.pathname === "/api/trade-plans/auto-trade" && request.method === "GET") {
       return tradePlanResponse(request, response, () => autoTradeSettings(user.id));

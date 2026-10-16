@@ -184,6 +184,8 @@ export interface ResearchResult {
   budget?: string | null;
   error?: string;
   configured?: boolean;
+  /** Research is still running on the server; poll the cached GET until it is not. */
+  running?: boolean;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {

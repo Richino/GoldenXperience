@@ -162,10 +162,25 @@ const releasedOf = (events: EconomicCalendarEvent[] | null, now: number) =>
 export async function latestResearch(instrument: string, now = Date.now()) {
   if (!databaseConfigured()) return { research: null, configured: false };
   const [row, events] = await Promise.all([latestComplete(instrument), calendarEvents()]);
-  return { research: rowView(row, researchFreshness(row, releasedOf(events, now), now)), configured: researchConfig().apiKey !== null };
+  return { research: rowView(row, researchFreshness(row, releasedOf(events, now), now)), configured: researchConfig().apiKey !== null, running: inFlight.has(instrument) };
 }
 
 const inFlight = new Map<string, Promise<unknown>>();
+
+/**
+ * Start research and wait up to `waitMs` for it. Research can take minutes
+ * (high effort, several searches) — longer than proxies allow a request to
+ * stay open — so a slow run keeps going in the background and the caller gets
+ * { running: true } plus the latest stored research; it then polls the GET.
+ */
+export async function refreshResearchWithin(instrument: string, trigger: Trigger, options: { force?: boolean; waitMs?: number } = {}) {
+  const run = refreshResearch(instrument, trigger, { force: options.force });
+  run.catch((error) => console.error(`[research] ${instrument} run failed`, error));
+  const timeout = new Promise<"running">((resolve) => setTimeout(() => resolve("running"), options.waitMs ?? 20_000));
+  const first = await Promise.race([run, timeout]);
+  if (first !== "running") return { ...first, running: false };
+  return { ...(await latestResearch(instrument)), cached: true, budget: null, running: true };
+}
 
 /**
  * Research a pair if it needs it: returns the cached research while fresh

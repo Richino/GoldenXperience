@@ -54,8 +54,14 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
     const id = ++researchRequest.current;
     setResearch((current) => ({ ...current, loading: true, error: null }));
     try {
-      const result = await tradePlansApi.refreshResearch(instrument, force);
-      if (id === researchRequest.current) setResearch({ loading: false, result, error: null });
+      let result = await tradePlansApi.refreshResearch(instrument, force);
+      // A long run continues on the server; check back until it is done (up to ~6 minutes).
+      for (let attempt = 0; result.running && attempt < 72 && id === researchRequest.current; attempt += 1) {
+        setResearch((current) => ({ ...current, loading: true, result: result.research ? result : current.result }));
+        await new Promise((resolve) => window.setTimeout(resolve, 5_000));
+        result = await tradePlansApi.research(instrument);
+      }
+      if (id === researchRequest.current) setResearch({ loading: false, result, error: result.running ? "Research is taking longer than usual; it will appear here when it finishes." : null });
     } catch (error) {
       if (id === researchRequest.current) setResearch((current) => ({ ...current, loading: false, error: error instanceof Error ? error.message : "Research failed." }));
     }

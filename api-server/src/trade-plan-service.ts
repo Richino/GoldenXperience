@@ -2,6 +2,8 @@ import { getCandles, getPricing } from "../../frontend/src/lib/oanda/client.js";
 import { getEconomicCalendar } from "../../frontend/src/lib/calendar/forex-factory.js";
 import type { MajorInstrument } from "../../frontend/src/types/forex.js";
 import { query, transaction } from "./database.js";
+import { freshResearchFor } from "./intelligence/research-service.js";
+import type { IntelligenceReport } from "./intelligence/research-report.js";
 import { evaluateConfirmation, planTimeframes, type Confirmation, type PlanForConfirmation, type SafetyLimits } from "./trade-plan-confirmation.js";
 import { generateTradePlans, type GeneratorResult } from "./trade-plan-generator.js";
 import { TradePlanError, createTradePlan, listTradePlans, reviseTradePlan, transitionInTx, validateTradePlanInput, type TradePlanInput } from "./trade-plans.js";
@@ -75,6 +77,27 @@ export async function loadNewsEvents(now: number) {
     : null;
 }
 
+/**
+ * Freeze the research a plan was made against into the plan, as context:
+ * the evidence for its side and against it. Entry, stop, target and
+ * confirmation rules are untouched (they come only from the technical engine).
+ */
+export function attachIntelligence(plans: TradePlanInput[], research: { id: string; createdAt: string; report: IntelligenceReport }) {
+  for (const plan of plans) {
+    const buy = plan.direction === "BUY";
+    plan.plan.intelligence = {
+      researchId: research.id,
+      researchedAt: research.createdAt,
+      overallBias: research.report.overallBias,
+      confidence: research.report.confidence,
+      supporting: (buy ? research.report.bullishEvidence : research.report.bearishEvidence).slice(0, 4),
+      opposing: (buy ? research.report.bearishEvidence : research.report.bullishEvidence).slice(0, 3),
+      note: "Context from market research at the time the plan was made. It does not change the entry, stop, target or confirmation rules.",
+    };
+  }
+  return plans;
+}
+
 const lastGenerate = new Map<string, number>();
 const GENERATE_COOLDOWN_MS = 15_000;
 
@@ -89,6 +112,9 @@ export async function generateAndStoreTradePlans(userId: string, instrument: Maj
     throw new TradePlanError("Live OANDA candles are unavailable; no plans were generated.", 503);
   }
   const result: GeneratorResult = generateTradePlans({ instrument, ...market, maxRiskPercent: risk.maxRiskPercent, limits: risk.limits });
+  // Fresh market intelligence, if any, is frozen into each plan as context. It never changes entry rules.
+  const research = await freshResearchFor(instrument, market.now).catch(() => null);
+  if (research?.report) attachIntelligence(result.plans, { id: research.id, createdAt: research.createdAt, report: research.report });
 
   // Retire unreviewed plans from earlier analyses of this pair.
   const stale = await query<{ id: string }>(

@@ -12,10 +12,12 @@ import {
   tradePlansApi,
   type ConditionStatus,
   type GenerateResult,
+  type IntelligenceReport,
   type MonitoringMode,
   type TradePlan,
 } from "@/lib/trade-plans/api";
 import styles from "./plan-analyze.module.css";
+import { MarketRead, PlanEvidence, type ResearchState } from "./market-read";
 
 /**
  * The chart's Analyze (swing trades, 2–5 day holds): one press reads D1/H4/H1 and returns a BUY and a
@@ -43,7 +45,21 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [research, setResearch] = useState<ResearchState>({ loading: false, result: null, error: null });
   const request = useRef(0);
+  const researchRequest = useRef(0);
+
+  /** Research the pair if stale (server reuses fresh research and enforces the budget). */
+  const runResearch = useCallback(async (force = false) => {
+    const id = ++researchRequest.current;
+    setResearch((current) => ({ ...current, loading: true, error: null }));
+    try {
+      const result = await tradePlansApi.refreshResearch(instrument, force);
+      if (id === researchRequest.current) setResearch({ loading: false, result, error: null });
+    } catch (error) {
+      if (id === researchRequest.current) setResearch((current) => ({ ...current, loading: false, error: error instanceof Error ? error.message : "Research failed." }));
+    }
+  }, [instrument]);
 
   const refreshActive = useCallback(async () => {
     try {
@@ -55,21 +71,26 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
 
   useEffect(() => {
     request.current += 1;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPhase({ kind: "idle" });
     setOpen(false);
     setActionError(null);
+    researchRequest.current += 1;
+    setResearch({ loading: false, result: null, error: null });
+    // Cached research only; nothing is researched until Analyze is pressed.
+    void tradePlansApi.research(instrument).then((result) => setResearch((current) => (current.result ? current : { ...current, result }))).catch(() => undefined);
     void refreshActive();
     const timer = window.setInterval(() => void refreshActive(), 20_000);
     const changed = () => void refreshActive();
     window.addEventListener(TRADE_PLANS_CHANGED, changed);
     return () => { window.clearInterval(timer); window.removeEventListener(TRADE_PLANS_CHANGED, changed); };
-  }, [refreshActive]);
+  }, [instrument, refreshActive]);
 
   const run = useCallback(async () => {
     if (disabled) return;
     setOpen(true);
     setActionError(null);
+    // Research runs beside the technical analysis; the plans do not wait for it.
+    void runResearch();
     // Plans already being watched: show them instead of analysing over them.
     if (active.length) { setPhase({ kind: "idle" }); return; }
     const id = ++request.current;
@@ -80,7 +101,7 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
     } catch (error) {
       if (id === request.current) setPhase({ kind: "error", message: error instanceof Error ? error.message : "Analysis failed." });
     }
-  }, [active.length, disabled, instrument]);
+  }, [active.length, disabled, instrument, runResearch]);
 
   const act = useCallback(async (work: () => Promise<unknown>, after: () => void) => {
     setBusy(true);
@@ -115,7 +136,7 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
   };
   const cancel = () => { request.current += 1; setPhase({ kind: "idle" }); setOpen(false); };
 
-  return { phase, active, open, setOpen, busy, actionError, run, accept, dismiss, stopWatching, cancel, analyzing: phase.kind === "analyzing" };
+  return { phase, active, open, setOpen, busy, actionError, run, accept, dismiss, stopWatching, cancel, analyzing: phase.kind === "analyzing", research, refreshResearch: () => void runResearch(true) };
 }
 
 export type PlanAnalyzeState = ReturnType<typeof usePlanAnalyze>;
@@ -157,7 +178,7 @@ function distance(plan: TradePlan, price: number | null) {
   return `${pips} pips ${above ? "above" : "below"}`;
 }
 
-export function PlanBlock({ plan, watching, price = null }: { plan: TradePlan; watching: boolean; price?: number | null }) {
+export function PlanBlock({ plan, watching, price = null, report = null }: { plan: TradePlan; watching: boolean; price?: number | null; report?: IntelligenceReport | null }) {
   const digits = precisionFor(plan.instrument);
   const fmt = (value: number | null) => (value === null ? "—" : value.toFixed(digits));
   const proposal = plan.monitorState?.proposal ?? null;
@@ -207,6 +228,7 @@ export function PlanBlock({ plan, watching, price = null }: { plan: TradePlan; w
       ) : (
         <p className={styles.note}>{triggerLine(plan)}</p>
       )}
+      <PlanEvidence plan={plan} report={report} />
       <details className={styles.details}>
         <summary>
           <span>Conditions</span>
@@ -237,7 +259,7 @@ export function PlanBlock({ plan, watching, price = null }: { plan: TradePlan; w
 }
 
 /** The plans stacked like a price axis, with today's price as a line between the zones. */
-function Ladder({ plans, price, watching }: { plans: TradePlan[]; price: number | null; watching: boolean }) {
+function Ladder({ plans, price, watching, report = null }: { plans: TradePlan[]; price: number | null; watching: boolean; report?: IntelligenceReport | null }) {
   const ordered = byZone(plans);
   const now = price ?? plans.find((plan) => plan.lastPrice !== null)?.lastPrice ?? null;
   const digits = precisionFor(plans[0]!.instrument);
@@ -248,7 +270,7 @@ function Ladder({ plans, price, watching }: { plans: TradePlan[]; price: number 
       <span className={styles.nowPrice}>{now === null ? "price —" : now.toFixed(digits)}</span>
     </div>
   );
-  const blocks = ordered.map((plan) => <PlanBlock key={plan.id} plan={plan} watching={watching} price={now} />);
+  const blocks = ordered.map((plan) => <PlanBlock key={plan.id} plan={plan} watching={watching} price={now} report={report} />);
   return <div className={styles.ladder}>{[...blocks.slice(0, split), line, ...blocks.slice(split)]}</div>;
 }
 
@@ -330,7 +352,8 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
         <h2 id={titleId} className="sr-only">{pair} plans</h2>
         {/* Only the plans scroll; the mode choice and the buttons stay pinned under them. */}
         <div className="nl-an-scroll">
-          <Ladder plans={plans} price={price} watching={false} />
+          <MarketRead state={state.research} onRefresh={state.refreshResearch} />
+          <Ladder plans={plans} price={price} watching={false} report={state.research.result?.research?.report ?? null} />
         </div>
         <div className={styles.dock}>
           <ModeSwitch mode={mode} onChange={setMode} name={`plan-mode-${titleId}`} />
@@ -358,7 +381,8 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
         {top(`Watching · ${pair}`)}
         <h2 id={titleId} className="sr-only">Watching {pair}</h2>
         <div className="nl-an-scroll">
-          <Ladder plans={active} price={price} watching />
+          <MarketRead state={state.research} onRefresh={state.refreshResearch} />
+          <Ladder plans={active} price={price} watching report={state.research.result?.research?.report ?? null} />
           <p className={styles.footnote}>
             {auto ? "GX places the trade on your practice account when a plan confirms." : "You get an alert when a plan confirms."}
             {active.length === 2 ? " The first side to confirm cancels the other." : ""}

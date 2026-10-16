@@ -127,6 +127,8 @@ type PlanContext = {
   volatility: string;
   news: NewsRisk;
   candleTimes: Record<string, string | null>;
+  /** Nearest live support/resistance zones (for summaries; plans pick from these). */
+  zones: Array<{ low: number; high: number; type: string; relevance: string; distanceAtr: number }>;
 };
 
 const HOUR = 3_600_000;
@@ -228,6 +230,11 @@ export function generateTradePlans(input: GeneratorInput): GeneratorResult {
       H1: h1.closeTime,
       quote: input.quote?.time ?? null,
     },
+    zones: foundation.zones
+      .filter((zone) => zone.status === "ACTIVE" || zone.flipped)
+      .sort((a, b) => a.distanceAtr - b.distanceAtr)
+      .slice(0, 10)
+      .map((zone) => ({ low: round(zone.low), high: round(zone.high), type: zone.type, relevance: zone.relevance, distanceAtr: Number(zone.distanceAtr.toFixed(2)) })),
   };
   if (volatility.status === "FAIL") return none(volatility.reason, context);
 

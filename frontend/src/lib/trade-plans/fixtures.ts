@@ -70,3 +70,36 @@ export function watchingPair(price = 1.12296): TradePlan[] {
     fixturePlan("SELL", { ...common, notTriggeredReason: "Waiting for price to reach the zone 1.12399–1.12439." }),
   ];
 }
+
+/** Synthetic research for the dev preview only. example.com links; not real reporting. */
+export function fixtureResearch(): import("@/lib/trade-plans/api").ResearchResult {
+  const at = new Date(Date.parse("2026-10-16T09:00:00Z")).toISOString();
+  return {
+    cached: true,
+    research: {
+      id: "00000000-0000-4000-8000-0000000000cc", instrument: "EUR_USD", status: "COMPLETE", model: "fixture", sourceCount: 6,
+      createdAt: at, expiresAt: hours(5), fresh: true, staleReason: null,
+      usage: { inputTokens: 9000, outputTokens: 1800, webSearchCalls: 4, costUsd: null },
+      calendar: {
+        available: true, readAt: at, source: "Fixture calendar", note: null,
+        released: [{ title: "Fixture CPI m/m", currency: "USD", impact: 3, at: hours(-20), forecast: "0.3%", previous: "0.2%", actual: "0.4%", surprise: { side: "ABOVE", difference: 0.1, unit: "%" } }],
+        upcoming: [{ title: "Fixture ECB rate decision", currency: "EUR", impact: 3, at: hours(30), forecast: "2.00%", previous: "2.00%", actual: null }],
+      },
+      report: {
+        overallBias: "MIXED", confidence: "LOW",
+        summary: "Fixture: the technical structure leans bearish while the example fundamentals point to a possible recovery; the evidence conflicts.",
+        baseCurrency: { label: "Neutral", summary: "Fixture euro outlook." },
+        quoteCurrency: { label: "Softening", summary: "Fixture dollar outlook." },
+        ratesAndYields: "Fixture rates text.", riskSentiment: "Fixture risk mood.",
+        technicalVsFundamental: "Fixture: H4/D1 structure bearish; fundamentals mixed-to-supportive.",
+        news: [{ headline: "Fixture headline about inflation", publisher: "Example Wire", publishedAt: hours(-18), url: "https://example.com/news/1", currencies: ["USD"], topic: "inflation", kind: "FACT", implication: "MIXED", summary: "Fixture summary." }],
+        sentiment: { summary: "Fixture: a handful of public comments, split.", observations: [{ source: "example forum", url: "https://example.com/forum/1", stance: "SPECULATION", text: "Fixture comment." }], limitations: "Fixture limitation." },
+        bullishEvidence: [{ point: "Fixture: softer dollar data could support a recovery.", urls: ["https://example.com/news/1"] }],
+        bearishEvidence: [{ point: "Fixture: the H4 lower highs are intact.", urls: ["https://example.com/news/2"] }],
+        catalysts: [{ event: "Fixture ECB decision", why: "Fixture reason." }],
+        uncertainties: ["Fixture uncertainty."],
+        conclusion: { supports: "Fixture: no clear direction.", invalidatedBy: "Fixture.", needsPriceConfirmation: "Fixture: a confirmed break of either zone." },
+      },
+    },
+  };
+}

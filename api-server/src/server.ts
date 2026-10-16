@@ -65,6 +65,7 @@ import { createPlannedSetup, evaluatePlannedSetup, evaluateActivePlannedSetups }
 import { confirmationProgress, editTradePlan, generateAndStoreTradePlans } from "./trade-plan-service.js";
 import { startTradePlanMonitor } from "./trade-plan-monitor.js";
 import { autoTradeSettings, saveAutoTradeSettings } from "./trade-plan-settings.js";
+import { latestResearch, refreshDueResearch, refreshResearch, researchUsage } from "./intelligence/research-service.js";
 import { TradePlanError, approveAnalysis, approveTradePlan, cancelTradePlan, getTradePlan, listTradePlans, pauseTradePlan, rejectTradePlan, resumeTradePlan } from "./trade-plans.js";
 import {
   activateDuePendingManualEntries,
@@ -471,6 +472,23 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
       // Levels, sizes and confirmations are computed here; nothing else is read from the client.
       return tradePlanResponse(request, response, () => generateAndStoreTradePlans(user.id, instrument));
+    }
+    if (url.pathname === "/api/intelligence/usage" && request.method === "GET") {
+      return tradePlanResponse(request, response, () => researchUsage());
+    }
+    const intelligenceMatch = url.pathname.match(/^\/api\/intelligence\/([A-Z]{3}_[A-Z]{3})(\/refresh)?$/i);
+    if (intelligenceMatch && !intelligenceMatch[2] && request.method === "GET") {
+      const instrument = intelligenceMatch[1]!.toUpperCase();
+      if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
+      // Cached research only; never calls OpenAI.
+      return tradePlanResponse(request, response, () => latestResearch(instrument));
+    }
+    if (intelligenceMatch?.[2] && request.method === "POST") {
+      const instrument = intelligenceMatch[1]!.toUpperCase();
+      if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
+      const payload = await body(request);
+      // Analyze: reuses fresh research; runs one research call only when stale (or forced) and within budget.
+      return tradePlanResponse(request, response, () => refreshResearch(instrument, "MANUAL", { force: payload?.force === true }));
     }
     if (url.pathname === "/api/trade-plans/auto-trade" && request.method === "GET") {
       return tradePlanResponse(request, response, () => autoTradeSettings(user.id));
@@ -1245,9 +1263,19 @@ if (databaseConfigured() && schedulersEnabled) {
   } else {
     console.log("[pending-entry] monitoring disabled because OANDA pricing is not configured");
   }
-  // Approved trade plans: confirmation, status and notifications. Places no orders.
+  // Approved trade plans: confirmation, status, notifications, and Auto trade orders (practice only).
   if (config.isConfigured && process.env.TRADE_PLAN_MONITOR_ENABLED !== "false") startTradePlanMonitor();
   else console.log("[trade-plan-monitor] off (OANDA not configured or TRADE_PLAN_MONITOR_ENABLED=false)");
+  // Market research for pairs with accepted plans, only when stale; serial, budgeted, never per tick.
+  let researchBusy = false;
+  setInterval(() => {
+    if (researchBusy) return;
+    researchBusy = true;
+    void refreshDueResearch()
+      .then((result) => { if (result.refreshed) console.log(`[research] refreshed ${result.refreshed} pair(s)`); })
+      .catch((error) => console.error("[research] scheduled refresh failed", error))
+      .finally(() => { researchBusy = false; });
+  }, 15 * 60_000);
   let collectionBusy = false;
   // Forex is shut Friday 17:00 ET to Sunday 17:00 ET. The loop keeps ticking so
   // the process stays warm on Railway, but while the market is closed it skips

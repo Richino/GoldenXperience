@@ -56,6 +56,8 @@ export type ExecutionInput = {
   openAutoTrades: { count: number; riskPercent: number };
   /** Realised P/L of Auto trades closed today (account currency; negative is a loss). */
   realizedTodayPL: number;
+  /** When fresh market research is required for Auto trade (RESEARCH_REQUIRED_FOR_AUTO). */
+  research?: { required: boolean; fresh: boolean; reason: string | null };
 };
 
 export type ExecutionOrder = {
@@ -111,6 +113,9 @@ export function executionChecks(input: ExecutionInput): { ok: boolean; checks: E
     check("no_open_position", !open, open ? `A trade is already open on ${plan.instrument.replace("_", "/")}; Auto trade will not net against it.` : "No open trade on this pair.");
   }
 
+  if (input.research?.required) {
+    check("research", input.research.fresh, input.research.fresh ? "Market research is fresh." : `Fresh market research is required and unavailable: ${input.research.reason ?? "stale"}.`);
+  }
   check("open_positions", input.openAutoTrades.count < settings.maxOpenPositions,
     `${input.openAutoTrades.count} of ${settings.maxOpenPositions} Auto trades open.`);
 

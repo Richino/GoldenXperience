@@ -3,12 +3,13 @@
 import { useSyncExternalStore } from "react";
 import { PlanAnalyzeCard, PlanAnalyzeSheet, type PlanAnalyzeState } from "@/components/trade-plans/plan-analyze";
 import { PlanMascot } from "@/components/trade-plans/plan-mascot";
-import { fixturePlan, watchingPair } from "@/lib/trade-plans/fixtures";
+import { fixturePlan, fixtureResearch, watchingPair } from "@/lib/trade-plans/fixtures";
 
 const noop = () => undefined;
 const base: PlanAnalyzeState = {
   phase: { kind: "idle" }, active: [], open: false, setOpen: noop, busy: false, actionError: null,
   run: async () => undefined, accept: noop, dismiss: noop, stopWatching: noop, cancel: noop, analyzing: false,
+  research: { loading: false, result: fixtureResearch(), error: null }, refreshResearch: noop,
 };
 const offered: PlanAnalyzeState = {
   ...base,

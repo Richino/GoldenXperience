@@ -141,6 +141,51 @@ export interface AutoTradeSettings {
   executorAvailable: boolean;
 }
 
+export interface EvidencePoint { point: string; urls: string[] }
+
+export interface IntelligenceReport {
+  overallBias: "BULLISH" | "BEARISH" | "MIXED" | "UNCLEAR";
+  confidence: "LOW" | "MEDIUM" | "HIGH";
+  summary: string;
+  baseCurrency: { label: string; summary: string };
+  quoteCurrency: { label: string; summary: string };
+  ratesAndYields: string;
+  riskSentiment: string;
+  technicalVsFundamental: string;
+  news: Array<{ headline: string; publisher: string; publishedAt: string | null; url: string; currencies: string[]; topic: string; kind: "FACT" | "ANALYSIS"; implication: string; summary: string }>;
+  sentiment: { summary: string; observations: Array<{ source: string; url: string; stance: string; text: string }>; limitations: string };
+  bullishEvidence: EvidencePoint[];
+  bearishEvidence: EvidencePoint[];
+  catalysts: Array<{ event: string; why: string }>;
+  uncertainties: string[];
+  conclusion: { supports: string; invalidatedBy: string; needsPriceConfirmation: string };
+}
+
+export interface CalendarRow { title: string; currency: string; impact: number; at: string; forecast: string | null; previous: string | null; actual: string | null }
+
+export interface ResearchView {
+  id: string;
+  instrument: string;
+  status: string;
+  model: string | null;
+  report: IntelligenceReport | null;
+  sourceCount: number;
+  calendar: { available: boolean; readAt: string; source: string; upcoming: CalendarRow[]; released: Array<CalendarRow & { surprise: { side: string; difference: number | null; unit: string | null } }>; note: string | null };
+  usage: { inputTokens: number | null; outputTokens: number | null; webSearchCalls: number | null; costUsd: number | null };
+  createdAt: string;
+  expiresAt: string | null;
+  fresh: boolean;
+  staleReason: string | null;
+}
+
+export interface ResearchResult {
+  research: ResearchView | null;
+  cached?: boolean;
+  budget?: string | null;
+  error?: string;
+  configured?: boolean;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(apiUrl(path), {
     credentials: "include",
@@ -161,6 +206,10 @@ export const tradePlansApi = {
   get: (id: string) => request<PlanDetail>(`/api/trade-plans/${id}`),
   progress: (id: string) => request<ProgressResult>(`/api/trade-plans/${id}/progress`),
   generate: (instrument: string) => post<GenerateResult>("/api/trade-plans/generate", { instrument }),
+  /** Cached market research for a pair (never triggers a research call). */
+  research: (instrument: string) => request<ResearchResult>(`/api/intelligence/${instrument}`),
+  /** Research the pair if its research is stale (within the budget); returns cached research otherwise. */
+  refreshResearch: (instrument: string, force = false) => post<ResearchResult>(`/api/intelligence/${instrument}/refresh`, { force }),
   autoTrade: () => request<AutoTradeSettings>("/api/trade-plans/auto-trade"),
   saveAutoTrade: (settings: AutoTradeLimits & { autoTrade: boolean }) =>
     request<AutoTradeSettings>("/api/trade-plans/auto-trade", { method: "PUT", body: JSON.stringify(settings) }),

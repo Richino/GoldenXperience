@@ -159,19 +159,30 @@ export function PlanBlock({ plan, watching, price = null }: { plan: TradePlan; w
   const confirmed = plan.status === "CONFIRMED" || plan.status === "NOTIFIED";
   const away = distance(plan, price ?? plan.lastPrice);
   const met = plan.conditions.filter((item) => item.status === "PASSED").length;
+  // Risk and reward from the middle of the zone, drawn to scale.
+  const mid = (plan.entryZoneLow + plan.entryZoneHigh) / 2;
+  const risk = plan.stopLoss === null ? 0 : Math.abs(mid - plan.stopLoss);
+  const reward = plan.takeProfit === null ? 0 : Math.abs(plan.takeProfit - mid);
   return (
     <section className={styles.plan} data-side={plan.direction} aria-label={`${plan.direction} plan`}>
       <header className={styles.planHead}>
         <span className={styles.side}>{plan.direction}</span>
         <span className={styles.setup}>{setupName(plan)}</span>
-        <span className={styles.rr} title="Reward to risk">{plan.rewardRisk?.toFixed(1) ?? "—"}R</span>
+        {away ? <span className={styles.away}>{away}</span> : null}
       </header>
       <div className={styles.zoneRow}>
         <span className={styles.zone}>
-          {fmt(plan.entryZoneLow)}<span aria-hidden="true"> – </span><span className="sr-only"> to </span>{fmt(plan.entryZoneHigh)}
+          {fmt(plan.entryZoneLow)}<span className={styles.dash} aria-hidden="true">–</span><span className="sr-only"> to </span>{fmt(plan.entryZoneHigh)}
         </span>
-        {away ? <span className={styles.away}>{away}</span> : null}
+        <span className={styles.rr} title="Reward to risk">{plan.rewardRisk?.toFixed(1) ?? "—"}<small>R</small></span>
       </div>
+      {risk > 0 && reward > 0 ? (
+        <div className={styles.bar} aria-hidden="true">
+          {/* Grow values must sum to at least 1 or flex leaves the rest empty. */}
+          <span className={styles.barRisk} style={{ flexGrow: risk / (risk + reward) }} />
+          <span className={styles.barReward} style={{ flexGrow: reward / (risk + reward) }} />
+        </div>
+      ) : null}
       <dl className={styles.levels}>
         <div><dt>Stop</dt><dd>{fmt(plan.stopLoss)}</dd></div>
         <div><dt>Target</dt><dd>{fmt(plan.takeProfit)}</dd></div>

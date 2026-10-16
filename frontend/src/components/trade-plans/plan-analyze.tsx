@@ -300,12 +300,16 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
       return (
         <div className="nl-an-body">
           {top(`Analyze · ${pair}`)}
-          <h2 id={titleId} className={styles.quietTitle}>No setup worth watching right now</h2>
-          <ul className={styles.rejected}>
-            {result.rejected.map((item) => <li key={`${item.direction}-${item.setupType}`}><strong>{item.direction}</strong> {item.reason}</li>)}
-          </ul>
-          <div className={styles.footer}>
-            <button type="button" className="nl-an-secondary pressable" onClick={state.dismiss}>Close</button>
+          <div className="nl-an-scroll">
+            <h2 id={titleId} className={styles.quietTitle}>No setup worth watching right now</h2>
+            <ul className={styles.rejected}>
+              {result.rejected.map((item) => <li key={`${item.direction}-${item.setupType}`}><strong>{item.direction}</strong> {item.reason}</li>)}
+            </ul>
+          </div>
+          <div className={styles.dock}>
+            <div className={styles.footer}>
+              <button type="button" className="nl-an-secondary pressable" onClick={state.dismiss}>Close</button>
+            </div>
           </div>
         </div>
       );
@@ -314,14 +318,19 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
       <div className="nl-an-body">
         {top(`Analyze · ${pair}`)}
         <h2 id={titleId} className="sr-only">{pair} plans</h2>
-        <Ladder plans={plans} price={price} watching={false} />
-        <ModeSwitch mode={mode} onChange={setMode} name={`plan-mode-${titleId}`} />
-        {state.actionError ? <p className={styles.error} role="alert">{state.actionError}</p> : null}
-        <div className={styles.footer}>
-          <button type="button" className={`nl-an-primary pressable ${styles.accept}`} disabled={state.busy} onClick={() => state.accept(mode)}>
-            {state.busy ? "Accepting…" : plans.length === 2 ? "Accept both" : "Accept"}
-          </button>
-          <button type="button" className={styles.textButton} disabled={state.busy} onClick={state.dismiss}>Not now</button>
+        {/* Only the plans scroll; the mode choice and the buttons stay pinned under them. */}
+        <div className="nl-an-scroll">
+          <Ladder plans={plans} price={price} watching={false} />
+        </div>
+        <div className={styles.dock}>
+          <ModeSwitch mode={mode} onChange={setMode} name={`plan-mode-${titleId}`} />
+          {state.actionError ? <p className={styles.error} role="alert">{state.actionError}</p> : null}
+          <div className={styles.footer}>
+            <button type="button" className={`nl-an-primary pressable ${styles.accept}`} disabled={state.busy} onClick={() => state.accept(mode)}>
+              {state.busy ? "Accepting…" : "Accept"}
+            </button>
+            <button type="button" className={styles.textButton} disabled={state.busy} onClick={state.dismiss}>Not now</button>
+          </div>
         </div>
       </div>
     );
@@ -333,16 +342,20 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
       <div className="nl-an-body">
         {top(`Watching · ${pair}`)}
         <h2 id={titleId} className="sr-only">Watching {pair}</h2>
-        <Ladder plans={active} price={price} watching />
-        <p className={styles.footnote}>
-          {auto ? "GX places the trade on your practice account when a plan confirms." : "You get an alert when a plan confirms."}
-          {active.length === 2 ? " The first side to confirm cancels the other." : ""}
-        </p>
-        {state.actionError ? <p className={styles.error} role="alert">{state.actionError}</p> : null}
-        <div className={styles.footer}>
-          <button type="button" className="nl-an-secondary pressable" disabled={state.busy} onClick={state.stopWatching}>
-            {state.busy ? "Stopping…" : "Stop watching"}
-          </button>
+        <div className="nl-an-scroll">
+          <Ladder plans={active} price={price} watching />
+          <p className={styles.footnote}>
+            {auto ? "GX places the trade on your practice account when a plan confirms." : "You get an alert when a plan confirms."}
+            {active.length === 2 ? " The first side to confirm cancels the other." : ""}
+          </p>
+        </div>
+        <div className={styles.dock}>
+          {state.actionError ? <p className={styles.error} role="alert">{state.actionError}</p> : null}
+          <div className={styles.footer}>
+            <button type="button" className="nl-an-secondary pressable" disabled={state.busy} onClick={state.stopWatching}>
+              {state.busy ? "Stopping…" : "Stop watching"}
+            </button>
+          </div>
         </div>
       </div>
     );

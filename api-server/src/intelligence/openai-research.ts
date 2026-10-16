@@ -12,6 +12,8 @@ import { MODEL_SCHEMA, validateResearch, type CalendarEventRef, type MarketIntel
  *   OPENAI_RESEARCH_EFFORT       reasoning effort (default low)
  *   OPENAI_RESEARCH_TIMEOUT_MS   request time limit (default 300000)
  *   OPENAI_WEB_SEARCH_TOOL       tool type (default "web_search")
+ *   OPENAI_RESEARCH_MAX_SEARCHES cap on web searches per run (max_tool_calls; unset = no cap)
+ *   OPENAI_WEB_SEARCH_CONTEXT    search_context_size: low | medium | high (unset = OpenAI default)
  *   OPENAI_PRICE_INPUT_PER_MTOK / OPENAI_PRICE_OUTPUT_PER_MTOK / OPENAI_PRICE_WEB_SEARCH_CALL
  *                                USD prices for the cost estimate; unset means "cost unknown"
  */
@@ -48,6 +50,8 @@ export function researchConfig(env: NodeJS.ProcessEnv = process.env) {
     effort: env.OPENAI_RESEARCH_EFFORT?.trim() || "low",
     timeoutMs: Number(env.OPENAI_RESEARCH_TIMEOUT_MS) > 0 ? Number(env.OPENAI_RESEARCH_TIMEOUT_MS) : DEFAULT_TIMEOUT_MS,
     webSearchTool: env.OPENAI_WEB_SEARCH_TOOL?.trim() || "web_search",
+    maxSearches: Number(env.OPENAI_RESEARCH_MAX_SEARCHES) > 0 ? Math.floor(Number(env.OPENAI_RESEARCH_MAX_SEARCHES)) : null,
+    searchContext: ["low", "medium", "high"].includes(env.OPENAI_WEB_SEARCH_CONTEXT?.trim() ?? "") ? env.OPENAI_WEB_SEARCH_CONTEXT!.trim() : null,
     prices: { inputPerMTok: price("OPENAI_PRICE_INPUT_PER_MTOK"), outputPerMTok: price("OPENAI_PRICE_OUTPUT_PER_MTOK"), perSearch: price("OPENAI_PRICE_WEB_SEARCH_CALL") },
   };
 }
@@ -142,7 +146,8 @@ export async function runResearch(input: {
       body: JSON.stringify({
         model: config.model,
         reasoning: { effort: config.effort },
-        tools: [{ type: config.webSearchTool }],
+        tools: [{ type: config.webSearchTool, ...(config.searchContext ? { search_context_size: config.searchContext } : {}) }],
+        ...(config.maxSearches ? { max_tool_calls: config.maxSearches } : {}),
         include: ["web_search_call.action.sources"],
         input: prompt,
         store: false,

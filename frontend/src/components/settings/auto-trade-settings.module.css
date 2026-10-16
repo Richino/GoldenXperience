@@ -1,0 +1,285 @@
+/* Settings → Auto trade. Shell is .nl-st-card; one card for desktop and phone. */
+
+.card {
+  background: var(--surface);
+}
+
+@media (max-width: 767px) {
+  .card {
+    gap: 18px;
+    padding: 20px;
+    border-radius: 22px;
+  }
+
+  .card :global(.nl-st-card-head) h2 {
+    font-size: 24px;
+  }
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-raised);
+  color: var(--muted-strong);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.status[data-on="true"] {
+  background: var(--accent-soft);
+  color: var(--foreground);
+}
+
+.status[data-on="true"] i {
+  background: var(--success);
+}
+
+/* ── Switch row ───────────────────────────────────── */
+
+.switchRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--surface-raised);
+}
+
+.switchLabel {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.switchHint {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.switch {
+  position: relative;
+  flex: none;
+  width: 52px;
+  height: 30px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--border-strong);
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+
+.switch span {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 160ms ease;
+}
+
+.switch[aria-checked="true"] {
+  background: var(--success);
+}
+
+.switch[aria-checked="true"] span {
+  transform: translateX(22px);
+}
+
+.switch:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.switch:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switch,
+  .switch span { transition: none; }
+}
+
+/* ── Limits ───────────────────────────────────────── */
+
+.limits {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+@media (max-width: 420px) {
+  .limits {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.legend {
+  grid-column: 1 / -1;
+  margin-bottom: 2px;
+  padding: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.fieldLabel {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.inputWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.inputWrap input {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 34px 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.inputWrap input:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.suffix {
+  position: absolute;
+  right: 14px;
+  color: var(--muted);
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.fieldHint {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* ── Actions and messages ─────────────────────────── */
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.primary,
+.secondary,
+.ghost {
+  min-height: 46px;
+  padding: 0 18px;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primary {
+  border: 0;
+  background: var(--accent);
+  color: #0b0c0a;
+}
+
+.secondary {
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--foreground);
+}
+
+.ghost {
+  border: 0;
+  background: transparent;
+  color: var(--muted-strong);
+}
+
+.primary:disabled,
+.secondary:disabled,
+.ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.primary:focus-visible,
+.secondary:focus-visible,
+.ghost:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.confirm {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--accent);
+  border-radius: 16px;
+  background: var(--accent-soft);
+}
+
+.confirm p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.note,
+.warn,
+.error,
+.saved {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.note {
+  color: var(--muted-strong);
+}
+
+.warn {
+  color: var(--pending);
+}
+
+.error {
+  color: var(--danger);
+}
+
+.saved {
+  color: var(--success);
+}

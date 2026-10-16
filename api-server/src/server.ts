@@ -64,6 +64,7 @@ import { acceptPullbackSignal, pullbackAutomationForUser, rejectPullbackSignal, 
 import { createPlannedSetup, evaluatePlannedSetup, evaluateActivePlannedSetups } from "./planned-setup-service.js";
 import { confirmationProgress, editTradePlan, generateAndStoreTradePlans } from "./trade-plan-service.js";
 import { startTradePlanMonitor } from "./trade-plan-monitor.js";
+import { autoTradeSettings, saveAutoTradeSettings } from "./trade-plan-settings.js";
 import { TradePlanError, approveAnalysis, approveTradePlan, cancelTradePlan, getTradePlan, listTradePlans, pauseTradePlan, rejectTradePlan, resumeTradePlan } from "./trade-plans.js";
 import {
   activateDuePendingManualEntries,
@@ -470,6 +471,13 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
       // Levels, sizes and confirmations are computed here; nothing else is read from the client.
       return tradePlanResponse(request, response, () => generateAndStoreTradePlans(user.id, instrument));
+    }
+    if (url.pathname === "/api/trade-plans/auto-trade" && request.method === "GET") {
+      return tradePlanResponse(request, response, () => autoTradeSettings(user.id));
+    }
+    if (url.pathname === "/api/trade-plans/auto-trade" && request.method === "PUT") {
+      const payload = await body(request);
+      return tradePlanResponse(request, response, () => saveAutoTradeSettings(user.id, (payload ?? {}) as Record<string, unknown>));
     }
     if (url.pathname === "/api/trade-plans/accept" && request.method === "POST") {
       // One Accept for an Analyze run: every plan at the version the user saw, all or nothing.

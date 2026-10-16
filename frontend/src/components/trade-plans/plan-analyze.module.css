@@ -488,3 +488,10 @@
 .footer .stop:hover:not(:disabled) {
   background: color-mix(in srgb, var(--danger) 88%, #000);
 }
+
+.errorLink {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

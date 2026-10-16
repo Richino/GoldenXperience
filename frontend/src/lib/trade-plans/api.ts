@@ -123,6 +123,24 @@ export interface ProgressResult {
   };
 }
 
+export interface AutoTradeLimits {
+  maxRiskPercent: number;
+  maxAggregateRiskPercent: number;
+  maxOpenPositions: number;
+  dailyLossLimitPercent: number;
+}
+
+export interface AutoTradeSettings {
+  autoTrade: boolean;
+  approvedAt: string | null;
+  limits: AutoTradeLimits;
+  killSwitch: boolean;
+  suspended: { at: string; reason: string | null } | null;
+  broker: { environment: "practice" | "live" | "unconfigured" };
+  /** False until order placement for confirmed Auto plans exists. */
+  executorAvailable: boolean;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(apiUrl(path), {
     credentials: "include",
@@ -143,6 +161,9 @@ export const tradePlansApi = {
   get: (id: string) => request<PlanDetail>(`/api/trade-plans/${id}`),
   progress: (id: string) => request<ProgressResult>(`/api/trade-plans/${id}/progress`),
   generate: (instrument: string) => post<GenerateResult>("/api/trade-plans/generate", { instrument }),
+  autoTrade: () => request<AutoTradeSettings>("/api/trade-plans/auto-trade"),
+  saveAutoTrade: (settings: AutoTradeLimits & { autoTrade: boolean }) =>
+    request<AutoTradeSettings>("/api/trade-plans/auto-trade", { method: "PUT", body: JSON.stringify(settings) }),
   /** One Accept for the whole analysis, at the versions shown. */
   accept: (analysisId: string, mode: MonitoringMode, plans: Array<Pick<TradePlan, "id" | "planVersion">>) =>
     post("/api/trade-plans/accept", { analysisId, mode, versions: Object.fromEntries(plans.map((plan) => [plan.id, plan.planVersion])) }),

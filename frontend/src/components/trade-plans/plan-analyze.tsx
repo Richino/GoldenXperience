@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { createPortal } from "react-dom";
 import { Ban, CheckCircle2, Circle, X, XCircle } from "lucide-react";
 import { AnalyzeIcon } from "@/components/icons/analyze-icon";
@@ -328,7 +329,12 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
         </div>
         <div className={styles.dock}>
           <ModeSwitch mode={mode} onChange={setMode} name={`plan-mode-${titleId}`} />
-          {state.actionError ? <p className={styles.error} role="alert">{state.actionError}</p> : null}
+          {state.actionError ? (
+            <p className={styles.error} role="alert">
+              {state.actionError}
+              {mode === "AUTO" && /Settings/.test(state.actionError) ? <> <Link href="/settings#auto-trade" className={styles.errorLink}>Open Settings</Link></> : null}
+            </p>
+          ) : null}
           <div className={styles.footer}>
             <button type="button" className={`nl-an-primary pressable ${styles.accept}`} disabled={state.busy} onClick={() => state.accept(mode)}>
               {state.busy ? "Accepting…" : "Accept"}

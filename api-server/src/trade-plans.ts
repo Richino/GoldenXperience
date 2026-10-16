@@ -221,7 +221,7 @@ async function checkAutoAllowed(client: PoolClient, userId: string) {
     [userId],
   );
   const settings = risk.rows[0];
-  if (!settings?.auto_limits_approved_at) throw new TradePlanError("Automatic execution is not set up yet: approve your risk limits first.");
+  if (!settings?.auto_limits_approved_at) throw new TradePlanError("Auto trade is off. Turn it on in Settings → Auto trade.");
   if (settings.kill_switch) throw new TradePlanError("The execution kill switch is on.");
   if (settings.suspended_at) throw new TradePlanError("Automatic execution is suspended after broker errors.");
 }

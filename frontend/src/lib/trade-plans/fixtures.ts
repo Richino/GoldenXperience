@@ -84,7 +84,7 @@ export function fixtureResearch(): import("@/lib/trade-plans/api").ResearchResul
       usage: { inputTokens: 9000, outputTokens: 1800, webSearchCalls: 4, costUsd: null },
       calendar: { available: true, readAt: at, source: "Fixture calendar", note: null, released: [], upcoming: [] },
       report: {
-        schemaVersion: "2.0", pair: "EUR_USD", base: "EUR", quote: "USD",
+        schemaVersion: "2.1", pair: "EUR_USD", base: "EUR", quote: "USD",
         research: { id: "00000000-0000-4000-8000-0000000000cc", createdAt: at, cutoffAt: at, horizon: "2-5 trading days", status: "complete", quality: "medium", missingData: ["Fixture: verified relative bond yields"], model: "fixture", effort: "high", durationMs: 160000 },
         outlook: { overall: "mixed", shortTerm: "bullish", swingTerm: "bearish", fundamental: "bullish", technical: "bearish", explanation: "Fixture: a short-term recovery within a broader downtrend." },
         factors: [
@@ -104,6 +104,15 @@ export function fixtureResearch(): import("@/lib/trade-plans/api").ResearchResul
         },
         bullishThesis: { hypothesis: "Fixture: a recovery if dollar weakness continues.", supportingFactorIds: ["F1"], opposingFactorIds: ["F2"], catalysts: ["Fixture ECB decision"], strengthensIf: ["Fixture: softer US data"], weakensIf: ["Fixture: a hawkish Fed surprise"] },
         bearishThesis: { hypothesis: "Fixture: the downtrend resumes if the bounce fades.", supportingFactorIds: ["F2"], opposingFactorIds: ["F1"], catalysts: [], strengthensIf: ["Fixture: wider fiscal stress"], weakensIf: ["Fixture: firmer euro data"] },
+        assessment: {
+          nearTermLean: "bullish", swingLean: "unresolved",
+          evidenceBalance: { bullish: 3, bearish: 2, strongerSide: "neither" },
+          drivers: ["Fixture: softer US yields", "Fixture: French fiscal risk"],
+          strongestOpposing: "Fixture: French fiscal risk keeps a premium on the euro.",
+          changeTriggers: ["Fixture: a hot US CPI print", "Fixture: a hawkish ECB surprise"],
+          rationale: "Fixture: near-term evidence tilts to a recovery; over 2–5 days the sides are balanced.",
+          supportingFactorIds: ["F1"],
+        },
         sources: [source("src_001", "news/1", "Example Wire", "news"), source("src_002", "news/2", "Example Times", "news"), source("src_003", "analysis/1", "Example FX", "analysis"), source("src_004", "forum/1", "Example Forum", "forum")],
         summary: "Fixture: technicals lean bearish while near-term fundamentals favour a recovery; the evidence conflicts.",
       },

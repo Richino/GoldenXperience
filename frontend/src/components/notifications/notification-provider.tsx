@@ -1,9 +1,12 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ToastAction } from "@/components/ui/toast";
+import { toast } from "@/hooks/use-toast";
 import { apiUrl } from "@/lib/api/url";
 import { currentPushStatus } from "@/lib/notifications/push";
-import { sampleToastNotification } from "@/lib/notifications/display";
+import { notificationHref, sampleToastNotification } from "@/lib/notifications/display";
 import { playNotificationSound, unlockNotificationAudio } from "@/lib/notifications/play";
 import { NOTIFICATION_SOUND_KEY, NOTIFICATION_VOLUME_KEY, notificationSoundPath, notificationVolume } from "@/lib/notifications/sounds";
 import type { AppNotification, NotificationToast } from "@/lib/notifications/types";
@@ -41,19 +44,31 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const initialized = useRef(false);
   const seenIds = useRef(new Set<string>());
 
-  // No in-app toast: new notifications play the sound, land in the bell's
-  // inbox, and raise a system notification only while the tab is hidden.
+  const router = useRouter();
+  // New notifications play the sound, land in the bell's inbox, and raise a
+  // system notification only while the tab is hidden. Finished background
+  // research also shows a toast that opens the analysis.
   const present = useCallback((events: NotificationToast[]) => {
     if (!events.length) return;
     playSelectedSound();
     const hidden = document.visibilityState !== "visible";
+    if (!hidden) {
+      for (const event of events.filter((item) => item.kind === "research_ready" && !item.preview).slice(0, 2)) {
+        const href = notificationHref(event);
+        toast({
+          title: event.title,
+          description: event.message,
+          action: <ToastAction altText="View analysis" onClick={() => router.push(href)}>View analysis</ToastAction>,
+        });
+      }
+    }
     const latest = events[0]!;
     if (hidden && !latest.preview && typeof Notification !== "undefined" && Notification.permission === "granted") {
       void currentPushStatus().then(status => {
         if (status === "enabled" && document.visibilityState !== "visible") new Notification(latest.title, { body: latest.message, tag: latest.id });
       }).catch(() => { /* A disabled or unverifiable device must not show system alerts. */ });
     }
-  }, []);
+  }, [router]);
 
   // iOS starts web audio only after a gesture; the first tap or key press
   // unlocks it so later notifications can play their sound.

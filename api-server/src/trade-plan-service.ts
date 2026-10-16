@@ -96,10 +96,11 @@ export function attachIntelligence(plans: TradePlanInput[], intelligence: Market
 const lastGenerate = new Map<string, number>();
 const GENERATE_COOLDOWN_MS = 15_000;
 
-export async function generateAndStoreTradePlans(userId: string, instrument: MajorInstrument) {
+export async function generateAndStoreTradePlans(userId: string, instrument: MajorInstrument, options: { skipCooldown?: boolean } = {}) {
   const key = `${userId}:${instrument}`;
   const last = lastGenerate.get(key) ?? 0;
-  if (Date.now() - last < GENERATE_COOLDOWN_MS) throw new TradePlanError("Analysis was just run for this pair. Try again in a few seconds.", 429);
+  // The cooldown guards against repeated presses; the research worker rebuilding plans is not one.
+  if (!options.skipCooldown && Date.now() - last < GENERATE_COOLDOWN_MS) throw new TradePlanError("Analysis was just run for this pair. Try again in a few seconds.", 429);
   lastGenerate.set(key, Date.now());
 
   const [market, risk] = await Promise.all([loadGeneratorMarket(instrument), riskSettings(userId)]);

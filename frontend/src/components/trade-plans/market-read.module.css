@@ -332,3 +332,60 @@
 .align[data-alignment="supports"] { color: var(--success); }
 .align[data-alignment="opposes"] { color: var(--danger); }
 .align[data-alignment="mixed"] { color: var(--pending); }
+
+/* Background research job: verified status only. */
+.job {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: 0.7rem;
+}
+
+.jobTitle {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.jobMeta {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: var(--text-xs);
+}
+
+.cancel {
+  justify-self: start;
+  min-height: 2rem;
+  padding: 0 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  background: transparent;
+  color: var(--danger);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.cancel:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.leans {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: var(--text-xs);
+}
+
+.leans strong[data-lean="bullish"] { color: var(--success); }
+.leans strong[data-lean="bearish"] { color: var(--danger); }
+.leans strong[data-lean="unresolved"],
+.leans strong[data-lean="neutral"] { color: var(--muted-strong); }
+
+.scenario {
+  padding-left: 0.6rem;
+  border-left: 2px solid var(--border-strong);
+}
+
+.scenario[data-side="BUY"] { border-left-color: var(--success); }
+.scenario[data-side="SELL"] { border-left-color: var(--danger); }

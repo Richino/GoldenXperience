@@ -1,7 +1,7 @@
 "use client";
 
 import { ExternalLink, RefreshCw } from "lucide-react";
-import type { Bias, MarketIntelligence, PlanResearchContext, ResearchFactor, ResearchObservation, ResearchResult, TradePlan } from "@/lib/trade-plans/api";
+import { JOB_RUNNING, type Bias, type Lean, type MarketIntelligence, type PlanResearchContext, type ResearchFactor, type ResearchJob, type ResearchObservation, type ResearchResult, type ResearchThesis, type TradePlan } from "@/lib/trade-plans/api";
 import styles from "./market-read.module.css";
 
 /**
@@ -66,31 +66,61 @@ function Observations({ title, items, intel }: { title: string; items: ResearchO
   );
 }
 
-export function MarketRead({ state, onRefresh }: { state: ResearchState; onRefresh: () => void }) {
+const JOB_STATUS: Record<ResearchJob["status"], string> = {
+  QUEUED: "Queued", RESEARCHING: "Researching", VALIDATING: "Checking the results", COMPLETED: "Complete", FAILED: "Failed", CANCELLED: "Cancelled", EXPIRED: "Expired",
+};
+const LEAN_LABEL: Record<Lean, string> = { bullish: "Bullish", bearish: "Bearish", neutral: "Neutral", unresolved: "Unresolved" };
+
+/** A running background job: only states the server has confirmed, no progress estimate. */
+function JobStrip({ job, onCancel }: { job: ResearchJob; onCancel?: () => void }) {
+  return (
+    <div className={styles.job} role="status">
+      <p className={styles.jobTitle}>{job.instrument.replace("_", "/")} — Research in progress</p>
+      <p className={styles.jobMeta}>
+        Status: <strong>{JOB_STATUS[job.status]}</strong> · Model: {job.model} · Reasoning: {job.effort} · started {ago(job.startedAt ?? job.createdAt)}
+      </p>
+      <p className={styles.fine}>Research is running in the background. You can keep using GX or close it — you&apos;ll be notified when it&apos;s ready.</p>
+      {onCancel ? <button type="button" className={styles.cancel} onClick={onCancel}>Cancel research</button> : null}
+    </div>
+  );
+}
+
+/** Each side's case, whether or not a plan qualified: why it could move, what would strengthen or break it. */
+function Scenario({ side, thesis }: { side: "BUY" | "SELL"; thesis: ResearchThesis }) {
+  if (!thesis.hypothesis) return null;
+  return (
+    <div className={styles.scenario} data-side={side}>
+      <h5 className={styles.evHead}>{side === "BUY" ? "If it rises — BUY case" : "If it falls — SELL case"}</h5>
+      <p className={styles.text}>{thesis.hypothesis}</p>
+      {thesis.strengthensIf.length ? <p className={styles.meta}>Strengthens if: {thesis.strengthensIf.join("; ")}</p> : null}
+      {thesis.weakensIf.length ? <p className={styles.meta}>Weakens if: {thesis.weakensIf.join("; ")}</p> : null}
+    </div>
+  );
+}
+
+export function MarketRead({ state, onRefresh, onCancel }: { state: ResearchState; onRefresh: () => void; onCancel?: () => void }) {
   const research = state.result?.research ?? null;
   const intel = research?.report?.schemaVersion ? research.report : null;
-  const notice = state.result?.budget ?? state.result?.error ?? state.error ?? null;
+  const job = state.result?.job ?? null;
+  const running = Boolean(job && JOB_RUNNING.includes(job.status));
+  // A run that ended badly after the research shown: say so (the last good report stays visible).
+  const failedJob = job && !running && job.status !== "COMPLETED" && (!research || Date.parse(job.createdAt) > Date.parse(research.createdAt)) ? job : null;
+  const notice = state.result?.budget ?? state.result?.error ?? state.error ?? (failedJob ? `Last research run ${JOB_STATUS[failedJob.status].toLowerCase()}: ${failedJob.error ?? "it did not finish"}` : null);
 
-  if (state.loading && !intel) {
-    return (
-      <section className={styles.card} aria-busy="true" aria-label="Market read">
-        <div className={styles.head}><span className={styles.label}>Market read</span><span className={styles.muted}>Researching news, central banks, data and sentiment…</span></div>
-        <span className={styles.skel} />
-        <span className={`${styles.skel} ${styles.short}`} />
-      </section>
-    );
-  }
   if (!intel || !research) {
     return (
-      <section className={styles.card} aria-label="Market read">
+      <section className={styles.card} aria-label="Market read" aria-busy={state.loading || running}>
         <div className={styles.head}>
           <span className={styles.label}>Market read</span>
-          <button type="button" className={styles.refresh} onClick={onRefresh} disabled={state.loading}><RefreshCw aria-hidden="true" />Research</button>
+          {running ? null : <button type="button" className={styles.refresh} onClick={onRefresh} disabled={state.loading}><RefreshCw aria-hidden="true" className={state.loading ? styles.spin : undefined} />Research</button>}
         </div>
-        <p className={styles.muted}>{notice ?? (state.result?.configured === false ? "Research is not configured on the server." : "No research for this pair yet.")}</p>
+        {running && job ? <JobStrip job={job} onCancel={onCancel} /> : (
+          <p className={styles.muted}>{notice ?? (state.result?.configured === false ? "Research is not configured on the server." : state.loading ? "Starting research…" : "No research for this pair yet.")}</p>
+        )}
       </section>
     );
   }
+  const assessment = intel.assessment ?? null;
 
   const o = intel.outlook;
   const forPair = intel.factors.filter((factor) => factor.impactOnPair === "bullish");
@@ -103,16 +133,24 @@ export function MarketRead({ state, onRefresh }: { state: ResearchState; onRefre
         <span className={styles.label}>Market read</span>
         <span className={styles.bias} data-bias={o.overall.toUpperCase()}>{BIAS_LABEL[o.overall]}</span>
         <span className={styles.muted}>{intel.research.quality} quality evidence</span>
-        <button type="button" className={styles.refresh} onClick={onRefresh} disabled={state.loading} aria-label="Refresh research">
-          <RefreshCw aria-hidden="true" className={state.loading ? styles.spin : undefined} />
+        <button type="button" className={styles.refresh} onClick={onRefresh} disabled={state.loading || running} aria-label="Refresh research">
+          <RefreshCw aria-hidden="true" className={state.loading || running ? styles.spin : undefined} />
         </button>
       </div>
+      {running && job ? <JobStrip job={job} onCancel={onCancel} /> : null}
       <dl className={styles.outlook}>
         {([["Short term", o.shortTerm], ["Swing 2–5 days", o.swingTerm], ["Fundamental", o.fundamental], ["Technical", o.technical]] as const).map(([label, value]) => (
           <div key={label}><dt>{label}</dt><dd data-bias={value}>{BIAS_LABEL[value]}</dd></div>
         ))}
       </dl>
-      <p className={styles.summary}>{intel.summary}</p>
+      {assessment ? (
+        <p className={styles.leans}>
+          Evidence lean — near term <strong data-lean={assessment.nearTermLean}>{LEAN_LABEL[assessment.nearTermLean]}</strong>
+          {" · "}swing <strong data-lean={assessment.swingLean}>{LEAN_LABEL[assessment.swingLean]}</strong>
+        </p>
+      ) : null}
+      <p className={styles.summary}>{assessment?.rationale || intel.summary}</p>
+      {assessment?.strongestOpposing ? <p className={styles.meta}>Strongest opposing evidence: {assessment.strongestOpposing}</p> : null}
       <p className={styles.fresh} data-stale={!research.fresh}>
         {research.fresh ? `Researched ${ago(research.createdAt)}` : `Stale — ${research.staleReason ?? "older than its refresh window"} (researched ${ago(research.createdAt)})`}
         {intel.research.status === "partial" ? " · partial" : ""}
@@ -120,8 +158,17 @@ export function MarketRead({ state, onRefresh }: { state: ResearchState; onRefre
       </p>
 
       <details className={styles.more}>
-        <summary>Drivers, calendar and sentiment</summary>
+        <summary>Scenarios, drivers, calendar and sentiment</summary>
+        {assessment?.rationale && intel.summary !== assessment.rationale ? <p className={styles.text}>{intel.summary}</p> : null}
         {o.explanation ? <p className={styles.text}>{o.explanation}</p> : null}
+
+        <h4 className={styles.sub}>Both scenarios</h4>
+        <Scenario side="BUY" thesis={intel.bullishThesis} />
+        <Scenario side="SELL" thesis={intel.bearishThesis} />
+        <p className={styles.fine}>Research cases only. A plan enters only when its own price conditions confirm and the risk checks pass.</p>
+
+        {assessment?.drivers.length ? <><h4 className={styles.sub}>What is driving it</h4><ul className={styles.points}>{assessment.drivers.map((item) => <li key={item}>{item}</li>)}</ul></> : null}
+        {assessment?.changeTriggers.length ? <><h4 className={styles.sub}>What would change the view</h4><ul className={styles.points}>{assessment.changeTriggers.map((item) => <li key={item}>{item}</li>)}</ul></> : null}
 
         {forPair.length ? <><h4 className={styles.sub}>For {intel.pair.replace("_", "/")} rising</h4><Factors items={forPair} intel={intel} /></> : null}
         {againstPair.length ? <><h4 className={styles.sub}>For {intel.pair.replace("_", "/")} falling</h4><Factors items={againstPair} intel={intel} /></> : null}

@@ -9,7 +9,7 @@ const noop = () => undefined;
 const base: PlanAnalyzeState = {
   phase: { kind: "idle" }, active: [], open: false, setOpen: noop, busy: false, actionError: null,
   run: async () => undefined, accept: noop, dismiss: noop, stopWatching: noop, cancel: noop, analyzing: false,
-  research: { loading: false, result: fixtureResearch(), error: null }, refreshResearch: noop,
+  research: { loading: false, result: fixtureResearch(), error: null }, refreshResearch: noop, cancelResearch: noop, review: noop,
 };
 const offered: PlanAnalyzeState = {
   ...base,
@@ -23,6 +23,14 @@ const none: PlanAnalyzeState = {
   ] } },
 };
 const watching: PlanAnalyzeState = { ...base, active: watchingPair() };
+const researching: PlanAnalyzeState = {
+  ...none,
+  research: { loading: false, error: null, result: { research: null, state: "started", job: {
+    id: "00000000-0000-4000-8000-0000000000dd", instrument: "EUR_USD", status: "RESEARCHING", trigger: "MANUAL", horizon: "2-5 trading days", model: "gpt-6.1-sol", effort: "high",
+    researchId: null, error: null, createdAt: new Date(Date.now() - 95_000).toISOString(), startedAt: new Date(Date.now() - 90_000).toISOString(), completedAt: null,
+    usage: { inputTokens: null, outputTokens: null, reasoningTokens: null, webSearchCalls: null, sources: null, costUsd: null, validationDrops: null },
+  } } },
+};
 
 /** ?sheet=1 opens the phone sheet with the offered plans. */
 const wantsSheet = () => new URLSearchParams(window.location.search).has("sheet");
@@ -32,8 +40,8 @@ export function PlanAnalyzePreview() {
   if (sheet) return <PlanAnalyzeSheet state={{ ...offered, open: true }} instrument="EUR_USD" price={1.12292} />;
   return (
     <main style={{ padding: 16, background: "var(--background)", minHeight: "100vh", display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fill, minmax(320px, 360px))", alignItems: "start" }}>
-      {[base, offered, none, watching].map((state, index) => (
-        <div key={index} data-preview={["idle", "offered", "none", "watching"][index]}>
+      {[base, offered, none, watching, researching].map((state, index) => (
+        <div key={index} data-preview={["idle", "offered", "none", "watching", "researching"][index]}>
           <PlanAnalyzeCard state={state} instrument="EUR_USD" price={1.12292} onNewEntry={noop} />
         </div>
       ))}

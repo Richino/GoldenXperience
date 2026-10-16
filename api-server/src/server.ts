@@ -65,7 +65,8 @@ import { createPlannedSetup, evaluatePlannedSetup, evaluateActivePlannedSetups }
 import { confirmationProgress, editTradePlan, generateAndStoreTradePlans } from "./trade-plan-service.js";
 import { startTradePlanMonitor } from "./trade-plan-monitor.js";
 import { autoTradeSettings, saveAutoTradeSettings } from "./trade-plan-settings.js";
-import { latestResearch, refreshDueResearch, refreshResearchWithin, researchUsage } from "./intelligence/research-service.js";
+import { latestResearch, researchUsage } from "./intelligence/research-service.js";
+import { cancelResearchJob, handleOpenAIWebhook, refreshDueResearch, requestResearch, researchJobForUser, startResearchWorker } from "./intelligence/research-jobs.js";
 import { TradePlanError, approveAnalysis, approveTradePlan, cancelTradePlan, getTradePlan, listTradePlans, pauseTradePlan, rejectTradePlan, resumeTradePlan } from "./trade-plans.js";
 import {
   activateDuePendingManualEntries,
@@ -282,6 +283,20 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     response.writeHead(204);
     return response.end();
   }
+  // OpenAI completion webhook: authenticated by its signature, not a session. It only wakes the job.
+  if (url.pathname === "/api/webhooks/openai" && request.method === "POST") {
+    const chunks: Buffer[] = [];
+    for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    try {
+      const result = await handleOpenAIWebhook(Buffer.concat(chunks).toString("utf8"), request.headers);
+      response.writeHead(result.status, { "Content-Type": "application/json" });
+      return response.end(JSON.stringify(result.body));
+    } catch (error) {
+      console.error("[research-jobs] webhook failed", error);
+      response.writeHead(500, { "Content-Type": "application/json" });
+      return response.end(JSON.stringify({ error: "Webhook handling failed." }));
+    }
+  }
   if (url.pathname === "/api/auth/login" && request.method === "POST") {
     if (!databaseConfigured()) return json(request, response, { error: "Database is not configured." }, 503);
     const ip = request.socket.remoteAddress || "unknown"; const attempt = loginAttempts.get(ip); const now = Date.now();
@@ -487,8 +502,21 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       const instrument = intelligenceMatch[1]!.toUpperCase();
       if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
       const payload = await body(request);
-      // Analyze: reuses fresh research; runs one research call only when stale (or forced) and within budget.
-      return tradePlanResponse(request, response, () => refreshResearchWithin(instrument, "MANUAL", { force: payload?.force === true }));
+      // Analyze: reuses fresh research or a running job; otherwise starts one background job within budget. Returns at once.
+      return tradePlanResponse(request, response, () => requestResearch(user.id, instrument, { force: payload?.force === true }));
+    }
+    const researchJobMatch = url.pathname.match(/^\/api\/research-jobs\/([0-9a-f-]{36})(\/cancel)?$/i);
+    if (researchJobMatch && !researchJobMatch[2] && request.method === "GET") {
+      const jobId = researchJobMatch[1]!;
+      return tradePlanResponse(request, response, async () => {
+        const job = await researchJobForUser(user.id, jobId);
+        if (!job) throw new TradePlanError("Research job not found.", 404);
+        return { job };
+      });
+    }
+    if (researchJobMatch?.[2] && request.method === "POST") {
+      const jobId = researchJobMatch[1]!;
+      return tradePlanResponse(request, response, () => cancelResearchJob(user.id, jobId));
     }
     if (url.pathname === "/api/trade-plans/auto-trade" && request.method === "GET") {
       return tradePlanResponse(request, response, () => autoTradeSettings(user.id));
@@ -1266,13 +1294,15 @@ if (databaseConfigured() && schedulersEnabled) {
   // Approved trade plans: confirmation, status, notifications, and Auto trade orders (practice only).
   if (config.isConfigured && process.env.TRADE_PLAN_MONITOR_ENABLED !== "false") startTradePlanMonitor();
   else console.log("[trade-plan-monitor] off (OANDA not configured or TRADE_PLAN_MONITOR_ENABLED=false)");
-  // Market research for pairs with accepted plans, only when stale; serial, budgeted, never per tick.
+  // Background research jobs: submit, poll OpenAI, validate, store, rebuild plans, notify. Survives restarts via the database.
+  if (databaseConfigured() && process.env.RESEARCH_WORKER_ENABLED !== "false") startResearchWorker();
+  // Market research for pairs with accepted plans, only when stale: starts background jobs, budgeted.
   let researchBusy = false;
   setInterval(() => {
     if (researchBusy) return;
     researchBusy = true;
     void refreshDueResearch()
-      .then((result) => { if (result.refreshed) console.log(`[research] refreshed ${result.refreshed} pair(s)`); })
+      .then((result) => { if (result.started) console.log(`[research] started ${result.started} background job(s)`); })
       .catch((error) => console.error("[research] scheduled refresh failed", error))
       .finally(() => { researchBusy = false; });
   }, 15 * 60_000);

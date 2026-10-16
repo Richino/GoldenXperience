@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { isKnownInstrument } from "../../frontend/src/lib/instruments/catalog.js";
 import { query, transaction } from "./database.js";
-import { RESEARCH_SCHEMA_VERSION, type MarketIntelligence } from "./intelligence/research-contract.js";
+import { isSupportedSchema, type MarketIntelligence } from "./intelligence/research-contract.js";
 import { researchContextForPlan } from "./intelligence/plan-research.js";
 import {
   checkTransition,
@@ -243,7 +243,7 @@ async function approveInTx(client: PoolClient, userId: string, planId: string, p
     "SELECT id,report,created_at,expires_at FROM market_research WHERE instrument=$1 AND status='COMPLETE' ORDER BY created_at DESC LIMIT 1",
     [row.instrument],
   )).rows[0];
-  const intelligence = research?.report?.schemaVersion === RESEARCH_SCHEMA_VERSION ? research.report : null;
+  const intelligence = isSupportedSchema(research?.report?.schemaVersion) ? research!.report : null;
   const context = researchContextForPlan({ instrument: row.instrument, direction: row.direction, expiresAt: new Date(row.expires_at).toISOString() }, intelligence, {
     fresh: Boolean(research?.expires_at && research.expires_at.getTime() > Date.now()),
     staleReason: research ? null : "No research at approval.",

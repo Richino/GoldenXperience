@@ -7,7 +7,9 @@ import { Ban, CheckCircle2, Circle, X, XCircle } from "lucide-react";
 import { AnalyzeIcon } from "@/components/icons/analyze-icon";
 import { displayNameFor, pipSizeFor, precisionFor } from "@/lib/instruments/catalog";
 import { useDragToDismiss } from "@/lib/use-drag-to-dismiss";
+import { toast } from "@/hooks/use-toast";
 import {
+  JOB_RUNNING,
   STATUS_LABEL,
   tradePlansApi,
   type ConditionStatus,
@@ -49,23 +51,67 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
   const request = useRef(0);
   const researchRequest = useRef(0);
 
-  /** Research the pair if stale (server reuses fresh research and enforces the budget). */
+  /**
+   * Start (or join) background research for the pair. The server returns at
+   * once; the research runs there and survives leaving the page or closing
+   * GX. The user is told it started and notified when it is done.
+   */
   const runResearch = useCallback(async (force = false) => {
     const id = ++researchRequest.current;
     setResearch((current) => ({ ...current, loading: true, error: null }));
     try {
-      let result = await tradePlansApi.refreshResearch(instrument, force);
-      // A long run continues on the server; check back until it is done (up to ~6 minutes).
-      for (let attempt = 0; result.running && attempt < 72 && id === researchRequest.current; attempt += 1) {
-        setResearch((current) => ({ ...current, loading: true, result: result.research ? result : current.result }));
-        await new Promise((resolve) => window.setTimeout(resolve, 5_000));
-        result = await tradePlansApi.research(instrument);
+      const result = await tradePlansApi.refreshResearch(instrument, force);
+      if (id !== researchRequest.current) return;
+      const pair = displayNameFor(instrument);
+      if (result.state === "started") {
+        toast({ title: `${pair} research started`, description: "GX is researching in the background. Keep using GX or close it — you'll be notified when the analysis is ready." });
+      } else if (result.state === "joined") {
+        toast({ title: `${pair} research already running`, description: "You'll be notified when it's ready. No second research run was started." });
       }
-      if (id === researchRequest.current) setResearch({ loading: false, result, error: result.running ? "Research is taking longer than usual; it will appear here when it finishes." : null });
+      setResearch({ loading: false, result, error: result.budget ?? null });
     } catch (error) {
-      if (id === researchRequest.current) setResearch((current) => ({ ...current, loading: false, error: error instanceof Error ? error.message : "Research failed." }));
+      if (id === researchRequest.current) setResearch((current) => ({ ...current, loading: false, error: error instanceof Error ? error.message : "Research could not be started." }));
     }
   }, [instrument]);
+
+  /** Show the plans awaiting review for this pair (rebuilt by the research worker, or from a notification). */
+  const loadAwaiting = useCallback(async () => {
+    const plans = await tradePlansApi.list("awaiting", instrument).catch(() => null);
+    if (!plans) return;
+    const latest = plans[0] ? plans.filter((plan) => plan.analysisId === plans[0]!.analysisId) : [];
+    setPhase((current) => {
+      if (current.kind === "analyzing") return current;
+      if (latest.length) return { kind: "results", result: { analysisId: latest[0]!.analysisId, plans: latest, result: "PLANS", reason: null, planIds: latest.map((plan) => plan.id), rejected: [] } };
+      // The plans being shown were replaced by an analysis that found no setup.
+      if (current.kind === "results" && current.result.plans.length) {
+        return { kind: "results", result: { ...current.result, plans: [], planIds: [], result: "NO_VALID_SETUP", reason: "Rebuilt with the new research: no setup meets the trading rules right now." } };
+      }
+      return current;
+    });
+  }, [instrument]);
+
+  // While a job runs, refresh what Analyze shows (display only; the job itself never depends on this page).
+  const jobRunning = Boolean(research.result?.job && JOB_RUNNING.includes(research.result.job.status));
+  useEffect(() => {
+    if (!jobRunning) return;
+    let stopped = false;
+    const timer = window.setInterval(() => {
+      void tradePlansApi.research(instrument).then((next) => {
+        if (stopped) return;
+        setResearch((current) => ({ ...current, result: { ...next, state: current.result?.state } }));
+        if (!next.running && next.job?.status === "COMPLETED") void loadAwaiting();
+      }).catch(() => undefined);
+    }, 5_000);
+    return () => { stopped = true; window.clearInterval(timer); };
+  }, [instrument, jobRunning, loadAwaiting]);
+
+  const cancelResearch = useCallback(async () => {
+    const job = research.result?.job;
+    if (!job || !JOB_RUNNING.includes(job.status)) return;
+    await tradePlansApi.cancelResearch(job.id).catch(() => undefined);
+    const next = await tradePlansApi.research(instrument).catch(() => null);
+    if (next) setResearch((current) => ({ ...current, result: next }));
+  }, [instrument, research.result?.job]);
 
   const refreshActive = useCallback(async () => {
     try {
@@ -141,8 +187,14 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
     void act(() => Promise.all(live.map((plan) => tradePlansApi.cancel(plan.id, "Stopped watching from Analyze"))), () => setOpen(false));
   };
   const cancel = () => { request.current += 1; setPhase({ kind: "idle" }); setOpen(false); };
+  /** Open Analyze on the latest report and the plans awaiting review (the research notification links here). */
+  const review = useCallback(() => {
+    setOpen(true);
+    void loadAwaiting();
+    void tradePlansApi.research(instrument).then((result) => setResearch((current) => ({ ...current, result }))).catch(() => undefined);
+  }, [instrument, loadAwaiting]);
 
-  return { phase, active, open, setOpen, busy, actionError, run, accept, dismiss, stopWatching, cancel, analyzing: phase.kind === "analyzing", research, refreshResearch: () => void runResearch(true) };
+  return { phase, active, open, setOpen, busy, actionError, run, accept, dismiss, stopWatching, cancel, analyzing: phase.kind === "analyzing", research, refreshResearch: () => void runResearch(true), cancelResearch: () => void cancelResearch(), review };
 }
 
 export type PlanAnalyzeState = ReturnType<typeof usePlanAnalyze>;
@@ -344,7 +396,7 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
               {result.rejected.map((item) => <li key={`${item.direction}-${item.setupType}`}><strong>{item.direction}</strong> {item.reason}</li>)}
             </ul>
             {/* No setup to trade, but the market context is still worth reading. */}
-            <MarketRead state={state.research} onRefresh={state.refreshResearch} />
+            <MarketRead state={state.research} onRefresh={state.refreshResearch} onCancel={state.cancelResearch} />
           </div>
           <div className={styles.dock}>
             <div className={styles.footer}>
@@ -360,7 +412,7 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
         <h2 id={titleId} className="sr-only">{pair} plans</h2>
         {/* Only the plans scroll; the mode choice and the buttons stay pinned under them. */}
         <div className="nl-an-scroll">
-          <MarketRead state={state.research} onRefresh={state.refreshResearch} />
+          <MarketRead state={state.research} onRefresh={state.refreshResearch} onCancel={state.cancelResearch} />
           <Ladder plans={plans} price={price} watching={false} report={state.research.result?.research?.report?.schemaVersion ? state.research.result.research.report : null} />
         </div>
         <div className={styles.dock}>
@@ -389,7 +441,7 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
         {top(`Watching · ${pair}`)}
         <h2 id={titleId} className="sr-only">Watching {pair}</h2>
         <div className="nl-an-scroll">
-          <MarketRead state={state.research} onRefresh={state.refreshResearch} />
+          <MarketRead state={state.research} onRefresh={state.refreshResearch} onCancel={state.cancelResearch} />
           <Ladder plans={active} price={price} watching report={state.research.result?.research?.report?.schemaVersion ? state.research.result.research.report : null} />
           <p className={styles.footnote}>
             {auto ? "GX places the trade on your practice account when a plan confirms." : "You get an alert when a plan confirms."}

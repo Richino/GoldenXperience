@@ -20,12 +20,34 @@ import { canonicalUrl, plainText } from "./research-report.js";
  * calendar figures come only from the calendar provider.
  */
 
-export const RESEARCH_SCHEMA_VERSION = "2.0";
+export const RESEARCH_SCHEMA_VERSION = "2.1";
+/** 2.0 snapshots (no directional assessment) are still valid for plans and display. */
+export const SUPPORTED_SCHEMA_VERSIONS = ["2.0", "2.1"];
+export const isSupportedSchema = (version: unknown) => typeof version === "string" && SUPPORTED_SCHEMA_VERSIONS.includes(version);
 
 export type Bias = "bullish" | "bearish" | "mixed" | "neutral" | "unknown";
 export type Quality = "high" | "medium" | "low";
 export type CurrencyEffect = "strengthens" | "weakens" | "mixed" | "unclear";
 export type EvidenceType = "verified_data" | "attributed_analysis" | "hypothesis";
+export type Lean = "bullish" | "bearish" | "neutral" | "unresolved";
+
+/**
+ * Which way the cited evidence leans, per horizon. A lean must be carried by
+ * cited factors on that side that outweigh the other side; otherwise the
+ * server sets it to "unresolved". This is an evidence summary, not a
+ * probability of any trade working, and it never selects a trade.
+ */
+export type DirectionalAssessment = {
+  nearTermLean: Lean;
+  swingLean: Lean;
+  /** Server-computed from importance-weighted cited factors. */
+  evidenceBalance: { bullish: number; bearish: number; strongerSide: "bullish" | "bearish" | "neither" };
+  drivers: string[];
+  strongestOpposing: string;
+  changeTriggers: string[];
+  rationale: string;
+  supportingFactorIds: string[];
+};
 
 export type Source = {
   id: string;
@@ -83,7 +105,7 @@ export type ResearchThesis = {
 };
 
 export type MarketIntelligence = {
-  schemaVersion: typeof RESEARCH_SCHEMA_VERSION;
+  schemaVersion: string;
   pair: string;
   base: string;
   quote: string;
@@ -119,6 +141,8 @@ export type MarketIntelligence = {
   };
   bullishThesis: ResearchThesis;
   bearishThesis: ResearchThesis;
+  /** Since 2.1. */
+  assessment?: DirectionalAssessment;
   sources: Source[];
   summary: string;
 };
@@ -146,7 +170,7 @@ const thesis = {
 export const MODEL_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["quality", "missingData", "outlook", "factors", "eventImplications", "sentiment", "bullishThesis", "bearishThesis", "sourceDates", "summary"],
+  required: ["quality", "missingData", "outlook", "factors", "eventImplications", "sentiment", "bullishThesis", "bearishThesis", "assessment", "sourceDates", "summary"],
   properties: {
     quality,
     missingData: strArr,
@@ -180,6 +204,15 @@ export const MODEL_SCHEMA = {
     },
     bullishThesis: thesis,
     bearishThesis: thesis,
+    assessment: {
+      type: "object", additionalProperties: false,
+      required: ["nearTermLean", "swingLean", "drivers", "strongestOpposing", "changeTriggers", "rationale", "supportingFactorIds"],
+      properties: {
+        nearTermLean: { type: "string", enum: ["bullish", "bearish", "neutral", "unresolved"] },
+        swingLean: { type: "string", enum: ["bullish", "bearish", "neutral", "unresolved"] },
+        drivers: strArr, strongestOpposing: str, changeTriggers: strArr, rationale: str, supportingFactorIds: strArr,
+      },
+    },
     sourceDates: {
       type: "array",
       items: { type: "object", additionalProperties: false, required: ["url", "publisher", "publishedAt"], properties: { url: str, publisher: str, publishedAt: nullableStr } },
@@ -397,6 +430,7 @@ export function validateResearch(raw: unknown, input: {
     if (outlook.fundamental !== "unknown") drops.push({ where: "outlook.fundamental", reason: "no cited factors survived; set to unknown", value: outlook.fundamental });
     outlook.fundamental = "unknown";
   }
+  const assessment = assessmentOf(r.assessment, factors, drops);
   const missingData = list(r.missingData).map((m) => text(m, 160)).filter(Boolean).slice(0, 10);
   const status: "complete" | "partial" = factors.length >= 2 && drops.length < 10 ? "complete" : "partial";
 
@@ -432,8 +466,54 @@ export function validateResearch(raw: unknown, input: {
       },
       bullishThesis: thesisOf(r.bullishThesis, "bullishThesis"),
       bearishThesis: thesisOf(r.bearishThesis, "bearishThesis"),
+      assessment,
       sources: [...registry.values()],
       summary,
     },
+  };
+}
+
+/** Importance-weighted cited evidence on each side (hypotheses count half). Pure. */
+export function evidenceBalance(factors: Array<Pick<Factor, "impactOnPair" | "importance" | "evidenceType">>) {
+  const weight = (factor: Pick<Factor, "importance" | "evidenceType">) =>
+    ({ high: 3, medium: 2, low: 1 }[factor.importance] ?? 1) * (factor.evidenceType === "hypothesis" ? 0.5 : 1);
+  const bullish = factors.filter((f) => f.impactOnPair === "bullish").reduce((sum, f) => sum + weight(f), 0);
+  const bearish = factors.filter((f) => f.impactOnPair === "bearish").reduce((sum, f) => sum + weight(f), 0);
+  const strongerSide: "bullish" | "bearish" | "neither" = bullish >= 1.5 * bearish && bullish > 0 ? "bullish" : bearish >= 1.5 * bullish && bearish > 0 ? "bearish" : "neither";
+  return { bullish, bearish, strongerSide };
+}
+
+/**
+ * The model's directional read, held to the evidence: a bullish or bearish
+ * lean needs at least one cited factor on that side among its supporting ids,
+ * and that side must carry more weight than the other. Otherwise it is
+ * "unresolved" (recorded in drops). Never forces a direction.
+ */
+function assessmentOf(raw: unknown, factors: Factor[], drops: ValidationDrop[]): DirectionalAssessment {
+  const a = (raw ?? {}) as Record<string, unknown>;
+  const list = (value: unknown) => (Array.isArray(value) ? value : []);
+  const strings = (value: unknown, max: number, count: number) => list(value).map((item) => (typeof item === "string" ? plainText(item).slice(0, max) : "")).filter(Boolean).slice(0, count);
+  const known = new Map(factors.map((factor) => [factor.id, factor]));
+  const supportingFactorIds = [...new Set(strings(a.supportingFactorIds, 10, 12).filter((id) => known.has(id)))];
+  const balance = evidenceBalance(factors);
+  const leans = ["bullish", "bearish", "neutral", "unresolved"];
+  const check = (value: unknown, where: string): Lean => {
+    const lean = (typeof value === "string" && leans.includes(value) ? value : "unresolved") as Lean;
+    if (lean !== "bullish" && lean !== "bearish") return lean;
+    const backed = supportingFactorIds.some((id) => known.get(id)?.impactOnPair === lean);
+    const heavier = lean === "bullish" ? balance.bullish > balance.bearish : balance.bearish > balance.bullish;
+    if (backed && heavier) return lean;
+    drops.push({ where, reason: "lean not supported by the cited factors; set to unresolved", value: lean });
+    return "unresolved";
+  };
+  return {
+    nearTermLean: check(a.nearTermLean, "assessment.nearTermLean"),
+    swingLean: check(a.swingLean, "assessment.swingLean"),
+    evidenceBalance: balance,
+    drivers: strings(a.drivers, 200, 6),
+    strongestOpposing: typeof a.strongestOpposing === "string" ? plainText(a.strongestOpposing).slice(0, 300) : "",
+    changeTriggers: strings(a.changeTriggers, 200, 6),
+    rationale: typeof a.rationale === "string" ? plainText(a.rationale).slice(0, 600) : "",
+    supportingFactorIds,
   };
 }

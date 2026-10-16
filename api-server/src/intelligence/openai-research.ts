@@ -28,7 +28,7 @@ export type TechnicalSummary = {
   plans: Array<{ direction: string; setup: string; zone: [number, number]; stop: number | null; target: number | null }>;
 };
 
-export type ResearchUsage = { inputTokens: number | null; outputTokens: number | null; webSearchCalls: number; costUsd: number | null };
+export type ResearchUsage = { inputTokens: number | null; outputTokens: number | null; webSearchCalls: number; costUsd: number | null; reasoningTokens?: number | null };
 
 export type ResearchOutcome =
   | { ok: true; model: string; effort: string; durationMs: number; intelligence: MarketIntelligence; sources: Array<{ url: string; title: string | null }>; drops: unknown[]; usage: ResearchUsage }
@@ -74,6 +74,7 @@ const RULES = [
   "SENTIMENT: professional = named analysts, banks or outlets; retail = public forums such as Forex Factory threads; positioning = actual positioning DATA (for example CFTC COT), never opinions. A few comments are not the market. Say what you could not find in limitations.",
   "OUTLOOK: overall, shortTerm (days), swingTerm (2-5 trading days), fundamental, each bullish, bearish, mixed, neutral or unknown for the pair (base vs quote). MIXED = credible evidence points both ways. UNKNOWN = not enough reliable information. NEUTRAL = evidence points to no meaningful pressure. Do not give a technical bias; the server takes it from price.",
   "quality: how complete and reliable your evidence is (not a probability of any trade working). missingData: what you looked for and could not verify.",
+  "ASSESSMENT: say what is driving the pair now, which direction the cited evidence favours for the near term (1-2 days) and the swing (2-5 trading days), the single most important opposing evidence, and what would change the view. A bullish or bearish lean must be carried by cited factors (list their ids in supportingFactorIds); if neither side clearly has more support, use unresolved. Never pick a side just because the other is weak; never imply a probability or a trade.",
   "THESES: bullishThesis and bearishThesis are research perspectives, not orders. Reference factor ids for supporting and opposing evidence; list catalysts, what would strengthen it, and what would weaken it. Both can be weak.",
   "Prices, levels and plans come only from the technical summary given; do not invent prices or indicator values.",
   "Be concise: short sentences.",
@@ -109,7 +110,7 @@ export function outputText(payload: unknown): string {
     .join("");
 }
 
-export async function runResearch(input: {
+export type ResearchInput = {
   instrument: string;
   currencies: [string, string];
   technical: TechnicalSummary;
@@ -120,15 +121,13 @@ export async function runResearch(input: {
   now: number;
   fetcher?: Fetcher;
   env?: NodeJS.ProcessEnv;
-}): Promise<ResearchOutcome> {
-  const config = researchConfig(input.env);
-  const fetcher = input.fetcher ?? fetch;
-  const started = Date.now();
-  const empty: ResearchUsage = { inputTokens: null, outputTokens: null, webSearchCalls: 0, costUsd: null };
-  const fail = (error: string, usage = empty, sources: Array<{ url: string; title: string | null }> = [], drops: unknown[] = []): ResearchOutcome =>
-    ({ ok: false, model: config.model, effort: config.effort, durationMs: Date.now() - started, error, usage, sources, drops });
-  if (!config.apiKey) return fail("Research is not configured (OPENAI_API_KEY).");
+};
+type Config = ReturnType<typeof researchConfig>;
+type Source = { url: string; title: string | null };
+const OPENAI = "https://api.openai.com/v1/responses";
 
+/** The Responses API request for one research run. Background mode keeps the response at OpenAI so it can be read later. */
+export function researchRequestBody(input: ResearchInput, config: Config, options: { background?: boolean; jobId?: string } = {}) {
   const [base, quote] = input.currencies;
   const prompt = JSON.stringify({
     task: `Market intelligence for ${base}/${quote} as of ${new Date(input.now).toISOString()} (UTC), horizon 2-5 trading days.`,
@@ -136,55 +135,149 @@ export async function runResearch(input: {
     verifiedCalendar: { events: input.calendar, note: input.calendarNote },
     technicalSummary: input.technical,
   });
-
-  let response: Response;
-  try {
-    response = await fetcher("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" },
-      signal: AbortSignal.timeout(config.timeoutMs),
-      body: JSON.stringify({
-        model: config.model,
-        reasoning: { effort: config.effort },
-        tools: [{ type: config.webSearchTool, ...(config.searchContext ? { search_context_size: config.searchContext } : {}) }],
-        ...(config.maxSearches ? { max_tool_calls: config.maxSearches } : {}),
-        include: ["web_search_call.action.sources"],
-        input: prompt,
-        store: false,
-        text: { format: { type: "json_schema", name: "market_intelligence_v2", strict: true, schema: MODEL_SCHEMA } },
-      }),
-    });
-  } catch (error) {
-    const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
-    return fail(timedOut ? "The research request timed out." : "OpenAI could not be reached.");
-  }
-  const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
-  const usageRaw = (payload?.usage ?? {}) as { input_tokens?: number; output_tokens?: number };
-  const webSearchCalls = ((payload?.output ?? []) as Array<{ type?: string }>).filter((item) => item.type === "web_search_call").length;
-  const usageBase = {
-    inputTokens: typeof usageRaw.input_tokens === "number" ? usageRaw.input_tokens : null,
-    outputTokens: typeof usageRaw.output_tokens === "number" ? usageRaw.output_tokens : null,
-    webSearchCalls,
+  return {
+    model: config.model,
+    reasoning: { effort: config.effort },
+    tools: [{ type: config.webSearchTool, ...(config.searchContext ? { search_context_size: config.searchContext } : {}) }],
+    ...(config.maxSearches ? { max_tool_calls: config.maxSearches } : {}),
+    include: ["web_search_call.action.sources"],
+    input: prompt,
+    ...(options.background
+      ? { background: true, store: true, metadata: { gx_job_id: options.jobId ?? "", gx_research_id: input.researchId } }
+      : { store: false }),
+    text: { format: { type: "json_schema", name: "market_intelligence_v2", strict: true, schema: MODEL_SCHEMA } },
   };
-  const usage: ResearchUsage = { ...usageBase, costUsd: estimateCost(usageBase, config.prices) };
-  if (!response.ok) {
+}
+
+function usageOf(payload: Record<string, unknown> | null, config: Config): ResearchUsage {
+  const raw = (payload?.usage ?? {}) as { input_tokens?: number; output_tokens?: number; output_tokens_details?: { reasoning_tokens?: number } };
+  const base = {
+    inputTokens: typeof raw.input_tokens === "number" ? raw.input_tokens : null,
+    outputTokens: typeof raw.output_tokens === "number" ? raw.output_tokens : null,
+    webSearchCalls: ((payload?.output ?? []) as Array<{ type?: string }>).filter((item) => item.type === "web_search_call").length,
+  };
+  const reasoning = raw.output_tokens_details?.reasoning_tokens;
+  return { ...base, costUsd: estimateCost(base, config.prices), reasoningTokens: typeof reasoning === "number" ? reasoning : null };
+}
+
+/**
+ * Turn a finished OpenAI response into a validated snapshot or a failure.
+ * Shared by the direct call and the background job, so both enforce the
+ * same schema, citation and calendar rules.
+ */
+export function interpretResearchResponse(payload: Record<string, unknown> | null, httpStatus: number, input: ResearchInput, config: Config, durationMs: number): ResearchOutcome {
+  const usage = usageOf(payload, config);
+  const fail = (error: string, sources: Source[] = [], drops: unknown[] = []): ResearchOutcome =>
+    ({ ok: false, model: config.model, effort: config.effort, durationMs, error, usage, sources, drops });
+  if (httpStatus < 200 || httpStatus >= 300) {
     const message = (payload?.error as { message?: string } | undefined)?.message;
-    return fail(response.status === 429 ? "OpenAI rate limit or quota reached." : `OpenAI returned ${response.status}${message ? `: ${message.slice(0, 200)}` : ""}.`, usage);
+    return fail(httpStatus === 429 ? "OpenAI rate limit or quota reached." : `OpenAI returned ${httpStatus}${message ? `: ${message.slice(0, 200)}` : ""}.`);
+  }
+  const status = typeof payload?.status === "string" ? payload.status : "completed";
+  if (status !== "completed") {
+    const reason = (payload?.error as { message?: string } | null)?.message ?? (payload?.incomplete_details as { reason?: string } | null)?.reason ?? status;
+    return fail(`The research did not complete (${String(reason).slice(0, 200)}).`, collectSources(payload));
   }
   const sources = collectSources(payload);
   let parsed: unknown;
   try {
     parsed = JSON.parse(outputText(payload));
   } catch {
-    return fail("The research answer was not valid JSON.", usage, sources);
+    return fail("The research answer was not valid JSON.", sources);
   }
   const checked = validateResearch(parsed, {
     pair: input.instrument,
     searchUrls: sources,
     calendar: input.calendar,
     technicalTrend: input.technical.trend,
-    meta: { id: input.researchId, createdAt: new Date(input.now).toISOString(), model: config.model, effort: config.effort, durationMs: Date.now() - started },
+    meta: { id: input.researchId, createdAt: new Date(input.now).toISOString(), model: config.model, effort: config.effort, durationMs },
   });
-  if (!checked.ok) return fail(`Research rejected: ${checked.reason}`, usage, sources, checked.drops);
-  return { ok: true, model: config.model, effort: config.effort, durationMs: Date.now() - started, intelligence: checked.intelligence, sources, drops: checked.drops, usage };
+  if (!checked.ok) return fail(`Research rejected: ${checked.reason}`, sources, checked.drops);
+  return { ok: true, model: config.model, effort: config.effort, durationMs, intelligence: checked.intelligence, sources, drops: checked.drops, usage };
+}
+
+/** One research run, waiting for the answer (dry runs and tests; the app uses background jobs). */
+export async function runResearch(input: ResearchInput): Promise<ResearchOutcome> {
+  const config = researchConfig(input.env);
+  const started = Date.now();
+  const empty: ResearchUsage = { inputTokens: null, outputTokens: null, webSearchCalls: 0, costUsd: null };
+  const fail = (error: string): ResearchOutcome => ({ ok: false, model: config.model, effort: config.effort, durationMs: Date.now() - started, error, usage: empty, sources: [], drops: [] });
+  if (!config.apiKey) return fail("Research is not configured (OPENAI_API_KEY).");
+  let response: Response;
+  try {
+    response = await (input.fetcher ?? fetch)(OPENAI, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(config.timeoutMs),
+      body: JSON.stringify(researchRequestBody(input, config)),
+    });
+  } catch (error) {
+    const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+    return fail(timedOut ? "The research request timed out." : "OpenAI could not be reached.");
+  }
+  const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
+  return interpretResearchResponse(payload, response.status, input, config, Date.now() - started);
+}
+
+export type SubmitResult = { ok: true; responseId: string; status: string } | { ok: false; error: string; retryable: boolean };
+
+/** Start a research run in OpenAI background mode: returns at once with the response id. */
+export async function submitBackgroundResearch(input: ResearchInput, jobId: string): Promise<SubmitResult> {
+  const config = researchConfig(input.env);
+  if (!config.apiKey) return { ok: false, error: "Research is not configured (OPENAI_API_KEY).", retryable: false };
+  try {
+    const response = await (input.fetcher ?? fetch)(OPENAI, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(30_000),
+      body: JSON.stringify(researchRequestBody(input, config, { background: true, jobId })),
+    });
+    const payload = await response.json().catch(() => null) as { id?: string; status?: string; error?: { message?: string } } | null;
+    if (response.ok && payload?.id) return { ok: true, responseId: payload.id, status: payload.status ?? "queued" };
+    const message = payload?.error?.message ? `: ${payload.error.message.slice(0, 200)}` : "";
+    return { ok: false, error: `OpenAI returned ${response.status}${message}.`, retryable: response.status === 429 || response.status >= 500 };
+  } catch {
+    // The request may or may not have reached OpenAI; a retry can start a second run (bounded by the attempt limit).
+    return { ok: false, error: "OpenAI could not be reached to start the research.", retryable: true };
+  }
+}
+
+export type FetchResult =
+  | { kind: "pending"; status: string }
+  | { kind: "done"; payload: Record<string, unknown> }
+  | { kind: "gone" }
+  | { kind: "error"; error: string };
+
+/** Read a background response. "gone" means OpenAI no longer has it (expired or deleted). */
+export async function fetchBackgroundResponse(responseId: string, options: { fetcher?: Fetcher; env?: NodeJS.ProcessEnv } = {}): Promise<FetchResult> {
+  const config = researchConfig(options.env);
+  if (!config.apiKey) return { kind: "error", error: "Research is not configured (OPENAI_API_KEY)." };
+  try {
+    const response = await (options.fetcher ?? fetch)(`${OPENAI}/${encodeURIComponent(responseId)}?include[]=web_search_call.action.sources`, {
+      headers: { Authorization: `Bearer ${config.apiKey}` },
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (response.status === 404) return { kind: "gone" };
+    const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
+    if (!response.ok || !payload) return { kind: "error", error: `OpenAI returned ${response.status} reading the research.` };
+    const status = String(payload.status ?? "");
+    if (status === "queued" || status === "in_progress") return { kind: "pending", status };
+    return { kind: "done", payload };
+  } catch {
+    return { kind: "error", error: "OpenAI could not be reached to read the research." };
+  }
+}
+
+/** Ask OpenAI to stop a background response (best effort). */
+export async function cancelBackgroundResponse(responseId: string, options: { fetcher?: Fetcher; env?: NodeJS.ProcessEnv } = {}) {
+  const config = researchConfig(options.env);
+  if (!config.apiKey) return false;
+  try {
+    const response = await (options.fetcher ?? fetch)(`${OPENAI}/${encodeURIComponent(responseId)}/cancel`, {
+      method: "POST", headers: { Authorization: `Bearer ${config.apiKey}` }, signal: AbortSignal.timeout(15_000),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
 }

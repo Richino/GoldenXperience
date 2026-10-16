@@ -114,7 +114,7 @@ await test("a valid answer becomes a typed snapshot with registry source ids and
   assert.ok(result.ok);
   if (!result.ok) return;
   const r = result.intelligence;
-  assert.equal(r.schemaVersion, "2.0");
+  assert.equal(r.schemaVersion, "2.1");
   assert.equal(r.research.id, "r-test");
   assert.equal(r.research.horizon, "2-5 trading days");
   assert.equal(r.outlook.technical, "bearish", "technical bias comes from the engine's D1/H4, not GPT");

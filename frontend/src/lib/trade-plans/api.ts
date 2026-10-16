@@ -185,6 +185,19 @@ export interface ResearchEvent {
 
 export interface ResearchObservation { text: string; stance: "bullish" | "bearish" | "neutral" | "mixed"; sourceIds: string[] }
 
+export type Lean = "bullish" | "bearish" | "neutral" | "unresolved";
+/** Which way the cited evidence leans (server-checked); since contract 2.1. */
+export interface DirectionalAssessment {
+  nearTermLean: Lean;
+  swingLean: Lean;
+  evidenceBalance: { bullish: number; bearish: number; strongerSide: "bullish" | "bearish" | "neither" };
+  drivers: string[];
+  strongestOpposing: string;
+  changeTriggers: string[];
+  rationale: string;
+  supportingFactorIds: string[];
+}
+
 export interface ResearchThesis {
   hypothesis: string;
   supportingFactorIds: string[];
@@ -206,6 +219,7 @@ export interface MarketIntelligence {
   sentiment: { professional: ResearchObservation[]; retail: ResearchObservation[]; positioning: ResearchObservation[]; expectations: string; limitations: string };
   bullishThesis: ResearchThesis;
   bearishThesis: ResearchThesis;
+  assessment?: DirectionalAssessment;
   sources: ResearchSource[];
   summary: string;
 }
@@ -236,8 +250,31 @@ export interface ResearchView {
   staleReason: string | null;
 }
 
+export type ResearchJobStatus = "QUEUED" | "RESEARCHING" | "VALIDATING" | "COMPLETED" | "FAILED" | "CANCELLED" | "EXPIRED";
+/** A background research job: only states the server has verified, no progress estimates. */
+export interface ResearchJob {
+  id: string;
+  instrument: string;
+  status: ResearchJobStatus;
+  trigger: string;
+  horizon: string;
+  model: string;
+  effort: string;
+  researchId: string | null;
+  error: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  usage: { inputTokens: number | null; outputTokens: number | null; reasoningTokens: number | null; webSearchCalls: number | null; sources: number | null; costUsd: number | null; validationDrops: number | null };
+}
+export const JOB_RUNNING: ResearchJobStatus[] = ["QUEUED", "RESEARCHING", "VALIDATING"];
+
 export interface ResearchResult {
   research: ResearchView | null;
+  /** The pair's running job, else its latest job from the last day. */
+  job?: ResearchJob | null;
+  /** What Analyze did: reused fresh research, started or joined a background job, or was stopped by the budget. */
+  state?: "cached" | "started" | "joined" | "budget" | "unconfigured";
   cached?: boolean;
   budget?: string | null;
   error?: string;
@@ -268,8 +305,9 @@ export const tradePlansApi = {
   generate: (instrument: string) => post<GenerateResult>("/api/trade-plans/generate", { instrument }),
   /** Cached market research for a pair (never triggers a research call). */
   research: (instrument: string) => request<ResearchResult>(`/api/intelligence/${instrument}`),
-  /** Research the pair if its research is stale (within the budget); returns cached research otherwise. */
+  /** Start (or join) background research for the pair when its research is stale; returns at once. */
   refreshResearch: (instrument: string, force = false) => post<ResearchResult>(`/api/intelligence/${instrument}/refresh`, { force }),
+  cancelResearch: (jobId: string) => post<{ cancelled: boolean; reason: string | null }>(`/api/research-jobs/${jobId}/cancel`),
   autoTrade: () => request<AutoTradeSettings>("/api/trade-plans/auto-trade"),
   saveAutoTrade: (settings: AutoTradeLimits & { autoTrade: boolean }) =>
     request<AutoTradeSettings>("/api/trade-plans/auto-trade", { method: "PUT", body: JSON.stringify(settings) }),

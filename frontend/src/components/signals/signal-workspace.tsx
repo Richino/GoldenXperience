@@ -2736,6 +2736,19 @@ export function SignalWorkspace({
   // Web Analyze is the trade-plan flow; the embedded native surface keeps its own analysis.
   const planAnalyze = usePlanAnalyze(instrument, replayActive);
   const runPlanAnalyze = planAnalyze.run;
+  // ?analyze=1 (from a finished-research notification): open Analyze on the report and its plans, once.
+  const analyzeLink = searchParams.get("analyze") === "1";
+  const reviewPlanAnalyze = planAnalyze.review;
+  useEffect(() => {
+    if (!analyzeLink || embeddedSurfaceOnly || (urlInstrument && urlInstrument !== instrument)) return;
+    const timer = window.setTimeout(() => {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("analyze");
+      window.history.replaceState(window.history.state, "", url);
+      reviewPlanAnalyze();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [analyzeLink, embeddedSurfaceOnly, instrument, reviewPlanAnalyze, urlInstrument]);
   const chartPairMonitored = !embeddedSurfaceOnly && planAnalyze.active.length > 0;
   const chartAnalysisBusy = embeddedSurfaceOnly ? trendPullbackBusy : planAnalyze.analyzing;
   useEffect(() => {

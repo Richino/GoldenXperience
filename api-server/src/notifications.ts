@@ -1,7 +1,7 @@
 import { query } from "./database.js";
 import webpush from "web-push";
 
-export type NotificationKind = "setup_ready" | "paper_opened" | "paper_closed" | "trade_update" | "system_issue";
+export type NotificationKind = "setup_ready" | "paper_opened" | "paper_closed" | "trade_update" | "system_issue" | "research_ready";
 
 export type NotificationEvent = {
   id: string;

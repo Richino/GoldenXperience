@@ -302,7 +302,6 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
           </button>
           <button type="button" className={styles.textButton} disabled={state.busy} onClick={state.dismiss}>Not now</button>
         </div>
-        {plans.length === 2 ? <p className={styles.footnote}>The first side to confirm wins; the other plan is cancelled.</p> : null}
       </div>
     );
   }

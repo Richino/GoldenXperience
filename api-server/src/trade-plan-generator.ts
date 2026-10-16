@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { precisionFor } from "../../frontend/src/lib/instruments/catalog.js";
 import { ANALYZE_V2 } from "../../frontend/src/lib/strategy/analyze-v2/config.js";
 import { checkTimeframe } from "../../frontend/src/lib/strategy/analyze-v2/data-quality.js";
+import { getForexSessionStatus } from "../../frontend/src/lib/strategy/session.js";
 import { readMarketFoundation, type MarketFoundation } from "../../frontend/src/lib/strategy/analyze-v2/foundation.js";
 import type { Quote } from "../../frontend/src/lib/strategy/analyze-v2/instrument-math.js";
 import { assessNews, assessVolatility, type NewsItem, type NewsRisk } from "../../frontend/src/lib/strategy/analyze-v2/risk.js";
@@ -77,7 +78,7 @@ export const TRADE_PLAN_CONFIG = {
   confirmationValidMinutes: 60,
   /** Minimum estimated reward/risk for a plan to be offered (not a proven threshold). */
   minRewardRisk: 1.5,
-  /** Hours a plan stays valid if nothing confirms it. */
+  /** Trading hours a plan stays valid if nothing confirms it (the weekend close does not count). */
   expiryHours: { BREAKOUT_RETEST: 48, SR_REVERSAL: 24 } as Record<TradePlanSetupType, number>,
   /** Default fractions of the stop distance, used when the user has no risk settings row. */
   maxSpreadStopFraction: 0.15,
@@ -124,6 +125,31 @@ type PlanContext = {
   news: NewsRisk;
   candleTimes: Record<string, string | null>;
 };
+
+const HOUR = 3_600_000;
+const STEP = 15 * 60_000;
+
+/**
+ * `hours` of open forex market after `start` (ms). Time while the market is
+ * closed (Friday 17:00 to Sunday 17:00 New York) does not count, so a plan
+ * made on Friday morning is still alive when the market reopens.
+ */
+export function addTradingHours(start: number, hours: number) {
+  let remaining = hours * HOUR;
+  let t = start;
+  for (let guard = 0; remaining > 0 && guard < 10_000; guard += 1) {
+    if (getForexSessionStatus(new Date(t)).marketOpen) {
+      // Never step past an hour boundary: that is where open/closed can change.
+      const step = Math.min(STEP, remaining, HOUR - (t % HOUR));
+      t += step;
+      remaining -= step;
+    } else {
+      // Closed: jump to the next whole hour (the open is on the hour in New York, and offsets are whole hours).
+      t = Math.floor(t / HOUR) * HOUR + HOUR;
+    }
+  }
+  return t;
+}
 
 const closedOf = (candles: Candle[] | undefined) => (candles ?? []).filter((candle) => candle.complete !== false);
 const trending = (direction: TrendDirection | null) => direction === "UPTREND" || direction === "DOWNTREND";
@@ -287,7 +313,7 @@ export function generateTradePlans(input: GeneratorInput): GeneratorResult {
       });
       return;
     }
-    const expiresAt = new Date(input.now + TRADE_PLAN_CONFIG.expiryHours[setupType] * 3_600_000).toISOString();
+    const expiresAt = new Date(addTradingHours(input.now, TRADE_PLAN_CONFIG.expiryHours[setupType])).toISOString();
     const upcoming = news.events.filter((event) => event.impact >= 3 && event.minutesUntil >= 0
       && Date.parse(event.at) <= Date.parse(expiresAt));
     plans.push({
@@ -341,7 +367,7 @@ export function generateTradePlans(input: GeneratorInput): GeneratorResult {
             : `No new entry from ${limits.newsBlackoutBeforeMinutes} min before to ${limits.newsBlackoutAfterMinutes} min after high-impact ${input.instrument.replace("_", "/")} news.`,
         },
         invalidation: candidate.invalidation,
-        expiryRule: `Expires ${TRADE_PLAN_CONFIG.expiryHours[setupType]}h after it was generated if it has not confirmed.`,
+        expiryRule: `Expires after ${TRADE_PLAN_CONFIG.expiryHours[setupType]} hours of open market if it has not confirmed (the weekend close does not count).`,
         explanation: [...candidate.why, trendNote(direction), context.consolidation ? "Market is ranging on H4 or H1: breakouts fail more often in ranges." : null, news.reason]
           .filter((line): line is string => Boolean(line)),
         ...candidate.extra,

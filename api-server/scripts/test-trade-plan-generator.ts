@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { generateTradePlans, TRADE_PLAN_CONFIG, type GeneratorInput } from "../src/trade-plan-generator.js";
+import { addTradingHours, generateTradePlans, TRADE_PLAN_CONFIG, type GeneratorInput } from "../src/trade-plan-generator.js";
+import { getForexSessionStatus } from "../../frontend/src/lib/strategy/session.js";
 import { validateTradePlanInput } from "../src/trade-plans.js";
 import { evaluateConfirmation } from "../src/trade-plan-confirmation.js";
 import type { Candle } from "../../frontend/src/types/forex.js";
@@ -212,6 +213,23 @@ test("a minimum reward/risk the zones cannot meet gives NO_VALID_SETUP, with rea
     assert.ok(strict.rejected.some((item) => /reward\/risk/i.test(item.reason)));
   } finally {
     (TRADE_PLAN_CONFIG as { minRewardRisk: number }).minRewardRisk = original;
+  }
+});
+
+test("plan lifetimes count open-market hours only", () => {
+  const iso = (ms: number) => new Date(ms).toISOString();
+  // Mid-week: plain wall-clock hours.
+  assert.equal(iso(addTradingHours(Date.parse("2026-10-14T12:00:00Z"), 24)), "2026-10-15T12:00:00.000Z");
+  // Friday 08:00 New York: 9h until the 17:00 close, then the rest after Sunday's 17:00 open.
+  assert.equal(iso(addTradingHours(Date.parse("2026-10-16T12:00:00Z"), 24)), "2026-10-19T12:00:00.000Z");
+  // Made while closed (Saturday): the clock starts at Sunday's open.
+  assert.equal(iso(addTradingHours(Date.parse("2026-10-17T04:56:00Z"), 24)), "2026-10-19T21:00:00.000Z");
+  // Over a whole week of start times, no plan ever expires while the market is closed.
+  for (let start = Date.parse("2026-10-12T00:00:00Z"); start < Date.parse("2026-10-19T00:00:00Z"); start += 37 * 60_000) {
+    for (const hours of [24, 48]) {
+      const end = addTradingHours(start, hours);
+      assert.ok(getForexSessionStatus(new Date(end - 60_000)).marketOpen, `${iso(start)} + ${hours}h ended at ${iso(end)} with the market closed`);
+    }
   }
 });
 

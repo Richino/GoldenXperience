@@ -392,6 +392,12 @@
   box-shadow: 0 0 0 1px var(--border-strong);
 }
 
+/* Dark: no light ring or glow behind the selected option; it sits darker than the track instead. */
+:global(.dark) .segment:has(input:checked) {
+  background: var(--background);
+  box-shadow: none;
+}
+
 .segment:has(input:focus-visible) {
   outline: 2px solid var(--focus-ring);
   outline-offset: 1px;

@@ -62,6 +62,7 @@ import { parseExplanationFacts } from "../../frontend/src/lib/strategy/analyze-v
 import { runTradeMonitor } from "./trade-monitor-service.js";
 import { acceptPullbackSignal, pullbackAutomationForUser, rejectPullbackSignal, runPullbackAutomations, setPullbackAutomation } from "./pullback-automation.js";
 import { createPlannedSetup, evaluatePlannedSetup, evaluateActivePlannedSetups } from "./planned-setup-service.js";
+import { editTradePlan, generateAndStoreTradePlans } from "./trade-plan-service.js";
 import { TradePlanError, approveTradePlan, cancelTradePlan, getTradePlan, listTradePlans, pauseTradePlan, rejectTradePlan, resumeTradePlan } from "./trade-plans.js";
 import {
   activateDuePendingManualEntries,
@@ -462,7 +463,14 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       if (instrument && !isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
       return tradePlanResponse(request, response, async () => ({ plans: await listTradePlans(user.id, url.searchParams.get("filter") ?? "all", instrument) }));
     }
-    const tradePlanMatch = url.pathname.match(/^\/api\/trade-plans\/([0-9a-f-]{36})(?:\/(approve|reject|cancel|pause|resume))?$/i);
+    if (url.pathname === "/api/trade-plans/generate" && request.method === "POST") {
+      const payload = await body(request);
+      const instrument = typeof payload?.instrument === "string" ? payload.instrument.toUpperCase() : "";
+      if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
+      // Levels, sizes and confirmations are computed here; nothing else is read from the client.
+      return tradePlanResponse(request, response, () => generateAndStoreTradePlans(user.id, instrument));
+    }
+    const tradePlanMatch = url.pathname.match(/^\/api\/trade-plans\/([0-9a-f-]{36})(?:\/(approve|reject|cancel|pause|resume|edit))?$/i);
     if (tradePlanMatch && !tradePlanMatch[2] && request.method === "GET") {
       return tradePlanResponse(request, response, () => getTradePlan(user.id, tradePlanMatch[1]!));
     }
@@ -476,6 +484,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
           case "reject": return rejectTradePlan(user.id, planId, reason);
           case "cancel": return cancelTradePlan(user.id, planId, reason);
           case "pause": return pauseTradePlan(user.id, planId);
+          case "edit": return editTradePlan(user.id, planId, { maxRiskPercent: payload?.maxRiskPercent, expiresAt: payload?.expiresAt, reason: payload?.reason });
           default: return resumeTradePlan(user.id, planId);
         }
       });

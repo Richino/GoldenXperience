@@ -206,16 +206,24 @@
   font-weight: 600;
 }
 
+.details {
+  margin: 0 -0.3rem;
+}
+
+/* A full-width row: an easy thumb target on phones. */
 .details summary {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  width: fit-content;
-  color: var(--muted);
-  font-size: var(--text-xs);
+  gap: 0.5rem;
+  min-height: 2.5rem;
+  padding: 0 0.3rem;
+  border-radius: 0.6rem;
+  color: var(--muted-strong);
+  font-size: var(--text-sm);
   font-weight: 500;
   list-style: none;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .details summary::-webkit-details-marker {
@@ -224,8 +232,10 @@
 
 .details summary::before {
   content: "";
-  width: 0.38rem;
-  height: 0.38rem;
+  flex: none;
+  width: 0.42rem;
+  height: 0.42rem;
+  margin: 0 0.15rem 0 0.1rem;
   border-right: 1.5px solid currentColor;
   border-bottom: 1.5px solid currentColor;
   transform: rotate(-45deg);
@@ -237,38 +247,64 @@
 }
 
 .details summary:hover {
+  background: var(--interactive-hover);
   color: var(--foreground);
+}
+
+.details summary:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 0;
+}
+
+.count {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .details summary::before { transition: none; }
 }
 
-.details summary:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-  border-radius: 0.25rem;
-}
-
 .checks {
   display: grid;
-  gap: 0.3rem;
-  margin: 0.5rem 0 0;
+  margin: 0.15rem 0.3rem 0;
   padding: 0;
   list-style: none;
-  font-size: var(--text-xs);
 }
 
 .checks li {
   display: grid;
-  grid-template-columns: 1rem minmax(0, 1fr);
-  gap: 0.35rem;
+  grid-template-columns: 1.1rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.55rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8125rem;
   line-height: 1.4;
+}
+
+.checks li:last-child {
+  border-bottom: 0;
+}
+
+.checks li svg {
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.05rem;
+}
+
+.checks li[data-status="PASSED"] span {
+  color: var(--muted-strong);
 }
 
 .checks small {
   display: block;
+  margin-top: 0.15rem;
   color: var(--muted);
+  font-size: var(--text-xs);
 }
 
 .passed { color: var(--success); }
@@ -276,11 +312,36 @@
 .blocked { color: var(--pending); }
 .waiting { color: var(--muted); }
 
-.fine {
-  margin: 0.4rem 0 0;
+.facts {
+  display: grid;
+  gap: 0.7rem;
+  margin: 0.5rem 0.3rem 0.35rem;
+  padding: 0.75rem 0.8rem;
+  border-radius: 0.7rem;
+  background: var(--surface-raised);
+}
+
+.facts dt {
+  margin-bottom: 0.15rem;
   color: var(--muted);
-  font-size: var(--text-xs);
-  line-height: 1.4;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.facts dd {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.facts ul {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding-left: 1rem;
 }
 
 /* ── Mode ─────────────────────────────────────────── */

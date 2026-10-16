@@ -199,18 +199,28 @@ export function PlanBlock({ plan, watching, price = null }: { plan: TradePlan; w
         <p className={styles.note}>{triggerLine(plan)}</p>
       )}
       <details className={styles.details}>
-        <summary>{watching ? `Conditions · ${met} of ${plan.conditions.length} met` : `Conditions (${plan.conditions.length})`}</summary>
-        <ul className={styles.checks}>
+        <summary>
+          <span>Conditions</span>
+          <span className={styles.count}>{watching ? `${met} of ${plan.conditions.length} met` : `${plan.conditions.length} steps`}</span>
+        </summary>
+        <ol className={styles.checks}>
           {plan.conditions.map((item) => (
-            <li key={item.key}>
+            <li key={item.key} data-status={item.status}>
               <ConditionIcon status={item.status} />
               <span>{item.label}{item.detail ? <small>{item.detail}</small> : null}</span>
             </li>
           ))}
-        </ul>
-        {plan.plan.explanation?.[0] ? <p className={styles.fine}>{plan.plan.explanation[0]}</p> : null}
-        {plan.plan.invalidation?.rules?.length ? <p className={styles.fine}>Cancelled if: {plan.plan.invalidation.rules.join(" ")}</p> : null}
-        <p className={styles.fine}>Valid until {clock(plan.expiresAt)} · risk {plan.maxRiskPercent}%</p>
+        </ol>
+        <dl className={styles.facts}>
+          {plan.plan.explanation?.[0] ? <div><dt>Why this zone</dt><dd>{plan.plan.explanation[0]}</dd></div> : null}
+          {plan.plan.invalidation?.rules?.length ? (
+            <div>
+              <dt>Cancelled if</dt>
+              <dd><ul>{plan.plan.invalidation.rules.map((rule) => <li key={rule}>{rule}</li>)}</ul></dd>
+            </div>
+          ) : null}
+          <div><dt>Valid until</dt><dd>{clock(plan.expiresAt)} · risks {plan.maxRiskPercent}% of the account</dd></div>
+        </dl>
       </details>
     </section>
   );

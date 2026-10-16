@@ -352,7 +352,7 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
         <div className={styles.dock}>
           {state.actionError ? <p className={styles.error} role="alert">{state.actionError}</p> : null}
           <div className={styles.footer}>
-            <button type="button" className="nl-an-secondary pressable" disabled={state.busy} onClick={state.stopWatching}>
+            <button type="button" className={`nl-an-secondary pressable ${styles.stop}`} disabled={state.busy} onClick={state.stopWatching}>
               {state.busy ? "Stopping…" : "Stop watching"}
             </button>
           </div>

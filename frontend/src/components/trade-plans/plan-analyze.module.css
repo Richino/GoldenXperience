@@ -470,3 +470,15 @@
   color: var(--danger);
   font-size: var(--text-sm);
 }
+
+/* Stop watching cancels both plans: shown as the destructive action it is. */
+.footer .stop {
+  flex: 1;
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #fff;
+}
+
+.footer .stop:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 88%, #000);
+}

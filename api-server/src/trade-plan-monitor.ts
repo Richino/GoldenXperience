@@ -46,6 +46,8 @@ export const WORKER_ID = `${hostname()}:${process.pid}:${randomBytes(3).toString
 
 export type MonitorAction =
   | { kind: "transition"; to: TradePlanStatus; reason: string }
+  /** One trade per pair: the other plans of the same Analyze run stop once this one confirms. */
+  | { kind: "cancelSiblings"; reason: string }
   | { kind: "notify"; event: string; title: string; message: string; notificationKind: NotificationKind };
 
 const DETECTION_COPY: Partial<Record<ConfirmationEventType, string>> = {
@@ -91,6 +93,7 @@ export function decideMonitorActions(input: {
   // A Notify plan already CONFIRMED (a restart between the two writes) is handed on even if the
   // live checks have since tightened: it was confirmed, and Notify places nothing.
   if (confirmation.outcome === "WAITING" && status === "CONFIRMED" && mode === "NOTIFY") {
+    actions.push({ kind: "cancelSiblings", reason: `The ${input.direction} plan confirmed first; one trade per pair.` });
     actions.push({ kind: "transition", to: "NOTIFIED", reason: "Trade ready for your decision; no order was placed." });
     actions.push({ kind: "notify", event: "SETUP_CONFIRMED", notificationKind: "setup_ready", title: `${label} ready — your call`, message: `Confirmed earlier; current state: ${confirmation.notTriggeredReason ?? "check the plan"}. No order was placed.` });
     return actions;
@@ -107,6 +110,7 @@ export function decideMonitorActions(input: {
   if (status === "MONITORING") {
     actions.push({ kind: "transition", to: "CONFIRMED", reason: `All conditions met: ${p.side} near ${p.entry}, stop ${p.stopLoss}, target ${p.takeProfit}, reward/risk ${p.rewardRisk}.` });
   }
+  actions.push({ kind: "cancelSiblings", reason: `The ${input.direction} plan confirmed first; one trade per pair.` });
   if (mode === "NOTIFY") {
     actions.push({ kind: "transition", to: "NOTIFIED", reason: "Trade ready for your decision; no order was placed." });
     actions.push({
@@ -128,7 +132,7 @@ export function decideMonitorActions(input: {
 // ── Worker ─────────────────────────────────────────────────────────
 
 type ClaimedPlan = {
-  id: string; user_id: string; plan_version: number; state_version: string; status: TradePlanStatus;
+  id: string; user_id: string; analysis_id: string; plan_version: number; state_version: string; status: TradePlanStatus;
   monitoring_mode: MonitoringMode | null; instrument: MajorInstrument; direction: "BUY" | "SELL";
   setup_type: "BREAKOUT_RETEST" | "SR_REVERSAL"; entry_zone_low: string; entry_zone_high: string;
   stop_loss: string | null; take_profit: string | null; created_at: Date; expires_at: Date; plan: Record<string, unknown>;
@@ -217,6 +221,30 @@ async function recordError(planId: string, message: string) {
   return updated.rows[0]?.consecutive_errors ?? 0;
 }
 
+/**
+ * Cancel the other live plans from the same Analyze run. Runs only after this
+ * plan reached CONFIRMED, so if both sides somehow confirmed in one tick the
+ * first to be processed wins and the second finds itself cancelled.
+ */
+async function cancelSiblings(plan: ClaimedPlan, reason: string, now: number) {
+  const siblings = await query<{ id: string; direction: string }>(
+    `SELECT id,direction FROM trade_plans WHERE user_id=$1 AND analysis_id=$2 AND id<>$3
+        AND status IN ('APPROVED','MONITORING','CONFIRMED','NOTIFIED')`,
+    [plan.user_id, plan.analysis_id, plan.id],
+  );
+  let cancelled = 0;
+  for (const sibling of siblings.rows) {
+    try {
+      await transaction((client) => transitionInTx(client, { userId: plan.user_id, planId: sibling.id, to: "CANCELLED", actor: "monitor", reason, now: new Date(now) }));
+      await query("UPDATE trade_plan_approvals SET revoked_at=now(),revoke_reason=$2 WHERE plan_id=$1 AND revoked_at IS NULL", [sibling.id, reason]);
+      cancelled += 1;
+    } catch (error) {
+      if (!(error instanceof TradePlanError)) throw error;
+    }
+  }
+  return cancelled;
+}
+
 export type TickSummary = { expired: number; claimed: number; evaluated: number; transitions: number; errors: number };
 
 export async function runTradePlanMonitorTick(now = Date.now()): Promise<TickSummary> {
@@ -225,7 +253,7 @@ export async function runTradePlanMonitorTick(now = Date.now()): Promise<TickSum
   summary.claimed = ids.length;
   if (!ids.length) return summary;
   const plans = (await query<ClaimedPlan>(
-    `SELECT p.id,p.user_id,p.plan_version,p.state_version::text,p.status,p.monitoring_mode,p.instrument,p.direction,p.setup_type,
+    `SELECT p.id,p.user_id,p.analysis_id,p.plan_version,p.state_version::text,p.status,p.monitoring_mode,p.instrument,p.direction,p.setup_type,
             p.entry_zone_low::text,p.entry_zone_high::text,p.stop_loss::text,p.take_profit::text,p.created_at,p.expires_at,p.plan,
             m.last_evaluated_at
        FROM trade_plans p JOIN trade_plan_monitoring_state m ON m.plan_id=p.id
@@ -280,6 +308,10 @@ export async function runTradePlanMonitorTick(now = Date.now()): Promise<TickSum
         for (const action of decideMonitorActions({ status: plan.status, mode: plan.monitoring_mode, instrument, direction: plan.direction, confirmation })) {
           if (action.kind === "notify") {
             await notifyOnce(plan, action);
+            continue;
+          }
+          if (action.kind === "cancelSiblings") {
+            summary.transitions += await cancelSiblings(plan, action.reason, now);
             continue;
           }
           try {

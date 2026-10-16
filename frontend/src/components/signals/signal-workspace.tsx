@@ -53,7 +53,7 @@ import {
   ManualProposalModal,
   useManualProposal,
 } from "@/components/analysis/manual-proposal";
-import { AnalyzeCard, AnalyzeSheet } from "@/components/analysis/analyze-card";
+import { PlanAnalyzeCard, PlanAnalyzeSheet, usePlanAnalyze } from "@/components/trade-plans/plan-analyze";
 import { TradeConfirmDialog } from "@/components/signals/trade-confirm-dialog";
 import type { ChartOverlayPreferences } from "@/components/charts/chart-context-panel";
 import { PairAvatar } from "@/components/ui/pair-avatar";
@@ -2732,10 +2732,12 @@ export function SignalWorkspace({
   const [trendPullbackDialogOpen, setTrendPullbackDialogOpen] = useState(false);
   const [trendPullbackBusy, setTrendPullbackBusy] = useState(false);
   const observer = useMarketObserver();
-  const analyzeObserver = observer?.analyze;
   const setObserverChartContext = observer?.setChartContext;
-  const chartPairMonitored = !embeddedSurfaceOnly && Boolean(observer?.tracked.includes(instrument));
-  const chartAnalysisBusy = embeddedSurfaceOnly ? trendPullbackBusy : Boolean(observer?.busyPairs[instrument]);
+  // Web Analyze is the trade-plan flow; the embedded native surface keeps its own analysis.
+  const planAnalyze = usePlanAnalyze(instrument, replayActive);
+  const runPlanAnalyze = planAnalyze.run;
+  const chartPairMonitored = !embeddedSurfaceOnly && planAnalyze.active.length > 0;
+  const chartAnalysisBusy = embeddedSurfaceOnly ? trendPullbackBusy : planAnalyze.analyzing;
   useEffect(() => {
     if (embeddedSurfaceOnly || !setObserverChartContext) return;
     setObserverChartContext({ instrument, replayActive });
@@ -2766,11 +2768,8 @@ export function SignalWorkspace({
       return;
     }
     if (!embeddedSurfaceOnly) {
-      const request = ++trendPullbackRequestRef.current;
-      setTrendPullbackDialogOpen(false);
-      setTrendPullbackBusy(true);
-      try { await analyzeObserver?.(instrument); }
-      finally { if (request === trendPullbackRequestRef.current) setTrendPullbackBusy(false); }
+      // Web Analyze: BUY and SELL trade plans (or the plans already being watched).
+      await runPlanAnalyze();
       return;
     }
     trendPullbackAbortRef.current?.abort();
@@ -2806,7 +2805,7 @@ export function SignalWorkspace({
       if (request === trendPullbackRequestRef.current) setTrendPullbackBusy(false);
       if (trendPullbackAbortRef.current === controller) trendPullbackAbortRef.current = null;
     }
-  }, [allPendingEntries, analyzeObserver, embeddedSurfaceOnly, instrument, postTrendPullbackToNative, replayActive]);
+  }, [allPendingEntries, embeddedSurfaceOnly, instrument, postTrendPullbackToNative, replayActive, runPlanAnalyze]);
 
   const planHandoffRef = useRef(false);
   useEffect(() => {
@@ -4673,17 +4672,7 @@ export function SignalWorkspace({
         />
         {/* Phones get the Analyze result as a bottom sheet; desktop shows it as
           the first card in the chart's side column (see nl-chart-side). */}
-      {wideChart ? null : (
-        <AnalyzeSheet
-          normal={trendPullbackDialogOpen ? trendPullbackResult : null}
-          swing={trendPullbackDialogOpen ? trendPullbackSwing : null}
-          analyzing={trendPullbackDialogOpen && trendPullbackBusy}
-          instrument={instrument}
-          onClose={() => setTrendPullbackDialogOpen(false)}
-          onCancel={cancelTrendPullback}
-          onReview={reviewTrendPullback}
-        />
-      )}
+      {wideChart ? null : <PlanAnalyzeSheet state={planAnalyze} instrument={instrument} />}
         {pendingEntryDialogOpen ? <PendingEntryDialog
           key={`${selectedPendingEntry?.id ?? "new-pending-entry"}:${entryComposerRevision}`}
           open={pendingEntryDialogOpen}
@@ -5119,22 +5108,14 @@ export function SignalWorkspace({
             </div>
 
             <div className="nl-chart-side">
-              <AnalyzeCard
-                normal={trendPullbackDialogOpen ? trendPullbackResult : null}
-                swing={trendPullbackDialogOpen ? trendPullbackSwing : null}
-                analyzing={trendPullbackDialogOpen && trendPullbackBusy}
+              <PlanAnalyzeCard
+                state={planAnalyze}
                 instrument={instrument}
-                onClose={() => setTrendPullbackDialogOpen(false)}
-                onCancel={cancelTrendPullback}
-                onReview={reviewTrendPullback}
-                onAnalyze={() => void runTrendPullback()}
-                monitoring={chartPairMonitored}
                 onNewEntry={() => {
                   setEntryDraftProposal(null);
                   openPendingEntryManager(null);
                   setEntryComposerRevision((revision) => revision + 1);
                 }}
-                analyzeDisabled={chartAnalysisBusy || replayActive}
               />
               {pendingLevelSignal && healthLevels && levelTrade ? (
                 <ChartPendingLevelsCard
@@ -5183,17 +5164,7 @@ export function SignalWorkspace({
         onDismiss={() => setManualProposal(null)}
         onAccept={acceptManualProposal}
       />
-      {wideChart ? null : (
-        <AnalyzeSheet
-          normal={trendPullbackDialogOpen ? trendPullbackResult : null}
-          swing={trendPullbackDialogOpen ? trendPullbackSwing : null}
-          analyzing={trendPullbackDialogOpen && trendPullbackBusy}
-          instrument={instrument}
-          onClose={() => setTrendPullbackDialogOpen(false)}
-          onCancel={cancelTrendPullback}
-          onReview={reviewTrendPullback}
-        />
-      )}
+      {wideChart ? null : <PlanAnalyzeSheet state={planAnalyze} instrument={instrument} />}
 
       {fullscreen ? (
         <ChartFullscreenView

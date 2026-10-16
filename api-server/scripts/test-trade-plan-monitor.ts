@@ -92,4 +92,17 @@ test("stale candles are detected only while the market is open", () => {
   assert.equal(candlesStale(old, saturday), false);
 });
 
+test("a confirmation cancels the other side; nothing else does", () => {
+  const kinds = (actions: MonitorAction[]) => actions.map((a) => a.kind);
+  assert.ok(kinds(decide({ outcome: "CONFIRMED", stage: "CONFIRMED", proposal })).includes("cancelSiblings"));
+  assert.ok(kinds(decide({ outcome: "CONFIRMED", stage: "CONFIRMED", proposal }, "MONITORING", "AUTO")).includes("cancelSiblings"));
+  assert.ok(kinds(decide({ outcome: "WAITING", stage: "CONFIRMED_BLOCKED", proposal }, "CONFIRMED")).includes("cancelSiblings"));
+  for (const patch of [{}, { outcome: "INVALIDATED" as const }, { outcome: "EXPIRED" as const }, { outcome: "WAITING" as const, stage: "CONFIRMED_BLOCKED", proposal }]) {
+    assert.ok(!kinds(decide(patch)).includes("cancelSiblings"), JSON.stringify(patch));
+  }
+  // The other side is cancelled only after this plan's own CONFIRMED move.
+  const order = kinds(decide({ outcome: "CONFIRMED", stage: "CONFIRMED", proposal }));
+  assert.ok(order.indexOf("transition") < order.indexOf("cancelSiblings"));
+});
+
 console.log(`trade plan monitor: ${passed} checks passed`);

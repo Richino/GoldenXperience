@@ -29,10 +29,11 @@ const S: TradePlanActor = "system";
 export const TRADE_PLAN_TRANSITIONS: Record<TradePlanStatus, Partial<Record<TradePlanStatus, readonly TradePlanActor[]>>> = {
   DRAFT: { PENDING_APPROVAL: [S], INVALIDATED: [S], EXPIRED: [S, M] },
   PENDING_APPROVAL: { APPROVED: [U], REJECTED: [U], INVALIDATED: [S, M], EXPIRED: [S, M] },
-  APPROVED: { MONITORING: [U, S], PENDING_APPROVAL: [U], CANCELLED: [U], INVALIDATED: [S, M], EXPIRED: [S, M] },
-  MONITORING: { CONFIRMED: [M], PENDING_APPROVAL: [U], CANCELLED: [U], INVALIDATED: [M, S], EXPIRED: [M, S] },
-  CONFIRMED: { NOTIFIED: [M], EXECUTION_PENDING: [M], CANCELLED: [U], INVALIDATED: [M, S], EXPIRED: [M, S] },
-  NOTIFIED: { CANCELLED: [U], EXPIRED: [M, S] },
+  // The monitor may cancel too: when one plan of an analysis confirms, it cancels the other side (one trade per pair).
+  APPROVED: { MONITORING: [U, S], PENDING_APPROVAL: [U], CANCELLED: [U, M], INVALIDATED: [S, M], EXPIRED: [S, M] },
+  MONITORING: { CONFIRMED: [M], PENDING_APPROVAL: [U], CANCELLED: [U, M], INVALIDATED: [M, S], EXPIRED: [M, S] },
+  CONFIRMED: { NOTIFIED: [M], EXECUTION_PENDING: [M], CANCELLED: [U, M], INVALIDATED: [M, S], EXPIRED: [M, S] },
+  NOTIFIED: { CANCELLED: [U, M], EXPIRED: [M, S] },
   // Cancelling once execution has begun goes through the executor, which must
   // first make sure no broker order is resting.
   EXECUTION_PENDING: { ORDER_SUBMITTED: [X], EXECUTION_FAILED: [X], CANCELLED: [X], INVALIDATED: [X], EXPIRED: [X] },

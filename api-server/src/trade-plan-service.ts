@@ -4,7 +4,7 @@ import type { MajorInstrument } from "../../frontend/src/types/forex.js";
 import { query, transaction } from "./database.js";
 import { evaluateConfirmation, type Confirmation, type PlanForConfirmation, type SafetyLimits } from "./trade-plan-confirmation.js";
 import { generateTradePlans, type GeneratorResult } from "./trade-plan-generator.js";
-import { TradePlanError, createTradePlan, reviseTradePlan, transitionInTx, validateTradePlanInput, type TradePlanInput } from "./trade-plans.js";
+import { TradePlanError, createTradePlan, listTradePlans, reviseTradePlan, transitionInTx, validateTradePlanInput, type TradePlanInput } from "./trade-plans.js";
 
 /**
  * Analyze → stored plans. Fetches genuine OANDA candles, quote and the
@@ -97,8 +97,12 @@ export async function generateAndStoreTradePlans(userId: string, instrument: Maj
     }
     stored.push((await createTradePlan(userId, plan)).id);
   }
+  const plans = stored.length
+    ? (await listTradePlans(userId, "awaiting", instrument)).filter((plan) => (plan as { analysisId: string }).analysisId === result.analysisId)
+    : [];
   return {
     analysisId: result.analysisId,
+    plans,
     result: stored.length ? "PLANS" as const : "NO_VALID_SETUP" as const,
     reason: stored.length ? null : result.reason ?? "No plan passed validation.",
     planIds: stored,

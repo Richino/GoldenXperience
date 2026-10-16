@@ -1,0 +1,183 @@
+/* Plans inside the chart's Analyze card and sheet. Frame comes from .nl-an-*; colours from app tokens. */
+
+.lede {
+  margin: 0.15rem 0 0.75rem;
+  color: var(--muted-strong);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.plan {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+  padding: 0.7rem 0.75rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--success);
+  border-radius: 0.8rem;
+  background: var(--surface-raised);
+}
+
+.plan[data-side="SELL"] {
+  border-left-color: var(--danger);
+}
+
+.planHead {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--text-sm);
+}
+
+.side {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--success);
+}
+
+.plan[data-side="SELL"] .side {
+  color: var(--danger);
+}
+
+.setup {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rr {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.levels {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr;
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.levels dt {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.levels dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.why,
+.status {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.ready {
+  margin: 0;
+  padding: 0.45rem 0.55rem;
+  border-radius: 0.5rem;
+  background: var(--pending-soft);
+  color: var(--foreground);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.details summary {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.checks {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0.45rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-xs);
+}
+
+.checks li {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr);
+  gap: 0.35rem;
+  line-height: 1.4;
+}
+
+.checks small {
+  display: block;
+  color: var(--muted);
+}
+
+.passed { color: var(--success); }
+.failed { color: var(--danger); }
+.blocked { color: var(--pending); }
+.waiting { color: var(--muted); }
+
+.fine {
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+.modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+  margin: 0.2rem 0 0.7rem;
+}
+
+.mode {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr);
+  gap: 0.4rem;
+  padding: 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  font-size: var(--text-sm);
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.mode:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.mode small {
+  display: block;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.mode:focus-within {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.rejected {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.2rem 0 0.8rem;
+  padding-left: 1rem;
+  color: var(--muted-strong);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.error {
+  margin: 0 0 0.6rem;
+  color: var(--danger);
+  font-size: var(--text-sm);
+}

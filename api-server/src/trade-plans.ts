@@ -215,39 +215,76 @@ export async function createTradePlan(userId: string, input: TradePlanInput) {
   });
 }
 
+async function checkAutoAllowed(client: PoolClient, userId: string) {
+  const risk = await client.query<{ kill_switch: boolean; suspended_at: Date | null; auto_limits_approved_at: Date | null }>(
+    "SELECT kill_switch,suspended_at,auto_limits_approved_at FROM trade_plan_risk_settings WHERE user_id=$1",
+    [userId],
+  );
+  const settings = risk.rows[0];
+  if (!settings?.auto_limits_approved_at) throw new TradePlanError("Automatic execution is not set up yet: approve your risk limits first.");
+  if (settings.kill_switch) throw new TradePlanError("The execution kill switch is on.");
+  if (settings.suspended_at) throw new TradePlanError("Automatic execution is suspended after broker errors.");
+}
+
+/** Approve one locked plan's exact version and start monitoring it (inside the caller's transaction). */
+async function approveInTx(client: PoolClient, userId: string, planId: string, planVersion: number, mode: MonitoringMode) {
+  const row = await lockPlan(client, userId, planId);
+  if (row.status !== "PENDING_APPROVAL") throw new TradePlanError(`A ${row.status} plan cannot be approved.`);
+  if (row.plan_version !== planVersion) throw new TradePlanError("The plan was edited after you reviewed it. Review the new version.");
+  await client.query(
+    "INSERT INTO trade_plan_approvals(plan_id,user_id,plan_version,plan_hash,monitoring_mode) VALUES($1,$2,$3,$4,$5)",
+    [row.id, userId, row.plan_version, row.plan_hash, mode],
+  );
+  await client.query("UPDATE trade_plans SET monitoring_mode=$2 WHERE id=$1", [row.id, mode]);
+  await transitionInTx(client, { userId, planId, to: "APPROVED", actor: "user", reason: `Approved version ${row.plan_version} for ${mode}.`, data: { mode } });
+  await client.query(
+    `INSERT INTO trade_plan_monitoring_state(plan_id,stage) VALUES($1,'WAITING')
+     ON CONFLICT(plan_id) DO UPDATE SET stage='WAITING',state='{}'::jsonb,consecutive_errors=0,last_error=NULL,updated_at=now()`,
+    [row.id],
+  );
+  return transitionInTx(client, { userId, planId, to: "MONITORING", actor: "system", reason: "Monitoring started." });
+}
+
+const validMode = (mode: unknown): mode is MonitoringMode => mode === "NOTIFY" || mode === "AUTO";
+
 /**
  * Approve exactly the version the user reviewed and start monitoring it.
  * Auto mode also needs the user's approved risk limits and no kill switch.
  */
 export async function approveTradePlan(userId: string, planId: string, input: { planVersion: number; mode: MonitoringMode }) {
-  if (input.mode !== "NOTIFY" && input.mode !== "AUTO") throw new TradePlanError("Choose Notify or Auto.", 400);
+  if (!validMode(input.mode)) throw new TradePlanError("Choose Notify or Auto.", 400);
   if (!Number.isInteger(input.planVersion)) throw new TradePlanError("Say which plan version you are approving.", 400);
   return transaction(async (client) => {
-    const row = await lockPlan(client, userId, planId);
-    if (row.status !== "PENDING_APPROVAL") throw new TradePlanError(`A ${row.status} plan cannot be approved.`);
-    if (row.plan_version !== input.planVersion) throw new TradePlanError("The plan was edited after you reviewed it. Review the new version.");
-    if (input.mode === "AUTO") {
-      const risk = await client.query<{ kill_switch: boolean; suspended_at: Date | null; auto_limits_approved_at: Date | null }>(
-        "SELECT kill_switch,suspended_at,auto_limits_approved_at FROM trade_plan_risk_settings WHERE user_id=$1",
-        [userId],
-      );
-      const settings = risk.rows[0];
-      if (!settings?.auto_limits_approved_at) throw new TradePlanError("Approve your automatic-execution risk limits before choosing Auto.");
-      if (settings.kill_switch) throw new TradePlanError("The execution kill switch is on.");
-      if (settings.suspended_at) throw new TradePlanError("Automatic execution is suspended after broker errors.");
+    if (input.mode === "AUTO") await checkAutoAllowed(client, userId);
+    return approveInTx(client, userId, planId, input.planVersion, input.mode);
+  });
+}
+
+/**
+ * One Accept for an Analyze run: approves every plan of the analysis at the
+ * versions the user was shown, all or nothing. The plans then act as one
+ * order-cancels-order pair — when one side confirms, the monitor cancels the other.
+ */
+export async function approveAnalysis(userId: string, analysisId: string, input: { mode: MonitoringMode; versions: Record<string, number> }) {
+  if (!validMode(input.mode)) throw new TradePlanError("Choose Notify or Auto.", 400);
+  const entries = Object.entries(input.versions ?? {});
+  if (!entries.length || entries.some(([id, version]) => !/^[0-9a-f-]{36}$/i.test(id) || !Number.isInteger(version))) {
+    throw new TradePlanError("Say which plans and versions you are accepting.", 400);
+  }
+  return transaction(async (client) => {
+    const pending = await client.query<{ id: string }>(
+      "SELECT id FROM trade_plans WHERE user_id=$1 AND analysis_id=$2 AND status='PENDING_APPROVAL' ORDER BY id FOR UPDATE",
+      [userId, analysisId],
+    );
+    const ids = pending.rows.map((row) => row.id);
+    if (!ids.length) throw new TradePlanError("These plans are no longer awaiting approval. Analyze again.");
+    if (ids.length !== entries.length || ids.some((id) => !(id in input.versions))) {
+      throw new TradePlanError("The plans changed since you reviewed them. Analyze again.");
     }
-    await client.query(
-      "INSERT INTO trade_plan_approvals(plan_id,user_id,plan_version,plan_hash,monitoring_mode) VALUES($1,$2,$3,$4,$5)",
-      [row.id, userId, row.plan_version, row.plan_hash, input.mode],
-    );
-    await client.query("UPDATE trade_plans SET monitoring_mode=$2 WHERE id=$1", [row.id, input.mode]);
-    await transitionInTx(client, { userId, planId, to: "APPROVED", actor: "user", reason: `Approved version ${row.plan_version} for ${input.mode}.`, data: { mode: input.mode } });
-    await client.query(
-      `INSERT INTO trade_plan_monitoring_state(plan_id,stage) VALUES($1,'WAITING')
-       ON CONFLICT(plan_id) DO UPDATE SET stage='WAITING',state='{}'::jsonb,consecutive_errors=0,last_error=NULL,updated_at=now()`,
-      [row.id],
-    );
-    return transitionInTx(client, { userId, planId, to: "MONITORING", actor: "system", reason: "Monitoring started." });
+    if (input.mode === "AUTO") await checkAutoAllowed(client, userId);
+    const results = [];
+    for (const id of ids) results.push(await approveInTx(client, userId, id, input.versions[id]!, input.mode));
+    return { analysisId, plans: results };
   });
 }
 
@@ -351,6 +388,8 @@ export const TRADE_PLAN_FILTERS: Record<string, readonly TradePlanStatus[] | nul
   all: null,
   awaiting: ["PENDING_APPROVAL"],
   monitoring: ["APPROVED", "MONITORING"],
+  /** Everything the chart and the mascot follow: accepted and not finished. */
+  active: ["APPROVED", "MONITORING", "CONFIRMED", "NOTIFIED", "EXECUTION_PENDING", "ORDER_SUBMITTED", "PARTIALLY_FILLED"],
   confirmed: ["CONFIRMED", "NOTIFIED"],
   executed: ["EXECUTION_PENDING", "ORDER_SUBMITTED", "PARTIALLY_FILLED", "FILLED", "EXECUTION_FAILED", "CLOSED"],
   invalidated: ["INVALIDATED"],

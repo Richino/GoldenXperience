@@ -8,7 +8,6 @@
  * the entry composer for review. It never places an order.
  */
 
-import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Sparkles, X } from "lucide-react";
@@ -321,9 +320,6 @@ export function AnalyzeCard({
             <button type="button" className="nl-an-secondary pressable" onClick={onNewEntry} disabled={analyzeDisabled}>
               New entry
             </button>
-            <Link href={`/plans?instrument=${props.instrument}`} className="nl-an-secondary pressable" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-              Plans
-            </Link>
             <button type="button" className="nl-an-primary pressable" onClick={onAnalyze} disabled={analyzeDisabled}>
               {monitoring ? "Manage" : "Analyze"}
             </button>

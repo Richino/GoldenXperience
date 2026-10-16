@@ -64,7 +64,7 @@ import { acceptPullbackSignal, pullbackAutomationForUser, rejectPullbackSignal, 
 import { createPlannedSetup, evaluatePlannedSetup, evaluateActivePlannedSetups } from "./planned-setup-service.js";
 import { confirmationProgress, editTradePlan, generateAndStoreTradePlans } from "./trade-plan-service.js";
 import { startTradePlanMonitor } from "./trade-plan-monitor.js";
-import { TradePlanError, approveTradePlan, cancelTradePlan, getTradePlan, listTradePlans, pauseTradePlan, rejectTradePlan, resumeTradePlan } from "./trade-plans.js";
+import { TradePlanError, approveAnalysis, approveTradePlan, cancelTradePlan, getTradePlan, listTradePlans, pauseTradePlan, rejectTradePlan, resumeTradePlan } from "./trade-plans.js";
 import {
   activateDuePendingManualEntries,
   cancelPendingManualEntry,
@@ -470,6 +470,14 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
       // Levels, sizes and confirmations are computed here; nothing else is read from the client.
       return tradePlanResponse(request, response, () => generateAndStoreTradePlans(user.id, instrument));
+    }
+    if (url.pathname === "/api/trade-plans/accept" && request.method === "POST") {
+      // One Accept for an Analyze run: every plan at the version the user saw, all or nothing.
+      const payload = await body(request);
+      const analysisId = typeof payload?.analysisId === "string" ? payload.analysisId : "";
+      if (!/^[0-9a-f-]{36}$/i.test(analysisId)) return json(request, response, { error: "Missing analysis." }, 400);
+      const versions = payload?.versions && typeof payload.versions === "object" ? payload.versions as Record<string, number> : {};
+      return tradePlanResponse(request, response, () => approveAnalysis(user.id, analysisId, { mode: payload?.mode as "NOTIFY" | "AUTO", versions }));
     }
     const tradePlanMatch = url.pathname.match(/^\/api\/trade-plans\/([0-9a-f-]{36})(?:\/(approve|reject|cancel|pause|resume|edit))?$/i);
     if (tradePlanMatch && !tradePlanMatch[2] && request.method === "GET") {

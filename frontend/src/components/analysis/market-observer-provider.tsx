@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState, type
 import { MarketObserverBubble, type MarketObserverControl, type MarketObserverMonitoring } from "./market-observer-bubble";
 import { MobileSheet } from "@/components/ui/mobile-sheet";
 import { observerPairLabel } from "@/lib/observer-conversation";
+import { PlanMascot } from "@/components/trade-plans/plan-mascot";
 
 type ChartContext = { instrument: string; replayActive: boolean } | null;
 interface ObserverWorkspace extends MarketObserverMonitoring, MarketObserverControl {
@@ -39,6 +40,8 @@ export function MarketObserverProvider({ children }: { children: ReactNode }) {
   return <ObserverContext.Provider value={value}>
     {children}
     <MarketObserverBubble instrument={chart?.instrument ?? "EUR_USD"} replayActive={chart?.replayActive ?? false} controlRef={controls} onMonitoringChange={setMonitoring} />
+    {/* Accepted trade plans get the mascot; it stays out of the way while the older observer chat is active. */}
+    <PlanMascot chartInstrument={chart?.instrument ?? null} hidden={Boolean(chart?.replayActive) || monitoring.tracked.length > 0 || Object.values(monitoring.busyPairs).some(Boolean)} />
     <MobileSheet open={choiceInstrument !== null} onClose={() => setChoiceInstrument(null)} title={`${managing ? "Manage" : "Analyze"} ${choiceInstrument ? observerPairLabel(choiceInstrument) : "pair"}`} eyebrow={managing ? "Analysis controls" : "Choose analysis mode"} className="analysis-mode-sheet">
       <div className="analysis-mode-choices">
         <button type="button" onClick={() => void chooseMode("NORMAL")} disabled={Boolean(choiceInstrument && monitoring.busyPairs[choiceInstrument]) || chart?.replayActive}><strong>Intraday</strong><span>5-minute candle confirmation</span></button>

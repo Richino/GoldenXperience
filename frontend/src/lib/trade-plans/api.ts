@@ -12,7 +12,7 @@ export type TradePlanStatus =
   | "CLOSED" | "REJECTED" | "CANCELLED" | "INVALIDATED" | "EXPIRED";
 
 export type MonitoringMode = "NOTIFY" | "AUTO";
-export type PlanFilter = "all" | "awaiting" | "monitoring" | "confirmed" | "executed" | "invalidated" | "expired" | "rejected";
+export type PlanFilter = "all" | "active" | "awaiting" | "monitoring" | "confirmed" | "executed" | "invalidated" | "expired" | "rejected";
 export type ConditionStatus = "PENDING" | "PASSED" | "FAILED" | "BLOCKED";
 
 export interface PlanCondition {
@@ -103,6 +103,8 @@ export interface PlanDetail {
 
 export interface GenerateResult {
   analysisId: string;
+  /** The stored plans of this analysis, awaiting approval. */
+  plans: TradePlan[];
   result: "PLANS" | "NO_VALID_SETUP";
   reason: string | null;
   planIds: string[];
@@ -141,6 +143,9 @@ export const tradePlansApi = {
   get: (id: string) => request<PlanDetail>(`/api/trade-plans/${id}`),
   progress: (id: string) => request<ProgressResult>(`/api/trade-plans/${id}/progress`),
   generate: (instrument: string) => post<GenerateResult>("/api/trade-plans/generate", { instrument }),
+  /** One Accept for the whole analysis, at the versions shown. */
+  accept: (analysisId: string, mode: MonitoringMode, plans: Array<Pick<TradePlan, "id" | "planVersion">>) =>
+    post("/api/trade-plans/accept", { analysisId, mode, versions: Object.fromEntries(plans.map((plan) => [plan.id, plan.planVersion])) }),
   approve: (id: string, planVersion: number, mode: MonitoringMode) => post(`/api/trade-plans/${id}/approve`, { planVersion, mode }),
   reject: (id: string, reason?: string) => post(`/api/trade-plans/${id}/reject`, { reason }),
   cancel: (id: string, reason?: string) => post(`/api/trade-plans/${id}/cancel`, { reason }),
@@ -148,10 +153,6 @@ export const tradePlansApi = {
   resume: (id: string) => post(`/api/trade-plans/${id}/resume`),
   edit: (id: string, changes: { maxRiskPercent?: number; expiresAt?: string; reason?: string }) => post(`/api/trade-plans/${id}/edit`, changes),
 };
-
-/** Statuses a user can still cancel from (execution states go through the executor). */
-export const CANCELLABLE: ReadonlySet<TradePlanStatus> = new Set(["APPROVED", "MONITORING", "CONFIRMED", "NOTIFIED"]);
-export const EDITABLE: ReadonlySet<TradePlanStatus> = new Set(["PENDING_APPROVAL", "APPROVED", "MONITORING"]);
 
 export const STATUS_LABEL: Record<TradePlanStatus, string> = {
   DRAFT: "Draft",
@@ -176,14 +177,3 @@ export const SETUP_LABEL: Record<TradePlan["setupType"], string> = {
   BREAKOUT_RETEST: "Breakout and retest",
   SR_REVERSAL: "Support/resistance reversal",
 };
-
-export const FILTERS: Array<{ id: PlanFilter; label: string }> = [
-  { id: "all", label: "All" },
-  { id: "awaiting", label: "Awaiting approval" },
-  { id: "monitoring", label: "Monitoring" },
-  { id: "confirmed", label: "Confirmed" },
-  { id: "executed", label: "Executed" },
-  { id: "invalidated", label: "Invalidated" },
-  { id: "expired", label: "Expired" },
-  { id: "rejected", label: "Rejected" },
-];

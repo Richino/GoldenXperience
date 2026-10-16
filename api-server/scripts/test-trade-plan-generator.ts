@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { generateTradePlans, TRADE_PLAN_CONFIG, type GeneratorInput } from "../src/trade-plan-generator.js";
 import { validateTradePlanInput } from "../src/trade-plans.js";
+import { evaluateConfirmation } from "../src/trade-plan-confirmation.js";
 import type { Candle } from "../../frontend/src/types/forex.js";
 
 /**
@@ -211,6 +212,21 @@ test("a minimum reward/risk the zones cannot meet gives NO_VALID_SETUP, with rea
     assert.ok(strict.rejected.some((item) => /reward\/risk/i.test(item.reason)));
   } finally {
     (TRADE_PLAN_CONFIG as { minRewardRisk: number }).minRewardRisk = original;
+  }
+});
+
+test("generated plans carry everything the confirmation engine needs", () => {
+  const input = inputFor(base);
+  for (const plan of result.plans) {
+    const evaluation = evaluateConfirmation({
+      plan: { ...plan, stopLoss: plan.stopLoss!, takeProfit: plan.takeProfit!, createdAt: new Date(NOW).toISOString() },
+      candles: { H1: input.candles.H1!, M15: input.candles.M15! },
+      quote: input.quote, news: [], now: NOW,
+      limits: { maxSpreadStopFraction: 0.15, maxDataAgeSeconds: 10, newsBlackoutBeforeMinutes: 30, newsBlackoutAfterMinutes: 30 },
+    });
+    // No candle has closed since creation: nothing can have confirmed or failed yet.
+    assert.equal(evaluation.outcome, "WAITING", `${plan.direction} ${plan.setupType}: ${evaluation.notTriggeredReason}`);
+    assert.ok(evaluation.notTriggeredReason);
   }
 });
 

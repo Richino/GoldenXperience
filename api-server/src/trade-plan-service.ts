@@ -2,6 +2,7 @@ import { getCandles, getPricing } from "../../frontend/src/lib/oanda/client.js";
 import { getEconomicCalendar } from "../../frontend/src/lib/calendar/forex-factory.js";
 import type { MajorInstrument } from "../../frontend/src/types/forex.js";
 import { query, transaction } from "./database.js";
+import { evaluateConfirmation, type Confirmation, type PlanForConfirmation, type SafetyLimits } from "./trade-plan-confirmation.js";
 import { generateTradePlans, type GeneratorResult } from "./trade-plan-generator.js";
 import { TradePlanError, createTradePlan, reviseTradePlan, transitionInTx, validateTradePlanInput, type TradePlanInput } from "./trade-plans.js";
 
@@ -171,4 +172,81 @@ export async function editTradePlan(userId: string, planId: string, payload: { m
   };
   const reason = typeof payload.reason === "string" && payload.reason.trim() ? payload.reason.trim().slice(0, 300) : "Risk or expiry changed.";
   return reviseTradePlan(userId, planId, next, reason);
+}
+
+type ConfirmablePlanRow = {
+  id: string; plan_version: number; instrument: MajorInstrument; direction: "BUY" | "SELL"; setup_type: "BREAKOUT_RETEST" | "SR_REVERSAL";
+  entry_zone_low: string; entry_zone_high: string; stop_loss: string | null; take_profit: string | null;
+  created_at: Date; expires_at: Date; plan: Record<string, unknown>;
+};
+
+export async function confirmationLimits(userId: string): Promise<SafetyLimits> {
+  await query("INSERT INTO trade_plan_risk_settings(user_id) VALUES($1) ON CONFLICT(user_id) DO NOTHING", [userId]);
+  const row = (await query<{ spread: string; age: number; before: number; after: number }>(
+    `SELECT max_spread_stop_fraction::text AS spread,max_data_age_seconds AS age,news_blackout_before_minutes AS before,
+            news_blackout_after_minutes AS after FROM trade_plan_risk_settings WHERE user_id=$1`,
+    [userId],
+  )).rows[0]!;
+  return { maxSpreadStopFraction: Number(row.spread), maxDataAgeSeconds: row.age, newsBlackoutBeforeMinutes: row.before, newsBlackoutAfterMinutes: row.after };
+}
+
+export function toConfirmable(row: ConfirmablePlanRow): PlanForConfirmation {
+  if (row.stop_loss === null || row.take_profit === null) throw new TradePlanError("The plan has no stop or target to confirm against.");
+  return {
+    instrument: row.instrument,
+    direction: row.direction,
+    setupType: row.setup_type,
+    entryZoneLow: Number(row.entry_zone_low),
+    entryZoneHigh: Number(row.entry_zone_high),
+    stopLoss: Number(row.stop_loss),
+    takeProfit: Number(row.take_profit),
+    createdAt: new Date(row.created_at).toISOString(),
+    expiresAt: new Date(row.expires_at).toISOString(),
+    plan: row.plan,
+  };
+}
+
+/** Live H1/M15 candles, quote and calendar for confirmation; demo data is never used. */
+export async function loadConfirmationMarket(instrument: MajorInstrument) {
+  const market = await loadGeneratorMarket(instrument);
+  return { candles: { H1: market.candles.H1 ?? [], M15: market.candles.M15 ?? [] }, quote: market.quote, news: market.news, now: market.now };
+}
+
+/**
+ * Current confirmation progress of one plan, computed live. Read-only: it
+ * neither stores progress nor changes the plan's status (the monitor does).
+ */
+export async function confirmationProgress(userId: string, planId: string) {
+  const found = await query<ConfirmablePlanRow>(
+    `SELECT id,plan_version,instrument,direction,setup_type,entry_zone_low::text,entry_zone_high::text,stop_loss::text,
+            take_profit::text,created_at,expires_at,plan FROM trade_plans WHERE id=$1 AND user_id=$2`,
+    [planId, userId],
+  );
+  const row = found.rows[0];
+  if (!row) throw new TradePlanError("Trade plan not found.", 404);
+  const [market, limits] = await Promise.all([loadConfirmationMarket(row.instrument), confirmationLimits(userId)]);
+  if (!market.candles.H1.length || !market.candles.M15.length) throw new TradePlanError("Live OANDA candles are unavailable.", 503);
+  return { planId, planVersion: row.plan_version, confirmation: evaluateConfirmation({ plan: toConfirmable(row), ...market, limits }) };
+}
+
+/** Persist one evaluation: condition rows for the plan's version and the monitoring snapshot. */
+export async function recordConfirmation(planId: string, planVersion: number, confirmation: Confirmation, lastPrice: number | null) {
+  await transaction(async (client) => {
+    for (const condition of confirmation.conditions) {
+      await client.query(
+        `UPDATE trade_plan_conditions SET status=$4,detail=$5,evidence=$6::jsonb,evaluated_at=now()
+          WHERE plan_id=$1 AND plan_version=$2 AND condition_key=$3`,
+        [planId, planVersion, condition.key, condition.status, condition.detail, JSON.stringify({ at: condition.at, ...condition.evidence })],
+      );
+    }
+    await client.query(
+      `INSERT INTO trade_plan_monitoring_state(plan_id,stage,state,last_evaluated_at,last_candle_time,last_price,last_price_at,not_triggered_reason,updated_at)
+       VALUES($1,$2,$3::jsonb,now(),$4,$5,CASE WHEN $5::numeric IS NULL THEN NULL ELSE now() END,$6,now())
+       ON CONFLICT(plan_id) DO UPDATE SET stage=EXCLUDED.stage,state=EXCLUDED.state,last_evaluated_at=now(),
+         last_candle_time=EXCLUDED.last_candle_time,last_price=EXCLUDED.last_price,last_price_at=EXCLUDED.last_price_at,
+         not_triggered_reason=EXCLUDED.not_triggered_reason,consecutive_errors=0,last_error=NULL,updated_at=now()`,
+      [planId, confirmation.stage, JSON.stringify({ outcome: confirmation.outcome, proposal: confirmation.proposal, evaluatedThrough: confirmation.evaluatedThrough }),
+       confirmation.evaluatedThrough.M15, lastPrice, confirmation.notTriggeredReason],
+    );
+  });
 }

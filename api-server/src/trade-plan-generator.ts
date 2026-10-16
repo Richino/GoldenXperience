@@ -53,6 +53,14 @@ export const TRADE_PLAN_CONFIG = {
     /** ...and a close further than this through the zone invalidates the reversal. */
     invalidateCloseH1Atr: 0.25,
     stopBufferH1Atr: 0.15,
+    /** A sweep that closed outside the zone must be reclaimed within this many M15 candles. */
+    reclaimBars: 3,
+    /** A rejection candle's wick on the zone side is at least this share of its range. */
+    rejectionWickShare: 0.5,
+    /** The local high (low) to break is the extreme of this many M15 candles before the turn... */
+    structureLookbackBars: 8,
+    /** ...and it must break within this many M15 candles, or the turn is dropped. */
+    structureBreakBars: 16,
   },
   /** Targets stop this many H1 ATRs short of the opposing zone. */
   targetBufferH1Atr: 0.1,
@@ -65,6 +73,8 @@ export const TRADE_PLAN_CONFIG = {
    * plan's lifetime can reasonably reach; the target is capped there instead.
    */
   maxTargetH4Atr: 4,
+  /** A confirmation older than this that still could not pass the safety checks is dropped. */
+  confirmationValidMinutes: 60,
   /** Minimum estimated reward/risk for a plan to be offered (not a proven threshold). */
   minRewardRisk: 1.5,
   /** Hours a plan stays valid if nothing confirms it. */
@@ -229,7 +239,8 @@ export function generateTradePlans(input: GeneratorInput): GeneratorResult {
     trigger: string;
     confirmation: string[];
     conditions: Array<{ key: string; label: string }>;
-    stopRule: string;
+    /** Describes the stop, given its final (formatted) price. */
+    stopRule: (stop: string) => string;
     invalidation: Record<string, unknown>;
     why: string[];
     extra?: Record<string, unknown>;
@@ -301,12 +312,19 @@ export function generateTradePlans(input: GeneratorInput): GeneratorResult {
         zone: { low: round(candidate.zone.low), high: round(candidate.zone.high), type: candidate.zone.type, relevance: candidate.zone.relevance, reactions: candidate.zone.reactions, sources: candidate.zone.sources, flipped: candidate.zone.flipped },
         entryTrigger: candidate.trigger,
         confirmation: candidate.confirmation,
-        stopLossRule: candidate.stopRule,
+        stopLossRule: candidate.stopRule(fmt(stop)),
         takeProfitRule: capped
           ? `The next ${direction === "BUY" ? "resistance" : "support"} zone ${fmt(target.low)}–${fmt(target.high)} is beyond ${TRADE_PLAN_CONFIG.maxTargetH4Atr} H4 ATR, so the target is capped there.`
           : `Short of the next ${direction === "BUY" ? "resistance" : "support"} zone ${fmt(target.low)}–${fmt(target.high)} by ${TRADE_PLAN_CONFIG.targetBufferH1Atr} H1 ATR.`,
         targetZone: { low: round(target.low), high: round(target.high) },
         targetCapped: capped,
+        // Frozen inputs the confirmation engine judges this plan with; later config changes do not reach approved plans.
+        rules: {
+          atrH1: atrH1,
+          minRewardRisk: TRADE_PLAN_CONFIG.minRewardRisk,
+          confirmationValidMinutes: TRADE_PLAN_CONFIG.confirmationValidMinutes,
+          ...(setupType === "BREAKOUT_RETEST" ? TRADE_PLAN_CONFIG.breakoutRetest : TRADE_PLAN_CONFIG.reversal),
+        },
         positionSizingRule: `Risk ${input.maxRiskPercent}% of equity on the distance from the executable entry to the protective stop; recalculated at confirmation from fresh prices.`,
         spreadSlippage: {
           maxSpreadStopFraction: limits.maxSpreadStopFraction,
@@ -387,7 +405,7 @@ export function generateTradePlans(input: GeneratorInput): GeneratorResult {
           { key: "reward_risk", label: "Reward/risk still adequate" },
           { key: "execution_safety", label: "News, spread and risk checks" },
         ],
-        stopRule: `${up ? "Below" : "Above"} the retest's ${up ? "low" : "high"} by ${br.stopBufferH1Atr} H1 ATR, never ${up ? "above" : "below"} ${fmt(stop)}; the plan's stop is the estimate until the retest forms.`,
+        stopRule: (final) => `Fixed at ${final} when approved: ${br.stopBufferH1Atr} H1 ATR ${up ? "below" : "above"} the zone, at least ${TRADE_PLAN_CONFIG.minStopH1Atr} H1 ATR from the entry. A retest that trades through it invalidates the plan; it is never moved further away.`,
         invalidation: {
           rules: [
             `A completed ${br.retestTimeframe} close back ${up ? "below" : "above"} ${fmt(level - sign * br.retestFailH1Atr * atrH1)} after the breakout (failed breakout).`,
@@ -444,7 +462,7 @@ export function generateTradePlans(input: GeneratorInput): GeneratorResult {
           { key: "reward_risk", label: "Reward/risk still adequate" },
           { key: "execution_safety", label: "News, spread and risk checks" },
         ],
-        stopRule: `${up ? "Below" : "Above"} the rejection or sweep ${up ? "low" : "high"} by ${rv.stopBufferH1Atr} H1 ATR; at most ${fmt(stop)}.`,
+        stopRule: (final) => `Fixed at ${final} when approved: beyond the deepest allowed sweep (${rv.maxSweepH1Atr} H1 ATR past the zone) plus ${rv.stopBufferH1Atr} H1 ATR. A sweep that reaches it invalidates the plan; it is never moved further away.`,
         invalidation: {
           rules: [
             `A completed M15 close ${up ? "below" : "above"} ${fmt(farEdge - sign * rv.invalidateCloseH1Atr * atrH1)} (the zone gave way).`,

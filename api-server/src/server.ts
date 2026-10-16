@@ -62,7 +62,7 @@ import { parseExplanationFacts } from "../../frontend/src/lib/strategy/analyze-v
 import { runTradeMonitor } from "./trade-monitor-service.js";
 import { acceptPullbackSignal, pullbackAutomationForUser, rejectPullbackSignal, runPullbackAutomations, setPullbackAutomation } from "./pullback-automation.js";
 import { createPlannedSetup, evaluatePlannedSetup, evaluateActivePlannedSetups } from "./planned-setup-service.js";
-import { editTradePlan, generateAndStoreTradePlans } from "./trade-plan-service.js";
+import { confirmationProgress, editTradePlan, generateAndStoreTradePlans } from "./trade-plan-service.js";
 import { TradePlanError, approveTradePlan, cancelTradePlan, getTradePlan, listTradePlans, pauseTradePlan, rejectTradePlan, resumeTradePlan } from "./trade-plans.js";
 import {
   activateDuePendingManualEntries,
@@ -473,6 +473,11 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     const tradePlanMatch = url.pathname.match(/^\/api\/trade-plans\/([0-9a-f-]{36})(?:\/(approve|reject|cancel|pause|resume|edit))?$/i);
     if (tradePlanMatch && !tradePlanMatch[2] && request.method === "GET") {
       return tradePlanResponse(request, response, () => getTradePlan(user.id, tradePlanMatch[1]!));
+    }
+    const tradePlanProgressMatch = url.pathname.match(/^\/api\/trade-plans\/([0-9a-f-]{36})\/progress$/i);
+    if (tradePlanProgressMatch && request.method === "GET") {
+      // Live, read-only confirmation read; the monitor is what stores progress and moves status.
+      return tradePlanResponse(request, response, () => confirmationProgress(user.id, tradePlanProgressMatch[1]!));
     }
     if (tradePlanMatch?.[2] && request.method === "POST") {
       const planId = tradePlanMatch[1]!;

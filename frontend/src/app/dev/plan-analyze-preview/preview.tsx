@@ -27,7 +27,7 @@ export function PlanAnalyzePreview() {
     <main style={{ padding: 16, background: "var(--background)", minHeight: "100vh", display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fill, minmax(320px, 360px))", alignItems: "start" }}>
       {[base, offered, none, watching].map((state, index) => (
         <div key={index} data-preview={["idle", "offered", "none", "watching"][index]}>
-          <PlanAnalyzeCard state={state} instrument="EUR_USD" onNewEntry={noop} />
+          <PlanAnalyzeCard state={state} instrument="EUR_USD" price={1.12292} onNewEntry={noop} />
         </div>
       ))}
       <PlanMascot chartInstrument="EUR_USD" hidden={false} fixture={watchingPair()} />

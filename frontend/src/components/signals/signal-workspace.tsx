@@ -4672,7 +4672,7 @@ export function SignalWorkspace({
         />
         {/* Phones get the Analyze result as a bottom sheet; desktop shows it as
           the first card in the chart's side column (see nl-chart-side). */}
-      {wideChart ? null : <PlanAnalyzeSheet state={planAnalyze} instrument={instrument} />}
+      {wideChart ? null : <PlanAnalyzeSheet state={planAnalyze} instrument={instrument} price={quote ? (quote.bid + quote.ask) / 2 : null} />}
         {pendingEntryDialogOpen ? <PendingEntryDialog
           key={`${selectedPendingEntry?.id ?? "new-pending-entry"}:${entryComposerRevision}`}
           open={pendingEntryDialogOpen}
@@ -5111,6 +5111,7 @@ export function SignalWorkspace({
               <PlanAnalyzeCard
                 state={planAnalyze}
                 instrument={instrument}
+                price={quote ? (quote.bid + quote.ask) / 2 : null}
                 onNewEntry={() => {
                   setEntryDraftProposal(null);
                   openPendingEntryManager(null);
@@ -5164,7 +5165,7 @@ export function SignalWorkspace({
         onDismiss={() => setManualProposal(null)}
         onAccept={acceptManualProposal}
       />
-      {wideChart ? null : <PlanAnalyzeSheet state={planAnalyze} instrument={instrument} />}
+      {wideChart ? null : <PlanAnalyzeSheet state={planAnalyze} instrument={instrument} price={quote ? (quote.bid + quote.ask) / 2 : null} />}
 
       {fullscreen ? (
         <ChartFullscreenView

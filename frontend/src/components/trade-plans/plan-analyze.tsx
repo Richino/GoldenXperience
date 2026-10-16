@@ -4,10 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Ban, CheckCircle2, Circle, X, XCircle } from "lucide-react";
 import { AnalyzeIcon } from "@/components/icons/analyze-icon";
-import { displayNameFor, precisionFor } from "@/lib/instruments/catalog";
+import { displayNameFor, pipSizeFor, precisionFor } from "@/lib/instruments/catalog";
 import { useDragToDismiss } from "@/lib/use-drag-to-dismiss";
 import {
-  SETUP_LABEL,
   STATUS_LABEL,
   tradePlansApi,
   type ConditionStatus,
@@ -23,6 +22,9 @@ import styles from "./plan-analyze.module.css";
  * shown; the server then watches both zones and, when one side confirms,
  * cancels the other — one trade per pair. Afterwards Analyze shows the
  * plans being watched, and the mascot narrates them.
+ *
+ * The plans are drawn as a small price axis: the higher zone on top, the
+ * live price as a line between them, so it reads like the chart.
  */
 
 export const TRADE_PLANS_CHANGED = "gx-trade-plans-changed";
@@ -125,34 +127,68 @@ function ConditionIcon({ status }: { status: ConditionStatus }) {
   return <Circle className={`size-3.5 ${styles.waiting}`} aria-hidden="true" />;
 }
 
-export function PlanBlock({ plan, watching }: { plan: TradePlan; watching: boolean }) {
+/** What the setup is, in the trader's words. */
+function setupName(plan: TradePlan) {
+  const buy = plan.direction === "BUY";
+  if (plan.setupType === "SR_REVERSAL") return buy ? "Bounce off support" : "Rejection at resistance";
+  return buy ? "Break above, then retest" : "Break below, then retest";
+}
+
+/** What has to happen before the entry, in one line. */
+function triggerLine(plan: TradePlan) {
+  return plan.setupType === "SR_REVERSAL"
+    ? `Enters after a rejection (or a sweep that is reclaimed) and an M15 break ${plan.direction === "BUY" ? "up" : "down"}.`
+    : "Enters after an H1 close through the zone, a retest that holds, and an M15 continuation.";
+}
+
+/** Highest zone first, so the stack reads like the chart's price axis. */
+const byZone = (plans: TradePlan[]) => [...plans].sort((a, b) => b.entryZoneHigh - a.entryZoneHigh);
+
+function distance(plan: TradePlan, price: number | null) {
+  if (price === null) return null;
+  if (price >= plan.entryZoneLow && price <= plan.entryZoneHigh) return "in the zone";
+  const above = plan.entryZoneLow > price;
+  const pips = Math.round((above ? plan.entryZoneLow - price : price - plan.entryZoneHigh) / pipSizeFor(plan.instrument));
+  return `${pips} pips ${above ? "above" : "below"}`;
+}
+
+export function PlanBlock({ plan, watching, price = null }: { plan: TradePlan; watching: boolean; price?: number | null }) {
   const digits = precisionFor(plan.instrument);
-  const price = (value: number | null) => (value === null ? "—" : value.toFixed(digits));
+  const fmt = (value: number | null) => (value === null ? "—" : value.toFixed(digits));
   const proposal = plan.monitorState?.proposal ?? null;
   const confirmed = plan.status === "CONFIRMED" || plan.status === "NOTIFIED";
+  const away = distance(plan, price ?? plan.lastPrice);
+  const met = plan.conditions.filter((item) => item.status === "PASSED").length;
   return (
-    <section className={styles.plan} data-side={plan.direction}>
+    <section className={styles.plan} data-side={plan.direction} aria-label={`${plan.direction} plan`}>
       <header className={styles.planHead}>
         <span className={styles.side}>{plan.direction}</span>
-        <span className={styles.setup}>{SETUP_LABEL[plan.setupType]}</span>
-        <span className={styles.rr}>{plan.rewardRisk?.toFixed(2) ?? "—"}R</span>
+        <span className={styles.setup}>{setupName(plan)}</span>
+        <span className={styles.rr} title="Reward to risk">{plan.rewardRisk?.toFixed(1) ?? "—"}R</span>
       </header>
+      <div className={styles.zoneRow}>
+        <span className={styles.zone}>
+          {fmt(plan.entryZoneLow)}<span aria-hidden="true"> – </span><span className="sr-only"> to </span>{fmt(plan.entryZoneHigh)}
+        </span>
+        {away ? <span className={styles.away}>{away}</span> : null}
+      </div>
       <dl className={styles.levels}>
-        <div><dt>Zone</dt><dd>{price(plan.entryZoneLow)}–{price(plan.entryZoneHigh)}</dd></div>
-        <div><dt>Stop</dt><dd>{price(plan.stopLoss)}</dd></div>
-        <div><dt>Target</dt><dd>{price(plan.takeProfit)}</dd></div>
+        <div><dt>Stop</dt><dd>{fmt(plan.stopLoss)}</dd></div>
+        <div><dt>Target</dt><dd>{fmt(plan.takeProfit)}</dd></div>
       </dl>
-      {watching ? (
-        <p className={confirmed ? styles.ready : styles.status}>
-          {confirmed && proposal
-            ? `Confirmed — enter near ${price(proposal.entry)}, stop ${price(proposal.stopLoss)}, target ${price(proposal.takeProfit)}.`
-            : plan.notTriggeredReason ?? `${STATUS_LABEL[plan.status]} — first check within a minute.`}
+      {watching && confirmed && proposal ? (
+        <p className={styles.ready}>Confirmed. Enter near {fmt(proposal.entry)}.</p>
+      ) : watching ? (
+        <p className={styles.note}>
+          {plan.monitorStage === "WAITING_FOR_ZONE"
+            ? "Waiting for price to reach the zone."
+            : plan.notTriggeredReason ?? `${STATUS_LABEL[plan.status]}. First check within a minute.`}
         </p>
       ) : (
-        <p className={styles.why}>{plan.plan.explanation?.[0]}</p>
+        <p className={styles.note}>{triggerLine(plan)}</p>
       )}
       <details className={styles.details}>
-        <summary>What has to happen</summary>
+        <summary>{watching ? `Conditions · ${met} of ${plan.conditions.length} met` : `Conditions (${plan.conditions.length})`}</summary>
         <ul className={styles.checks}>
           {plan.conditions.map((item) => (
             <li key={item.key}>
@@ -161,6 +197,7 @@ export function PlanBlock({ plan, watching }: { plan: TradePlan; watching: boole
             </li>
           ))}
         </ul>
+        {plan.plan.explanation?.[0] ? <p className={styles.fine}>{plan.plan.explanation[0]}</p> : null}
         {plan.plan.invalidation?.rules?.length ? <p className={styles.fine}>Cancelled if: {plan.plan.invalidation.rules.join(" ")}</p> : null}
         <p className={styles.fine}>Valid until {clock(plan.expiresAt)} · risk {plan.maxRiskPercent}%</p>
       </details>
@@ -168,9 +205,47 @@ export function PlanBlock({ plan, watching }: { plan: TradePlan; watching: boole
   );
 }
 
-function PlanAnalyzeBody({ state, instrument, titleId, onClose, onNewEntry }: {
+/** The plans stacked like a price axis, with today's price as a line between the zones. */
+function Ladder({ plans, price, watching }: { plans: TradePlan[]; price: number | null; watching: boolean }) {
+  const ordered = byZone(plans);
+  const now = price ?? plans.find((plan) => plan.lastPrice !== null)?.lastPrice ?? null;
+  const digits = precisionFor(plans[0]!.instrument);
+  // The price line sits under every zone that is above price.
+  const split = now === null ? ordered.length : ordered.filter((plan) => plan.entryZoneLow > now).length;
+  const line = (
+    <div className={styles.now} key="now" aria-label={now === null ? "Live price unavailable" : `Price now ${now.toFixed(digits)}`}>
+      <span className={styles.nowPrice}>{now === null ? "price —" : now.toFixed(digits)}</span>
+    </div>
+  );
+  const blocks = ordered.map((plan) => <PlanBlock key={plan.id} plan={plan} watching={watching} price={now} />);
+  return <div className={styles.ladder}>{[...blocks.slice(0, split), line, ...blocks.slice(split)]}</div>;
+}
+
+function ModeSwitch({ mode, onChange, name }: { mode: MonitoringMode; onChange: (mode: MonitoringMode) => void; name: string }) {
+  return (
+    <fieldset className={styles.modeField}>
+      <legend className="sr-only">When a plan confirms</legend>
+      <div className={styles.segmented}>
+        {([["NOTIFY", "Alert me"], ["AUTO", "GX places it"]] as const).map(([value, label]) => (
+          <label key={value} className={styles.segment}>
+            <input type="radio" name={name} value={value} checked={mode === value} onChange={() => onChange(value)} />
+            <span>{label}</span>
+          </label>
+        ))}
+      </div>
+      <p className={styles.modeHint}>
+        {mode === "NOTIFY"
+          ? "You get an alert with the entry, stop and target, and place the trade yourself."
+          : "GX places the trade on your OANDA practice account once every check passes."}
+      </p>
+    </fieldset>
+  );
+}
+
+function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntry }: {
   state: PlanAnalyzeState;
   instrument: string;
+  price: number | null;
   titleId: string;
   onClose?: () => void;
   onNewEntry?: () => void;
@@ -188,10 +263,11 @@ function PlanAnalyzeBody({ state, instrument, titleId, onClose, onNewEntry }: {
   if (phase.kind === "analyzing") {
     return (
       <div className="nl-an-body" aria-busy="true">
-        {top(`Analyzing ${pair}…`)}
-        <span className="nl-an-skel nl-an-skel-title" id={titleId} />
+        {top(`Reading ${pair}…`)}
+        <h2 id={titleId} className="sr-only">Analyzing {pair}</h2>
         <span className="nl-an-skel nl-an-skel-grid" />
-        <span className="nl-an-skel nl-an-skel-line" />
+        <span className="nl-an-skel nl-an-skel-line is-short" />
+        <span className="nl-an-skel nl-an-skel-grid" />
       </div>
     );
   }
@@ -203,11 +279,11 @@ function PlanAnalyzeBody({ state, instrument, titleId, onClose, onNewEntry }: {
       return (
         <div className="nl-an-body">
           {top(`Analyze · ${pair}`)}
-          <h2 id={titleId} className="nl-an-decision">No valid setup right now</h2>
+          <h2 id={titleId} className={styles.quietTitle}>No setup worth watching right now</h2>
           <ul className={styles.rejected}>
             {result.rejected.map((item) => <li key={`${item.direction}-${item.setupType}`}><strong>{item.direction}</strong> {item.reason}</li>)}
           </ul>
-          <div className="nl-an-actions is-card">
+          <div className={styles.footer}>
             <button type="button" className="nl-an-secondary pressable" onClick={state.dismiss}>Close</button>
           </div>
         </div>
@@ -216,50 +292,34 @@ function PlanAnalyzeBody({ state, instrument, titleId, onClose, onNewEntry }: {
     return (
       <div className="nl-an-body">
         {top(`Analyze · ${pair}`)}
-        <h2 id={titleId} className="nl-an-decision">
-          {plans.length === 2 ? "Two plans: BUY and SELL" : `One plan: ${plans[0]!.direction}`}
-        </h2>
-        <p className={styles.lede}>
-          {plans.length === 2
-            ? "Accept watches both zones. Whichever side confirms first wins; the other plan is cancelled."
-            : "Accept watches this zone until it confirms, fails or expires."}
-        </p>
-        {plans.map((plan) => <PlanBlock key={plan.id} plan={plan} watching={false} />)}
-        <div className={styles.modes} role="radiogroup" aria-label="When a plan confirms">
-          <label className={styles.mode}>
-            <input type="radio" name={`plan-mode-${titleId}`} checked={mode === "NOTIFY"} onChange={() => setMode("NOTIFY")} />
-            <span><strong>Alert me</strong><small>You place the trade yourself.</small></span>
-          </label>
-          <label className={styles.mode}>
-            <input type="radio" name={`plan-mode-${titleId}`} checked={mode === "AUTO"} onChange={() => setMode("AUTO")} />
-            <span><strong>GX places it</strong><small>OANDA practice account, after every check passes.</small></span>
-          </label>
-        </div>
+        <h2 id={titleId} className="sr-only">{pair} plans</h2>
+        <Ladder plans={plans} price={price} watching={false} />
+        <ModeSwitch mode={mode} onChange={setMode} name={`plan-mode-${titleId}`} />
         {state.actionError ? <p className={styles.error} role="alert">{state.actionError}</p> : null}
-        <div className="nl-an-actions is-card">
-          <button type="button" className="nl-an-secondary pressable" disabled={state.busy} onClick={state.dismiss}>Not now</button>
-          <button type="button" className="nl-an-primary pressable" disabled={state.busy} onClick={() => state.accept(mode)}>
+        <div className={styles.footer}>
+          <button type="button" className={`nl-an-primary pressable ${styles.accept}`} disabled={state.busy} onClick={() => state.accept(mode)}>
             {state.busy ? "Accepting…" : plans.length === 2 ? "Accept both" : "Accept"}
           </button>
+          <button type="button" className={styles.textButton} disabled={state.busy} onClick={state.dismiss}>Not now</button>
         </div>
+        {plans.length === 2 ? <p className={styles.footnote}>The first side to confirm wins; the other plan is cancelled.</p> : null}
       </div>
     );
   }
 
   if (active.length) {
+    const auto = active[0]!.monitoringMode === "AUTO";
     return (
       <div className="nl-an-body">
         {top(`Watching · ${pair}`)}
-        <h2 id={titleId} className="nl-an-decision">
-          {active.some((plan) => plan.status === "NOTIFIED" || plan.status === "CONFIRMED") ? "A plan confirmed" : `Watching ${active.length === 2 ? "both zones" : "the zone"}`}
-        </h2>
-        <p className={styles.lede}>
-          {active[0]!.monitoringMode === "AUTO" ? "GX places the trade on your practice account when a plan confirms." : "You get an alert when a plan confirms; the trade is yours to place."}
-          {active.length === 2 ? " Whichever side confirms first cancels the other." : ""}
+        <h2 id={titleId} className="sr-only">Watching {pair}</h2>
+        <Ladder plans={active} price={price} watching />
+        <p className={styles.footnote}>
+          {auto ? "GX places the trade on your practice account when a plan confirms." : "You get an alert when a plan confirms."}
+          {active.length === 2 ? " The first side to confirm cancels the other." : ""}
         </p>
-        {active.map((plan) => <PlanBlock key={plan.id} plan={plan} watching />)}
         {state.actionError ? <p className={styles.error} role="alert">{state.actionError}</p> : null}
-        <div className="nl-an-actions is-card">
+        <div className={styles.footer}>
           <button type="button" className="nl-an-secondary pressable" disabled={state.busy} onClick={state.stopWatching}>
             {state.busy ? "Stopping…" : "Stop watching"}
           </button>
@@ -286,16 +346,21 @@ function PlanAnalyzeBody({ state, instrument, titleId, onClose, onNewEntry }: {
 }
 
 /** Desktop: the first card in the chart's side column. */
-export function PlanAnalyzeCard({ state, instrument, onNewEntry }: { state: PlanAnalyzeState; instrument: string; onNewEntry: () => void }) {
+export function PlanAnalyzeCard({ state, instrument, price = null, onNewEntry }: {
+  state: PlanAnalyzeState;
+  instrument: string;
+  price?: number | null;
+  onNewEntry: () => void;
+}) {
   return (
     <section className="nl-an-card" aria-labelledby="plan-analyze-card-title">
-      <PlanAnalyzeBody state={state} instrument={instrument} titleId="plan-analyze-card-title" onNewEntry={onNewEntry} />
+      <PlanAnalyzeBody state={state} instrument={instrument} price={price} titleId="plan-analyze-card-title" onNewEntry={onNewEntry} />
     </section>
   );
 }
 
 /** Phone: a bottom sheet over the dimmed chart; drag the grip to dismiss. */
-export function PlanAnalyzeSheet({ state, instrument }: { state: PlanAnalyzeState; instrument: string }) {
+export function PlanAnalyzeSheet({ state, instrument, price = null }: { state: PlanAnalyzeState; instrument: string; price?: number | null }) {
   const { open } = state;
   const close = state.analyzing ? state.cancel : () => state.setOpen(false);
   const { setSheet, setBackdrop, handlers, requestClose } = useDragToDismiss({ open, onDismiss: close, handleSelector: ".nl-an-grip, .nl-an-top" });
@@ -305,7 +370,7 @@ export function PlanAnalyzeSheet({ state, instrument }: { state: PlanAnalyzeStat
       onMouseDown={(event) => { if (event.target === event.currentTarget) requestClose(); }}>
       <section ref={setSheet} className="nl-an-sheet" role="dialog" aria-modal="true" aria-labelledby="plan-analyze-sheet-title" {...handlers}>
         <div className="nl-an-grip" aria-hidden="true" />
-        <PlanAnalyzeBody state={state} instrument={instrument} titleId="plan-analyze-sheet-title" onClose={requestClose} />
+        <PlanAnalyzeBody state={state} instrument={instrument} price={price} titleId="plan-analyze-sheet-title" onClose={requestClose} />
       </section>
     </div>,
     document.body,

@@ -62,6 +62,7 @@ import { parseExplanationFacts } from "../../frontend/src/lib/strategy/analyze-v
 import { runTradeMonitor } from "./trade-monitor-service.js";
 import { acceptPullbackSignal, pullbackAutomationForUser, rejectPullbackSignal, runPullbackAutomations, setPullbackAutomation } from "./pullback-automation.js";
 import { createPlannedSetup, evaluatePlannedSetup, evaluateActivePlannedSetups } from "./planned-setup-service.js";
+import { TradePlanError, approveTradePlan, cancelTradePlan, getTradePlan, listTradePlans, pauseTradePlan, rejectTradePlan, resumeTradePlan } from "./trade-plans.js";
 import {
   activateDuePendingManualEntries,
   cancelPendingManualEntry,
@@ -247,6 +248,18 @@ async function body(request: IncomingMessage) {
 function sessionCookie(token: string, expires: Date) {
   const domain = process.env.SESSION_COOKIE_DOMAIN?.trim();
   return `${cookieName}=${token}; Path=/; HttpOnly; SameSite=Strict; ${domain ? `Domain=${domain}; ` : ""}${process.env.NODE_ENV === "production" ? "Secure; " : ""}Expires=${expires.toUTCString()}`;
+}
+
+/** Trade plan routes: TradePlanError carries its status; a DB-refused transition is a 409. */
+async function tradePlanResponse(request: IncomingMessage, response: ServerResponse, run: () => Promise<unknown>) {
+  try {
+    return json(request, response, await run());
+  } catch (error) {
+    if (error instanceof TradePlanError) return json(request, response, { error: error.message }, error.statusCode);
+    if ((error as { code?: string })?.code === "23514") return json(request, response, { error: "That status change is not allowed." }, 409);
+    console.error("[trade-plans] request failed", error);
+    return json(request, response, { error: "Trade plan request failed." }, 500);
+  }
 }
 
 async function requireOwner(request: IncomingMessage, response: ServerResponse) {
@@ -443,6 +456,29 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       } catch (error) {
         return json(request, response, { error: error instanceof Error ? error.message : "Monitoring could not run." }, 502);
       }
+    }
+    if (url.pathname === "/api/trade-plans" && request.method === "GET") {
+      const instrument = url.searchParams.get("instrument")?.toUpperCase();
+      if (instrument && !isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
+      return tradePlanResponse(request, response, async () => ({ plans: await listTradePlans(user.id, url.searchParams.get("filter") ?? "all", instrument) }));
+    }
+    const tradePlanMatch = url.pathname.match(/^\/api\/trade-plans\/([0-9a-f-]{36})(?:\/(approve|reject|cancel|pause|resume))?$/i);
+    if (tradePlanMatch && !tradePlanMatch[2] && request.method === "GET") {
+      return tradePlanResponse(request, response, () => getTradePlan(user.id, tradePlanMatch[1]!));
+    }
+    if (tradePlanMatch?.[2] && request.method === "POST") {
+      const planId = tradePlanMatch[1]!;
+      const payload = await body(request);
+      const reason = typeof payload?.reason === "string" ? payload.reason.slice(0, 500) : undefined;
+      return tradePlanResponse(request, response, () => {
+        switch (tradePlanMatch[2]!.toLowerCase()) {
+          case "approve": return approveTradePlan(user.id, planId, { planVersion: Number(payload?.planVersion), mode: payload?.mode as "NOTIFY" | "AUTO" });
+          case "reject": return rejectTradePlan(user.id, planId, reason);
+          case "cancel": return cancelTradePlan(user.id, planId, reason);
+          case "pause": return pauseTradePlan(user.id, planId);
+          default: return resumeTradePlan(user.id, planId);
+        }
+      });
     }
     if (url.pathname === "/api/automate" && request.method === "GET") {
       const instrument = url.searchParams.get("instrument")?.toUpperCase();

@@ -43,6 +43,8 @@
     "analyze:compare-normal": "tsx scripts/compare-normal-hierarchy.ts",
     "paper-cycle:test": "tsx scripts/test-paper-cycle.ts",
     "pending-entry:test": "tsx scripts/test-pending-manual-entries.ts",
+    "trade-plans:test": "tsx scripts/test-trade-plan-state.ts",
+    "trade-plans:db-check": "tsx scripts/check-trade-plans-db.ts",
     "evaluations:test": "tsx scripts/test-evaluation-upsert.ts",
     "momentum-inversion:test": "tsx scripts/test-momentum-short-inversion.ts",
     "momentum-flip:test": "tsx scripts/test-momentum-inversion.ts",

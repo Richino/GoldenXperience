@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { buildCalendarSnapshot, parseReleaseValue, surpriseOf } from "../src/intelligence/calendar-snapshot.js";
-import { canonicalUrl, validateReport } from "../src/intelligence/research-report.js";
+import { canonicalUrl, plainText, validateReport } from "../src/intelligence/research-report.js";
 import { collectSources, estimateCost, runResearch, type TechnicalSummary } from "../src/intelligence/openai-research.js";
 import { budgetVerdict, researchFreshness, researchSettings } from "../src/intelligence/research-service.js";
 import { attachIntelligence } from "../src/trade-plan-service.js";
@@ -108,6 +108,12 @@ await test("invented citations are dropped; repeats of one event count once; fac
   assert.ok(reasons.includes("URL was not returned by the web search"));
   assert.ok(reasons.includes("duplicate report of the same event"));
   assert.ok(reasons.includes("no citation returned by the web search"));
+});
+
+await test("inline markdown citations are stripped from text (sources are shown as links)", () => {
+  assert.equal(plainText("Dollar fell after CPI. ([aol.com](https://www.aol.com/articles/x))"), "Dollar fell after CPI.");
+  assert.equal(plainText("See [Reuters](https://reuters.com/a) for more"), "See Reuters for more");
+  assert.equal(plainText("No links here."), "No links here.");
 });
 
 await test("an answer with no surviving evidence cannot claim a direction", () => {

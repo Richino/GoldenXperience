@@ -138,7 +138,20 @@ const ENUMS = {
   stance: ["POSITIONING", "BULLISH_CALL", "BEARISH_CALL", "NEUTRAL", "SPECULATION"],
 };
 
-const text = (value: unknown, max = 600) => (typeof value === "string" ? value.trim().slice(0, max) : "");
+/**
+ * Plain text for display. Some models inline markdown citations such as
+ * "([reuters.com](https://…))"; the sources are shown as links already, so
+ * those are removed (a bare [label](url) keeps its label).
+ */
+export function plainText(value: string) {
+  return value
+    .replace(/\s*\(\s*\[[^\]]*\]\([^)]*\)\s*\)/g, "")
+    .replace(/\[([^\]]+)\]\((?:https?:)?[^)]*\)/g, "$1")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([.,;:])/g, "$1")
+    .trim();
+}
+const text = (value: unknown, max = 600) => (typeof value === "string" ? plainText(value).slice(0, max) : "");
 const oneOf = <T extends string>(value: unknown, allowed: string[], fallback: T): T => (typeof value === "string" && allowed.includes(value) ? value as T : fallback);
 
 const STOP_WORDS = new Set(["says", "said", "after", "amid", "with", "from", "that", "this", "will", "into", "over", "the", "and", "for"]);

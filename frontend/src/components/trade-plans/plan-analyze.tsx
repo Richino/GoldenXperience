@@ -22,6 +22,7 @@ import {
 import styles from "./plan-analyze.module.css";
 import { MarketRead, PlanEvidence, type ResearchState } from "./market-read";
 import { PlanConfirm, type PlanConfirmRequest } from "@/components/dashboard/plan-confirm";
+import { splitShared } from "@/components/dashboard/ledger-plans";
 
 /**
  * The chart's Analyze (swing trades, 2–5 day holds): one press reads D1/H4/H1 and returns a BUY and a
@@ -328,6 +329,11 @@ export function PlanBlock({ plan, watching, price = null, report = null }: { pla
   const mid = (plan.entryZoneLow + plan.entryZoneHigh) / 2;
   const risk = plan.stopLoss === null ? 0 : Math.abs(mid - plan.stopLoss);
   const reward = plan.takeProfit === null ? 0 : Math.abs(plan.takeProfit - mid);
+  const readiness = plan.plan.entryReadiness;
+  const shortOfReward = readiness?.status === "WAITING_FOR_RISK_REWARD" && !confirmed && plan.status !== "FILLED";
+  const low = fmt(plan.entryZoneLow);
+  const high = fmt(plan.entryZoneHigh);
+  const { shared, rest } = splitShared(low, high);
   return (
     <section className={styles.plan} data-side={plan.direction} aria-label={`${plan.direction} plan`}>
       <header className={styles.planHead}>
@@ -336,10 +342,10 @@ export function PlanBlock({ plan, watching, price = null, report = null }: { pla
         {away ? <span className={styles.away}>{away}</span> : null}
       </header>
       <div className={styles.zoneRow}>
-        <span className={styles.zone}>
-          {fmt(plan.entryZoneLow)}<span className={styles.dash} aria-hidden="true">–</span><span className="sr-only"> to </span>{fmt(plan.entryZoneHigh)}
+        <span className={styles.zone} aria-label={`${low} to ${high}`}>
+          <span aria-hidden="true">{low}<span className={styles.dash}>–</span>{shared ? <span className={styles.shared}>{shared}</span> : null}{rest}</span>
         </span>
-        <span className={styles.rr} title="Reward to risk">{plan.rewardRisk?.toFixed(1) ?? "—"}<small>R</small></span>
+        <span className={styles.rr} data-short={shortOfReward || undefined} title="Reward to risk">{plan.rewardRisk?.toFixed(1) ?? "—"}<small>R</small></span>
       </div>
       {risk > 0 && reward > 0 ? (
         <div className={styles.bar} aria-hidden="true">
@@ -349,11 +355,13 @@ export function PlanBlock({ plan, watching, price = null, report = null }: { pla
         </div>
       ) : null}
       <dl className={styles.levels}>
-        <div><dt>Stop</dt><dd>{fmt(plan.stopLoss)}</dd></div>
-        <div><dt>Target</dt><dd>{fmt(plan.takeProfit)}</dd></div>
+        <div><dt>Stop</dt><dd data-kind="stop">{fmt(plan.stopLoss)}</dd></div>
+        <div><dt>Target</dt><dd data-kind="target">{fmt(plan.takeProfit)}</dd></div>
       </dl>
-      {plan.plan.entryReadiness?.status === "WAITING_FOR_RISK_REWARD" && !confirmed && plan.status !== "FILLED" ? (
-        <p className={styles.note}>{plan.plan.entryReadiness.reason}</p>
+      {shortOfReward && readiness ? (
+        <p className={styles.rrNote} title={readiness.reason}>
+          Needs {readiness.minRewardRisk}R at entry · about {readiness.estimatedRewardRisk.toFixed(1)}R from the zone now
+        </p>
       ) : null}
       {watching && plan.status === "FILLED" ? (
         <p className={styles.ready}>In the trade (Auto trade). OANDA holds the stop and target.</p>
@@ -371,7 +379,7 @@ export function PlanBlock({ plan, watching, price = null, report = null }: { pla
             : plan.notTriggeredReason ?? `${STATUS_LABEL[plan.status]}. First check within a minute.`}
         </p>
       ) : (
-        <p className={styles.note}>{triggerLine(plan)}</p>
+        <p className={styles.note}><span className={styles.noteLabel}>How it enters</span>{triggerLine(plan)}</p>
       )}
       {watching ? (
         <ul className={styles.progress}>

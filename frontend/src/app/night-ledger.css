@@ -9626,3 +9626,28 @@ html:is(.dark, :not(.dark)) body .pending-entry-backdrop[data-keyboard-open="tru
 .nl-plan-bottom .nl-plan-cta.is-primary {
   box-shadow: 0 1px 0 color-mix(in srgb, var(--foreground) 12%, transparent);
 }
+
+/* ============================================================ NEWS MODE TICKET
+   news-straddle-ticket.tsx: the release picker and the plain-words note on
+   how the two lines fire, in the ticket's own tokens. */
+html:is(.dark, :not(.dark)) body .nl-pe-release {
+  min-width: 0;
+  max-width: min(100%, 22rem);
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: var(--foreground);
+  font-size: 13px;
+  text-overflow: ellipsis;
+}
+@media (max-width: 639px) {
+  html:is(.dark, :not(.dark)) body .nl-pe-release { height: 44px; font-size: 16px; }
+}
+.nl-pe-news-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}

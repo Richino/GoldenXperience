@@ -3699,11 +3699,14 @@ export function SignalWorkspace({
     }) : null,
     [openSignal, focusTrade, openPaperTrade, triggeredManualEntry],
   );
+  // A News-mode setup is two linked lines; selecting either draws both.
+  const selectedStraddleId = typeof selectedPairTrade?.metadata?.straddleId === "string" ? selectedPairTrade.metadata.straddleId : null;
   const pendingEntryReferenceLines = useMemo(() => {
     const openManager = (entry: PendingManualEntry) => {
       openPendingEntryManager(entry);
     };
-    return pendingEntries.filter((entry) => entry.id === selectedPairTrade?.id).flatMap((entry) => {
+    return pendingEntries.filter((entry) => entry.id === selectedPairTrade?.id
+      || (selectedStraddleId !== null && entry.status === "PENDING" && entry.metadata?.straddleId === selectedStraddleId)).flatMap((entry) => {
       if (entry.status === "PENDING" || entry.status === "TRIGGERING") {
         const editingLevels = levelDraftEntryId === entry.id;
         const remaining = entry.expiresAt
@@ -3716,7 +3719,7 @@ export function SignalWorkspace({
         const lines: ChartReferenceLine[] = [{
           key: `pending-${entry.id}`,
           price: entry.entryPrice,
-          label: `${entry.direction.toUpperCase()} ENTRY ${formatChartPrice(entry.entryPrice, instrument)}${countdown}`,
+          label: `${entry.metadata?.mode === "news" ? (entry.direction === "long" ? "NEWS BUY ABOVE" : "NEWS SELL BELOW") : `${entry.direction.toUpperCase()} ENTRY`} ${formatChartPrice(entry.entryPrice, instrument)}${countdown}`,
           color: entry.direction === "long" ? "#00b377" : "#e67e22",
           textColor: "#ffffff",
           dashed: false,
@@ -3784,7 +3787,7 @@ export function SignalWorkspace({
       }
       return [];
     });
-  }, [instrument, levelDraftEntryId, pendingEntries, pendingEntryClock, selectedPairTrade?.id]);
+  }, [instrument, levelDraftEntryId, pendingEntries, pendingEntryClock, selectedPairTrade?.id, selectedStraddleId]);
   const supportResistanceReferenceLines = useMemo(
     () => isChartIndicatorEnabled(enabledIndicators, "support-resistance")
       ? supportResistanceLines(chartIndicatorCandles, instrument)

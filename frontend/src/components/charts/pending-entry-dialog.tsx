@@ -10,6 +10,7 @@ import { displayNameFor, pipSizeFor, precisionFor } from "@/lib/instruments/cata
 import type { PendingManualEntry } from "@/types/pending-entry";
 import { NewsWarning } from "@/components/charts/news-warning";
 import { usePairTrend } from "@/components/charts/trend-label";
+import { NewsStraddleTicket } from "@/components/charts/news-straddle-ticket";
 
 type ExpirationPreset = "none" | "30m" | "1h" | "4h" | "custom";
 
@@ -127,6 +128,8 @@ export function PendingEntryDialog({
     };
   }, [isPanel, open]);
   const [editing, setEditing] = useState(false);
+  // Normal is the usual ticket; News arms a two-line breakout for a release.
+  const [ticketMode, setTicketMode] = useState<"normal" | "news">("normal");
   // A blank entry has no direction until the user picks one, so a form that
   // lost its Analyze plan (e.g. a reload) can never submit a default LONG.
   const [direction, setDirection] = useState<"long" | "short" | null>(selectedEntry?.direction ?? initialProposal?.direction ?? null);
@@ -514,6 +517,20 @@ export function PendingEntryDialog({
     }
   }
 
+  const newsSetup = selectedEntry?.metadata?.mode === "news" ? selectedEntry.metadata as { upperLine?: number; lowerLine?: number; stopPips?: number; targetPips?: number; slippagePips?: number; spreadCapPips?: number; closeAfterMinutes?: number } : null;
+  const modeSwitch = !selectedEntry ? (
+    <div className="nl-pe-submit">
+      <span>Mode</span>
+      <div className="nl-an-modes" role="radiogroup" aria-label="Ticket mode">
+        {(["normal", "news"] as const).map((mode) => (
+          <button key={mode} type="button" role="radio" aria-checked={ticketMode === mode} className={ticketMode === mode ? "is-active" : ""} onClick={() => { setTicketMode(mode); setError(null); }}>
+            {mode === "normal" ? "Normal" : "News"}
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : null;
+
   const headerEyebrow = isDetail
     ? selectedEntry?.status
     : selectedEntry
@@ -590,16 +607,19 @@ export function PendingEntryDialog({
               <div><dt>Created</dt><dd>{new Date(selectedEntry.createdAt).toLocaleString()}</dd></div>
               {selectedEntry.stopPrice !== null ? <div><dt>Stop</dt><dd>{selectedEntry.stopPrice.toFixed(precision)}</dd></div> : null}
               {selectedEntry.targetPrice !== null ? <div><dt>Target</dt><dd>{selectedEntry.targetPrice.toFixed(precision)}</dd></div> : null}
+              {newsSetup ? <div><dt>News setup</dt><dd>buy above {newsSetup.upperLine?.toFixed(precision) ?? "—"} · sell below {newsSetup.lowerLine?.toFixed(precision) ?? "—"}</dd></div> : null}
+              {newsSetup ? <div><dt>From the fill</dt><dd>stop {newsSetup.stopPips}p · target {newsSetup.targetPips}p · max slippage {newsSetup.slippagePips}p{newsSetup.closeAfterMinutes ? ` · closes after ${newsSetup.closeAfterMinutes}m` : ""}</dd></div> : null}
             </dl>
+            {newsSetup && selectedEntry.status === "PENDING" ? <p className="nl-pe-news-note">The first line crossed sends one order and drops the other. Cancelling cancels both lines.</p> : null}
             {error ? <p className="pending-entry-error">{error}</p> : null}
           </div>
           {selectedEntry.status === "PENDING" ? (
             <footer className="pending-entry-actions">
-              <button type="button" className="pending-entry-danger pressable" disabled={saving} onClick={() => void cancelEntry()}>Cancel Entry</button>
-              <button type="button" className="pending-entry-primary pressable" onClick={() => {
+              <button type="button" className="pending-entry-danger pressable" disabled={saving} onClick={() => void cancelEntry()}>{newsSetup ? "Cancel both lines" : "Cancel Entry"}</button>
+              {newsSetup ? null : <button type="button" className="pending-entry-primary pressable" onClick={() => {
                 setOrderReferencePrice(current);
                 setEditing(true);
-              }}>Edit Entry</button>
+              }}>Edit Entry</button>}
             </footer>
           ) : isPanel ? (
             <footer className="pending-entry-actions">
@@ -670,6 +690,19 @@ export function PendingEntryDialog({
             </button>
           </footer>
         </>
+      ) : ticketMode === "news" && !selectedEntry ? (
+        <NewsStraddleTicket
+          header={modeSwitch}
+          instrument={instrument}
+          bid={bid}
+          ask={ask}
+          creationBlocked={creationBlocked}
+          onCancel={dismissCreateOrClose}
+          onArmed={(message) => {
+            onChanged(message);
+            onClose();
+          }}
+        />
       ) : (
         <>
           {/* The manual ticket in the plan's layout: side, the three levels in
@@ -677,6 +710,7 @@ export function PendingEntryDialog({
               cancel level are not offered (none / now / none); an entry being
               edited keeps whatever it already had. */}
           <div className="nl-pe-plan nl-pe-ticket">
+            {modeSwitch}
             <div className="nl-pe-dir" role="radiogroup" aria-label="Direction">
               {(["long", "short"] as const).map((option) => (
                 <button

@@ -84,6 +84,7 @@ import {
   resolveOpenManualTrades,
   reconcileManualOandaOrders,
 } from "./pending-manual-entries.js";
+import { armNewsStraddle, evaluateNewsStraddles, markNewsStraddleArmed, newsStraddleMayBeArmed, sweepNewsStraddles } from "./news-straddle.js";
 
 // The multi-strategy + adaptive engine replaces the single liquidity strategy as
 // the active forex collector. Default on; set MULTISTRATEGY_ENABLED=false to roll
@@ -629,6 +630,25 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
         return json(request, response, { entry }, 201);
       } catch (error) {
         return json(request, response, { error: error instanceof Error ? error.message : "Could not create the pending entry." }, 400);
+      }
+    }
+    // News mode: arm a two-line breakout (buy above, sell below) for a release.
+    if (url.pathname === "/api/pending-entries/news" && request.method === "POST") {
+      if (!pendingEntryMonitoringEnabled) return json(request, response, { error: "Pending-entry monitoring is disabled on this API instance." }, 503);
+      const payload = await body(request);
+      const instrument = typeof payload?.instrument === "string" ? payload.instrument.toUpperCase() : "";
+      if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
+      if (!getForexSessionStatus(new Date()).marketOpen) {
+        return json(request, response, { error: "Market is closed. A news setup can be armed when forex reopens." }, 409);
+      }
+      const tick = await executableTick(instrument);
+      if (!tick) return json(request, response, { error: "A fresh market quote is not available yet." }, 409);
+      try {
+        const entries = await armNewsStraddle(user.id, { ...payload, instrument }, tick);
+        markNewsStraddleArmed(instrument);
+        return json(request, response, { entries }, 201);
+      } catch (error) {
+        return json(request, response, { error: error instanceof Error ? error.message : "Could not arm the news setup." }, 400);
       }
     }
     // The ticket's size preview: exactly what an order would be sized to.
@@ -1203,7 +1223,10 @@ function handlePrice(tick: MarketPriceTick) {
   if (now - (pendingEntryLastCheck.get(tick.instrument) ?? 0) < 250) return;
   pendingEntryLastCheck.set(tick.instrument, now);
   pendingEntryChecks.add(tick.instrument);
-  void evaluatePendingManualEntries(tick)
+  // Armed news lines first: during a release every millisecond before the order counts.
+  void (newsStraddleMayBeArmed(tick.instrument) ? evaluateNewsStraddles(tick).then(() => undefined) : Promise.resolve())
+    .catch((error) => console.error(`[news-straddle] ${tick.instrument} evaluation failed`, error))
+    .then(() => evaluatePendingManualEntries(tick))
     // Also square any open manual (paper) trade whose stop or target this tick
     // reached — manual trades have no other resolver, so they would otherwise
     // stay open forever.
@@ -1269,6 +1292,21 @@ if (databaseConfigured() && schedulersEnabled) {
   pendingEntryMonitoringEnabled = config.isConfigured;
   if (pendingEntryMonitoringEnabled) {
     void recoverTriggeringManualEntries().catch((error) => console.error("[pending-entry] recovery failed", error));
+    // News setups: disarm ended windows, reconcile orders in flight at a restart
+    // (by client id, never resent) and run time exits. Every 5s and at startup.
+    let newsSweepBusy = false;
+    const sweepNews = () => {
+      if (newsSweepBusy) return;
+      newsSweepBusy = true;
+      void sweepNewsStraddles()
+        .then((result) => {
+          if (result.disarmed || result.reconciled || result.timeExits) console.log(`[news-straddle] sweep ${JSON.stringify(result)}`);
+        })
+        .catch((error) => console.error("[news-straddle] sweep failed", error))
+        .finally(() => { newsSweepBusy = false; });
+    };
+    sweepNews();
+    setInterval(sweepNews, 5_000);
     // Poll OANDA to mirror manual orders back into the app: resting orders that
     // filled become open trades, cancellations close the entry, and closed
     // broker positions square the app trade. Serialised so slow polls never overlap.

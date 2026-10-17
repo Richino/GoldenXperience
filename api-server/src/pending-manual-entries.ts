@@ -204,6 +204,7 @@ export async function updatePendingEntryLevels(userId: string, id: string, paylo
     const existing = found.rows[0];
     if (!existing) throw new Error("Pending entry not found.");
     if (existing.status !== "PENDING") throw new Error("This entry is no longer waiting. Refresh and try again.");
+    if (isNewsEntry(existing.metadata)) throw new Error("A news setup sets its stop and target from the fill. Cancel it and arm a new one to change them.");
     const entryPrice = Number(existing.entry_price);
     const precision = precisionFor(existing.instrument);
     const levels = optionalTradeLevels(payload, existing.direction, entryPrice);
@@ -297,6 +298,19 @@ const SELECT_FIELDS = `id,user_id,instrument,direction,entry_price::text,entry_o
   current_price_at_creation::text,expiration_type,expires_at,activate_at::text AS activate_at,invalidation_price::text,invalidation_side,
   status,trigger_price::text,stop_price::text,target_price::text,paper_trade_id,failure_reason,
   last_observed_price::text,triggered_at,cancelled_at,created_at,updated_at,metadata`;
+
+/** Row shape and helpers shared with News mode (news-straddle.ts), which stores its two lines in this table. */
+export type PendingEntryRow = EntryRow;
+export const PENDING_ENTRY_FIELDS = SELECT_FIELDS;
+export function serializePendingManualEntry(row: EntryRow) {
+  return serialize(row);
+}
+
+/** A News-mode line (two linked rows, watched by news-straddle.ts, never by the paths here). */
+function isNewsEntry(metadata: Record<string, unknown> | null | undefined) {
+  return metadata?.mode === "news";
+}
+const NOT_NEWS = "COALESCE(metadata->>'mode','') <> 'news'";
 
 function numberOrNull(value: string | null) {
   if (value === null) return null;
@@ -485,7 +499,7 @@ export async function expirePendingManualEntries(userId?: string) {
   if (userId) values.push(userId);
   const result = await query(
     `UPDATE pending_manual_entries SET status='EXPIRED',updated_at=now()
-     WHERE status='PENDING' AND expires_at IS NOT NULL AND expires_at<=now()${userClause}`,
+     WHERE status='PENDING' AND expires_at IS NOT NULL AND expires_at<=now() AND ${NOT_NEWS}${userClause}`,
     values,
   );
   return result.rowCount;
@@ -597,6 +611,11 @@ export async function createPendingManualEntry(userId: string, payload: Record<s
   // Several trades per pair are allowed, but only one way: the OANDA account
   // has hedging off, so an opposite order would net against the open position
   // instead of opening its own trade.
+  const newsArmed = await query(
+    "SELECT 1 FROM pending_manual_entries WHERE user_id=$1 AND instrument=$2 AND status IN ('PENDING','TRIGGERING') AND metadata->>'mode'='news' LIMIT 1",
+    [userId, tick.instrument],
+  );
+  if (newsArmed.rows[0]) throw new Error("A news setup is armed on this pair. Cancel it first; it can open a trade either way.");
   const opposite = await oppositeDirectionOnPair(userId, tick.instrument, direction);
   if (opposite) {
     throw new Error(`You have ${opposite === "open" ? "an open" : "a pending"} ${direction === "long" ? "short" : "long"} on this pair. This account can't hold a long and a short together, so ${opposite === "open" ? "close" : "cancel"} it first.`);
@@ -710,6 +729,7 @@ export async function editPendingManualEntry(userId: string, id: string, payload
     const existing = found.rows[0];
     if (!existing) throw new Error("Pending entry not found.");
     if (existing.status !== "PENDING") throw new Error("Only a pending entry can be edited.");
+    if (isNewsEntry(existing.metadata)) throw new Error("A news setup can't be edited. Cancel it and arm a new one.");
     if (existing.instrument !== tick.instrument) throw new Error("No fresh quote is available for this entry.");
     const direction = payload.direction === "long" || payload.direction === "short" ? payload.direction : existing.direction;
     const entryPrice = finitePrice(payload.entryPrice ?? existing.entry_price);
@@ -766,7 +786,7 @@ export async function editPendingManualEntry(userId: string, id: string, payload
 }
 
 export function manualEntryUsesBroker(metadata: Record<string, unknown> | null): boolean {
-  return Boolean(metadata?.brokerOrderId || metadata?.brokerTradeId ||
+  return Boolean(isNewsEntry(metadata) || metadata?.brokerOrderId || metadata?.brokerTradeId ||
     metadata?.execution === "submitting" || metadata?.execution === "scheduled" ||
     (typeof metadata?.execution === "string" && metadata.execution.startsWith("oanda_")));
 }
@@ -817,6 +837,7 @@ export async function cancelPendingManualEntry(userId: string, id: string) {
   );
   const entry = found.rows[0];
   if (!entry) throw new Error("The entry already changed state and cannot be cancelled.");
+  if (isNewsEntry(entry.metadata)) return cancelNewsLines(userId, entry);
   const brokerOrderId = brokerOrderIdOf(entry);
   if (brokerOrderId) {
     // OANDA is the source of truth. If the resting order already FILLED, the app
@@ -850,6 +871,35 @@ export async function cancelPendingManualEntry(userId: string, id: string) {
     event: "cancelled",
   });
   return cancelled;
+}
+
+/**
+ * Cancelling either line of a news setup takes both down, under the same
+ * advisory lock the price monitor claims a side with, so a cancel and a
+ * crossing can't interleave.
+ */
+async function cancelNewsLines(userId: string, entry: EntryRow) {
+  const straddleId = String((entry.metadata as Record<string, unknown>).straddleId ?? "");
+  const rows = await transaction(async (client) => {
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`news-straddle:${straddleId}`]);
+    return (await client.query<EntryRow>(
+      `UPDATE pending_manual_entries SET status='CANCELLED',cancelled_at=now(),metadata=metadata||'{"execution":"news_cancelled"}'::jsonb,updated_at=now()
+        WHERE user_id=$1 AND metadata->>'straddleId'=$2 AND status='PENDING' RETURNING ${SELECT_FIELDS}`,
+      [userId, straddleId],
+    )).rows;
+  });
+  const own = rows.find((row) => row.id === entry.id) ?? rows[0];
+  if (!own) throw new Error("This news setup already fired or ended, so there is nothing to cancel.");
+  await queueNotification({
+    userId,
+    kind: "trade_update",
+    title: `${displayPair(entry.instrument)} news setup cancelled`,
+    message: "You cancelled it. Both lines are off; no order was sent.",
+    instrument: entry.instrument,
+    paperTradeId: null,
+    dedupeKey: `news-straddle:${straddleId}:disarmed`,
+  }).catch((error) => console.error(`[news-straddle] cancel notification failed for ${straddleId}`, error));
+  return serialize(own);
 }
 
 /**
@@ -1123,6 +1173,8 @@ export async function evaluatePendingManualEntries(tick: MarketPriceTick) {
          -- Scheduled ("submit after") entries wait for the activation job; the
          -- monitor must not paper-trigger them before they are broker-backed.
          AND COALESCE(metadata->>'execution','') NOT IN ('scheduled','submitting')
+         -- News-mode lines are watched by news-straddle.ts.
+         AND ${NOT_NEWS}
        ORDER BY created_at FOR UPDATE SKIP LOCKED`,
       [tick.instrument],
     );
@@ -1202,7 +1254,7 @@ export async function evaluatePendingManualEntries(tick: MarketPriceTick) {
 
 /** Resume entries claimed immediately before a process restart. */
 export async function recoverTriggeringManualEntries() {
-  const rows = await query<{ id: string }>("SELECT id FROM pending_manual_entries WHERE status='TRIGGERING' ORDER BY updated_at");
+  const rows = await query<{ id: string }>(`SELECT id FROM pending_manual_entries WHERE status='TRIGGERING' AND ${NOT_NEWS} ORDER BY updated_at`);
   for (const row of rows.rows) await finalizeTriggeredEntry(row.id);
   return rows.rowCount;
 }

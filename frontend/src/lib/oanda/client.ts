@@ -83,6 +83,8 @@ type OandaOrderFillTransaction = {
     guaranteedExecutionFee?: string;
     halfSpreadCost?: string;
   };
+  /** The book the order filled against. */
+  fullPrice?: { bids?: Array<{ price?: string }>; asks?: Array<{ price?: string }> };
 };
 
 interface OandaClosedTradesResponse {
@@ -294,6 +296,63 @@ export async function submitPracticeMarketOrder(order: PracticeMarketOrder) {
     entryCommission: transactionNumberOrNull(response.orderFillTransaction?.commission),
     entryGuaranteedExecutionFee: transactionNumberOrNull(response.orderFillTransaction?.tradeOpened?.guaranteedExecutionFee ?? response.orderFillTransaction?.guaranteedExecutionFee),
     /** Set when the broker refused the order. A live order never carries one. */
+    cancelReason: response.orderCancelTransaction?.reason ?? null,
+  };
+}
+
+export type PracticeNewsMarketOrder = {
+  instrument: MajorInstrument;
+  direction: "long" | "short";
+  units: number;
+  /** Stop distance in price units, measured by OANDA from the actual fill. */
+  stopDistance: number;
+  /** Provisional take-profit price; moved to fill ± target once the fill is known. */
+  target: number;
+  /** Worst acceptable fill; OANDA cancels the order (BOUNDS_VIOLATION) rather than fill beyond it. */
+  priceBound: number;
+  clientRequestId: string;
+  tradeClientId: string;
+};
+
+/**
+ * A news breakout entry: market, fill-or-kill, bounded by `priceBound`, with
+ * the stop set as a distance so it sits the chosen pips from the real fill
+ * rather than from the line that triggered it. Practice account only.
+ */
+export async function submitPracticeNewsMarketOrder(order: PracticeNewsMarketOrder) {
+  const config = getConfig();
+  if (!config) throw new OandaRequestError("OANDA credentials are not configured.");
+  if (config.environment !== "practice") throw new OandaRequestError("Automatic execution is locked to OANDA practice accounts.");
+  const units = Math.floor(Math.abs(order.units));
+  if (!Number.isFinite(units) || units < 1) throw new OandaRequestError("Calculated practice order size is invalid.");
+  if (!(order.stopDistance > 0)) throw new OandaRequestError("The stop distance is invalid.");
+  const precision = precisionFor(order.instrument);
+  const response = await requestOanda<OandaOrderResponse>(`/v3/accounts/${encodeURIComponent(config.accountId)}/orders`, {
+    method: "POST",
+    body: {
+      order: {
+        type: "MARKET",
+        instrument: order.instrument,
+        units: String(signedPracticeUnits(order.direction, units)),
+        timeInForce: "FOK",
+        positionFill: "DEFAULT",
+        priceBound: order.priceBound.toFixed(precision),
+        stopLossOnFill: { distance: order.stopDistance.toFixed(precision), timeInForce: "GTC" },
+        takeProfitOnFill: { price: order.target.toFixed(precision), timeInForce: "GTC" },
+        clientExtensions: { id: `gx-${order.clientRequestId}`.slice(0, 127), tag: "goldenxperience-news" },
+        tradeClientExtensions: { id: order.tradeClientId.slice(0, 127), tag: "goldenxperience-news" },
+      },
+    },
+  });
+  const fill = response.orderFillTransaction;
+  const bestBid = transactionNumberOrNull(fill?.fullPrice?.bids?.[0]?.price);
+  const bestAsk = transactionNumberOrNull(fill?.fullPrice?.asks?.[0]?.price);
+  return {
+    orderId: response.orderCreateTransaction?.id ?? fill?.id ?? null,
+    tradeId: fill?.tradeOpened?.tradeID ?? null,
+    fillPrice: fill?.price ? Number(fill.price) : null,
+    /** Bid/ask OANDA filled against, when it reported them. */
+    fillSpread: bestBid !== null && bestAsk !== null && bestAsk >= bestBid ? bestAsk - bestBid : null,
     cancelReason: response.orderCancelTransaction?.reason ?? null,
   };
 }

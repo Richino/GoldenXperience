@@ -2751,6 +2751,15 @@ export function SignalWorkspace({
   }, [analyzeLink, embeddedSurfaceOnly, instrument, reviewPlanAnalyze, urlInstrument]);
   const chartPairMonitored = !embeddedSurfaceOnly && planAnalyze.active.length > 0;
   const chartAnalysisBusy = embeddedSurfaceOnly ? trendPullbackBusy : planAnalyze.analyzing;
+  // The button says what it opens: research in progress, plans to review, plans being watched, or a new analysis.
+  const analyzeLabel = embeddedSurfaceOnly
+    ? (chartPairMonitored ? { short: "Manage", long: "Manage analysis" } : { short: "Analyze", long: "Analyze market" })
+    : ({
+      generating: { short: "Generating…", long: "Generating plans" },
+      review: { short: "Review plans", long: "Review plans" },
+      watching: { short: "Manage", long: "Manage plans" },
+      new: { short: "Analyze", long: "Analyze market" },
+    } as const)[planAnalyze.status];
   useEffect(() => {
     if (embeddedSurfaceOnly || !setObserverChartContext) return;
     setObserverChartContext({ instrument, replayActive });
@@ -4733,8 +4742,8 @@ export function SignalWorkspace({
                 />
               </div>
               <div className="signals-mobile-header-actions nl-mhead-actions">
-                <button type="button" className="nl-analyze nl-analyze-sm pressable" onClick={() => void runTrendPullback()} disabled={chartAnalysisBusy || replayActive} title={chartPairMonitored ? `Manage analysis for ${activePair}` : "Analyze the market and monitor its conditions"}>
-                  {chartAnalysisBusy ? "Updating…" : chartPairMonitored ? "Manage" : "Analyze"}
+                <button type="button" className="nl-analyze nl-analyze-sm pressable" onClick={() => void runTrendPullback()} disabled={chartAnalysisBusy || replayActive} title={`${analyzeLabel.long} for ${activePair}`}>
+                  {chartAnalysisBusy ? "Opening…" : analyzeLabel.short}
                 </button>
                 <NotificationBell compact className="signals-icon-btn signals-fullscreen-reserve nl-mbell" />
               </div>
@@ -5201,10 +5210,10 @@ export function SignalWorkspace({
           }
           actions={
             <>
-              <button type="button" className="gx-fs-action is-analyze pressable" onClick={() => void runTrendPullback()} disabled={chartAnalysisBusy || replayActive} aria-label={chartAnalysisBusy ? "Updating analysis" : chartPairMonitored ? "Manage analysis" : "Analyze market"}>
+              <button type="button" className="gx-fs-action is-analyze pressable" onClick={() => void runTrendPullback()} disabled={chartAnalysisBusy || replayActive} aria-label={chartAnalysisBusy ? "Opening analysis" : analyzeLabel.long}>
                 {/* Phones show the icon only, so the top row stays on one line. */}
                 <Radar aria-hidden="true" />
-                <span className="gx-fs-label">{chartAnalysisBusy ? "Updating…" : chartPairMonitored ? "Manage analysis" : "Analyze market"}</span>
+                <span className="gx-fs-label">{chartAnalysisBusy ? "Opening…" : analyzeLabel.long}</span>
               </button>
               <button type="button" className="gx-fs-action pressable" onClick={() => {
                 setEntryDraftProposal(null);

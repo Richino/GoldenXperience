@@ -46,6 +46,8 @@ type Phase =
 export function usePlanAnalyze(instrument: string, disabled = false) {
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [active, setActive] = useState<TradePlan[]>([]);
+  /** Plans built for this pair and waiting for your review. */
+  const [awaitingCount, setAwaitingCount] = useState(0);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -139,7 +141,9 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
 
   const refreshActive = useCallback(async () => {
     try {
-      setActive(await tradePlansApi.list("active", instrument));
+      const [watching, waiting] = await Promise.all([tradePlansApi.list("active", instrument), tradePlansApi.list("awaiting", instrument)]);
+      setActive(watching);
+      setAwaitingCount(waiting.length);
     } catch {
       // Keep the last list; the next poll retries.
     }
@@ -246,7 +250,10 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
     }).catch(() => void loadAwaiting());
   }, [instrument, loadAwaiting, settleJob]);
 
-  return { phase, active, open, setOpen, busy, actionError, run, accept, dismiss, stopWatching, cancel, analyzing: phase.kind === "analyzing", research, refreshResearch: () => void runResearch(true), cancelResearch: () => void cancelResearch(), review };
+  // What the chart's Analyze button opens: research in progress, plans to review, plans being watched, or a new analysis.
+  const status: "generating" | "review" | "watching" | "new" =
+    jobRunning || phase.kind === "researching" ? "generating" : awaitingCount > 0 || (phase.kind === "results" && phase.result.plans.length > 0) ? "review" : active.length ? "watching" : "new";
+  return { phase, active, status, open, setOpen, busy, actionError, run, accept, dismiss, stopWatching, cancel, analyzing: phase.kind === "analyzing", research, refreshResearch: () => void runResearch(true), cancelResearch: () => void cancelResearch(), review };
 }
 
 export type PlanAnalyzeState = ReturnType<typeof usePlanAnalyze>;
@@ -575,7 +582,7 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
       <div className="nl-an-actions is-card">
         {onNewEntry ? <button type="button" className="nl-an-secondary pressable" onClick={onNewEntry}>New entry</button> : null}
         <button type="button" className="nl-an-primary pressable" onClick={() => void state.run()}>
-          {phase.kind === "error" ? "Try again" : "Analyze"}
+          {phase.kind === "error" ? "Try again" : state.status === "generating" ? "Generating…" : state.status === "review" ? "Review plans" : "Analyze"}
         </button>
       </div>
     </div>

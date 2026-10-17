@@ -7,7 +7,7 @@ import { fixturePlan, fixtureResearch, watchingPair } from "@/lib/trade-plans/fi
 
 const noop = () => undefined;
 const base: PlanAnalyzeState = {
-  phase: { kind: "idle" }, active: [], open: false, setOpen: noop, busy: false, actionError: null,
+  phase: { kind: "idle" }, active: [], status: "new", open: false, setOpen: noop, busy: false, actionError: null,
   run: async () => undefined, accept: noop, dismiss: noop, stopWatching: noop, cancel: noop, analyzing: false,
   research: { loading: false, result: fixtureResearch(), error: null }, refreshResearch: noop, cancelResearch: noop, review: noop,
 };

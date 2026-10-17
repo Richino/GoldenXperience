@@ -3,6 +3,7 @@ import { hostname } from "node:os";
 import type { QueryResult, QueryResultRow } from "pg";
 import { currenciesOf, isKnownInstrument } from "../../../frontend/src/lib/instruments/catalog.js";
 import type { MajorInstrument } from "../../../frontend/src/types/forex.js";
+import { getForexSessionStatus } from "../../../frontend/src/lib/strategy/session.js";
 import { query } from "../database.js";
 import { updateThesesForResearch } from "./thesis-updates.js";
 import { displayPair, queueNotification } from "../notifications.js";
@@ -455,12 +456,20 @@ export async function handleOpenAIWebhook(rawBody: string, headers: Record<strin
   return { status: 200, body: { received: true } };
 }
 
+/** Scheduled research runs only while the forex market is open. Pure. */
+export function scheduleOpen(now: number) {
+  return getForexSessionStatus(new Date(now)).marketOpen;
+}
+
 /**
  * Scheduled refresh: pairs with accepted plans whose research is stale get a
  * background job (no watcher: active plans are only warned, never changed).
  */
 export async function refreshDueResearch(now = Date.now()) {
   if (process.env.RESEARCH_SCHEDULE_ENABLED === "false" || !researchConfig().apiKey) return { started: 0 };
+  // No scheduled research while forex is closed (Fri 17:00 – Sun 17:00 New York): nothing trades, and the
+  // first tick after the open refreshes anything that went stale over the weekend.
+  if (!scheduleOpen(now)) return { started: 0 };
   const pairs = await query<{ instrument: string }>(
     `SELECT DISTINCT instrument FROM trade_plans WHERE status IN ('APPROVED','MONITORING','CONFIRMED','NOTIFIED','FILLED')`,
   );

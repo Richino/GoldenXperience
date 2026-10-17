@@ -74,6 +74,13 @@ await test("webhook: valid signature accepted; tampered body, wrong secret and o
   assert.equal(verifyWebhook(body, { ...headers, "webhook-signature": `v1,AAAA ${headers["webhook-signature"]}` }, SECRET, NOW).ok, true);
 });
 
+await test("scheduled research does not run while the market is closed", () => {
+  assert.equal(jobs.scheduleOpen(Date.parse("2026-10-14T12:00:00Z")), true, "Wednesday");
+  assert.equal(jobs.scheduleOpen(Date.parse("2026-10-17T12:00:00Z")), false, "Saturday");
+  assert.equal(jobs.scheduleOpen(Date.parse("2026-10-16T21:30:00Z")), false, "Friday after 17:00 New York");
+  assert.equal(jobs.scheduleOpen(Date.parse("2026-10-18T22:00:00Z")), true, "Sunday after the 17:00 New York open");
+});
+
 await test("completion copy: plans, no setup, watched plans, and failures say plans are unchanged", () => {
   assert.match(completionNotice("EUR_USD", "COMPLETED", null, "PLANS").message, /BUY\/SELL scenarios are ready/);
   assert.match(completionNotice("EUR_USD", "COMPLETED", null, "NO_VALID_SETUP").message, /No setup meets/);

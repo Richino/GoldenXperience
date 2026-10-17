@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { config as loadDotenv } from "dotenv";
-import { decideNewsStraddleTick, newsSlippagePips, parseNewsStraddleSettings, type NewsDeps } from "../src/news-straddle.js";
+import { decideNewsStraddleTick, newsSlippagePips, newsZones, parseNewsStraddleSettings, upcomingPairReleases, type NewsDeps } from "../src/news-straddle.js";
 import type { MarketPriceTick } from "../src/market-stream-types.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -57,15 +57,31 @@ await test("slippage is measured against the line, positive when worse", () => {
   assert.equal(newsSlippagePips("long", 210.695, 210.712, pip), 1.7);
   assert.equal(newsSlippagePips("short", 210.495, 210.501, pip), -0.6);
 });
-await test("settings default to 10-pip lines, 3-pip slippage, 15-minute window and time exit", () => {
-  const settings = parseNewsStraddleSettings({ stopPips: 15, targetPips: 30 }, 210.595);
-  assert.equal(settings.anchor, 210.595);
+await test("settings default to 10-pip zones 3 pips deep, 15-minute watch and time exit; a release is required", () => {
+  const release = { title: "CPI y/y", currency: "GBP", time: "2026-10-16T06:00:00Z" };
+  const settings = parseNewsStraddleSettings({ stopPips: 15, targetPips: 30, release, anchor: 999 });
+  assert.equal("anchor" in settings, false, "no anchor setting: it is always the live price");
   assert.equal(settings.distancePips, 10);
   assert.equal(settings.slippagePips, 3);
   assert.equal(settings.armedMinutes, 15);
   assert.equal(settings.closeAfterMinutes, 15);
-  assert.throws(() => parseNewsStraddleSettings({ targetPips: 30 }, 210.595), /stop/);
-  assert.throws(() => parseNewsStraddleSettings({ stopPips: 15, targetPips: 30, slippagePips: 99 }, 210.595), /slippage/);
+  assert.throws(() => parseNewsStraddleSettings({ targetPips: 30, release }), /stop/);
+  assert.throws(() => parseNewsStraddleSettings({ stopPips: 15, targetPips: 30, slippagePips: 99, release }), /zone depth/);
+  assert.throws(() => parseNewsStraddleSettings({ stopPips: 15, targetPips: 30 }), /Pick the release/);
+});
+await test("zones: entry edge 10 pips out, far edge 3 pips further", () => {
+  assert.deepEqual(newsZones("GBP_JPY", 210.595, 10, 3), { upper: 210.695, upperFar: 210.725, lower: 210.495, lowerFar: 210.465 });
+});
+await test("only the pair's releases inside 5 hours count", () => {
+  const now = Date.parse("2026-10-16T12:00:00Z");
+  const events = [
+    { currency: "GBP", title: "a", timestamp: "2026-10-16T16:59:00Z" },
+    { currency: "JPY", title: "b", timestamp: "2026-10-16T12:30:00Z" },
+    { currency: "USD", title: "c", timestamp: "2026-10-16T12:10:00Z" },
+    { currency: "GBP", title: "d", timestamp: "2026-10-16T17:01:00Z" },
+    { currency: "GBP", title: "e", timestamp: "2026-10-16T11:59:00Z" },
+  ];
+  assert.deepEqual(upcomingPairReleases("GBP_JPY", events, now).map((event) => event.title), ["b", "a"]);
 });
 
 // ── Part 2: the database path, on one connection, always rolled back ──
@@ -94,9 +110,14 @@ try {
   let lookupImpl: NewsDeps["broker"]["orderByClientId"] = async () => null;
   const openTrades = new Map<string, { closed: boolean; entry: number }>();
   let savepoint = 0;
+  let queries = 0;
+  // The calendar the server checks: by default one GBP release 30s from "now".
+  let releaseAt = clock + 30_000;
+  let calendarImpl: NewsDeps["releases"] = async () => [{ currency: "GBP", title: "CPI y/y", timestamp: new Date(releaseAt).toISOString() }];
+  let quoteImpl: NewsDeps["quote"] = async () => null;
   const deps: NewsDeps = {
     db: {
-      query: (text, values) => client.query(text, values) as never,
+      query: (text, values) => { queries += 1; return client.query(text, values) as never; },
       tx: async (fn) => {
         const name = `sp${++savepoint}`;
         await client.query(`SAVEPOINT ${name}`);
@@ -128,13 +149,19 @@ try {
     },
     size: async () => ({ units: 1000, riskPercent: 0.5 }),
     notify: async (input) => { notices.push({ event: input.event, key: input.key, title: input.title, message: input.message }); },
+    releases: () => calendarImpl(),
+    quote: (instrument) => quoteImpl(instrument),
     now: () => clock,
   };
   const tick = (bid: number, ask: number): MarketPriceTick => ({
     type: "price", instrument: "GBP_JPY" as never, displayName: "GBP/JPY", bid, ask, mid: (bid + ask) / 2, spread: ask - bid,
     status: "tradeable", time: new Date(clock).toISOString(), source: "oanda", sequence: clock,
   });
-  const arm = (extra: Row = {}) => armNewsStraddle(userId, { instrument: "GBP_JPY", anchor: 210.595, stopPips: 15, targetPips: 30, ...extra }, tick(210.59, 210.60), deps);
+  // Arms around the live mid 210.595, for a release 30s away (inside the 1-minute lead, so the zones are set now).
+  const arm = (extra: Row = {}, at = clock + 30_000) => {
+    releaseAt = at;
+    return armNewsStraddle(userId, { instrument: "GBP_JPY", stopPips: 15, targetPips: 30, release: { title: "CPI y/y", currency: "GBP", time: new Date(at).toISOString() }, ...extra }, tick(210.59, 210.60), deps);
+  };
   const rowsOf = async (straddleId: string) => (await client.query<Row>(
     "SELECT id,direction,status,failure_reason,stop_price::text,target_price::text,trigger_price::text,paper_trade_id,metadata FROM pending_manual_entries WHERE metadata->>'straddleId'=$1 ORDER BY direction",
     [straddleId],
@@ -241,7 +268,7 @@ try {
 
   await test("disarm on expiry, by the sweep with no quotes", async () => {
     const entries = await arm({ armedMinutes: 5 });
-    clock += 5 * 60_000 + 1;
+    clock += 30_000 + 5 * 60_000 + 1;
     await sweepNewsStraddles(deps);
     const rows = await rowsOf(straddleOf(entries));
     assert.deepEqual(rows.map((row) => row.status), ["EXPIRED", "EXPIRED"]);
@@ -299,6 +326,67 @@ try {
     assert.equal(short!.status, "FAILED");
     assert.equal((short!.metadata as Row).execution, "news_lost");
     assert.equal(calls.submit, before + 1);
+  });
+
+  await test("phase 1: no release in the next 5 hours, an unknown release, or no calendar → not armed", async () => {
+    calendarImpl = async () => [{ currency: "USD", title: "NFP", timestamp: new Date(clock + 60 * 60_000).toISOString() }];
+    await assert.rejects(arm(), /No GBP or JPY news in the next 5 hours/);
+    calendarImpl = async () => [{ currency: "GBP", title: "CPI y/y", timestamp: new Date(clock + 6 * 60 * 60_000).toISOString() }];
+    await assert.rejects(arm({}, clock + 6 * 60 * 60_000), /No GBP or JPY news/);
+    calendarImpl = async () => [{ currency: "JPY", title: "BoJ", timestamp: new Date(clock + 2 * 60 * 60_000).toISOString() }];
+    await assert.rejects(arm(), /not in the calendar/);
+    calendarImpl = async () => null;
+    await assert.rejects(arm(), /calendar can't be read/);
+    calendarImpl = async () => [{ currency: "GBP", title: "CPI y/y", timestamp: new Date(releaseAt).toISOString() }];
+  });
+
+  await test("an ordinary tick inside both zones costs no database query", async () => {
+    const entries = await arm();
+    const before = queries;
+    await evaluateNewsStraddles(tick(210.60, 210.61), deps);
+    await evaluateNewsStraddles(tick(210.55, 210.56), deps);
+    assert.equal(queries, before, "decided from memory");
+    await cancelNewsStraddle(userId, straddleOf(entries), deps);
+  });
+
+  await test("phase 2: a release 2h away waits; 1 minute before it the live price becomes the anchor, then a zone entry fires", async () => {
+    const release = clock + 2 * 60 * 60_000;
+    const entries = await arm({}, release);
+    const id = straddleOf(entries);
+    assert.equal(entries[0]!.metadata.execution, "news_waiting");
+    const before = calls.submit;
+    // Price wanders far before the release: nothing fires while waiting.
+    await evaluateNewsStraddles(tick(211.50, 211.51), deps);
+    assert.equal(calls.submit, before);
+    // One minute before the release, the tick's mid (211.505) becomes the anchor.
+    clock = release - 60_000;
+    await evaluateNewsStraddles(tick(211.50, 211.51), deps);
+    const [long, short] = await rowsOf(id);
+    assert.equal((long!.metadata as Row).execution, "news_armed");
+    assert.equal((long!.metadata as Row).anchor, 211.505);
+    assert.equal((long!.metadata as Row).upperFar, 211.635);
+    assert.equal((short!.metadata as Row).lowerLine, 211.405);
+    assert.ok(notices.some((notice) => notice.event === "live" && notice.key === id));
+    // The release hits: the ask enters the buy zone (211.605–211.635).
+    clock = release + 2_000;
+    submitImpl = fill(211.61, "T4");
+    await evaluateNewsStraddles(tick(211.60, 211.61), deps);
+    assert.equal(calls.submit, before + 1);
+    assert.equal((await rowsOf(id))[0]!.status, "TRIGGERED");
+    clock += 16 * 60_000;
+    await sweepNewsStraddles(deps);
+  });
+
+  await test("phase 2 with no stream tick: the sweep sets the anchor from a fetched quote", async () => {
+    const release = clock + 30 * 60_000;
+    const entries = await arm({}, release);
+    clock = release - 59_000;
+    quoteImpl = async () => tick(210.80, 210.81);
+    await sweepNewsStraddles(deps);
+    const [long] = await rowsOf(straddleOf(entries));
+    assert.equal((long!.metadata as Row).anchor, 210.805);
+    quoteImpl = async () => null;
+    await cancelNewsStraddle(userId, straddleOf(entries), deps);
   });
 
   await test("cancelling one line from the chart cancels both", async () => {

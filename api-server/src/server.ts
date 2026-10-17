@@ -84,7 +84,7 @@ import {
   resolveOpenManualTrades,
   reconcileManualOandaOrders,
 } from "./pending-manual-entries.js";
-import { armNewsStraddle, evaluateNewsStraddles, markNewsStraddleArmed, newsStraddleMayBeArmed, sweepNewsStraddles } from "./news-straddle.js";
+import { armNewsStraddle, evaluateNewsStraddles, newsStraddleMayBeArmed, sweepNewsStraddles } from "./news-straddle.js";
 
 // The multi-strategy + adaptive engine replaces the single liquidity strategy as
 // the active forex collector. Default on; set MULTISTRATEGY_ENABLED=false to roll
@@ -645,7 +645,6 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       if (!tick) return json(request, response, { error: "A fresh market quote is not available yet." }, 409);
       try {
         const entries = await armNewsStraddle(user.id, { ...payload, instrument }, tick);
-        markNewsStraddleArmed(instrument);
         return json(request, response, { entries }, 201);
       } catch (error) {
         return json(request, response, { error: error instanceof Error ? error.message : "Could not arm the news setup." }, 400);
@@ -1215,18 +1214,43 @@ const heartbeat = setInterval(() => {
 const pendingEntryChecks = new Set<MajorInstrument>();
 const pendingEntryLastCheck = new Map<MajorInstrument, number>();
 let pendingEntryMonitoringEnabled = false;
+/**
+ * News setups get their own path: every tick, no 250ms throttle, and not
+ * queued behind the ordinary entry checks. While one evaluation runs, the
+ * newest tick is kept and run straight after, so a tick that enters a zone
+ * is never dropped. Ordinary ticks are decided in memory (no database).
+ */
+const newsBusy = new Set<MajorInstrument>();
+const newsNextTick = new Map<MajorInstrument, MarketPriceTick>();
+function runNewsStraddles(tick: MarketPriceTick) {
+  if (!newsStraddleMayBeArmed(tick.instrument)) return;
+  if (newsBusy.has(tick.instrument)) {
+    newsNextTick.set(tick.instrument, tick);
+    return;
+  }
+  newsBusy.add(tick.instrument);
+  void evaluateNewsStraddles(tick)
+    .catch((error) => console.error(`[news-straddle] ${tick.instrument} evaluation failed`, error))
+    .finally(() => {
+      newsBusy.delete(tick.instrument);
+      const next = newsNextTick.get(tick.instrument);
+      if (next) {
+        newsNextTick.delete(tick.instrument);
+        runNewsStraddles(next);
+      }
+    });
+}
+
 function handlePrice(tick: MarketPriceTick) {
   latestPrices.set(tick.instrument, tick);
   broadcast(tick);
+  if (pendingEntryMonitoringEnabled) runNewsStraddles(tick);
   if (!pendingEntryMonitoringEnabled || pendingEntryChecks.has(tick.instrument)) return;
   const now = Date.now();
   if (now - (pendingEntryLastCheck.get(tick.instrument) ?? 0) < 250) return;
   pendingEntryLastCheck.set(tick.instrument, now);
   pendingEntryChecks.add(tick.instrument);
-  // Armed news lines first: during a release every millisecond before the order counts.
-  void (newsStraddleMayBeArmed(tick.instrument) ? evaluateNewsStraddles(tick).then(() => undefined) : Promise.resolve())
-    .catch((error) => console.error(`[news-straddle] ${tick.instrument} evaluation failed`, error))
-    .then(() => evaluatePendingManualEntries(tick))
+  void evaluatePendingManualEntries(tick)
     // Also square any open manual (paper) trade whose stop or target this tick
     // reached — manual trades have no other resolver, so they would otherwise
     // stay open forever.

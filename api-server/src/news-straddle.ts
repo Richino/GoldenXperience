@@ -5,11 +5,13 @@ import {
   getPracticeOrderByClientId,
   getPracticeTradeProtection,
   getPracticeTradeState,
+  getPricing,
   oandaEnvironment,
   setPracticeTradeLevels,
   submitPracticeNewsMarketOrder,
 } from "../../frontend/src/lib/oanda/client.js";
-import { pipSizeFor, precisionFor } from "../../frontend/src/lib/instruments/catalog.js";
+import { getEconomicCalendar } from "../../frontend/src/lib/calendar/forex-factory.js";
+import { currenciesOf, pipSizeFor, precisionFor } from "../../frontend/src/lib/instruments/catalog.js";
 import type { MajorInstrument, MarketPriceTick } from "./market-stream-types.js";
 import { query, transaction } from "./database.js";
 import { displayPair, queueNotification } from "./notifications.js";
@@ -48,12 +50,12 @@ const TIME_EXIT_RETRY_MS = 30_000;
 export type NewsStraddleSide = "long" | "short";
 
 export type NewsStraddleSettings = {
-  anchor: number;
   distancePips: number;
   stopPips: number;
   targetPips: number;
   slippagePips: number;
   spreadCapPips: number;
+  /** How long it watches after the release (or after arming, when the release is under a minute away). */
   armedMinutes: number;
   /** 0 = no time exit. */
   closeAfterMinutes: number;
@@ -87,7 +89,7 @@ type NewsMeta = {
 type Queryable = { query: <T extends Record<string, unknown> = Record<string, unknown>>(text: string, values?: unknown[]) => Promise<{ rows: T[]; rowCount: number | null }> };
 
 export type NewsNotice =
-  | "armed" | "triggered" | "missed_bound" | "rejected" | "time_exit" | "disarmed" | "spread_blocked" | "blocked" | "unprotected";
+  | "armed" | "live" | "triggered" | "missed_bound" | "rejected" | "time_exit" | "disarmed" | "spread_blocked" | "blocked" | "unprotected";
 
 /** Everything with a side effect, so tests can run on one rolled-back connection with a fake broker. */
 export type NewsDeps = {
@@ -103,6 +105,10 @@ export type NewsDeps = {
   };
   size: (userId: string, instrument: MajorInstrument, entry: number, stop: number) => Promise<{ units: number; riskPercent: number }>;
   notify: (input: { userId: string; instrument: string; key: string; event: NewsNotice; title: string; message: string }) => Promise<void>;
+  /** Calendar releases (null when the calendar can't be read). */
+  releases: () => Promise<Array<{ currency: string; title: string; timestamp: string }> | null>;
+  /** A live quote, for activating a setup when no stream tick arrives. */
+  quote: (instrument: MajorInstrument) => Promise<MarketPriceTick | null>;
   now: () => number;
 };
 
@@ -131,6 +137,17 @@ export const liveNewsDeps: NewsDeps = {
       paperTradeId: null,
       dedupeKey: `news-straddle:${input.key}:${input.event}`,
     }).catch((error) => console.error(`[news-straddle] notification failed for ${input.key}`, error));
+  },
+  releases: async () => {
+    const calendar = await getEconomicCalendar().catch(() => null);
+    if (!calendar || calendar.status.state !== "connected" || !calendar.data.connected || calendar.data.source === "mock") return null;
+    return [...calendar.data.events, ...(calendar.data.recentEvents ?? [])];
+  },
+  quote: async (instrument) => {
+    const pricing = await getPricing([instrument]).catch(() => null);
+    const price = pricing?.status.state === "connected" ? pricing.data.find((item) => item.instrument === instrument) : null;
+    if (!price || pricing?.status.source !== "oanda" || !(price.bid > 0) || !(price.ask >= price.bid)) return null;
+    return { type: "price", instrument, displayName: price.displayName, bid: price.bid, ask: price.ask, mid: price.mid, spread: price.ask - price.bid, status: price.status, time: price.time, source: "oanda", sequence: Date.now() };
   },
   now: () => Date.now(),
 };
@@ -201,33 +218,51 @@ function numberIn(raw: unknown, fallback: number | null, min: number, max: numbe
   return value;
 }
 
-/** Validate the ticket's News-mode fields. The anchor defaults to the live mid. */
-export function parseNewsStraddleSettings(payload: Record<string, unknown>, mid: number): NewsStraddleSettings {
-  const anchorRaw = payload.anchor;
-  const anchor = anchorRaw === undefined || anchorRaw === null || anchorRaw === "" ? mid : Number(anchorRaw);
-  if (!Number.isFinite(anchor) || anchor <= 0) throw new Error("Enter a valid anchor price.");
+/** Releases count as "news ahead" this far out; News mode arms only for one. */
+export const NEWS_LOOKAHEAD_MS = 5 * 60 * 60_000;
+/** The anchor is the live price this long before the release. */
+export const NEWS_ANCHOR_LEAD_MS = 60_000;
+
+/** Validate the ticket's News-mode fields. There is no anchor: it is always the live price. */
+export function parseNewsStraddleSettings(payload: Record<string, unknown>): NewsStraddleSettings {
   const rawRelease = payload.release && typeof payload.release === "object" ? payload.release as Record<string, unknown> : null;
   const text = (value: unknown, max: number) => (typeof value === "string" && value.trim() ? value.trim().slice(0, max) : null);
   const releaseTime = text(rawRelease?.time, 40);
-  const release = rawRelease && text(rawRelease.title, 120)
-    ? {
-      id: text(rawRelease.id, 80),
-      title: text(rawRelease.title, 120)!,
-      currency: text(rawRelease.currency, 3),
-      time: releaseTime && Number.isFinite(Date.parse(releaseTime)) ? new Date(releaseTime).toISOString() : null,
-    }
-    : null;
+  const title = text(rawRelease?.title, 120);
+  if (!rawRelease || !title || !releaseTime || !Number.isFinite(Date.parse(releaseTime))) {
+    throw new Error("Pick the release this setup is for. News mode only arms around a release.");
+  }
   return {
-    anchor,
-    distancePips: numberIn(payload.distancePips, 10, 1, 200, "the line distance in pips"),
+    distancePips: numberIn(payload.distancePips, 10, 1, 200, "the zone distance in pips"),
     stopPips: numberIn(payload.stopPips, null, 1, 500, "a stop in pips"),
     targetPips: numberIn(payload.targetPips, null, 1, 1000, "a target in pips"),
-    slippagePips: numberIn(payload.slippagePips, 3, 0, 20, "the max slippage in pips"),
+    slippagePips: numberIn(payload.slippagePips, 3, 0.5, 20, "the zone depth in pips"),
     spreadCapPips: numberIn(payload.spreadCapPips, 8, 0.5, 50, "the spread cap in pips"),
-    armedMinutes: Math.round(numberIn(payload.armedMinutes, 15, 1, 240, "how long it stays armed (minutes)")),
+    armedMinutes: Math.round(numberIn(payload.armedMinutes, 15, 1, 240, "how long it watches after the release (minutes)")),
     closeAfterMinutes: Math.round(numberIn(payload.closeAfterMinutes, 15, 0, 240, "the time exit (minutes)")),
-    release,
+    release: { id: text(rawRelease.id, 120), title, currency: text(rawRelease.currency, 3), time: new Date(releaseTime).toISOString() },
   };
+}
+
+/** Releases for either currency of the pair inside the look-ahead, soonest first. */
+export function upcomingPairReleases<T extends { currency: string; timestamp: string }>(instrument: string, events: T[], now: number) {
+  const { base, quote } = currenciesOf(instrument);
+  return events
+    .filter((event) => event.currency === base || event.currency === quote)
+    .filter((event) => {
+      const time = Date.parse(event.timestamp);
+      return time > now && time <= now + NEWS_LOOKAHEAD_MS;
+    })
+    .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+}
+
+/** The two zones around an anchor: entry edge `distance` pips out, far edge `depth` pips further. */
+export function newsZones(instrument: string, anchor: number, distancePips: number, depthPips: number) {
+  const pip = pipSizeFor(instrument);
+  const r = (value: number) => Number(value.toFixed(precisionFor(instrument)));
+  const upper = r(anchor + distancePips * pip);
+  const lower = r(anchor - distancePips * pip);
+  return { upper, upperFar: r(upper + depthPips * pip), lower, lowerFar: r(lower - depthPips * pip) };
 }
 
 // ── Arming ────────────────────────────────────────────────────────────
@@ -235,8 +270,10 @@ export function parseNewsStraddleSettings(payload: Record<string, unknown>, mid:
 const metaOf = (row: PendingEntryRow) => (row.metadata ?? {}) as unknown as NewsMeta;
 const fmt = (instrument: string, value: number) => value.toFixed(precisionFor(instrument));
 const round = (instrument: string, value: number) => Number(value.toFixed(precisionFor(instrument)));
+const releaseLabel = (release: NonNullable<NewsStraddleSettings["release"]>) => `${release.currency ? `${release.currency} ` : ""}${release.title}`;
+const clockText = (iso: string) => `${new Date(iso).toISOString().slice(11, 16)} UTC`;
 
-async function killSwitchOn(db: Queryable, userId: string) {
+async function riskSettings(db: Queryable, userId: string) {
   const row = (await db.query<{ kill_switch: boolean; max_risk_percent: string }>(
     "SELECT kill_switch, max_risk_percent::text FROM trade_plan_risk_settings WHERE user_id=$1",
     [userId],
@@ -244,53 +281,77 @@ async function killSwitchOn(db: Queryable, userId: string) {
   return { killSwitch: row?.kill_switch === true, maxRiskPercent: row ? Number(row.max_risk_percent) : null };
 }
 
-/** Any open trade on the pair, or any waiting/in-flight entry: News mode keeps one trade per pair. */
-async function pairBusy(db: Queryable, userId: string, instrument: string, exceptStraddle: string | null) {
-  const result = await db.query<{ busy: string | null }>(
-    `SELECT CASE
+const PAIR_BUSY_SQL = `CASE
        WHEN EXISTS (SELECT 1 FROM paper_strategy_trades WHERE user_id=$1 AND instrument=$2 AND status='open')
          OR EXISTS (SELECT 1 FROM paper_trades WHERE user_id=$1 AND pair=$3 AND status='open') THEN 'open'
        WHEN EXISTS (SELECT 1 FROM pending_manual_entries WHERE user_id=$1 AND instrument=$2 AND status IN ('PENDING','TRIGGERING')
                       AND COALESCE(metadata->>'straddleId','') <> COALESCE($4::text,'')) THEN 'pending'
-       ELSE NULL END AS busy`,
-    [userId, instrument, instrument.replace("_", "/"), exceptStraddle],
-  );
+       ELSE NULL END`;
+
+/** Any open trade on the pair, or any waiting/in-flight entry: News mode keeps one trade per pair. */
+async function pairBusy(db: Queryable, userId: string, instrument: string, exceptStraddle: string | null) {
+  const result = await db.query<{ busy: string | null }>(`SELECT ${PAIR_BUSY_SQL} AS busy`, [userId, instrument, instrument.replace("_", "/"), exceptStraddle]);
   return result.rows[0]?.busy ?? null;
+}
+
+/** Kill switch and one-trade-per-pair in a single round trip, for the moment of firing. */
+async function fireChecks(db: Queryable, userId: string, instrument: string, straddleId: string) {
+  const row = (await db.query<{ kill_switch: boolean | null; busy: string | null }>(
+    `SELECT (SELECT kill_switch FROM trade_plan_risk_settings WHERE user_id=$1) AS kill_switch, ${PAIR_BUSY_SQL} AS busy`,
+    [userId, instrument, instrument.replace("_", "/"), straddleId],
+  )).rows[0];
+  return { killSwitch: row?.kill_switch === true, busy: row?.busy ?? null };
 }
 
 export async function armNewsStraddle(userId: string, payload: Record<string, unknown>, tick: MarketPriceTick, deps: NewsDeps = liveNewsDeps) {
   if (tick.source !== "oanda" || !(tick.bid > 0) || !(tick.ask >= tick.bid)) throw new Error("A live OANDA quote is required to arm a news setup.");
-  if (deps.now() - Date.parse(tick.time) > 30_000) throw new Error("The market price is stale. Wait for a fresh OANDA quote.");
+  const now = deps.now();
+  if (now - Date.parse(tick.time) > 30_000) throw new Error("The market price is stale. Wait for a fresh OANDA quote.");
   if (payload.instrument !== tick.instrument) throw new Error("The selected instrument does not match the live quote.");
   if (deps.broker.environment() !== "practice") throw new Error("News mode only trades the OANDA practice account.");
   const instrument = tick.instrument;
   const pip = pipSizeFor(instrument);
-  const settings = parseNewsStraddleSettings(payload, (tick.bid + tick.ask) / 2);
-  const anchor = round(instrument, settings.anchor);
-  const upper = round(instrument, anchor + settings.distancePips * pip);
-  const lower = round(instrument, anchor - settings.distancePips * pip);
-  if (tick.ask >= upper) throw new Error(`Price (ask ${fmt(instrument, tick.ask)}) is already at or above the buy line ${fmt(instrument, upper)}. Move the anchor or widen the distance.`);
-  if (tick.bid <= lower) throw new Error(`Price (bid ${fmt(instrument, tick.bid)}) is already at or below the sell line ${fmt(instrument, lower)}. Move the anchor or widen the distance.`);
-  const safety = await killSwitchOn(deps.db, userId);
-  if (safety.killSwitch) throw new Error("The execution kill switch is on (Settings). Turn it off to arm a news setup.");
+  const settings = parseNewsStraddleSettings(payload);
+  const release = settings.release!;
+  // Phase 1: a release for this pair in the next 5 hours, confirmed by the server's own calendar.
+  const releaseAt = Date.parse(release.time!);
+  const events = await deps.releases();
+  if (!events) throw new Error("The economic calendar can't be read right now, so the release can't be confirmed. Try again shortly.");
+  const ahead = upcomingPairReleases(instrument, events, now);
+  const { base: baseCurrency, quote: quoteCurrency } = currenciesOf(instrument);
+  if (!ahead.length) throw new Error(`No ${baseCurrency} or ${quoteCurrency} news in the next 5 hours. News mode only arms ahead of a release.`);
+  if (!ahead.some((event) => Math.abs(Date.parse(event.timestamp) - releaseAt) < 60_000 && (!release.currency || event.currency === release.currency))) {
+    throw new Error("That release is not in the calendar for the next 5 hours. Pick it again from the list.");
+  }
+  const risk = await riskSettings(deps.db, userId);
+  if (risk.killSwitch) throw new Error("The execution kill switch is on (Settings). Turn it off to arm a news setup.");
   const busy = await pairBusy(deps.db, userId, instrument, null);
   if (busy) throw new Error(busy === "open"
     ? "This pair already has an open trade. News mode opens one trade per pair, so close it first."
     : "This pair already has a waiting entry. Cancel it first; News mode holds one trade per pair.");
-  // Both lines carry the same stop distance, so one size fits either side.
-  const sized = await deps.size(userId, instrument, upper, upper - settings.stopPips * pip);
-  if (safety.maxRiskPercent !== null && sized.riskPercent > safety.maxRiskPercent + 1e-9) {
-    throw new Error(`Your risk per trade (${sized.riskPercent}%) is above the max risk limit (${safety.maxRiskPercent}%) in Settings.`);
+  // Phase 2: the anchor is the live price. With the release more than a minute
+  // away the setup waits and takes the price one minute before it; otherwise now.
+  const activateAt = releaseAt - NEWS_ANCHOR_LEAD_MS > now ? new Date(releaseAt - NEWS_ANCHOR_LEAD_MS).toISOString() : null;
+  const anchor = round(instrument, (tick.bid + tick.ask) / 2);
+  const zones = newsZones(instrument, anchor, settings.distancePips, settings.slippagePips);
+  if (!activateAt && (tick.ask >= zones.upper || tick.bid <= zones.lower)) {
+    throw new Error(`The spread (${((tick.ask - tick.bid) / pip).toFixed(1)} pips) already reaches a zone ${settings.distancePips} pips out. Widen the distance.`);
+  }
+  // Both sides carry the same stop distance, so one size fits either side.
+  const sized = await deps.size(userId, instrument, zones.upper, zones.upper - settings.stopPips * pip);
+  if (risk.maxRiskPercent !== null && sized.riskPercent > risk.maxRiskPercent + 1e-9) {
+    throw new Error(`Your risk per trade (${sized.riskPercent}%) is above the max risk limit (${risk.maxRiskPercent}%) in Settings.`);
   }
   const straddleId = randomUUID();
-  const expiresAt = new Date(deps.now() + settings.armedMinutes * 60_000).toISOString();
+  const expiresAt = new Date(Math.max(releaseAt, now) + settings.armedMinutes * 60_000).toISOString();
   const base = {
-    mode: "news", straddleId, execution: "news_armed", createdFrom: "chart", priceSource: tick.source,
-    anchor, upperLine: upper, lowerLine: lower,
+    mode: "news", straddleId, execution: activateAt ? "news_waiting" : "news_armed", createdFrom: "chart", priceSource: tick.source,
+    anchor, upperLine: zones.upper, lowerLine: zones.lower, upperFar: zones.upperFar, lowerFar: zones.lowerFar,
     distancePips: settings.distancePips, stopPips: settings.stopPips, targetPips: settings.targetPips,
     slippagePips: settings.slippagePips, spreadCapPips: settings.spreadCapPips, closeAfterMinutes: settings.closeAfterMinutes,
-    units: sized.units, riskPercent: sized.riskPercent, release: settings.release, tradeStyle: "day",
+    units: sized.units, riskPercent: sized.riskPercent, release, tradeStyle: "day",
     spreadAtArmPips: Number(((tick.ask - tick.bid) / pip).toFixed(1)),
+    activatedAt: activateAt ? null : new Date(now).toISOString(),
   };
   const rows = await deps.db.tx(async (client) => {
     await client.query(
@@ -298,39 +359,147 @@ export async function armNewsStraddle(userId: string, payload: Record<string, un
       [instrument, displayPair(instrument), precisionFor(instrument)],
     );
     const inserted: PendingEntryRow[] = [];
-    for (const [direction, line, price, orderType] of [["long", "upper", upper, "buy_stop"], ["short", "lower", lower, "sell_stop"]] as const) {
+    for (const [direction, line, price, orderType] of [["long", "upper", zones.upper, "buy_stop"], ["short", "lower", zones.lower, "sell_stop"]] as const) {
       const result = await client.query<PendingEntryRow>(
         `INSERT INTO pending_manual_entries(user_id,instrument,direction,entry_price,entry_order_type,current_price_at_creation,
-           expiration_type,expires_at,last_observed_price,last_observed_at,metadata)
-         VALUES($1,$2,$3,$4,$5,$6,'time',$7,$6,$8,$9::jsonb) RETURNING ${PENDING_ENTRY_FIELDS}`,
-        [userId, instrument, direction, price, orderType, anchor, expiresAt, tick.time, JSON.stringify({ ...base, line })],
+           expiration_type,expires_at,activate_at,last_observed_price,last_observed_at,metadata)
+         VALUES($1,$2,$3,$4,$5,$6,'time',$7,$8,$6,$9,$10::jsonb) RETURNING ${PENDING_ENTRY_FIELDS}`,
+        [userId, instrument, direction, price, orderType, anchor, expiresAt, activateAt, tick.time, JSON.stringify({ ...base, line })],
       );
       inserted.push(result.rows[0]!);
     }
     return inserted;
   });
-  const releaseText = settings.release ? ` for ${settings.release.currency ? `${settings.release.currency} ` : ""}${settings.release.title}` : "";
+  rememberStraddle(rows[0]!, rows[1]!);
   await deps.notify({
     userId, instrument, key: straddleId, event: "armed",
-    title: `${displayPair(instrument)} news setup armed${releaseText}`,
-    message: `Buy above ${fmt(instrument, upper)}, sell below ${fmt(instrument, lower)} (±${settings.distancePips} pips from ${fmt(instrument, anchor)}). `
-      + `Stop ${settings.stopPips}p, target ${settings.targetPips}p from the fill, max slippage ${settings.slippagePips}p, spread cap ${settings.spreadCapPips}p. `
-      + `Spread now ${base.spreadAtArmPips} pips. Disarms in ${settings.armedMinutes} min if neither line is crossed.`,
+    title: `${displayPair(instrument)} news setup armed for ${releaseLabel(release)}`,
+    message: (activateAt
+      ? `Release at ${clockText(release.time!)}. One minute before it, GX takes the live price as the anchor and sets the zones ${settings.distancePips}–${settings.distancePips + settings.slippagePips} pips either side. `
+      : `Buy zone ${fmt(instrument, zones.upper)}–${fmt(instrument, zones.upperFar)}, sell zone ${fmt(instrument, zones.lower)}–${fmt(instrument, zones.lowerFar)} around ${fmt(instrument, anchor)}. `)
+      + `Price entering a zone sends the order; it fills only inside the zone. Stop ${settings.stopPips}p, target ${settings.targetPips}p from the fill, spread cap ${settings.spreadCapPips}p. `
+      + `Spread now ${base.spreadAtArmPips} pips. Watches until ${clockText(expiresAt)}, then disarms.`,
   });
   return rows.map(serializePendingManualEntry);
 }
 
 // ── The tick monitor ──────────────────────────────────────────────────
 
-const armedInstruments = new Set<string>();
+/**
+ * Armed setups held in memory so an ordinary tick costs no database work:
+ * only a tick that enters a zone (or ends the window, or is due to set the
+ * anchor) goes to the database, where the locked transaction decides. The
+ * sweep reloads this every 5 seconds; the database stays the authority.
+ */
+type CachedStraddle = {
+  straddleId: string;
+  instrument: string;
+  upper: number;
+  lower: number;
+  expiresAt: number;
+  activateAt: number | null;
+  waiting: boolean;
+  slippagePips: number;
+  spreadCapPips: number;
+};
+const armed = new Map<string, Map<string, CachedStraddle>>();
 
-/** Cheap gate for the per-tick hook: true when this instrument may have an armed straddle. */
-export function newsStraddleMayBeArmed(instrument: string) {
-  return armedInstruments.has(instrument);
+function rememberStraddle(first: PendingEntryRow, second: PendingEntryRow) {
+  const upper = metaOf(first).line === "upper" ? first : second;
+  const lower = upper === first ? second : first;
+  const meta = metaOf(upper);
+  const byInstrument = armed.get(upper.instrument) ?? new Map<string, CachedStraddle>();
+  byInstrument.set(meta.straddleId, {
+    straddleId: meta.straddleId,
+    instrument: upper.instrument,
+    upper: Number(upper.entry_price),
+    lower: Number(lower.entry_price),
+    expiresAt: upper.expires_at ? Date.parse(upper.expires_at) : Number.POSITIVE_INFINITY,
+    activateAt: upper.activate_at ? Date.parse(upper.activate_at) : null,
+    waiting: meta.execution === "news_waiting",
+    slippagePips: meta.slippagePips,
+    spreadCapPips: meta.spreadCapPips,
+  });
+  armed.set(upper.instrument, byInstrument);
 }
 
-export function markNewsStraddleArmed(instrument: string) {
-  armedInstruments.add(instrument);
+function forgetStraddle(instrument: string, straddleId: string) {
+  armed.get(instrument)?.delete(straddleId);
+}
+
+/** Reload the in-memory set from the database. */
+export async function refreshArmedNewsStraddles(deps: NewsDeps = liveNewsDeps) {
+  const rows = (await deps.db.query<PendingEntryRow>(
+    `SELECT ${PENDING_ENTRY_FIELDS} FROM pending_manual_entries WHERE status='PENDING' AND metadata->>'mode'='news'`,
+  )).rows;
+  armed.clear();
+  const groups = new Map<string, PendingEntryRow[]>();
+  for (const row of rows) groups.set(metaOf(row).straddleId, [...(groups.get(metaOf(row).straddleId) ?? []), row]);
+  for (const group of groups.values()) {
+    if (group.length === 2) rememberStraddle(group[0]!, group[1]!);
+  }
+  return groups.size;
+}
+
+/** Cheap gate for the per-tick hook: true when this instrument has an armed or waiting setup. */
+export function newsStraddleMayBeArmed(instrument: string) {
+  return (armed.get(instrument)?.size ?? 0) > 0;
+}
+
+/**
+ * Set a waiting setup's anchor to the live mid and its zones around it, one
+ * minute before the release. Runs once per setup (only while still waiting).
+ */
+async function activateStraddle(straddleId: string, tick: MarketPriceTick, deps: NewsDeps) {
+  const now = deps.now();
+  const result = await deps.db.tx(async (client) => {
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`news-straddle:${straddleId}`]);
+    const locked = (await client.query<PendingEntryRow>(
+      `SELECT ${PENDING_ENTRY_FIELDS} FROM pending_manual_entries WHERE metadata->>'straddleId'=$1 FOR UPDATE`,
+      [straddleId],
+    )).rows;
+    if (locked.length !== 2 || locked.some((row) => row.status !== "PENDING" || metaOf(row).execution !== "news_waiting")) return null;
+    const meta = metaOf(locked[0]!);
+    const instrument = locked[0]!.instrument;
+    const anchor = round(instrument, (tick.bid + tick.ask) / 2);
+    const zones = newsZones(instrument, anchor, meta.distancePips, meta.slippagePips);
+    const updated: PendingEntryRow[] = [];
+    for (const row of locked) {
+      const isUpper = metaOf(row).line === "upper";
+      updated.push((await client.query<PendingEntryRow>(
+        `UPDATE pending_manual_entries SET entry_price=$2,current_price_at_creation=$3,last_observed_price=$3,last_observed_at=$4,
+           metadata=metadata||$5::jsonb,updated_at=now()
+         WHERE id=$1 AND status='PENDING' RETURNING ${PENDING_ENTRY_FIELDS}`,
+        [row.id, isUpper ? zones.upper : zones.lower, anchor, new Date(now), JSON.stringify({
+          execution: "news_armed", anchor, upperLine: zones.upper, lowerLine: zones.lower, upperFar: zones.upperFar, lowerFar: zones.lowerFar,
+          activatedAt: new Date(now).toISOString(), spreadAtActivationPips: Number(((tick.ask - tick.bid) / pipSizeFor(instrument)).toFixed(1)),
+        })],
+      )).rows[0]!);
+    }
+    return { updated, zones, anchor };
+  });
+  if (!result) {
+    await refreshOne(straddleId, deps);
+    return;
+  }
+  rememberStraddle(result.updated[0]!, result.updated[1]!);
+  const row = result.updated[0]!;
+  const instrument = row.instrument;
+  const meta = metaOf(row);
+  await emit(row, "live", `${displayPair(instrument)} news zones set`,
+    `Anchor ${fmt(instrument, result.anchor)} (live price). Buy zone ${fmt(instrument, result.zones.upper)}–${fmt(instrument, result.zones.upperFar)}, `
+    + `sell zone ${fmt(instrument, result.zones.lower)}–${fmt(instrument, result.zones.lowerFar)}. `
+    + `Spread ${((tick.ask - tick.bid) / pipSizeFor(instrument)).toFixed(1)} pips.${meta.release ? ` ${releaseLabel(meta.release)} at ${clockText(meta.release.time!)}.` : ""}`, deps);
+}
+
+/** Re-read one setup into the cache (or drop it when it is no longer armed). */
+async function refreshOne(straddleId: string, deps: NewsDeps) {
+  const rows = (await deps.db.query<PendingEntryRow>(
+    `SELECT ${PENDING_ENTRY_FIELDS} FROM pending_manual_entries WHERE metadata->>'straddleId'=$1`,
+    [straddleId],
+  )).rows;
+  if (rows.length === 2 && rows.every((row) => row.status === "PENDING")) rememberStraddle(rows[0]!, rows[1]!);
+  else if (rows[0]) forgetStraddle(rows[0].instrument, straddleId);
 }
 
 type Claim =
@@ -369,6 +538,8 @@ async function settleStraddle(straddleId: string, tick: MarketPriceTick, deps: N
       [straddleId, mid, tickTime],
     );
     const pair = displayPair(instrument);
+    // A setup still waiting for its anchor can only end; it never fires.
+    if (meta.execution === "news_waiting" && decision.kind !== "expired") return { kind: "none" };
     if (decision.kind === "hold" || decision.kind === "ambiguous") {
       await observe();
       if (decision.kind === "ambiguous") console.warn(`[news-straddle] ${straddleId} both lines crossed by a ${decision.spreadPips.toFixed(1)}-pip spread with the mid between them; no order`);
@@ -379,7 +550,7 @@ async function settleStraddle(straddleId: string, tick: MarketPriceTick, deps: N
         "UPDATE pending_manual_entries SET status='EXPIRED',updated_at=now(),metadata=metadata||'{\"execution\":\"news_disarmed\"}'::jsonb WHERE metadata->>'straddleId'=$1 AND status='PENDING'",
         [straddleId],
       );
-      return { kind: "notify", row: upper, event: "disarmed", title: `${pair} news setup disarmed`, message: "Neither line was crossed before the armed window ended. No order was sent." };
+      return { kind: "notify", row: upper, event: "disarmed", title: `${pair} news setup disarmed`, message: "Price did not enter either zone before the window ended. No order was sent." };
     }
     if (decision.kind === "spread_blocked") {
       await observe();
@@ -398,9 +569,8 @@ async function settleStraddle(straddleId: string, tick: MarketPriceTick, deps: N
     const loser = decision.side === "long" ? lower : upper;
     const line = Number(winner.entry_price);
     // Safety checks at the moment of firing: kill switch, account, one trade per pair.
-    const safety = await killSwitchOn(client, winner.user_id);
-    const busy = await pairBusy(client, winner.user_id, instrument, straddleId);
-    const blocked = safety.killSwitch ? "the execution kill switch is on"
+    const { killSwitch, busy } = await fireChecks(client, winner.user_id, instrument, straddleId);
+    const blocked = killSwitch ? "the execution kill switch is on"
       : deps.broker.environment() !== "practice" ? "the broker account is not the OANDA practice account"
         : busy ? `this pair already has ${busy === "open" ? "an open trade" : "another waiting entry"}`
           : null;
@@ -447,23 +617,40 @@ async function emit(row: PendingEntryRow, event: NewsNotice, title: string, mess
   await deps.notify({ userId: row.user_id, instrument: row.instrument, key: key ?? metaOf(row).straddleId, event, title, message });
 }
 
-/** Run every armed straddle on this instrument against a live quote. */
+/**
+ * Run this instrument's setups against a live quote. Ordinary ticks are
+ * decided from memory with no database work; a tick that enters a zone,
+ * ends the window or is due to set the anchor goes to the locked
+ * transaction, which decides again from the database rows.
+ */
 export async function evaluateNewsStraddles(tick: MarketPriceTick, deps: NewsDeps = liveNewsDeps) {
   if (!(tick.bid > 0) || !(tick.ask >= tick.bid)) return { fired: 0 };
-  const armed = await deps.db.query<{ straddle_id: string }>(
-    `SELECT DISTINCT metadata->>'straddleId' AS straddle_id FROM pending_manual_entries
-      WHERE instrument=$1 AND status='PENDING' AND metadata->>'mode'='news'`,
-    [tick.instrument],
-  );
-  if (!armed.rows.length) armedInstruments.delete(tick.instrument);
+  const setups = [...(armed.get(tick.instrument)?.values() ?? [])];
+  if (!setups.length) return { fired: 0 };
+  const now = deps.now();
+  const pip = pipSizeFor(tick.instrument);
   let fired = 0;
-  for (const { straddle_id: straddleId } of armed.rows) {
-    const claim = await settleStraddle(straddleId, tick, deps);
-    if (claim.kind === "notify") await emit(claim.row, claim.event, claim.title, claim.message, deps);
+  for (const setup of setups) {
+    if (setup.waiting && now < setup.expiresAt) {
+      if (setup.activateAt !== null && now >= setup.activateAt) await activateStraddle(setup.straddleId, tick, deps);
+      continue;
+    }
+    const quick = decideNewsStraddleTick({
+      upper: setup.upper, lower: setup.lower, bid: tick.bid, ask: tick.ask,
+      expiresAt: Number.isFinite(setup.expiresAt) ? new Date(setup.expiresAt).toISOString() : null,
+      now, pip, slippagePips: setup.slippagePips, spreadCapPips: setup.spreadCapPips,
+    });
+    if (quick.kind === "hold" || quick.kind === "ambiguous") continue;
+    const claim = await settleStraddle(setup.straddleId, tick, deps);
     if (claim.kind === "fire") {
+      // Off the watch list before the request, so no later tick even reaches the database.
+      forgetStraddle(tick.instrument, setup.straddleId);
       fired += 1;
       await submitClaimed(claim.row, claim.bound, deps);
+      continue;
     }
+    if (claim.kind === "notify") await emit(claim.row, claim.event, claim.title, claim.message, deps);
+    await refreshOne(setup.straddleId, deps);
   }
   return { fired };
 }
@@ -603,7 +790,6 @@ export async function sweepNewsStraddles(deps: NewsDeps = liveNewsDeps) {
       WHERE status='PENDING' AND metadata->>'mode'='news'`,
   );
   for (const item of due.rows) {
-    armedInstruments.add(item.instrument);
     const disarm = await deps.db.tx(async (client) => {
       await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`news-straddle:${item.straddle_id}`]);
       const result = await client.query<PendingEntryRow>(
@@ -615,8 +801,20 @@ export async function sweepNewsStraddles(deps: NewsDeps = liveNewsDeps) {
     });
     if (disarm) {
       disarmed += 1;
-      await emit(disarm, "disarmed", `${displayPair(disarm.instrument)} news setup disarmed`, "Neither line was crossed before the armed window ended. No order was sent.", deps);
+      await emit(disarm, "disarmed", `${displayPair(disarm.instrument)} news setup disarmed`, "Price did not enter either zone before the window ended. No order was sent.", deps);
     }
+  }
+
+  // Set the anchor of setups whose time came with no stream tick (a quiet market).
+  const waiting = await deps.db.query<{ straddle_id: string; instrument: MajorInstrument }>(
+    `SELECT DISTINCT metadata->>'straddleId' AS straddle_id, instrument FROM pending_manual_entries
+      WHERE status='PENDING' AND metadata->>'mode'='news' AND metadata->>'execution'='news_waiting'
+        AND activate_at <= $1 AND expires_at > $1`,
+    [new Date(now)],
+  );
+  for (const item of waiting.rows) {
+    const tick = await deps.quote(item.instrument).catch(() => null);
+    if (tick && now - Date.parse(tick.time) <= 30_000) await activateStraddle(item.straddle_id, tick, deps);
   }
 
   const inFlight = await deps.db.query<PendingEntryRow>(
@@ -705,6 +903,7 @@ export async function sweepNewsStraddles(deps: NewsDeps = liveNewsDeps) {
       `${metaOf(row).closeAfterMinutes} minutes passed without stop or target, so GX closed it at market${exit === null ? "" : ` at ${fmt(instrument, exit)}`}`
       + `${resultR === null ? "" : ` (${resultR >= 0 ? "+" : ""}${resultR.toFixed(2)}R)`}${pl === null ? "" : `, P/L ${pl >= 0 ? "+" : ""}${pl.toFixed(2)}`}.`, deps, row.id);
   }
+  await refreshArmedNewsStraddles(deps);
   return { disarmed, reconciled, timeExits };
 }
 
@@ -719,6 +918,7 @@ export async function cancelNewsStraddle(userId: string, straddleId: string, dep
     )).rows;
   });
   if (!rows.length) throw new Error("This news setup already fired or ended, so there is nothing to cancel.");
+  forgetStraddle(rows[0]!.instrument, straddleId);
   await emit(rows[0]!, "disarmed", `${displayPair(rows[0]!.instrument)} news setup cancelled`, "You cancelled it. Both lines are off; no order was sent.", deps);
   return rows.map(serializePendingManualEntry);
 }

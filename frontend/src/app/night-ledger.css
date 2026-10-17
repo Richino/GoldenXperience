@@ -9652,3 +9652,17 @@ html:is(.dark, :not(.dark)) body .nl-pe-release {
   font-size: 12px;
   line-height: 1.5;
 }
+.nl-pe-levels.is-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 639px) {
+  .nl-pe-levels.is-two { grid-template-columns: minmax(0, 1fr); }
+}
+/* Phase 1 of News mode: no release ahead (or no calendar), so nothing to set up. */
+.nl-pe-news-empty {
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}

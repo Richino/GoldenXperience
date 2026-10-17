@@ -6,15 +6,19 @@ import { currenciesOf, pipSizeFor, precisionFor } from "@/lib/instruments/catalo
 import { useEconomicCalendar } from "@/lib/oanda/use-economic-calendar";
 
 /**
- * News mode of the trade ticket: a two-line breakout for the first minutes
- * after a release. A buy line sits `distance` pips above the anchor and a
- * sell line the same below; the server watches live OANDA prices and the
- * first line crossed sends ONE market order that way and drops the other.
- * The order fills only within the max slippage past the line, and its stop
- * and target are measured from the actual fill.
+ * News mode of the trade ticket, in two phases:
+ *  1. Is there a release for this pair in the next 5 hours? If not, nothing to set up.
+ *  2. The anchor is always the live price — taken one minute before the
+ *     release (or now, when it is under a minute away). A buy zone sits
+ *     `distance` pips above it and a sell zone the same below, each `depth`
+ *     pips deep. Price entering a zone sends one market order that way (the
+ *     server watches every tick) and drops the other side; the order fills
+ *     only inside the zone, never further.
  */
 
-const ARMED_CHOICES = [5, 15, 30, 60] as const;
+const LOOKAHEAD_MS = 5 * 60 * 60_000;
+const ANCHOR_LEAD_MS = 60_000;
+const WATCH_CHOICES = [5, 15, 30, 60] as const;
 const CLOSE_CHOICES = [0, 5, 15, 30] as const;
 
 function minutesLabel(minutes: number) {
@@ -22,10 +26,12 @@ function minutesLabel(minutes: number) {
 }
 
 function until(ms: number) {
-  const minutes = Math.round(ms / 60_000);
-  if (Math.abs(minutes) < 60) return `${Math.abs(minutes)}m`;
-  return `${Math.floor(Math.abs(minutes) / 60)}h ${Math.abs(minutes) % 60}m`;
+  const minutes = Math.max(0, Math.round(ms / 60_000));
+  if (minutes < 60) return `${minutes}m`;
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }
+
+const timeOf = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 export function NewsStraddleTicket({
   header,
@@ -47,59 +53,59 @@ export function NewsStraddleTicket({
 }) {
   const pip = pipSizeFor(instrument);
   const precision = precisionFor(instrument);
+  const { base, quote } = currenciesOf(instrument);
   const mid = bid !== null && ask !== null ? (bid + ask) / 2 : null;
   const spreadPips = bid !== null && ask !== null ? Math.max(0, (ask - bid) / pip) : null;
 
-  const [anchorText, setAnchorText] = useState("");
   const [distance, setDistance] = useState("10");
+  const [depth, setDepth] = useState("3");
+  const [spreadCap, setSpreadCap] = useState("8");
   const [stopPips, setStopPips] = useState("");
   const [targetPips, setTargetPips] = useState("");
-  const [slippage, setSlippage] = useState("3");
-  const [spreadCap, setSpreadCap] = useState("8");
-  const [armedMinutes, setArmedMinutes] = useState<number>(15);
+  const [watchMinutes, setWatchMinutes] = useState<number>(15);
   const [closeAfter, setCloseAfter] = useState<number>(15);
-  const [releaseId, setReleaseId] = useState<string>("");
+  const [pickedRelease, setPickedRelease] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Blank anchor follows the live mid until armed; the server re-reads it then.
-  const anchor = anchorText.trim() ? Number(anchorText) : mid;
-  const distanceNumber = Number(distance);
-  const linesValid = anchor !== null && Number.isFinite(anchor) && anchor > 0 && Number.isFinite(distanceNumber) && distanceNumber > 0;
-  const upper = linesValid ? anchor! + distanceNumber * pip : null;
-  const lower = linesValid ? anchor! - distanceNumber * pip : null;
-  const stopNumber = Number(stopPips), targetNumber = Number(targetPips), slipNumber = Number(slippage), capNumber = Number(spreadCap);
-  const ratio = stopNumber > 0 && targetNumber > 0 ? targetNumber / stopNumber : null;
-  const spreadOverCap = spreadPips !== null && capNumber > 0 && spreadPips > capNumber;
-
-  // Upcoming releases for either currency of the pair, next 24 hours.
+  // Phase 1: this pair's releases in the next 5 hours.
   const { snapshot: calendar, loading: calendarLoading } = useEconomicCalendar();
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- the clock only exists in the browser
     setNow(Date.now());
-    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    const timer = window.setInterval(() => setNow(Date.now()), 15_000);
     return () => window.clearInterval(timer);
   }, []);
   const releases = useMemo(() => {
     // Offline, the hook serves placeholder events; never offer those as releases.
     if (now === null || !calendar.connected) return [];
-    const { base, quote } = currenciesOf(instrument);
     return calendar.events
-      .filter((event) => (event.currency === base || event.currency === quote) && event.impact >= 2)
+      .filter((event) => event.currency === base || event.currency === quote)
       .filter((event) => {
         const time = Date.parse(event.timestamp);
-        return time > now - 10 * 60_000 && time < now + 24 * 60 * 60_000;
+        return time > now && time <= now + LOOKAHEAD_MS;
       })
-      .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp))
-      .slice(0, 12);
-  }, [calendar.connected, calendar.events, instrument, now]);
-  const release = releases.find((event) => event.id === releaseId) ?? null;
-  const releaseIn = release && now !== null ? Date.parse(release.timestamp) - now : null;
-  const windowMissesRelease = releaseIn !== null && releaseIn > armedMinutes * 60_000;
+      .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+  }, [base, calendar.connected, calendar.events, now, quote]);
+  // The soonest release unless another was picked.
+  const release = releases.find((event) => event.id === pickedRelease) ?? releases[0] ?? null;
+  const releaseAt = release ? Date.parse(release.timestamp) : null;
+  const anchorAt = releaseAt !== null && now !== null && releaseAt - ANCHOR_LEAD_MS > now ? releaseAt - ANCHOR_LEAD_MS : null;
+  const watchUntil = releaseAt !== null && now !== null ? Math.max(releaseAt, now) + watchMinutes * 60_000 : null;
 
-  // What each side would be sized to (same stop distance, so one size).
-  // Keyed on a coarse entry so a live-following anchor does not refetch every tick.
+  // Zones around the live price (the server takes the anchor itself).
+  const distanceNumber = Number(distance), depthNumber = Number(depth), capNumber = Number(spreadCap);
+  const stopNumber = Number(stopPips), targetNumber = Number(targetPips);
+  const zonesValid = mid !== null && distanceNumber > 0 && depthNumber > 0;
+  const upper = zonesValid ? mid! + distanceNumber * pip : null;
+  const lower = zonesValid ? mid! - distanceNumber * pip : null;
+  const ratio = stopNumber > 0 && targetNumber > 0 ? targetNumber / stopNumber : null;
+  const spreadOverCap = spreadPips !== null && capNumber > 0 && spreadPips > capNumber;
+  const spreadOverDepth = spreadPips !== null && depthNumber > 0 && spreadPips > depthNumber;
+
+  // What each side would be sized to (same stop distance, so one size),
+  // keyed on a coarse entry so the live price does not refetch every tick.
   const sizeEntry = upper === null ? null : Number(upper.toFixed(Math.max(0, precision - 2)));
   const sizeKey = sizeEntry !== null && stopNumber > 0 ? `${instrument}|${sizeEntry}|${(sizeEntry - stopNumber * pip).toFixed(precision)}` : null;
   const [size, setSize] = useState<{ key: string; lots: number; riskAmount: number; riskPercent: number } | null>(null);
@@ -123,10 +129,9 @@ export function NewsStraddleTicket({
   async function arm() {
     setError(null);
     if (creationBlocked) return setError("This pair already has an active position. Close it before arming a news setup.");
-    if (!linesValid || upper === null || lower === null) return setError("Enter a distance and wait for a live price.");
+    if (!release) return setError(`No ${base} or ${quote} news in the next 5 hours.`);
+    if (!zonesValid) return setError("Enter a zone distance and depth, and wait for a live price.");
     if (!(stopNumber > 0) || !(targetNumber > 0)) return setError("Enter a stop and a target in pips.");
-    if (ask !== null && ask >= upper) return setError("Price is already at or above the buy line. Move the anchor or widen the distance.");
-    if (bid !== null && bid <= lower) return setError("Price is already at or below the sell line. Move the anchor or widen the distance.");
     setSaving(true);
     try {
       const response = await fetch(apiUrl("/api/pending-entries/news"), {
@@ -135,20 +140,19 @@ export function NewsStraddleTicket({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           instrument,
-          anchor: anchorText.trim() ? Number(anchorText) : null,
           distancePips: distanceNumber,
+          slippagePips: depthNumber,
+          spreadCapPips: capNumber,
           stopPips: stopNumber,
           targetPips: targetNumber,
-          slippagePips: slipNumber,
-          spreadCapPips: capNumber,
-          armedMinutes,
+          armedMinutes: watchMinutes,
           closeAfterMinutes: closeAfter,
-          release: release ? { id: release.id, title: release.title, currency: release.currency, time: release.timestamp } : null,
+          release: { id: release.id, title: release.title, currency: release.currency, time: release.timestamp },
         }),
       });
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Could not arm the news setup.");
-      onArmed("News setup armed");
+      onArmed(anchorAt ? `News setup armed · zones set at ${timeOf(anchorAt)}` : "News setup armed");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not arm the news setup.");
     } finally {
@@ -157,123 +161,129 @@ export function NewsStraddleTicket({
   }
 
   const fmt = (value: number | null) => (value === null || !Number.isFinite(value) ? "—" : value.toFixed(precision));
+  const phaseOneMessage = calendarLoading && !calendar.connected
+    ? `Checking the calendar for ${base} and ${quote} news…`
+    : !calendar.connected
+      ? "The economic calendar can't be read right now, so there's no release to set up for. Try again shortly."
+      : !releases.length
+        ? `No ${base} or ${quote} news in the next 5 hours. News mode sets up only ahead of a release.`
+        : null;
 
   return (
     <>
       <div className="nl-pe-plan nl-pe-ticket">
         {header}
-        <p className="nl-an-regime">
-          Buy above <b className="metric-number">{fmt(upper)}</b> · sell below <b className="metric-number">{fmt(lower)}</b>
-          {mid === null ? " · waiting for quote" : ` · now ${mid.toFixed(precision)}`}
-        </p>
-
-        <div className="nl-pe-levels">
-          <label>
-            <span>Lines · pips</span>
-            <input className="metric-number" inputMode="decimal" value={distance} onChange={(event) => setDistance(event.target.value)} placeholder="10" aria-label="Line distance in pips from the anchor" />
-            <small className="nl-pe-hint">each side</small>
-          </label>
-          <label>
-            <span>Stop · pips</span>
-            <input className="metric-number is-down" inputMode="decimal" value={stopPips} onChange={(event) => setStopPips(event.target.value)} placeholder="e.g. 15" aria-label="Stop loss in pips from the fill" />
-            <small className="nl-pe-hint">from the fill</small>
-          </label>
-          <label>
-            <span>Target · pips</span>
-            <input className="metric-number is-up" inputMode="decimal" value={targetPips} onChange={(event) => setTargetPips(event.target.value)} placeholder="e.g. 30" aria-label="Take profit in pips from the fill" />
-            <small className="nl-pe-hint">{ratio === null ? "from the fill" : `from the fill · 1:${Number(ratio.toFixed(1))}`}</small>
-          </label>
-        </div>
-
-        <div className="nl-pe-levels">
-          <label>
-            <span>Anchor</span>
-            <input className="metric-number" inputMode="decimal" value={anchorText} onChange={(event) => setAnchorText(event.target.value)} placeholder={mid?.toFixed(precision) ?? "live mid"} aria-label="Anchor price (blank = live mid when armed)" />
-            <small className="nl-pe-hint">{anchorText.trim() ? "your price" : "live mid"}</small>
-          </label>
-          <label>
-            <span>Max slippage · pips</span>
-            <input className="metric-number" inputMode="decimal" value={slippage} onChange={(event) => setSlippage(event.target.value)} placeholder="3" aria-label="Max slippage in pips past the line" />
-            <small className="nl-pe-hint">past the line</small>
-          </label>
-          <label>
-            <span>Spread cap · pips</span>
-            <input className="metric-number" inputMode="decimal" value={spreadCap} onChange={(event) => setSpreadCap(event.target.value)} placeholder="8" aria-label="Spread cap in pips" />
-            <small className="nl-pe-hint">waits while wider</small>
-          </label>
-        </div>
-
-        <div className="nl-pe-submit">
-          <span>Release</span>
-          <select
-            className="nl-pe-release"
-            value={releaseId}
-            onChange={(event) => setReleaseId(event.target.value)}
-            aria-label="Release this setup is for"
-          >
-            <option value="">{calendarLoading ? "Loading calendar…" : calendar.connected ? (releases.length ? "None picked" : "No releases in the next 24h") : "Calendar unavailable"}</option>
-            {releases.map((event) => (
-              <option key={event.id} value={event.id}>
-                {new Date(event.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · {event.currency} {event.title}{event.impact >= 3 ? " (high)" : ""}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="nl-pe-submit">
-          <span>Armed for</span>
-          <div className="nl-an-modes" role="radiogroup" aria-label="How long the setup stays armed">
-            {ARMED_CHOICES.map((minutes) => (
-              <button key={minutes} type="button" role="radio" aria-checked={armedMinutes === minutes} className={armedMinutes === minutes ? "is-active" : ""} onClick={() => setArmedMinutes(minutes)}>
-                {minutesLabel(minutes)}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="nl-pe-submit">
-          <span>Close after</span>
-          <div className="nl-an-modes" role="radiogroup" aria-label="Close the trade at market after">
-            {CLOSE_CHOICES.map((minutes) => (
-              <button key={minutes} type="button" role="radio" aria-checked={closeAfter === minutes} className={closeAfter === minutes ? "is-active" : ""} onClick={() => setCloseAfter(minutes)}>
-                {minutes === 0 ? "Off" : minutesLabel(minutes)}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <dl className="nl-an-rows">
-          <div>
-            <dt>Spread now</dt>
-            <dd className={`metric-number${spreadOverCap ? " is-caution" : ""}`}>
-              {spreadPips === null ? "—" : `${spreadPips.toFixed(1)} pips${spreadOverCap ? " · over your cap" : ""}`}
-            </dd>
-          </div>
-          <div>
-            <dt>Size (either side)</dt>
-            <dd className="metric-number">
-              {!sizeKey ? "—" : currentSize ? `${currentSize.lots.toFixed(2)} lots · risks $${currentSize.riskAmount.toFixed(0)} (${currentSize.riskPercent}%)` : "Sizing…"}
-            </dd>
-          </div>
-          {release && releaseIn !== null ? (
-            <div>
-              <dt>Release</dt>
-              <dd className={windowMissesRelease ? "is-caution" : undefined}>
-                {releaseIn >= 0 ? `in ${until(releaseIn)}` : `${until(releaseIn)} ago`}
-                {windowMissesRelease ? " · after the armed window ends" : ""}
-              </dd>
+        {phaseOneMessage ? (
+          <p className="nl-pe-news-empty" role="status">{phaseOneMessage}</p>
+        ) : (
+          <>
+            <div className="nl-pe-submit">
+              <span>Release</span>
+              <select
+                className="nl-pe-release"
+                value={release?.id ?? ""}
+                onChange={(event) => setPickedRelease(event.target.value)}
+                aria-label="Release this setup is for"
+              >
+                {releases.map((event) => (
+                  <option key={event.id} value={event.id}>
+                    {timeOf(Date.parse(event.timestamp))} · {event.currency} {event.title}{event.impact >= 3 ? " (high)" : event.impact <= 1 ? " (low)" : ""}
+                  </option>
+                ))}
+              </select>
             </div>
-          ) : null}
-          <div>
-            <dt>Fills only within</dt>
-            <dd className="metric-number">{upper === null || lower === null || !(slipNumber >= 0) ? "—" : `buy ≤ ${fmt(upper + slipNumber * pip)} · sell ≥ ${fmt(lower - slipNumber * pip)}`}</dd>
-          </div>
-          <div><dt>Account</dt><dd>OANDA practice</dd></div>
-        </dl>
 
-        <p className="nl-pe-news-note">
-          When price crosses a line, GX sends one market order that way and drops the other line. It fills only up to {slipNumber >= 0 ? slipNumber : "—"} pips past the line; if price has already run further, nothing opens and you are told. Spreads often widen several-fold in the seconds after a release; the spread and slippage you got are in the fill notification.
-        </p>
+            <dl className="nl-an-rows">
+              <div>
+                <dt>Anchor</dt>
+                <dd>{anchorAt ? `live price at ${timeOf(anchorAt)} (in ${until(anchorAt - (now ?? 0))})` : "live price now"}</dd>
+              </div>
+              <div>
+                <dt>Buy zone</dt>
+                <dd className="metric-number is-up">{upper === null ? "—" : `${fmt(upper)} – ${fmt(upper + depthNumber * pip)}`}</dd>
+              </div>
+              <div>
+                <dt>Sell zone</dt>
+                <dd className="metric-number is-down">{lower === null ? "—" : `${fmt(lower)} – ${fmt(lower - depthNumber * pip)}`}</dd>
+              </div>
+            </dl>
+            {anchorAt ? <p className="nl-pe-news-note">Zones shown around the price now; they move with it until {timeOf(anchorAt)}, then stay put.</p> : null}
+
+            <div className="nl-pe-levels">
+              <label>
+                <span>Distance · pips</span>
+                <input className="metric-number" inputMode="decimal" value={distance} onChange={(event) => setDistance(event.target.value)} placeholder="10" aria-label="Zone distance in pips from the anchor" />
+                <small className="nl-pe-hint">from the anchor</small>
+              </label>
+              <label>
+                <span>Zone depth · pips</span>
+                <input className="metric-number" inputMode="decimal" value={depth} onChange={(event) => setDepth(event.target.value)} placeholder="3" aria-label="Zone depth in pips" />
+                <small className="nl-pe-hint">fills only inside</small>
+              </label>
+              <label>
+                <span>Spread cap · pips</span>
+                <input className="metric-number" inputMode="decimal" value={spreadCap} onChange={(event) => setSpreadCap(event.target.value)} placeholder="8" aria-label="Spread cap in pips" />
+                <small className="nl-pe-hint">waits while wider</small>
+              </label>
+            </div>
+
+            <div className="nl-pe-levels is-two">
+              <label>
+                <span>Stop · pips</span>
+                <input className="metric-number is-down" inputMode="decimal" value={stopPips} onChange={(event) => setStopPips(event.target.value)} placeholder="e.g. 15" aria-label="Stop loss in pips from the fill" />
+                <small className="nl-pe-hint">from the fill</small>
+              </label>
+              <label>
+                <span>Target · pips</span>
+                <input className="metric-number is-up" inputMode="decimal" value={targetPips} onChange={(event) => setTargetPips(event.target.value)} placeholder="e.g. 30" aria-label="Take profit in pips from the fill" />
+                <small className="nl-pe-hint">{ratio === null ? "from the fill" : `from the fill · 1:${Number(ratio.toFixed(1))}`}</small>
+              </label>
+            </div>
+
+            <div className="nl-pe-submit">
+              <span>Watch after release</span>
+              <div className="nl-an-modes" role="radiogroup" aria-label="How long it watches after the release">
+                {WATCH_CHOICES.map((minutes) => (
+                  <button key={minutes} type="button" role="radio" aria-checked={watchMinutes === minutes} className={watchMinutes === minutes ? "is-active" : ""} onClick={() => setWatchMinutes(minutes)}>
+                    {minutesLabel(minutes)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="nl-pe-submit">
+              <span>Close after</span>
+              <div className="nl-an-modes" role="radiogroup" aria-label="Close the trade at market after">
+                {CLOSE_CHOICES.map((minutes) => (
+                  <button key={minutes} type="button" role="radio" aria-checked={closeAfter === minutes} className={closeAfter === minutes ? "is-active" : ""} onClick={() => setCloseAfter(minutes)}>
+                    {minutes === 0 ? "Off" : minutesLabel(minutes)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <dl className="nl-an-rows">
+              <div>
+                <dt>Spread now</dt>
+                <dd className={`metric-number${spreadOverCap || spreadOverDepth ? " is-caution" : ""}`}>
+                  {spreadPips === null ? "—" : `${spreadPips.toFixed(1)} pips${spreadOverCap ? " · over your cap" : spreadOverDepth ? " · wider than the zone" : ""}`}
+                </dd>
+              </div>
+              <div>
+                <dt>Size (either side)</dt>
+                <dd className="metric-number">
+                  {!sizeKey ? "—" : currentSize ? `${currentSize.lots.toFixed(2)} lots · risks $${currentSize.riskAmount.toFixed(0)} (${currentSize.riskPercent}%)` : "Sizing…"}
+                </dd>
+              </div>
+              <div><dt>Watches until</dt><dd>{watchUntil === null ? "—" : timeOf(watchUntil)}</dd></div>
+              <div><dt>Account</dt><dd>OANDA practice</dd></div>
+            </dl>
+
+            <p className="nl-pe-news-note">
+              The server watches every price tick. The moment price enters a zone, GX sends one market order that way and drops the other zone. It fills only inside the zone; if price has already jumped past it, nothing opens and you are told. Spreads often widen several-fold in the seconds after a release; the spread and slippage you got are in the fill notification.
+            </p>
+          </>
+        )}
 
         {error ? <p className="nl-pe-error" role="alert">{error}</p> : null}
       </div>
@@ -282,7 +292,7 @@ export function NewsStraddleTicket({
         <button
           type="button"
           className="nl-an-primary pressable"
-          disabled={saving || creationBlocked || !linesValid || !(stopNumber > 0) || !(targetNumber > 0)}
+          disabled={saving || creationBlocked || !release || !zonesValid || !(stopNumber > 0) || !(targetNumber > 0)}
           onClick={() => void arm()}
         >
           {saving ? "Arming…" : "Arm news setup"}

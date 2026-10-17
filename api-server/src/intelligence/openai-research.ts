@@ -3,8 +3,9 @@ import { MODEL_SCHEMA, validateResearch, type CalendarEventRef, type MarketIntel
 /**
  * One research run: the OpenAI Responses API with web search, answering in
  * the strict report schema. The model gets the verified calendar slice and
- * the deterministic technical read; it is told to cite only pages its search
- * returned, and the validator enforces that. It never sets prices, levels,
+ * an explicitly deferred technical context; OANDA analysis follows validation.
+ * It cites only pages its search returned, and the validator enforces that.
+ * It never sets prices, levels,
  * or anything about orders.
  *
  * Configuration (no model id is hardcoded beyond the app's existing default):
@@ -21,6 +22,7 @@ import { MODEL_SCHEMA, validateResearch, type CalendarEventRef, type MarketIntel
 export type TechnicalSummary = {
   instrument: string;
   readAt: string;
+  deferredUntilResearchValidation?: boolean;
   price: number | null;
   trend: Record<string, string | null>;
   atr: Record<string, number>;

@@ -2,10 +2,8 @@ import { getAllCalendarEvents, getMarketSelectionCalendar } from "../../../front
 import type { EconomicCalendarEvent } from "../../../frontend/src/lib/oanda/calendar.js";
 import type { MajorInstrument } from "../../../frontend/src/types/forex.js";
 import { databaseConfigured, query } from "../database.js";
-import { readMarketTechnicals } from "./market-state-interpreter.js";
 import { latestMarketState, marketStateView } from "./market-state-store.js";
 import type { MarketStateView } from "../../../frontend/src/lib/trade-plans/market-state.js";
-import { loadGeneratorMarket } from "../trade-plan-service.js";
 import type { CalendarSnapshot } from "./calendar-snapshot.js";
 import { researchConfig, type TechnicalSummary } from "./openai-research.js";
 import { isSupportedSchema, type MarketIntelligence } from "./research-contract.js";
@@ -147,22 +145,13 @@ export async function calendarEvents(load: () => Promise<EconomicCalendarEvent[]
   }
 }
 
-/** A compact technical read from the deterministic engine (no thousands of candles). */
+/** Keep the research input contract; defer OANDA analysis until research validates. */
 export async function technicalSummaryFor(instrument: MajorInstrument): Promise<TechnicalSummary> {
-  const market = await loadGeneratorMarket(instrument);
-  // Research may receive compact price context, but no plans are proposed
-  // until the research has completed and passed validation.
-  const technical = readMarketTechnicals({ instrument, ...market });
-  const h4 = technical.foundation.primary;
-  const d1 = technical.foundation.higher;
-  const h1 = technical.h1;
   return {
     instrument,
-    readAt: new Date(market.now).toISOString(),
-    price: technical.foundation.referencePrice,
-    trend: { D1: d1?.direction ?? null, H4: h4?.direction ?? null, H1: h1?.direction ?? null },
-    atr: { D1: d1?.atr ?? 0, H4: h4?.atr ?? 0, H1: h1?.atr ?? 0 },
-    zones: technical.foundation.zones.filter(z => z.status === "ACTIVE" || z.flipped).slice(0, 10).map((zone) => ({ low: zone.low, high: zone.high, type: zone.type, relevance: zone.relevance })),
+    readAt: new Date().toISOString(),
+    deferredUntilResearchValidation: true,
+    price: null, trend: {}, atr: {}, zones: [],
     plans: [],
   };
 }

@@ -96,7 +96,7 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
   const settleJob = useCallback(async (jobId: string) => {
     const found = await tradePlansApi.researchJob(jobId).catch(() => null);
     const job = found?.job;
-    if (!job) { await loadAwaiting(); return; }
+    if (!job) { if (!(await loadAwaiting(true))) setPhase((current) => (current.kind === "analyzing" ? { kind: "idle" } : current)); return; }
     if (JOB_RUNNING.includes(job.status)) return;
     if (job.status !== "COMPLETED") {
       setPhase({ kind: "error", message: `Research did not finish: ${job.error ?? job.status.toLowerCase()}. No plans were built. You can try again.` });
@@ -104,7 +104,7 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
     }
     // Completed: the plans are built right after the report is stored.
     if (!job.plans) return;
-    if (job.plans.result === "PLANS" && (await loadAwaiting())) return;
+    if (job.plans.result === "PLANS" && (await loadAwaiting(true))) return;
     if (job.plans.result === "NO_VALID_SETUP") {
       setPhase({ kind: "results", result: { analysisId: job.id, plans: [], planIds: [], result: "NO_VALID_SETUP", reason: job.plans.reason, rejected: [] } });
       return;
@@ -241,13 +241,20 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
   const cancel = () => { request.current += 1; setPhase({ kind: "idle" }); setOpen(false); };
   /** Open Analyze on the latest report and its plans (the research notification links here). */
   const review = useCallback(() => {
+    // Open on the loading skeleton, then straight to the plans: never the empty Analyze sheet first.
+    const id = ++request.current;
+    setPhase({ kind: "analyzing" });
     setOpen(true);
-    void tradePlansApi.research(instrument).then(async (result) => {
-      setResearch((current) => ({ ...current, result }));
-      if (result.job && JOB_RUNNING.includes(result.job.status)) { setPhase({ kind: "researching" }); return; }
-      if (result.job) await settleJob(result.job.id);
-      else await loadAwaiting();
-    }).catch(() => void loadAwaiting());
+    const settled = () => setPhase((current) => (current.kind === "analyzing" && id === request.current ? { kind: "idle" } : current));
+    void (async () => {
+      if (await loadAwaiting(true)) return;
+      const result = await tradePlansApi.research(instrument).catch(() => null);
+      if (id !== request.current) return;
+      if (result) setResearch((current) => ({ ...current, result }));
+      if (result?.job && JOB_RUNNING.includes(result.job.status)) { setPhase({ kind: "researching" }); return; }
+      if (result?.job) await settleJob(result.job.id);
+      settled();
+    })();
   }, [instrument, loadAwaiting, settleJob]);
 
   // What the chart's Analyze button opens: research in progress, plans to review, plans being watched, or a new analysis.
@@ -455,8 +462,8 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
   if (phase.kind === "analyzing") {
     return (
       <div className="nl-an-body" aria-busy="true">
-        {top(`Starting ${pair}…`)}
-        <h2 id={titleId} className="sr-only">Analyzing {pair}</h2>
+        {top(`Analyze · ${pair}`)}
+        <h2 id={titleId} className="sr-only">Loading {pair}</h2>
         <span className="nl-an-skel nl-an-skel-grid" />
         <span className="nl-an-skel nl-an-skel-line is-short" />
         <span className="nl-an-skel nl-an-skel-grid" />

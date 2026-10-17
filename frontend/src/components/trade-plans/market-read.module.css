@@ -389,3 +389,104 @@
 
 .scenario[data-side="BUY"] { border-left-color: var(--success); }
 .scenario[data-side="SELL"] { border-left-color: var(--danger); }
+
+/* ── Layout pass: sized to the card itself (the desktop side column is
+   ~300px wide, the phone sheet much wider), not to the viewport. ── */
+.card {
+  container-type: inline-size;
+  gap: 0.6rem;
+  padding: 0.9rem 1rem;
+}
+
+/* Title row: label and verdict on the left, refresh pinned top-right,
+   evidence quality on its own line underneath. */
+.card > .head {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: center;
+  column-gap: 0.45rem;
+  row-gap: 0.15rem;
+}
+
+.card > .head .refresh {
+  grid-column: 4;
+  grid-row: 1;
+  margin: 0;
+}
+
+.card > .head .muted {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+/* Four horizons: one row when there is room, two by two when there isn't. */
+.card > .outlook {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.card > .outlook div {
+  display: grid;
+  align-content: start;
+  gap: 0.2rem;
+  min-width: 0;
+  padding: 0.5rem 0.55rem;
+  border-radius: 0.65rem;
+}
+
+.card > .outlook dt {
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+
+.card > .outlook dd {
+  overflow: hidden;
+  font-size: 0.8125rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@container (max-width: 380px) {
+  .card > .outlook {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* The horizon tiles already show the leans; the sentence repeated them. */
+.card > .leans {
+  display: none;
+}
+
+.card > .summary {
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+/* Supporting notes: quieter; the last one (usually the strongest opposing evidence) set apart. */
+.card > p.meta {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+.card > p.meta:has(+ .fresh) {
+  padding: 0.45rem 0.6rem;
+  border-left: 2px solid var(--border-strong);
+  border-radius: 0;
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+  color: var(--muted-strong);
+}
+
+.card > .fresh {
+  font-size: 0.6875rem;
+}
+
+/* "Scenarios, drivers…" as a clear row you can tap. */
+.card > .more {
+  margin-top: 0.15rem;
+  border-top: 1px solid var(--border);
+}
+
+.card > .more > summary {
+  min-height: 2.75rem;
+}

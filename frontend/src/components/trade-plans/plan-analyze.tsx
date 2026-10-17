@@ -21,6 +21,7 @@ import {
 } from "@/lib/trade-plans/api";
 import styles from "./plan-analyze.module.css";
 import { MarketRead, PlanEvidence, type ResearchState } from "./market-read";
+import { PlanConfirm, type PlanConfirmRequest } from "@/components/dashboard/plan-confirm";
 
 /**
  * The chart's Analyze (swing trades, 2–5 day holds): one press reads D1/H4/H1 and returns a BUY and a
@@ -461,6 +462,9 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
   onNewEntry?: () => void;
 }) {
   const [mode, setMode] = useState<MonitoringMode>("NOTIFY");
+  /** Delete asks first. The plans' history, results and research stay saved; they just stop showing. */
+  const [confirm, setConfirm] = useState<PlanConfirmRequest | null>(null);
+  const confirmDialog = <PlanConfirm request={confirm} onDone={() => setConfirm(null)} />;
   const pair = displayNameFor(instrument);
   const { phase, active } = state;
   const top = (label: string) => (
@@ -550,9 +554,15 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
             <button type="button" className={`nl-an-primary pressable ${styles.accept}`} disabled={state.busy} onClick={() => state.accept(mode)}>
               {state.busy ? "Accepting…" : "Accept"}
             </button>
-            <button type="button" className={styles.textButton} disabled={state.busy} onClick={state.dismiss}>Not now</button>
+            <button type="button" className={styles.textButton} disabled={state.busy} onClick={() => setConfirm({
+              eyebrow: `Analyze · ${pair}`, title: `Delete the ${pair} plans?`,
+              body: "They disappear from Analyze and your Plans. Their data, research and history stay saved; nothing was being watched.",
+              keepLabel: "Keep them", confirmLabel: "Delete plans", busyLabel: "Deleting…",
+              run: async () => state.dismiss(),
+            })}>Delete</button>
           </div>
         </div>
+        {confirmDialog}
       </div>
     );
   }
@@ -574,11 +584,17 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
         <div className={styles.dock}>
           {state.actionError ? <p className={styles.error} role="alert">{state.actionError}</p> : null}
           <div className={styles.footer}>
-            <button type="button" className={`nl-an-secondary pressable ${styles.stop}`} disabled={state.busy} onClick={state.stopWatching}>
-              {state.busy ? "Stopping…" : "Stop watching"}
+            <button type="button" className={`nl-an-secondary pressable ${styles.stop}`} disabled={state.busy} onClick={() => setConfirm({
+              eyebrow: `Analyze · ${pair}`, title: `Delete the ${pair} plans?`,
+              body: "GX stops watching them and nothing is placed from them. Their data, results and research stay saved; a trade already open or being placed is not touched.",
+              keepLabel: "Keep watching", confirmLabel: "Delete plans", busyLabel: "Deleting…",
+              run: async () => state.stopWatching(),
+            })}>
+              {state.busy ? "Deleting…" : "Delete plans"}
             </button>
           </div>
         </div>
+        {confirmDialog}
       </div>
     );
   }

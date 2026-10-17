@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
-import { Ban, CheckCircle2, Circle, X, XCircle } from "lucide-react";
+import { Ban, CheckCircle2, Circle, Trash2, X, XCircle } from "lucide-react";
 import { AnalyzeIcon } from "@/components/icons/analyze-icon";
 import { displayNameFor, pipSizeFor, precisionFor } from "@/lib/instruments/catalog";
 import { useDragToDismiss } from "@/lib/use-drag-to-dismiss";
@@ -547,7 +547,7 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
             body: "They disappear from Analyze and your Plans. Their data, research and history stay saved; nothing was being watched.",
             keepLabel: "Keep them", confirmLabel: "Delete plans", busyLabel: "Deleting…",
             run: async () => state.dismiss(),
-          })}>Delete these plans</button>
+          })}><Trash2 aria-hidden="true" />Delete these plans</button>
         </div>
         <div className={styles.dock}>
           <ModeSwitch mode={mode} onChange={setMode} name={`plan-mode-${titleId}`} />
@@ -587,7 +587,7 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
             body: "GX stops watching them and nothing is placed from them. Their data, results and research stay saved; a trade already open or being placed is not touched.",
             keepLabel: "Keep watching", confirmLabel: "Delete plans", busyLabel: "Deleting…",
             run: async () => state.stopWatching(),
-          })}>{state.busy ? "Deleting…" : "Delete these plans"}</button>
+          })}><Trash2 aria-hidden="true" />{state.busy ? "Deleting…" : "Delete these plans"}</button>
         </div>
         {state.actionError ? (
           <div className={styles.dock}>

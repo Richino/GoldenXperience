@@ -250,7 +250,7 @@ export function LedgerPlans() {
                   </ol>
                   <div className="nl-plan-read is-loading" aria-hidden="true"><span /><span /></div>
                   <div className="nl-plan-bottom">
-                    <p className="nl-plan-foot">Started {ago(row.job.startedAt ?? row.job.createdAt)}. We&apos;ll notify you when the plans are ready.</p>
+                  <p className="nl-plan-foot">{row.job.error ? `${row.job.error} ` : ""}Started {ago(row.job.startedAt ?? row.job.createdAt)}. We&apos;ll notify you when the plans are ready.</p>
                     {JOB_RUNNING.includes(row.job.status) ? (
                       <button type="button" className="nl-plan-cta is-quiet" disabled={acting === row.job.id} onClick={() => void act(row.job.id, () => tradePlansApi.cancelResearch(row.job.id))} aria-label={`Cancel the ${pair} research`}>
                         {acting === row.job.id ? "Cancelling…" : "Cancel"}
@@ -288,7 +288,13 @@ export function LedgerPlans() {
                   <Sides plans={row.plans} />
                   <div className="nl-plan-bottom">
                     <span className="nl-plan-foot">Built {ago(row.plans[0]!.createdAt)} · nothing is watched until you accept</span>
-                    <Link href={href} className="nl-plan-cta is-primary">Review <ArrowUpRight aria-hidden="true" /></Link>
+                    <div className="nl-plan-actions">
+                      {/* Remove declines these plans (recorded as rejected); nothing was being watched. */}
+                      <button type="button" className="nl-plan-cta is-quiet" disabled={acting === row.plans[0]!.analysisId} onClick={() => void act(row.plans[0]!.analysisId, () => Promise.all(row.plans.map((plan) => tradePlansApi.reject(plan.id, "Removed from Plans"))))} aria-label={`Remove the ${pair} plans`}>
+                        {acting === row.plans[0]!.analysisId ? "Removing…" : "Remove"}
+                      </button>
+                      <Link href={href} className="nl-plan-cta is-primary">Review <ArrowUpRight aria-hidden="true" /></Link>
+                    </div>
                   </div>
                 </article>
               );

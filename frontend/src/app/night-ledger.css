@@ -9252,14 +9252,63 @@ html:is(.dark, :not(.dark)) body .pending-entry-backdrop[data-keyboard-open="tru
 
 /* Plans: research in progress, plans to review, plans being watched. */
 .nl-plans {
-  gap: 14px;
+  gap: 16px;
+}
+
+.nl-plan-list {
+  display: grid;
+  gap: 12px;
+}
+
+/* Each pair is its own inset panel; its state sets the accent rail. */
+.nl-plan {
+  --plan-rail: var(--border-strong);
+  position: relative;
+  display: grid;
+  gap: 12px;
+  padding: 16px 16px 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--foreground) 2.5%, transparent);
+  overflow: hidden;
+}
+
+.nl-plan::before {
+  content: "";
+  position: absolute;
+  inset: 14px auto 14px 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--plan-rail);
+}
+
+.nl-plan[data-kind="generating"] { --plan-rail: var(--pending); }
+.nl-plan[data-kind="review"] { --plan-rail: var(--accent); }
+.nl-plan[data-kind="watching"] { --plan-rail: var(--foreground); }
+.nl-plan[data-kind="failed"] { --plan-rail: var(--danger); }
+
+.nl-plan-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--foreground);
+  text-decoration: none;
+}
+
+.nl-plan-head b {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .nl-plan-state {
   display: inline-flex;
+  flex: none;
   align-items: center;
   gap: 6px;
-  padding: 3px 9px;
+  padding: 4px 10px;
   border-radius: 999px;
   background: var(--surface);
   color: var(--muted-strong);
@@ -9267,7 +9316,7 @@ html:is(.dark, :not(.dark)) body .pending-entry-backdrop[data-keyboard-open="tru
   font-weight: 600;
 }
 
-.nl-plan-state.is-generating { color: var(--pending); }
+.nl-plan-state.is-generating { background: var(--pending-soft); color: var(--pending); }
 .nl-plan-state.is-review { background: var(--accent-soft); color: var(--accent); }
 .nl-plan-state.is-failed { background: var(--danger-soft); color: var(--danger); }
 
@@ -9278,42 +9327,193 @@ html:is(.dark, :not(.dark)) body .pending-entry-backdrop[data-keyboard-open="tru
   background: currentColor;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .nl-plan-dot { animation: nl-plan-pulse 1.4s ease-in-out infinite; }
+/* The research read: one sentence, with the evidence leans underneath. */
+.nl-plan-read {
+  display: grid;
+  gap: 6px;
 }
 
-@keyframes nl-plan-pulse {
-  50% { opacity: 0.3; }
+.nl-plan-read p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
+.nl-plan-spark {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin: 0 6px -2px 0;
+  color: var(--pending);
+}
+
+.nl-plan-leans {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  color: var(--muted);
+  font-size: 12px !important;
+}
+
+.nl-plan-leans [data-lean="bullish"] { color: var(--accent); }
+.nl-plan-leans [data-lean="bearish"] { color: var(--danger); }
+.nl-plan-leans .is-stale { color: var(--pending); }
+
+.nl-plan-read.is-loading span {
+  display: block;
+  height: 12px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+
+.nl-plan-read.is-loading span + span {
+  width: 62%;
+}
+
+/* BUY and SELL as two compact rows: side, zone, R, then stop and target. */
 .nl-plan-sides {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 14px;
 }
 
 .nl-plan-sides li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 10px;
+  display: grid;
+  grid-template-columns: 46px 1fr auto;
+  align-items: baseline;
+  column-gap: 10px;
+  row-gap: 2px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--foreground) 3.5%, transparent);
+}
+
+.nl-plan-side {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.nl-plan-sides li[data-side="BUY"] .nl-plan-side { color: var(--accent); }
+.nl-plan-sides li[data-side="SELL"] .nl-plan-side { color: var(--danger); }
+
+.nl-plan-zone {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.nl-plan-zone i {
+  padding: 0 3px;
+  color: var(--muted);
+  font-style: normal;
+}
+
+.nl-plan-rr {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.nl-plan-rr small {
+  margin-left: 1px;
+  color: var(--muted);
+  font-size: 10px;
 }
 
 .nl-plan-sl {
+  grid-column: 2 / -1;
   color: var(--muted);
   font-size: 12px;
 }
 
-.nl-plan-link {
-  display: inline-flex;
+/* Real job stages only: no invented percentage. */
+.nl-plan-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nl-plan-steps li {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.nl-plan-steps li::before {
+  content: "";
+  height: 3px;
+  border-radius: 3px;
+  background: var(--border-strong);
+}
+
+.nl-plan-steps li[data-state="done"]::before { background: var(--pending); }
+.nl-plan-steps li[data-state="now"] { color: var(--foreground); font-weight: 600; }
+.nl-plan-steps li[data-state="now"]::before { background: var(--pending); }
+
+.nl-plan-bottom {
+  display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.nl-plan-foot {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.nl-plan-cta {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
   color: var(--foreground);
+  font-size: 13px;
+  font-weight: 600;
   text-decoration: none;
+  justify-self: start;
+}
+
+.nl-plan-cta svg {
+  width: 14px;
+  height: 14px;
+}
+
+.nl-plan-cta.is-primary {
+  border-color: transparent;
+  background: var(--foreground);
+  color: var(--background);
+}
+
+.nl-plan-head:focus-visible,
+.nl-plan-cta:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .nl-plan-dot { animation: nl-plan-pulse 1.4s ease-in-out infinite; }
+  .nl-plan-steps li[data-state="now"]::before { animation: nl-plan-pulse 1.4s ease-in-out infinite; }
+  .nl-plan-read.is-loading span { animation: nl-plan-pulse 1.6s ease-in-out infinite; }
+}
+
+@keyframes nl-plan-pulse {
+  50% { opacity: 0.35; }
 }
 
 @media (max-width: 1023px) {
   .nl-plans { order: 1; }
+  .nl-plan-head b { font-size: 18px; }
 }

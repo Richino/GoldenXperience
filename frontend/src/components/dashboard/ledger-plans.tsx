@@ -1,23 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowUpRight, Sparkles } from "lucide-react";
 import { displayNameFor, precisionFor } from "@/lib/instruments/catalog";
-import { JOB_RUNNING, STATUS_LABEL, tradePlansApi, type ResearchJob, type TradePlan } from "@/lib/trade-plans/api";
+import { JOB_RUNNING, STATUS_LABEL, tradePlansApi, type Lean, type MarketIntelligence, type ResearchJob, type TradePlan } from "@/lib/trade-plans/api";
 
 /**
  * Home: your trade plans, beside Pending and Open positions. A pair you
- * pressed Analyze on shows as Generating while its research runs and the
- * plans are built; then its plans appear here to review; accepted plans stay
- * here while GX watches them. Everything links to that pair's Analyze.
+ * pressed Analyze on shows as Generating (with the real job stage) while its
+ * research runs and the plans are built; then its plans appear to review;
+ * accepted plans stay while GX watches them. Each pair carries a one-line
+ * read from its stored research — no extra AI call. Everything opens that
+ * pair's Analyze.
  */
 
 const PLANS_CHANGED = "gx-trade-plans-changed";
 const DONE_FAILED: ResearchJob["status"][] = ["FAILED", "EXPIRED", "CANCELLED"];
-const JOB_WORD: Record<ResearchJob["status"], string> = {
-  QUEUED: "Queued", RESEARCHING: "Researching the market", VALIDATING: "Checking the research", COMPLETED: "Building the plans",
-  FAILED: "Failed", CANCELLED: "Cancelled", EXPIRED: "Expired",
-};
+/** The job stages in order; "Building plans" is a completed job whose plans are not stored yet. */
+const STEPS = ["Queued", "Researching", "Checking", "Building plans"] as const;
+const stepOf = (job: ResearchJob) => (job.status === "QUEUED" ? 0 : job.status === "RESEARCHING" ? 1 : job.status === "VALIDATING" ? 2 : 3);
+const LEAN: Record<Lean, string> = { bullish: "Bullish", bearish: "Bearish", neutral: "Neutral", unresolved: "Unresolved" };
+const SUMMARY_TTL_MS = 5 * 60_000;
 
 type Row =
   | { kind: "generating"; instrument: string; job: ResearchJob }
@@ -25,11 +29,25 @@ type Row =
   | { kind: "review"; instrument: string; plans: TradePlan[] }
   | { kind: "watching"; instrument: string; plans: TradePlan[] };
 
+type Brief = { text: string; nearTerm: Lean | null; swing: Lean | null; researchedAt: string; fresh: boolean };
+
 function ago(iso: string) {
   const minutes = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60_000));
   if (minutes < 1) return "just now";
   if (minutes < 60) return `${minutes} min ago`;
-  return `${Math.round(minutes / 60)} h ago`;
+  const hours = Math.round(minutes / 60);
+  return hours < 48 ? `${hours} h ago` : `${Math.round(hours / 24)} days ago`;
+}
+
+/** The first sentence of the research's own read, kept short. */
+export function briefOf(report: MarketIntelligence): string {
+  const source = (report.assessment?.rationale || report.summary || "").replace(/\s+/g, " ").trim();
+  // Drop the model's boilerplate disclaimers ("…, not a price forecast."): the card already says what this is.
+  const sentences = (source.match(/[^.!?]+[.!?]+(?=\s|$)/g) ?? [source])
+    .map((sentence) => sentence.replace(/,?\s*(?:and\s+)?not an? (?:price )?(?:forecast|prediction)/gi, "").trim())
+    .filter((sentence) => sentence && !/^this is (?:an? )?(?:evidence|research)/i.test(sentence) && !/no (?:trade direction|price prediction)/i.test(sentence));
+  const first = sentences[0] ?? source;
+  return first.length > 150 ? `${first.slice(0, 147).trimEnd()}…` : first;
 }
 
 /** One row per pair, most urgent first: generating, ready to review, watching, then a recent failure. */
@@ -69,16 +87,17 @@ export function planRows(jobs: ResearchJob[], awaiting: TradePlan[], active: Tra
   return rows;
 }
 
-function Zones({ plans }: { plans: TradePlan[] }) {
+function Sides({ plans }: { plans: TradePlan[] }) {
   return (
     <ul className="nl-plan-sides">
       {[...plans].sort((a, b) => b.entryZoneHigh - a.entryZoneHigh).map((plan) => {
         const digits = precisionFor(plan.instrument);
         const f = (value: number | null) => (value === null ? "—" : value.toFixed(digits));
         return (
-          <li key={plan.id}>
-            <span className={`nl-side ${plan.direction === "BUY" ? "is-up" : "is-down"}`}>{plan.direction}</span>
-            <span className="metric-number">{f(plan.entryZoneLow)}–{f(plan.entryZoneHigh)}</span>
+          <li key={plan.id} data-side={plan.direction}>
+            <span className="nl-plan-side">{plan.direction}</span>
+            <span className="nl-plan-zone metric-number">{f(plan.entryZoneLow)}<i aria-hidden="true">–</i><span className="sr-only"> to </span>{f(plan.entryZoneHigh)}</span>
+            <span className="nl-plan-rr metric-number">{plan.rewardRisk?.toFixed(1) ?? "—"}<small>R</small></span>
             <span className="nl-plan-sl metric-number">SL {f(plan.stopLoss)} · TP {f(plan.takeProfit)}</span>
           </li>
         );
@@ -87,9 +106,60 @@ function Zones({ plans }: { plans: TradePlan[] }) {
   );
 }
 
+function Read({ brief, loading }: { brief: Brief | undefined; loading: boolean }) {
+  if (!brief) {
+    return loading ? (
+      <div className="nl-plan-read is-loading" aria-hidden="true"><span /><span /></div>
+    ) : null;
+  }
+  return (
+    <div className="nl-plan-read">
+      <p>
+        <Sparkles aria-hidden="true" className="nl-plan-spark" />
+        <span className="sr-only">Research read: </span>
+        {brief.text}
+      </p>
+      {brief.nearTerm || brief.swing ? (
+        <p className="nl-plan-leans">
+          {brief.nearTerm ? <span data-lean={brief.nearTerm}>Near term {LEAN[brief.nearTerm]}</span> : null}
+          {brief.swing ? <span data-lean={brief.swing}>Swing {LEAN[brief.swing]}</span> : null}
+          <span className={brief.fresh ? undefined : "is-stale"}>{brief.fresh ? `Researched ${ago(brief.researchedAt)}` : "Research out of date"}</span>
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function LedgerPlans() {
   const [rows, setRows] = useState<Row[] | null>(null);
+  const [briefs, setBriefs] = useState<Record<string, Brief>>({});
+  /** Pairs whose research has been looked up (with or without a read). */
+  const [checked, setChecked] = useState<Record<string, true>>({});
   const [error, setError] = useState<string | null>(null);
+  const fetchedAt = useRef<Record<string, number>>({});
+
+  const loadBriefs = useCallback(async (instruments: string[]) => {
+    const due = instruments.filter((instrument) => Date.now() - (fetchedAt.current[instrument] ?? 0) > SUMMARY_TTL_MS);
+    if (!due.length) return;
+    for (const instrument of due) fetchedAt.current[instrument] = Date.now();
+    const results = await Promise.all(due.map((instrument) => tradePlansApi.research(instrument).then((result) => [instrument, result] as const).catch(() => null)));
+    setBriefs((current) => {
+      const next = { ...current };
+      for (const entry of results) {
+        const report = entry?.[1].research?.report;
+        if (!entry || !report?.schemaVersion) continue;
+        next[entry[0]] = {
+          text: briefOf(report),
+          nearTerm: report.assessment?.nearTermLean ?? null,
+          swing: report.assessment?.swingLean ?? null,
+          researchedAt: entry[1].research!.createdAt,
+          fresh: entry[1].research!.fresh,
+        };
+      }
+      return next;
+    });
+    setChecked((current) => ({ ...current, ...Object.fromEntries(due.map((instrument) => [instrument, true as const])) }));
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -98,12 +168,14 @@ export function LedgerPlans() {
         tradePlansApi.list("awaiting"),
         tradePlansApi.list("active"),
       ]);
-      setRows(planRows(jobs, awaiting, active));
+      const next = planRows(jobs, awaiting, active);
+      setRows(next);
       setError(null);
+      void loadBriefs(next.filter((row) => row.kind === "review" || row.kind === "watching").map((row) => row.instrument));
     } catch {
       setError("Plans could not be loaded. Retrying…");
     }
-  }, []);
+  }, [loadBriefs]);
 
   useEffect(() => {
     const first = window.setTimeout(() => void load(), 0);
@@ -121,68 +193,76 @@ export function LedgerPlans() {
         <span className="nl-card-meta metric-number">{count} {count === 1 ? "pair" : "pairs"}</span>
       </div>
       {rows === null ? (
-        <p className="nl-card-empty">Loading plans…</p>
+        <div className="nl-plan-read is-loading" aria-hidden="true"><span /><span /></div>
       ) : rows.length ? (
-        rows.map((row) => {
-          const pair = displayNameFor(row.instrument);
-          const href = `/chart?instrument=${encodeURIComponent(row.instrument)}&analyze=1`;
-          if (row.kind === "generating") {
+        <div className="nl-plan-list">
+          {rows.map((row) => {
+            const pair = displayNameFor(row.instrument);
+            const href = `/chart?instrument=${encodeURIComponent(row.instrument)}&analyze=1`;
+            if (row.kind === "generating") {
+              const step = stepOf(row.job);
+              return (
+                <article key={`g-${row.instrument}`} className="nl-plan" data-kind="generating">
+                  <Link href={href} className="nl-plan-head">
+                    <b>{pair}</b>
+                    <span className="nl-plan-state is-generating"><span className="nl-plan-dot" aria-hidden="true" />Generating</span>
+                  </Link>
+                  <ol className="nl-plan-steps" aria-label="Progress">
+                    {STEPS.map((label, index) => (
+                      <li key={label} data-state={index < step ? "done" : index === step ? "now" : "next"} aria-current={index === step ? "step" : undefined}>{label}</li>
+                    ))}
+                  </ol>
+                  <div className="nl-plan-read is-loading" aria-hidden="true"><span /><span /></div>
+                  <p className="nl-plan-foot">{row.job.model} · {row.job.effort} effort · started {ago(row.job.startedAt ?? row.job.createdAt)}. We&apos;ll notify you when the plans are ready.</p>
+                </article>
+              );
+            }
+            if (row.kind === "failed") {
+              return (
+                <article key={`f-${row.instrument}`} className="nl-plan" data-kind="failed">
+                  <Link href={href} className="nl-plan-head">
+                    <b>{pair}</b>
+                    <span className="nl-plan-state is-failed">Not generated</span>
+                  </Link>
+                  <p className="nl-plan-foot">{row.job.error ?? "The research did not finish."} No plans were built.</p>
+                  <Link href={`/chart?instrument=${encodeURIComponent(row.instrument)}`} className="nl-plan-cta">Try again <ArrowUpRight aria-hidden="true" /></Link>
+                </article>
+              );
+            }
+            if (row.kind === "review") {
+              return (
+                <article key={`r-${row.instrument}`} className="nl-plan" data-kind="review">
+                  <Link href={href} className="nl-plan-head">
+                    <b>{pair}</b>
+                    <span className="nl-plan-state is-review">Ready to review</span>
+                  </Link>
+                  <Read brief={briefs[row.instrument]} loading={!checked[row.instrument]} />
+                  <Sides plans={row.plans} />
+                  <div className="nl-plan-bottom">
+                    <span className="nl-plan-foot">Built {ago(row.plans[0]!.createdAt)} · nothing is watched until you accept</span>
+                    <Link href={href} className="nl-plan-cta is-primary">Review <ArrowUpRight aria-hidden="true" /></Link>
+                  </div>
+                </article>
+              );
+            }
+            const lead = row.plans.find((plan) => plan.status !== "MONITORING" && plan.status !== "APPROVED") ?? row.plans[0]!;
+            const auto = row.plans.some((plan) => plan.monitoringMode === "AUTO");
             return (
-              <div key={`g-${row.instrument}`} className="nl-pending-entry nl-plan-entry">
-                <Link href={href} className="nl-pending-top">
+              <article key={`w-${row.instrument}`} className="nl-plan" data-kind="watching">
+                <Link href={href} className="nl-plan-head">
                   <b>{pair}</b>
-                  <span className="nl-plan-state is-generating"><span className="nl-plan-dot" aria-hidden="true" />Generating</span>
+                  <span className="nl-plan-state is-watching">{lead.status === "MONITORING" || lead.status === "APPROVED" ? "Watching" : STATUS_LABEL[lead.status]}</span>
                 </Link>
-                <div className="nl-pending-foot">
-                  <span>{JOB_WORD[row.job.status]} · {row.job.model} ({row.job.effort}) · started {ago(row.job.startedAt ?? row.job.createdAt)}</span>
+                <Read brief={briefs[row.instrument]} loading={!checked[row.instrument]} />
+                <Sides plans={row.plans} />
+                <div className="nl-plan-bottom">
+                  <span className="nl-plan-foot">{auto ? "Auto trade" : "Alert me"} · {lead.notTriggeredReason ?? "Checking the conditions."}</span>
+                  <Link href={href} className="nl-plan-cta">Open <ArrowUpRight aria-hidden="true" /></Link>
                 </div>
-              </div>
+              </article>
             );
-          }
-          if (row.kind === "failed") {
-            return (
-              <div key={`f-${row.instrument}`} className="nl-pending-entry nl-plan-entry">
-                <Link href={href} className="nl-pending-top">
-                  <b>{pair}</b>
-                  <span className="nl-plan-state is-failed">Not generated</span>
-                </Link>
-                <div className="nl-pending-foot">
-                  <span>{row.job.error ?? "The research did not finish."} No plans were built.</span>
-                  <Link href={`/chart?instrument=${encodeURIComponent(row.instrument)}`} className="nl-ghost-btn pressable nl-plan-link">Try again</Link>
-                </div>
-              </div>
-            );
-          }
-          if (row.kind === "review") {
-            return (
-              <div key={`r-${row.instrument}`} className="nl-pending-entry nl-plan-entry">
-                <Link href={href} className="nl-pending-top">
-                  <b>{pair}</b>
-                  <span className="nl-plan-state is-review">Ready to review</span>
-                </Link>
-                <Zones plans={row.plans} />
-                <div className="nl-pending-foot">
-                  <span>Built {ago(row.plans[0]!.createdAt)} · nothing is watched until you accept</span>
-                  <Link href={href} className="nl-ghost-btn pressable nl-plan-link">Review</Link>
-                </div>
-              </div>
-            );
-          }
-          const lead = row.plans.find((plan) => plan.status !== "MONITORING" && plan.status !== "APPROVED") ?? row.plans[0]!;
-          const auto = row.plans.some((plan) => plan.monitoringMode === "AUTO");
-          return (
-            <div key={`w-${row.instrument}`} className="nl-pending-entry nl-plan-entry">
-              <Link href={href} className="nl-pending-top">
-                <b>{pair}</b>
-                <span className="nl-plan-state is-watching">{lead.status === "MONITORING" || lead.status === "APPROVED" ? "Watching" : STATUS_LABEL[lead.status]}</span>
-              </Link>
-              <Zones plans={row.plans} />
-              <div className="nl-pending-foot">
-                <span>{auto ? "Auto trade · " : "Alert me · "}{lead.notTriggeredReason ?? "Checking the conditions."}</span>
-              </div>
-            </div>
-          );
-        })
+          })}
+        </div>
       ) : (
         <p className="nl-card-empty">No plans yet. Press Analyze on a chart: GX researches the pair, then builds its BUY and SELL plans here.</p>
       )}

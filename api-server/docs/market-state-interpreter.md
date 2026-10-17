@@ -4,7 +4,7 @@ The interpreter is deterministic synthesis of **validated research and the exist
 
 ## Lifecycle and storage
 
-Before research, `technicalSummaryFor` can supply compact price context to the existing strict research prompt. It no longer calls the plan generator or proposes BUY/SELL plans. After research passes the existing schema, URL/citation, pair-direction and calendar validation, completion delivery obtains fresh OANDA data, generates initial plans once per watcher, interprets the data, stores a snapshot, and stores the unapproved plans. The snapshot ID is frozen into those new plans.
+Before research, `technicalSummaryFor` preserves the input contract with explicitly deferred, empty technical fields. It does not fetch OANDA, analyze structure or propose BUY/SELL plans. After research passes the existing schema, URL/citation, pair-direction and calendar validation, completion delivery obtains fresh OANDA data, generates initial plans once per watcher, interprets the data, stores a snapshot, and stores the unapproved plans. The snapshot ID is frozen into those new plans.
 
 Scheduled or later research on accepted plans obtains a new technical read and interpretation, without running the plan generator or modifying approved conditions. Existing evidence updates and notifications continue independently if interpretation fails. Research interpretation cannot confirm, cancel or execute either side. BUY and SELL retain their independent confirmation paths and existing risk/execution checks.
 

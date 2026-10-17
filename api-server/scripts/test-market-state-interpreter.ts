@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { config } from "dotenv";
 import { interpretMarketState, readMarketTechnicals, groupMarketCatalysts, type InterpretMarketInput } from "../src/intelligence/market-state-interpreter.js";
 import { marketStateView, storeMarketState } from "../src/intelligence/market-state-store.js";
+import { technicalSummaryFor } from "../src/intelligence/research-service.js";
 import type { MarketIntelligence, Factor } from "../src/intelligence/research-contract.js";
 import type { Candle } from "../../frontend/src/types/forex.js";
 
@@ -41,6 +42,11 @@ function recoveryInput() {
   return i;
 }
 
+await test("research inputs defer technical analysis and proposals until validation", async () => {
+  const context = await technicalSummaryFor("EUR_USD");
+  assert.equal(context.deferredUntilResearchValidation, true); assert.equal(context.price, null);
+  assert.deepEqual(context.trend, {}); assert.deepEqual(context.atr, {}); assert.deepEqual(context.zones, []); assert.deepEqual(context.plans, []);
+});
 await test("shared technical engine accepts usable history without proposing plans", () => { const i = input(); assert.deepEqual(i.technical.issues, []); assert.ok(i.technical.h1?.sufficient); });
 await test("a price recovery against the higher trend is not a confirmed reversal", () => {
   const s = interpretMarketState(recoveryInput());

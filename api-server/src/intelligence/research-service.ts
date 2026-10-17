@@ -2,7 +2,9 @@ import { getAllCalendarEvents, getMarketSelectionCalendar } from "../../../front
 import type { EconomicCalendarEvent } from "../../../frontend/src/lib/oanda/calendar.js";
 import type { MajorInstrument } from "../../../frontend/src/types/forex.js";
 import { databaseConfigured, query } from "../database.js";
-import { generateTradePlans } from "../trade-plan-generator.js";
+import { readMarketTechnicals } from "./market-state-interpreter.js";
+import { latestMarketState, marketStateView } from "./market-state-store.js";
+import type { MarketStateView } from "../../../frontend/src/lib/trade-plans/market-state.js";
 import { loadGeneratorMarket } from "../trade-plan-service.js";
 import type { CalendarSnapshot } from "./calendar-snapshot.js";
 import { researchConfig, type TechnicalSummary } from "./openai-research.js";
@@ -148,16 +150,20 @@ export async function calendarEvents(load: () => Promise<EconomicCalendarEvent[]
 /** A compact technical read from the deterministic engine (no thousands of candles). */
 export async function technicalSummaryFor(instrument: MajorInstrument): Promise<TechnicalSummary> {
   const market = await loadGeneratorMarket(instrument);
-  const result = generateTradePlans({ instrument, ...market, maxRiskPercent: 1 });
-  const context = result.context;
+  // Research may receive compact price context, but no plans are proposed
+  // until the research has completed and passed validation.
+  const technical = readMarketTechnicals({ instrument, ...market });
+  const h4 = technical.foundation.primary;
+  const d1 = technical.foundation.higher;
+  const h1 = technical.h1;
   return {
     instrument,
     readAt: new Date(market.now).toISOString(),
-    price: context?.price ?? null,
-    trend: context ? { D1: context.trend.D1, H4: context.trend.H4, H1: context.trend.H1 } : {},
-    atr: context ? { D1: context.atr.D1, H4: context.atr.H4, H1: context.atr.H1 } : {},
-    zones: (context?.zones ?? []).map((zone) => ({ low: zone.low, high: zone.high, type: zone.type, relevance: zone.relevance })),
-    plans: result.plans.map((plan) => ({ direction: plan.direction, setup: plan.setupType, zone: [plan.entryZoneLow, plan.entryZoneHigh], stop: plan.stopLoss, target: plan.takeProfit })),
+    price: technical.foundation.referencePrice,
+    trend: { D1: d1?.direction ?? null, H4: h4?.direction ?? null, H1: h1?.direction ?? null },
+    atr: { D1: d1?.atr ?? 0, H4: h4?.atr ?? 0, H1: h1?.atr ?? 0 },
+    zones: technical.foundation.zones.filter(z => z.status === "ACTIVE" || z.flipped).slice(0, 10).map((zone) => ({ low: zone.low, high: zone.high, type: zone.type, relevance: zone.relevance })),
+    plans: [],
   };
 }
 
@@ -193,11 +199,14 @@ export const releasedOf = (events: EconomicCalendarEvent[] | null, now: number) 
   (events ?? []).filter((event) => event.actual !== null && Number.isFinite(Date.parse(event.timestamp)) && Date.parse(event.timestamp) <= now).map((event) => ({ title: event.title, currency: event.currency, impact: event.impact, at: new Date(event.timestamp).toISOString() }));
 
 /** Latest research for a pair with its freshness; never calls OpenAI. */
-export async function latestResearch(instrument: string, now = Date.now()) {
-  if (!databaseConfigured()) return { research: null, configured: false, job: null, running: false };
+export async function latestResearch(instrument: string, now = Date.now()): Promise<{ research: ResearchView | null; marketState?: MarketStateView | null; configured: boolean; job: Awaited<ReturnType<typeof latestJob>>; running: boolean }> {
+  if (!databaseConfigured()) return { research: null, marketState: null, configured: false, job: null, running: false };
   const [row, events, job] = await Promise.all([latestCompleteRow(instrument), calendarEvents(), latestJob(instrument)]);
+  const freshness = researchFreshness(row, releasedOf(events, now), now);
+  const interpreted = row ? await latestMarketState(instrument, row.id) : null;
   return {
-    research: rowView(row, researchFreshness(row, releasedOf(events, now), now)),
+    research: rowView(row, freshness),
+    marketState: interpreted ? marketStateView(interpreted, events === null ? { fresh: false, reason: "Verified economic calendar is currently unavailable." } : freshness, now) : null,
     configured: researchConfig().apiKey !== null,
     job,
     running: job !== null && ACTIVE_JOB.includes(job.status),

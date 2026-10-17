@@ -5,7 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowUpRight, Sparkles } from "lucide-react";
 import { displayNameFor, precisionFor } from "@/lib/instruments/catalog";
 import { PlanConfirm, type PlanConfirmRequest } from "@/components/dashboard/plan-confirm";
-import { JOB_RUNNING, STATUS_LABEL, tradePlansApi, type Lean, type MarketIntelligence, type ResearchJob, type TradePlan } from "@/lib/trade-plans/api";
+import { JOB_RUNNING, STATUS_LABEL, researchJobWaitingForCalendar, tradePlansApi, type Lean, type MarketIntelligence, type ResearchJob, type TradePlan } from "@/lib/trade-plans/api";
+import { FORWARD_LABEL, type MarketStateView } from "@/lib/trade-plans/market-state";
 
 /**
  * Home: your trade plans, beside Pending and Open positions. A pair you
@@ -31,7 +32,7 @@ type Row =
   | { kind: "review"; instrument: string; plans: TradePlan[] }
   | { kind: "watching"; instrument: string; plans: TradePlan[] };
 
-type Brief = { text: string; nearTerm: Lean | null; swing: Lean | null; researchedAt: string; fresh: boolean };
+type Brief = { text: string; nearTerm: Lean | null; swing: Lean | null; researchedAt: string; fresh: boolean; marketState?: MarketStateView | null };
 
 function ago(iso: string) {
   const minutes = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60_000));
@@ -151,7 +152,10 @@ function Read({ brief, loading }: { brief: Brief | undefined; loading: boolean }
         <span className="sr-only">Research read: </span>
         {brief.text}
       </p>
-      {brief.nearTerm || brief.swing ? (
+      {brief.marketState ? <p className="nl-plan-leans">
+        {brief.marketState.usable ? <><span>Near term {FORWARD_LABEL[brief.marketState.snapshot.forward.shortTerm.classification]}</span><span>Swing {FORWARD_LABEL[brief.marketState.snapshot.forward.swing.classification]}</span></> : <span className="is-stale">Current interpretation unavailable</span>}
+        <span className={brief.fresh ? undefined : "is-stale"}>{brief.fresh ? `Researched ${ago(brief.researchedAt)}` : "Research out of date"}</span>
+      </p> : brief.nearTerm || brief.swing ? (
         <p className="nl-plan-leans">
           {brief.nearTerm ? <span data-lean={brief.nearTerm}>Near term {LEAN[brief.nearTerm]}</span> : null}
           {brief.swing ? <span data-lean={brief.swing}>Swing {LEAN[brief.swing]}</span> : null}
@@ -184,7 +188,8 @@ export function LedgerPlans() {
         const report = entry?.[1].research?.report;
         if (!entry || !report?.schemaVersion) continue;
         next[entry[0]] = {
-          text: briefOf(report),
+          text: entry[1].marketState ? entry[1].marketState.usable ? entry[1].marketState.snapshot.summary : `Market interpretation unavailable: ${entry[1].marketState.reasons[0] ?? "data checks did not pass"}` : briefOf(report),
+          marketState: entry[1].marketState,
           nearTerm: report.assessment?.nearTermLean ?? null,
           swing: report.assessment?.swingLean ?? null,
           researchedAt: entry[1].research!.createdAt,
@@ -245,20 +250,23 @@ export function LedgerPlans() {
             const href = `/chart?instrument=${encodeURIComponent(row.instrument)}&analyze=1`;
             if (row.kind === "generating") {
               const step = stepOf(row.job);
+              const waitingForCalendar = researchJobWaitingForCalendar(row.job);
               return (
                 <article key={`g-${row.instrument}`} className="nl-plan" data-kind="generating">
                   <Link href={href} className="nl-plan-head">
                     <b>{pair}</b>
-                    <span className="nl-plan-state is-generating"><span className="nl-plan-dot" aria-hidden="true" />Generating</span>
+                    <span className="nl-plan-state is-generating"><span className="nl-plan-dot" aria-hidden="true" />{waitingForCalendar ? "Waiting for calendar" : "Generating"}</span>
                   </Link>
                   <ol className="nl-plan-steps" aria-label="Progress">
                     {STEPS.map((label, index) => (
-                      <li key={label} data-state={index < step ? "done" : index === step ? "now" : "next"} aria-current={index === step ? "step" : undefined}>{label}</li>
+                      <li key={label} data-state={index < step ? "done" : index === step ? "now" : "next"} aria-current={index === step ? "step" : undefined}>{waitingForCalendar && index === 0 ? "Calendar" : label}</li>
                     ))}
                   </ol>
-                  <div className="nl-plan-read is-loading" aria-hidden="true"><span /><span /></div>
+                  {!waitingForCalendar ? <div className="nl-plan-read is-loading" aria-hidden="true"><span /><span /></div> : null}
                   <div className="nl-plan-bottom">
-                  <p className="nl-plan-foot">{row.job.error ? `${row.job.error} ` : ""}Started {ago(row.job.startedAt ?? row.job.createdAt)}. We&apos;ll notify you when the plans are ready.</p>
+                  <p className="nl-plan-foot">{waitingForCalendar
+                    ? `The economic calendar is temporarily unavailable. Retrying automatically; GPT research has not started. Queued ${ago(row.job.createdAt)}.`
+                    : <>{row.job.error ? `${row.job.error} ` : ""}Started {ago(row.job.startedAt ?? row.job.createdAt)}. We&apos;ll notify you when the plans are ready.</>}</p>
                     {JOB_RUNNING.includes(row.job.status) ? (
                       <button type="button" className="nl-plan-cta is-quiet" aria-label={`Cancel the ${pair} research`} onClick={() => ask({
                         eyebrow: `Plans · ${pair}`, title: `Cancel the ${pair} research?`,

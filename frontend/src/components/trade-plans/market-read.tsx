@@ -1,8 +1,10 @@
 "use client";
 
 import { ExternalLink, RefreshCw } from "lucide-react";
-import { JOB_RUNNING, type Bias, type Lean, type MarketIntelligence, type PlanResearchContext, type ResearchFactor, type ResearchJob, type ResearchObservation, type ResearchResult, type ResearchThesis, type TradePlan } from "@/lib/trade-plans/api";
+import { JOB_RUNNING, researchJobWaitingForCalendar, type Bias, type Lean, type MarketIntelligence, type PlanResearchContext, type ResearchFactor, type ResearchJob, type ResearchObservation, type ResearchResult, type ResearchThesis, type TradePlan } from "@/lib/trade-plans/api";
 import styles from "./market-read.module.css";
+import { MarketStateRead } from "./market-state-read";
+import { OBSERVED_LABEL } from "@/lib/trade-plans/market-state";
 
 /**
  * Market intelligence in the Analyze sheet (contract v2): the outlook by
@@ -73,13 +75,14 @@ const LEAN_LABEL: Record<Lean, string> = { bullish: "Bullish", bearish: "Bearish
 
 /** A running background job: only states the server has confirmed, no progress estimate. */
 function JobStrip({ job, onCancel }: { job: ResearchJob; onCancel?: () => void }) {
+  const waitingForCalendar = researchJobWaitingForCalendar(job);
   return (
     <div className={styles.job} role="status">
-      <p className={styles.jobTitle}>{job.instrument.replace("_", "/")} — Research in progress</p>
+      <p className={styles.jobTitle}>{job.instrument.replace("_", "/")} — {waitingForCalendar ? "Waiting for calendar" : "Research in progress"}</p>
       <p className={styles.jobMeta}>
-        Status: <strong>{JOB_STATUS[job.status]}</strong> · Model: {job.model} · Reasoning: {job.effort} · started {ago(job.startedAt ?? job.createdAt)}
+        Status: <strong>{waitingForCalendar ? "Waiting for calendar" : JOB_STATUS[job.status]}</strong> · Model: {job.model} · Reasoning: {job.effort} · {waitingForCalendar ? "queued" : "started"} {ago(job.startedAt ?? job.createdAt)}
       </p>
-      <p className={styles.fine}>{job.error ?? (job.status === "QUEUED" ? "Waiting to start. A stalled OpenAI queue is cancelled before one automatic retry." : "Research is running in the background. You can keep using GX or close it — you'll be notified when it's ready.")}</p>
+      <p className={styles.fine}>{waitingForCalendar ? "The economic calendar is temporarily unavailable. Retrying automatically; GPT research has not started." : job.error ?? (job.status === "QUEUED" ? "Waiting to start. A stalled OpenAI queue is cancelled before one automatic retry." : "Research is running in the background. You can keep using GX or close it — you'll be notified when it's ready.")}</p>
       {onCancel ? <button type="button" className={styles.cancel} onClick={onCancel}>Cancel research</button> : null}
     </div>
   );
@@ -121,26 +124,44 @@ export function MarketRead({ state, onRefresh, onCancel }: { state: ResearchStat
     );
   }
   const assessment = intel.assessment ?? null;
+  const marketState = state.result?.marketState ?? null;
 
   const o = intel.outlook;
   const forPair = intel.factors.filter((factor) => factor.impactOnPair === "bullish");
   const againstPair = intel.factors.filter((factor) => factor.impactOnPair === "bearish");
   const otherFactors = intel.factors.filter((factor) => factor.impactOnPair !== "bullish" && factor.impactOnPair !== "bearish");
+  const horizons = [
+    ["Short term", assessment?.nearTermLean ?? o.shortTerm],
+    ["Swing 2–5 days", assessment?.swingLean ?? o.swingTerm],
+    ["Fundamental", o.fundamental],
+    ["Technical", o.technical],
+  ] as const;
+  const unresolvedHorizons = assessment ? [
+    assessment.nearTermLean === "unresolved" ? "near-term" : null,
+    assessment.swingLean === "unresolved" ? "swing" : null,
+  ].filter(Boolean).join(" and ") : "";
+  const balance = assessment?.evidenceBalance;
+  const unresolvedReason = balance && unresolvedHorizons
+    ? `The ${unresolvedHorizons} direction is unresolved. Bullish evidence scores ${balance.bullish} points; bearish evidence scores ${balance.bearish} points. ${balance.bullish === balance.bearish
+      ? balance.bullish > 0 ? "The scores are tied, so neither side outweighs the other." : "No cited factor establishes a directional edge."
+      : "Despite the difference in scores, the cited research does not establish a clear direction for this horizon."}`
+    : null;
 
   return (
     <section className={styles.card} aria-label="Market read">
       <div className={styles.head}>
         <span className={styles.label}>Market read</span>
-        <span className={styles.bias} data-bias={o.overall.toUpperCase()}>{BIAS_LABEL[o.overall]}</span>
+        <span className={styles.bias} data-bias={marketState ? undefined : o.overall.toUpperCase()}>{marketState ? marketState.usable ? OBSERVED_LABEL[marketState.snapshot.observed.classification] : "Data check" : BIAS_LABEL[o.overall]}</span>
         <span className={styles.muted}>{intel.research.quality} quality evidence</span>
         <button type="button" className={styles.refresh} onClick={onRefresh} disabled={state.loading || running} aria-label="Refresh research">
           <RefreshCw aria-hidden="true" className={state.loading || running ? styles.spin : undefined} />
         </button>
       </div>
       {running && job ? <JobStrip job={job} onCancel={onCancel} /> : null}
+      {marketState ? <MarketStateRead view={marketState} intel={intel} /> : <>
       <dl className={styles.outlook}>
-        {([["Short term", o.shortTerm], ["Swing 2–5 days", o.swingTerm], ["Fundamental", o.fundamental], ["Technical", o.technical]] as const).map(([label, value]) => (
-          <div key={label}><dt>{label}</dt><dd data-bias={value}>{BIAS_LABEL[value]}</dd></div>
+        {horizons.map(([label, value]) => (
+          <div key={label}><dt>{label}</dt><dd data-bias={value}>{value === "unresolved" ? LEAN_LABEL[value] : BIAS_LABEL[value]}</dd></div>
         ))}
       </dl>
       {assessment ? (
@@ -149,8 +170,11 @@ export function MarketRead({ state, onRefresh, onCancel }: { state: ResearchStat
           {" · "}swing <strong data-lean={assessment.swingLean}>{LEAN_LABEL[assessment.swingLean]}</strong>
         </p>
       ) : null}
-      <p className={styles.summary}>{assessment?.rationale || intel.summary}</p>
+      <p className={styles.summary}>{assessment?.nearTermLean === "unresolved" ? unresolvedReason : assessment?.rationale || intel.summary}</p>
+      {unresolvedReason && assessment?.nearTermLean !== "unresolved" ? <p className={styles.meta}>{unresolvedReason}</p> : null}
+      {unresolvedReason ? <p className={styles.meta}>Points weight the cited evidence; they are not win probabilities. Expand the details below for the factors on each side.</p> : null}
       {assessment?.strongestOpposing ? <p className={styles.meta}>Strongest opposing evidence: {assessment.strongestOpposing}</p> : null}
+      </>}
       <p className={styles.fresh} data-stale={!research.fresh}>
         {research.fresh ? `Researched ${ago(research.createdAt)}` : `Stale — ${research.staleReason ?? "older than its refresh window"} (researched ${ago(research.createdAt)})`}
         {intel.research.status === "partial" ? " · partial" : ""}
@@ -158,7 +182,7 @@ export function MarketRead({ state, onRefresh, onCancel }: { state: ResearchStat
       </p>
 
       <details className={styles.more}>
-        <summary>Scenarios, drivers, calendar and sentiment</summary>
+        <summary>{marketState ? "Research sources, scenarios and calendar" : "Scenarios, drivers, calendar and sentiment"}</summary>
         {assessment?.rationale && intel.summary !== assessment.rationale ? <p className={styles.text}>{intel.summary}</p> : null}
         {o.explanation ? <p className={styles.text}>{o.explanation}</p> : null}
 

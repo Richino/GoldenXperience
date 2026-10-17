@@ -10,6 +10,7 @@ import { useDragToDismiss } from "@/lib/use-drag-to-dismiss";
 import { toast } from "@/hooks/use-toast";
 import {
   JOB_RUNNING,
+  researchJobWaitingForCalendar,
   STATUS_LABEL,
   tradePlansApi,
   type ConditionStatus,
@@ -482,11 +483,12 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
   }
 
   if (phase.kind === "researching") {
+    const waitingForCalendar = state.research.result?.job ? researchJobWaitingForCalendar(state.research.result.job) : false;
     return (
       <div className="nl-an-body">
-        {top(`Researching · ${pair}`)}
+        {top(`${waitingForCalendar ? "Waiting for calendar" : "Researching"} · ${pair}`)}
         <div className="nl-an-scroll">
-          <h2 id={titleId} className={styles.quietTitle}>Researching {pair} first</h2>
+          <h2 id={titleId} className={styles.quietTitle}>{waitingForCalendar ? "Waiting for the economic calendar" : `Researching ${pair} first`}</h2>
           <p className={styles.lede}>When the research is checked and stored, GX reads fresh prices and builds the BUY and SELL plans once. You&apos;ll be notified; you can leave this page or close GX.</p>
           <MarketRead state={state.research} onRefresh={state.refreshResearch} onCancel={state.cancelResearch} />
         </div>

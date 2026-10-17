@@ -5,6 +5,8 @@ import { query, transaction } from "./database.js";
 import { latestResearch } from "./intelligence/research-service.js";
 import type { MarketIntelligence } from "./intelligence/research-contract.js";
 import { researchContextForPlan } from "./intelligence/plan-research.js";
+import { readMarketTechnicals } from "./intelligence/market-state-interpreter.js";
+import { storeMarketState } from "./intelligence/market-state-store.js";
 import { evaluateConfirmation, planTimeframes, type Confirmation, type PlanForConfirmation, type SafetyLimits } from "./trade-plan-confirmation.js";
 import { generateTradePlans, type GeneratorResult } from "./trade-plan-generator.js";
 import { TradePlanError, createTradePlan, listTradePlans, reviseTradePlan, transitionInTx, validateTradePlanInput, type TradePlanInput } from "./trade-plans.js";
@@ -116,6 +118,14 @@ export async function generateAndStoreTradePlans(userId: string, instrument: Maj
     throw new TradePlanError("Live OANDA candles are unavailable; no plans were generated.", 503);
   }
   const result: GeneratorResult = generateTradePlans({ instrument, ...market, maxRiskPercent: risk.maxRiskPercent, limits: risk.limits });
+  // Synthesize the validated report and this post-research OANDA read. The
+  // interpretation never supplies levels, confirmation rules or entry permission.
+  const marketState = research?.report ? await storeMarketState({
+    intelligence: research.report, researchFresh: research.fresh, researchStaleReason: research.staleReason,
+    market: { instrument, ...market }, technical: readMarketTechnicals({ instrument, ...market }),
+    calendar: research.calendar, plans: result.plans,
+  }) : null;
+  if (marketState) for (const plan of result.plans) plan.plan.marketStateId = marketState.id;
   // The validated research is frozen into each plan as its evidence. It never sets levels or rules.
   attachIntelligence(result.plans, research?.report ?? null, {
     fresh: Boolean(research?.fresh),
@@ -155,7 +165,18 @@ export async function generateAndStoreTradePlans(userId: string, instrument: Maj
     planIds: stored,
     rejected: result.rejected,
     context: result.context,
+    marketState,
   };
+}
+
+/** Later research may refresh interpretation; it never regenerates or mutates approved plans. */
+export async function refreshMarketStateForResearch(instrument: MajorInstrument) {
+  const latest = await latestResearch(instrument);
+  const research = latest.research;
+  if (!research?.report?.schemaVersion) return null;
+  const market = { instrument, ...await loadGeneratorMarket(instrument) };
+  return storeMarketState({ intelligence: research.report, researchFresh: research.fresh, researchStaleReason: research.staleReason,
+    market, technical: readMarketTechnicals(market), calendar: research.calendar });
 }
 
 type EditablePlanRow = {

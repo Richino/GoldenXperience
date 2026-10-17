@@ -6,6 +6,7 @@ import type { MajorInstrument } from "../../../frontend/src/types/forex.js";
 import { getForexSessionStatus } from "../../../frontend/src/lib/strategy/session.js";
 import { query } from "../database.js";
 import { updateThesesForResearch } from "./thesis-updates.js";
+import type { MarketIntelligence } from "./research-contract.js";
 import { displayPair, queueNotification } from "../notifications.js";
 import { calendarRefs, buildCalendarSnapshot, type CalendarSnapshot } from "./calendar-snapshot.js";
 import {
@@ -278,6 +279,16 @@ async function defaultGeneratePlans(userId: string, instrument: string) {
   return { result: result.result, reason: result.reason };
 }
 
+/** Scheduled/accepted-plan research updates interpretation, never approved conditions. */
+async function updateResearchContext(instrument: string, intelligence: MarketIntelligence, now: number) {
+  const active = await query("SELECT 1 FROM trade_plans WHERE instrument=$1 AND status IN ('APPROVED','MONITORING','CONFIRMED','NOTIFIED','EXECUTION_PENDING','ORDER_SUBMITTED','PARTIALLY_FILLED','FILLED') LIMIT 1", [instrument]);
+  if (active.rows[0]) {
+    const { refreshMarketStateForResearch } = await import("../trade-plan-service.js");
+    await refreshMarketStateForResearch(instrument as MajorInstrument).catch(error => console.error("[market-state] update failed", error));
+  }
+  return updateThesesForResearch(instrument, intelligence, now);
+}
+
 /** Advance one job by one step under a lease. Safe to call from the tick, the kick and the webhook at once. */
 export async function processResearchJob(jobId: string, deps: JobDeps = {}) {
   const db = deps.db ?? pool;
@@ -461,7 +472,7 @@ async function storeResult(job: JobRow, payload: Record<string, unknown>, deps: 
     [job.id, status, outcome.ok ? null : outcome.error, outcome.usage.inputTokens, outcome.usage.outputTokens, outcome.usage.reasoningTokens ?? null,
      outcome.usage.webSearchCalls, outcome.sources.length, outcome.usage.costUsd, outcome.drops.length],
   );
-  if (outcome.ok) await (deps.warn ?? updateThesesForResearch)(job.instrument, outcome.intelligence, now).catch((error) => console.error("[research-jobs] thesis updates failed", error));
+  if (outcome.ok) await (deps.warn ?? updateResearchContext)(job.instrument, outcome.intelligence, now).catch((error) => console.error("[research-jobs] context updates failed", error));
   return status;
 }
 

@@ -639,3 +639,9 @@
   min-height: 2.9rem;
   padding: 0 0.3rem;
 }
+
+/* No hover highlight on the Research and Conditions rows. */
+.plan > details > summary:hover {
+  background: transparent;
+  color: var(--muted-strong);
+}

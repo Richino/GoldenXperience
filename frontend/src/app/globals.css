@@ -1804,8 +1804,10 @@ html.mobile-sheet-open body {
 
 .gx-toast-viewport {
   position: fixed;
-  /* Above chrome (30–50), fullscreen chart (60), and sheets (68/69). */
-  z-index: 80;
+  /* Above everything: chrome, the fullscreen chart, and every sheet and dialog
+     (the Analyze and confirm sheets sit at 10000, the welcome screen at 20000),
+     so a toast is never hidden behind what is open. */
+  z-index: 2147483000;
   top: max(3.75rem, calc(env(safe-area-inset-top, 0px) + 3.15rem));
   left: 1rem;
   right: 1rem;

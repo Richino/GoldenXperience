@@ -728,9 +728,13 @@ export function PendingEntryDialog({
               ))}
             </div>
             {direction === null ? null : (
-              <p className="nl-an-regime">
-                {`${planOrder ?? "Order"} · ${current === null ? "waiting for quote" : `now ${current.toFixed(precision)}${distancePips === null ? "" : `, ${distancePips.toFixed(1)} pips away`}`}`}
-              </p>
+              <div className={styles.orderRead} role="group" aria-label="Order preview">
+                <span className={styles.orderType} data-side={direction}>{planOrder ?? "Order"}</span>
+                <dl className={styles.orderNumbers}>
+                  <div><dt>Quote</dt><dd className="metric-number">{current === null ? "Waiting for quote" : current.toFixed(precision)}</dd></div>
+                  <div><dt>Distance</dt><dd className="metric-number">{distancePips === null ? "—" : `${distancePips.toFixed(1)} pips`}</dd></div>
+                </dl>
+              </div>
             )}
             <NewsWarning instrument={instrument} tradeStyle={tradeStyle} />
 

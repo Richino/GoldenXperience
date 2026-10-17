@@ -27,6 +27,8 @@ interface CachedFeed {
 
 let cache: CachedFeed | null = null;
 let inFlight: Promise<EconomicCalendarEvent[]> | null = null;
+let retryAt = 0;
+let lastFeedError: Error | null = null;
 
 
 async function fetchFeed(url: string): Promise<EconomicCalendarEvent[]> {
@@ -45,6 +47,12 @@ async function fetchFeed(url: string): Promise<EconomicCalendarEvent[]> {
     });
 
     if (!response.ok) {
+      if (response.status === 429) {
+        const value = response.headers.get("retry-after");
+        const seconds = value ? Number(value) : NaN;
+        const delay = Number.isFinite(seconds) ? seconds * 1000 : value ? Date.parse(value) - Date.now() : 60_000;
+        retryAt = Date.now() + Math.max(60_000, Number.isFinite(delay) ? delay : 60_000);
+      }
       throw new Error(`Calendar feed returned ${response.status}.`);
     }
 
@@ -97,13 +105,27 @@ async function loadEvents(): Promise<EconomicCalendarEvent[]> {
   if (cache && fresh) {
     return cache.events;
   }
+  // Without a failure cooldown, every UI poll after a 429 hits the provider
+  // again, prolonging the outage. Keep the stale display fallback, but let
+  // strict consumers reject it until a fresh fetch succeeds.
+  if (Date.now() < retryAt) {
+    if (cache) return cache.events;
+    throw lastFeedError ?? new Error("Calendar feed is cooling down after a failed request.");
+  }
 
   // Collapse concurrent misses into one request so a burst of page loads
   // cannot trip the feed's rate limit.
   const request = (inFlight ??= fetchFeed(THIS_WEEK_URL)
     .then((events) => {
       cache = { events, fetchedAt: Date.now() };
+      retryAt = 0;
+      lastFeedError = null;
       return events;
+    })
+    .catch((error: unknown) => {
+      lastFeedError = error instanceof Error ? error : new Error("Calendar feed unavailable.");
+      retryAt = Math.max(retryAt, Date.now() + 60_000);
+      throw lastFeedError;
     })
     .finally(() => {
       inFlight = null;

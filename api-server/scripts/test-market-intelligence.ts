@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { buildCalendarSnapshot, calendarRefs, parseReleaseValue, surpriseOf } from "../src/intelligence/calendar-snapshot.js";
 import { canonicalUrl, plainText } from "../src/intelligence/research-report.js";
 import { impactOnPair, technicalBias, validateResearch, type MarketIntelligence } from "../src/intelligence/research-contract.js";
-import { collectSources, estimateCost, runResearch, type TechnicalSummary } from "../src/intelligence/openai-research.js";
+import { cancelBackgroundResponse, collectSources, estimateCost, runResearch, submitBackgroundResearch, type TechnicalSummary } from "../src/intelligence/openai-research.js";
 import { alignmentOf, researchContextForPlan } from "../src/intelligence/plan-research.js";
-import { budgetVerdict, researchFreshness, researchSettings } from "../src/intelligence/research-service.js";
+import { budgetVerdict, calendarEvents, researchFreshness, researchSettings } from "../src/intelligence/research-service.js";
 import { attachIntelligence } from "../src/trade-plan-service.js";
 import { generateTradePlans, TRADE_PLAN_CONFIG } from "../src/trade-plan-generator.js";
 import { evaluateConfirmation, type PlanForConfirmation } from "../src/trade-plan-confirmation.js";
@@ -91,6 +91,44 @@ await test("calendar slice: pair currencies, UTC, de-duplicated, stable ids, rev
   assert.deepEqual(refs.map((ref) => [ref.id, ref.status, ref.currency]), [["e1", "released", "USD"], ["e2", "scheduled", "EUR"]]);
   assert.equal(refs[0]!.revised, null);
   assert.equal(buildCalendarSnapshot({ events: null, currencies: ["EUR", "USD"], now: NOW }).available, false);
+});
+
+await test("research calendar retains previous-day releases and safely handles unavailable/malformed data", async () => {
+  const fullFeed = await calendarEvents(async () => [...events, { ...events[0]!, timestamp: "invalid" }]);
+  const slice = buildCalendarSnapshot({ events: fullFeed, currencies: ["EUR", "USD"], now: NOW });
+  assert.equal(slice.released.length, 1, "yesterday's CPI survives the research lookback");
+  assert.equal(slice.released[0]!.title, "CPI m/m");
+  assert.equal(slice.released[0]!.actual, "0.4%");
+  assert.equal(slice.released[0]!.surprise.side, "ABOVE");
+  const unavailable = await calendarEvents(async () => { throw new Error("stale calendar coverage"); });
+  assert.equal(unavailable, null, "feed failures are not passed off as an empty verified calendar");
+});
+
+await test("calendar 429 cooldown prevents repeated feed hits and recovers after Retry-After", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalNow = Date.now;
+  let now = originalNow();
+  let calls = 0;
+  try {
+    Date.now = () => now;
+    globalThis.fetch = async () => {
+      calls += 1;
+      if (calls === 1) return new Response("rate limited", { status: 429, headers: { "retry-after": "120" } });
+      return Response.json([{ title: "Test release", country: "USD", date: new Date(now + HOUR).toISOString(), impact: "High", forecast: "1", previous: "0" }]);
+    };
+    assert.equal(await calendarEvents(), null);
+    assert.equal(await calendarEvents(), null);
+    assert.equal(calls, 1, "UI/research polling cannot hammer a rate-limited feed");
+    now += 61_000;
+    assert.equal(await calendarEvents(), null);
+    assert.equal(calls, 1, "honor the provider's longer Retry-After");
+    now += 60_000;
+    assert.equal((await calendarEvents())?.length, 1);
+    assert.equal(calls, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+    Date.now = originalNow;
+  }
 });
 
 // ── Contract and validation ───────────────────────────────────────
@@ -209,12 +247,36 @@ await test("Test 4 (live path) — malformed JSON, rate limits, timeouts and no 
 });
 
 // ── Freshness and budget ──────────────────────────────────────────
+await test("provider recovery requires confirmed cancellation; ambiguous POST failures are not resubmitted", async () => {
+  const env = { OPENAI_API_KEY: "test-key" };
+  assert.equal(await cancelBackgroundResponse("resp_test", { env, fetcher: async () => Response.json({ id: "resp_test", status: "cancelled" }) }), true);
+  assert.equal(await cancelBackgroundResponse("resp_test", { env, fetcher: async () => Response.json({ id: "resp_test", status: "in_progress" }) }), false);
+  assert.equal(await cancelBackgroundResponse("resp_test", { env, fetcher: async () => Response.json({ id: "resp_other", status: "cancelled" }) }), false);
+  const result = await submitBackgroundResearch({
+    instrument: "EUR_USD", currencies: ["EUR", "USD"], technical, calendar: refs, calendarNote: null,
+    researchId: "test", now: NOW, env,
+    fetcher: async () => { throw new Error("connection dropped after submission"); },
+  }, "test-job");
+  assert.ok(!result.ok && !result.retryable, "a lost response cannot authorize another paid run");
+});
+
 await test("Test 5 — stale research is labelled stale (time, new release, or older format)", () => {
   const row = { created_at: new Date(NOW - 2 * HOUR), expires_at: new Date(NOW + 4 * HOUR), currencies: ["EUR", "USD"], report: { schemaVersion: "2.0" } };
   assert.equal(researchFreshness(row, [], NOW).fresh, true);
   assert.equal(researchFreshness({ ...row, expires_at: new Date(NOW - 1) }, [], NOW).fresh, false);
   assert.match(researchFreshness(row, [{ currency: "USD", impact: 3, at: new Date(NOW - HOUR).toISOString() }], NOW).reason ?? "", /USD release/);
   assert.match(researchFreshness({ ...row, report: { overallBias: "MIXED" } }, [], NOW).reason ?? "", /older format/);
+  assert.equal(researchFreshness({ ...row, created_at: "invalid" }, [], NOW).fresh, false);
+  assert.equal(researchFreshness({ ...row, expires_at: "invalid" }, [], NOW).fresh, false);
+  assert.equal(researchFreshness({ ...row, created_at: new Date(NOW + HOUR) }, [], NOW).fresh, false);
+  assert.equal(researchFreshness({ ...row, created_at: new Date(NOW - 24 * HOUR), expires_at: null }, [], NOW).fresh, false, "legacy rows without expiry cannot stay fresh forever");
+});
+await test("legacy empty calendar is refreshed once; complete calendar coverage stays cached", () => {
+  const row = { created_at: new Date(NOW), expires_at: new Date(NOW + HOUR), currencies: ["EUR", "USD"], report: { schemaVersion: "2.1" }, calendar_snapshot: { ...snapshot, released: [] } };
+  const released = snapshot.released.map((event) => ({ title: event.title, currency: event.currency, impact: event.impact, at: event.at }));
+  assert.match(researchFreshness(row, released, NOW).reason ?? "", /missing verified calendar/);
+  assert.equal(researchFreshness({ ...row, calendar_snapshot: snapshot }, released, NOW).fresh, true, "a refreshed report does not trigger another refresh loop");
+  assert.equal(researchFreshness({ ...row, calendar_snapshot: { ...snapshot, available: false } }, [], NOW).fresh, false, "an old report without calendar data cannot be reused even while the feed is down");
 });
 await test("budget stops optional research", () => {
   const settings = { ...researchSettings({} as NodeJS.ProcessEnv), dailyRunLimit: 3, dailyBudgetUsd: 1, monthlyBudgetUsd: 10 };

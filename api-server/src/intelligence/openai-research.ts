@@ -237,8 +237,9 @@ export async function submitBackgroundResearch(input: ResearchInput, jobId: stri
     const message = payload?.error?.message ? `: ${payload.error.message.slice(0, 200)}` : "";
     return { ok: false, error: `OpenAI returned ${response.status}${message}.`, retryable: response.status === 429 || response.status >= 500 };
   } catch {
-    // The request may or may not have reached OpenAI; a retry can start a second run (bounded by the attempt limit).
-    return { ok: false, error: "OpenAI could not be reached to start the research.", retryable: true };
+    // A disconnected POST may already have been accepted. Without a response
+    // id we cannot confirm cancellation, so an automatic retry could pay twice.
+    return { ok: false, error: "OpenAI's acceptance of the research could not be confirmed. No automatic replacement was started; you can try again.", retryable: false };
   }
 }
 
@@ -276,7 +277,9 @@ export async function cancelBackgroundResponse(responseId: string, options: { fe
     const response = await (options.fetcher ?? fetch)(`${OPENAI}/${encodeURIComponent(responseId)}/cancel`, {
       method: "POST", headers: { Authorization: `Bearer ${config.apiKey}` }, signal: AbortSignal.timeout(15_000),
     });
-    return response.ok;
+    if (!response.ok) return false;
+    const payload = await response.json().catch(() => null) as { id?: string; status?: string } | null;
+    return payload?.id === responseId && payload.status === "cancelled";
   } catch {
     return false;
   }

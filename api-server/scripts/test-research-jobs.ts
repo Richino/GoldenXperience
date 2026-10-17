@@ -56,6 +56,15 @@ await test("polling: pending waits, done validates, gone expires, overdue times 
   assert.equal(pollDecision({ startedAt: NOW - 40 * 60_000, pollFailures: 0 }, { kind: "done", payload: {} }, NOW, settings).kind, "validate");
 });
 
+await test("provider queue timeout is separate from high-effort execution; completed answers still win", () => {
+  const job = { startedAt: NOW - 4 * 60_000, pollFailures: 0 };
+  assert.equal(pollDecision(job, { kind: "pending", status: "queued" }, NOW, settings).kind, "queue-timeout");
+  assert.equal(pollDecision(job, { kind: "pending", status: "in_progress" }, NOW, settings).kind, "wait");
+  assert.equal(pollDecision(job, { kind: "done", payload: {} }, NOW, settings).kind, "validate");
+  assert.equal(jobSettings({} as NodeJS.ProcessEnv).queueTimeoutMs, 180_000);
+  assert.equal(jobSettings({ RESEARCH_JOB_QUEUE_TIMEOUT_MS: "90000" }).queueTimeoutMs, 90_000);
+});
+
 const SECRET = `whsec_${Buffer.from("gx-test-secret-key").toString("base64")}`;
 function signed(body: string, id = "wh_1", at = Math.floor(NOW / 1000)) {
   const signature = createHmac("sha256", Buffer.from("gx-test-secret-key")).update(`${id}.${at}.${body}`).digest("base64");
@@ -144,7 +153,18 @@ if (!process.env.DATABASE_URL) {
 }
 const { db } = await import("../src/database.js");
 const client = await db().connect();
-const tx = { query: (text: string, values?: unknown[]) => client.query(text, values ?? []) } as unknown as NonNullable<JobDeps["db"]>;
+const testJobIds = new Set<string>();
+const tx = { query: async (text: string, values?: unknown[]) => {
+  const result = await client.query(text, values ?? []);
+  if (text.startsWith("INSERT INTO research_jobs(")) for (const row of result.rows) testJobIds.add(row.id);
+  // Worker tick tests must never advance unrelated live jobs in this shared
+  // database, even though all test writes and mocked deliveries roll back.
+  if (/^SELECT (?:DISTINCT j\.)?id FROM research_jobs/.test(text)) {
+    const rows = result.rows.filter((row) => testJobIds.has(row.id));
+    return { ...result, rows, rowCount: rows.length };
+  }
+  return result;
+} } as unknown as NonNullable<JobDeps["db"]>;
 // The pool must not touch tables this transaction has locked: the cached-research and budget reads are stubbed.
 const reads = {
   latest: async () => ({ research: null, configured: true, job: null, running: false }),
@@ -156,6 +176,7 @@ try {
   // Production already has 059; 060 is applied (and rolled back) here if it is not yet live.
   const has059 = (await client.query("SELECT to_regclass('research_jobs') AS t")).rows[0].t;
   if (!has059) await client.query(fs.readFileSync(path.join(root, "migrations", "059_research_jobs.sql"), "utf8"));
+  await client.query(fs.readFileSync(path.join(root, "migrations", "062_research_provider_status.sql"), "utf8"));
   await client.query(fs.readFileSync(path.join(root, "migrations", "060_plan_lifecycle.sql"), "utf8"));
   await client.query(fs.readFileSync(path.join(root, "migrations", "061_research_job_dismiss.sql"), "utf8"));
   const user = (await client.query<{ id: string }>("SELECT id FROM users ORDER BY created_at LIMIT 1")).rows[0];
@@ -214,6 +235,12 @@ try {
     assert.equal(row.submit_attempts, 1);
     assert.equal(row.lease_owner, null, "lease released after the step");
     assert.equal(calls.submit, 1);
+    nextFetch = { kind: "pending", status: "queued" };
+    assert.equal(await jobs.processResearchJob(jobId, deps()), "RESEARCHING");
+    assert.equal(calls.submit, 1, "accepted queued runs are polled, never submitted again");
+    const joined = await jobs.requestResearch(user.id, "GBP_USD", { force: true, db: tx, kick: false, ...reads });
+    assert.equal(joined.job!.status, "QUEUED", "the app sees the actual provider queue state");
+    assert.equal((await statusOf()).status, "RESEARCHING", "older workers must see an accepted run, never an unsubmitted QUEUED job");
   });
 
   await test("Test 5 — restart: a live lease blocks a second worker; an expired lease is taken over", async () => {
@@ -320,6 +347,120 @@ try {
     assert.equal((await jobs.dismissResearchJob(user.id, running, tx)).dismissed, true);
     assert.ok(!(await jobs.researchJobsForUser(user.id, tx)).some((job) => job.id === running));
     assert.equal((await client.query("SELECT count(*)::int AS n FROM research_jobs WHERE id=$1", [running])).rows[0].n, 1, "the job record is kept");
+  });
+
+  await test("fresh cached research is reused; old terminal jobs do not block a new run", async () => {
+    const before = calls.submit;
+    const cached = await jobs.requestResearch(user.id, "GBP_USD", {
+      db: tx, kick: false, ...reads,
+      latest: async () => ({ research: { fresh: true }, configured: true, job: null, running: false }) as never,
+    });
+    assert.equal(cached.state, "cached");
+    assert.equal(calls.submit, before);
+  });
+
+  await test("stuck provider queue: cancel before one retry, refresh inputs, preserve high effort, then stop", async () => {
+    const id = (await jobs.requestResearch(user.id, "GBP_USD", { force: true, db: tx, kick: false, ...reads })).job!.id;
+    let inputs = 0;
+    let submissions = 0;
+    const retryDeps = {
+      ...(deps() as object),
+      inputs: async () => { inputs += 1; return { technical, calendar }; },
+      submit: async (input: { env: NodeJS.ProcessEnv }) => {
+        assert.equal(input.env.OPENAI_RESEARCH_EFFORT, (await client.query("SELECT effort FROM research_jobs WHERE id=$1", [id])).rows[0].effort);
+        submissions += 1;
+        return { ok: true, responseId: `resp_queue_retry_${submissions}`, status: "queued" };
+      },
+    } as never;
+    nextFetch = { kind: "pending", status: "queued" };
+    await jobs.processResearchJob(id, retryDeps);
+    // Simulate a job created by the previous code, which labeled a provider queue RESEARCHING.
+    await client.query("UPDATE research_jobs SET status='RESEARCHING', started_at=now()-interval '4 minutes' WHERE id=$1", [id]);
+    assert.equal(await jobs.processResearchJob(id, retryDeps), "QUEUED");
+    const reset = (await client.query("SELECT openai_response_id, technical_summary, calendar_snapshot FROM research_jobs WHERE id=$1", [id])).rows[0];
+    assert.equal(reset.openai_response_id, null);
+    assert.equal(reset.technical_summary, null);
+    assert.equal(reset.calendar_snapshot, null);
+    const joined = await jobs.requestResearch(user.id, "GBP_USD", { force: true, db: tx, kick: false, ...reads });
+    assert.equal(joined.job!.id, id, "retry keeps the existing watchers and single active job");
+    await jobs.processResearchJob(id, retryDeps);
+    assert.equal(inputs, 2);
+    assert.equal(submissions, 2);
+    await client.query("UPDATE research_jobs SET started_at=now()-interval '4 minutes' WHERE id=$1", [id]);
+    assert.equal(await jobs.processResearchJob(id, retryDeps), "FAILED");
+    assert.equal(await jobs.processResearchJob(id, retryDeps), null);
+    assert.equal(submissions, 2, "there is no third automatic paid run");
+  });
+
+  await test("unconfirmed cancellation never starts a replacement provider run", async () => {
+    const id = (await jobs.requestResearch(user.id, "GBP_USD", { force: true, db: tx, kick: false, ...reads })).job!.id;
+    await jobs.processResearchJob(id, deps());
+    const before = calls.submit;
+    await client.query("UPDATE research_jobs SET started_at=now()-interval '4 minutes' WHERE id=$1", [id]);
+    nextFetch = { kind: "pending", status: "queued" };
+    assert.equal(await jobs.processResearchJob(id, { ...(deps() as object), cancel: async () => false } as never), "FAILED");
+    assert.equal(calls.submit, before);
+  });
+
+  await test("an answer that finishes during queue cancellation is recovered without a replacement", async () => {
+    const id = (await jobs.requestResearch(user.id, "GBP_USD", { force: true, db: tx, kick: false, ...reads })).job!.id;
+    await jobs.processResearchJob(id, deps());
+    await client.query("UPDATE research_jobs SET started_at=now()-interval '4 minutes' WHERE id=$1", [id]);
+    const before = calls.submit;
+    let responseReads = 0;
+    const result = await jobs.processResearchJob(id, {
+      ...(deps() as object), cancel: async () => false,
+      fetchResponse: async () => ++responseReads === 1 ? { kind: "pending", status: "queued" } : { kind: "done", payload: payload(valid) },
+    } as never);
+    assert.equal(result, "COMPLETED");
+    assert.equal(calls.submit, before);
+  });
+
+  await test("same-process webhook/timer overlap cannot double-submit or double-build plans", async () => {
+    const id = (await jobs.requestResearch(user.id, "GBP_USD", { force: true, db: tx, kick: false, ...reads })).job!.id;
+    let release!: () => void;
+    let entered!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const ready = new Promise<void>((resolve) => { entered = resolve; });
+    let submitted = 0;
+    const processing = jobs.processResearchJob(id, {
+      ...(deps() as object), submit: async () => {
+        submitted += 1; entered(); await gate;
+        return { ok: true, responseId: "resp_concurrent_test", status: "queued" };
+      },
+    } as never);
+    await ready;
+    assert.equal(await jobs.processResearchJob(id, deps()), null);
+    release(); await processing;
+    assert.equal(submitted, 1);
+
+    let releasePlans!: () => void;
+    let plansEntered!: () => void;
+    const planGate = new Promise<void>((resolve) => { releasePlans = resolve; });
+    const planReady = new Promise<void>((resolve) => { plansEntered = resolve; });
+    let built = 0;
+    nextFetch = { kind: "done", payload: payload(valid) };
+    const completing = jobs.processResearchJob(id, {
+      ...(deps() as object), generatePlans: async () => {
+        built += 1; plansEntered(); await planGate; return "PLANS";
+      },
+    } as never);
+    await planReady;
+    assert.equal(await jobs.deliverCompletion(id, deps()), 0);
+    releasePlans(); await completing;
+    assert.equal(built, 1);
+  });
+
+  await test("repeated input exceptions fail visibly instead of leaving an endless queued job", async () => {
+    const id = (await jobs.requestResearch(user.id, "GBP_USD", { force: true, db: tx, kick: false, ...reads })).job!.id;
+    const broken = { ...(deps() as object), inputs: async () => { throw new Error("Calendar or candles unavailable"); } } as never;
+    const before = calls.submit;
+    for (let attempt = 0; attempt < settings.maxPollFailures; attempt += 1) {
+      assert.equal(await jobs.processResearchJob(id, broken), "QUEUED");
+    }
+    assert.equal(await jobs.processResearchJob(id, broken), "FAILED");
+    assert.equal(calls.submit, before, "no provider run was started without inputs");
+    assert.equal((await statusOf(id)).lease_owner, null);
   });
 } finally {
   await client.query("ROLLBACK");

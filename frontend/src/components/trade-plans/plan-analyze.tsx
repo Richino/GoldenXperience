@@ -95,8 +95,12 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
   /** A research job ended: show the plans it built, why there are none, or why research failed. */
   const settleJob = useCallback(async (jobId: string) => {
     const found = await tradePlansApi.researchJob(jobId).catch(() => null);
+    if (!found) return; // A transient read failure is retried by the poll.
     const job = found?.job;
-    if (!job) { if (!(await loadAwaiting(true))) setPhase((current) => (current.kind === "analyzing" ? { kind: "idle" } : current)); return; }
+    if (!job) {
+      if (!(await loadAwaiting(true))) setPhase({ kind: "error", message: "This research run is no longer linked to your plans. Run Analyze to use the latest report." });
+      return;
+    }
     if (JOB_RUNNING.includes(job.status)) return;
     if (job.status !== "COMPLETED") {
       setPhase({ kind: "error", message: `Research did not finish: ${job.error ?? job.status.toLowerCase()}. No plans were built. You can try again.` });
@@ -125,6 +129,7 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
         if (stopped) return;
         setResearch((current) => ({ ...current, result: { ...next, state: current.result?.state } }));
         if (phaseKind.current === "researching" && next.job && !JOB_RUNNING.includes(next.job.status)) void settleJob(next.job.id);
+        if (phaseKind.current === "researching" && !next.job) setPhase({ kind: "error", message: "The research run is no longer available. You can try Analyze again." });
       }).catch(() => undefined);
     }, 5_000);
     return () => { stopped = true; window.clearInterval(timer); };
@@ -181,14 +186,9 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
     // Plans already built for this pair and waiting for you: open them instead of researching again.
     if (await loadAwaiting(true)) return;
     if (id !== request.current) return;
-    // Research already running for this pair: show it rather than starting anything.
-    const current = await tradePlansApi.research(instrument).catch(() => null);
-    if (id !== request.current) return;
-    if (current?.job && JOB_RUNNING.includes(current.job.status)) {
-      setResearch((state) => ({ ...state, result: current }));
-      setPhase({ kind: "researching" });
-      return;
-    }
+    // The request endpoint joins an existing run AND registers this user as a
+    // watcher. Merely displaying a scheduled/other user's job left Analyze
+    // waiting forever for plans that were never requested for this user.
     const started = await runResearch();
     if (id !== request.current) return;
     if (!started) { setPhase({ kind: "error", message: "Research could not be started. No plans were built." }); return; }
@@ -251,11 +251,18 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
       const result = await tradePlansApi.research(instrument).catch(() => null);
       if (id !== request.current) return;
       if (result) setResearch((current) => ({ ...current, result }));
-      if (result?.job && JOB_RUNNING.includes(result.job.status)) { setPhase({ kind: "researching" }); return; }
+      if (result?.job && JOB_RUNNING.includes(result.job.status)) {
+        const joined = await runResearch();
+        if (id !== request.current) return;
+        if (joined?.running) setPhase({ kind: "researching" });
+        else if (!joined) setPhase({ kind: "error", message: "Research could not be joined. Please try Analyze again." });
+        else settled();
+        return;
+      }
       if (result?.job) await settleJob(result.job.id);
       settled();
     })();
-  }, [instrument, loadAwaiting, settleJob]);
+  }, [instrument, loadAwaiting, runResearch, settleJob]);
 
   // What the chart's Analyze button opens: research in progress, plans to review, plans being watched, or a new analysis.
   const status: "generating" | "review" | "watching" | "new" =

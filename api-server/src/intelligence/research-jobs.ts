@@ -51,7 +51,9 @@ export function jobSettings(env: NodeJS.ProcessEnv = process.env) {
     pollMs: num(env.RESEARCH_JOB_POLL_MS, 10_000),
     /** A run still unfinished after this is cancelled at OpenAI and failed. */
     timeoutMs: num(env.RESEARCH_JOB_TIMEOUT_MS, 30 * 60_000),
-    /** Submissions that may be retried after a 429/5xx/network error. Never a retry once OpenAI accepted the run. */
+    /** Provider queue time is separate from high-effort generation time. */
+    queueTimeoutMs: num(env.RESEARCH_JOB_QUEUE_TIMEOUT_MS, 3 * 60_000),
+    /** Total submissions, including a replacement after a confirmed queue cancellation. */
     maxSubmitAttempts: num(env.RESEARCH_JOB_MAX_SUBMITS, 2),
     maxPollFailures: num(env.RESEARCH_JOB_MAX_POLL_FAILURES, 30),
     leaseSeconds: 120,
@@ -76,6 +78,7 @@ export type PollDecision =
   | { kind: "wait"; delayMs: number }
   | { kind: "validate"; payload: Record<string, unknown> }
   | { kind: "timeout"; error: string }
+  | { kind: "queue-timeout"; error: string }
   | { kind: "expire"; error: string }
   | { kind: "retry"; delayMs: number; pollFailures: number; error: string }
   | { kind: "fail"; error: string };
@@ -85,6 +88,9 @@ export function pollDecision(job: { startedAt: number | null; pollFailures: numb
   if (result.kind === "gone") return { kind: "expire", error: "OpenAI no longer holds this research run, so it cannot be recovered." };
   const overdue = job.startedAt !== null && now - job.startedAt > settings.timeoutMs;
   if (overdue) return { kind: "timeout", error: `The research did not finish within ${Math.round(settings.timeoutMs / 60_000)} minutes.` };
+  if (result.kind === "pending" && result.status === "queued" && job.startedAt !== null && now - job.startedAt >= settings.queueTimeoutMs) {
+    return { kind: "queue-timeout", error: `OpenAI did not start the research within ${Math.round(settings.queueTimeoutMs / 60_000)} minutes.` };
+  }
   if (result.kind === "pending") return { kind: "wait", delayMs: settings.pollMs };
   const pollFailures = job.pollFailures + 1;
   if (pollFailures > settings.maxPollFailures) return { kind: "fail", error: result.error };
@@ -200,6 +206,7 @@ export async function cancelResearchJob(userId: string, jobId: string, db: Db = 
   return { cancelled: true, reason: null };
 }
 
+/** A job the user asked for, with the plans it built for them (or why none). */
 /** Remove a finished job from your Plans card (a running one is cancelled instead). */
 export async function dismissResearchJob(userId: string, jobId: string, db: Db = pool) {
   const updated = await db.query(
@@ -210,7 +217,6 @@ export async function dismissResearchJob(userId: string, jobId: string, db: Db =
   return { dismissed: (updated.rowCount ?? 0) > 0 };
 }
 
-/** A job the user asked for, with the plans it built for them (or why none). */
 export async function researchJobForUser(userId: string, jobId: string, db: Db = pool) {
   const found = await db.query<JobRow & { plans_result: string | null; plans_reason: string | null }>(
     `SELECT ${JOB_COLUMNS.split(",").map((column) => `j.${column.trim()}`).join(",")}, w.plans_result, w.plans_reason FROM research_jobs j
@@ -254,6 +260,7 @@ export type JobDeps = {
 
 async function defaultInputs(instrument: string, currencies: [string, string], now: number) {
   const [technical, events] = await Promise.all([technicalSummaryFor(instrument as MajorInstrument), calendarEvents()]);
+  if (events === null) throw new Error("Verified economic calendar unavailable. Research will retry before starting; no report has been generated.");
   return { technical, calendar: buildCalendarSnapshot({ events, currencies, now }) };
 }
 
@@ -270,12 +277,13 @@ async function defaultGeneratePlans(userId: string, instrument: string) {
 /** Advance one job by one step under a lease. Safe to call from the tick, the kick and the webhook at once. */
 export async function processResearchJob(jobId: string, deps: JobDeps = {}) {
   const db = deps.db ?? pool;
-  const workerId = deps.workerId ?? WORKER_ID;
+  // A webhook and a timer in the same process must not share ownership.
+  const workerId = `${deps.workerId ?? WORKER_ID}:${randomUUID()}`;
   const settings = deps.settings ?? jobSettings();
   const now = deps.now ?? Date.now;
   const claimed = await db.query<JobRow>(
     `UPDATE research_jobs SET lease_owner=$2, lease_until=now() + make_interval(secs => $3), updated_at=now()
-      WHERE id=$1 AND status IN ${ACTIVE_SQL} AND (lease_until IS NULL OR lease_until < now() OR lease_owner=$2)
+      WHERE id=$1 AND status IN ${ACTIVE_SQL} AND (lease_until IS NULL OR lease_until < now())
       RETURNING ${JOB_COLUMNS}`,
     [jobId, workerId, settings.leaseSeconds],
   );
@@ -284,70 +292,123 @@ export async function processResearchJob(jobId: string, deps: JobDeps = {}) {
   const set = async (sql: string, values: unknown[]) =>
     (await db.query(`UPDATE research_jobs SET ${sql}, updated_at=now() WHERE id=$1 AND status=$2 AND lease_owner=$3`, [job.id, job.status, workerId, ...values])).rowCount ?? 0;
   try {
-    if (job.status === "QUEUED") {
+    if (job.status === "QUEUED" && !job.openai_response_id) {
+      if (now() - new Date(job.created_at).getTime() >= settings.timeoutMs) {
+        await set("status='FAILED', completed_at=now(), error='Research inputs could not be prepared within the time limit.'", []);
+        await deliverCompletion(job.id, deps, workerId);
+        return "FAILED";
+      }
       if (job.submit_attempts >= settings.maxSubmitAttempts) {
         await set("status='FAILED', completed_at=now(), error=coalesce(error,'The research could not be started.')", []);
+        await deliverCompletion(job.id, deps, workerId);
         return "FAILED";
       }
       let technical = job.technical_summary;
       let calendar = job.calendar_snapshot;
-      if (!technical || !calendar) {
+      if (!technical || !calendar || !calendar.available) {
         const inputs = await (deps.inputs ?? defaultInputs)(job.instrument, job.currencies as [string, string], now());
         technical = inputs.technical;
         calendar = inputs.calendar;
       }
       // Record the attempt before calling OpenAI, so a crash mid-call is counted.
-      await set("submit_attempts=submit_attempts+1, technical_summary=$4::jsonb, calendar_snapshot=$5::jsonb", [JSON.stringify(technical), JSON.stringify(calendar)]);
+      if (!(await set("submit_attempts=submit_attempts+1, technical_summary=$4::jsonb, calendar_snapshot=$5::jsonb", [JSON.stringify(technical), JSON.stringify(calendar)]))) return null;
       const input = jobInput(job, technical, calendar, now());
       const result = await (deps.submit ?? submitBackgroundResearch)(input, job.id);
       const decision = submitDecision(job.submit_attempts + 1, result, settings);
       if (decision.kind === "researching") {
-        await set("status='RESEARCHING', openai_response_id=$4, started_at=now(), next_check_at=now() + make_interval(secs => $5), error=NULL", [decision.responseId, settings.pollMs / 1000]);
-        return "RESEARCHING";
+        const providerStatus = result.ok && result.status === "queued" ? "queued" : "in_progress";
+        // Older workers interpret QUEUED as unsubmitted even when it has a
+        // response id. Keep the accepted lifecycle state backward compatible.
+        const stored = await set("status='RESEARCHING', provider_status=$6, openai_response_id=$4, started_at=now(), next_check_at=now() + make_interval(secs => $5), poll_failures=0, error=NULL", [decision.responseId, settings.pollMs / 1000, providerStatus]);
+        // Cancellation during submission must not leave an orphaned paid run.
+        if (!stored) await (deps.cancel ?? cancelBackgroundResponse)(decision.responseId);
+        return stored ? "RESEARCHING" : null;
       }
       if (decision.kind === "requeue") {
         await set("next_check_at=now() + make_interval(secs => $4), error=$5", [decision.delayMs / 1000, decision.error]);
         return "QUEUED";
       }
       await set("status='FAILED', completed_at=now(), error=$4", [decision.error]);
-      await deliverCompletion(job.id, deps);
+      await deliverCompletion(job.id, deps, workerId);
       return "FAILED";
     }
 
     if (!job.openai_response_id) {
       await set("status='FAILED', completed_at=now(), error='The research run id was lost.'", []);
-      await deliverCompletion(job.id, deps);
+      await deliverCompletion(job.id, deps, workerId);
       return "FAILED";
     }
     const fetched = await (deps.fetchResponse ?? fetchBackgroundResponse)(job.openai_response_id);
-    const decision = pollDecision({ startedAt: job.started_at ? new Date(job.started_at).getTime() : null, pollFailures: job.poll_failures }, fetched, now(), settings);
+    const decision = pollDecision({ startedAt: new Date(job.started_at ?? job.created_at).getTime(), pollFailures: job.poll_failures }, fetched, now(), settings);
     switch (decision.kind) {
       case "wait":
-        await set("next_check_at=now() + make_interval(secs => $4), poll_failures=0", [decision.delayMs / 1000]);
-        return job.status;
+        {
+          const providerStatus = fetched.kind === "pending" && fetched.status === "queued" ? "queued" : "in_progress";
+          await set("status='RESEARCHING', provider_status=$5, next_check_at=now() + make_interval(secs => $4), poll_failures=0, error=NULL", [decision.delayMs / 1000, providerStatus]);
+          return "RESEARCHING";
+        }
       case "retry":
         await set("next_check_at=now() + make_interval(secs => $4), poll_failures=$5, error=$6", [decision.delayMs / 1000, decision.pollFailures, decision.error]);
         return job.status;
       case "timeout":
         await (deps.cancel ?? cancelBackgroundResponse)(job.openai_response_id);
         await set("status='FAILED', completed_at=now(), error=$4", [decision.error]);
-        await deliverCompletion(job.id, deps);
+        await deliverCompletion(job.id, deps, workerId);
         return "FAILED";
+      case "queue-timeout": {
+        const cancelled = await (deps.cancel ?? cancelBackgroundResponse)(job.openai_response_id);
+        if (!cancelled) {
+          // Completion can race the cancel request. Use the completed answer
+          // instead of discarding it or submitting a duplicate.
+          const latest = await (deps.fetchResponse ?? fetchBackgroundResponse)(job.openai_response_id);
+          if (latest.kind === "done") {
+            if (!(await set("status='VALIDATING'", []))) return null;
+            const final = await storeResult({ ...job, status: "VALIDATING" }, latest.payload, deps);
+            await deliverCompletion(job.id, deps, workerId);
+            return final;
+          }
+        }
+        // Never overlap two provider runs. Retry only after confirmed cancellation,
+        // within the same job/watchers, and with freshly read market inputs.
+        if (cancelled && job.submit_attempts < settings.maxSubmitAttempts) {
+          await set("status='QUEUED', provider_status=NULL, openai_response_id=NULL, started_at=NULL, technical_summary=NULL, calendar_snapshot=NULL, poll_failures=0, next_check_at=now(), error=$4", [`${decision.error} Retrying once.`]);
+          return "QUEUED";
+        }
+        await set("status='FAILED', completed_at=now(), error=$4", [`${decision.error} ${cancelled ? "The retry limit was reached. You can try again." : "Cancellation could not be confirmed, so no second run was started."}`]);
+        await deliverCompletion(job.id, deps, workerId);
+        return "FAILED";
+      }
       case "expire":
         await set("status='EXPIRED', completed_at=now(), error=$4", [decision.error]);
-        await deliverCompletion(job.id, deps);
+        await deliverCompletion(job.id, deps, workerId);
         return "EXPIRED";
       case "fail":
+        await (deps.cancel ?? cancelBackgroundResponse)(job.openai_response_id);
         await set("status='FAILED', completed_at=now(), error=$4", [decision.error]);
-        await deliverCompletion(job.id, deps);
+        await deliverCompletion(job.id, deps, workerId);
         return "FAILED";
       case "validate": {
-        if (job.status === "RESEARCHING" && !(await set("status='VALIDATING'", []))) return null;
+        if (job.status !== "VALIDATING" && !(await set("status='VALIDATING'", []))) return null;
         const final = await storeResult({ ...job, status: "VALIDATING" }, decision.payload, deps);
-        await deliverCompletion(job.id, deps);
+        await deliverCompletion(job.id, deps, workerId);
         return final;
       }
     }
+  } catch (error) {
+    // Input/validation/database exceptions used to leave jobs active forever.
+    const failures = job.poll_failures + 1;
+    const message = error instanceof Error ? error.message.slice(0, 300) : "Research processing failed.";
+    const failed = failures > settings.maxPollFailures || now() - new Date(job.started_at ?? job.created_at).getTime() >= settings.timeoutMs;
+    const updated = await set(
+      failed
+        ? "status='FAILED', completed_at=now(), poll_failures=$4, error=$5"
+        : "next_check_at=now() + make_interval(secs => $6), poll_failures=$4, error=$5",
+      failed ? [failures, message] : [failures, message, settings.pollMs / 1000],
+    );
+    if (!updated) throw error; // A terminal job's failed delivery is retried separately.
+    if (failed && job.openai_response_id) await (deps.cancel ?? cancelBackgroundResponse)(job.openai_response_id);
+    if (failed) await deliverCompletion(job.id, deps, workerId);
+    return failed ? "FAILED" : job.status;
   } finally {
     await db.query("UPDATE research_jobs SET lease_owner=NULL, lease_until=NULL WHERE id=$1 AND lease_owner=$2", [job.id, workerId]);
   }
@@ -363,6 +424,8 @@ function jobInput(job: JobRow, technical: TechnicalSummary, calendar: CalendarSn
     calendarNote: calendar.note,
     researchId: job.research_id,
     now: job.started_at ? new Date(job.started_at).getTime() : now,
+    // A queued job retains the model/effort it was created with across restarts.
+    env: { ...process.env, OPENAI_RESEARCH_MODEL: job.model, OPENAI_RESEARCH_EFFORT: job.effort },
   };
 }
 
@@ -403,10 +466,16 @@ async function storeResult(job: JobRow, payload: Record<string, unknown>, deps: 
  * job first rebuilds that user's plans on the new research (pending plans only).
  * Retried by the tick until every watcher is marked notified.
  */
-export async function deliverCompletion(jobId: string, deps: JobDeps = {}) {
+export async function deliverCompletion(jobId: string, deps: JobDeps = {}, heldLease?: string) {
   const db = deps.db ?? pool;
-  const job = (await db.query<JobRow>(`SELECT ${JOB_COLUMNS} FROM research_jobs WHERE id=$1`, [jobId])).rows[0];
-  if (!job || (ACTIVE_STATUSES as readonly string[]).includes(job.status)) return 0;
+  const owner = heldLease ?? `${deps.workerId ?? WORKER_ID}:delivery:${randomUUID()}`;
+  const job = (await db.query<JobRow>(
+    `UPDATE research_jobs SET lease_owner=$2, lease_until=now() + interval '120 seconds'
+      WHERE id=$1 AND status NOT IN ${ACTIVE_SQL} AND (lease_until IS NULL OR lease_until < now() OR lease_owner=$2)
+      RETURNING ${JOB_COLUMNS}`, [jobId, owner],
+  )).rows[0];
+  if (!job) return 0;
+  try {
   const watchers = await db.query<{ user_id: string; plans_result: string | null }>("SELECT user_id, plans_result FROM research_job_watchers WHERE job_id=$1 AND notified_at IS NULL", [jobId]);
   let sent = 0;
   for (const watcher of watchers.rows) {
@@ -429,6 +498,9 @@ export async function deliverCompletion(jobId: string, deps: JobDeps = {}) {
     sent += 1;
   }
   return sent;
+  } finally {
+    await db.query("UPDATE research_jobs SET lease_owner=NULL, lease_until=NULL WHERE id=$1 AND lease_owner=$2", [jobId, owner]);
+  }
 }
 
 /** One worker pass: advance due jobs, then finish any delivery a crash interrupted. */

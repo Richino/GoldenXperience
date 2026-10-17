@@ -85,7 +85,7 @@ export function buildCalendarSnapshot(input: {
   const back = (input.backHours ?? 72) * 3_600_000;
   const seen = new Set<string>();
   const rows = input.events
-    .filter((event) => input.currencies.includes(event.currency) && event.impact >= 2)
+    .filter((event) => input.currencies.includes(event.currency) && event.impact >= 2 && Number.isFinite(Date.parse(event.timestamp)))
     .map((event): CalendarRow => ({
       title: event.title,
       currency: event.currency,

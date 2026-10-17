@@ -1,4 +1,4 @@
-import { getEconomicCalendar } from "../../../frontend/src/lib/calendar/forex-factory.js";
+import { getAllCalendarEvents, getMarketSelectionCalendar } from "../../../frontend/src/lib/calendar/forex-factory.js";
 import type { EconomicCalendarEvent } from "../../../frontend/src/lib/oanda/calendar.js";
 import type { MajorInstrument } from "../../../frontend/src/types/forex.js";
 import { databaseConfigured, query } from "../database.js";
@@ -66,15 +66,27 @@ export function researchSettings(env: NodeJS.ProcessEnv = process.env) {
 }
 
 /** Freshness of a research row against the clock and the calendar. Pure. */
-export function researchFreshness(row: { created_at: Date | string; expires_at: Date | string | null; currencies: string[]; report?: unknown } | null, released: Array<{ currency: string; impact: number; at: string }>, now: number) {
+export function researchFreshness(row: { created_at: Date | string; expires_at: Date | string | null; currencies: string[]; report?: unknown; calendar_snapshot?: CalendarSnapshot | null } | null, released: Array<{ title?: string; currency: string; impact: number; at: string }>, now: number) {
   if (!row) return { fresh: false, reason: "No research yet." };
   if (row.report !== undefined && !isSupportedSchema((row.report as { schemaVersion?: string } | null)?.schemaVersion)) {
     return { fresh: false, reason: "Research is in an older format." };
   }
   const created = new Date(row.created_at).getTime();
+  if (!Number.isFinite(created) || created > now || (row.expires_at && !Number.isFinite(new Date(row.expires_at).getTime()))) {
+    return { fresh: false, reason: "Research timestamps are invalid." };
+  }
+  if (!row.expires_at && now - created >= researchSettings().ttlHours * 3_600_000) return { fresh: false, reason: "Research is older than its refresh window." };
   if (row.expires_at && now >= new Date(row.expires_at).getTime()) return { fresh: false, reason: "Research is older than its refresh window." };
   const newer = released.find((event) => event.impact >= 3 && row.currencies.includes(event.currency) && Date.parse(event.at) > created && Date.parse(event.at) <= now);
   if (newer) return { fresh: false, reason: `New high-impact ${newer.currency} release since the research.` };
+  if (row.calendar_snapshot) {
+    if (!row.calendar_snapshot.available) return { fresh: false, reason: "Research was generated without verified calendar data. Refresh before building plans." };
+    const included = new Set((row.calendar_snapshot.released ?? []).map((event) => `${event.currency}|${event.title}|${event.at}`));
+    const missing = released.some((event) => event.title && event.impact >= 2 && row.currencies.includes(event.currency)
+      && Date.parse(event.at) <= created && Date.parse(event.at) >= created - 72 * 3_600_000
+      && !included.has(`${event.currency}|${event.title}|${event.at}`));
+    if (missing) return { fresh: false, reason: "Research is missing verified calendar releases. Refresh to include them." };
+  }
   return { fresh: true, reason: null as string | null };
 }
 
@@ -117,11 +129,17 @@ export async function researchUsage(now = Date.now()) {
   return { ...usage, activeJobs: Number(j.active), monthAvgDurationMs: j.avg_ms === null ? null : Math.round(Number(j.avg_ms)), monthFailedJobs: Number(j.failed), cacheHitsSinceRestart: cacheHits, model: config.model, effort: config.effort, settings, verdict: budgetVerdict(usage, settings), pricesConfigured: config.prices.inputPerMTok !== null };
 }
 
-export async function calendarEvents(): Promise<EconomicCalendarEvent[] | null> {
+async function fullResearchCalendar() {
+  // Check freshness/coverage before using the shared feed's stale UI fallback.
+  await getMarketSelectionCalendar();
+  // The display snapshot retains only today's released events. Research needs
+  // the whole week so its own 72-hour lookback can include prior days.
+  return getAllCalendarEvents();
+}
+
+export async function calendarEvents(load: () => Promise<EconomicCalendarEvent[]> = fullResearchCalendar): Promise<EconomicCalendarEvent[] | null> {
   try {
-    const calendar = await getEconomicCalendar();
-    if (calendar.status.state !== "connected" || !calendar.data.connected || calendar.data.source === "mock") return null;
-    return [...calendar.data.events, ...(calendar.data.recentEvents ?? [])];
+    return await load();
   } catch {
     return null;
   }
@@ -172,7 +190,7 @@ export async function latestCompleteRow(instrument: string) {
 }
 
 export const releasedOf = (events: EconomicCalendarEvent[] | null, now: number) =>
-  (events ?? []).filter((event) => event.actual !== null && Date.parse(event.timestamp) <= now).map((event) => ({ currency: event.currency, impact: event.impact, at: event.timestamp }));
+  (events ?? []).filter((event) => event.actual !== null && Number.isFinite(Date.parse(event.timestamp)) && Date.parse(event.timestamp) <= now).map((event) => ({ title: event.title, currency: event.currency, impact: event.impact, at: new Date(event.timestamp).toISOString() }));
 
 /** Latest research for a pair with its freshness; never calls OpenAI. */
 export async function latestResearch(instrument: string, now = Date.now()) {
@@ -190,12 +208,13 @@ export type JobRow = {
   id: string; instrument: string; currencies: string[]; trigger: Trigger; horizon: string; model: string; effort: string;
   status: "QUEUED" | "RESEARCHING" | "VALIDATING" | "COMPLETED" | "FAILED" | "CANCELLED" | "EXPIRED";
   openai_response_id: string | null; research_id: string; calendar_snapshot: CalendarSnapshot | null; technical_summary: TechnicalSummary | null;
+  provider_status: "queued" | "in_progress" | null;
   submit_attempts: number; poll_failures: number; lease_owner: string | null;
   input_tokens: number | null; output_tokens: number | null; reasoning_tokens: number | null; web_search_calls: number | null;
   sources_count: number | null; cost_usd: string | null; validation_drops: number | null; error: string | null;
   created_at: Date; started_at: Date | null; completed_at: Date | null;
 };
-export const JOB_COLUMNS = `id,instrument,currencies,trigger,horizon,model,effort,status,openai_response_id,research_id,calendar_snapshot,technical_summary,
+export const JOB_COLUMNS = `id,instrument,currencies,trigger,horizon,model,effort,status,provider_status,openai_response_id,research_id,calendar_snapshot,technical_summary,
   submit_attempts,poll_failures,lease_owner,input_tokens,output_tokens,reasoning_tokens,web_search_calls,sources_count,cost_usd::text,validation_drops,error,
   created_at,started_at,completed_at`.replace(/\s+/g, "");
 const ACTIVE_JOB: string[] = ["QUEUED", "RESEARCHING", "VALIDATING"];
@@ -203,8 +222,9 @@ const ACTIVE_JOB: string[] = ["QUEUED", "RESEARCHING", "VALIDATING"];
 /** A job as the app shows it: verified states only, no invented progress. */
 export function jobView(row: JobRow) {
   const iso = (value: Date | null) => (value ? new Date(value).toISOString() : null);
+  const status = row.status === "RESEARCHING" && row.provider_status === "queued" ? "QUEUED" : row.status;
   return {
-    id: row.id, instrument: row.instrument, status: row.status, trigger: row.trigger, horizon: row.horizon, model: row.model, effort: row.effort,
+    id: row.id, instrument: row.instrument, status, trigger: row.trigger, horizon: row.horizon, model: row.model, effort: row.effort,
     researchId: row.status === "COMPLETED" ? row.research_id : null, error: row.error,
     createdAt: iso(row.created_at)!, startedAt: iso(row.started_at), completedAt: iso(row.completed_at),
     usage: {

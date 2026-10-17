@@ -67,7 +67,7 @@ function Observations({ title, items, intel }: { title: string; items: ResearchO
 }
 
 const JOB_STATUS: Record<ResearchJob["status"], string> = {
-  QUEUED: "Queued", RESEARCHING: "Researching", VALIDATING: "Checking the results", COMPLETED: "Complete", FAILED: "Failed", CANCELLED: "Cancelled", EXPIRED: "Expired",
+  QUEUED: "Waiting to start", RESEARCHING: "Researching", VALIDATING: "Checking the results", COMPLETED: "Complete", FAILED: "Failed", CANCELLED: "Cancelled", EXPIRED: "Expired",
 };
 const LEAN_LABEL: Record<Lean, string> = { bullish: "Bullish", bearish: "Bearish", neutral: "Neutral", unresolved: "Unresolved" };
 
@@ -79,7 +79,7 @@ function JobStrip({ job, onCancel }: { job: ResearchJob; onCancel?: () => void }
       <p className={styles.jobMeta}>
         Status: <strong>{JOB_STATUS[job.status]}</strong> · Model: {job.model} · Reasoning: {job.effort} · started {ago(job.startedAt ?? job.createdAt)}
       </p>
-      <p className={styles.fine}>Research is running in the background. You can keep using GX or close it — you&apos;ll be notified when it&apos;s ready.</p>
+      <p className={styles.fine}>{job.error ?? (job.status === "QUEUED" ? "Waiting to start. A stalled OpenAI queue is cancelled before one automatic retry." : "Research is running in the background. You can keep using GX or close it — you'll be notified when it's ready.")}</p>
       {onCancel ? <button type="button" className={styles.cancel} onClick={onCancel}>Cancel research</button> : null}
     </div>
   );

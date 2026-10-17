@@ -44,6 +44,8 @@
     "paper-cycle:test": "tsx scripts/test-paper-cycle.ts",
     "pending-entry:test": "tsx scripts/test-pending-manual-entries.ts",
     "news-straddle:test": "tsx scripts/test-news-straddle.ts",
+    "news-straddle-v3:test": "tsx scripts/test-news-straddle-v3.ts && tsx scripts/test-news-straddle-v3-db.ts",
+    "news-straddle-v3:replay": "tsx scripts/replay-news-straddle-v3.ts",
     "market-state-interpreter:test": "tsx scripts/test-market-state-interpreter.ts",
     "trade-plans:test": "tsx scripts/test-trade-plan-state.ts && tsx scripts/test-trade-plan-generator.ts && tsx scripts/test-trade-plan-confirmation.ts && tsx scripts/test-trade-plan-monitor.ts && tsx scripts/test-trade-plan-settings.ts && tsx scripts/test-trade-plan-executor.ts && tsx scripts/test-market-intelligence.ts && tsx scripts/test-research-jobs.ts && tsx scripts/test-plan-lifecycle.ts && tsx scripts/test-market-state-interpreter.ts",
     "trade-plans:live-dry-run": "tsx scripts/dry-run-trade-plans.ts",

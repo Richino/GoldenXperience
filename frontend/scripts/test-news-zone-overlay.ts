@@ -100,4 +100,15 @@ test("EUR/USD zones use 0.0001 pips and 5-digit rounding", () => {
   assert.deepEqual(zonesAround("EUR_USD", 1.17, 10, 3), { buy: { lower: 1.171, upper: 1.1713 }, sell: { lower: 1.1687, upper: 1.169 } });
 });
 
+test("v3 scheduled prices retain executable bid/ask entries, never a mid-price reconstruction", () => {
+  const out = draw(setup("SCHEDULED", { configVersion: 3, zones }), { liveMid: 250 });
+  assert.deepEqual(out.lines.map(l => l.price), [210.695, 210.495]); assert.ok(out.lines.every(l => l.dashed));
+});
+test("v3 pending native orders show both sides; filled setup shows only its filled reference", () => {
+  const pending = draw(setup("PENDING_ORDERS", { configVersion: 3, zones })); assert.equal(pending.lines.length, 2);
+  const filled = draw(setup("TRAILING", { configVersion: 3, zones, reservation: { side: "long" } }, "GBP_JPY", ["TRIGGERED", "CANCELLED"])); assert.equal(filled.lines.length, 0); assert.equal(filled.boxes.length, 1);
+});
+test("v3 draft uses the supplied executable prices instead of mid ± offset", () => {
+  const out = draw([], { liveMid: 250, draft: { distancePips: 10, depthPips: 2, buyEntry: 210.71, sellEntry: 210.49 } }); assert.deepEqual(out.lines.map(l => l.price), [210.71, 210.49]);
+});
 console.log(`news zone overlay: ${passed} checks passed`);

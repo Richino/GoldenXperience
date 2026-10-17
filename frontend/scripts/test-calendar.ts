@@ -182,4 +182,10 @@ const offline = buildCalendarSnapshot({
 assert.equal(offline.warnings[0]?.tone, "danger");
 assert.match(offline.warnings[0]?.message ?? "", /not connected/i);
 
+const strictTime = normalizeForexFactoryEvents([
+  { title: "Timed release", country: "USD", date: "2026-07-20T08:30:00-04:00", impact: "High", forecast: "", previous: "" },
+  { title: "Date only", country: "USD", date: "2026-07-20", impact: "High", forecast: "", previous: "" },
+]);
+assert.equal(strictTime.find(e => e.title === "Timed release")?.timingVerified, true);
+assert.notEqual(strictTime.find(e => e.title === "Date only")?.timingVerified, true);
 console.log("calendar checks passed");

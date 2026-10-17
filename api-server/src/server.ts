@@ -84,7 +84,11 @@ import {
   resolveOpenManualTrades,
   reconcileManualOandaOrders,
 } from "./pending-manual-entries.js";
-import { armNewsStraddle, evaluateNewsStraddles, newsStraddleMayBeArmed, sweepNewsStraddles } from "./news-straddle.js";
+import { evaluateNewsStraddles, newsStraddleMayBeArmed, sweepNewsStraddles } from "./news-straddle.js";
+import { armNewsV3, previewNewsV3, cancelNewsV3, resetNewsHalt } from "./news-straddle/service.js";
+import { accountKey as newsAccountKey } from "./news-straddle/broker.js";
+import { newsRuntimeStatus, publicRun, readUserNewsRun } from "./news-straddle/store.js";
+import { startNewsStraddleRuntime } from "./news-straddle/runtime.js";
 
 // The multi-strategy + adaptive engine replaces the single liquidity strategy as
 // the active forex collector. Default on; set MULTISTRATEGY_ENABLED=false to roll
@@ -632,8 +636,34 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
         return json(request, response, { error: error instanceof Error ? error.message : "Could not create the pending entry." }, 400);
       }
     }
-    // News mode: arm a two-line breakout (buy above, sell below) for a release.
+    // New News mode arms version-3 broker STOP/OCO settings. Version-2 runs
+    // already in flight continue through their preserved monitor below.
+    if (url.pathname === "/api/pending-entries/news/preview" && request.method === "POST") {
+      const payload = await body(request);
+      const instrument = typeof payload?.instrument === "string" ? payload.instrument.toUpperCase() : "";
+      if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
+      try { return json(request, response, (await previewNewsV3(user.id, { ...payload, instrument })).preview); }
+      catch (error) { return json(request, response, { error: error instanceof Error ? error.message : "News preview unavailable." }, 409); }
+    }
+    if (url.pathname === "/api/news-straddles/runtime" && request.method === "GET") {
+      try { return json(request, response, { enabled: false, ready: false, ...await newsRuntimeStatus(newsAccountKey()), ...newsStraddleRuntime?.status() }); }
+      catch { return json(request, response, { enabled: false, ready: false, error: "News Straddle migration is not available yet." }, 503); }
+    }
+    if (url.pathname === "/api/news-straddles/reset-pause" && request.method === "POST") {
+      try { return json(request, response, await resetNewsHalt(user.id)); }
+      catch (error) { return json(request, response, { error: error instanceof Error ? error.message : "Pause cannot be reset yet." }, 409); }
+    }
+    const newsRunMatch = url.pathname.match(/^\/api\/news-straddles\/([0-9a-f-]{36})$/i);
+    if (newsRunMatch && request.method === "GET") {
+      const run = await readUserNewsRun(newsRunMatch[1]!, user.id);
+      return run ? json(request, response, publicRun(run)) : json(request, response, { error: "News setup not found." }, 404);
+    }
+    if (newsRunMatch && request.method === "DELETE") {
+      try { return json(request, response, { entries: await cancelNewsV3(user.id, newsRunMatch[1]!) }); }
+      catch (error) { return json(request, response, { error: error instanceof Error ? error.message : "Cancellation could not be requested." }, 409); }
+    }
     if (url.pathname === "/api/pending-entries/news" && request.method === "POST") {
+      if (!newsStraddleRuntime?.status().enabled) return json(request, response, { error: "The practice news scheduler is unavailable on this API instance." }, 503);
       if (!pendingEntryMonitoringEnabled) return json(request, response, { error: "Pending-entry monitoring is disabled on this API instance." }, 503);
       const payload = await body(request);
       const instrument = typeof payload?.instrument === "string" ? payload.instrument.toUpperCase() : "";
@@ -644,8 +674,8 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       const tick = await executableTick(instrument);
       if (!tick) return json(request, response, { error: "A fresh market quote is not available yet." }, 409);
       try {
-        const entries = await armNewsStraddle(user.id, { ...payload, instrument }, tick);
-        return json(request, response, { entries }, 201);
+        const result = await armNewsV3(user.id, { ...payload, instrument });
+        return json(request, response, { ...result, run: publicRun(result.run) }, 201);
       } catch (error) {
         return json(request, response, { error: error instanceof Error ? error.message : "Could not arm the news setup." }, 400);
       }
@@ -1214,6 +1244,7 @@ const heartbeat = setInterval(() => {
 const pendingEntryChecks = new Set<MajorInstrument>();
 const pendingEntryLastCheck = new Map<MajorInstrument, number>();
 let pendingEntryMonitoringEnabled = false;
+let newsStraddleRuntime: ReturnType<typeof startNewsStraddleRuntime> | null = null;
 /**
  * News setups get their own path: every tick, no 250ms throttle, and not
  * queued behind the ordinary entry checks. While one evaluation runs, the
@@ -1243,6 +1274,7 @@ function runNewsStraddles(tick: MarketPriceTick) {
 
 function handlePrice(tick: MarketPriceTick) {
   latestPrices.set(tick.instrument, tick);
+  newsStraddleRuntime?.onPrice(tick);
   broadcast(tick);
   if (pendingEntryMonitoringEnabled) runNewsStraddles(tick);
   if (!pendingEntryMonitoringEnabled || pendingEntryChecks.has(tick.instrument)) return;
@@ -1315,6 +1347,7 @@ if (databaseConfigured() && !schedulersEnabled) {
 if (databaseConfigured() && schedulersEnabled) {
   pendingEntryMonitoringEnabled = config.isConfigured;
   if (pendingEntryMonitoringEnabled) {
+    if (config.environment === "practice") newsStraddleRuntime = startNewsStraddleRuntime(config, instrument => latestPrices.get(instrument as MajorInstrument) ?? null);
     void recoverTriggeringManualEntries().catch((error) => console.error("[pending-entry] recovery failed", error));
     // News setups: disarm ended windows, reconcile orders in flight at a restart
     // (by client id, never resent) and run time exits. Every 5s and at startup.
@@ -1699,6 +1732,7 @@ function shutdown() {
   if (shuttingDown) return; // SIGTERM can arrive twice during a dev reload.
   shuttingDown = true;
   pricingStream?.stop();
+  const newsStopped = newsStraddleRuntime?.stop() ?? Promise.resolve();
   stopRecordingContext?.();
   const recordingClosed = marketRecorder?.close() ?? Promise.resolve();
   const observerClosed = marketObserver?.stop() ?? Promise.resolve();
@@ -1721,7 +1755,7 @@ function shutdown() {
   // terminate() drops them immediately; clients simply reconnect.
   wss.clients.forEach((socket) => socket.terminate());
   wss.close();
-  server.close(() => { void Promise.allSettled([recordingClosed, observerClosed]).finally(() => process.exit(0)); });
+  server.close(() => { void Promise.allSettled([recordingClosed, observerClosed, newsStopped]).finally(() => process.exit(0)); });
   // Fallback: exit even if a handle is still open, so the port is always freed
   // promptly for the next boot. unref() so it never itself keeps us alive.
   setTimeout(() => process.exit(0), 5000).unref();

@@ -76,6 +76,7 @@ export function normalizeForexFactoryEvents(
       region: CURRENCY_REGION[item.country] ?? "global",
       impact: IMPACT_SCORE[String(item.impact).toLowerCase()] ?? 0,
       timestamp,
+      timingVerified: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(item.date),
       forecast: emptyToNull(item.forecast),
       previous: emptyToNull(item.previous),
       // The weekly feed carries only scheduled entries, never a released value.

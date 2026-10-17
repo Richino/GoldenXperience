@@ -30,6 +30,11 @@ function shortCountdown(ms: number) {
 /** A News setup's stage in a few words, from the server's state. Null for anything else. */
 function newsStage(entry: PendingManualEntry, now: number) {
   if (!isNews(entry) || entry.status === "TRIGGERED") return null;
+  if (entry.metadata.configVersion === 3) {
+    const state = String(entry.metadata.newsState ?? "SCHEDULED");
+    const words: Record<string, string> = { SCHEDULED: "scheduled · T−2s", PREPARING: "checking broker", READY: "ready · T−2s", SUBMITTING: "sending both stops", PENDING_ORDERS: "both stops confirmed", OCO_CANCELLING: "cancelling opposite", CANCELLING: "cancelling & reconciling", EXCEPTION: "emergency reduction", HALTED: "entries paused", CANCELLED: "cancelled", SKIPPED: "skipped", EXPIRED: "window ended", CLOSED: "closed", OPEN: "initial stop protected", TRAILING: "broker trailing active" };
+    return words[state] ?? "checking broker";
+  }
   const meta = entry.metadata as { lockAt?: string; release?: { time?: string } | null };
   const state = newsStateOf(entry);
   if (state === "ARMED") return meta.lockAt ? `locks in ${shortCountdown(Date.parse(meta.lockAt) - now)}` : "armed";

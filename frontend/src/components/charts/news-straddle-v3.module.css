@@ -1,0 +1,35 @@
+.ticket, .status { display: flex; min-width: 0; flex-direction: column; gap: 14px; }
+.intro, .cardTitle { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.intro h3 { margin: 0; font-size: 17px; line-height: 1.35; }
+.badge, .impact { flex: none; padding: 4px 7px; border-radius: 7px; background: var(--accent-soft); color: var(--accent); font-size: 10px; font-weight: 700; }
+.impact { background: var(--danger-soft); color: var(--danger); }
+.note, .subtle { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.card { min-width: 0; padding: 14px; border: 1px solid var(--border); border-radius: 14px; }
+.cardTitle { margin-bottom: 12px; font-size: 13px; }
+.fields { display: grid; gap: 12px; }
+.fields label { display: grid; grid-template-columns: minmax(0,1fr) minmax(7rem,45%); align-items: center; gap: 12px; font-size: 13px; }
+.fields small, .metrics small { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; font-weight: 400; line-height: 1.4; }
+.ticket .fields input, .ticket .fields select, .ticket .release select { min-width: 0; width: 100%; min-height: 44px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-raised); color: var(--foreground); font-size: 16px; }
+.ticket .fields input { text-align: right; font-variant-numeric: tabular-nums; }
+.ticket .fields input:focus-visible, .ticket select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.release { display: grid; gap: 8px; color: var(--muted); font-size: 12px; }
+.ticket .metrics, .status .metrics { display: flex; flex-direction: column; gap: 0; margin: 0; padding: 0; border: 0; background: transparent; }
+.ticket .metrics > div, .status .metrics > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border); background: transparent; }
+.ticket .metrics > div:last-child, .status .metrics > div:last-child { border-bottom: 0; }
+.metrics dt { color: var(--muted); font-size: 12px; }
+.metrics dd { max-width: 62%; margin: 0; color: var(--foreground); font-size: 13px; line-height: 1.45; text-align: right; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.fields + .note { margin-top: 12px; }
+.more { padding: 12px 0; border-block: 1px solid var(--border); }
+.more summary { min-height: 32px; color: var(--muted-strong); font-size: 13px; cursor: pointer; }
+.more[open] summary { margin-bottom: 12px; }
+.warning { margin: 0; padding: 12px; border: 1px solid color-mix(in srgb,var(--pending) 35%,var(--border)); border-radius: 10px; background: var(--pending-soft); color: var(--pending); font-size: 12px; line-height: 1.5; }
+.ticket .check, .warning button, .stop button { min-height: 44px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-raised); color: var(--foreground); font-size: 13px; font-weight: 600; cursor: pointer; }
+.check { width: 100%; margin-top: 12px; }
+.check:disabled { opacity: .45; cursor: not-allowed; }
+.countdown { margin: 0; color: var(--accent); font-size: 18px; font-variant-numeric: tabular-nums; }
+.buy { color: var(--accent) !important; }
+.sell { color: var(--danger) !important; }
+.timeline { display: grid; gap: 8px; margin: 0; padding-left: 16px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.timeline time { color: var(--muted-strong); font-variant-numeric: tabular-nums; }
+.stop { display: grid; gap: 10px; margin-top: 14px; font-size: 12px; color: var(--muted); }
+@media (max-width: 380px) { .card { padding: 12px; } .fields label { grid-template-columns: minmax(0,1fr) minmax(6.5rem,45%); gap: 8px; } .metrics dd { max-width: 58%; } }

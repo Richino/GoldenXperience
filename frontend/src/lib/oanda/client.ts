@@ -244,6 +244,14 @@ async function requestOanda<T>(path: string, options: { method?: "GET" | "POST" 
   }
 }
 
+/** Shared authenticated transport for account-scoped practice strategy operations. */
+export async function requestPracticeAccount<T>(suffix: string, options: { method?: "GET" | "POST" | "PUT"; body?: unknown; signal?: AbortSignal } = {}): Promise<T> {
+  const config = getConfig();
+  if (!config || config.environment !== "practice") throw new OandaRequestError("News execution is locked to a configured OANDA practice account.");
+  if (!suffix.startsWith("/") || suffix.includes("://") || suffix.includes("..")) throw new OandaRequestError("Invalid account API path.");
+  return requestOanda<T>(`/v3/accounts/${encodeURIComponent(config.accountId)}${suffix}`, options);
+}
+
 export type PracticeMarketOrder = {
   instrument: MajorInstrument;
   direction: "long" | "short";

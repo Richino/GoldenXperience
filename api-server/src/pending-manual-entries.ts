@@ -879,6 +879,11 @@ export async function cancelPendingManualEntry(userId: string, id: string) {
  * crossing can't interleave.
  */
 async function cancelNewsLines(userId: string, entry: EntryRow) {
+  if (entry.metadata?.configVersion === 3) {
+    const { cancelNewsV3 } = await import("./news-straddle/service.js");
+    const rows = await cancelNewsV3(userId, String(entry.metadata.straddleId));
+    return rows.find(row => row.id === entry.id) ?? rows[0]!;
+  }
   // The news state machine owns cancellation (both sides, under its setup lock).
   const { cancelNewsStraddle } = await import("./news-straddle.js");
   const straddleId = String((entry.metadata as Record<string, unknown>).straddleId ?? "");

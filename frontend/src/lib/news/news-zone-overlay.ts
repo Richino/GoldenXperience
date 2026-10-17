@@ -27,13 +27,14 @@ import type { PendingManualEntry } from "../../types/pending-entry";
 
 export type NewsZones = { buy: { lower: number; upper: number }; sell: { lower: number; upper: number } };
 export type NewsOverlayLine = { key: string; price: number; label: string; color: string; textColor: string; dashed: boolean; lineWidth: 1 | 2; entryId: string };
-export type NewsDraft = { distancePips: number; depthPips: number };
+export type NewsDraft = { distancePips: number; depthPips: number; buyEntry?: number; sellEntry?: number };
 
 export const NEWS_BUY_COLOR = "#00b377";
 export const NEWS_SELL_COLOR = "#e5484d";
 const MUTED = "#8c8c93";
 
 type NewsMeta = {
+  configVersion?: number;
   mode?: string;
   straddleId?: string;
   line?: "upper" | "lower";
@@ -55,6 +56,10 @@ const metaOf = (entry: PendingManualEntry) => (entry.metadata ?? {}) as NewsMeta
 /** The state the server reports; rows from before the state machine map to the nearest one. */
 export function newsStateOf(entry: PendingManualEntry) {
   const meta = metaOf(entry);
+  if (meta.configVersion === 3 && meta.newsState) {
+    const mapped: Record<string, string> = { SCHEDULED: "ARMED", PREPARING: "LOCKING", READY: "ZONES_LOCKED", SUBMITTING: "WATCHING", PENDING_ORDERS: "WATCHING", OCO_CANCELLING: "FILLED", OPEN: "FILLED", TRAILING: "FILLED", CANCELLING: "CLOSING", EXCEPTION: "ERROR", HALTED: "ENDED" };
+    return mapped[meta.newsState] ?? meta.newsState;
+  }
   if (meta.newsState) return meta.newsState;
   if (entry.status === "PENDING") return meta.execution === "news_waiting" ? "ARMED" : "WATCHING";
   if (entry.status === "TRIGGERING") return "ORDER_SUBMITTING";
@@ -122,8 +127,9 @@ export function newsZoneOverlay(input: {
 
     if (state === "ARMED" || state === "LOCKING") {
       hasLiveSetup = true;
-      if (input.liveMid === null || !meta.distancePips || meta.slippagePips === undefined) continue;
-      const preview = zonesAround(input.instrument, input.liveMid, meta.distancePips, meta.slippagePips);
+      if (meta.configVersion !== 3 && (input.liveMid === null || !meta.distancePips || meta.slippagePips === undefined)) continue;
+      const preview = meta.configVersion === 3 ? lockedZones : zonesAround(input.instrument, input.liveMid!, meta.distancePips!, meta.slippagePips!);
+      if (!preview) continue;
       drawZone(straddleId, "buy", preview.buy, { color: NEWS_BUY_COLOR, faded: true, dashed: true, start, end, entryId: upper.id });
       drawZone(straddleId, "sell", preview.sell, { color: NEWS_SELL_COLOR, faded: true, dashed: true, start, end, entryId: lower.id });
       continue;
@@ -159,7 +165,10 @@ export function newsZoneOverlay(input: {
 
   // The ticket's unsaved settings, only while no setup is live on the pair.
   if (input.draft && !hasLiveSetup && input.liveMid !== null && input.draft.distancePips > 0 && input.draft.depthPips > 0) {
-    const draft = zonesAround(input.instrument, input.liveMid, input.draft.distancePips, input.draft.depthPips);
+    const depth = input.draft.depthPips * pipSizeFor(input.instrument);
+    const draft = input.draft.buyEntry !== undefined && input.draft.sellEntry !== undefined
+      ? { buy: { lower: input.draft.buyEntry, upper: input.draft.buyEntry + depth }, sell: { lower: input.draft.sellEntry - depth, upper: input.draft.sellEntry } }
+      : zonesAround(input.instrument, input.liveMid, input.draft.distancePips, input.draft.depthPips);
     const start = startOf(new Date(input.now).toISOString());
     const end = new Date(input.now + 60 * 60_000).toISOString();
     drawZone("draft", "buy", draft.buy, { tag: "draft", color: NEWS_BUY_COLOR, faded: true, dashed: true, start, end, entryId: "" });

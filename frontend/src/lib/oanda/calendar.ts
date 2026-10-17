@@ -9,6 +9,8 @@ export interface EconomicCalendarEvent {
   region: string;
   impact: number;
   timestamp: string;
+  /** Provider supplied an explicit date/time with timezone, rather than an inferred local date. */
+  timingVerified?: boolean;
   forecast: string | null;
   previous: string | null;
   actual: string | null;

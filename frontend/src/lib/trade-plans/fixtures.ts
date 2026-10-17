@@ -67,7 +67,12 @@ export function watchingPair(price = 1.12296): TradePlan[] {
   const common = { status: "MONITORING" as const, monitoringMode: "NOTIFY" as const, lastPrice: price, lastEvaluatedAt: hours(-0.02), monitorStage: "WAITING_FOR_ZONE" };
   return [
     fixturePlan("BUY", { ...common, notTriggeredReason: "Waiting for price to reach the zone 1.12113–1.12153." }),
-    fixturePlan("SELL", { ...common, notTriggeredReason: "Waiting for price to reach the zone 1.12399–1.12439." }),
+    fixturePlan("SELL", {
+      ...common, monitorStage: "WAITING_FOR_RETEST", notTriggeredReason: "Breakout confirmed; waiting for a retest of 1.12439 within 9 more H1 candles.",
+      monitorState: { outcome: "WAITING", proposal: null, progress: { attempt: 1, maxAttempts: 1, window: { window: "retest", used: 15, limit: 24 } }, safety: null },
+      latestEvent: { type: "BREAKOUT_DETECTED", reason: "H4 closed at 1.12380 through 1.12439.", at: hours(-3) },
+      thesisUpdate: { assessment: "WEAKENING", alignment: "mixed", previousAlignment: "supports", summary: "Fixture: more evidence now weighs against it: softer US yields.", newSupporting: [], newOpposing: [{ id: "F3", factor: "Fixture: softer US yields" }], researchId: "fixture", createdAt: hours(-1) },
+    }),
   ];
 }
 

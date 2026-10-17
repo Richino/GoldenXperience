@@ -295,12 +295,16 @@ export async function approveAnalysis(userId: string, analysisId: string, input:
     );
     const ids = pending.rows.map((row) => row.id);
     if (!ids.length) throw new TradePlanError("These plans are no longer awaiting approval. Analyze again.");
-    if (ids.length !== entries.length || ids.some((id) => !(id in input.versions))) {
+    // Accept either side or both; each accepted plan keeps its own rules. A side not chosen is rejected now.
+    if (entries.some(([id]) => !ids.includes(id))) {
       throw new TradePlanError("The plans changed since you reviewed them. Analyze again.");
     }
     if (input.mode === "AUTO") await checkAutoAllowed(client, userId);
     const results = [];
-    for (const id of ids) results.push(await approveInTx(client, userId, id, input.versions[id]!, input.mode));
+    for (const id of ids) {
+      if (id in input.versions) results.push(await approveInTx(client, userId, id, input.versions[id]!, input.mode));
+      else await transitionInTx(client, { userId, planId: id, to: "REJECTED", actor: "user", reason: "Not chosen: you accepted only the other side." });
+    }
     return { analysisId, plans: results };
   });
 }
@@ -410,6 +414,7 @@ export const TRADE_PLAN_FILTERS: Record<string, readonly TradePlanStatus[] | nul
   confirmed: ["CONFIRMED", "NOTIFIED"],
   executed: ["EXECUTION_PENDING", "ORDER_SUBMITTED", "PARTIALLY_FILLED", "FILLED", "EXECUTION_FAILED", "CLOSED"],
   invalidated: ["INVALIDATED"],
+  missed: ["MISSED"],
   expired: ["EXPIRED"],
   rejected: ["REJECTED", "CANCELLED"],
 };
@@ -424,7 +429,12 @@ const PLAN_COLUMNS = `p.id,p.analysis_id AS "analysisId",p.instrument,p.directio
   m.stage AS "monitorStage",m.last_evaluated_at AS "lastEvaluatedAt",m.last_price::float AS "lastPrice",
   m.not_triggered_reason AS "notTriggeredReason",m.state AS "monitorState",
   (SELECT coalesce(json_agg(json_build_object('key',c.condition_key,'label',c.label,'status',c.status,'detail',c.detail) ORDER BY c.ordinal),'[]'::json)
-     FROM trade_plan_conditions c WHERE c.plan_id=p.id AND c.plan_version=p.plan_version) AS conditions`;
+     FROM trade_plan_conditions c WHERE c.plan_id=p.id AND c.plan_version=p.plan_version) AS conditions,
+  (SELECT json_build_object('assessment',t.assessment,'alignment',t.alignment,'previousAlignment',t.previous_alignment,'summary',t.changes->>'summary',
+          'newSupporting',t.changes->'newSupporting','newOpposing',t.changes->'newOpposing','researchId',t.research_id,'createdAt',t.created_at)
+     FROM trade_plan_thesis_updates t WHERE t.plan_id=p.id ORDER BY t.created_at DESC LIMIT 1) AS "thesisUpdate",
+  (SELECT json_build_object('type',e.event_type,'reason',e.reason,'at',e.created_at)
+     FROM trade_plan_events e WHERE e.plan_id=p.id ORDER BY e.id DESC LIMIT 1) AS "latestEvent"`;
 
 export async function listTradePlans(userId: string, filter = "all", instrument?: string) {
   if (!(filter in TRADE_PLAN_FILTERS)) throw new TradePlanError("Unknown filter.", 400);

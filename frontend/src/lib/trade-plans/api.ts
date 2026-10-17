@@ -9,7 +9,7 @@ import { apiUrl } from "@/lib/api/url";
 export type TradePlanStatus =
   | "DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "MONITORING" | "CONFIRMED" | "NOTIFIED"
   | "EXECUTION_PENDING" | "ORDER_SUBMITTED" | "PARTIALLY_FILLED" | "FILLED" | "EXECUTION_FAILED"
-  | "CLOSED" | "REJECTED" | "CANCELLED" | "INVALIDATED" | "EXPIRED";
+  | "CLOSED" | "REJECTED" | "CANCELLED" | "INVALIDATED" | "EXPIRED" | "MISSED";
 
 export type MonitoringMode = "NOTIFY" | "AUTO";
 export type PlanFilter = "all" | "active" | "awaiting" | "monitoring" | "confirmed" | "executed" | "invalidated" | "expired" | "rejected";
@@ -78,8 +78,29 @@ export interface TradePlan {
   lastEvaluatedAt: string | null;
   lastPrice: number | null;
   notTriggeredReason: string | null;
-  monitorState: { outcome?: string; proposal?: MonitorProposal | null } | null;
+  monitorState: {
+    outcome?: string;
+    proposal?: MonitorProposal | null;
+    /** Attempts used of those approved, and the open window in closed candles. */
+    progress?: { attempt: number; maxAttempts: number | null; window: { window: string; used: number; limit: number } | null } | null;
+    /** Whether an order could go in right now (separate from confirmation). */
+    safety?: { ok: boolean; blocks: string[] } | null;
+  } | null;
   conditions: PlanCondition[];
+  /** How the latest research changed this plan's evidence (never the plan). */
+  thesisUpdate?: ThesisUpdate | null;
+  latestEvent?: { type: string; reason: string | null; at: string } | null;
+}
+
+export interface ThesisUpdate {
+  assessment: "STRENGTHENING" | "WEAKENING" | "UNCHANGED" | "CONFLICTED" | "OUTDATED";
+  alignment: string;
+  previousAlignment: string | null;
+  summary: string | null;
+  newSupporting: Array<{ id: string; factor: string }> | null;
+  newOpposing: Array<{ id: string; factor: string }> | null;
+  researchId: string;
+  createdAt: string;
 }
 
 export interface PlanEvent {
@@ -266,6 +287,8 @@ export interface ResearchJob {
   startedAt: string | null;
   completedAt: string | null;
   usage: { inputTokens: number | null; outputTokens: number | null; reasoningTokens: number | null; webSearchCalls: number | null; sources: number | null; costUsd: number | null; validationDrops: number | null };
+  /** For a job you asked for: the plans it built for you, or why none. */
+  plans?: { result: "PLANS" | "NO_VALID_SETUP" | "WATCHING" | "ERROR" | string; reason: string | null } | null;
 }
 export const JOB_RUNNING: ResearchJobStatus[] = ["QUEUED", "RESEARCHING", "VALIDATING"];
 
@@ -307,6 +330,7 @@ export const tradePlansApi = {
   research: (instrument: string) => request<ResearchResult>(`/api/intelligence/${instrument}`),
   /** Start (or join) background research for the pair when its research is stale; returns at once. */
   refreshResearch: (instrument: string, force = false) => post<ResearchResult>(`/api/intelligence/${instrument}/refresh`, { force }),
+  researchJob: (jobId: string) => request<{ job: ResearchJob }>(`/api/research-jobs/${jobId}`),
   cancelResearch: (jobId: string) => post<{ cancelled: boolean; reason: string | null }>(`/api/research-jobs/${jobId}/cancel`),
   autoTrade: () => request<AutoTradeSettings>("/api/trade-plans/auto-trade"),
   saveAutoTrade: (settings: AutoTradeLimits & { autoTrade: boolean }) =>
@@ -339,6 +363,7 @@ export const STATUS_LABEL: Record<TradePlanStatus, string> = {
   CANCELLED: "Cancelled",
   INVALIDATED: "Invalidated",
   EXPIRED: "Expired",
+  MISSED: "Missed",
 };
 
 export const SETUP_LABEL: Record<TradePlan["setupType"], string> = {

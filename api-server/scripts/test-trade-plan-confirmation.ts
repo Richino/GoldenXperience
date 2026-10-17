@@ -153,17 +153,19 @@ test("a retest that trades through the approved stop invalidates", () => {
   assert.match(result.notTriggeredReason ?? "", /approved stop/);
 });
 
-test("price running too far before confirming invalidates on reward/risk", () => {
+test("price running too far before confirming is MISSED (never chased)", () => {
   const result = run({ ...breakoutPlan, takeProfit: 1.102 }, [...BREAKOUT, ...RETEST, CONTINUATION]);
-  assert.equal(result.outcome, "INVALIDATED");
+  assert.equal(result.outcome, "MISSED");
   assert.equal(condition(result, "reward_risk").status, "FAILED");
 });
 
-test("news blackout blocks a technically confirmed setup", () => {
+test("news blackout blocks the order, not the confirmation (it stays confirmed)", () => {
   const rows = [...BREAKOUT, ...RETEST, CONTINUATION];
   const now = after(m15(rows));
   const result = run(breakoutPlan, rows, { news: [{ title: "CPI", currency: "USD", impact: 3, timestamp: new Date(now + 10 * 60_000).toISOString() }] });
-  assert.equal(result.outcome, "WAITING");
+  assert.equal(result.outcome, "CONFIRMED", "confirmation is final; safety is reported separately");
+  assert.equal(result.safety?.ok, false);
+  assert.match(result.safety!.blocks.join(" "), /News blackout/);
   assert.equal(result.stage, "CONFIRMED_BLOCKED");
   assert.equal(condition(result, "execution_safety").status, "BLOCKED");
   assert.match(condition(result, "execution_safety").detail, /News blackout/);
@@ -189,11 +191,11 @@ test("a stale quote, a missing quote or an unreadable calendar blocks", () => {
   assert.match(condition(run(breakoutPlan, rows, { news: null }), "execution_safety").detail, /calendar/);
 });
 
-test("a confirmation still blocked after its validity window is invalidated", () => {
+test("a confirmation still blocked after the approved entry window is MISSED", () => {
   const rows = [...BREAKOUT, ...RETEST, CONTINUATION];
   const now = after(m15(rows)) + 61 * 60_000;
   const result = run(breakoutPlan, rows, { now, news: null, quote: { bid: 1.1008, ask: 1.1009, time: new Date(now - 1000).toISOString() } });
-  assert.equal(result.outcome, "INVALIDATED");
+  assert.equal(result.outcome, "MISSED");
 });
 
 test("expiry wins over a late or unfinished sequence", () => {
@@ -292,6 +294,20 @@ test("a turn that never breaks structure is dropped", () => {
   const result = runReversal([...PRE, ...SWEEP, ...flat]);
   assert.equal(result.outcome, "WAITING");
   assert.notEqual(result.stage, "WAITING_FOR_STRUCTURE");
+});
+
+test("Test 10 — attempts are bounded: with one approved attempt, a turn that never breaks structure ends the plan", () => {
+  const flat: Ohlc[] = Array.from({ length: 18 }, () => [1.0995, 1.0999, 1.0994, 1.0996]);
+  const bounded = { ...reversalPlan, plan: { ...reversalPlan.plan, rules: { ...(reversalPlan.plan.rules as object), maxAttempts: 1 } } };
+  const result = runReversal([...PRE, ...SWEEP, ...flat], {}, bounded);
+  assert.equal(result.outcome, "INVALIDATED");
+  assert.match(result.notTriggeredReason ?? "", /approved attempts failed/);
+  assert.equal(result.progress.attempt, 1);
+  assert.equal(result.progress.maxAttempts, 1);
+  // Two approved attempts: the first failure is reported and watching continues.
+  const two = runReversal([...PRE, ...SWEEP, ...flat], {}, { ...bounded, plan: { ...bounded.plan, rules: { ...(bounded.plan.rules as object), maxAttempts: 2 } } });
+  assert.equal(two.outcome, "WAITING");
+  assert.ok(two.events.some((event) => event.type === "ATTEMPT_FAILED"));
 });
 
 test("a SELL reversal is the exact mirror of the BUY", () => {

@@ -146,7 +146,10 @@ const reads = {
 try {
   await client.query("BEGIN");
   await client.query("SET LOCAL lock_timeout = '3s'");
-  await client.query(fs.readFileSync(path.join(root, "migrations", "059_research_jobs.sql"), "utf8"));
+  // Production already has 059; 060 is applied (and rolled back) here if it is not yet live.
+  const has059 = (await client.query("SELECT to_regclass('research_jobs') AS t")).rows[0].t;
+  if (!has059) await client.query(fs.readFileSync(path.join(root, "migrations", "059_research_jobs.sql"), "utf8"));
+  await client.query(fs.readFileSync(path.join(root, "migrations", "060_plan_lifecycle.sql"), "utf8"));
   const user = (await client.query<{ id: string }>("SELECT id FROM users ORDER BY created_at LIMIT 1")).rows[0];
   assert.ok(user, "needs one user row");
   const technical = { instrument: "GBP_USD", readAt: new Date().toISOString(), price: 1.3, trend: { D1: "DOWNTREND", H4: "UNCLEAR" }, atr: {}, zones: [], plans: [] };
@@ -159,7 +162,7 @@ try {
     submit: async () => { calls.submit += 1; return { ok: true as const, responseId: `resp_test_${calls.submit}`, status: "queued" }; },
     fetchResponse: async () => { calls.fetch += 1; return nextFetch; },
     cancel: async () => { calls.cancel += 1; return true; },
-    generatePlans: async () => { calls.plans += 1; return "PLANS"; },
+    generatePlans: async () => { calls.plans += 1; return { result: "PLANS", reason: null }; },
     notify: async (event: Record<string, unknown>) => {
       // Notifications go out only after the report and the job's final state are stored.
       const stored = await client.query<{ status: string; job_status: string }>(
@@ -190,6 +193,7 @@ try {
     const count = await client.query("SELECT count(*)::int AS n FROM research_jobs WHERE instrument='GBP_USD' AND status IN ('QUEUED','RESEARCHING','VALIDATING')");
     assert.equal(count.rows[0].n, 1);
     assert.equal(calls.submit, 0, "no OpenAI call happens inside the request");
+    assert.equal(calls.plans, 0, "research first: no plans exist until the research is validated and stored");
   });
 
   const jobId = (await client.query<{ id: string }>("SELECT id FROM research_jobs WHERE instrument='GBP_USD' AND status='QUEUED'")).rows[0]!.id;

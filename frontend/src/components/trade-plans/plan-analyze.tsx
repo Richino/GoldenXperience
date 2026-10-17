@@ -38,6 +38,8 @@ const announce = () => window.dispatchEvent(new Event(TRADE_PLANS_CHANGED));
 type Phase =
   | { kind: "idle" }
   | { kind: "analyzing" }
+  /** Research is running on the server; plans are built once it finishes. */
+  | { kind: "researching" }
   | { kind: "results"; result: GenerateResult }
   | { kind: "error"; message: string };
 
@@ -50,6 +52,8 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
   const [research, setResearch] = useState<ResearchState>({ loading: false, result: null, error: null });
   const request = useRef(0);
   const researchRequest = useRef(0);
+  const phaseKind = useRef<Phase["kind"]>("idle");
+  useEffect(() => { phaseKind.current = phase.kind; }, [phase.kind]);
 
   /**
    * Start (or join) background research for the pair. The server returns at
@@ -61,49 +65,68 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
     setResearch((current) => ({ ...current, loading: true, error: null }));
     try {
       const result = await tradePlansApi.refreshResearch(instrument, force);
-      if (id !== researchRequest.current) return;
+      if (id !== researchRequest.current) return null;
       const pair = displayNameFor(instrument);
       if (result.state === "started") {
-        toast({ title: `${pair} research started`, description: "GX is researching in the background. Keep using GX or close it — you'll be notified when the analysis is ready." });
+        toast({ title: `${pair} research started`, description: "We'll notify you when your analysis is ready. Keep using GX or close it — the research runs on the server." });
       } else if (result.state === "joined") {
         toast({ title: `${pair} research already running`, description: "You'll be notified when it's ready. No second research run was started." });
       }
       setResearch({ loading: false, result, error: result.budget ?? null });
+      return result;
     } catch (error) {
       if (id === researchRequest.current) setResearch((current) => ({ ...current, loading: false, error: error instanceof Error ? error.message : "Research could not be started." }));
+      return null;
     }
   }, [instrument]);
 
-  /** Show the plans awaiting review for this pair (rebuilt by the research worker, or from a notification). */
+  /** Show the plans awaiting review for this pair. */
   const loadAwaiting = useCallback(async () => {
     const plans = await tradePlansApi.list("awaiting", instrument).catch(() => null);
-    if (!plans) return;
+    if (!plans) return false;
     const latest = plans[0] ? plans.filter((plan) => plan.analysisId === plans[0]!.analysisId) : [];
-    setPhase((current) => {
-      if (current.kind === "analyzing") return current;
-      if (latest.length) return { kind: "results", result: { analysisId: latest[0]!.analysisId, plans: latest, result: "PLANS", reason: null, planIds: latest.map((plan) => plan.id), rejected: [] } };
-      // The plans being shown were replaced by an analysis that found no setup.
-      if (current.kind === "results" && current.result.plans.length) {
-        return { kind: "results", result: { ...current.result, plans: [], planIds: [], result: "NO_VALID_SETUP", reason: "Rebuilt with the new research: no setup meets the trading rules right now." } };
-      }
-      return current;
-    });
+    if (!latest.length) return false;
+    setPhase((current) => (current.kind === "analyzing" ? current : { kind: "results", result: { analysisId: latest[0]!.analysisId, plans: latest, result: "PLANS", reason: null, planIds: latest.map((plan) => plan.id), rejected: [] } }));
+    return true;
   }, [instrument]);
 
-  // While a job runs, refresh what Analyze shows (display only; the job itself never depends on this page).
+  /** A research job ended: show the plans it built, why there are none, or why research failed. */
+  const settleJob = useCallback(async (jobId: string) => {
+    const found = await tradePlansApi.researchJob(jobId).catch(() => null);
+    const job = found?.job;
+    if (!job) { await loadAwaiting(); return; }
+    if (JOB_RUNNING.includes(job.status)) return;
+    if (job.status !== "COMPLETED") {
+      setPhase({ kind: "error", message: `Research did not finish: ${job.error ?? job.status.toLowerCase()}. No plans were built. You can try again.` });
+      return;
+    }
+    // Completed: the plans are built right after the report is stored.
+    if (!job.plans) return;
+    if (job.plans.result === "PLANS" && (await loadAwaiting())) return;
+    if (job.plans.result === "NO_VALID_SETUP") {
+      setPhase({ kind: "results", result: { analysisId: job.id, plans: [], planIds: [], result: "NO_VALID_SETUP", reason: job.plans.reason, rejected: [] } });
+      return;
+    }
+    if (job.plans.result === "WATCHING") { setPhase({ kind: "idle" }); return; }
+    setPhase({ kind: "error", message: job.plans.reason ?? "Research finished, but the plans could not be built. Try again." });
+  }, [loadAwaiting]);
+
+  // While research runs (or Analyze waits for its plans), refresh what Analyze shows.
+  // Display only: the job itself never depends on this page being open.
   const jobRunning = Boolean(research.result?.job && JOB_RUNNING.includes(research.result.job.status));
+  const watchJob = jobRunning || phase.kind === "researching";
   useEffect(() => {
-    if (!jobRunning) return;
+    if (!watchJob) return;
     let stopped = false;
     const timer = window.setInterval(() => {
       void tradePlansApi.research(instrument).then((next) => {
         if (stopped) return;
         setResearch((current) => ({ ...current, result: { ...next, state: current.result?.state } }));
-        if (!next.running && next.job?.status === "COMPLETED") void loadAwaiting();
+        if (phaseKind.current === "researching" && next.job && !JOB_RUNNING.includes(next.job.status)) void settleJob(next.job.id);
       }).catch(() => undefined);
     }, 5_000);
     return () => { stopped = true; window.clearInterval(timer); };
-  }, [instrument, jobRunning, loadAwaiting]);
+  }, [instrument, settleJob, watchJob]);
 
   const cancelResearch = useCallback(async () => {
     const job = research.result?.job;
@@ -111,6 +134,7 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
     await tradePlansApi.cancelResearch(job.id).catch(() => undefined);
     const next = await tradePlansApi.research(instrument).catch(() => null);
     if (next) setResearch((current) => ({ ...current, result: next }));
+    setPhase((current) => (current.kind === "researching" ? { kind: "error", message: "Research cancelled. No plans were built." } : current));
   }, [instrument, research.result?.job]);
 
   const refreshActive = useCallback(async () => {
@@ -137,16 +161,26 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
     return () => { window.clearInterval(timer); window.removeEventListener(TRADE_PLANS_CHANGED, changed); };
   }, [instrument, refreshActive]);
 
+  /**
+   * Analyze, research first: fresh research → plans now (built once, from it
+   * and fresh candles); otherwise a background research job starts and the
+   * plans are built when it finishes. No preliminary plans are made.
+   */
   const run = useCallback(async () => {
     if (disabled) return;
     setOpen(true);
     setActionError(null);
-    // Research runs beside the technical analysis; the plans do not wait for it.
-    void runResearch();
-    // Plans already being watched: show them instead of analysing over them.
-    if (active.length) { setPhase({ kind: "idle" }); return; }
+    // Plans already being watched: show them. Research may refresh their evidence; it never rebuilds them.
+    if (active.length) { setPhase({ kind: "idle" }); void runResearch(); return; }
     const id = ++request.current;
     setPhase({ kind: "analyzing" });
+    const started = await runResearch();
+    if (id !== request.current) return;
+    if (!started) { setPhase({ kind: "error", message: "Research could not be started. No plans were built." }); return; }
+    if (started.state === "started" || started.state === "joined") { setPhase({ kind: "researching" }); return; }
+    if (started.state === "budget") { setPhase({ kind: "error", message: `${started.budget ?? "The research budget is used up."} No plans were built.` }); return; }
+    if (started.state === "unconfigured") { setPhase({ kind: "error", message: "Research is not configured on the server, so no plans can be built." }); return; }
+    // Fresh research already exists: build the plans from it now.
     try {
       const result = await tradePlansApi.generate(instrument);
       if (id === request.current) setPhase({ kind: "results", result });
@@ -170,10 +204,13 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
     }
   }, [refreshActive]);
 
-  const accept = (mode: MonitoringMode) => {
+  /** Accept both plans, or only one side (the other is declined). Each keeps its own rules. */
+  const accept = (mode: MonitoringMode, only?: "BUY" | "SELL") => {
     if (phase.kind !== "results") return;
     const { result } = phase;
-    void act(() => tradePlansApi.accept(result.analysisId, mode, result.plans), () => setPhase({ kind: "idle" }));
+    const chosen = only ? result.plans.filter((plan) => plan.direction === only) : result.plans;
+    if (!chosen.length) return;
+    void act(() => tradePlansApi.accept(result.analysisId, mode, chosen), () => setPhase({ kind: "idle" }));
   };
   /** Not now: reject the offered plans so nothing lingers awaiting approval. */
   const dismiss = () => {
@@ -187,12 +224,16 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
     void act(() => Promise.all(live.map((plan) => tradePlansApi.cancel(plan.id, "Stopped watching from Analyze"))), () => setOpen(false));
   };
   const cancel = () => { request.current += 1; setPhase({ kind: "idle" }); setOpen(false); };
-  /** Open Analyze on the latest report and the plans awaiting review (the research notification links here). */
+  /** Open Analyze on the latest report and its plans (the research notification links here). */
   const review = useCallback(() => {
     setOpen(true);
-    void loadAwaiting();
-    void tradePlansApi.research(instrument).then((result) => setResearch((current) => ({ ...current, result }))).catch(() => undefined);
-  }, [instrument, loadAwaiting]);
+    void tradePlansApi.research(instrument).then(async (result) => {
+      setResearch((current) => ({ ...current, result }));
+      if (result.job && JOB_RUNNING.includes(result.job.status)) { setPhase({ kind: "researching" }); return; }
+      if (result.job) await settleJob(result.job.id);
+      else await loadAwaiting();
+    }).catch(() => void loadAwaiting());
+  }, [instrument, loadAwaiting, settleJob]);
 
   return { phase, active, open, setOpen, busy, actionError, run, accept, dismiss, stopWatching, cancel, analyzing: phase.kind === "analyzing", research, refreshResearch: () => void runResearch(true), cancelResearch: () => void cancelResearch(), review };
 }
@@ -200,6 +241,10 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
 export type PlanAnalyzeState = ReturnType<typeof usePlanAnalyze>;
 
 const clock = (iso: string) => new Date(iso).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" });
+
+const THESIS_WORD: Record<NonNullable<TradePlan["thesisUpdate"]>["assessment"], string> = {
+  STRENGTHENING: "strengthening", WEAKENING: "weakening", UNCHANGED: "unchanged", CONFLICTED: "conflicted", OUTDATED: "out of date",
+};
 
 function ConditionIcon({ status }: { status: ConditionStatus }) {
   if (status === "PASSED") return <CheckCircle2 className={`size-3.5 ${styles.passed}`} aria-hidden="true" />;
@@ -240,6 +285,8 @@ export function PlanBlock({ plan, watching, price = null, report = null }: { pla
   const digits = precisionFor(plan.instrument);
   const fmt = (value: number | null) => (value === null ? "—" : value.toFixed(digits));
   const proposal = plan.monitorState?.proposal ?? null;
+  const progress = plan.monitorState?.progress ?? null;
+  const safety = plan.monitorState?.safety ?? null;
   const confirmed = plan.status === "CONFIRMED" || plan.status === "NOTIFIED";
   const away = distance(plan, price ?? plan.lastPrice);
   const met = plan.conditions.filter((item) => item.status === "PASSED").length;
@@ -276,7 +323,10 @@ export function PlanBlock({ plan, watching, price = null, report = null }: { pla
       ) : watching && (plan.status === "EXECUTION_PENDING" || plan.status === "ORDER_SUBMITTED" || plan.status === "PARTIALLY_FILLED") ? (
         <p className={styles.ready}>Confirmed. Placing the order on your practice account…</p>
       ) : watching && confirmed && proposal ? (
-        <p className={styles.ready}>Confirmed. Enter near {fmt(proposal.entry)}.</p>
+        <p className={styles.ready}>
+          Confirmed. Enter near {fmt(proposal.entry)}.
+          {safety && !safety.ok ? <small className={styles.blocked}> An order can&apos;t go in right now: {safety.blocks.join(" ")}</small> : null}
+        </p>
       ) : watching ? (
         <p className={styles.note}>
           {plan.monitorStage === "WAITING_FOR_ZONE"
@@ -286,6 +336,19 @@ export function PlanBlock({ plan, watching, price = null, report = null }: { pla
       ) : (
         <p className={styles.note}>{triggerLine(plan)}</p>
       )}
+      {watching ? (
+        <ul className={styles.progress}>
+          {progress?.window ? <li>{progress.window.limit - progress.window.used} of {progress.window.limit} candles left for the {progress.window.window}</li> : null}
+          {progress?.maxAttempts ? <li>Attempt {progress.attempt} of {progress.maxAttempts}</li> : null}
+          <li>Ends {clock(plan.expiresAt)} if not triggered</li>
+          {plan.latestEvent ? <li>Last: {plan.latestEvent.reason ?? plan.latestEvent.type.toLowerCase().replace(/_/g, " ")} ({clock(plan.latestEvent.at)})</li> : null}
+        </ul>
+      ) : null}
+      {watching && plan.thesisUpdate && plan.thesisUpdate.assessment !== "UNCHANGED" ? (
+        <p className={styles.thesis} data-assessment={plan.thesisUpdate.assessment}>
+          <strong>Evidence {THESIS_WORD[plan.thesisUpdate.assessment]}</strong> {plan.thesisUpdate.summary} <small>Research never changes the plan&apos;s rules.</small>
+        </p>
+      ) : null}
       <PlanEvidence plan={plan} intel={report} />
       <details className={styles.details}>
         <summary>
@@ -374,11 +437,29 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
   if (phase.kind === "analyzing") {
     return (
       <div className="nl-an-body" aria-busy="true">
-        {top(`Reading ${pair}…`)}
+        {top(`Starting ${pair}…`)}
         <h2 id={titleId} className="sr-only">Analyzing {pair}</h2>
         <span className="nl-an-skel nl-an-skel-grid" />
         <span className="nl-an-skel nl-an-skel-line is-short" />
         <span className="nl-an-skel nl-an-skel-grid" />
+      </div>
+    );
+  }
+
+  if (phase.kind === "researching") {
+    return (
+      <div className="nl-an-body">
+        {top(`Researching · ${pair}`)}
+        <div className="nl-an-scroll">
+          <h2 id={titleId} className={styles.quietTitle}>Researching {pair} first</h2>
+          <p className={styles.lede}>When the research is checked and stored, GX reads fresh prices and builds the BUY and SELL plans once. You&apos;ll be notified; you can leave this page or close GX.</p>
+          <MarketRead state={state.research} onRefresh={state.refreshResearch} onCancel={state.cancelResearch} />
+        </div>
+        <div className={styles.dock}>
+          <div className={styles.footer}>
+            <button type="button" className="nl-an-secondary pressable" onClick={() => state.setOpen(false)}>Close</button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -392,9 +473,11 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
           {top(`Analyze · ${pair}`)}
           <div className="nl-an-scroll">
             <h2 id={titleId} className={styles.quietTitle}>No setup worth watching right now</h2>
-            <ul className={styles.rejected}>
-              {result.rejected.map((item) => <li key={`${item.direction}-${item.setupType}`}><strong>{item.direction}</strong> {item.reason}</li>)}
-            </ul>
+            {result.rejected.length ? (
+              <ul className={styles.rejected}>
+                {result.rejected.map((item) => <li key={`${item.direction}-${item.setupType}`}><strong>{item.direction}</strong> {item.reason}</li>)}
+              </ul>
+            ) : result.reason ? <p className={styles.lede}>{result.reason}</p> : null}
             {/* No setup to trade, but the market context is still worth reading. */}
             <MarketRead state={state.research} onRefresh={state.refreshResearch} onCancel={state.cancelResearch} />
           </div>
@@ -429,6 +512,17 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
             </button>
             <button type="button" className={styles.textButton} disabled={state.busy} onClick={state.dismiss}>Not now</button>
           </div>
+          {plans.length > 1 ? (
+            <p className={styles.only}>
+              Or accept only{" "}
+              {plans.map((plan, index) => (
+                <span key={plan.id}>
+                  {index ? " or " : ""}
+                  <button type="button" className={styles.textButton} disabled={state.busy} onClick={() => state.accept(mode, plan.direction)}>the {plan.direction}</button>
+                </span>
+              ))}
+            </p>
+          ) : null}
         </div>
       </div>
     );
@@ -444,8 +538,8 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
           <MarketRead state={state.research} onRefresh={state.refreshResearch} onCancel={state.cancelResearch} />
           <Ladder plans={active} price={price} watching report={state.research.result?.research?.report?.schemaVersion ? state.research.result.research.report : null} />
           <p className={styles.footnote}>
-            {auto ? "GX places the trade on your practice account when a plan confirms." : "You get an alert when a plan confirms."}
-            {active.length === 2 ? " The first side to confirm cancels the other." : ""}
+            {auto ? "GX places the trade on your practice account when a plan confirms and the safety checks pass." : "You get one alert when a plan's approved conditions are met."}
+            {active.length === 2 ? (auto ? " Each side keeps its own rules; once one is filled, the other is cancelled." : " Each side keeps its own rules; an alert on one does not cancel the other.") : ""}
           </p>
         </div>
         <div className={styles.dock}>

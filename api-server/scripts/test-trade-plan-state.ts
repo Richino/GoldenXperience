@@ -25,8 +25,9 @@ const ctx = (patch: Partial<TransitionContext> = {}): TransitionContext => ({
 
 // The database seed and the server table must list exactly the same edges.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const sql = await fs.readFile(path.join(root, "migrations", "057_trade_plans.sql"), "utf8");
-const seed = sql.slice(sql.indexOf("INSERT INTO trade_plan_transitions"), sql.indexOf("ON CONFLICT DO NOTHING"));
+// 057 created the edges; 060 added the MISSED ones and widened the status CHECK.
+const sql = (await Promise.all(["057_trade_plans.sql", "060_plan_lifecycle.sql"].map((name) => fs.readFile(path.join(root, "migrations", name), "utf8")))).join("\n");
+const seed = [...sql.matchAll(/INSERT INTO trade_plan_transitions[\s\S]*?ON CONFLICT DO NOTHING/g)].map((m) => m[0]).join("\n");
 const dbEdges = new Set([...seed.matchAll(/\('([A-Z_]+)','([A-Z_]+)'\)/g)].map((m) => `${m[1]}>${m[2]}`));
 const tsEdges = new Set(Object.entries(TRADE_PLAN_TRANSITIONS).flatMap(([from, tos]) => Object.keys(tos).map((to) => `${from}>${to}`)));
 assert.deepEqual([...dbEdges].sort(), [...tsEdges].sort(), "migration seed and TRADE_PLAN_TRANSITIONS differ");
@@ -34,8 +35,13 @@ assert.deepEqual([...dbEdges].sort(), [...tsEdges].sort(), "migration seed and T
 for (const status of TRADE_PLAN_STATUSES) assert.ok(sql.includes(`'${status}'`), `${status} missing from migration`);
 
 // Terminal states go nowhere.
-assert.deepEqual([...TERMINAL_STATUSES].sort(), ["CANCELLED", "CLOSED", "EXECUTION_FAILED", "EXPIRED", "INVALIDATED", "REJECTED"]);
+assert.deepEqual([...TERMINAL_STATUSES].sort(), ["CANCELLED", "CLOSED", "EXECUTION_FAILED", "EXPIRED", "INVALIDATED", "MISSED", "REJECTED"]);
 for (const status of TERMINAL_STATUSES) for (const to of TRADE_PLAN_STATUSES) assert.equal(checkTransition(status, to, "system", ctx()).ok, false);
+
+// A confirmed plan never returns to waiting; a missed one ends.
+assert.equal(checkTransition("CONFIRMED", "MONITORING", "monitor", ctx()).ok, false);
+assert.equal(checkTransition("MONITORING", "MISSED", "monitor", ctx()).ok, true);
+assert.equal(checkTransition("CONFIRMED", "MISSED", "monitor", ctx()).ok, true);
 
 // Happy paths.
 assert.equal(checkTransition("PENDING_APPROVAL", "APPROVED", "user", ctx()).ok, true);

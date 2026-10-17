@@ -103,15 +103,20 @@ export async function generateAndStoreTradePlans(userId: string, instrument: Maj
   if (!options.skipCooldown && Date.now() - last < GENERATE_COOLDOWN_MS) throw new TradePlanError("Analysis was just run for this pair. Try again in a few seconds.", 429);
   lastGenerate.set(key, Date.now());
 
+  // Research first: plans are built once, from fresh validated research and fresh candles.
+  // Without it nothing is generated (the user starts research; plans follow when it completes).
+  const latest = await latestResearch(instrument).catch(() => null);
+  const research = latest?.research?.report?.schemaVersion ? latest.research : null;
+  if (process.env.RESEARCH_REQUIRED_FOR_PLANS !== "false" && !research?.fresh) {
+    throw new TradePlanError(research ? `Research is out of date (${research.staleReason ?? "stale"}). Run Analyze to research again; plans are built when it finishes.` : "Research first: run Analyze to research this pair; plans are built when it finishes.", 409);
+  }
+
   const [market, risk] = await Promise.all([loadGeneratorMarket(instrument), riskSettings(userId)]);
   if (!market.candles.H4?.length || !market.candles.H1?.length) {
     throw new TradePlanError("Live OANDA candles are unavailable; no plans were generated.", 503);
   }
   const result: GeneratorResult = generateTradePlans({ instrument, ...market, maxRiskPercent: risk.maxRiskPercent, limits: risk.limits });
-  // The latest validated research (fresh or not, labelled as such) is frozen into each plan as context.
-  // Research never decides whether a plan is made or what its rules are.
-  const latest = await latestResearch(instrument, market.now).catch(() => null);
-  const research = latest?.research?.report?.schemaVersion ? latest.research : null;
+  // The validated research is frozen into each plan as its evidence. It never sets levels or rules.
   attachIntelligence(result.plans, research?.report ?? null, {
     fresh: Boolean(research?.fresh),
     staleReason: research ? research.staleReason : "No research yet for this pair.",
@@ -292,7 +297,7 @@ export async function recordConfirmation(planId: string, planVersion: number, co
        ON CONFLICT(plan_id) DO UPDATE SET stage=EXCLUDED.stage,state=EXCLUDED.state,last_evaluated_at=now(),
          last_candle_time=EXCLUDED.last_candle_time,last_price=EXCLUDED.last_price,last_price_at=EXCLUDED.last_price_at,
          not_triggered_reason=EXCLUDED.not_triggered_reason,consecutive_errors=0,last_error=NULL,updated_at=now()`,
-      [planId, confirmation.stage, JSON.stringify({ outcome: confirmation.outcome, proposal: confirmation.proposal, evaluatedThrough: confirmation.evaluatedThrough }),
+      [planId, confirmation.stage, JSON.stringify({ outcome: confirmation.outcome, proposal: confirmation.proposal, evaluatedThrough: confirmation.evaluatedThrough, progress: confirmation.progress, safety: confirmation.safety }),
        confirmation.evaluatedThrough.M15, lastPrice, confirmation.notTriggeredReason],
     );
   });

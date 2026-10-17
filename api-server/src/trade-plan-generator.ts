@@ -49,6 +49,14 @@ export const TRADE_PLAN_CONFIG = {
     retestFailAtr: 0.3,
     /** Stop sits this many ATRs past the zone. */
     stopBufferAtr: 0.2,
+    /** After the breakout close, the retest must come within this many retest-timeframe candles, or the plan is MISSED. */
+    retestWindowBars: 24,
+    /** After the retest, the continuation close must come within this many candles, or the attempt fails. */
+    continuationWindowBars: 12,
+    /** Breakout attempts the plan allows before it is invalidated (1 = no retry). */
+    maxBreakoutAttempts: 1,
+    /** The entry may be at most this many ATRs past the entry zone; further is MISSED, never chased. */
+    maxEntryDeviationAtr: 0.5,
   },
   reversal: {
     /** Timeframe on which rejection, reclaim and the structure turn are judged. */
@@ -64,8 +72,12 @@ export const TRADE_PLAN_CONFIG = {
     rejectionWickShare: 0.5,
     /** The local high (low) to break is the extreme of this many candles before the turn... */
     structureLookbackBars: 12,
-    /** ...and it must break within this many candles, or the turn is dropped. */
+    /** ...and it must break within this many candles, or the turn counts as a failed attempt. */
     structureBreakBars: 24,
+    /** Rejections or sweeps that may fail before the plan is invalidated. */
+    maxAttempts: 2,
+    /** The entry may be at most this many ATRs past the entry zone; further is MISSED, never chased. */
+    maxEntryDeviationAtr: 0.5,
   },
   /** Targets stop this many ATRs short of the opposing zone. */
   targetBufferAtr: 0.1,
@@ -427,6 +439,7 @@ export function generateTradePlans(input: GeneratorInput): GeneratorResult {
           `Price comes back to within ${br.retestToleranceAtr} H4 ATR of ${fmt(level)}.`,
           `No ${br.retestTimeframe} close goes back ${back} ${fmt(failLevel)} during the retest.`,
           `A completed ${br.retestTimeframe} candle closes ${up ? "above the retest candle's high" : "below the retest candle's low"} (continuation).`,
+          `Limits: the retest within ${br.retestWindowBars} ${br.retestTimeframe} candles of the breakout, the continuation within ${br.continuationWindowBars} candles of the retest, ${br.maxBreakoutAttempts === 1 ? "one breakout attempt" : `up to ${br.maxBreakoutAttempts} breakout attempts`}. Price more than ${br.maxEntryDeviationAtr} H4 ATR past the entry zone is missed, not chased.`,
           `Reward/risk from the executable entry stays at least ${cfg.minRewardRisk}.`,
           "News blackout, spread and account-risk checks pass.",
         ],
@@ -485,6 +498,7 @@ export function generateTradePlans(input: GeneratorInput): GeneratorResult {
           `A completed ${tf} candle rejects it (${up ? "long lower wick, close back up" : "long upper wick, close back down"}), or sweeps ${back} ${fmt(farEdge)} by at most ${rv.maxSweepAtr} H4 ATR and closes back inside.`,
           "If it swept, price reclaims the zone on a completed close — a sweep alone never triggers.",
           `${tf} breaks its last ${up ? "lower high" : "higher low"} (local structure turns ${up ? "up" : "down"}).`,
+          `Limits: the structure break within ${rv.structureBreakBars} ${tf} candles of the turn; ${rv.maxAttempts} failed turns end the plan. Price more than ${rv.maxEntryDeviationAtr} H4 ATR past the zone is missed, not chased.`,
           `Reward/risk from the executable entry stays at least ${cfg.minRewardRisk}.`,
           "News blackout, spread and account-risk checks pass.",
         ],

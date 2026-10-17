@@ -495,3 +495,47 @@
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+/* Accept only one side. */
+.only {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  text-align: center;
+}
+
+/* Watched plan: window, attempts, expiry and the last event, so waiting is never unexplained. */
+.progress {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.blocked {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--pending);
+  font-weight: 400;
+}
+
+.thesis {
+  margin: 0.4rem 0 0;
+  padding-left: 0.55rem;
+  border-left: 2px solid var(--border-strong);
+  border-radius: 0;
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}
+
+.thesis[data-assessment="STRENGTHENING"] { border-left-color: var(--success); }
+.thesis[data-assessment="WEAKENING"] { border-left-color: var(--danger); }
+.thesis[data-assessment="CONFLICTED"] { border-left-color: var(--pending); }
+
+.thesis small {
+  display: block;
+  color: var(--muted);
+}

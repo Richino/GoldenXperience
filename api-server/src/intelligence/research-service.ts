@@ -7,9 +7,6 @@ import { loadGeneratorMarket } from "../trade-plan-service.js";
 import type { CalendarSnapshot } from "./calendar-snapshot.js";
 import { researchConfig, type TechnicalSummary } from "./openai-research.js";
 import { isSupportedSchema, type MarketIntelligence } from "./research-contract.js";
-import { researchContextForPlan } from "./plan-research.js";
-import { notifyOnce } from "../trade-plan-notify.js";
-import { displayPair } from "../notifications.js";
 
 /**
  * Market intelligence: cache, freshness, budget, and the read side of
@@ -235,32 +232,4 @@ export const cacheHits = { count: 0, since: new Date().toISOString() };
 export async function freshResearchFor(instrument: string, now = Date.now()) {
   const { research } = await latestResearch(instrument, now);
   return research && research.fresh && isSupportedSchema(research.report?.schemaVersion) ? research : null;
-}
-
-/**
- * New research never rewrites an accepted plan. When it leans against an
- * active plan's side, the user is warned once per research run; the plan,
- * its rules and its approval stay exactly as they are, and nothing is placed
- * or cancelled because of research.
- */
-export async function warnActivePlans(instrument: string, intelligence: MarketIntelligence, now = Date.now()) {
-  const plans = await query<{ id: string; user_id: string; plan_version: number; monitoring_mode: string | null; instrument: string; direction: "BUY" | "SELL"; expires_at: Date }>(
-    `SELECT id,user_id,plan_version,monitoring_mode,instrument,direction,expires_at FROM trade_plans
-      WHERE instrument=$1 AND status IN ('APPROVED','MONITORING','CONFIRMED','NOTIFIED')`,
-    [instrument],
-  );
-  let warned = 0;
-  for (const plan of plans.rows) {
-    const context = researchContextForPlan({ instrument: plan.instrument, direction: plan.direction, expiresAt: new Date(plan.expires_at).toISOString() }, intelligence, { fresh: true, staleReason: null, technicalReadAt: null, now });
-    if (context.alignment !== "opposes") continue;
-    const lead = context.opposing.slice(0, 2).map((factor) => factor.factor).join("; ");
-    const sent = await notifyOnce(plan, {
-      event: `RESEARCH_OPPOSES_${intelligence.research.id.slice(0, 8)}`,
-      notificationKind: "trade_update",
-      title: `${displayPair(instrument)} research now leans against your ${plan.direction}`,
-      message: `New research weighs against the ${plan.direction} plan (${lead || "see Analyze"}). Your plan, its rules and approval are unchanged; nothing is placed or cancelled because of research. Review it in Analyze.`,
-    });
-    if (sent) warned += 1;
-  }
-  return warned;
 }

@@ -19,14 +19,22 @@ import type { TradePlanDirection, TradePlanSetupType } from "./trade-plans.js";
  * the two directions are mirror images by construction.
  *
  * Outcomes:
- *   WAITING      not confirmed yet (each condition says why)
- *   CONFIRMED    every technical condition passed and every safety check passes now
- *   INVALIDATED  the market broke the plan's invalidation rules
+ *   WAITING      not confirmed yet (each condition says why, and how much of its window is left)
+ *   CONFIRMED    every technical condition passed — final: a confirmed plan never
+ *                goes back to waiting. Whether an order is safe right now is
+ *                reported separately in `safety` and never adds a condition.
+ *   INVALIDATED  the market broke the plan's invalidation rules, or every approved attempt failed
+ *   MISSED       the entry passed: price ran away without the approved entry, or the
+ *                approved entry window closed while blocked. GX never chases.
  *   EXPIRED      the plan's time ran out first
+ *
+ * Finite by construction: plans carry a retest window, a continuation window
+ * and a maximum number of attempts (frozen when approved), so every plan
+ * either confirms within its rules or ends with a reason.
  */
 
 export type ConditionStatus = "PENDING" | "PASSED" | "FAILED" | "BLOCKED";
-export type ConfirmationOutcome = "WAITING" | "CONFIRMED" | "INVALIDATED" | "EXPIRED";
+export type ConfirmationOutcome = "WAITING" | "CONFIRMED" | "INVALIDATED" | "EXPIRED" | "MISSED";
 
 export type ConditionResult = {
   key: string;
@@ -39,7 +47,7 @@ export type ConditionResult = {
 
 export type ConfirmationEventType =
   | "BREAKOUT_DETECTED" | "RETEST_DETECTED" | "SWEEP_DETECTED" | "REJECTION_DETECTED"
-  | "STRUCTURE_BREAK" | "CONDITIONS_MET" | "SETUP_CONFIRMED" | "SAFETY_BLOCKED" | "INVALIDATED";
+  | "STRUCTURE_BREAK" | "CONDITIONS_MET" | "SETUP_CONFIRMED" | "SAFETY_BLOCKED" | "INVALIDATED" | "ATTEMPT_FAILED" | "MISSED";
 
 export type ConfirmationEvent = { type: ConfirmationEventType; at: string; detail: string };
 
@@ -95,6 +103,10 @@ export type Confirmation = {
   } | null;
   /** Latest closed candle the evaluation read (ISO open time). */
   evaluatedThrough: Partial<Record<Tf, string | null>>;
+  /** Execution safety now (spread, quote age, market open, news blackout, live reward/risk). Separate from confirmation. */
+  safety: { ok: boolean; blocks: string[] } | null;
+  /** Attempts used of those approved, and the open window (in closed candles), when the plan has them. */
+  progress: { attempt: number; maxAttempts: number | null; window: { window: string; used: number; limit: number } | null };
 };
 
 export type Tf = "H4" | "H1" | "M15";
@@ -165,20 +177,36 @@ export function evaluateConfirmation(input: ConfirmationInput): Confirmation {
     : ["approach", "rejection_or_sweep", "reclaim", "local_structure", "stop_placement", "reward_risk", "execution_safety"];
   for (const key of keys) set(key, "PENDING", "Waiting for the earlier conditions.");
 
+  let attemptsUsed = 1;
+  let maxAttemptsUsed: number | null = null;
+  let windowNote: { window: string; used: number; limit: number } | null = null;
+  let safety: Confirmation["safety"] = null;
   const finish = (outcome: ConfirmationOutcome, stage: string, reason: string | null, proposal: Confirmation["proposal"] = null): Confirmation => ({
     outcome,
     stage,
     conditions: keys.map((key) => conditions.get(key)!),
-    notTriggeredReason: outcome === "CONFIRMED" ? null : reason,
+    notTriggeredReason: outcome === "CONFIRMED" ? reason : reason,
     events,
     proposal,
     evaluatedThrough,
+    safety,
+    progress: { attempt: attemptsUsed, maxAttempts: maxAttemptsUsed, window: outcome === "WAITING" ? windowNote : null },
   });
   const invalidate = (bar: Bar | null, key: string, reason: string) => {
     set(key, "FAILED", reason, bar?.time ?? null);
     events.push({ type: "INVALIDATED", at: bar ? new Date(bar.close).toISOString() : new Date(now).toISOString(), detail: reason });
     return finish("INVALIDATED", "INVALIDATED", reason);
   };
+  const missed = (bar: Bar | null, key: string, reason: string) => {
+    set(key, "FAILED", reason, bar?.time ?? null);
+    events.push({ type: "MISSED", at: bar ? new Date(bar.close).toISOString() : new Date(now).toISOString(), detail: reason });
+    return finish("MISSED", "MISSED", reason);
+  };
+  // Approved entry zone in BUY-normalised prices, and how far past it an entry may be (plans with the rule only).
+  const zoneTop = Math.max(sign * plan.entryZoneLow, sign * plan.entryZoneHigh);
+  const deviation = num(rules.maxEntryDeviationAtr, NaN) * atr;
+  /** Price has left the approved entry behind: past the zone with too little reward left. */
+  const ranAway = (bar: Bar) => Number.isFinite(deviation) && bar.c > zoneTop && (bar.c >= target || (target - bar.c) / (bar.c - stop) < minRewardRisk);
 
   if (!(atr > 0)) return invalidate(null, keys[0]!, "The plan has no frozen ATR; it cannot be judged.");
 
@@ -195,38 +223,57 @@ export function evaluateConfirmation(input: ConfirmationInput): Confirmation {
     const tolerance = num(rules.retestToleranceAtr ?? rules.retestToleranceH1Atr, 0.3) * atr;
     if (![level, failLevel, farEdge].every(Number.isFinite)) return invalidate(null, "breakout_close", "The plan is missing its breakout levels.");
 
-    // 1–2. Breakout: a completed close (signal timeframe) beyond the level by the noise threshold.
-    let breakoutAt: number | null = plan.plan.breakoutAlreadyClosed === true ? createdAt : null;
-    let firstClose: Bar | null = null;
-    if (breakoutAt !== null) {
-      set("breakout_close", "PASSED", `Price had already closed through ${fmt(level)} when the plan was made.`, plan.createdAt);
-      set("breakout_size", "PASSED", "The breakout was already established at generation.", plan.createdAt);
-    } else {
-      for (const bar of signalBars) {
-        if (bar.c < farEdge) return invalidate(bar, "breakout_close", `An ${signalTf} close at ${fmt(bar.c)} went through the far side of the zone (${fmt(farEdge)}) before any breakout.`);
-        if (bar.c > level && !firstClose) firstClose = bar;
-        if (bar.c > level + threshold) {
-          breakoutAt = bar.close;
-          set("breakout_close", "PASSED", `${signalTf} closed at ${fmt(bar.c)}, beyond ${fmt(level)}.`, bar.time, { close: sign * bar.c });
-          set("breakout_size", "PASSED", `The close cleared the level by ${((bar.c - level) / atr).toFixed(2)} ${atrTf} ATR (needs ${(threshold / atr).toFixed(2)}).`, bar.time);
-          events.push({ type: "BREAKOUT_DETECTED", at: new Date(bar.close).toISOString(), detail: `${signalTf} closed at ${fmt(bar.c)} through ${fmt(level)}.` });
-          break;
+    // Finite by construction: each attempt has a retest window and a continuation
+    // window (in closed entry candles), and the plan allows a fixed number of
+    // attempts. Plans approved before these rules existed have none of them and
+    // keep the rules they were approved with (expiry still ends them).
+    const retestWindow = num(rules.retestWindowBars, Infinity);
+    const continuationWindow = num(rules.continuationWindowBars, Infinity);
+    const maxAttempts = Math.max(1, Math.floor(num(rules.maxBreakoutAttempts, 1)));
+    maxAttemptsUsed = Number.isFinite(retestWindow) || Number.isFinite(continuationWindow) ? maxAttempts : null;
+
+    let from = createdAt;
+    for (let attempt = 1; ; attempt += 1) {
+      attemptsUsed = attempt;
+      const label = maxAttemptsUsed && maxAttemptsUsed > 1 ? ` (attempt ${attempt} of ${maxAttemptsUsed})` : "";
+      // 1–2. Breakout: a completed close (signal timeframe) beyond the level by the noise threshold.
+      let breakoutAt: number | null = attempt === 1 && plan.plan.breakoutAlreadyClosed === true ? createdAt : null;
+      let firstClose: Bar | null = null;
+      if (breakoutAt !== null) {
+        set("breakout_close", "PASSED", `Price had already closed through ${fmt(level)} when the plan was made.`, plan.createdAt);
+        set("breakout_size", "PASSED", "The breakout was already established at generation.", plan.createdAt);
+      } else {
+        for (const bar of signalBars.filter((item) => item.open >= from)) {
+          if (bar.c < farEdge) return invalidate(bar, "breakout_close", `An ${signalTf} close at ${fmt(bar.c)} went through the far side of the zone (${fmt(farEdge)}) before any breakout.`);
+          if (bar.c > level && !firstClose) firstClose = bar;
+          if (bar.c > level + threshold) {
+            breakoutAt = bar.close;
+            set("breakout_close", "PASSED", `${signalTf} closed at ${fmt(bar.c)}, beyond ${fmt(level)}${label}.`, bar.time, { close: sign * bar.c });
+            set("breakout_size", "PASSED", `The close cleared the level by ${((bar.c - level) / atr).toFixed(2)} ${atrTf} ATR (needs ${(threshold / atr).toFixed(2)}).`, bar.time);
+            events.push({ type: "BREAKOUT_DETECTED", at: new Date(bar.close).toISOString(), detail: `${signalTf} closed at ${fmt(bar.c)} through ${fmt(level)}${label}.` });
+            break;
+          }
         }
       }
-    }
-    if (breakoutAt === null) {
-      if (firstClose) {
-        set("breakout_close", "PASSED", `${signalTf} closed at ${fmt(firstClose.c)} beyond ${fmt(level)}, but not by enough.`, firstClose.time);
-        set("breakout_size", "PENDING", `No ${signalTf} close beyond ${fmt(level + threshold)} yet (${(threshold / atr).toFixed(2)} ${atrTf} ATR past the level).`);
-      } else {
-        set("breakout_close", "PENDING", `No completed ${signalTf} close beyond ${fmt(level)} yet.`);
+      if (breakoutAt === null) {
+        if (firstClose) {
+          set("breakout_close", "PASSED", `${signalTf} closed at ${fmt(firstClose.c)} beyond ${fmt(level)}, but not by enough.`, firstClose.time);
+          set("breakout_size", "PENDING", `No ${signalTf} close beyond ${fmt(level + threshold)} yet (${(threshold / atr).toFixed(2)} ${atrTf} ATR past the level).`);
+        } else {
+          set("breakout_close", "PENDING", `No completed ${signalTf} close beyond ${fmt(level)} yet${label}.`);
+        }
+        waiting = { stage: "WAITING_FOR_BREAKOUT", reason: `Waiting for a ${signalTf} close beyond ${fmt(level + threshold)}${label}.` };
+        break;
       }
-      waiting = { stage: "WAITING_FOR_BREAKOUT", reason: `Waiting for a ${signalTf} close beyond ${fmt(level + threshold)}.` };
-    } else {
-      // 3–5. Retest within tolerance, hold above the fail level, then a continuation close.
+
+      // 3–5. Retest within tolerance and window, hold above the fail level, then a continuation close within its window.
       let retest: Bar | null = null;
       let deepest: Bar | null = null;
+      let used = 0;
+      let retestAt = 0;
+      let failed: { bar: Bar; reason: string } | null = null;
       for (const bar of entryBars.filter((item) => item.open >= breakoutAt!)) {
+        used += 1;
         if (bar.c < failLevel) {
           return invalidate(bar, retest ? "retest_holds" : "retest", `${entryTf} closed at ${fmt(bar.c)}, back through ${fmt(failLevel)}: the breakout failed.`);
         }
@@ -235,9 +282,13 @@ export function evaluateConfirmation(input: ConfirmationInput): Confirmation {
           if (bar.l <= level + tolerance) {
             retest = bar;
             deepest = bar;
+            retestAt = used;
             set("retest", "PASSED", `Price came back to ${fmt(bar.l)}, within ${(tolerance / atr).toFixed(2)} ${atrTf} ATR of ${fmt(level)}.`, bar.time);
             events.push({ type: "RETEST_DETECTED", at: new Date(bar.close).toISOString(), detail: `Retest of ${fmt(level)} reached ${fmt(bar.l)}.` });
+            continue;
           }
+          if (ranAway(bar)) return missed(bar, "retest", `Price ran to ${fmt(bar.c)} without retesting ${fmt(level)}; from there reward/risk is under ${minRewardRisk}. GX does not chase.`);
+          if (used >= retestWindow) return missed(bar, "retest", `No retest of ${fmt(level)} within ${retestWindow} ${entryTf} candles of the breakout. GX does not chase.`);
           continue;
         }
         if (bar.l < deepest!.l) deepest = bar;
@@ -247,17 +298,35 @@ export function evaluateConfirmation(input: ConfirmationInput): Confirmation {
           set("continuation", "PASSED", `${entryTf} closed at ${fmt(bar.c)}, beyond the retest candle's ${sign === 1 ? "high" : "low"} ${fmt(deepest!.h)}.`, bar.time);
           break;
         }
-      }
-      if (!completed) {
-        if (!retest) {
-          set("retest", "PENDING", `Waiting for price to come back within ${(tolerance / atr).toFixed(2)} ${atrTf} ATR of ${fmt(level)}.`);
-          waiting = { stage: "WAITING_FOR_RETEST", reason: `Breakout confirmed; waiting for a retest of ${fmt(level)}.` };
-        } else {
-          set("retest_holds", "PENDING", `Holding so far: no ${entryTf} close through ${fmt(failLevel)}.`);
-          set("continuation", "PENDING", `Waiting for an ${entryTf} close beyond ${fmt(deepest!.h)}.`);
-          waiting = { stage: "WAITING_FOR_CONTINUATION", reason: `Retest holding; waiting for an ${entryTf} close beyond ${fmt(deepest!.h)}.` };
+        if (used - retestAt >= continuationWindow) {
+          failed = { bar, reason: `no ${entryTf} continuation within ${continuationWindow} candles of the retest` };
+          break;
         }
       }
+      if (completed) break;
+      if (failed) {
+        events.push({ type: "ATTEMPT_FAILED", at: new Date(failed.bar.close).toISOString(), detail: `Breakout attempt ${attempt} failed: ${failed.reason}.` });
+        if (attempt >= maxAttempts) {
+          return invalidate(failed.bar, "continuation", maxAttempts > 1
+            ? `All ${maxAttempts} approved breakout attempts failed; the last had ${failed.reason}.`
+            : `The breakout failed: ${failed.reason}.`);
+        }
+        // The plan allows another attempt: a fresh breakout close after this failure, judged by the same rules.
+        from = failed.bar.close;
+        for (const key of ["breakout_close", "breakout_size", "retest", "retest_holds", "continuation"]) set(key, "PENDING", "Waiting for a new breakout attempt.");
+        continue;
+      }
+      if (!retest) {
+        windowNote = Number.isFinite(retestWindow) ? { window: "retest", used, limit: retestWindow } : null;
+        set("retest", "PENDING", `Waiting for price to come back within ${(tolerance / atr).toFixed(2)} ${atrTf} ATR of ${fmt(level)}${windowNote ? ` (${retestWindow - used} of ${retestWindow} ${entryTf} candles left)` : ""}.`);
+        waiting = { stage: "WAITING_FOR_RETEST", reason: `Breakout confirmed; waiting for a retest of ${fmt(level)}${windowNote ? ` within ${retestWindow - used} more ${entryTf} candles` : ""}.` };
+      } else {
+        windowNote = Number.isFinite(continuationWindow) ? { window: "continuation", used: used - retestAt, limit: continuationWindow } : null;
+        set("retest_holds", "PENDING", `Holding so far: no ${entryTf} close through ${fmt(failLevel)}.`);
+        set("continuation", "PENDING", `Waiting for an ${entryTf} close beyond ${fmt(deepest!.h)}${windowNote ? ` (${continuationWindow - (used - retestAt)} of ${continuationWindow} candles left)` : ""}.`);
+        waiting = { stage: "WAITING_FOR_CONTINUATION", reason: `Retest holding; waiting for an ${entryTf} close beyond ${fmt(deepest!.h)}.` };
+      }
+      break;
     }
   } else {
     const zone = (plan.plan.zone ?? {}) as Record<string, unknown>;
@@ -273,6 +342,16 @@ export function evaluateConfirmation(input: ConfirmationInput): Confirmation {
     const wickShare = num(rules.rejectionWickShare, 0.5);
     const lookback = num(rules.structureLookbackBars, 8);
     const breakBars = num(rules.structureBreakBars, 16);
+    // Each rejection or sweep that does not break structure in time is a failed attempt (plans with the rule only).
+    const maxTurns = num(rules.maxAttempts, Infinity);
+    maxAttemptsUsed = Number.isFinite(maxTurns) ? maxTurns : null;
+    let failedTurns = 0;
+    const turnFailed = (bar: Bar, why: string) => {
+      failedTurns += 1;
+      events.push({ type: "ATTEMPT_FAILED", at: new Date(bar.close).toISOString(), detail: `Attempt ${failedTurns} failed: ${why}.` });
+      attemptsUsed = failedTurns + 1;
+      return failedTurns >= maxTurns;
+    };
 
     let approach: Bar | null = null;
     let pendingSweep: { bar: Bar; low: number } | null = null;
@@ -293,7 +372,11 @@ export function evaluateConfirmation(input: ConfirmationInput): Confirmation {
 
       if (turn) {
         if (bar.index - turn.bar.index > breakBars) {
-          // The turn never broke structure: drop it and look for another.
+          // The turn never broke structure: a failed attempt. Look for another only if the plan allows one.
+          if (turnFailed(bar, `no break of ${fmt(turn.pivot)} within ${breakBars} candles`)) {
+            attemptsUsed = failedTurns;
+            return invalidate(bar, "local_structure", `All ${maxTurns} approved attempts failed: the last turn did not break ${fmt(turn.pivot)} within ${breakBars} ${entryTf} candles.`);
+          }
           turn = null;
         } else if (bar.c > turn.pivot) {
           completed = bar;
@@ -314,10 +397,15 @@ export function evaluateConfirmation(input: ConfirmationInput): Confirmation {
           events.push({ type: "SWEEP_DETECTED", at: new Date(bar.close).toISOString(), detail: `Swept to ${fmt(pendingSweep.low)} and reclaimed ${fmt(zl)}.` });
           pendingSweep = null;
         } else if (bar.index - pendingSweep.bar.index >= reclaimBars) {
+          if (turnFailed(bar, `the sweep was not reclaimed within ${reclaimBars} candles`)) {
+            attemptsUsed = failedTurns;
+            return invalidate(bar, "reclaim", `All ${maxTurns} approved attempts failed: the last sweep was not reclaimed within ${reclaimBars} ${entryTf} candles.`);
+          }
           pendingSweep = null;
         }
         continue;
       }
+      if (!turn && ranAway(bar)) return missed(bar, "rejection_or_sweep", `Price left the zone to ${fmt(bar.c)} without a confirmed turn; from there reward/risk is under ${minRewardRisk}. GX does not chase.`);
       if (bar.l < zl) {
         if (bar.c >= zl) {
           turn = { kind: "SWEEP", bar, low: bar.l, pivot: pivotBefore(bar) };
@@ -372,13 +460,17 @@ export function evaluateConfirmation(input: ConfirmationInput): Confirmation {
   const cost = spread ?? 0;
   const atClose = (target - completed.c) / (completed.c - stop);
   if (!(completed.c > stop) || atClose < minRewardRisk) {
-    return invalidate(completed, "reward_risk", `At the confirming close ${fmt(completed.c)} reward/risk was ${atClose.toFixed(2)}, under ${minRewardRisk}: price ran too far first.`);
+    return missed(completed, "reward_risk", `At the confirming close ${fmt(completed.c)} reward/risk was ${atClose.toFixed(2)}, under ${minRewardRisk}: price ran too far first. GX does not chase.`);
+  }
+  if (Number.isFinite(deviation) && completed.c > zoneTop + deviation) {
+    return missed(completed, "reward_risk", `The setup completed at ${fmt(completed.c)}, more than ${(deviation / atr).toFixed(2)} ${atrTf} ATR past the approved entry zone. GX does not chase.`);
   }
   set("reward_risk", "PASSED", `Reward/risk ${atClose.toFixed(2)} at the confirming close ${fmt(completed.c)}.`, completed.time);
   const confirmedAt = new Date(completed.close).toISOString();
   events.push({ type: "CONDITIONS_MET", at: confirmedAt, detail: `Technical conditions complete at ${fmt(completed.c)}.` });
 
-  // ── Safety, judged now. Failing it blocks; it does not invalidate unless the confirmation goes stale.
+  // ── Execution safety, judged now. It never adds a confirmation condition: it
+  // only says whether an order may go in at this moment.
   const blocks: string[] = [];
   const quoteAge = input.quote ? (now - Date.parse(input.quote.time)) / 1000 : Infinity;
   if (!input.quote) blocks.push("No live quote.");
@@ -407,6 +499,7 @@ export function evaluateConfirmation(input: ConfirmationInput): Confirmation {
     });
     if (near) blocks.push(`News blackout: high-impact ${near.currency} ${near.title} at ${new Date(Date.parse(near.timestamp)).toISOString().slice(11, 16)} UTC.`);
   }
+  safety = { ok: blocks.length === 0, blocks };
 
   const proposal = {
     confirmedAt,
@@ -418,17 +511,22 @@ export function evaluateConfirmation(input: ConfirmationInput): Confirmation {
     spread,
     quoteTime: input.quote?.time ?? null,
   };
+  // Price has moved beyond the approved entry: the opportunity is gone, not re-armed.
+  if (input.quote && Number.isFinite(deviation) && entry > zoneTop + deviation) {
+    return missed(completed, "execution_safety", `Confirmed, but price is now ${fmt(entry)}, more than ${(deviation / atr).toFixed(2)} ${atrTf} ATR past the approved entry zone. GX does not chase.`);
+  }
+  if (expired) return finish("EXPIRED", "EXPIRED", "The plan expired before it could be acted on.");
   if (blocks.length) {
-    if (expired) return finish("EXPIRED", "EXPIRED", `The plan expired while its confirmation was blocked: ${blocks.join(" ")}`);
+    // The approved entry window: a confirmation that cannot be acted on within it is missed, not re-confirmed later.
     if (now - completed.close > validMs) {
-      return invalidate(completed, "execution_safety", `Confirmed at ${confirmedAt.slice(11, 16)} UTC but the safety checks did not pass within ${Math.round(validMs / 60_000)} min: ${blocks.join(" ")}`);
+      return missed(completed, "execution_safety", `Confirmed at ${confirmedAt.slice(11, 16)} UTC, but no safe entry within the approved ${Math.round(validMs / 60_000)} min window: ${blocks.join(" ")}`);
     }
     set("execution_safety", "BLOCKED", blocks.join(" "));
     events.push({ type: "SAFETY_BLOCKED", at: new Date(now).toISOString(), detail: blocks.join(" ") });
-    return finish("WAITING", "CONFIRMED_BLOCKED", `Technically confirmed, but blocked: ${blocks.join(" ")}`, proposal);
+    events.push({ type: "SETUP_CONFIRMED", at: confirmedAt, detail: `Confirmed: ${plan.direction} near ${proposal.entry}, stop ${plan.stopLoss}, target ${plan.takeProfit}.` });
+    return finish("CONFIRMED", "CONFIRMED_BLOCKED", `Confirmed; an order cannot go in yet: ${blocks.join(" ")}`, proposal);
   }
-  if (expired) return finish("EXPIRED", "EXPIRED", "The plan expired before it confirmed.");
   set("execution_safety", "PASSED", "Fresh quote, market open, spread and reward/risk within limits, no news blackout. Account risk is checked again at execution.");
-  events.push({ type: "SETUP_CONFIRMED", at: new Date(now).toISOString(), detail: `Confirmed: ${plan.direction} from ${proposal.entry}, stop ${plan.stopLoss}, target ${plan.takeProfit}.` });
+  events.push({ type: "SETUP_CONFIRMED", at: confirmedAt, detail: `Confirmed: ${plan.direction} from ${proposal.entry}, stop ${plan.stopLoss}, target ${plan.takeProfit}.` });
   return finish("CONFIRMED", "CONFIRMED", null, proposal);
 }

@@ -50,8 +50,6 @@ export const WORKER_ID = `${hostname()}:${process.pid}:${randomBytes(3).toString
 
 export type MonitorAction =
   | { kind: "transition"; to: TradePlanStatus; reason: string }
-  /** One trade per pair: the other plans of the same Analyze run stop once this one confirms. */
-  | { kind: "cancelSiblings"; reason: string }
   /** Auto trade: hand the plan (now EXECUTION_PENDING) to the executor. */
   | { kind: "execute" }
   | { kind: "notify"; event: string; title: string; message: string; notificationKind: NotificationKind };
@@ -61,11 +59,22 @@ const DETECTION_COPY: Partial<Record<ConfirmationEventType, string>> = {
   RETEST_DETECTED: "Retest detected",
   SWEEP_DETECTED: "Liquidity sweep reclaimed",
   REJECTION_DETECTED: "Rejection at the zone",
+  ATTEMPT_FAILED: "Attempt failed",
 };
+
+const spreadText = (spread: number | null) => (spread === null ? "" : `, spread ${spread.toFixed(5).replace(/0+$/, "")}`);
+const timeText = (iso: string | null) => (iso ? ` (quote ${iso.slice(11, 19)} UTC)` : "");
 
 /**
  * What the monitor should do with one evaluation. Pure, so every branch is
  * testable without a database. `status` is the plan's status when it was read.
+ *
+ * Confirmation is final: a CONFIRMED plan is never moved back to waiting, and
+ * nothing here adds a condition. Notify sends one "ready" alert. Auto places
+ * the order only when the execution safety checks pass now, and a plan whose
+ * entry window closes while blocked comes back from the engine as MISSED.
+ * The other side of a linked pair keeps its own rules: Notify never cancels
+ * it; Auto cancels it only after this side is filled (in the executor).
  */
 export function decideMonitorActions(input: {
   status: TradePlanStatus;
@@ -81,13 +90,21 @@ export function decideMonitorActions(input: {
   // Progress notices: each detection once per plan (deduplicated by the caller).
   for (const event of confirmation.events) {
     const copy = DETECTION_COPY[event.type];
-    if (copy) actions.push({ kind: "notify", event: event.type, title: `${label}: ${copy.toLowerCase()}`, message: `${event.detail} [${tag}] Still waiting for the remaining conditions.`, notificationKind: "trade_update" });
+    if (copy) actions.push({ kind: "notify", event: event.type === "ATTEMPT_FAILED" ? `ATTEMPT_FAILED_${event.at}` : event.type, title: `${label}: ${copy.toLowerCase()}`, message: `${event.detail} [${tag}]`, notificationKind: "trade_update" });
   }
+  const live = status === "MONITORING" || status === "CONFIRMED";
 
   if (confirmation.outcome === "INVALIDATED") {
-    if (status === "MONITORING" || status === "CONFIRMED") {
+    if (live) {
       actions.push({ kind: "transition", to: "INVALIDATED", reason: confirmation.notTriggeredReason ?? "The market invalidated the plan." });
       actions.push({ kind: "notify", event: "INVALIDATED", title: `${label} plan invalidated`, message: `${confirmation.notTriggeredReason ?? "The setup failed."} No trade will be taken.`, notificationKind: "trade_update" });
+    }
+    return actions;
+  }
+  if (confirmation.outcome === "MISSED") {
+    if (live) {
+      actions.push({ kind: "transition", to: "MISSED", reason: confirmation.notTriggeredReason ?? "The entry opportunity passed." });
+      actions.push({ kind: "notify", event: "MISSED", title: `${label} plan missed`, message: `${confirmation.notTriggeredReason ?? "The entry passed."} No trade was taken; GX does not chase price.`, notificationKind: "trade_update" });
     }
     return actions;
   }
@@ -96,39 +113,33 @@ export function decideMonitorActions(input: {
     actions.push({ kind: "notify", event: "EXPIRED", title: `${label} plan expired`, message: "It expired before every condition was met. No trade was taken.", notificationKind: "trade_update" });
     return actions;
   }
-  // A Notify plan already CONFIRMED (a restart between the two writes) is handed on even if the
-  // live checks have since tightened: it was confirmed, and Notify places nothing.
-  if (confirmation.outcome === "WAITING" && status === "CONFIRMED" && mode === "NOTIFY") {
-    actions.push({ kind: "cancelSiblings", reason: `The ${input.direction} plan confirmed first; one trade per pair.` });
-    actions.push({ kind: "transition", to: "NOTIFIED", reason: "Trade ready for your decision; no order was placed." });
-    actions.push({ kind: "notify", event: "SETUP_CONFIRMED", notificationKind: "setup_ready", title: `${label} ready — your call`, message: `Confirmed earlier; current state: ${confirmation.notTriggeredReason ?? "check the plan"}. No order was placed.` });
-    return actions;
-  }
-  if (confirmation.outcome === "WAITING") {
-    if (confirmation.stage === "CONFIRMED_BLOCKED" && mode === "NOTIFY") {
-      actions.push({ kind: "notify", event: "SAFETY_BLOCKED", title: `${label}: setup formed, blocked for now`, message: `${confirmation.notTriggeredReason ?? ""} GX keeps watching; you will be told if it clears.`, notificationKind: "trade_update" });
-    }
-    return actions;
-  }
+  // Not confirmed: keep watching. (A CONFIRMED plan is never sent back to waiting.)
+  if (confirmation.outcome === "WAITING") return actions;
 
-  // CONFIRMED: every technical condition and every safety check passes now.
+  // CONFIRMED: the approved technical conditions are met. This happens once.
   const p = confirmation.proposal!;
+  const blocks = confirmation.safety?.blocks ?? [];
   if (status === "MONITORING") {
-    actions.push({ kind: "transition", to: "CONFIRMED", reason: `All conditions met: ${p.side} near ${p.entry}, stop ${p.stopLoss}, target ${p.takeProfit}, reward/risk ${p.rewardRisk}.` });
+    actions.push({ kind: "transition", to: "CONFIRMED", reason: `Approved conditions met: ${p.side} near ${p.entry}, stop ${p.stopLoss}, target ${p.takeProfit}, reward/risk ${p.rewardRisk}.` });
   }
-  actions.push({ kind: "cancelSiblings", reason: `The ${input.direction} plan confirmed first; one trade per pair.` });
   if (mode === "NOTIFY") {
     actions.push({ kind: "transition", to: "NOTIFIED", reason: "Trade ready for your decision; no order was placed." });
     actions.push({
       kind: "notify", event: "SETUP_CONFIRMED", notificationKind: "setup_ready",
       title: `${label} ready — your call`,
-      message: `Confirmed. Entry near ${p.entry}, stop ${p.stopLoss}, target ${p.takeProfit} (reward/risk ${p.rewardRisk}${p.spread !== null ? `, spread ${p.spread.toFixed(5).replace(/0+$/, "")}` : ""}). No order was placed.`,
+      message: `Confirmed. Entry near ${p.entry}, stop ${p.stopLoss}, target ${p.takeProfit} (reward/risk ${p.rewardRisk}${spreadText(p.spread)})${timeText(p.quoteTime)}.`
+        + (blocks.length ? ` Right now an order would be blocked: ${blocks.join(" ")}` : "")
+        + " No order was placed.",
     });
-  } else {
-    // Auto trade: the executor re-checks everything on fresh data before any order.
-    actions.push({ kind: "transition", to: "EXECUTION_PENDING", reason: "Confirmed; placing the Auto trade after the final safety checks." });
-    actions.push({ kind: "execute" });
+    return actions;
   }
+  // Auto trade: the executor re-checks everything on fresh data before any order.
+  if (blocks.length) {
+    actions.push({ kind: "notify", event: "SAFETY_BLOCKED", title: `${label} confirmed — waiting for a safe entry`, message: `${blocks.join(" ")} GX places it as soon as these clear within the approved entry window, or marks it missed.`, notificationKind: "trade_update" });
+    return actions;
+  }
+  actions.push({ kind: "transition", to: "EXECUTION_PENDING", reason: "Confirmed; placing the Auto trade after the final safety checks." });
+  actions.push({ kind: "execute" });
   return actions;
 }
 
@@ -201,30 +212,6 @@ async function recordError(planId: string, message: string) {
     [planId, message.slice(0, 500)],
   );
   return updated.rows[0]?.consecutive_errors ?? 0;
-}
-
-/**
- * Cancel the other live plans from the same Analyze run. Runs only after this
- * plan reached CONFIRMED, so if both sides somehow confirmed in one tick the
- * first to be processed wins and the second finds itself cancelled.
- */
-async function cancelSiblings(plan: ClaimedPlan, reason: string, now: number) {
-  const siblings = await query<{ id: string; direction: string }>(
-    `SELECT id,direction FROM trade_plans WHERE user_id=$1 AND analysis_id=$2 AND id<>$3
-        AND status IN ('APPROVED','MONITORING','CONFIRMED','NOTIFIED')`,
-    [plan.user_id, plan.analysis_id, plan.id],
-  );
-  let cancelled = 0;
-  for (const sibling of siblings.rows) {
-    try {
-      await transaction((client) => transitionInTx(client, { userId: plan.user_id, planId: sibling.id, to: "CANCELLED", actor: "monitor", reason, now: new Date(now) }));
-      await query("UPDATE trade_plan_approvals SET revoked_at=now(),revoke_reason=$2 WHERE plan_id=$1 AND revoked_at IS NULL", [sibling.id, reason]);
-      cancelled += 1;
-    } catch (error) {
-      if (!(error instanceof TradePlanError)) throw error;
-    }
-  }
-  return cancelled;
 }
 
 export type TickSummary = { expired: number; claimed: number; evaluated: number; transitions: number; errors: number };
@@ -311,10 +298,6 @@ export async function runTradePlanMonitorTick(now = Date.now()): Promise<TickSum
           }
           if (action.kind === "execute") {
             await executeAutoPlan(plan.id, now);
-            continue;
-          }
-          if (action.kind === "cancelSiblings") {
-            summary.transitions += await cancelSiblings(plan, action.reason, now);
             continue;
           }
           try {

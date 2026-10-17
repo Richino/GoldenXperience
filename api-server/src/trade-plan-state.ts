@@ -13,7 +13,7 @@ import { createHash } from "node:crypto";
 export const TRADE_PLAN_STATUSES = [
   "DRAFT", "PENDING_APPROVAL", "APPROVED", "MONITORING", "CONFIRMED", "NOTIFIED",
   "EXECUTION_PENDING", "ORDER_SUBMITTED", "PARTIALLY_FILLED", "FILLED", "EXECUTION_FAILED",
-  "CLOSED", "REJECTED", "CANCELLED", "INVALIDATED", "EXPIRED",
+  "CLOSED", "REJECTED", "CANCELLED", "INVALIDATED", "EXPIRED", "MISSED",
 ] as const;
 export type TradePlanStatus = (typeof TRADE_PLAN_STATUSES)[number];
 
@@ -31,12 +31,14 @@ export const TRADE_PLAN_TRANSITIONS: Record<TradePlanStatus, Partial<Record<Trad
   PENDING_APPROVAL: { APPROVED: [U], REJECTED: [U], INVALIDATED: [S, M], EXPIRED: [S, M] },
   // The monitor may cancel too: when one plan of an analysis confirms, it cancels the other side (one trade per pair).
   APPROVED: { MONITORING: [U, S], PENDING_APPROVAL: [U], CANCELLED: [U, M], INVALIDATED: [S, M], EXPIRED: [S, M] },
-  MONITORING: { CONFIRMED: [M], PENDING_APPROVAL: [U], CANCELLED: [U, M], INVALIDATED: [M, S], EXPIRED: [M, S] },
-  CONFIRMED: { NOTIFIED: [M], EXECUTION_PENDING: [M], CANCELLED: [U, M], INVALIDATED: [M, S], EXPIRED: [M, S] },
-  NOTIFIED: { CANCELLED: [U, M], EXPIRED: [M, S] },
+  // MISSED: the entry opportunity passed (price ran away, or the approved entry window closed). Never chased.
+  MONITORING: { CONFIRMED: [M], PENDING_APPROVAL: [U], CANCELLED: [U, M], INVALIDATED: [M, S], EXPIRED: [M, S], MISSED: [M] },
+  // A confirmed plan never goes back to MONITORING: confirmation is final.
+  CONFIRMED: { NOTIFIED: [M], EXECUTION_PENDING: [M], CANCELLED: [U, M], INVALIDATED: [M, S], EXPIRED: [M, S], MISSED: [M] },
+  NOTIFIED: { CANCELLED: [U, M], EXPIRED: [M, S], MISSED: [M] },
   // Cancelling once execution has begun goes through the executor, which must
   // first make sure no broker order is resting.
-  EXECUTION_PENDING: { ORDER_SUBMITTED: [X], EXECUTION_FAILED: [X], CANCELLED: [X], INVALIDATED: [X], EXPIRED: [X] },
+  EXECUTION_PENDING: { ORDER_SUBMITTED: [X], EXECUTION_FAILED: [X], CANCELLED: [X], INVALIDATED: [X], EXPIRED: [X], MISSED: [X] },
   ORDER_SUBMITTED: { PARTIALLY_FILLED: [X], FILLED: [X], EXECUTION_FAILED: [X], CANCELLED: [X] },
   PARTIALLY_FILLED: { FILLED: [X], CLOSED: [X] },
   FILLED: { CLOSED: [X] },
@@ -46,6 +48,7 @@ export const TRADE_PLAN_TRANSITIONS: Record<TradePlanStatus, Partial<Record<Trad
   CANCELLED: {},
   INVALIDATED: {},
   EXPIRED: {},
+  MISSED: {},
 };
 
 export const TERMINAL_STATUSES: ReadonlySet<TradePlanStatus> = new Set(

@@ -4,6 +4,7 @@ import type { QueryResult, QueryResultRow } from "pg";
 import { currenciesOf, isKnownInstrument } from "../../../frontend/src/lib/instruments/catalog.js";
 import type { MajorInstrument } from "../../../frontend/src/types/forex.js";
 import { query } from "../database.js";
+import { updateThesesForResearch } from "./thesis-updates.js";
 import { displayPair, queueNotification } from "../notifications.js";
 import { calendarRefs, buildCalendarSnapshot, type CalendarSnapshot } from "./calendar-snapshot.js";
 import {
@@ -11,7 +12,7 @@ import {
   type FetchResult, type ResearchInput, type SubmitResult, type TechnicalSummary,
 } from "./openai-research.js";
 import {
-  calendarEvents, latestResearch, latestCompleteRow, releasedOf, researchFreshness, researchUsage, technicalSummaryFor, warnActivePlans,
+  calendarEvents, latestResearch, latestCompleteRow, releasedOf, researchFreshness, researchUsage, technicalSummaryFor,
   JOB_COLUMNS, jobView, type JobRow, type Trigger,
 } from "./research-service.js";
 
@@ -198,13 +199,15 @@ export async function cancelResearchJob(userId: string, jobId: string, db: Db = 
   return { cancelled: true, reason: null };
 }
 
+/** A job the user asked for, with the plans it built for them (or why none). */
 export async function researchJobForUser(userId: string, jobId: string, db: Db = pool) {
-  const found = await db.query<JobRow>(
-    `SELECT ${JOB_COLUMNS.split(",").map((column) => `j.${column.trim()}`).join(",")} FROM research_jobs j
+  const found = await db.query<JobRow & { plans_result: string | null; plans_reason: string | null }>(
+    `SELECT ${JOB_COLUMNS.split(",").map((column) => `j.${column.trim()}`).join(",")}, w.plans_result, w.plans_reason FROM research_jobs j
        JOIN research_job_watchers w ON w.job_id=j.id AND w.user_id=$2 WHERE j.id=$1`,
     [jobId, userId],
   );
-  return found.rows[0] ? jobView(found.rows[0]) : null;
+  const row = found.rows[0];
+  return row ? { ...jobView(row), plans: row.plans_result ? { result: row.plans_result, reason: row.plans_reason } : null } : null;
 }
 
 // ── The worker ────────────────────────────────────────────────────
@@ -220,9 +223,10 @@ export type JobDeps = {
   /** Frozen inputs for a new job. */
   inputs?: (instrument: string, currencies: [string, string], now: number) => Promise<{ technical: TechnicalSummary; calendar: CalendarSnapshot }>;
   /** Build plans for a watcher on the stored research (never touches approved plans). */
-  generatePlans?: (userId: string, instrument: string) => Promise<string>;
+  generatePlans?: (userId: string, instrument: string) => Promise<string | { result: string; reason: string | null }>;
   notify?: typeof queueNotification;
-  warn?: typeof warnActivePlans;
+  /** Record how the new research changed each active plan's evidence (never the plan). */
+  warn?: typeof updateThesesForResearch;
 };
 
 async function defaultInputs(instrument: string, currencies: [string, string], now: number) {
@@ -231,12 +235,13 @@ async function defaultInputs(instrument: string, currencies: [string, string], n
 }
 
 async function defaultGeneratePlans(userId: string, instrument: string) {
-  // Watched plans are left exactly as they are; research only warns about them.
+  // Watched plans are left exactly as they are; research only updates their evidence.
   const active = await query("SELECT 1 FROM trade_plans WHERE user_id=$1 AND instrument=$2 AND status IN ('APPROVED','MONITORING','CONFIRMED','NOTIFIED','EXECUTION_PENDING','ORDER_SUBMITTED','PARTIALLY_FILLED','FILLED') LIMIT 1", [userId, instrument]);
-  if (active.rows[0]) return "WATCHING";
+  if (active.rows[0]) return { result: "WATCHING", reason: "Your watched plans are unchanged; research only updates their evidence." };
   const { generateAndStoreTradePlans } = await import("../trade-plan-service.js");
+  // Fresh OANDA candles are read here, after the research is stored: the plans are built once, now.
   const result = await generateAndStoreTradePlans(userId, instrument as MajorInstrument, { skipCooldown: true });
-  return result.result;
+  return { result: result.result, reason: result.reason };
 }
 
 /** Advance one job by one step under a lease. Safe to call from the tick, the kick and the webhook at once. */
@@ -366,7 +371,7 @@ async function storeResult(job: JobRow, payload: Record<string, unknown>, deps: 
     [job.id, status, outcome.ok ? null : outcome.error, outcome.usage.inputTokens, outcome.usage.outputTokens, outcome.usage.reasoningTokens ?? null,
      outcome.usage.webSearchCalls, outcome.sources.length, outcome.usage.costUsd, outcome.drops.length],
   );
-  if (outcome.ok) await (deps.warn ?? warnActivePlans)(job.instrument, outcome.intelligence, now).catch((error) => console.error("[research-jobs] plan warnings failed", error));
+  if (outcome.ok) await (deps.warn ?? updateThesesForResearch)(job.instrument, outcome.intelligence, now).catch((error) => console.error("[research-jobs] thesis updates failed", error));
   return status;
 }
 
@@ -384,11 +389,13 @@ export async function deliverCompletion(jobId: string, deps: JobDeps = {}) {
   for (const watcher of watchers.rows) {
     let plans = watcher.plans_result;
     if (job.status === "COMPLETED" && !plans) {
-      plans = await (deps.generatePlans ?? defaultGeneratePlans)(watcher.user_id, job.instrument).catch((error) => {
-        console.error("[research-jobs] plan rebuild failed", error);
-        return "ERROR";
+      const built = await (deps.generatePlans ?? defaultGeneratePlans)(watcher.user_id, job.instrument).catch((error) => {
+        console.error("[research-jobs] plan generation failed", error);
+        return { result: "ERROR", reason: error instanceof Error ? error.message : "Plans could not be built." };
       });
-      await db.query("UPDATE research_job_watchers SET plans_result=$3 WHERE job_id=$1 AND user_id=$2", [jobId, watcher.user_id, plans]);
+      const outcome = typeof built === "string" ? { result: built, reason: null } : built;
+      plans = outcome.result;
+      await db.query("UPDATE research_job_watchers SET plans_result=$3, plans_reason=$4 WHERE job_id=$1 AND user_id=$2", [jobId, watcher.user_id, plans, outcome.reason]);
     }
     const notice = completionNotice(job.instrument, job.status, job.error, plans);
     await (deps.notify ?? queueNotification)({

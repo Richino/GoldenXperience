@@ -11,6 +11,7 @@ import {
 } from "../../frontend/src/lib/oanda/client.js";
 import { getForexSessionStatus } from "../../frontend/src/lib/strategy/session.js";
 import type { MajorInstrument } from "../../frontend/src/types/forex.js";
+import type { PoolClient } from "pg";
 import { query, transaction } from "./database.js";
 import { displayPair } from "./notifications.js";
 import { quoteToUsdRate } from "./pending-manual-entries.js";
@@ -46,6 +47,8 @@ const GIVE_UP_AFTER_MS = 3 * 60_000;
 
 type PlanRow = NotifiablePlan & {
   status: TradePlanStatus;
+  analysis_id: string;
+  plan_hash: string;
   direction: "BUY" | "SELL";
   stop_loss: string;
   take_profit: string;
@@ -74,7 +77,7 @@ type SettingsRow = {
   broker_error_suspend_threshold: number;
 };
 
-const PLAN_COLUMNS = `id,user_id,plan_version,monitoring_mode,instrument,status,direction,stop_loss::text,take_profit::text,
+const PLAN_COLUMNS = `id,user_id,analysis_id,plan_hash,plan_version,monitoring_mode,instrument,status,direction,stop_loss::text,take_profit::text,
   expires_at,max_risk_percent::text,plan,updated_at`;
 
 async function loadPlan(planId: string) {
@@ -157,6 +160,34 @@ async function brokerError(plan: PlanRow, message: string) {
 const brokerOk = (userId: string) => query("UPDATE trade_plan_risk_settings SET consecutive_broker_errors=0 WHERE user_id=$1", [userId]);
 
 /**
+ * Reserve a plan version for execution inside a transaction: the approval
+ * must still match this exact version and hash, and no other plan of the same
+ * Analyze run may hold a live attempt. Serialised per run by an advisory lock,
+ * so the BUY and SELL alternatives can never both reach the broker. Exported
+ * for tests; runs on the caller's transaction client.
+ */
+export async function reserveExecution(client: { query: PoolClient["query"] }, plan: Pick<PlanRow, "id" | "user_id" | "analysis_id" | "plan_version" | "plan_hash">) {
+  await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`trade-plan-group:${plan.analysis_id}`]);
+  const approval = await client.query<{ id: string }>(
+    "SELECT id FROM trade_plan_approvals WHERE plan_id=$1 AND revoked_at IS NULL AND plan_version=$2 AND plan_hash=$3 AND monitoring_mode='AUTO'",
+    [plan.id, plan.plan_version, plan.plan_hash],
+  );
+  if (!approval.rows[0]) return { kind: "unapproved" as const };
+  const rival = await client.query<{ direction: string }>(
+    `SELECT p.direction FROM trade_plan_execution_attempts a JOIN trade_plans p ON p.id=a.plan_id
+      WHERE p.analysis_id=$1 AND p.user_id=$2 AND p.id<>$3 AND a.status NOT IN ('BLOCKED','REJECTED') LIMIT 1`,
+    [plan.analysis_id, plan.user_id, plan.id],
+  );
+  if (rival.rows[0]) return { kind: "linked" as const, direction: rival.rows[0].direction };
+  const created = await client.query<{ id: string }>(
+    `INSERT INTO trade_plan_execution_attempts(plan_id,user_id,plan_version,idempotency_key,status)
+     VALUES($1,$2,$3,$4,'PENDING') ON CONFLICT(idempotency_key) DO NOTHING RETURNING id`,
+    [plan.id, plan.user_id, plan.plan_version, `${plan.id}:v${plan.plan_version}`],
+  );
+  return created.rows[0] ? { kind: "reserved" as const, attemptId: created.rows[0].id } : { kind: "exists" as const };
+}
+
+/**
  * Place a plan that the monitor just moved to EXECUTION_PENDING. Safe to call
  * twice: the second call finds the attempt and leaves it to reconciliation.
  */
@@ -164,14 +195,19 @@ export async function executeAutoPlan(planId: string, now = Date.now()) {
   const plan = await loadPlan(planId);
   if (!plan || plan.status !== "EXECUTION_PENDING" || plan.monitoring_mode !== "AUTO") return { kind: "skipped" as const };
 
-  // One attempt per plan version: a repeat call finds this row and stops here.
-  const created = await query<{ id: string }>(
-    `INSERT INTO trade_plan_execution_attempts(plan_id,user_id,plan_version,idempotency_key,status)
-     VALUES($1,$2,$3,$4,'PENDING') ON CONFLICT(idempotency_key) DO NOTHING RETURNING id`,
-    [plan.id, plan.user_id, plan.plan_version, `${plan.id}:v${plan.plan_version}`],
-  );
-  const attemptId = created.rows[0]?.id;
-  if (!attemptId) return { kind: "exists" as const };
+  // Reserve the linked group and this plan version (one attempt per version; a
+  // repeat call finds the row and stops). A rejected or blocked attempt releases the group.
+  const reservation = await transaction((client) => reserveExecution(client, plan));
+  if (reservation.kind === "exists") return { kind: "exists" as const };
+  if (reservation.kind === "unapproved") {
+    await move(plan, "EXECUTION_FAILED", "Not placed: the approval does not match this plan version.");
+    return { kind: "blocked" as const, checks: [] };
+  }
+  if (reservation.kind === "linked") {
+    await move(plan, "CANCELLED", `Not placed: the linked ${reservation.direction} plan already went to the broker (one trade per pair).`);
+    return { kind: "blocked" as const, checks: [] };
+  }
+  const attemptId = reservation.attemptId;
 
   const instrument = plan.instrument as MajorInstrument;
   const researchConfig = researchSettings();
@@ -349,6 +385,7 @@ async function recordFilled(plan: PlanRow, attemptId: string, tradeId: string, f
     );
   }
   await move(plan, "FILLED", `Filled ${units} units at ${fillPrice ?? "?"}.`, { tradeId, fillPrice, protection });
+  await cancelLinkedPlans(plan, `The linked ${plan.direction} plan was filled; one trade per pair.`);
 
   if (!protection || protection.stopLoss === null) {
     const settings = await settingsFor(plan.user_id);
@@ -381,6 +418,25 @@ async function recordFilled(plan: PlanRow, attemptId: string, tradeId: string, f
     title: `${pair(plan)} ${sideWord(plan)} placed (Auto trade)`,
     message: `${units.toLocaleString("en-US")} units at ${fillPrice ?? "market"}. Stop ${protection.stopLoss}, target ${protection.takeProfit ?? "none"} — both held by OANDA.`,
   });
+}
+
+/**
+ * The other side of the same Analyze run, still waiting: cancelled once this
+ * side is filled. Never reverses or touches an open position.
+ */
+async function cancelLinkedPlans(plan: PlanRow, reason: string) {
+  const linked = await query<{ id: string }>(
+    `SELECT id FROM trade_plans WHERE user_id=$1 AND analysis_id=$2 AND id<>$3 AND status IN ('APPROVED','MONITORING','CONFIRMED','NOTIFIED')`,
+    [plan.user_id, plan.analysis_id, plan.id],
+  );
+  for (const other of linked.rows) {
+    try {
+      await transaction((client) => transitionInTx(client, { userId: plan.user_id, planId: other.id, to: "CANCELLED", actor: "monitor", reason }));
+      await query("UPDATE trade_plan_approvals SET revoked_at=now(),revoke_reason=$2 WHERE plan_id=$1 AND revoked_at IS NULL", [other.id, reason]);
+    } catch (error) {
+      if (!(error instanceof TradePlanError)) throw error;
+    }
+  }
 }
 
 /**

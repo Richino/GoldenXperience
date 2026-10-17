@@ -75,8 +75,8 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-self: stretch;
   gap: 4px;
-  margin: 0 14px 12px;
-  padding: 4px;
+  margin: 8px 18px 16px;
+  padding: 6px;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--background);

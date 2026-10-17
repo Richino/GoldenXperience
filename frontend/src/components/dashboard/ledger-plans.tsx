@@ -213,7 +213,7 @@ export function LedgerPlans() {
                     ))}
                   </ol>
                   <div className="nl-plan-read is-loading" aria-hidden="true"><span /><span /></div>
-                  <p className="nl-plan-foot">{row.job.model} · {row.job.effort} effort · started {ago(row.job.startedAt ?? row.job.createdAt)}. We&apos;ll notify you when the plans are ready.</p>
+                  <p className="nl-plan-foot">Started {ago(row.job.startedAt ?? row.job.createdAt)}. We&apos;ll notify you when the plans are ready.</p>
                 </article>
               );
             }

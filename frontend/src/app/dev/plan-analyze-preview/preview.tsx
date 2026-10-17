@@ -34,9 +34,17 @@ const researching: PlanAnalyzeState = {
 
 /** ?sheet=1 opens the phone sheet with the offered plans. */
 const wantsSheet = () => new URLSearchParams(window.location.search).has("sheet");
+const wantsCalendarWait = () => new URLSearchParams(window.location.search).has("calendar-wait");
 
 export function PlanAnalyzePreview() {
   const sheet = useSyncExternalStore(() => () => undefined, wantsSheet, () => false);
+  const calendarWait = useSyncExternalStore(() => () => undefined, wantsCalendarWait, () => false);
+  if (sheet && calendarWait) return <PlanAnalyzeSheet state={{ ...researching, phase: { kind: "researching" }, open: true, research: {
+    ...researching.research, result: { ...researching.research.result!, job: {
+      ...researching.research.result!.job!, status: "QUEUED", startedAt: null,
+      error: "Verified economic calendar unavailable. Research will retry before starting; no report has been generated.",
+    } },
+  } }} instrument="EUR_USD" price={1.12292} />;
   if (sheet) return <PlanAnalyzeSheet state={{ ...offered, open: true }} instrument="EUR_USD" price={1.12292} />;
   return (
     <main style={{ padding: 16, background: "var(--background)", minHeight: "100vh", display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fill, minmax(320px, 360px))", alignItems: "start" }}>

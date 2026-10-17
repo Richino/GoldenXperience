@@ -1,4 +1,5 @@
 import { apiUrl } from "@/lib/api/url";
+import type { MarketStateView } from "./market-state";
 
 /**
  * Typed client for /api/trade-plans. The server is authoritative: the client
@@ -293,8 +294,15 @@ export interface ResearchJob {
 }
 export const JOB_RUNNING: ResearchJobStatus[] = ["QUEUED", "RESEARCHING", "VALIDATING"];
 
+/** This known input failure happens before a provider response is submitted. */
+export function researchJobWaitingForCalendar(job: Pick<ResearchJob, "status" | "error">): boolean {
+  return job.status === "QUEUED" && (job.error ?? "").startsWith("Verified economic calendar unavailable.");
+}
+
 export interface ResearchResult {
   research: ResearchView | null;
+  /** Separate deterministic interpretation; does not replace the validated research archive. */
+  marketState?: MarketStateView | null;
   /** The pair's running job, else its latest job from the last day. */
   job?: ResearchJob | null;
   /** What Analyze did: reused fresh research, started or joined a background job, or was stopped by the budget. */
@@ -308,14 +316,22 @@ export interface ResearchResult {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(apiUrl(path), {
-    credentials: "include",
-    cache: "no-store",
-    ...init,
-    headers: init?.body ? { "Content-Type": "application/json", ...init.headers } : init?.headers,
-  });
+  const researchRequest = path.startsWith("/api/intelligence/");
+  const unavailable = "Research service is temporarily unavailable. Try again shortly.";
+  let response: Response;
+  try {
+    response = await fetch(apiUrl(path), {
+      credentials: "include",
+      cache: "no-store",
+      ...init,
+      headers: init?.body ? { "Content-Type": "application/json", ...init.headers } : init?.headers,
+    });
+  } catch (error) {
+    if (researchRequest) throw new Error(unavailable, { cause: error });
+    throw error;
+  }
   const payload = await response.json().catch(() => null) as (T & { error?: string }) | null;
-  if (!response.ok) throw new Error(payload?.error || `Request failed (${response.status}).`);
+  if (!response.ok) throw new Error(payload?.error || (researchRequest && response.status >= 500 ? unavailable : `Request failed (${response.status}).`));
   return payload as T;
 }
 

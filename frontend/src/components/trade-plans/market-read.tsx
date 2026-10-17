@@ -4,7 +4,7 @@ import { ExternalLink, RefreshCw } from "lucide-react";
 import { JOB_RUNNING, researchJobWaitingForCalendar, type Bias, type Lean, type MarketIntelligence, type PlanResearchContext, type ResearchFactor, type ResearchJob, type ResearchObservation, type ResearchResult, type ResearchThesis, type TradePlan } from "@/lib/trade-plans/api";
 import styles from "./market-read.module.css";
 import { MarketStateRead } from "./market-state-read";
-import { OBSERVED_LABEL } from "@/lib/trade-plans/market-state";
+import { OBSERVED_LABEL, toneOf } from "@/lib/trade-plans/market-state";
 
 /**
  * Market intelligence in the Analyze sheet (contract v2): the outlook by
@@ -151,7 +151,7 @@ export function MarketRead({ state, onRefresh, onCancel }: { state: ResearchStat
     <section className={styles.card} aria-label="Market read">
       <div className={styles.head}>
         <span className={styles.label}>Market read</span>
-        <span className={styles.bias} data-bias={marketState ? undefined : o.overall.toUpperCase()}>{marketState ? marketState.usable ? OBSERVED_LABEL[marketState.snapshot.observed.classification] : "Data check" : BIAS_LABEL[o.overall]}</span>
+        <span className={styles.bias} data-bias={marketState ? marketState.usable ? { bullish: "BULLISH", bearish: "BEARISH", mixed: "MIXED", neutral: "NEUTRAL", unknown: "UNKNOWN" }[toneOf(marketState.snapshot.observed.classification).tone] : "UNKNOWN" : o.overall.toUpperCase()}>{marketState ? marketState.usable ? OBSERVED_LABEL[marketState.snapshot.observed.classification] : "Data check" : BIAS_LABEL[o.overall]}</span>
         <span className={styles.muted}>{intel.research.quality} quality evidence</span>
         <button type="button" className={styles.refresh} onClick={onRefresh} disabled={state.loading || running} aria-label="Refresh research">
           <RefreshCw aria-hidden="true" className={state.loading || running ? styles.spin : undefined} />

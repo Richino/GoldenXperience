@@ -42,6 +42,17 @@ export type MarketStateSnapshot = {
 };
 export type MarketStateView = { snapshot: MarketStateSnapshot; usable: boolean; reasons: string[] };
 
+/** Colour for a classification: which way it points, and whether only slightly. */
+export type Tone = "bullish" | "bearish" | "mixed" | "neutral" | "unknown";
+export function toneOf(classification: string): { tone: Tone; soft: boolean } {
+  const soft = classification.startsWith("SLIGHTLY_") || classification.endsWith("_RECOVERY");
+  if (classification.includes("BULLISH")) return { tone: "bullish", soft };
+  if (classification.includes("BEARISH")) return { tone: "bearish", soft };
+  if (classification === "MIXED" || classification === "RANGE" || classification === "VOLATILE_UNSTRUCTURED") return { tone: "mixed", soft: false };
+  if (classification === "NEUTRAL") return { tone: "neutral", soft: false };
+  return { tone: "unknown", soft: false };
+}
+
 export const OBSERVED_LABEL: Record<ObservedMarketState, string> = {
   STRONG_BULLISH_TREND: "Strong bullish trend", BULLISH_TREND: "Bullish trend", BULLISH_RECOVERY: "Bullish recovery",
   RANGE: "Range", BEARISH_RECOVERY: "Bearish recovery", BEARISH_TREND: "Bearish trend", STRONG_BEARISH_TREND: "Strong bearish trend",

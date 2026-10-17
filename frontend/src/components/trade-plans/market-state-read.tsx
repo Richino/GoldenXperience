@@ -2,7 +2,7 @@
 
 import { precisionFor } from "@/lib/instruments/catalog";
 import type { MarketIntelligence } from "@/lib/trade-plans/api";
-import { FUNDAMENTAL_LABEL, FORWARD_LABEL, type MarketStateView } from "@/lib/trade-plans/market-state";
+import { FUNDAMENTAL_LABEL, FORWARD_LABEL, toneOf, type MarketStateView } from "@/lib/trade-plans/market-state";
 import styles from "./market-read.module.css";
 
 const at = (iso: string) => new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" });
@@ -25,9 +25,14 @@ export function MarketStateRead({ view, intel, historical = false }: { view: Mar
     {/* At a glance: the read (its label is the chip above), three leans, one status line. Everything else is in the details. */}
     <p className={styles.summary}>{s.observed.explanation}</p>
     <dl className={styles.outlook} data-count="3">
-      <div><dt>Fundamentals</dt><dd>{FUNDAMENTAL_LABEL[s.fundamental.classification]}</dd></div>
-      <div><dt>{historical ? "Then · near term" : "Near term"}</dt><dd>{FORWARD_LABEL[s.forward.shortTerm.classification]}</dd></div>
-      <div><dt>{historical ? "Then · swing" : "Swing 2–5 days"}</dt><dd>{FORWARD_LABEL[s.forward.swing.classification]}</dd></div>
+      {([
+        ["Fundamentals", s.fundamental.classification, FUNDAMENTAL_LABEL[s.fundamental.classification]],
+        [historical ? "Then · near term" : "Near term", s.forward.shortTerm.classification, FORWARD_LABEL[s.forward.shortTerm.classification]],
+        [historical ? "Then · swing" : "Swing 2–5 days", s.forward.swing.classification, FORWARD_LABEL[s.forward.swing.classification]],
+      ] as const).map(([label, value, text]) => {
+        const { tone, soft } = toneOf(value);
+        return <div key={label} className={styles.tile} data-tone={tone} data-soft={soft || undefined}><dt>{label}</dt><dd>{text}</dd></div>;
+      })}
     </dl>
     <p className={styles.status}>
       {s.observed.timeframe} · last candle {s.observed.asOf ? at(s.observed.asOf) : "unavailable"}

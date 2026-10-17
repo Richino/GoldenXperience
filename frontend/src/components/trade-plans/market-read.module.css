@@ -518,3 +518,54 @@
 .card > .fresh {
   order: 1;
 }
+
+/* Lean tiles: tinted by direction (lighter when only slight), with an arrow. */
+.card .outlook .tile {
+  --tile-tone: var(--muted-strong);
+  position: relative;
+  padding: 0.6rem 0.65rem 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--tile-tone) 22%, transparent);
+  background: color-mix(in srgb, var(--tile-tone) 9%, var(--surface));
+}
+
+.card .outlook .tile[data-soft] {
+  border-color: color-mix(in srgb, var(--tile-tone) 14%, transparent);
+  background: color-mix(in srgb, var(--tile-tone) 5%, var(--surface));
+}
+
+.card .outlook .tile[data-tone="bullish"] { --tile-tone: var(--success); }
+.card .outlook .tile[data-tone="bearish"] { --tile-tone: var(--danger); }
+.card .outlook .tile[data-tone="mixed"] { --tile-tone: var(--pending); }
+.card .outlook .tile[data-tone="neutral"],
+.card .outlook .tile[data-tone="unknown"] { --tile-tone: var(--muted); }
+
+.card .outlook .tile dd {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--tile-tone);
+  font-size: 0.875rem;
+  font-weight: 650;
+}
+
+.card .outlook .tile[data-tone="neutral"] dd,
+.card .outlook .tile[data-tone="unknown"] dd {
+  color: var(--muted-strong);
+}
+
+.card .outlook .tile dd::before {
+  flex: none;
+  font-size: 0.8em;
+  line-height: 1;
+}
+
+.card .outlook .tile[data-tone="bullish"] dd::before { content: "▲"; }
+.card .outlook .tile[data-tone="bearish"] dd::before { content: "▼"; }
+.card .outlook .tile[data-tone="mixed"] dd::before { content: "◆"; }
+.card .outlook .tile[data-tone="neutral"] dd::before,
+.card .outlook .tile[data-tone="unknown"] dd::before { content: "–"; }
+
+/* The chip carries the read's direction too. */
+.bias[data-bias="BULLISH"] { background: var(--success-soft); color: var(--success); }
+.bias[data-bias="BEARISH"] { background: var(--danger-soft); color: var(--danger); }
+.bias[data-bias="MIXED"] { background: var(--pending-soft); color: var(--pending); }

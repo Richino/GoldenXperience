@@ -572,15 +572,12 @@ function displacementBox(key: string, candle: DisplacementCandle): ChartBox {
   };
 }
 
-/** A filled News trade's entry label: side, fill, slippage vs the triggering quote, spread, time left. */
+/** A filled News trade's entry tag, kept short for a phone: side, fill and minutes to the time exit (slippage and spread are in the status panel). */
 function newsFillLabel(entry: PendingManualEntry, now: number) {
-  const meta = entry.metadata as { mode?: string; slippageVsQuotePips?: number; spreadAtFillPips?: number | null; timeExitAt?: string | null };
+  const meta = entry.metadata as { mode?: string; timeExitAt?: string | null };
   if (meta.mode !== "news" || entry.triggerPrice === null) return null;
-  const parts = [`NEWS ${entry.direction === "long" ? "BUY" : "SELL"} ${formatChartPrice(entry.triggerPrice, entry.instrument)}`];
-  if (typeof meta.slippageVsQuotePips === "number") parts.push(`${meta.slippageVsQuotePips >= 0 ? "+" : ""}${meta.slippageVsQuotePips}p slip`);
-  if (typeof meta.spreadAtFillPips === "number") parts.push(`spread ${meta.spreadAtFillPips}p`);
-  if (meta.timeExitAt) parts.push(`${Math.max(0, Math.ceil((Date.parse(meta.timeExitAt) - now) / 60_000))}m left`);
-  return parts.join(" · ");
+  const minutesLeft = meta.timeExitAt ? Math.max(0, Math.ceil((Date.parse(meta.timeExitAt) - now) / 60_000)) : null;
+  return `${entry.direction === "long" ? "BUY" : "SELL"} ${formatChartPrice(entry.triggerPrice, entry.instrument)}${minutesLeft === null ? "" : ` · ${minutesLeft}m`}`;
 }
 
 function fvgBox(key: string, fvg: FvgZone): ChartBox {
@@ -3321,6 +3318,8 @@ export function SignalWorkspace({
         entry.status === "PENDING" ||
         entry.status === "TRIGGERING" ||
         (entry.status === "TRIGGERED" && entry.paperTradeStatus === "open"))
+      // A News setup is two linked rows; while both wait, list it once (its BUY row).
+      .filter((entry) => !(entry.metadata?.mode === "news" && entry.status === "PENDING" && entry.metadata?.line === "lower"))
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
     [pendingEntries],
   );
@@ -3554,7 +3553,8 @@ export function SignalWorkspace({
   const [levelSaving, setLevelSaving] = useState(false);
   const [levelError, setLevelError] = useState<string | null>(null);
   const levelTrade = !replayActive && !openPaperTrade
-    ? activeManualTrade ?? (pendingManualEntry?.status === "PENDING" ? pendingManualEntry : null)
+    // A waiting News setup has no stop or target until it fills (they are set from the fill).
+    ? activeManualTrade ?? (pendingManualEntry?.status === "PENDING" && pendingManualEntry.metadata?.mode !== "news" ? pendingManualEntry : null)
     : null;
   // A waiting order has no fill yet: its levels are judged against its entry,
   // and it holds both a stop and a target or neither.
@@ -4651,7 +4651,17 @@ export function SignalWorkspace({
       : null;
     return { label: healthSignal.direction === "long" ? "Long" : "Short", r };
   })();
-  const mobileTradeAction = manualTradeMode === "close"
+  // Once a News order is on its way to OANDA it can't be cancelled; say so instead of offering Cancel.
+  const newsOrderInFlight = selectedPairTrade?.metadata?.mode === "news" && selectedPairTrade.status === "TRIGGERING";
+  const mobileTradeAction = newsOrderInFlight
+    ? {
+        label: "Sending to OANDA…",
+        className: " is-cancel",
+        onClick: () => undefined,
+        disabled: true,
+        title: "The order is being confirmed with OANDA and can't be cancelled",
+      }
+    : manualTradeMode === "close"
     ? {
         label: tradeActionBusy ? "Closing…" : "Close Trade",
         className: " is-close",
@@ -4965,7 +4975,7 @@ export function SignalWorkspace({
             </div>
           ) : mobileTradeActionReady ? (
             <div className="gx-mobile-analyze-section">
-              <PairTradePicker trades={pairTrades} selectedId={settingUpNewTrade ? NEW_PAIR_TRADE : selectedPairTrade?.id ?? null} instrument={instrument} onSelect={setPickedPairTrade} />
+              <PairTradePicker trades={pairTrades} selectedId={settingUpNewTrade ? NEW_PAIR_TRADE : selectedPairTrade?.id ?? null} instrument={instrument} onSelect={setPickedPairTrade} now={pendingEntryClock} />
               <div className="nl-mtrade-row">
                 {healthLevels ? (
                   <button type="button" className="nl-mlevels-start pressable" onClick={healthLevels.onStart} aria-label="Adjust stop loss and take profit">
@@ -5051,6 +5061,10 @@ export function SignalWorkspace({
                   <CircleStop aria-hidden="true" />
                   {tradeActionBusy ? "Closing…" : "Close trade"}
                 </button>
+              ) : !replayActive && newsOrderInFlight ? (
+                <button type="button" className="signals-analyze-desktop is-cancel nl-trade-action" disabled title="The order is being confirmed with OANDA and can't be cancelled">
+                  Sending to OANDA…
+                </button>
               ) : !replayActive && manualTradeMode === "cancel" ? (
                 <button type="button" className="signals-analyze-desktop pressable is-cancel nl-trade-action" onClick={() => setTradeConfirm("cancel")} disabled={tradeActionBusy}>
                   <X aria-hidden="true" />
@@ -5081,7 +5095,7 @@ export function SignalWorkspace({
                 <span className="nl-toolbar-rule" aria-hidden="true" />
                 <IndicatorSelect toolbar enabled={enabledIndicators} onChange={setEnabledIndicators} />
                 {replayActive ? null : (
-                  <PairTradePicker trades={pairTrades} selectedId={settingUpNewTrade ? NEW_PAIR_TRADE : selectedPairTrade?.id ?? null} instrument={instrument} onSelect={setPickedPairTrade} />
+                  <PairTradePicker trades={pairTrades} selectedId={settingUpNewTrade ? NEW_PAIR_TRADE : selectedPairTrade?.id ?? null} instrument={instrument} onSelect={setPickedPairTrade} now={pendingEntryClock} />
                 )}
                 <div className="nl-toolbar-end">
                   {replayActive ? (
@@ -5294,6 +5308,8 @@ export function SignalWorkspace({
               <button type="button" className="gx-fs-close pressable" onClick={() => setTradeConfirm("close")} disabled={tradeActionBusy}>
                 {tradeActionBusy ? "Closing…" : "Close trade"}
               </button>
+            ) : !replayActive && newsOrderInFlight ? (
+              <button type="button" className="gx-fs-close" disabled>Sending to OANDA…</button>
             ) : !replayActive && manualTradeMode === "cancel" ? (
               <button type="button" className="gx-fs-close pressable" onClick={() => setTradeConfirm("cancel")} disabled={tradeActionBusy}>
                 {tradeActionBusy ? "Cancelling…" : "Cancel order"}

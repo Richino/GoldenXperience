@@ -8,16 +8,21 @@ import type { PendingManualEntry } from "../../types/pending-entry";
  * reads metadata.newsState, the locked zones and the fill, so the chart never
  * shows a state the server is not in.
  *
- *   ARMED / LOCKING   both zones, faded + dashed, following the live price  "PREVIEW"
- *   ZONES_LOCKED      both zones solid at the frozen prices, anchor line     "LOCKED · news in …"
- *   WATCHING          same zones, entries open                               "LIVE · … left"
- *   reserved / sent   chosen side solid, other side greyed                   "ORDER PENDING"
+ * Kept deliberately quiet for a phone: each zone is its shaded box plus ONE
+ * line at the edge where it triggers, tagged "BUY 210.700" / "SELL 210.500".
+ * The state shows in the style, not in words (countdowns, the anchor and
+ * the worst fill live in the setup's status panel):
+ *
+ *   ARMED / LOCKING   both zones faded, dashed lines, following the live price
+ *   ZONES_LOCKED      both zones solid at the frozen prices
+ *   WATCHING          same zones, thicker lines, tagged "· live" (entries open)
+ *   reserved / sent   chosen side "BUY 210.695 · sending", other side greyed, no tag
  *   FILLED / CLOSING  the chosen zone kept faded for reference (fill/SL/TP lines come from the trade)
  *   CLOSED            the chosen zone archived, only when that trade is the one being viewed
  *   SKIPPED / EXPIRED / CANCELLED / ORDER_REJECTED / ERROR   nothing
  *
- * A draft (the ticket's unsaved settings) is drawn faded and labelled
- * "DRAFT", so it can never be mistaken for a setup the server holds.
+ * A draft (the ticket's unsaved settings) is drawn like a preview and
+ * tagged "draft", so it can never be mistaken for a setup the server holds.
  */
 
 export type NewsZones = { buy: { lower: number; upper: number }; sell: { lower: number; upper: number } };
@@ -67,12 +72,6 @@ export function zonesAround(instrument: string, anchor: number, distancePips: nu
   return { buy: { lower: buyLower, upper: r(buyLower + depthPips * pip) }, sell: { lower: r(sellUpper - depthPips * pip), upper: sellUpper } };
 }
 
-function countdown(ms: number) {
-  const seconds = Math.max(0, Math.round(ms / 1000));
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.ceil(seconds / 60);
-  return minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-}
 
 export function newsZoneOverlay(input: {
   instrument: string;
@@ -99,18 +98,15 @@ export function newsZoneOverlay(input: {
   }
 
   const drawZone = (key: string, side: "buy" | "sell", zone: { lower: number; upper: number }, opts: {
-    tag: string; color: string; faded: boolean; dashed: boolean; start: string; end: string; entryId: string; strong?: boolean;
+    tag?: string; color: string; faded: boolean; dashed: boolean; start: string; end: string; entryId: string; strong?: boolean;
   }) => {
-    const word = side === "buy" ? "BUY ZONE" : "SELL ZONE";
-    // No label inside the box: a 3-pip band is too thin for text; the edge line carries the name and state.
+    // The box shows the zone; one line at the edge where it triggers names it.
     boxes.push({ key: `news-box-${key}-${side}`, startTime: opts.start, endTime: opts.end, top: zone.upper, bottom: zone.lower, color: opts.color, faded: opts.faded });
-    // The entry edge carries the name; the far edge is the worst fill allowed (the price bound).
     const entryEdge = side === "buy" ? zone.lower : zone.upper;
-    const farEdge = side === "buy" ? zone.upper : zone.lower;
-    lines.push(
-      { key: `news-edge-${key}-${side}`, price: entryEdge, label: `${word} ${fmt(zone.lower)}–${fmt(zone.upper)} · ${opts.tag}`, color: opts.color, textColor: "#ffffff", dashed: opts.dashed, lineWidth: opts.strong ? 2 : 1, entryId: opts.entryId },
-      { key: `news-far-${key}-${side}`, price: farEdge, label: `${side === "buy" ? "BUY" : "SELL"} limit ${fmt(farEdge)}`, color: opts.color, textColor: "#ffffff", dashed: true, lineWidth: 1, entryId: opts.entryId },
-    );
+    lines.push({
+      key: `news-edge-${key}-${side}`, price: entryEdge, label: `${side === "buy" ? "BUY" : "SELL"} ${fmt(entryEdge)}${opts.tag ? ` · ${opts.tag}` : ""}`,
+      color: opts.color, textColor: "#ffffff", dashed: opts.dashed, lineWidth: opts.strong ? 2 : 1, entryId: opts.entryId,
+    });
   };
 
   let hasLiveSetup = false;
@@ -122,28 +118,22 @@ export function newsZoneOverlay(input: {
     const state = newsStateOf(group.find((entry) => entry.status === "TRIGGERING" || entry.status === "TRIGGERED") ?? upper);
     const start = startOf(upper.createdAt);
     const end = upper.expiresAt ?? new Date(input.now + 60 * 60_000).toISOString();
-    const releaseAt = meta.release?.time ? Date.parse(meta.release.time) : null;
     const lockedZones = meta.zones ?? null;
 
     if (state === "ARMED" || state === "LOCKING") {
       hasLiveSetup = true;
       if (input.liveMid === null || !meta.distancePips || meta.slippagePips === undefined) continue;
       const preview = zonesAround(input.instrument, input.liveMid, meta.distancePips, meta.slippagePips);
-      const lockAt = meta.lockAt ? Date.parse(meta.lockAt) : null;
-      const tag = `PREVIEW${lockAt !== null ? ` · locks in ${countdown(lockAt - input.now)}` : ""}`;
-      drawZone(straddleId, "buy", preview.buy, { tag, color: NEWS_BUY_COLOR, faded: true, dashed: true, start, end, entryId: upper.id });
-      drawZone(straddleId, "sell", preview.sell, { tag, color: NEWS_SELL_COLOR, faded: true, dashed: true, start, end, entryId: lower.id });
+      drawZone(straddleId, "buy", preview.buy, { color: NEWS_BUY_COLOR, faded: true, dashed: true, start, end, entryId: upper.id });
+      drawZone(straddleId, "sell", preview.sell, { color: NEWS_SELL_COLOR, faded: true, dashed: true, start, end, entryId: lower.id });
       continue;
     }
     if (!lockedZones) continue;
     if (state === "ZONES_LOCKED" || state === "WATCHING") {
       hasLiveSetup = true;
-      const tag = state === "ZONES_LOCKED"
-        ? `LOCKED${releaseAt !== null ? ` · news in ${countdown(releaseAt - input.now)}` : ""}`
-        : `LIVE · ${countdown(Date.parse(end) - input.now)} left`;
+      const tag = state === "WATCHING" ? "live" : undefined;
       drawZone(straddleId, "buy", lockedZones.buy, { tag, color: NEWS_BUY_COLOR, faded: false, dashed: false, start, end, entryId: upper.id, strong: state === "WATCHING" });
       drawZone(straddleId, "sell", lockedZones.sell, { tag, color: NEWS_SELL_COLOR, faded: false, dashed: false, start, end, entryId: lower.id, strong: state === "WATCHING" });
-      if (meta.anchor != null) lines.push({ key: `news-anchor-${straddleId}`, price: meta.anchor, label: `ANCHOR ${fmt(meta.anchor)}`, color: MUTED, textColor: "#ffffff", dashed: true, lineWidth: 1, entryId: upper.id });
       continue;
     }
     const side = meta.reservation?.side ?? (group.find((entry) => entry.status === "TRIGGERING" || entry.status === "TRIGGERED")?.direction ?? null);
@@ -154,17 +144,16 @@ export function newsZoneOverlay(input: {
     const color = side === "long" ? NEWS_BUY_COLOR : NEWS_SELL_COLOR;
     if (state === "TRIGGER_RESERVED" || state === "ORDER_SUBMITTING" || state === "ORDER_UNKNOWN") {
       hasLiveSetup = true;
-      drawZone(straddleId, chosen, lockedZones[chosen], { tag: state === "ORDER_UNKNOWN" ? "ORDER UNCONFIRMED" : "ORDER PENDING", color, faded: false, dashed: false, start, end, entryId: chosenEntry.id, strong: true });
-      boxes.push({ key: `news-box-${straddleId}-${other}`, startTime: start, endTime: end, top: lockedZones[other].upper, bottom: lockedZones[other].lower, color: MUTED, faded: true, label: `${other === "buy" ? "BUY" : "SELL"} ZONE · OFF` });
+      drawZone(straddleId, chosen, lockedZones[chosen], { tag: state === "ORDER_UNKNOWN" ? "checking" : "sending", color, faded: false, dashed: false, start, end, entryId: chosenEntry.id, strong: true });
+      boxes.push({ key: `news-box-${straddleId}-${other}`, startTime: start, endTime: end, top: lockedZones[other].upper, bottom: lockedZones[other].lower, color: MUTED, faded: true });
       continue;
     }
     if (state === "FILLED" || state === "CLOSING") {
-      boxes.push({ key: `news-box-${straddleId}-${chosen}`, startTime: start, endTime: new Date(input.now + 30 * 60_000).toISOString(), top: lockedZones[chosen].upper, bottom: lockedZones[chosen].lower, color, faded: true, label: `${chosen === "buy" ? "BUY" : "SELL"} ZONE · FILLED` });
+      boxes.push({ key: `news-box-${straddleId}-${chosen}`, startTime: start, endTime: new Date(input.now + 30 * 60_000).toISOString(), top: lockedZones[chosen].upper, bottom: lockedZones[chosen].lower, color, faded: true });
       continue;
     }
     if (state === "CLOSED" && input.viewedPaperTradeId !== null && chosenEntry.paperTradeId === input.viewedPaperTradeId) {
-      const result = typeof meta.resultR === "number" ? ` ${meta.resultR >= 0 ? "+" : ""}${meta.resultR.toFixed(2)}R` : "";
-      boxes.push({ key: `news-box-${straddleId}-${chosen}`, startTime: start, endTime: chosenEntry.updatedAt, top: lockedZones[chosen].upper, bottom: lockedZones[chosen].lower, color: MUTED, faded: true, label: `${chosen === "buy" ? "BUY" : "SELL"} ZONE · CLOSED${meta.exitReason ? ` · ${meta.exitReason}` : ""}${result}` });
+      boxes.push({ key: `news-box-${straddleId}-${chosen}`, startTime: start, endTime: chosenEntry.updatedAt, top: lockedZones[chosen].upper, bottom: lockedZones[chosen].lower, color: MUTED, faded: true });
     }
   }
 
@@ -173,8 +162,8 @@ export function newsZoneOverlay(input: {
     const draft = zonesAround(input.instrument, input.liveMid, input.draft.distancePips, input.draft.depthPips);
     const start = startOf(new Date(input.now).toISOString());
     const end = new Date(input.now + 60 * 60_000).toISOString();
-    drawZone("draft", "buy", draft.buy, { tag: "DRAFT", color: NEWS_BUY_COLOR, faded: true, dashed: true, start, end, entryId: "" });
-    drawZone("draft", "sell", draft.sell, { tag: "DRAFT", color: NEWS_SELL_COLOR, faded: true, dashed: true, start, end, entryId: "" });
+    drawZone("draft", "buy", draft.buy, { tag: "draft", color: NEWS_BUY_COLOR, faded: true, dashed: true, start, end, entryId: "" });
+    drawZone("draft", "sell", draft.sell, { tag: "draft", color: NEWS_SELL_COLOR, faded: true, dashed: true, start, end, entryId: "" });
   }
   return { boxes, lines };
 }

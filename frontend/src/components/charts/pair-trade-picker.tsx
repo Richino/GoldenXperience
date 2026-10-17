@@ -7,12 +7,37 @@ import { formatChartPrice } from "@/lib/chart-utils";
 import { useDragToDismiss } from "@/lib/use-drag-to-dismiss";
 import type { PendingManualEntry } from "@/types/pending-entry";
 import type { MajorInstrument } from "@/types/forex";
+import { newsStateOf } from "@/lib/news/news-zone-overlay";
 
 /** Picker value for "set up another trade on this pair". */
 export const NEW_PAIR_TRADE = "__new__";
 
+const isNews = (entry: PendingManualEntry) => entry.metadata?.mode === "news";
+
 function tradeTitle(entry: PendingManualEntry, index: number) {
+  // A News setup has no side until a zone is touched.
+  if (isNews(entry)) return entry.status === "PENDING" ? "News" : `News · ${entry.direction === "long" ? "Long" : "Short"}`;
   return `Trade ${index + 1} · ${entry.direction === "long" ? "Long" : "Short"}`;
+}
+
+function shortCountdown(ms: number) {
+  const seconds = Math.max(0, Math.round(ms / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.ceil(seconds / 60);
+  return minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
+/** A News setup's stage in a few words, from the server's state. Null for anything else. */
+function newsStage(entry: PendingManualEntry, now: number) {
+  if (!isNews(entry) || entry.status === "TRIGGERED") return null;
+  const meta = entry.metadata as { lockAt?: string; release?: { time?: string } | null };
+  const state = newsStateOf(entry);
+  if (state === "ARMED") return meta.lockAt ? `locks in ${shortCountdown(Date.parse(meta.lockAt) - now)}` : "armed";
+  if (state === "LOCKING") return "locking";
+  if (state === "ZONES_LOCKED") return meta.release?.time ? `news in ${shortCountdown(Date.parse(meta.release.time) - now)}` : "locked";
+  if (state === "WATCHING") return "live";
+  if (state === "ORDER_UNKNOWN") return "checking with OANDA";
+  return "sending";
 }
 
 /**
@@ -21,11 +46,13 @@ function tradeTitle(entry: PendingManualEntry, index: number) {
  * (the Analyze drawer's sheet) listing them, plus "New trade", which clears
  * the chart so another can be placed.
  */
-export function PairTradePicker({ trades, selectedId, instrument, onSelect }: {
+export function PairTradePicker({ trades, selectedId, instrument, onSelect, now }: {
   trades: PendingManualEntry[];
   selectedId: string | null;
   instrument: MajorInstrument;
   onSelect: (id: string) => void;
+  /** Clock for News countdowns, ticked by the chart. */
+  now: number;
 }) {
   const [open, setOpen] = useState(false);
   const { setSheet, setBackdrop, handlers, requestClose } = useDragToDismiss({
@@ -55,8 +82,8 @@ export function PairTradePicker({ trades, selectedId, instrument, onSelect }: {
         <span className="gx-pair-trade-trigger-text">
           {selected ? (
             <>
-              <b className={selected.direction === "long" ? "is-long" : "is-short"}>{tradeTitle(selected, selectedIndex)}</b>
-              <span>{selected.status === "TRIGGERED" ? "Open" : "Pending"} · {price(selected.status === "TRIGGERED" ? selected.triggerPrice : selected.entryPrice)}</span>
+              <b className={isNews(selected) && selected.status === "PENDING" ? undefined : selected.direction === "long" ? "is-long" : "is-short"}>{tradeTitle(selected, selectedIndex)}</b>
+              <span>{newsStage(selected, now) ?? `${selected.status === "TRIGGERED" ? "Open" : "Pending"} · ${price(selected.status === "TRIGGERED" ? selected.triggerPrice : selected.entryPrice)}`}</span>
             </>
           ) : (
             <b>New trade</b>
@@ -81,20 +108,29 @@ export function PairTradePicker({ trades, selectedId, instrument, onSelect }: {
               {trades.map((entry, index) => {
                 const filled = entry.status === "TRIGGERED";
                 const isSelected = entry.id === selectedId;
+                const stage = newsStage(entry, now);
+                const zones = (entry.metadata as { upperLine?: number; lowerLine?: number }) ?? {};
                 return (
                   <li key={entry.id}>
                     <button type="button" className={`nl-pt-row pressable${isSelected ? " is-selected" : ""}`} onClick={() => pick(entry.id)} aria-pressed={isSelected}>
-                      <span className={`nl-pt-side ${entry.direction === "long" ? "is-long" : "is-short"}`} aria-hidden="true" />
+                      <span className={`nl-pt-side${stage && entry.status === "PENDING" ? "" : entry.direction === "long" ? " is-long" : " is-short"}`} aria-hidden="true" />
                       <span className="nl-pt-main">
                         <span className="nl-pt-name">
                           {tradeTitle(entry, index)}
-                          <span className={`nl-pt-status ${filled ? "is-open" : "is-pending"}`}>{filled ? "Open" : "Pending"}</span>
+                          <span className={`nl-pt-status ${filled ? "is-open" : "is-pending"}`}>{stage ?? (filled ? "Open" : "Pending")}</span>
                         </span>
-                        <span className="nl-pt-levels metric-number">
-                          <span>Entry {price(filled ? entry.triggerPrice : entry.entryPrice)}</span>
-                          <span className="is-down">SL {price(entry.stopPrice)}</span>
-                          <span className="is-up">TP {price(entry.targetPrice)}</span>
-                        </span>
+                        {stage && entry.status === "PENDING" ? (
+                          <span className="nl-pt-levels metric-number">
+                            <span className="is-up">BUY {price(zones.upperLine ?? null)}</span>
+                            <span className="is-down">SELL {price(zones.lowerLine ?? null)}</span>
+                          </span>
+                        ) : (
+                          <span className="nl-pt-levels metric-number">
+                            <span>Entry {price(filled ? entry.triggerPrice : entry.entryPrice)}</span>
+                            <span className="is-down">SL {price(entry.stopPrice)}</span>
+                            <span className="is-up">TP {price(entry.targetPrice)}</span>
+                          </span>
+                        )}
                       </span>
                       {isSelected ? <Check className="nl-pt-check" aria-label="Shown on the chart" /> : null}
                     </button>

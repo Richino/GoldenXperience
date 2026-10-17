@@ -35,44 +35,43 @@ const draw = (entries: PendingManualEntry[], extra: Partial<Parameters<typeof ne
   instrument: "GBP_JPY", entries, liveMid: 210.6, now, draft: null, viewedPaperTradeId: null, formatPrice: (price) => price.toFixed(3), ...extra,
 });
 
-test("ARMED: both zones follow the live price, faded and dashed, labelled PREVIEW", () => {
+test("ARMED: both zones follow the live price, faded with dashed lines; one short tag per zone", () => {
   const out = draw(setup("ARMED"));
   assert.equal(out.boxes.length, 2);
   assert.ok(out.boxes.every((box) => box.faded));
-  assert.ok(out.lines.some((line) => line.label.startsWith("BUY ZONE") && line.label.includes("PREVIEW")));
+  assert.deepEqual(out.lines.map((line) => line.label), ["BUY 210.700", "SELL 210.500"]);
   const buy = out.boxes.find((box) => box.key.endsWith("-buy"))!;
   assert.deepEqual([buy.bottom, buy.top], [210.7, 210.73], "around the live mid 210.600");
   assert.ok(out.lines.every((line) => line.dashed));
 });
-test("ZONES_LOCKED: the stored zones, solid, with the anchor and a release countdown", () => {
+test("ZONES_LOCKED: the stored zones, solid; the live price does not move them", () => {
   const out = draw(setup("ZONES_LOCKED", { zones, anchor: 210.595 }), { liveMid: 211.5 });
   const buy = out.boxes.find((box) => box.key.endsWith("-buy"))!;
   assert.deepEqual([buy.bottom, buy.top], [210.695, 210.725], "the live price does not move locked zones");
   assert.equal(buy.faded, false);
-  assert.ok(out.lines.some((line) => /^BUY ZONE 210.695–210.725 · LOCKED · news in 30s$/.test(line.label)));
-  assert.ok(out.lines.some((line) => line.label === "ANCHOR 210.595"));
+  assert.deepEqual(out.lines.map((line) => [line.label, line.dashed]), [["BUY 210.695", false], ["SELL 210.495", false]]);
   const sell = out.boxes.find((box) => box.key.endsWith("-sell"))!;
   assert.deepEqual([sell.bottom, sell.top], [210.465, 210.495]);
 });
-test("WATCHING: same zones, entries live, time left", () => {
+test("WATCHING: same zones, thicker lines, tagged live", () => {
   const out = draw(setup("WATCHING", { zones, anchor: 210.595 }), { now: Date.parse("2026-10-16T12:35:00Z") });
-  assert.ok(out.lines.some((line) => /LIVE · 10m left/.test(line.label)));
-  assert.ok(out.lines.some((line) => line.lineWidth === 2));
+  assert.ok(out.lines.every((line) => line.lineWidth === 2));
+  assert.deepEqual(out.lines.map((line) => line.label), ["BUY 210.695 · live", "SELL 210.495 · live"]);
 });
 test("order pending: the chosen side highlighted, the other greyed OFF", () => {
   const out = draw(setup("ORDER_SUBMITTING", { zones, reservation: { side: "long" } }, "GBP_JPY", ["TRIGGERING", "CANCELLED"]));
-  assert.ok(out.lines.some((line) => line.label === "BUY ZONE 210.695–210.725 · ORDER PENDING"));
-  assert.ok(out.boxes.some((box) => box.label === "SELL ZONE · OFF" && box.faded));
-  assert.ok(!out.boxes.some((box) => /FILLED/.test(box.label ?? "")), "never says filled before OANDA confirms");
+  assert.deepEqual(out.lines.map((line) => line.label), ["BUY 210.695 · sending"]);
+  assert.ok(out.boxes.some((box) => box.key.endsWith("-sell") && box.faded && box.color === "#8c8c93"), "the other side greyed");
 });
 test("FILLED: the chosen zone kept for reference; the trade's own lines show entry/SL/TP", () => {
   const out = draw(setup("FILLED", { zones, reservation: { side: "short" } }, "GBP_JPY", ["CANCELLED", "TRIGGERED"]));
-  assert.deepEqual(out.boxes.map((box) => box.label), ["SELL ZONE · FILLED"]);
+  assert.deepEqual(out.boxes.map((box) => box.key.endsWith("-sell")), [true]);
+  assert.equal(out.lines.length, 0);
 });
 test("CLOSED: archived zone only when that trade is being viewed", () => {
   const entries = setup("CLOSED", { zones, reservation: { side: "long" }, exitReason: "target", resultR: 2 }, "GBP_JPY", ["TRIGGERED", "CANCELLED"]);
   assert.equal(draw(entries).boxes.length, 0);
-  assert.deepEqual(draw(entries, { viewedPaperTradeId: "trade-1" }).boxes.map((box) => box.label), ["BUY ZONE · CLOSED · target +2.00R"]);
+  assert.deepEqual(draw(entries, { viewedPaperTradeId: "trade-1" }).boxes.map((box) => box.key.endsWith("-buy")), [true]);
 });
 test("SKIPPED / EXPIRED / CANCELLED / ORDER_REJECTED draw nothing", () => {
   for (const state of ["SKIPPED", "EXPIRED", "CANCELLED", "ORDER_REJECTED"]) {
@@ -90,12 +89,12 @@ test("20. only the selected instrument's setups are drawn", () => {
   assert.ok(out.boxes.every((box) => box.key.includes("GBP_JPY")));
   assert.equal(draw(setup("WATCHING", { zones }, "EUR_USD")).boxes.length, 0);
 });
-test("draft: the ticket's unsaved zones are labelled DRAFT and hidden once a setup is live", () => {
+test("draft: the ticket's unsaved zones are tagged draft and hidden once a setup is live", () => {
   const draft = { distancePips: 12, depthPips: 4 };
   const out = draw([], { draft });
-  assert.ok(out.boxes.length === 2 && out.lines.filter((line) => line.label.includes("DRAFT")).length === 2);
+  assert.deepEqual(out.lines.map((line) => line.label), ["BUY 210.720 · draft", "SELL 210.480 · draft"]);
   assert.deepEqual(zonesAround("GBP_JPY", 210.6, 12, 4).buy, { lower: 210.72, upper: 210.76 });
-  assert.ok(!draw(setup("WATCHING", { zones }), { draft }).lines.some((line) => line.label.includes("DRAFT")));
+  assert.ok(!draw(setup("WATCHING", { zones }), { draft }).lines.some((line) => line.label.includes("draft")));
 });
 test("EUR/USD zones use 0.0001 pips and 5-digit rounding", () => {
   assert.deepEqual(zonesAround("EUR_USD", 1.17, 10, 3), { buy: { lower: 1.171, upper: 1.1713 }, sell: { lower: 1.1687, upper: 1.169 } });

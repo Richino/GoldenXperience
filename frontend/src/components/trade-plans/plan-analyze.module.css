@@ -496,14 +496,6 @@
   text-underline-offset: 2px;
 }
 
-/* Accept only one side. */
-.only {
-  margin: 0.35rem 0 0;
-  color: var(--muted);
-  font-size: var(--text-xs);
-  text-align: center;
-}
-
 /* Watched plan: window, attempts, expiry and the last event, so waiting is never unexplained. */
 .progress {
   display: grid;

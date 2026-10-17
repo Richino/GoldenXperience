@@ -530,17 +530,6 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
             </button>
             <button type="button" className={styles.textButton} disabled={state.busy} onClick={state.dismiss}>Not now</button>
           </div>
-          {plans.length > 1 ? (
-            <p className={styles.only}>
-              Or accept only{" "}
-              {plans.map((plan, index) => (
-                <span key={plan.id}>
-                  {index ? " or " : ""}
-                  <button type="button" className={styles.textButton} disabled={state.busy} onClick={() => state.accept(mode, plan.direction)}>the {plan.direction}</button>
-                </span>
-              ))}
-            </p>
-          ) : null}
         </div>
       </div>
     );

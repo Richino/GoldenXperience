@@ -39,15 +39,14 @@ export function PlanReview() {
       <div className="plan-review-head">
         <div>
           <h2 id="plan-review-title">Plan review</h2>
-          <p>Closed trades you tagged on the ticket, grouped by each part of your plan.</p>
+          <p>Previously tagged closed trades, grouped by each part of your plan.</p>
         </div>
         <span className="metric-number">{data.tagged}/{data.target} tagged</span>
       </div>
       <div className="plan-review-bar" aria-hidden="true"><i style={{ width: `${progress * 100}%` }} /></div>
       {data.tagged === 0 ? (
         <p className="plan-review-empty">
-          No tagged trades yet. Fill in the Plan check (trend, news view, entry) on the new-trade form and closed trades
-          will show up here.
+          No tagged closed trades to review.
         </p>
       ) : (
         <>

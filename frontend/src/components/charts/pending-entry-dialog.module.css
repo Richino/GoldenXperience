@@ -1,0 +1,92 @@
+.ticket {
+  gap: 14px;
+}
+
+.levelsCard {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+.levelsHeader {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.levelsHeader > span {
+  color: var(--muted-strong);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ticket .levelsCard .levels {
+  grid-template-columns: minmax(0, 1fr);
+  border: 0;
+  border-radius: 0;
+}
+
+.ticket .levelsCard .levels label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(7.5rem, 46%);
+  grid-template-areas: "name field" "hint where";
+  align-items: center;
+  gap: 4px 12px;
+  padding: 10px 14px;
+}
+
+.ticket .levelsCard .levels label + label {
+  border-top: 1px solid var(--border);
+  border-left: 0;
+}
+
+.ticket .levelsCard .levels label > span:first-child {
+  grid-area: name;
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ticket .levelsCard .levels input {
+  grid-area: field;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  font-size: 17px;
+  text-align: right;
+}
+
+.ticket .levelsCard .levels input:focus {
+  border-color: var(--accent);
+}
+
+.ticket .levelsCard .levels label > small {
+  grid-area: hint;
+  font-size: 12px;
+}
+
+.ticket .levelsCard .levels label > small:empty {
+  display: none;
+}
+
+.ticket .levelsCard .levels :global(.nl-pe-where) {
+  grid-area: where;
+  justify-self: end;
+}
+
+.ticket .summary {
+  margin-top: 0;
+}
+
+.ticket .summary > div {
+  padding-block: 7px;
+}
+
+.ticket .summary dd {
+  min-width: 0;
+  max-width: 70%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: right;
+}

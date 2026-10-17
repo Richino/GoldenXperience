@@ -9,8 +9,8 @@ import { useDragToDismiss } from "@/lib/use-drag-to-dismiss";
 import { displayNameFor, pipSizeFor, precisionFor } from "@/lib/instruments/catalog";
 import type { PendingManualEntry } from "@/types/pending-entry";
 import { NewsWarning } from "@/components/charts/news-warning";
-import { usePairTrend } from "@/components/charts/trend-label";
 import { NewsStraddleTicket } from "@/components/charts/news-straddle-ticket";
+import styles from "./pending-entry-dialog.module.css";
 
 type ExpirationPreset = "none" | "30m" | "1h" | "4h" | "custom";
 
@@ -216,20 +216,6 @@ export function PendingEntryDialog({
     return () => { cancelled = true; window.clearTimeout(timer); };
   }, [instrument, open, sizeKey]);
   const currentSize = positionSize && positionSize.key === sizeKey ? positionSize : null;
-  // Plan check (journal tags): trend / news view / entry level. Trend is
-  // pre-filled from the 4H + daily read against the chosen side until changed.
-  const pairTrend = usePairTrend(instrument);
-  const [planNews, setPlanNews] = useState<"supports" | "against" | "none" | null>(null);
-  const [planLevel, setPlanLevel] = useState<"at" | "none" | null>(null);
-  const [planTrendChoice, setPlanTrendChoice] = useState<"with" | "against" | "none" | null>(null);
-  const suggestedTrend = (() => {
-    const h4 = pairTrend?.h4?.direction, d1 = pairTrend?.d1?.direction;
-    if (!direction || !h4 || !d1) return null;
-    const trending = (value: string) => value === "UPTREND" || value === "DOWNTREND";
-    if (!trending(h4) || h4 !== d1) return "none" as const;
-    return (h4 === "UPTREND") === (direction === "long") ? "with" as const : "against" as const;
-  })();
-  const planTrend = planTrendChoice ?? suggestedTrend;
   /** In pips mode, keep the stop and target prices following entry and side. */
   const syncPipLevels = (entry: string, side: "long" | "short" | null) => {
     if (levelUnit !== "pips") return;
@@ -469,7 +455,6 @@ export function PendingEntryDialog({
         body: JSON.stringify({
           instrument, direction, entryPrice: parsedEntry, stopPrice: parsedStop, targetPrice: parsedTarget, expiresAt, activateAt: activateAtIso, invalidationPrice: parsedInvalidation, orderReferencePrice,
           tradeStyle,
-          planTags: !selectedEntry ? { trend: planTrend, news: planNews, level: planLevel } : undefined,
           // Tags forward-test trades so they can be scored separately later.
           analysisContext: !selectedEntry && initialProposal?.analysisContext
               ? {
@@ -555,7 +540,7 @@ export function PendingEntryDialog({
         <div className="nl-pe-stickyhead">
         <div className="pending-entry-grip" aria-hidden="true" />
         <header className="nl-an-top">
-          <span className="nl-an-eyebrow">
+          <span id="pending-entry-title" className="nl-an-eyebrow">
             {isPlan ? <AnalyzeIcon className="size-3.5" /> : null}
             {isPlan ? "Review entry" : selectedEntry ? "Edit entry" : "New trade"} · {displayNameFor(instrument)}
           </span>
@@ -712,7 +697,7 @@ export function PendingEntryDialog({
               one box, then the order read. Expiry, delayed submit and a
               cancel level are not offered (none / now / none); an entry being
               edited keeps whatever it already had. */}
-          <div className="nl-pe-plan nl-pe-ticket">
+          <div className={`nl-pe-plan nl-pe-ticket ${styles.ticket}`}>
             {modeSwitch}
             <div className="nl-pe-dir" role="radiogroup" aria-label="Direction">
               {(["long", "short"] as const).map((option) => (
@@ -749,8 +734,9 @@ export function PendingEntryDialog({
             )}
             <NewsWarning instrument={instrument} tradeStyle={tradeStyle} />
 
-            <div className="nl-pe-submit">
-              <span>Enter levels in</span>
+            <div className={styles.levelsCard}>
+            <div className={`nl-pe-submit ${styles.levelsHeader}`}>
+              <span>Trade levels</span>
               <div className="nl-an-modes" role="radiogroup" aria-label="Entry, stop and target units">
                 {(["pips", "price"] as const).map((unit) => (
                   <button
@@ -781,9 +767,9 @@ export function PendingEntryDialog({
               </div>
             </div>
 
-            <div className="nl-pe-levels">
+            <div className={`nl-pe-levels ${styles.levels}`}>
               <label>
-                <span>Entry{levelUnit === "pips" ? " · pips" : ""}</span>
+                <span>Entry</span>
                 {levelUnit === "pips" ? (
                   <input className="metric-number" inputMode="decimal" value={entryPips} disabled={direction === null} onChange={(event) => {
                     const where = entrySide ?? defaultEntrySide(direction);
@@ -827,7 +813,7 @@ export function PendingEntryDialog({
                 </small>
               </label>
               <label>
-                <span>Stop{levelUnit === "pips" ? " · pips" : ""}</span>
+                <span>Stop</span>
                 {levelUnit === "pips" ? (
                   <input className="metric-number is-down" inputMode="decimal" value={stopPips} onChange={(event) => {
                     setStopPips(event.target.value);
@@ -838,12 +824,12 @@ export function PendingEntryDialog({
                 )}
                 <small className="nl-pe-hint">
                   {parsedStop === null || !Number.isFinite(parsedStop)
-                    ? direction === "short" ? "Above entry" : direction === "long" ? "Below entry" : " "
+                    ? direction === "short" ? "Above entry" : direction === "long" ? "Below entry" : ""
                     : levelUnit === "pips" ? `at ${parsedStop.toFixed(precision)}` : pipsBetween(parsedEntry, parsedStop)}
                 </small>
               </label>
               <label>
-                <span>Target{levelUnit === "pips" ? " · pips" : ""}</span>
+                <span>Target</span>
                 {levelUnit === "pips" ? (
                   <input className="metric-number is-up" inputMode="decimal" value={targetPips} onChange={(event) => {
                     setTargetPips(event.target.value);
@@ -854,35 +840,14 @@ export function PendingEntryDialog({
                 )}
                 <small className="nl-pe-hint">
                   {parsedTarget === null || !Number.isFinite(parsedTarget)
-                    ? direction === "short" ? "Below entry" : direction === "long" ? "Above entry" : " "
+                    ? direction === "short" ? "Below entry" : direction === "long" ? "Above entry" : ""
                     : `${levelUnit === "pips" ? `at ${parsedTarget.toFixed(precision)}` : pipsBetween(parsedEntry, parsedTarget)}${planRatio === null ? "" : ` · 1:${Number(planRatio.toFixed(1))}`}`}
                 </small>
               </label>
             </div>
-
-            <div className="nl-pe-plancheck" aria-label="Plan check">
-              <span className="nl-pe-plancheck-title">Plan check <small>for your journal</small></span>
-              {([
-                ["Trend", planTrend, (value: string) => setPlanTrendChoice(value as "with" | "against" | "none"), [["with", "With"], ["against", "Against"], ["none", "No trend"]]],
-                ["News view", planNews, (value: string) => setPlanNews(value as "supports" | "against" | "none"), [["supports", "Supports"], ["against", "Against"], ["none", "None"]]],
-                ["Entry", planLevel, (value: string) => setPlanLevel(value as "at" | "none"), [["at", "At a level"], ["none", "No level"]]],
-              ] as const).map(([name, current, choose, options]) => (
-                <div key={name} className="nl-pe-plancheck-row">
-                  <span>{name}{name === "Trend" && planTrendChoice === null && suggestedTrend ? <em> · from 4H + D</em> : null}</span>
-                  <div className="nl-an-modes" role="radiogroup" aria-label={name}>
-                    {options.map(([value, label]) => (
-                      <button key={value} type="button" role="radio" aria-checked={current === value} className={current === value ? "is-active" : ""} onClick={() => choose(value)}>
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
             </div>
 
-            <dl className="nl-an-rows">
-              <div><dt>Stop distance</dt><dd className="metric-number">{pipsBetween(parsedEntry, parsedStop)}</dd></div>
-              <div><dt>Target distance</dt><dd className="metric-number">{pipsBetween(parsedEntry, parsedTarget)}</dd></div>
+            <dl className={`nl-an-rows ${styles.summary}`}>
               <div>
                 <dt>Size</dt>
                 <dd className="metric-number">

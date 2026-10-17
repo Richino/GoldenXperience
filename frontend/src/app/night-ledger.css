@@ -9517,3 +9517,9 @@ html:is(.dark, :not(.dark)) body .pending-entry-backdrop[data-keyboard-open="tru
   .nl-plans { order: 1; }
   .nl-plan-head b { font-size: 18px; }
 }
+
+/* The part of the second price that repeats the first, faded. */
+.nl-plan-shared {
+  color: var(--muted);
+  font-weight: 400;
+}

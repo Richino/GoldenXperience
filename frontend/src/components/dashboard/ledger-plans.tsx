@@ -87,6 +87,28 @@ export function planRows(jobs: ResearchJob[], awaiting: TradePlan[], active: Tra
   return rows;
 }
 
+/**
+ * A price range with the part both ends share faded in the second number,
+ * so the digits that differ stand out: 158.726 – 158.7·82. Both prices stay
+ * complete, so nothing can be misread.
+ */
+export function splitShared(low: string, high: string) {
+  let shared = 0;
+  while (shared < low.length && shared < high.length && low[shared] === high[shared]) shared += 1;
+  // Keep at least two characters of the second price in full weight.
+  shared = Math.min(shared, Math.max(0, high.length - 2));
+  return { shared: high.slice(0, shared), rest: high.slice(shared) };
+}
+
+function ZoneRange({ low, high }: { low: string; high: string }) {
+  const { shared, rest } = splitShared(low, high);
+  return (
+    <span className="nl-plan-zone metric-number" aria-label={`${low} to ${high}`}>
+      <span aria-hidden="true">{low}<i>–</i>{shared ? <span className="nl-plan-shared">{shared}</span> : null}{rest}</span>
+    </span>
+  );
+}
+
 function Sides({ plans }: { plans: TradePlan[] }) {
   return (
     <ul className="nl-plan-sides">
@@ -96,7 +118,7 @@ function Sides({ plans }: { plans: TradePlan[] }) {
         return (
           <li key={plan.id} data-side={plan.direction}>
             <span className="nl-plan-side">{plan.direction}</span>
-            <span className="nl-plan-zone metric-number">{f(plan.entryZoneLow)}<i aria-hidden="true">–</i><span className="sr-only"> to </span>{f(plan.entryZoneHigh)}</span>
+            <ZoneRange low={f(plan.entryZoneLow)} high={f(plan.entryZoneHigh)} />
             <span className="nl-plan-rr metric-number">{plan.rewardRisk?.toFixed(1) ?? "—"}<small>R</small></span>
             <span className="nl-plan-sl metric-number">SL {f(plan.stopLoss)} · TP {f(plan.takeProfit)}</span>
           </li>

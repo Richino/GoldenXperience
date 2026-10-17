@@ -27,6 +27,7 @@ const SUMMARY_TTL_MS = 5 * 60_000;
 type Row =
   | { kind: "generating"; instrument: string; job: ResearchJob }
   | { kind: "failed"; instrument: string; job: ResearchJob }
+  | { kind: "completed"; instrument: string; job: ResearchJob }
   | { kind: "review"; instrument: string; plans: TradePlan[] }
   | { kind: "watching"; instrument: string; plans: TradePlan[] };
 
@@ -82,6 +83,14 @@ export function planRows(jobs: ResearchJob[], awaiting: TradePlan[], active: Tra
     seen.add(instrument);
   }
   for (const [instrument, job] of latestJob) {
+    // A completed analysis is still a result when no trade qualified. Keep it
+    // visible until dismissed. PLANS without awaiting rows were removed or
+    // expired and must not be resurrected as a completed research card.
+    if (!seen.has(instrument) && job.status === "COMPLETED" && job.plans
+      && (job.plans.result === "NO_VALID_SETUP" || job.plans.result === "ERROR")) {
+      rows.push({ kind: "completed", instrument, job });
+      seen.add(instrument);
+    }
     const recent = now - Date.parse(job.completedAt ?? job.createdAt) < 6 * 3_600_000;
     if (!seen.has(instrument) && DONE_FAILED.includes(job.status) && recent) rows.push({ kind: "failed", instrument, job });
   }
@@ -162,6 +171,7 @@ export function LedgerPlans() {
   /** The Cancel or Remove waiting for confirmation. */
   const [confirm, setConfirm] = useState<PlanConfirmRequest | null>(null);
   const fetchedAt = useRef<Record<string, number>>({});
+  const researchVersions = useRef<Record<string, string>>({});
 
   const loadBriefs = useCallback(async (instruments: string[]) => {
     const due = instruments.filter((instrument) => Date.now() - (fetchedAt.current[instrument] ?? 0) > SUMMARY_TTL_MS);
@@ -194,9 +204,14 @@ export function LedgerPlans() {
         tradePlansApi.list("active"),
       ]);
       const next = planRows(jobs, awaiting, active);
+      for (const job of jobs) {
+        if (job.status !== "COMPLETED" || !job.researchId || researchVersions.current[job.instrument] === job.researchId) continue;
+        researchVersions.current[job.instrument] = job.researchId;
+        fetchedAt.current[job.instrument] = 0;
+      }
       setRows(next);
       setError(null);
-      void loadBriefs(next.filter((row) => row.kind === "review" || row.kind === "watching").map((row) => row.instrument));
+      void loadBriefs(next.filter((row) => row.kind === "review" || row.kind === "watching" || row.kind === "completed").map((row) => row.instrument));
     } catch {
       setError("Plans could not be loaded. Retrying…");
     }
@@ -281,14 +296,16 @@ export function LedgerPlans() {
               );
             }
             if (row.kind === "review") {
+              const conditional = row.plans.some((plan) => plan.plan.entryReadiness?.status === "WAITING_FOR_RISK_REWARD");
               return (
                 <article key={`r-${row.instrument}`} className="nl-plan" data-kind="review">
                   <Link href={href} className="nl-plan-head">
                     <b>{pair}</b>
-                    <span className="nl-plan-state is-review">Ready to review</span>
+                    <span className="nl-plan-state is-review">{conditional ? "Conditional plans" : "Ready to review"}</span>
                   </Link>
                   <Read brief={briefs[row.instrument]} loading={!checked[row.instrument]} />
                   <Sides plans={row.plans} />
+                  {conditional ? <p className="nl-plan-foot">Each side needs its own confirmation and at least {row.plans.find((plan) => plan.plan.entryReadiness)?.plan.entryReadiness?.minRewardRisk ?? 1.5}R at entry.{new Set(row.plans.map((plan) => plan.direction)).size > 1 ? " If one invalidates, the other remains available." : ""}</p> : null}
                   <div className="nl-plan-bottom">
                     <span className="nl-plan-foot">Built {ago(row.plans[0]!.createdAt)} · nothing is watched until you accept</span>
                     <div className="nl-plan-actions">
@@ -301,6 +318,31 @@ export function LedgerPlans() {
                       })}>
                         Remove
                       </button>
+                      <Link href={href} className="nl-plan-cta is-primary">Review <ArrowUpRight aria-hidden="true" /></Link>
+                    </div>
+                  </div>
+                </article>
+              );
+            }
+            if (row.kind === "completed") {
+              const noSetup = row.job.plans?.result === "NO_VALID_SETUP";
+              return (
+                <article key={`c-${row.instrument}`} className="nl-plan" data-kind="completed">
+                  <Link href={href} className="nl-plan-head">
+                    <b>{pair}</b>
+                    <span className="nl-plan-state is-review">{noSetup ? "No valid setup" : "Research complete"}</span>
+                  </Link>
+                  <Read brief={briefs[row.instrument]} loading={!checked[row.instrument]} />
+                  <p className="nl-plan-foot">{noSetup ? "Research finished. No trade setup met the rules; review the analysis for details." : row.job.plans?.reason ?? "Research finished, but plans could not be built. Open the analysis for details."}</p>
+                  <div className="nl-plan-bottom">
+                    <span className="nl-plan-foot">Completed {ago(row.job.completedAt ?? row.job.createdAt)}</span>
+                    <div className="nl-plan-actions">
+                      <button type="button" className="nl-plan-cta is-quiet" aria-label={`Remove ${pair} from Plans`} onClick={() => ask({
+                        eyebrow: `Plans · ${pair}`, title: `Remove ${pair} from Plans?`,
+                        body: "This removes the completed analysis from Home. The saved research remains available on the chart.",
+                        keepLabel: "Keep it", confirmLabel: "Remove", busyLabel: "Removing…",
+                        work: () => tradePlansApi.dismissResearch(row.job.id),
+                      })}>Remove</button>
                       <Link href={href} className="nl-plan-cta is-primary">Review <ArrowUpRight aria-hidden="true" /></Link>
                     </div>
                   </div>

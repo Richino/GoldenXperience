@@ -217,13 +217,18 @@ test("upcoming high-impact news is listed on the plan", () => {
   }
 });
 
-test("a minimum reward/risk the zones cannot meet gives NO_VALID_SETUP, with reasons", () => {
+test("low estimated reward/risk keeps both conditional scenarios without lowering the entry threshold", () => {
   const original = TRADE_PLAN_CONFIG.minRewardRisk;
   (TRADE_PLAN_CONFIG as { minRewardRisk: number }).minRewardRisk = 50;
   try {
     const strict = generateTradePlans(inputFor(base));
-    assert.equal(strict.result, "NO_VALID_SETUP");
-    assert.ok(strict.rejected.some((item) => /reward\/risk/i.test(item.reason)));
+    assert.equal(strict.result, "PLANS");
+    assert.deepEqual(strict.plans.map((plan) => plan.direction).sort(), ["BUY", "SELL"]);
+    for (const plan of strict.plans) {
+      assert.equal((plan.plan.entryReadiness as { status: string }).status, "WAITING_FOR_RISK_REWARD");
+      assert.equal((plan.plan.rules as { minRewardRisk: number }).minRewardRisk, 50);
+      assert.equal(validateTradePlanInput(plan, new Date(NOW)), null);
+    }
   } finally {
     (TRADE_PLAN_CONFIG as { minRewardRisk: number }).minRewardRisk = original;
   }

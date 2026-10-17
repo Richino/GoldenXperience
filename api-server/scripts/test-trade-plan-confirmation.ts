@@ -390,4 +390,20 @@ test("each plan names the candles it is judged on", () => {
   assert.deepEqual(planTimeframes(reversalPlan), ["M15"]);
 });
 
+test("future breakout scenarios wait for approach; legacy approved rules stay unchanged", () => {
+  const farBelow: Ohlc[] = Array.from({ length: 4 }, () => [1.097, 1.0974, 1.0968, 1.0972]);
+  const conditional = { ...breakoutPlan, plan: { ...breakoutPlan.plan, rules: { ...(breakoutPlan.plan.rules as object), waitForApproach: true } } };
+  assert.equal(run(conditional, farBelow).outcome, "WAITING", "being below future resistance is not a failed breakout");
+  assert.equal(run(breakoutPlan, farBelow).outcome, "INVALIDATED", "older approvals retain their frozen rule");
+  const failedApproach: Ohlc[] = [[1.0991, 1.0994, 1.0986, 1.0988], [1.0988, 1.0989, 1.0985, 1.0987], [1.0987, 1.0988, 1.0985, 1.0986], [1.0986, 1.0987, 1.0984, 1.0985]];
+  assert.equal(run(conditional, failedApproach).outcome, "INVALIDATED", "a failed approach still ends this side");
+});
+
+test("a visible conditional scenario cannot confirm below its frozen reward/risk threshold", () => {
+  const blocked = { ...breakoutPlan, plan: { ...breakoutPlan.plan, entryReadiness: { status: "WAITING_FOR_RISK_REWARD" }, rules: { ...(breakoutPlan.plan.rules as object), minRewardRisk: 50 } } };
+  const result = run(blocked, [...BREAKOUT, ...RETEST, CONTINUATION]);
+  assert.notEqual(result.outcome, "CONFIRMED");
+  assert.equal(result.proposal, null);
+});
+
 console.log(`trade plan confirmation: ${passed} checks passed`);

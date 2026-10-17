@@ -400,15 +400,20 @@ await test("optional gate: Auto trade can refuse to enter against opposing resea
   assert.equal(executionChecks({ ...execBase, research: { required: false, fresh: true, reason: null, blockWhenOpposed: true, alignment: "supports" } }).ok, true);
 });
 
-await test("Test 8 — no forced trade: poor reward/risk gives NO_VALID_SETUP whatever the research says", () => {
+await test("Test 8 — both low-RR scenarios remain conditional; research cannot lower their entry threshold", () => {
   const config = TRADE_PLAN_CONFIG as unknown as { minRewardRisk: number };
   const original = config.minRewardRisk;
   config.minRewardRisk = 50;
   try {
     const generated = generateTradePlans({ instrument: "EUR_USD", ...marketOf(DOWN), maxRiskPercent: 1 });
     attachIntelligence(generated.plans, intel("bullish"), contextOptions);
-    assert.equal(generated.result, "NO_VALID_SETUP");
-    assert.equal(generated.plans.length, 0);
+    assert.equal(generated.result, "PLANS");
+    assert.equal(generated.plans.length, 2);
+    for (const plan of generated.plans) {
+      assert.equal((plan.plan.entryReadiness as { status: string }).status, "WAITING_FOR_RISK_REWARD");
+      assert.equal((plan.plan.rules as { minRewardRisk: number }).minRewardRisk, 50);
+    }
+    assert.ok(generated.plans.every((plan) => (plan.rewardRisk ?? 0) < 50));
   } finally {
     config.minRewardRisk = original;
   }

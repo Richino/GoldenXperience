@@ -9283,7 +9283,8 @@ html:is(.dark, :not(.dark)) body .pending-entry-backdrop[data-keyboard-open="tru
 }
 
 .nl-plan[data-kind="generating"] { --plan-rail: var(--pending); }
-.nl-plan[data-kind="review"] { --plan-rail: var(--accent); }
+.nl-plan[data-kind="review"],
+.nl-plan[data-kind="completed"] { --plan-rail: var(--accent); }
 .nl-plan[data-kind="watching"] { --plan-rail: var(--foreground); }
 .nl-plan[data-kind="failed"] { --plan-rail: var(--danger); }
 

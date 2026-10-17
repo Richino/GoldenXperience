@@ -240,6 +240,14 @@ try {
   const buy = await insertPlan("BUY", "MONITORING");
   const sell = await insertPlan("SELL", "MONITORING");
 
+  await test("invalidating one approved scenario leaves the opposite side monitoring", async () => {
+    await client.query("SAVEPOINT opposite_survives");
+    await client.query("UPDATE trade_plans SET status='INVALIDATED' WHERE id=$1", [buy]);
+    assert.equal((await client.query("SELECT status FROM trade_plans WHERE id=$1", [sell])).rows[0].status, "MONITORING");
+    assert.equal((await client.query("SELECT count(*)::int AS n FROM trade_plan_execution_attempts WHERE plan_id=ANY($1::uuid[])", [[buy, sell]])).rows[0].n, 0, "invalidation alone does not place the opposite trade");
+    await client.query("ROLLBACK TO SAVEPOINT opposite_survives");
+  });
+
   await test("Test 6 — an approved plan is locked: levels, rules, expiry and mode cannot change in place", async () => {
     for (const change of ["stop_loss=1.28", "take_profit=1.4", "entry_zone_low=1.29", "expires_at=expires_at+interval '1 day'", "plan='{\"rules\":{\"x\":1}}'::jsonb", "monitoring_mode='NOTIFY'"]) {
       await client.query("SAVEPOINT s");

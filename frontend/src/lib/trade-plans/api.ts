@@ -23,6 +23,7 @@ export interface PlanCondition {
 }
 
 export interface PlanBody {
+  entryReadiness?: { status: "WAITING_FOR_RISK_REWARD" | "WAITING_FOR_CONFIRMATION"; estimatedRewardRisk: number; minRewardRisk: number; reason: string };
   entryTrigger?: string;
   confirmation?: string[];
   stopLossRule?: string;

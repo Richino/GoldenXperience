@@ -2,7 +2,7 @@
 
 import { precisionFor } from "@/lib/instruments/catalog";
 import type { MarketIntelligence } from "@/lib/trade-plans/api";
-import { OBSERVED_LABEL, FUNDAMENTAL_LABEL, FORWARD_LABEL, type MarketStateView } from "@/lib/trade-plans/market-state";
+import { FUNDAMENTAL_LABEL, FORWARD_LABEL, type MarketStateView } from "@/lib/trade-plans/market-state";
 import styles from "./market-read.module.css";
 
 const at = (iso: string) => new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" });
@@ -22,20 +22,24 @@ export function MarketStateRead({ view, intel, historical = false }: { view: Mar
   </div>;
   return <>
     {historical ? <p className={styles.fresh} data-stale>Previously saved snapshot. Current data checks do not pass; the views below describe that earlier observation.</p> : null}
-    <p className={styles.summary}><strong>{OBSERVED_LABEL[s.observed.classification]}</strong> — {s.observed.explanation}</p>
-    <p className={styles.meta}>Observed on {s.observed.timeframe} · latest completed candle {s.observed.asOf ? at(s.observed.asOf) : "unavailable"}{s.source.marketOpen ? "" : " · market closed; last completed market data"}</p>
-    {s.quality.status === "PARTIAL" ? <p className={styles.meta}>Partial evidence coverage — the known gaps are listed below.</p> : null}
-    <dl className={styles.outlook}>
-      <div><dt>Fundamental environment</dt><dd>{FUNDAMENTAL_LABEL[s.fundamental.classification]}</dd></div>
-      <div><dt>{historical ? "Snapshot near-term lean" : "Near-term lean"}</dt><dd>{FORWARD_LABEL[s.forward.shortTerm.classification]}</dd></div>
-      <div><dt>{historical ? "Snapshot swing lean" : "Swing 2–5 days"}</dt><dd>{FORWARD_LABEL[s.forward.swing.classification]}</dd></div>
-      <div><dt>Trade readiness</dt><dd>Plan-specific</dd></div>
+    {/* At a glance: the read (its label is the chip above), three leans, one status line. Everything else is in the details. */}
+    <p className={styles.summary}>{s.observed.explanation}</p>
+    <dl className={styles.outlook} data-count="3">
+      <div><dt>Fundamentals</dt><dd>{FUNDAMENTAL_LABEL[s.fundamental.classification]}</dd></div>
+      <div><dt>{historical ? "Then · near term" : "Near term"}</dt><dd>{FORWARD_LABEL[s.forward.shortTerm.classification]}</dd></div>
+      <div><dt>{historical ? "Then · swing" : "Swing 2–5 days"}</dt><dd>{FORWARD_LABEL[s.forward.swing.classification]}</dd></div>
     </dl>
-    <p className={styles.summary}><strong>Near term:</strong> {s.forward.shortTerm.explanation}</p>
-    <p className={styles.summary}><strong>Swing:</strong> {s.forward.swing.explanation}</p>
-    <p className={styles.meta}>Both BUY and SELL scenarios keep their own triggers. The first valid plan confirmation decides readiness; this interpretation never places a trade.</p>
+    <p className={styles.status}>
+      {s.observed.timeframe} · last candle {s.observed.asOf ? at(s.observed.asOf) : "unavailable"}
+      {s.source.marketOpen ? "" : " · market closed"}
+      {s.quality.status === "PARTIAL" ? " · partial evidence" : ""}
+    </p>
     <details className={styles.more}>
       <summary>Why GX reads it this way</summary>
+      <h4 className={styles.sub}>The leans</h4>
+      <p className={styles.text}><strong>Near term:</strong> {s.forward.shortTerm.explanation}</p>
+      <p className={styles.text}><strong>Swing:</strong> {s.forward.swing.explanation}</p>
+      <p className={styles.fine}>Both BUY and SELL plans keep their own triggers; the first valid confirmation decides. This read never places a trade.</p>
       <h4 className={styles.sub}>Observed price evidence</h4>
       <ul className={styles.points}>{s.observed.evidence.map((e, i) => <li key={i}>{e}</li>)}</ul>
       <h4 className={styles.sub}>Economic catalysts</h4>

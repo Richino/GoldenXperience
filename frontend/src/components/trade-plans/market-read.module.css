@@ -490,3 +490,31 @@
 .card > .more > summary {
   min-height: 2.75rem;
 }
+
+/* Market state at a glance: three lean tiles and one quiet status line. */
+.card .outlook[data-count="3"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@container (max-width: 380px) {
+  /* Narrow column: fundamentals across the top, the two leans side by side. */
+  .card .outlook[data-count="3"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .card .outlook[data-count="3"] div:first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+.status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.6875rem;
+  letter-spacing: 0.01em;
+}
+
+/* The freshness note goes last, so the two expandable rows sit together. */
+.card > .fresh {
+  order: 1;
+}

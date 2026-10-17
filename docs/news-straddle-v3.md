@@ -4,7 +4,7 @@ This version replaces new News-mode entries only. Normal manual entries, AI plan
 
 ## Approved behavior
 
-- The user selects a verified high-impact release 15 seconds to 5 hours ahead, checks broker risk, then explicitly arms. No AI call is made. The browser countdown is display only.
+- GX selects the next verified high-impact release 15 seconds to 5 hours ahead. The user clicks **Accept** once; the existing server endpoint checks broker risk and the calendar before starting monitoring with the default settings. No separate check button, settings form or AI call is required. The browser countdown is display only. Technical status is collapsed under Details.
 - Backend preflight starts T−12s, freezes executable ask/bid-based levels around T−3s and attempts two independent native STOP submissions at T−2s. More than 250ms late means skip. Actual HTTP dispatch, acknowledgment and broker fill timestamps are distinct audit fields.
 - BUY is ask + offset; SELL is bid − offset. STOP price bounds reject unacceptable entry gaps. Broker GTD expiry backs up the configurable entry window (default 60 seconds).
 - Every submitted STOP includes an initial stop-loss distance on fill. No fixed TP is sent. The original stop defines 1R; realized losses can exceed it.

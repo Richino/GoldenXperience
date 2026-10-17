@@ -1,6 +1,14 @@
 .ticket, .status { display: flex; min-width: 0; flex-direction: column; gap: 14px; }
 .intro, .cardTitle { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .intro h3 { margin: 0; font-size: 17px; line-height: 1.35; }
+.description { margin: 0; color: var(--muted-strong); font-size: 14px; line-height: 1.65; }
+.event { display: grid; gap: 8px; padding: 20px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface-raised); }
+.eyebrow { color: var(--muted); font-size: 11px; font-weight: 600; }
+.event h4 { margin: 0; color: var(--foreground); font-size: 19px; line-height: 1.35; }
+.event p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.event .countdown { margin-top: 4px; font-size: 15px; font-weight: 600; }
+.risk { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; padding: 14px 0; border-block: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+.risk strong { color: var(--foreground); font-weight: 600; }
 .badge, .impact { flex: none; padding: 4px 7px; border-radius: 7px; background: var(--accent-soft); color: var(--accent); font-size: 10px; font-weight: 700; }
 .impact { background: var(--danger-soft); color: var(--danger); }
 .note, .subtle { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
@@ -22,6 +30,7 @@
 .more { padding: 12px 0; border-block: 1px solid var(--border); }
 .more summary { min-height: 32px; color: var(--muted-strong); font-size: 13px; cursor: pointer; }
 .more[open] summary { margin-bottom: 12px; }
+.status .more > .card, .status .more > .note, .status .more > .timeline { margin-top: 14px; }
 .warning { margin: 0; padding: 12px; border: 1px solid color-mix(in srgb,var(--pending) 35%,var(--border)); border-radius: 10px; background: var(--pending-soft); color: var(--pending); font-size: 12px; line-height: 1.5; }
 .ticket .check, .warning button, .stop button { min-height: 44px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-raised); color: var(--foreground); font-size: 13px; font-weight: 600; cursor: pointer; }
 .check { width: 100%; margin-top: 12px; }

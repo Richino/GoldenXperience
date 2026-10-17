@@ -9547,3 +9547,44 @@ html:is(.dark, :not(.dark)) body .pending-entry-backdrop[data-keyboard-open="tru
   opacity: 0.6;
   cursor: progress;
 }
+
+/* Plans confirmation: the Analyze sheet on phones, a centred card on desktop. */
+.nl-plan-confirm .nl-an-body {
+  gap: 12px;
+}
+
+.nl-plan-confirm-title {
+  margin: 4px 0 0;
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.nl-plan-confirm-body {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.nl-plan-confirm-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.nl-plan-confirm-actions {
+  margin-top: 8px;
+}
+
+.nl-an-primary.nl-plan-confirm-danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+@media (min-width: 1024px) {
+  .nl-an-sheet.nl-mp.nl-plan-confirm {
+    width: min(420px, 100%);
+  }
+}

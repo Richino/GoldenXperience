@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowUpRight, Sparkles } from "lucide-react";
 import { displayNameFor, precisionFor } from "@/lib/instruments/catalog";
+import { PlanConfirm, type PlanConfirmRequest } from "@/components/dashboard/plan-confirm";
 import { JOB_RUNNING, STATUS_LABEL, tradePlansApi, type Lean, type MarketIntelligence, type ResearchJob, type TradePlan } from "@/lib/trade-plans/api";
 
 /**
@@ -158,8 +159,8 @@ export function LedgerPlans() {
   /** Pairs whose research has been looked up (with or without a read). */
   const [checked, setChecked] = useState<Record<string, true>>({});
   const [error, setError] = useState<string | null>(null);
-  /** The job a Cancel or Remove is in flight for. */
-  const [acting, setActing] = useState<string | null>(null);
+  /** The Cancel or Remove waiting for confirmation. */
+  const [confirm, setConfirm] = useState<PlanConfirmRequest | null>(null);
   const fetchedAt = useRef<Record<string, number>>({});
 
   const loadBriefs = useCallback(async (instruments: string[]) => {
@@ -209,17 +210,9 @@ export function LedgerPlans() {
     return () => { window.clearTimeout(first); window.clearInterval(timer); window.removeEventListener(PLANS_CHANGED, changed); };
   }, [load]);
 
-  const act = async (jobId: string, work: () => Promise<unknown>) => {
-    setActing(jobId);
-    try {
-      await work();
-      await load();
-    } catch {
-      setError("That did not work. Try again.");
-    } finally {
-      setActing(null);
-    }
-  };
+  /** Ask first; the action runs (and the list reloads) only after the user confirms. */
+  const ask = (request: Omit<PlanConfirmRequest, "run"> & { work: () => Promise<unknown> }) =>
+    setConfirm({ ...request, run: async () => { await request.work(); await load(); } });
 
   const count = rows?.length ?? 0;
   return (
@@ -252,8 +245,13 @@ export function LedgerPlans() {
                   <div className="nl-plan-bottom">
                   <p className="nl-plan-foot">{row.job.error ? `${row.job.error} ` : ""}Started {ago(row.job.startedAt ?? row.job.createdAt)}. We&apos;ll notify you when the plans are ready.</p>
                     {JOB_RUNNING.includes(row.job.status) ? (
-                      <button type="button" className="nl-plan-cta is-quiet" disabled={acting === row.job.id} onClick={() => void act(row.job.id, () => tradePlansApi.cancelResearch(row.job.id))} aria-label={`Cancel the ${pair} research`}>
-                        {acting === row.job.id ? "Cancelling…" : "Cancel"}
+                      <button type="button" className="nl-plan-cta is-quiet" aria-label={`Cancel the ${pair} research`} onClick={() => ask({
+                        eyebrow: `Plans · ${pair}`, title: `Cancel the ${pair} research?`,
+                        body: "The research stops now and no plans are built. You can analyze the pair again later.",
+                        keepLabel: "Keep researching", confirmLabel: "Cancel research", busyLabel: "Cancelling…",
+                        work: () => tradePlansApi.cancelResearch(row.job.id),
+                      })}>
+                        Cancel
                       </button>
                     ) : null}
                   </div>
@@ -270,8 +268,13 @@ export function LedgerPlans() {
                   <p className="nl-plan-foot">{row.job.error ?? "The research did not finish."} No plans were built.</p>
                   <div className="nl-plan-actions">
                     <Link href={`/chart?instrument=${encodeURIComponent(row.instrument)}`} className="nl-plan-cta">Try again <ArrowUpRight aria-hidden="true" /></Link>
-                    <button type="button" className="nl-plan-cta is-quiet" disabled={acting === row.job.id} onClick={() => void act(row.job.id, () => tradePlansApi.dismissResearch(row.job.id))} aria-label={`Remove ${pair} from Plans`}>
-                      {acting === row.job.id ? "Removing…" : "Remove"}
+                    <button type="button" className="nl-plan-cta is-quiet" aria-label={`Remove ${pair} from Plans`} onClick={() => ask({
+                      eyebrow: `Plans · ${pair}`, title: `Remove ${pair} from Plans?`,
+                      body: "This clears the unfinished research from your Plans. Nothing else changes.",
+                      keepLabel: "Keep it", confirmLabel: "Remove", busyLabel: "Removing…",
+                      work: () => tradePlansApi.dismissResearch(row.job.id),
+                    })}>
+                      Remove
                     </button>
                   </div>
                 </article>
@@ -290,8 +293,13 @@ export function LedgerPlans() {
                     <span className="nl-plan-foot">Built {ago(row.plans[0]!.createdAt)} · nothing is watched until you accept</span>
                     <div className="nl-plan-actions">
                       {/* Remove declines these plans (recorded as rejected); nothing was being watched. */}
-                      <button type="button" className="nl-plan-cta is-quiet" disabled={acting === row.plans[0]!.analysisId} onClick={() => void act(row.plans[0]!.analysisId, () => Promise.all(row.plans.map((plan) => tradePlansApi.reject(plan.id, "Removed from Plans"))))} aria-label={`Remove the ${pair} plans`}>
-                        {acting === row.plans[0]!.analysisId ? "Removing…" : "Remove"}
+                      <button type="button" className="nl-plan-cta is-quiet" aria-label={`Remove the ${pair} plans`} onClick={() => ask({
+                        eyebrow: `Plans · ${pair}`, title: `Remove the ${pair} plans?`,
+                        body: `This declines the ${row.plans.map((plan) => plan.direction).join(" and ")} plan${row.plans.length > 1 ? "s" : ""}. They were not being watched and can't be restored; analyze the pair again for new ones.`,
+                        keepLabel: "Keep them", confirmLabel: "Remove plans", busyLabel: "Removing…",
+                        work: () => Promise.all(row.plans.map((plan) => tradePlansApi.reject(plan.id, "Removed from Plans"))),
+                      })}>
+                        Remove
                       </button>
                       <Link href={href} className="nl-plan-cta is-primary">Review <ArrowUpRight aria-hidden="true" /></Link>
                     </div>
@@ -321,6 +329,7 @@ export function LedgerPlans() {
         <p className="nl-card-empty">No plans yet. Press Analyze on a chart: GX researches the pair, then builds its BUY and SELL plans here.</p>
       )}
       {error ? <p className="nl-card-empty is-warn" role="status">{error}</p> : null}
+      <PlanConfirm request={confirm} onDone={() => setConfirm(null)} />
     </section>
   );
 }

@@ -210,6 +210,18 @@ export async function researchJobForUser(userId: string, jobId: string, db: Db =
   return row ? { ...jobView(row), plans: row.plans_result ? { result: row.plans_result, reason: row.plans_reason } : null } : null;
 }
 
+/** Your research jobs that are running, or ended in the last day (with the plans each built for you). */
+export async function researchJobsForUser(userId: string, db: Db = pool) {
+  const found = await db.query<JobRow & { plans_result: string | null; plans_reason: string | null }>(
+    `SELECT ${JOB_COLUMNS.split(",").map((column) => `j.${column.trim()}`).join(",")}, w.plans_result, w.plans_reason FROM research_jobs j
+       JOIN research_job_watchers w ON w.job_id=j.id AND w.user_id=$1
+      WHERE j.status IN ${ACTIVE_SQL} OR j.created_at > now() - interval '1 day'
+      ORDER BY j.created_at DESC LIMIT 30`,
+    [userId],
+  );
+  return found.rows.map((row) => ({ ...jobView(row), plans: row.plans_result ? { result: row.plans_result, reason: row.plans_reason } : null }));
+}
+
 // ── The worker ────────────────────────────────────────────────────
 
 export type JobDeps = {

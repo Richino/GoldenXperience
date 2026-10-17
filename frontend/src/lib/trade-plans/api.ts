@@ -330,6 +330,8 @@ export const tradePlansApi = {
   research: (instrument: string) => request<ResearchResult>(`/api/intelligence/${instrument}`),
   /** Start (or join) background research for the pair when its research is stale; returns at once. */
   refreshResearch: (instrument: string, force = false) => post<ResearchResult>(`/api/intelligence/${instrument}/refresh`, { force }),
+  /** Your research jobs: running, or ended in the last day (with the plans each built). */
+  researchJobs: () => request<{ jobs: ResearchJob[] }>("/api/research-jobs"),
   researchJob: (jobId: string) => request<{ job: ResearchJob }>(`/api/research-jobs/${jobId}`),
   cancelResearch: (jobId: string) => post<{ cancelled: boolean; reason: string | null }>(`/api/research-jobs/${jobId}/cancel`),
   autoTrade: () => request<AutoTradeSettings>("/api/trade-plans/auto-trade"),

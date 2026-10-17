@@ -9249,3 +9249,71 @@ html:is(.dark, :not(.dark)) body .pending-entry-backdrop[data-keyboard-open="tru
 /* Trend chips in place of the tradability tag in pair lists. */
 .nl-trend.nl-trend-compact { gap: 4px; margin-top: 3px; }
 .nl-trend-compact .nl-trend-chip { font-size: 11px; padding-block: 1px; }
+
+/* Plans: research in progress, plans to review, plans being watched. */
+.nl-plans {
+  gap: 14px;
+}
+
+.nl-plan-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted-strong);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.nl-plan-state.is-generating { color: var(--pending); }
+.nl-plan-state.is-review { background: var(--accent-soft); color: var(--accent); }
+.nl-plan-state.is-failed { background: var(--danger-soft); color: var(--danger); }
+
+.nl-plan-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .nl-plan-dot { animation: nl-plan-pulse 1.4s ease-in-out infinite; }
+}
+
+@keyframes nl-plan-pulse {
+  50% { opacity: 0.3; }
+}
+
+.nl-plan-sides {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+}
+
+.nl-plan-sides li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+.nl-plan-sl {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.nl-plan-link {
+  display: inline-flex;
+  align-items: center;
+  color: var(--foreground);
+  text-decoration: none;
+}
+
+@media (max-width: 1023px) {
+  .nl-plans { order: 1; }
+}

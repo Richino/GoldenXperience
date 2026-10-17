@@ -66,7 +66,7 @@ import { confirmationProgress, editTradePlan, generateAndStoreTradePlans } from 
 import { startTradePlanMonitor } from "./trade-plan-monitor.js";
 import { autoTradeSettings, saveAutoTradeSettings } from "./trade-plan-settings.js";
 import { latestResearch, researchUsage } from "./intelligence/research-service.js";
-import { cancelResearchJob, handleOpenAIWebhook, refreshDueResearch, requestResearch, researchJobForUser, startResearchWorker } from "./intelligence/research-jobs.js";
+import { cancelResearchJob, handleOpenAIWebhook, refreshDueResearch, requestResearch, researchJobForUser, researchJobsForUser, startResearchWorker } from "./intelligence/research-jobs.js";
 import { TradePlanError, approveAnalysis, approveTradePlan, cancelTradePlan, getTradePlan, listTradePlans, pauseTradePlan, rejectTradePlan, resumeTradePlan } from "./trade-plans.js";
 import {
   activateDuePendingManualEntries,
@@ -504,6 +504,9 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       const payload = await body(request);
       // Analyze: reuses fresh research or a running job; otherwise starts one background job within budget. Returns at once.
       return tradePlanResponse(request, response, () => requestResearch(user.id, instrument, { force: payload?.force === true }));
+    }
+    if (url.pathname === "/api/research-jobs" && request.method === "GET") {
+      return tradePlanResponse(request, response, async () => ({ jobs: await researchJobsForUser(user.id) }));
     }
     const researchJobMatch = url.pathname.match(/^\/api\/research-jobs\/([0-9a-f-]{36})(\/cancel)?$/i);
     if (researchJobMatch && !researchJobMatch[2] && request.method === "GET") {

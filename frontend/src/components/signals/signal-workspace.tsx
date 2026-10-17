@@ -47,6 +47,7 @@ import {
   type ChartReferenceLine,
 } from "@/components/charts/setup-chart";
 import { PendingEntryDialog } from "@/components/charts/pending-entry-dialog";
+import { newsZoneOverlay, newsStateOf, type NewsDraft } from "@/lib/news/news-zone-overlay";
 import { TrendLabel } from "@/components/charts/trend-label";
 import { ChartHealthCard, ChartLevelEditor, ChartNewsCard, ChartPendingLevelsCard, ChartOhlcReadout, type ChartHealthLevels, type ChartPositionCardSignal } from "@/components/charts/chart-ledger-parts";
 import {
@@ -571,21 +572,15 @@ function displacementBox(key: string, candle: DisplacementCandle): ChartBox {
   };
 }
 
-/**
- * A News-mode zone: its entry edge (`distance` pips from the anchor) and far
- * edge (`depth` pips further). While the setup waits for its anchor (set
- * from the live price a minute before the release) it follows the live price.
- */
-function newsZoneOf(entry: PendingManualEntry, liveMid: number | null) {
-  const meta = entry.metadata as { mode?: string; execution?: string; distancePips?: number; slippagePips?: number };
-  if (meta.mode !== "news") return null;
-  const pip = pipSizeFor(entry.instrument);
-  const sign = entry.direction === "long" ? 1 : -1;
-  const waiting = meta.execution === "news_waiting";
-  const near = waiting && liveMid !== null && meta.distancePips ? liveMid + sign * meta.distancePips * pip : entry.entryPrice;
-  const far = near + sign * (meta.slippagePips ?? 0) * pip;
-  const precision = precisionFor(entry.instrument);
-  return { near: Number(near.toFixed(precision)), far: Number(far.toFixed(precision)), waiting };
+/** A filled News trade's entry label: side, fill, slippage vs the triggering quote, spread, time left. */
+function newsFillLabel(entry: PendingManualEntry, now: number) {
+  const meta = entry.metadata as { mode?: string; slippageVsQuotePips?: number; spreadAtFillPips?: number | null; timeExitAt?: string | null };
+  if (meta.mode !== "news" || entry.triggerPrice === null) return null;
+  const parts = [`NEWS ${entry.direction === "long" ? "BUY" : "SELL"} ${formatChartPrice(entry.triggerPrice, entry.instrument)}`];
+  if (typeof meta.slippageVsQuotePips === "number") parts.push(`${meta.slippageVsQuotePips >= 0 ? "+" : ""}${meta.slippageVsQuotePips}p slip`);
+  if (typeof meta.spreadAtFillPips === "number") parts.push(`spread ${meta.spreadAtFillPips}p`);
+  if (meta.timeExitAt) parts.push(`${Math.max(0, Math.ceil((Date.parse(meta.timeExitAt) - now) / 60_000))}m left`);
+  return parts.join(" · ");
 }
 
 function fvgBox(key: string, fvg: FvgZone): ChartBox {
@@ -2684,6 +2679,8 @@ export function SignalWorkspace({
   const [tradeActionError, setTradeActionError] = useState<string | null>(null);
   const [tradeConfirm, setTradeConfirm] = useState<"cancel" | "close" | null>(null);
   const [pendingEntryDialogOpen, setPendingEntryDialogOpen] = useState(false);
+  // The News ticket's unsaved settings, drawn on the chart as DRAFT zones.
+  const [newsDraft, setNewsDraft] = useState<NewsDraft | null>(null);
   const [selectedPendingEntry, setSelectedPendingEntry] = useState<PendingManualEntry | null>(null);
   const [pendingEntryNotice, setPendingEntryNotice] = useState<string | null>(null);
   const [pendingEntryClock, setPendingEntryClock] = useState(() => Date.now());
@@ -3716,18 +3713,40 @@ export function SignalWorkspace({
     }) : null,
     [openSignal, focusTrade, openPaperTrade, triggeredManualEntry],
   );
-  // A News-mode setup is two linked zones; selecting either draws both.
-  const selectedStraddleId = typeof selectedPairTrade?.metadata?.straddleId === "string" ? selectedPairTrade.metadata.straddleId : null;
-  // Only a setup still waiting for its anchor follows the live price.
-  const newsWaitingMid = pendingEntries.some((entry) => entry.status === "PENDING" && entry.metadata?.execution === "news_waiting") && quote
-    ? Number(((quote.bid + quote.ask) / 2).toFixed(precisionFor(instrument)))
+  // News-mode zones come from the server's setup state (news-zone-overlay).
+  // Only previews follow the live price, and only to the nearest pip, so the
+  // overlay is rebuilt when price moves a pip rather than on every tick.
+  const newsPreviewWanted = newsDraft !== null || pendingEntries.some((entry) => entry.metadata?.mode === "news" && ["ARMED", "LOCKING"].includes(newsStateOf(entry)));
+  const newsLiveMid = newsPreviewWanted && quote
+    ? Math.round((quote.bid + quote.ask) / 2 / pipSizeFor(instrument)) * pipSizeFor(instrument)
     : null;
+  const newsOverlay = useMemo(
+    () => newsZoneOverlay({
+      instrument,
+      entries: pendingEntries,
+      liveMid: newsLiveMid,
+      now: pendingEntryClock,
+      draft: newsDraft,
+      viewedPaperTradeId: focusTrade?.id ?? null,
+      formatPrice: (price) => formatChartPrice(price, instrument),
+    }),
+    [focusTrade?.id, instrument, newsDraft, newsLiveMid, pendingEntries, pendingEntryClock],
+  );
+  const newsOverlayLines = useMemo<ChartReferenceLine[]>(
+    () => newsOverlay.lines.map(({ entryId, ...line }) => {
+      const entry = pendingEntries.find((candidate) => candidate.id === entryId);
+      return { ...line, onSelect: entry ? () => openPendingEntryManager(entry) : undefined };
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- openPendingEntryManager is recreated each render, as in pendingEntryReferenceLines
+    [newsOverlay.lines, pendingEntries],
+  );
   const pendingEntryReferenceLines = useMemo(() => {
     const openManager = (entry: PendingManualEntry) => {
       openPendingEntryManager(entry);
     };
-    return pendingEntries.filter((entry) => entry.id === selectedPairTrade?.id
-      || (selectedStraddleId !== null && entry.status === "PENDING" && entry.metadata?.straddleId === selectedStraddleId)).flatMap((entry) => {
+    return pendingEntries.filter((entry) => entry.id === selectedPairTrade?.id).flatMap((entry) => {
+      // A News setup's zones are drawn by newsOverlay for every state.
+      if (entry.metadata?.mode === "news" && (entry.status === "PENDING" || entry.status === "TRIGGERING")) return [];
       if (entry.status === "PENDING" || entry.status === "TRIGGERING") {
         const editingLevels = levelDraftEntryId === entry.id;
         const remaining = entry.expiresAt
@@ -3737,13 +3756,10 @@ export function SignalWorkspace({
         const countdown = remainingMinutes === null ? "" : remainingMinutes >= 60
           ? ` • ${Math.floor(remainingMinutes / 60)}h ${remainingMinutes % 60}m`
           : ` • ${remainingMinutes}m`;
-        const zone = newsZoneOf(entry, newsWaitingMid);
         const lines: ChartReferenceLine[] = [{
           key: `pending-${entry.id}`,
-          price: zone?.near ?? entry.entryPrice,
-          label: zone
-            ? `NEWS ${entry.direction === "long" ? "BUY" : "SELL"} ZONE ${formatChartPrice(zone.near, instrument)}–${formatChartPrice(zone.far, instrument)}${zone.waiting && entry.activateAt ? ` · sets ${new Date(entry.activateAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : countdown}`
-            : `${entry.direction.toUpperCase()} ENTRY ${formatChartPrice(entry.entryPrice, instrument)}${countdown}`,
+          price: entry.entryPrice,
+          label: `${entry.direction.toUpperCase()} ENTRY ${formatChartPrice(entry.entryPrice, instrument)}${countdown}`,
           color: entry.direction === "long" ? "#00b377" : "#e67e22",
           textColor: "#ffffff",
           dashed: false,
@@ -3802,7 +3818,7 @@ export function SignalWorkspace({
       if (entry.status === "TRIGGERED" && entry.paperTradeStatus === "open" && entry.triggerPrice !== null) {
         const editing = levelDraftEntryId === entry.id;
         const lines: ChartReferenceLine[] = [
-          { key: `manual-entry-${entry.id}`, price: entry.triggerPrice, label: `ENTRY ${formatChartPrice(entry.triggerPrice, instrument)}`, color: "#00a06a", textColor: "#ffffff", dashed: false, lineWidth: 2 as const, onSelect: () => openManager(entry) },
+          { key: `manual-entry-${entry.id}`, price: entry.triggerPrice, label: newsFillLabel(entry, pendingEntryClock) ?? `ENTRY ${formatChartPrice(entry.triggerPrice, instrument)}`, color: "#00a06a", textColor: "#ffffff", dashed: false, lineWidth: 2 as const, onSelect: () => openManager(entry) },
         ];
         const stopAtRisk = entry.stopPrice !== null && (entry.direction === "long" ? entry.stopPrice < entry.triggerPrice : entry.stopPrice > entry.triggerPrice);
         if (entry.stopPrice !== null && !editing) lines.push({ key: `manual-stop-${entry.id}`, price: entry.stopPrice, label: `SL ${formatChartPrice(entry.stopPrice, instrument)}${stopAtRisk ? " · -1R" : ""}`, color: "#e74c3c", textColor: "#ffffff", dashed: true, lineWidth: 1 as const, onSelect: () => openManager(entry) });
@@ -3811,7 +3827,7 @@ export function SignalWorkspace({
       }
       return [];
     });
-  }, [instrument, levelDraftEntryId, newsWaitingMid, pendingEntries, pendingEntryClock, selectedPairTrade?.id, selectedStraddleId]);
+  }, [instrument, levelDraftEntryId, pendingEntries, pendingEntryClock, selectedPairTrade?.id]);
   const supportResistanceReferenceLines = useMemo(
     () => isChartIndicatorEnabled(enabledIndicators, "support-resistance")
       ? supportResistanceLines(chartIndicatorCandles, instrument)
@@ -3989,32 +4005,14 @@ export function SignalWorkspace({
     () => amdEnabled && amdFvgEnabled ? computeAmdDays(amdM15Candles, instrument) : [],
     [amdEnabled, amdFvgEnabled, amdM15Candles, instrument],
   );
-  // Every armed or waiting News-mode zone on this pair, shaded from a few
-  // hours back to the end of its watch window (faded while it still waits).
-  const newsZoneBoxes = useMemo<ChartBox[]>(
-    () => pendingEntries.flatMap((entry) => {
-      const zone = entry.status === "PENDING" ? newsZoneOf(entry, newsWaitingMid) : null;
-      if (!zone || zone.near === zone.far) return [];
-      return [{
-        key: `news-zone-${entry.id}`,
-        startTime: new Date(Math.min(Date.parse(entry.createdAt), pendingEntryClock) - 3 * 60 * 60_000).toISOString(),
-        endTime: entry.expiresAt ?? new Date(pendingEntryClock + 60 * 60_000).toISOString(),
-        top: Math.max(zone.near, zone.far),
-        bottom: Math.min(zone.near, zone.far),
-        color: entry.direction === "long" ? "#00b377" : "#e67e22",
-        faded: zone.waiting,
-      }];
-    }),
-    [newsWaitingMid, pendingEntries, pendingEntryClock],
-  );
   const chartBoxes = useMemo(
     () => [
-      ...newsZoneBoxes,
+      ...newsOverlay.boxes,
       ...amdSessionBoxes,
       ...amdDays.flatMap((day) => day.fvg ? [fvgBox(`amd-${day.day}-fvg`, day.fvg)] : []),
       ...amdRangeBoxes(amdRanges, amdFvgEnabled),
     ],
-    [newsZoneBoxes, amdSessionBoxes, amdDays, amdFvgEnabled, amdRanges],
+    [newsOverlay.boxes, amdSessionBoxes, amdDays, amdFvgEnabled, amdRanges],
   );
   const lastDaySrReferenceLines = useMemo(
     () => isChartIndicatorEnabled(enabledIndicators, "last-day-sr")
@@ -4142,6 +4140,7 @@ export function SignalWorkspace({
       // A pending order belongs to live trading and would reveal a current
       // decision in a historical replay. Technical indicators remain visible.
       ...(replayActive ? [] : pendingEntryReferenceLines),
+      ...(replayActive ? [] : newsOverlayLines),
       ...supportResistanceReferenceLines,
       ...supportResistance15mReferenceLines,
       ...fibonacciReferenceLines,
@@ -4150,7 +4149,7 @@ export function SignalWorkspace({
       ...frozen4hReferenceLines,
       ...(patternOverlay.lines.length ? [] : breakoutReferenceLines),
     ],
-    [breakoutReferenceLines, fibonacciReferenceLines, frozen4hReferenceLines, lastDaySrReferenceLines, patternOverlay.lines, pendingEntryReferenceLines, replayActive, sessionSrReferenceLines, supportResistance15mReferenceLines, supportResistanceReferenceLines],
+    [breakoutReferenceLines, fibonacciReferenceLines, frozen4hReferenceLines, lastDaySrReferenceLines, newsOverlayLines, patternOverlay.lines, pendingEntryReferenceLines, replayActive, sessionSrReferenceLines, supportResistance15mReferenceLines, supportResistanceReferenceLines],
   );
   // The chart refreshes paper trades in the background. Depending on the whole
   // trade object here made an otherwise identical refresh look like a new
@@ -4749,7 +4748,8 @@ export function SignalWorkspace({
           ask={quote?.ask ?? null}
           selectedEntry={selectedPendingEntry}
           initialProposal={entryDraftProposal ?? initialManualProposal}
-          onClose={() => setPendingEntryDialogOpen(false)}
+          onClose={() => { setPendingEntryDialogOpen(false); setNewsDraft(null); }}
+          onNewsDraft={setNewsDraft}
           onChanged={(message) => {
             setPendingEntryNotice(message);
             void refreshPendingEntries();
@@ -5217,7 +5217,8 @@ export function SignalWorkspace({
         ask={quote?.ask ?? null}
         selectedEntry={selectedPendingEntry}
         initialProposal={entryDraftProposal ?? initialManualProposal}
-        onClose={() => setPendingEntryDialogOpen(false)}
+        onClose={() => { setPendingEntryDialogOpen(false); setNewsDraft(null); }}
+        onNewsDraft={setNewsDraft}
         onChanged={(message) => {
           setPendingEntryNotice(message);
           void refreshPendingEntries();

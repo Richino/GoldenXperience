@@ -25,27 +25,96 @@ import {
 import { reconcileDecision, submitFailureKind } from "./trade-plan-execution-checks.js";
 
 /**
- * News mode: a two-line breakout armed around a release.
+ * News mode: a first-zone-touch breakout around one economic release.
  *
- * A straddle is two linked rows in pending_manual_entries — a buy line above
- * the anchor and a sell line below it — sharing metadata.straddleId. Neither
- * rests at OANDA (the account cannot hold both sides). The server price
- * monitor watches live OANDA quotes; the first line crossed is claimed and
- * the other cancelled in ONE transaction, under an advisory lock and a
- * both-still-PENDING check, and only then is a single market order sent:
+ * A setup is two linked rows in pending_manual_entries (a BUY side and a
+ * SELL side) sharing metadata.straddleId. Nothing rests at OANDA. The
+ * setup's lifecycle is an explicit state machine held in metadata.newsState
+ * on both rows, changed only by compare-and-set transitions (the update
+ * names the states it may move from) under a per-setup advisory lock, with
+ * every step appended to metadata.timeline. The Railway server owns it all;
+ * the browser only reads it.
  *
- *   PENDING ×2 ─cross─▶ winner TRIGGERING + loser CANCELLED (committed first)
- *        │                 │ FOK market, priceBound = line ± slippage, stop by distance from the fill
- *        │                 ├─ filled ──────────▶ TRIGGERED (target moved to fill ± target pips; time exit armed)
- *        │                 ├─ BOUNDS_VIOLATION ▶ FAILED "missed bound" (never chased)
- *        │                 ├─ rejected ────────▶ FAILED
- *        │                 └─ no answer ───────▶ looked up by client id; NEVER resent
- *        └─ window ends ─▶ EXPIRED ×2 (disarmed)
+ *   ARMED ──lock time──▶ (LOCKING) ──▶ ZONES_LOCKED ──release──▶ WATCHING
+ *     zones follow the       no valid      zones frozen;            first zone touch
+ *     live price; no         quote yet:    no trading               │
+ *     trading                retry until                            ▼
+ *                            release, then SKIPPED     TRIGGER_RESERVED (one side, other side off)
+ *                                                                   │ persisted before sending
+ *                                                                   ▼
+ *                                                       ORDER_SUBMITTING ─timeout─▶ ORDER_UNKNOWN
+ *                                                         │        │                  │ looked up by
+ *                                                         │        └─reject──▶ ORDER_REJECTED  client id,
+ *                                                         ▼                           never resent
+ *                                                       FILLED ──time exit──▶ CLOSING ──▶ CLOSED
+ *                                                         └──── stop / target / manual ──▶ CLOSED
+ *   Side exits: EXPIRED (no zone touch in the watch window), SKIPPED (no
+ *   anchor before release, release moved, price jumped past the zone, kill
+ *   switch, reserved but not sent), CANCELLED (by the user before an order),
+ *   ERROR (a fill OANDA would not protect).
+ *
+ * BUY is judged on the executable ask, SELL on the bid. The order is a FOK
+ * market order whose priceBound is the zone's far edge, so OANDA cancels it
+ * rather than fill outside the zone. The stop rides on the order as a
+ * distance from the open price (protected from the instant of the fill);
+ * OANDA has no distance form for a take-profit, so the target is moved to
+ * fill ± target pips right after the fill and read back before it is
+ * reported.
  */
 
+export const NEWS_CONFIG_VERSION = 2;
+/** Releases count as "news ahead" this far out; News mode arms only for one. */
+export const NEWS_LOOKAHEAD_MS = 5 * 60 * 60_000;
+/** Zones lock this long before the release. */
+export const NEWS_LOCK_LEAD_MS = 60_000;
+/** A quote older than this is not used to lock zones or to trigger. */
+export const NEWS_MAX_QUOTE_AGE_MS = 5_000;
 const RECONCILE_AFTER_MS = 15_000;
 const GIVE_UP_AFTER_MS = 3 * 60_000;
-const TIME_EXIT_RETRY_MS = 30_000;
+const RESERVED_ORPHAN_MS = 15_000;
+const CLOSING_RETRY_MS = 30_000;
+
+export const NEWS_STATES = [
+  "ARMED", "LOCKING", "ZONES_LOCKED", "WATCHING", "TRIGGER_RESERVED", "ORDER_SUBMITTING", "ORDER_UNKNOWN",
+  "ORDER_REJECTED", "FILLED", "CLOSING", "CLOSED", "EXPIRED", "SKIPPED", "CANCELLED", "ERROR",
+] as const;
+export type NewsState = typeof NEWS_STATES[number];
+
+/** Every allowed move. Anything else is refused, so a state can never be skipped or reversed. */
+export const NEWS_TRANSITIONS: Record<NewsState, readonly NewsState[]> = {
+  ARMED: ["LOCKING", "ZONES_LOCKED", "SKIPPED", "CANCELLED", "ERROR"],
+  LOCKING: ["ZONES_LOCKED", "SKIPPED", "CANCELLED", "ERROR"],
+  ZONES_LOCKED: ["WATCHING", "SKIPPED", "CANCELLED", "ERROR"],
+  WATCHING: ["TRIGGER_RESERVED", "SKIPPED", "EXPIRED", "CANCELLED", "ERROR"],
+  TRIGGER_RESERVED: ["ORDER_SUBMITTING", "SKIPPED", "ERROR"],
+  ORDER_SUBMITTING: ["FILLED", "ORDER_REJECTED", "ORDER_UNKNOWN", "ERROR"],
+  ORDER_UNKNOWN: ["FILLED", "ORDER_REJECTED", "ERROR"],
+  FILLED: ["CLOSING", "CLOSED", "ERROR"],
+  CLOSING: ["CLOSED", "ERROR"],
+  ORDER_REJECTED: [],
+  CLOSED: [],
+  EXPIRED: [],
+  SKIPPED: [],
+  CANCELLED: [],
+  ERROR: ["CLOSED"],
+};
+
+export function canTransition(from: NewsState, to: NewsState) {
+  return NEWS_TRANSITIONS[from].includes(to);
+}
+
+/** States in which the server watches prices for this setup. */
+const LIVE_STATES: NewsState[] = ["ARMED", "LOCKING", "ZONES_LOCKED", "WATCHING"];
+/** States a user cancel may end: no order has been reserved yet. */
+const CANCELLABLE: NewsState[] = ["ARMED", "LOCKING", "ZONES_LOCKED", "WATCHING"];
+
+export type NewsEvent =
+  | "news_setup_armed" | "news_zones_locked" | "news_watch_started" | "news_zone_triggered" | "news_order_submitting"
+  | "news_order_filled" | "news_order_rejected" | "news_order_unknown" | "news_setup_skipped" | "news_setup_expired"
+  | "news_setup_cancelled" | "news_trade_closed" | "news_execution_error" | "news_spread_blocked";
+
+/** Events recorded on the timeline and in the logs but not pushed: they land within milliseconds of the fill or rejection that is. */
+const QUIET_EVENTS = new Set<NewsEvent>(["news_zone_triggered", "news_order_submitting"]);
 
 export type NewsStraddleSide = "long" | "short";
 
@@ -55,43 +124,49 @@ export type NewsStraddleSettings = {
   targetPips: number;
   slippagePips: number;
   spreadCapPips: number;
-  /** How long it watches after the release (or after arming, when the release is under a minute away). */
+  /** How long it watches after the release. */
   armedMinutes: number;
   /** 0 = no time exit. */
   closeAfterMinutes: number;
-  release: { id: string | null; title: string; currency: string | null; time: string | null } | null;
+  release: { id: string | null; title: string; currency: string | null; time: string };
 };
+
+/** Ascending bounds: buy.lower is the BUY entry edge, sell.upper the SELL entry edge. */
+export type NewsZones = { buy: { lower: number; upper: number }; sell: { lower: number; upper: number } };
 
 type NewsMeta = {
   mode: "news";
   straddleId: string;
   line: "upper" | "lower";
-  execution: string;
-  anchor: number;
-  upperLine: number;
-  lowerLine: number;
+  newsState: NewsState;
+  configVersion: number;
   distancePips: number;
   stopPips: number;
   targetPips: number;
   slippagePips: number;
   spreadCapPips: number;
   closeAfterMinutes: number;
+  armedMinutes: number;
   units: number;
   riskPercent: number;
   release: NewsStraddleSettings["release"];
-  clientRequestId?: string;
+  lockAt: string;
+  pipSize: number;
+  precision: number;
+  zones?: NewsZones | null;
+  anchor?: number | null;
+  lockedAt?: string | null;
+  reservation?: { attemptId: string; side: NewsStraddleSide; clientRequestId: string; priceBound: number; triggerBid: number; triggerAsk: number; triggerQuoteTime: string; spreadPips: number; reservedAt: string } | null;
+  submittedAt?: string;
   brokerTradeId?: string;
   timeExitAt?: string | null;
-  timeExitState?: string;
+  closingClaimedAt?: string;
   spreadBlockedAt?: string;
 };
 
 type Queryable = { query: <T extends Record<string, unknown> = Record<string, unknown>>(text: string, values?: unknown[]) => Promise<{ rows: T[]; rowCount: number | null }> };
 
-export type NewsNotice =
-  | "armed" | "live" | "triggered" | "missed_bound" | "rejected" | "time_exit" | "disarmed" | "spread_blocked" | "blocked" | "unprotected";
-
-/** Everything with a side effect, so tests can run on one rolled-back connection with a fake broker. */
+/** Everything with a side effect, so tests can run on one rolled-back connection with a fake broker and clock. */
 export type NewsDeps = {
   db: Queryable & { tx: <T>(fn: (client: Queryable) => Promise<T>) => Promise<T> };
   broker: {
@@ -104,12 +179,13 @@ export type NewsDeps = {
     environment: () => string | null;
   };
   size: (userId: string, instrument: MajorInstrument, entry: number, stop: number) => Promise<{ units: number; riskPercent: number }>;
-  notify: (input: { userId: string; instrument: string; key: string; event: NewsNotice; title: string; message: string }) => Promise<void>;
+  notify: (input: { userId: string; instrument: string; key: string; event: NewsEvent; title: string; message: string }) => Promise<void>;
   /** Calendar releases (null when the calendar can't be read). */
   releases: () => Promise<Array<{ currency: string; title: string; timestamp: string }> | null>;
-  /** A live quote, for activating a setup when no stream tick arrives. */
+  /** A live quote, for locking when no stream tick arrives. */
   quote: (instrument: MajorInstrument) => Promise<MarketPriceTick | null>;
   now: () => number;
+  log: (entry: Record<string, unknown>) => void;
 };
 
 export const liveNewsDeps: NewsDeps = {
@@ -130,7 +206,7 @@ export const liveNewsDeps: NewsDeps = {
   notify: async (input) => {
     await queueNotification({
       userId: input.userId,
-      kind: input.event === "unprotected" ? "system_issue" : "trade_update",
+      kind: input.event === "news_execution_error" ? "system_issue" : "trade_update",
       title: input.title,
       message: input.message,
       instrument: input.instrument,
@@ -150,62 +226,125 @@ export const liveNewsDeps: NewsDeps = {
     return { type: "price", instrument, displayName: price.displayName, bid: price.bid, ask: price.ask, mid: price.mid, spread: price.ask - price.bid, status: price.status, time: price.time, source: "oanda", sequence: Date.now() };
   },
   now: () => Date.now(),
+  // One JSON line per step; no credentials ever reach it.
+  log: (entry) => console.log(`[news-straddle] ${JSON.stringify(entry)}`),
 };
 
-// ── Pure decisions ────────────────────────────────────────────────────
+// ── Pure geometry and decisions ───────────────────────────────────────
+
+/** Integer price steps at the instrument's precision, so boundary tests never meet float error. */
+function steps(price: number, precision: number) {
+  return Math.round(price * 10 ** precision);
+}
+
+/** The two zones around an anchor: entry edge `distance` pips out, far edge `depth` pips further. */
+export function newsZones(instrument: string, anchor: number, distancePips: number, depthPips: number): NewsZones {
+  const pip = pipSizeFor(instrument);
+  const precision = precisionFor(instrument);
+  const r = (value: number) => Number(value.toFixed(precision));
+  const buyLower = r(anchor + distancePips * pip);
+  const sellUpper = r(anchor - distancePips * pip);
+  return {
+    buy: { lower: buyLower, upper: r(buyLower + depthPips * pip) },
+    sell: { lower: r(sellUpper - depthPips * pip), upper: sellUpper },
+  };
+}
+
+export type NewsQuote = { bid: number; ask: number; time: string; tradeable: boolean };
+
+/** Why a quote cannot be used: crossed, non-positive, not tradeable or stale. Null when usable. */
+export function quoteProblem(quote: NewsQuote, now: number) {
+  if (!(quote.bid > 0) || !(quote.ask > 0)) return "non-positive price";
+  if (quote.ask < quote.bid) return "crossed quote";
+  if (!quote.tradeable) return "instrument not tradeable";
+  const time = Date.parse(quote.time);
+  if (!Number.isFinite(time)) return "quote has no time";
+  if (now - time > NEWS_MAX_QUOTE_AGE_MS) return "stale quote";
+  return null;
+}
 
 export type NewsTickDecision =
   | { kind: "hold" }
+  | { kind: "before_release" }
   | { kind: "expired" }
-  /** Both sides' executable prices are past their lines but the mid is between them: a spread artefact. No order. */
+  | { kind: "bad_quote"; reason: string }
+  /** Both executable prices are past their entry edges but the mid is between them: a spread artefact. No order. */
   | { kind: "ambiguous"; spreadPips: number }
   | { kind: "spread_blocked"; side: NewsStraddleSide; spreadPips: number }
-  | { kind: "missed_bound"; side: NewsStraddleSide; price: number; bound: number; spreadPips: number }
+  /** First sighting is already beyond the zone's far edge: skipped, never chased. */
+  | { kind: "jumped_past"; side: NewsStraddleSide; price: number; bound: number; spreadPips: number }
   | { kind: "fire"; side: NewsStraddleSide; price: number; bound: number; spreadPips: number };
 
 /**
- * What one live quote means for an armed straddle. A long fills at the ask,
- * so the buy line is crossed when the ask reaches it; a short at the bid. A
- * single quote can only put its mid past one line, so when a huge spread puts
- * both executable prices past their lines, the side is the one the mid moved
- * through; with the mid still between the lines nothing is sent.
+ * What one live quote means for a setup with locked zones. BUY uses the ask
+ * against the BUY zone, SELL the bid against the SELL zone; both bounds are
+ * inclusive. Nothing can fire before the release or after the window.
  */
-export function decideNewsStraddleTick(input: {
-  upper: number;
-  lower: number;
-  bid: number;
-  ask: number;
-  expiresAt: string | null;
+export function decideNewsTick(input: {
+  zones: NewsZones;
+  quote: NewsQuote;
   now: number;
+  releaseAt: number;
+  expiresAt: number;
   pip: number;
-  slippagePips: number;
+  precision: number;
   spreadCapPips: number;
 }): NewsTickDecision {
-  if (input.expiresAt && Date.parse(input.expiresAt) <= input.now) return { kind: "expired" };
-  const longHit = input.ask >= input.upper;
-  const shortHit = input.bid <= input.lower;
+  if (input.now >= input.expiresAt) return { kind: "expired" };
+  if (input.now < input.releaseAt) return { kind: "before_release" };
+  const problem = quoteProblem(input.quote, input.now);
+  if (problem) return { kind: "bad_quote", reason: problem };
+  const p = input.precision;
+  const bid = steps(input.quote.bid, p), ask = steps(input.quote.ask, p);
+  const buyLower = steps(input.zones.buy.lower, p), buyUpper = steps(input.zones.buy.upper, p);
+  const sellLower = steps(input.zones.sell.lower, p), sellUpper = steps(input.zones.sell.upper, p);
+  const longHit = ask >= buyLower;
+  const shortHit = bid <= sellUpper;
   if (!longHit && !shortHit) return { kind: "hold" };
-  const spreadPips = (input.ask - input.bid) / input.pip;
+  const pipSteps = Math.round(input.pip * 10 ** p);
+  const spreadPips = (ask - bid) / pipSteps;
   let side: NewsStraddleSide;
   if (longHit && shortHit) {
-    const mid = (input.bid + input.ask) / 2;
-    if (mid >= input.upper) side = "long";
-    else if (mid <= input.lower) side = "short";
+    const midTwice = bid + ask;
+    if (midTwice >= 2 * buyLower) side = "long";
+    else if (midTwice <= 2 * sellUpper) side = "short";
     else return { kind: "ambiguous", spreadPips };
   } else {
     side = longHit ? "long" : "short";
   }
-  if (spreadPips > input.spreadCapPips + 1e-9) return { kind: "spread_blocked", side, spreadPips };
-  const slip = input.slippagePips * input.pip;
-  const price = side === "long" ? input.ask : input.bid;
-  const bound = side === "long" ? input.upper + slip : input.lower - slip;
-  const beyond = side === "long" ? price > bound + 1e-12 : price < bound - 1e-12;
-  return beyond ? { kind: "missed_bound", side, price, bound, spreadPips } : { kind: "fire", side, price, bound, spreadPips };
+  const price = side === "long" ? input.quote.ask : input.quote.bid;
+  const bound = side === "long" ? input.zones.buy.upper : input.zones.sell.lower;
+  const beyond = side === "long" ? ask > buyUpper : bid < sellLower;
+  if (beyond) return { kind: "jumped_past", side, price, bound, spreadPips };
+  if (ask - bid > Math.round(input.spreadCapPips * pipSteps)) return { kind: "spread_blocked", side, spreadPips };
+  return { kind: "fire", side, price, bound, spreadPips };
 }
 
-/** Pips the fill landed past the line: positive is worse for the trade. */
-export function newsSlippagePips(side: NewsStraddleSide, line: number, fill: number, pip: number) {
-  return Number((((side === "long" ? fill - line : line - fill) / pip)).toFixed(1));
+/** Pips the fill landed past `reference`: positive is worse for the trade. */
+export function newsSlippagePips(side: NewsStraddleSide, reference: number, fill: number, pip: number) {
+  return Number((((side === "long" ? fill - reference : reference - fill) / pip)).toFixed(1));
+}
+
+/** Stop and target placed from the broker's actual fill. */
+export function levelsFromFill(instrument: string, side: NewsStraddleSide, fill: number, stopPips: number, targetPips: number) {
+  const pip = pipSizeFor(instrument);
+  const r = (value: number) => Number(value.toFixed(precisionFor(instrument)));
+  return side === "long"
+    ? { stop: r(fill - stopPips * pip), target: r(fill + targetPips * pip) }
+    : { stop: r(fill + stopPips * pip), target: r(fill - targetPips * pip) };
+}
+
+/** Why a filled trade closed, read from where it closed relative to its stop and target. */
+export function exitReasonOf(side: NewsStraddleSide, exit: number, stop: number | null, target: number | null, pip: number): "stop" | "target" | "manual" {
+  const half = pip / 2;
+  if (side === "long") {
+    if (stop !== null && exit <= stop + half) return "stop";
+    if (target !== null && exit >= target - half) return "target";
+  } else {
+    if (stop !== null && exit >= stop - half) return "stop";
+    if (target !== null && exit <= target + half) return "target";
+  }
+  return "manual";
 }
 
 function numberIn(raw: unknown, fallback: number | null, min: number, max: number, label: string) {
@@ -218,12 +357,7 @@ function numberIn(raw: unknown, fallback: number | null, min: number, max: numbe
   return value;
 }
 
-/** Releases count as "news ahead" this far out; News mode arms only for one. */
-export const NEWS_LOOKAHEAD_MS = 5 * 60 * 60_000;
-/** The anchor is the live price this long before the release. */
-export const NEWS_ANCHOR_LEAD_MS = 60_000;
-
-/** Validate the ticket's News-mode fields. There is no anchor: it is always the live price. */
+/** Validate the ticket's News-mode fields. There is no anchor: it is always the live price at lock. */
 export function parseNewsStraddleSettings(payload: Record<string, unknown>): NewsStraddleSettings {
   const rawRelease = payload.release && typeof payload.release === "object" ? payload.release as Record<string, unknown> : null;
   const text = (value: unknown, max: number) => (typeof value === "string" && value.trim() ? value.trim().slice(0, max) : null);
@@ -256,30 +390,76 @@ export function upcomingPairReleases<T extends { currency: string; timestamp: st
     .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
 }
 
-/** The two zones around an anchor: entry edge `distance` pips out, far edge `depth` pips further. */
-export function newsZones(instrument: string, anchor: number, distancePips: number, depthPips: number) {
-  const pip = pipSizeFor(instrument);
-  const r = (value: number) => Number(value.toFixed(precisionFor(instrument)));
-  const upper = r(anchor + distancePips * pip);
-  const lower = r(anchor - distancePips * pip);
-  return { upper, upperFar: r(upper + depthPips * pip), lower, lowerFar: r(lower - depthPips * pip) };
-}
-
-// ── Arming ────────────────────────────────────────────────────────────
+// ── Persistence: compare-and-set transitions with a timeline ──────────
 
 const metaOf = (row: PendingEntryRow) => (row.metadata ?? {}) as unknown as NewsMeta;
 const fmt = (instrument: string, value: number) => value.toFixed(precisionFor(instrument));
-const round = (instrument: string, value: number) => Number(value.toFixed(precisionFor(instrument)));
-const releaseLabel = (release: NonNullable<NewsStraddleSettings["release"]>) => `${release.currency ? `${release.currency} ` : ""}${release.title}`;
+const releaseLabel = (release: NewsStraddleSettings["release"]) => `${release.currency ? `${release.currency} ` : ""}${release.title}`;
 const clockText = (iso: string) => `${new Date(iso).toISOString().slice(11, 16)} UTC`;
+const lockKey = (straddleId: string) => `news-straddle:${straddleId}`;
 
-async function riskSettings(db: Queryable, userId: string) {
-  const row = (await db.query<{ kill_switch: boolean; max_risk_percent: string }>(
-    "SELECT kill_switch, max_risk_percent::text FROM trade_plan_risk_settings WHERE user_id=$1",
-    [userId],
-  )).rows[0];
-  return { killSwitch: row?.kill_switch === true, maxRiskPercent: row ? Number(row.max_risk_percent) : null };
+async function lockRows(client: Queryable, straddleId: string) {
+  await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [lockKey(straddleId)]);
+  const rows = (await client.query<PendingEntryRow>(
+    `SELECT ${PENDING_ENTRY_FIELDS} FROM pending_manual_entries WHERE metadata->>'straddleId'=$1 FOR UPDATE`,
+    [straddleId],
+  )).rows;
+  const upper = rows.find((row) => metaOf(row).line === "upper");
+  const lower = rows.find((row) => metaOf(row).line === "lower");
+  return upper && lower ? { upper, lower, state: metaOf(upper).newsState } : null;
 }
+
+/**
+ * Move a setup from one of `from` to `to` on both rows, merging `patch` into
+ * their metadata and appending a timeline entry. Returns false (and changes
+ * nothing) when the setup is no longer in an allowed state: a repeat or a
+ * lost race is a no-op, never a second transition.
+ */
+async function transition(client: Queryable, straddleId: string, from: NewsState[], to: NewsState, now: number, detail: Record<string, unknown> = {}, patch: Record<string, unknown> = {}) {
+  for (const state of from) if (!canTransition(state, to)) throw new Error(`news setup: ${state} → ${to} is not an allowed transition`);
+  const at = new Date(now).toISOString();
+  const result = await client.query(
+    `UPDATE pending_manual_entries
+        SET metadata = metadata || $3::jsonb
+              || jsonb_build_object('newsState', $4::text, 'newsStateAt', $5::text,
+                   'timeline', COALESCE(metadata->'timeline','[]'::jsonb) || jsonb_build_array(jsonb_build_object('at',$5::text,'from',metadata->>'newsState','to',$4::text) || $6::jsonb)),
+            updated_at = now()
+      WHERE metadata->>'straddleId'=$1 AND metadata->>'newsState' = ANY($2::text[])`,
+    [straddleId, from, JSON.stringify(patch), to, at, JSON.stringify(detail)],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+/** Append a timeline note without changing state (spread waits, unverified calendar, lock retries). */
+async function note(client: Queryable, straddleId: string, now: number, detail: Record<string, unknown>, patch: Record<string, unknown> = {}) {
+  await client.query(
+    `UPDATE pending_manual_entries
+        SET metadata = metadata || $2::jsonb || jsonb_build_object('timeline', COALESCE(metadata->'timeline','[]'::jsonb) || jsonb_build_array(jsonb_build_object('at',$3::text) || $4::jsonb))
+      WHERE metadata->>'straddleId'=$1`,
+    [straddleId, JSON.stringify(patch), new Date(now).toISOString(), JSON.stringify(detail)],
+  );
+}
+
+/** Set both rows' row-level status to match a setup state (kept for the journal, pickers and older readers). */
+async function setRowStatus(client: Queryable, id: string, status: string, extra: { failureReason?: string; cancelled?: boolean } = {}) {
+  await client.query(
+    `UPDATE pending_manual_entries SET status=$2, failure_reason=COALESCE($3,failure_reason),
+       cancelled_at=CASE WHEN $4 THEN now() ELSE cancelled_at END, updated_at=now() WHERE id=$1`,
+    [id, status, extra.failureReason ?? null, extra.cancelled === true],
+  );
+}
+
+type Publish = { row: PendingEntryRow; event: NewsEvent; title: string; message: string; key?: string; detail?: Record<string, unknown> };
+
+/** Log every event; notify (idempotently, by setup + event) unless it is a quiet one. */
+async function publish(item: Publish, deps: NewsDeps) {
+  const meta = metaOf(item.row);
+  deps.log({ event: item.event, setupId: meta.straddleId, instrument: item.row.instrument, at: new Date(deps.now()).toISOString(), ...item.detail });
+  if (QUIET_EVENTS.has(item.event)) return;
+  await deps.notify({ userId: item.row.user_id, instrument: item.row.instrument, key: item.key ?? meta.straddleId, event: item.event, title: item.title, message: item.message });
+}
+
+// ── Safety checks ──────────────────────────────────────────────────────
 
 const PAIR_BUSY_SQL = `CASE
        WHEN EXISTS (SELECT 1 FROM paper_strategy_trades WHERE user_id=$1 AND instrument=$2 AND status='open')
@@ -288,637 +468,740 @@ const PAIR_BUSY_SQL = `CASE
                       AND COALESCE(metadata->>'straddleId','') <> COALESCE($4::text,'')) THEN 'pending'
        ELSE NULL END`;
 
-/** Any open trade on the pair, or any waiting/in-flight entry: News mode keeps one trade per pair. */
-async function pairBusy(db: Queryable, userId: string, instrument: string, exceptStraddle: string | null) {
-  const result = await db.query<{ busy: string | null }>(`SELECT ${PAIR_BUSY_SQL} AS busy`, [userId, instrument, instrument.replace("_", "/"), exceptStraddle]);
-  return result.rows[0]?.busy ?? null;
-}
-
-/** Kill switch and one-trade-per-pair in a single round trip, for the moment of firing. */
-async function fireChecks(db: Queryable, userId: string, instrument: string, straddleId: string) {
-  const row = (await db.query<{ kill_switch: boolean | null; busy: string | null }>(
-    `SELECT (SELECT kill_switch FROM trade_plan_risk_settings WHERE user_id=$1) AS kill_switch, ${PAIR_BUSY_SQL} AS busy`,
+/** Kill switch, max risk and one-trade-per-pair in one round trip. */
+async function safetyChecks(db: Queryable, userId: string, instrument: string, straddleId: string | null) {
+  const row = (await db.query<{ kill_switch: boolean | null; max_risk: string | null; busy: string | null }>(
+    `SELECT (SELECT kill_switch FROM trade_plan_risk_settings WHERE user_id=$1) AS kill_switch,
+            (SELECT max_risk_percent::text FROM trade_plan_risk_settings WHERE user_id=$1) AS max_risk,
+            ${PAIR_BUSY_SQL} AS busy`,
     [userId, instrument, instrument.replace("_", "/"), straddleId],
   )).rows[0];
-  return { killSwitch: row?.kill_switch === true, busy: row?.busy ?? null };
+  return { killSwitch: row?.kill_switch === true, maxRiskPercent: row?.max_risk == null ? null : Number(row.max_risk), busy: row?.busy ?? null };
 }
 
+// ── Arming ────────────────────────────────────────────────────────────
+
 export async function armNewsStraddle(userId: string, payload: Record<string, unknown>, tick: MarketPriceTick, deps: NewsDeps = liveNewsDeps) {
-  if (tick.source !== "oanda" || !(tick.bid > 0) || !(tick.ask >= tick.bid)) throw new Error("A live OANDA quote is required to arm a news setup.");
   const now = deps.now();
-  if (now - Date.parse(tick.time) > 30_000) throw new Error("The market price is stale. Wait for a fresh OANDA quote.");
+  const problem = quoteProblem({ bid: tick.bid, ask: tick.ask, time: tick.time, tradeable: true }, now);
+  if (tick.source !== "oanda" || problem) throw new Error("A fresh, valid OANDA quote is required to arm a news setup.");
   if (payload.instrument !== tick.instrument) throw new Error("The selected instrument does not match the live quote.");
   if (deps.broker.environment() !== "practice") throw new Error("News mode only trades the OANDA practice account.");
   const instrument = tick.instrument;
   const pip = pipSizeFor(instrument);
+  const precision = precisionFor(instrument);
   const settings = parseNewsStraddleSettings(payload);
-  const release = settings.release!;
-  // Phase 1: a release for this pair in the next 5 hours, confirmed by the server's own calendar.
-  const releaseAt = Date.parse(release.time!);
+  const requested = settings.release;
+  const releaseAt = Date.parse(requested.time);
+  // A release for this pair in the next 5 hours, confirmed by the server's own calendar.
   const events = await deps.releases();
   if (!events) throw new Error("The economic calendar can't be read right now, so the release can't be confirmed. Try again shortly.");
   const ahead = upcomingPairReleases(instrument, events, now);
   const { base: baseCurrency, quote: quoteCurrency } = currenciesOf(instrument);
   if (!ahead.length) throw new Error(`No ${baseCurrency} or ${quoteCurrency} news in the next 5 hours. News mode only arms ahead of a release.`);
-  if (!ahead.some((event) => Math.abs(Date.parse(event.timestamp) - releaseAt) < 60_000 && (!release.currency || event.currency === release.currency))) {
-    throw new Error("That release is not in the calendar for the next 5 hours. Pick it again from the list.");
-  }
-  const risk = await riskSettings(deps.db, userId);
-  if (risk.killSwitch) throw new Error("The execution kill switch is on (Settings). Turn it off to arm a news setup.");
-  const busy = await pairBusy(deps.db, userId, instrument, null);
-  if (busy) throw new Error(busy === "open"
+  const match = ahead.find((event) => Math.abs(Date.parse(event.timestamp) - releaseAt) < 60_000 && (!requested.currency || event.currency === requested.currency));
+  if (!match) throw new Error("That release is not in the calendar for the next 5 hours. Pick it again from the list.");
+  // The calendar's own wording and time are what the lock re-checks against.
+  const release = { id: requested.id, title: match.title, currency: match.currency, time: new Date(Date.parse(match.timestamp)).toISOString() };
+  const verifiedReleaseAt = Date.parse(release.time);
+  const safety = await safetyChecks(deps.db, userId, instrument, null);
+  if (safety.killSwitch) throw new Error("The execution kill switch is on (Settings). Turn it off to arm a news setup.");
+  if (safety.busy) throw new Error(safety.busy === "open"
     ? "This pair already has an open trade. News mode opens one trade per pair, so close it first."
     : "This pair already has a waiting entry. Cancel it first; News mode holds one trade per pair.");
-  // Phase 2: the anchor is the live price. With the release more than a minute
-  // away the setup waits and takes the price one minute before it; otherwise now.
-  const activateAt = releaseAt - NEWS_ANCHOR_LEAD_MS > now ? new Date(releaseAt - NEWS_ANCHOR_LEAD_MS).toISOString() : null;
-  const anchor = round(instrument, (tick.bid + tick.ask) / 2);
-  const zones = newsZones(instrument, anchor, settings.distancePips, settings.slippagePips);
-  if (!activateAt && (tick.ask >= zones.upper || tick.bid <= zones.lower)) {
-    throw new Error(`The spread (${((tick.ask - tick.bid) / pip).toFixed(1)} pips) already reaches a zone ${settings.distancePips} pips out. Widen the distance.`);
-  }
+  const lockAt = verifiedReleaseAt - NEWS_LOCK_LEAD_MS;
+  const preview = newsZones(instrument, (tick.bid + tick.ask) / 2, settings.distancePips, settings.slippagePips);
   // Both sides carry the same stop distance, so one size fits either side.
-  const sized = await deps.size(userId, instrument, zones.upper, zones.upper - settings.stopPips * pip);
-  if (risk.maxRiskPercent !== null && sized.riskPercent > risk.maxRiskPercent + 1e-9) {
-    throw new Error(`Your risk per trade (${sized.riskPercent}%) is above the max risk limit (${risk.maxRiskPercent}%) in Settings.`);
+  const sized = await deps.size(userId, instrument, preview.buy.lower, preview.buy.lower - settings.stopPips * pip);
+  if (safety.maxRiskPercent !== null && sized.riskPercent > safety.maxRiskPercent + 1e-9) {
+    throw new Error(`Your risk per trade (${sized.riskPercent}%) is above the max risk limit (${safety.maxRiskPercent}%) in Settings.`);
   }
   const straddleId = randomUUID();
-  const expiresAt = new Date(Math.max(releaseAt, now) + settings.armedMinutes * 60_000).toISOString();
-  const base = {
-    mode: "news", straddleId, execution: activateAt ? "news_waiting" : "news_armed", createdFrom: "chart", priceSource: tick.source,
-    anchor, upperLine: zones.upper, lowerLine: zones.lower, upperFar: zones.upperFar, lowerFar: zones.lowerFar,
+  const expiresAt = new Date(verifiedReleaseAt + settings.armedMinutes * 60_000).toISOString();
+  const at = new Date(now).toISOString();
+  const base: NewsMeta & Record<string, unknown> = {
+    mode: "news", straddleId, line: "upper", newsState: "ARMED", configVersion: NEWS_CONFIG_VERSION, createdFrom: "chart", tradeStyle: "day",
     distancePips: settings.distancePips, stopPips: settings.stopPips, targetPips: settings.targetPips,
     slippagePips: settings.slippagePips, spreadCapPips: settings.spreadCapPips, closeAfterMinutes: settings.closeAfterMinutes,
-    units: sized.units, riskPercent: sized.riskPercent, release, tradeStyle: "day",
+    armedMinutes: settings.armedMinutes, units: sized.units, riskPercent: sized.riskPercent, release,
+    lockAt: new Date(lockAt).toISOString(), pipSize: pip, precision, zones: null, anchor: null, lockedAt: null, reservation: null,
     spreadAtArmPips: Number(((tick.ask - tick.bid) / pip).toFixed(1)),
-    activatedAt: activateAt ? null : new Date(now).toISOString(),
+    timeline: [{ at, to: "ARMED", release, settings: { ...settings, release: undefined }, units: sized.units, riskPercent: sized.riskPercent }],
   };
   const rows = await deps.db.tx(async (client) => {
     await client.query(
       "INSERT INTO instruments(code,display_name,price_precision) VALUES($1,$2,$3) ON CONFLICT(code) DO NOTHING",
-      [instrument, displayPair(instrument), precisionFor(instrument)],
+      [instrument, displayPair(instrument), precision],
     );
     const inserted: PendingEntryRow[] = [];
-    for (const [direction, line, price, orderType] of [["long", "upper", zones.upper, "buy_stop"], ["short", "lower", zones.lower, "sell_stop"]] as const) {
+    // entry_price holds the preview entry edge until the lock writes the real one.
+    for (const [direction, line, price, orderType] of [["long", "upper", preview.buy.lower, "buy_stop"], ["short", "lower", preview.sell.upper, "sell_stop"]] as const) {
       const result = await client.query<PendingEntryRow>(
         `INSERT INTO pending_manual_entries(user_id,instrument,direction,entry_price,entry_order_type,current_price_at_creation,
            expiration_type,expires_at,activate_at,last_observed_price,last_observed_at,metadata)
          VALUES($1,$2,$3,$4,$5,$6,'time',$7,$8,$6,$9,$10::jsonb) RETURNING ${PENDING_ENTRY_FIELDS}`,
-        [userId, instrument, direction, price, orderType, anchor, expiresAt, activateAt, tick.time, JSON.stringify({ ...base, line })],
+        [userId, instrument, direction, price, orderType, Number(((tick.bid + tick.ask) / 2).toFixed(precision)), expiresAt, new Date(lockAt).toISOString(), tick.time, JSON.stringify({ ...base, line })],
       );
       inserted.push(result.rows[0]!);
     }
     return inserted;
   });
-  rememberStraddle(rows[0]!, rows[1]!);
-  await deps.notify({
-    userId, instrument, key: straddleId, event: "armed",
+  rememberSetup(rows[0]!, rows[1]!);
+  await publish({
+    row: rows[0]!, event: "news_setup_armed",
     title: `${displayPair(instrument)} news setup armed for ${releaseLabel(release)}`,
-    message: (activateAt
-      ? `Release at ${clockText(release.time!)}. One minute before it, GX takes the live price as the anchor and sets the zones ${settings.distancePips}–${settings.distancePips + settings.slippagePips} pips either side. `
-      : `Buy zone ${fmt(instrument, zones.upper)}–${fmt(instrument, zones.upperFar)}, sell zone ${fmt(instrument, zones.lower)}–${fmt(instrument, zones.lowerFar)} around ${fmt(instrument, anchor)}. `)
-      + `Price entering a zone sends the order; it fills only inside the zone. Stop ${settings.stopPips}p, target ${settings.targetPips}p from the fill, spread cap ${settings.spreadCapPips}p. `
-      + `Spread now ${base.spreadAtArmPips} pips. Watches until ${clockText(expiresAt)}, then disarms.`,
-  });
-  return rows.map(serializePendingManualEntry);
+    message: `Release at ${clockText(release.time)}. At ${clockText(new Date(lockAt).toISOString())} GX takes the live price as the anchor and freezes a BUY zone ${settings.distancePips}–${settings.distancePips + settings.slippagePips} pips above and a SELL zone the same below. `
+      + `Entries open at the release. Stop ${settings.stopPips}p, target ${settings.targetPips}p from the fill, spread cap ${settings.spreadCapPips}p, watches until ${clockText(expiresAt)}. Spread now ${base.spreadAtArmPips} pips.`,
+  }, deps);
+  // A release under a minute away locks straight away.
+  if (now >= lockAt) await lockZones(straddleId, tick, deps);
+  return (await readSetupRows(deps.db, straddleId)).map(serializePendingManualEntry);
 }
 
-// ── The tick monitor ──────────────────────────────────────────────────
+async function readSetupRows(db: Queryable, straddleId: string) {
+  return (await db.query<PendingEntryRow>(`SELECT ${PENDING_ENTRY_FIELDS} FROM pending_manual_entries WHERE metadata->>'straddleId'=$1 ORDER BY direction`, [straddleId])).rows;
+}
+
+// ── In-memory watch list ───────────────────────────────────────────────
 
 /**
- * Armed setups held in memory so an ordinary tick costs no database work:
- * only a tick that enters a zone (or ends the window, or is due to set the
- * anchor) goes to the database, where the locked transaction decides. The
- * sweep reloads this every 5 seconds; the database stays the authority.
+ * Live setups held in memory so an ordinary tick costs no database work. A
+ * tick that is due to lock, start the watch, enter a zone or end the window
+ * goes to a locked transaction that decides again from the database. The
+ * sweep reloads this every 5 seconds and at startup; the database stays the
+ * only authority.
  */
-type CachedStraddle = {
+type CachedSetup = {
   straddleId: string;
   instrument: string;
-  upper: number;
-  lower: number;
+  state: NewsState;
+  zones: NewsZones | null;
+  lockAt: number;
+  releaseAt: number;
   expiresAt: number;
-  activateAt: number | null;
-  waiting: boolean;
-  slippagePips: number;
   spreadCapPips: number;
 };
-const armed = new Map<string, Map<string, CachedStraddle>>();
+const live = new Map<string, Map<string, CachedSetup>>();
 
-function rememberStraddle(first: PendingEntryRow, second: PendingEntryRow) {
-  const upper = metaOf(first).line === "upper" ? first : second;
-  const lower = upper === first ? second : first;
-  const meta = metaOf(upper);
-  const byInstrument = armed.get(upper.instrument) ?? new Map<string, CachedStraddle>();
+function rememberSetup(first: PendingEntryRow, second: PendingEntryRow) {
+  const meta = metaOf(first);
+  const byInstrument = live.get(first.instrument) ?? new Map<string, CachedSetup>();
+  if (!LIVE_STATES.includes(meta.newsState) || first.status !== "PENDING" || second.status !== "PENDING") {
+    byInstrument.delete(meta.straddleId);
+    return;
+  }
   byInstrument.set(meta.straddleId, {
     straddleId: meta.straddleId,
-    instrument: upper.instrument,
-    upper: Number(upper.entry_price),
-    lower: Number(lower.entry_price),
-    expiresAt: upper.expires_at ? Date.parse(upper.expires_at) : Number.POSITIVE_INFINITY,
-    activateAt: upper.activate_at ? Date.parse(upper.activate_at) : null,
-    waiting: meta.execution === "news_waiting",
-    slippagePips: meta.slippagePips,
+    instrument: first.instrument,
+    state: meta.newsState,
+    zones: meta.zones ?? null,
+    lockAt: Date.parse(meta.lockAt),
+    releaseAt: Date.parse(meta.release.time),
+    expiresAt: first.expires_at ? Date.parse(first.expires_at) : Number.POSITIVE_INFINITY,
     spreadCapPips: meta.spreadCapPips,
   });
-  armed.set(upper.instrument, byInstrument);
+  live.set(first.instrument, byInstrument);
 }
 
-function forgetStraddle(instrument: string, straddleId: string) {
-  armed.get(instrument)?.delete(straddleId);
+function forgetSetup(instrument: string, straddleId: string) {
+  live.get(instrument)?.delete(straddleId);
 }
 
-/** Reload the in-memory set from the database. */
+async function refreshOne(straddleId: string, deps: NewsDeps) {
+  const rows = await readSetupRows(deps.db, straddleId);
+  if (rows.length === 2) rememberSetup(rows[0]!, rows[1]!);
+  else if (rows[0]) forgetSetup(rows[0].instrument, straddleId);
+}
+
+/** Reload the watch list from the database (startup and every sweep). */
 export async function refreshArmedNewsStraddles(deps: NewsDeps = liveNewsDeps) {
   const rows = (await deps.db.query<PendingEntryRow>(
-    `SELECT ${PENDING_ENTRY_FIELDS} FROM pending_manual_entries WHERE status='PENDING' AND metadata->>'mode'='news'`,
+    `SELECT ${PENDING_ENTRY_FIELDS} FROM pending_manual_entries
+      WHERE status='PENDING' AND metadata->>'mode'='news' AND metadata->>'newsState' = ANY($1::text[])`,
+    [LIVE_STATES],
   )).rows;
-  armed.clear();
+  live.clear();
   const groups = new Map<string, PendingEntryRow[]>();
   for (const row of rows) groups.set(metaOf(row).straddleId, [...(groups.get(metaOf(row).straddleId) ?? []), row]);
-  for (const group of groups.values()) {
-    if (group.length === 2) rememberStraddle(group[0]!, group[1]!);
-  }
+  for (const group of groups.values()) if (group.length === 2) rememberSetup(group[0]!, group[1]!);
   return groups.size;
 }
 
-/** Cheap gate for the per-tick hook: true when this instrument has an armed or waiting setup. */
+/** Cheap gate for the per-tick hook. */
 export function newsStraddleMayBeArmed(instrument: string) {
-  return (armed.get(instrument)?.size ?? 0) > 0;
+  return (live.get(instrument)?.size ?? 0) > 0;
 }
 
+// ── Lock: anchor and frozen zones, 60 s before the release ─────────────
+
 /**
- * Set a waiting setup's anchor to the live mid and its zones around it, one
- * minute before the release. Runs once per setup (only while still waiting).
+ * Freeze a setup's zones from a fresh quote, between lock time and the
+ * release. A stale or unusable quote is never substituted: the setup moves to
+ * LOCKING and retries on the next tick or sweep, and if the release arrives
+ * with no valid anchor it is SKIPPED. Before freezing, the release is
+ * re-checked against the calendar: moved or withdrawn → SKIPPED; calendar
+ * unreadable → locked, with that noted.
  */
-async function activateStraddle(straddleId: string, tick: MarketPriceTick, deps: NewsDeps) {
+async function lockZones(straddleId: string, tick: MarketPriceTick, deps: NewsDeps) {
   const now = deps.now();
-  const result = await deps.db.tx(async (client) => {
-    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`news-straddle:${straddleId}`]);
-    const locked = (await client.query<PendingEntryRow>(
-      `SELECT ${PENDING_ENTRY_FIELDS} FROM pending_manual_entries WHERE metadata->>'straddleId'=$1 FOR UPDATE`,
-      [straddleId],
-    )).rows;
-    if (locked.length !== 2 || locked.some((row) => row.status !== "PENDING" || metaOf(row).execution !== "news_waiting")) return null;
-    const meta = metaOf(locked[0]!);
-    const instrument = locked[0]!.instrument;
-    const anchor = round(instrument, (tick.bid + tick.ask) / 2);
-    const zones = newsZones(instrument, anchor, meta.distancePips, meta.slippagePips);
-    const updated: PendingEntryRow[] = [];
-    for (const row of locked) {
-      const isUpper = metaOf(row).line === "upper";
-      updated.push((await client.query<PendingEntryRow>(
-        `UPDATE pending_manual_entries SET entry_price=$2,current_price_at_creation=$3,last_observed_price=$3,last_observed_at=$4,
-           metadata=metadata||$5::jsonb,updated_at=now()
-         WHERE id=$1 AND status='PENDING' RETURNING ${PENDING_ENTRY_FIELDS}`,
-        [row.id, isUpper ? zones.upper : zones.lower, anchor, new Date(now), JSON.stringify({
-          execution: "news_armed", anchor, upperLine: zones.upper, lowerLine: zones.lower, upperFar: zones.upperFar, lowerFar: zones.lowerFar,
-          activatedAt: new Date(now).toISOString(), spreadAtActivationPips: Number(((tick.ask - tick.bid) / pipSizeFor(instrument)).toFixed(1)),
-        })],
-      )).rows[0]!);
+  const quote = { bid: tick.bid, ask: tick.ask, time: tick.time, tradeable: tick.status === undefined || String(tick.status).toLowerCase() === "tradeable" };
+  const events = await deps.releases().catch(() => null);
+  const out = await deps.db.tx(async (client) => {
+    const setup = await lockRows(client, straddleId);
+    if (!setup || !["ARMED", "LOCKING"].includes(setup.state)) return null;
+    const meta = metaOf(setup.upper);
+    const instrument = setup.upper.instrument;
+    const releaseAt = Date.parse(meta.release.time);
+    const lockAt = Date.parse(meta.lockAt);
+    if (now < lockAt) return null;
+    if (now >= releaseAt) {
+      await transition(client, straddleId, [setup.state], "SKIPPED", now, { reason: "no valid anchor before the release" });
+      for (const row of [setup.upper, setup.lower]) await setRowStatus(client, row.id, "FAILED", { failureReason: "Skipped: no valid price to lock the zones before the release." });
+      return { event: "news_setup_skipped" as const, row: setup.upper, message: "No valid OANDA price arrived to lock the zones before the release, so nothing was set up. No order was sent." };
     }
-    return { updated, zones, anchor };
+    const safety = await safetyChecks(client, setup.upper.user_id, instrument, straddleId);
+    if (safety.killSwitch) {
+      await transition(client, straddleId, [setup.state], "SKIPPED", now, { reason: "kill switch on at lock" });
+      for (const row of [setup.upper, setup.lower]) await setRowStatus(client, row.id, "FAILED", { failureReason: "Skipped: the kill switch was on at lock time." });
+      return { event: "news_setup_skipped" as const, row: setup.upper, message: "The execution kill switch was on at lock time, so the setup was skipped. No order was sent." };
+    }
+    if (events) {
+      const same = events.filter((event) => event.currency === meta.release.currency && event.title === meta.release.title);
+      const onTime = same.find((event) => Math.abs(Date.parse(event.timestamp) - releaseAt) < 60_000);
+      if (!onTime) {
+        const moved = same.map((event) => event.timestamp).filter((time) => Math.abs(Date.parse(time) - releaseAt) < 48 * 60 * 60_000).sort()[0];
+        const reason = moved ? `the release moved to ${clockText(moved)}` : "the release is no longer in the calendar";
+        await transition(client, straddleId, [setup.state], "SKIPPED", now, { reason, calendarRelease: moved ?? null });
+        for (const row of [setup.upper, setup.lower]) await setRowStatus(client, row.id, "FAILED", { failureReason: `Skipped: ${reason}.` });
+        return { event: "news_setup_skipped" as const, row: setup.upper, message: `${reason[0]!.toUpperCase()}${reason.slice(1)}, so the setup was skipped rather than trade on old timing. Arm it again for the new time. No order was sent.` };
+      }
+    }
+    const problem = quoteProblem(quote, now);
+    if (problem) {
+      if (setup.state === "ARMED") await transition(client, straddleId, ["ARMED"], "LOCKING", now, { reason: problem, quoteTime: tick.time });
+      else await note(client, straddleId, now, { note: "lock retry", reason: problem, quoteTime: tick.time });
+      return null;
+    }
+    const anchorMid = Number(((tick.bid + tick.ask) / 2).toFixed(meta.precision));
+    const zones = newsZones(instrument, anchorMid, meta.distancePips, meta.slippagePips);
+    const lockedAt = new Date(now).toISOString();
+    const moved = await transition(client, straddleId, [setup.state], "ZONES_LOCKED", now, {
+      anchor: { bid: tick.bid, ask: tick.ask, mid: anchorMid, convention: "mid", quoteTime: tick.time }, zones,
+      calendarVerified: Boolean(events),
+    }, {
+      zones, anchor: anchorMid, anchorBid: tick.bid, anchorAsk: tick.ask, anchorQuoteTime: tick.time, anchorConvention: "mid", lockedAt,
+      calendarVerifiedAtLock: Boolean(events),
+      // Kept for older readers: entry edges and far edges.
+      upperLine: zones.buy.lower, upperFar: zones.buy.upper, lowerLine: zones.sell.upper, lowerFar: zones.sell.lower,
+    });
+    if (!moved) return null;
+    await client.query("UPDATE pending_manual_entries SET entry_price=$2,current_price_at_creation=$3,last_observed_price=$3,last_observed_at=$4 WHERE id=$1", [setup.upper.id, zones.buy.lower, anchorMid, tick.time]);
+    await client.query("UPDATE pending_manual_entries SET entry_price=$2,current_price_at_creation=$3,last_observed_price=$3,last_observed_at=$4 WHERE id=$1", [setup.lower.id, zones.sell.upper, anchorMid, tick.time]);
+    return {
+      event: "news_zones_locked" as const, row: setup.upper,
+      message: `Anchor ${fmt(instrument, anchorMid)} (live mid at ${clockText(lockedAt)}). BUY zone ${fmt(instrument, zones.buy.lower)}–${fmt(instrument, zones.buy.upper)} (ask), SELL zone ${fmt(instrument, zones.sell.lower)}–${fmt(instrument, zones.sell.upper)} (bid). `
+        + `Spread ${((tick.ask - tick.bid) / meta.pipSize).toFixed(1)} pips. Entries open at ${clockText(meta.release.time)}${events ? "" : "; the calendar could not be re-checked at lock, so the stored release time is used"}.`,
+    };
   });
-  if (!result) {
-    await refreshOne(straddleId, deps);
-    return;
-  }
-  rememberStraddle(result.updated[0]!, result.updated[1]!);
-  const row = result.updated[0]!;
-  const instrument = row.instrument;
-  const meta = metaOf(row);
-  await emit(row, "live", `${displayPair(instrument)} news zones set`,
-    `Anchor ${fmt(instrument, result.anchor)} (live price). Buy zone ${fmt(instrument, result.zones.upper)}–${fmt(instrument, result.zones.upperFar)}, `
-    + `sell zone ${fmt(instrument, result.zones.lower)}–${fmt(instrument, result.zones.lowerFar)}. `
-    + `Spread ${((tick.ask - tick.bid) / pipSizeFor(instrument)).toFixed(1)} pips.${meta.release ? ` ${releaseLabel(meta.release)} at ${clockText(meta.release.time!)}.` : ""}`, deps);
+  await refreshOne(straddleId, deps);
+  if (out) await publish({ row: out.row, event: out.event, title: `${displayPair(out.row.instrument)} news ${out.event === "news_zones_locked" ? "zones locked" : "setup skipped"}`, message: out.message }, deps);
 }
 
-/** Re-read one setup into the cache (or drop it when it is no longer armed). */
-async function refreshOne(straddleId: string, deps: NewsDeps) {
-  const rows = (await deps.db.query<PendingEntryRow>(
-    `SELECT ${PENDING_ENTRY_FIELDS} FROM pending_manual_entries WHERE metadata->>'straddleId'=$1`,
-    [straddleId],
-  )).rows;
-  if (rows.length === 2 && rows.every((row) => row.status === "PENDING")) rememberStraddle(rows[0]!, rows[1]!);
-  else if (rows[0]) forgetStraddle(rows[0].instrument, straddleId);
+/** ZONES_LOCKED → WATCHING once the release time has arrived (kill switch re-checked). */
+async function startWatch(straddleId: string, deps: NewsDeps) {
+  const now = deps.now();
+  const out = await deps.db.tx(async (client) => {
+    const setup = await lockRows(client, straddleId);
+    if (!setup || setup.state !== "ZONES_LOCKED") return null;
+    const meta = metaOf(setup.upper);
+    if (now < Date.parse(meta.release.time)) return null;
+    const safety = await safetyChecks(client, setup.upper.user_id, setup.upper.instrument, straddleId);
+    if (safety.killSwitch) {
+      await transition(client, straddleId, ["ZONES_LOCKED"], "SKIPPED", now, { reason: "kill switch on at release" });
+      for (const row of [setup.upper, setup.lower]) await setRowStatus(client, row.id, "FAILED", { failureReason: "Skipped: the kill switch was on at the release." });
+      return { event: "news_setup_skipped" as const, row: setup.upper, message: "The execution kill switch was on at the release, so no entries were watched. No order was sent." };
+    }
+    await transition(client, straddleId, ["ZONES_LOCKED"], "WATCHING", now, {});
+    return { event: "news_watch_started" as const, row: setup.upper, message: `${releaseLabel(meta.release)} is out. Watching both zones until ${clockText(setup.upper.expires_at!)}.` };
+  });
+  await refreshOne(straddleId, deps);
+  if (out) await publish({ row: out.row, event: out.event, title: `${displayPair(out.row.instrument)} news ${out.event === "news_watch_started" ? "watch started" : "setup skipped"}`, message: out.message }, deps);
 }
 
-type Claim =
-  | { kind: "none" }
-  | { kind: "notify"; row: PendingEntryRow; event: NewsNotice; title: string; message: string }
-  | { kind: "fire"; row: PendingEntryRow; bound: number; spreadPips: number; price: number };
+// ── Trigger: reserve one side atomically ───────────────────────────────
+
+type Reserved = { row: PendingEntryRow; attemptId: string; clientRequestId: string; bound: number; triggerPrice: number; tickTime: number };
 
 /**
- * Settle one straddle against one quote inside a single transaction. The
- * advisory lock serialises any two workers on the same straddle; the
- * both-rows-PENDING check and conditional updates make a second tick a no-op
- * once a side has been claimed.
+ * Decide again inside the locked transaction and, for a zone touch, reserve
+ * that side: the winner row goes TRIGGERING, the other CANCELLED, the setup
+ * TRIGGER_RESERVED with a fresh attempt id — all in one commit, so a second
+ * tick, worker or process finds the setup no longer WATCHING and does nothing.
  */
-async function settleStraddle(straddleId: string, tick: MarketPriceTick, deps: NewsDeps): Promise<Claim> {
-  return deps.db.tx(async (client) => {
-    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`news-straddle:${straddleId}`]);
-    const locked = await client.query<PendingEntryRow>(
-      `SELECT ${PENDING_ENTRY_FIELDS} FROM pending_manual_entries WHERE metadata->>'straddleId'=$1 FOR UPDATE`,
-      [straddleId],
-    );
-    const upper = locked.rows.find((row) => metaOf(row).line === "upper");
-    const lower = locked.rows.find((row) => metaOf(row).line === "lower");
-    if (!upper || !lower || upper.status !== "PENDING" || lower.status !== "PENDING") return { kind: "none" };
-    const meta = metaOf(upper);
-    const instrument = upper.instrument;
-    const pip = pipSizeFor(instrument);
-    const now = deps.now();
-    const tickTime = Number.isFinite(Date.parse(tick.time)) ? new Date(tick.time) : new Date(now);
-    const mid = (tick.bid + tick.ask) / 2;
-    const decision = decideNewsStraddleTick({
-      upper: Number(upper.entry_price), lower: Number(lower.entry_price), bid: tick.bid, ask: tick.ask,
-      expiresAt: upper.expires_at, now, pip, slippagePips: meta.slippagePips, spreadCapPips: meta.spreadCapPips,
-    });
-    const observe = () => client.query(
-      "UPDATE pending_manual_entries SET last_observed_price=$2,last_observed_at=$3,updated_at=now() WHERE metadata->>'straddleId'=$1 AND status='PENDING'",
-      [straddleId, mid, tickTime],
-    );
+async function settleTick(straddleId: string, tick: MarketPriceTick, deps: NewsDeps): Promise<Reserved | null> {
+  const now = deps.now();
+  const quote = { bid: tick.bid, ask: tick.ask, time: tick.time, tradeable: tick.status === undefined || String(tick.status).toLowerCase() === "tradeable" };
+  const out = await deps.db.tx(async (client): Promise<{ publish?: Publish; reserved?: Reserved } | null> => {
+    const setup = await lockRows(client, straddleId);
+    if (!setup || setup.state !== "WATCHING") return null;
+    const meta = metaOf(setup.upper);
+    const instrument = setup.upper.instrument;
     const pair = displayPair(instrument);
-    // A setup still waiting for its anchor can only end; it never fires.
-    if (meta.execution === "news_waiting" && decision.kind !== "expired") return { kind: "none" };
-    if (decision.kind === "hold" || decision.kind === "ambiguous") {
-      await observe();
-      if (decision.kind === "ambiguous") console.warn(`[news-straddle] ${straddleId} both lines crossed by a ${decision.spreadPips.toFixed(1)}-pip spread with the mid between them; no order`);
-      return { kind: "none" };
-    }
+    const decision = decideNewsTick({
+      zones: meta.zones!, quote, now, releaseAt: Date.parse(meta.release.time), expiresAt: Date.parse(setup.upper.expires_at!),
+      pip: meta.pipSize, precision: meta.precision, spreadCapPips: meta.spreadCapPips,
+    });
+    if (decision.kind === "hold" || decision.kind === "before_release" || decision.kind === "bad_quote" || decision.kind === "ambiguous") return null;
     if (decision.kind === "expired") {
-      await client.query(
-        "UPDATE pending_manual_entries SET status='EXPIRED',updated_at=now(),metadata=metadata||'{\"execution\":\"news_disarmed\"}'::jsonb WHERE metadata->>'straddleId'=$1 AND status='PENDING'",
-        [straddleId],
-      );
-      return { kind: "notify", row: upper, event: "disarmed", title: `${pair} news setup disarmed`, message: "Price did not enter either zone before the window ended. No order was sent." };
+      await transition(client, straddleId, ["WATCHING"], "EXPIRED", now, {});
+      for (const row of [setup.upper, setup.lower]) await setRowStatus(client, row.id, "EXPIRED");
+      return { publish: { row: setup.upper, event: "news_setup_expired", title: `${pair} news setup expired`, message: "Price did not enter either zone before the watch window ended. No order was sent." } };
     }
     if (decision.kind === "spread_blocked") {
-      await observe();
-      const first = !meta.spreadBlockedAt;
-      if (first) {
-        await client.query(
-          "UPDATE pending_manual_entries SET metadata=metadata||jsonb_build_object('spreadBlockedAt',$2::text) WHERE metadata->>'straddleId'=$1 AND status='PENDING'",
-          [straddleId, new Date(now).toISOString()],
-        );
-      }
-      return first
-        ? { kind: "notify", row: upper, event: "spread_blocked", title: `${pair} news line crossed — spread too wide`, message: `The ${decision.side === "long" ? "buy" : "sell"} line was crossed with a ${decision.spreadPips.toFixed(1)}-pip spread, above your ${meta.spreadCapPips}-pip cap. No order yet; still armed, and it fires if price is still within the slippage bound once the spread is back under the cap.` }
-        : { kind: "none" };
+      if (meta.spreadBlockedAt) return null;
+      await note(client, straddleId, now, { note: "spread over cap", side: decision.side, spreadPips: decision.spreadPips, bid: tick.bid, ask: tick.ask }, { spreadBlockedAt: new Date(now).toISOString() });
+      return { publish: { row: setup.upper, event: "news_spread_blocked", title: `${pair} news zone reached — spread too wide`, message: `The ${decision.side === "long" ? "BUY" : "SELL"} zone was reached with a ${decision.spreadPips.toFixed(1)}-pip spread, above your ${meta.spreadCapPips}-pip cap. No order yet; it sends one if price is still inside the zone once the spread is back under the cap.` } };
     }
-    const winner = decision.side === "long" ? upper : lower;
-    const loser = decision.side === "long" ? lower : upper;
-    const line = Number(winner.entry_price);
-    // Safety checks at the moment of firing: kill switch, account, one trade per pair.
-    const { killSwitch, busy } = await fireChecks(client, winner.user_id, instrument, straddleId);
-    const blocked = killSwitch ? "the execution kill switch is on"
+    const winner = decision.side === "long" ? setup.upper : setup.lower;
+    const loser = decision.side === "long" ? setup.lower : setup.upper;
+    const sideWord = decision.side === "long" ? "BUY" : "SELL";
+    const quoteDetail = { bid: tick.bid, ask: tick.ask, quoteTime: tick.time, spreadPips: Number(decision.spreadPips.toFixed(1)) };
+    const safety = await safetyChecks(client, winner.user_id, instrument, straddleId);
+    const blocked = safety.killSwitch ? "the execution kill switch is on"
       : deps.broker.environment() !== "practice" ? "the broker account is not the OANDA practice account"
-        : busy ? `this pair already has ${busy === "open" ? "an open trade" : "another waiting entry"}`
-          : null;
-    if (blocked || decision.kind === "missed_bound") {
+        : safety.busy ? `this pair already has ${safety.busy === "open" ? "an open trade" : "another waiting entry"}`
+          : safety.maxRiskPercent !== null && meta.riskPercent > safety.maxRiskPercent + 1e-9 ? `the risk (${meta.riskPercent}%) is above the max risk limit (${safety.maxRiskPercent}%)`
+            : null;
+    if (blocked || decision.kind === "jumped_past") {
       const reason = blocked
-        ? `Not sent: ${blocked}.`
-        : `Missed the price bound: ${decision.side === "long" ? "ask" : "bid"} ${fmt(instrument, decision.price)} was already past ${fmt(instrument, decision.bound)} (line ${fmt(instrument, line)} ± ${meta.slippagePips} pips). Not chased.`;
-      await client.query(
-        `UPDATE pending_manual_entries SET status='FAILED',failure_reason=$2,trigger_price=$3,triggered_at=$4,last_observed_price=$5,last_observed_at=$4,
-           metadata=metadata||jsonb_build_object('execution',$6::text,'spreadAtTriggerPips',$7::numeric),updated_at=now()
-         WHERE id=$1 AND status='PENDING'`,
-        [winner.id, reason, decision.price, tickTime, mid, blocked ? "news_blocked" : "news_missed_bound", Number(decision.spreadPips.toFixed(1))],
-      );
-      await client.query(
-        `UPDATE pending_manual_entries SET status='CANCELLED',cancelled_at=now(),metadata=metadata||'{"execution":"news_sibling_closed"}'::jsonb,updated_at=now()
-         WHERE id=$1 AND status='PENDING'`,
-        [loser.id],
-      );
-      return blocked
-        ? { kind: "notify", row: winner, event: "blocked", title: `${pair} news line crossed — no order`, message: `${reason} Both lines are now off.` }
-        : { kind: "notify", row: winner, event: "missed_bound", title: `${pair} news move missed the bound`, message: `${reason} Spread was ${decision.spreadPips.toFixed(1)} pips. Both lines are now off.` };
+        ? `${sideWord} zone reached but ${blocked}`
+        : `${decision.side === "long" ? "ask" : "bid"} ${fmt(instrument, decision.price)} was already past the ${sideWord} zone's far edge ${fmt(instrument, decision.bound)}; not chased`;
+      await transition(client, straddleId, ["WATCHING"], "SKIPPED", now, { reason, side: decision.side, ...quoteDetail });
+      await setRowStatus(client, winner.id, "FAILED", { failureReason: `Skipped: ${reason}.` });
+      await setRowStatus(client, loser.id, "CANCELLED", { cancelled: true });
+      return { publish: { row: winner, event: "news_setup_skipped", title: `${pair} news setup skipped`, message: `${reason[0]!.toUpperCase()}${reason.slice(1)}. Spread ${decision.spreadPips.toFixed(1)} pips. No order was sent; both zones are off.` } };
     }
-    // Claim: the winner goes in flight and the loser is cancelled in this same
-    // commit, before anything is sent — two sides can never both reach OANDA.
-    const clientRequestId = `news-${winner.id}`;
-    const claimed = await client.query<PendingEntryRow>(
-      `UPDATE pending_manual_entries SET status='TRIGGERING',trigger_price=$2,triggered_at=$3,last_observed_price=$4,last_observed_at=$3,
-         metadata=metadata||jsonb_build_object('execution','news_submitting','clientRequestId',$5::text,'priceBound',$6::numeric,
-           'triggerBid',$7::numeric,'triggerAsk',$8::numeric,'spreadAtTriggerPips',$9::numeric,'submittedAt',$10::text),updated_at=now()
-       WHERE id=$1 AND status='PENDING' RETURNING ${PENDING_ENTRY_FIELDS}`,
-      [winner.id, decision.price, tickTime, mid, clientRequestId, round(instrument, decision.bound), tick.bid, tick.ask, Number(decision.spreadPips.toFixed(1)), new Date(now).toISOString()],
+    const attemptId = randomUUID();
+    const clientRequestId = `news-${attemptId}`;
+    const reservation = {
+      attemptId, side: decision.side, clientRequestId, priceBound: decision.bound,
+      triggerBid: tick.bid, triggerAsk: tick.ask, triggerQuoteTime: tick.time, spreadPips: Number(decision.spreadPips.toFixed(1)), reservedAt: new Date(now).toISOString(),
+    };
+    const moved = await transition(client, straddleId, ["WATCHING"], "TRIGGER_RESERVED", now, { side: decision.side, attemptId, priceBound: decision.bound, ...quoteDetail }, { reservation });
+    if (!moved) return null;
+    await client.query(
+      `UPDATE pending_manual_entries SET status='TRIGGERING', trigger_price=$2, triggered_at=$3, last_observed_price=$2, last_observed_at=$3 WHERE id=$1`,
+      [winner.id, decision.price, new Date(Date.parse(tick.time))],
     );
-    const cancelled = await client.query(
-      `UPDATE pending_manual_entries SET status='CANCELLED',cancelled_at=now(),metadata=metadata||'{"execution":"news_sibling_triggered"}'::jsonb,updated_at=now()
-       WHERE id=$1 AND status='PENDING'`,
-      [loser.id],
-    );
-    if (!claimed.rows[0] || cancelled.rowCount !== 1) throw new Error(`news straddle ${straddleId} changed state mid-claim`);
-    return { kind: "fire", row: claimed.rows[0], bound: decision.bound, spreadPips: decision.spreadPips, price: decision.price };
+    await setRowStatus(client, loser.id, "CANCELLED", { cancelled: true });
+    const row = (await client.query<PendingEntryRow>(`SELECT ${PENDING_ENTRY_FIELDS} FROM pending_manual_entries WHERE id=$1`, [winner.id])).rows[0]!;
+    return {
+      reserved: { row, attemptId, clientRequestId, bound: decision.bound, triggerPrice: decision.price, tickTime: Date.parse(tick.time) },
+      publish: { row, event: "news_zone_triggered", title: `${pair} ${sideWord} zone triggered`, message: `${sideWord} at ${fmt(instrument, decision.price)}`, detail: { side: decision.side, attemptId, ...quoteDetail } },
+    };
   });
+  if (out?.publish) await publish(out.publish, deps);
+  return out?.reserved ?? null;
 }
 
-async function emit(row: PendingEntryRow, event: NewsNotice, title: string, message: string, deps: NewsDeps, key?: string) {
-  await deps.notify({ userId: row.user_id, instrument: row.instrument, key: key ?? metaOf(row).straddleId, event, title, message });
-}
-
-/**
- * Run this instrument's setups against a live quote. Ordinary ticks are
- * decided from memory with no database work; a tick that enters a zone,
- * ends the window or is due to set the anchor goes to the locked
- * transaction, which decides again from the database rows.
- */
+/** Run this instrument's live setups against a quote: lock, start watching, or trigger. */
 export async function evaluateNewsStraddles(tick: MarketPriceTick, deps: NewsDeps = liveNewsDeps) {
-  if (!(tick.bid > 0) || !(tick.ask >= tick.bid)) return { fired: 0 };
-  const setups = [...(armed.get(tick.instrument)?.values() ?? [])];
+  const setups = [...(live.get(tick.instrument)?.values() ?? [])];
   if (!setups.length) return { fired: 0 };
   const now = deps.now();
-  const pip = pipSizeFor(tick.instrument);
   let fired = 0;
   for (const setup of setups) {
-    if (setup.waiting && now < setup.expiresAt) {
-      if (setup.activateAt !== null && now >= setup.activateAt) await activateStraddle(setup.straddleId, tick, deps);
+    if (setup.state === "ARMED" || setup.state === "LOCKING") {
+      if (now >= setup.lockAt) await lockZones(setup.straddleId, tick, deps);
       continue;
     }
-    const quick = decideNewsStraddleTick({
-      upper: setup.upper, lower: setup.lower, bid: tick.bid, ask: tick.ask,
-      expiresAt: Number.isFinite(setup.expiresAt) ? new Date(setup.expiresAt).toISOString() : null,
-      now, pip, slippagePips: setup.slippagePips, spreadCapPips: setup.spreadCapPips,
+    if (setup.state === "ZONES_LOCKED") {
+      if (now < setup.releaseAt) continue;
+      await startWatch(setup.straddleId, deps);
+    }
+    const current = live.get(tick.instrument)?.get(setup.straddleId);
+    if (!current || current.state !== "WATCHING" || !current.zones) continue;
+    const quick = decideNewsTick({
+      zones: current.zones, quote: { bid: tick.bid, ask: tick.ask, time: tick.time, tradeable: tick.status === undefined || String(tick.status).toLowerCase() === "tradeable" },
+      now, releaseAt: current.releaseAt, expiresAt: current.expiresAt, pip: pipSizeFor(tick.instrument), precision: precisionFor(tick.instrument), spreadCapPips: current.spreadCapPips,
     });
-    if (quick.kind === "hold" || quick.kind === "ambiguous") continue;
-    const claim = await settleStraddle(setup.straddleId, tick, deps);
-    if (claim.kind === "fire") {
-      // Off the watch list before the request, so no later tick even reaches the database.
-      forgetStraddle(tick.instrument, setup.straddleId);
+    if (quick.kind === "hold" || quick.kind === "before_release" || quick.kind === "bad_quote" || quick.kind === "ambiguous") continue;
+    const reserved = await settleTick(setup.straddleId, tick, deps);
+    if (reserved) {
+      // Off the watch list before the request, so no later tick reaches the database.
+      forgetSetup(tick.instrument, setup.straddleId);
       fired += 1;
-      await submitClaimed(claim.row, claim.bound, deps);
+      await submitReserved(reserved, deps);
       continue;
     }
-    if (claim.kind === "notify") await emit(claim.row, claim.event, claim.title, claim.message, deps);
     await refreshOne(setup.straddleId, deps);
   }
   return { fired };
 }
 
-/** Send the one market order for a claimed side. Never called twice for a row: the claim is the gate. */
-async function submitClaimed(row: PendingEntryRow, bound: number, deps: NewsDeps) {
-  const meta = metaOf(row);
-  const instrument = row.instrument;
-  const pip = pipSizeFor(instrument);
-  const side = row.direction;
-  const line = Number(row.entry_price);
-  const clientRequestId = meta.clientRequestId ?? `news-${row.id}`;
-  // Provisional target from the line; moved to fill ± target pips once filled.
-  const provisionalTarget = round(instrument, side === "long" ? line + meta.targetPips * pip : line - meta.targetPips * pip);
+// ── Submit: one order per reservation ─────────────────────────────────
+
+/** Friendly words for OANDA's cancel and reject reasons. */
+function brokerReasonText(reason: string) {
+  const known: Record<string, string> = {
+    BOUNDS_VIOLATION: "price moved past the zone before OANDA could fill it (price bound); not chased",
+    INSUFFICIENT_MARGIN: "not enough margin on the practice account",
+    MARKET_HALTED: "the market was halted",
+    INSUFFICIENT_LIQUIDITY: "OANDA had no liquidity at an acceptable price",
+    UNITS_PRECISION_EXCEEDED: "the order size had too many decimals",
+    PRICE_PRECISION_EXCEEDED: "a price had too many decimals",
+  };
+  return known[reason] ?? reason;
+}
+
+/**
+ * Persist ORDER_SUBMITTING (the request, the client order id) before the
+ * request goes out, then act only on what OANDA confirms. A timeout or 5xx
+ * is ORDER_UNKNOWN and is looked up by client id later — never resent.
+ */
+async function submitReserved(reserved: Reserved, deps: NewsDeps) {
+  const meta = metaOf(reserved.row);
+  const instrument = reserved.row.instrument;
+  const pair = displayPair(instrument);
+  const side = reserved.row.direction;
+  const sideWord = side === "long" ? "BUY" : "SELL";
+  const straddleId = meta.straddleId;
+  // Revalidate: the triggering quote must still be fresh when the order goes.
+  if (deps.now() - reserved.tickTime > NEWS_MAX_QUOTE_AGE_MS) {
+    const skipped = await deps.db.tx(async (client) => {
+      const ok = await transition(client, straddleId, ["TRIGGER_RESERVED"], "SKIPPED", deps.now(), { reason: "triggering quote went stale before sending" });
+      if (ok) await setRowStatus(client, reserved.row.id, "FAILED", { failureReason: "Skipped: the triggering quote went stale before the order could be sent." });
+      return ok;
+    });
+    if (skipped) await publish({ row: reserved.row, event: "news_setup_skipped", title: `${pair} news setup skipped`, message: "The price that triggered the zone was more than 5 seconds old by the time the order could go, so nothing was sent. Not chased." }, deps);
+    return;
+  }
+  const pip = meta.pipSize;
+  const line = Number(reserved.row.entry_price);
+  const provisionalTarget = Number((side === "long" ? line + meta.targetPips * pip : line - meta.targetPips * pip).toFixed(meta.precision));
+  const request = {
+    instrument, direction: side, units: meta.units, stopDistance: Number((meta.stopPips * pip).toFixed(meta.precision)), target: provisionalTarget,
+    priceBound: reserved.bound, clientRequestId: reserved.clientRequestId, tradeClientId: `gxt-${reserved.clientRequestId}`,
+  };
+  const submittedAt = new Date(deps.now()).toISOString();
+  const go = await deps.db.tx((client) => transition(client, straddleId, ["TRIGGER_RESERVED"], "ORDER_SUBMITTING", deps.now(), { request: { ...request, clientOrderId: `gx-${reserved.clientRequestId}` } }, { submittedAt }));
+  if (!go) return; // someone else moved it (a sweep skipped an orphan): never send
+  await publish({ row: reserved.row, event: "news_order_submitting", title: `${pair} ${sideWord} order sending`, message: "", detail: { attemptId: reserved.attemptId, priceBound: reserved.bound } }, deps);
   let result: Awaited<ReturnType<NewsDeps["broker"]["submit"]>>;
   try {
-    result = await deps.broker.submit({
-      instrument, direction: side, units: meta.units, stopDistance: meta.stopPips * pip, target: provisionalTarget,
-      priceBound: bound, clientRequestId, tradeClientId: `gxt-${clientRequestId}`,
-    });
+    result = await deps.broker.submit(request);
   } catch (error) {
     const message = error instanceof Error ? error.message : "OANDA request failed.";
-    if (submitFailureKind(error instanceof OandaRequestError ? error.status : undefined) === "rejected") {
-      await failInFlight(row, `OANDA rejected the order: ${message}`, "news_rejected", deps);
-      await emit(row, "rejected", `${displayPair(instrument)} news order rejected`, `OANDA refused the ${side} order (${message}). Nothing is open.`, deps);
+    const status = error instanceof OandaRequestError ? error.status : undefined;
+    if (submitFailureKind(status) === "rejected") {
+      await rejectInFlight(reserved.row, ["ORDER_SUBMITTING"], `OANDA refused the order (${message})`, { httpStatus: status }, deps);
     } else {
-      // The order may or may not exist. Look it up by client id later; never resend.
-      await deps.db.query(
-        `UPDATE pending_manual_entries SET metadata=metadata||jsonb_build_object('execution','news_unknown','submitError',$2::text),updated_at=now()
-          WHERE id=$1 AND status='TRIGGERING'`,
-        [row.id, message.slice(0, 300)],
-      );
+      const moved = await deps.db.tx((client) => transition(client, straddleId, ["ORDER_SUBMITTING"], "ORDER_UNKNOWN", deps.now(), { error: message.slice(0, 300), httpStatus: status ?? null }));
+      if (moved) await publish({ row: reserved.row, event: "news_order_unknown", title: `${pair} ${sideWord} order unconfirmed`, message: "OANDA did not answer in time. The order may or may not have been received; GX is checking with OANDA by its order id and will not send another." }, deps);
     }
     return;
   }
-  if (result.cancelReason === "BOUNDS_VIOLATION") {
-    await failInFlight(row, `Missed the price bound ${fmt(instrument, bound)} (line ${fmt(instrument, line)} ± ${meta.slippagePips} pips): price moved past it before the fill. Not chased.`, "news_missed_bound", deps);
-    await emit(row, "missed_bound", `${displayPair(instrument)} news move missed the bound`, `OANDA could not fill the ${side} within ${meta.slippagePips} pips of the line (bound ${fmt(instrument, bound)}), so nothing opened. Not chased; both lines are off.`, deps);
-    return;
-  }
   if (result.cancelReason || !result.tradeId || result.fillPrice === null) {
-    const reason = result.cancelReason ?? "OANDA did not open a trade.";
-    await failInFlight(row, `OANDA did not open the trade (${reason}).`, "news_rejected", deps);
-    await emit(row, "rejected", `${displayPair(instrument)} news order not filled`, `OANDA did not open the ${side} (${reason}). Nothing is open.`, deps);
+    const reason = result.cancelReason ? brokerReasonText(result.cancelReason) : "OANDA did not open a trade";
+    await rejectInFlight(reserved.row, ["ORDER_SUBMITTING"], reason, { cancelReason: result.cancelReason, orderId: result.orderId }, deps);
     return;
   }
-  await recordNewsFill(row, result.tradeId, result.fillPrice, result.fillSpread, deps);
+  await recordNewsFill(reserved.row, result.tradeId, result.fillPrice, result.fillSpread, result.orderId, deps);
 }
 
-async function failInFlight(row: PendingEntryRow, reason: string, execution: string, deps: NewsDeps) {
-  await deps.db.query(
-    `UPDATE pending_manual_entries SET status='FAILED',failure_reason=$2,metadata=metadata||jsonb_build_object('execution',$3::text),updated_at=now()
-      WHERE id=$1 AND status='TRIGGERING'`,
-    [row.id, reason.slice(0, 500), execution],
-  );
+async function rejectInFlight(row: PendingEntryRow, from: NewsState[], reason: string, detail: Record<string, unknown>, deps: NewsDeps) {
+  const meta = metaOf(row);
+  const moved = await deps.db.tx(async (client) => {
+    const ok = await transition(client, meta.straddleId, from, "ORDER_REJECTED", deps.now(), { reason, ...detail });
+    if (ok) await setRowStatus(client, row.id, "FAILED", { failureReason: `Not filled: ${reason}.` });
+    return ok;
+  });
+  if (moved) {
+    await publish({ row, event: "news_order_rejected", title: `${displayPair(row.instrument)} ${row.direction === "long" ? "BUY" : "SELL"} order not filled`, message: `Not filled: ${reason}. Nothing is open, and the other zone stays off.` }, deps);
+  }
 }
 
-/** Book a confirmed fill: move the target to fill ± target pips, verify the stop, open the app trade, arm the time exit. */
-async function recordNewsFill(row: PendingEntryRow, tradeId: string, fillPrice: number, fillSpread: number | null, deps: NewsDeps) {
+/**
+ * Book a confirmed fill: move the target to fill ± target pips, read back the
+ * protection OANDA actually holds, open the journal trade, start the time
+ * exit from the fill. A fill without a confirmed stop is closed at once.
+ */
+async function recordNewsFill(row: PendingEntryRow, tradeId: string, fillPrice: number, fillSpread: number | null, orderId: string | null, deps: NewsDeps) {
   const meta = metaOf(row);
   const instrument = row.instrument;
-  const pip = pipSizeFor(instrument);
+  const pip = meta.pipSize;
   const side = row.direction;
-  const line = Number(row.entry_price);
-  const stop = round(instrument, side === "long" ? fillPrice - meta.stopPips * pip : fillPrice + meta.stopPips * pip);
-  const target = round(instrument, side === "long" ? fillPrice + meta.targetPips * pip : fillPrice - meta.targetPips * pip);
-  let targetMoved = true;
+  const pair = displayPair(instrument);
+  const levels = levelsFromFill(instrument, side, fillPrice, meta.stopPips, meta.targetPips);
+  let targetError: string | null = null;
   try {
-    await deps.broker.setLevels(tradeId, instrument, { target });
+    await deps.broker.setLevels(tradeId, instrument, { target: levels.target });
   } catch (error) {
-    targetMoved = false;
-    console.error(`[news-straddle] ${row.id} could not move the target to the fill`, error);
+    targetError = error instanceof Error ? error.message.slice(0, 200) : "target update failed";
   }
   const protection = await deps.broker.protection(tradeId).catch(() => null);
   const brokerStop = protection?.stopLoss ?? null;
-  const brokerTarget = protection?.takeProfit ?? (targetMoved ? target : null);
-  const slippagePips = newsSlippagePips(side, line, fillPrice, pip);
+  const brokerTarget = protection?.takeProfit ?? null;
+  const triggerPrice = side === "long" ? meta.reservation?.triggerAsk ?? fillPrice : meta.reservation?.triggerBid ?? fillPrice;
+  const slippageVsQuotePips = newsSlippagePips(side, triggerPrice, fillPrice, pip);
+  const slippageVsEdgePips = newsSlippagePips(side, Number(row.entry_price), fillPrice, pip);
   const spreadAtFillPips = fillSpread !== null ? Number((fillSpread / pip).toFixed(1)) : null;
-  const filledAt = new Date(deps.now());
-  const timeExitAt = meta.closeAfterMinutes > 0 ? new Date(filledAt.getTime() + meta.closeAfterMinutes * 60_000).toISOString() : null;
+  const filledAt = new Date(deps.now()).toISOString();
+  const timeExitAt = meta.closeAfterMinutes > 0 ? new Date(Date.parse(filledAt) + meta.closeAfterMinutes * 60_000).toISOString() : null;
+  const fill = { brokerTradeId: tradeId, brokerOrderId: orderId, fillPrice, slippageVsQuotePips, slippagePips: slippageVsEdgePips, spreadAtFillPips, filledAt, timeExitAt, stopConfirmed: brokerStop, targetConfirmed: brokerTarget, targetError };
   const opened = await deps.db.tx(async (client) => {
-    const locked = await client.query<PendingEntryRow>(`SELECT ${PENDING_ENTRY_FIELDS} FROM pending_manual_entries WHERE id=$1 FOR UPDATE`, [row.id]);
-    if (locked.rows[0]?.status !== "TRIGGERING") return null;
+    const moved = await transition(client, meta.straddleId, ["ORDER_SUBMITTING", "ORDER_UNKNOWN"], "FILLED", deps.now(), fill, fill);
+    if (!moved) return null;
     const trade = await client.query<{ id: string }>(
       `INSERT INTO paper_trades(user_id,legacy_id,origin,pair,direction,status,result,opened_at,entry,stop,target,reason,notes)
        VALUES($1,$2,'manual',$3,$4,'open','open',$5,$6,$7,$8,'News breakout filled',$9)
        ON CONFLICT(user_id,legacy_id) DO UPDATE SET updated_at=paper_trades.updated_at RETURNING id`,
-      [row.user_id, `pending-entry:${row.id}`, instrument.replace("_", "/"), side, filledAt, fillPrice, brokerStop ?? stop, brokerTarget ?? target,
-        `News straddle ${meta.straddleId}; line ${line}, fill ${fillPrice}, slippage ${slippagePips} pips; broker trade ${tradeId}.`],
+      [row.user_id, `pending-entry:${row.id}`, instrument.replace("_", "/"), side, filledAt, fillPrice, brokerStop ?? levels.stop, brokerTarget ?? levels.target,
+        `News setup ${meta.straddleId}; zone edge ${row.entry_price}, fill ${fillPrice}, slippage ${slippageVsQuotePips} pips vs the triggering quote; OANDA trade ${tradeId}.`],
     );
     await client.query(
       `UPDATE pending_manual_entries SET status='TRIGGERED',trigger_price=$2,stop_price=$3,target_price=$4,paper_trade_id=$5,
-         metadata=metadata||$6::jsonb,updated_at=now()
-       WHERE id=$1 AND status='TRIGGERING'`,
-      [row.id, fillPrice, brokerStop ?? stop, brokerTarget ?? target, trade.rows[0]!.id, JSON.stringify({
-        execution: "news_filled", brokerTradeId: tradeId, fillPrice, slippagePips, spreadAtFillPips, filledAt: filledAt.toISOString(), timeExitAt,
-        targetMovedToFill: targetMoved,
-      })],
+         metadata=metadata||jsonb_build_object('execution','news_filled','brokerTradeId',$6::text),updated_at=now()
+       WHERE id=$1`,
+      [row.id, fillPrice, brokerStop, brokerTarget, trade.rows[0]!.id, tradeId],
     );
     return trade.rows[0]!.id;
   });
   if (!opened) return;
-  const pair = displayPair(instrument);
   if (brokerStop === null) {
-    // The stop rides on the order itself, so this should not happen; if OANDA
-    // does not confirm one, close rather than hold an unprotected news trade.
+    // The stop rides on the order, so OANDA should always confirm one. If it
+    // does not, an unprotected news trade is closed straight away.
     let closed = false;
-    try { await deps.broker.closeTrade(tradeId); closed = true; } catch (error) { console.error(`[news-straddle] could not close unprotected trade ${tradeId}`, error); }
-    await emit(row, "unprotected", `URGENT: ${pair} news trade had no stop`, closed
+    try { await deps.broker.closeTrade(tradeId); closed = true; } catch (error) { deps.log({ event: "news_execution_error", setupId: meta.straddleId, error: String(error) }); }
+    await deps.db.tx((client) => transition(client, meta.straddleId, ["FILLED"], "ERROR", deps.now(), { reason: "no stop confirmed by OANDA", closed }));
+    await publish({ row, event: "news_execution_error", title: `URGENT: ${pair} news trade had no stop`, message: closed
       ? `OANDA did not confirm a stop on trade ${tradeId}, so GX closed it straight away.`
-      : `OANDA did not confirm a stop on trade ${tradeId} and GX could not close it. Close it in OANDA now.`, deps);
+      : `OANDA did not confirm a stop on trade ${tradeId} and GX could not close it. Close it in OANDA now.` }, deps);
     return;
   }
-  const triggerSpread = (row.metadata as { spreadAtTriggerPips?: number } | null)?.spreadAtTriggerPips;
-  const spreadText = spreadAtFillPips !== null ? `${spreadAtFillPips} pips at fill`
-    : triggerSpread !== undefined ? `${triggerSpread} pips at trigger` : "not reported";
-  await emit(row, "triggered", `${pair} news ${side === "long" ? "LONG" : "SHORT"} filled`,
-    `${side === "long" ? "Bought" : "Sold"} at ${fmt(instrument, fillPrice)} (line ${fmt(instrument, line)}, slippage ${slippagePips >= 0 ? "+" : ""}${slippagePips} pips). Spread ${spreadText}. `
-    + `Stop ${fmt(instrument, brokerStop)}, target ${brokerTarget === null ? "not set" : fmt(instrument, brokerTarget)}${targetMoved ? "" : " (still at the line-based level; OANDA did not accept the move)"}. `
-    + (timeExitAt ? `Closes at market at ${new Date(timeExitAt).toISOString().slice(11, 16)} UTC if neither hits.` : "No time exit."), deps);
+  const spreadText = spreadAtFillPips !== null ? `${spreadAtFillPips} pips at fill` : `${meta.reservation?.spreadPips ?? "?"} pips at trigger`;
+  await publish({
+    row, event: "news_order_filled", title: `${pair} news ${side === "long" ? "BUY" : "SELL"} filled`,
+    message: `${side === "long" ? "Bought" : "Sold"} at ${fmt(instrument, fillPrice)} (${slippageVsQuotePips >= 0 ? "+" : ""}${slippageVsQuotePips} pips vs the triggering ${side === "long" ? "ask" : "bid"}). Spread ${spreadText}. `
+      + `Stop ${fmt(instrument, brokerStop)} confirmed by OANDA; target ${brokerTarget === null ? `not confirmed${targetError ? ` (${targetError})` : ""} — set it yourself` : `${fmt(instrument, brokerTarget)} confirmed`}. `
+      + (timeExitAt ? `Closes at market at ${clockText(timeExitAt)} if neither hits.` : "No time exit."),
+    detail: fill,
+  }, deps);
 }
 
-// ── Sweep: expiry without ticks, lost responses, restart recovery, time exits ──
+// ── Sweep: recovery, reconciliation, time exits ────────────────────────
+
+async function setupsIn(db: Queryable, states: NewsState[]) {
+  const rows = (await db.query<PendingEntryRow>(
+    `SELECT ${PENDING_ENTRY_FIELDS} FROM pending_manual_entries WHERE metadata->>'mode'='news' AND metadata->>'newsState' = ANY($1::text[])`,
+    [states],
+  )).rows;
+  const groups = new Map<string, PendingEntryRow[]>();
+  for (const row of rows) groups.set(metaOf(row).straddleId, [...(groups.get(metaOf(row).straddleId) ?? []), row]);
+  return [...groups.entries()].map(([straddleId, group]) => ({
+    straddleId,
+    upper: group.find((row) => metaOf(row).line === "upper") ?? group[0]!,
+    // The side that went to the broker (TRIGGERING / TRIGGERED / FAILED), else the upper row.
+    active: group.find((row) => ["TRIGGERING", "TRIGGERED"].includes(row.status)) ?? group.find((row) => row.status === "FAILED") ?? group[0]!,
+  }));
+}
 
 /**
- * Runs on a timer and once at startup. Disarms straddles whose window ended
- * while no quote arrived, reconciles in-flight orders by client id (after a
- * timeout or a restart — never resending), and closes filled news trades at
- * market when their time exit is due.
+ * Runs every 5 seconds and at startup. Works with or without price ticks and
+ * after a restart: locks due setups from a fetched quote, starts watches,
+ * expires windows, ends reserved-but-unsent attempts, reconciles unknown
+ * orders by client id, books stop/target closes, and runs time exits.
  */
 export async function sweepNewsStraddles(deps: NewsDeps = liveNewsDeps) {
-  let disarmed = 0, reconciled = 0, timeExits = 0;
+  const counts = { locked: 0, watching: 0, expired: 0, reconciled: 0, closed: 0, skipped: 0 };
   const now = deps.now();
 
-  const due = await deps.db.query<{ straddle_id: string; instrument: string }>(
-    `SELECT DISTINCT metadata->>'straddleId' AS straddle_id, instrument FROM pending_manual_entries
-      WHERE status='PENDING' AND metadata->>'mode'='news'`,
-  );
-  for (const item of due.rows) {
-    const disarm = await deps.db.tx(async (client) => {
-      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`news-straddle:${item.straddle_id}`]);
-      const result = await client.query<PendingEntryRow>(
-        `UPDATE pending_manual_entries SET status='EXPIRED',updated_at=now(),metadata=metadata||'{"execution":"news_disarmed"}'::jsonb
-          WHERE metadata->>'straddleId'=$1 AND status='PENDING' AND expires_at<=$2 RETURNING ${PENDING_ENTRY_FIELDS}`,
-        [item.straddle_id, new Date(now)],
-      );
-      return result.rows[0] ?? null;
+  // Kill switch on before entry → skipped promptly, not only at the next stage.
+  for (const setup of await setupsIn(deps.db, LIVE_STATES)) {
+    const safety = await safetyChecks(deps.db, setup.upper.user_id, setup.upper.instrument, setup.straddleId);
+    if (!safety.killSwitch) continue;
+    const out = await deps.db.tx(async (client) => {
+      const locked = await lockRows(client, setup.straddleId);
+      if (!locked || !LIVE_STATES.includes(locked.state)) return false;
+      const ok = await transition(client, setup.straddleId, [locked.state], "SKIPPED", now, { reason: "kill switch turned on" });
+      for (const row of [locked.upper, locked.lower]) await setRowStatus(client, row.id, "FAILED", { failureReason: "Skipped: the kill switch was turned on." });
+      return ok;
     });
-    if (disarm) {
-      disarmed += 1;
-      await emit(disarm, "disarmed", `${displayPair(disarm.instrument)} news setup disarmed`, "Price did not enter either zone before the window ended. No order was sent.", deps);
+    if (out) {
+      counts.skipped += 1;
+      await publish({ row: setup.upper, event: "news_setup_skipped", title: `${displayPair(setup.upper.instrument)} news setup skipped`, message: "The execution kill switch was turned on, so the setup was skipped. No order was sent." }, deps);
     }
   }
 
-  // Set the anchor of setups whose time came with no stream tick (a quiet market).
-  const waiting = await deps.db.query<{ straddle_id: string; instrument: MajorInstrument }>(
-    `SELECT DISTINCT metadata->>'straddleId' AS straddle_id, instrument FROM pending_manual_entries
-      WHERE status='PENDING' AND metadata->>'mode'='news' AND metadata->>'execution'='news_waiting'
-        AND activate_at <= $1 AND expires_at > $1`,
-    [new Date(now)],
-  );
-  for (const item of waiting.rows) {
-    const tick = await deps.quote(item.instrument).catch(() => null);
-    if (tick && now - Date.parse(tick.time) <= 30_000) await activateStraddle(item.straddle_id, tick, deps);
+  // Lock due setups from a fetched quote when no stream tick came (bounded by the release).
+  for (const setup of await setupsIn(deps.db, ["ARMED", "LOCKING"])) {
+    const meta = metaOf(setup.upper);
+    if (now < Date.parse(meta.lockAt)) continue;
+    const tick = now < Date.parse(meta.release.time) ? await deps.quote(setup.upper.instrument).catch(() => null) : null;
+    await lockZones(setup.straddleId, tick ?? { type: "price", instrument: setup.upper.instrument, displayName: "", bid: 0, ask: 0, mid: 0, spread: 0, status: "non-tradeable", time: new Date(0).toISOString(), source: "oanda", sequence: 0 }, deps);
+    counts.locked += 1;
   }
 
-  const inFlight = await deps.db.query<PendingEntryRow>(
-    `SELECT ${PENDING_ENTRY_FIELDS} FROM pending_manual_entries WHERE status='TRIGGERING' AND metadata->>'mode'='news'`,
-  );
-  for (const row of inFlight.rows) {
-    const meta = metaOf(row);
-    const clientId = `gx-${meta.clientRequestId ?? `news-${row.id}`}`;
-    const order = await deps.broker.orderByClientId(clientId).catch(() => undefined);
+  // Start watches whose release has come.
+  for (const setup of await setupsIn(deps.db, ["ZONES_LOCKED"])) {
+    if (now >= Date.parse(metaOf(setup.upper).release.time)) {
+      await startWatch(setup.straddleId, deps);
+      counts.watching += 1;
+    }
+  }
+
+  // End watch windows that closed without a quote.
+  for (const setup of await setupsIn(deps.db, ["WATCHING"])) {
+    if (now < Date.parse(setup.upper.expires_at!)) continue;
+    const out = await deps.db.tx(async (client) => {
+      const locked = await lockRows(client, setup.straddleId);
+      if (!locked || locked.state !== "WATCHING") return false;
+      const ok = await transition(client, setup.straddleId, ["WATCHING"], "EXPIRED", now, {});
+      for (const row of [locked.upper, locked.lower]) await setRowStatus(client, row.id, "EXPIRED");
+      return ok;
+    });
+    if (out) {
+      counts.expired += 1;
+      await publish({ row: setup.upper, event: "news_setup_expired", title: `${displayPair(setup.upper.instrument)} news setup expired`, message: "Price did not enter either zone before the watch window ended. No order was sent." }, deps);
+    }
+  }
+
+  // Reserved but never moved to ORDER_SUBMITTING: the request was certainly not sent (that state is written first).
+  for (const setup of await setupsIn(deps.db, ["TRIGGER_RESERVED"])) {
+    const reservedAt = Date.parse(metaOf(setup.active).reservation?.reservedAt ?? setup.active.updated_at);
+    if (now - reservedAt < RESERVED_ORPHAN_MS) continue;
+    const ok = await deps.db.tx(async (client) => {
+      const moved = await transition(client, setup.straddleId, ["TRIGGER_RESERVED"], "SKIPPED", now, { reason: "reserved but not sent (interrupted); not chased" });
+      if (moved) await setRowStatus(client, setup.active.id, "FAILED", { failureReason: "Skipped: interrupted before the order was sent; not chased." });
+      return moved;
+    });
+    if (ok) {
+      counts.skipped += 1;
+      await publish({ row: setup.active, event: "news_setup_skipped", title: `${displayPair(setup.active.instrument)} news setup skipped`, message: "The server was interrupted after a zone was touched but before the order was sent. Nothing was sent, and GX does not chase the move." }, deps);
+    }
+  }
+
+  // Unknown or long-pending submissions: ask OANDA by client order id. Never resend.
+  for (const setup of await setupsIn(deps.db, ["ORDER_SUBMITTING", "ORDER_UNKNOWN"])) {
+    const meta = metaOf(setup.active);
+    if (!meta.reservation) continue;
+    const submittedAt = Date.parse(meta.submittedAt ?? meta.reservation.reservedAt);
+    if (now - submittedAt < RECONCILE_AFTER_MS) continue;
+    const order = await deps.broker.orderByClientId(`gx-${meta.reservation.clientRequestId}`).catch(() => undefined);
     if (order === undefined) continue; // broker unreachable: try again next sweep
-    // Measured from when the order was claimed for sending (server clock).
-    const submittedAt = Date.parse(String((row.metadata as { submittedAt?: string } | null)?.submittedAt ?? row.triggered_at ?? row.updated_at));
-    const decision = reconcileDecision({
-      sinceUpdateMs: now - submittedAt,
-      ageMs: now - submittedAt,
-      order,
-      reconcileAfterMs: RECONCILE_AFTER_MS,
-      giveUpAfterMs: GIVE_UP_AFTER_MS,
-    });
+    const decision = reconcileDecision({ sinceUpdateMs: now - submittedAt, ageMs: now - submittedAt, order, reconcileAfterMs: RECONCILE_AFTER_MS, giveUpAfterMs: GIVE_UP_AFTER_MS });
     if (decision === "wait") continue;
-    reconciled += 1;
+    counts.reconciled += 1;
+    const state = metaOf(setup.active).newsState;
     if (decision === "filled" && order?.tradeId) {
-      const state = await deps.broker.tradeState(order.tradeId).catch(() => null);
-      await recordNewsFill(row, order.tradeId, state?.entryPrice ?? order.fillPrice ?? Number(row.trigger_price), null, deps);
+      const trade = await deps.broker.tradeState(order.tradeId).catch(() => null);
+      await recordNewsFill(setup.active, order.tradeId, trade?.entryPrice ?? order.fillPrice ?? Number(setup.active.trigger_price), null, null, deps);
     } else if (decision === "rejected") {
-      await failInFlight(row, "OANDA cancelled the order without a fill (most often the price bound). Not chased.", "news_missed_bound", deps);
-      await emit(row, "missed_bound", `${displayPair(row.instrument)} news order not filled`, "OANDA cancelled the order without a fill — most often because price moved past the slippage bound. Nothing is open; not chased.", deps);
+      await rejectInFlight(setup.active, [state], "OANDA cancelled the order without a fill (most often the price bound); not chased", { reconciled: true }, deps);
     } else {
-      await failInFlight(row, "No answer from OANDA and no order found under this request's id. Nothing was opened; it was not resent.", "news_lost", deps);
-      await emit(row, "rejected", `${displayPair(row.instrument)} news order not placed`, "OANDA never confirmed the order and has no record of it. Nothing is open; GX does not resend.", deps);
+      await rejectInFlight(setup.active, [state], "OANDA has no record of the order and never confirmed it; nothing opened and it was not resent", { reconciled: true }, deps);
     }
   }
 
-  const exits = await deps.db.query<PendingEntryRow>(
-    `SELECT ${PENDING_ENTRY_FIELDS} FROM pending_manual_entries
-      WHERE status='TRIGGERED' AND metadata->>'mode'='news' AND paper_trade_id IS NOT NULL
-        AND metadata->>'timeExitAt' IS NOT NULL AND (metadata->>'timeExitAt')::timestamptz <= $1
-        AND COALESCE(metadata->>'timeExitState','') NOT IN ('done','not_needed')`,
-    [new Date(now)],
-  );
-  for (const row of exits.rows) {
-    const trade = (await deps.db.query<{ status: string; entry: string; stop: string }>(
-      "SELECT status, entry::text AS entry, stop::text AS stop FROM paper_trades WHERE id=$1",
+  // Open trades: book stop/target/manual closes, and run time exits.
+  for (const setup of await setupsIn(deps.db, ["FILLED", "CLOSING"])) {
+    const row = setup.active;
+    const meta = metaOf(row);
+    const trade = row.paper_trade_id ? (await deps.db.query<{ status: string; entry: string; stop: string; exit: string | null; paper_pl: string | null; result_r: string | null }>(
+      "SELECT status, entry::text AS entry, stop::text AS stop, exit::text AS exit, paper_pl::text AS paper_pl, result_r::text AS result_r FROM paper_trades WHERE id=$1",
       [row.paper_trade_id],
-    )).rows[0];
-    if (trade?.status !== "open") {
-      await deps.db.query("UPDATE pending_manual_entries SET metadata=metadata||'{\"timeExitState\":\"not_needed\"}'::jsonb WHERE id=$1", [row.id]);
+    )).rows[0] : null;
+    if (trade?.status === "closed" && meta.newsState === "FILLED") {
+      // Closed by OANDA's stop or target (mirrored by the order reconciler) or by hand.
+      const exit = trade.exit === null ? null : Number(trade.exit);
+      const reason = exit === null ? "manual" : exitReasonOf(row.direction, exit, numberOrNull(row.stop_price), numberOrNull(row.target_price), meta.pipSize);
+      if (await closeSetup(row, reason, exit, trade.paper_pl === null ? null : Number(trade.paper_pl), trade.result_r === null ? null : Number(trade.result_r), ["FILLED"], deps)) counts.closed += 1;
       continue;
     }
-    // Claim the exit so two sweeps never both act; a stale claim (crash mid-close) is retried.
-    const claimed = await deps.db.query(
-      `UPDATE pending_manual_entries SET metadata=metadata||jsonb_build_object('timeExitState','closing','timeExitClaimedAt',$2::text),updated_at=now()
-        WHERE id=$1 AND status='TRIGGERED'
-          AND (COALESCE(metadata->>'timeExitState','')='' OR (metadata->>'timeExitState'='closing' AND (metadata->>'timeExitClaimedAt')::timestamptz < $3))`,
-      [row.id, new Date(now).toISOString(), new Date(now - TIME_EXIT_RETRY_MS)],
-    );
-    if (claimed.rowCount !== 1) continue;
-    const tradeId = metaOf(row).brokerTradeId;
-    if (!tradeId) continue;
+    const due = meta.timeExitAt && now >= Date.parse(meta.timeExitAt);
+    const staleClaim = meta.newsState === "CLOSING" && now - Date.parse(meta.closingClaimedAt ?? row.updated_at) >= CLOSING_RETRY_MS;
+    if (!(meta.newsState === "FILLED" && due) && !staleClaim) continue;
+    if (meta.newsState === "FILLED") {
+      const claimed = await deps.db.tx((client) => transition(client, setup.straddleId, ["FILLED"], "CLOSING", now, { reason: "time exit due" }, { closingClaimedAt: new Date(now).toISOString() }));
+      if (!claimed) continue;
+    } else {
+      await deps.db.tx((client) => note(client, setup.straddleId, now, { note: "time exit retry" }, { closingClaimedAt: new Date(now).toISOString() }));
+    }
+    const tradeId = meta.brokerTradeId!;
     const before = await deps.broker.tradeState(tradeId).catch(() => null);
-    if (before?.closed) {
-      // Stop or target got there first; the order reconciler books that close.
-      await deps.db.query("UPDATE pending_manual_entries SET metadata=metadata||'{\"timeExitState\":\"not_needed\"}'::jsonb WHERE id=$1", [row.id]);
-      continue;
-    }
-    try {
-      await deps.broker.closeTrade(tradeId);
-    } catch (error) {
-      console.error(`[news-straddle] time exit close failed for ${tradeId}`, error);
-      continue; // the claim goes stale and is retried
+    let timeClosed = false;
+    if (!before?.closed) {
+      try {
+        await deps.broker.closeTrade(tradeId);
+        timeClosed = true;
+      } catch (error) {
+        deps.log({ event: "news_execution_error", setupId: setup.straddleId, step: "time exit close", error: String(error) });
+      }
     }
     const after = await deps.broker.tradeState(tradeId).catch(() => null);
-    const entry = Number(trade.entry);
-    const exit = after?.averageClosePrice ?? null;
-    const pl = after?.realizedPL ?? null;
-    const resultR = exit === null ? null : manualBrokerCloseResultR({ direction: row.direction, entry, stop: Number(trade.stop), exit });
+    if (!after?.closed) continue; // the claim goes stale and is retried
+    const exit = after.averageClosePrice;
+    const reason = timeClosed ? "time" : exit === null ? "manual" : exitReasonOf(row.direction, exit, numberOrNull(row.stop_price), numberOrNull(row.target_price), meta.pipSize);
+    const resultR = exit === null || !trade ? null : manualBrokerCloseResultR({ direction: row.direction, entry: Number(trade.entry), stop: Number(trade.stop), exit });
+    const pl = after.realizedPL;
     const result = pl === null ? (resultR === null ? "breakeven" : resultR > 0 ? "win" : resultR < 0 ? "loss" : "breakeven") : pl > 0 ? "win" : pl < 0 ? "loss" : "breakeven";
     await deps.db.query(
       `UPDATE paper_trades SET status='closed',result=$2,exit=$3,result_r=$4,paper_pl=$5,closed_at=$6,updated_at=now() WHERE id=$1 AND status='open'`,
-      [row.paper_trade_id, result, exit ?? entry, resultR, pl, after?.closeTime ?? new Date(now).toISOString()],
+      [row.paper_trade_id, result, exit ?? Number(trade?.entry ?? 0), resultR, pl, after.closeTime ?? new Date(now).toISOString()],
     );
-    await deps.db.query("UPDATE pending_manual_entries SET metadata=metadata||'{\"timeExitState\":\"done\"}'::jsonb WHERE id=$1", [row.id]);
-    timeExits += 1;
-    const instrument = row.instrument;
-    await emit(row, "time_exit", `${displayPair(instrument)} news trade closed on time`,
-      `${metaOf(row).closeAfterMinutes} minutes passed without stop or target, so GX closed it at market${exit === null ? "" : ` at ${fmt(instrument, exit)}`}`
-      + `${resultR === null ? "" : ` (${resultR >= 0 ? "+" : ""}${resultR.toFixed(2)}R)`}${pl === null ? "" : `, P/L ${pl >= 0 ? "+" : ""}${pl.toFixed(2)}`}.`, deps, row.id);
+    if (await closeSetup(row, reason, exit, pl, resultR, ["CLOSING"], deps)) counts.closed += 1;
   }
+
   await refreshArmedNewsStraddles(deps);
-  return { disarmed, reconciled, timeExits };
+  return counts;
 }
 
-/** Cancel a whole straddle (both lines) for the user. Returns the rows it cancelled. */
+function numberOrNull(value: string | null) {
+  if (value === null) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+async function closeSetup(row: PendingEntryRow, reason: "stop" | "target" | "manual" | "time", exit: number | null, pl: number | null, resultR: number | null, from: NewsState[], deps: NewsDeps) {
+  const meta = metaOf(row);
+  const now = deps.now();
+  const detail = { exitReason: reason, exitPrice: exit, realizedPL: pl, resultR, closedAt: new Date(now).toISOString() };
+  const moved = await deps.db.tx((client) => transition(client, meta.straddleId, from, "CLOSED", now, detail, detail));
+  if (!moved) return false;
+  const instrument = row.instrument;
+  const words = { stop: "Stop-loss hit", target: "Take-profit hit", manual: "Closed by hand", time: `${meta.closeAfterMinutes} minutes passed without stop or target, so GX closed it at market` } as const;
+  await publish({
+    row, event: "news_trade_closed", title: `${displayPair(instrument)} news trade closed`,
+    message: `${words[reason]}${exit === null ? "" : ` at ${fmt(instrument, exit)}`}${resultR === null ? "" : ` (${resultR >= 0 ? "+" : ""}${resultR.toFixed(2)}R)`}${pl === null ? "" : `, P/L ${pl >= 0 ? "+" : ""}${pl.toFixed(2)}`}.`,
+    detail,
+  }, deps);
+  return true;
+}
+
+// ── Cancel ─────────────────────────────────────────────────────────────
+
+/**
+ * Cancel a setup that has not reserved an order. Once a side is reserved or
+ * sent, cancelling is refused honestly: the order is being confirmed with
+ * OANDA, and an open trade is closed only by the separate Close action.
+ */
 export async function cancelNewsStraddle(userId: string, straddleId: string, deps: NewsDeps = liveNewsDeps) {
-  const rows = await deps.db.tx(async (client) => {
-    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`news-straddle:${straddleId}`]);
-    return (await client.query<PendingEntryRow>(
-      `UPDATE pending_manual_entries SET status='CANCELLED',cancelled_at=now(),metadata=metadata||'{"execution":"news_cancelled"}'::jsonb,updated_at=now()
-        WHERE user_id=$1 AND metadata->>'straddleId'=$2 AND status='PENDING' RETURNING ${PENDING_ENTRY_FIELDS}`,
-      [userId, straddleId],
-    )).rows;
+  const now = deps.now();
+  const out = await deps.db.tx(async (client) => {
+    const setup = await lockRows(client, straddleId);
+    if (!setup || setup.upper.user_id !== userId) throw new Error("News setup not found.");
+    if (!CANCELLABLE.includes(setup.state)) {
+      if (["TRIGGER_RESERVED", "ORDER_SUBMITTING", "ORDER_UNKNOWN"].includes(setup.state)) {
+        throw new Error("An order for this setup is already being sent to OANDA, so it can't be cancelled. GX is confirming it; if it fills you can close the trade.");
+      }
+      if (setup.state === "FILLED" || setup.state === "CLOSING") throw new Error("This setup's trade is open. Use Close trade to close it.");
+      throw new Error("This news setup has already ended.");
+    }
+    await transition(client, straddleId, [setup.state], "CANCELLED", now, { by: "user" });
+    for (const row of [setup.upper, setup.lower]) await setRowStatus(client, row.id, "CANCELLED", { cancelled: true });
+    return setup.upper;
   });
-  if (!rows.length) throw new Error("This news setup already fired or ended, so there is nothing to cancel.");
-  forgetStraddle(rows[0]!.instrument, straddleId);
-  await emit(rows[0]!, "disarmed", `${displayPair(rows[0]!.instrument)} news setup cancelled`, "You cancelled it. Both lines are off; no order was sent.", deps);
-  return rows.map(serializePendingManualEntry);
+  forgetSetup(out.instrument, straddleId);
+  await publish({ row: out, event: "news_setup_cancelled", title: `${displayPair(out.instrument)} news setup cancelled`, message: "You cancelled it. Both zones are off; no order was sent." }, deps);
+  return (await readSetupRows(deps.db, straddleId)).map(serializePendingManualEntry);
 }

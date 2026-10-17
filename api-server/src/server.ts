@@ -1324,7 +1324,7 @@ if (databaseConfigured() && schedulersEnabled) {
       newsSweepBusy = true;
       void sweepNewsStraddles()
         .then((result) => {
-          if (result.disarmed || result.reconciled || result.timeExits) console.log(`[news-straddle] sweep ${JSON.stringify(result)}`);
+          if (Object.values(result).some(Boolean)) console.log(`[news-straddle] sweep ${JSON.stringify(result)}`);
         })
         .catch((error) => console.error("[news-straddle] sweep failed", error))
         .finally(() => { newsSweepBusy = false; });

@@ -879,27 +879,11 @@ export async function cancelPendingManualEntry(userId: string, id: string) {
  * crossing can't interleave.
  */
 async function cancelNewsLines(userId: string, entry: EntryRow) {
+  // The news state machine owns cancellation (both sides, under its setup lock).
+  const { cancelNewsStraddle } = await import("./news-straddle.js");
   const straddleId = String((entry.metadata as Record<string, unknown>).straddleId ?? "");
-  const rows = await transaction(async (client) => {
-    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`news-straddle:${straddleId}`]);
-    return (await client.query<EntryRow>(
-      `UPDATE pending_manual_entries SET status='CANCELLED',cancelled_at=now(),metadata=metadata||'{"execution":"news_cancelled"}'::jsonb,updated_at=now()
-        WHERE user_id=$1 AND metadata->>'straddleId'=$2 AND status='PENDING' RETURNING ${SELECT_FIELDS}`,
-      [userId, straddleId],
-    )).rows;
-  });
-  const own = rows.find((row) => row.id === entry.id) ?? rows[0];
-  if (!own) throw new Error("This news setup already fired or ended, so there is nothing to cancel.");
-  await queueNotification({
-    userId,
-    kind: "trade_update",
-    title: `${displayPair(entry.instrument)} news setup cancelled`,
-    message: "You cancelled it. Both lines are off; no order was sent.",
-    instrument: entry.instrument,
-    paperTradeId: null,
-    dedupeKey: `news-straddle:${straddleId}:disarmed`,
-  }).catch((error) => console.error(`[news-straddle] cancel notification failed for ${straddleId}`, error));
-  return serialize(own);
+  const rows = await cancelNewsStraddle(userId, straddleId);
+  return rows.find((row) => row.id === entry.id) ?? rows[0]!;
 }
 
 /**

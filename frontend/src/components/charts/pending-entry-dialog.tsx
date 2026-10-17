@@ -9,7 +9,8 @@ import { useDragToDismiss } from "@/lib/use-drag-to-dismiss";
 import { displayNameFor, pipSizeFor, precisionFor } from "@/lib/instruments/catalog";
 import type { PendingManualEntry } from "@/types/pending-entry";
 import { NewsWarning } from "@/components/charts/news-warning";
-import { NewsStraddleTicket } from "@/components/charts/news-straddle-ticket";
+import { NewsSetupStatus, NewsStraddleTicket } from "@/components/charts/news-straddle-ticket";
+import type { NewsDraft } from "@/lib/news/news-zone-overlay";
 import styles from "./pending-entry-dialog.module.css";
 
 type ExpirationPreset = "none" | "30m" | "1h" | "4h" | "custom";
@@ -67,6 +68,7 @@ export function PendingEntryDialog({
   creationBlocked = false,
   onClose,
   onChanged,
+  onNewsDraft,
 }: {
   open: boolean;
   layout?: "dialog" | "panel";
@@ -78,6 +80,8 @@ export function PendingEntryDialog({
   creationBlocked?: boolean;
   onClose: () => void;
   onChanged: (message: string) => void;
+  /** News mode's unsaved settings, for the chart's DRAFT zones. */
+  onNewsDraft?: (draft: NewsDraft | null) => void;
 }) {
   const isPanel = layout === "panel";
   const { setSheet, setBackdrop, handlers: dragHandlers, requestClose: requestDrawerClose } = useDragToDismiss({
@@ -502,7 +506,7 @@ export function PendingEntryDialog({
     }
   }
 
-  const newsSetup = selectedEntry?.metadata?.mode === "news" ? selectedEntry.metadata as { execution?: string; upperLine?: number; lowerLine?: number; upperFar?: number; lowerFar?: number; release?: { title?: string; currency?: string | null; time?: string } | null; stopPips?: number; targetPips?: number; slippagePips?: number; spreadCapPips?: number; closeAfterMinutes?: number } : null;
+  const newsSetup = selectedEntry?.metadata?.mode === "news";
   const modeSwitch = !selectedEntry ? (
     <div className="nl-pe-submit">
       <span>Mode</span>
@@ -571,9 +575,15 @@ export function PendingEntryDialog({
 
       {isDetail && selectedEntry ? (
         <>
+          {newsSetup ? (
+            <div className="pending-entry-detail">
+              <NewsSetupStatus entry={selectedEntry} bid={bid} ask={ask} />
+              {error ? <p className="pending-entry-error">{error}</p> : null}
+            </div>
+          ) : (
           <div className="pending-entry-detail">
             <p className={`pending-entry-status is-${selectedEntry.status.toLowerCase()}`}>
-              {selectedEntry.status === "PENDING" ? (newsSetup ? (newsSetup.execution === "news_waiting" ? "News setup · waiting for the release" : "News setup · watching both zones") : `Waiting for ${selectedEntry.entryPrice.toFixed(precision)}`)
+              {selectedEntry.status === "PENDING" ? `Waiting for ${selectedEntry.entryPrice.toFixed(precision)}`
                 : selectedEntry.status === "TRIGGERED" ? `Entry triggered at ${selectedEntry.triggerPrice?.toFixed(precision) ?? "—"}`
                   : selectedEntry.status === "INVALIDATED" ? `Setup cancelled at ${selectedEntry.invalidationPrice?.toFixed(precision) ?? "—"}`
                     : selectedEntry.status === "EXPIRED" ? "Entry expired"
@@ -592,15 +602,10 @@ export function PendingEntryDialog({
               <div><dt>Created</dt><dd>{new Date(selectedEntry.createdAt).toLocaleString()}</dd></div>
               {selectedEntry.stopPrice !== null ? <div><dt>Stop</dt><dd>{selectedEntry.stopPrice.toFixed(precision)}</dd></div> : null}
               {selectedEntry.targetPrice !== null ? <div><dt>Target</dt><dd>{selectedEntry.targetPrice.toFixed(precision)}</dd></div> : null}
-              {newsSetup?.release?.time ? <div><dt>Release</dt><dd>{new Date(newsSetup.release.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · {newsSetup.release.currency} {newsSetup.release.title}</dd></div> : null}
-              {newsSetup && newsSetup.execution === "news_waiting" && selectedEntry.activateAt
-                ? <div><dt>Zones</dt><dd>set from the live price at {new Date(selectedEntry.activateAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</dd></div>
-                : newsSetup ? <div><dt>Zones</dt><dd>buy {newsSetup.upperLine?.toFixed(precision) ?? "—"}–{newsSetup.upperFar?.toFixed(precision) ?? "—"} · sell {newsSetup.lowerLine?.toFixed(precision) ?? "—"}–{newsSetup.lowerFar?.toFixed(precision) ?? "—"}</dd></div> : null}
-              {newsSetup ? <div><dt>From the fill</dt><dd>stop {newsSetup.stopPips}p · target {newsSetup.targetPips}p · fills only inside the zone{newsSetup.closeAfterMinutes ? ` · closes after ${newsSetup.closeAfterMinutes}m` : ""}</dd></div> : null}
             </dl>
-            {newsSetup && selectedEntry.status === "PENDING" ? <p className="nl-pe-news-note">Price entering a zone sends one order and drops the other zone. Cancelling cancels both.</p> : null}
             {error ? <p className="pending-entry-error">{error}</p> : null}
           </div>
+          )}
           {selectedEntry.status === "PENDING" ? (
             <footer className="pending-entry-actions">
               <button type="button" className="pending-entry-danger pressable" disabled={saving} onClick={() => void cancelEntry()}>{newsSetup ? "Cancel news setup" : "Cancel Entry"}</button>
@@ -686,6 +691,7 @@ export function PendingEntryDialog({
           ask={ask}
           creationBlocked={creationBlocked}
           onCancel={dismissCreateOrClose}
+          onDraft={onNewsDraft}
           onArmed={(message) => {
             onChanged(message);
             onClose();

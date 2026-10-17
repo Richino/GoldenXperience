@@ -9666,3 +9666,17 @@ html:is(.dark, :not(.dark)) body .nl-pe-release {
   font-size: 13px;
   line-height: 1.5;
 }
+/* A News setup's state history in its detail view. */
+.nl-pe-news-timeline {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 12px;
+}
+.nl-pe-news-timeline time {
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}

@@ -361,7 +361,22 @@ export function LedgerPlans() {
                 <Sides plans={row.plans} />
                 <div className="nl-plan-bottom">
                   <span className="nl-plan-foot">{auto ? "Auto trade" : "Alert me"} · {lead.notTriggeredReason ?? "Checking the conditions."}</span>
-                  <Link href={href} className="nl-plan-cta">Open <ArrowUpRight aria-hidden="true" /></Link>
+                  <div className="nl-plan-actions">
+                    {/* Remove stops watching (plans already sending an order or in a trade are left alone). */}
+                    {row.plans.some((plan) => ["APPROVED", "MONITORING", "CONFIRMED", "NOTIFIED"].includes(plan.status)) ? (
+                      <button type="button" className="nl-plan-cta is-quiet" aria-label={`Remove the ${pair} plans`} onClick={() => ask({
+                        eyebrow: `Plans · ${pair}`, title: `Stop watching ${pair}?`,
+                        body: "GX stops watching these plans and nothing is placed from them. Their history, results and research stay saved; any trade already open or being placed is not touched.",
+                        keepLabel: "Keep watching", confirmLabel: "Remove plans", busyLabel: "Removing…",
+                        work: () => Promise.all(row.plans
+                          .filter((plan) => ["APPROVED", "MONITORING", "CONFIRMED", "NOTIFIED"].includes(plan.status))
+                          .map((plan) => tradePlansApi.cancel(plan.id, "Removed from Plans"))),
+                      })}>
+                        Remove
+                      </button>
+                    ) : null}
+                    <Link href={href} className="nl-plan-cta is-primary">Open <ArrowUpRight aria-hidden="true" /></Link>
+                  </div>
                 </div>
               </article>
             );

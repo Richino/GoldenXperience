@@ -27,7 +27,7 @@ import type { TradePlanDirection, TradePlanInput, TradePlanSetupType } from "./t
  * Pure: the same candles, quote, news and clock always give the same plans.
  */
 
-export const TRADE_PLAN_STRATEGY_VERSION = "trade-plans-swing-v1";
+export const TRADE_PLAN_STRATEGY_VERSION = "trade-plans-swing-v2";
 
 /** Initial operating choices, not fitted values. Change them here. "ATR" means the H4 ATR. */
 export const TRADE_PLAN_CONFIG = {
@@ -37,6 +37,8 @@ export const TRADE_PLAN_CONFIG = {
   /** Zones further than this many H4 ATRs from price are not planned for. */
   maxZoneDistanceAtr: 4,
   breakoutRetest: {
+    /** A future breakout zone must be approached before a failed approach can invalidate it. */
+    waitForApproach: true,
     /** Timeframe whose completed close confirms the breakout. */
     breakoutTimeframe: "H4",
     /** The breakout close must clear the zone edge by this many ATRs (noise filter). */
@@ -89,7 +91,7 @@ export const TRADE_PLAN_CONFIG = {
   maxTargetD1Atr: 3,
   /** A confirmation older than this that still could not pass the safety checks is dropped. */
   confirmationValidMinutes: 240,
-  /** Minimum estimated reward/risk for a plan to be offered (not a proven threshold). */
+  /** Minimum reward/risk at confirmation and execution; lower estimates remain conditional scenarios. */
   minRewardRisk: 1.5,
   /** Open-market hours a plan has to trigger (the weekend close does not count). */
   triggerTradingHours: 72,
@@ -300,6 +302,10 @@ export function generateTradePlans(input: GeneratorInput): GeneratorResult {
     const cap = entryMid + (direction === "BUY" ? 1 : -1) * cfg.maxTargetD1Atr * atrD1;
     const capped = direction === "BUY" ? zoneTarget > cap : zoneTarget < cap;
     const takeProfit = round(capped ? cap : zoneTarget);
+    if (direction === "BUY" ? takeProfit <= round(candidate.entryZoneHigh) : takeProfit >= round(candidate.entryZoneLow)) {
+      rejected.push({ direction, setupType, reason: "The next structural target is inside the entry zone; this is not a usable directional scenario." });
+      return;
+    }
     // A structural stop inside multi-day noise is pushed out to the minimum
     // distance (decided here, before approval — never widened afterwards).
     const minStop = cfg.minStopAtr * atr;
@@ -322,13 +328,15 @@ export function generateTradePlans(input: GeneratorInput): GeneratorResult {
       return;
     }
     const rewardRisk = (reward - spread) / (risk + spread);
-    if (rewardRisk < cfg.minRewardRisk) {
-      rejected.push({
-        direction, setupType,
-        reason: `Estimated reward/risk ${rewardRisk.toFixed(2)} is under ${cfg.minRewardRisk}: the ${direction === "BUY" ? "resistance" : "support"} at ${fmt(direction === "BUY" ? target.low : target.high)} is too close for a swing.`,
-      });
-      return;
-    }
+    const rewardRiskPending = rewardRisk < cfg.minRewardRisk;
+    const entryReadiness = {
+      status: rewardRiskPending ? "WAITING_FOR_RISK_REWARD" : "WAITING_FOR_CONFIRMATION",
+      estimatedRewardRisk: Number(rewardRisk.toFixed(2)),
+      minRewardRisk: cfg.minRewardRisk,
+      reason: rewardRiskPending
+        ? `Estimated ${rewardRisk.toFixed(2)}R. Entry requires this side's own confirmation and at least ${cfg.minRewardRisk}R with the fixed stop and target.`
+        : "Waiting for this side's own price confirmation and entry safety checks.",
+    };
     const expiresAt = new Date(addTradingHours(input.now, cfg.triggerTradingHours)).toISOString();
     const upcoming = news.events.filter((event) => event.impact >= 3 && event.minutesUntil >= 0
       && Date.parse(event.at) <= Date.parse(expiresAt));
@@ -352,6 +360,7 @@ export function generateTradePlans(input: GeneratorInput): GeneratorResult {
       conditions: candidate.conditions,
       plan: {
         style: "SWING",
+        entryReadiness,
         zone: { low: round(candidate.zone.low), high: round(candidate.zone.high), type: candidate.zone.type, relevance: candidate.zone.relevance, reactions: candidate.zone.reactions, sources: candidate.zone.sources, flipped: candidate.zone.flipped },
         entryTrigger: candidate.trigger,
         confirmation: candidate.confirmation,
@@ -410,21 +419,22 @@ export function generateTradePlans(input: GeneratorInput): GeneratorResult {
 
     // ── Breakout and retest: an unbroken zone beyond price, or one already broken behind it.
     const ahead = zones
-      .filter((zone) => zone.status === "ACTIVE" && (up ? zone.type === "RESISTANCE" : zone.type === "SUPPORT"))
-      .sort((a, b) => (up ? a.low - b.low : b.high - a.high))[0];
+      .filter((zone) => zone.status === "ACTIVE" && (up ? zone.type === "RESISTANCE" && zone.high >= price : zone.type === "SUPPORT" && zone.low <= price))
+      .sort((a, b) => (up ? a.low - b.low : b.high - a.high));
     const broken = zones
       .filter((zone) => zone.flipped && (up ? zone.high < price : zone.low > price))
-      .sort((a, b) => (up ? b.high - a.high : a.low - b.low))[0];
-    const breakoutZone = ahead ?? broken;
-    if (!breakoutZone) {
+      .sort((a, b) => (up ? b.high - a.high : a.low - b.low));
+    const breakoutZones = [...new Set([...ahead, ...broken])];
+    if (!breakoutZones.length) {
       rejected.push({ direction, setupType: "BREAKOUT_RETEST", reason: `No ${up ? "resistance" : "support"} within ${cfg.maxZoneDistanceAtr} H4 ATR to break.` });
-    } else {
+    }
+    for (const breakoutZone of breakoutZones) {
       const br = cfg.breakoutRetest;
       const level = edge(breakoutZone);
       const tolerance = br.retestToleranceAtr * atr;
       const farEdge = up ? breakoutZone.low : breakoutZone.high;
       const failLevel = level - sign * br.retestFailAtr * atr;
-      const already = breakoutZone === broken;
+      const already = broken.includes(breakoutZone);
       finish({
         direction,
         setupType: "BREAKOUT_RETEST",
@@ -456,7 +466,7 @@ export function generateTradePlans(input: GeneratorInput): GeneratorResult {
         invalidation: {
           rules: [
             `A completed ${br.retestTimeframe} close back ${back} ${fmt(failLevel)} after the breakout (failed breakout).`,
-            `A completed ${br.breakoutTimeframe} close ${back} ${fmt(farEdge)} before any breakout.`,
+            `After price first approaches the zone, a completed ${br.breakoutTimeframe} close ${back} ${fmt(farEdge)} before any breakout.`,
             "The plan runs out of time before confirming.",
           ],
           failLevel: round(failLevel),
@@ -473,12 +483,13 @@ export function generateTradePlans(input: GeneratorInput): GeneratorResult {
     }
 
     // ── Support/resistance reversal: the nearest zone price would bounce from.
-    const reversalZone = zones
-      .filter((zone) => (zone.status === "ACTIVE" || zone.flipped) && (up ? zone.type === "SUPPORT" : zone.type === "RESISTANCE"))
-      .sort((a, b) => (up ? b.high - a.high : a.low - b.low))[0];
-    if (!reversalZone) {
+    const reversalZones = zones
+      .filter((zone) => (zone.status === "ACTIVE" || zone.flipped) && (up ? zone.type === "SUPPORT" && zone.low <= price : zone.type === "RESISTANCE" && zone.high >= price))
+      .sort((a, b) => (up ? b.high - a.high : a.low - b.low));
+    if (!reversalZones.length) {
       rejected.push({ direction, setupType: "SR_REVERSAL", reason: `No ${up ? "support below" : "resistance above"} price within ${cfg.maxZoneDistanceAtr} H4 ATR.` });
-    } else {
+    }
+    for (const reversalZone of reversalZones) {
       const rv = cfg.reversal;
       const tf = rv.confirmTimeframe;
       const farEdge = up ? reversalZone.low : reversalZone.high;

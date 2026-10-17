@@ -350,6 +350,9 @@ export function PlanBlock({ plan, watching, price = null, report = null }: { pla
         <div><dt>Stop</dt><dd>{fmt(plan.stopLoss)}</dd></div>
         <div><dt>Target</dt><dd>{fmt(plan.takeProfit)}</dd></div>
       </dl>
+      {plan.plan.entryReadiness?.status === "WAITING_FOR_RISK_REWARD" && !confirmed && plan.status !== "FILLED" ? (
+        <p className={styles.note}>{plan.plan.entryReadiness.reason}</p>
+      ) : null}
       {watching && plan.status === "FILLED" ? (
         <p className={styles.ready}>In the trade (Auto trade). OANDA holds the stop and target.</p>
       ) : watching && (plan.status === "EXECUTION_PENDING" || plan.status === "ORDER_SUBMITTED" || plan.status === "PARTIALLY_FILLED") ? (
@@ -529,6 +532,9 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
         <div className="nl-an-scroll">
           <MarketRead state={state.research} onRefresh={state.refreshResearch} onCancel={state.cancelResearch} />
           <Ladder plans={plans} price={price} watching={false} report={state.research.result?.research?.report?.schemaVersion ? state.research.result.research.report : null} />
+          {plans.some((plan) => plan.direction === "BUY") && plans.some((plan) => plan.direction === "SELL") ? (
+            <p className={styles.footnote}>Both scenarios can be watched. If one invalidates, the other keeps its own trigger; invalidation alone never confirms the opposite trade.</p>
+          ) : null}
         </div>
         <div className={styles.dock}>
           <ModeSwitch mode={mode} onChange={setMode} name={`plan-mode-${titleId}`} />

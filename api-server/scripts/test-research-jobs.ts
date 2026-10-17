@@ -156,7 +156,13 @@ const client = await db().connect();
 const testJobIds = new Set<string>();
 const tx = { query: async (text: string, values?: unknown[]) => {
   const result = await client.query(text, values ?? []);
-  if (text.startsWith("INSERT INTO research_jobs(")) for (const row of result.rows) testJobIds.add(row.id);
+  if (text.startsWith("INSERT INTO research_jobs(")) for (const row of result.rows) {
+    testJobIds.add(row.id);
+    // now() is constant within this rollback transaction. Real requests use
+    // separate transactions, so give fixture jobs their actual creation order.
+    const timestamp = await client.query("UPDATE research_jobs SET created_at=clock_timestamp() WHERE id=$1 RETURNING created_at", [row.id]);
+    row.created_at = timestamp.rows[0].created_at;
+  }
   // Worker tick tests must never advance unrelated live jobs in this shared
   // database, even though all test writes and mocked deliveries roll back.
   if (/^SELECT (?:DISTINCT j\.)?id FROM research_jobs/.test(text)) {
@@ -461,6 +467,20 @@ try {
     assert.equal(await jobs.processResearchJob(id, broken), "FAILED");
     assert.equal(calls.submit, before, "no provider run was started without inputs");
     assert.equal((await statusOf(id)).lease_owner, null);
+  });
+  await test("completed no-setup results remain on Home; dismissing the latest never revives an older result", async () => {
+    const ids = [...testJobIds];
+    const newest = ids.at(-1)!;
+    const older = ids[0]!;
+    await client.query("UPDATE research_jobs SET created_at=now()-interval '5 days' WHERE id=ANY($1::uuid[])", [ids]);
+    await client.query("UPDATE research_jobs SET status='COMPLETED', created_at=now()-interval '2 days' WHERE id=$1", [newest]);
+    await client.query("UPDATE research_jobs SET status='COMPLETED', created_at=now()-interval '3 days' WHERE id=$1", [older]);
+    await client.query("UPDATE research_job_watchers SET plans_result='NO_VALID_SETUP', dismissed_at=NULL WHERE job_id=ANY($1::uuid[])", [[newest, older]]);
+    const before = (await jobs.researchJobsForUser(user.id, tx)).filter((row) => row.instrument === "GBP_USD");
+    assert.equal(before.length, 1);
+    assert.equal(before[0]!.id, newest);
+    await jobs.dismissResearchJob(user.id, newest, tx);
+    assert.equal((await jobs.researchJobsForUser(user.id, tx)).filter((row) => row.instrument === "GBP_USD").length, 0);
   });
 } finally {
   await client.query("ROLLBACK");

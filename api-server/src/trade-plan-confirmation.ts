@@ -233,6 +233,7 @@ export function evaluateConfirmation(input: ConfirmationInput): Confirmation {
     maxAttemptsUsed = Number.isFinite(retestWindow) || Number.isFinite(continuationWindow) ? maxAttempts : null;
 
     let from = createdAt;
+    let approached = rules.waitForApproach !== true || plan.plan.breakoutAlreadyClosed === true;
     for (let attempt = 1; ; attempt += 1) {
       attemptsUsed = attempt;
       const label = maxAttemptsUsed && maxAttemptsUsed > 1 ? ` (attempt ${attempt} of ${maxAttemptsUsed})` : "";
@@ -244,7 +245,8 @@ export function evaluateConfirmation(input: ConfirmationInput): Confirmation {
         set("breakout_size", "PASSED", "The breakout was already established at generation.", plan.createdAt);
       } else {
         for (const bar of signalBars.filter((item) => item.open >= from)) {
-          if (bar.c < farEdge) return invalidate(bar, "breakout_close", `An ${signalTf} close at ${fmt(bar.c)} went through the far side of the zone (${fmt(farEdge)}) before any breakout.`);
+          if (bar.h >= farEdge) approached = true;
+          if (approached && bar.c < farEdge) return invalidate(bar, "breakout_close", `An ${signalTf} close at ${fmt(bar.c)} went through the far side of the zone (${fmt(farEdge)}) before any breakout.`);
           if (bar.c > level && !firstClose) firstClose = bar;
           if (bar.c > level + threshold) {
             breakoutAt = bar.close;

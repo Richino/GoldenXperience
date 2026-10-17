@@ -227,12 +227,16 @@ export async function researchJobForUser(userId: string, jobId: string, db: Db =
   return row ? { ...jobView(row), plans: row.plans_result ? { result: row.plans_result, reason: row.plans_reason } : null } : null;
 }
 
-/** Your research jobs that are running, or ended in the last day (with the plans each built for you). */
+/** Latest watched job per pair. Completed analyses without plans remain until dismissed. */
 export async function researchJobsForUser(userId: string, db: Db = pool) {
   const found = await db.query<JobRow & { plans_result: string | null; plans_reason: string | null }>(
-    `SELECT ${JOB_COLUMNS.split(",").map((column) => `j.${column.trim()}`).join(",")}, w.plans_result, w.plans_reason FROM research_jobs j
-       JOIN research_job_watchers w ON w.job_id=j.id AND w.user_id=$1 AND w.dismissed_at IS NULL
-      WHERE j.status IN ${ACTIVE_SQL} OR j.created_at > now() - interval '1 day'
+    `SELECT ${JOB_COLUMNS.split(",").map((column) => `j.${column.trim()}`).join(",")}, j.plans_result, j.plans_reason FROM (
+       SELECT DISTINCT ON (r.instrument) r.*, w.plans_result, w.plans_reason, w.dismissed_at
+       FROM research_jobs r JOIN research_job_watchers w ON w.job_id=r.id AND w.user_id=$1
+       ORDER BY r.instrument, (r.status IN ${ACTIVE_SQL}) DESC, r.created_at DESC, w.requested_at DESC, r.id DESC
+     ) j
+      WHERE j.dismissed_at IS NULL AND (j.status IN ${ACTIVE_SQL} OR j.created_at > now() - interval '1 day'
+        OR (j.status='COMPLETED' AND j.plans_result IN ('NO_VALID_SETUP','ERROR')))
       ORDER BY j.created_at DESC LIMIT 30`,
     [userId],
   );

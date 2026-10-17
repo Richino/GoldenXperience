@@ -80,13 +80,13 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
     }
   }, [instrument]);
 
-  /** Show the plans awaiting review for this pair. */
-  const loadAwaiting = useCallback(async () => {
+  /** Show the plans awaiting review for this pair. `force` replaces an "analyzing" placeholder too. */
+  const loadAwaiting = useCallback(async (force = false) => {
     const plans = await tradePlansApi.list("awaiting", instrument).catch(() => null);
     if (!plans) return false;
     const latest = plans[0] ? plans.filter((plan) => plan.analysisId === plans[0]!.analysisId) : [];
     if (!latest.length) return false;
-    setPhase((current) => (current.kind === "analyzing" ? current : { kind: "results", result: { analysisId: latest[0]!.analysisId, plans: latest, result: "PLANS", reason: null, planIds: latest.map((plan) => plan.id), rejected: [] } }));
+    setPhase((current) => (current.kind === "analyzing" && !force ? current : { kind: "results", result: { analysisId: latest[0]!.analysisId, plans: latest, result: "PLANS", reason: null, planIds: latest.map((plan) => plan.id), rejected: [] } }));
     return true;
   }, [instrument]);
 
@@ -174,6 +174,17 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
     if (active.length) { setPhase({ kind: "idle" }); void runResearch(); return; }
     const id = ++request.current;
     setPhase({ kind: "analyzing" });
+    // Plans already built for this pair and waiting for you: open them instead of researching again.
+    if (await loadAwaiting(true)) return;
+    if (id !== request.current) return;
+    // Research already running for this pair: show it rather than starting anything.
+    const current = await tradePlansApi.research(instrument).catch(() => null);
+    if (id !== request.current) return;
+    if (current?.job && JOB_RUNNING.includes(current.job.status)) {
+      setResearch((state) => ({ ...state, result: current }));
+      setPhase({ kind: "researching" });
+      return;
+    }
     const started = await runResearch();
     if (id !== request.current) return;
     if (!started) { setPhase({ kind: "error", message: "Research could not be started. No plans were built." }); return; }
@@ -187,7 +198,7 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
     } catch (error) {
       if (id === request.current) setPhase({ kind: "error", message: error instanceof Error ? error.message : "Analysis failed." });
     }
-  }, [active.length, disabled, instrument, runResearch]);
+  }, [active.length, disabled, instrument, loadAwaiting, runResearch]);
 
   const act = useCallback(async (work: () => Promise<unknown>, after: () => void) => {
     setBusy(true);

@@ -784,26 +784,6 @@ export function PendingEntryDialog({
                     syncPipLevels(event.target.value, direction);
                   }} placeholder={current?.toFixed(precision) ?? "0.00000"} aria-label="Entry price" />
                 )}
-                {levelUnit === "pips" && direction !== null ? (
-                  <span className="nl-pe-where" role="radiogroup" aria-label="Entry below or above the current price">
-                    {(["below", "above"] as const).map((where) => (
-                      <button
-                        key={where}
-                        type="button"
-                        role="radio"
-                        aria-checked={(entrySide ?? defaultEntrySide(direction)) === where}
-                        className={(entrySide ?? defaultEntrySide(direction)) === where ? "is-active" : ""}
-                        onClick={(event) => {
-                          event.preventDefault();
-                          setEntrySide(where);
-                          applyEntryPips(entryPips, where, direction);
-                        }}
-                      >
-                        {where === "below" ? "Below" : "Above"}
-                      </button>
-                    ))}
-                  </span>
-                ) : null}
                 <small className="nl-pe-hint">
                   {direction === null
                     ? "Pick a side"
@@ -812,6 +792,36 @@ export function PendingEntryDialog({
                       : direction === "long" ? "Buy here" : "Sell here"}
                 </small>
               </label>
+              {levelUnit === "pips" && direction !== null ? (
+                  <div className={`nl-pe-where ${styles.entryPosition}`} role="radiogroup" aria-label="Entry below or above the current price">
+                    {(["below", "above"] as const).map((where) => (
+                      <button
+                        key={where}
+                        type="button"
+                        role="radio"
+                        aria-checked={(entrySide ?? defaultEntrySide(direction)) === where}
+                        tabIndex={(entrySide ?? defaultEntrySide(direction)) === where ? 0 : -1}
+                        data-entry-side={where}
+                        className={(entrySide ?? defaultEntrySide(direction)) === where ? "is-active" : ""}
+                        onKeyDown={(event) => {
+                          if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
+                          event.preventDefault();
+                          const next = event.key === "Home" ? "below" : event.key === "End" ? "above" : where === "below" ? "above" : "below";
+                          setEntrySide(next);
+                          applyEntryPips(entryPips, next, direction);
+                          event.currentTarget.parentElement?.querySelector<HTMLButtonElement>(`[data-entry-side="${next}"]`)?.focus();
+                        }}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          setEntrySide(where);
+                          applyEntryPips(entryPips, where, direction);
+                        }}
+                      >
+                        {where === "below" ? "↓ Below price" : "↑ Above price"}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
               <label>
                 <span>Stop</span>
                 {levelUnit === "pips" ? (

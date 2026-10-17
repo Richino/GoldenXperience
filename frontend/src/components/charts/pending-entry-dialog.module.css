@@ -28,13 +28,13 @@
 .ticket .levelsCard .levels label {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(7.5rem, 46%);
-  grid-template-areas: "name field" "hint where";
+  grid-template-areas: "name field" "hint hint";
   align-items: center;
   gap: 4px 12px;
   padding: 10px 14px;
 }
 
-.ticket .levelsCard .levels label + label {
+.ticket .levelsCard .levels label:not(:first-child) {
   border-top: 1px solid var(--border);
   border-left: 0;
 }
@@ -70,9 +70,51 @@
   display: none;
 }
 
-.ticket .levelsCard .levels :global(.nl-pe-where) {
-  grid-area: where;
-  justify-self: end;
+.ticket .levelsCard .levels .entryPosition {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-self: stretch;
+  gap: 4px;
+  margin: 0 14px 12px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--background);
+}
+
+.ticket .levelsCard .levels .entryPosition button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--muted-strong);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.ticket .levelsCard .levels .entryPosition button[aria-checked="true"] {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: var(--surface-raised);
+  color: var(--accent);
+}
+
+@media (hover: hover) {
+  .ticket .levelsCard .levels .entryPosition button:hover:not([aria-checked="true"]) {
+    background: var(--surface-raised);
+    color: var(--foreground);
+  }
+}
+
+.ticket .levelsCard .levels .entryPosition button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .ticket .summary {

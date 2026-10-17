@@ -531,3 +531,33 @@
   display: block;
   color: var(--muted);
 }
+
+/* Delete at the very end of the scroll, full width and quiet, well away from Accept. */
+.deleteRow {
+  display: block;
+  width: 100%;
+  min-height: 2.9rem;
+  margin: 0.75rem 0 0.25rem;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
+  border-radius: 0.9rem;
+  background: transparent;
+  color: var(--danger);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.deleteRow:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+}
+
+.deleteRow:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.deleteRow:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}

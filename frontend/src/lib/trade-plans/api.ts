@@ -333,6 +333,8 @@ export const tradePlansApi = {
   /** Your research jobs: running, or ended in the last day (with the plans each built). */
   researchJobs: () => request<{ jobs: ResearchJob[] }>("/api/research-jobs"),
   researchJob: (jobId: string) => request<{ job: ResearchJob }>(`/api/research-jobs/${jobId}`),
+  /** Remove a finished (failed or cancelled) research job from the Plans card. */
+  dismissResearch: (jobId: string) => post<{ dismissed: boolean }>(`/api/research-jobs/${jobId}/dismiss`),
   cancelResearch: (jobId: string) => post<{ cancelled: boolean; reason: string | null }>(`/api/research-jobs/${jobId}/cancel`),
   autoTrade: () => request<AutoTradeSettings>("/api/trade-plans/auto-trade"),
   saveAutoTrade: (settings: AutoTradeLimits & { autoTrade: boolean }) =>

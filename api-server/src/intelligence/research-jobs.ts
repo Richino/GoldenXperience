@@ -200,6 +200,16 @@ export async function cancelResearchJob(userId: string, jobId: string, db: Db = 
   return { cancelled: true, reason: null };
 }
 
+/** Remove a finished job from your Plans card (a running one is cancelled instead). */
+export async function dismissResearchJob(userId: string, jobId: string, db: Db = pool) {
+  const updated = await db.query(
+    `UPDATE research_job_watchers w SET dismissed_at=now() FROM research_jobs j
+      WHERE w.job_id=$1 AND w.user_id=$2 AND j.id=w.job_id AND j.status NOT IN ${ACTIVE_SQL}`,
+    [jobId, userId],
+  );
+  return { dismissed: (updated.rowCount ?? 0) > 0 };
+}
+
 /** A job the user asked for, with the plans it built for them (or why none). */
 export async function researchJobForUser(userId: string, jobId: string, db: Db = pool) {
   const found = await db.query<JobRow & { plans_result: string | null; plans_reason: string | null }>(
@@ -215,7 +225,7 @@ export async function researchJobForUser(userId: string, jobId: string, db: Db =
 export async function researchJobsForUser(userId: string, db: Db = pool) {
   const found = await db.query<JobRow & { plans_result: string | null; plans_reason: string | null }>(
     `SELECT ${JOB_COLUMNS.split(",").map((column) => `j.${column.trim()}`).join(",")}, w.plans_result, w.plans_reason FROM research_jobs j
-       JOIN research_job_watchers w ON w.job_id=j.id AND w.user_id=$1
+       JOIN research_job_watchers w ON w.job_id=j.id AND w.user_id=$1 AND w.dismissed_at IS NULL
       WHERE j.status IN ${ACTIVE_SQL} OR j.created_at > now() - interval '1 day'
       ORDER BY j.created_at DESC LIMIT 30`,
     [userId],

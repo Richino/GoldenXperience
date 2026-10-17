@@ -158,6 +158,8 @@ export function LedgerPlans() {
   /** Pairs whose research has been looked up (with or without a read). */
   const [checked, setChecked] = useState<Record<string, true>>({});
   const [error, setError] = useState<string | null>(null);
+  /** The job a Cancel or Remove is in flight for. */
+  const [acting, setActing] = useState<string | null>(null);
   const fetchedAt = useRef<Record<string, number>>({});
 
   const loadBriefs = useCallback(async (instruments: string[]) => {
@@ -207,6 +209,18 @@ export function LedgerPlans() {
     return () => { window.clearTimeout(first); window.clearInterval(timer); window.removeEventListener(PLANS_CHANGED, changed); };
   }, [load]);
 
+  const act = async (jobId: string, work: () => Promise<unknown>) => {
+    setActing(jobId);
+    try {
+      await work();
+      await load();
+    } catch {
+      setError("That did not work. Try again.");
+    } finally {
+      setActing(null);
+    }
+  };
+
   const count = rows?.length ?? 0;
   return (
     <section className="nl-card nl-plans" aria-labelledby="nl-plans-title" aria-busy={rows === null}>
@@ -235,7 +249,14 @@ export function LedgerPlans() {
                     ))}
                   </ol>
                   <div className="nl-plan-read is-loading" aria-hidden="true"><span /><span /></div>
-                  <p className="nl-plan-foot">Started {ago(row.job.startedAt ?? row.job.createdAt)}. We&apos;ll notify you when the plans are ready.</p>
+                  <div className="nl-plan-bottom">
+                    <p className="nl-plan-foot">Started {ago(row.job.startedAt ?? row.job.createdAt)}. We&apos;ll notify you when the plans are ready.</p>
+                    {JOB_RUNNING.includes(row.job.status) ? (
+                      <button type="button" className="nl-plan-cta is-quiet" disabled={acting === row.job.id} onClick={() => void act(row.job.id, () => tradePlansApi.cancelResearch(row.job.id))} aria-label={`Cancel the ${pair} research`}>
+                        {acting === row.job.id ? "Cancelling…" : "Cancel"}
+                      </button>
+                    ) : null}
+                  </div>
                 </article>
               );
             }
@@ -247,7 +268,12 @@ export function LedgerPlans() {
                     <span className="nl-plan-state is-failed">Not generated</span>
                   </Link>
                   <p className="nl-plan-foot">{row.job.error ?? "The research did not finish."} No plans were built.</p>
-                  <Link href={`/chart?instrument=${encodeURIComponent(row.instrument)}`} className="nl-plan-cta">Try again <ArrowUpRight aria-hidden="true" /></Link>
+                  <div className="nl-plan-actions">
+                    <Link href={`/chart?instrument=${encodeURIComponent(row.instrument)}`} className="nl-plan-cta">Try again <ArrowUpRight aria-hidden="true" /></Link>
+                    <button type="button" className="nl-plan-cta is-quiet" disabled={acting === row.job.id} onClick={() => void act(row.job.id, () => tradePlansApi.dismissResearch(row.job.id))} aria-label={`Remove ${pair} from Plans`}>
+                      {acting === row.job.id ? "Removing…" : "Remove"}
+                    </button>
+                  </div>
                 </article>
               );
             }

@@ -66,7 +66,7 @@ import { confirmationProgress, editTradePlan, generateAndStoreTradePlans } from 
 import { startTradePlanMonitor } from "./trade-plan-monitor.js";
 import { autoTradeSettings, saveAutoTradeSettings } from "./trade-plan-settings.js";
 import { latestResearch, researchUsage } from "./intelligence/research-service.js";
-import { cancelResearchJob, handleOpenAIWebhook, refreshDueResearch, requestResearch, researchJobForUser, researchJobsForUser, startResearchWorker } from "./intelligence/research-jobs.js";
+import { cancelResearchJob, dismissResearchJob, handleOpenAIWebhook, refreshDueResearch, requestResearch, researchJobForUser, researchJobsForUser, startResearchWorker } from "./intelligence/research-jobs.js";
 import { TradePlanError, approveAnalysis, approveTradePlan, cancelTradePlan, getTradePlan, listTradePlans, pauseTradePlan, rejectTradePlan, resumeTradePlan } from "./trade-plans.js";
 import {
   activateDuePendingManualEntries,
@@ -508,7 +508,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     if (url.pathname === "/api/research-jobs" && request.method === "GET") {
       return tradePlanResponse(request, response, async () => ({ jobs: await researchJobsForUser(user.id) }));
     }
-    const researchJobMatch = url.pathname.match(/^\/api\/research-jobs\/([0-9a-f-]{36})(\/cancel)?$/i);
+    const researchJobMatch = url.pathname.match(/^\/api\/research-jobs\/([0-9a-f-]{36})(\/cancel|\/dismiss)?$/i);
     if (researchJobMatch && !researchJobMatch[2] && request.method === "GET") {
       const jobId = researchJobMatch[1]!;
       return tradePlanResponse(request, response, async () => {
@@ -519,7 +519,8 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     }
     if (researchJobMatch?.[2] && request.method === "POST") {
       const jobId = researchJobMatch[1]!;
-      return tradePlanResponse(request, response, () => cancelResearchJob(user.id, jobId));
+      // Cancel stops a running job; dismiss removes a finished one from your Plans card.
+      return tradePlanResponse(request, response, () => (researchJobMatch[2] === "/dismiss" ? dismissResearchJob(user.id, jobId) : cancelResearchJob(user.id, jobId)));
     }
     if (url.pathname === "/api/trade-plans/auto-trade" && request.method === "GET") {
       return tradePlanResponse(request, response, () => autoTradeSettings(user.id));

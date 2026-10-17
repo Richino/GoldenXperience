@@ -9523,3 +9523,27 @@ html:is(.dark, :not(.dark)) body .pending-entry-backdrop[data-keyboard-open="tru
   color: var(--muted);
   font-weight: 400;
 }
+
+/* Secondary actions on a plan: Cancel (generating) and Remove (not generated). */
+.nl-plan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.nl-plan-cta.is-quiet {
+  background: transparent;
+  color: var(--muted-strong);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.nl-plan-cta.is-quiet:hover:not(:disabled) {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+}
+
+.nl-plan-cta.is-quiet:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}

@@ -157,6 +157,7 @@ try {
   const has059 = (await client.query("SELECT to_regclass('research_jobs') AS t")).rows[0].t;
   if (!has059) await client.query(fs.readFileSync(path.join(root, "migrations", "059_research_jobs.sql"), "utf8"));
   await client.query(fs.readFileSync(path.join(root, "migrations", "060_plan_lifecycle.sql"), "utf8"));
+  await client.query(fs.readFileSync(path.join(root, "migrations", "061_research_job_dismiss.sql"), "utf8"));
   const user = (await client.query<{ id: string }>("SELECT id FROM users ORDER BY created_at LIMIT 1")).rows[0];
   assert.ok(user, "needs one user row");
   const technical = { instrument: "GBP_USD", readAt: new Date().toISOString(), price: 1.3, trend: { D1: "DOWNTREND", H4: "UNCLEAR" }, atr: {}, zones: [], plans: [] };
@@ -309,6 +310,16 @@ try {
     assert.equal(cancelled.cancelled, true);
     assert.equal((await statusOf(id)).status, "CANCELLED");
     assert.equal((await jobs.cancelResearchJob(user.id, id, tx)).cancelled, false);
+  });
+
+  await test("remove: a finished job leaves your Plans list; a running one cannot be removed (cancel it instead)", async () => {
+    const running = (await jobs.requestResearch(user.id, "GBP_USD", { force: true, db: tx, kick: false, ...reads })).job!.id;
+    assert.equal((await jobs.dismissResearchJob(user.id, running, tx)).dismissed, false);
+    await jobs.cancelResearchJob(user.id, running, tx);
+    assert.ok((await jobs.researchJobsForUser(user.id, tx)).some((job) => job.id === running));
+    assert.equal((await jobs.dismissResearchJob(user.id, running, tx)).dismissed, true);
+    assert.ok(!(await jobs.researchJobsForUser(user.id, tx)).some((job) => job.id === running));
+    assert.equal((await client.query("SELECT count(*)::int AS n FROM research_jobs WHERE id=$1", [running])).rows[0].n, 1, "the job record is kept");
   });
 } finally {
   await client.query("ROLLBACK");

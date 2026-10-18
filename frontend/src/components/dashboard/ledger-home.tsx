@@ -368,7 +368,7 @@ function SectionHead({
   );
 }
 
-function LedgerPositions({ positions, currency }: { positions: LedgerPosition[]; currency: string }) {
+export function LedgerPositions({ positions, currency }: { positions: LedgerPosition[]; currency: string }) {
   const now = useNow(30_000);
   return (
     <section className="nl-sec nl-positions" aria-labelledby="nl-positions-title">
@@ -635,7 +635,7 @@ function LedgerNews({ positions }: { positions: HomeCurrentPosition[] }) {
   );
 }
 
-function LedgerPending({
+export function LedgerPending({
   entries,
   cancellingId,
   error,

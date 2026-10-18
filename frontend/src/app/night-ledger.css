@@ -5650,11 +5650,11 @@ html:is(.dark, :not(.dark)) body .signals-view .workspace-tab-btn.workspace-tab-
   }
 }
 
-/* Touch screens: no hover look on the chart's action row. A tap leaves
+/* Mobile layouts and touch screens: no hover look on the chart's action row. A tap leaves
    :hover stuck on phones, which swapped these buttons' colours (older
    globals.css hover rules) until you tapped elsewhere. Pressing still gives
    the .pressable scale feedback. */
-@media (hover: none), (pointer: coarse) {
+@media (max-width: 1023px), (hover: none), (pointer: coarse) {
   html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-analyze:hover:not(:disabled) {
     border-color: transparent;
     background: var(--accent-fill);

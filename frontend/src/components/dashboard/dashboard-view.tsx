@@ -224,7 +224,6 @@ function markedOpenMoney(
 }
 
 export function DashboardView({
-  initialMorningPicks,
   initialAccount,
   initialAccountHistory,
   initialWatchlist,
@@ -235,7 +234,6 @@ export function DashboardView({
   greeting,
   todayKey,
 }: {
-  initialMorningPicks: import("@/lib/strategy/morning-scan").MorningPicksSnapshot | null;
   initialAccount: AccountSummary | null;
   initialAccountHistory: AccountBalanceHistoryPoint[];
   initialWatchlist: DashboardWatchRow[];
@@ -615,7 +613,6 @@ export function DashboardView({
   return (
     <>
       <LedgerHome
-        morningPicks={initialMorningPicks}
         account={account}
         accountError={accountError}
         history={accountHistory}

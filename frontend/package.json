@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "pwa-layout:test": "tsx scripts/test-ios-top-clearance.ts",
     "observer-chat:test": "tsx scripts/test-observer-conversation.ts && tsx scripts/test-observer-pair-chats.ts",
     "observer-drag:test": "tsx scripts/test-observer-bubble-drag.ts && tsx scripts/test-observer-bubble-position.ts",
     "generate:icons": "node scripts/generate-icons.mjs",

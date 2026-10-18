@@ -118,6 +118,7 @@ export function WelcomeScreen() {
   return createPortal(
     <div
       ref={screen}
+      data-gx-launch-screen=""
       className={`${styles.screen}${leaving ? ` ${styles.leaving}` : ""}`}
       role="dialog" aria-modal="true" aria-label="Welcome to GoldenXperience"
       aria-describedby="gx-splash-instructions"

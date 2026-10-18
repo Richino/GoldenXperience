@@ -5865,7 +5865,7 @@ body.is-dragging-position-tool .setup-chart-position-band {
 @media (max-width: 1023px) {
   .mobile-floating-icon {
     position: fixed;
-    top: max(1rem, env(safe-area-inset-top, 0px));
+    top: max(1rem, var(--gx-safe-area-top));
     z-index: 30;
     border-radius: 999px;
     /* Flat while the header it belongs to is still on screen. */
@@ -7430,7 +7430,7 @@ body.is-dragging-position-tool .setup-chart-position-band {
   .signals-view .signals-mobile-actions {
     position: relative;
     margin: 0;
-    padding: max(0.9rem, env(safe-area-inset-top)) 1rem 0.5rem;
+    padding: max(0.9rem, var(--gx-safe-area-top)) 1rem 0.5rem;
   }
 
   .signals-view .gx-mobile-quote-row {
@@ -8455,7 +8455,7 @@ html:has(.pending-entry-backdrop) .mobile-dock {
     flex-wrap: nowrap;
     align-items: center;
     gap: 0.4rem;
-    padding-top: max(1rem, calc(env(safe-area-inset-top, 0px) + 0.85rem));
+    padding-top: max(1rem, calc(var(--gx-safe-area-top) + 0.85rem));
     padding-bottom: 0.75rem;
     padding-inline: 1rem;
   }
@@ -8501,7 +8501,7 @@ html:has(.pending-entry-backdrop) .mobile-dock {
     /* In a standalone iPhone PWA the fixed fullscreen card begins behind the
        status area. Start below the device cutout, with a small breathing gap
        on phones that do not expose a safe-area inset. */
-    top: max(0.625rem, calc(env(safe-area-inset-top, 0px) + 0.5rem));
+    top: max(0.625rem, calc(var(--gx-safe-area-top) + 0.5rem));
     left: 0.75rem;
     z-index: 20;
     padding: 0.4375rem 0.6875rem 0.4375rem 0.4375rem;

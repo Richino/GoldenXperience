@@ -13,6 +13,8 @@
  */
 
 :root {
+  --gx-ios-status-gap: 0px;
+  --gx-safe-area-top: calc(env(safe-area-inset-top, 0px) + var(--gx-ios-status-gap));
   --font-display: var(--font-bricolage), "Geist", ui-sans-serif, system-ui, sans-serif;
   /* Text and icons that sit on a lime fill — dark in both themes. */
   --on-accent: #0b0c0a;
@@ -79,6 +81,12 @@
   --focus-ring: rgba(200, 245, 96, 0.7);
   --pending: #ffc14d;
   --pending-soft: rgba(255, 193, 77, 0.15);
+}
+
+/* The iOS 27 Home Screen app can blur about 20px below its status area.
+   The head script gates this to installed iOS apps; landscape keeps no gap. */
+@media (max-width: 1023px) and (orientation: portrait) {
+  html.gx-ios-pwa-top-clearance { --gx-ios-status-gap: 20px; }
 }
 
 /* ------------------------------------------------------------------ type */
@@ -1889,8 +1897,8 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-va
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: calc(64px + env(safe-area-inset-top));
-    padding: env(safe-area-inset-top) 16px 0;
+    height: calc(64px + var(--gx-safe-area-top));
+    padding: var(--gx-safe-area-top) 16px 0;
     border-bottom: 1px solid var(--border);
     background: color-mix(in srgb, var(--background) 92%, transparent);
     backdrop-filter: blur(12px);
@@ -8464,6 +8472,13 @@ html:is(.dark, :not(.dark)) body .analysis-mode-replacement::before {
    fades its animated copy in above it (z 20000) and then removes the class.
    If the app never starts, it still steps aside after 6s. */
 #gx-boot-splash { display: none; }
+/* Keep the page sampled by iOS as dark as the launch screen until it closes. */
+html.gx-boot-splash,
+html.gx-boot-splash body,
+html:has([data-gx-launch-screen]),
+html:has([data-gx-launch-screen]) body {
+  background-color: #0b0c0a !important;
+}
 html.gx-boot-splash #gx-boot-splash {
   display: flex;
   z-index: 19999;

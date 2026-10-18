@@ -237,8 +237,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             isChart
               ? "min-h-dvh p-0"
               : ownsHeader
-                ? "w-full pb-32 pt-[env(safe-area-inset-top)] lg:pb-0 lg:pt-0"
-                : "mx-auto max-w-[1320px] px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 md:pt-6 lg:px-8 lg:pb-10"
+                ? "w-full pb-32 pt-[var(--gx-safe-area-top)] lg:pb-0 lg:pt-0"
+                : "mx-auto max-w-[1320px] px-4 pb-32 pt-[max(1rem,var(--gx-safe-area-top))] sm:px-6 md:pt-6 lg:px-8 lg:pb-10"
           }`}
         >
           {!ownsHeader ? <MobileTopBar showBack={!isTabPage} inline={isTabPage} /> : null}

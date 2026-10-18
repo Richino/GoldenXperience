@@ -1,7 +1,30 @@
-.sentence {
+.pill {
+  --trend-color: var(--muted-strong);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   min-width: 0;
-  color: var(--muted);
+  max-width: 100%;
+  padding: 5px 10px;
+  border: 1px solid color-mix(in srgb, var(--trend-color) 25%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--trend-color) 12%, transparent);
+  color: var(--trend-color);
   font-size: 12px;
-  line-height: 1.5;
+  font-weight: 600;
+  line-height: 1.4;
   white-space: normal;
 }
+
+.pill::before {
+  content: "";
+  flex: 0 0 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.pill[data-tone="up"] { --trend-color: var(--success); }
+.pill[data-tone="down"] { --trend-color: var(--danger); }
+.pill[data-tone="mixed"] { --trend-color: var(--pending); }

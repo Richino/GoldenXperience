@@ -120,11 +120,38 @@ function plainSummary(h4: TrendRead | null, d1: TrendRead | null) {
   return `${overall[d1.direction]}, but ${shorter[h4.direction]}.`;
 }
 
+function trendPill(h4: TrendRead | null, d1: TrendRead | null) {
+  const overall: Record<TrendDirection, string> = {
+    UPTREND: "Up overall", DOWNTREND: "Down overall", RANGE: "Sideways overall",
+    TRANSITION: "Overall trend changing", UNCLEAR: "Overall unclear",
+  };
+  const shorter: Record<TrendDirection, string> = {
+    UPTREND: "short-term up", DOWNTREND: "short-term down", RANGE: "short-term sideways",
+    TRANSITION: "short-term changing", UNCLEAR: "short-term unclear",
+  };
+  if (!h4 && !d1) return { label: "Trend unavailable", tone: "neutral" };
+  if (!d1) return { label: `Daily unavailable · ${shorter[h4!.direction]}`, tone: "neutral" };
+  if (!h4) return { label: `${overall[d1.direction]} · 4H unavailable`, tone: "neutral" };
+  if (h4.direction === d1.direction) {
+    switch (d1.direction) {
+      case "UPTREND": return { label: "Trending up", tone: "up" };
+      case "DOWNTREND": return { label: "Trending down", tone: "down" };
+      case "RANGE": return { label: "Moving sideways", tone: "neutral" };
+      case "TRANSITION": return { label: "Trend changing", tone: "mixed" };
+      case "UNCLEAR": return { label: "Direction unclear", tone: "neutral" };
+    }
+  }
+  return { label: `${overall[d1.direction]} · ${shorter[h4.direction]}`, tone: "mixed" };
+}
+
 export function TrendLabel({ instrument, className = "", plainLanguage = false }: { instrument: string; className?: string; plainLanguage?: boolean }) {
   const trend = usePairTrend(instrument);
-  if (!trend) return <span className={`nl-trend is-loading ${className}`} aria-label="Reading trend">{plainLanguage ? "Checking the trend…" : "Trend…"}</span>;
+  if (!trend) return <span className={`nl-trend is-loading ${className}`} aria-label="Reading trend">{plainLanguage ? <span className={styles.pill} data-tone="neutral">Checking trend…</span> : "Trend…"}</span>;
   const { h4, d1 } = trend;
-  if (plainLanguage) return <span className={`nl-trend ${className}`}><span className={styles.sentence}>{plainSummary(h4, d1)}</span></span>;
+  if (plainLanguage) {
+    const pill = trendPill(h4, d1);
+    return <span className={`nl-trend ${className}`}><span className={styles.pill} data-tone={pill.tone} title={plainSummary(h4, d1)} aria-label={plainSummary(h4, d1)}>{pill.label}</span></span>;
+  }
   if (!h4 && !d1) return null;
   const line = summary(h4, d1);
   const details = [h4, d1]

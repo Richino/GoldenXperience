@@ -1,5 +1,6 @@
 /** Enables the status-bar sampling workaround before paint, without extra padding.
- * iOS can report standalone=false in matchMedia.
- * Use Safari's Version token because newer iOS UAs can freeze the OS token.
+ * Home Screen apps can omit Safari's Version token and freeze the OS token.
+ * Use the native iOS standalone flag instead; older iOS versions can use the
+ * same invisible sampling element without adding any space or painted cover.
  */
-export const IOS_TOP_CLEARANCE_SCRIPT = `(function(){try{var n=navigator;var v=/Version\\/(\\d+)/.exec(n.userAgent||"");document.documentElement.classList.toggle("gx-ios-pwa-top-clearance",n.standalone===true&&!!v&&Number(v[1])>=27);}catch(e){}})();`;
+export const IOS_TOP_CLEARANCE_SCRIPT = `(function(){try{document.documentElement.classList.toggle("gx-ios-pwa-top-clearance",navigator.standalone===true);}catch(e){}})();`;

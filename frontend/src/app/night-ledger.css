@@ -1917,7 +1917,7 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-va
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: calc(64px + var(--gx-safe-area-top));
+    height: calc(48px + var(--gx-safe-area-top));
     padding: var(--gx-safe-area-top) 16px 0;
     border-bottom: 1px solid var(--border);
     background: color-mix(in srgb, var(--background) 92%, transparent);

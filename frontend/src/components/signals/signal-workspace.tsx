@@ -1522,7 +1522,7 @@ function SignalSearch({
                     <span className="block truncate text-sm font-medium tracking-[-0.02em]">
                       {result.displayName}
                     </span>
-                    <TrendLabel instrument={result.instrument} className="nl-trend-compact" />
+                    <TrendLabel instrument={result.instrument} className="nl-trend-compact" plainLanguage />
                   </span>
                   {isTrading ? (
                     <span className="signals-search-trading-badge">Trading</span>

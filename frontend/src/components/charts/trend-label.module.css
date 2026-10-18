@@ -28,3 +28,20 @@
 .pill[data-tone="up"] { --trend-color: var(--success); }
 .pill[data-tone="down"] { --trend-color: var(--danger); }
 .pill[data-tone="mixed"] { --trend-color: var(--pending); }
+
+:global(.nl-trend-compact) .pill {
+  gap: 5px;
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
+@media (max-width: 480px) {
+  /* Keep the trend readable beside prices and the action on narrow phones. */
+  :global(.nl-mk-row):has(.pill) {
+    grid-template-columns: minmax(0, 1fr) 92px 44px;
+  }
+
+  :global(.nl-mk-row):has(.pill) > :global(.nl-mk-row-spark.nl-mk-hide-md) {
+    display: none;
+  }
+}

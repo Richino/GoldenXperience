@@ -439,7 +439,7 @@ export function WatchlistView() {
                         <b>{name}</b>
                         <small>{description(row.instrument)}</small>
                         <span className="nl-mk-pair-status">
-                          <TrendLabel instrument={row.instrument} className="nl-trend-compact" />
+                          <TrendLabel instrument={row.instrument} className="nl-trend-compact" plainLanguage />
                           {enabled ? <span className="nl-mk-observer-on">Observer on</span> : null}
                         </span>
                       </span>

@@ -1881,7 +1881,7 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-va
     font-size: 18px;
   }
 
-  /* Solid pinned balance and safe-area background: no content blur at the top. */
+  /* Pinned balance once the hero scrolls away. */
   .nl-mbar {
     position: fixed;
     inset: 0 0 auto;
@@ -1892,9 +1892,8 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-va
     height: calc(64px + env(safe-area-inset-top));
     padding: env(safe-area-inset-top) 16px 0;
     border-bottom: 1px solid var(--border);
-    background: var(--background);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
+    background: color-mix(in srgb, var(--background) 92%, transparent);
+    backdrop-filter: blur(12px);
     transform: translateY(-100%);
     visibility: hidden;
     transition:

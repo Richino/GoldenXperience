@@ -5,6 +5,7 @@ import { apiUrl } from "@/lib/api/url";
 import { ANALYZE_V2 } from "@/lib/strategy/analyze-v2/config";
 import { readTrend, type TrendDirection, type TrendRead } from "@/lib/strategy/analyze-v2/structure";
 import type { CandleSeries } from "@/types/forex";
+import styles from "./trend-label.module.css";
 
 /**
  * The pair's trend on the 4-hour and daily charts, from the same swing-structure
@@ -90,10 +91,40 @@ function summary(h4: TrendRead | null, d1: TrendRead | null) {
   return trending(d1) ? "Wait for 4H" : "Daily unclear · wait";
 }
 
-export function TrendLabel({ instrument, className = "", showNote = false }: { instrument: string; className?: string; showNote?: boolean }) {
+/** Describe the observed charts without turning the trend into an entry signal. */
+function plainSummary(h4: TrendRead | null, d1: TrendRead | null) {
+  const overall: Record<TrendDirection, string> = {
+    UPTREND: "Price is trending up overall",
+    DOWNTREND: "Price is trending down overall",
+    RANGE: "Price is moving sideways overall",
+    TRANSITION: "The overall trend is changing",
+    UNCLEAR: "The overall direction is unclear",
+  };
+  const shorter: Record<TrendDirection, string> = {
+    UPTREND: "the 4-hour chart is trending up",
+    DOWNTREND: "the 4-hour chart is trending down",
+    RANGE: "the 4-hour chart is moving sideways",
+    TRANSITION: "the 4-hour trend is changing",
+    UNCLEAR: "the 4-hour chart has no clear direction",
+  };
+  if (!d1 && !h4) return "The trend is temporarily unavailable.";
+  if (!d1) return `The daily trend is unavailable, but ${shorter[h4!.direction]}.`;
+  if (!h4) return `${overall[d1.direction]}, but the 4-hour trend is unavailable.`;
+  if (h4.direction === d1.direction) {
+    if (d1.direction === "UPTREND") return "Price is trending up on both the daily and 4-hour charts.";
+    if (d1.direction === "DOWNTREND") return "Price is trending down on both the daily and 4-hour charts.";
+    if (d1.direction === "RANGE") return "Price is moving sideways on both the daily and 4-hour charts.";
+    if (d1.direction === "UNCLEAR") return "Neither the daily nor the 4-hour chart has a clear direction.";
+    return "The trend is changing on both the daily and 4-hour charts.";
+  }
+  return `${overall[d1.direction]}, but ${shorter[h4.direction]}.`;
+}
+
+export function TrendLabel({ instrument, className = "", plainLanguage = false }: { instrument: string; className?: string; plainLanguage?: boolean }) {
   const trend = usePairTrend(instrument);
-  if (!trend) return <span className={`nl-trend is-loading ${className}`} aria-label="Reading trend">Trend…</span>;
+  if (!trend) return <span className={`nl-trend is-loading ${className}`} aria-label="Reading trend">{plainLanguage ? "Checking the trend…" : "Trend…"}</span>;
   const { h4, d1 } = trend;
+  if (plainLanguage) return <span className={`nl-trend ${className}`}><span className={styles.sentence}>{plainSummary(h4, d1)}</span></span>;
   if (!h4 && !d1) return null;
   const line = summary(h4, d1);
   const details = [h4, d1]
@@ -112,7 +143,6 @@ export function TrendLabel({ instrument, className = "", showNote = false }: { i
           </span>
         ) : null,
       )}
-      {showNote && line ? <span className="nl-trend-note">{line}</span> : null}
     </span>
   );
 }

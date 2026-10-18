@@ -4818,7 +4818,7 @@ export function SignalWorkspace({
                 </span>
               </div>
               <span className="nl-mquote-session">{sessionLabel.replace(/ session$/, "")}</span>
-              <TrendLabel instrument={instrument} className="nl-mquote-trend" showNote />
+              <TrendLabel instrument={instrument} className="nl-mquote-trend" plainLanguage />
               <dl className="nl-mquote-facts" aria-label="Live sell price, buy price and spread">
                 <div>
                   <dt>Sell</dt>

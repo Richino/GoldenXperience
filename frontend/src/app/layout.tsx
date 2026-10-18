@@ -40,7 +40,8 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
+    // Ask iOS to keep the clock/battery bar opaque and outside app content.
+    statusBarStyle: "black",
     title: "GoldenXperience",
     // iOS launch screens, one per portrait screen size; rendered by
     // scripts/generate-splash.mjs. Android builds its own from manifest.json.
@@ -82,7 +83,6 @@ export default function RootLayout({
         <meta name="theme-color" content="#0b0c0a" media="(prefers-color-scheme: dark)" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="GoldenXperience" />
         {/* Icons are not declared here. src/app/{favicon.ico,icon.svg,apple-icon.png}
             are file conventions Next emits the link tags for, and the Android

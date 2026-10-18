@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { LoaderCircle, Radar, Search, Square } from "lucide-react";
+import { Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { WatchlistPairsSkeleton } from "@/components/ui/page-skeletons";
 import { MarketRowSkeleton } from "@/components/ui/ledger-loading-skeletons";
 import { useMarketObserver } from "@/components/analysis/market-observer-provider";
+import { MarketAnalyzeButton, MarketAnalyzeSheet, useMarketAnalyze, usePairSetups } from "@/components/watchlist/market-analyze";
 import { SessionStrip } from "@/components/watchlist/session-strip";
 import { TrendLabel } from "@/components/charts/trend-label";
 import { useNyTradability } from "@/components/signals/tradability-tag";
@@ -80,6 +81,12 @@ const description = (instrument: string) => {
 };
 export function WatchlistView() {
   const observer = useMarketObserver();
+  // Analyze: research first, then plans. A pair with a setup opens its sheet instead of starting another.
+  const { setups, refresh: refreshSetups } = usePairSetups();
+  const [sheetPair, setSheetPair] = useState<string | null>(null);
+  const openSheet = useCallback((instrument: string) => setSheetPair(instrument), []);
+  const closeSheet = useCallback(() => setSheetPair(null), []);
+  const { busy: analyzeBusy, start: startAnalyze } = useMarketAnalyze(refreshSetups, openSheet);
   const [snapshot, setSnapshot] = useState<Row[]>([]);
   const [daily, setDaily] = useState<Record<string, Day>>({});
   const [query, setQuery] = useState("");
@@ -429,8 +436,6 @@ export function WatchlistView() {
                     : null;
                 const name = displayNameFor(row.instrument);
                 const enabled = Boolean(observer?.tracked.includes(row.instrument));
-                const busy = Boolean(observer?.busyPairs[row.instrument]);
-                const action = busy ? (enabled ? "Stopping…" : "Starting…") : enabled ? "Stop" : "Analyze";
                 return (
                   <div key={row.instrument} className="nl-mk-row">
                     <Link href={`/chart?instrument=${row.instrument}`} className="nl-mk-pair" aria-label={`View ${name} chart`}>
@@ -472,22 +477,13 @@ export function WatchlistView() {
                     <span className="nl-mk-spread metric-number nl-mk-hide-md">
                       {row.spreadPips === null ? "—" : row.spreadPips.toFixed(1)}
                     </span>
-                    <button
-                      type="button"
-                      className={`nl-mk-analyze pressable${enabled ? " is-observing" : ""}`}
-                      disabled={busy || !observer}
-                      onClick={() => void (enabled ? observer?.stop(row.instrument) : observer?.analyze(row.instrument))}
-                      aria-label={`${action} ${name}${enabled ? " observer" : ""}`}
-                      aria-pressed={enabled}
-                      aria-busy={busy}
-                      title={enabled ? `Stop ${name} · Observer enabled` : `Analyze ${name} · Start observer`}
-                    >
-                      {/* Radar: Analyze starts the observer that keeps watching the pair. */}
-                      {busy ? <LoaderCircle className="nl-mk-analyze-icon animate-spin" aria-hidden="true" />
-                        : enabled ? <Square className="nl-mk-analyze-icon is-stop" aria-hidden="true" />
-                          : <Radar className="nl-mk-analyze-icon" aria-hidden="true" />}
-                      <span className="nl-mk-analyze-label">{action}</span>
-                    </button>
+                    <MarketAnalyzeButton
+                      instrument={row.instrument}
+                      setup={setups[row.instrument]}
+                      busy={Boolean(analyzeBusy[row.instrument])}
+                      onAnalyze={(instrument) => void startAnalyze(instrument)}
+                      onOpen={openSheet}
+                    />
                   </div>
                 );
               })}
@@ -501,6 +497,7 @@ export function WatchlistView() {
           </>
         )}
       </section>
+      <MarketAnalyzeSheet instrument={sheetPair} onClose={closeSheet} />
     </div>
   );
 }

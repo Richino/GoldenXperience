@@ -9666,6 +9666,69 @@ html:is(.dark, :not(.dark)) body .nl-pe-release {
   font-size: 13px;
   line-height: 1.5;
 }
+
+/* Markets Analyze: busy pulse while starting, and a setup badge when the pair
+   already has research running, plans to review, or plans being watched. */
+html:is(.dark, :not(.dark)) body .nl-mk-analyze.is-busy {
+  opacity: 1;
+  cursor: progress;
+}
+
+html:is(.dark, :not(.dark)) body .nl-mk-analyze.is-busy::after,
+html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="generating"]::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border: 2px solid currentColor;
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html:is(.dark, :not(.dark)) body .nl-mk-analyze.is-busy::after,
+  html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="generating"]::after {
+    animation: nl-mk-pulse 1.4s ease-out infinite;
+  }
+}
+
+@keyframes nl-mk-pulse {
+  0% { opacity: 0.55; transform: scale(0.92); }
+  100% { opacity: 0; transform: scale(1.25); }
+}
+
+html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="generating"] {
+  background: var(--pending-soft);
+  color: var(--pending);
+}
+
+html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="review"],
+html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="review"]:hover {
+  background: var(--accent-fill);
+  color: var(--on-accent);
+}
+
+html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="watching"],
+html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="watching"]:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: transparent;
+  color: var(--accent);
+}
+
+/* The small dot that says "this pair already has a setup". */
+.nl-mk-setup-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 11px;
+  height: 11px;
+  border: 2px solid var(--background);
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.nl-mk-analyze[data-setup="generating"] .nl-mk-setup-badge { background: var(--pending); }
+.nl-mk-analyze[data-setup="review"] .nl-mk-setup-badge { background: var(--foreground); }
 /* A News setup's state history in its detail view. */
 .nl-pe-news-timeline {
   display: grid;

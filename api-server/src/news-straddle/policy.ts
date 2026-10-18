@@ -64,11 +64,12 @@ export function priceDistance(instrument: string, pips: number) {
 }
 export function calculateNewsRisk(input: {
   instrument: string; settings: NewsV3Settings; equity: number; currency: string; conversion: number; atrPips: number | null;
-  minimumTrail: number; maximumTrail: number; minimumUnits: number; maximumUnits: number; riskLimit: number;
+  minimumTrail: number; maximumTrail: number; minimumUnits: number; maximumUnits: number; riskLimit: number; eventRiskLimit?: number;
 }) {
   const { settings: s } = input;
   if (![input.equity, input.conversion, input.minimumUnits, input.maximumUnits].every(n => Number.isFinite(n) && n > 0)) throw new Error("Verified account equity, currency conversion and broker size constraints are required.");
-  if (!Number.isFinite(input.riskLimit) || s.maxEventRiskPercent > input.riskLimit || s.riskPerTradePercent > input.riskLimit) throw new Error("News risk exceeds the account risk limit.");
+  const eventRiskLimit = input.eventRiskLimit ?? input.riskLimit * 2;
+  if (!Number.isFinite(input.riskLimit) || !Number.isFinite(eventRiskLimit) || s.maxEventRiskPercent > eventRiskLimit || s.riskPerTradePercent > input.riskLimit) throw new Error("News risk exceeds the account risk limit.");
   const trail = priceDistance(input.instrument, s.trailingDistancePips);
   priceDistance(input.instrument, s.trailingActivationPips); priceDistance(input.instrument, s.distancePips); priceDistance(input.instrument, s.maxSlippagePips);
   if (!Number.isFinite(input.minimumTrail) || !Number.isFinite(input.maximumTrail) || trail < input.minimumTrail || trail > input.maximumTrail) throw new Error("Trailing distance is outside OANDA's permitted range; it was not changed automatically.");

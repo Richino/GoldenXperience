@@ -1,5 +1,13 @@
 # News Straddle v3 validation — 2026-10-17
 
+## Timing, stop and 1%-per-trade verification — 2026-10-18
+
+33 fake-broker checks and the rollback-only PostgreSQL checks pass. New defaults size each order to 1% of NAV, so a $10,000 USD account with a 16-pip EUR/USD stop sizes to 62,500 units and $100 planned loss at the original stop (−1R). The combined event reserve is 2% because OCO cancellation is not atomic. Account per-trade/aggregate ceilings remain enforced separately, and previously approved smaller runs are not increased. Typechecks pass for API/frontend, and the changed UI passes scoped lint.
+
+The timing check verifies no submission before the last ten seconds and submission at the configured T−2s target. A simulated fill at T−1.5s verifies immediate opposite cancellation. These are pending STOP entries: the actual fill depends on price reaching the entry and may occur after the release, within the existing window. There is no guaranteed pre-release market entry.
+
+BUY and SELL threshold checks confirm no trailing request at +9.9 executable pips, activation at +10, a 7-pip native trailing distance, approximately +3 protected pips at activation, retention of the original stop, and no backward movement when price reverses. Both broker order bodies and position observations have no fixed take-profit. No actual broker order was submitted by this verification; actual release execution and Railway deployment remain unverified.
+
 ## Grouped-release update — 2026-10-18
 
 29 fake-broker checks pass, including same-time grouping, both currencies of a pair, duplicate calendar rows, one BUY/SELL pair for three releases, and cancellation when a secondary release changes. PostgreSQL rollback checks also cover persistence of all approved members, immutable membership on retries, and one shared risk budget across currencies at the same time. API/frontend typechecks and scoped frontend lint pass. The development preview shows three releases with one countdown and one Accept button; no actual setup was armed.

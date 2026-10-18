@@ -44,8 +44,8 @@ export function NewsAcceptCard({ header, instrument, release, now, unavailableRe
           {now !== null ? <strong className={styles.countdown}>Starts in {countdown(Date.parse(release.timestamp) - now)}</strong> : null}
         </> : <p>{unavailableReason ?? "Checking upcoming news…"}</p>}
       </section>
-      <p className={styles.description}>Both directions are covered. Entry, stop-loss and trailing protection are managed for you.</p>
-      <div className={styles.risk}><span>Maximum planned risk</span><strong>1% of your account</strong></div>
+      <p className={styles.description}>When one order fills, GX cancels the other and manages the stop-loss and trailing protection.</p>
+      <div className={styles.risk}><span>Planned risk per trade</span><strong>1% of your account</strong></div>
       {release && unavailableReason ? <p className={styles.warning} role="status">{unavailableReason}</p> : null}
       {error ? <p className={styles.warning} role="alert">{error}</p> : null}
       <p className={styles.note}>Accept starts monitoring {grouped ? "these releases together" : "this event"}. GX handles the entry and protection automatically.</p>
@@ -133,6 +133,7 @@ export function NewsV3StatusView({ run, now }: { run: PublicNewsRun; now: number
       <div><dt>Trailing settings</dt><dd>+{run.settings.trailingActivationPips}p activation / {run.settings.trailingDistancePips}p distance</dd></div>
       <div><dt>Fixed take-profit</dt><dd>Disabled</dd></div>
       <div><dt>Planned risk / order</dt><dd>{run.risk ? `${money(run.risk.perLegCash, run.risk.currency)} (${run.risk.perLegPercent.toFixed(2)}%)` : "Rechecking"}</dd></div>
+      <div><dt>Combined planned risk cap</dt><dd>{run.settings.maxEventRiskPercent}% if both fill</dd></div>
     </dl></section>
     {active ? <section className={styles.card} aria-label="Trade performance"><dl className={styles.metrics}>
       <div><dt>Unrealized · executable price</dt><dd>{current ? pips(active.unrealizedPips) : active.closedAt ? "Closed" : "Waiting for fresh verification"}</dd></div>

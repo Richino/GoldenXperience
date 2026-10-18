@@ -7,7 +7,7 @@ import { calculateNewsRisk, entryPrices, executablePips, MAX_SUBMIT_LATENESS_MS,
 
 export type EngineDeps = { repo: NewsRepository; broker: NewsBroker; now(): number;
   entriesEnabled?(): boolean;
-  policy(userId: string): Promise<{ killSwitch: boolean; riskLimit: number }>;
+  policy(userId: string): Promise<{ killSwitch: boolean; riskLimit: number; eventRiskLimit?: number }>;
   halted(): Promise<boolean>; calendar(): Promise<{ events: Array<{ id: string; title: string; currency: string; timestamp: string; impact: number; timingVerified?: boolean }>; fetchedAt: string }>;
   notify(run: NewsRun, event: string, text: string): Promise<void>; log(error: unknown): void;
 };
@@ -200,7 +200,7 @@ export class NewsStraddleEngine {
         if (policy.killSwitch || await this.deps.halted()) throw new Error("News execution is paused.");
         if (context.openInstruments.includes(r.instrument) || context.pendingInstruments.includes(r.instrument)) throw new Error("Broker already has exposure or a pending order on this pair.");
         const issue = quoteIssue(context.quote, this.deps.now()); if (issue) throw new Error(issue);
-        const sized = calculateNewsRisk({ instrument: r.instrument, settings: r.settings, ...context, equity: Math.min(context.equity, r.risk?.equity ?? context.equity), ...context.constraints, riskLimit: policy.riskLimit });
+        const sized = calculateNewsRisk({ instrument: r.instrument, settings: r.settings, ...context, equity: Math.min(context.equity, r.risk?.equity ?? context.equity), ...context.constraints, riskLimit: policy.riskLimit, eventRiskLimit: policy.eventRiskLimit });
         r.risk = sized.risk; r.constraints = context.constraints; r.clock = context.clock; r.preparedAt = iso(this.deps.now());
         r.preparedQuote = context.quote; r.calendarCheckedAt = iso(this.deps.now()); r.calendarFetchedAt = calendar.fetchedAt;
         for (const l of Object.values(r.legs)) { l.units = sized.units; l.stopDistance = priceDistance(r.instrument, sized.risk.stopPips); }
@@ -233,7 +233,8 @@ export class NewsStraddleEngine {
       }
       if (r.state === "READY" && now >= target) {
         const policy = await this.deps.policy(r.userId);
-        const issue = !r.levelsFrozenAt ? "STOP entries were not frozen before the target." : policy.killSwitch || await this.deps.halted() ? "News execution is paused." : !Number.isFinite(policy.riskLimit) || r.settings.maxEventRiskPercent > policy.riskLimit || r.settings.riskPerTradePercent > policy.riskLimit ? "Approved news risk exceeds the current account limit." : preSubmitIssue(r, quote, now, monitorReady);
+        const eventRiskLimit = policy.eventRiskLimit ?? policy.riskLimit * 2;
+        const issue = !r.levelsFrozenAt ? "STOP entries were not frozen before the target." : policy.killSwitch || await this.deps.halted() ? "News execution is paused." : !Number.isFinite(policy.riskLimit) || !Number.isFinite(eventRiskLimit) || r.settings.maxEventRiskPercent > eventRiskLimit || r.settings.riskPerTradePercent > policy.riskLimit ? "Approved news risk exceeds the current account limit." : preSubmitIssue(r, quote, now, monitorReady);
         if (issue) { await this.cancelRun(s, r, issue); return; }
         r.state = "SUBMITTING";
         for (const side of SIDES) { r.legs[side].state = "SUBMITTING"; r.legs[side].submittedAt = iso(now); }

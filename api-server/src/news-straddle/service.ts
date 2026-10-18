@@ -29,7 +29,7 @@ export async function previewNewsV3(userId: string, raw: Record<string, unknown>
   const issue = quoteIssue(context.quote, now); if (issue) throw new Error(issue);
   if (context.openInstruments.includes(instrument) || context.pendingInstruments.includes(instrument)) throw new Error("This pair already has a broker position or pending order.");
   const release = verifyRelease(instrument, raw.release && typeof raw.release === "object" ? raw.release as Record<string, unknown> : {}, calendar, now);
-  const sized = calculateNewsRisk({ instrument, settings, ...context, ...context.constraints, riskLimit: policy.riskLimit });
+  const sized = calculateNewsRisk({ instrument, settings, ...context, ...context.constraints, riskLimit: policy.riskLimit, eventRiskLimit: policy.eventRiskLimit });
   const entries = entryPrices(instrument, context.quote, settings.distancePips, settings.maxSlippagePips);
   const preview: NewsV3Preview = { settings, release, quote: context.quote, buyEntry: entries.buy, sellEntry: entries.sell, risk: sized.risk, units: sized.units, checkedAt: new Date(now).toISOString(), targetSubmitAt: new Date(Date.parse(release.time) - SUBMIT_LEAD_MS).toISOString() };
   return { preview, context, calendar };
@@ -50,7 +50,7 @@ export async function armNewsV3(userId: string, raw: Record<string, unknown>) {
     legs: { long: leg("long"), short: leg("short") }, firstFillSide: null, exception: null, reason: null, endedAt: null,
     timeline: [{ at: p.checkedAt, event: "scheduled", detail: "Approved practice STOP/OCO settings; no orders sent yet." }] };
   const stored = await createNewsRun(run);
-  await queueNotification({ userId, kind: "trade_update", title: `${run.instrument.replace("_", "/")} news setup scheduled`, message: "Two protected STOP orders target T−2s. Total event risk is split between both sides; no fixed target.", instrument: run.instrument, paperTradeId: null, dedupeKey: `news-v3:${stored.id}:scheduled` });
+  await queueNotification({ userId, kind: "trade_update", title: `${run.instrument.replace("_", "/")} news setup scheduled`, message: `Two protected STOP orders target T−2s, with ${stored.risk?.perLegPercent ?? stored.settings.riskPerTradePercent}% planned risk per trade. A verified fill cancels the opposite order; no fixed target.`, instrument: run.instrument, paperTradeId: null, dedupeKey: `news-v3:${stored.id}:scheduled` });
   return { run: stored, entries: await newsRows(stored.id, userId) };
 }
 export async function cancelNewsV3(userId: string, id: string) {

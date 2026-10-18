@@ -73,8 +73,8 @@ export class PgNewsRepository implements NewsRepository {
 }
 
 export async function newsRiskPolicy(userId: string) {
-  const row = (await query<{ kill_switch: boolean; max_risk_percent: string }>("SELECT kill_switch,max_risk_percent::text FROM trade_plan_risk_settings WHERE user_id=$1", [userId])).rows[0];
-  return { killSwitch: row?.kill_switch === true, riskLimit: row ? Number(row.max_risk_percent) : 1 };
+  const row = (await query<{ kill_switch: boolean; max_risk_percent: string; max_aggregate_risk_percent: string }>("SELECT kill_switch,max_risk_percent::text,max_aggregate_risk_percent::text FROM trade_plan_risk_settings WHERE user_id=$1", [userId])).rows[0];
+  return { killSwitch: row?.kill_switch === true, riskLimit: row ? Number(row.max_risk_percent) : 1, eventRiskLimit: row ? Number(row.max_aggregate_risk_percent) : 3 };
 }
 export async function newsRuntimeStatus(key: string) {
   return (await query<{ halted: boolean; halt_reason: string | null; transaction_cursor: string | null }>("SELECT halted,halt_reason,transaction_cursor FROM news_straddle_runtime WHERE account_key=$1", [key])).rows[0] ?? { halted: false, halt_reason: null, transaction_cursor: null };
@@ -95,8 +95,9 @@ export async function createNewsRun(run: NewsRun, transact: typeof transaction =
     const used = (await c.query<{ used: string; cap: string | null }>(`SELECT COALESCE(sum((snapshot->'risk'->>'perLegPercent')::numeric * 2),0)::text AS used,
       min((snapshot->'settings'->>'maxEventRiskPercent')::numeric)::text AS cap FROM news_straddle_runs
       WHERE account_key=$1 AND (event_key=$2 OR snapshot->'release'->>'time'=$3)`, [run.accountKey, run.eventKey, run.release.time])).rows[0]!;
-    const limit = (await c.query<{ max_risk_percent: string }>("SELECT max_risk_percent::text FROM trade_plan_risk_settings WHERE user_id=$1", [run.userId])).rows[0];
-    const eventLimit = Math.min(run.settings.maxEventRiskPercent, Number(used.cap ?? run.settings.maxEventRiskPercent), Number(limit?.max_risk_percent ?? 1));
+    const limit = (await c.query<{ max_risk_percent: string; max_aggregate_risk_percent: string }>("SELECT max_risk_percent::text,max_aggregate_risk_percent::text FROM trade_plan_risk_settings WHERE user_id=$1", [run.userId])).rows[0];
+    if (!run.risk || run.risk.perLegPercent > Number(limit?.max_risk_percent ?? 1)) throw new Error("News per-trade risk exceeds the account risk limit.");
+    const eventLimit = Math.min(run.settings.maxEventRiskPercent, Number(used.cap ?? run.settings.maxEventRiskPercent), Number(limit?.max_aggregate_risk_percent ?? 3));
     if (!run.risk || Number(used.used) + run.risk.perLegPercent * 2 > eventLimit + 1e-9) throw new Error("The account's total risk budget for this release is already allocated.");
     const busy = await c.query(`SELECT id FROM pending_manual_entries WHERE instrument=$1 AND status IN ('PENDING','TRIGGERING') UNION ALL SELECT id FROM paper_trades WHERE pair=$2 AND status='open' LIMIT 1`, [run.instrument, pair]);
     if (busy.rowCount) throw new Error("This pair already has an open trade or waiting entry.");

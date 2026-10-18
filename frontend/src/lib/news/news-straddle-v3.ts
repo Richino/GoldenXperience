@@ -14,7 +14,7 @@ export type NewsV3Settings = {
 };
 export const NEWS_V3_DEFAULTS: NewsV3Settings = {
   version: 3, distancePips: 10, stopMode: "ATR", stopPips: 15, atrMultiplier: 2, minimumStopPips: 5, maximumStopPips: 100,
-  riskPerTradePercent: 1, maxEventRiskPercent: 1, maxSpreadPips: 3, maxSlippagePips: 2,
+  riskPerTradePercent: 1, maxEventRiskPercent: 2, maxSpreadPips: 3, maxSlippagePips: 2,
   trailingActivationPips: 10, trailingDistancePips: 7, windowSeconds: 60,
   maxHoldMinutes: 0, emergencyLossR: 1.5, emergencySpreadPips: 0, disconnectExitSeconds: 30,
   failSafe: "CANCEL_AND_FLATTEN", emergencyPolicy: "FLATTEN_SETUP",

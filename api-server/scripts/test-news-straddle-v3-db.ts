@@ -13,9 +13,9 @@ try {
   await c.query("BEGIN"); await c.query("SET LOCAL lock_timeout='3s'");
   const user = (await c.query<{ id: string }>("INSERT INTO users(email,password_hash,role) VALUES($1,'x','owner') RETURNING id", [`news-v3-test-${randomUUID()}@example.invalid`])).rows[0]!.id;
   const now = new Date().toISOString(), id = randomUUID();
-  const leg = (side: "long" | "short"): NewsLeg => ({ side, entryId: randomUUID(), clientId: `${id}-${side}`, tradeClientId: `${id}-trade-${side}`, state: "UNSENT", entry: side === "long" ? 1.1211 : 1.119, bound: side === "long" ? 1.1213 : 1.1188, stopDistance: 0.0015, units: 1000,
+  const leg = (side: "long" | "short"): NewsLeg => ({ side, entryId: randomUUID(), clientId: `${id}-${side}`, tradeClientId: `${id}-trade-${side}`, state: "UNSENT", entry: side === "long" ? 1.1211 : 1.119, bound: side === "long" ? 1.1213 : 1.1188, stopDistance: 0.0015, units: 66666,
     orderId: null, tradeId: null, paperTradeId: null, submittedAt: null, acknowledgedAt: null, brokerTime: null, cancellationRequestedAt: null, cancellationConfirmedAt: null, fillTime: null, fillPrice: null, slippagePips: null, fillSpreadPips: null, initialStop: null, activeStop: null, trailingOrderId: null, trailingRequestedAt: null, trailingActivatedAt: null, unrealizedPips: null, maximumFavorablePips: 0, protectedPips: null, realizedPL: null, realizedR: null, exitPrice: null, closedAt: null, lastProtectionAt: null });
-  const run: NewsRun = { id, userId: user, accountKey: `test-${id}`, instrument: "EUR_USD", eventKey: `test-${id}`, version: 3, revision: 0, state: "SCHEDULED", release: { id, title: "Persistence fixture", currency: "USD", time: now, impact: 3, provider: "forex_factory" }, settings: { ...NEWS_V3_DEFAULTS }, createdAt: now, targetSubmitAt: now, preparedAt: null, calendarCheckedAt: now, calendarFetchedAt: now, transactionSeed: "1", lastReconciledAt: null, preparedQuote: { bid: 1.12, ask: 1.1201, time: now }, risk: { equity: 10000, currency: "USD", conversion: 1, eventCash: 100, perLegCash: 1.5, perLegPercent: 0.5, stopPips: 15, atrPips: null }, constraints: null, clock: null, legs: { long: leg("long"), short: leg("short") }, firstFillSide: null, exception: null, reason: null, endedAt: null, timeline: [] };
+  const run: NewsRun = { id, userId: user, accountKey: `test-${id}`, instrument: "EUR_USD", eventKey: `test-${id}`, version: 3, revision: 0, state: "SCHEDULED", release: { id, title: "Persistence fixture", currency: "USD", time: now, impact: 3, provider: "forex_factory" }, settings: { ...NEWS_V3_DEFAULTS }, createdAt: now, targetSubmitAt: now, preparedAt: null, calendarCheckedAt: now, calendarFetchedAt: now, transactionSeed: "1", lastReconciledAt: null, preparedQuote: { bid: 1.12, ask: 1.1201, time: now }, risk: { equity: 10000, currency: "USD", conversion: 1, eventCash: 200, perLegCash: 99.999, perLegPercent: 1, stopPips: 15, atrPips: null }, constraints: null, clock: null, legs: { long: leg("long"), short: leg("short") }, firstFillSide: null, exception: null, reason: null, endedAt: null, timeline: [] };
   let sp = 0;
   run.release.events = [
     { id, title: "Persistence fixture", currency: "USD" },
@@ -59,7 +59,7 @@ try {
     assert.equal(Number(paper.target), Number(paper.entry));
     l.activeStop = 1.1224; stored.state = "TRAILING"; await s.save(stored, { event: "fake_trail" });
     assert.equal(Number((await c.query("SELECT stop FROM paper_trades WHERE id=$1", [entry.paper_trade_id])).rows[0]!.stop), 1.1196);
-    l.closedAt = now; l.exitPrice = 1.1224; l.realizedPL = 1.3; l.realizedR = 1.3 / 1.5;
+    l.closedAt = now; l.exitPrice = 1.1224; l.realizedPL = 1.3; l.realizedR = 1.3 / stored.risk!.perLegCash;
     await s.save(stored, { event: "fake_close" });
     assert.equal((await c.query("SELECT status FROM paper_trades WHERE id=$1", [entry.paper_trade_id])).rows[0]!.status, "closed");
   });

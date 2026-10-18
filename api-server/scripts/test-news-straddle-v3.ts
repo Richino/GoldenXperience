@@ -29,11 +29,11 @@ function fixture() {
   const settings = { ...NEWS_V3_DEFAULTS };
   const release = { id: "USD:CPI:2026-10-14", title: "CPI m/m", currency: "USD", time: iso(T), impact: 3, provider: "forex_factory" as const };
   const leg = (side: NewsSide): NewsLeg => ({ side, entryId: randomUUID(), clientId: `${id}-${side}`, tradeClientId: `${id}-trade-${side}`, state: "UNSENT", entry: side === "long" ? 1.1211 : 1.119, bound: side === "long" ? 1.1213 : 1.1188,
-    stopDistance: 0.0016, units: 31250, orderId: null, tradeId: null, paperTradeId: null, submittedAt: null, acknowledgedAt: null, brokerTime: null, cancellationRequestedAt: null, cancellationConfirmedAt: null,
+    stopDistance: 0.0016, units: 62500, orderId: null, tradeId: null, paperTradeId: null, submittedAt: null, acknowledgedAt: null, brokerTime: null, cancellationRequestedAt: null, cancellationConfirmedAt: null,
     fillTime: null, fillPrice: null, slippagePips: null, fillSpreadPips: null, initialStop: null, activeStop: null, trailingOrderId: null, trailingRequestedAt: null, trailingActivatedAt: null,
     unrealizedPips: null, maximumFavorablePips: 0, protectedPips: null, realizedPL: null, realizedR: null, exitPrice: null, closedAt: null, lastProtectionAt: null });
   const run: NewsRun = { id, userId: randomUUID(), accountKey: "practice-test", instrument: "EUR_USD", eventKey: release.id, version: 3, revision: 0, state: "SCHEDULED", release, settings, createdAt: iso(now), targetSubmitAt: iso(T - 2000), preparedAt: null, calendarCheckedAt: iso(now), calendarFetchedAt: iso(now), transactionSeed: "10", lastReconciledAt: null, preparedQuote: quote,
-    risk: { equity: 10000, currency: "USD", conversion: 1, eventCash: 100, perLegCash: 50, perLegPercent: 0.5, stopPips: 16, atrPips: 8 },
+    risk: { equity: 10000, currency: "USD", conversion: 1, eventCash: 200, perLegCash: 100, perLegPercent: 1, stopPips: 16, atrPips: 8 },
     constraints: { minimumTrail: 0.0005, maximumTrail: 1, precision: 5, minimumUnits: 1, maximumUnits: 10000000 }, clock: { sampledAt: iso(now), offsetMs: 0, uncertaintyMs: 10 },
     legs: { long: leg("long"), short: leg("short") }, firstFillSide: null, exception: null, reason: null, endedAt: null, timeline: [] };
   const repo = new MemoryRepo(run), orders = new Map<string, OrderObservation>(), trades = new Map<string, TradeObservation>();
@@ -78,11 +78,12 @@ function fixture() {
     holdCancel() { cancelHeld = new Promise(resolve => { releaseCancel = resolve; }); }, releaseCancel() { releaseCancel?.(); cancelHeld = null; }, quote: () => quote };
 }
 
-await test("T−2s target: both native STOP orders, bid/ask offsets, mandatory stops, no take profit, one combined 1% budget", async () => {
+await test("T−2s target: both native STOP orders, mandatory stops, no take profit, 1% per trade with a 2% double-fill reserve", async () => {
   const f = fixture(); await f.tick(); assert.equal(f.sent.length, 0); await f.ready(); assert.equal(f.sent.length, 0); f.at(T - 2000); await f.tick();
   assert.equal(f.sent.length, 2); assert.ok(f.sent.every(s => s.at === T - 2000)); assert.equal(f.repo.run.state, "PENDING_ORDERS");
   for (const s of f.sent) { assert.equal(s.body.order.type, "STOP"); assert.equal(s.body.order.positionFill, "REDUCE_FIRST"); assert.ok(s.body.order.stopLossOnFill.distance); assert.equal("takeProfitOnFill" in s.body.order, false); }
-  assert.ok(f.repo.run.risk!.perLegCash * 2 <= 100); assert.equal(f.repo.run.risk!.perLegPercent, 0.5);
+  assert.ok(f.repo.run.risk!.perLegCash * 2 <= 200); assert.equal(f.repo.run.risk!.perLegPercent, 1);
+  assert.equal(f.repo.run.risk!.perLegCash, 100);
   assert.equal(f.repo.run.legs.long.entry, 1.1211); assert.equal(f.repo.run.legs.short.entry, 1.119);
   await f.tick(); await f.tick(); assert.equal(f.sent.length, 2); assert.ok(f.repo.run.legs.long.httpDispatchedAt); assert.ok(f.repo.audit.some(a => a.event === "http_order_dispatched"));
 });
@@ -214,9 +215,46 @@ await test("three approved releases submit exactly one BUY/SELL pair under the s
   const group = nextNewsReleaseGroup("EUR_USD", events, T - 20000)!;
   f.repo.run.release = { ...f.run.release, ...group, time: group.timestamp };
   f.deps.calendar = async () => ({ events, fetchedAt: f.quote().time });
-  await f.pending(); assert.equal(f.sent.length, 2); assert.ok(f.repo.run.risk!.perLegCash * 2 <= 100);
+  await f.pending(); assert.equal(f.sent.length, 2); assert.ok(f.repo.run.risk!.perLegCash * 2 <= 200);
   const changed = events.map(e => e.id === "release-1" ? { ...e, timestamp: iso(T + 60000) } : e);
   await f.engine.verifyCalendar(f.id, { events: changed, fetchedAt: f.quote().time }); await f.engine.drain();
   assert.equal(f.repo.run.legs.long.state, "CANCELLED"); assert.equal(f.repo.run.legs.short.state, "CANCELLED"); assert.equal(f.sent.length, 2);
+});
+await test("orders are submitted inside the final ten seconds; an actual pre-release fill cancels the opposite order", async () => {
+  const f = fixture(); f.at(T - 12000); await f.tick();
+  for (const at of [T - 10001, T - 10000, T - 5000, T - 3000, T - 2001]) { f.at(at); await f.tick(); assert.equal(f.sent.length, 0); }
+  f.at(T - 2000); await f.tick(); assert.equal(f.sent.length, 2);
+  assert.ok(f.sent.every(o => o.at >= T - 10000 && o.at < T));
+  f.at(T - 1500, 1.1210, 1.1211); await f.engine.observeTransaction(f.id, f.fill("long")); await f.engine.drain();
+  await f.engine.observeTrade(f.id, "long", f.trades.get("trade-long")!); await f.engine.drain();
+  assert.equal(f.repo.run.state, "OPEN"); assert.equal(f.repo.run.legs.long.fillTime, iso(T - 1500)); assert.equal(f.repo.run.legs.short.state, "CANCELLED");
+});
+await test("the initial broker stop equals one planned R in account currency, with no fixed TP", async () => {
+  for (const side of ["long", "short"] as const) {
+    const f = fixture(); await f.opened(side); const t = f.trades.get(`trade-${side}`)!, r = f.repo.run.risk!;
+    const stoppedPL = (t.stop! - t.entry) * t.units * r.conversion;
+    assert.ok(Math.abs(stoppedPL + r.perLegCash) < 1e-7); assert.equal(t.target, null);
+    assert.equal(r.perLegPercent, 1); assert.ok(Math.abs(r.perLegCash - r.equity * 0.01) < 1e-7); assert.ok(r.perLegCash * 2 <= r.equity * 0.02);
+  }
+});
+await test("BUY and SELL trails wait for ten executable pips, retain seven-pip distance and never retreat on reversal", async () => {
+  for (const side of ["long", "short"] as const) {
+    const f = fixture(); await f.opened(side); const l = f.repo.run.legs[side], entry = l.fillPrice!, sign = side === "long" ? 1 : -1;
+    const atMove = (time: number, favorablePips: number) => { const exit = entry + sign * favorablePips * 0.0001; f.at(time, side === "long" ? exit : exit - 0.0001, side === "long" ? exit + 0.0001 : exit); };
+    atMove(T + 1000, 9.9); await f.tick(); assert.equal(f.trailCalls.length, 0, side);
+    atMove(T + 1500, 10); await f.tick(); assert.equal(f.trailCalls.length, 1, side);
+    const trade = f.trades.get(`trade-${side}`)!; assert.ok(Math.abs(trade.trailDistance! - 0.0007) < 1e-10);
+    const confirmedStop = f.repo.run.legs[side].activeStop!; assert.ok(Math.abs(f.repo.run.legs[side].protectedPips! - 3) < 1e-7);
+    atMove(T + 2000, 8); await f.engine.observeTrade(f.id, side, trade); await f.tick();
+    assert.equal(f.repo.run.legs[side].activeStop, confirmedStop); assert.equal(f.trailCalls.length, 1); assert.equal(trade.target, null);
+  }
+});
+await test("account per-trade and aggregate limits stay separate; prior smaller approvals are not increased", async () => {
+  const f = fixture(); const input = { instrument: "EUR_USD", settings: f.run.settings, equity: 10000, currency: "USD", conversion: 1, atrPips: 8, minimumTrail: 0.0005, maximumTrail: 1, minimumUnits: 1, maximumUnits: 10000000 };
+  assert.throws(() => calculateNewsRisk({ ...input, riskLimit: 0.5, eventRiskLimit: 3 }), /account risk limit/);
+  assert.throws(() => calculateNewsRisk({ ...input, riskLimit: 1, eventRiskLimit: 1 }), /account risk limit/);
+  const full = calculateNewsRisk({ ...input, riskLimit: 1, eventRiskLimit: 3 }); assert.equal(full.risk.perLegCash, 100); assert.equal(full.units, 62500);
+  f.repo.run.settings.maxEventRiskPercent = 1; f.repo.run.risk!.perLegCash = 50; f.repo.run.risk!.perLegPercent = 0.5; f.repo.run.risk!.eventCash = 100;
+  await f.pending(); assert.equal(f.repo.run.risk!.perLegPercent, 0.5); assert.equal(f.repo.run.risk!.perLegCash, 50);
 });
 console.log(`News Straddle v3: ${passed} checks passed; fake broker and clock only, no actual orders.`);

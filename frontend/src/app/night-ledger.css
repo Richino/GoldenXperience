@@ -97,6 +97,10 @@
     height: var(--gx-safe-area-top);
     z-index: 2147483646;
     background: var(--background);
+    /* Fade inside the existing clearance, without adding another gap or
+       covering the controls immediately below this strip. */
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 12px), transparent);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 12px), transparent);
     pointer-events: none;
   }
 

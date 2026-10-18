@@ -130,34 +130,25 @@ export function WeeklyReview({ currency }: { currency: string }) {
         <p className="nl-empty">No closed trades last week. Your review appears here after a week with some.</p>
       ) : (
         <div className="nl-wr-card">
-          <dl className="nl-wr-stats">
-            <div>
-              <dt>Net</dt>
-              <dd className={`metric-number ${tone(stats.netPl)}`}>{money(stats.netPl, currency)}</dd>
-            </div>
-            <div>
-              <dt>Trades</dt>
-              <dd className="metric-number">
-                {stats.trades} <small>{stats.wins}W · {stats.losses}L</small>
-              </dd>
-            </div>
-            <div>
-              <dt>Win rate</dt>
-              <dd className="metric-number">{stats.winRate === null ? "—" : `${stats.winRate}%`}</dd>
-            </div>
+          <div className="nl-wr-hero">
+            <span className="nl-wr-hero-label">Net</span>
+            <b className={`nl-wr-net metric-number ${tone(stats.netPl)}`}>{money(stats.netPl, currency)}</b>
+            <span className="nl-wr-hero-sub metric-number">
+              {stats.trades} trades · {stats.wins}W {stats.losses}L · {stats.winRate === null ? "—" : `${stats.winRate}% win rate`}
+            </span>
+          </div>
+          <dl className="nl-wr-mini">
             <div>
               <dt>Avg win / loss</dt>
               <dd className="metric-number">
                 <span className="is-up">{stats.avgWinPl === null ? "—" : money(stats.avgWinPl, currency)}</span>
-                <small> / </small>
+                <small>/</small>
                 <span className="is-down">{stats.avgLossPl === null ? "—" : money(stats.avgLossPl, currency)}</span>
               </dd>
             </div>
             <div>
-              <dt>Held · win / loss</dt>
-              <dd className="metric-number">
-                {holdLabel(stats.avgHoldWinMinutes)} <small>/</small> {holdLabel(stats.avgHoldLossMinutes)}
-              </dd>
+              <dt>Held win / loss</dt>
+              <dd className="metric-number">{holdLabel(stats.avgHoldWinMinutes)} <small>/</small> {holdLabel(stats.avgHoldLossMinutes)}</dd>
             </div>
             <div>
               <dt>Spread paid</dt>
@@ -185,6 +176,8 @@ export function WeeklyReview({ currency }: { currency: string }) {
                   <span>Focus next week</span>
                   {summary.focus}
                 </p>
+                <details className="nl-wr-more">
+                  <summary>What went wrong and what to do</summary>
                 {summary.lastFocusCheck ? (
                   <p className="nl-wr-check">
                     <span>Last week&apos;s focus</span>
@@ -228,6 +221,7 @@ export function WeeklyReview({ currency }: { currency: string }) {
                     </ol>
                   </div>
                 </div>
+                </details>
               </>
             ) : summaryState === "loading" ? (
               <div className="nl-wr-ai-loading" role="status">
@@ -251,6 +245,8 @@ export function WeeklyReview({ currency }: { currency: string }) {
             )}
           </div>
 
+          <details className="nl-wr-more">
+          <summary>By session, pair and past weeks</summary>
           <div className="nl-wr-breakdown">
             <div>
               <h3>By session</h3>
@@ -294,6 +290,7 @@ export function WeeklyReview({ currency }: { currency: string }) {
               </ul>
             </div>
           ) : null}
+          </details>
         </div>
       )}
     </section>

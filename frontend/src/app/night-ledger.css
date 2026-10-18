@@ -9743,3 +9743,156 @@ html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="watching"]
   color: var(--foreground);
   font-variant-numeric: tabular-nums;
 }
+
+/* ── Weekly review, minimal: a headline result, three quiet stats, the AI read
+   with one focus, and everything else folded into two rows. ── */
+.nl-wr-card {
+  gap: 18px;
+}
+
+.nl-wr-hero {
+  display: grid;
+  gap: 2px;
+}
+
+.nl-wr-hero-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.nl-wr-net {
+  font-family: var(--font-display);
+  font-size: clamp(30px, 8vw, 40px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.nl-wr-hero-sub {
+  color: var(--muted-strong);
+  font-size: 13px;
+}
+
+.nl-wr-mini {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.nl-wr-mini div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--foreground) 3.5%, transparent);
+}
+
+.nl-wr-mini dt {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.nl-wr-mini dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 4px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.nl-wr-mini dd small {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+@media (max-width: 520px) {
+  .nl-wr-mini { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .nl-wr-mini div:last-child { grid-column: 1 / -1; }
+}
+
+/* The AI block: no second box inside the card, just a divider. */
+.nl-wr-card .nl-wr-ai {
+  gap: 14px;
+  padding: 16px 0 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+}
+
+.nl-wr-card .nl-wr-summary {
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+/* Folded detail: full-width rows with a chevron. */
+.nl-wr-more {
+  border-top: 1px solid var(--border);
+}
+
+.nl-wr-more > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  color: var(--muted-strong);
+  font-size: 14px;
+  font-weight: 600;
+  list-style: none;
+  cursor: pointer;
+}
+
+.nl-wr-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.nl-wr-more > summary::before {
+  content: "";
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin: 0 4px 0 2px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 160ms ease;
+}
+
+.nl-wr-more[open] > summary::before {
+  transform: rotate(45deg);
+}
+
+.nl-wr-more > summary:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.nl-wr-more[open] {
+  display: grid;
+  gap: 16px;
+  padding-bottom: 8px;
+}
+
+@media (max-width: 640px) {
+  .nl-wr-cols,
+  .nl-wr-breakdown {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Section labels inside the folded review all match. */
+.nl-wr-more h3 {
+  margin: 4px 0 10px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}

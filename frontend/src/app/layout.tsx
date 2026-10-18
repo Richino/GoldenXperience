@@ -41,7 +41,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    // Let iOS use its normal status bar; layout handles the PWA blur clearance.
+    // Use the normal status bar; the fixed sampling strip handles iOS 27.
     statusBarStyle: "default",
     title: "GoldenXperience",
     // iOS launch screens, one per portrait screen size; rendered by
@@ -105,6 +105,7 @@ export default function RootLayout({
         />
       </head>
       <body>
+        <div className="gx-ios-statusbar" aria-hidden="true" />
         <Script
           id="text-size-init"
           strategy="beforeInteractive"

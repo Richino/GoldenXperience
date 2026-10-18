@@ -87,6 +87,26 @@
    The head script gates this to installed iOS apps; landscape keeps no gap. */
 @media (max-width: 1023px) and (orientation: portrait) {
   html.gx-ios-pwa-top-clearance { --gx-ios-status-gap: 20px; }
+
+  /* Padding only protects the initial header. Paint an opaque strip over
+     scrolling content as well, so iOS samples a uniform background there. */
+  html.gx-ios-pwa-top-clearance::after {
+    content: "";
+    position: fixed;
+    inset: 0 0 auto;
+    height: var(--gx-safe-area-top);
+    z-index: 2147483646;
+    background: var(--background);
+    pointer-events: none;
+  }
+
+  html.gx-ios-pwa-top-clearance:has(.signals-route)::after {
+    background: var(--signals-mobile-page-bg);
+  }
+
+  html.gx-ios-pwa-top-clearance:is(.gx-boot-splash, :has([data-gx-launch-screen]))::after {
+    background: #0b0c0a;
+  }
 }
 
 /* ------------------------------------------------------------------ type */

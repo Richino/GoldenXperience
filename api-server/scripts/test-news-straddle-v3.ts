@@ -6,6 +6,7 @@ import type { NewsRepository, NewsSession, Audit } from "../src/news-straddle/st
 import type { NewsBroker, BrokerContext, BrokerTransaction, TradeObservation, OrderObservation } from "../src/news-straddle/broker.js";
 import { stopOrderBody, liveNewsBroker } from "../src/news-straddle/broker.js";
 import { replayNewsExits } from "../src/news-straddle/replay.js";
+import { nextNewsReleaseGroup, newsReleaseStillMatches, type TimedNewsEvent } from "../../frontend/src/lib/news/news-release-groups.js";
 import { calculateNewsRisk, entryPrices, parseV3Settings, preSubmitIssue, quoteIssue, trailingDecision, verifyRelease, type NewsQuote } from "../src/news-straddle/policy.js";
 
 const T = Date.parse("2026-10-14T12:30:00Z"), iso = (n: number) => new Date(n).toISOString();
@@ -176,5 +177,46 @@ await test("real transport body retains original stop, has no TP, and refuses li
     assert.ok(calls[0]!.url.startsWith("https://api-fxpractice.oanda.com/")); assert.deepEqual(calls[0]!.body, { trailingStopLoss: { distance: "0.00070", timeInForce: "GTC" } });
     process.env.OANDA_ENVIRONMENT = "live"; await assert.rejects(() => liveNewsBroker.addTrailing("fake-trade", 0.0007, "EUR_USD"), /practice/); assert.equal(calls.length, 1);
   } finally { globalThis.fetch = savedFetch; names.forEach((n, i) => { if (before[i] === undefined) delete process.env[n]; else process.env[n] = before[i]; }); }
+});
+function groupedCalendar(): TimedNewsEvent[] {
+  return ["CPI m/m", "Core CPI m/m", "Unemployment Claims"].map((title, i) => ({ id: `release-${i}`, title, currency: "USD", timestamp: iso(T), impact: 3, timingVerified: true }));
+}
+await test("same-time releases form one group; later, unrelated, low-impact and unverified releases stay out", () => {
+  const events = groupedCalendar();
+  const extra = [
+    { ...events[0]!, id: "later", timestamp: iso(T + 60000) },
+    { ...events[0]!, id: "jpy", currency: "JPY" },
+    { ...events[0]!, id: "low", impact: 2 },
+    { ...events[0]!, id: "unverified", timingVerified: false },
+  ];
+  const group = nextNewsReleaseGroup("EUR_USD", [...events, ...extra], T - 20000)!;
+  assert.equal(group.events.length, 3); assert.equal(group.timestamp, iso(T));
+  assert.deepEqual(nextNewsReleaseGroup("EUR_USD", [...events].reverse(), T - 20000), group);
+  assert.equal(nextNewsReleaseGroup("EUR_USD", events, T - 10000), null);
+});
+await test("both currencies of the pair can share one release group without duplicate feed rows", () => {
+  const events = groupedCalendar(), euro = { ...events[0]!, id: "eur", title: "ECB rate decision", currency: "EUR" };
+  const group = nextNewsReleaseGroup("EUR_USD", [...events, events[0]!, euro], T - 20000)!;
+  assert.equal(group.events.length, 4); assert.deepEqual([...new Set(group.events.map(e => e.currency))], ["EUR", "USD"]);
+});
+await test("server derives and verifies the whole batch; any member maps to the same canonical setup", () => {
+  const events = groupedCalendar(), group = nextNewsReleaseGroup("EUR_USD", events, T - 20000)!;
+  const calendar = { events, fetchedAt: iso(T - 20000) };
+  const first = verifyRelease("EUR_USD", { ...group, time: group.timestamp }, calendar, T - 20000);
+  const another = verifyRelease("EUR_USD", { ...events[1]!, time: iso(T), events: group.events }, calendar, T - 20000);
+  assert.deepEqual(first, another); assert.equal(first.events!.length, 3);
+  assert.throws(() => verifyRelease("EUR_USD", { ...group, time: group.timestamp, events: [group.events[0]] }, calendar, T - 20000), /changed/);
+  assert.equal(newsReleaseStillMatches("EUR_USD", first, events.slice(0, 2)), false);
+  assert.equal(newsReleaseStillMatches("EUR_USD", { ...first, events: undefined }, events), true);
+});
+await test("three approved releases submit exactly one BUY/SELL pair under the same event risk cap", async () => {
+  const f = fixture(), events = groupedCalendar();
+  const group = nextNewsReleaseGroup("EUR_USD", events, T - 20000)!;
+  f.repo.run.release = { ...f.run.release, ...group, time: group.timestamp };
+  f.deps.calendar = async () => ({ events, fetchedAt: f.quote().time });
+  await f.pending(); assert.equal(f.sent.length, 2); assert.ok(f.repo.run.risk!.perLegCash * 2 <= 100);
+  const changed = events.map(e => e.id === "release-1" ? { ...e, timestamp: iso(T + 60000) } : e);
+  await f.engine.verifyCalendar(f.id, { events: changed, fetchedAt: f.quote().time }); await f.engine.drain();
+  assert.equal(f.repo.run.legs.long.state, "CANCELLED"); assert.equal(f.repo.run.legs.short.state, "CANCELLED"); assert.equal(f.sent.length, 2);
 });
 console.log(`News Straddle v3: ${passed} checks passed; fake broker and clock only, no actual orders.`);

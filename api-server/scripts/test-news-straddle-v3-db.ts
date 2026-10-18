@@ -17,6 +17,11 @@ try {
     orderId: null, tradeId: null, paperTradeId: null, submittedAt: null, acknowledgedAt: null, brokerTime: null, cancellationRequestedAt: null, cancellationConfirmedAt: null, fillTime: null, fillPrice: null, slippagePips: null, fillSpreadPips: null, initialStop: null, activeStop: null, trailingOrderId: null, trailingRequestedAt: null, trailingActivatedAt: null, unrealizedPips: null, maximumFavorablePips: 0, protectedPips: null, realizedPL: null, realizedR: null, exitPrice: null, closedAt: null, lastProtectionAt: null });
   const run: NewsRun = { id, userId: user, accountKey: `test-${id}`, instrument: "EUR_USD", eventKey: `test-${id}`, version: 3, revision: 0, state: "SCHEDULED", release: { id, title: "Persistence fixture", currency: "USD", time: now, impact: 3, provider: "forex_factory" }, settings: { ...NEWS_V3_DEFAULTS }, createdAt: now, targetSubmitAt: now, preparedAt: null, calendarCheckedAt: now, calendarFetchedAt: now, transactionSeed: "1", lastReconciledAt: null, preparedQuote: { bid: 1.12, ask: 1.1201, time: now }, risk: { equity: 10000, currency: "USD", conversion: 1, eventCash: 100, perLegCash: 1.5, perLegPercent: 0.5, stopPips: 15, atrPips: null }, constraints: null, clock: null, legs: { long: leg("long"), short: leg("short") }, firstFillSide: null, exception: null, reason: null, endedAt: null, timeline: [] };
   let sp = 0;
+  run.release.events = [
+    { id, title: "Persistence fixture", currency: "USD" },
+    { id: `${id}-core`, title: "Core CPI fixture", currency: "USD" },
+    { id: `${id}-claims`, title: "Claims fixture", currency: "USD" },
+  ];
   const transact: typeof transaction = async fn => {
     const name = `test_create_${++sp}`; await c.query(`SAVEPOINT ${name}`);
     try { const value = await fn(c); await c.query(`RELEASE SAVEPOINT ${name}`); return value; }
@@ -28,7 +33,9 @@ try {
   await createNewsRun(run, transact);
   assert.equal((await createNewsRun({ ...structuredClone(run), id: randomUUID() }, transact)).id, id);
   await assert.rejects(() => createNewsRun({ ...structuredClone(run), settings: { ...run.settings, distancePips: 20 } }, transact), /cannot be replaced/);
+  await assert.rejects(() => createNewsRun({ ...structuredClone(run), release: { ...run.release, events: run.release.events!.slice(0, 2) } }, transact), /releases cannot be replaced/);
   await assert.rejects(() => createNewsRun({ ...structuredClone(run), id: randomUUID(), eventKey: "same-release-other-title", instrument: "GBP_USD" }, transact), /risk budget/);
+  await assert.rejects(() => createNewsRun({ ...structuredClone(run), id: randomUUID(), eventKey: "same-time-other-currency", instrument: "EUR_JPY", release: { ...run.release, currency: "EUR" } }, transact), /risk budget/);
   await assert.rejects(() => createNewsRun({ ...structuredClone(run), id: randomUUID(), eventKey: "other-event", release: { ...run.release, time: new Date(Date.parse(now) + 120000).toISOString() } }, transact), /already has/);
   assert.equal((await c.query("SELECT 1 FROM pending_manual_entries")).rowCount, 2);
   // Map the repository's short transactions to savepoints inside this rollback-only test.
@@ -47,6 +54,7 @@ try {
     await s.save(stored, { event: "fake_fill", transactionId: "test-transaction" }); assert.equal(await s.seen("test-transaction"), true);
     const entry = (await c.query("SELECT target_price,metadata,paper_trade_id FROM pending_manual_entries WHERE id=$1", [l.entryId])).rows[0]!;
     assert.equal(entry.target_price, null); assert.equal(entry.metadata.configVersion, 3); assert.equal(entry.metadata.newsRun.accountKey, undefined); assert.ok(entry.paper_trade_id);
+    assert.equal(entry.metadata.newsRun.release.events.length, 3);
     const paper = (await c.query("SELECT entry,stop,target FROM paper_trades WHERE id=$1", [entry.paper_trade_id])).rows[0]!;
     assert.equal(Number(paper.target), Number(paper.entry));
     l.activeStop = 1.1224; stored.state = "TRAILING"; await s.save(stored, { event: "fake_trail" });

@@ -1,5 +1,6 @@
 import { NEWS_TERMINAL, type NewsRun, type NewsSide, type NewsLeg } from "../../../frontend/src/lib/news/news-straddle-v3.js";
 import { pipSizeFor } from "../../../frontend/src/lib/instruments/catalog.js";
+import { newsReleaseStillMatches } from "../../../frontend/src/lib/news/news-release-groups.js";
 import type { NewsRepository, NewsSession, Audit } from "./store.js";
 import type { NewsBroker, BrokerContext, BrokerTransaction, OrderObservation, TradeObservation } from "./broker.js";
 import { calculateNewsRisk, entryPrices, executablePips, MAX_SUBMIT_LATENESS_MS, PREPARE_LEAD_MS, preSubmitIssue, priceDistance, quoteIssue, roundPrice, trailingDecision, type NewsQuote } from "./policy.js";
@@ -183,7 +184,7 @@ export class NewsStraddleEngine {
   async verifyCalendar(id: string, calendar: Awaited<ReturnType<EngineDeps["calendar"]>>) {
     await this.deps.repo.locked(id, async s => {
       const r = await s.read(); if (!r || NEWS_TERMINAL.includes(r.state) || cancelling(r) || r.firstFillSide) return;
-      const valid = calendar.events.some(e => e.id === r.release.id && e.title === r.release.title && e.currency === r.release.currency && e.timestamp === r.release.time && e.impact >= 3 && e.timingVerified === true);
+      const valid = newsReleaseStillMatches(r.instrument, r.release, calendar.events);
       if (!valid || this.deps.now() - Date.parse(calendar.fetchedAt) > 15 * 60_000) await this.cancelRun(s, r, "Release was cancelled, rescheduled or its calendar verification expired.");
       else { r.calendarCheckedAt = iso(this.deps.now()); r.calendarFetchedAt = calendar.fetchedAt; await this.save(s, r, "calendar_reverified"); }
     });
@@ -193,8 +194,7 @@ export class NewsStraddleEngine {
     await this.deps.repo.locked(id, async s => {
       const r = await s.read(); if (!r || r.state !== "PREPARING") return;
       try {
-        const event = calendar.events.find(e => e.id === r.release.id && e.title === r.release.title && e.currency === r.release.currency && e.timestamp === r.release.time && e.impact >= 3 && e.timingVerified === true);
-        if (!event) throw new Error("Release was cancelled, rescheduled or no longer reliably classified.");
+        if (!newsReleaseStillMatches(r.instrument, r.release, calendar.events)) throw new Error("A release was cancelled, rescheduled or no longer reliably classified.");
         if (this.deps.now() - Date.parse(calendar.fetchedAt) > 15 * 60_000) throw new Error("Calendar verification is stale.");
         const policy = await this.deps.policy(r.userId);
         if (policy.killSwitch || await this.deps.halted()) throw new Error("News execution is paused.");

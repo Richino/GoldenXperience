@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { apiUrl } from "@/lib/api/url";
-import { currenciesOf, displayNameFor, pipSizeFor, precisionFor } from "@/lib/instruments/catalog";
+import { displayNameFor, pipSizeFor, precisionFor } from "@/lib/instruments/catalog";
 import { useEconomicCalendar } from "@/lib/oanda/use-economic-calendar";
-import { NEWS_TERMINAL, NEWS_V3_DEFAULTS, NEWS_V3_LABEL, type PublicNewsRun } from "@/lib/news/news-straddle-v3";
+import { NEWS_TERMINAL, NEWS_V3_DEFAULTS, NEWS_V3_LABEL, type PublicNewsRun, type NewsReleaseMember } from "@/lib/news/news-straddle-v3";
+import { nextNewsReleaseGroup } from "@/lib/news/news-release-groups";
 import type { NewsDraft } from "@/lib/news/news-zone-overlay";
 import type { PendingManualEntry } from "@/types/pending-entry";
 import styles from "./news-straddle-v3.module.css";
@@ -24,21 +25,22 @@ function useDisplayClock() {
   useEffect(() => { const update = () => setNow(Date.now()); update(); const timer = window.setInterval(update, 1000); return () => clearInterval(timer); }, []);
   return now;
 }
-type SimpleRelease = { title: string; currency: string; timestamp: string };
+type SimpleRelease = { title: string; currency: string; timestamp: string; events?: NewsReleaseMember[] };
 export function NewsAcceptCard({ header, instrument, release, now, unavailableReason, busy, error, onAccept, onCancel }: {
   header?: ReactNode; instrument: string; release: SimpleRelease | null; now: number | null;
   unavailableReason: string | null; busy: boolean; error: string | null; onAccept(): void; onCancel(): void;
 }) {
+  const grouped = release?.events && release.events.length > 1 ? release.events : null;
   return <>
     <div className={"nl-pe-plan " + styles.ticket}>
       {header}
       <div className={styles.intro}><h3>News trade</h3><span className={styles.badge}>Practice</span></div>
       <p className={styles.description}>GX watches {displayNameFor(instrument)} and handles the trade automatically.</p>
       <section className={styles.event} aria-label="Next news event">
-        <span className={styles.eyebrow}>Next high-impact event</span>
+        <span className={styles.eyebrow}>{grouped ? "Next high-impact releases" : "Next high-impact event"}</span>
         {release ? <>
-          <h4>{release.title}</h4>
-          <p>{release.currency} · {new Date(release.timestamp).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" })}</p>
+          {grouped ? <><h4>{grouped.length} releases together</h4><ul className={styles.releaseList} aria-label="Releases at this time">{grouped.map(e => <li key={e.id}><span>{e.currency}</span>{e.title}</li>)}</ul></> : <h4>{release.title}</h4>}
+          <p>{grouped ? "" : release.currency + " · "}{new Date(release.timestamp).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" })}</p>
           {now !== null ? <strong className={styles.countdown}>Starts in {countdown(Date.parse(release.timestamp) - now)}</strong> : null}
         </> : <p>{unavailableReason ?? "Checking upcoming news…"}</p>}
       </section>
@@ -46,7 +48,7 @@ export function NewsAcceptCard({ header, instrument, release, now, unavailableRe
       <div className={styles.risk}><span>Maximum planned risk</span><strong>1% of your account</strong></div>
       {release && unavailableReason ? <p className={styles.warning} role="status">{unavailableReason}</p> : null}
       {error ? <p className={styles.warning} role="alert">{error}</p> : null}
-      <p className={styles.note}>Accept starts monitoring and allows GX to place practice orders for this event.</p>
+      <p className={styles.note}>Accept starts monitoring and allows GX to place practice orders for {grouped ? "these releases together" : "this event"}.</p>
     </div>
     <footer className="nl-an-actions is-card nl-pe-actions">
       <button type="button" className="nl-an-secondary pressable" disabled={busy} onClick={onCancel}>Not now</button>
@@ -57,7 +59,7 @@ export function NewsAcceptCard({ header, instrument, release, now, unavailableRe
 
 export function BrokerNewsStraddleTicket({ header, instrument, bid, ask, creationBlocked, onCancel, onArmed, onDraft }: BrokerNewsTicketProps) {
   const { snapshot: calendar, loading } = useEconomicCalendar(), now = useDisplayClock();
-  const { base, quote } = currenciesOf(instrument), pip = pipSizeFor(instrument), precision = precisionFor(instrument);
+  const pip = pipSizeFor(instrument), precision = precisionFor(instrument);
   const [error, setError] = useState<string | null>(null), [busy, setBusy] = useState(false);
   const accepting = useRef(false);
   const [runtime, setRuntime] = useState<{ halted: boolean; enabled?: boolean } | null>(null);
@@ -69,11 +71,7 @@ export function BrokerNewsStraddleTicket({ header, instrument, bid, ask, creatio
     return () => { active = false; };
   }, []);
   const release = useMemo(() => calendar.connected && calendar.source === "forex_factory" && now !== null
-    ? calendar.events.filter(e => [base, quote].includes(e.currency) && e.impact >= 3 && e.timingVerified === true
-      && !/tentative|all.day|summit|speaks|speech|meeting day/i.test(e.title)
-      && Date.parse(e.timestamp) > now + 15_000 && Date.parse(e.timestamp) <= now + 5 * 3_600_000)
-      .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp))[0] ?? null : null,
-    [base, quote, calendar, now]);
+    ? nextNewsReleaseGroup(instrument, calendar.events, now) : null, [instrument, calendar, now]);
   const buy = ask !== null ? Number((ask + NEWS_V3_DEFAULTS.distancePips * pip).toFixed(precision)) : null;
   const sell = bid !== null ? Number((bid - NEWS_V3_DEFAULTS.distancePips * pip).toFixed(precision)) : null;
   const releaseId = release?.id;
@@ -96,7 +94,7 @@ export function BrokerNewsStraddleTicket({ header, instrument, bid, ask, creatio
       // The existing arm endpoint checks calendar, broker and risk in this one request.
       await request("/api/pending-entries/news", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ version: 3, instrument, settings: NEWS_V3_DEFAULTS,
-          release: { id: release.id, title: release.title, currency: release.currency, time: release.timestamp } }) });
+          release: { id: release.id, title: release.title, currency: release.currency, time: release.timestamp, events: release.events } }) });
       onArmed("Monitoring started");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Monitoring could not start. Please try again.");
@@ -120,12 +118,12 @@ export function NewsV3StatusView({ run, now }: { run: PublicNewsRun; now: number
   return <div className={styles.status}>
     <div className={styles.intro}><h3>{simpleState[run.state]}</h3><span className={styles.badge}>Practice</span></div>
     {run.reason ? <p className={styles.warning}>{run.reason}</p> : null}
-    <p className={styles.note}>{displayNameFor(run.instrument)} · {run.release.currency} {run.release.title} · High impact<br />{clock(run.release.time)}</p>
+    <p className={styles.note}>{displayNameFor(run.instrument)} · High impact<br />{(run.release.events ?? [run.release]).map(e => `${e.currency} ${e.title}`).join(" + ")}<br />{clock(run.release.time)}</p>
     {now !== null && Date.parse(run.release.time) > now ? <p className={styles.countdown}>Release in {countdown(Date.parse(run.release.time) - now)}</p> : null}
     {active ? <section className={styles.card} aria-label="Trade summary"><dl className={styles.metrics}>
       <div><dt>{active.closedAt ? "Result" : "Current move"}</dt><dd>{active.closedAt && active.realizedPL !== null ? money(active.realizedPL, run.risk?.currency) : current ? pips(active.unrealizedPips) : "Waiting for an update"}</dd></div>
       {!active.closedAt ? <div><dt>Stop protection</dt><dd>{current ? pips(active.protectedPips) : "Checking with broker"}</dd></div> : null}
-    </dl></section> : !NEWS_TERMINAL.includes(run.state) ? <p className={styles.description}>GX is watching this event. The entry, stop-loss and trailing protection are automatic.</p> : null}
+    </dl></section> : !NEWS_TERMINAL.includes(run.state) ? <p className={styles.description}>GX is watching {(run.release.events?.length ?? 1) > 1 ? "these releases together" : "this event"}. The entry, stop-loss and trailing protection are automatic.</p> : null}
     <details className={styles.more}><summary>Details</summary>
     <p className={styles.note}>{NEWS_V3_LABEL[run.state]}</p>
     <section className={styles.card} aria-label="Broker order status"><dl className={styles.metrics}>

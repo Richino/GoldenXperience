@@ -5,6 +5,7 @@ This version replaces new News-mode entries only. Normal manual entries, AI plan
 ## Approved behavior
 
 - GX selects the next verified high-impact release 15 seconds to 5 hours ahead. The user clicks **Accept** once; the existing server endpoint checks broker risk and the calendar before starting monitoring with the default settings. No separate check button, settings form or AI call is required. The browser countdown is display only. Technical status is collapsed under Details.
+- Releases for either currency of the selected pair at the same timestamp are grouped into one card and persisted as one approved batch. One Accept starts one BUY/SELL setup with one risk cap. Each member is checked again before submission; a moved, removed or newly added release invalidates that batch. Events at different times remain separate.
 - Backend preflight starts T−12s, freezes executable ask/bid-based levels around T−3s and attempts two independent native STOP submissions at T−2s. More than 250ms late means skip. Actual HTTP dispatch, acknowledgment and broker fill timestamps are distinct audit fields.
 - BUY is ask + offset; SELL is bid − offset. STOP price bounds reject unacceptable entry gaps. Broker GTD expiry backs up the configurable entry window (default 60 seconds).
 - Every submitted STOP includes an initial stop-loss distance on fill. No fixed TP is sent. The original stop defines 1R; realized losses can exceed it.
@@ -15,7 +16,7 @@ This version replaces new News-mode entries only. Normal manual entries, AI plan
 
 ## Persistence and recovery
 
-Migration `064_news_straddle_v3.sql` adds run snapshots, transaction/audit deduplication, account cursor and pause latch. One active run per account/pair; one attempt per pair and normalized currency/title/UTC day. Same-day rescheduling does not create another attempt. Concurrent currency releases at the same timestamp share the risk budget even when provider titles differ. Across pairs, the sum of both-leg planned percentages cannot exceed the smallest approved event cap or account cap. Prior attempts conservatively retain their allocation.
+Migration `064_news_straddle_v3.sql` adds run snapshots, transaction/audit deduplication, account cursor and pause latch. One active run per account/pair; one attempt per pair and normalized currency/title/UTC day. Same-day rescheduling does not create another attempt. Releases at the same timestamp share the account risk budget even when provider titles or currencies differ. Across pairs, the sum of both-leg planned percentages cannot exceed the smallest approved event cap or account cap. Prior attempts conservatively retain their allocation.
 
 A dedicated account leader owns scheduling and transaction streaming. Per-run database locks and revision checks protect state. Both submission intentions are committed before either POST. Deterministic client order/trade IDs identify broker orders after timeouts. An unknown submission is reconciled/cancelled, never blindly resubmitted. Startup replay uses the persisted transaction seed/cursor; the REST cursor advances only after every transaction is processed. Stream heartbeats never advance it. New entries require a recently synchronized REST cursor and live transaction stream. Broker I/O runs outside state locks so a slow acknowledgment cannot block OCO processing.
 

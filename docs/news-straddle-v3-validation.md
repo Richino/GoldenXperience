@@ -1,5 +1,9 @@
 # News Straddle v3 validation — 2026-10-17
 
+## Grouped-release update — 2026-10-18
+
+29 fake-broker checks pass, including same-time grouping, both currencies of a pair, duplicate calendar rows, one BUY/SELL pair for three releases, and cancellation when a secondary release changes. PostgreSQL rollback checks also cover persistence of all approved members, immutable membership on retries, and one shared risk budget across currencies at the same time. API/frontend typechecks and scoped frontend lint pass. The development preview shows three releases with one countdown and one Accept button; no actual setup was armed.
+
 - API and frontend TypeScript checks passed.
 - 25 fake-broker/fake-clock v3 scenarios passed, including all ten requested cases, deterministic submission recovery, partial fills, protection regression, kill switch, disabling new entries while retaining open-trade management, matching exit comparisons, and mocked practice-only transport.
 - Rollback-only PostgreSQL checks passed: duplicate-request identity despite JSONB key ordering, immutable approved settings, active-pair exclusion, shared simultaneous-release risk budget, NULL broker target, immutable original journal stop, closure and transaction deduplication. Temporary fixture tables isolate existing app rows. No test broker calls.

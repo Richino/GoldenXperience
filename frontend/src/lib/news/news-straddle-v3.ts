@@ -3,7 +3,8 @@ export const NEWS_V3 = 3;
 export type NewsSide = "long" | "short";
 export type NewsRunState = "SCHEDULED" | "PREPARING" | "READY" | "SUBMITTING" | "PENDING_ORDERS" | "OCO_CANCELLING" | "OPEN" | "TRAILING" | "CANCELLING" | "EXCEPTION" | "CLOSED" | "SKIPPED" | "EXPIRED" | "CANCELLED" | "HALTED";
 export const NEWS_TERMINAL: NewsRunState[] = ["CLOSED", "SKIPPED", "EXPIRED", "CANCELLED", "HALTED"];
-export type NewsRelease = { id: string; title: string; currency: string; time: string; impact: number; provider: "forex_factory" };
+export type NewsReleaseMember = { id: string; title: string; currency: string };
+export type NewsRelease = { id: string; title: string; currency: string; time: string; impact: number; provider: "forex_factory"; events?: NewsReleaseMember[] };
 export type NewsV3Settings = {
   version: 3; distancePips: number; stopMode: "ATR" | "FIXED"; stopPips: number; atrMultiplier: number; minimumStopPips: number; maximumStopPips: number;
   riskPerTradePercent: number; maxEventRiskPercent: number; maxSpreadPips: number; maxSlippagePips: number;

@@ -1,5 +1,6 @@
 import { currenciesOf, pipSizeFor, precisionFor } from "../../../frontend/src/lib/instruments/catalog.js";
 import { NEWS_V3_DEFAULTS, type NewsRun, type NewsV3Settings, type NewsRelease, type NewsSide } from "../../../frontend/src/lib/news/news-straddle-v3.js";
+import { newsEventsAtTime, sameNewsMembers } from "../../../frontend/src/lib/news/news-release-groups.js";
 
 export const SUBMIT_LEAD_MS = 2_000;
 export const PREPARE_LEAD_MS = 12_000;
@@ -34,14 +35,16 @@ export function eventKey(e: Pick<NewsRelease, "title" | "currency" | "time">) {
   // Provider IDs contain the timestamp; use currency/title/calendar date so a time change cannot buy another attempt.
   return `${e.currency}|${e.title.trim().toLowerCase().replace(/\s+/g, " ")}|${e.time.slice(0, 10)}`;
 }
-export function verifyRelease(instrument: string, requested: { id?: unknown; title?: unknown; currency?: unknown; time?: unknown }, calendar: { events: Array<{ id: string; title: string; currency: string; timestamp: string; impact: number; timingVerified?: boolean }>; fetchedAt: string }, now: number): NewsRelease {
+export function verifyRelease(instrument: string, requested: { id?: unknown; title?: unknown; currency?: unknown; time?: unknown; events?: unknown }, calendar: { events: Array<{ id: string; title: string; currency: string; timestamp: string; impact: number; timingVerified?: boolean }>; fetchedAt: string }, now: number): NewsRelease {
   if (!Number.isFinite(Date.parse(calendar.fetchedAt)) || now - Date.parse(calendar.fetchedAt) > MAX_CALENDAR_AGE_MS || Date.parse(calendar.fetchedAt) > now + 250) throw new Error("The verified calendar is stale.");
   const c = currenciesOf(instrument);
   const e = calendar.events.find(e => e.id === requested.id && e.title === requested.title && e.currency === requested.currency && e.timestamp === requested.time);
   if (!e || e.timingVerified !== true || ![c.base, c.quote].includes(e.currency) || e.impact < 3 || /tentative|all.day|summit|speaks|speech|meeting day/i.test(e.title)) throw new Error("Select a precisely timed high-impact economic release for this pair.");
   const at = Date.parse(e.timestamp);
   if (!Number.isFinite(at) || !/T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/.test(e.timestamp) || at < now + PREPARE_LEAD_MS + 3_000 || at > now + 5 * 3_600_000) throw new Error("The release must be 15 seconds to 5 hours ahead, with a verified UTC timestamp.");
-  return { id: e.id, title: e.title, currency: e.currency, time: e.timestamp, impact: e.impact, provider: "forex_factory" };
+  const events = newsEventsAtTime(instrument, calendar.events, e.timestamp);
+  if (requested.events !== undefined && (!Array.isArray(requested.events) || requested.events.some(m => !m || typeof m.id !== "string" || typeof m.title !== "string" || typeof m.currency !== "string") || !sameNewsMembers(requested.events, events))) throw new Error("The news releases at this time changed. Refresh the setup before accepting.");
+  return { ...events[0]!, time: new Date(at).toISOString(), impact: e.impact, provider: "forex_factory", events };
 }
 export function quoteIssue(q: NewsQuote | null, now: number) {
   if (!q || ![q.bid, q.ask].every(n => Number.isFinite(n) && n > 0) || q.ask < q.bid || !q.tradeable) return "A valid executable OANDA bid/ask is required.";

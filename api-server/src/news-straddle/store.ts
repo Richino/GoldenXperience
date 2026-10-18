@@ -1,5 +1,6 @@
 import type { Pool, PoolClient } from "pg";
 import { isDeepStrictEqual } from "node:util";
+import { sameNewsMembers } from "../../../frontend/src/lib/news/news-release-groups.js";
 import { db, query, transaction } from "../database.js";
 import { PENDING_ENTRY_FIELDS, serializePendingManualEntry, type PendingEntryRow } from "../pending-manual-entries.js";
 import { NEWS_TERMINAL, type NewsRun, type NewsLeg } from "../../../frontend/src/lib/news/news-straddle-v3.js";
@@ -81,18 +82,19 @@ export async function newsRuntimeStatus(key: string) {
 export async function createNewsRun(run: NewsRun, transact: typeof transaction = transaction) {
   return transact(async c => {
     // Account-pair serialisation also covers concurrent API workers and requests.
-    await c.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`news-v3-release:${run.accountKey}:${run.release.currency}:${run.release.time}`]);
+    await c.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`news-v3-release:${run.accountKey}:${run.release.time}`]);
     await c.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`news-v3-event:${run.accountKey}:${run.eventKey}`]);
     await c.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`news-v3-pair:${run.accountKey}:${run.instrument}`]);
     const existing = (await c.query<{ snapshot: NewsRun }>("SELECT snapshot FROM news_straddle_runs WHERE account_key=$1 AND instrument=$2 AND event_key=$3", [run.accountKey, run.instrument, run.eventKey])).rows[0]?.snapshot;
     if (existing) {
       if (existing.userId !== run.userId || !isDeepStrictEqual(existing.settings, run.settings)) throw new Error("This pair/event already has an attempt; approved settings cannot be replaced.");
+      if (Date.parse(existing.release.time) !== Date.parse(run.release.time) || !sameNewsMembers(existing.release.events ?? [existing.release], run.release.events ?? [run.release])) throw new Error("This news batch already has an attempt; approved releases cannot be replaced.");
       return existing;
     }
     const pair = run.instrument.replace("_", "/");
     const used = (await c.query<{ used: string; cap: string | null }>(`SELECT COALESCE(sum((snapshot->'risk'->>'perLegPercent')::numeric * 2),0)::text AS used,
       min((snapshot->'settings'->>'maxEventRiskPercent')::numeric)::text AS cap FROM news_straddle_runs
-      WHERE account_key=$1 AND (event_key=$2 OR (snapshot->'release'->>'currency'=$3 AND snapshot->'release'->>'time'=$4))`, [run.accountKey, run.eventKey, run.release.currency, run.release.time])).rows[0]!;
+      WHERE account_key=$1 AND (event_key=$2 OR snapshot->'release'->>'time'=$3)`, [run.accountKey, run.eventKey, run.release.time])).rows[0]!;
     const limit = (await c.query<{ max_risk_percent: string }>("SELECT max_risk_percent::text FROM trade_plan_risk_settings WHERE user_id=$1", [run.userId])).rows[0];
     const eventLimit = Math.min(run.settings.maxEventRiskPercent, Number(used.cap ?? run.settings.maxEventRiskPercent), Number(limit?.max_risk_percent ?? 1));
     if (!run.risk || Number(used.used) + run.risk.perLegPercent * 2 > eventLimit + 1e-9) throw new Error("The account's total risk budget for this release is already allocated.");

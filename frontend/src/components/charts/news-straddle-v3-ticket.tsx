@@ -34,7 +34,7 @@ export function NewsAcceptCard({ header, instrument, release, now, unavailableRe
   return <>
     <div className={"nl-pe-plan " + styles.ticket}>
       {header}
-      <div className={styles.intro}><h3>News trade</h3><span className={styles.badge}>Practice</span></div>
+      <div className={styles.intro}><h3>News trade</h3><span className={styles.badge}>{displayNameFor(instrument)}</span></div>
       <p className={styles.description}>GX watches {displayNameFor(instrument)} and handles the trade automatically.</p>
       <section className={styles.event} aria-label="Next news event">
         <span className={styles.eyebrow}>{grouped ? "Next high-impact releases" : "Next high-impact event"}</span>
@@ -48,7 +48,7 @@ export function NewsAcceptCard({ header, instrument, release, now, unavailableRe
       <div className={styles.risk}><span>Maximum planned risk</span><strong>1% of your account</strong></div>
       {release && unavailableReason ? <p className={styles.warning} role="status">{unavailableReason}</p> : null}
       {error ? <p className={styles.warning} role="alert">{error}</p> : null}
-      <p className={styles.note}>Accept starts monitoring and allows GX to place practice orders for {grouped ? "these releases together" : "this event"}.</p>
+      <p className={styles.note}>Accept starts monitoring {grouped ? "these releases together" : "this event"}. GX handles the entry and protection automatically.</p>
     </div>
     <footer className="nl-an-actions is-card nl-pe-actions">
       <button type="button" className="nl-an-secondary pressable" disabled={busy} onClick={onCancel}>Not now</button>
@@ -116,7 +116,7 @@ export function NewsV3StatusView({ run, now }: { run: PublicNewsRun; now: number
     EXPIRED: "Monitoring finished", CANCELLED: "Monitoring stopped", HALTED: "Stopped · needs attention",
   };
   return <div className={styles.status}>
-    <div className={styles.intro}><h3>{simpleState[run.state]}</h3><span className={styles.badge}>Practice</span></div>
+    <div className={styles.intro}><h3>{simpleState[run.state]}</h3><span className={styles.badge}>{displayNameFor(run.instrument)}</span></div>
     {run.reason ? <p className={styles.warning}>{run.reason}</p> : null}
     <p className={styles.note}>{displayNameFor(run.instrument)} · High impact<br />{(run.release.events ?? [run.release]).map(e => `${e.currency} ${e.title}`).join(" + ")}<br />{clock(run.release.time)}</p>
     {now !== null && Date.parse(run.release.time) > now ? <p className={styles.countdown}>Release in {countdown(Date.parse(run.release.time) - now)}</p> : null}
@@ -166,6 +166,6 @@ export function BrokerNewsSetupStatus({ entry }: { entry: PendingManualEntry; bi
   async function stop() { setBusy(true); try { await request(`/api/news-straddles/${id}`, { method: "DELETE" }); setConfirm(false); } catch (e) { setError(e instanceof Error ? e.message : "Cancellation could not be requested."); } finally { setBusy(false); } }
   if (!run) return <p className={styles.note}>{error ?? "Loading broker setup status…"}</p>;
   return <><NewsV3StatusView run={run} now={now} />{error ? <p className={styles.warning} role="status">{error}</p> : null}{!NEWS_TERMINAL.includes(run.state) ? <div className={styles.stop}>
-    {confirm ? <><p>Close this practice trade and stop monitoring?</p><button type="button" disabled={busy} onClick={() => void stop()}>Stop trade</button><button type="button" onClick={() => setConfirm(false)}>Keep running</button></> : <button type="button" disabled={busy} onClick={() => run.firstFillSide ? setConfirm(true) : void stop()}>{busy ? "Stopping…" : run.firstFillSide ? "Stop trade" : "Stop monitoring"}</button>}
+    {confirm ? <><p>Close this trade and stop monitoring?</p><button type="button" disabled={busy} onClick={() => void stop()}>Stop trade</button><button type="button" onClick={() => setConfirm(false)}>Keep running</button></> : <button type="button" disabled={busy} onClick={() => run.firstFillSide ? setConfirm(true) : void stop()}>{busy ? "Stopping…" : run.firstFillSide ? "Stop trade" : "Stop monitoring"}</button>}
   </div> : null}</>;
 }

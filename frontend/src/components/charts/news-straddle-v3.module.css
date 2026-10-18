@@ -13,6 +13,7 @@
 .risk { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; padding: 14px 0; border-block: 1px solid var(--border); font-size: 12px; color: var(--muted); }
 .risk strong { color: var(--foreground); font-weight: 600; }
 .badge, .impact { flex: none; padding: 4px 7px; border-radius: 7px; background: var(--accent-soft); color: var(--accent); font-size: 10px; font-weight: 700; }
+.badge { border: 1px solid var(--border-strong); background: var(--surface-raised); color: var(--muted-strong); font-size: 11px; font-variant-numeric: tabular-nums; }
 .impact { background: var(--danger-soft); color: var(--danger); }
 .note, .subtle { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
 .card { min-width: 0; padding: 14px; border: 1px solid var(--border); border-radius: 14px; }

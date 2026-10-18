@@ -35,6 +35,7 @@ import type { HomeActivityItem } from "@/lib/home/idle";
 import { displayNameFor } from "@/lib/instruments/catalog";
 import { groupedCalendarTitle, groupSimultaneousRows, homeCalendarEmptyMessage, homeCalendarImpactTier, homeCalendarRows } from "@/lib/news/home-calendar";
 import { useEconomicCalendar } from "@/lib/oanda/use-economic-calendar";
+import type { PublicNewsRun } from "@/lib/news/news-straddle-v3";
 import { pendingLevelPrice, pendingStatusLabel, pendingTimingNote } from "@/lib/pending-entry/plain-language";
 import { getMarketCondition } from "@/lib/strategy/session";
 import { useScrolledPast } from "@/lib/use-scrolled-past";
@@ -661,6 +662,16 @@ export function LedgerPending({
           const level = (price: number | null) => pendingLevelPrice(price, entry.instrument).text;
           const note = pendingTimingNote(entry);
           const canCancel = entry.status === "PENDING";
+          const isNews = entry.metadata.mode === "news";
+          const isNewsV3 = isNews && entry.metadata.configVersion === 3;
+          const newsRun = isNewsV3 ? entry.metadata.newsRun as PublicNewsRun | undefined : undefined;
+          const stopPips = newsRun?.risk?.stopPips;
+          const automaticStop = isNewsV3 && (entry.stopPrice === null || !Number.isFinite(entry.stopPrice));
+          const stopText = automaticStop
+            ? typeof stopPips === "number" && Number.isFinite(stopPips) && stopPips > 0
+              ? `${stopPips.toFixed(1)} pips`
+              : "Checking distance"
+            : level(entry.stopPrice);
           return (
             <div key={entry.id} className="nl-pending-entry">
               <Link href={`/chart?instrument=${entry.instrument}`} className="nl-pending-top">
@@ -673,18 +684,18 @@ export function LedgerPending({
                   <dd className="metric-number">{level(entry.entryPrice)}</dd>
                 </div>
                 <div>
-                  <dt>Stop</dt>
-                  <dd className="metric-number is-down">{level(entry.stopPrice)}</dd>
+                  <dt>{automaticStop ? "Auto stop · −1R" : "Stop"}</dt>
+                  <dd className="metric-number is-down" title={automaticStop ? "Planned stop distance. The final stop price is based on the actual fill." : undefined}>{stopText}</dd>
                 </div>
                 <div>
                   <dt>Target</dt>
-                  <dd className="metric-number is-up">{level(entry.targetPrice)}</dd>
+                  <dd className="metric-number is-up">{isNewsV3 ? "No fixed target" : level(entry.targetPrice)}</dd>
                 </div>
               </dl>
               <div className="nl-pending-foot">
                 <span>{note ?? pendingStatusLabel(entry.status)}</span>
                 <span className="nl-pending-actions">
-                  <button
+                  {!isNews ? <button
                     type="button"
                     className="nl-ghost-btn pressable"
                     disabled={!canCancel || cancellingId === entry.id}
@@ -692,7 +703,7 @@ export function LedgerPending({
                     aria-label={`Edit stop loss and take profit for ${displayNameFor(entry.instrument)}`}
                   >
                     Edit SL/TP
-                  </button>
+                  </button> : null}
                   <button
                     type="button"
                     className="nl-ghost-btn pressable"

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { LedgerPending, LedgerPositions, type LedgerPosition } from "@/components/dashboard/ledger-home";
 import type { PendingManualEntry } from "@/types/pending-entry";
+import { NEWS_V3_DEFAULTS } from "@/lib/news/news-straddle-v3";
 import styles from "./preview.module.css";
 
 /** Synthetic snapshots rendered with the Home components. No execution requests. */
@@ -18,7 +19,8 @@ export function NewsHomePreview({ now }: { now: number }) {
     activateAt: new Date(now + 178_000).toISOString(), invalidationPrice: null, status: "PENDING",
     triggerPrice: null, stopPrice: null, targetPrice: null,
     paperTradeId: null, paperTradeStatus: null, failureReason: null, triggeredAt: null, cancelledAt: null,
-    createdAt: new Date(now).toISOString(), updatedAt: new Date(now).toISOString(), metadata: {},
+    createdAt: new Date(now).toISOString(), updatedAt: new Date(now).toISOString(),
+    metadata: { mode: "news", configVersion: 3, newsRun: { version: 3, settings: NEWS_V3_DEFAULTS, risk: { stopPips: 15 } } },
   }));
   const position: LedgerPosition = {
     id: "preview-filled-news", href: "/chart?instrument=EUR_USD", instrument: "EUR_USD", direction: "long",

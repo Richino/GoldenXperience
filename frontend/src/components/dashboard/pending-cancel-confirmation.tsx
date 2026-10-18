@@ -24,6 +24,7 @@ export function PendingCancelConfirmation({
   });
 
   if (!present || !entry) return null;
+  const isNews = entry.metadata.mode === "news";
 
   return createPortal(
     <div
@@ -49,8 +50,9 @@ export function PendingCancelConfirmation({
           </div>
         </header>
         <p>
-          This removes the {entry.direction} {entry.entryOrderType.replace("_", " ").toLowerCase()} entry. It
-          cannot be restored.
+          {isNews
+            ? "This stops news monitoring and requests cancellation of both BUY and SELL orders. GX checks the broker to confirm the result."
+            : <>This removes the {entry.direction} {entry.entryOrderType.replace("_", " ").toLowerCase()} entry. It cannot be restored.</>}
         </p>
         <footer>
           <button

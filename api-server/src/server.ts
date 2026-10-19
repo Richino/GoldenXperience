@@ -1,3 +1,4 @@
+import { CANDLE_ALIGNMENT } from "../../frontend/src/lib/strategy/candle-clock.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { weeklyReview, weeklySummary } from "./weekly-review.js";
 import { planReview } from "./plan-review.js";
@@ -1104,17 +1105,17 @@ type CandleResult = Awaited<ReturnType<typeof getCandles>>;
 const candleCache = new Map<string, { expiresAt: number; result: Promise<CandleResult> }>();
 
 function cachedCandles(instrument: Parameters<typeof getCandles>[0], granularity: string, count: number, to: string | undefined) {
-  const key = `${instrument}|${granularity}|${count}|${to ?? ""}`;
+  const key = `${CANDLE_ALIGNMENT.version}|${instrument}|${granularity}|${count}|${to ?? ""}`;
   const now = Date.now();
   const hit = candleCache.get(key);
-  if (hit && hit.expiresAt > now) return hit.result;
+  if (hit && hit.expiresAt > now) return hit.result.then(value => ({ ...value, data: { ...value.data, provenance: value.data.provenance ? { ...value.data.provenance, cache: "HIT" as const, cacheAgeMs: now - Date.parse(value.data.provenance.receivedAt) } : undefined } }));
 
   const result = getCandles(instrument, granularity, count, { to });
   candleCache.delete(key);
   candleCache.set(key, { expiresAt: now + (to ? CANDLE_CACHE_HISTORY_MS : CANDLE_CACHE_LATEST_MS), result });
   result.then(
-    (value) => { if (value.status.state !== "connected") candleCache.delete(key); },
-    () => candleCache.delete(key),
+    (value) => { if (value.status.state !== "connected" && candleCache.get(key)?.result === result) candleCache.delete(key); },
+    () => { if (candleCache.get(key)?.result === result) candleCache.delete(key); },
   );
   while (candleCache.size > CANDLE_CACHE_MAX_ENTRIES) {
     const oldest = candleCache.keys().next().value;

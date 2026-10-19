@@ -35,6 +35,7 @@ export type CalendarSnapshot = {
   /** When the feed was read (UTC). */
   readAt: string;
   available: boolean;
+  status?: "CALENDAR_AVAILABLE_WITH_EVENTS" | "CALENDAR_AVAILABLE_NO_EVENTS" | "CALENDAR_UNAVAILABLE" | "CALENDAR_STALE" | "CALENDAR_VALIDATION_FAILED";
   currencies: string[];
   upcoming: CalendarRow[];
   released: Array<CalendarRow & { surprise: Surprise }>;
@@ -79,8 +80,9 @@ export function buildCalendarSnapshot(input: {
   const readAt = new Date(input.now).toISOString();
   const base = { source: "Forex Factory weekly calendar; actuals from TradingView", readAt, currencies: input.currencies, revisions: "unavailable" as const };
   if (input.events === null) {
-    return { ...base, available: false, upcoming: [], released: [], note: "The economic calendar could not be read; no calendar data was given to the research." };
+    return { ...base, available: false, status: "CALENDAR_UNAVAILABLE", upcoming: [], released: [], note: "The economic calendar could not be read; no calendar data was given to the research." };
   }
+  const invalid = input.events.some(e => input.currencies.includes(e.currency) && (!Number.isFinite(Date.parse(e.timestamp)) || !e.title || !Number.isFinite(e.impact)));
   const ahead = (input.aheadHours ?? 72) * 3_600_000;
   const back = (input.backHours ?? 72) * 3_600_000;
   const seen = new Set<string>();
@@ -106,7 +108,7 @@ export function buildCalendarSnapshot(input: {
   const released = rows
     .filter((row) => Date.parse(row.at) <= input.now && Date.parse(row.at) >= input.now - back)
     .map((row) => ({ ...row, surprise: row.actual === null ? { side: "UNKNOWN" as const, difference: null, unit: null } : surpriseOf(row.actual, row.forecast) }));
-  return { ...base, available: true, upcoming, released, note: null };
+  return { ...base, available: !invalid, status: invalid ? "CALENDAR_VALIDATION_FAILED" : upcoming.length || released.length ? "CALENDAR_AVAILABLE_WITH_EVENTS" : "CALENDAR_AVAILABLE_NO_EVENTS", upcoming, released, note: invalid ? "Some calendar events failed validation; retained rows are historical context, not an execution clearance." : null };
 }
 
 /** The verified events as contract references with stable ids the model can cite (e1, e2, ...). */

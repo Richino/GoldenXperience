@@ -1,6 +1,5 @@
 import {
   buildCalendarSnapshot,
-  createMockCalendarEvents,
   type EconomicCalendarEvent,
   type EconomicCalendarSnapshot,
   startOfNewYorkDay,
@@ -23,6 +22,7 @@ const REQUEST_TIMEOUT_MS = 8_000;
 interface CachedFeed {
   events: EconomicCalendarEvent[];
   fetchedAt: number;
+  coverageUntil: number;
 }
 
 let cache: CachedFeed | null = null;
@@ -63,7 +63,11 @@ async function fetchFeed(url: string): Promise<EconomicCalendarEvent[]> {
       throw new Error("Calendar feed is rate limited.");
     }
 
-    return normalizeForexFactoryEvents(await response.json());
+    const raw: unknown = await response.json();
+    if (!Array.isArray(raw) || raw.some(e => !e || typeof e.title !== "string" || typeof e.country !== "string" || typeof e.date !== "string" || !Number.isFinite(Date.parse(e.date)))) {
+      const error = new Error("Economic calendar provider response failed validation."); error.name = "CalendarValidationError"; throw error;
+    }
+    return normalizeForexFactoryEvents(raw);
   } finally {
     clearTimeout(timeout);
   }
@@ -94,10 +98,18 @@ export async function getMarketSelectionCalendar() {
   const weekStart = startOfNewYorkDay(today - daysSinceSunday * 86_400_000 + 6 * 3_600_000);
   const weekEnd = startOfNewYorkDay(weekStart + 7 * 86_400_000 + 6 * 3_600_000);
   const timestamps = events.map(e => Date.parse(e.timestamp));
-  if (!cache || now - cache.fetchedAt >= CACHE_TTL_MS || !timestamps.some(at => at >= weekStart && at < weekEnd)) {
+  if (!cache || now - cache.fetchedAt >= CACHE_TTL_MS || cache.coverageUntil !== weekEnd || (events.length > 0 && !timestamps.some(at => at >= weekStart && at < weekEnd))) {
     throw new Error("Current calendar coverage is unavailable; news risk is UNKNOWN.");
   }
   return { events, fetchedAt: new Date(cache.fetchedAt).toISOString(), coverageUntil: new Date(weekEnd).toISOString() };
+}
+
+function calendarWeekEnd(now: number) {
+  const today = startOfNewYorkDay(now);
+  const weekday = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short" }).format(new Date(now));
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(weekday);
+  const start = startOfNewYorkDay(today - days * 86_400_000 + 6 * 3_600_000);
+  return startOfNewYorkDay(start + 7 * 86_400_000 + 6 * 3_600_000);
 }
 
 async function loadEvents(): Promise<EconomicCalendarEvent[]> {
@@ -117,7 +129,7 @@ async function loadEvents(): Promise<EconomicCalendarEvent[]> {
   // cannot trip the feed's rate limit.
   const request = (inFlight ??= fetchFeed(THIS_WEEK_URL)
     .then((events) => {
-      cache = { events, fetchedAt: Date.now() };
+      cache = { events, fetchedAt: Date.now(), coverageUntil: calendarWeekEnd(Date.now()) };
       retryAt = 0;
       lastFeedError = null;
       return events;
@@ -160,15 +172,17 @@ export async function getEconomicCalendar(): Promise<{
 }> {
   try {
     const events = await withActuals(await loadEvents());
-    const stale = cache ? Date.now() - cache.fetchedAt >= CACHE_TTL_MS : false;
+    const weekEnd = calendarWeekEnd(Date.now());
+    const weekStart = startOfNewYorkDay(weekEnd - 7 * 86_400_000 + 6 * 3_600_000);
+    const wrongWeek = events.length > 0 && !events.some(e => Date.parse(e.timestamp) >= weekStart && Date.parse(e.timestamp) < weekEnd);
+    const stale = cache ? Date.now() - cache.fetchedAt >= CACHE_TTL_MS || cache.coverageUntil !== weekEnd || wrongWeek : true;
 
     return {
-      data: buildCalendarSnapshot({
-        events,
-        source: "forex_factory",
-        connected: true,
-        coverageUntil: events.at(-1)?.timestamp ?? null,
-      }),
+      data: {
+        ...buildCalendarSnapshot({ events, source: "forex_factory", connected: !stale, coverageUntil: cache ? new Date(cache.coverageUntil).toISOString() : null }),
+        fetchedAt: cache ? new Date(cache.fetchedAt).toISOString() : undefined,
+        status: stale ? "CALENDAR_STALE" : events.length ? "CALENDAR_AVAILABLE_WITH_EVENTS" : "CALENDAR_AVAILABLE_NO_EVENTS",
+      },
       status: buildStatus(
         "connected",
         stale
@@ -178,11 +192,7 @@ export async function getEconomicCalendar(): Promise<{
     };
   } catch (error) {
     return {
-      data: buildCalendarSnapshot({
-        events: createMockCalendarEvents(),
-        source: "mock",
-        connected: false,
-      }),
+      data: { ...buildCalendarSnapshot({ events: [], source: "mock", connected: false }), status: error instanceof Error && error.name === "CalendarValidationError" ? "CALENDAR_VALIDATION_FAILED" : "CALENDAR_UNAVAILABLE" },
       status: buildStatus(
         "error",
         error instanceof Error ? error.message : "Calendar feed unavailable.",

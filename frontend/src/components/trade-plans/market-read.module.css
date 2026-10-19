@@ -491,22 +491,15 @@
   min-height: 2.75rem;
 }
 
-/* Market state at a glance: three lean tiles and one quiet status line. */
+/* Each interpretation gets a full row at phone and desktop-column widths. */
 .card .outlook[data-count="3"] {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+  background: var(--surface);
 }
-
-@container (max-width: 380px) {
-  /* Narrow column: fundamentals across the top, the two leans side by side. */
-  .card .outlook[data-count="3"] {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .card .outlook[data-count="3"] div:first-child {
-    grid-column: 1 / -1;
-  }
-}
-
 .status {
   margin: 0;
   color: var(--muted);
@@ -514,57 +507,83 @@
   letter-spacing: 0.01em;
 }
 
+.structure {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.65rem 0;
+  border-block: 1px solid var(--border);
+}
+.structure dt { color: var(--muted); font-size: 0.625rem; }
+.structure dd { margin: 0.2rem 0 0; color: var(--muted-strong); font-size: 0.75rem; font-weight: 600; overflow-wrap: anywhere; }
+
 /* The freshness note goes last, so the two expandable rows sit together. */
 .card > .fresh {
   order: 1;
 }
 
-/* Lean tiles: tinted by direction (lighter when only slight), with an arrow. */
+/* Quiet rows reserve colour for the lean and keep the labels readable. */
 .card .outlook .tile {
   --tile-tone: var(--muted-strong);
-  position: relative;
-  padding: 0.6rem 0.65rem 0.55rem;
-  border: 1px solid color-mix(in srgb, var(--tile-tone) 22%, transparent);
-  background: color-mix(in srgb, var(--tile-tone) 9%, var(--surface));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  min-height: 3.25rem;
+  padding: 0.8rem 0.9rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
-
-.card .outlook .tile[data-soft] {
-  border-color: color-mix(in srgb, var(--tile-tone) 14%, transparent);
-  background: color-mix(in srgb, var(--tile-tone) 5%, var(--surface));
+.card .outlook .tile + .tile { border-top: 1px solid var(--border); }
+.card .outlook .tile dt {
+  color: var(--muted-strong);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0;
 }
-
 .card .outlook .tile[data-tone="bullish"] { --tile-tone: var(--success); }
 .card .outlook .tile[data-tone="bearish"] { --tile-tone: var(--danger); }
 .card .outlook .tile[data-tone="mixed"] { --tile-tone: var(--pending); }
-.card .outlook .tile[data-tone="neutral"],
-.card .outlook .tile[data-tone="unknown"] { --tile-tone: var(--muted); }
-
 .card .outlook .tile dd {
   display: flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.45rem;
+  margin: 0;
+  overflow: visible;
   color: var(--tile-tone);
-  font-size: 0.875rem;
-  font-weight: 650;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: normal;
 }
-
-.card .outlook .tile[data-tone="neutral"] dd,
-.card .outlook .tile[data-tone="unknown"] dd {
-  color: var(--muted-strong);
-}
-
 .card .outlook .tile dd::before {
+  content: "–";
+  display: grid;
+  place-items: center;
   flex: none;
-  font-size: 0.8em;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 0.4rem;
+  background: color-mix(in srgb, var(--tile-tone) 12%, transparent);
+  font-size: 0.8rem;
   line-height: 1;
 }
-
-.card .outlook .tile[data-tone="bullish"] dd::before { content: "▲"; }
-.card .outlook .tile[data-tone="bearish"] dd::before { content: "▼"; }
-.card .outlook .tile[data-tone="mixed"] dd::before { content: "◆"; }
-.card .outlook .tile[data-tone="neutral"] dd::before,
-.card .outlook .tile[data-tone="unknown"] dd::before { content: "–"; }
-
+.card .outlook .tile[data-tone="bullish"] dd::before { content: "↗"; }
+.card .outlook .tile[data-tone="bearish"] dd::before { content: "↘"; }
+.card .outlook .tile[data-tone="mixed"] dd::before { content: "↔"; }
+.card .outlook .tile[data-soft] dd::before {
+  background: color-mix(in srgb, var(--tile-tone) 7%, transparent);
+}
+@container (max-width: 280px) {
+  .card .outlook .tile {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+}
 /* The chip carries the read's direction too. */
 .bias[data-bias="BULLISH"] { background: var(--success-soft); color: var(--success); }
 .bias[data-bias="BEARISH"] { background: var(--danger-soft); color: var(--danger); }

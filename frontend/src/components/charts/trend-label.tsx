@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { apiUrl } from "@/lib/api/url";
+import { candleEnd } from "@/lib/strategy/candle-clock";
+import { checkTimeframe } from "@/lib/strategy/analyze-v2/data-quality";
 import { ANALYZE_V2 } from "@/lib/strategy/analyze-v2/config";
 import { readTrend, type TrendDirection, type TrendRead } from "@/lib/strategy/analyze-v2/structure";
 import type { CandleSeries } from "@/types/forex";
@@ -14,10 +16,10 @@ import styles from "./trend-label.module.css";
  * guide to which side to favour, not a forecast.
  */
 
-const REFRESH_MS = 15 * 60_000;
+const REFRESH_MS = 60_000;
 const SETTINGS = ANALYZE_V2.SWING.regime;
 
-type PairTrend = { h4: TrendRead | null; d1: TrendRead | null };
+type PairTrend = { h4: TrendRead | null; d1: TrendRead | null; m15?: TrendRead | null; asOf?: string };
 
 const LABEL: Record<TrendDirection, string> = {
   UPTREND: "Up",
@@ -35,7 +37,7 @@ const TONE: Record<TrendDirection, string> = {
   UNCLEAR: "is-flat",
 };
 
-async function loadRead(instrument: string, granularity: "H4" | "D", label: string): Promise<TrendRead | null> {
+async function loadRead(instrument: string, granularity: "H4" | "D" | "M15", label: string): Promise<TrendRead | null> {
   const response = await fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=${granularity}&count=250`), {
     credentials: "include",
     cache: "no-store",
@@ -43,7 +45,12 @@ async function loadRead(instrument: string, granularity: "H4" | "D", label: stri
   if (!response.ok) return null;
   const series = ((await response.json()) as { data?: CandleSeries }).data;
   if (!series || series.instrument !== instrument || series.source !== "oanda") return null;
-  return readTrend(instrument, label, series.candles, SETTINGS);
+  const tf = granularity === "D" ? "D1" : granularity;
+  const now = Date.now();
+  const checked = checkTimeframe(tf, series.candles.filter(c => c.complete === true && candleEnd(Date.parse(c.time),tf) <= now), tf, now, ANALYZE_V2.SWING, true);
+  if (checked.checks.some(c => c.status === "FAIL" || c.status === "UNKNOWN")) return null;
+  const read = readTrend(instrument, label, checked.normalized.closed, SETTINGS);
+  return read.sufficient ? read : null;
 }
 
 // Shared across every label on the page, so a pair on the chart, in search and
@@ -53,8 +60,8 @@ const cache = new Map<string, { at: number; promise: Promise<PairTrend> }>();
 function readPair(instrument: string): Promise<PairTrend> {
   const hit = cache.get(instrument);
   if (hit && Date.now() - hit.at < REFRESH_MS) return hit.promise;
-  const promise = Promise.all([loadRead(instrument, "H4", "4H"), loadRead(instrument, "D", "Daily")])
-    .then(([h4, d1]) => ({ h4, d1 }))
+  const promise = Promise.all([loadRead(instrument, "H4", "4H"), loadRead(instrument, "D", "Daily"), loadRead(instrument, "M15", "M15")])
+    .then(([h4, d1, m15]) => { if (!h4 || !d1 || !m15) cache.delete(instrument); return { h4, d1, m15, asOf: new Date().toISOString() }; })
     .catch(() => {
       cache.delete(instrument);
       return { h4: null, d1: null };
@@ -150,7 +157,10 @@ export function TrendLabel({ instrument, className = "", plainLanguage = false }
   const { h4, d1 } = trend;
   if (plainLanguage) {
     const pill = trendPill(h4, d1);
-    return <span className={`nl-trend ${className}`}><span className={styles.pill} data-tone={pill.tone} title={plainSummary(h4, d1)} aria-label={plainSummary(h4, d1)}>{pill.label}</span></span>;
+    const daily = d1 ? LABEL[d1.direction] : "data unavailable";
+    const short = trend.m15 ? LABEL[trend.m15.direction] : "data unavailable";
+    pill.label = `Daily: ${daily} · M15: ${short}`;
+    return <span className={`nl-trend ${className}`}><span className={styles.pill} data-tone={pill.tone} title={`${plainSummary(h4, d1)} Daily context uses the last completed D1 candle${d1?.closeTime ? ` ending ${new Date(candleEnd(Date.parse(d1.closeTime), "D1")).toLocaleString()}` : ""}; M15 uses completed candles${trend.m15?.closeTime ? ` ending ${new Date(candleEnd(Date.parse(trend.m15.closeTime), "M15")).toLocaleString()}` : ""}. Read at ${trend.asOf ?? "unknown"}.`} aria-label={pill.label}>{pill.label}</span></span>;
   }
   if (!h4 && !d1) return null;
   const line = summary(h4, d1);

@@ -128,10 +128,12 @@ export interface GenerateResult {
   analysisId: string;
   /** The stored plans of this analysis, awaiting approval. */
   plans: TradePlan[];
-  result: "PLANS" | "NO_VALID_SETUP";
+  result: "PLANS" | "NO_VALID_SETUP" | "TECHNICAL_DATA_UNAVAILABLE" | "DATA_VALIDATION_FAILED";
+  analysisStatus?: string;
   reason: string | null;
   planIds: string[];
   rejected: Array<{ direction: "BUY" | "SELL"; setupType: string; reason: string }>;
+  diagnostics?: import("./analysis-status").PlanDiagnostics;
 }
 
 export interface ProgressResult {
@@ -265,7 +267,7 @@ export interface ResearchView {
   /** v2 contract; null (or an older format) when there is none. */
   report: MarketIntelligence | null;
   sourceCount: number;
-  calendar: { available: boolean; readAt: string; source: string; upcoming: CalendarRow[]; released: Array<CalendarRow & { surprise: { side: string; difference: number | null; unit: string | null } }>; note: string | null };
+  calendar: { status?: string; available: boolean; readAt: string; source: string; upcoming: CalendarRow[]; released: Array<CalendarRow & { surprise: { side: string; difference: number | null; unit: string | null } }>; note: string | null };
   usage: { inputTokens: number | null; outputTokens: number | null; webSearchCalls: number | null; costUsd: number | null };
   createdAt: string;
   expiresAt: string | null;

@@ -80,7 +80,8 @@ export function researchFreshness(row: { created_at: Date | string; expires_at: 
   const newer = released.find((event) => event.impact >= 3 && row.currencies.includes(event.currency) && Date.parse(event.at) > created && Date.parse(event.at) <= now);
   if (newer) return { fresh: false, reason: `New high-impact ${newer.currency} release since the research.` };
   if (row.calendar_snapshot) {
-    if (!row.calendar_snapshot.available) return { fresh: false, reason: "Research was generated without verified calendar data. Refresh before building plans." };
+    // Calendar availability is an execution/event-evidence dependency. An
+    // outage alone must not repeatedly invalidate an otherwise fresh report.
     const included = new Set((row.calendar_snapshot.released ?? []).map((event) => `${event.currency}|${event.title}|${event.at}`));
     const missing = released.some((event) => event.title && event.impact >= 2 && row.currencies.includes(event.currency)
       && Date.parse(event.at) <= created && Date.parse(event.at) >= created - 72 * 3_600_000
@@ -156,7 +157,7 @@ export async function technicalSummaryFor(instrument: MajorInstrument): Promise<
   };
 }
 
-function rowView(row: ResearchRow | null, freshness: { fresh: boolean; reason: string | null }) {
+function rowView(row: ResearchRow | null, freshness: { fresh: boolean; reason: string | null }, now = Date.now()) {
   if (!row) return null;
   return {
     id: row.id,
@@ -166,7 +167,7 @@ function rowView(row: ResearchRow | null, freshness: { fresh: boolean; reason: s
     model: row.model,
     report: row.report,
     sourceCount: row.sources.length,
-    calendar: row.calendar_snapshot,
+    calendar: { ...row.calendar_snapshot, status: !row.calendar_snapshot.available ? row.calendar_snapshot.status ?? "CALENDAR_UNAVAILABLE" : now - Date.parse(row.calendar_snapshot.readAt) > 6 * 3_600_000 ? "CALENDAR_STALE" : row.calendar_snapshot.upcoming.length || row.calendar_snapshot.released.length ? "CALENDAR_AVAILABLE_WITH_EVENTS" : "CALENDAR_AVAILABLE_NO_EVENTS" },
     technical: row.technical_summary,
     usage: { inputTokens: row.input_tokens, outputTokens: row.output_tokens, webSearchCalls: row.web_search_calls, costUsd: row.cost_usd === null ? null : Number(row.cost_usd) },
     error: row.error,
@@ -184,6 +185,28 @@ export async function latestCompleteRow(instrument: string) {
   return (await query<ResearchRow>(`SELECT ${COLUMNS} FROM market_research WHERE instrument=$1 AND status='COMPLETE' ORDER BY created_at DESC LIMIT 1`, [instrument])).rows[0] ?? null;
 }
 
+/** Derive reusable currency slices from the existing persisted research cache. */
+export function currencyEvidenceLeads(reports: MarketIntelligence[], currencies: string[], now: number): NonNullable<TechnicalSummary["cachedCurrencyEvidenceForDiscovery"]> {
+  const seen = new Set<string>();
+  return reports.flatMap(report => {
+    if (!isSupportedSchema(report.schemaVersion) || !Number.isFinite(Date.parse(report.research.cutoffAt)) || Date.parse(report.research.cutoffAt) > now) return [];
+    return report.factors.flatMap(f => {
+      const key = `${f.currency}:${f.factor.toLowerCase()}`;
+      if (!currencies.includes(f.currency) || seen.has(key) || (f.observedAt && Date.parse(f.observedAt) > now)) return [];
+      const urls = f.sourceIds.flatMap(id => report.sources.filter(s => s.id === id && s.verification === "returned_by_search").map(s => s.url));
+      if (!urls.length) return [];
+      seen.add(key);
+      return [{currency:f.currency,factor:f.factor,effectOnCurrency:f.effectOnCurrency,observedAt:f.observedAt,researchCutoff:report.research.cutoffAt,urls:urls.slice(0,2)}];
+    });
+  }).filter((lead,index,all) => all.slice(0,index).filter(other=>other.currency===lead.currency).length < 4);
+}
+
+export async function cachedCurrencyEvidence(currencies: string[], events: EconomicCalendarEvent[] | null, now: number) {
+  if (!databaseConfigured()) return [];
+  const rows = await query<ResearchRow>(`SELECT ${COLUMNS} FROM market_research WHERE status='COMPLETE' AND currencies && $1::text[] AND expires_at>$2 ORDER BY created_at DESC LIMIT 8`,[currencies,new Date(now).toISOString()]);
+  return currencyEvidenceLeads(rows.rows.filter(row=>researchFreshness(row,releasedOf(events,now),now).fresh).map(row=>row.report!),currencies,now);
+}
+
 export const releasedOf = (events: EconomicCalendarEvent[] | null, now: number) =>
   (events ?? []).filter((event) => event.actual !== null && Number.isFinite(Date.parse(event.timestamp)) && Date.parse(event.timestamp) <= now).map((event) => ({ title: event.title, currency: event.currency, impact: event.impact, at: new Date(event.timestamp).toISOString() }));
 
@@ -194,8 +217,8 @@ export async function latestResearch(instrument: string, now = Date.now()): Prom
   const freshness = researchFreshness(row, releasedOf(events, now), now);
   const interpreted = row ? await latestMarketState(instrument, row.id) : null;
   return {
-    research: rowView(row, freshness),
-    marketState: interpreted ? marketStateView(interpreted, events === null ? { fresh: false, reason: "Verified economic calendar is currently unavailable." } : freshness, now) : null,
+    research: rowView(row, freshness, now),
+    marketState: interpreted ? marketStateView(interpreted, freshness, now) : null,
     configured: researchConfig().apiKey !== null,
     job,
     running: job !== null && ACTIVE_JOB.includes(job.status),

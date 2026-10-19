@@ -134,7 +134,7 @@ export function MarketRead({ state, onRefresh, onCancel }: { state: ResearchStat
     ["Short term", assessment?.nearTermLean ?? o.shortTerm],
     ["Swing 2–5 days", assessment?.swingLean ?? o.swingTerm],
     ["Fundamental", o.fundamental],
-    ["Technical", o.technical],
+    ["Price structure", "unknown"],
   ] as const;
   const unresolvedHorizons = assessment ? [
     assessment.nearTermLean === "unresolved" ? "near-term" : null,
@@ -150,7 +150,7 @@ export function MarketRead({ state, onRefresh, onCancel }: { state: ResearchStat
   return (
     <section className={styles.card} aria-label="Market read">
       <div className={styles.head}>
-        <span className={styles.label}>Market read</span>
+        <span className={styles.label}>{marketState ? "Market read" : "Research context"}</span>
         <span className={styles.bias} data-bias={marketState ? marketState.usable ? { bullish: "BULLISH", bearish: "BEARISH", mixed: "MIXED", neutral: "NEUTRAL", unknown: "UNKNOWN" }[toneOf(marketState.snapshot.observed.classification).tone] : "UNKNOWN" : o.overall.toUpperCase()}>{marketState ? marketState.usable ? OBSERVED_LABEL[marketState.snapshot.observed.classification] : "Data check" : BIAS_LABEL[o.overall]}</span>
         <span className={styles.muted}>{intel.research.quality} quality evidence</span>
         <button type="button" className={styles.refresh} onClick={onRefresh} disabled={state.loading || running} aria-label="Refresh research">
@@ -159,6 +159,7 @@ export function MarketRead({ state, onRefresh, onCancel }: { state: ResearchStat
       </div>
       {running && job ? <JobStrip job={job} onCancel={onCancel} /> : null}
       {marketState ? <MarketStateRead view={marketState} intel={intel} /> : <>
+      <p className={styles.fine}>Saved research outlook. Current price structure has not been verified.</p>
       <dl className={styles.outlook}>
         {horizons.map(([label, value]) => (
           <div key={label}><dt>{label}</dt><dd data-bias={value}>{value === "unresolved" ? LEAN_LABEL[value] : BIAS_LABEL[value]}</dd></div>
@@ -199,6 +200,7 @@ export function MarketRead({ state, onRefresh, onCancel }: { state: ResearchStat
         {otherFactors.length ? <><h4 className={styles.sub}>Mixed or unclear</h4><Factors items={otherFactors} intel={intel} /></> : null}
 
         <h4 className={styles.sub}>Calendar</h4>
+        {research.calendar.status === "CALENDAR_STALE" || research.calendar.status === "CALENDAR_UNAVAILABLE" || research.calendar.status === "CALENDAR_VALIDATION_FAILED" ? <p className={styles.fine}>Calendar not verified: {research.calendar.status.replaceAll("_", " ").toLowerCase()}. Listed events are saved research context.</p> : null}
         {intel.events.length ? (
           <ul className={styles.calendar}>
             {intel.events.slice(0, 8).map((event) => (
@@ -211,7 +213,7 @@ export function MarketRead({ state, onRefresh, onCancel }: { state: ResearchStat
               </li>
             ))}
           </ul>
-        ) : <p className={styles.fine}>No verified releases for these currencies in the window (or the calendar was unavailable).</p>}
+        ) : <p className={styles.fine}>{research.calendar.status === "CALENDAR_STALE" ? "Saved economic calendar is stale. Refresh to verify scheduled releases." : research.calendar.status === "CALENDAR_VALIDATION_FAILED" ? "Economic calendar validation failed." : !research.calendar.available ? "Economic calendar unavailable. Scheduled releases could not be verified." : "No verified releases for these currencies in the window."}</p>}
 
         <h4 className={styles.sub}>Sentiment</h4>
         <Observations title="Analysts" items={intel.sentiment.professional} intel={intel} />

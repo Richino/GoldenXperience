@@ -1,6 +1,7 @@
 import { hostname } from "node:os";
 import { randomBytes } from "node:crypto";
 import { getCandles, getPricing } from "../../frontend/src/lib/oanda/client.js";
+import { candleHealth } from "../../frontend/src/lib/strategy/candle-clock.js";
 import { getForexSessionStatus } from "../../frontend/src/lib/strategy/session.js";
 import type { Candle, MajorInstrument } from "../../frontend/src/types/forex.js";
 import { query, transaction } from "./database.js";
@@ -202,7 +203,9 @@ async function loadMonitorMarket(instrument: MajorInstrument, timeframes: Tf[]) 
 export function candlesStale(candles: Array<{ time: string; complete?: boolean }>, now: number, step = 900_000) {
   if (!getForexSessionStatus(new Date(now)).marketOpen) return false;
   const last = candles.filter((candle) => candle.complete !== false).at(-1);
-  return !last || now - (Date.parse(last.time) + step) > 3 * step;
+  if (!last) return true;
+  const tf = step === 14_400_000 ? "H4" : step === 3_600_000 ? "H1" : "M15";
+  return candleHealth(Date.parse(last.time), tf, now).missing > 0;
 }
 
 async function recordError(planId: string, message: string) {

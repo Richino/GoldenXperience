@@ -22,7 +22,11 @@ export interface CalendarWarning {
   message: string;
 }
 
+export type CalendarStatus = "CALENDAR_AVAILABLE_WITH_EVENTS" | "CALENDAR_AVAILABLE_NO_EVENTS" | "CALENDAR_UNAVAILABLE" | "CALENDAR_STALE" | "CALENDAR_VALIDATION_FAILED";
+
 export interface EconomicCalendarSnapshot {
+  status?: CalendarStatus;
+  fetchedAt?: string;
   /** Upcoming events only; the pre-trade news gates read this. */
   events: EconomicCalendarEvent[];
   /**

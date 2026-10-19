@@ -1,3 +1,4 @@
+import type { CandleSchedule } from "@/lib/strategy/candle-clock";
 import { ANALYZE_V2, type AnalyzeMode, type ModeConfig, type V2Timeframe } from "@/lib/strategy/analyze-v2/config";
 import { checkQuote, checkTimeframe, type DataCheck, type QuoteCheck } from "@/lib/strategy/analyze-v2/data-quality";
 import type { Quote } from "@/lib/strategy/analyze-v2/instrument-math";
@@ -17,6 +18,7 @@ export const ANALYZE_V2_VERSION = "analyze-v2.0-foundation";
 
 export interface FoundationInput {
   instrument: string;
+  schedule?: CandleSchedule;
   mode: AnalyzeMode;
   candles: Partial<Record<V2Timeframe, Candle[]>>;
   quote: Quote | null;
@@ -45,8 +47,8 @@ export interface MarketFoundation {
 
 export function readMarketFoundation(input: FoundationInput): MarketFoundation {
   const config = input.config ?? ANALYZE_V2[input.mode];
-  const primaryData = checkTimeframe("primary", input.candles[config.primary], config.primary, input.now, config, true);
-  const higherData = checkTimeframe("higher", input.candles[config.higher], config.higher, input.now, config, true);
+  const primaryData = checkTimeframe("primary", input.candles[config.primary], config.primary, input.now, config, true, input.schedule ?? {instrument: input.instrument});
+  const higherData = checkTimeframe("higher", input.candles[config.higher], config.higher, input.now, config, true, input.schedule ?? {instrument: input.instrument});
   const quote = checkQuote(input.instrument, input.quote, input.now, config.data.maxQuoteAgeMs);
   const checks = [...primaryData.checks, ...higherData.checks, quote];
   const closedPrimary = primaryData.normalized.closed;
@@ -62,7 +64,7 @@ export function readMarketFoundation(input: FoundationInput): MarketFoundation {
   };
   if (!closedPrimary.length) {
     return {
-      ...base, referencePrice: quote.executable?.mid ?? null, primary: null, higher: null,
+      ...base, referencePrice: quote.executable?.mid ?? null, primary: null, higher: closedHigher.length ? readTrend(input.instrument, config.higher, closedHigher, config.regime) : null,
       alignment: "UNKNOWN", alignmentText: "No primary candles to read.", zones: [], pullback: null,
     };
   }

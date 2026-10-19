@@ -1,3 +1,4 @@
+import { CANDLE_ALIGNMENT, candleAligned } from "../strategy/candle-clock";
 import {
   createMockCandles,
   formatPair,
@@ -1105,7 +1106,20 @@ export async function getPricing(
   }
 }
 
-export async function getCandles(
+const candleFlights = new Map<string, Promise<{ data: CandleSeries; status: ConnectionStatus }>>();
+export function getCandles(instrument: MajorInstrument, granularity = "M15", count = 64, options: { to?: string; signal?: AbortSignal } = {}) {
+  if (options.signal) return loadCandles(instrument, granularity, count, options);
+  const config = getConfig();
+  const key = `${config?.accountId}:${config?.environment}:${instrument}:${granularity}:${count}:${options.to ?? ""}:${CANDLE_ALIGNMENT.version}`;
+  const existing = candleFlights.get(key);
+  if (existing) return existing;
+  const request = loadCandles(instrument, granularity, count, options);
+  candleFlights.set(key, request);
+  void request.finally(() => { if (candleFlights.get(key) === request) candleFlights.delete(key); }).catch(() => {});
+  return request;
+}
+
+async function loadCandles(
   instrument: MajorInstrument,
   granularity = "M15",
   count = 64,
@@ -1128,16 +1142,30 @@ export async function getCandles(
     const params = new URLSearchParams({
       price: "M",
       granularity,
-      count: String(count),
+      count: String(Math.min(5000, Math.max(1, count))),
+      dailyAlignment: String(CANDLE_ALIGNMENT.dailyAlignment),
+      alignmentTimezone: CANDLE_ALIGNMENT.alignmentTimezone,
+      smooth: "false",
     });
 
     if (options.to) {
       params.set("to", options.to);
     }
 
-    const response = await requestOanda<OandaCandlesResponse>(
-      `/v3/instruments/${instrument}/candles?${params.toString()}`, { signal: options.signal },
-    );
+    const requestedAt = new Date().toISOString();
+    let response!: OandaCandlesResponse;
+    let attempts = 0;
+    for (;;) {
+      attempts++;
+      try {
+        response = await requestOanda<OandaCandlesResponse>(`/v3/instruments/${instrument}/candles?${params.toString()}`, { signal: options.signal });
+        break;
+      } catch (error) {
+        if (options.signal?.aborted || attempts >= 3 || (error instanceof OandaRequestError && error.status && error.status !== 429 && error.status < 500)) throw error;
+        await new Promise(resolve => setTimeout(resolve, 150 * attempts));
+      }
+    }
+    if (response.instrument !== instrument || response.granularity !== granularity || !Array.isArray(response.candles)) throw new OandaRequestError("Candle instrument/granularity response mismatch.");
 
     const candles = response.candles.flatMap((candle) =>
       candle.mid
@@ -1155,8 +1183,18 @@ export async function getCandles(
         : [],
     );
 
+    if (candles.length !== response.candles.length) throw new OandaRequestError("OANDA candles are missing midpoint prices.");
+    const seen = new Set<number>();
+    for (const c of candles) {
+      const at = Date.parse(c.time);
+      if (!Number.isFinite(at) || typeof c.complete !== "boolean" || ![c.open,c.high,c.low,c.close].every(n => Number.isFinite(n) && n > 0) || c.high < Math.max(c.open,c.close) || c.low > Math.min(c.open,c.close) || c.low > c.high || seen.has(at)) throw new OandaRequestError("Malformed or duplicate OANDA candles rejected.");
+      seen.add(at);
+      if (!candleAligned(at, granularity)) throw new OandaRequestError(`OANDA ${granularity} candle timestamp does not match requested NY17 alignment.`);
+    }
+    candles.sort((a,b) => Date.parse(a.time)-Date.parse(b.time));
     return {
       data: {
+        provenance: { requestedAt, receivedAt: new Date().toISOString(), alignmentVersion: CANDLE_ALIGNMENT.version, cache: "MISS", cacheAgeMs: 0, attempts },
         instrument,
         granularity: response.granularity,
         candles,
@@ -1166,7 +1204,7 @@ export async function getCandles(
     };
   } catch (error) {
     return {
-      data: createMockCandles(instrument, count, granularity, options.to),
+      data: { instrument, granularity, candles: [], source: "oanda" },
       status: buildStatus("error", errorMessage(error)),
     };
   }

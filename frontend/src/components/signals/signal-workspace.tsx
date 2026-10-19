@@ -1,5 +1,7 @@
 "use client";
 
+import { dailyPriceChange, dailyChangeLabel } from "@/lib/oanda/price-change";
+import { candleEnd, candleHealth } from "@/lib/strategy/candle-clock";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -4439,20 +4441,49 @@ export function SignalWorkspace({
     setRange(nextRange);
   }, [range]);
 
+  const [dailyBaseline, setDailyBaseline] = useState<{ instrument: string; close: number; expiresAt: number } | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    const load = async () => {
+      try {
+        const response = await fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=D&count=5`), { credentials: "include", cache: "no-store", signal: controller.signal });
+        if (!response.ok) return;
+        const payload = await response.json() as { data?: CandleSeries };
+        const data = payload.data;
+        if (data?.source !== "oanda" || data.instrument !== instrument) return;
+        const last = data.candles.filter(c => c.complete === true && candleEnd(Date.parse(c.time), "D1") <= Date.now()).at(-1);
+        if (last && !controller.signal.aborted) {
+          const health = candleHealth(Date.parse(last.time), "D1", Date.now());
+          if (health.missing === 0 && health.nextCompletion) setDailyBaseline({ instrument, close: last.close, expiresAt: health.nextCompletion + 120_000 });
+        }
+      } catch { /* Missing daily baseline is shown as unavailable, never replaced with a chart candle. */ }
+    };
+    void load();
+    const timer = window.setInterval(() => void load(), 60_000);
+    return () => { controller.abort(); window.clearInterval(timer); };
+  }, [instrument]);
+  useEffect(() => {
+    if (!dailyBaseline) return;
+    const timer = window.setTimeout(() => setDailyBaseline(null), Math.max(0, dailyBaseline.expiresAt - Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [dailyBaseline]);
   const priceStats = useMemo(() => {
     const lastClose = series.candles.at(-1)?.close ?? active?.entry ?? 0;
-    const prevClose = series.candles.at(-2)?.close ?? lastClose;
+    const prevClose = dailyBaseline?.instrument === instrument ? dailyBaseline.close : null;
     const displayPrice = liveCandle?.close ?? quote?.mid ?? lastClose;
-    const change = displayPrice - prevClose;
-    const changePercent = prevClose ? (change / prevClose) * 100 : 0;
+    const genuinePrice = quote?.source === "oanda" && quote.instrument === instrument ? quote.mid : series.source === "oanda" && series.instrument === instrument ? displayPrice : NaN;
+    const percent = dailyPriceChange(genuinePrice, prevClose);
+    const change = prevClose === null ? 0 : displayPrice - prevClose;
+    const changePercent = percent ?? 0;
 
     return {
       displayPrice,
       change,
       changePercent,
-      positive: change >= 0,
+      positive: changePercent >= 0,
+      changeLabel: dailyChangeLabel(percent),
     };
-  }, [active?.entry, liveCandle?.close, quote?.mid, series.candles]);
+  }, [active?.entry, dailyBaseline, instrument, liveCandle?.close, quote, series.candles, series.instrument, series.source]);
 
   // The native Chart tab owns the mobile controls while this component owns
   // the live chart instance. Keep the two deliberately small and explicit:
@@ -4812,8 +4843,7 @@ export function SignalWorkspace({
                 </span>
                 <span className="nl-mquote-meta">
                   <span className={`metric-number ${priceStats.positive ? "is-up" : "is-down"}`}>
-                    {priceStats.positive ? "+" : "−"}
-                    {Math.abs(priceStats.changePercent).toFixed(2)}%
+                    {priceStats.changeLabel}
                   </span>
                 </span>
               </div>
@@ -4875,8 +4905,7 @@ export function SignalWorkspace({
               <span
                 className={`signals-fs-change ${priceStats.positive ? "is-up" : "is-down"}`}
               >
-                {priceStats.positive ? "+" : "−"}
-                {Math.abs(priceStats.changePercent).toFixed(2)}%
+                {priceStats.changeLabel}
               </span>
             </div>
             <SetupChart
@@ -5025,8 +5054,7 @@ export function SignalWorkspace({
                   {formatChartPrice(priceStats.displayPrice, instrument)}
                 </span>
                 <span className={`nl-chart-change metric-number ${priceStats.positive ? "is-up" : "is-down"}`}>
-                  {priceStats.positive ? "+" : "−"}
-                  {Math.abs(priceStats.changePercent).toFixed(2)}%
+                  {priceStats.changeLabel}
                 </span>
               </div>
               <dl className="nl-chart-facts">
@@ -5287,7 +5315,7 @@ export function SignalWorkspace({
           }
           caption={`${CHART_TIMEFRAME_LABELS[timeframe]} · ${sessionLabel.replace(/ session$/, "")}`}
           price={formatChartPrice(priceStats.displayPrice, instrument)}
-          changeLabel={`${priceStats.positive ? "+" : "−"}${Math.abs(priceStats.changePercent).toFixed(2)}%`}
+          changeLabel={priceStats.changeLabel}
           positive={priceStats.positive}
           position={fullscreenPosition}
           timeframe={timeframe}

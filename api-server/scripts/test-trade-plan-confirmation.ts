@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { evaluateConfirmation, planTimeframes, type Confirmation, type ConfirmationInput, type PlanForConfirmation } from "../src/trade-plan-confirmation.js";
+import { decideMonitorActions } from "../src/trade-plan-monitor.js";
+const decideForMode=(confirmation:Confirmation,direction:"BUY"|"SELL",mode:"NOTIFY"|"AUTO")=>decideMonitorActions({status:"MONITORING",instrument:"EUR_USD",direction,mode,confirmation});
 import type { Candle } from "../../frontend/src/types/forex.js";
 
 /**
@@ -405,5 +407,37 @@ test("a visible conditional scenario cannot confirm below its frozen reward/risk
   assert.notEqual(result.outcome, "CONFIRMED");
   assert.equal(result.proposal, null);
 });
+
+// Both sides must make the same decision at every reversal stage, using H1 rules.
+for (const side of ["BUY", "SELL"] as const) {
+  const basePlan: PlanForConfirmation = { ...reversalPlan, createdAt:new Date(T0+8*3_600_000).toISOString(), expiresAt:new Date(T0+48*3_600_000).toISOString(), plan:{...reversalPlan.plan,rules:{...(reversalPlan.plan.rules as object),confirmTimeframe:"H1"}} };
+  const plan=side==="BUY"?basePlan:mirrorPlan(basePlan);
+  const evaluate=(rows:Ohlc[], patch:Partial<ConfirmationInput>={}, incomplete=false)=>{
+    const prices=side==="BUY"?rows:mirrorRows(rows);
+    const candles=prices.map(([open,high,low,close],i)=>({time:new Date(T0+i*3_600_000).toISOString(),open,high,low,close,volume:1,complete:!incomplete||i!==prices.length-1}));
+    const now=T0+rows.length*3_600_000+1000;
+    const quote=side==="BUY"?{bid:1.1016,ask:1.1017,time:new Date(now).toISOString()}:{bid:M-1.1017,ask:M-1.1016,time:new Date(now).toISOString()};
+    return evaluateConfirmation({plan,candles:{H1:candles},quote,news:[],now,limits,...patch});
+  };
+  test(side+" H1 zone arrival waits for its own completed rejection/reclaim and break",()=>{
+    assert.equal(evaluate(PRE).stage,"WAITING_FOR_ZONE");
+    assert.equal(evaluate([...PRE,SWEEP[0]!]).stage,"WAITING_FOR_REJECTION");
+    assert.equal(evaluate([...PRE,...SWEEP]).stage,"WAITING_FOR_STRUCTURE");
+    assert.notEqual(evaluate([...PRE,...SWEEP,...BREAK],{},true).outcome,"CONFIRMED");
+    const r=evaluate([...PRE,...SWEEP,...BREAK]);assert.equal(r.outcome,"CONFIRMED",r.notTriggeredReason??"");assert.equal(r.safety?.ok,true);assert.equal(r.proposal?.side,side);
+    const actions=decideForMode(r,side,"NOTIFY");assert.ok(actions.some(a=>a.kind==="notify"&&a.event==="SETUP_CONFIRMED"));assert.ok(actions.every(a=>a.kind!=="execute"));
+  });
+  test(side+" H1 low reward/risk blocks even a valid structure break",()=>{
+    const low={...plan,plan:{...plan.plan,rules:{...(plan.plan.rules as object),minRewardRisk:50}}};
+    const r=evaluate([...PRE,...SWEEP,...BREAK],{plan:low});assert.equal(r.outcome,"MISSED");assert.equal(r.proposal,null);
+  });
+  test(side+" H1 stale/crossed/future/nonfinite quotes never permit execution",()=>{
+    const rows=[...PRE,...SWEEP,...BREAK],now=T0+rows.length*3_600_000+1000;
+    const valid=side==="BUY"?{bid:1.1016,ask:1.1017,time:new Date(now).toISOString()}:{bid:M-1.1017,ask:M-1.1016,time:new Date(now).toISOString()};
+    for(const quote of [null,{...valid,time:new Date(now-60_000).toISOString()},{...valid,bid:valid.ask+.001},{...valid,time:new Date(now+60_000).toISOString()},{...valid,bid:NaN}]){
+      const r=evaluate(rows,{quote});assert.equal(r.safety?.ok,false,JSON.stringify(quote));assert.ok(decideForMode(r,side,"AUTO").every(a=>a.kind!=="execute"));
+    }
+  });
+}
 
 console.log(`trade plan confirmation: ${passed} checks passed`);

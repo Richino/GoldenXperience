@@ -85,6 +85,7 @@ export interface Candle {
 }
 
 export interface CandleSeries {
+  provenance?: { requestedAt: string; receivedAt: string; alignmentVersion: string; cache: "MISS" | "HIT"; cacheAgeMs: number; attempts: number };
   instrument: MajorInstrument;
   granularity: string;
   candles: Candle[];

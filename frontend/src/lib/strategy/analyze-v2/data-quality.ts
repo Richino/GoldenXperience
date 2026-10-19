@@ -1,3 +1,4 @@
+import { candleEnd, candleHealth, intervalTraded, type CandleSchedule } from "@/lib/strategy/candle-clock";
 import { getForexSessionStatus } from "@/lib/strategy/session";
 import { TIMEFRAME_MS, type ModeConfig, type V2Timeframe } from "@/lib/strategy/analyze-v2/config";
 import { spreadPipsOf, type Quote } from "@/lib/strategy/analyze-v2/instrument-math";
@@ -26,6 +27,7 @@ export interface NormalizedCandles {
   /** The still-forming candle, if the feed sent one. Never used for confirmed signals. */
   forming: Candle | null;
   duplicates: number;
+  malformed: number;
   /** True when the feed arrived out of time order. */
   reordered: boolean;
   /** Candles missing while the market was open (weekends excluded). */
@@ -52,8 +54,7 @@ export function isMarketOpen(at: number) {
  * version replaces a forming one), split off the forming candle and count
  * candles missing while the market was open.
  */
-export function normalizeCandles(candles: Candle[], timeframe: V2Timeframe): NormalizedCandles {
-  const step = TIMEFRAME_MS[timeframe];
+export function normalizeCandles(candles: Candle[], timeframe: V2Timeframe, schedule?: CandleSchedule): NormalizedCandles {
   let reordered = false;
   for (let index = 1; index < candles.length; index += 1) {
     if (Date.parse(candles[index]!.time) < Date.parse(candles[index - 1]!.time)) {
@@ -61,33 +62,34 @@ export function normalizeCandles(candles: Candle[], timeframe: V2Timeframe): Nor
       break;
     }
   }
+  let malformed = 0;
   const byTime = new Map<number, Candle>();
   for (const candle of candles) {
     const at = Date.parse(candle.time);
-    if (!Number.isFinite(at)) continue;
+    if (!Number.isFinite(at) || ![candle.open, candle.high, candle.low, candle.close].every(n => Number.isFinite(n) && n > 0) || candle.high < Math.max(candle.open, candle.close) || candle.low > Math.min(candle.open, candle.close) || candle.low > candle.high) { malformed++; continue; }
     const existing = byTime.get(at);
     // Prefer a completed copy over a forming one; otherwise the later copy.
     if (!existing || candle.complete !== false || existing.complete === false) byTime.set(at, candle);
   }
-  const duplicates = candles.length - byTime.size;
+  const duplicates = candles.length - byTime.size - malformed;
   const ordered = [...byTime.entries()].sort((a, b) => a[0] - b[0]).map(([, candle]) => candle);
   const closed = ordered.filter((candle) => candle.complete !== false);
   const last = ordered.at(-1);
   const forming = last && last.complete === false ? last : null;
 
-  // D1 candles align to the 17:00 New York roll, which moves with DST, so
-  // only intraday timeframes are gap-checked.
+  // Calendar-aligned boundaries account for daily DST rolls and broker closures.
   let missing = 0;
-  if (timeframe !== "D1") {
+  {
     for (let index = 1; index < closed.length; index += 1) {
       const previous = Date.parse(closed[index - 1]!.time);
       const current = Date.parse(closed[index]!.time);
-      for (let at = previous + step; at < current; at += step) {
-        if (isMarketOpen(at) && isMarketOpen(at + step - 1)) missing += 1;
+      if (current - previous > 32 * 86_400_000) { missing += 100_000; continue; }
+      for (let at = candleEnd(previous, timeframe); at < current; at = candleEnd(at, timeframe)) {
+        if (candleEnd(at, timeframe) <= current && intervalTraded(at, candleEnd(at, timeframe), schedule?.interruptions, schedule?.instrument)) missing += 1;
       }
     }
   }
-  return { closed, forming, duplicates, reordered, missing };
+  return { closed, forming, duplicates, reordered, missing, malformed };
 }
 
 /** Enough closed history to read structure. */
@@ -103,34 +105,27 @@ export function checkHistory(id: string, closed: Candle[], minBars: number): Dat
  * The latest closed candle should end within `maxLagBars` candles of now
  * while the market is open. While it is closed, old candles are expected.
  */
-export function checkCandleFreshness(id: string, closed: Candle[], timeframe: V2Timeframe, now: number, maxLagBars: number): DataCheck {
+export function checkCandleFreshness(id: string, closed: Candle[], timeframe: V2Timeframe, now: number, _maxLagBars: number, schedule?: CandleSchedule): DataCheck {
   const last = closed.at(-1);
   if (!last) return { id, status: "UNKNOWN", reason: "No closed candles to check." };
-  const step = TIMEFRAME_MS[timeframe];
-  const closedAt = Date.parse(last.time) + step;
-  if (!isMarketOpen(now)) {
-    return { id, status: "CAUTION", reason: `Forex is closed; the latest ${timeframe} candle closed ${new Date(closedAt).toISOString()}.` };
-  }
-  if (timeframe === "D1") {
-    // The daily candle rolls at 17:00 New York; allow the forming day plus a weekend.
-    return now - closedAt <= 4 * step
-      ? { id, status: "PASS", reason: "Daily candles are current." }
-      : { id, status: "FAIL", reason: `The latest daily candle closed ${Math.round((now - closedAt) / step)} days ago.` };
-  }
-  const lag = now - closedAt;
-  if (lag <= maxLagBars * step) return { id, status: "PASS", reason: `Latest ${timeframe} candle closed ${Math.max(0, Math.round(lag / 60_000))} min ago.` };
-  return { id, status: "FAIL", reason: `Latest ${timeframe} candle closed ${Math.round(lag / 60_000)} min ago; the feed looks stale.` };
+  const health = candleHealth(Date.parse(last.time), timeframe, now, schedule?.interruptions, schedule?.instrument);
+  const closedAt = health.end;
+  if (!Number.isFinite(closedAt) || closedAt > now) return { id, status: "FAIL", reason: "Completed candle ends in the future or has an invalid timestamp." };
+  // Count missing completed TRADING intervals, never closed weekend hours.
+  if (health.missing > 0) return { id, status: "FAIL", reason: `Missing ${health.missing} completed ${timeframe} trading intervals after ${new Date(closedAt).toISOString()}; candle retrieval is stale or interrupted.` };
+  return { id, status: isMarketOpen(now) ? "PASS" : "CAUTION", reason: `Last completed ${timeframe}: ${new Date(closedAt).toISOString()}. ${health.missing === 0 ? "No expected completed trading candle is missing; prior-session structure is historical context." : "One completion is pending refresh."}` };
 }
 
-/** Duplicates, reordering and missing candles. Never a FAIL: the analysis can still read structure. */
+/** Malformed prices fail closed; normalized ordering and historical gaps are reported independently. */
 export function checkIntegrity(id: string, normalized: NormalizedCandles, maxGapShare: number): DataCheck {
+  if (normalized.malformed) return { id, status: "FAIL", reason: `${normalized.malformed} malformed candles rejected.` };
   const notes: string[] = [];
   if (normalized.duplicates) notes.push(`${normalized.duplicates} duplicate candle${normalized.duplicates === 1 ? "" : "s"} removed`);
   if (normalized.reordered) notes.push("candles arrived out of order and were sorted");
   const expected = normalized.closed.length + normalized.missing;
   const share = expected ? normalized.missing / expected : 0;
   if (normalized.missing) notes.push(`${normalized.missing} candle${normalized.missing === 1 ? "" : "s"} missing while the market was open`);
-  if (share > maxGapShare) return { id, status: "CAUTION", reason: `${notes.join("; ")} (${Math.round(share * 100)}% of the window).` };
+  if (share > maxGapShare) return { id, status: "FAIL", reason: `${notes.join("; ")} (${Math.round(share * 100)}% of the window).` };
   return { id, status: "PASS", reason: notes.length ? `${notes.join("; ")}.` : "No duplicates or gaps." };
 }
 
@@ -143,7 +138,7 @@ export interface QuoteCheck extends DataCheck {
 export function checkQuote(instrument: string, quote: Quote | null | undefined, now: number, maxAgeMs: number): QuoteCheck {
   const id = "quote";
   if (!quote) return { id, status: "UNKNOWN", reason: "No live quote; prices cannot be executed from candles.", executable: null };
-  if (!(quote.bid > 0) || !(quote.ask > 0) || quote.ask < quote.bid) {
+  if (!Number.isFinite(quote.bid) || !Number.isFinite(quote.ask) || !(quote.bid > 0) || !(quote.ask > 0) || quote.ask < quote.bid) {
     return { id, status: "FAIL", reason: `Invalid quote (bid ${quote.bid}, ask ${quote.ask}).`, executable: null };
   }
   const at = Date.parse(quote.time);
@@ -170,15 +165,15 @@ export function checkQuote(instrument: string, quote: Quote | null | undefined, 
 }
 
 /** All data checks for one timeframe's candles. */
-export function checkTimeframe(role: string, candles: Candle[] | undefined, timeframe: V2Timeframe, now: number, config: ModeConfig, required: boolean) {
-  const normalized = normalizeCandles(candles ?? [], timeframe);
+export function checkTimeframe(role: string, candles: Candle[] | undefined, timeframe: V2Timeframe, now: number, config: ModeConfig, required: boolean, schedule?: CandleSchedule) {
+  const normalized = normalizeCandles((candles ?? []).filter(c => !Number.isFinite(Date.parse(c.time)) || c.complete === false || candleEnd(Date.parse(c.time), timeframe) <= now), timeframe, schedule);
   const checks: DataCheck[] = [];
   if (!candles?.length) {
     checks.push({ id: `${role}-candles`, status: required ? "UNKNOWN" : "CAUTION", reason: `No ${timeframe} candles were returned.` });
     return { normalized, checks };
   }
   checks.push(checkHistory(`${role}-history`, normalized.closed, role === "primary" ? config.data.minPrimaryBars : Math.min(30, config.data.minPrimaryBars)));
-  checks.push(checkCandleFreshness(`${role}-freshness`, normalized.closed, timeframe, now, config.data.maxCandleLagBars));
+  checks.push(checkCandleFreshness(`${role}-freshness`, normalized.closed, timeframe, now, config.data.maxCandleLagBars, schedule));
   checks.push(checkIntegrity(`${role}-integrity`, normalized, config.data.maxGapShare));
   checks.push(checkSpacing(`${role}-spacing`, normalized.closed, timeframe));
   return { normalized, checks };

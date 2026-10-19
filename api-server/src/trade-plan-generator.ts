@@ -1,3 +1,4 @@
+import { candleEnd, type CandleSchedule } from "../../frontend/src/lib/strategy/candle-clock.js";
 import { randomUUID } from "node:crypto";
 import { precisionFor } from "../../frontend/src/lib/instruments/catalog.js";
 import { ANALYZE_V2 } from "../../frontend/src/lib/strategy/analyze-v2/config.js";
@@ -9,6 +10,7 @@ import { assessNews, assessVolatility, type NewsItem, type NewsRisk } from "../.
 import { readTrend, type TrendDirection } from "../../frontend/src/lib/strategy/analyze-v2/structure.js";
 import type { SrZone } from "../../frontend/src/lib/strategy/analyze-v2/zones.js";
 import type { Candle } from "../../frontend/src/types/forex.js";
+import type { PlanDiagnostics } from "../../frontend/src/lib/trade-plans/analysis-status.js";
 import type { TradePlanDirection, TradePlanInput, TradePlanSetupType } from "./trade-plans.js";
 
 /**
@@ -28,6 +30,38 @@ import type { TradePlanDirection, TradePlanInput, TradePlanSetupType } from "./t
  */
 
 export const TRADE_PLAN_STRATEGY_VERSION = "trade-plans-swing-v2";
+
+/** Dependencies reflect the installed engines, not a new short-term trading strategy. */
+export const ANALYZE_DEPENDENCIES = {
+  observation: { H1: ["H1"], M15: ["M15"] },
+  swingInterpretation: ["D1", "H4", "H1"],
+  swingPlans: { BREAKOUT_RETEST: ["D1", "H4", "H1"], SR_REVERSAL: ["D1", "H4", "H1"] },
+  shortTermPlans: "NOT_IMPLEMENTED_IN_THIS_PIPELINE",
+  execution: ["approved_plan_version", "later_completed_confirmation", "fresh_broker_quote", "spread", "verified_calendar", "account", "risk", "exposure", "slippage"],
+} as const;
+
+export function planRejectionCode(reason: string) {
+  if (/reward.risk|under 1\.5/i.test(reason)) return "RISK_REWARD_BELOW_MINIMUM";
+  if (/spread/i.test(reason)) return "SPREAD_EXCEEDS_LIMIT";
+  if (/not enough|history/i.test(reason)) return "INSUFFICIENT_INDICATOR_HISTORY";
+  if (/stronger plan/i.test(reason)) return "ALTERNATIVE_SETUP_SELECTED";
+  if (/stop/i.test(reason)) return "STOP_OUTSIDE_STRATEGY_LIMITS";
+  if (/volatil/i.test(reason)) return "STRUCTURE_NOT_TRADABLE";
+  return "NO_VALID_ENTRY_TRIGGER";
+}
+
+/** Every attempt explains whether each side was evaluated or skipped. No provider calls. */
+export function generateTradePlans(input: GeneratorInput): GeneratorResult {
+  const result = evaluateTradePlans(input);
+  result.rejected = result.rejected.map(r => ({ ...r, code: planRejectionCode(r.reason) }));
+  const skipped = !["PLANS", "NO_VALID_SETUP"].includes(result.result);
+  result.diagnostics!.sides = (["BUY", "SELL"] as const).map(direction => ({
+    direction,
+    status: skipped ? "SKIPPED" : result.plans.some(p => p.direction === direction) ? "CONDITIONAL_PLAN" : "NO_VALID_SETUP",
+    reasons: skipped ? [{ code: result.result, reason: result.reason! }] : result.rejected.filter(r => r.direction === direction).map(r => ({code:r.code!, reason:r.reason})),
+  }));
+  return result;
+}
 
 /** Initial operating choices, not fitted values. Change them here. "ATR" means the H4 ATR. */
 export const TRADE_PLAN_CONFIG = {
@@ -104,6 +138,9 @@ export const TRADE_PLAN_CONFIG = {
 
 export type GeneratorInput = {
   instrument: string;
+  analysisId?: string;
+  schedule?: CandleSchedule;
+  dataSnapshot?: { id: string };
   candles: { D1?: Candle[]; H4?: Candle[]; H1?: Candle[]; M15?: Candle[] };
   quote: Quote | null;
   /** null when the calendar could not be read. */
@@ -113,19 +150,20 @@ export type GeneratorInput = {
   limits?: { maxSpreadStopFraction: number; maxSlippageStopFraction: number; newsBlackoutBeforeMinutes: number; newsBlackoutAfterMinutes: number };
 };
 
-export type RejectedCandidate = { direction: TradePlanDirection; setupType: TradePlanSetupType; reason: string };
+export type RejectedCandidate = { direction: TradePlanDirection; setupType: TradePlanSetupType; reason: string; code?: string };
 
 export type GeneratorResult = {
   analysisId: string;
   instrument: string;
   generatedAt: string;
   strategyVersion: string;
-  result: "PLANS" | "NO_VALID_SETUP";
+  result: "PLANS" | "NO_VALID_SETUP" | "TECHNICAL_DATA_UNAVAILABLE" | "DATA_VALIDATION_FAILED";
   /** Why there are no plans, when there are none. */
   reason: string | null;
   context: PlanContext | null;
   plans: TradePlanInput[];
   rejected: RejectedCandidate[];
+  diagnostics?: PlanDiagnostics;
 };
 
 type PlanContext = {
@@ -170,7 +208,7 @@ export function addTradingHours(start: number, hours: number) {
   return t;
 }
 
-const closedOf = (candles: Candle[] | undefined) => (candles ?? []).filter((candle) => candle.complete !== false);
+const closedOf = (candles: Candle[] | undefined, timeframe: string, now: number) => (candles ?? []).filter((candle) => candle.complete === true && candleEnd(Date.parse(candle.time), timeframe) <= now).sort((a,b) => Date.parse(a.time)-Date.parse(b.time));
 const biasOf = (direction: TrendDirection | null): PlanContext["marketBias"] =>
   direction === "UPTREND" ? "Bullish" : direction === "DOWNTREND" ? "Bearish" : "Neutral";
 
@@ -182,41 +220,58 @@ function opposingZones(zones: SrZone[], direction: TradePlanDirection, from: num
     .sort((a, b) => (direction === "BUY" ? a.low - b.low : b.high - a.high));
 }
 
-export function generateTradePlans(input: GeneratorInput): GeneratorResult {
-  const analysisId = randomUUID();
+function evaluateTradePlans(input: GeneratorInput): GeneratorResult {
+  const analysisId = input.analysisId ?? randomUUID();
   const base = {
     analysisId,
     instrument: input.instrument,
     generatedAt: new Date(input.now).toISOString(),
     strategyVersion: TRADE_PLAN_STRATEGY_VERSION,
+    diagnostics: { snapshotId: input.dataSnapshot?.id ?? null, checkedAt: new Date(input.now).toISOString(), checks: [], sides: [] } as PlanDiagnostics,
   };
   const none = (reason: string, context: PlanContext | null = null, rejected: RejectedCandidate[] = []): GeneratorResult =>
     ({ ...base, result: "NO_VALID_SETUP", reason, context, plans: [], rejected });
+  const unavailable = (reason: string): GeneratorResult => ({ ...none(reason), result: "TECHNICAL_DATA_UNAVAILABLE" });
   const cfg = TRADE_PLAN_CONFIG;
 
   const foundation: MarketFoundation = readMarketFoundation({
     instrument: input.instrument,
     mode: "SWING",
+    schedule: input.schedule ?? {instrument: input.instrument},
     candles: { H4: input.candles.H4, D1: input.candles.D1 },
     quote: input.quote,
     now: input.now,
   });
   // H4/D1 are checked by the foundation; H1 drives the confirmation, so it must be fresh too.
-  const h1Checks = checkTimeframe("H1", input.candles.H1, "H1", input.now, ANALYZE_V2.SWING, true).checks
+  const h1Checks = checkTimeframe("H1", input.candles.H1, "H1", input.now, ANALYZE_V2.SWING, true, input.schedule ?? {instrument: input.instrument}).checks
     .filter((check) => !check.id.endsWith("-history"));
   const failedData = [...foundation.data.checks, ...h1Checks].filter((check) => check.id !== "quote"
     && (check.status === "FAIL" || (check.status === "UNKNOWN" && /freshness|candles/.test(check.id))));
-  if (failedData.length) return none(`Market data is not usable: ${failedData.map((check) => check.reason).join(" ")}`);
+  base.diagnostics.checks = [...foundation.data.checks, ...h1Checks].map(check => {
+    const tf = check.id.startsWith("primary") ? "H4" : check.id.startsWith("higher") ? "D1" : check.id.startsWith("H1") ? "H1" : "quote";
+    const candles = tf === "quote" ? null : input.candles[tf];
+    return { code: check.status === "PASS" || check.status === "CAUTION" ? "INPUT_VALIDATED" : tf === "quote" ? "STALE_EXECUTION_QUOTE" : /freshness/.test(check.id) ? "STALE_CANDLE_DATA" : /integrity|spacing/.test(check.id) ? "INVALID_CANDLES" : /history/.test(check.id) ? "INSUFFICIENT_INDICATOR_HISTORY" : `MISSING_REQUIRED_${tf}_DATA`,
+      category: tf === "quote" ? "EXECUTION" : "DATA_INTEGRITY", input: `${tf}:${check.id}`, status: check.status, reason: check.reason, at: tf === "quote" ? input.quote?.time ?? null : candles?.filter(c => c.complete === true).at(-1)?.time ?? null };
+  });
+  for (const [tf, read] of [["H4", foundation.primary], ["D1", foundation.higher]] as const) {
+    const valid = Boolean(read?.sufficient && read.atr > 0);
+    base.diagnostics.checks.push({code:valid ? "INPUT_VALIDATED" : "INSUFFICIENT_INDICATOR_HISTORY",category:"DATA_INTEGRITY",input:`${tf}:structure-and-ATR`,status:valid ? "PASS" : "FAIL",reason:valid ? `${tf} confirmed structure and ATR are available; ${read!.direction} is a valid classification.` : `Not enough verified ${tf} history for structure and ATR.`,at:read?.closeTime??null});
+  }
+  const h1Count = closedOf(input.candles.H1,"H1",input.now).length;
+  base.diagnostics.checks.push({code:h1Count>=60 ? "INPUT_VALIDATED" : "INSUFFICIENT_INDICATOR_HISTORY",category:"DATA_INTEGRITY",input:"H1:confirmation-history",status:h1Count>=60 ? "PASS" : "FAIL",reason:`${h1Count} completed H1 candles; 60 are required for plan confirmation history.`,at:null});
+  base.diagnostics.checks.push({code:input.news===null ? "CALENDAR_UNAVAILABLE" : "INPUT_VALIDATED",category:"EXECUTION",input:"calendar",status:input.news===null ? "UNKNOWN" : "PASS",reason:input.news===null ? "Current calendar input unavailable; execution must wait for verification." : "Verified calendar input supplied; timed entry blackout is checked independently at confirmation and execution.",at:null});
+  if (failedData.length) return { ...unavailable(`Market data is not usable: ${failedData.map((check) => check.reason).join(" ")}`), result: failedData.some(check => /integrity|spacing/.test(check.id)) ? "DATA_VALIDATION_FAILED" : "TECHNICAL_DATA_UNAVAILABLE" };
   const h4 = foundation.primary;
-  if (!h4 || !h4.sufficient || !(h4.atr > 0)) return none("Not enough H4 history to read structure.");
-  const h4Closed = closedOf(input.candles.H4);
+  if (!h4 || !h4.sufficient || !(h4.atr > 0)) return unavailable("Not enough H4 history to read structure.");
+  if (!foundation.higher?.sufficient || !(foundation.higher.atr > 0)) return unavailable("Not enough verified D1 history for swing targets.");
+  const h4Closed = closedOf(input.candles.H4, "H4", input.now);
 
-  const h1Closed = closedOf(input.candles.H1);
-  if (h1Closed.length < 60) return none("Not enough closed H1 candles to plan a setup.");
+  const h1Closed = closedOf(input.candles.H1, "H1", input.now);
+  if (h1Closed.length < 60) return unavailable("Not enough closed H1 candles to plan a setup.");
   const h1 = readTrend(input.instrument, "H1", h1Closed, ANALYZE_V2.NORMAL.regime);
   const atr = h4.atr;
-  // The D1 ATR sizes the target; without D1 history, five H4 candles stand in for a day.
-  const atrD1 = foundation.higher?.atr && foundation.higher.atr > 0 ? foundation.higher.atr : 5 * atr;
+  // Swing targets require verified daily volatility; missing D1 is never synthesized from H4.
+  const atrD1 = foundation.higher.atr;
 
   const quote = foundation.data.quote.executable;
   const price = foundation.referencePrice ?? h4.close;
@@ -239,7 +294,7 @@ export function generateTradePlans(input: GeneratorInput): GeneratorResult {
     volatility: volatility.reason,
     news,
     candleTimes: {
-      D1: closedOf(input.candles.D1).at(-1)?.time ?? null,
+      D1: closedOf(input.candles.D1, "D1", input.now).at(-1)?.time ?? null,
       H4: h4.closeTime,
       H1: h1.closeTime,
       quote: input.quote?.time ?? null,
@@ -402,6 +457,7 @@ export function generateTradePlans(input: GeneratorInput): GeneratorResult {
         ...candidate.extra,
       },
       analysisInputs: {
+        dataSnapshotId: input.dataSnapshot?.id ?? null,
         config: cfg,
         analyzeV2Version: foundation.version,
         context,

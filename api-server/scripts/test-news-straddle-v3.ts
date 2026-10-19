@@ -7,9 +7,15 @@ import type { NewsBroker, BrokerContext, BrokerTransaction, TradeObservation, Or
 import { stopOrderBody, liveNewsBroker } from "../src/news-straddle/broker.js";
 import { replayNewsExits } from "../src/news-straddle/replay.js";
 import { nextNewsReleaseGroup, newsReleaseStillMatches, type TimedNewsEvent } from "../../frontend/src/lib/news/news-release-groups.js";
-import { calculateNewsRisk, entryPrices, parseV3Settings, preSubmitIssue, quoteIssue, trailingDecision, verifyRelease, type NewsQuote } from "../src/news-straddle/policy.js";
+import { calculateNewsRisk, entryPrices, parseV3Settings, preSubmitIssue, quoteIssue, schedulingQuoteIssue, trailingDecision, verifyRelease, type NewsQuote } from "../src/news-straddle/policy.js";
 
 const T = Date.parse("2026-10-14T12:30:00Z"), iso = (n: number) => new Date(n).toISOString();
+const planningQuote = { bid: 1.12, ask: 1.1201, time: iso(T - 3000), tradeable: true };
+assert.equal(schedulingQuoteIssue(planningQuote, T), null);
+assert.match(quoteIssue(planningQuote, T)!, /stale/);
+assert.match(schedulingQuoteIssue({ ...planningQuote, time: iso(T - 10001) }, T)!, /stale/);
+assert.match(schedulingQuoteIssue({ ...planningQuote, time: iso(T + 251) }, T)!, /future/);
+assert.ok(schedulingQuoteIssue({ ...planningQuote, tradeable: false }, T));
 let passed = 0;
 async function test(name: string, fn: () => void | Promise<void>) { await fn(); console.log(`ok ${++passed}. ${name}`); }
 class MemoryRepo implements NewsRepository {

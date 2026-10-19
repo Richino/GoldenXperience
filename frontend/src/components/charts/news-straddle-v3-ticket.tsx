@@ -92,9 +92,10 @@ export function BrokerNewsStraddleTicket({ header, instrument, bid, ask, creatio
     accepting.current = true; setBusy(true); setError(null);
     try {
       // The existing arm endpoint checks calendar, broker and risk in this one request.
-      await request("/api/pending-entries/news", { method: "POST", headers: { "Content-Type": "application/json" },
+      const result = await request<{ run: PublicNewsRun }>("/api/pending-entries/news", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ version: 3, instrument, settings: NEWS_V3_DEFAULTS,
           release: { id: release.id, title: release.title, currency: release.currency, time: release.timestamp, events: release.events } }) });
+      if (!result.run || NEWS_TERMINAL.includes(result.run.state)) throw new Error("Monitoring did not start. This event's earlier setup has already ended.");
       onArmed("Monitoring started");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Monitoring could not start. Please try again.");

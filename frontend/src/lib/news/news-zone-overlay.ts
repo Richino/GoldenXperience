@@ -46,6 +46,7 @@ type NewsMeta = {
   anchor?: number | null;
   lockAt?: string;
   release?: { time?: string } | null;
+  newsRun?: { levelsFrozenAt?: string | null };
   reservation?: { side?: "long" | "short" } | null;
   exitReason?: string;
   resultR?: number | null;
@@ -57,6 +58,7 @@ const metaOf = (entry: PendingManualEntry) => (entry.metadata ?? {}) as NewsMeta
 export function newsStateOf(entry: PendingManualEntry) {
   const meta = metaOf(entry);
   if (meta.configVersion === 3 && meta.newsState) {
+    if (meta.newsState === "READY" && !meta.newsRun?.levelsFrozenAt) return "ARMED";
     const mapped: Record<string, string> = { SCHEDULED: "ARMED", PREPARING: "LOCKING", READY: "ZONES_LOCKED", SUBMITTING: "WATCHING", PENDING_ORDERS: "WATCHING", OCO_CANCELLING: "FILLED", OPEN: "FILLED", TRAILING: "FILLED", CANCELLING: "CLOSING", EXCEPTION: "ERROR", HALTED: "ENDED" };
     return mapped[meta.newsState] ?? meta.newsState;
   }
@@ -83,6 +85,9 @@ export function newsZoneOverlay(input: {
   entries: PendingManualEntry[];
   /** Live mid, already rounded (to the pip) by the caller so previews don't redraw on every tick. */
   liveMid: number | null;
+  /** Executable sides for a v3 preview; submitted levels always come from the server. */
+  liveBid?: number | null;
+  liveAsk?: number | null;
   now: number;
   /** The ticket's unsaved settings, while the News ticket is open. */
   draft: NewsDraft | null;
@@ -128,10 +133,15 @@ export function newsZoneOverlay(input: {
     if (state === "ARMED" || state === "LOCKING") {
       hasLiveSetup = true;
       if (meta.configVersion !== 3 && (input.liveMid === null || !meta.distancePips || meta.slippagePips === undefined)) continue;
-      const preview = meta.configVersion === 3 ? lockedZones : zonesAround(input.instrument, input.liveMid!, meta.distancePips!, meta.slippagePips!);
+      const canPreview = meta.configVersion === 3 && !meta.newsRun?.levelsFrozenAt && input.liveBid != null && input.liveAsk != null && meta.distancePips && meta.slippagePips !== undefined;
+      const pip = pipSizeFor(input.instrument), round = (n: number) => Number(n.toFixed(precisionFor(input.instrument)));
+      const preview = canPreview
+        ? { buy: { lower: round(input.liveAsk! + meta.distancePips! * pip), upper: round(input.liveAsk! + (meta.distancePips! + meta.slippagePips!) * pip) }, sell: { lower: round(input.liveBid! - (meta.distancePips! + meta.slippagePips!) * pip), upper: round(input.liveBid! - meta.distancePips! * pip) } }
+        : meta.configVersion === 3 ? lockedZones : zonesAround(input.instrument, input.liveMid!, meta.distancePips!, meta.slippagePips!);
       if (!preview) continue;
-      drawZone(straddleId, "buy", preview.buy, { color: NEWS_BUY_COLOR, faded: true, dashed: true, start, end, entryId: upper.id });
-      drawZone(straddleId, "sell", preview.sell, { color: NEWS_SELL_COLOR, faded: true, dashed: true, start, end, entryId: lower.id });
+      const tag = meta.configVersion === 3 ? "preview" : undefined;
+      drawZone(straddleId, "buy", preview.buy, { tag, color: NEWS_BUY_COLOR, faded: true, dashed: true, start, end, entryId: upper.id });
+      drawZone(straddleId, "sell", preview.sell, { tag, color: NEWS_SELL_COLOR, faded: true, dashed: true, start, end, entryId: lower.id });
       continue;
     }
     if (!lockedZones) continue;

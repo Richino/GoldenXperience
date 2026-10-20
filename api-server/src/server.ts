@@ -45,7 +45,7 @@ import { nyTradability } from "./market-selection-service.js";
 import { morningPicksSnapshot, runMorningScan, startMorningScanner, scheduledScanAuthorized, MorningRefreshLimited } from "./morning-market-scanner.js";
 import { cookieName, login, logout, sessionUser } from "./auth.js";
 import { decideResearchExperiment, forwardResearchSummary, latestDayTradingValidation, latestResearchExperiment, latestResearchHoldout, latestResearchRun, latestWalkForwardResearch, processNextResearchJob, researchDiagnostics, researchExperimentDiagnostics, researchSummary, runDayTradingValidation, runResearchExperiment, runWalkForwardResearch, startLockedResearchHoldout, startStrictHistoricalBackfill, stopResearchRun } from "./research.js";
-import { collectMultiStrategyCycle, collectPaperCycle, decidePaperBatch, fastResolveFilledTrades, liveResolvePaperTrades, journalTradeLog, journalTradeSummary, multiStrategyOverview, multiStrategyWatchlist, paperCycleOverview, paperRiskExposure, paperRiskPolicy, paperTradesForInstrument, parsePaperRiskConfiguration, reviewPaperTrade, savedExecutableSetups, syncPracticeBrokerHistory, updatePaperRiskPolicy, watchlistSnapshot } from "./paper-cycle.js";
+import { collectMultiStrategyCycle, collectPaperCycle, decidePaperBatch, fastResolveFilledTrades, liveResolvePaperTrades, journalTradeLog, journalTradeSummary, multiStrategyOverview, multiStrategyWatchlist, paperCycleOverview, paperCycleOpenTrades, paperRiskExposure, paperRiskPolicy, paperTradesForInstrument, parsePaperRiskConfiguration, reviewPaperTrade, savedExecutableSetups, syncPracticeBrokerHistory, requestPracticeHistorySync, updatePaperRiskPolicy, watchlistSnapshot } from "./paper-cycle.js";
 import { momentumShortInversionStatus } from "./momentum-short-inversion.js";
 import { markNotificationsRead, notificationsForUser, pushPublicKey, queueNotification, removePushSubscription, savePushSubscription } from "./notifications.js";
 import { backfillPracticeEntryCosts, practiceExecutionOverview, setPracticeExecutionEnabled } from "./practice-execution.js";
@@ -89,6 +89,10 @@ import { armNewsV3, previewNewsV3, cancelNewsV3, resetNewsHalt } from "./news-st
 import { accountKey as newsAccountKey } from "./news-straddle/broker.js";
 import { newsRuntimeStatus, publicRun, readUserNewsRun } from "./news-straddle/store.js";
 import { startNewsStraddleRuntime } from "./news-straddle/runtime.js";
+import { SwingIntelligenceService } from "./swing/service.js";
+import { swingSettings } from "./swing/config.js";
+import type { SwingScope } from "./swing/store.js";
+import type { SwingStyle } from "../../frontend/src/lib/swing-intelligence.js";
 
 // The multi-strategy + adaptive engine replaces the single liquidity strategy as
 // the active forex collector. Default on; set MULTISTRATEGY_ENABLED=false to roll
@@ -110,16 +114,18 @@ const configuredInstruments = (process.env.MARKET_STREAM_INSTRUMENTS || "")
   .map((instrument) => instrument.trim())
   .filter((instrument): instrument is MajorInstrument => STREAM_INSTRUMENTS.includes(instrument as MajorInstrument));
 const observerRequested = process.env.MARKET_OBSERVER_ENABLED !== "false";
+const swingConfig = swingSettings();
 const config = {
   accountId,
   apiKey,
   environment,
   streamBaseUrl: environment === "practice" ? "https://stream-fxpractice.oanda.com" : "https://stream-fxtrade.oanda.com",
   port: Number(process.env.MARKET_STREAM_WS_PORT) || 8787,
-  instruments: observerRequested ? [...new Set([...configuredInstruments, ...STREAM_INSTRUMENTS])] : configuredInstruments.length ? configuredInstruments : STREAM_INSTRUMENTS,
+  instruments: [...new Set([...(observerRequested ? [...configuredInstruments, ...STREAM_INSTRUMENTS] : configuredInstruments.length ? configuredInstruments : STREAM_INSTRUMENTS), ...(swingConfig.enabled ? swingConfig.instruments : [])])],
   isConfigured: Boolean(accountId && apiKey),
 };
 const PORT = Number(process.env.PORT) || config.port;
+const swingIntelligence = new SwingIntelligenceService((scope, message) => { void publishSwingEvent(scope, message); }, swingConfig);
 const recordingRequested = process.env.MARKET_RECORDING_ENABLED === "true";
 const recordingInstruments = (process.env.MARKET_RECORDING_INSTRUMENTS || "EUR_USD")
   .split(",").map(value => value.trim().toUpperCase()).filter(value => config.instruments.includes(value));
@@ -158,6 +164,7 @@ const allowedOrigins = new Set(
 
 const subscriptions = new WeakMap<WebSocket, Set<MajorInstrument>>();
 const clientAlive = new WeakMap<WebSocket, boolean>();
+const swingSocketTokens = new WeakMap<WebSocket, string>();
 const latestPrices = new Map<MajorInstrument, MarketPriceTick>();
 let currentStatus: MarketStreamStatus;
 const loginAttempts = new Map<string, { count: number; resetAt: number }>();
@@ -329,6 +336,47 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
   }
   if (url.pathname.startsWith("/api/")) {
     const user = await requireOwner(request, response); if (!user) return;
+    if (url.pathname === "/api/swing-intelligence" || url.pathname.startsWith("/api/swing-intelligence/")) {
+      const payload = request.method === "POST" ? await body(request) : null;
+      const instrument = String(payload?.instrument ?? url.searchParams.get("instrument") ?? "EUR_USD").toUpperCase();
+      if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported OANDA instrument." }, 400);
+      const suffix = url.pathname.slice("/api/swing-intelligence".length);
+      try {
+        if (suffix === "/monitor" && (request.method === "POST" || request.method === "DELETE")) {
+          const active = request.method === "POST";
+          const style = String(payload?.style ?? swingConfig.style);
+          if (!["AGGRESSIVE", "BALANCED", "CONSERVATIVE"].includes(style)) return json(request, response, { error: "Choose Aggressive, Balanced or Conservative." }, 400);
+          return json(request, response, await swingIntelligence.monitor(user.id, instrument, active, style as SwingStyle));
+        }
+        if (suffix === "/research" && request.method === "POST") {
+          if (payload?.force !== undefined && typeof payload.force !== "boolean") return json(request, response, { error: "force must be a boolean." }, 400);
+          return json(request, response, await swingIntelligence.request(user.id, instrument, payload?.force === true), 202);
+        }
+        if (request.method !== "GET") return json(request, response, { error: "Method not supported." }, 405);
+        const zoneMatch = suffix.match(/^\/zones\/([0-9a-f-]{36})$/i);
+        if (zoneMatch) {
+          const detail = await swingIntelligence.zone(user.id, instrument, zoneMatch[1]);
+          return detail ? json(request, response, detail) : json(request, response, { error: "Zone not found." }, 404);
+        }
+        const sections = new Set(["", "/assessment", "/evidence", "/structure", "/zones", "/movement", "/control", "/scenarios", "/decisions", "/changes", "/research"]);
+        if (!sections.has(suffix)) return json(request, response, { error: "Swing intelligence route not found." }, 404);
+        const view = await swingIntelligence.view(user.id, instrument);
+        const section: Record<string, unknown> = {
+          "": view, "/assessment": { assessment: view.assessment, fresh: view.assessmentFresh },
+          "/evidence": { evidence: view.assessment?.fundamentalEvidence ?? [], sources: view.assessment?.sources ?? [], calendar: view.assessment?.calendar ?? [] },
+          "/structure": { market: view.market }, "/zones": { zones: view.zones, unavailable: view.unavailableZones },
+          "/movement": { movement: view.movement }, "/control": { control: view.control, preference: view.preference },
+          "/scenarios": { scenarios: view.scenarios, analysisOnly: true }, "/decisions": { history: view.events.filter(e => ["DECISION_CHANGED", "SCENARIO_ELIGIBLE", "SCENARIO_INVALIDATED"].includes(e.kind)) },
+          "/changes": { changes: view.events }, "/research": { job: view.job, usage: view.usage, configured: Boolean(process.env.OPENAI_API_KEY?.trim()), runtime: view.runtime },
+        };
+        return json(request, response, section[suffix]);
+      } catch (error) {
+        const code = (error as { code?: string })?.code;
+        if (code === "42P01") return json(request, response, { error: "Swing intelligence storage is not installed. Apply the pending database migration." }, 503);
+        console.error("[swing] API request failed", code ?? "analysis_unavailable");
+        return json(request, response, { error: request.method === "GET" ? "Swing intelligence is temporarily unavailable." : "The analysis request could not be accepted. Check worker availability and monitoring status." }, 409);
+      }
+    }
     if (url.pathname.startsWith("/api/market-observer")) {
       if (url.pathname === "/api/market-observer/active" && request.method === "GET") {
         if (!marketObserver) return json(request, response, { instruments: [] });
@@ -646,7 +694,12 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       catch (error) { return json(request, response, { error: error instanceof Error ? error.message : "News preview unavailable." }, 409); }
     }
     if (url.pathname === "/api/news-straddles/runtime" && request.method === "GET") {
-      try { return json(request, response, { enabled: false, ready: false, ...await newsRuntimeStatus(newsAccountKey()), ...newsStraddleRuntime?.status() }); }
+      const unavailableReason = process.env.ENABLE_SCHEDULERS === "false" ? "Trade monitoring is disabled on this server (ENABLE_SCHEDULERS=false)."
+        : !config.isConfigured ? "Connect an OANDA practice account to start news monitoring."
+        : config.environment !== "practice" ? "News trading requires an OANDA practice account."
+        : process.env.NEWS_STRADDLE_V3_ENABLED === "false" ? "News trading is disabled on this server."
+        : !newsStraddleRuntime ? "The news scheduler has not started on this server." : null;
+      try { return json(request, response, { enabled: false, ready: false, unavailableReason, ...await newsRuntimeStatus(newsAccountKey()), ...newsStraddleRuntime?.status() }); }
       catch { return json(request, response, { enabled: false, ready: false, error: "News Straddle migration is not available yet." }, 503); }
     }
     if (url.pathname === "/api/news-straddles/reset-pause" && request.method === "POST") {
@@ -804,6 +857,16 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     if (url.pathname === "/api/paper-cycle" && request.method === "GET") {
       return json(request, response, await paperCycleOverview());
     }
+    if (url.pathname === "/api/paper-cycle/chart-focus" && request.method === "GET") {
+      // Choosing the first chart pair must not calculate lifetime performance.
+      const result = await query(`SELECT id,instrument,status,closed_at AS "closedAt"
+        FROM paper_strategy_trades WHERE status='open' AND closed_at IS NULL
+        ORDER BY opened_at DESC LIMIT 1`);
+      return json(request, response, { trade: result.rows[0] ?? null });
+    }
+    if (url.pathname === "/api/paper-cycle/open-trades" && request.method === "GET") {
+      return json(request, response, { trades: await paperCycleOpenTrades() });
+    }
     if (url.pathname === "/api/multistrategy/watchlist" && request.method === "GET") {
       return json(request, response, { instruments: await multiStrategyWatchlist() });
     }
@@ -851,12 +914,15 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
         filterParam === "wins" || filterParam === "losses" || filterParam === "active"
           ? filterParam
           : "all";
-      await syncPracticeBrokerHistory(user.id);
-      const trades = await journalTradeLog(user.id, { limit, offset, filter });
+      const brokerSync = url.searchParams.get("sync") === "background" ? requestPracticeHistorySync(user.id) : undefined;
+      if (!brokerSync) await syncPracticeBrokerHistory(user.id);
       // The stats card is filter- and page-independent, so it only rides the
       // first page and is computed over the whole journal.
-      const summary = offset === 0 ? await journalTradeSummary(user.id) : undefined;
-      return json(request, response, { trades, hasMore: trades.length === limit, summary });
+      const [trades, summary] = await Promise.all([
+        journalTradeLog(user.id, { limit, offset, filter }),
+        offset === 0 ? journalTradeSummary(user.id) : Promise.resolve(undefined),
+      ]);
+      return json(request, response, { trades, hasMore: trades.length === limit, summary, ...(brokerSync ? { brokerSync } : {}) });
     }
     // Binary Prediction system. Read-only from the API: predictions are created
     // and resolved by the durable server-side loop below, never by a request.
@@ -1073,7 +1139,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
 // Account history needs several OANDA transaction pages but changes only when
 // money-moving events settle. Keep a short, shared cache so repeated page
 // navigations do not redo that ledger crawl; the live summary remains uncached.
-const ACCOUNT_HISTORY_CACHE_MS = 15_000;
+const ACCOUNT_HISTORY_CACHE_MS = 60_000;
 type AccountHistoryResult = Awaited<ReturnType<typeof getAccountBalanceHistory>>;
 let accountHistoryCache: { expiresAt: number; result: Promise<AccountHistoryResult> } | null = null;
 
@@ -1081,12 +1147,17 @@ function cachedAccountBalanceHistory() {
   const now = Date.now();
   if (accountHistoryCache && accountHistoryCache.expiresAt > now) return accountHistoryCache.result;
 
-  const result = getAccountBalanceHistory();
-  accountHistoryCache = { expiresAt: now + ACCOUNT_HISTORY_CACHE_MS, result };
+  // Bound the whole multi-page crawl, and keep sharing it while it is in
+  // flight even if it takes longer than the completed snapshot's cache TTL.
+  const result = getAccountBalanceHistory({ signal: AbortSignal.timeout(18_000) });
+  const entry = { expiresAt: Infinity, result };
+  accountHistoryCache = entry;
   void result.then((value) => {
+    if (accountHistoryCache !== entry) return;
     if (value.status.state !== "connected") accountHistoryCache = null;
+    else entry.expiresAt = Date.now() + ACCOUNT_HISTORY_CACHE_MS;
   }, () => {
-    accountHistoryCache = null;
+    if (accountHistoryCache === entry) accountHistoryCache = null;
   });
   return result;
 }
@@ -1179,6 +1250,19 @@ function broadcast(message: MarketStreamMessage) {
   }
 }
 
+/** Private analysis events use the existing socket, with session checks per batch.
+ * Public quote subscriptions never gain access to tenant analysis implicitly. */
+async function publishSwingEvent(scope: SwingScope, message: { type: "swing-intelligence"; instrument: string; event: string; at: string; zoneId?: string }) {
+  await Promise.all([...wss.clients].map(async socket => {
+    const token = swingSocketTokens.get(socket);
+    if (!token || socket.readyState !== WebSocket.OPEN || !subscriptions.get(socket)?.has(scope.instrument)) return;
+    try {
+      const user = await sessionUser(token);
+      if (user?.id === scope.userId && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
+    } catch { /* Rejected/stale sessions and DB outages never expose private events. */ }
+  }));
+}
+
 function setStatus(state: MarketStreamStatus["state"], source: MarketStreamStatus["source"], message: string) {
   currentStatus = {
     type: "status", state, source, environment: config.environment, message,
@@ -1188,6 +1272,7 @@ function setStatus(state: MarketStreamStatus["state"], source: MarketStreamStatu
   marketRecorder?.record("connection", { state, source });
   if (marketPatterns) marketPatterns.setConnection(state, source, currentStatus.checkedAt);
   else marketMovement?.setConnection(state, source);
+  swingIntelligence.connection(state, source);
 }
 
 function parseSubscribeMessage(value: WebSocket.RawData): MajorInstrument[] | null {
@@ -1219,7 +1304,9 @@ server.on("upgrade", (request, socket, head) => {
   wss.handleUpgrade(request, socket, head, (websocket) => wss.emit("connection", websocket, request));
 });
 
-wss.on("connection", (socket) => {
+wss.on("connection", (socket, request) => {
+  const token = cookies(request)[cookieName];
+  if (token) swingSocketTokens.set(socket, token);
   clientAlive.set(socket, true);
   subscriptions.set(socket, new Set(config.instruments));
   send(socket, currentStatus);
@@ -1294,11 +1381,13 @@ function handlePrice(tick: MarketPriceTick) {
 if (config.isConfigured) {
   const stream = new OandaPricingStream(config, {
     onIssue: (reason, receivedAt) => {
+      swingIntelligence.issue(reason);
       marketRecorder?.record("stream-error", { reason }, receivedAt);
       if (marketPatterns) marketPatterns.breakContinuity("stream_message_error", receivedAt);
       else marketMovement?.breakContinuity("stream_message_error");
     },
     onObservation: (raw, receivedAt) => {
+      swingIntelligence.observe(raw, receivedAt);
       if (raw.instrument && recordingInstruments.includes(raw.instrument)) marketRecorder?.quote(raw, receivedAt);
       if (marketPatterns) marketPatterns.observe(raw, receivedAt);
       if (marketObserver && typeof raw.instrument === "string") marketObserver.observe(raw.instrument, receivedAt);
@@ -1307,6 +1396,7 @@ if (config.isConfigured) {
     onStatus: (status) => setStatus(status.state, status.source, status.message),
     onPrice: handlePrice,
     onHeartbeat: (heartbeat, receivedAt) => {
+      swingIntelligence.heartbeat();
       marketRecorder?.record("heartbeat", { brokerTime: heartbeat.time }, receivedAt);
       broadcast(heartbeat);
     },
@@ -1320,6 +1410,8 @@ if (config.isConfigured) {
 }
 
 server.listen(PORT, () => console.log(`[api] HTTP and WebSocket server listening on :${PORT}`));
+// Explicit analysis-worker opt-in; independent of every order/trading scheduler.
+swingIntelligence.start();
 
 let researchWorker: NodeJS.Timeout | null = null;
 let paperCollector: NodeJS.Timeout | null = null;
@@ -1342,7 +1434,7 @@ let breakoutM5Collector: NodeJS.Timeout | null = null;
 const schedulersEnabled = process.env.ENABLE_SCHEDULERS !== "false";
 const morningScanner = databaseConfigured() && schedulersEnabled && process.env.MORNING_SCAN_ENABLED !== "false" ? startMorningScanner() : null;
 if (databaseConfigured() && !schedulersEnabled) {
-  console.log("[schedulers] ENABLE_SCHEDULERS=false — background trade, research and binary loops are OFF (read-only database mode)");
+  console.log("[schedulers] ENABLE_SCHEDULERS=false — legacy background trade, research and binary loops are OFF. Swing analysis has its own opt-in worker.");
 }
 if (databaseConfigured() && schedulersEnabled) {
   pendingEntryMonitoringEnabled = config.isConfigured;
@@ -1733,6 +1825,7 @@ function shutdown() {
   shuttingDown = true;
   pricingStream?.stop();
   const newsStopped = newsStraddleRuntime?.stop() ?? Promise.resolve();
+  const swingStopped = swingIntelligence.stop();
   stopRecordingContext?.();
   const recordingClosed = marketRecorder?.close() ?? Promise.resolve();
   const observerClosed = marketObserver?.stop() ?? Promise.resolve();
@@ -1755,7 +1848,7 @@ function shutdown() {
   // terminate() drops them immediately; clients simply reconnect.
   wss.clients.forEach((socket) => socket.terminate());
   wss.close();
-  server.close(() => { void Promise.allSettled([recordingClosed, observerClosed, newsStopped]).finally(() => process.exit(0)); });
+  server.close(() => { void Promise.allSettled([recordingClosed, observerClosed, newsStopped, swingStopped]).finally(() => process.exit(0)); });
   // Fallback: exit even if a handle is still open, so the port is always freed
   // promptly for the next boot. unref() so it never itself keeps us alive.
   setTimeout(() => process.exit(0), 5000).unref();

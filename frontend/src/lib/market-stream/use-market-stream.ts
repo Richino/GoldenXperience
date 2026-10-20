@@ -183,6 +183,14 @@ export function useMarketStream(
           return;
         }
 
+        if (message && typeof message === "object" && (message as { type?: string }).type === "swing-intelligence") {
+          const update = message as { instrument?: unknown; event?: unknown; at?: unknown };
+          if (typeof update.instrument === "string" && typeof update.event === "string" && typeof update.at === "string") {
+            window.dispatchEvent(new CustomEvent("gx:swing-intelligence", { detail: update }));
+          }
+          return;
+        }
+
         if (isStatusMessage(message)) {
           if (Array.isArray(message.instruments)) streamedRef.current = new Set(message.instruments);
           setSnapshot((current) => ({

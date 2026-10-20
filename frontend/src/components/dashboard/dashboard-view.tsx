@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { HomeCurrentPosition } from "@/components/dashboard/home-rail";
 import {
   LedgerHome,
   type LedgerPosition,
   type LedgerSetup,
   type LedgerToday,
+  type DashboardLoadState,
 } from "@/components/dashboard/ledger-home";
 import { PendingCancelConfirmation } from "@/components/dashboard/pending-cancel-confirmation";
 import { PendingLevelsDialog } from "@/components/dashboard/pending-levels-dialog";
@@ -155,6 +156,7 @@ export type DashboardOverview = {
 
 export type DashboardJournal = {
   trades: JournalTrade[];
+  brokerSync?: { status: "running" | "ready" | "unavailable" | "failed"; completedAt: string | null };
   summary?: {
     total: number;
     winRate: number | null;
@@ -162,6 +164,12 @@ export type DashboardJournal = {
     today?: { wins: number; losses: number; realizedPL: number | null };
   };
 };
+
+async function dashboardData<T>(path: string, timeoutMs = 12_000): Promise<T> {
+  const response = await fetch(apiUrl(path), { credentials: "include", cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });
+  if (!response.ok) throw new Error("Dashboard data is temporarily unavailable.");
+  return response.json() as Promise<T>;
+}
 
 /**
  * Price an open row is marked against: the streamed bid/ask first, then the
@@ -231,6 +239,7 @@ export function DashboardView({
   initialOverview,
   initialJournal,
   initialPendingEntries,
+  initialLoading = false,
   greeting,
   todayKey,
 }: {
@@ -238,24 +247,36 @@ export function DashboardView({
   initialAccountHistory: AccountBalanceHistoryPoint[];
   initialWatchlist: DashboardWatchRow[];
   initialSavedSetups: DashboardSavedSetup[];
-  initialOverview: DashboardOverview;
+  initialOverview: DashboardOverview | null;
   initialJournal: DashboardJournal;
   initialPendingEntries: PendingManualEntry[];
+  initialLoading?: boolean;
   /** "Morning, Richie": worked out on the server from the ET hour. */
   greeting: string;
   todayKey: string;
 }) {
   const [account, setAccount] = useState(() => verifiedAccountSummary({ data: initialAccount }));
-  const [accountError, setAccountError] = useState<string | null>(() => verifiedAccountSummary({ data: initialAccount }) ? null : ACCOUNT_UNAVAILABLE_MESSAGE);
+  const [accountError, setAccountError] = useState<string | null>(() => initialLoading || verifiedAccountSummary({ data: initialAccount }) ? null : ACCOUNT_UNAVAILABLE_MESSAGE);
   const [accountHistory, setAccountHistory] = useState(initialAccountHistory);
   const [journalTrades, setJournalTrades] = useState(initialJournal.trades);
   const [journalSummary, setJournalSummary] = useState(initialJournal.summary ?? null);
+  const [journalSync, setJournalSync] = useState(initialJournal.brokerSync ?? null);
   // Kept for the Open-trades quote fallback below; the Watchlist section now
   // renders from the multi-strategy engine instead.
   const [watchlist, setWatchlist] = useState(initialWatchlist);
   const [savedSetups, setSavedSetups] = useState(initialSavedSetups ?? []);
-  const [overview, setOverview] = useState(initialOverview);
+  const [overviewOpen, setOverviewOpen] = useState(() => initialOverview?.openTrades ?? initialOverview?.trades.filter(trade => trade.status === "open") ?? []);
   const [error, setError] = useState<string | null>(null);
+  const [loadState, setLoadState] = useState<DashboardLoadState>(() => {
+    const state = initialLoading ? "loading" : "ready";
+    return { account: state, history: state, positions: state, setups: state, journal: state, pending: state };
+  });
+  const loading = useRef(new Set<string>());
+  const finishLoad = useCallback((key: keyof DashboardLoadState, failed = false) => {
+    setLoadState(current => ({ ...current, [key]: failed
+      ? current[key] === "ready" || current[key] === "stale" ? "stale" : "error"
+      : "ready" }));
+  }, []);
   const [pendingEntries, setPendingEntries] = useState<PendingManualEntry[]>(() =>
     initialPendingEntries.filter((entry) => entry.status === "PENDING" || entry.status === "TRIGGERING"),
   );
@@ -269,7 +290,6 @@ export function DashboardView({
   const quotes = useLiveQuotes();
   // Real fills, so an open row reports the same money as the account hero.
   const fills = useOpenPositionFills();
-  const overviewOpen = overview.openTrades ?? overview.trades.filter((trade) => trade.status === "open");
   const overviewOpenIds = new Set(overviewOpen.map((trade) => trade.id));
   // Manual trades live in the journal, not the strategy overview, so their open
   // ones must be pulled in here too — otherwise a filled manual entry shows in
@@ -327,38 +347,47 @@ export function DashboardView({
     if (seen) heroOpenPL = total;
   }
 
-  const refresh = useCallback(async () => {
+  const refreshJournal = useCallback(async () => {
+    if (loading.current.has("journal")) return;
+    loading.current.add("journal");
     try {
-      const [historyResponse, watchlistResponse, savedSetupsResponse, cycleResponse, journalResponse] = await Promise.all([
-        fetch(apiUrl("/api/oanda/account-history"), { credentials: "include", cache: "no-store" }),
-        fetch(apiUrl("/api/watchlist"), { credentials: "include", cache: "no-store" }),
-        fetch(apiUrl("/api/saved-setups"), { credentials: "include", cache: "no-store" }),
-        fetch(apiUrl("/api/paper-cycle"), { credentials: "include", cache: "no-store" }),
-        fetch(apiUrl("/api/journal/trades?limit=50&filter=all"), { credentials: "include", cache: "no-store" }),
+      const payload = await dashboardData<DashboardJournal>("/api/journal/trades?limit=50&filter=all&sync=background");
+      setJournalTrades(payload.trades); setJournalSummary(payload.summary ?? null);
+      setJournalSync(payload.brokerSync ?? null); finishLoad("journal");
+    } catch (reason) { finishLoad("journal", true); throw reason; }
+    finally { loading.current.delete("journal"); }
+  }, [finishLoad]);
+
+  const refresh = useCallback(async () => {
+    if (loading.current.has("overview")) return;
+    loading.current.add("overview");
+    try {
+      // Each continuation publishes its own data immediately. A slow journal
+      // cannot hold up positions or setups, and failures keep prior snapshots.
+      const results = await Promise.allSettled([
+        dashboardData<{ watchlist: DashboardWatchRow[] }>("/api/watchlist").then(payload => setWatchlist(payload.watchlist)),
+        dashboardData<{ setups: DashboardSavedSetup[] }>("/api/saved-setups").then(payload => {
+          setSavedSetups(payload.setups ?? []); finishLoad("setups");
+        }).catch(reason => { finishLoad("setups", true); throw reason; }),
+        dashboardData<{ trades: Trade[] }>("/api/paper-cycle/open-trades").then(payload => {
+          setOverviewOpen(payload.trades); finishLoad("positions");
+        }).catch(reason => { finishLoad("positions", true); throw reason; }),
+        refreshJournal(),
       ]);
-      if (![historyResponse, watchlistResponse, savedSetupsResponse, cycleResponse].every((response) => response.ok)) {
-        throw new Error("Dashboard data is temporarily unavailable.");
-      }
-      const [historyPayload, watchlistPayload, savedSetupsPayload, cyclePayload] = await Promise.all([
-        historyResponse.json() as Promise<{ data: AccountBalanceHistoryPoint[] }>,
-        watchlistResponse.json() as Promise<{ watchlist: DashboardWatchRow[] }>,
-        savedSetupsResponse.json() as Promise<{ setups: DashboardSavedSetup[] }>,
-        cycleResponse.json() as Promise<DashboardOverview>,
-      ]);
-      setAccountHistory(historyPayload.data);
-      setWatchlist(watchlistPayload.watchlist);
-      setSavedSetups(Array.isArray(savedSetupsPayload.setups) ? savedSetupsPayload.setups : []);
-      setOverview(cyclePayload);
-      if (journalResponse.ok) {
-        const journalPayload = (await journalResponse.json()) as DashboardJournal;
-        setJournalTrades(journalPayload.trades);
-        if (journalPayload.summary) setJournalSummary(journalPayload.summary);
-      }
-      setError(null);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Dashboard data is temporarily unavailable.");
-    }
-  }, []);
+      setError(results.some(result => result.status === "rejected") ? "Some dashboard sections could not refresh. Previously loaded data may be outdated." : null);
+    } finally { loading.current.delete("overview"); }
+  }, [finishLoad, refreshJournal]);
+
+  const refreshHistory = useCallback(async () => {
+    if (loading.current.has("history")) return;
+    loading.current.add("history");
+    try {
+      const payload = await dashboardData<{ data: AccountBalanceHistoryPoint[]; status: ConnectionStatus }>("/api/oanda/account-history", 20_000);
+      if (payload.status.state !== "connected") throw new Error("Account history unavailable.");
+      setAccountHistory(payload.data); finishLoad("history");
+    } catch { finishLoad("history", true); }
+    finally { loading.current.delete("history"); }
+  }, [finishLoad]);
 
   /**
    * The account moves with every tick on an open position, so it is polled on
@@ -370,31 +399,35 @@ export function DashboardView({
    * including a day figure of +$0.00 — for a full minute after load.
    */
   const refreshAccount = useCallback(async () => {
+    if (loading.current.has("account")) return;
+    loading.current.add("account");
     try {
-      const response = await fetch(apiUrl("/api/oanda/account-summary"), { credentials: "include", cache: "no-store" });
-      if (!response.ok) throw new Error(ACCOUNT_UNAVAILABLE_MESSAGE);
-      const payload = await response.json() as { data: AccountSummary; status?: ConnectionStatus };
+      const payload = await dashboardData<{ data: AccountSummary; status?: ConnectionStatus }>("/api/oanda/account-summary");
       const verified = verifiedAccountSummary(payload);
       if (!verified) throw new Error(ACCOUNT_UNAVAILABLE_MESSAGE);
       setAccount(verified);
       setAccountError(null);
+      finishLoad("account");
     } catch {
       // Preserve the verified snapshot; an outage must never replace it with demo money.
       setAccountError(ACCOUNT_UNAVAILABLE_MESSAGE);
-    }
-  }, []);
+      finishLoad("account", true);
+    } finally { loading.current.delete("account"); }
+  }, [finishLoad]);
 
   const refreshPendingEntries = useCallback(async () => {
+    if (loading.current.has("pending")) return;
+    loading.current.add("pending");
     try {
-      const response = await fetch(apiUrl("/api/pending-entries"), { credentials: "include", cache: "no-store" });
-      if (!response.ok) return;
-      const payload = await response.json() as { entries?: PendingManualEntry[] };
+      const payload = await dashboardData<{ entries?: PendingManualEntry[] }>("/api/pending-entries");
       setPendingEntries((payload.entries ?? []).filter((entry) => entry.status === "PENDING" || entry.status === "TRIGGERING"));
       setPendingEntryError(null);
+      finishLoad("pending");
     } catch {
-      // The rest of Home should remain available during a temporary API outage.
-    }
-  }, []);
+      finishLoad("pending", true);
+      setPendingEntryError("Waiting orders could not refresh. Previously loaded orders may be outdated.");
+    } finally { loading.current.delete("pending"); }
+  }, [finishLoad]);
 
   const cancelPendingEntry = useCallback(async (entry: PendingManualEntry): Promise<boolean> => {
     if (entry.status !== "PENDING") return false;
@@ -451,20 +484,34 @@ export function DashboardView({
     // rule cannot see through the async call.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void refreshAccount();
-    const timer = window.setInterval(() => void refreshAccount(), 5_000);
+    const timer = window.setInterval(() => { if (document.visibilityState === "visible") void refreshAccount(); }, 5_000);
     return () => window.clearInterval(timer);
   }, [refreshAccount]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void refresh();
-    const timer = window.setInterval(() => void refresh(), 60_000);
+    const timer = window.setInterval(() => { if (document.visibilityState === "visible") void refresh(); }, 60_000);
     return () => window.clearInterval(timer);
   }, [refresh]);
 
   useEffect(() => {
+    void refreshHistory();
+    const timer = window.setInterval(() => { if (document.visibilityState === "visible") void refreshHistory(); }, 60_000);
+    return () => window.clearInterval(timer);
+  }, [refreshHistory]);
+
+  useEffect(() => {
+    if (journalSync?.status !== "running") return;
+    const timer = window.setTimeout(() => {
+      if (document.visibilityState === "visible") void refreshJournal().catch(() => undefined);
+    }, 3_000);
+    return () => window.clearTimeout(timer);
+  }, [journalSync, refreshJournal]);
+
+  useEffect(() => {
     const initial = window.setTimeout(() => void refreshPendingEntries(), 0);
-    const timer = window.setInterval(() => void refreshPendingEntries(), 5_000);
+    const timer = window.setInterval(() => { if (document.visibilityState === "visible") void refreshPendingEntries(); }, 5_000);
     return () => {
       window.clearTimeout(initial);
       window.clearInterval(timer);
@@ -475,8 +522,8 @@ export function DashboardView({
   // the next interval tick — up to a minute away. Pull everything fresh the
   // moment it returns to the foreground so it never opens on stale numbers.
   useForegroundRefresh(useCallback(async () => {
-    await Promise.all([refreshAccount(), refresh(), refreshPendingEntries()]);
-  }, [refreshAccount, refresh, refreshPendingEntries]));
+    await Promise.all([refreshAccount(), refresh(), refreshHistory(), refreshPendingEntries()]);
+  }, [refreshAccount, refresh, refreshHistory, refreshPendingEntries]));
 
   const signalRows = savedSetups.filter((setup) => setup.state === "setup");
   const currentPositions: HomeCurrentPosition[] = openTrades
@@ -633,7 +680,10 @@ export function DashboardView({
         onCancelPending={setPendingCancellation}
         onEditPending={setPendingLevelsEntry}
         activity={recentActivity}
-        error={error}
+        error={[error, journalSync && journalSync.status !== "ready"
+          ? journalSync.status === "running" ? "Broker history is syncing. Journal totals may be outdated." : "Broker history could not sync. Showing stored journal data."
+          : null].filter(Boolean).join(" ") || null}
+        loadState={loadState}
       />
       <PendingCancelConfirmation
         entry={pendingCancellation}

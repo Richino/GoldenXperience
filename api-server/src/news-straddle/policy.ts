@@ -2,9 +2,8 @@ import { currenciesOf, pipSizeFor, precisionFor } from "../../../frontend/src/li
 import { NEWS_V3_DEFAULTS, type NewsRun, type NewsV3Settings, type NewsRelease, type NewsSide } from "../../../frontend/src/lib/news/news-straddle-v3.js";
 import { newsEventsAtTime, sameNewsMembers } from "../../../frontend/src/lib/news/news-release-groups.js";
 
-export const SUBMIT_LEAD_MS = 2_000;
-export const PREPARE_LEAD_MS = 12_000;
-export const MAX_SUBMIT_LATENESS_MS = 250;
+export const SUBMIT_LEAD_MS = 10_000;
+export const PREPARE_LEAD_MS = 30_000;
 export const MAX_QUOTE_AGE_MS = 1_000;
 export const MAX_CALENDAR_AGE_MS = 15 * 60_000;
 export type NewsQuote = { bid: number; ask: number; time: string; tradeable: boolean };
@@ -41,7 +40,7 @@ export function verifyRelease(instrument: string, requested: { id?: unknown; tit
   const e = calendar.events.find(e => e.id === requested.id && e.title === requested.title && e.currency === requested.currency && e.timestamp === requested.time);
   if (!e || e.timingVerified !== true || ![c.base, c.quote].includes(e.currency) || e.impact < 3 || /tentative|all.day|summit|speaks|speech|meeting day/i.test(e.title)) throw new Error("Select a precisely timed high-impact economic release for this pair.");
   const at = Date.parse(e.timestamp);
-  if (!Number.isFinite(at) || !/T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/.test(e.timestamp) || at < now + PREPARE_LEAD_MS + 3_000 || at > now + 5 * 3_600_000) throw new Error("The release must be 15 seconds to 5 hours ahead, with a verified UTC timestamp.");
+  if (!Number.isFinite(at) || !/T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/.test(e.timestamp) || at <= now + 15_000) throw new Error("The release must be more than 15 seconds ahead, with a verified UTC timestamp.");
   const events = newsEventsAtTime(instrument, calendar.events, e.timestamp);
   if (requested.events !== undefined && (!Array.isArray(requested.events) || requested.events.some(m => !m || typeof m.id !== "string" || typeof m.title !== "string" || typeof m.currency !== "string") || !sameNewsMembers(requested.events, events))) throw new Error("The news releases at this time changed. Refresh the setup before accepting.");
   return { ...events[0]!, time: new Date(at).toISOString(), impact: e.impact, provider: "forex_factory", events };
@@ -87,12 +86,13 @@ export function calculateNewsRisk(input: {
 export function preSubmitIssue(run: NewsRun, q: NewsQuote | null, now: number, monitorReady: boolean) {
   const issue = quoteIssue(q, now); if (issue) return issue;
   if (!monitorReady) return "Broker transaction monitoring is not synchronized.";
-  if (!run.clock || ![Date.parse(run.clock.sampledAt), run.clock.offsetMs, run.clock.uncertaintyMs].every(Number.isFinite) || Date.parse(run.clock.sampledAt) > now + 250 || now - Date.parse(run.clock.sampledAt) > 30_000 || Math.abs(run.clock.offsetMs) > 250 || run.clock.uncertaintyMs < 0 || run.clock.uncertaintyMs > 250) return "Server clock could not be verified against the broker.";
+  // REST round-trip timing is diagnostic, not a reliable subsecond clock gate.
+  // Fresh executable quotes and the release deadline still bound submission.
   if (now - Date.parse(run.calendarFetchedAt) > MAX_CALENDAR_AGE_MS || now - Date.parse(run.calendarCheckedAt) > 15_000) return "The release was not recently verified.";
   if ((q!.ask - q!.bid) / pipSizeFor(run.instrument) > run.settings.maxSpreadPips + 1e-8) return "Spread exceeds the approved maximum.";
   if (!run.legs.long.entry || !run.legs.short.entry || q!.ask >= run.legs.long.entry || q!.bid <= run.legs.short.entry) return "Market already crossed a planned STOP entry.";
   if (now < Date.parse(run.targetSubmitAt)) return "Not due.";
-  if (now - Date.parse(run.targetSubmitAt) > MAX_SUBMIT_LATENESS_MS) return "The pre-news submission target was missed.";
+  if (now >= Date.parse(run.release.time)) return "The release already started; no new orders were submitted.";
   return null;
 }
 export function executablePips(side: NewsSide, entry: number, q: NewsQuote, instrument: string) {

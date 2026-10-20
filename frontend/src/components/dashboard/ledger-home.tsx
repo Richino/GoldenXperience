@@ -20,6 +20,7 @@ import {
   type AccountChartRange,
 } from "@/components/dashboard/account-amount-chart";
 import { LedgerPlans } from "@/components/dashboard/ledger-plans";
+import { SwingIntelligenceCard } from "@/components/analysis/swing-intelligence-card";
 import { NewsImpactSheet } from "@/components/dashboard/news-impact-sheet";
 import { WeeklyReview } from "@/components/dashboard/weekly-review";
 import { GoodTrends } from "@/components/dashboard/good-trends";
@@ -42,6 +43,17 @@ import type { AccountBalanceHistoryPoint, AccountSummary } from "@/types/forex";
 import type { PendingManualEntry } from "@/types/pending-entry";
 
 /* ------------------------------------------------------------------ types */
+
+type LoadState = "loading" | "ready" | "stale" | "error";
+export type DashboardLoadState = Record<"account" | "history" | "positions" | "setups" | "journal" | "pending", LoadState>;
+const READY: DashboardLoadState = { account: "ready", history: "ready", positions: "ready", setups: "ready", journal: "ready", pending: "ready" };
+const hasData = (state: LoadState) => state === "ready" || state === "stale";
+
+function DeferredCard({ title, state }: { title: string; state: LoadState }) {
+  return <section className="nl-card" aria-label={title} aria-busy={state === "loading"}>
+    <h2>{title}</h2><p className="nl-card-empty" role="status">{state === "loading" ? `Loading ${title.toLowerCase()}…` : `${title} unavailable. Retrying automatically.`}</p>
+  </section>;
+}
 
 export type LedgerPosition = {
   id: string;
@@ -241,13 +253,16 @@ function LedgerHero({
   todayKey,
   openPL,
   openRisk,
+  historyState = "ready",
 }: {
   account: AccountSummary;
   history: AccountBalanceHistoryPoint[];
   todayKey: string;
   openPL: number;
   openRisk: number | null;
+  historyState?: LoadState;
 }) {
+  const historyAvailable = hasData(historyState);
   const [range, setRange] = useState<AccountChartRange>("1d");
   const wide = useWide();
   const { ref: balanceRef, scrolledPast } = useScrolledPast<HTMLHeadingElement>();
@@ -264,9 +279,9 @@ function LedgerHero({
   const dayPL = realizedPL + account.unrealizedPL;
   const opening = account.nav - dayPL;
   const changePercent = opening !== 0 ? (dayPL / opening) * 100 : 0;
-  const dayTone = tone(dayPL);
+  const dayTone = historyAvailable ? tone(dayPL) : "is-flat";
   const [dollars, cents] = splitMoney(account.nav, account.currency);
-  const percentLabel = `${changePercent >= 0 ? "+" : "−"}${Math.abs(changePercent).toFixed(2)}%`;
+  const percentLabel = historyAvailable ? `${changePercent >= 0 ? "+" : "−"}${Math.abs(changePercent).toFixed(2)}%` : "—";
   const marginShare = account.nav > 0 ? (account.marginUsed / account.nav) * 100 : null;
   const riskShare = openRisk !== null && account.nav > 0 ? (openRisk / account.nav) * 100 : null;
 
@@ -289,17 +304,17 @@ function LedgerHero({
         <div className="nl-hero-change">
           <span className={`nl-chip ${dayTone}`}>
             {dayTone !== "is-flat" ? <ArrowUpRight className={`nl-chip-arrow ${dayTone}`} aria-hidden="true" /> : null}
-            {signedMoney(dayPL, account.currency)}
+            {historyAvailable ? signedMoney(dayPL, account.currency) : "—"}
           </span>
           <span className={`nl-hero-pct metric-number ${dayTone}`}>{percentLabel} today</span>
-          <span className="nl-hero-open">from {money(opening, account.currency)} at the open</span>
+          {historyAvailable ? <span className="nl-hero-open">from {money(opening, account.currency)} at the open</span> : null}
         </div>
       </div>
 
       <AccountRangeControl range={range} onRangeChange={setRange} className="nl-range-tabs" />
 
       <div className="nl-chart-card">
-        <AccountAmountChart
+        {historyAvailable ? <AccountAmountChart
           series={series}
           currency={account.currency}
           range={range}
@@ -307,13 +322,14 @@ function LedgerHero({
           hideRangeRow
           variant="ledger"
           scales={wide}
-        />
+        /> : <p className="nl-card-empty" role="status">{historyState === "loading" ? "Loading account history…" : "Account history unavailable. Retrying automatically."}</p>}
+        {historyState === "stale" ? <p className="nl-card-empty is-warn">Account history could not refresh. Historical totals may be outdated.</p> : null}
       </div>
 
       <dl className="nl-stats">
         <div>
           <dt>Realized today</dt>
-          <dd className={`metric-number ${tone(realizedPL)}`}>{signedMoney(realizedPL, account.currency)}</dd>
+          <dd className={`metric-number ${tone(realizedPL)}`}>{historyAvailable ? signedMoney(realizedPL, account.currency) : "—"}</dd>
         </div>
         <div>
           <dt>Unrealized</dt>
@@ -750,6 +766,7 @@ export function LedgerHome({
   onEditPending,
   activity,
   error,
+  loadState = READY,
 }: {
   account: AccountSummary | null;
   accountError: string | null;
@@ -769,7 +786,10 @@ export function LedgerHome({
   onEditPending: (entry: PendingManualEntry) => void;
   activity: HomeActivityItem[];
   error: string | null;
+  loadState?: DashboardLoadState;
 }) {
+  const positionsReady = hasData(loadState.positions) && hasData(loadState.journal);
+  const positionState = loadState.positions === "error" || loadState.journal === "error" ? "error" : "loading";
   // todayKey is the server's ET date, so this label matches on both renders.
   const dateLabel = new Intl.DateTimeFormat("en-GB", {
     weekday: "short",
@@ -793,11 +813,11 @@ export function LedgerHome({
           />
         ) : null}
         {account ? (
-          <LedgerHero account={account} history={history} todayKey={todayKey} openPL={openPL} openRisk={openRisk} />
+          <LedgerHero account={account} history={history} todayKey={todayKey} openPL={openPL} openRisk={positionsReady ? openRisk : null} historyState={loadState.history} />
         ) : (
           <section className="nl-hero" aria-label="Account overview">
             <div className="nl-hero-copy">
-              <h1 className="nl-home-hello">Balance unavailable</h1>
+              <h1 className="nl-home-hello" role="status">{loadState.account === "loading" ? "Loading account…" : "Balance unavailable"}</h1>
             </div>
           </section>
         )}
@@ -805,20 +825,21 @@ export function LedgerHome({
         <div className="nl-home-cols">
           <div className="nl-home-main">
             <GoodTrends />
-            <LedgerPositions positions={positions} currency={account?.currency ?? "USD"} />
+            {positionsReady ? <LedgerPositions positions={positions} currency={account?.currency ?? "USD"} /> : <DeferredCard title="Open positions" state={positionState} />}
             <LedgerPlans />
-            <LedgerSetups setups={setups} />
-            <LedgerPending
+            {hasData(loadState.setups) ? <LedgerSetups setups={setups} /> : <DeferredCard title="Setups" state={loadState.setups} />}
+            <SwingIntelligenceCard instrument="EUR_USD" />
+            {hasData(loadState.pending) ? <LedgerPending
               entries={pending}
               cancellingId={cancellingPendingId}
               error={pendingError}
               onCancel={onCancelPending}
               onEdit={onEditPending}
-            />
-            <LedgerActivity items={activity} currency={account?.currency ?? "USD"} />
+            /> : <DeferredCard title="Waiting orders" state={loadState.pending} />}
+            {hasData(loadState.journal) ? <LedgerActivity items={activity} currency={account?.currency ?? "USD"} /> : <DeferredCard title="Recent activity" state={loadState.journal} />}
           </div>
           <aside className="nl-home-aside" aria-label="Today and upcoming">
-            <LedgerTodayCard today={today} currency={account?.currency ?? "USD"} />
+            {hasData(loadState.journal) ? <LedgerTodayCard today={today} currency={account?.currency ?? "USD"} /> : <DeferredCard title="Today · closed" state={loadState.journal} />}
             <LedgerNews positions={newsPositions} />
           </aside>
           <WeeklyReview currency={account?.currency ?? "USD"} />

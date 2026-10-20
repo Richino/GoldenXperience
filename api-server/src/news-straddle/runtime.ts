@@ -116,7 +116,7 @@ export function startNewsStraddleRuntime(config: MarketStreamConfig, tickFor: (i
     const now = Date.now();
     for (const r of cached) {
       const target = Date.parse(r.targetSubmitAt);
-      if (r.state === "SCHEDULED" && now >= Date.parse(r.release.time) - PREPARE_LEAD_MS || r.state === "PREPARING" && now >= target || r.state === "READY" && (now >= target || !r.levelsFrozenAt && now >= target - 1000) || r.state === "SUBMITTING" && now >= Date.parse(r.release.time)) dispatch(r);
+      if (r.state === "SCHEDULED" && now >= Date.parse(r.release.time) - PREPARE_LEAD_MS || r.state === "PREPARING" && now >= target || r.state === "READY" && now >= target || r.state === "SUBMITTING" && now >= Date.parse(r.release.time)) dispatch(r);
     }
   }, 50);
   const slow = setInterval(() => {

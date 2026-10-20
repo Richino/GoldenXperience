@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "eurusd:analyze-hold": "tsx scripts/backtest-eurusd-analyze-hold.ts",
+    "eurusd:analyze-hold:test": "tsx scripts/test-eurusd-analyze-hold.ts",
+    "eurusd:analyze-stop-sweep": "tsx scripts/sweep-eurusd-analyze-stops.ts",
     "market-recording": "tsx scripts/market-recording.ts",
     "market-recording:test": "tsx scripts/test-market-recording.ts",
     "market-movement:test": "tsx scripts/test-market-movement.ts",

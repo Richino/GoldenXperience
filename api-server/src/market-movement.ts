@@ -88,6 +88,9 @@ function measure(samples: Sample[], pip: number, windowSeconds: number) {
   };
 }
 
+/** Shared measurement math for longer swing windows; legacy windows keep their existing defaults and output. */
+export { measure as measureObservedQuoteMovement };
+
 /** Descriptive quote measurements only. No AI, predictions, order imports, or candle-to-tick fabrication. */
 export class MarketMovementEngine {
   private pairs = new Map<string, PairState>();

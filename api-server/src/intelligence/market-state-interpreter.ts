@@ -126,6 +126,9 @@ function reactionsFor(calendar: CalendarSnapshot, candles: Candle[], now: number
   });
 }
 
+/** Shared completed-candle reaction observations; no new interpretation or execution behavior. */
+export { reactionsFor as observedReleaseReactions };
+
 export type InterpretMarketInput = {
   intelligence: MarketIntelligence; researchFresh: boolean; researchStaleReason?: string | null;
   market: Market; technical: MarketTechnicals; calendar: CalendarSnapshot | null;

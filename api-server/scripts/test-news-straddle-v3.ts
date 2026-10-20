@@ -32,7 +32,7 @@ function fixture() {
     stopDistance: 0.0016, units: 62500, orderId: null, tradeId: null, paperTradeId: null, submittedAt: null, acknowledgedAt: null, brokerTime: null, cancellationRequestedAt: null, cancellationConfirmedAt: null,
     fillTime: null, fillPrice: null, slippagePips: null, fillSpreadPips: null, initialStop: null, activeStop: null, trailingOrderId: null, trailingRequestedAt: null, trailingActivatedAt: null,
     unrealizedPips: null, maximumFavorablePips: 0, protectedPips: null, realizedPL: null, realizedR: null, exitPrice: null, closedAt: null, lastProtectionAt: null });
-  const run: NewsRun = { id, userId: randomUUID(), accountKey: "practice-test", instrument: "EUR_USD", eventKey: release.id, version: 3, revision: 0, state: "SCHEDULED", release, settings, createdAt: iso(now), targetSubmitAt: iso(T - 2000), preparedAt: null, calendarCheckedAt: iso(now), calendarFetchedAt: iso(now), transactionSeed: "10", lastReconciledAt: null, preparedQuote: quote,
+  const run: NewsRun = { id, userId: randomUUID(), accountKey: "practice-test", instrument: "EUR_USD", eventKey: release.id, version: 3, revision: 0, state: "SCHEDULED", release, settings, createdAt: iso(now), targetSubmitAt: iso(T - 10000), preparedAt: null, calendarCheckedAt: iso(now), calendarFetchedAt: iso(now), transactionSeed: "10", lastReconciledAt: null, preparedQuote: quote,
     risk: { equity: 10000, currency: "USD", conversion: 1, eventCash: 200, perLegCash: 100, perLegPercent: 1, stopPips: 16, atrPips: 8 },
     constraints: { minimumTrail: 0.0005, maximumTrail: 1, precision: 5, minimumUnits: 1, maximumUnits: 10000000 }, clock: { sampledAt: iso(now), offsetMs: 0, uncertaintyMs: 10 },
     legs: { long: leg("long"), short: leg("short") }, firstFillSide: null, exception: null, reason: null, endedAt: null, timeline: [] };
@@ -63,8 +63,8 @@ function fixture() {
   const engine = new NewsStraddleEngine(deps);
   const at = (time: number, bid = quote.bid, ask = quote.ask) => { now = time; quote = { ...quote, bid, ask, time: iso(time) }; };
   const tick = async (ready = true) => { await engine.tick(id, quote, ready); await engine.drain(); };
-  const ready = async () => { at(T - 12_000); await tick(); assert.equal(repo.run.state, "READY"); at(T - 3000); await tick(); assert.ok(repo.run.levelsFrozenAt); };
-  const pending = async () => { await ready(); at(T - 2000); await tick(); assert.equal(repo.run.state, "PENDING_ORDERS"); };
+  const ready = async () => { at(T - 12_000); await tick(); assert.equal(repo.run.state, "READY"); assert.equal(repo.run.levelsFrozenAt, undefined); };
+  const pending = async () => { await ready(); at(T - 10000); await tick(); assert.equal(repo.run.state, "PENDING_ORDERS"); };
   const fill = (side: NewsSide): BrokerTransaction => {
     const l = repo.run.legs[side], price = l.entry!;
     const t: TradeObservation = { id: `trade-${side}`, state: "OPEN", instrument: run.instrument, units: side === "long" ? l.units : -l.units, entry: price, openedAt: iso(now), stop: price + (side === "long" ? -1 : 1) * l.stopDistance!, trailId: null, trailValue: null, trailDistance: null, target: null, realizedPL: 0, closedAt: null, exit: null, clientId: l.tradeClientId };
@@ -78,9 +78,9 @@ function fixture() {
     holdCancel() { cancelHeld = new Promise(resolve => { releaseCancel = resolve; }); }, releaseCancel() { releaseCancel?.(); cancelHeld = null; }, quote: () => quote };
 }
 
-await test("T−2s target: both native STOP orders, mandatory stops, no take profit, 1% per trade with a 2% double-fill reserve", async () => {
-  const f = fixture(); await f.tick(); assert.equal(f.sent.length, 0); await f.ready(); assert.equal(f.sent.length, 0); f.at(T - 2000); await f.tick();
-  assert.equal(f.sent.length, 2); assert.ok(f.sent.every(s => s.at === T - 2000)); assert.equal(f.repo.run.state, "PENDING_ORDERS");
+await test("T−10s target: both native STOP orders, mandatory stops, no take profit, 1% per trade with a 2% double-fill reserve", async () => {
+  const f = fixture(); await f.tick(); assert.equal(f.sent.length, 0); await f.ready(); assert.equal(f.sent.length, 0); f.at(T - 10000); await f.tick();
+  assert.equal(f.sent.length, 2); assert.ok(f.sent.every(s => s.at === T - 10000)); assert.equal(f.repo.run.state, "PENDING_ORDERS");
   for (const s of f.sent) { assert.equal(s.body.order.type, "STOP"); assert.equal(s.body.order.positionFill, "REDUCE_FIRST"); assert.ok(s.body.order.stopLossOnFill.distance); assert.equal("takeProfitOnFill" in s.body.order, false); }
   assert.ok(f.repo.run.risk!.perLegCash * 2 <= 200); assert.equal(f.repo.run.risk!.perLegPercent, 1);
   assert.equal(f.repo.run.risk!.perLegCash, 100);
@@ -96,13 +96,35 @@ await test("double fill before cancel: exception, account pause, flatten only ow
   f.releaseCancel(); await f.engine.drain(); await f.engine.reconcile(f.id); await f.engine.drain();
   assert.equal(f.repo.run.state, "HALTED"); assert.deepEqual([...new Set(f.closes)].sort(), ["trade-long", "trade-short"]); assert.equal(f.sent.length, 2);
 });
-await test("one rejected submission cancels accepted side; no single-sided strategy or retry", async () => { const f = fixture(); f.setFailure("short"); await f.ready(); f.at(T - 2000); await f.tick(); await f.engine.reconcile(f.id); await f.engine.drain(); assert.equal(f.repo.run.legs.short.state, "REJECTED"); assert.equal(f.repo.run.legs.long.state, "CANCELLED"); assert.equal(f.repo.run.state, "SKIPPED"); assert.equal(f.sent.length, 2); });
-await test("submission timeout after acceptance: cancel/reconcile by deterministic ID, restart never re-POSTs", async () => { const f = fixture(); f.setUnknown("long"); await f.ready(); f.at(T - 2000); await f.tick(); const restarted = new NewsStraddleEngine(f.deps); await restarted.reconcile(f.id); await restarted.drain(); f.at(T); await restarted.tick(f.id, f.quote(), true); await restarted.drain(); assert.equal(f.sent.length, 2); assert.equal(f.repo.run.legs.long.state, "CANCELLED"); });
-await test("wide or stale price, clock uncertainty, and missed target block every entry", async () => {
-  for (const mode of ["spread", "stale", "clock", "late", "monitor"] as const) {
-    const f = fixture(); await f.ready(); f.at(mode === "late" ? T - 1700 : T - 2000);
-    const q = { ...f.quote() }; if (mode === "spread") q.ask += 0.001; if (mode === "stale") q.time = iso(T - 6000); if (mode === "clock") f.repo.run.clock!.offsetMs = NaN;
+await test("one rejected submission cancels accepted side; no single-sided strategy or retry", async () => { const f = fixture(); f.setFailure("short"); await f.ready(); f.at(T - 10000); await f.tick(); await f.engine.reconcile(f.id); await f.engine.drain(); assert.equal(f.repo.run.legs.short.state, "REJECTED"); assert.equal(f.repo.run.legs.long.state, "CANCELLED"); assert.equal(f.repo.run.state, "SKIPPED"); assert.equal(f.sent.length, 2); });
+await test("submission timeout after acceptance: cancel/reconcile by deterministic ID, restart never re-POSTs", async () => { const f = fixture(); f.setUnknown("long"); await f.ready(); f.at(T - 10000); await f.tick(); const restarted = new NewsStraddleEngine(f.deps); await restarted.reconcile(f.id); await restarted.drain(); f.at(T); await restarted.tick(f.id, f.quote(), true); await restarted.drain(); assert.equal(f.sent.length, 2); assert.equal(f.repo.run.legs.long.state, "CANCELLED"); });
+await test("wide or stale price, release deadline, and unsynchronized monitoring block entry", async () => {
+  for (const mode of ["spread", "stale", "late", "monitor"] as const) {
+    const f = fixture(); await f.ready(); f.at(mode === "late" ? T : T - 10000);
+    const q = { ...f.quote() }; if (mode === "spread") q.ask += 0.001; if (mode === "stale") q.time = iso(T - 16000);
     await f.engine.tick(f.id, q, mode !== "monitor"); await f.engine.drain(); assert.equal(f.sent.length, 0, mode);
+  }
+});
+await test("scheduler delay inside the final ten seconds freezes current levels and submits once", async () => {
+  const f = fixture(); await f.ready();
+  f.repo.run.clock = { sampledAt: iso(T - 12000), offsetMs: 400, uncertaintyMs: 600 };
+  f.at(T - 7500, 1.121, 1.1211); await f.tick();
+  assert.equal(f.sent.length, 2); assert.ok(f.sent.every(s => s.at === T - 7500));
+  assert.equal(f.repo.run.levelsFrozenAt, iso(T - 7500));
+  assert.equal(f.repo.run.legs.long.entry, 1.1221); assert.equal(f.repo.run.legs.short.entry, 1.120);
+  f.at(T - 1000); await f.tick(); assert.equal(f.sent.length, 2);
+});
+await test("preparation finishing after T-10 can still submit before release", async () => {
+  const f = fixture(); f.at(T - 8000); await f.tick();
+  assert.equal(f.repo.run.state, "READY"); assert.equal(f.sent.length, 0);
+  f.at(T - 7900); await f.tick(); assert.equal(f.sent.length, 2);
+});
+await test("completed preparation never submits at or after release", async () => {
+  for (const time of [T, T + 1000]) {
+    const f = fixture(); await f.ready(); f.at(time); await f.tick();
+    assert.equal(f.sent.length, 0);
+    await f.engine.reconcile(f.id); await f.engine.drain();
+    assert.equal(f.repo.run.state, "SKIPPED");
   }
 });
 await test("spread expansion while pending requests cancellation of both native orders", async () => { const f = fixture(); await f.pending(); f.at(T - 1000, 1.1198, 1.1205); await f.tick(); await f.engine.reconcile(f.id); await f.engine.drain(); assert.ok(f.cancels.length >= 2); assert.equal(f.sent.length, 2); });
@@ -182,6 +204,19 @@ await test("real transport body retains original stop, has no TP, and refuses li
 function groupedCalendar(): TimedNewsEvent[] {
   return ["CPI m/m", "Core CPI m/m", "Unemployment Claims"].map((title, i) => ({ id: `release-${i}`, title, currency: "USD", timestamp: iso(T), impact: 3, timingVerified: true }));
 }
+await test("next verified release can be accepted beyond five hours without changing submission timing", () => {
+  for (const lead of [5 * 3600000, 5 * 3600000 + 1, 24 * 3600000, 3 * 24 * 3600000]) {
+    const now = T - lead, events = groupedCalendar();
+    const group = nextNewsReleaseGroup("EUR_USD", events, now)!;
+    assert.ok(group); assert.equal(group.timestamp, iso(T));
+    const release = verifyRelease("EUR_USD", { ...group, time: group.timestamp }, { events, fetchedAt: iso(now) }, now);
+    assert.equal(release.time, iso(T));
+  }
+  const events = groupedCalendar(), group = { ...events[0]!, time: iso(T) };
+  assert.equal(nextNewsReleaseGroup("EUR_USD", events, T - 15000), null);
+  assert.throws(() => verifyRelease("EUR_USD", group, { events, fetchedAt: iso(T - 15000) }, T - 15000), /15 seconds/);
+  assert.equal(nextNewsReleaseGroup("EUR_USD", events, T + 1), null);
+});
 await test("same-time releases form one group; later, unrelated, low-impact and unverified releases stay out", () => {
   const events = groupedCalendar();
   const extra = [
@@ -222,8 +257,8 @@ await test("three approved releases submit exactly one BUY/SELL pair under the s
 });
 await test("orders are submitted inside the final ten seconds; an actual pre-release fill cancels the opposite order", async () => {
   const f = fixture(); f.at(T - 12000); await f.tick();
-  for (const at of [T - 10001, T - 10000, T - 5000, T - 3000, T - 2001]) { f.at(at); await f.tick(); assert.equal(f.sent.length, 0); }
-  f.at(T - 2000); await f.tick(); assert.equal(f.sent.length, 2);
+  for (const at of [T - 11000, T - 10001]) { f.at(at); await f.tick(); assert.equal(f.sent.length, 0); }
+  f.at(T - 10000); await f.tick(); assert.equal(f.sent.length, 2);
   assert.ok(f.sent.every(o => o.at >= T - 10000 && o.at < T));
   f.at(T - 1500, 1.1210, 1.1211); await f.engine.observeTransaction(f.id, f.fill("long")); await f.engine.drain();
   await f.engine.observeTrade(f.id, "long", f.trades.get("trade-long")!); await f.engine.drain();

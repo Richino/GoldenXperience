@@ -1,5 +1,11 @@
 # News Straddle v3 validation — 2026-10-17
 
+## Simplified T−10 submission and chart monitoring — 2026-10-19
+
+36 fake-broker checks and rollback-only PostgreSQL checks pass. New setups target T−10s, freeze current executable bid/ask levels at submission and tolerate scheduling/preparation delays within the remaining pre-release window. Tests verify submission after a 2.5-second scheduling delay, late preparation, refusal at/after release, duplicate prevention and unchanged stop/OCO/risk management. REST clock round-trip estimates remain diagnostic. Existing accepted runs retain their saved submission time.
+
+16 chart-overlay checks pass, including accepted previews following executable bid/ask through READY and frozen/submitted levels staying fixed. API/frontend typechecks, the 38-check legacy news suite and pending manual-entry suite pass. The synthetic browser preview confirms visible BUY STOP/SELL STOP levels and separate submission/release countdowns after Accept. No actual event was armed or broker order submitted. The local API has `ENABLE_SCHEDULERS=false`; deployment/restart on the designated scheduler host and a supervised practice release remain necessary to verify actual execution.
+
 ## Timing, stop and 1%-per-trade verification — 2026-10-18
 
 33 fake-broker checks and the rollback-only PostgreSQL checks pass. New defaults size each order to 1% of NAV, so a $10,000 USD account with a 16-pip EUR/USD stop sizes to 62,500 units and $100 planned loss at the original stop (−1R). The combined event reserve is 2% because OCO cancellation is not atomic. Account per-trade/aggregate ceilings remain enforced separately, and previously approved smaller runs are not increased. Typechecks pass for API/frontend, and the changed UI passes scoped lint.

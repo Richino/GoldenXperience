@@ -16,7 +16,7 @@
     "oanda:test": "tsx scripts/test-oanda.ts",
     "account-summary:test": "tsx scripts/test-account-summary.ts",
     "risk:test": "tsx scripts/test-risk.ts",
-    "calendar:test": "tsx scripts/test-calendar.ts",
+    "calendar:test": "tsx scripts/test-calendar.ts && tsx scripts/test-economic-calendar-cache.ts",
     "instruments:test": "tsx scripts/test-instruments.ts",
     "open-trade:test": "tsx scripts/test-open-trade-progress.ts",
     "chart:test": "tsx scripts/test-chart-history.ts",

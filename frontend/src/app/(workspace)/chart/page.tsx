@@ -26,8 +26,8 @@ export default async function ChartPage({ searchParams }: { searchParams: Promis
   // active paper trade when neither is available.
   const activeTrade = requestedInstrument || savedInstrumentIsValid
     ? null
-    : await getApiData<{ openTrades?: Array<{ id: string; instrument: string; status: string; closedAt: string | null }> }>("/api/paper-cycle")
-      .then((payload) => payload.openTrades?.find((trade) => trade.status === "open" && trade.closedAt === null) ?? null)
+    : await getApiData<{ trade: { id: string; instrument: string; status: string; closedAt: string | null } | null }>("/api/paper-cycle/chart-focus", 4_000)
+      .then((payload) => payload.trade)
       .catch(() => null);
   const requested = requestedInstrument ?? (savedInstrumentIsValid ? savedInstrument : null) ?? activeTrade?.instrument ?? "EUR_USD";
   const instrument = isKnownInstrument(requested) ? requested : "EUR_USD";
@@ -62,19 +62,17 @@ export default async function ChartPage({ searchParams }: { searchParams: Promis
   // always handed the workspace an empty trade list, so a direct journal/chart
   // link painted the default Trade action before client hydration replaced it
   // with Close Trade.
-  const [candleResult, paperTrades] = await Promise.all([
+  const [candleResult, paperTrades, focusPrediction] = await Promise.all([
     getApiData<{ data: CandleSeries; status: ConnectionStatus }>(
       `/api/oanda/candles?instrument=${instrument}&granularity=${TIMEFRAME_TO_GRANULARITY[initialTimeframe]}&count=${candleCountForChartViewport(initialTimeframe, initialRange)}`,
     ),
     getApiData<{ trades: PaperChartTrade[] }>(
       `/api/paper-cycle/trades?instrument=${instrument}${focusTradeId ? `&trade=${focusTradeId}` : ""}`,
     ).catch(() => ({ trades: [] })),
+    focusPredictionId
+      ? getApiData<{ prediction?: BinaryPrediction }>(`/api/binary/prediction?id=${focusPredictionId}`).then(payload => payload.prediction ?? null).catch(() => null)
+      : Promise.resolve(null),
   ]);
-  const focusPrediction = focusPredictionId
-    ? await getApiData<{ prediction?: BinaryPrediction }>(`/api/binary/prediction?id=${focusPredictionId}`).then(
-        (payload) => payload.prediction ?? null,
-      ).catch(() => null)
-    : null;
 
   return (
     <SignalWorkspace

@@ -3,7 +3,7 @@ import { pipSizeFor } from "../../../frontend/src/lib/instruments/catalog.js";
 import { newsReleaseStillMatches } from "../../../frontend/src/lib/news/news-release-groups.js";
 import type { NewsRepository, NewsSession, Audit } from "./store.js";
 import type { NewsBroker, BrokerContext, BrokerTransaction, OrderObservation, TradeObservation } from "./broker.js";
-import { calculateNewsRisk, entryPrices, executablePips, MAX_SUBMIT_LATENESS_MS, PREPARE_LEAD_MS, preSubmitIssue, priceDistance, quoteIssue, roundPrice, trailingDecision, type NewsQuote } from "./policy.js";
+import { calculateNewsRisk, entryPrices, executablePips, PREPARE_LEAD_MS, preSubmitIssue, priceDistance, quoteIssue, roundPrice, trailingDecision, type NewsQuote } from "./policy.js";
 
 export type EngineDeps = { repo: NewsRepository; broker: NewsBroker; now(): number;
   entriesEnabled?(): boolean;
@@ -224,8 +224,8 @@ export class NewsStraddleEngine {
           catch (error) { await this.fail(id, error instanceof Error ? error.message : "Broker/calendar preflight failed."); }
         } }); return;
       }
-      if (r.state === "PREPARING" && now >= target) { await this.cancelRun(s, r, "Preflight did not finish before the submission target."); return; }
-      if (r.state === "READY" && !r.levelsFrozenAt && now >= target - 1000 && now < target) {
+      if (r.state === "PREPARING" && now >= releaseAt) { await this.cancelRun(s, r, "Preflight did not finish before the release."); return; }
+      if (r.state === "READY" && !r.levelsFrozenAt && now >= target && now < releaseAt) {
         const issue = quoteIssue(quote, now); if (issue) { await this.cancelRun(s, r, issue); return; }
         const p = entryPrices(r.instrument, quote!, r.settings.distancePips, r.settings.maxSlippagePips);
         Object.assign(r.legs.long, { entry: p.buy, bound: p.buyBound }); Object.assign(r.legs.short, { entry: p.sell, bound: p.sellBound });
@@ -241,7 +241,7 @@ export class NewsStraddleEngine {
         await this.save(s, r, "submission_reserved", { targetSubmitAt: r.targetSubmitAt, reservedAt: iso(now), quote });
         for (const side of SIDES) actions.push({ key: `submit:${id}:${side}`, run: async () => {
           if (this.deps.entriesEnabled?.() === false) { await this.failSubmission(id, side, "News entry ownership or permission ended before HTTP dispatch.", true); return; }
-          if (this.deps.now() - target > MAX_SUBMIT_LATENESS_MS) { await this.failSubmission(id, side, "Submission target missed before HTTP dispatch.", true); return; }
+          if (this.deps.now() >= releaseAt) { await this.failSubmission(id, side, "The release started before HTTP dispatch.", true); return; }
           try {
             const dispatchedAt = iso(this.deps.now());
             // The async broker method starts fetch before its first await.

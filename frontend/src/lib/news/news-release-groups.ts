@@ -18,7 +18,7 @@ export function sameNewsMembers(a: NewsReleaseMember[], b: NewsReleaseMember[]) 
   return a.length === sorted.length && [...a].sort(compare).every((e, i) => key(e) === key(sorted[i]!));
 }
 export function nextNewsReleaseGroup(instrument: string, events: TimedNewsEvent[], now: number) {
-  const next = events.filter(e => isNewsRelease(instrument, e) && Date.parse(e.timestamp) > now + 15_000 && Date.parse(e.timestamp) <= now + 5 * 3_600_000)
+  const next = events.filter(e => isNewsRelease(instrument, e) && Date.parse(e.timestamp) > now + 15_000)
     .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp) || compare(a, b))[0];
   if (!next) return null;
   const members = newsEventsAtTime(instrument, events, next.timestamp);

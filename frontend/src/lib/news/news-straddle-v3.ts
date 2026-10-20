@@ -46,7 +46,7 @@ export type NewsRun = {
 export type NewsV3Preview = { settings: NewsV3Settings; release: NewsRelease; quote: { bid: number; ask: number; time: string }; buyEntry: number; sellEntry: number; risk: NonNullable<NewsRun["risk"]>; units: number; checkedAt: string; targetSubmitAt: string };
 export type PublicNewsRun = Omit<NewsRun, "userId" | "accountKey">;
 export const NEWS_V3_LABEL: Record<NewsRunState, string> = {
-  SCHEDULED: "Scheduled", PREPARING: "Checking broker and release", READY: "Ready for T−2s", SUBMITTING: "Submitting both STOP orders", PENDING_ORDERS: "Both orders confirmed",
+  SCHEDULED: "Scheduled", PREPARING: "Checking broker and release", READY: "Ready for submission 10 seconds before release", SUBMITTING: "Submitting both STOP orders", PENDING_ORDERS: "Both orders confirmed",
   OCO_CANCELLING: "Fill confirmed · cancelling opposite", OPEN: "Open · initial stop protected", TRAILING: "Open · broker trailing active", CANCELLING: "Cancelling and reconciling",
   EXCEPTION: "Emergency risk reduction", CLOSED: "Closed", SKIPPED: "Skipped", EXPIRED: "Window ended", CANCELLED: "Cancelled", HALTED: "Exception resolved · news entries paused",
 };

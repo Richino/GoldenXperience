@@ -104,6 +104,23 @@ test("v3 scheduled prices retain executable bid/ask entries, never a mid-price r
   const out = draw(setup("SCHEDULED", { configVersion: 3, zones }), { liveMid: 250 });
   assert.deepEqual(out.lines.map(l => l.price), [210.695, 210.495]); assert.ok(out.lines.every(l => l.dashed));
 });
+test("v3 accepted previews follow executable sides until submission, including READY", () => {
+  for (const state of ["SCHEDULED", "PREPARING", "READY"]) {
+    const rows = setup(state, { configVersion: 3, zones });
+    const first = draw(rows, { liveBid: 210.6, liveAsk: 210.62 });
+    assert.deepEqual(first.lines.map(l => l.price), [210.72, 210.5]);
+    assert.ok(first.lines.every(l => l.dashed && l.label.endsWith("preview")));
+    const moved = draw(rows, { liveBid: 210.7, liveAsk: 210.72 });
+    assert.deepEqual(moved.lines.map(l => l.price), [210.82, 210.6]);
+  }
+});
+test("v3 frozen and submitted levels never follow subsequent quote changes", () => {
+  for (const state of ["READY", "SUBMITTING", "PENDING_ORDERS"]) {
+    const out = draw(setup(state, { configVersion: 3, zones, newsRun: { levelsFrozenAt: new Date(now).toISOString() } }), { liveBid: 250, liveAsk: 250.02 });
+    assert.deepEqual(out.lines.map(l => l.price), [210.695, 210.495]);
+    assert.ok(out.lines.every(l => !l.dashed));
+  }
+});
 test("v3 pending native orders show both sides; filled setup shows only its filled reference", () => {
   const pending = draw(setup("PENDING_ORDERS", { configVersion: 3, zones })); assert.equal(pending.lines.length, 2);
   const filled = draw(setup("TRAILING", { configVersion: 3, zones, reservation: { side: "long" } }, "GBP_JPY", ["TRIGGERED", "CANCELLED"])); assert.equal(filled.lines.length, 0); assert.equal(filled.boxes.length, 1);

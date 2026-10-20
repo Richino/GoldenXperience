@@ -49,6 +49,8 @@ import {
 import { PendingEntryDialog } from "@/components/charts/pending-entry-dialog";
 import { newsZoneOverlay, newsStateOf, type NewsDraft } from "@/lib/news/news-zone-overlay";
 import { TrendLabel } from "@/components/charts/trend-label";
+import { SwingIntelligenceCard } from "@/components/analysis/swing-intelligence-card";
+import type { SwingZone } from "@/lib/swing-intelligence";
 import { ChartHealthCard, ChartLevelEditor, ChartNewsCard, ChartPendingLevelsCard, ChartOhlcReadout, type ChartHealthLevels, type ChartPositionCardSignal } from "@/components/charts/chart-ledger-parts";
 import {
   ManualProposalModal,
@@ -2678,6 +2680,12 @@ export function SignalWorkspace({
   const [pendingEntryDialogOpen, setPendingEntryDialogOpen] = useState(false);
   // The News ticket's unsaved settings, drawn on the chart as DRAFT zones.
   const [newsDraft, setNewsDraft] = useState<NewsDraft | null>(null);
+  const [swingZones, setSwingZones] = useState<SwingZone[]>([]);
+  const [swingAnalysisOpen, setSwingAnalysisOpen] = useState(false);
+  const [swingAnalysisRequest, setSwingAnalysisRequest] = useState<{ instrument: string; sequence: number } | null>(null);
+  const updateSwingZones = useCallback((next: SwingZone[]) => {
+    setSwingZones(current => current.length === next.length && current.every((z, i) => z.id === next[i].id && z.revision === next[i].revision) ? current : next);
+  }, []);
   const [selectedPendingEntry, setSelectedPendingEntry] = useState<PendingManualEntry | null>(null);
   const [pendingEntryNotice, setPendingEntryNotice] = useState<string | null>(null);
   const [pendingEntryClock, setPendingEntryClock] = useState(() => Date.now());
@@ -2744,9 +2752,8 @@ export function SignalWorkspace({
   const [trendPullbackBusy, setTrendPullbackBusy] = useState(false);
   const observer = useMarketObserver();
   const setObserverChartContext = observer?.setChartContext;
-  // Web Analyze is the trade-plan flow; the embedded native surface keeps its own analysis.
+  // Preserve existing trade-plan management separately from swing intelligence.
   const planAnalyze = usePlanAnalyze(instrument, replayActive);
-  const runPlanAnalyze = planAnalyze.run;
   // ?analyze=1 (from a finished-research notification): open Analyze on the report and its plans, once.
   const analyzeLink = searchParams.get("analyze") === "1";
   const reviewPlanAnalyze = planAnalyze.review;
@@ -2760,17 +2767,8 @@ export function SignalWorkspace({
     }, 0);
     return () => window.clearTimeout(timer);
   }, [analyzeLink, embeddedSurfaceOnly, instrument, reviewPlanAnalyze, urlInstrument]);
-  const chartPairMonitored = !embeddedSurfaceOnly && planAnalyze.active.length > 0;
-  const chartAnalysisBusy = embeddedSurfaceOnly ? trendPullbackBusy : planAnalyze.analyzing;
-  // The button says what it opens: research in progress, plans to review, plans being watched, or a new analysis.
-  const analyzeLabel = embeddedSurfaceOnly
-    ? (chartPairMonitored ? { short: "Manage", long: "Manage analysis" } : { short: "Analyze", long: "Analyze market" })
-    : ({
-      generating: { short: "Generating…", long: "Generating plans" },
-      review: { short: "Review plans", long: "Review plans" },
-      watching: { short: "Manage", long: "Manage plans" },
-      new: { short: "Analyze", long: "Analyze market" },
-    } as const)[planAnalyze.status];
+  const chartAnalysisBusy = embeddedSurfaceOnly && trendPullbackBusy;
+  const analyzeLabel = { short: "Analyze", long: "Analyze market" };
   useEffect(() => {
     if (embeddedSurfaceOnly || !setObserverChartContext) return;
     setObserverChartContext({ instrument, replayActive });
@@ -2801,8 +2799,8 @@ export function SignalWorkspace({
       return;
     }
     if (!embeddedSurfaceOnly) {
-      // Web Analyze: BUY and SELL trade plans (or the plans already being watched).
-      await runPlanAnalyze();
+      setSwingAnalysisRequest(current => ({ instrument, sequence: (current?.sequence ?? 0) + 1 }));
+      setSwingAnalysisOpen(true);
       return;
     }
     trendPullbackAbortRef.current?.abort();
@@ -2838,7 +2836,7 @@ export function SignalWorkspace({
       if (request === trendPullbackRequestRef.current) setTrendPullbackBusy(false);
       if (trendPullbackAbortRef.current === controller) trendPullbackAbortRef.current = null;
     }
-  }, [allPendingEntries, embeddedSurfaceOnly, instrument, postTrendPullbackToNative, replayActive, runPlanAnalyze]);
+  }, [allPendingEntries, embeddedSurfaceOnly, instrument, postTrendPullbackToNative, replayActive]);
 
   const planHandoffRef = useRef(false);
   useEffect(() => {
@@ -3005,17 +3003,25 @@ export function SignalWorkspace({
     return () => window.clearInterval(timer);
   }, [refreshBinaryWatch]);
 
+  const newsMonitoringActive = pendingEntries.some(entry => entry.metadata?.configVersion === 3 && entry.metadata?.mode === "news" &&
+    (["PENDING", "TRIGGERING"].includes(entry.status) || entry.status === "TRIGGERED" && entry.paperTradeStatus !== "closed"));
   useEffect(() => {
-    const initial = window.setTimeout(() => void refreshPendingEntries(), 0);
+    let pending = false;
+    const refresh = async () => {
+      if (pending) return;
+      pending = true;
+      try { await refreshPendingEntries(); } finally { pending = false; }
+    };
+    const initial = window.setTimeout(() => void refresh(), 0);
     const timer = window.setInterval(() => {
       setPendingEntryClock(Date.now());
-      void refreshPendingEntries();
-    }, 5_000);
+      void refresh();
+    }, newsMonitoringActive ? 1_000 : 5_000);
     return () => {
       window.clearTimeout(initial);
       window.clearInterval(timer);
     };
-  }, [refreshPendingEntries]);
+  }, [refreshPendingEntries, newsMonitoringActive]);
 
   useEffect(() => {
     // The primary action is derived from both the paper-trade and pending-entry
@@ -3725,12 +3731,14 @@ export function SignalWorkspace({
       instrument,
       entries: pendingEntries,
       liveMid: newsLiveMid,
+      liveBid: quote?.bid ?? null,
+      liveAsk: quote?.ask ?? null,
       now: pendingEntryClock,
       draft: newsDraft,
       viewedPaperTradeId: focusTrade?.id ?? null,
       formatPrice: (price) => formatChartPrice(price, instrument),
     }),
-    [focusTrade?.id, instrument, newsDraft, newsLiveMid, pendingEntries, pendingEntryClock],
+    [focusTrade?.id, instrument, newsDraft, newsLiveMid, quote?.bid, quote?.ask, pendingEntries, pendingEntryClock],
   );
   const newsOverlayLines = useMemo<ChartReferenceLine[]>(
     () => newsOverlay.lines.map(({ entryId, ...line }) => {
@@ -4005,14 +4013,26 @@ export function SignalWorkspace({
     () => amdEnabled && amdFvgEnabled ? computeAmdDays(amdM15Candles, instrument) : [],
     [amdEnabled, amdFvgEnabled, amdM15Candles, instrument],
   );
+  const swingZoneBoxes = useMemo<ChartBox[]>(() => swingZones.filter(z => z.instrument === instrument && z.status !== "EXPIRED").map(z => ({
+    key: `swing-zone-${z.id}`, startTime: z.swingReferences[0]?.time ?? z.createdAt, endTime: z.expiresAt,
+    top: z.upper, bottom: z.lower, color: z.classification === "PULLBACK_REVERSAL" ? "#8b6cef" : "#2997cc",
+    label: z.classification === "PULLBACK_REVERSAL" ? "SWING A · pullback / reversal" : "SWING B · breakout / continuation", faded: z.status !== "ELIGIBLE",
+  })), [instrument, swingZones]);
+  const swingZoneLines = useMemo<ChartReferenceLine[]>(() => swingZones.filter(z => z.instrument === instrument && z.status !== "EXPIRED").flatMap(z => {
+    const color = z.classification === "PULLBACK_REVERSAL" ? "#8b6cef" : "#2997cc";
+    return [z.lower, z.upper].map((price, edge) => ({ key: `swing-line-${z.id}-${edge}`, price,
+      label: `SWING ${z.classification === "PULLBACK_REVERSAL" ? "A" : "B"} ${formatChartPrice(price, instrument)}`,
+      color, textColor: "#ffffff", dashed: z.status !== "ELIGIBLE", lineWidth: 1 as const }));
+  }), [instrument, swingZones]);
   const chartBoxes = useMemo(
     () => [
       ...newsOverlay.boxes,
+      ...(replayActive ? [] : swingZoneBoxes),
       ...amdSessionBoxes,
       ...amdDays.flatMap((day) => day.fvg ? [fvgBox(`amd-${day.day}-fvg`, day.fvg)] : []),
       ...amdRangeBoxes(amdRanges, amdFvgEnabled),
     ],
-    [newsOverlay.boxes, amdSessionBoxes, amdDays, amdFvgEnabled, amdRanges],
+    [newsOverlay.boxes, replayActive, swingZoneBoxes, amdSessionBoxes, amdDays, amdFvgEnabled, amdRanges],
   );
   const lastDaySrReferenceLines = useMemo(
     () => isChartIndicatorEnabled(enabledIndicators, "last-day-sr")
@@ -4141,6 +4161,7 @@ export function SignalWorkspace({
       // decision in a historical replay. Technical indicators remain visible.
       ...(replayActive ? [] : pendingEntryReferenceLines),
       ...(replayActive ? [] : newsOverlayLines),
+      ...(replayActive ? [] : swingZoneLines),
       ...supportResistanceReferenceLines,
       ...supportResistance15mReferenceLines,
       ...fibonacciReferenceLines,
@@ -4149,7 +4170,7 @@ export function SignalWorkspace({
       ...frozen4hReferenceLines,
       ...(patternOverlay.lines.length ? [] : breakoutReferenceLines),
     ],
-    [breakoutReferenceLines, fibonacciReferenceLines, frozen4hReferenceLines, lastDaySrReferenceLines, newsOverlayLines, patternOverlay.lines, pendingEntryReferenceLines, replayActive, sessionSrReferenceLines, supportResistance15mReferenceLines, supportResistanceReferenceLines],
+    [breakoutReferenceLines, fibonacciReferenceLines, frozen4hReferenceLines, lastDaySrReferenceLines, newsOverlayLines, swingZoneLines, patternOverlay.lines, pendingEntryReferenceLines, replayActive, sessionSrReferenceLines, supportResistance15mReferenceLines, supportResistanceReferenceLines],
   );
   // The chart refreshes paper trades in the background. Depending on the whole
   // trade object here made an otherwise identical refresh look like a new
@@ -5071,7 +5092,7 @@ export function SignalWorkspace({
                   {tradeActionBusy ? "Cancelling…" : "Cancel order"}
                 </button>
               ) : null}
-              {/* Analyze lives in the side column card on desktop. */}
+              <button type="button" className="nl-analyze pressable" onClick={() => void runTrendPullback()} disabled={replayActive} title={`Analyze market for ${activePair}`}>Analyze</button>
               <NotificationBell className="nl-chart-bell" />
             </div>
             {(tradeActionError || trendPullbackError) ? (
@@ -5190,7 +5211,7 @@ export function SignalWorkspace({
             </div>
 
             <div className="nl-chart-side">
-              <PlanAnalyzeCard
+              {planAnalyze.status !== "new" || planAnalyze.open ? <PlanAnalyzeCard
                 state={planAnalyze}
                 instrument={instrument}
                 price={quote ? (quote.bid + quote.ask) / 2 : null}
@@ -5199,7 +5220,7 @@ export function SignalWorkspace({
                   openPendingEntryManager(null);
                   setEntryComposerRevision((revision) => revision + 1);
                 }}
-              />
+              /> : null}
               {pendingLevelSignal && healthLevels && levelTrade ? (
                 <ChartPendingLevelsCard
                   signal={pendingLevelSignal}
@@ -5222,6 +5243,12 @@ export function SignalWorkspace({
         </div>}
         </section>
       </div>
+
+      {!replayActive ? <SwingIntelligenceCard key={instrument} instrument={instrument} onZones={updateSwingZones}
+        open={swingAnalysisOpen && swingAnalysisRequest?.instrument === instrument}
+        startRequest={swingAnalysisRequest?.instrument === instrument ? swingAnalysisRequest.sequence : 0}
+        onClose={() => setSwingAnalysisOpen(false)}
+        onReviewPlans={() => { setSwingAnalysisOpen(false); reviewPlanAnalyze(); }} /> : null}
 
       {pendingEntryDialogOpen ? <PendingEntryDialog
         key={`${selectedPendingEntry?.id ?? "new-pending-entry"}:${entryComposerRevision}`}

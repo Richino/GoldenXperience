@@ -35,7 +35,7 @@ export function NewsAcceptCard({ header, instrument, release, now, unavailableRe
     <div className={"nl-pe-plan " + styles.ticket}>
       {header}
       <div className={styles.intro}><h3>News trade</h3><span className={styles.badge}>{displayNameFor(instrument)}</span></div>
-      <p className={styles.description}>GX watches {displayNameFor(instrument)} and handles the trade automatically.</p>
+      <p className={styles.description}>GX places a buy-stop and a sell-stop 10 seconds before the release.</p>
       <section className={styles.event} aria-label="Next news event">
         <span className={styles.eyebrow}>{grouped ? "Next high-impact releases" : "Next high-impact event"}</span>
         {release ? <>
@@ -45,10 +45,10 @@ export function NewsAcceptCard({ header, instrument, release, now, unavailableRe
         </> : <p>{unavailableReason ?? "Checking upcoming news…"}</p>}
       </section>
       <p className={styles.description}>When one order fills, GX cancels the other and manages the stop-loss and trailing protection.</p>
-      <div className={styles.risk}><span>Planned risk per trade</span><strong>1% of your account</strong></div>
+      <div className={styles.risk}><span>Planned risk per order</span><strong>1% · up to 2% if both fill</strong></div>
       {release && unavailableReason ? <p className={styles.warning} role="status">{unavailableReason}</p> : null}
       {error ? <p className={styles.warning} role="alert">{error}</p> : null}
-      <p className={styles.note}>Accept starts monitoring {grouped ? "these releases together" : "this event"}. GX handles the entry and protection automatically.</p>
+      <p className={styles.note}>Accept starts monitoring {grouped ? "these releases together" : "this event"}. Follow the countdown, both order levels and live status on the chart.</p>
     </div>
     <footer className="nl-an-actions is-card nl-pe-actions">
       <button type="button" className="nl-an-secondary pressable" disabled={busy} onClick={onCancel}>Not now</button>
@@ -62,13 +62,19 @@ export function BrokerNewsStraddleTicket({ header, instrument, bid, ask, creatio
   const pip = pipSizeFor(instrument), precision = precisionFor(instrument);
   const [error, setError] = useState<string | null>(null), [busy, setBusy] = useState(false);
   const accepting = useRef(false);
-  const [runtime, setRuntime] = useState<{ halted: boolean; enabled?: boolean } | null>(null);
+  const [runtime, setRuntime] = useState<{ halted: boolean; enabled?: boolean; unavailableReason?: string; halt_reason?: string; error?: string } | null>(null);
   useEffect(() => {
-    let active = true;
-    request<NonNullable<typeof runtime>>("/api/news-straddles/runtime")
-      .then(value => { if (active) setRuntime(value); })
-      .catch(() => { if (active) setRuntime({ halted: false, enabled: false }); });
-    return () => { active = false; };
+    let active = true, pending = false;
+    const refresh = async () => {
+      if (pending) return;
+      pending = true;
+      try { const value = await request<NonNullable<typeof runtime>>("/api/news-straddles/runtime"); if (active) setRuntime(value); }
+      catch (e) { if (active) setRuntime({ halted: false, enabled: false, error: e instanceof Error ? e.message : "Cannot reach the news scheduler." }); }
+      finally { pending = false; }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 5000);
+    return () => { active = false; clearInterval(timer); };
   }, []);
   const release = useMemo(() => calendar.connected && calendar.source === "forex_factory" && now !== null
     ? nextNewsReleaseGroup(instrument, calendar.events, now) : null, [instrument, calendar, now]);
@@ -80,12 +86,12 @@ export function BrokerNewsStraddleTicket({ header, instrument, bid, ask, creatio
   }, [releaseId, buy, sell, onDraft]);
   useEffect(() => () => onDraft?.(null), [onDraft]);
   const unavailableReason = creationBlocked ? "This pair already has an active trade or setup."
-    : runtime?.halted ? "News monitoring is paused after an earlier issue."
+    : runtime?.halted ? runtime.halt_reason ?? "News monitoring is paused after an earlier issue."
     : runtime === null ? "Checking monitoring availability…"
-    : runtime.enabled !== true ? "News monitoring is temporarily unavailable."
+    : runtime.enabled !== true ? runtime.unavailableReason ?? runtime.error ?? "The API server's news scheduler is off. Monitoring must be running before you can accept."
     : loading || now === null ? "Checking upcoming news…"
     : !calendar.connected ? "The news calendar is temporarily unavailable."
-    : !release ? "No high-impact news for this pair in the next 5 hours." : null;
+    : !release ? "No upcoming high-impact release for this pair in the available calendar." : null;
 
   async function accept() {
     if (!release || unavailableReason || accepting.current) return;
@@ -103,8 +109,11 @@ export function BrokerNewsStraddleTicket({ header, instrument, bid, ask, creatio
   return <NewsAcceptCard header={header} instrument={instrument} release={release} now={now}
     unavailableReason={unavailableReason} busy={busy} error={error} onAccept={() => void accept()} onCancel={onCancel} />;
 }
-export function NewsV3StatusView({ run, now }: { run: PublicNewsRun; now: number | null }) {
+export function NewsV3StatusView({ run, now, bid, ask }: { run: PublicNewsRun; now: number | null; bid?: number | null; ask?: number | null }) {
   const digits = precisionFor(run.instrument), fmt = (n: number | null | undefined) => n === null || n === undefined ? "—" : n.toFixed(digits);
+  const preview = !run.levelsFrozenAt && ["SCHEDULED", "PREPARING", "READY"].includes(run.state);
+  const displayEntry = (side: "long" | "short") => preview && bid != null && ask != null
+    ? (side === "long" ? ask + run.settings.distancePips * pipSizeFor(run.instrument) : bid - run.settings.distancePips * pipSizeFor(run.instrument)) : run.legs[side].entry;
   const active = run.firstFillSide ? run.legs[run.firstFillSide] : null;
   const opposite = run.firstFillSide ? run.legs[run.firstFillSide === "long" ? "short" : "long"] : null;
   const current = now !== null && active?.lastProtectionAt && now - Date.parse(active.lastProtectionAt) < 5000;
@@ -119,7 +128,11 @@ export function NewsV3StatusView({ run, now }: { run: PublicNewsRun; now: number
     <div className={styles.intro}><h3>{simpleState[run.state]}</h3><span className={styles.badge}>{displayNameFor(run.instrument)}</span></div>
     {run.reason ? <p className={styles.warning}>{run.reason}</p> : null}
     <p className={styles.note}>{displayNameFor(run.instrument)} · High impact<br />{(run.release.events ?? [run.release]).map(e => `${e.currency} ${e.title}`).join(" + ")}<br />{clock(run.release.time)}</p>
-    {now !== null && Date.parse(run.release.time) > now ? <p className={styles.countdown}>Release in {countdown(Date.parse(run.release.time) - now)}</p> : null}
+    {now !== null && !NEWS_TERMINAL.includes(run.state) && Date.parse(run.release.time) > now ? <p className={styles.countdown}>Release in {countdown(Date.parse(run.release.time) - now)}</p> : null}
+    {!active && !NEWS_TERMINAL.includes(run.state) ? <section className={styles.card} aria-label="Live news orders">
+      {preview || run.state === "SUBMITTING" ? <p className={styles.note}>{now !== null && Date.parse(run.targetSubmitAt) > now ? `Orders submit in ${countdown(Date.parse(run.targetSubmitAt) - now)}` : "Submitting during the final 10 seconds before release"}</p> : null}
+      <dl className={styles.metrics}>{(["long", "short"] as const).map(side => { const leg = run.legs[side]; return <div key={side}><dt>{side === "long" ? "BUY STOP" : "SELL STOP"}</dt><dd>{fmt(displayEntry(side))}<small>{leg.state === "UNSENT" ? "Preview · fixed at submission" : leg.state.replaceAll("_", " ")}</small></dd></div>; })}</dl>
+    </section> : null}
     {active ? <section className={styles.card} aria-label="Trade summary"><dl className={styles.metrics}>
       <div><dt>{active.closedAt ? "Result" : "Current move"}</dt><dd>{active.closedAt && active.realizedPL !== null ? money(active.realizedPL, run.risk?.currency) : current ? pips(active.unrealizedPips) : "Waiting for an update"}</dd></div>
       {!active.closedAt ? <div><dt>Stop protection</dt><dd>{current ? pips(active.protectedPips) : "Checking with broker"}</dd></div> : null}
@@ -159,14 +172,14 @@ export function NewsV3StatusView({ run, now }: { run: PublicNewsRun; now: number
   </div>;
 }
 
-export function BrokerNewsSetupStatus({ entry }: { entry: PendingManualEntry; bid: number | null; ask: number | null }) {
+export function BrokerNewsSetupStatus({ entry, bid, ask }: { entry: PendingManualEntry; bid: number | null; ask: number | null }) {
   const id = String(entry.metadata.straddleId ?? ""), now = useDisplayClock();
   const [run, setRun] = useState<PublicNewsRun | null>(() => entry.metadata.newsRun as PublicNewsRun | undefined ?? null);
   const [error, setError] = useState<string | null>(null), [confirm, setConfirm] = useState(false), [busy, setBusy] = useState(false);
   useEffect(() => { let active = true, pending = false; const refresh = async () => { if (pending) return; pending = true; try { const next = await request<PublicNewsRun>(`/api/news-straddles/${id}`); if (active) { setRun(next); setError(null); } } catch { if (active) setError("Status refresh is unavailable. Displaying the last saved broker observations."); } finally { pending = false; } }; void refresh(); const t = window.setInterval(() => void refresh(), 1000); return () => { active = false; clearInterval(t); }; }, [id]);
   async function stop() { setBusy(true); try { await request(`/api/news-straddles/${id}`, { method: "DELETE" }); setConfirm(false); } catch (e) { setError(e instanceof Error ? e.message : "Cancellation could not be requested."); } finally { setBusy(false); } }
   if (!run) return <p className={styles.note}>{error ?? "Loading broker setup status…"}</p>;
-  return <><NewsV3StatusView run={run} now={now} />{error ? <p className={styles.warning} role="status">{error}</p> : null}{!NEWS_TERMINAL.includes(run.state) ? <div className={styles.stop}>
+  return <><NewsV3StatusView run={run} now={now} bid={bid} ask={ask} />{error ? <p className={styles.warning} role="status">{error}</p> : null}{!NEWS_TERMINAL.includes(run.state) ? <div className={styles.stop}>
     {confirm ? <><p>Close this trade and stop monitoring?</p><button type="button" disabled={busy} onClick={() => void stop()}>Stop trade</button><button type="button" onClick={() => setConfirm(false)}>Keep running</button></> : <button type="button" disabled={busy} onClick={() => run.firstFillSide ? setConfirm(true) : void stop()}>{busy ? "Stopping…" : run.firstFillSide ? "Stop trade" : "Stop monitoring"}</button>}
   </div> : null}</>;
 }

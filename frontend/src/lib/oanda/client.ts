@@ -940,7 +940,7 @@ export async function getAccountSummary(): Promise<{
  * when broker fills, financing, or manual transactions did not equal those
  * estimates. Each point below is an actual OANDA-reported account balance.
  */
-export async function getAccountBalanceHistory(): Promise<{
+export async function getAccountBalanceHistory(options: { signal?: AbortSignal } = {}): Promise<{
   data: AccountBalanceHistoryPoint[];
   status: ConnectionStatus;
 }> {
@@ -961,7 +961,7 @@ export async function getAccountBalanceHistory(): Promise<{
       from: new Date(historyEnd - 365 * 24 * 60 * 60_000).toISOString(),
       to: new Date(historyEnd).toISOString(),
     });
-    const index = await requestOanda<OandaTransactionsResponse>(`${accountPath}/transactions?${query}`);
+    const index = await requestOanda<OandaTransactionsResponse>(`${accountPath}/transactions?${query}`, options);
     const pagePaths = (index.pages ?? []).map((page) => {
       const url = new URL(page, config.baseUrl);
       if (url.origin !== config.baseUrl) throw new OandaRequestError("OANDA returned an unexpected transaction page.");
@@ -970,7 +970,7 @@ export async function getAccountBalanceHistory(): Promise<{
     const pages: OandaTransactionsResponse[] = [];
     for (let offset = 0; offset < pagePaths.length; offset += 5) {
       pages.push(...await Promise.all(
-        pagePaths.slice(offset, offset + 5).map((page) => requestOanda<OandaTransactionsResponse>(page)),
+        pagePaths.slice(offset, offset + 5).map((page) => requestOanda<OandaTransactionsResponse>(page, options)),
       ));
     }
     if (!pagePaths.length) pages.push(index);

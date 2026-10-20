@@ -123,6 +123,8 @@ export type ResearchInput = {
   now: number;
   fetcher?: Fetcher;
   env?: NodeJS.ProcessEnv;
+  /** Optional cap for analysis-only callers with explicit research budgets. */
+  maxOutputTokens?: number;
 };
 type Config = ReturnType<typeof researchConfig>;
 type Source = { url: string; title: string | null };
@@ -139,6 +141,7 @@ export function researchRequestBody(input: ResearchInput, config: Config, option
   });
   return {
     model: config.model,
+    ...(input.maxOutputTokens ? { max_output_tokens: input.maxOutputTokens } : {}),
     reasoning: { effort: config.effort },
     tools: [{ type: config.webSearchTool, ...(config.searchContext ? { search_context_size: config.searchContext } : {}) }],
     ...(config.maxSearches ? { max_tool_calls: config.maxSearches } : {}),

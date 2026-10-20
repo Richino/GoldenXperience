@@ -1,0 +1,39 @@
+.card { margin: 20px 0; padding: 20px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); color: var(--foreground); min-width: 0; font-size: 13px; line-height: 1.6; }
+.sheet.sheet { height: min(90dvh, 56rem); max-height: min(90dvh, 56rem); touch-action: pan-y; }
+.sheet .card { margin: 0; }
+@media(min-width:1024px) { .sheet.sheet { width: min(960px, calc(100vw - 48px)); margin-inline: auto; } }
+.header { display: flex; justify-content: space-between; gap: 14px; align-items: flex-start; margin-bottom: 14px; }
+.header h2 { margin: 3px 0 0; font-size: 18px; font-weight: 600; }
+.header h2 span { color: var(--muted); font-size: 13px; margin-left: 8px; }
+.eyebrow { margin: 0; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+.badge { border: 1px solid var(--border); border-radius: 20px; padding: 3px 10px; color: var(--muted-strong); white-space: nowrap; font-size: 11px; }
+.note, .card small { color: var(--muted); font-size: 11px; line-height: 1.6; }
+.warning { color: var(--pending); border: 1px solid var(--border); border-radius: 10px; padding: 12px; background: var(--pending-soft); }
+.actions { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; margin-bottom: 12px; }
+.actions label { display: grid; gap: 4px; font-size: 11px; color: var(--muted); }
+.actions button, .actions select { min-height: 44px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 10px; color: var(--foreground); background: var(--surface-raised); font: inherit; }
+.actions button { cursor: pointer; }
+.actions button:disabled, .actions select:disabled { opacity: .5; cursor: default; }
+.actions button:focus-visible, .actions select:focus-visible, .zone button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin: 14px 0; }
+.grid > div { display: flex; flex-direction: column; padding: 14px; gap: 5px; background: var(--surface); min-width: 0; overflow-wrap: anywhere; }
+.grid span { font-size: 11px; color: var(--muted); }
+.grid strong { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.columns, .zones { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; margin: 14px 0; }
+.zone, .scenario { padding: 14px; border: 1px solid var(--border); border-radius: 12px; min-width: 0; overflow-wrap: anywhere; }
+.zone button { display: flex; flex-direction: column; align-items: flex-start; width: 100%; min-height: 44px; text-align: left; cursor: pointer; color: var(--foreground); background: transparent; border: 0; gap: 5px; }
+.zone button[aria-pressed="true"] strong { color: var(--accent); }
+.zone button span { color: var(--muted); font-size: 11px; }
+.zone button strong { font-size: 16px; font-variant-numeric: tabular-nums; }
+.card details { border-top: 1px solid var(--border); padding: 14px 0 2px; }
+.card summary { cursor: pointer; min-height: 32px; font-size: 13px; font-weight: 600; }
+.card h3, .card h4 { margin: 12px 0 6px; font-size: 13px; font-weight: 600; }
+.card p { margin: 8px 0; overflow-wrap: anywhere; }
+.card ul, .card ol { padding-left: 18px; margin: 8px 0; }
+.card li { margin: 6px 0; overflow-wrap: anywhere; }
+.card a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.scenario dl { margin: 12px 0; }
+.scenario dl > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+.scenario dt { color: var(--muted); font-size: 11px; }
+.scenario dd { margin: 0; text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; }
+@media(max-width:640px) { .card { padding: 16px; border-radius: 16px; } .grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .columns, .zones { grid-template-columns: minmax(0,1fr); } .actions label, .actions select { width: 100%; } .header h2 span { display: block; margin-left: 0; } }

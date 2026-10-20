@@ -281,7 +281,7 @@ function setupNameFor(setup: StrategySetup) {
   return `${liquidity.sweptLevelKind} sweep, ${confirmation}`;
 }
 
-export function paperBatchMetrics(rows: StoredTrade[]) {
+export function paperBatchMetrics(rows: Array<Pick<StoredTrade, "status" | "result_r" | "trade_sequence">>) {
   const resolved = rows
     .filter((row) => row.status === "closed" && row.result_r !== null)
     .map((row) => ({ ...row, resultR: Number(row.result_r) }))
@@ -1782,10 +1782,10 @@ const EMPTY_WATCH_ROW = {
 };
 
 export async function watchlistSnapshot() {
-  const paper = await query(`SELECT watch.instrument,watch.evaluated_at AS "evaluatedAt",watch.data_status AS "dataStatus",watch.setup_status AS "setupStatus",COALESCE(trade.direction,watch.direction) AS direction,watch.bid::float,watch.ask::float,watch.spread_pips::float AS "spreadPips",COALESCE(trade.entry,watch.entry)::float AS entry,COALESCE(trade.stop,watch.stop)::float AS stop,COALESCE(trade.target,watch.target)::float AS target,watch.session,watch.conditions,watch.features,watch.open_trade_id AS "openTradeId",watch.batch_number AS "batchNumber",watch.updated_at AS "updatedAt",trade.trade_sequence::text AS "tradeSequence" FROM paper_watch_snapshots watch LEFT JOIN paper_strategy_trades trade ON trade.id=watch.open_trade_id ORDER BY array_position($1::text[],watch.instrument)`, [MAJOR_INSTRUMENTS]);
+  const paper = query(`SELECT watch.instrument,watch.evaluated_at AS "evaluatedAt",watch.data_status AS "dataStatus",watch.setup_status AS "setupStatus",COALESCE(trade.direction,watch.direction) AS direction,watch.bid::float,watch.ask::float,watch.spread_pips::float AS "spreadPips",COALESCE(trade.entry,watch.entry)::float AS entry,COALESCE(trade.stop,watch.stop)::float AS stop,COALESCE(trade.target,watch.target)::float AS target,watch.session,watch.conditions,watch.features,watch.open_trade_id AS "openTradeId",watch.batch_number AS "batchNumber",watch.updated_at AS "updatedAt",trade.trade_sequence::text AS "tradeSequence" FROM paper_watch_snapshots watch LEFT JOIN paper_strategy_trades trade ON trade.id=watch.open_trade_id ORDER BY array_position($1::text[],watch.instrument)`, [MAJOR_INSTRUMENTS]);
   // The live collector writes here. Prefer it so pairs added after the last
   // liquidity-cycle snapshot still appear as connected once they have been evaluated.
-  const multi = await query(
+  const multi = query(
     `SELECT DISTINCT ON (watch.instrument)
             watch.instrument,
             watch.evaluated_at AS "evaluatedAt",
@@ -1809,8 +1809,9 @@ export async function watchlistSnapshot() {
        LEFT JOIN paper_strategy_trades trade ON trade.id = watch.open_trade_id
       ORDER BY watch.instrument, watch.selected DESC, watch.updated_at DESC`,
   );
-  const paperByInstrument = new Map(paper.rows.map((row: any) => [row.instrument, row]));
-  const multiByInstrument = new Map(multi.rows.map((row: any) => [row.instrument, row]));
+  const [paperResult, multiResult] = await Promise.all([paper, multi]);
+  const paperByInstrument = new Map(paperResult.rows.map((row: any) => [row.instrument, row]));
+  const multiByInstrument = new Map(multiResult.rows.map((row: any) => [row.instrument, row]));
   return MAJOR_INSTRUMENTS.map((instrument) =>
     multiByInstrument.get(instrument)
     ?? paperByInstrument.get(instrument)
@@ -1818,27 +1819,23 @@ export async function watchlistSnapshot() {
   );
 }
 
-export async function paperCycleOverview() {
-  const batches = await query(`SELECT id,batch_number AS "batchNumber",status,assigned_count AS "assignedCount",configuration,summary,recommendation,decision,decision_note AS "decisionNote",started_at AS "startedAt",completed_at AS "completedAt" FROM paper_strategy_batches ORDER BY batch_number DESC LIMIT 20`);
-  // Multi-strategy opens one collecting batch per family. Picking only the
-  // highest batch_number then showed a brand-new family batch as 1/100 while
-  // older collecting batches held the real trades (and the dashboard still
-  // labelled lifetime opens onto that empty batch). Prefer the fullest
-  // collecting batch; fall back to the fullest non-complete.
-  const incomplete = (batches.rows as Array<{ id: string; batchNumber: number; status: string; assignedCount: number | string }>).filter(
-    (batch) => batch.status !== "complete",
-  );
-  const byAssignedThenNumber = (
-    a: { assignedCount: number | string; batchNumber: number },
-    b: { assignedCount: number | string; batchNumber: number },
-  ) => Number(b.assignedCount) - Number(a.assignedCount) || Number(b.batchNumber) - Number(a.batchNumber);
-  const collecting = incomplete.filter((batch) => batch.status === "collecting");
-  const current = (collecting.length ? collecting : incomplete).slice().sort(byAssignedThenNumber)[0] ?? null;
-  const currentTrades = current ? await query(`SELECT id,trade_sequence::text AS "tradeSequence",instrument,direction,status,outcome,entry::float,stop::float,target::float,exit::float,result_r::float AS "resultR",nominal_risk_percent::float AS "nominalRiskPercent",nominal_risk_amount::float AS "nominalRiskAmount",paper_pl::float AS "paperPl",spread_pips::float AS "spreadPips",session,weekday,planned_r::float AS "plannedR",checklist_score::float AS "checklistScore",news_status AS "newsStatus",max_favorable_r::float AS "maxFavorableR",max_adverse_r::float AS "maxAdverseR",opened_at AS "openedAt",closed_at AS "closedAt",exit_reason AS "exitReason",review FROM paper_strategy_trades WHERE batch_id=$1 ORDER BY trade_sequence DESC`, [(current as any).id]) : { rows: [] };
-  const liveSummary = paperBatchMetrics((currentTrades.rows as any[]).map((row) => ({ ...row, trade_sequence: row.tradeSequence, result_r: row.resultR, spread_pips: row.spreadPips, opened_at: row.openedAt, closed_at: row.closedAt })) as StoredTrade[]);
-  // Trust the live trade rows over the denormalised counter for display. The
-  // counter can lag if a write path inserted without bumping assigned_count.
-  const assignedCount = liveSummary.assigned;
+// Historical display metrics may lag by at most a minute. Open positions and
+// execution/risk reads are not cached. Coalesce concurrent dashboard visits.
+let lifetimeMetricsCache: { expiresAt: number; pending: Promise<ReturnType<typeof paperBatchMetrics>> } | null = null;
+function cachedLifetimeMetrics() {
+  if (lifetimeMetricsCache && lifetimeMetricsCache.expiresAt > Date.now()) return lifetimeMetricsCache.pending;
+  const pending = query<Pick<StoredTrade, "status" | "result_r" | "trade_sequence">>(
+    "SELECT status,result_r::text,trade_sequence::text FROM paper_strategy_trades ORDER BY trade_sequence",
+  ).then(result => paperBatchMetrics(result.rows));
+  const entry = { expiresAt: Infinity, pending };
+  lifetimeMetricsCache = entry;
+  void pending.then(() => { entry.expiresAt = Date.now() + 60_000; }, () => {
+    if (lifetimeMetricsCache === entry) lifetimeMetricsCache = null;
+  });
+  return pending;
+}
+
+export async function paperCycleOpenTrades() {
   // Dashboard "Open trades" lists every still-open position (any batch), with
   // family + batch so the row can show EMA / Breakout / Mean rev / Momentum.
   const openTrades = await query(
@@ -1864,7 +1861,32 @@ export async function paperCycleOverview() {
      ORDER BY trade.opened_at DESC
      LIMIT 20`,
   );
-  const lifetimeRows = await query<StoredTrade>("SELECT id,trade_sequence::text,instrument,direction,status,outcome,result_r::text,session,weekday,spread_pips::text,opened_at,closed_at FROM paper_strategy_trades ORDER BY trade_sequence");
+  return openTrades.rows;
+}
+
+export async function paperCycleOverview() {
+  const batches = await query(`SELECT id,batch_number AS "batchNumber",status,assigned_count AS "assignedCount",configuration,summary,recommendation,decision,decision_note AS "decisionNote",started_at AS "startedAt",completed_at AS "completedAt" FROM paper_strategy_batches ORDER BY batch_number DESC LIMIT 20`);
+  // Multi-strategy opens one collecting batch per family. Picking only the
+  // highest batch_number then showed a brand-new family batch as 1/100 while
+  // older collecting batches held the real trades (and the dashboard still
+  // labelled lifetime opens onto that empty batch). Prefer the fullest
+  // collecting batch; fall back to the fullest non-complete.
+  const incomplete = (batches.rows as Array<{ id: string; batchNumber: number; status: string; assignedCount: number | string }>).filter(
+    (batch) => batch.status !== "complete",
+  );
+  const byAssignedThenNumber = (
+    a: { assignedCount: number | string; batchNumber: number },
+    b: { assignedCount: number | string; batchNumber: number },
+  ) => Number(b.assignedCount) - Number(a.assignedCount) || Number(b.batchNumber) - Number(a.batchNumber);
+  const collecting = incomplete.filter((batch) => batch.status === "collecting");
+  const current = (collecting.length ? collecting : incomplete).slice().sort(byAssignedThenNumber)[0] ?? null;
+  const currentTrades = current ? await query(`SELECT id,trade_sequence::text AS "tradeSequence",instrument,direction,status,outcome,entry::float,stop::float,target::float,exit::float,result_r::float AS "resultR",nominal_risk_percent::float AS "nominalRiskPercent",nominal_risk_amount::float AS "nominalRiskAmount",paper_pl::float AS "paperPl",spread_pips::float AS "spreadPips",session,weekday,planned_r::float AS "plannedR",checklist_score::float AS "checklistScore",news_status AS "newsStatus",max_favorable_r::float AS "maxFavorableR",max_adverse_r::float AS "maxAdverseR",opened_at AS "openedAt",closed_at AS "closedAt",exit_reason AS "exitReason",review FROM paper_strategy_trades WHERE batch_id=$1 ORDER BY trade_sequence DESC`, [(current as any).id]) : { rows: [] };
+  const liveSummary = paperBatchMetrics((currentTrades.rows as any[]).map((row) => ({ ...row, trade_sequence: row.tradeSequence, result_r: row.resultR, spread_pips: row.spreadPips, opened_at: row.openedAt, closed_at: row.closedAt })) as StoredTrade[]);
+  // Trust the live trade rows over the denormalised counter for display. The
+  // counter can lag if a write path inserted without bumping assigned_count.
+  const assignedCount = liveSummary.assigned;
+  const openTrades = await paperCycleOpenTrades();
+  const lifetimeSummary = await cachedLifetimeMetrics();
   // The account chart plots balance over time, which does not belong to any one
   // batch: sourced from the collecting batch it emptied the moment a batch was
   // filed, and every completed batch would erase the account's history.
@@ -1875,7 +1897,7 @@ export async function paperCycleOverview() {
   return {
     strategyVersion: ACTIVE_STRATEGY_VERSION,
     batchSize: BATCH_SIZE,
-    lifetimeSummary: paperBatchMetrics(lifetimeRows.rows),
+    lifetimeSummary,
     current: current
       ? {
           ...current,
@@ -1886,7 +1908,7 @@ export async function paperCycleOverview() {
       : null,
     batches: batches.rows,
     trades: currentTrades.rows,
-    openTrades: openTrades.rows,
+    openTrades,
     accountTrades: accountTrades.rows,
   };
 }
@@ -1906,7 +1928,39 @@ export type JournalTradeFilter = "all" | "wins" | "losses" | "active";
  * legacy id only for unlinked direct/manual orders, making every refresh
  * idempotent without duplicating a pending-entry journal record.
  */
-export async function syncPracticeBrokerHistory(userId: string) {
+type BrokerHistorySync = { status: "running" | "ready" | "unavailable" | "failed"; completedAt: string | null; retryAt: number };
+const brokerHistorySyncs = new Map<string, BrokerHistorySync>();
+
+/** Home reads stored rows immediately; one per-user broker import runs alongside it. */
+export function requestPracticeHistorySync(userId: string) {
+  let entry = brokerHistorySyncs.get(userId);
+  if (!entry || entry.retryAt <= Date.now()) {
+    entry = { status: "running", completedAt: null, retryAt: Infinity };
+    brokerHistorySyncs.set(userId, entry);
+    const current = entry;
+    void syncPracticeBrokerHistory(userId).then(result => {
+      current.status = result.unavailable ? "unavailable" : "ready";
+      current.completedAt = new Date().toISOString();
+      current.retryAt = Date.now() + (result.unavailable ? 15_000 : 60_000);
+    }, () => {
+      current.status = "failed"; current.completedAt = new Date().toISOString(); current.retryAt = Date.now() + 15_000;
+    });
+  }
+  return { status: entry.status, completedAt: entry.completedAt };
+}
+
+const brokerHistoryImports = new Map<string, Promise<{ imported: number; unavailable: boolean }>>();
+export function syncPracticeBrokerHistory(userId: string) {
+  const pending = brokerHistoryImports.get(userId);
+  if (pending) return pending;
+  const request = importPracticeBrokerHistory(userId);
+  brokerHistoryImports.set(userId, request);
+  const clear = () => { if (brokerHistoryImports.get(userId) === request) brokerHistoryImports.delete(userId); };
+  void request.then(clear, clear);
+  return request;
+}
+
+async function importPracticeBrokerHistory(userId: string) {
   let brokerTrades: Awaited<ReturnType<typeof getClosedPracticeTrades>>;
   try {
     brokerTrades = await getClosedPracticeTrades();

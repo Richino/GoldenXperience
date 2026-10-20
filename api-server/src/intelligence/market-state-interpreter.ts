@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { ANALYZE_V2, TIMEFRAME_MS } from "../../../frontend/src/lib/strategy/analyze-v2/config.js";
+import { candleEnd } from "../../../frontend/src/lib/strategy/candle-clock.js";
+import { ANALYZE_V2 } from "../../../frontend/src/lib/strategy/analyze-v2/config.js";
 import { checkTimeframe } from "../../../frontend/src/lib/strategy/analyze-v2/data-quality.js";
 import { readMarketFoundation, type MarketFoundation } from "../../../frontend/src/lib/strategy/analyze-v2/foundation.js";
 import { readTrend, type TrendRead } from "../../../frontend/src/lib/strategy/analyze-v2/structure.js";
@@ -11,13 +12,14 @@ import type { TradePlanInput } from "../trade-plans.js";
 import type { CalendarSnapshot } from "./calendar-snapshot.js";
 import { evidenceBalance, impactOnPair, isSupportedSchema, type Factor, type MarketIntelligence } from "./research-contract.js";
 
-export const MARKET_STATE_VERSION = "market-state-v1.0.0";
+export const MARKET_STATE_VERSION = "market-state-v1.2.0";
 const HOUR = 3_600_000;
 const round = (n: number) => Number(n.toFixed(4));
-type Market = Pick<GeneratorInput, "instrument" | "candles" | "quote" | "now">;
+type Market = Pick<GeneratorInput, "instrument" | "candles" | "quote" | "now" | "schedule" | "dataSnapshot">;
 export type MarketTechnicals = {
   foundation: MarketFoundation; h1: TrendRead | null; candles: Record<"H1" | "H4" | "D1", Candle[]>;
   issues: string[]; stale: boolean;
+  m15?: TrendRead | null; m15Candles?: Candle[]; available?: Partial<Record<"M15" | "H1" | "H4" | "D1", boolean>>;
 };
 
 /** Shared authoritative structure engine. No plan proposal, web request, or model call. */
@@ -25,29 +27,33 @@ export function readMarketTechnicals(market: Market): MarketTechnicals {
   const issues: string[] = [];
   const candles = {} as MarketTechnicals["candles"];
   let stale = false;
+  const available: NonNullable<MarketTechnicals["available"]> = {};
   for (const tf of ["H1", "H4", "D1"] as const) {
     const supplied = market.candles[tf] ?? [];
     // Completed means its END is known at this clock, including in replays.
-    const usable = supplied.filter(c => c.complete === true && Number.isFinite(Date.parse(c.time)) && Date.parse(c.time) + TIMEFRAME_MS[tf] <= market.now);
-    const checked = checkTimeframe(tf, usable, tf, market.now, ANALYZE_V2.SWING, true);
+    const usable = supplied.filter(c => c.complete === true && Number.isFinite(Date.parse(c.time)) && candleEnd(Date.parse(c.time), tf) <= market.now);
+    const checked = checkTimeframe(tf, supplied, tf, market.now, ANALYZE_V2.SWING, true, market.schedule ?? {instrument: market.instrument});
     candles[tf] = checked.normalized.closed;
+    available[tf] = !checked.checks.some(c => c.status === "FAIL" || c.status === "UNKNOWN");
     for (const check of checked.checks) if (check.status === "FAIL" || check.status === "UNKNOWN") {
       issues.push(`${tf}: ${check.reason}`);
       if (/freshness/.test(check.id)) stale = true;
     }
     if (usable.some(c => ![c.open, c.high, c.low, c.close].every(n => Number.isFinite(n) && n > 0) || c.high < Math.max(c.open, c.close) || c.low > Math.min(c.open, c.close) || c.low > c.high)) issues.push(`${tf}: malformed OHLC prices.`);
-    const last = candles[tf].at(-1);
-    // Weekend acceptance never makes a previous week's feed current.
-    if (last && market.now - Date.parse(last.time) - TIMEFRAME_MS[tf] > 96 * HOUR) { stale = true; issues.push(`${tf}: last completed candle is over four days old.`); }
   }
-  const foundation = readMarketFoundation({ instrument: market.instrument, mode: "SWING", candles, quote: market.quote, now: market.now });
+  const foundation = readMarketFoundation({ instrument: market.instrument, mode: "SWING", candles, quote: market.quote, now: market.now, schedule: market.schedule });
   const h1 = candles.H1.length >= 60 ? readTrend(market.instrument, "H1", candles.H1, ANALYZE_V2.NORMAL.regime) : null;
   if (!foundation.primary?.sufficient || !foundation.higher?.sufficient || !h1?.sufficient) issues.push("Insufficient confirmed D1/H4/H1 structure.");
-  if (getForexSessionStatus(new Date(market.now)).marketOpen && !foundation.data.quote.executable) issues.push("Current OANDA quote is unavailable or stale while the market is open.");
-  return { foundation, h1, candles, issues: [...new Set(issues)], stale };
+  // A quote is mandatory for execution, not for describing completed candle structure.
+  const m15Data = checkTimeframe("M15", market.candles.M15, "M15", market.now, ANALYZE_V2.NORMAL, true, market.schedule ?? {instrument: market.instrument});
+  const m15Candles = m15Data.normalized.closed.filter(c => c.complete === true);
+  const m15 = m15Candles.length >= 60 ? readTrend(market.instrument, "M15", m15Candles, ANALYZE_V2.NORMAL.regime) : null;
+  available.M15 = Boolean(m15) && !m15Data.checks.some(c => c.status === "FAIL" || c.status === "UNKNOWN");
+  return { foundation, h1, candles, m15, m15Candles, available, issues: [...new Set(issues)], stale };
 }
 
 const direction = (trend: TrendRead | null) => trend?.direction === "UPTREND" ? 1 : trend?.direction === "DOWNTREND" ? -1 : 0;
+const structureWord = (trend: TrendRead) => trend.direction === "UPTREND" ? "bullish" : trend.direction === "DOWNTREND" ? "bearish" : trend.direction === "RANGE" ? "ranging" : trend.direction === "TRANSITION" ? "in transition" : "unclear";
 const topicOf = (factor: Factor) => {
   const text = `${factor.factor} ${factor.description}`.toLowerCase();
   if (/energy|oil|gas supply/.test(text)) return "energy";
@@ -133,6 +139,7 @@ export type InterpretMarketInput = {
   intelligence: MarketIntelligence; researchFresh: boolean; researchStaleReason?: string | null;
   market: Market; technical: MarketTechnicals; calendar: CalendarSnapshot | null;
   plans?: TradePlanInput[]; previous?: MarketStateSnapshot | null;
+  planEvaluation?: MarketStateSnapshot["planEvaluation"];
 };
 
 /** Pure, versioned synthesis. It never calls GPT, changes a plan, or grants entry permission. */
@@ -145,23 +152,57 @@ export function interpretMarketState(input: InterpretMarketInput): MarketStateSn
   if (!input.researchFresh) issues.push(input.researchStaleReason ?? "Research is stale.");
   if (!Number.isFinite(Date.parse(intel.research.createdAt)) || Date.parse(intel.research.createdAt) > now) issues.push("Research timestamp is invalid or in the future.");
   if (!Number.isFinite(Date.parse(intel.research.cutoffAt)) || Date.parse(intel.research.cutoffAt) > now) issues.push("Research cutoff is invalid or in the future.");
-  if (!calendar?.available || ![intel.base, intel.quote].every(c => calendar.currencies.includes(c)) || !Number.isFinite(Date.parse(calendar.readAt)) || Date.parse(calendar.readAt) > now || now - Date.parse(calendar.readAt) > 6 * HOUR) issues.push("Verified current calendar input is unavailable or stale.");
-  const closedAt = Object.fromEntries((["H1", "H4", "D1"] as const).map(tf => [tf, t.candles[tf].at(-1) ? new Date(Date.parse(t.candles[tf].at(-1)!.time) + TIMEFRAME_MS[tf]).toISOString() : null])) as MarketStateSnapshot["source"]["candleClosedAt"];
-  const fingerprint = createHash("sha256").update(JSON.stringify({ version: MARKET_STATE_VERSION, asOfHour: Math.floor(now / HOUR), research: intel, candles: t.candles,
+  const calendarUsable = Boolean(calendar?.available && [intel.base, intel.quote].every(c => calendar.currencies.includes(c)) && Number.isFinite(Date.parse(calendar.readAt)) && Date.parse(calendar.readAt) <= now && now - Date.parse(calendar.readAt) <= 6 * HOUR);
+  const evidenceLimits = [...intel.research.missingData];
+  if (!calendarUsable) evidenceLimits.push("Verified current calendar unavailable or stale: release timing and event reactions cannot be assessed. Execution still requires a verified calendar.");
+  const closedAt = Object.fromEntries((["H1", "H4", "D1"] as const).map(tf => [tf, t.candles[tf].at(-1) ? new Date(candleEnd(Date.parse(t.candles[tf].at(-1)!.time), tf)).toISOString() : null])) as MarketStateSnapshot["source"]["candleClosedAt"];
+  const fingerprint = createHash("sha256").update(JSON.stringify({ version: MARKET_STATE_VERSION, asOfHour: Math.floor(now / HOUR), research: intel, candles: t.candles, m15: t.m15Candles, availability: t.available, schedule: market.schedule,
     technical: [t.h1, t.foundation.primary, t.foundation.higher].map(r => r ? { direction: r.direction, atr: r.atr, swingHigh: r.lastSwingHigh, swingLow: r.lastSwingLow, protectedLevel: r.structureLevel } : null),
-    calendar, plans: (input.plans ?? []).map(p => ({ side: p.direction, setup: p.setupType, entry: [p.entryZoneLow, p.entryZoneHigh], stop: p.stopLoss, target: p.takeProfit, conditions: p.conditions, invalidation: p.plan.invalidation })), qualityIssues: issues })).digest("hex");
+    calendar, planEvaluation: input.planEvaluation, plans: (input.plans ?? []).map(p => ({ side: p.direction, setup: p.setupType, entry: [p.entryZoneLow, p.entryZoneHigh], stop: p.stopLoss, target: p.takeProfit, conditions: p.conditions, invalidation: p.plan.invalidation })), qualityIssues: issues })).digest("hex");
   const id = `${fingerprint.slice(0, 8)}-${fingerprint.slice(8, 12)}-4${fingerprint.slice(13, 16)}-8${fingerprint.slice(17, 20)}-${fingerprint.slice(20, 32)}`;
   const raw = evidenceBalance(intel.factors);
   const snapshot: MarketStateSnapshot = {
     schemaVersion: "1.0", engineVersion: MARKET_STATE_VERSION, id, inputHash: fingerprint, instrument: market.instrument, researchId: intel.research.id, generatedAt: new Date(now).toISOString(),
-    quality: { status: issues.length ? (!input.researchFresh || t.stale ? "STALE" : "UNAVAILABLE") : intel.research.missingData.length ? "PARTIAL" : "VALID", issues: [...new Set(issues)] },
-    source: { market: "oanda", marketOpen: getForexSessionStatus(new Date(now)).marketOpen, researchCreatedAt: intel.research.createdAt, calendarReadAt: calendar?.readAt ?? null, candleClosedAt: closedAt },
+    quality: { status: issues.length ? (!input.researchFresh || t.stale ? "STALE" : "UNAVAILABLE") : evidenceLimits.length ? "PARTIAL" : "VALID", issues: [...new Set(issues)] },
+    evidenceLimits,
+    planEvaluation: input.planEvaluation,
+    source: { schedule: market.schedule, dataSnapshot: market.dataSnapshot, market: "oanda", marketOpen: getForexSessionStatus(new Date(now)).marketOpen, researchCreatedAt: intel.research.createdAt, calendarReadAt: calendar?.readAt ?? null, calendarIssue: calendarUsable ? null : calendar?.note ?? "Verified current economic calendar is unavailable or stale.", candleClosedAt: closedAt },
     observed: { classification: "INSUFFICIENT_DATA", timeframe: "H1", asOf: closedAt.H1, explanation: "Mandatory inputs are not usable; no market interpretation is issued.", evidence: [], continuation: [], invalidation: [], recentMoveAtr: null, efficiency: null },
     fundamental: { classification: "INSUFFICIENT_EVIDENCE", explanation: "No interpretation while mandatory inputs are unavailable.", rawScores: { bullish: raw.bullish, bearish: raw.bearish }, adjusted: { bullish: 0, bearish: 0 }, catalysts: [] },
     forward: { shortTerm: { classification: "INDETERMINATE", horizon: "Next 24 trading hours", explanation: "Mandatory data checks must pass first.", supportingCatalystIds: [], opposingCatalystIds: [] }, swing: { classification: "INDETERMINATE", horizon: "Next 2–5 trading days", explanation: "Mandatory data checks must pass first.", supportingCatalystIds: [], opposingCatalystIds: [] } },
     opportunities: [], reactions: [], previous: null, summary: "Market interpretation unavailable: mandatory data checks did not pass.", costs: { modelCalls: 0, webSearchCalls: 0 },
   };
-  if (issues.length) return snapshot;
+  const researchValid = input.researchFresh && isSupportedSchema(intel.schemaVersion) && intel.pair === market.instrument
+    && [intel.research.createdAt, intel.research.cutoffAt].every(at => Number.isFinite(Date.parse(at)) && Date.parse(at) <= now);
+  const reads = { D1: t.foundation.higher, H4: t.foundation.primary, H1: t.h1, M15: t.m15 ?? null };
+  snapshot.source.structure = Object.fromEntries(Object.entries(reads).map(([tf, read]) => [tf, {
+    direction: t.available?.[tf as keyof typeof reads] !== false && read?.sufficient ? read.direction : null,
+    asOf: tf === "M15" ? t.m15Candles?.at(-1) ? new Date(candleEnd(Date.parse(t.m15Candles.at(-1)!.time), "M15")).toISOString() : null : closedAt[tf as "H1" | "H4" | "D1"],
+  }]));
+  if (issues.length) {
+    if (!researchValid) { snapshot.analysisStatus = "TECHNICAL_DATA_UNAVAILABLE"; return snapshot; }
+    // Research survives technical/calendar/quote failure. Each observation uses its own validated timeframe.
+    const catalysts = groupMarketCatalysts(intel, now);
+    const bullish = catalysts.reduce((n,c) => n+c.bullish,0), bearish = catalysts.reduce((n,c) => n+c.bearish,0);
+    const net = bullish + bearish ? (bullish-bearish)/(bullish+bearish) : 0;
+    snapshot.fundamental = { classification: !catalysts.length ? "INSUFFICIENT_EVIDENCE" : net > .2 ? "BULLISH" : net < -.2 ? "BEARISH" : "MIXED", explanation: "Validated research retained; technical gaps do not establish price direction.", rawScores: snapshot.fundamental.rawScores, adjusted: {bullish, bearish}, catalysts };
+    const tf = t.available?.H1 && t.h1 ? "H1" : t.available?.M15 && t.m15 ? "M15" : null;
+    if (tf) {
+      const read = tf === "H1" ? t.h1! : t.m15!;
+      snapshot.quality.status = "PARTIAL";
+      snapshot.observed = { ...snapshot.observed, timeframe: tf, asOf: snapshot.source.structure[tf]!.asOf,
+        classification: read.direction === "UPTREND" ? "BULLISH_TREND" : read.direction === "DOWNTREND" ? "BEARISH_TREND" : read.direction === "RANGE" ? "RANGE" : "VOLATILE_UNSTRUCTURED",
+        explanation: `Partial market analysis: validated completed ${tf} structure is ${read.direction.toLowerCase()}. Required higher-timeframe inputs have not all passed validation; swing plan eligibility is assessed separately.`,
+        evidence: read.evidence };
+      snapshot.summary = snapshot.observed.explanation;
+    } else {
+      snapshot.quality.status = "UNAVAILABLE";
+      snapshot.summary = "Technical market data unavailable — analysis temporarily incomplete.";
+    }
+    snapshot.analysisStatus = tf ? "ANALYSIS_PARTIAL" : "TECHNICAL_DATA_UNAVAILABLE";
+    return snapshot;
+  }
+  snapshot.analysisStatus = "ANALYSIS_COMPLETE";
 
   const h1 = t.h1!; const h4 = t.foundation.primary!; const d1 = t.foundation.higher!;
   const recent = t.candles.H1.slice(-13);
@@ -184,9 +225,10 @@ export function interpretMarketState(input: InterpretMarketInput): MarketStateSn
     ...snapshot.observed, classification: observed, recentMoveAtr: round(move), efficiency: round(efficiency),
     explanation: recovery ? `${direction(h1) === short ? "Confirmed H1 structure shows" : "Recent completed H1 price shows"} ${short > 0 ? "an upward recovery" : "a downward pullback"} against the ${direction(d1) ? "D1" : "H4"} trend.${move * short < 0 ? " The latest 12-hour net move has retraced within that structure." : ""} This is a countertrend recovery, not a confirmed higher-timeframe reversal.`
       : observed === "RANGE" ? "H4 structure is ranging and the recent H1 move does not establish directional continuation."
-      : observed === "VOLATILE_UNSTRUCTURED" ? "Confirmed structure and recent price movement do not establish an organized trend."
-      : `H1 movement and confirmed H4 structure point ${short > 0 ? "upward" : "downward"}.${observed.startsWith("STRONG") ? " D1 agrees and the recent move is directional relative to H1 volatility." : " A continuation remains conditional on later prices."}`,
+      : observed === "VOLATILE_UNSTRUCTURED" ? `Daily and hourly structure ${direction(d1) === direction(h1) && direction(h1) ? `both favour ${direction(h1) > 0 ? "buyers" : "sellers"}` : `are ${structureWord(d1)} and ${structureWord(h1)}, respectively`}, while H4 is ${structureWord(h4)}.${efficiency < 0.35 ? " Recent hourly movement is choppy, with substantial back-and-forth relative to net progress." : " The timeframes do not establish an organized trend."}`
+      : `H1 movement and confirmed H4 structure point ${short > 0 ? "upward" : "downward"}.${efficiency < 0.35 ? " Recent H1 movement is choppy; structural direction does not establish sustained momentum." : observed.startsWith("STRONG") ? " D1 agrees and the recent move is directional relative to H1 volatility." : " A continuation remains conditional on later prices."}`,
     evidence: [`D1: ${d1.direction}; H4: ${h4.direction}; H1: ${h1.direction}.`, `Last 12 completed H1 intervals moved ${round(move)} H1 ATR; path efficiency ${Math.round(efficiency * 100)}%.`, ...h1.evidence, ...h4.evidence.slice(0, 2)],
+    momentum: momentum > 0 ? "UPWARD" : momentum < 0 ? "DOWNWARD" : "CHOPPY",
   };
   const aheadZones = t.foundation.zones.filter(z => z.status === "ACTIVE" && (short > 0 ? z.type === "RESISTANCE" && z.high > h1.close : z.type === "SUPPORT" && z.low < h1.close))
     .sort((a, b) => short > 0 ? a.high - b.high : b.low - a.low);
@@ -230,12 +272,13 @@ export function interpretMarketState(input: InterpretMarketInput): MarketStateSn
       classification = score > 0 ? "SLIGHTLY_BULLISH" : "SLIGHTLY_BEARISH";
       explanation = "Recent independent catalysts support a tentative preference, but observed price has not confirmed continuation.";
     } else if (priced && priced * score < -0.2) explanation = "Observed price and the independent economic catalysts oppose each other. Neither is treated as a confirmed forecast.";
+    else if (horizon === "swing" && !priced) explanation = `Daily structure is ${structureWord(d1)} and H4 is ${structureWord(h4)}; a consistent higher-timeframe direction is unconfirmed. This is directional uncertainty, not missing candle data.`;
     const sign = classification.includes("BULLISH") ? 1 : classification.includes("BEARISH") ? -1 : 0;
     return { classification, horizon: snapshot.forward[horizon].horizon, explanation, supportingCatalystIds: sign ? catalysts.filter(c => c[key] * sign > 0).map(c => c.id) : [], opposingCatalystIds: sign ? catalysts.filter(c => c[key] * sign < 0).map(c => c.id) : [] };
   };
   snapshot.forward = { shortTerm: leanFor("shortTerm"), swing: leanFor("swing") };
   snapshot.opportunities = [opportunity(intel, "BUY", input.plans ?? []), opportunity(intel, "SELL", input.plans ?? [])];
-  snapshot.reactions = reactionsFor(calendar!, t.candles.H1, now);
+  snapshot.reactions = calendarUsable ? reactionsFor(calendar!, t.candles.H1, now) : [];
   if (input.previous && input.previous.instrument === market.instrument && Date.parse(input.previous.generatedAt) <= now) snapshot.previous = {
     id: input.previous.id, observedStateChanged: input.previous.observed.classification !== observed,
     shortTermChanged: input.previous.forward.shortTerm.classification !== snapshot.forward.shortTerm.classification,

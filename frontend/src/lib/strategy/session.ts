@@ -15,9 +15,14 @@ export const SYDNEY_TIME_ZONE = "Australia/Sydney";
 const SESSION_OPEN_MINUTES = 8 * 60;
 const SESSION_CLOSE_MINUTES = 17 * 60;
 
+const minuteFormatters = new Map<string, Intl.DateTimeFormat>();
+const newYorkSessionFormatter = new Intl.DateTimeFormat("en-US", { timeZone: NEW_YORK_TIME_ZONE, weekday: "short", hour: "numeric", hourCycle: "h23" });
+
 /** Minutes past local midnight in the given zone. */
 export function localMinutes(at: Date, timeZone: string) {
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(at);
+  let formatter = minuteFormatters.get(timeZone);
+  if (!formatter) { formatter = new Intl.DateTimeFormat("en-US", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }); minuteFormatters.set(timeZone, formatter); }
+  const parts = formatter.formatToParts(at);
   const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
   const minute = Number(parts.find((part) => part.type === "minute")?.value ?? "0");
   return hour * 60 + minute;
@@ -50,12 +55,7 @@ function centreOpen(at: Date, timeZone: string) {
  * which also stops entries at the forced exit.
  */
 export function getForexSessionStatus(now = new Date()): ForexSessionStatus {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: NEW_YORK_TIME_ZONE,
-    weekday: "short",
-    hour: "numeric",
-    hourCycle: "h23",
-  }).formatToParts(now);
+  const parts = newYorkSessionFormatter.formatToParts(now);
   const weekday = parts.find((part) => part.type === "weekday")?.value;
   const hour = Number(parts.find((part) => part.type === "hour")?.value);
 

@@ -132,6 +132,13 @@ await test("calendar 429 cooldown prevents repeated feed hits and recovers after
 });
 
 // ── Contract and validation ───────────────────────────────────────
+await test("new developments require returned citations and cannot occur after the research cutoff", () => {
+  const raw = answer("mixed"); raw.factors[0]!.observedAt = "2099-01-01T00:00:00Z";
+  const result = validate(raw); assert.ok(result.ok);
+  assert.ok(!result.intelligence.factors.some(f=>f.id==="F1"));
+  assert.ok(result.drops.some(d=>d.reason==="observed event is after the research cutoff"));
+  assert.ok(!result.intelligence.factors.some(f=>f.id==="F3"),"unverified new claims remain excluded");
+});
 await test("Test 7 — pair independence: the server derives each factor's pair direction from base/quote", () => {
   assert.equal(impactOnPair("EUR_USD", "USD", "weakens"), "bullish");
   assert.equal(impactOnPair("USD_JPY", "USD", "weakens"), "bearish");
@@ -276,7 +283,7 @@ await test("legacy empty calendar is refreshed once; complete calendar coverage 
   const released = snapshot.released.map((event) => ({ title: event.title, currency: event.currency, impact: event.impact, at: event.at }));
   assert.match(researchFreshness(row, released, NOW).reason ?? "", /missing verified calendar/);
   assert.equal(researchFreshness({ ...row, calendar_snapshot: snapshot }, released, NOW).fresh, true, "a refreshed report does not trigger another refresh loop");
-  assert.equal(researchFreshness({ ...row, calendar_snapshot: { ...snapshot, available: false } }, [], NOW).fresh, false, "an old report without calendar data cannot be reused even while the feed is down");
+  assert.equal(researchFreshness({ ...row, calendar_snapshot: { ...snapshot, available: false } }, [], NOW).fresh, true, "calendar outage alone does not authorize another paid research run; execution still requires a current verified schedule");
 });
 await test("budget stops optional research", () => {
   const settings = { ...researchSettings({} as NodeJS.ProcessEnv), dailyRunLimit: 3, dailyBudgetUsd: 1, monthlyBudgetUsd: 10 };

@@ -1,0 +1,267 @@
+{
+  "schemaVersion": "1.0",
+  "engineVersion": "market-state-v1.2.0",
+  "id": "f48f809c-cae6-4e7d-84f9-c570e1293b21",
+  "inputHash": "f48f809ccae63e7da4f9c570e1293b2161f94d2e62fddb4ceb30924a9e69235b",
+  "instrument": "EUR_USD",
+  "researchId": "f820bd9b-3771-459b-a746-f709417ae220",
+  "generatedAt": "2026-10-18T22:42:59.990Z",
+  "quality": {
+    "status": "PARTIAL",
+    "issues": []
+  },
+  "evidenceLimits": [
+    "The supplied verified calendar is empty. No release schedule, actual/forecast/previous figures or event-specific implications can be validated from it.",
+    "A synchronized Treasury–euro-area yield differential at the requested cutoff was not verified.",
+    "Current ECB rate-probability pricing was not verified.",
+    "Representative EUR/USD retail sentiment was not found; isolated public posts were insufficient.",
+    "Positioning after October 13 was not verified.",
+    "No fresh Sunday market reaction was verified.",
+    "No independently verified current French sovereign spread was obtained.",
+    "The supplied technical summary contains no prices, levels or indicators; none are introduced."
+  ],
+  "source": {
+    "dataSnapshot": {
+      "id": "oct18-reconstructed"
+    },
+    "market": "oanda",
+    "marketOpen": true,
+    "researchCreatedAt": "2026-10-18T22:41:06.397Z",
+    "calendarReadAt": "2026-10-18T22:41:06.397Z",
+    "candleClosedAt": {
+      "H1": "2026-10-18T22:00:00.000Z",
+      "H4": "2026-10-16T21:00:00.000Z",
+      "D1": "2026-10-16T21:00:00.000Z"
+    },
+    "structure": {
+      "D1": {
+        "direction": "DOWNTREND",
+        "asOf": "2026-10-16T21:00:00.000Z"
+      },
+      "H4": {
+        "direction": "UNCLEAR",
+        "asOf": "2026-10-16T21:00:00.000Z"
+      },
+      "H1": {
+        "direction": "TRANSITION",
+        "asOf": "2026-10-18T22:00:00.000Z"
+      },
+      "M15": {
+        "direction": "DOWNTREND",
+        "asOf": "2026-10-18T22:30:00.000Z"
+      }
+    }
+  },
+  "observed": {
+    "classification": "VOLATILE_UNSTRUCTURED",
+    "timeframe": "H1",
+    "asOf": "2026-10-18T22:00:00.000Z",
+    "explanation": "Daily and hourly structure are bearish and in transition, respectively, while H4 is unclear. The timeframes do not establish an organized trend.",
+    "evidence": [
+      "D1: DOWNTREND; H4: UNCLEAR; H1: TRANSITION.",
+      "Last 12 completed H1 intervals moved -3.4683 H1 ATR; path efficiency 43%.",
+      "Swing highs 1.12245 → 1.12695 (higher)",
+      "Swing lows 1.12081 → 1.12124 (higher)",
+      "Closed below the higher low at 1.12124",
+      "Swing highs 1.12114 → 1.12410 (higher)",
+      "Swing lows 1.11526 → 1.11129 (lower)"
+    ],
+    "continuation": [
+      {
+        "timeframe": "H1",
+        "relation": "CLOSE_BELOW",
+        "level": 1.1110758379563563,
+        "explanation": "A later completed H1 close through the next opposing zone strengthens continuation; plan-specific rules still apply."
+      }
+    ],
+    "invalidation": [
+      {
+        "timeframe": "H1",
+        "relation": "CLOSE_ABOVE",
+        "level": 1.12695,
+        "explanation": "A later completed H1 close through the opposing swing weakens the current interpretation; it does not automatically trigger the other trade."
+      }
+    ],
+    "recentMoveAtr": -3.4683,
+    "efficiency": 0.4264,
+    "momentum": "DOWNWARD"
+  },
+  "fundamental": {
+    "classification": "SLIGHTLY_BEARISH",
+    "rawScores": {
+      "bullish": 3,
+      "bearish": 6.5
+    },
+    "adjusted": {
+      "bullish": 2.4,
+      "bearish": 3.55
+    },
+    "catalysts": [
+      {
+        "id": "EUR:energy",
+        "topic": "energy",
+        "currency": "EUR",
+        "factorIds": [
+          "F3",
+          "F4"
+        ],
+        "sourceIds": [
+          "src_082"
+        ],
+        "bullish": 0,
+        "bearish": 1.2,
+        "shortTermNet": -1.2,
+        "swingNet": -1.2,
+        "latestObservedAt": "2026-10-17T00:00:00.000Z",
+        "persistence": "NOT_ESTABLISHED"
+      },
+      {
+        "id": "EUR:fiscal",
+        "topic": "fiscal",
+        "currency": "EUR",
+        "factorIds": [
+          "F5"
+        ],
+        "sourceIds": [
+          "src_031"
+        ],
+        "bullish": 0,
+        "bearish": 1.6,
+        "shortTermNet": -1.6,
+        "swingNet": -1.6,
+        "latestObservedAt": "2026-10-16T18:55:00.000Z",
+        "persistence": "NOT_ESTABLISHED"
+      },
+      {
+        "id": "EUR:positioning",
+        "topic": "positioning",
+        "currency": "EUR",
+        "factorIds": [
+          "F6"
+        ],
+        "sourceIds": [
+          "src_056"
+        ],
+        "bullish": 0,
+        "bearish": 0,
+        "shortTermNet": 0,
+        "swingNet": 0,
+        "latestObservedAt": "2026-10-13T00:00:00.000Z",
+        "persistence": "NOT_ESTABLISHED"
+      },
+      {
+        "id": "USD:energy",
+        "topic": "energy",
+        "currency": "USD",
+        "factorIds": [
+          "F7"
+        ],
+        "sourceIds": [
+          "src_097"
+        ],
+        "bullish": 0,
+        "bearish": 0,
+        "shortTermNet": 0,
+        "swingNet": 0,
+        "latestObservedAt": "2026-10-14T00:00:00.000Z",
+        "persistence": "NOT_ESTABLISHED"
+      },
+      {
+        "id": "USD:policy-and-rates",
+        "topic": "policy-and-rates",
+        "currency": "USD",
+        "factorIds": [
+          "F1",
+          "F2"
+        ],
+        "sourceIds": [
+          "src_031",
+          "src_096"
+        ],
+        "bullish": 2.4,
+        "bearish": 0.75,
+        "shortTermNet": 2.2125,
+        "swingNet": 2.025,
+        "latestObservedAt": "2026-10-16T18:55:00.000Z",
+        "persistence": "NOT_ESTABLISHED"
+      }
+    ],
+    "explanation": "3 directional catalyst groups remain after grouping related stories and discounting older or undated evidence. Bearish support is stronger on this adjusted evidence read. Persistence is not established. These weights are not probabilities."
+  },
+  "forward": {
+    "shortTerm": {
+      "classification": "SLIGHTLY_BEARISH",
+      "horizon": "Next 24 trading hours",
+      "explanation": "Completed H1 price behaviour supports a bearish preference; 2 distinct catalyst groups support it. Further price confirmation is still required.",
+      "supportingCatalystIds": [
+        "EUR:energy",
+        "EUR:fiscal"
+      ],
+      "opposingCatalystIds": [
+        "USD:policy-and-rates"
+      ]
+    },
+    "swing": {
+      "classification": "INDETERMINATE",
+      "horizon": "Next 2–5 trading days",
+      "explanation": "Daily structure is bearish and H4 is unclear; a consistent higher-timeframe direction is unconfirmed. This is directional uncertainty, not missing candle data.",
+      "supportingCatalystIds": [],
+      "opposingCatalystIds": []
+    }
+  },
+  "opportunities": [
+    {
+      "direction": "BUY",
+      "status": "RESEARCH_CASE_ONLY",
+      "thesis": "Research perspective: reduced immediate Fed tightening expectations could continue to support EUR/USD, especially if crowded euro shorts are reduced.",
+      "setupType": null,
+      "trigger": null,
+      "entryZone": null,
+      "stop": null,
+      "target": null,
+      "confirmation": [
+        "F1 persists in newly verified market evidence.",
+        "F6 shifts from accumulated shorts toward actual covering.",
+        "F4 and F5 diminish without a material deterioration in euro-area activity."
+      ],
+      "invalidation": [
+        "US yield support returns.",
+        "Energy disruption intensifies.",
+        "French fiscal concerns worsen.",
+        "Further Fed tightening receives clearer current support."
+      ],
+      "expiresAt": null,
+      "readiness": "NO_NEW_PLAN"
+    },
+    {
+      "direction": "SELL",
+      "status": "RESEARCH_CASE_ONLY",
+      "thesis": "Research perspective: euro-specific energy and fiscal vulnerabilities could outweigh the recent reduction in dollar support.",
+      "setupType": null,
+      "trigger": null,
+      "entryZone": null,
+      "stop": null,
+      "target": null,
+      "confirmation": [
+        "F4 intensifies without an offsetting improvement in euro-area activity.",
+        "Current Fed communication reinforces F2 rather than the repricing described in F1.",
+        "F5 broadens into more persistent sovereign-market stress."
+      ],
+      "invalidation": [
+        "Energy risks ease materially.",
+        "Reduced dollar yield support persists.",
+        "Speculative euro shorts are covered rather than extended."
+      ],
+      "expiresAt": null,
+      "readiness": "NO_NEW_PLAN"
+    }
+  ],
+  "reactions": [],
+  "previous": null,
+  "summary": "Unstructured / two-way. Near-term preference: slightly bearish; swing: indeterminate. A research preference does not confirm an entry.",
+  "costs": {
+    "modelCalls": 0,
+    "webSearchCalls": 0
+  },
+  "analysisStatus": "ANALYSIS_COMPLETE"
+}

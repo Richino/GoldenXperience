@@ -358,6 +358,9 @@ export function validateResearch(raw: unknown, input: {
     if (!id || factorIds.has(id)) { drops.push({ where: "factors", reason: "missing or duplicate factor id", value: id }); continue; }
     if (!effect || !/^[A-Z]{3}$/.test(currency)) { drops.push({ where: `factor ${id}`, reason: "invalid currency or effect", value: { currency, effect: f.effectOnCurrency } }); continue; }
     if (!sourceIds.length) { drops.push({ where: `factor ${id}`, reason: "no citation returned by the web search", value: text(f.factor, 120) }); continue; }
+    if (typeof f.observedAt === "string" && Number.isFinite(Date.parse(f.observedAt)) && Date.parse(f.observedAt) > Date.parse(createdAt)) {
+      drops.push({where:`factor ${id}`,reason:"observed event is after the research cutoff",value:f.observedAt}); continue;
+    }
     const evidenceType = one<EvidenceType>(f.evidenceType, ENUM.evidence) ?? "hypothesis";
     factorIds.add(id);
     factors.push({

@@ -32,6 +32,30 @@ try {
   await c.query("CREATE TEMP TABLE paper_trades (LIKE public.paper_trades INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES) ON COMMIT DROP");
   await createNewsRun(run, transact);
   assert.equal((await createNewsRun({ ...structuredClone(run), id: randomUUID() }, transact)).id, id);
+  for (const state of ["CANCELLED", "SKIPPED", "EXPIRED", "CLOSED", "HALTED"] as const) {
+    await c.query("UPDATE news_straddle_runs SET snapshot=jsonb_set(snapshot,'{state}',to_jsonb($2::text)) WHERE id=$1", [id, state]);
+    await assert.rejects(() => createNewsRun(structuredClone(run), transact), /Monitoring has not restarted/);
+  }
+  await c.query("UPDATE news_straddle_runs SET snapshot=$2::jsonb WHERE id=$1", [id, JSON.stringify(run)]);
+  const cancelled = { ...structuredClone(run), state: "CANCELLED" as const, endedAt: now, reason: "Cancelled by user." };
+  cancelled.legs.long.state = "CANCELLED"; cancelled.legs.short.state = "CANCELLED";
+  const restart = { ...structuredClone(run), targetSubmitAt: new Date(Date.now() + 60_000).toISOString() };
+  await c.query("UPDATE pending_manual_entries SET status='CANCELLED'");
+  for (const marker of ["submittedAt", "httpDispatchedAt", "orderId", "tradeId"] as const) {
+    const attempted = structuredClone(cancelled); attempted.legs.long[marker] = now;
+    await c.query("UPDATE news_straddle_runs SET snapshot=$2::jsonb WHERE id=$1", [id, JSON.stringify(attempted)]);
+    await assert.rejects(() => createNewsRun(structuredClone(restart), transact), /execution attempt cannot be restarted/);
+  }
+  await c.query("UPDATE news_straddle_runs SET snapshot=$2::jsonb,state='CANCELLED',ended_at=now() WHERE id=$1", [id, JSON.stringify(cancelled)]);
+  await assert.rejects(() => createNewsRun(structuredClone(run), transact), /Too late/);
+  const restarted = await createNewsRun(structuredClone(restart), transact);
+  assert.equal(restarted.id, id); assert.equal(restarted.state, "SCHEDULED"); assert.equal(restarted.revision, 1);
+  assert.equal(restarted.timeline.at(-1)!.event, "restarted");
+  assert.equal((await c.query("SELECT ended_at FROM news_straddle_runs WHERE id=$1", [id])).rows[0]!.ended_at, null);
+  assert.equal((await c.query("SELECT count(*)::int AS count FROM pending_manual_entries WHERE status='PENDING'")).rows[0]!.count, 2);
+  assert.equal((await createNewsRun(structuredClone(restart), transact)).revision, 1);
+  assert.equal((await c.query("SELECT count(*)::int AS count FROM news_straddle_audit WHERE run_id=$1 AND event='restarted'", [id])).rows[0]!.count, 1);
+  await c.query("UPDATE news_straddle_runs SET snapshot=$2::jsonb,state='SCHEDULED',revision=0 WHERE id=$1", [id, JSON.stringify(run)]);
   await assert.rejects(() => createNewsRun({ ...structuredClone(run), settings: { ...run.settings, distancePips: 20 } }, transact), /cannot be replaced/);
   await assert.rejects(() => createNewsRun({ ...structuredClone(run), release: { ...run.release, events: run.release.events!.slice(0, 2) } }, transact), /releases cannot be replaced/);
   await assert.rejects(() => createNewsRun({ ...structuredClone(run), id: randomUUID(), eventKey: "same-release-other-title", instrument: "GBP_USD" }, transact), /risk budget/);

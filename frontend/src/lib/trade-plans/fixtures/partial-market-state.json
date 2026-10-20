@@ -1,0 +1,133 @@
+{
+  "schemaVersion": "1.0",
+  "engineVersion": "market-state-v1.1.0",
+  "id": "14ffadcf-83b3-41d9-8bef-de69cde549cc",
+  "inputHash": "14ffadcf83b3d1d9dbefde69cde549cc240b7ea590da9bfd4e22f13af68a2847",
+  "instrument": "EUR_USD",
+  "researchId": "00000000-0000-4000-8000-0000000000cc",
+  "generatedAt": "2026-10-14T12:00:00.000Z",
+  "quality": {
+    "status": "PARTIAL",
+    "issues": [
+      "H4: No H4 candles were returned.",
+      "Insufficient confirmed D1/H4/H1 structure."
+    ]
+  },
+  "source": {
+    "market": "oanda",
+    "marketOpen": true,
+    "researchCreatedAt": "2026-10-14T11:58:00.000Z",
+    "calendarReadAt": "2026-10-14T11:58:00.000Z",
+    "candleClosedAt": {
+      "H1": "2026-10-14T12:00:00.000Z",
+      "H4": null,
+      "D1": "2026-10-13T21:00:00.000Z"
+    },
+    "structure": {
+      "D1": {
+        "direction": "RANGE",
+        "asOf": "2026-10-13T21:00:00.000Z"
+      },
+      "H4": {
+        "direction": null,
+        "asOf": null
+      },
+      "H1": {
+        "direction": "RANGE",
+        "asOf": "2026-10-14T12:00:00.000Z"
+      },
+      "M15": {
+        "direction": null,
+        "asOf": null
+      }
+    }
+  },
+  "observed": {
+    "classification": "RANGE",
+    "timeframe": "H1",
+    "asOf": "2026-10-14T12:00:00.000Z",
+    "explanation": "Partial market analysis: validated completed H1 structure is range. Missing inputs prevent a complete assessment and block new plans.",
+    "evidence": [
+      "Swing highs 1.12334 → 1.12396 (higher)",
+      "Swing lows 1.11867 → 1.11930 (higher)",
+      "Box 1.11867–1.12396"
+    ],
+    "continuation": [],
+    "invalidation": [],
+    "recentMoveAtr": null,
+    "efficiency": null
+  },
+  "fundamental": {
+    "classification": "BULLISH",
+    "explanation": "Validated research retained; technical gaps do not establish price direction.",
+    "rawScores": {
+      "bullish": 6,
+      "bearish": 0
+    },
+    "adjusted": {
+      "bullish": 6,
+      "bearish": 0
+    },
+    "catalysts": [
+      {
+        "id": "EUR:policy-and-rates",
+        "topic": "policy-and-rates",
+        "currency": "EUR",
+        "factorIds": [
+          "F2"
+        ],
+        "sourceIds": [
+          "s2"
+        ],
+        "bullish": 3,
+        "bearish": 0,
+        "shortTermNet": 3,
+        "swingNet": 3,
+        "latestObservedAt": "2026-10-14T11:00:00.000Z",
+        "persistence": "NOT_ESTABLISHED"
+      },
+      {
+        "id": "USD:policy-and-rates",
+        "topic": "policy-and-rates",
+        "currency": "USD",
+        "factorIds": [
+          "F1"
+        ],
+        "sourceIds": [
+          "s1"
+        ],
+        "bullish": 3,
+        "bearish": 0,
+        "shortTermNet": 3,
+        "swingNet": 3,
+        "latestObservedAt": "2026-10-14T11:00:00.000Z",
+        "persistence": "NOT_ESTABLISHED"
+      }
+    ]
+  },
+  "forward": {
+    "shortTerm": {
+      "classification": "INDETERMINATE",
+      "horizon": "Next 24 trading hours",
+      "explanation": "Mandatory data checks must pass first.",
+      "supportingCatalystIds": [],
+      "opposingCatalystIds": []
+    },
+    "swing": {
+      "classification": "INDETERMINATE",
+      "horizon": "Next 2–5 trading days",
+      "explanation": "Mandatory data checks must pass first.",
+      "supportingCatalystIds": [],
+      "opposingCatalystIds": []
+    }
+  },
+  "opportunities": [],
+  "reactions": [],
+  "previous": null,
+  "summary": "Partial market analysis: validated completed H1 structure is range. Missing inputs prevent a complete assessment and block new plans.",
+  "costs": {
+    "modelCalls": 0,
+    "webSearchCalls": 0
+  },
+  "analysisStatus": "ANALYSIS_PARTIAL"
+}

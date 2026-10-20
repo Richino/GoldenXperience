@@ -20,6 +20,7 @@ import {
   type TradePlan,
 } from "@/lib/trade-plans/api";
 import styles from "./plan-analyze.module.css";
+import { storedPlanResult, technicalAnalysisStatus } from "@/lib/trade-plans/analysis-status";
 import { MarketRead, PlanEvidence, type ResearchState } from "./market-read";
 import { PlanConfirm, type PlanConfirmRequest } from "@/components/dashboard/plan-confirm";
 import { splitShared } from "@/components/dashboard/ledger-plans";
@@ -112,8 +113,8 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
     // Completed: the plans are built right after the report is stored.
     if (!job.plans) return;
     if (job.plans.result === "PLANS" && (await loadAwaiting(true))) return;
-    if (job.plans.result === "NO_VALID_SETUP") {
-      setPhase({ kind: "results", result: { analysisId: job.id, plans: [], planIds: [], result: "NO_VALID_SETUP", reason: job.plans.reason, rejected: [] } });
+    if (["NO_VALID_SETUP", "TECHNICAL_DATA_UNAVAILABLE", "DATA_VALIDATION_FAILED"].includes(job.plans.result)) {
+      setPhase({ kind: "results", result: { analysisId: job.id, plans: [], planIds: [], result: storedPlanResult(job.plans.result, job.plans.reason) as GenerateResult["result"], reason: job.plans.reason, rejected: [] } });
       return;
     }
     if (job.plans.result === "WATCHING") { setPhase({ kind: "idle" }); return; }
@@ -137,6 +138,20 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
     }, 5_000);
     return () => { stopped = true; window.clearInterval(timer); };
   }, [instrument, settleJob, watchJob]);
+
+  // A technical retry in another tab can recover the stored interpretation.
+  // Refresh only persisted state while the sheet is open; no research is started.
+  useEffect(() => {
+    if (!open || watchJob) return;
+    let stopped = false;
+    const timer = window.setInterval(() => {
+      const generation = researchRequest.current;
+      void tradePlansApi.research(instrument).then(next => {
+        if (!stopped && generation === researchRequest.current) setResearch(current => current.loading ? current : { ...current, result: next });
+      }).catch(() => undefined);
+    }, 20_000);
+    return () => { stopped = true; window.clearInterval(timer); };
+  }, [instrument, open, watchJob]);
 
   const cancelResearch = useCallback(async () => {
     const job = research.result?.job;
@@ -201,11 +216,30 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
     // Fresh research already exists: build the plans from it now.
     try {
       const result = await tradePlansApi.generate(instrument);
-      if (id === request.current) setPhase({ kind: "results", result });
+      const refreshed = await tradePlansApi.research(instrument).catch(() => null);
+      if (id === request.current) {
+        if (refreshed) setResearch({ loading: false, result: refreshed, error: null });
+        setPhase({ kind: "results", result });
+      }
     } catch (error) {
       if (id === request.current) setPhase({ kind: "error", message: error instanceof Error ? error.message : "Analysis failed." });
     }
   }, [active.length, disabled, instrument, loadAwaiting, runResearch]);
+
+  const retryTechnical = useCallback(async () => {
+    const id = ++request.current;
+    setPhase({ kind: "analyzing" });
+    try {
+      // This endpoint only reads existing validated research. It never submits a model request.
+      const result = await tradePlansApi.generate(instrument);
+      const refreshed = await tradePlansApi.research(instrument).catch(() => null);
+      if (id !== request.current) return;
+      if (refreshed) setResearch({ loading: false, result: refreshed, error: null });
+      setPhase({ kind: "results", result });
+    } catch (error) {
+      if (id === request.current) setPhase({ kind: "error", message: error instanceof Error ? error.message : "Technical retry failed." });
+    }
+  }, [instrument]);
 
   const act = useCallback(async (work: () => Promise<unknown>, after: () => void) => {
     setBusy(true);
@@ -270,7 +304,7 @@ export function usePlanAnalyze(instrument: string, disabled = false) {
   // What the chart's Analyze button opens: research in progress, plans to review, plans being watched, or a new analysis.
   const status: "generating" | "review" | "watching" | "new" =
     jobRunning || phase.kind === "researching" ? "generating" : awaitingCount > 0 || (phase.kind === "results" && phase.result.plans.length > 0) ? "review" : active.length ? "watching" : "new";
-  return { phase, active, status, open, setOpen, busy, actionError, run, accept, dismiss, stopWatching, cancel, analyzing: phase.kind === "analyzing", research, refreshResearch: () => void runResearch(true), cancelResearch: () => void cancelResearch(), review };
+  return { phase, active, status, open, setOpen, busy, actionError, run, retryTechnical, accept, dismiss, stopWatching, cancel, analyzing: phase.kind === "analyzing", research, refreshResearch: () => void runResearch(true), cancelResearch: () => void cancelResearch(), review };
 }
 
 export type PlanAnalyzeState = ReturnType<typeof usePlanAnalyze>;
@@ -516,22 +550,25 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
   if (phase.kind === "results") {
     const { result } = phase;
     const plans = result.plans;
+    const snapshot = state.research.result?.marketState?.snapshot;
+    const partialTechnical = result.analysisStatus === "ANALYSIS_PARTIAL" || (snapshot && technicalAnalysisStatus(snapshot) === "ANALYSIS_PARTIAL");
     if (!plans.length) {
       return (
         <div className="nl-an-body">
           {top(`Analyze · ${pair}`)}
           <div className="nl-an-scroll">
-            <h2 id={titleId} className={styles.quietTitle}>No setup worth watching right now</h2>
+            <MarketRead state={state.research} onRefresh={state.refreshResearch} onCancel={state.cancelResearch} />
+            <h2 id={titleId} className={styles.quietTitle}>{result.result === "NO_VALID_SETUP" ? "Analysis complete · no qualifying setup" : result.result === "DATA_VALIDATION_FAILED" ? "Market data validation failed · swing plans paused" : partialTechnical ? "Partial technical analysis · swing plans paused" : "Technical data unavailable · swing plans paused"}</h2>
             {result.rejected.length ? (
               <ul className={styles.rejected}>
                 {result.rejected.map((item) => <li key={`${item.direction}-${item.setupType}`}><strong>{item.direction}</strong> {item.reason}</li>)}
               </ul>
             ) : result.reason ? <p className={styles.lede}>{result.reason}</p> : null}
-            {/* No setup to trade, but the market context is still worth reading. */}
-            <MarketRead state={state.research} onRefresh={state.refreshResearch} onCancel={state.cancelResearch} />
+            {result.result !== "NO_VALID_SETUP" ? <p className={styles.lede}>BUY and SELL evaluations were skipped. Retry technical analysis to reuse the saved research.</p> : null}
           </div>
           <div className={styles.dock}>
             <div className={styles.footer}>
+              {result.result !== "NO_VALID_SETUP" ? <button type="button" className="nl-an-primary pressable" onClick={() => void state.retryTechnical()}>Retry technical analysis</button> : null}
               <button type="button" className="nl-an-secondary pressable" onClick={state.dismiss}>Close</button>
             </div>
           </div>
@@ -546,6 +583,7 @@ function PlanAnalyzeBody({ state, instrument, price, titleId, onClose, onNewEntr
         <div className="nl-an-scroll">
           <MarketRead state={state.research} onRefresh={state.refreshResearch} onCancel={state.cancelResearch} />
           <Ladder plans={plans} price={price} watching={false} report={state.research.result?.research?.report?.schemaVersion ? state.research.result.research.report : null} />
+          {(["BUY", "SELL"] as const).filter(side => !plans.some(plan => plan.direction === side)).map(side => <div key={side} className={styles.rejected}><strong>{side} · no qualifying setup</strong>{result.rejected.filter(r => r.direction === side).map(r => <p key={r.setupType}>{r.reason}</p>)}</div>)}
           {plans.some((plan) => plan.direction === "BUY") && plans.some((plan) => plan.direction === "SELL") ? (
             <p className={styles.footnote}>Both scenarios can be watched. If one invalidates, the other keeps its own trigger; invalidation alone never confirms the opposite trade.</p>
           ) : null}

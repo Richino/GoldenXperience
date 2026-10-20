@@ -1,3 +1,4 @@
+import { checkQuote } from "../../frontend/src/lib/strategy/analyze-v2/data-quality.js";
 import { getForexSessionStatus } from "../../frontend/src/lib/strategy/session.js";
 import { precisionFor } from "../../frontend/src/lib/instruments/catalog.js";
 import type { NewsItem } from "../../frontend/src/lib/strategy/analyze-v2/risk.js";
@@ -118,7 +119,7 @@ type Bar = { index: number; open: number; close: number; o: number; h: number; l
 
 function bars(candles: Candle[], step: number, now: number, sign: 1 | -1): Bar[] {
   return candles
-    .filter((candle) => candle.complete !== false && Date.parse(candle.time) + step <= now)
+    .filter((candle) => candle.complete === true && Date.parse(candle.time) + step <= now)
     .sort((a, b) => a.time.localeCompare(b.time))
     .map((candle, index) => {
       const open = Date.parse(candle.time);
@@ -458,7 +459,9 @@ export function evaluateConfirmation(input: ConfirmationInput): Confirmation {
   // ── Reward/risk at the confirming close (deterministic from candles).
   // Mid prices only: this verdict is permanent, so it must not depend on the
   // spread at evaluation time. The live spread is judged in the safety checks.
-  const spread = input.quote ? input.quote.ask - input.quote.bid : null;
+  const checkedQuote = checkQuote(plan.instrument, input.quote, now, input.limits.maxDataAgeSeconds * 1000);
+  const quote = checkedQuote.executable;
+  const spread = quote ? quote.ask - quote.bid : null;
   const cost = spread ?? 0;
   const atClose = (target - completed.c) / (completed.c - stop);
   if (!(completed.c > stop) || atClose < minRewardRisk) {
@@ -474,15 +477,13 @@ export function evaluateConfirmation(input: ConfirmationInput): Confirmation {
   // ── Execution safety, judged now. It never adds a confirmation condition: it
   // only says whether an order may go in at this moment.
   const blocks: string[] = [];
-  const quoteAge = input.quote ? (now - Date.parse(input.quote.time)) / 1000 : Infinity;
-  if (!input.quote) blocks.push("No live quote.");
-  else if (!(quoteAge <= input.limits.maxDataAgeSeconds)) blocks.push(`The quote is ${Math.round(quoteAge)}s old (limit ${input.limits.maxDataAgeSeconds}s).`);
+  if (!quote) blocks.push(checkedQuote.reason);
   if (!getForexSessionStatus(new Date(now)).marketOpen) blocks.push("The market is closed.");
   // Executable entry: BUY at the ask, SELL at the bid (normalised: -bid).
-  const entry = input.quote ? (sign === 1 ? input.quote.ask : -input.quote.bid) : completed.c;
+  const entry = quote ? (sign === 1 ? quote.ask : -quote.bid) : completed.c;
   const risk = entry - stop;
   const liveRewardRisk = risk > 0 ? (target - entry - cost) / risk : -1;
-  if (input.quote) {
+  if (quote) {
     if (!(risk > 0)) blocks.push(`Price ${fmt(entry)} is already past the stop.`);
     else {
       if (cost > input.limits.maxSpreadStopFraction * risk) {
@@ -509,12 +510,12 @@ export function evaluateConfirmation(input: ConfirmationInput): Confirmation {
     entry: Number((sign * entry).toFixed(digits)),
     stopLoss: plan.stopLoss,
     takeProfit: plan.takeProfit,
-    rewardRisk: Number((input.quote ? liveRewardRisk : atClose).toFixed(2)),
+    rewardRisk: Number((quote ? liveRewardRisk : atClose).toFixed(2)),
     spread,
-    quoteTime: input.quote?.time ?? null,
+    quoteTime: quote?.time ?? null,
   };
   // Price has moved beyond the approved entry: the opportunity is gone, not re-armed.
-  if (input.quote && Number.isFinite(deviation) && entry > zoneTop + deviation) {
+  if (quote && Number.isFinite(deviation) && entry > zoneTop + deviation) {
     return missed(completed, "execution_safety", `Confirmed, but price is now ${fmt(entry)}, more than ${(deviation / atr).toFixed(2)} ${atrTf} ATR past the approved entry zone. GX does not chase.`);
   }
   if (expired) return finish("EXPIRED", "EXPIRED", "The plan expired before it could be acted on.");

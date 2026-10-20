@@ -187,16 +187,16 @@ test("doubling volatility scales the levels instead of changing the setups", () 
   assert.deepEqual(strip(wide).map((plan) => [plan.direction, plan.setupType]), strip(result).map((plan) => [plan.direction, plan.setupType]));
 });
 
-test("too little history is NO_VALID_SETUP", () => {
+test("too little history is TECHNICAL_DATA_UNAVAILABLE", () => {
   const input = inputFor(base);
   const short = generateTradePlans({ ...input, candles: { ...input.candles, H1: input.candles.H1!.slice(-30) } });
-  assert.equal(short.result, "NO_VALID_SETUP");
+  assert.equal(short.result, "TECHNICAL_DATA_UNAVAILABLE");
   assert.equal(short.plans.length, 0);
 });
 
-test("stale candles are NO_VALID_SETUP", () => {
+test("stale candles are TECHNICAL_DATA_UNAVAILABLE", () => {
   const stale = generateTradePlans({ ...inputFor(base), now: NOW + 6 * HOUR });
-  assert.equal(stale.result, "NO_VALID_SETUP");
+  assert.equal(stale.result, "TECHNICAL_DATA_UNAVAILABLE");
   assert.match(stale.reason ?? "", /data/i);
 });
 

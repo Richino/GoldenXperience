@@ -85,16 +85,27 @@ export async function createNewsRun(run: NewsRun, transact: typeof transaction =
     await c.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`news-v3-release:${run.accountKey}:${run.release.time}`]);
     await c.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`news-v3-event:${run.accountKey}:${run.eventKey}`]);
     await c.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`news-v3-pair:${run.accountKey}:${run.instrument}`]);
-    const existing = (await c.query<{ snapshot: NewsRun }>("SELECT snapshot FROM news_straddle_runs WHERE account_key=$1 AND instrument=$2 AND event_key=$3", [run.accountKey, run.instrument, run.eventKey])).rows[0]?.snapshot;
+    let existing = (await c.query<{ snapshot: NewsRun }>("SELECT snapshot FROM news_straddle_runs WHERE account_key=$1 AND instrument=$2 AND event_key=$3", [run.accountKey, run.instrument, run.eventKey])).rows[0]?.snapshot;
+    if (existing) {
+      // Share the engine's lock so cancellation/reconciliation cannot race a restart.
+      await c.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`news-v3:${existing.id}`]);
+      existing = (await c.query<{ snapshot: NewsRun }>("SELECT snapshot FROM news_straddle_runs WHERE id=$1", [existing.id])).rows[0]!.snapshot;
+    }
+    let restarting = false;
     if (existing) {
       if (existing.userId !== run.userId || !isDeepStrictEqual(existing.settings, run.settings)) throw new Error("This pair/event already has an attempt; approved settings cannot be replaced.");
       if (Date.parse(existing.release.time) !== Date.parse(run.release.time) || !sameNewsMembers(existing.release.events ?? [existing.release], run.release.events ?? [run.release])) throw new Error("This news batch already has an attempt; approved releases cannot be replaced.");
-      return existing;
+      if (!NEWS_TERMINAL.includes(existing.state)) return existing;
+      restarting = existing.state === "CANCELLED" && !!existing.endedAt && !existing.firstFillSide && !existing.exception
+        && Object.values(existing.legs).every(l => ["UNSENT", "CANCELLED"].includes(l.state)
+          && !l.submittedAt && !l.httpDispatchedAt && !l.acknowledgedAt && !l.orderId && !l.tradeId && !l.fillTime && l.fillPrice === null && !l.paperTradeId);
+      if (!restarting) throw new Error(`This event's earlier setup is ${existing.state.toLowerCase()}. Monitoring has not restarted. A setup with an execution attempt cannot be restarted.`);
+      if (Date.parse(run.targetSubmitAt) <= Date.now() + 12_000) throw new Error("Too late to restart safely before this release.");
     }
     const pair = run.instrument.replace("_", "/");
     const used = (await c.query<{ used: string; cap: string | null }>(`SELECT COALESCE(sum((snapshot->'risk'->>'perLegPercent')::numeric * 2),0)::text AS used,
       min((snapshot->'settings'->>'maxEventRiskPercent')::numeric)::text AS cap FROM news_straddle_runs
-      WHERE account_key=$1 AND (event_key=$2 OR snapshot->'release'->>'time'=$3)`, [run.accountKey, run.eventKey, run.release.time])).rows[0]!;
+      WHERE account_key=$1 AND (event_key=$2 OR snapshot->'release'->>'time'=$3) AND ($4::uuid IS NULL OR id<>$4::uuid)`, [run.accountKey, run.eventKey, run.release.time, restarting ? existing!.id : null])).rows[0]!;
     const limit = (await c.query<{ max_risk_percent: string; max_aggregate_risk_percent: string }>("SELECT max_risk_percent::text,max_aggregate_risk_percent::text FROM trade_plan_risk_settings WHERE user_id=$1", [run.userId])).rows[0];
     if (!run.risk || run.risk.perLegPercent > Number(limit?.max_risk_percent ?? 1)) throw new Error("News per-trade risk exceeds the account risk limit.");
     const eventLimit = Math.min(run.settings.maxEventRiskPercent, Number(used.cap ?? run.settings.maxEventRiskPercent), Number(limit?.max_aggregate_risk_percent ?? 3));
@@ -102,6 +113,16 @@ export async function createNewsRun(run: NewsRun, transact: typeof transaction =
     const busy = await c.query(`SELECT id FROM pending_manual_entries WHERE instrument=$1 AND status IN ('PENDING','TRIGGERING') UNION ALL SELECT id FROM paper_trades WHERE pair=$2 AND status='open' LIMIT 1`, [run.instrument, pair]);
     if (busy.rowCount) throw new Error("This pair already has an open trade or waiting entry.");
     if ((await c.query("SELECT 1 FROM news_straddle_runtime WHERE account_key=$1 AND halted=true", [run.accountKey])).rowCount) throw new Error("News execution is paused after an exception.");
+    if (restarting) {
+      const previous = existing!;
+      run = { ...run, id: previous.id, revision: previous.revision + 1, createdAt: previous.createdAt,
+        timeline: [...previous.timeline, { at: new Date().toISOString(), event: "restarted", detail: "Monitoring restarted after a cancellation before any order submission; broker and risk checks repeated." }] };
+      for (const side of ["long", "short"] as const) run.legs[side].entryId = previous.legs[side].entryId;
+      await c.query("UPDATE news_straddle_runs SET snapshot=$2::jsonb,state=$3,revision=$4,ended_at=NULL,updated_at=now() WHERE id=$1", [run.id, JSON.stringify(run), run.state, run.revision]);
+      await project(c, run);
+      await c.query("INSERT INTO news_straddle_audit(run_id,occurred_at,event,detail) VALUES($1,$2,'restarted',$3::jsonb)", [run.id, new Date().toISOString(), JSON.stringify({ previous, targetSubmitAt: run.targetSubmitAt })]);
+      return run;
+    }
     await c.query("INSERT INTO news_straddle_runs(id,user_id,account_key,instrument,event_key,state,snapshot) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb)", [run.id, run.userId, run.accountKey, run.instrument, run.eventKey, run.state, JSON.stringify(run)]);
     for (const leg of Object.values(run.legs)) await c.query(`INSERT INTO pending_manual_entries(id,user_id,instrument,direction,entry_price,entry_order_type,current_price_at_creation,expiration_type,expires_at,activate_at,metadata)
       VALUES($1,$2,$3,$4,$5,$6,$7,'time',$8,$9,$10::jsonb)`, [leg.entryId, run.userId, run.instrument, leg.side, leg.entry, leg.side === "long" ? "buy_stop" : "sell_stop", leg.side === "long" ? run.preparedQuote!.ask : run.preparedQuote!.bid,

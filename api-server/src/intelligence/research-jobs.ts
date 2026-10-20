@@ -1,5 +1,6 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { hostname } from "node:os";
+import { storedPlanResult } from "../../../frontend/src/lib/trade-plans/analysis-status.js";
 import type { QueryResult, QueryResultRow } from "pg";
 import { currenciesOf, isKnownInstrument } from "../../../frontend/src/lib/instruments/catalog.js";
 import type { MajorInstrument } from "../../../frontend/src/types/forex.js";
@@ -14,7 +15,7 @@ import {
   type FetchResult, type ResearchInput, type SubmitResult, type TechnicalSummary,
 } from "./openai-research.js";
 import {
-  calendarEvents, latestResearch, latestCompleteRow, releasedOf, researchFreshness, researchUsage, technicalSummaryFor,
+  calendarEvents, cachedCurrencyEvidence, latestResearch, latestCompleteRow, releasedOf, researchFreshness, researchUsage, technicalSummaryFor,
   JOB_COLUMNS, jobView, type JobRow, type Trigger,
 } from "./research-service.js";
 
@@ -127,7 +128,7 @@ export function verifyWebhook(rawBody: string, headers: Record<string, string | 
 }
 
 /** What the watcher is told when a job ends. Pure. */
-export function completionNotice(instrument: string, status: string, error: string | null, plans: string | null) {
+export function completionNotice(instrument: string, status: string, error: string | null, plans: string | null, planReason: string | null = null) {
   const pair = displayPair(instrument);
   if (status !== "COMPLETED") {
     return { title: `${pair} research did not finish`, message: `${error ?? "The research run stopped."} Your plans are unchanged.` };
@@ -136,8 +137,8 @@ export function completionNotice(instrument: string, status: string, error: stri
     plans === "WATCHING" ? "Your market report is ready. Your watched plans are unchanged; check whether the research supports them."
     : plans === "PLANS" ? "Your market report and BUY/SELL scenarios are ready for review."
     : plans === "NO_VALID_SETUP" ? "Your market report is ready. No setup meets the trading rules right now; both scenarios are explained."
-    : "Your market report is ready. Plans could not be rebuilt; run Analyze to see them.";
-  return { title: `${pair} analysis complete`, message };
+    : `Research is saved. Swing plans are paused.${planReason ? ` ${planReason}` : " Required technical checks did not pass."} Retry technical analysis to reuse the saved research.`;
+  return { title: `${pair} ${["PLANS", "NO_VALID_SETUP", "WATCHING"].includes(plans ?? "") ? "analysis complete" : "research ready · analysis incomplete"}`, message };
 }
 
 // ── Starting or joining a job ─────────────────────────────────────
@@ -225,7 +226,7 @@ export async function researchJobForUser(userId: string, jobId: string, db: Db =
     [jobId, userId],
   );
   const row = found.rows[0];
-  return row ? { ...jobView(row), plans: row.plans_result ? { result: row.plans_result, reason: row.plans_reason } : null } : null;
+  return row ? { ...jobView(row), plans: row.plans_result ? { result: storedPlanResult(row.plans_result, row.plans_reason), reason: row.plans_reason } : null } : null;
 }
 
 /** Latest watched job per pair. Completed analyses without plans remain until dismissed. */
@@ -237,11 +238,11 @@ export async function researchJobsForUser(userId: string, db: Db = pool) {
        ORDER BY r.instrument, (r.status IN ${ACTIVE_SQL}) DESC, r.created_at DESC, w.requested_at DESC, r.id DESC
      ) j
       WHERE j.dismissed_at IS NULL AND (j.status IN ${ACTIVE_SQL} OR j.created_at > now() - interval '1 day'
-        OR (j.status='COMPLETED' AND j.plans_result IN ('NO_VALID_SETUP','ERROR')))
+        OR (j.status='COMPLETED' AND j.plans_result IN ('NO_VALID_SETUP','TECHNICAL_DATA_UNAVAILABLE','DATA_VALIDATION_FAILED','ERROR')))
       ORDER BY j.created_at DESC LIMIT 30`,
     [userId],
   );
-  return found.rows.map((row) => ({ ...jobView(row), plans: row.plans_result ? { result: row.plans_result, reason: row.plans_reason } : null }));
+  return found.rows.map((row) => ({ ...jobView(row), plans: row.plans_result ? { result: storedPlanResult(row.plans_result, row.plans_reason), reason: row.plans_reason } : null }));
 }
 
 // ── The worker ────────────────────────────────────────────────────
@@ -257,7 +258,7 @@ export type JobDeps = {
   /** Frozen inputs for a new job. */
   inputs?: (instrument: string, currencies: [string, string], now: number) => Promise<{ technical: TechnicalSummary; calendar: CalendarSnapshot }>;
   /** Build plans for a watcher on the stored research (never touches approved plans). */
-  generatePlans?: (userId: string, instrument: string) => Promise<string | { result: string; reason: string | null }>;
+  generatePlans?: (userId: string, instrument: string, jobId?: string) => Promise<string | { result: string; reason: string | null }>;
   notify?: typeof queueNotification;
   /** Record how the new research changed each active plan's evidence (never the plan). */
   warn?: typeof updateThesesForResearch;
@@ -265,17 +266,19 @@ export type JobDeps = {
 
 async function defaultInputs(instrument: string, currencies: [string, string], now: number) {
   const [technical, events] = await Promise.all([technicalSummaryFor(instrument as MajorInstrument), calendarEvents()]);
-  if (events === null) throw new Error("Verified economic calendar unavailable. Research will retry before starting; no report has been generated.");
-  return { technical, calendar: buildCalendarSnapshot({ events, currencies, now }) };
+  // Ordinary research can disclose an unavailable schedule; execution and News
+  // Mode keep their independent verified-calendar requirements.
+  const cached = await cachedCurrencyEvidence(currencies, events, now).catch(() => []);
+  return { technical: { ...technical, cachedCurrencyEvidenceForDiscovery: cached }, calendar: buildCalendarSnapshot({ events, currencies, now }) };
 }
 
-async function defaultGeneratePlans(userId: string, instrument: string) {
+async function defaultGeneratePlans(userId: string, instrument: string, jobId?: string) {
   // Watched plans are left exactly as they are; research only updates their evidence.
   const active = await query("SELECT 1 FROM trade_plans WHERE user_id=$1 AND instrument=$2 AND status IN ('APPROVED','MONITORING','CONFIRMED','NOTIFIED','EXECUTION_PENDING','ORDER_SUBMITTED','PARTIALLY_FILLED','FILLED') LIMIT 1", [userId, instrument]);
   if (active.rows[0]) return { result: "WATCHING", reason: "Your watched plans are unchanged; research only updates their evidence." };
   const { generateAndStoreTradePlans } = await import("../trade-plan-service.js");
   // Fresh OANDA candles are read here, after the research is stored: the plans are built once, now.
-  const result = await generateAndStoreTradePlans(userId, instrument as MajorInstrument, { skipCooldown: true });
+  const result = await generateAndStoreTradePlans(userId, instrument as MajorInstrument, { skipCooldown: true, analysisId: jobId, jobId });
   return { result: result.result, reason: result.reason };
 }
 
@@ -491,20 +494,22 @@ export async function deliverCompletion(jobId: string, deps: JobDeps = {}, heldL
   )).rows[0];
   if (!job) return 0;
   try {
-  const watchers = await db.query<{ user_id: string; plans_result: string | null }>("SELECT user_id, plans_result FROM research_job_watchers WHERE job_id=$1 AND notified_at IS NULL", [jobId]);
+  const watchers = await db.query<{ user_id: string; plans_result: string | null; plans_reason: string | null }>("SELECT user_id, plans_result, plans_reason FROM research_job_watchers WHERE job_id=$1 AND notified_at IS NULL", [jobId]);
   let sent = 0;
   for (const watcher of watchers.rows) {
     let plans = watcher.plans_result;
+    let planReason = watcher.plans_reason;
     if (job.status === "COMPLETED" && !plans) {
-      const built = await (deps.generatePlans ?? defaultGeneratePlans)(watcher.user_id, job.instrument).catch((error) => {
+      const built = await (deps.generatePlans ?? defaultGeneratePlans)(watcher.user_id, job.instrument, job.id).catch((error) => {
         console.error("[research-jobs] plan generation failed", error);
         return { result: "ERROR", reason: error instanceof Error ? error.message : "Plans could not be built." };
       });
       const outcome = typeof built === "string" ? { result: built, reason: null } : built;
       plans = outcome.result;
+      planReason = outcome.reason;
       await db.query("UPDATE research_job_watchers SET plans_result=$3, plans_reason=$4 WHERE job_id=$1 AND user_id=$2", [jobId, watcher.user_id, plans, outcome.reason]);
     }
-    const notice = completionNotice(job.instrument, job.status, job.error, plans);
+    const notice = completionNotice(job.instrument, job.status, job.error, plans, planReason);
     await (deps.notify ?? queueNotification)({
       userId: watcher.user_id, kind: "research_ready", title: notice.title, message: notice.message, instrument: job.instrument,
       paperTradeId: null, dedupeKey: `research-job:${jobId}`, url: `/chart?instrument=${encodeURIComponent(job.instrument)}&analyze=1`,

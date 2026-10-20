@@ -4,6 +4,7 @@ import { config } from "dotenv";
 import { interpretMarketState, readMarketTechnicals, groupMarketCatalysts, type InterpretMarketInput } from "../src/intelligence/market-state-interpreter.js";
 import { marketStateView, storeMarketState } from "../src/intelligence/market-state-store.js";
 import { technicalSummaryFor } from "../src/intelligence/research-service.js";
+import { generateTradePlans } from "../src/trade-plan-generator.js";
 import type { MarketIntelligence, Factor } from "../src/intelligence/research-contract.js";
 import type { Candle } from "../../frontend/src/types/forex.js";
 
@@ -100,10 +101,20 @@ await test("base/quote direction is derived, rather than trusting a copied model
   const i = input(); i.intelligence.pair = "USD_JPY"; i.intelligence.base = "USD"; i.intelligence.quote = "JPY";
   const usd = groupMarketCatalysts(i.intelligence, NOW).find(c => c.currency === "USD")!; assert.equal(usd.bullish, 0); assert.ok(usd.bearish > 0);
 });
-await test("mandatory stale or unavailable inputs return data quality, not a directional interpretation", () => {
-  for (const mutate of [(i: InterpretMarketInput) => { i.researchFresh = false; }, (i: InterpretMarketInput) => { i.calendar = null; }, (i: InterpretMarketInput) => { i.technical.issues.push("Stale H1"); }, (i: InterpretMarketInput) => { i.intelligence.pair = "GBP_USD"; }]) {
-    const i = recoveryInput(); mutate(i); const s = interpretMarketState(i); assert.equal(s.observed.classification, "INSUFFICIENT_DATA"); assert.equal(s.forward.shortTerm.classification, "INDETERMINATE"); assert.equal(s.opportunities.length, 0);
+await test("invalid research blocks interpretation; technical/calendar gaps preserve qualified observations", () => {
+  for (const mutate of [(i: InterpretMarketInput) => { i.researchFresh = false; }, (i: InterpretMarketInput) => { i.technical.issues.push("Stale H1"); }, (i: InterpretMarketInput) => { i.intelligence.pair = "GBP_USD"; }]) {
+    const i = recoveryInput(); mutate(i); const s = interpretMarketState(i);
+    if (!i.researchFresh || i.intelligence.pair !== i.market.instrument) assert.equal(s.observed.classification, "INSUFFICIENT_DATA");
+    else { assert.equal(s.quality.status, "PARTIAL"); assert.match(s.observed.explanation, /Partial/); }
+    assert.equal(s.forward.shortTerm.classification, "INDETERMINATE"); assert.equal(s.opportunities.length, 0);
   }
+});
+await test("calendar absence limits event conclusions without discarding validated price interpretation", () => {
+  const i = recoveryInput(); i.calendar = null;
+  const s = interpretMarketState(i);
+  assert.equal(s.analysisStatus, "ANALYSIS_COMPLETE"); assert.equal(s.observed.classification, "BULLISH_RECOVERY");
+  assert.equal(s.quality.status, "PARTIAL"); assert.deepEqual(s.quality.issues, []);
+  assert.match(s.evidenceLimits!.join(" "), /calendar unavailable/); assert.deepEqual(s.reactions, []);
 });
 await test("forming and future candles cannot change the technical read", () => {
   const i = input(); const before = readMarketTechnicals(i.market);
@@ -137,9 +148,15 @@ if (process.env.DATABASE_URL) await test("snapshot persistence is idempotent and
   const { db } = await import("../src/database.js"); const c = await db().connect();
   try {
     await c.query("BEGIN"); const i = recoveryInput();
+    i.market.dataSnapshot = {id:"persisted-diagnostic-fixture"};
+    const generated = generateTradePlans({...i.market,news:[],maxRiskPercent:1});
+    i.planEvaluation = {analysisId:generated.analysisId,result:generated.result,reason:generated.reason,diagnostics:generated.diagnostics,rejected:generated.rejected};
     await c.query("INSERT INTO market_research(id,instrument,currencies,trigger,status,model,report) VALUES($1,'EUR_USD',ARRAY['EUR','USD'],'MANUAL','COMPLETE','test',$2::jsonb)", [i.intelligence.research.id, JSON.stringify(i.intelligence)]);
     const before = await c.query("SELECT (SELECT count(*) FROM trade_plans)::int AS plans,(SELECT count(*) FROM trade_plan_approvals)::int AS approvals,(SELECT count(*) FROM trade_plan_execution_attempts)::int AS executions");
     const first = await storeMarketState(i, c); const second = await storeMarketState(i, c); assert.equal(first.id, second.id);
+    assert.equal(first.planEvaluation?.diagnostics?.snapshotId,"persisted-diagnostic-fixture");
+    assert.equal(first.planEvaluation?.diagnostics?.sides.length,2);
+    assert.ok(first.planEvaluation?.diagnostics?.checks.some(check=>check.input==="H4:structure-and-ATR"));
     assert.equal(Number((await c.query("SELECT count(*) FROM market_state_snapshots WHERE research_id=$1", [i.intelligence.research.id])).rows[0].count), 1);
     assert.deepEqual((await c.query("SELECT (SELECT count(*) FROM trade_plans)::int AS plans,(SELECT count(*) FROM trade_plan_approvals)::int AS approvals,(SELECT count(*) FROM trade_plan_execution_attempts)::int AS executions")).rows, before.rows);
   } finally { await c.query("ROLLBACK"); c.release(); await db().end(); }

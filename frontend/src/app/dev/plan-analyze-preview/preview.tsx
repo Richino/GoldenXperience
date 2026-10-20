@@ -1,5 +1,8 @@
 "use client";
 
+import partialSnapshot from "@/lib/trade-plans/fixtures/partial-market-state.json";
+import completedSnapshot from "@/lib/trade-plans/fixtures/completed-market-state.json";
+import type { MarketStateSnapshot } from "@/lib/trade-plans/market-state";
 import { useSyncExternalStore } from "react";
 import { PlanAnalyzeCard, PlanAnalyzeSheet, type PlanAnalyzeState } from "@/components/trade-plans/plan-analyze";
 import { PlanMascot } from "@/components/trade-plans/plan-mascot";
@@ -8,7 +11,7 @@ import { fixturePlan, fixtureResearch, watchingPair } from "@/lib/trade-plans/fi
 const noop = () => undefined;
 const base: PlanAnalyzeState = {
   phase: { kind: "idle" }, active: [], status: "new", open: false, setOpen: noop, busy: false, actionError: null,
-  run: async () => undefined, accept: noop, dismiss: noop, stopWatching: noop, cancel: noop, analyzing: false,
+  run: async () => undefined, retryTechnical: async () => undefined, accept: noop, dismiss: noop, stopWatching: noop, cancel: noop, analyzing: false,
   research: { loading: false, result: fixtureResearch(), error: null }, refreshResearch: noop, cancelResearch: noop, review: noop,
 };
 const offered: PlanAnalyzeState = {
@@ -34,11 +37,23 @@ const researching: PlanAnalyzeState = {
 
 /** ?sheet=1 opens the phone sheet with the offered plans. */
 const wantsSheet = () => new URLSearchParams(window.location.search).has("sheet");
+const wantsPartial = () => new URLSearchParams(window.location.search).has("partial");
+const wantsComplete = () => new URLSearchParams(window.location.search).has("complete");
+const wantsNoSetup = () => new URLSearchParams(window.location.search).has("no-setup");
+const wantsTechnicalFailure = () => new URLSearchParams(window.location.search).has("technical-failure");
 const wantsCalendarWait = () => new URLSearchParams(window.location.search).has("calendar-wait");
 
 export function PlanAnalyzePreview() {
   const sheet = useSyncExternalStore(() => () => undefined, wantsSheet, () => false);
+  const partial = useSyncExternalStore(() => () => undefined, wantsPartial, () => false);
+  const complete = useSyncExternalStore(() => () => undefined, wantsComplete, () => false);
+  const noSetup = useSyncExternalStore(() => () => undefined, wantsNoSetup, () => false);
+  const technicalFailure = useSyncExternalStore(() => () => undefined, wantsTechnicalFailure, () => false);
   const calendarWait = useSyncExternalStore(() => () => undefined, wantsCalendarWait, () => false);
+  if (sheet && noSetup) return <PlanAnalyzeSheet state={{...none,open:true,research:{...base.research,result:{...fixtureResearch(),marketState:{snapshot:completedSnapshot as MarketStateSnapshot,usable:true,reasons:[]}}}}} instrument="EUR_USD" price={1.12297} />;
+  if (sheet && complete) return <PlanAnalyzeSheet state={{...offered,open:true,research:{...base.research,result:{...fixtureResearch(),marketState:{snapshot:completedSnapshot as MarketStateSnapshot,usable:true,reasons:[]}}}}} instrument="EUR_USD" price={1.12297} />;
+  if (sheet && partial) return <PlanAnalyzeSheet state={{ ...base, open: true, research: { ...base.research, result: { ...fixtureResearch(), marketState: { snapshot: partialSnapshot as MarketStateSnapshot, usable: true, reasons: [] } } }, phase: { kind: "results", result: { analysisId: "fixture-partial", result: "TECHNICAL_DATA_UNAVAILABLE", reason: "Higher-timeframe H4 input is unavailable. H1 observations remain validated.", plans: [], planIds: [], rejected: [] } } }} instrument="EUR_USD" price={1.12297} />;
+  if (sheet && technicalFailure) return <PlanAnalyzeSheet state={{ ...base, open: true, phase: { kind: "results", result: { analysisId: "fixture-failure", result: "TECHNICAL_DATA_UNAVAILABLE", reason: "OANDA H4 candle request failed. Validated research is retained; trade plans require verified H4 data.", plans: [], planIds: [], rejected: [] } } }} instrument="EUR_USD" price={1.12297} />;
   if (sheet && calendarWait) return <PlanAnalyzeSheet state={{ ...researching, phase: { kind: "researching" }, open: true, research: {
     ...researching.research, result: { ...researching.research.result!, job: {
       ...researching.research.result!.job!, status: "QUEUED", startedAt: null,

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getMarketSelectionCalendar } from "../../../frontend/src/lib/calendar/forex-factory.js";
 import { NEWS_V3, type NewsLeg, type NewsRun, type NewsV3Preview } from "../../../frontend/src/lib/news/news-straddle-v3.js";
-import { calculateNewsRisk, entryPrices, eventKey, parseV3Settings, priceDistance, quoteIssue, SUBMIT_LEAD_MS, verifyRelease } from "./policy.js";
+import { calculateNewsRisk, entryPrices, eventKey, parseV3Settings, priceDistance, schedulingQuoteIssue, SUBMIT_LEAD_MS, verifyRelease } from "./policy.js";
 import { accountKey, liveNewsBroker } from "./broker.js";
 import { createNewsRun, newsRiskPolicy, newsRuntimeStatus, newsRows, PgNewsRepository, readUserNewsRun } from "./store.js";
 import { NewsStraddleEngine, type EngineDeps } from "./engine.js";
@@ -23,10 +23,16 @@ export async function previewNewsV3(userId: string, raw: Record<string, unknown>
   if (liveNewsBroker.environment() !== "practice") throw new Error("News Straddle is practice-only.");
   const instrument = String(raw.instrument ?? "");
   const settings = parseV3Settings(raw.settings && typeof raw.settings === "object" ? raw.settings as Record<string, unknown> : {});
-  const [calendar, context, policy, runtime] = await Promise.all([getMarketSelectionCalendar(), liveNewsBroker.context(instrument), newsRiskPolicy(userId), newsRuntimeStatus(accountKey())]);
+  const [calendar, initialContext, policy, runtime] = await Promise.all([getMarketSelectionCalendar(), liveNewsBroker.context(instrument), newsRiskPolicy(userId), newsRuntimeStatus(accountKey())]);
+  let context = initialContext;
+  // A calendar lookup or a transient candle response can outlive the first quote.
+  // Retry observations only; the final freshness and volatility rules stay intact.
+  for (let attempt = 0; attempt < 2 && (schedulingQuoteIssue(context.quote, Date.now()) || settings.stopMode === "ATR" && !(context.atrPips! > 0)); attempt++) {
+    context = await liveNewsBroker.context(instrument);
+  }
   const now = Date.now();
   if (policy.killSwitch || runtime.halted) throw new Error(runtime.halt_reason ?? "Execution kill switch is on.");
-  const issue = quoteIssue(context.quote, now); if (issue) throw new Error(issue);
+  const issue = schedulingQuoteIssue(context.quote, now); if (issue) throw new Error(issue);
   if (context.openInstruments.includes(instrument) || context.pendingInstruments.includes(instrument)) throw new Error("This pair already has a broker position or pending order.");
   const release = verifyRelease(instrument, raw.release && typeof raw.release === "object" ? raw.release as Record<string, unknown> : {}, calendar, now);
   const sized = calculateNewsRisk({ instrument, settings, ...context, ...context.constraints, riskLimit: policy.riskLimit, eventRiskLimit: policy.eventRiskLimit });

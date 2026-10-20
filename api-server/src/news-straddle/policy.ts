@@ -45,11 +45,15 @@ export function verifyRelease(instrument: string, requested: { id?: unknown; tit
   if (requested.events !== undefined && (!Array.isArray(requested.events) || requested.events.some(m => !m || typeof m.id !== "string" || typeof m.title !== "string" || typeof m.currency !== "string") || !sameNewsMembers(requested.events, events))) throw new Error("The news releases at this time changed. Refresh the setup before accepting.");
   return { ...events[0]!, time: new Date(at).toISOString(), impact: e.impact, provider: "forex_factory", events };
 }
-export function quoteIssue(q: NewsQuote | null, now: number) {
+function quoteAgeIssue(q: NewsQuote | null, now: number, maximumAgeMs: number) {
   if (!q || ![q.bid, q.ask].every(n => Number.isFinite(n) && n > 0) || q.ask < q.bid || !q.tradeable) return "A valid executable OANDA bid/ask is required.";
   const age = now - Date.parse(q.time);
-  return !Number.isFinite(age) || age < -250 || age > MAX_QUOTE_AGE_MS ? "The OANDA quote is stale or future-dated." : null;
+  return !Number.isFinite(age) || age < -250 || age > maximumAgeMs ? "The OANDA quote is stale or future-dated." : null;
 }
+export const quoteIssue = (q: NewsQuote | null, now: number) => quoteAgeIssue(q, now, MAX_QUOTE_AGE_MS);
+// Scheduling sends no orders. Preparation refreshes this observation and dispatch
+// still requires quoteIssue's strict one-second executable-price limit.
+export const schedulingQuoteIssue = (q: NewsQuote | null, now: number) => quoteAgeIssue(q, now, 10_000);
 export function roundPrice(instrument: string, n: number) { return Number(n.toFixed(precisionFor(instrument))); }
 export function entryPrices(instrument: string, q: NewsQuote, distancePips: number, slippagePips: number) {
   const p = pipSizeFor(instrument), r = (n: number) => roundPrice(instrument, n);

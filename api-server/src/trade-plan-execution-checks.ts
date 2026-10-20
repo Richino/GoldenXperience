@@ -1,3 +1,4 @@
+import { checkQuote } from "../../frontend/src/lib/strategy/analyze-v2/data-quality.js";
 import { currenciesOf, pipSizeFor, precisionFor } from "../../frontend/src/lib/instruments/catalog.js";
 import { calculatePositionSize } from "../../frontend/src/lib/risk/engine.js";
 import type { NewsItem } from "../../frontend/src/lib/strategy/analyze-v2/risk.js";
@@ -90,9 +91,8 @@ export function executionChecks(input: ExecutionInput): { ok: boolean; checks: E
   check("plan_valid", input.now < Date.parse(plan.expiresAt), input.now < Date.parse(plan.expiresAt) ? "Plan has not expired." : "The plan has expired.");
   check("market_open", input.marketOpen, input.marketOpen ? "Market open." : "The market is closed.");
 
-  const quoteAge = quote ? (input.now - Date.parse(quote.time)) / 1000 : Infinity;
-  const fresh = check("fresh_quote", quote !== null && quoteAge <= settings.maxDataAgeSeconds,
-    !quote ? "No live quote." : quoteAge <= settings.maxDataAgeSeconds ? `Quote ${Math.max(0, Math.round(quoteAge))}s old.` : `The quote is ${Math.round(quoteAge)}s old (limit ${settings.maxDataAgeSeconds}s).`);
+  const checkedQuote = checkQuote(plan.instrument, quote, input.now, settings.maxDataAgeSeconds * 1000);
+  const fresh = check("fresh_quote", checkedQuote.executable !== null, checkedQuote.reason);
 
   // News blackout around high-impact releases for either currency.
   if (input.news === null) check("news", false, "The economic calendar could not be read.");

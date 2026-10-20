@@ -230,6 +230,20 @@ try {
   }
   await client.query(fs.readFileSync(path.join(root, "migrations", "060_plan_lifecycle.sql"), "utf8"));
   const user = (await client.query<{ id: string }>("SELECT id FROM users ORDER BY created_at LIMIT 1")).rows[0]!;
+  await test("replayed plan persistence uses the same analysis/side/setup once", async () => {
+    const { input } = await import("./fixtures/analysis-input.js");
+    const { generateTradePlans } = await import("../src/trade-plan-generator.js");
+    const { createTradePlan } = await import("../src/trade-plans.js");
+    const i = input();
+    const proposal = generateTradePlans({ ...i.market, news: [], maxRiskPercent: 1, analysisId: "00000000-0000-4000-8000-00000000a099" }).plans[0]!;
+    proposal.expiresAt = "2099-01-01T00:00:00Z";
+    const first = await createTradePlan(user.id, proposal, client);
+    const before = (await client.query("SELECT count(*)::int AS n FROM trade_plan_events WHERE plan_id=$1", [first.id])).rows[0].n;
+    const second = await createTradePlan(user.id, proposal, client);
+    assert.equal(second.id, first.id);
+    assert.equal((await client.query("SELECT count(*)::int AS n FROM trade_plans WHERE user_id=$1 AND analysis_id=$2", [user.id, proposal.analysisId])).rows[0].n, 1);
+    assert.equal((await client.query("SELECT count(*)::int AS n FROM trade_plan_events WHERE plan_id=$1", [first.id])).rows[0].n, before);
+  });
   const analysis = "00000000-0000-4000-8000-00000000a001";
   const insertPlan = async (direction: "BUY" | "SELL", status: string) => (await client.query<{ id: string }>(
     `INSERT INTO trade_plans(user_id,analysis_id,instrument,direction,setup_type,status,plan_hash,monitoring_mode,timeframe,market_bias,trend_classification,

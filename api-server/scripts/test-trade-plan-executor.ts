@@ -129,4 +129,13 @@ test("the daily loss window starts at 17:00 New York", () => {
   assert.equal(new Date(tradingDayStart(Date.parse("2026-10-14T22:30:00Z"))).toISOString(), "2026-10-14T21:00:00.000Z");
 });
 
+for (const direction of ["BUY", "SELL"] as const) {
+  test(direction+" rejects crossed, future, nonfinite and invalid quotes before constructing an order",()=>{
+    const plan=direction==="BUY"?{direction,stopLoss:1.1226,takeProfit:1.1314,proposalEntry:1.12408}:{direction};
+    const good=base.quote!;
+    for(const quote of [{...good,bid:good.ask+.001},{...good,time:new Date(NOW+60_000).toISOString()},{...good,bid:NaN},{...good,ask:Infinity},{...good,bid:-1}]){
+      const result=run({quote},plan);assert.equal(result.ok,false);assert.equal(result.order,null);assert.ok(failed(result).includes("fresh_quote"));
+    }
+  });
+}
 console.log(`trade plan executor: ${passed} checks passed`);

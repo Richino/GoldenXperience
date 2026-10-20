@@ -4,6 +4,7 @@ import { precisionFor } from "@/lib/instruments/catalog";
 import type { MarketIntelligence } from "@/lib/trade-plans/api";
 import { FUNDAMENTAL_LABEL, FORWARD_LABEL, toneOf, type MarketStateView } from "@/lib/trade-plans/market-state";
 import styles from "./market-read.module.css";
+import { technicalAnalysisStatus } from "@/lib/trade-plans/analysis-status";
 
 const at = (iso: string) => new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" });
 
@@ -11,6 +12,7 @@ const at = (iso: string) => new Date(iso).toLocaleString(undefined, { month: "sh
 export function MarketStateRead({ view, intel, historical = false }: { view: MarketStateView; intel: MarketIntelligence; historical?: boolean }) {
   const s = view.snapshot;
   const digits = precisionFor(s.instrument);
+  const analysisStatus = technicalAnalysisStatus(s);
   if (!view.usable) return <div role="status">
     <p className={styles.summary}><strong>Market interpretation unavailable</strong></p>
     <ul className={styles.points}>{view.reasons.slice(0, 4).map(reason => <li key={reason}>{reason}</li>)}</ul>
@@ -24,6 +26,12 @@ export function MarketStateRead({ view, intel, historical = false }: { view: Mar
     {historical ? <p className={styles.fresh} data-stale>Previously saved snapshot. Current data checks do not pass; the views below describe that earlier observation.</p> : null}
     {/* At a glance: the read (its label is the chip above), three leans, one status line. Everything else is in the details. */}
     <p className={styles.summary}>{s.observed.explanation}</p>
+    {s.source.structure ? <dl className={styles.structure} aria-label="Verified price structure">{(["D1", "H4", "H1"] as const).map(tf => {
+      const read = s.source.structure![tf];
+      const label = read?.direction === "DOWNTREND" ? "Bearish" : read?.direction === "UPTREND" ? "Bullish" : read?.direction === "RANGE" ? "Ranging" : read?.direction === "TRANSITION" ? "Transition" : read?.direction === "UNCLEAR" ? "Unclear" : "Unavailable";
+      return <div key={tf}><dt>{tf === "D1" ? "Daily" : tf === "H4" ? "4-hour" : "1-hour"}</dt><dd>{label}</dd></div>;
+    })}</dl> : null}
+    {analysisStatus !== "ANALYSIS_COMPLETE" ? <><p className={styles.fine}>Technical observations available. Swing plans paused because required inputs have not passed validation.</p><ul className={styles.points}>{s.quality.issues.map(issue => <li key={issue}>{issue}</li>)}</ul></> : null}
     <dl className={styles.outlook} data-count="3">
       {([
         ["Fundamentals", s.fundamental.classification, FUNDAMENTAL_LABEL[s.fundamental.classification]],
@@ -37,8 +45,9 @@ export function MarketStateRead({ view, intel, historical = false }: { view: Mar
     <p className={styles.status}>
       {s.observed.timeframe} · last candle {s.observed.asOf ? at(s.observed.asOf) : "unavailable"}
       {s.source.marketOpen ? "" : " · market closed"}
-      {s.quality.status === "PARTIAL" ? " · partial evidence" : ""}
+      {analysisStatus === "ANALYSIS_COMPLETE" ? " · technical analysis complete" : " · partial technical analysis"}
     </p>
+    {s.source.calendarIssue ? <p className={styles.fine}>Entries paused until the economic calendar is verified. {s.source.calendarIssue}</p> : null}
     <details className={styles.more}>
       <summary>Why GX reads it this way</summary>
       <h4 className={styles.sub}>The leans</h4>
@@ -46,6 +55,7 @@ export function MarketStateRead({ view, intel, historical = false }: { view: Mar
       <p className={styles.text}><strong>Swing:</strong> {s.forward.swing.explanation}</p>
       <p className={styles.fine}>Both BUY and SELL plans keep their own triggers; the first valid confirmation decides. This read never places a trade.</p>
       <h4 className={styles.sub}>Observed price evidence</h4>
+      {s.source.structure ? <p className={styles.meta}>{["D1", "H4", "H1", "M15"].map(tf => { const r=s.source.structure![tf]; return `${tf}: ${r?.direction ?? "unavailable"}${r?.direction && r.asOf ? ` · last completed ${at(r.asOf)}` : ""}`; }).join("; ")}</p> : null}
       <ul className={styles.points}>{s.observed.evidence.map((e, i) => <li key={i}>{e}</li>)}</ul>
       <h4 className={styles.sub}>Economic catalysts</h4>
       <p className={styles.text}>{s.fundamental.explanation}</p>
@@ -62,7 +72,8 @@ export function MarketStateRead({ view, intel, historical = false }: { view: Mar
       {s.observed.invalidation.length ? <ul className={styles.points}>{s.observed.invalidation.map((c, i) => <li key={i}><strong>{c.timeframe} close {c.relation === "CLOSE_ABOVE" ? "above" : "below"} {c.level.toFixed(digits)}.</strong> {c.explanation}</li>)}</ul> : <p className={styles.text}>Reassess when completed candles establish a directional structure.</p>}
       {s.reactions.length ? <><h4 className={styles.sub}>Verified event windows</h4><ul className={styles.points}>{s.reactions.map(r => <li key={r.eventId}><strong>{r.title} · {at(r.at)}</strong> {r.status === "OBSERVED" ? `${r.from!.toFixed(digits)} → ${r.to!.toFixed(digits)} (${r.changePercent! >= 0 ? "+" : ""}${r.changePercent}%).` : "Reaction not verified."} {r.explanation}</li>)}</ul></> : null}
       {s.previous ? <p className={styles.meta}>Compared with the previous snapshot: observed state {s.previous.observedStateChanged ? "changed" : "unchanged"}; near-term lean {s.previous.shortTermChanged ? "changed" : "unchanged"}; swing lean {s.previous.swingChanged ? "changed" : "unchanged"}.</p> : null}
-      {intel.research.missingData.length ? <><h4 className={styles.sub}>Limits of the evidence</h4><ul className={styles.points}>{intel.research.missingData.map((gap, i) => <li key={i}>{gap}</li>)}</ul></> : null}
+      {(s.evidenceLimits ?? intel.research.missingData).length ? <><h4 className={styles.sub}>Research-stage evidence limits</h4><p className={styles.fine}>These limits describe evidence coverage. OANDA prices and levels are analyzed separately after research validation.</p><ul className={styles.points}>{(s.evidenceLimits ?? intel.research.missingData).map((gap, i) => <li key={i}>{gap}</li>)}</ul></> : null}
+      {s.planEvaluation?.diagnostics ? <><h4 className={styles.sub}>Plan input checks</h4><p className={styles.meta}>Snapshot {s.planEvaluation.diagnostics.snapshotId ?? "not recorded"} · checked {at(s.planEvaluation.diagnostics.checkedAt)}</p><ul className={styles.points}>{s.planEvaluation.diagnostics.checks.map(check => <li key={check.input}><strong>{check.input} · {check.status}</strong> {check.reason}</li>)}</ul></> : null}
       <p className={styles.fine}>Deterministic interpretation · {s.engineVersion} · no additional model or web-search calls. Generated {at(s.generatedAt)}. Approved plan levels and conditions remain unchanged.</p>
     </details>
   </>;

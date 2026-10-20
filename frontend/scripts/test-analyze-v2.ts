@@ -154,7 +154,7 @@ test("a weekend is not a gap; a missing weekday candle is", () => {
   const holed = UP.slice(0, 20).filter((_, index) => index !== 7 && index !== 8);
   const normalized = normalizeCandles(holed, "M15");
   assert.equal(normalized.missing, 2);
-  assert.equal(checkIntegrity("x", normalized, 0.05).status, "CAUTION");
+  assert.equal(checkIntegrity("x", normalized, 0.05).status, "FAIL");
   assert.equal(checkIntegrity("x", normalizeCandles(UP, "M15"), 0.05).status, "PASS");
 });
 
@@ -165,12 +165,12 @@ test("market hours follow New York daylight saving", () => {
   assert.equal(isMarketOpen(Date.parse("2026-07-10T21:30:00Z")), false, "Friday 17:30 EDT");
 });
 
-test("stale candles fail while open; old candles are expected while closed", () => {
+test("missing weekday candles still fail when the weekend starts", () => {
   const lastClose = Date.parse(UP.at(-1)!.time) + M15;
   assert.equal(checkCandleFreshness("f", UP, "M15", lastClose + 5 * 60_000, 2).status, "PASS");
   assert.equal(checkCandleFreshness("f", UP, "M15", lastClose + 3 * 60 * 60_000, 2).status, "FAIL");
   const saturday = Date.parse("2026-09-26T12:00:00Z");
-  assert.equal(checkCandleFreshness("f", UP, "M15", saturday, 2).status, "CAUTION");
+  assert.equal(checkCandleFreshness("f", UP, "M15", saturday, 2).status, "FAIL");
   assert.equal(checkCandleFreshness("f", [], "M15", saturday, 2).status, "UNKNOWN");
 });
 

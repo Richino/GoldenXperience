@@ -88,7 +88,7 @@ export function planRows(jobs: ResearchJob[], awaiting: TradePlan[], active: Tra
     // visible until dismissed. PLANS without awaiting rows were removed or
     // expired and must not be resurrected as a completed research card.
     if (!seen.has(instrument) && job.status === "COMPLETED" && job.plans
-      && (job.plans.result === "NO_VALID_SETUP" || job.plans.result === "ERROR")) {
+      && ["NO_VALID_SETUP", "TECHNICAL_DATA_UNAVAILABLE", "DATA_VALIDATION_FAILED", "ERROR"].includes(job.plans.result)) {
       rows.push({ kind: "completed", instrument, job });
       seen.add(instrument);
     }
@@ -338,7 +338,7 @@ export function LedgerPlans() {
                 <article key={`c-${row.instrument}`} className="nl-plan" data-kind="completed">
                   <Link href={href} className="nl-plan-head">
                     <b>{pair}</b>
-                    <span className="nl-plan-state is-review">{noSetup ? "No valid setup" : "Research complete"}</span>
+                    <span className="nl-plan-state is-review">{noSetup ? "No valid setup" : "Analysis incomplete"}</span>
                   </Link>
                   <Read brief={briefs[row.instrument]} loading={!checked[row.instrument]} />
                   <p className="nl-plan-foot">{noSetup ? "Research finished. No trade setup met the rules; review the analysis for details." : row.job.plans?.reason ?? "Research finished, but plans could not be built. Open the analysis for details."}</p>

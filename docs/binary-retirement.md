@@ -1,6 +1,6 @@
 # Binary retirement and background-cost controls
 
-Binary prediction collection is retired by default. `BINARY_ENABLED=true` is now required to start the baseline, logistic-shadow/adaptive, and Pattern V1 collectors. The collector entry points also reject work while retired, so a direct call cannot silently create new predictions. Historical results and prediction detail links remain readable in Journal's **Binary history** tab. The active binary Markets tab and the chart's binary-watchlist polling were removed.
+Binary prediction collection is retired by default. `BINARY_ENABLED=true` is now required to start the baseline, logistic-shadow/adaptive, and Pattern V1 collectors. The collector entry points also reject work while retired, so a direct call cannot silently create new predictions. Historical records remain in the database and authenticated history/detail APIs; saved prediction detail links can still open on the chart. The unused legacy Journal/Markets tab components and binary cards have been removed. The current Trades and Markets pages use their existing active components. The chart no longer polls the binary watchlist.
 
 On a production worker, existing active binary predictions retain the five-second verified-price settlement loop. Once no active predictions remain, that loop stops too. No historical rows are deleted, and retiring binary does not change forex order or position monitoring. On-demand historical statistics still read saved history; there is no longer a background binary collector repeatedly downloading it.
 

@@ -53,6 +53,7 @@ import { backfillPracticeEntryCosts, practiceExecutionOverview, setPracticeExecu
 import { binaryJournal, binaryPerformance, binaryPredictionDetail, binaryWatchlistSnapshot, collectBinaryCycle, recentBinaryPredictions, resolveDueBinaryPredictions } from "./binary-engine.js";
 import { binaryAdaptiveStats } from "./binary-adaptive-stats.js";
 import { binaryCollectionEnabled } from "./binary-lifecycle.js";
+import { startIdleResearchWorker } from "./idle-research-worker.js";
 import { binaryAdaptiveSelectorStatus } from "./binary-adaptive-selector.js";
 import { collectPatternV1Cycle, patternV1Disagreement, patternV1Status } from "./pattern-v1-engine.js";
 import { collectLegacyConfidenceV2Cycle } from "./legacy-confidence-v2-collector.js";
@@ -1415,7 +1416,7 @@ server.listen(PORT, () => console.log(`[api] HTTP and WebSocket server listening
 // Explicit analysis-worker opt-in; independent of every order/trading scheduler.
 swingIntelligence.start();
 
-let researchWorker: NodeJS.Timeout | null = null;
+let stopDurableResearchWorker: (() => void) | null = null;
 let paperCollector: NodeJS.Timeout | null = null;
 let fastResolver: NodeJS.Timeout | null = null;
 let binaryCollector: NodeJS.Timeout | null = null;
@@ -1615,16 +1616,10 @@ if (databaseConfigured() && schedulersEnabled) {
       .catch((error) => console.error("[automate] sweep failed", error))
       .finally(() => { automateBusy = false; });
   }, 60_000);
-  let workerBusy = false;
-  const work = async () => {
-    if (workerBusy) return;
-    workerBusy = true;
-    try { await processNextResearchJob(); }
-    catch (error) { console.error("[research] durable worker failed", error); }
-    finally { workerBusy = false; }
-  };
-  void work();
-  researchWorker = setInterval(() => void work(), 1_000);
+  stopDurableResearchWorker = startIdleResearchWorker(
+    processNextResearchJob,
+    error => console.error("[research] durable worker failed", error),
+  );
 
   // Binary collection is retired by default. Drain any active predictions,
   // then stop polling. History endpoints remain available on demand.
@@ -1846,7 +1841,7 @@ function shutdown() {
   const observerClosed = marketObserver?.stop() ?? Promise.resolve();
   clearInterval(heartbeat);
   if (morningScanner) clearInterval(morningScanner);
-  if (researchWorker) clearInterval(researchWorker);
+  stopDurableResearchWorker?.();
   if (paperCollector) clearInterval(paperCollector);
   if (fastResolver) clearInterval(fastResolver);
   if (binaryCollector) clearInterval(binaryCollector);

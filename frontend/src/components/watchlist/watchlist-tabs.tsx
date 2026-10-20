@@ -2,22 +2,21 @@
 
 import { useEffect, useState } from "react";
 import { WatchlistView } from "@/components/watchlist/watchlist-view";
-import { BinaryWatchlistView } from "@/components/watchlist/binary-watchlist-view";
 import { MultiStrategyView } from "@/components/watchlist/multistrategy-view";
 
-type Tab = "trading" | "strategies" | "binary";
+type Tab = "trading" | "strategies";
 
 /** Flip to true to show the forex Trading tab again. Still reachable via `?tab=trading`. */
 const SHOW_TRADING_TAB = false;
 
-const TAB_LABEL: Record<Tab, string> = { trading: "Trading", strategies: "Strategies", binary: "Binary" };
+const TAB_LABEL: Record<Tab, string> = { trading: "Trading", strategies: "Strategies" };
 
 const VISIBLE_TABS: readonly Tab[] = SHOW_TRADING_TAB
-  ? (["trading", "strategies", "binary"] as const)
-  : (["strategies", "binary"] as const);
+  ? (["trading", "strategies"] as const)
+  : (["strategies"] as const);
 
 function isTab(value: string | null): value is Tab {
-  return value === "trading" || value === "strategies" || value === "binary";
+  return value === "trading" || value === "strategies";
 }
 
 function watchlistPanel(tab: Tab) {
@@ -26,8 +25,6 @@ function watchlistPanel(tab: Tab) {
       return <WatchlistView />;
     case "strategies":
       return <MultiStrategyView />;
-    case "binary":
-      return <BinaryWatchlistView />;
     default: {
       const _exhaustive: never = tab;
       return _exhaustive;
@@ -35,13 +32,7 @@ function watchlistPanel(tab: Tab) {
   }
 }
 
-/**
- * The Watchlist page shell: a Strategies | Binary switch (Trading is hidden
- * for now). Strategies shows the four multi-strategy candidates per pair and
- * the adaptive engine's pick; Binary shows the prediction engine's monitored
- * symbols. The initial tab honours a `?tab=strategies` / `?tab=binary` /
- * `?tab=trading` deep link.
- */
+/** Binary collection is retired; historical predictions remain in Journal. */
 export function WatchlistTabs() {
   const [tab, setTab] = useState<Tab>("strategies");
 
@@ -64,7 +55,7 @@ export function WatchlistTabs() {
 
   return (
     <div className="watchlist-tabs space-y-6">
-      <div role="tablist" aria-label="Watchlist mode" className="binary-seg flex gap-1.5">
+      {VISIBLE_TABS.length > 1 ? <div role="tablist" aria-label="Watchlist mode" className="binary-seg flex gap-1.5">
         {VISIBLE_TABS.map((value) => (
           <button
             key={value}
@@ -77,7 +68,7 @@ export function WatchlistTabs() {
             {TAB_LABEL[value]}
           </button>
         ))}
-      </div>
+      </div> : null}
       {watchlistPanel(tab)}
     </div>
   );

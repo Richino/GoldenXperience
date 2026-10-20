@@ -52,6 +52,7 @@ import { markNotificationsRead, notificationsForUser, pushPublicKey, queueNotifi
 import { backfillPracticeEntryCosts, practiceExecutionOverview, setPracticeExecutionEnabled } from "./practice-execution.js";
 import { binaryJournal, binaryPerformance, binaryPredictionDetail, binaryWatchlistSnapshot, collectBinaryCycle, recentBinaryPredictions, resolveDueBinaryPredictions } from "./binary-engine.js";
 import { binaryAdaptiveStats } from "./binary-adaptive-stats.js";
+import { binaryCollectionEnabled } from "./binary-lifecycle.js";
 import { binaryAdaptiveSelectorStatus } from "./binary-adaptive-selector.js";
 import { collectPatternV1Cycle, patternV1Disagreement, patternV1Status } from "./pattern-v1-engine.js";
 import { collectLegacyConfidenceV2Cycle } from "./legacy-confidence-v2-collector.js";
@@ -1090,7 +1091,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       return json(request, response, marketRecorder?.status() ?? { state: "disabled", requested: recordingRequested, reason: "Requires MARKET_RECORDING_ENABLED=true, practice credentials, and a subscribed recording pair." });
     }
     case "/health":
-      return json(request, response, { ok: true, service: "goldenxperience-api", checkedAt: new Date().toISOString(), observer: marketObserver?.health() ?? { enabled: false } });
+      return json(request, response, { ok: true, service: "goldenxperience-api", checkedAt: new Date().toISOString(), backgroundJobs: { schedulersEnabled, binaryCollectionEnabled: schedulersEnabled && binaryCollectionEnabled() }, observer: marketObserver?.health() ?? { enabled: false } });
     case "/api/oanda/account-summary": {
       const result = await getAccountSummary();
       if (!verifiedAccountSummary(result)) {
@@ -1625,74 +1626,87 @@ if (databaseConfigured() && schedulersEnabled) {
   void work();
   researchWorker = setInterval(() => void work(), 1_000);
 
-  // The Binary Prediction engine. Independent of the forex collector: it opens
-  // 10-minute directional predictions and resolves them server-side, and it
-  // NEVER places an OANDA order or a paper trade. Evaluation stays on a 60s
-  // cadence; settlement runs every five seconds so the outcome appears just
-  // after expiration from a verified live OANDA tick.
+  // Binary collection is retired by default. Drain any active predictions,
+  // then stop polling. History endpoints remain available on demand.
+  // Explicit BINARY_ENABLED=true restores both legacy prediction collectors.
+  const binaryEnabled = binaryCollectionEnabled();
   let binaryBusy = false;
   let binaryResolveBusy = false;
+  let binaryDrained = false;
   const resolveBinary = async () => {
-    if (binaryResolveBusy) return;
+    if (binaryResolveBusy || binaryDrained) return;
     binaryResolveBusy = true;
     try {
       const resolved = await resolveDueBinaryPredictions();
       if (resolved) console.log(`[binary] resolved ${resolved}`);
+      if (!binaryEnabled) {
+        const remaining = await query("SELECT 1 FROM binary_predictions WHERE status='active' LIMIT 1");
+        if (!remaining.rows.length) {
+          binaryDrained = true;
+          if (binaryResolver) clearInterval(binaryResolver);
+          binaryResolver = null;
+          console.log("[binary] retired — no active predictions remain; settlement polling stopped. History retained.");
+        }
+      }
     } catch (error) {
       console.error("[binary] resolver failed", error);
     } finally {
       binaryResolveBusy = false;
     }
   };
-  void resolveBinary();
   binaryResolver = setInterval(() => void resolveBinary(), 5_000);
-  const binary = async () => {
-    if (binaryBusy) return;
-    binaryBusy = true;
-    try {
-      const result = await collectBinaryCycle();
-      if (result.opened || result.resolved) console.log(`[binary] opened ${result.opened}, resolved ${result.resolved}`);
-    } catch (error) {
-      console.error("[binary] cycle failed", error);
-    } finally {
-      binaryBusy = false;
-    }
-  };
-  void binary();
-  binaryCollector = setInterval(() => void binary(), 60_000);
-
-  // Pattern V1 forward paper engine — an INDEPENDENT strategy on its own timer.
-  //
-  // Deliberately not chained to the binary collector above. It evaluates every
-  // newly closed M1 candle for every supported symbol and opens its own 10-
-  // minute UP prediction whenever the frozen rule fires, whether or not the
-  // baseline produced anything at that instant. The two may disagree on the
-  // same symbol and minute; both rows are kept, because the disagreement is
-  // itself the evidence.
-  //
-  // FROZEN: no adaptive selector, logistic model, inversion or suppression may
-  // influence whether it fires. Resolution is the EXISTING binary resolver,
-  // which settles every active row regardless of model, so Pattern V1 gets the
-  // same price source, the same 10-minute mark and the same tie convention as
-  // the baseline. Paper only: it writes a prediction row and places no order.
-  let patternBusy = false;
-  const patternV1 = async () => {
-    if (patternBusy) return;
-    patternBusy = true;
-    try {
-      const result = await collectPatternV1Cycle();
-      if (result.opened || result.duplicates) {
-        console.log(`[pattern-v1] evaluated ${result.evaluated}, fired ${result.fired}, `
-          + `opened ${result.opened}, duplicates ${result.duplicates}`);
+  void resolveBinary();
+  if (binaryEnabled) {
+    const binary = async () => {
+      if (binaryBusy) return;
+      binaryBusy = true;
+      try {
+        const result = await collectBinaryCycle();
+        if (result.opened || result.resolved) console.log(`[binary] opened ${result.opened}, resolved ${result.resolved}`);
+      } catch (error) {
+        console.error("[binary] cycle failed", error);
+      } finally {
+        binaryBusy = false;
       }
-    } catch (error) {
-      console.error("[pattern-v1] cycle failed", error);
-    } finally {
-      patternBusy = false;
-    }
-  };
-  void patternV1();
-  patternV1Collector = setInterval(() => void patternV1(), 60_000);
+    };
+    void binary();
+    binaryCollector = setInterval(() => void binary(), 60_000);
+
+    // Pattern V1 forward paper engine — an INDEPENDENT strategy on its own timer.
+    //
+    // Deliberately not chained to the binary collector above. It evaluates every
+    // newly closed M1 candle for every supported symbol and opens its own 10-
+    // minute UP prediction whenever the frozen rule fires, whether or not the
+    // baseline produced anything at that instant. The two may disagree on the
+    // same symbol and minute; both rows are kept, because the disagreement is
+    // itself the evidence.
+    //
+    // FROZEN: no adaptive selector, logistic model, inversion or suppression may
+    // influence whether it fires. Resolution is the EXISTING binary resolver,
+    // which settles every active row regardless of model, so Pattern V1 gets the
+    // same price source, the same 10-minute mark and the same tie convention as
+    // the baseline. Paper only: it writes a prediction row and places no order.
+    let patternBusy = false;
+    const patternV1 = async () => {
+      if (patternBusy) return;
+      patternBusy = true;
+      try {
+        const result = await collectPatternV1Cycle();
+        if (result.opened || result.duplicates) {
+          console.log(`[pattern-v1] evaluated ${result.evaluated}, fired ${result.fired}, `
+            + `opened ${result.opened}, duplicates ${result.duplicates}`);
+        }
+      } catch (error) {
+        console.error("[pattern-v1] cycle failed", error);
+      } finally {
+        patternBusy = false;
+      }
+    };
+    void patternV1();
+    patternV1Collector = setInterval(() => void patternV1(), 60_000);
+  } else {
+    console.log("[binary] retired — baseline, logistic shadow, adaptive and Pattern V1 collection are OFF.");
+  }
 
   // Legacy-confidence-v2 forward paper engine — INDEPENDENT strategy running
   // its own 15-minute cycle. Off by default; opt in with

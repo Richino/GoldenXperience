@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { binaryCollectionEnabled } from "./binary-lifecycle.js";
 import { query, transaction } from "./database.js";
 import { getPricing, getResearchCandles } from "../../frontend/src/lib/oanda/client.js";
 import { precisionFor } from "../../frontend/src/lib/instruments/catalog.js";
@@ -153,6 +154,7 @@ export async function openPatternV1Prediction(
  * array it is given, so no future price can influence a decision.
  */
 export async function collectPatternV1Cycle(now = new Date()): Promise<PatternV1CycleResult> {
+  if (!binaryCollectionEnabled()) return { evaluated: 0, fired: 0, opened: 0, duplicates: 0, reason: "Binary predictions are retired." };
   const result: PatternV1CycleResult = { evaluated: 0, fired: 0, opened: 0, duplicates: 0 };
 
   const session = getForexSessionStatus(now);

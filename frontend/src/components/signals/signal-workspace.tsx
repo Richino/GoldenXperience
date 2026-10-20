@@ -127,7 +127,7 @@ import type { StrategySetup } from "@/lib/strategy/types";
 import type { PaperTradingAvailability } from "@/lib/strategy/strategy-engine";
 import type { WatchlistStatusInput } from "@/lib/watchlist-status";
 import type { MarketPriceTick } from "@/types/market-stream";
-import type { BinaryPrediction, BinaryWatchRow } from "@/types/binary";
+import type { BinaryPrediction } from "@/types/binary";
 import type { PendingManualEntry } from "@/types/pending-entry";
 import type {
   Candle,
@@ -1087,30 +1087,6 @@ function toDisplaySignal(setup: StrategySetup): TradeSignal[] {
 
 /** Status pill / dot colour. */
 type StatusKind = "ready" | "blocked" | "waiting";
-
-/**
- * The live status shown on the signals page, read from the Binary Prediction
- * engine (the "new engine") for the selected pair rather than the paper-cycle
- * entry-window schedule. `row` is null when the engine does not monitor the pair.
- */
-function binaryEngineStatus(row: BinaryWatchRow | null): {
-  label: string;
-  kind: StatusKind;
-} {
-  if (!row) return { label: "Not on the binary monitor", kind: "waiting" };
-  if (row.activePredictionId && row.activeDirection) {
-    return {
-      label: `Prediction live · ${row.activeDirection === "up" ? "UP" : "DOWN"}`,
-      kind: "ready",
-    };
-  }
-  if (row.dataStatus !== "connected") return { label: "Waiting for market data", kind: "blocked" };
-  if (!row.bias || row.bias === "wait") return { label: "Waiting for a signal", kind: "waiting" };
-  return {
-    label: row.bias === "up" ? "Model favours UP" : "Model favours DOWN",
-    kind: "ready",
-  };
-}
 
 /** Text tone class for the desktop status line, from a status kind. */
 function toneClassForKind(kind: StatusKind): string {
@@ -2649,7 +2625,6 @@ export function SignalWorkspace({
     // series. Do not carry a stale replay cutoff into that series.
     setReplayEndTime(null);
   }, [instrument, range, timeframe]);
-  const [binaryWatch, setBinaryWatch] = useState<BinaryWatchRow[]>([]);
   const [focusTradeId, setFocusTradeId] = useState<string | null>(initialFocusTradeId);
   const [predictionFocus, setPredictionFocus] = useState<BinaryPrediction | null>(initialPredictionFocus);
   const [predictionClock, setPredictionClock] = useState(() => Date.now());
@@ -2925,19 +2900,6 @@ export function SignalWorkspace({
     }
   }, []);
 
-  const refreshBinaryWatch = useCallback(async () => {
-    try {
-      const response = await fetch(apiUrl("/api/binary/watchlist"), {
-        credentials: "include",
-        cache: "no-store",
-      });
-      const payload = await response.json() as { watchlist?: BinaryWatchRow[] };
-      if (response.ok && payload.watchlist) setBinaryWatch(payload.watchlist);
-    } catch {
-      // Keep the last known engine read while a refresh is unavailable.
-    }
-  }, []);
-
   const refreshPaperTrades = useCallback(async () => {
     try {
       const response = await fetch(
@@ -2998,12 +2960,6 @@ export function SignalWorkspace({
     const timer = window.setInterval(() => void refreshPaperPlans(), 60_000);
     return () => window.clearInterval(timer);
   }, [refreshPaperPlans]);
-
-  useEffect(() => {
-    void refreshBinaryWatch();
-    const timer = window.setInterval(() => void refreshBinaryWatch(), 60_000);
-    return () => window.clearInterval(timer);
-  }, [refreshBinaryWatch]);
 
   const newsMonitoringActive = pendingEntries.some(entry => entry.metadata?.configVersion === 3 && entry.metadata?.mode === "news" &&
     (["PENDING", "TRIGGERING"].includes(entry.status) || entry.status === "TRIGGERED" && entry.paperTradeStatus !== "closed"));
@@ -3209,14 +3165,12 @@ export function SignalWorkspace({
       await Promise.all([
         refreshMarketQuietly(),
         refreshPaperPlans(),
-        refreshBinaryWatch(),
         refreshPaperTrades(),
         refreshPendingEntries(),
         refreshActivePrediction(),
       ]);
     }, [
       refreshActivePrediction,
-      refreshBinaryWatch,
       refreshMarketQuietly,
       refreshPaperPlans,
       refreshPaperTrades,
@@ -3300,10 +3254,6 @@ export function SignalWorkspace({
   // by setup.status === "valid" in the paper-cycle backend.
   const active = openSignal ?? activeCandidate;
   const planIsOpen = Boolean(openSignal);
-  // The status line reflects the Binary Prediction engine (the "new engine") for
-  // the selected pair, not the paper-cycle entry window.
-  const binaryRow = binaryWatch.find((row) => row.instrument === instrument) ?? null;
-  const engineStatus = binaryEngineStatus(binaryRow);
   const riskDistance = active ? Math.abs(active.entry - active.stop) : null;
   const focusTrade = useMemo(
     () =>
@@ -4916,10 +4866,6 @@ export function SignalWorkspace({
             <div className="signals-fs-overlay" aria-hidden={!fullscreen}>
               <PairAvatar instrument={instrument} size={22} />
               <span className="signals-fs-pair">{activePair}</span>
-              <span
-                className={`signals-fs-dot is-${engineStatus.kind}`}
-                title={engineStatus.label}
-              />
               <span className="signals-fs-price metric-number">
                 {formatChartPrice(priceStats.displayPrice, instrument)}
               </span>

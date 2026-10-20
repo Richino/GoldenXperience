@@ -44,7 +44,7 @@ export function JournalTabs() {
               onClick={() => selectTab(value)}
               className={`check-chip pressable ${tab === value ? "check-chip-active" : ""}`}
             >
-              {value === "trades" ? "Trades" : "Binary Predictions"}
+              {value === "trades" ? "Trades" : "Binary history"}
             </button>
           ))}
         </div>

@@ -10,6 +10,7 @@ import {
   selectBinaryModelForFeatures,
 } from "./binary-adaptive-selector.js";
 import { loadAdaptivePredictionRows } from "./binary-adaptive-stats.js";
+import { binaryCollectionEnabled } from "./binary-lifecycle.js";
 import {
   BINARY_LOGISTIC_MODEL_NAME,
   BINARY_LOGISTIC_MODEL_VERSION,
@@ -1052,6 +1053,7 @@ export function binaryExpiredWhileClosed(intendedExpiration: string | Date): boo
  * has none active.
  */
 export async function collectBinaryCycle(): Promise<{ opened: number; resolved: number; evaluated: number; reason?: string }> {
+  if (!binaryCollectionEnabled()) return { opened: 0, resolved: 0, evaluated: 0, reason: "Binary predictions are retired." };
   let resolved = 0;
   try {
     resolved = await resolveDueBinaryPredictions();

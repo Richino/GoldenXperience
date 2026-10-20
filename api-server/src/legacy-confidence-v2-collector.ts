@@ -216,8 +216,11 @@ export async function collectLegacyConfidenceV2Cycle(): Promise<LegacyConfidence
   const riskPercent = Number(process.env.LEGACY_V2_RISK_PERCENT ?? "1");
 
   const artifact = loadLegacyConfidenceArtifact();
-  if (artifactAgeDays(artifact) > 14) {
-    console.warn(`[legacy-confidence-v2] artifact stale (${artifactAgeDays(artifact).toFixed(1)}d) — all decisions will skip`);
+  const age = artifactAgeDays(artifact);
+  if (!Number.isFinite(age) || age < 0 || age > 14) {
+    const reason = "Model artifact is stale or has an invalid training date; collector paused before fetching candles.";
+    console.warn(`[legacy-confidence-v2] ${reason}`);
+    return { ran: false, reason, pairsChecked: 0, setupsFired: 0, tradesOpened: 0, skipped: 0, errors: 0 };
   }
 
   let setupsFired = 0, tradesOpened = 0, skipped = 0, errors = 0;

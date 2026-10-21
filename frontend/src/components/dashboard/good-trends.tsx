@@ -6,13 +6,22 @@ import { ArrowUpRight } from "lucide-react";
 import { PairAvatar } from "@/components/ui/pair-avatar";
 import { useHomeSectionReady } from "./home-loading-boundary";
 import { apiUrl } from "@/lib/api/url";
+import { createPairTrendsCache, PAIR_TRENDS_TTL_MS } from "@/lib/home/pair-trends-cache";
 import { displayNameFor } from "@/lib/instruments/catalog";
 import { getForexSessionStatus } from "@/lib/strategy/session";
 import { MAJOR_INSTRUMENTS } from "@/types/forex";
 import type { PairTrendsSnapshot } from "./morning-market-picks";
 import styles from "./good-trends.module.css";
 
-const REFRESH_MS = 15 * 60_000;
+const REFRESH_MS = PAIR_TRENDS_TTL_MS;
+// Load only after mount, as with the shared news calendar cache.
+const trendsCache = createPairTrendsCache(async () => {
+  const response = await fetch(apiUrl("/api/pair-trends"), {
+    credentials: "include", cache: "no-store", signal: AbortSignal.timeout(30_000),
+  });
+  if (!response.ok) throw new Error("Trend data unavailable");
+  return response.json() as Promise<PairTrendsSnapshot>;
+}, { storage: () => window.sessionStorage });
 const SHOWN = 5;
 const MAJORS = new Set<string>(MAJOR_INSTRUMENTS);
 const clock = (iso: string) => new Intl.DateTimeFormat("en-US", {
@@ -32,10 +41,7 @@ export function GoodTrends() {
       if (reading) return;
       reading = true;
       try {
-        const response = await fetch(apiUrl("/api/pair-trends"), { credentials: "include", cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]) });
-        if (!response.ok) throw new Error("Trend data unavailable");
-        const next = await response.json() as PairTrendsSnapshot;
-        if (!Array.isArray(next.pairs) || !Number.isFinite(Date.parse(next.checkedAt))) throw new Error("Invalid trend snapshot");
+        const next = await trendsCache.load();
         if (!controller.signal.aborted) { setSnapshot(next); setError(false); }
       } catch {
         if (!controller.signal.aborted) setError(true);
@@ -45,9 +51,17 @@ export function GoodTrends() {
       }
     }
     void read();
-    const refresh = window.setInterval(read, REFRESH_MS);
+    // Check expiration locally; fresh snapshots never start another request.
+    const refreshVisible = () => { if (document.visibilityState === "visible") void read(); };
+    const refresh = window.setInterval(refreshVisible, 60_000);
+    window.addEventListener("focus", refreshVisible);
+    document.addEventListener("visibilitychange", refreshVisible);
     const clockTimer = window.setInterval(() => setNow(Date.now()), 60_000);
-    return () => { controller.abort(); window.clearInterval(refresh); window.clearInterval(clockTimer); };
+    return () => {
+      controller.abort(); window.clearInterval(refresh); window.clearInterval(clockTimer);
+      window.removeEventListener("focus", refreshVisible);
+      document.removeEventListener("visibilitychange", refreshVisible);
+    };
   }, []);
 
   const aligned = (snapshot?.pairs ?? [])

@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "pwa-layout:test": "tsx scripts/test-ios-top-clearance.ts",
+    "home:test": "tsx scripts/test-home-loading.ts && tsx scripts/test-pair-trends-cache.ts",
     "pwa-startup:test": "node scripts/test-pwa-startup.mjs",
     "observer-chat:test": "tsx scripts/test-observer-conversation.ts && tsx scripts/test-observer-pair-chats.ts",
     "observer-drag:test": "tsx scripts/test-observer-bubble-drag.ts && tsx scripts/test-observer-bubble-position.ts",

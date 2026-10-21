@@ -19,7 +19,6 @@ import {
   buildAccountAmountSeries,
   type AccountChartRange,
 } from "@/components/dashboard/account-amount-chart";
-import { LedgerPlans } from "@/components/dashboard/ledger-plans";
 import { NewsImpactSheet } from "@/components/dashboard/news-impact-sheet";
 import { WeeklyReview } from "@/components/dashboard/weekly-review";
 import { GoodTrends } from "@/components/dashboard/good-trends";
@@ -827,7 +826,6 @@ export function LedgerHome({
           <div className="nl-home-main">
             <GoodTrends />
             {positionsReady ? <LedgerPositions positions={positions} currency={account?.currency ?? "USD"} /> : <DeferredCard title="Open positions" state={positionState} />}
-            <LedgerPlans />
             {hasData(loadState.setups) ? <LedgerSetups setups={setups} /> : <DeferredCard title="Setups" state={loadState.setups} />}
             {hasData(loadState.pending) ? <LedgerPending
               entries={pending}

@@ -113,10 +113,6 @@ export function HomeLoadingSkeleton() {
                 </div>
               ))}
             </section>
-            <section className="nl-card nl-plans">
-              <div className="nl-card-head"><Placeholder className="h-6 w-24" /><Placeholder className="h-3 w-12" /></div>
-              <div className="space-y-3"><Placeholder className="h-4 w-44" /><Placeholder className="h-4 w-full" /><Placeholder className="h-4 w-3/4" /></div>
-            </section>
             <section className="nl-sec nl-setups">
               <SectionHeading />
               <div className="nl-setup-grid">

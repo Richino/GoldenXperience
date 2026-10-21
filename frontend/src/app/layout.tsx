@@ -4,7 +4,6 @@ import Script from "next/script";
 import { AppProviders } from "@/components/providers/app-providers";
 import { SPLASH_DEVICES } from "@/lib/pwa/splash-devices";
 import { TEXT_SIZE_STORAGE_KEY } from "@/lib/text-size";
-import { IOS_TOP_CLEARANCE_SCRIPT } from "@/lib/pwa/ios-top-clearance";
 import splash from "@/components/welcome/welcome-screen.module.css";
 import "./globals.css";
 // The redesign layer must load after globals.css: it wins ties on source order.
@@ -41,8 +40,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    // Use the normal status bar; the fixed sampling strip handles iOS 27.
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
     title: "GoldenXperience",
     // iOS launch screens, one per portrait screen size; rendered by
     // scripts/generate-splash.mjs. Android builds its own from manifest.json.
@@ -76,7 +74,6 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: IOS_TOP_CLEARANCE_SCRIPT }} />
         {/* Both schemes are covered below, so an unconditional dark value only
             adds a candidate that matches in light mode too. iOS has shipped
             versions that take the first match rather than the last, which
@@ -105,7 +102,6 @@ export default function RootLayout({
         />
       </head>
       <body>
-        <div className="gx-ios-statusbar" aria-hidden="true" />
         <Script
           id="text-size-init"
           strategy="beforeInteractive"

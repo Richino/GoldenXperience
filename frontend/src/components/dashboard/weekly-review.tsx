@@ -72,7 +72,8 @@ export function WeeklyReview({ currency }: { currency: string }) {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [summaryState, setSummaryState] = useState<"idle" | "loading" | "error">("idle");
   const [summaryError, setSummaryError] = useState<string | null>(null);
-  useHomeSectionReady("weekly", reviewError !== null || review !== null && (review.stats.trades === 0 || summary !== null || summaryState === "error"));
+  // The AI commentary has its own loading state; it must not hide the account.
+  useHomeSectionReady("weekly", reviewError !== null || review !== null);
 
   const loadSummary = useCallback(async () => {
     setSummaryState("loading");

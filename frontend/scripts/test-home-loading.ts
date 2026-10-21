@@ -3,12 +3,13 @@ import { HOME_LOADING_SECTIONS, initialHomeLoadingState, updateHomeLoading } fro
 
 let state = initialHomeLoadingState();
 assert.equal(state.revealed, false);
+assert.equal("plans" in state.sections, false, "retired Plans must not hold Home behind the loading skeleton");
 state = updateHomeLoading(state, { section: "swing", ready: false });
 for (const section of HOME_LOADING_SECTIONS) state = updateHomeLoading(state, { section, ready: true });
 assert.equal(state.revealed, false, "a nested Swing read holds the same skeleton until it settles");
 state = updateHomeLoading(state, { section: "swing", ready: true });
 assert.equal(state.revealed, true, "all first snapshots reveal together");
-assert.equal(updateHomeLoading(state, { section: "plans", ready: false }), state, "background refreshes never re-hide the page");
+assert.equal(updateHomeLoading(state, { section: "trends", ready: false }), state, "background refreshes never re-hide the page");
 
 let standalone = initialHomeLoadingState();
 for (const section of HOME_LOADING_SECTIONS.slice(0, -1)) standalone = updateHomeLoading(standalone, { section, ready: true });

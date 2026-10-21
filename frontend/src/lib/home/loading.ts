@@ -1,4 +1,4 @@
-export const HOME_LOADING_SECTIONS = ["plans", "trends", "news", "weekly"] as const;
+export const HOME_LOADING_SECTIONS = ["trends", "news", "weekly"] as const;
 export type HomeLoadingState = { sections: Record<string, boolean>; revealed: boolean };
 
 export function initialHomeLoadingState(): HomeLoadingState {

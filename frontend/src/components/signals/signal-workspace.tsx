@@ -2761,6 +2761,8 @@ export function SignalWorkspace({
     return () => window.clearTimeout(timer);
   }, [embeddedSurfaceOnly, instrument, swingReviewLink, urlInstrument]);
   const chartAnalysisBusy = embeddedSurfaceOnly ? trendPullbackBusy : swingAnalysisBusy;
+  // Retired from the chart UI; keep the implementation available for later use.
+  const showAnalyze = false;
   const analyzeLabel = { short: "Analyze", long: "Analyze market" };
   useEffect(() => {
     if (embeddedSurfaceOnly || !setObserverChartContext) return;
@@ -4817,9 +4819,9 @@ export function SignalWorkspace({
                 />
               </div>
               <div className="signals-mobile-header-actions nl-mhead-actions">
-                <button type="button" className="nl-analyze nl-analyze-sm pressable" onClick={() => void runTrendPullback()} disabled={chartAnalysisBusy || replayActive} title={`${analyzeLabel.long} for ${activePair}`}>
+                {showAnalyze ? <button type="button" className="nl-analyze nl-analyze-sm pressable" onClick={() => void runTrendPullback()} disabled={chartAnalysisBusy || replayActive} title={`${analyzeLabel.long} for ${activePair}`}>
                   {chartAnalysisBusy ? "Analyzing…" : analyzeLabel.short}
-                </button>
+                </button> : null}
                 <NotificationBell compact className="signals-icon-btn signals-fullscreen-reserve nl-mbell" />
               </div>
             </div>
@@ -5083,7 +5085,7 @@ export function SignalWorkspace({
                   {tradeActionBusy ? "Cancelling…" : "Cancel order"}
                 </button>
               ) : null}
-              <button type="button" className="nl-analyze pressable" onClick={() => void runTrendPullback()} disabled={replayActive || chartAnalysisBusy} title={`Analyze market for ${activePair}`}>{chartAnalysisBusy ? "Analyzing…" : "Analyze"}</button>
+              {showAnalyze ? <button type="button" className="nl-analyze pressable" onClick={() => void runTrendPullback()} disabled={replayActive || chartAnalysisBusy} title={`Analyze market for ${activePair}`}>{chartAnalysisBusy ? "Analyzing…" : "Analyze"}</button> : null}
               <NotificationBell className="nl-chart-bell" />
             </div>
             {(tradeActionError || trendPullbackError) ? (

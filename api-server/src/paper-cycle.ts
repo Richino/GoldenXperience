@@ -1,6 +1,7 @@
 import type { PoolClient } from "pg";
 
 import { query, transaction } from "./database.js";
+import { brokerHistoryFailure } from "./broker-history-diagnostics.js";
 import { getClosedPracticeTrades } from "../../frontend/src/lib/oanda/client.js";
 import { labelOutcome, type NormalizedQuote } from "./research.js";
 import { displayPair, queueNotification, sendPushNotification } from "./notifications.js";
@@ -1946,14 +1947,21 @@ export function requestPracticeHistorySync(userId: string) {
       current.status = "failed"; current.completedAt = new Date().toISOString(); current.retryAt = Date.now() + 15_000;
     });
   }
-  return { status: entry.status, completedAt: entry.completedAt };
+  return {
+    status: entry.status, completedAt: entry.completedAt,
+    // Home must keep checking failed imports as well as in-flight imports.
+    retryAfterMs: entry.status === "running" ? 3_000 : Math.max(1_000, entry.retryAt - Date.now()),
+  };
 }
 
 const brokerHistoryImports = new Map<string, Promise<{ imported: number; unavailable: boolean }>>();
 export function syncPracticeBrokerHistory(userId: string) {
   const pending = brokerHistoryImports.get(userId);
   if (pending) return pending;
-  const request = importPracticeBrokerHistory(userId);
+  const request = importPracticeBrokerHistory(userId).catch((error) => {
+    console.warn("[broker-history-sync] failed", brokerHistoryFailure("database-import", error));
+    throw error;
+  });
   brokerHistoryImports.set(userId, request);
   const clear = () => { if (brokerHistoryImports.get(userId) === request) brokerHistoryImports.delete(userId); };
   void request.then(clear, clear);
@@ -1964,7 +1972,8 @@ async function importPracticeBrokerHistory(userId: string) {
   let brokerTrades: Awaited<ReturnType<typeof getClosedPracticeTrades>>;
   try {
     brokerTrades = await getClosedPracticeTrades();
-  } catch {
+  } catch (error) {
+    console.warn("[broker-history-sync] failed", brokerHistoryFailure("broker-read", error));
     // A journal read must remain available when OANDA is temporarily down.
     return { imported: 0, unavailable: true };
   }

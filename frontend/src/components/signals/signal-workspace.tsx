@@ -1296,6 +1296,7 @@ function SignalSearch({
   compact = false,
   modal = false,
   pairLabel,
+  showPairAvatar = false,
 }: {
   signals: TradeSignal[];
   activeInstrument: MajorInstrument;
@@ -1308,6 +1309,7 @@ function SignalSearch({
   compact?: boolean;
   modal?: boolean;
   pairLabel?: string;
+  showPairAvatar?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const pairStrength = usePairStrength(open);
@@ -1538,8 +1540,15 @@ function SignalSearch({
             })}
             className={`signals-tool-btn pressable ${open ? "is-active" : ""}`}
           >
+            {showPairAvatar ? <PairAvatar key={activeInstrument} instrument={activeInstrument} size={28} horizontal /> : null}
             {pairLabel ? (
-              <><span>{pairLabel}</span><ChevronDown className="size-3.5" strokeWidth={2} /></>
+              <>
+                <span className={showPairAvatar ? "nl-pair-copy" : undefined}>
+                  {showPairAvatar ? <small>Forex</small> : null}
+                  <span>{pairLabel}</span>
+                </span>
+                <ChevronDown className="size-3.5" strokeWidth={2} />
+              </>
             ) : <Search className="size-4" strokeWidth={2} />}
           </button>
         </div>
@@ -4805,9 +4814,9 @@ export function SignalWorkspace({
             {/* Phone header and quote, as the "Chart — Mobile" artboard. */}
             <div className="signals-mobile-actions nl-mhead">
               <div className="nl-pair nl-pair-sm">
-                <PairAvatar key={instrument} instrument={instrument} size={30} horizontal />
                 <SignalSearch
                   compact
+                  showPairAvatar
                   pairLabel={activePair}
                   signals={signals}
                   activeInstrument={instrument}

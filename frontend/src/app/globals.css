@@ -3320,13 +3320,13 @@ html.mobile-sheet-open body {
   position: absolute;
   inset: 0;
   background: linear-gradient(
-    105deg,
+    90deg,
     transparent 32%,
     color-mix(in srgb, var(--foreground) 7%, transparent) 50%,
     transparent 68%
   );
-  transform: translateX(-120%);
-  animation: chart-loading-shimmer 1.5s ease-in-out infinite;
+  background-size: 200% 100%;
+  animation: gx-skeleton-shimmer 1.6s linear infinite;
 }
 
 .chart-loading-overlay-visible {
@@ -3346,10 +3346,6 @@ html.mobile-sheet-open body {
   inset: 0;
   overflow: hidden;
   background: color-mix(in srgb, var(--chart-background) 84%, var(--surface));
-}
-
-@keyframes chart-loading-shimmer {
-  to { transform: translateX(120%); }
 }
 
 .equity-chart-shell {
@@ -3376,13 +3372,13 @@ html.mobile-sheet-open body {
   position: absolute;
   inset: 0;
   background: linear-gradient(
-    105deg,
+    90deg,
     transparent 40%,
     color-mix(in srgb, var(--foreground) 6%, transparent) 50%,
     transparent 60%
   );
-  transform: translateX(-120%);
-  animation: chart-loading-shimmer 1.6s ease-in-out infinite;
+  background-size: 200% 100%;
+  animation: gx-skeleton-shimmer 1.6s linear infinite;
 }
 
 .chart-data-shell > .setup-chart-root {
@@ -13704,13 +13700,12 @@ html:has(.pending-entry-backdrop) .mobile-dock {
 .trades-load-more { margin: 0.8rem auto 0; padding: 0.5rem 1rem; border: 1px solid var(--border); border-radius: 0.5rem; background: var(--surface); color: var(--muted-strong); font-size: 0.72rem; font-weight: 600; }
 .trades-empty { padding: 1.5rem 0.2rem; color: var(--muted); font-size: 0.82rem; }
 .trades-summary-skeleton { min-height: 4.3rem; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.75rem; }
-.trades-summary-skeleton span, .trades-toolbar-skeleton span { border-radius: 0.45rem; background: linear-gradient(90deg, color-mix(in srgb, var(--foreground) 5%, transparent), color-mix(in srgb, var(--foreground) 9%, transparent), color-mix(in srgb, var(--foreground) 5%, transparent)); background-size: 200% 100%; animation: trades-shimmer 1.4s ease infinite; }
+.trades-summary-skeleton span, .trades-toolbar-skeleton span { border-radius: 0.45rem; background: linear-gradient(90deg, color-mix(in srgb, var(--foreground) 5%, transparent), color-mix(in srgb, var(--foreground) 9%, transparent), color-mix(in srgb, var(--foreground) 5%, transparent)); background-size: 200% 100%; animation: gx-skeleton-shimmer 1.6s linear infinite; }
 .trades-toolbar-skeleton { display: flex; align-items: center; gap: 0.5rem; min-height: 2.25rem; }
 .trades-toolbar-skeleton-tabs { width: 13.5rem; height: 2.25rem; }
 .trades-toolbar-skeleton-search { width: min(17rem, 100%); height: 2.25rem; }
 .trades-skeleton { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.6rem; }
-.trades-skeleton-row { height: 2.6rem; border-radius: 0.4rem; background: linear-gradient(90deg, color-mix(in srgb, var(--foreground) 5%, transparent), color-mix(in srgb, var(--foreground) 9%, transparent), color-mix(in srgb, var(--foreground) 5%, transparent)); background-size: 200% 100%; animation: trades-shimmer 1.4s ease infinite; }
-@keyframes trades-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+.trades-skeleton-row { height: 2.6rem; border-radius: 0.4rem; background: linear-gradient(90deg, color-mix(in srgb, var(--foreground) 5%, transparent), color-mix(in srgb, var(--foreground) 9%, transparent), color-mix(in srgb, var(--foreground) 5%, transparent)); background-size: 200% 100%; animation: gx-skeleton-shimmer 1.6s linear infinite; }
 
 /* Badges ------------------------------------------------------------------- */
 .trade-side, .trade-result { display: inline-flex; align-items: center; justify-content: center; border-radius: 0.3rem; padding: 0.16rem 0.42rem; font-size: 0.58rem; font-weight: 700; letter-spacing: 0.05em; white-space: nowrap; }
@@ -15188,8 +15183,13 @@ html:has(.custom-expiration-backdrop) .mobile-dock {
 
 /* Home: retain visual structure while the first activity request resolves. */
 .home-activity-skeleton { display: grid; gap: .45rem; margin-top: .75rem; }
-.home-activity-skeleton span { display: block; height: 3rem; border-radius: .7rem; background: linear-gradient(90deg, color-mix(in srgb, var(--foreground) 5%, transparent) 20%, color-mix(in srgb, var(--foreground) 10%, transparent) 45%, color-mix(in srgb, var(--foreground) 5%, transparent) 70%); background-size: 220% 100%; animation: home-activity-shimmer 1.35s ease-in-out infinite; }
-@keyframes home-activity-shimmer { to { background-position: -220% 0; } }
+.home-activity-skeleton span { display: block; height: 3rem; border-radius: .7rem; background: linear-gradient(90deg, color-mix(in srgb, var(--foreground) 5%, transparent) 20%, color-mix(in srgb, var(--foreground) 10%, transparent) 45%, color-mix(in srgb, var(--foreground) 5%, transparent) 70%); background-size: 200% 100%; animation: gx-skeleton-shimmer 1.6s linear infinite; }
+/* A 200%-wide repeating gradient moves exactly one tile per cycle.
+   Matching endpoints and constant speed avoid a visible reset on every loop. */
+@keyframes gx-skeleton-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: 0% 0; }
+}
 
 @media (max-width: 1023px) {
   .home-rail { gap: 1rem; }
@@ -18177,8 +18177,8 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
       color-mix(in srgb, var(--foreground) 10%, transparent) 45%,
       color-mix(in srgb, var(--foreground) 5%, transparent) 70%
     );
-    background-size: 220% 100%;
-    animation: home-activity-shimmer 1.35s ease-in-out infinite;
+    background-size: 200% 100%;
+    animation: gx-skeleton-shimmer 1.6s linear infinite;
   }
 
   /* Trade / Cancel / Close: solid fills — keep label white on hover (outline
@@ -18897,8 +18897,8 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
     color-mix(in srgb, var(--foreground) 12%, transparent) 45%,
     color-mix(in srgb, var(--foreground) 6%, transparent) 70%
   );
-  background-size: 220% 100%;
-  animation: home-activity-shimmer 1.35s ease-in-out infinite;
+  background-size: 200% 100%;
+  animation: gx-skeleton-shimmer 1.6s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -19668,15 +19668,24 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
     color-mix(in srgb, var(--foreground) 12%, transparent) 45%,
     color-mix(in srgb, var(--foreground) 6%, transparent) 70%
   );
-  background-size: 220% 100%;
-  animation: home-activity-shimmer 1.35s ease-in-out infinite;
+  background-size: 200% 100%;
+  animation: gx-skeleton-shimmer 1.6s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .gx-skel,
+  .home-activity-skeleton span,
+  .trades-summary-skeleton span,
+  .trades-toolbar-skeleton span,
+  .trades-skeleton-row,
+  .gx-mobile-trade-action-skeleton,
+  .tp-skel,
+  .nl-an-skel,
+  .chart-loading-skeleton::after,
+  .equity-chart-skeleton-track::after,
   .trades-skeleton-row i,
   .trades-summary-skeleton i,
-  .trades-toolbar-skeleton i { animation: none; }
+  .trades-toolbar-skeleton i { animation: none !important; }
 }
 
 .gx-phone-only { display: none; }
@@ -19824,8 +19833,8 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
       color-mix(in srgb, var(--foreground) 12%, transparent) 45%,
       color-mix(in srgb, var(--foreground) 6%, transparent) 70%
     );
-    background-size: 220% 100%;
-    animation: home-activity-shimmer 1.35s ease-in-out infinite;
+    background-size: 200% 100%;
+    animation: gx-skeleton-shimmer 1.6s linear infinite;
   }
 
   html:is(.dark, :not(.dark)) .trades-summary-skeleton i.is-value { width: 38px; height: 16px; }

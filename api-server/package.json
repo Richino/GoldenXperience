@@ -28,6 +28,7 @@
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",
+    "broker-history:test": "tsx scripts/test-broker-history-diagnostics.ts",
     "db:migrate": "tsx scripts/migrate.ts",
     "oanda:backfill-entry-costs": "tsx scripts/backfill-oanda-execution-costs.ts",
     "auth:create-owner": "tsx scripts/create-owner.ts",

@@ -157,7 +157,7 @@ export type DashboardOverview = {
 
 export type DashboardJournal = {
   trades: JournalTrade[];
-  brokerSync?: { status: "running" | "ready" | "unavailable" | "failed"; completedAt: string | null };
+  brokerSync?: { status: "running" | "ready" | "unavailable" | "failed"; completedAt: string | null; retryAfterMs?: number };
   summary?: {
     total: number;
     winRate: number | null;
@@ -499,10 +499,13 @@ export function DashboardView({
   }, [refreshHistory]);
 
   useEffect(() => {
-    if (journalSync?.status !== "running") return;
+    if (!journalSync || journalSync.status === "ready") return;
+    // Failed imports used to stop polling until the minute-long dashboard refresh.
+    // Follow the server's backoff, including while web/API deployments differ.
+    const delay = journalSync.retryAfterMs ?? (journalSync.status === "running" ? 3_000 : 15_000);
     const timer = window.setTimeout(() => {
       if (document.visibilityState === "visible") void refreshJournal().catch(() => undefined);
-    }, 3_000);
+    }, delay);
     return () => window.clearTimeout(timer);
   }, [journalSync, refreshJournal]);
 
@@ -679,7 +682,7 @@ export function DashboardView({
         onEditPending={setPendingLevelsEntry}
         activity={recentActivity}
         error={[error, journalSync && journalSync.status !== "ready"
-          ? journalSync.status === "running" ? "Broker history is syncing. Journal totals may be outdated." : "Broker history could not sync. Showing stored journal data."
+          ? journalSync.status === "running" ? "Broker history is syncing. Journal totals may be outdated." : "Broker history could not sync. Retrying automatically; showing stored journal data."
           : null].filter(Boolean).join(" ") || null}
         loadState={loadState}
       />

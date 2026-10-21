@@ -6,7 +6,7 @@ function Plot() {
 }
 
 function Facts({ mobile = false }: { mobile?: boolean }) {
-  return <dl className={mobile ? "nl-mquote-facts" : "nl-chart-facts"}>{Array.from({ length: mobile ? 3 : 4 }, (_, i) => <div key={i}><dt><Block width={30} height={mobile ? 15 : 16} className="ml-auto" /></dt><dd><Block width={mobile ? 48 : 66} height={mobile ? 18 : 20} /></dd></div>)}</dl>;
+  return <dl className={mobile ? "nl-mquote-facts" : "nl-chart-facts"}>{Array.from({ length: mobile ? 3 : 4 }, (_, i) => <div key={i}><dt><Block width={30} height={mobile ? 12 : 16} className="ml-auto" /></dt><dd><Block width={mobile ? (i === 2 ? 32 : 54) : 66} height={mobile ? 16 : 20} /></dd></div>)}</dl>;
 }
 
 export function ChartLoadingSkeleton() {
@@ -16,8 +16,22 @@ export function ChartLoadingSkeleton() {
         <section className="app-card signals-chart-card min-w-0 w-full" aria-hidden="true">
           <div className="signals-chart-mobile lg:hidden">
             <div className="signals-mobile-content">
-              <div className="signals-mobile-actions nl-mhead"><Block width={184} height={48} radius={16} /><div className="nl-mhead-actions"><Block width={104} height={48} radius={16} /><Block width={48} height={48} radius={16} /></div></div>
-              <div className="gx-mobile-quote-row nl-mquote"><div className="nl-mquote-main"><span className="nl-mquote-price"><Block width="4em" height="1em" /></span><span className="nl-mquote-meta"><Block width={48} height={19.5} /></span></div><span className="nl-mquote-session"><Block width={148} height={19.5} /></span><Facts mobile /></div>
+              <div className="signals-mobile-actions nl-mhead">
+                <Block className="nl-skeleton-pair" width={190} height={52} radius={15} />
+                <div className="nl-mhead-actions">
+                  <Block className="nl-skeleton-analyze" width={80} height={48} radius={16} />
+                  <Block width={48} height={48} radius={16} />
+                </div>
+              </div>
+              <div className="gx-mobile-quote-row nl-mquote">
+                <div className="nl-mquote-main">
+                  <span className="nl-mquote-price"><Block width="4em" height="1em" /></span>
+                  <span className="nl-mquote-meta"><Block width={100} height={14} /></span>
+                </div>
+                <span className="nl-mquote-session"><Block width={52} height={14} /></span>
+                <Block className="nl-mquote-trend" width={174} height={28} radius={999} />
+                <Facts mobile />
+              </div>
               <div className="gx-mobile-timeframes"><div className="nl-skeleton-timeframes">{Array.from({ length: 5 }, (_, i) => <Block key={i} width="100%" height={38} radius={10} />)}</div></div>
             </div>
             <div className="relative min-h-[14rem] flex-1 overflow-hidden chart-data-shell chart-loading-static"><Plot /></div>

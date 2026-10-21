@@ -1918,8 +1918,8 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-va
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: calc(48px + var(--gx-safe-area-top));
-    padding: var(--gx-safe-area-top) 16px 0;
+    height: calc(64px + var(--gx-safe-area-top));
+    padding: calc(var(--gx-safe-area-top) + 8px) 16px 8px;
     border-bottom: 1px solid var(--border);
     background: color-mix(in srgb, var(--background) 92%, transparent);
     backdrop-filter: blur(12px);
@@ -5406,13 +5406,12 @@ html:is(.dark, :not(.dark)) body .signals-view .workspace-tab-btn.workspace-tab-
   .signals-chart-mobile .nl-pair {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 0;
     min-width: 0;
-    height: 48px;
-    padding: 0 4px 0 6px;
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    background: var(--surface);
+    height: 52px;
+    padding: 0;
+    border: 0;
+    background: transparent;
   }
 
   .signals-chart-mobile .nl-pair-coins {
@@ -5443,15 +5442,60 @@ html:is(.dark, :not(.dark)) body .signals-view .workspace-tab-btn.workspace-tab-
   }
 
   html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-pair .gx-pair-search .signals-tool-btn {
-    min-height: 44px;
-    padding: 0 6px 0 0;
-    border: 0;
-    background: transparent;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: auto;
+    height: 52px;
+    min-height: 52px;
+    padding: 8px 10px;
+    border: 1px solid var(--border-strong);
+    border-radius: 15px;
+    background: var(--surface);
     color: var(--foreground);
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--foreground) 4%, transparent);
     font-family: var(--font-display);
-    font-size: 18px;
-    font-weight: 800;
-    letter-spacing: -0.03em;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    text-align: left;
+  }
+
+  .signals-chart-mobile .nl-pair-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    line-height: 1.1;
+  }
+
+  .signals-chart-mobile .nl-pair-copy small {
+    color: var(--muted);
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .signals-chart-mobile .nl-pair .signals-tool-btn > svg {
+    flex: none;
+    width: 24px;
+    height: 24px;
+    margin-left: 2px;
+    padding: 5px;
+    border-radius: 8px;
+    background: var(--surface-raised);
+    color: var(--muted-strong);
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-pair .gx-pair-search .signals-tool-btn:is(:hover, .is-active) {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent-soft) 35%, var(--surface));
+  }
+
+  .signals-chart-mobile .nl-pair .signals-tool-btn:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 3px;
   }
 
   .nl-mhead-actions {
@@ -5939,7 +5983,7 @@ html:is(.dark, :not(.dark)) body .signals-view .workspace-tab-btn.workspace-tab-
     var(--surface-raised)
   );
   background-size: 200% 100%;
-  animation: nl-an-shimmer 1.4s ease infinite;
+  animation: gx-skeleton-shimmer 1.6s linear infinite;
 }
 
 .nl-an-skel-title { width: 60%; height: 40px; }
@@ -5947,10 +5991,6 @@ html:is(.dark, :not(.dark)) body .signals-view .workspace-tab-btn.workspace-tab-
 .nl-an-skel-line { height: 14px; }
 .nl-an-skel-line.is-short { width: 70%; }
 
-@keyframes nl-an-shimmer {
-  from { background-position: 100% 0; }
-  to { background-position: -100% 0; }
-}
 
 @media (prefers-reduced-motion: reduce) {
   .nl-an-skel { animation: none; }
@@ -6122,12 +6162,32 @@ html:is(.dark, :not(.dark)) body .phone-settings-switch.is-on > span {
 .nl-skeleton-index { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 14px; }
 .nl-skeleton-timeframes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
 .signals-loading-skeleton .nl-an-actions > .gx-skel { flex: 1 1 0; min-width: 0; }
-.signals-loading-skeleton .nl-mhead > .gx-skel { flex-shrink: 1; min-width: 0; }
 @media (max-width: 1023px) {
+  /* Keep the header and quote placeholders at readable sizes. Only the plot
+     should absorb spare height; short and narrow screens can wrap the facts. */
+  .signals-loading-skeleton .signals-mobile-content { flex-shrink: 0; }
+  .signals-loading-skeleton .nl-mhead-actions { align-items: center; }
+  .signals-loading-skeleton .nl-mquote-main { flex-wrap: wrap; row-gap: 6px; }
+  .signals-loading-skeleton .nl-mquote-facts { align-self: end; }
+
+  @media (max-width: 419px) {
+    .signals-loading-skeleton .nl-skeleton-analyze { display: none; }
+    html:is(.dark, :not(.dark)) body .signals-loading-skeleton .signals-chart-mobile .nl-mquote {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .signals-loading-skeleton .nl-mquote-facts {
+      grid-column: 1;
+      grid-row: 4;
+      justify-content: space-between;
+      width: 100%;
+      margin-top: 6px;
+    }
+  }
+
   html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-timeframes > .nl-skeleton-timeframes {
-    padding: 3px;
+    padding: 4px;
     border: 0;
-    gap: 0;
+    gap: 4px;
   }
   .nl-skeleton-toolbar .nl-tr-tabs > .gx-skel { width: 100% !important; }
   .nl-skeleton-market-action { width: 44px; }

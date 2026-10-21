@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Search } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { WatchlistPairsSkeleton } from "@/components/ui/page-skeletons";
 import { MarketRowSkeleton } from "@/components/ui/ledger-loading-skeletons";
 import { useMarketObserver } from "@/components/analysis/market-observer-provider";
@@ -19,6 +19,7 @@ import { INSTRUMENT_CATALOG, displayNameFor, pipSizeFor } from "@/lib/instrument
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import type { WatchlistCondition } from "@/lib/watchlist-status";
+import { createWatchlistDailyCache, WATCHLIST_DAILY_TTL_MS, type WatchlistDay } from "@/lib/watchlist-daily-cache";
 import type { CandleSeries } from "@/types/forex";
 
 type Row = {
@@ -57,7 +58,50 @@ const EMPTY_ROW: Omit<Row, "instrument"> = {
 };
 /** How many rows to reveal per infinite-scroll page. */
 const WATCHLIST_PAGE_SIZE = 20;
-type Day = { change: number | null; high: number | null; low: number | null; close: number | null; spark: number[] | null };
+const dailyCache = createWatchlistDailyCache(async (instrument) => {
+  const readCandles = async (granularity: string, count: number) => {
+    const response = await fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=${granularity}&count=${count}`), {
+      credentials: "include", cache: "no-store",
+    });
+    if (!response.ok) throw new Error("Market candles are unavailable.");
+    const payload = await response.json() as { data?: CandleSeries };
+    if (!payload.data?.candles.length) throw new Error("Market candles are unavailable.");
+    return payload.data.candles;
+  };
+  const [candles, hourly] = await Promise.all([
+    readCandles("D", 2),
+    readCandles("H1", 24).catch(() => null),
+  ]);
+  const current = candles.at(-1), previous = candles.at(-2);
+  return {
+    change: current && previous && previous.close > 0 ? ((current.close - previous.close) / previous.close) * 100 : null,
+    high: current?.high ?? null,
+    low: current?.low ?? null,
+    close: current?.close ?? null,
+    spark: hourly?.map(candle => candle.close) ?? null,
+  };
+}, { storage: () => window.sessionStorage });
+
+async function loadDaily(instrumentsKey: string, setDaily: Dispatch<SetStateAction<Record<string, WatchlistDay>>>, force = false) {
+  const instruments = instrumentsKey ? instrumentsKey.split(",") : [];
+  // Restore fresh rows together, then reveal network results independently.
+  const restored = Object.fromEntries(instruments.flatMap(instrument => {
+    const day = dailyCache.peek(instrument);
+    return day ? [[instrument, day]] : [];
+  }));
+  if (Object.keys(restored).length) setDaily(previous => ({ ...previous, ...restored }));
+  await Promise.all(instruments.map(async instrument => {
+    try {
+      const day = await dailyCache.load(instrument, force);
+      setDaily(previous => ({ ...previous, [instrument]: day }));
+    } catch {
+      // Keep existing rows visible; a failed first read renders unavailable fields.
+      setDaily(previous => previous[instrument] ? previous : {
+        ...previous, [instrument]: { change: null, high: null, low: null, close: null, spark: null },
+      });
+    }
+  }));
+}
 const names: Record<string, string> = {
   AUD: "Australian Dollar",
   CAD: "Canadian Dollar",
@@ -88,7 +132,7 @@ export function WatchlistView() {
   const closeSheet = useCallback(() => setSheetPair(null), []);
   const { busy: analyzeBusy, start: startAnalyze } = useMarketAnalyze(refreshSetups, openSheet);
   const [snapshot, setSnapshot] = useState<Row[]>([]);
-  const [daily, setDaily] = useState<Record<string, Day>>({});
+  const [daily, setDaily] = useState<Record<string, WatchlistDay>>({});
   const [query, setQuery] = useState("");
   const [group, setGroup] = useState<PairGroup>("all");
   const [sort, setSort] = useState<PairSort>("setups");
@@ -131,7 +175,6 @@ export function WatchlistView() {
       window.clearInterval(timer);
     };
   }, [load]);
-  useForegroundRefresh(load);
   const snapshotByInstrument = useMemo(
     () => new Map(snapshot.map((row) => [row.instrument, row])),
     [snapshot],
@@ -209,10 +252,6 @@ export function WatchlistView() {
         }
       : byChosenSort,
   );
-  // A new search resets paging so results start from the top of the filtered set.
-  useEffect(() => {
-    setVisibleCount(WATCHLIST_PAGE_SIZE);
-  }, [query, group, sort]);
   const shown = matched.slice(0, visibleCount);
   const hasMore = matched.length > shown.length;
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -230,9 +269,6 @@ export function WatchlistView() {
     observer.observe(node);
     return () => observer.disconnect();
   }, [hasMore, loading]);
-  // Lazily pull daily price + change for whatever pairs are currently on screen,
-  // once per pair, so scrolling reveals data for the non-featured pairs too
-  // without loading all 68 up front.
   // Ranked only among pairs whose daily data has arrived; the header says so.
   const loadedDailyCount = rows.filter((row) => finiteOrNull(daily[row.instrument]?.change) !== null).length;
   const movers = rows
@@ -254,65 +290,17 @@ export function WatchlistView() {
     .sort((left, right) => Math.abs(right.change) - Math.abs(left.change))
     .slice(0, 4);
   const shownInstrumentsKey = shown.map((row) => row.instrument).join(",");
-  const dailyRequestedRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    const instruments = shownInstrumentsKey ? shownInstrumentsKey.split(",") : [];
-    const missing = instruments.filter(
-      (instrument) => !dailyRequestedRef.current.has(instrument),
-    );
-    if (!missing.length) return;
-    missing.forEach((instrument) => dailyRequestedRef.current.add(instrument));
-    void Promise.all(
-      missing.map(async (instrument) => {
-        try {
-          const [candleResponse, hourlyResponse] = await Promise.all([
-            fetch(
-              apiUrl(
-                `/api/oanda/candles?instrument=${instrument}&granularity=D&count=2`,
-              ),
-              { credentials: "include", cache: "no-store" },
-            ),
-            // The row's sparkline: the last 24 hourly closes.
-            fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=H1&count=24`), {
-              credentials: "include",
-              cache: "no-store",
-            }).catch(() => null),
-          ]);
-          const candlePayload = (await candleResponse.json()) as {
-            data?: CandleSeries;
-          };
-          const hourlyPayload = hourlyResponse?.ok
-            ? ((await hourlyResponse.json()) as { data?: CandleSeries })
-            : null;
-          const spark = hourlyPayload?.data?.candles.map((candle) => candle.close) ?? null;
-          const current = candlePayload.data?.candles.at(-1),
-            previous = candlePayload.data?.candles.at(-2);
-          return [
-            instrument,
-            {
-              change:
-                current && previous
-                  ? ((current.close - previous.close) / previous.close) * 100
-                  : null,
-              high: current?.high ?? null,
-              low: current?.low ?? null,
-              close: current?.close ?? null,
-              spark,
-            },
-          ] as const;
-        } catch {
-          // Let it retry the next time this pair scrolls into view.
-          dailyRequestedRef.current.delete(instrument);
-          return [
-            instrument,
-            { change: null, high: null, low: null, close: null, spark: null },
-          ] as const;
-        }
-      }),
-    ).then((entries) => {
-      setDaily((previous) => ({ ...previous, ...Object.fromEntries(entries) }));
-    });
+    const initial = window.setTimeout(() => void loadDaily(shownInstrumentsKey, setDaily), 0);
+    const timer = window.setInterval(() => void loadDaily(shownInstrumentsKey, setDaily), WATCHLIST_DAILY_TTL_MS);
+    return () => {
+      window.clearTimeout(initial);
+      window.clearInterval(timer);
+    };
   }, [shownInstrumentsKey]);
+  useForegroundRefresh(async () => {
+    await Promise.all([load(), loadDaily(shownInstrumentsKey, setDaily, true)]);
+  });
   const groups: Array<{ id: PairGroup; label: string }> = [
     { id: "all", label: "All" },
     { id: "major", label: "Majors" },
@@ -375,7 +363,7 @@ export function WatchlistView() {
                 type="button"
                 aria-pressed={group === option.id}
                 className={group === option.id ? "is-active" : ""}
-                onClick={() => setGroup(option.id)}
+                onClick={() => { setGroup(option.id); setVisibleCount(WATCHLIST_PAGE_SIZE); }}
               >
                 {option.label}
               </button>
@@ -388,7 +376,7 @@ export function WatchlistView() {
                 type="button"
                 aria-pressed={sort === option.id}
                 className={`${sort === option.id ? "is-active" : ""}${option.id === "move" || option.id === "name" ? " nl-mk-sort-wide" : ""}`}
-                onClick={() => setSort(option.id)}
+                onClick={() => { setSort(option.id); setVisibleCount(WATCHLIST_PAGE_SIZE); }}
               >
                 {option.label}
               </button>
@@ -398,7 +386,7 @@ export function WatchlistView() {
             <Search aria-hidden="true" />
             <input
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => { setQuery(event.target.value); setVisibleCount(WATCHLIST_PAGE_SIZE); }}
               placeholder="Search markets"
               aria-label="Search markets"
             />

@@ -1,7 +1,15 @@
 .card { margin: 20px 0; padding: 20px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); color: var(--foreground); min-width: 0; font-size: 13px; line-height: 1.6; }
-.sheet.sheet { height: min(90dvh, 56rem); max-height: min(90dvh, 56rem); touch-action: pan-y; }
+/* Outrank the global theme's 72dvh limit for short option lists. */
+.sheet.sheet.sheet { height: min(90dvh, 56rem); max-height: min(90dvh, 56rem); touch-action: pan-y; }
 .sheet .card { margin: 0; }
-@media(min-width:1024px) { .sheet.sheet { width: min(960px, calc(100vw - 48px)); margin-inline: auto; } }
+.notice.notice { height: auto; max-height: 70dvh; }
+.notice .card { margin: 0; }
+.actions.actions a { display: inline-flex; align-items: center; min-height: 44px; padding: 9px 12px; border-radius: 10px; background: var(--accent); color: var(--accent-foreground, #10150b); text-decoration: none; }
+@media(min-width:1024px) {
+  .sheet.sheet, .notice.notice { display: flex; width: min(960px, calc(100vw - 48px)); margin: auto; top: 0; bottom: 0; border-radius: 20px; }
+  .notice.notice { width: min(480px, calc(100vw - 48px)); height: fit-content; }
+  :global(.mobile-sheet-backdrop):has(+ .sheet), :global(.mobile-sheet-backdrop):has(+ .notice) { display: block; }
+}
 .header { display: flex; justify-content: space-between; gap: 14px; align-items: flex-start; margin-bottom: 14px; }
 .header h2 { margin: 3px 0 0; font-size: 18px; font-weight: 600; }
 .header h2 span { color: var(--muted); font-size: 13px; margin-left: 8px; }
@@ -20,6 +28,7 @@
 .grid span { font-size: 11px; color: var(--muted); }
 .grid strong { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .columns, .zones { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; margin: 14px 0; }
+.columns:has(> :only-child) { grid-template-columns: minmax(0,1fr); }
 .zone, .scenario { padding: 14px; border: 1px solid var(--border); border-radius: 12px; min-width: 0; overflow-wrap: anywhere; }
 .zone button { display: flex; flex-direction: column; align-items: flex-start; width: 100%; min-height: 44px; text-align: left; cursor: pointer; color: var(--foreground); background: transparent; border: 0; gap: 5px; }
 .zone button[aria-pressed="true"] strong { color: var(--accent); }

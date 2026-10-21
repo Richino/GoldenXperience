@@ -80,6 +80,7 @@ export type SwingScenario = {
 export type SwingEvent = { id: string; at: string; kind: string; zoneId: string | null; detail: string; data: Record<string, unknown> };
 export type SwingJob = { id: string; kind: "DAILY" | "MATERIAL_NEWS" | "MANUAL" | "HOURLY_CHECK"; status: string; createdAt: string; completedAt: string | null; error: string | null };
 export type SwingView = {
+  acceptedPlan?: { assessmentId: string; acceptedAt: string; scenario: SwingScenario; zone: SwingZone } | null;
   enabled: boolean; runtime: { available: boolean; reason: string | null }; analysisOnly: true; instrument: string;
   monitor: { active: boolean; style: SwingStyle } | null; market: SwingMarket | null; assessment: SwingAssessment | null;
   assessmentFresh: boolean; zones: SwingZone[]; unavailableZones: string[]; movement: SwingMovement | null;

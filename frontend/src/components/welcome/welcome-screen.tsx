@@ -8,7 +8,8 @@ import { OBSERVER_MASCOT_ASSETS } from "@/lib/observer-mascot";
 import styles from "./welcome-screen.module.css";
 
 /**
- * Default app launch screen, once per browser/home-screen app session.
+ * On-demand animated design preview. Normal launch uses the static artwork
+ * from layout.tsx and clears it on hydration without a fixed delay.
  * ?splash=1 previews the transition; ?splash=preview holds it for review.
  */
 

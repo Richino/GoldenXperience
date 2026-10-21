@@ -8490,8 +8490,8 @@ html:is(.dark, :not(.dark)) body .analysis-mode-replacement::before {
 
 /* ============================================================ BOOT SPLASH
    layout.tsx's static first-paint copy of the launch splash. Hidden unless
-   the head script marked a first launch (html.gx-boot-splash); WelcomeScreen
-   fades its animated copy in above it (z 20000) and then removes the class.
+   the head script marked a first launch (html.gx-boot-splash); LaunchScreen
+   removes it as soon as React hydrates. Explicit splash previews still animate.
    If the app never starts, it still steps aside after 6s. */
 #gx-boot-splash { display: none; }
 /* Keep the page sampled by iOS as dark as the launch screen until it closes. */

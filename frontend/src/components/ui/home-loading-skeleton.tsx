@@ -82,6 +82,15 @@ export function HomeLoadingSkeleton() {
         </section>
         <div className="nl-home-cols">
           <div className="nl-home-main">
+            <section className="nl-card">
+              <div className="nl-card-head"><Placeholder className="h-6 w-32" /><Placeholder className="h-3 w-12" /></div>
+              <Placeholder className="h-4 w-56" />
+              <div className="mt-4 space-y-4">
+                {Array.from({ length: 3 }, (_, index) => <div key={index} className="flex items-center gap-3">
+                  <Placeholder className="size-[30px] rounded-full" /><Placeholder className="h-4 w-24" /><Placeholder className="ml-auto h-4 w-28" />
+                </div>)}
+              </div>
+            </section>
             <section className="nl-sec nl-positions">
               <SectionHeading />
               <div className="nl-pos-head">
@@ -103,6 +112,10 @@ export function HomeLoadingSkeleton() {
                   <div className="nl-pos-pl"><Placeholder className="ml-auto h-6 w-20" /></div>
                 </div>
               ))}
+            </section>
+            <section className="nl-card nl-plans">
+              <div className="nl-card-head"><Placeholder className="h-6 w-24" /><Placeholder className="h-3 w-12" /></div>
+              <div className="space-y-3"><Placeholder className="h-4 w-44" /><Placeholder className="h-4 w-full" /><Placeholder className="h-4 w-3/4" /></div>
             </section>
             <section className="nl-sec nl-setups">
               <SectionHeading />
@@ -164,6 +177,10 @@ export function HomeLoadingSkeleton() {
               </div>
             </section>
           </aside>
+          <section className="nl-sec nl-wr">
+            <SectionHeading />
+            <div className="nl-wr-card space-y-4"><Placeholder className="h-10 w-44" /><Placeholder className="h-4 w-56" /><Placeholder className="h-4 w-full" /><Placeholder className="h-4 w-3/4" /></div>
+          </section>
         </div>
       </div>
     </div>

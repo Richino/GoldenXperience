@@ -340,17 +340,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 const post = <T>(path: string, body: unknown = {}) => request<T>(path, { method: "POST", body: JSON.stringify(body) });
 
 export const tradePlansApi = {
-  list: (filter: PlanFilter = "all", instrument?: string) =>
-    request<{ plans: TradePlan[] }>(`/api/trade-plans?filter=${filter}${instrument ? `&instrument=${instrument}` : ""}`).then((r) => r.plans),
+  list: (filter: PlanFilter = "all", instrument?: string, signal?: AbortSignal) =>
+    request<{ plans: TradePlan[] }>(`/api/trade-plans?filter=${filter}${instrument ? `&instrument=${instrument}` : ""}`, { signal }).then((r) => r.plans),
   get: (id: string) => request<PlanDetail>(`/api/trade-plans/${id}`),
   progress: (id: string) => request<ProgressResult>(`/api/trade-plans/${id}/progress`),
   generate: (instrument: string) => post<GenerateResult>("/api/trade-plans/generate", { instrument }),
   /** Cached market research for a pair (never triggers a research call). */
-  research: (instrument: string) => request<ResearchResult>(`/api/intelligence/${instrument}`),
+  research: (instrument: string, signal?: AbortSignal) => request<ResearchResult>(`/api/intelligence/${instrument}`, { signal }),
   /** Start (or join) background research for the pair when its research is stale; returns at once. */
   refreshResearch: (instrument: string, force = false) => post<ResearchResult>(`/api/intelligence/${instrument}/refresh`, { force }),
   /** Your research jobs: running, or ended in the last day (with the plans each built). */
-  researchJobs: () => request<{ jobs: ResearchJob[] }>("/api/research-jobs"),
+  researchJobs: (signal?: AbortSignal) => request<{ jobs: ResearchJob[] }>("/api/research-jobs", { signal }),
   researchJob: (jobId: string) => request<{ job: ResearchJob }>(`/api/research-jobs/${jobId}`),
   /** Remove a finished (failed or cancelled) research job from the Plans card. */
   dismissResearch: (jobId: string) => post<{ dismissed: boolean }>(`/api/research-jobs/${jobId}/dismiss`),

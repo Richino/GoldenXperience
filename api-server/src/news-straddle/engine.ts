@@ -1,4 +1,4 @@
-import { NEWS_TERMINAL, type NewsRun, type NewsSide, type NewsLeg } from "../../../frontend/src/lib/news/news-straddle-v3.js";
+import { NEWS_TERMINAL, NEWS_V3_DEFAULTS, type NewsRun, type NewsSide, type NewsLeg } from "../../../frontend/src/lib/news/news-straddle-v3.js";
 import { pipSizeFor } from "../../../frontend/src/lib/instruments/catalog.js";
 import { newsReleaseStillMatches } from "../../../frontend/src/lib/news/news-release-groups.js";
 import type { NewsRepository, NewsSession, Audit } from "./store.js";
@@ -217,6 +217,13 @@ export class NewsStraddleEngine {
       if (this.deps.broker.environment() !== "practice") { await this.cancelRun(s, r, "Practice execution is unavailable."); return; }
       if (!r.firstFillSide && !cancelling(r) && this.deps.entriesEnabled?.() === false) { await this.cancelRun(s, r, "New News Straddle entries are disabled."); return; }
       if (!cancelling(r) && (await this.deps.policy(r.userId)).killSwitch) { await this.cancelRun(s, r, "Execution kill switch is on; cancel orders and close this setup's exposure."); return; }
+      // Adopt the closer default for old monitoring setups only. Broker-facing
+      // levels are immutable once frozen or any submission has been attempted.
+      if (["SCHEDULED", "PREPARING", "READY"].includes(r.state) && !r.levelsFrozenAt && !r.firstFillSide && r.settings.distancePips === 10 &&
+          SIDES.every(side => { const leg = r.legs[side]; return leg.state === "UNSENT" && !leg.submittedAt && !leg.httpDispatchedAt && !leg.acknowledgedAt && !leg.brokerTime && !leg.orderId && !leg.tradeId && !leg.paperTradeId && !leg.fillTime && leg.fillPrice === null; })) {
+        r.settings.distancePips = NEWS_V3_DEFAULTS.distancePips;
+        await this.save(s, r, "monitoring_distance_updated", { previousDistancePips: 10, distancePips: r.settings.distancePips });
+      }
       if (r.state === "SCHEDULED" && now >= releaseAt - PREPARE_LEAD_MS) {
         r.state = "PREPARING"; await this.save(s, r, "preflight_started");
         actions.push({ key: `prepare:${id}`, run: async () => {

@@ -32,7 +32,7 @@ Implementation status: source written and manually inspected. No migration was a
 | `api-server/src/intelligence/market-state-interpreter.ts` | Exports the existing completed-H1 release-reaction calculation for reuse |
 | `frontend/src/lib/market-stream/use-market-stream.ts` | Dispatches authenticated swing notifications through the existing browser connection |
 | `frontend/src/components/signals/signal-workspace.tsx` | Swing panel plus distinct A/B zone overlays, excluded from historical replay |
-| `frontend/src/components/dashboard/ledger-home.tsx` | Reuses the same panel on Home for the initial EUR/USD instrument |
+| `frontend/src/components/dashboard/ledger-plans.tsx`, `frontend/src/components/analysis/swing-plan-rows.tsx` | Shows swing analysis progress, results and accepted watches inside Home's Plans section |
 
 Earlier news-straddle and calendar-cache changes already present in the working tree are separate work. Existing automated test files were not changed as part of this overhaul.
 
@@ -148,6 +148,9 @@ All routes use the existing session authorization and validate the instrument. A
 | --- | --- | --- |
 | GET | `/api/swing-intelligence?instrument=EUR_USD` | Combined dashboard snapshot |
 | POST | `/api/swing-intelligence/monitor` | Start analysis; body `{ "instrument":"EUR_USD", "style":"BALANCED" }` |
+| POST | `/api/swing-intelligence/analyze` | Start/rejoin analysis and return the queued job or cached result before showing confirmation |
+| GET | `/api/swing-intelligence/plans` | Current user's swing analyses and saved watches, scoped to the broker account |
+| POST | `/api/swing-intelligence/accept` | Save the reviewed assessment/scenario and zone snapshot for entry-condition watching; validates current ownership, levels and freshness |
 | DELETE | `/api/swing-intelligence/monitor?instrument=EUR_USD` | Stop analysis and invalidate only its scenarios |
 | POST | `/api/swing-intelligence/research` | Queue/join research; body `{ "instrument":"EUR_USD", "force":false }` |
 | GET | `/api/swing-intelligence/assessment` | Latest assessment and freshness |
@@ -209,16 +212,18 @@ These are handoff instructions, not commands that were executed during implement
 1. Review the new modules and additive SQL, particularly permissions, worker ownership, cost reservations and the scenario risk checks. The feature is off by default.
 2. On your chosen review database, apply migrations through the existing runner: from `api-server`, `npm run db:migrate`. The server role must have the intended private-table access. Existing migration 052 supplies the instrument catalog.
 3. Configure real practice OANDA credentials and OpenAI credentials in the existing server environment. Merge the needed keys from `.env.swing.example`; do not put secrets in frontend variables. Set the two swing flags to `true` only on the intended analysis host. Keep other trading workers configured independently.
-4. Start the existing API/frontend with your usual commands (`npm run dev` in each workspace). No new service or process command is required. Open Home's EUR/USD Swing intelligence panel, or `/chart?instrument=EUR_USD` for the pair-aware chart.
-5. On the chart, press **Analyze** in the header. It opens the scrollable swing analysis sheet and starts analysis if the pair and worker are available, or rejoins existing monitoring. The panel stays subscribed when closed so chart zones continue updating. Home retains its explicit **Start swing analysis** control and style selection. Missing configuration leaves the start control visible and disabled with a reason and refresh action. Existing trade plans remain accessible separately. Review actual source timestamps, D1/H4/H1 differences, research job status and usage. Confirm a malformed/partial research result remains failed rather than appearing complete.
+4. Start the existing API/frontend with your usual commands (`npm run dev` in each workspace). No new service or process command is required. Open `/chart?instrument=EUR_USD`.
+5. Press **Analyze**. The button shows **Analyzing…** until the server acknowledges the request, then a short confirmation offers **View Plans**. Home's existing **Plans** section shows progress, followed by **Review result**. Review links open `/chart?instrument=...&swing=review` and display the plan in a desktop modal or phone sheet. The main view shows entry zone, stop, target, conditions and **Accept BUY/SELL plan**; supporting research is collapsed. The server's configured entry style is used. The chart remains subscribed while the sheet is closed. Disabled workers and budget failures show an error, never a false started confirmation.
 6. Review zero, one or two supported zones, their actual swing references, boundaries, TTL and the separate BUY/SELL hypotheses. Confirm the chart's purple A and blue B overlays match the stored geometry. Historical replay excludes these live overlays.
 7. Observe a naturally occurring practice-market zone touch if desired. Review the persisted touch snapshot, coverage warm-up, pressure/reaction, style-specific eligibility and all blocker reasons. Manually assess source freshness, reward/risk, conversion, account exposure and spread. No trade should be submitted by this engine.
 8. Review material release changes, daily/hourly deduplication, budget blocks, lost-stream warm-up, worker restarts and analysis stop/restart behavior. Confirm existing approved/executed plans, broker orders and positions are not edited by a swing update.
 9. Supply validated historical performance only when you have it. Until then, the panel must show expectancy as unavailable and all scenarios as provisional. Evaluate financing separately while that estimate is unavailable.
 
+Accept saves one immutable review snapshot per pair as a `PLAN_ACCEPTED` event in the existing private event store; accepting another replaces the current watch without deleting its history. No additional migration is required beyond 065. Watching derives current readiness from the existing worker's zone/scenario checks. Changed assessments, zones, stops or targets require another review; live quote movement alone does not replace the saved terms. Acceptance never creates an order. **Stop watching** stops the pair's analysis monitor. The existing daily/hourly research schedule remains unchanged by this UI simplification.
+
 ## Explicit limitations and remaining dependencies
 
-- No typecheck, lint, UI run, API call, migration execution, integration check, test, backtest, simulation, build or deployment was performed for this overhaul. Compilation, layout, provider compatibility, SQL behavior and operational/trading behavior are unverified and need your review.
+- The simplified flow passes frontend/API typechecks and `npx tsx scripts/test-swing-plan-flow.ts` in `api-server`. New UI modules pass scoped lint; the chart workspace retains its baseline lint errors. A temporary synthetic browser fixture exercised start, progress, completion, review, acceptance and readiness at phone/desktop sizes. The real chart review link was checked, but its connected API reported Swing Intelligence disabled. Live research, SQL persistence, migration execution, backtests and deployment were not verified in this follow-up.
 - Actual deployment credentials, provider quotas, supported model capabilities, database privileges and source availability must be supplied by the owner. No service success was fabricated.
 - No hard profitability, prediction reliability, market-control probability or validated heuristic expectancy is claimed.
 - Financing estimates and unavailable release revisions remain null. No automatic commercial news-provider adapter or raw-quote retention pipeline was added; existing verified calendar/actuals plus the paid one-search fallback are the implemented provider boundaries.

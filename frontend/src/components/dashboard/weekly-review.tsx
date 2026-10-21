@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { RotateCcw, Sparkles } from "lucide-react";
 import { apiUrl } from "@/lib/api/url";
+import { useHomeSectionReady } from "./home-loading-boundary";
 
 /**
  * Home's weekly review: the last completed trading week (Sunday to the Friday
@@ -71,12 +72,13 @@ export function WeeklyReview({ currency }: { currency: string }) {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [summaryState, setSummaryState] = useState<"idle" | "loading" | "error">("idle");
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  useHomeSectionReady("weekly", reviewError !== null || review !== null && (review.stats.trades === 0 || summary !== null || summaryState === "error"));
 
   const loadSummary = useCallback(async () => {
     setSummaryState("loading");
     setSummaryError(null);
     try {
-      const response = await fetch(apiUrl("/api/review/weekly/summary"), { method: "POST", credentials: "include" });
+      const response = await fetch(apiUrl("/api/review/weekly/summary"), { method: "POST", credentials: "include", signal: AbortSignal.timeout(20_000) });
       const payload = (await response.json()) as { summary?: Summary; error?: string };
       if (!response.ok || !payload.summary) throw new Error(payload.error ?? "The summary could not be written.");
       setSummary(payload.summary);
@@ -89,7 +91,7 @@ export function WeeklyReview({ currency }: { currency: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(apiUrl("/api/review/weekly"), { credentials: "include", cache: "no-store" })
+    fetch(apiUrl("/api/review/weekly"), { credentials: "include", cache: "no-store", signal: AbortSignal.timeout(12_000) })
       .then(async (response) => {
         const payload = (await response.json()) as Review & { error?: string };
         if (!response.ok) throw new Error(payload.error ?? "The weekly review could not be loaded.");

@@ -1,9 +1,7 @@
-const CACHE_NAME = 'goldenxperience-v4';
+const CACHE_NAME = 'goldenxperience-v5';
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  // The launch splash's animated mascot, so it is ready the moment the app opens.
-  '/splash/gx-mascot-loop.webp',
+  '/icon-192.png',
+  '/icon-512.png',
 ];
 
 self.addEventListener('install', (event) => {
@@ -22,35 +20,40 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
+          if (cacheName.startsWith('goldenxperience-') && cacheName !== CACHE_NAME) {
             return caches.delete(cacheName);
           }
         })
       );
-    })
+    }).then(async () => {
+      // Let navigation start while the service worker is waking up.
+      if (self.registration.navigationPreload) {
+        await self.registration.navigationPreload.enable().catch(() => {});
+      }
+    }).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  if (request.method !== 'GET') {
+  if (request.method !== 'GET' || url.origin !== self.location.origin) {
     return;
   }
 
   if (url.pathname.startsWith('/api/')) {
     return;
-  } else if (url.pathname === '/splash/gx-mascot-loop.webp') {
-    // The launch splash needs it instantly; it changes only with CACHE_NAME.
-    event.respondWith(cacheFirst(request));
+  } else if (url.pathname.startsWith('/_next/static/')) {
+    // Next content-hashes these URLs. Reuse them immediately on repeat launches;
+    // a deployment changes the URL, so new code still comes from the network.
+    event.respondWith(cacheFirst(request, event));
   } else if (
     url.pathname.match(/\.(js|css|woff2?|png|jpg|jpeg|svg|ico)$/i) ||
     url.pathname === '/' ||
     url.pathname.match(/^\/(signals|risk|journal|settings)$/)
   ) {
-    event.respondWith(networkFirst(request));
+    event.respondWith(networkFirst(request, event));
   }
 });
 
@@ -81,27 +84,27 @@ self.addEventListener('notificationclick', (event) => {
   })());
 });
 
-async function cacheFirst(request) {
-  const cached = await caches.match(request);
+async function cacheFirst(request, event) {
+  const cached = await caches.open(CACHE_NAME).then((cache) => cache.match(request)).catch(() => undefined);
   if (cached) return cached;
   const response = await fetch(request);
   if (response.ok) {
-    const cache = await caches.open(CACHE_NAME);
-    cache.put(request, response.clone());
+    const copy = response.clone();
+    event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => {}));
   }
   return response;
 }
 
-async function networkFirst(request) {
+async function networkFirst(request, event) {
   try {
-    const response = await fetch(request);
+    const response = (request.mode === 'navigate' && await event.preloadResponse) || await fetch(request);
     if (response.ok) {
-      const cache = await caches.open(CACHE_NAME);
-      cache.put(request, response.clone());
+      const copy = response.clone();
+      event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => {}));
     }
     return response;
   } catch {
-    const cachedResponse = await caches.match(request);
+    const cachedResponse = await caches.open(CACHE_NAME).then((cache) => cache.match(request)).catch(() => undefined);
     if (cachedResponse) {
       return cachedResponse;
     }

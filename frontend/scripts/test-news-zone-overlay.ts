@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { newsZoneOverlay, zonesAround } from "../src/lib/news/news-zone-overlay";
+import { NEWS_V3_DEFAULTS } from "../src/lib/news/news-straddle-v3";
 import type { PendingManualEntry } from "../src/types/pending-entry";
 
 /**
@@ -112,6 +113,16 @@ test("v3 accepted previews follow executable sides until submission, including R
     assert.ok(first.lines.every(l => l.dashed && l.label.endsWith("preview")));
     const moved = draw(rows, { liveBid: 210.7, liveAsk: 210.72 });
     assert.deepEqual(moved.lines.map(l => l.price), [210.82, 210.6]);
+  }
+});
+test("three-pip EUR/GBP previews follow every bid/ask change before submission", () => {
+  for (const state of ["SCHEDULED", "PREPARING", "READY"]) {
+    const rows = setup(state, { configVersion: 3, distancePips: NEWS_V3_DEFAULTS.distancePips, zones }, "EUR_GBP");
+    for (const [bid, ask, buy, sell] of [[0.83941, 0.83955, 0.83985, 0.83911], [0.83942, 0.83956, 0.83986, 0.83912], [0.83891, 0.83905, 0.83935, 0.83861]]) {
+      const out = draw(rows, { instrument: "EUR_GBP", liveBid: bid, liveAsk: ask });
+      assert.deepEqual(out.lines.map(l => l.price), [buy, sell]);
+      assert.ok(out.lines.every(l => l.dashed && l.label.endsWith("preview")));
+    }
   }
 });
 test("v3 frozen and submitted levels never follow subsequent quote changes", () => {

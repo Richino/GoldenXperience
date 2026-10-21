@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { PairAvatar } from "@/components/ui/pair-avatar";
+import { useHomeSectionReady } from "./home-loading-boundary";
 import { apiUrl } from "@/lib/api/url";
 import { displayNameFor } from "@/lib/instruments/catalog";
 import { getForexSessionStatus } from "@/lib/strategy/session";
@@ -23,6 +24,7 @@ export function GoodTrends() {
   const [snapshot, setSnapshot] = useState<PairTrendsSnapshot | null>(null);
   const [error, setError] = useState(false);
   const [now, setNow] = useState<number | null>(null);
+  useHomeSectionReady("trends", now !== null && (snapshot !== null || error));
   useEffect(() => {
     const controller = new AbortController();
     let reading = false;
@@ -30,7 +32,7 @@ export function GoodTrends() {
       if (reading) return;
       reading = true;
       try {
-        const response = await fetch(apiUrl("/api/pair-trends"), { credentials: "include", cache: "no-store", signal: controller.signal });
+        const response = await fetch(apiUrl("/api/pair-trends"), { credentials: "include", cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]) });
         if (!response.ok) throw new Error("Trend data unavailable");
         const next = await response.json() as PairTrendsSnapshot;
         if (!Array.isArray(next.pairs) || !Number.isFinite(Date.parse(next.checkedAt))) throw new Error("Invalid trend snapshot");

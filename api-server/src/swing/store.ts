@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { query, transaction } from "../database.js";
-import type { SwingAssessment, SwingEvent, SwingExpectancy, SwingJob, SwingMarket, SwingMovement, SwingScenario, SwingStyle, SwingZone } from "../../../frontend/src/lib/swing-intelligence.js";
+import type { SwingAssessment, SwingEvent, SwingExpectancy, SwingJob, SwingMarket, SwingMovement, SwingScenario, SwingStyle, SwingZone, SwingView } from "../../../frontend/src/lib/swing-intelligence.js";
+import { swingPlanTerms } from "../../../frontend/src/lib/swing-plan-flow.js";
 import type { MarketIntelligence } from "../intelligence/research-contract.js";
 import { safeSwingError, type SwingSettings } from "./config.js";
 import type { SwingResearchUsage } from "./research.js";
@@ -19,6 +20,28 @@ const monitorRow = (r: { user_id: string; account_key: string; instrument: strin
   instrument: r.instrument, active: r.active, style: r.style, market: r.market, assessmentId: r.assessment_id, unavailableZones: r.unavailable_zones, scheduleState: r.schedule_state });
 
 export class SwingRepository {
+  async plans(userId: string, accountKey: string) {
+    return (await query<{ instrument: string }>("SELECT instrument FROM swing_monitors WHERE user_id=$1 AND account_key=$2 ORDER BY updated_at DESC", [userId, accountKey])).rows;
+  }
+  async acceptedPlan(scope: SwingScope) {
+    return (await query<{ data: NonNullable<SwingView["acceptedPlan"]> }>(`SELECT data FROM swing_zone_events
+      WHERE user_id=$1 AND account_key=$2 AND instrument=$3 AND kind='PLAN_ACCEPTED' ORDER BY at DESC LIMIT 1`, args(scope))).rows[0]?.data ?? null;
+  }
+  async acceptPlan(scope: SwingScope, assessmentId: string, scenario: SwingScenario, zone: SwingZone) {
+    return transaction(async c => {
+      const monitor = (await c.query<{ active: boolean; assessment_id: string }>("SELECT active,assessment_id FROM swing_monitors WHERE user_id=$1 AND account_key=$2 AND instrument=$3 FOR UPDATE", args(scope))).rows[0];
+      if (!monitor?.active || monitor.assessment_id !== assessmentId) throw new Error("The assessment changed. Review the latest result.");
+      const currentZone = (await c.query<{ snapshot: SwingZone }>("SELECT snapshot FROM swing_zones WHERE user_id=$1 AND account_key=$2 AND instrument=$3 AND id=$4 FOR UPDATE", [...args(scope), zone.id])).rows[0]?.snapshot;
+      const current = (await c.query<{ snapshot: SwingScenario }>("SELECT snapshot FROM swing_scenarios WHERE user_id=$1 AND account_key=$2 AND instrument=$3 AND id=$4 FOR UPDATE", [...args(scope), scenario.id])).rows[0]?.snapshot;
+      if (!current || !currentZone || currentZone.status === "EXPIRED" || current.eligibility === "INVALIDATED"
+        || Date.now() - Date.parse(current.asOf) > 30000 || swingPlanTerms(current) !== swingPlanTerms(scenario)
+        || currentZone.lower !== zone.lower || currentZone.upper !== zone.upper) throw new Error("The plan changed. Review the latest result.");
+      const accepted = { assessmentId, scenario, zone, acceptedAt: new Date().toISOString() };
+      await this.insertEvent(c, scope, { kind: "PLAN_ACCEPTED", zoneId: zone.id, detail: `${scenario.side} plan saved for entry-condition watching.`,
+        dedupe: `accepted:${randomUUID()}`, data: accepted });
+      return accepted;
+    });
+  }
   async monitor(scope: SwingScope) {
     const r = (await query<Parameters<typeof monitorRow>[0]>("SELECT * FROM swing_monitors WHERE user_id=$1 AND account_key=$2 AND instrument=$3", args(scope))).rows[0];
     return r ? monitorRow(r) : null;

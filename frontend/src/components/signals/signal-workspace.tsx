@@ -2659,7 +2659,12 @@ export function SignalWorkspace({
   const [newsDraft, setNewsDraft] = useState<NewsDraft | null>(null);
   const [swingZones, setSwingZones] = useState<SwingZone[]>([]);
   const [swingAnalysisOpen, setSwingAnalysisOpen] = useState(false);
+  const [swingAnalysisBusy, setSwingAnalysisBusy] = useState(false);
   const [swingAnalysisRequest, setSwingAnalysisRequest] = useState<{ instrument: string; sequence: number } | null>(null);
+  const swingAnalysisSequence = useRef(0);
+  const completeSwingRequest = useCallback((sequence: number) => {
+    setSwingAnalysisRequest(current => current?.sequence === sequence ? null : current);
+  }, []);
   const updateSwingZones = useCallback((next: SwingZone[]) => {
     setSwingZones(current => current.length === next.length && current.every((z, i) => z.id === next[i].id && z.revision === next[i].revision) ? current : next);
   }, []);
@@ -2744,7 +2749,18 @@ export function SignalWorkspace({
     }, 0);
     return () => window.clearTimeout(timer);
   }, [analyzeLink, embeddedSurfaceOnly, instrument, reviewPlanAnalyze, urlInstrument]);
-  const chartAnalysisBusy = embeddedSurfaceOnly && trendPullbackBusy;
+  const swingReviewLink = searchParams.get("swing") === "review";
+  useEffect(() => {
+    if (!swingReviewLink || embeddedSurfaceOnly || (urlInstrument && urlInstrument !== instrument)) return;
+    const timer = window.setTimeout(() => {
+      setSwingAnalysisOpen(true);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("swing");
+      window.history.replaceState(window.history.state, "", url);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [embeddedSurfaceOnly, instrument, swingReviewLink, urlInstrument]);
+  const chartAnalysisBusy = embeddedSurfaceOnly ? trendPullbackBusy : swingAnalysisBusy;
   const analyzeLabel = { short: "Analyze", long: "Analyze market" };
   useEffect(() => {
     if (embeddedSurfaceOnly || !setObserverChartContext) return;
@@ -2776,8 +2792,8 @@ export function SignalWorkspace({
       return;
     }
     if (!embeddedSurfaceOnly) {
-      setSwingAnalysisRequest(current => ({ instrument, sequence: (current?.sequence ?? 0) + 1 }));
-      setSwingAnalysisOpen(true);
+      setSwingAnalysisRequest({ instrument, sequence: ++swingAnalysisSequence.current });
+      setSwingAnalysisOpen(false);
       return;
     }
     trendPullbackAbortRef.current?.abort();
@@ -4802,7 +4818,7 @@ export function SignalWorkspace({
               </div>
               <div className="signals-mobile-header-actions nl-mhead-actions">
                 <button type="button" className="nl-analyze nl-analyze-sm pressable" onClick={() => void runTrendPullback()} disabled={chartAnalysisBusy || replayActive} title={`${analyzeLabel.long} for ${activePair}`}>
-                  {chartAnalysisBusy ? "Opening…" : analyzeLabel.short}
+                  {chartAnalysisBusy ? "Analyzing…" : analyzeLabel.short}
                 </button>
                 <NotificationBell compact className="signals-icon-btn signals-fullscreen-reserve nl-mbell" />
               </div>
@@ -5067,7 +5083,7 @@ export function SignalWorkspace({
                   {tradeActionBusy ? "Cancelling…" : "Cancel order"}
                 </button>
               ) : null}
-              <button type="button" className="nl-analyze pressable" onClick={() => void runTrendPullback()} disabled={replayActive} title={`Analyze market for ${activePair}`}>Analyze</button>
+              <button type="button" className="nl-analyze pressable" onClick={() => void runTrendPullback()} disabled={replayActive || chartAnalysisBusy} title={`Analyze market for ${activePair}`}>{chartAnalysisBusy ? "Analyzing…" : "Analyze"}</button>
               <NotificationBell className="nl-chart-bell" />
             </div>
             {(tradeActionError || trendPullbackError) ? (
@@ -5220,10 +5236,10 @@ export function SignalWorkspace({
       </div>
 
       {!replayActive ? <SwingIntelligenceCard key={instrument} instrument={instrument} onZones={updateSwingZones}
-        open={swingAnalysisOpen && swingAnalysisRequest?.instrument === instrument}
+        open={swingAnalysisOpen}
         startRequest={swingAnalysisRequest?.instrument === instrument ? swingAnalysisRequest.sequence : 0}
         onClose={() => setSwingAnalysisOpen(false)}
-        onReviewPlans={() => { setSwingAnalysisOpen(false); reviewPlanAnalyze(); }} /> : null}
+        onBusyChange={setSwingAnalysisBusy} onRequestComplete={completeSwingRequest} /> : null}
 
       {pendingEntryDialogOpen ? <PendingEntryDialog
         key={`${selectedPendingEntry?.id ?? "new-pending-entry"}:${entryComposerRevision}`}
@@ -5273,10 +5289,10 @@ export function SignalWorkspace({
           }
           actions={
             <>
-              <button type="button" className="gx-fs-action is-analyze pressable" onClick={() => void runTrendPullback()} disabled={chartAnalysisBusy || replayActive} aria-label={chartAnalysisBusy ? "Opening analysis" : analyzeLabel.long}>
+              <button type="button" className="gx-fs-action is-analyze pressable" onClick={() => void runTrendPullback()} disabled={chartAnalysisBusy || replayActive} aria-label={chartAnalysisBusy ? "Analyzing market" : analyzeLabel.long}>
                 {/* Phones show the icon only, so the top row stays on one line. */}
                 <Radar aria-hidden="true" />
-                <span className="gx-fs-label">{chartAnalysisBusy ? "Opening…" : analyzeLabel.long}</span>
+                <span className="gx-fs-label">{chartAnalysisBusy ? "Analyzing…" : analyzeLabel.long}</span>
               </button>
               <button type="button" className="gx-fs-action pressable" onClick={() => {
                 setEntryDraftProposal(null);

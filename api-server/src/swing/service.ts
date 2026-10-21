@@ -9,6 +9,7 @@ import { SwingMovementEngine } from "./movement.js";
 import { digest, evaluateSwingScenario, generateSwingZones, loadSwingRisk, pressureControl, swingAssessmentFresh, swingPreference, type SwingRiskContext } from "./decision.js";
 import { checkSwingNews, researchSwing } from "./research.js";
 import { SwingRepository, type SwingMonitor, type SwingScope } from "./store.js";
+import { canSaveSwingPlan, swingPlanTerms } from "../../../frontend/src/lib/swing-plan-flow.js";
 
 type LiveState = { monitor: SwingMonitor; zones: SwingZone[]; assessment: SwingAssessment | null; signature: string;
   zoneSignature: string; risk: SwingRiskContext | null; lastRiskAt: number; touches: Map<string, { at: string; quote: NonNullable<SwingMarket["quote"]>;
@@ -94,6 +95,30 @@ export class SwingIntelligenceService {
     if (!force && swingAssessmentFresh(assessment, monitor.market)) return { cached: true, job: await this.repo.latestJob(scope) };
     return { cached: false, job: await this.repo.queue(scope, "MANUAL", `manual:${Math.floor(Date.now() / this.settings.retryMs)}`, this.settings) };
   }
+  async plans(userId: string) {
+    if (!this.settings.enabled) return [];
+    const rows = await this.repo.plans(userId, swingAccountKey());
+    return Promise.all(rows.filter(row => this.settings.instruments.includes(row.instrument)).map(row => this.view(userId, row.instrument)));
+  }
+  async analyze(userId: string, instrument: string) {
+    const view = await this.view(userId, instrument);
+    if (!view.monitor?.active) await this.monitor(userId, instrument, true, this.settings.style);
+    // Explicitly queue before confirming that analysis has begun; the worker
+    // and its existing uniqueness constraint handle concurrent Analyze clicks.
+    const result = await this.request(userId, instrument);
+    this.wake();
+    this.notify(this.scope(userId, instrument), "ANALYSIS_REQUESTED");
+    return result;
+  }
+  async accept(userId: string, instrument: string, assessmentId: string, scenarioId: string, terms: string, lower: number, upper: number) {
+    const view = await this.view(userId, instrument), scenario = view.scenarios.find(s => s.id === scenarioId);
+    const zone = scenario && view.zones.find(z => z.id === scenario.zoneId);
+    if (!scenario || !zone || view.assessment?.id !== assessmentId || !canSaveSwingPlan(view, scenario)
+      || swingPlanTerms(scenario) !== terms || zone.lower !== lower || zone.upper !== upper) throw new Error("The plan changed or is unavailable. Review the latest result.");
+    const accepted = await this.repo.acceptPlan(this.scope(userId, instrument), assessmentId, scenario, zone);
+    this.notify(this.scope(userId, instrument), "PLAN_ACCEPTED", zone.id);
+    return { acceptedPlan: accepted, analysisOnly: true };
+  }
   private async getData(instrument: string, force = false) {
     const cached = this.data.get(instrument);
     if (!force && cached && Date.now() - cached.at < this.settings.deterministicRefreshMs) return cached.value;
@@ -116,7 +141,7 @@ export class SwingIntelligenceService {
       usage: { requests: 0, inputTokens: 0, outputTokens: 0, searches: 0, knownCostUsd: 0, unknownCostRequests: 0, latencyMs: 0 },
     };
     const scope = this.scope(userId, instrument);
-    const [monitor, assessment, zones, scenarios, events, job, usage] = await Promise.all([this.repo.monitor(scope), this.repo.assessment(scope), this.repo.zones(scope), this.repo.scenarios(scope), this.repo.events(scope), this.repo.latestJob(scope), this.repo.usage(scope)]);
+    const [monitor, assessment, zones, scenarios, events, job, usage, acceptedPlan] = await Promise.all([this.repo.monitor(scope), this.repo.assessment(scope), this.repo.zones(scope), this.repo.scenarios(scope), this.repo.events(scope), this.repo.latestJob(scope), this.repo.usage(scope), this.repo.acceptedPlan(scope)]);
     const market = monitor?.market ? this.currentMarket(this.data.get(instrument)?.value.market ?? monitor.market) : null;
     const movement = market && monitor?.active ? this.movement.snapshot(instrument, null, market.frames.H4.atr) : null;
     const pressure = market ? pressureControl(movement, market, this.settings) : "INSUFFICIENT_DATA";
@@ -127,7 +152,7 @@ export class SwingIntelligenceService {
     return { enabled: this.settings.enabled && this.settings.instruments.includes(instrument), runtime: this.status(), analysisOnly: true, instrument,
       monitor: monitor ? { active: monitor.active, style: monitor.style } : null, market, assessment, assessmentFresh: fresh, zones,
       unavailableZones: monitor?.unavailableZones ?? [], movement, control: { d1: market?.frames.D1.control ?? "INSUFFICIENT_DATA", h4: market?.frames.H4.control ?? "INSUFFICIENT_DATA", pressure },
-      preference: market ? swingPreference(market, fresh ? assessment : null, pressure, this.settings) : "INSUFFICIENT_DATA", scenarios: currentScenarios, events, job, usage };
+      preference: market ? swingPreference(market, fresh ? assessment : null, pressure, this.settings) : "INSUFFICIENT_DATA", scenarios: currentScenarios, events, job, usage, acceptedPlan };
   }
   async zone(userId: string, instrument: string, id: string) {
     const scope = this.scope(userId, instrument), zone = await this.repo.zone(scope, id);

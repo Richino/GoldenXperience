@@ -10,6 +10,7 @@ import {
   type DashboardLoadState,
 } from "@/components/dashboard/ledger-home";
 import { PendingCancelConfirmation } from "@/components/dashboard/pending-cancel-confirmation";
+import { HomeLoadingBoundary } from "@/components/dashboard/home-loading-boundary";
 import { PendingLevelsDialog } from "@/components/dashboard/pending-levels-dialog";
 import {
   recentActivityFromTrades,
@@ -28,7 +29,7 @@ import {
 } from "@/lib/open-trade-progress";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
-import { useOpenPositionFills, type OpenPositionFill } from "@/lib/market-stream/use-open-positions";
+import { useOpenPositionSnapshot, type OpenPositionFill } from "@/lib/market-stream/use-open-positions";
 import type { AccountBalanceHistoryPoint, AccountSummary, ConnectionStatus, JournalTrade, MajorInstrument } from "@/types/forex";
 import type { PendingManualEntry } from "@/types/pending-entry";
 
@@ -264,6 +265,7 @@ export function DashboardView({
   // Kept for the Open-trades quote fallback below; the Watchlist section now
   // renders from the multi-strategy engine instead.
   const [watchlist, setWatchlist] = useState(initialWatchlist);
+  const [watchlistReady, setWatchlistReady] = useState(!initialLoading);
   const [savedSetups, setSavedSetups] = useState(initialSavedSetups ?? []);
   const [overviewOpen, setOverviewOpen] = useState(() => initialOverview?.openTrades ?? initialOverview?.trades.filter(trade => trade.status === "open") ?? []);
   const [error, setError] = useState<string | null>(null);
@@ -289,7 +291,7 @@ export function DashboardView({
   // with the market instead of jumping once a minute.
   const quotes = useLiveQuotes();
   // Real fills, so an open row reports the same money as the account hero.
-  const fills = useOpenPositionFills();
+  const { fills, loading: fillsLoading } = useOpenPositionSnapshot();
   const overviewOpenIds = new Set(overviewOpen.map((trade) => trade.id));
   // Manual trades live in the journal, not the strategy overview, so their open
   // ones must be pulled in here too — otherwise a filled manual entry shows in
@@ -362,10 +364,10 @@ export function DashboardView({
     if (loading.current.has("overview")) return;
     loading.current.add("overview");
     try {
-      // Each continuation publishes its own data immediately. A slow journal
-      // cannot hold up positions or setups, and failures keep prior snapshots.
+      // Fetch in parallel behind Home's first-load boundary. Later refreshes
+      // keep the visible page and its previously verified snapshots in place.
       const results = await Promise.allSettled([
-        dashboardData<{ watchlist: DashboardWatchRow[] }>("/api/watchlist").then(payload => setWatchlist(payload.watchlist)),
+        dashboardData<{ watchlist: DashboardWatchRow[] }>("/api/watchlist").then(payload => setWatchlist(payload.watchlist)).finally(() => setWatchlistReady(true)),
         dashboardData<{ setups: DashboardSavedSetup[] }>("/api/saved-setups").then(payload => {
           setSavedSetups(payload.setups ?? []); finishLoad("setups");
         }).catch(reason => { finishLoad("setups", true); throw reason; }),
@@ -479,26 +481,21 @@ export function DashboardView({
   }, [refreshPendingEntries]);
 
   useEffect(() => {
-    // Both fetches resolve before they set state, so the update lands in a
-    // promise continuation rather than synchronously during the effect. The
-    // rule cannot see through the async call.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void refreshAccount();
+    const initial = window.setTimeout(() => void refreshAccount(), 0);
     const timer = window.setInterval(() => { if (document.visibilityState === "visible") void refreshAccount(); }, 5_000);
-    return () => window.clearInterval(timer);
+    return () => { window.clearTimeout(initial); window.clearInterval(timer); };
   }, [refreshAccount]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void refresh();
+    const initial = window.setTimeout(() => void refresh(), 0);
     const timer = window.setInterval(() => { if (document.visibilityState === "visible") void refresh(); }, 60_000);
-    return () => window.clearInterval(timer);
+    return () => { window.clearTimeout(initial); window.clearInterval(timer); };
   }, [refresh]);
 
   useEffect(() => {
-    void refreshHistory();
+    const initial = window.setTimeout(() => void refreshHistory(), 0);
     const timer = window.setInterval(() => { if (document.visibilityState === "visible") void refreshHistory(); }, 60_000);
-    return () => window.clearInterval(timer);
+    return () => { window.clearTimeout(initial); window.clearInterval(timer); };
   }, [refreshHistory]);
 
   useEffect(() => {
@@ -659,6 +656,7 @@ export function DashboardView({
 
   return (
     <>
+      <HomeLoadingBoundary ready={watchlistReady && !fillsLoading && Object.values(loadState).every(state => state !== "loading")}>
       <LedgerHome
         account={account}
         accountError={accountError}
@@ -685,6 +683,7 @@ export function DashboardView({
           : null].filter(Boolean).join(" ") || null}
         loadState={loadState}
       />
+      </HomeLoadingBoundary>
       <PendingCancelConfirmation
         entry={pendingCancellation}
         confirming={Boolean(cancellingPendingId)}

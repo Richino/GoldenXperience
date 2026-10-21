@@ -15,7 +15,8 @@ function greetingFor(name: string, now = new Date()) {
 
 export default function DashboardPage() {
   // The workspace layout authenticates this route. Home's existing client
-  // subscriptions load each card independently, without a second SSR fan-out.
+  // subscriptions fetch in parallel behind one coordinated Home skeleton,
+  // without a second SSR fan-out.
   return (
     <DashboardView
       initialAccount={null}

@@ -343,6 +343,13 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported OANDA instrument." }, 400);
       const suffix = url.pathname.slice("/api/swing-intelligence".length);
       try {
+        if (suffix === "/plans" && request.method === "GET") return json(request, response, { plans: await swingIntelligence.plans(user.id) });
+        if (suffix === "/analyze" && request.method === "POST") return json(request, response, await swingIntelligence.analyze(user.id, instrument), 202);
+        if (suffix === "/accept" && request.method === "POST") {
+          if (typeof payload?.assessmentId !== "string" || typeof payload?.scenarioId !== "string" || typeof payload?.terms !== "string"
+            || typeof payload?.lower !== "number" || typeof payload?.upper !== "number") return json(request, response, { error: "Review a current plan before accepting it." }, 400);
+          return json(request, response, await swingIntelligence.accept(user.id, instrument, payload.assessmentId, payload.scenarioId, payload.terms, payload.lower, payload.upper));
+        }
         if (suffix === "/monitor" && (request.method === "POST" || request.method === "DELETE")) {
           const active = request.method === "POST";
           const style = String(payload?.style ?? swingConfig.style);

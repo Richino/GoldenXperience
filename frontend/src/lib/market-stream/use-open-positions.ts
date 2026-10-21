@@ -31,14 +31,16 @@ export interface OpenPositionFill {
  * Empty when practice execution is off, and callers fall back to the paper
  * model in that case.
  */
-export function useOpenPositionFills() {
+export function useOpenPositionSnapshot() {
   const [fills, setFills] = useState<Record<string, OpenPositionFill>>({});
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     try {
       const response = await fetch(apiUrl("/api/oanda/open-positions"), {
         credentials: "include",
         cache: "no-store",
+        signal: AbortSignal.timeout(12_000),
       });
       if (!response.ok) return;
       const payload = (await response.json()) as {
@@ -74,6 +76,8 @@ export function useOpenPositionFills() {
       setFills(nextFills);
     } catch {
       // A missing broker snapshot leaves the paper model in place.
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -86,5 +90,9 @@ export function useOpenPositionFills() {
 
   useForegroundRefresh(load);
 
-  return fills;
+  return { fills, loading };
+}
+
+export function useOpenPositionFills() {
+  return useOpenPositionSnapshot().fills;
 }

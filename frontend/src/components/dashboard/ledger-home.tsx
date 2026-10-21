@@ -20,10 +20,10 @@ import {
   type AccountChartRange,
 } from "@/components/dashboard/account-amount-chart";
 import { LedgerPlans } from "@/components/dashboard/ledger-plans";
-import { SwingIntelligenceCard } from "@/components/analysis/swing-intelligence-card";
 import { NewsImpactSheet } from "@/components/dashboard/news-impact-sheet";
 import { WeeklyReview } from "@/components/dashboard/weekly-review";
 import { GoodTrends } from "@/components/dashboard/good-trends";
+import { useHomeSectionReady } from "@/components/dashboard/home-loading-boundary";
 import { RelativeTime } from "@/components/dashboard/relative-time";
 import type { HomeCurrentPosition } from "@/components/dashboard/home-rail";
 import { TopPairSearch } from "@/components/layout/top-pair-search";
@@ -599,6 +599,7 @@ function LedgerTodayCard({ today, currency }: { today: LedgerToday; currency: st
 function LedgerNews({ positions }: { positions: HomeCurrentPosition[] }) {
   const { snapshot: calendar, loading } = useEconomicCalendar();
   const now = useNow(30_000);
+  useHomeSectionReady("news", !loading && now !== null);
   const [openId, setOpenId] = useState<string | null>(null);
   // Same-currency releases at the same moment are one row and one sheet.
   const rows = now === null ? [] : groupSimultaneousRows(homeCalendarRows(calendar.recentEvents ?? [], calendar.events, now));
@@ -828,7 +829,6 @@ export function LedgerHome({
             {positionsReady ? <LedgerPositions positions={positions} currency={account?.currency ?? "USD"} /> : <DeferredCard title="Open positions" state={positionState} />}
             <LedgerPlans />
             {hasData(loadState.setups) ? <LedgerSetups setups={setups} /> : <DeferredCard title="Setups" state={loadState.setups} />}
-            <SwingIntelligenceCard instrument="EUR_USD" />
             {hasData(loadState.pending) ? <LedgerPending
               entries={pending}
               cancellingId={cancellingPendingId}

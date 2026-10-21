@@ -34,7 +34,7 @@ function fixture() {
   const id = randomUUID();
   const settings = { ...NEWS_V3_DEFAULTS };
   const release = { id: "USD:CPI:2026-10-14", title: "CPI m/m", currency: "USD", time: iso(T), impact: 3, provider: "forex_factory" as const };
-  const leg = (side: NewsSide): NewsLeg => ({ side, entryId: randomUUID(), clientId: `${id}-${side}`, tradeClientId: `${id}-trade-${side}`, state: "UNSENT", entry: side === "long" ? 1.1211 : 1.119, bound: side === "long" ? 1.1213 : 1.1188,
+  const leg = (side: NewsSide): NewsLeg => ({ side, entryId: randomUUID(), clientId: `${id}-${side}`, tradeClientId: `${id}-trade-${side}`, state: "UNSENT", entry: side === "long" ? 1.1204 : 1.1197, bound: side === "long" ? 1.1206 : 1.1195,
     stopDistance: 0.0016, units: 62500, orderId: null, tradeId: null, paperTradeId: null, submittedAt: null, acknowledgedAt: null, brokerTime: null, cancellationRequestedAt: null, cancellationConfirmedAt: null,
     fillTime: null, fillPrice: null, slippagePips: null, fillSpreadPips: null, initialStop: null, activeStop: null, trailingOrderId: null, trailingRequestedAt: null, trailingActivatedAt: null,
     unrealizedPips: null, maximumFavorablePips: 0, protectedPips: null, realizedPL: null, realizedR: null, exitPrice: null, closedAt: null, lastProtectionAt: null });
@@ -90,8 +90,44 @@ await test("T−10s target: both native STOP orders, mandatory stops, no take pr
   for (const s of f.sent) { assert.equal(s.body.order.type, "STOP"); assert.equal(s.body.order.positionFill, "REDUCE_FIRST"); assert.ok(s.body.order.stopLossOnFill.distance); assert.equal("takeProfitOnFill" in s.body.order, false); }
   assert.ok(f.repo.run.risk!.perLegCash * 2 <= 200); assert.equal(f.repo.run.risk!.perLegPercent, 1);
   assert.equal(f.repo.run.risk!.perLegCash, 100);
-  assert.equal(f.repo.run.legs.long.entry, 1.1211); assert.equal(f.repo.run.legs.short.entry, 1.119);
+  assert.equal(f.repo.run.legs.long.entry, 1.1204); assert.equal(f.repo.run.legs.short.entry, 1.1197);
   await f.tick(); await f.tick(); assert.equal(f.sent.length, 2); assert.ok(f.repo.run.legs.long.httpDispatchedAt); assert.ok(f.repo.audit.some(a => a.event === "http_order_dispatched"));
+});
+await test("three-pip defaults use executable sides and submit only inside the final ten seconds", async () => {
+  assert.equal(parseV3Settings({}).distancePips, 3);
+  assert.deepEqual(entryPrices("EUR_GBP", { bid: 0.83941, ask: 0.83955, time: iso(T), tradeable: true }, NEWS_V3_DEFAULTS.distancePips, 2),
+    { buy: 0.83985, sell: 0.83911, buyBound: 0.84005, sellBound: 0.83891 });
+  const f = fixture(); await f.ready();
+  f.at(T - 10001, 1.12002, 1.12012); await f.tick(); assert.equal(f.sent.length, 0);
+  f.at(T - 10000, 1.12003, 1.12013); await f.tick();
+  assert.equal(f.sent.length, 2);
+  assert.equal(f.repo.run.legs.long.entry, 1.12043);
+  assert.equal(f.repo.run.legs.short.entry, 1.11973);
+  const entries = [f.repo.run.legs.long.entry, f.repo.run.legs.short.entry];
+  f.at(T - 9000, 1.12004, 1.12014); await f.tick();
+  assert.deepEqual([f.repo.run.legs.long.entry, f.repo.run.legs.short.entry], entries);
+  assert.equal(f.sent.length, 2);
+});
+await test("old ten-pip monitoring setups adopt three pips once without sending orders early", async () => {
+  for (const state of ["SCHEDULED", "PREPARING", "READY"] as const) {
+    const f = fixture(); f.repo.run.state = state; f.repo.run.settings.distancePips = 10;
+    f.at(T - 60000); await f.tick(); await f.tick();
+    assert.equal(f.repo.run.settings.distancePips, 3);
+    assert.equal(f.repo.audit.filter(a => a.event === "monitoring_distance_updated").length, 1);
+    assert.equal(f.sent.length, 0);
+  }
+});
+await test("distance upgrade never modifies frozen levels or a run with submission evidence", async () => {
+  for (const evidence of ["frozen", "submittedAt", "httpDispatchedAt", "acknowledgedAt", "brokerTime", "orderId", "tradeId", "paperTradeId", "fillTime", "fillPrice", "state"] as const) {
+    const f = fixture(); f.repo.run.settings.distancePips = 10;
+    if (evidence === "frozen") f.repo.run.levelsFrozenAt = iso(T - 60000);
+    else if (evidence === "fillPrice") f.repo.run.legs.long.fillPrice = 1.1211;
+    else if (evidence === "state") f.repo.run.legs.long.state = "UNKNOWN";
+    else f.repo.run.legs.long[evidence] = "prior-attempt";
+    f.at(T - 60000); await f.tick();
+    assert.equal(f.repo.run.settings.distancePips, 10, evidence);
+    assert.equal(f.sent.length, 0);
+  }
 });
 await test("BUY first: verified fill immediately cancels opposite and confirms protection", async () => { const f = fixture(); await f.opened("long"); assert.equal(f.repo.run.legs.short.state, "CANCELLED"); assert.ok(f.repo.run.legs.short.cancellationConfirmedAt); assert.ok(f.repo.run.legs.long.activeStop); assert.equal(f.closes.length, 0); });
 await test("SELL first: symmetric OCO and protective initial stop", async () => { const f = fixture(); await f.opened("short"); assert.equal(f.repo.run.legs.long.state, "CANCELLED"); assert.ok(f.repo.run.legs.short.activeStop! > f.repo.run.legs.short.fillPrice!); });
@@ -117,7 +153,7 @@ await test("scheduler delay inside the final ten seconds freezes current levels 
   f.at(T - 7500, 1.121, 1.1211); await f.tick();
   assert.equal(f.sent.length, 2); assert.ok(f.sent.every(s => s.at === T - 7500));
   assert.equal(f.repo.run.levelsFrozenAt, iso(T - 7500));
-  assert.equal(f.repo.run.legs.long.entry, 1.1221); assert.equal(f.repo.run.legs.short.entry, 1.120);
+  assert.equal(f.repo.run.legs.long.entry, 1.1214); assert.equal(f.repo.run.legs.short.entry, 1.1207);
   f.at(T - 1000); await f.tick(); assert.equal(f.sent.length, 2);
 });
 await test("preparation finishing after T-10 can still submit before release", async () => {

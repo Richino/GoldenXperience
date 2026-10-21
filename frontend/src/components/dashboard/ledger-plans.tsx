@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useHomeSectionReady } from "./home-loading-boundary";
+import { SwingPlanRows } from "@/components/analysis/swing-plan-rows";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowUpRight, Sparkles } from "lucide-react";
 import { displayNameFor, precisionFor } from "@/lib/instruments/catalog";
@@ -167,11 +169,14 @@ function Read({ brief, loading }: { brief: Brief | undefined; loading: boolean }
 }
 
 export function LedgerPlans() {
+  const [swingCount, setSwingCount] = useState(0);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [briefs, setBriefs] = useState<Record<string, Brief>>({});
   /** Pairs whose research has been looked up (with or without a read). */
   const [checked, setChecked] = useState<Record<string, true>>({});
   const [error, setError] = useState<string | null>(null);
+  const [initialSettled, setInitialSettled] = useState(false);
+  useHomeSectionReady("plans", initialSettled);
   const pollingActive = useRef(true);
   const lastLoadedAt = useRef(0);
   /** The Cancel or Remove waiting for confirmation. */
@@ -183,7 +188,7 @@ export function LedgerPlans() {
     const due = instruments.filter((instrument) => Date.now() - (fetchedAt.current[instrument] ?? 0) > SUMMARY_TTL_MS);
     if (!due.length) return;
     for (const instrument of due) fetchedAt.current[instrument] = Date.now();
-    const results = await Promise.all(due.map((instrument) => tradePlansApi.research(instrument).then((result) => [instrument, result] as const).catch(() => null)));
+    const results = await Promise.all(due.map((instrument) => tradePlansApi.research(instrument, AbortSignal.timeout(12_000)).then((result) => [instrument, result] as const).catch(() => null)));
     setBriefs((current) => {
       const next = { ...current };
       for (const entry of results) {
@@ -206,9 +211,9 @@ export function LedgerPlans() {
   const load = useCallback(async () => {
     try {
       const [jobs, awaiting, active] = await Promise.all([
-        tradePlansApi.researchJobs().then((result) => result.jobs).catch(() => [] as ResearchJob[]),
-        tradePlansApi.list("awaiting"),
-        tradePlansApi.list("active"),
+        tradePlansApi.researchJobs(AbortSignal.timeout(12_000)).then((result) => result.jobs).catch(() => [] as ResearchJob[]),
+        tradePlansApi.list("awaiting", undefined, AbortSignal.timeout(12_000)),
+        tradePlansApi.list("active", undefined, AbortSignal.timeout(12_000)),
       ]);
       const next = planRows(jobs, awaiting, active);
       pollingActive.current = jobs.some(job => JOB_RUNNING.includes(job.status) || job.status === "COMPLETED" && !job.plans)
@@ -221,9 +226,11 @@ export function LedgerPlans() {
       setRows(next);
       setError(null);
       lastLoadedAt.current = Date.now();
-      void loadBriefs(next.filter((row) => row.kind === "review" || row.kind === "watching" || row.kind === "completed").map((row) => row.instrument));
+      await loadBriefs(next.filter((row) => row.kind === "review" || row.kind === "watching" || row.kind === "completed").map((row) => row.instrument));
     } catch {
       setError("Plans could not be loaded. Retrying…");
+    } finally {
+      setInitialSettled(true);
     }
   }, [loadBriefs]);
 
@@ -262,13 +269,14 @@ export function LedgerPlans() {
   const ask = (request: Omit<PlanConfirmRequest, "run"> & { work: () => Promise<unknown> }) =>
     setConfirm({ ...request, run: async () => { await request.work(); await load(); } });
 
-  const count = rows?.length ?? 0;
+  const count = (rows?.length ?? 0) + swingCount;
   return (
     <section className="nl-card nl-plans" aria-labelledby="nl-plans-title" aria-busy={rows === null}>
       <div className="nl-card-head">
         <h2 id="nl-plans-title">Plans</h2>
-        <span className="nl-card-meta metric-number">{count} {count === 1 ? "pair" : "pairs"}</span>
+        <span className="nl-card-meta metric-number">{count} {count === 1 ? "analysis" : "analyses"}</span>
       </div>
+      <SwingPlanRows onCount={setSwingCount} />
       {rows === null ? (
         <div className="nl-plan-read is-loading" aria-hidden="true"><span /><span /></div>
       ) : rows.length ? (
@@ -419,7 +427,7 @@ export function LedgerPlans() {
           })}
         </div>
       ) : (
-        <p className="nl-card-empty">No plans yet. Press Analyze on a chart: GX researches the pair, then builds its BUY and SELL plans here.</p>
+        swingCount ? null : <p className="nl-card-empty">No plans yet. Press Analyze on a chart, then return here to review the result.</p>
       )}
       {error ? <p className="nl-card-empty is-warn" role="status">{error}</p> : null}
       <PlanConfirm request={confirm} onDone={() => setConfirm(null)} />

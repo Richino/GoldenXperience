@@ -172,6 +172,8 @@ export function LedgerPlans() {
   /** Pairs whose research has been looked up (with or without a read). */
   const [checked, setChecked] = useState<Record<string, true>>({});
   const [error, setError] = useState<string | null>(null);
+  const pollingActive = useRef(true);
+  const lastLoadedAt = useRef(0);
   /** The Cancel or Remove waiting for confirmation. */
   const [confirm, setConfirm] = useState<PlanConfirmRequest | null>(null);
   const fetchedAt = useRef<Record<string, number>>({});
@@ -209,6 +211,8 @@ export function LedgerPlans() {
         tradePlansApi.list("active"),
       ]);
       const next = planRows(jobs, awaiting, active);
+      pollingActive.current = jobs.some(job => JOB_RUNNING.includes(job.status) || job.status === "COMPLETED" && !job.plans)
+        || awaiting.length > 0 || active.length > 0;
       for (const job of jobs) {
         if (job.status !== "COMPLETED" || !job.researchId || researchVersions.current[job.instrument] === job.researchId) continue;
         researchVersions.current[job.instrument] = job.researchId;
@@ -216,6 +220,7 @@ export function LedgerPlans() {
       }
       setRows(next);
       setError(null);
+      lastLoadedAt.current = Date.now();
       void loadBriefs(next.filter((row) => row.kind === "review" || row.kind === "watching" || row.kind === "completed").map((row) => row.instrument));
     } catch {
       setError("Plans could not be loaded. Retrying…");
@@ -223,11 +228,34 @@ export function LedgerPlans() {
   }, [loadBriefs]);
 
   useEffect(() => {
-    const first = window.setTimeout(() => void load(), 0);
-    const timer = window.setInterval(() => void load(), 10_000);
-    const changed = () => void load();
+    let busy = false;
+    let stopped = false;
+    let refreshPending = false;
+    const changed = async () => {
+      if (stopped || document.visibilityState !== "visible") return;
+      if (busy) { refreshPending = true; return; }
+      busy = true;
+      refreshPending = false;
+      try { await load(); } finally {
+        busy = false;
+        if (refreshPending && !stopped) void changed();
+      }
+    };
+    const first = window.setTimeout(() => void changed(), 0);
+    const timer = window.setInterval(() => {
+      if (pollingActive.current || Date.now() - lastLoadedAt.current >= 60_000) void changed();
+    }, 10_000);
     window.addEventListener(PLANS_CHANGED, changed);
-    return () => { window.clearTimeout(first); window.clearInterval(timer); window.removeEventListener(PLANS_CHANGED, changed); };
+    document.addEventListener("visibilitychange", changed);
+    const restored = (event: PageTransitionEvent) => { if (event.persisted) void changed(); };
+    window.addEventListener("pageshow", restored);
+    return () => {
+      stopped = true;
+      window.clearTimeout(first); window.clearInterval(timer);
+      window.removeEventListener(PLANS_CHANGED, changed);
+      document.removeEventListener("visibilitychange", changed);
+      window.removeEventListener("pageshow", restored);
+    };
   }, [load]);
 
   /** Ask first; the action runs (and the list reloads) only after the user confirms. */

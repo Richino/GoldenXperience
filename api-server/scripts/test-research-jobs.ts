@@ -169,6 +169,11 @@ const tx = { query: async (text: string, values?: unknown[]) => {
     const rows = result.rows.filter((row) => testJobIds.has(row.id));
     return { ...result, rows, rowCount: rows.length };
   }
+  if (text.startsWith("SELECT EXISTS(SELECT 1 FROM research_jobs")) {
+    const active = await client.query("SELECT EXISTS(SELECT 1 FROM research_jobs WHERE id=ANY($1::uuid[]) AND status IN ('QUEUED','RESEARCHING','VALIDATING')) AS active", [[...testJobIds]]);
+    result.rows[0].active = active.rows[0].active;
+    result.rows[0].undelivered = result.rows[0].undelivered.filter((id: string) => testJobIds.has(id));
+  }
   return result;
 } } as unknown as NonNullable<JobDeps["db"]>;
 // The pool must not touch tables this transaction has locked: the cached-research and budget reads are stubbed.
@@ -247,6 +252,13 @@ try {
     const joined = await jobs.requestResearch(user.id, "GBP_USD", { force: true, db: tx, kick: false, ...reads });
     assert.equal(joined.job!.status, "QUEUED", "the app sees the actual provider queue state");
     assert.equal((await statusOf()).status, "RESEARCHING", "older workers must see an accepted run, never an unsubmitted QUEUED job");
+  });
+
+  await test("a researching job keeps fast polling even before its next provider check is due", async () => {
+    await client.query("UPDATE research_jobs SET next_check_at=now()+interval '1 minute' WHERE id=$1", [jobId]);
+    const tick = await jobs.runResearchJobsTick(deps());
+    assert.equal(tick.advanced, 0);
+    assert.equal(tick.active, true, "future checks must not be mistaken for an empty queue");
   });
 
   await test("Test 5 — restart: a live lease blocks a second worker; an expired lease is taken over", async () => {
@@ -481,6 +493,12 @@ try {
     assert.equal(before[0]!.id, newest);
     await jobs.dismissResearchJob(user.id, newest, tx);
     assert.equal((await jobs.researchJobsForUser(user.id, tx)).filter((row) => row.instrument === "GBP_USD").length, 0);
+  });
+  await test("only terminal jobs and completed deliveries allow idle backoff", async () => {
+    const ids = [...testJobIds];
+    await client.query("UPDATE research_jobs SET status='CANCELLED' WHERE id=ANY($1::uuid[])", [ids]);
+    await client.query("UPDATE research_job_watchers SET notified_at=now() WHERE job_id=ANY($1::uuid[])", [ids]);
+    assert.deepEqual(await jobs.runResearchJobsTick(deps()), { advanced: 0, delivered: 0, active: false });
   });
 } finally {
   await client.query("ROLLBACK");

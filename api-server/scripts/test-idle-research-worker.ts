@@ -39,3 +39,30 @@ assert.equal(tasks[2].cancelled, true, "shutdown cancels a pending timeout");
 tasks[2].run(); await flush();
 assert.equal(errors.length, 1, "an already dispatched callback does nothing after shutdown");
 console.log("Idle research worker checks passed: idle/active cadence, no overlapping jobs, error backoff and shutdown.");
+
+const wakeTasks: Task[] = [];
+const wakeSchedule = (run: () => void, delay: number) => {
+  const task = { run, delay, cancelled: false }; wakeTasks.push(task);
+  return () => { task.cancelled = true; };
+};
+const stopWake = startIdleResearchWorker(async () => ({ processed: false }), error => { throw error; }, wakeSchedule,
+  { activeMs: 10_000, idleMs: 60_000 });
+await flush();
+assert.equal(wakeTasks[0].delay, 60_000);
+stopWake.wake();
+assert.equal(wakeTasks[0].cancelled, true);
+assert.equal(wakeTasks[1].delay, 10_000, "Analyze wakes an idle worker at its normal active cadence");
+stopWake.wake();
+assert.equal(wakeTasks.length, 2, "repeated enqueues cannot postpone the next poll");
+wakeTasks[0].run(); await flush();
+assert.equal(wakeTasks.length, 2, "a cancelled idle timer cannot start a second polling chain");
+stopWake(); stopWake.wake();
+assert.equal(wakeTasks.length, 2, "a stopped worker cannot be woken");
+
+let finishWake!: (value: { processed: boolean }) => void;
+const stopBusyWake = startIdleResearchWorker(() => new Promise(resolve => { finishWake = resolve; }), error => { throw error; }, wakeSchedule,
+  { activeMs: 10_000, idleMs: 60_000 });
+stopBusyWake.wake(); finishWake({ processed: false }); await flush();
+assert.equal(wakeTasks.at(-1)?.delay, 10_000, "enqueue during a pass keeps active polling without overlap");
+stopBusyWake();
+console.log("Research polling wake-up checks passed.");

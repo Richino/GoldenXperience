@@ -6,6 +6,7 @@ import { currenciesOf, isKnownInstrument } from "../../../frontend/src/lib/instr
 import type { MajorInstrument } from "../../../frontend/src/types/forex.js";
 import { getForexSessionStatus } from "../../../frontend/src/lib/strategy/session.js";
 import { query } from "../database.js";
+import { startIdleResearchWorker } from "../idle-research-worker.js";
 import { updateThesesForResearch } from "./thesis-updates.js";
 import type { MarketIntelligence } from "./research-contract.js";
 import { displayPair, queueNotification } from "../notifications.js";
@@ -43,6 +44,7 @@ const pool: Db = { query: (text, values) => query(text, values ?? []) };
 export const ACTIVE_STATUSES = ["QUEUED", "RESEARCHING", "VALIDATING"] as const;
 const ACTIVE_SQL = "('QUEUED','RESEARCHING','VALIDATING')";
 export const WORKER_ID = `${hostname()}:${process.pid}:research`;
+let wakeResearchPolling: (() => void) | null = null;
 
 const num = (value: string | undefined, fallback: number) => {
   const parsed = Number(value);
@@ -168,6 +170,7 @@ export async function requestResearch(userId: string | null, instrument: string,
   const active = await db.query<JobRow>(`SELECT ${JOB_COLUMNS} FROM research_jobs WHERE instrument=$1 AND status IN ${ACTIVE_SQL}`, [instrument]);
   if (active.rows[0]) {
     await join(active.rows[0].id);
+    if (options.kick !== false) wakeResearchPolling?.();
     return { ...latest, job: jobView(active.rows[0]), running: true, state: "joined", budget: null };
   }
   if (latest.research?.fresh && !options.force) return { ...latest, state: "cached", budget: null };
@@ -189,6 +192,7 @@ export async function requestResearch(userId: string | null, instrument: string,
   await join(job.id);
   // Start straight away; if this process dies, the worker tick picks the job up from the database.
   if (inserted.rows[0] && options.kick !== false) setImmediate(() => void processResearchJob(job.id).catch((error) => console.error("[research-jobs] start failed", error)));
+  if (options.kick !== false) wakeResearchPolling?.();
   return { ...latest, job: jobView(job), running: true, state: inserted.rows[0] ? "started" : "joined", budget: null };
 }
 
@@ -534,12 +538,14 @@ export async function runResearchJobsTick(deps: JobDeps = {}) {
   for (const { id } of due.rows) {
     try { if (await processResearchJob(id, deps)) advanced += 1; } catch (error) { console.error(`[research-jobs] job ${id} step failed`, error); }
   }
-  const undelivered = await db.query<{ id: string }>(
-    `SELECT DISTINCT j.id FROM research_jobs j JOIN research_job_watchers w ON w.job_id=j.id
-      WHERE w.notified_at IS NULL AND j.status NOT IN ${ACTIVE_SQL} AND j.updated_at > now() - interval '1 day' LIMIT 10`,
+  const pending = await db.query<{ active: boolean; undelivered: string[] }>(
+    `SELECT EXISTS(SELECT 1 FROM research_jobs WHERE status IN ${ACTIVE_SQL}) AS active,
+      ARRAY(SELECT DISTINCT j.id FROM research_jobs j JOIN research_job_watchers w ON w.job_id=j.id
+      WHERE w.notified_at IS NULL AND j.status NOT IN ${ACTIVE_SQL} AND j.updated_at > now() - interval '1 day' LIMIT 10) AS undelivered`,
   );
-  for (const { id } of undelivered.rows) await deliverCompletion(id, deps).catch((error) => console.error(`[research-jobs] delivery ${id} failed`, error));
-  return { advanced, delivered: undelivered.rows.length };
+  const undelivered = pending.rows[0]?.undelivered ?? [];
+  for (const id of undelivered) await deliverCompletion(id, deps).catch((error) => console.error(`[research-jobs] delivery ${id} failed`, error));
+  return { advanced, delivered: undelivered.length, active: pending.rows[0]?.active ?? false };
 }
 
 /** OpenAI completion webhook: verified, then it only wakes the job; the worker reads the result itself. */
@@ -555,6 +561,7 @@ export async function handleOpenAIWebhook(rawBody: string, headers: Record<strin
     [verified.event.responseId],
   );
   for (const { id } of woken.rows) setImmediate(() => void processResearchJob(id).catch((error) => console.error("[research-jobs] webhook step failed", error)));
+  if (woken.rows.length) wakeResearchPolling?.();
   return { status: 200, body: { received: true } };
 }
 
@@ -590,14 +597,11 @@ export async function refreshDueResearch(now = Date.now()) {
 }
 
 export function startResearchWorker(intervalMs = jobSettings().pollMs) {
-  let busy = false;
-  const tick = () => {
-    if (busy) return;
-    busy = true;
-    void runResearchJobsTick()
-      .catch((error) => console.error("[research-jobs] tick failed", error))
-      .finally(() => { busy = false; });
-  };
-  tick();
-  return setInterval(tick, Math.max(2_000, intervalMs));
+  const stop = startIdleResearchWorker(async () => {
+    const result = await runResearchJobsTick();
+    return { processed: result.active || result.advanced > 0 || result.delivered > 0 };
+  }, error => console.error("[research-jobs] tick failed", error), undefined,
+  { activeMs: Math.max(2_000, intervalMs), idleMs: Math.max(60_000, intervalMs) });
+  wakeResearchPolling = stop.wake;
+  return () => { if (wakeResearchPolling === stop.wake) wakeResearchPolling = null; stop(); };
 }

@@ -56,9 +56,7 @@ import { binaryCollectionEnabled } from "./binary-lifecycle.js";
 import { startIdleResearchWorker } from "./idle-research-worker.js";
 import { binaryAdaptiveSelectorStatus } from "./binary-adaptive-selector.js";
 import { collectPatternV1Cycle, patternV1Disagreement, patternV1Status } from "./pattern-v1-engine.js";
-import { collectLegacyConfidenceV2Cycle } from "./legacy-confidence-v2-collector.js";
 import { collectBreakoutConfidenceV1Cycle } from "./breakout-confidence-v1-collector.js";
-import { collectBreakoutM5Cycle } from "./breakout-m5-confidence-v1-collector.js";
 import { createManualTradeProposal } from "./manual-analysis.js";
 import { explainAnalysis } from "./analyze-explain.js";
 import { parseExplanationFacts } from "../../frontend/src/lib/strategy/analyze-v2/explain.js";
@@ -1419,6 +1417,7 @@ server.listen(PORT, () => console.log(`[api] HTTP and WebSocket server listening
 swingIntelligence.start();
 
 let stopDurableResearchWorker: (() => void) | null = null;
+let stopAnalyzeResearchWorker: (() => void) | null = null;
 let paperCollector: NodeJS.Timeout | null = null;
 let fastResolver: NodeJS.Timeout | null = null;
 let binaryCollector: NodeJS.Timeout | null = null;
@@ -1426,9 +1425,7 @@ let binaryResolver: NodeJS.Timeout | null = null;
 let newsRetagger: NodeJS.Timeout | null = null;
 let newsPredictionJournal: NodeJS.Timeout | null = null;
 let patternV1Collector: NodeJS.Timeout | null = null;
-let legacyConfidenceV2Collector: NodeJS.Timeout | null = null;
 let breakoutConfidenceV1Collector: NodeJS.Timeout | null = null;
-let breakoutM5Collector: NodeJS.Timeout | null = null;
 // The background loops below (paper collector, live/fast resolver, research
 // worker, binary engine) all WRITE to the database — opening, closing and
 // resolving trades. Point a second instance at the same database (e.g. local
@@ -1491,7 +1488,7 @@ if (databaseConfigured() && schedulersEnabled) {
   if (config.isConfigured && process.env.TRADE_PLAN_MONITOR_ENABLED !== "false") startTradePlanMonitor();
   else console.log("[trade-plan-monitor] off (OANDA not configured or TRADE_PLAN_MONITOR_ENABLED=false)");
   // Background research jobs: submit, poll OpenAI, validate, store, rebuild plans, notify. Survives restarts via the database.
-  if (databaseConfigured() && process.env.RESEARCH_WORKER_ENABLED !== "false") startResearchWorker();
+  if (databaseConfigured() && process.env.RESEARCH_WORKER_ENABLED !== "false") stopAnalyzeResearchWorker = startResearchWorker();
   // Market research for pairs with accepted plans, only when stale: starts background jobs, budgeted.
   let researchBusy = false;
   setInterval(() => {
@@ -1705,33 +1702,6 @@ if (databaseConfigured() && schedulersEnabled) {
     console.log("[binary] retired — baseline, logistic shadow, adaptive and Pattern V1 collection are OFF.");
   }
 
-  // Legacy-confidence-v2 forward paper engine — INDEPENDENT strategy running
-  // its own 15-minute cycle. Off by default; opt in with
-  // LEGACY_CONFIDENCE_V2_ENABLED=true and (once you're ready) drop
-  // LEGACY_CONFIDENCE_V2_DRY_RUN=false to actually open paper trades.
-  //
-  // Trades land in paper_strategy_trades tagged strategy_family="legacy-confidence-v2"
-  // in their own batch series; the existing resolver picks them up.
-  // See src/legacy-confidence-v2-collector.ts for the recipe and env contract.
-  let legacyV2Busy = false;
-  const legacyV2 = async () => {
-    if (legacyV2Busy) return;
-    legacyV2Busy = true;
-    try {
-      const result = await collectLegacyConfidenceV2Cycle();
-      if (!result.ran) return; // disabled or credentials missing — quiet
-      if (result.setupsFired || result.tradesOpened || result.errors) {
-        console.log(`[legacy-confidence-v2] pairs=${result.pairsChecked} setups=${result.setupsFired} opened=${result.tradesOpened} skipped=${result.skipped} errors=${result.errors}`);
-      }
-    } catch (error) {
-      console.error("[legacy-confidence-v2] cycle failed", error);
-    } finally {
-      legacyV2Busy = false;
-    }
-  };
-  void legacyV2();
-  legacyConfidenceV2Collector = setInterval(() => void legacyV2(), 15 * 60_000);
-
   // Breakout-confidence-v1 forward paper engine.
   // Trained on 8,316 breakout opportunities (EUR/GBP/USD_JPY, 2016-2025).
   // Walk-forward: +0.141R/trade, 68% winrate, 36/37 windows beat baseline.
@@ -1760,31 +1730,6 @@ if (databaseConfigured() && schedulersEnabled) {
   };
   void breakoutV1();
   breakoutConfidenceV1Collector = setInterval(() => void breakoutV1(), 60_000);
-
-  // Breakout M5 direction-flip research collector. The former 72.6% claim was
-  // invalidated because it negated original outcomes instead of resolving an
-  // opposite-side bid/ask trade. It remains fail-closed pending a fully
-  // unblocked-candidate replay that passes counterfactual validation.
-  //
-  // Runs every 5 minutes — one cycle per M5 bar close.
-  let m5Busy = false;
-  const m5 = async () => {
-    if (m5Busy) return;
-    m5Busy = true;
-    try {
-      const result = await collectBreakoutM5Cycle();
-      if (!result.ran) return;
-      if (result.setupsFired || result.tradesOpened || result.errors) {
-        console.log(`[breakout-m5-confidence-v1] pairs=${result.pairsChecked} setups=${result.setupsFired} opened=${result.tradesOpened} skipped=${result.skipped} errors=${result.errors}`);
-      }
-    } catch (error) {
-      console.error("[breakout-m5-confidence-v1] cycle failed", error);
-    } finally {
-      m5Busy = false;
-    }
-  };
-  void m5();
-  breakoutM5Collector = setInterval(() => void m5(), 5 * 60_000);
 
   // Nightly news re-tag. The calendar feed carries the current week only and
   // its rollover is not synchronised with the Sunday 17:00 ET reopen, so a
@@ -1844,6 +1789,7 @@ function shutdown() {
   clearInterval(heartbeat);
   if (morningScanner) clearInterval(morningScanner);
   stopDurableResearchWorker?.();
+  stopAnalyzeResearchWorker?.();
   if (paperCollector) clearInterval(paperCollector);
   if (fastResolver) clearInterval(fastResolver);
   if (binaryCollector) clearInterval(binaryCollector);
@@ -1851,9 +1797,7 @@ function shutdown() {
   if (newsRetagger) clearInterval(newsRetagger);
   if (newsPredictionJournal) clearInterval(newsPredictionJournal);
   if (patternV1Collector) clearInterval(patternV1Collector);
-  if (legacyConfidenceV2Collector) clearInterval(legacyConfidenceV2Collector);
   if (breakoutConfidenceV1Collector) clearInterval(breakoutConfidenceV1Collector);
-  if (breakoutM5Collector) clearInterval(breakoutM5Collector);
   // Hard-close sockets so server.close() resolves at once. A graceful 1001
   // leaves keep-alive/WebSocket connections lingering, which holds the port
   // open long enough that a fast dev reload (tsx watch) fails with EADDRINUSE.

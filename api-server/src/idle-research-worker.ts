@@ -6,25 +6,51 @@ const scheduleTimeout: Schedule = (run, delayMs) => {
   return () => clearTimeout(timer);
 };
 
-/** Keep active backtests moving; an empty queue needs only two checks per minute. */
+/** Sequential polling with idle backoff and an enqueue wake-up. */
 export function startIdleResearchWorker(
   run: () => Promise<{ processed: boolean }>,
   onError: (error: unknown) => void,
   schedule: Schedule = scheduleTimeout,
+  timing = { activeMs: 1_000, idleMs: 30_000 },
 ) {
   let stopped = false;
+  let busy = false;
+  let wakePending = false;
+  let nextDelay = Infinity;
+  let generation = 0;
   let cancelNext: (() => void) | null = null;
+  const arm = (delayMs: number) => {
+    const current = ++generation;
+    nextDelay = delayMs;
+    cancelNext = schedule(() => {
+      if (current !== generation) return;
+      cancelNext = null; nextDelay = Infinity; void tick();
+    }, delayMs);
+  };
   const tick = async () => {
-    if (stopped) return;
-    let delayMs = 30_000;
+    if (stopped || busy) return;
+    busy = true;
+    let delayMs = timing.idleMs;
     try {
-      if ((await run()).processed) delayMs = 1_000;
+      if ((await run()).processed) delayMs = timing.activeMs;
     } catch (error) {
       onError(error);
     } finally {
-      if (!stopped) cancelNext = schedule(() => { void tick(); }, delayMs);
+      busy = false;
+      if (wakePending) delayMs = timing.activeMs;
+      wakePending = false;
+      if (!stopped) arm(delayMs);
     }
   };
   void tick();
-  return () => { stopped = true; cancelNext?.(); };
+  const stop = () => { stopped = true; generation++; cancelNext?.(); };
+  const wake = () => {
+    if (stopped) return;
+    if (busy) { wakePending = true; return; }
+    // Repeated Analyze requests must not keep pushing the next check away.
+    if (nextDelay <= timing.activeMs) return;
+    cancelNext?.();
+    arm(timing.activeMs);
+  };
+  return Object.assign(stop, { wake });
 }

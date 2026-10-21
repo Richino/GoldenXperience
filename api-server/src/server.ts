@@ -658,7 +658,9 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     if (url.pathname === "/api/pending-entries" && request.method === "GET") {
       const instrument = url.searchParams.get("instrument")?.toUpperCase();
       if (instrument && !isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
-      return json(request, response, { entries: await pendingManualEntriesForUser(user.id, instrument) });
+      const scope = url.searchParams.get("scope");
+      if (scope && scope !== "active" && scope !== "all") return json(request, response, { error: "Choose active or all entries." }, 400);
+      return json(request, response, { entries: await pendingManualEntriesForUser(user.id, instrument, scope === "active" ? "active" : "all") });
     }
     if (url.pathname === "/api/pending-entries" && request.method === "POST") {
       if (!pendingEntryMonitoringEnabled) return json(request, response, { error: "Pending-entry monitoring is disabled on this API instance." }, 503);

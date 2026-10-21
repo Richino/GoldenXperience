@@ -478,18 +478,31 @@ function optionalTradeLevels(payload: Record<string, unknown>, direction: Pendin
   return { stop, target };
 }
 
-export async function pendingManualEntriesForUser(userId: string, instrument?: string) {
+/** Active chart reads exclude history; a missing trade row stays visible for reconciliation. */
+export function pendingManualEntryListQuery(userId: string, instrument?: string, scope: "active" | "all" = "all") {
   const values: unknown[] = [userId];
   const instrumentClause = instrument ? " AND instrument=$2" : "";
   if (instrument) values.push(instrument);
-  const result = await query<EntryRow>(
-    `SELECT ${SELECT_FIELDS},
+  const activeClause = scope === "active" ? ` AND (
+        status IN ('PENDING','TRIGGERING') OR
+        (status='TRIGGERED' AND NOT EXISTS (
+          SELECT 1 FROM paper_trades trade
+          WHERE trade.id=pending_manual_entries.paper_trade_id AND trade.status='closed'
+        ))
+      )` : "";
+  return {
+    text: `SELECT ${SELECT_FIELDS},
             (SELECT trade.status FROM paper_trades trade WHERE trade.id=pending_manual_entries.paper_trade_id) AS paper_trade_status
        FROM pending_manual_entries
-      WHERE user_id=$1${instrumentClause}
+      WHERE user_id=$1${instrumentClause}${activeClause}
       ORDER BY created_at DESC`,
     values,
-  );
+  };
+}
+
+export async function pendingManualEntriesForUser(userId: string, instrument?: string, scope: "active" | "all" = "all") {
+  const statement = pendingManualEntryListQuery(userId, instrument, scope);
+  const result = await query<EntryRow>(statement.text, statement.values);
   return result.rows.map(serialize);
 }
 

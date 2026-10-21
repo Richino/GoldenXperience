@@ -419,7 +419,7 @@ export function DashboardView({
     if (loading.current.has("pending")) return;
     loading.current.add("pending");
     try {
-      const payload = await dashboardData<{ entries?: PendingManualEntry[] }>("/api/pending-entries");
+      const payload = await dashboardData<{ entries?: PendingManualEntry[] }>("/api/pending-entries?scope=active");
       setPendingEntries((payload.entries ?? []).filter((entry) => entry.status === "PENDING" || entry.status === "TRIGGERING"));
       setPendingEntryError(null);
       finishLoad("pending");

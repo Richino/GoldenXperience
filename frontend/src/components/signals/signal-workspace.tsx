@@ -2923,7 +2923,7 @@ export function SignalWorkspace({
     try {
       // Read every non-terminal manual entry, not only the selected pair. The
       // picker uses this same source to mark a pair whose manual trade filled.
-      const response = await fetch(apiUrl("/api/pending-entries"), {
+      const response = await fetch(apiUrl("/api/pending-entries?scope=active"), {
         credentials: "include",
         cache: "no-store",
       });
@@ -2957,7 +2957,7 @@ export function SignalWorkspace({
 
   useEffect(() => {
     void refreshPaperPlans();
-    const timer = window.setInterval(() => void refreshPaperPlans(), 60_000);
+    const timer = window.setInterval(() => { if (document.visibilityState === "visible") void refreshPaperPlans(); }, 60_000);
     return () => window.clearInterval(timer);
   }, [refreshPaperPlans]);
 
@@ -2966,7 +2966,7 @@ export function SignalWorkspace({
   useEffect(() => {
     let pending = false;
     const refresh = async () => {
-      if (pending) return;
+      if (pending || document.visibilityState !== "visible") return;
       pending = true;
       try { await refreshPendingEntries(); } finally { pending = false; }
     };
@@ -3017,8 +3017,9 @@ export function SignalWorkspace({
       }
     };
     const expirationDelay = Math.max(0, Date.parse(predictionFocus.intendedExpiration) - Date.now()) + 1_000;
-    const interval = window.setInterval(() => void refreshPrediction(), 15_000);
-    const timeout = window.setTimeout(() => void refreshPrediction(), expirationDelay);
+    const refreshVisiblePrediction = () => { if (document.visibilityState === "visible") void refreshPrediction(); };
+    const interval = window.setInterval(refreshVisiblePrediction, 15_000);
+    const timeout = window.setTimeout(refreshVisiblePrediction, expirationDelay);
     return () => {
       controller.abort();
       window.clearInterval(interval);
@@ -3942,7 +3943,7 @@ export function SignalWorkspace({
         // Keep the previous related snapshot on transient failures.
       });
     void load();
-    const timer = window.setInterval(() => void load(), 60_000);
+    const timer = window.setInterval(() => { if (document.visibilityState === "visible") void load(); }, 60_000);
     return () => {
       controller.abort();
       window.clearInterval(timer);
@@ -4369,7 +4370,7 @@ export function SignalWorkspace({
   // route or pair change so the old plan disappears shortly after it resolves.
   useEffect(() => {
     void refreshPaperTrades();
-    const timer = window.setInterval(() => void refreshPaperTrades(), 15_000);
+    const timer = window.setInterval(() => { if (document.visibilityState === "visible") void refreshPaperTrades(); }, 15_000);
     return () => window.clearInterval(timer);
   }, [refreshPaperTrades]);
 
@@ -4430,7 +4431,7 @@ export function SignalWorkspace({
       } catch { /* Missing daily baseline is shown as unavailable, never replaced with a chart candle. */ }
     };
     void load();
-    const timer = window.setInterval(() => void load(), 60_000);
+    const timer = window.setInterval(() => { if (document.visibilityState === "visible") void load(); }, 60_000);
     return () => { controller.abort(); window.clearInterval(timer); };
   }, [instrument]);
   useEffect(() => {

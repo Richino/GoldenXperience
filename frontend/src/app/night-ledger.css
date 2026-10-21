@@ -82,6 +82,34 @@
   --pending-soft: rgba(255, 193, 77, 0.15);
 }
 
+/* WebKit samples this fixed surface to color the installed iOS status bar.
+   Empty-text clipping keeps it from painting over the header controls.
+   Keep it above 10px; opacity: 0 and pseudo-elements fail edge sampling.
+   Device report: https://qiita.com/na-trium-144/items/0add98a80ca2391e3f17 */
+.gx-ios-statusbar { display: none; }
+
+@media (max-width: 1023px) and (orientation: portrait) {
+  html.gx-ios-pwa-top-clearance .gx-ios-statusbar {
+    display: block;
+    position: fixed;
+    inset: 0 0 auto;
+    height: 11px;
+    z-index: 2147483647;
+    background-color: var(--background);
+    -webkit-background-clip: text;
+    background-clip: text;
+    pointer-events: none;
+  }
+
+  html.gx-ios-pwa-top-clearance:has(.signals-route) .gx-ios-statusbar {
+    background-color: var(--signals-mobile-page-bg);
+  }
+
+  html.gx-ios-pwa-top-clearance:is(.gx-boot-splash, :has([data-gx-launch-screen])) .gx-ios-statusbar {
+    background-color: #0b0c0a;
+  }
+}
+
 /* ------------------------------------------------------------------ type */
 
 /* Page titles and the one hero number per screen use the display face. */

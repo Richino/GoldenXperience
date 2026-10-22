@@ -72,7 +72,7 @@ export function HomeLoadingSkeleton() {
             <Placeholder className="h-full w-full rounded-none lg:rounded-xl" />
           </div>
           <dl className="nl-stats">
-            {Array.from({ length: 4 }, (_, index) => (
+            {Array.from({ length: 2 }, (_, index) => (
               <div key={index}>
                 <dt><Placeholder className="h-[18px] w-28 lg:h-[19.5px]" /></dt>
                 <dd><Placeholder className="h-[27px] w-24 lg:h-9" /></dd>

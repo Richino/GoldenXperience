@@ -641,22 +641,6 @@ export function DashboardView({
     losses: journalSummary?.today?.losses ?? todayFromList.losses,
     results: todayResults,
   };
-  // What each open trade loses if its stop is hit now: the broker fill's size
-  // against the stop it holds (moved on the chart or not), in account dollars.
-  // A stop past entry risks nothing. Trades without a fill or a stop fall back
-  // to their nominal 1% risk.
-  const tradeRisk = (trade: Trade) => {
-    const fill = trade.brokerTradeId ? fills[`broker:${trade.brokerTradeId}`] : undefined;
-    const sl = currentTradeLevels(trade).sl ?? fill?.stopPrice ?? null;
-    const usdPerQuote = quoteToUsdRateFromQuotes(trade.instrument, quotes);
-    if (fill && fill.units && sl !== null && usdPerQuote !== null) {
-      const perUnit = trade.direction === "long" ? fill.price - sl : sl - fill.price;
-      return Math.max(0, perUnit) * Math.abs(fill.units) * usdPerQuote;
-    }
-    return trade.nominalRiskAmount ?? null;
-  };
-  const tradeRisks = openTrades.map(tradeRisk).filter((risk): risk is number => risk !== null);
-  const openRisk = tradeRisks.length ? tradeRisks.reduce((sum, risk) => sum + risk, 0) : null;
 
   return (
     <>
@@ -670,7 +654,6 @@ export function DashboardView({
         // and the rows always add up. The account summary drifts; it is only
         // the fallback.
         openPL={heroOpenPL}
-        openRisk={openRisk}
         greeting={greeting}
         positions={ledgerPositions}
         setups={ledgerSetups}

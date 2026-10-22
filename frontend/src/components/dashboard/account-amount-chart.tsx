@@ -590,7 +590,7 @@ export function AccountAmountChart({
               )}
             />
             <Area
-              type="linear"
+              type={ledger ? "monotone" : "linear"}
               dataKey="value"
               stroke={stroke}
               strokeWidth={ledger ? 2.5 : 2.25}

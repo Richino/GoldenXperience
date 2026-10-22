@@ -251,14 +251,12 @@ function LedgerHero({
   history,
   todayKey,
   openPL,
-  openRisk,
   historyState = "ready",
 }: {
   account: AccountSummary;
   history: AccountBalanceHistoryPoint[];
   todayKey: string;
   openPL: number;
-  openRisk: number | null;
   historyState?: LoadState;
 }) {
   const historyAvailable = hasData(historyState);
@@ -281,8 +279,6 @@ function LedgerHero({
   const dayTone = historyAvailable ? tone(dayPL) : "is-flat";
   const [dollars, cents] = splitMoney(account.nav, account.currency);
   const percentLabel = historyAvailable ? `${changePercent >= 0 ? "+" : "−"}${Math.abs(changePercent).toFixed(2)}%` : "—";
-  const marginShare = account.nav > 0 ? (account.marginUsed / account.nav) * 100 : null;
-  const riskShare = openRisk !== null && account.nav > 0 ? (openRisk / account.nav) * 100 : null;
 
   return (
     <section className="nl-hero" aria-label="Account overview">
@@ -333,26 +329,6 @@ function LedgerHero({
         <div>
           <dt>Unrealized</dt>
           <dd className={`metric-number ${tone(openPL)}`}>{signedMoney(openPL, account.currency)}</dd>
-        </div>
-        <div>
-          <dt>
-            Max loss{riskShare !== null ? <span> · {riskShare.toFixed(1)}%<span className="nl-wide-only"> of balance</span></span> : null}
-          </dt>
-          <dd className="metric-number">{openRisk === null ? "—" : money(openRisk, account.currency)}</dd>
-        </div>
-        <div>
-          <dt>
-            Margin<span className="nl-wide-only"> used</span>
-            {marginShare !== null ? <span> · {marginShare.toFixed(1)}%</span> : null}
-          </dt>
-          <dd className="nl-stat-margin">
-            <span className="metric-number">{money(account.marginUsed, account.currency)}</span>
-            {marginShare !== null ? (
-              <span className="nl-meter nl-wide-only" aria-hidden="true">
-                <span style={{ width: `${Math.min(100, marginShare)}%` }} />
-              </span>
-            ) : null}
-          </dd>
         </div>
       </dl>
     </section>
@@ -753,7 +729,6 @@ export function LedgerHome({
   history,
   todayKey,
   openPL,
-  openRisk,
   greeting,
   positions,
   setups,
@@ -773,7 +748,6 @@ export function LedgerHome({
   history: AccountBalanceHistoryPoint[];
   todayKey: string;
   openPL: number;
-  openRisk: number | null;
   greeting: string;
   positions: LedgerPosition[];
   setups: LedgerSetup[];
@@ -813,7 +787,7 @@ export function LedgerHome({
           />
         ) : null}
         {account ? (
-          <LedgerHero account={account} history={history} todayKey={todayKey} openPL={openPL} openRisk={positionsReady ? openRisk : null} historyState={loadState.history} />
+          <LedgerHero account={account} history={history} todayKey={todayKey} openPL={openPL} historyState={loadState.history} />
         ) : (
           <section className="nl-hero" aria-label="Account overview">
             <div className="nl-hero-copy">

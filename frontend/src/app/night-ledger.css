@@ -792,7 +792,7 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-va
 .nl-stats {
   grid-area: stats;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   margin: 0;
   overflow: hidden;
   border: 1px solid var(--border);
@@ -821,27 +821,6 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-va
   font-size: 24px;
   font-weight: 500;
   letter-spacing: -0.02em;
-}
-
-.nl-stat-margin {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.nl-meter {
-  display: block;
-  height: 4px;
-  overflow: hidden;
-  border-radius: 2px;
-  background: var(--border-strong);
-}
-
-.nl-meter > span {
-  display: block;
-  height: 100%;
-  border-radius: 2px;
-  background: var(--foreground);
 }
 
 /* The phone's pinned balance bar; hidden on desktop. */
@@ -1685,25 +1664,12 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-va
   }
 
   .nl-stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
     border-radius: 18px;
   }
 
   .nl-stats > div {
     gap: 6px;
     padding: 14px 16px;
-  }
-
-  .nl-stats > div + div {
-    border-left: 0;
-  }
-
-  .nl-stats > div:nth-child(odd) {
-    border-right: 1px solid var(--border);
-  }
-
-  .nl-stats > div:nth-child(-n + 2) {
-    border-bottom: 1px solid var(--border);
   }
 
   .nl-stats dt {

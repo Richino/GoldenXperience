@@ -5307,11 +5307,11 @@ export function SignalWorkspace({
           }
           actions={
             <>
-              <button type="button" className="gx-fs-action is-analyze pressable" onClick={() => void runTrendPullback()} disabled={chartAnalysisBusy || replayActive} aria-label={chartAnalysisBusy ? "Analyzing market" : analyzeLabel.long}>
+              {showAnalyze ? <button type="button" className="gx-fs-action is-analyze pressable" onClick={() => void runTrendPullback()} disabled={chartAnalysisBusy || replayActive} aria-label={chartAnalysisBusy ? "Analyzing market" : analyzeLabel.long}>
                 {/* Phones show the icon only, so the top row stays on one line. */}
                 <Radar aria-hidden="true" />
                 <span className="gx-fs-label">{chartAnalysisBusy ? "Analyzing…" : analyzeLabel.long}</span>
-              </button>
+              </button> : null}
               <button type="button" className="gx-fs-action pressable" onClick={() => {
                 setEntryDraftProposal(null);
                 openPendingEntryManager(null);

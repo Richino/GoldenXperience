@@ -68,6 +68,7 @@ import {
   type TradeMarkerPalette,
 } from "@/lib/chart-utils";
 import { ChartHistoryLoader } from "@/components/charts/chart-loading-overlay";
+import { ChartCrosshairLabels } from "@/components/charts/chart-crosshair-labels";
 import { useChartTouchGestures } from "@/components/charts/use-chart-touch-gestures";
 import { ChartBoxPrimitive, type ChartBox } from "@/components/charts/chart-box-primitive";
 import { RoundedCandleSeries } from "@/components/charts/rounded-candle-series";
@@ -899,12 +900,14 @@ function chartTheme(
         width: 1 as const,
         style: LineStyle.LargeDashed,
         labelBackgroundColor: accent,
+        labelVisible: false,
       },
       horzLine: {
         color: palette.upLine,
         width: 1 as const,
         style: LineStyle.LargeDashed,
         labelBackgroundColor: accent,
+        labelVisible: false,
       },
     },
     rightPriceScale: {
@@ -1285,27 +1288,32 @@ interface PlacedLevelTag extends LevelTag {
   offset: number;
 }
 
-/** Flag chip height including padding — used to unstack overlapping levels. */
-const LEVEL_TAG_HEIGHT = 18;
-const LEVEL_TAG_STACK_GAP = 2;
+/** Keep these heights in sync with .setup-chart-level-tag in globals.css. */
+const LEVEL_TAG_HEIGHT = 24;
+const LEVEL_TAG_ACTION_HEIGHT = 44;
+const LEVEL_TAG_STACK_GAP = 4;
+
+function levelTagHeight(tag: LevelTag) {
+  return tag.onSelect ? LEVEL_TAG_ACTION_HEIGHT : LEVEL_TAG_HEIGHT;
+}
 
 /**
  * Nudge overlapping left-edge flags apart so Entry / SL / TP stay readable
  * when their prices sit on the same pixel row.
  */
 function stackLevelTagYs(tags: PlacedLevelTag[], paneHeight: number): PlacedLevelTag[] {
-  if (tags.length < 2) return tags;
+  if (!tags.length) return tags;
 
   const sorted = [...tags].sort(
     (left, right) => left.y - right.y || left.key.localeCompare(right.key),
   );
-  const minGap = LEVEL_TAG_HEIGHT + LEVEL_TAG_STACK_GAP;
-  const half = LEVEL_TAG_HEIGHT / 2;
-  const minY = half;
-  const maxY = Math.max(minY, paneHeight - half);
+  const gapBetween = (left: LevelTag, right: LevelTag) =>
+    (levelTagHeight(left) + levelTagHeight(right)) / 2 + LEVEL_TAG_STACK_GAP;
+  const minY = levelTagHeight(sorted[0]!) / 2;
+  const maxY = Math.max(minY, paneHeight - levelTagHeight(sorted.at(-1)!) / 2);
 
   for (let i = 1; i < sorted.length; i++) {
-    const floor = sorted[i - 1]!.y + minGap;
+    const floor = sorted[i - 1]!.y + gapBetween(sorted[i - 1]!, sorted[i]!);
     if (sorted[i]!.y < floor) {
       sorted[i] = { ...sorted[i]!, y: floor };
     }
@@ -1314,7 +1322,7 @@ function stackLevelTagYs(tags: PlacedLevelTag[], paneHeight: number): PlacedLeve
   if (sorted[sorted.length - 1]!.y > maxY) {
     sorted[sorted.length - 1] = { ...sorted[sorted.length - 1]!, y: maxY };
     for (let i = sorted.length - 2; i >= 0; i--) {
-      const ceiling = sorted[i + 1]!.y - minGap;
+      const ceiling = sorted[i + 1]!.y - gapBetween(sorted[i]!, sorted[i + 1]!);
       if (sorted[i]!.y > ceiling) {
         sorted[i] = { ...sorted[i]!, y: ceiling };
       }
@@ -1324,7 +1332,7 @@ function stackLevelTagYs(tags: PlacedLevelTag[], paneHeight: number): PlacedLeve
   if (sorted[0]!.y < minY) {
     sorted[0] = { ...sorted[0]!, y: minY };
     for (let i = 1; i < sorted.length; i++) {
-      const floor = sorted[i - 1]!.y + minGap;
+      const floor = sorted[i - 1]!.y + gapBetween(sorted[i - 1]!, sorted[i]!);
       if (sorted[i]!.y < floor) {
         sorted[i] = { ...sorted[i]!, y: floor };
       }
@@ -1513,7 +1521,7 @@ function mainSeriesDisplayOptions(
 
   return {
     priceFormat,
-    lastValueVisible: true,
+    lastValueVisible: false,
     priceLineVisible: true,
     priceLineColor,
     priceLineWidth: 1 as const,
@@ -1577,9 +1585,12 @@ function paintLastPriceOverlay(args: {
   height: number;
   host: HTMLElement;
   dot: HTMLElement;
+  label: HTMLElement;
+  showBeacon: boolean;
 }) {
-  const { chart, mainSeries, candles, latestClose, width, height, host, dot } =
-    args;
+  const {
+    chart, mainSeries, candles, latestClose, width, height, host, dot, label, showBeacon,
+  } = args;
 
   if (!candles.length || width <= 0 || height <= 0) {
     host.hidden = true;
@@ -1590,15 +1601,23 @@ function paintLastPriceOverlay(args: {
   const close = latestClose ?? candles[lastIndex]!.close;
   const rawX = chart.timeScale().logicalToCoordinate(lastIndex as Logical);
   const rawY = mainSeries.priceToCoordinate(close);
+  host.hidden = false;
+  label.hidden = rawY === null || !Number.isFinite(close);
+  if (rawY !== null && Number.isFinite(close)) {
+    const paneHeight = chart.panes()[0]?.getHeight() ?? height;
+    const halfLabel = label.offsetHeight / 2;
+    const y = Math.max(halfLabel, Math.min(rawY, paneHeight - halfLabel));
+    const text = mainSeries.priceFormatter().format(close);
+    if (label.textContent !== text) label.textContent = text;
+    const transform = `translate3d(0, ${y}px, 0) translateY(-50%)`;
+    if (label.style.transform !== transform) label.style.transform = transform;
+  }
   const onScreen =
     rawX !== null && rawY !== null && rawX >= 0 && rawX <= width && rawY >= 0 && rawY <= height;
-  if (!onScreen) {
-    host.hidden = true;
-    return;
+  dot.hidden = !showBeacon || !onScreen;
+  if (showBeacon && onScreen) {
+    dot.style.transform = `translate3d(${rawX}px, ${rawY}px, 0) translate(-50%, -50%)`;
   }
-
-  host.hidden = false;
-  dot.style.transform = `translate3d(${rawX}px, ${rawY}px, 0) translate(-50%, -50%)`;
 }
 
 export function SetupChart({
@@ -1694,6 +1713,7 @@ export function SetupChart({
   const [placedTags, setPlacedTags] = useState<PlacedLevelTag[]>([]);
   const lastPriceHostRef = useRef<HTMLDivElement>(null);
   const lastPriceDotRef = useRef<HTMLSpanElement>(null);
+  const lastPriceLabelRef = useRef<HTMLSpanElement>(null);
   const paintLastPriceRef = useRef<() => void>(() => {});
   const latestChartTimeRef = useRef<number | null>(
     latestCandleChartTime(series.candles),
@@ -1781,6 +1801,10 @@ export function SetupChart({
     series.candles.length > 1 &&
     series.candles.at(-1)!.close < series.candles[0]!.close;
   const trendColor = isBearish ? downColor : upColor;
+  const lastPriceLabelColor =
+    variant === "line" || variant === "area" || variant === "baseline"
+      ? trendColor
+      : activeCandle && activeCandle.close < activeCandle.open ? downColor : upColor;
   const areaFill = isBearish
     ? {
         top: isDark ? "rgba(248,113,113,0.28)" : "rgba(231,76,60,0.24)",
@@ -2779,8 +2803,7 @@ export function SetupChart({
   }, [variant, trendColor, areaFill.top, areaFill.bottom, livePriceLineColor]);
 
   // Last-bar marker for mobile line/area charts: a ringed endpoint on the
-  // latest candle. The numeric right-edge price flag is gone; SL / Entry / TP
-  // flags own that edge.
+  // latest candle. The rounded price-scale label is shared by every chart type.
   const showBeacon =
     embedded &&
     (variant === "line" || variant === "area" || variant === "baseline");
@@ -2881,7 +2904,7 @@ export function SetupChart({
       const mainSeries = liveSeries(mainSeriesRef.current);
       if (!chart || !mainSeries) return;
 
-      const paneHeight = chartHeightRef.current;
+      const paneHeight = chart.panes()[0]?.getHeight() ?? chartHeightRef.current;
       let priceRange: ReturnType<ReturnType<IChartApi["priceScale"]>["getVisibleRange"]>;
       const coordinateOf = (price: number) => mainSeries.priceToCoordinate(price);
       try {
@@ -2892,9 +2915,9 @@ export function SetupChart({
         if (isRemovedChartError(error)) return;
         throw error;
       }
-      const minTagY = LEVEL_TAG_HEIGHT / 2;
-      const maxTagY = Math.max(minTagY, paneHeight - minTagY);
       const placed = tags.flatMap<PlacedLevelTag>((tag) => {
+        const minTagY = levelTagHeight(tag) / 2;
+        const maxTagY = Math.max(minTagY, paneHeight - minTagY);
         let y: number | null = coordinateOf(tag.price);
         if (y === null && priceRange && priceRange.to > priceRange.from) {
           // Lightweight Charts only returns a coordinate for a visible price.
@@ -2934,7 +2957,8 @@ export function SetupChart({
       const mainSeries = liveSeries(mainSeriesRef.current);
       const host = lastPriceHostRef.current;
       const dot = lastPriceDotRef.current;
-      if (!showBeacon || !chart || !mainSeries || !host || !dot) {
+      const label = lastPriceLabelRef.current;
+      if (!chart || !mainSeries || !host || !dot || !label) {
         if (host) host.hidden = true;
         return;
       }
@@ -2949,6 +2973,8 @@ export function SetupChart({
           height: chartHeightRef.current,
           host,
           dot,
+          label,
+          showBeacon,
         });
       } catch (error) {
         if (isRemovedChartError(error)) return;
@@ -2957,11 +2983,6 @@ export function SetupChart({
     };
 
     paintLastPriceRef.current = paint;
-    if (!showBeacon) {
-      paint();
-      return;
-    }
-
     paint();
 
     let frame = 0;
@@ -3102,21 +3123,29 @@ export function SetupChart({
           liveCandle?.close ?? series.candles.at(-1)?.close
         }
       />
-      {showBeacon ? (
-        <div
-          ref={lastPriceHostRef}
-          className="setup-chart-last-price"
-          hidden
-          style={
-            {
-              "--beacon-color": trendColor,
-              "--beacon-ring": lastPriceRing,
-            } as CSSProperties
-          }
-        >
-          <span ref={lastPriceDotRef} className="setup-chart-beacon" />
-        </div>
-      ) : null}
+      <div
+        ref={lastPriceHostRef}
+        className="setup-chart-last-price"
+        hidden
+        aria-hidden="true"
+        style={
+          {
+            "--beacon-color": trendColor,
+            "--beacon-ring": lastPriceRing,
+          } as CSSProperties
+        }
+      >
+        <span ref={lastPriceDotRef} className="setup-chart-beacon" />
+        <span
+          ref={lastPriceLabelRef}
+          className="setup-chart-price-label"
+          style={{
+            backgroundColor: lastPriceLabelColor,
+            color: palette.onUp,
+            fontSize: embedded ? 9 : 11,
+          }}
+        />
+      </div>
       {placedTags.map((tag) => (
         <button
           type="button"
@@ -3125,14 +3154,24 @@ export function SetupChart({
           style={{
             top: tag.y,
             ...(tag.edge === "left" ? { left: tag.offset } : { right: tag.offset }),
-            color: tag.color,
-          }}
+            "--level-color": tag.color,
+          } as CSSProperties & { "--level-color": string }}
           onClick={tag.onSelect}
           disabled={!tag.onSelect}
+          aria-label={`${tag.label}, ${formatChartPrice(tag.price, series.instrument)}`}
         >
-          {tag.label}
+          <span className="setup-chart-level-tag-dot" aria-hidden="true" />
+          <span className="setup-chart-level-tag-text">{tag.label}</span>
+          {tag.onSelect ? <span className="setup-chart-level-tag-action" aria-hidden="true">›</span> : null}
         </button>
       ))}
+      <ChartCrosshairLabels
+        chartRef={chartRef}
+        epoch={chartEpoch}
+        enabled={!embedded}
+        background={palette.up}
+        color={palette.onUp}
+      />
       {positionTool && onPositionToolChange ? (
         <PositionToolOverlay
           chartRef={chartRef}

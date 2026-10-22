@@ -20,6 +20,20 @@ const PINNED = {
   hourCycle: "h12",
 } as const;
 
+const chartHoverFormatter = new Intl.DateTimeFormat("en-US", {
+  ...PINNED,
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+/** "Oct 22, 2026, 1:15 PM" — chart crosshair, always 12-hour Eastern time. */
+export function formatChartHoverTime(value: string | number | Date) {
+  return chartHoverFormatter.format(new Date(value));
+}
+
 /** "1:00 PM" */
 export function formatClockTime(value: string | number | Date) {
   return new Intl.DateTimeFormat("en-US", {

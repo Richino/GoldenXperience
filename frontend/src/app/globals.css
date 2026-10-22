@@ -3447,33 +3447,63 @@ html.mobile-sheet-open body {
 .setup-chart-level-tag {
   position: absolute;
   z-index: 4;
-  /* Give every named indicator a compact, color-tinted chip so it stays
-     readable over candles without turning into a large opaque panel. */
-  transform: translateY(calc(-100% - 3px));
-  padding: 1px 6px 1px 7px;
-  border-radius: 0;
-  border: 1px solid color-mix(in srgb, currentColor 52%, transparent);
-  background: color-mix(in srgb, currentColor 16%, var(--surface));
-  font-size: 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  height: 24px;
+  max-width: calc(100% - 88px);
+  transform: translateY(-50%);
+  padding: 0 8px;
+  border-radius: 7px;
+  border: 1px solid color-mix(in srgb, var(--level-color) 30%, var(--border));
+  background: color-mix(in srgb, var(--level-color) 5%, var(--surface));
+  color: var(--foreground);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 7%);
+  font-size: 11px;
   font-weight: 650;
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
-  letter-spacing: 0.06em;
+  letter-spacing: 0;
   white-space: nowrap;
   pointer-events: none;
+  opacity: 1;
 }
 
-.setup-chart-level-tag.is-left {
-  letter-spacing: 0.02em;
+.setup-chart-level-tag-dot {
+  flex: 0 0 5px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--level-color);
 }
 
-@media (min-width: 1024px) {
-  .setup-chart-level-tag {
-    padding: 2px 7px 2px 8px;
-    font-size: var(--text-xs);
-    letter-spacing: 0.04em;
-  }
+.setup-chart-level-tag-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.setup-chart-level-tag-action {
+  color: var(--muted-strong);
+  font-size: 17px;
+  line-height: 1;
+}
+
+.setup-chart-level-tag:not(:disabled) {
+  min-width: 44px;
+  height: 44px;
+  touch-action: manipulation;
+}
+
+.setup-chart-level-tag:not(:disabled):hover {
+  border-color: var(--level-color);
+}
+
+.setup-chart-level-tag:focus-visible {
+  outline: 2px solid var(--foreground);
+  outline-offset: 2px;
 }
 
 
@@ -3787,6 +3817,48 @@ body.is-dragging-position-tool .setup-chart-position-band {
   background: var(--beacon-ring, #09090b);
   box-shadow: inset 0 0 0 1.5px var(--beacon-color, var(--accent));
   pointer-events: none;
+}
+
+.setup-chart-price-label {
+  position: absolute;
+  top: 0;
+  right: 4px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.setup-chart-crosshair-labels {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+}
+
+.setup-chart-crosshair-label {
+  position: absolute;
+  padding: 3px 6px;
+  border-radius: 5px;
+  background: var(--crosshair-background);
+  color: var(--crosshair-color);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 14px;
+  white-space: nowrap;
+}
+
+.setup-chart-crosshair-label.is-price {
+  right: 4px;
+  transform: translateY(-50%);
+}
+
+.setup-chart-crosshair-label.is-time {
+  bottom: 1px;
+  transform: translateX(-50%);
 }
 
 .setup-chart-beacon::after {

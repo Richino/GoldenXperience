@@ -314,10 +314,9 @@ html:is(.dark, :not(.dark)) body :is(
     --ink-dock-tile-ring: transparent;
   }
 
-  /* Keep the dock's shadow in the gap beneath the Trade action rather than
-     letting its blur extend across the button. */
+  /* Keep the chart and its Trade action clear above the dock. */
   html:is(.dark, :not(.dark)):has(.signals-route) body .mobile-dock.ink-dock {
-    clip-path: inset(-8px -40px -40px);
+    --ink-dock-shadow: none;
   }
 
   /* The sheet is opaque, so the old content fade above the pill goes. */
@@ -9991,4 +9990,363 @@ html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="watching"]
   font-weight: 650;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+/* ============================================================ PHONE · CHART DECLUTTER
+   The phone chart stacked nine bands and left the plot ~35% of the screen.
+   Quote: price + spread on one line, session and trend as one quiet line
+   (sell / buy live in the trade ticket). Timeframes, tools and the trade
+   action are slimmer; the measured chart takes the height they give back. */
+@media (max-width: 1023px) {
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mhead {
+    padding-top: 10px;
+    padding-bottom: 8px;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mquote {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: 6px 12px;
+    margin-top: 4px;
+    padding-bottom: 8px;
+  }
+
+  .nl-mquote-spread {
+    grid-column: 2;
+    grid-row: 1;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .nl-mquote-spread small {
+    color: var(--muted);
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: 11px;
+  }
+
+  .nl-mquote-sub {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    overflow: hidden;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mquote-sub .nl-mquote-session {
+    grid-column: auto;
+    grid-row: auto;
+    font-size: 12px;
+  }
+  .nl-mquote-sub .nl-mquote-session::after {
+    content: "·";
+    margin-left: 8px;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mquote .nl-mquote-trend {
+    flex: 0 1 auto;
+    min-width: 0;
+    margin-top: 0;
+  }
+  /* The trend reads as text here, not a boxed pill. */
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mquote-trend > span {
+    gap: 6px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-timeframes {
+    padding-bottom: 6px;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-timeframes > div {
+    padding: 3px;
+    border-radius: 12px;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-timeframes button {
+    height: 30px;
+    border-radius: 9px;
+    font-size: 12.5px;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-timeframes .workspace-segment::before {
+    top: 3px;
+    bottom: 3px;
+    left: 3px;
+    width: calc((100% - 6px) / 5);
+    border-radius: 9px;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-toolbar {
+    padding: 4px 16px;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-toolbar :is(.sheet-trigger, .gx-mobile-tool-button) {
+    height: 38px;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-analyze-section {
+    gap: 6px;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile :is(.gx-mobile-analyze, .gx-mobile-trade-action-skeleton) {
+    height: 46px;
+    border-radius: 14px;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mlevels-start {
+    min-height: 46px;
+    border-radius: 14px;
+  }
+}
+
+/* Phone chart: timeframes, Indicators, Fullscreen and More share one row;
+   More opens a tray with range, chart type, replay and refresh. */
+@media (max-width: 1023px) {
+  .gx-mobile-chart-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 16px 6px;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-controls .gx-mobile-timeframes {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 0;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-toolbar.gx-mobile-chart-quick {
+    flex: none;
+    gap: 2px;
+    padding: 0;
+    border: 0;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-quick > * {
+    flex: none;
+    width: 36px;
+    max-width: 36px;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-quick :is(.sheet-trigger, .gx-mobile-tool-button) {
+    height: 36px;
+    border-radius: 10px;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-quick .gx-mobile-tool-button.is-open {
+    background: var(--surface);
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-quick .gx-mobile-tool-button:disabled {
+    opacity: 1;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-toolbar.gx-mobile-chart-tray {
+    justify-content: flex-end;
+    gap: 2px;
+    padding: 0 16px 6px;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-tray > * {
+    flex: none;
+    width: 44px;
+    max-width: 44px;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-tray :is(.sheet-trigger, .gx-mobile-tool-button) {
+    height: 36px;
+    border-radius: 10px;
+  }
+}
+@media (max-width: 1023px) {
+  /* Outrank the "five borderless icon tools" rules late in globals.css. */
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-toolbar:is(.gx-mobile-chart-quick, .gx-mobile-chart-tray) {
+    min-height: 0;
+    border-top: 0;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-toolbar.gx-mobile-chart-quick :is(.sheet-trigger, .gx-mobile-tool-button) {
+    flex: none;
+    width: 36px;
+    height: 36px;
+    min-height: 0;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-toolbar.gx-mobile-chart-tray :is(.sheet-trigger, .gx-mobile-tool-button) {
+    flex: none;
+    width: 44px;
+    height: 36px;
+    min-height: 0;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-toolbar.gx-mobile-chart-quick .gx-mobile-tool-button.is-open {
+    background: var(--surface);
+    color: var(--foreground);
+  }
+}
+
+/* Phone chart: the trade picker joins SL / TP and the trade action in one
+   row. The picker stacks name over status and drops the count chip (its
+   chevron already says there is a list); the action keeps its label width. */
+@media (max-width: 1023px) {
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-analyze-section:has(.gx-pair-trade-trigger) {
+    flex-direction: row;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mtrade-row .gx-pair-trade-trigger {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+    height: 46px;
+    min-height: 0;
+    gap: 6px;
+    padding: 0 10px 0 12px;
+    border-radius: 14px;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mtrade-row .gx-pair-trade-trigger-text {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    font-size: 13px;
+    line-height: 1.2;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mtrade-row .gx-pair-trade-trigger-text b {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mtrade-row .gx-pair-trade-trigger-text span {
+    max-width: 100%;
+    font-size: 11.5px;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mtrade-row .gx-pair-trade-count {
+    display: none;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mtrade-row .gx-pair-trade-trigger svg {
+    flex: none;
+    color: var(--muted);
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mtrade-row .nl-mlevels-start {
+    padding: 0 12px;
+  }
+  /* With the picker beside it, the action stops stretching. */
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mtrade-row:has(.gx-pair-trade-trigger) > .gx-mobile-analyze {
+    flex: none;
+    width: auto;
+    padding: 0 18px;
+    white-space: nowrap;
+  }
+}
+
+/* The picker no longer adds a row, so pinned (non-WebKit) phones reserve the
+   same space with or without it. */
+@supports not (-webkit-touch-callout: none) {
+  @media (max-width: 1023px) {
+    html:is(.dark, :not(.dark)) body .signals-view:not(.signals-view-fullscreen) .signals-chart-mobile:has(.gx-pair-trade-trigger) {
+      padding-bottom: calc(var(--app-dock-height, 5.5rem) + 66px);
+    }
+  }
+}
+@media (max-width: 1023px) {
+  /* Room for the picker's "Trade 2 · Short": text-only SL / TP, tighter action. */
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mtrade-row:has(.gx-pair-trade-trigger) {
+    gap: 6px;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mtrade-row:has(.gx-pair-trade-trigger) .nl-mlevels-start svg {
+    display: none;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mtrade-row:has(.gx-pair-trade-trigger) > .gx-mobile-analyze {
+    padding: 0 14px;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mtrade-row .gx-pair-trade-trigger {
+    padding: 0 8px 0 10px;
+  }
+}
+
+/* Phone SL / TP: the editor opens instead of popping in. The panel rises
+   into the action row's place, then stop, target and Cancel / Save follow. */
+@keyframes nl-mlevels-open {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes nl-mlevels-item {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+/* On the inner panel: the section itself is pinned/positioned per platform. */
+.nl-mlevels > .nl-clevels {
+  animation: nl-mlevels-open 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: 50% 100%;
+}
+.nl-mlevels .nl-clevels > * {
+  animation: nl-mlevels-item 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.nl-mlevels .nl-clevels > :nth-child(2) { animation-delay: 60ms; }
+.nl-mlevels .nl-clevels > :nth-child(3) { animation-delay: 110ms; }
+.nl-mlevels .nl-clevels > :nth-child(n + 4) { animation-delay: 160ms; }
+@media (prefers-reduced-motion: reduce) {
+  .nl-mlevels > .nl-clevels,
+  .nl-mlevels .nl-clevels > * { animation: none; }
+}
+
+/* SL / TP detail (pips · R) reads inline with the price, except on phones. */
+.nl-clevels-row b :is(.nl-clevels-detail, .nl-clevels-sep) { color: inherit; font-size: inherit; }
+.nl-mlevels .nl-clevels-row b .nl-clevels-sep { display: none; }
+
+/* Phone SL / TP editor, compact: price on one line, pips · R under it, and
+   "No stop or target" as a slim full-width link above Cancel / Save. */
+.nl-mlevels .nl-clevels {
+  row-gap: 6px;
+}
+.nl-mlevels .nl-clevels-row {
+  align-items: center;
+  padding: 6px 6px 6px 10px;
+}
+.nl-mlevels .nl-clevels-row > div {
+  gap: 1px;
+}
+.nl-mlevels .nl-clevels-row b {
+  white-space: nowrap;
+}
+.nl-mlevels .nl-clevels-row b .nl-clevels-detail {
+  display: block;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 500;
+}
+.nl-mlevels .nl-clevels-toggle {
+  width: 28px;
+  height: 28px;
+}
+.nl-mlevels .nl-clevels-none,
+.nl-mlevels .nl-clevels-warning {
+  grid-column: 1 / -1;
+}
+.nl-mlevels .nl-clevels-none {
+  align-self: stretch;
+  justify-self: stretch;
+  padding: 5px 12px;
+  font-size: 11.5px;
+}
+.nl-mlevels .nl-clevels-warning {
+  padding: 6px 10px;
+  font-size: 11.5px;
+}
+.nl-mlevels .nl-clevels-actions button { height: 42px; }
+
+/* Pinned (non-WebKit) phones reserve the editor's measured height instead of
+   the one-button slot, so it no longer covers the bottom of the chart. The
+   workspace sets --gx-mlevels-h from a ResizeObserver while editing. */
+@supports not (-webkit-touch-callout: none) {
+  @media (max-width: 1023px) {
+    html:is(.dark, :not(.dark)) body .signals-view:not(.signals-view-fullscreen) .signals-chart-mobile:has(.nl-mlevels) {
+      padding-bottom: calc(var(--app-dock-height, 5.5rem) + 20px + var(--gx-mlevels-h, 150px));
+    }
+  }
+}
+
+/* Phone chart SL / TP handles: just grip + price, tucked by the price axis.
+   Pips and R are in the editor cards right under the chart. The whole 28px
+   band stays draggable; the pill only marks it. Fullscreen keeps the detail. */
+@media (max-width: 1023px) {
+  .signals-chart-mobile .setup-chart-level-edit-detail { display: none; }
+  .signals-chart-mobile .setup-chart-level-edit-handle {
+    right: 4px;
+    gap: 6px;
+    padding: 0 9px 0 8px;
+    border-radius: 999px;
+    font-size: 11.5px;
+  }
+  /* Lift the pill a touch while it is being dragged. */
+  body.is-dragging-position-tool .signals-chart-mobile .setup-chart-level-edit-handle {
+    box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--level) 85%, transparent);
+  }
 }

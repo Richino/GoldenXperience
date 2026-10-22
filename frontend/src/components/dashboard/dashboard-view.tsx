@@ -17,6 +17,7 @@ import {
   todayClosedStats,
 } from "@/lib/home/idle";
 import { apiUrl } from "@/lib/api/url";
+import { brokerHistoryNotice, type BrokerHistorySync } from "@/lib/home/broker-sync";
 import { verifiedAccountSummary, ACCOUNT_UNAVAILABLE_MESSAGE } from "@/lib/account-summary";
 import { tradingDayKey } from "@/lib/format/datetime";
 import { pipSizeFor } from "@/lib/instruments/catalog";
@@ -157,7 +158,7 @@ export type DashboardOverview = {
 
 export type DashboardJournal = {
   trades: JournalTrade[];
-  brokerSync?: { status: "running" | "ready" | "unavailable" | "failed"; completedAt: string | null; retryAfterMs?: number };
+  brokerSync?: BrokerHistorySync;
   summary?: {
     total: number;
     winRate: number | null;
@@ -681,9 +682,7 @@ export function DashboardView({
         onCancelPending={setPendingCancellation}
         onEditPending={setPendingLevelsEntry}
         activity={recentActivity}
-        error={[error, journalSync && journalSync.status !== "ready"
-          ? journalSync.status === "running" ? "Broker history is syncing. Journal totals may be outdated." : "Broker history could not sync. Retrying automatically; showing stored journal data."
-          : null].filter(Boolean).join(" ") || null}
+        error={[error, brokerHistoryNotice(journalSync)].filter(Boolean).join(" ") || null}
         loadState={loadState}
       />
       </HomeLoadingBoundary>

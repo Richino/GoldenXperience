@@ -829,7 +829,13 @@ function LevelEditOverlay({
     const reward = risk === null || risk <= 0 ? ""
       : key === "stop" ? " · −1.0R"
         : ` · ${(Math.abs(price - edit.entry) / risk).toFixed(1)}R`;
-    return `${key === "stop" ? "SL" : "TP"} ${formatChartPrice(price, edit.instrument)} · ${pips}${reward}`;
+    // The phone chart hides the detail: its SL / TP cards show the same numbers.
+    return (
+      <>
+        {`${key === "stop" ? "SL" : "TP"} ${formatChartPrice(price, edit.instrument)}`}
+        <span className="setup-chart-level-edit-detail">{` · ${pips}${reward}`}</span>
+      </>
+    );
   };
 
   return (

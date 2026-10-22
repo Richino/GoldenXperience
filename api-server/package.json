@@ -29,6 +29,7 @@
     "start": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",
     "broker-history:test": "tsx scripts/test-broker-history-diagnostics.ts",
+    "news-reminders:test": "tsx scripts/test-news-reminders.ts",
     "db:migrate": "tsx scripts/migrate.ts",
     "oanda:backfill-entry-costs": "tsx scripts/backfill-oanda-execution-costs.ts",
     "auth:create-owner": "tsx scripts/create-owner.ts",

@@ -8,12 +8,12 @@ import { createPortal } from "react-dom";
 import { useTheme } from "next-themes";
 import {
   ArrowRight,
-  CalendarRange,
   Check,
   ChevronDown,
   CircleStop,
   MoveVertical,
   Clock3,
+  Ellipsis,
   History,
   Maximize,
   Minimize,
@@ -29,8 +29,7 @@ import { useMarketObserver } from "@/components/analysis/market-observer-provide
 import { NEW_PAIR_TRADE, PairTradePicker } from "@/components/charts/pair-trade-picker";
 import { ChartTypeSelect } from "@/components/charts/chart-type-select";
 import {
-  ChartOptionSheet,
-  ChartTypeSheet,
+  ChartToolsSheet,
   IndicatorSheet,
 } from "@/components/charts/chart-sheet-controls";
 import {
@@ -2568,6 +2567,23 @@ export function SignalWorkspace({
   const [mobileChartHeight, setMobileChartHeight] = useState(320);
   const [desktopChartHeight, setDesktopChartHeight] = useState(DESKTOP_CHART_HEIGHT);
   const [fullscreen, setFullscreen] = useState(false);
+  // Phone tray for the less-used chart tools (range, type, replay, refresh).
+  const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
+  // Android pins the action area over the chart's reserved slot. The SL / TP
+  // editor is taller than that slot and changes height (warning, error), so
+  // publish its measured height for the CSS reservation.
+  const reserveMobileLevelEditor = useCallback((node: HTMLDivElement | null) => {
+    const column = node?.closest<HTMLElement>(".signals-chart-mobile");
+    if (!node || !column) return;
+    const observer = new ResizeObserver(() => {
+      column.style.setProperty("--gx-mlevels-h", `${Math.ceil(node.getBoundingClientRect().height)}px`);
+    });
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+      column.style.removeProperty("--gx-mlevels-h");
+    };
+  }, []);
   const exitFullscreen = useCallback(() => setFullscreen(false), []);
   const mobileChartShellRef = useRef<HTMLDivElement>(null);
   const desktopChartShellRef = useRef<HTMLDivElement>(null);
@@ -4846,33 +4862,63 @@ export function SignalWorkspace({
                   </span>
                 </span>
               </div>
-              <span className="nl-mquote-session">{sessionLabel.replace(/ session$/, "")}</span>
-              <TrendLabel instrument={instrument} className="nl-mquote-trend" plainLanguage />
-              <dl className="nl-mquote-facts" aria-label="Live sell price, buy price and spread">
-                <div>
-                  <dt>Sell</dt>
-                  <dd className="metric-number">{quote?.instrument === instrument && Number.isFinite(quote.bid) ? formatChartPrice(quote.bid, instrument) : "—"}</dd>
-                </div>
-                <div>
-                  <dt>Buy</dt>
-                  <dd className="metric-number">{quote?.instrument === instrument && Number.isFinite(quote.ask) ? formatChartPrice(quote.ask, instrument) : "—"}</dd>
-                </div>
-                <div>
-                  <dt>Spread</dt>
-                  <dd className={`metric-number nl-spread is-${spreadTier}`}>
-                    {spreadPips !== null && Number.isFinite(spreadPips) ? `${spreadPips.toFixed(1)}p` : "—"}
-                  </dd>
-                </div>
-              </dl>
+              {/* Phones show only the spread; sell / buy are in the trade ticket. */}
+              <span
+                className={`nl-mquote-spread metric-number nl-spread is-${spreadTier}`}
+                title={quote?.instrument === instrument ? `Sell ${formatChartPrice(quote.bid, instrument)} · Buy ${formatChartPrice(quote.ask, instrument)}` : undefined}
+              >
+                {spreadPips !== null && Number.isFinite(spreadPips) ? `${spreadPips.toFixed(1)}p` : "—"}
+                <small>spread</small>
+              </span>
+              <div className="nl-mquote-sub">
+                <span className="nl-mquote-session">{sessionLabel.replace(/ session$/, "")}</span>
+                <TrendLabel instrument={instrument} className="nl-mquote-trend" plainLanguage />
+              </div>
             </div>
-            <div className="gx-mobile-timeframes">
-              <SegmentControl
-                ariaLabel="Chart timeframe"
-                options={CHART_TIMEFRAMES}
-                value={timeframe}
-                onChange={selectTimeframe}
-              />
+            {/* Timeframes and everyday tools stay visible; More opens a sheet. */}
+            <div className="gx-mobile-chart-controls">
+              <div className="gx-mobile-timeframes">
+                <SegmentControl
+                  ariaLabel="Chart timeframe"
+                  options={CHART_TIMEFRAMES}
+                  value={timeframe}
+                  onChange={selectTimeframe}
+                />
+              </div>
+              <div className="gx-mobile-chart-toolbar gx-mobile-chart-quick">
+                <IndicatorSheet enabled={enabledIndicators} onChange={setEnabledIndicators} />
+                <FullscreenToggle
+                  className="gx-mobile-tool-button"
+                  fullscreen={fullscreen}
+                  onToggle={() => setFullscreen((open) => !open)}
+                />
+                <button
+                  type="button"
+                  className={`gx-mobile-tool-button pressable${mobileToolsOpen || replayActive ? " is-open" : ""}`}
+                  onClick={(event) => {
+                    event.currentTarget.blur();
+                    setMobileToolsOpen((open) => !open);
+                  }}
+                  aria-expanded={mobileToolsOpen}
+                  aria-haspopup="dialog"
+                  aria-label="More chart tools"
+                >
+                  <Ellipsis className="size-3.5" strokeWidth={2} />
+                </button>
+              </div>
             </div>
+            <ChartToolsSheet
+              open={mobileToolsOpen}
+              onClose={() => setMobileToolsOpen(false)}
+              range={range}
+              onRangeChange={selectRange}
+              variant={chartVariant}
+              onVariantChange={setChartVariant}
+              replayActive={replayActive}
+              onReplay={replayActive ? exitReplay : beginReplay}
+              refreshing={refreshingChart}
+              onRefresh={() => void refreshChart()}
+            />
             {dataNotice ? (
               <MarketDataNotice message={dataNotice} demo={series.source === "mock"} />
             ) : null}
@@ -4940,46 +4986,6 @@ export function SignalWorkspace({
             <ChartLoadingOverlay visible={chartLoadingVisible} />
           </div>
 
-          <div className="gx-mobile-chart-toolbar">
-            <IndicatorSheet enabled={enabledIndicators} onChange={setEnabledIndicators} />
-            {fullscreen ? (
-              <ChartOptionSheet
-                title="Timeframe"
-                icon={<Clock3 className="size-4 shrink-0" strokeWidth={2} />}
-                options={CHART_TIMEFRAMES}
-                value={timeframe}
-                onChange={selectTimeframe}
-              />
-            ) : null}
-            <ChartOptionSheet title="History range" icon={<CalendarRange className="size-4 shrink-0" strokeWidth={2} />} options={CHART_RANGES} value={range} onChange={selectRange} />
-            <ChartTypeSheet value={chartVariant} onChange={setChartVariant} />
-            <button
-              type="button"
-              className={`gx-mobile-tool-button pressable${replayActive ? " is-active" : ""}`}
-              onClick={replayActive ? exitReplay : beginReplay}
-              aria-label={replayActive ? "Exit replay" : "Replay"}
-              aria-pressed={replayActive}
-              title={replayActive ? "Exit replay" : "Replay candles step by step"}
-            >
-              <History className="size-3.5" strokeWidth={2} />
-            </button>
-            <button
-              type="button"
-              className={`gx-mobile-tool-button pressable${refreshingChart ? " is-refreshing" : ""}`}
-              onClick={() => void refreshChart()}
-              disabled={refreshingChart}
-              aria-label="Refresh chart"
-              title="Refresh chart"
-            >
-              <RotateCcw className="size-3.5" strokeWidth={2} />
-            </button>
-            <FullscreenToggle
-              className="gx-mobile-tool-button"
-              fullscreen={fullscreen}
-              onToggle={() => setFullscreen((open) => !open)}
-            />
-          </div>
-
           {replayActive ? (
             // Replay replaces the trade action: stepping through history is
             // not a moment to place orders. The lit toolbar button exits.
@@ -4994,13 +5000,14 @@ export function SignalWorkspace({
           ) : levelEdit && healthLevels && levelSignal ? (
             // Moving SL / TP: the lines are dragged on the chart above; this
             // is the same draft panel as the desktop Trade health card.
-            <div className="gx-mobile-analyze-section nl-mlevels">
+            <div className="gx-mobile-analyze-section nl-mlevels" ref={reserveMobileLevelEditor}>
               <ChartLevelEditor levels={healthLevels} signal={levelSignal} />
             </div>
           ) : mobileTradeActionReady ? (
             <div className="gx-mobile-analyze-section">
-              <PairTradePicker trades={pairTrades} selectedId={settingUpNewTrade ? NEW_PAIR_TRADE : selectedPairTrade?.id ?? null} instrument={instrument} onSelect={setPickedPairTrade} now={pendingEntryClock} />
+              {/* Picker, SL / TP and the trade action share one row. */}
               <div className="nl-mtrade-row">
+                <PairTradePicker trades={pairTrades} selectedId={settingUpNewTrade ? NEW_PAIR_TRADE : selectedPairTrade?.id ?? null} instrument={instrument} onSelect={setPickedPairTrade} now={pendingEntryClock} />
                 {healthLevels ? (
                   <button type="button" className="nl-mlevels-start pressable" onClick={healthLevels.onStart} aria-label="Adjust stop loss and take profit">
                     <MoveVertical aria-hidden="true" />

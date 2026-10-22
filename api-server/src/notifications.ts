@@ -1,7 +1,7 @@
 import { query } from "./database.js";
 import webpush from "web-push";
 
-export type NotificationKind = "setup_ready" | "paper_opened" | "paper_closed" | "trade_update" | "system_issue" | "research_ready";
+export type NotificationKind = "setup_ready" | "paper_opened" | "paper_closed" | "trade_update" | "system_issue" | "research_ready" | "news_reminder";
 
 export type NotificationEvent = {
   id: string;
@@ -14,7 +14,7 @@ export type NotificationEvent = {
   createdAt: string;
 };
 
-type QueueNotification = Omit<NotificationEvent, "id" | "readAt" | "createdAt"> & { userId: string; dedupeKey: string; url?: string };
+export type QueueNotification = Omit<NotificationEvent, "id" | "readAt" | "createdAt"> & { userId: string; dedupeKey: string; url?: string; expiresAt?: number };
 
 function pushConfig() {
   const rawSubject = process.env.VAPID_SUBJECT?.trim();
@@ -55,8 +55,10 @@ export async function sendPushNotification(event: QueueNotification) {
   const subscriptions = await query<{ endpoint: string; p256dh: string; auth: string }>("SELECT endpoint,p256dh,auth FROM push_subscriptions WHERE user_id=$1", [event.userId]);
   const payload = JSON.stringify({ title: event.title, body: event.message, url: event.url ?? (event.instrument ? `/chart?instrument=${encodeURIComponent(event.instrument)}` : "/"), tag: event.dedupeKey });
   await Promise.all(subscriptions.rows.map(async (subscription) => {
+    const ttl = event.expiresAt === undefined ? undefined : Math.floor((event.expiresAt - Date.now()) / 1000);
+    if (ttl !== undefined && ttl <= 0) return;
     try {
-      await webpush.sendNotification({ endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } }, payload);
+      await webpush.sendNotification({ endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } }, payload, ttl === undefined ? undefined : { TTL: Math.min(ttl, 2_419_200) });
     } catch (error) {
       const statusCode = error && typeof error === "object" && "statusCode" in error ? Number(error.statusCode) : 0;
       if (statusCode === 404 || statusCode === 410) await query("DELETE FROM push_subscriptions WHERE endpoint=$1", [subscription.endpoint]);

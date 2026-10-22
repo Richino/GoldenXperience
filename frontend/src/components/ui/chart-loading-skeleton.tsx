@@ -5,8 +5,8 @@ function Plot() {
   return <div className="chart-route-skeleton" aria-hidden="true"><div className="chart-loading-skeleton" /></div>;
 }
 
-function Facts({ mobile = false }: { mobile?: boolean }) {
-  return <dl className={mobile ? "nl-mquote-facts" : "nl-chart-facts"}>{Array.from({ length: mobile ? 3 : 4 }, (_, i) => <div key={i}><dt><Block width={30} height={mobile ? 12 : 16} className="ml-auto" /></dt><dd><Block width={mobile ? (i === 2 ? 32 : 54) : 66} height={mobile ? 16 : 20} /></dd></div>)}</dl>;
+function Facts() {
+  return <dl className="nl-chart-facts">{Array.from({ length: 4 }, (_, i) => <div key={i}><dt><Block width={30} height={16} className="ml-auto" /></dt><dd><Block width={66} height={20} /></dd></div>)}</dl>;
 }
 
 export function ChartLoadingSkeleton() {
@@ -28,15 +28,16 @@ export function ChartLoadingSkeleton() {
                   <span className="nl-mquote-price"><Block width="4em" height="1em" /></span>
                   <span className="nl-mquote-meta"><Block width={100} height={14} /></span>
                 </div>
-                <span className="nl-mquote-session"><Block width={52} height={14} /></span>
-                <Block className="nl-mquote-trend" width={174} height={28} radius={999} />
-                <Facts mobile />
+                <span className="nl-mquote-spread"><Block width={64} height={14} /></span>
+                <div className="nl-mquote-sub"><Block width={200} height={14} /></div>
               </div>
-              <div className="gx-mobile-timeframes"><div className="nl-skeleton-timeframes">{Array.from({ length: 5 }, (_, i) => <Block key={i} width="100%" height={38} radius={10} />)}</div></div>
+              <div className="gx-mobile-chart-controls">
+                <div className="gx-mobile-timeframes"><div className="nl-skeleton-timeframes">{Array.from({ length: 5 }, (_, i) => <Block key={i} width="100%" height={30} radius={9} />)}</div></div>
+                <div className="gx-mobile-chart-toolbar gx-mobile-chart-quick">{Array.from({ length: 3 }, (_, i) => <Block key={i} width={36} height={36} radius={10} />)}</div>
+              </div>
             </div>
             <div className="relative min-h-[14rem] flex-1 overflow-hidden chart-data-shell chart-loading-static"><Plot /></div>
-            <div className="gx-mobile-chart-toolbar">{Array.from({ length: 6 }, (_, i) => <Block key={i} className="nl-skeleton-chart-tool" width={52} height={44} radius={13} />)}</div>
-            <div className="gx-mobile-analyze-section"><Block height={52} radius={16} /></div>
+            <div className="gx-mobile-analyze-section"><Block height={46} radius={14} /></div>
           </div>
           <div className="hidden lg:flex signals-chart-desktop gx-chart-terminal nl-terminal">
             <header className="nl-chart-head"><div className="nl-chart-head-main"><Block width={248} height={56} radius={18} /><div className="nl-chart-quote"><Block width={164} height={43} /><Block width={60} height={21} /></div><Facts /></div><Block width={48} height={48} radius={14} /></header>

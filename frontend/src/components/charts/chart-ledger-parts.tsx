@@ -315,7 +315,11 @@ export function ChartLevelEditor({ levels, signal }: { levels: ChartHealthLevels
               <b className="metric-number">
                 {row.price === null
                   ? "None"
-                  : `${formatChartPrice(row.price, signal.instrument)} · ${fromEntry! >= 0 ? "+" : "−"}${Math.abs(fromEntry!).toFixed(1)}p${reward}`}
+                  : <>
+                      {formatChartPrice(row.price, signal.instrument)}
+                      {/* Its own span so phones can drop it to a second line. */}
+                      <span className="nl-clevels-detail"><span className="nl-clevels-sep"> · </span>{fromEntry! >= 0 ? "+" : "−"}{Math.abs(fromEntry!).toFixed(1)}p{reward}</span>
+                    </>}
               </b>
               {row.invalid ? <small>Must be {row.hint} the {levels.relativeTo ?? "current price"}.</small> : null}
             </div>

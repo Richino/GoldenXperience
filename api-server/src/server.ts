@@ -49,6 +49,7 @@ import { decideResearchExperiment, forwardResearchSummary, latestDayTradingValid
 import { collectMultiStrategyCycle, collectPaperCycle, decidePaperBatch, fastResolveFilledTrades, liveResolvePaperTrades, journalTradeLog, journalTradeSummary, multiStrategyOverview, multiStrategyWatchlist, paperCycleOverview, paperCycleOpenTrades, paperRiskExposure, paperRiskPolicy, paperTradesForInstrument, parsePaperRiskConfiguration, reviewPaperTrade, savedExecutableSetups, syncPracticeBrokerHistory, requestPracticeHistorySync, updatePaperRiskPolicy, watchlistSnapshot } from "./paper-cycle.js";
 import { momentumShortInversionStatus } from "./momentum-short-inversion.js";
 import { markNotificationsRead, notificationsForUser, pushPublicKey, queueNotification, removePushSubscription, savePushSubscription } from "./notifications.js";
+import { startNewsReminders } from "./news-reminders.js";
 import { backfillPracticeEntryCosts, practiceExecutionOverview, setPracticeExecutionEnabled } from "./practice-execution.js";
 import { binaryJournal, binaryPerformance, binaryPredictionDetail, binaryWatchlistSnapshot, collectBinaryCycle, recentBinaryPredictions, resolveDueBinaryPredictions } from "./binary-engine.js";
 import { binaryAdaptiveStats } from "./binary-adaptive-stats.js";
@@ -1441,6 +1442,7 @@ let breakoutConfidenceV1Collector: NodeJS.Timeout | null = null;
 // prices and candles, but starts none of the mutating loops. Unset — or any
 // value other than "false" — keeps them on, so the deployed server is unchanged.
 const schedulersEnabled = process.env.ENABLE_SCHEDULERS !== "false";
+const stopNewsReminders = databaseConfigured() && schedulersEnabled && process.env.NEWS_REMINDERS_ENABLED !== "false" ? startNewsReminders() : null;
 const morningScanner = databaseConfigured() && schedulersEnabled && process.env.MORNING_SCAN_ENABLED !== "false" ? startMorningScanner() : null;
 if (databaseConfigured() && !schedulersEnabled) {
   console.log("[schedulers] ENABLE_SCHEDULERS=false — legacy background trade, research and binary loops are OFF. Swing analysis has its own opt-in worker.");
@@ -1790,6 +1792,7 @@ function shutdown() {
   pricingStream?.stop();
   const newsStopped = newsStraddleRuntime?.stop() ?? Promise.resolve();
   const swingStopped = swingIntelligence.stop();
+  const newsRemindersStopped = stopNewsReminders?.() ?? Promise.resolve();
   stopRecordingContext?.();
   const recordingClosed = marketRecorder?.close() ?? Promise.resolve();
   const observerClosed = marketObserver?.stop() ?? Promise.resolve();
@@ -1811,7 +1814,7 @@ function shutdown() {
   // terminate() drops them immediately; clients simply reconnect.
   wss.clients.forEach((socket) => socket.terminate());
   wss.close();
-  server.close(() => { void Promise.allSettled([recordingClosed, observerClosed, newsStopped, swingStopped]).finally(() => process.exit(0)); });
+  server.close(() => { void Promise.allSettled([recordingClosed, observerClosed, newsStopped, swingStopped, newsRemindersStopped]).finally(() => process.exit(0)); });
   // Fallback: exit even if a handle is still open, so the port is always freed
   // promptly for the next boot. unref() so it never itself keeps us alive.
   setTimeout(() => process.exit(0), 5000).unref();

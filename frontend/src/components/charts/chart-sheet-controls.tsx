@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Check, ChevronDown, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, CalendarRange, Check, ChevronDown, History, RotateCcw, SlidersHorizontal } from "lucide-react";
 import { MobileSheet } from "@/components/ui/mobile-sheet";
 import { VARIANT_ICONS } from "@/components/charts/chart-type-select";
 import {
   CHART_INDICATORS,
+  CHART_RANGES,
   CHART_VARIANTS,
+  type ChartRange,
   type ChartIndicator,
   type ChartVariant,
 } from "@/lib/chart-utils";
@@ -19,6 +21,67 @@ const INDICATOR_GROUPS = [
     ),
   },
 ];
+
+/** The overflow tools share one sheet, including the range/type subpages. */
+export function ChartToolsSheet({ open, onClose, range, onRangeChange, variant, onVariantChange,
+  replayActive, onReplay, refreshing, onRefresh }: {
+  open: boolean;
+  onClose: () => void;
+  range: ChartRange;
+  onRangeChange: (value: ChartRange) => void;
+  variant: ChartVariant;
+  onVariantChange: (value: ChartVariant) => void;
+  replayActive: boolean;
+  onReplay: () => void;
+  refreshing: boolean;
+  onRefresh: () => void;
+}) {
+  const [page, setPage] = useState<"tools" | "range" | "type">("tools");
+  const close = () => { onClose(); setPage("tools"); };
+  const activeType = CHART_VARIANTS.find(option => option.value === variant) ?? CHART_VARIANTS[0];
+  const TypeIcon = VARIANT_ICONS[variant];
+  return (
+    <MobileSheet open={open} onClose={close} eyebrow="Chart"
+      title={page === "range" ? "History range" : page === "type" ? "Chart type" : "Chart tools"}
+      lockPageScroll={false} className="chart-tools-sheet"
+      headerAction={page !== "tools" ? (
+        <button type="button" className="mobile-sheet-close pressable" aria-label="Back to chart tools" onClick={() => setPage("tools")}>
+          <ArrowLeft className="size-4" />
+        </button>
+      ) : undefined}
+    >
+      {page === "tools" ? (
+        <div className="sheet-option-list">
+          <button type="button" className="sheet-option pressable" onClick={() => setPage("range")}>
+            <CalendarRange className="size-4 shrink-0" /><span className="flex-1 text-left">History range</span><span>{range}</span>
+          </button>
+          <button type="button" className="sheet-option pressable" onClick={() => setPage("type")}>
+            <TypeIcon className="size-4 shrink-0" /><span className="flex-1 text-left">Chart type</span><span>{activeType.label}</span>
+          </button>
+          <button type="button" className="sheet-option pressable" onClick={() => { onReplay(); close(); }}>
+            <History className="size-4 shrink-0" /><span className="flex-1 text-left">{replayActive ? "Exit replay" : "Replay"}</span>
+          </button>
+          <button type="button" className="sheet-option pressable" disabled={refreshing} onClick={() => { onRefresh(); close(); }}>
+            <RotateCcw className="size-4 shrink-0" /><span className="flex-1 text-left">{refreshing ? "Refreshing…" : "Refresh chart"}</span>
+          </button>
+        </div>
+      ) : page === "range" ? (
+        <div role="listbox" aria-label="History range" className="sheet-option-list">
+          {CHART_RANGES.map(option => <SheetOption key={option} label={option} selected={range === option}
+            onSelect={() => { onRangeChange(option); close(); }} />)}
+        </div>
+      ) : (
+        <div role="listbox" aria-label="Chart type" className="sheet-option-list">
+          {CHART_VARIANTS.map(option => {
+            const Icon = VARIANT_ICONS[option.value];
+            return <SheetOption key={option.value} label={option.label} selected={variant === option.value}
+              icon={<Icon className="size-4 shrink-0" />} onSelect={() => { onVariantChange(option.value); close(); }} />;
+          })}
+        </div>
+      )}
+    </MobileSheet>
+  );
+}
 
 /**
  * `iconOnly` keeps all four triggers on one row at 375px. The icon carries the

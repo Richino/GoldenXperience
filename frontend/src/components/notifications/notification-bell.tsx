@@ -76,7 +76,7 @@ export function NotificationBell({ compact = false, className = "" }: { compact?
                 void markRead([item.id]);
                 setOpen(false);
               }}
-              className={`notification-popover-item pressable ${item.readAt ? "" : "is-unread"} ${item.kind === "system_issue" ? "is-issue" : ""}`}
+              className={`notification-popover-item pressable ${item.readAt ? "" : "is-unread"} ${tone}`}
             >
               <span className="notification-unread-slot" aria-hidden>
                 {!item.readAt ? <span className="notification-unread-dot" /> : null}

@@ -1802,6 +1802,18 @@ html.mobile-sheet-open body {
   color: var(--muted);
 }
 
+/* Meaning stays visible after reading; the dot still indicates unread state. */
+.notification-popover-item.is-positive { --notification-tone: var(--success); }
+.notification-popover-item:is(.is-negative, .is-issue) { --notification-tone: var(--danger); }
+.notification-popover-item.is-warning { --notification-tone: var(--pending, #a16207); }
+.notification-popover-item.is-info { --notification-tone: #1d4ed8; }
+.dark .notification-popover-item.is-info { --notification-tone: #93c5fd; }
+
+.notification-popover-item:is(.is-positive, .is-negative, .is-issue, .is-warning, .is-info) .notification-popover-item-title,
+.notification-popover-item:is(.is-positive, .is-negative, .is-issue, .is-warning, .is-info) .notification-popover-item-message {
+  color: var(--notification-tone);
+}
+
 .gx-toast-viewport {
   position: fixed;
   /* Above everything: chrome, the fullscreen chart, and every sheet and dialog
@@ -18474,7 +18486,7 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
   html:is(.dark, :not(.dark)) .mobile-sheet .notification-popover-item-top { align-items: baseline; gap: 8px; }
 
   html:is(.dark, :not(.dark)) .mobile-sheet .notification-popover-item-title {
-    color: var(--gx-text);
+    color: var(--notification-tone, var(--gx-text));
     font-size: 13px;
     font-weight: 600;
   }
@@ -18486,12 +18498,12 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
   }
 
   html:is(.dark, :not(.dark)) .mobile-sheet .notification-popover-item-message {
+    color: var(--notification-tone, var(--gx-text-2));
     margin-top: 3px;
     font-size: 12px;
     line-height: 17px;
   }
 
-  html:is(.dark, :not(.dark)) .mobile-sheet .notification-popover-item-message:not(.is-issue):not(.is-danger) { color: var(--gx-text-2); }
   html:is(.dark, :not(.dark)) .mobile-sheet .notification-popover-read-all { color: var(--gx-primary); font-size: 12px; font-weight: 600; }
 
   /* ---- Trade drawer (pending entry form, TradeDrawer look) ---- */

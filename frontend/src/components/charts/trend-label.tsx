@@ -3,23 +3,23 @@
 import { useEffect, useState } from "react";
 import { apiUrl } from "@/lib/api/url";
 import { candleEnd } from "@/lib/strategy/candle-clock";
-import { checkTimeframe } from "@/lib/strategy/analyze-v2/data-quality";
-import { ANALYZE_V2 } from "@/lib/strategy/analyze-v2/config";
-import { readTrend, type TrendDirection, type TrendRead } from "@/lib/strategy/analyze-v2/structure";
+import type { TrendDirection } from "@/lib/strategy/analyze-v2/structure";
+import { createPairTrendReadCache, type PairTrend, type TrendLabelRead } from "@/lib/pair-trend-read-cache";
+import { readSwingTrend } from "@/lib/swing-trend-read";
 import type { CandleSeries } from "@/types/forex";
+import { weeklySwingStatus } from "@/lib/swing-trend-status";
 import styles from "./trend-label.module.css";
 
 /**
- * The pair's trend on the 4-hour and daily charts, from the same swing-structure
+ * Weekly context, Daily structure and 4-hour timing, from the same swing-structure
  * read Analyze's swing mode uses (higher highs + higher lows = up, lower highs +
  * lower lows = down, a box = range). It describes the structure so far; it is a
  * guide to which side to favour, not a forecast.
  */
 
 const REFRESH_MS = 60_000;
-const SETTINGS = ANALYZE_V2.SWING.regime;
 
-type PairTrend = { h4: TrendRead | null; d1: TrendRead | null; m15?: TrendRead | null; asOf?: string };
+export type { PairTrend } from "@/lib/pair-trend-read-cache";
 
 const LABEL: Record<TrendDirection, string> = {
   UPTREND: "Up",
@@ -37,61 +37,82 @@ const TONE: Record<TrendDirection, string> = {
   UNCLEAR: "is-flat",
 };
 
-async function loadRead(instrument: string, granularity: "H4" | "D" | "M15", label: string): Promise<TrendRead | null> {
+async function loadRead(instrument: string, granularity: "H4" | "D" | "W"): Promise<TrendLabelRead | null> {
   const response = await fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=${granularity}&count=250`), {
     credentials: "include",
-    cache: "no-store",
+    cache: "no-store", signal: AbortSignal.timeout(20_000),
   });
   if (!response.ok) return null;
   const series = ((await response.json()) as { data?: CandleSeries }).data;
-  if (!series || series.instrument !== instrument || series.source !== "oanda") return null;
-  const tf = granularity === "D" ? "D1" : granularity;
-  const now = Date.now();
-  const checked = checkTimeframe(tf, series.candles.filter(c => c.complete === true && candleEnd(Date.parse(c.time),tf) <= now), tf, now, ANALYZE_V2.SWING, true);
-  if (checked.checks.some(c => c.status === "FAIL" || c.status === "UNKNOWN")) return null;
-  const read = readTrend(instrument, label, checked.normalized.closed, SETTINGS);
-  return read.sufficient ? read : null;
+  const read = readSwingTrend(instrument, granularity, series);
+  return read ? { timeframe: read.timeframe, direction: read.direction, closeTime: read.closeTime, evidence: read.evidence } : null;
 }
 
 // Shared across every label on the page, so a pair on the chart, in search and
 // in the watchlist is read once per refresh window rather than once per label.
-const cache = new Map<string, { at: number; promise: Promise<PairTrend> }>();
+const cache = createPairTrendReadCache(async instrument => {
+  const [h4, d1, w1] = await Promise.all([loadRead(instrument, "H4").catch(() => null), loadRead(instrument, "D").catch(() => null), loadRead(instrument, "W").catch(() => null)]);
+  return { h4, d1, w1, asOf: new Date().toISOString() };
+}, { storage: () => window.sessionStorage });
+const readPair = cache.load;
 
-function readPair(instrument: string): Promise<PairTrend> {
-  const hit = cache.get(instrument);
-  if (hit && Date.now() - hit.at < REFRESH_MS) return hit.promise;
-  const promise = Promise.all([loadRead(instrument, "H4", "4H"), loadRead(instrument, "D", "Daily"), loadRead(instrument, "M15", "M15")])
-    .then(([h4, d1, m15]) => { if (!h4 || !d1 || !m15) cache.delete(instrument); return { h4, d1, m15, asOf: new Date().toISOString() }; })
-    .catch(() => {
-      cache.delete(instrument);
-      return { h4: null, d1: null };
-    });
-  cache.set(instrument, { at: Date.now(), promise });
-  return promise;
-}
-
-export function usePairTrend(instrument: string) {
+export function usePairTrend(instrument: string, enabled = true) {
   const [state, setState] = useState<{ instrument: string; trend: PairTrend } | null>(null);
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
     const load = async () => {
       const trend = await readPair(instrument);
       if (!cancelled) setState({ instrument, trend });
     };
     void load();
-    const timer = window.setInterval(load, REFRESH_MS);
+    const timer = window.setInterval(() => { if (document.visibilityState === "visible") void load(); }, REFRESH_MS);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [instrument]);
+  }, [instrument, enabled]);
   return state?.instrument === instrument ? state.trend : null;
 }
 
+/** Preload before opening; restore cached rows immediately and publish fresh batches together. */
+export function usePairTrendList(instruments: readonly string[], enabled: boolean) {
+  const key = instruments.join(",");
+  const [snapshot, setSnapshot] = useState<ReadonlyMap<string, PairTrend>>(new Map());
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    const instruments = key.split(",").filter(Boolean);
+    const cached = new Map<string, PairTrend>();
+    for (const instrument of instruments) {
+      const trend = cache.peek(instrument);
+      if (trend) cached.set(instrument, trend);
+    }
+    void Promise.resolve().then(() => {
+      if (!cancelled && cached.size) setSnapshot(current => new Map([...current, ...cached]));
+    });
+    const load = async () => {
+      const queue = key.split(",").filter(Boolean);
+      const rows = new Map<string, PairTrend>();
+      const worker = async () => {
+        for (let instrument = queue.shift(); instrument && !cancelled; instrument = queue.shift()) {
+          rows.set(instrument, await readPair(instrument));
+        }
+      };
+      await Promise.all(Array.from({ length: 4 }, worker));
+      if (!cancelled) setSnapshot(current => new Map([...current, ...rows]));
+    };
+    void load();
+    const timer = window.setInterval(() => { if (document.visibilityState === "visible") void load(); }, REFRESH_MS);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [key, enabled]);
+  return snapshot;
+}
+
 /** One line on what the two timeframes say together. */
-function summary(h4: TrendRead | null, d1: TrendRead | null) {
+function summary(h4: TrendLabelRead | null, d1: TrendLabelRead | null) {
   if (!h4 || !d1) return null;
-  const trending = (read: TrendRead) => read.direction === "UPTREND" || read.direction === "DOWNTREND";
+  const trending = (read: TrendLabelRead) => read.direction === "UPTREND" || read.direction === "DOWNTREND";
   if (trending(h4) && h4.direction === d1.direction) return h4.direction === "UPTREND" ? "Aligned · favour buys" : "Aligned · favour sells";
   if (trending(h4) && trending(d1)) return "Mixed · wait";
   if (!trending(h4) && !trending(d1)) return "No trend · wait";
@@ -99,7 +120,7 @@ function summary(h4: TrendRead | null, d1: TrendRead | null) {
 }
 
 /** Describe the observed charts without turning the trend into an entry signal. */
-function plainSummary(h4: TrendRead | null, d1: TrendRead | null) {
+function plainSummary(h4: TrendLabelRead | null, d1: TrendLabelRead | null) {
   const overall: Record<TrendDirection, string> = {
     UPTREND: "Price is trending up overall",
     DOWNTREND: "Price is trending down overall",
@@ -127,45 +148,25 @@ function plainSummary(h4: TrendRead | null, d1: TrendRead | null) {
   return `${overall[d1.direction]}, but ${shorter[h4.direction]}.`;
 }
 
-function trendPill(h4: TrendRead | null, d1: TrendRead | null) {
-  const overall: Record<TrendDirection, string> = {
-    UPTREND: "Up overall", DOWNTREND: "Down overall", RANGE: "Sideways overall",
-    TRANSITION: "Overall trend changing", UNCLEAR: "Overall unclear",
-  };
-  const shorter: Record<TrendDirection, string> = {
-    UPTREND: "short-term up", DOWNTREND: "short-term down", RANGE: "short-term sideways",
-    TRANSITION: "short-term changing", UNCLEAR: "short-term unclear",
-  };
-  if (!h4 && !d1) return { label: "Trend unavailable", tone: "neutral" };
-  if (!d1) return { label: `Daily unavailable · ${shorter[h4!.direction]}`, tone: "neutral" };
-  if (!h4) return { label: `${overall[d1.direction]} · 4H unavailable`, tone: "neutral" };
-  if (h4.direction === d1.direction) {
-    switch (d1.direction) {
-      case "UPTREND": return { label: "Trending up", tone: "up" };
-      case "DOWNTREND": return { label: "Trending down", tone: "down" };
-      case "RANGE": return { label: "Moving sideways", tone: "neutral" };
-      case "TRANSITION": return { label: "Trend changing", tone: "mixed" };
-      case "UNCLEAR": return { label: "Direction unclear", tone: "neutral" };
-    }
-  }
-  return { label: `${overall[d1.direction]} · ${shorter[h4.direction]}`, tone: "mixed" };
-}
-
-export function TrendLabel({ instrument, className = "", plainLanguage = false }: { instrument: string; className?: string; plainLanguage?: boolean }) {
-  const trend = usePairTrend(instrument);
+export function TrendLabel({ instrument, className = "", plainLanguage = false, snapshot }: { instrument: string; className?: string; plainLanguage?: boolean; snapshot?: PairTrend | null }) {
+  const localTrend = usePairTrend(instrument, snapshot === undefined);
+  const trend = snapshot === undefined ? localTrend : snapshot;
   if (!trend) return <span className={`nl-trend is-loading ${className}`} aria-label="Reading trend">{plainLanguage ? <span className={styles.pill} data-tone="neutral">Checking trend…</span> : "Trend…"}</span>;
-  const { h4, d1 } = trend;
+  const { h4, d1, w1 } = trend;
   if (plainLanguage) {
-    const pill = trendPill(h4, d1);
+    const pill = weeklySwingStatus(w1?.direction ?? null, d1?.direction ?? null);
     const daily = d1 ? LABEL[d1.direction] : "data unavailable";
-    const short = trend.m15 ? LABEL[trend.m15.direction] : "data unavailable";
-    pill.label = `Daily: ${daily} · M15: ${short}`;
-    return <span className={`nl-trend ${className}`}><span className={styles.pill} data-tone={pill.tone} title={`${plainSummary(h4, d1)} Daily context uses the last completed D1 candle${d1?.closeTime ? ` ending ${new Date(candleEnd(Date.parse(d1.closeTime), "D1")).toLocaleString()}` : ""}; M15 uses completed candles${trend.m15?.closeTime ? ` ending ${new Date(candleEnd(Date.parse(trend.m15.closeTime), "M15")).toLocaleString()}` : ""}. Read at ${trend.asOf ?? "unknown"}.`} aria-label={pill.label}>{pill.label}</span></span>;
+    const short = h4 ? LABEL[h4.direction] : "data unavailable";
+    const title = `${pill.detail} Weekly: ${w1 ? LABEL[w1.direction] : "data unavailable"}; Daily: ${daily}; 4H timing: ${short}. ${plainSummary(h4, d1)} Completed candles only; checked every minute. Weekly candle${w1?.closeTime ? ` ended ${new Date(candleEnd(Date.parse(w1.closeTime), "W")).toLocaleString()}` : " unavailable"}; Daily candle${d1?.closeTime ? ` ended ${new Date(candleEnd(Date.parse(d1.closeTime), "D1")).toLocaleString()}` : " unavailable"}; 4H candle${h4?.closeTime ? ` ended ${new Date(candleEnd(Date.parse(h4.closeTime), "H4")).toLocaleString()}` : " unavailable"}. Checked at ${trend.asOf ? new Date(trend.asOf).toLocaleString() : "unknown"}.`;
+    // The qualifier after " · " is its own span so tight layouts can drop it
+    // and keep the direction; the title and label always carry the full text.
+    const [lead, ...qualifier] = pill.label.split(" · ");
+    return <span className={`nl-trend ${className}`}><span className={styles.pill} data-tone={pill.tone} title={title} aria-label={`${pill.label}. ${title}`}><span>{lead}{qualifier.length ? <span className="nl-trend-qualifier"> · {qualifier.join(" · ")}</span> : null}</span></span></span>;
   }
   if (!h4 && !d1) return null;
   const line = summary(h4, d1);
   const details = [h4, d1]
-    .filter((read): read is TrendRead => read !== null)
+    .filter((read): read is TrendLabelRead => read !== null)
     .map((read) => `${read.timeframe}: ${LABEL[read.direction]}. ${read.evidence.join(". ")}.`)
     .join("\n");
   const title = `${line ? `${line}\n` : ""}${details}\nDescribes the structure so far; not a forecast.`;

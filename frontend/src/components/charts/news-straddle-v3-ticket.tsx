@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { CalendarClock } from "lucide-react";
 import { apiUrl } from "@/lib/api/url";
 import { displayNameFor, pipSizeFor, precisionFor } from "@/lib/instruments/catalog";
 import { useEconomicCalendar } from "@/lib/oanda/use-economic-calendar";
@@ -25,32 +26,44 @@ function useDisplayClock() {
   useEffect(() => { const update = () => setNow(Date.now()); update(); const timer = window.setInterval(update, 1000); return () => clearInterval(timer); }, []);
   return now;
 }
-type SimpleRelease = { title: string; currency: string; timestamp: string; events?: NewsReleaseMember[] };
+const NO_RELEASE_REASON = "No upcoming high-impact release for this pair in the available calendar.";
+type SimpleRelease ={ title: string; currency: string; timestamp: string; events?: NewsReleaseMember[] };
 export function NewsAcceptCard({ header, instrument, release, now, unavailableReason, busy, error, onAccept, onCancel }: {
   header?: ReactNode; instrument: string; release: SimpleRelease | null; now: number | null;
   unavailableReason: string | null; busy: boolean; error: string | null; onAccept(): void; onCancel(): void;
 }) {
   const grouped = release?.events && release.events.length > 1 ? release.events : null;
+  const pair = displayNameFor(instrument);
   return <>
     <div className={"nl-pe-plan " + styles.ticket}>
       {header}
-      <div className={styles.intro}><h3>News trade</h3><span className={styles.badge}>{displayNameFor(instrument)}</span></div>
-      <p className={styles.description}>GX places a buy-stop and a sell-stop 10 seconds before the release.</p>
-      <section className={styles.event} aria-label="Next news event">
-        <span className={styles.eyebrow}>{grouped ? "Next high-impact releases" : "Next high-impact event"}</span>
+      {/* The event is the hero: what releases, when, and the countdown. */}
+      <section className={`${styles.event}${release ? "" : " " + styles.eventEmpty}`} aria-label="Next news event">
+        <div className={styles.eventHead}>
+          <span className={styles.eyebrow}>{grouped ? "Next high-impact releases" : "Next high-impact event"}</span>
+          {release && now !== null ? <strong className={styles.countdown}>Starts in {countdown(Date.parse(release.timestamp) - now)}</strong> : null}
+        </div>
         {release ? <>
           {grouped ? <><h4>{grouped.length} releases together</h4><ul className={styles.releaseList} aria-label="Releases at this time">{grouped.map(e => <li key={e.id}><span>{e.currency}</span>{e.title}</li>)}</ul></> : <h4>{release.title}</h4>}
           <p>{grouped ? "" : release.currency + " · "}{new Date(release.timestamp).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" })}</p>
-          {now !== null ? <strong className={styles.countdown}>Starts in {countdown(Date.parse(release.timestamp) - now)}</strong> : null}
-        </> : <p>{unavailableReason ?? "Checking upcoming news…"}</p>}
+        </> : <div className={styles.empty}>
+          <CalendarClock className={styles.emptyIcon} aria-hidden="true" />
+          {unavailableReason === NO_RELEASE_REASON
+            ? <div><strong>No high-impact news for {pair} soon</strong><p>Nothing on the calendar yet. Accept unlocks once a release is scheduled.</p></div>
+            : <div><strong>{unavailableReason ?? "Checking upcoming news…"}</strong></div>}
+        </div>}
       </section>
-      <p className={styles.description}>When one order fills, GX cancels the other and manages the stop-loss and trailing protection.</p>
-      <div className={styles.risk}><span>Planned risk per order</span><strong>1% · up to 2% if both fill</strong></div>
+      <ol className={styles.steps} aria-label="How a news trade works">
+        <li>GX places a buy-stop and a sell-stop 10 seconds before the release.</li>
+        <li>When one order fills, GX cancels the other.</li>
+        <li>GX manages the stop-loss and trailing protection.</li>
+      </ol>
+      <div className={styles.risk}><span>Planned risk per order</span><strong>1%<small>up to 2% if both fill</small></strong></div>
       {release && unavailableReason ? <p className={styles.warning} role="status">{unavailableReason}</p> : null}
       {error ? <p className={styles.warning} role="alert">{error}</p> : null}
       <p className={styles.note}>Accept starts monitoring {grouped ? "these releases together" : "this event"}. Follow the countdown, both order levels and live status on the chart.</p>
     </div>
-    <footer className="nl-an-actions is-card nl-pe-actions">
+    <footer className={`nl-an-actions is-card nl-pe-actions ${styles.actions}`}>
       <button type="button" className="nl-an-secondary pressable" disabled={busy} onClick={onCancel}>Not now</button>
       <button type="button" className="nl-an-primary pressable" disabled={busy || !release || unavailableReason !== null} onClick={onAccept}>{busy ? "Starting…" : "Accept"}</button>
     </footer>
@@ -91,7 +104,7 @@ export function BrokerNewsStraddleTicket({ header, instrument, bid, ask, creatio
     : runtime.enabled !== true ? runtime.unavailableReason ?? runtime.error ?? "The API server's news scheduler is off. Monitoring must be running before you can accept."
     : loading || now === null ? "Checking upcoming news…"
     : !calendar.connected ? "The news calendar is temporarily unavailable."
-    : !release ? "No upcoming high-impact release for this pair in the available calendar." : null;
+    : !release ? NO_RELEASE_REASON : null;
 
   async function accept() {
     if (!release || unavailableReason || accepting.current) return;

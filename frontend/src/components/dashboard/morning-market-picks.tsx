@@ -9,15 +9,14 @@ import { currenciesOf, displayNameFor, precisionFor } from "@/lib/instruments/ca
 import { homeCalendarImpactTier } from "@/lib/news/home-calendar";
 import { morningChartHref, MORNING_SCAN_STALE_MS, type MorningPicksSnapshot } from "@/lib/strategy/morning-scan";
 import type { PairTradability } from "@/lib/strategy/ny-tradability";
-import { MAJOR_INSTRUMENTS } from "@/types/forex";
+import { rankWeeklyTrends, type PairTrendsSnapshot } from "@/lib/home/weekly-trends";
 import styles from "./morning-market-picks.module.css";
 
 function clock(iso: string) {
   return new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(iso));
 }
-type TrendDirection = "UPTREND" | "DOWNTREND" | "RANGE" | "TRANSITION" | "UNCLEAR";
-/** 4H and daily structure per pair, from /api/pair-trends (the chart’s trend label). */
-export type PairTrendsSnapshot = { checkedAt: string; pairs: { instrument: string; h4: TrendDirection; d1: TrendDirection }[] };
+/** Weekly, Daily and 4H structure from /api/pair-trends. */
+export type { PairTrendsSnapshot } from "@/lib/home/weekly-trends";
 
 const TRENDS_SHOWN = 5;
 const NEWS_LOOKAHEAD_MS = 24 * 60 * 60_000;
@@ -66,7 +65,6 @@ function newsLeanFor(instrument: string, journal: NewsJournal | null, now: numbe
   }).join("\n");
   return { pairMove, detail };
 }
-const MAJORS = new Set<string>(MAJOR_INSTRUMENTS);
 
 /** The morning scan’s main caution, in two words. */
 function cautionLabel(cautions: string[]) {
@@ -95,23 +93,21 @@ function TrendRow({ instrument, direction, caution, news }: { instrument: string
 }
 
 /**
- * Pairs whose 4H and daily structure agree. It describes the trend so far, not
+ * Pairs whose Weekly and Daily structure agree. It describes the trend so far, not
  * a forecast. Pairs the morning scan rejected (spread too wide, news coverage
  * missing) are left out: a trend you cannot trade cheaply is not a good one.
  */
 function GoodTrends({ trends, run, journal, now }: { trends: PairTrendsSnapshot; run: MorningPicksSnapshot["current"] | null | undefined; journal: NewsJournal | null; now: number }) {
   const selection = (instrument: string) => run?.pairs.find((pair) => pair.instrument === instrument)?.selection;
-  const aligned = trends.pairs
-    .filter((pair) => (pair.h4 === "UPTREND" || pair.h4 === "DOWNTREND") && pair.h4 === pair.d1)
-    .filter((pair) => selection(pair.instrument)?.status !== "REJECTED")
-    .sort((a, b) => Number(MAJORS.has(b.instrument)) - Number(MAJORS.has(a.instrument)) || a.instrument.localeCompare(b.instrument));
+  const aligned = rankWeeklyTrends(trends.pairs)
+    .filter((pair) => selection(pair.instrument)?.status !== "REJECTED");
   const row = (pair: (typeof aligned)[number]) => {
     const read = selection(pair.instrument);
-    return <TrendRow key={pair.instrument} instrument={pair.instrument} direction={pair.h4 as "UPTREND" | "DOWNTREND"} caution={read?.status === "CAUTION" ? cautionLabel(read.cautions) : undefined} news={newsLeanFor(pair.instrument, journal, now)} />;
+    return <TrendRow key={pair.instrument} instrument={pair.instrument} direction={pair.w1 as "UPTREND" | "DOWNTREND"} caution={read?.status === "CAUTION" ? cautionLabel(read.cautions) : undefined} news={newsLeanFor(pair.instrument, journal, now)} />;
   };
   return <div className={styles.trends}>
-    <h3>Good trends <span>{aligned.length} pair{aligned.length === 1 ? "" : "s"} · 4H &amp; daily agree</span></h3>
-    {aligned.length ? aligned.slice(0, TRENDS_SHOWN).map(row) : <p className={styles.metrics}>No tradable pair has the 4H and daily trending the same way right now.</p>}
+    <h3>Weekly trends <span>{aligned.length} pair{aligned.length === 1 ? "" : "s"} · Weekly &amp; Daily agree</span></h3>
+    {aligned.length ? aligned.slice(0, TRENDS_SHOWN).map(row) : <p className={styles.metrics}>No tradable pair has the Weekly and Daily trending the same way right now.</p>}
     {aligned.length > TRENDS_SHOWN ? <details><summary>{aligned.length - TRENDS_SHOWN} more</summary>{aligned.slice(TRENDS_SHOWN).map(row)}</details> : null}
   </div>;
 }

@@ -6,7 +6,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type 
 import { WatchlistPairsSkeleton } from "@/components/ui/page-skeletons";
 import { MarketRowSkeleton } from "@/components/ui/ledger-loading-skeletons";
 import { useMarketObserver } from "@/components/analysis/market-observer-provider";
-import { MarketAnalyzeButton, MarketAnalyzeSheet, useMarketAnalyze, usePairSetups } from "@/components/watchlist/market-analyze";
 import { SessionStrip } from "@/components/watchlist/session-strip";
 import { TrendLabel } from "@/components/charts/trend-label";
 import { useNyTradability } from "@/components/signals/tradability-tag";
@@ -39,7 +38,7 @@ type Row = {
   tradeSequence: string | null;
 };
 /** A placeholder row for a catalog pair the backend hasn't evaluated yet: it is
- * browsable and can be charted or Analyzed on demand, it just carries no live
+ * browsable and can be charted on demand, it just carries no live
  * setup data until then. */
 const EMPTY_ROW: Omit<Row, "instrument"> = {
   dataStatus: "unavailable",
@@ -125,12 +124,6 @@ const description = (instrument: string) => {
 };
 export function WatchlistView() {
   const observer = useMarketObserver();
-  // Analyze: research first, then plans. A pair with a setup opens its sheet instead of starting another.
-  const { setups, refresh: refreshSetups } = usePairSetups();
-  const [sheetPair, setSheetPair] = useState<string | null>(null);
-  const openSheet = useCallback((instrument: string) => setSheetPair(instrument), []);
-  const closeSheet = useCallback(() => setSheetPair(null), []);
-  const { busy: analyzeBusy, start: startAnalyze } = useMarketAnalyze(refreshSetups, openSheet);
   const [snapshot, setSnapshot] = useState<Row[]>([]);
   const [daily, setDaily] = useState<Record<string, WatchlistDay>>({});
   const [query, setQuery] = useState("");
@@ -181,7 +174,7 @@ export function WatchlistView() {
   );
   // Every tradeable OANDA pair from the static catalog, with the backend's live
   // setup data merged in for the ones it evaluates. Pairs it hasn't evaluated
-  // still list (browse / chart / Analyze on demand) with empty fields.
+  // still list (browse / chart on demand) with empty fields.
   const rows = useMemo(
     () =>
       INSTRUMENT_CATALOG.map(({ name: instrument }) => {
@@ -404,7 +397,6 @@ export function WatchlistView() {
               <span className="is-end nl-mk-hide-sm">Change</span>
               <span className="nl-mk-hide-sm">Day range</span>
               <span className="is-end nl-mk-hide-md">Spread</span>
-              <span />
             </div>
             <div className="nl-mk-rows">
               {shown.map((row) => {
@@ -465,13 +457,6 @@ export function WatchlistView() {
                     <span className="nl-mk-spread metric-number nl-mk-hide-md">
                       {row.spreadPips === null ? "—" : row.spreadPips.toFixed(1)}
                     </span>
-                    <MarketAnalyzeButton
-                      instrument={row.instrument}
-                      setup={setups[row.instrument]}
-                      busy={Boolean(analyzeBusy[row.instrument])}
-                      onAnalyze={(instrument) => void startAnalyze(instrument)}
-                      onOpen={openSheet}
-                    />
                   </div>
                 );
               })}
@@ -485,7 +470,6 @@ export function WatchlistView() {
           </>
         )}
       </section>
-      <MarketAnalyzeSheet instrument={sheetPair} onClose={closeSheet} />
     </div>
   );
 }

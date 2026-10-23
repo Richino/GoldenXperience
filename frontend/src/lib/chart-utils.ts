@@ -8,9 +8,12 @@ import { pipSizeFor, precisionFor } from "@/lib/instruments/catalog";
 import type { BinaryPrediction } from "@/types/binary";
 import type { Candle, MajorInstrument, PaperChartTrade } from "@/types/forex";
 
-export const CHART_TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h"] as const;
+export const CHART_TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1d", "1w"] as const;
 
 export type ChartTimeframe = (typeof CHART_TIMEFRAMES)[number];
+
+/** The phone row has room for five: intraday noise frames give way to Daily and Weekly for swing reads. */
+export const MOBILE_CHART_TIMEFRAMES = ["15m", "1h", "4h", "1d", "1w"] as const satisfies readonly ChartTimeframe[];
 
 export const CHART_TIMEFRAME_LABELS: Record<ChartTimeframe, string> = {
   "1m": "1m",
@@ -18,6 +21,8 @@ export const CHART_TIMEFRAME_LABELS: Record<ChartTimeframe, string> = {
   "15m": "15m",
   "1h": "1H",
   "4h": "4H",
+  "1d": "D",
+  "1w": "W",
 };
 
 export const CHART_RANGES = ["1D", "1W", "1M", "3M", "6M", "1Y", "All"] as const;
@@ -82,6 +87,8 @@ export const TIMEFRAME_TO_GRANULARITY: Record<ChartTimeframe, string> = {
   "15m": "M15",
   "1h": "H1",
   "4h": "H4",
+  "1d": "D",
+  "1w": "W",
 };
 
 export function mapSignalTimeframe(timeframe: string): ChartTimeframe {
@@ -629,6 +636,9 @@ const TIMEFRAME_MINUTES: Record<ChartTimeframe, number> = {
   "15m": 15,
   "1h": 60,
   "4h": 240,
+  // Calendar minutes: a range spans weekends, so this slightly over-requests.
+  "1d": 1_440,
+  "1w": 10_080,
 };
 
 function rangeToMs(range: ChartRange) {

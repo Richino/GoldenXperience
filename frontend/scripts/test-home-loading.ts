@@ -4,6 +4,9 @@ import { HOME_LOADING_SECTIONS, initialHomeLoadingState, updateHomeLoading } fro
 let state = initialHomeLoadingState();
 assert.equal(state.revealed, false);
 assert.equal("plans" in state.sections, false, "retired Plans must not hold Home behind the loading skeleton");
+assert.equal("trends" in state.sections, false, "the Weekly scan must not hold the rest of Home behind its skeleton");
+assert.equal(updateHomeLoading(state, { section: "trends", ready: false }), state, "a slow scan cannot register as a blocking section");
+assert.equal(updateHomeLoading(state, { section: "trends", ready: true }), state, "scan completion cannot alter the page reveal");
 state = updateHomeLoading(state, { section: "swing", ready: false });
 for (const section of HOME_LOADING_SECTIONS) state = updateHomeLoading(state, { section, ready: true });
 assert.equal(state.revealed, false, "a nested Swing read holds the same skeleton until it settles");

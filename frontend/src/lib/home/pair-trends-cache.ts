@@ -1,7 +1,7 @@
-import type { PairTrendsSnapshot } from "@/components/dashboard/morning-market-picks";
+import type { PairTrendsSnapshot } from "@/lib/home/weekly-trends";
 
 export const PAIR_TRENDS_TTL_MS = 15 * 60_000;
-const STORAGE_KEY = "gx:pair-trends:v1";
+const STORAGE_KEY = "gx:pair-trends:v2";
 const DIRECTIONS = new Set(["UPTREND", "DOWNTREND", "RANGE", "TRANSITION", "UNCLEAR"]);
 
 function validSnapshot(value: unknown): value is PairTrendsSnapshot {
@@ -9,7 +9,7 @@ function validSnapshot(value: unknown): value is PairTrendsSnapshot {
   const data = value as Partial<PairTrendsSnapshot>;
   return typeof data.checkedAt === "string" && Number.isFinite(Date.parse(data.checkedAt)) &&
     Array.isArray(data.pairs) && data.pairs.every(pair => pair && typeof pair.instrument === "string" &&
-      DIRECTIONS.has(pair.h4) && DIRECTIONS.has(pair.d1));
+      DIRECTIONS.has(pair.h4) && DIRECTIONS.has(pair.d1) && DIRECTIONS.has(pair.w1));
 }
 
 /** Public trend data only; never stores account, position, or order data. */

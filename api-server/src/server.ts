@@ -2,7 +2,7 @@ import { CANDLE_ALIGNMENT } from "../../frontend/src/lib/strategy/candle-clock.j
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { weeklyReview, weeklySummary } from "./weekly-review.js";
 import { planReview } from "./plan-review.js";
-import { pairTrends } from "./pair-trends.js";
+import { pairTrends, pairTrendsHealth, startPairTrendsScanner } from "./pair-trends.js";
 import { URL, fileURLToPath } from "node:url";
 import fs from "node:fs";
 import path from "node:path";
@@ -148,7 +148,7 @@ const stopRecordingContext = marketRecorder || marketPatterns ? startRecordingCo
   marketObserver?.context(kind, data, receivedAt);
 } : undefined, recordingInstruments) : null;
 let pricingStream: OandaPricingStream | null = null;
-const GRANULARITIES = new Set(["M1", "M5", "M15", "M30", "H1", "H4", "D"]);
+const GRANULARITIES = new Set(["M1", "M5", "M15", "M30", "H1", "H4", "D", "W"]);
 function normalizeOrigin(value: string) {
   try {
     return new URL(value.trim()).origin;
@@ -669,7 +669,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       return json(request, response, { entries: await pendingManualEntriesForUser(user.id, instrument, scope === "active" ? "active" : "all") });
     }
     if (url.pathname === "/api/pending-entries" && request.method === "POST") {
-      if (!pendingEntryMonitoringEnabled) return json(request, response, { error: "Pending-entry monitoring is disabled on this API instance." }, 503);
+      if (!config.isConfigured) return json(request, response, { error: "Connect an OANDA practice account to trade." }, 503);
       const payload = await body(request);
       const instrument = typeof payload?.instrument === "string" ? payload.instrument.toUpperCase() : "";
       if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
@@ -689,7 +689,9 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
           paperTradeId: null,
           dedupeKey: `manual-entry:${entry.id}:accepted`,
         }).catch((error) => console.error(`[pending-entry] acceptance notification failed for ${entry.id}`, error));
-        void evaluatePendingManualEntries(tick).catch((error) => console.error("[pending-entry] initial evaluation failed", error));
+        // Ticket actions work on every instance; only a monitoring instance
+        // evaluates entries, so dev never fires one alongside production.
+        if (pendingEntryMonitoringEnabled) void evaluatePendingManualEntries(tick).catch((error) => console.error("[pending-entry] initial evaluation failed", error));
         return json(request, response, { entry }, 201);
       } catch (error) {
         return json(request, response, { error: error instanceof Error ? error.message : "Could not create the pending entry." }, 400);
@@ -705,8 +707,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       catch (error) { return json(request, response, { error: error instanceof Error ? error.message : "News preview unavailable." }, 409); }
     }
     if (url.pathname === "/api/news-straddles/runtime" && request.method === "GET") {
-      const unavailableReason = process.env.ENABLE_SCHEDULERS === "false" ? "Trade monitoring is disabled on this server (ENABLE_SCHEDULERS=false)."
-        : !config.isConfigured ? "Connect an OANDA practice account to start news monitoring."
+      const unavailableReason = !config.isConfigured ? "Connect an OANDA practice account to start news monitoring."
         : config.environment !== "practice" ? "News trading requires an OANDA practice account."
         : process.env.NEWS_STRADDLE_V3_ENABLED === "false" ? "News trading is disabled on this server."
         : !newsStraddleRuntime ? "The news scheduler has not started on this server." : null;
@@ -728,7 +729,6 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     }
     if (url.pathname === "/api/pending-entries/news" && request.method === "POST") {
       if (!newsStraddleRuntime?.status().enabled) return json(request, response, { error: "The practice news scheduler is unavailable on this API instance." }, 503);
-      if (!pendingEntryMonitoringEnabled) return json(request, response, { error: "Pending-entry monitoring is disabled on this API instance." }, 503);
       const payload = await body(request);
       const instrument = typeof payload?.instrument === "string" ? payload.instrument.toUpperCase() : "";
       if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
@@ -760,7 +760,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     }
     const pendingEntryMatch = url.pathname.match(/^\/api\/pending-entries\/([0-9a-f-]{36})$/i);
     if (pendingEntryMatch && request.method === "PATCH") {
-      if (!pendingEntryMonitoringEnabled) return json(request, response, { error: "Pending-entry monitoring is disabled on this API instance." }, 503);
+      if (!config.isConfigured) return json(request, response, { error: "Connect an OANDA practice account to trade." }, 503);
       const payload = await body(request);
       const instrument = typeof payload?.instrument === "string" ? payload.instrument.toUpperCase() : "";
       if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
@@ -771,14 +771,14 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       if (!tick) return json(request, response, { error: "A fresh market quote is not available yet." }, 409);
       try {
         const entry = await editPendingManualEntry(user.id, pendingEntryMatch[1]!, payload ?? {}, tick);
-        void evaluatePendingManualEntries(tick).catch((error) => console.error("[pending-entry] edited-entry evaluation failed", error));
+        if (pendingEntryMonitoringEnabled) void evaluatePendingManualEntries(tick).catch((error) => console.error("[pending-entry] edited-entry evaluation failed", error));
         return json(request, response, { entry });
       } catch (error) {
         return json(request, response, { error: error instanceof Error ? error.message : "Could not edit the pending entry." }, 409);
       }
     }
     if (pendingEntryMatch && request.method === "DELETE") {
-      if (!pendingEntryMonitoringEnabled) return json(request, response, { error: "Pending-entry monitoring is disabled on this API instance." }, 503);
+      if (!config.isConfigured) return json(request, response, { error: "Connect an OANDA practice account to trade." }, 503);
       try {
         return json(request, response, { entry: await cancelPendingManualEntry(user.id, pendingEntryMatch[1]!) });
       } catch (error) {
@@ -787,7 +787,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     }
     const pendingEntryLevelsMatch = url.pathname.match(/^\/api\/pending-entries\/([0-9a-f-]{36})\/levels$/i);
     if (pendingEntryLevelsMatch && request.method === "PATCH") {
-      if (!pendingEntryMonitoringEnabled) return json(request, response, { error: "Pending-entry monitoring is disabled on this API instance." }, 503);
+      if (!config.isConfigured) return json(request, response, { error: "Connect an OANDA practice account to trade." }, 503);
       const payload = await body(request);
       const instrument = typeof payload?.instrument === "string" ? payload.instrument.toUpperCase() : "";
       if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
@@ -805,7 +805,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     }
     const pendingEntryCloseMatch = url.pathname.match(/^\/api\/pending-entries\/([0-9a-f-]{36})\/close$/i);
     if (pendingEntryCloseMatch && request.method === "POST") {
-      if (!pendingEntryMonitoringEnabled) return json(request, response, { error: "Pending-entry monitoring is disabled on this API instance." }, 503);
+      if (!config.isConfigured) return json(request, response, { error: "Connect an OANDA practice account to trade." }, 503);
       const payload = await body(request);
       const instrument = typeof payload?.instrument === "string" ? payload.instrument.toUpperCase() : "";
       const tick = instrument && isKnownInstrument(instrument) ? latestPrices.get(instrument) ?? null : null;
@@ -1100,7 +1100,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       return json(request, response, marketRecorder?.status() ?? { state: "disabled", requested: recordingRequested, reason: "Requires MARKET_RECORDING_ENABLED=true, practice credentials, and a subscribed recording pair." });
     }
     case "/health":
-      return json(request, response, { ok: true, service: "goldenxperience-api", checkedAt: new Date().toISOString(), backgroundJobs: { schedulersEnabled, binaryCollectionEnabled: schedulersEnabled && binaryCollectionEnabled() }, observer: marketObserver?.health() ?? { enabled: false } });
+      return json(request, response, { ok: true, service: "goldenxperience-api", checkedAt: new Date().toISOString(), backgroundJobs: { schedulersEnabled, binaryCollectionEnabled: schedulersEnabled && binaryCollectionEnabled(), pairTrends: { enabled: stopPairTrendsScanner !== null, ...pairTrendsHealth() } }, observer: marketObserver?.health() ?? { enabled: false } });
     case "/api/oanda/account-summary": {
       const result = await getAccountSummary();
       if (!verifiedAccountSummary(result)) {
@@ -1421,6 +1421,7 @@ if (config.isConfigured) {
 }
 
 server.listen(PORT, () => console.log(`[api] HTTP and WebSocket server listening on :${PORT}`));
+const stopPairTrendsScanner = databaseConfigured() && config.isConfigured && process.env.PAIR_TRENDS_BACKGROUND_ENABLED !== "false" ? startPairTrendsScanner() : null;
 // Explicit analysis-worker opt-in; independent of every order/trading scheduler.
 swingIntelligence.start();
 
@@ -1447,10 +1448,16 @@ const morningScanner = databaseConfigured() && schedulersEnabled && process.env.
 if (databaseConfigured() && !schedulersEnabled) {
   console.log("[schedulers] ENABLE_SCHEDULERS=false — legacy background trade, research and binary loops are OFF. Swing analysis has its own opt-in worker.");
 }
+// News mode runs on every instance, dev and prod alike, regardless of
+// ENABLE_SCHEDULERS: the runtime elects one leader per OANDA account with a
+// Postgres advisory lock, so only one instance ever submits orders and the
+// others take over if it goes away.
+if (databaseConfigured() && config.isConfigured && config.environment === "practice") {
+  newsStraddleRuntime = startNewsStraddleRuntime(config, instrument => latestPrices.get(instrument as MajorInstrument) ?? null);
+}
 if (databaseConfigured() && schedulersEnabled) {
   pendingEntryMonitoringEnabled = config.isConfigured;
   if (pendingEntryMonitoringEnabled) {
-    if (config.environment === "practice") newsStraddleRuntime = startNewsStraddleRuntime(config, instrument => latestPrices.get(instrument as MajorInstrument) ?? null);
     void recoverTriggeringManualEntries().catch((error) => console.error("[pending-entry] recovery failed", error));
     // News setups: disarm ended windows, reconcile orders in flight at a restart
     // (by client id, never resent) and run time exits. Every 5s and at startup.
@@ -1794,6 +1801,7 @@ function shutdown() {
   const swingStopped = swingIntelligence.stop();
   const newsRemindersStopped = stopNewsReminders?.() ?? Promise.resolve();
   stopRecordingContext?.();
+  stopPairTrendsScanner?.();
   const recordingClosed = marketRecorder?.close() ?? Promise.resolve();
   const observerClosed = marketObserver?.stop() ?? Promise.resolve();
   clearInterval(heartbeat);

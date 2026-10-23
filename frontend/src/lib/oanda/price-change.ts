@@ -6,6 +6,11 @@ export function dailyPriceChange(price: number, previousDailyClose: number | nul
   return Math.round(raw * 100) / 100 || 0;
 }
 
+/** The signed percent alone, for places that already say the change is daily. */
+export function dailyChangePercentLabel(change: number | null) {
+  return change === null ? "—" : `${change >= 0 ? "+" : "−"}${Math.abs(change).toFixed(2)}%`;
+}
+
 export function dailyChangeLabel(change: number | null) {
-  return change === null ? "Daily —" : `${change >= 0 ? "+" : "−"}${Math.abs(change).toFixed(2)}% · Daily`;
+  return change === null ? "Daily —" : `${dailyChangePercentLabel(change)} · Daily`;
 }

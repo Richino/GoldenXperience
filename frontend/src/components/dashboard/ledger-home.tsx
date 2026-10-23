@@ -482,6 +482,16 @@ function LedgerSetups({ setups }: { setups: LedgerSetup[] }) {
   );
 }
 
+/** "Oct 22 · 9:32 AM → 1:15 PM", or both days when the trade ran overnight. */
+function tradeSpan(openedAt: string | null, closedAt: string) {
+  if (!openedAt) return `${formatShortDay(closedAt)} · ${formatClockTime(closedAt)}`;
+  const openDay = formatShortDay(openedAt);
+  const closeDay = formatShortDay(closedAt);
+  return openDay === closeDay
+    ? `${openDay} · ${formatClockTime(openedAt)} → ${formatClockTime(closedAt)}`
+    : `${openDay} ${formatClockTime(openedAt)} → ${closeDay} ${formatClockTime(closedAt)}`;
+}
+
 function LedgerActivity({ items, currency }: { items: HomeActivityItem[]; currency: string }) {
   if (!items.length) return null;
   return (
@@ -502,14 +512,20 @@ function LedgerActivity({ items, currency }: { items: HomeActivityItem[]; curren
             key={item.id}
             href={item.instrument ? `/chart?instrument=${item.instrument}${item.chartTradeId ? `&trade=${item.chartTradeId}` : ""}` : "/journal"}
             className="nl-activity-row"
+            data-tone={tone(item.paperPl ?? item.resultR)}
           >
-            <b>{item.pair}</b>
-            <span className="nl-activity-label">{item.label}</span>
-            <span className={`metric-number ${tone(item.paperPl)}`}>
-              {item.paperPl === null ? "—" : signedMoney(item.paperPl, currency)}
+            {/* Two groups so phones can stack each side; desktop flattens them into the grid. */}
+            <span className="nl-activity-id">
+              <b>{item.pair}</b>
+              <span className="nl-activity-label">{item.label}</span>
+              <span className="nl-activity-time">{tradeSpan(item.openedAt, item.at)}</span>
             </span>
-            <span className={`metric-number ${tone(item.resultR, 0.05)}`}>{signedR(item.resultR, 1)}</span>
-            <span className="nl-activity-time">{formatShortDay(item.at)}</span>
+            <span className="nl-activity-result">
+              <span className={`metric-number ${tone(item.paperPl)}`}>
+                {item.paperPl === null ? "—" : signedMoney(item.paperPl, currency)}
+              </span>
+              <span className={`metric-number nl-activity-r ${tone(item.resultR, 0.05)}`}>{signedR(item.resultR, 1)}</span>
+            </span>
           </Link>
         ))}
       </div>

@@ -1,4 +1,4 @@
-export const HOME_LOADING_SECTIONS = ["trends", "news", "weekly"] as const;
+export const HOME_LOADING_SECTIONS = ["news", "weekly"] as const;
 export type HomeLoadingState = { sections: Record<string, boolean>; revealed: boolean };
 
 export function initialHomeLoadingState(): HomeLoadingState {
@@ -7,6 +7,8 @@ export function initialHomeLoadingState(): HomeLoadingState {
 
 /** Once shown, background refreshes never put Home back behind a skeleton. */
 export function updateHomeLoading(state: HomeLoadingState, update: { section: string; ready: boolean }): HomeLoadingState {
+  // Discovery runs independently inside a reserved card-sized skeleton.
+  if (update.section === "trends") return state;
   if (state.revealed || state.sections[update.section] === update.ready) return state;
   const sections = { ...state.sections, [update.section]: update.ready };
   return { sections, revealed: Object.values(sections).every(Boolean) };

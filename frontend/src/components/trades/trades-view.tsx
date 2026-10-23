@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ArrowRight, Search, X } from "lucide-react";
@@ -32,10 +32,14 @@ type ClosedFilter = "all" | "wins" | "losses";
 type Quote = { bid: number; ask: number } | undefined;
 type Quotes = Record<string, { bid: number; ask: number } | undefined>;
 
+/** Money won and lost across every closed trade, from the server summary. */
+type WonLost = { won: number; lost: number; wins: number; losses: number };
+
 type Summary = {
   total: number;
   winRate: number | null;
   avgR?: number;
+  wonLost?: WonLost;
   today?: { wins: number; losses: number; realizedPL: number | null };
   openTrades?: JournalTrade[];
 };
@@ -221,6 +225,102 @@ function RBars({ results, compact = false }: { results: number[]; compact?: bool
   );
 }
 
+/** Running total of R across recent closed trades, oldest to newest, as a line. */
+function RLine({ results }: { results: number[] }) {
+  const points = results.reduce<number[]>((acc, r) => [...acc, (acc.at(-1) ?? 0) + r], [0]);
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const span = max - min || 1;
+  const width = 100;
+  const height = 40;
+  const x = (i: number) => (i / (points.length - 1)) * width;
+  const y = (v: number) => height - ((v - min) / span) * height;
+  const xy = points.map((v, i) => [x(i), y(v)] as const);
+  // Smooth the line with Catmull-Rom segments drawn as cubic Béziers.
+  const path = xy
+    .map(([px, py], i) => {
+      if (!i) return `M${px.toFixed(2)},${py.toFixed(2)}`;
+      const [x0, y0] = xy[Math.max(0, i - 2)];
+      const [x1, y1] = xy[i - 1];
+      const [x3, y3] = xy[Math.min(xy.length - 1, i + 1)];
+      const c1 = [x1 + (px - x0) / 6, y1 + (py - y0) / 6];
+      const c2 = [px - (x3 - x1) / 6, py - (y3 - y1) / 6];
+      return `C${c1[0].toFixed(2)},${c1[1].toFixed(2)} ${c2[0].toFixed(2)},${c2[1].toFixed(2)} ${px.toFixed(2)},${py.toFixed(2)}`;
+    })
+    .join(" ");
+  const net = points.at(-1) ?? 0;
+  const id = useId();
+  const [endX, endY] = xy[xy.length - 1];
+  // Break-even as a fraction of the height: green above it, red below.
+  const zeroY = y(0);
+  const split = `${((zeroY / height) * 100).toFixed(2)}%`;
+  const area = `${path} L${width},${zeroY} L0,${zeroY} Z`;
+
+  return (
+    <span
+      className={`nl-tr-line ${net >= 0 ? "is-win" : "is-loss"}`}
+      role="img"
+      aria-label={`Running total over the last ${results.length} closed trades: ${fmtR(net)}`}
+    >
+      <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <linearGradient id={`${id}-stroke`} gradientUnits="userSpaceOnUse" x1="0" x2="0" y1="0" y2={height}>
+            <stop offset={split} stopColor="var(--accent)" />
+            <stop offset={split} stopColor="var(--danger)" />
+          </linearGradient>
+          <linearGradient id={`${id}-fill`} gradientUnits="userSpaceOnUse" x1="0" x2="0" y1="0" y2={height}>
+            <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.18" />
+            <stop offset={split} stopColor="var(--accent)" stopOpacity="0" />
+            <stop offset={split} stopColor="var(--danger)" stopOpacity="0" />
+            <stop offset="100%" stopColor="var(--danger)" stopOpacity="0.18" />
+          </linearGradient>
+        </defs>
+        <path d={area} fill={`url(#${id}-fill)`} className="nl-tr-line-area" />
+        <line x1="0" x2={width} y1={zeroY} y2={zeroY} className="nl-tr-line-zero" />
+        <path d={path} stroke={`url(#${id}-stroke)`} className="nl-tr-line-stroke" />
+      </svg>
+      <span
+        className="nl-tr-line-dot"
+        style={{ left: `${(endX / width) * 100}%`, top: `${(endY / height) * 100}%` }}
+      />
+    </span>
+  );
+}
+
+/** Money won vs money lost across all closed trades, as one split bar. */
+function WinLossBar({ totals }: { totals: WonLost | undefined }) {
+  if (!totals) return null;
+  const { won, lost, wins: winCount, losses: lossCount } = totals;
+  const total = won + lost;
+  if (!total) return null;
+  const winShare = (won / total) * 100;
+
+  return (
+    <div className="nl-tr-wl">
+      <div className="nl-tr-wl-head">
+        <span>Won vs lost · all {winCount + lossCount} closed</span>
+        <span className="metric-number">{Math.round(winShare)}% won</span>
+      </div>
+      <div
+        className="nl-tr-wl-bar"
+        role="img"
+        aria-label={`Won ${fmtMoney(won)} on ${winCount} trades, lost ${fmtMoney(lost)} on ${lossCount} trades`}
+      >
+        {won ? <span className="is-win" style={{ flexGrow: won }} /> : null}
+        {lost ? <span className="is-loss" style={{ flexGrow: lost }} /> : null}
+      </div>
+      <div className="nl-tr-wl-legend">
+        <span className="metric-number is-up">
+          {fmtMoney(won)} <small>· {winCount} wins</small>
+        </span>
+        <span className="metric-number is-down">
+          {fmtMoney(lost)} <small>· {lossCount} losses</small>
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function TradesSummaryRow({
   tab,
   openCount,
@@ -233,6 +333,7 @@ function TradesSummaryRow({
   avgR,
   recentClosed,
   recentR,
+  wonLost,
 }: {
   tab: Tab;
   openCount: number;
@@ -246,6 +347,7 @@ function TradesSummaryRow({
   /** Loaded closed trades, newest first: the page on screen, not all history. */
   recentClosed: JournalTrade[];
   recentR: number[];
+  wonLost: WonLost | undefined;
 }) {
   const withPl = recentClosed.filter((t) => t.paperPl !== null && t.paperPl !== undefined);
   const net = withPl.reduce((sum, t) => sum + (t.paperPl ?? 0), 0);
@@ -273,7 +375,7 @@ function TradesSummaryRow({
         <span className="nl-tr-hero-sub metric-number">{hero.sub}</span>
         {recentR.length ? (
           <span className="nl-tr-hero-bars">
-            <RBars results={recentR.slice(-10)} compact />
+            <RLine results={recentR} />
           </span>
         ) : null}
       </div>
@@ -306,6 +408,7 @@ function TradesSummaryRow({
           <dd className="metric-number">{avgR === null ? closedCount : fmtR(avgR)}</dd>
         </div>
       </dl>
+      <WinLossBar totals={wonLost} />
     </section>
   );
 }
@@ -817,6 +920,7 @@ export function TradesView() {
           losses={closedAgg.losses}
           winRate={closedAgg.winRate}
           avgR={summary?.avgR ?? null}
+          wonLost={summary?.wonLost}
           recentClosed={closedTrades}
           recentR={recentR}
         />

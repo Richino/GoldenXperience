@@ -1146,6 +1146,7 @@ async function loadCandles(
       dailyAlignment: String(CANDLE_ALIGNMENT.dailyAlignment),
       alignmentTimezone: CANDLE_ALIGNMENT.alignmentTimezone,
       smooth: "false",
+      ...(granularity === "W" ? { weeklyAlignment: "Friday" } : {}),
     });
 
     if (options.to) {

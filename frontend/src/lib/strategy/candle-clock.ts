@@ -3,15 +3,17 @@ import { getForexSessionStatus, localMinutes, sessionHour, NEW_YORK_TIME_ZONE } 
 /** Versioned OANDA defaults, explicitly sent on every candle request. Times are opens. */
 export const CANDLE_ALIGNMENT = { version: "oanda-ny17-v1", dailyAlignment: 17, alignmentTimezone: NEW_YORK_TIME_ZONE } as const;
 const HOUR = 3_600_000, DAY = 24 * HOUR;
+const weeklyDay = new Intl.DateTimeFormat("en-US", { timeZone: NEW_YORK_TIME_ZONE, weekday: "short" });
 export type TradingInterruption = { from: number; to: number };
 export type CandleSchedule = { instrument?: string; interruptions?: TradingInterruption[] };
 
 /** OANDA opens must match the explicitly requested NY17 alignment. */
 export function candleAligned(open: number, timeframe: string): boolean {
   if (!Number.isFinite(open)) return false;
-  if (["D", "D1", "H4"].includes(timeframe)) {
+  if (["D", "D1", "H4", "W"].includes(timeframe)) {
     if (open % HOUR !== 0) return false;
     const hour = Math.floor(localMinutes(new Date(open), NEW_YORK_TIME_ZONE) / 60);
+    if (timeframe === "W") return hour === 17 && weeklyDay.format(new Date(open)) === "Fri";
     return timeframe === "H4" ? (hour + 7) % 4 === 0 : hour === 17;
   }
   const minutes = ({ M1: 1, M5: 5, M15: 15, M30: 30, H1: 60 } as Record<string, number>)[timeframe];
@@ -20,6 +22,7 @@ export function candleAligned(open: number, timeframe: string): boolean {
 
 export function candleEnd(open: number, timeframe: string): number {
   if (!Number.isFinite(open)) return NaN;
+  if (timeframe === "W") return sessionHour(Math.floor(open / DAY) * DAY + 7 * DAY, 17, NEW_YORK_TIME_ZONE);
   if (timeframe === "D" || timeframe === "D1") {
     const day = Math.floor(open / DAY) * DAY;
     const same = sessionHour(day, 17, NEW_YORK_TIME_ZONE);

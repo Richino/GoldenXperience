@@ -110,11 +110,12 @@ export function PendingEntryDialog({
       const field = document.activeElement;
       const sheet = backdrop.querySelector<HTMLElement>(".pending-entry-dialog");
       if (keyboardOpen && sheet && field instanceof HTMLInputElement && sheet.contains(field)) {
+        const scroller = field.closest<HTMLElement>(".nl-pe-plan, .pending-entry-form, .pending-entry-detail") ?? sheet;
         const box = field.getBoundingClientRect();
         const visibleBottom = viewport.offsetTop + viewport.height - 16;
         const visibleTop = sheet.getBoundingClientRect().top + 16;
-        if (box.bottom > visibleBottom) sheet.scrollTop += box.bottom - visibleBottom;
-        else if (box.top < visibleTop) sheet.scrollTop -= visibleTop - box.top;
+        if (box.bottom > visibleBottom) scroller.scrollTop += box.bottom - visibleBottom;
+        else if (box.top < visibleTop) scroller.scrollTop -= visibleTop - box.top;
       }
     };
     const onFocus = (event: FocusEvent) => {
@@ -265,7 +266,7 @@ export function PendingEntryDialog({
       // is always 0 — made the handler treat every swipe as an at-edge
       // overscroll and preventDefault it, blocking all touch scrolling.
       const scroller = event.target instanceof Element
-        ? event.target.closest<HTMLElement>(".pending-entry-form, .pending-entry-detail, .pending-entry-dialog.is-plan")
+        ? event.target.closest<HTMLElement>(".nl-pe-plan, .pending-entry-form, .pending-entry-detail, .pending-entry-dialog.is-plan")
         : null;
       if (!scroller) {
         event.preventDefault();
@@ -872,13 +873,13 @@ export function PendingEntryDialog({
                 <dt>Size</dt>
                 <dd className="metric-number">
                   {parsedStop === null
-                    ? "No stop: sized from the hourly range"
+                    ? "From hourly range (no stop)"
                     : currentSize
                       ? `${currentSize.lots.toFixed(2)} lots · risks $${currentSize.riskAmount.toFixed(0)} (${currentSize.riskPercent}%)`
                       : sizeKey ? "Sizing…" : "—"}
                 </dd>
               </div>
-              <div><dt>Risk : reward</dt><dd className={`metric-number${planRatio !== null ? " is-up" : ""}`}>{planRatio === null ? "—" : `1 : ${Number(planRatio.toFixed(1))}`}</dd></div>
+              <div><dt>Risk : reward</dt><dd className={planRatio !== null ? "metric-number is-up" : styles.summaryEmpty}>{planRatio === null ? "Set stop & target" : `1 : ${Number(planRatio.toFixed(1))}`}</dd></div>
               <div><dt>Spread</dt><dd className={`metric-number${spreadIsWide ? " is-caution" : ""}`}>{spreadPips === null ? "—" : `${spreadPips.toFixed(1)} pips${spreadIsWide ? " · wide" : ""}`}</dd></div>
               {automaticLifetime ? <div><dt>Expires</dt><dd>{automaticLifetimeHours}h after it starts watching</dd></div> : null}
             </dl>

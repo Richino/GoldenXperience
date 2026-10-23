@@ -94,6 +94,7 @@ export function MarketRowSkeleton() {
         <span className="nl-mk-pair-copy">
           <SkeletonBlock width={86} height={18} />
           <SkeletonBlock width={160} height={16} />
+          <span className="nl-mk-pair-status"><SkeletonBlock width={156} height={20} radius={999} /></span>
         </span>
       </span>
       <SkeletonBlock className="nl-mk-row-spark nl-mk-hide-md" height={28} />
@@ -104,9 +105,6 @@ export function MarketRowSkeleton() {
       <SkeletonBlock className="nl-mk-hide-sm" width={58} />
       <SkeletonBlock className="nl-mk-hide-sm" height={20} />
       <SkeletonBlock className="nl-mk-spread nl-mk-hide-md" width={42} />
-      <span className="nl-mk-analyze nl-skeleton-market-action">
-        <SkeletonBlock width={20} height={20} />
-      </span>
     </div>
   );
 }
@@ -115,7 +113,7 @@ export function LedgerWatchlistPairsSkeleton({ rows = 10 }: { rows?: number }) {
   return (
     <div aria-busy="true" aria-label="Loading markets">
       <div className="nl-mk-rowhead" aria-hidden="true">
-        {["", "nl-mk-hide-md", "", "nl-mk-hide-sm", "nl-mk-hide-sm", "nl-mk-hide-md", ""].map((c, i) => <SkeletonBlock key={i} className={c} width={48} height={12} />)}
+        {["", "nl-mk-hide-md", "", "nl-mk-hide-sm", "nl-mk-hide-sm", "nl-mk-hide-md"].map((c, i) => <SkeletonBlock key={i} className={c} width={48} height={12} />)}
       </div>
       <div className="nl-mk-rows" aria-hidden="true">
         {Array.from({ length: rows }, (_, i) => <MarketRowSkeleton key={i} />)}

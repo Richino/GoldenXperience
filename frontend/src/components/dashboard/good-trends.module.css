@@ -5,13 +5,32 @@
 .description, .note, .warning, .checked { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .warning { color: var(--pending); }
 .list { margin-top: 16px; border-top: 1px solid var(--border); }
-.row { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 58px; color: var(--foreground); text-decoration: none; }
+.rows { display: flow-root; min-height: 320px; }
+.more { min-height: 43px; }
+.footer { min-height: 47px; }
+.status { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.status.warning { color: var(--pending); }
+.skeletonRow { display: flex; align-items: center; gap: 10px; height: 64px; }
+.skeletonRow + .skeletonRow { border-top: 1px solid var(--border); }
+.skeletonAvatar, .skeletonPair, .skeletonStructure span, .skeletonChecked { display: block; background: var(--border); border-radius: 5px; }
+.skeletonAvatar { flex: 0 0 30px; height: 30px; border-radius: 50%; }
+.skeletonPair { width: 72px; height: 12px; }
+.skeletonStructure { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; padding-right: 26px; }
+.skeletonStructure span:first-child { width: 92px; height: 18px; border-radius: 999px; }
+.skeletonStructure span:last-child { width: 66px; height: 9px; }
+.skeletonChecked { width: 155px; height: 16.5px; }
+.resolved { animation: reveal 180ms ease-out; }
+@keyframes reveal { from { opacity: .45; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .resolved { animation: none; } }
+.row { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 64px; color: var(--foreground); text-decoration: none; }
 .row + .row, .list details .row { border-top: 1px solid var(--border); }
 .row strong { flex: 1; min-width: 0; font-size: 14px; font-weight: 650; }
 .row > svg { flex: none; color: var(--muted); }
 .row:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; border-radius: 8px; }
 .direction { flex: none; padding: 4px 8px; border-radius: 999px; background: var(--success-soft); color: var(--success); font-size: 11px; font-weight: 600; white-space: nowrap; }
 .direction[data-direction="DOWNTREND"] { background: var(--danger-soft); color: var(--danger); }
+.structure { display: flex; flex: none; flex-direction: column; align-items: flex-end; gap: 3px; padding: 8px 0; }
+.structure small { font-size: 11px; color: var(--muted); }
 .list details { border-top: 1px solid var(--border); }
 .list summary { padding: 12px 0; font-size: 12px; color: var(--muted); cursor: pointer; }
 .checked { margin-top: 12px; font-size: 11px; }

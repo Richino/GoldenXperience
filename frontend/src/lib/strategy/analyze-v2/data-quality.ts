@@ -54,7 +54,7 @@ export function isMarketOpen(at: number) {
  * version replaces a forming one), split off the forming candle and count
  * candles missing while the market was open.
  */
-export function normalizeCandles(candles: Candle[], timeframe: V2Timeframe, schedule?: CandleSchedule): NormalizedCandles {
+export function normalizeCandles(candles: Candle[], timeframe: V2Timeframe | "W", schedule?: CandleSchedule): NormalizedCandles {
   let reordered = false;
   for (let index = 1; index < candles.length; index += 1) {
     if (Date.parse(candles[index]!.time) < Date.parse(candles[index - 1]!.time)) {
@@ -105,7 +105,7 @@ export function checkHistory(id: string, closed: Candle[], minBars: number): Dat
  * The latest closed candle should end within `maxLagBars` candles of now
  * while the market is open. While it is closed, old candles are expected.
  */
-export function checkCandleFreshness(id: string, closed: Candle[], timeframe: V2Timeframe, now: number, _maxLagBars: number, schedule?: CandleSchedule): DataCheck {
+export function checkCandleFreshness(id: string, closed: Candle[], timeframe: V2Timeframe | "W", now: number, _maxLagBars: number, schedule?: CandleSchedule): DataCheck {
   const last = closed.at(-1);
   if (!last) return { id, status: "UNKNOWN", reason: "No closed candles to check." };
   const health = candleHealth(Date.parse(last.time), timeframe, now, schedule?.interruptions, schedule?.instrument);
@@ -165,7 +165,7 @@ export function checkQuote(instrument: string, quote: Quote | null | undefined, 
 }
 
 /** All data checks for one timeframe's candles. */
-export function checkTimeframe(role: string, candles: Candle[] | undefined, timeframe: V2Timeframe, now: number, config: ModeConfig, required: boolean, schedule?: CandleSchedule) {
+export function checkTimeframe(role: string, candles: Candle[] | undefined, timeframe: V2Timeframe | "W", now: number, config: ModeConfig, required: boolean, schedule?: CandleSchedule) {
   const normalized = normalizeCandles((candles ?? []).filter(c => !Number.isFinite(Date.parse(c.time)) || c.complete === false || candleEnd(Date.parse(c.time), timeframe) <= now), timeframe, schedule);
   const checks: DataCheck[] = [];
   if (!candles?.length) {
@@ -184,7 +184,7 @@ export function checkTimeframe(role: string, candles: Candle[] | undefined, time
  * between consecutive candles matches it (daily candles may be 23–25h apart
  * across a DST change).
  */
-export function checkSpacing(id: string, closed: Candle[], timeframe: V2Timeframe): DataCheck {
+export function checkSpacing(id: string, closed: Candle[], timeframe: V2Timeframe | "W"): DataCheck {
   if (closed.length < 3) return { id, status: "UNKNOWN", reason: `Too few ${timeframe} candles to verify their spacing.` };
   const counts = new Map<number, number>();
   for (let index = 1; index < closed.length; index += 1) {
@@ -192,8 +192,8 @@ export function checkSpacing(id: string, closed: Candle[], timeframe: V2Timefram
     counts.set(diff, (counts.get(diff) ?? 0) + 1);
   }
   const common = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]![0];
-  const step = TIMEFRAME_MS[timeframe];
-  const ok = timeframe === "D1" ? common >= 23 * 3_600_000 && common <= 25 * 3_600_000 : common === step;
+  const step = timeframe === "W" ? 7 * 86_400_000 : TIMEFRAME_MS[timeframe];
+  const ok = timeframe === "D1" || timeframe === "W" ? Math.abs(common - step) <= 3_600_000 : common === step;
   return ok
     ? { id, status: "PASS", reason: `${timeframe} spacing confirmed.` }
     : { id, status: "FAIL", reason: `Candles labelled ${timeframe} are ${Math.round(common / 60_000)} min apart.` };

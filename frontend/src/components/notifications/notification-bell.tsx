@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bell } from "lucide-react";
+import { Bell, CircleAlert, CircleCheck, CircleDot, CircleX, TriangleAlert, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { MobileSheet } from "@/components/ui/mobile-sheet";
 import { detailTone, displayDetail, displayTitle, notificationHref } from "@/lib/notifications/display";
@@ -13,6 +13,25 @@ function timeLabel(value: string) {
   if (elapsed < 3_600_000) return `${Math.floor(elapsed / 60_000)}m`;
   if (elapsed < 86_400_000) return `${Math.floor(elapsed / 3_600_000)}h`;
   return `${Math.floor(elapsed / 86_400_000)}d`;
+}
+
+// The row's tone shows as a small icon tile; the text itself stays neutral.
+const TONE_ICON: Record<string, LucideIcon> = {
+  "is-positive": CircleCheck,
+  "is-negative": CircleX,
+  "is-issue": TriangleAlert,
+  "is-warning": CircleAlert,
+  "is-info": Bell,
+};
+
+function dayLabel(value: string) {
+  const day = new Date(value);
+  const today = new Date();
+  const startOf = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const days = Math.round((startOf(today) - startOf(day)) / 86_400_000);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  return "Earlier";
 }
 
 export function NotificationBell({ compact = false, className = "" }: { compact?: boolean; className?: string }) {
@@ -61,16 +80,23 @@ export function NotificationBell({ compact = false, className = "" }: { compact?
   ) : null;
 
   const list = (
-    <div className="notification-popover-list">
+    <div className="notification-popover-list nl-notif-list">
       {!notifications.length ? (
-        <p className="notification-popover-empty">No notifications yet.</p>
+        <div className="notification-popover-empty nl-notif-empty">
+          <span className="nl-notif-icon" aria-hidden><Bell /></span>
+          <p>No notifications yet.</p>
+        </div>
       ) : (
-        notifications.map((item) => {
+        notifications.map((item, index) => {
           const detail = displayDetail(item);
           const tone = detailTone(item);
+          const ToneIcon = TONE_ICON[tone] ?? CircleDot;
+          const day = dayLabel(item.createdAt);
+          const newDay = index === 0 || dayLabel(notifications[index - 1].createdAt) !== day;
           return (
+            <div key={item.id} className="nl-notif-entry">
+            {newDay ? <p className="nl-notif-day">{day}</p> : null}
             <Link
-              key={item.id}
               href={notificationHref(item)}
               onClick={() => {
                 void markRead([item.id]);
@@ -78,17 +104,19 @@ export function NotificationBell({ compact = false, className = "" }: { compact?
               }}
               className={`notification-popover-item pressable ${item.readAt ? "" : "is-unread"} ${tone}`}
             >
-              <span className="notification-unread-slot" aria-hidden>
-                {!item.readAt ? <span className="notification-unread-dot" /> : null}
+              <span className="nl-notif-icon" aria-hidden>
+                <ToneIcon />
+                {!item.readAt ? <span className="nl-notif-dot" /> : null}
               </span>
               <div className="notification-popover-item-body">
                 <div className="notification-popover-item-top">
                   <p className="notification-popover-item-title">{displayTitle(item)}</p>
                   <span className="notification-popover-item-time">{timeLabel(item.createdAt)}</span>
                 </div>
-                {detail ? <p className={`notification-popover-item-message ${tone}`}>{detail}</p> : null}
+                {detail ? <p className="notification-popover-item-message">{detail}</p> : null}
               </div>
             </Link>
+            </div>
           );
         })
       )}
@@ -123,9 +151,10 @@ export function NotificationBell({ compact = false, className = "" }: { compact?
           {list}
         </MobileSheet>
       ) : open ? (
-        <div className="notification-popover absolute right-0 z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden">
+        <div className="notification-popover nl-notif absolute right-0 z-50 w-[min(24rem,calc(100vw-2rem))] overflow-hidden">
           <div className="notification-popover-head">
             <p className="notification-popover-title">Notifications</p>
+            {unreadCount ? <span className="nl-notif-count">{unreadCount} new</span> : null}
             {readAllButton}
           </div>
           {list}

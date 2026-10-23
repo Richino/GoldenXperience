@@ -2,16 +2,18 @@
 .intro, .cardTitle { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .intro h3 { margin: 0; font-size: 17px; line-height: 1.35; }
 .description { margin: 0; color: var(--muted-strong); font-size: 14px; line-height: 1.65; }
-.event { display: grid; gap: 8px; padding: 20px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface-raised); }
+.event { display: grid; gap: 6px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface-raised); }
+.eventHead { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 26px; }
 .eyebrow { color: var(--muted); font-size: 11px; font-weight: 600; }
 .event h4 { margin: 0; color: var(--foreground); font-size: 19px; line-height: 1.35; }
 .event p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
 .releaseList { display: grid; gap: 9px; margin: 3px 0; padding: 0; list-style: none; }
 .releaseList li { display: flex; align-items: baseline; gap: 8px; color: var(--foreground); font-size: 14px; line-height: 1.45; }
 .releaseList li span { flex: none; color: var(--muted); font-size: 10px; font-weight: 600; }
-.event .countdown { margin-top: 4px; font-size: 15px; font-weight: 600; }
-.risk { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; padding: 14px 0; border-block: 1px solid var(--border); font-size: 12px; color: var(--muted); }
-.risk strong { color: var(--foreground); font-weight: 600; }
+.event .countdown { flex: none; padding: 4px 9px; border-radius: 999px; background: var(--accent-soft); font-size: 12px; font-weight: 650; }
+.risk { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 14px; font-size: 12px; color: var(--muted); }
+.risk strong { display: flex; align-items: baseline; gap: 8px; color: var(--foreground); font-size: 15px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.risk strong small { color: var(--muted); font-size: 11.5px; font-weight: 500; }
 .badge, .impact { flex: none; padding: 4px 7px; border-radius: 7px; background: var(--accent-soft); color: var(--accent); font-size: 10px; font-weight: 700; }
 .badge { border: 1px solid var(--border-strong); background: var(--surface-raised); color: var(--muted-strong); font-size: 11px; font-variant-numeric: tabular-nums; }
 .impact { background: var(--danger-soft); color: var(--danger); }
@@ -46,3 +48,19 @@
 .timeline time { color: var(--muted-strong); font-variant-numeric: tabular-nums; }
 .stop { display: grid; gap: 10px; margin-top: 14px; font-size: 12px; color: var(--muted); }
 @media (max-width: 380px) { .card { padding: 12px; } .fields label { grid-template-columns: minmax(0,1fr) minmax(6.5rem,45%); gap: 8px; } .metrics dd { max-width: 58%; } }
+
+/* News accept card: an empty event reads as a calm empty state, not an error. */
+.eventEmpty { background: transparent; border-style: dashed; }
+.empty { display: flex; align-items: flex-start; gap: 12px; }
+.emptyIcon { flex: none; width: 34px; height: 34px; padding: 8px; border-radius: 10px; background: var(--surface-raised); color: var(--muted-strong); }
+.empty strong { display: block; color: var(--foreground); font-size: 14px; font-weight: 600; line-height: 1.4; }
+.empty p { margin-top: 3px; }
+
+/* How it works: three numbered steps instead of two paragraphs. */
+.steps { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; counter-reset: step; }
+.steps li { display: flex; align-items: baseline; gap: 10px; color: var(--muted-strong); font-size: 13px; line-height: 1.45; counter-increment: step; }
+.steps li::before { flex: none; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--surface-raised); color: var(--foreground); font-size: 11px; font-weight: 700; content: counter(step); transform: translateY(-1px); }
+.ticket .note { font-size: 11.5px; }
+
+/* Accept stays visibly off until an event can be monitored. */
+.actions :global(.nl-an-primary):disabled { border: 1px solid var(--border); background: var(--surface-raised); color: var(--muted); opacity: 1; cursor: not-allowed; }

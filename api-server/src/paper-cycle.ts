@@ -2189,15 +2189,28 @@ export async function journalTradeLog(
  * paged in. Mirrors the set `journalTradeLog` draws from.
  */
 export async function journalTradeSummary(userId: string) {
-  const rows = await query<{ total: string; closed: string; wins: string; sumR: string | null }>(
+  const rows = await query<{
+    total: string;
+    closed: string;
+    wins: string;
+    sumR: string | null;
+    wonPL: string | null;
+    lostPL: string | null;
+    wonCount: string;
+    lostCount: string;
+  }>(
     `SELECT count(*) FILTER (WHERE NOT broker_rejected)::text AS total,
             count(*) FILTER (WHERE status='closed' AND result_r IS NOT NULL AND NOT broker_rejected)::text AS closed,
             count(*) FILTER (WHERE result_r > 0 AND NOT broker_rejected)::text AS wins,
-            sum(result_r) FILTER (WHERE status='closed' AND result_r IS NOT NULL AND NOT broker_rejected)::text AS "sumR"
+            sum(result_r) FILTER (WHERE status='closed' AND result_r IS NOT NULL AND NOT broker_rejected)::text AS "sumR",
+            sum(paper_pl) FILTER (WHERE status='closed' AND paper_pl > 0 AND NOT broker_rejected)::text AS "wonPL",
+            sum(-paper_pl) FILTER (WHERE status='closed' AND paper_pl < 0 AND NOT broker_rejected)::text AS "lostPL",
+            count(*) FILTER (WHERE status='closed' AND paper_pl > 0 AND NOT broker_rejected)::text AS "wonCount",
+            count(*) FILTER (WHERE status='closed' AND paper_pl < 0 AND NOT broker_rejected)::text AS "lostCount"
      FROM (
-       SELECT status, result_r::float AS result_r, false AS broker_rejected FROM paper_trades WHERE user_id=$1
+       SELECT status, result_r::float AS result_r, paper_pl::float AS paper_pl, false AS broker_rejected FROM paper_trades WHERE user_id=$1
        UNION ALL
-       SELECT trade.status, trade.result_r::float, COALESCE(intent.status='rejected',false)
+       SELECT trade.status, trade.result_r::float, trade.paper_pl::float, COALESCE(intent.status='rejected',false)
        FROM paper_strategy_trades trade
        LEFT JOIN practice_order_intents intent ON intent.paper_trade_id=trade.id
        WHERE trade.user_id=$1 AND trade.status IN ('open', 'closed')
@@ -2243,6 +2256,13 @@ export async function journalTradeSummary(userId: string) {
     total,
     winRate: closed ? wins / closed : null,
     avgR: closed ? sumR / closed : 0,
+    // Money won and lost across every closed trade, for the Journal's split bar.
+    wonLost: {
+      won: Number(row?.wonPL ?? 0),
+      lost: Number(row?.lostPL ?? 0),
+      wins: Number(row?.wonCount ?? 0),
+      losses: Number(row?.lostCount ?? 0),
+    },
     today: {
       wins: Number(today?.wins ?? 0),
       losses: Number(today?.losses ?? 0),

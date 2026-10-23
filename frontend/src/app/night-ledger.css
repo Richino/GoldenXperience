@@ -1197,7 +1197,7 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-va
 
 .nl-activity-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 0.7fr) minmax(0, 0.8fr);
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 0.6fr) minmax(0, 1.8fr);
   align-items: center;
   gap: 16px;
   min-height: 52px;
@@ -1205,6 +1205,16 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-va
   color: var(--foreground);
   font-size: 14px;
   text-decoration: none;
+}
+
+/* Desktop: the two groups flatten into the row's five grid columns. */
+.nl-activity-id,
+.nl-activity-result {
+  display: contents;
+}
+
+.nl-activity-id .nl-activity-time {
+  order: 5;
 }
 
 .nl-activity-row b {
@@ -1768,13 +1778,91 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-va
     grid-template-columns: minmax(0, 1fr);
   }
 
+  /* Phone: pair over exit · date on the left, money over R on the right. */
+  .nl-activity-list {
+    gap: 8px;
+    border-top: 0;
+  }
+
   .nl-activity-row {
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 64px;
+    padding: 12px 16px 12px 18px;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--surface);
+    transition: background-color 150ms ease, transform 150ms ease;
+  }
+
+  .nl-activity-row:active {
+    transform: scale(0.985);
+  }
+
+  /* Win/loss mark down the left edge. */
+  .nl-activity-row::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 14px;
+    bottom: 14px;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: var(--border-strong);
+  }
+
+  .nl-activity-row[data-tone="is-up"]::before {
+    background: var(--accent);
+  }
+
+  .nl-activity-row[data-tone="is-down"]::before {
+    background: var(--danger);
+  }
+
+  .nl-activity-id {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 8px;
+    min-width: 0;
+  }
+
+  .nl-activity-id b {
+    grid-column: 1 / -1;
   }
 
   .nl-activity-label,
   .nl-activity-time {
-    display: none;
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .nl-activity-time {
+    grid-column: 1 / -1;
+  }
+
+  .nl-activity-result {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+  }
+
+  .nl-activity-result > .metric-number:first-child {
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .nl-activity-r {
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: color-mix(in srgb, currentColor 14%, transparent);
+    font-size: 11px;
   }
 
   /* Today: net and bars on one row. */
@@ -1886,8 +1974,8 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-va
     height: calc(64px + var(--gx-safe-area-top));
     padding: calc(var(--gx-safe-area-top) + 8px) 16px 8px;
     border-bottom: 1px solid var(--border);
-    background: color-mix(in srgb, var(--background) 92%, transparent);
-    backdrop-filter: blur(12px);
+    background: var(--background);
+    backdrop-filter: none;
     transform: translateY(-100%);
     visibility: hidden;
     transition:
@@ -2178,6 +2266,145 @@ html:is(.dark, :not(.dark)) body .nl-tr-bell {
   margin: 4px 0 0;
   font-size: 22px;
   letter-spacing: 0;
+}
+
+/* Running R line in the phone summary card. */
+.nl-tr-line {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 72px;
+}
+
+.nl-tr-line.is-win {
+  color: var(--accent);
+}
+
+.nl-tr-line.is-loss {
+  color: var(--danger);
+}
+
+.nl-tr-line svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.nl-tr-line-stroke {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  /* Non-scaling strokes dash in screen pixels; 600 covers the whole line. */
+  stroke-dasharray: 600;
+  stroke-dashoffset: 600;
+  animation: nl-tr-line-draw 900ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.nl-tr-line-area {
+  opacity: 0;
+  animation: nl-tr-fade 600ms 300ms ease-out forwards;
+}
+
+.nl-tr-line-zero {
+  stroke: var(--border-strong);
+  stroke-dasharray: 3 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.nl-tr-line-dot {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0;
+  animation: nl-tr-fade 300ms 800ms ease-out forwards;
+}
+
+@keyframes nl-tr-line-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes nl-tr-fade {
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nl-tr-line-stroke,
+  .nl-tr-line-area,
+  .nl-tr-line-dot {
+    animation: none;
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Won vs lost: one bar split by money, wins left, losses right. */
+.nl-tr-wl {
+  display: flex;
+  flex: 1 1 100%;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 24px;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+}
+
+.nl-tr-wl-head,
+.nl-tr-wl-legend {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.nl-tr-wl-head {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.nl-tr-wl-head .metric-number {
+  letter-spacing: 0;
+}
+
+.nl-tr-wl-bar {
+  display: flex;
+  gap: 3px;
+  height: 14px;
+}
+
+.nl-tr-wl-bar > span {
+  flex-basis: 0;
+  min-width: 4px;
+  border-radius: 999px;
+}
+
+.nl-tr-wl-bar > .is-win {
+  background: var(--accent);
+}
+
+.nl-tr-wl-bar > .is-loss {
+  background: var(--danger);
+}
+
+.nl-tr-wl-legend {
+  font-size: 17px;
+  letter-spacing: 0;
+}
+
+.nl-tr-wl-legend small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
 }
 
 /* --------------------------------------------------------------- toolbar */
@@ -3300,7 +3527,7 @@ html:is(.dark, :not(.dark)) body .nl-tr-bell {
 .nl-mk-rowhead,
 .nl-mk-row {
   display: grid;
-  grid-template-columns: minmax(200px, 1.6fr) 120px 112px 96px minmax(150px, 1fr) 64px 112px;
+  grid-template-columns: minmax(200px, 1.6fr) 120px 112px 96px minmax(150px, 1fr) 64px;
   align-items: center;
   gap: 20px;
 }
@@ -3528,7 +3755,7 @@ html:is(.dark, :not(.dark)) body .nl-tr-bell {
 @media (min-width: 1024px) and (max-width: 1279px) {
   .nl-mk-rowhead,
   .nl-mk-row {
-    grid-template-columns: minmax(180px, 1.6fr) 112px 96px minmax(140px, 1fr) 112px;
+    grid-template-columns: minmax(180px, 1.6fr) 112px 96px minmax(140px, 1fr);
   }
 
   .nl-mk-hide-md {
@@ -3706,7 +3933,7 @@ html:is(.dark, :not(.dark)) body .nl-tr-bell {
   }
 
   .nl-mk-row {
-    grid-template-columns: minmax(0, 1fr) 56px 92px 44px;
+    grid-template-columns: minmax(0, 1fr) 56px 92px;
     gap: 10px;
     padding: 0 0 8px;
     border-bottom-color: var(--surface-raised);
@@ -3719,6 +3946,12 @@ html:is(.dark, :not(.dark)) body .nl-tr-bell {
   .nl-mk-row-spark.nl-mk-hide-md {
     display: block;
     height: 24px;
+  }
+
+  @media (max-width: 480px) {
+    /* Reserve the same pair/price columns before and after row data loads. */
+    .nl-mk-row { grid-template-columns: minmax(0, 1fr) 92px; }
+    .nl-mk-row-spark.nl-mk-hide-md { display: none; }
   }
 
   .nl-mk-pair-copy b {
@@ -5143,6 +5376,23 @@ html:is(.dark, :not(.dark)) body .nl-tr-bell {
     font-size: 13px;
   }
 
+  .nl-cside-trade {
+    width: 100%;
+    min-height: 44px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--accent);
+    color: var(--background);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .nl-cside-trade:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
   .nl-cpos-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -5406,61 +5656,68 @@ html:is(.dark, :not(.dark)) body .signals-view .workspace-tab-btn.workspace-tab-
     color: var(--foreground);
   }
 
+  /* Pair picker: an unboxed title over the price. Flags, the pair name and a
+     chevron that turns while the list is open; a soft fill shows on press.
+     The negative margin keeps the flags on the price's left edge. */
   html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-pair .gx-pair-search .signals-tool-btn {
     display: flex;
     align-items: center;
     gap: 10px;
     width: auto;
-    height: 52px;
-    min-height: 52px;
-    padding: 8px 10px;
-    border: 1px solid var(--border-strong);
-    border-radius: 15px;
-    background: var(--surface);
+    height: 44px;
+    min-height: 44px;
+    margin-left: -8px;
+    padding: 0 10px 0 8px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
     color: var(--foreground);
-    box-shadow: 0 1px 2px color-mix(in srgb, var(--foreground) 4%, transparent);
+    box-shadow: none;
     font-family: var(--font-display);
-    font-size: 17px;
+    font-size: 21px;
     font-weight: 700;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.025em;
     text-align: left;
   }
 
   .signals-chart-mobile .nl-pair-copy {
     display: flex;
-    flex-direction: column;
-    gap: 3px;
-    line-height: 1.1;
+    align-items: center;
+    line-height: 1;
   }
 
+  /* Every pair here is forex, so the eyebrow says nothing. */
   .signals-chart-mobile .nl-pair-copy small {
-    color: var(--muted);
-    font-family: var(--font-geist-mono), ui-monospace, monospace;
-    font-size: 9px;
-    font-weight: 500;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
+    display: none;
   }
 
   .signals-chart-mobile .nl-pair .signals-tool-btn > svg {
     flex: none;
-    width: 24px;
-    height: 24px;
-    margin-left: 2px;
-    padding: 5px;
-    border-radius: 8px;
-    background: var(--surface-raised);
-    color: var(--muted-strong);
+    width: 16px;
+    height: 16px;
+    margin-left: -3px;
+    color: var(--muted);
+    transition: transform 200ms ease, color 160ms ease;
   }
 
   html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-pair .gx-pair-search .signals-tool-btn:is(:hover, .is-active) {
-    border-color: var(--accent);
-    background: color-mix(in srgb, var(--accent-soft) 35%, var(--surface));
+    background: color-mix(in srgb, var(--foreground) 7%, transparent);
+  }
+
+  .signals-chart-mobile .nl-pair .signals-tool-btn.is-active > svg {
+    transform: rotate(180deg);
+    color: var(--foreground);
   }
 
   .signals-chart-mobile .nl-pair .signals-tool-btn:focus-visible {
     outline: 2px solid var(--focus-ring);
-    outline-offset: 3px;
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .signals-chart-mobile .nl-pair .signals-tool-btn > svg {
+      transition: none;
+    }
   }
 
   .nl-mhead-actions {
@@ -6123,7 +6380,6 @@ html:is(.dark, :not(.dark)) body .phone-settings-switch.is-on > span {
 /* Loading placeholders inherit the current page geometry, without live controls. */
 .nl-st-title { display: flex; flex-direction: column; gap: 8px; }
 .nl-skeleton-toolbar .gx-skel { flex-shrink: 0; }
-.nl-skeleton-market-action { width: 100px; }
 .nl-skeleton-index { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 14px; }
 .nl-skeleton-timeframes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
 .signals-loading-skeleton .nl-an-actions > .gx-skel { flex: 1 1 0; min-width: 0; }
@@ -6155,7 +6411,6 @@ html:is(.dark, :not(.dark)) body .phone-settings-switch.is-on > span {
     gap: 4px;
   }
   .nl-skeleton-toolbar .nl-tr-tabs > .gx-skel { width: 100% !important; }
-  .nl-skeleton-market-action { width: 44px; }
   .nl-skeleton-chart-tool { flex: 1 1 0; max-width: 52px; min-width: 0; }
 }
 
@@ -9254,14 +9509,25 @@ html:is(.dark, :not(.dark)) body .gx-fs-dock .menu-popover {
   .nl-pe-plancheck-row .nl-an-modes button { flex: 1 1 0; min-height: 38px; padding-inline: 6px; font-size: 13px; }
 }
 
-/* New-trade sheet: the grip + header bar and the Create / Cancel buttons stay
-   on screen while the form scrolls between them. The sheet itself is the
-   scroll area, so both are sticky inside it with a solid background. */
+/* The form owns its scrollbar; the title and actions stay outside it. */
 html:is(.dark, :not(.dark)) body .pending-entry-dialog.is-plan {
   padding-top: 0;
   padding-bottom: 0;
 }
+html:is(.dark, :not(.dark)) body .pending-entry-dialog.is-plan:has(> .nl-pe-plan) {
+  overflow: hidden;
+}
+html:is(.dark, :not(.dark)) body .pending-entry-dialog.is-plan > .nl-pe-plan {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+html:is(.dark, :not(.dark)) body .pending-entry-dialog.is-plan > .nl-pe-plan > * {
+  flex-shrink: 0;
+}
 html:is(.dark, :not(.dark)) body .pending-entry-dialog.is-plan .nl-pe-stickyhead {
+  flex-shrink: 0;
   position: sticky;
   top: 0;
   z-index: 4;
@@ -9272,6 +9538,7 @@ html:is(.dark, :not(.dark)) body .pending-entry-dialog.is-plan .nl-pe-stickyhead
   background: var(--surface);
 }
 html:is(.dark, :not(.dark)) body .pending-entry-dialog.is-plan > footer.nl-pe-actions {
+  flex-shrink: 0;
   position: sticky;
   bottom: 0;
   z-index: 4;
@@ -10315,4 +10582,330 @@ html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="watching"]
   body.is-dragging-position-tool .signals-chart-mobile .setup-chart-level-edit-handle {
     box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--level) 85%, transparent);
   }
+}
+
+/* Phone chart controls: the timeframe segment and the three quick tools are
+   two matching 40px pills. Every button fills the pill's height so each tap
+   target is at least 38px tall; the selected timeframe is a soft raised lens
+   rather than an inverted block, and a tool that is on reads in the accent. */
+@media (max-width: 1023px) {
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-controls {
+    gap: 8px;
+    padding: 2px 16px 8px;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-controls .gx-mobile-timeframes .workspace-segment,
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-controls .gx-mobile-chart-toolbar.gx-mobile-chart-quick {
+    height: 40px;
+    box-sizing: border-box;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-controls .gx-mobile-timeframes .workspace-segment-btn {
+    height: 38px;
+    min-width: 0;
+    padding: 0;
+    border-radius: 11px;
+    color: var(--muted);
+    font-size: 12.5px;
+    font-weight: 500;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-controls .gx-mobile-timeframes .workspace-segment::before {
+    top: 3px;
+    bottom: 3px;
+    left: 3px;
+    width: calc((100% - 6px) / 5);
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--foreground) 11%, var(--surface));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--foreground) 8%, transparent);
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-controls .gx-mobile-timeframes .workspace-segment-btn.workspace-segment-btn-active.pressable {
+    color: var(--foreground);
+    font-weight: 600;
+  }
+
+  /* Inset the buttons by the lens margin so each lens stop sits on its label. */
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-controls .gx-mobile-timeframes .workspace-segment {
+    padding: 0 3px;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-controls .gx-mobile-chart-toolbar.gx-mobile-chart-quick {
+    gap: 0;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-controls .gx-mobile-chart-quick > * {
+    width: 40px;
+    max-width: 40px;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-controls .gx-mobile-chart-toolbar.gx-mobile-chart-quick :is(.sheet-trigger, .gx-mobile-tool-button) {
+    width: 40px;
+    height: 38px;
+    border: 0;
+    border-radius: 11px;
+    background: transparent;
+    color: var(--muted-strong);
+    box-shadow: none;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-controls .gx-mobile-chart-toolbar.gx-mobile-chart-quick :is(.sheet-trigger, .gx-mobile-tool-button) svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-controls .gx-mobile-chart-toolbar.gx-mobile-chart-quick :is(.sheet-trigger:is(:hover, [aria-expanded="true"]), .gx-mobile-tool-button:hover, .gx-mobile-tool-button.is-open) {
+    background: color-mix(in srgb, var(--foreground) 7%, transparent);
+    color: var(--foreground);
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-chart-controls .gx-mobile-chart-toolbar.gx-mobile-chart-quick :is(.sheet-trigger.has-active, .gx-mobile-tool-button.is-active) {
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    color: var(--accent);
+  }
+}
+
+/* Phone quote: one line. Price and change lead, the trend follows, and the
+   spread pips sit on the right. Narrow phones drop the trend's qualifier
+   ("· Aligned") before anything else; the direction always stays. */
+@media (max-width: 1023px) {
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mquote.nl-mquote-line {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mquote-line .nl-mquote-main {
+    flex: none;
+    gap: 7px;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mquote-line .nl-mquote-price {
+    font-size: clamp(24px, 6.8vw, 28px);
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mquote.nl-mquote-line .nl-mquote-trend {
+    flex: 0 1 auto;
+    flex-basis: auto;
+    min-width: 0;
+    margin-top: 0;
+    overflow: hidden;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mquote-line .nl-mquote-trend > span {
+    max-width: 100%;
+    white-space: nowrap;
+  }
+
+  /* Last resort for long single-part labels; split labels drop the qualifier first. */
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mquote-line .nl-mquote-trend > span > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mquote-line .nl-mquote-spread {
+    flex: none;
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 389px) {
+  .signals-chart-mobile .nl-mquote-line .nl-trend-qualifier {
+    display: none;
+  }
+}
+
+/* Quote digits (components/ui/price-digits.tsx): the big figure is quiet, the
+   two pip digits carry the weight, the pipette sits small and raised. Digits
+   that just changed flash in the move's colour and settle back. */
+.gx-price {
+  display: inline-flex;
+  align-items: baseline;
+  white-space: nowrap;
+}
+.gx-price-big {
+  color: var(--muted-strong);
+  font-size: 0.8em;
+}
+.gx-price-pips {
+  color: var(--foreground);
+}
+.gx-price-pipette {
+  align-self: flex-start;
+  margin-left: 1px;
+  color: var(--muted-strong);
+  font-size: 0.55em;
+  line-height: 1;
+}
+.gx-price .is-tick-up { animation: gx-price-tick-up 900ms ease-out; }
+.gx-price .is-tick-down { animation: gx-price-tick-down 900ms ease-out; }
+@keyframes gx-price-tick-up {
+  0%, 35% { color: var(--accent); }
+}
+@keyframes gx-price-tick-down {
+  0%, 35% { color: var(--danger); }
+}
+
+/* ============================================================ NOTIFICATIONS
+   The bell's inbox (notification-bell.tsx): the desktop popover and the
+   phone sheet share one list. Text stays neutral; each row's tone shows as
+   a small icon tile, unread rows carry a lime dot and a bolder title, and
+   rows are grouped by day. Overrides the older globals.css layers. */
+html:is(.dark, :not(.dark)) body .notification-popover.nl-notif {
+  top: calc(100% + 10px);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+}
+html:is(.dark, :not(.dark)) body .nl-notif .notification-popover-head {
+  height: auto;
+  gap: 8px;
+  padding: 14px 16px 10px;
+  border-bottom: 0;
+}
+html:is(.dark, :not(.dark)) body .nl-notif .notification-popover-title {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.nl-notif-count {
+  margin-right: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 650;
+}
+html:is(.dark, :not(.dark)) body .nl-notif .notification-popover-read-all,
+html:is(.dark, :not(.dark)) body .mobile-sheet .notification-popover-read-all {
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 9px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+html:is(.dark, :not(.dark)) body .nl-notif .notification-popover-read-all:hover {
+  background: var(--surface-raised);
+}
+
+html:is(.dark, :not(.dark)) body .notification-popover-list.nl-notif-list {
+  display: block;
+  padding: 0 8px 8px;
+}
+html:is(.dark, :not(.dark)) body .nl-notif .notification-popover-list.nl-notif-list {
+  max-height: min(28rem, 64vh);
+}
+.nl-notif-day {
+  margin: 0;
+  padding: 10px 10px 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.nl-notif-entry:first-child .nl-notif-day { padding-top: 2px; }
+
+html:is(.dark, :not(.dark)) body .nl-notif-list .notification-popover-item,
+html:is(.dark, :not(.dark)) body .nl-notif-list .notification-popover-item:last-child,
+html:is(.dark, :not(.dark)) body .nl-notif-list .notification-popover-item.is-issue,
+html:is(.dark, :not(.dark)) body .nl-notif-list .notification-popover-item.is-unread {
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0 0 2px;
+  padding: 10px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+}
+html:is(.dark, :not(.dark)) body .nl-notif-list .notification-popover-item.is-unread {
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+html:is(.dark, :not(.dark)) body .nl-notif-list .notification-popover-item:hover,
+html:is(.dark, :not(.dark)) body .nl-notif-list .notification-popover-item:focus-visible {
+  background: var(--surface-raised);
+}
+
+/* Tone tile: tinted square with the tone's icon; the unread dot sits on its corner. */
+.nl-notif-icon {
+  --nl-notif-tone: var(--muted-strong);
+  position: relative;
+  display: grid;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--nl-notif-tone) 13%, var(--surface-raised));
+  color: var(--nl-notif-tone);
+}
+.nl-notif-icon svg { width: 17px; height: 17px; }
+.is-positive > .nl-notif-icon { --nl-notif-tone: var(--success, var(--accent)); }
+:is(.is-negative, .is-issue) > .nl-notif-icon { --nl-notif-tone: var(--danger); }
+.is-warning > .nl-notif-icon { --nl-notif-tone: var(--pending); }
+.nl-notif-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--accent);
+  box-sizing: content-box;
+}
+
+html:is(.dark, :not(.dark)) body .nl-notif-list .notification-popover-item-top {
+  align-items: baseline;
+  gap: 10px;
+}
+html:is(.dark, :not(.dark)) body .nl-notif-list .notification-popover-item .notification-popover-item-title {
+  white-space: normal;
+  color: var(--muted-strong);
+  font-size: 13.5px;
+  font-weight: 550;
+  line-height: 1.35;
+}
+html:is(.dark, :not(.dark)) body .nl-notif-list .notification-popover-item.is-unread .notification-popover-item-title {
+  color: var(--foreground);
+  font-weight: 650;
+}
+html:is(.dark, :not(.dark)) body .nl-notif-list .notification-popover-item-time {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+html:is(.dark, :not(.dark)) body .nl-notif-list .notification-popover-item .notification-popover-item-message {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+html:is(.dark, :not(.dark)) body .nl-notif-empty {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 36px 16px;
+}
+.nl-notif-empty p { margin: 0; color: var(--muted); font-size: 13px; }
+
+/* Phone sheet: the list fills the sheet body; rows get a little more air. */
+html:is(.dark, :not(.dark)) body .mobile-sheet-body > .notification-popover-list.nl-notif-list {
+  padding: 0 0 8px;
+}
+html:is(.dark, :not(.dark)) body .mobile-sheet .nl-notif-list .notification-popover-item {
+  padding: 12px 10px;
 }

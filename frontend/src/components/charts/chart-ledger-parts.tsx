@@ -6,7 +6,7 @@
  * Layout lives in night-ledger.css (`nl-chart-*`).
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { MoveVertical, Plus, X } from "lucide-react";
 import { NewsImpactSheet, type NewsImpactPosition } from "@/components/dashboard/news-impact-sheet";
 import { apiUrl } from "@/lib/api/url";
@@ -103,12 +103,14 @@ export function ChartHealthCard({
   currentPrice,
   pairLabel,
   levels = null,
+  tradeAction,
 }: {
   signal: ChartPositionCardSignal | null;
   currentPrice: number | null;
   pairLabel: string;
   /** Present when this trade's stop and target can be changed. */
   levels?: ChartHealthLevels | null;
+  tradeAction?: ReactNode;
 }) {
   const instrument = signal?.instrument ?? null;
   const [read, setRead] = useState<{ instrument: string; value: MonitorRead | null } | null>(null);
@@ -167,6 +169,7 @@ export function ChartHealthCard({
           <h2 id="nl-chealth-title">Trade health</h2>
         </div>
         <p className="nl-cside-empty">No open trade on {pairLabel}.</p>
+        {tradeAction}
       </section>
     );
   }

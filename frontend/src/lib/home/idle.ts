@@ -33,6 +33,8 @@ export type HomeActivityItem = {
   kind: HomeActivityKind;
   resultR: number | null;
   paperPl: number | null;
+  /** When the trade opened; `at` is when it closed. */
+  openedAt: string | null;
   at: string;
 };
 
@@ -92,43 +94,33 @@ export function upcomingFromStrategies(
   return items.slice(0, 5);
 }
 
-function activityKind(outcome: string | null | undefined, result: JournalTrade["result"]): HomeActivityKind {
-  switch (outcome) {
-    case "target_first":
-      return "tp";
-    case "stop_first":
-      return "sl";
-    case "forced_close":
-    case "ambiguous":
-      return "exit";
-    default:
-      break;
-  }
-  switch (result) {
-    case "win":
-      return "tp";
-    case "loss":
-      return "sl";
-    case "breakeven":
-    case "open":
-      return "other";
-    default: {
-      const _never: never = result;
-      return _never;
-    }
-  }
+/**
+ * How a closed trade ended, read from where it exited rather than from its
+ * stored outcome or result: a winner closed by hand is not a take profit.
+ * A level counts as hit when the exit is at it or beyond it (slippage),
+ * within half a pip. A target equal to the entry means none was set.
+ */
+function activityKind(trade: JournalTrade): HomeActivityKind {
+  const { exit, entry, stop, target, direction } = trade;
+  if (exit === null || !Number.isFinite(exit)) return "other";
+  const tolerance = (trade.pair.includes("JPY") ? 0.01 : 0.0001) / 2;
+  const side = direction === "long" ? 1 : -1;
+  const hasTarget = Number.isFinite(target) && Math.abs(target - entry) > tolerance;
+  const hasStop = Number.isFinite(stop) && Math.abs(stop - entry) > tolerance;
+  if (hasTarget && side * (exit - target) >= -tolerance) return "tp";
+  if (hasStop && side * (stop - exit) >= -tolerance) return "sl";
+  return "exit";
 }
 
-function activityLabel(outcome: string | null | undefined, kind: HomeActivityKind) {
-  if (outcome === "target_first") return "TARGET FIRST";
-  if (outcome === "stop_first") return "STOP FIRST";
-  if (outcome === "forced_close") return "FORCED CLOSED";
+function activityLabel(trade: JournalTrade, kind: HomeActivityKind) {
   switch (kind) {
     case "tp":
-      return "TARGET FIRST";
+      return "TAKE PROFIT";
     case "sl":
-      return "STOP FIRST";
+      return "STOPPED OUT";
     case "exit":
+      if (trade.origin === "manual") return "CLOSED MANUALLY";
+      return trade.outcome === "forced_close" ? "FORCED CLOSE" : "CLOSED";
     case "other":
       return "CLOSED";
     default: {
@@ -155,19 +147,21 @@ export function recentActivityFromTrades(trades: JournalTrade[], limit = 10): Ho
           kind: "other",
           resultR: null,
           paperPl: null,
+          openedAt: trade.openedAt ?? null,
           at: trade.closedAt ?? trade.openedAt,
         };
       }
-      const kind = activityKind(trade.outcome, trade.result);
+      const kind = activityKind(trade);
       return {
         id: trade.id,
         pair: trade.pair,
         instrument: trade.instrument ?? null,
         chartTradeId: trade.chartTradeId ?? null,
-        label: activityLabel(trade.outcome, kind),
+        label: activityLabel(trade, kind),
         kind,
         resultR: trade.resultR,
         paperPl: trade.paperPl ?? null,
+        openedAt: trade.openedAt ?? null,
         at: trade.closedAt ?? trade.openedAt,
       };
     });

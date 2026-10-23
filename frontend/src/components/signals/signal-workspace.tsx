@@ -1,6 +1,6 @@
 "use client";
 
-import { dailyPriceChange, dailyChangeLabel } from "@/lib/oanda/price-change";
+import { dailyPriceChange, dailyChangeLabel, dailyChangePercentLabel } from "@/lib/oanda/price-change";
 import { candleEnd, candleHealth } from "@/lib/strategy/candle-clock";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
@@ -49,7 +49,8 @@ import {
 } from "@/components/charts/setup-chart";
 import { PendingEntryDialog } from "@/components/charts/pending-entry-dialog";
 import { newsZoneOverlay, newsStateOf, type NewsDraft } from "@/lib/news/news-zone-overlay";
-import { TrendLabel } from "@/components/charts/trend-label";
+import { TrendLabel, usePairTrendList } from "@/components/charts/trend-label";
+import { weeklySwingStatus } from "@/lib/swing-trend-status";
 import { SwingIntelligenceCard } from "@/components/analysis/swing-intelligence-card";
 import type { SwingZone } from "@/lib/swing-intelligence";
 import { ChartHealthCard, ChartLevelEditor, ChartNewsCard, ChartPendingLevelsCard, ChartOhlcReadout, type ChartHealthLevels, type ChartPositionCardSignal } from "@/components/charts/chart-ledger-parts";
@@ -61,9 +62,10 @@ import { PlanAnalyzeCard, PlanAnalyzeSheet, usePlanAnalyze } from "@/components/
 import { TradeConfirmDialog } from "@/components/signals/trade-confirm-dialog";
 import type { ChartOverlayPreferences } from "@/components/charts/chart-context-panel";
 import { PairAvatar } from "@/components/ui/pair-avatar";
+import { PriceDigits } from "@/components/ui/price-digits";
 import { MobileSheet } from "@/components/ui/mobile-sheet";
 import { apiUrl } from "@/lib/api/url";
-import { PairStrengthTag, usePairStrength } from "@/components/signals/pair-strength-tag";
+import { usePairStrength } from "@/components/signals/pair-strength-tag";
 import { formatClockTime, formatDayAndTime } from "@/lib/format/datetime";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import {
@@ -71,6 +73,7 @@ import {
   CHART_RANGES,
   CHART_TIMEFRAME_LABELS,
   CHART_TIMEFRAMES,
+  MOBILE_CHART_TIMEFRAMES,
   CHART_VARIANTS,
   DEFAULT_CHART_INDICATORS,
   TIMEFRAME_TO_GRANULARITY,
@@ -163,7 +166,12 @@ const DEFAULT_RANGE_BY_TIMEFRAME: Record<ChartTimeframe, ChartRange> = {
   "15m": "1D",
   "1h": "1D",
   "4h": "1W",
+  "1d": "3M",
+  "1w": "1Y",
 };
+
+/** Daily and Weekly always open on their own range: 1D of daily candles is one bar. */
+const SWING_TIMEFRAMES: ReadonlySet<ChartTimeframe> = new Set(["1d", "1w"]);
 
 const CHART_PREFERENCES_STORAGE_KEY =
   "goldenxperience:signals-chart-preferences:v1";
@@ -171,8 +179,6 @@ const LAST_CHART_INSTRUMENT_COOKIE = "gx-last-chart-instrument";
 
 /* Keep the mobile picker scannable. The full OANDA catalog remains available
  * as soon as someone starts typing in search. */
-/** Pair picker order: tradable trends first (a pullback is the setup Analyze trades), flat pairs last. */
-const PICKER_GRADE_ORDER = { pullback: 0, strong: 1, turning: 2, weak: 3, range: 4 } as const;
 const DEFAULT_PAIR_PICKER_INSTRUMENTS = [
   "EUR_USD",
   "USD_JPY",
@@ -268,7 +274,15 @@ const GRANULARITY_MS: Record<string, number> = {
   H1: 60 * 60 * 1000,
   H4: 4 * 60 * 60 * 1000,
   D: 24 * 60 * 60 * 1000,
+  W: 7 * 24 * 60 * 60 * 1000,
 };
+
+/**
+ * OANDA opens Daily and Weekly candles at 5 PM New York, not at UTC midnight,
+ * so live ticks are bucketed from the last loaded candle's own start instead
+ * of the Unix epoch. A Sunday-open tick lands two days after Friday's candle.
+ */
+const SESSION_ALIGNED_GRANULARITIES = new Set(["D", "W"]);
 
 function precisionForInstrument(instrument: MajorInstrument) {
   return precisionFor(instrument);
@@ -956,10 +970,21 @@ function applyTickToCandles(
   const interval = GRANULARITY_MS[series.granularity] ?? GRANULARITY_MS.M15;
   const precision = precisionForInstrument(tick.instrument);
   const close = Number(tick.mid.toFixed(precision));
-  const tickBucket = alignTimeToGranularity(tick.time, series.granularity);
   const candles = [...series.candles];
   const last = candles[candles.length - 1]!;
-  const lastBucket = alignTimeToGranularity(last.time, series.granularity);
+  let tickBucket: number;
+  let lastBucket: number;
+  if (SESSION_ALIGNED_GRANULARITIES.has(series.granularity)) {
+    lastBucket = Date.parse(last.time);
+    const tickMs = Date.parse(tick.time);
+    if (!Number.isFinite(lastBucket) || !Number.isFinite(tickMs)) {
+      return { series, liveCandle: null, appended: false, changed: false };
+    }
+    tickBucket = lastBucket + Math.floor((tickMs - lastBucket) / interval) * interval;
+  } else {
+    tickBucket = alignTimeToGranularity(tick.time, series.granularity);
+    lastBucket = alignTimeToGranularity(last.time, series.granularity);
+  }
 
   if (tickBucket < lastBucket) {
     return { series, liveCandle: null, appended: false, changed: false };
@@ -1311,31 +1336,34 @@ function SignalSearch({
   showPairAvatar?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const pairStrength = usePairStrength(open);
   const rootRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const isDesktop = useDesktopChartViewport();
   const normalizedQuery = normalizeSearchValue(query);
   const index = useMemo(() => buildSearchIndex(signals), [signals]);
-  const matches = useMemo(() => {
-    if (!normalizedQuery) {
-      const byInstrument = new Map(index.map((result) => [result.instrument, result]));
-      // Tradable pairs on top, cleaner trends first within a grade; a pair
-      // without a strength read yet keeps its usual place after them.
-      const rank = (instrument: string) => {
-        const strength = pairStrength.get(instrument);
-        return strength ? PICKER_GRADE_ORDER[strength.trend.grade] : 9;
-      };
-      return DEFAULT_PAIR_PICKER_INSTRUMENTS.flatMap((instrument) => {
-        const result = byInstrument.get(instrument);
+  const candidates = useMemo(() => normalizedQuery
+    ? index.filter((item) => item.searchText.includes(normalizedQuery))
+    : DEFAULT_PAIR_PICKER_INSTRUMENTS.flatMap((instrument) => {
+        const result = index.find((item) => item.instrument === instrument);
         return result ? [result] : [];
-      }).sort((left, right) => rank(left.instrument) - rank(right.instrument)
-        || (pairStrength.get(right.instrument)?.trend.score ?? 0) - (pairStrength.get(left.instrument)?.trend.score ?? 0));
+      }), [index, normalizedQuery]);
+  const pairTrends = usePairTrendList(candidates.map((item) => item.instrument), true);
+  const structureReady = candidates.every((item) => pairTrends.has(item.instrument));
+  const structureFor = (instrument: string) => {
+    const trend = pairTrends.get(instrument);
+    return weeklySwingStatus(trend?.w1?.direction ?? null, trend?.d1?.direction ?? null);
+  };
+  const matches = useMemo(() => {
+    const rank = (instrument: string) => {
+      const trend = pairTrends.get(instrument);
+      return weeklySwingStatus(trend?.w1?.direction ?? null, trend?.d1?.direction ?? null).rank;
+    };
+    if (!normalizedQuery) {
+      return [...candidates].sort((left, right) => rank(left.instrument) - rank(right.instrument));
     }
 
-    return index
-      .filter((item) => item.searchText.includes(normalizedQuery))
+    return [...candidates]
       .sort((left, right) => {
         // Prefix matches on the symbol itself beat mid-string hits.
         const leftRank = normalizeSearchValue(left.instrument).startsWith(
@@ -1349,9 +1377,9 @@ function SignalSearch({
           ? 0
           : 1;
         if (leftRank !== rightRank) return leftRank - rightRank;
-        return Number(!!right.signal) - Number(!!left.signal);
+        return rank(left.instrument) - rank(right.instrument);
       });
-  }, [index, normalizedQuery, pairStrength]);
+  }, [candidates, normalizedQuery, pairTrends]);
   const visibleMatches = compact ? matches : matches.slice(0, 5);
   const showResults = open;
   const useDesktopDropdown = compact && isDesktop && !modal;
@@ -1472,13 +1500,16 @@ function SignalSearch({
         </div>
         <div className={useDesktopDropdown ? "signals-pair-dropdown-results" : "mt-2"}>
           {matches.length ? (
-            visibleMatches.map((result) => {
+            visibleMatches.map((result, rowIndex) => {
               const active = result.instrument === activeInstrument;
               const isTrading = tradingInstruments.has(result.instrument);
+              const structure = structureFor(result.instrument);
+              const showGroup = !normalizedQuery && structureReady && (rowIndex === 0 || structure.group !== structureFor(visibleMatches[rowIndex - 1]!.instrument).group);
 
               return (
+                <div key={result.instrument}>
+                  {showGroup ? <p className="px-2 pb-1 pt-3 text-xs font-medium text-[color:var(--muted)]">{structure.group}</p> : null}
                 <button
-                  key={result.instrument}
                   type="button"
                   onPointerDown={(event) => {
                     if (useDesktopDropdown || !event.isPrimary || event.button !== 0) return;
@@ -1503,7 +1534,7 @@ function SignalSearch({
                     <span className="block truncate text-sm font-medium tracking-[-0.02em]">
                       {result.displayName}
                     </span>
-                    <TrendLabel instrument={result.instrument} className="nl-trend-compact" plainLanguage />
+                    <TrendLabel instrument={result.instrument} className="nl-trend-compact" plainLanguage snapshot={pairTrends.get(result.instrument) ?? null} />
                   </span>
                   {isTrading ? (
                     <span className="signals-search-trading-badge">Trading</span>
@@ -1514,6 +1545,7 @@ function SignalSearch({
                     </span>
                   ) : null}
                 </button>
+                </div>
               );
             })
           ) : (
@@ -1670,7 +1702,6 @@ function SignalSearch({
                     visibleMatches.map((result) => {
                       const active = result.instrument === activeInstrument;
                       const isTrading = tradingInstruments.has(result.instrument);
-                      const strength = pairStrength.get(result.instrument);
 
                       return (
                         <button
@@ -1689,9 +1720,7 @@ function SignalSearch({
                             <span className="block truncate text-sm font-semibold tracking-[-0.02em]">
                               {result.displayName}
                             </span>
-                            {strength ? (
-                              <PairStrengthTag strength={strength} />
-                            ) : null}
+                            <TrendLabel instrument={result.instrument} className="nl-trend-compact" plainLanguage snapshot={pairTrends.get(result.instrument) ?? null} />
                           </span>
                           {isTrading ? (
                             <span className="signals-search-trading-badge">Trading</span>
@@ -4442,7 +4471,7 @@ export function SignalWorkspace({
     if (nextTimeframe === timeframe) return;
     setLiveCandle(null);
     setScrollToLatestRevision((revision) => revision + 1);
-    if (!hasExplicitRangeSelectionRef.current) {
+    if (!hasExplicitRangeSelectionRef.current || SWING_TIMEFRAMES.has(nextTimeframe)) {
       setRange(DEFAULT_RANGE_BY_TIMEFRAME[nextTimeframe]);
     }
     setTimeframe(nextTimeframe);
@@ -4497,6 +4526,7 @@ export function SignalWorkspace({
       changePercent,
       positive: changePercent >= 0,
       changeLabel: dailyChangeLabel(percent),
+      changePercentLabel: dailyChangePercentLabel(percent),
     };
   }, [active?.entry, dailyBaseline, instrument, liveCandle?.close, quote, series.candles, series.instrument, series.source]);
 
@@ -4578,7 +4608,7 @@ export function SignalWorkspace({
         if (!normalized || !CHART_TIMEFRAMES.includes(normalized)) return;
         setLiveCandle(null);
         setScrollToLatestRevision((revision) => revision + 1);
-        if (!hasExplicitRangeSelectionRef.current) {
+        if (!hasExplicitRangeSelectionRef.current || SWING_TIMEFRAMES.has(normalized)) {
           setRange(DEFAULT_RANGE_BY_TIMEFRAME[normalized]);
         }
         setTimeframe(normalized);
@@ -4851,36 +4881,37 @@ export function SignalWorkspace({
               </div>
             </div>
 
-            <div className="gx-mobile-quote-row nl-mquote">
+            {/* One line: price, daily change, trend, then the spread pips. */}
+            <div className="gx-mobile-quote-row nl-mquote nl-mquote-line">
               <div className="nl-mquote-main">
-                <span className="nl-mquote-price metric-number">
-                  {formatChartPrice(priceStats.displayPrice, instrument)}
-                </span>
+                <PriceDigits
+                  value={priceStats.displayPrice}
+                  instrument={instrument}
+                  className="nl-mquote-price metric-number"
+                />
                 <span className="nl-mquote-meta">
-                  <span className={`metric-number ${priceStats.positive ? "is-up" : "is-down"}`}>
-                    {priceStats.changeLabel}
+                  <span className={`metric-number ${priceStats.positive ? "is-up" : "is-down"}`} title="Change since the last daily close">
+                    {priceStats.changePercentLabel}
                   </span>
                 </span>
               </div>
+              <TrendLabel instrument={instrument} className="nl-mquote-trend" plainLanguage />
               {/* Phones show only the spread; sell / buy are in the trade ticket. */}
               <span
                 className={`nl-mquote-spread metric-number nl-spread is-${spreadTier}`}
                 title={quote?.instrument === instrument ? `Sell ${formatChartPrice(quote.bid, instrument)} · Buy ${formatChartPrice(quote.ask, instrument)}` : undefined}
+                aria-label={spreadPips !== null && Number.isFinite(spreadPips) ? `Spread ${spreadPips.toFixed(1)} pips` : "Spread unavailable"}
               >
                 {spreadPips !== null && Number.isFinite(spreadPips) ? `${spreadPips.toFixed(1)}p` : "—"}
-                <small>spread</small>
               </span>
-              <div className="nl-mquote-sub">
-                <span className="nl-mquote-session">{sessionLabel.replace(/ session$/, "")}</span>
-                <TrendLabel instrument={instrument} className="nl-mquote-trend" plainLanguage />
-              </div>
             </div>
             {/* Timeframes and everyday tools stay visible; More opens a sheet. */}
             <div className="gx-mobile-chart-controls">
               <div className="gx-mobile-timeframes">
                 <SegmentControl
                   ariaLabel="Chart timeframe"
-                  options={CHART_TIMEFRAMES}
+                  options={MOBILE_CHART_TIMEFRAMES}
+                  labels={CHART_TIMEFRAME_LABELS}
                   value={timeframe}
                   onChange={selectTimeframe}
                 />
@@ -5081,7 +5112,7 @@ export function SignalWorkspace({
                 </div>
                 <div className="nl-fact-trend">
                   <dt>Trend</dt>
-                  <dd><TrendLabel instrument={instrument} /></dd>
+                  <dd><TrendLabel instrument={instrument} className="nl-trend-compact" plainLanguage /></dd>
                 </div>
               </dl>
             </div>
@@ -5242,6 +5273,13 @@ export function SignalWorkspace({
                 currentPrice={quote?.mid ?? null}
                 pairLabel={activePair}
                 levels={healthLevels}
+                tradeAction={<button type="button" className="nl-cside-trade pressable"
+                  disabled={replayActive || !mobileTradeActionReady || hasActivePosition}
+                  title={replayActive ? "Exit chart replay before creating an entry" : !mobileTradeActionReady ? "Checking existing trades…" : "Open trade ticket"}
+                  onClick={() => {
+                    setEntryDraftProposal(null);
+                    openPendingEntryManager(null);
+                  }}>Trade</button>}
               />
               <ChartNewsCard
                 instrument={instrument}

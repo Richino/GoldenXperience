@@ -28,6 +28,7 @@
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",
+    "pair-trends:test": "tsx scripts/test-pair-trends-background.ts",
     "database-recovery:test": "tsx scripts/test-database-recovery.ts",
     "broker-history:test": "tsx scripts/test-broker-history-diagnostics.ts",
     "news-reminders:test": "tsx scripts/test-news-reminders.ts",

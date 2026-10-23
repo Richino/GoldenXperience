@@ -10,7 +10,7 @@ async function main() {
     setItem: (key: string, value: string) => { records.set(key, value); },
   };
   const snapshot = (): PairTrendsSnapshot => ({ checkedAt: new Date(now).toISOString(),
-    pairs: [{ instrument: "EUR_USD", h4: "UPTREND", d1: "UPTREND" }] });
+    pairs: [{ instrument: "EUR_USD", h4: "UPTREND", d1: "UPTREND", w1: "UPTREND" }] });
   const read = async () => { reads++; return snapshot(); };
   const options = { now: () => now, storage: () => storage };
   const cache = createPairTrendsCache(read, options);
@@ -26,7 +26,8 @@ async function main() {
 
   const key = [...records.keys()][0]!;
   for (const value of ["{broken", JSON.stringify({ checkedAt: new Date(now + 1).toISOString(), pairs: snapshot().pairs }),
-    JSON.stringify({ checkedAt: new Date(now).toISOString(), pairs: [{ instrument: "EUR_USD", h4: "invented", d1: "UPTREND" }] })]) {
+    JSON.stringify({ checkedAt: new Date(now).toISOString(), pairs: [{ instrument: "EUR_USD", h4: "invented", d1: "UPTREND", w1: "UPTREND" }] }),
+    JSON.stringify({ checkedAt: new Date(now).toISOString(), pairs: [{ instrument: "EUR_USD", h4: "UPTREND", d1: "UPTREND" }] })]) {
     records.set(key, value);
     const before = reads;
     await createPairTrendsCache(read, options).load();

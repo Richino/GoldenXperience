@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { AutoTradeSettingsCard } from "@/components/settings/auto-trade-settings";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { ChevronRight, LogOut, Play, Volume1, Volume2, VolumeX } from "lucide-react";
@@ -39,7 +38,6 @@ type PhonePicker = "theme" | "text" | "sound" | null;
 /** Section index on desktop, in page order. */
 const SECTIONS = [
   { id: "risk", label: "Risk" },
-  { id: "auto-trade", label: "Auto trade" },
   { id: "notifications", label: "Notifications" },
   { id: "appearance", label: "Appearance" },
   { id: "account", label: "Account" },
@@ -222,7 +220,6 @@ export function SettingsPanel({
 
         <div className="nl-st-content">
           <RiskWorkspace initialPolicy={initialPolicy} />
-          <AutoTradeSettingsCard />
 
           {/* ------------------------------------------------ desktop cards */}
           <section id="notifications" className="nl-st-card nl-st-desk" aria-labelledby="nl-st-notif-title">

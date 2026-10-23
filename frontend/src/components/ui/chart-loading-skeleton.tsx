@@ -5,10 +5,6 @@ function Plot() {
   return <div className="chart-route-skeleton" aria-hidden="true"><div className="chart-loading-skeleton" /></div>;
 }
 
-function Facts() {
-  return <dl className="nl-chart-facts">{Array.from({ length: 4 }, (_, i) => <div key={i}><dt><Block width={30} height={16} className="ml-auto" /></dt><dd><Block width={66} height={20} /></dd></div>)}</dl>;
-}
-
 export function ChartLoadingSkeleton() {
   return (
     <div className="signals-view signals-minimal signals-loading-skeleton grid w-full gap-5" aria-busy="true" aria-label="Loading chart">
@@ -40,7 +36,7 @@ export function ChartLoadingSkeleton() {
             <div className="gx-mobile-analyze-section"><Block height={46} radius={14} /></div>
           </div>
           <div className="hidden lg:flex signals-chart-desktop gx-chart-terminal nl-terminal">
-            <header className="nl-chart-head"><div className="nl-chart-head-main"><Block width={248} height={56} radius={18} /><div className="nl-chart-quote"><Block width={164} height={43} /><Block width={60} height={21} /></div><Facts /></div><Block width={48} height={48} radius={14} /></header>
+            <header className="nl-chart-head"><div className="nl-chart-head-main"><Block width={248} height={56} radius={18} /><div className="nl-chart-quote"><Block width={164} height={43} /><Block width={60} height={21} /><Block width={110} height={18} /><Block width={40} height={18} /></div></div><Block width={48} height={48} radius={14} /></header>
             <div className="nl-chart-body">
               <div className="nl-chart-main">
                 <div className="nl-chart-toolbar"><div className="flex gap-1">{Array.from({ length: 5 }, (_, i) => <Block key={i} width={46} height={36} />)}</div><Block width={74} height={44} /><Block width={44} height={44} /><span className="nl-toolbar-rule" /><Block width={92} height={44} /><Block width={116} height={44} /><div className="nl-toolbar-end">{Array.from({ length: 3 }, (_, i) => <Block key={i} width={44} height={44} />)}</div></div>

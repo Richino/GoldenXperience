@@ -8,8 +8,8 @@ import { MarketRowSkeleton } from "@/components/ui/ledger-loading-skeletons";
 import { useMarketObserver } from "@/components/analysis/market-observer-provider";
 import { SessionStrip } from "@/components/watchlist/session-strip";
 import { TrendLabel } from "@/components/charts/trend-label";
-import { useNyTradability } from "@/components/signals/tradability-tag";
-import { tradabilitySortKey } from "@/lib/strategy/ny-tradability";
+import { compareWeeklyTrends, type PairTrendsSnapshot } from "@/lib/home/weekly-trends";
+import { createPairTrendsCache, PAIR_TRENDS_TTL_MS } from "@/lib/home/pair-trends-cache";
 import { getMarketCondition } from "@/lib/strategy/session";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { apiUrl } from "@/lib/api/url";
@@ -57,6 +57,13 @@ const EMPTY_ROW: Omit<Row, "instrument"> = {
 };
 /** How many rows to reveal per infinite-scroll page. */
 const WATCHLIST_PAGE_SIZE = 20;
+const trendsCache = createPairTrendsCache(async () => {
+  const response = await fetch(apiUrl("/api/pair-trends"), {
+    credentials: "include", cache: "no-store", signal: AbortSignal.timeout(30_000),
+  });
+  if (!response.ok) throw new Error("Weekly trends unavailable");
+  return response.json() as Promise<PairTrendsSnapshot>;
+}, { storage: () => window.sessionStorage });
 const dailyCache = createWatchlistDailyCache(async (instrument) => {
   const readCandles = async (granularity: string, count: number) => {
     const response = await fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=${granularity}&count=${count}`), {
@@ -128,7 +135,44 @@ export function WatchlistView() {
   const [daily, setDaily] = useState<Record<string, WatchlistDay>>({});
   const [query, setQuery] = useState("");
   const [group, setGroup] = useState<PairGroup>("all");
-  const [sort, setSort] = useState<PairSort>("setups");
+  const [sort, setSort] = useState<PairSort>("weekly");
+  const [trends, setTrends] = useState<PairTrendsSnapshot | null>(null);
+  const [trendStatus, setTrendStatus] = useState("Checking weekly trends…");
+  useEffect(() => {
+    let cancelled = false;
+    let reading = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const read = async () => {
+      if (reading) return;
+      reading = true;
+      let delay = 60_000;
+      try {
+        const snapshot = await trendsCache.load();
+        if (cancelled) return;
+        if (snapshot.scanStatus === "warming") {
+          setTrendStatus("Checking weekly trends…");
+          delay = 3_000;
+        } else {
+          setTrends(snapshot);
+          setTrendStatus(snapshot.scanStatus === "unavailable" || !snapshot.pairs.length ? "Weekly trends unavailable."
+            : Date.now() - Date.parse(snapshot.checkedAt) > PAIR_TRENDS_TTL_MS * 2 ? "Weekly trends are out of date; retrying…"
+            : "");
+        }
+      } catch {
+        if (!cancelled) setTrendStatus("Couldn’t refresh weekly trends; retrying…");
+      } finally {
+        reading = false;
+        if (!cancelled) timer = setTimeout(read, delay);
+      }
+    };
+    const refreshVisible = () => {
+      if (document.visibilityState === "visible") { clearTimeout(timer); void read(); }
+    };
+    void read();
+    window.addEventListener("focus", refreshVisible);
+    document.addEventListener("visibilitychange", refreshVisible);
+    return () => { cancelled = true; clearTimeout(timer); window.removeEventListener("focus", refreshVisible); document.removeEventListener("visibilitychange", refreshVisible); };
+  }, []);
   const [loading, setLoading] = useState(true);
   const [marketOpen, setMarketOpen] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -212,39 +256,21 @@ export function WatchlistView() {
       || compact(row.instrument).includes(needle)
       || description(row.instrument).toLowerCase().includes(query.trim().toLowerCase()))
     .filter((row) => group === "all" || groupOf(row.instrument) === group);
-  // Valid setups first, then pairs the backend actually evaluates
-  // (the featured ones), then the rest of the catalog alphabetically.
-  const bySetups = (left: (typeof rows)[number], right: (typeof rows)[number]) =>
-    Number(right.setupStatus === "valid") -
-      Number(left.setupStatus === "valid") ||
-    Number(right.dataStatus !== "unavailable") -
-      Number(left.dataStatus !== "unavailable") ||
-    left.instrument.localeCompare(right.instrument);
+  const trendByInstrument = new Map(trends?.pairs.map(pair => [pair.instrument, pair]));
+  // Use the scanner's ranking; retain every other market below its candidates.
+  const byWeekly = (left: Row, right: Row) => {
+    const a = trendByInstrument.get(left.instrument), b = trendByInstrument.get(right.instrument);
+    return a && b ? compareWeeklyTrends(a, b) : Number(Boolean(b)) - Number(Boolean(a)) || left.instrument.localeCompare(right.instrument);
+  };
   const byChosenSort = (left: (typeof rows)[number], right: (typeof rows)[number]) =>
     sort === "name"
       ? left.instrument.localeCompare(right.instrument)
       : sort === "move"
         ? // Pairs without daily data yet sort last.
           changeOf(right.instrument) - changeOf(left.instrument) || left.instrument.localeCompare(right.instrument)
-        : bySetups(left, right);
+        : byWeekly(left, right);
   const [visibleCount, setVisibleCount] = useState(WATCHLIST_PAGE_SIZE);
-  // NY session tradability for the rows on screen, in batched requests. Sorting
-  // by it needs every filtered pair scored, so that sort asks for all of them.
-  const tradability = useNyTradability(
-    (sort === "tradability" ? filtered : [...filtered].sort(byChosenSort).slice(0, visibleCount)).map((row) => row.instrument),
-    !loading,
-  );
-  const matched = [...filtered].sort(
-    sort === "tradability"
-      ? (left, right) => {
-          // Scored pairs by score, then blocked, then unavailable; ties keep
-          // the default order.
-          const a = tradabilitySortKey(tradability.get(left.instrument));
-          const b = tradabilitySortKey(tradability.get(right.instrument));
-          return a.group - b.group || b.score - a.score || bySetups(left, right);
-        }
-      : byChosenSort,
-  );
+  const matched = [...filtered].sort(byChosenSort);
   const shown = matched.slice(0, visibleCount);
   const hasMore = matched.length > shown.length;
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -301,10 +327,9 @@ export function WatchlistView() {
     { id: "cross", label: "Other crosses" },
   ];
   const sorts: Array<{ id: PairSort; label: string }> = [
-    { id: "setups", label: "Setups first" },
+    { id: "weekly", label: "Weekly trends" },
     { id: "move", label: "Biggest move" },
     { id: "name", label: "A–Z" },
-    { id: "tradability", label: "Most tradable" },
   ];
 
   return (
@@ -368,7 +393,7 @@ export function WatchlistView() {
                 key={option.id}
                 type="button"
                 aria-pressed={sort === option.id}
-                className={`${sort === option.id ? "is-active" : ""}${option.id === "move" || option.id === "name" ? " nl-mk-sort-wide" : ""}`}
+                className={`${sort === option.id ? "is-active" : ""}${option.id === "name" ? " nl-mk-sort-wide" : ""}`}
                 onClick={() => { setSort(option.id); setVisibleCount(WATCHLIST_PAGE_SIZE); }}
               >
                 {option.label}
@@ -386,6 +411,7 @@ export function WatchlistView() {
           </label>
         </div>
 
+        {sort === "weekly" && trendStatus ? <p className="nl-mk-muted" role="status">{trendStatus}</p> : null}
         {loading ? (
           <WatchlistPairsSkeleton />
         ) : (
@@ -477,7 +503,7 @@ export function WatchlistView() {
 /* ------------------------------------------------------------- night ledger */
 
 type PairGroup = "all" | "major" | "yen" | "cross";
-type PairSort = "setups" | "move" | "name" | "tradability";
+type PairSort = "weekly" | "move" | "name";
 
 const MAJOR_CURRENCIES = new Set(["EUR", "GBP", "AUD", "NZD", "CAD", "CHF", "JPY"]);
 

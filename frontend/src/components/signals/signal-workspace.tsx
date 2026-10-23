@@ -1955,7 +1955,7 @@ function ChartFullscreenView({
 
       <div className="gx-fs-dock" role="toolbar" aria-label="Chart controls" aria-hidden={!showHud}>
         <div className="gx-fs-tfs" role="group" aria-label="Timeframe">
-          {CHART_TIMEFRAMES.map((value) => (
+          {MOBILE_CHART_TIMEFRAMES.map((value) => (
             <button
               key={value}
               type="button"
@@ -5082,39 +5082,27 @@ export function SignalWorkspace({
                   className="gx-pair-search"
                 />
               </div>
+              {/* One quiet line, as the phone: price, change, trend, spread.
+                  Sell / buy live in the spread's tooltip and the trade ticket. */}
               <div className="nl-chart-quote">
-                <span className="nl-chart-price metric-number">
-                  {formatChartPrice(priceStats.displayPrice, instrument)}
+                <PriceDigits
+                  value={priceStats.displayPrice}
+                  instrument={instrument}
+                  className="nl-chart-price metric-number"
+                />
+                <span className={`nl-chart-change metric-number ${priceStats.positive ? "is-up" : "is-down"}`} title="Change since the last daily close">
+                  {priceStats.changePercentLabel}
                 </span>
-                <span className={`nl-chart-change metric-number ${priceStats.positive ? "is-up" : "is-down"}`}>
-                  {priceStats.changeLabel}
+                <TrendLabel instrument={instrument} className="nl-chart-trend" plainLanguage />
+                <span
+                  className={`nl-chart-spread metric-number nl-spread is-${spreadTier}`}
+                  title={quote?.instrument === instrument ? `Sell ${formatChartPrice(quote.bid, instrument)} · Buy ${formatChartPrice(quote.ask, instrument)}` : undefined}
+                  aria-label={spreadPips !== null && Number.isFinite(spreadPips) ? `Spread ${spreadPips.toFixed(1)} pips` : "Spread unavailable"}
+                >
+                  <small>Spread</small>
+                  {spreadPips !== null && Number.isFinite(spreadPips) ? `${spreadPips.toFixed(1)}p` : "—"}
                 </span>
               </div>
-              <dl className="nl-chart-facts">
-                <div>
-                  <dt>Sell</dt>
-                  <dd className="metric-number">{quote?.instrument === instrument ? formatChartPrice(quote.bid, instrument) : "—"}</dd>
-                </div>
-                <div>
-                  <dt>Buy</dt>
-                  <dd className="metric-number">{quote?.instrument === instrument ? formatChartPrice(quote.ask, instrument) : "—"}</dd>
-                </div>
-                <div>
-                  <dt>Spread</dt>
-                  <dd className="metric-number">
-                    <span className={`nl-spread-dot is-${spreadTier}`} aria-hidden="true" />
-                    {spreadPips !== null && Number.isFinite(spreadPips) ? `${spreadPips.toFixed(1)} pips` : "—"}
-                  </dd>
-                </div>
-                <div className="nl-fact-session">
-                  <dt>Session</dt>
-                  <dd>{sessionLabel}</dd>
-                </div>
-                <div className="nl-fact-trend">
-                  <dt>Trend</dt>
-                  <dd><TrendLabel instrument={instrument} className="nl-trend-compact" plainLanguage /></dd>
-                </div>
-              </dl>
             </div>
             <div className="nl-chart-head-actions">
               {!replayActive && manualTradeMode === "close" ? (
@@ -5126,7 +5114,7 @@ export function SignalWorkspace({
                 <button type="button" className="signals-analyze-desktop is-cancel nl-trade-action" disabled title="The order is being confirmed with OANDA and can't be cancelled">
                   Sending to OANDA…
                 </button>
-              ) : !replayActive && manualTradeMode === "cancel" ? (
+              ) : !replayActive && manualTradeMode === "cancel" && !pendingLevelSignal ? (
                 <button type="button" className="signals-analyze-desktop pressable is-cancel nl-trade-action" onClick={() => setTradeConfirm("cancel")} disabled={tradeActionBusy}>
                   <X aria-hidden="true" />
                   {tradeActionBusy ? "Cancelling…" : "Cancel order"}
@@ -5146,7 +5134,7 @@ export function SignalWorkspace({
                 <SegmentControl
                   variant="tabs"
                   ariaLabel="Chart timeframe"
-                  options={CHART_TIMEFRAMES}
+                  options={MOBILE_CHART_TIMEFRAMES}
                   labels={CHART_TIMEFRAME_LABELS}
                   value={timeframe}
                   onChange={selectTimeframe}
@@ -5266,6 +5254,12 @@ export function SignalWorkspace({
                   signal={pendingLevelSignal}
                   orderLabel={levelTrade.entryOrderType.replace("_", " ")}
                   levels={healthLevels}
+                  cancelAction={!replayActive && !newsOrderInFlight && manualTradeMode === "cancel" ? (
+                    <button type="button" className="nl-clevels-start is-cancel pressable" onClick={() => setTradeConfirm("cancel")} disabled={tradeActionBusy}>
+                      <X aria-hidden="true" />
+                      {tradeActionBusy ? "Cancelling…" : "Cancel order"}
+                    </button>
+                  ) : null}
                 />
               ) : null}
               <ChartHealthCard

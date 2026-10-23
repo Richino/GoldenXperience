@@ -16,9 +16,16 @@ export function weeklyTiming(pair: PairTrendRow) {
 }
 
 /** Weekly + Daily alignment is required; H4 confirms timing, never supplies the weekly bias. */
+export function compareWeeklyTrends(a: PairTrendRow, b: PairTrendRow) {
+  const aRank = weeklySwingStatus(a.w1 ?? null, a.d1 ?? null).rank;
+  const bRank = weeklySwingStatus(b.w1 ?? null, b.d1 ?? null).rank;
+  return aRank - bRank
+    || (aRank === 0 ? weeklyTiming(a).rank - weeklyTiming(b).rank
+      || Number(featured.has(b.instrument)) - Number(featured.has(a.instrument)) : 0)
+    || a.instrument.localeCompare(b.instrument);
+}
+
 export function rankWeeklyTrends(pairs: readonly PairTrendRow[]) {
   return pairs.filter(pair => weeklySwingStatus(pair.w1 ?? null, pair.d1 ?? null).rank === 0)
-    .sort((a, b) => weeklyTiming(a).rank - weeklyTiming(b).rank
-      || Number(featured.has(b.instrument)) - Number(featured.has(a.instrument))
-      || a.instrument.localeCompare(b.instrument));
+    .sort(compareWeeklyTrends);
 }

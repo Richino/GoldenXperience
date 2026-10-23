@@ -61,7 +61,11 @@ export async function sendPushNotification(event: QueueNotification) {
       await webpush.sendNotification({ endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } }, payload, ttl === undefined ? undefined : { TTL: Math.min(ttl, 2_419_200) });
     } catch (error) {
       const statusCode = error && typeof error === "object" && "statusCode" in error ? Number(error.statusCode) : 0;
-      if (statusCode === 404 || statusCode === 410) await query("DELETE FROM push_subscriptions WHERE endpoint=$1", [subscription.endpoint]);
+      const body = error && typeof error === "object" && "body" in error ? String(error.body) : "";
+      // Apple answers 400 VapidPkHashMismatch when the device subscribed under an
+      // older VAPID key: it can never deliver again, so drop it like a 404/410.
+      // The app then shows push as off and resubscribes with the current key.
+      if (statusCode === 404 || statusCode === 410 || (statusCode === 400 && body.includes("VapidPkHashMismatch"))) await query("DELETE FROM push_subscriptions WHERE endpoint=$1", [subscription.endpoint]);
       else console.error("[push] delivery failed", error);
     }
   }));

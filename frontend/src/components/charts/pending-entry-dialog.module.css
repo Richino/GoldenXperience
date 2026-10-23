@@ -57,19 +57,35 @@
 
 .levelsCard {
   overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 16px;
+  border: 0;
+  border-radius: 0;
 }
 
 .levelsHeader {
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
+  padding: 0 0 10px;
+  border: 0;
 }
 
 .levelsHeader > span {
   color: var(--muted-strong);
   font-size: 12px;
   font-weight: 600;
+}
+
+.ticket .levelsHeader :global(.nl-an-modes) {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.ticket .levelsHeader :global(.nl-an-modes) button {
+  height: 32px;
+  padding-inline: 12px;
+}
+
+.ticket .levelsHeader :global(.nl-an-modes) button:global(.is-active) {
+  background: var(--surface-raised);
+  color: var(--foreground);
 }
 
 .ticket .levelsCard .levels {
@@ -170,20 +186,16 @@
   outline-offset: -2px;
 }
 
-/* Stop and target carry a quiet red / green tint so the three fields read
-   at a glance; focus brightens the field's own colour. */
-.ticket .levelsCard .levels input:global(.is-down) {
-  border-color: color-mix(in srgb, var(--danger) 30%, var(--border));
-  background: color-mix(in srgb, var(--danger) 6%, var(--surface-raised));
-}
-
+/* One neutral input treatment; colour is reserved for actionable warnings. */
+.ticket .levelsCard .levels input:global(.is-down),
 .ticket .levelsCard .levels input:global(.is-up) {
-  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
-  background: color-mix(in srgb, var(--accent) 6%, var(--surface-raised));
+  border-color: var(--border);
+  background: var(--surface-raised);
+  color: var(--foreground);
 }
 
 .ticket .levelsCard .levels input:global(.is-down):focus {
-  border-color: var(--danger);
+  border-color: var(--accent);
 }
 
 .ticket .summary {
@@ -227,14 +239,12 @@
     padding-block: 0;
   }
 
-  .levelsHeader {
-    padding: 6px 6px 6px 12px;
-  }
+  .levelsHeader { padding: 0 0 10px; }
 
   .ticket .levelsCard .levels {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
-    padding: 10px;
+    padding: 0;
   }
 
   .ticket .levelsCard .levels label {
@@ -255,20 +265,6 @@
     gap: 6px;
     color: var(--muted-strong);
     font-size: 12px;
-  }
-
-  /* A colour dot marks stop and target before a value is typed. */
-  .ticket .levelsCard .levels label:has(> input:global(.is-down)) > span:first-child::before,
-  .ticket .levelsCard .levels label:has(> input:global(.is-up)) > span:first-child::before {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--danger);
-    content: "";
-  }
-
-  .ticket .levelsCard .levels label:has(> input:global(.is-up)) > span:first-child::before {
-    background: var(--accent);
   }
 
   .ticket .levelsCard .levels input {
@@ -302,46 +298,26 @@
     font-size: 12.5px;
   }
 
-  /* Summary: a card like the levels box. Size across the top, then R:R and
-     Spread side by side with small labels over their values; any extra row
-     (Expires) spans the card again. */
+  /* One quiet summary, with no nested cards or coloured badges. */
   .ticket .summary {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0;
-    overflow: hidden;
-    border: 1px solid var(--border);
-    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 12px;
+    border: 0;
+    border-top: 1px solid var(--border);
+    border-radius: 0;
   }
 
   .ticket .summary > div {
     display: flex;
     min-width: 0;
-    flex-direction: column;
-    justify-content: flex-start;
-    gap: 3px;
-    padding: 9px 12px;
-  }
-
-  .ticket .summary > div:first-child,
-  .ticket .summary > div:nth-child(n + 4) {
-    grid-column: 1 / -1;
     flex-direction: row;
     align-items: baseline;
     justify-content: space-between;
     gap: 12px;
-  }
-
-  .ticket .summary > div:first-child {
-    border-bottom: 1px solid var(--border);
-  }
-
-  .ticket .summary > div:nth-child(3) {
-    border-left: 1px solid var(--border);
-  }
-
-  .ticket .summary > div:nth-child(n + 4) {
-    border-top: 1px solid var(--border);
+    padding: 0;
+    border: 0;
   }
 
   .ticket .summary dt {
@@ -349,21 +325,17 @@
   }
 
   .ticket .summary dd {
-    max-width: none;
-    text-align: left;
-  }
-
-  .ticket .summary > div:first-child dd,
-  .ticket .summary > div:nth-child(n + 4) dd {
+    max-width: 70%;
     text-align: right;
   }
 
-  /* A wide spread reads as an amber pill. */
+  .ticket .summary dd:global(.is-up) { color: var(--foreground); }
+
+  /* Keep the wide-spread warning visible, with a plain text treatment. */
   .ticket .summary dd:global(.is-caution) {
-    align-self: flex-start;
-    padding: 2px 8px;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--pending) 14%, transparent);
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
     font-size: 12px;
   }
 }

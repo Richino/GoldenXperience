@@ -253,10 +253,12 @@ export function ChartPendingLevelsCard({
   signal,
   orderLabel,
   levels,
+  cancelAction,
 }: {
   signal: ChartPositionCardSignal;
   orderLabel: string;
   levels: ChartHealthLevels;
+  cancelAction?: ReactNode;
 }) {
   const level = (price: number | null) => (price === null ? "None" : formatChartPrice(price, signal.instrument));
   return (
@@ -287,6 +289,7 @@ export function ChartPendingLevelsCard({
           {signal.stop === null && signal.target === null ? "Set stop & target" : "Move stop & target"}
         </button>
       )}
+      {cancelAction}
     </section>
   );
 }

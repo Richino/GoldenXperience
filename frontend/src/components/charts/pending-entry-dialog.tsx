@@ -92,44 +92,57 @@ export function PendingEntryDialog({
   });
   // iOS keeps the layout viewport at full height when the keyboard opens, so
   // this bottom-anchored drawer stayed under the keyboard while typing a price.
-  // Lift it to the visible bottom and keep the focused field in view.
+  // Fit the existing drawer above it; do not expand it or chase the focused
+  // field on every frame of Safari's keyboard animation.
   useEffect(() => {
     if (!open || isPanel) return;
     const viewport = window.visualViewport;
     const backdrop = document.querySelector<HTMLElement>(".pending-entry-backdrop");
     if (!viewport || !backdrop) return;
+    const sheet = backdrop.querySelector<HTMLElement>(".pending-entry-dialog");
+    if (!sheet) return;
+    let restingHeight = sheet.getBoundingClientRect().height;
+    let frame = 0;
+    let settleTimer = 0;
+    const revealField = () => {
+      const field = document.activeElement;
+      if (backdrop.dataset.keyboardOpen !== "true" || !(field instanceof HTMLInputElement) || !sheet.contains(field)) return;
+      const scroller = field.closest<HTMLElement>(".nl-pe-plan, .pending-entry-form, .pending-entry-detail") ?? sheet;
+      const box = field.getBoundingClientRect();
+      const bounds = scroller.getBoundingClientRect();
+      const visibleBottom = Math.min(bounds.bottom, viewport.offsetTop + viewport.height) - 16;
+      const visibleTop = Math.max(bounds.top, viewport.offsetTop) + 16;
+      if (box.bottom > visibleBottom) scroller.scrollTop += box.bottom - visibleBottom;
+      else if (box.top < visibleTop) scroller.scrollTop -= visibleTop - box.top;
+    };
     const sync = () => {
       const layoutHeight = Math.max(window.innerHeight, document.documentElement.clientHeight);
       const offset = Math.max(0, layoutHeight - viewport.height - viewport.offsetTop);
       const keyboardOpen = viewport.height < layoutHeight - 120;
+      if (!keyboardOpen && backdrop.dataset.keyboardOpen !== "true") restingHeight = sheet.getBoundingClientRect().height;
+      backdrop.style.setProperty("--pe-resting-height", `${Math.round(restingHeight)}px`);
       backdrop.style.setProperty("--pe-keyboard-offset", `${Math.round(offset)}px`);
       backdrop.style.setProperty("--pe-visible-height", `${Math.round(viewport.height)}px`);
       backdrop.dataset.keyboardOpen = keyboardOpen ? "true" : "false";
-      // The sheet extends behind the keyboard (like pair search), so "visible"
-      // means above the keyboard: scroll the sheet until the field clears it.
-      const field = document.activeElement;
-      const sheet = backdrop.querySelector<HTMLElement>(".pending-entry-dialog");
-      if (keyboardOpen && sheet && field instanceof HTMLInputElement && sheet.contains(field)) {
-        const scroller = field.closest<HTMLElement>(".nl-pe-plan, .pending-entry-form, .pending-entry-detail") ?? sheet;
-        const box = field.getBoundingClientRect();
-        const visibleBottom = viewport.offsetTop + viewport.height - 16;
-        const visibleTop = sheet.getBoundingClientRect().top + 16;
-        if (box.bottom > visibleBottom) scroller.scrollTop += box.bottom - visibleBottom;
-        else if (box.top < visibleTop) scroller.scrollTop -= visibleTop - box.top;
-      }
+      window.clearTimeout(settleTimer);
+      if (keyboardOpen) settleTimer = window.setTimeout(revealField, 150);
     };
-    const onFocus = (event: FocusEvent) => {
-      // The keyboard animates in after focus; re-check once it has settled.
-      if (event.target instanceof HTMLInputElement) window.setTimeout(sync, 350);
+    const scheduleSync = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(sync);
     };
     sync();
-    viewport.addEventListener("resize", sync);
-    viewport.addEventListener("scroll", sync);
-    backdrop.addEventListener("focusin", onFocus);
+    viewport.addEventListener("resize", scheduleSync);
+    viewport.addEventListener("scroll", scheduleSync);
+    backdrop.addEventListener("focusin", scheduleSync);
     return () => {
-      viewport.removeEventListener("resize", sync);
-      viewport.removeEventListener("scroll", sync);
-      backdrop.removeEventListener("focusin", onFocus);
+      viewport.removeEventListener("resize", scheduleSync);
+      viewport.removeEventListener("scroll", scheduleSync);
+      backdrop.removeEventListener("focusin", scheduleSync);
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(settleTimer);
+      for (const name of ["--pe-resting-height", "--pe-keyboard-offset", "--pe-visible-height"]) backdrop.style.removeProperty(name);
+      delete backdrop.dataset.keyboardOpen;
     };
   }, [isPanel, open]);
   const [editing, setEditing] = useState(false);
@@ -358,17 +371,6 @@ export function PendingEntryDialog({
       ? `${(Math.abs(to - from) / pipSizeFor(instrument)).toFixed(1)} pips`
       : "—";
 
-  function resetDialogDocumentScroll() {
-    if (isPanel) return;
-    window.scrollTo(0, 0);
-    document.documentElement.scrollTop = 0;
-    // iOS performs its reveal scroll after focus dispatches.
-    window.requestAnimationFrame(() => {
-      window.scrollTo(0, 0);
-      document.documentElement.scrollTop = 0;
-    });
-  }
-
   function resetCreateForm() {
     const nextDirection = initialProposal?.direction ?? null;
     setEditing(false);
@@ -536,7 +538,6 @@ export function PendingEntryDialog({
       aria-modal={isPanel ? undefined : true}
       aria-labelledby={isPanel && !selectedEntry ? undefined : "pending-entry-title"}
       aria-label={isPanel && !selectedEntry ? "Add entry" : undefined}
-      onFocusCapture={resetDialogDocumentScroll}
       ref={setSheet}
       {...dragHandlers}
     >
@@ -747,7 +748,7 @@ export function PendingEntryDialog({
 
             <div className={styles.levelsCard}>
             <div className={`nl-pe-submit ${styles.levelsHeader}`}>
-              <span>Trade levels</span>
+              <span>Levels</span>
               <div className="nl-an-modes" role="radiogroup" aria-label="Entry, stop and target units">
                 {(["pips", "price"] as const).map((unit) => (
                   <button
@@ -862,7 +863,7 @@ export function PendingEntryDialog({
                 <small className="nl-pe-hint">
                   {parsedTarget === null || !Number.isFinite(parsedTarget)
                     ? direction === "short" ? "Below entry" : direction === "long" ? "Above entry" : ""
-                    : `${levelUnit === "pips" ? `at ${parsedTarget.toFixed(precision)}` : pipsBetween(parsedEntry, parsedTarget)}${planRatio === null ? "" : ` · 1:${Number(planRatio.toFixed(1))}`}`}
+                    : levelUnit === "pips" ? `at ${parsedTarget.toFixed(precision)}` : pipsBetween(parsedEntry, parsedTarget)}
                 </small>
               </label>
             </div>
@@ -873,7 +874,7 @@ export function PendingEntryDialog({
                 <dt>Size</dt>
                 <dd className="metric-number">
                   {parsedStop === null
-                    ? "From hourly range (no stop)"
+                    ? "Hourly range · no stop"
                     : currentSize
                       ? `${currentSize.lots.toFixed(2)} lots · risks $${currentSize.riskAmount.toFixed(0)} (${currentSize.riskPercent}%)`
                       : sizeKey ? "Sizing…" : "—"}

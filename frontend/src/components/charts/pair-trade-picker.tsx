@@ -87,7 +87,12 @@ export function PairTradePicker({ trades, selectedId, instrument, onSelect, now 
         <span className="gx-pair-trade-trigger-text">
           {selected ? (
             <>
-              <b className={isNews(selected) && selected.status === "PENDING" ? undefined : selected.direction === "long" ? "is-long" : "is-short"}>{tradeTitle(selected, selectedIndex)}</b>
+              <b className={isNews(selected) && selected.status === "PENDING" ? undefined : selected.direction === "long" ? "is-long" : "is-short"}>{(() => {
+                // The lead ("Trade 1 · ") is its own span so a tight toolbar can drop it and keep the side.
+                const title = tradeTitle(selected, selectedIndex);
+                const cut = title.lastIndexOf(" · ");
+                return cut < 0 ? title : <><span className="gx-pair-trade-lead">{title.slice(0, cut + 3)}</span>{title.slice(cut + 3)}</>;
+              })()}</b>
               <span>{newsStage(selected, now) ?? `${selected.status === "TRIGGERED" ? "Open" : "Pending"} · ${price(selected.status === "TRIGGERED" ? selected.triggerPrice : selected.entryPrice)}`}</span>
             </>
           ) : (

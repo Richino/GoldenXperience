@@ -40,6 +40,39 @@ export function applicationServerKeyFrom(publicKey: string) {
   return bytes;
 }
 
+/** False when the subscription was made under a different VAPID key (Apple then rejects every push). */
+function subscribedWithKey(subscription: PushSubscription, publicKey: string) {
+  const current = subscription.options?.applicationServerKey;
+  if (!current) return true;
+  const saved = new Uint8Array(current);
+  const expected = applicationServerKeyFrom(publicKey);
+  return saved.length === expected.length && saved.every((byte, i) => byte === expected[i]);
+}
+
+async function savePushSubscription(subscription: PushSubscription) {
+  const response = await fetch(apiUrl("/api/push/subscribe"), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ subscription }),
+  });
+  return response.ok;
+}
+
+/**
+ * Swap a subscription made under an old server key for one under the current
+ * key. Permission is already granted, so no prompt is shown.
+ */
+async function resubscribeWithKey(registration: ServiceWorkerRegistration, stale: PushSubscription, publicKey: string) {
+  await fetch(apiUrl("/api/push/subscribe"), {
+    method: "DELETE", credentials: "include", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ endpoint: stale.endpoint }), signal: AbortSignal.timeout(10_000),
+  }).catch(() => undefined);
+  await stale.unsubscribe();
+  const fresh = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: applicationServerKeyFrom(publicKey) });
+  return savePushSubscription(fresh);
+}
+
 export async function ensurePushServiceWorker() {
   const existing = await navigator.serviceWorker.getRegistration("/");
   if (existing) return existing;
@@ -57,6 +90,11 @@ export async function currentPushStatus(): Promise<PushUiStatus> {
     const response = await fetch(apiUrl("/api/push/vapid-key"), { credentials: "include", cache: "no-store", signal: AbortSignal.timeout(10_000) });
     if (!response.ok) return "unavailable";
     if (!subscription || Notification.permission !== "granted") return "available";
+    const { publicKey } = await response.json() as { publicKey: string };
+    if (!subscribedWithKey(subscription, publicKey)) {
+      // The server's key changed since this device subscribed; repair it in place.
+      return await resubscribeWithKey(registration!, subscription, publicKey).catch(() => false) ? "enabled" : "available";
+    }
     const saved = await fetch(apiUrl("/api/push/status"), {
       method: "POST", credentials: "include", cache: "no-store", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ endpoint: subscription.endpoint }), signal: AbortSignal.timeout(10_000),
@@ -85,17 +123,14 @@ export async function subscribeThisDeviceToPush() {
   const { publicKey } = await keyResponse.json() as { publicKey: string };
   const registration = await ensurePushServiceWorker();
   await navigator.serviceWorker.ready;
+  // A subscription under an old key can't be reused (subscribe() rejects a key change).
+  const existing = await registration.pushManager.getSubscription();
+  if (existing && !subscribedWithKey(existing, publicKey)) await existing.unsubscribe();
   const subscription = await registration.pushManager.subscribe({
     userVisibleOnly: true,
     applicationServerKey: applicationServerKeyFrom(publicKey),
   });
-  const response = await fetch(apiUrl("/api/push/subscribe"), {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ subscription }),
-  });
-  if (!response.ok) return { status: "error" as const, permission, message: "The server could not save this device." };
+  if (!await savePushSubscription(subscription)) return { status: "error" as const, permission, message: "The server could not save this device." };
   return { status: "enabled" as const, permission };
 }
 

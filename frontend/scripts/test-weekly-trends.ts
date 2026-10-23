@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { rankWeeklyTrends, weeklyTiming, type PairTrendRow } from "../src/lib/home/weekly-trends";
+import { compareWeeklyTrends, rankWeeklyTrends, weeklyTiming, type PairTrendRow } from "../src/lib/home/weekly-trends";
 import { readSwingTrend } from "../src/lib/swing-trend-read";
 import type { CandleSeries } from "../src/types/forex";
 
@@ -22,6 +22,10 @@ assert.equal(rankWeeklyTrends([row("EUR_USD", up, "TRANSITION", up)]).length, 0)
 assert.equal(rankWeeklyTrends([row("EUR_USD", up, "RANGE", up)]).length, 0);
 assert.match(weeklyTiming(ranked.at(-1)!).label, /opposing/, "countertrend timing must stay explicit");
 assert.deepEqual(rankWeeklyTrends([]), []);
+const markets = [...candidates].sort(compareWeeklyTrends);
+assert.deepEqual(markets.slice(0, ranked.length), ranked, "Markets must show scanner candidates in exactly the scanner order");
+assert.equal(markets.length, candidates.length, "Markets must retain unqualified pairs for browsing");
+assert.deepEqual(markets.slice(ranked.length).map(r => r.instrument), ["EUR_USD", "GBP_USD", "USD_JPY"], "opposing Daily moves precede Weekly ranges and unclear structure");
 
 const series: CandleSeries = { instrument: "EUR_USD", granularity: "W", source: "oanda", candles: [] };
 assert.equal(readSwingTrend("EUR_USD", "W", undefined), null);

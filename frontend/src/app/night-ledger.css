@@ -5059,6 +5059,60 @@ html:is(.dark, :not(.dark)) body .nl-tr-bell {
   .nl-terminal .is-up { color: var(--accent); }
   .nl-terminal .is-down { color: var(--danger); }
 
+  /* Minimal header, as the phone: the pair sits bare (no bordered pill) and
+     the quote is one line — price, change, trend as text, spread pips. */
+  html:is(.dark, :not(.dark)) body .nl-chart-head .nl-pair {
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+  /* The price leads; change, trend and spread follow as three matching
+     chips on its centre line, each tinted by its own tone. */
+  .nl-chart-quote { align-items: center; gap: 10px; }
+  .nl-chart-quote .nl-chart-price {
+    margin-right: 8px;
+    font-size: 34px;
+    line-height: 1;
+  }
+  .nl-chart-quote .gx-price-pipette { margin-top: 1px; }
+  .nl-chart-quote :is(.nl-chart-change, .nl-chart-spread),
+  html:is(.dark, :not(.dark)) body .nl-chart-trend > span {
+    --chip-tone: var(--muted-strong);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 11px;
+    box-sizing: border-box;
+    border: 1px solid color-mix(in srgb, var(--chip-tone) 22%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--chip-tone) 10%, transparent);
+    color: var(--chip-tone);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0;
+    white-space: nowrap;
+  }
+  .nl-chart-quote .nl-chart-change.is-up { --chip-tone: var(--accent); }
+  .nl-chart-quote .nl-chart-change.is-down { --chip-tone: var(--danger); }
+  html:is(.dark, :not(.dark)) body .nl-chart-trend > span[data-tone="up"] { --chip-tone: var(--success); }
+  html:is(.dark, :not(.dark)) body .nl-chart-trend > span[data-tone="down"] { --chip-tone: var(--danger); }
+  html:is(.dark, :not(.dark)) body .nl-chart-trend > span[data-tone="mixed"] { --chip-tone: var(--pending); }
+  .nl-chart-trend { display: inline-flex; }
+  .nl-chart-trend .nl-trend-qualifier { display: none; }
+  .nl-chart-quote .nl-chart-spread { --chip-tone: var(--foreground); color: var(--foreground); }
+  .nl-chart-spread small {
+    color: var(--muted);
+    font-family: var(--font-geist-sans), sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .nl-chart-quote .nl-chart-spread.is-cheap { color: var(--accent); }
+  .nl-chart-quote .nl-chart-spread.is-pricey { color: var(--pending); }
+  .nl-chart-quote .nl-chart-spread.is-expensive { color: var(--danger); }
+
   .nl-chart-facts {
     display: flex;
     gap: 20px;
@@ -6455,18 +6509,19 @@ html:is(.dark, :not(.dark)) body .pending-entry-dialog.is-plan {
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
 }
 
-/* Keyboard open (phones): behave like the pair-search drawer. The sheet stays
-   attached to the bottom and grows to just under the status bar, the keyboard
-   covers its lower part, and the occluded area is reserved inside it so every
-   field and the buttons can scroll above the keyboard.
-   Values come from visualViewport in pending-entry-dialog.tsx. */
-html:is(.dark, :not(.dark)) body .pending-entry-backdrop[data-keyboard-open="true"] .pending-entry-dialog {
-  --pe-keyboard-height: calc(var(--pe-visible-height, 86dvh) + var(--pe-keyboard-offset, 0px) - max(3rem, calc(env(safe-area-inset-top, 0px) + 0.75rem)));
-  height: var(--pe-keyboard-height);
-  max-height: var(--pe-keyboard-height);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding-bottom: calc(var(--pe-keyboard-offset, 0px) + 16px);
+/* Keep the existing sheet above the keyboard. Only the form scrolls; adding
+   keyboard-sized padding and expanding the sheet made focus jump on iOS. */
+@media (max-width: 639px) {
+  html:is(.dark, :not(.dark)) body .pending-entry-backdrop[data-keyboard-open="true"] {
+    padding-bottom: var(--pe-keyboard-offset, 0px);
+  }
+  html:is(.dark, :not(.dark)) body .pending-entry-backdrop[data-keyboard-open="true"] .pending-entry-dialog {
+    height: min(var(--pe-resting-height), calc(var(--pe-visible-height) - max(3rem, calc(env(safe-area-inset-top, 0px) + 0.75rem))));
+    max-height: calc(var(--pe-visible-height) - max(3rem, calc(env(safe-area-inset-top, 0px) + 0.75rem)));
+    min-height: 0;
+    padding-bottom: 0;
+    overflow-anchor: none;
+  }
 }
 
 html:is(.dark, :not(.dark)) body .pending-entry-dialog.is-plan > header.nl-an-top {
@@ -7880,6 +7935,9 @@ body.is-dragging-position-tool .setup-chart-level-edit-line::before {
 }
 .nl-clevels-start:hover { background: var(--surface-raised); }
 .nl-clevels-start svg { width: 16px; height: 16px; color: var(--muted); }
+.nl-clevels-start.is-cancel { color: var(--pending); }
+.nl-clevels-start.is-cancel svg { color: currentColor; }
+.nl-clevels-start:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .nl-clevels {
   display: flex;
@@ -8355,7 +8413,8 @@ html:is(.dark, :not(.dark)) body .gx-pair-trade-count {
   html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .gx-pair-trade-trigger > svg { flex: none; }
 }
 @media (min-width: 1024px) {
-  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar { container-type: inline-size; }
+  /* The chart column is the container, so the steps below can also tighten the toolbar row itself. */
+  html:is(.dark, :not(.dark)) body .signals-view .nl-terminal .nl-chart-main { container-type: inline-size; }
   /* Under ~880px of toolbar, Candles and Indicators go icon-only (their
      aria-labels still name them) so the trade picker keeps room to read. */
   @container (max-width: 880px) {
@@ -8367,6 +8426,55 @@ html:is(.dark, :not(.dark)) body .gx-pair-trade-count {
     }
     html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .nl-toolbar-rule { display: none; }
     html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .nl-toolbar-end { gap: 4px; }
+    html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar { gap: 6px; }
+    html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .workspace-tab-btn { min-width: 36px; padding: 0 6px; }
+  }
+
+  /* The toolbar is always one row, and the trade picker never ellipsises:
+     its name and status stack on two lines inside the 44px button. As the
+     row narrows, pieces drop whole instead (see the container steps below). */
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .gx-pair-trade-trigger {
+    flex: 0 0 auto;
+    gap: 10px;
+    padding: 0 10px 0 12px;
+  }
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .gx-pair-trade-trigger-text {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    overflow: visible;
+  }
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .gx-pair-trade-trigger-text b {
+    overflow: visible;
+    font-size: 12px;
+    line-height: 1.2;
+  }
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .gx-pair-trade-trigger-text > span {
+    overflow: visible;
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: 11px;
+    line-height: 1.2;
+  }
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .gx-pair-trade-trigger > svg { color: var(--muted); }
+  html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .gx-pair-trade-lead { font: inherit; color: inherit; }
+
+  /* Small laptops: the range drops its clock icon, the actions tighten. */
+  @container (max-width: 720px) {
+    html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar [aria-label="Chart history range"] > svg:first-child { display: none; }
+    html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .nl-toolbar-end .gx-toolbar-icon-btn { width: 40px; min-width: 40px; }
+  }
+  /* Tablets: the picker keeps just the side ("Short") over its status. */
+  @container (max-width: 700px) {
+    html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .gx-pair-trade-lead { display: none; }
+    html:is(.dark, :not(.dark)) body .signals-view .nl-terminal .nl-chart-toolbar { gap: 4px; }
+    html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .workspace-tab-btn { min-width: 30px; padding: 0 4px; }
+    html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .nl-toolbar-end { gap: 2px; }
+    html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .nl-toolbar-end .gx-toolbar-icon-btn { width: 38px; min-width: 38px; }
+    html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .gx-pair-trade-trigger { gap: 6px; padding: 0 8px 0 10px; }
+  }
+  /* Narrowest: the status line goes too; the side alone still names it. */
+  @container (max-width: 620px) {
+    html:is(.dark, :not(.dark)) body .signals-view .nl-chart-toolbar .gx-pair-trade-trigger-text > span { display: none; }
   }
 }
 
@@ -8879,6 +8987,12 @@ html.dark .gx-fs {
   z-index: 0;
   isolation: isolate;
 }
+/* iOS landscape reports a ~59px side inset on both edges, notch or not, which
+   left an empty band beside the price scale. Run the chart edge to edge
+   sideways; only the top and bottom keep their insets. */
+@media (orientation: landscape) and (pointer: coarse) {
+  .gx-fs-chart { padding-left: 0; padding-right: 0; }
+}
 /* A finger-sized hit area around the small exit button. */
 .gx-fs-exit { position: relative; touch-action: manipulation; }
 .gx-fs-exit::after { content: ""; position: absolute; inset: -8px; }
@@ -9140,11 +9254,24 @@ html:is(.dark, :not(.dark)) body .gx-fs-dock .menu-popover {
     padding: 4px;
     border-radius: 14px;
   }
-  .gx-fs-tf { min-width: 38px; height: 34px; padding: 0 7px; border-radius: 10px; font-size: 12px; }
-  html:is(.dark, :not(.dark)) body .gx-fs-dock :is(.gx-toolbar-btn, .gx-fs-icon) { height: 34px; min-width: 34px; padding: 0 8px; border-radius: 10px; }
+  .gx-fs-tf { min-width: 44px; height: 42px; padding: 0 8px; border-radius: 11px; font-size: 14px; touch-action: manipulation; }
+  html:is(.dark, :not(.dark)) body .gx-fs-dock :is(.gx-toolbar-btn, .gx-fs-icon) { height: 42px; min-width: 42px; padding: 0 9px; border-radius: 11px; touch-action: manipulation; }
   html:is(.dark, :not(.dark)) body .gx-fs-dock .gx-toolbar-btn > span { display: none; }
-  .gx-fs-close { height: 34px; padding: 0 12px; border-radius: 10px; font-size: 12px; }
+  .gx-fs-close { height: 42px; padding: 0 14px; border-radius: 11px; font-size: 13px; }
   .gx-fs-hint { bottom: calc(env(safe-area-inset-bottom, 0px) + 34px); font-size: 11px; }
+}
+/* Phone portrait: the dock spans the screen and the timeframes share the row
+   evenly, so each is a full-size thumb target instead of a 38px chip. */
+@media (max-width: 600px) {
+  .gx-fs-dock {
+    left: calc(env(safe-area-inset-left, 0px) + 12px);
+    right: calc(env(safe-area-inset-right, 0px) + 12px);
+    transform: none;
+    max-width: none;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+  }
+  .gx-fs-tfs { flex: 1 1 auto; min-width: 0; }
+  .gx-fs-tf { flex: 1 1 0; min-width: 0; padding: 0 4px; }
 }
 /* Phone portrait: pair and price on the left, icon buttons on the right, one line. */
 @media (max-width: 600px) {
@@ -9189,7 +9316,6 @@ html:is(.dark, :not(.dark)) body .gx-fs-dock .menu-popover {
     flex-wrap: wrap;
     justify-content: space-between;
     row-gap: 6px;
-    width: calc(100vw - 32px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
     box-sizing: border-box;
   }
   .gx-fs-dock .gx-fs-close {
@@ -9558,9 +9684,7 @@ html:is(.dark, :not(.dark)) body .pending-entry-dialog.is-plan > footer.nl-pe-ac
     padding: 12px 20px calc(14px + env(safe-area-inset-bottom, 0px));
   }
 }
-/* Keyboard open: the sheet's bottom padding already equals the keyboard
-   height, and sticky offsets count from inside that padding, so bottom: 0
-   already sits the buttons just above the keyboard. */
+/* The drawer itself ends above the keyboard; its footer needs no safe-area gap. */
 html:is(.dark, :not(.dark)) body .pending-entry-backdrop[data-keyboard-open="true"] .pending-entry-dialog.is-plan > footer.nl-pe-actions {
   padding-bottom: 12px;
 }

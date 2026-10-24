@@ -8,24 +8,19 @@ import { ThemeProvider } from "@/components/providers/theme-provider";
 
 const WelcomeScreen = dynamic(() => import("@/components/welcome/welcome-screen").then((module) => module.WelcomeScreen), { ssr: false });
 
-/** Keep launch artwork until hydration, with no minimum wait before use. */
+/** Attach the controller to the existing splash; it renders no overlay. */
 function LaunchScreen() {
-  const [preview, setPreview] = useState(false);
+  const [active, setActive] = useState(false);
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).has("splash")) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Explicit browser-only design preview.
-      setPreview(true);
+    if (document.documentElement.classList.contains("gx-boot-splash") || new URLSearchParams(window.location.search).has("splash")) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Launch mode is decided by the first-paint browser script.
+      setActive(true);
       return;
     }
     document.documentElement.classList.remove("gx-boot-splash");
     document.documentElement.style.removeProperty("background-color");
-    try {
-      window.sessionStorage.setItem("gx-launch-screen-v2", "1");
-    } catch {
-      // Storage is optional; it must never delay opening the workspace.
-    }
   }, []);
-  return preview ? <WelcomeScreen /> : null;
+  return active ? <WelcomeScreen /> : null;
 }
 
 export function AppProviders({ children }: { children: React.ReactNode }) {

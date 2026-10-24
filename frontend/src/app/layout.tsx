@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
+import Image from "next/image";
+import { OBSERVER_MASCOT_ASSETS } from "@/lib/observer-mascot";
 import { AppProviders } from "@/components/providers/app-providers";
 import { SPLASH_DEVICES } from "@/lib/pwa/splash-devices";
 import { TEXT_SIZE_STORAGE_KEY } from "@/lib/text-size";
@@ -90,17 +92,15 @@ export default function RootLayout({
             are file conventions Next emits the link tags for, and the Android
             launcher icons are declared in manifest.json. Adding them again here
             only produces duplicate tags that can win over the generated ones. */}
-        {/* First paint of the launch splash: before any app code runs, show the
-            static copy below on a first launch (same key as WelcomeScreen), so
-            the app opens straight onto the splash instead of a blank screen.
-            WelcomeScreen fades its animated copy in on top, then removes the
-            class. Signed-in workspace pages only; login and embeds have none.
+        {/* First paint of the single animated splash, before app hydration.
+            WelcomeScreen controls this same element and fades it out when ready.
+            Workspace pages only; login and embeds have none.
             It also paints <html> dark at once: the head arrives before the body
             that holds the splash, and in that gap phones painted the light
             theme background, a white flick between the launch image and splash. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var p=location.pathname;if(!/^\\/(?:$|chart|journal|watchlist|settings|risk|signals|research|morning-preview)/.test(p))return;if(location.search.indexOf('splash')<0&&sessionStorage.getItem('gx-launch-screen-v2')==='1')return;var d=document.documentElement;d.classList.add('gx-boot-splash');d.style.backgroundColor='#0b0c0a';}catch(e){}})();`,
+            __html: `(function(){try{var p=location.pathname;if(!/^\\/(?:$|chart|journal|watchlist|settings|risk|signals|research|morning-preview)/.test(p))return;var a=matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;if(!a&&location.search.indexOf('splash')<0&&sessionStorage.getItem('gx-launch-screen-v2')==='1')return;var d=document.documentElement;d.classList.add('gx-boot-splash');d.style.backgroundColor='#0b0c0a';}catch(e){}})();`,
           }}
         />
       </head>
@@ -115,14 +115,16 @@ export default function RootLayout({
             ? `if('serviceWorker'in navigator){navigator.serviceWorker.register('/sw.js').catch(function(e){console.info('[PWA] Service worker registration failed:',e);});}`
             : `if('serviceWorker'in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister();});}).catch(function(){});if(window.caches){caches.keys().then(function(ks){ks.forEach(function(k){if(k.indexOf('goldenxperience')===0)caches.delete(k);});}).catch(function(){});}}`}
         </Script>
-        <div id="gx-boot-splash" className={splash.screen} aria-hidden="true">
+        <div id="gx-boot-splash" className={splash.screen} role="dialog" aria-modal="true" aria-label="Welcome to GoldenXperience" aria-describedby="gx-splash-instructions" tabIndex={-1} aria-hidden="true">
           <div className={splash.grid} />
+          <span id="gx-splash-instructions" className={splash.instructions}>Tap anywhere or press Enter to open your workspace.</span>
           <div className={splash.center}>
             <div className={splash.character}>
               <div className={splash.orbit}><span /><span /></div>
-              {/* The mascot's first frame is embedded in night-ledger.css, so it is
-                  in the very first paint, like the iOS launch image. */}
-              <span className="gx-boot-mascot" />
+              <picture>
+                <source media="(prefers-reduced-motion: reduce)" srcSet={OBSERVER_MASCOT_ASSETS.neutral.still} />
+                <Image src="/splash/gx-mascot-loop.webp" alt="GX robot mascot" width={256} height={256} unoptimized loading="eager" fetchPriority="high" />
+              </picture>
               <span className={splash.spark}>✦</span>
             </div>
             <p className={splash.eyebrow}>YOUR TRADING WORKSPACE</p>

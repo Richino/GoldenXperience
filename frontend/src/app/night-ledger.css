@@ -8876,9 +8876,8 @@ html:is(.dark, :not(.dark)) body .analysis-mode-replacement::before {
 }
 
 /* ============================================================ BOOT SPLASH
-   layout.tsx's static first-paint copy of the launch splash. Hidden unless
-   the head script marked a first launch (html.gx-boot-splash); LaunchScreen
-   removes it as soon as React hydrates. Explicit splash previews still animate.
+   One server-rendered animated splash, controlled in place after hydration.
+   Hidden unless the head script marks a launch (html.gx-boot-splash).
    If the app never starts, it still steps aside after 6s. */
 #gx-boot-splash { display: none; }
 /* Keep the page sampled by iOS as dark as the launch screen until it closes. */
@@ -8892,6 +8891,17 @@ html.gx-boot-splash #gx-boot-splash {
   display: flex;
   z-index: 19999;
   animation: gx-boot-out 0s linear 6s forwards;
+}
+html.gx-boot-splash #gx-boot-splash[data-gx-launch-screen] {
+  animation: none;
+  transition: opacity 260ms ease;
+}
+html.gx-boot-splash #gx-boot-splash[data-leaving="true"] {
+  opacity: 0;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  html.gx-boot-splash #gx-boot-splash[data-gx-launch-screen] { transition: none; }
 }
 @keyframes gx-boot-out { to { visibility: hidden; opacity: 0; pointer-events: none; } }
 

@@ -55,3 +55,4 @@ frontend/research-output/
 **/m1_cache.json
 api-server/research-v2/binary-fade-v1-all-oanda-2022/RESULTS.json
 api-server/research-v2/binary-fade-v1-all-oanda-2022/STATE.json
+api-server/research-v2/trend-pullback-v2-eurusd/grid/registry.json

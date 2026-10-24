@@ -233,6 +233,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         {ownsHeader ? null : <AppTopBar />}
         <main
+          data-gx-workspace-ready={isClient ? "true" : undefined}
           className={`w-full min-w-0 ${
             isChart
               ? "min-h-dvh p-0"

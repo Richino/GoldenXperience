@@ -112,6 +112,7 @@ export interface TradeSignal {
 /** A chartable paper trade, reduced to what the chart needs to mark it up. */
 export interface PaperChartTrade {
   id: string;
+  brokerTradeId?: string | null;
   tradeSequence: string;
   instrument: MajorInstrument;
   direction: "long" | "short";

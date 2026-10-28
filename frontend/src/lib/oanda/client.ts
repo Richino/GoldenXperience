@@ -578,6 +578,9 @@ export async function setPracticeTradeLevels(
 }
 
 export interface PracticeTradeState {
+  /** Only present on a direct broker read, never inferred from a closed ledger event. */
+  instrument?: string;
+  unrealizedPL?: number | null;
   /** OANDA reports OPEN, CLOSED or CLOSE_WHEN_TRADEABLE. */
   state: string;
   closed: boolean;
@@ -651,6 +654,8 @@ export async function getPracticeTradeState(brokerTradeId: string): Promise<Prac
   let response: {
     trade?: {
       state?: string;
+      instrument?: string;
+      unrealizedPL?: string;
       averageClosePrice?: string;
       realizedPL?: string;
       closeTime?: string;
@@ -675,6 +680,8 @@ export async function getPracticeTradeState(brokerTradeId: string): Promise<Prac
 
   return {
     state: trade.state,
+    instrument: trade.instrument,
+    unrealizedPL: transactionNumberOrNull(trade.unrealizedPL),
     closed: trade.state === "CLOSED",
     averageClosePrice: transactionNumberOrNull(trade.averageClosePrice),
     realizedPL: transactionNumberOrNull(trade.realizedPL),

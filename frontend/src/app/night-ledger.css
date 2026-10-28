@@ -1424,6 +1424,12 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-va
   font-weight: 600;
 }
 
+/* Keep 12-hour Home news times, including AM/PM, on one line. */
+.nl-home .nl-news-when {
+  width: 8.5ch;
+  white-space: nowrap;
+}
+
 .nl-news-copy {
   display: flex;
   flex: 1;

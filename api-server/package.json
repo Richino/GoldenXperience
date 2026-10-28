@@ -52,6 +52,7 @@
     "analyze:compare-normal": "tsx scripts/compare-normal-hierarchy.ts",
     "paper-cycle:test": "tsx scripts/test-paper-cycle.ts",
     "pending-entry:test": "tsx scripts/test-pending-manual-entries.ts",
+    "cash-close:test": "tsx scripts/test-cash-close.ts && tsx scripts/test-cash-close-store.ts",
     "news-straddle:test": "tsx scripts/test-news-straddle.ts",
     "news-straddle-v3:test": "tsx scripts/test-news-straddle-v3.ts && tsx scripts/test-news-straddle-v3-db.ts",
     "news-straddle-v3:replay": "tsx scripts/replay-news-straddle-v3.ts",

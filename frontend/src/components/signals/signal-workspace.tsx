@@ -102,6 +102,7 @@ import {
   precisionFor,
 } from "@/lib/instruments/catalog";
 import { useMarketStream } from "@/lib/market-stream/use-market-stream";
+import { useChartTradePL } from "@/lib/market-stream/use-chart-trade-pl";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { getMarketCondition } from "@/lib/strategy/session";
 import { isStrategyInstrument } from "@/lib/strategy/strategy-service";
@@ -589,12 +590,12 @@ function displacementBox(key: string, candle: DisplacementCandle): ChartBox {
   };
 }
 
-/** A filled News trade's entry tag, kept short for a phone: side, fill and minutes to the time exit (slippage and spread are in the status panel). */
-function newsFillLabel(entry: PendingManualEntry, now: number) {
+/** Keep the News trade's time-exit countdown alongside its cash P/L. */
+function newsFillLabel(entry: PendingManualEntry, now: number, profitLoss: string) {
   const meta = entry.metadata as { mode?: string; timeExitAt?: string | null };
   if (meta.mode !== "news" || entry.triggerPrice === null) return null;
   const minutesLeft = meta.timeExitAt ? Math.max(0, Math.ceil((Date.parse(meta.timeExitAt) - now) / 60_000)) : null;
-  return `${entry.direction === "long" ? "BUY" : "SELL"} ${formatChartPrice(entry.triggerPrice, entry.instrument)}${minutesLeft === null ? "" : ` · ${minutesLeft}m`}`;
+  return `${profitLoss}${minutesLeft === null ? "" : ` · ${minutesLeft}m`}`;
 }
 
 function fvgBox(key: string, fvg: FvgZone): ChartBox {
@@ -3398,6 +3399,10 @@ export function SignalWorkspace({
       ? selectedPairTrade
       : null;
   const activeManualTrade = selectedPairTrade?.status === "TRIGGERED" ? selectedPairTrade : null;
+  const activeBrokerTradeId = activeManualTrade
+    ? (typeof activeManualTrade.metadata.brokerTradeId === "string" ? activeManualTrade.metadata.brokerTradeId : null)
+    : openPaperTrade?.brokerTradeId ?? null;
+  const activeTradePL = useChartTradePL(activeBrokerTradeId);
   const triggeredManualEntry =
     activeManualTrade && activeManualTrade.stopPrice !== null && activeManualTrade.targetPrice !== null
       ? activeManualTrade
@@ -3737,12 +3742,13 @@ export function SignalWorkspace({
       target: openPaperTrade.target,
       exit: openPaperTrade.exit,
       outcome: openPaperTrade.outcome,
+      entryLabel: activeTradePL,
     }) : focusTrade || triggeredManualEntry ? null : openSignal ? ({
       entry: openSignal.entry,
       stop: openSignal.stop,
       target: openSignal.target,
     }) : null,
-    [openSignal, focusTrade, openPaperTrade, triggeredManualEntry],
+    [openSignal, focusTrade, openPaperTrade, triggeredManualEntry, activeTradePL],
   );
   // News-mode zones come from the server's setup state (news-zone-overlay).
   // Only previews follow the live price, and only to the nearest pip, so the
@@ -3851,7 +3857,7 @@ export function SignalWorkspace({
       if (entry.status === "TRIGGERED" && entry.paperTradeStatus === "open" && entry.triggerPrice !== null) {
         const editing = levelDraftEntryId === entry.id;
         const lines: ChartReferenceLine[] = [
-          { key: `manual-entry-${entry.id}`, price: entry.triggerPrice, label: newsFillLabel(entry, pendingEntryClock) ?? `ENTRY ${formatChartPrice(entry.triggerPrice, instrument)}`, color: "#00a06a", textColor: "#ffffff", dashed: false, lineWidth: 2 as const, onSelect: () => openManager(entry) },
+          { key: `manual-entry-${entry.id}`, price: entry.triggerPrice, label: newsFillLabel(entry, pendingEntryClock, activeTradePL) ?? activeTradePL, color: "#00a06a", textColor: "#ffffff", dashed: false, lineWidth: 2 as const, onSelect: () => openManager(entry) },
         ];
         const stopAtRisk = entry.stopPrice !== null && (entry.direction === "long" ? entry.stopPrice < entry.triggerPrice : entry.stopPrice > entry.triggerPrice);
         if (entry.stopPrice !== null && !editing) lines.push({ key: `manual-stop-${entry.id}`, price: entry.stopPrice, label: `SL ${formatChartPrice(entry.stopPrice, instrument)}${stopAtRisk ? " · -1R" : ""}`, color: "#e74c3c", textColor: "#ffffff", dashed: true, lineWidth: 1 as const, onSelect: () => openManager(entry) });
@@ -3860,7 +3866,7 @@ export function SignalWorkspace({
       }
       return [];
     });
-  }, [instrument, levelDraftEntryId, pendingEntries, pendingEntryClock, selectedPairTrade?.id]);
+  }, [instrument, levelDraftEntryId, pendingEntries, pendingEntryClock, selectedPairTrade?.id, activeTradePL]);
   const supportResistanceReferenceLines = useMemo(
     () => isChartIndicatorEnabled(enabledIndicators, "support-resistance")
       ? supportResistanceLines(chartIndicatorCandles, instrument)

@@ -123,6 +123,8 @@ function formatChartAxisTime(time: Time, tickMarkType: TickMarkType): string | n
 
 interface SetupLevels {
   entry: number;
+  /** Active trades can show broker cash P/L while retaining the entry price. */
+  entryLabel?: string;
   stop: number;
   target: number;
   exit?: number | null;
@@ -1194,7 +1196,7 @@ function setupLevelTags(
   const tags: LevelTag[] = [
     {
       key: "entry",
-      label: compactLabels ? `Entry ${entryPrice} · R:R ${rewardR.toFixed(rewardR >= 10 ? 0 : 1)}` : `ENTRY ${entryPrice}`,
+      label: levels.entryLabel ?? (compactLabels ? `Entry ${entryPrice} · R:R ${rewardR.toFixed(rewardR >= 10 ? 0 : 1)}` : `ENTRY ${entryPrice}`),
       price: toChartPrice(levels.entry, entrySide, halfSpread),
       color: palette.up,
       textColor: palette.onUp,
@@ -1291,6 +1293,7 @@ interface PlacedLevelTag extends LevelTag {
 /** Keep these heights in sync with .setup-chart-level-tag in globals.css. */
 const LEVEL_TAG_HEIGHT = 24;
 const LEVEL_TAG_ACTION_HEIGHT = 44;
+const PRICE_AXIS_LABEL_HEIGHT = 20;
 const LEVEL_TAG_STACK_GAP = 4;
 
 function levelTagHeight(tag: LevelTag) {
@@ -1301,16 +1304,20 @@ function levelTagHeight(tag: LevelTag) {
  * Nudge overlapping left-edge flags apart so Entry / SL / TP stay readable
  * when their prices sit on the same pixel row.
  */
-function stackLevelTagYs(tags: PlacedLevelTag[], paneHeight: number): PlacedLevelTag[] {
+function stackLevelTagYs(
+  tags: PlacedLevelTag[],
+  paneHeight: number,
+  heightOf: (tag: LevelTag) => number = levelTagHeight,
+): PlacedLevelTag[] {
   if (!tags.length) return tags;
 
   const sorted = [...tags].sort(
     (left, right) => left.y - right.y || left.key.localeCompare(right.key),
   );
   const gapBetween = (left: LevelTag, right: LevelTag) =>
-    (levelTagHeight(left) + levelTagHeight(right)) / 2 + LEVEL_TAG_STACK_GAP;
-  const minY = levelTagHeight(sorted[0]!) / 2;
-  const maxY = Math.max(minY, paneHeight - levelTagHeight(sorted.at(-1)!) / 2);
+    (heightOf(left) + heightOf(right)) / 2 + LEVEL_TAG_STACK_GAP;
+  const minY = heightOf(sorted[0]!) / 2;
+  const maxY = Math.max(minY, paneHeight - heightOf(sorted.at(-1)!) / 2);
 
   for (let i = 1; i < sorted.length; i++) {
     const floor = sorted[i - 1]!.y + gapBetween(sorted[i - 1]!, sorted[i]!);
@@ -1345,7 +1352,6 @@ function stackLevelTagYs(tags: PlacedLevelTag[], paneHeight: number): PlacedLeve
 function addSetupLevels(
   mainSeries: ISeriesApi<SeriesType>,
   tags: LevelTag[],
-  axisLabels: boolean,
 ) {
   const priceLines: IPriceLine[] = [];
   for (const tag of tags) {
@@ -1354,14 +1360,9 @@ function addSetupLevels(
       color: tag.color,
       lineWidth: tag.lineWidth ?? 1,
       lineStyle: tag.dashed ? LineStyle.Dashed : LineStyle.Solid,
-      // Desktop: the price sits on the scale and the named flag sits on the
-      // plot's right edge. Mobile hides the scale, so library axis chips would
-      // float on the pane; the overlay flag is the name instead.
-      //
-      // No `title`: the library would paint the same word onto the pane, which
-      // read as two tags on the wider labels. The short ones only looked
-      // correct because the pair landed on top of each other.
-      axisLabelVisible: axisLabels,
+      // Rounded DOM badges below share the native line's price and colors.
+      // No title: the named overlay already labels the line on the plot.
+      axisLabelVisible: false,
       axisLabelColor: tag.color,
       axisLabelTextColor: tag.textColor,
     }));
@@ -1711,6 +1712,7 @@ export function SetupChart({
   const hadFocusRef = useRef(false);
   const [chartEpoch, setChartEpoch] = useState(0);
   const [placedTags, setPlacedTags] = useState<PlacedLevelTag[]>([]);
+  const [priceAxisTags, setPriceAxisTags] = useState<PlacedLevelTag[]>([]);
   const lastPriceHostRef = useRef<HTMLDivElement>(null);
   const lastPriceDotRef = useRef<HTMLSpanElement>(null);
   const lastPriceLabelRef = useRef<HTMLSpanElement>(null);
@@ -2043,7 +2045,7 @@ export function SetupChart({
       embedded,
     );
     if (levelTags.length) {
-      levelPriceLinesRef.current = addSetupLevels(mainSeries, levelTags, !embedded);
+      levelPriceLinesRef.current = addSetupLevels(mainSeries, levelTags);
     }
     if (patternLines.length) {
       patternLineSeriesRef.current = addPatternLines(chart, patternLines, chartData, priceFormat);
@@ -2366,7 +2368,7 @@ export function SetupChart({
         color: line.color,
         lineWidth: line.lineWidth ?? 1,
         lineStyle: line.dashed ? LineStyle.Dashed : LineStyle.Solid,
-        axisLabelVisible: !embedded,
+        axisLabelVisible: false,
         axisLabelColor: line.color,
         axisLabelTextColor: line.textColor,
       }));
@@ -2651,13 +2653,13 @@ export function SetupChart({
       color: trade.direction === "long" ? (isDark ? "#60a5fa" : "#2563eb") : (isDark ? "#e879f9" : "#a21caf"),
       lineWidth: 2,
       lineStyle: LineStyle.Dashed,
-      axisLabelVisible: true,
+      axisLabelVisible: embedded,
       title: "",
     });
     return () => {
       if (liveSeries(mainSeriesRef.current) === mainSeries) mainSeries.removePriceLine(line);
     };
-  }, [chartEpoch, focusEntryCovered, focusPrediction, focusTradeId, isDark, showTradeMarkers, trades]);
+  }, [chartEpoch, embedded, focusEntryCovered, focusPrediction, focusTradeId, isDark, showTradeMarkers, trades]);
 
   useEffect(() => {
     const mainSeries = liveSeries(mainSeriesRef.current);
@@ -2815,6 +2817,7 @@ export function SetupChart({
     series.instrument,
     embedded ? "compact" : "full",
     levels?.entry ?? "",
+    levels?.entryLabel ?? "",
     levels?.stop ?? "",
     levels?.target ?? "",
     levels?.exit ?? "",
@@ -2856,7 +2859,7 @@ export function SetupChart({
       series.instrument,
       embedded,
     );
-    levelPriceLinesRef.current = addSetupLevels(mainSeries, tags, !embedded);
+    levelPriceLinesRef.current = addSetupLevels(mainSeries, tags);
     // The fingerprint represents every supplied level field without varying the
     // React dependency-array length when optional level objects come and go.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2915,6 +2918,7 @@ export function SetupChart({
         if (isRemovedChartError(error)) return;
         throw error;
       }
+      const axisTags: PlacedLevelTag[] = [];
       const placed = tags.flatMap<PlacedLevelTag>((tag) => {
         const minTagY = levelTagHeight(tag) / 2;
         const maxTagY = Math.max(minTagY, paneHeight - minTagY);
@@ -2926,6 +2930,11 @@ export function SetupChart({
           y = ((priceRange.to - tag.price) / (priceRange.to - priceRange.from)) * paneHeight;
         }
         if (y === null) return [];
+        if (!embedded && Number.isFinite(y) && y >= 0 && y <= paneHeight) {
+          // Axis badges follow the actual price, independently of the larger
+          // named labels' stacking. Off-screen prices stay off the scale.
+          axisTags.push({ ...tag, y, edge: "right", offset: 4 });
+        }
         // Keep an off-screen level visible at the top/bottom rather than
         // dropping it or allowing a corner keepout to shift it inward.
         return [{
@@ -2937,17 +2946,19 @@ export function SetupChart({
       });
 
       const stacked = stackLevelTagYs(placed, paneHeight);
-      const signature = JSON.stringify(stacked);
+      const axisStacked = stackLevelTagYs(axisTags, paneHeight, () => PRICE_AXIS_LABEL_HEIGHT);
+      const signature = JSON.stringify([stacked, axisStacked]);
       if (signature === previous) return;
       previous = signature;
       setPlacedTags(stacked);
+      setPriceAxisTags(axisStacked);
     };
 
     frame = requestAnimationFrame(readPositions);
     return () => cancelAnimationFrame(frame);
     // overlayTagFingerprint stands in for levels + referenceLine field values.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chartEpoch, isDark, overlayTagFingerprint, showTradeMarkers, focusEntryCovered, focusPrediction, focusTradeId, trades]);
+  }, [chartEpoch, embedded, isDark, overlayTagFingerprint, showTradeMarkers, focusEntryCovered, focusPrediction, focusTradeId, trades]);
 
   // Positions are written straight to the DOM — React setState lagged a frame
   // behind the canvas whenever the user panned.
@@ -3165,6 +3176,16 @@ export function SetupChart({
           {tag.onSelect ? <span className="setup-chart-level-tag-action" aria-hidden="true">›</span> : null}
         </button>
       ))}
+      {!embedded ? priceAxisTags.map((tag) => (
+        <span
+          key={`axis-${tag.key}`}
+          className="setup-chart-price-label setup-chart-level-price"
+          aria-hidden="true"
+          style={{ top: tag.y, backgroundColor: tag.color, color: tag.textColor }}
+        >
+          {formatChartPrice(tag.price, series.instrument)}
+        </span>
+      )) : null}
       <ChartCrosshairLabels
         chartRef={chartRef}
         epoch={chartEpoch}

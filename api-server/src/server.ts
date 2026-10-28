@@ -50,6 +50,8 @@ import { collectMultiStrategyCycle, collectPaperCycle, decidePaperBatch, fastRes
 import { momentumShortInversionStatus } from "./momentum-short-inversion.js";
 import { markNotificationsRead, notificationsForUser, pushPublicKey, queueNotification, removePushSubscription, savePushSubscription } from "./notifications.js";
 import { startNewsReminders } from "./news-reminders.js";
+import { cashCloseSettings, updateCashCloseSettings, startCashCloseMonitor } from "./cash-close-conditions.js";
+import { withManualTradeLock } from "./manual-trade-lock.js";
 import { backfillPracticeEntryCosts, practiceExecutionOverview, setPracticeExecutionEnabled } from "./practice-execution.js";
 import { binaryJournal, binaryPerformance, binaryPredictionDetail, binaryWatchlistSnapshot, collectBinaryCycle, recentBinaryPredictions, resolveDueBinaryPredictions } from "./binary-engine.js";
 import { binaryAdaptiveStats } from "./binary-adaptive-stats.js";
@@ -803,6 +805,17 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
         return json(request, response, { error: error instanceof Error ? error.message : "Could not update the stop and target." }, 409);
       }
     }
+    const closeConditionsMatch = url.pathname.match(/^\/api\/pending-entries\/([0-9a-f-]{36})\/close-conditions$/i);
+    if (closeConditionsMatch && (request.method === "GET" || request.method === "PATCH")) {
+      try {
+        const result = request.method === "GET"
+          ? await cashCloseSettings(user.id, closeConditionsMatch[1]!)
+          : await updateCashCloseSettings(user.id, closeConditionsMatch[1]!, await body(request) ?? {});
+        return json(request, response, result);
+      } catch (error) {
+        return json(request, response, { error: error instanceof Error ? error.message : "Close conditions could not be updated." }, 409);
+      }
+    }
     const pendingEntryCloseMatch = url.pathname.match(/^\/api\/pending-entries\/([0-9a-f-]{36})\/close$/i);
     if (pendingEntryCloseMatch && request.method === "POST") {
       if (!config.isConfigured) return json(request, response, { error: "Connect an OANDA practice account to trade." }, 503);
@@ -810,7 +823,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       const instrument = typeof payload?.instrument === "string" ? payload.instrument.toUpperCase() : "";
       const tick = instrument && isKnownInstrument(instrument) ? latestPrices.get(instrument) ?? null : null;
       try {
-        return json(request, response, await closeActiveManualTrade(user.id, pendingEntryCloseMatch[1]!, tick));
+        return json(request, response, await withManualTradeLock(pendingEntryCloseMatch[1]!, () => closeActiveManualTrade(user.id, pendingEntryCloseMatch[1]!, tick)));
       } catch (error) {
         return json(request, response, { error: error instanceof Error ? error.message : "Could not close the trade." }, 409);
       }
@@ -1443,6 +1456,7 @@ let breakoutConfidenceV1Collector: NodeJS.Timeout | null = null;
 // prices and candles, but starts none of the mutating loops. Unset — or any
 // value other than "false" — keeps them on, so the deployed server is unchanged.
 const schedulersEnabled = process.env.ENABLE_SCHEDULERS !== "false";
+const stopCashCloseMonitor = startCashCloseMonitor();
 const stopNewsReminders = databaseConfigured() && schedulersEnabled && process.env.NEWS_REMINDERS_ENABLED !== "false" ? startNewsReminders() : null;
 const morningScanner = databaseConfigured() && schedulersEnabled && process.env.MORNING_SCAN_ENABLED !== "false" ? startMorningScanner() : null;
 if (databaseConfigured() && !schedulersEnabled) {
@@ -1797,6 +1811,7 @@ function shutdown() {
   if (shuttingDown) return; // SIGTERM can arrive twice during a dev reload.
   shuttingDown = true;
   pricingStream?.stop();
+  stopCashCloseMonitor();
   const newsStopped = newsStraddleRuntime?.stop() ?? Promise.resolve();
   const swingStopped = swingIntelligence.stop();
   const newsRemindersStopped = stopNewsReminders?.() ?? Promise.resolve();

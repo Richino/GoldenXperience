@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { buildCalendarSnapshot } from "../src/lib/oanda/calendar";
 import { normalizeForexFactoryEvents } from "../src/lib/calendar/normalize";
-import { homeCalendarEmptyMessage } from "../src/lib/news/home-calendar";
+import { groupSimultaneousRows, HOME_CALENDAR_MAX_EVENTS, homeCalendarEmptyMessage, homeCalendarRows } from "../src/lib/news/home-calendar";
 
 // Verbatim records from https://nfs.faireconomy.media/ff_calendar_thisweek.json,
 // kept as a fixture because the live feed rate-limits aggressively.
@@ -188,4 +188,40 @@ const strictTime = normalizeForexFactoryEvents([
 ]);
 assert.equal(strictTime.find(e => e.title === "Timed release")?.timingVerified, true);
 assert.notEqual(strictTime.find(e => e.title === "Date only")?.timingVerified, true);
+
+// A morning's GBP/CAD reports used to fill all six upcoming-event slots,
+// hiding the afternoon USD decision until those earlier reports passed.
+const busyDay = normalizeForexFactoryEvents([
+  ...["Annual Budget Release", "Autumn Forecast Statement"].map(title => ({ title, country: "GBP", date: "2026-10-28T08:30:00-04:00", impact: "High" })),
+  ...["BOC Monetary Policy Report", "BOC Rate Statement", "Overnight Rate"].map(title => ({ title, country: "CAD", date: "2026-10-28T09:45:00-04:00", impact: "High" })),
+  { title: "BOC Press Conference", country: "CAD", date: "2026-10-28T10:30:00-04:00", impact: "High" },
+  { title: "Federal Funds Rate", country: "USD", date: "2026-10-28T14:00:00-04:00", impact: "High" },
+  { title: "FOMC Statement", country: "USD", date: "2026-10-28T14:00:00-04:00", impact: "High" },
+  { title: "FOMC Press Conference", country: "USD", date: "2026-10-28T14:30:00-04:00", impact: "High" },
+  { title: "Evening report", country: "NZD", date: "2026-10-28T20:00:00-04:00", impact: "Medium" },
+  { title: "Low impact report", country: "USD", date: "2026-10-28T08:30:00-04:00", impact: "Low" },
+]);
+const morning = Date.parse("2026-10-28T07:00:00-04:00");
+const morningSnapshot = buildCalendarSnapshot({ events: busyDay, source: "forex_factory", connected: true, now: new Date(morning) });
+const morningRows = homeCalendarRows(morningSnapshot.recentEvents ?? [], morningSnapshot.events, morning);
+assert.equal(morningRows.length, 10, "every medium/high release today is visible before the morning events pass");
+assert.ok(morningRows.some(e => e.title === "Federal Funds Rate" && e.state === "upcoming"));
+assert.ok(morningRows.some(e => e.title === "FOMC Press Conference" && e.state === "upcoming"));
+const afternoonRows = homeCalendarRows([], morningSnapshot.events, Date.parse("2026-10-28T15:31:00-04:00"));
+assert.equal(afternoonRows.length, morningRows.length, "the same cached feed keeps today's releases throughout the day");
+assert.equal(afternoonRows.find(e => e.title === "Federal Funds Rate")?.state, "released");
+assert.equal(afternoonRows.find(e => e.title === "Evening report")?.state, "upcoming");
+
+const laterDays = normalizeForexFactoryEvents(Array.from({ length: HOME_CALENDAR_MAX_EVENTS + 1 }, (_, index) => [
+  { title: `Future release ${index}`, country: "USD", date: `2026-10-29T${String(index + 8).padStart(2, "0")}:00:00-04:00`, impact: "High" },
+  { title: `Companion report ${index}`, country: "USD", date: `2026-10-29T${String(index + 8).padStart(2, "0")}:00:00-04:00`, impact: "Medium" },
+]).flat());
+const preview = homeCalendarRows([], [...busyDay, ...laterDays], morning);
+const futureIds = new Set(laterDays.map(row => row.id));
+const futurePreview = preview.filter(row => futureIds.has(row.id));
+assert.equal(groupSimultaneousRows(futurePreview).length, HOME_CALENDAR_MAX_EVENTS, "later days retain a bounded preview");
+assert.equal(futurePreview.length, HOME_CALENDAR_MAX_EVENTS * 2, "companion reports never consume or get split by the group limit");
+assert.equal(preview.filter(row => !futureIds.has(row.id)).length, 10, "future previews never replace today's rows, including the New York evening");
+assert.equal(homeCalendarRows(morningRows, morningRows, morning).length, morningRows.length, "overlapping cached lists remain deduplicated");
+assert.equal(homeCalendarRows(morningRows, [], Date.parse("2026-10-29T00:01:00-04:00")).length, 0, "yesterday's releases roll off at New York midnight");
 console.log("calendar checks passed");

@@ -3831,6 +3831,17 @@ body.is-dragging-position-tool .setup-chart-position-band {
   pointer-events: none;
 }
 
+.setup-chart-level-price {
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: 20px;
+  padding-block: 0;
+  font-size: 11px;
+  transform: translateY(-50%);
+}
+
 .setup-chart-crosshair-labels {
   position: absolute;
   inset: 0;

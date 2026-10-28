@@ -1,10 +1,11 @@
 import { IMPACT_LEVEL } from "@/lib/news/impact-tagging";
 import { RELEASED_EVENT_WINDOW_MINUTES, startOfNewYorkDay, type EconomicCalendarSnapshot } from "@/lib/oanda/calendar";
+import { tradingDayKey } from "@/lib/format/datetime";
 
 /** Minimum impact shown on Home (medium and high; same scale as the calendar feed). */
 export const HOME_CALENDAR_MIN_IMPACT = IMPACT_LEVEL.medium;
 
-/** Cap list length so the rail/card stays scannable on mobile. */
+/** Limit the preview of later days; today's releases are never capped. */
 export const HOME_CALENDAR_MAX_EVENTS = 6;
 
 /** The current-week export rolls to a Sunday week; publication time is not guaranteed. */
@@ -41,18 +42,19 @@ export function upcomingHomeCalendarEvents<T extends { impact: number }>(events:
 export type HomeCalendarRowState = "live" | "released" | "upcoming";
 
 /**
- * Home news rows: everything released today (New York day) stays on the list
- * ahead of the upcoming events. A release is `live` for its first hour, then
- * `released` until midnight. Only upcoming rows count toward the cap, so a
- * busy morning does not push the next events off. Uses `now` rather than the
- * fetch time, so rows change state while the page stays open.
+ * Keep all of today's releases visible, including those still ahead. A busy
+ * morning must not hide an afternoon release until the earlier events pass.
+ * Only later days are capped, counting same-currency simultaneous releases
+ * as one group so a limit cannot cut a release's companion reports in half.
+ * Uses `now` rather than fetch time so row states update while the page is open.
  */
-export function homeCalendarRows<T extends { id: string; impact: number; timestamp: string }>(
+export function homeCalendarRows<T extends { id: string; currency: string; impact: number; timestamp: string }>(
   recent: T[],
   upcoming: T[],
   now: number,
 ): (T & { state: HomeCalendarRowState })[] {
   const todayStart = startOfNewYorkDay(now);
+  const today = tradingDayKey(now);
   const seen = new Set<string>();
   const rows = [...recent, ...upcoming]
     .filter((event) => {
@@ -67,8 +69,15 @@ export function homeCalendarRows<T extends { id: string; impact: number; timesta
         : now - time <= RELEASED_EVENT_WINDOW_MINUTES * 60_000 ? "live" : "released";
       return { ...event, state };
     });
-  const released = rows.filter((row) => row.state !== "upcoming");
-  return [...released, ...rows.filter((row) => row.state === "upcoming").slice(0, HOME_CALENDAR_MAX_EVENTS)];
+  const laterGroups = new Set<string>();
+  return rows.filter((row) => {
+    if (row.state !== "upcoming" || tradingDayKey(row.timestamp) === today) return true;
+    const group = `${row.currency}|${Date.parse(row.timestamp)}`;
+    if (laterGroups.has(group)) return true;
+    if (laterGroups.size >= HOME_CALENDAR_MAX_EVENTS) return false;
+    laterGroups.add(group);
+    return true;
+  });
 }
 
 /**

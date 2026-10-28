@@ -31,11 +31,12 @@ export interface OpenPositionFill {
  * Empty when practice execution is off, and callers fall back to the paper
  * model in that case.
  */
-export function useOpenPositionSnapshot() {
+export function useOpenPositionSnapshot(enabled = true) {
   const [fills, setFills] = useState<Record<string, OpenPositionFill>>({});
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
+    if (!enabled) return;
     try {
       const response = await fetch(apiUrl("/api/oanda/open-positions"), {
         credentials: "include",
@@ -79,14 +80,15 @@ export function useOpenPositionSnapshot() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
+    if (!enabled) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
     const timer = window.setInterval(() => void load(), 15_000);
     return () => window.clearInterval(timer);
-  }, [load]);
+  }, [enabled, load]);
 
   useForegroundRefresh(load);
 

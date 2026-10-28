@@ -10,6 +10,7 @@ import { displayNameFor, pipSizeFor, precisionFor } from "@/lib/instruments/cata
 import type { PendingManualEntry } from "@/types/pending-entry";
 import { NewsWarning } from "@/components/charts/news-warning";
 import { NewsSetupStatus, NewsStraddleTicket } from "@/components/charts/news-straddle-ticket";
+import { CloseConditionsForm } from "@/components/charts/close-conditions-form";
 import type { NewsDraft } from "@/lib/news/news-zone-overlay";
 import styles from "./pending-entry-dialog.module.css";
 
@@ -580,6 +581,7 @@ export function PendingEntryDialog({
           {newsSetup ? (
             <div className="pending-entry-detail">
               <NewsSetupStatus entry={selectedEntry} bid={bid} ask={ask} />
+              {selectedEntry.status === "TRIGGERED" && selectedEntry.paperTradeStatus === "open" ? <CloseConditionsForm entry={selectedEntry} onChanged={onChanged} /> : null}
               {error ? <p className="pending-entry-error">{error}</p> : null}
             </div>
           ) : (
@@ -592,6 +594,7 @@ export function PendingEntryDialog({
                       : selectedEntry.status === "CANCELLED" ? "Entry cancelled"
                         : selectedEntry.status === "FAILED" ? selectedEntry.failureReason ?? "Entry failed" : "Entry is processing"}
             </p>
+            {selectedEntry.status === "TRIGGERED" && selectedEntry.paperTradeStatus === "open" ? <CloseConditionsForm entry={selectedEntry} onChanged={onChanged} /> : null}
             <dl>
               <div><dt>Direction</dt><dd>{selectedEntry.direction.toUpperCase()}</dd></div>
               <div><dt>Order</dt><dd>{selectedEntry.entryOrderType.replace("_", " ").toUpperCase()}</dd></div>

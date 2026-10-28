@@ -146,7 +146,6 @@ function countdown(timestamp: string, now: number) {
 }
 
 const etDay = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "America/New_York" });
-const etTime = new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "America/New_York" });
 
 const ORDER_TYPE_LABEL: Record<PendingManualEntry["entryOrderType"], string> = {
   buy_limit: "Buy limit",
@@ -622,7 +621,7 @@ function LedgerNews({ positions }: { positions: HomeCurrentPosition[] }) {
               >
                 <span className="nl-news-when metric-number">
                   <span>{etDay.format(new Date(event.timestamp)).toUpperCase()}</span>
-                  <b>{etTime.format(new Date(event.timestamp))}</b>
+                  <b>{formatClockTime(event.timestamp)}</b>
                 </span>
                 <span className="nl-news-copy">
                   <b>

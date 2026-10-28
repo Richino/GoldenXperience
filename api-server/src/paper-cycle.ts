@@ -2282,14 +2282,21 @@ export async function journalTradeSummary(userId: string) {
 export async function paperTradesForInstrument(userId: string, instrument: string, limit = 40, includeTradeId: string | null = null) {
   const rows = await query(
     `SELECT * FROM (
-       SELECT trade.id,trade.trade_sequence::text AS "tradeSequence",trade.instrument,trade.direction,trade.status,trade.outcome,trade.entry::float,trade.stop::float,trade.target::float,trade.exit::float,trade.result_r::float AS "resultR",trade.opened_at AS "openedAt",trade.closed_at AS "closedAt",trade.exit_reason AS "exitReason",batch.batch_number AS "batchNumber"
+       SELECT trade.id,trade.trade_sequence::text AS "tradeSequence",trade.instrument,trade.direction,trade.status,trade.outcome,trade.entry::float,trade.stop::float,trade.target::float,trade.exit::float,trade.result_r::float AS "resultR",trade.opened_at AS "openedAt",trade.closed_at AS "closedAt",trade.exit_reason AS "exitReason",batch.batch_number AS "batchNumber",
+              intent.broker_trade_id AS "brokerTradeId"
        FROM paper_strategy_trades trade JOIN paper_strategy_batches batch ON batch.id=trade.batch_id
+       LEFT JOIN LATERAL (
+         SELECT broker_trade_id FROM practice_order_intents
+         WHERE paper_trade_id=trade.id AND broker_trade_id IS NOT NULL
+         ORDER BY updated_at DESC LIMIT 1
+       ) intent ON true
        WHERE trade.user_id=$1 AND trade.instrument=$2
        UNION ALL
        SELECT manual.id,'Manual'::text AS "tradeSequence",pending.instrument,manual.direction,manual.status,
               CASE manual.result WHEN 'win' THEN 'target_first' WHEN 'loss' THEN 'stop_first' ELSE 'forced_close' END AS outcome,
               manual.entry::float,manual.stop::float,manual.target::float,manual.exit::float,manual.result_r::float AS "resultR",
-              manual.opened_at AS "openedAt",manual.closed_at AS "closedAt",manual.reason AS "exitReason",NULL::int AS "batchNumber"
+              manual.opened_at AS "openedAt",manual.closed_at AS "closedAt",manual.reason AS "exitReason",NULL::int AS "batchNumber",
+              pending.metadata->>'brokerTradeId' AS "brokerTradeId"
        FROM paper_trades manual
        JOIN pending_manual_entries pending ON pending.paper_trade_id=manual.id
        WHERE manual.user_id=$1 AND pending.instrument=$2 AND manual.status='closed'

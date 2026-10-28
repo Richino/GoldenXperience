@@ -21,6 +21,7 @@ import { SignOutButton } from "@/components/ui/sign-out-button";
 import { NotificationProvider } from "@/components/notifications/notification-provider";
 import { Toaster } from "@/components/ui/toaster";
 import { MarketObserverProvider } from "@/components/analysis/market-observer-provider";
+import { syncAppViewportHeight } from "@/lib/pwa/viewport-height";
 
 function subscribe() {
   return () => undefined;
@@ -120,41 +121,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, [isClient]);
 
-  // iOS PWA soft-keyboard cleanup. iOS overlays the keyboard and shifts the
-  // visual viewport to reveal a focused input; when the keyboard closes it can
-  // leave the page scrolled, so a gap sits under the fixed nav until a reload.
-  // Rather than fight the shift while typing (which only opened gaps), just
-  // reset the scroll once the keyboard closes — the automatic version of the
-  // manual refresh. It never touches normal scrolling, only the close edge.
-  useEffect(() => {
-    const viewport = window.visualViewport;
-    if (!viewport) return;
-    const root = document.documentElement;
-    let keyboardWasOpen = viewport.height < window.innerHeight - 120;
-    const onViewportChange = () => {
-      // iOS keeps the layout viewport at full height when the keyboard opens and
-      // only shrinks the *visual* one, so a fixed 100dvh page (the chart) can't
-      // absorb it and leaves a gap. Publish the visible height so that page can
-      // size to it instead (see --app-viewport-height in globals.css). Scrollable
-      // pages ignore it, so they keep working as they already do.
-      root.style.setProperty("--app-viewport-height", `${Math.round(viewport.height)}px`);
-      const keyboardOpen = viewport.height < window.innerHeight - 120;
-      if (keyboardWasOpen && !keyboardOpen) {
-        // Keyboard just dismissed: clear any residual offset iOS left behind.
-        window.scrollTo(0, 0);
-        root.scrollTop = 0;
-      }
-      keyboardWasOpen = keyboardOpen;
-    };
-    onViewportChange();
-    viewport.addEventListener("resize", onViewportChange);
-    viewport.addEventListener("scroll", onViewportChange);
-    return () => {
-      viewport.removeEventListener("resize", onViewportChange);
-      viewport.removeEventListener("scroll", onViewportChange);
-      root.style.removeProperty("--app-viewport-height");
-    };
-  }, []);
+  // Restore fixed-height chart pages on resume and retain iOS keyboard cleanup.
+  useEffect(() => syncAppViewportHeight(window, document), []);
 
   // Portaled to document.body so no shell ancestor (pull-to-refresh, page
   // motion, overflow) can create a containing block and unpin fixed bottom.

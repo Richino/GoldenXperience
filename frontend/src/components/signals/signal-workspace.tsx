@@ -3277,7 +3277,9 @@ export function SignalWorkspace({
       if (busy || document.visibilityState !== "visible") return;
       const current = seriesRef.current;
       if (current.source !== "oanda" || current.instrument !== instrument) return;
-      const firstIncomplete = current.candles.find(c => !c.complete);
+      // A long suspension may leave old synthetic bars outside the refetch
+      // window. Only the live tail determines the next provider refresh.
+      const firstIncomplete = current.candles.slice(-2).find(c => !c.complete);
       const last = current.candles.at(-1);
       if (!last) return;
       let due = candleEnd(Date.parse(firstIncomplete?.time ?? last.time), current.granularity);

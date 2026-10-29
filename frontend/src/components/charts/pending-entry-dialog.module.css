@@ -378,3 +378,7 @@
   font-size: 12px;
   line-height: 1.5;
 }
+
+:global(html.dark) :global(body) :global(.pending-entry-dialog) :global(.pending-entry-primary).editEntry {
+  color: var(--on-accent, #0b0c0a);
+}

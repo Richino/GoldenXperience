@@ -552,7 +552,7 @@ export function PendingEntryDialog({
           {newsSetup && selectedEntry.metadata.configVersion === 3 ? null : selectedEntry.status === "PENDING" ? (
             <footer className="pending-entry-actions">
               <button type="button" className="pending-entry-danger pressable" disabled={saving} onClick={() => void cancelEntry()}>{newsSetup ? "Cancel news setup" : "Cancel Entry"}</button>
-              {newsSetup ? null : <button type="button" className="pending-entry-primary pressable" onClick={() => {
+              {newsSetup ? null : <button type="button" className={`pending-entry-primary pressable ${styles.editEntry}`} onClick={() => {
                 setOrderReferencePrice(current);
                 setEditing(true);
               }}>Edit Entry</button>}

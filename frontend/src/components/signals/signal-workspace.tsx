@@ -3,7 +3,7 @@
 import { dailyPriceChange, dailyChangeLabel, dailyChangePercentLabel } from "@/lib/oanda/price-change";
 import { candleEnd, candleHealth } from "@/lib/strategy/candle-clock";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useTheme } from "next-themes";
 import {
@@ -1322,6 +1322,7 @@ function SignalSearch({
   modal = false,
   pairLabel,
   showPairAvatar = false,
+  inlineSearch = false,
 }: {
   signals: TradeSignal[];
   activeInstrument: MajorInstrument;
@@ -1335,8 +1336,10 @@ function SignalSearch({
   modal?: boolean;
   pairLabel?: string;
   showPairAvatar?: boolean;
+  inlineSearch?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const listId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
@@ -1461,7 +1464,7 @@ function SignalSearch({
 
     const pairList = (
       <div className="signals-pair-sheet">
-        <div className="signals-search">
+        {!(inlineSearch && useDesktopDropdown) ? <div className="signals-search">
           <Search
             className="size-3.5 shrink-0 text-[color:var(--muted)]"
             strokeWidth={2}
@@ -1498,7 +1501,7 @@ function SignalSearch({
               <X className="size-3" strokeWidth={2} />
             </button>
           ) : null}
-        </div>
+        </div> : null}
         <div className={useDesktopDropdown ? "signals-pair-dropdown-results" : "mt-2"}>
           {matches.length ? (
             visibleMatches.map((result, rowIndex) => {
@@ -1560,7 +1563,7 @@ function SignalSearch({
 
     return (
       <>
-        <div ref={rootRef} className={`relative ${className}`}>
+        <div ref={rootRef} className={`relative ${className}${inlineSearch && useDesktopDropdown ? " is-inline-search" : ""}`}>
           <button
             type="button"
             aria-label="Search pairs"
@@ -1583,6 +1586,16 @@ function SignalSearch({
               </>
             ) : <Search className="size-4" strokeWidth={2} />}
           </button>
+          {inlineSearch && useDesktopDropdown ? <label className="gx-desktop-pair-search">
+            <Search size={16} aria-hidden="true" />
+            <input type="search" role="combobox" aria-label="Search all forex pairs" aria-expanded={open} aria-controls={open ? listId : undefined} aria-autocomplete="list"
+              placeholder="Search pairs" value={query} onFocus={() => setOpen(true)} onChange={event => { onQueryChange(event.target.value); setOpen(true); }}
+              onKeyDown={event => {
+                if (event.key === "Escape") { event.preventDefault(); closePicker(); event.currentTarget.blur(); }
+                if (event.key === "Enter" && matches[0]) { event.preventDefault(); onSelect(matches[0]); closePicker(); }
+                if (event.key === "ArrowDown") { event.preventDefault(); setOpen(true); menuRef.current?.querySelector<HTMLButtonElement>('[role="option"]')?.focus(); }
+              }} />
+          </label> : null}
         </div>
 
         {useDesktopDropdown && open && menuPosition && typeof document !== "undefined"
@@ -1591,6 +1604,7 @@ function SignalSearch({
                 ref={menuRef}
                 className="signals-pair-dropdown menu-popover"
                 role="listbox"
+                id={listId}
                 aria-label="Select a pair"
                 style={{ top: menuPosition.top, left: menuPosition.left }}
               >
@@ -5085,6 +5099,7 @@ export function SignalWorkspace({
                 <PairAvatar key={instrument} instrument={instrument} size={36} horizontal />
                 <SignalSearch
                   compact
+                  inlineSearch
                   pairLabel={activePair}
                   signals={signals}
                   activeInstrument={instrument}

@@ -6714,6 +6714,33 @@ html:is(.dark, :not(.dark)) body .nl-pe-levels input {
 
 /* ======================================================= PAIR PICKER (desktop) */
 
+@media (min-width: 1024px) {
+  .gx-pair-search.is-inline-search { display: flex; align-items: center; gap: 16px; }
+  .gx-desktop-pair-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: clamp(160px, 15vw, 230px);
+    height: 40px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--muted);
+  }
+  .gx-desktop-pair-search:focus-within { border-color: var(--accent); }
+  .gx-desktop-pair-search svg { flex: none; }
+  .gx-desktop-pair-search input {
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: var(--foreground);
+    font-size: 13px;
+  }
+}
+
 /* The chart's pair dropdown in the Night Ledger card style: flag coins,
    name over a quiet NY-status line, the current pair marked with a check. */
 html:is(.dark, :not(.dark)) body .signals-pair-dropdown.menu-popover {

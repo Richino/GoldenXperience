@@ -1,4 +1,5 @@
 "use client";
+import { AbsorptionOverlay, useAbsorptionAnalysis } from "./absorption-overlay";
 
 import {
   useCallback,
@@ -1644,7 +1645,8 @@ export function SetupChart({
   referenceLine = null,
   referenceLines = [],
   patternLines = [],
-  boxes = [],
+  boxes: suppliedBoxes = [],
+  absorptionAlertsEnabled = true,
   patternTags = [],
   showTradeMarkers = true,
   showTradePath = true,
@@ -1677,6 +1679,7 @@ export function SetupChart({
   patternLines?: ChartPatternLine[];
   /** Filled time/price rectangles behind the candles (e.g. AMD phases). */
   boxes?: ChartBox[];
+  absorptionAlertsEnabled?: boolean;
   /** Labels for diagonal pattern lines, updated without chart recreation. */
   patternTags?: ChartReferenceLine[];
   showTradeMarkers?: boolean;
@@ -1688,6 +1691,9 @@ export function SetupChart({
   levelEdit?: ChartLevelEdit | null;
   onLevelEditChange?: (next: ChartLevelEdit) => void;
 }) {
+  const absorptionEnabled = enabledIndicators.includes("heavy-absorption");
+  const absorption = useAbsorptionAnalysis(series, absorptionEnabled);
+  const boxes = [...suppliedBoxes, ...absorption.boxes];
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const mainSeriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
@@ -2344,7 +2350,7 @@ export function SetupChart({
   }, [patternLines, patternLinesFingerprint, priceFormat]);
 
   const boxesFingerprint = boxes
-    .map((box) => `${box.key}:${box.startTime}:${box.endTime}:${box.top}:${box.bottom}:${box.color}:${box.label ?? ""}:${box.faded ?? false}`)
+    .map((box) => `${box.key}:${box.startTime}:${box.endTime}:${box.top}:${box.bottom}:${box.color}:${box.label ?? ""}:${box.faded ?? false}:${box.projectionBars ?? ""}:${box.interactive ?? false}`)
     .join("|");
   // Boxes update in place on the attached primitive; no chart rebuild.
   useEffect(() => {
@@ -3121,6 +3127,7 @@ export function SetupChart({
        */
       data-pull-to-refresh-ignore="true"
     >
+      <AbsorptionOverlay chartRef={chartRef} mainSeriesRef={mainSeriesRef} epoch={chartEpoch} series={series} enabled={absorptionEnabled} alertsEnabled={absorptionAlertsEnabled} analysis={absorption} />
       <div
         ref={containerRef}
         className={`setup-chart-touch w-full overflow-visible ${

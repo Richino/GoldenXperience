@@ -1,0 +1,21 @@
+.settings { padding: 10px 12px; border-top: 1px solid var(--border); color: var(--foreground); }
+.settings summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-size: 13px; font-weight: 650; }
+.settings p { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.fields label { display: flex; flex-direction: column; gap: 5px; min-width: 0; font-size: 11px; color: var(--muted-strong); }
+.fields input { min-width: 0; width: 100%; height: 44px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-raised); color: var(--foreground); font-size: 16px; }
+.fields input[type=checkbox] { width: 24px; accent-color: var(--accent); }
+.settings button { min-height: 44px; margin-top: 10px; font-size: 12px; }
+.layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 5; }
+.marker { position: absolute; pointer-events: auto; min-height: 36px; min-width: 44px; padding: 4px 6px; border-radius: 6px; border: 1px solid currentColor; background: var(--surface); font-size: 10px; font-weight: 700; white-space: nowrap; transform: translate(-50%, -50%); cursor: pointer; }
+.marker[data-status=Candidate] { border-style: dashed; opacity: .8; }
+.marker[data-status=Invalidated], .marker[data-status=Expired] { opacity: .45; border-style: dotted; }
+.analysis { position: absolute; z-index: 40; right: 12px; top: 44px; width: min(310px, calc(100% - 24px)); max-height: calc(100% - 60px); overflow: auto; padding: 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); box-shadow: 0 10px 40px #0005; color: var(--foreground); }
+.analysis header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.analysis header b { font-size: 13px; }
+.analysis button { min-width: 44px; min-height: 44px; }
+.analysis dl { display: grid; grid-template-columns: 1fr 1.2fr; gap: 8px; font-size: 11px; }
+.analysis dt { color: var(--muted); }.analysis dd { margin: 0; overflow-wrap: anywhere; text-align: right; }
+.analysis p { color: var(--muted-strong); font-size: 11px; line-height: 1.5; }
+.diagnostic { font-size: 10px; white-space: pre-wrap; }
+@media (pointer: coarse) { .marker { min-height: 44px; } }

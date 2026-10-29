@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ArrowLeft, CalendarRange, Check, ChevronDown, History, RotateCcw, SlidersHorizontal } from "lucide-react";
 import { MobileSheet } from "@/components/ui/mobile-sheet";
+import { AbsorptionSettingsPanel } from "./absorption-settings";
 import { VARIANT_ICONS } from "@/components/charts/chart-type-select";
 import {
   CHART_INDICATORS,
@@ -17,7 +18,7 @@ const INDICATOR_GROUPS = [
   {
     title: "Overlays",
     options: CHART_INDICATORS.filter((indicator) =>
-      ["support-resistance", "swing-trend-lines", "fibonacci-retracement", "amd", "amd-range", "amd-fvg", "ema-50-100-200"].includes(indicator.value),
+      ["heavy-absorption", "support-resistance", "swing-trend-lines", "fibonacci-retracement", "amd", "amd-range", "amd-fvg", "ema-50-100-200"].includes(indicator.value),
     ),
   },
 ];
@@ -305,6 +306,7 @@ export function IndicatorSheet({
         className="chart-indicator-sheet"
       >
         <div role="menu" aria-label="Chart indicators">
+          <AbsorptionSettingsPanel />
           {INDICATOR_GROUPS.map((group) => (
             <div key={group.title} className="sheet-option-group">
               <p className="sheet-option-group-title">{group.title}</p>

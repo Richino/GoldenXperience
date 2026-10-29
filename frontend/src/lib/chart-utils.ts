@@ -44,6 +44,7 @@ export const CHART_VARIANTS = [
 export type ChartVariant = (typeof CHART_VARIANTS)[number]["value"];
 
 export const CHART_INDICATORS = [
+  { value: "heavy-absorption", label: "GX Heavy Absorption", group: "overlay" },
   { value: "support-resistance", label: "Support & resistance", group: "overlay" },
   { value: "swing-trend-lines", label: "Swing trend lines", group: "overlay" },
   { value: "fibonacci-retracement", label: "Fibonacci retracement", group: "overlay" },
@@ -63,7 +64,7 @@ export const CHART_INDICATORS = [
 
 export type ChartIndicator = (typeof CHART_INDICATORS)[number]["value"];
 
-export const DEFAULT_CHART_INDICATORS: ChartIndicator[] = [];
+export const DEFAULT_CHART_INDICATORS: ChartIndicator[] = ["heavy-absorption"];
 
 export function isChartIndicatorEnabled(
   enabled: readonly string[],

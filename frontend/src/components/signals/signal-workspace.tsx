@@ -197,6 +197,7 @@ const DEFAULT_PAIR_PICKER_INSTRUMENTS = [
 
 type StoredChartPreferences = {
   version: 1;
+  absorptionVersion?: 1;
   timeframe: ChartTimeframe;
   range: ChartRange;
   chartVariant: ChartVariant;
@@ -226,9 +227,9 @@ function readStoredChartPreferences(): StoredChartPreferences | null {
     // turned off. Filtering keeps the rest of the preferences usable.
     return {
       ...(parsed as StoredChartPreferences),
-      enabledIndicators: parsed.enabledIndicators.filter((indicator) =>
+      enabledIndicators: [...new Set([...(parsed.absorptionVersion ? [] : ["heavy-absorption" as ChartIndicator]), ...parsed.enabledIndicators.filter((indicator) =>
         CHART_INDICATORS.some((option) => option.value === indicator),
-      ),
+      )])],
     };
   } catch {
     return null;
@@ -2553,6 +2554,7 @@ export function SignalWorkspace({
     if (!chartPreferencesReady || embeddedSurfaceOnly) return;
     const preferences: StoredChartPreferences = {
       version: 1,
+      absorptionVersion: 1,
       timeframe,
       range,
       chartVariant,
@@ -3265,6 +3267,28 @@ export function SignalWorkspace({
       refreshPendingEntries,
     ]),
   );
+
+  // Quotes do not certify completed OHLCV or provider tick counts. After a bar
+  // boundary, refetch through the existing candle route before finalizing ABS.
+  useEffect(() => {
+    if (!enabledIndicators.includes("heavy-absorption") || replayActive) return;
+    let busy = false;
+    const refreshClosedBar = async () => {
+      if (busy || document.visibilityState !== "visible") return;
+      const current = seriesRef.current;
+      if (current.source !== "oanda" || current.instrument !== instrument) return;
+      const firstIncomplete = current.candles.find(c => !c.complete);
+      const last = current.candles.at(-1);
+      if (!last) return;
+      let due = candleEnd(Date.parse(firstIncomplete?.time ?? last.time), current.granularity);
+      if (!firstIncomplete) due = candleEnd(due, current.granularity);
+      if (Date.now() < due + 3_000) return;
+      busy = true;
+      try { await refreshMarketQuietly(); } finally { busy = false; }
+    };
+    const timer = window.setInterval(() => void refreshClosedBar(), 15_000);
+    return () => window.clearInterval(timer);
+  }, [enabledIndicators, replayActive, instrument, refreshMarketQuietly]);
 
   const handleMarketPrice = useCallback(
     (tick: MarketPriceTick) => {
@@ -4796,6 +4820,7 @@ export function SignalWorkspace({
             className={`relative h-full w-full overflow-hidden chart-data-shell${loading ? " chart-data-shell-loading" : ""}`}
           >
             <SetupChart
+              absorptionAlertsEnabled={!replayActive}
               series={series}
               levels={setupLevels}
               enabledIndicators={enabledIndicators}
@@ -5007,6 +5032,7 @@ export function SignalWorkspace({
               </span>
             </div>
             <SetupChart
+              absorptionAlertsEnabled={!replayActive}
               series={replaySeries}
               levels={replayActive ? null : setupLevels}
               enabledIndicators={enabledIndicators}
@@ -5232,6 +5258,7 @@ export function SignalWorkspace({
                     candle={replayActive ? replaySeries.candles.at(-1) : liveCandle ?? replaySeries.candles.at(-1)}
                   />
                   <SetupChart
+                    absorptionAlertsEnabled={!replayActive}
                     key={`desktop-chart:${instrument}:${timeframe}:${range}`}
                     series={replaySeries}
                     levels={!replayActive && overlayPreferences.levels ? setupLevels : null}
@@ -5414,6 +5441,7 @@ export function SignalWorkspace({
           }
           chart={(height) => (
             <SetupChart
+              absorptionAlertsEnabled={!replayActive}
               key={`fullscreen-chart:${instrument}:${timeframe}:${range}`}
               series={replaySeries}
               levels={!replayActive && overlayPreferences.levels ? setupLevels : null}

@@ -27,6 +27,7 @@
     "market-observer:ai-check": "tsx scripts/check-market-observer-ai.ts",
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
+    "absorption:test": "tsx scripts/test-absorption-alerts.ts",
     "typecheck": "tsc --noEmit",
     "pair-trends:test": "tsx scripts/test-pair-trends-background.ts",
     "database-recovery:test": "tsx scripts/test-database-recovery.ts",

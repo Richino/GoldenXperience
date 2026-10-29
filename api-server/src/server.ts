@@ -1,4 +1,6 @@
 import { CANDLE_ALIGNMENT } from "../../frontend/src/lib/strategy/candle-clock.js";
+import { verifiedAbsorptionAlerts } from "./absorption-alerts.js";
+import { parseAbsorptionSettings } from "../../frontend/src/lib/indicators/absorption.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { weeklyReview, weeklySummary } from "./weekly-review.js";
 import { planReview } from "./plan-review.js";
@@ -342,6 +344,21 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
   }
   if (url.pathname.startsWith("/api/")) {
     const user = await requireOwner(request, response); if (!user) return;
+    if (url.pathname === "/api/indicators/absorption/alerts" && request.method === "POST") {
+      const payload = await body(request);
+      if (typeof payload?.instrument !== "string" || !isKnownInstrument(payload.instrument) || typeof payload?.timeframe !== "string" || !["M1", "M5", "M15", "M30", "H1", "H4", "D", "W"].includes(payload.timeframe)
+        || !Array.isArray(payload?.eventIds) || payload.eventIds.length > 16 || !payload.eventIds.every((id: unknown) => typeof id === "string" && id.length < 200)) {
+        return json(request, response, { error: "Invalid absorption alert request." }, 400);
+      }
+      let settings;
+      try { settings = parseAbsorptionSettings(payload.settings); } catch { return json(request, response, { error: "Invalid absorption settings." }, 400); }
+      const history = await cachedCandles(payload.instrument as MajorInstrument, payload.timeframe, 300, undefined);
+      if (history.data.source !== "oanda" || history.status.state !== "connected") return json(request, response, { error: "Verified OANDA candles unavailable." }, 503);
+      const alerts = verifiedAbsorptionAlerts(history.data, settings, payload.eventIds);
+      let queued = 0;
+      for (const alert of alerts) if (await queueNotification({ ...alert, userId: user.id })) queued++;
+      return json(request, response, { queued });
+    }
     if (url.pathname === "/api/swing-intelligence" || url.pathname.startsWith("/api/swing-intelligence/")) {
       const payload = request.method === "POST" ? await body(request) : null;
       const instrument = String(payload?.instrument ?? url.searchParams.get("instrument") ?? "EUR_USD").toUpperCase();

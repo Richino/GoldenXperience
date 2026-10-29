@@ -21,11 +21,13 @@ export interface ChartBox {
   label?: string;
   /** Lighter fill and a dashed edge, for boxes that only partly qualify. */
   faded?: boolean;
+  projectionBars?: number;
+  interactive?: boolean;
 }
 
 type RenderTarget = Parameters<IPrimitivePaneRenderer["draw"]>[0];
 
-interface PixelBox { x1: number; x2: number; y1: number; y2: number; color: string; label?: string; faded?: boolean }
+interface PixelBox { key: string; interactive?: boolean; x1: number; x2: number; y1: number; y2: number; color: string; label?: string; faded?: boolean }
 
 function withAlpha(hex: string, alpha: number) {
   const value = hex.replace("#", "");
@@ -119,17 +121,25 @@ export class ChartBoxPrimitive implements ISeriesPrimitive<Time> {
       const end = Math.floor(Date.parse(box.endTime) / 1000);
       if (!Number.isFinite(start) || !Number.isFinite(end) || end <= times[0]! || start > times[times.length - 1]! + barSeconds) continue;
       const x1 = timeScale.timeToCoordinate(barAt(Math.max(start, times[0]!)) as Time);
+      const startLogical = x1 === null ? null : timeScale.coordinateToLogical(x1);
       // The end time is exclusive: the last bar is the one before it.
-      const x2 = timeScale.timeToCoordinate(barAt(Math.max(start, end - 1)) as Time);
+      const x2 = box.projectionBars === undefined
+        ? timeScale.timeToCoordinate(barAt(Math.max(start, end - 1)) as Time)
+        : startLogical === null ? null : timeScale.logicalToCoordinate((startLogical + box.projectionBars - 1) as import("lightweight-charts").Logical);
       const y1 = series.priceToCoordinate(box.top);
       const y2 = series.priceToCoordinate(box.bottom);
       if (x1 === null || x2 === null || y1 === null || y2 === null) continue;
-      this.pixels.push({ x1: x1 - halfBar, x2: x2 + halfBar, y1, y2, color: box.color, label: box.label, faded: box.faded });
+      this.pixels.push({ key: box.key, interactive: box.interactive, x1: x1 - halfBar, x2: x2 + halfBar, y1, y2, color: box.color, label: box.label, faded: box.faded });
     }
   }
 
   paneViews(): readonly IPrimitivePaneView[] {
     const pixels = this.pixels;
     return [{ zOrder: () => "bottom", renderer: () => new BoxRenderer(pixels) }];
+  }
+
+  hitTest(x: number, y: number): import("lightweight-charts").PrimitiveHoveredItem | null {
+    const box = [...this.pixels].reverse().find(b => b.interactive && x >= b.x1 && x <= b.x2 && y >= Math.min(b.y1, b.y2) && y <= Math.max(b.y1, b.y2));
+    return box ? { externalId: box.key, zOrder: "bottom", cursorStyle: "pointer" } : null;
   }
 }

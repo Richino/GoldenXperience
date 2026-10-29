@@ -8,6 +8,7 @@
     "generate:splash": "node scripts/generate-splash.mjs",
     "start": "next start",
     "lint": "eslint",
+    "absorption:test": "tsx scripts/test-absorption.ts",
     "typecheck": "tsc --noEmit",
     "home:test": "tsx scripts/test-home-loading.ts && tsx scripts/test-pair-trends-cache.ts && tsx scripts/test-weekly-trends.ts && tsx scripts/test-home-financial-snapshot.ts",
     "watchlist:test": "tsx scripts/test-watchlist-daily-cache.ts",

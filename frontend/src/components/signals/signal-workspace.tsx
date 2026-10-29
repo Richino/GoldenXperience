@@ -5043,12 +5043,12 @@ export function SignalWorkspace({
           ) : mobileTradeActionReady ? (
             <div className="gx-mobile-analyze-section">
               {/* Picker, SL / TP and the trade action share one row. */}
-              <div className="nl-mtrade-row">
+              <div className={`nl-mtrade-row${manualTradeMode === "close" ? " is-position" : ""}`} role="group" aria-label="Trade controls">
                 <PairTradePicker trades={pairTrades} selectedId={settingUpNewTrade ? NEW_PAIR_TRADE : selectedPairTrade?.id ?? null} instrument={instrument} onSelect={setPickedPairTrade} now={pendingEntryClock} />
                 {healthLevels ? (
                   <button type="button" className="nl-mlevels-start pressable" onClick={healthLevels.onStart} aria-label="Adjust stop loss and take profit">
                     <MoveVertical aria-hidden="true" />
-                    SL / TP
+                    Edit levels
                   </button>
                 ) : null}
                 <button
@@ -5058,8 +5058,9 @@ export function SignalWorkspace({
                   onClick={mobileTradeAction.onClick}
                   disabled={mobileTradeAction.disabled}
                   title={mobileTradeAction.title}
+                  aria-label={mobileTradeAction.label}
                 >
-                  {mobileTradeAction.label}
+                  {manualTradeMode === "close" && !tradeActionBusy ? "Close" : mobileTradeAction.label}
                 </button>
               </div>
               {(tradeActionError || trendPullbackError) ? (

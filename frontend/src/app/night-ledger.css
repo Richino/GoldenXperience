@@ -10624,6 +10624,60 @@ html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="watching"]
   }
 }
 
+/* One quiet toolbar for an open position: selector, levels, then close. */
+@media (max-width: 1023px) {
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mtrade-row.is-position {
+    align-items: center;
+    gap: 0;
+    padding: 5px;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--surface);
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mtrade-row.is-position .gx-pair-trade-trigger {
+    height: 44px;
+    padding-inline: 10px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    box-shadow: none;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mtrade-row.is-position .gx-pair-trade-lead {
+    display: none;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mtrade-row.is-position .gx-pair-trade-trigger-text b::before {
+    content: "";
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    margin-right: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    vertical-align: middle;
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mtrade-row.is-position .nl-mlevels-start {
+    height: 44px;
+    min-height: 44px;
+    padding-inline: 14px;
+    border: 0;
+    border-left: 1px solid var(--border);
+    border-radius: 0;
+    background: transparent;
+    color: var(--foreground);
+  }
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mtrade-row.is-position > .gx-mobile-analyze.is-close,
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mtrade-row.is-position > .gx-mobile-analyze.is-close:hover:not(:disabled) {
+    height: 44px;
+    min-height: 44px;
+    padding-inline: 14px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--danger);
+    box-shadow: none;
+  }
+}
+
 /* Phone SL / TP: the editor opens instead of popping in. The panel rises
    into the action row's place, then stop, target and Cancel / Save follow. */
 @keyframes nl-mlevels-open {

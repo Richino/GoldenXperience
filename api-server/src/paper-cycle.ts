@@ -2087,7 +2087,7 @@ function journalTradeWhere(filter: JournalTradeFilter): string {
 
 export async function journalTradeLog(
   userId: string,
-  { limit = 20, offset = 0, filter = "all" }: { limit?: number; offset?: number; filter?: JournalTradeFilter } = {},
+  { limit = 20, offset = 0, filter = "all" }: { limit?: number | null; offset?: number; filter?: JournalTradeFilter } = {},
 ) {
   const where = journalTradeWhere(filter);
   const rows = await query(
@@ -2250,7 +2250,7 @@ export async function journalTradeSummary(userId: string) {
   const today = todayRows.rows[0];
   // Active trades may have fallen beyond the first journal page, but their
   // live cash value still belongs in the exposure total at the top of Journal.
-  const openTrades = await journalTradeLog(userId, { limit: 500, filter: "active" });
+  const openTrades = await journalTradeLog(userId, { limit: null, filter: "active" });
 
   return {
     total,

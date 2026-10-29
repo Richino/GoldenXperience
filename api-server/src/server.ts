@@ -974,11 +974,12 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       if (!brokerSync) await syncPracticeBrokerHistory(user.id);
       // The stats card is filter- and page-independent, so it only rides the
       // first page and is computed over the whole journal.
-      const [trades, summary] = await Promise.all([
+      const [trades, summary, pendingEntries] = await Promise.all([
         journalTradeLog(user.id, { limit, offset, filter }),
         offset === 0 ? journalTradeSummary(user.id) : Promise.resolve(undefined),
+        offset === 0 && url.searchParams.get("includePending") === "1" ? pendingManualEntriesForUser(user.id, undefined, "active") : Promise.resolve(undefined),
       ]);
-      return json(request, response, { trades, hasMore: trades.length === limit, summary, ...(brokerSync ? { brokerSync } : {}) });
+      return json(request, response, { trades, hasMore: trades.length === limit, summary, ...(pendingEntries ? { pendingEntries, checkedAt: new Date().toISOString() } : {}), ...(brokerSync ? { brokerSync } : {}) });
     }
     // Binary Prediction system. Read-only from the API: predictions are created
     // and resolved by the durable server-side loop below, never by a request.

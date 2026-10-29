@@ -4,6 +4,9 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExtern
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ArrowRight, Search, X } from "lucide-react";
+import type { PendingManualEntry } from "@/types/pending-entry";
+import { activeEntryOrders, orderMatchesPair } from "@/lib/journal/active-orders";
+import { OrdersOverview, PendingOrders } from "./pending-orders";
 import type { JournalTrade } from "@/types/forex";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { apiUrl } from "@/lib/api/url";
@@ -677,7 +680,11 @@ export function TradesView() {
   const [loadingMore, setLoadingMore] = useState(false);
   const offsetRef = useRef(0);
   const seqRef = useRef(0);
-  const initialTabResolvedRef = useRef(false);
+  const [entryOrders, setEntryOrders] = useState<PendingManualEntry[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [ordersError, setOrdersError] = useState(false);
+  const [ordersUpdatedAt, setOrdersUpdatedAt] = useState<string | null>(null);
+  const ordersRequestRef = useRef(false);
 
   const liveQuotes = useLiveQuotes();
   const openInstruments = useMemo(
@@ -695,16 +702,25 @@ export function TradesView() {
 
   // Whole-journal aggregates + the full open-trade set (server computes both).
   const loadSummary = useCallback(async () => {
+    if (ordersRequestRef.current) return;
+    ordersRequestRef.current = true;
     try {
-      const res = await fetch(apiUrl("/api/journal/trades?limit=1&offset=0&filter=all"), {
+      const res = await fetch(apiUrl("/api/journal/trades?limit=1&offset=0&filter=all&includePending=1&sync=background"), {
         credentials: "include",
-        cache: "no-store",
+        cache: "no-store", signal: AbortSignal.timeout(20_000),
       });
-      if (!res.ok) return;
-      const payload = (await res.json()) as { summary?: Summary };
-      if (payload.summary) setSummary(payload.summary);
+      if (!res.ok) throw new Error("Orders unavailable");
+      const payload = (await res.json()) as { summary?: Summary; pendingEntries?: PendingManualEntry[]; checkedAt?: string };
+      if (!payload.summary || !Array.isArray(payload.pendingEntries)) throw new Error("Incomplete orders snapshot");
+      setSummary(payload.summary);
+      setEntryOrders(payload.pendingEntries);
+      setOrdersUpdatedAt(payload.checkedAt ?? new Date().toISOString());
+      setOrdersError(false);
     } catch {
-      /* keep the last good summary */
+      setOrdersError(true);
+    } finally {
+      ordersRequestRef.current = false;
+      setOrdersLoading(false);
     }
   }, []);
 
@@ -757,8 +773,15 @@ export function TradesView() {
     return () => window.clearInterval(timer);
   }, [refreshAll]);
   useForegroundRefresh(refreshAll);
+  useEffect(() => {
+    if (tab !== "open") return;
+    const timer = window.setInterval(() => { if (document.visibilityState === "visible") void loadSummary(); }, 15_000);
+    return () => window.clearInterval(timer);
+  }, [tab, loadSummary]);
 
   const openTrades = useMemo(() => summary?.openTrades ?? [], [summary?.openTrades]);
+  const pendingOrders = useMemo(() => activeEntryOrders(entryOrders, openTrades), [entryOrders, openTrades]);
+  const visiblePending = useMemo(() => pendingOrders.filter(e => orderMatchesPair(e.instrument, query)), [pendingOrders, query]);
   const closedTrades = useMemo(() => records.filter((t) => t.status === "closed"), [records]);
   // Newest-first from the API; the strip reads left to right, oldest to newest.
   const recentR = useMemo(
@@ -771,28 +794,14 @@ export function TradesView() {
     [closedTrades],
   );
 
-  // A link can ask for a tab (Home's Recent activity opens ?tab=closed). It
-  // wins over the no-open-position default below, which then never runs.
+  // Orders is the default even when only pending entries exist. Explicit
+  // history links (such as Home's ?tab=closed) still choose their own view.
   useEffect(() => {
     const requested = new URLSearchParams(window.location.search).get("tab");
-    if (requested !== "open" && requested !== "closed" && requested !== "all") return;
-    initialTabResolvedRef.current = true;
+    if (requested !== "open" && requested !== "orders" && requested !== "closed" && requested !== "all") return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setTab(requested);
+    setTab(requested === "orders" ? "open" : requested);
   }, []);
-
-  // The first render cannot know whether an open position exists. Once the
-  // journal summary arrives, make a no-open-position launch useful by showing
-  // the latest closed trades. This runs once only, so a person's later tab
-  // choice is never overwritten by a background refresh.
-  useEffect(() => {
-    if (!summary || initialTabResolvedRef.current) return;
-    initialTabResolvedRef.current = true;
-    // The API response is the external source that resolves the otherwise
-    // unknown initial tab; later user choices are guarded by the ref above.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (!(summary.openTrades?.length ?? 0)) setTab("closed");
-  }, [summary]);
 
   const openCount = openTrades.length;
   const closedCount = Math.max(0, (summary?.total ?? 0) - openCount);
@@ -879,7 +888,7 @@ export function TradesView() {
   }, [selected, quotes, fills]);
 
   const tabs: { id: Tab; label: string; count: number }[] = [
-    { id: "open", label: "Open", count: openCount },
+    { id: "open", label: "Orders", count: openCount + pendingOrders.length },
     { id: "closed", label: "Closed", count: closedCount },
     { id: "all", label: "All", count: allCount },
   ];
@@ -895,15 +904,17 @@ export function TradesView() {
       <header className="nl-tr-head">
         <div className="nl-tr-title">
           <span className="nl-overline">
-            {openCount} open · {closedCount} closed
+            {pendingOrders.length} entries · {openCount} open · {closedCount} closed
           </span>
           <h1>Trades</h1>
         </div>
         <NotificationBell compact={!wide} className="nl-tr-bell" />
       </header>
 
-      {initialTabLoading ? (
+      {initialTabLoading || (tab === "open" && ordersLoading) ? (
         <TradesSummarySkeleton />
+      ) : tab === "open" ? (
+        summary ? <OrdersOverview entries={pendingOrders} openCount={openCount} openPnl={openAgg.pnl} /> : null
       ) : (
         <TradesSummaryRow
           tab={tab}
@@ -961,9 +972,16 @@ export function TradesView() {
         </div>
       )}
 
+      {tab === "open" ? <div className="mb-4 flex min-h-11 items-center justify-between gap-3 text-xs text-[color:var(--muted-strong)]" role="status">
+        <span>{ordersError ? summary ? "Orders could not refresh. Showing the last successful snapshot." : "Orders are unavailable. Try refreshing." : ordersUpdatedAt ? `Updated ${formatClockTime(ordersUpdatedAt)} · refreshes every 15 seconds` : "Loading orders…"}</span>
+        <button type="button" className="min-h-11 shrink-0 rounded-lg border border-[color:var(--border)] px-3 text-[color:var(--foreground)]" onClick={() => void loadSummary()}>Refresh orders</button>
+      </div> : null}
+
       <div className="nl-tr-body">
         <section className="nl-tr-list" aria-label="Trade list">
-          {loading ? (
+          {tab === "open" && !ordersLoading ? <PendingOrders entries={visiblePending} asOf={ordersUpdatedAt} /> : null}
+          {tab === "open" && rows.length ? <h2 className="mb-3 text-sm font-semibold">Open trades <span className="ml-2 text-xs text-[color:var(--muted-strong)]">{rows.length}</span></h2> : null}
+          {loading || (tab === "open" && ordersLoading) ? (
             <TradesSkeleton />
           ) : rows.length ? (
             <>
@@ -1008,17 +1026,17 @@ export function TradesView() {
               ) : null}
             </>
           ) : (
-            <p className="nl-tr-empty">{tab === "open" ? "No open positions right now." : "No trades in this view."}</p>
+            <p className="nl-tr-empty">{tab === "open" ? ordersError && !summary ? "Orders are unavailable. Try refreshing." : visiblePending.length ? "No open trades in this view." : query ? "No matching orders." : "No pending entries or open trades." : "No trades in this view."}</p>
           )}
         </section>
 
-        <aside className="nl-tr-panel" aria-label="Selected trade">
+        {tab !== "open" || rows.length ? <aside className="nl-tr-panel" aria-label="Selected trade">
           {selected ? (
             <TradeDetail trade={selected} live={selectedLive} variant="panel" />
           ) : (
             <p className="nl-tr-empty">Select a trade to see its details.</p>
           )}
-        </aside>
+        </aside> : null}
       </div>
 
       {wide ? null : (

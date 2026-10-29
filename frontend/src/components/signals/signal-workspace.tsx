@@ -2421,6 +2421,7 @@ export function SignalWorkspace({
   paperPlans,
   initialPaperTrades = [],
   initialFocusTradeId = null,
+  initialPendingEntryId = null,
   initialPredictionFocus = null,
   initialManualProposal = null,
   initialPlanHandoff = false,
@@ -2442,6 +2443,7 @@ export function SignalWorkspace({
   paperPlans: SignalPaperPlan[];
   initialPaperTrades?: PaperChartTrade[];
   initialFocusTradeId?: string | null;
+  initialPendingEntryId?: string | null;
   initialPredictionFocus?: BinaryPrediction | null;
   /** Exact prospective setup selected from Home, kept stable across the route transition. */
   initialSetupFocus?: { entry: number; stop: number; target: number } | null;
@@ -2740,6 +2742,18 @@ export function SignalWorkspace({
     setSwingZones(current => current.length === next.length && current.every((z, i) => z.id === next[i].id && z.revision === next[i].revision) ? current : next);
   }, []);
   const [selectedPendingEntry, setSelectedPendingEntry] = useState<PendingManualEntry | null>(null);
+  const openedInitialOrder = useRef<string | null>(null);
+  useEffect(() => {
+    if (!initialPendingEntryId || openedInitialOrder.current === initialPendingEntryId) return;
+    const entry = pendingEntries.find(item => item.id === initialPendingEntryId);
+    if (!entry) return;
+    openedInitialOrder.current = initialPendingEntryId;
+    // Opening an existing order only displays its details; it never submits it.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelectedPendingEntry(entry);
+    setPickedPairTrade(entry.id);
+    setPendingEntryDialogOpen(true);
+  }, [initialPendingEntryId, pendingEntries]);
   const [pendingEntryNotice, setPendingEntryNotice] = useState<string | null>(null);
   const [pendingEntryClock, setPendingEntryClock] = useState(() => Date.now());
   const [entryComposerRevision, setEntryComposerRevision] = useState(0);

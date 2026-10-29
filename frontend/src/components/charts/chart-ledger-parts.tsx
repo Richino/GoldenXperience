@@ -307,6 +307,7 @@ export function ChartLevelEditor({ levels, signal }: { levels: ChartHealthLevels
   const anyInvalid = levels.invalid.stop || levels.invalid.target;
   return (
     <div className="nl-clevels">
+      <div className="nl-clevels-mobile-head"><b>Edit levels</b><span>Drag SL / TP on chart</span></div>
       <p className="nl-clevels-hint">Drag the lines on the chart to place them.</p>
       {rows.map((row) => {
         const fromEntry = row.price === null ? null : ((long ? row.price - signal.entry : signal.entry - row.price) / pip);
@@ -329,7 +330,8 @@ export function ChartLevelEditor({ levels, signal }: { levels: ChartHealthLevels
               </b>
               {row.invalid ? <small>Must be {row.hint} the {levels.relativeTo ?? "current price"}.</small> : null}
             </div>
-            <button type="button" className="nl-clevels-toggle pressable" onClick={() => levels.onToggle(row.key)}>
+            <button type="button" className="nl-clevels-toggle pressable" onClick={() => levels.onToggle(row.key)}
+              aria-label={`${row.price === null ? "Add" : "Remove"} ${row.label.toLowerCase()}`} disabled={levels.saving}>
               {row.price === null ? <Plus aria-hidden="true" /> : <X aria-hidden="true" />}
               {row.price === null ? "Add" : "Remove"}
             </button>
@@ -347,8 +349,9 @@ export function ChartLevelEditor({ levels, signal }: { levels: ChartHealthLevels
           type="button"
           className="nl-clevels-none pressable"
           onClick={levels.onClear}
+          disabled={levels.saving}
         >
-          No stop or target
+          Remove both levels
         </button>
       ) : null}
       {levels.error ? <p className="nl-clevels-error" role="alert">{levels.error}</p> : null}

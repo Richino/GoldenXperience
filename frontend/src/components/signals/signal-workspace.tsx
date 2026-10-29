@@ -3402,7 +3402,11 @@ export function SignalWorkspace({
   const activeBrokerTradeId = activeManualTrade
     ? (typeof activeManualTrade.metadata.brokerTradeId === "string" ? activeManualTrade.metadata.brokerTradeId : null)
     : openPaperTrade?.brokerTradeId ?? null;
-  const activeTradePL = useChartTradePL(activeBrokerTradeId);
+  const { label: activeTradePL, color: activeTradePLColor, targetLabel: activeTargetPL } = useChartTradePL(
+    activeBrokerTradeId, instrument, activeManualTrade?.direction ?? openPaperTrade?.direction ?? null,
+    quote?.instrument === instrument && quote.source === "oanda" ? quote : null,
+    activeManualTrade?.targetPrice ?? openPaperTrade?.target ?? null,
+  );
   const triggeredManualEntry =
     activeManualTrade && activeManualTrade.stopPrice !== null && activeManualTrade.targetPrice !== null
       ? activeManualTrade
@@ -3743,12 +3747,14 @@ export function SignalWorkspace({
       exit: openPaperTrade.exit,
       outcome: openPaperTrade.outcome,
       entryLabel: activeTradePL,
+      entryColor: activeTradePLColor,
+      targetLabel: activeTargetPL,
     }) : focusTrade || triggeredManualEntry ? null : openSignal ? ({
       entry: openSignal.entry,
       stop: openSignal.stop,
       target: openSignal.target,
     }) : null,
-    [openSignal, focusTrade, openPaperTrade, triggeredManualEntry, activeTradePL],
+    [openSignal, focusTrade, openPaperTrade, triggeredManualEntry, activeTradePL, activeTradePLColor, activeTargetPL],
   );
   // News-mode zones come from the server's setup state (news-zone-overlay).
   // Only previews follow the live price, and only to the nearest pip, so the
@@ -3857,16 +3863,16 @@ export function SignalWorkspace({
       if (entry.status === "TRIGGERED" && entry.paperTradeStatus === "open" && entry.triggerPrice !== null) {
         const editing = levelDraftEntryId === entry.id;
         const lines: ChartReferenceLine[] = [
-          { key: `manual-entry-${entry.id}`, price: entry.triggerPrice, label: newsFillLabel(entry, pendingEntryClock, activeTradePL) ?? activeTradePL, color: "#00a06a", textColor: "#ffffff", dashed: false, lineWidth: 2 as const, onSelect: () => openManager(entry) },
+          { key: `manual-entry-${entry.id}`, price: entry.triggerPrice, label: newsFillLabel(entry, pendingEntryClock, activeTradePL) ?? activeTradePL, color: activeTradePLColor, textColor: "#ffffff", dashed: false, lineWidth: 2 as const, onSelect: () => openManager(entry) },
         ];
         const stopAtRisk = entry.stopPrice !== null && (entry.direction === "long" ? entry.stopPrice < entry.triggerPrice : entry.stopPrice > entry.triggerPrice);
         if (entry.stopPrice !== null && !editing) lines.push({ key: `manual-stop-${entry.id}`, price: entry.stopPrice, label: `SL ${formatChartPrice(entry.stopPrice, instrument)}${stopAtRisk ? " · -1R" : ""}`, color: "#e74c3c", textColor: "#ffffff", dashed: true, lineWidth: 1 as const, onSelect: () => openManager(entry) });
-        if (entry.targetPrice !== null && !editing) lines.push({ key: `manual-target-${entry.id}`, price: entry.targetPrice, label: `TP ${formatChartPrice(entry.targetPrice, instrument)}${triggeredRewardR(entry)}`, color: "#00b377", textColor: "#ffffff", dashed: true, lineWidth: 1 as const, onSelect: () => openManager(entry) });
+        if (entry.targetPrice !== null && !editing) lines.push({ key: `manual-target-${entry.id}`, price: entry.targetPrice, label: activeTargetPL, color: "#00b377", textColor: "#ffffff", dashed: true, lineWidth: 1 as const, onSelect: () => openManager(entry) });
         return lines;
       }
       return [];
     });
-  }, [instrument, levelDraftEntryId, pendingEntries, pendingEntryClock, selectedPairTrade?.id, activeTradePL]);
+  }, [instrument, levelDraftEntryId, pendingEntries, pendingEntryClock, selectedPairTrade?.id, activeTradePL, activeTradePLColor, activeTargetPL]);
   const supportResistanceReferenceLines = useMemo(
     () => isChartIndicatorEnabled(enabledIndicators, "support-resistance")
       ? supportResistanceLines(chartIndicatorCandles, instrument)

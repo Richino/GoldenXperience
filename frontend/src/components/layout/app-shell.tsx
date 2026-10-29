@@ -109,14 +109,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (!dock) return;
 
     const root = document.documentElement;
-    const apply = () =>
+    const apply = () => {
+      if (document.visibilityState !== "visible") return;
       root.style.setProperty("--app-dock-height", `${dock.offsetHeight}px`);
+    };
     apply();
 
     const observer = new ResizeObserver(apply);
     observer.observe(dock);
+    window.addEventListener("pageshow", apply);
+    document.addEventListener("visibilitychange", apply);
+    document.addEventListener("resume", apply);
     return () => {
       observer.disconnect();
+      window.removeEventListener("pageshow", apply);
+      document.removeEventListener("visibilitychange", apply);
+      document.removeEventListener("resume", apply);
       root.style.removeProperty("--app-dock-height");
     };
   }, [isClient]);

@@ -1,3 +1,8 @@
+import { getCandles } from "../../../frontend/src/lib/oanda/client.js";
+import { readSwingTrend } from "../../../frontend/src/lib/swing-trend-read.js";
+import { precisionFor } from "../../../frontend/src/lib/instruments/catalog.js";
+import type { MajorInstrument } from "../../../frontend/src/types/forex.js";
+import { manualOcoRun } from "./manual-oco.js";
 import { randomUUID } from "node:crypto";
 import { getMarketSelectionCalendar } from "../../../frontend/src/lib/calendar/forex-factory.js";
 import { NEWS_V3, type NewsLeg, type NewsRun, type NewsV3Preview } from "../../../frontend/src/lib/news/news-straddle-v3.js";
@@ -13,7 +18,7 @@ export const liveEngineDeps = (): EngineDeps => ({
   entriesEnabled: () => process.env.NEWS_STRADDLE_V3_ENABLED !== "false",
   policy: newsRiskPolicy, halted: async () => (await newsRuntimeStatus(accountKey())).halted,
   calendar: getMarketSelectionCalendar,
-  notify: async (run, event, text) => { await queueNotification({ userId: run.userId, kind: event === "exception" ? "system_issue" : "trade_update", title: `${run.instrument.replace("_", "/")} News Straddle`, message: text, instrument: run.instrument, paperTradeId: null, dedupeKey: `news-v3:${run.id}:${event}` }); },
+  notify: async (run, event, text) => { await queueNotification({ userId: run.userId, kind: event === "exception" ? "system_issue" : "trade_update", title: `${run.instrument.replace("_", "/")} ${run.mode === "oco" ? "Linked OCO" : "News Straddle"}`, message: text, instrument: run.instrument, paperTradeId: null, dedupeKey: `news-v3:${run.id}:${event}` }); },
   log: error => console.error("[news-v3]", error instanceof Error ? error.message : error),
 });
 
@@ -72,4 +77,29 @@ export async function resetNewsHalt(userId: string) {
   // No orders are submitted by a reset. A new release still needs explicit arming.
   await query("UPDATE news_straddle_runtime SET halted=false,halt_reason=NULL,updated_at=now() WHERE account_key=$1", [accountKey()]);
   return { reset: true };
+}
+
+export async function armManualOco(userId: string, raw: Record<string, unknown>) {
+  if (liveNewsBroker.environment() !== "practice" || process.env.NEWS_STRADDLE_V3_ENABLED === "false") throw new Error("Practice OCO execution is unavailable.");
+  const existing = typeof raw.requestId === "string" && /^[0-9a-f-]{36}$/i.test(raw.requestId) ? await readUserNewsRun(raw.requestId, userId) : null;
+  if (existing) {
+    if (existing.mode !== "oco" || existing.instrument !== raw.instrument || existing.legs.long.entry !== raw.buyEntry || existing.legs.short.entry !== raw.sellEntry || existing.requestedRiskAmount !== raw.riskAmount) throw new Error("Request ID belongs to a different setup.");
+    return { run: existing, entries: await newsRows(existing.id, userId) };
+  }
+  const run = await previewManualOco(userId, raw);
+  const stored = await createNewsRun(run);
+  return { run: stored, entries: await newsRows(stored.id, userId) };
+}
+
+export async function previewManualOco(userId: string, raw: Record<string, unknown>) {
+  if (liveNewsBroker.environment() !== "practice" || process.env.NEWS_STRADDLE_V3_ENABLED === "false") throw new Error("Practice OCO execution is unavailable.");
+  const instrument = String(raw.instrument);
+  const [context, policy, runtime, candles] = await Promise.all([liveNewsBroker.context(instrument), newsRiskPolicy(userId), newsRuntimeStatus(accountKey()), getCandles(instrument as MajorInstrument, "H4", 250)]);
+  if (runtime.halted) throw new Error(runtime.halt_reason ?? "OCO execution is paused after an exception.");
+  if (candles.status.state !== "connected" || !readSwingTrend(instrument, "H4", candles.data)) throw new Error("Current completed OANDA 4H candles are unavailable for stop placement.");
+  const closed = candles.data.candles.filter(c => c.complete === true).slice(-15);
+  const atr = closed.slice(1).reduce((sum, c, i) => sum + Math.max(c.high - c.low, Math.abs(c.high - closed[i].close), Math.abs(c.low - closed[i].close)), 0) / 14;
+  const scale = 10 ** precisionFor(instrument);
+  const ocoStopDistance = Math.ceil(2 * atr * scale) / scale;
+  return manualOcoRun(userId, accountKey(), raw, { ...context, ocoStopDistance }, policy, Date.now());
 }

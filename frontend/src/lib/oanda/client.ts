@@ -940,6 +940,46 @@ export async function getAccountSummary(): Promise<{
   }
 }
 
+/** Account and per-trade cash values from one broker response, never mixed polls. */
+export async function getAccountSnapshot() {
+  const config = getConfig();
+  if (!config) throw new OandaRequestError("OANDA credentials are not configured.");
+  const { account } = await requestOanda<OandaAccountResponse & { account: {
+    lastTransactionID: string;
+    trades: OandaOpenTradesResponse["trades"];
+    orders: Array<{ id: string; price?: string }>;
+  } }>(`/v3/accounts/${encodeURIComponent(config.accountId)}`);
+  const checkedAt = new Date().toISOString();
+  const data: AccountSummary = {
+    id: account.id, alias: account.alias || "OANDA practice", currency: account.currency,
+    balance: Number(account.balance), nav: Number(account.NAV), unrealizedPL: Number(account.unrealizedPL),
+    marginUsed: Number(account.marginUsed), marginAvailable: Number(account.marginAvailable),
+    openTradeCount: account.openTradeCount, hedgingEnabled: account.hedgingEnabled, source: "oanda",
+  };
+  if (![data.balance, data.nav, data.unrealizedPL, data.marginUsed, data.marginAvailable].every(Number.isFinite) || !Array.isArray(account.trades)) {
+    throw new OandaRequestError("Incomplete broker account snapshot.");
+  }
+  const pricing = account.trades.length ? await getPricing([...new Set(account.trades.map(trade => trade.instrument))]) : null;
+  if (pricing && pricing.status.state !== "connected") throw new OandaRequestError("Position pricing unavailable.");
+  const prices = new Map(pricing?.data.map(quote => [quote.instrument, quote]));
+  const positions: OpenPosition[] = account.trades.map(trade => {
+    const units = Number(trade.currentUnits);
+    const quote = prices.get(trade.instrument);
+    const stopId = (trade as typeof trade & { stopLossOrderID?: string }).stopLossOrderID;
+    return {
+      id: trade.id, instrument: trade.instrument, pair: formatPair(trade.instrument),
+      direction: units >= 0 ? "long" : "short", units: Math.abs(units), entryPrice: Number(trade.price),
+      stopPrice: stopId ? Number(account.orders?.find(order => order.id === stopId)?.price) || null : null,
+      currentPrice: quote?.mid ?? Number(trade.price), currentBid: quote?.bid ?? null, currentAsk: quote?.ask ?? null,
+      unrealizedPL: Number(trade.unrealizedPL), openedAt: trade.openTime, source: "oanda",
+    };
+  });
+  if (positions.length !== data.openTradeCount || positions.some(position => ![position.units, position.entryPrice, position.unrealizedPL].every(Number.isFinite))) {
+    throw new OandaRequestError("Incomplete broker position snapshot.");
+  }
+  return { data, positions, checkedAt, lastTransactionID: account.lastTransactionID, status: buildStatus("connected", "Account and positions updated together.") };
+}
+
 /**
  * Returns real balance movements from OANDA's transaction ledger.
  *

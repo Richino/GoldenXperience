@@ -225,29 +225,22 @@ function RBars({ results, compact = false }: { results: number[]; compact?: bool
   );
 }
 
-/** Running total of R across recent closed trades, oldest to newest, as a line. */
-function RLine({ results }: { results: number[] }) {
+/** Cumulative realized dollars for the headline trades, oldest to newest. */
+function RealizedMoneyLine({ results }: { results: number[] }) {
   const points = results.reduce<number[]>((acc, r) => [...acc, (acc.at(-1) ?? 0) + r], [0]);
-  const min = Math.min(...points);
-  const max = Math.max(...points);
-  const span = max - min || 1;
+  const low = Math.min(...points);
+  const high = Math.max(...points);
+  // Leave room around the extrema so the zero line and endpoint remain visible.
+  const padding = (high - low || 1) * 0.1;
+  const min = low - padding;
+  const max = high + padding;
+  const span = max - min;
   const width = 100;
   const height = 40;
-  const x = (i: number) => (i / (points.length - 1)) * width;
+  const x = (i: number) => (i / Math.max(1, points.length - 1)) * width;
   const y = (v: number) => height - ((v - min) / span) * height;
   const xy = points.map((v, i) => [x(i), y(v)] as const);
-  // Smooth the line with Catmull-Rom segments drawn as cubic Béziers.
-  const path = xy
-    .map(([px, py], i) => {
-      if (!i) return `M${px.toFixed(2)},${py.toFixed(2)}`;
-      const [x0, y0] = xy[Math.max(0, i - 2)];
-      const [x1, y1] = xy[i - 1];
-      const [x3, y3] = xy[Math.min(xy.length - 1, i + 1)];
-      const c1 = [x1 + (px - x0) / 6, y1 + (py - y0) / 6];
-      const c2 = [px - (x3 - x1) / 6, py - (y3 - y1) / 6];
-      return `C${c1[0].toFixed(2)},${c1[1].toFixed(2)} ${c2[0].toFixed(2)},${c2[1].toFixed(2)} ${px.toFixed(2)},${py.toFixed(2)}`;
-    })
-    .join(" ");
+  const path = xy.map(([px, py], i) => `${i ? "L" : "M"}${px.toFixed(2)},${py.toFixed(2)}`).join(" ");
   const net = points.at(-1) ?? 0;
   const id = useId();
   const [endX, endY] = xy[xy.length - 1];
@@ -260,7 +253,8 @@ function RLine({ results }: { results: number[] }) {
     <span
       className={`nl-tr-line ${net >= 0 ? "is-win" : "is-loss"}`}
       role="img"
-      aria-label={`Running total over the last ${results.length} closed trades: ${fmtR(net)}`}
+      aria-label={`Cumulative realized profit over the last ${results.length} closed trades: ${fmtMoney(net, true)}. Oldest to newest; one step per trade.`}
+      title={`Last ${results.length} closed trades: ${fmtMoney(net, true)}. One step per trade; dashed line is $0.`}
     >
       <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
         <defs>
@@ -349,7 +343,8 @@ function TradesSummaryRow({
   recentR: number[];
   wonLost: WonLost | undefined;
 }) {
-  const withPl = recentClosed.filter((t) => t.paperPl !== null && t.paperPl !== undefined);
+  const withPl = recentClosed.filter((t) => typeof t.paperPl === "number" && Number.isFinite(t.paperPl));
+  const realizedResults = withPl.map((t) => t.paperPl as number).reverse();
   const net = withPl.reduce((sum, t) => sum + (t.paperPl ?? 0), 0);
   const withR = recentClosed.filter((t) => t.resultR !== null && Number.isFinite(t.resultR));
   const netR = withR.reduce((sum, t) => sum + (t.resultR ?? 0), 0);
@@ -373,9 +368,9 @@ function TradesSummaryRow({
         <span className="nl-tr-hero-label">{hero.label}</span>
         <span className={`nl-tr-hero-value ${toneOf(hero.value)}`}>{fmtMoney(hero.value, true) ?? "—"}</span>
         <span className="nl-tr-hero-sub metric-number">{hero.sub}</span>
-        {recentR.length ? (
+        {tab !== "open" && realizedResults.length ? (
           <span className="nl-tr-hero-bars">
-            <RLine results={recentR} />
+            <RealizedMoneyLine results={realizedResults} />
           </span>
         ) : null}
       </div>

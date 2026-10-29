@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "home:test": "tsx scripts/test-home-loading.ts && tsx scripts/test-pair-trends-cache.ts && tsx scripts/test-weekly-trends.ts",
+    "home:test": "tsx scripts/test-home-loading.ts && tsx scripts/test-pair-trends-cache.ts && tsx scripts/test-weekly-trends.ts && tsx scripts/test-home-financial-snapshot.ts",
     "watchlist:test": "tsx scripts/test-watchlist-daily-cache.ts",
     "swing-trend:test": "tsx scripts/test-swing-trend-status.ts && tsx scripts/test-pair-trend-read-cache.ts",
     "pwa-layout:test": "tsx scripts/test-ios-top-clearance.ts",

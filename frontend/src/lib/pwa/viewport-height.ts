@@ -50,7 +50,7 @@ export function syncAppViewportHeight(browser: Window, page: Document) {
     });
     // Mobile OS window restoration can finish after its visibility event,
     // without a visualViewport resize notification. These retries are bounded.
-    settleTimers = [250, 750].map(delay => browser.setTimeout(sync, delay));
+    settleTimers = [250, 750, 1500, 2500].map(delay => browser.setTimeout(sync, delay));
   };
 
   resume();
@@ -61,6 +61,7 @@ export function syncAppViewportHeight(browser: Window, page: Document) {
   browser.addEventListener("focus", resume);
   browser.addEventListener("pageshow", resume);
   page.addEventListener("visibilitychange", resume);
+  page.addEventListener("resume", resume);
   page.addEventListener("focusin", sync);
   page.addEventListener("focusout", sync);
   return () => {
@@ -72,6 +73,7 @@ export function syncAppViewportHeight(browser: Window, page: Document) {
     browser.removeEventListener("focus", resume);
     browser.removeEventListener("pageshow", resume);
     page.removeEventListener("visibilitychange", resume);
+    page.removeEventListener("resume", resume);
     page.removeEventListener("focusin", sync);
     page.removeEventListener("focusout", sync);
     root.style.removeProperty(HEIGHT_PROPERTY);

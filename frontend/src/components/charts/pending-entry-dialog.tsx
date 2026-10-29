@@ -9,10 +9,10 @@ import { useDragToDismiss } from "@/lib/use-drag-to-dismiss";
 import { displayNameFor, pipSizeFor, precisionFor } from "@/lib/instruments/catalog";
 import type { PendingManualEntry } from "@/types/pending-entry";
 import { NewsWarning } from "@/components/charts/news-warning";
-import { NewsSetupStatus, NewsStraddleTicket } from "@/components/charts/news-straddle-ticket";
-import { CloseConditionsForm } from "@/components/charts/close-conditions-form";
+import { NewsSetupStatus } from "@/components/charts/news-straddle-ticket";
 import type { NewsDraft } from "@/lib/news/news-zone-overlay";
 import styles from "./pending-entry-dialog.module.css";
+import { ManualOcoTicket } from "./manual-oco-ticket";
 
 type ExpirationPreset = "none" | "30m" | "1h" | "4h" | "custom";
 
@@ -69,7 +69,6 @@ export function PendingEntryDialog({
   creationBlocked = false,
   onClose,
   onChanged,
-  onNewsDraft,
 }: {
   open: boolean;
   layout?: "dialog" | "panel";
@@ -147,8 +146,7 @@ export function PendingEntryDialog({
     };
   }, [isPanel, open]);
   const [editing, setEditing] = useState(false);
-  // Normal is the usual ticket; News arms a two-line breakout for a release.
-  const [ticketMode, setTicketMode] = useState<"normal" | "news">("normal");
+  const [entryMode, setEntryMode] = useState<"single" | "oco">("single");
   // A blank entry has no direction until the user picks one, so a form that
   // lost its Analyze plan (e.g. a reload) can never submit a default LONG.
   const [direction, setDirection] = useState<"long" | "short" | null>(selectedEntry?.direction ?? initialProposal?.direction ?? null);
@@ -164,49 +162,6 @@ export function PendingEntryDialog({
   });
   const [stopPrice, setStopPrice] = useState(selectedEntry?.stopPrice == null ? (initialProposal ? initialProposal.stop.toFixed(precisionFor(instrument)) : "") : String(selectedEntry.stopPrice));
   const [targetPrice, setTargetPrice] = useState(selectedEntry?.targetPrice == null ? (initialProposal ? initialProposal.target.toFixed(precisionFor(instrument)) : "") : String(selectedEntry.targetPrice));
-  // The manual ticket can take the stop and target as pips from entry (easier
-  // to reason about than raw prices). The prices stay the source of truth for
-  // saving; in pips mode they are recalculated from entry and side.
-  const [levelUnit, setLevelUnit] = useState<"pips" | "price">("pips");
-  const pipDistanceText = (price: string, entry: string) => {
-    const p = Number(price), e = Number(entry);
-    if (!price.trim() || !entry.trim() || !Number.isFinite(p) || !Number.isFinite(e)) return "";
-    return String(Number((Math.abs(p - e) / pipSizeFor(instrument)).toFixed(1)));
-  };
-  const [stopPips, setStopPips] = useState(() => pipDistanceText(stopPrice, entryPrice));
-  const [targetPips, setTargetPips] = useState(() => pipDistanceText(targetPrice, entryPrice));
-  /** The price a pip distance lands on: below entry for a long's stop, above for its target. */
-  const priceFromPips = (pips: string, kind: "stop" | "target", entry: string, side: "long" | "short" | null) => {
-    const distance = Number(pips), e = Number(entry);
-    if (!pips.trim() || side === null || !entry.trim() || !Number.isFinite(distance) || distance <= 0 || !Number.isFinite(e)) return "";
-    const away = (kind === "target" ? 1 : -1) * (side === "long" ? 1 : -1) * distance * pipSizeFor(instrument);
-    return (e + away).toFixed(precisionFor(instrument));
-  };
-  // Entry in pips is a distance from the live price (ask for a long, bid for a
-  // short), below or above it. A sign is avoided on purpose: the iPhone decimal
-  // keypad has no minus key. Blank means at the current price.
-  const [entryPips, setEntryPips] = useState("");
-  const [entrySide, setEntrySide] = useState<"below" | "above" | null>(null);
-  const defaultEntrySide = (side: "long" | "short" | null) => (side === "short" ? "above" : "below");
-  const entryReference = (side: "long" | "short" | null) => (side === "long" ? ask : side === "short" ? bid : null);
-  const entryFromPips = (pips: string, where: "below" | "above", side: "long" | "short" | null) => {
-    const reference = entryReference(side);
-    if (reference === null) return "";
-    const distance = pips.trim() === "" ? 0 : Number(pips);
-    if (!Number.isFinite(distance) || distance < 0) return "";
-    return (reference + (where === "above" ? 1 : -1) * distance * pipSizeFor(instrument)).toFixed(precisionFor(instrument));
-  };
-  /** Pips mode: set entry from its distance, then let stop and target follow it. */
-  const applyEntryPips = (pips: string, where: "below" | "above", side: "long" | "short" | null) => {
-    const nextEntry = entryFromPips(pips, where, side);
-    setEntryPrice(nextEntry);
-    setOrderReferencePrice(entryReference(side));
-    if (levelUnit === "pips") {
-      setStopPrice(priceFromPips(stopPips, "stop", nextEntry, side));
-      setTargetPrice(priceFromPips(targetPips, "target", nextEntry, side));
-    }
-    return nextEntry;
-  };
   // Every new trade is a swing trade (held for days): the stop goes beyond
   // 4-hour structure, the target defaults to 2R, and the size comes from that
   // stop. An existing day entry being edited keeps its saved style.
@@ -235,12 +190,6 @@ export function PendingEntryDialog({
     return () => { cancelled = true; window.clearTimeout(timer); };
   }, [instrument, open, sizeKey]);
   const currentSize = positionSize && positionSize.key === sizeKey ? positionSize : null;
-  /** In pips mode, keep the stop and target prices following entry and side. */
-  const syncPipLevels = (entry: string, side: "long" | "short" | null) => {
-    if (levelUnit !== "pips") return;
-    setStopPrice(priceFromPips(stopPips, "stop", entry, side));
-    setTargetPrice(priceFromPips(targetPips, "target", entry, side));
-  };
   const [invalidationPrice, setInvalidationPrice] = useState(selectedEntry?.invalidationPrice == null ? "" : String(selectedEntry.invalidationPrice));
   // A plan held back for news arrives with its start time already set.
   const [activateAt, setActivateAt] = useState(localDateTimeValue(selectedEntry?.activateAt ?? initialProposal?.activateAt ?? null));
@@ -511,19 +460,6 @@ export function PendingEntryDialog({
   }
 
   const newsSetup = selectedEntry?.metadata?.mode === "news";
-  const modeSwitch = !selectedEntry ? (
-    <div className="nl-pe-submit">
-      <span>Mode</span>
-      <div className="nl-an-modes" role="radiogroup" aria-label="Ticket mode">
-        {(["normal", "news"] as const).map((mode) => (
-          <button key={mode} type="button" role="radio" aria-checked={ticketMode === mode} className={ticketMode === mode ? "is-active" : ""} onClick={() => { setTicketMode(mode); setError(null); }}>
-            {mode === "normal" ? "Normal" : "News"}
-          </button>
-        ))}
-      </div>
-    </div>
-  ) : null;
-
   const headerEyebrow = isDetail
     ? selectedEntry?.status
     : selectedEntry
@@ -531,6 +467,10 @@ export function PendingEntryDialog({
       : isPanel
         ? "Add entry"
         : "Trade";
+
+  const entryModePicker = !selectedEntry ? <div className="nl-an-modes" role="radiogroup" aria-label="Entry type">
+    {(["single", "oco"] as const).map(mode => <button key={mode} type="button" role="radio" aria-checked={entryMode === mode} className={entryMode === mode ? "is-active" : ""} onClick={() => setEntryMode(mode)}>{mode === "single" ? "Single entry" : "Linked OCO"}</button>)}
+  </div> : null;
 
   const shell = (
     <section
@@ -581,7 +521,6 @@ export function PendingEntryDialog({
           {newsSetup ? (
             <div className="pending-entry-detail">
               <NewsSetupStatus entry={selectedEntry} bid={bid} ask={ask} />
-              {selectedEntry.status === "TRIGGERED" && selectedEntry.paperTradeStatus === "open" ? <CloseConditionsForm entry={selectedEntry} onChanged={onChanged} /> : null}
               {error ? <p className="pending-entry-error">{error}</p> : null}
             </div>
           ) : (
@@ -594,7 +533,6 @@ export function PendingEntryDialog({
                       : selectedEntry.status === "CANCELLED" ? "Entry cancelled"
                         : selectedEntry.status === "FAILED" ? selectedEntry.failureReason ?? "Entry failed" : "Entry is processing"}
             </p>
-            {selectedEntry.status === "TRIGGERED" && selectedEntry.paperTradeStatus === "open" ? <CloseConditionsForm entry={selectedEntry} onChanged={onChanged} /> : null}
             <dl>
               <div><dt>Direction</dt><dd>{selectedEntry.direction.toUpperCase()}</dd></div>
               <div><dt>Order</dt><dd>{selectedEntry.entryOrderType.replace("_", " ").toUpperCase()}</dd></div>
@@ -688,28 +626,16 @@ export function PendingEntryDialog({
             </button>
           </footer>
         </>
-      ) : ticketMode === "news" && !selectedEntry ? (
-        <NewsStraddleTicket
-          header={modeSwitch}
-          instrument={instrument}
-          bid={bid}
-          ask={ask}
-          creationBlocked={creationBlocked}
-          onCancel={dismissCreateOrClose}
-          onDraft={onNewsDraft}
-          onArmed={(message) => {
-            onChanged(message);
-            onClose();
-          }}
-        />
+      ) : entryMode === "oco" && !selectedEntry ? (
+        <ManualOcoTicket instrument={instrument} header={entryModePicker} blocked={creationBlocked} onCancel={dismissCreateOrClose} onCreated={message => { onChanged(message); onClose(); }} />
       ) : (
         <>
           {/* The manual ticket in the plan's layout: side, the three levels in
               one box, then the order read. Expiry, delayed submit and a
               cancel level are not offered (none / now / none); an entry being
               edited keeps whatever it already had. */}
-          <div className={`nl-pe-plan nl-pe-ticket ${styles.ticket}`}>
-            {modeSwitch}
+          <div className={`nl-pe-plan nl-pe-ticket ${styles.ticket} ${styles.minimalTicket}`}>
+            {entryModePicker}
             <div className="nl-pe-dir" role="radiogroup" aria-label="Direction">
               {(["long", "short"] as const).map((option) => (
                 <button
@@ -721,14 +647,6 @@ export function PendingEntryDialog({
                   onClick={() => {
                     const reference = option === "long" ? ask : bid;
                     setDirection(option);
-                    if (levelUnit === "pips") {
-                      // Entry re-measured from this side's live price; stop and
-                      // target flip to the other side of it with the direction.
-                      const where = entrySide ?? defaultEntrySide(option);
-                      setEntrySide(where);
-                      applyEntryPips(entryPips, where, option);
-                      return;
-                    }
                     setOrderReferencePrice(reference);
                     // Start from the live price so the order read fills in at once.
                     if (entryPrice.trim() === "" && reference !== null) setEntryPrice(reference.toFixed(precision));
@@ -743,131 +661,27 @@ export function PendingEntryDialog({
                 <span className={styles.orderType} data-side={direction}>{planOrder ?? "Order"}</span>
                 <dl className={styles.orderNumbers}>
                   <div><dt>Quote</dt><dd className="metric-number">{current === null ? "Waiting for quote" : current.toFixed(precision)}</dd></div>
-                  <div><dt>Distance</dt><dd className="metric-number">{distancePips === null ? "—" : `${distancePips.toFixed(1)} pips`}</dd></div>
+
                 </dl>
               </div>
             )}
-            <NewsWarning instrument={instrument} tradeStyle={tradeStyle} />
 
             <div className={styles.levelsCard}>
-            <div className={`nl-pe-submit ${styles.levelsHeader}`}>
-              <span>Levels</span>
-              <div className="nl-an-modes" role="radiogroup" aria-label="Entry, stop and target units">
-                {(["pips", "price"] as const).map((unit) => (
-                  <button
-                    key={unit}
-                    type="button"
-                    role="radio"
-                    aria-checked={levelUnit === unit}
-                    className={levelUnit === unit ? "is-active" : ""}
-                    onClick={() => {
-                      if (unit === "pips") {
-                        // Carry the current prices over as distances: entry from
-                        // the live price, stop and target from entry.
-                        setStopPips(pipDistanceText(stopPrice, entryPrice));
-                        setTargetPips(pipDistanceText(targetPrice, entryPrice));
-                        const reference = entryReference(direction);
-                        const entry = Number(entryPrice);
-                        if (reference !== null && entryPrice.trim() && Number.isFinite(entry)) {
-                          setEntryPips(String(Number((Math.abs(entry - reference) / pipSizeFor(instrument)).toFixed(1))));
-                          setEntrySide(entry < reference ? "below" : "above");
-                        }
-                      }
-                      setLevelUnit(unit);
-                    }}
-                  >
-                    {unit === "pips" ? "Pips" : "Price"}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <div className={`nl-pe-levels ${styles.levels}`}>
               <label>
-                <span>Entry</span>
-                {levelUnit === "pips" ? (
-                  <input className="metric-number" inputMode="decimal" value={entryPips} disabled={direction === null} onChange={(event) => {
-                    const where = entrySide ?? defaultEntrySide(direction);
-                    setEntrySide(where);
-                    setEntryPips(event.target.value);
-                    applyEntryPips(event.target.value, where, direction);
-                  }} placeholder="0" aria-label="Entry in pips from the current price" />
-                ) : (
-                  <input className="metric-number" inputMode="decimal" value={entryPrice} onChange={(event) => {
-                    if (entryPrice.trim() === "") setOrderReferencePrice(current);
-                    setEntryPrice(event.target.value);
-                    syncPipLevels(event.target.value, direction);
-                  }} placeholder={current?.toFixed(precision) ?? "0.00000"} aria-label="Entry price" />
-                )}
-                <small className="nl-pe-hint">
-                  {direction === null
-                    ? "Pick a side"
-                    : levelUnit === "pips"
-                      ? Number.isFinite(parsedEntry) && entryPrice.trim() ? `at ${parsedEntry.toFixed(precision)}` : "waiting for price"
-                      : direction === "long" ? "Buy here" : "Sell here"}
-                </small>
-              </label>
-              {levelUnit === "pips" && direction !== null ? (
-                  <div className={`nl-pe-where ${styles.entryPosition}`} role="radiogroup" aria-label="Entry below or above the current price">
-                    {(["below", "above"] as const).map((where) => (
-                      <button
-                        key={where}
-                        type="button"
-                        role="radio"
-                        aria-checked={(entrySide ?? defaultEntrySide(direction)) === where}
-                        tabIndex={(entrySide ?? defaultEntrySide(direction)) === where ? 0 : -1}
-                        data-entry-side={where}
-                        className={(entrySide ?? defaultEntrySide(direction)) === where ? "is-active" : ""}
-                        onKeyDown={(event) => {
-                          if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
-                          event.preventDefault();
-                          const next = event.key === "Home" ? "below" : event.key === "End" ? "above" : where === "below" ? "above" : "below";
-                          setEntrySide(next);
-                          applyEntryPips(entryPips, next, direction);
-                          event.currentTarget.parentElement?.querySelector<HTMLButtonElement>(`[data-entry-side="${next}"]`)?.focus();
-                        }}
-                        onClick={(event) => {
-                          event.preventDefault();
-                          setEntrySide(where);
-                          applyEntryPips(entryPips, where, direction);
-                        }}
-                      >
-                        {where === "below" ? "↓ Below price" : "↑ Above price"}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              <label>
-                <span>Stop</span>
-                {levelUnit === "pips" ? (
-                  <input className="metric-number is-down" inputMode="decimal" value={stopPips} onChange={(event) => {
-                    setStopPips(event.target.value);
-                    setStopPrice(priceFromPips(event.target.value, "stop", entryPrice, direction));
-                  }} placeholder="e.g. 15" aria-label="Stop loss in pips" />
-                ) : (
-                  <input className="metric-number is-down" inputMode="decimal" value={stopPrice} onChange={(event) => setStopPrice(event.target.value)} placeholder="None" aria-label="Stop loss" />
-                )}
-                <small className="nl-pe-hint">
-                  {parsedStop === null || !Number.isFinite(parsedStop)
-                    ? direction === "short" ? "Above entry" : direction === "long" ? "Below entry" : ""
-                    : levelUnit === "pips" ? `at ${parsedStop.toFixed(precision)}` : pipsBetween(parsedEntry, parsedStop)}
-                </small>
+                <span>Entry price</span>
+                <input className="metric-number" inputMode="decimal" value={entryPrice} onChange={(event) => {
+                  if (entryPrice.trim() === "") setOrderReferencePrice(current);
+                  setEntryPrice(event.target.value);
+                }} placeholder={current?.toFixed(precision) ?? "0.00000"} aria-label="Entry price" />
               </label>
               <label>
-                <span>Target</span>
-                {levelUnit === "pips" ? (
-                  <input className="metric-number is-up" inputMode="decimal" value={targetPips} onChange={(event) => {
-                    setTargetPips(event.target.value);
-                    setTargetPrice(priceFromPips(event.target.value, "target", entryPrice, direction));
-                  }} placeholder="e.g. 30" aria-label="Take profit in pips" />
-                ) : (
-                  <input className="metric-number is-up" inputMode="decimal" value={targetPrice} onChange={(event) => setTargetPrice(event.target.value)} placeholder="None" aria-label="Take profit" />
-                )}
-                <small className="nl-pe-hint">
-                  {parsedTarget === null || !Number.isFinite(parsedTarget)
-                    ? direction === "short" ? "Below entry" : direction === "long" ? "Above entry" : ""
-                    : levelUnit === "pips" ? `at ${parsedTarget.toFixed(precision)}` : pipsBetween(parsedEntry, parsedTarget)}
-                </small>
+                <span>Stop loss</span>
+                <input className="metric-number" inputMode="decimal" value={stopPrice} onChange={(event) => setStopPrice(event.target.value)} placeholder="Optional" aria-label="Stop loss" />
+              </label>
+              <label>
+                <span>Take profit</span>
+                <input className="metric-number" inputMode="decimal" value={targetPrice} onChange={(event) => setTargetPrice(event.target.value)} placeholder="Optional" aria-label="Take profit" />
               </label>
             </div>
             </div>
@@ -883,8 +697,8 @@ export function PendingEntryDialog({
                       : sizeKey ? "Sizing…" : "—"}
                 </dd>
               </div>
-              <div><dt>Risk : reward</dt><dd className={planRatio !== null ? "metric-number is-up" : styles.summaryEmpty}>{planRatio === null ? "Set stop & target" : `1 : ${Number(planRatio.toFixed(1))}`}</dd></div>
-              <div><dt>Spread</dt><dd className={`metric-number${spreadIsWide ? " is-caution" : ""}`}>{spreadPips === null ? "—" : `${spreadPips.toFixed(1)} pips${spreadIsWide ? " · wide" : ""}`}</dd></div>
+              {planRatio !== null ? <div><dt>Risk : reward</dt><dd className="metric-number">1 : {Number(planRatio.toFixed(1))}</dd></div> : null}
+
               {automaticLifetime ? <div><dt>Expires</dt><dd>{automaticLifetimeHours}h after it starts watching</dd></div> : null}
             </dl>
 

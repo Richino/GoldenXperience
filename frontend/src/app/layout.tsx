@@ -92,15 +92,11 @@ export default function RootLayout({
             are file conventions Next emits the link tags for, and the Android
             launcher icons are declared in manifest.json. Adding them again here
             only produces duplicate tags that can win over the generated ones. */}
-        {/* First paint of the single animated splash, before app hydration.
-            WelcomeScreen controls this same element and fades it out when ready.
-            Workspace pages only; login and embeds have none.
-            It also paints <html> dark at once: the head arrives before the body
-            that holds the splash, and in that gap phones painted the light
-            theme background, a white flick between the launch image and splash. */}
+        {/* Installed apps already have a native launch screen. The in-app
+            artwork is preview-only so it never adds a second launch screen. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var p=location.pathname;if(!/^\\/(?:$|chart|journal|watchlist|settings|risk|signals|research|morning-preview)/.test(p))return;var a=matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;if(!a&&location.search.indexOf('splash')<0&&sessionStorage.getItem('gx-launch-screen-v2')==='1')return;var d=document.documentElement;d.classList.add('gx-boot-splash');d.style.backgroundColor='#0b0c0a';}catch(e){}})();`,
+            __html: `(function(){try{var p=location.pathname;if(!/^\\/(?:$|chart|journal|watchlist|settings|risk|signals|research|morning-preview)/.test(p))return;var s=new URLSearchParams(location.search).get('splash');if(s!=='preview'&&s!=='launch')return;var d=document.documentElement;d.classList.add('gx-boot-splash');d.style.backgroundColor='#0b0c0a';}catch(e){}})();`,
           }}
         />
       </head>
@@ -123,7 +119,7 @@ export default function RootLayout({
               <div className={splash.orbit}><span /><span /></div>
               <picture>
                 <source media="(prefers-reduced-motion: reduce)" srcSet={OBSERVER_MASCOT_ASSETS.neutral.still} />
-                <Image src="/splash/gx-mascot-loop.webp" alt="GX robot mascot" width={256} height={256} unoptimized loading="eager" fetchPriority="high" />
+                <Image src="/splash/gx-mascot-loop.webp" alt="GX robot mascot" width={256} height={256} unoptimized loading="lazy" />
               </picture>
               <span className={splash.spark}>✦</span>
             </div>

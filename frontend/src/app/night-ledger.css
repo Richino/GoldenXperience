@@ -295,6 +295,10 @@ html:is(.dark, :not(.dark)) body :is(
  */
 @media (max-width: 1023px) {
   html:is(.dark, :not(.dark)) body .mobile-dock.ink-dock {
+    /* Mobile browsers can retain the old fixed-bottom position after resume.
+       Use the same restored viewport as the chart and the measured dock size. */
+    top: calc(var(--app-viewport-height, 100dvh) - var(--app-dock-height, 5.5rem));
+    bottom: auto;
     --ink-dock-bg: var(--surface);
     --ink-dock-edge: var(--border);
     --ink-dock-shadow: 0 -6px 22px rgba(20, 22, 18, 0.06);
@@ -7950,6 +7954,7 @@ body.is-dragging-position-tool .setup-chart-level-edit-line::before {
   flex-direction: column;
   gap: 8px;
 }
+.nl-clevels-mobile-head { display: none; }
 .nl-clevels-hint {
   margin: 0;
   color: var(--muted);
@@ -10711,43 +10716,90 @@ html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="watching"]
 /* Phone SL / TP editor, compact: price on one line, pips · R under it, and
    "No stop or target" as a slim full-width link above Cancel / Save. */
 .nl-mlevels .nl-clevels {
-  row-gap: 6px;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+}
+.nl-mlevels .nl-clevels-mobile-head {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 2px;
+}
+.nl-mlevels .nl-clevels-mobile-head b { font-size: 13px; font-weight: 650; }
+.nl-mlevels .nl-clevels-mobile-head span { font-size: 11px; color: var(--muted); }
+.nl-mlevels .nl-clevels-row > i {
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  height: auto;
+  border-radius: 3px;
 }
 .nl-mlevels .nl-clevels-row {
+  position: relative;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  min-height: 84px;
   align-items: center;
-  padding: 6px 6px 6px 10px;
+  gap: 4px;
+  padding: 10px 6px 10px 12px;
+  border-radius: 12px;
+  background: var(--surface-raised);
 }
 .nl-mlevels .nl-clevels-row > div {
-  gap: 1px;
+  min-width: 0;
+  gap: 4px;
 }
 .nl-mlevels .nl-clevels-row b {
+  font-size: 14px;
   white-space: nowrap;
 }
 .nl-mlevels .nl-clevels-row b .nl-clevels-detail {
   display: block;
   color: var(--muted);
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 500;
 }
 .nl-mlevels .nl-clevels-toggle {
-  width: 28px;
-  height: 28px;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--surface);
 }
+.nl-mlevels .nl-clevels-toggle svg { width: 16px; height: 16px; }
+.nl-mlevels .nl-clevels-row.is-invalid small { display: block; font-size: 11px; }
 .nl-mlevels .nl-clevels-none,
 .nl-mlevels .nl-clevels-warning {
   grid-column: 1 / -1;
 }
 .nl-mlevels .nl-clevels-none {
-  align-self: stretch;
   justify-self: stretch;
-  padding: 5px 12px;
-  font-size: 11.5px;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  color: var(--foreground);
+  font-size: 13px;
 }
 .nl-mlevels .nl-clevels-warning {
   padding: 6px 10px;
   font-size: 11.5px;
 }
-.nl-mlevels .nl-clevels-actions button { height: 42px; }
+.nl-mlevels .nl-clevels-actions {
+  grid-template-columns: 1fr 1.4fr;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.nl-mlevels .nl-clevels-actions button { height: 44px; }
 
 /* Pinned (non-WebKit) phones reserve the editor's measured height instead of
    the one-button slot, so it no longer covers the bottom of the chart. The

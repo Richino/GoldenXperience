@@ -30,8 +30,9 @@ import {
 } from "@/lib/open-trade-progress";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
-import { useOpenPositionSnapshot, type OpenPositionFill } from "@/lib/market-stream/use-open-positions";
-import type { AccountBalanceHistoryPoint, AccountSummary, ConnectionStatus, JournalTrade, MajorInstrument } from "@/types/forex";
+import type { OpenPositionFill } from "@/lib/market-stream/use-open-positions";
+import { snapshotFills, type HomeFinancialSnapshot } from "@/lib/home/financial-snapshot";
+import type { AccountBalanceHistoryPoint, AccountSummary, JournalTrade, MajorInstrument } from "@/types/forex";
 import type { PendingManualEntry } from "@/types/pending-entry";
 
 export type DashboardWatchRow = {
@@ -173,12 +174,7 @@ async function dashboardData<T>(path: string, timeoutMs = 12_000): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-/**
- * Price an open row is marked against: the streamed bid/ask first, then the
- * broker's polled price, and only then the watchlist row. The watchlist is a
- * page-load snapshot, so preferring it over the broker left pairs the stream
- * does not tick (e.g. USD/CAD) showing an Open R minutes out of date.
- */
+/** Broker rows use the financial frame's pricing; paper rows may use ticks. */
 function openTradeQuote(
   trade: Trade,
   quotes: Record<string, { bid: number; ask: number }>,
@@ -186,7 +182,7 @@ function openTradeQuote(
   watchlist: DashboardWatchRow[],
 ) {
   return (
-    resolveOpenTradeQuote(quotes[trade.instrument], fill) ??
+    (trade.brokerTradeId ? resolveOpenTradeQuote(undefined, fill) : resolveOpenTradeQuote(quotes[trade.instrument], fill)) ??
     resolveOpenTradeQuote(watchlist.find((row) => row.instrument === trade.instrument))
   );
 }
@@ -227,6 +223,7 @@ function markedOpenMoney(
   const fill = trade.brokerTradeId
     ? fills[`broker:${trade.brokerTradeId}`]
     : undefined;
+  if (trade.brokerTradeId) return fill?.unrealizedPL ?? null;
   const live = liveOpenProgress(trade, quotes, fills, watchlist);
   // OANDA already reports this account-currency amount. A stored paper result
   // is only a fallback for a non-broker practice row, never the live value.
@@ -257,9 +254,12 @@ export function DashboardView({
   greeting: string;
   todayKey: string;
 }) {
-  const [account, setAccount] = useState(() => verifiedAccountSummary({ data: initialAccount }));
+  const [financial, setFinancial] = useState(() => ({
+    account: verifiedAccountSummary({ data: initialAccount }), history: initialAccountHistory,
+    fills: {} as Record<string, OpenPositionFill>, checkedAt: null as string | null,
+  }));
+  const { account, history: accountHistory, fills } = financial;
   const [accountError, setAccountError] = useState<string | null>(() => initialLoading || verifiedAccountSummary({ data: initialAccount }) ? null : ACCOUNT_UNAVAILABLE_MESSAGE);
-  const [accountHistory, setAccountHistory] = useState(initialAccountHistory);
   const [journalTrades, setJournalTrades] = useState(initialJournal.trades);
   const [journalSummary, setJournalSummary] = useState(initialJournal.summary ?? null);
   const [journalSync, setJournalSync] = useState(initialJournal.brokerSync ?? null);
@@ -288,11 +288,10 @@ export function DashboardView({
   const [pendingCancellation, setPendingCancellation] = useState<PendingManualEntry | null>(null);
   const [pendingLevelsEntry, setPendingLevelsEntry] = useState<PendingManualEntry | null>(null);
   const [savingPendingLevels, setSavingPendingLevels] = useState(false);
-  // Ticks rather than the 60s refresh below, so an open trade's value moves
-  // with the market instead of jumping once a minute.
+  // Streamed prices are used only for paper estimates and currency conversions.
   const quotes = useLiveQuotes();
   // Real fills, so an open row reports the same money as the account hero.
-  const { fills, loading: fillsLoading } = useOpenPositionSnapshot();
+  const fillsLoading = loadState.account === "loading";
   const overviewOpenIds = new Set(overviewOpen.map((trade) => trade.id));
   // Manual trades live in the journal, not the strategy overview, so their open
   // ones must be pulled in here too — otherwise a filled manual entry shows in
@@ -326,29 +325,12 @@ export function DashboardView({
         (account && account.balance > 0 ? Number((account.balance * 0.01).toFixed(2)) : null),
       brokerTradeId: trade.brokerTradeId ?? null,
     }));
-  const openTrades = [...overviewOpen, ...manualOpen];
+  const openTrades = [...overviewOpen, ...manualOpen].filter(trade =>
+    !financial.checkedAt || !trade.brokerTradeId || Boolean(fills[`broker:${trade.brokerTradeId}`]),
+  );
 
-  // Every broker position (tracked or not), plus paper-only open rows.
-  let heroOpenPL: number = account?.unrealizedPL ?? 0;
-  {
-    let total = 0;
-    let seen = false;
-    for (const [key, fill] of Object.entries(fills)) {
-      if (!key.startsWith("broker:")) continue;
-      total += fill.unrealizedPL;
-      seen = true;
-    }
-    for (const trade of openTrades) {
-      if (trade.brokerTradeId && fills[`broker:${trade.brokerTradeId}`]) continue;
-      if (trade.brokerTradeId) continue; // broker-backed but fill not loaded yet
-      const money = markedOpenMoney(trade, quotes, fills, watchlist);
-      if (money !== null) {
-        total += money;
-        seen = true;
-      }
-    }
-    if (seen) heroOpenPL = total;
-  }
+  // Account cash never includes the separate paper-only simulation estimates.
+  const heroOpenPL = account?.unrealizedPL ?? 0;
 
   const refreshJournal = useCallback(async () => {
     if (loading.current.has("journal")) return;
@@ -381,17 +363,6 @@ export function DashboardView({
     } finally { loading.current.delete("overview"); }
   }, [finishLoad, refreshJournal]);
 
-  const refreshHistory = useCallback(async () => {
-    if (loading.current.has("history")) return;
-    loading.current.add("history");
-    try {
-      const payload = await dashboardData<{ data: AccountBalanceHistoryPoint[]; status: ConnectionStatus }>("/api/oanda/account-history", 20_000);
-      if (payload.status.state !== "connected") throw new Error("Account history unavailable.");
-      setAccountHistory(payload.data); finishLoad("history");
-    } catch { finishLoad("history", true); }
-    finally { loading.current.delete("history"); }
-  }, [finishLoad]);
-
   /**
    * The account moves with every tick on an open position, so it is polled on
    * its own short cycle. The watchlist and cycle payloads are heavier and only
@@ -405,16 +376,19 @@ export function DashboardView({
     if (loading.current.has("account")) return;
     loading.current.add("account");
     try {
-      const payload = await dashboardData<{ data: AccountSummary; status?: ConnectionStatus }>("/api/oanda/account-summary");
+      const payload = await dashboardData<HomeFinancialSnapshot>("/api/oanda/account-snapshot", 25_000);
       const verified = verifiedAccountSummary(payload);
       if (!verified) throw new Error(ACCOUNT_UNAVAILABLE_MESSAGE);
-      setAccount(verified);
+      const nextFills = snapshotFills(payload);
+      setFinancial({ account: verified, history: payload.history, fills: nextFills, checkedAt: payload.checkedAt });
       setAccountError(null);
       finishLoad("account");
+      finishLoad("history");
     } catch {
       // Preserve the verified snapshot; an outage must never replace it with demo money.
       setAccountError(ACCOUNT_UNAVAILABLE_MESSAGE);
       finishLoad("account", true);
+      finishLoad("history", true);
     } finally { loading.current.delete("account"); }
   }, [finishLoad]);
 
@@ -494,12 +468,6 @@ export function DashboardView({
   }, [refresh]);
 
   useEffect(() => {
-    const initial = window.setTimeout(() => void refreshHistory(), 0);
-    const timer = window.setInterval(() => { if (document.visibilityState === "visible") void refreshHistory(); }, 60_000);
-    return () => { window.clearTimeout(initial); window.clearInterval(timer); };
-  }, [refreshHistory]);
-
-  useEffect(() => {
     if (!journalSync || journalSync.status === "ready") return;
     // Failed imports used to stop polling until the minute-long dashboard refresh.
     // Follow the server's backoff, including while web/API deployments differ.
@@ -523,8 +491,8 @@ export function DashboardView({
   // the next interval tick — up to a minute away. Pull everything fresh the
   // moment it returns to the foreground so it never opens on stale numbers.
   useForegroundRefresh(useCallback(async () => {
-    await Promise.all([refreshAccount(), refresh(), refreshHistory(), refreshPendingEntries()]);
-  }, [refreshAccount, refresh, refreshHistory, refreshPendingEntries]));
+    await Promise.all([refreshAccount(), refresh(), refreshPendingEntries()]);
+  }, [refreshAccount, refresh, refreshPendingEntries]));
 
   const signalRows = savedSetups.filter((setup) => setup.state === "setup");
   const currentPositions: HomeCurrentPosition[] = openTrades
@@ -650,9 +618,7 @@ export function DashboardView({
         accountError={accountError}
         history={accountHistory}
         todayKey={todayKey}
-        // Built from the same per-position figures the rows show, so the hero
-        // and the rows always add up. The account summary drifts; it is only
-        // the fallback.
+        financialUpdatedAt={financial.checkedAt}
         openPL={heroOpenPL}
         greeting={greeting}
         positions={ledgerPositions}

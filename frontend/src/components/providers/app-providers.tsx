@@ -8,11 +8,12 @@ import { ThemeProvider } from "@/components/providers/theme-provider";
 
 const WelcomeScreen = dynamic(() => import("@/components/welcome/welcome-screen").then((module) => module.WelcomeScreen), { ssr: false });
 
-/** Attach the controller to the existing splash; it renders no overlay. */
+/** The native PWA launch screen is enough; this controller is preview-only. */
 function LaunchScreen() {
   const [active, setActive] = useState(false);
   useEffect(() => {
-    if (document.documentElement.classList.contains("gx-boot-splash") || new URLSearchParams(window.location.search).has("splash")) {
+    const mode = new URLSearchParams(window.location.search).get("splash");
+    if (mode === "preview" || mode === "launch") {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Launch mode is decided by the first-paint browser script.
       setActive(true);
       return;

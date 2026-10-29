@@ -1,3 +1,4 @@
+import { manualOcoRun } from "../src/news-straddle/manual-oco.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { NEWS_V3_DEFAULTS, type NewsRun, type NewsSide, type NewsLeg } from "../../frontend/src/lib/news/news-straddle-v3.js";
@@ -333,5 +334,48 @@ await test("account per-trade and aggregate limits stay separate; prior smaller 
   const full = calculateNewsRisk({ ...input, riskLimit: 1, eventRiskLimit: 3 }); assert.equal(full.risk.perLegCash, 100); assert.equal(full.units, 62500);
   f.repo.run.settings.maxEventRiskPercent = 1; f.repo.run.risk!.perLegCash = 50; f.repo.run.risk!.perLegPercent = 0.5; f.repo.run.risk!.eventCash = 100;
   await f.pending(); assert.equal(f.repo.run.risk!.perLegPercent, 0.5); assert.equal(f.repo.run.risk!.perLegCash, 50);
+});
+
+async function manualFixture() {
+  const f = fixture(), context = { ...await f.broker.context("EUR_USD"), ocoStopDistance: 0.001 };
+  f.repo.run = manualOcoRun(f.run.userId, f.run.accountKey, { requestId: f.id, instrument: "EUR_USD", buyEntry: 1.122, sellEntry: 1.118, riskAmount: 50 }, context, { killSwitch: false, riskLimit: 1, eventRiskLimit: 3 }, T - 20_000);
+  return f;
+}
+await test("manual OCO validates sides, precision, stop, risk and exposure", async () => {
+  const f = fixture(), context = { ...await f.broker.context("EUR_USD"), ocoStopDistance: 0.001 };
+  const input = { requestId: f.id, instrument: "EUR_USD", buyEntry: 1.122, sellEntry: 1.118, riskAmount: 50 };
+  const make = (patch: Record<string, unknown>) => manualOcoRun(f.run.userId, f.run.accountKey, { ...input, ...patch }, context, { killSwitch: false, riskLimit: 1 }, T - 20_000);
+  assert.throws(() => make({ buyEntry: 1.12 }), /above the ask/); assert.throws(() => make({ sellEntry: 1.121 }), /below the bid/);
+  for (const value of [0, true, NaN]) assert.throws(() => make({ riskAmount: value }), /cash risk amount/);
+  assert.throws(() => make({ buyEntry: 1.122001 }), /valid buyEntry/); assert.throws(() => make({ requestId: "bad" }), /request ID/);
+  assert.throws(() => make({ riskAmount: 300 }), /risk limit/);
+  assert.throws(() => make({ riskAmount: 0.001 }), /cash risk/);
+  const run = make({}); assert.equal(run.risk!.perLegPercent, 0.5); assert.ok(run.risk!.perLegCash * 2 <= 100);
+  context.openInstruments.push("EUR_USD"); assert.throws(() => make({}), /already has/);
+});
+for (const side of ["long", "short"] as const) await test(`manual OCO ${side} fill cancels opposite and keeps winner open`, async () => {
+  const f = await manualFixture(); await f.tick(); assert.equal(f.sent.length, 2); assert.equal(f.repo.run.state, "PENDING_ORDERS");
+  assert.equal(f.repo.run.legs.long.entry, 1.122); assert.equal(f.repo.run.legs.short.entry, 1.118); assert.ok(f.sent.every(s => s.body.order.gtdTime === f.repo.run.expiresAt));
+  f.at(T + 100); await f.engine.observeTransaction(f.id, f.fill(side)); await f.engine.drain(); await f.engine.observeTrade(f.id, side, f.trades.get(`trade-${side}`)!); await f.engine.drain();
+  assert.equal(f.repo.run.state, "OPEN"); assert.equal(f.cancels.length, 1); assert.ok(f.cancels[0].endsWith(side === "long" ? "short" : "long")); assert.equal(f.closes.length, 0);
+  f.at(T + 1000, side === "long" ? 1.124 : 1.115, side === "long" ? 1.1241 : 1.1151); await f.tick(); assert.equal(f.trailCalls.length, 0); assert.equal(f.closes.length, 0);
+});
+await test("manual OCO ignores calendar outages and preserves levels on restart", async () => {
+  const f = await manualFixture(); f.reschedule(); await f.engine.verifyCalendar(f.id, { events: [], fetchedAt: iso(T - 100000000) }); await f.tick(); assert.equal(f.repo.run.state, "PENDING_ORDERS");
+  const restarted = new NewsStraddleEngine(f.deps); f.at(T + 1000); await restarted.reconcile(f.id); await restarted.tick(f.id, f.quote(), true); await restarted.drain();
+  assert.equal(f.sent.length, 2); assert.equal(f.repo.run.legs.long.entry, 1.122); assert.equal(f.repo.run.legs.short.entry, 1.118);
+});
+await test("manual OCO waits for monitoring and never dispatches after startup deadline", async () => {
+  const f = await manualFixture(); await f.tick(false); assert.equal(f.sent.length, 0); f.at(T + 60_000); await f.tick(false); assert.equal(f.sent.length, 0); assert.notEqual(f.repo.run.state, "READY");
+});
+await test("manual OCO expiry cancels both waiting orders", async () => {
+  const f = await manualFixture(); await f.tick(); f.at(Date.parse(f.repo.run.expiresAt!) + 1); await f.tick(); assert.equal(f.cancels.length, 2); assert.equal(f.closes.length, 0);
+});
+await test("manual OCO rejection or uncertain submission never creates a second attempt", async () => {
+  for (const unknown of [false, true]) { const f = await manualFixture(); if (unknown) f.setUnknown("short"); else f.setFailure("short"); await f.tick(); f.at(T + 1000); await f.tick(); assert.equal(f.sent.length, 2); assert.notEqual(f.repo.run.state, "PENDING_ORDERS"); }
+});
+await test("manual OCO double fill invokes exception policy", async () => {
+  const f = await manualFixture(); await f.tick(); f.holdCancel(); f.at(T + 100); await f.engine.observeTransaction(f.id, f.fill("long")); await f.engine.observeTransaction(f.id, f.fill("short")); f.releaseCancel(); await f.engine.drain();
+  assert.ok(f.repo.run.exception?.includes("Both opposing")); assert.equal(f.repo.halted, true); assert.ok(f.closes.includes("trade-long")); assert.ok(f.closes.includes("trade-short"));
 });
 console.log(`News Straddle v3: ${passed} checks passed; fake broker and clock only, no actual orders.`);

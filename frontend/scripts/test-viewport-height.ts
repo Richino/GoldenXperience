@@ -62,6 +62,16 @@ assert.equal(height(), "350px");
 browser.innerHeight = 800; browser.flushTimers();
 assert.equal(height(), "800px", "late OS window restoration is picked up without resize events");
 
+// A frozen Android PWA can resume without a pageshow or focus notification.
+browser.innerHeight = 340; emit(page, "resume"); browser.flushFrames();
+assert.equal(height(), "340px");
+const delayedChecks = [...browser.timers.values()];
+assert.equal(delayedChecks.length, 4, "resume checks cover slower OS restoration");
+delayedChecks.slice(0, 2).forEach(check => check());
+browser.innerHeight = 800;
+delayedChecks[3]!();
+assert.equal(height(), "800px", "restoration after the old 750ms window is recovered");
+
 // The original iOS keyboard behavior still works and only its close edge
 // resets residual page scroll. A visual resize alone is not a keyboard.
 page.activeElement = { tagName: "TEXTAREA", matches: () => true } as unknown as Element;
@@ -94,11 +104,11 @@ assert.equal(height(), "800px");
 browser.innerHeight = 390; emit(browser, "orientationchange");
 assert.equal(height(), "390px");
 assert.equal(browser.frames.size, 1, "repeated lifecycle signals coalesce pending frame work");
-assert.equal(browser.timers.size, 2);
+assert.equal(browser.timers.size, 4);
 stop();
 assert.equal(height(), undefined);
 assert.equal(browser.frames.size + browser.timers.size, 0, "cleanup cancels all pending work");
-emit(browser, "focus"); emit(page, "visibilitychange"); emit(browser.visualViewport!, "resize");
+emit(browser, "focus"); emit(page, "visibilitychange"); emit(page, "resume"); emit(browser.visualViewport!, "resize");
 assert.equal(height(), undefined, "cleanup removes event listeners");
 
 browser.visualViewport = null; browser.innerHeight = 720;

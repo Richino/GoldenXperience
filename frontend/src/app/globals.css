@@ -3479,6 +3479,10 @@ html.mobile-sheet-open body {
   background: var(--level-color);
 }
 
+.setup-chart-level-tag.is-pl {
+  color: var(--level-color);
+}
+
 .setup-chart-level-tag-text {
   min-width: 0;
   overflow: hidden;

@@ -57,7 +57,7 @@ export class NewsStraddleEngine {
     if (flat && tradesClosed && SIDES.every(side => resolved(r.legs[side]))) {
       if (r.exception) r.state = "HALTED";
       else if (fill) r.state = "CLOSED";
-      else if (cancelling(r)) r.state = r.reason === "Cancelled by user." ? "CANCELLED" : this.deps.now() >= Date.parse(r.release.time) + r.settings.windowSeconds * 1000 ? "EXPIRED" : "SKIPPED";
+      else if (cancelling(r)) r.state = r.reason === "Cancelled by user." ? "CANCELLED" : this.deps.now() >= (r.mode === "oco" ? Date.parse(r.expiresAt!) : Date.parse(r.release.time) + r.settings.windowSeconds * 1000) ? "EXPIRED" : "SKIPPED";
       else return;
       r.endedAt = iso(this.deps.now());
       await this.save(s, r, "setup_ended", { reason: r.reason ?? "Broker confirms no remaining orders or exposure." });
@@ -183,7 +183,7 @@ export class NewsStraddleEngine {
   }
   async verifyCalendar(id: string, calendar: Awaited<ReturnType<EngineDeps["calendar"]>>) {
     await this.deps.repo.locked(id, async s => {
-      const r = await s.read(); if (!r || NEWS_TERMINAL.includes(r.state) || cancelling(r) || r.firstFillSide) return;
+      const r = await s.read(); if (!r || r.mode === "oco" || NEWS_TERMINAL.includes(r.state) || cancelling(r) || r.firstFillSide) return;
       const valid = newsReleaseStillMatches(r.instrument, r.release, calendar.events);
       if (!valid || this.deps.now() - Date.parse(calendar.fetchedAt) > 15 * 60_000) await this.cancelRun(s, r, "Release was cancelled, rescheduled or its calendar verification expired.");
       else { r.calendarCheckedAt = iso(this.deps.now()); r.calendarFetchedAt = calendar.fetchedAt; await this.save(s, r, "calendar_reverified"); }
@@ -238,6 +238,7 @@ export class NewsStraddleEngine {
         Object.assign(r.legs.long, { entry: p.buy, bound: p.buyBound }); Object.assign(r.legs.short, { entry: p.sell, bound: p.sellBound });
         r.preparedQuote = quote!; r.levelsFrozenAt = iso(now); await this.save(s, r, "stop_entries_frozen", { quote, entries: p });
       }
+      if (r.state === "READY" && r.mode === "oco" && !monitorReady && now < releaseAt) return;
       if (r.state === "READY" && now >= target) {
         const policy = await this.deps.policy(r.userId);
         const eventRiskLimit = policy.eventRiskLimit ?? policy.riskLimit * 2;
@@ -263,9 +264,9 @@ export class NewsStraddleEngine {
           } catch (error) { const code = (error as { status?: number })?.status; await this.failSubmission(id, side, String(error), code !== undefined && code >= 400 && code < 500 && code !== 408 && code !== 429); }
         } }); return;
       }
-      if (!cancelling(r) && now >= releaseAt && !r.firstFillSide && !SIDES.every(side => r.legs[side].state === "PENDING")) await this.cancelRun(s, r, "Both opposing orders were not confirmed before the release.");
+      if (!cancelling(r) && now >= releaseAt && !r.firstFillSide && !SIDES.every(side => r.legs[side].state === "PENDING")) await this.cancelRun(s, r, r.mode === "oco" ? "Both linked orders were not confirmed within the startup window." : "Both opposing orders were not confirmed before the release.");
       if (!cancelling(r) && !r.firstFillSide && ["SUBMITTING", "PENDING_ORDERS"].includes(r.state) && !monitorReady) await this.cancelRun(s, r, "Broker transaction monitoring lost synchronization while orders were pending.");
-      if (!cancelling(r) && !r.firstFillSide && now >= releaseAt + r.settings.windowSeconds * 1000) await this.cancelRun(s, r, "The news entry window ended.");
+      if (!cancelling(r) && !r.firstFillSide && now >= (r.mode === "oco" ? Date.parse(r.expiresAt!) : releaseAt + r.settings.windowSeconds * 1000)) await this.cancelRun(s, r, r.mode === "oco" ? "The linked pending orders expired." : "The news entry window ended.");
       if (!cancelling(r) && !r.firstFillSide && SIDES.some(side => ["CANCELLED", "REJECTED"].includes(r.legs[side].state))) await this.cancelRun(s, r, "One opposing order was rejected or cancelled; single-sided entry is disabled.");
       if (!cancelling(r) && !r.firstFillSide && ["SUBMITTING", "PENDING_ORDERS"].includes(r.state) && !quoteIssue(quote, now) && (quote!.ask - quote!.bid) / pipSizeFor(r.instrument) > r.settings.maxSpreadPips + 1e-8) await this.cancelRun(s, r, "Spread expanded beyond the approved cap while orders were pending.");
       if (r.firstFillSide && !cancelling(r)) {
@@ -280,7 +281,7 @@ export class NewsStraddleEngine {
           if (!issue && l.unrealizedPips! <= -r.risk!.stopPips * r.settings.emergencyLossR) await this.exception(s, r, "Emergency adverse-price threshold reached.");
           if (!issue && r.settings.emergencySpreadPips > 0 && (quote!.ask - quote!.bid) / pipSizeFor(r.instrument) > r.settings.emergencySpreadPips) await this.exception(s, r, "Configured emergency spread threshold reached.");
           if (r.settings.maxHoldMinutes > 0 && now - Date.parse(l.fillTime!) > r.settings.maxHoldMinutes * 60_000) await this.cancelRun(s, r, "Configured maximum holding time reached.");
-          if (!cancelling(r) && !issue && l.activeStop !== null && !l.trailingRequestedAt && trailingDecision({ instrument: r.instrument, side: l.side, entry: l.fillPrice, quote: quote!, activeStop: l.activeStop, activationPips: r.settings.trailingActivationPips, distancePips: r.settings.trailingDistancePips, brokerTrailing: !!l.trailingOrderId }).activate) {
+          if (r.mode !== "oco" && !cancelling(r) && !issue && l.activeStop !== null && !l.trailingRequestedAt && trailingDecision({ instrument: r.instrument, side: l.side, entry: l.fillPrice, quote: quote!, activeStop: l.activeStop, activationPips: r.settings.trailingActivationPips, distancePips: r.settings.trailingDistancePips, brokerTrailing: !!l.trailingOrderId }).activate) {
             l.trailingRequestedAt = iso(now); await this.save(s, r, "trailing_activation_requested", { side: l.side, executablePips: l.unrealizedPips, originalStopRetained: true });
             actions.push({ key: `trail:${id}:${l.side}`, run: async () => {
               try { await this.deps.broker.addTrailing(l.tradeId!, priceDistance(r.instrument, r.settings.trailingDistancePips), r.instrument); await this.observeTrade(id, l.side, await this.deps.broker.trade(l.tradeId!)); }

@@ -4,7 +4,7 @@ export type NewsSide = "long" | "short";
 export type NewsRunState = "SCHEDULED" | "PREPARING" | "READY" | "SUBMITTING" | "PENDING_ORDERS" | "OCO_CANCELLING" | "OPEN" | "TRAILING" | "CANCELLING" | "EXCEPTION" | "CLOSED" | "SKIPPED" | "EXPIRED" | "CANCELLED" | "HALTED";
 export const NEWS_TERMINAL: NewsRunState[] = ["CLOSED", "SKIPPED", "EXPIRED", "CANCELLED", "HALTED"];
 export type NewsReleaseMember = { id: string; title: string; currency: string };
-export type NewsRelease = { id: string; title: string; currency: string; time: string; impact: number; provider: "forex_factory"; events?: NewsReleaseMember[] };
+export type NewsRelease = { id: string; title: string; currency: string; time: string; impact: number; provider: "forex_factory" | "manual"; events?: NewsReleaseMember[] };
 export type NewsV3Settings = {
   version: 3; distancePips: number; stopMode: "ATR" | "FIXED"; stopPips: number; atrMultiplier: number; minimumStopPips: number; maximumStopPips: number;
   riskPerTradePercent: number; maxEventRiskPercent: number; maxSpreadPips: number; maxSlippagePips: number;
@@ -32,6 +32,7 @@ export type NewsLeg = {
   realizedPL: number | null; realizedR: number | null; realizedPips?: number | null; exitPrice: number | null; closedAt: string | null; lastProtectionAt: string | null;
 };
 export type NewsRun = {
+  mode?: "oco"; expiresAt?: string; requestedRiskAmount?: number;
   id: string; userId: string; accountKey: string; instrument: string; eventKey: string; version: 3; revision: number;
   state: NewsRunState; release: NewsRelease; settings: NewsV3Settings; createdAt: string; targetSubmitAt: string; preparedAt: string | null;
   calendarCheckedAt: string; calendarFetchedAt: string; transactionSeed: string; lastReconciledAt: string | null;

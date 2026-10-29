@@ -67,7 +67,7 @@ export function priceDistance(instrument: string, pips: number) {
 }
 export function calculateNewsRisk(input: {
   instrument: string; settings: NewsV3Settings; equity: number; currency: string; conversion: number; atrPips: number | null;
-  minimumTrail: number; maximumTrail: number; minimumUnits: number; maximumUnits: number; riskLimit: number; eventRiskLimit?: number;
+  minimumTrail: number; maximumTrail: number; minimumUnits: number; maximumUnits: number; riskLimit: number; eventRiskLimit?: number; trailingEnabled?: boolean;
 }) {
   const { settings: s } = input;
   if (![input.equity, input.conversion, input.minimumUnits, input.maximumUnits].every(n => Number.isFinite(n) && n > 0)) throw new Error("Verified account equity, currency conversion and broker size constraints are required.");
@@ -75,7 +75,7 @@ export function calculateNewsRisk(input: {
   if (!Number.isFinite(input.riskLimit) || !Number.isFinite(eventRiskLimit) || s.maxEventRiskPercent > eventRiskLimit || s.riskPerTradePercent > input.riskLimit) throw new Error("News risk exceeds the account risk limit.");
   const trail = priceDistance(input.instrument, s.trailingDistancePips);
   priceDistance(input.instrument, s.trailingActivationPips); priceDistance(input.instrument, s.distancePips); priceDistance(input.instrument, s.maxSlippagePips);
-  if (!Number.isFinite(input.minimumTrail) || !Number.isFinite(input.maximumTrail) || trail < input.minimumTrail || trail > input.maximumTrail) throw new Error("Trailing distance is outside OANDA's permitted range; it was not changed automatically.");
+  if (input.trailingEnabled !== false && (!Number.isFinite(input.minimumTrail) || !Number.isFinite(input.maximumTrail) || trail < input.minimumTrail || trail > input.maximumTrail)) throw new Error("Trailing distance is outside OANDA's permitted range; it was not changed automatically.");
   const unitPips = 10 ** -precisionFor(input.instrument) / pipSizeFor(input.instrument);
   if (s.stopMode === "ATR" && (!(input.atrPips! > 0) || !Number.isFinite(input.atrPips))) throw new Error("Fresh completed OANDA M1 volatility is unavailable.");
   const stopPips = s.stopMode === "ATR" ? Math.ceil(Math.max(s.minimumStopPips, input.atrPips! * s.atrMultiplier) / unitPips) * unitPips : s.stopPips;
@@ -92,7 +92,7 @@ export function preSubmitIssue(run: NewsRun, q: NewsQuote | null, now: number, m
   if (!monitorReady) return "Broker transaction monitoring is not synchronized.";
   // REST round-trip timing is diagnostic, not a reliable subsecond clock gate.
   // Fresh executable quotes and the release deadline still bound submission.
-  if (now - Date.parse(run.calendarFetchedAt) > MAX_CALENDAR_AGE_MS || now - Date.parse(run.calendarCheckedAt) > 15_000) return "The release was not recently verified.";
+  if (run.mode !== "oco" && (now - Date.parse(run.calendarFetchedAt) > MAX_CALENDAR_AGE_MS || now - Date.parse(run.calendarCheckedAt) > 15_000)) return "The release was not recently verified.";
   if ((q!.ask - q!.bid) / pipSizeFor(run.instrument) > run.settings.maxSpreadPips + 1e-8) return "Spread exceeds the approved maximum.";
   if (!run.legs.long.entry || !run.legs.short.entry || q!.ask >= run.legs.long.entry || q!.bid <= run.legs.short.entry) return "Market already crossed a planned STOP entry.";
   if (now < Date.parse(run.targetSubmitAt)) return "Not due.";

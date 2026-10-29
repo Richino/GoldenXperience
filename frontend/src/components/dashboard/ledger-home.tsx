@@ -251,12 +251,14 @@ function LedgerHero({
   todayKey,
   openPL,
   historyState = "ready",
+  financialUpdatedAt,
 }: {
   account: AccountSummary;
   history: AccountBalanceHistoryPoint[];
   todayKey: string;
   openPL: number;
   historyState?: LoadState;
+  financialUpdatedAt?: string | null;
 }) {
   const historyAvailable = hasData(historyState);
   const [range, setRange] = useState<AccountChartRange>("1d");
@@ -280,7 +282,7 @@ function LedgerHero({
   const percentLabel = historyAvailable ? `${changePercent >= 0 ? "+" : "−"}${Math.abs(changePercent).toFixed(2)}%` : "—";
 
   return (
-    <section className="nl-hero" aria-label="Account overview">
+    <section className="nl-hero" aria-label="Account overview" data-financial-snapshot-at={financialUpdatedAt ?? undefined}>
       {/* Phone: the balance stays pinned once the hero scrolls away. */}
       <div className={`nl-mbar${scrolledPast ? " is-visible" : ""}`} aria-hidden={!scrolledPast}>
         <span className="nl-mbar-balance">{money(account.nav, account.currency)}</span>
@@ -302,6 +304,7 @@ function LedgerHero({
           </span>
           <span className={`nl-hero-pct metric-number ${dayTone}`}>{percentLabel} today</span>
           {historyAvailable ? <span className="nl-hero-open">from {money(opening, account.currency)} at the open</span> : null}
+          {financialUpdatedAt ? <span className="nl-hero-open" title="Balance, chart, daily totals and broker position P/L refresh together.">Synced {new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit", second: "2-digit" }).format(new Date(financialUpdatedAt))} ET</span> : null}
         </div>
       </div>
 
@@ -744,6 +747,7 @@ export function LedgerHome({
   history,
   todayKey,
   openPL,
+  financialUpdatedAt,
   greeting,
   positions,
   setups,
@@ -763,6 +767,7 @@ export function LedgerHome({
   history: AccountBalanceHistoryPoint[];
   todayKey: string;
   openPL: number;
+  financialUpdatedAt?: string | null;
   greeting: string;
   positions: LedgerPosition[];
   setups: LedgerSetup[];
@@ -797,12 +802,12 @@ export function LedgerHome({
             className="account-data-notice"
             title="OANDA connection unavailable"
             description={account
-              ? "Showing your last verified balance. It may be outdated."
+              ? "Showing the last synchronized account and position values. They may be outdated."
               : "Your balance will appear when the connection is restored."}
           />
         ) : null}
         {account ? (
-          <LedgerHero account={account} history={history} todayKey={todayKey} openPL={openPL} historyState={loadState.history} />
+          <LedgerHero account={account} history={history} todayKey={todayKey} openPL={openPL} historyState={loadState.history} financialUpdatedAt={financialUpdatedAt} />
         ) : (
           <section className="nl-hero" aria-label="Account overview">
             <div className="nl-hero-copy">

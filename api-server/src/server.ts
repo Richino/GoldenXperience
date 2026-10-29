@@ -24,12 +24,14 @@ import type {
 } from "./market-stream-types.js";
 import { MAJOR_INSTRUMENTS } from "../../frontend/src/types/forex.js";
 import { verifiedAccountSummary, ACCOUNT_UNAVAILABLE_MESSAGE } from "../../frontend/src/lib/account-summary.js";
+import { historyAtSnapshot, snapshotFills } from "../../frontend/src/lib/home/financial-snapshot.js";
 import { getAllCalendarEvents, getEconomicCalendar } from "../../frontend/src/lib/calendar/forex-factory.js";
 import { ingestCalendarEvents, nightlyNewsRetagIfDue } from "./news-tagging.js";
 import { newsPredictionsSnapshot, runNewsPredictionJournal } from "./news-predictions.js";
 import { isKnownInstrument } from "../../frontend/src/lib/instruments/catalog.js";
 import {
   getAccountSummary,
+  getAccountSnapshot,
   getAccountBalanceHistory,
   getCandles,
   getOpenPositions,
@@ -89,7 +91,7 @@ import {
   reconcileManualOandaOrders,
 } from "./pending-manual-entries.js";
 import { evaluateNewsStraddles, newsStraddleMayBeArmed, sweepNewsStraddles } from "./news-straddle.js";
-import { armNewsV3, previewNewsV3, cancelNewsV3, resetNewsHalt } from "./news-straddle/service.js";
+import { previewManualOco, armManualOco, armNewsV3, previewNewsV3, cancelNewsV3, resetNewsHalt } from "./news-straddle/service.js";
 import { accountKey as newsAccountKey } from "./news-straddle/broker.js";
 import { newsRuntimeStatus, publicRun, readUserNewsRun } from "./news-straddle/store.js";
 import { startNewsStraddleRuntime } from "./news-straddle/runtime.js";
@@ -699,6 +701,19 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
         return json(request, response, { error: error instanceof Error ? error.message : "Could not create the pending entry." }, 400);
       }
     }
+    if (["/api/pending-entries/oco", "/api/pending-entries/oco/preview"].includes(url.pathname) && request.method === "POST") {
+      if (!newsStraddleRuntime?.status().enabled) return json(request, response, { error: "Practice OCO monitoring is unavailable on this server." }, 503);
+      const payload = await body(request);
+      const instrument = typeof payload?.instrument === "string" ? payload.instrument.toUpperCase() : "";
+      if (!isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
+      if (!getForexSessionStatus(new Date()).marketOpen) return json(request, response, { error: "The market is closed." }, 409);
+      if (url.pathname.endsWith("/preview")) {
+        try { return json(request, response, publicRun(await previewManualOco(user.id, { ...payload, instrument }))); }
+        catch (error) { return json(request, response, { error: error instanceof Error ? error.message : "OCO preview unavailable." }, 409); }
+      }
+      try { const result = await armManualOco(user.id, { ...payload, instrument }); return json(request, response, { run: publicRun(result.run), entries: result.entries }, 201); }
+      catch (error) { return json(request, response, { error: error instanceof Error ? error.message : "OCO could not start." }, 409); }
+    }
     // New News mode arms version-3 broker STOP/OCO settings. Version-2 runs
     // already in flight continue through their preserved monitor below.
     if (url.pathname === "/api/pending-entries/news/preview" && request.method === "POST") {
@@ -1114,6 +1129,15 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     }
     case "/health":
       return json(request, response, { ok: true, service: "goldenxperience-api", checkedAt: new Date().toISOString(), backgroundJobs: { schedulersEnabled, binaryCollectionEnabled: schedulersEnabled && binaryCollectionEnabled(), pairTrends: { enabled: stopPairTrendsScanner !== null, ...pairTrendsHealth() } }, observer: marketObserver?.health() ?? { enabled: false } });
+    case "/api/oanda/account-snapshot": {
+      if (!(await requireOwner(request, response))) return;
+      const snapshot = await getAccountSnapshot();
+      const history = await cachedAccountBalanceHistory(`${snapshot.data.id}:${snapshot.lastTransactionID}`);
+      if (history.status.state !== "connected") return json(request, response, { error: "Account history unavailable; keeping the previous financial snapshot." }, 503);
+      const result = { ...snapshot, history: historyAtSnapshot(history.data, snapshot.lastTransactionID, snapshot.data.balance) };
+      snapshotFills(result);
+      return json(request, response, result);
+    }
     case "/api/oanda/account-summary": {
       const result = await getAccountSummary();
       if (!verifiedAccountSummary(result)) {
@@ -1165,16 +1189,16 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
 // navigations do not redo that ledger crawl; the live summary remains uncached.
 const ACCOUNT_HISTORY_CACHE_MS = 60_000;
 type AccountHistoryResult = Awaited<ReturnType<typeof getAccountBalanceHistory>>;
-let accountHistoryCache: { expiresAt: number; result: Promise<AccountHistoryResult> } | null = null;
+let accountHistoryCache: { expiresAt: number; result: Promise<AccountHistoryResult>; boundary?: string } | null = null;
 
-function cachedAccountBalanceHistory() {
+function cachedAccountBalanceHistory(boundary?: string) {
   const now = Date.now();
-  if (accountHistoryCache && accountHistoryCache.expiresAt > now) return accountHistoryCache.result;
+  if (accountHistoryCache && accountHistoryCache.expiresAt > now && (!boundary || accountHistoryCache.boundary === boundary)) return accountHistoryCache.result;
 
   // Bound the whole multi-page crawl, and keep sharing it while it is in
   // flight even if it takes longer than the completed snapshot's cache TTL.
   const result = getAccountBalanceHistory({ signal: AbortSignal.timeout(18_000) });
-  const entry = { expiresAt: Infinity, result };
+  const entry = { expiresAt: Infinity, result, boundary };
   accountHistoryCache = entry;
   void result.then((value) => {
     if (accountHistoryCache !== entry) return;

@@ -90,8 +90,8 @@ assert.equal(stores.has('goldenxperience-v4'), false);
 assert.equal(stores.has('unrelated-app'), true);
 console.log('Passed PWA startup caching, update, navigation preload, bypass, offline, and storage-failure checks.');
 
-// Execute the actual first-paint script: installed launches must animate even
-// when a previous launch was recorded, while browser navigation stays fast.
+// Execute the actual first-paint script: native launches must never be followed
+// by an in-app splash, including first launches and fresh sessions.
 const layout = await readFile(new URL('../src/app/layout.tsx', import.meta.url), 'utf8');
 const bootTemplate = layout.match(/__html: `(\(function\(\).*?)`,/s)?.[1];
 assert.ok(bootTemplate, 'First-paint launch script must exist');
@@ -100,6 +100,7 @@ function boot({ path = '/', search = '', seen = false, standalone = false, iosSt
   const classes = new Set();
   const style = {};
   runInNewContext(bootScript, {
+    URLSearchParams,
     location: { pathname: path, search },
     matchMedia: () => ({ matches: standalone }),
     navigator: { standalone: iosStandalone },
@@ -108,10 +109,13 @@ function boot({ path = '/', search = '', seen = false, standalone = false, iosSt
   });
   return classes.has('gx-boot-splash');
 }
-assert.equal(boot(), true, 'First browser launch uses the artwork');
+assert.equal(boot(), false, 'First browser launch opens the app without a splash');
 assert.equal(boot({ seen: true }), false, 'Repeat browser launches skip the splash');
-assert.equal(boot({ seen: true, standalone: true }), true, 'Installed Android launches use the artwork');
-assert.equal(boot({ seen: true, iosStandalone: true }), true, 'Installed iPhone launches use the artwork');
+assert.equal(boot({ standalone: true }), false, 'Fresh Android launch has only its native screen');
+assert.equal(boot({ iosStandalone: true }), false, 'Fresh iPhone launch has only its native screen');
+assert.equal(boot({ seen: true, standalone: true }), false, 'Repeat Android launch has no second splash');
+assert.equal(boot({ seen: true, iosStandalone: true }), false, 'Repeat iPhone launch has no second splash');
+assert.equal(boot({ search: '?splash=no' }), false, 'Unrecognized preview modes cannot add a splash');
 assert.equal(boot({ seen: true, search: '?splash=preview' }), true, 'Held design preview remains available');
 assert.equal(boot({ seen: true, search: '?splash=launch' }), true, 'Readiness transition can be previewed');
 assert.equal(boot({ path: '/login' }), false, 'Login never waits behind a launch screen');

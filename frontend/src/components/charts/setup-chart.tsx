@@ -125,6 +125,8 @@ interface SetupLevels {
   entry: number;
   /** Active trades can show broker cash P/L while retaining the entry price. */
   entryLabel?: string;
+  entryColor?: string;
+  targetLabel?: string;
   stop: number;
   target: number;
   exit?: number | null;
@@ -1198,7 +1200,7 @@ function setupLevelTags(
       key: "entry",
       label: levels.entryLabel ?? (compactLabels ? `Entry ${entryPrice} · R:R ${rewardR.toFixed(rewardR >= 10 ? 0 : 1)}` : `ENTRY ${entryPrice}`),
       price: toChartPrice(levels.entry, entrySide, halfSpread),
-      color: palette.up,
+      color: levels.entryColor ?? palette.up,
       textColor: palette.onUp,
       dashed: false,
     },
@@ -1212,9 +1214,9 @@ function setupLevelTags(
     },
     {
       key: "target",
-      label: compactLabels
+      label: levels.targetLabel ?? (compactLabels
         ? `TP ${targetPrice} · +${rewardR.toFixed(rewardR >= 10 ? 0 : 1)}R`
-        : `TAKE PROFIT ${targetPrice} · +${rewardR.toFixed(rewardR >= 10 ? 0 : 1)}R`,
+        : `TAKE PROFIT ${targetPrice} · +${rewardR.toFixed(rewardR >= 10 ? 0 : 1)}R`),
       price: toChartPrice(levels.target, exitSide, halfSpread),
       color: palette.up,
       textColor: palette.onUp,
@@ -2818,8 +2820,10 @@ export function SetupChart({
     embedded ? "compact" : "full",
     levels?.entry ?? "",
     levels?.entryLabel ?? "",
+    levels?.entryColor ?? "",
     levels?.stop ?? "",
     levels?.target ?? "",
+    levels?.targetLabel ?? "",
     levels?.exit ?? "",
     levels?.outcome ?? "",
     referenceLine?.price ?? "",
@@ -3161,7 +3165,7 @@ export function SetupChart({
         <button
           type="button"
           key={tag.key}
-          className={`setup-chart-level-tag is-${tag.edge}`}
+          className={`setup-chart-level-tag is-${tag.edge}${tag.label.startsWith("P/L ") ? " is-pl" : ""}`}
           style={{
             top: tag.y,
             ...(tag.edge === "left" ? { left: tag.offset } : { right: tag.offset }),
@@ -3169,6 +3173,7 @@ export function SetupChart({
           } as CSSProperties & { "--level-color": string }}
           onClick={tag.onSelect}
           disabled={!tag.onSelect}
+          title={tag.label.startsWith("P/L ") ? "Live P/L estimate from executable bid/ask, refreshed against the broker every 15 seconds. Line marks the fill price." : tag.label.startsWith("TP ") ? "Estimated total trade profit at this target. Actual fills, conversion rates and fees can change the final amount." : undefined}
           aria-label={`${tag.label}, ${formatChartPrice(tag.price, series.instrument)}`}
         >
           <span className="setup-chart-level-tag-dot" aria-hidden="true" />

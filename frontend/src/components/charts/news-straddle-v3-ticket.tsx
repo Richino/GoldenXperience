@@ -125,6 +125,7 @@ export function BrokerNewsStraddleTicket({ header, instrument, bid, ask, creatio
 }
 export function NewsV3StatusView({ run, now, bid, ask }: { run: PublicNewsRun; now: number | null; bid?: number | null; ask?: number | null }) {
   const digits = precisionFor(run.instrument), fmt = (n: number | null | undefined) => n === null || n === undefined ? "—" : n.toFixed(digits);
+  const manual = run.mode === "oco";
   const preview = !run.levelsFrozenAt && ["SCHEDULED", "PREPARING", "READY"].includes(run.state);
   const displayEntry = (side: "long" | "short") => preview && bid != null && ask != null
     ? (side === "long" ? ask + run.settings.distancePips * pipSizeFor(run.instrument) : bid - run.settings.distancePips * pipSizeFor(run.instrument)) : run.legs[side].entry;
@@ -141,8 +142,8 @@ export function NewsV3StatusView({ run, now, bid, ask }: { run: PublicNewsRun; n
   return <div className={styles.status}>
     <div className={styles.intro}><h3>{simpleState[run.state]}</h3><span className={styles.badge}>{displayNameFor(run.instrument)}</span></div>
     {run.reason ? <p className={styles.warning}>{run.reason}</p> : null}
-    <p className={styles.note}>{displayNameFor(run.instrument)} · High impact<br />{(run.release.events ?? [run.release]).map(e => `${e.currency} ${e.title}`).join(" + ")}<br />{clock(run.release.time)}</p>
-    {now !== null && !NEWS_TERMINAL.includes(run.state) && Date.parse(run.release.time) > now ? <p className={styles.countdown}>Release in {countdown(Date.parse(run.release.time) - now)}</p> : null}
+    {manual ? <p className={styles.note}>Linked OCO · first fill cancels the opposite order.<br />Unfilled orders expire {clock(run.expiresAt!)}. No automatic trailing stop.</p> : <p className={styles.note}>{displayNameFor(run.instrument)} · High impact<br />{(run.release.events ?? [run.release]).map(e => `${e.currency} ${e.title}`).join(" + ")}<br />{clock(run.release.time)}</p>}
+    {!manual && now !== null && !NEWS_TERMINAL.includes(run.state) && Date.parse(run.release.time) > now ? <p className={styles.countdown}>Release in {countdown(Date.parse(run.release.time) - now)}</p> : null}
     {!active && !NEWS_TERMINAL.includes(run.state) ? <section className={styles.card} aria-label="Live news orders">
       {preview || run.state === "SUBMITTING" ? <p className={styles.note}>{now !== null && Date.parse(run.targetSubmitAt) > now ? `Orders submit in ${countdown(Date.parse(run.targetSubmitAt) - now)}` : "Submitting during the final 10 seconds before release"}</p> : null}
       <dl className={styles.metrics}>{(["long", "short"] as const).map(side => { const leg = run.legs[side]; return <div key={side}><dt>{side === "long" ? "BUY STOP" : "SELL STOP"}</dt><dd>{fmt(displayEntry(side))}<small>{leg.state === "UNSENT" ? "Preview · fixed at submission" : leg.state.replaceAll("_", " ")}</small></dd></div>; })}</dl>
@@ -150,14 +151,14 @@ export function NewsV3StatusView({ run, now, bid, ask }: { run: PublicNewsRun; n
     {active ? <section className={styles.card} aria-label="Trade summary"><dl className={styles.metrics}>
       <div><dt>{active.closedAt ? "Result" : "Current move"}</dt><dd>{active.closedAt && active.realizedPL !== null ? money(active.realizedPL, run.risk?.currency) : current ? pips(active.unrealizedPips) : "Waiting for an update"}</dd></div>
       {!active.closedAt ? <div><dt>Stop protection</dt><dd>{current ? pips(active.protectedPips) : "Checking with broker"}</dd></div> : null}
-    </dl></section> : !NEWS_TERMINAL.includes(run.state) ? <p className={styles.description}>GX is watching {(run.release.events?.length ?? 1) > 1 ? "these releases together" : "this event"}. The entry, stop-loss and trailing protection are automatic.</p> : null}
+    </dl></section> : !NEWS_TERMINAL.includes(run.state) ? <p className={styles.description}>{manual ? "GX is watching both pending orders. The first verified fill cancels the other; the filled trade keeps its broker stop." : <>GX is watching {(run.release.events?.length ?? 1) > 1 ? "these releases together" : "this event"}. The entry, stop-loss and trailing protection are automatic.</>}</p> : null}
     <details className={styles.more}><summary>Details</summary>
     <p className={styles.note}>{NEWS_V3_LABEL[run.state]}</p>
     <section className={styles.card} aria-label="Broker order status"><dl className={styles.metrics}>
       {(["long", "short"] as const).map(side => { const l = run.legs[side]; return <div key={side}><dt>{side === "long" ? "BUY STOP" : "SELL STOP"}</dt><dd>{fmt(l.entry)}<small>{l.state.replaceAll("_", " ")}</small></dd></div>; })}
       <div><dt>Opposite order cancellation</dt><dd>{opposite?.state === "CANCELLED" && opposite.cancellationConfirmedAt ? "Confirmed by broker" : opposite?.cancellationRequestedAt ? "Requested · awaiting confirmation" : run.exception ? "Exception · reconciling" : "After first verified fill"}</dd></div>
       <div><dt>Initial stop</dt><dd>{active ? fmt(active.initialStop) : `${run.risk?.stopPips.toFixed(1) ?? "—"} pips`} · −1R</dd></div>
-      <div><dt>Trailing settings</dt><dd>+{run.settings.trailingActivationPips}p activation / {run.settings.trailingDistancePips}p distance</dd></div>
+      <div><dt>Trailing settings</dt><dd>{manual ? "Disabled" : <>+{run.settings.trailingActivationPips}p activation / {run.settings.trailingDistancePips}p distance</>}</dd></div>
       <div><dt>Fixed take-profit</dt><dd>Disabled</dd></div>
       <div><dt>Planned risk / order</dt><dd>{run.risk ? `${money(run.risk.perLegCash, run.risk.currency)} (${run.risk.perLegPercent.toFixed(2)}%)` : "Rechecking"}</dd></div>
       <div><dt>Combined planned risk cap</dt><dd>{run.settings.maxEventRiskPercent}% if both fill</dd></div>

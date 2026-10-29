@@ -21,9 +21,9 @@ async function project(c: Pick<PoolClient, "query">, run: NewsRun) {
       // Actual broker/entry target stays null, never a fictitious 2R order.
       const paper = await c.query<{ id: string }>(
         `INSERT INTO paper_trades(user_id,legacy_id,origin,pair,direction,status,result,opened_at,entry,stop,target,reason,notes)
-         VALUES($1,$2,'manual',$3,$4,'open','open',$5,$6,$7,$6,'News STOP breakout filled',$8)
+         VALUES($1,$2,'manual',$3,$4,'open','open',$5,$6,$7,$6,$9,$8)
          ON CONFLICT(user_id,legacy_id) DO UPDATE SET updated_at=paper_trades.updated_at RETURNING id`,
-        [run.userId, `pending-entry:${leg.entryId}`, run.instrument.replace("_", "/"), leg.side, leg.fillTime, leg.fillPrice, leg.initialStop ?? leg.fillPrice! + (leg.side === "long" ? -1 : 1) * leg.stopDistance!, `News Straddle v3 ${run.id}; no fixed target; original -1R stop reference is immutable.`],
+        [run.userId, `pending-entry:${leg.entryId}`, run.instrument.replace("_", "/"), leg.side, leg.fillTime, leg.fillPrice, leg.initialStop ?? leg.fillPrice! + (leg.side === "long" ? -1 : 1) * leg.stopDistance!, `${run.mode === "oco" ? "Linked OCO" : "News Straddle v3"} ${run.id}; no fixed target; original -1R stop reference is immutable.`, run.mode === "oco" ? "Linked OCO entry filled" : "News STOP breakout filled"],
       ); leg.paperTradeId = paper.rows[0]!.id;
     }
     if (leg.closedAt && leg.paperTradeId && leg.exitPrice !== null && leg.realizedPL !== null) await c.query(
@@ -34,7 +34,7 @@ async function project(c: Pick<PoolClient, "query">, run: NewsRun) {
     const zones = run.legs.long.entry && run.legs.short.entry ? { buy: { lower: run.legs.long.entry, upper: run.legs.long.bound }, sell: { lower: run.legs.short.bound, upper: run.legs.short.entry } } : null;
     const meta = {
       mode: "news", configVersion: 3, straddleId: run.id, line: leg.side === "long" ? "upper" : "lower", newsState: run.state,
-      createdFrom: "chart", tradeStyle: "day", noTarget: true, release: run.release,
+      createdFrom: "chart", tradeStyle: "day", noTarget: true, release: run.release, linkedOco: run.mode === "oco",
       distancePips: run.settings.distancePips, slippagePips: run.settings.maxSlippagePips, lockAt: run.targetSubmitAt,
       zones, reservation: run.firstFillSide ? { side: run.firstFillSide } : null,
       brokerOrderId: leg.orderId, brokerTradeId: leg.tradeId, execution: filled ? "news_v3_filled" : "news_v3_pending", newsRun: publicRun(run),
@@ -126,7 +126,7 @@ export async function createNewsRun(run: NewsRun, transact: typeof transaction =
     await c.query("INSERT INTO news_straddle_runs(id,user_id,account_key,instrument,event_key,state,snapshot) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb)", [run.id, run.userId, run.accountKey, run.instrument, run.eventKey, run.state, JSON.stringify(run)]);
     for (const leg of Object.values(run.legs)) await c.query(`INSERT INTO pending_manual_entries(id,user_id,instrument,direction,entry_price,entry_order_type,current_price_at_creation,expiration_type,expires_at,activate_at,metadata)
       VALUES($1,$2,$3,$4,$5,$6,$7,'time',$8,$9,$10::jsonb)`, [leg.entryId, run.userId, run.instrument, leg.side, leg.entry, leg.side === "long" ? "buy_stop" : "sell_stop", leg.side === "long" ? run.preparedQuote!.ask : run.preparedQuote!.bid,
-      new Date(Date.parse(run.release.time) + run.settings.windowSeconds * 1000).toISOString(), run.targetSubmitAt, JSON.stringify({ mode: "news", configVersion: 3, straddleId: run.id })]);
+      (run.mode === "oco" ? run.expiresAt! : new Date(Date.parse(run.release.time) + run.settings.windowSeconds * 1000).toISOString()), run.targetSubmitAt, JSON.stringify({ mode: "news", configVersion: 3, straddleId: run.id })]);
     await project(c, run);
     await c.query("INSERT INTO news_straddle_audit(run_id,occurred_at,event,detail) VALUES($1,$2,'scheduled',$3::jsonb)", [run.id, run.createdAt, JSON.stringify({ targetSubmitAt: run.targetSubmitAt, settings: run.settings, risk: run.risk })]);
     return run;

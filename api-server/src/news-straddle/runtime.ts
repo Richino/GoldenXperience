@@ -71,11 +71,11 @@ export function startNewsStraddleRuntime(config: MarketStreamConfig, tickFor: (i
     finally { syncing = false; }
   }
   async function verifyCalendar() {
-    if (!leader || stopped || calendarBusy || !cached.length || Date.now() - lastCalendar < 5000) return;
+    if (!leader || stopped || calendarBusy || !cached.some(r => r.mode !== "oco") || Date.now() - lastCalendar < 5000) return;
     // Avoid adding calendar I/O or locks during the critical submission window.
     if (cached.some(r => Math.abs(Date.parse(r.targetSubmitAt) - Date.now()) < 1500)) return;
     calendarBusy = true; lastCalendar = Date.now();
-    try { const calendar = await deps.calendar(); for (const r of cached) await engine.verifyCalendar(r.id, calendar); }
+    try { const calendar = await deps.calendar(); for (const r of cached) if (r.mode !== "oco") await engine.verifyCalendar(r.id, calendar); }
     catch (e) { deps.log(e); /* expiry is checked again before dispatch; never invent release data */ }
     finally { calendarBusy = false; }
   }

@@ -40,7 +40,7 @@ export function stopOrderBody(run: NewsRun, leg: NewsLeg) {
   const digits = precisionFor(run.instrument);
   return { order: { type: "STOP", instrument: run.instrument, units: String(leg.side === "long" ? leg.units : -leg.units),
     price: leg.entry.toFixed(digits), priceBound: leg.bound.toFixed(digits), triggerCondition: "DEFAULT", positionFill: "REDUCE_FIRST",
-    timeInForce: "GTD", gtdTime: new Date(Date.parse(run.release.time) + run.settings.windowSeconds * 1000).toISOString(),
+    timeInForce: "GTD", gtdTime: run.mode === "oco" ? run.expiresAt! : new Date(Date.parse(run.release.time) + run.settings.windowSeconds * 1000).toISOString(),
     stopLossOnFill: { distance: leg.stopDistance.toFixed(digits), timeInForce: "GTC" },
     clientExtensions: { id: leg.clientId, tag: "gx-news-v3" }, tradeClientExtensions: { id: leg.tradeClientId, tag: "gx-news-v3" } } };
 }

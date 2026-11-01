@@ -20922,3 +20922,53 @@ html:is(.dark, :not(.dark)) body .nl-home [aria-labelledby="home-good-trends-tit
 html:is(.dark, :not(.dark)) body .nl-skel-tf .gx-skel {
   background: var(--border-strong);
 }
+
+/* ============================================================ TRADE TICKET · FEWER LINES (all widths)
+   The desktop New trade card gets the phone drawer's treatment: only the
+   card's own edge stays; controls and fields are set apart by raised fills,
+   and focus draws the lime ring instead of an outline. */
+html:is(.dark, :not(.dark)) body .pending-entry-dialog .nl-an-close {
+  border: 0;
+  background: var(--surface-raised);
+}
+
+html:is(.dark, :not(.dark)) body .pending-entry-dialog .nl-an-modes {
+  border: 0;
+  background: var(--surface-raised);
+}
+
+html:is(.dark, :not(.dark)) body .pending-entry-dialog .nl-an-modes button.is-active {
+  background: var(--surface);
+  box-shadow: none;
+}
+
+html:is(.dark, :not(.dark)) body .pending-entry-dialog .nl-pe-ticket .nl-pe-dir button {
+  border: 0;
+}
+
+html:is(.dark, :not(.dark)) body .pending-entry-dialog .nl-pe-ticket .nl-pe-levels label {
+  border-top: 0;
+}
+
+html:is(.dark, :not(.dark)) body .pending-entry-dialog .nl-pe-ticket .nl-pe-levels input {
+  border: 0;
+  background: var(--surface-raised);
+  box-shadow: inset 0 0 0 1px transparent;
+}
+
+html:is(.dark, :not(.dark)) body .pending-entry-dialog .nl-pe-ticket .nl-pe-levels input:focus {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+html:is(.dark, :not(.dark)) body .pending-entry-dialog :is(.pending-entry-actions, .nl-an-actions),
+html:is(.dark, :not(.dark)) body .pending-entry-dialog.is-plan > footer.nl-pe-actions,
+html:is(.dark, :not(.dark)) body .pending-entry-dialog .nl-pe-ticket .nl-an-rows,
+html:is(.dark, :not(.dark)) body .pending-entry-dialog .nl-pe-ticket .nl-an-rows > div {
+  border-top: 0;
+  border-bottom: 0;
+}
+
+html:is(.dark, :not(.dark)) body .pending-entry-dialog .nl-an-secondary {
+  border: 0;
+  background: var(--surface-raised);
+}

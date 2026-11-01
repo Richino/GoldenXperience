@@ -475,7 +475,7 @@ export function PendingEntryDialog({
         ? "Add entry"
         : "Trade";
 
-  const entryModePicker = !selectedEntry ? <div className="nl-an-modes" role="radiogroup" aria-label="Entry type">
+  const entryModePicker = !selectedEntry ? <div className={`nl-an-modes ${styles.entryModePicker}`} role="radiogroup" aria-label="Entry type">
     {(["single", "oco"] as const).map(mode => <button key={mode} type="button" role="radio" aria-checked={entryMode === mode} className={entryMode === mode ? "is-active" : ""} onClick={() => setEntryMode(mode)}>{mode === "single" ? "Single entry" : "Linked OCO"}</button>)}
   </div> : null;
 
@@ -643,14 +643,6 @@ export function PendingEntryDialog({
               edited keeps whatever it already had. */}
           <div className={`nl-pe-plan nl-pe-ticket ${styles.ticket} ${styles.minimalTicket}`}>
             {entryModePicker}
-            {!selectedEntry ? <details>
-              <summary>Risk budget · automatic</summary>
-              <p>Your Settings sizing budget is recorded automatically before submission. You can override the reporting budget below. A budget is not a maximum loss or protective stop; this override does not change order size.</p>
-              <label>Budget unit <select aria-label="Planned risk budget unit" value={plannedRiskUnit} onChange={event => setPlannedRiskUnit(event.target.value as "usd" | "percent")}><option value="usd">USD</option><option value="percent">% of equity when planned</option></select></label>
-              <label>Risk budget override <input aria-label="Planned monetary risk budget" inputMode="decimal" value={plannedRiskValue} onChange={event => setPlannedRiskValue(event.target.value)} placeholder="Use Settings sizing budget" /></label>
-              <label>Planned net reward (USD, optional) <input aria-label="Planned net reward in USD" inputMode="decimal" value={plannedNetRewardUsd} onChange={event => setPlannedNetRewardUsd(event.target.value)} placeholder="No reward objective" /></label>
-              <p>Leave blank to use the exact dollar budget from order sizing. The budget is fixed before entry; later stop changes do not redefine it.</p>
-            </details> : null}
             <div className="nl-pe-dir" role="radiogroup" aria-label="Direction">
               {(["long", "short"] as const).map((option) => (
                 <button

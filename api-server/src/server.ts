@@ -765,6 +765,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       const unavailableReason = !config.isConfigured ? "Connect an OANDA practice account to start news monitoring."
         : config.environment !== "practice" ? "News trading requires an OANDA practice account."
         : process.env.NEWS_STRADDLE_V3_ENABLED === "false" ? "News trading is disabled on this server."
+        : !schedulersEnabled ? "News and OCO orders run only on the live server; schedulers are off here."
         : !newsStraddleRuntime ? "The news scheduler has not started on this server." : null;
       try { return json(request, response, { enabled: false, ready: false, unavailableReason, ...await newsRuntimeStatus(newsAccountKey()), ...newsStraddleRuntime?.status() }); }
       catch { return json(request, response, { enabled: false, ready: false, error: "News Straddle migration is not available yet." }, 503); }
@@ -1529,11 +1530,13 @@ const morningScanner = databaseConfigured() && schedulersEnabled && process.env.
 if (databaseConfigured() && !schedulersEnabled) {
   console.log("[schedulers] ENABLE_SCHEDULERS=false — legacy background trade, research and binary loops are OFF. Swing analysis has its own opt-in worker.");
 }
-// News mode runs on every instance, dev and prod alike, regardless of
-// ENABLE_SCHEDULERS: the runtime elects one leader per OANDA account with a
-// Postgres advisory lock, so only one instance ever submits orders and the
-// others take over if it goes away.
-if (databaseConfigured() && config.isConfigured && config.environment === "practice") {
+// News mode and manual OCO run only where schedulers are on. The runtime
+// elects one leader per OANDA account with a Postgres advisory lock, so a dev
+// or read-only API sharing the database could otherwise win that lock and
+// become the instance that submits orders and cancels the opposite leg, then
+// stop watching when the machine sleeps. Read-only instances still serve the
+// runtime status; they just never lead.
+if (databaseConfigured() && schedulersEnabled && config.isConfigured && config.environment === "practice") {
   newsStraddleRuntime = startNewsStraddleRuntime(config, instrument => latestPrices.get(instrument as MajorInstrument) ?? null);
 }
 if (databaseConfigured() && schedulersEnabled) {

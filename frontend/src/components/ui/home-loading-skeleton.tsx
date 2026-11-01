@@ -9,11 +9,10 @@ function SectionHeading() {
   return (
     <div className="nl-sec-head">
       <div className="nl-sec-title">
-        <Placeholder className="nl-sec-num h-3 w-4" />
-        <Placeholder className="h-6 w-40 lg:h-8" />
-        <Placeholder className="h-5 w-7 rounded-full" />
+        <Placeholder className="h-[15px] w-28" />
+        <Placeholder className="h-[15px] w-4" />
       </div>
-      <Placeholder className="h-4 w-12" />
+      <Placeholder className="h-[15px] w-12" />
     </div>
   );
 }
@@ -56,18 +55,17 @@ export function HomeLoadingSkeleton() {
           <Placeholder className="size-11 rounded-[13px]" />
         </header>
         <section className="nl-hero">
+          {/* The "Net asset value" label is drawn by CSS, so only the balance and change line need placeholders. */}
           <div className="nl-hero-copy">
-            <span className="nl-overline"><Placeholder className="h-[16.5px] w-28 lg:h-[18px]" /></span>
-            <div className="nl-hero-balance"><Placeholder className="h-[0.9em] w-[5.1em] rounded-xl" /></div>
+            <div className="nl-hero-balance"><Placeholder className="h-[0.9em] w-[6.5em] rounded-[4px]" /></div>
             <div className="nl-hero-change">
-              <Placeholder className="h-8 w-24 rounded-full" />
+              <Placeholder className="h-[22px] w-14 rounded-[3px]" />
               <Placeholder className="h-4 w-28" />
-              <Placeholder className="nl-hero-open h-4 w-48" />
             </div>
           </div>
           <div className="nl-range-tabs">
             {Array.from({ length: 5 }, (_, index) => (
-              <Placeholder key={index} className="h-10 w-full rounded-[10px] lg:w-[52px]" />
+              <span key={index} className="nl-skel-range-slot"><Placeholder className="h-3 w-6" /></span>
             ))}
           </div>
           <div className="nl-chart-card">
@@ -82,24 +80,35 @@ export function HomeLoadingSkeleton() {
             ))}
           </dl>
         </section>
+        <section className="nl-quota">
+          <div className="nl-quota-head"><Placeholder className="h-[16.5px] w-14" /></div>
+          <div className="nl-quota-grid">
+            {Array.from({ length: 2 }, (_, index) => (
+              <div key={index} className="nl-quota-row">
+                <div className="nl-quota-top"><Placeholder className="h-[16.5px] w-12" /><Placeholder className="h-[16.5px] w-10" /></div>
+                <div className="nl-quota-amounts"><Placeholder className="h-[27px] w-28" /></div>
+                <div className="nl-quota-bar" />
+                <Placeholder className="h-[16.5px] w-24" />
+              </div>
+            ))}
+          </div>
+        </section>
         <div className="nl-home-cols">
           <div className="nl-home-main">
-            <section className={trendStyles.card}>
-              <div className={trendStyles.header}><Placeholder className="h-[27px] w-36" /><Placeholder className="h-3 w-12" /></div>
-              <div className={trendStyles.description}><Placeholder className="h-[18px] w-72" /></div>
+            {/* aria-labelledby picks up the same Night Ledger rules as the loaded card. */}
+            <section className={trendStyles.card} aria-labelledby="home-good-trends-title">
+              <header className={trendStyles.header}><Placeholder className="h-3 w-28" /><Placeholder className="h-3 w-12" /></header>
+              <p className={trendStyles.description}><Placeholder className="h-3 w-56" /></p>
               <div className={trendStyles.list}>
                 <div className={trendStyles.rows}>
                   {Array.from({ length: 5 }, (_, index) => <div key={index} className={trendStyles.skeletonRow}>
-                    <Placeholder className={trendStyles.skeletonAvatar} /><Placeholder className={trendStyles.skeletonPair} />
-                    <span className={trendStyles.skeletonStructure}><Placeholder className="h-[18px] w-[92px] rounded-full" /><Placeholder className="h-[9px] w-[66px]" /></span>
+                    <Placeholder className={trendStyles.skeletonPair} />
+                    <span className={trendStyles.skeletonStructure}><Placeholder /><Placeholder /></span>
                   </div>)}
                 </div>
-                <div className={trendStyles.more} />
+                <div className={trendStyles.more}><span className="nl-skel-more"><Placeholder className="h-3 w-24" /></span></div>
               </div>
-              <div className={trendStyles.footer}>
-                <div className={trendStyles.checked}><Placeholder className="h-4 w-40" /></div>
-                <div className={trendStyles.status}><Placeholder className="h-3 w-36" /></div>
-              </div>
+              <div className={trendStyles.footer} />
             </section>
             <section className="nl-sec nl-positions">
               <SectionHeading />
@@ -130,7 +139,7 @@ export function HomeLoadingSkeleton() {
               </div>)}</div>
             </section>
             <section className="nl-card nl-pending">
-              <div className="nl-card-head"><Placeholder className="h-6 w-24" /><Placeholder className="h-3 w-12" /></div>
+              <div className="nl-card-head"><Placeholder className="h-[15px] w-24" /><Placeholder className="h-[15px] w-12" /></div>
               <div className="nl-pending-entry">
                 <div className="nl-pending-top"><Placeholder className="h-6 w-24" /><Placeholder className="h-5 w-12" /></div>
                 <Levels />
@@ -151,7 +160,7 @@ export function HomeLoadingSkeleton() {
           </div>
           <aside className="nl-home-aside">
             <section className="nl-today">
-              <div className="nl-today-head"><Placeholder className="h-4 w-28" /><Placeholder className="h-4 w-12" /></div>
+              <div className="nl-today-head"><Placeholder className="h-[15px] w-28" /><Placeholder className="h-[15px] w-4" /></div>
               <div className="nl-today-main">
                 <Placeholder className="h-10 w-44 lg:h-14" />
                 <Placeholder className="h-10 w-full rounded-md" />
@@ -163,7 +172,7 @@ export function HomeLoadingSkeleton() {
               </dl>
             </section>
             <section className="nl-card nl-news">
-              <div className="nl-card-head"><Placeholder className="h-6 w-36" /><Placeholder className="h-3 w-5" /></div>
+              <div className="nl-card-head"><Placeholder className="h-[15px] w-32" /><Placeholder className="h-[15px] w-5" /></div>
               <div className="nl-news-list">
                 {Array.from({ length: 3 }, (_, index) => (
                   <div key={index} className="nl-news-row">
@@ -177,7 +186,28 @@ export function HomeLoadingSkeleton() {
           </aside>
           <section className="nl-sec nl-wr">
             <SectionHeading />
-            <div className="nl-wr-card space-y-4"><Placeholder className="h-10 w-44" /><Placeholder className="h-4 w-56" /><Placeholder className="h-4 w-full" /><Placeholder className="h-4 w-3/4" /></div>
+            {/* Same sections as the loaded review, so each gets its own padding. */}
+            <div className="nl-wr-card">
+              <div className="nl-wr-hero">
+                <Placeholder className="h-3 w-24" />
+                <Placeholder className="my-1.5 h-9 w-44" />
+                <Placeholder className="h-3 w-48" />
+              </div>
+              <dl className="nl-wr-mini">
+                {Array.from({ length: 3 }, (_, index) => (
+                  <div key={index}><dt><Placeholder className="h-3 w-20" /></dt><dd><Placeholder className="h-4 w-24" /></dd></div>
+                ))}
+              </dl>
+              <div className="nl-wr-ai space-y-2.5 pb-4">
+                <Placeholder className="h-3 w-24" />
+                <Placeholder className="h-4 w-full" />
+                <Placeholder className="h-4 w-full" />
+                <Placeholder className="h-4 w-2/3" />
+              </div>
+              {Array.from({ length: 2 }, (_, index) => (
+                <div key={index} className="nl-wr-more flex min-h-[41px] items-center"><Placeholder className="h-4 w-44" /></div>
+              ))}
+            </div>
           </section>
         </div>
       </div>

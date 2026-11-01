@@ -12527,6 +12527,47 @@ html:is(.dark, :not(.dark)) body .mobile-sheet .nl-notif-list .notification-popo
     font-style: normal;
   }
 
+  /* Candle values left, the pair's weekly trend read right; on a narrow
+     phone the trend drops to its own line instead of covering the close. */
+  .nl-mohlc {
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    row-gap: 2px;
+  }
+
+  .nl-mohlc-values {
+    display: flex;
+    gap: 10px;
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  /* Same box as the candle values, so both sit on one line height. */
+  html:is(.dark, :not(.dark)) body .nl-mohlc .nl-mohlc-trend {
+    display: flex;
+    flex: none;
+    align-items: center;
+    margin: 0;
+    line-height: inherit;
+  }
+
+  html:is(.dark, :not(.dark)) body .nl-mohlc .nl-mohlc-trend > span[data-tone] {
+    height: auto;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    font-family: var(--font-shell);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0;
+    line-height: inherit;
+    white-space: nowrap;
+  }
+
   .nl-mohlc .is-up { color: var(--accent); }
   .nl-mohlc .is-down { color: var(--danger); }
 
@@ -13736,8 +13777,109 @@ html:is(.dark, :not(.dark)) body .gx-fs .setup-chart-level-tag.is-left {
     background: var(--surface-raised);
   }
 
+  /* Pair rows as flat sheet options: square selection, small flag pair. */
+  html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search-result,
   html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search-result.is-active {
+    min-height: 48px;
+    gap: 10px;
+    border-radius: 0;
     box-shadow: none;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search-result > div:first-child {
+    width: 22px !important;
+    height: 22px !important;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search-result > div:first-child img {
+    width: 15px !important;
+    height: 15px !important;
+    --tw-ring-shadow: 0 0 0 1.5px var(--surface);
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search-result > .min-w-0 {
+    gap: 2px;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search-result > .min-w-0 > .block {
+    font-weight: 500;
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .nl-trend-compact > span[data-tone] {
+    font-family: var(--font-shell);
+    font-size: 11.5px;
+    letter-spacing: 0;
+  }
+
+  /* Settings pickers (Theme, Text size, Sound…) as sheet options. */
+  html:is(.dark, :not(.dark)) body .mobile-sheet .phone-settings-options {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px 8px;
+  }
+
+  html:is(.dark, :not(.dark)) body .mobile-sheet .phone-settings-option {
+    min-height: 48px;
+    gap: 10px;
+    padding: 6px 16px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    font-family: var(--font-shell);
+  }
+
+  html:is(.dark, :not(.dark)) body .mobile-sheet .phone-settings-option.is-selected {
+    background: var(--nav-active);
+  }
+
+  html:is(.dark, :not(.dark)) body .mobile-sheet .phone-settings-option-label {
+    color: var(--foreground);
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  html:is(.dark, :not(.dark)) body .mobile-sheet .phone-settings-option-detail {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  html:is(.dark, :not(.dark)) body .mobile-sheet .phone-settings-option-check {
+    width: 16px;
+    height: 16px;
+    color: var(--accent);
+  }
+
+  /* Sign-out confirmation: square filled buttons. */
+  html:is(.dark, :not(.dark)) body .mobile-sheet .phone-settings-confirm-copy {
+    margin: 0 8px;
+    color: var(--muted-strong);
+    font-family: var(--font-shell);
+    font-size: 14px;
+  }
+
+  html:is(.dark, :not(.dark)) body .mobile-sheet .phone-settings-confirm-actions {
+    gap: 8px;
+    margin: 20px 8px 0;
+  }
+
+  html:is(.dark, :not(.dark)) body .mobile-sheet :is(.phone-settings-confirm-cancel, .phone-settings-confirm-sign-out) {
+    min-height: 44px;
+    border: 0;
+    border-radius: 4px;
+    font-family: var(--font-shell);
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  html:is(.dark, :not(.dark)) body .mobile-sheet .phone-settings-confirm-cancel {
+    background: var(--surface-raised);
+    color: var(--foreground);
+  }
+
+  html:is(.dark, :not(.dark)) body .mobile-sheet .phone-settings-confirm-sign-out {
+    background: var(--danger-soft);
+    color: var(--danger);
   }
 
   /* Trade ticket: filled fields and buttons, the selected mode raised. */
@@ -18066,6 +18208,109 @@ html:is(.dark, :not(.dark)) body .nl-st .nl-st-input:focus-within {
   box-shadow: 0 0 0 1px var(--focus-ring);
 }
 
+/* Phone limits sheet: the same parts at touch size (44px controls). */
+html:is(.dark, :not(.dark)) body .nl-st-sheet {
+  gap: 18px;
+  font-family: var(--font-shell);
+}
+
+html:is(.dark, :not(.dark)) body .nl-st-sheet .nl-st-sheet-hero {
+  gap: 8px;
+  padding: 14px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--surface-raised);
+}
+
+html:is(.dark, :not(.dark)) body .nl-st-sheet :is(.nl-st-note, .nl-st-help) {
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+html:is(.dark, :not(.dark)) body .nl-st-sheet .nl-st-field-label {
+  color: var(--muted);
+  font-family: var(--font-shell);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+html:is(.dark, :not(.dark)) body .nl-st-sheet .nl-st-optional {
+  padding: 0 5px;
+  border: 0;
+  border-radius: 3px;
+  background: var(--surface-raised);
+  color: var(--muted);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+}
+
+html:is(.dark, :not(.dark)) body .nl-st-sheet .nl-st-step {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 18px;
+}
+
+html:is(.dark, :not(.dark)) body .nl-st-sheet .nl-st-risk-value,
+html:is(.dark, :not(.dark)) body .nl-st-sheet .nl-st-risk-value input {
+  font-family: var(--font-shell-mono);
+  font-size: 48px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+
+html:is(.dark, :not(.dark)) body .nl-st-sheet .nl-st-risk-money {
+  color: var(--accent);
+  font-size: 12px;
+}
+
+html:is(.dark, :not(.dark)) body .nl-st-sheet :is(.nl-st-positions, .nl-st-presets) {
+  gap: 4px;
+}
+
+html:is(.dark, :not(.dark)) body .nl-st-sheet .nl-st-pill {
+  min-width: 0;
+  height: 44px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--surface-raised);
+  box-shadow: none;
+  color: var(--muted-strong);
+  font-family: var(--font-shell-mono);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+html:is(.dark, :not(.dark)) body .nl-st-sheet .nl-st-sheet-hero .nl-st-pill {
+  background: var(--surface);
+}
+
+html:is(.dark, :not(.dark)) body .nl-st-sheet .nl-st-pill.is-active,
+html:is(.dark, :not(.dark)) body .nl-st-sheet .nl-st-sheet-hero .nl-st-pill.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+html:is(.dark, :not(.dark)) body .nl-st-sheet .nl-st-input {
+  height: 44px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--surface-raised);
+  box-shadow: none;
+}
+
+html:is(.dark, :not(.dark)) body .nl-st-sheet .nl-st-input input {
+  font-family: var(--font-shell-mono);
+  font-size: 16px;
+}
+
 html:is(.dark, :not(.dark)) body .nl-st .nl-st-input span {
   color: var(--muted);
   font-size: 11.5px;
@@ -20239,8 +20484,8 @@ html:is(.dark, :not(.dark)) body .gx-skel {
     color-mix(in srgb, var(--surface-raised) 55%, var(--foreground) 6%) 45%,
     var(--surface-raised) 65%
   );
-  background-size: 220% 100%;
-  animation: gx-skeleton-shimmer 1.8s ease-in-out infinite;
+  background-size: 200% 100%; /* one tile per loop, so it repeats seamlessly */
+  animation: gx-skeleton-shimmer 1.8s linear infinite;
 }
 
 /* Layout helpers the skeletons use where the page has no class of its own. */
@@ -20326,8 +20571,8 @@ html:is(.dark, :not(.dark)) body .chart-loading-skeleton::after {
     color-mix(in srgb, var(--foreground) 5%, transparent) 50%,
     transparent 70%
   );
-  background-size: 220% 100%;
-  animation: gx-skeleton-shimmer 1.8s ease-in-out infinite;
+  background-size: 200% 100%; /* one tile per loop, so it repeats seamlessly */
+  animation: gx-skeleton-shimmer 1.8s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -20346,8 +20591,8 @@ html:is(.dark, :not(.dark)) body :is(.home-activity-skeleton span, .gx-mobile-tr
     color-mix(in srgb, var(--surface-raised) 55%, var(--foreground) 6%) 45%,
     var(--surface-raised) 65%
   );
-  background-size: 220% 100%;
-  animation: gx-skeleton-shimmer 1.8s ease-in-out infinite;
+  background-size: 200% 100%; /* one tile per loop, so it repeats seamlessly */
+  animation: gx-skeleton-shimmer 1.8s linear infinite;
 }
 
 html:is(.dark, :not(.dark)) body .home-activity-skeleton {
@@ -20386,4 +20631,294 @@ html:is(.dark, :not(.dark)) body .home-activity-skeleton span {
   display: flex;
   align-items: center;
   min-height: 1.5em;
+}
+
+/* ============================================================ HOME · QUOTA
+   Daily and weekly profit quota under the hero (components/dashboard/home-quota.tsx). */
+.nl-quota {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  font-family: var(--font-shell);
+}
+
+.nl-quota-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px 6px;
+}
+
+.nl-quota-head h2 {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.nl-quota-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.nl-quota-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px 14px 14px;
+}
+
+.nl-quota-row + .nl-quota-row {
+  border-left: 1px solid var(--border);
+}
+
+.nl-quota-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.nl-quota-label {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.nl-quota-rate {
+  color: var(--muted);
+  font-family: var(--font-shell-mono);
+  font-size: 11px;
+}
+
+.nl-quota-amounts {
+  overflow: hidden;
+  font-family: var(--font-shell-mono);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nl-quota-amounts b {
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.nl-quota-amounts b.is-up { color: var(--success); }
+.nl-quota-amounts b.is-down { color: var(--danger); }
+.nl-quota-amounts b.is-flat { color: var(--foreground); }
+
+.nl-quota-amounts > span {
+  color: var(--muted);
+}
+
+.nl-quota-bar {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--surface-raised);
+}
+
+.nl-quota-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent-fill);
+  transition: width 0.4s ease;
+}
+
+.nl-quota-note {
+  color: var(--muted);
+  font-family: var(--font-shell-mono);
+  font-size: 11px;
+}
+
+.nl-quota-row.is-met .nl-quota-note {
+  color: var(--accent);
+}
+
+/* ============================================================ WORKSPACE ERROR
+   app/(workspace)/error.tsx: a single card in the workstation style. */
+.workspace-error {
+  display: flex;
+  min-height: calc(100dvh - 7rem);
+  flex-direction: column;
+  justify-content: center;
+  padding: 24px 16px 128px;
+}
+
+@media (min-width: 1024px) {
+  .workspace-error {
+    min-height: 0;
+    padding: 40px 24px;
+  }
+}
+
+.nl-error {
+  display: flex;
+  width: 100%;
+  max-width: 420px;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 auto;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-family: var(--font-shell);
+}
+
+.nl-error-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--danger);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.nl-error-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.nl-error h1 {
+  margin: 4px 0 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.nl-error p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.nl-error-detail {
+  display: block;
+  margin-top: 4px;
+  padding: 10px 12px;
+  overflow-wrap: anywhere;
+  border-radius: 4px;
+  background: var(--surface-raised);
+  color: var(--muted-strong);
+  font-family: var(--font-shell-mono);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.nl-error-retry {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--accent-fill);
+  color: var(--on-accent);
+  font-family: var(--font-shell);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.nl-error-retry svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ============================================================ HOME · SKELETON
+   Loading rows shaped like the loaded Weekly trends rows (pair left,
+   direction and 4H timing right) and quiet range-tab slots. */
+html:is(.dark, :not(.dark)) body .nl-home [aria-labelledby="home-good-trends-title"] [class*="skeletonRow"] {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: auto;
+  min-height: 41px;
+  margin: 0 6px;
+  padding: 8px;
+  border: 0;
+}
+
+html:is(.dark, :not(.dark)) body .nl-home [aria-labelledby="home-good-trends-title"] [class*="skeletonPair"] {
+  width: 72px;
+  height: 13px;
+  border-radius: 3px;
+}
+
+html:is(.dark, :not(.dark)) body .nl-home [aria-labelledby="home-good-trends-title"] [class*="skeletonStructure"] {
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  padding-right: 0;
+}
+
+html:is(.dark, :not(.dark)) body .nl-home [aria-labelledby="home-good-trends-title"] [class*="skeletonStructure"] > span {
+  width: 84px;
+  height: 11px;
+  border-radius: 3px;
+}
+
+html:is(.dark, :not(.dark)) body .nl-home [aria-labelledby="home-good-trends-title"] [class*="skeletonStructure"] > span:last-child {
+  width: 60px;
+}
+
+/* The loaded card hides its "checked at" line; so does its loading state. */
+html:is(.dark, :not(.dark)) body .nl-home [aria-labelledby="home-good-trends-title"] [class*="skeletonChecked"] {
+  display: none;
+}
+
+.nl-skel-more {
+  display: flex;
+  align-items: center;
+  min-height: 33px;
+  padding: 0 14px;
+}
+
+.nl-skel-range-slot {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+}
+
+/* Chart skeleton (phone): the timeframe bar in the loaded segmented style,
+   one short label mark per tab. */
+@media (max-width: 1023px) {
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .gx-mobile-timeframes > .nl-skeleton-timeframes {
+    gap: 2px;
+    padding: 2px;
+    border: 0;
+    border-radius: 4px;
+    background: var(--surface-raised);
+  }
+}
+
+.nl-skel-tf {
+  display: flex;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The shimmer shares the bar's raised fill; a quiet solid mark stays visible. */
+html:is(.dark, :not(.dark)) body .nl-skel-tf .gx-skel {
+  background: var(--border-strong);
 }

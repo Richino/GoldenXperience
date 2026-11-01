@@ -5,14 +5,49 @@ function Plot() {
   return <div className="chart-route-skeleton" aria-hidden="true"><div className="chart-loading-skeleton" /></div>;
 }
 
-/** A side-column card: uppercase head, then ruled rows. */
-function SideCard({ title, rows, className = "" }: { title: number; rows: number; className?: string }) {
+/* Side-column cards, built from the loaded cards' own classes so rows and
+   padding line up: Trades (empty note), Upcoming news, Watchlist. */
+function SideBook() {
   return (
-    <section className={`nl-cside-card ${className}`}>
-      <div className="nl-cside-head"><Block width={title} height={10} /><Block width={56} height={10} /></div>
-      <div className="nl-skel-rows">
-        {Array.from({ length: rows }, (_, i) => (
-          <div className="nl-skel-row" key={i}><Block width={i % 2 ? 132 : 150} height={11} /><Block width={52} height={11} /></div>
+    <section className="nl-cside-card nl-book">
+      <div className="nl-cside-head"><Block width={52} height={10} /></div>
+      <div className="nl-book-empty">
+        <span className="flex h-5 items-center"><Block width={150} height={12} /></span>
+        <span className="flex h-[17px] items-center"><Block width={230} height={10} /></span>
+        <span className="flex h-[17px] items-center"><Block width={120} height={10} /></span>
+      </div>
+    </section>
+  );
+}
+
+function SideNews() {
+  return (
+    <section className="nl-cside-card nl-cnews">
+      <div className="nl-cside-head"><Block width={104} height={10} /><Block width={56} height={10} /></div>
+      <div className="nl-news-list">
+        {Array.from({ length: 6 }, (_, i) => (
+          <div className="nl-news-row" key={i}>
+            <span className="nl-news-when flex h-[34px] flex-col justify-center gap-1.5"><Block width={24} height={8} /><Block width={36} height={11} /></span>
+            <span className="nl-news-copy flex flex-col gap-1.5"><Block width={i % 2 ? 130 : 160} height={11} /><Block width={56} height={9} /></span>
+            <Block width={24} height={12} />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SideWatchlist() {
+  return (
+    <section className="nl-cside-card nl-cwl">
+      <div className="nl-cside-head"><Block width={72} height={10} /><Block width={56} height={10} /></div>
+      <div className="nl-cwl-list">
+        {Array.from({ length: 12 }, (_, i) => (
+          <div className="nl-cwl-row" key={i}>
+            <span><Block width={56} height={11} /></span>
+            <span><Block width={52} height={11} /></span>
+            <span><Block width={40} height={11} /></span>
+          </div>
         ))}
       </div>
     </section>
@@ -26,14 +61,22 @@ export function ChartLoadingSkeleton() {
         <section className="app-card signals-chart-card min-w-0 w-full" aria-hidden="true">
           <div className="signals-chart-mobile lg:hidden">
             <div className="signals-mobile-content">
-              <div className="signals-mobile-header nl-mhead">
-                <div className="gx-mobile-quote-row nl-mquote"><div className="nl-mquote-main"><Block width={96} height={18} /><Block width={150} height={14} /></div></div>
-                <div className="nl-mhead-actions">
+              {/* Same header parts as the loaded page: pair line, then price · change · spread. */}
+              <div className="signals-mobile-actions nl-mhead">
+                <div className="nl-mhead-quote">
+                  <div className="flex h-[26px] items-center"><Block width={84} height={18} /></div>
+                  <div className="flex h-[19px] items-center"><Block width={150} height={14} /></div>
+                </div>
+                <div className="signals-mobile-header-actions nl-mhead-actions">
                   {Array.from({ length: 3 }, (_, i) => <Block key={i} width={44} height={44} radius={4} />)}
                 </div>
               </div>
-              <div className="gx-mobile-timeframes nl-mtimeframes"><div className="nl-skeleton-timeframes is-six">{Array.from({ length: 6 }, (_, i) => <Block key={i} width="100%" height={30} />)}</div></div>
-              <div className="nl-skel-ohlc"><Block width={220} height={11} /></div>
+              <div className="gx-mobile-timeframes nl-mtimeframes"><div className="nl-skeleton-timeframes is-six">{Array.from({ length: 6 }, (_, i) => <span key={i} className="nl-skel-tf"><Block width={18} height={10} /></span>)}</div></div>
+              {/* Candle values and the trend read; the trend wraps under the values on a narrow phone, as loaded. */}
+              <div className="nl-mohlc">
+                <div className="nl-mohlc-values h-4 items-center"><Block width={232} height={11} /></div>
+                <span className="nl-mohlc-trend flex h-4 items-center"><Block width={124} height={11} /></span>
+              </div>
             </div>
             <div className="relative min-h-[14rem] flex-1 overflow-hidden chart-data-shell chart-loading-static"><Plot /></div>
             <div className="gx-mobile-analyze-section"><Block height={44} radius={4} /></div>
@@ -62,9 +105,9 @@ export function ChartLoadingSkeleton() {
                 <div className="gx-chart-stage nl-chart-card"><div className="signals-chart-canvas chart-loading-static min-h-0 flex-1"><Plot /></div></div>
               </div>
               <aside className="nl-chart-side">
-                <SideCard title={52} rows={1} className="nl-book" />
-                <SideCard title={104} rows={5} className="nl-cnews" />
-                <SideCard title={72} rows={8} className="nl-cwl" />
+                <SideBook />
+                <SideNews />
+                <SideWatchlist />
               </aside>
             </div>
             <footer className="nl-cstatus"><Block width={220} height={10} /><Block width={140} height={10} /></footer>

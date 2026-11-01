@@ -17,35 +17,20 @@ export default function WorkspaceError({
         : null;
 
   return (
-    <div className="workspace-error flex min-h-[calc(100dvh-7rem)] flex-col justify-center px-4 py-6 pb-32 sm:px-6 lg:min-h-0 lg:py-10">
-      <div className="app-card mx-auto w-full max-w-md p-5 sm:p-7">
-        <div className="flex flex-col items-center text-center">
-          <div className="grid size-11 place-items-center rounded-2xl bg-[color:var(--danger-soft)] text-[color:var(--danger)] sm:size-12 sm:rounded-3xl">
-            <AlertTriangle className="size-5" strokeWidth={2} />
-          </div>
-          <h1 className="mt-4 text-xl font-semibold tracking-[-0.04em] sm:mt-5 sm:text-display">
-            This view could not load
-          </h1>
-          <p className="mt-2 max-w-sm text-sm leading-6 text-[color:var(--muted)]">
-            This screen failed to load. Tap try again, or come back in a moment.
-          </p>
+    <div className="workspace-error">
+      <section className="nl-error" role="alert">
+        <div className="nl-error-head">
+          <AlertTriangle className="nl-error-icon" strokeWidth={2} aria-hidden="true" />
+          <span>Error</span>
         </div>
-
-        {detail ? (
-          <p className="mt-4 break-words rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-raised)] px-3 py-2.5 text-left font-mono text-xs leading-5 text-[color:var(--muted-strong)]">
-            {detail}
-          </p>
-        ) : null}
-
-        <button
-          type="button"
-          onClick={reset}
-          className="accent-button pressable mt-5 flex w-full min-h-11 items-center justify-center gap-2 rounded-full px-5 text-sm font-semibold sm:mt-6 sm:min-h-12 sm:w-auto sm:px-6"
-        >
-          <RefreshCw className="size-4" />
+        <h1>This view could not load</h1>
+        <p>This screen failed to load. Tap try again, or come back in a moment.</p>
+        {detail ? <code className="nl-error-detail">{detail}</code> : null}
+        <button type="button" onClick={reset} className="nl-error-retry pressable">
+          <RefreshCw aria-hidden="true" />
           Try again
         </button>
-      </div>
+      </section>
     </div>
   );
 }

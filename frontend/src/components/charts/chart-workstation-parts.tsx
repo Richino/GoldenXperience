@@ -11,6 +11,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { CHART_INDICATORS, CHART_TIMEFRAME_LABELS, formatChartPrice, type ChartIndicator, type ChartTimeframe } from "@/lib/chart-utils";
+import { TrendLabel } from "@/components/charts/trend-label";
 import { formatEtClock } from "@/lib/format/datetime";
 import { displayNameFor, pipSizeFor } from "@/lib/instruments/catalog";
 import { marketDailyCache } from "@/lib/market-daily";
@@ -356,11 +357,15 @@ export function ChartMobileOhlc({ candles, instrument }: { candles: Candle[]; in
   if (!last) return null;
   const tone = last.close >= last.open ? "is-up" : "is-down";
   return (
-    <div className="nl-mohlc metric-number" aria-label="Latest candle">
-      <span>O <i>{formatChartPrice(last.open, instrument)}</i></span>
-      <span>H <i>{formatChartPrice(last.high, instrument)}</i></span>
-      <span>L <i>{formatChartPrice(last.low, instrument)}</i></span>
-      <span>C <i className={tone}>{formatChartPrice(last.close, instrument)}</i></span>
+    <div className="nl-mohlc metric-number">
+      <div className="nl-mohlc-values" aria-label="Latest candle">
+        <span>O <i>{formatChartPrice(last.open, instrument)}</i></span>
+        <span>H <i>{formatChartPrice(last.high, instrument)}</i></span>
+        <span>L <i>{formatChartPrice(last.low, instrument)}</i></span>
+        <span>C <i className={tone}>{formatChartPrice(last.close, instrument)}</i></span>
+      </div>
+      {/* Same weekly + daily read as the pair picker rows. */}
+      <TrendLabel instrument={instrument} className="nl-trend-compact nl-mohlc-trend" plainLanguage />
     </div>
   );
 }

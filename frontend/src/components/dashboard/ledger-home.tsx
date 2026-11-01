@@ -23,6 +23,7 @@ import {
 import { NewsImpactSheet } from "@/components/dashboard/news-impact-sheet";
 import { WeeklyReview } from "@/components/dashboard/weekly-review";
 import { GoodTrends } from "@/components/dashboard/good-trends";
+import { HomeQuota } from "@/components/dashboard/home-quota";
 import { useHomeSectionReady } from "@/components/dashboard/home-loading-boundary";
 import { RelativeTime } from "@/components/dashboard/relative-time";
 import type { HomeCurrentPosition } from "@/components/dashboard/home-rail";
@@ -815,6 +816,7 @@ export function LedgerHome({
             </div>
           </section>
         )}
+        {account && hasData(loadState.history) ? <HomeQuota account={account} history={history} /> : null}
         {error ? <p className="nl-card-empty is-warn">{error}</p> : null}
         <div className="nl-home-cols">
           <div className="nl-home-main">

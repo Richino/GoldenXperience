@@ -1,3 +1,6 @@
+import { attachRiskNetCash, observeRiskExcursions } from "./risk-reporting.js";
+import { runTechnicalAnalysis, technicalHistory } from "./technical-analyzer.js";
+import { startRiskExcursionObserver } from "./risk-excursion-observer.js";
 import { CANDLE_ALIGNMENT } from "../../frontend/src/lib/strategy/candle-clock.js";
 import { verifiedAbsorptionAlerts } from "./absorption-alerts.js";
 import { parseAbsorptionSettings } from "../../frontend/src/lib/indicators/absorption.js";
@@ -248,7 +251,13 @@ function json(request: IncomingMessage, response: ServerResponse, body: unknown,
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
   });
-  response.end(JSON.stringify(body));
+  // Legacy simulation/strategy contracts retain their fields for compatibility;
+  // their R-like scores must not be mistaken for verified financial metrics.
+  const legacyMetrics = /^\/api\/(?:research|paper-cycle|multistrategy|trade-monitor|news-straddle)(?:\/|\?|$)/.test(request.url ?? "");
+  const payload = legacyMetrics && body && typeof body === "object" && !Array.isArray(body)
+    ? { ...body, riskReporting: { financialRVerified: false, legacyMeasurementBasis: "Strategy or sizing scores; not verified net financial R. Use the journal's risk-qualified fields for financial reporting." } }
+    : body;
+  response.end(JSON.stringify(payload));
 }
 
 function parseInstruments(value: string | null): MajorInstrument[] {
@@ -344,6 +353,18 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
   }
   if (url.pathname.startsWith("/api/")) {
     const user = await requireOwner(request, response); if (!user) return;
+    if (url.pathname === "/api/technical-analyzer/analyze" || url.pathname === "/api/technical-analyzer/history") {
+      const analyze = url.pathname.endsWith("/analyze");
+      if (request.method !== (analyze ? "POST" : "GET")) return json(request, response, { error: "Method not allowed." }, 405);
+      const payload = analyze ? await body(request) : null;
+      const instrument = analyze ? payload?.instrument : url.searchParams.get("instrument");
+      if ((analyze || instrument) && (typeof instrument !== "string" || !isKnownInstrument(instrument))) return json(request, response, { error: "Choose a supported forex pair." }, 400);
+      try {
+        return json(request, response, analyze ? await runTechnicalAnalysis(user.id, instrument as string) : await technicalHistory(user.id, typeof instrument === "string" ? instrument : undefined));
+      } catch {
+        return json(request, response, { error: "Technical analyzer unavailable. Verify the OANDA Practice connection, sufficient completed history, and database migrations 068–069. No forecast was issued or changed." }, 503);
+      }
+    }
     if (url.pathname === "/api/indicators/absorption/alerts" && request.method === "POST") {
       const payload = await body(request);
       if (typeof payload?.instrument !== "string" || !isKnownInstrument(payload.instrument) || typeof payload?.timeframe !== "string" || !["M1", "M5", "M15", "M30", "H1", "H4", "D", "W"].includes(payload.timeframe)
@@ -944,7 +965,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     }
     if (url.pathname === "/api/paper-cycle/trades" && request.method === "GET") {
       const instrument = url.searchParams.get("instrument")?.toUpperCase();
-      if (!instrument || !MAJOR_INSTRUMENTS.includes(instrument as (typeof MAJOR_INSTRUMENTS)[number])) return json(request, response, { error: "Choose a monitored currency pair." }, 400);
+      if (!instrument || !isKnownInstrument(instrument)) return json(request, response, { error: "Choose a supported currency pair." }, 400);
       const requestedTrade = url.searchParams.get("trade");
       const includeTradeId = requestedTrade && /^[0-9a-f-]{36}$/i.test(requestedTrade) ? requestedTrade : null;
       return json(request, response, { trades: await paperTradesForInstrument(user.id, instrument, 40, includeTradeId) });
@@ -1148,12 +1169,15 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     case "/health":
       return json(request, response, { ok: true, service: "goldenxperience-api", checkedAt: new Date().toISOString(), backgroundJobs: { schedulersEnabled, binaryCollectionEnabled: schedulersEnabled && binaryCollectionEnabled(), pairTrends: { enabled: stopPairTrendsScanner !== null, ...pairTrendsHealth() } }, observer: marketObserver?.health() ?? { enabled: false } });
     case "/api/oanda/account-snapshot": {
-      if (!(await requireOwner(request, response))) return;
+      const owner = await requireOwner(request, response);
+      if (!owner) return;
       const snapshot = await getAccountSnapshot();
       const history = await cachedAccountBalanceHistory(`${snapshot.data.id}:${snapshot.lastTransactionID}`);
       if (history.status.state !== "connected") return json(request, response, { error: "Account history unavailable; keeping the previous financial snapshot." }, 503);
       const result = { ...snapshot, history: historyAtSnapshot(history.data, snapshot.lastTransactionID, snapshot.data.balance) };
       snapshotFills(result);
+      await attachRiskNetCash(owner.id, result);
+      await observeRiskExcursions(owner.id, result.positions, result.checkedAt, result.data.currency, result.data.id).catch(() => undefined);
       return json(request, response, result);
     }
     case "/api/oanda/account-summary": {
@@ -1477,6 +1501,7 @@ if (config.isConfigured) {
 
 server.listen(PORT, () => console.log(`[api] HTTP and WebSocket server listening on :${PORT}`));
 const stopPairTrendsScanner = databaseConfigured() && config.isConfigured && process.env.PAIR_TRENDS_BACKGROUND_ENABLED !== "false" ? startPairTrendsScanner() : null;
+const stopRiskExcursions = databaseConfigured() && config.isConfigured ? startRiskExcursionObserver() : null;
 // Explicit analysis-worker opt-in; independent of every order/trading scheduler.
 swingIntelligence.start();
 
@@ -1859,6 +1884,7 @@ function shutdown() {
   const newsRemindersStopped = stopNewsReminders?.() ?? Promise.resolve();
   stopRecordingContext?.();
   stopPairTrendsScanner?.();
+  stopRiskExcursions?.();
   const recordingClosed = marketRecorder?.close() ?? Promise.resolve();
   const observerClosed = marketObserver?.stop() ?? Promise.resolve();
   clearInterval(heartbeat);

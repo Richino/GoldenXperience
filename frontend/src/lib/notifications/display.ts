@@ -26,6 +26,7 @@ export function displayDetail(item: AppNotification) {
     .trim();
 
   if (item.kind === "system_issue") return humanizeIssueDetail(item, cleaned);
+  if (/[+−-]?\d+(?:\.\d+)?R\b/.test(cleaned)) return `Legacy R not verified. ${cleaned}`;
   return cleaned;
 }
 

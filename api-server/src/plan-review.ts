@@ -1,4 +1,5 @@
 import { query } from "./database.js";
+import { projectRiskReporting } from "./risk-reporting.js";
 
 /**
  * The swing plan's checklist, scored: every closed manual trade tagged on the
@@ -17,7 +18,7 @@ type Row = {
   trade_style: string | null;
 };
 
-type Bucket = { value: string; label: string; trades: number; wins: number; winRate: number; avgR: number | null; netPl: number };
+type Bucket = { value: string; label: string; trades: number; wins: number; winRate: number; avgR: number | null; netPl: number; riskCoverage: { included: number; excluded: number; percent: number; reason: string } };
 
 const DIMENSIONS: { key: "trend" | "news" | "level" | "style"; label: string; values: Record<string, string> }[] = [
   { key: "trend", label: "Trend", values: { with: "With the trend", against: "Against the trend", none: "No trend" } },
@@ -28,7 +29,7 @@ const DIMENSIONS: { key: "trend" | "news" | "level" | "style"; label: string; va
 
 export async function planReview(userId: string) {
   const rows = await query<Row>(
-    `SELECT t.result, t.result_r::float AS result_r, t.paper_pl::float AS paper_pl,
+    `SELECT t.id::text, t.opened_at AS "openedAt", t.status, t.result, t.result_r::float AS "resultR", t.paper_pl::float AS paper_pl,
             e.metadata->'planTags' AS plan_tags, e.metadata->>'tradeStyle' AS trade_style
        FROM paper_trades t
        JOIN pending_manual_entries e ON e.paper_trade_id = t.id
@@ -36,7 +37,7 @@ export async function planReview(userId: string) {
         AND jsonb_typeof(e.metadata->'planTags') = 'object'`,
     [userId],
   );
-  const tagged = rows.rows;
+  const tagged = (await projectRiskReporting(userId, rows.rows)).map(row => ({ ...row, result_r: row.resultR } as Row));
   const valueOf = (row: Row, key: (typeof DIMENSIONS)[number]["key"]) =>
     key === "style" ? (row.trade_style === "swing" ? "swing" : "day") : row.plan_tags?.[key] ?? null;
   const groups = DIMENSIONS.map((dimension) => ({
@@ -52,7 +53,8 @@ export async function planReview(userId: string) {
         trades: inBucket.length,
         wins,
         winRate: inBucket.length ? Math.round((wins / inBucket.length) * 100) : 0,
-        avgR: rs.length ? Number((rs.reduce((sum, r) => sum + r, 0) / rs.length).toFixed(2)) : null,
+        avgR: rs.length >= 5 ? rs.reduce((sum, r) => sum + r, 0) / rs.length : null,
+        riskCoverage: { included: rs.length, excluded: inBucket.length - rs.length, percent: inBucket.length ? rs.length / inBucket.length * 100 : 0, reason: "Initial risk or net P/L not verified" },
         netPl: Number(inBucket.reduce((sum, row) => sum + (row.paper_pl ?? 0), 0).toFixed(2)),
       };
     }).filter((bucket) => bucket.trades > 0),

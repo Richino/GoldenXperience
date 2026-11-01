@@ -31,6 +31,7 @@ type Review = {
   from: string;
   to: string;
   stats: {
+    riskCoverage?: { included: number; excluded: number; percent: number; reason: string };
     trades: number;
     wins: number;
     losses: number;
@@ -133,8 +134,9 @@ export function WeeklyReview({ currency }: { currency: string }) {
         <p className="nl-empty">No closed trades last week. Your review appears here after a week with some.</p>
       ) : (
         <div className="nl-wr-card">
+          {stats.riskCoverage ? <p className="nl-card-empty">Verified R: {stats.riskCoverage.included} included · {stats.riskCoverage.excluded} excluded · {stats.riskCoverage.percent.toFixed(0)}% coverage. {stats.riskCoverage.reason}. {stats.riskCoverage.included < 5 ? "Insufficient verified R data." : ""}</p> : null}
           <div className="nl-wr-hero">
-            <span className="nl-wr-hero-label">Net</span>
+            <span className="nl-wr-hero-label">Reported P/L</span>
             <b className={`nl-wr-net metric-number ${tone(stats.netPl)}`}>{money(stats.netPl, currency)}</b>
             <span className="nl-wr-hero-sub metric-number">
               {stats.trades} trades · {stats.wins}W {stats.losses}L · {stats.winRate === null ? "—" : `${stats.winRate}% win rate`}

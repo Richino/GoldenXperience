@@ -1,4 +1,5 @@
 "use client";
+import { formatRMultiple } from "@/lib/risk-metrics";
 
 import { useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
@@ -114,7 +115,7 @@ export function HomeRail({
               : `${netPositive ? "+" : "−"}${money(Math.abs(todayNet), currency)}`}
           </p>
           <p className={`home-rail-total-r ${rPositive ? "is-positive" : "is-negative"}`}>
-            {todayR === null ? "0.0R" : `${todayR > 0 ? "+" : ""}${todayR.toFixed(1)}R`}
+            {formatRMultiple(todayR)}
           </p>
         </div>
         {!hasTodayTrades ? <p className="home-rail-total-empty">No closed trades today</p> : null}

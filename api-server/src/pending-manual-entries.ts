@@ -1,3 +1,4 @@
+import { oandaAccountIdentity } from "../../frontend/src/lib/oanda/client.js";
 import { getPricing, getCandles, getAccountSummary, submitPracticeEntryOrder, replacePracticeEntryOrder, cancelPracticeOrder, closePracticeTrade, getPracticeOrderState, getPracticeTradeState, setPracticeTradeLevels } from "../../frontend/src/lib/oanda/client.js";
 import { currenciesOf, isKnownInstrument, precisionFor } from "../../frontend/src/lib/instruments/catalog.js";
 import { calculateAtrValues } from "../../frontend/src/lib/strategy/indicators.js";
@@ -5,6 +6,9 @@ import { calculatePositionSize, DEFAULT_RISK_POLICY, usdPerUnitOfCurrency } from
 import type { MajorInstrument, MarketPriceTick } from "./market-stream-types.js";
 import { query, transaction } from "./database.js";
 import { displayPair, queueNotification } from "./notifications.js";
+import { randomUUID } from "node:crypto";
+import { createPlannedRiskBudget, type InitialRiskPlan } from "../../frontend/src/lib/risk-metrics.js";
+import { withRecordedSizingBudget } from "./risk-budget-submission.js";
 
 /** STOP for buy/sell-stop (break beyond), LIMIT for buy/sell-limit (pullback). */
 function oandaOrderKind(entryOrderType: string): "STOP" | "LIMIT" {
@@ -75,8 +79,19 @@ async function submitManualEntryToOanda(params: {
   sizingStop: number;
   gtdTime: string | null;
 }) {
-  const { units, riskPercent } = await manualPositionSize(params.userId, params.instrument, params.entryPrice, params.sizingStop);
-  const result = await submitPracticeEntryOrder({
+  const sizing = await manualPositionSize(params.userId, params.instrument, params.entryPrice, params.sizingStop);
+  const { units, riskPercent } = sizing;
+  const entry = (await query<{ metadata: Record<string, any> }>("SELECT metadata FROM pending_manual_entries WHERE id=$1 AND user_id=$2", [params.clientRequestId, params.userId])).rows[0];
+  if (!entry) throw new Error("Entry risk record is unavailable.");
+  const result = await withRecordedSizingBudget({ existingPlan: entry.metadata?.initialRiskPlan ?? null,
+    positionKey: params.clientRequestId, recordedAt: new Date().toISOString(), accountId: sizing.reportingAccountId,
+    balanceUsd: sizing.balance, riskPercent, riskAmountUsd: sizing.plannedRiskAmount,
+    plannedNetRewardUsd: entry.metadata?.plannedNetRewardUsd ?? null,
+  }, async plan => {
+    const saved = await query(`UPDATE pending_manual_entries SET metadata=metadata || jsonb_build_object('initialRiskPlan',$3::jsonb,'riskReportingVersion',1,'reportingBrokerAccountId',$4::text) WHERE id=$1 AND user_id=$2 AND status='PENDING' AND metadata->>'initialRiskPlan' IS NULL`,
+      [params.clientRequestId, params.userId, JSON.stringify(plan), sizing.reportingAccountId]);
+    if (saved.rowCount !== 1) throw new Error("Entry changed before its risk budget could be recorded.");
+  }, () => submitPracticeEntryOrder({
     instrument: params.instrument,
     direction: params.direction,
     kind: oandaOrderKind(params.entryOrderType),
@@ -86,7 +101,7 @@ async function submitManualEntryToOanda(params: {
     target: params.target,
     clientRequestId: params.clientRequestId,
     gtdTime: params.gtdTime,
-  });
+  }));
   if (result.cancelReason) throw new Error(`OANDA rejected the entry order (${result.cancelReason}).`);
   if (!result.orderId) throw new Error("OANDA accepted the request without an order identifier.");
   return { orderId: result.orderId, units, riskPercent };
@@ -143,7 +158,9 @@ export async function manualPositionSize(userId: string, instrument: MajorInstru
   });
   const units = sized?.units ?? 0;
   if (!(units >= 1)) throw new Error("Risk-based position size came out below one unit; widen the stop or raise risk.");
-  return { units, lots: units / 100_000, riskPercent, riskAmount: sized!.estimatedRisk, balance };
+  return { units, lots: units / 100_000, riskPercent, riskAmount: sized!.estimatedRisk, balance,
+    plannedRiskAmount: sized!.riskAmount,
+    reportingAccountId: summary.status.state === "connected" && summary.data.source === "oanda" && summary.data.currency === "USD" ? summary.data.id : "" };
 }
 
 /**
@@ -617,6 +634,20 @@ function planTagsOf(value: unknown): string | null {
 }
 
 export async function createPendingManualEntry(userId: string, payload: Record<string, unknown>, tick: MarketPriceTick) {
+  let initialRiskPlan: InitialRiskPlan | null = null;
+  const reward = payload.plannedNetRewardUsd === undefined || payload.plannedNetRewardUsd === "" ? null : Number(payload.plannedNetRewardUsd);
+  if (reward !== null && (!Number.isFinite(reward) || reward <= 0)) throw new Error("Planned net reward must be positive.");
+  if (payload.plannedRiskValue !== undefined && payload.plannedRiskValue !== "") {
+    const value = Number(payload.plannedRiskValue);
+    if (!Number.isFinite(value) || value <= 0) throw new Error("Enter a positive planned risk budget.");
+    const summary = await getAccountSummary();
+    if (summary.status.state !== "connected" || summary.data.source !== "oanda" || summary.data.currency !== "USD" || !(summary.data.nav > 0)) throw new Error("Verified USD account equity is required to record a risk budget.");
+    if (payload.plannedRiskUnit !== "usd" && payload.plannedRiskUnit !== "percent") throw new Error("Choose USD or percentage for the planned risk.");
+    if (payload.plannedRiskUnit === "percent" && value > 100) throw new Error("Risk percentage must be at most 100.");
+    initialRiskPlan = createPlannedRiskBudget({ value, unit: payload.plannedRiskUnit,
+      equityBeforeEntryUsd: summary.data.nav, positionKey: randomUUID(), recordedAt: new Date().toISOString(),
+      plannedNetRewardUsd: reward, brokerAccountId: summary.data.id });
+  }
   validateTick(tick);
   const direction = payload.direction === "long" || payload.direction === "short" ? payload.direction : null;
   if (!direction) throw new Error("Choose LONG or SHORT.");
@@ -656,7 +687,7 @@ export async function createPendingManualEntry(userId: string, payload: Record<s
   }
   // The user's own stop/target ride on the broker order. Left blank, the trade
   // gets neither and runs until closed by hand; a 1×H1-ATR distance is then
-  // used only to size it, and kept as the reference for its R.
+  // used only to size it. The monetary reporting budget is saved separately.
   const risk = levels.stop !== null && levels.target !== null
     ? { stop: levels.stop, target: levels.target, sizingStop: levels.stop, model: "MANUAL_LEVELS" as const }
     : { stop: null, target: null, sizingStop: (await calculateManualTradeRisk(tick.instrument, direction, entryPrice)).stop, model: "NO_LEVELS" as const };
@@ -678,7 +709,7 @@ export async function createPendingManualEntry(userId: string, payload: Record<s
     `INSERT INTO pending_manual_entries(
        user_id,instrument,direction,entry_price,entry_order_type,current_price_at_creation,
        expiration_type,expires_at,activate_at,invalidation_price,invalidation_side,last_observed_price,last_observed_at,stop_price,target_price,metadata
-     ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$16,$9,$10,$11,$12,$13,$14,jsonb_build_object('priceSource',$15::text,'createdFrom','chart','orderReferencePrice',$11::numeric,'frozenContext',$17::jsonb,'noLevels',$18::boolean,'sizingStop',$19::numeric,'execution',CASE WHEN $16::timestamptz IS NULL THEN 'submitting' ELSE 'scheduled' END,'tradeStyle',$20::text,'planTags',$21::jsonb))
+     ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$16,$9,$10,$11,$12,$13,$14,jsonb_build_object('priceSource',$15::text,'createdFrom','chart','orderReferencePrice',$11::numeric,'frozenContext',$17::jsonb,'noLevels',$18::boolean,'sizingStop',$19::numeric,'execution',CASE WHEN $16::timestamptz IS NULL THEN 'submitting' ELSE 'scheduled' END,'tradeStyle',$20::text,'planTags',$21::jsonb,'initialRiskPlan',$22::jsonb,'riskReportingVersion',1,'reportingBrokerAccountId',$23::text,'plannedNetRewardUsd',$24::numeric))
      RETURNING ${SELECT_FIELDS}`,
     [userId, tick.instrument, direction, entryPrice, inferPendingOrderType(direction, entryPrice, orderReferencePrice), currentPrice,
       orderExpiresAt ? "time" : "none", orderExpiresAt, cancelPrice,
@@ -687,7 +718,7 @@ export async function createPendingManualEntry(userId: string, payload: Record<s
       // Day or swing (held for days), chosen on the ticket; lets the journal and
       // weekly review score the two styles separately.
       payload.tradeStyle === "swing" ? "swing" : "day",
-      planTagsOf(payload.planTags)],
+      planTagsOf(payload.planTags), initialRiskPlan === null ? null : JSON.stringify(initialRiskPlan), oandaAccountIdentity(), reward],
   );
   const entryRow = result.rows[0]!;
   // Scheduled ("submit after") entry: stay dormant until the activation job runs

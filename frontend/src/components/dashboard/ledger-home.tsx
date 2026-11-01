@@ -1,4 +1,5 @@
 "use client";
+import { formatRMultiple, formatTradeR, R_EXPLANATION } from "@/lib/risk-metrics";
 
 /**
  * Home, as drawn in the Night Ledger canvas ("Portfolio — Desktop / Mobile").
@@ -55,6 +56,7 @@ function DeferredCard({ title, state }: { title: string; state: LoadState }) {
 }
 
 export type LedgerPosition = {
+  rUnavailableReason?: string;
   id: string;
   href: string;
   instrument: string;
@@ -111,10 +113,8 @@ function signedMoney(value: number, currency: string) {
   return `${value > 0 ? "+" : "−"}${money(Math.abs(value), currency)}`;
 }
 
-function signedR(value: number | null, digits = 2) {
-  if (value === null) return "—";
-  const shown = Number(value.toFixed(digits)) || 0;
-  return `${shown > 0 ? "+" : shown < 0 ? "−" : ""}${Math.abs(shown).toFixed(digits)}R`;
+function signedR(value: number | null) {
+  return formatRMultiple(value);
 }
 
 function tone(value: number | null | undefined, flat = 0.005) {
@@ -430,7 +430,7 @@ export function LedgerPositions({ positions, currency }: { positions: LedgerPosi
                   </span>
                 </span>
                 <span className="nl-pos-size metric-number">{position.lots === null ? "—" : `${position.lots.toFixed(2)} lot`}</span>
-                <span className={`nl-pos-r metric-number ${rTone}`}>{signedR(position.r)}</span>
+                <span title={R_EXPLANATION} className={`nl-pos-r metric-number ${rTone}`}>{formatRMultiple(position.r, position.rUnavailableReason)}</span>
                 <span className="nl-pos-pl metric-number">
                   <span className={tone(position.money)}>{position.money === null ? "Open" : signedMoney(position.money, currency)}</span>
                   {position.spreadCost !== null ? (
@@ -452,7 +452,7 @@ function LedgerSetups({ setups }: { setups: LedgerSetup[] }) {
   if (!setups.length) return null;
   return (
     <section className="nl-sec nl-setups" aria-labelledby="nl-setups-title">
-      <SectionHead number="02" title="Saved setups" id="nl-setups-title" />
+      <SectionHead number="02" title="Saved setups" id="nl-setups-title" aside={<span className="nl-count">{setups.length}</span>} />
       <div className="nl-setup-grid">
         {setups.map((setup) => (
           <Link key={setup.id} href={setup.href} className="nl-setup">
@@ -526,7 +526,7 @@ function LedgerActivity({ items, currency }: { items: HomeActivityItem[]; curren
               <span className={`metric-number ${tone(item.paperPl)}`}>
                 {item.paperPl === null ? "—" : signedMoney(item.paperPl, currency)}
               </span>
-              <span className={`metric-number nl-activity-r ${tone(item.resultR, 0.05)}`}>{signedR(item.resultR, 1)}</span>
+              <span className={`metric-number nl-activity-r ${tone(item.resultR ?? item.estimatedRMultiple ?? null, 0.05)}`}>{formatTradeR(item)}</span>
             </span>
           </Link>
         ))}
@@ -545,10 +545,10 @@ function LedgerTodayCard({ today, currency }: { today: LedgerToday; currency: st
   // still reads as bars rather than slivers.
   const largest = Math.max(...today.results.map((r) => Math.abs(r)), 0.0001);
   return (
-    <section className={`nl-today${isLoss ? " is-loss" : ""}`} aria-labelledby="nl-today-title">
+    <section className={`nl-today${isLoss ? " is-loss" : !today.net ? " is-flat" : ""}`} aria-labelledby="nl-today-title">
       <div className="nl-today-head">
         <h2 id="nl-today-title">Today · closed</h2>
-        <span className="metric-number">{today.r === null ? "0.0R" : signedR(today.r, 1)}</span>
+        <span className="metric-number">{today.trades ? signedR(today.r) : "—"}</span>
       </div>
       <div className="nl-today-main">
         <span className="nl-today-net">{signedMoney(today.net ?? 0, currency)}</span>
@@ -608,7 +608,7 @@ function LedgerNews({ positions }: { positions: HomeCurrentPosition[] }) {
       {loading || now === null ? (
         <p className="nl-card-empty">Loading calendar…</p>
       ) : !calendar.connected ? (
-        <p className="nl-card-empty is-warn">Calendar unavailable — verify news manually.</p>
+        <p className="nl-card-empty is-caution">Calendar unavailable: check the news yourself before trading.</p>
       ) : rows.length ? (
         <div className="nl-news-list">
           {rows.map((event) => {
@@ -693,7 +693,7 @@ export function LedgerPending({
                   <dd className="metric-number">{level(entry.entryPrice)}</dd>
                 </div>
                 <div>
-                  <dt>{automaticStop ? "Auto stop · −1R" : "Stop"}</dt>
+                  <dt>{automaticStop ? "Auto sizing stop" : "Stop"}</dt>
                   <dd className="metric-number is-down" title={automaticStop ? "Planned stop distance. The final stop price is based on the actual fill." : undefined}>{stopText}</dd>
                 </div>
                 <div>

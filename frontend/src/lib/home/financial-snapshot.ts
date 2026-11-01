@@ -35,6 +35,7 @@ export function snapshotFills(snapshot: HomeFinancialSnapshot) {
       stopPrice: position.stopPrice ?? null, currentPrice: position.currentPrice,
       currentBid: position.currentBid ?? null, currentAsk: position.currentAsk ?? null,
       unrealizedPL: position.unrealizedPL,
+      unrealizedNetPnlUsd: position.unrealizedNetPnlUsd ?? null,
     };
     fills[`broker:${position.id}`] = fill;
     fills[position.instrument] ??= fill;

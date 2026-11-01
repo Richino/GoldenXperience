@@ -23,7 +23,6 @@ import { tradingDayKey } from "@/lib/format/datetime";
 import { pipSizeFor } from "@/lib/instruments/catalog";
 import {
   currentTradeLevels,
-  openRFromLevels,
   openTradeProgress,
   quoteToUsdRateFromQuotes,
   resolveOpenTradeQuote,
@@ -32,6 +31,7 @@ import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import type { OpenPositionFill } from "@/lib/market-stream/use-open-positions";
 import { snapshotFills, type HomeFinancialSnapshot } from "@/lib/home/financial-snapshot";
+import { monetaryRatio, riskMetrics, verifiedInitialRisk, type InitialRiskPlan } from "@/lib/risk-metrics";
 import type { AccountBalanceHistoryPoint, AccountSummary, JournalTrade, MajorInstrument } from "@/types/forex";
 import type { PendingManualEntry } from "@/types/pending-entry";
 
@@ -119,6 +119,8 @@ type Batch = {
 };
 
 type Trade = {
+  initialRiskPlan?: InitialRiskPlan | null;
+  riskPositionKey?: string;
   id: string;
   tradeSequence: string;
   instrument: string;
@@ -301,6 +303,8 @@ export function DashboardView({
     .map((trade) => ({
       id: trade.id,
       tradeSequence: trade.sequence ?? "",
+      initialRiskPlan: trade.initialRiskPlan,
+      riskPositionKey: trade.riskPositionKey,
       // `pair` is a display name ("EUR/USD"); the OANDA code ("EUR_USD") is what
       // joins to live quotes, so recover it when the row carries no instrument.
       instrument: trade.instrument ?? trade.pair.replace("/", "_"),
@@ -515,20 +519,15 @@ export function DashboardView({
   const entrySpreadById = new Map(journalTrades.map((row) => [row.id, row.oandaEntryHalfSpreadCost ?? null]));
   const ledgerPositions: LedgerPosition[] = openTrades.slice(0, 6).map((trade) => {
     const shown = markedOpenMoney(trade, quotes, fills, watchlist);
-    const live = liveOpenProgress(trade, quotes, fills, watchlist);
     const fill = trade.brokerTradeId ? fills[`broker:${trade.brokerTradeId}`] : undefined;
     const quote = openTradeQuote(trade, quotes, fill, watchlist);
     const mark = quote?.bid && quote?.ask ? (quote.bid + quote.ask) / 2 : null;
     const lots = fill && fill.units ? Math.abs(fill.units) / 100_000 : null;
-    // Open R speaks the chart's language: planned entry and stop against the
-    // mid. The fill/close-side figure is only a fallback.
-    const rMultiple =
-      openRFromLevels({ direction: trade.direction, entry: trade.entry, stop: trade.stop, current: mark }) ??
-      live?.unrealizedR ??
-      (shown !== null && trade.nominalRiskAmount ? shown / trade.nominalRiskAmount : null);
+    // Only verified pre-entry monetary risk and cost-complete net cash define R.
+    const rMultiple = riskMetrics({ plan: trade.initialRiskPlan, positionKey: trade.riskPositionKey ?? trade.id, openedAt: trade.openedAt, unrealizedNetPnlUsd: fill?.unrealizedNetPnlUsd }).unrealizedRMultiple;
     const r = rMultiple === null ? null : Number(rMultiple.toFixed(2)) || 0;
     // Shown levels are the ones the trade holds now (a manual trade's can be
-    // moved on the chart or be none); R above still runs off the 1R stop.
+    // moved on the chart or be none); they never redefine original risk.
     const { sl, tp } = currentTradeLevels(trade);
     // Position on the stop → target line, 0–100%. For a short the span is
     // negative and the signs cancel, so one formula serves both sides.
@@ -544,14 +543,10 @@ export function DashboardView({
           ? `${Math.round(Math.min(1, toward) * 100)}% to target`
           : `${(Math.abs(mark - trade.entry) / pipSizeFor(trade.instrument)).toFixed(1)} pips against`;
     }
-    // The spread in R, against the same 1R (planned entry to stop) that Open R
-    // uses, in account dollars; nominal 1% risk when there is no fill.
+    // Entry spread relative to the same verified original monetary risk.
     const spreadCost = entrySpreadById.get(trade.id) ?? null;
-    const usdPerQuote = quoteToUsdRateFromQuotes(trade.instrument, quotes);
-    const oneR = fill?.units && trade.entry != null && trade.stop != null && usdPerQuote !== null
-      ? Math.abs(trade.entry - trade.stop) * Math.abs(fill.units) * usdPerQuote
-      : trade.nominalRiskAmount ?? null;
-    const spreadR = spreadCost !== null && oneR ? -Math.abs(spreadCost) / oneR : null;
+    const oneR = verifiedInitialRisk(trade.initialRiskPlan, trade.openedAt, trade.riskPositionKey ?? trade.id);
+    const spreadR = monetaryRatio(spreadCost === null ? null : -Math.abs(spreadCost), oneR);
     return {
       id: trade.id,
       href: `/chart?instrument=${trade.instrument}&trade=${trade.id}`,
@@ -565,6 +560,7 @@ export function DashboardView({
       entryAt: trackAt(trade.entry),
       markAt: trackAt(mark),
       r,
+      rUnavailableReason: oneR === null ? undefined : "N/A — net P/L not verified",
       money: shown,
       lots,
       progress,
@@ -596,6 +592,7 @@ export function DashboardView({
       (trade) =>
         trade.status === "closed" &&
         trade.closedAt &&
+        trade.riskDataQuality === "verified" &&
         trade.resultR !== null &&
         tradingDayKey(trade.closedAt) === todayKey,
     )

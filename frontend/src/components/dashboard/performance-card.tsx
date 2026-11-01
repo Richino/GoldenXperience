@@ -1,4 +1,5 @@
 "use client";
+import { formatRMultiple } from "@/lib/risk-metrics";
 
 import { useId, useMemo } from "react";
 import {
@@ -94,33 +95,33 @@ function EquityCurveChart({ series }: { series: JournalEquityPoint[] }) {
 }
 
 export function PerformanceCard({ stats }: { stats: JournalStats }) {
-  const hasData = stats.closedCount > 0;
+  const hasData = !stats.insufficientData;
 
   return (
     <section className="app-card p-5 md:p-6">
       <div className="flex items-end justify-between gap-4">
         <SectionLabel title="Performance" variant="minimal" />
         <div className="text-right">
-          <div className="text-xs text-[color:var(--muted)]">Net R</div>
+          <div className="text-xs text-[color:var(--muted)]">Sum of verified unit R</div>
           <div
             className={`metric-number text-lg font-semibold tracking-[-0.03em] ${
-              stats.netR >= 0
+              (stats.netR ?? 0) >= 0
                 ? "text-[color:var(--success)]"
                 : "text-[color:var(--danger)]"
             }`}
           >
-            {stats.netR >= 0 ? "+" : ""}
-            {stats.netR.toFixed(2)}R
+            {formatRMultiple(stats.netR)}
           </div>
         </div>
       </div>
 
+      <p className="mt-2 text-xs">{stats.included} included · {stats.excluded} excluded · {stats.coveragePct.toFixed(0)}% verified. {stats.exclusionReason}</p>
       <div className="mt-4">
         {hasData ? (
           <EquityCurveChart series={stats.equityCurve} />
         ) : (
           <div className="dashboard-inset flex h-28 items-center justify-center text-xs text-[color:var(--muted)]">
-            Log closed trades to build the equity curve.
+            Insufficient verified risk data for an R curve.
           </div>
         )}
       </div>
@@ -130,9 +131,9 @@ export function PerformanceCard({ stats }: { stats: JournalStats }) {
           ["Win rate", `${stats.winRate.toFixed(0)}%`],
           [
             "Avg R",
-            `${stats.averageR >= 0 ? "+" : ""}${stats.averageR.toFixed(2)}R`,
+            formatRMultiple(stats.averageR),
           ],
-          ["Max DD", `-${stats.maxDrawdownR.toFixed(2)}R`],
+          ["Drawdown of summed unit R", formatRMultiple(stats.maxDrawdownR === null ? null : -stats.maxDrawdownR)],
         ].map(([label, value]) => (
           <div key={label} className="dashboard-inset px-3 py-2.5">
             <div className="text-xs text-[color:var(--muted)]">{label}</div>

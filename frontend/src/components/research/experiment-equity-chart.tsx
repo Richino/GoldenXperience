@@ -47,7 +47,7 @@ function renderEquityTooltip(props: {
       <span className="text-[color:var(--muted)]">Trade {point.index}</span>
       <span className="metric-number ml-2 font-medium">
         {point.cumulativeR >= 0 ? "+" : ""}
-        {point.cumulativeR.toFixed(2)}R
+        {point.cumulativeR.toFixed(2)}× distance
       </span>
     </div>
   );

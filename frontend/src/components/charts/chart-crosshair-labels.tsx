@@ -2,7 +2,14 @@
 
 import { useEffect, useRef, type CSSProperties, type RefObject } from "react";
 import { CrosshairMode, type IChartApi, type MouseEventParams, type Time } from "lightweight-charts";
-import { formatChartHoverTime } from "@/lib/format/datetime";
+const hoverDay = new Intl.DateTimeFormat("en-GB", { timeZone: "America/New_York", weekday: "short", day: "numeric", month: "short" });
+const hoverClock = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" });
+
+/** "Thu 29 Oct 1:15 PM", Eastern time, day first as the workstation board reads. */
+function formatHoverTime(ms: number) {
+  const date = new Date(ms);
+  return `${hoverDay.format(date).replace(",", "")} ${hoverClock.format(date)}`;
+}
 
 function timeToMs(time: Time) {
   if (typeof time === "number") return time * 1_000;
@@ -10,7 +17,7 @@ function timeToMs(time: Time) {
   return Date.UTC(time.year, time.month - 1, time.day);
 }
 
-/** Rounded badges using public chart APIs; the library owns the crosshair lines. */
+/** Price and time readouts using public chart APIs; the library owns the crosshair lines. */
 export function ChartCrosshairLabels({
   chartRef, epoch, enabled, background, color,
 }: {
@@ -62,7 +69,7 @@ export function ChartCrosshairLabels({
 
       timeLabel.hidden = event.time === undefined;
       if (event.time !== undefined) {
-        timeLabel.textContent = formatChartHoverTime(timeToMs(event.time));
+        timeLabel.textContent = formatHoverTime(timeToMs(event.time));
         const halfWidth = timeLabel.offsetWidth / 2;
         const crosshairX = chart.timeScale().timeToCoordinate(event.time) ?? x;
         const timeX = Math.max(halfWidth + 2, Math.min(crosshairX, chart.timeScale().width() - halfWidth - 2));

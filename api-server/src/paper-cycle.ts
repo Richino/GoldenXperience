@@ -53,6 +53,7 @@ import { recordMomentumDirection10m, resolveMomentumDirection10m } from "./momen
 import { runEurUsdMoveGateV1Shadow } from "./eur-usd-move-gate-v1-shadow.js";
 import { MAJOR_INSTRUMENTS, type MajorInstrument } from "../../frontend/src/types/forex.js";
 import { measureBrokerExecution, requiresBrokerCloseConfirmation } from "./execution-measurement.js";
+import { projectRiskReporting } from "./risk-reporting.js";
 import { reconcileClosedExecutionMeasurements } from "./reconcile-execution-measurements.js";
 
 const STRATEGY_NAME = "deterministic-forex";
@@ -902,7 +903,7 @@ async function bookBrokerClose(
   );
   if (!closed.rowCount) return false;
   const label = broker.outcome === "target_first" ? "target reached" : broker.outcome === "stop_first" ? "stop reached" : "session exit";
-  const resultText = broker.resultR === null ? "Result unavailable" : `${broker.resultR >= 0 ? "+" : ""}${broker.resultR.toFixed(2)}R`;
+  const resultText = broker.paperPl === null ? "P/L unavailable; verified R unavailable" : `P/L ${broker.paperPl.toFixed(2)}; verified R unavailable`;
   await queueNotification({
     userId: trade.user_id,
     kind: "paper_closed",
@@ -1087,7 +1088,7 @@ export async function liveResolvePaperTrades(priceOf: (instrument: MajorInstrume
       userId: trade.user_id,
       kind: "paper_closed",
       title: `${displayPair(trade.instrument)} paper trade closed`,
-      message: `${outcome === "target_first" ? "target reached" : "stop reached"} · ${resultR >= 0 ? "+" : ""}${resultR.toFixed(2)}R`,
+      message: `${outcome === "target_first" ? "target reached" : "stop reached"} · Legacy distance score (unverified financial R)`,
       instrument: trade.instrument,
       paperTradeId: trade.id,
       dedupeKey: `paper_closed:${trade.id}`,
@@ -1180,7 +1181,7 @@ async function resolveGbpusdOpenTrade(trade: OpenTradeRow, quotes: NormalizedQuo
     userId: trade.user_id,
     kind: "paper_closed",
     title: `${displayPair(trade.instrument)} paper trade closed`,
-    message: `${result.exitReason.replaceAll("_", " ").toLowerCase()} · ${result.resultR >= 0 ? "+" : ""}${result.resultR.toFixed(2)}R`,
+    message: `${result.exitReason.replaceAll("_", " ").toLowerCase()} · Legacy distance score (unverified financial R)`,
     instrument: trade.instrument,
     paperTradeId: trade.id,
     dedupeKey: `paper_closed:${trade.id}`,
@@ -1265,7 +1266,7 @@ async function resolveUsdjpyOpenTrade(trade: OpenTradeRow, quotes: NormalizedQuo
     userId: trade.user_id,
     kind: "paper_closed",
     title: `${displayPair(trade.instrument)} paper trade closed`,
-    message: `${result.exitReason.replaceAll("_", " ").toLowerCase()} · ${result.resultR >= 0 ? "+" : ""}${result.resultR.toFixed(2)}R`,
+    message: `${result.exitReason.replaceAll("_", " ").toLowerCase()} · Legacy distance score (unverified financial R)`,
     instrument: trade.instrument,
     paperTradeId: trade.id,
     dedupeKey: `paper_closed:${trade.id}`,
@@ -1349,7 +1350,7 @@ async function resolveAudusdOpenTrade(trade: OpenTradeRow, quotes: NormalizedQuo
     userId: trade.user_id,
     kind: "paper_closed",
     title: `${displayPair(trade.instrument)} paper trade closed`,
-    message: `${result.exitReason.replaceAll("_", " ").toLowerCase()} · ${result.resultR >= 0 ? "+" : ""}${result.resultR.toFixed(2)}R`,
+    message: `${result.exitReason.replaceAll("_", " ").toLowerCase()} · Legacy distance score (unverified financial R)`,
     instrument: trade.instrument,
     paperTradeId: trade.id,
     dedupeKey: `paper_closed:${trade.id}`,
@@ -1433,7 +1434,7 @@ async function resolveNzdusdOpenTrade(trade: OpenTradeRow, quotes: NormalizedQuo
     userId: trade.user_id,
     kind: "paper_closed",
     title: `${displayPair(trade.instrument)} paper trade closed`,
-    message: `${result.exitReason.replaceAll("_", " ").toLowerCase()} · ${result.resultR >= 0 ? "+" : ""}${result.resultR.toFixed(2)}R`,
+    message: `${result.exitReason.replaceAll("_", " ").toLowerCase()} · Legacy distance score (unverified financial R)`,
     instrument: trade.instrument,
     paperTradeId: trade.id,
     dedupeKey: `paper_closed:${trade.id}`,
@@ -1513,7 +1514,7 @@ async function resolveFrozenH1OpenTrade(
     userId: trade.user_id,
     kind: "paper_closed",
     title: `${displayPair(trade.instrument)} paper trade closed`,
-    message: `${result.exitReason.replaceAll("_", " ").toLowerCase()} · ${result.resultR >= 0 ? "+" : ""}${result.resultR.toFixed(2)}R`,
+    message: `${result.exitReason.replaceAll("_", " ").toLowerCase()} · Legacy distance score (unverified financial R)`,
     instrument: trade.instrument,
     paperTradeId: trade.id,
     dedupeKey: `paper_closed:${trade.id}`,
@@ -1624,7 +1625,7 @@ async function resolveOpenTrades() {
     );
     if (updated.rowCount) {
       const outcomeLabel = result.outcome === "target_first" ? "target reached" : result.outcome === "stop_first" ? "stop reached" : result.outcome === "forced_close" ? "session exit" : timedOut ? "closed at horizon" : "ambiguous outcome";
-      const resultText = result.resultR === null ? "Result unavailable" : `${result.resultR >= 0 ? "+" : ""}${result.resultR.toFixed(2)}R`;
+      const resultText = result.resultR === null ? "Result unavailable" : `Legacy distance score (unverified financial R)`;
       await queueNotification({
         userId: trade.user_id,
         kind: "paper_closed",
@@ -2071,9 +2072,9 @@ function journalTradeWhere(filter: JournalTradeFilter): string {
   // Active is status-based so closed-but-null-R edge cases stay out.
   switch (filter) {
     case "wins":
-      return "WHERE result_r > 0";
+      return "WHERE status='closed' AND paper_pl > 0";
     case "losses":
-      return "WHERE result_r < 0";
+      return "WHERE status='closed' AND paper_pl < 0";
     case "active":
       return "WHERE status = 'open'";
     case "all":
@@ -2180,7 +2181,7 @@ export async function journalTradeLog(
      LIMIT $2 OFFSET $3`,
     [userId, limit, offset],
   );
-  return rows.rows;
+  return projectRiskReporting(userId, rows.rows);
 }
 
 /**
@@ -2189,88 +2190,22 @@ export async function journalTradeLog(
  * paged in. Mirrors the set `journalTradeLog` draws from.
  */
 export async function journalTradeSummary(userId: string) {
-  const rows = await query<{
-    total: string;
-    closed: string;
-    wins: string;
-    sumR: string | null;
-    wonPL: string | null;
-    lostPL: string | null;
-    wonCount: string;
-    lostCount: string;
-  }>(
-    `SELECT count(*) FILTER (WHERE NOT broker_rejected)::text AS total,
-            count(*) FILTER (WHERE status='closed' AND result_r IS NOT NULL AND NOT broker_rejected)::text AS closed,
-            count(*) FILTER (WHERE result_r > 0 AND NOT broker_rejected)::text AS wins,
-            sum(result_r) FILTER (WHERE status='closed' AND result_r IS NOT NULL AND NOT broker_rejected)::text AS "sumR",
-            sum(paper_pl) FILTER (WHERE status='closed' AND paper_pl > 0 AND NOT broker_rejected)::text AS "wonPL",
-            sum(-paper_pl) FILTER (WHERE status='closed' AND paper_pl < 0 AND NOT broker_rejected)::text AS "lostPL",
-            count(*) FILTER (WHERE status='closed' AND paper_pl > 0 AND NOT broker_rejected)::text AS "wonCount",
-            count(*) FILTER (WHERE status='closed' AND paper_pl < 0 AND NOT broker_rejected)::text AS "lostCount"
-     FROM (
-       SELECT status, result_r::float AS result_r, paper_pl::float AS paper_pl, false AS broker_rejected FROM paper_trades WHERE user_id=$1
-       UNION ALL
-       SELECT trade.status, trade.result_r::float, trade.paper_pl::float, COALESCE(intent.status='rejected',false)
-       FROM paper_strategy_trades trade
-       LEFT JOIN practice_order_intents intent ON intent.paper_trade_id=trade.id
-       WHERE trade.user_id=$1 AND trade.status IN ('open', 'closed')
-     ) log`,
-    [userId],
-  );
-  const row = rows.rows[0];
-  const total = Number(row?.total ?? 0);
-  const closed = Number(row?.closed ?? 0);
-  const wins = Number(row?.wins ?? 0);
-  const sumR = Number(row?.sumR ?? 0);
-  // The journal is presented in the New York trading day everywhere else in
-  // the app. Keep the server aggregate in that same zone so the header does
-  // not roll over at UTC midnight for a New York session.
-  const todayRows = await query<{
-    wins: string;
-    losses: string;
-    realizedPL: string | null;
-  }>(
-    `SELECT count(*) FILTER (WHERE result_r > 0 AND NOT broker_rejected)::text AS wins,
-            count(*) FILTER (WHERE result_r < 0 AND NOT broker_rejected)::text AS losses,
-            sum(paper_pl) FILTER (WHERE NOT broker_rejected)::text AS "realizedPL"
-     FROM (
-       SELECT result_r::float AS result_r, paper_pl::float, closed_at, false AS broker_rejected
-       FROM paper_trades
-       WHERE user_id=$1 AND status='closed'
-       UNION ALL
-       SELECT trade.result_r::float, trade.paper_pl::float, trade.closed_at, COALESCE(intent.status='rejected',false)
-       FROM paper_strategy_trades trade
-       LEFT JOIN practice_order_intents intent ON intent.paper_trade_id=trade.id
-       WHERE trade.user_id=$1 AND trade.status='closed'
-     ) log
-     WHERE (closed_at AT TIME ZONE 'America/New_York')::date =
-           (now() AT TIME ZONE 'America/New_York')::date`,
-    [userId],
-  );
-  const today = todayRows.rows[0];
-  // Active trades may have fallen beyond the first journal page, but their
-  // live cash value still belongs in the exposure total at the top of Journal.
-  const openTrades = await journalTradeLog(userId, { limit: null, filter: "active" });
-
+  const rows = (await journalTradeLog(userId, { limit: null, filter: "all" })).filter(row => row.brokerExecutionStatus !== "rejected");
+  const closed = rows.filter(row => row.status === "closed");
+  const cash = closed.filter(row => typeof row.paperPl === "number" && Number.isFinite(row.paperPl));
+  const wins = cash.filter(row => row.paperPl > 0), losses = cash.filter(row => row.paperPl < 0);
+  const verified = closed.filter(row => row.riskDataQuality === "verified" && typeof row.resultR === "number" && Number.isFinite(row.resultR));
+  const day = (value: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(value);
+  const todayKey = day(new Date());
+  const today = cash.filter(row => row.closedAt && day(new Date(row.closedAt)) === todayKey);
   return {
-    total,
-    winRate: closed ? wins / closed : null,
-    avgR: closed ? sumR / closed : 0,
-    // Money won and lost across every closed trade, for the Journal's split bar.
-    wonLost: {
-      won: Number(row?.wonPL ?? 0),
-      lost: Number(row?.lostPL ?? 0),
-      wins: Number(row?.wonCount ?? 0),
-      losses: Number(row?.lostCount ?? 0),
-    },
-    today: {
-      wins: Number(today?.wins ?? 0),
-      losses: Number(today?.losses ?? 0),
-      realizedPL: today?.realizedPL === null || today?.realizedPL === undefined
-        ? null
-        : Number(today.realizedPL),
-    },
-    openTrades,
+    total: rows.length, closedCount: closed.length, winRate: cash.length ? wins.length / cash.length : null,
+    avgR: verified.length >= 5 ? verified.reduce((sum, row) => sum + row.resultR, 0) / verified.length : null,
+    riskCoverage: { included: verified.length, excluded: closed.length - verified.length, percent: closed.length ? 100 * verified.length / closed.length : 0, reason: "Initial risk or cost-complete net P/L not verified" },
+    wonLost: { won: wins.reduce((sum, row) => sum + row.paperPl, 0), lost: -losses.reduce((sum, row) => sum + row.paperPl, 0), wins: wins.length, losses: losses.length },
+    breakeven: cash.filter(row => row.paperPl === 0).length, moneyExcluded: closed.length - cash.length,
+    today: { wins: today.filter(row => row.paperPl > 0).length, losses: today.filter(row => row.paperPl < 0).length, realizedPL: today.length ? today.reduce((sum, row) => sum + row.paperPl, 0) : null },
+    openTrades: rows.filter(row => row.status === "open"),
   };
 }
 
@@ -2304,7 +2239,7 @@ export async function paperTradesForInstrument(userId: string, instrument: strin
      ORDER BY (chart_trade.id::text = $4) DESC, "openedAt" DESC LIMIT $3`,
     [userId, instrument, limit, includeTradeId ?? ""],
   );
-  return rows.rows;
+  return projectRiskReporting(userId, rows.rows);
 }
 
 export async function paperRiskExposure(userId: string) {

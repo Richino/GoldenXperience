@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "risk-metrics:test": "tsx scripts/test-risk-metrics.ts",
     "dev": "next dev",
     "build": "npm run generate:icons && next build",
     "generate:splash": "node scripts/generate-splash.mjs",

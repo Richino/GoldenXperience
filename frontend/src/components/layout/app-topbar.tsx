@@ -19,6 +19,7 @@ const PAGE_LABELS: Array<{ prefix: string; label: string }> = [
   { prefix: "/chart", label: "Chart" },
   { prefix: "/journal", label: "Trades" },
   { prefix: "/watchlist", label: "Markets" },
+  { prefix: "/technical-analyzer", label: "Technical Analyzer" },
   { prefix: "/research", label: "Performance" },
   { prefix: "/risk", label: "More" },
   { prefix: "/settings", label: "Settings" },

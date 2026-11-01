@@ -40,7 +40,7 @@ export function NewsWarning({ instrument, tradeStyle = "day" }: { instrument: st
 
   if (loading || now === null) return null;
   if (!calendar.connected) {
-    return <p className="nl-news-warning is-caution" role="status">Calendar down · check the news yourself</p>;
+    return <p className="nl-news-warning is-caution" role="status">Calendar unavailable: check the news yourself before trading.</p>;
   }
 
   const { base, quote } = currenciesOf(instrument);

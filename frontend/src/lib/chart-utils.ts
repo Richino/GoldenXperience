@@ -5,6 +5,7 @@ import type {
   UTCTimestamp,
 } from "lightweight-charts";
 import { pipSizeFor, precisionFor } from "@/lib/instruments/catalog";
+import { formatRMultiple } from "@/lib/risk-metrics";
 import type { BinaryPrediction } from "@/types/binary";
 import type { Candle, MajorInstrument, PaperChartTrade } from "@/types/forex";
 
@@ -743,9 +744,7 @@ function tradeExitTime(candleTimes: number[], trade: PaperChartTrade) {
 }
 
 export function formatResultR(resultR: number | null) {
-  return resultR === null
-    ? "—"
-    : `${resultR >= 0 ? "+" : ""}${resultR.toFixed(2)}R`;
+  return formatRMultiple(resultR);
 }
 
 /**
@@ -791,7 +790,12 @@ export function buildTradeMarkers(
     }
 
     if (exitTime !== null && trade.exit !== null) {
-      const won = (trade.resultR ?? 0) >= 0;
+      // Without a recorded initial risk there is no R; the pips moved say it.
+      const pips = (long ? trade.exit - trade.entry : trade.entry - trade.exit) / pipSizeFor(trade.instrument);
+      const won = trade.resultR !== null ? trade.resultR >= 0 : pips >= 0;
+      const result = trade.resultR !== null
+        ? formatResultR(trade.resultR)
+        : `${pips >= 0 ? "+" : "−"}${Math.abs(pips).toFixed(1)}p`;
       built.push({
         id: `exit:${trade.id}`,
         time: exitTime as UTCTimestamp,
@@ -799,7 +803,7 @@ export function buildTradeMarkers(
         shape: long ? "arrowDown" : "arrowUp",
         color: won ? palette.win : palette.loss,
         size: 1,
-        text: `EXIT ${formatResultR(trade.resultR)}`,
+        text: `EXIT ${result}`,
       });
     }
 

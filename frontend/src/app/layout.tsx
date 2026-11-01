@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
+import { Bricolage_Grotesque, Geist, Geist_Mono, Inter, JetBrains_Mono } from "next/font/google";
 import Script from "next/script";
 import Image from "next/image";
 import { OBSERVER_MASCOT_ASSETS } from "@/lib/observer-mascot";
@@ -27,6 +27,20 @@ const bricolage = Bricolage_Grotesque({
   variable: "--font-bricolage",
   subsets: ["latin"],
   axes: ["opsz"],
+});
+
+// The app shell and redesigned pages: text in Inter, numbers in JetBrains Mono
+// (night-ledger.css --font-shell / --font-shell-mono).
+const uiSans = Inter({
+  variable: "--font-ui-sans",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+});
+
+const uiMono = JetBrains_Mono({
+  variable: "--font-ui-mono",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
 });
 
 export const metadata: Metadata = {
@@ -74,7 +88,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${bricolage.variable}`}
+      className={`${geistSans.variable} ${geistMono.variable} ${bricolage.variable} ${uiSans.variable} ${uiMono.variable}`}
       suppressHydrationWarning
     >
       <head>

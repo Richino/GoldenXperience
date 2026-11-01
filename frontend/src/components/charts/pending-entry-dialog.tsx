@@ -146,6 +146,9 @@ export function PendingEntryDialog({
     };
   }, [isPanel, open]);
   const [editing, setEditing] = useState(false);
+  const [plannedRiskValue, setPlannedRiskValue] = useState("");
+  const [plannedRiskUnit, setPlannedRiskUnit] = useState<"usd" | "percent">("usd");
+  const [plannedNetRewardUsd, setPlannedNetRewardUsd] = useState("");
   const [entryMode, setEntryMode] = useState<"single" | "oco">("single");
   // A blank entry has no direction until the user picks one, so a form that
   // lost its Analyze plan (e.g. a reload) can never submit a default LONG.
@@ -322,6 +325,9 @@ export function PendingEntryDialog({
       : "—";
 
   function resetCreateForm() {
+    setPlannedRiskValue("");
+    setPlannedRiskUnit("usd");
+    setPlannedNetRewardUsd("");
     const nextDirection = initialProposal?.direction ?? null;
     setEditing(false);
     setDirection(nextDirection);
@@ -410,6 +416,7 @@ export function PendingEntryDialog({
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          ...(!selectedEntry ? { plannedRiskValue, plannedRiskUnit, plannedNetRewardUsd } : {}),
           instrument, direction, entryPrice: parsedEntry, stopPrice: parsedStop, targetPrice: parsedTarget, expiresAt, activateAt: activateAtIso, invalidationPrice: parsedInvalidation, orderReferencePrice,
           tradeStyle,
           // Tags forward-test trades so they can be scored separately later.
@@ -571,7 +578,7 @@ export function PendingEntryDialog({
                 {direction === "long" ? "Long" : "Short"}
               </h2>
               {planRatio !== null ? (
-                <span className="nl-an-ratio">1:{Number.isInteger(Number(planRatio.toFixed(1))) ? planRatio.toFixed(0) : planRatio.toFixed(1)}</span>
+                <span className="nl-an-ratio" title="Target / stop price distance, not verified financial R:R.">Distance 1:{Number.isInteger(Number(planRatio.toFixed(1))) ? planRatio.toFixed(0) : planRatio.toFixed(1)}</span>
               ) : null}
             </div>
             <p className="nl-an-regime">
@@ -636,6 +643,14 @@ export function PendingEntryDialog({
               edited keeps whatever it already had. */}
           <div className={`nl-pe-plan nl-pe-ticket ${styles.ticket} ${styles.minimalTicket}`}>
             {entryModePicker}
+            {!selectedEntry ? <details>
+              <summary>Risk budget · automatic</summary>
+              <p>Your Settings sizing budget is recorded automatically before submission. You can override the reporting budget below. A budget is not a maximum loss or protective stop; this override does not change order size.</p>
+              <label>Budget unit <select aria-label="Planned risk budget unit" value={plannedRiskUnit} onChange={event => setPlannedRiskUnit(event.target.value as "usd" | "percent")}><option value="usd">USD</option><option value="percent">% of equity when planned</option></select></label>
+              <label>Risk budget override <input aria-label="Planned monetary risk budget" inputMode="decimal" value={plannedRiskValue} onChange={event => setPlannedRiskValue(event.target.value)} placeholder="Use Settings sizing budget" /></label>
+              <label>Planned net reward (USD, optional) <input aria-label="Planned net reward in USD" inputMode="decimal" value={plannedNetRewardUsd} onChange={event => setPlannedNetRewardUsd(event.target.value)} placeholder="No reward objective" /></label>
+              <p>Leave blank to use the exact dollar budget from order sizing. The budget is fixed before entry; later stop changes do not redefine it.</p>
+            </details> : null}
             <div className="nl-pe-dir" role="radiogroup" aria-label="Direction">
               {(["long", "short"] as const).map((option) => (
                 <button
@@ -697,7 +712,7 @@ export function PendingEntryDialog({
                       : sizeKey ? "Sizing…" : "—"}
                 </dd>
               </div>
-              {planRatio !== null ? <div><dt>Risk : reward</dt><dd className="metric-number">1 : {Number(planRatio.toFixed(1))}</dd></div> : null}
+              {planRatio !== null ? <div><dt>Target / stop distance</dt><dd className="metric-number">1 : {Number(planRatio.toFixed(1))}</dd></div> : null}
 
               {automaticLifetime ? <div><dt>Expires</dt><dd>{automaticLifetimeHours}h after it starts watching</dd></div> : null}
             </dl>

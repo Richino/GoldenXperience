@@ -14,7 +14,6 @@ import { formatChartPrice } from "@/lib/chart-utils";
 import { currenciesOf, displayNameFor, pipSizeFor } from "@/lib/instruments/catalog";
 import { groupedCalendarTitle, groupSimultaneousRows, homeCalendarImpactTier, homeCalendarRows } from "@/lib/news/home-calendar";
 import { useEconomicCalendar } from "@/lib/oanda/use-economic-calendar";
-import { openRFromLevels } from "@/lib/open-trade-progress";
 import type { TradeMonitorDebug } from "@/lib/strategy/trade-monitor";
 import type { Candle } from "@/types/forex";
 
@@ -176,9 +175,7 @@ export function ChartHealthCard({
 
   const long = signal.direction === "long";
   const pip = pipSizeFor(signal.instrument);
-  const openR = signal.stop !== null
-    ? openRFromLevels({ direction: signal.direction, entry: signal.entry, stop: signal.stop, current: currentPrice })
-    : null;
+  const openR: number | null = null;
   const openPips = currentPrice === null ? null : ((long ? currentPrice - signal.entry : signal.entry - currentPrice) / pip);
   const toStop = currentPrice === null || signal.stop === null ? null : Math.abs(currentPrice - signal.stop) / pip;
   const toTarget = currentPrice === null || signal.target === null ? null : Math.abs(signal.target - currentPrice) / pip;
@@ -312,8 +309,8 @@ export function ChartLevelEditor({ levels, signal }: { levels: ChartHealthLevels
       {rows.map((row) => {
         const fromEntry = row.price === null ? null : ((long ? row.price - signal.entry : signal.entry - row.price) / pip);
         const reward = row.price === null || risk === null || risk <= 0 ? ""
-          : row.key === "stop" ? " · −1.0R"
-            : ` · ${(Math.abs(row.price - signal.entry) / risk).toFixed(1)}R`;
+          : row.key === "stop" ? ""
+            : ` · ${(Math.abs(row.price - signal.entry) / risk).toFixed(1)}× stop distance`;
         return (
           <div key={row.key} className={`nl-clevels-row is-${row.key}${row.invalid ? " is-invalid" : ""}`}>
             <i aria-hidden="true" />

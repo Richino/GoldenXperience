@@ -1,0 +1,199 @@
+.page {
+  --line: color-mix(in srgb, var(--foreground) 11%, transparent);
+  --sell: light-dark(#c33d50, #ef7b8a);
+  --buy: light-dark(#2465c8, #75abff);
+  --subtle: var(--muted-strong);
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 26px 28px 100px;
+  color: var(--foreground);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.page h1, .page h2, .page h3, .page h4, .page p { margin: 0; }
+.page h1 { font-size: clamp(22px, 3vw, 29px); font-weight: 650; letter-spacing: -.045em; margin-top: 5px; }
+.page h2 { font-size: 19px; font-weight: 620; letter-spacing: -.025em; }
+.page h3 { font-size: 16px; font-weight: 600; }
+.page h4 { font-weight: 600; margin: 16px 0 6px; }
+.header, .sectionHeading, .marketBar, .detailHeading, .historyRow { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.header { margin-bottom: 24px; }
+.back { font-size: 12px; color: var(--subtle); }
+.model { color: var(--subtle); font-size: 11px; border: 1px solid var(--line); padding: 7px 10px; border-radius: 6px; }
+.model span { opacity: .8; }
+.marketBar { background: var(--surface); border: 1px solid var(--line); padding: 18px 20px; border-radius: 12px; flex-wrap: wrap; gap: 18px 26px; }
+.pairBlock { min-width: 130px; }
+.pairBlock label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--subtle); margin-bottom: 3px; }
+.page select { border: 0; background: var(--surface); color: inherit; font-size: 18px; font-weight: 650; padding: 5px 20px 5px 0; max-width: 170px; }
+.priceBlock { display: flex; flex-direction: column; gap: 3px; }
+.priceBlock > strong { font-size: 27px; font-weight: 600; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.priceBlock > span { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--subtle); }
+.closedDot, .openDot { width: 5px; height: 5px; border-radius: 50%; background: #9aa2af; display: inline-block; }
+.openDot { background: var(--accent); }
+.timestamp { display: grid; gap: 4px; font-size: 11px; color: var(--subtle); margin-right: auto; }
+.timestamp strong { font-weight: 500; color: var(--foreground); }
+.actions, .exportActions { display: flex; gap: 8px; }
+.page button { background: var(--surface); color: inherit; border: 1px solid var(--line); border-radius: 7px; padding: 10px 14px; min-height: 42px; font-size: 12px; font-weight: 550; cursor: pointer; transition: border-color .15s, background .15s; }
+.page button:hover { border-color: color-mix(in srgb, var(--foreground) 30%, transparent); }
+.page button:disabled { opacity: .45; cursor: default; }
+.page .primary { background: var(--accent); color: #061b13; border-color: var(--accent); }
+.page button:focus-visible, .page select:focus-visible, .page summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.notice { font-size: 12px; padding-top: 10px; color: var(--accent); }
+.error { color: var(--sell); padding: 12px 0; }
+.technicalSection, .outlookSection, .levelsSection { margin-top: 34px; }
+.sectionHeading { margin-bottom: 20px; }
+.eyebrow { font-size: 9px; letter-spacing: .12em; font-weight: 600; color: var(--subtle); margin-bottom: 5px !important; }
+.selectorBlock { display: flex; align-items: center; gap: 12px; }
+.selectorBlock > span, .explainer { font-size: 11px; color: var(--subtle); }
+.segments { display: flex; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 3px; gap: 2px; }
+.segments button { border-color: transparent; padding: 5px 13px; min-height: 33px; font-size: 12px; }
+.segments button[aria-pressed=true] { background: var(--accent-soft); color: var(--accent); }
+.gauges { display: grid; grid-template-columns: 1fr 1.15fr 1fr; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.gaugeCard { padding: 22px 20px 14px; text-align: center; min-width: 0; }
+.gaugeCard + .gaugeCard { border-left: 1px solid var(--line); }
+.gaugeCard h3 { font-size: 14px; font-weight: 550; margin-bottom: 8px; }
+.overall h3 { font-weight: 650; }
+.gaugeCard svg { width: 100%; max-width: 270px; margin: 0 auto -3px; display: block; overflow: visible; }
+.gaugeCard svg text { fill: var(--subtle); font-size: 9px; }
+.needle { stroke: var(--foreground); stroke-width: 3; stroke-linecap: round; transition: x2 .25s, y2 .25s; }
+.needleHub { fill: var(--foreground); }
+.ratingLabel { display: block; font-size: 21px; font-weight: 600; letter-spacing: -.02em; margin-top: -8px; }
+.overall .ratingLabel { font-size: 24px; }
+.sell { color: var(--sell); }
+.buy { color: var(--buy); }
+.neutral, .muted { color: var(--subtle); }
+.counts { display: flex; justify-content: center; gap: 28px; padding: 14px 0 18px; }
+.counts span { display: grid; color: var(--subtle); font-size: 10px; gap: 3px; }
+.counts b { font-size: 17px; font-weight: 600; color: var(--foreground); }
+.counts b.sell { color: var(--sell); }
+.counts b.buy { color: var(--buy); }
+.gaugeCard > details { border-top: 1px solid var(--line); padding-top: 12px; text-align: left; }
+.gaugeCard > details > summary { text-align: center; color: var(--subtle); font-size: 11px; }
+.page details > summary { cursor: pointer; font-weight: 500; }
+.tableScroll { overflow-x: auto; width: 100%; }
+.page table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: left; font-variant-numeric: tabular-nums; }
+.page th { color: var(--subtle); font-size: 10px; font-weight: 500; white-space: nowrap; padding: 13px 12px; border-bottom: 1px solid var(--line); }
+.page td { padding: 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.page td small { display: block; color: var(--subtle); font-size: 10px; margin-top: 3px; }
+.gaugeCard td:first-child { white-space: normal; min-width: 100px; }
+.page td > strong { display: block; font-size: 12px; font-weight: 550; margin-top: 3px; }
+.rule { font-size: 10px; color: var(--subtle); white-space: normal; max-width: 190px; margin-top: 4px; }
+.rule summary { font-size: 9px; }
+.summaryNote { text-align: center; font-size: 11px; color: var(--subtle); margin: 12px 0 18px !important; }
+.trendStrip { display: flex; flex-wrap: wrap; gap: 12px 32px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 12px 0; }
+.trendStrip > span { font-size: 10px; color: var(--subtle); display: flex; gap: 8px; align-items: center; }
+.trendStrip strong { color: var(--foreground); font-size: 11px; font-weight: 500; }
+.trendStrip strong.buy { color: var(--buy); }
+.trendStrip strong.sell { color: var(--sell); }
+.forecastCards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 9px; }
+.forecastCards button { display: grid; gap: 8px; text-align: left; padding: 15px 13px; min-width: 0; border-radius: 9px; }
+.forecastCards button[aria-pressed=true] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: color-mix(in srgb, var(--accent) 4%, var(--surface)); }
+.cardTop { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.cardTop b { font-size: 16px; font-weight: 600; }
+.cardTop small { font-size: 8px; font-weight: 500; letter-spacing: .05em; color: var(--subtle); }
+.cardTop small.evidenceStrong { color: var(--foreground); font-weight: 700; }
+.cardBias { font-size: 15px; font-weight: 650; letter-spacing: -.02em; }
+.forecastCards button > span:not(.cardTop) { font-size: 10px; font-weight: 400; color: var(--subtle); }
+.forecastCards button > small { font-size: 9px; font-weight: 400; }
+.conflict { color: light-dark(#916007, #d6ac69); }
+.forecastDetail { border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 22px; margin-top: 14px; }
+.detailHeading { align-items: flex-start; }
+.detailHeading p { font-size: 13px; max-width: 770px; margin-top: 8px; }
+.expiry { flex-shrink: 0; font-size: 10px; color: var(--subtle); display: grid; gap: 5px; text-align: right; }
+.expiry strong { font-weight: 500; color: var(--foreground); font-size: 11px; }
+.evidenceColumns { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 22px 0 18px; }
+.evidenceColumns > div { padding-left: 12px; border-left: 2px solid var(--line); }
+.evidenceColumns p { font-size: 12px; color: var(--subtle); margin-top: 5px; }
+.invalidation { display: flex; gap: 12px; padding: 12px 14px; background: var(--surface-raised); border-radius: 7px; font-size: 11px; }
+.invalidation strong { flex-shrink: 0; font-weight: 600; }
+.continuation { margin-top: 14px; font-size: 11px; color: var(--subtle); }
+.continuation > strong { color: var(--foreground); font-weight: 600; }
+.continuation p { margin-top: 7px; }
+.forecastDetail > details { font-size: 12px; border-top: 1px solid var(--line); margin-top: 16px; padding-top: 14px; }
+.forecastDetail details p { margin: 10px 0; color: var(--subtle); }
+.scenarios { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.levelsSection { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 20px 22px 12px; }
+.levelsSection .sectionHeading { margin-bottom: 8px; }
+.footnote { color: var(--subtle); font-size: 10px; margin: 12px 0 !important; }
+.levelsSection > details { border-top: 1px solid var(--line); padding: 12px 0 4px; font-size: 11px; }
+.utilitySection { margin-top: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; }
+.utilitySection > summary { padding: 17px 20px; font-size: 12px; }
+.utilitySection > summary small { font-size: 10px; color: var(--subtle); margin-left: 14px; font-weight: 400; }
+.utilityBody { padding: 2px 20px 20px; font-size: 12px; }
+.utilityBody p { margin: 10px 0; color: var(--subtle); }
+.utilityBody > details { border-top: 1px solid var(--line); padding: 12px 0; }
+.utilityBody .sectionHeading { flex-wrap: wrap; }
+.exportActions { margin-top: 14px; flex-wrap: wrap; }
+.page textarea { width: 100%; padding: 12px; background: var(--background); border: 1px solid var(--line); color: inherit; border-radius: 7px; font-size: 12px; margin: 12px 0; }
+.historyRow { border-bottom: 1px solid var(--line); padding: 14px 0; gap: 12px; }
+.historyRow strong { font-size: 12px; font-weight: 500; }
+.footer { text-align: center; font-size: 10px; color: var(--subtle); margin-top: 24px; }
+.emptyGauges { display: grid; grid-template-columns: repeat(3,1fr); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.emptyGauges > div { padding: 26px; text-align: center; }
+.emptyGauges h3 { font-size: 14px; }
+.emptyGauges strong { color: var(--subtle); font-size: 12px; font-weight: 400; }
+.emptyArc { width: 140px; height: 70px; border: 10px solid var(--line); border-bottom: 0; border-radius: 140px 140px 0 0; margin: 28px auto 18px; }
+@media (max-width: 1050px) {
+  .page { padding: 22px 20px 100px; }
+  .marketBar { gap: 18px; }
+  .timestamp { display: none; }
+  .actions { margin-left: auto; }
+  .gaugeCard { padding: 20px 12px 12px; }
+  .counts { gap: 22px; }
+  .forecastCards button { padding: 13px 10px; }
+  .cardTop { flex-wrap: wrap; }
+}
+@media (max-width: 700px) {
+  .page { padding: 14px 14px 110px; font-size: 13px; }
+  .header { display: block; position: relative; margin-bottom: 17px; }
+  .page h1 { font-size: 22px; }
+  .model { position: absolute; right: 0; top: 0; font-size: 9px; padding: 4px 7px; margin: 0; white-space: nowrap; }
+  .model span { display: none; }
+  .marketBar { padding: 15px; gap: 14px 10px; }
+  .pairBlock { flex: 1; }
+  .priceBlock { text-align: right; align-items: flex-end; }
+  .priceBlock > strong { font-size: 25px; }
+  .timestamp { display: flex; flex: 0 0 100%; gap: 8px; font-size: 10px; order: 1; }
+  .actions { width: 100%; margin: 0; }
+  .actions { order: 2; }
+  .actions button { flex: 1; }
+  .technicalSection, .outlookSection { margin-top: 25px; }
+  .sectionHeading { align-items: flex-start; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+  .page h2 { font-size: 18px; }
+  .selectorBlock { width: 100%; justify-content: space-between; }
+  .gauges { grid-template-columns: 1fr 1fr; }
+  .gaugeCard { padding: 18px 9px 12px; }
+  .gaugeCard.overall { order: -1; grid-column: 1 / -1; border-left: 0; border-bottom: 1px solid var(--line); }
+  .gaugeCard:has(> details[open]) { grid-column: 1 / -1; }
+  .gaugeCard.overall svg { max-width: 270px; }
+  .gaugeCard + .gaugeCard:not(.overall) { border-left: 1px solid var(--line); }
+  .gaugeCard h3 { font-size: 12px; }
+  .gaugeCard .ratingLabel { font-size: 17px; }
+  .gaugeCard.overall .ratingLabel { font-size: 24px; }
+  .gaugeCard svg text { font-size: 11px; }
+  .counts { gap: 19px; padding: 12px 0 15px; }
+  .counts b { font-size: 16px; }
+  .gaugeCard.overall .counts { gap: 40px; }
+  .gaugeCard > details > summary { font-size: 10px; }
+  .trendStrip { gap: 9px; }
+  .trendStrip > span { width: 100%; justify-content: space-between; }
+  .forecastCards { display: flex; overflow-x: auto; padding: 2px 2px 12px; scroll-snap-type: x mandatory; }
+  .forecastCards button { flex: 0 0 143px; scroll-snap-align: start; padding: 13px; gap: 8px; }
+  .forecastCards button > span:not(.cardTop) { font-size: 11px; }
+  .cardTop small { font-size: 8px; }
+  .forecastDetail { padding: 17px 15px; margin-top: 5px; }
+  .detailHeading { flex-wrap: wrap; gap: 12px; }
+  .detailHeading h3 { font-size: 15px; }
+  .detailHeading p { font-size: 12px; }
+  .expiry { display: flex; text-align: left; gap: 8px; }
+  .evidenceColumns { grid-template-columns: 1fr; gap: 16px; margin: 19px 0; }
+  .invalidation { flex-direction: column; gap: 5px; }
+  .scenarios { grid-template-columns: 1fr; gap: 0; }
+  .levelsSection { padding: 17px 15px 10px; margin-top: 20px; }
+  .page td, .page th { padding: 11px 8px; }
+  .utilitySection > summary { padding: 15px; }
+  .utilitySection > summary small { display: block; margin-left: 16px; margin-top: 5px; }
+  .utilityBody { padding: 0 15px 17px; }
+  .emptyGauges { grid-template-columns: 1fr; }
+  .emptyGauges > div:not(:nth-child(2)) { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .page button, .needle { transition: none; } }

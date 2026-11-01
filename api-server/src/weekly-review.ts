@@ -56,7 +56,7 @@ type Trade = {
   plannedR: number | null;
 };
 
-type Bucket = { key: string; trades: number; wins: number; netR: number; netPl: number };
+type Bucket = { key: string; trades: number; wins: number; netR: number | null; netPl: number; included: number; excluded: number; coveragePct: number };
 
 export type WeeklyFinding = {
   id: string;
@@ -67,12 +67,13 @@ export type WeeklyFinding = {
 };
 
 export type WeeklyStats = {
+  riskCoverage: { included: number; excluded: number; percent: number; reason: string };
   trades: number;
   wins: number;
   losses: number;
   breakeven: number;
   winRate: number | null;
-  netR: number;
+  netR: number | null;
   netPl: number;
   avgWinR: number | null;
   avgLossR: number | null;
@@ -102,7 +103,7 @@ export type WeeklyHistoryItem = {
   losses: number;
   winRate: number | null;
   netPl: number;
-  netR: number;
+  netR: number | null;
   noStopTrades: number;
   avgHoldWinMinutes: number | null;
   avgHoldLossMinutes: number | null;
@@ -154,7 +155,7 @@ function toTrade(row: JournalRow): Trade | null {
     a !== null && a !== undefined && b !== null && b !== undefined && Math.abs(a - b) <= 1.5 * pip;
   const exit: ExitKind = near(row.exit, sl) ? "stop" : near(row.exit, tp) && tp !== row.entry ? "target" : "manual";
   const risk = row.entry !== null && sl !== null && sl !== undefined ? Math.abs(row.entry - sl) : null;
-  const plannedR = risk && tp !== null && tp !== undefined && row.entry !== null ? Math.abs(tp - row.entry) / risk : null;
+  const plannedR = null; // Current levels cannot establish an original monetary risk budget.
   return {
     id: row.id,
     pair: row.pair,
@@ -178,16 +179,16 @@ function bucket(trades: Trade[], keyOf: (trade: Trade) => string): Bucket[] {
   const map = new Map<string, Bucket>();
   for (const trade of trades) {
     const key = keyOf(trade);
-    const entry = map.get(key) ?? { key, trades: 0, wins: 0, netR: 0, netPl: 0 };
+    const entry = map.get(key) ?? { key, trades: 0, wins: 0, netR: null, netPl: 0, included: 0, excluded: 0, coveragePct: 0 };
     entry.trades += 1;
     if (outcome(trade) > 0) entry.wins += 1;
-    entry.netR += trade.r ?? 0;
+    if (trade.r !== null) { entry.netR = (entry.netR ?? 0) + trade.r; entry.included += 1; } else entry.excluded += 1;
     entry.netPl += trade.pl ?? 0;
     map.set(key, entry);
   }
   return [...map.values()]
-    .map((entry) => ({ ...entry, netR: round(entry.netR), netPl: round(entry.netPl) }))
-    .sort((a, b) => a.netPl - b.netPl || a.netR - b.netR);
+    .map((entry) => ({ ...entry, netR: entry.netR === null || entry.included < 5 ? null : round(entry.netR), netPl: round(entry.netPl), coveragePct: entry.trades ? entry.included / entry.trades * 100 : 0 }))
+    .sort((a, b) => a.netPl - b.netPl || (a.netR ?? 0) - (b.netR ?? 0));
 }
 
 function statsOf(trades: Trade[]): WeeklyStats {
@@ -207,12 +208,13 @@ function statsOf(trades: Trade[]): WeeklyStats {
   for (const trade of trades) exits[trade.exit] += 1;
   const opt = (value: number | null, digits = 2) => (value === null ? null : round(value, digits));
   return {
+    riskCoverage: { included: trades.filter(trade => trade.r !== null).length, excluded: trades.filter(trade => trade.r === null).length, percent: trades.length ? 100 * trades.filter(trade => trade.r !== null).length / trades.length : 0, reason: "Initial risk or net P/L not verified" },
     trades: trades.length,
     wins: wins.length,
     losses: losses.length,
     breakeven: trades.length - wins.length - losses.length,
     winRate: wins.length + losses.length ? round((wins.length / (wins.length + losses.length)) * 100, 0) : null,
-    netR: round(sum(trades.map((trade) => trade.r ?? 0))),
+    netR: trades.filter(trade => trade.r !== null).length >= 5 ? round(sum(trades.flatMap(trade => trade.r === null ? [] : [trade.r]))) : null,
     netPl: round(sum(trades.map((trade) => trade.pl ?? 0))),
     avgWinR: opt(mean(wins.flatMap((trade) => (trade.r === null ? [] : [trade.r])))),
     avgLossR: opt(mean(losses.flatMap((trade) => (trade.r === null ? [] : [trade.r])))),
@@ -242,18 +244,18 @@ const minutes = (value: number) => (value >= 120 ? `${(value / 60).toFixed(1)}h`
 function findingsOf(trades: Trade[], stats: WeeklyStats): WeeklyFinding[] {
   const findings: WeeklyFinding[] = [];
   if (stats.noStopTrades > 0 && stats.noStopPl < 0) {
-    findings.push({ id: "no-stop", title: "Trades without a stop", impact: stats.noStopPl,
-      detail: `${stats.noStopTrades} of ${stats.trades} trades had no stop loss and together made ${money(stats.noStopPl)}.` });
+    findings.push({ id: "no-stop", title: "Stored levels have no protective stop", impact: stats.noStopPl,
+      detail: `${stats.noStopTrades} of ${stats.trades} trades have no stop in the final stored levels and together reported ${money(stats.noStopPl)}. Initial stop status is not established by these records.` });
   }
   const worstPair = stats.byPair[0];
   if (worstPair && worstPair.netPl < 0 && stats.byPair.length > 1) {
     findings.push({ id: "worst-pair", title: `${worstPair.key} cost the most`, impact: worstPair.netPl,
-      detail: `${worstPair.key}: ${worstPair.trades} trades, ${worstPair.wins} winners, ${money(worstPair.netPl)} (${worstPair.netR}R).` });
+      detail: `${worstPair.key}: ${worstPair.trades} trades, ${worstPair.wins} winners, ${money(worstPair.netPl)} (${worstPair.netR === null ? "R unavailable" : worstPair.netR + "R"}).` });
   }
   const worstSession = stats.bySession[0];
   if (worstSession && worstSession.netPl < 0 && stats.bySession.length > 1) {
     findings.push({ id: "worst-session", title: `${worstSession.key} session was the weakest`, impact: worstSession.netPl,
-      detail: `Trades opened in the ${worstSession.key} session: ${worstSession.trades} trades, ${money(worstSession.netPl)} (${worstSession.netR}R).` });
+      detail: `Trades opened in the ${worstSession.key} session: ${worstSession.trades} trades, ${money(worstSession.netPl)} (${worstSession.netR === null ? "R unavailable" : worstSession.netR + "R"}).` });
   }
   if (stats.avgHoldLossMinutes !== null && stats.avgHoldWinMinutes !== null && stats.avgHoldLossMinutes > stats.avgHoldWinMinutes * 1.5) {
     findings.push({ id: "held-losers", title: "Losers held longer than winners", impact: stats.avgLossPl,
@@ -302,7 +304,7 @@ async function savedHistory(userId: string, weekStart: string): Promise<WeeklyHi
       losses: row.stats.losses,
       winRate: row.stats.winRate,
       netPl: row.stats.netPl,
-      netR: row.stats.netR,
+      netR: null,
       noStopTrades: row.stats.noStopTrades,
       avgHoldWinMinutes: row.stats.avgHoldWinMinutes,
       avgHoldLossMinutes: row.stats.avgHoldLossMinutes,
@@ -371,7 +373,7 @@ export async function weeklyReview(userId: string, now = Date.now()): Promise<We
     to: new Date(to).toISOString(),
     stats,
     findings: findingsOf(trades, stats),
-    fingerprint: trades.map((trade) => `${trade.id}:${trade.r ?? ""}:${trade.pl ?? ""}`).join("|"),
+    fingerprint: "verified-risk-v1:" + trades.map((trade) => `${trade.id}:${trade.r ?? ""}:${trade.pl ?? ""}`).join("|"),
   };
 }
 
@@ -403,6 +405,7 @@ const SUMMARY_SCHEMA = {
 } as const;
 
 const RULES = [
+  "Preserve discretionary no-initial-stop trading. An explicit pre-entry monetary budget can define R without a protective stop; that budget does not cap losses. Never infer an initial stop from final stored levels or recommend a strategy change solely because initial stops were absent.",
   "Use only the facts given. Every number you write must appear in the facts; never compute new numbers, percentages or totals.",
   "Speak to the trader directly (you, your). Plain words, no jargon, no hype, no emojis.",
   "Describe what happened over these trades and what to change. Never predict the market, promise results, or talk about win probability.",
@@ -417,9 +420,9 @@ const RULES = [
 /** What each fact means, so the model cannot misread a count. */
 const FIELD_MEANINGS = {
   "stats.exits": "How trades CLOSED: stop = closed at its stop loss, target = closed at its take profit, manual = closed by hand. This is not how many trades had a stop.",
-  "stats.noStopTrades": "Trades that had no stop loss set at all; noStopPl is their combined money result.",
+  "stats.noStopTrades": "Trades whose stored final levels have no stop. This does not establish whether a protective stop existed at entry or whether an explicit risk budget existed. noStopPl is their combined reported money result.",
   "stats.avgHoldWinMinutes / avgHoldLossMinutes": "Average time winners / losers were held, in minutes.",
-  "stats.netR / avgWinR / avgLossR": "R measured against each trade's original sizing stop.",
+  "stats.netR / avgWinR / avgLossR": "Verified financial R requires documented pre-entry monetary risk and cost-complete net P/L. Null means unavailable; never use a sizing stop or assume 1% risk.",
   "stats.spreadPaid": "Money paid in entry spread across these trades.",
   "stats.bySession": "Grouped by the New York time each trade was opened: Asia 19-03, London 03-08, New York AM 08-12, New York PM 12-17, Evening 17-19.",
   "findings": "Rule-based problems, the costliest first; impact is money.",

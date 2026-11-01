@@ -6,7 +6,7 @@ import { ToastAction } from "@/components/ui/toast";
 import { toast } from "@/hooks/use-toast";
 import { apiUrl } from "@/lib/api/url";
 import { currentPushStatus } from "@/lib/notifications/push";
-import { notificationHref, sampleToastNotification } from "@/lib/notifications/display";
+import { displayDetail, notificationHref, sampleToastNotification } from "@/lib/notifications/display";
 import { playNotificationSound, unlockNotificationAudio } from "@/lib/notifications/play";
 import { NOTIFICATION_SOUND_KEY, NOTIFICATION_VOLUME_KEY, notificationSoundPath, notificationVolume } from "@/lib/notifications/sounds";
 import type { AppNotification, NotificationToast } from "@/lib/notifications/types";
@@ -57,7 +57,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         const href = notificationHref(event);
         toast({
           title: event.title,
-          description: event.message,
+          description: displayDetail(event),
           action: <ToastAction altText="View analysis" onClick={() => router.push(href)}>View analysis</ToastAction>,
         });
       }
@@ -65,7 +65,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     const latest = events[0]!;
     if (hidden && !latest.preview && typeof Notification !== "undefined" && Notification.permission === "granted") {
       void currentPushStatus().then(status => {
-        if (status === "enabled" && document.visibilityState !== "visible") new Notification(latest.title, { body: latest.message, tag: latest.id });
+        if (status === "enabled" && document.visibilityState !== "visible") new Notification(latest.title, { body: displayDetail(latest), tag: latest.id });
       }).catch(() => { /* A disabled or unverifiable device must not show system alerts. */ });
     }
   }, [router]);

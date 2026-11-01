@@ -113,17 +113,6 @@ export function HomeLoadingSkeleton() {
                 </div>
               ))}
             </section>
-            <section className="nl-sec nl-setups">
-              <SectionHeading />
-              <div className="nl-setup-grid">
-                {Array.from({ length: 2 }, (_, index) => (
-                  <div key={index} className="nl-setup">
-                    <div className="nl-setup-top"><Placeholder className="h-6 w-24" /><Placeholder className="h-3 w-12" /></div>
-                    <Levels />
-                  </div>
-                ))}
-              </div>
-            </section>
             <section className="nl-card nl-pending">
               <div className="nl-card-head"><Placeholder className="h-6 w-24" /><Placeholder className="h-3 w-12" /></div>
               <div className="nl-pending-entry">

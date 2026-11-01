@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, CalendarRange, Check, ChevronDown, History, RotateCcw, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, CalendarRange, Check, ChevronDown, History, Maximize2, RotateCcw, SlidersHorizontal, Sparkles } from "lucide-react";
 import { MobileSheet } from "@/components/ui/mobile-sheet";
 import { AbsorptionSettingsPanel } from "./absorption-settings";
 import { VARIANT_ICONS } from "@/components/charts/chart-type-select";
@@ -23,9 +23,13 @@ const INDICATOR_GROUPS = [
   },
 ];
 
-/** The overflow tools share one sheet, including the range/type subpages. */
+/**
+ * The overflow tools share one sheet, including the range/type subpages.
+ * Analyze and fullscreen are optional rows for screens whose header has no
+ * room for them (the phone chart).
+ */
 export function ChartToolsSheet({ open, onClose, range, onRangeChange, variant, onVariantChange,
-  replayActive, onReplay, refreshing, onRefresh }: {
+  replayActive, onReplay, refreshing, onRefresh, onFullscreen, analyze }: {
   open: boolean;
   onClose: () => void;
   range: ChartRange;
@@ -36,6 +40,8 @@ export function ChartToolsSheet({ open, onClose, range, onRangeChange, variant, 
   onReplay: () => void;
   refreshing: boolean;
   onRefresh: () => void;
+  onFullscreen?: () => void;
+  analyze?: { label: string; busy: boolean; disabled: boolean; onRun: () => void } | null;
 }) {
   const [page, setPage] = useState<"tools" | "range" | "type">("tools");
   const close = () => { onClose(); setPage("tools"); };
@@ -53,6 +59,16 @@ export function ChartToolsSheet({ open, onClose, range, onRangeChange, variant, 
     >
       {page === "tools" ? (
         <div className="sheet-option-list">
+          {analyze ? (
+            <button type="button" className="sheet-option pressable" disabled={analyze.disabled} onClick={() => { analyze.onRun(); close(); }}>
+              <Sparkles className="size-4 shrink-0" /><span className="flex-1 text-left">{analyze.busy ? "Analyzing…" : analyze.label}</span>
+            </button>
+          ) : null}
+          {onFullscreen ? (
+            <button type="button" className="sheet-option pressable" onClick={() => { onFullscreen(); close(); }}>
+              <Maximize2 className="size-4 shrink-0" /><span className="flex-1 text-left">Fullscreen</span>
+            </button>
+          ) : null}
           <button type="button" className="sheet-option pressable" onClick={() => setPage("range")}>
             <CalendarRange className="size-4 shrink-0" /><span className="flex-1 text-left">History range</span><span>{range}</span>
           </button>

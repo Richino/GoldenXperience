@@ -1,0 +1,45 @@
+export type Frame = "H1" | "H4" | "D" | "W";
+export type Bias = "BULLISH" | "BEARISH" | "NO EDGE" | "UNAVAILABLE";
+export type IndicatorAction = "Buy" | "Sell" | "Neutral";
+export type IndicatorReading = { name: string; value: number; action: IndicatorAction; rule: string; extra?: string };
+export type TechnicalRating = { label: "Strong Sell" | "Sell" | "Neutral" | "Buy" | "Strong Buy"; score: number; sell: number; neutral: number; buy: number };
+export type TechnicalReadings = { oscillators: IndicatorReading[]; averages: IndicatorReading[] };
+export type Horizon = 1 | 2 | 3 | 4 | 5;
+export type Pivot = { kind: "high" | "low"; price: number; index: number; time: string; confirmedAt: string };
+export type StructureEvent = { kind: "BOS" | "CHoCH" | "FAILED BREAKOUT"; direction: "up" | "down"; level: number; at: string };
+export type Zone = { frame: Frame; low: number; high: number; reactions: number; quality: number; role: "support" | "resistance"; distancePips: number; distanceAtr: number; brokenAt: string | null; retestedAt: string | null };
+export type LevelRisk = { severity: "NONE" | "CAUTION" | "HIGH"; zone: Zone | null; distanceAtr: number | null; explanation: string };
+export type DirectionalLean = { direction: "BULLISH" | "BEARISH" | "UNCLEAR" | "UNAVAILABLE"; evidence: "STRONG" | "MODERATE" | "WEAK" | "MIXED" | "ALIGNED" | "UNAVAILABLE"; score: number; rationale: string; evidenceReasons?: string[] };
+export type ContinuationRisk = { severity: "LOW" | "CAUTION" | "HIGH" | "UNAVAILABLE"; factors: string[] };
+export type FrameAnalysis = {
+  frame: Frame; count: number; lastOpen: string; lastCloseAt: string; close: number;
+  ema20: number; ema50: number; ema200: number; slope20Atr: number; slope50Atr: number; slope200Atr: number;
+  rsi: number; macd: number; signal: number; histogram: number; acceleration: number;
+  adx: number; plusDI: number; minusDI: number; atr: number; volatilityRatio: number;
+  trend: -1 | 0 | 1; structure: "higher highs / higher lows" | "lower highs / lower lows" | "mixed / range";
+  consolidation: boolean; divergence: "bullish" | "bearish" | null;
+  pivots: Pivot[]; events: StructureEvent[]; zones: Zone[];
+  readings?: TechnicalReadings;
+};
+export type Forecast = {
+  horizon: Horizon; expiresAt: string; bias: Bias; evidence: "LIMITED" | "MIXED" | "ALIGNED";
+  trendStrength: string; momentum: string; structure: string; regime: string;
+  groups: { trend: number; momentum: number; strength: number; location: string; exhaustion: string };
+  frames: Frame[]; reasons: string[]; contradictions: string[]; zones: Zone[];
+  continuation: string; reversal: string; invalidation: string;
+  levelRisk?: LevelRisk;
+  lean?: DirectionalLean; continuationRisk?: ContinuationRisk;
+  movement: { low: number; high: number; pips: number; method: string };
+};
+export type Snapshot = {
+  id: string; modelVersion: string; instrument: string; createdAt: string; marketAt: string;
+  source: "OANDA Practice"; referencePrice: number; spreadPips: number; pip: number; precision: number;
+  freshness: "FRESH" | "STALE" | "MARKET CLOSED"; warnings: string[]; eligible: boolean;
+  technicalAvailable?: boolean; marketOpen?: boolean; quoteFresh?: boolean; scoringReasons?: string[];
+  frames: Record<Frame, FrameAnalysis>; forecasts: Forecast[]; baseline: "BULLISH" | "BEARISH";
+};
+export type Outcome = { price: number; at: string; direction: "UP" | "DOWN" | "FLAT"; correct: boolean | null; leanCorrect?: boolean | null; baselineCorrect: boolean };
+export type HistoryRow = { id: string; snapshot: Snapshot; forecast: Forecast; outcome: Outcome | null };
+export type MetricObservation = { snapshot: Pick<Snapshot, "eligible" | "instrument" | "createdAt">; forecast: Pick<Forecast, "bias" | "horizon" | "regime" | "expiresAt" | "lean">; outcome: Outcome | null };
+export type Metric = { label: string; completed: number; directional: number; correct: number; accuracy: number | null; baselineAccuracy: number | null; bullishAccuracy: number | null; bearishAccuracy: number | null; independent: number; independentAccuracy: number | null; leanCalls: number; leanAccuracy: number | null };
+export type History = { rows: HistoryRow[]; metrics: Metric[]; scoringWarnings: string[]; total: number };

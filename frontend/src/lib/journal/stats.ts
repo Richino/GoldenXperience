@@ -1,69 +1,20 @@
 import type { JournalTrade } from "@/types/forex";
-
-export interface JournalEquityPoint {
-  tradeId: string;
-  closedAt: string;
-  cumulativeR: number;
-}
-
+import { verifiedRStatistics } from "@/lib/risk-metrics";
+export interface JournalEquityPoint { tradeId: string; closedAt: string; cumulativeR: number }
 export interface JournalStats {
-  closedCount: number;
-  winRate: number;
-  averageR: number;
-  netR: number;
-  maxDrawdownR: number;
-  equityCurve: JournalEquityPoint[];
+  closedCount: number; winRate: number; averageR: number | null;
+  netR: number | null; maxDrawdownR: number | null; equityCurve: JournalEquityPoint[];
+  included: number; excluded: number; coveragePct: number; exclusionReason: string; insufficientData: boolean;
 }
-
-export const EMPTY_JOURNAL_STATS: JournalStats = {
-  closedCount: 0,
-  winRate: 0,
-  averageR: 0,
-  netR: 0,
-  maxDrawdownR: 0,
-  equityCurve: [],
-};
-
+export const EMPTY_JOURNAL_STATS: JournalStats = { closedCount: 0, winRate: 0, averageR: null, netR: null, maxDrawdownR: null, equityCurve: [], included: 0, excluded: 0, coveragePct: 0, exclusionReason: "Initial risk or net P/L not verified", insufficientData: true };
 export function computeJournalStats(trades: JournalTrade[]): JournalStats {
-  const closedTrades = trades
-    .filter(
-      (
-        trade,
-      ): trade is JournalTrade & { resultR: number; closedAt: string } =>
-        trade.status === "closed" &&
-        trade.resultR !== null &&
-        trade.closedAt !== null,
-    )
-    .sort((left, right) => Date.parse(left.closedAt) - Date.parse(right.closedAt));
-
-  if (closedTrades.length === 0) {
-    return EMPTY_JOURNAL_STATS;
-  }
-
-  const wins = closedTrades.filter((trade) => trade.resultR > 0);
-  const netR = closedTrades.reduce((sum, trade) => sum + trade.resultR, 0);
-
-  let cumulative = 0;
-  let peak = 0;
-  let maxDrawdownR = 0;
-  const equityCurve: JournalEquityPoint[] = closedTrades.map((trade) => {
-    cumulative += trade.resultR;
-    peak = Math.max(peak, cumulative);
-    maxDrawdownR = Math.max(maxDrawdownR, peak - cumulative);
-
-    return {
-      tradeId: trade.id,
-      closedAt: trade.closedAt,
-      cumulativeR: cumulative,
-    };
-  });
-
-  return {
-    closedCount: closedTrades.length,
-    winRate: (wins.length / closedTrades.length) * 100,
-    averageR: netR / closedTrades.length,
-    netR,
-    maxDrawdownR,
-    equityCurve,
-  };
+  const closed = trades.filter(t => t.status === "closed" && t.closedAt !== null);
+  const stats = verifiedRStatistics(closed);
+  const eligible = closed.filter(t => t.riskDataQuality === "verified" && typeof t.resultR === "number" && Number.isFinite(t.resultR)).sort((a, b) => Date.parse(a.closedAt!) - Date.parse(b.closedAt!));
+  let cumulative = 0, peak = 0, drawdown = 0;
+  const curve = eligible.map(trade => { cumulative += trade.resultR!; peak = Math.max(peak, cumulative); drawdown = Math.max(drawdown, peak - cumulative); return { tradeId: trade.id, closedAt: trade.closedAt!, cumulativeR: cumulative }; });
+  return { closedCount: closed.length, winRate: (stats.winRate ?? 0) * 100,
+    averageR: stats.expectancyR, netR: stats.sumIndependentUnitR, maxDrawdownR: stats.insufficientData ? null : drawdown,
+    equityCurve: stats.insufficientData ? [] : curve, included: stats.included, excluded: stats.excluded, coveragePct: stats.coveragePct,
+    exclusionReason: stats.exclusionReason, insufficientData: stats.insufficientData };
 }

@@ -287,6 +287,7 @@ export function RiskWorkspace({
     <>
       {/* Desktop: the Risk card. */}
       <section id="risk" className="nl-st-card is-risk nl-st-desk" aria-labelledby="nl-st-risk-title">
+        <p className="nl-st-note">Sizing policy is separate from verified financial R. Record an optional monetary risk budget on the entry ticket. Without a protective stop, that budget does not cap losses.</p>
         <div className="nl-st-card-head">
           <div>
             <h2 id="nl-st-risk-title">Risk</h2>
@@ -346,6 +347,7 @@ export function RiskWorkspace({
 
       {/* Phone: the Paper trading card; its limits open in a sheet. */}
       <section className="nl-st-mcard nl-st-phone" aria-labelledby="nl-st-mrisk-title">
+        <p className="nl-st-note">A sizing policy is not a verified R denominator. Record a risk budget before entry; without a stop it does not cap losses.</p>
         <h2 id="nl-st-mrisk-title" className="nl-st-mcard-title">Paper trading</h2>
         <button type="button" className="nl-st-mrisk pressable" onClick={() => setRiskSheetOpen(true)}>
           <span className="nl-st-mrisk-copy">

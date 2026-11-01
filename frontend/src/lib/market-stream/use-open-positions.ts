@@ -5,6 +5,8 @@ import { apiUrl } from "@/lib/api/url";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 
 export interface OpenPositionFill {
+  /** Only populated when financing and transaction costs are complete. */
+  unrealizedNetPnlUsd?: number | null;
   brokerTradeId: string;
   price: number;
   units: number;
@@ -38,14 +40,14 @@ export function useOpenPositionSnapshot(enabled = true) {
   const load = useCallback(async () => {
     if (!enabled) return;
     try {
-      const response = await fetch(apiUrl("/api/oanda/open-positions"), {
+      const response = await fetch(apiUrl("/api/oanda/account-snapshot"), {
         credentials: "include",
         cache: "no-store",
         signal: AbortSignal.timeout(12_000),
       });
       if (!response.ok) return;
       const payload = (await response.json()) as {
-        data?: Array<{
+        positions?: Array<{
           instrument: string;
           id: string;
           entryPrice: number;
@@ -55,10 +57,11 @@ export function useOpenPositionSnapshot(enabled = true) {
           currentBid?: number | null;
           currentAsk?: number | null;
           unrealizedPL: number;
+          unrealizedNetPnlUsd?: number | null;
         }>;
       };
       const nextFills: Record<string, OpenPositionFill> = {};
-      for (const position of payload.data ?? []) {
+      for (const position of payload.positions ?? []) {
         const fill = {
           brokerTradeId: position.id,
           price: position.entryPrice,
@@ -68,6 +71,7 @@ export function useOpenPositionSnapshot(enabled = true) {
           currentBid: position.currentBid ?? null,
           currentAsk: position.currentAsk ?? null,
           unrealizedPL: position.unrealizedPL,
+          unrealizedNetPnlUsd: position.unrealizedNetPnlUsd ?? null,
         };
         // Exact broker IDs are the authoritative lookup. Keep the instrument
         // alias for older presentation-only callers that do not carry an ID.

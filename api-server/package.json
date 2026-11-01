@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "technical-analyzer:test": "tsx scripts/test-technical-analyzer.ts",
+    "technical-analyzer:db-test": "tsx scripts/test-technical-analyzer-db.ts",
+    "technical-analyzer:validate": "tsx scripts/validate-technical-analyzer.ts",
+    "risk-metrics:test": "tsx scripts/test-risk-net-cash.ts && tsx scripts/test-risk-budgets-estimates.ts",
     "eurusd:analyze-hold": "tsx scripts/backtest-eurusd-analyze-hold.ts",
     "eurusd:analyze-hold:test": "tsx scripts/test-eurusd-analyze-hold.ts",
     "eurusd:analyze-stop-sweep": "tsx scripts/sweep-eurusd-analyze-stops.ts",

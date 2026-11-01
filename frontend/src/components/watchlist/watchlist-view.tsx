@@ -18,8 +18,8 @@ import { INSTRUMENT_CATALOG, displayNameFor, pipSizeFor } from "@/lib/instrument
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import type { WatchlistCondition } from "@/lib/watchlist-status";
-import { createWatchlistDailyCache, WATCHLIST_DAILY_TTL_MS, type WatchlistDay } from "@/lib/watchlist-daily-cache";
-import type { CandleSeries } from "@/types/forex";
+import { WATCHLIST_DAILY_TTL_MS, type WatchlistDay } from "@/lib/watchlist-daily-cache";
+import { marketDailyCache } from "@/lib/market-daily";
 
 type Row = {
   instrument: string;
@@ -64,29 +64,8 @@ const trendsCache = createPairTrendsCache(async () => {
   if (!response.ok) throw new Error("Weekly trends unavailable");
   return response.json() as Promise<PairTrendsSnapshot>;
 }, { storage: () => window.sessionStorage });
-const dailyCache = createWatchlistDailyCache(async (instrument) => {
-  const readCandles = async (granularity: string, count: number) => {
-    const response = await fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=${granularity}&count=${count}`), {
-      credentials: "include", cache: "no-store",
-    });
-    if (!response.ok) throw new Error("Market candles are unavailable.");
-    const payload = await response.json() as { data?: CandleSeries };
-    if (!payload.data?.candles.length) throw new Error("Market candles are unavailable.");
-    return payload.data.candles;
-  };
-  const [candles, hourly] = await Promise.all([
-    readCandles("D", 2),
-    readCandles("H1", 24).catch(() => null),
-  ]);
-  const current = candles.at(-1), previous = candles.at(-2);
-  return {
-    change: current && previous && previous.close > 0 ? ((current.close - previous.close) / previous.close) * 100 : null,
-    high: current?.high ?? null,
-    low: current?.low ?? null,
-    close: current?.close ?? null,
-    spark: hourly?.map(candle => candle.close) ?? null,
-  };
-}, { storage: () => window.sessionStorage });
+// Shared with the Chart page's watchlist card.
+const dailyCache = marketDailyCache;
 
 async function loadDaily(instrumentsKey: string, setDaily: Dispatch<SetStateAction<Record<string, WatchlistDay>>>, force = false) {
   const instruments = instrumentsKey ? instrumentsKey.split(",") : [];
@@ -320,182 +299,192 @@ export function WatchlistView() {
   useForegroundRefresh(async () => {
     await Promise.all([load(), loadDaily(shownInstrumentsKey, setDaily, true)]);
   });
-  const groups: Array<{ id: PairGroup; label: string }> = [
-    { id: "all", label: "All" },
-    { id: "major", label: "Majors" },
-    { id: "yen", label: "Yen crosses" },
-    { id: "cross", label: "Other crosses" },
+  // Phones show the short label.
+  const groups: Array<{ id: PairGroup; label: string; short: string }> = [
+    { id: "all", label: "All", short: "All" },
+    { id: "major", label: "Majors", short: "Majors" },
+    { id: "yen", label: "Yen crosses", short: "Yen" },
+    { id: "cross", label: "Other crosses", short: "Crosses" },
   ];
-  const sorts: Array<{ id: PairSort; label: string }> = [
-    { id: "weekly", label: "Weekly trends" },
-    { id: "move", label: "Biggest move" },
-    { id: "name", label: "A–Z" },
+  const sorts: Array<{ id: PairSort; label: string; short: string }> = [
+    { id: "weekly", label: "Weekly trends", short: "Trend" },
+    { id: "move", label: "Biggest move", short: "Move" },
+    { id: "name", label: "A–Z", short: "A–Z" },
   ];
+
+  const sortNote = sort === "weekly" ? "Weekly + Daily aligned first" : sort === "move" ? "Largest daily move first" : "Alphabetical";
 
   return (
-    <div className="nl-mk">
-      <header className="nl-mk-head">
-        <div className="nl-mk-title">
-          <span className="nl-overline">{INSTRUMENT_CATALOG.length} pairs · live</span>
+    <div className="nl-mx">
+      <header className="nl-mx-head">
+        <div className="nl-mx-title">
+          <span className="nl-mx-over metric-number">{INSTRUMENT_CATALOG.length} pairs · live</span>
           <h1>Markets</h1>
         </div>
-        <NotificationBell compact className="nl-mk-bell" />
-        <SessionStrip />
-      </header>
-      {error ? <p className="nl-mk-error">{error}</p> : null}
-
-      {movers.length && !needle ? (
-        <section className="nl-mk-movers" aria-labelledby="nl-mk-movers-title">
-          <div className="nl-mk-sec-head">
-            <h2 id="nl-mk-movers-title">{marketOpen === null ? "Biggest session moves" : marketOpen ? "Biggest moves today" : "Biggest moves last session"}</h2>
-            {/* Daily data loads per page of rows, so say what was ranked. */}
-            <span>of {loadedDailyCount} pairs loaded</span>
-          </div>
-          <div className="nl-mk-movers-grid">
-            {movers.map((mover) => (
-              <Link
-                key={mover.instrument}
-                href={`/chart?instrument=${mover.instrument}`}
-                className="nl-mk-mover"
-                aria-label={`View ${displayNameFor(mover.instrument)} chart`}
-              >
-                <span className="nl-mk-mover-top">
-                  <b>{displayNameFor(mover.instrument)}</b>
-                  <ChangePill change={mover.change} />
-                </span>
-                <Spark points={mover.spark} up={mover.change >= 0} className="nl-mk-mover-spark" />
-                <span className="nl-mk-mover-price metric-number">{formatChartPrice(mover.price, mover.instrument)}</span>
-              </Link>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      <section className="nl-mk-all" aria-labelledby="nl-mk-all-title">
-        <div className="nl-mk-toolbar">
-          <h2 id="nl-mk-all-title">All pairs</h2>
-          <div className="nl-mk-groups" role="group" aria-label="Pair group">
-            {groups.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                aria-pressed={group === option.id}
-                className={group === option.id ? "is-active" : ""}
-                onClick={() => { setGroup(option.id); setVisibleCount(WATCHLIST_PAGE_SIZE); }}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-          <div className="nl-mk-sorts" role="group" aria-label="Sort">
-            {sorts.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                aria-pressed={sort === option.id}
-                className={`${sort === option.id ? "is-active" : ""}${option.id === "name" ? " nl-mk-sort-wide" : ""}`}
-                onClick={() => { setSort(option.id); setVisibleCount(WATCHLIST_PAGE_SIZE); }}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-          <label className="nl-mk-search">
-            <Search aria-hidden="true" />
-            <input
-              value={query}
-              onChange={(event) => { setQuery(event.target.value); setVisibleCount(WATCHLIST_PAGE_SIZE); }}
-              placeholder="Search markets"
-              aria-label="Search markets"
-            />
-          </label>
+        <div className="nl-mx-head-actions">
+          <NotificationBell compact className="nl-mx-bell" />
         </div>
+      </header>
 
-        {sort === "weekly" && trendStatus ? <p className="nl-mk-muted" role="status">{trendStatus}</p> : null}
-        {loading ? (
-          <WatchlistPairsSkeleton />
-        ) : (
-          <>
-            <div className="nl-mk-rowhead" aria-hidden="true">
-              <span>Pair</span>
-              <span className="nl-mk-hide-md">Today</span>
-              <span className="is-end">Price</span>
-              <span className="is-end nl-mk-hide-sm">Change</span>
-              <span className="nl-mk-hide-sm">Day range</span>
-              <span className="is-end nl-mk-hide-md">Spread</span>
+      <div className="nl-mx-main">
+        {error ? <p className="nl-mx-error" role="status">{error}</p> : null}
+
+        <section className="nl-mx-panel nl-mx-all" aria-labelledby="nl-mx-all-title">
+          <div className="nl-mx-ph">
+            <div className="nl-mx-ph-title"><h2 id="nl-mx-all-title">All pairs</h2><span className="nl-mx-cnt">{matched.length}</span></div>
+            <span className="nl-mx-note">{sort === "weekly" && trendStatus ? trendStatus : sortNote}</span>
+          </div>
+          <div className="nl-mx-toolbar">
+            <div className="nl-mx-seg nl-mx-groups" role="group" aria-label="Pair group">
+              {groups.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  aria-pressed={group === option.id}
+                  className={group === option.id ? "is-active" : ""}
+                  onClick={() => { setGroup(option.id); setVisibleCount(WATCHLIST_PAGE_SIZE); }}
+                >
+                  <span className="nl-mx-wide">{option.label}</span>
+                  <span className="nl-mx-narrow">{option.short}</span>
+                </button>
+              ))}
             </div>
-            <div className="nl-mk-rows">
-              {shown.map((row) => {
-                const day = daily[row.instrument];
-                // Reveal the pair and its market fields together after both
-                // daily candles and the sparkline request have settled.
-                if (!day) return <MarketRowSkeleton key={row.instrument} />;
-                const change = finiteOrNull(day?.change);
-                // Fall back to the daily close when this pair has no live quote
-                // (only the featured pairs stream), so every row shows a price.
-                const price = mid(row) ?? finiteOrNull(day?.close);
-                const high = finiteOrNull(day?.high);
-                const low = finiteOrNull(day?.low);
-                const rangeAt =
-                  price !== null && high !== null && low !== null && high > low
-                    ? Math.min(100, Math.max(0, ((price - low) / (high - low)) * 100))
-                    : null;
-                const name = displayNameFor(row.instrument);
-                const enabled = Boolean(observer?.tracked.includes(row.instrument));
-                return (
-                  <div key={row.instrument} className="nl-mk-row">
-                    <Link href={`/chart?instrument=${row.instrument}`} className="nl-mk-pair" aria-label={`View ${name} chart`}>
-                      <Coins instrument={row.instrument} />
-                      <span className="nl-mk-pair-copy">
-                        <b>{name}</b>
-                        <small>{description(row.instrument)}</small>
-                        <span className="nl-mk-pair-status">
-                          <TrendLabel instrument={row.instrument} className="nl-trend-compact" plainLanguage />
-                          {enabled ? <span className="nl-mk-observer-on">Observer on</span> : null}
+            <div className="nl-mx-toolbar-row">
+              <label className="nl-mx-search">
+                <Search aria-hidden="true" />
+                <input
+                  value={query}
+                  onChange={(event) => { setQuery(event.target.value); setVisibleCount(WATCHLIST_PAGE_SIZE); }}
+                  placeholder="Search markets"
+                  aria-label="Search markets"
+                />
+              </label>
+              <div className="nl-mx-seg nl-mx-sorts" role="group" aria-label="Sort">
+                {sorts.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    aria-pressed={sort === option.id}
+                    className={`${sort === option.id ? "is-active" : ""}${option.id === "name" ? " nl-mx-wide-only" : ""}`}
+                    onClick={() => { setSort(option.id); setVisibleCount(WATCHLIST_PAGE_SIZE); }}
+                  >
+                    <span className="nl-mx-wide">{option.label}</span>
+                    <span className="nl-mx-narrow">{option.short}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {loading ? (
+            <WatchlistPairsSkeleton />
+          ) : (
+            <>
+              <div className="nl-mx-rowhead" aria-hidden="true">
+                <span>Pair</span>
+                <span>Today</span>
+                <span className="is-end">Price</span>
+                <span className="is-end">Change</span>
+                <span>Day range</span>
+                <span className="is-end">Spread</span>
+              </div>
+              <div className="nl-mx-rows">
+                {shown.map((row) => {
+                  const day = daily[row.instrument];
+                  // Reveal the pair and its market fields together after both
+                  // daily candles and the sparkline request have settled.
+                  if (!day) return <MarketRowSkeleton key={row.instrument} />;
+                  const change = finiteOrNull(day?.change);
+                  // Fall back to the daily close when this pair has no live quote
+                  // (only the featured pairs stream), so every row shows a price.
+                  const price = mid(row) ?? finiteOrNull(day?.close);
+                  const high = finiteOrNull(day?.high);
+                  const low = finiteOrNull(day?.low);
+                  const rangeAt =
+                    price !== null && high !== null && low !== null && high > low
+                      ? Math.min(100, Math.max(0, ((price - low) / (high - low)) * 100))
+                      : null;
+                  const name = displayNameFor(row.instrument);
+                  const enabled = Boolean(observer?.tracked.includes(row.instrument));
+                  return (
+                    <Link key={row.instrument} href={`/chart?instrument=${row.instrument}`} className="nl-mx-row" aria-label={`View ${name} chart`}>
+                      <span className="nl-mx-pair">
+                        <span className="nl-mx-pair-name" title={description(row.instrument)}>
+                          <b>{name}</b>
+                        </span>
+                        <span className="nl-mx-pair-status">
+                          <TrendLabel instrument={row.instrument} className="nl-mx-trend" plainLanguage />
+                          {enabled ? <span className="nl-mx-observer">Observer on</span> : null}
                         </span>
                       </span>
-                    </Link>
-                    <Spark points={day?.spark ?? null} up={(change ?? 0) >= 0} className="nl-mk-row-spark nl-mk-hide-md" />
-                    <span className="nl-mk-price metric-number">
-                      {price === null ? "—" : formatChartPrice(price, row.instrument)}
-                      <span className="nl-mk-narrow-change">
-                        <ChangePill change={change} />
+                      <Spark points={day?.spark ?? null} up={(change ?? 0) >= 0} className="nl-mx-spark" />
+                      <span className="nl-mx-price metric-number">
+                        {price === null ? "—" : formatChartPrice(price, row.instrument)}
+                        <span className="nl-mx-narrow-change"><ChangePill change={change} /></span>
                       </span>
-                    </span>
-                    <span className="nl-mk-hide-sm nl-mk-change-cell">
-                      <ChangePill change={change} />
-                    </span>
-                    <span className="nl-mk-range nl-mk-hide-sm">
-                      {rangeAt !== null && high !== null && low !== null ? (
-                        <>
-                          <span className="nl-mk-range-bar" aria-hidden="true">
-                            <span style={{ left: `${rangeAt}%` }} />
-                          </span>
-                          <span className="nl-mk-range-ends metric-number">
-                            <span>{formatChartPrice(low, row.instrument)}</span>
-                            <span>{formatChartPrice(high, row.instrument)}</span>
-                          </span>
-                        </>
-                      ) : (
-                        <span className="nl-mk-muted">—</span>
-                      )}
-                    </span>
-                    <span className="nl-mk-spread metric-number nl-mk-hide-md">
-                      {row.spreadPips === null ? "—" : row.spreadPips.toFixed(1)}
-                    </span>
+                      <span className="nl-mx-change"><ChangePill change={change} /></span>
+                      <span className="nl-mx-range">
+                        {rangeAt !== null && high !== null && low !== null ? (
+                          <>
+                            <span className="nl-mx-range-bar" aria-hidden="true">
+                              <span style={{ left: `${rangeAt}%` }} />
+                            </span>
+                            <span className="nl-mx-range-ends metric-number">
+                              <span>{formatChartPrice(low, row.instrument)}</span>
+                              <span>{formatChartPrice(high, row.instrument)}</span>
+                            </span>
+                          </>
+                        ) : (
+                          <span className="nl-mx-muted">—</span>
+                        )}
+                      </span>
+                      <span className="nl-mx-spread metric-number">
+                        {row.spreadPips === null ? "—" : row.spreadPips.toFixed(1)}
+                      </span>
+                    </Link>
+                  );
+                })}
+                {!shown.length ? <p className="nl-mx-empty">No pairs match that search.</p> : null}
+                {hasMore ? (
+                  <div ref={loadMoreRef} className="nl-mx-more" aria-hidden>
+                    Loading more pairs as you scroll…
                   </div>
-                );
-              })}
-              {!shown.length ? <p className="nl-mk-empty">No pairs match that search.</p> : null}
-              {hasMore ? (
-                <div ref={loadMoreRef} className="nl-mk-more" aria-hidden>
-                  Loading more pairs…
-                </div>
-              ) : null}
-            </div>
-          </>
-        )}
-      </section>
+                ) : null}
+              </div>
+            </>
+          )}
+        </section>
+
+        <aside className="nl-mx-aside" aria-label="Sessions and movers">
+          <SessionStrip />
+          {movers.length && !needle ? (
+            <section className="nl-mx-panel" aria-labelledby="nl-mx-movers-title">
+              <div className="nl-mx-ph">
+                <h2 id="nl-mx-movers-title">{marketOpen === null ? "Biggest session moves" : marketOpen ? "Biggest moves today" : "Biggest moves last session"}</h2>
+                {/* Daily data loads per page of rows, so say what was ranked. */}
+                <span className="nl-mx-note">of {loadedDailyCount}<span className="nl-mx-wide"> pairs</span> loaded</span>
+              </div>
+              <div className="nl-mx-movers">
+                {movers.map((mover) => (
+                  <Link
+                    key={mover.instrument}
+                    href={`/chart?instrument=${mover.instrument}`}
+                    className="nl-mx-mover"
+                    aria-label={`View ${displayNameFor(mover.instrument)} chart`}
+                  >
+                    <span className="nl-mx-mover-top">
+                      <b>{displayNameFor(mover.instrument)}</b>
+                      <ChangePill change={mover.change} />
+                    </span>
+                    <Spark points={mover.spark} up={mover.change >= 0} className="nl-mx-mover-spark" />
+                    <span className="nl-mx-mover-price metric-number">{formatChartPrice(mover.price, mover.instrument)}</span>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          ) : null}
+        </aside>
+      </div>
     </div>
   );
 }
@@ -515,20 +504,10 @@ function groupOf(instrument: string): Exclude<PairGroup, "all"> {
   return "cross";
 }
 
-function Coins({ instrument }: { instrument: string }) {
-  const [base = "", quote = ""] = instrument.split("_");
-  return (
-    <span className="nl-mk-coins" aria-hidden="true">
-      <span>{base}</span>
-      <span>{quote}</span>
-    </span>
-  );
-}
-
 function ChangePill({ change }: { change: number | null }) {
-  if (change === null) return <span className="nl-mk-muted">—</span>;
+  if (change === null) return <span className="nl-mx-muted">—</span>;
   return (
-    <span className={`nl-mk-pill metric-number ${change >= 0 ? "is-up" : "is-down"}`}>
+    <span className={`nl-mx-pill metric-number ${change >= 0 ? "is-up" : "is-down"}`}>
       {change >= 0 ? "+" : "−"}
       {Math.abs(change).toFixed(2)}%
     </span>

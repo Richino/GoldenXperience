@@ -508,9 +508,9 @@ body:has(.login-page) {
   overflow: hidden;
 }
 
-/* Login — a focused entry point that shares the workspace's quiet, technical feel. */
+/* Login — Night Ledger: a flat panel on the page ground, the sidebar's GX tile,
+   a display-face title and the lime fill for the one primary action. */
 .login-page {
-  --login-field-fill: color-mix(in srgb, var(--background) 36%, var(--surface));
   position: relative;
   display: grid;
   place-items: center;
@@ -518,109 +518,106 @@ body:has(.login-page) {
   max-height: 100dvh;
   overflow: hidden;
   background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-shell);
 }
 
-@media (max-height: 520px) {
+@media (max-height: 560px) {
   .login-page {
     overflow-y: auto;
   }
 }
 
 .login-shell {
-  width: min(100%, 29rem);
+  width: min(100%, 26rem);
+  animation: login-in 320ms ease both;
 }
 
-.login-brand {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 0 0 1.25rem;
-  padding: 0 0.25rem;
+@keyframes login-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-shell { animation-duration: 1ms; }
 }
 
 .login-card {
   border: 1px solid var(--border);
-  border-radius: 1.25rem;
+  border-radius: 8px;
   background: var(--surface);
-  padding: clamp(1.5rem, 4vw, 2rem);
-  box-shadow: none;
+  padding: clamp(20px, 5vw, 28px);
 }
 
-.login-card-heading {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.875rem;
-}
-
-.login-security-icon {
-  display: grid;
-  flex: none;
-  width: 2.5rem;
-  height: 2.5rem;
-  place-items: center;
-  border-radius: 0.875rem;
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-.login-card-heading .text-overline {
-  color: var(--accent);
+.login-overline {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1.4;
+  text-transform: uppercase;
 }
 
 .login-card-heading h1 {
-  margin-top: 0.25rem;
-  font-size: 1.5rem;
-  font-weight: 700;
-  letter-spacing: -0.045em;
-  line-height: 1.1;
+  margin: 10px 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(30px, 8vw, 36px);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
 }
 
-.login-card-heading p:last-child {
-  margin-top: 0.375rem;
-  color: var(--muted);
-  font-size: 0.8125rem;
+.login-card-heading h1 span {
+  color: var(--accent);
 }
 
 .login-fields {
   display: grid;
-  gap: 1rem;
-  margin-top: 1.75rem;
+  gap: 14px;
+  margin-top: 24px;
 }
 
 .login-field {
   display: grid;
-  gap: 0.5rem;
-  color: var(--muted-strong);
-  font-size: 0.75rem;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 11px;
   font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .login-input-wrap {
   display: flex;
   align-items: center;
-  gap: 0.625rem;
-  height: 2.875rem;
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
-  background: var(--login-field-fill);
-  padding: 0 0.75rem;
+  gap: 10px;
+  height: 46px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--background);
+  padding: 0 12px;
   color: var(--muted);
-  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+  letter-spacing: 0;
+  text-transform: none;
+  transition: border-color 160ms ease, color 160ms ease;
 }
 
 .login-input-wrap:focus-within {
-  border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  border-color: var(--accent);
   color: var(--accent);
 }
 
 .login-input-wrap input {
   min-width: 0;
   flex: 1;
+  border: 0;
   outline: none;
   background: transparent;
   color: var(--foreground);
-  font-size: 0.875rem;
+  font-family: var(--font-shell);
+  font-size: 14px;
+  font-weight: 400;
 }
 
 .login-input-wrap input::placeholder {
@@ -634,81 +631,60 @@ body:has(.login-page) {
 .login-input-wrap input:-webkit-autofill:focus {
   -webkit-text-fill-color: var(--foreground);
   caret-color: var(--foreground);
-  box-shadow: 0 0 0 100px var(--login-field-fill) inset;
+  box-shadow: 0 0 0 100px var(--background) inset;
   transition: background-color 99999s ease-out 0s;
-}
-
-.login-input-wrap:focus-within input:-webkit-autofill {
-  box-shadow: 0 0 0 100px var(--login-field-fill) inset;
 }
 
 .login-password-toggle {
   display: grid;
-  width: 1.75rem;
-  height: 1.75rem;
+  width: 28px;
+  height: 28px;
   flex: none;
   place-items: center;
-  border-radius: 0.5rem;
+  border-radius: 4px;
   color: var(--muted);
 }
 
 .login-password-toggle:hover {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--interactive-hover);
+  color: var(--foreground);
+}
+
+.login-password-toggle:focus-visible,
+.login-submit:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .login-error {
-  margin-top: 1rem;
+  margin: 14px 0 0;
   border: 1px solid color-mix(in srgb, var(--danger) 32%, var(--border));
-  border-radius: 0.75rem;
+  border-radius: 6px;
   background: var(--danger-soft);
-  padding: 0.75rem;
+  padding: 10px 12px;
   color: var(--danger);
-  font-size: 0.8125rem;
+  font-size: 13px;
 }
 
 .login-submit {
   width: 100%;
-  min-height: 2.875rem;
-  margin-top: 1.5rem;
-  border-radius: 0.75rem;
-  background: var(--accent);
-  color: #042b1f;
-  font-size: 0.875rem;
-  font-weight: 700;
-  box-shadow: none;
+  min-height: 46px;
+  margin-top: 22px;
+  border-radius: 6px;
+  background: var(--accent-fill);
+  color: var(--on-accent);
+  font-size: 14px;
+  font-weight: 600;
   transition: background-color 160ms ease, opacity 160ms ease;
 }
 
 .login-submit:hover:not(:disabled) {
-  background: var(--accent-bright);
+  background: color-mix(in srgb, var(--accent-fill) 88%, white);
 }
 
 .login-submit:disabled {
   cursor: wait;
-  background: color-mix(in srgb, var(--accent) 68%, var(--surface-raised));
-  opacity: 0.82;
-}
-
-.dark .login-card {
-  border-color: var(--border-strong);
-  background: var(--surface);
-}
-
-.dark .login-input-wrap {
-  --login-field-fill: color-mix(in srgb, var(--background) 48%, var(--surface));
-  border-color: var(--border-strong);
-  background: var(--login-field-fill);
-}
-
-.dark .login-input-wrap:focus-within {
-  background: var(--login-field-fill);
-}
-
-@media (max-width: 420px) {
-  .login-brand {
-    align-items: flex-start;
-  }
+  opacity: 0.7;
 }
 
 .icon-tile {

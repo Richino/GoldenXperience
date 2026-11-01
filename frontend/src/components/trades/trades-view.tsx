@@ -1,4 +1,5 @@
 "use client";
+import { aggregateR, formatRMultiple, formatTradeR, riskMetrics, R_EXPLANATION } from "@/lib/risk-metrics";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
@@ -71,21 +72,13 @@ function fmtMoney(value: number | null | undefined, withSign = false) {
 }
 
 function fmtR(value: number | null | undefined) {
-  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
-  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}R`;
+  return formatRMultiple(value);
 }
 
 /** R:R as `1:2` from the stop and target the trade holds now. */
 function rrLabel(trade: JournalTrade) {
-  const { sl, tp } = currentTradeLevels(trade);
-  if (sl === null || tp === null) return "—";
-  // No ratio once the stop sits past entry: nothing is at risk to compare to.
-  const risk = trade.direction === "long" ? trade.entry - sl : sl - trade.entry;
-  const reward = Math.abs(tp - trade.entry);
-  if (!(risk > 0) || !Number.isFinite(risk) || !Number.isFinite(reward)) return "—";
-  const ratio = reward / risk;
-  const rounded = Math.round(ratio * 10) / 10;
-  return `1:${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)}`;
+  const ratio = riskMetrics({ plan: trade.initialRiskPlan, positionKey: trade.riskPositionKey ?? trade.id, openedAt: trade.openedAt }).plannedRewardRiskRatio;
+  return ratio === null ? "N/A" : `1:${ratio.toFixed(2)}`;
 }
 
 /** Whole-minute duration between two instants, e.g. `3h 18m` / `12m`. */
@@ -116,9 +109,7 @@ function fillForTrade(trade: JournalTrade, fills: Record<string, OpenPositionFil
   // that predate persisted broker ids.
   return trade.brokerTradeId
     ? fills[`broker:${trade.brokerTradeId}`]
-    : trade.instrument
-      ? fills[trade.instrument]
-      : undefined;
+    : undefined;
 }
 
 /** Live open-trade figures: current price, Open R, unrealised P&L, level fill. */
@@ -143,7 +134,7 @@ function liveMetrics(trade: JournalTrade, quote: Quote, quotes: Quotes, fill: Op
   const money = fill?.unrealizedPL ?? trade.paperPl ?? progress?.money ?? null;
   return {
     current: current === null || !Number.isFinite(current) ? null : current,
-    openR: progress?.unrealizedR ?? null,
+    openR: riskMetrics({ plan: trade.initialRiskPlan, positionKey: trade.riskPositionKey ?? trade.id, openedAt: trade.openedAt, unrealizedNetPnlUsd: fill?.unrealizedNetPnlUsd }).unrealizedRMultiple,
     money,
     lots: lotsFromFill(fill),
   };
@@ -197,35 +188,16 @@ function exitLabel(trade: JournalTrade) {
 
 function SideChip({ direction }: { direction: "long" | "short" }) {
   return (
-    <span className={`nl-tr-side ${direction === "long" ? "is-up" : "is-down"}`}>
+    <span className={`nl-tx-side ${direction === "long" ? "is-up" : "is-down"}`}>
       {direction === "long" ? "Long" : "Short"}
     </span>
   );
 }
 
-function RPill({ value }: { value: number | null | undefined }) {
-  return <span className={`nl-tr-rpill metric-number ${toneOf(value)}`}>{fmtR(value)}</span>;
-}
-
-/** Bars for recent closed trades in R, oldest to newest, from a midline. */
-function RBars({ results, compact = false }: { results: number[]; compact?: boolean }) {
-  const wins = results.filter((r) => r > 0).length;
-  const losses = results.filter((r) => r < 0).length;
-  return (
-    <span
-      className={`nl-tr-bars${compact ? " is-compact" : ""}`}
-      role="img"
-      aria-label={`Last ${results.length} closed trades in R: ${wins} wins, ${losses} losses`}
-    >
-      {results.map((r, index) => (
-        <span
-          key={index}
-          className={r >= 0 ? "is-win" : "is-loss"}
-          style={{ "--r": Math.min(Math.abs(r), 2.2) } as React.CSSProperties}
-        />
-      ))}
-    </span>
-  );
+function RPill({ value, initialRiskRecorded = false, trade }: { value: number | null | undefined; initialRiskRecorded?: boolean; trade?: JournalTrade }) {
+  const estimated = trade?.riskDataQuality === "estimated" && trade.estimatedRMultiple != null;
+  const title = estimated ? `Estimated R. ${trade.estimatedRBasis} ${trade.estimatedRPnlBasis}. Excluded from verified-R statistics.` : R_EXPLANATION;
+  return <span title={title} data-risk-unavailable={value == null && !estimated || undefined} data-risk-estimated={estimated || undefined} className={`nl-tx-r metric-number ${toneOf(estimated ? trade.estimatedRMultiple : value)}`}>{trade ? formatTradeR(trade) : formatRMultiple(value, initialRiskRecorded ? "N/A — net P/L not verified" : undefined)}</span>;
 }
 
 /** Cumulative realized dollars for the headline trades, oldest to newest. */
@@ -288,31 +260,20 @@ function RealizedMoneyLine({ results }: { results: number[] }) {
 function WinLossBar({ totals }: { totals: WonLost | undefined }) {
   if (!totals) return null;
   const { won, lost, wins: winCount, losses: lossCount } = totals;
-  const total = won + lost;
-  if (!total) return null;
-  const winShare = (won / total) * 100;
-
+  if (!(won + lost)) return null;
   return (
-    <div className="nl-tr-wl">
-      <div className="nl-tr-wl-head">
-        <span>Won vs lost · all {winCount + lossCount} closed</span>
-        <span className="metric-number">{Math.round(winShare)}% won</span>
-      </div>
+    <div className="nl-tx-wl">
       <div
-        className="nl-tr-wl-bar"
+        className="nl-tx-wl-bar"
         role="img"
         aria-label={`Won ${fmtMoney(won)} on ${winCount} trades, lost ${fmtMoney(lost)} on ${lossCount} trades`}
       >
         {won ? <span className="is-win" style={{ flexGrow: won }} /> : null}
         {lost ? <span className="is-loss" style={{ flexGrow: lost }} /> : null}
       </div>
-      <div className="nl-tr-wl-legend">
-        <span className="metric-number is-up">
-          {fmtMoney(won)} <small>· {winCount} wins</small>
-        </span>
-        <span className="metric-number is-down">
-          {fmtMoney(lost)} <small>· {lossCount} losses</small>
-        </span>
+      <div className="nl-tx-wl-legend metric-number">
+        <span className="is-up">Won {fmtMoney(won)} · {winCount} {winCount === 1 ? "trade" : "trades"}</span>
+        <span className="is-down">Lost {fmtMoney(lost)} · {lossCount} {lossCount === 1 ? "trade" : "trades"}</span>
       </div>
     </div>
   );
@@ -329,7 +290,6 @@ function TradesSummaryRow({
   winRate,
   avgR,
   recentClosed,
-  recentR,
   wonLost,
 }: {
   tab: Tab;
@@ -343,14 +303,20 @@ function TradesSummaryRow({
   avgR: number | null;
   /** Loaded closed trades, newest first: the page on screen, not all history. */
   recentClosed: JournalTrade[];
-  recentR: number[];
   wonLost: WonLost | undefined;
 }) {
   const withPl = recentClosed.filter((t) => typeof t.paperPl === "number" && Number.isFinite(t.paperPl));
   const realizedResults = withPl.map((t) => t.paperPl as number).reverse();
   const net = withPl.reduce((sum, t) => sum + (t.paperPl ?? 0), 0);
-  const withR = recentClosed.filter((t) => t.resultR !== null && Number.isFinite(t.resultR));
-  const netR = withR.reduce((sum, t) => sum + (t.resultR ?? 0), 0);
+  // Coverage belongs to the same loaded trades as the dollar total. Historical
+  // estimates are available results, but never enter verified-R statistics.
+  const withR = withPl.filter((t) => t.riskDataQuality === "verified" && t.resultR !== null && Number.isFinite(t.resultR));
+  const withEstimatedR = withPl.filter((t) => t.riskDataQuality === "estimated" && typeof t.estimatedRMultiple === "number" && Number.isFinite(t.estimatedRMultiple));
+  const unavailableR = withPl.length - withR.length - withEstimatedR.length;
+  const availableR = withR.length + withEstimatedR.length;
+  // Verified R plus historical estimates, summed over the same loaded trades.
+  const totalR = withR.reduce((sum, t) => sum + (t.resultR as number), 0) +
+    withEstimatedR.reduce((sum, t) => sum + (t.estimatedRMultiple as number), 0);
   const hero =
     tab === "open"
       ? {
@@ -360,50 +326,45 @@ function TradesSummaryRow({
         }
       : {
           // Only the loaded page is known here, so the label says how many.
-          label: `Net realized · last ${withPl.length} closed`,
+          label: `Reported realized · last ${withPl.length} closed`,
           value: withPl.length ? net : null,
-          sub: withR.length ? `${fmtR(netR)} across ${withR.length} trades` : "No closed trades yet",
+          sub: withPl.length
+            ? availableR ? `${fmtR(totalR)} total over ${availableR} ${availableR === 1 ? "trade" : "trades"}` : "No R recorded on these trades"
+            : "No closed trades with reported P/L yet",
         };
 
   return (
-    <section className="nl-tr-summary" aria-label="Summary">
-      <div className="nl-tr-hero">
-        <span className="nl-tr-hero-label">{hero.label}</span>
-        <span className={`nl-tr-hero-value ${toneOf(hero.value)}`}>{fmtMoney(hero.value, true) ?? "—"}</span>
-        <span className="nl-tr-hero-sub metric-number">{hero.sub}</span>
-        {tab !== "open" && realizedResults.length ? (
-          <span className="nl-tr-hero-bars">
-            <RealizedMoneyLine results={realizedResults} />
-          </span>
-        ) : null}
+    <section className="nl-tx-panel nl-tx-summary" aria-label="Summary">
+      <div className="nl-tx-hero">
+        <span className="nl-tx-lbl">{hero.label}</span>
+        <span className={`nl-tx-hero-value metric-number ${toneOf(hero.value)}`}>{fmtMoney(hero.value, true) ?? "—"}</span>
+        <span className="nl-tx-hero-sub metric-number" title={tab !== "open" ? `${withR.length} verified · ${withEstimatedR.length} estimated · ${unavailableR} unavailable. Historical sizing estimates are excluded from verified-R statistics.` : undefined}>{hero.sub}</span>
       </div>
-      {recentR.length ? (
-        <div className="nl-tr-barcard">
-          <div className="nl-tr-barcard-head">
-            <span>R per closed trade, oldest to newest · last {recentR.length}</span>
-            <span className={`metric-number ${toneOf(recentR.reduce((a, b) => a + b, 0))}`}>
-              {fmtR(recentR.reduce((a, b) => a + b, 0))}
-            </span>
+      {realizedResults.length ? (
+        <div className="nl-tx-curve">
+          <div className="nl-tx-curve-head">
+            <span className="nl-tx-lbl">Cumulative realized · last {realizedResults.length} closed</span>
+            <span className={`metric-number ${toneOf(net)}`}>{fmtMoney(net, true)}</span>
           </div>
-          <RBars results={recentR} />
+          <RealizedMoneyLine results={realizedResults} />
         </div>
       ) : null}
-      <dl className="nl-tr-stats">
-        <div>
-          <dt>Wins</dt>
+      <dl className="nl-tx-stats">
+        <div className="nl-tx-tile">
+          <dt className="nl-tx-lbl">Wins</dt>
           <dd className="metric-number is-up">{wins}</dd>
         </div>
-        <div>
-          <dt>Losses</dt>
+        <div className="nl-tx-tile">
+          <dt className="nl-tx-lbl">Losses</dt>
           <dd className="metric-number is-down">{losses}</dd>
         </div>
-        <div>
-          <dt>Win rate</dt>
+        <div className="nl-tx-tile">
+          <dt className="nl-tx-lbl"><span className="nl-tx-wide">Win rate</span><span className="nl-tx-narrow">Win %</span></dt>
           <dd className="metric-number">{winRate === null ? "—" : `${Math.round(winRate * 100)}%`}</dd>
         </div>
-        <div>
-          <dt>{avgR === null ? "Closed" : "Avg R"}</dt>
-          <dd className="metric-number">{avgR === null ? closedCount : fmtR(avgR)}</dd>
+        <div className="nl-tx-tile">
+          <dt className="nl-tx-lbl">{avgR === null ? "Closed" : "Avg R"}</dt>
+          <dd className={`metric-number ${avgR === null ? "" : toneOf(avgR)}`}>{avgR === null ? closedCount : fmtR(avgR)}</dd>
         </div>
       </dl>
       <WinLossBar totals={wonLost} />
@@ -411,41 +372,43 @@ function TradesSummaryRow({
   );
 }
 
-function TradeRow({
-  trade,
-  live,
-  selected,
-  onSelect,
-}: {
-  trade: JournalTrade;
-  live: Live | null;
-  selected: boolean;
-  onSelect: () => void;
-}) {
+/**
+ * Desktop row: the trade's levels, result and timing in one line, so there is
+ * no detail panel to open; clicking it opens the trade on the chart. The second
+ * line under the pair says how it ended (and which strategy placed it).
+ */
+function TradeRow({ trade, live }: { trade: JournalTrade; live: Live | null }) {
   const isOpen = trade.status === "open";
-  const r = isOpen ? live?.openR ?? null : trade.resultR;
+  const r = isOpen ? live?.openR ?? null : trade.riskDataQuality === "verified" ? trade.resultR : null;
   const money = isOpen ? live?.money ?? null : trade.paperPl ?? null;
-  return (
-    <button
-      type="button"
-      className={`nl-tr-row${selected ? " is-selected" : ""}`}
-      aria-pressed={selected}
-      onClick={onSelect}
-    >
-      <span className="nl-tr-pair">
-        <b>{trade.pair}</b>
-        <SideChip direction={trade.direction} />
+  const { sl, tp } = currentTradeLevels(trade);
+  const href = chartHrefForTrade(trade);
+  // A plain "Closed" only repeats the tab, so the line names a real ending or the strategy.
+  const ending = isOpen ? null : exitLabel(trade);
+  const note = [strategyLabel(trade), ending === "Closed" ? null : ending].filter(Boolean).join(" · ");
+  const cells = (
+    <>
+      <span className="nl-tx-pair-cell">
+        <span className="nl-tx-pair">
+          <b>{trade.pair}</b>
+          <SideChip direction={trade.direction} />
+        </span>
+        {note ? <span className="nl-tx-row-note">{note}</span> : null}
       </span>
-      <span className="nl-tr-muted nl-tr-hide-md">{strategyLabel(trade) ?? (trade.origin === "manual" ? "Manual" : "—")}</span>
-      <span className="metric-number nl-tr-hide-sm">{fmtPrice(trade.entry, trade.pair)}</span>
-      <span className="metric-number nl-tr-hide-sm">{fmtPrice(isOpen ? live?.current ?? null : trade.exit, trade.pair)}</span>
-      <RPill value={r} />
-      <span className={`nl-tr-money metric-number ${toneOf(money)}`}>{fmtMoney(money, true) ?? "—"}</span>
-      <span className="nl-tr-muted metric-number nl-tr-hide-md">
-        {durationLabel(trade.openedAt, isOpen ? null : trade.closedAt)}
-      </span>
-      <span className="nl-tr-muted nl-tr-hide-md nl-tr-hide-sm">{dayAndTime(isOpen ? trade.openedAt : trade.closedAt)}</span>
-    </button>
+      <span className="metric-number is-end">{fmtPrice(trade.entry, trade.pair)}</span>
+      <span className="metric-number is-end">{fmtPrice(isOpen ? live?.current ?? null : trade.exit, trade.pair)}</span>
+      <span className={`metric-number is-end ${sl === null ? "nl-tx-muted" : "is-down"}`}>{sl === null ? "—" : fmtPrice(sl, trade.pair)}</span>
+      <span className={`metric-number is-end ${tp === null ? "nl-tx-muted" : "is-up"}`}>{tp === null ? "—" : fmtPrice(tp, trade.pair)}</span>
+      <span className="is-end"><RPill value={r} initialRiskRecorded={trade.initialPlannedRiskUsd != null} trade={isOpen ? undefined : trade} /></span>
+      <span className={`nl-tx-money metric-number is-end ${toneOf(money)}`}>{fmtMoney(money, true) ?? "—"}</span>
+      <span className="nl-tx-muted metric-number is-end">{durationLabel(trade.openedAt, isOpen ? null : trade.closedAt)}</span>
+      <span className="nl-tx-muted metric-number is-end">{dayAndTime(isOpen ? trade.openedAt : trade.closedAt)}</span>
+    </>
+  );
+  return href ? (
+    <Link href={href} className="nl-tx-trow" title={`Open ${trade.pair} on the chart`}>{cells}</Link>
+  ) : (
+    <div className="nl-tx-trow is-static" title="No chart for this trade">{cells}</div>
   );
 }
 
@@ -459,22 +422,22 @@ function TradeCard({
   onSelect: () => void;
 }) {
   const isOpen = trade.status === "open";
-  const r = isOpen ? live?.openR ?? null : trade.resultR;
+  const r = isOpen ? live?.openR ?? null : trade.riskDataQuality === "verified" ? trade.resultR : null;
   const money = isOpen ? live?.money ?? null : trade.paperPl ?? null;
   const strategy = strategyLabel(trade) ?? (trade.origin === "manual" ? "Manual" : null);
-  const when = isOpen ? `opened ${dayAndTime(trade.openedAt)}` : dayAndTime(trade.closedAt);
+  const when = isOpen ? `opened ${formatClockTime(trade.openedAt)}` : dayAndTime(trade.closedAt);
   return (
-    <button type="button" className="nl-tr-card" onClick={onSelect} aria-label={`${trade.pair} trade details`}>
-      <span className="nl-tr-card-top">
-        <span className="nl-tr-pair">
+    <button type="button" className="nl-tx-card" onClick={onSelect} aria-label={`${trade.pair} trade details`}>
+      <span className="nl-tx-card-line">
+        <span className="nl-tx-pair">
           <b>{trade.pair}</b>
           <SideChip direction={trade.direction} />
         </span>
-        <span className={`nl-tr-money metric-number ${toneOf(money)}`}>{fmtMoney(money, true) ?? "—"}</span>
+        <span className={`nl-tx-money metric-number ${toneOf(money)}`}>{fmtMoney(money, true) ?? "—"}</span>
       </span>
-      <span className="nl-tr-card-meta">
-        <span>{strategy ? `${strategy} · ${when}` : when}</span>
-        <RPill value={r} />
+      <span className="nl-tx-card-line">
+        <span className="nl-tx-muted">{strategy ? `${strategy} · ` : ""}<span className="metric-number">{when}</span></span>
+        <RPill value={r} initialRiskRecorded={trade.initialPlannedRiskUsd != null} trade={isOpen ? undefined : trade} />
       </span>
     </button>
   );
@@ -493,7 +456,7 @@ function TradeDetail({
 }) {
   const isOpen = trade.status === "open";
   const money = isOpen ? live?.money ?? null : trade.paperPl ?? null;
-  const r = isOpen ? live?.openR ?? null : trade.resultR;
+  const r = isOpen ? live?.openR ?? null : trade.riskDataQuality === "verified" ? trade.resultR : null;
   const shownExit = isOpen ? live?.current ?? null : trade.exit;
   const lots = isOpen ? live?.lots ?? null : null;
   const href = chartHrefForTrade(trade);
@@ -505,59 +468,61 @@ function TradeDetail({
     value === null || value === undefined || !span || sl === null ? null : Math.min(100, Math.max(0, ((value - sl) / span) * 100));
   const entryAt = at(trade.entry);
   const exitAt = at(shownExit);
-  const tone = toneOf(r);
+  const tone = toneOf(r ?? money);
   const badge = isOpen ? "Open position" : exitLabel(trade);
+  const plannedRr = rrLabel(trade);
 
   return (
-    <div className={`nl-tr-detail is-${variant}`}>
-      <div className="nl-tr-detail-head">
-        <span className="nl-tr-detail-ident">
+    <div className={`nl-tx-detail is-${variant}`}>
+      <div className="nl-tx-detail-head">
+        <span className="nl-tx-pair is-large">
           <b>{trade.pair}</b>
           <SideChip direction={trade.direction} />
         </span>
         {variant === "sheet" && onClose ? (
-          <button type="button" className="nl-tr-close" onClick={onClose} aria-label="Close trade details">
+          <button type="button" className="nl-tx-close" onClick={onClose} aria-label="Close trade details">
             <X aria-hidden="true" />
           </button>
         ) : (
-          <span className="nl-tr-badge">{badge}</span>
+          <span className="nl-tx-tag">{badge}</span>
         )}
       </div>
 
-      <div className={`nl-tr-result ${tone}`}>
+      <div className={`nl-tx-result ${tone}`}>
         {variant === "sheet" ? (
-          <span className="nl-tr-result-label">
-            {badge}
-            {isOpen ? "" : ` · held ${durationLabel(trade.openedAt, trade.closedAt)}`}
+          <span className="nl-tx-lbl">
+            {badge} · held {durationLabel(trade.openedAt, isOpen ? null : trade.closedAt)}
           </span>
         ) : null}
-        <span className="nl-tr-result-row">
-          <span className="nl-tr-result-money">{fmtMoney(money, true) ?? "—"}</span>
-          <span className="nl-tr-result-r metric-number">{fmtR(r)}</span>
+        <span className="nl-tx-result-row">
+          <span className="nl-tx-result-money metric-number">{fmtMoney(money, true) ?? "—"}</span>
+          <span className="nl-tx-result-r metric-number" title={trade.riskDataQuality === "estimated" ? "Estimated R based on historical sizing records." : R_EXPLANATION}>{isOpen ? fmtR(r) : formatTradeR(trade)}</span>
         </span>
       </div>
 
-      <div className="nl-tr-track-wrap">
-        <span className="nl-tr-track" aria-hidden="true">
+      <div className="nl-tx-track-wrap">
+        <span className="nl-tx-track" aria-hidden="true">
           {entryAt !== null && exitAt !== null ? (
             <span
-              className={`nl-tr-track-fill ${tone}`}
+              className={`nl-tx-track-fill ${tone}`}
               style={{ left: `${Math.min(entryAt, exitAt)}%`, width: `${Math.abs(exitAt - entryAt)}%` }}
             />
           ) : null}
-          {entryAt !== null ? <span className="nl-tr-track-entry" style={{ left: `${entryAt}%` }} /> : null}
-          {exitAt !== null ? <span className={`nl-tr-track-mark ${tone}`} style={{ left: `${exitAt}%` }} /> : null}
+          {entryAt !== null ? <span className="nl-tx-track-entry" style={{ left: `${entryAt}%` }} /> : null}
+          {exitAt !== null ? <span className={`nl-tx-track-mark ${tone}`} style={{ left: `${exitAt}%` }} /> : null}
         </span>
-        <span className="nl-tr-track-labels metric-number">
+        <span className="nl-tx-track-labels metric-number">
           <span className="is-down">SL {sl === null ? "none" : fmtPrice(sl, trade.pair)}</span>
-          <span className="nl-tr-muted">
+          <span className="nl-tx-muted">
             {isOpen ? "now" : "exit"} {fmtPrice(shownExit, trade.pair)}
           </span>
           <span className="is-up">TP {tp === null ? "none" : fmtPrice(tp, trade.pair)}</span>
         </span>
       </div>
 
-      <dl className="nl-tr-grid">
+      {/* Stop and target already label the line above, so the tiles carry
+          only what it does not, and skip anything with no value. */}
+      <dl className="nl-tx-grid">
         <div>
           <dt>Entry</dt>
           <dd className="metric-number">{fmtPrice(trade.entry, trade.pair)}</dd>
@@ -567,22 +532,6 @@ function TradeDetail({
           <dd className="metric-number">{fmtPrice(shownExit, trade.pair)}</dd>
         </div>
         <div>
-          <dt>Stop loss</dt>
-          <dd className={`metric-number ${sl === null ? "nl-tr-muted" : "is-down"}`}>{sl === null ? "None" : fmtPrice(sl, trade.pair)}</dd>
-        </div>
-        <div>
-          <dt>Take profit</dt>
-          <dd className={`metric-number ${tp === null ? "nl-tr-muted" : "is-up"}`}>{tp === null ? "None" : fmtPrice(tp, trade.pair)}</dd>
-        </div>
-        <div>
-          <dt>R:R</dt>
-          <dd className="metric-number">{rrLabel(trade)}</dd>
-        </div>
-        <div>
-          <dt>Size</dt>
-          <dd className="metric-number">{lots === null ? "—" : `${lots.toFixed(2)} lot`}</dd>
-        </div>
-        <div>
           <dt>Opened</dt>
           <dd className="metric-number">{dayAndTime(trade.openedAt)}</dd>
         </div>
@@ -590,27 +539,39 @@ function TradeDetail({
           <dt>{isOpen ? "Held" : "Closed"}</dt>
           <dd className="metric-number">{isOpen ? durationLabel(trade.openedAt, null) : dayAndTime(trade.closedAt)}</dd>
         </div>
-        {trade.brokerTradeId ? (
-          <div className="is-wide">
-            <dt>OANDA entry spread</dt>
-            <dd className="metric-number">
-              {trade.oandaEntryHalfSpreadCost !== null && trade.oandaEntryHalfSpreadCost !== undefined
-                ? fmtMoney(-Math.abs(trade.oandaEntryHalfSpreadCost))
-                : "Waiting for OANDA"}
-            </dd>
+        {lots !== null ? (
+          <div>
+            <dt>Size</dt>
+            <dd className="metric-number">{lots.toFixed(2)} lot</dd>
+          </div>
+        ) : null}
+        {plannedRr !== "N/A" ? (
+          <div>
+            <dt>Planned net R:R</dt>
+            <dd className="metric-number">{plannedRr}</dd>
+          </div>
+        ) : null}
+        {trade.initialPlannedRiskUsd != null ? (
+          <div>
+            <dt>Initial risk</dt>
+            <dd className="metric-number">{fmtMoney(trade.initialPlannedRiskUsd)}</dd>
+          </div>
+        ) : null}
+        {trade.brokerTradeId && trade.oandaEntryHalfSpreadCost != null ? (
+          <div>
+            <dt>Entry spread</dt>
+            <dd className="metric-number is-down">{fmtMoney(-Math.abs(trade.oandaEntryHalfSpreadCost))}</dd>
           </div>
         ) : null}
       </dl>
 
-      <div className="nl-tr-actions">
-        {href ? (
-          <Link href={href} className="nl-tr-primary">
-            Open chart <ArrowRight aria-hidden="true" />
-          </Link>
-        ) : (
-          <span className="nl-tr-primary is-disabled">No chart for this trade</span>
-        )}
-      </div>
+      {href ? (
+        <Link href={href} className="nl-tx-primary">
+          Open chart <ArrowRight aria-hidden="true" />
+        </Link>
+      ) : (
+        <span className="nl-tx-primary is-disabled">No chart for this trade</span>
+      )}
     </div>
   );
 }
@@ -628,7 +589,7 @@ function TradeDetailSheet({
   const { setSheet, setBackdrop, handlers, requestClose } = useDragToDismiss({
     open: trade !== null,
     onDismiss: onClose,
-    handleSelector: ".nl-tr-grip, .nl-tr-detail-head",
+    handleSelector: ".nl-tr-grip, .nl-tx-detail-head",
   });
   // The page behind stays still while the drawer is open.
   usePageScrollLock(trade !== null);
@@ -685,6 +646,7 @@ export function TradesView() {
   const [ordersError, setOrdersError] = useState(false);
   const [ordersUpdatedAt, setOrdersUpdatedAt] = useState<string | null>(null);
   const ordersRequestRef = useRef(false);
+  const initialTabResolvedRef = useRef(false);
 
   const liveQuotes = useLiveQuotes();
   const openInstruments = useMemo(
@@ -716,6 +678,14 @@ export function TradesView() {
       setEntryOrders(payload.pendingEntries);
       setOrdersUpdatedAt(payload.checkedAt ?? new Date().toISOString());
       setOrdersError(false);
+      // Choose the default only from a complete successful snapshot, once per
+      // visit. Later refreshes must not override an explicit tab selection.
+      if (!initialTabResolvedRef.current && Array.isArray(payload.summary.openTrades)) {
+        initialTabResolvedRef.current = true;
+        const hasOrders = payload.summary.openTrades.length > 0
+          || activeEntryOrders(payload.pendingEntries, payload.summary.openTrades).length > 0;
+        setTab(hasOrders ? "open" : "closed");
+      }
     } catch {
       setOrdersError(true);
     } finally {
@@ -783,22 +753,13 @@ export function TradesView() {
   const pendingOrders = useMemo(() => activeEntryOrders(entryOrders, openTrades), [entryOrders, openTrades]);
   const visiblePending = useMemo(() => pendingOrders.filter(e => orderMatchesPair(e.instrument, query)), [pendingOrders, query]);
   const closedTrades = useMemo(() => records.filter((t) => t.status === "closed"), [records]);
-  // Newest-first from the API; the strip reads left to right, oldest to newest.
-  const recentR = useMemo(
-    () =>
-      closedTrades
-        .slice(0, 20)
-        .map((t) => t.resultR)
-        .filter((r): r is number => r !== null && Number.isFinite(r))
-        .reverse(),
-    [closedTrades],
-  );
 
-  // Orders is the default even when only pending entries exist. Explicit
-  // history links (such as Home's ?tab=closed) still choose their own view.
+  // Explicit links win over the snapshot-based default, including a request
+  // for Orders when there is no active exposure.
   useEffect(() => {
     const requested = new URLSearchParams(window.location.search).get("tab");
     if (requested !== "open" && requested !== "orders" && requested !== "closed" && requested !== "all") return;
+    initialTabResolvedRef.current = true;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setTab(requested === "orders" ? "open" : requested);
   }, []);
@@ -809,10 +770,9 @@ export function TradesView() {
 
   // Live open aggregates for the summary strip.
   const openAgg = useMemo(() => {
-    let openR = 0;
+    const riskComponents: Array<{ key: string; netPnlUsd: number | null; initialRiskUsd: number | null }> = [];
     let pnl = 0;
     let risk = 0;
-    let rSeen = false;
     let pnlSeen = false;
     for (const t of openTrades) {
       const m = liveMetrics(
@@ -821,30 +781,27 @@ export function TradesView() {
         quotes,
         fillForTrade(t, fills),
       );
-      if (m.openR !== null) {
-        openR += m.openR;
-        rSeen = true;
-      }
+      riskComponents.push({ key: t.riskPositionKey ?? t.id, netPnlUsd: fillForTrade(t, fills)?.unrealizedNetPnlUsd ?? null, initialRiskUsd: t.initialPlannedRiskUsd ?? null });
       if (m.money !== null) {
         pnl += m.money;
         pnlSeen = true;
       }
-      if (t.nominalRiskAmount != null) risk += t.nominalRiskAmount;
+      if (t.initialPlannedRiskUsd != null) risk += t.initialPlannedRiskUsd;
     }
     return {
-      openR: rSeen ? openR : null,
+      openR: aggregateR(riskComponents),
       pnl: pnlSeen ? pnl : null,
-      risk: risk || null,
+      risk: riskComponents.length && riskComponents.every(c => c.initialRiskUsd !== null) ? risk : null,
     };
   }, [openTrades, quotes, fills]);
 
   // Closed aggregates derived exactly from the server summary (no fabrication).
   const closedAgg = useMemo(() => {
     const winRate = summary?.winRate ?? null;
-    const wins = winRate === null ? 0 : Math.round(winRate * closedCount);
-    const losses = Math.max(0, closedCount - wins);
+    const wins = summary?.wonLost?.wins ?? 0;
+    const losses = summary?.wonLost?.losses ?? 0;
     return { winRate, wins, losses };
-  }, [summary, closedCount]);
+  }, [summary]);
 
   // The API already returns closed trades by their actual close time (and open
   // trades by open time), so a client-only sort control cannot hide a newly
@@ -899,144 +856,151 @@ export function TradesView() {
       ? liveMetrics(trade, trade.instrument ? quotes[trade.instrument] : undefined, quotes, fillForTrade(trade, fills))
       : null;
 
+  const ordersStatus = (
+    <span className="nl-tx-status" role="status">
+      <span>{ordersError ? summary ? "Couldn’t refresh · showing the last snapshot" : "Orders are unavailable" : ordersUpdatedAt ? <>Updated {formatClockTime(ordersUpdatedAt)}<span className="nl-tx-wide"> · every 15s</span></> : "Loading orders…"}</span>
+      <button type="button" className="nl-tx-btn pressable" onClick={() => void loadSummary()}>Refresh</button>
+    </span>
+  );
+  const pendingShown = tab === "open" && !ordersLoading && visiblePending.length > 0;
+
   return (
-    <div className="nl-tr">
-      <header className="nl-tr-head">
-        <div className="nl-tr-title">
-          <span className="nl-overline">
+    <div className="nl-tx">
+      <header className="nl-tx-head">
+        <div className="nl-tx-title">
+          <span className="nl-tx-over metric-number">
             {pendingOrders.length} entries · {openCount} open · {closedCount} closed
           </span>
           <h1>Trades</h1>
         </div>
-        <NotificationBell compact={!wide} className="nl-tr-bell" />
+        <div className="nl-tx-head-actions">
+          <NotificationBell compact className="nl-tx-bell" />
+        </div>
       </header>
 
-      {initialTabLoading || (tab === "open" && ordersLoading) ? (
-        <TradesSummarySkeleton />
-      ) : tab === "open" ? (
-        summary ? <OrdersOverview entries={pendingOrders} openCount={openCount} openPnl={openAgg.pnl} /> : null
-      ) : (
-        <TradesSummaryRow
-          tab={tab}
-          openCount={openCount}
-          openPnl={openAgg.pnl}
-          realizedToday={summary?.today?.realizedPL ?? null}
-          closedCount={closedCount}
-          wins={closedAgg.wins}
-          losses={closedAgg.losses}
-          winRate={closedAgg.winRate}
-          avgR={summary?.avgR ?? null}
-          wonLost={summary?.wonLost}
-          recentClosed={closedTrades}
-          recentR={recentR}
-        />
-      )}
+      <div className="nl-tx-main">
+        {initialTabLoading || (tab === "open" && ordersLoading) ? (
+          <TradesSummarySkeleton />
+        ) : tab === "open" ? (
+          summary ? <OrdersOverview entries={pendingOrders} openCount={openCount} openPnl={openAgg.pnl} /> : null
+        ) : (
+          <TradesSummaryRow
+            tab={tab}
+            openCount={openCount}
+            openPnl={openAgg.pnl}
+            realizedToday={summary?.today?.realizedPL ?? null}
+            closedCount={closedCount}
+            wins={closedAgg.wins}
+            losses={closedAgg.losses}
+            winRate={closedAgg.winRate}
+            avgR={summary?.avgR ?? null}
+            wonLost={summary?.wonLost}
+            recentClosed={closedTrades}
+          />
+        )}
 
-      {initialTabLoading ? (
-        <TradesToolbarSkeleton showFilters={tab !== "open"} />
-      ) : (
-        <div className="nl-tr-toolbar">
-          <div className="nl-tr-tabs" role="tablist" aria-label="Trade state">
-            {tabs.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                aria-selected={tab === t.id}
-                className={tab === t.id ? "is-active" : ""}
-                onClick={() => setTab(t.id)}
-              >
-                {t.label} <span className="metric-number">{t.count}</span>
-              </button>
-            ))}
-          </div>
-          {tab !== "open" ? (
-            <div className="nl-tr-filters" role="group" aria-label="Result filter">
-              {(["all", "wins", "losses"] as ClosedFilter[]).map((f) => (
+        {initialTabLoading ? (
+          <TradesToolbarSkeleton showFilters={tab !== "open"} />
+        ) : (
+          <div className="nl-tx-toolbar">
+            <div className="nl-tx-seg nl-tx-tabs" role="tablist" aria-label="Trade state">
+              {tabs.map((t) => (
                 <button
-                  key={f}
+                  key={t.id}
                   type="button"
-                  aria-pressed={closedFilter === f}
-                  className={closedFilter === f ? "is-active" : ""}
-                  onClick={() => setClosedFilter(f)}
+                  role="tab"
+                  aria-selected={tab === t.id}
+                  className={tab === t.id ? "is-active" : ""}
+                  onClick={() => {
+                    initialTabResolvedRef.current = true;
+                    setTab(t.id);
+                  }}
                 >
-                  {f === "all" ? "All" : f === "wins" ? "Wins" : "Losses"}
+                  {t.label} <span className="metric-number">{t.count}</span>
                 </button>
               ))}
             </div>
-          ) : null}
-          <label className="nl-tr-search">
-            <Search aria-hidden="true" />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search pair" aria-label="Search trades" />
-          </label>
-        </div>
-      )}
-
-      {tab === "open" ? <div className="mb-4 flex min-h-11 items-center justify-between gap-3 text-xs text-[color:var(--muted-strong)]" role="status">
-        <span>{ordersError ? summary ? "Orders could not refresh. Showing the last successful snapshot." : "Orders are unavailable. Try refreshing." : ordersUpdatedAt ? `Updated ${formatClockTime(ordersUpdatedAt)} · refreshes every 15 seconds` : "Loading orders…"}</span>
-        <button type="button" className="min-h-11 shrink-0 rounded-lg border border-[color:var(--border)] px-3 text-[color:var(--foreground)]" onClick={() => void loadSummary()}>Refresh orders</button>
-      </div> : null}
-
-      <div className="nl-tr-body">
-        <section className="nl-tr-list" aria-label="Trade list">
-          {tab === "open" && !ordersLoading ? <PendingOrders entries={visiblePending} asOf={ordersUpdatedAt} /> : null}
-          {tab === "open" && rows.length ? <h2 className="mb-3 text-sm font-semibold">Open trades <span className="ml-2 text-xs text-[color:var(--muted-strong)]">{rows.length}</span></h2> : null}
-          {loading || (tab === "open" && ordersLoading) ? (
-            <TradesSkeleton />
-          ) : rows.length ? (
-            <>
-              <div className="nl-tr-rowhead" aria-hidden="true">
-                <span>Pair</span>
-                <span className="nl-tr-hide-md">Strategy</span>
-                <span className="nl-tr-hide-sm">Entry</span>
-                <span className="nl-tr-hide-sm">{tab === "open" ? "Current" : "Exit"}</span>
-                <span className="is-end">R</span>
-                <span className="is-end">P/L</span>
-                <span className="is-end nl-tr-hide-md">Held</span>
-                <span className="is-end nl-tr-hide-md nl-tr-hide-sm">{tab === "open" ? "Opened" : "Closed"}</span>
-              </div>
-              <div className="nl-tr-rows">
-                {rows.map((trade) => (
-                  <TradeRow
-                    key={trade.id}
-                    trade={trade}
-                    live={liveFor(trade)}
-                    selected={trade.id === selectedId}
-                    onSelect={() => setSelectedId(trade.id)}
-                  />
-                ))}
-              </div>
-              <div className="nl-tr-cards">
-                {rows.map((trade) => (
-                  <TradeCard
-                    key={trade.id}
-                    trade={trade}
-                    live={liveFor(trade)}
-                    onSelect={() => {
-                      setSelectedId(trade.id);
-                      setSheetOpen(true);
-                    }}
-                  />
-                ))}
-              </div>
-              {tab !== "open" && hasMore ? (
-                <button type="button" className="nl-tr-more" onClick={() => void loadPage(false)} disabled={loadingMore}>
-                  {loadingMore ? "Loading…" : "Load more"}
-                </button>
+            <div className="nl-tx-toolbar-row">
+              <label className="nl-tx-search">
+                <Search aria-hidden="true" />
+                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search pair" aria-label="Search trades" />
+              </label>
+              {tab !== "open" ? (
+                <div className="nl-tx-seg nl-tx-filters" role="group" aria-label="Result filter">
+                  {(["all", "wins", "losses"] as ClosedFilter[]).map((f) => (
+                    <button
+                      key={f}
+                      type="button"
+                      aria-pressed={closedFilter === f}
+                      className={closedFilter === f ? "is-active" : ""}
+                      onClick={() => setClosedFilter(f)}
+                    >
+                      {f === "all" ? "All" : f === "wins" ? "Wins" : "Losses"}
+                    </button>
+                  ))}
+                </div>
               ) : null}
-            </>
-          ) : (
-            <p className="nl-tr-empty">{tab === "open" ? ordersError && !summary ? "Orders are unavailable. Try refreshing." : visiblePending.length ? "No open trades in this view." : query ? "No matching orders." : "No pending entries or open trades." : "No trades in this view."}</p>
-          )}
-        </section>
+            </div>
+          </div>
+        )}
 
-        {tab !== "open" || rows.length ? <aside className="nl-tr-panel" aria-label="Selected trade">
-          {selected ? (
-            <TradeDetail trade={selected} live={selectedLive} variant="panel" />
-          ) : (
-            <p className="nl-tr-empty">Select a trade to see its details.</p>
-          )}
-        </aside> : null}
+        <div className="nl-tx-body">
+          <div className="nl-tx-list">
+            {pendingShown ? <PendingOrders entries={visiblePending} asOf={ordersUpdatedAt} status={ordersStatus} /> : null}
+            <section className="nl-tx-panel" aria-labelledby="nl-tx-list-title">
+              <div className="nl-tx-ph">
+                <div className="nl-tx-ph-title">
+                  <h2 id="nl-tx-list-title">{tab === "open" ? "Open trades" : tab === "closed" ? "Closed trades" : "All trades"}</h2>
+                  <span className="nl-tx-cnt">{rows.length}</span>
+                </div>
+                {tab === "open" && !pendingShown ? ordersStatus : null}
+              </div>
+              {loading || (tab === "open" && ordersLoading) ? (
+                <TradesSkeleton />
+              ) : rows.length ? (
+                <>
+                  <div className="nl-tx-thead" aria-hidden="true">
+                    <span>Pair</span>
+                    <span className="is-end">Entry</span>
+                    <span className="is-end">{tab === "open" ? "Current" : "Exit"}</span>
+                    <span className="is-end">Stop</span>
+                    <span className="is-end">Target</span>
+                    <span className="is-end">R</span>
+                    <span className="is-end">P/L</span>
+                    <span className="is-end">Held</span>
+                    <span className="is-end">{tab === "open" ? "Opened" : "Closed"}</span>
+                  </div>
+                  <div className="nl-tx-trows">
+                    {rows.map((trade) => (
+                      <TradeRow key={trade.id} trade={trade} live={liveFor(trade)} />
+                    ))}
+                  </div>
+                  <div className="nl-tx-cards">
+                    {rows.map((trade) => (
+                      <TradeCard
+                        key={trade.id}
+                        trade={trade}
+                        live={liveFor(trade)}
+                        onSelect={() => {
+                          setSelectedId(trade.id);
+                          setSheetOpen(true);
+                        }}
+                      />
+                    ))}
+                  </div>
+                  {tab !== "open" && hasMore ? (
+                    <button type="button" className="nl-tx-more nl-tx-btn" onClick={() => void loadPage(false)} disabled={loadingMore}>
+                      {loadingMore ? "Loading…" : "Load more"}
+                    </button>
+                  ) : null}
+                </>
+              ) : (
+                <p className="nl-tx-empty">{tab === "open" ? ordersError && !summary ? "Orders are unavailable. Try refreshing." : visiblePending.length ? "No open trades in this view." : query ? "No matching orders." : "No pending entries or open trades." : "No trades in this view."}</p>
+              )}
+            </section>
+          </div>
+
+        </div>
       </div>
 
       {wide ? null : (

@@ -32,6 +32,8 @@ export type HomeActivityItem = {
   label: string;
   kind: HomeActivityKind;
   resultR: number | null;
+  estimatedRMultiple?: number | null;
+  riskDataQuality?: JournalTrade["riskDataQuality"];
   paperPl: number | null;
   /** When the trade opened; `at` is when it closed. */
   openedAt: string | null;
@@ -159,7 +161,9 @@ export function recentActivityFromTrades(trades: JournalTrade[], limit = 10): Ho
         chartTradeId: trade.chartTradeId ?? null,
         label: activityLabel(trade, kind),
         kind,
-        resultR: trade.resultR,
+        resultR: trade.riskDataQuality === "verified" ? trade.resultR : null,
+        estimatedRMultiple: trade.estimatedRMultiple ?? null,
+        riskDataQuality: trade.riskDataQuality,
         paperPl: trade.paperPl ?? null,
         openedAt: trade.openedAt ?? null,
         at: trade.closedAt ?? trade.openedAt,
@@ -174,7 +178,7 @@ export function todayClosedStats(trades: JournalTrade[], todayKey: string) {
       trade.closedAt !== null &&
       tradingDayKey(trade.closedAt) === todayKey,
   );
-  const withR = today.filter((trade) => trade.resultR !== null);
+  const withR = today.filter((trade) => trade.riskDataQuality === "verified" && trade.resultR !== null);
   const withPl = today.filter(
     (trade) => trade.paperPl !== null && trade.paperPl !== undefined,
   );

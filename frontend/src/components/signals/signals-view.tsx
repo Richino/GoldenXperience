@@ -1,4 +1,5 @@
 "use client";
+import { formatRMultiple } from "@/lib/risk-metrics";
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -34,12 +35,11 @@ const FILTERS = ["Pair", "Side", "Strategy", "H1", "Status"];
 function rrLabel(riskReward: number | null) {
   if (riskReward === null) return "—";
   const rounded = Math.round(riskReward * 10) / 10;
-  return `1:${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)}`;
+  return `Distance 1:${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)}`;
 }
 
-function signedR(value: number | null) {
-  if (value === null) return "—";
-  return `${value >= 0 ? "+" : ""}${value.toFixed(1)}R`;
+function signedR(value: number | null, verified = false) {
+  return formatRMultiple(verified ? value : null);
 }
 
 function StatusPill({ status }: { status: SignalStatus }) {

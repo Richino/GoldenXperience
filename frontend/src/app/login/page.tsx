@@ -3,7 +3,6 @@
 import { Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { BrandMark } from "@/components/ui/brand-mark";
 import { apiUrl } from "@/lib/api/url";
 
 export default function LoginPage() {
@@ -48,20 +47,10 @@ export default function LoginPage() {
   return (
     <main className="login-page px-4 sm:px-6">
       <section className="login-shell">
-        <div className="login-brand">
-          <BrandMark />
-        </div>
-
         <form onSubmit={submit} className="login-card" autoComplete="off" noValidate>
           <div className="login-card-heading">
-            <span className="login-security-icon" aria-hidden="true">
-              <LockKeyhole className="size-4" strokeWidth={2.25} />
-            </span>
-            <div>
-              <p className="text-overline">Secure access</p>
-              <h1>Welcome back</h1>
-              <p>Sign in to your personal forex workspace.</p>
-            </div>
+            <p className="login-overline">Secure sign-in</p>
+            <h1>Welcome back<span>.</span></h1>
           </div>
 
           <div className="login-fields">

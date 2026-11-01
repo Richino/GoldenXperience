@@ -245,6 +245,9 @@ async function requestOanda<T>(path: string, options: { method?: "GET" | "POST" 
   }
 }
 
+/** Non-secret account identity for binding reporting evidence across rotations. */
+export function oandaAccountIdentity() { return getConfig()?.accountId ?? null; }
+
 /** Shared authenticated transport for account-scoped practice strategy operations. */
 export async function requestPracticeAccount<T>(suffix: string, options: { method?: "GET" | "POST" | "PUT"; body?: unknown; signal?: AbortSignal } = {}): Promise<T> {
   const config = getConfig();

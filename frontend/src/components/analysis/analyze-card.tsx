@@ -173,7 +173,7 @@ function AnalyzeBody({
         <h2 id={titleId} className={`nl-an-decision ${tone}`}>
           {heading}
         </h2>
-        {trade ? <span className="nl-an-ratio">{ratio(trade.riskReward)}</span> : null}
+        {trade ? <span className="nl-an-ratio" title="Target / stop price distance; not a verified net monetary reward-to-risk ratio.">Distance {ratio(trade.riskReward)}</span> : null}
       </div>
 
       {card ? null : (

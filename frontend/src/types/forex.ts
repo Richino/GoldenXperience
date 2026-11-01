@@ -130,6 +130,7 @@ export interface PaperChartTrade {
 }
 
 export interface OpenPosition {
+  unrealizedNetPnlUsd?: number | null;
   id: string;
   instrument: MajorInstrument;
   pair: string;
@@ -149,6 +150,24 @@ export interface OpenPosition {
 }
 
 export interface JournalTrade {
+  maxAdverseExcursionUsd?: number | null;
+  maxFavorableExcursionUsd?: number | null;
+  maePips?: number | null;
+  mfePips?: number | null;
+  excursionDataQuality?: "estimated" | "missing";
+  maeR?: number | null;
+  mfeR?: number | null;
+  drawdownAdjustedResult?: number | null;
+  realizedReturnPct?: number | null;
+  initialRiskPlan?: import("@/lib/risk-metrics").InitialRiskPlan | null;
+  estimatedRMultiple?: number | null;
+  estimatedRiskUsd?: number | null;
+  estimatedRBasis?: string | null;
+  estimatedRPnlBasis?: string | null;
+  initialPlannedRiskUsd?: number | null;
+  riskPositionKey?: string;
+  legacyR?: number | null;
+  riskDataQuality?: import("@/lib/risk-metrics").RiskDataQuality;
   id: string;
   origin: "demo" | "manual" | "strategy";
   /** Present only when the chart API can resolve this exact trade. */

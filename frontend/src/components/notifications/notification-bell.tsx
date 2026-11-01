@@ -15,7 +15,7 @@ function timeLabel(value: string) {
   return `${Math.floor(elapsed / 86_400_000)}d`;
 }
 
-// The row's tone shows as a small icon tile; the text itself stays neutral.
+// The row's tone shows as a small colored icon; the text itself stays neutral.
 const TONE_ICON: Record<string, LucideIcon> = {
   "is-positive": CircleCheck,
   "is-negative": CircleX,
@@ -34,9 +34,12 @@ function dayLabel(value: string) {
   return "Earlier";
 }
 
+type Filter = "all" | "unread";
+
 export function NotificationBell({ compact = false, className = "" }: { compact?: boolean; className?: string }) {
   const { notifications, unreadCount, markRead } = useNotificationContext();
   const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState<Filter>("all");
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonClass = compact
     ? `mobile-icon-btn pressable relative text-[color:var(--muted-strong)] hover:text-[color:var(--foreground)] ${open ? "control-active" : ""} ${className}`
@@ -68,54 +71,62 @@ export function NotificationBell({ compact = false, className = "" }: { compact?
     };
   }, [compact, open]);
 
+  const shown = filter === "unread" ? notifications.filter((item) => !item.readAt) : notifications;
+
   const readAllButton = unreadCount ? (
-    <button
-      type="button"
-      onClick={() => void markRead()}
-      className="notification-popover-read-all pressable"
-      aria-label="Mark all as read"
-    >
-      Read all
+    <button type="button" onClick={() => void markRead()} className="nl-nt-readall pressable" aria-label="Mark all as read">
+      Mark all read
     </button>
   ) : null;
 
+  const filters = (
+    <div className="nl-nt-filter" role="group" aria-label="Notifications shown">
+      <button type="button" aria-pressed={filter === "all"} className={filter === "all" ? "is-on" : undefined} onClick={() => setFilter("all")}>
+        All <span className="metric-number">{notifications.length}</span>
+      </button>
+      <button type="button" aria-pressed={filter === "unread"} className={filter === "unread" ? "is-on" : undefined} onClick={() => setFilter("unread")}>
+        Unread <span className="metric-number">{unreadCount}</span>
+      </button>
+    </div>
+  );
+
   const list = (
-    <div className="notification-popover-list nl-notif-list">
-      {!notifications.length ? (
-        <div className="notification-popover-empty nl-notif-empty">
-          <span className="nl-notif-icon" aria-hidden><Bell /></span>
-          <p>No notifications yet.</p>
+    <div className="nl-nt-list">
+      {!shown.length ? (
+        <div className="nl-nt-empty">
+          <Bell aria-hidden />
+          <p>{filter === "unread" && notifications.length ? "You're all caught up." : "No notifications yet."}</p>
         </div>
       ) : (
-        notifications.map((item, index) => {
+        shown.map((item, index) => {
           const detail = displayDetail(item);
           const tone = detailTone(item);
           const ToneIcon = TONE_ICON[tone] ?? CircleDot;
           const day = dayLabel(item.createdAt);
-          const newDay = index === 0 || dayLabel(notifications[index - 1].createdAt) !== day;
+          const newDay = index === 0 || dayLabel(shown[index - 1].createdAt) !== day;
           return (
-            <div key={item.id} className="nl-notif-entry">
-            {newDay ? <p className="nl-notif-day">{day}</p> : null}
-            <Link
-              href={notificationHref(item)}
-              onClick={() => {
-                void markRead([item.id]);
-                setOpen(false);
-              }}
-              className={`notification-popover-item pressable ${item.readAt ? "" : "is-unread"} ${tone}`}
-            >
-              <span className="nl-notif-icon" aria-hidden>
-                <ToneIcon />
-                {!item.readAt ? <span className="nl-notif-dot" /> : null}
-              </span>
-              <div className="notification-popover-item-body">
-                <div className="notification-popover-item-top">
-                  <p className="notification-popover-item-title">{displayTitle(item)}</p>
-                  <span className="notification-popover-item-time">{timeLabel(item.createdAt)}</span>
-                </div>
-                {detail ? <p className="notification-popover-item-message">{detail}</p> : null}
-              </div>
-            </Link>
+            <div key={item.id}>
+              {newDay ? <p className="nl-nt-day">{day}</p> : null}
+              <Link
+                href={notificationHref(item)}
+                onClick={() => {
+                  void markRead([item.id]);
+                  setOpen(false);
+                }}
+                className={`nl-nt-row ${item.readAt ? "" : "is-unread"} ${tone}`}
+              >
+                <span className="nl-nt-icon" aria-hidden>
+                  <ToneIcon />
+                </span>
+                <span className="nl-nt-body">
+                  <span className="nl-nt-top">
+                    <b>{displayTitle(item)}</b>
+                    <span className="nl-nt-time metric-number">{timeLabel(item.createdAt)}</span>
+                  </span>
+                  {detail ? <span className="nl-nt-msg">{detail}</span> : null}
+                </span>
+                {!item.readAt ? <span className="nl-nt-unread" aria-label="Unread" /> : null}
+              </Link>
             </div>
           );
         })
@@ -126,18 +137,14 @@ export function NotificationBell({ compact = false, className = "" }: { compact?
   return (
     <div ref={rootRef} className="relative">
       <button
-        aria-label="Notifications"
+        aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : "Notifications"}
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
         className={buttonClass}
         type="button"
       >
         <Bell className="size-[18px]" strokeWidth={compact ? 1.9 : 2} />
-        {unreadCount > 0 ? (
-          <span className="absolute right-1.5 top-1.5 grid min-w-[1.125rem] place-items-center rounded-full bg-[color:var(--danger)] px-1 text-[0.55rem] font-bold leading-3 text-white">
-            {unreadCount > 9 ? "9+" : unreadCount}
-          </span>
-        ) : null}
+        {unreadCount > 0 ? <span className="nl-bell-badge metric-number" aria-hidden>{unreadCount > 99 ? "99+" : unreadCount}</span> : null}
       </button>
 
       {compact ? (
@@ -148,15 +155,19 @@ export function NotificationBell({ compact = false, className = "" }: { compact?
           title="Notifications"
           headerAction={readAllButton}
         >
-          {list}
+          <div className="nl-nt is-sheet">
+            {filters}
+            {list}
+          </div>
         </MobileSheet>
       ) : open ? (
-        <div className="notification-popover nl-notif absolute right-0 z-50 w-[min(24rem,calc(100vw-2rem))] overflow-hidden">
-          <div className="notification-popover-head">
-            <p className="notification-popover-title">Notifications</p>
-            {unreadCount ? <span className="nl-notif-count">{unreadCount} new</span> : null}
+        <div className="nl-nt is-popover absolute right-0 z-50" role="dialog" aria-label="Notifications">
+          <div className="nl-nt-head">
+            <h2>Notifications</h2>
+            {unreadCount ? <span className="nl-nt-count metric-number">{unreadCount} new</span> : null}
             {readAllButton}
           </div>
+          {filters}
           {list}
         </div>
       ) : null}

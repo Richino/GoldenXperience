@@ -288,7 +288,7 @@ export function NewsImpactSheet({
       className="news-impact-sheet"
     >
       {event && hint ? journalLoading || movesLoading ? (
-        <NewsImpactSkeleton pairs={pairs.length} released={releasedAt !== null} />
+        <NewsImpactSkeleton pairs={pairs.length} released={releasedAt !== null} releases={related.length + 1} />
       ) : (
         <div className="news-impact-drawer">
           {/* Desktop shows two columns (the numbers and call, then the pairs);

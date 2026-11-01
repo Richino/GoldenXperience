@@ -108,6 +108,13 @@ export function ResearchPaperCycleSkeleton() {
           </div>
         ))}
       </div>
+      <div className="mt-6 border-t border-[color:var(--border)] pt-5" aria-hidden="true">
+        <Line className="h-4 w-24" />
+        <div className="mt-3 overflow-x-auto"><table className="research-table min-w-[760px]">
+          <thead><tr>{Array.from({ length: 8 }, (_, i) => <th key={i}><Line className="h-3 w-12" /></th>)}</tr></thead>
+          <tbody>{Array.from({ length: 3 }, (_, row) => <tr key={row}>{Array.from({ length: 8 }, (_, col) => <td key={col}><Line className="h-3 w-12" /></td>)}</tr>)}</tbody>
+        </table></div>
+      </div>
     </>
   );
 }
@@ -151,7 +158,7 @@ export function SettingsLoadingSkeleton() {
 
 export function ResearchLoadingSkeleton() {
   return (
-    <div className="research-view research-minimal space-y-8 lg:space-y-10" aria-busy aria-label="Loading research">
+    <div className="research-view research-minimal space-y-8 lg:space-y-10" role="status" aria-busy="true" aria-label="Loading research">
       <header>
         <PageTitleSkeleton titleWidth="w-36" subtitleWidth="w-44" />
       </header>

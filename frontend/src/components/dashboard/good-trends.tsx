@@ -93,9 +93,9 @@ export function GoodTrends() {
       <div className={styles.rows}>
         {!snapshot && !error ? <div aria-hidden="true">
           {Array.from({ length: SHOWN }, (_, index) => <div key={index} className={styles.skeletonRow}>
-            <span className={styles.skeletonAvatar} />
-            <span className={styles.skeletonPair} />
-            <span className={styles.skeletonStructure}><span /><span /></span>
+            <span className={`gx-skel ${styles.skeletonAvatar}`} />
+            <span className={`gx-skel ${styles.skeletonPair}`} />
+            <span className={styles.skeletonStructure}><span className="gx-skel" /><span className="gx-skel" /></span>
           </div>)}
         </div> : aligned.length ? aligned.slice(0, SHOWN).map(row)
           : <p className={styles.note}>{error || !snapshot?.pairs.length ? "Trend data is unavailable right now." : "No pairs have aligned Weekly and Daily trends right now."}</p>}
@@ -105,7 +105,7 @@ export function GoodTrends() {
       </div>
     </div>
     <div className={styles.footer}>
-      <p className={styles.checked}>{snapshot ? `Checked ${clock(snapshot.checkedAt)} ET` : error ? "Check unavailable" : <span className={styles.skeletonChecked} aria-hidden="true" />}</p>
+      <p className={styles.checked}>{snapshot ? `Checked ${clock(snapshot.checkedAt)} ET` : error ? "Check unavailable" : <span className={`gx-skel ${styles.skeletonChecked}`} aria-hidden="true" />}</p>
       <p className={`${styles.status}${error || stale ? ` ${styles.warning}` : ""}`} role="status">
         {!snapshot && !error ? "Checking weekly trends…" : error || stale ? "Couldn’t refresh · retrying automatically." : closed ? "Market closed · latest available trends." : "\u00a0"}
       </p>

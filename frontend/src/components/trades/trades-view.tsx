@@ -28,7 +28,7 @@ import { strategyTypeLabel } from "@/lib/strategy/family-label";
 import { useDragToDismiss } from "@/lib/use-drag-to-dismiss";
 import { usePageScrollLock } from "@/lib/use-page-scroll-lock";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
-import { TradesSkeleton, TradesSummarySkeleton, TradesToolbarSkeleton } from "@/components/ui/phone-skeletons";
+import { OrdersOverviewSkeleton, TradesSkeleton, TradesSummarySkeleton, TradesToolbarSkeleton } from "@/components/ui/phone-skeletons";
 
 type Tab = "open" | "closed" | "all";
 type ClosedFilter = "all" | "wins" | "losses";
@@ -880,7 +880,7 @@ export function TradesView() {
 
       <div className="nl-tx-main">
         {initialTabLoading || (tab === "open" && ordersLoading) ? (
-          <TradesSummarySkeleton />
+          tab === "open" ? <OrdersOverviewSkeleton /> : <TradesSummarySkeleton />
         ) : tab === "open" ? (
           summary ? <OrdersOverview entries={pendingOrders} openCount={openCount} openPnl={openAgg.pnl} /> : null
         ) : (

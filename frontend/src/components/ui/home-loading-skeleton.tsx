@@ -1,3 +1,5 @@
+import trendStyles from "@/components/dashboard/good-trends.module.css";
+
 /** Uses Home's layout classes so its loading state follows the same breakpoints. */
 function Placeholder({ className = "" }: { className?: string }) {
   return <span className={`gx-skel max-w-full ${className}`} />;
@@ -82,13 +84,21 @@ export function HomeLoadingSkeleton() {
         </section>
         <div className="nl-home-cols">
           <div className="nl-home-main">
-            <section className="nl-card">
-              <div className="nl-card-head"><Placeholder className="h-6 w-32" /><Placeholder className="h-3 w-12" /></div>
-              <Placeholder className="h-4 w-56" />
-              <div className="mt-4 space-y-4">
-                {Array.from({ length: 3 }, (_, index) => <div key={index} className="flex items-center gap-3">
-                  <Placeholder className="size-[30px] rounded-full" /><Placeholder className="h-4 w-24" /><Placeholder className="ml-auto h-4 w-28" />
-                </div>)}
+            <section className={trendStyles.card}>
+              <div className={trendStyles.header}><Placeholder className="h-[27px] w-36" /><Placeholder className="h-3 w-12" /></div>
+              <div className={trendStyles.description}><Placeholder className="h-[18px] w-72" /></div>
+              <div className={trendStyles.list}>
+                <div className={trendStyles.rows}>
+                  {Array.from({ length: 5 }, (_, index) => <div key={index} className={trendStyles.skeletonRow}>
+                    <Placeholder className={trendStyles.skeletonAvatar} /><Placeholder className={trendStyles.skeletonPair} />
+                    <span className={trendStyles.skeletonStructure}><Placeholder className="h-[18px] w-[92px] rounded-full" /><Placeholder className="h-[9px] w-[66px]" /></span>
+                  </div>)}
+                </div>
+                <div className={trendStyles.more} />
+              </div>
+              <div className={trendStyles.footer}>
+                <div className={trendStyles.checked}><Placeholder className="h-4 w-40" /></div>
+                <div className={trendStyles.status}><Placeholder className="h-3 w-36" /></div>
               </div>
             </section>
             <section className="nl-sec nl-positions">
@@ -113,6 +123,12 @@ export function HomeLoadingSkeleton() {
                 </div>
               ))}
             </section>
+            <section className="nl-sec nl-setups">
+              <SectionHeading />
+              <div className="nl-setup-grid">{Array.from({ length: 2 }, (_, index) => <div key={index} className="nl-setup">
+                <div className="nl-setup-top"><Placeholder className="h-6 w-24" /><Placeholder className="h-3 w-16" /></div><Levels />
+              </div>)}</div>
+            </section>
             <section className="nl-card nl-pending">
               <div className="nl-card-head"><Placeholder className="h-6 w-24" /><Placeholder className="h-3 w-12" /></div>
               <div className="nl-pending-entry">
@@ -126,11 +142,8 @@ export function HomeLoadingSkeleton() {
               <div className="nl-activity-list">
                 {Array.from({ length: 4 }, (_, index) => (
                   <div key={index} className="nl-activity-row">
-                    <Placeholder className="h-4 w-20" />
-                    <Placeholder className="nl-activity-label h-3 w-20" />
-                    <Placeholder className="ml-auto h-4 w-16" />
-                    <Placeholder className="ml-auto h-4 w-10" />
-                    <Placeholder className="nl-activity-time ml-auto h-3 w-12" />
+                    <span className="nl-activity-id"><Placeholder className="h-4 w-20" /><Placeholder className="nl-activity-label h-3 w-20" /><Placeholder className="nl-activity-time h-3 w-24" /></span>
+                    <span className="nl-activity-result"><Placeholder className="h-4 w-16" /><Placeholder className="h-3 w-10" /></span>
                   </div>
                 ))}
               </div>

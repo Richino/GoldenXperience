@@ -26,15 +26,13 @@ export function ChartLoadingSkeleton() {
         <section className="app-card signals-chart-card min-w-0 w-full" aria-hidden="true">
           <div className="signals-chart-mobile lg:hidden">
             <div className="signals-mobile-content">
-              <div className="signals-mobile-actions nl-mhead">
-                <div className="nl-skel-stack is-tight"><Block width={96} height={18} /><Block width={150} height={14} /></div>
+              <div className="signals-mobile-header nl-mhead">
+                <div className="gx-mobile-quote-row nl-mquote"><div className="nl-mquote-main"><Block width={96} height={18} /><Block width={150} height={14} /></div></div>
                 <div className="nl-mhead-actions">
                   {Array.from({ length: 3 }, (_, i) => <Block key={i} width={44} height={44} radius={4} />)}
                 </div>
               </div>
-              <div className="gx-mobile-chart-controls">
-                <div className="gx-mobile-timeframes"><div className="nl-skeleton-timeframes is-six">{Array.from({ length: 6 }, (_, i) => <Block key={i} width="100%" height={30} />)}</div></div>
-              </div>
+              <div className="gx-mobile-timeframes nl-mtimeframes"><div className="nl-skeleton-timeframes is-six">{Array.from({ length: 6 }, (_, i) => <Block key={i} width="100%" height={30} />)}</div></div>
               <div className="nl-skel-ohlc"><Block width={220} height={11} /></div>
             </div>
             <div className="relative min-h-[14rem] flex-1 overflow-hidden chart-data-shell chart-loading-static"><Plot /></div>

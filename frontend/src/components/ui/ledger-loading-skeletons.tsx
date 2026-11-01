@@ -14,6 +14,12 @@ export function SkeletonBlock({ width = "100%", height = 12, radius = 3, classNa
 
 /* ---------------------------------------------------------------- trades */
 
+export function OrdersOverviewSkeleton() {
+  return <section className="nl-tx-panel nl-tx-overview" aria-hidden="true">
+    {[100, 80, 70].map((width) => <div key={width} className="nl-tx-tile"><span className="nl-tx-lbl"><SkeletonBlock width={width} height={10} /></span><b><SkeletonBlock width={80} height={28} /></b></div>)}
+  </section>;
+}
+
 export function TradesSummarySkeleton() {
   return (
     <section className="nl-tx-panel nl-tx-summary nl-skel-panel" aria-hidden="true">
@@ -56,7 +62,7 @@ export function TradesSkeleton({ rows = 8 }: { rows?: number }) {
   return (
     <div aria-hidden="true">
       <div className="nl-tx-thead">
-        {[40, 36, 36, 32, 40, 16, 28, 32, 48].map((w, i) => <SkeletonBlock key={i} className={i ? "is-end" : ""} width={w} height={9} />)}
+        {[40, 36, 36, 32, 40, 16, 28, 32, 48].map((w, i) => <SkeletonBlock key={i} className={i > 1 ? "is-end" : ""} width={w} height={9} />)}
       </div>
       <div className="nl-tx-trows">
         {Array.from({ length: rows }, (_, i) => (
@@ -89,8 +95,8 @@ export function LedgerTradesLoadingSkeleton() {
         <div className="nl-tx-head-actions"><SkeletonBlock width={44} height={44} radius={4} /></div>
       </header>
       <div className="nl-tx-main">
-        <TradesSummarySkeleton />
-        <TradesToolbarSkeleton showFilters />
+        <OrdersOverviewSkeleton />
+        <TradesToolbarSkeleton />
         <div className="nl-tx-body" aria-hidden="true">
           <div className="nl-tx-list">
             <section className="nl-tx-panel">
@@ -161,11 +167,10 @@ export function LedgerMarketsLoadingSkeleton() {
         <aside className="nl-mx-aside" aria-hidden="true">
           <section className="nl-mx-panel nl-mx-sess">
             <div className="nl-mx-ph"><SkeletonBlock width={64} height={11} /><SkeletonBlock width={72} height={10} /></div>
-            <div className="nl-skel-stack">
-              <SkeletonBlock width={120} height={12} />
-              {Array.from({ length: 3 }, (_, i) => <SkeletonBlock key={i} height={8} />)}
-              <SkeletonBlock height={9} />
-            </div>
+            <div className="nl-mx-sess-headline"><SkeletonBlock width={160} height={12} /></div>
+            <div className="nl-mx-sess-lanes">{Array.from({ length: 3 }, (_, i) => <div className="nl-mx-sess-lane" key={i}><SkeletonBlock width={48} height={10} /><SkeletonBlock height={8} /></div>)}</div>
+            <div className="nl-mx-sess-scale">{Array.from({ length: 5 }, (_, i) => <SkeletonBlock key={i} width={14} height={9} />)}</div>
+            <div className="nl-mx-sess-legend"><SkeletonBlock width={170} height={10} /></div>
           </section>
           <section className="nl-mx-panel">
             <div className="nl-mx-ph"><SkeletonBlock width={150} height={11} /><SkeletonBlock width={72} height={10} /></div>
@@ -199,7 +204,7 @@ export function LedgerSettingsLoadingSkeleton() {
         <h1><SkeletonBlock width="4.6em" height="0.8em" /></h1>
       </header>
       <div className="nl-st-layout" aria-hidden="true">
-        <div className="nl-st-index nl-st-desk">{Array.from({ length: 3 }, (_, i) => <div className="nl-skeleton-index" key={i}><SkeletonBlock width={14} height={10} /><SkeletonBlock width={96} height={12} /></div>)}</div>
+        <div className="nl-st-index nl-st-desk">{Array.from({ length: 4 }, (_, i) => <div className="nl-skeleton-index" key={i}><SkeletonBlock width={14} height={10} /><SkeletonBlock width={96} height={12} /></div>)}</div>
         <div className="nl-st-content">
           <section className="nl-st-card nl-st-desk">
             <div className="nl-st-card-head"><SkeletonBlock width={140} height={14} /><SkeletonBlock width={120} height={10} /></div>
@@ -219,8 +224,13 @@ export function LedgerSettingsLoadingSkeleton() {
             <div className="nl-st-block"><SkeletonBlock width={48} height={10} /><div className="nl-st-themes">{Array.from({ length: 2 }, (_, i) => <SkeletonBlock key={i} height={96} />)}</div></div>
             <div className="nl-st-block"><SkeletonBlock width={64} height={10} /><div className="nl-st-sizes">{Array.from({ length: 3 }, (_, i) => <SkeletonBlock key={i} height={56} />)}</div></div>
           </section>
+          <section className="nl-st-card nl-st-desk">
+            <div className="nl-st-card-head"><SkeletonBlock width={80} height={14} /></div>
+            <dl className="nl-st-account"><div><dt><SkeletonBlock width={40} height={10} /></dt><dd><SkeletonBlock width={190} height={13} /></dd></div></dl>
+            <div className="nl-st-signout"><SkeletonBlock width={90} height={14} /></div>
+          </section>
           <section className="nl-st-mcard nl-st-phone"><div className="nl-st-mcard-title"><SkeletonBlock width={96} height={10} /></div><div className="nl-st-mrisk"><div className="nl-st-mrisk-copy"><SkeletonBlock width={90} height={10} /><SkeletonBlock width={120} height={28} /><SkeletonBlock width={160} height={11} /></div></div><SettingsRows /><div className="nl-st-mrow"><SkeletonBlock width={134} height={13} /><SkeletonBlock width={36} height={20} /></div></section>
-          {[96, 82, 64].map((width) => <section className="nl-st-mcard nl-st-phone" key={width}><div className="nl-st-mcard-title"><SkeletonBlock width={width} height={10} /></div><SettingsRows /></section>)}
+          {[96, 82, 64].map((width, index) => <section className="nl-st-mcard nl-st-phone" key={width}><div className="nl-st-mcard-title"><SkeletonBlock width={width} height={10} /></div><SettingsRows count={index === 0 ? 4 : 2} /></section>)}
         </div>
       </div>
     </div>

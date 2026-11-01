@@ -1,5 +1,7 @@
 "use client";
 
+import { TechnicalGaugesSkeleton } from "@/components/ui/technical-loading-skeleton";
+
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { INSTRUMENT_CATALOG } from "@/lib/instruments/catalog";
@@ -127,7 +129,7 @@ export function TechnicalAnalyzer() {
 
     <section aria-label="Technical indicator summary" className={styles.technicalSection}>
       <div className={styles.sectionHeading}><div><p className={styles.eyebrow}>CURRENT TECHNICALS</p><h2>Indicator overview</h2></div><div className={styles.selectorBlock}><span>Indicator timeframe</span><div className={styles.segments} role="group" aria-label="Indicator timeframe">{FRAMES.map(f => <button key={f.key} aria-pressed={frame === f.key} onClick={() => setFrame(f.key)}>{f.label}</button>)}</div></div></div>
-      {ratings && readings && snapshot && snapshot.technicalAvailable !== false ? <div className={styles.gauges}>
+      {busy && !snapshot ? <TechnicalGaugesSkeleton /> : ratings && readings && snapshot && snapshot.technicalAvailable !== false ? <div className={styles.gauges}>
         <TechnicalGauge title="Oscillators" rating={ratings.oscillators} rows={readings.oscillators} precision={snapshot.precision} />
         <TechnicalGauge title="Overall Summary" rating={ratings.overall} rows={[...readings.oscillators,...readings.averages]} precision={snapshot.precision} prominent />
         <TechnicalGauge title="Moving Averages" rating={ratings.averages} rows={readings.averages} precision={snapshot.precision} />

@@ -1,9 +1,10 @@
 "use client";
 
 /**
- * GX Technical Analyzer, cut down for the Chart page: the indicator votes per
- * timeframe and the 1–5 day outlook. Everything else the analyzer shows
- * (interpretation, evidence, invalidation, zones, data quality) stays out of
+ * GX Technical Analyzer, cut down for the Chart page: the 1–5 day outlook,
+ * which already blends the H1, H4, daily and weekly indicator votes. Everything
+ * else the analyzer shows (per-frame votes, interpretation, evidence,
+ * invalidation, zones, data quality) stays out of
  * the panel and travels in "Copy for ChatGPT", the same report the full page
  * copies.
  *
@@ -12,17 +13,14 @@
  * the analyzer page, records a forecast).
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Copy, RotateCw, X } from "lucide-react";
 import { apiUrl } from "@/lib/api/url";
 import { displayNameFor } from "@/lib/instruments/catalog";
-import { recordedReadings, technicalSummary } from "@/lib/technical-analyzer/ratings";
 import { conciseMarketReport, copyReport } from "@/lib/technical-analyzer/report";
 import { continuationRiskLabel, outlookDirection, outlookEvidence } from "@/lib/technical-analyzer/outlook";
-import type { Forecast, Frame, History, Snapshot, TechnicalRating } from "@/lib/technical-analyzer/types";
+import type { Forecast, History, Snapshot } from "@/lib/technical-analyzer/types";
 import type { MajorInstrument } from "@/types/forex";
-
-const FRAMES: Array<{ key: Frame; label: string }> = [{ key: "H1", label: "1H" }, { key: "H4", label: "4H" }, { key: "D", label: "1D" }, { key: "W", label: "1W" }];
 
 async function read<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(apiUrl(`/api/technical-analyzer/${path}`), { credentials: "include", cache: "no-store", signal: AbortSignal.timeout(60000), ...init });
@@ -32,7 +30,6 @@ async function read<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 const issuedLabel = (iso: string) => new Date(iso).toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-const ratingTone = (label: string) => (label.includes("Sell") ? "is-down" : label.includes("Buy") ? "is-up" : "");
 
 function leanLabel(f: Forecast) {
   const direction = outlookDirection(f);
@@ -52,26 +49,12 @@ function riskLabel(f: Forecast) {
   return { text: continuationRiskLabel(f).replace(/ continuation risk$/, ""), tone: "is-muted" };
 }
 
-function IndicatorRow({ name, rating }: { name: string; rating: TechnicalRating }) {
-  // score runs -1 (strong sell) to +1 (strong buy).
-  const at = Math.max(0, Math.min(100, (rating.score + 1) * 50));
-  return (
-    <div className="nl-tech-ind">
-      <span className="nl-tech-ind-name">{name}</span>
-      <span className="nl-tech-meter" aria-hidden="true"><i style={{ left: `${at}%` }} /></span>
-      <b className={ratingTone(rating.label)}>{rating.label}</b>
-      <span className="nl-tech-ind-counts metric-number">{rating.buy} buy · {rating.neutral} neutral · {rating.sell} sell</span>
-    </div>
-  );
-}
-
 export function ChartTechnicals({ instrument, onClose, className = "" }: {
   instrument: string;
   onClose?: () => void;
   className?: string;
 }) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
-  const [frame, setFrame] = useState<Frame>("D");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -108,13 +91,9 @@ export function ChartTechnicals({ instrument, onClose, className = "" }: {
     }
   }
 
-  const current = snapshot?.frames[frame];
-  const ratings = useMemo(() => (current ? technicalSummary(recordedReadings(current)) : null), [current]);
-  const available = snapshot !== null && snapshot.technicalAvailable !== false;
-
   async function copy() {
     if (!snapshot) return;
-    const ok = await copyReport(conciseMarketReport(snapshot, frame, new Date().toISOString()));
+    const ok = await copyReport(conciseMarketReport(snapshot, "D", new Date().toISOString()));
     setCopied(ok ? "done" : "blocked");
   }
 
@@ -146,56 +125,31 @@ export function ChartTechnicals({ instrument, onClose, className = "" }: {
             {error ? <p className="nl-tech-error" role="alert">{error}</p> : null}
           </div>
         ) : (
-          <>
-            <section className="nl-tech-sec" aria-label="Indicator overview">
-              <div className="nl-tech-sh">
-                <span className="nl-tech-lbl">Indicators</span>
-                <div className="nl-tech-seg" role="group" aria-label="Indicator timeframe">
-                  {FRAMES.map((f) => (
-                    <button key={f.key} type="button" aria-pressed={frame === f.key} className={frame === f.key ? "is-on" : undefined} onClick={() => setFrame(f.key)}>
-                      {f.label}
-                    </button>
-                  ))}
+          <section className="nl-tech-sec" aria-label="1 to 5 day outlook">
+            <div className="nl-tech-sh">
+              <span className="nl-tech-lbl">1–5 day outlook</span>
+              <span className="nl-tech-meta metric-number">trading days</span>
+            </div>
+            <div className="nl-tech-orow is-head" aria-hidden="true">
+              <span /><span>Lean</span><span>Evidence</span><span>Risk</span>
+            </div>
+            {snapshot.forecasts.map((f) => {
+              const lean = leanLabel(f);
+              const evidence = outlookEvidence(f);
+              const bars = EVIDENCE_BARS[evidence] ?? 0;
+              const risk = riskLabel(f);
+              return (
+                <div key={f.horizon} className="nl-tech-orow">
+                  <span className="metric-number nl-tech-day">{f.horizon}D</span>
+                  <b className={lean.tone}>{lean.text}</b>
+                  <span className="nl-tech-bars" role="img" aria-label={`${evidence.toLowerCase()} evidence`}>
+                    {[1, 2, 3].map((n) => <i key={n} className={n <= bars ? "is-on" : undefined} />)}
+                  </span>
+                  <span className={`nl-tech-risk ${risk.tone}`}>{risk.text}</span>
                 </div>
-              </div>
-              {ratings && available ? (
-                <>
-                  <IndicatorRow name="Oscillators" rating={ratings.oscillators} />
-                  <IndicatorRow name="Moving averages" rating={ratings.averages} />
-                  <IndicatorRow name="Summary" rating={ratings.overall} />
-                </>
-              ) : (
-                <p className="nl-tech-empty">Indicator readings are unavailable for this report.</p>
-              )}
-            </section>
-
-            <section className="nl-tech-sec" aria-label="1 to 5 day outlook">
-              <div className="nl-tech-sh">
-                <span className="nl-tech-lbl">1–5 day outlook</span>
-                <span className="nl-tech-meta metric-number">trading days</span>
-              </div>
-              <div className="nl-tech-orow is-head" aria-hidden="true">
-                <span /><span>Lean</span><span>Evidence</span><span>Risk</span>
-              </div>
-              {snapshot.forecasts.map((f) => {
-                const lean = leanLabel(f);
-                const evidence = outlookEvidence(f);
-                const bars = EVIDENCE_BARS[evidence] ?? 0;
-                const risk = riskLabel(f);
-                return (
-                  <div key={f.horizon} className="nl-tech-orow">
-                    <span className="metric-number nl-tech-day">{f.horizon}D</span>
-                    <b className={lean.tone}>{lean.text}</b>
-                    <span className="nl-tech-bars" role="img" aria-label={`${evidence.toLowerCase()} evidence`}>
-                      {[1, 2, 3].map((n) => <i key={n} className={n <= bars ? "is-on" : undefined} />)}
-                    </span>
-                    <span className={`nl-tech-risk ${risk.tone}`}>{risk.text}</span>
-                  </div>
-                );
-              })}
-              <p className="nl-tech-note">Lean is direction, evidence is how much the frames agree, risk is what stands in the way.</p>
-            </section>
-          </>
+              );
+            })}
+          </section>
         )}
       </div>
 

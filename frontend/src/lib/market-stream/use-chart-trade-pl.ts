@@ -10,7 +10,7 @@ import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import type { AccountSummary, ConnectionStatus } from "@/types/forex";
 
 /** Rebase from the broker periodically, then mark from the chart's own tick. */
-export function useChartTradePL(brokerTradeId: string | null, instrument: string, direction: "long" | "short" | null, quote: { bid: number; ask: number } | null, target: number | null) {
+export function useChartTradePL(brokerTradeId: string | null, instrument: string, direction: "long" | "short" | null, quote: { bid: number; ask: number } | null, target: number | null, stop: number | null = null) {
   const enabled = brokerTradeId !== null;
   const { fills } = useOpenPositionSnapshot(enabled);
   const [currency, setCurrency] = useState<string | null>(null);
@@ -38,8 +38,12 @@ export function useChartTradePL(brokerTradeId: string | null, instrument: string
   const fill = brokerTradeId ? fills[`broker:${brokerTradeId}`] : undefined;
   const amount = chartTradePL(fill, instrument, direction, currency, quote);
   const targetAmount = chartTargetPL(fill, instrument, direction, currency, target);
+  // What the trade books if the stop fills: a loss below entry, locked-in
+  // profit once the stop has moved past it. Null until the amount is known.
+  const stopAmount = chartTargetPL(fill, instrument, direction, currency, stop);
   return {
     label: formatTradePL(amount, currency), color: chartTradePLColor(currency ? amount : null),
     targetLabel: formatTradePL(targetAmount, currency).replace(/^P\/L /, "TP "),
+    stopAmountLabel: stopAmount === null || !currency ? null : formatTradePL(stopAmount, currency).replace(/^P\/L /, ""),
   };
 }

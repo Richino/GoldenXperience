@@ -5816,6 +5816,29 @@ html:is(.dark, :not(.dark)) body .signals-view .workspace-tab-btn.workspace-tab-
     height: 20px;
   }
 
+  /* Indicators button: the icon stays centred and the active count is a small
+     lime corner badge, cut out of the button by a ring in its own fill. */
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .signals-mobile-header-actions .sheet-trigger.has-active {
+    color: var(--foreground);
+  }
+
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile .signals-mobile-header-actions .sheet-trigger-badge {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--accent-fill);
+    box-shadow: 0 0 0 2px var(--surface-raised);
+    color: var(--on-accent);
+    font-family: var(--font-shell-mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    line-height: 15px;
+  }
+
   /* Quote row. */
   html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mquote {
     display: grid;
@@ -7778,6 +7801,29 @@ html:is(.dark, :not(.dark)) body .trade-focus-bar.nl-tfb::before {
   height: 15px;
 }
 
+/* Back to the pair's open trade or order: a small lime pill by the close. */
+.nl-tfb-live {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--accent-fill);
+  color: var(--on-accent);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.nl-tfb-live:hover { filter: brightness(1.06); }
+
+.nl-tfb-live:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
 /* Phones: side + result on one row, the entry → exit path below. */
 @media (max-width: 1023px) {
   html:is(.dark, :not(.dark)) body .trade-focus-bar.nl-tfb {
@@ -7898,37 +7944,60 @@ body.is-dragging-position-tool .setup-chart-level-edit-line::before {
   border-top-style: solid;
 }
 .setup-chart-level-edit-line.is-pinned::before { opacity: 0.35; }
+/* The pill is a chart tag, like the P/L and axis labels: a square-cornered
+   dark chip outlined in the level colour, with a filled key segment (grip and
+   SL / TP) and the price in the foreground. */
 .setup-chart-level-edit-handle {
   position: absolute;
   top: 50%;
   right: 6px;
   display: inline-flex;
-  align-items: center;
-  gap: 7px;
+  align-items: stretch;
   height: 24px;
-  padding: 0 10px 0 8px;
-  border-radius: 8px;
-  background: var(--level);
-  color: var(--surface);
+  padding: 0 8px 0 0;
+  overflow: hidden;
+  border: 1px solid var(--level);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  color: var(--foreground);
+  font-family: var(--font-shell-mono);
   font-size: 11.5px;
-  font-weight: 650;
+  font-weight: 500;
+  line-height: 22px;
   letter-spacing: 0;
   white-space: nowrap;
   transform: translateY(-50%);
-  box-shadow: 0 4px 14px -6px color-mix(in srgb, var(--level) 70%, transparent);
   user-select: none;
+  transition: box-shadow 140ms ease;
 }
 /* Grip: two short bars, the universal "drag me" mark. */
 .setup-chart-level-edit-handle i {
-  width: 9px;
-  height: 6px;
+  display: grid;
+  place-items: center;
+  padding-left: 7px;
+  background: var(--level);
+  color: var(--on-accent);
+}
+.setup-chart-level-edit-handle i::before {
+  content: "";
+  width: 8px;
+  height: 5px;
   border-block: 1.5px solid currentColor;
-  opacity: 0.75;
+  opacity: 0.7;
 }
-.setup-chart-level-edit-line.is-invalid .setup-chart-level-edit-handle {
-  background: var(--pending);
+.setup-chart-level-edit-handle b {
+  margin-right: 7px;
+  padding: 0 7px 0 5px;
+  background: var(--level);
+  color: var(--on-accent);
+  font-weight: 700;
 }
-.setup-chart-level-edit-line.is-invalid::before { border-top-color: var(--pending); }
+.setup-chart-level-edit-detail { color: var(--muted); }
+.setup-chart-level-edit-line:hover .setup-chart-level-edit-handle,
+body.is-dragging-position-tool .setup-chart-level-edit-handle {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--level) 22%, transparent);
+}
+.setup-chart-level-edit-line.is-invalid { --level: var(--pending); }
 
 .nl-clevels-start {
   display: inline-flex;
@@ -8556,7 +8625,7 @@ html:is(.dark, :not(.dark)) body .gx-pair-trade-count {
 @media (pointer: coarse) {
   .setup-chart-level-edit-line { top: -14px; height: 28px; }
   .setup-chart-level-edit-line::before { inset: 13px 0 auto; }
-  .setup-chart-level-edit-handle { height: 28px; font-size: 12px; }
+  .setup-chart-level-edit-handle { height: 26px; font-size: 12px; line-height: 24px; }
 }
 
 /* ============================================================ WELCOME SCREEN
@@ -10714,66 +10783,96 @@ html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="watching"]
 .nl-clevels-row b :is(.nl-clevels-detail, .nl-clevels-sep) { color: inherit; font-size: inherit; }
 .nl-mlevels .nl-clevels-row b .nl-clevels-sep { display: none; }
 
-/* Phone SL / TP editor, compact: price on one line, pips · R under it, and
-   "No stop or target" as a slim full-width link above Cancel / Save. */
+/* Phone SL / TP editor, Night Ledger: a flat 8px panel with an uppercase
+   label, two level tiles (colour bar, price in mono, pips · R under it), a
+   quiet "Remove both levels" and Cancel / Save. Save while nothing changed
+   reads as a plain disabled button, not a faded lime. */
 .nl-mlevels .nl-clevels {
   gap: 8px;
-  padding: 12px;
+  padding: 14px;
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: 8px;
   background: var(--surface);
 }
 .nl-mlevels .nl-clevels-mobile-head {
   grid-column: 1 / -1;
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 8px;
-  padding-bottom: 2px;
+  padding-bottom: 4px;
 }
-.nl-mlevels .nl-clevels-mobile-head b { font-size: 13px; font-weight: 650; }
-.nl-mlevels .nl-clevels-mobile-head span { font-size: 11px; color: var(--muted); }
+.nl-mlevels .nl-clevels-mobile-head b {
+  color: var(--muted-strong);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.nl-mlevels .nl-clevels-mobile-head span {
+  color: var(--muted);
+  font-family: var(--font-shell-mono);
+  font-size: 11px;
+}
 .nl-mlevels .nl-clevels-row > i {
   position: absolute;
   left: 0;
-  top: 12px;
-  bottom: 12px;
-  width: 3px;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
   height: auto;
-  border-radius: 3px;
+  border-radius: 0 2px 2px 0;
 }
 .nl-mlevels .nl-clevels-row {
   position: relative;
-  grid-template-columns: minmax(0, 1fr) 44px;
-  min-height: 84px;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  min-height: 72px;
   align-items: center;
-  gap: 4px;
-  padding: 10px 6px 10px 12px;
-  border-radius: 12px;
-  background: var(--surface-raised);
+  gap: 6px;
+  padding: 10px 8px 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
 }
 .nl-mlevels .nl-clevels-row > div {
   min-width: 0;
   gap: 4px;
 }
+.nl-mlevels .nl-clevels-row span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
 .nl-mlevels .nl-clevels-row b {
-  font-size: 14px;
+  font-family: var(--font-shell-mono);
+  font-size: 16px;
+  font-weight: 600;
   white-space: nowrap;
 }
 .nl-mlevels .nl-clevels-row b .nl-clevels-detail {
   display: block;
+  margin-top: 2px;
   color: var(--muted);
   font-size: 11px;
   font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
 }
 .nl-mlevels .nl-clevels-toggle {
-  width: 44px;
-  height: 44px;
-  border: 0;
-  border-radius: 12px;
-  background: var(--surface);
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
 }
-.nl-mlevels .nl-clevels-toggle svg { width: 16px; height: 16px; }
+.nl-mlevels .nl-clevels-toggle:hover {
+  background: var(--interactive-hover);
+  color: var(--foreground);
+}
+.nl-mlevels .nl-clevels-toggle svg { width: 15px; height: 15px; }
 .nl-mlevels .nl-clevels-row.is-invalid small { display: block; font-size: 11px; }
 .nl-mlevels .nl-clevels-none,
 .nl-mlevels .nl-clevels-warning {
@@ -10782,13 +10881,18 @@ html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="watching"]
 .nl-mlevels .nl-clevels-none {
   justify-self: stretch;
   width: 100%;
-  min-height: 48px;
+  min-height: 40px;
   padding: 0 16px;
-  border: 1px solid var(--border-strong);
-  border-radius: 12px;
-  background: var(--surface-raised);
-  color: var(--foreground);
+  border: 1px dashed var(--border-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
   font-size: 13px;
+  font-weight: 500;
+}
+.nl-mlevels .nl-clevels-none:hover {
+  border-style: solid;
+  color: var(--foreground);
 }
 .nl-mlevels .nl-clevels-warning {
   padding: 6px 10px;
@@ -10797,10 +10901,23 @@ html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="watching"]
 .nl-mlevels .nl-clevels-actions {
   grid-template-columns: 1fr 1.4fr;
   gap: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
+  margin-top: 2px;
 }
-.nl-mlevels .nl-clevels-actions button { height: 44px; }
+.nl-mlevels .nl-clevels-actions button {
+  height: 44px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.nl-mlevels .nl-clevels-cancel {
+  background: transparent;
+}
+.nl-mlevels .nl-clevels-save:disabled {
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  color: var(--muted);
+  opacity: 1;
+}
 
 /* Pinned (non-WebKit) phones reserve the editor's measured height instead of
    the one-button slot, so it no longer covers the bottom of the chart. The
@@ -10820,14 +10937,7 @@ html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="watching"]
   .signals-chart-mobile .setup-chart-level-edit-detail { display: none; }
   .signals-chart-mobile .setup-chart-level-edit-handle {
     right: 4px;
-    gap: 6px;
-    padding: 0 9px 0 8px;
-    border-radius: 999px;
     font-size: 11.5px;
-  }
-  /* Lift the pill a touch while it is being dragged. */
-  body.is-dragging-position-tool .signals-chart-mobile .setup-chart-level-edit-handle {
-    box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--level) 85%, transparent);
   }
 }
 
@@ -11440,6 +11550,107 @@ html:is(.dark, :not(.dark)) body .mobile-sheet .nl-notif-list .notification-popo
 
   html:is(.dark, :not(.dark)) body .nl-chart-side :is(.nl-clevels-start, .nl-clevels-save, .nl-clevels-cancel, .nl-clevels-toggle, .nl-clevels-none) {
     border-radius: 4px;
+  }
+
+  /* Trade health SL / TP editor: the phone editor's tiles in the side column —
+     outlined tile on the page ground with a colour bar, uppercase label, mono
+     price with pips · R on its own line, an icon-only remove, a full-width
+     dashed "Remove both levels" and a plain disabled Save. */
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-clevels {
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-clevels-hint {
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-clevels-row {
+    position: relative;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    padding: 9px 8px 9px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--background);
+  }
+
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-clevels-row > i {
+    position: absolute;
+    top: 9px;
+    bottom: 9px;
+    left: 0;
+    width: 2px;
+    border-radius: 0 2px 2px 0;
+  }
+
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-clevels-row > div > span {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-clevels-row b {
+    font-family: var(--font-shell-mono);
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-clevels-row b .nl-clevels-sep { display: none; }
+
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-clevels-row b .nl-clevels-detail {
+    display: block;
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: 10.5px;
+    font-weight: 500;
+  }
+
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-clevels-toggle {
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-size: 0;
+  }
+
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-clevels-toggle:hover {
+    background: var(--interactive-hover);
+    color: var(--foreground);
+  }
+
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-clevels-toggle svg { width: 14px; height: 14px; }
+
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-clevels-none {
+    align-self: stretch;
+    min-height: 34px;
+    border-radius: 6px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-clevels-actions button {
+    height: 38px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-clevels-cancel {
+    background: transparent;
+  }
+
+  html:is(.dark, :not(.dark)) body .nl-chart-side .nl-clevels-save:disabled {
+    border: 1px solid var(--border);
+    background: var(--surface-raised);
+    color: var(--muted);
+    opacity: 1;
   }
 
   html:is(.dark, :not(.dark)) body .nl-chart-side .nl-cnews .nl-news-row {
@@ -12783,9 +12994,10 @@ html:is(.dark, :not(.dark)) body .mobile-sheet .nl-notif-list .notification-popo
   font-family: var(--font-shell-mono);
 }
 
+/* The last trade row keeps a little room above the next card. */
 html:is(.dark, :not(.dark)) body .nl-chart-side .nl-cside-card.nl-book {
   gap: 0;
-  padding: 0;
+  padding: 0 0 10px;
 }
 
 .nl-book-counts {
@@ -17064,6 +17276,193 @@ html:is(.dark, :not(.dark)) body .nl-chart-side .nl-book .nl-book-row + .nl-book
   margin-top: 1px;
 }
 
+/* All trades sheet: each trade and its action are one inset card. The card,
+   not the inner row button, carries the fill and the lime bar, so Close sits
+   inside the selection instead of beside it. */
+html:is(.dark, :not(.dark)) body .nl-book-sheet .nl-book-sheet-row {
+  position: relative;
+  gap: 8px;
+  margin: 0 16px;
+  padding-right: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+html:is(.dark, :not(.dark)) body .nl-book-sheet .nl-book-sheet-row + .nl-book-sheet-row {
+  margin-top: 6px;
+}
+
+html:is(.dark, :not(.dark)) body .nl-book-sheet .nl-book-sheet-row:hover {
+  background: var(--interactive-hover);
+}
+
+html:is(.dark, :not(.dark)) body .nl-book-sheet .nl-book-sheet-row:has(.nl-book-row.is-selected) {
+  border-color: transparent;
+  background: var(--surface-raised);
+}
+
+html:is(.dark, :not(.dark)) body .nl-book-sheet .nl-book-sheet-row:has(.nl-book-row.is-selected)::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 0;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--accent);
+}
+
+html:is(.dark, :not(.dark)) body .nl-book-sheet .nl-book-sheet-row .nl-book-row,
+html:is(.dark, :not(.dark)) body .nl-book-sheet .nl-book-sheet-row .nl-book-row:hover,
+html:is(.dark, :not(.dark)) body .nl-book-sheet .nl-book-sheet-row .nl-book-row.is-selected {
+  min-height: 56px;
+  padding: 10px 4px 10px 14px;
+  background: transparent;
+}
+
+html:is(.dark, :not(.dark)) body .nl-book-sheet .nl-book-sheet-row .nl-book-row.is-selected::before {
+  content: none;
+}
+
+html:is(.dark, :not(.dark)) body .nl-book-sheet .nl-book-id {
+  gap: 4px;
+}
+
+html:is(.dark, :not(.dark)) body .nl-book-sheet .nl-book-line b {
+  font-size: 14px;
+}
+
+html:is(.dark, :not(.dark)) body .nl-book-sheet .nl-book-side {
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  line-height: 1.4;
+}
+
+html:is(.dark, :not(.dark)) body .nl-book-sheet .nl-book-meta {
+  font-size: 11px;
+}
+
+html:is(.dark, :not(.dark)) body .nl-book-sheet .nl-book-main {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+html:is(.dark, :not(.dark)) body .nl-book-sheet .nl-book-sub {
+  font-size: 11px;
+}
+
+html:is(.dark, :not(.dark)) body .nl-book-sheet .nl-book-act {
+  min-width: 60px;
+  height: 32px;
+  margin: 0;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+html:is(.dark, :not(.dark)) body .nl-book-sheet .nl-book-act.is-danger {
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+  color: var(--danger);
+}
+
+html:is(.dark, :not(.dark)) body .nl-book-sheet .nl-book-act.is-danger:hover {
+  background: var(--danger-soft);
+}
+
+/* Trade confirm (close / cancel): the login card's language — flat 8px panel,
+   uppercase label, display-face question, outlined dismiss beside the filled
+   action. */
+html:is(.dark, :not(.dark)) body .custom-expiration-backdrop:has(.trade-confirm-dialog) {
+  background: color-mix(in srgb, #000 62%, transparent);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+html:is(.dark, :not(.dark)) body .custom-expiration-dialog.trade-confirm-dialog {
+  width: min(24rem, calc(100vw - 2rem));
+  padding: 22px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 24px 64px color-mix(in srgb, #000 50%, transparent);
+  font-family: var(--font-shell);
+}
+
+html:is(.dark, :not(.dark)) body .trade-confirm-dialog header span {
+  color: var(--muted-strong);
+  font-family: var(--font-shell-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+html:is(.dark, :not(.dark)) body .trade-confirm-dialog h3 {
+  margin-top: 8px;
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+html:is(.dark, :not(.dark)) body .trade-confirm-dialog > p {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+html:is(.dark, :not(.dark)) body .trade-confirm-dialog footer {
+  display: flex;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+html:is(.dark, :not(.dark)) body .trade-confirm-dialog footer button {
+  flex: 1 1 0;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 600;
+  transition: background-color 140ms ease, filter 140ms ease;
+}
+
+html:is(.dark, :not(.dark)) body .trade-confirm-dialog footer button:hover {
+  background: var(--interactive-hover);
+}
+
+html:is(.dark, :not(.dark)) body .trade-confirm-dialog footer button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+html:is(.dark, :not(.dark)) body .trade-confirm-dialog footer button:is(.is-danger, .is-warning) {
+  border-color: transparent;
+  color: var(--on-accent);
+}
+
+html:is(.dark, :not(.dark)) body .trade-confirm-dialog footer button.is-danger {
+  background: var(--loss-fill, var(--danger));
+}
+
+html:is(.dark, :not(.dark)) body .trade-confirm-dialog footer button.is-warning {
+  background: var(--pending);
+}
+
+html:is(.dark, :not(.dark)) body .trade-confirm-dialog footer button:is(.is-danger, .is-warning):hover {
+  filter: brightness(1.08);
+}
+
 /* Weekly trends timing never wraps. */
 html:is(.dark, :not(.dark)) body .nl-home [aria-labelledby="home-good-trends-title"] a small {
   white-space: nowrap;
@@ -19570,7 +19969,8 @@ html:is(.dark, :not(.dark)) body .nl-tx .nl-tx-cnt {
     border: 1px solid var(--border);
     border-radius: 6px;
     background: var(--surface);
-    box-shadow: 0 2px 10px color-mix(in srgb, var(--foreground) 6%, transparent);
+    /* No shadow: a light-coloured one read as a glow on the dark chart. */
+    box-shadow: none;
   }
 
   html:is(.dark, :not(.dark)) body .nl-tfb .nl-tfb-id {
@@ -19794,79 +20194,6 @@ html:is(.dark, :not(.dark)) body .nl-chart-side > .nl-tech {
   font-size: 10.5px;
 }
 
-.nl-tech-seg {
-  display: flex;
-  gap: 2px;
-}
-
-.nl-tech-seg button {
-  height: 24px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: 3px;
-  background: none;
-  color: var(--muted);
-  font-family: var(--font-shell-mono);
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.nl-tech-seg button:hover {
-  color: var(--foreground);
-}
-
-.nl-tech-seg button.is-on {
-  background: var(--surface-raised);
-  color: var(--foreground);
-}
-
-/* Indicator votes: name, a sell→buy meter, the verdict; counts underneath. */
-.nl-tech-ind {
-  display: grid;
-  grid-template-columns: 108px minmax(0, 1fr) 76px;
-  align-items: center;
-  gap: 3px 12px;
-  padding: 6px 14px;
-}
-
-.nl-tech-ind-name {
-  font-size: 12.5px;
-}
-
-.nl-tech-ind b {
-  font-size: 12px;
-  font-weight: 600;
-  text-align: right;
-}
-
-.nl-tech-ind-counts {
-  grid-column: 2 / -1;
-  color: var(--muted);
-  font-size: 10.5px;
-}
-
-.nl-tech-meter {
-  position: relative;
-  height: 4px;
-  border-radius: 2px;
-  background: linear-gradient(90deg,
-    var(--danger) 0 20%,
-    color-mix(in srgb, var(--danger) 45%, var(--surface-raised)) 20% 40%,
-    var(--surface-raised) 40% 60%,
-    color-mix(in srgb, var(--accent) 45%, var(--surface-raised)) 60% 80%,
-    var(--accent) 80% 100%);
-}
-
-.nl-tech-meter i {
-  position: absolute;
-  top: -4px;
-  width: 2px;
-  height: 12px;
-  margin-left: -1px;
-  border-radius: 1px;
-  background: var(--foreground);
-}
-
 /* Outlook rows: day, lean, evidence bars, continuation risk. */
 .nl-tech-orow {
   display: grid;
@@ -19929,15 +20256,6 @@ html:is(.dark, :not(.dark)) body .nl-chart-side > .nl-tech {
 .nl-tech :is(.is-pend) { color: var(--pending); }
 .nl-tech :is(.is-muted) { color: var(--muted); }
 
-.nl-tech-note {
-  margin: 0;
-  padding: 10px 14px 12px;
-  border-top: 1px solid var(--border);
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.45;
-}
-
 .nl-tech-empty {
   margin: 0;
   padding: 12px 14px;
@@ -19974,11 +20292,6 @@ html:is(.dark, :not(.dark)) body .nl-chart-side > .nl-tech {
   gap: 8px;
   padding: 12px 14px 14px;
   border-top: 1px solid var(--border);
-}
-
-.nl-tech-foot .nl-tech-note {
-  padding: 0;
-  border: 0;
 }
 
 .nl-tech-copy,
@@ -20047,13 +20360,8 @@ html:is(.dark, :not(.dark)) body .gx-toolbar-btn.is-active.nl-tech-toggle {
   display: none;
 }
 
-.nl-tech.is-sheet :is(.nl-tech-sh, .nl-tech-ind, .nl-tech-orow, .nl-tech-note, .nl-tech-empty, .nl-tech-start, .nl-tech-foot) {
+.nl-tech.is-sheet :is(.nl-tech-sh, .nl-tech-orow, .nl-tech-empty, .nl-tech-start, .nl-tech-foot) {
   padding-inline: 2px;
-}
-
-.nl-tech.is-sheet .nl-tech-seg button {
-  height: 30px;
-  min-width: 38px;
 }
 
 .nl-tech.is-sheet .nl-tech-copy {
@@ -20971,4 +21279,65 @@ html:is(.dark, :not(.dark)) body .pending-entry-dialog .nl-pe-ticket .nl-an-rows
 html:is(.dark, :not(.dark)) body .pending-entry-dialog .nl-an-secondary {
   border: 0;
   background: var(--surface-raised);
+}
+
+/* ============================================================ FOCUSED TRADE · END CLUSTER
+   Result, Live trade and close as one tidy row of equal-height controls: the
+   result is a soft tinted chip, Live trade a quiet outlined button with a
+   lime "live" dot, and the close sits apart behind a hairline. */
+html:is(.dark, :not(.dark)) body .nl-tfb .nl-tfb-end {
+  gap: 8px;
+}
+
+html:is(.dark, :not(.dark)) body .nl-tfb .nl-tfb-result {
+  align-items: center;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 4px;
+}
+
+html:is(.dark, :not(.dark)) body .nl-tfb .nl-tfb-result.is-won { background: var(--accent-soft); }
+html:is(.dark, :not(.dark)) body .nl-tfb .nl-tfb-result.is-lost { background: var(--danger-soft); }
+
+html:is(.dark, :not(.dark)) body .nl-tfb .nl-tfb-live {
+  gap: 6px;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+html:is(.dark, :not(.dark)) body .nl-tfb .nl-tfb-live::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-fill);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-fill) 18%, transparent);
+}
+
+html:is(.dark, :not(.dark)) body .nl-tfb .nl-tfb-live:hover {
+  border-color: var(--accent);
+  background: var(--interactive-hover);
+  filter: none;
+}
+
+html:is(.dark, :not(.dark)) body .nl-tfb .nl-tfb-clear {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  margin-left: 4px;
+}
+
+html:is(.dark, :not(.dark)) body .nl-tfb .nl-tfb-clear::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: -6px;
+  width: 1px;
+  background: var(--border);
 }

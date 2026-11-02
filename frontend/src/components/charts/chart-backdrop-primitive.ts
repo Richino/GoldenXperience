@@ -76,12 +76,26 @@ class BackdropRenderer implements IPrimitivePaneRenderer {
       context.font = `600 ${Math.round(10 * v)}px ${this.fontFamily}`;
       context.textBaseline = "top";
       // Name only the latest London and New York bands; the earlier days'
-      // bands read the same without repeating their labels.
+      // bands read the same without repeating their labels. Where the two
+      // overlap, that stretch is named as the overlap and "New York" moves to
+      // where New York trades alone. A label is drawn only where it fits.
       const latest = new Map(this.bands.map((band) => [band.name, band]));
-      for (const band of latest.values()) {
-        if (band.x2 - band.x1 < 70) continue;
-        context.fillStyle = band.name === "london" ? this.colors.londonLabel : this.colors.newYorkLabel;
-        context.fillText(band.name === "london" ? "LONDON" : "NEW YORK", Math.round((band.x1 + 6) * h), Math.round(8 * v));
+      const london = latest.get("london");
+      const newYork = latest.get("newYork");
+      const label = (text: string, color: string, from: number, to: number) => {
+        if (to - from < context.measureText(text).width / h + 12) return;
+        context.fillStyle = color;
+        context.fillText(text, Math.round((from + 6) * h), Math.round(8 * v));
+      };
+      const overlap = london && newYork && newYork.x1 < london.x2 && newYork.x2 > london.x1
+        ? { x1: Math.max(london.x1, newYork.x1), x2: Math.min(london.x2, newYork.x2) }
+        : null;
+      if (london) label("LONDON", this.colors.londonLabel, london.x1, overlap ? Math.min(london.x2, overlap.x1) : london.x2);
+      if (newYork && overlap) {
+        label("LDN / NY", this.colors.newYorkLabel, overlap.x1, overlap.x2);
+        label("NY", this.colors.newYorkLabel, overlap.x2, newYork.x2);
+      } else if (newYork) {
+        label("NY", this.colors.newYorkLabel, newYork.x1, newYork.x2);
       }
     });
   }

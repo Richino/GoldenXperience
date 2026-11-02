@@ -3777,11 +3777,14 @@ body.is-dragging-position-tool .setup-chart-position-band {
   }
 }
 
-/* Last-bar overlay: ringed endpoint glued to the latest candle. */
+/* Last-bar overlay: ringed endpoint glued to the latest candle. The live
+   price label must never be covered, so this layer sits above every other
+   chart overlay (level tags 4, scale rail 5, SL / TP handles 6) except the
+   crosshair labels, which follow the pointer and win while hovering. */
 .setup-chart-last-price {
   position: absolute;
   inset: 0;
-  z-index: 3;
+  z-index: 8;
   overflow: hidden;
   pointer-events: none;
 }
@@ -3825,7 +3828,7 @@ body.is-dragging-position-tool .setup-chart-position-band {
 .setup-chart-crosshair-labels {
   position: absolute;
   inset: 0;
-  z-index: 6;
+  z-index: 9;
   pointer-events: none;
 }
 

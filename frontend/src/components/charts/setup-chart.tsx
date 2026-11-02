@@ -214,6 +214,9 @@ export interface ChartReferenceLine {
   dashed?: boolean;
   lineWidth?: 1 | 2;
   onSelect?: () => void;
+  /** Tag the line at the plot's left edge even on wide charts, keeping the
+   *  strip beside the price axis for the trade's own levels. */
+  leftEdge?: boolean;
 }
 
 /** A finite diagonal or horizontal segment used by visual chart indicators. */
@@ -827,20 +830,17 @@ function LevelEditOverlay({
   };
 
   const pip = pipSizeFor(edit.instrument);
-  // R only means something while the stop is on the losing side of entry.
-  const risk = edit.stop === null ? null : edit.direction === "long" ? edit.entry - edit.stop : edit.stop - edit.entry;
   const label = (key: EditLevelKey, price: number) => {
     const fromEntry = (edit.direction === "long" ? price - edit.entry : edit.entry - price) / pip;
     const pips = `${fromEntry >= 0 ? "+" : "−"}${Math.abs(fromEntry).toFixed(1)}p`;
-    // The stop is the 1R the trade risks; the target is measured in those R.
-    const reward = risk === null || risk <= 0 ? ""
-      : key === "stop" ? ""
-        : ` · ${(Math.abs(price - edit.entry) / risk).toFixed(1)}× stop distance`;
-    // The phone chart hides the detail: its SL / TP cards show the same numbers.
+    // Just pips on the chart: the stop-distance multiple is in the SL / TP
+    // editor beside it, and on the chart it ran the pill across the plot.
+    // The phone chart hides even the pips: its SL / TP cards show them.
     return (
       <>
-        {`${key === "stop" ? "SL" : "TP"} ${formatChartPrice(price, edit.instrument)}`}
-        <span className="setup-chart-level-edit-detail">{` · ${pips}${reward}`}</span>
+        <b>{key === "stop" ? "SL" : "TP"}</b>
+        {formatChartPrice(price, edit.instrument)}
+        <span className="setup-chart-level-edit-detail">{` · ${pips}`}</span>
       </>
     );
   };
@@ -1137,6 +1137,7 @@ interface LevelTag {
   dashed: boolean;
   lineWidth?: 1 | 2;
   onSelect?: () => void;
+  leftEdge?: boolean;
 }
 
 /**
@@ -1291,12 +1292,22 @@ function overlayLevelTags(
       dashed: line.dashed ?? true,
       lineWidth: line.lineWidth ?? 2,
       onSelect: line.onSelect,
+      leftEdge: line.leftEdge,
     });
   }
   return tags;
 }
 
 /** A level tag resolved to a pixel row, ready to be positioned. */
+/** A closed focused trade's exit: green where it made money, red where it lost. */
+function focusedExitColor(trade: PaperChartTrade, isDark: boolean) {
+  const won = trade.resultR !== null
+    ? trade.resultR >= 0
+    : trade.exit !== null && (trade.direction === "long" ? trade.exit >= trade.entry : trade.exit <= trade.entry);
+  const palette = chartColors(isDark);
+  return won ? palette.up : palette.stopLine;
+}
+
 interface PlacedLevelTag extends LevelTag {
   y: number;
   /** The horizontal side where this tag is anchored. */
@@ -1362,6 +1373,38 @@ function stackLevelTagYs(
   }
 
   return sorted;
+}
+
+/**
+ * Stack price-axis badges around the live price label, which never moves:
+ * badges above it are pushed up and badges below it pushed down until none
+ * overlap it or each other.
+ */
+function stackAroundRow(
+  tags: PlacedLevelTag[],
+  fixedY: number,
+  fixedHeight: number,
+  paneHeight: number,
+): PlacedLevelTag[] {
+  const height = PRICE_AXIS_LABEL_HEIGHT;
+  const step = height + LEVEL_TAG_STACK_GAP;
+  const clearance = (height + fixedHeight) / 2 + LEVEL_TAG_STACK_GAP;
+  const clamp = (y: number) => Math.min(Math.max(y, height / 2), paneHeight - height / 2);
+  const above = tags.filter((tag) => tag.y <= fixedY).sort((left, right) => right.y - left.y);
+  const below = tags.filter((tag) => tag.y > fixedY).sort((left, right) => left.y - right.y);
+  let ceiling = fixedY - clearance;
+  const placedAbove = above.map((tag) => {
+    const y = Math.min(tag.y, ceiling);
+    ceiling = y - step;
+    return { ...tag, y: clamp(y) };
+  });
+  let floor = fixedY + clearance;
+  const placedBelow = below.map((tag) => {
+    const y = Math.max(tag.y, floor);
+    floor = y + step;
+    return { ...tag, y: clamp(y) };
+  });
+  return [...placedAbove.reverse(), ...placedBelow];
 }
 
 function addSetupLevels(
@@ -2689,6 +2732,26 @@ export function SetupChart({
     };
   }, [chartEpoch, focusEntryCovered, focusPrediction, focusTradeId, isDark, showTradeMarkers, trades]);
 
+  // A closed focused trade also marks where it left, so entry and exit read
+  // as a pair of levels rather than one line and a marker.
+  useEffect(() => {
+    const mainSeries = liveSeries(mainSeriesRef.current);
+    const trade = trades?.find((item) => item.id === focusTradeId);
+    if (!mainSeries || !trade || trade.exit === null || !showTradeMarkers || focusPrediction) return;
+    const line = mainSeries.createPriceLine({
+      price: trade.exit,
+      color: focusedExitColor(trade, isDark),
+      lineWidth: 2,
+      lineStyle: LineStyle.Dashed,
+      // The EXIT tag prints the price on the axis, as ENTRY does.
+      axisLabelVisible: false,
+      title: "",
+    });
+    return () => {
+      if (liveSeries(mainSeriesRef.current) === mainSeries) mainSeries.removePriceLine(line);
+    };
+  }, [chartEpoch, focusPrediction, focusTradeId, isDark, showTradeMarkers, trades]);
+
   useEffect(() => {
     const mainSeries = liveSeries(mainSeriesRef.current);
     if (!mainSeries || !liveCandle) return;
@@ -2901,10 +2964,16 @@ export function SetupChart({
   // something actually moved.
   useEffect(() => {
     const entryTrade = showTradeMarkers && !focusPrediction && !focusEntryCovered ? trades?.find((trade) => trade.id === focusTradeId) : null;
-    const tags = [
+    const exitTrade = showTradeMarkers && !focusPrediction ? trades?.find((trade) => trade.id === focusTradeId && trade.exit !== null) : null;
+    const tags: LevelTag[] = [
       ...(entryTrade ? [{
         key: "focused-trade-entry", label: "ENTRY", price: entryTrade.entry,
         color: entryTrade.direction === "long" ? (isDark ? "#60a5fa" : "#2563eb") : (isDark ? "#e879f9" : "#a21caf"),
+        textColor: isDark ? "#090a08" : "#ffffff", dashed: true,
+      }] : []),
+      ...(exitTrade ? [{
+        key: "focused-trade-exit", label: "EXIT", price: exitTrade.exit!,
+        color: focusedExitColor(exitTrade, isDark),
         textColor: isDark ? "#090a08" : "#ffffff", dashed: true,
       }] : []),
       ...overlayLevelTags(
@@ -2974,16 +3043,28 @@ export function SetupChart({
         }
         // Keep an off-screen level visible at the top/bottom rather than
         // dropping it or allowing a corner keepout to shift it inward.
+        const left = labelsLeft || tag.leftEdge === true;
         return [{
           ...tag,
           y: Math.min(Math.max(y, minTagY), maxTagY),
-          edge: labelsLeft ? "left" : "right",
-          offset: labelsLeft ? 8 : axisWidth + 8,
+          edge: left ? "left" : "right",
+          offset: left ? 8 : axisWidth + 8,
         }];
       });
 
-      const stacked = stackLevelTagYs(placed, paneHeight);
-      const axisStacked = stackLevelTagYs(axisTags, paneHeight, () => PRICE_AXIS_LABEL_HEIGHT);
+      // Each edge stacks on its own: a left tag and a right tag on the same
+      // row do not collide.
+      const stacked = [
+        ...stackLevelTagYs(placed.filter((tag) => tag.edge === "left"), paneHeight),
+        ...stackLevelTagYs(placed.filter((tag) => tag.edge === "right"), paneHeight),
+      ];
+      // The live price label owns its row on the axis; level badges move
+      // around it instead of being drawn under or over it.
+      const liveClose = latestCloseRef.current ?? candlesRef.current.at(-1)?.close ?? null;
+      const liveY = liveClose === null ? null : coordinateOf(liveClose);
+      const axisStacked = liveY !== null && liveY >= 0 && liveY <= paneHeight
+        ? stackAroundRow(axisTags, liveY, lastPriceLabelRef.current?.offsetHeight || PRICE_AXIS_LABEL_HEIGHT, paneHeight)
+        : stackLevelTagYs(axisTags, paneHeight, () => PRICE_AXIS_LABEL_HEIGHT);
       const signature = JSON.stringify([stacked, axisStacked]);
       if (signature === previous) return;
       previous = signature;

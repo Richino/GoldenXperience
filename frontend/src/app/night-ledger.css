@@ -12261,7 +12261,7 @@ html:is(.dark, :not(.dark)) body .mobile-sheet .nl-notif-list .notification-popo
     max-width: calc(100% - 160px);
     gap: 0;
     padding: 0 6px;
-    transform: translateY(calc(-100% - 1px));
+    transform: translateY(-50%);
     border: 1px solid var(--level-color);
     border-radius: 2px;
     background: var(--chart-ground);
@@ -12792,7 +12792,7 @@ html:is(.dark, :not(.dark)) body .mobile-sheet .nl-notif-list .notification-popo
     height: 16px;
     gap: 0;
     padding: 0 5px;
-    transform: translateY(calc(-100% - 1px));
+    transform: translateY(-50%);
     border: 1px solid var(--level-color);
     border-radius: 2px;
     background: var(--chart-ground);
@@ -13619,7 +13619,8 @@ button.nl-book-row:hover {
 
 html:is(.dark, :not(.dark)) body .gx-fs {
   --gx-fs-glass: color-mix(in srgb, var(--surface) 94%, transparent);
-  --gx-fs-edge: var(--border-strong);
+  /* Borderless HUD: the glass fill and shadow separate the panels from the chart. */
+  --gx-fs-edge: transparent;
   --gx-fs-shadow: 0 6px 20px rgb(0 0 0 / 22%);
   background: var(--chart-ground);
   font-family: var(--font-shell);
@@ -13737,11 +13738,12 @@ html:is(.dark, :not(.dark)) body .gx-fs .gx-fs-tf {
   font-weight: 400;
 }
 
+/* Selected timeframe: a soft lime lens, no ring, like the active nav row. */
 html:is(.dark, :not(.dark)) body .gx-fs .gx-fs-tf.is-active {
-  background: var(--surface-raised);
-  box-shadow: 0 0 0 1px var(--border-strong);
-  color: var(--foreground);
-  font-weight: 500;
+  background: var(--nav-active);
+  box-shadow: none;
+  color: var(--accent);
+  font-weight: 600;
 }
 
 html:is(.dark, :not(.dark)) body .gx-fs .gx-fs-dock :is(.gx-toolbar-btn, .gx-fs-icon) {
@@ -13801,7 +13803,7 @@ html:is(.dark, :not(.dark)) body .gx-fs .setup-chart-level-tag.is-right {
   max-width: calc(100% - 160px);
   gap: 0;
   padding: 0 6px;
-  transform: translateY(calc(-100% - 1px));
+  transform: translateY(-50%);
   border: 1px solid var(--level-color);
   border-radius: 2px;
   background: var(--chart-ground);
@@ -13942,7 +13944,7 @@ html:is(.dark, :not(.dark)) body .gx-fs .setup-chart-level-tag.is-left {
   height: 18px;
   gap: 0;
   padding: 0 6px;
-  transform: translateY(calc(-100% - 1px));
+  transform: translateY(-50%);
   border: 1px solid var(--level-color);
   border-radius: 2px;
   background: var(--chart-ground);
@@ -21341,3 +21343,17 @@ html:is(.dark, :not(.dark)) body .nl-tfb .nl-tfb-clear::before {
   width: 1px;
   background: var(--border);
 }
+
+/* ============================================================ LIVE PRICE · CANDLE COUNTDOWN
+   The live price badge grows a second line for the time left in the forming
+   candle: the price row keeps the axis badge height (and stays on the price),
+   the countdown hangs underneath. */
+html:is(.dark, :not(.dark)) body :is(.signals-chart-mobile, .gx-fs, .nl-terminal) .setup-chart-last-price .setup-chart-price-label {
+  height: auto;
+  align-items: flex-start;
+  padding-bottom: 2px;
+  line-height: 1;
+}
+
+html:is(.dark, :not(.dark)) body .signals-chart-mobile .setup-chart-price-value { line-height: 16px; }
+html:is(.dark, :not(.dark)) body :is(.gx-fs, .nl-terminal) .setup-chart-price-value { line-height: 18px; }

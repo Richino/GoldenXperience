@@ -1383,22 +1383,22 @@ function stackLevelTagYs(
 function stackAroundRow(
   tags: PlacedLevelTag[],
   fixedY: number,
-  fixedHeight: number,
+  fixedAbove: number,
+  fixedBelow: number,
   paneHeight: number,
 ): PlacedLevelTag[] {
   const height = PRICE_AXIS_LABEL_HEIGHT;
   const step = height + LEVEL_TAG_STACK_GAP;
-  const clearance = (height + fixedHeight) / 2 + LEVEL_TAG_STACK_GAP;
   const clamp = (y: number) => Math.min(Math.max(y, height / 2), paneHeight - height / 2);
   const above = tags.filter((tag) => tag.y <= fixedY).sort((left, right) => right.y - left.y);
   const below = tags.filter((tag) => tag.y > fixedY).sort((left, right) => left.y - right.y);
-  let ceiling = fixedY - clearance;
+  let ceiling = fixedY - fixedAbove - height / 2 - LEVEL_TAG_STACK_GAP;
   const placedAbove = above.map((tag) => {
     const y = Math.min(tag.y, ceiling);
     ceiling = y - step;
     return { ...tag, y: clamp(y) };
   });
-  let floor = fixedY + clearance;
+  let floor = fixedY + fixedBelow + height / 2 + LEVEL_TAG_STACK_GAP;
   const placedBelow = below.map((tag) => {
     const y = Math.max(tag.y, floor);
     floor = y + step;
@@ -1634,6 +1634,37 @@ function latestCandleChartTime(candles: Candle[]) {
   return chartTimeValue(toChartCandles(candles).at(-1));
 }
 
+const DAY_MS_COUNTDOWN = 86_400_000;
+
+/**
+ * Time left in the forming candle, as TradingView prints it under the price:
+ * mm:ss, or h:mm:ss from an hour up. Measured from the latest candle's own open
+ * so 4H candles follow OANDA's 17:00 New York alignment rather than UTC. Null
+ * for daily and longer candles, and once the candle has closed with no
+ * successor (market closed).
+ */
+function candleCountdown(candles: Candle[], now: number): string | null {
+  if (candles.length < 2) return null;
+  let span = Infinity;
+  for (let index = Math.max(1, candles.length - 6); index < candles.length; index += 1) {
+    const gap = Date.parse(candles[index]!.time) - Date.parse(candles[index - 1]!.time);
+    if (gap > 0 && gap < span) span = gap;
+  }
+  if (!Number.isFinite(span) || span >= DAY_MS_COUNTDOWN) return null;
+  // The newest stored candle can be the forming one or the one before it;
+  // count to the next boundary after it. Two spans without a new candle means
+  // the market is closed.
+  const elapsed = now - Date.parse(candles.at(-1)!.time);
+  if (!(elapsed >= 0) || elapsed > span * 2) return null;
+  const left = span - (elapsed % span);
+  const total = Math.ceil(left / 1_000);
+  const hours = Math.floor(total / 3_600);
+  const minutes = Math.floor((total % 3_600) / 60);
+  const seconds = total % 60;
+  const two = (value: number) => String(value).padStart(2, "0");
+  return hours > 0 ? `${hours}:${two(minutes)}:${two(seconds)}` : `${two(minutes)}:${two(seconds)}`;
+}
+
 /** Glue the last-bar endpoint dot to the latest candle in the same turn as a chart move. */
 function paintLastPriceOverlay(args: {
   chart: IChartApi;
@@ -1664,11 +1695,20 @@ function paintLastPriceOverlay(args: {
   label.hidden = rawY === null || !Number.isFinite(close);
   if (rawY !== null && Number.isFinite(close)) {
     const paneHeight = chart.panes()[0]?.getHeight() ?? height;
-    const halfLabel = label.offsetHeight / 2;
-    const y = Math.max(halfLabel, Math.min(rawY, paneHeight - halfLabel));
+    const value = label.children[0] as HTMLElement | undefined;
+    const countdown = label.children[1] as HTMLElement | undefined;
     const text = mainSeries.priceFormatter().format(close);
-    if (label.textContent !== text) label.textContent = text;
-    const transform = `translate3d(0, ${y}px, 0) translateY(-50%)`;
+    const target = value ?? label;
+    if (target.textContent !== text) target.textContent = text;
+    if (countdown) {
+      const left = candleCountdown(candles, Date.now()) ?? "";
+      if (countdown.textContent !== left) countdown.textContent = left;
+      countdown.hidden = left === "";
+    }
+    const above = value ? value.offsetTop + value.offsetHeight / 2 : label.offsetHeight / 2;
+    const below = label.offsetHeight - above;
+    const y = Math.max(above, Math.min(rawY, paneHeight - below));
+    const transform = `translate3d(0, ${y - above}px, 0)`;
     if (label.style.transform !== transform) label.style.transform = transform;
   }
   const onScreen =
@@ -3062,8 +3102,13 @@ export function SetupChart({
       // around it instead of being drawn under or over it.
       const liveClose = latestCloseRef.current ?? candlesRef.current.at(-1)?.close ?? null;
       const liveY = liveClose === null ? null : coordinateOf(liveClose);
+      // The label hangs below the price when it carries the candle countdown.
+      const liveLabel = lastPriceLabelRef.current;
+      const liveValue = liveLabel?.children[0] as HTMLElement | undefined;
+      const liveAbove = liveValue ? liveValue.offsetTop + liveValue.offsetHeight / 2 : PRICE_AXIS_LABEL_HEIGHT / 2;
+      const liveBelow = liveLabel ? Math.max(liveLabel.offsetHeight - liveAbove, PRICE_AXIS_LABEL_HEIGHT / 2) : PRICE_AXIS_LABEL_HEIGHT / 2;
       const axisStacked = liveY !== null && liveY >= 0 && liveY <= paneHeight
-        ? stackAroundRow(axisTags, liveY, lastPriceLabelRef.current?.offsetHeight || PRICE_AXIS_LABEL_HEIGHT, paneHeight)
+        ? stackAroundRow(axisTags, liveY, liveAbove, liveBelow, paneHeight)
         : stackLevelTagYs(axisTags, paneHeight, () => PRICE_AXIS_LABEL_HEIGHT);
       const signature = JSON.stringify([stacked, axisStacked]);
       if (signature === previous) return;
@@ -3274,7 +3319,10 @@ export function SetupChart({
             color: palette.onUp,
             fontSize: embedded ? 9 : 11,
           }}
-        />
+        >
+          <span className="setup-chart-price-value" />
+          <span className="setup-chart-price-countdown" hidden />
+        </span>
       </div>
       {placedTags.map((tag) => (
         <button

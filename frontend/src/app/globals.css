@@ -3814,6 +3814,23 @@ body.is-dragging-position-tool .setup-chart-position-band {
   pointer-events: none;
 }
 
+/* Live price over the time left in the forming candle, as TradingView shows it. */
+.setup-chart-last-price .setup-chart-price-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.setup-chart-price-countdown {
+  font-size: 0.85em;
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+.setup-chart-price-countdown[hidden] {
+  display: none;
+}
+
 .setup-chart-level-price {
   z-index: 4;
   display: flex;

@@ -38,11 +38,26 @@ function signedMoney(value: number, currency: string) {
   return `${value >= 0 ? "+" : "−"}${money(Math.abs(value), currency)}`;
 }
 
-function QuotaRow({ label, rate, pl, opening, currency }: { label: string; rate: number; pl: number; opening: number; currency: string }) {
-  const target = opening * rate;
-  const progress = target > 0 ? Math.max(0, Math.min(1, pl / target)) : 0;
+/**
+ * Today's target with the week carried in: where the daily plan says the
+ * balance should be by the end of today, minus what this week already made
+ * before today. A good day lowers tomorrow's target, a losing day raises it;
+ * it starts over with the week. Sunday's evening session shares Monday's
+ * plan day, and Saturday has no session of its own.
+ */
+export function carriedDailyTarget(weekOpening: number, madeEarlierThisWeek: number, todayKey: string) {
+  const [year, month, day] = todayKey.split("-").map(Number);
+  const planDay = Math.min(5, Math.max(1, new Date(Date.UTC(year, month - 1, day)).getUTCDay()));
+  const pace = weekOpening * (Math.pow(1 + DAILY_RATE, planDay) - 1);
+  // Negative when already ahead of plan: shown as $0, but a loss today still
+  // has to be measured against that lead.
+  return { pace, target: pace - madeEarlierThisWeek };
+}
+
+function QuotaRow({ label, rate, pl, target, open, currency }: { label: string; rate: number; pl: number; target: number; open: number; currency: string }) {
   const met = pl >= target;
   const remaining = target - pl;
+  const progress = target > 0 ? Math.max(0, Math.min(1, pl / target)) : met ? 1 : 0;
   return (
     <div className={`nl-quota-row${met ? " is-met" : ""}`}>
       <div className="nl-quota-top">
@@ -51,13 +66,15 @@ function QuotaRow({ label, rate, pl, opening, currency }: { label: string; rate:
       </div>
       <div className="nl-quota-amounts metric-number">
         <b className={pl > 0.005 ? "is-up" : pl < -0.005 ? "is-down" : "is-flat"}>{signedMoney(pl, currency)}</b>
-        <span> / {money(target, currency)}</span>
+        <span> / {money(Math.max(0, target), currency)}</span>
       </div>
       <div className="nl-quota-bar" role="progressbar" aria-label={`${label} quota`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}>
         <span style={{ width: `${progress * 100}%` }} />
       </div>
       <span className="nl-quota-note metric-number">
         {met ? `Quota met · +${money(pl - target, currency)} over` : `${money(remaining, currency)} to go · ${Math.round(progress * 100)}%`}
+        {/* Floating P/L is shown, never counted, until the trade closes. */}
+        {Math.abs(open) >= 0.5 ? <span className={open > 0 ? "is-up" : "is-down"}> · {signedMoney(open, currency)} open</span> : null}
       </span>
     </div>
   );
@@ -81,8 +98,8 @@ export function HomeQuota({
   history: AccountBalanceHistoryPoint[];
 }) {
   const todayKey = useQuotaDayKey();
-  // Balance movements booked in this quota day / week, plus what is still
-  // floating on open positions.
+  // Only balance movements booked in this quota day / week count: what you
+  // actually made. Open positions are listed beside it, not added in.
   const { dayRealized, weekRealized } = useMemo(() => {
     const weekKey = quotaWeekKey(todayKey);
     let day = 0;
@@ -95,8 +112,9 @@ export function HomeQuota({
     return { dayRealized: day, weekRealized: week };
   }, [history, todayKey]);
 
-  const dayPL = dayRealized + account.unrealizedPL;
-  const weekPL = weekRealized + account.unrealizedPL;
+  const weekOpening = account.balance - weekRealized;
+  const earlier = weekRealized - dayRealized;
+  const daily = carriedDailyTarget(weekOpening, earlier, todayKey);
 
   return (
     <section className="nl-quota" aria-labelledby="nl-quota-title">
@@ -104,8 +122,8 @@ export function HomeQuota({
         <h2 id="nl-quota-title">Quota</h2>
       </div>
       <div className="nl-quota-grid">
-        <QuotaRow label="Today" rate={DAILY_RATE} pl={dayPL} opening={account.nav - dayPL} currency={account.currency} />
-        <QuotaRow label="This week" rate={WEEKLY_RATE} pl={weekPL} opening={account.nav - weekPL} currency={account.currency} />
+        <QuotaRow label="Today" rate={DAILY_RATE} pl={dayRealized} target={daily.target}open={account.unrealizedPL} currency={account.currency} />
+        <QuotaRow label="This week" rate={WEEKLY_RATE} pl={weekRealized} target={weekOpening * WEEKLY_RATE} open={account.unrealizedPL} currency={account.currency} />
       </div>
     </section>
   );

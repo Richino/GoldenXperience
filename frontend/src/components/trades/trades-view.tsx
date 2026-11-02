@@ -1,5 +1,5 @@
 "use client";
-import { aggregateR, formatRMultiple, formatTradeR, riskMetrics, R_EXPLANATION } from "@/lib/risk-metrics";
+import { aggregateR, displayTradeR, formatRMultiple, formatTradeR, riskMetrics, R_EXPLANATION } from "@/lib/risk-metrics";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
@@ -197,7 +197,7 @@ function SideChip({ direction }: { direction: "long" | "short" }) {
 function RPill({ value, initialRiskRecorded = false, trade }: { value: number | null | undefined; initialRiskRecorded?: boolean; trade?: JournalTrade }) {
   const estimated = trade?.riskDataQuality === "estimated" && trade.estimatedRMultiple != null;
   const title = estimated ? `Estimated R. ${trade.estimatedRBasis} ${trade.estimatedRPnlBasis}. Excluded from verified-R statistics.` : R_EXPLANATION;
-  return <span title={title} data-risk-unavailable={value == null && !estimated || undefined} data-risk-estimated={estimated || undefined} className={`nl-tx-r metric-number ${toneOf(estimated ? trade.estimatedRMultiple : value)}`}>{trade ? formatTradeR(trade) : formatRMultiple(value, initialRiskRecorded ? "N/A — net P/L not verified" : undefined)}</span>;
+  return <span title={title} data-risk-unavailable={(trade ? displayTradeR(trade) : value) == null || undefined} data-risk-estimated={estimated || undefined} className={`nl-tx-r metric-number ${toneOf(trade ? displayTradeR(trade) : value)}`}>{trade ? formatTradeR(trade) : formatRMultiple(value, initialRiskRecorded ? "N/A — net P/L not verified" : undefined)}</span>;
 }
 
 /** Cumulative realized dollars for the headline trades, oldest to newest. */

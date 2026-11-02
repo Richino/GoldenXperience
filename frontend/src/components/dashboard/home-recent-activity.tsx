@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { formatTradeR } from "@/lib/risk-metrics";
+import { displayTradeR, formatTradeR } from "@/lib/risk-metrics";
 import { formatShortDay } from "@/lib/format/datetime";
 import type { HomeActivityItem } from "@/lib/home/idle";
 
@@ -77,7 +77,7 @@ export function HomeRecentActivity({
                 <span className={`home-activity-money metric-number ${signedTone(item.paperPl, 0.005)}`}>
                   {moneyLabel(item.paperPl, currency)}
                 </span>
-                <span className={`home-activity-r metric-number ${signedTone(item.resultR ?? item.estimatedRMultiple ?? null)}`}>{formatTradeR(item)}</span>
+                <span className={`home-activity-r metric-number ${signedTone(displayTradeR(item))}`}>{formatTradeR(item)}</span>
                 <span className="home-activity-time">{formatShortDay(item.at)}</span>
               </Link>
             );

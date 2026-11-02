@@ -15,7 +15,10 @@ export async function readRiskNetCash(tradeId: string, read: ReadBroker = suffix
   const response = await read(`/trades/${tradeId}`) as { trade?: Trade };
   const t = response.trade;
   if (!t || t.id !== tradeId || !["OPEN", "CLOSED"].includes(t.state ?? "")) return null;
-  const initial = amount(t.initialUnits), remaining = amount(t.currentUnits), realized = amount(t.realizedPL), floating = amount(t.unrealizedPL), financing = amount(t.financing);
+  // OANDA omits unrealizedPL on a CLOSED trade (nothing floats); only an
+  // absent field is read as zero, never a malformed one or an open trade's.
+  const floating = t.state === "CLOSED" && t.unrealizedPL === undefined ? 0 : amount(t.unrealizedPL);
+  const initial = amount(t.initialUnits), remaining = amount(t.currentUnits), realized = amount(t.realizedPL), financing = amount(t.financing);
   if (initial === null || remaining === null || realized === null || floating === null || financing === null || !Math.abs(initial) || Math.abs(remaining) > Math.abs(initial)) return null;
   const fullyClosed = t.state === "CLOSED";
   if (fullyClosed ? remaining !== 0 || floating !== 0 : remaining === 0 || Math.sign(remaining) !== Math.sign(initial)) return null;

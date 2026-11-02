@@ -21357,3 +21357,6 @@ html:is(.dark, :not(.dark)) body :is(.signals-chart-mobile, .gx-fs, .nl-terminal
 
 html:is(.dark, :not(.dark)) body .signals-chart-mobile .setup-chart-price-value { line-height: 16px; }
 html:is(.dark, :not(.dark)) body :is(.gx-fs, .nl-terminal) .setup-chart-price-value { line-height: 18px; }
+
+.nl-quota-note .is-up { color: var(--success); }
+.nl-quota-note .is-down { color: var(--danger); }

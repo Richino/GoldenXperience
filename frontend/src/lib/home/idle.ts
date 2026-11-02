@@ -33,6 +33,7 @@ export type HomeActivityItem = {
   kind: HomeActivityKind;
   resultR: number | null;
   estimatedRMultiple?: number | null;
+  legacyR?: number | null;
   riskDataQuality?: JournalTrade["riskDataQuality"];
   paperPl: number | null;
   /** When the trade opened; `at` is when it closed. */
@@ -163,6 +164,7 @@ export function recentActivityFromTrades(trades: JournalTrade[], limit = 10): Ho
         kind,
         resultR: trade.riskDataQuality === "verified" ? trade.resultR : null,
         estimatedRMultiple: trade.estimatedRMultiple ?? null,
+        legacyR: trade.legacyR ?? null,
         riskDataQuality: trade.riskDataQuality,
         paperPl: trade.paperPl ?? null,
         openedAt: trade.openedAt ?? null,

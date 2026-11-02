@@ -3,8 +3,9 @@
 import { useId, useMemo, useState, type ReactNode } from "react";
 import {
   Area,
-  AreaChart,
   CartesianGrid,
+  ComposedChart,
+  Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -24,6 +25,10 @@ export type AccountChartPoint = {
   movementCount: number;
   includesOpenPL: boolean;
   index: number;
+  /** Closed-trade equity (the balance); drawn as steps. */
+  closed?: number;
+  /** Set only on the last closed point and "Now": the dashed open-P/L segment. */
+  open?: number | null;
 };
 
 /** Real wall-clock periods for account profit and loss. */
@@ -255,17 +260,41 @@ export function buildAccountAmountSeries({
     },
   ];
 
+  // Every bucket carries closed equity only. Open P/L is not history yet, so it
+  // gets its own final "Now" point, joined to the balance by a dashed segment.
+  const hasOpen = Math.abs(unrealizedPL) >= 0.005;
   buckets.forEach((bucket, index) => {
     const isLast = index === buckets.length - 1;
-    const change = bucket.change + (isLast ? unrealizedPL : 0);
-    runningValue += change;
+    runningValue += bucket.change;
+    const value = Number((isLast ? nav - unrealizedPL : runningValue).toFixed(2));
     points.push({
       ...bucket,
-      change: Number(change.toFixed(2)),
-      value: Number((isLast ? nav : runningValue).toFixed(2)),
+      change: Number(bucket.change.toFixed(2)),
+      value,
+      closed: value,
+      open: isLast && hasOpen ? value : null,
+      includesOpenPL: false,
       index: index + 1,
     });
   });
+  points[0]!.closed = points[0]!.value;
+  points[0]!.open = null;
+
+  if (hasOpen) {
+    const balance = points.at(-1)!.value;
+    points.push({
+      label: "Now · open trades",
+      axisLabel: "",
+      value: Number(nav.toFixed(2)),
+      change: Number(unrealizedPL.toFixed(2)),
+      at: new Date(now).toISOString(),
+      movementCount: 0,
+      includesOpenPL: true,
+      index: points.length,
+      closed: balance,
+      open: Number(nav.toFixed(2)),
+    });
+  }
 
   return points;
 }
@@ -473,6 +502,13 @@ export function AccountAmountChart({
   const netChange = latest - opening;
   const tone = accountSeriesTone(series);
   const stroke = seriesStroke(tone);
+  const hasOpenTail = series.at(-1)?.includesOpenPL === true;
+  const latestDot = (props: { cx?: number; cy?: number; index?: number }) =>
+    props.index === series.length - 1 && props.cx !== undefined && props.cy !== undefined ? (
+      <circle key="latest" cx={props.cx} cy={props.cy} r={5.5} fill={stroke} stroke="var(--hero-surface, var(--surface))" strokeWidth={3} />
+    ) : (
+      <g key={`dot-${props.index}`} />
+    );
   // Finer buckets (1H: 2-min ×30, 1D: hourly ×24, 1W: 6-hour ×28, 1M: daily ×30)
   // mean more points, so each range skips enough labels to keep the axis
   // uncrowded: ~6 for 1H, ~7 for 1D, one-per-day for 1W, ~6 for 1M.
@@ -524,7 +560,7 @@ export function AccountAmountChart({
       >
         <ActiveValueLabel point={activePoint} currency={currency} />
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart
+          <ComposedChart
             data={series}
             // Match Signals: fill continues beneath the line to the chart's
             // lower edge, then fades out.
@@ -589,9 +625,12 @@ export function AccountAmountChart({
                 />
               )}
             />
+            {/* Ledger: an equity curve. Closed P/L only moves when a trade
+                closes, so it is drawn as steps; floating P/L is the dashed
+                tail from the balance to the live NAV, with the latest dot. */}
             <Area
-              type={ledger ? "monotone" : "linear"}
-              dataKey="value"
+              type={ledger ? "stepAfter" : "linear"}
+              dataKey={ledger ? "closed" : "value"}
               stroke={stroke}
               strokeWidth={ledger ? 2.5 : 2.25}
               strokeLinecap="butt"
@@ -600,28 +639,29 @@ export function AccountAmountChart({
               fillOpacity={ledger ? 0.08 : 1}
               isAnimationActive={false}
               dot={
-                ledger
-                  ? (props: { cx?: number; cy?: number; index?: number }) =>
-                      props.index === series.length - 1 && props.cx !== undefined && props.cy !== undefined ? (
-                        <circle
-                          key="latest"
-                          cx={props.cx}
-                          cy={props.cy}
-                          r={5.5}
-                          fill={stroke}
-                          stroke="var(--hero-surface, var(--surface))"
-                          strokeWidth={3}
-                        />
-                      ) : (
-                        <g key={`dot-${props.index}`} />
-                      )
+                ledger && !hasOpenTail
+                  ? (props: { cx?: number; cy?: number; index?: number }) => latestDot(props)
                   : false
               }
               activeDot={(props: { cx?: number; cy?: number; payload?: AccountChartPoint }) => (
                 <PnLDot cx={props.cx} cy={props.cy} payload={props.payload} radius={5} />
               )}
             />
-          </AreaChart>
+            {ledger && hasOpenTail ? (
+              <Line
+                type="linear"
+                dataKey="open"
+                stroke={stroke}
+                strokeWidth={2}
+                strokeDasharray="4 4"
+                connectNulls={false}
+                isAnimationActive={false}
+                dot={(props: { cx?: number; cy?: number; index?: number }) => latestDot(props)}
+                activeDot={false}
+                legendType="none"
+              />
+            ) : null}
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
 

@@ -50,6 +50,21 @@ function sessionWindows(firstMs: number, lastMs: number): Window[] {
   return windows;
 }
 
+/**
+ * The timeframe's bar length: the smallest positive gap among recent candles.
+ * Not just the last two — after the app resumes, the live candle can briefly
+ * share the last bar's time (gap 0) or sit past missed bars (a gap that looks
+ * like 4H+), and either used to switch the session bands off.
+ */
+export function typicalBarMs(times: number[]) {
+  let smallest = Infinity;
+  for (let index = Math.max(1, times.length - 64); index < times.length; index += 1) {
+    const gap = times[index]! - times[index - 1]!;
+    if (gap > 0 && gap < smallest) smallest = gap;
+  }
+  return Number.isFinite(smallest) ? smallest : 0;
+}
+
 class BackdropRenderer implements IPrimitivePaneRenderer {
   constructor(
     private readonly bands: PixelBand[],
@@ -165,7 +180,7 @@ export class ChartBackdropPrimitive implements ISeriesPrimitive<Time> {
 
     // Sessions: intraday only, snapped to the bars that fall inside them.
     const times = this.candles.map((candle) => Date.parse(candle.time));
-    const barMs = times[times.length - 1]! - times[times.length - 2]!;
+    const barMs = typicalBarMs(times);
     if (!(barMs > 0) || barMs / 1_000 > MAX_SESSION_BAR_SECONDS) return;
     for (const window of sessionWindows(times[first]!, times[last]!)) {
       let startIndex = -1;

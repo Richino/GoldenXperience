@@ -24,6 +24,12 @@ trade.trade.financing = "-12";
 const financedClose = await readRiskNetCash("100", read);
 assert.equal(financedClose?.realizedNetPnlUsd, 368, "include cumulative financing booked before the closing fills");
 assert.equal(financedClose?.unrealizedNetPnlUsd, 0, "a fully closed trade has no remaining floating cash");
+// OANDA's live /trades/{id} omits unrealizedPL once a trade is CLOSED.
+delete (trade.trade as { unrealizedPL?: string }).unrealizedPL;
+assert.equal((await readRiskNetCash("100", read))?.realizedNetPnlUsd, 368, "a CLOSED trade without unrealizedPL still verifies");
+trade.trade.unrealizedPL = "abc";
+assert.equal(await readRiskNetCash("100", read), null, "a malformed unrealizedPL is never read as zero");
+trade.trade.unrealizedPL = "0";
 trade.trade.currentUnits = "50";
 assert.equal(await readRiskNetCash("100", read), null, "reject a CLOSED trade with remaining exposure");
 trade.trade.currentUnits = "0";

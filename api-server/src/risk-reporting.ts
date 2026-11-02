@@ -51,6 +51,21 @@ export async function projectRiskReporting(userId: string, rows: Record<string, 
     // a historical estimate. Keep original and reconstructed evidence separate.
     output.push({ ...corrected, ...estimated, riskDataQuality: corrected.initialPlannedRiskUsd === null && estimated.estimatedRMultiple !== null ? "estimated" : corrected.riskDataQuality });
   }
+  // Early manual fills were logged twice: the app's own row (price-distance R,
+  // no cash) and an OANDA-import row (cash, no R). Show the import row its
+  // twin's stored R. Display only; nothing is rewritten.
+  const bare = output.filter(row => row.status === "closed" && row.resultR == null && row.estimatedRMultiple == null && row.legacyR == null);
+  if (bare.length) {
+    const twins = await query<{ id: string; r: number }>(
+      `SELECT DISTINCT ON (p.id) p.id, t.result_r::float AS r FROM paper_trades p
+       JOIN paper_trades t ON t.user_id=p.user_id AND t.id<>p.id AND t.pair=p.pair AND t.direction=p.direction AND t.entry=p.entry
+         AND abs(extract(epoch FROM t.opened_at - p.opened_at)) < 5 AND t.result_r IS NOT NULL
+       WHERE p.user_id=$1 AND p.id=ANY($2::uuid[]) ORDER BY p.id, abs(extract(epoch FROM t.opened_at - p.opened_at))`,
+      [userId, bare.map(row => String(row.id))],
+    );
+    const twinR = new Map(twins.rows.map(row => [row.id, row.r]));
+    for (const row of bare) if (twinR.has(String(row.id))) row.legacyR = twinR.get(String(row.id));
+  }
   return output;
 }
 

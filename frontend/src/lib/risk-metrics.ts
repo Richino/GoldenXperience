@@ -92,10 +92,19 @@ export function estimatedRiskMetrics(estimate: HistoricalRiskEstimate | null | u
     estimatedRBasis: risk === null ? null : estimate!.basis,
     estimatedRPnlBasis: "Reported USD P/L; financing and cost completeness not verified" };
 }
-export function formatTradeR(trade: { resultR?: number | null; riskDataQuality?: RiskDataQuality; estimatedRMultiple?: number | null; initialPlannedRiskUsd?: number | null }) {
-  if (trade.riskDataQuality === "verified") return formatRMultiple(trade.resultR, trade.initialPlannedRiskUsd != null ? "N/A — net P/L not verified" : undefined);
-  if (trade.riskDataQuality === "estimated" && finite(trade.estimatedRMultiple)) return formatRMultiple(trade.estimatedRMultiple);
-  return MISSING_INITIAL_RISK;
+type DisplayRTrade = { resultR?: number | null; riskDataQuality?: RiskDataQuality; estimatedRMultiple?: number | null; initialPlannedRiskUsd?: number | null; legacyR?: number | null };
+/** The R a closed trade shows: verified, else estimated from historical
+ * sizing, else the stored price-distance R. Display only; verified-R
+ * statistics still count only verified trades. */
+export function displayTradeR(trade: DisplayRTrade): number | null {
+  if (trade.riskDataQuality === "verified" && finite(trade.resultR)) return trade.resultR;
+  if (finite(trade.estimatedRMultiple)) return trade.estimatedRMultiple;
+  return finite(trade.legacyR) ? trade.legacyR : null;
+}
+export function formatTradeR(trade: DisplayRTrade) {
+  const value = displayTradeR(trade);
+  if (value !== null) return formatRMultiple(value);
+  return trade.riskDataQuality === "verified" && trade.initialPlannedRiskUsd != null ? "N/A — net P/L not verified" : MISSING_INITIAL_RISK;
 }
 /** Read projection only: the original stored R remains available for audits. */
 export function verifiedTradeR<T extends { id: string; openedAt: string; resultR: number | null; legacyR?: number | null; paperPl?: number | null; initialRiskPlan?: InitialRiskPlan | null; riskPositionKey?: string; realizedNetPnlUsd?: number | null; maxAdverseExcursionUsd?: number | null; maxFavorableExcursionUsd?: number | null }>(trade: T) {

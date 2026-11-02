@@ -1,5 +1,5 @@
 "use client";
-import { formatRMultiple, formatTradeR, R_EXPLANATION } from "@/lib/risk-metrics";
+import { displayTradeR, formatRMultiple, formatTradeR, R_EXPLANATION } from "@/lib/risk-metrics";
 
 /**
  * Home, as drawn in the Night Ledger canvas ("Portfolio — Desktop / Mobile").
@@ -527,7 +527,7 @@ function LedgerActivity({ items, currency }: { items: HomeActivityItem[]; curren
               <span className={`metric-number ${tone(item.paperPl)}`}>
                 {item.paperPl === null ? "—" : signedMoney(item.paperPl, currency)}
               </span>
-              <span className={`metric-number nl-activity-r ${tone(item.resultR ?? item.estimatedRMultiple ?? null, 0.05)}`}>{formatTradeR(item)}</span>
+              <span className={`metric-number nl-activity-r ${tone(displayTradeR(item), 0.05)}`}>{formatTradeR(item)}</span>
             </span>
           </Link>
         ))}

@@ -288,6 +288,9 @@ export function ChartMobileTradePager({
   onOpenAll: () => void;
 }) {
   if (!total) return null;
+  // A lone trade on this pair is already the strip below; the header only earns
+  // its place when there is another trade to step to or one elsewhere to find.
+  if (total === 1 && pairItems.length === 1) return null;
   const index = Math.max(0, pairItems.findIndex((item) => item.id === selectedId));
   const many = pairItems.length > 1;
   const step = (delta: number) => {

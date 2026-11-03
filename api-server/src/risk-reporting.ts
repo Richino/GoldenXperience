@@ -77,8 +77,14 @@ export async function attachRiskNetCash(userId: string, snapshot: { data: { id: 
     const position = snapshot.positions.find(p => p.id === row.metadata.brokerTradeId);
     if (!position || !plan || plan.brokerAccountId !== snapshot.data.id || verifiedInitialRisk(plan, position.openedAt, plan.positionKey) === null) continue;
     const cash = await readRiskNetCash(position.id).catch(() => null);
-    // Never mix a newly changed position with an earlier financial frame.
-    if (cash?.state === "OPEN" && cash.remainingUnits === position.units && Math.abs(cash.brokerUnrealizedPL - position.unrealizedPL) < .005) position.unrealizedNetPnlUsd = cash.unrealizedNetPnlUsd;
+    // Never mix a newly changed position with an earlier financial frame: the
+    // units must match. Floating P/L is not compared: it moves with every tick
+    // (and the conversion rate) between the snapshot and the ledger read, so a
+    // cent-level match almost never held. The snapshot keeps its own floating
+    // P/L; the ledger contributes only financing and costs, which do not tick.
+    if (cash?.state === "OPEN" && cash.remainingUnits === position.units) {
+      position.unrealizedNetPnlUsd = position.unrealizedPL + (cash.unrealizedNetPnlUsd - cash.brokerUnrealizedPL);
+    }
   }
 }
 

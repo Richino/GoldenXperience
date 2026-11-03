@@ -202,6 +202,8 @@ export interface ChartLevelEdit {
   target: number | null;
   /** The price the trade would close at now; a level past it is invalid. */
   exitPrice: number | null;
+  /** A waiting order can move its entry too; a filled trade cannot. */
+  entryEditable?: boolean;
 }
 
 /** A single externally focused price, such as an active binary prediction entry. */
@@ -690,11 +692,12 @@ function PositionToolOverlay({
   );
 }
 
-type EditLevelKey = "stop" | "target";
-const EDIT_LEVEL_KEYS: EditLevelKey[] = ["stop", "target"];
+type EditLevelKey = "entry" | "stop" | "target";
+const EDIT_LEVEL_KEYS: EditLevelKey[] = ["entry", "stop", "target"];
 
 /** Whether a draft level sits on the wrong side of the closing price. */
 export function chartLevelInvalid(edit: ChartLevelEdit, key: EditLevelKey) {
+  if (key === "entry") return false;
   const price = edit[key];
   if (price === null || edit.exitPrice === null) return false;
   const below = price < edit.exitPrice;
@@ -704,8 +707,9 @@ export function chartLevelInvalid(edit: ChartLevelEdit, key: EditLevelKey) {
 
 /**
  * The stop and target of an open trade as full-width lines with a handle by
- * the price axis: drag either one to a new price. A line past the visible
- * range pins to the edge so it can always be grabbed back.
+ * the price axis: drag either one to a new price. A waiting order adds its
+ * entry line too. A line past the visible range pins to the edge so it can
+ * always be grabbed back.
  */
 function LevelEditOverlay({
   chartRef,
@@ -721,7 +725,7 @@ function LevelEditOverlay({
   onChange: (next: ChartLevelEdit) => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const lineRefs = useRef<Record<EditLevelKey, HTMLDivElement | null>>({ stop: null, target: null });
+  const lineRefs = useRef<Record<EditLevelKey, HTMLDivElement | null>>({ entry: null, stop: null, target: null });
   const editRef = useRef(edit);
   const onChangeRef = useRef(onChange);
   const dragRef = useRef<EditLevelKey | null>(null);
@@ -785,7 +789,7 @@ function LevelEditOverlay({
 
   useLayoutEffect(() => {
     paint();
-  }, [paint, edit.stop, edit.target]);
+  }, [paint, edit.entry, edit.stop, edit.target]);
 
   useEffect(() => {
     const onMove = (event: PointerEvent) => {
@@ -831,6 +835,14 @@ function LevelEditOverlay({
 
   const pip = pipSizeFor(edit.instrument);
   const label = (key: EditLevelKey, price: number) => {
+    if (key === "entry") {
+      return (
+        <>
+          <b>ENTRY</b>
+          {formatChartPrice(price, edit.instrument)}
+        </>
+      );
+    }
     const fromEntry = (edit.direction === "long" ? price - edit.entry : edit.entry - price) / pip;
     const pips = `${fromEntry >= 0 ? "+" : "−"}${Math.abs(fromEntry).toFixed(1)}p`;
     // Just pips on the chart: the stop-distance multiple is in the SL / TP
@@ -849,7 +861,7 @@ function LevelEditOverlay({
     <div ref={rootRef} className="setup-chart-level-edit">
       {EDIT_LEVEL_KEYS.map((key) => {
         const price = edit[key];
-        if (price === null) return null;
+        if (price === null || (key === "entry" && !edit.entryEditable)) return null;
         return (
           <div
             key={key}

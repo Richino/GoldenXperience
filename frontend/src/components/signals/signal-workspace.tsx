@@ -3594,7 +3594,8 @@ export function SignalWorkspace({
   // Moving the stop / target of a manual trade or a waiting order: the card
   // starts a draft, the chart draws it as two draggable lines, and Save sends
   // it to the trade (OANDA's own SL/TP) or replaces the resting OANDA order.
-  const [levelDraft, setLevelDraft] = useState<{ entryId: string; stop: number | null; target: number | null } | null>(null);
+  // A waiting order's draft carries its entry as well; a filled trade's does not.
+  const [levelDraft, setLevelDraft] = useState<{ entryId: string; entry?: number; stop: number | null; target: number | null } | null>(null);
   const [levelSaving, setLevelSaving] = useState(false);
   const [levelError, setLevelError] = useState<string | null>(null);
   const levelTrade = !replayActive && !openPaperTrade
@@ -3610,18 +3611,23 @@ export function SignalWorkspace({
     : quote && levelTrade ? (levelTrade.direction === "long" ? quote.bid : quote.ask) : null;
   const levelEdit = useMemo<ChartLevelEdit | null>(() => {
     if (!levelTrade || !levelDraft || levelDraft.entryId !== levelTrade.id) return null;
+    const entry = levelDraft.entry ?? levelTrade.triggerPrice ?? levelTrade.entryPrice;
     return {
       instrument,
       direction: levelTrade.direction,
-      entry: levelTrade.triggerPrice ?? levelTrade.entryPrice,
+      entry,
       stop: levelDraft.stop,
       target: levelDraft.target,
-      exitPrice: levelExitPrice,
+      // A waiting order judges its levels against the (draft) entry.
+      exitPrice: levelPending ? entry : levelExitPrice,
+      entryEditable: levelPending,
     };
-  }, [instrument, levelDraft, levelExitPrice, levelTrade]);
+  }, [instrument, levelDraft, levelExitPrice, levelPending, levelTrade]);
   const onLevelEditChange = useCallback((next: ChartLevelEdit) => {
     setLevelError(null);
-    setLevelDraft((draft) => (draft ? { ...draft, stop: next.stop, target: next.target } : draft));
+    setLevelDraft((draft) => (draft
+      ? { ...draft, stop: next.stop, target: next.target, ...(draft.entry !== undefined ? { entry: next.entry } : {}) }
+      : draft));
   }, []);
   /** A fresh line 15 pips (stop) or 30 pips (target) from where the trade would close (a waiting order: its entry). */
   const seedLevel = useCallback((key: "stop" | "target") => {
@@ -3636,11 +3642,24 @@ export function SignalWorkspace({
     setLevelSaving(true);
     setLevelError(null);
     try {
-      const res = await fetch(apiUrl(`/api/pending-entries/${levelTrade.id}/levels`), {
+      // A moved entry goes through the full order edit, which picks stop or
+      // limit against the live price, resizes and replaces the OANDA order.
+      // Its expiry and cancel price are sent back unchanged.
+      const entryMoved = levelPending && levelEdit.entry !== levelTrade.entryPrice;
+      const res = await fetch(apiUrl(entryMoved ? `/api/pending-entries/${levelTrade.id}` : `/api/pending-entries/${levelTrade.id}/levels`), {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(levelPending
+        body: JSON.stringify(entryMoved
+          ? {
+            instrument,
+            entryPrice: levelEdit.entry,
+            stopPrice: levelEdit.stop,
+            targetPrice: levelEdit.target,
+            expiresAt: levelTrade.expiresAt,
+            invalidationPrice: levelTrade.invalidationPrice,
+          }
+          : levelPending
           ? { instrument, pending: true, stopPrice: levelEdit.stop, targetPrice: levelEdit.target }
           : {
             instrument,
@@ -3668,7 +3687,8 @@ export function SignalWorkspace({
         stop: levelEdit ? chartLevelInvalid(levelEdit, "stop") : false,
         target: levelEdit ? chartLevelInvalid(levelEdit, "target") : false,
       },
-      dirty: levelEdit !== null && (levelEdit.stop !== levelTrade.stopPrice || levelEdit.target !== levelTrade.targetPrice),
+      dirty: levelEdit !== null && (levelEdit.stop !== levelTrade.stopPrice || levelEdit.target !== levelTrade.targetPrice
+        || (levelPending && levelEdit.entry !== levelTrade.entryPrice)),
       saving: levelSaving,
       error: levelError,
       onStart: () => {
@@ -3676,6 +3696,7 @@ export function SignalWorkspace({
         const none = levelTrade.stopPrice === null && levelTrade.targetPrice === null;
         setLevelDraft({
           entryId: levelTrade.id,
+          ...(levelPending ? { entry: levelTrade.entryPrice } : {}),
           stop: none ? seedLevel("stop") : levelTrade.stopPrice,
           target: none ? seedLevel("target") : levelTrade.targetPrice,
         });
@@ -3713,12 +3734,13 @@ export function SignalWorkspace({
       instrument,
       pair: activePair,
       direction: levelTrade.direction,
-      entry: levelTrade.entryPrice,
+      // While dragging, pips are measured from the draft entry.
+      entry: levelEdit?.entry ?? levelTrade.entryPrice,
       stop: levelTrade.stopPrice,
       target: levelTrade.targetPrice,
       riskReward: 0,
     };
-  }, [activePair, instrument, levelPending, levelTrade]);
+  }, [activePair, instrument, levelEdit?.entry, levelPending, levelTrade]);
   const levelSignal = healthSignal ?? pendingLevelSignal;
 
   const startPositionTool = useCallback((direction: "long" | "short") => {
@@ -3806,7 +3828,8 @@ export function SignalWorkspace({
         const countdown = remainingMinutes === null ? "" : remainingMinutes >= 60
           ? ` • ${Math.floor(remainingMinutes / 60)}h ${remainingMinutes % 60}m`
           : ` • ${remainingMinutes}m`;
-        const lines: ChartReferenceLine[] = [{
+        // While its levels are edited, the draggable ENTRY line stands in for it.
+        const lines: ChartReferenceLine[] = editingLevels ? [] : [{
           key: `pending-${entry.id}`,
           price: entry.entryPrice,
           label: `${entry.direction.toUpperCase()} ENTRY ${formatChartPrice(entry.entryPrice, instrument)}${countdown}`,

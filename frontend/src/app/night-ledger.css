@@ -7933,6 +7933,8 @@ html:is(.dark, :not(.dark)) body .nl-chart-head .signals-analyze-desktop.nl-trad
   touch-action: none;
 }
 .setup-chart-level-edit-line.is-target { --level: var(--success); }
+/* A waiting order's entry: neutral, so SL and TP keep their colours. */
+.setup-chart-level-edit-line.is-entry { --level: var(--muted-strong); }
 .setup-chart-level-edit-line::before {
   content: "";
   position: absolute;
@@ -21360,3 +21362,90 @@ html:is(.dark, :not(.dark)) body :is(.gx-fs, .nl-terminal) .setup-chart-price-va
 
 .nl-quota-note .is-up { color: var(--success); }
 .nl-quota-note .is-down { color: var(--danger); }
+
+/* ============================================================ PENDING CANCEL CONFIRMATION
+   Home's "Cancel EUR/USD?" sheet in the trade-confirm dialog's language: flat
+   8px panel, mono label, display-face question, outlined dismiss beside a
+   solid destructive action of the same height. */
+html:is(.dark, :not(.dark)) body .manual-proposal-backdrop:has(.pending-cancel-confirmation) {
+  background: color-mix(in srgb, #000 62%, transparent);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+html:is(.dark, :not(.dark)) body .manual-proposal.pending-cancel-confirmation {
+  width: min(24rem, calc(100vw - 2rem));
+  padding: 22px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 24px 64px color-mix(in srgb, #000 50%, transparent);
+  font-family: var(--font-shell);
+}
+
+html:is(.dark, :not(.dark)) body .pending-cancel-confirmation header span {
+  display: block;
+  color: var(--muted-strong);
+  font-family: var(--font-shell-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+html:is(.dark, :not(.dark)) body .pending-cancel-confirmation h2 {
+  margin-top: 8px;
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+html:is(.dark, :not(.dark)) body .pending-cancel-confirmation > p {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+html:is(.dark, :not(.dark)) body .pending-cancel-confirmation footer {
+  display: flex;
+  gap: 8px;
+  margin-top: 20px;
+  padding: 0;
+  background: none;
+}
+
+html:is(.dark, :not(.dark)) body .pending-cancel-confirmation footer button {
+  flex: 1 1 0;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 600;
+  transition: background-color 140ms ease, filter 140ms ease;
+}
+
+html:is(.dark, :not(.dark)) body .pending-cancel-confirmation footer button:hover {
+  background: var(--interactive-hover);
+}
+
+html:is(.dark, :not(.dark)) body .pending-cancel-confirmation footer .pending-cancel-confirm {
+  border-color: transparent;
+  background: var(--loss-fill, var(--danger));
+  color: var(--on-accent);
+}
+
+html:is(.dark, :not(.dark)) body .pending-cancel-confirmation footer .pending-cancel-confirm:hover {
+  background: var(--loss-fill, var(--danger));
+  filter: brightness(1.08);
+}
+
+html:is(.dark, :not(.dark)) body .pending-cancel-confirmation footer button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}

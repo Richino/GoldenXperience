@@ -295,8 +295,6 @@ export function ChartPendingLevelsCard({
 export function ChartLevelEditor({ levels, signal }: { levels: ChartHealthLevels; signal: ChartPositionCardSignal }) {
   const pip = pipSizeFor(signal.instrument);
   const long = signal.direction === "long";
-  // R only means something while the stop is on the losing side of entry.
-  const risk = levels.stop === null ? null : long ? signal.entry - levels.stop : levels.stop - signal.entry;
   const rows = [
     { key: "stop" as const, label: "Stop loss", price: levels.stop, invalid: levels.invalid.stop, hint: long ? "below" : "above" },
     { key: "target" as const, label: "Take profit", price: levels.target, invalid: levels.invalid.target, hint: long ? "above" : "below" },
@@ -308,9 +306,6 @@ export function ChartLevelEditor({ levels, signal }: { levels: ChartHealthLevels
       <p className="nl-clevels-hint">Drag the lines on the chart to place them.</p>
       {rows.map((row) => {
         const fromEntry = row.price === null ? null : ((long ? row.price - signal.entry : signal.entry - row.price) / pip);
-        const reward = row.price === null || risk === null || risk <= 0 ? ""
-          : row.key === "stop" ? ""
-            : ` · ${(Math.abs(row.price - signal.entry) / risk).toFixed(1)}× stop distance`;
         return (
           <div key={row.key} className={`nl-clevels-row is-${row.key}${row.invalid ? " is-invalid" : ""}`}>
             <i aria-hidden="true" />
@@ -322,7 +317,7 @@ export function ChartLevelEditor({ levels, signal }: { levels: ChartHealthLevels
                   : <>
                       {formatChartPrice(row.price, signal.instrument)}
                       {/* Its own span so phones can drop it to a second line. */}
-                      <span className="nl-clevels-detail"><span className="nl-clevels-sep"> · </span>{fromEntry! >= 0 ? "+" : "−"}{Math.abs(fromEntry!).toFixed(1)}p{reward}</span>
+                      <span className="nl-clevels-detail"><span className="nl-clevels-sep"> · </span>{fromEntry! >= 0 ? "+" : "−"}{Math.abs(fromEntry!).toFixed(1)}p</span>
                     </>}
               </b>
               {row.invalid ? <small>Must be {row.hint} the {levels.relativeTo ?? "current price"}.</small> : null}

@@ -1,8 +1,7 @@
 import type { Metadata, Viewport } from "next";
-import { Bricolage_Grotesque, Geist, Geist_Mono, Inter, JetBrains_Mono } from "next/font/google";
+import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import Image from "next/image";
-import { OBSERVER_MASCOT_ASSETS } from "@/lib/observer-mascot";
 import { AppProviders } from "@/components/providers/app-providers";
 import { SPLASH_DEVICES } from "@/lib/pwa/splash-devices";
 import { TEXT_SIZE_STORAGE_KEY } from "@/lib/text-size";
@@ -27,20 +26,6 @@ const bricolage = Bricolage_Grotesque({
   variable: "--font-bricolage",
   subsets: ["latin"],
   axes: ["opsz"],
-});
-
-// The app shell and redesigned pages: text in Inter, numbers in JetBrains Mono
-// (night-ledger.css --font-shell / --font-shell-mono).
-const uiSans = Inter({
-  variable: "--font-ui-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-});
-
-const uiMono = JetBrains_Mono({
-  variable: "--font-ui-mono",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
 });
 
 export const metadata: Metadata = {
@@ -88,7 +73,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${bricolage.variable} ${uiSans.variable} ${uiMono.variable}`}
+      className={`${geistSans.variable} ${geistMono.variable} ${bricolage.variable}`}
       suppressHydrationWarning
     >
       <head>
@@ -126,24 +111,8 @@ export default function RootLayout({
             : `if('serviceWorker'in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister();});}).catch(function(){});if(window.caches){caches.keys().then(function(ks){ks.forEach(function(k){if(k.indexOf('goldenxperience')===0)caches.delete(k);});}).catch(function(){});}}`}
         </Script>
         <div id="gx-boot-splash" className={splash.screen} role="dialog" aria-modal="true" aria-label="Welcome to GoldenXperience" aria-describedby="gx-splash-instructions" tabIndex={-1} aria-hidden="true">
-          <div className={splash.grid} />
           <span id="gx-splash-instructions" className={splash.instructions}>Tap anywhere or press Enter to open your workspace.</span>
-          <div className={splash.center}>
-            <div className={splash.character}>
-              <div className={splash.orbit}><span /><span /></div>
-              <picture>
-                <source media="(prefers-reduced-motion: reduce)" srcSet={OBSERVER_MASCOT_ASSETS.neutral.still} />
-                <Image src="/splash/gx-mascot-loop.webp" alt="GX robot mascot" width={256} height={256} unoptimized loading="lazy" />
-              </picture>
-              <span className={splash.spark}>✦</span>
-            </div>
-            <p className={splash.eyebrow}>YOUR TRADING WORKSPACE</p>
-            <h1>Golden<span>X</span>perience<span className={splash.period}>.</span></h1>
-            <p className={splash.tagline}>See the market clearly.</p>
-          </div>
-          <div className={splash.footer}>
-            <div className={splash.pulse}><span /><span /><span /><span /><span /></div>
-          </div>
+          <Image className={splash.logo} src="/brand-icon.svg" alt="" width={184} height={184} unoptimized loading="lazy" />
         </div>
         <AppProviders>{children}</AppProviders>
       </body>

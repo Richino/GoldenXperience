@@ -5,7 +5,6 @@ import type { HomeCurrentPosition } from "@/components/dashboard/home-rail";
 import {
   LedgerHome,
   type LedgerPosition,
-  type LedgerSetup,
   type LedgerToday,
   type DashboardLoadState,
 } from "@/components/dashboard/ledger-home";
@@ -23,6 +22,7 @@ import { tradingDayKey } from "@/lib/format/datetime";
 import { pipSizeFor } from "@/lib/instruments/catalog";
 import {
   currentTradeLevels,
+  openRFromLevels,
   openTradeProgress,
   quoteToUsdRateFromQuotes,
   resolveOpenTradeQuote,
@@ -31,7 +31,6 @@ import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import type { OpenPositionFill } from "@/lib/market-stream/use-open-positions";
 import { snapshotFills, type HomeFinancialSnapshot } from "@/lib/home/financial-snapshot";
-import { monetaryRatio, riskMetrics, verifiedInitialRisk, type InitialRiskPlan } from "@/lib/risk-metrics";
 import type { AccountBalanceHistoryPoint, AccountSummary, JournalTrade, MajorInstrument } from "@/types/forex";
 import type { PendingManualEntry } from "@/types/pending-entry";
 
@@ -51,18 +50,6 @@ export type DashboardWatchRow = {
   openTradeId: string | null;
   batchNumber: number | null;
   tradeSequence: string | null;
-};
-
-export type DashboardSavedSetup = {
-  id: string;
-  instrument: MajorInstrument;
-  direction: "long" | "short";
-  entry: number;
-  stop: number;
-  target: number;
-  decisionTime: string;
-  expiresAt: string;
-  state: "setup";
 };
 
 /**
@@ -119,8 +106,6 @@ type Batch = {
 };
 
 type Trade = {
-  initialRiskPlan?: InitialRiskPlan | null;
-  riskPositionKey?: string;
   id: string;
   tradeSequence: string;
   instrument: string;
@@ -236,7 +221,6 @@ export function DashboardView({
   initialAccount,
   initialAccountHistory,
   initialWatchlist,
-  initialSavedSetups,
   initialOverview,
   initialJournal,
   initialPendingEntries,
@@ -247,7 +231,6 @@ export function DashboardView({
   initialAccount: AccountSummary | null;
   initialAccountHistory: AccountBalanceHistoryPoint[];
   initialWatchlist: DashboardWatchRow[];
-  initialSavedSetups: DashboardSavedSetup[];
   initialOverview: DashboardOverview | null;
   initialJournal: DashboardJournal;
   initialPendingEntries: PendingManualEntry[];
@@ -269,12 +252,11 @@ export function DashboardView({
   // renders from the multi-strategy engine instead.
   const [watchlist, setWatchlist] = useState(initialWatchlist);
   const [watchlistReady, setWatchlistReady] = useState(!initialLoading);
-  const [savedSetups, setSavedSetups] = useState(initialSavedSetups ?? []);
   const [overviewOpen, setOverviewOpen] = useState(() => initialOverview?.openTrades ?? initialOverview?.trades.filter(trade => trade.status === "open") ?? []);
   const [error, setError] = useState<string | null>(null);
   const [loadState, setLoadState] = useState<DashboardLoadState>(() => {
     const state = initialLoading ? "loading" : "ready";
-    return { account: state, history: state, positions: state, setups: state, journal: state, pending: state };
+    return { account: state, history: state, positions: state, journal: state, pending: state };
   });
   const loading = useRef(new Set<string>());
   const finishLoad = useCallback((key: keyof DashboardLoadState, failed = false) => {
@@ -303,8 +285,6 @@ export function DashboardView({
     .map((trade) => ({
       id: trade.id,
       tradeSequence: trade.sequence ?? "",
-      initialRiskPlan: trade.initialRiskPlan,
-      riskPositionKey: trade.riskPositionKey,
       // `pair` is a display name ("EUR/USD"); the OANDA code ("EUR_USD") is what
       // joins to live quotes, so recover it when the row carries no instrument.
       instrument: trade.instrument ?? trade.pair.replace("/", "_"),
@@ -355,9 +335,6 @@ export function DashboardView({
       // keep the visible page and its previously verified snapshots in place.
       const results = await Promise.allSettled([
         dashboardData<{ watchlist: DashboardWatchRow[] }>("/api/watchlist").then(payload => setWatchlist(payload.watchlist)).finally(() => setWatchlistReady(true)),
-        dashboardData<{ setups: DashboardSavedSetup[] }>("/api/saved-setups").then(payload => {
-          setSavedSetups(payload.setups ?? []); finishLoad("setups");
-        }).catch(reason => { finishLoad("setups", true); throw reason; }),
         dashboardData<{ trades: Trade[] }>("/api/paper-cycle/open-trades").then(payload => {
           setOverviewOpen(payload.trades); finishLoad("positions");
         }).catch(reason => { finishLoad("positions", true); throw reason; }),
@@ -498,7 +475,6 @@ export function DashboardView({
     await Promise.all([refreshAccount(), refresh(), refreshPendingEntries()]);
   }, [refreshAccount, refresh, refreshPendingEntries]));
 
-  const signalRows = savedSetups.filter((setup) => setup.state === "setup");
   const currentPositions: HomeCurrentPosition[] = openTrades
     .filter((trade) => trade.entry != null && trade.stop != null && trade.target != null)
     .map((trade) => ({
@@ -519,15 +495,20 @@ export function DashboardView({
   const entrySpreadById = new Map(journalTrades.map((row) => [row.id, row.oandaEntryHalfSpreadCost ?? null]));
   const ledgerPositions: LedgerPosition[] = openTrades.slice(0, 6).map((trade) => {
     const shown = markedOpenMoney(trade, quotes, fills, watchlist);
+    const live = liveOpenProgress(trade, quotes, fills, watchlist);
     const fill = trade.brokerTradeId ? fills[`broker:${trade.brokerTradeId}`] : undefined;
     const quote = openTradeQuote(trade, quotes, fill, watchlist);
     const mark = quote?.bid && quote?.ask ? (quote.bid + quote.ask) / 2 : null;
     const lots = fill && fill.units ? Math.abs(fill.units) / 100_000 : null;
-    // Only verified pre-entry monetary risk and cost-complete net cash define R.
-    const rMultiple = riskMetrics({ plan: trade.initialRiskPlan, positionKey: trade.riskPositionKey ?? trade.id, openedAt: trade.openedAt, unrealizedNetPnlUsd: fill?.unrealizedNetPnlUsd }).unrealizedRMultiple;
+    // Open R speaks the chart's language: planned entry and stop against the
+    // mid. The fill/close-side figure is only a fallback.
+    const rMultiple =
+      openRFromLevels({ direction: trade.direction, entry: trade.entry, stop: trade.stop, current: mark }) ??
+      live?.unrealizedR ??
+      (shown !== null && trade.nominalRiskAmount ? shown / trade.nominalRiskAmount : null);
     const r = rMultiple === null ? null : Number(rMultiple.toFixed(2)) || 0;
     // Shown levels are the ones the trade holds now (a manual trade's can be
-    // moved on the chart or be none); they never redefine original risk.
+    // moved on the chart or be none); R above still runs off the 1R stop.
     const { sl, tp } = currentTradeLevels(trade);
     // Position on the stop → target line, 0–100%. For a short the span is
     // negative and the signs cancel, so one formula serves both sides.
@@ -543,10 +524,14 @@ export function DashboardView({
           ? `${Math.round(Math.min(1, toward) * 100)}% to target`
           : `${(Math.abs(mark - trade.entry) / pipSizeFor(trade.instrument)).toFixed(1)} pips against`;
     }
-    // Entry spread relative to the same verified original monetary risk.
+    // The spread in R, against the same 1R (planned entry to stop) that Open R
+    // uses, in account dollars; nominal 1% risk when there is no fill.
     const spreadCost = entrySpreadById.get(trade.id) ?? null;
-    const oneR = verifiedInitialRisk(trade.initialRiskPlan, trade.openedAt, trade.riskPositionKey ?? trade.id);
-    const spreadR = monetaryRatio(spreadCost === null ? null : -Math.abs(spreadCost), oneR);
+    const usdPerQuote = quoteToUsdRateFromQuotes(trade.instrument, quotes);
+    const oneR = fill?.units && trade.entry != null && trade.stop != null && usdPerQuote !== null
+      ? Math.abs(trade.entry - trade.stop) * Math.abs(fill.units) * usdPerQuote
+      : trade.nominalRiskAmount ?? null;
+    const spreadR = spreadCost !== null && oneR ? -Math.abs(spreadCost) / oneR : null;
     return {
       id: trade.id,
       href: `/chart?instrument=${trade.instrument}&trade=${trade.id}`,
@@ -560,7 +545,6 @@ export function DashboardView({
       entryAt: trackAt(trade.entry),
       markAt: trackAt(mark),
       r,
-      rUnavailableReason: oneR === null ? undefined : "N/A — net P/L not verified",
       money: shown,
       lots,
       progress,
@@ -568,17 +552,6 @@ export function DashboardView({
       spreadR,
     };
   });
-
-  const ledgerSetups: LedgerSetup[] = signalRows.map((row) => ({
-    id: row.id,
-    href: `/chart?instrument=${row.instrument}&setup=${row.id}&entry=${row.entry}&stop=${row.stop}&target=${row.target}`,
-    instrument: row.instrument,
-    direction: row.direction,
-    entry: row.entry,
-    stop: row.stop,
-    target: row.target,
-    decisionTime: row.decisionTime,
-  }));
 
   const recentActivity = recentActivityFromTrades(journalTrades, 10);
   const todayFromList = todayClosedStats(journalTrades, todayKey);
@@ -592,7 +565,6 @@ export function DashboardView({
       (trade) =>
         trade.status === "closed" &&
         trade.closedAt &&
-        trade.riskDataQuality === "verified" &&
         trade.resultR !== null &&
         tradingDayKey(trade.closedAt) === todayKey,
     )
@@ -619,7 +591,6 @@ export function DashboardView({
         openPL={heroOpenPL}
         greeting={greeting}
         positions={ledgerPositions}
-        setups={ledgerSetups}
         newsPositions={currentPositions}
         today={today}
         pending={pendingEntries}

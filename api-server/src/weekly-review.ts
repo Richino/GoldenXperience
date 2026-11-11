@@ -1,20 +1,21 @@
 import { pipSizeFor } from "../../frontend/src/lib/instruments/catalog.js";
 import { responseText } from "./analyze-explain.js";
-import { query } from "./database.js";
-import { journalTradeLog } from "./paper-cycle.js";
+import type { PoolClient } from "pg";
+import { db, query } from "./database.js";
+import { journalTradeLog, syncPracticeBrokerHistory } from "./paper-cycle.js";
 
 /**
  * Home's weekly review: what the trader's own (manual) trades did over the
  * last completed forex week (Sunday 17:00 to Friday 17:00 New York), so it only
  * changes once a week, after the Friday close, the rule-based findings behind the losses, and an AI coach's
  * summary written only from those numbers. Each week's review is saved
- * (weekly_reviews, one row per user per New York week), the saved summary is
- * reused while the week's trades are unchanged, and past weeks are handed to
+ * (weekly_reviews, one row per user per New York week), and past weeks are handed to
  * the next summary so mistakes that keep coming back are called out.
  */
 
 const HISTORY_WEEKS = 8;
 const TIMEOUT_MS = 30_000;
+const REVIEW_CHECK_MS = 15 * 60_000;
 
 type JournalRow = {
   id: string;
@@ -121,7 +122,6 @@ export type WeeklyReview = {
   to: string;
   stats: WeeklyStats;
   findings: WeeklyFinding[];
-  /** Changes whenever the week's trades change; keys the cached summary. */
   fingerprint: string;
 };
 
@@ -357,9 +357,9 @@ export function completedTradingWeek(now: number) {
   return { from, to, weekStart: monday };
 }
 
-export async function weeklyReview(userId: string, now = Date.now()): Promise<WeeklyReview> {
-  const rows = (await journalTradeLog(userId, { limit: 500, filter: "all" })) as unknown as JournalRow[];
-  const { from, to, weekStart } = completedTradingWeek(now);
+async function calculateWeeklyReview(userId: string, { from, to, weekStart }: ReturnType<typeof completedTradingWeek>): Promise<WeeklyReview> {
+  const window = { from: new Date(from).toISOString(), to: new Date(to).toISOString() };
+  const rows = await journalTradeLog(userId, { limit: null, closedManualWindow: window }) as unknown as JournalRow[];
   const trades = rows
     .filter((row) => row.origin === "manual")
     .map(toTrade)
@@ -369,8 +369,7 @@ export async function weeklyReview(userId: string, now = Date.now()): Promise<We
   return {
     weekStart,
     history: await savedHistory(userId, weekStart),
-    from: new Date(from).toISOString(),
-    to: new Date(to).toISOString(),
+    ...window,
     stats,
     findings: findingsOf(trades, stats),
     fingerprint: "verified-risk-v1:" + trades.map((trade) => `${trade.id}:${trade.r ?? ""}:${trade.pl ?? ""}`).join("|"),
@@ -470,42 +469,54 @@ function validateSummary(value: unknown, review: WeeklyReview): { ok: true; summ
   };
 }
 
-/** This week's saved summary, if it was written from the same trades. */
-async function savedSummary(userId: string, review: WeeklyReview) {
-  try {
-    const rows = await query<{ fingerprint: string; summary: WeeklySummary | null; model: string | null }>(
-      "SELECT fingerprint, summary, model FROM weekly_reviews WHERE user_id=$1 AND week_start=$2::date",
-      [userId, review.weekStart],
-    );
-    const row = rows.rows[0];
-    return row && row.fingerprint === review.fingerprint && row.summary && Array.isArray(row.summary.recurring)
-      ? { summary: row.summary, model: row.model ?? "" }
-      : null;
-  } catch (error) {
-    if (isMissingTable(error)) return null;
-    throw error;
-  }
+type CachedReviewRow = {
+  window_from: Date;
+  window_to: Date;
+  fingerprint: string;
+  stats: WeeklyStats;
+  findings: WeeklyFinding[];
+  summary: WeeklySummary | null;
+  model: string | null;
+};
+
+async function readReviewRow(userId: string, weekStart: string) {
+  const result = await query<CachedReviewRow>(
+    "SELECT window_from, window_to, fingerprint, stats, findings, summary, model FROM weekly_reviews WHERE user_id=$1 AND week_start=$2::date",
+    [userId, weekStart],
+  );
+  return result.rows[0];
 }
 
-async function saveReview(userId: string, review: WeeklyReview, value: { summary: WeeklySummary; model: string }) {
-  try {
-    await query(
-      `INSERT INTO weekly_reviews (user_id, week_start, window_from, window_to, fingerprint, stats, findings, summary, model)
-       VALUES ($1, $2::date, $3, $4, $5, $6, $7, $8, $9)
-       ON CONFLICT (user_id, week_start) DO UPDATE SET window_from=EXCLUDED.window_from, window_to=EXCLUDED.window_to,
-         fingerprint=EXCLUDED.fingerprint, stats=EXCLUDED.stats, findings=EXCLUDED.findings,
-         summary=EXCLUDED.summary, model=EXCLUDED.model, updated_at=now()`,
-      [userId, review.weekStart, review.from, review.to, review.fingerprint, JSON.stringify(review.stats), JSON.stringify(review.findings), JSON.stringify(value.summary), value.model],
-    );
-  } catch (error) {
-    // Not migrated yet: the summary still shows, it just is not kept.
-    if (!isMissingTable(error)) throw error;
-  }
+async function restoreReview(userId: string, weekStart: string, row: CachedReviewRow) {
+  return {
+    weekStart,
+    history: await savedHistory(userId, weekStart),
+    from: row.window_from.toISOString(),
+    to: row.window_to.toISOString(),
+    fingerprint: row.fingerprint,
+    stats: row.stats,
+    findings: row.findings,
+    summary: row.summary,
+    model: row.model,
+  };
 }
 
-export async function weeklySummary(userId: string, review: WeeklyReview): Promise<{ summary: WeeklySummary; model: string }> {
-  const saved = await savedSummary(userId, review);
-  if (saved) return saved;
+export async function cachedWeeklyReview(userId: string, now = Date.now()) {
+  const { weekStart } = completedTradingWeek(now);
+  const row = await readReviewRow(userId, weekStart);
+  return row ? restoreReview(userId, weekStart, row) : null;
+}
+
+async function saveReview(client: PoolClient, userId: string, review: WeeklyReview) {
+  await client.query(
+    `INSERT INTO weekly_reviews (user_id, week_start, window_from, window_to, fingerprint, stats, findings)
+     VALUES ($1, $2::date, $3, $4, $5, $6, $7)
+     ON CONFLICT (user_id, week_start) DO NOTHING`,
+    [userId, review.weekStart, review.from, review.to, review.fingerprint, JSON.stringify(review.stats), JSON.stringify(review.findings)],
+  );
+}
+
+async function generateWeeklySummary(review: WeeklyReview): Promise<{ summary: WeeklySummary; model: string }> {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) throw new Error("AI summaries are not configured (OPENAI_API_KEY).");
   const model = process.env.OPENAI_ANALYSIS_MODEL?.trim() || "gpt-5-mini";
@@ -541,7 +552,70 @@ export async function weeklySummary(userId: string, review: WeeklyReview): Promi
   let checked = await request();
   if (!checked.ok) checked = await request();
   if (!checked.ok) throw new Error(`Summary rejected: ${checked.reason}`);
-  const value = { summary: checked.summary, model };
-  await saveReview(userId, review, value);
-  return value;
+  return { summary: checked.summary, model };
+}
+
+async function prepareWeeklyReview(userId: string, week: ReturnType<typeof completedTradingWeek>) {
+  const key = `weekly-review:${userId}:${week.weekStart}`;
+  const client = await db().connect();
+  let locked = false;
+  let discard = false;
+  try {
+    const result = await client.query<{ locked: boolean }>(
+      "SELECT pg_try_advisory_lock(hashtextextended($1, 0)) AS locked", [key],
+    );
+    locked = result.rows[0]?.locked === true;
+    if (!locked) return;
+
+    const row = await readReviewRow(userId, week.weekStart);
+    const aiConfigured = Boolean(process.env.OPENAI_API_KEY?.trim());
+    if (row && (row.summary || !row.stats.trades || !aiConfigured)) return;
+
+    let review: WeeklyReview;
+    if (row) {
+      review = await restoreReview(userId, week.weekStart, row);
+    } else {
+      // A weekly snapshot must include broker closes even if Home was never opened.
+      const sync = await syncPracticeBrokerHistory(userId);
+      if (sync.unavailable) return;
+      review = await calculateWeeklyReview(userId, week);
+      await saveReview(client, userId, review);
+    }
+
+    if (!review.stats.trades || !aiConfigured) return;
+    const { summary, model } = await generateWeeklySummary(review);
+    await client.query(
+      `UPDATE weekly_reviews SET summary=$3, model=$4, updated_at=now()
+       WHERE user_id=$1 AND week_start=$2::date AND summary IS NULL`,
+      [userId, week.weekStart, JSON.stringify(summary), model],
+    );
+  } finally {
+    if (locked) {
+      try { await client.query("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [key]); }
+      catch { discard = true; }
+    }
+    client.release(discard);
+  }
+}
+
+export function startWeeklyReviewWorker() {
+  let running: Promise<void> | undefined;
+  const check = () => {
+    if (running) return;
+    running = (async () => {
+      const week = completedTradingWeek(Date.now());
+      const owners = await query<{ id: string }>("SELECT id FROM users WHERE role='owner'");
+      for (const { id } of owners.rows) {
+        try { await prepareWeeklyReview(id, week); }
+        catch (error) { console.warn("[weekly-review] Review preparation failed; will retry.", error instanceof Error ? error.message : undefined); }
+      }
+    })().catch(() => console.warn("[weekly-review] Weekly check failed; will retry."))
+      .finally(() => { running = undefined; });
+  };
+  check();
+  const timer = setInterval(check, REVIEW_CHECK_MS);
+  return () => {
+    clearInterval(timer);
+    return running ?? Promise.resolve();
+  };
 }

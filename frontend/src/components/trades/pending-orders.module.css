@@ -1,0 +1,20 @@
+.overview { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; padding: 20px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); margin-bottom: 20px; }
+.overview > div { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.overview span, .levels dt, .meta { color: var(--muted-strong); font-size: 12px; }
+.overview b { font-size: clamp(18px,3vw,28px); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.overview small { font-size: 11px; font-weight: 500; }
+.list { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin-bottom: 24px; }
+.heading { grid-column: 1 / -1; margin: 0 0 4px; font-size: 14px; font-weight: 650; display: flex; align-items: center; gap: 8px; }
+.heading span { color: var(--muted-strong); font-size: 12px; font-weight: 500; }
+.card { display: flex; flex-direction: column; gap: 16px; min-width: 0; padding: 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); color: var(--foreground); text-decoration: none; }
+.card:hover { border-color: var(--border-strong); background: var(--surface-raised); }
+.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.status { font-size: 11px; color: var(--foreground); border: 1px solid var(--border-strong); border-radius: 6px; padding: 5px 8px; }
+.levels { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; margin: 0; }
+.levels dt { margin-bottom: 5px; }
+.levels dd { margin: 0; font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.meta > span:last-child { display: flex; align-items: center; gap: 4px; color: var(--foreground); }
+@media(max-width:480px) { .overview { padding:16px 12px; gap:8px; }.overview span { font-size:11px; }.card { padding:14px; }.levels dt { font-size:11px; } }
+@media(max-width:700px) { .list { grid-template-columns: 1fr; } }

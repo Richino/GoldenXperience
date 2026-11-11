@@ -65,6 +65,7 @@ export function ManualOcoTicket({ instrument, header, blocked, onCancel, onCreat
         {current?.risk ? <div><dt>If both fill</dt><dd>{money(current.risk.perLegCash * 2)} planned risk</dd></div> : null}
         <div><dt>Unfilled orders expire</dt><dd>After 24 hours</dd></div>
       </dl>
+      <p className={styles.ocoNote}>Practice account only. Stops use 2× completed 4H ATR; units are sized to your cash risk. No fixed target or automatic trailing stop. Slippage can exceed planned cash risk. If both fill, GX attempts to close this setup’s exposure.</p>
       {blocked ? <p className="nl-pe-error" role="alert">This pair already has a trade or setup.</p> : null}
       {error ? <div><p className="nl-pe-error" role="alert">{error}</p><button type="button" className="nl-an-secondary pressable" style={{ minHeight: 44 }} disabled={busy || !complete} onClick={() => setRetry(value => value + 1)}>Retry preview</button></div> : null}
     </div>

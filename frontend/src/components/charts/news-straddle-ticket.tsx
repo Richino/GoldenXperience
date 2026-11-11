@@ -87,7 +87,7 @@ function LegacyNewsSetupStatus({ entry, bid, ask }: { entry: PendingManualEntry;
   const headline = state === "ORDER_REJECTED" || state === "SKIPPED" || state === "ERROR"
     ? `${STATE_WORDS[state]}${entry.failureReason ? ` · ${entry.failureReason.replace(/^(Skipped|Not filled): /, "")}` : ""}`
     : state === "CLOSED"
-      ? `Closed · ${meta.exitReason ?? "closed"} · Verified R unavailable`
+      ? `Closed · ${meta.exitReason ?? "closed"}${typeof meta.resultR === "number" ? ` · ${meta.resultR >= 0 ? "+" : ""}${meta.resultR.toFixed(2)}R` : ""}`
       : STATE_WORDS[state] ?? state;
   return (
     <div className="nl-pe-news-status">

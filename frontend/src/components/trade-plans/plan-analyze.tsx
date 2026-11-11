@@ -379,7 +379,7 @@ export function PlanBlock({ plan, watching, price = null, report = null }: { pla
         <span className={styles.zone} aria-label={`${low} to ${high}`}>
           <span aria-hidden="true">{low}<span className={styles.dash}>–</span>{shared ? <span className={styles.shared}>{shared}</span> : null}{rest}</span>
         </span>
-        <span className={styles.rr} data-short={shortOfReward || undefined} title="Target / stop distance; not verified monetary R:R">{plan.rewardRisk?.toFixed(1) ?? "—"}<small>× distance</small></span>
+        <span className={styles.rr} data-short={shortOfReward || undefined} title="Reward to risk">{plan.rewardRisk?.toFixed(1) ?? "—"}<small>R</small></span>
       </div>
       {risk > 0 && reward > 0 ? (
         <div className={styles.bar} aria-hidden="true">
@@ -394,7 +394,7 @@ export function PlanBlock({ plan, watching, price = null, report = null }: { pla
       </dl>
       {shortOfReward && readiness ? (
         <p className={styles.rrNote} title={readiness.reason}>
-          Needs {readiness.minRewardRisk}× stop distance at entry · about {readiness.estimatedRewardRisk.toFixed(1)}× from the zone now
+          Needs {readiness.minRewardRisk}R at entry · about {readiness.estimatedRewardRisk.toFixed(1)}R from the zone now
         </p>
       ) : null}
       {watching && plan.status === "FILLED" ? (

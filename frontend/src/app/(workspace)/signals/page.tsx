@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-/** Signals now live on Home and each setup opens directly in Chart. */
+/** Keep legacy Signals URLs pointing to Home. */
 export default function SignalsPage() {
   redirect("/");
 }

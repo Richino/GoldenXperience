@@ -146,9 +146,6 @@ export function PendingEntryDialog({
     };
   }, [isPanel, open]);
   const [editing, setEditing] = useState(false);
-  const [plannedRiskValue, setPlannedRiskValue] = useState("");
-  const [plannedRiskUnit, setPlannedRiskUnit] = useState<"usd" | "percent">("usd");
-  const [plannedNetRewardUsd, setPlannedNetRewardUsd] = useState("");
   const [entryMode, setEntryMode] = useState<"single" | "oco">("single");
   // A blank entry has no direction until the user picks one, so a form that
   // lost its Analyze plan (e.g. a reload) can never submit a default LONG.
@@ -325,9 +322,6 @@ export function PendingEntryDialog({
       : "—";
 
   function resetCreateForm() {
-    setPlannedRiskValue("");
-    setPlannedRiskUnit("usd");
-    setPlannedNetRewardUsd("");
     const nextDirection = initialProposal?.direction ?? null;
     setEditing(false);
     setDirection(nextDirection);
@@ -416,7 +410,6 @@ export function PendingEntryDialog({
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...(!selectedEntry ? { plannedRiskValue, plannedRiskUnit, plannedNetRewardUsd } : {}),
           instrument, direction, entryPrice: parsedEntry, stopPrice: parsedStop, targetPrice: parsedTarget, expiresAt, activateAt: activateAtIso, invalidationPrice: parsedInvalidation, orderReferencePrice,
           tradeStyle,
           // Tags forward-test trades so they can be scored separately later.
@@ -468,14 +461,16 @@ export function PendingEntryDialog({
 
   const newsSetup = selectedEntry?.metadata?.mode === "news";
   const headerEyebrow = isDetail
-    ? selectedEntry?.status
+    ? (selectedEntry
+      ? `${selectedEntry.status.charAt(0)}${selectedEntry.status.slice(1).toLowerCase()} · ${selectedEntry.direction === "long" ? "Long" : "Short"} ${selectedEntry.entryOrderType.replace("_", " ").toLowerCase()}`
+      : undefined)
     : selectedEntry
       ? "Edit pending entry"
       : isPanel
         ? "Add entry"
         : "Trade";
 
-  const entryModePicker = !selectedEntry ? <div className={`nl-an-modes ${styles.entryModePicker}`} role="radiogroup" aria-label="Entry type">
+  const entryModePicker = !selectedEntry ? <div className="nl-an-modes" role="radiogroup" aria-label="Entry type">
     {(["single", "oco"] as const).map(mode => <button key={mode} type="button" role="radio" aria-checked={entryMode === mode} className={entryMode === mode ? "is-active" : ""} onClick={() => setEntryMode(mode)}>{mode === "single" ? "Single entry" : "Linked OCO"}</button>)}
   </div> : null;
 
@@ -531,8 +526,21 @@ export function PendingEntryDialog({
               {error ? <p className="pending-entry-error">{error}</p> : null}
             </div>
           ) : (
-          <div className="pending-entry-detail">
+          <div className="pending-entry-detail nl-pe-detail">
+            {/* The entry large, with how far it is from the price and which way. */}
+            <div className="nl-pe-hero">
+              <div>
+                <span>Entry</span>
+                <b className="metric-number">{selectedEntry.entryPrice.toFixed(precision)}</b>
+              </div>
+              {distancePips !== null && current !== null && selectedEntry.status === "PENDING" ? (
+                <span className="metric-number">
+                  {selectedEntry.entryPrice < current ? "↓" : "↑"} {distancePips.toFixed(1)} p {selectedEntry.entryPrice < current ? "below" : "above"}
+                </span>
+              ) : null}
+            </div>
             <p className={`pending-entry-status is-${selectedEntry.status.toLowerCase()}`}>
+              <i aria-hidden="true" />
               {selectedEntry.status === "PENDING" ? `Waiting for ${selectedEntry.entryPrice.toFixed(precision)}`
                 : selectedEntry.status === "TRIGGERED" ? `Entry triggered at ${selectedEntry.triggerPrice?.toFixed(precision) ?? "—"}`
                   : selectedEntry.status === "INVALIDATED" ? `Setup cancelled at ${selectedEntry.invalidationPrice?.toFixed(precision) ?? "—"}`
@@ -540,24 +548,22 @@ export function PendingEntryDialog({
                       : selectedEntry.status === "CANCELLED" ? "Entry cancelled"
                         : selectedEntry.status === "FAILED" ? selectedEntry.failureReason ?? "Entry failed" : "Entry is processing"}
             </p>
-            <dl>
-              <div><dt>Direction</dt><dd>{selectedEntry.direction.toUpperCase()}</dd></div>
-              <div><dt>Order</dt><dd>{selectedEntry.entryOrderType.replace("_", " ").toUpperCase()}</dd></div>
-              <div><dt>Entry</dt><dd>{selectedEntry.entryPrice.toFixed(precision)}</dd></div>
-              <div><dt>Distance</dt><dd>{distancePips === null ? "—" : `${distancePips.toFixed(1)} pips`}</dd></div>
-              <div><dt>Spread</dt><dd className={spreadIsWide ? "is-wide" : undefined}>{spreadPips === null ? "—" : `${spreadPips.toFixed(1)} pips${spreadIsWide ? " · Wide" : ""}`}</dd></div>
-              {selectedEntry.activateAt ? <div><dt>Submits at</dt><dd>{new Date(selectedEntry.activateAt).toLocaleString()}</dd></div> : null}
+            <dl className="nl-pe-list">
+              <div><dt>Direction</dt><dd className={selectedEntry.direction === "long" ? "is-up" : "is-down"}>{selectedEntry.direction === "long" ? "Long" : "Short"}</dd></div>
+              <div><dt>Order</dt><dd>{(() => { const order = selectedEntry.entryOrderType.replace("_", " ").toLowerCase(); return order.charAt(0).toUpperCase() + order.slice(1); })()}</dd></div>
+              <div><dt>Stop loss</dt><dd className={selectedEntry.stopPrice === null ? "is-unset" : "metric-number"}>{selectedEntry.stopPrice === null ? "Not set" : selectedEntry.stopPrice.toFixed(precision)}</dd></div>
+              <div><dt>Take profit</dt><dd className={selectedEntry.targetPrice === null ? "is-unset" : "metric-number"}>{selectedEntry.targetPrice === null ? "Not set" : selectedEntry.targetPrice.toFixed(precision)}</dd></div>
+              <div><dt>Spread</dt><dd className={`metric-number${spreadIsWide ? " is-wide" : ""}`}>{spreadPips === null ? "—" : `${spreadPips.toFixed(1)} pips${spreadIsWide ? " · Wide" : ""}`}</dd></div>
+              {selectedEntry.activateAt ? <div><dt>Submits at</dt><dd>{new Date(selectedEntry.activateAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</dd></div> : null}
               <div><dt>Expiration</dt><dd>{remainingLabel(selectedEntry.expiresAt)}</dd></div>
-              <div><dt>Invalidation</dt><dd>{selectedEntry.invalidationPrice?.toFixed(precision) ?? "None"}</dd></div>
-              <div><dt>Created</dt><dd>{new Date(selectedEntry.createdAt).toLocaleString()}</dd></div>
-              {selectedEntry.stopPrice !== null ? <div><dt>Stop</dt><dd>{selectedEntry.stopPrice.toFixed(precision)}</dd></div> : null}
-              {selectedEntry.targetPrice !== null ? <div><dt>Target</dt><dd>{selectedEntry.targetPrice.toFixed(precision)}</dd></div> : null}
+              <div><dt>Invalidation</dt><dd className={selectedEntry.invalidationPrice == null ? "is-unset" : "metric-number"}>{selectedEntry.invalidationPrice?.toFixed(precision) ?? "None"}</dd></div>
+              <div><dt>Created</dt><dd>{new Date(selectedEntry.createdAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</dd></div>
             </dl>
             {error ? <p className="pending-entry-error">{error}</p> : null}
           </div>
           )}
           {newsSetup && selectedEntry.metadata.configVersion === 3 ? null : selectedEntry.status === "PENDING" ? (
-            <footer className="pending-entry-actions">
+            <footer className={`pending-entry-actions${newsSetup ? "" : " nl-pe-detail-actions"}`}>
               <button type="button" className="pending-entry-danger pressable" disabled={saving} onClick={() => void cancelEntry()}>{newsSetup ? "Cancel news setup" : "Cancel Entry"}</button>
               {newsSetup ? null : <button type="button" className={`pending-entry-primary pressable ${styles.editEntry}`} onClick={() => {
                 setOrderReferencePrice(current);
@@ -578,7 +584,7 @@ export function PendingEntryDialog({
                 {direction === "long" ? "Long" : "Short"}
               </h2>
               {planRatio !== null ? (
-                <span className="nl-an-ratio" title="Target / stop price distance, not verified financial R:R.">Distance 1:{Number.isInteger(Number(planRatio.toFixed(1))) ? planRatio.toFixed(0) : planRatio.toFixed(1)}</span>
+                <span className="nl-an-ratio">1:{Number.isInteger(Number(planRatio.toFixed(1))) ? planRatio.toFixed(0) : planRatio.toFixed(1)}</span>
               ) : null}
             </div>
             <p className="nl-an-regime">
@@ -704,7 +710,7 @@ export function PendingEntryDialog({
                       : sizeKey ? "Sizing…" : "—"}
                 </dd>
               </div>
-              {planRatio !== null ? <div><dt>Target / stop distance</dt><dd className="metric-number">1 : {Number(planRatio.toFixed(1))}</dd></div> : null}
+              {planRatio !== null ? <div><dt>Risk : reward</dt><dd className="metric-number">1 : {Number(planRatio.toFixed(1))}</dd></div> : null}
 
               {automaticLifetime ? <div><dt>Expires</dt><dd>{automaticLifetimeHours}h after it starts watching</dd></div> : null}
             </dl>

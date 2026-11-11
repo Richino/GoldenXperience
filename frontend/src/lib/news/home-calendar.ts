@@ -44,14 +44,16 @@ export type HomeCalendarRowState = "live" | "released" | "upcoming";
 /**
  * Keep all of today's releases visible, including those still ahead. A busy
  * morning must not hide an afternoon release until the earlier events pass.
- * Only later days are capped, counting same-currency simultaneous releases
+ * The preview caps later days, counting same-currency simultaneous releases
  * as one group so a limit cannot cut a release's companion reports in half.
+ * Expansion lifts that cap and keeps the same impact filter.
  * Uses `now` rather than fetch time so row states update while the page is open.
  */
 export function homeCalendarRows<T extends { id: string; currency: string; impact: number; timestamp: string }>(
   recent: T[],
   upcoming: T[],
   now: number,
+  { expanded = false }: { expanded?: boolean } = {},
 ): (T & { state: HomeCalendarRowState })[] {
   const todayStart = startOfNewYorkDay(now);
   const today = tradingDayKey(now);
@@ -69,6 +71,7 @@ export function homeCalendarRows<T extends { id: string; currency: string; impac
         : now - time <= RELEASED_EVENT_WINDOW_MINUTES * 60_000 ? "live" : "released";
       return { ...event, state };
     });
+  if (expanded) return rows;
   const laterGroups = new Set<string>();
   return rows.filter((row) => {
     if (row.state !== "upcoming" || tradingDayKey(row.timestamp) === today) return true;

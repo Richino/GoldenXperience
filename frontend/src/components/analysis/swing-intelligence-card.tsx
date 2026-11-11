@@ -112,7 +112,7 @@ export function SwingIntelligenceCard({ instrument, onZones, open = false, onClo
               <h3>{scenario.side} plan</h3>
               <dl><div><dt>Entry zone</dt><dd>{price(zone?.lower)}–{price(zone?.upper)}</dd></div>
                 <div><dt>Stop loss</dt><dd>{price(scenario.stop)}</dd></div><div><dt>Target</dt><dd>{price(scenario.firstTarget)}</dd></div>
-                <div><dt>Target / stop distance now</dt><dd>{scenario.rewardRisk?.toFixed(2) ?? "—"}×</dd></div></dl>
+                <div><dt>Reward / risk now</dt><dd>{scenario.rewardRisk?.toFixed(2) ?? "—"}R</dd></div></dl>
               <p>{zone?.reason}</p>
               <p className={styles.note}>{scenario.support.at(-1)}</p>
               {scenario.blockers.length ? <details><summary>Waiting conditions ({scenario.blockers.length})</summary><ul>{scenario.blockers.map(text => <li key={text}>{text}</li>)}</ul></details> : null}

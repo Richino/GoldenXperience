@@ -5,7 +5,7 @@ import { CANDLE_ALIGNMENT } from "../../frontend/src/lib/strategy/candle-clock.j
 import { verifiedAbsorptionAlerts } from "./absorption-alerts.js";
 import { parseAbsorptionSettings } from "../../frontend/src/lib/indicators/absorption.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { weeklyReview, weeklySummary } from "./weekly-review.js";
+import { cachedWeeklyReview, startWeeklyReviewWorker } from "./weekly-review.js";
 import { planReview } from "./plan-review.js";
 import { pairTrends, pairTrendsHealth, startPairTrendsScanner } from "./pair-trends.js";
 import { URL, fileURLToPath } from "node:url";
@@ -53,7 +53,7 @@ import { nyTradability } from "./market-selection-service.js";
 import { morningPicksSnapshot, runMorningScan, startMorningScanner, scheduledScanAuthorized, MorningRefreshLimited } from "./morning-market-scanner.js";
 import { cookieName, login, logout, sessionUser } from "./auth.js";
 import { decideResearchExperiment, forwardResearchSummary, latestDayTradingValidation, latestResearchExperiment, latestResearchHoldout, latestResearchRun, latestWalkForwardResearch, processNextResearchJob, researchDiagnostics, researchExperimentDiagnostics, researchSummary, runDayTradingValidation, runResearchExperiment, runWalkForwardResearch, startLockedResearchHoldout, startStrictHistoricalBackfill, stopResearchRun } from "./research.js";
-import { collectMultiStrategyCycle, collectPaperCycle, decidePaperBatch, fastResolveFilledTrades, liveResolvePaperTrades, journalTradeLog, journalTradeSummary, multiStrategyOverview, multiStrategyWatchlist, paperCycleOverview, paperCycleOpenTrades, paperRiskExposure, paperRiskPolicy, paperTradesForInstrument, parsePaperRiskConfiguration, reviewPaperTrade, savedExecutableSetups, syncPracticeBrokerHistory, requestPracticeHistorySync, updatePaperRiskPolicy, watchlistSnapshot } from "./paper-cycle.js";
+import { collectMultiStrategyCycle, collectPaperCycle, decidePaperBatch, fastResolveFilledTrades, liveResolvePaperTrades, journalTradeLog, journalTradeSummary, multiStrategyOverview, multiStrategyWatchlist, paperCycleOverview, paperCycleOpenTrades, paperRiskExposure, paperRiskPolicy, paperTradesForInstrument, parsePaperRiskConfiguration, reviewPaperTrade, syncPracticeBrokerHistory, requestPracticeHistorySync, updatePaperRiskPolicy, watchlistSnapshot } from "./paper-cycle.js";
 import { momentumShortInversionStatus } from "./momentum-short-inversion.js";
 import { markNotificationsRead, notificationsForUser, pushPublicKey, queueNotification, removePushSubscription, savePushSubscription } from "./notifications.js";
 import { startNewsReminders } from "./news-reminders.js";
@@ -523,23 +523,22 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
         return json(request, response, { error: error instanceof Error ? error.message : "Manual analysis could not run." }, 502);
       }
     }
-    // Home's weekly review: the numbers (fast, rule-based), then the AI coach's
-    // summary of them (slow, cached per set of trades). Both read-only.
     // The swing plan's checklist tags (trend / news / level / style), scored.
     if (url.pathname === "/api/review/plan" && request.method === "GET") {
       return json(request, response, await planReview(user.id));
     }
     if (url.pathname === "/api/review/weekly" && request.method === "GET") {
-      return json(request, response, await weeklyReview(user.id));
+      const review = await cachedWeeklyReview(user.id);
+      return review
+        ? json(request, response, review)
+        : json(request, response, { pending: true, error: "The weekly review is being prepared." }, 503);
     }
+    // Older clients request the summary separately. Serve the same cached result.
     if (url.pathname === "/api/review/weekly/summary" && request.method === "POST") {
-      const review = await weeklyReview(user.id);
-      if (!review.stats.trades) return json(request, response, { error: "No closed trades last week." }, 409);
-      try {
-        return json(request, response, await weeklySummary(user.id, review));
-      } catch (error) {
-        return json(request, response, { error: error instanceof Error ? error.message : "The summary could not be written." }, 502);
-      }
+      const review = await cachedWeeklyReview(user.id);
+      if (review && !review.stats.trades) return json(request, response, { error: "No closed trades last week." }, 409);
+      if (!review?.summary) return json(request, response, { error: "The weekly summary is unavailable." }, 503);
+      return json(request, response, { summary: review.summary, model: review.model });
     }
     if (url.pathname === "/api/analyze/explain" && request.method === "POST") {
       // Prose about an Analyze V2 result the app already calculated. It never
@@ -553,9 +552,6 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       } catch (error) {
         return json(request, response, { error: error instanceof Error ? error.message : "The explanation could not be written." }, 502);
       }
-    }
-    if (url.pathname === "/api/saved-setups" && request.method === "GET") {
-      return json(request, response, { setups: await savedExecutableSetups() });
     }
     if (url.pathname === "/api/planned-setups" && request.method === "POST") {
       // Arm backend monitoring of a range-reversion plan. Never places an order.
@@ -1263,7 +1259,16 @@ const CANDLE_CACHE_LATEST_MS = 5_000;
 const CANDLE_CACHE_HISTORY_MS = 10 * 60_000;
 const CANDLE_CACHE_MAX_ENTRIES = 300;
 type CandleResult = Awaited<ReturnType<typeof getCandles>>;
-const candleCache = new Map<string, { expiresAt: number; result: Promise<CandleResult> }>();
+const candleCache = new Map<string, { expiresAt: number; result: Promise<CandleResult>; settled: boolean }>();
+// Expiration must release the candle arrays even when a chart is never opened
+// again. A size bound alone keeps up to 300 expired history windows alive.
+const candleCacheCleanup = setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of candleCache) {
+    if (entry.settled && entry.expiresAt <= now) candleCache.delete(key);
+  }
+}, 30_000);
+candleCacheCleanup.unref();
 
 function cachedCandles(instrument: Parameters<typeof getCandles>[0], granularity: string, count: number, to: string | undefined) {
   const key = `${CANDLE_ALIGNMENT.version}|${instrument}|${granularity}|${count}|${to ?? ""}`;
@@ -1273,9 +1278,10 @@ function cachedCandles(instrument: Parameters<typeof getCandles>[0], granularity
 
   const result = getCandles(instrument, granularity, count, { to });
   candleCache.delete(key);
-  candleCache.set(key, { expiresAt: now + (to ? CANDLE_CACHE_HISTORY_MS : CANDLE_CACHE_LATEST_MS), result });
+  const entry = { expiresAt: now + (to ? CANDLE_CACHE_HISTORY_MS : CANDLE_CACHE_LATEST_MS), result, settled: false };
+  candleCache.set(key, entry);
   result.then(
-    (value) => { if (value.status.state !== "connected" && candleCache.get(key)?.result === result) candleCache.delete(key); },
+    (value) => { entry.settled = true; if (value.status.state !== "connected" && candleCache.get(key)?.result === result) candleCache.delete(key); },
     () => { if (candleCache.get(key)?.result === result) candleCache.delete(key); },
   );
   while (candleCache.size > CANDLE_CACHE_MAX_ENTRIES) {
@@ -1524,6 +1530,7 @@ let breakoutConfidenceV1Collector: NodeJS.Timeout | null = null;
 // prices and candles, but starts none of the mutating loops. Unset — or any
 // value other than "false" — keeps them on, so the deployed server is unchanged.
 const schedulersEnabled = process.env.ENABLE_SCHEDULERS !== "false";
+const stopWeeklyReviewWorker = databaseConfigured() && schedulersEnabled ? startWeeklyReviewWorker() : null;
 const stopCashCloseMonitor = startCashCloseMonitor();
 const stopNewsReminders = databaseConfigured() && schedulersEnabled && process.env.NEWS_REMINDERS_ENABLED !== "false" ? startNewsReminders() : null;
 const morningScanner = databaseConfigured() && schedulersEnabled && process.env.MORNING_SCAN_ENABLED !== "false" ? startMorningScanner() : null;
@@ -1885,12 +1892,14 @@ function shutdown() {
   const newsStopped = newsStraddleRuntime?.stop() ?? Promise.resolve();
   const swingStopped = swingIntelligence.stop();
   const newsRemindersStopped = stopNewsReminders?.() ?? Promise.resolve();
+  const weeklyReviewStopped = stopWeeklyReviewWorker?.() ?? Promise.resolve();
   stopRecordingContext?.();
   stopPairTrendsScanner?.();
   stopRiskExcursions?.();
   const recordingClosed = marketRecorder?.close() ?? Promise.resolve();
   const observerClosed = marketObserver?.stop() ?? Promise.resolve();
   clearInterval(heartbeat);
+  clearInterval(candleCacheCleanup);
   if (morningScanner) clearInterval(morningScanner);
   stopDurableResearchWorker?.();
   stopAnalyzeResearchWorker?.();
@@ -1908,7 +1917,7 @@ function shutdown() {
   // terminate() drops them immediately; clients simply reconnect.
   wss.clients.forEach((socket) => socket.terminate());
   wss.close();
-  server.close(() => { void Promise.allSettled([recordingClosed, observerClosed, newsStopped, swingStopped, newsRemindersStopped]).finally(() => process.exit(0)); });
+  server.close(() => { void Promise.allSettled([recordingClosed, observerClosed, newsStopped, swingStopped, newsRemindersStopped, weeklyReviewStopped]).finally(() => process.exit(0)); });
   // Fallback: exit even if a handle is still open, so the port is always freed
   // promptly for the next boot. unref() so it never itself keeps us alive.
   setTimeout(() => process.exit(0), 5000).unref();

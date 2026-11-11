@@ -68,7 +68,6 @@ import {
   type ChartVariant,
   type TradeMarkerPalette,
 } from "@/lib/chart-utils";
-import { ChartHistoryLoader } from "@/components/charts/chart-loading-overlay";
 import { ChartCrosshairLabels } from "@/components/charts/chart-crosshair-labels";
 import { useChartTouchGestures } from "@/components/charts/use-chart-touch-gestures";
 import { ChartBoxPrimitive, type ChartBox } from "@/components/charts/chart-box-primitive";
@@ -90,8 +89,8 @@ import type { Candle, CandleSeries, PaperChartTrade } from "@/types/forex";
  * focused trade into view before it stops chasing it.
  */
 const MAX_FOCUS_HISTORY_PAGES = 8;
-/** Square candle bodies across candle, hollow and Heikin-Ashi variants. */
-const CANDLE_RADIUS = 0;
+/** Corner radius of candle bodies, in CSS pixels (see rounded-candle-series). */
+const CANDLE_RADIUS = 2;
 
 function chartTimeToMs(time: Time): number {
   if (typeof time === "number") {
@@ -202,8 +201,6 @@ export interface ChartLevelEdit {
   target: number | null;
   /** The price the trade would close at now; a level past it is invalid. */
   exitPrice: number | null;
-  /** A waiting order can move its entry too; a filled trade cannot. */
-  entryEditable?: boolean;
 }
 
 /** A single externally focused price, such as an active binary prediction entry. */
@@ -216,9 +213,6 @@ export interface ChartReferenceLine {
   dashed?: boolean;
   lineWidth?: 1 | 2;
   onSelect?: () => void;
-  /** Tag the line at the plot's left edge even on wide charts, keeping the
-   *  strip beside the price axis for the trade's own levels. */
-  leftEdge?: boolean;
 }
 
 /** A finite diagonal or horizontal segment used by visual chart indicators. */
@@ -692,12 +686,11 @@ function PositionToolOverlay({
   );
 }
 
-type EditLevelKey = "entry" | "stop" | "target";
-const EDIT_LEVEL_KEYS: EditLevelKey[] = ["entry", "stop", "target"];
+type EditLevelKey = "stop" | "target";
+const EDIT_LEVEL_KEYS: EditLevelKey[] = ["stop", "target"];
 
 /** Whether a draft level sits on the wrong side of the closing price. */
 export function chartLevelInvalid(edit: ChartLevelEdit, key: EditLevelKey) {
-  if (key === "entry") return false;
   const price = edit[key];
   if (price === null || edit.exitPrice === null) return false;
   const below = price < edit.exitPrice;
@@ -707,9 +700,8 @@ export function chartLevelInvalid(edit: ChartLevelEdit, key: EditLevelKey) {
 
 /**
  * The stop and target of an open trade as full-width lines with a handle by
- * the price axis: drag either one to a new price. A waiting order adds its
- * entry line too. A line past the visible range pins to the edge so it can
- * always be grabbed back.
+ * the price axis: drag either one to a new price. A line past the visible
+ * range pins to the edge so it can always be grabbed back.
  */
 function LevelEditOverlay({
   chartRef,
@@ -725,7 +717,7 @@ function LevelEditOverlay({
   onChange: (next: ChartLevelEdit) => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const lineRefs = useRef<Record<EditLevelKey, HTMLDivElement | null>>({ entry: null, stop: null, target: null });
+  const lineRefs = useRef<Record<EditLevelKey, HTMLDivElement | null>>({ stop: null, target: null });
   const editRef = useRef(edit);
   const onChangeRef = useRef(onChange);
   const dragRef = useRef<EditLevelKey | null>(null);
@@ -789,7 +781,7 @@ function LevelEditOverlay({
 
   useLayoutEffect(() => {
     paint();
-  }, [paint, edit.entry, edit.stop, edit.target]);
+  }, [paint, edit.stop, edit.target]);
 
   useEffect(() => {
     const onMove = (event: PointerEvent) => {
@@ -834,25 +826,20 @@ function LevelEditOverlay({
   };
 
   const pip = pipSizeFor(edit.instrument);
+  // R only means something while the stop is on the losing side of entry.
+  const risk = edit.stop === null ? null : edit.direction === "long" ? edit.entry - edit.stop : edit.stop - edit.entry;
   const label = (key: EditLevelKey, price: number) => {
-    if (key === "entry") {
-      return (
-        <>
-          <b>ENTRY</b>
-          {formatChartPrice(price, edit.instrument)}
-        </>
-      );
-    }
     const fromEntry = (edit.direction === "long" ? price - edit.entry : edit.entry - price) / pip;
     const pips = `${fromEntry >= 0 ? "+" : "−"}${Math.abs(fromEntry).toFixed(1)}p`;
-    // Just pips on the chart: the stop-distance multiple is in the SL / TP
-    // editor beside it, and on the chart it ran the pill across the plot.
-    // The phone chart hides even the pips: its SL / TP cards show them.
+    // The stop is the 1R the trade risks; the target is measured in those R.
+    const reward = risk === null || risk <= 0 ? ""
+      : key === "stop" ? " · −1.0R"
+        : ` · ${(Math.abs(price - edit.entry) / risk).toFixed(1)}R`;
+    // The phone chart hides the detail: its SL / TP cards show the same numbers.
     return (
       <>
-        <b>{key === "stop" ? "SL" : "TP"}</b>
-        {formatChartPrice(price, edit.instrument)}
-        <span className="setup-chart-level-edit-detail">{` · ${pips}`}</span>
+        {`${key === "stop" ? "SL" : "TP"} ${formatChartPrice(price, edit.instrument)}`}
+        <span className="setup-chart-level-edit-detail">{` · ${pips}${reward}`}</span>
       </>
     );
   };
@@ -861,7 +848,7 @@ function LevelEditOverlay({
     <div ref={rootRef} className="setup-chart-level-edit">
       {EDIT_LEVEL_KEYS.map((key) => {
         const price = edit[key];
-        if (price === null || (key === "entry" && !edit.entryEditable)) return null;
+        if (price === null) return null;
         return (
           <div
             key={key}
@@ -882,18 +869,6 @@ function LevelEditOverlay({
   );
 }
 
-const CHART_FONT_FALLBACK = '"Geist Mono", "Geist Mono Fallback", ui-monospace, monospace';
-
-/**
- * The canvas cannot read CSS variables, and next/font names its faces at
- * build time, so resolve the JetBrains Mono family the root layout loads.
- */
-function chartFontFamily() {
-  if (typeof document === "undefined") return CHART_FONT_FALLBACK;
-  const mono = getComputedStyle(document.documentElement).getPropertyValue("--font-ui-mono").trim();
-  return mono ? `${mono}, ${CHART_FONT_FALLBACK}` : CHART_FONT_FALLBACK;
-}
-
 // Lightweight Charts reserves space for the desktop time scale via minimumHeight.
 function chartTheme(
   isDark: boolean,
@@ -912,7 +887,8 @@ function chartTheme(
     layout: {
       background: { type: ColorType.Solid, color: background },
       textColor: scaleText,
-      fontFamily: chartFontFamily(),
+      fontFamily:
+        '"Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif',
       fontSize: embedded ? 9 : 11,
       attributionLogo: false,
     },
@@ -921,18 +897,17 @@ function chartTheme(
       horzLines: { color: horzGrid, style: LineStyle.Solid, visible: !embedded },
     },
     crosshair: {
-      // Mobile has no hover: the crosshair only appeared on a long press, where
-      // it got in the way of panning and pinching. Desktop keeps it.
+      // On the compact chart, enable the crosshair only for mouse input.
       mode: embedded ? CrosshairMode.Hidden : CrosshairMode.Normal,
       vertLine: {
-        color: palette.crosshairLine,
+        color: palette.upLine,
         width: 1 as const,
         style: LineStyle.LargeDashed,
         labelBackgroundColor: accent,
         labelVisible: false,
       },
       horzLine: {
-        color: palette.crosshairLine,
+        color: palette.upLine,
         width: 1 as const,
         style: LineStyle.LargeDashed,
         labelBackgroundColor: accent,
@@ -944,9 +919,8 @@ function chartTheme(
       // narrow reserved rail, retaining a useful price reference without
       // turning the chart into a cramped desktop terminal.
       visible: true,
-      // Desktop separates the price axis with a hairline; the phone stays clean.
-      borderVisible: !embedded,
-      borderColor: embedded ? "transparent" : palette.scaleBorder,
+      borderVisible: false,
+      borderColor: "transparent",
       textColor: scaleText,
       scaleMargins: {
         // Keep mobile candles below the floating trade card, with the compact
@@ -956,7 +930,7 @@ function chartTheme(
       },
       // Fit labels tightly: minimumWidth is a floor only; the scale grows when
       // needed (entireTextOnly off) instead of reserving a wide empty gutter.
-      minimumWidth: embedded ? 52 : 68,
+      minimumWidth: 68,
       alignLabels: true,
       tickMarkDensity: embedded ? 3.25 : 3.5,
       entireTextOnly: false,
@@ -964,8 +938,8 @@ function chartTheme(
       ticksVisible: false,
     },
     timeScale: {
-      borderVisible: !embedded,
-      borderColor: embedded ? "transparent" : palette.scaleBorder,
+      borderVisible: false,
+      borderColor: "transparent",
       timeVisible: true,
       secondsVisible: false,
       tickMarkFormatter: formatChartAxisTime,
@@ -1149,7 +1123,6 @@ interface LevelTag {
   dashed: boolean;
   lineWidth?: 1 | 2;
   onSelect?: () => void;
-  leftEdge?: boolean;
 }
 
 /**
@@ -1217,6 +1190,7 @@ function setupLevelTags(
   // Entry executes on the opposite side to the exits.
   const entrySide: 1 | -1 = isLong ? -1 : 1;
   const exitSide: 1 | -1 = isLong ? 1 : -1;
+  const rewardR = plannedRewardR(levels);
   const palette = chartColors(isDark);
   const entryPrice = formatChartPrice(levels.entry, instrument);
   const stopPrice = formatChartPrice(levels.stop, instrument);
@@ -1224,7 +1198,7 @@ function setupLevelTags(
   const tags: LevelTag[] = [
     {
       key: "entry",
-      label: levels.entryLabel ?? (compactLabels ? `Entry ${entryPrice}` : `ENTRY ${entryPrice}`),
+      label: levels.entryLabel ?? (compactLabels ? `Entry ${entryPrice} · R:R ${rewardR.toFixed(rewardR >= 10 ? 0 : 1)}` : `ENTRY ${entryPrice}`),
       price: toChartPrice(levels.entry, entrySide, halfSpread),
       color: levels.entryColor ?? palette.up,
       textColor: palette.onUp,
@@ -1232,7 +1206,7 @@ function setupLevelTags(
     },
     {
       key: "stop",
-      label: compactLabels ? `SL ${stopPrice}` : `STOP LOSS ${stopPrice}`,
+      label: compactLabels ? `SL ${stopPrice} · -1R` : `STOP LOSS ${stopPrice} · -1R`,
       price: toChartPrice(levels.stop, exitSide, halfSpread),
       color: palette.stopLine,
       textColor: palette.onDown,
@@ -1241,8 +1215,8 @@ function setupLevelTags(
     {
       key: "target",
       label: levels.targetLabel ?? (compactLabels
-        ? `TP ${targetPrice}`
-        : `TAKE PROFIT ${targetPrice}`),
+        ? `TP ${targetPrice} · +${rewardR.toFixed(rewardR >= 10 ? 0 : 1)}R`
+        : `TAKE PROFIT ${targetPrice} · +${rewardR.toFixed(rewardR >= 10 ? 0 : 1)}R`),
       price: toChartPrice(levels.target, exitSide, halfSpread),
       color: palette.up,
       textColor: palette.onUp,
@@ -1304,32 +1278,55 @@ function overlayLevelTags(
       dashed: line.dashed ?? true,
       lineWidth: line.lineWidth ?? 2,
       onSelect: line.onSelect,
-      leftEdge: line.leftEdge,
     });
   }
   return tags;
 }
 
 /** A level tag resolved to a pixel row, ready to be positioned. */
-/** A closed focused trade's exit: green where it made money, red where it lost. */
-function focusedExitColor(trade: PaperChartTrade, isDark: boolean) {
-  const won = trade.resultR !== null
-    ? trade.resultR >= 0
-    : trade.exit !== null && (trade.direction === "long" ? trade.exit >= trade.entry : trade.exit <= trade.entry);
-  const palette = chartColors(isDark);
-  return won ? palette.up : palette.stopLine;
-}
-
 interface PlacedLevelTag extends LevelTag {
   y: number;
   /** The horizontal side where this tag is anchored. */
   edge: "left" | "right";
   /** Distance from the selected chart edge. */
   offset: number;
+  /** Set when the level is outside the visible price range: which way, how far. */
+  away?: { direction: "above" | "below"; pips: number };
 }
 
-/** Keep these heights in sync with .setup-chart-level-tag in globals.css. */
-const LEVEL_TAG_HEIGHT = 24;
+/**
+ * A level label as the pill shows it: the name in the level's colour, the
+ * price in plain text and anything else muted. "SHORT ENTRY 1.11311" becomes
+ * Short / 1.11311; "#1 Sell limit · 26.0 p" becomes #1 Sell limit / 26.0 p.
+ * A price is a number with three or more decimals, so P/L amounts stay whole.
+ */
+function splitLevelLabel(label: string): { name: string; price: string | null; detail: string | null } {
+  const match = /(\d+\.\d{3,})/.exec(label);
+  let name: string;
+  let price: string | null = null;
+  let rest: string;
+  if (match) {
+    name = label.slice(0, match.index);
+    price = match[1]!;
+    rest = label.slice(match.index + match[1]!.length);
+  } else {
+    const [first, ...others] = label.split(" · ");
+    name = first!;
+    rest = others.join(" · ");
+  }
+  name = name.replace(/[\s·]+$/, "").trim();
+  // Shouting labels read as sentence case; short codes (SL, TP, P/L) stay.
+  if (name.length > 3 && name === name.toUpperCase() && /[A-Z]{4,}/.test(name)) {
+    name = name.split(" ").map((word) => (word.length <= 3 ? word : word.toLowerCase())).join(" ");
+    name = name.charAt(0).toUpperCase() + name.slice(1);
+  }
+  name = name.replace(/^(Long|Short) entry$/, "$1");
+  const detail = rest.replace(/^[\s·]+/, "").trim() || null;
+  return { name, price, detail };
+}
+
+/** Keep these heights in sync with .setup-chart-level-tag in night-ledger.css. */
+const LEVEL_TAG_HEIGHT = 28;
 const LEVEL_TAG_ACTION_HEIGHT = 44;
 const PRICE_AXIS_LABEL_HEIGHT = 20;
 const LEVEL_TAG_STACK_GAP = 4;
@@ -1385,38 +1382,6 @@ function stackLevelTagYs(
   }
 
   return sorted;
-}
-
-/**
- * Stack price-axis badges around the live price label, which never moves:
- * badges above it are pushed up and badges below it pushed down until none
- * overlap it or each other.
- */
-function stackAroundRow(
-  tags: PlacedLevelTag[],
-  fixedY: number,
-  fixedAbove: number,
-  fixedBelow: number,
-  paneHeight: number,
-): PlacedLevelTag[] {
-  const height = PRICE_AXIS_LABEL_HEIGHT;
-  const step = height + LEVEL_TAG_STACK_GAP;
-  const clamp = (y: number) => Math.min(Math.max(y, height / 2), paneHeight - height / 2);
-  const above = tags.filter((tag) => tag.y <= fixedY).sort((left, right) => right.y - left.y);
-  const below = tags.filter((tag) => tag.y > fixedY).sort((left, right) => left.y - right.y);
-  let ceiling = fixedY - fixedAbove - height / 2 - LEVEL_TAG_STACK_GAP;
-  const placedAbove = above.map((tag) => {
-    const y = Math.min(tag.y, ceiling);
-    ceiling = y - step;
-    return { ...tag, y: clamp(y) };
-  });
-  let floor = fixedY + fixedBelow + height / 2 + LEVEL_TAG_STACK_GAP;
-  const placedBelow = below.map((tag) => {
-    const y = Math.max(tag.y, floor);
-    floor = y + step;
-    return { ...tag, y: clamp(y) };
-  });
-  return [...placedAbove.reverse(), ...placedBelow];
 }
 
 function addSetupLevels(
@@ -1649,11 +1614,10 @@ function latestCandleChartTime(candles: Candle[]) {
 const DAY_MS_COUNTDOWN = 86_400_000;
 
 /**
- * Time left in the forming candle, as TradingView prints it under the price:
- * mm:ss, or h:mm:ss from an hour up. Measured from the latest candle's own open
- * so 4H candles follow OANDA's 17:00 New York alignment rather than UTC. Null
- * for daily and longer candles, and once the candle has closed with no
- * successor (market closed).
+ * Time left in the forming candle, shown under the live price: mm:ss, or
+ * h:mm:ss from an hour up. Measured from the latest candle's own open, so 4H
+ * candles follow OANDA's alignment. Null for daily and longer candles, and
+ * when no new candle has arrived for two spans (market closed).
  */
 function candleCountdown(candles: Candle[], now: number): string | null {
   if (candles.length < 2) return null;
@@ -1663,13 +1627,9 @@ function candleCountdown(candles: Candle[], now: number): string | null {
     if (gap > 0 && gap < span) span = gap;
   }
   if (!Number.isFinite(span) || span >= DAY_MS_COUNTDOWN) return null;
-  // The newest stored candle can be the forming one or the one before it;
-  // count to the next boundary after it. Two spans without a new candle means
-  // the market is closed.
   const elapsed = now - Date.parse(candles.at(-1)!.time);
   if (!(elapsed >= 0) || elapsed > span * 2) return null;
-  const left = span - (elapsed % span);
-  const total = Math.ceil(left / 1_000);
+  const total = Math.ceil((span - (elapsed % span)) / 1_000);
   const hours = Math.floor(total / 3_600);
   const minutes = Math.floor((total % 3_600) / 60);
   const seconds = total % 60;
@@ -1706,10 +1666,14 @@ function paintLastPriceOverlay(args: {
   host.hidden = false;
   label.hidden = rawY === null || !Number.isFinite(close);
   if (rawY !== null && Number.isFinite(close)) {
-    const paneHeight = chart.panes()[0]?.getHeight() ?? height;
+    const axisWidth = `${chart.priceScale("right").width()}px`;
+    const chartRoot = host.parentElement;
+    if (chartRoot && chartRoot.style.getPropertyValue("--setup-chart-axis-width") !== axisWidth) {
+      chartRoot.style.setProperty("--setup-chart-axis-width", axisWidth);
+    }
+    const text = mainSeries.priceFormatter().format(close);
     const value = label.children[0] as HTMLElement | undefined;
     const countdown = label.children[1] as HTMLElement | undefined;
-    const text = mainSeries.priceFormatter().format(close);
     const target = value ?? label;
     if (target.textContent !== text) target.textContent = text;
     if (countdown) {
@@ -1717,10 +1681,10 @@ function paintLastPriceOverlay(args: {
       if (countdown.textContent !== left) countdown.textContent = left;
       countdown.hidden = left === "";
     }
-    const above = value ? value.offsetTop + value.offsetHeight / 2 : label.offsetHeight / 2;
-    const below = label.offsetHeight - above;
-    const y = Math.max(above, Math.min(rawY, paneHeight - below));
-    const transform = `translate3d(0, ${y - above}px, 0)`;
+    const paneHeight = chart.panes()[0]?.getHeight() ?? height;
+    const halfLabel = label.offsetHeight / 2;
+    const y = Math.max(halfLabel, Math.min(rawY, paneHeight - halfLabel));
+    const transform = `translate3d(0, ${y}px, 0) translateY(-50%)`;
     if (label.style.transform !== transform) label.style.transform = transform;
   }
   const onScreen =
@@ -2171,7 +2135,7 @@ export function SetupChart({
     boxPrimitive.setBoxes(boxesRef.current);
     boxPrimitiveRef.current = boxPrimitive;
     // Session bands and volume behind the candles, on desktop and phone.
-    const backdrop = new ChartBackdropPrimitive(palette.backdrop, chartFontFamily());
+    const backdrop = new ChartBackdropPrimitive(palette.backdrop, '"Geist Mono", ui-monospace, monospace');
     mainSeries.attachPrimitive(backdrop);
     backdrop.setCandles(series.candles);
     backdropPrimitiveRef.current = backdrop;
@@ -2703,7 +2667,8 @@ export function SetupChart({
       muted: isDark ? "#cbd5e1" : "#475569",
     };
     // Prediction focus owns the markers when present; otherwise the focused
-    // paper trade. Arrows hang off the candle series, clear of the bodies.
+    // paper trade. Both reuse the same path series so arrows sit on exact
+    // entry/exit prices rather than candle highs/lows.
     const markers = !showTradeMarkers
       ? []
       : focusPrediction
@@ -2714,8 +2679,13 @@ export function SetupChart({
           focusTradeId,
           palette,
         ).filter((marker) => !marker.id?.startsWith("entry:"));
-    // No outline layer: the white halo it drew read as a shadow behind the arrow.
-    const markerOutlines: typeof markers = [];
+    const markerOutlines = markers.map((marker) => ({
+      ...marker,
+      id: marker.id ? `outline:${marker.id}` : undefined,
+      color: surfaceColor,
+      size: (marker.size ?? 1) + 0.5,
+      text: undefined,
+    }));
 
     if (!tradePathStillLive()) return;
 
@@ -2725,16 +2695,16 @@ export function SetupChart({
       } else {
         // Lightweight Charts has no marker stroke option. A slightly larger
         // surface-coloured marker under the fill creates a crisp, thin outline.
-        markerOutlinesRef.current = createSeriesMarkers(mainSeries, markerOutlines);
+        markerOutlinesRef.current = createSeriesMarkers(tradePath, markerOutlines);
       }
 
       if (markersRef.current) {
         markersRef.current.setMarkers(markers);
       } else {
-        // Anchor the arrows to the candles: aboveBar/belowBar then clear the
-        // candle's high/low, so the arrow never sits on top of the body. The
-        // path line still marks the exact exit price.
-        markersRef.current = createSeriesMarkers(mainSeries, markers);
+        // Anchor the arrows to the trade's exact entry/exit prices. Attaching
+        // them to the candle series makes aboveBar/belowBar use candle extremes,
+        // so price-scale zoom can leave an arrow floating far from the fill.
+        markersRef.current = createSeriesMarkers(tradePath, markers);
       }
 
       if (!tradePathStillLive()) return;
@@ -2774,35 +2744,13 @@ export function SetupChart({
       color: trade.direction === "long" ? (isDark ? "#60a5fa" : "#2563eb") : (isDark ? "#e879f9" : "#a21caf"),
       lineWidth: 2,
       lineStyle: LineStyle.Dashed,
-      // The ENTRY level tag already prints this price on the axis; a second
-      // library label underneath showed as a doubled, offset badge.
       axisLabelVisible: false,
       title: "",
     });
     return () => {
       if (liveSeries(mainSeriesRef.current) === mainSeries) mainSeries.removePriceLine(line);
     };
-  }, [chartEpoch, focusEntryCovered, focusPrediction, focusTradeId, isDark, showTradeMarkers, trades]);
-
-  // A closed focused trade also marks where it left, so entry and exit read
-  // as a pair of levels rather than one line and a marker.
-  useEffect(() => {
-    const mainSeries = liveSeries(mainSeriesRef.current);
-    const trade = trades?.find((item) => item.id === focusTradeId);
-    if (!mainSeries || !trade || trade.exit === null || !showTradeMarkers || focusPrediction) return;
-    const line = mainSeries.createPriceLine({
-      price: trade.exit,
-      color: focusedExitColor(trade, isDark),
-      lineWidth: 2,
-      lineStyle: LineStyle.Dashed,
-      // The EXIT tag prints the price on the axis, as ENTRY does.
-      axisLabelVisible: false,
-      title: "",
-    });
-    return () => {
-      if (liveSeries(mainSeriesRef.current) === mainSeries) mainSeries.removePriceLine(line);
-    };
-  }, [chartEpoch, focusPrediction, focusTradeId, isDark, showTradeMarkers, trades]);
+  }, [chartEpoch, embedded, focusEntryCovered, focusPrediction, focusTradeId, isDark, showTradeMarkers, trades]);
 
   useEffect(() => {
     const mainSeries = liveSeries(mainSeriesRef.current);
@@ -3016,16 +2964,10 @@ export function SetupChart({
   // something actually moved.
   useEffect(() => {
     const entryTrade = showTradeMarkers && !focusPrediction && !focusEntryCovered ? trades?.find((trade) => trade.id === focusTradeId) : null;
-    const exitTrade = showTradeMarkers && !focusPrediction ? trades?.find((trade) => trade.id === focusTradeId && trade.exit !== null) : null;
-    const tags: LevelTag[] = [
+    const tags = [
       ...(entryTrade ? [{
         key: "focused-trade-entry", label: "ENTRY", price: entryTrade.entry,
         color: entryTrade.direction === "long" ? (isDark ? "#60a5fa" : "#2563eb") : (isDark ? "#e879f9" : "#a21caf"),
-        textColor: isDark ? "#090a08" : "#ffffff", dashed: true,
-      }] : []),
-      ...(exitTrade ? [{
-        key: "focused-trade-exit", label: "EXIT", price: exitTrade.exit!,
-        color: focusedExitColor(exitTrade, isDark),
         textColor: isDark ? "#090a08" : "#ffffff", dashed: true,
       }] : []),
       ...overlayLevelTags(
@@ -3060,16 +3002,9 @@ export function SetupChart({
 
       const paneHeight = chart.panes()[0]?.getHeight() ?? chartHeightRef.current;
       let priceRange: ReturnType<ReturnType<IChartApi["priceScale"]>["getVisibleRange"]>;
-      // Wide charts name each level just left of the price axis, as the canvas
-      // board draws it; the phone, and any chart narrower than 640px (phone
-      // fullscreen), keeps its labels on the left edge.
-      let axisWidth = 0;
-      let labelsLeft = embedded;
       const coordinateOf = (price: number) => mainSeries.priceToCoordinate(price);
       try {
         priceRange = chart.priceScale("right").getVisibleRange();
-        axisWidth = chart.priceScale("right").width();
-        labelsLeft = embedded || chart.timeScale().width() < 640;
         // Probe once: a removed series throws here instead of mid-map below.
         coordinateOf(tags[0]?.price ?? 0);
       } catch (error) {
@@ -3091,37 +3026,26 @@ export function SetupChart({
         if (Number.isFinite(y) && y >= 0 && y <= paneHeight) {
           // Axis badges follow the actual price, independently of the larger
           // named labels' stacking. Off-screen prices stay off the scale.
-          axisTags.push({ ...tag, y, edge: "right", offset: 4 });
+          axisTags.push({ ...tag, y, edge: "right", offset: 0 });
         }
         // Keep an off-screen level visible at the top/bottom rather than
-        // dropping it or allowing a corner keepout to shift it inward.
-        const left = labelsLeft || tag.leftEdge === true;
+        // dropping it or allowing a corner keepout to shift it inward. Its
+        // flag then says which way the level is and how far from the price.
+        const liveClose = latestCloseRef.current ?? candlesRef.current.at(-1)?.close ?? null;
+        const away = (y < 0 || y > paneHeight) && liveClose !== null
+          ? { direction: y < 0 ? "above" as const : "below" as const, pips: Math.abs(tag.price - liveClose) / pipSizeFor(series.instrument) }
+          : undefined;
         return [{
           ...tag,
           y: Math.min(Math.max(y, minTagY), maxTagY),
-          edge: left ? "left" : "right",
-          offset: left ? 8 : axisWidth + 8,
+          edge: "left",
+          offset: 8,
+          away,
         }];
       });
 
-      // Each edge stacks on its own: a left tag and a right tag on the same
-      // row do not collide.
-      const stacked = [
-        ...stackLevelTagYs(placed.filter((tag) => tag.edge === "left"), paneHeight),
-        ...stackLevelTagYs(placed.filter((tag) => tag.edge === "right"), paneHeight),
-      ];
-      // The live price label owns its row on the axis; level badges move
-      // around it instead of being drawn under or over it.
-      const liveClose = latestCloseRef.current ?? candlesRef.current.at(-1)?.close ?? null;
-      const liveY = liveClose === null ? null : coordinateOf(liveClose);
-      // The label hangs below the price when it carries the candle countdown.
-      const liveLabel = lastPriceLabelRef.current;
-      const liveValue = liveLabel?.children[0] as HTMLElement | undefined;
-      const liveAbove = liveValue ? liveValue.offsetTop + liveValue.offsetHeight / 2 : PRICE_AXIS_LABEL_HEIGHT / 2;
-      const liveBelow = liveLabel ? Math.max(liveLabel.offsetHeight - liveAbove, PRICE_AXIS_LABEL_HEIGHT / 2) : PRICE_AXIS_LABEL_HEIGHT / 2;
-      const axisStacked = liveY !== null && liveY >= 0 && liveY <= paneHeight
-        ? stackAroundRow(axisTags, liveY, liveAbove, liveBelow, paneHeight)
-        : stackLevelTagYs(axisTags, paneHeight, () => PRICE_AXIS_LABEL_HEIGHT);
+      const stacked = stackLevelTagYs(placed, paneHeight);
+      const axisStacked = stackLevelTagYs(axisTags, paneHeight, () => PRICE_AXIS_LABEL_HEIGHT);
       const signature = JSON.stringify([stacked, axisStacked]);
       if (signature === previous) return;
       previous = signature;
@@ -3198,17 +3122,22 @@ export function SetupChart({
     };
   }, [chartEpoch, showBeacon]);
 
-  // Desktop: keep the crosshair under the pointer while dragging to pan. The
+  // Keep the crosshair under the mouse while dragging to pan. The
   // library sometimes drops crosshair updates during pressedMouseMove; syncing
   // from pointer events keeps OHLC overlays and the cursor aligned.
   useEffect(() => {
-    if (embedded) return;
     const container = containerRef.current;
     const chart = chartRef.current;
     if (!container || !chart) return;
 
     const syncCrosshair = (event: PointerEvent) => {
-      if (event.pointerType !== "mouse") return;
+      if (event.pointerType !== "mouse") {
+        if (embedded && chart.options().crosshair.mode !== CrosshairMode.Hidden) {
+          chart.applyOptions({ crosshair: { mode: CrosshairMode.Hidden } });
+          chart.clearCrosshairPosition();
+        }
+        return;
+      }
       if (chart.options().crosshair.mode !== CrosshairMode.Normal) {
         chart.applyOptions({ crosshair: { mode: CrosshairMode.Normal } });
       }
@@ -3329,7 +3258,6 @@ export function SetupChart({
           style={{
             backgroundColor: lastPriceLabelColor,
             color: palette.onUp,
-            fontSize: embedded ? 9 : 11,
           }}
         >
           <span className="setup-chart-price-value" />
@@ -3349,10 +3277,24 @@ export function SetupChart({
           onClick={tag.onSelect}
           disabled={!tag.onSelect}
           title={tag.label.startsWith("P/L ") ? "Live P/L estimate from executable bid/ask, refreshed against the broker every 15 seconds. Line marks the fill price." : tag.label.startsWith("TP ") ? "Estimated total trade profit at this target. Actual fills, conversion rates and fees can change the final amount." : undefined}
-          aria-label={`${tag.label}, ${formatChartPrice(tag.price, series.instrument)}`}
+          aria-label={`${tag.label}, ${formatChartPrice(tag.price, series.instrument)}${tag.away ? `, ${tag.away.pips.toFixed(1)} pips ${tag.away.direction}` : ""}`}
         >
-          <span className="setup-chart-level-tag-dot" aria-hidden="true" />
-          <span className="setup-chart-level-tag-text">{tag.label}</span>
+          {tag.away ? (
+            <svg className={`setup-chart-level-tag-arrow is-${tag.away.direction}`} viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6" /></svg>
+          ) : (
+            <span className="setup-chart-level-tag-dot" aria-hidden="true" />
+          )}
+          {(() => {
+            const parts = splitLevelLabel(tag.label);
+            return (
+              <span className="setup-chart-level-tag-text">
+                {parts.name ? <span className="setup-chart-level-tag-name">{parts.name}</span> : null}
+                {parts.price ? <span className="setup-chart-level-tag-price">{parts.price}</span> : null}
+                {parts.detail ? <span className="setup-chart-level-tag-detail">{parts.detail}</span> : null}
+                {tag.away ? <span className="setup-chart-level-tag-detail">{`${tag.away.pips.toFixed(1)} p ${tag.away.direction}`}</span> : null}
+              </span>
+            );
+          })()}
           {tag.onSelect ? <span className="setup-chart-level-tag-action" aria-hidden="true">›</span> : null}
         </button>
       ))}
@@ -3369,9 +3311,9 @@ export function SetupChart({
       <ChartCrosshairLabels
         chartRef={chartRef}
         epoch={chartEpoch}
-        enabled={!embedded}
-        background={palette.crosshairTag}
-        color={palette.crosshairText}
+        enabled
+        background={palette.up}
+        color={palette.onUp}
       />
       {positionTool && onPositionToolChange ? (
         <PositionToolOverlay
@@ -3415,7 +3357,6 @@ export function SetupChart({
           ))}
         </div>
       ) : null}
-      <ChartHistoryLoader visible={loadingOlder} />
     </div>
   );
 }

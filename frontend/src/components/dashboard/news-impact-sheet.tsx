@@ -55,6 +55,13 @@ type ReleaseMove = { firstReaction: number | null; sinceRelease: number };
 
 const MOVE_REFRESH_MS = 30_000;
 const FIRST_REACTION_MINUTES = 15;
+const releaseMoveCache = createImpactCache<Record<string, ReleaseMove>>(32, {
+  key: "gx:news-impact:moves:v1",
+  storage: () => window.sessionStorage,
+  valid: (value): value is Record<string, ReleaseMove> => Boolean(value && typeof value === "object" && !Array.isArray(value)
+    && Object.entries(value).every(([pair, move]) => isKnownInstrument(pair) && move && Number.isFinite(move.sinceRelease)
+      && (move.firstReaction === null || Number.isFinite(move.firstReaction)))),
+});
 /**
  * A release's effect is measured over this window, then frozen. Hours later
  * the price is mostly moving on other things, so calling that the news
@@ -69,7 +76,6 @@ const NEWS_WINDOW_MINUTES = 60;
  * inside the news window. Refreshes while the window is open, then stops.
  */
 function useReleaseMoves(pairs: string[], releasedAt: number | null) {
-  const [cache] = useState(() => createImpactCache<Record<string, ReleaseMove>>());
   const [result, setResult] = useState<{ key: string; moves: Record<string, ReleaseMove> } | null>(null);
   const key = [...pairs].sort().join(",");
   const resultKey = `${releasedAt}|${key}`;
@@ -78,11 +84,11 @@ function useReleaseMoves(pairs: string[], releasedAt: number | null) {
     const release = releasedAt;
     let cancelled = false;
     async function load() {
-      const moves = await cache.load(resultKey, async () => {
+      const moves = await releaseMoveCache.load(resultKey, async () => {
         const count = Math.min(5_000, Math.ceil((Date.now() - release) / 300_000) + 3);
         const entries = await Promise.all(key.split(",").map(async (instrument) => {
           try {
-            const response = await fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=M5&count=${count}`), { credentials: "include", cache: "no-store" });
+            const response = await fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=M5&count=${count}`), { credentials: "include", cache: "no-store", signal: AbortSignal.timeout(12_000) });
             const series = response.ok ? (await response.json() as { data?: CandleSeries }).data : undefined;
             if (series?.instrument !== instrument || series.granularity !== "M5") return null;
             const candles = series?.source === "oanda" ? series.candles : [];
@@ -126,7 +132,7 @@ function useReleaseMoves(pairs: string[], releasedAt: number | null) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [cache, key, releasedAt, resultKey]);
+  }, [key, releasedAt, resultKey]);
   return {
     moves: releasedAt !== null && result?.key === resultKey ? result.moves : {},
     loading: releasedAt !== null && !!key && result?.key !== resultKey,
@@ -143,6 +149,20 @@ const recordText = (record: SignalRecord | null | undefined) =>
   record && record.n > 0 ? `${record.hits}/${record.n}${record.scope === "series" ? " on this release" : " overall"}` : null;
 type PredictionJournal = { predictions: SavedPrediction[]; record: { calls: number; correct: number } };
 
+function isPredictionJournal(value: unknown): value is PredictionJournal {
+  if (!value || typeof value !== "object") return false;
+  const journal = value as Partial<PredictionJournal>;
+  return Array.isArray(journal.predictions) && journal.predictions.every((row) => row && typeof row.event_key === "string"
+    && (row.call === null || row.call === "beat" || row.call === "miss"))
+    && Number.isFinite(journal.record?.calls) && Number.isFinite(journal.record?.correct);
+}
+
+const predictionJournalCache = createImpactCache<PredictionJournal>(1, {
+  key: "gx:news-impact:journal:v1",
+  storage: () => window.sessionStorage,
+  valid: isPredictionJournal,
+});
+
 /** Same key the server journal stores each call under. */
 function eventKey(event: { currency: string; title: string; timestamp: string }) {
   return `${event.currency}|${event.title}|${new Date(event.timestamp).toISOString()}`;
@@ -150,20 +170,21 @@ function eventKey(event: { currency: string; title: string; timestamp: string })
 
 /** The server's frozen calls and their live track record, loaded when the sheet opens. */
 function usePredictionJournal(open: boolean) {
-  const [cache] = useState(() => createImpactCache<PredictionJournal>(1));
   const [result, setResult] = useState<{ journal: PredictionJournal | null } | null>(null);
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    cache.load("journal", async () => {
-      const response = await fetch(apiUrl("/api/news/predictions"), { credentials: "include", cache: "no-store" });
+    predictionJournalCache.load("journal", async () => {
+      const response = await fetch(apiUrl("/api/news/predictions"), { credentials: "include", cache: "no-store", signal: AbortSignal.timeout(12_000) });
       if (!response.ok) throw new Error("Prediction journal unavailable");
-      return response.json() as Promise<PredictionJournal>;
+      const journal: unknown = await response.json();
+      if (!isPredictionJournal(journal)) throw new Error("Invalid prediction journal");
+      return journal;
     }, () => MOVE_REFRESH_MS)
       .then((journal) => { if (!cancelled) setResult({ journal }); })
       .catch(() => { if (!cancelled) setResult({ journal: null }); });
     return () => { cancelled = true; };
-  }, [cache, open]);
+  }, [open]);
   return { journal: result?.journal ?? null, loading: open && result === null };
 }
 
@@ -288,7 +309,7 @@ export function NewsImpactSheet({
       className="news-impact-sheet"
     >
       {event && hint ? journalLoading || movesLoading ? (
-        <NewsImpactSkeleton pairs={pairs.length} released={releasedAt !== null} releases={related.length + 1} />
+        <NewsImpactSkeleton pairs={pairs.length} released={releasedAt !== null} />
       ) : (
         <div className="news-impact-drawer">
           {/* Desktop shows two columns (the numbers and call, then the pairs);

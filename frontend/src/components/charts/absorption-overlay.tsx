@@ -35,7 +35,7 @@ export function AbsorptionOverlay({ chartRef, mainSeriesRef, epoch, series, enab
   chartRef: { current: IChartApi | null }; mainSeriesRef: { current: ISeriesApi<SeriesType> | null }; epoch: number;
   series: CandleSeries; enabled: boolean; alertsEnabled: boolean; analysis: ReturnType<typeof useAbsorptionAnalysis>;
 }) {
-  const { visibleZones, settings, events, diagnostics } = analysis;
+  const { visibleZones, settings, events } = analysis;
   const { resolvedTheme } = useTheme();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = visibleZones.find(z => z.id === selectedId);
@@ -114,6 +114,5 @@ export function AbsorptionOverlay({ chartRef, mainSeriesRef, epoch, series, enab
       <p>OANDA price-update activity and candle rejection proxy. No order-flow delta, probability, or automatic trade execution.</p>
     </section> : null}
     {alertError ? <span className="absolute bottom-2 left-2 text-xs text-[color:var(--muted)]">Absorption alert delivery unavailable</span> : null}
-    {process.env.NODE_ENV === "development" ? <details className="absolute bottom-1 left-1 z-10 rounded bg-[color:var(--surface)] p-1 text-[10px]"><summary>Absorption diagnostics</summary><pre className={styles.diagnostic}>{JSON.stringify(diagnostics.at(-1) ?? { reason: "Waiting for verified completed OANDA candles" }, null, 2)}</pre></details> : null}
   </>;
 }

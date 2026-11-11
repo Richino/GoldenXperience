@@ -157,7 +157,7 @@ export function NewsV3StatusView({ run, now, bid, ask }: { run: PublicNewsRun; n
     <section className={styles.card} aria-label="Broker order status"><dl className={styles.metrics}>
       {(["long", "short"] as const).map(side => { const l = run.legs[side]; return <div key={side}><dt>{side === "long" ? "BUY STOP" : "SELL STOP"}</dt><dd>{fmt(l.entry)}<small>{l.state.replaceAll("_", " ")}</small></dd></div>; })}
       <div><dt>Opposite order cancellation</dt><dd>{opposite?.state === "CANCELLED" && opposite.cancellationConfirmedAt ? "Confirmed by broker" : opposite?.cancellationRequestedAt ? "Requested · awaiting confirmation" : run.exception ? "Exception · reconciling" : "After first verified fill"}</dd></div>
-      <div><dt>Initial stop</dt><dd>{active ? fmt(active.initialStop) : `${run.risk?.stopPips.toFixed(1) ?? "—"} pips`}</dd></div>
+      <div><dt>Initial stop</dt><dd>{active ? fmt(active.initialStop) : `${run.risk?.stopPips.toFixed(1) ?? "—"} pips`} · −1R</dd></div>
       <div><dt>Trailing settings</dt><dd>{manual ? "Disabled" : <>+{run.settings.trailingActivationPips}p activation / {run.settings.trailingDistancePips}p distance</>}</dd></div>
       <div><dt>Fixed take-profit</dt><dd>Disabled</dd></div>
       <div><dt>Planned risk / order</dt><dd>{run.risk ? `${money(run.risk.perLegCash, run.risk.currency)} (${run.risk.perLegPercent.toFixed(2)}%)` : "Rechecking"}</dd></div>
@@ -170,7 +170,7 @@ export function NewsV3StatusView({ run, now, bid, ask }: { run: PublicNewsRun; n
       <div><dt>Confirmed broker stop</dt><dd>{fmt(active.activeStop)}</dd></div>
       <div><dt>Trailing order</dt><dd>{active.trailingActivatedAt ? "Broker active" : active.trailingRequestedAt ? "Awaiting broker confirmation" : "Not activated"}</dd></div>
       <div><dt>Realized profit / loss</dt><dd>{active.realizedPL === null ? "Not closed" : money(active.realizedPL, run.risk?.currency)}</dd></div>
-      <div><dt>Verified realized R</dt><dd>N/A — risk and net P/L not verified</dd></div>
+      <div><dt>Realized R</dt><dd>{active.realizedR === null ? "—" : `${active.realizedR.toFixed(2)}R`}</dd></div>
       <div><dt>Realized price movement</dt><dd>{pips(active.realizedPips)}</dd></div>
     </dl></section> : null}
     {Object.values(run.legs).every(l => l.state === "FILLED") ? <section className={styles.card} aria-label="Exception exposure and results"><dl className={styles.metrics}>

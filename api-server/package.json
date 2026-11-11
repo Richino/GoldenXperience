@@ -30,7 +30,8 @@
     "market-observer:db-test": "tsx scripts/test-market-observer-db.ts",
     "market-observer:ai-check": "tsx scripts/check-market-observer-ai.ts",
     "dev": "tsx watch src/server.ts",
-    "start": "tsx src/server.ts",
+    "build": "npm run typecheck && node scripts/build.mjs",
+    "start": "node --max-old-space-size=512 --enable-source-maps dist/server.mjs",
     "absorption:test": "tsx scripts/test-absorption-alerts.ts",
     "typecheck": "tsc --noEmit",
     "pair-trends:test": "tsx scripts/test-pair-trends-background.ts",
@@ -179,6 +180,7 @@
     "@types/pg": "^8.20.0",
     "@types/web-push": "^3.6.4",
     "@types/ws": "^8.18.1",
+    "esbuild": "^0.28.1",
     "typescript": "^5.9.3"
   }
 }

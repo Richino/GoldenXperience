@@ -7,36 +7,99 @@
  */
 
 import { useEffect, useState, type ReactNode } from "react";
-import { MoveVertical, Plus, X } from "lucide-react";
+import { Activity, MoveVertical, Plus, X } from "lucide-react";
 import { NewsImpactSheet, type NewsImpactPosition } from "@/components/dashboard/news-impact-sheet";
 import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { currenciesOf, displayNameFor, pipSizeFor } from "@/lib/instruments/catalog";
 import { groupedCalendarTitle, groupSimultaneousRows, homeCalendarImpactTier, homeCalendarRows } from "@/lib/news/home-calendar";
 import { useEconomicCalendar } from "@/lib/oanda/use-economic-calendar";
+import { openRFromLevels } from "@/lib/open-trade-progress";
+import { getMarketCondition } from "@/lib/strategy/session";
 import type { TradeMonitorDebug } from "@/lib/strategy/trade-monitor";
 import type { Candle } from "@/types/forex";
 
-/** "EUR/USD · 15m  O … H … L … C …" over the top-left of the plot. */
+/**
+ * The chart legend over the top-left of the plot: "EUR/USD · 15m  O … H … L …
+ * C …" with the candle's move in pips, and a chip per active indicator that
+ * turns it off.
+ */
 export function ChartOhlcReadout({
   instrument,
   timeframe,
   candle,
+  indicators = [],
+  onRemoveIndicator,
 }: {
   instrument: string;
   timeframe: string;
   candle: Candle | null | undefined;
+  indicators?: Array<{ value: string; label: string }>;
+  onRemoveIndicator?: (value: string) => void;
 }) {
   const price = (value: number | undefined) => (value === undefined ? "—" : formatChartPrice(value, instrument));
+  const movePips = candle ? (candle.close - candle.open) / pipSizeFor(instrument) : null;
+  const tone = movePips === null || Math.abs(movePips) < 0.05 ? "" : movePips > 0 ? "is-up" : "is-down";
   return (
-    <div className="nl-ohlc metric-number" aria-hidden="true">
-      <span className="nl-ohlc-pair">
-        {displayNameFor(instrument)} · {timeframe}
+    <div className="nl-ohlc">
+      <div className="nl-ohlc-row metric-number" aria-hidden="true">
+        <span className="nl-ohlc-pair">
+          {displayNameFor(instrument)} · {timeframe}
+        </span>
+        <span><i>O</i> {price(candle?.open)}</span>
+        <span><i>H</i> {price(candle?.high)}</span>
+        <span><i>L</i> {price(candle?.low)}</span>
+        <span className={tone}><i>C</i> {price(candle?.close)}</span>
+        {movePips !== null ? (
+          <span className={tone}>{`${movePips >= 0 ? "+" : "−"}${Math.abs(movePips).toFixed(1)} p`}</span>
+        ) : null}
+      </div>
+      {indicators.length && onRemoveIndicator ? (
+        <div className="nl-ohlc-chips">
+          {indicators.map((indicator) => (
+            <span key={indicator.value} className="nl-ohlc-chip">
+              {indicator.label}
+              <button
+                type="button"
+                className="pressable"
+                onClick={() => onRemoveIndicator(indicator.value)}
+                aria-label={`Hide ${indicator.label}`}
+                title={`Hide ${indicator.label}`}
+              >
+                <X aria-hidden="true" />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * The chart card's footer: where the candles come from, the market session
+ * and how many candles are loaded. The session needs the clock, so it appears
+ * after mount.
+ */
+export function ChartStatusLine({ candleCount, demo, replay }: { candleCount: number; demo: boolean; replay: boolean }) {
+  const [session, setSession] = useState<{ open: boolean; label: string } | null>(null);
+  useEffect(() => {
+    const read = () => {
+      const condition = getMarketCondition(new Date());
+      setSession({ open: condition.marketOpen, label: condition.marketOpen ? `${condition.label} session` : "Market closed" });
+    };
+    read();
+    const timer = window.setInterval(read, 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  return (
+    <div className="nl-chart-status metric-number">
+      <span className={`nl-chart-status-feed${demo ? " is-demo" : replay ? " is-replay" : ""}`}>
+        <span aria-hidden="true" />
+        {demo ? "Demo data" : replay ? "OANDA · replay" : "OANDA · live"}
       </span>
-      <span><i>O</i> {price(candle?.open)}</span>
-      <span><i>H</i> {price(candle?.high)}</span>
-      <span><i>L</i> {price(candle?.low)}</span>
-      <span><i>C</i> {price(candle?.close)}</span>
+      {session ? <span>{session.label}</span> : null}
+      <span className="nl-chart-status-end">{candleCount.toLocaleString("en-US")} candles</span>
     </div>
   );
 }
@@ -166,16 +229,27 @@ export function ChartHealthCard({
       <section className="nl-cside-card" aria-labelledby="nl-chealth-title">
         <div className="nl-cside-head">
           <h2 id="nl-chealth-title">Trade health</h2>
+          <span className="nl-cside-tag">{pairLabel}</span>
         </div>
-        <p className="nl-cside-empty">No open trade on {pairLabel}.</p>
-        {tradeAction}
+        <div className="nl-cside-body">
+          <div className="nl-cside-empty-state">
+            <span className="nl-cside-empty-icon" aria-hidden="true"><Activity /></span>
+            <div>
+              <b>No open trade</b>
+              <span>Health shows here once a trade fills.</span>
+            </div>
+          </div>
+          {tradeAction}
+        </div>
       </section>
     );
   }
 
   const long = signal.direction === "long";
   const pip = pipSizeFor(signal.instrument);
-  const openR: number | null = null;
+  const openR = signal.stop !== null
+    ? openRFromLevels({ direction: signal.direction, entry: signal.entry, stop: signal.stop, current: currentPrice })
+    : null;
   const openPips = currentPrice === null ? null : ((long ? currentPrice - signal.entry : signal.entry - currentPrice) / pip);
   const toStop = currentPrice === null || signal.stop === null ? null : Math.abs(currentPrice - signal.stop) / pip;
   const toTarget = currentPrice === null || signal.target === null ? null : Math.abs(signal.target - currentPrice) / pip;
@@ -205,11 +279,12 @@ export function ChartHealthCard({
     <section className="nl-cside-card" aria-labelledby="nl-chealth-title">
       <div className="nl-cside-head">
         <h2 id="nl-chealth-title">Trade health</h2>
-        <span className={`metric-number ${tone(openR ?? openPips)}`}>
+        <span className={`nl-cside-tag metric-number ${tone(openR ?? openPips)}`}>
           {long ? "Long" : "Short"} ·{" "}
           {openR !== null ? `${signed(openR, 2)}R` : openPips !== null ? `${signed(openPips, 1)} pips` : "—"}
         </span>
       </div>
+      <div className="nl-cside-body">
       <div className="nl-cpos-grid">
         {tiles.map((tile) => (
           <div key={tile.label}>
@@ -238,6 +313,7 @@ export function ChartHealthCard({
           ) : null}
         </>
       )}
+      </div>
     </section>
   );
 }
@@ -251,42 +327,64 @@ export function ChartPendingLevelsCard({
   orderLabel,
   levels,
   cancelAction,
+  currentPrice = null,
 }: {
   signal: ChartPositionCardSignal;
   orderLabel: string;
   levels: ChartHealthLevels;
   cancelAction?: ReactNode;
+  /** The live price, for how far the entry is from it. */
+  currentPrice?: number | null;
 }) {
-  const level = (price: number | null) => (price === null ? "None" : formatChartPrice(price, signal.instrument));
+  const distance = currentPrice === null ? null : (signal.entry - currentPrice) / pipSizeFor(signal.instrument);
+  const rows = [
+    { key: "stop", label: "Stop loss", price: signal.stop },
+    { key: "target", label: "Take profit", price: signal.target },
+  ];
   return (
-    <section className="nl-cside-card" aria-labelledby="nl-cpending-title">
+    <section className="nl-cside-card nl-cpending" aria-labelledby="nl-cpending-title">
       <div className="nl-cside-head">
         <h2 id="nl-cpending-title">Pending order</h2>
-        <span className="metric-number">{signal.direction === "long" ? "Long" : "Short"} · {orderLabel}</span>
+        <span className="nl-cside-tag is-pending">{signal.direction === "long" ? "Long" : "Short"} · {orderLabel}</span>
       </div>
-      <div className="nl-cpos-grid">
-        <div>
-          <span>Entry</span>
-          <b>{level(signal.entry)}</b>
+      <div className="nl-cside-body">
+        <div className="nl-cpending-entry">
+          <div>
+            <span>Entry</span>
+            <b className="metric-number">{formatChartPrice(signal.entry, signal.instrument)}</b>
+          </div>
+          {distance !== null ? (
+            <span className="metric-number">{`${distance >= 0 ? "↑" : "↓"} ${Math.abs(distance).toFixed(1)} p away`}</span>
+          ) : null}
         </div>
-        <div>
-          <span>Stop</span>
-          <b className={signal.stop === null ? "is-caution" : ""}>{level(signal.stop)}</b>
-        </div>
-        <div>
-          <span>Target</span>
-          <b>{level(signal.target)}</b>
-        </div>
+        {levels.editing ? (
+          <ChartLevelEditor levels={levels} signal={signal} />
+        ) : (
+          <>
+            <div className="nl-clevel-list">
+              {rows.map((row) => (
+                <div key={row.key} className={`is-${row.key}`}>
+                  <i aria-hidden="true" />
+                  <span>{row.label}</span>
+                  <b className={row.price === null ? "is-unset" : "metric-number"}>
+                    {row.price === null ? "Not set" : formatChartPrice(row.price, signal.instrument)}
+                  </b>
+                </div>
+              ))}
+            </div>
+            {signal.stop === null ? (
+              <p className="nl-cside-note is-caution">No stop on this order: the whole position is at risk if it fills.</p>
+            ) : null}
+            <div className="nl-cside-actions">
+              <button type="button" className="nl-clevels-start pressable" onClick={levels.onStart}>
+                <MoveVertical aria-hidden="true" />
+                {signal.stop === null && signal.target === null ? "Set stop & target" : "Move stop & target"}
+              </button>
+              {cancelAction}
+            </div>
+          </>
+        )}
       </div>
-      {levels.editing ? (
-        <ChartLevelEditor levels={levels} signal={signal} />
-      ) : (
-        <button type="button" className="nl-clevels-start pressable" onClick={levels.onStart}>
-          <MoveVertical aria-hidden="true" />
-          {signal.stop === null && signal.target === null ? "Set stop & target" : "Move stop & target"}
-        </button>
-      )}
-      {cancelAction}
     </section>
   );
 }
@@ -295,6 +393,8 @@ export function ChartPendingLevelsCard({
 export function ChartLevelEditor({ levels, signal }: { levels: ChartHealthLevels; signal: ChartPositionCardSignal }) {
   const pip = pipSizeFor(signal.instrument);
   const long = signal.direction === "long";
+  // R only means something while the stop is on the losing side of entry.
+  const risk = levels.stop === null ? null : long ? signal.entry - levels.stop : levels.stop - signal.entry;
   const rows = [
     { key: "stop" as const, label: "Stop loss", price: levels.stop, invalid: levels.invalid.stop, hint: long ? "below" : "above" },
     { key: "target" as const, label: "Take profit", price: levels.target, invalid: levels.invalid.target, hint: long ? "above" : "below" },
@@ -306,6 +406,9 @@ export function ChartLevelEditor({ levels, signal }: { levels: ChartHealthLevels
       <p className="nl-clevels-hint">Drag the lines on the chart to place them.</p>
       {rows.map((row) => {
         const fromEntry = row.price === null ? null : ((long ? row.price - signal.entry : signal.entry - row.price) / pip);
+        const reward = row.price === null || risk === null || risk <= 0 ? ""
+          : row.key === "stop" ? " · −1.0R"
+            : ` · ${(Math.abs(row.price - signal.entry) / risk).toFixed(1)}R`;
         return (
           <div key={row.key} className={`nl-clevels-row is-${row.key}${row.invalid ? " is-invalid" : ""}`}>
             <i aria-hidden="true" />
@@ -317,7 +420,7 @@ export function ChartLevelEditor({ levels, signal }: { levels: ChartHealthLevels
                   : <>
                       {formatChartPrice(row.price, signal.instrument)}
                       {/* Its own span so phones can drop it to a second line. */}
-                      <span className="nl-clevels-detail"><span className="nl-clevels-sep"> · </span>{fromEntry! >= 0 ? "+" : "−"}{Math.abs(fromEntry!).toFixed(1)}p</span>
+                      <span className="nl-clevels-detail"><span className="nl-clevels-sep"> · </span>{fromEntry! >= 0 ? "+" : "−"}{Math.abs(fromEntry!).toFixed(1)}p{reward}</span>
                     </>}
               </b>
               {row.invalid ? <small>Must be {row.hint} the {levels.relativeTo ?? "current price"}.</small> : null}
@@ -405,13 +508,15 @@ export function ChartNewsCard({
   // Same-currency releases at the same moment are one row and one sheet.
   const rows = now === null ? [] : groupSimultaneousRows(homeCalendarRows(forPair(calendar.recentEvents ?? []), forPair(calendar.events), now));
   const openRow = rows.find((row) => row.id === openId) ?? null;
+  // The soonest release still to come is highlighted.
+  const nextId = rows.find((row) => row.state !== "released" && row.state !== "live")?.id ?? null;
   const openEvent = openRow ? openRow.events[0]! : null;
 
   return (
     <section className="nl-cside-card nl-cnews" aria-labelledby="nl-cnews-title">
       <div className="nl-cside-head">
         <h2 id="nl-cnews-title">Upcoming news</h2>
-        <span className="metric-number nl-cnews-meta">{base} · {quote} · ET</span>
+        <span className="nl-cside-tag metric-number nl-cnews-meta">{base} · {quote} · ET</span>
       </div>
       {loading || now === null ? (
         <p className="nl-cside-empty">Loading calendar…</p>
@@ -421,12 +526,13 @@ export function ChartNewsCard({
         <div className="nl-news-list">
           {rows.map((event) => {
             const high = homeCalendarImpactTier(event.impact) === "high";
+            const next = event.id === nextId;
             const status = event.state === "live" ? "Now" : event.state === "released" ? "Released" : newsCountdown(event.timestamp, now);
             return (
               <button
                 key={event.id}
                 type="button"
-                className={`nl-news-row is-${event.state}`}
+                className={`nl-news-row is-${event.state}${next ? " is-next" : ""}`}
                 onClick={() => setOpenId(event.id)}
                 aria-label={`${event.currency} ${groupedCalendarTitle(event.events)}, ${status}, ${high ? "high" : "medium"} impact: see how it affects ${event.currency} pairs`}
               >
@@ -436,7 +542,7 @@ export function ChartNewsCard({
                 </span>
                 <span className="nl-news-copy">
                   <b>{event.currency} · {groupedCalendarTitle(event.events)}</b>
-                  <span>{status}</span>
+                  <span>{next ? `Next · ${status}` : status}</span>
                 </span>
                 <span className={`nl-impact ${high ? "is-high" : "is-medium"}`}>{high ? "HIGH" : "MED"}</span>
               </button>

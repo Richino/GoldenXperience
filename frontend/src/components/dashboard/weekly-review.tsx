@@ -1,9 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { RotateCcw, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Sparkles } from "lucide-react";
 import { apiUrl } from "@/lib/api/url";
-import { useHomeSectionReady } from "./home-loading-boundary";
 
 /**
  * Home's weekly review: the last completed trading week (Sunday to the Friday
@@ -26,12 +25,12 @@ type HistoryWeek = {
   focus: string | null;
 };
 type Review = {
+  summary: Summary | null;
   weekStart: string;
   history: HistoryWeek[];
   from: string;
   to: string;
   stats: {
-    riskCoverage?: { included: number; excluded: number; percent: number; reason: string };
     trades: number;
     wins: number;
     losses: number;
@@ -70,45 +69,38 @@ const holdLabel = (minutes: number | null) => (minutes === null ? "—" : minute
 export function WeeklyReview({ currency }: { currency: string }) {
   const [review, setReview] = useState<Review | null>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
-  const [summary, setSummary] = useState<Summary | null>(null);
-  const [summaryState, setSummaryState] = useState<"idle" | "loading" | "error">("idle");
-  const [summaryError, setSummaryError] = useState<string | null>(null);
-  // The AI commentary has its own loading state; it must not hide the account.
-  useHomeSectionReady("weekly", reviewError !== null || review !== null);
-
-  const loadSummary = useCallback(async () => {
-    setSummaryState("loading");
-    setSummaryError(null);
-    try {
-      const response = await fetch(apiUrl("/api/review/weekly/summary"), { method: "POST", credentials: "include", signal: AbortSignal.timeout(20_000) });
-      const payload = (await response.json()) as { summary?: Summary; error?: string };
-      if (!response.ok || !payload.summary) throw new Error(payload.error ?? "The summary could not be written.");
-      setSummary(payload.summary);
-      setSummaryState("idle");
-    } catch (error) {
-      setSummaryError(error instanceof Error ? error.message : "The summary could not be written.");
-      setSummaryState("error");
-    }
-  }, []);
+  const [pending, setPending] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
-    fetch(apiUrl("/api/review/weekly"), { credentials: "include", cache: "no-store", signal: AbortSignal.timeout(12_000) })
-      .then(async (response) => {
-        const payload = (await response.json()) as Review & { error?: string };
-        if (!response.ok) throw new Error(payload.error ?? "The weekly review could not be loaded.");
-        if (cancelled) return;
-        setReview(payload);
-        if (payload.stats.trades > 0) void loadSummary();
-      })
-      .catch((error) => {
-        if (!cancelled) setReviewError(error instanceof Error ? error.message : "The weekly review could not be loaded.");
-      });
-    return () => {
-      cancelled = true;
+    const lifetime = new AbortController();
+    const load = async () => {
+      try {
+        const response = await fetch(apiUrl("/api/review/weekly"), {
+          credentials: "include",
+          cache: "no-store",
+          signal: AbortSignal.any([lifetime.signal, AbortSignal.timeout(12_000)]),
+        });
+        const payload = await response.json() as Review & { pending?: boolean; error?: string };
+        if (lifetime.signal.aborted) return;
+        if (!response.ok && !payload.pending) throw new Error(payload.error ?? "The weekly review could not be loaded.");
+        setReview(payload.pending ? null : payload);
+        setPending(Boolean(payload.pending));
+        setReviewError(null);
+      } catch (error) {
+        if (!lifetime.signal.aborted) setReviewError(error instanceof Error ? error.message : "The weekly review could not be loaded.");
+      }
     };
-  }, [loadSummary]);
+    void load();
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void load();
+    }, 5 * 60_000);
+    return () => {
+      lifetime.abort();
+      window.clearInterval(timer);
+    };
+  }, []);
 
+  const summary = review?.summary;
   const stats = review?.stats;
   const best = stats ? [...stats.byPair].sort((a, b) => b.netPl - a.netPl)[0] : null;
   const worst = stats?.byPair[0] ?? null;
@@ -125,6 +117,8 @@ export function WeeklyReview({ currency }: { currency: string }) {
 
       {reviewError ? (
         <p className="nl-card-empty is-warn">{reviewError}</p>
+      ) : pending ? (
+        <p className="nl-card-empty" role="status">The weekly review is being prepared.</p>
       ) : !review || !stats ? (
         <div className="nl-wr-card" aria-busy="true">
           <span className="gx-skel nl-wr-skel-line" />
@@ -135,7 +129,7 @@ export function WeeklyReview({ currency }: { currency: string }) {
       ) : (
         <div className="nl-wr-card">
           <div className="nl-wr-hero">
-            <span className="nl-wr-hero-label">Reported P/L</span>
+            <span className="nl-wr-hero-label">Net</span>
             <b className={`nl-wr-net metric-number ${tone(stats.netPl)}`}>{money(stats.netPl, currency)}</b>
             <span className="nl-wr-hero-sub metric-number">
               {stats.trades} trades · {stats.wins}W {stats.losses}L · {stats.winRate === null ? "—" : `${stats.winRate}% win rate`}
@@ -166,12 +160,6 @@ export function WeeklyReview({ currency }: { currency: string }) {
                 <Sparkles aria-hidden="true" />
                 AI summary
               </span>
-              {summaryState === "error" ? (
-                <button type="button" className="nl-wr-retry pressable" onClick={() => void loadSummary()}>
-                  <RotateCcw aria-hidden="true" />
-                  Try again
-                </button>
-              ) : null}
             </div>
             {summary ? (
               <>
@@ -227,16 +215,8 @@ export function WeeklyReview({ currency }: { currency: string }) {
                 </div>
                 </details>
               </>
-            ) : summaryState === "loading" ? (
-              <div className="nl-wr-ai-loading" role="status">
-                <span className="gx-skel nl-wr-skel-line" />
-                <span className="gx-skel nl-wr-skel-line" />
-                <span className="gx-skel nl-wr-skel-line is-short" />
-                <span className="nl-wr-ai-note">Reading your week…</span>
-              </div>
             ) : (
               <>
-                {summaryError ? <p className="nl-wr-ai-note is-warn">{summaryError} The measured findings are below.</p> : null}
                 <ol className="nl-wr-list is-wrong">
                   {review.findings.map((finding) => (
                     <li key={finding.id}>

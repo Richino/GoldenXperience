@@ -1,5 +1,4 @@
 "use client";
-import { displayTradeR, formatRMultiple, formatTradeR, R_EXPLANATION } from "@/lib/risk-metrics";
 
 /**
  * Home, as drawn in the Night Ledger canvas ("Portfolio — Desktop / Mobile").
@@ -22,10 +21,7 @@ import {
 } from "@/components/dashboard/account-amount-chart";
 import { NewsImpactSheet } from "@/components/dashboard/news-impact-sheet";
 import { WeeklyReview } from "@/components/dashboard/weekly-review";
-import { GoodTrends } from "@/components/dashboard/good-trends";
-import { HomeQuota } from "@/components/dashboard/home-quota";
 import { useHomeSectionReady } from "@/components/dashboard/home-loading-boundary";
-import { RelativeTime } from "@/components/dashboard/relative-time";
 import type { HomeCurrentPosition } from "@/components/dashboard/home-rail";
 import { TopPairSearch } from "@/components/layout/top-pair-search";
 import { NotificationBell } from "@/components/notifications/notification-bell";
@@ -46,8 +42,8 @@ import type { PendingManualEntry } from "@/types/pending-entry";
 /* ------------------------------------------------------------------ types */
 
 type LoadState = "loading" | "ready" | "stale" | "error";
-export type DashboardLoadState = Record<"account" | "history" | "positions" | "setups" | "journal" | "pending", LoadState>;
-const READY: DashboardLoadState = { account: "ready", history: "ready", positions: "ready", setups: "ready", journal: "ready", pending: "ready" };
+export type DashboardLoadState = Record<"account" | "history" | "positions" | "journal" | "pending", LoadState>;
+const READY: DashboardLoadState = { account: "ready", history: "ready", positions: "ready", journal: "ready", pending: "ready" };
 const hasData = (state: LoadState) => state === "ready" || state === "stale";
 
 function DeferredCard({ title, state }: { title: string; state: LoadState }) {
@@ -57,7 +53,6 @@ function DeferredCard({ title, state }: { title: string; state: LoadState }) {
 }
 
 export type LedgerPosition = {
-  rUnavailableReason?: string;
   id: string;
   href: string;
   instrument: string;
@@ -82,17 +77,6 @@ export type LedgerPosition = {
   spreadR: number | null;
 };
 
-export type LedgerSetup = {
-  id: string;
-  href: string;
-  instrument: string;
-  direction: "long" | "short";
-  entry: number;
-  stop: number;
-  target: number;
-  decisionTime: string;
-};
-
 export type LedgerToday = {
   net: number | null;
   r: number | null;
@@ -114,8 +98,10 @@ function signedMoney(value: number, currency: string) {
   return `${value > 0 ? "+" : "−"}${money(Math.abs(value), currency)}`;
 }
 
-function signedR(value: number | null) {
-  return formatRMultiple(value);
+function signedR(value: number | null, digits = 2) {
+  if (value === null) return "—";
+  const shown = Number(value.toFixed(digits)) || 0;
+  return `${shown > 0 ? "+" : shown < 0 ? "−" : ""}${Math.abs(shown).toFixed(digits)}R`;
 }
 
 function tone(value: number | null | undefined, flat = 0.005) {
@@ -431,7 +417,7 @@ export function LedgerPositions({ positions, currency }: { positions: LedgerPosi
                   </span>
                 </span>
                 <span className="nl-pos-size metric-number">{position.lots === null ? "—" : `${position.lots.toFixed(2)} lot`}</span>
-                <span title={R_EXPLANATION} className={`nl-pos-r metric-number ${rTone}`}>{formatRMultiple(position.r, position.rUnavailableReason)}</span>
+                <span className={`nl-pos-r metric-number ${rTone}`}>{signedR(position.r)}</span>
                 <span className="nl-pos-pl metric-number">
                   <span className={tone(position.money)}>{position.money === null ? "Open" : signedMoney(position.money, currency)}</span>
                   {position.spreadCost !== null ? (
@@ -445,42 +431,6 @@ export function LedgerPositions({ positions, currency }: { positions: LedgerPosi
       ) : (
         <p className="nl-empty">No open positions. Trades you take show up here.</p>
       )}
-    </section>
-  );
-}
-
-function LedgerSetups({ setups }: { setups: LedgerSetup[] }) {
-  if (!setups.length) return null;
-  return (
-    <section className="nl-sec nl-setups" aria-labelledby="nl-setups-title">
-      <SectionHead number="02" title="Saved setups" id="nl-setups-title" aside={<span className="nl-count">{setups.length}</span>} />
-      <div className="nl-setup-grid">
-        {setups.map((setup) => (
-          <Link key={setup.id} href={setup.href} className="nl-setup">
-            <span className="nl-setup-top">
-              <b>{displayNameFor(setup.instrument)}</b>
-              <span className="nl-setup-time metric-number">
-                <RelativeTime at={setup.decisionTime} />
-              </span>
-            </span>
-            <SideChip direction={setup.direction}>{setup.direction === "long" ? "Buy" : "Sell"}</SideChip>
-            <dl className="nl-levels">
-              <div>
-                <dt>Entry</dt>
-                <dd className="metric-number">{formatChartPrice(setup.entry, setup.instrument)}</dd>
-              </div>
-              <div>
-                <dt>Stop</dt>
-                <dd className="metric-number is-down">{formatChartPrice(setup.stop, setup.instrument)}</dd>
-              </div>
-              <div>
-                <dt>Target</dt>
-                <dd className="metric-number is-up">{formatChartPrice(setup.target, setup.instrument)}</dd>
-              </div>
-            </dl>
-          </Link>
-        ))}
-      </div>
     </section>
   );
 }
@@ -527,7 +477,7 @@ function LedgerActivity({ items, currency }: { items: HomeActivityItem[]; curren
               <span className={`metric-number ${tone(item.paperPl)}`}>
                 {item.paperPl === null ? "—" : signedMoney(item.paperPl, currency)}
               </span>
-              <span className={`metric-number nl-activity-r ${tone(displayTradeR(item), 0.05)}`}>{formatTradeR(item)}</span>
+              <span className={`metric-number nl-activity-r ${tone(item.resultR, 0.05)}`}>{signedR(item.resultR, 1)}</span>
             </span>
           </Link>
         ))}
@@ -546,10 +496,10 @@ function LedgerTodayCard({ today, currency }: { today: LedgerToday; currency: st
   // still reads as bars rather than slivers.
   const largest = Math.max(...today.results.map((r) => Math.abs(r)), 0.0001);
   return (
-    <section className={`nl-today${isLoss ? " is-loss" : !today.net ? " is-flat" : ""}`} aria-labelledby="nl-today-title">
+    <section className={`nl-today${isLoss ? " is-loss" : ""}`} aria-labelledby="nl-today-title">
       <div className="nl-today-head">
         <h2 id="nl-today-title">Today · closed</h2>
-        <span className="metric-number">{today.trades ? signedR(today.r) : "—"}</span>
+        <span className="metric-number">{today.r === null ? "0.0R" : signedR(today.r, 1)}</span>
       </div>
       <div className="nl-today-main">
         <span className="nl-today-net">{signedMoney(today.net ?? 0, currency)}</span>
@@ -595,8 +545,13 @@ function LedgerNews({ positions }: { positions: HomeCurrentPosition[] }) {
   const now = useNow(30_000);
   useHomeSectionReady("news", !loading && now !== null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
   // Same-currency releases at the same moment are one row and one sheet.
-  const rows = now === null ? [] : groupSimultaneousRows(homeCalendarRows(calendar.recentEvents ?? [], calendar.events, now));
+  const recent = calendar.recentEvents ?? [];
+  const preview = now === null ? [] : groupSimultaneousRows(homeCalendarRows(recent, calendar.events, now));
+  const allRows = now === null ? [] : groupSimultaneousRows(homeCalendarRows(recent, calendar.events, now, { expanded: true }));
+  const rows = expanded ? allRows : preview;
+  const canExpand = !loading && calendar.connected && allRows.length > preview.length;
   const openRow = rows.find((row) => row.id === openId) ?? null;
   const openEvent = openRow ? openRow.events[0]! : null;
 
@@ -604,16 +559,23 @@ function LedgerNews({ positions }: { positions: HomeCurrentPosition[] }) {
     <section className="nl-card nl-news" aria-labelledby="nl-news-title">
       <div className="nl-card-head">
         <h2 id="nl-news-title">Upcoming news</h2>
-        <span className="nl-card-meta metric-number">ET</span>
+        <div className="nl-news-actions">
+          <span className="nl-card-meta metric-number">ET</span>
+          {canExpand ? (
+            <button type="button" className="nl-news-more pressable" aria-expanded={expanded} aria-controls={rows.length ? "nl-home-news-list" : undefined} onClick={() => setExpanded((open) => !open)}>
+              {expanded ? "Show less" : "Show more"}
+            </button>
+          ) : null}
+        </div>
       </div>
       {loading || now === null ? (
         <p className="nl-card-empty">Loading calendar…</p>
       ) : !calendar.connected ? (
-        <p className="nl-card-empty is-caution">Calendar unavailable: check the news yourself before trading.</p>
+        <p className="nl-card-empty is-warn">Calendar unavailable — verify news manually.</p>
       ) : rows.length ? (
-        <div className="nl-news-list">
+        <div className="nl-news-list" id="nl-home-news-list">
           {rows.map((event) => {
-            const high = homeCalendarImpactTier(event.impact) === "high";
+            const impact = homeCalendarImpactTier(event.impact);
             const status = event.state === "live" ? "Now" : event.state === "released" ? "Released" : countdown(event.timestamp, now);
             return (
               <button
@@ -621,7 +583,7 @@ function LedgerNews({ positions }: { positions: HomeCurrentPosition[] }) {
                 type="button"
                 className={`nl-news-row is-${event.state}`}
                 onClick={() => setOpenId(event.id)}
-                aria-label={`${event.currency} ${groupedCalendarTitle(event.events)}, ${status}, ${high ? "high" : "medium"} impact: see how it affects ${event.currency} pairs`}
+                aria-label={`${event.currency} ${groupedCalendarTitle(event.events)}, ${status}, ${impact} impact: see how it affects ${event.currency} pairs`}
               >
                 <span className="nl-news-when metric-number">
                   <span>{etDay.format(new Date(event.timestamp)).toUpperCase()}</span>
@@ -633,7 +595,7 @@ function LedgerNews({ positions }: { positions: HomeCurrentPosition[] }) {
                   </b>
                   <span>{status}</span>
                 </span>
-                <span className={`nl-impact ${high ? "is-high" : "is-medium"}`}>{high ? "HIGH" : "MED"}</span>
+                <span className={`nl-impact is-${impact}`}>{impact === "high" ? "HIGH" : "MED"}</span>
               </button>
             );
           })}
@@ -684,9 +646,16 @@ export function LedgerPending({
             : level(entry.stopPrice);
           return (
             <div key={entry.id} className="nl-pending-entry">
-              <Link href={`/chart?instrument=${entry.instrument}`} className="nl-pending-top">
+              {/* The whole row opens the chart (the link stretches over it);
+                  Edit SL/TP and Cancel sit above that layer. */}
+              <Link
+                href={`/chart?instrument=${entry.instrument}`}
+                className="nl-pending-top"
+                aria-label={`Open the ${displayNameFor(entry.instrument)} chart`}
+              >
                 <b>{displayNameFor(entry.instrument)}</b>
                 <SideChip direction={entry.direction}>{ORDER_TYPE_LABEL[entry.entryOrderType]}</SideChip>
+                <span className="nl-pending-open" aria-hidden="true">Open chart<ArrowUpRight /></span>
               </Link>
               <dl className="nl-levels">
                 <div>
@@ -694,12 +663,12 @@ export function LedgerPending({
                   <dd className="metric-number">{level(entry.entryPrice)}</dd>
                 </div>
                 <div>
-                  <dt>{automaticStop ? "Auto sizing stop" : "Stop"}</dt>
-                  <dd className="metric-number is-down" title={automaticStop ? "Planned stop distance. The final stop price is based on the actual fill." : undefined}>{stopText}</dd>
+                  <dt>{automaticStop ? "Auto stop · −1R" : "Stop"}</dt>
+                  <dd className={`metric-number${!automaticStop && entry.stopPrice === null ? " is-unset" : " is-down"}`} title={automaticStop ? "Planned stop distance. The final stop price is based on the actual fill." : undefined}>{stopText}</dd>
                 </div>
                 <div>
                   <dt>Target</dt>
-                  <dd className="metric-number is-up">{isNewsV3 ? "No fixed target" : level(entry.targetPrice)}</dd>
+                  <dd className={`metric-number${isNewsV3 || entry.targetPrice === null ? " is-unset" : " is-up"}`}>{isNewsV3 ? "No fixed target" : level(entry.targetPrice)}</dd>
                 </div>
               </dl>
               <div className="nl-pending-foot">
@@ -751,7 +720,6 @@ export function LedgerHome({
   financialUpdatedAt,
   greeting,
   positions,
-  setups,
   newsPositions,
   today,
   pending,
@@ -771,7 +739,6 @@ export function LedgerHome({
   financialUpdatedAt?: string | null;
   greeting: string;
   positions: LedgerPosition[];
-  setups: LedgerSetup[];
   newsPositions: HomeCurrentPosition[];
   today: LedgerToday;
   pending: PendingManualEntry[];
@@ -816,13 +783,10 @@ export function LedgerHome({
             </div>
           </section>
         )}
-        {account && hasData(loadState.history) ? <HomeQuota account={account} history={history} /> : null}
         {error ? <p className="nl-card-empty is-warn">{error}</p> : null}
         <div className="nl-home-cols">
           <div className="nl-home-main">
-            <GoodTrends />
             {positionsReady ? <LedgerPositions positions={positions} currency={account?.currency ?? "USD"} /> : <DeferredCard title="Open positions" state={positionState} />}
-            {hasData(loadState.setups) ? <LedgerSetups setups={setups} /> : <DeferredCard title="Setups" state={loadState.setups} />}
             {hasData(loadState.pending) ? <LedgerPending
               entries={pending}
               cancellingId={cancellingPendingId}

@@ -508,9 +508,9 @@ body:has(.login-page) {
   overflow: hidden;
 }
 
-/* Login — Night Ledger: a flat panel on the page ground, the sidebar's GX tile,
-   a display-face title and the lime fill for the one primary action. */
+/* Login — a focused entry point that shares the workspace's quiet, technical feel. */
 .login-page {
+  --login-field-fill: color-mix(in srgb, var(--background) 36%, var(--surface));
   position: relative;
   display: grid;
   place-items: center;
@@ -518,106 +518,109 @@ body:has(.login-page) {
   max-height: 100dvh;
   overflow: hidden;
   background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-shell);
 }
 
-@media (max-height: 560px) {
+@media (max-height: 520px) {
   .login-page {
     overflow-y: auto;
   }
 }
 
 .login-shell {
-  width: min(100%, 26rem);
-  animation: login-in 320ms ease both;
+  width: min(100%, 29rem);
 }
 
-@keyframes login-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: none; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .login-shell { animation-duration: 1ms; }
+.login-brand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 1.25rem;
+  padding: 0 0.25rem;
 }
 
 .login-card {
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 1.25rem;
   background: var(--surface);
-  padding: clamp(20px, 5vw, 28px);
+  padding: clamp(1.5rem, 4vw, 2rem);
+  box-shadow: none;
 }
 
-.login-overline {
-  margin: 0;
-  color: var(--muted-strong);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  line-height: 1.4;
-  text-transform: uppercase;
+.login-card-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+}
+
+.login-security-icon {
+  display: grid;
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  place-items: center;
+  border-radius: 0.875rem;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.login-card-heading .text-overline {
+  color: var(--accent);
 }
 
 .login-card-heading h1 {
-  margin: 10px 0 0;
-  font-family: var(--font-display);
-  font-size: clamp(30px, 8vw, 36px);
-  font-weight: 800;
-  letter-spacing: -0.04em;
-  line-height: 0.95;
+  margin-top: 0.25rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  line-height: 1.1;
 }
 
-.login-card-heading h1 span {
-  color: var(--accent);
+.login-card-heading p:last-child {
+  margin-top: 0.375rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
 }
 
 .login-fields {
   display: grid;
-  gap: 14px;
-  margin-top: 24px;
+  gap: 1rem;
+  margin-top: 1.75rem;
 }
 
 .login-field {
   display: grid;
-  gap: 6px;
-  color: var(--muted);
-  font-size: 11px;
+  gap: 0.5rem;
+  color: var(--muted-strong);
+  font-size: 0.75rem;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 .login-input-wrap {
   display: flex;
   align-items: center;
-  gap: 10px;
-  height: 46px;
-  border: 1px solid var(--border-strong);
-  border-radius: 6px;
-  background: var(--background);
-  padding: 0 12px;
+  gap: 0.625rem;
+  height: 2.875rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--login-field-fill);
+  padding: 0 0.75rem;
   color: var(--muted);
-  letter-spacing: 0;
-  text-transform: none;
-  transition: border-color 160ms ease, color 160ms ease;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
 }
 
 .login-input-wrap:focus-within {
-  border-color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
+  box-shadow: 0 0 0 3px var(--accent-soft);
   color: var(--accent);
 }
 
 .login-input-wrap input {
   min-width: 0;
   flex: 1;
-  border: 0;
   outline: none;
   background: transparent;
   color: var(--foreground);
-  font-family: var(--font-shell);
-  font-size: 14px;
-  font-weight: 400;
+  font-size: 0.875rem;
 }
 
 .login-input-wrap input::placeholder {
@@ -631,60 +634,81 @@ body:has(.login-page) {
 .login-input-wrap input:-webkit-autofill:focus {
   -webkit-text-fill-color: var(--foreground);
   caret-color: var(--foreground);
-  box-shadow: 0 0 0 100px var(--background) inset;
+  box-shadow: 0 0 0 100px var(--login-field-fill) inset;
   transition: background-color 99999s ease-out 0s;
+}
+
+.login-input-wrap:focus-within input:-webkit-autofill {
+  box-shadow: 0 0 0 100px var(--login-field-fill) inset;
 }
 
 .login-password-toggle {
   display: grid;
-  width: 28px;
-  height: 28px;
+  width: 1.75rem;
+  height: 1.75rem;
   flex: none;
   place-items: center;
-  border-radius: 4px;
+  border-radius: 0.5rem;
   color: var(--muted);
 }
 
 .login-password-toggle:hover {
-  background: var(--interactive-hover);
-  color: var(--foreground);
-}
-
-.login-password-toggle:focus-visible,
-.login-submit:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .login-error {
-  margin: 14px 0 0;
+  margin-top: 1rem;
   border: 1px solid color-mix(in srgb, var(--danger) 32%, var(--border));
-  border-radius: 6px;
+  border-radius: 0.75rem;
   background: var(--danger-soft);
-  padding: 10px 12px;
+  padding: 0.75rem;
   color: var(--danger);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .login-submit {
   width: 100%;
-  min-height: 46px;
-  margin-top: 22px;
-  border-radius: 6px;
-  background: var(--accent-fill);
-  color: var(--on-accent);
-  font-size: 14px;
-  font-weight: 600;
+  min-height: 2.875rem;
+  margin-top: 1.5rem;
+  border-radius: 0.75rem;
+  background: var(--accent);
+  color: #042b1f;
+  font-size: 0.875rem;
+  font-weight: 700;
+  box-shadow: none;
   transition: background-color 160ms ease, opacity 160ms ease;
 }
 
 .login-submit:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent-fill) 88%, white);
+  background: var(--accent-bright);
 }
 
 .login-submit:disabled {
   cursor: wait;
-  opacity: 0.7;
+  background: color-mix(in srgb, var(--accent) 68%, var(--surface-raised));
+  opacity: 0.82;
+}
+
+.dark .login-card {
+  border-color: var(--border-strong);
+  background: var(--surface);
+}
+
+.dark .login-input-wrap {
+  --login-field-fill: color-mix(in srgb, var(--background) 48%, var(--surface));
+  border-color: var(--border-strong);
+  background: var(--login-field-fill);
+}
+
+.dark .login-input-wrap:focus-within {
+  background: var(--login-field-fill);
+}
+
+@media (max-width: 420px) {
+  .login-brand {
+    align-items: flex-start;
+  }
 }
 
 .icon-tile {
@@ -3259,7 +3283,7 @@ html.mobile-sheet-open body {
   content: none;
 }
 
-.chart-glass > *:not(.chart-loading-overlay) {
+.chart-glass > * {
   position: relative;
   z-index: 2;
 }
@@ -3276,24 +3300,6 @@ html.mobile-sheet-open body {
 
 .dark .chart-glass::after {
   content: none;
-}
-
-.chart-loading-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 30;
-  overflow: hidden;
-  pointer-events: none;
-  background: color-mix(in srgb, var(--surface) 42%, transparent);
-  opacity: 0;
-  transform: scale(0.99);
-  transition:
-    opacity 180ms ease,
-    transform 180ms ease;
-}
-
-.chart-loading-overlay-visible {
-  opacity: 1;
 }
 
 .chart-loading-skeleton {
@@ -3315,25 +3321,6 @@ html.mobile-sheet-open body {
   );
   background-size: 200% 100%;
   animation: gx-skeleton-shimmer 1.6s linear infinite;
-}
-
-.chart-loading-overlay-visible {
-  opacity: 1;
-  transform: scale(1);
-}
-
-.chart-loading-static {
-  position: relative;
-  overflow: hidden;
-  background: color-mix(in srgb, var(--surface) 55%, var(--background));
-}
-
-/* Route and in-chart loads share the same quiet indicator. */
-.chart-route-skeleton {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  background: color-mix(in srgb, var(--chart-background) 84%, var(--surface));
 }
 
 .equity-chart-shell {
@@ -3376,14 +3363,6 @@ html.mobile-sheet-open body {
 }
 
 .chart-data-shell-loading > .setup-chart-root { visibility: hidden; }
-
-/* Cover stale or not-yet-sized candles on the same paint that starts loading.
-   A delayed overlay fade-in otherwise flashes a preliminary chart first. */
-.chart-data-shell-loading > .chart-loading-overlay {
-  opacity: 1;
-  transform: none;
-  transition: none;
-}
 
 /* The chart owns touch gestures at every screen size (useChartTouchGestures), so the
    browser must not also pan, zoom, pull-to-refresh or back-navigate from a
@@ -3777,14 +3756,11 @@ body.is-dragging-position-tool .setup-chart-position-band {
   }
 }
 
-/* Last-bar overlay: ringed endpoint glued to the latest candle. The live
-   price label must never be covered, so this layer sits above every other
-   chart overlay (level tags 4, scale rail 5, SL / TP handles 6) except the
-   crosshair labels, which follow the pointer and win while hovering. */
+/* Last-bar overlay: ringed endpoint glued to the latest candle. */
 .setup-chart-last-price {
   position: absolute;
   inset: 0;
-  z-index: 8;
+  z-index: 3;
   overflow: hidden;
   pointer-events: none;
 }
@@ -3814,23 +3790,6 @@ body.is-dragging-position-tool .setup-chart-position-band {
   pointer-events: none;
 }
 
-/* Live price over the time left in the forming candle, as TradingView shows it. */
-.setup-chart-last-price .setup-chart-price-label {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.setup-chart-price-countdown {
-  font-size: 0.85em;
-  font-weight: 500;
-  opacity: 0.8;
-}
-
-.setup-chart-price-countdown[hidden] {
-  display: none;
-}
-
 .setup-chart-level-price {
   z-index: 4;
   display: flex;
@@ -3845,7 +3804,7 @@ body.is-dragging-position-tool .setup-chart-position-band {
 .setup-chart-crosshair-labels {
   position: absolute;
   inset: 0;
-  z-index: 9;
+  z-index: 6;
   pointer-events: none;
 }
 
@@ -3912,69 +3871,6 @@ body.is-dragging-position-tool .setup-chart-position-band {
   .setup-chart-beacon::before {
     animation: none;
     opacity: 0;
-  }
-}
-
-.chart-history-loader {
-  position: absolute;
-  inset: 0;
-  z-index: 12;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 320ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.chart-history-loader-visible {
-  opacity: 1;
-}
-
-.chart-history-loader-track {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 28px;
-  width: 2px;
-  background: linear-gradient(
-    180deg,
-    transparent 0%,
-    var(--accent) 50%,
-    transparent 100%
-  );
-  background-size: 100% 220%;
-  animation: chart-history-track 1.15s ease-in-out infinite;
-}
-
-.chart-history-loader-label {
-  position: absolute;
-  left: 0.875rem;
-  top: 0.875rem;
-  border-radius: 9999px;
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
-  padding: 0.3rem 0.65rem;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: var(--muted-strong);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  transform: translateY(-4px);
-  opacity: 0;
-  transition:
-    opacity 320ms cubic-bezier(0.4, 0, 0.2, 1) 60ms,
-    transform 320ms cubic-bezier(0.4, 0, 0.2, 1) 60ms;
-}
-
-.chart-history-loader-visible .chart-history-loader-label {
-  transform: translateY(0);
-  opacity: 1;
-}
-
-@keyframes chart-history-track {
-  0% {
-    background-position: 0% 120%;
-  }
-
-  100% {
-    background-position: 0% -20%;
   }
 }
 
@@ -17408,7 +17304,6 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
   .home-shell .home-rail-news { order: 3; }
   .home-shell .home-pending-trades { order: 4; }
   .home-shell .home-rail-total { order: 5; }
-  .home-shell .home-section[aria-label="Saved setups"] { order: 6; }
   .home-shell .home-idle-section[aria-label="Recent activity"] { order: 7; }
   .home-shell .home-extra { order: 8; }
 
@@ -17695,14 +17590,13 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
 
   /* Card rhythm and order, most needed first (the user's choice): balance,
      open positions, news that could move them, pending orders, today's
-     results, saved setups, recent activity. 14px apart. */
+     results and recent activity. 14px apart. */
   html:is(.dark, :not(.dark)) .home-shell { gap: 14px; }
   html:is(.dark, :not(.dark)) .home-shell .account-overview-hero { order: 1; }
   html:is(.dark, :not(.dark)) .home-shell .dashboard-trades-grid { order: 2; }
   html:is(.dark, :not(.dark)) .home-shell .home-rail-news { order: 3; }
   html:is(.dark, :not(.dark)) .home-shell .home-pending-trades { order: 4; }
   html:is(.dark, :not(.dark)) .home-shell .home-rail-total { order: 5; }
-  html:is(.dark, :not(.dark)) .home-shell .home-section[aria-label="Saved setups"] { order: 6; }
   html:is(.dark, :not(.dark)) .home-shell .home-idle-section[aria-label="Recent activity"] { order: 7; }
   html:is(.dark, :not(.dark)) .home-shell .home-extra { order: 8; }
 
@@ -17710,8 +17604,7 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
   html:is(.dark, :not(.dark)) .home-shell .home-pending-trades,
   html:is(.dark, :not(.dark)) .home-shell .home-idle-section,
   html:is(.dark, :not(.dark)) .home-shell .home-rail-news,
-  html:is(.dark, :not(.dark)) .home-shell .dashboard-trades-grid > .home-section,
-  html:is(.dark, :not(.dark)) .home-shell .home-section[aria-label="Saved setups"] {
+  html:is(.dark, :not(.dark)) .home-shell .dashboard-trades-grid > .home-section {
     padding: 19px 22px;
     border: 0.5px solid var(--gx-card-border);
     border-radius: 18px;
@@ -18260,21 +18153,6 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
   html:is(.dark, :not(.dark)) .signals-chart-mobile .gx-mobile-analyze.is-close { background: var(--gx-danger); }
   html:is(.dark, :not(.dark)) .signals-chart-mobile .gx-mobile-analyze:disabled { opacity: 0.55; }
 
-  /* Keep the action slot stable while the browser determines whether this is
-     a new entry, a pending entry, or an active trade. */
-  html:is(.dark, :not(.dark)) .signals-chart-mobile .gx-mobile-trade-action-skeleton {
-    width: 100%;
-    min-height: 46px;
-    border-radius: 12px;
-    background: linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--foreground) 5%, transparent) 20%,
-      color-mix(in srgb, var(--foreground) 10%, transparent) 45%,
-      color-mix(in srgb, var(--foreground) 5%, transparent) 70%
-    );
-    background-size: 200% 100%;
-    animation: gx-skeleton-shimmer 1.6s linear infinite;
-  }
 
   /* Trade / Cancel / Close: solid fills — keep label white on hover (outline
      .gx-mobile-analyze:hover rules otherwise swap text to accent/danger). */
@@ -19782,7 +19660,6 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
   .trades-summary-skeleton span,
   .trades-toolbar-skeleton span,
   .trades-skeleton-row,
-  .gx-mobile-trade-action-skeleton,
   .tp-skel,
   .nl-an-skel,
   .chart-loading-skeleton::after,
@@ -20468,8 +20345,7 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
 /* ============================================================
    DESKTOP HOME v2
    Balance first, then today's result and the news clock beside it; open
-   positions run full width with a stop → target track; setups sit beside
-   Markets. Main and rail dissolve into one grid so each section can be
+   positions run full width. Main and rail share one grid so each section can be
    placed on its own. Phones and tablets keep the layout above.
    ============================================================ */
 .home-position-track {
@@ -20521,9 +20397,8 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
       "error error error"
       "positions positions positions"
       "pending pending pending"
-      "setups setups setups"
       "activity activity activity";
-    /* Gaps live on the items: an absent section (no setups, no error) then
+    /* Gaps live on the items: an absent section then
        collapses to nothing instead of leaving a double gap. */
     gap: 0 var(--home-v2-gap);
     align-items: start;
@@ -20543,7 +20418,6 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
   .home-shell.home-layout-v2 .research-error { grid-area: error; margin-top: var(--home-v2-gap); }
   .home-shell.home-layout-v2 .dashboard-trades-grid { grid-area: positions; margin-top: var(--home-v2-gap); }
   .home-shell.home-layout-v2 .home-pending-trades { grid-area: pending; margin-top: var(--home-v2-gap); }
-  .home-shell.home-layout-v2 .home-section[aria-label="Saved setups"] { grid-area: setups; margin-top: var(--home-v2-gap); }
   .home-shell.home-layout-v2 .home-rail-markets-section { grid-area: markets; margin-top: var(--home-v2-gap); }
   .home-shell.home-layout-v2 .home-idle-section[aria-label="Recent activity"] { grid-area: activity; margin-top: var(--home-v2-gap); }
 
@@ -20874,18 +20748,6 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
     font-size: 0.6875rem;
   }
 
-  /* --- Saved setups: three-up cards ------------------------ */
-  .home-shell.home-layout-v2 .home-section[aria-label="Saved setups"] {
-    margin-inline: 0;
-    padding: 0;
-    border: 0;
-    background: transparent;
-  }
-
-  .home-shell.home-layout-v2 .home-section[aria-label="Saved setups"] .home-section-head {
-    padding-inline: 0.25rem;
-  }
-
   .home-shell.home-layout-v2 .home-signal-grid {
     grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
     gap: 0.875rem;
@@ -20904,7 +20766,7 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
     border-color: color-mix(in srgb, var(--accent) 35%, var(--home-v2-border));
   }
 
-  /* --- Markets: a card beside the setups -------------------- */
+  /* --- Markets -------------------- */
   .home-shell.home-layout-v2 .home-rail-markets {
     margin-top: 0.5rem;
     border-top: 0;
@@ -20933,7 +20795,6 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
       "error error"
       "positions positions"
       "pending pending"
-      "setups setups"
       "activity activity";
   }
 

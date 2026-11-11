@@ -132,7 +132,7 @@ function Sides({ plans }: { plans: TradePlan[] }) {
           <li key={plan.id} data-side={plan.direction}>
             <span className="nl-plan-side">{plan.direction}</span>
             <ZoneRange low={f(plan.entryZoneLow)} high={f(plan.entryZoneHigh)} />
-            <span className="nl-plan-rr metric-number">{plan.rewardRisk?.toFixed(1) ?? "—"}<small>× distance</small></span>
+            <span className="nl-plan-rr metric-number">{plan.rewardRisk?.toFixed(1) ?? "—"}<small>R</small></span>
             <span className="nl-plan-sl metric-number">SL {f(plan.stopLoss)} · TP {f(plan.takeProfit)}</span>
           </li>
         );
@@ -349,7 +349,7 @@ export function LedgerPlans() {
                   </Link>
                   <Read brief={briefs[row.instrument]} loading={!checked[row.instrument]} />
                   <Sides plans={row.plans} />
-                  {conditional ? <p className="nl-plan-foot">Each side needs its own confirmation and at least {row.plans.find((plan) => plan.plan.entryReadiness)?.plan.entryReadiness?.minRewardRisk ?? 1.5}× stop distance at entry.{new Set(row.plans.map((plan) => plan.direction)).size > 1 ? " If one invalidates, the other remains available." : ""}</p> : null}
+                  {conditional ? <p className="nl-plan-foot">Each side needs its own confirmation and at least {row.plans.find((plan) => plan.plan.entryReadiness)?.plan.entryReadiness?.minRewardRisk ?? 1.5}R at entry.{new Set(row.plans.map((plan) => plan.direction)).size > 1 ? " If one invalidates, the other remains available." : ""}</p> : null}
                   <div className="nl-plan-bottom">
                     <span className="nl-plan-foot">Built {ago(row.plans[0]!.createdAt)} · nothing is watched until you accept</span>
                     <div className="nl-plan-actions">

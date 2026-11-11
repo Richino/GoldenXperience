@@ -6,6 +6,7 @@ import { isKnownInstrument } from "@/lib/instruments/catalog";
 import { CHART_TIMEFRAMES, CHART_RANGES, TIMEFRAME_TO_GRANULARITY, candleCountForChartViewport, type ChartRange, type ChartTimeframe } from "@/lib/chart-utils";
 import type { CandleSeries, ConnectionStatus, PaperChartTrade } from "@/types/forex";
 import type { BinaryPrediction } from "@/types/binary";
+import type { PendingManualEntry } from "@/types/pending-entry";
 
 function finitePrice(value: string | undefined) {
   const parsed = Number(value);
@@ -62,13 +63,15 @@ export default async function ChartPage({ searchParams }: { searchParams: Promis
   // always handed the workspace an empty trade list, so a direct journal/chart
   // link painted the default Trade action before client hydration replaced it
   // with Close Trade.
-  const [candleResult, paperTrades, focusPrediction] = await Promise.all([
+  const [candleResult, paperTrades, pendingEntries, focusPrediction] = await Promise.all([
     getApiData<{ data: CandleSeries; status: ConnectionStatus }>(
       `/api/oanda/candles?instrument=${instrument}&granularity=${TIMEFRAME_TO_GRANULARITY[initialTimeframe]}&count=${candleCountForChartViewport(initialTimeframe, initialRange)}`,
     ),
     getApiData<{ trades: PaperChartTrade[] }>(
       `/api/paper-cycle/trades?instrument=${instrument}${focusTradeId ? `&trade=${focusTradeId}` : ""}`,
     ).catch(() => ({ trades: [] })),
+    getApiData<{ entries: PendingManualEntry[] }>("/api/pending-entries?scope=active", 4_000)
+      .catch(() => ({ entries: [] })),
     focusPredictionId
       ? getApiData<{ prediction?: BinaryPrediction }>(`/api/binary/prediction?id=${focusPredictionId}`).then(payload => payload.prediction ?? null).catch(() => null)
       : Promise.resolve(null),
@@ -85,6 +88,7 @@ export default async function ChartPage({ searchParams }: { searchParams: Promis
       initialStatus={candleResult.status}
       paperPlans={[]}
       initialPaperTrades={paperTrades.trades}
+      initialPendingEntries={pendingEntries.entries}
       initialFocusTradeId={focusTradeId}
       initialPendingEntryId={params.order && /^[0-9a-f-]{36}$/i.test(params.order) ? params.order : null}
       initialPredictionFocus={focusPrediction?.instrument === instrument ? focusPrediction : null}

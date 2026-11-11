@@ -2025,48 +2025,6 @@ async function importPracticeBrokerHistory(userId: string) {
   return { imported, unavailable: false };
 }
 
-/**
- * A saved setup is the first valid, completed-candle evaluation for an
- * executable pair. Its levels are immutable: it is evidence of a plan, not a
- * live quote or a broker order. A setup remains actionable only until the next
- * strategy candle begins (M30 for GBPUSD, H1 for every other enabled pair).
- */
-export async function savedExecutableSetups() {
-  const rows = await query<{
-    id: string;
-    instrument: MajorInstrument;
-    direction: "long" | "short";
-    entry: number;
-    stop: number;
-    target: number;
-    decisionTime: string;
-    expiresAt: string;
-  }>(
-    `SELECT DISTINCT ON (evaluation.instrument)
-            evaluation.id,
-            evaluation.instrument,
-            evaluation.direction,
-            evaluation.entry::float AS entry,
-            evaluation.stop::float AS stop,
-            evaluation.target::float AS target,
-            evaluation.decision_time AS "decisionTime",
-            (evaluation.decision_time + CASE WHEN evaluation.strategy_family=$2 THEN interval '30 minutes' ELSE interval '1 hour' END) AS "expiresAt"
-       FROM paper_strategy_evaluations evaluation
-      WHERE evaluation.strategy_family = ANY($1::text[])
-        AND evaluation.setup_status='valid'
-        AND evaluation.direction IS NOT NULL
-        AND evaluation.entry IS NOT NULL
-        AND evaluation.stop IS NOT NULL
-        AND evaluation.target IS NOT NULL
-        AND evaluation.trade_created=false
-        AND evaluation.paper_trade_id IS NULL
-        AND now() < evaluation.decision_time + CASE WHEN evaluation.strategy_family=$2 THEN interval '30 minutes' ELSE interval '1 hour' END
-      ORDER BY evaluation.instrument, evaluation.decision_time DESC`,
-    [ENABLED_PAIR_STRATEGY_IDS, GBPUSD_STRATEGY_ID],
-  );
-  return rows.rows.map((row) => ({ ...row, state: "setup" as const }));
-}
-
 function journalTradeWhere(filter: JournalTradeFilter): string {
   // Wins/losses use raw result_r (open trades are NULL and fall out of both).
   // Active is status-based so closed-but-null-R edge cases stay out.
@@ -2088,9 +2046,16 @@ function journalTradeWhere(filter: JournalTradeFilter): string {
 
 export async function journalTradeLog(
   userId: string,
-  { limit = 20, offset = 0, filter = "all" }: { limit?: number | null; offset?: number; filter?: JournalTradeFilter } = {},
+  { limit = 20, offset = 0, filter = "all", closedManualWindow }: {
+    limit?: number | null;
+    offset?: number;
+    filter?: JournalTradeFilter;
+    closedManualWindow?: { from: string; to: string };
+  } = {},
 ) {
-  const where = journalTradeWhere(filter);
+  const where = closedManualWindow
+    ? "WHERE origin = 'manual' AND status = 'closed' AND closed_at >= $4 AND closed_at < $5"
+    : journalTradeWhere(filter);
   const rows = await query(
     `SELECT id, origin, chart_trade_id AS "chartTradeId", pair, direction, status, result, opened_at AS "openedAt", closed_at AS "closedAt",
             entry, stop, target, exit, result_r AS "resultR", paper_pl AS "paperPl", reason, notes, sequence, outcome,
@@ -2179,7 +2144,7 @@ export async function journalTradeLog(
      ${where}
      ORDER BY CASE WHEN status = 'closed' THEN closed_at ELSE opened_at END DESC, opened_at DESC
      LIMIT $2 OFFSET $3`,
-    [userId, limit, offset],
+    closedManualWindow ? [userId, limit, offset, closedManualWindow.from, closedManualWindow.to] : [userId, limit, offset],
   );
   return projectRiskReporting(userId, rows.rows);
 }

@@ -17,5 +17,4 @@
 .analysis dl { display: grid; grid-template-columns: 1fr 1.2fr; gap: 8px; font-size: 11px; }
 .analysis dt { color: var(--muted); }.analysis dd { margin: 0; overflow-wrap: anywhere; text-align: right; }
 .analysis p { color: var(--muted-strong); font-size: 11px; line-height: 1.5; }
-.diagnostic { font-size: 10px; white-space: pre-wrap; }
 @media (pointer: coarse) { .marker { min-height: 44px; } }

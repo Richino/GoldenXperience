@@ -247,7 +247,7 @@ export function ManualProposalModal({
                   {proposal.direction === "long" ? "Long" : "Short"}
                 </h2>
               </div>
-              <span className="nl-an-ratio" title="Target / stop price distance; not verified net monetary R:R.">Distance 1:{Number.isInteger(ratio) ? ratio.toFixed(0) : ratio}</span>
+              <span className="nl-an-ratio">1:{Number.isInteger(ratio) ? ratio.toFixed(0) : ratio}</span>
             </div>
 
             <p className="nl-an-regime" aria-label={`Live ${executableSide} price`}>

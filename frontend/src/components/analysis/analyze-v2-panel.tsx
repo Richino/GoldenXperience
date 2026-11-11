@@ -187,7 +187,7 @@ export function AnalyzeV2Content({ result, titleId }: { result: AnalysisResult; 
             rows={[
               ["Stop distance", <span key="s" className="metric-number">{plan.stopPips.toFixed(1)} pips</span>],
               ["Target distance", <span key="t" className="metric-number">{plan.targetPips.toFixed(1)} pips</span>],
-              ["Target / stop distance", <span key="r" className="metric-number">{plan.rewardRisk.toFixed(2)}× after spread</span>],
+              ["Reward/risk", <span key="r" className="metric-number">{plan.rewardRisk.toFixed(2)}R after spread</span>],
               ["Spread", <span key="p" className="metric-number">{plan.spreadPips.toFixed(1)} pips · {Math.round(plan.spreadShare * 100)}% of risk</span>],
               ["Order lifetime", `${plan.orderLifetimeHours}h, then it cancels`],
             ]}

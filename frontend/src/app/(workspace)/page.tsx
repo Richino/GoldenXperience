@@ -22,7 +22,6 @@ export default function DashboardPage() {
       initialAccount={null}
       initialAccountHistory={[]}
       initialWatchlist={[]}
-      initialSavedSetups={[]}
       initialOverview={null}
       initialJournal={{ trades: [] }}
       initialPendingEntries={[]}

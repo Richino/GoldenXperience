@@ -9,8 +9,8 @@ import { createPairTrendsRunner } from "./pair-trends-runner.js";
 
 /**
  * Weekly, Daily and 4H structure (the chart's trend label) for every pair, in
- * one shared snapshot. Structure moves as 4H bars close, so it is rebuilt at
- * most every 15 minutes. Pairs whose candles fell back to generated data are
+ * one shared snapshot, rebuilt after a trading 4H bar closes. Pairs whose
+ * candles fell back to generated data are
  * left out rather than read on fake prices.
  */
 
@@ -25,6 +25,7 @@ async function readDirection(instrument: string, granularity: "H4" | "D" | "W"):
 }
 
 async function build(): Promise<PairTrendsSnapshot> {
+  const checkedAt = new Date().toISOString();
   const queue = INSTRUMENT_CATALOG.map((item) => item.name);
   const pairs: PairTrendRow[] = [];
   const worker = async () => {
@@ -39,7 +40,7 @@ async function build(): Promise<PairTrendsSnapshot> {
   };
   await Promise.all(Array.from({ length: CONCURRENCY }, worker));
   pairs.sort((a, b) => a.instrument.localeCompare(b.instrument));
-  return { checkedAt: new Date().toISOString(), pairs };
+  return { checkedAt, pairs };
 }
 
 let runner: ReturnType<typeof createPairTrendsRunner> | null = null;

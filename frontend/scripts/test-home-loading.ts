@@ -15,8 +15,7 @@ assert.equal(state.revealed, true, "all first snapshots reveal together");
 assert.equal(updateHomeLoading(state, { section: "trends", ready: false }), state, "background refreshes never re-hide the page");
 
 let standalone = initialHomeLoadingState();
-for (const section of HOME_LOADING_SECTIONS.slice(0, -1)) standalone = updateHomeLoading(standalone, { section, ready: true });
-assert.equal(standalone.revealed, false, "a slow weekly review cannot pop in after the page");
-standalone = updateHomeLoading(standalone, { section: "weekly", ready: true });
-assert.equal(standalone.revealed, true, "settled empty/error sections release loading without requiring data");
+assert.equal(updateHomeLoading(standalone, { section: "weekly", ready: false }), standalone, "a slow weekly review cannot block Home");
+for (const section of HOME_LOADING_SECTIONS) standalone = updateHomeLoading(standalone, { section, ready: true });
+assert.equal(standalone.revealed, true, "Home reveals while the cached weekly review is pending");
 console.log("Home loading checks passed: complete first reveal, nested reads, slow sections, empty/error results and stable refreshes.");

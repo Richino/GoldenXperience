@@ -123,7 +123,7 @@ export function ForwardView() {
             <div>
               <p className="text-sm font-semibold">Batch {current.batchNumber}</p>
               <p className="mt-1 text-xs text-[color:var(--muted)]">
-                {current.status} · {overview.strategyVersion} · {current.configuration.targetR.toFixed(1)}× distance
+                {current.status} · {overview.strategyVersion} · {current.configuration.targetR.toFixed(1)}R
               </p>
               <p className="mt-1 text-xs text-[color:var(--muted)]">
                 {(current.configuration.riskPercent ?? 1).toFixed(2)}% risk ·{" "}
@@ -148,9 +148,9 @@ export function ForwardView() {
                   ["Open", summary.open],
                   ["Remaining", current.remaining],
                   ["Win rate", percent(summary.winRate)],
-                  ["Average distance score", metric(summary.averageR, "× distance")],
+                  ["Average R", metric(summary.averageR, "R")],
                   ["Profit factor", metric(summary.profitFactor)],
-                  ["Sum distance score", metric(summary.netR, "× distance")],
+                  ["Net R", metric(summary.netR, "R")],
                   ["Drawdown", metric(summary.maxDrawdownR, "R")],
                 ] as const
               ).map(([label, value]) => (
@@ -184,9 +184,9 @@ export function ForwardView() {
                       </td>
                       <td>{trade.direction}</td>
                       <td>{trade.session}</td>
-                      <td className="metric-number">{trade.plannedR.toFixed(1)}× distance</td>
+                      <td className="metric-number">{trade.plannedR.toFixed(1)}R</td>
                       <td>{trade.outcome.replaceAll("_", " ")}</td>
-                      <td className="metric-number">{trade.resultR === null ? "—" : `${trade.resultR.toFixed(2)}× distance`}</td>
+                      <td className="metric-number">{trade.resultR === null ? "—" : `${trade.resultR.toFixed(2)}R`}</td>
                       <td>
                         <button
                           className="text-[color:var(--accent)]"
@@ -260,7 +260,7 @@ export function ForwardView() {
                       <p className="metric-number mt-2 text-sm">
                         {change === null
                           ? "—"
-                          : `${change >= 0 ? "+" : ""}${change.toFixed(2)}× distance`}
+                          : `${change >= 0 ? "+" : ""}${change.toFixed(2)}R`}
                       </p>
                     </div>
                   );

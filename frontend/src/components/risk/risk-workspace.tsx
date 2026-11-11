@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Minus, Plus } from "lucide-react";
 import { MobileSheet } from "@/components/ui/mobile-sheet";
 import { apiUrl } from "@/lib/api/url";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
@@ -69,6 +69,8 @@ export function RiskWorkspace({
     initialForm.maxTotalNominalRiskPercent === null ? "" : String(initialForm.maxTotalNominalRiskPercent),
   );
   const [collectionPaused, setCollectionPaused] = useState(initialPolicy.collectionPaused);
+  // The last numeric limit, restored when "No limit" is switched off.
+  const lastPositionsRef = useRef(maxPositions === "unlimited" ? "3" : maxPositions);
   const [error, setError] = useState<string | null>(null);
   const [riskSheetOpen, setRiskSheetOpen] = useState(false);
   // Read once for the "≈ $ per trade" line; risk is a share of the balance.
@@ -287,7 +289,6 @@ export function RiskWorkspace({
     <>
       {/* Desktop: the Risk card. */}
       <section id="risk" className="nl-st-card is-risk nl-st-desk" aria-labelledby="nl-st-risk-title">
-        <p className="nl-st-note">Sizing policy is separate from verified financial R. Record an optional monetary risk budget on the entry ticket. Without a protective stop, that budget does not cap losses.</p>
         <div className="nl-st-card-head">
           <div>
             <h2 id="nl-st-risk-title">Risk</h2>
@@ -347,7 +348,6 @@ export function RiskWorkspace({
 
       {/* Phone: the Paper trading card; its limits open in a sheet. */}
       <section className="nl-st-mcard nl-st-phone" aria-labelledby="nl-st-mrisk-title">
-        <p className="nl-st-note">A sizing policy is not a verified R denominator. Record a risk budget before entry; without a stop it does not cap losses.</p>
         <h2 id="nl-st-mrisk-title" className="nl-st-mcard-title">Paper trading</h2>
         <button type="button" className="nl-st-mrisk pressable" onClick={() => setRiskSheetOpen(true)}>
           <span className="nl-st-mrisk-copy">
@@ -391,23 +391,145 @@ export function RiskWorkspace({
         eyebrow="Paper trading"
         title="Paper trading limits"
       >
-        <div className="nl-st-sheet">
-          <div className="nl-st-sheet-hero">
-            <label htmlFor="nl-st-mrisk-input" className="nl-st-note">Risk per trade</label>
-            {stepper("nl-st-mrisk-input")}
-            {riskMoney !== null ? (
-              <span className="nl-st-risk-money metric-number">≈ {formatMoney(riskMoney)} per trade</span>
-            ) : null}
-            {presets}
-          </div>
-          <div className="nl-st-block">
-            <span className="nl-st-field-label">Max open positions</span>
-            {positionPills}
-          </div>
-          {exposureField("nl-st-mexposure")}
-          <p className="nl-st-note nl-st-sheet-note">{statusNote}</p>
+        {/* Phone limits: three cards (risk, positions, exposure) and Done. */}
+        <div className="nl-st-sheet nl-lim">
+          <section className="nl-lim-card" aria-labelledby="nl-lim-risk-label">
+            <div className="nl-lim-head">
+              <label id="nl-lim-risk-label" htmlFor="nl-st-mrisk-input">Risk per trade</label>
+              {riskMoney !== null ? <span className="nl-lim-money metric-number">≈ {formatMoney(riskMoney)}</span> : null}
+            </div>
+            <div className="nl-lim-dial">
+              <button
+                type="button"
+                className="nl-lim-round pressable"
+                aria-label="Lower risk by 0.25%"
+                onClick={() => setRiskPercent((value) => stepRisk(value, -0.25))}
+              >
+                <Minus aria-hidden="true" />
+              </button>
+              <span className="nl-lim-value">
+                {/* The field is exactly as wide as its text: an invisible copy
+                    of the value sizes the cell, the input fills it. */}
+                <span className="nl-lim-fit">
+                  <span className="nl-lim-mirror" aria-hidden="true">{riskPercent || "0"}</span>
+                  <input
+                    id="nl-st-mrisk-input"
+                    type="number"
+                    inputMode="decimal"
+                    min="0.1"
+                    max="5"
+                    step="0.1"
+                    value={riskPercent}
+                    onChange={(event) => setRiskPercent(event.target.value)}
+                    aria-label="Risk per trade percent"
+                  />
+                </span>
+                <span aria-hidden="true">%</span>
+              </span>
+              <button
+                type="button"
+                className="nl-lim-round pressable"
+                aria-label="Raise risk by 0.25%"
+                onClick={() => setRiskPercent((value) => stepRisk(value, 0.25))}
+              >
+                <Plus aria-hidden="true" />
+              </button>
+            </div>
+            <div className="nl-lim-seg" role="group" aria-label="Quick risk presets">
+              {RISK_PRESETS.map((preset) => {
+                const active = Number(riskPercent) === preset;
+                return (
+                  <button
+                    key={preset}
+                    type="button"
+                    aria-pressed={active}
+                    className={`metric-number${active ? " is-active" : ""}`}
+                    onClick={() => setRiskPercent(String(preset))}
+                  >
+                    {preset}%
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="nl-lim-card" aria-labelledby="nl-lim-pos-label">
+            <div className="nl-lim-row">
+              <div className="nl-lim-copy">
+                <b id="nl-lim-pos-label">Max open positions</b>
+                <span>Trades that can be open at once</span>
+              </div>
+              <div className="nl-lim-stepper" role="group" aria-labelledby="nl-lim-pos-label">
+                <button
+                  type="button"
+                  className="pressable"
+                  aria-label="One fewer position"
+                  disabled={maxPositions === "unlimited" || Number(maxPositions) <= 1}
+                  onClick={() => setMaxPositions((value) => String(Math.max(1, Number(value) - 1)))}
+                >
+                  <Minus aria-hidden="true" />
+                </button>
+                <output className="metric-number" aria-live="polite">{maxPositions === "unlimited" ? "∞" : maxPositions}</output>
+                <button
+                  type="button"
+                  className="pressable"
+                  aria-label="One more position"
+                  disabled={maxPositions === "unlimited" || Number(maxPositions) >= 10}
+                  onClick={() => setMaxPositions((value) => String(Math.min(10, Number(value) + 1)))}
+                >
+                  <Plus aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+            <div className="nl-lim-row is-sub">
+              <span id="nl-lim-nolimit-label">No limit</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={maxPositions === "unlimited"}
+                aria-labelledby="nl-lim-nolimit-label"
+                className={`nl-st-switch${maxPositions === "unlimited" ? " is-on" : ""}`}
+                onClick={() => {
+                  if (maxPositions === "unlimited") {
+                    setMaxPositions(lastPositionsRef.current);
+                  } else {
+                    lastPositionsRef.current = maxPositions;
+                    setMaxPositions("unlimited");
+                  }
+                }}
+              >
+                <span />
+              </button>
+            </div>
+          </section>
+
+          <section className="nl-lim-card">
+            <div className="nl-lim-row">
+              <div className="nl-lim-copy">
+                <label htmlFor="nl-st-mexposure"><b>Max exposure</b></label>
+                <span>Total open risk across every position. Empty means no cap.</span>
+              </div>
+              <span className="nl-lim-input">
+                <input
+                  id="nl-st-mexposure"
+                  type="number"
+                  inputMode="decimal"
+                  min={riskPercent || "0.1"}
+                  max="50"
+                  step="0.1"
+                  value={maxExposure}
+                  onChange={(event) => setMaxExposure(event.target.value)}
+                  placeholder="No cap"
+                  className="metric-number"
+                />
+                {maxExposure ? <span aria-hidden="true">%</span> : null}
+              </span>
+            </div>
+          </section>
+
           {problems}
-          <button type="button" className="nl-st-primary pressable" onClick={() => setRiskSheetOpen(false)}>
+          <p className="nl-lim-note">{statusNote}</p>
+          <button type="button" className="nl-st-primary nl-lim-done pressable" onClick={() => setRiskSheetOpen(false)}>
             Done
           </button>
         </div>

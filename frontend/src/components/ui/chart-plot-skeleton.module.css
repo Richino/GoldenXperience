@@ -1,0 +1,39 @@
+.plot:global(.chart-loading-skeleton) {
+  --axis-color: color-mix(in srgb, var(--foreground) 12%, transparent);
+  --grid-color: color-mix(in srgb, var(--foreground) 4%, transparent);
+  background: var(--chart-ground, var(--chart-background));
+}
+
+.grid {
+  position: absolute;
+  inset: 0 52px 22px 0;
+  background-image: linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px);
+  background-size: 100% 12.5%;
+}
+
+.priceAxis, .timeAxis {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+}
+
+.priceAxis {
+  inset: 0 0 22px auto;
+  width: 52px;
+  flex-direction: column;
+  border-inline-start: 1px solid var(--grid-color);
+}
+
+.timeAxis {
+  inset: auto 52px 0 0;
+  height: 22px;
+  border-top: 1px solid var(--grid-color);
+}
+
+.priceAxis i, .timeAxis i {
+  width: 26px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--axis-color);
+}

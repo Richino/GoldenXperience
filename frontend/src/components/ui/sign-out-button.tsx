@@ -42,8 +42,7 @@ export function SignOutButton({
         aria-label={busy ? "Signing out" : "Sign out"}
         title="Sign out"
       >
-        <LogOut className="sidebar-nav-glyph" strokeWidth={1.55} aria-hidden="true" />
-        <span>{busy ? "Signing out…" : "Log out"}</span>
+        {busy ? "Signing out…" : "Log out"}
       </button>
     );
   }

@@ -1,5 +1,4 @@
 "use client";
-import { formatRMultiple } from "@/lib/risk-metrics";
 
 import { useEffect, useState } from "react";
 import { apiUrl } from "@/lib/api/url";
@@ -11,12 +10,12 @@ import { apiUrl } from "@/lib/api/url";
  * target count the numbers are shown but marked as an early read.
  */
 
-type Bucket = { value: string; label: string; trades: number; wins: number; winRate: number; avgR: number | null; netPl: number; riskCoverage?: { included: number; excluded: number; percent: number; reason: string } };
+type Bucket = { value: string; label: string; trades: number; wins: number; winRate: number; avgR: number | null; netPl: number };
 type PlanReviewData = { tagged: number; target: number; groups: { key: string; label: string; buckets: Bucket[] }[] };
 
 const money = (value: number) =>
   `${value >= 0 ? "+" : "−"}$${Math.abs(value).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-const signedR = formatRMultiple;
+const signedR = (value: number | null) => (value === null ? "—" : `${value > 0 ? "+" : value < 0 ? "−" : ""}${Math.abs(value).toFixed(2)}R`);
 
 export function PlanReview() {
   const [data, setData] = useState<PlanReviewData | null>(null);
@@ -71,7 +70,7 @@ export function PlanReview() {
                         <th scope="row">{bucket.label}</th>
                         <td className="metric-number">{bucket.trades}</td>
                         <td className="metric-number">{bucket.winRate}%</td>
-                        <td className={`metric-number ${bucket.avgR === null ? "" : bucket.avgR >= 0 ? "is-up" : "is-down"}`}>{signedR(bucket.avgR)}{bucket.riskCoverage ? <small>{bucket.riskCoverage.included} included · {bucket.riskCoverage.excluded} excluded · {bucket.riskCoverage.percent.toFixed(0)}% verified. {bucket.riskCoverage.reason}</small> : null}</td>
+                        <td className={`metric-number ${bucket.avgR === null ? "" : bucket.avgR >= 0 ? "is-up" : "is-down"}`}>{signedR(bucket.avgR)}</td>
                         <td className={`metric-number ${bucket.netPl >= 0 ? "is-up" : "is-down"}`}>{money(bucket.netPl)}</td>
                       </tr>
                     ))}

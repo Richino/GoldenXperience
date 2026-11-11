@@ -1,7 +1,12 @@
 import Link from "next/link";
-import { displayTradeR, formatTradeR } from "@/lib/risk-metrics";
 import { formatShortDay } from "@/lib/format/datetime";
 import type { HomeActivityItem } from "@/lib/home/idle";
+
+function rLabel(value: number | null) {
+  if (value === null) return "—";
+  const sign = value > 0 ? "+" : value < 0 ? "" : "";
+  return `${sign}${value.toFixed(1)}R`;
+}
 
 function moneyLabel(value: number | null, currency: string) {
   if (value === null) return "—";
@@ -77,7 +82,7 @@ export function HomeRecentActivity({
                 <span className={`home-activity-money metric-number ${signedTone(item.paperPl, 0.005)}`}>
                   {moneyLabel(item.paperPl, currency)}
                 </span>
-                <span className={`home-activity-r metric-number ${signedTone(displayTradeR(item))}`}>{formatTradeR(item)}</span>
+                <span className={`home-activity-r metric-number ${signedTone(item.resultR)}`}>{rLabel(item.resultR)}</span>
                 <span className="home-activity-time">{formatShortDay(item.at)}</span>
               </Link>
             );

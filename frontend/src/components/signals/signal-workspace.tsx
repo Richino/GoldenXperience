@@ -10,11 +10,8 @@ import {
   ArrowRight,
   Check,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
   CircleStop,
+  MoveVertical,
   Clock3,
   Ellipsis,
   History,
@@ -23,23 +20,18 @@ import {
   Plus,
   Radar,
   RotateCcw,
-  ScanSearch,
   Search,
   X,
 } from "lucide-react";
 import { AnalyzeIcon } from "@/components/icons/analyze-icon";
 import { MarketDataNotice } from "@/components/signals/market-data-notice";
 import { useMarketObserver } from "@/components/analysis/market-observer-provider";
-import { NEW_PAIR_TRADE } from "@/components/charts/pair-trade-picker";
+import { NEW_PAIR_TRADE, PairTradePicker } from "@/components/charts/pair-trade-picker";
 import { ChartTypeSelect } from "@/components/charts/chart-type-select";
 import {
   ChartToolsSheet,
   IndicatorSheet,
 } from "@/components/charts/chart-sheet-controls";
-import {
-  ChartLoadingOverlay,
-  settleChartLoad,
-} from "@/components/charts/chart-loading-overlay";
 import { IndicatorSelect } from "@/components/charts/indicator-select";
 import { ChartLoadingSkeleton } from "@/components/ui/chart-loading-skeleton";
 import {
@@ -57,7 +49,7 @@ import { TrendLabel, usePairTrendList } from "@/components/charts/trend-label";
 import { weeklySwingStatus } from "@/lib/swing-trend-status";
 import { SwingIntelligenceCard } from "@/components/analysis/swing-intelligence-card";
 import type { SwingZone } from "@/lib/swing-intelligence";
-import { ChartHealthCard, ChartLevelEditor, ChartNewsCard, ChartPendingLevelsCard, type ChartHealthLevels, type ChartPositionCardSignal } from "@/components/charts/chart-ledger-parts";
+import { ChartHealthCard, ChartLevelEditor, ChartNewsCard, ChartPendingLevelsCard, ChartOhlcReadout, ChartStatusLine, type ChartHealthLevels, type ChartPositionCardSignal } from "@/components/charts/chart-ledger-parts";
 import {
   ManualProposalModal,
   useManualProposal,
@@ -67,19 +59,7 @@ import { TradeConfirmDialog } from "@/components/signals/trade-confirm-dialog";
 import type { ChartOverlayPreferences } from "@/components/charts/chart-context-panel";
 import { PairAvatar } from "@/components/ui/pair-avatar";
 import { PriceDigits } from "@/components/ui/price-digits";
-import {
-  ChartHeadFacts,
-  ChartLegend,
-  ChartMobileOhlc,
-  ChartMobilePosition,
-  ChartSessionPill,
-  ChartStatusBar,
-  ChartWatchlistCard,
-} from "@/components/charts/chart-workstation-parts";
-import { bookLineLabel, buildTradeBook, ChartMobileTradePager, ChartTradeBook, ChartTradesSheet, type BookItem } from "@/components/charts/chart-trade-book";
-import { chartColors } from "@/lib/theme/chart-colors";
 import { MobileSheet } from "@/components/ui/mobile-sheet";
-import { ChartTechnicals } from "@/components/charts/chart-technicals";
 import { apiUrl } from "@/lib/api/url";
 import { usePairStrength } from "@/components/signals/pair-strength-tag";
 import { formatClockTime, formatDayAndTime } from "@/lib/format/datetime";
@@ -264,7 +244,7 @@ function triggeredRewardR(entry: PendingManualEntry) {
   const risk = entry.direction === "long" ? entry.triggerPrice - entry.stopPrice : entry.stopPrice - entry.triggerPrice;
   if (!(risk > 0)) return "";
   const reward = Math.abs(entry.targetPrice - entry.triggerPrice) / risk;
-  return ` · ${reward.toFixed(reward >= 10 ? 0 : 1)}× stop distance`;
+  return ` · +${reward.toFixed(reward >= 10 ? 0 : 1)}R`;
 }
 
 function pairMayHaveOpenManualTrade(
@@ -356,7 +336,6 @@ function supportResistanceLines(
   if (rangeHigh > current) {
     add({
       key: "sr-range-resistance",
-      leftEdge: true,
       price: rangeHigh,
       label: "Resistance · range",
       color: "#ff9f43",
@@ -368,7 +347,6 @@ function supportResistanceLines(
   if (rangeLow < current) {
     add({
       key: "sr-range-support",
-      leftEdge: true,
       price: rangeLow,
       label: "Support · range",
       color: "#35d6b4",
@@ -381,7 +359,6 @@ function supportResistanceLines(
   if (swingHigh !== null) {
     add({
       key: "sr-swing-resistance",
-      leftEdge: true,
       price: swingHigh,
       label: "Resistance · swing",
       color: "#ff5c7a",
@@ -393,7 +370,6 @@ function supportResistanceLines(
   if (swingLow !== null) {
     add({
       key: "sr-swing-support",
-      leftEdge: true,
       price: swingLow,
       label: "Support · swing",
       color: "#72a8ff",
@@ -1147,9 +1123,6 @@ function marketSessionCaption() {
   return condition.marketOpen ? `${condition.label} session` : "Market closed";
 }
 
-/** The phone chart steps 5m to 1W, as the canvas "Chart · Mobile" board. */
-const PHONE_CHART_TIMEFRAMES = ["5m", "15m", "1h", "4h", "1d", "1w"] as const satisfies readonly ChartTimeframe[];
-
 function SegmentControl<T extends string>({
   options,
   value,
@@ -1188,6 +1161,103 @@ function SegmentControl<T extends string>({
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/** What each history range covers, shown under its label. */
+const RANGE_DESCRIPTIONS: Record<ChartRange, string> = {
+  "1D": "Last day",
+  "1W": "Last week",
+  "1M": "Last month",
+  "3M": "3 months",
+  "6M": "6 months",
+  "1Y": "Last year",
+  All: "All history",
+};
+
+function RangeSelect({
+  value,
+  onChange,
+}: {
+  value: ChartRange;
+  onChange: (next: ChartRange) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function handlePointerDown(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        aria-label="Chart history range"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        className={`gx-toolbar-btn pressable ${open ? "is-active" : ""}`}
+      >
+        <Clock3 className="size-3.5" strokeWidth={2} />
+        {value}
+        <ChevronDown className="size-3" strokeWidth={2} />
+      </button>
+      {open ? (
+        <div
+          role="listbox"
+          aria-label="Chart history range"
+          className="menu-popover opt-menu is-range absolute right-0 top-[calc(100%+6px)] z-50 origin-top-right overflow-hidden rounded-2xl"
+        >
+          <header className="ind-head">
+            <div>
+              <b>History</b>
+              <span>{RANGE_DESCRIPTIONS[value]}</span>
+            </div>
+          </header>
+          <div className="range-grid">
+            {CHART_RANGES.map((option) => {
+              const selected = option === value;
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  className={`range-tile pressable${selected ? " is-on" : ""}`}
+                  onClick={() => {
+                    onChange(option);
+                    setOpen(false);
+                  }}
+                >
+                  <b className="metric-number">{option}</b>
+                  <small>{RANGE_DESCRIPTIONS[option]}</small>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1764,6 +1834,7 @@ function ChartFullscreenView({
   changeLabel,
   positive,
   position,
+  pendingOrder,
   timeframe,
   onTimeframe,
   tools,
@@ -1771,7 +1842,7 @@ function ChartFullscreenView({
   lockHud,
 }: {
   onExit: () => void;
-  chart: (height: number) => ReactNode;
+  chart: (height: number, showHud: boolean) => ReactNode;
   instrument: string;
   pair: string;
   pairSelector: ReactNode;
@@ -1780,7 +1851,8 @@ function ChartFullscreenView({
   price: string;
   changeLabel: string;
   positive: boolean;
-  position: { label: string; r: number | null; detail: string } | null;
+  position: { label: string; r: number | null } | null;
+  pendingOrder: { direction: "long" | "short"; onSelect: () => void } | null;
   timeframe: ChartTimeframe;
   onTimeframe: (value: ChartTimeframe) => void;
   tools: ReactNode;
@@ -1863,28 +1935,45 @@ function ChartFullscreenView({
           if (moved < 6 && event.timeStamp - start.at < 350) setHud((open) => !open);
         }}
       >
-        {height > 0 ? chart(height) : null}
+        {height > 0 ? chart(height, showHud) : null}
       </div>
 
-      <div className="gx-fs-pair" aria-hidden={!showHud}>
-        <PairAvatar instrument={instrument} size={30} horizontal />
-        <span className="gx-fs-pair-name">
-          {pairSelector}
-          <small>{caption}</small>
-        </span>
-        <span className="gx-fs-rule" aria-hidden="true" />
-        <span className="gx-fs-quote">
-          <strong className="metric-number">{price}</strong>
-          <small className={`metric-number ${positive ? "is-up" : "is-down"}`}>{changeLabel}</small>
-        </span>
-        {position ? (
-          <>
-            <span className="gx-fs-rule gx-fs-wide" aria-hidden="true" />
-            <span className={`gx-fs-position metric-number${position.r !== null && position.r < 0 ? " is-down" : ""}`}>
-              {position.label}
-              {position.detail ? <small> · {position.detail}</small> : null}
+      <div className="gx-fs-info" aria-hidden={!showHud} inert={!showHud}>
+        <div className="gx-fs-pair">
+          <PairAvatar instrument={instrument} size={30} horizontal />
+          <span className="gx-fs-pair-name">
+            {pairSelector}
+            <small>{caption}</small>
+          </span>
+          <span className="gx-fs-rule" aria-hidden="true" />
+          <span className="gx-fs-quote">
+            <strong className="metric-number">{price}</strong>
+            <small className={`metric-number ${positive ? "is-up" : "is-down"}`}>{changeLabel}</small>
+          </span>
+          {position ? (
+            <>
+              <span className="gx-fs-rule gx-fs-wide" aria-hidden="true" />
+              <span className={`gx-fs-position metric-number${position.r !== null && position.r < 0 ? " is-down" : ""}`}>
+                {position.label}
+                {position.r !== null ? ` · ${position.r >= 0 ? "+" : "−"}${Math.abs(position.r).toFixed(2)}R` : ""}
+              </span>
+            </>
+          ) : null}
+        </div>
+
+        {pendingOrder ? (
+          <button
+            type="button"
+            className="gx-fs-pending nl-mtrade-chip pressable"
+            onClick={pendingOrder.onSelect}
+            aria-haspopup="dialog"
+          >
+            <span className={pendingOrder.direction === "long" ? "is-long" : "is-short"}>
+              {pendingOrder.direction === "long" ? "Long" : "Short"}
             </span>
-          </>
+            <span>Pending</span>
+            <ChevronDown aria-hidden="true" />
+          </button>
         ) : null}
       </div>
 
@@ -1939,7 +2028,7 @@ function SetupStats({ active }: { active: TradeSignal }) {
         SL {formatChartPrice(active.stop, active.instrument)}
       </span>
       <span className="text-[color:var(--accent)]">
-        Distance {formatRiskReward(active.riskReward)}
+        {formatRiskReward(active.riskReward)}
       </span>
     </p>
   );
@@ -2093,22 +2182,17 @@ function heldFor(fromIso: string, toIso: string) {
 function TradeFocusBar({
   trade,
   onClear,
-  onLive,
 }: {
   trade: PaperChartTrade;
   onClear: () => void;
-  /** Leaves this review for the pair's open trade or order, when there is one. */
-  onLive?: () => void;
 }) {
   const long = trade.direction === "long";
   const closed = trade.closedAt !== null && trade.exit !== null;
+  const won = (trade.resultR ?? 0) >= 0;
   const label = /^\d+$/.test(String(trade.tradeSequence)) ? `#${trade.tradeSequence}` : String(trade.tradeSequence);
   const pips = closed
     ? ((long ? trade.exit! - trade.entry : trade.entry - trade.exit!) / pipSizeFor(trade.instrument))
     : null;
-  // Pips stand in for the result when R was never recorded.
-  const won = trade.resultR !== null ? trade.resultR >= 0 : (pips ?? 0) >= 0;
-  const pipLabel = pips === null ? null : `${pips >= 0 ? "+" : "−"}${Math.abs(pips).toFixed(1)} pips`;
 
   return (
     <div
@@ -2147,16 +2231,11 @@ function TradeFocusBar({
       </div>
 
       <div className="nl-tfb-end">
-        {trade.resultR !== null || pipLabel !== null ? (
+        {trade.resultR !== null ? (
           <span className={`nl-tfb-result ${won ? "is-won" : "is-lost"}`}>
-            <b className="metric-number">{trade.resultR !== null ? formatResultR(trade.resultR) : pipLabel}</b>
-            {trade.resultR !== null && pipLabel !== null ? <small className="metric-number">{pipLabel}</small> : null}
+            <b className="metric-number">{formatResultR(trade.resultR)}</b>
+            {pips !== null ? <small className="metric-number">{pips >= 0 ? "+" : "−"}{Math.abs(pips).toFixed(1)} pips</small> : null}
           </span>
-        ) : null}
-        {onLive ? (
-          <button type="button" onClick={onLive} className="nl-tfb-live pressable" title="Show the open trade">
-            Live trade
-          </button>
         ) : null}
         <button type="button" onClick={onClear} className="nl-tfb-clear pressable" aria-label="Clear trade">
           <X aria-hidden="true" />
@@ -2356,6 +2435,7 @@ export function SignalWorkspace({
   initialStatus,
   paperPlans,
   initialPaperTrades = [],
+  initialPendingEntries = [],
   initialFocusTradeId = null,
   initialPendingEntryId = null,
   initialPredictionFocus = null,
@@ -2378,6 +2458,7 @@ export function SignalWorkspace({
   initialStatus: ConnectionStatus;
   paperPlans: SignalPaperPlan[];
   initialPaperTrades?: PaperChartTrade[];
+  initialPendingEntries?: PendingManualEntry[];
   initialFocusTradeId?: string | null;
   initialPendingEntryId?: string | null;
   initialPredictionFocus?: BinaryPrediction | null;
@@ -2395,9 +2476,8 @@ export function SignalWorkspace({
   const searchParams = useSearchParams();
   // Local visual-debug switch. It deliberately only works on localhost, so a
   // shared/deployed chart can never get stuck loading.
-  const forceChartSkeleton = typeof window !== "undefined"
-    && window.location.hostname === "localhost"
-    && searchParams.get("debugChartSkeleton") === "1";
+  const chartSkeletonPreview = typeof window !== "undefined" && window.location.hostname === "localhost"
+    ? searchParams.get("debugChartSkeleton") : null;
   // Only the native Chart tab drives this: it embeds this exact page in a
   // WebView, which starts from next-themes' own default/system resolution
   // and has no way to know the app's in-settings theme choice otherwise.
@@ -2531,9 +2611,8 @@ export function SignalWorkspace({
   const [dataNotice, setDataNotice] = useState<string | null>(
     initialStatus.state === "connected" ? null : initialStatus.message,
   );
-  // Cover the plot from its first paint, before effects start data loading.
-  const [loading, setLoading] = useState(true);
-  const chartLoadingVisible = loading || forceChartSkeleton;
+  const [loading, setLoading] = useState(false);
+  const [openingCandlesReady, setOpeningCandlesReady] = useState(false);
   const [refreshingChart, setRefreshingChart] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [historyExhausted, setHistoryExhausted] = useState(false);
@@ -2566,20 +2645,6 @@ export function SignalWorkspace({
     return () => {
       observer.disconnect();
       column.style.removeProperty("--gx-mlevels-h");
-    };
-  }, []);
-  // The same for the trade strip (pager, position, actions): its height
-  // changes with the selected trade, and the pinned slot must follow it.
-  const reserveMobileTradeStrip = useCallback((node: HTMLDivElement | null) => {
-    const column = node?.closest<HTMLElement>(".signals-chart-mobile");
-    if (!node || !column) return;
-    const observer = new ResizeObserver(() => {
-      column.style.setProperty("--gx-mtrade-h", `${Math.ceil(node.getBoundingClientRect().height)}px`);
-    });
-    observer.observe(node);
-    return () => {
-      observer.disconnect();
-      column.style.removeProperty("--gx-mtrade-h");
     };
   }, []);
   const exitFullscreen = useCallback(() => setFullscreen(false), []);
@@ -2651,8 +2716,11 @@ export function SignalWorkspace({
   const [focusTradeId, setFocusTradeId] = useState<string | null>(initialFocusTradeId);
   const [predictionFocus, setPredictionFocus] = useState<BinaryPrediction | null>(initialPredictionFocus);
   const [predictionClock, setPredictionClock] = useState(() => Date.now());
-  const [pendingEntries, setPendingEntries] = useState<PendingManualEntry[]>([]);
-  const [allPendingEntries, setAllPendingEntries] = useState<PendingManualEntry[]>([]);
+  const [allPendingEntries, setAllPendingEntries] = useState<PendingManualEntry[]>(initialPendingEntries);
+  const pendingEntries = useMemo(
+    () => allPendingEntries.filter((entry) => entry.instrument === instrument),
+    [allPendingEntries, instrument],
+  );
   const [pendingEntriesHydrated, setPendingEntriesHydrated] = useState(false);
   // The address names the pair. The iOS home-screen app can hand back a chart
   // that kept the pair it was first rendered with, so a link to another pair
@@ -2677,6 +2745,8 @@ export function SignalWorkspace({
   const [tradeActionBusy, setTradeActionBusy] = useState(false);
   const [tradeActionError, setTradeActionError] = useState<string | null>(null);
   const [tradeConfirm, setTradeConfirm] = useState<"cancel" | "close" | null>(null);
+  // Phone: the trade controls sheet, opened from the trade pill on the chart.
+  const [tradeSheetOpen, setTradeSheetOpen] = useState(false);
   const [pendingEntryDialogOpen, setPendingEntryDialogOpen] = useState(false);
   // The News ticket's unsaved settings, drawn on the chart as DRAFT zones.
   const [newsDraft, setNewsDraft] = useState<NewsDraft | null>(null);
@@ -2727,6 +2797,10 @@ export function SignalWorkspace({
   function openPendingEntryManager(entry: PendingManualEntry | null = null) {
     if (!entry && replayActive) {
       setPendingEntryNotice("Exit chart replay before creating an entry.");
+      return;
+    }
+    if (!entry && hasActivePosition) {
+      setPendingEntryNotice("This pair already has an active position. Close it before creating another entry.");
       return;
     }
     setSelectedPendingEntry(entry);
@@ -2980,7 +3054,6 @@ export function SignalWorkspace({
       if (response.ok && payload.entries) {
         const entriesForInstrument = payload.entries.filter((entry) => entry.instrument === instrument);
         setAllPendingEntries(payload.entries);
-        setPendingEntries(entriesForInstrument);
         setSelectedPendingEntry((current) => current ? entriesForInstrument.find((entry) => entry.id === current.id) ?? current : null);
       }
     } catch {
@@ -3104,7 +3177,7 @@ export function SignalWorkspace({
     if (mobileShell) observer.observe(mobileShell);
     if (desktopShell) observer.observe(desktopShell);
     return () => observer.disconnect();
-  }, [chartDesktopViewport, chartPreferencesReady, embeddedSurfaceOnly]);
+  }, [chartDesktopViewport, openingCandlesReady, embeddedSurfaceOnly]);
 
   useEffect(() => {
     if (!fullscreen) return;
@@ -3336,9 +3409,6 @@ export function SignalWorkspace({
       ) ?? null,
     [focusTradeId, instrument, paperTrades],
   );
-  // Reviewing a closed trade: the chart shows that trade alone. The open trade
-  // and pending orders step aside until the review is left.
-  const reviewingPastTrade = focusTrade !== null && focusTrade.closedAt !== null;
   // The page receives this list from the server before the workspace renders.
   // Prefer it over the watchlist's `openTradeId`, which can lag the paper
   // collector by one refresh. That way a chart opened directly always shows
@@ -3354,7 +3424,10 @@ export function SignalWorkspace({
         entry.status === "TRIGGERING" ||
         (entry.status === "TRIGGERED" && entry.paperTradeStatus === "open"))
       // A News setup is two linked rows; while both wait, list it once (its BUY row).
-      .filter((entry) => !(entry.metadata?.mode === "news" && entry.status === "PENDING" && entry.metadata?.line === "lower"))
+      .filter((entry) => !(entry.metadata?.mode === "news" && entry.status === "PENDING" && entry.metadata?.line === "lower" &&
+        typeof entry.metadata.straddleId === "string" && pendingEntries.some((other) =>
+          other.status === "PENDING" && other.metadata.mode === "news" && other.metadata.line === "upper" &&
+          other.metadata.straddleId === entry.metadata.straddleId)))
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
     [pendingEntries],
   );
@@ -3375,18 +3448,21 @@ export function SignalWorkspace({
       ?? null;
   }, [focusTradeId, pairTrades, pickedPairTrade]);
   const settingUpNewTrade = pickedPairTrade === NEW_PAIR_TRADE;
+  const openPaperTrades = useMemo(() => paperTrades.filter(
+    (trade) => trade.instrument === instrument && trade.status === "open" && trade.closedAt === null,
+  ), [instrument, paperTrades]);
   const openPaperTrade = useMemo(() => {
-    const open = paperTrades.filter(
-      (trade) => trade.instrument === instrument && trade.status === "open" && trade.closedAt === null,
-    );
     if (selectedPairTrade?.status === "TRIGGERED") {
-      return open.find((trade) => trade.id === selectedPairTrade.paperTradeId) ?? null;
+      return openPaperTrades.find((trade) => trade.id === selectedPairTrade.paperTradeId) ?? null;
     }
     // A pending order or a new trade being set up owns the chart; otherwise
     // show the pair's open strategy or imported trade.
     if (selectedPairTrade || settingUpNewTrade) return null;
-    return open[0] ?? null;
-  }, [instrument, paperTrades, selectedPairTrade, settingUpNewTrade]);
+    return openPaperTrades[0] ?? null;
+  }, [openPaperTrades, selectedPairTrade, settingUpNewTrade]);
+  const chipEntry = selectedPairTrade ?? pairTrades.at(-1);
+  const chipDirection = chipEntry?.direction ?? openPaperTrades[0]?.direction;
+  const chipStatus = chipEntry && chipEntry.status !== "TRIGGERED" ? "Pending" : "Open";
   // A closed trade may remain selected so its historical entry/exit markers
   // and focused time range stay available. It is not an active plan though:
   // showing its Entry / SL / TP as live chart levels made completed positions
@@ -3405,11 +3481,10 @@ export function SignalWorkspace({
   const activeBrokerTradeId = activeManualTrade
     ? (typeof activeManualTrade.metadata.brokerTradeId === "string" ? activeManualTrade.metadata.brokerTradeId : null)
     : openPaperTrade?.brokerTradeId ?? null;
-  const { label: activeTradePL, color: activeTradePLColor, targetLabel: activeTargetPL, stopAmountLabel: activeStopPL } = useChartTradePL(
+  const { label: activeTradePL, color: activeTradePLColor, targetLabel: activeTargetPL } = useChartTradePL(
     activeBrokerTradeId, instrument, activeManualTrade?.direction ?? openPaperTrade?.direction ?? null,
     quote?.instrument === instrument && quote.source === "oanda" ? quote : null,
     activeManualTrade?.targetPrice ?? openPaperTrade?.target ?? null,
-    activeManualTrade?.stopPrice ?? openPaperTrade?.stop ?? null,
   );
   const triggeredManualEntry =
     activeManualTrade && activeManualTrade.stopPrice !== null && activeManualTrade.targetPrice !== null
@@ -3576,7 +3651,6 @@ export function SignalWorkspace({
   // Trade health also reads a filled manual trade placed without a stop or
   // target, which Active Position leaves out.
   const healthSignal = useMemo<ChartPositionCardSignal | null>(() => {
-    if (reviewingPastTrade) return null;
     if (positionSignal) return positionSignal;
     if (!activeManualTrade) return null;
     return {
@@ -3589,13 +3663,12 @@ export function SignalWorkspace({
       riskReward: 0,
       openedAt: activeManualTrade.triggeredAt ?? activeManualTrade.createdAt,
     };
-  }, [activeManualTrade, activePair, instrument, positionSignal, reviewingPastTrade]);
+  }, [activeManualTrade, activePair, instrument, positionSignal]);
 
   // Moving the stop / target of a manual trade or a waiting order: the card
   // starts a draft, the chart draws it as two draggable lines, and Save sends
   // it to the trade (OANDA's own SL/TP) or replaces the resting OANDA order.
-  // A waiting order's draft carries its entry as well; a filled trade's does not.
-  const [levelDraft, setLevelDraft] = useState<{ entryId: string; entry?: number; stop: number | null; target: number | null } | null>(null);
+  const [levelDraft, setLevelDraft] = useState<{ entryId: string; stop: number | null; target: number | null } | null>(null);
   const [levelSaving, setLevelSaving] = useState(false);
   const [levelError, setLevelError] = useState<string | null>(null);
   const levelTrade = !replayActive && !openPaperTrade
@@ -3611,23 +3684,18 @@ export function SignalWorkspace({
     : quote && levelTrade ? (levelTrade.direction === "long" ? quote.bid : quote.ask) : null;
   const levelEdit = useMemo<ChartLevelEdit | null>(() => {
     if (!levelTrade || !levelDraft || levelDraft.entryId !== levelTrade.id) return null;
-    const entry = levelDraft.entry ?? levelTrade.triggerPrice ?? levelTrade.entryPrice;
     return {
       instrument,
       direction: levelTrade.direction,
-      entry,
+      entry: levelTrade.triggerPrice ?? levelTrade.entryPrice,
       stop: levelDraft.stop,
       target: levelDraft.target,
-      // A waiting order judges its levels against the (draft) entry.
-      exitPrice: levelPending ? entry : levelExitPrice,
-      entryEditable: levelPending,
+      exitPrice: levelExitPrice,
     };
-  }, [instrument, levelDraft, levelExitPrice, levelPending, levelTrade]);
+  }, [instrument, levelDraft, levelExitPrice, levelTrade]);
   const onLevelEditChange = useCallback((next: ChartLevelEdit) => {
     setLevelError(null);
-    setLevelDraft((draft) => (draft
-      ? { ...draft, stop: next.stop, target: next.target, ...(draft.entry !== undefined ? { entry: next.entry } : {}) }
-      : draft));
+    setLevelDraft((draft) => (draft ? { ...draft, stop: next.stop, target: next.target } : draft));
   }, []);
   /** A fresh line 15 pips (stop) or 30 pips (target) from where the trade would close (a waiting order: its entry). */
   const seedLevel = useCallback((key: "stop" | "target") => {
@@ -3642,24 +3710,11 @@ export function SignalWorkspace({
     setLevelSaving(true);
     setLevelError(null);
     try {
-      // A moved entry goes through the full order edit, which picks stop or
-      // limit against the live price, resizes and replaces the OANDA order.
-      // Its expiry and cancel price are sent back unchanged.
-      const entryMoved = levelPending && levelEdit.entry !== levelTrade.entryPrice;
-      const res = await fetch(apiUrl(entryMoved ? `/api/pending-entries/${levelTrade.id}` : `/api/pending-entries/${levelTrade.id}/levels`), {
+      const res = await fetch(apiUrl(`/api/pending-entries/${levelTrade.id}/levels`), {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(entryMoved
-          ? {
-            instrument,
-            entryPrice: levelEdit.entry,
-            stopPrice: levelEdit.stop,
-            targetPrice: levelEdit.target,
-            expiresAt: levelTrade.expiresAt,
-            invalidationPrice: levelTrade.invalidationPrice,
-          }
-          : levelPending
+        body: JSON.stringify(levelPending
           ? { instrument, pending: true, stopPrice: levelEdit.stop, targetPrice: levelEdit.target }
           : {
             instrument,
@@ -3687,8 +3742,7 @@ export function SignalWorkspace({
         stop: levelEdit ? chartLevelInvalid(levelEdit, "stop") : false,
         target: levelEdit ? chartLevelInvalid(levelEdit, "target") : false,
       },
-      dirty: levelEdit !== null && (levelEdit.stop !== levelTrade.stopPrice || levelEdit.target !== levelTrade.targetPrice
-        || (levelPending && levelEdit.entry !== levelTrade.entryPrice)),
+      dirty: levelEdit !== null && (levelEdit.stop !== levelTrade.stopPrice || levelEdit.target !== levelTrade.targetPrice),
       saving: levelSaving,
       error: levelError,
       onStart: () => {
@@ -3696,7 +3750,6 @@ export function SignalWorkspace({
         const none = levelTrade.stopPrice === null && levelTrade.targetPrice === null;
         setLevelDraft({
           entryId: levelTrade.id,
-          ...(levelPending ? { entry: levelTrade.entryPrice } : {}),
           stop: none ? seedLevel("stop") : levelTrade.stopPrice,
           target: none ? seedLevel("target") : levelTrade.targetPrice,
         });
@@ -3734,13 +3787,12 @@ export function SignalWorkspace({
       instrument,
       pair: activePair,
       direction: levelTrade.direction,
-      // While dragging, pips are measured from the draft entry.
-      entry: levelEdit?.entry ?? levelTrade.entryPrice,
+      entry: levelTrade.entryPrice,
       stop: levelTrade.stopPrice,
       target: levelTrade.targetPrice,
       riskReward: 0,
     };
-  }, [activePair, instrument, levelEdit?.entry, levelPending, levelTrade]);
+  }, [activePair, instrument, levelPending, levelTrade]);
   const levelSignal = healthSignal ?? pendingLevelSignal;
 
   const startPositionTool = useCallback((direction: "long" | "short") => {
@@ -3767,7 +3819,7 @@ export function SignalWorkspace({
   // so suppress the strategy draft while one is open instead of drawing both.
   // A closed focused trade can retain its markers and path without live levels.
   const setupLevels = useMemo(
-    () => openPaperTrade && !reviewingPastTrade ? ({
+    () => openPaperTrade ? ({
       entry: openPaperTrade.entry,
       stop: openPaperTrade.stop,
       target: openPaperTrade.target,
@@ -3781,7 +3833,7 @@ export function SignalWorkspace({
       stop: openSignal.stop,
       target: openSignal.target,
     }) : null,
-    [openSignal, focusTrade, openPaperTrade, reviewingPastTrade, triggeredManualEntry, activeTradePL, activeTradePLColor, activeTargetPL],
+    [openSignal, focusTrade, openPaperTrade, triggeredManualEntry, activeTradePL, activeTradePLColor, activeTargetPL],
   );
   // News-mode zones come from the server's setup state (news-zone-overlay).
   // Only previews follow the live price, and only to the nearest pip, so the
@@ -3828,8 +3880,7 @@ export function SignalWorkspace({
         const countdown = remainingMinutes === null ? "" : remainingMinutes >= 60
           ? ` • ${Math.floor(remainingMinutes / 60)}h ${remainingMinutes % 60}m`
           : ` • ${remainingMinutes}m`;
-        // While its levels are edited, the draggable ENTRY line stands in for it.
-        const lines: ChartReferenceLine[] = editingLevels ? [] : [{
+        const lines: ChartReferenceLine[] = [{
           key: `pending-${entry.id}`,
           price: entry.entryPrice,
           label: `${entry.direction.toUpperCase()} ENTRY ${formatChartPrice(entry.entryPrice, instrument)}${countdown}`,
@@ -3861,7 +3912,7 @@ export function SignalWorkspace({
             {
               key: `pending-target-${entry.id}`,
               price: entry.targetPrice,
-              label: `TP ${formatChartPrice(entry.targetPrice, instrument)}${rewardR === null ? "" : ` · ${rewardR.toFixed(rewardR >= 10 ? 0 : 1)}× stop distance`}`,
+              label: `TP ${formatChartPrice(entry.targetPrice, instrument)}${rewardR === null ? "" : ` · +${rewardR.toFixed(rewardR >= 10 ? 0 : 1)}R`}`,
               color: "#00b377",
               textColor: "#ffffff",
               dashed: true,
@@ -3894,13 +3945,13 @@ export function SignalWorkspace({
           { key: `manual-entry-${entry.id}`, price: entry.triggerPrice, label: newsFillLabel(entry, pendingEntryClock, activeTradePL) ?? activeTradePL, color: activeTradePLColor, textColor: "#ffffff", dashed: false, lineWidth: 2 as const, onSelect: () => openManager(entry) },
         ];
         const stopAtRisk = entry.stopPrice !== null && (entry.direction === "long" ? entry.stopPrice < entry.triggerPrice : entry.stopPrice > entry.triggerPrice);
-        if (entry.stopPrice !== null && !editing) lines.push({ key: `manual-stop-${entry.id}`, price: entry.stopPrice, label: activeStopPL ? `SL ${activeStopPL}` : `SL ${formatChartPrice(entry.stopPrice, instrument)}${stopAtRisk ? " · -1R" : ""}`, color: "#e74c3c", textColor: "#ffffff", dashed: true, lineWidth: 1 as const, onSelect: () => openManager(entry) });
+        if (entry.stopPrice !== null && !editing) lines.push({ key: `manual-stop-${entry.id}`, price: entry.stopPrice, label: `SL ${formatChartPrice(entry.stopPrice, instrument)}${stopAtRisk ? " · -1R" : ""}`, color: "#e74c3c", textColor: "#ffffff", dashed: true, lineWidth: 1 as const, onSelect: () => openManager(entry) });
         if (entry.targetPrice !== null && !editing) lines.push({ key: `manual-target-${entry.id}`, price: entry.targetPrice, label: activeTargetPL, color: "#00b377", textColor: "#ffffff", dashed: true, lineWidth: 1 as const, onSelect: () => openManager(entry) });
         return lines;
       }
       return [];
     });
-  }, [instrument, levelDraftEntryId, pendingEntries, pendingEntryClock, selectedPairTrade?.id, activeTradePL, activeTradePLColor, activeTargetPL, activeStopPL]);
+  }, [instrument, levelDraftEntryId, pendingEntries, pendingEntryClock, selectedPairTrade?.id, activeTradePL, activeTradePLColor, activeTargetPL]);
   const supportResistanceReferenceLines = useMemo(
     () => isChartIndicatorEnabled(enabledIndicators, "support-resistance")
       ? supportResistanceLines(chartIndicatorCandles, instrument)
@@ -4224,8 +4275,8 @@ export function SignalWorkspace({
     () => [
       // A pending order belongs to live trading and would reveal a current
       // decision in a historical replay. Technical indicators remain visible.
-      ...(replayActive || reviewingPastTrade ? [] : pendingEntryReferenceLines),
-      ...(replayActive || reviewingPastTrade ? [] : newsOverlayLines),
+      ...(replayActive ? [] : pendingEntryReferenceLines),
+      ...(replayActive ? [] : newsOverlayLines),
       ...(replayActive ? [] : swingZoneLines),
       ...supportResistanceReferenceLines,
       ...supportResistance15mReferenceLines,
@@ -4235,63 +4286,12 @@ export function SignalWorkspace({
       ...frozen4hReferenceLines,
       ...(patternOverlay.lines.length ? [] : breakoutReferenceLines),
     ],
-    [breakoutReferenceLines, fibonacciReferenceLines, frozen4hReferenceLines, lastDaySrReferenceLines, newsOverlayLines, swingZoneLines, patternOverlay.lines, pendingEntryReferenceLines, replayActive, reviewingPastTrade, sessionSrReferenceLines, supportResistance15mReferenceLines, supportResistanceReferenceLines],
+    [breakoutReferenceLines, fibonacciReferenceLines, frozen4hReferenceLines, lastDaySrReferenceLines, newsOverlayLines, swingZoneLines, patternOverlay.lines, pendingEntryReferenceLines, replayActive, sessionSrReferenceLines, supportResistance15mReferenceLines, supportResistanceReferenceLines],
   );
-  // The price the other trades' "p away" labels measure from, rounded to a pip
-  // so the lines are not rebuilt on every tick of the quote.
-  const { resolvedTheme } = useTheme();
-  const markLevel = quote?.instrument === instrument ? quote.mid : series.candles.at(-1)?.close ?? null;
-  const markPips = markLevel === null ? null : Math.round(markLevel / pipSizeFor(instrument));
-
-  // Every live trade and order, numbered oldest first (chart-trade-book). The
-  // selected one owns the chart's levels; the others on this pair draw only
-  // their entry, numbered, so the chart and the list read the same.
-  const openStrategyTrades = useMemo(
-    () => paperTrades.filter((trade) => trade.instrument === instrument && trade.status === "open" && trade.closedAt === null),
-    [instrument, paperTrades],
+  const fullscreenBareReferenceLines = useMemo(
+    () => chartReferenceLines.filter((line) => !pendingEntryReferenceLines.includes(line)),
+    [chartReferenceLines, pendingEntryReferenceLines],
   );
-  const tradeBook = useMemo(() => buildTradeBook(allPendingEntries, openStrategyTrades), [allPendingEntries, openStrategyTrades]);
-  const bookItems = tradeBook;
-  /** An open trade or order on this pair to switch back to from a review. */
-  const liveOnPair = tradeBook.some((item) => item.instrument === instrument);
-  // A strategy trade opened from the book is focused rather than picked.
-  const focusedBookId = focusTradeId !== null && tradeBook.some((item) => item.id === focusTradeId) ? focusTradeId : null;
-  const selectedBookId = selectedPairTrade?.id ?? focusedBookId ?? openPaperTrade?.id ?? null;
-  const bookMark = quote?.instrument === instrument ? quote.mid : null;
-
-  const { desktopReferenceLines, mobileReferenceLines } = useMemo(() => {
-    const palette = chartColors(resolvedTheme !== "light");
-    const line = (key: string, price: number, label: string, color: string, textColor: string) =>
-      ({ key, price, label, color, textColor, dashed: true });
-    const mark = markPips === null ? null : markPips * pipSizeFor(instrument);
-    // Other trades on this pair: entry only, amber for a pending order.
-    const others = replayActive || reviewingPastTrade ? [] : tradeBook.filter((item) => item.instrument === instrument && item.id !== selectedBookId);
-    const otherLine = (item: BookItem, short: boolean) => line(
-      `book-${item.id}`,
-      item.entry,
-      short
-        ? `#${item.number} ${item.kind === "pending" ? item.orderLabel ?? "Order" : item.direction === "long" ? "Long" : "Short"}${item.kind === "pending" && mark !== null ? ` · ${(Math.abs(mark - item.entry) / pipSizeFor(instrument)).toFixed(1)} p` : ""}`
-        : bookLineLabel(item, mark),
-      item.kind === "pending" ? palette.pending : palette.scaleText,
-      palette.onUp,
-    );
-    const desktop = [...chartReferenceLines, ...others.map((item) => otherLine(item, false))];
-    const mobile = [...chartReferenceLines, ...others.map((item) => otherLine(item, true))];
-    return { desktopReferenceLines: desktop, mobileReferenceLines: mobile };
-  }, [chartReferenceLines, replayActive, reviewingPastTrade, instrument, resolvedTheme, markPips, selectedBookId, tradeBook]);
-
-  // Choosing a trade on another pair switches the chart, then selects that
-  // trade once the new pair's trades have loaded.
-  const [pickAfterSwitch, setPickAfterSwitch] = useState<string | null>(null);
-  const [tradesSheetOpen, setTradesSheetOpen] = useState(false);
-  // GX Technical Analyzer, cut down: the side panel on desktop, a sheet on phones.
-  const [technicalsOpen, setTechnicalsOpen] = useState(false);
-  useEffect(() => {
-    if (!pickAfterSwitch || !pairTrades.some((entry) => entry.id === pickAfterSwitch)) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPickedPairTrade(pickAfterSwitch);
-    setPickAfterSwitch(null);
-  }, [pairTrades, pickAfterSwitch]);
   // The chart refreshes paper trades in the background. Depending on the whole
   // trade object here made an otherwise identical refresh look like a new
   // focus request and snapped a user's panned/zoomed result view back again.
@@ -4348,49 +4348,38 @@ export function SignalWorkspace({
     };
   }, [instrument, timeframe]);
 
-  // The server-rendered series is reused for the opening view when it was
-  // fetched for exactly that pair, timeframe and range. Consumed once.
-  const reusableInitialSeriesRef = useRef(
-    primarySeriesRange !== undefined &&
-      primarySeries.candles.length > 0 &&
-      primarySeries.instrument === initialInstrument &&
-      primarySeriesRange === range &&
-      primarySeries.granularity === TIMEFRAME_TO_GRANULARITY[timeframe],
-  );
+  const requestedCandlesRef = useRef(false);
 
   useEffect(() => {
+    if (!chartPreferencesReady) return;
     const controller = new AbortController();
 
-    if (reusableInitialSeriesRef.current) {
-      reusableInitialSeriesRef.current = false;
-      if (
-        seriesRef.current.instrument === instrument &&
-        seriesRef.current.granularity === TIMEFRAME_TO_GRANULARITY[timeframe] &&
-        primarySeriesRange === range
-      ) {
-        // Reuse server candles, but reveal them only after the chart's initial
-        // sizing and range have settled. Only the quote needs a network read.
-        void settleChartLoad(Date.now()).then(() => {
-          if (!controller.signal.aborted) setLoading(false);
-        });
-        void fetch(apiUrl(`/api/oanda/pricing?instruments=${instrument}`), {
-          credentials: "include",
-          signal: controller.signal,
+    if (
+      !requestedCandlesRef.current &&
+      seriesRef.current.candles.length > 0 &&
+      seriesRef.current.instrument === instrument &&
+      seriesRef.current.granularity === TIMEFRAME_TO_GRANULARITY[timeframe] &&
+      primarySeriesRange === range
+    ) {
+      // The opening candles are ready. Only the quote needs a network read.
+      setOpeningCandlesReady(true);
+      void fetch(apiUrl(`/api/oanda/pricing?instruments=${instrument}`), {
+        credentials: "include",
+        signal: controller.signal,
+      })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((payload: { data: PriceQuote[] } | null) => {
+          const next = payload?.data.find((price) => price.instrument === instrument);
+          if (next) setQuote(next);
         })
-          .then((response) => (response.ok ? response.json() : null))
-          .then((payload: { data: PriceQuote[] } | null) => {
-            const next = payload?.data.find((price) => price.instrument === instrument);
-            if (next) setQuote(next);
-          })
-          .catch(() => {
-            // The live stream fills the quote in shortly.
-          });
-        return () => controller.abort();
-      }
+        .catch(() => {
+          // The live stream fills the quote in shortly.
+        });
+      return () => controller.abort();
     }
 
     async function loadMarketData() {
-      const loadStartedAt = Date.now();
+      requestedCandlesRef.current = true;
       setLoading(true);
       setQuote(null);
       setLiveCandle(null);
@@ -4443,11 +4432,13 @@ export function SignalWorkspace({
         );
       } finally {
         if (!controller.signal.aborted) {
-          // Mobile shows the chart the moment it is ready; the desktop minimum
-          // spinner time exists to avoid a flash on fast desktop reloads.
-          await settleChartLoad(loadStartedAt, embeddedSurfaceOnly ? 0 : undefined);
+          // Give an already mounted chart a paint to apply the new candles.
+          await new Promise<void>(resolve => {
+            window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
+          });
           if (!controller.signal.aborted) {
             setLoading(false);
+            setOpeningCandlesReady(true);
           }
         }
       }
@@ -4457,7 +4448,7 @@ export function SignalWorkspace({
 
     return () => controller.abort();
   // eslint-disable-next-line react-hooks/exhaustive-deps -- primarySeriesRange is a mount-time value.
-  }, [instrument, timeframe, range, replaceSeries]);
+  }, [chartPreferencesReady, instrument, timeframe, range, replaceSeries]);
 
   const loadOlderCandles = useCallback(async () => {
     const currentSeries = seriesRef.current;
@@ -4475,8 +4466,6 @@ export function SignalWorkspace({
 
     olderRequestInFlightRef.current = true;
     setLoadingOlder(true);
-    const loadStartedAt = Date.now();
-
     try {
       const firstCandle = currentSeries.candles[0]!;
       const response = await fetch(
@@ -4522,7 +4511,6 @@ export function SignalWorkspace({
       );
     } finally {
       olderRequestInFlightRef.current = false;
-      await settleChartLoad(loadStartedAt, 360);
       setLoadingOlder(false);
     }
   }, [
@@ -4798,7 +4786,7 @@ export function SignalWorkspace({
     return spreadPips <= ceiling ? "pricey" : "expensive";
   }, [instrument, spreadPips]);
 
-  function selectInstrument(next: string) {
+  function selectSearchResult(result: SearchResult) {
     setLiveCandle(null);
     setFocusTradeId(null);
     setPaperTradesHydrated(false);
@@ -4806,63 +4794,24 @@ export function SignalWorkspace({
     // Clear the prior pair's pan/zoom immediately. The data loader also bumps
     // this once fresh candles arrive, covering both the transition and result.
     setScrollToLatestRevision((revision) => revision + 1);
-    setSelectedInstrument(next);
-    router.replace(`${workspacePath}?instrument=${encodeURIComponent(next)}`, { scroll: false });
+    setSelectedInstrument(result.instrument);
+    router.replace(`${workspacePath}?instrument=${encodeURIComponent(result.instrument)}`, { scroll: false });
     setSearchQuery("");
-  }
-
-  function selectSearchResult(result: SearchResult) {
-    selectInstrument(result.instrument);
-  }
-
-  /** Put a book trade on the chart, switching pairs when it is elsewhere. */
-  function selectBookItem(item: BookItem) {
-    // A strategy trade opens its setup: the chart focuses that trade, as the
-    // Trades page link does (?trade=), switching pairs when needed.
-    if (item.source === "strategy") {
-      const href = `${workspacePath}?instrument=${encodeURIComponent(item.instrument)}&trade=${encodeURIComponent(item.id)}`;
-      if (item.instrument === instrument) setFocusTradeId(item.id);
-      router.replace(href, { scroll: false });
-      return;
-    }
-    if (item.instrument === instrument) {
-      if (reviewingPastTrade) clearFocusTrade();
-      setPickedPairTrade(item.id);
-      return;
-    }
-    setPickAfterSwitch(item.id);
-    selectInstrument(item.instrument);
-  }
-
-  /** The sheet's trailing button: Close / Cancel here, or open another pair's trade. */
-  function actOnBookItem(item: BookItem) {
-    setTradesSheetOpen(false);
-    if (item.source !== "manual") return;
-    if (item.instrument !== instrument) {
-      selectBookItem(item);
-      return;
-    }
-    // Select it first so the confirmation names and acts on this trade.
-    setPickedPairTrade(item.id);
-    setTradeConfirm(item.kind === "open" ? "close" : "cancel");
   }
 
   const sessionLabel = marketSessionCaption();
   const wideChart = chartDesktopViewport === true;
+  const fullscreenPendingOrder = !replayActive && chipEntry && (chipEntry.status === "PENDING" || chipEntry.status === "TRIGGERING")
+    ? chipEntry
+    : null;
   // The open trade's side and live R for the fullscreen pair card.
   const fullscreenPosition = (() => {
     if (!healthSignal) return null;
     const risk = healthSignal.stop === null ? 0 : healthSignal.entry - healthSignal.stop;
-    const live = Number.isFinite(priceStats.displayPrice);
-    const r = risk !== 0 && live
+    const r = risk !== 0 && Number.isFinite(priceStats.displayPrice)
       ? (priceStats.displayPrice - healthSignal.entry) / risk
       : null;
-    const side = healthSignal.direction === "long" ? 1 : -1;
-    const pips = live ? (side * (priceStats.displayPrice - healthSignal.entry)) / pipSizeFor(instrument) : null;
-    const signed = (value: number, digits: number) => `${value >= 0 ? "+" : "−"}${Math.abs(value).toFixed(digits)}`;
-    // Live move and R from the chart price, as the trade bar shows them.
-    const detail = [pips === null ? null : `${signed(pips, 1)}p`, r === null ? null : `${signed(r, 2)}R`].filter(Boolean).join(" · ");
-    return { label: healthSignal.direction === "long" ? "Long" : "Short", r, detail };
+    return { label: healthSignal.direction === "long" ? "Long" : "Short", r };
   })();
   // Once a News order is on its way to OANDA it can't be cancelled; say so instead of offering Cancel.
   const newsOrderInFlight = selectedPairTrade?.metadata?.mode === "news" && selectedPairTrade.status === "TRIGGERING";
@@ -4904,6 +4853,7 @@ export function SignalWorkspace({
         <div className="gx-native-chart-embed h-[100dvh] w-full overflow-hidden">
           <div
             ref={mobileChartShellRef}
+            aria-busy={loading}
             className={`relative h-full w-full overflow-hidden chart-data-shell${loading ? " chart-data-shell-loading" : ""}`}
           >
             <SetupChart
@@ -4932,10 +4882,9 @@ export function SignalWorkspace({
               onPositionToolChange={setPositionTool}
               onPositionToolSubmit={submitPositionTool}
             />
-            <ChartLoadingOverlay visible={chartLoadingVisible} />
             {focusTrade && focusTrade.closedAt !== null ? (
               <div className="absolute inset-x-0 top-0 z-10">
-                <TradeFocusBar trade={focusTrade} onClear={clearEmbeddedFocusTrade} onLive={liveOnPair ? clearEmbeddedFocusTrade : undefined} />
+                <TradeFocusBar trade={focusTrade} onClear={clearEmbeddedFocusTrade} />
               </div>
             ) : null}
           </div>
@@ -4983,7 +4932,7 @@ export function SignalWorkspace({
     );
   }
 
-  if (chartDesktopViewport === null || !chartPreferencesReady) {
+  if (chartDesktopViewport === null || !openingCandlesReady || chartSkeletonPreview === "route") {
     return <ChartLoadingSkeleton />;
   }
 
@@ -4995,54 +4944,85 @@ export function SignalWorkspace({
         <section className="app-card signals-chart-card min-w-0 w-full">
         {!wideChart ? <div className="signals-chart-mobile lg:hidden">
           <div className="signals-mobile-content">
-            {/* Phone header, as the canvas "Chart · Mobile" board: the pair with
-                its price, change and spread under it; theme, indicators and
-                the tools sheet (Analyze, fullscreen, range, type, replay). */}
+            {/* Phone header and quote, as the "Chart — Mobile" artboard. */}
             <div className="signals-mobile-actions nl-mhead">
-              <div className="nl-mhead-quote">
-                <div className="nl-pair nl-pair-sm">
-                  <SignalSearch
-                    compact
-                    pairLabel={activePair}
-                    signals={signals}
-                    activeInstrument={instrument}
-                    tradingInstruments={tradingInstruments}
-                    query={searchQuery}
-                    onQueryChange={setSearchQuery}
-                    onSelect={selectSearchResult}
-                    className="gx-pair-search"
-                  />
-                </div>
-                <div className="nl-mquote-main">
-                  <PriceDigits
-                    value={priceStats.displayPrice}
-                    instrument={instrument}
-                    className="nl-mquote-price metric-number"
-                  />
-                  <span className={`nl-mquote-change metric-number ${priceStats.positive ? "is-up" : "is-down"}`} title="Change since the last daily close">
-                    {priceStats.changePercentLabel}
-                  </span>
-                  <span
-                    className={`nl-mquote-spread metric-number nl-spread is-${spreadTier}`}
-                    title={quote?.instrument === instrument ? `Sell ${formatChartPrice(quote.bid, instrument)} · Buy ${formatChartPrice(quote.ask, instrument)}` : undefined}
-                    aria-label={spreadPips !== null && Number.isFinite(spreadPips) ? `Spread ${spreadPips.toFixed(1)} pips` : "Spread unavailable"}
-                  >
-                    Spr {spreadPips !== null && Number.isFinite(spreadPips) ? spreadPips.toFixed(1) : "—"}
-                  </span>
-                </div>
+              <div className="nl-pair nl-pair-sm">
+                <SignalSearch
+                  compact
+                  showPairAvatar
+                  pairLabel={activePair}
+                  signals={signals}
+                  activeInstrument={instrument}
+                  tradingInstruments={tradingInstruments}
+                  query={searchQuery}
+                  onQueryChange={setSearchQuery}
+                  onSelect={selectSearchResult}
+                  className="gx-pair-search"
+                />
               </div>
               <div className="signals-mobile-header-actions nl-mhead-actions">
+                {showAnalyze ? <button type="button" className="nl-analyze nl-analyze-sm pressable" onClick={() => void runTrendPullback()} disabled={chartAnalysisBusy || replayActive} title={`${analyzeLabel.long} for ${activePair}`}>
+                  {chartAnalysisBusy ? "Analyzing…" : analyzeLabel.short}
+                </button> : null}
                 <button
                   type="button"
-                  className="nl-cicon-btn pressable"
-                  onClick={() => setTechnicalsOpen(true)}
-                  aria-label={`Technicals for ${activePair}`}
-                  aria-expanded={technicalsOpen}
-                  aria-haspopup="dialog"
+                  className="nl-mnew-entry pressable"
+                  disabled={replayActive || !mobileTradeActionReady || hasActivePosition}
+                  title={replayActive ? "Exit chart replay before creating an entry" : !mobileTradeActionReady ? "Checking existing trades…" : hasActivePosition ? "Close the open trade before starting another" : "New trade"}
+                  aria-label="New trade"
+                  onClick={() => {
+                    setEntryDraftProposal(null);
+                    openPendingEntryManager(null);
+                  }}
                 >
-                  <ScanSearch aria-hidden="true" />
+                  <Plus aria-hidden="true" />
                 </button>
+                <NotificationBell compact className="signals-icon-btn signals-fullscreen-reserve nl-mbell" />
+              </div>
+            </div>
+
+            {/* One line: price, daily change, trend, then the spread pips. */}
+            <div className="gx-mobile-quote-row nl-mquote nl-mquote-line">
+              <div className="nl-mquote-main">
+                <PriceDigits
+                  value={priceStats.displayPrice}
+                  instrument={instrument}
+                  className="nl-mquote-price metric-number"
+                />
+                <span className="nl-mquote-meta">
+                  <span className={`metric-number ${priceStats.positive ? "is-up" : "is-down"}`} title="Change since the last daily close">
+                    {priceStats.changePercentLabel}
+                  </span>
+                </span>
+              </div>
+              <TrendLabel instrument={instrument} className="nl-mquote-trend" plainLanguage />
+              {/* Phones show only the spread; sell / buy are in the trade ticket. */}
+              <span
+                className={`nl-mquote-spread metric-number nl-spread is-${spreadTier}`}
+                title={quote?.instrument === instrument ? `Sell ${formatChartPrice(quote.bid, instrument)} · Buy ${formatChartPrice(quote.ask, instrument)}` : undefined}
+                aria-label={spreadPips !== null && Number.isFinite(spreadPips) ? `Spread ${spreadPips.toFixed(1)} pips` : "Spread unavailable"}
+              >
+                {spreadPips !== null && Number.isFinite(spreadPips) ? `${spreadPips.toFixed(1)}p` : "—"}
+              </span>
+            </div>
+            {/* Timeframes and everyday tools stay visible; More opens a sheet. */}
+            <div className="gx-mobile-chart-controls">
+              <div className="gx-mobile-timeframes">
+                <SegmentControl
+                  ariaLabel="Chart timeframe"
+                  options={MOBILE_CHART_TIMEFRAMES}
+                  labels={CHART_TIMEFRAME_LABELS}
+                  value={timeframe}
+                  onChange={selectTimeframe}
+                />
+              </div>
+              <div className="gx-mobile-chart-toolbar gx-mobile-chart-quick">
                 <IndicatorSheet enabled={enabledIndicators} onChange={setEnabledIndicators} />
+                <FullscreenToggle
+                  className="gx-mobile-tool-button"
+                  fullscreen={fullscreen}
+                  onToggle={() => setFullscreen((open) => !open)}
+                />
                 <button
                   type="button"
                   className={`gx-mobile-tool-button pressable${mobileToolsOpen || replayActive ? " is-open" : ""}`}
@@ -5054,22 +5034,10 @@ export function SignalWorkspace({
                   aria-haspopup="dialog"
                   aria-label="More chart tools"
                 >
-                  <Ellipsis className="size-4" strokeWidth={2} />
+                  <Ellipsis className="size-3.5" strokeWidth={2} />
                 </button>
               </div>
             </div>
-
-            <div className="gx-mobile-timeframes nl-mtimeframes">
-              <SegmentControl
-                variant="tabs"
-                ariaLabel="Chart timeframe"
-                options={PHONE_CHART_TIMEFRAMES}
-                labels={CHART_TIMEFRAME_LABELS}
-                value={timeframe}
-                onChange={selectTimeframe}
-              />
-            </div>
-            <ChartMobileOhlc candles={replaySeries.candles} instrument={instrument} />
             <ChartToolsSheet
               open={mobileToolsOpen}
               onClose={() => setMobileToolsOpen(false)}
@@ -5081,33 +5049,6 @@ export function SignalWorkspace({
               onReplay={replayActive ? exitReplay : beginReplay}
               refreshing={refreshingChart}
               onRefresh={() => void refreshChart()}
-              onFullscreen={() => setFullscreen(true)}
-              analyze={showAnalyze ? {
-                label: `${analyzeLabel.long} for ${activePair}`,
-                busy: chartAnalysisBusy,
-                disabled: chartAnalysisBusy || replayActive,
-                onRun: () => void runTrendPullback(),
-              } : null}
-            />
-            <MobileSheet
-              open={technicalsOpen}
-              onClose={() => setTechnicalsOpen(false)}
-              title={`Technicals · ${activePair}`}
-              eyebrow="Chart"
-              lockPageScroll={false}
-              className="nl-tech-sheet"
-            >
-              {technicalsOpen ? <ChartTechnicals key={instrument} instrument={instrument} className="is-sheet" /> : null}
-            </MobileSheet>
-            <ChartTradesSheet
-              open={tradesSheetOpen}
-              onClose={() => setTradesSheetOpen(false)}
-              items={bookItems}
-              instrument={instrument}
-              selectedId={selectedBookId}
-              mark={bookMark}
-              onSelect={selectBookItem}
-              onAct={actOnBookItem}
             />
             {dataNotice ? (
               <MarketDataNotice message={dataNotice} demo={series.source === "mock"} />
@@ -5125,6 +5066,7 @@ export function SignalWorkspace({
 
           <div
             ref={mobileChartShellRef}
+            aria-busy={loading}
             className={`relative overflow-hidden chart-data-shell${loading ? " chart-data-shell-loading" : ""}`}
           >
             <div className="signals-fs-overlay" aria-hidden={!fullscreen}>
@@ -5160,7 +5102,7 @@ export function SignalWorkspace({
               focusPrediction={replayActive ? null : focusedPrediction}
               focusRange={replayActive ? null : focusRange}
               referenceLine={replayActive ? null : predictionReferenceLine}
-              referenceLines={mobileReferenceLines}
+              referenceLines={chartReferenceLines}
               patternLines={chartPatternLines}
               boxes={chartBoxes}
               positionTool={replayActive ? null : positionTool}
@@ -5171,10 +5113,29 @@ export function SignalWorkspace({
             />
             {focusTrade && focusTrade.closedAt !== null && !fullscreen ? (
               <div className="trade-focus-overlay">
-                <TradeFocusBar trade={focusTrade} onClear={clearFocusTrade} onLive={liveOnPair ? clearFocusTrade : undefined} />
+                <TradeFocusBar trade={focusTrade} onClear={clearFocusTrade} />
               </div>
             ) : null}
-            <ChartLoadingOverlay visible={chartLoadingVisible} />
+            {/* The trade on the chart as a pill; its controls open in a sheet. */}
+            {chipDirection ? (
+              <button
+                type="button"
+                className="nl-mtrade-chip pressable"
+                onClick={() => {
+                  if (settingUpNewTrade) setPickedPairTrade(null);
+                  setTradeSheetOpen(true);
+                }}
+                disabled={replayActive || Boolean(levelEdit) || !mobileTradeActionReady}
+                aria-haspopup="dialog"
+                aria-expanded={tradeSheetOpen}
+                aria-label={`Trade controls for ${activePair}`}
+              >
+                <span className={chipDirection === "long" ? "is-long" : "is-short"}>{chipDirection === "long" ? "Long" : "Short"}</span>
+                <span>{chipStatus}</span>
+                {pairTrades.length > 1 ? <span className="nl-mtrade-chip-count">{pairTrades.length} trades</span> : null}
+                <ChevronDown aria-hidden="true" />
+              </button>
+            ) : null}
           </div>
 
           {replayActive ? (
@@ -5195,70 +5156,94 @@ export function SignalWorkspace({
               <ChartLevelEditor levels={healthLevels} signal={levelSignal} />
             </div>
           ) : mobileTradeActionReady ? (
-            <div className="gx-mobile-analyze-section nl-mtrade" ref={reserveMobileTradeStrip}>
-              <ChartMobileTradePager
-                pairItems={bookItems.filter((item) => item.instrument === instrument)}
-                selectedId={selectedBookId}
-                total={bookItems.length}
-                onStep={selectBookItem}
-                onOpenAll={() => setTradesSheetOpen(true)}
-              />
-              <ChartMobilePosition
-                signal={healthSignal}
-                mark={quote?.instrument === instrument ? quote.mid : null}
-                instrument={instrument}
-              />
-              <div className="nl-mactions" role="group" aria-label="Trade controls">
-                {healthLevels && !reviewingPastTrade ? (
-                  <button type="button" className="nl-mact pressable" onClick={healthLevels.onStart} aria-label="Adjust stop loss and take profit">
-                    Edit SL/TP
-                  </button>
-                ) : showAnalyze ? (
-                  <button type="button" className="nl-mact pressable" onClick={() => void runTrendPullback()} disabled={chartAnalysisBusy} title={`${analyzeLabel.long} for ${activePair}`}>
-                    {chartAnalysisBusy ? "Analyzing…" : analyzeLabel.short}
-                  </button>
-                ) : null}
-                {!reviewingPastTrade && (newsOrderInFlight || manualTradeMode === "close" || manualTradeMode === "cancel") ? (
-                  <button
-                    key={manualTradeMode}
-                    type="button"
-                    className={`nl-mact pressable${mobileTradeAction.className}`}
-                    onClick={mobileTradeAction.onClick}
-                    disabled={mobileTradeAction.disabled}
-                    title={mobileTradeAction.title}
-                    aria-label={mobileTradeAction.label}
-                  >
-                    {manualTradeMode === "close" && !tradeActionBusy ? "Close" : manualTradeMode === "cancel" && !tradeActionBusy ? "Cancel" : mobileTradeAction.label}
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  className="nl-mact is-primary pressable"
-                  title="Open trade ticket"
-                  onClick={() => {
-                    setEntryDraftProposal(null);
-                    openPendingEntryManager(null);
-                  }}
-                >
-                  <Plus aria-hidden="true" />
-                  New entry
-                </button>
-              </div>
+            // No bar under the chart: the chart runs to the tab bar, New trade
+            // is the + in the header and a trade's controls are in this sheet.
+            // Only an error keeps a strip here.
+            <>
               {(tradeActionError || trendPullbackError) ? (
-                <p className="gx-mobile-analyze-error" role="alert">{tradeActionError ?? trendPullbackError}</p>
+                <div className="gx-mobile-analyze-section">
+                  <p className="gx-mobile-analyze-error" role="alert">{tradeActionError ?? trendPullbackError}</p>
+                </div>
               ) : null}
-            </div>
-          ) : (
-            <div className="gx-mobile-analyze-section" role="status" aria-label="Checking trade status">
-              <div className="gx-mobile-trade-action-skeleton" aria-hidden="true" />
-            </div>
-          )}
+              <MobileSheet
+                open={tradeSheetOpen}
+                onClose={() => setTradeSheetOpen(false)}
+                title={`Trade details · ${activePair}`}
+                eyebrow="Chart"
+                lockPageScroll={false}
+                className="nl-mtrade-sheet"
+              >
+                {pairTrades.length ? (
+                  <ul className="nl-pt-list" aria-label="Trades on this pair">
+                    {pairTrades.map((entry, index) => {
+                      const filled = entry.status === "TRIGGERED";
+                      const isSelected = entry.id === selectedPairTrade?.id;
+                      const at = (value: number | null) => (value === null ? "—" : formatChartPrice(value, instrument));
+                      return (
+                        <li key={entry.id}>
+                          <button type="button" className={`nl-pt-row pressable${isSelected ? " is-selected" : ""}`} onClick={() => setPickedPairTrade(entry.id)} aria-pressed={isSelected}>
+                            <span className={`nl-pt-side ${entry.direction === "long" ? "is-long" : "is-short"}`} aria-hidden="true" />
+                            <span className="nl-pt-main">
+                              <span className="nl-pt-name">
+                                Trade {index + 1} · {entry.direction === "long" ? "Long" : "Short"}
+                                <span className={`nl-pt-status ${filled ? "is-open" : "is-pending"}`}>{filled ? "Open" : "Pending"}</span>
+                              </span>
+                              <span className="nl-pt-levels metric-number">
+                                <span>Entry {at(filled ? entry.triggerPrice : entry.entryPrice)}</span>
+                                <span className="is-down">SL {at(entry.stopPrice)}</span>
+                                <span className="is-up">TP {at(entry.targetPrice)}</span>
+                              </span>
+                            </span>
+                            {isSelected ? <Check className="nl-pt-check" aria-label="Shown on the chart" /> : null}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : null}
+                <div className="nl-mtrade-sheet-actions" role="group" aria-label="Trade controls">
+                  {healthLevels ? (
+                    <button
+                      type="button"
+                      className="nl-mlevels-start pressable"
+                      onClick={() => {
+                        setTradeSheetOpen(false);
+                        healthLevels.onStart();
+                      }}
+                      aria-label="Adjust stop loss and take profit"
+                    >
+                      <MoveVertical aria-hidden="true" />
+                      Edit levels
+                    </button>
+                  ) : null}
+                  {manualTradeMode !== "analyze" || newsOrderInFlight ? (
+                    <button
+                      key={manualTradeMode}
+                      type="button"
+                      className={`gx-mobile-analyze pressable${mobileTradeAction.className}`}
+                      onClick={() => {
+                        setTradeSheetOpen(false);
+                        mobileTradeAction.onClick();
+                      }}
+                      disabled={mobileTradeAction.disabled}
+                      title={mobileTradeAction.title}
+                      aria-label={mobileTradeAction.label}
+                    >
+                      {mobileTradeAction.label}
+                    </button>
+                  ) : null}
+                </div>
+              </MobileSheet>
+            </>
+          ) : null}
         </div> : <div className="hidden lg:flex signals-chart-desktop gx-chart-terminal nl-terminal">
           <header className="nl-chart-head">
             <div className="nl-chart-head-main">
               <div className="nl-pair">
+                <PairAvatar key={instrument} instrument={instrument} size={36} horizontal />
                 <SignalSearch
                   compact
+                  inlineSearch
                   pairLabel={activePair}
                   signals={signals}
                   activeInstrument={instrument}
@@ -5269,8 +5254,8 @@ export function SignalWorkspace({
                   className="gx-pair-search"
                 />
               </div>
-              {/* Price and its move since the daily close; bid, ask, spread,
-                  range and ATR follow as a row of facts. */}
+              {/* One quiet line, as the phone: price, change, trend, spread.
+                  Sell / buy live in the spread's tooltip and the trade ticket. */}
               <div className="nl-chart-quote">
                 <PriceDigits
                   value={priceStats.displayPrice}
@@ -5278,24 +5263,30 @@ export function SignalWorkspace({
                   className="nl-chart-price metric-number"
                 />
                 <span className={`nl-chart-change metric-number ${priceStats.positive ? "is-up" : "is-down"}`} title="Change since the last daily close">
-                  {priceStats.change !== 0 ? `${priceStats.change > 0 ? "+" : "−"}${formatChartPrice(Math.abs(priceStats.change), instrument)} · ` : ""}
                   {priceStats.changePercentLabel}
                 </span>
+                <TrendLabel instrument={instrument} className="nl-chart-trend" plainLanguage />
+                <span
+                  className={`nl-chart-spread metric-number nl-spread is-${spreadTier}`}
+                  title={quote?.instrument === instrument ? `Sell ${formatChartPrice(quote.bid, instrument)} · Buy ${formatChartPrice(quote.ask, instrument)}` : undefined}
+                  aria-label={spreadPips !== null && Number.isFinite(spreadPips) ? `Spread ${spreadPips.toFixed(1)} pips` : "Spread unavailable"}
+                >
+                  <small>Spread</small>
+                  {spreadPips !== null && Number.isFinite(spreadPips) ? `${spreadPips.toFixed(1)}p` : "—"}
+                </span>
               </div>
-              <ChartHeadFacts instrument={instrument} quote={quote} candles={series.candles} timeframe={timeframe} spreadPips={spreadPips} spreadTier={spreadTier} />
             </div>
             <div className="nl-chart-head-actions">
-              <ChartSessionPill />
-              {!replayActive && !reviewingPastTrade && manualTradeMode === "close" ? (
+              {!replayActive && manualTradeMode === "close" ? (
                 <button type="button" className="signals-analyze-desktop pressable is-close nl-trade-action" onClick={() => setTradeConfirm("close")} disabled={tradeActionBusy}>
                   <CircleStop aria-hidden="true" />
                   {tradeActionBusy ? "Closing…" : "Close trade"}
                 </button>
-              ) : !replayActive && !reviewingPastTrade && newsOrderInFlight ? (
+              ) : !replayActive && newsOrderInFlight ? (
                 <button type="button" className="signals-analyze-desktop is-cancel nl-trade-action" disabled title="The order is being confirmed with OANDA and can't be cancelled">
                   Sending to OANDA…
                 </button>
-              ) : !replayActive && !reviewingPastTrade && manualTradeMode === "cancel" && !pendingLevelSignal ? (
+              ) : !replayActive && manualTradeMode === "cancel" && !pendingLevelSignal ? (
                 <button type="button" className="signals-analyze-desktop pressable is-cancel nl-trade-action" onClick={() => setTradeConfirm("cancel")} disabled={tradeActionBusy}>
                   <X aria-hidden="true" />
                   {tradeActionBusy ? "Cancelling…" : "Cancel order"}
@@ -5303,19 +5294,6 @@ export function SignalWorkspace({
               ) : null}
               {showAnalyze ? <button type="button" className="nl-analyze pressable" onClick={() => void runTrendPullback()} disabled={replayActive || chartAnalysisBusy} title={`Analyze market for ${activePair}`}>{chartAnalysisBusy ? "Analyzing…" : "Analyze"}</button> : null}
               <NotificationBell className="nl-chart-bell" />
-              <button
-                type="button"
-                className="nl-cnew-entry pressable"
-                disabled={replayActive || !mobileTradeActionReady}
-                title={replayActive ? "Exit chart replay before creating an entry" : !mobileTradeActionReady ? "Checking existing trades…" : "Open trade ticket"}
-                onClick={() => {
-                  setEntryDraftProposal(null);
-                  openPendingEntryManager(null);
-                }}
-              >
-                <Plus aria-hidden="true" />
-                New entry
-              </button>
             </div>
             {(tradeActionError || trendPullbackError) ? (
               <span className="signals-analyze-error nl-chart-error" role="alert">{tradeActionError ?? trendPullbackError}</span>
@@ -5324,49 +5302,42 @@ export function SignalWorkspace({
 
           <div className="nl-chart-body">
             <div className="nl-chart-main">
+              <div className="gx-chart-stage nl-chart-card">
+              {/* One toolbar on the chart card itself: timeframe, range, type and
+                  indicators on the left; replay, reset and fullscreen on the right. */}
               <div className="nl-chart-toolbar" role="toolbar" aria-label="Chart controls">
                 <SegmentControl
                   variant="tabs"
                   ariaLabel="Chart timeframe"
-                  options={CHART_TIMEFRAMES}
+                  options={MOBILE_CHART_TIMEFRAMES}
                   labels={CHART_TIMEFRAME_LABELS}
                   value={timeframe}
                   onChange={selectTimeframe}
                 />
-                <span className="nl-toolbar-rule" aria-hidden="true" />
+                <RangeSelect value={range} onChange={selectRange} />
                 <ChartTypeSelect toolbar value={chartVariant} onChange={setChartVariant} />
-                <IndicatorSelect toolbar enabled={enabledIndicators} onChange={setEnabledIndicators} />
-                <button
-                  type="button"
-                  className={`gx-toolbar-btn pressable${replayActive ? " is-active nl-replay-toggle" : ""}`}
-                  onClick={replayActive ? exitReplay : beginReplay}
-                  aria-pressed={replayActive}
-                  aria-label="Replay"
-                  title={replayActive ? "Leave replay and return to live" : "Replay candles one hour at a time"}
-                >
-                  <Clock3 className="size-[14px]" strokeWidth={1.8} aria-hidden="true" />
-                  <span className="nl-tb-label">Replay</span>
-                </button>
-                <button
-                  type="button"
-                  className={`gx-toolbar-btn pressable${technicalsOpen ? " is-active nl-tech-toggle" : ""}`}
-                  onClick={() => setTechnicalsOpen((open) => !open)}
-                  aria-pressed={technicalsOpen}
-                  aria-label="Technicals"
-                  title={technicalsOpen ? "Close technicals" : `Indicator votes and 1–5 day outlook for ${activePair}`}
-                >
-                  <ScanSearch className="size-[14px]" strokeWidth={1.8} aria-hidden="true" />
-                  <span className="nl-tb-label">Technicals</span>
-                </button>
                 <span className="nl-toolbar-rule" aria-hidden="true" />
-                <SegmentControl
-                  variant="tabs"
-                  ariaLabel="Chart history range"
-                  options={CHART_RANGES}
-                  value={range}
-                  onChange={selectRange}
-                />
+                <IndicatorSelect toolbar enabled={enabledIndicators} onChange={setEnabledIndicators} />
+                {replayActive ? null : (
+                  <PairTradePicker trades={pairTrades} selectedId={settingUpNewTrade ? NEW_PAIR_TRADE : selectedPairTrade?.id ?? null} instrument={instrument} onSelect={setPickedPairTrade} now={pendingEntryClock} />
+                )}
                 <div className="nl-toolbar-end">
+                  {replayActive ? (
+                    <>
+                      <span className="nl-replay-tag" role="status">
+                        Replay · {formatDayAndTime(replayEndTime!)}
+                      </span>
+                      <button type="button" className="gx-toolbar-btn pressable" onClick={() => stepReplay(-60)} title="Move replay back one hour">← 1h</button>
+                      <button type="button" className="gx-toolbar-btn pressable" onClick={() => stepReplay(-15)} title="Move replay back 15 minutes">← 15m</button>
+                      <button type="button" className="gx-toolbar-btn pressable" onClick={() => stepReplay(15)} disabled={replayAtLatest} title="Move replay forward 15 minutes">15m →</button>
+                      <button type="button" className="gx-toolbar-btn pressable" onClick={() => stepReplay(60)} disabled={replayAtLatest} title="Move replay forward one hour">1h →</button>
+                      <button type="button" className="gx-toolbar-btn pressable" onClick={exitReplay}>Exit replay</button>
+                    </>
+                  ) : (
+                    <button type="button" className="gx-toolbar-icon-btn pressable" onClick={beginReplay} title="Replay candles one hour at a time" aria-label="Replay candles">
+                      <Clock3 className="size-[18px]" strokeWidth={1.8} />
+                    </button>
+                  )}
                   <ResetViewButton
                     className="gx-toolbar-icon-btn"
                     onReset={() =>
@@ -5381,26 +5352,12 @@ export function SignalWorkspace({
                 </div>
               </div>
 
-              <div className="gx-chart-stage nl-chart-card">
-                {replayActive ? (
-                  <div className="nl-replay-bar" role="toolbar" aria-label="Replay controls">
-                    <span className="nl-replay-bar-tag"><span className="nl-replay-dot" aria-hidden="true" />Replay</span>
-                    <span className="nl-replay-bar-time metric-number" role="status">{formatDayAndTime(replayEndTime!)}</span>
-                    <span className="nl-replay-bar-rule" aria-hidden="true" />
-                    <button type="button" className="nl-replay-step pressable" onClick={() => stepReplay(-60)} title="Back one hour" aria-label="Back one hour"><ChevronsLeft aria-hidden="true" /><span className="metric-number">1h</span></button>
-                    <button type="button" className="nl-replay-step pressable" onClick={() => stepReplay(-15)} title="Back 15 minutes" aria-label="Back 15 minutes"><ChevronLeft aria-hidden="true" /><span className="metric-number">15m</span></button>
-                    <button type="button" className="nl-replay-step pressable" onClick={() => stepReplay(15)} disabled={replayAtLatest} title="Forward 15 minutes" aria-label="Forward 15 minutes"><span className="metric-number">15m</span><ChevronRight aria-hidden="true" /></button>
-                    <button type="button" className="nl-replay-step pressable" onClick={() => stepReplay(60)} disabled={replayAtLatest} title="Forward one hour" aria-label="Forward one hour"><span className="metric-number">1h</span><ChevronsRight aria-hidden="true" /></button>
-                    <span className="nl-replay-bar-rule" aria-hidden="true" />
-                    <button type="button" className="nl-replay-exit pressable" onClick={exitReplay}>Back to live</button>
-                  </div>
-                ) : null}
                 {dataNotice ? (
                   <MarketDataNotice message={dataNotice} demo={series.source === "mock"} className="signals-chart-notice" />
                 ) : null}
 
                 {focusTrade && focusTrade.closedAt !== null && !fullscreen ? (
-                  <TradeFocusBar trade={focusTrade} onClear={clearFocusTrade} onLive={liveOnPair ? clearFocusTrade : undefined} />
+                  <TradeFocusBar trade={focusTrade} onClear={clearFocusTrade} />
                 ) : null}
                 {focusedPrediction ? (
                   <PredictionFocusBar
@@ -5413,8 +5370,16 @@ export function SignalWorkspace({
 
                 <div
                   ref={desktopChartShellRef}
+                  aria-busy={loading}
                   className={`signals-chart-canvas chart-data-shell${loading ? " chart-data-shell-loading" : ""}`}
                 >
+                  <ChartOhlcReadout
+                    instrument={instrument}
+                    timeframe={CHART_TIMEFRAME_LABELS[timeframe]}
+                    candle={replayActive ? replaySeries.candles.at(-1) : liveCandle ?? replaySeries.candles.at(-1)}
+                    indicators={CHART_INDICATORS.filter((option) => option.group === "overlay" && enabledIndicators.includes(option.value))}
+                    onRemoveIndicator={(value) => setEnabledIndicators((current) => current.filter((indicator) => indicator !== value))}
+                  />
                   <SetupChart
                     absorptionAlertsEnabled={!replayActive}
                     key={`desktop-chart:${instrument}:${timeframe}:${range}`}
@@ -5437,7 +5402,7 @@ export function SignalWorkspace({
                     focusPrediction={replayActive ? null : focusedPrediction}
                     focusRange={replayActive ? null : focusRange}
                     referenceLine={replayActive ? null : predictionReferenceLine}
-                    referenceLines={desktopReferenceLines}
+                    referenceLines={chartReferenceLines}
                     patternLines={chartPatternLines}
                     boxes={chartBoxes}
                     positionTool={replayActive ? null : positionTool}
@@ -5446,15 +5411,12 @@ export function SignalWorkspace({
                     levelEdit={replayActive ? null : levelEdit}
                     onLevelEditChange={onLevelEditChange}
                   />
-                  <ChartLoadingOverlay visible={chartLoadingVisible} />
-                  <ChartLegend candles={replaySeries.candles} instrument={instrument} indicators={enabledIndicators} />
                 </div>
+                <ChartStatusLine candleCount={replaySeries.candles.length} demo={series.source === "mock"} replay={replayActive} />
               </div>
             </div>
 
             <div className="nl-chart-side">
-              {technicalsOpen ? <ChartTechnicals key={instrument} instrument={instrument} onClose={() => setTechnicalsOpen(false)} /> : <>
-              <ChartTradeBook items={bookItems} instrument={instrument} selectedId={selectedBookId} mark={bookMark} onSelect={selectBookItem} />
               {planAnalyze.status !== "new" || planAnalyze.open ? <PlanAnalyzeCard
                 state={planAnalyze}
                 instrument={instrument}
@@ -5470,36 +5432,33 @@ export function SignalWorkspace({
                   signal={pendingLevelSignal}
                   orderLabel={levelTrade.entryOrderType.replace("_", " ")}
                   levels={healthLevels}
+                  currentPrice={quote?.instrument === instrument ? quote.mid : null}
                   cancelAction={!replayActive && !newsOrderInFlight && manualTradeMode === "cancel" ? (
-                    <button type="button" className="nl-clevels-start is-cancel pressable" onClick={() => setTradeConfirm("cancel")} disabled={tradeActionBusy}>
-                      <X aria-hidden="true" />
-                      {tradeActionBusy ? "Cancelling…" : "Cancel order"}
+                    <button type="button" className="nl-clevels-start is-cancel pressable" onClick={() => setTradeConfirm("cancel")} disabled={tradeActionBusy} aria-label="Cancel order">
+                      {tradeActionBusy ? "Cancelling…" : "Cancel"}
                     </button>
                   ) : null}
                 />
               ) : null}
-              {healthSignal ? <ChartHealthCard
+              <ChartHealthCard
                 signal={healthSignal}
                 currentPrice={quote?.mid ?? null}
                 pairLabel={activePair}
                 levels={healthLevels}
                 tradeAction={<button type="button" className="nl-cside-trade pressable"
-                  disabled={replayActive || !mobileTradeActionReady}
+                  disabled={replayActive || !mobileTradeActionReady || hasActivePosition}
                   title={replayActive ? "Exit chart replay before creating an entry" : !mobileTradeActionReady ? "Checking existing trades…" : "Open trade ticket"}
                   onClick={() => {
                     setEntryDraftProposal(null);
                     openPendingEntryManager(null);
-                  }}>Trade</button>}
-              /> : null}
+                  }}><Plus aria-hidden="true" />New trade</button>}
+              />
               <ChartNewsCard
                 instrument={instrument}
                 position={healthSignal ? { instrument, direction: healthSignal.direction, openedAt: healthSignal.openedAt ?? undefined } : null}
               />
-              <ChartWatchlistCard instrument={instrument} />
-              </>}
             </div>
           </div>
-          <ChartStatusBar source={series.source} candleCount={series.candles.length} timeframe={timeframe} openCount={tradeBook.filter((item) => item.kind === "open").length} pendingCount={tradeBook.filter((item) => item.kind === "pending").length} />
         </div>}
         </section>
       </div>
@@ -5566,7 +5525,7 @@ export function SignalWorkspace({
               <button type="button" className="gx-fs-action pressable" onClick={() => {
                 setEntryDraftProposal(null);
                 openPendingEntryManager(null);
-              }} disabled={replayActive || !mobileTradeActionReady} title="Create a new entry" aria-label="New entry">
+              }} disabled={replayActive || !mobileTradeActionReady || hasActivePosition} title={hasActivePosition ? "Close this pair’s active position before creating another entry" : "Create a new entry"} aria-label="New entry">
                 <Plus aria-hidden="true" />
                 <span className="gx-fs-label">New entry</span>
               </button>
@@ -5577,6 +5536,10 @@ export function SignalWorkspace({
           changeLabel={priceStats.changeLabel}
           positive={priceStats.positive}
           position={fullscreenPosition}
+          pendingOrder={fullscreenPendingOrder ? {
+            direction: fullscreenPendingOrder.direction,
+            onSelect: () => openPendingEntryManager(fullscreenPendingOrder),
+          } : null}
           timeframe={timeframe}
           onTimeframe={selectTimeframe}
           lockHud={levelEdit !== null || positionTool !== null}
@@ -5591,19 +5554,19 @@ export function SignalWorkspace({
             </>
           }
           closeAction={
-            !replayActive && !reviewingPastTrade && manualTradeMode === "close" ? (
+            !replayActive && manualTradeMode === "close" ? (
               <button type="button" className="gx-fs-close pressable" onClick={() => setTradeConfirm("close")} disabled={tradeActionBusy}>
                 {tradeActionBusy ? "Closing…" : "Close trade"}
               </button>
-            ) : !replayActive && !reviewingPastTrade && newsOrderInFlight ? (
+            ) : !replayActive && newsOrderInFlight ? (
               <button type="button" className="gx-fs-close" disabled>Sending to OANDA…</button>
-            ) : !replayActive && !reviewingPastTrade && manualTradeMode === "cancel" ? (
+            ) : !replayActive && manualTradeMode === "cancel" ? (
               <button type="button" className="gx-fs-close pressable" onClick={() => setTradeConfirm("cancel")} disabled={tradeActionBusy}>
                 {tradeActionBusy ? "Cancelling…" : "Cancel order"}
               </button>
             ) : null
           }
-          chart={(height) => (
+          chart={(height, showHud) => (
             <SetupChart
               absorptionAlertsEnabled={!replayActive}
               key={`fullscreen-chart:${instrument}:${timeframe}:${range}`}
@@ -5626,7 +5589,9 @@ export function SignalWorkspace({
               focusPrediction={replayActive ? null : focusedPrediction}
               focusRange={replayActive ? null : focusRange}
               referenceLine={replayActive ? null : predictionReferenceLine}
-              referenceLines={desktopReferenceLines}
+              referenceLines={!showHud && fullscreenPendingOrder
+                ? fullscreenBareReferenceLines
+                : chartReferenceLines}
               patternLines={chartPatternLines}
               boxes={chartBoxes}
               positionTool={replayActive ? null : positionTool}

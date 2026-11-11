@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { createPairTrendsRunner, PAIR_TRENDS_REFRESH_MS } from "../src/pair-trends-runner.js";
+import { createPairTrendsRunner } from "../src/pair-trends-runner.js";
+import { pairTrendSnapshotIsCurrent } from "../../frontend/src/lib/home/pair-trend-clock.js";
 import type { PairTrendsSnapshot } from "../../frontend/src/lib/home/weekly-trends.js";
 
 let now = Date.parse("2026-10-23T04:00:00Z"), scans = 0, saves = 0, locks = 0, unlocks = 0;
@@ -32,7 +33,10 @@ assert.equal(scans, 1, "fresh snapshots skip expensive scans");
 const restarted = createPairTrendsRunner(dependencies);
 assert.equal((await restarted.read()).checkedAt, saved!.checkedAt, "a server restart restores durable results");
 assert.equal(scans, 1);
-now += PAIR_TRENDS_REFRESH_MS;
+now = Date.parse("2026-10-23T05:01:59.999Z");
+await runner.refresh();
+assert.equal(scans, 1, "the new 4H candle gets time to publish");
+now++;
 scanFails = true;
 await runner.refresh();
 assert.equal(runner.health().failed, true);
@@ -62,4 +66,8 @@ await recovered;
 assert.equal(runner.health().failed, false);
 assert.equal(saves, 2);
 assert.equal(unlocks, locks - 1, "locks are released on success and failure; a skipped lock needs no release");
+assert.equal(pairTrendSnapshotIsCurrent("2026-10-30T21:03:00Z", Date.parse("2026-11-02T02:01:59Z")), true,
+  "Friday's completed candle is current through the closed weekend and the Sunday reopening bar");
+assert.equal(pairTrendSnapshotIsCurrent("2026-10-30T21:03:00Z", Date.parse("2026-11-02T02:02:00Z")), false,
+  "the first completed candle after the fall DST change uses the new New York offset");
 console.log("Background trends passed: request independence, startup/tick refresh, persistence, restart recovery, single-flight, replica locking and outage retention.");

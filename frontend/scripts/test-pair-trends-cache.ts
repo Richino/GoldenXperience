@@ -51,6 +51,14 @@ async function main() {
   const before = reads;
   await blocked.load(); await blocked.load();
   assert.equal(reads, before + 1, "blocked storage still permits in-memory reuse");
+
+  now = Date.parse("2026-10-21T12:59:00Z");
+  const acrossClose = createPairTrendsCache(read, { now: () => now });
+  await acrossClose.load();
+  const beforeClose = reads;
+  now = Date.parse("2026-10-21T13:02:00Z");
+  await acrossClose.load();
+  assert.equal(reads, beforeClose + 1, "a completed bar expires a cached snapshot before its request TTL");
   console.log("Pair trends cache passed: deduplication, navigation/reload reuse, TTL, invalid records, recovery and blocked storage.");
 }
 void main();

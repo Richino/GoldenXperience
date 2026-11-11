@@ -33,7 +33,7 @@ const phoneSoundOptions = notificationSounds.map((sound) => ({
   detail: "Saved for alert playback",
 }));
 
-type PhonePicker = "theme" | "text" | "sound" | null;
+type PhonePicker = "text" | "sound" | null;
 
 /** Section index on desktop, in page order. */
 const SECTIONS = [
@@ -443,13 +443,21 @@ export function SettingsPanel({
 
           <section className="nl-st-mcard nl-st-phone" aria-labelledby="nl-st-mapp-title">
             <h2 id="nl-st-mapp-title" className="nl-st-mcard-title">Appearance</h2>
-            <button type="button" className="nl-st-mrow pressable" onClick={() => setPhonePicker("theme")}>
-              <span>Theme</span>
-              <span className="nl-st-mrow-end">
-                {themeValue === "light" ? "Light" : "Dark"}
-                <ChevronRight aria-hidden="true" />
-              </span>
-            </button>
+            {/* Dark mode as a switch, the same control as "Allow new entries". */}
+            <div className="nl-st-mrow is-static">
+              <span id="nl-st-mdark-label">Dark mode</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={themeValue === "dark"}
+                aria-labelledby="nl-st-mdark-label"
+                className={`nl-st-switch${themeValue === "dark" ? " is-on" : ""}`}
+                disabled={!mounted}
+                onClick={() => setTheme(themeValue === "dark" ? "light" : "dark")}
+              >
+                <span />
+              </button>
+            </div>
             <button type="button" className="nl-st-mrow pressable" onClick={() => setPhonePicker("text")}>
               <span>Text size</span>
               <span className="nl-st-mrow-end">
@@ -473,18 +481,6 @@ export function SettingsPanel({
       </div>
 
 
-      <PhoneSettingsPicker
-        open={phonePicker === "theme"}
-        onClose={() => setPhonePicker(null)}
-        eyebrow="Settings"
-        title="Theme"
-        options={phoneThemeOptions}
-        selected={themeValue}
-        onSelect={(value) => {
-          setTheme(value);
-          setPhonePicker(null);
-        }}
-      />
       <PhoneSettingsPicker
         open={phonePicker === "text"}
         onClose={() => setPhonePicker(null)}

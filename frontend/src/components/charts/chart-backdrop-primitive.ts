@@ -100,7 +100,8 @@ class BackdropRenderer implements IPrimitivePaneRenderer {
       const label = (text: string, color: string, from: number, to: number) => {
         if (to - from < context.measureText(text).width / h + 12) return;
         context.fillStyle = color;
-        context.fillText(text, Math.round((from + 6) * h), Math.round(8 * v));
+        // Below the chart legend (pair, OHLC and indicator chips) at the top-left.
+        context.fillText(text, Math.round((from + 6) * h), Math.round(SESSION_LABEL_TOP * v));
       };
       const overlap = london && newYork && newYork.x1 < london.x2 && newYork.x2 > london.x1
         ? { x1: Math.max(london.x1, newYork.x1), x2: Math.min(london.x2, newYork.x2) }
@@ -115,6 +116,9 @@ class BackdropRenderer implements IPrimitivePaneRenderer {
     });
   }
 }
+
+/** CSS px from the pane top to the session names: clear of the two-row legend. */
+const SESSION_LABEL_TOP = 64;
 
 export class ChartBackdropPrimitive implements ISeriesPrimitive<Time> {
   private chart: IChartApiBase<Time> | null = null;

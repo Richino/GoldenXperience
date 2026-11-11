@@ -1,4 +1,5 @@
 import type { PairTrendsSnapshot } from "@/lib/home/weekly-trends";
+import { pairTrendSnapshotIsCurrent } from "./pair-trend-clock";
 
 export const PAIR_TRENDS_TTL_MS = 15 * 60_000;
 const STORAGE_KEY = "gx:pair-trends:v2";
@@ -19,11 +20,13 @@ export function createPairTrendsCache(read: () => Promise<PairTrendsSnapshot>, o
 } = {}) {
   const now = options.now ?? Date.now;
   let cached: PairTrendsSnapshot | null = null;
+  let cachedAt = 0;
   let pending: Promise<PairTrendsSnapshot> | null = null;
   let restored = false;
-  const fresh = (data: PairTrendsSnapshot) => {
-    const age = now() - Date.parse(data.checkedAt);
-    return data.pairs.length > 0 && age >= 0 && age < PAIR_TRENDS_TTL_MS;
+  const fresh = (data: PairTrendsSnapshot, readAt: number) => {
+    const currentTime = now();
+    const age = currentTime - readAt;
+    return data.pairs.length > 0 && age >= 0 && age < PAIR_TRENDS_TTL_MS && pairTrendSnapshotIsCurrent(data.checkedAt, currentTime);
   };
 
   return {
@@ -33,14 +36,18 @@ export function createPairTrendsCache(read: () => Promise<PairTrendsSnapshot>, o
         try {
           const raw = options.storage?.().getItem(STORAGE_KEY);
           const data: unknown = raw ? JSON.parse(raw) : null;
-          if (validSnapshot(data) && fresh(data)) cached = data;
+          if (validSnapshot(data) && fresh(data, Date.parse(data.checkedAt))) {
+            cached = data;
+            cachedAt = Date.parse(data.checkedAt);
+          }
         } catch { /* Storage is optional and may contain an old or corrupt record. */ }
       }
       if (pending) return pending;
-      if (cached && fresh(cached)) return Promise.resolve(cached);
+      if (cached && fresh(cached, cachedAt)) return Promise.resolve(cached);
       pending = Promise.resolve().then(read).then(data => {
         if (!validSnapshot(data)) throw new Error("Invalid trend snapshot");
-        cached = fresh(data) ? data : null;
+        cachedAt = now();
+        cached = fresh(data, cachedAt) ? data : null;
         if (cached) {
           try { options.storage?.().setItem(STORAGE_KEY, JSON.stringify(cached)); } catch { /* Keep the in-memory cache. */ }
         }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import {
   CandlestickChart,
@@ -12,6 +12,7 @@ import {
   Settings,
   type LucideIcon,
 } from "lucide-react";
+import { BrandMark } from "@/components/ui/brand-mark";
 import { AppTopBar } from "@/components/layout/app-topbar";
 import { MobileTopBar } from "@/components/ui/mobile-top-bar";
 import { NavigationProgress } from "@/components/ui/navigation-progress";
@@ -21,8 +22,6 @@ import { NotificationProvider } from "@/components/notifications/notification-pr
 import { Toaster } from "@/components/ui/toaster";
 import { MarketObserverProvider } from "@/components/analysis/market-observer-provider";
 import { syncAppViewportHeight } from "@/lib/pwa/viewport-height";
-import { formatEtClock } from "@/lib/format/datetime";
-import { getMarketCondition } from "@/lib/strategy/session";
 
 function subscribe() {
   return () => undefined;
@@ -30,8 +29,6 @@ function subscribe() {
 
 interface NavItem {
   label: string;
-  /** Label under the icon in the desktop rail, when the full label is too long. */
-  short?: string;
   href: string;
   icon: LucideIcon | ((props: { className?: string; strokeWidth?: number }) => React.ReactNode);
 }
@@ -73,43 +70,10 @@ function SidebarNavLink({
       href={item.href}
       className={`sidebar-nav-link pressable ${active ? "sidebar-nav-link-active" : ""}`}
       aria-current={active ? "page" : undefined}
-      aria-label={item.label}
-      title={item.label}
     >
       <Icon className="sidebar-nav-glyph shrink-0" strokeWidth={active ? 1.9 : 1.55} />
-      <span className="sidebar-nav-text">{item.short ?? item.label}</span>
+      {item.label}
     </Link>
-  );
-}
-
-function readMarket(now = new Date()) {
-  const condition = getMarketCondition(now);
-  return { open: condition.marketOpen, label: condition.marketOpen ? `${condition.label} open` : "Market closed", clock: formatEtClock(now) };
-}
-
-/** The session and ET clock above Settings; worked out locally, no request. */
-function SidebarMarket() {
-  const [market, setMarket] = useState<ReturnType<typeof readMarket> | null>(null);
-
-  useEffect(() => {
-    // Client-only clock; server and first client render agree on the null
-    // placeholder, so seeding it here is the intent, not a cascading render.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setMarket(readMarket());
-    const timer = window.setInterval(() => setMarket(readMarket()), 30_000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  // The rail is narrow: the dot and Open / Closed, then the ET clock; the
-  // session name is in the tooltip.
-  return (
-    <div className="sidebar-market" title={market ? `${market.label} · ${market.clock}` : undefined}>
-      <span className="sidebar-market-state">
-        <span className={`sidebar-market-dot${market?.open ? "" : " is-closed"}`} aria-hidden="true" />
-        {market ? (market.open ? "Open" : "Closed") : "—"}
-      </span>
-      <span className="sidebar-market-clock">{market?.clock ?? "— ET"}</span>
-    </div>
   );
 }
 
@@ -213,12 +177,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           : "bg-[color:var(--background)]"
       }`}
     >
-      <aside className="app-sidebar fixed inset-y-0 left-0 z-30 hidden w-[var(--app-sidebar-w)] flex-col lg:flex">
+      <aside className="app-sidebar fixed inset-y-0 left-0 z-30 hidden w-24 flex-col lg:flex">
         <div className="sidebar-header">
-          <Link href="/" className="sidebar-brand pressable" aria-label="GoldenXperience home">
-            <span className="sidebar-brand-tile" aria-hidden="true">GX</span>
-            <span className="sidebar-brand-name" aria-hidden="true">GoldenXperience</span>
-          </Link>
+          <BrandMark variant="sidebar" />
         </div>
 
         <nav className="sidebar-nav sidebar-nav-primary" aria-label="Primary navigation">
@@ -231,8 +192,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
 
-        <SidebarMarket />
-
         <nav className="sidebar-nav sidebar-nav-utility" aria-label="Settings">
           <SidebarNavLink
             item={settingsNavItem}
@@ -244,7 +203,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div
-        className={`min-w-0 w-full lg:pl-[var(--app-sidebar-w)] ${ownsHeader ? "" : "has-topbar"} ${
+        className={`min-w-0 w-full lg:pl-24 ${ownsHeader ? "" : "has-topbar"} ${
           isChart ? "lg:min-h-dvh" : ""
         }`}
       >

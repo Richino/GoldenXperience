@@ -40,29 +40,28 @@ export function SessionStrip() {
         ? "London + New York overlap"
         : `${state.condition.label} session`;
   const clock = state?.clock ?? "— ET";
-  const open = state?.condition.marketOpen ?? false;
 
   return (
-    <section className="nl-mx-panel nl-mx-sess" aria-label={`Trading sessions, Eastern Time. ${headline}.`}>
-      <div className="nl-mx-ph">
-        <h2>Sessions</h2>
-        <span className="nl-mx-note metric-number">{clock}</span>
+    <section className="nl-session-strip" aria-label={`Trading sessions, Eastern Time. ${headline}.`}>
+      <div className="nl-session-strip-head">
+        {/* Phone: the lanes collapse to three swatches beside the headline. */}
+        <span className="nl-session-swatches" aria-hidden="true">
+          <span className="is-asia" />
+          <span className="is-london" />
+          <span className="is-new-york" />
+        </span>
+        <span className="nl-session-strip-title">{headline}</span>
+        <span className="nl-session-strip-clock metric-number">{clock}</span>
       </div>
-      <div className="nl-mx-sess-headline">
-        <span className={`nl-mx-sess-dot${open ? "" : " is-closed"}`} aria-hidden="true" />
-        <span>{headline}</span>
-        {/* Phone: the panel head is hidden, so the clock rides on this line. */}
-        <span className="nl-mx-sess-clock metric-number">{clock}</span>
-      </div>
-      <div className="nl-mx-sess-lanes" aria-hidden="true">
+      <div className="nl-session-strip-lanes" aria-hidden="true">
         {LANES.map((lane) => (
-          <div key={lane.label} className="nl-mx-sess-lane">
-            <span className="nl-mx-sess-label">{lane.label}</span>
-            <span className="nl-mx-sess-track">
+          <div key={lane.label} className="nl-session-lane">
+            <span className="nl-session-lane-label">{lane.label}</span>
+            <span className="nl-session-lane-track">
               {lane.spans.map(([from, to]) => (
                 <span
                   key={from}
-                  className={`nl-mx-sess-span ${lane.tone}`}
+                  className={`nl-session-lane-span ${lane.tone}`}
                   style={{ left: `${(from / 24) * 100}%`, width: `${((to - from) / 24) * 100}%` }}
                 />
               ))}
@@ -71,25 +70,17 @@ export function SessionStrip() {
         ))}
         {state ? (
           <span
-            className="nl-mx-sess-now"
+            className="nl-session-now"
             style={{ "--now": state.minutes / 1440 } as React.CSSProperties}
           />
         ) : null}
       </div>
-      <div className="nl-mx-sess-scale metric-number" aria-hidden="true">
+      <div className="nl-session-strip-scale" aria-hidden="true">
         <span>00</span>
         <span>06</span>
         <span>12</span>
         <span>18</span>
         <span>24</span>
-      </div>
-      <div className="nl-mx-sess-legend" aria-hidden="true">
-        {LANES.map((lane) => (
-          <span key={lane.label}>
-            <span className={`nl-mx-sess-swatch ${lane.tone}`} />
-            {lane.label}
-          </span>
-        ))}
       </div>
     </section>
   );

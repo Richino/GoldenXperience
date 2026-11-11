@@ -92,7 +92,7 @@ export function TradeHealthPanel({ instrument, active }: { instrument: string; a
   const { status, unrealizedR, reason, debug } = data.health;
   const newSr = debug.newOpposingStructure;
   const momentum = debug.currentImpulse === "NO_IMPULSE" ? "Flat" : humanize(debug.currentImpulse.replace("_IMPULSE", ""));
-  const rLabel = "R N/A — initial risk not recorded";
+  const rLabel = `${unrealizedR > 0 ? "+" : ""}${unrealizedR}R`;
 
   return (
     <div className="trade-health" data-status={status}>

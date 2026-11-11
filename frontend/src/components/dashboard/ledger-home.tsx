@@ -28,6 +28,7 @@ import { NotificationBell } from "@/components/notifications/notification-bell";
 import { ServiceNotice } from "@/components/ui/service-notice";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { formatClockTime, formatShortDay, tradingDayKey } from "@/lib/format/datetime";
+import { accountQuota, quotaDayKey } from "@/lib/home/account-quota";
 import type { HomeActivityItem } from "@/lib/home/idle";
 import { displayNameFor } from "@/lib/instruments/catalog";
 import { groupedCalendarTitle, groupSimultaneousRows, homeCalendarEmptyMessage, homeCalendarImpactTier, homeCalendarRows } from "@/lib/news/home-calendar";
@@ -249,6 +250,13 @@ function LedgerHero({
 }) {
   const historyAvailable = hasData(historyState);
   const [range, setRange] = useState<AccountChartRange>("1d");
+  const now = useNow(30_000);
+  const quotaDate = now === null ? null : quotaDayKey(now);
+  const quota = useMemo(
+    () => historyAvailable && quotaDate !== null ? accountQuota(account.balance, history, quotaDate) : null,
+    [account.balance, history, historyAvailable, quotaDate],
+  );
+  const quotaMoney = new Intl.NumberFormat("en-US", { style: "currency", currency: account.currency, maximumFractionDigits: 0 });
   const wide = useWide();
   const { ref: balanceRef, scrolledPast } = useScrolledPast<HTMLHeadingElement>();
   const series = useMemo(
@@ -319,6 +327,24 @@ function LedgerHero({
           <dt>Unrealized</dt>
           <dd className={`metric-number ${tone(openPL)}`}>{signedMoney(openPL, account.currency)}</dd>
         </div>
+        {(["daily", "weekly"] as const).map((period) => {
+          const result = quota?.[period];
+          return (
+            <div key={period}>
+              <dt>{period === "daily" ? "Daily quota" : "Weekly quota"}</dt>
+              <dd className="metric-number">
+                {result ? <>
+                  <span className={tone(result.realized)}>{quotaMoney.format(result.realized)}</span>
+                  <span className="nl-stat-quota-target">
+                    {result.target <= 0 && result.realized >= result.target
+                      ? " · Quota met"
+                      : ` of ${quotaMoney.format(Math.max(0, result.target))}`}
+                  </span>
+                </> : "—"}
+              </dd>
+            </div>
+          );
+        })}
       </dl>
     </section>
   );

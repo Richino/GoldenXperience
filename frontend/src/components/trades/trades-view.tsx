@@ -349,8 +349,23 @@ function TradesSummaryRow({
   const withPl = recentClosed.filter((t) => typeof t.paperPl === "number" && Number.isFinite(t.paperPl));
   const realizedResults = withPl.map((t) => t.paperPl as number).reverse();
   const net = withPl.reduce((sum, t) => sum + (t.paperPl ?? 0), 0);
-  const withR = recentClosed.filter((t) => t.resultR !== null && Number.isFinite(t.resultR));
-  const netR = withR.reduce((sum, t) => sum + (t.resultR ?? 0), 0);
+  let netR = 0;
+  let tradesWithR = 0;
+  let includesEstimatedR = false;
+  for (const trade of withPl) {
+    if (typeof trade.resultR === "number" && Number.isFinite(trade.resultR)) {
+      netR += trade.resultR;
+      tradesWithR++;
+    } else if (typeof trade.estimatedRMultiple === "number" && Number.isFinite(trade.estimatedRMultiple)) {
+      netR += trade.estimatedRMultiple;
+      tradesWithR++;
+      includesEstimatedR = true;
+    }
+  }
+  const rCoverage = tradesWithR === withPl.length ? `${withPl.length} trades` : `${tradesWithR} of ${withPl.length} trades`;
+  const realizedR = tradesWithR
+    ? `${includesEstimatedR ? "Est. " : ""}${fmtR(netR)} across ${rCoverage}`
+    : withPl.length ? "R unavailable for these trades" : "No realized results yet";
   const hero =
     tab === "open"
       ? {
@@ -362,7 +377,7 @@ function TradesSummaryRow({
           // Only the loaded page is known here, so the label says how many.
           label: `Net realized · last ${withPl.length} closed`,
           value: withPl.length ? net : null,
-          sub: withR.length ? `${fmtR(netR)} across ${withR.length} trades` : "No closed trades yet",
+          sub: realizedR,
         };
 
   return (

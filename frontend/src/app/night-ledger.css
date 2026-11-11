@@ -806,9 +806,12 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-va
   padding: 20px 24px;
 }
 
-.nl-stats > div + div {
+.nl-stats > div:nth-child(even) {
   border-left: 1px solid var(--border);
 }
+
+.nl-stats > div:nth-child(n + 3) { border-top: 1px solid var(--border); }
+.nl-stat-quota-target { color: var(--muted); font-size: 0.75em; }
 
 .nl-stats dt {
   color: var(--muted);

@@ -2794,6 +2794,17 @@ export function SignalWorkspace({
   } | null>(null);
   const openedManualProposalRef = useRef(false);
 
+  function showPendingEntryDialog(entry: PendingManualEntry | null) {
+    setSelectedPendingEntry(entry);
+    setPendingEntryDialogOpen(true);
+  }
+
+  function openNewTradeTicket() {
+    if (replayActive) exitReplay();
+    setEntryDraftProposal(null);
+    showPendingEntryDialog(null);
+  }
+
   function openPendingEntryManager(entry: PendingManualEntry | null = null) {
     if (!entry && replayActive) {
       setPendingEntryNotice("Exit chart replay before creating an entry.");
@@ -2803,10 +2814,7 @@ export function SignalWorkspace({
       setPendingEntryNotice("This pair already has an active position. Close it before creating another entry.");
       return;
     }
-    setSelectedPendingEntry(entry);
-    // The composer opens as a dialog on every size; the desktop side column
-    // keeps the Analyze, Trade health and Watchlist cards.
-    setPendingEntryDialogOpen(true);
+    showPendingEntryDialog(entry);
   }
 
   function submitPositionTool(tool: ChartPositionTool) {
@@ -4967,13 +4975,9 @@ export function SignalWorkspace({
                 <button
                   type="button"
                   className="nl-mnew-entry pressable"
-                  disabled={replayActive || !mobileTradeActionReady || hasActivePosition}
-                  title={replayActive ? "Exit chart replay before creating an entry" : !mobileTradeActionReady ? "Checking existing trades…" : hasActivePosition ? "Close the open trade before starting another" : "New trade"}
+                  title={replayActive ? "Return to the live chart and open a new trade ticket" : "New trade"}
                   aria-label="New trade"
-                  onClick={() => {
-                    setEntryDraftProposal(null);
-                    openPendingEntryManager(null);
-                  }}
+                  onClick={openNewTradeTicket}
                 >
                   <Plus aria-hidden="true" />
                 </button>
@@ -5446,12 +5450,8 @@ export function SignalWorkspace({
                 pairLabel={activePair}
                 levels={healthLevels}
                 tradeAction={<button type="button" className="nl-cside-trade pressable"
-                  disabled={replayActive || !mobileTradeActionReady || hasActivePosition}
-                  title={replayActive ? "Exit chart replay before creating an entry" : !mobileTradeActionReady ? "Checking existing trades…" : "Open trade ticket"}
-                  onClick={() => {
-                    setEntryDraftProposal(null);
-                    openPendingEntryManager(null);
-                  }}><Plus aria-hidden="true" />New trade</button>}
+                  title={replayActive ? "Return to the live chart and open a new trade ticket" : "Open trade ticket"}
+                  onClick={openNewTradeTicket}><Plus aria-hidden="true" />New trade</button>}
               />
               <ChartNewsCard
                 instrument={instrument}
@@ -5522,10 +5522,7 @@ export function SignalWorkspace({
                 <Radar aria-hidden="true" />
                 <span className="gx-fs-label">{chartAnalysisBusy ? "Analyzing…" : analyzeLabel.long}</span>
               </button> : null}
-              <button type="button" className="gx-fs-action pressable" onClick={() => {
-                setEntryDraftProposal(null);
-                openPendingEntryManager(null);
-              }} disabled={replayActive || !mobileTradeActionReady || hasActivePosition} title={hasActivePosition ? "Close this pair’s active position before creating another entry" : "Create a new entry"} aria-label="New entry">
+              <button type="button" className="gx-fs-action pressable" onClick={openNewTradeTicket} title={replayActive ? "Return to the live chart and open a new trade ticket" : "Create a new entry"} aria-label="New entry">
                 <Plus aria-hidden="true" />
                 <span className="gx-fs-label">New entry</span>
               </button>

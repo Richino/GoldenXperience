@@ -438,19 +438,14 @@ export function ChartLevelEditor({ levels, signal }: { levels: ChartHealthLevels
           No stop loss: this trade's loss isn't capped until you close it.
         </p>
       ) : null}
-      {levels.stop !== null || levels.target !== null ? (
-        // One tap to run the trade with neither level (then Save).
-        <button
-          type="button"
-          className="nl-clevels-none pressable"
-          onClick={levels.onClear}
-          disabled={levels.saving}
-        >
-          Remove both levels
-        </button>
-      ) : null}
       {levels.error ? <p className="nl-clevels-error" role="alert">{levels.error}</p> : null}
       <div className="nl-clevels-actions">
+        {levels.stop !== null || levels.target !== null ? (
+          <button type="button" className="nl-clevels-none pressable" onClick={levels.onClear}
+            aria-label="Remove both levels" disabled={levels.saving}>
+            Clear levels
+          </button>
+        ) : null}
         <button type="button" className="nl-clevels-cancel pressable" onClick={levels.onCancel} disabled={levels.saving}>
           Cancel
         </button>

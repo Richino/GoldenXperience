@@ -9573,6 +9573,8 @@ html:is(.dark, :not(.dark)) body .gx-fs-dock .menu-popover {
 
 /* SL/TP editor: one-tap "No stop or target", and a caution while there is no stop. */
 .nl-clevels-none {
+  grid-column: 1 / -1;
+  justify-self: start;
   align-self: flex-start;
   padding: 6px 12px;
   border: 1px dashed var(--border-strong);
@@ -10724,13 +10726,21 @@ html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="watching"]
 .nl-clevels-row b :is(.nl-clevels-detail, .nl-clevels-sep) { color: inherit; font-size: inherit; }
 .nl-mlevels .nl-clevels-row b .nl-clevels-sep { display: none; }
 
-/* Phone SL / TP editor, compact: price on one line, pips · R under it, and
-   "No stop or target" as a slim full-width link above Cancel / Save. */
+/* The editor meets the chart and the dock without the Analyze button gutter. */
+@media (max-width: 1023px) {
+  html:is(.dark, :not(.dark)) body .signals-chart-mobile > .gx-mobile-analyze-section.nl-mlevels {
+    padding: 0;
+  }
+  html:is(.dark, :not(.dark)) body .signals-view:not(.signals-view-fullscreen) .signals-chart-mobile:has(.nl-mlevels) {
+    padding-bottom: var(--app-dock-height, 5.5rem);
+  }
+}
+
+/* Phone level editor keeps both prices and the draft actions in view. */
 .nl-mlevels .nl-clevels {
   gap: 8px;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: 18px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
   background: var(--surface);
 }
 .nl-mlevels .nl-clevels-mobile-head {
@@ -10739,32 +10749,32 @@ html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="watching"]
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding-bottom: 2px;
+  padding: 2px 2px 0;
 }
 .nl-mlevels .nl-clevels-mobile-head b { font-size: 13px; font-weight: 650; }
 .nl-mlevels .nl-clevels-mobile-head span { font-size: 11px; color: var(--muted); }
 .nl-mlevels .nl-clevels-row > i {
   position: absolute;
   left: 0;
-  top: 12px;
-  bottom: 12px;
-  width: 3px;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
   height: auto;
   border-radius: 3px;
 }
 .nl-mlevels .nl-clevels-row {
   position: relative;
   grid-template-columns: minmax(0, 1fr) 44px;
-  min-height: 84px;
+  min-height: 64px;
   align-items: center;
   gap: 4px;
-  padding: 10px 6px 10px 12px;
-  border-radius: 12px;
+  padding: 6px 4px 6px 10px;
+  border-radius: 10px;
   background: var(--surface-raised);
 }
 .nl-mlevels .nl-clevels-row > div {
   min-width: 0;
-  gap: 4px;
+  gap: 1px;
 }
 .nl-mlevels .nl-clevels-row b {
   font-size: 14px;
@@ -10780,36 +10790,37 @@ html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="watching"]
   width: 44px;
   height: 44px;
   border: 0;
-  border-radius: 12px;
-  background: var(--surface);
+  border-radius: 9px;
+  background: transparent;
 }
+.nl-mlevels .nl-clevels-toggle:hover { background: var(--surface); }
 .nl-mlevels .nl-clevels-toggle svg { width: 16px; height: 16px; }
 .nl-mlevels .nl-clevels-row.is-invalid small { display: block; font-size: 11px; }
-.nl-mlevels .nl-clevels-none,
 .nl-mlevels .nl-clevels-warning {
   grid-column: 1 / -1;
-}
-.nl-mlevels .nl-clevels-none {
-  justify-self: stretch;
-  width: 100%;
-  min-height: 48px;
-  padding: 0 16px;
-  border: 1px solid var(--border-strong);
-  border-radius: 12px;
-  background: var(--surface-raised);
-  color: var(--foreground);
-  font-size: 13px;
-}
-.nl-mlevels .nl-clevels-warning {
-  padding: 6px 10px;
+  padding: 5px 8px;
+  border-radius: 7px;
   font-size: 11.5px;
 }
 .nl-mlevels .nl-clevels-actions {
-  grid-template-columns: 1fr 1.4fr;
-  gap: 8px;
-  padding-top: 8px;
+  grid-template-columns: minmax(64px, 1fr) minmax(96px, 2fr);
+  gap: 6px;
+  padding-top: 6px;
   border-top: 1px solid var(--border);
 }
+.nl-mlevels .nl-clevels-actions:has(.nl-clevels-none) {
+  grid-template-columns: auto minmax(64px, 1fr) minmax(96px, 2fr);
+}
+.nl-mlevels .nl-clevels-none {
+  grid-column: auto;
+  justify-self: stretch;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+.nl-mlevels .nl-clevels-cancel,
+.nl-mlevels .nl-clevels-save { border-radius: 9px; }
 .nl-mlevels .nl-clevels-actions button { height: 44px; }
 
 /* Pinned (non-WebKit) phones reserve the editor's measured height instead of
@@ -10817,8 +10828,11 @@ html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="watching"]
    workspace sets --gx-mlevels-h from a ResizeObserver while editing. */
 @supports not (-webkit-touch-callout: none) {
   @media (max-width: 1023px) {
+    html:is(.dark, :not(.dark)) body .signals-chart-mobile > .gx-mobile-analyze-section.nl-mlevels {
+      bottom: var(--app-dock-height, 5.5rem);
+    }
     html:is(.dark, :not(.dark)) body .signals-view:not(.signals-view-fullscreen) .signals-chart-mobile:has(.nl-mlevels) {
-      padding-bottom: calc(var(--app-dock-height, 5.5rem) + 20px + var(--gx-mlevels-h, 150px));
+      padding-bottom: calc(var(--app-dock-height, 5.5rem) + var(--gx-mlevels-h, 150px));
     }
   }
 }

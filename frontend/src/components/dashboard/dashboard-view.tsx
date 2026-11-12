@@ -9,6 +9,7 @@ import {
   type DashboardLoadState,
 } from "@/components/dashboard/ledger-home";
 import { PendingCancelConfirmation } from "@/components/dashboard/pending-cancel-confirmation";
+import { CloseAllConfirmation, type CloseAllTarget } from "@/components/dashboard/close-all-confirmation";
 import { HomeLoadingBoundary } from "@/components/dashboard/home-loading-boundary";
 import { PendingLevelsDialog } from "@/components/dashboard/pending-levels-dialog";
 import {
@@ -272,6 +273,9 @@ export function DashboardView({
   const [pendingCancellation, setPendingCancellation] = useState<PendingManualEntry | null>(null);
   const [pendingLevelsEntry, setPendingLevelsEntry] = useState<PendingManualEntry | null>(null);
   const [savingPendingLevels, setSavingPendingLevels] = useState(false);
+  const [closeAllOpen, setCloseAllOpen] = useState(false);
+  const [closingAll, setClosingAll] = useState(false);
+  const [closeAllError, setCloseAllError] = useState<string | null>(null);
   // Streamed prices are used only for paper estimates and currency conversions.
   const quotes = useLiveQuotes();
   // Real fills, so an open row reports the same money as the account hero.
@@ -312,6 +316,17 @@ export function DashboardView({
   const openTrades = [...overviewOpen, ...manualOpen].filter(trade =>
     !financial.checkedAt || !trade.brokerTradeId || Boolean(fills[`broker:${trade.brokerTradeId}`]),
   );
+
+  // Close all acts on your own (manual) trades; strategy trades are run by the bot.
+  const manualOpenIds = new Set(manualOpen.map((trade) => trade.id));
+  const closeAllTargets: CloseAllTarget[] = openTrades
+    .filter((trade) => manualOpenIds.has(trade.id))
+    .map((trade) => ({
+      id: trade.id,
+      instrument: trade.instrument,
+      direction: trade.direction,
+      money: markedOpenMoney(trade, quotes, fills, watchlist),
+    }));
 
   // Account cash never includes the separate paper-only simulation estimates.
   const heroOpenPL = account?.unrealizedPL ?? 0;
@@ -386,6 +401,36 @@ export function DashboardView({
       setPendingEntryError("Waiting orders could not refresh. Previously loaded orders may be outdated.");
     } finally { loading.current.delete("pending"); }
   }, [finishLoad]);
+
+  /** Closes the manual trades listed in the confirmation. */
+  const closeAllTrades = useCallback(async (tradeIds: string[]): Promise<boolean> => {
+    setClosingAll(true);
+    setCloseAllError(null);
+    try {
+      const response = await fetch(apiUrl("/api/pending-entries/close-all"), {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tradeIds }),
+      });
+      const payload = await response.json() as { closed?: number; failed?: Array<{ instrument: string; error: string }>; error?: string };
+      if (payload.error) throw new Error(payload.error);
+      const failed = payload.failed ?? [];
+      if (failed.length) {
+        const pairs = failed.map((item) => `${item.instrument.replace("_", "/")}: ${item.error}`).join(" ");
+        throw new Error(`${payload.closed ?? 0} closed, ${failed.length} still open. ${pairs}`);
+      }
+      if (!response.ok) throw new Error("Could not close the trades.");
+      return true;
+    } catch (reason) {
+      setCloseAllError(reason instanceof Error ? reason.message : "Could not close the trades.");
+      return false;
+    } finally {
+      setClosingAll(false);
+      // Pull the account, positions and journal so closed rows leave at once.
+      await Promise.allSettled([refreshAccount(), refresh(), refreshPendingEntries()]);
+    }
+  }, [refreshAccount, refresh, refreshPendingEntries]);
 
   const cancelPendingEntry = useCallback(async (entry: PendingManualEntry): Promise<boolean> => {
     if (entry.status !== "PENDING") return false;
@@ -591,6 +636,8 @@ export function DashboardView({
         openPL={heroOpenPL}
         greeting={greeting}
         positions={ledgerPositions}
+        closeAllCount={closeAllTargets.length}
+        onCloseAll={() => { setCloseAllError(null); setCloseAllOpen(true); }}
         newsPositions={currentPositions}
         today={today}
         pending={pendingEntries}
@@ -608,6 +655,15 @@ export function DashboardView({
         confirming={Boolean(cancellingPendingId)}
         onDismiss={() => setPendingCancellation(null)}
         onConfirm={cancelPendingEntry}
+      />
+      <CloseAllConfirmation
+        open={closeAllOpen}
+        trades={closeAllTargets}
+        confirming={closingAll}
+        error={closeAllError}
+        currency={account?.currency ?? "USD"}
+        onDismiss={() => setCloseAllOpen(false)}
+        onConfirm={closeAllTrades}
       />
       <PendingLevelsDialog
         entry={pendingLevelsEntry}

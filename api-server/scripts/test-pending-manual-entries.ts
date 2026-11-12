@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
-import { confirmedManualBrokerClose, decidePendingManualEntryEvent, inferPendingOrderType, manualBrokerCloseResultR, manualEntryUsesBroker } from "../src/pending-manual-entries.js";
+import { confirmedManualBrokerClose, decidePendingManualEntryEvent, inferPendingOrderType, manualBrokerCloseResultR, manualEntryUsesBroker, optionalTradeLevels } from "../src/pending-manual-entries.js";
 import { pipSizeFor } from "../../frontend/src/lib/instruments/catalog.js";
 import { confirmedPracticeCloseFill, practiceOrderStateFromTransactions, practiceTradeStateFromTransactions } from "../../frontend/src/lib/oanda/client.js";
+
+assert.deepEqual(optionalTradeLevels({ stopPrice: 1.09 }, "long", 1.1), { stop: 1.09, target: null });
+assert.deepEqual(optionalTradeLevels({ targetPrice: 1.09 }, "short", 1.1), { stop: null, target: 1.09 });
+assert.deepEqual(optionalTradeLevels({ stopPrice: null, targetPrice: null }, "long", 1.1), { stop: null, target: null });
+assert.throws(() => optionalTradeLevels({ stopPrice: 1.1 }, "long", 1.1), /stop must be below/);
+assert.throws(() => optionalTradeLevels({ targetPrice: 1.11 }, "short", 1.1), /target must be below/);
 
 // A submission has no broker ID yet, but must never fall back to a paper fill.
 for (const metadata of [

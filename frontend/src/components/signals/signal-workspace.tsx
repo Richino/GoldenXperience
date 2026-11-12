@@ -10,6 +10,7 @@ import {
   ArrowRight,
   Check,
   ChevronDown,
+  ChevronRight,
   CircleStop,
   MoveVertical,
   Clock3,
@@ -1509,7 +1510,7 @@ function SignalSearch({
 
               return (
                 <div key={result.instrument}>
-                  {showGroup ? <p className="px-2 pb-1 pt-3 text-xs font-medium text-[color:var(--muted)]">{structure.group}</p> : null}
+                  {showGroup ? <p className="signals-pair-group">{structure.group}</p> : null}
                 <button
                   type="button"
                   onPointerDown={(event) => {
@@ -1530,12 +1531,12 @@ function SignalSearch({
                     useDesktopDropdown ? "px-2.5 py-2" : "px-2 py-2"
                   } ${active ? "is-active" : ""}`}
                 >
-                  <PairAvatar instrument={result.instrument} size={30} />
+                  <PairAvatar instrument={result.instrument} size={34} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium tracking-[-0.02em]">
                       {result.displayName}
                     </span>
-                    <TrendLabel instrument={result.instrument} className="nl-trend-compact" plainLanguage snapshot={pairTrends.get(result.instrument) ?? null} />
+                    <TrendLabel instrument={result.instrument} className="nl-trend-compact signals-pair-trend" plainLanguage snapshot={pairTrends.get(result.instrument) ?? null} />
                   </span>
                   {isTrading ? (
                     <span className="signals-search-trading-badge">Trading</span>
@@ -2744,7 +2745,10 @@ export function SignalWorkspace({
   const [pickedPairTrade, setPickedPairTrade] = useState<string | null>(null);
   const [tradeActionBusy, setTradeActionBusy] = useState(false);
   const [tradeActionError, setTradeActionError] = useState<string | null>(null);
-  const [tradeConfirm, setTradeConfirm] = useState<"cancel" | "close" | null>(null);
+  const [tradeConfirm, setTradeConfirm] = useState<
+    { mode: "cancel" } | { mode: "close"; entry: PendingManualEntry } | null
+  >(null);
+  const closeTradeInFlight = useRef(false);
   // Phone: the trade controls sheet, opened from the trade pill on the chart.
   const [tradeSheetOpen, setTradeSheetOpen] = useState(false);
   const [pendingEntryDialogOpen, setPendingEntryDialogOpen] = useState(false);
@@ -3489,10 +3493,10 @@ export function SignalWorkspace({
   const activeBrokerTradeId = activeManualTrade
     ? (typeof activeManualTrade.metadata.brokerTradeId === "string" ? activeManualTrade.metadata.brokerTradeId : null)
     : openPaperTrade?.brokerTradeId ?? null;
-  const { label: activeTradePL, color: activeTradePLColor, targetLabel: activeTargetPL } = useChartTradePL(
+  const { label: activeTradePL, color: activeTradePLColor, targetLabel: activeTargetPL, stopAmountLabel: activeStopPL, formatExitPL } = useChartTradePL(
     activeBrokerTradeId, instrument, activeManualTrade?.direction ?? openPaperTrade?.direction ?? null,
-    quote?.instrument === instrument && quote.source === "oanda" ? quote : null,
     activeManualTrade?.targetPrice ?? openPaperTrade?.target ?? null,
+    activeManualTrade?.stopPrice ?? null,
   );
   const triggeredManualEntry =
     activeManualTrade && activeManualTrade.stopPrice !== null && activeManualTrade.targetPrice !== null
@@ -3541,6 +3545,18 @@ export function SignalWorkspace({
     return instruments;
   }, [allPendingEntries, hasActivePosition, instrument, livePaperPlans]);
 
+  const otherTradePairs = useMemo(() => {
+    const pairs = new Map<string, { open: boolean; pending: boolean }>();
+    for (const pair of tradingInstruments) {
+      if (pair !== instrument) pairs.set(pair, { open: true, pending: false });
+    }
+    for (const entry of allPendingEntries) {
+      if (entry.instrument === instrument || (entry.status !== "PENDING" && entry.status !== "TRIGGERING")) continue;
+      pairs.set(entry.instrument, { open: pairs.get(entry.instrument)?.open ?? false, pending: true });
+    }
+    return [...pairs].sort(([a], [b]) => a.localeCompare(b));
+  }, [allPendingEntries, instrument, tradingInstruments]);
+
   const cancelManualTrade = useCallback(async () => {
     if (!pendingManualEntry) return;
     setTradeActionBusy(true);
@@ -3557,16 +3573,17 @@ export function SignalWorkspace({
     }
   }, [pendingManualEntry, refreshPendingEntries, refreshPaperTrades]);
 
-  const closeManualTrade = useCallback(async () => {
-    if (!activeManualTrade) return;
+  const closeManualTrade = useCallback(async (entry: PendingManualEntry) => {
+    if (closeTradeInFlight.current) return;
+    closeTradeInFlight.current = true;
     setTradeActionBusy(true);
     setTradeActionError(null);
     try {
-      const res = await fetch(apiUrl(`/api/pending-entries/${activeManualTrade.id}/close`), {
+      const res = await fetch(apiUrl(`/api/pending-entries/${entry.id}/close`), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instrument }),
+        body: JSON.stringify({ instrument: entry.instrument }),
       });
       const payload = await res.json() as { error?: string };
       if (!res.ok) throw new Error(payload.error ?? "Could not close the trade.");
@@ -3576,9 +3593,10 @@ export function SignalWorkspace({
       // Refresh paper trades too so openPaperTrade clears and its Entry/SL/TP
       // overlay disappears immediately instead of on the next 15s poll.
       await Promise.all([refreshPendingEntries(), refreshPaperTrades()]);
+      closeTradeInFlight.current = false;
       setTradeActionBusy(false);
     }
-  }, [activeManualTrade, instrument, refreshPendingEntries, refreshPaperTrades]);
+  }, [refreshPendingEntries, refreshPaperTrades]);
   const focusedPrediction = predictionFocus?.instrument === instrument
     ? predictionFocus
     : null;
@@ -3659,8 +3677,7 @@ export function SignalWorkspace({
   // Trade health also reads a filled manual trade placed without a stop or
   // target, which Active Position leaves out.
   const healthSignal = useMemo<ChartPositionCardSignal | null>(() => {
-    if (positionSignal) return positionSignal;
-    if (!activeManualTrade) return null;
+    if (!activeManualTrade) return positionSignal;
     return {
       instrument,
       pair: activePair,
@@ -3679,12 +3696,11 @@ export function SignalWorkspace({
   const [levelDraft, setLevelDraft] = useState<{ entryId: string; stop: number | null; target: number | null } | null>(null);
   const [levelSaving, setLevelSaving] = useState(false);
   const [levelError, setLevelError] = useState<string | null>(null);
-  const levelTrade = !replayActive && !openPaperTrade
+  const levelTrade = !replayActive
     // A waiting News setup has no stop or target until it fills (they are set from the fill).
     ? activeManualTrade ?? (pendingManualEntry?.status === "PENDING" && pendingManualEntry.metadata?.mode !== "news" ? pendingManualEntry : null)
     : null;
-  // A waiting order has no fill yet: its levels are judged against its entry,
-  // and it holds both a stop and a target or neither.
+  // A waiting order has no fill yet: its levels are judged against its entry.
   const levelPending = levelTrade?.status === "PENDING";
   const levelDraftEntryId = levelDraft && levelTrade && levelDraft.entryId === levelTrade.id ? levelDraft.entryId : null;
   const levelExitPrice = levelTrade && levelPending
@@ -3695,12 +3711,12 @@ export function SignalWorkspace({
     return {
       instrument,
       direction: levelTrade.direction,
-      entry: levelTrade.triggerPrice ?? levelTrade.entryPrice,
       stop: levelDraft.stop,
       target: levelDraft.target,
       exitPrice: levelExitPrice,
+      formatExitPL: levelPending ? undefined : formatExitPL,
     };
-  }, [instrument, levelDraft, levelExitPrice, levelTrade]);
+  }, [formatExitPL, instrument, levelDraft, levelExitPrice, levelPending, levelTrade]);
   const onLevelEditChange = useCallback((next: ChartLevelEdit) => {
     setLevelError(null);
     setLevelDraft((draft) => (draft ? { ...draft, stop: next.stop, target: next.target } : draft));
@@ -3755,11 +3771,10 @@ export function SignalWorkspace({
       error: levelError,
       onStart: () => {
         setLevelError(null);
-        const none = levelTrade.stopPrice === null && levelTrade.targetPrice === null;
         setLevelDraft({
           entryId: levelTrade.id,
-          stop: none ? seedLevel("stop") : levelTrade.stopPrice,
-          target: none ? seedLevel("target") : levelTrade.targetPrice,
+          stop: levelTrade.stopPrice,
+          target: levelTrade.targetPrice,
         });
       },
       onCancel: () => {
@@ -3772,12 +3787,6 @@ export function SignalWorkspace({
         setLevelDraft((draft) => {
           if (!draft) return draft;
           const adding = draft[key] === null;
-          // A waiting order adds or removes the pair together.
-          if (levelPending) {
-            return adding
-              ? { ...draft, stop: draft.stop ?? seedLevel("stop"), target: draft.target ?? seedLevel("target") }
-              : { ...draft, stop: null, target: null };
-          }
           return { ...draft, [key]: adding ? seedLevel(key) : null };
         });
       },
@@ -3801,7 +3810,7 @@ export function SignalWorkspace({
       riskReward: 0,
     };
   }, [activePair, instrument, levelPending, levelTrade]);
-  const levelSignal = healthSignal ?? pendingLevelSignal;
+  const levelSignal = pendingLevelSignal ?? healthSignal;
 
   const startPositionTool = useCallback((direction: "long" | "short") => {
     const candles = series.candles;
@@ -3827,7 +3836,7 @@ export function SignalWorkspace({
   // so suppress the strategy draft while one is open instead of drawing both.
   // A closed focused trade can retain its markers and path without live levels.
   const setupLevels = useMemo(
-    () => openPaperTrade ? ({
+    () => activeManualTrade ? null : openPaperTrade ? ({
       entry: openPaperTrade.entry,
       stop: openPaperTrade.stop,
       target: openPaperTrade.target,
@@ -3836,12 +3845,12 @@ export function SignalWorkspace({
       entryLabel: activeTradePL,
       entryColor: activeTradePLColor,
       targetLabel: activeTargetPL,
-    }) : focusTrade || triggeredManualEntry ? null : openSignal ? ({
+    }) : focusTrade ? null : openSignal ? ({
       entry: openSignal.entry,
       stop: openSignal.stop,
       target: openSignal.target,
     }) : null,
-    [openSignal, focusTrade, openPaperTrade, triggeredManualEntry, activeTradePL, activeTradePLColor, activeTargetPL],
+    [activeManualTrade, openSignal, focusTrade, openPaperTrade, activeTradePL, activeTradePLColor, activeTargetPL],
   );
   // News-mode zones come from the server's setup state (news-zone-overlay).
   // Only previews follow the live price, and only to the nearest pip, so the
@@ -3898,36 +3907,31 @@ export function SignalWorkspace({
           lineWidth: 2 as const,
           onSelect: () => openManager(entry),
         }];
-        // A pending manual entry is a complete trade plan, not merely a price
-        // alert. Keep its protective stop and profit objective visible from
-        // the moment it is created, just as we do after it has triggered.
-        if (entry.stopPrice !== null && entry.targetPrice !== null && !editingLevels) {
-          const risk = Math.abs(entry.entryPrice - entry.stopPrice);
-          const rewardR = risk > 0
-            ? Math.abs(entry.targetPrice - entry.entryPrice) / risk
-            : null;
-          lines.push(
-            {
-              key: `pending-stop-${entry.id}`,
-              price: entry.stopPrice,
-              label: `SL ${formatChartPrice(entry.stopPrice, instrument)} · -1R`,
-              color: "#e74c3c",
-              textColor: "#ffffff",
-              dashed: true,
-              lineWidth: 1 as const,
-              onSelect: () => openManager(entry),
-            },
-            {
-              key: `pending-target-${entry.id}`,
-              price: entry.targetPrice,
-              label: `TP ${formatChartPrice(entry.targetPrice, instrument)}${rewardR === null ? "" : ` · +${rewardR.toFixed(rewardR >= 10 ? 0 : 1)}R`}`,
-              color: "#00b377",
-              textColor: "#ffffff",
-              dashed: true,
-              lineWidth: 1 as const,
-              onSelect: () => openManager(entry),
-            },
-          );
+        if (entry.stopPrice !== null && !editingLevels) {
+          lines.push({
+            key: `pending-stop-${entry.id}`,
+            price: entry.stopPrice,
+            label: `SL ${formatChartPrice(entry.stopPrice, instrument)} · -1R`,
+            color: "#e74c3c",
+            textColor: "#ffffff",
+            dashed: true,
+            lineWidth: 1 as const,
+            onSelect: () => openManager(entry),
+          });
+        }
+        if (entry.targetPrice !== null && !editingLevels) {
+          const risk = entry.stopPrice === null ? 0 : Math.abs(entry.entryPrice - entry.stopPrice);
+          const rewardR = risk > 0 ? Math.abs(entry.targetPrice - entry.entryPrice) / risk : null;
+          lines.push({
+            key: `pending-target-${entry.id}`,
+            price: entry.targetPrice,
+            label: `TP ${formatChartPrice(entry.targetPrice, instrument)}${rewardR === null ? "" : ` · +${rewardR.toFixed(rewardR >= 10 ? 0 : 1)}R`}`,
+            color: "#00b377",
+            textColor: "#ffffff",
+            dashed: true,
+            lineWidth: 1 as const,
+            onSelect: () => openManager(entry),
+          });
         }
         if (entry.invalidationPrice !== null) lines.push({
           key: `cancel-${entry.id}`,
@@ -3952,14 +3956,13 @@ export function SignalWorkspace({
         const lines: ChartReferenceLine[] = [
           { key: `manual-entry-${entry.id}`, price: entry.triggerPrice, label: newsFillLabel(entry, pendingEntryClock, activeTradePL) ?? activeTradePL, color: activeTradePLColor, textColor: "#ffffff", dashed: false, lineWidth: 2 as const, onSelect: () => openManager(entry) },
         ];
-        const stopAtRisk = entry.stopPrice !== null && (entry.direction === "long" ? entry.stopPrice < entry.triggerPrice : entry.stopPrice > entry.triggerPrice);
-        if (entry.stopPrice !== null && !editing) lines.push({ key: `manual-stop-${entry.id}`, price: entry.stopPrice, label: `SL ${formatChartPrice(entry.stopPrice, instrument)}${stopAtRisk ? " · -1R" : ""}`, color: "#e74c3c", textColor: "#ffffff", dashed: true, lineWidth: 1 as const, onSelect: () => openManager(entry) });
+        if (entry.stopPrice !== null && !editing) lines.push({ key: `manual-stop-${entry.id}`, price: entry.stopPrice, label: activeStopPL ? `SL ${activeStopPL}` : "SL", color: "#e74c3c", textColor: "#ffffff", dashed: true, lineWidth: 1 as const, onSelect: () => openManager(entry) });
         if (entry.targetPrice !== null && !editing) lines.push({ key: `manual-target-${entry.id}`, price: entry.targetPrice, label: activeTargetPL, color: "#00b377", textColor: "#ffffff", dashed: true, lineWidth: 1 as const, onSelect: () => openManager(entry) });
         return lines;
       }
       return [];
     });
-  }, [instrument, levelDraftEntryId, pendingEntries, pendingEntryClock, selectedPairTrade?.id, activeTradePL, activeTradePLColor, activeTargetPL]);
+  }, [instrument, levelDraftEntryId, pendingEntries, pendingEntryClock, selectedPairTrade?.id, activeTradePL, activeTradePLColor, activeTargetPL, activeStopPL]);
   const supportResistanceReferenceLines = useMemo(
     () => isChartIndicatorEnabled(enabledIndicators, "support-resistance")
       ? supportResistanceLines(chartIndicatorCandles, instrument)
@@ -4794,7 +4797,7 @@ export function SignalWorkspace({
     return spreadPips <= ceiling ? "pricey" : "expensive";
   }, [instrument, spreadPips]);
 
-  function selectSearchResult(result: SearchResult) {
+  function selectSearchResult(result: Pick<SearchResult, "instrument">) {
     setLiveCandle(null);
     setFocusTradeId(null);
     setPaperTradesHydrated(false);
@@ -4823,6 +4826,27 @@ export function SignalWorkspace({
   })();
   // Once a News order is on its way to OANDA it can't be cancelled; say so instead of offering Cancel.
   const newsOrderInFlight = selectedPairTrade?.metadata?.mode === "news" && selectedPairTrade.status === "TRIGGERING";
+  function requestCloseTrade(entry: PendingManualEntry | null) {
+    if (entry && !tradeActionBusy) setTradeConfirm({ mode: "close", entry });
+  }
+
+  const tradeConfirmation = (
+    <TradeConfirmDialog
+      mode={tradeConfirm?.mode ?? null}
+      pairLabel={(tradeConfirm?.mode === "close" ? tradeConfirm.entry.instrument : instrument).replace("_", "/")}
+      onDismiss={() => setTradeConfirm(null)}
+      onConfirm={() => {
+        if (tradeConfirm?.mode === "cancel") {
+          void cancelManualTrade();
+        } else if (tradeConfirm?.mode === "close") {
+          setPendingEntryDialogOpen(false);
+          setNewsDraft(null);
+          void closeManualTrade(tradeConfirm.entry);
+        }
+      }}
+    />
+  );
+
   const mobileTradeAction = newsOrderInFlight
     ? {
         label: "Sending to OANDA…",
@@ -4835,7 +4859,7 @@ export function SignalWorkspace({
     ? {
         label: tradeActionBusy ? "Closing…" : "Close Trade",
         className: " is-close",
-        onClick: () => setTradeConfirm("close"),
+        onClick: () => requestCloseTrade(activeManualTrade),
         disabled: tradeActionBusy,
         title: "Close the active position",
       }
@@ -4843,7 +4867,7 @@ export function SignalWorkspace({
       ? {
           label: tradeActionBusy ? "Cancelling…" : "Cancel Trade",
           className: " is-cancel",
-          onClick: () => setTradeConfirm("cancel"),
+          onClick: () => setTradeConfirm({ mode: "cancel" }),
           disabled: tradeActionBusy,
           title: "Cancel the pending trade",
         }
@@ -4923,11 +4947,12 @@ export function SignalWorkspace({
       {wideChart ? null : <PlanAnalyzeSheet state={planAnalyze} instrument={instrument} price={quote ? (quote.bid + quote.ask) / 2 : null} />}
         {pendingEntryDialogOpen ? <PendingEntryDialog
           key={`${selectedPendingEntry?.id ?? "new-pending-entry"}:${entryComposerRevision}`}
-          open={pendingEntryDialogOpen}
+          open={tradeConfirm === null}
           instrument={instrument}
           bid={quote?.bid ?? null}
           ask={quote?.ask ?? null}
           selectedEntry={selectedPendingEntry}
+          onRequestCloseTrade={replayActive || tradeActionBusy ? undefined : requestCloseTrade}
           initialProposal={entryDraftProposal ?? initialManualProposal}
           onClose={() => { setPendingEntryDialogOpen(false); setNewsDraft(null); }}
           onNewsDraft={setNewsDraft}
@@ -4936,6 +4961,8 @@ export function SignalWorkspace({
             void refreshPendingEntries();
           }}
         /> : null}
+        {tradeConfirmation}
+        {tradeActionError ? <div className="pending-entry-toast" role="alert">{tradeActionError}</div> : null}
       </>
     );
   }
@@ -5121,7 +5148,7 @@ export function SignalWorkspace({
               </div>
             ) : null}
             {/* The trade on the chart as a pill; its controls open in a sheet. */}
-            {chipDirection ? (
+            {chipDirection || otherTradePairs.length > 0 ? (
               <button
                 type="button"
                 className="nl-mtrade-chip pressable"
@@ -5132,11 +5159,13 @@ export function SignalWorkspace({
                 disabled={replayActive || Boolean(levelEdit) || !mobileTradeActionReady}
                 aria-haspopup="dialog"
                 aria-expanded={tradeSheetOpen}
-                aria-label={`Trade controls for ${activePair}`}
+                aria-label={chipDirection ? `Trade controls for ${activePair}` : "Active trades across pairs"}
               >
-                <span className={chipDirection === "long" ? "is-long" : "is-short"}>{chipDirection === "long" ? "Long" : "Short"}</span>
-                <span>{chipStatus}</span>
-                {pairTrades.length > 1 ? <span className="nl-mtrade-chip-count">{pairTrades.length} trades</span> : null}
+                {chipDirection ? <>
+                  <span className={chipDirection === "long" ? "is-long" : "is-short"}>{chipDirection === "long" ? "Long" : "Short"}</span>
+                  <span>{chipStatus}</span>
+                  {pairTrades.length > 1 ? <span className="nl-mtrade-chip-count">{pairTrades.length} trades</span> : null}
+                </> : <><span>Active trades</span><span className="nl-mtrade-chip-count">{otherTradePairs.length} {otherTradePairs.length === 1 ? "pair" : "pairs"}</span></>}
                 <ChevronDown aria-hidden="true" />
               </button>
             ) : null}
@@ -5172,13 +5201,12 @@ export function SignalWorkspace({
               <MobileSheet
                 open={tradeSheetOpen}
                 onClose={() => setTradeSheetOpen(false)}
-                title={`Trade details · ${activePair}`}
-                eyebrow="Chart"
+                title={chipDirection ? `Trade details · ${activePair}` : "Active trades"}
                 lockPageScroll={false}
                 className="nl-mtrade-sheet"
               >
                 {pairTrades.length ? (
-                  <ul className="nl-pt-list" aria-label="Trades on this pair">
+                  <ul className="nl-pt-list nl-mtrade-current" aria-label={`Trades on ${activePair}`}>
                     {pairTrades.map((entry, index) => {
                       const filled = entry.status === "TRIGGERED";
                       const isSelected = entry.id === selectedPairTrade?.id;
@@ -5192,10 +5220,10 @@ export function SignalWorkspace({
                                 Trade {index + 1} · {entry.direction === "long" ? "Long" : "Short"}
                                 <span className={`nl-pt-status ${filled ? "is-open" : "is-pending"}`}>{filled ? "Open" : "Pending"}</span>
                               </span>
-                              <span className="nl-pt-levels metric-number">
-                                <span>Entry {at(filled ? entry.triggerPrice : entry.entryPrice)}</span>
-                                <span className="is-down">SL {at(entry.stopPrice)}</span>
-                                <span className="is-up">TP {at(entry.targetPrice)}</span>
+                              <span className="nl-mtrade-prices">
+                                <span><small>Entry</small><b className="metric-number">{at(filled ? entry.triggerPrice : entry.entryPrice)}</b></span>
+                                <span><small>Stop loss</small><b className={`metric-number${entry.stopPrice === null ? " is-unset" : " is-down"}`}>{at(entry.stopPrice)}</b></span>
+                                <span><small>Take profit</small><b className={`metric-number${entry.targetPrice === null ? " is-unset" : " is-up"}`}>{at(entry.targetPrice)}</b></span>
                               </span>
                             </span>
                             {isSelected ? <Check className="nl-pt-check" aria-label="Shown on the chart" /> : null}
@@ -5237,6 +5265,29 @@ export function SignalWorkspace({
                     </button>
                   ) : null}
                 </div>
+                {otherTradePairs.length > 0 ? (
+                  <section className="nl-mtrade-other" aria-label="Active trades on other pairs">
+                    {chipDirection ? <h3>Other pairs</h3> : null}
+                    <ul className="nl-pt-list">
+                      {otherTradePairs.map(([pair, activity]) => (
+                        <li key={pair}>
+                          <button type="button" className="nl-pt-row pressable" onClick={() => {
+                            setTradeSheetOpen(false);
+                            selectSearchResult({ instrument: pair });
+                          }}>
+                            <span className="nl-pt-main">
+                              <span className="nl-pt-name">{pair.replace("_", "/")}
+                                {activity.open ? <span className="nl-pt-status is-open">Open</span> : null}
+                                {activity.pending ? <span className="nl-pt-status is-pending">Pending</span> : null}
+                              </span>
+                            </span>
+                            <ChevronRight className="nl-pt-check" aria-hidden="true" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
               </MobileSheet>
             </>
           ) : null}
@@ -5282,7 +5333,7 @@ export function SignalWorkspace({
             </div>
             <div className="nl-chart-head-actions">
               {!replayActive && manualTradeMode === "close" ? (
-                <button type="button" className="signals-analyze-desktop pressable is-close nl-trade-action" onClick={() => setTradeConfirm("close")} disabled={tradeActionBusy}>
+                <button type="button" className="signals-analyze-desktop pressable is-close nl-trade-action" onClick={() => requestCloseTrade(activeManualTrade)} disabled={tradeActionBusy}>
                   <CircleStop aria-hidden="true" />
                   {tradeActionBusy ? "Closing…" : "Close trade"}
                 </button>
@@ -5291,7 +5342,7 @@ export function SignalWorkspace({
                   Sending to OANDA…
                 </button>
               ) : !replayActive && manualTradeMode === "cancel" && !pendingLevelSignal ? (
-                <button type="button" className="signals-analyze-desktop pressable is-cancel nl-trade-action" onClick={() => setTradeConfirm("cancel")} disabled={tradeActionBusy}>
+                <button type="button" className="signals-analyze-desktop pressable is-cancel nl-trade-action" onClick={() => setTradeConfirm({ mode: "cancel" })} disabled={tradeActionBusy}>
                   <X aria-hidden="true" />
                   {tradeActionBusy ? "Cancelling…" : "Cancel order"}
                 </button>
@@ -5438,7 +5489,7 @@ export function SignalWorkspace({
                   levels={healthLevels}
                   currentPrice={quote?.instrument === instrument ? quote.mid : null}
                   cancelAction={!replayActive && !newsOrderInFlight && manualTradeMode === "cancel" ? (
-                    <button type="button" className="nl-clevels-start is-cancel pressable" onClick={() => setTradeConfirm("cancel")} disabled={tradeActionBusy} aria-label="Cancel order">
+                    <button type="button" className="nl-clevels-start is-cancel pressable" onClick={() => setTradeConfirm({ mode: "cancel" })} disabled={tradeActionBusy} aria-label="Cancel order">
                       {tradeActionBusy ? "Cancelling…" : "Cancel"}
                     </button>
                   ) : null}
@@ -5471,11 +5522,12 @@ export function SignalWorkspace({
 
       {pendingEntryDialogOpen ? <PendingEntryDialog
         key={`${selectedPendingEntry?.id ?? "new-pending-entry"}:${entryComposerRevision}`}
-        open={pendingEntryDialogOpen}
+        open={tradeConfirm === null}
         instrument={instrument}
         bid={quote?.bid ?? null}
         ask={quote?.ask ?? null}
         selectedEntry={selectedPendingEntry}
+        onRequestCloseTrade={replayActive || tradeActionBusy ? undefined : requestCloseTrade}
         initialProposal={entryDraftProposal ?? initialManualProposal}
         onClose={() => { setPendingEntryDialogOpen(false); setNewsDraft(null); }}
         onNewsDraft={setNewsDraft}
@@ -5552,13 +5604,13 @@ export function SignalWorkspace({
           }
           closeAction={
             !replayActive && manualTradeMode === "close" ? (
-              <button type="button" className="gx-fs-close pressable" onClick={() => setTradeConfirm("close")} disabled={tradeActionBusy}>
+              <button type="button" className="gx-fs-close pressable" onClick={() => requestCloseTrade(activeManualTrade)} disabled={tradeActionBusy}>
                 {tradeActionBusy ? "Closing…" : "Close trade"}
               </button>
             ) : !replayActive && newsOrderInFlight ? (
               <button type="button" className="gx-fs-close" disabled>Sending to OANDA…</button>
             ) : !replayActive && manualTradeMode === "cancel" ? (
-              <button type="button" className="gx-fs-close pressable" onClick={() => setTradeConfirm("cancel")} disabled={tradeActionBusy}>
+              <button type="button" className="gx-fs-close pressable" onClick={() => setTradeConfirm({ mode: "cancel" })} disabled={tradeActionBusy}>
                 {tradeActionBusy ? "Cancelling…" : "Cancel order"}
               </button>
             ) : null
@@ -5601,14 +5653,7 @@ export function SignalWorkspace({
         />
       ) : null}
 
-      <TradeConfirmDialog
-        mode={tradeConfirm}
-        pairLabel={instrument.replace("_", "/")}
-        onDismiss={() => setTradeConfirm(null)}
-        onConfirm={(action) => {
-          void (action === "cancel" ? cancelManualTrade() : closeManualTrade());
-        }}
-      />
+      {tradeConfirmation}
 
       {positionToolPrompt ? createPortal(
         <div

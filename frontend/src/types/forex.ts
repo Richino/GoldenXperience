@@ -129,6 +129,11 @@ export interface PaperChartTrade {
   batchNumber: number | null;
 }
 
+export interface HomeCurrencyConversion {
+  gain: number;
+  loss: number;
+}
+
 export interface OpenPosition {
   unrealizedNetPnlUsd?: number | null;
   id: string;

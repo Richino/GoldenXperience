@@ -8,19 +8,21 @@ import type {
   SeriesType,
   Time,
 } from "lightweight-charts";
-import { LONDON_TIME_ZONE, NEW_YORK_TIME_ZONE, sessionHour } from "@/lib/strategy/session";
+import { LONDON_TIME_ZONE, NEW_YORK_TIME_ZONE, SYDNEY_TIME_ZONE, TOKYO_TIME_ZONE, sessionHour } from "@/lib/strategy/session";
 import type { Candle } from "@/types/forex";
 
 /**
  * The workstation chart's backdrop (canvas "Chart · Desktop"): full-height
- * London and New York session bands with their names along the top, and
+ * Asia, London and New York session bands with their names along the top, and
  * quiet volume bars along the bottom. Drawn behind the candles from the
  * candles themselves, so it needs no series of its own.
  */
 
 export interface ChartBackdropColors {
+  asiaBand: string;
   londonBand: string;
   newYorkBand: string;
+  asiaLabel: string;
   londonLabel: string;
   newYorkLabel: string;
   volume: string;
@@ -34,16 +36,22 @@ const MAX_SESSION_BAR_SECONDS = 2 * 3_600;
 /** Volume bars fill at most this share of the pane's height. */
 const VOLUME_SHARE = 0.12;
 
-interface Window { name: "london" | "newYork"; start: number; end: number }
+interface Window { name: "asia" | "london" | "newYork"; start: number; end: number }
 interface PixelBand { x1: number; x2: number; name: Window["name"] }
 interface PixelBar { x: number; width: number; height: number }
 
-/** London and New York 08:00–17:00 local, each on its own DST clock. */
+/** Each centre uses 08:00–17:00 local. The Asia band covers Tokyo and Sydney. */
 function sessionWindows(firstMs: number, lastMs: number): Window[] {
   const windows: Window[] = [];
-  for (let day = firstMs - (firstMs % DAY_MS) - DAY_MS; day <= lastMs; day += DAY_MS) {
+  // The next local trading day's Asia session can start on this UTC date.
+  for (let day = firstMs - (firstMs % DAY_MS) - DAY_MS; day <= lastMs + DAY_MS; day += DAY_MS) {
     const weekday = new Date(day).getUTCDay();
     if (weekday === 0 || weekday === 6) continue;
+    windows.push({
+      name: "asia",
+      start: Math.min(sessionHour(day, 8, TOKYO_TIME_ZONE), sessionHour(day, 8, SYDNEY_TIME_ZONE)),
+      end: Math.max(sessionHour(day, 17, TOKYO_TIME_ZONE), sessionHour(day, 17, SYDNEY_TIME_ZONE)),
+    });
     windows.push({ name: "london", start: sessionHour(day, 8, LONDON_TIME_ZONE), end: sessionHour(day, 17, LONDON_TIME_ZONE) });
     windows.push({ name: "newYork", start: sessionHour(day, 8, NEW_YORK_TIME_ZONE), end: sessionHour(day, 17, NEW_YORK_TIME_ZONE) });
   }
@@ -80,7 +88,9 @@ class BackdropRenderer implements IPrimitivePaneRenderer {
       for (const band of this.bands) {
         const x = Math.round(band.x1 * h);
         const width = Math.max(1, Math.round((band.x2 - band.x1) * h));
-        context.fillStyle = band.name === "london" ? this.colors.londonBand : this.colors.newYorkBand;
+        context.fillStyle = band.name === "asia"
+          ? this.colors.asiaBand
+          : band.name === "london" ? this.colors.londonBand : this.colors.newYorkBand;
         context.fillRect(x, 0, width, bitmapSize.height);
       }
       context.fillStyle = this.colors.volume;
@@ -90,19 +100,28 @@ class BackdropRenderer implements IPrimitivePaneRenderer {
       }
       context.font = `600 ${Math.round(10 * v)}px ${this.fontFamily}`;
       context.textBaseline = "top";
-      // Name only the latest London and New York bands; the earlier days'
-      // bands read the same without repeating their labels. Where the two
-      // overlap, that stretch is named as the overlap and "New York" moves to
-      // where New York trades alone. A label is drawn only where it fits.
+      // Label the latest sessions. Where London and New York overlap,
+      // place the New York label in the portion where it trades alone.
       const latest = new Map(this.bands.map((band) => [band.name, band]));
       const london = latest.get("london");
       const newYork = latest.get("newYork");
       const label = (text: string, color: string, from: number, to: number) => {
-        if (to - from < context.measureText(text).width / h + 12) return;
+        const left = Math.max(0, from);
+        const right = Math.min(bitmapSize.width / h, to);
+        if (right - left < context.measureText(text).width / h + 12) return false;
         context.fillStyle = color;
-        // Below the chart legend (pair, OHLC and indicator chips) at the top-left.
-        context.fillText(text, Math.round((from + 6) * h), Math.round(SESSION_LABEL_TOP * v));
+        context.fillText(text, Math.round((left + 6) * h), Math.round(SESSION_LABEL_TOP * v));
+        return true;
       };
+      // A new session can be only a few pixels wide. Label the most recent
+      // Asia band with room, away from any London or New York label.
+      for (let index = this.bands.length - 1; index >= 0; index -= 1) {
+        const band = this.bands[index]!;
+        if (band.name !== "asia") continue;
+        const from = newYork && newYork.x1 <= band.x1 ? Math.max(band.x1, newYork.x2) : band.x1;
+        const to = london && london.x1 >= band.x1 ? Math.min(band.x2, london.x1) : band.x2;
+        if (label("ASIA", this.colors.asiaLabel, from, to)) break;
+      }
       const overlap = london && newYork && newYork.x1 < london.x2 && newYork.x2 > london.x1
         ? { x1: Math.max(london.x1, newYork.x1), x2: Math.min(london.x2, newYork.x2) }
         : null;
@@ -117,8 +136,7 @@ class BackdropRenderer implements IPrimitivePaneRenderer {
   }
 }
 
-/** CSS px from the pane top to the session names: clear of the two-row legend. */
-const SESSION_LABEL_TOP = 64;
+const SESSION_LABEL_TOP = 8;
 
 export class ChartBackdropPrimitive implements ISeriesPrimitive<Time> {
   private chart: IChartApiBase<Time> | null = null;

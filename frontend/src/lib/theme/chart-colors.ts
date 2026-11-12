@@ -31,9 +31,11 @@ export const CHART_COLORS = {
     crosshairText: "#f1f2ec",
     // Session bands, their labels and volume (chart-backdrop-primitive).
     backdrop: {
+      asiaBand: "rgba(135, 173, 223, 0.055)",
       londonBand: "rgba(241, 242, 236, 0.025)",
       newYorkBand: "rgba(200, 245, 96, 0.045)",
       londonLabel: "#9ca195",
+      asiaLabel: "#a8c2e5",
       newYorkLabel: "#c8f560",
       volume: "rgba(241, 242, 236, 0.07)",
     },
@@ -57,9 +59,11 @@ export const CHART_COLORS = {
     crosshairTag: "#eeefe8",
     crosshairText: "#141612",
     backdrop: {
+      asiaBand: "rgba(58, 103, 162, 0.06)",
       londonBand: "rgba(20, 22, 18, 0.025)",
       newYorkBand: "rgba(110, 160, 0, 0.06)",
       londonLabel: "#61675a",
+      asiaLabel: "#3a67a2",
       newYorkLabel: "#4e7a00",
       volume: "rgba(20, 22, 18, 0.08)",
     },

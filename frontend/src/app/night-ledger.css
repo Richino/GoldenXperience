@@ -7878,7 +7878,7 @@ html:is(.dark, :not(.dark)) body .nl-chart-head .signals-analyze-desktop.nl-trad
   position: absolute;
   top: -7px;
   left: 0;
-  right: 0;
+  right: var(--level-edit-axis-width, 68px);
   height: 14px;
   cursor: ns-resize;
   pointer-events: auto;
@@ -10735,6 +10735,7 @@ html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="watching"]
     padding: 0;
   }
   html:is(.dark, :not(.dark)) body .signals-view:not(.signals-view-fullscreen) .signals-chart-mobile:has(.nl-mlevels) {
+    --chart-dock-ground: var(--chart-dock-surface);
     padding-bottom: var(--app-dock-height, 5.5rem);
   }
 }
@@ -10744,7 +10745,7 @@ html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="watching"]
   gap: 8px;
   padding: 10px 12px;
   border-top: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--chart-dock-surface);
 }
 .nl-mlevels .nl-clevels-mobile-head {
   grid-column: 1 / -1;
@@ -10840,11 +10841,9 @@ html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="watching"]
   }
 }
 
-/* Phone chart SL / TP handles: just grip + price, tucked by the price axis.
-   Pips and R are in the editor cards right under the chart. The whole 28px
-   band stays draggable; the pill only marks it. Fullscreen keeps the detail. */
+/* Phone chart SL / TP handles sit just inside the price axis.
+   The whole 28px band stays draggable; the pill only marks it. */
 @media (max-width: 1023px) {
-  .signals-chart-mobile .setup-chart-level-edit-detail { display: none; }
   .signals-chart-mobile .setup-chart-level-edit-handle {
     right: 4px;
     gap: 6px;
@@ -11320,6 +11319,17 @@ html:is(.dark, :not(.dark)) body .signals-view .nl-terminal .nl-ohlc {
   flex-direction: column;
   align-items: flex-start;
 }
+.setup-chart-root .setup-chart-level-edit-price {
+  top: 50%;
+  right: auto;
+  left: 100%;
+  width: var(--level-edit-axis-width, 68px);
+  background: var(--level);
+  color: var(--surface);
+}
+.setup-chart-level-edit-line.is-invalid .setup-chart-level-edit-price {
+  background: var(--pending);
+}
 .setup-chart-price-countdown {
   font-size: 10px;
   font-weight: 500;
@@ -11496,8 +11506,8 @@ html:is(.dark, :not(.dark)) body .signals-view .nl-chart-side .nl-cside-card.nl-
   padding: 0 12px 0 9px;
   border: 1px solid color-mix(in srgb, var(--level-color) 45%, transparent);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--surface-raised) 92%, transparent);
-  box-shadow: 0 4px 14px rgb(0 0 0 / 28%);
+  background: var(--surface-raised);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 14%);
   color: var(--foreground);
   font-size: 12px;
   font-weight: 500;
@@ -11511,7 +11521,6 @@ html:is(.dark, :not(.dark)) body .signals-view .nl-chart-side .nl-cside-card.nl-
 }
 .setup-chart-root .setup-chart-level-tag:not(:disabled):hover {
   border-color: var(--level-color);
-  background: var(--surface-raised);
 }
 .setup-chart-root .setup-chart-level-tag-dot {
   flex: 0 0 6px;
@@ -11564,7 +11573,7 @@ html:is(.dark, :not(.dark)) body .signals-chart-mobile .nl-mnew-entry:disabled {
 
 html:is(.dark, :not(.dark)) body .signals-view .signals-chart-mobile .relative > .nl-mtrade-chip.pressable {
   position: absolute;
-  top: 10px;
+  top: 24px;
   left: 10px;
   z-index: 6;
   display: inline-flex;
@@ -11575,7 +11584,7 @@ html:is(.dark, :not(.dark)) body .signals-view .signals-chart-mobile .relative >
   border: 1px solid var(--border-strong);
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface-raised) 92%, transparent);
-  box-shadow: 0 4px 14px rgb(0 0 0 / 28%);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 14%);
   color: var(--muted-strong);
   font-size: 12px;
   font-weight: 500;
@@ -11585,12 +11594,57 @@ html:is(.dark, :not(.dark)) body .signals-view .signals-chart-mobile .relative >
 .nl-mtrade-chip-count { color: var(--muted); }
 .nl-mtrade-chip svg { width: 14px; height: 14px; color: var(--muted); }
 
-.nl-mtrade-sheet .nl-pt-list { margin: 0 0 14px; }
+.nl-mtrade-sheet .nl-mtrade-current {
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.nl-mtrade-current .nl-pt-row {
+  display: grid;
+  grid-template-columns: 3px minmax(0, 1fr) 18px;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  background: transparent;
+}
+.nl-mtrade-current .nl-pt-row.is-selected {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface-raised));
+}
+.nl-mtrade-current .nl-pt-side { width: 3px; }
+.nl-mtrade-current .nl-pt-main { gap: 7px; }
+.nl-mtrade-prices {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.nl-mtrade-prices > span { display: grid; gap: 2px; }
+.nl-mtrade-prices small { color: var(--muted); font-size: 10px; }
+.nl-mtrade-prices b { font-size: 12px; font-weight: 600; }
+.nl-mtrade-prices .is-unset { color: var(--muted); }
+.nl-mtrade-other { margin-top: 14px; }
+.nl-mtrade-other h3 {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.nl-mtrade-other .nl-pt-row {
+  min-height: 44px;
+  padding: 8px 12px;
+  border-color: var(--border);
+  border-radius: 10px;
+  background: transparent;
+}
+.nl-mtrade-other .nl-pt-check { color: var(--muted); }
 .nl-mtrade-sheet-actions {
   display: grid;
   grid-auto-columns: minmax(0, 1fr);
   grid-auto-flow: column;
   gap: 8px;
+  margin-top: 8px;
 }
 .nl-mtrade-sheet-actions:empty { display: none; }
 html:is(.dark, :not(.dark)) body .nl-mtrade-sheet-actions :is(.nl-mlevels-start, .gx-mobile-analyze) {
@@ -11620,7 +11674,7 @@ html:is(.dark, :not(.dark)) body .nl-mtrade-sheet-actions :is(.nl-mlevels-start,
     background-color: var(--chart-ground, #0e100d);
   }
   html:is(.dark, :not(.dark)) body .signals-view:not(.signals-view-fullscreen) .signals-chart-mobile {
-    background-image: linear-gradient(var(--chart-ground, #0e100d), var(--chart-ground, #0e100d));
+    background-image: linear-gradient(var(--chart-dock-ground, var(--chart-ground)), var(--chart-dock-ground, var(--chart-ground)));
     background-position: bottom;
     background-repeat: no-repeat;
     background-size: 100% calc(var(--app-dock-height, 5.5rem) + 48px);
@@ -11628,8 +11682,14 @@ html:is(.dark, :not(.dark)) body .nl-mtrade-sheet-actions :is(.nl-mlevels-start,
 }
 
 /* The chart canvas's own ground, mirrored from lib/theme/chart-colors.ts. */
-:root { --chart-ground: #fcfcf9; }
-.dark { --chart-ground: #0e100d; }
+:root {
+  --chart-ground: #fcfcf9;
+  --chart-dock-surface: color-mix(in srgb, var(--surface) 72%, var(--chart-ground));
+}
+.dark {
+  --chart-ground: #0e100d;
+  --chart-dock-surface: color-mix(in srgb, var(--surface-raised) 68%, var(--chart-ground));
+}
 
 /* ============================================================ PHONE CHART CONTROLS · REFINED
    Timeframes and tools as the desktop chart toolbar: one soft segmented
@@ -11754,6 +11814,10 @@ html:is(.dark, :not(.dark)) body .signals-view .nl-terminal .nl-chart-card > .nl
   html.dark:has(.signals-route) body .mobile-dock.ink-dock {
     --ink-dock-shadow: 0 0 0 transparent;
   }
+  html:is(.dark, :not(.dark)) body:has(.signals-chart-mobile > .nl-mlevels) .mobile-dock.ink-dock {
+    background: var(--chart-dock-surface);
+    --ink-dock-glass: var(--chart-dock-surface);
+  }
   html:is(.dark, :not(.dark)) body .mobile-dock.ink-dock .ink-dock-sheet {
     padding: 7px;
     border: 1px solid var(--ink-dock-edge);
@@ -11762,6 +11826,9 @@ html:is(.dark, :not(.dark)) body .signals-view .nl-terminal .nl-chart-card > .nl
     -webkit-backdrop-filter: blur(22px) saturate(160%);
     backdrop-filter: blur(22px) saturate(160%);
     box-shadow: var(--ink-dock-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+  html:is(.dark, :not(.dark)) body:has(.signals-chart-mobile > .nl-mlevels) .mobile-dock.ink-dock .ink-dock-sheet {
+    box-shadow: none;
   }
   html:is(.dark, :not(.dark)) body .mobile-dock.ink-dock .ink-dock-tab {
     height: 52px;
@@ -12171,3 +12238,279 @@ html:is(.dark, :not(.dark)) body .nl-pending .nl-levels dd.is-unset { color: var
   text-align: center;
 }
 .nl-lim-done { width: 100%; min-height: 50px; }
+
+/* ===================================================== PAIR PICKER (list rows) */
+
+/* Group heading: a quiet eyebrow that separates the trend groups. */
+html:is(.dark, :not(.dark)) body .signals-pair-sheet .signals-pair-group {
+  margin: 0;
+  padding: 16px 10px 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-sheet :is(.mt-2, .signals-pair-dropdown-results) > div:first-child > .signals-pair-group {
+  padding-top: 6px;
+}
+
+/* Hairline between neighbouring rows of one group; hidden where a row is lit. */
+html:is(.dark, :not(.dark)) body .signals-pair-sheet :is(.mt-2, .signals-pair-dropdown-results) > div + div > .signals-search-result {
+  position: relative;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-sheet :is(.mt-2, .signals-pair-dropdown-results) > div + div > .signals-search-result::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  right: 10px;
+  left: 56px;
+  height: 1px;
+  background: var(--border);
+  pointer-events: none;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-sheet :is(.mt-2, .signals-pair-dropdown-results) > div:has(> .signals-pair-group) > .signals-search-result::before,
+html:is(.dark, :not(.dark)) body .signals-pair-sheet .signals-search-result:is(:hover, .is-active)::before,
+html:is(.dark, :not(.dark)) body .signals-pair-sheet :is(.mt-2, .signals-pair-dropdown-results) > div:has(> .signals-search-result:is(:hover, .is-active)) + div > .signals-search-result::before {
+  content: none;
+}
+
+/* Trend as a coloured line of text, not a boxed pill: the dot and the bias
+   carry the tone, the qualifier stays muted. */
+html:is(.dark, :not(.dark)) body .signals-pair-sheet .signals-pair-trend {
+  margin-top: 4px;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-sheet .signals-pair-trend [data-tone] {
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-sheet .signals-pair-trend [data-tone]::before {
+  flex-basis: 7px;
+  width: 7px;
+  height: 7px;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-sheet .signals-pair-trend [data-tone="neutral"] {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-sheet .signals-pair-trend .nl-trend-qualifier {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* ============================================== OPEN POSITIONS: CLOSE ALL */
+
+.nl-sec-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.nl-close-all {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  color: var(--danger);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.nl-close-all:hover {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
+.manual-proposal-backdrop.pending-cancel-backdrop .close-all-confirmation {
+  max-height: min(85dvh, 32rem);
+  overflow-y: auto;
+}
+
+.close-all-confirmation .close-all-list {
+  display: grid;
+  margin: 0.85rem 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--border);
+}
+
+.close-all-confirmation .close-all-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.close-all-confirmation .close-all-list li > span:first-child {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.close-all-confirmation .close-all-list li > span:first-child > span {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.close-all-confirmation .close-all-total {
+  display: flex;
+  justify-content: space-between;
+  margin: 0.6rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.close-all-confirmation .close-all-total .metric-number {
+  font-weight: 700;
+}
+
+.close-all-confirmation :is(.close-all-list, .close-all-total) .is-up { color: var(--success); }
+.close-all-confirmation :is(.close-all-list, .close-all-total) .is-down { color: var(--danger); }
+
+.close-all-confirmation .close-all-error {
+  margin: 0.75rem 0 0;
+  color: var(--danger);
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+/* ============================================ NEWS SHEET: FORECAST VS PREVIOUS */
+
+.news-impact-fread {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+}
+
+.news-impact-fread-head {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.news-impact-fread-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.news-impact-fread-row:last-of-type { border-bottom: 0; }
+.news-impact-fread-row > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.news-impact-fread-row > .metric-number { color: var(--muted); font-size: 12px; }
+.news-impact-fread-row > b { font-size: 12.5px; font-weight: 600; text-align: right; }
+.news-impact-fread-row > b.is-up { color: var(--success); }
+.news-impact-fread-row > b.is-down { color: var(--danger); }
+
+.news-impact-fread-overall {
+  margin: 6px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  color: var(--foreground);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+/* ===================================================== TICKET: SIZE PER TRADE */
+
+/* Size input with its unit beside it: lots, or % of the account to risk. */
+.nl-pe-size {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+
+.nl-pe-size label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.nl-pe-size label > span {
+  color: var(--muted-strong);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.nl-pe-size input {
+  width: 100%;
+  height: 48px;
+  padding-inline: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-raised, rgb(238, 239, 232));
+  color: var(--foreground);
+  font-size: 16px;
+  outline: none;
+}
+
+.nl-pe-size input:focus {
+  border-color: var(--border-strong);
+}
+
+.nl-pe-size input[aria-invalid="true"] {
+  border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+}
+
+.nl-pe-size-unit {
+  display: inline-flex;
+  height: 48px;
+  padding: 4px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+
+.nl-pe-size-unit button {
+  padding: 0 14px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted-strong);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.nl-pe-size-unit button.is-active {
+  background: var(--surface);
+  color: var(--foreground);
+  box-shadow: 0 1px 2px color-mix(in srgb, #000 10%, transparent);
+}
+
+/* Pending card header: with the lot size in the order tag, let "Open chart"
+   wrap to its own line on narrow cards instead of running past the edge. */
+html:is(.dark, :not(.dark)) body .nl-pending .nl-pending-top {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}

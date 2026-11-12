@@ -196,11 +196,11 @@ export function createFixedTenPipSetup(
 export interface ChartLevelEdit {
   instrument: string;
   direction: "long" | "short";
-  entry: number;
   stop: number | null;
   target: number | null;
   /** The price the trade would close at now; a level past it is invalid. */
   exitPrice: number | null;
+  formatExitPL?: (price: number) => string;
 }
 
 /** A single externally focused price, such as an active binary prediction entry. */
@@ -740,6 +740,7 @@ function LevelEditOverlay({
       if (isRemovedChartError(error)) return;
       throw error;
     }
+    root.style.setProperty("--level-edit-axis-width", `${axisWidth}px`);
     const bottom = root.clientHeight - timeHeight;
     for (const key of EDIT_LEVEL_KEYS) {
       const line = lineRefs.current[key];
@@ -757,7 +758,6 @@ function LevelEditOverlay({
       const raw = y ?? (range && price > range.to ? -Infinity : Infinity);
       const pinned = Math.min(Math.max(raw, 12), bottom - 12);
       line.style.transform = `translateY(${Math.round(pinned)}px)`;
-      line.style.right = `${axisWidth}px`;
       line.classList.toggle("is-pinned", pinned !== raw);
     }
   }, [chartRef, mainSeriesRef]);
@@ -825,30 +825,12 @@ function LevelEditOverlay({
     document.body.classList.add("is-dragging-position-tool");
   };
 
-  const pip = pipSizeFor(edit.instrument);
-  // R only means something while the stop is on the losing side of entry.
-  const risk = edit.stop === null ? null : edit.direction === "long" ? edit.entry - edit.stop : edit.stop - edit.entry;
-  const label = (key: EditLevelKey, price: number) => {
-    const fromEntry = (edit.direction === "long" ? price - edit.entry : edit.entry - price) / pip;
-    const pips = `${fromEntry >= 0 ? "+" : "−"}${Math.abs(fromEntry).toFixed(1)}p`;
-    // The stop is the 1R the trade risks; the target is measured in those R.
-    const reward = risk === null || risk <= 0 ? ""
-      : key === "stop" ? " · −1.0R"
-        : ` · ${(Math.abs(price - edit.entry) / risk).toFixed(1)}R`;
-    // The phone chart hides the detail: its SL / TP cards show the same numbers.
-    return (
-      <>
-        {`${key === "stop" ? "SL" : "TP"} ${formatChartPrice(price, edit.instrument)}`}
-        <span className="setup-chart-level-edit-detail">{` · ${pips}${reward}`}</span>
-      </>
-    );
-  };
-
   return (
     <div ref={rootRef} className="setup-chart-level-edit">
       {EDIT_LEVEL_KEYS.map((key) => {
         const price = edit[key];
         if (price === null) return null;
+        const amount = edit.formatExitPL?.(price) ?? "—";
         return (
           <div
             key={key}
@@ -858,9 +840,15 @@ function LevelEditOverlay({
             className={`setup-chart-level-edit-line is-${key}${chartLevelInvalid(edit, key) ? " is-invalid" : ""}`}
             onPointerDown={beginDrag(key)}
           >
-            <span className="setup-chart-level-edit-handle metric-number">
+            <span
+              className="setup-chart-level-edit-handle metric-number"
+              title={amount === "—" ? "Estimated P/L unavailable" : "Estimated trade P/L if this level fills"}
+            >
               <i aria-hidden="true" />
-              {label(key, price)}
+              {`${key === "stop" ? "SL" : "TP"} ${amount}`}
+            </span>
+            <span className="setup-chart-price-label setup-chart-level-price setup-chart-level-edit-price">
+              {formatChartPrice(price, edit.instrument)}
             </span>
           </div>
         );
@@ -3276,7 +3264,7 @@ export function SetupChart({
           } as CSSProperties & { "--level-color": string }}
           onClick={tag.onSelect}
           disabled={!tag.onSelect}
-          title={tag.label.startsWith("P/L ") ? "Live P/L estimate from executable bid/ask, refreshed against the broker every 15 seconds. Line marks the fill price." : tag.label.startsWith("TP ") ? "Estimated total trade profit at this target. Actual fills, conversion rates and fees can change the final amount." : undefined}
+          title={tag.label.startsWith("P/L ") ? "OANDA-reported unrealized P/L in your account currency. Refreshes every 15 seconds. The line marks the fill price." : tag.label.startsWith("TP ") ? "Estimated total trade profit at this target. Actual fills, conversion rates and fees can change the final amount." : undefined}
           aria-label={`${tag.label}, ${formatChartPrice(tag.price, series.instrument)}${tag.away ? `, ${tag.away.pips.toFixed(1)} pips ${tag.away.direction}` : ""}`}
         >
           {tag.away ? (
@@ -3340,7 +3328,7 @@ export function SetupChart({
         onViewChange={() => paintLastPriceRef.current()}
       />
       {activeFilters.length > 0 ? (
-        <div className="pointer-events-none absolute left-3 top-3 flex flex-wrap gap-1.5">
+        <div className="pointer-events-none absolute left-3 top-6 flex flex-wrap gap-1.5">
           {activeFilters.map((filter) => (
             <span
               key={filter.label}

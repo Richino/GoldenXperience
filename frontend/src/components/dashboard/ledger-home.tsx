@@ -11,7 +11,7 @@
  */
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useLayoutEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { ArrowUpRight } from "lucide-react";
 import {
   AccountAmountChart,
@@ -145,7 +145,9 @@ const ORDER_TYPE_LABEL: Record<PendingManualEntry["entryOrderType"], string> = {
 /** A wall clock that only exists after mount, so SSR and hydration agree. */
 function useNow(intervalMs: number) {
   const [now, setNow] = useState<number | null>(null);
-  useEffect(() => {
+  // Set before the first paint, so a card that mounts as Home is revealed
+  // (the hero's daily and weekly quotas) never shows "—" for a frame.
+  useLayoutEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setNow(Date.now());
     const timer = window.setInterval(() => setNow(Date.now()), intervalMs);
@@ -374,7 +376,18 @@ function SectionHead({
   );
 }
 
-export function LedgerPositions({ positions, currency }: { positions: LedgerPosition[]; currency: string }) {
+export function LedgerPositions({
+  positions,
+  currency,
+  closeAllCount = 0,
+  onCloseAll,
+}: {
+  positions: LedgerPosition[];
+  currency: string;
+  /** Open manual trades Close all would act on; the button hides at 0. */
+  closeAllCount?: number;
+  onCloseAll?: () => void;
+}) {
   const now = useNow(30_000);
   return (
     <section className="nl-sec nl-positions" aria-labelledby="nl-positions-title">
@@ -387,11 +400,18 @@ export function LedgerPositions({ positions, currency }: { positions: LedgerPosi
             <span className="nl-wide-only"> live</span>
           </span>
         </div>
-        <Link href="/journal" className="nl-sec-link">
-          <span className="nl-wide-only">Journal</span>
-          <span className="nl-narrow-only">See all</span>
-          <ArrowUpRight aria-hidden="true" className="nl-wide-only" />
-        </Link>
+        <div className="nl-sec-actions">
+          {onCloseAll && closeAllCount > 0 ? (
+            <button type="button" className="nl-close-all pressable" onClick={onCloseAll}>
+              Close all
+            </button>
+          ) : null}
+          <Link href="/journal" className="nl-sec-link">
+            <span className="nl-wide-only">Journal</span>
+            <span className="nl-narrow-only">See all</span>
+            <ArrowUpRight aria-hidden="true" className="nl-wide-only" />
+          </Link>
+        </div>
       </div>
 
       {positions.length ? (
@@ -445,9 +465,9 @@ export function LedgerPositions({ positions, currency }: { positions: LedgerPosi
                 <span className="nl-pos-size metric-number">{position.lots === null ? "—" : `${position.lots.toFixed(2)} lot`}</span>
                 <span className={`nl-pos-r metric-number ${rTone}`}>{signedR(position.r)}</span>
                 <span className="nl-pos-pl metric-number">
-                  <span className={tone(position.money)}>{position.money === null ? "Open" : signedMoney(position.money, currency)}</span>
+                  <span className={tone(position.money)}>{position.money === null ? "—" : signedMoney(position.money, currency)}</span>
                   {position.spreadCost !== null ? (
-                    <small className="nl-pos-spread">spread {signedMoney(-Math.abs(position.spreadCost), currency)}{position.spreadR !== null ? ` · ${signedR(position.spreadR)}` : ""}</small>
+                    <small className="nl-pos-spread">Entry spread {signedMoney(-Math.abs(position.spreadCost), currency)}{position.spreadR !== null ? ` · ${signedR(position.spreadR)}` : ""}</small>
                   ) : null}
                 </span>
               </Link>
@@ -634,6 +654,20 @@ function LedgerNews({ positions }: { positions: HomeCurrentPosition[] }) {
   );
 }
 
+/**
+ * The order's size: the units resting at OANDA ("2.43 lot"), else the size
+ * chosen on the ticket before it reaches the broker ("1% risk" for a scheduled
+ * % order, whose lots are only worked out when it is placed).
+ */
+function pendingSizeLabel(entry: PendingManualEntry): string | null {
+  const meta = entry.metadata as { units?: unknown; sizeChoice?: { mode?: string; lots?: number; percent?: number } };
+  const units = Number(meta.units);
+  if (Number.isFinite(units) && units > 0) return `${(Math.abs(units) / 100_000).toFixed(2)} lot`;
+  if (meta.sizeChoice?.mode === "lots" && typeof meta.sizeChoice.lots === "number") return `${meta.sizeChoice.lots.toFixed(2)} lot`;
+  if (meta.sizeChoice?.mode === "percent" && typeof meta.sizeChoice.percent === "number") return `${meta.sizeChoice.percent}% risk`;
+  return null;
+}
+
 export function LedgerPending({
   entries,
   cancellingId,
@@ -680,7 +714,7 @@ export function LedgerPending({
                 aria-label={`Open the ${displayNameFor(entry.instrument)} chart`}
               >
                 <b>{displayNameFor(entry.instrument)}</b>
-                <SideChip direction={entry.direction}>{ORDER_TYPE_LABEL[entry.entryOrderType]}</SideChip>
+                <SideChip direction={entry.direction}>{ORDER_TYPE_LABEL[entry.entryOrderType]}{pendingSizeLabel(entry) ? ` · ${pendingSizeLabel(entry)}` : ""}</SideChip>
                 <span className="nl-pending-open" aria-hidden="true">Open chart<ArrowUpRight /></span>
               </Link>
               <dl className="nl-levels">
@@ -746,6 +780,8 @@ export function LedgerHome({
   financialUpdatedAt,
   greeting,
   positions,
+  closeAllCount = 0,
+  onCloseAll,
   newsPositions,
   today,
   pending,
@@ -765,6 +801,8 @@ export function LedgerHome({
   financialUpdatedAt?: string | null;
   greeting: string;
   positions: LedgerPosition[];
+  closeAllCount?: number;
+  onCloseAll?: () => void;
   newsPositions: HomeCurrentPosition[];
   today: LedgerToday;
   pending: PendingManualEntry[];
@@ -812,7 +850,7 @@ export function LedgerHome({
         {error ? <p className="nl-card-empty is-warn">{error}</p> : null}
         <div className="nl-home-cols">
           <div className="nl-home-main">
-            {positionsReady ? <LedgerPositions positions={positions} currency={account?.currency ?? "USD"} /> : <DeferredCard title="Open positions" state={positionState} />}
+            {positionsReady ? <LedgerPositions positions={positions} currency={account?.currency ?? "USD"} closeAllCount={closeAllCount} onCloseAll={onCloseAll} /> : <DeferredCard title="Open positions" state={positionState} />}
             {hasData(loadState.pending) ? <LedgerPending
               entries={pending}
               cancellingId={cancellingPendingId}

@@ -260,7 +260,18 @@ export async function newsPredictionsSnapshot() {
     const series = tally(true);
     return series.n >= MIN_SERIES_SAMPLES ? { ...series, scope: "series" as const } : { ...tally(false), scope: "overall" as const };
   };
+  // The forecast-vs-previous read ("forecast above previous = bullish") calls a
+  // move with the trend past the forecast, which is the "previous" signal
+  // inverted. Its record over every scored release, so the sheet can show it.
+  let forecastReadCalls = 0, forecastReadHits = 0;
+  for (const row of scored.rows) {
+    const vote = row.signals?.previous ?? 0;
+    if (!vote) continue;
+    forecastReadCalls += 1;
+    if ((vote > 0) !== (row.outcome === "beat")) forecastReadHits += 1;
+  }
   return {
+    forecastReadRecord: { n: forecastReadCalls, hits: forecastReadHits },
     predictions: rows.rows.map((row) => ({
       ...row,
       signal_record: signalRecord(row.chosen_signal as string | null, row.series_key as string, row.event_time as string),

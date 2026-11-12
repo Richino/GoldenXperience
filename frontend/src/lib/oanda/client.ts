@@ -11,6 +11,7 @@ import type {
   AccountBalanceHistoryPoint,
   CandleSeries,
   ConnectionStatus,
+  HomeCurrencyConversion,
   MajorInstrument,
   OpenPosition,
   PriceQuote,
@@ -114,6 +115,7 @@ export type ClosedPracticeTrade = {
 };
 
 interface OandaPricingResponse {
+  homeConversions?: Array<{ currency: string; accountGain: string; accountLoss: string }>;
   prices: Array<{
     instrument: MajorInstrument;
     time: string;
@@ -962,7 +964,9 @@ export async function getAccountSnapshot() {
   if (![data.balance, data.nav, data.unrealizedPL, data.marginUsed, data.marginAvailable].every(Number.isFinite) || !Array.isArray(account.trades)) {
     throw new OandaRequestError("Incomplete broker account snapshot.");
   }
-  const pricing = account.trades.length ? await getPricing([...new Set(account.trades.map(trade => trade.instrument))]) : null;
+  const pricing = account.trades.length
+    ? await getPricing([...new Set(account.trades.map(trade => trade.instrument))], { includeHomeConversions: true })
+    : null;
   if (pricing && pricing.status.state !== "connected") throw new OandaRequestError("Position pricing unavailable.");
   const prices = new Map(pricing?.data.map(quote => [quote.instrument, quote]));
   const positions: OpenPosition[] = account.trades.map(trade => {
@@ -980,7 +984,7 @@ export async function getAccountSnapshot() {
   if (positions.length !== data.openTradeCount || positions.some(position => ![position.units, position.entryPrice, position.unrealizedPL].every(Number.isFinite))) {
     throw new OandaRequestError("Incomplete broker position snapshot.");
   }
-  return { data, positions, checkedAt, lastTransactionID: account.lastTransactionID, status: buildStatus("connected", "Account and positions updated together.") };
+  return { data, positions, homeConversions: pricing?.homeConversions ?? {}, checkedAt, lastTransactionID: account.lastTransactionID, status: buildStatus("connected", "Account and positions updated together.") };
 }
 
 /**
@@ -1107,10 +1111,11 @@ export async function getClosedPracticeTrades(): Promise<ClosedPracticeTrade[]> 
 
 export async function getPricing(
   instruments: MajorInstrument[],
-  options: { signal?: AbortSignal } = {},
+  options: { signal?: AbortSignal; includeHomeConversions?: boolean } = {},
 ): Promise<{
   data: PriceQuote[];
   status: ConnectionStatus;
+  homeConversions?: Record<string, HomeCurrencyConversion>;
 }> {
   const config = getConfig();
 
@@ -1125,9 +1130,18 @@ export async function getPricing(
   }
 
   try {
+    const query = new URLSearchParams({ instruments: instruments.join(",") });
+    if (options.includeHomeConversions) query.set("includeHomeConversions", "true");
     const response = await requestOanda<OandaPricingResponse>(
-      `/v3/accounts/${encodeURIComponent(config.accountId)}/pricing?instruments=${instruments.join(",")}`, options,
+      `/v3/accounts/${encodeURIComponent(config.accountId)}/pricing?${query}`, options,
     );
+    const homeConversions = Object.fromEntries((response.homeConversions ?? []).flatMap((rate) => {
+      const gain = Number(rate.accountGain);
+      const loss = Number(rate.accountLoss);
+      return Number.isFinite(gain) && gain > 0 && Number.isFinite(loss) && loss > 0
+        ? [[rate.currency, { gain, loss }] as const]
+        : [];
+    }));
 
     return {
       data: response.prices.map((price) => {
@@ -1147,6 +1161,7 @@ export async function getPricing(
         };
       }),
       status: buildStatus("connected", "Live practice pricing is available."),
+      ...(options.includeHomeConversions ? { homeConversions } : {}),
     };
   } catch (error) {
     return {

@@ -86,6 +86,7 @@ import {
   updateActiveManualTradeLevels,
   updatePendingEntryLevels,
   manualPositionSize,
+  parseSizeChoice,
   createPendingManualEntry,
   editPendingManualEntry,
   evaluatePendingManualEntries,
@@ -805,7 +806,10 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
         return json(request, response, { error: "Choose a pair, an entry and a stop." }, 400);
       }
       try {
-        return json(request, response, await manualPositionSize(user.id, instrument, entry, stop));
+        // The ticket's lots or % of account; without either, the Settings risk %.
+        const lots = url.searchParams.get("lots"), percent = url.searchParams.get("percent");
+        const choice = parseSizeChoice(lots !== null ? { mode: "lots", lots } : percent !== null ? { mode: "percent", percent } : null);
+        return json(request, response, await manualPositionSize(user.id, instrument, entry, stop, choice));
       } catch (error) {
         return json(request, response, { error: error instanceof Error ? error.message : "Could not size the trade." }, 409);
       }
@@ -865,6 +869,36 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
       } catch (error) {
         return json(request, response, { error: error instanceof Error ? error.message : "Close conditions could not be updated." }, 409);
       }
+    }
+    // Close the confirmed open manual trades through the same path (and
+    // per-trade lock) as Close trade, so each is confirmed at OANDA. A failure
+    // on one trade is reported and does not stop the rest.
+    if (url.pathname === "/api/pending-entries/close-all" && request.method === "POST") {
+      if (!config.isConfigured) return json(request, response, { error: "Connect an OANDA practice account to trade." }, 503);
+      const tradeIds = (await body(request))?.tradeIds;
+      const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!Array.isArray(tradeIds) || tradeIds.length === 0 || !tradeIds.every((id) => typeof id === "string" && uuid.test(id))) {
+        return json(request, response, { error: "Select the open trades to close." }, 400);
+      }
+      const open = await query<{ id: string; instrument: string }>(
+        `SELECT entry.id, entry.instrument FROM pending_manual_entries entry
+           JOIN paper_trades trade ON trade.id = entry.paper_trade_id
+          WHERE entry.user_id=$1 AND entry.status='TRIGGERED' AND trade.status='open'
+            AND trade.id=ANY($2::uuid[])
+          ORDER BY trade.opened_at`,
+        [user.id, tradeIds],
+      );
+      const failed: Array<{ id: string; instrument: string; error: string }> = [];
+      let closed = 0;
+      for (const row of open.rows) {
+        try {
+          await withManualTradeLock(row.id, () => closeActiveManualTrade(user.id, row.id, latestPrices.get(row.instrument) ?? null));
+          closed += 1;
+        } catch (error) {
+          failed.push({ id: row.id, instrument: row.instrument, error: error instanceof Error ? error.message : "Could not close the trade." });
+        }
+      }
+      return json(request, response, { closed, failed }, failed.length && !closed ? 409 : 200);
     }
     const pendingEntryCloseMatch = url.pathname.match(/^\/api\/pending-entries\/([0-9a-f-]{36})\/close$/i);
     if (pendingEntryCloseMatch && request.method === "POST") {

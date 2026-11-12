@@ -21,12 +21,7 @@ export type PaperRiskPolicy = {
   applied?: "immediately" | "next_batch";
 };
 
-const RISK_PRESETS = [0.25, 0.5, 1, 2] as const;
 const POSITION_CHOICES = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "unlimited"] as const;
-
-function formatMoney(value: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(value);
-}
 
 
 const AUTO_SAVE_DELAY_MS = 500;
@@ -44,15 +39,6 @@ function configurationFromForm(riskPercent: string, maxPositions: string, maxExp
   if (exposure !== null && (!Number.isFinite(exposure) || exposure < risk || exposure > 50)) return null;
   return { riskPercent: risk, maxSimultaneousPositions: positions, maxTotalNominalRiskPercent: exposure };
 }
-
-/** Steps a percent string within the input's own 0.1–5% bounds. */
-function stepRisk(value: string, delta: number) {
-  const current = Number(value);
-  const base = Number.isFinite(current) ? current : 1;
-  const next = Math.min(5, Math.max(0.1, Math.round((base + delta) * 100) / 100));
-  return String(next);
-}
-
 
 export function RiskWorkspace({
   initialPolicy,
@@ -73,21 +59,6 @@ export function RiskWorkspace({
   const lastPositionsRef = useRef(maxPositions === "unlimited" ? "3" : maxPositions);
   const [error, setError] = useState<string | null>(null);
   const [riskSheetOpen, setRiskSheetOpen] = useState(false);
-  // Read once for the "≈ $ per trade" line; risk is a share of the balance.
-  const [balance, setBalance] = useState<number | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    fetch(apiUrl("/api/oanda/account-summary"), { credentials: "include", cache: "no-store" })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((payload: { data?: { balance?: number } } | null) => {
-        const value = payload?.data?.balance;
-        if (!cancelled && typeof value === "number" && Number.isFinite(value)) setBalance(value);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, []);
   const lastSavedKeyRef = useRef(configurationKey(initialForm, initialPolicy.collectionPaused));
   const saveSequenceRef = useRef(0);
 
@@ -157,9 +128,6 @@ export function RiskWorkspace({
 
   const formIsValid = configurationFromForm(riskPercent, maxPositions, maxExposure) !== null;
 
-  const riskValue = Number(riskPercent);
-  const riskMoney =
-    balance !== null && Number.isFinite(riskValue) && riskValue > 0 ? (balance * riskValue) / 100 : null;
   const statusNote = policy.pending
     ? `Queued for Batch ${(policy.currentBatch?.batchNumber ?? 0) + 1}: ${policy.pending.riskPercent.toFixed(2)}% · ${
         policy.pending.maxSimultaneousPositions === null ? "no limit" : `${policy.pending.maxSimultaneousPositions} max`
@@ -167,61 +135,6 @@ export function RiskWorkspace({
     : "Changes save automatically and apply from the next batch.";
 
   // Shared pieces: the desktop card and the phone sheet draw the same controls.
-  const stepper = (id: string) => (
-    <div className="nl-st-stepper">
-      <button
-        type="button"
-        className="nl-st-step pressable"
-        aria-label="Lower risk by 0.25%"
-        onClick={() => setRiskPercent((value) => stepRisk(value, -0.25))}
-      >
-        −
-      </button>
-      <span className="nl-st-risk-value">
-        <input
-          id={id}
-          type="number"
-          inputMode="decimal"
-          min="0.1"
-          max="5"
-          step="0.1"
-          value={riskPercent}
-          onChange={(event) => setRiskPercent(event.target.value)}
-          className="nl-st-risk-input"
-          aria-label="Risk per trade percent"
-        />
-        <span aria-hidden="true">%</span>
-      </span>
-      <button
-        type="button"
-        className="nl-st-step pressable"
-        aria-label="Raise risk by 0.25%"
-        onClick={() => setRiskPercent((value) => stepRisk(value, 0.25))}
-      >
-        +
-      </button>
-    </div>
-  );
-
-  const presets = (
-    <div className="nl-st-presets" role="group" aria-label="Quick risk presets">
-      {RISK_PRESETS.map((preset) => {
-        const active = Number(riskPercent) === preset;
-        return (
-          <button
-            key={preset}
-            type="button"
-            aria-pressed={active}
-            className={`nl-st-pill${active ? " is-active" : ""}`}
-            onClick={() => setRiskPercent(String(preset))}
-          >
-            {preset}%
-          </button>
-        );
-      })}
-    </div>
-  );
-
   const positionPills = (
     <div className="nl-st-positions" role="radiogroup" aria-label="Max open positions">
       {POSITION_CHOICES.map((choice) => {
@@ -301,17 +214,6 @@ export function RiskWorkspace({
           ) : null}
         </div>
 
-        <div className="nl-st-risk-hero">
-          <div className="nl-st-risk-main">
-            <label htmlFor="nl-st-risk" className="nl-st-risk-label">Risk per trade</label>
-            {stepper("nl-st-risk")}
-            <span className="nl-st-risk-money metric-number">
-              {riskMoney === null ? " " : `≈ ${formatMoney(riskMoney)} per trade on ${formatMoney(balance ?? 0)}`}
-            </span>
-          </div>
-          {presets}
-        </div>
-
         <div className="nl-st-block">
           <div className="nl-st-block-head">
             <span className="nl-st-field-label">Max open positions</span>
@@ -349,16 +251,6 @@ export function RiskWorkspace({
       {/* Phone: the Paper trading card; its limits open in a sheet. */}
       <section className="nl-st-mcard nl-st-phone" aria-labelledby="nl-st-mrisk-title">
         <h2 id="nl-st-mrisk-title" className="nl-st-mcard-title">Paper trading</h2>
-        <button type="button" className="nl-st-mrisk pressable" onClick={() => setRiskSheetOpen(true)}>
-          <span className="nl-st-mrisk-copy">
-            <span className="nl-st-note">Risk per trade</span>
-            <span className="nl-st-mrisk-value">{Number.isFinite(riskValue) ? `${riskValue.toFixed(2)}%` : "—"}</span>
-            {riskMoney !== null ? (
-              <span className="nl-st-mrisk-money metric-number">≈ {formatMoney(riskMoney)} per trade</span>
-            ) : null}
-          </span>
-          <ChevronRight aria-hidden="true" />
-        </button>
         <button type="button" className="nl-st-mrow pressable" onClick={() => setRiskSheetOpen(true)}>
           <span>Max open positions</span>
           <span className="nl-st-mrow-end">
@@ -391,68 +283,8 @@ export function RiskWorkspace({
         eyebrow="Paper trading"
         title="Paper trading limits"
       >
-        {/* Phone limits: three cards (risk, positions, exposure) and Done. */}
+        {/* Phone limits: two cards (positions, exposure) and Done. */}
         <div className="nl-st-sheet nl-lim">
-          <section className="nl-lim-card" aria-labelledby="nl-lim-risk-label">
-            <div className="nl-lim-head">
-              <label id="nl-lim-risk-label" htmlFor="nl-st-mrisk-input">Risk per trade</label>
-              {riskMoney !== null ? <span className="nl-lim-money metric-number">≈ {formatMoney(riskMoney)}</span> : null}
-            </div>
-            <div className="nl-lim-dial">
-              <button
-                type="button"
-                className="nl-lim-round pressable"
-                aria-label="Lower risk by 0.25%"
-                onClick={() => setRiskPercent((value) => stepRisk(value, -0.25))}
-              >
-                <Minus aria-hidden="true" />
-              </button>
-              <span className="nl-lim-value">
-                {/* The field is exactly as wide as its text: an invisible copy
-                    of the value sizes the cell, the input fills it. */}
-                <span className="nl-lim-fit">
-                  <span className="nl-lim-mirror" aria-hidden="true">{riskPercent || "0"}</span>
-                  <input
-                    id="nl-st-mrisk-input"
-                    type="number"
-                    inputMode="decimal"
-                    min="0.1"
-                    max="5"
-                    step="0.1"
-                    value={riskPercent}
-                    onChange={(event) => setRiskPercent(event.target.value)}
-                    aria-label="Risk per trade percent"
-                  />
-                </span>
-                <span aria-hidden="true">%</span>
-              </span>
-              <button
-                type="button"
-                className="nl-lim-round pressable"
-                aria-label="Raise risk by 0.25%"
-                onClick={() => setRiskPercent((value) => stepRisk(value, 0.25))}
-              >
-                <Plus aria-hidden="true" />
-              </button>
-            </div>
-            <div className="nl-lim-seg" role="group" aria-label="Quick risk presets">
-              {RISK_PRESETS.map((preset) => {
-                const active = Number(riskPercent) === preset;
-                return (
-                  <button
-                    key={preset}
-                    type="button"
-                    aria-pressed={active}
-                    className={`metric-number${active ? " is-active" : ""}`}
-                    onClick={() => setRiskPercent(String(preset))}
-                  >
-                    {preset}%
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
           <section className="nl-lim-card" aria-labelledby="nl-lim-pos-label">
             <div className="nl-lim-row">
               <div className="nl-lim-copy">

@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { apiUrl } from "@/lib/api/url";
+import { verifiedAccountSummary } from "@/lib/account-summary";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
+import type { AccountSummary, ConnectionStatus, HomeCurrencyConversion } from "@/types/forex";
 
 export interface OpenPositionFill {
   /** Only populated when financing and transaction costs are complete. */
@@ -34,7 +36,11 @@ export interface OpenPositionFill {
  * model in that case.
  */
 export function useOpenPositionSnapshot(enabled = true) {
-  const [fills, setFills] = useState<Record<string, OpenPositionFill>>({});
+  const [snapshot, setSnapshot] = useState<{
+    fills: Record<string, OpenPositionFill>;
+    currency: string | null;
+    homeConversions: Record<string, HomeCurrencyConversion>;
+  }>({ fills: {}, currency: null, homeConversions: {} });
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -47,6 +53,9 @@ export function useOpenPositionSnapshot(enabled = true) {
       });
       if (!response.ok) return;
       const payload = (await response.json()) as {
+        data?: AccountSummary;
+        status?: ConnectionStatus;
+        homeConversions?: Record<string, HomeCurrencyConversion>;
         positions?: Array<{
           instrument: string;
           id: string;
@@ -78,7 +87,8 @@ export function useOpenPositionSnapshot(enabled = true) {
         nextFills[`broker:${position.id}`] = fill;
         nextFills[position.instrument] ??= fill;
       }
-      setFills(nextFills);
+      const account = verifiedAccountSummary(payload);
+      setSnapshot({ fills: nextFills, currency: account?.currency ?? null, homeConversions: account ? payload.homeConversions ?? {} : {} });
     } catch {
       // A missing broker snapshot leaves the paper model in place.
     } finally {
@@ -96,7 +106,7 @@ export function useOpenPositionSnapshot(enabled = true) {
 
   useForegroundRefresh(load);
 
-  return { fills, loading };
+  return { ...snapshot, loading };
 }
 
 export function useOpenPositionFills() {

@@ -11,6 +11,8 @@ import { apiUrl } from "@/lib/api/url";
 import { currenciesOf, displayNameFor, isKnownInstrument, pipSizeFor } from "@/lib/instruments/catalog";
 import type { CandleSeries } from "@/types/forex";
 import { newsSurpriseHint, type CalendarValueFields, type TrendDirection } from "@/lib/news/surprise-hint";
+import { groupLean, type SignalRecord } from "@/lib/news/group-lean";
+import { combinedForecastRead, forecastRead } from "@/lib/news/forecast-read";
 
 /** The eight majors; every pair between them that OANDA lists is shown. */
 const MAJOR_CURRENCIES = ["EUR", "GBP", "AUD", "NZD", "USD", "CAD", "CHF", "JPY"];
@@ -139,15 +141,35 @@ function useReleaseMoves(pairs: string[], releasedAt: number | null) {
   };
 }
 
-/** How the chosen signal had scored on earlier releases when the call was made. */
-type SignalRecord = { n: number; hits: number; scope: "series" | "overall" };
 type SavedPrediction = { event_key: string; call: "beat" | "miss" | null; chosen_signal: string | null; signal_record?: SignalRecord | null };
 
-/** Smoothed hit rate, so a 1/1 record does not outrank 8/10. */
-const recordScore = (record: SignalRecord | null | undefined) => (record ? (record.hits + 1) / (record.n + 2) : 0);
 const recordText = (record: SignalRecord | null | undefined) =>
   record && record.n > 0 ? `${record.hits}/${record.n}${record.scope === "series" ? " on this release" : " overall"}` : null;
-type PredictionJournal = { predictions: SavedPrediction[]; record: { calls: number; correct: number } };
+/** Why a group of disagreeing calls leans the way it does, in one sentence. */
+function leanWhy(lean: NonNullable<ReturnType<typeof groupLean>>) {
+  const { leader, against } = lean;
+  switch (lean.reason) {
+    case "forecast":
+      return `${leader.title} has the bigger forecast change, so it outweighs ${against.title}.`;
+    case "record":
+      return `${leader.title}'s call has been right ${recordText(leader.record)}, against ${against.title}'s ${recordText(against.record) ?? "no record"}.`;
+    case "impact":
+      return `${leader.title} is the higher-impact release, so it outweighs ${against.title}.`;
+    case "headline":
+      return `${leader.title} is the headline figure and outweighs ${against.title}${recordText(leader.record) && recordText(leader.record) === recordText(against.record) ? "; both calls have the same record" : ""}.`;
+    case "weight":
+      return `the ${lean.move === "up" ? "Up" : "Down"} calls have the stronger records combined.`;
+    case "listed":
+      return `records and impact are even, so this follows ${leader.title}, the first release listed.`;
+  }
+}
+
+type PredictionJournal = {
+  predictions: SavedPrediction[];
+  record: { calls: number; correct: number };
+  /** Hits of the forecast-vs-previous read over every scored release (older APIs omit it). */
+  forecastReadRecord?: { n: number; hits: number };
+};
 
 function isPredictionJournal(value: unknown): value is PredictionJournal {
   if (!value || typeof value !== "object") return false;
@@ -197,7 +219,7 @@ function sinceText(ms: number) {
   return minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }
 
-type ImpactEvent = CalendarValueFields & { id: string; timestamp: string };
+type ImpactEvent = CalendarValueFields & { id: string; timestamp: string; impact?: number };
 
 export function NewsImpactSheet({
   event,
@@ -263,19 +285,29 @@ export function NewsImpactSheet({
     preRelease?.kind === "before" && predicted
       ? predicted === "beat" ? preRelease.beatDirection : preRelease.missDirection
       : null;
-  // Disagreeing calls: lean with the call whose signal has the clearly better
-  // record (smoothed, so small samples count for less). Too close to separate,
-  // or not enough history, stays "mixed" with no expected direction.
-  const rankedCalls = groupCalls
-    .filter((entry) => entry.move !== null)
-    .sort((a, b) => recordScore(b.record) - recordScore(a.record));
-  const leader = mixed ? rankedCalls[0] ?? null : null;
-  const runnerUp = mixed ? rankedCalls.find((entry) => entry.move !== leader?.move) ?? null : null;
-  const lean = leader && runnerUp && leader.record && leader.record.n >= 8
-    && recordScore(leader.record) - recordScore(runnerUp.record) >= 0.05 ? leader : null;
+  // Disagreeing calls still get one answer: the release with the strongest
+  // forecast-vs-previous change, then the clearly better record, then the
+  // higher-impact release, then the headline print (q/q, y/y over m/m), then
+  // the stronger records combined, then the first-listed release (groupLean).
+  const lean = mixed
+    ? groupLean(groupCalls.map((entry) => {
+      const read = forecastRead(entry.item);
+      return {
+        title: entry.item.title, impact: entry.item.impact, move: entry.move, record: entry.record,
+        forecastStrength: read && read.direction !== "flat" ? { weight: read.weight, size: read.size } : undefined,
+      };
+    }))
+    : null;
   const currencyMove: TrendDirection | null = related.length === 0 ? singleMove
     : mixed ? lean?.move ?? null : calledMoves[0] ?? null;
   const currency = event?.currency ?? "";
+  // The forecast-vs-previous read for each release, and all of them combined.
+  const forecastReads = group.map((item) => ({ item, read: forecastRead(item) }));
+  const forecastOverall = combinedForecastRead(forecastReads.map((entry) => entry.read));
+  const forecastLeader = forecastReads
+    .filter((entry) => entry.read?.direction === forecastOverall.direction)
+    .sort((a, b) => (b.read?.weight ?? 0) - (a.read?.weight ?? 0))[0] ?? null;
+  const forecastRecord = journal?.forecastReadRecord ?? null;
   const pairs = event ? pairsFor(currency) : [];
   // Pairs you hold come first, so the answer you care about is at the top. A
   // trade opened after the news window closed was never exposed to it.
@@ -337,7 +369,7 @@ export function NewsImpactSheet({
               ))}
               <p className={`news-impact-combined${resultVerdict ? ` is-result is-${resultVerdict.tone}` : mixed && lean ? " is-lean" : mixed ? " is-mixed" : ""}`}>
                 {resultVerdict ? resultVerdict.text : mixed && lean
-                  ? `Calls disagree. Leans ${currency} ${lean.move}: ${lean.item.title}'s call has been right ${recordText(lean.record)}, against ${runnerUp?.item.title}'s ${recordText(runnerUp?.record) ?? "no record"}.`
+                  ? `Calls disagree. Leans ${currency} ${lean.move}: ${leanWhy(lean)}`
                   : mixed
                   ? `Mixed: these releases point different ways, so there is no expected ${currency} direction. ${currency} moves once, on all of them together.`
                   : currencyMove
@@ -356,6 +388,31 @@ export function NewsImpactSheet({
                 : <dd className="is-pending">Pending</dd>}
             </div>
           </dl>
+
+          {forecastReads.some((entry) => entry.read) ? (
+            // Forecast vs previous, read the way a desk note (or ChatGPT) reads
+            // a calendar line. It is what the consensus already expects.
+            <div className="news-impact-fread">
+              <p className="news-impact-fread-head">Forecast vs previous</p>
+              {forecastReads.map(({ item, read }) => (
+                <div key={item.id} className="news-impact-fread-row">
+                  <span>{item.title}</span>
+                  <span className="metric-number">{item.previous || "—"} → {item.forecast || "—"}</span>
+                  <b className={read?.direction === "up" ? "is-up" : read?.direction === "down" ? "is-down" : ""}>{read?.label ?? "No read"}</b>
+                </div>
+              ))}
+              {forecastReads.length > 1 || forecastOverall.direction !== "flat" ? (
+                <p className="news-impact-fread-overall">
+                  {forecastOverall.direction === "flat"
+                    ? `Overall: neutral ${currency}; the reads cancel out.`
+                    : `Overall: ${currency} ${forecastOverall.direction === "up" ? "bullish" : "bearish"}${forecastReads.length > 1 && forecastReads.some((entry) => entry.read && entry.read.direction !== forecastOverall.direction) ? `, ${forecastLeader?.item.title} outweighs` : ""}.`}
+                  {forecastRecord && forecastRecord.n > 0
+                    ? ` This read has matched the surprise ${forecastRecord.hits}/${forecastRecord.n} (${Math.round((forecastRecord.hits / forecastRecord.n) * 100)}%).`
+                    : ""}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
           {journal && journal.record.calls > 0 ? (
             <div className="news-impact-record">

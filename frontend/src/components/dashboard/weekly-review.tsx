@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
+import { useHomeSectionReady } from "@/components/dashboard/home-loading-boundary";
 import { apiUrl } from "@/lib/api/url";
 
 /**
@@ -70,6 +71,8 @@ export function WeeklyReview({ currency }: { currency: string }) {
   const [review, setReview] = useState<Review | null>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  // Home's skeleton waits for this first read: a review, "being prepared", or an error.
+  useHomeSectionReady("weekly", review !== null || pending || reviewError !== null);
 
   useEffect(() => {
     const lifetime = new AbortController();

@@ -1,49 +1,30 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { apiUrl } from "@/lib/api/url";
-import { verifiedAccountSummary } from "@/lib/account-summary";
+import { useCallback } from "react";
 import { formatTradePL } from "@/lib/format/trade-pl";
-import { chartTargetPL, chartTradePL, chartTradePLColor } from "@/lib/market-stream/chart-trade-pl";
+import { currenciesOf } from "@/lib/instruments/catalog";
+import { chartTargetPL, chartTradePLColor } from "@/lib/market-stream/chart-trade-pl";
 import { useOpenPositionSnapshot } from "@/lib/market-stream/use-open-positions";
-import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
-import type { AccountSummary, ConnectionStatus } from "@/types/forex";
 
-/** Rebase from the broker periodically, then mark from the chart's own tick. */
-export function useChartTradePL(brokerTradeId: string | null, instrument: string, direction: "long" | "short" | null, quote: { bid: number; ask: number } | null, target: number | null, stop: number | null = null) {
-  const enabled = brokerTradeId !== null;
-  const { fills } = useOpenPositionSnapshot(enabled);
-  const [currency, setCurrency] = useState<string | null>(null);
-  const loadCurrency = useCallback(async () => {
-    if (!enabled) return;
-    try {
-      const response = await fetch(apiUrl("/api/oanda/account-summary"), {
-        credentials: "include", cache: "no-store", signal: AbortSignal.timeout(12_000),
-      });
-      if (!response.ok) return;
-      const payload = await response.json() as { data?: AccountSummary; status?: ConnectionStatus };
-      const account = verifiedAccountSummary(payload);
-      if (account) setCurrency(account.currency);
-    } catch {
-      // Without verified account currency, show an unavailable amount.
-    }
-  }, [enabled]);
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- asynchronous broker read
-    void loadCurrency();
-  }, [loadCurrency]);
-  useForegroundRefresh(loadCurrency);
+/** Use the selected trade's reported P/L from the account snapshot. */
+export function useChartTradePL(brokerTradeId: string | null, instrument: string, direction: "long" | "short" | null, target: number | null, stop: number | null = null) {
+  const { fills, currency, homeConversions } = useOpenPositionSnapshot(brokerTradeId !== null);
 
   // Never use the instrument alias: several fills can share a pair.
   const fill = brokerTradeId ? fills[`broker:${brokerTradeId}`] : undefined;
-  const amount = chartTradePL(fill, instrument, direction, currency, quote);
-  const targetAmount = chartTargetPL(fill, instrument, direction, currency, target);
+  const amount = fill && Number.isFinite(fill.unrealizedPL) ? fill.unrealizedPL : null;
+  const conversion = homeConversions[currenciesOf(instrument).quote];
+  const formatExitPL = useCallback((price: number | null) => (
+    formatTradePL(chartTargetPL(fill, instrument, direction, currency, price, conversion), currency).slice("P/L ".length)
+  ), [fill, instrument, direction, currency, conversion]);
+  const targetAmountLabel = formatExitPL(target);
   // What the trade books if the stop fills: a loss below entry, locked-in
   // profit once the stop has moved past it. Null until the amount is known.
-  const stopAmount = chartTargetPL(fill, instrument, direction, currency, stop);
+  const stopAmountLabel = formatExitPL(stop);
   return {
     label: formatTradePL(amount, currency), color: chartTradePLColor(currency ? amount : null),
-    targetLabel: formatTradePL(targetAmount, currency).replace(/^P\/L /, "TP "),
-    stopAmountLabel: stopAmount === null || !currency ? null : formatTradePL(stopAmount, currency).replace(/^P\/L /, ""),
+    targetLabel: `TP ${targetAmountLabel}`,
+    stopAmountLabel: stopAmountLabel === "—" ? null : stopAmountLabel,
+    formatExitPL,
   };
 }

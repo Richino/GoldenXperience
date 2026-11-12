@@ -53,6 +53,22 @@ function combineLocalToIso(dateStr: string, timeStr: string) {
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 }
 
+const SIZE_STORAGE_KEY = "gx:ticket-size:v1";
+
+/** The ticket's starting size: the entry's saved choice, else this device's last, else 1% of the account. */
+function initialSizeChoice(entry: PendingManualEntry | null): { mode: "lots" | "percent"; value: string } {
+  const saved = (entry?.metadata as { sizeChoice?: { mode?: string; lots?: number; percent?: number } } | undefined)?.sizeChoice;
+  if (saved?.mode === "lots" && typeof saved.lots === "number") return { mode: "lots", value: String(saved.lots) };
+  if (saved?.mode === "percent" && typeof saved.percent === "number") return { mode: "percent", value: String(saved.percent) };
+  if (typeof window !== "undefined") {
+    try {
+      const last = JSON.parse(window.localStorage.getItem(SIZE_STORAGE_KEY) ?? "null") as { mode?: string; value?: string } | null;
+      if ((last?.mode === "lots" || last?.mode === "percent") && typeof last.value === "string") return { mode: last.mode, value: last.value };
+    } catch { /* storage unavailable */ }
+  }
+  return { mode: "percent", value: "1" };
+}
+
 /** Today's local date as YYYY-MM-DD, for the date picker's `min`. */
 function todayLocalDate() {
   return splitLocal(new Date().toISOString()).date;
@@ -69,6 +85,7 @@ export function PendingEntryDialog({
   creationBlocked = false,
   onClose,
   onChanged,
+  onRequestCloseTrade,
 }: {
   open: boolean;
   layout?: "dialog" | "panel";
@@ -80,6 +97,7 @@ export function PendingEntryDialog({
   creationBlocked?: boolean;
   onClose: () => void;
   onChanged: (message: string) => void;
+  onRequestCloseTrade?: (entry: PendingManualEntry) => void;
   /** News mode's unsaved settings, for the chart's DRAFT zones. */
   onNewsDraft?: (draft: NewsDraft | null) => void;
 }) {
@@ -171,15 +189,31 @@ export function PendingEntryDialog({
   // Settings risk %, live conversion rate, no lot cap), so the preview and the
   // OANDA order always match. Asked after typing settles.
   const [positionSize, setPositionSize] = useState<{ key: string; lots: number; riskAmount: number; riskPercent: number; balance: number } | null>(null);
+  // How much to trade, set here per order: fixed lots, or % of the account to
+  // risk at the stop. An edited entry starts from its saved choice; a new one
+  // from the last choice used on this device.
+  const [sizeMode, setSizeMode] = useState<"lots" | "percent">(() => initialSizeChoice(selectedEntry).mode);
+  const [sizeValue, setSizeValue] = useState(() => initialSizeChoice(selectedEntry).value);
+  const sizeNumber = Number(sizeValue);
+  const sizeChoice = sizeValue.trim() && Number.isFinite(sizeNumber) && sizeNumber > 0
+    && (sizeMode === "lots" ? sizeNumber >= 0.01 && sizeNumber <= 100 : sizeNumber <= 20)
+    ? (sizeMode === "lots" ? { mode: "lots" as const, lots: sizeNumber } : { mode: "percent" as const, percent: sizeNumber })
+    : null;
+  const sizeValid = sizeChoice !== null;
+  useEffect(() => {
+    if (!sizeValid) return;
+    try { window.localStorage.setItem(SIZE_STORAGE_KEY, JSON.stringify({ mode: sizeMode, value: sizeValue })); } catch { /* storage unavailable */ }
+  }, [sizeValid, sizeMode, sizeValue]);
   const sizeEntry = Number(entryPrice), sizeStop = stopPrice.trim() ? Number(stopPrice) : NaN;
-  const sizeKey = Number.isFinite(sizeEntry) && sizeEntry > 0 && Number.isFinite(sizeStop) && sizeStop > 0 && sizeEntry !== sizeStop
-    ? `${instrument}|${sizeEntry}|${sizeStop}` : null;
+  const sizeQuery = sizeChoice ? (sizeChoice.mode === "lots" ? `lots=${sizeChoice.lots}` : `percent=${sizeChoice.percent}`) : null;
+  const sizeKey = sizeQuery && Number.isFinite(sizeEntry) && sizeEntry > 0 && Number.isFinite(sizeStop) && sizeStop > 0 && sizeEntry !== sizeStop
+    ? `${instrument}|${sizeEntry}|${sizeStop}|${sizeQuery}` : null;
   useEffect(() => {
     if (!open || !sizeKey) return;
     let cancelled = false;
     const timer = window.setTimeout(() => {
-      const [, entry, stop] = sizeKey.split("|");
-      fetch(apiUrl(`/api/pending-entries/size?instrument=${instrument}&entry=${entry}&stop=${stop}`), { credentials: "include", cache: "no-store" })
+      const [, entry, stop, choice] = sizeKey.split("|");
+      fetch(apiUrl(`/api/pending-entries/size?instrument=${instrument}&entry=${entry}&stop=${stop}&${choice}`), { credentials: "include", cache: "no-store" })
         .then((response) => (response.ok ? response.json() : null))
         .then((payload: { lots?: number; riskAmount?: number; riskPercent?: number; balance?: number } | null) => {
           if (cancelled || !payload || typeof payload.lots !== "number") return;
@@ -384,15 +418,11 @@ export function PendingEntryDialog({
     if (stopPrice && (!Number.isFinite(parsedStop) || (parsedStop ?? 0) <= 0)) return setError("Enter a valid stop price.");
     if (targetPrice && (!Number.isFinite(parsedTarget) || (parsedTarget ?? 0) <= 0)) return setError("Enter a valid target price.");
     if (invalidationPrice && (!Number.isFinite(parsedInvalidation) || (parsedInvalidation ?? 0) <= 0)) return setError("Enter a valid cancellation price.");
-    // Stop and target must be supplied together and sit on the correct side of entry.
-    if (Boolean(stopPrice.trim()) !== Boolean(targetPrice.trim())) return setError("Enter both a stop and a target, or leave both blank.");
-    if (parsedStop !== null && parsedTarget !== null && Number.isFinite(parsedStop) && Number.isFinite(parsedTarget)) {
-      const okSide = direction === "long"
-        ? parsedStop < parsedEntry && parsedTarget > parsedEntry
-        : parsedStop > parsedEntry && parsedTarget < parsedEntry;
-      if (!okSide) return setError(direction === "long"
-        ? "For a long: stop must be below entry, target above it."
-        : "For a short: stop must be above entry, target below it.");
+    if (parsedStop !== null && (direction === "long" ? parsedStop >= parsedEntry : parsedStop <= parsedEntry)) {
+      return setError(`The stop must be ${direction === "long" ? "below" : "above"} the entry price.`);
+    }
+    if (parsedTarget !== null && (direction === "long" ? parsedTarget <= parsedEntry : parsedTarget >= parsedEntry)) {
+      return setError(`The target must be ${direction === "long" ? "above" : "below"} the entry price.`);
     }
     // Cancellation price cannot equal the entry or the current price.
     if (parsedInvalidation !== null && Number.isFinite(parsedInvalidation)) {
@@ -403,6 +433,7 @@ export function PendingEntryDialog({
     // Blank, or within the next minute, means submit now. Otherwise it must be before any expiration.
     const activateAtIso = activateAt && Date.parse(activateAt) > Date.now() + 60_000 ? new Date(activateAt).toISOString() : null;
     if (activateAtIso && expiresAt && Date.parse(activateAtIso) >= Date.parse(expiresAt)) return setError("The submit-after time must be before the expiration.");
+    if (!sizeChoice) return setError(sizeMode === "lots" ? "Enter a size between 0.01 and 100 lots." : "Enter a risk between 0.01% and 20% of the account.");
     setSaving(true);
     try {
       const response = await fetch(apiUrl(selectedEntry ? `/api/pending-entries/${selectedEntry.id}` : "/api/pending-entries"), {
@@ -412,6 +443,7 @@ export function PendingEntryDialog({
         body: JSON.stringify({
           instrument, direction, entryPrice: parsedEntry, stopPrice: parsedStop, targetPrice: parsedTarget, expiresAt, activateAt: activateAtIso, invalidationPrice: parsedInvalidation, orderReferencePrice,
           tradeStyle,
+          size: sizeChoice,
           // Tags forward-test trades so they can be scored separately later.
           analysisContext: !selectedEntry && initialProposal?.analysisContext
               ? {
@@ -562,7 +594,13 @@ export function PendingEntryDialog({
             {error ? <p className="pending-entry-error">{error}</p> : null}
           </div>
           )}
-          {newsSetup && selectedEntry.metadata.configVersion === 3 ? null : selectedEntry.status === "PENDING" ? (
+          {selectedEntry.status === "TRIGGERED" && selectedEntry.paperTradeStatus === "open" && onRequestCloseTrade ? (
+            <footer className="pending-entry-actions nl-pe-detail-actions">
+              <button type="button" className="pending-entry-danger pressable" onClick={() => onRequestCloseTrade(selectedEntry)}>
+                Close trade
+              </button>
+            </footer>
+          ) : newsSetup && selectedEntry.metadata.configVersion === 3 ? null : selectedEntry.status === "PENDING" ? (
             <footer className={`pending-entry-actions${newsSetup ? "" : " nl-pe-detail-actions"}`}>
               <button type="button" className="pending-entry-danger pressable" disabled={saving} onClick={() => void cancelEntry()}>{newsSetup ? "Cancel news setup" : "Cancel Entry"}</button>
               {newsSetup ? null : <button type="button" className={`pending-entry-primary pressable ${styles.editEntry}`} onClick={() => {
@@ -699,15 +737,54 @@ export function PendingEntryDialog({
             </div>
             </div>
 
+            <div className="nl-pe-size">
+              <label>
+                <span>Size</span>
+                <input
+                  className="metric-number"
+                  inputMode="decimal"
+                  value={sizeValue}
+                  onChange={(event) => setSizeValue(event.target.value)}
+                  placeholder={sizeMode === "lots" ? "0.10" : "1"}
+                  aria-label={sizeMode === "lots" ? "Size in lots" : "Risk as % of account"}
+                  aria-invalid={sizeValue.trim() !== "" && !sizeChoice}
+                />
+              </label>
+              <div className="nl-pe-size-unit" role="radiogroup" aria-label="Size unit">
+                {(["lots", "percent"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    role="radio"
+                    aria-checked={sizeMode === mode}
+                    className={sizeMode === mode ? "is-active" : ""}
+                    onClick={() => {
+                      if (mode === sizeMode) return;
+                      // Carry the current size across when the preview knows it.
+                      if (currentSize) setSizeValue(mode === "lots" ? currentSize.lots.toFixed(2) : String(currentSize.riskPercent));
+                      else setSizeValue(mode === "lots" ? "0.10" : "1");
+                      setSizeMode(mode);
+                    }}
+                  >
+                    {mode === "lots" ? "Lots" : "% of account"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <dl className={`nl-an-rows ${styles.summary}`}>
               <div>
-                <dt>Size</dt>
+                <dt>{sizeMode === "lots" ? "Risk" : "Lots"}</dt>
                 <dd className="metric-number">
-                  {parsedStop === null
-                    ? "Hourly range · no stop"
-                    : currentSize
-                      ? `${currentSize.lots.toFixed(2)} lots · risks $${currentSize.riskAmount.toFixed(0)} (${currentSize.riskPercent}%)`
-                      : sizeKey ? "Sizing…" : "—"}
+                  {!sizeChoice
+                    ? sizeMode === "lots" ? "0.01 – 100 lots" : "Up to 20%"
+                    : parsedStop === null
+                      ? sizeMode === "lots" ? `${sizeChoice.mode === "lots" ? sizeChoice.lots.toFixed(2) : ""} lots · no stop` : "Sized on the hourly range · no stop"
+                      : currentSize
+                        ? sizeMode === "lots"
+                          ? `$${currentSize.riskAmount.toFixed(0)} (${currentSize.riskPercent}%) at the stop`
+                          : `${currentSize.lots.toFixed(2)} lots · risks $${currentSize.riskAmount.toFixed(0)}`
+                        : sizeKey ? "Sizing…" : "—"}
                 </dd>
               </div>
               {planRatio !== null ? <div><dt>Risk : reward</dt><dd className="metric-number">1 : {Number(planRatio.toFixed(1))}</dd></div> : null}

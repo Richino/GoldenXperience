@@ -3756,11 +3756,11 @@ body.is-dragging-position-tool .setup-chart-position-band {
   }
 }
 
-/* Last-bar overlay: ringed endpoint glued to the latest candle. */
+/* The live price stays above level labels and tools, below the crosshair. */
 .setup-chart-last-price {
   position: absolute;
   inset: 0;
-  z-index: 3;
+  z-index: 7;
   overflow: hidden;
   pointer-events: none;
 }
@@ -3804,7 +3804,7 @@ body.is-dragging-position-tool .setup-chart-position-band {
 .setup-chart-crosshair-labels {
   position: absolute;
   inset: 0;
-  z-index: 6;
+  z-index: 8;
   pointer-events: none;
 }
 

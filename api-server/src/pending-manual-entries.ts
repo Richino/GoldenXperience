@@ -79,10 +79,11 @@ async function submitManualEntryToOanda(params: {
   sizingStop: number;
   gtdTime: string | null;
 }) {
-  const sizing = await manualPositionSize(params.userId, params.instrument, params.entryPrice, params.sizingStop);
-  const { units, riskPercent } = sizing;
   const entry = (await query<{ metadata: Record<string, any> }>("SELECT metadata FROM pending_manual_entries WHERE id=$1 AND user_id=$2", [params.clientRequestId, params.userId])).rows[0];
   if (!entry) throw new Error("Entry risk record is unavailable.");
+  // The ticket's lots / % choice; entries made before it existed use Settings.
+  const sizing = await manualPositionSize(params.userId, params.instrument, params.entryPrice, params.sizingStop, savedSizeChoice(entry.metadata));
+  const { units, riskPercent } = sizing;
   const result = await withRecordedSizingBudget({ existingPlan: entry.metadata?.initialRiskPlan ?? null,
     positionKey: params.clientRequestId, recordedAt: new Date().toISOString(), accountId: sizing.reportingAccountId,
     balanceUsd: sizing.balance, riskPercent, riskAmountUsd: sizing.plannedRiskAmount,
@@ -141,12 +142,53 @@ export async function quoteToUsdRate(instrument: MajorInstrument) {
  * cap (the old 2-lot cap made every tight-stop trade risk well under 1%).
  * Shared by order placement and the ticket's size preview, so they agree.
  */
-export async function manualPositionSize(userId: string, instrument: MajorInstrument, entryPrice: number, sizingStop: number) {
-  const [summary, riskPercent, rate] = await Promise.all([getAccountSummary(), userRiskPercent(userId), quoteToUsdRate(instrument)]);
+/**
+ * The size chosen on the trade ticket: fixed lots, or a % of the account to
+ * risk at the stop. Saved on the entry so activation and edits keep it.
+ */
+export type ManualSizeChoice = { mode: "lots"; lots: number } | { mode: "percent"; percent: number };
+
+export const MAX_TICKET_LOTS = 100;
+export const MAX_TICKET_RISK_PERCENT = 20;
+
+/** Null when absent; throws on a malformed or out-of-range choice. */
+export function parseSizeChoice(raw: unknown): ManualSizeChoice | null {
+  if (raw === undefined || raw === null) return null;
+  const value = raw as { mode?: unknown; lots?: unknown; percent?: unknown };
+  if (value.mode === "lots") {
+    const lots = Number(value.lots);
+    if (!Number.isFinite(lots) || lots < 0.01 || lots > MAX_TICKET_LOTS) throw new Error(`Enter a size between 0.01 and ${MAX_TICKET_LOTS} lots.`);
+    return { mode: "lots", lots: Math.round(lots * 100) / 100 };
+  }
+  if (value.mode === "percent") {
+    const percent = Number(value.percent);
+    if (!Number.isFinite(percent) || percent < 0.01 || percent > MAX_TICKET_RISK_PERCENT) throw new Error(`Enter a risk between 0.01% and ${MAX_TICKET_RISK_PERCENT}% of the account.`);
+    return { mode: "percent", percent: Math.round(percent * 100) / 100 };
+  }
+  throw new Error("Choose lots or % of account for the size.");
+}
+
+/** A saved choice on an entry; a bad saved value falls back to the default. */
+function savedSizeChoice(metadata: Record<string, unknown> | null | undefined) {
+  try { return parseSizeChoice(metadata?.sizeChoice); } catch { return null; }
+}
+
+export async function manualPositionSize(userId: string, instrument: MajorInstrument, entryPrice: number, sizingStop: number, choice: ManualSizeChoice | null = null) {
+  const [summary, policyPercent, rate] = await Promise.all([getAccountSummary(), choice ? Promise.resolve(null) : userRiskPercent(userId), quoteToUsdRate(instrument)]);
   const balance = Number(summary.data?.balance);
   if (!Number.isFinite(balance) || balance <= 0) {
     throw new Error("OANDA account balance is unavailable, so the order could not be sized.");
   }
+  const reportingAccountId = summary.status.state === "connected" && summary.data.source === "oanda" && summary.data.currency === "USD" ? summary.data.id : "";
+  if (choice?.mode === "lots") {
+    // Fixed lots: the units are the choice; what that risks follows from the stop.
+    if (rate === undefined) throw new Error("The quote currency conversion is unavailable, so the order could not be sized.");
+    const units = Math.round(choice.lots * 100_000);
+    const riskAmount = Math.abs(entryPrice - sizingStop) * units * rate;
+    const riskPercent = Number(((riskAmount / balance) * 100).toFixed(2));
+    return { units, lots: units / 100_000, riskPercent, riskAmount, balance, plannedRiskAmount: riskAmount, reportingAccountId, sizeChoice: choice };
+  }
+  const riskPercent = choice?.mode === "percent" ? choice.percent : policyPercent!;
   const sized = calculatePositionSize({
     instrument,
     accountBalance: balance,
@@ -159,8 +201,7 @@ export async function manualPositionSize(userId: string, instrument: MajorInstru
   const units = sized?.units ?? 0;
   if (!(units >= 1)) throw new Error("Risk-based position size came out below one unit; widen the stop or raise risk.");
   return { units, lots: units / 100_000, riskPercent, riskAmount: sized!.estimatedRisk, balance,
-    plannedRiskAmount: sized!.riskAmount,
-    reportingAccountId: summary.status.state === "connected" && summary.data.source === "oanda" && summary.data.currency === "USD" ? summary.data.id : "" };
+    plannedRiskAmount: sized!.riskAmount, reportingAccountId, sizeChoice: choice };
 }
 
 /**
@@ -177,6 +218,8 @@ async function replaceRestingBrokerOrder(row: EntryRow, next: {
   stop: number | null;
   target: number | null;
   expiresAt: string | null;
+  /** A size changed on the ticket; otherwise the entry's saved choice. */
+  sizeChoice?: ManualSizeChoice | null;
 }) {
   const orderId = brokerOrderIdOf(row);
   if (!orderId) return null;
@@ -185,7 +228,8 @@ async function replaceRestingBrokerOrder(row: EntryRow, next: {
   const sizingStop = next.stop
     ?? (savedSizingStop !== null && next.entryPrice === Number(row.entry_price) ? savedSizingStop : null)
     ?? (await calculateManualTradeRisk(row.instrument, row.direction, next.entryPrice)).stop;
-  const { units } = await manualPositionSize(row.user_id, row.instrument, next.entryPrice, sizingStop);
+  const sizeChoice = next.sizeChoice ?? savedSizeChoice(meta);
+  const { units } = await manualPositionSize(row.user_id, row.instrument, next.entryPrice, sizingStop, sizeChoice);
   let result: Awaited<ReturnType<typeof replacePracticeEntryOrder>>;
   try {
     result = await replacePracticeEntryOrder(orderId, {
@@ -206,12 +250,12 @@ async function replaceRestingBrokerOrder(row: EntryRow, next: {
   }
   if (result.cancelReason) throw new Error(`OANDA rejected the changed order (${result.cancelReason}).`);
   if (!result.orderId) throw new Error("OANDA accepted the change without an order identifier.");
-  return { brokerOrderId: result.orderId, units, sizingStop, noLevels: next.stop === null };
+  return { brokerOrderId: result.orderId, units, sizingStop, noLevels: next.stop === null && next.target === null, ...(sizeChoice ? { sizeChoice } : {}) };
 }
 
 /**
  * Change the stop-loss / take-profit on a waiting entry without touching its
- * entry price, order type or expiry. Both or neither, each on its own side of
+ * entry price, order type or expiry. Each level is optional and on its own side of
  * entry. A broker-backed entry has its resting OANDA order replaced first, so
  * the app never shows levels the broker does not hold.
  */
@@ -224,7 +268,10 @@ export async function updatePendingEntryLevels(userId: string, id: string, paylo
     if (isNewsEntry(existing.metadata)) throw new Error("A news setup sets its stop and target from the fill. Cancel it and arm a new one to change them.");
     const entryPrice = Number(existing.entry_price);
     const precision = precisionFor(existing.instrument);
-    const levels = optionalTradeLevels(payload, existing.direction, entryPrice);
+    const levels = optionalTradeLevels({
+      stopPrice: payload.stopPrice === undefined ? existing.stop_price : payload.stopPrice,
+      targetPrice: payload.targetPrice === undefined ? existing.target_price : payload.targetPrice,
+    }, existing.direction, entryPrice);
     const stop = levels.stop === null ? null : Number(levels.stop.toFixed(precision));
     const target = levels.target === null ? null : Number(levels.target.toFixed(precision));
     if (stop === numberOrNull(existing.stop_price) && target === numberOrNull(existing.target_price)) return serialize(existing);
@@ -247,7 +294,7 @@ export async function updatePendingEntryLevels(userId: string, id: string, paylo
          metadata = metadata || $7::jsonb || jsonb_build_object('levelsEditedAt', now()),
          updated_at=now()
        WHERE id=$1 AND user_id=$2 AND status='PENDING' RETURNING ${SELECT_FIELDS}`,
-      [id, userId, stop, target, invalidationPrice, side, JSON.stringify(broker ?? { noLevels: stop === null })],
+      [id, userId, stop, target, invalidationPrice, side, JSON.stringify(broker ?? { noLevels: stop === null && target === null })],
     );
     if (!updated.rows[0]) throw new Error("The entry changed state while saving. Refresh and try again.");
     return serialize(updated.rows[0]);
@@ -478,7 +525,7 @@ function parseActivateAt(value: unknown): string | null {
   return new Date(timestamp).toISOString();
 }
 
-function optionalTradeLevels(payload: Record<string, unknown>, direction: PendingManualEntryDirection, entryPrice: number) {
+export function optionalTradeLevels(payload: Record<string, unknown>, direction: PendingManualEntryDirection, entryPrice: number) {
   const rawStop = payload.stopPrice;
   const rawTarget = payload.targetPrice;
   const stop = rawStop === null || rawStop === undefined || rawStop === "" ? null : finitePrice(rawStop);
@@ -486,12 +533,12 @@ function optionalTradeLevels(payload: Record<string, unknown>, direction: Pendin
   if ((rawStop !== null && rawStop !== undefined && rawStop !== "" && stop === null) || (rawTarget !== null && rawTarget !== undefined && rawTarget !== "" && target === null)) {
     throw new Error("Enter valid stop and target prices.");
   }
-  if ((stop === null) !== (target === null)) throw new Error("Enter both stop and target, or leave both blank.");
-  if (stop === null || target === null) return { stop: null, target: null };
-  const valid = direction === "long"
-    ? stop < entryPrice && target > entryPrice
-    : stop > entryPrice && target < entryPrice;
-  if (!valid) throw new Error("Stop and target must be on the correct side of entry.");
+  if (stop !== null && (direction === "long" ? stop >= entryPrice : stop <= entryPrice)) {
+    throw new Error(`The stop must be ${direction === "long" ? "below" : "above"} the entry price.`);
+  }
+  if (target !== null && (direction === "long" ? target <= entryPrice : target >= entryPrice)) {
+    throw new Error(`The target must be ${direction === "long" ? "above" : "below"} the entry price.`);
+  }
   return { stop, target };
 }
 
@@ -559,9 +606,7 @@ export async function activateDuePendingManualEntries() {
   let submitted = 0;
   for (const row of due.rows) {
     const entryPrice = Number(row.entry_price);
-    const levels = numberOrNull(row.stop_price) !== null && numberOrNull(row.target_price) !== null
-      ? { stop: numberOrNull(row.stop_price), target: numberOrNull(row.target_price) }
-      : { stop: null, target: null };
+    const levels = { stop: numberOrNull(row.stop_price), target: numberOrNull(row.target_price) };
     try {
       // No stop/target: size from the 1×H1-ATR distance, recomputed at activation.
       const sizingStop = levels.stop ?? (await calculateManualTradeRisk(row.instrument, row.direction, entryPrice)).stop;
@@ -579,7 +624,7 @@ export async function activateDuePendingManualEntries() {
       await query(
         `UPDATE pending_manual_entries SET activate_at=NULL, metadata = metadata || $2::jsonb, updated_at=now()
           WHERE id=$1 AND status='PENDING'`,
-        [row.id, JSON.stringify({ execution: "oanda_entry_order", brokerOrderId: broker.orderId, units: broker.units, riskPercent: broker.riskPercent, activatedAt: new Date().toISOString(), noLevels: levels.stop === null, sizingStop })],
+        [row.id, JSON.stringify({ execution: "oanda_entry_order", brokerOrderId: broker.orderId, units: broker.units, riskPercent: broker.riskPercent, activatedAt: new Date().toISOString(), noLevels: levels.stop === null && levels.target === null, sizingStop })],
       );
       submitted += 1;
       console.log(`[pending-entry] ${row.id} scheduled entry submitted to OANDA (${row.instrument})`);
@@ -649,6 +694,7 @@ export async function createPendingManualEntry(userId: string, payload: Record<s
       plannedNetRewardUsd: reward, brokerAccountId: summary.data.id });
   }
   validateTick(tick);
+  const sizeChoice = parseSizeChoice(payload.size);
   const direction = payload.direction === "long" || payload.direction === "short" ? payload.direction : null;
   if (!direction) throw new Error("Choose LONG or SHORT.");
   if (payload.instrument !== tick.instrument) throw new Error("The selected instrument does not match the live quote.");
@@ -685,17 +731,14 @@ export async function createPendingManualEntry(userId: string, payload: Record<s
   if (invalidationPrice !== null && Math.abs(invalidationPrice - entryPrice) < Number.EPSILON) {
     throw new Error("Entry and cancellation prices must be different.");
   }
-  // The user's own stop/target ride on the broker order. Left blank, the trade
-  // gets neither and runs until closed by hand; a 1×H1-ATR distance is then
-  // used only to size it. The monetary reporting budget is saved separately.
-  const risk = levels.stop !== null && levels.target !== null
-    ? { stop: levels.stop, target: levels.target, sizingStop: levels.stop, model: "MANUAL_LEVELS" as const }
-    : { stop: null, target: null, sizingStop: (await calculateManualTradeRisk(tick.instrument, direction, entryPrice)).stop, model: "NO_LEVELS" as const };
+  // Without a stop, the ATR distance is a sizing reference only.
+  const sizingStop = levels.stop ?? (await calculateManualTradeRisk(tick.instrument, direction, entryPrice)).stop;
+  const noLevels = levels.stop === null && levels.target === null;
   const frozenContext = sanitizeFrozenContext(payload.analysisContext);
   const analyzePlan = frozenContext !== null && isAnalyzePlan(payload.analysisContext);
   const orderExpiresAt = analyzePlan ? analyzePlanExpiry(payload.analysisContext, activateAt) : expiresAt;
-  const cancelPrice = analyzePlan ? risk.target : invalidationPrice;
-  if (analyzePlan && risk.target !== null && (direction === "long" ? currentPrice >= risk.target : currentPrice <= risk.target)) {
+  const cancelPrice = analyzePlan ? levels.target : invalidationPrice;
+  if (analyzePlan && levels.target !== null && (direction === "long" ? currentPrice >= levels.target : currentPrice <= levels.target)) {
     throw new Error("Price has already reached this plan's target. Run Analyze again.");
   }
   // pending_manual_entries.instrument references instruments(code); a pair
@@ -709,16 +752,17 @@ export async function createPendingManualEntry(userId: string, payload: Record<s
     `INSERT INTO pending_manual_entries(
        user_id,instrument,direction,entry_price,entry_order_type,current_price_at_creation,
        expiration_type,expires_at,activate_at,invalidation_price,invalidation_side,last_observed_price,last_observed_at,stop_price,target_price,metadata
-     ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$16,$9,$10,$11,$12,$13,$14,jsonb_build_object('priceSource',$15::text,'createdFrom','chart','orderReferencePrice',$11::numeric,'frozenContext',$17::jsonb,'noLevels',$18::boolean,'sizingStop',$19::numeric,'execution',CASE WHEN $16::timestamptz IS NULL THEN 'submitting' ELSE 'scheduled' END,'tradeStyle',$20::text,'planTags',$21::jsonb,'initialRiskPlan',$22::jsonb,'riskReportingVersion',1,'reportingBrokerAccountId',$23::text,'plannedNetRewardUsd',$24::numeric))
+     ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$16,$9,$10,$11,$12,$13,$14,jsonb_build_object('priceSource',$15::text,'createdFrom','chart','orderReferencePrice',$11::numeric,'frozenContext',$17::jsonb,'noLevels',$18::boolean,'sizingStop',$19::numeric,'execution',CASE WHEN $16::timestamptz IS NULL THEN 'submitting' ELSE 'scheduled' END,'tradeStyle',$20::text,'planTags',$21::jsonb,'initialRiskPlan',$22::jsonb,'riskReportingVersion',1,'reportingBrokerAccountId',$23::text,'plannedNetRewardUsd',$24::numeric,'sizeChoice',$25::jsonb))
      RETURNING ${SELECT_FIELDS}`,
     [userId, tick.instrument, direction, entryPrice, inferPendingOrderType(direction, entryPrice, orderReferencePrice), currentPrice,
       orderExpiresAt ? "time" : "none", orderExpiresAt, cancelPrice,
-      cancelPrice === null ? null : invalidationSide(cancelPrice, orderReferencePrice), orderReferencePrice, tick.time, risk.stop, risk.target, tick.source, activateAt, frozenContext,
-      risk.model === "NO_LEVELS", risk.sizingStop,
+      cancelPrice === null ? null : invalidationSide(cancelPrice, orderReferencePrice), orderReferencePrice, tick.time, levels.stop, levels.target, tick.source, activateAt, frozenContext,
+      noLevels, sizingStop,
       // Day or swing (held for days), chosen on the ticket; lets the journal and
       // weekly review score the two styles separately.
       payload.tradeStyle === "swing" ? "swing" : "day",
-      planTagsOf(payload.planTags), initialRiskPlan === null ? null : JSON.stringify(initialRiskPlan), oandaAccountIdentity(), reward],
+      planTagsOf(payload.planTags), initialRiskPlan === null ? null : JSON.stringify(initialRiskPlan), oandaAccountIdentity(), reward,
+      sizeChoice === null ? null : JSON.stringify(sizeChoice)],
   );
   const entryRow = result.rows[0]!;
   // Scheduled ("submit after") entry: stay dormant until the activation job runs
@@ -743,15 +787,14 @@ export async function createPendingManualEntry(userId: string, payload: Record<s
       direction,
       entryOrderType: entryRow.entry_order_type,
       entryPrice,
-      stop: risk.stop,
-      target: risk.target,
-      sizingStop: risk.sizingStop,
+      ...levels,
+      sizingStop,
       gtdTime: orderExpiresAt ? new Date(orderExpiresAt).toISOString() : null,
     });
     const updated = await query<EntryRow>(
       `UPDATE pending_manual_entries SET metadata = metadata || $2::jsonb, updated_at=now()
         WHERE id=$1 RETURNING ${SELECT_FIELDS}`,
-      [entryRow.id, JSON.stringify({ execution: "oanda_entry_order", brokerOrderId: broker.orderId, units: broker.units, riskPercent: broker.riskPercent, riskModel: risk.model })],
+      [entryRow.id, JSON.stringify({ execution: "oanda_entry_order", brokerOrderId: broker.orderId, units: broker.units, riskPercent: broker.riskPercent, riskModel: noLevels ? "NO_LEVELS" : "MANUAL_LEVELS" })],
     );
     return serialize(updated.rows[0] ?? entryRow);
   } catch (error) {
@@ -799,7 +842,7 @@ export async function editPendingManualEntry(userId: string, id: string, payload
     const analyzePlan = isAnalyzePlan(existingContext);
     const expiresAt = analyzePlan ? existing.expires_at ?? analyzePlanExpiry(existingContext, activateAt) : requestedExpiresAt;
     const invalidationPrice = analyzePlan
-      ? levels.target ?? numberOrNull(existing.target_price)
+      ? levels.target
       : requestedInvalidation;
     if (invalidationPrice !== null && (invalidationPrice === currentPrice || invalidationPrice === entryPrice)) throw new Error("Cancellation must differ from the current and entry prices.");
     const entryOrderType = inferPendingOrderType(direction, entryPrice, orderReferencePrice);
@@ -807,13 +850,18 @@ export async function editPendingManualEntry(userId: string, id: string, payload
     if (brokerOrderIdOf(existing) && direction !== existing.direction) {
       throw new Error("Cancel this order and place a new one to switch direction.");
     }
-    const brokerChanged = entryPrice !== Number(existing.entry_price)
+    // A size changed on the ticket re-sizes the resting order too.
+    const requestedSize = payload.size === undefined || payload.size === null ? undefined : parseSizeChoice(payload.size)!;
+    const savedSize = savedSizeChoice(existing.metadata as Record<string, unknown> | null);
+    const sizeChanged = requestedSize !== undefined && JSON.stringify(requestedSize) !== JSON.stringify(savedSize);
+    const brokerChanged = sizeChanged
+      || entryPrice !== Number(existing.entry_price)
       || entryOrderType !== existing.entry_order_type
       || levels.stop !== numberOrNull(existing.stop_price)
       || levels.target !== numberOrNull(existing.target_price)
       || (expiresAt === null ? null : Date.parse(expiresAt)) !== (existing.expires_at === null ? null : Date.parse(existing.expires_at));
     const broker = brokerChanged
-      ? await replaceRestingBrokerOrder(existing, { entryOrderType, entryPrice, stop: levels.stop, target: levels.target, expiresAt })
+      ? await replaceRestingBrokerOrder(existing, { entryOrderType, entryPrice, stop: levels.stop, target: levels.target, expiresAt, sizeChoice: requestedSize })
       : null;
     const updated = await client.query<EntryRow>(
       `UPDATE pending_manual_entries SET direction=$3,entry_price=$4,entry_order_type=$5,
@@ -823,7 +871,8 @@ export async function editPendingManualEntry(userId: string, id: string, payload
        WHERE id=$1 AND user_id=$2 AND status='PENDING' RETURNING ${SELECT_FIELDS}`,
       [id, userId, direction, entryPrice, entryOrderType, expiresAt ? "time" : "none", expiresAt,
         invalidationPrice, invalidationPrice === null ? null : invalidationSide(invalidationPrice, orderReferencePrice), orderReferencePrice, tick.time, levels.stop, levels.target, activateAt,
-        JSON.stringify(broker ?? {})],
+        // A scheduled entry (no resting order yet) still saves the new size for activation.
+        JSON.stringify({ ...(broker ?? { noLevels: levels.stop === null && levels.target === null }), ...(requestedSize ? { sizeChoice: requestedSize } : {}) })],
     );
     return serialize(updated.rows[0]!);
   });
@@ -1011,9 +1060,8 @@ export function confirmedManualBrokerClose(state: Awaited<ReturnType<typeof getP
  * sit on its own side of the price the trade would close at now. OANDA-backed
  * trades change the broker's own SL/TP first, so the app never shows a level
  * the broker does not hold. paper_trades.stop is the 1R reference and follows
- * the stop while it still sits on the losing side of entry; a paper-only trade
- * has no broker, so its paper row carries the live levels its resolver closes
- * on, and needs both or neither.
+ * the stop while it still sits on the losing side of entry. The paper resolver
+ * uses the entry's optional levels to decide whether to close a simulated trade.
  */
 export async function updateActiveManualTradeLevels(userId: string, id: string, payload: Record<string, unknown>, tick: MarketPriceTick) {
   validateTick(tick);
@@ -1064,8 +1112,6 @@ export async function updateActiveManualTradeLevels(userId: string, id: string, 
       ...(stop !== currentStop ? { stop } : {}),
       ...(target !== currentTarget ? { target } : {}),
     });
-  } else if ((stop === null) !== (target === null)) {
-    throw new Error("A paper trade needs both a stop and a target, or neither.");
   }
 
   const noLevels = stop === null && target === null;
@@ -1079,7 +1125,7 @@ export async function updateActiveManualTradeLevels(userId: string, id: string, 
     );
     if (!brokerTradeId && !noLevels) {
       await client.query(
-        "UPDATE paper_trades SET stop=$2,target=$3,updated_at=now() WHERE id=$1 AND status='open'",
+        "UPDATE paper_trades SET stop=COALESCE($2,stop),target=COALESCE($3,target),updated_at=now() WHERE id=$1 AND status='open'",
         [entry.paper_trade_id, stop, target],
       );
     } else if (brokerTradeId && stop !== null) {
@@ -1142,14 +1188,18 @@ async function finalizeTriggeredEntry(id: string) {
     const triggerPrice = Number(entry.trigger_price);
     const storedStop = numberOrNull(entry.stop_price);
     const storedTarget = numberOrNull(entry.target_price);
+    const hasSingleLevel = (storedStop === null) !== (storedTarget === null);
     const hasStoredLevels = storedStop !== null && storedTarget !== null && (entry.direction === "long"
       ? storedStop < triggerPrice && storedTarget > triggerPrice
       : storedStop > triggerPrice && storedTarget < triggerPrice);
     const risk = hasStoredLevels
       ? { stop: storedStop!, target: storedTarget!, atr14: null, rewardRisk: Math.abs(storedTarget! - triggerPrice) / Math.abs(triggerPrice - storedStop!), model: "MANUAL_LEVELS" }
       : await calculateManualTradeRisk(entry.instrument, entry.direction, triggerPrice);
-    // No SL/TP chosen: the ATR levels stay a reference on the trade row only.
-    const noLevels = (entry.metadata as Record<string, unknown> | null)?.noLevels === true;
+    // The journal needs a sizing stop and a target placeholder even when
+    // either executable level is absent on the entry itself.
+    const noLevels = storedStop === null && storedTarget === null && entry.metadata?.noLevels === true;
+    const stop = hasSingleLevel ? storedStop : noLevels ? null : risk.stop;
+    const target = hasSingleLevel ? storedTarget : noLevels ? null : risk.target;
     const triggered = await transaction(async (client) => {
       const locked = await client.query<EntryRow>(`SELECT ${SELECT_FIELDS} FROM pending_manual_entries WHERE id=$1 FOR UPDATE`, [id]);
       if (locked.rows[0]?.status !== "TRIGGERING") return null;
@@ -1158,12 +1208,12 @@ async function finalizeTriggeredEntry(id: string) {
          VALUES($1,$2,'manual',$3,$4,'open','open',$5,$6,$7,$8,'Pending manual entry triggered',$9)
          ON CONFLICT(user_id,legacy_id) DO UPDATE SET updated_at=paper_trades.updated_at RETURNING id`,
         [entry.user_id, `pending-entry:${entry.id}`, entry.instrument.replace("_", "/"), entry.direction, entry.triggered_at,
-          triggerPrice, risk.stop, risk.target, `Backend OANDA-price trigger. Risk model ${risk.model}; 1:2 R:R. Broker execution not submitted.`],
+          triggerPrice, stop ?? risk.stop, target ?? risk.target, `Backend OANDA-price trigger. Risk model ${risk.model}. Broker execution not submitted.`],
       );
       await client.query(
         `UPDATE pending_manual_entries SET status='TRIGGERED',stop_price=$2,target_price=$3,paper_trade_id=$4,
            metadata=metadata || $5::jsonb,updated_at=now() WHERE id=$1 AND status='TRIGGERING'`,
-        [id, noLevels ? null : risk.stop, noLevels ? null : risk.target, trade.rows[0]!.id, JSON.stringify({ riskModel: noLevels ? "NO_LEVELS" : risk.model, atr14: risk.atr14, rewardRisk: 2, execution: "simulated_paper" })],
+        [id, stop, target, trade.rows[0]!.id, JSON.stringify({ riskModel: noLevels ? "NO_LEVELS" : hasSingleLevel ? "MANUAL_LEVELS" : risk.model, atr14: risk.atr14, rewardRisk: hasSingleLevel || noLevels ? null : risk.rewardRisk, execution: "simulated_paper" })],
       );
       return trade.rows[0]!.id;
     });
@@ -1307,8 +1357,10 @@ export async function resolveOpenManualTrades(tick: MarketPriceTick) {
     // OANDA-backed trades (their entry carries a brokerTradeId) are squared by
     // the broker's own SL/TP and mirrored back by reconcileManualOandaOrders —
     // this paper resolver only closes trades that have no broker leg.
-    const open = await client.query<{ id: string; user_id: string; direction: PendingManualEntryDirection; entry: string; stop: string; target: string }>(
-      `SELECT t.id, t.user_id, t.direction, t.entry::text AS entry, t.stop::text AS stop, t.target::text AS target
+    const open = await client.query<{ id: string; user_id: string; direction: PendingManualEntryDirection; entry: string; risk_stop: string; stop: string | null; target: string | null }>(
+      `SELECT t.id, t.user_id, t.direction, t.entry::text AS entry, t.stop::text AS risk_stop,
+              (CASE WHEN e.id IS NULL THEN t.stop ELSE e.stop_price END)::text AS stop,
+              (CASE WHEN e.id IS NULL THEN t.target ELSE e.target_price END)::text AS target
          FROM paper_trades t
          LEFT JOIN pending_manual_entries e ON e.paper_trade_id = t.id
         WHERE t.origin='manual' AND t.status='open' AND t.pair=$1
@@ -1323,19 +1375,19 @@ export async function resolveOpenManualTrades(tick: MarketPriceTick) {
     );
     const events: Array<{ id: string; userId: string; result: "win" | "loss" }> = [];
     for (const row of open.rows) {
-      const entry = Number(row.entry), stop = Number(row.stop), target = Number(row.target);
+      const entry = Number(row.entry), stop = numberOrNull(row.stop), target = numberOrNull(row.target);
       // Exit at the price you could actually close on: bid for a long, ask for a short.
       const exitQuote = row.direction === "long" ? tick.bid : tick.ask;
       let hit: { exit: number; result: "win" | "loss" } | null = null;
       if (row.direction === "long") {
-        if (exitQuote <= stop) hit = { exit: stop, result: "loss" };
-        else if (exitQuote >= target) hit = { exit: target, result: "win" };
+        if (stop !== null && exitQuote <= stop) hit = { exit: stop, result: "loss" };
+        else if (target !== null && exitQuote >= target) hit = { exit: target, result: "win" };
       } else {
-        if (exitQuote >= stop) hit = { exit: stop, result: "loss" };
-        else if (exitQuote <= target) hit = { exit: target, result: "win" };
+        if (stop !== null && exitQuote >= stop) hit = { exit: stop, result: "loss" };
+        else if (target !== null && exitQuote <= target) hit = { exit: target, result: "win" };
       }
       if (!hit) continue;
-      const risk = Math.abs(entry - stop);
+      const risk = Math.abs(entry - Number(row.risk_stop));
       const reward = row.direction === "long" ? hit.exit - entry : entry - hit.exit;
       const resultR = risk > 0 ? Number((reward / risk).toFixed(4)) : 0;
       await client.query(
@@ -1363,14 +1415,13 @@ export async function resolveOpenManualTrades(tick: MarketPriceTick) {
 async function openFilledManualTrade(entry: EntryRow, brokerTradeId: string, fillPrice: number | null) {
   const state = await getPracticeTradeState(brokerTradeId).catch(() => null);
   const openPrice = state?.entryPrice ?? fillPrice ?? Number(entry.entry_price);
-  // paper_trades needs both levels. A trade without SL/TP records its sizing
-  // stop as the R reference and the open price as a placeholder target; the
-  // broker holds no SL/TP for it, so neither level closes it.
+  // Missing broker levels are represented only as references in paper_trades.
   const meta = entry.metadata as Record<string, unknown> | null;
-  const noLevels = numberOrNull(entry.stop_price) === null || numberOrNull(entry.target_price) === null;
+  const activeStop = numberOrNull(entry.stop_price);
+  const activeTarget = numberOrNull(entry.target_price);
   const sizingStop = meta?.sizingStop === undefined || meta.sizingStop === null ? null : numberOrNull(String(meta.sizingStop));
-  const stop = numberOrNull(entry.stop_price) ?? sizingStop ?? openPrice;
-  const target = numberOrNull(entry.target_price) ?? openPrice;
+  const stop = activeStop ?? sizingStop ?? openPrice;
+  const target = activeTarget ?? openPrice;
   const opened = await transaction(async (client) => {
     const locked = await client.query<EntryRow>(`SELECT ${SELECT_FIELDS} FROM pending_manual_entries WHERE id=$1 FOR UPDATE`, [entry.id]);
     if (locked.rows[0]?.status !== "PENDING") return null;
@@ -1399,7 +1450,7 @@ async function openFilledManualTrade(entry: EntryRow, brokerTradeId: string, fil
       instrument: entry.instrument,
       event: "triggered",
       paperTradeId: opened,
-      message: `${entry.direction === "long" ? "Long" : "Short"} filled at ${openPrice.toFixed(digits)}. ${noLevels ? "No stop or target: close it yourself." : `Stop ${stop.toFixed(digits)}, target ${target.toFixed(digits)}.`}`,
+      message: `${entry.direction === "long" ? "Long" : "Short"} filled at ${openPrice.toFixed(digits)}. Stop ${activeStop?.toFixed(digits) ?? "not set"}, target ${activeTarget?.toFixed(digits) ?? "not set"}.`,
     });
   }
 }
